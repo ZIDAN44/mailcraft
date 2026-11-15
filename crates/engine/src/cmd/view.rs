@@ -24,6 +24,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r##"{"color": "teal"|"blue"|"indigo"|"violet"|"rose"|"red"|"orange"|"green"|"#rrggbb" ("" or "teal": MailCraft's own)}"##),
         toggle!("view.plainTopBar", "Plain top bar", "File › Options › Personalize", plain_top_bar),
+        toggle!("view.lightMessages", "Messages on a light background", "File › Options › General", light_messages),
         CommandSpec::new("view.dateFormat", "Dates and times", "File › Options › General", |s, v| {
             let mut style = s.prefs.date_style;
             if let Some(code) = p::str(v, "order") {

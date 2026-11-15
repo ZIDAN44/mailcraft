@@ -1733,3 +1733,7 @@ nth	fourth	vierde
 nth	last	laatste
 count	occurrences	keer
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Afbeeldingen van het web worden hier niet getoond. Ga terug naar de HTML-code zonder hier iets te wijzigen en ze blijven bewaard.
+	Messages on a light background	Berichten op een lichte achtergrond
+	In the dark theme, messages keep the light page and colours they were written in	In het donkere thema houden berichten de lichte pagina en de kleuren waarin ze geschreven zijn
+	Show messages on a light background	Berichten op een lichte achtergrond tonen
+	Show messages on the dark background	Berichten op de donkere achtergrond tonen

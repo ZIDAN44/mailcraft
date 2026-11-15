@@ -1734,3 +1734,7 @@ nth	fourth	第4
 nth	last	最終
 count	occurrences	回
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Web 上の画像はここには表示されません。ここで変更せずに HTML コードに戻すと、画像は保持されます。
+	Messages on a light background	メッセージを明るい背景で表示
+	In the dark theme, messages keep the light page and colours they were written in	ダーク テーマでも、メッセージは書かれたときの明るいページと色のまま表示されます
+	Show messages on a light background	メッセージを明るい背景で表示する
+	Show messages on the dark background	メッセージを暗い背景で表示する

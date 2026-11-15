@@ -1737,3 +1737,7 @@ nth	fourth	넷째
 nth	last	마지막
 count	occurrences	회
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	웹의 그림은 여기에 표시되지 않습니다. 여기서 바꾸지 않고 HTML 코드로 돌아가면 그대로 유지됩니다.
+	Messages on a light background	메시지를 밝은 배경에 표시
+	In the dark theme, messages keep the light page and colours they were written in	어두운 테마에서도 메시지는 작성된 밝은 페이지와 색을 그대로 유지합니다
+	Show messages on a light background	메시지를 밝은 배경에 표시
+	Show messages on the dark background	메시지를 어두운 배경에 표시

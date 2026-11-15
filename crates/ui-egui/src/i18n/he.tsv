@@ -1733,3 +1733,7 @@ nth	fourth	רביעי
 nth	last	אחרון
 count	occurrences	פעמים
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	התמונות שלו מהאינטרנט אינן מוצגות כאן. חזרה לקוד ה-HTML בלי לשנות כאן שומרת עליהן.
+	Messages on a light background	הודעות על רקע בהיר
+	In the dark theme, messages keep the light page and colours they were written in	בערכת הנושא הכהה, ההודעות שומרות על הדף הבהיר והצבעים שבהם נכתבו
+	Show messages on a light background	הצגת הודעות על רקע בהיר
+	Show messages on the dark background	הצגת הודעות על הרקע הכהה

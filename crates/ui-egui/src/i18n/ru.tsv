@@ -1737,3 +1737,7 @@ nth	fourth	четвёртый
 nth	last	последний
 count	occurrences	повторений
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Изображения из интернета здесь не показываются. Вернитесь к HTML-коду, ничего здесь не меняя, и они сохранятся.
+	Messages on a light background	Сообщения на светлом фоне
+	In the dark theme, messages keep the light page and colours they were written in	В тёмной теме сообщения сохраняют светлую страницу и цвета, в которых их написали
+	Show messages on a light background	Показывать сообщения на светлом фоне
+	Show messages on the dark background	Показывать сообщения на тёмном фоне

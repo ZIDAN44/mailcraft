@@ -641,3 +641,52 @@ fn ctrl_a_in_the_search_box_after_a_long_message_does_not_copy_it_whole() {
 }
 
 mod text_selection;
+
+/// Issue #109: in the dark theme, messages can be shown on a light background, with the colours
+/// they were written in (dark text on a light page), from Options or the switch above the
+/// message; off, they're in the theme's colours as before.
+#[test]
+fn messages_on_a_light_background_in_the_dark_theme() {
+    let (mut a, _) = app("light-messages");
+    let ctx = egui::Context::default();
+    let k = a
+        .session
+        .list
+        .iter()
+        .find(|m| m.subject.contains("Storyboard review on Thursday") && !m.subject.starts_with("Re:"))
+        .map(|m| m.key.clone())
+        .unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.ui.dark = Some(true);
+    let size = egui::vec2(1280.0, 800.0);
+    // How light the body's text is drawn (0 black to 255 white).
+    let ink = |a: &mut MailApp| {
+        frame(&ctx, a, vec![]);
+        let out = sized_frame(&ctx, a, size, vec![]);
+        // The reading pane's (the list's preview has the same words, further left).
+        let mut found: Vec<(f32, egui::Color32)> = out
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Text(t) if t.galley.job.text.contains("The animatic is in good shape") => {
+                    // A section's own colour, else (a placeholder) the colour the shape is drawn in.
+                    let own = t.galley.job.sections.first().map(|x| x.format.color).filter(|c| *c != egui::Color32::PLACEHOLDER);
+                    Some((t.pos.x, t.override_text_color.or(own).unwrap_or(t.fallback_color)))
+                }
+                _ => None,
+            })
+            .collect();
+        found.sort_by(|x, y| x.0.total_cmp(&y.0));
+        let color = found.last().map(|f| f.1);
+        let [r, g, b, _] = color.expect("the body is drawn").to_array();
+        (u32::from(r) + u32::from(g) + u32::from(b)) / 3
+    };
+    assert!(ink(&mut a) > 150, "light text on the dark page");
+    let switch = "Show messages on a light background";
+    assert!(drawn_text(&ctx, &mut a, size).iter().all(|d| d.text != switch), "{switch}: a tooltip, not text");
+    a.run("view.lightMessages", json!({}));
+    assert!(a.session.prefs.light_messages);
+    assert!(ink(&mut a) < 110, "dark text on a light page");
+    a.ui.dark = Some(false);
+    assert!(ink(&mut a) < 110, "the light theme as ever");
+}

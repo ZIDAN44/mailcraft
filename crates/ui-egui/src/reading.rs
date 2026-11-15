@@ -276,12 +276,51 @@ fn message_text(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, format
         ui.label(RichText::new(tf!("Mailing list: unsubscribe at {address}", address = widgets::shorten(u, 80))).color(t.faint).small());
         ui.add_space(6.0);
     }
+    // In the dark theme: the message on a light page or the dark one, switched here too (issue #109).
+    if t.dark {
+        // A row of its own, its height only (a layout of the rest took all the height left, and
+        // the text went below the pane).
+        ui.allocate_ui_with_layout(vec2(ui.available_width(), 22.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let (icon, tip) = if s.prefs.light_messages {
+                (Icon::Moon, "Show messages on the dark background")
+            } else {
+                (Icon::Sun, "Show messages on a light background")
+            };
+            if widgets::tiny_icon_button(ui, icon, tip, &t).clicked() {
+                acts.push(Action::Run("view.lightMessages", json!({})));
+            }
+        });
+    }
     let sep = ui.available_rect_before_wrap();
     ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
     ui.add_space(12.0);
     if han_missing(ui, &p.text) {
         st.han_missing = true;
     }
+    if t.dark && s.prefs.light_messages {
+        // The light theme's colours for the text, on its page: put back once it's drawn.
+        let light = theme::Tokens::light();
+        st.tokens = light;
+        egui::Frame::new().fill(light.surface).corner_radius(6).inner_margin(Margin::same(14)).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            // Text drawn in the visuals' colour (plain text, labels) and links too, here only.
+            let v = ui.visuals_mut();
+            v.override_text_color = Some(light.text);
+            v.hyperlink_color = light.accent;
+            v.widgets.noninteractive.fg_stroke.color = light.text;
+            v.selection.bg_fill = light.accent.gamma_multiply(0.35);
+            message_body(s, st, ui, o, formatted, acts);
+        });
+        st.tokens = t;
+        return;
+    }
+    message_body(s, st, ui, o, formatted, acts);
+}
+
+/// The message's text itself, in the reading pane's colours (`st.tokens`).
+fn message_body(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, formatted: bool, acts: &mut Vec<Action>) {
+    let t = st.tokens;
+    let (r, p) = (o.r, o.p);
     // The text is selected as one, whatever it's drawn as (`text_selection`).
     text_selection::begin(st, ui, ui.scope_id().with(("message-text", r.key.to_id())), o.in_window);
     if formatted {

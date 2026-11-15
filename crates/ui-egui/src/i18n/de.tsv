@@ -1738,3 +1738,7 @@ nth	fourth	vierten
 nth	last	letzten
 count	occurrences	Terminen
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Bilder aus dem Web werden hier nicht angezeigt. Wechseln Sie ohne Änderung hier zurück zum HTML-Code, dann bleiben sie erhalten.
+	Messages on a light background	Nachrichten auf hellem Hintergrund
+	In the dark theme, messages keep the light page and colours they were written in	Im dunklen Design behalten Nachrichten die helle Seite und die Farben, in denen sie geschrieben wurden
+	Show messages on a light background	Nachrichten auf hellem Hintergrund anzeigen
+	Show messages on the dark background	Nachrichten auf dunklem Hintergrund anzeigen

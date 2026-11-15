@@ -1738,3 +1738,7 @@ nth	fourth	quatrième
 nth	last	dernier
 count	occurrences	occurrences
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Ses images venant du web ne s’affichent pas ici. Revenez au code HTML sans rien modifier ici, et elles sont conservées.
+	Messages on a light background	Messages sur fond clair
+	In the dark theme, messages keep the light page and colours they were written in	Avec le thème sombre, les messages gardent la page claire et les couleurs dans lesquelles ils ont été écrits
+	Show messages on a light background	Afficher les messages sur fond clair
+	Show messages on the dark background	Afficher les messages sur fond sombre

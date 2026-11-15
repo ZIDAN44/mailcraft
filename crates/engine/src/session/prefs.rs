@@ -83,6 +83,9 @@ pub struct Prefs {
     /// The top bar in plain pane colours instead of the accent colour (issue #8, as Office's
     /// white theme).
     pub plain_top_bar: bool,
+    /// In the dark theme, messages are still shown on a light background, with the colours they
+    /// were written in (issue #109, as Outlook can keep them).
+    pub light_messages: bool,
     /// Windows: the system's title bar above MailCraft's top bar, instead of the top bar being the
     /// title bar (issue #22). Read as MailCraft starts.
     pub system_title_bar: bool,
@@ -286,6 +289,7 @@ impl Default for Prefs {
             classic_ribbon: false,
             accent: String::new(),
             plain_top_bar: false,
+            light_messages: false,
             system_title_bar: false,
             date_style: mailcraft_model::dates::DateStyle::default(),
             confirm_permanent_delete: true,

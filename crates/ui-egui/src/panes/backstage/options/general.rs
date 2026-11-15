@@ -17,6 +17,14 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 acts.push(Action::SetDark(*v));
             }
         });
+        // Issue #109: messages on a light background in the dark theme, as they were written.
+        let light = Switch {
+            label: tl!("Messages on a light background"),
+            about: Some(tl!("In the dark theme, messages keep the light page and colours they were written in")),
+            on: s.prefs.light_messages,
+            cmd: "view.lightMessages",
+        };
+        switch_row(ui, &t, false, light, acts);
         // Issue #8: an accent colour of one's own (a named one, or any colour), made to read in
         // either theme, and the top bar in it or plain.
         setting(ui, &t, false, tl!("Accent colour"), Some(tl!("Buttons, links, the selection and the top bar")), |ui| {
