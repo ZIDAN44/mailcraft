@@ -6,7 +6,7 @@ use mailcraft_model::ical::{Attendee, CalEvent};
 use mailcraft_model::pim::{CalendarInfo, DavSync, LOCAL, StoredEvent};
 use mailcraft_model::{Folder, MessageKey, Summary};
 
-use super::invites::ZOE;
+use super::ZOE;
 use super::*;
 
 pub(super) const OWN: &str = "https://dav.example.org/SOGo/dav/riley/Calendar/personal/";
@@ -79,7 +79,7 @@ pub(super) fn found(s: &mut Session, id: &str, events: Vec<StoredEvent>) {
     s.apply(Event::DavSynced { account: id.into(), sync: Box::new(sync) });
 }
 
-/// The copies of the event `uid` in account `id`'s calendars ([`super::invites::parts`]: the sample's).
+/// The copies of the event `uid` in account `id`'s calendars ([`super::parts`]: the sample's).
 pub(super) fn account_parts<'a>(s: &'a Session, id: &str, uid: &str) -> Vec<&'a StoredEvent> {
     s.pim[id].events.iter().filter(|e| e.event.uid == uid).collect()
 }

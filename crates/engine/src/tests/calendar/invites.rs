@@ -7,6 +7,13 @@ use mailcraft_model::pim::{CalendarInfo, DavSync, StoredEvent};
 use super::*;
 use crate::InviteProblem;
 
+mod answered_invites;
+mod invite_placing;
+mod scheduling;
+mod sogo;
+mod tentative;
+mod together;
+
 pub(super) const WEEK: i64 = 7 * 86_400;
 pub(super) const ANA: (&str, &str) = ("Ana Lima", "ana@soundlab.example");
 

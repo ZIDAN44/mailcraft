@@ -4,8 +4,8 @@
 use mailcraft_model::ical::{Attendee, CalEvent};
 use mailcraft_model::pim::{DavSync, StoredEvent};
 
-use super::invites::{ANA, WEEK, ZOE, deliver, invitation, me, parts, weekly_series};
 use super::*;
+use super::{ANA, WEEK, ZOE, deliver, invitation, me, parts, weekly_series};
 use crate::{AnsweredInvites, Prefs};
 
 /// The subjects in a folder of the sample mailbox (`deliver` names its messages `<METHOD> <n>`).

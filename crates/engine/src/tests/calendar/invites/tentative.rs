@@ -3,8 +3,8 @@
 
 use mailcraft_model::ical::{Attendee, CalEvent};
 
-use super::invites::{ZOE, deliver, invitation, parts};
 use super::*;
+use super::{ZOE, deliver, invitation, parts};
 
 /// What the sample account's Sent Items holds: answers go there (it has no server).
 fn sent_count(s: &mut Session) -> usize {
