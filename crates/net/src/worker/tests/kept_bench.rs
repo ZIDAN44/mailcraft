@@ -36,8 +36,7 @@ fn kept_drafts_filed_timed() {
     let port = crate::fake::serve_tcp(&st);
     let account = imap_account("a1", port);
     // The app's store: each account one data file.
-    let root = std::env::temp_dir().join(format!("mailcraft-kept-bench-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&root);
+    let root = crate::data_files::scratch::scratch("kept-bench");
     let files = root.join("files");
     let store = Store::open_packed(&root, &files).unwrap();
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
@@ -69,7 +68,4 @@ fn kept_drafts_filed_timed() {
         on_disk >> 20
     );
     pool.submit(Job::Remove { account: "a1".into() });
-    drop(pool);
-    drop(store);
-    let _ = std::fs::remove_dir_all(root);
 }

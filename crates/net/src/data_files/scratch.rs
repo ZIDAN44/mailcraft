@@ -1,5 +1,5 @@
-//! The data file tests' folders in the temporary folder: each removed when its test's thread
-//! ends, whether the test passed or failed.
+//! Net's tests' folders in the temporary folder: each removed when its test's thread ends,
+//! whether the test passed or failed.
 
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -22,7 +22,7 @@ thread_local!(static SCRATCH: RefCell<Scratch> = RefCell::default());
 
 /// A new, empty folder for the test, `mailcraft-<name>-<pid>` in the temporary folder: what a
 /// run before left there is removed now, and the folder with all in it once the test is over.
-pub(super) fn scratch(name: &str) -> PathBuf {
+pub(crate) fn scratch(name: &str) -> PathBuf {
     let folder = std::env::temp_dir().join(format!("mailcraft-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&folder);
     std::fs::create_dir_all(&folder).unwrap();

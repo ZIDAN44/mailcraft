@@ -29,9 +29,7 @@ fn mailbox() -> (Data, String, String) {
 }
 
 fn store(name: &str) -> Store {
-    let dir = std::env::temp_dir().join(format!("mailcraft-ews-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    Store::open(&dir).unwrap()
+    Store::open(crate::data_files::scratch::scratch(&format!("ews-{name}"))).unwrap()
 }
 
 /// What was said until the account was online and its calendar read: the folders in the order
@@ -82,7 +80,6 @@ fn the_calendar_comes_with_the_inbox_the_first_time() {
     assert_eq!(said.last().map(String::as_str), Some("calendar"), "{said:?}");
     assert_eq!(said.len(), 5, "{said:?}");
     drop(pool);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A calendar the server won't list is said, with why, and the contacts still come; said once,
@@ -120,7 +117,6 @@ fn a_calendar_the_server_refuses_says_so_once() {
     pool.submit(Job::SyncDav { account: "a1".into() });
     assert_eq!(errors(&pool), ["Calendar: ErrorAccessDenied"]);
     drop(pool);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Appointments the server fails on are counted and said with why (they were left out without a

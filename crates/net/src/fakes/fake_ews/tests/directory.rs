@@ -109,8 +109,7 @@ fn someone_new_in_the_directory_is_found_without_a_restart() {
     people(&mut d);
     let server = serve(d);
     let data = server.data.clone();
-    let dir = std::env::temp_dir().join(format!("mailcraft-ews-directory-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = crate::data_files::scratch::scratch("ews-directory");
     let store = Store::open(&dir).unwrap();
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig { user_agent: Some(EVOLUTION.into()), ..account("a1", &server.url) };
@@ -140,7 +139,6 @@ fn someone_new_in_the_directory_is_found_without_a_restart() {
     assert!(found.is_empty());
     assert!(error.as_deref().is_some_and(|e| e.contains("403")), "{error:?}");
     drop(pool);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Issue #9 through a real front end that refuses unknown clients (HAProxy in Docker, as the
@@ -153,8 +151,7 @@ fn someone_new_in_the_directory_is_found_without_a_restart() {
 #[ignore = "needs MAILCRAFT_EWS_FRONT, a front end in Docker: see the doc"]
 fn through_a_front_end_that_checks_the_user_agent() {
     let Ok(front) = std::env::var("MAILCRAFT_EWS_FRONT") else { panic!("set MAILCRAFT_EWS_FRONT to run it (see its doc)") };
-    let dir = std::env::temp_dir().join(format!("mailcraft-ews-front-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = crate::data_files::scratch::scratch("ews-front");
     let store = Store::open(&dir).unwrap();
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     let mut account = AccountConfig { id: "front".into(), ..account("a1", &front) };
@@ -198,7 +195,6 @@ fn through_a_front_end_that_checks_the_user_agent() {
         std::thread::sleep(Duration::from_secs(5));
     }
     drop(pool);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Gap 5 through a real Kerberos front (MIT krb5 and Apache's mod_auth_gssapi in Docker,
@@ -223,8 +219,7 @@ fn through_a_kerberos_front() {
             other => panic!("{user} / {password}: {:?}", other.map(|_| ())),
         }
     }
-    let dir = std::env::temp_dir().join(format!("mailcraft-ews-kerberos-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = crate::data_files::scratch::scratch("ews-kerberos");
     let store = Store::open(&dir).unwrap();
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig {
@@ -241,7 +236,6 @@ fn through_a_kerberos_front() {
     println!("synced through Kerberos: {} in {}", mail.len(), inbox.path);
     assert!(!mail.is_empty());
     drop(pool);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Issue #9 (follow-up) against a real EWS server, grommunio (Docker, `gromox-container`), before
@@ -257,8 +251,7 @@ fn against_grommunio() {
     else {
         panic!("set MAILCRAFT_GROMMUNIO, MAILCRAFT_GROMMUNIO_USER and MAILCRAFT_GROMMUNIO_PASSWORD to run it (see its doc)");
     };
-    let dir = std::env::temp_dir().join(format!("mailcraft-grommunio-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = crate::data_files::scratch::scratch("grommunio");
     let mut pool = crate::worker::Pool::new(Store::open(&dir).unwrap(), Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig { id: "grom".into(), email: user.clone(), username: user, ews: Some(url), ..Default::default() };
     pool.submit(Job::Start { account, password: Some(Secret(password)) });
@@ -280,5 +273,4 @@ fn against_grommunio() {
     let (john, error) = search("john");
     println!("john: {john:?} {error:?}");
     assert_eq!(john, [("John Doe".to_string(), "john.doe@studio.test".to_string())]);
-    let _ = std::fs::remove_dir_all(&dir);
 }

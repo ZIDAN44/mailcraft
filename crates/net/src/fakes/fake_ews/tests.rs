@@ -257,8 +257,7 @@ fn a_flag_set_mid_sync_is_not_lost() {
     let id = d.deliver(&inbox, &mail("Storyboard", "m1"), false, "2024-05-06T09:00:00Z");
     let server = serve(d);
     let data = server.data.clone();
-    let dir = std::env::temp_dir().join(format!("mailcraft-ews-changes-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = crate::data_files::scratch::scratch("ews-changes");
     let store = Store::open(&dir).unwrap();
     let account = AccountConfig { name: "Riley".into(), ..account("a1", &server.url) };
     let start = |store: &Store| {
@@ -296,7 +295,6 @@ fn a_flag_set_mid_sync_is_not_lost() {
     events_until(&pool, "the flag on the server", |_| on_server() && store.load_ops("a1").is_ok_and(|ops| ops.is_empty()));
     assert!(flagged(), "the later syncs kept the flag locally");
     drop(pool);
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// Mail sent and automatic replies asked for while a big mailbox's first sync is still going
@@ -311,8 +309,7 @@ fn sending_and_automatic_replies_dont_wait_for_a_long_sync() {
     d.deliver(&inbox, &mail("Storyboard", "m1"), false, "2024-05-06T09:00:00Z");
     let server = serve(d);
     let data = server.data.clone();
-    let dir = std::env::temp_dir().join(format!("mailcraft-ews-busy-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = crate::data_files::scratch::scratch("ews-busy");
     let store = Store::open(&dir).unwrap();
     let mut pool = crate::worker::Pool::new(store, Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig { name: "Riley".into(), ..account("a1", &server.url) };
@@ -369,7 +366,6 @@ fn sending_and_automatic_replies_dont_wait_for_a_long_sync() {
     pool.submit(Job::Remove { account: "a1".into() });
     pool.submit(Job::GetVacation { account: "a1".into() });
     until(&pool, "offline answer", |e| matches!(e, Event::Vacation { error: Some(_), .. }));
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

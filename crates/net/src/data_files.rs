@@ -11,7 +11,7 @@ mod pst_bytes;
 pub mod pst_export;
 pub(crate) mod pst_pim;
 #[cfg(test)]
-mod scratch;
+pub(crate) mod scratch;
 pub mod space;
 #[cfg(test)]
 pub(crate) mod test_data;
