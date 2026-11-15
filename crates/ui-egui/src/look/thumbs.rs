@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use hayro::hayro_interpret::InterpreterSettings;
-use hayro::hayro_interpret::font::{FontData, FontQuery};
+use hayro::hayro_interpret::font::{FontData, FontQuery, StandardFont};
 use hayro::hayro_syntax::Pdf;
 use hayro::vello_cpu::color::palette::css::WHITE;
 use hayro::{PixmapSettings, RenderCache, RenderSettings};
@@ -58,8 +58,7 @@ pub fn pdf_page(data: &Arc<Vec<u8>>, n: usize, fit: Fit, limit: u32, fonts: Font
     let bold: Option<FontData> = fonts.1.map(|f| f as FontData).or_else(|| regular.clone());
     let interpreter = InterpreterSettings {
         font_resolver: Arc::new(move |q: &FontQuery| {
-            let heavy = matches!(q, FontQuery::Standard(s) if format!("{s:?}").contains("Bold"));
-            let f = if heavy { bold.clone() } else { regular.clone() };
+            let f = if is_bold(q) { bold.clone() } else { regular.clone() };
             f.map(|f| (f, 0))
         }),
         ..Default::default()
@@ -94,17 +93,28 @@ pub fn pdf_page(data: &Arc<Vec<u8>>, n: usize, fit: Fit, limit: u32, fonts: Font
     rendered.ok().flatten()
 }
 
+/// Whether a font a PDF asks for is drawn with the bold font: one of the standard fonts' bold
+/// faces.
+fn is_bold(q: &FontQuery) -> bool {
+    use StandardFont::*;
+    matches!(q, FontQuery::Standard(HelveticaBold | HelveticaBoldOblique | CourierBold | CourierBoldOblique | TimesBold | TimesBoldItalic))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     /// A one-page PDF (100 x 50 points) with a blue box in it.
     fn tiny_pdf() -> Vec<u8> {
-        let content = "0 0 1 rg 10 10 40 30 re f";
+        one_page("0 0 1 rg 10 10 40 30 re f", "<< >>")
+    }
+
+    /// A one-page PDF (100 x 50 points) drawn by `content`, with `resources`.
+    fn one_page(content: &str, resources: &str) -> Vec<u8> {
         let objects = [
             "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
             "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 50] /Contents 4 0 R >>".to_string(),
+            format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 50] /Resources {resources} /Contents 4 0 R >>"),
             format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len()),
         ];
         let mut out = b"%PDF-1.4\n".to_vec();
@@ -142,5 +152,27 @@ mod tests {
         assert_eq!(pages, 1);
         assert!(img.size[0] <= 2048 && img.size[1] <= 2048, "{:?}", img.size);
         assert!(img.size[1] > 2000, "as big as it may be: {:?}", img.size);
+    }
+
+    /// Text in each standard font, drawn with two different fonts as the regular and bold ones:
+    /// the bold faces (and only they) take the bold one.
+    #[test]
+    fn standard_bold_faces_take_the_bold_font() {
+        let font = |name: &str| -> Option<Arc<Vec<u8>>> {
+            egui::FontDefinitions::default().font_data.get(name).map(|f| Arc::new((*f.font).as_ref().to_vec()))
+        };
+        let (regular, other) = (font("Ubuntu-Light"), font("Hack"));
+        assert!(regular.is_some() && other.is_some(), "egui's own fonts");
+        let draw = |base: &str, bold: &Option<Arc<Vec<u8>>>| {
+            let resources = format!("<< /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /{base} >> >> >>");
+            let pdf = one_page("BT /F1 24 Tf 5 15 Td (Hamburg) Tj ET", &resources);
+            pdf_first_page(&pdf, 200, (regular.clone(), bold.clone())).expect("a page").pixels
+        };
+        let bold_faces = ["Helvetica-Bold", "Helvetica-BoldOblique", "Courier-Bold", "Courier-BoldOblique", "Times-Bold", "Times-BoldItalic"];
+        for base in ["Helvetica", "Helvetica-Oblique", "Courier", "Courier-Oblique", "Times-Roman", "Times-Italic"].into_iter().chain(bold_faces) {
+            let (same, apart) = (draw(base, &regular), draw(base, &other));
+            assert!(same.iter().any(|p| p.r() < 128), "{base}: the text is drawn");
+            assert_eq!(same != apart, bold_faces.contains(&base), "{base}");
+        }
     }
 }
