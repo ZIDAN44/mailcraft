@@ -151,13 +151,22 @@ fn an_invitation_already_in_a_read_only_calendar_is_shown_once() {
     moved.event.recurrence_id = Some(series.event.start + 7 * 86_400);
     moved.event.start += 7 * 86_400 + 3600;
     moved.event.end += 7 * 86_400 + 3600;
-    synced_as(&mut s, &id, &[ANNS, OWN], vec![series.clone(), moved], false);
+    synced_as(&mut s, &id, &[ANNS, OWN], vec![series.clone(), moved.clone()], false);
     assert_eq!(super::invite_placing::account_parts(&s, &id, "m3").len(), 2);
+    let theirs = series.clone();
     let mut inv = series.event;
     inv.organizer = Some(ical::Attendee { email: "zoe@studio.example".into(), name: "Zoe".into(), ..Default::default() });
     super::invite_placing::arrive(&mut s, &id, 1, "REQUEST", &[inv]);
     let parts = super::invite_placing::account_parts(&s, &id, "m3");
     assert_eq!(parts.iter().map(|e| e.calendar.as_str()).collect::<Vec<_>>(), [OWN]);
+    // Her calendar read again afterwards (changed, or all of it): her copy doesn't come back
+    // beside his, with his calendar read in the same sync or not.
+    for synced in [&[ANNS][..], &[ANNS, OWN]] {
+        let own: Vec<StoredEvent> = super::invite_placing::account_parts(&s, &id, "m3").into_iter().cloned().collect();
+        synced_as(&mut s, &id, synced, [vec![theirs.clone(), moved.clone()], own].concat(), false);
+        let parts = super::invite_placing::account_parts(&s, &id, "m3");
+        assert_eq!(parts.iter().map(|e| e.calendar.as_str()).collect::<Vec<_>>(), [OWN], "{synced:?}");
+    }
 }
 
 /// A change the server refused for good (SOGo's roles let bob change ann's public events, not

@@ -56,6 +56,7 @@ on GitHub.
 - Archive or Move on mail of several accounts (All Inboxes) moves nothing when one of them has no such folder, instead of moving some and failing.
 - Copying a lot of mail, or moving it from another account, into a folder of a data file or a local account no longer holds up the window: each message was read twice and written on its own, and 5,000 of them took over ten seconds.
 - Deleting one changed occurrence of a repeating event from a calendar on Exchange or Microsoft 365 deletes it on the server too: it was taken out here only, and came back.
+- A colleague's copy of a meeting in a calendar you may only read is no longer shown beside your own, and doesn't come back at the next sync.
 - Moving more than 2,000 messages into an Inbox or Junk on a server no longer has some of them announced as new mail, or filed again by rules, when the server shows them there.
 - A dismissed reminder stays dismissed: one for an event that runs for weeks, or for a task whose reminder came long before its due day, came back at once, and snoozing another reminder for days could bring back those dismissed in the last month.
 - With a damaged key among your own OpenPGP keys, mail is no longer signed with another key than its address's.

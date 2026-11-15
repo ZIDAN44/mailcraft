@@ -90,7 +90,11 @@ impl Session {
             // user's copy (the one to answer in) was gone. Their own calendars are read first,
             // so a copy gone from them doesn't keep the colleague's out.
             let web = |e: &StoredEvent| mailcraft_model::pim::is_web_calendar(&e.calendar);
-            let foreign_ids: HashSet<&str> = list.iter().filter(|c| c.foreign).map(|c| c.id.as_str()).collect();
+            // A colleague's is one listed as theirs, or one of the server's the user may only
+            // read (a server that doesn't say whose it is), as where an invitation is put takes
+            // it (`Pim::is_theirs`): taken out there, it would come back here.
+            let theirs = |c: &mailcraft_model::pim::CalendarInfo| (c.foreign || c.read_only) && !mailcraft_model::pim::is_web_calendar(&c.id);
+            let foreign_ids: HashSet<&str> = list.iter().filter(|c| theirs(c)).map(|c| c.id.as_str()).collect();
             let foreign = |id: &str| foreign_ids.contains(id);
             let mine = |e: &StoredEvent| !foreign(&e.calendar) && !web(e);
             let part = |e: &StoredEvent| (e.event.uid.clone(), e.event.recurrence_id);
