@@ -10,7 +10,7 @@
 //! filed on the fake IMAP server at one connection. It prints a `MEASURE` line: how long keeping
 //! them took, how long filing them took, and how big the data file was with them kept.
 
-use super::drafts::kept_texts;
+use super::kept_texts;
 use super::*;
 
 fn env(name: &str, or: usize) -> usize {

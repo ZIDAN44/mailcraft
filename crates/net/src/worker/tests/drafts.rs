@@ -3,6 +3,10 @@
 use super::*;
 use crate::fakes::proxy::{Cut, Proxy};
 
+mod filed_once;
+mod kept_bench;
+mod kept_files;
+
 /// A worker stopped (working offline, its settings or password changed, MailCraft closing) with
 /// a draft still to save keeps it on this computer and says so, so the message held for it goes
 /// (found in review: the queue was dropped, and the message stayed held, unseen, all session).

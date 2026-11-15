@@ -1,8 +1,8 @@
 //! A draft filed once on the server however its filing is cut short: an account's connection
 //! started again while it's on its way, or the server's answer lost (#53).
 
-use super::drafts::{kept_texts, on_the_server, threads_ended, until_waiting, with_drafts};
 use super::*;
+use super::{kept_texts, on_the_server, threads_ended, until_waiting, with_drafts};
 use crate::fakes::proxy::{Cut, Hang, Proxy};
 
 /// The account's connection started again (a password or setting changed, Work Offline turned

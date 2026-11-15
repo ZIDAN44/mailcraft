@@ -2,8 +2,8 @@
 //! and those an earlier version kept, each source in the list itself, moved into it with none
 //! lost or doubled, whenever MailCraft stops.
 
-use super::drafts::{kept_texts, on_the_server, with_drafts};
 use super::*;
+use super::{kept_texts, on_the_server, with_drafts};
 
 fn text(n: usize) -> String {
     format!("From: me@studio.example\r\nSubject: Plans {n}\r\nMessage-ID: <old{n}@studio.example>\r\n\r\nwritten before\r\n")

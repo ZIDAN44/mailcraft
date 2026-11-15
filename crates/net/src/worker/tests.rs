@@ -12,17 +12,13 @@ mod calendar_only;
 mod check_every;
 mod counts;
 mod drafts;
-mod filed_once;
-mod index_bench;
-mod index_damaged;
-mod kept_bench;
-mod kept_files;
 mod offline_answers;
 mod opening;
 mod outbox_once;
 mod pop_filed;
 mod read_errors;
 mod removed;
+mod search_index;
 mod unstarted;
 
 /// An account `id` on an IMAP server of the tests' own at `port` on this computer, signing in as
