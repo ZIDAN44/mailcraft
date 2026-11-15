@@ -49,14 +49,9 @@ fn a_removed_accounts_drafts_are_not_kept_again() {
     let _ = std::fs::remove_dir_all(store.root());
 }
 
-/// A worker restarted (a password or setting changed) while busy, with a draft handed to it and
-/// not saved yet: the pool keeps that draft on this computer before the new worker starts and
-/// reads what's kept, and says so, so the message held for it goes (found in review: the old
-/// worker kept it only once it noticed it had stopped, after the new one had read the file, and
-/// the draft waited for the next connection unseen).
-#[test]
-fn a_restart_keeps_the_drafts_on_their_way_first() {
-    // A server that takes the connection and never answers: the worker waits on it.
+/// A server that takes the connections (four at most) and never answers, holding them a minute:
+/// its port.
+fn silent_server() -> u16 {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     std::thread::spawn(move || {
@@ -64,6 +59,18 @@ fn a_restart_keeps_the_drafts_on_their_way_first() {
         std::thread::sleep(Duration::from_secs(60));
         drop(held);
     });
+    port
+}
+
+/// A worker restarted (a password or setting changed) while busy, with a draft handed to it and
+/// not saved yet: the pool keeps that draft on this computer before the new worker starts and
+/// reads what's kept, and says so, so the message held for it goes (found in review: the old
+/// worker kept it only once it noticed it had stopped, after the new one had read the file, and
+/// the draft waited for the next connection unseen).
+#[test]
+fn a_restart_keeps_the_drafts_on_their_way_first() {
+    // The worker waits on a server that never answers.
+    let port = silent_server();
     let store = crate::fake::tests_store("restart-drafts");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let account = imap_account("a1", port);
@@ -85,14 +92,8 @@ fn a_restart_keeps_the_drafts_on_their_way_first() {
 /// it does when the save fails on its way after it.
 #[test]
 fn what_was_written_after_a_save_is_kept_on_close() {
-    // A server that takes the connection and never answers: the save stays on its way.
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let port = listener.local_addr().unwrap().port();
-    std::thread::spawn(move || {
-        let held: Vec<std::net::TcpStream> = listener.incoming().take(4).filter_map(std::result::Result::ok).collect();
-        std::thread::sleep(Duration::from_secs(60));
-        drop(held);
-    });
+    // The save stays on its way to a server that never answers.
+    let port = silent_server();
     let store = crate::fake::tests_store("written-after-save");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let account = imap_account("a1", port);
@@ -317,19 +318,8 @@ fn a_save_made_after_a_draft_is_kept_replaces_it() {
 /// into its files, which came back. Nothing of it is written, nor said.
 #[test]
 fn a_removed_accounts_saved_draft_writes_nothing() {
-    let st = crate::fake::State::new();
-    st.lock().unwrap().boxes.push(crate::fake::Mailbox {
-        name: "Drafts".into(),
-        attr: r"\Drafts",
-        validity: 600,
-        uid_next: 1,
-        msgs: Vec::new(),
-        expunged: Vec::new(),
-    });
-    let port = crate::fake::serve_tcp(&st);
-    let store = crate::fake::tests_store("removed-saved");
+    let (st, store, acc) = with_drafts("removed-saved");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
-    let acc = imap_account("a1", port);
     let (hold, holding) = crate::fake::Hold::on("APPEND");
     st.lock().unwrap().hold_on = Some(hold);
     let w = Worker::new(acc, Auth::shared("pw"), store.clone(), pool.sink.clone(), SyncOptions::default());
