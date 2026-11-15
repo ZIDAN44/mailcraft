@@ -191,6 +191,10 @@ impl EventForm {
         // A recurring event is edited as a series: its first occurrence's dates.
         let (start, end) = if e.all_day { (s.clock.utc(e.start), s.clock.utc(e.end - 86_400)) } else { (e.start, e.end) };
         let mine: Vec<String> = s.accounts.iter().map(|a| a.config.email.to_ascii_lowercase()).collect();
+        // As an address is written in a recipient box (a name with a comma quoted), so that the
+        // guests read back as they were.
+        let written = |a: &mailcraft_engine::model::ical::Attendee| mailcraft_engine::model::EmailAddress::new(&a.name, &a.email).to_string();
+        let links = e.links();
         Some(EventForm {
             uid: Some(uid.to_string()),
             occurrence: Some(occurrence),
@@ -210,20 +214,15 @@ impl EventForm {
             privacy: mailcraft_engine::model::ical::privacy(e),
             show_as: mailcraft_engine::model::ical::show_as(e),
             repeat: Repeat::from_rrule(e.rrule.as_deref()),
-            organizer: e.organizer.as_ref().map(|o| if o.name.is_empty() { o.email.clone() } else { format!("{} <{}>", o.name, o.email) }),
+            organizer: e.organizer.as_ref().map(written),
             attendees: e.attendees.iter().map(|a| (if a.name.is_empty() { a.email.clone() } else { a.name.clone() }, a.partstat.clone())).collect(),
             needs_reply: e.attendees.iter().any(|a| mine.contains(&a.email.to_ascii_lowercase()) && a.partstat == "NEEDS-ACTION"),
-            guests: e
-                .attendees
-                .iter()
-                .map(|a| if a.name.is_empty() { a.email.clone() } else { format!("{} <{}>", a.name, a.email) })
-                .collect::<Vec<_>>()
-                .join(", "),
+            guests: e.attendees.iter().map(written).collect::<Vec<_>>().join(", "),
             can_invite: e.organizer.as_ref().is_none_or(|o| mine.contains(&o.email.to_ascii_lowercase())),
-            links: e.links(),
+            reading_notes: read_only || !links.is_empty(),
+            links,
             join: s.join_link(e),
             meeting: MeetingState::new(s, Some(e)),
-            reading_notes: read_only || !e.links().is_empty(),
             read_only,
             categories: e.categories.clone(),
             all_categories: all_categories(s, &e.categories),
@@ -392,8 +391,7 @@ fn notes(ui: &mut Ui, t: &Tokens, text: &str, acts: &mut Vec<Action>) {
                                 ui.label(RichText::new(s).color(t.text));
                             }
                             mailcraft_engine::model::ical::NotePart::Link { label, url } => {
-                                let shown =
-                                    if label == url { widgets::shorten(url.split_once("://").map_or(url.as_str(), |(_, r)| r), 56) } else { label };
+                                let shown = if label == url { link_label(&url, 56) } else { label };
                                 if ui.link(shown).on_hover_text(&url).clicked() {
                                     acts.push(Action::OpenUrl(url));
                                 }
@@ -404,6 +402,12 @@ fn notes(ui: &mut Ui, t: &Tokens, text: &str, acts: &mut Vec<Action>) {
             }
         });
     });
+}
+
+/// A web address as a link shows it: without its scheme (`meet.example.org/abc`), cut to `max`
+/// characters. The notes box's links get the box's width; those on a row after a label, less.
+fn link_label(url: &str, max: usize) -> String {
+    widgets::shorten(url.split_once("://").map_or(url, |(_, r)| r), max)
 }
 
 /// The line above a form's buttons.
@@ -506,8 +510,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
         ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(tl!("Links:")).color(t.dim).small());
             for url in &f.links {
-                let shown = url.split_once("://").map_or(url.as_str(), |(_, r)| r);
-                if ui.link(RichText::new(crate::widgets::shorten(shown, 48)).small()).on_hover_text(url).clicked() {
+                if ui.link(RichText::new(link_label(url, 48)).small()).on_hover_text(url).clicked() {
                     acts.push(Action::OpenUrl(url.clone()));
                 }
             }

@@ -191,6 +191,7 @@ on GitHub.
 - S/MIME mail encrypted with AES-192-GCM can now be read.
 - Signed messages are checked faster.
 - A setting saved by another version that can't be read no longer resets all the others.
+- An event whose guest has a comma in their name can be saved again.
 
 ## 0.38.0 - 2026-11-13
 

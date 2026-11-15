@@ -115,7 +115,7 @@ pub fn row(ui: &mut Ui, form: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>
     ui.horizontal(|ui| {
         if let Some(url) = form.meeting.current.clone() {
             ui.label(RichText::new(tl!("Online meeting")).color(t.dim));
-            if ui.link(crate::widgets::shorten(url.split_once("://").map_or(url.as_str(), |(_, r)| r), 48)).on_hover_text(&url).clicked() {
+            if ui.link(super::link_label(&url, 48)).on_hover_text(&url).clicked() {
                 acts.push(Action::OpenUrl(url.clone()));
             }
             if ui.button(tl!("Remove online meeting")).clicked() {

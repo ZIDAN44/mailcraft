@@ -172,3 +172,34 @@ fn the_form_with_privacy_show_as_and_a_meeting() {
     assert_eq!(e.online_meeting().as_deref(), Some(room.url.as_str()));
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A guest whose name has a comma (`"Park, Zoe"`) is one guest in the form, so the event opened
+/// and saved again keeps them; the organizer shows by name and address.
+#[test]
+fn a_guest_named_with_a_comma_stays_one_guest() {
+    let (mut a, dir) = app("guest-comma");
+    let made = a.session.run(
+        "event.create",
+        &json!({"summary": "Cut review", "start": "2026-10-20T10:00", "end": "2026-10-20T11:00", "attendees": "\"Park, Zoe\" <zoe@studio.example>, ann@x.example"}),
+    );
+    assert!(made.is_ok(), "{made:?}");
+    let e = a.session.agenda(NOW, NOW + 60 * 86_400).into_iter().find(|i| i.summary == "Cut review").unwrap();
+    let Some(Dialog::Event(f)) = Dialog::open_event(&a.session, &e.uid, e.occurrence) else { panic!("no form") };
+    assert_eq!(f.guests, "\"Park, Zoe\" <zoe@studio.example>, ann@x.example");
+    assert_eq!(f.organizer.as_deref(), Some("Riley Moreno <riley@studio.example>"));
+    let params = f.params();
+    a.ui.dialog = Some(Dialog::Event(f));
+    a.act(crate::Action::Submit("event.update", params));
+    assert!(
+        a.ui.dialog.is_none(),
+        "saved: {:?}",
+        match &a.ui.dialog {
+            Some(Dialog::Event(f)) => f.error.clone(),
+            _ => None,
+        }
+    );
+    let (_, kept) = a.session.find_event(&e.uid).unwrap();
+    let guests: Vec<(&str, &str)> = kept.event.attendees.iter().map(|g| (g.name.as_str(), g.email.as_str())).collect();
+    assert_eq!(guests, [("Park, Zoe", "zoe@studio.example"), ("", "ann@x.example")]);
+    let _ = std::fs::remove_dir_all(dir);
+}
