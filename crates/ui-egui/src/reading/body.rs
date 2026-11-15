@@ -5,6 +5,12 @@ use super::*;
 mod table;
 use table::{Room, column_widths, room_margin};
 
+/// How deep tables are drawn inside one another, and measured inside the one measured (the
+/// pictures of a long message's parts not laid out are looked for as deep).
+pub(super) const MAX_NESTED: usize = 16;
+/// Columns of a table sized and measured at most (those past it share what's left).
+const MAX_COLUMNS: usize = 64;
+
 /// The messages shown otherwise than the setting for all mail (File › Options, View › Plain
 /// text) says: one message formatted though all mail is read as plain text, or the other way,
 /// as Outlook shows one message as HTML from above it and leaves the setting as it was.
@@ -417,7 +423,7 @@ impl Body<'_> {
                         self.lines(st, ui, lines, width, page, main_align(align));
                     }
                 }
-                Block::Table(table) if depth < 16 => {
+                Block::Table(table) if depth < MAX_NESTED => {
                     // What its columns hold (measured once): their widths, and its own when it
                     // sets none and is as wide as what it holds (a `<table>`, a button).
                     let (s, key, p, allowed) = (self.s, self.key, self.p, self.allowed);

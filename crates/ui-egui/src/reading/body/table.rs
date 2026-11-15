@@ -335,7 +335,6 @@ pub(super) fn room_margin(p: [f32; 4]) -> Margin {
 /// row (HTML sizes a whole column so; only the first row set it in a report whose other rows then
 /// lined up elsewhere).
 pub(crate) fn column_widths(rows: &[Vec<mime::layout::Cell>]) -> Vec<Option<mime::layout::Width>> {
-    const MAX_COLUMNS: usize = 64;
     let mut out: Vec<Option<mime::layout::Width>> = Vec::new();
     for row in rows {
         let mut col = 0usize;

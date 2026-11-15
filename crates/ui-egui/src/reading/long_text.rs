@@ -276,7 +276,7 @@ fn pictures_of_blocks(blocks: &[mime::layout::Block], out: &mut Vec<String>, dep
     for b in blocks {
         match b {
             mime::layout::Block::Text(lines) => pictures_of_lines(lines, out),
-            mime::layout::Block::Table(t) if depth < 16 => {
+            mime::layout::Block::Table(t) if depth < super::body::MAX_NESTED => {
                 out.extend(t.background_image.clone());
                 for c in t.rows.iter().flatten() {
                     out.extend(c.background_image.clone());

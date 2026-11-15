@@ -29,10 +29,6 @@ pub(crate) struct Measured {
 /// Words measured at most for one table; past them it's left unmeasured (and shared out as
 /// before), so a huge message costs no more than this to draw the first time.
 const MAX_WORDS: usize = 20_000;
-/// Tables nested deeper than this inside the one measured are left unmeasured.
-const MAX_NESTED: usize = 16;
-/// Columns measured at most.
-const MAX_COLUMNS: usize = 64;
 /// Tables whose measures are kept, the oldest let go past it.
 const KEPT: usize = 2_048;
 
