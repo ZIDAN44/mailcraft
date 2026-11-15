@@ -57,15 +57,25 @@ pub(super) struct Pic {
 /// The pictures from the web the reading pane has loaded, by their address: [`web_loaded`].
 pub(crate) type WebPictures = std::sync::Arc<HashMap<String, std::sync::Arc<Vec<u8>>>>;
 
-fn web_id() -> egui::Id {
+pub(super) fn web_id() -> egui::Id {
     egui::Id::unique("compose-web-pictures")
 }
 
-/// The pictures from the web that were loaded for reading, for this frame's editors: a message
-/// forwarded or answered shows the pictures it quotes that the reader was shown (they were
-/// empty boxes, issue #74). Nothing is fetched for the editor.
-pub(crate) fn web_loaded(ctx: &egui::Context, loaded: WebPictures) {
-    ctx.data_mut(|d| d.insert_temp(web_id(), loaded));
+/// The pictures from the web that were loaded for reading (the session's `pictures`), for this
+/// frame's editors: a message forwarded or answered shows the pictures it quotes that the reader
+/// was shown (they were empty boxes, issue #74). Nothing is fetched for the editor. Those of the
+/// frame before are kept while they're the same (every address was copied on every frame).
+pub(crate) fn web_loaded(ctx: &egui::Context, pictures: &HashMap<String, mailcraft_engine::Picture>) {
+    let loaded = || pictures.iter().filter_map(|(url, p)| if let mailcraft_engine::Picture::Ready(data) = p { Some((url, data)) } else { None });
+    let kept: Option<WebPictures> = ctx.data(|d| d.get_temp(web_id()));
+    // The same: as many, each with the very bytes kept for its address.
+    let same =
+        |k: &WebPictures| k.len() == loaded().count() && loaded().all(|(url, data)| k.get(url).is_some_and(|d| std::sync::Arc::ptr_eq(d, data)));
+    if kept.as_ref().is_some_and(same) {
+        return;
+    }
+    let fresh: WebPictures = std::sync::Arc::new(loaded().map(|(url, data)| (url.clone(), data.clone())).collect());
+    ctx.data_mut(|d| d.insert_temp(web_id(), fresh));
 }
 
 /// The own sizes of the message's pictures that can be shown (decoded once, then kept).

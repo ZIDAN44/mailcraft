@@ -672,3 +672,32 @@ fn the_text_laid_out_is_kept_only_while_the_same() {
     });
     out.textures_delta.clear();
 }
+
+/// The pictures from the web the editors are given are those the reader has, as they change:
+/// kept from frame to frame while the same (not copied each frame), made again when one is
+/// loaded, loaded again or let go.
+#[test]
+fn the_web_pictures_given_follow_the_readers() {
+    use mailcraft_engine::Picture;
+    let ctx = egui::Context::default();
+    let given = || -> pictures::WebPictures { ctx.data(|d| d.get_temp(pictures::web_id())).unwrap_or_default() };
+    let bytes = |b: u8| Arc::new(vec![b; 4]);
+    let mut session: HashMap<String, Picture> = HashMap::new();
+    session.insert("https://x.example/a.png".into(), Picture::Ready(bytes(1)));
+    session.insert("https://x.example/b.png".into(), Picture::Loading);
+    pictures::web_loaded(&ctx, &session);
+    let first = given();
+    assert_eq!(first.keys().collect::<Vec<_>>(), ["https://x.example/a.png"]);
+    pictures::web_loaded(&ctx, &session);
+    assert!(Arc::ptr_eq(&first, &given()), "the same: kept");
+    // Loaded: there; loaded again (new bytes, same address): the new ones; let go: gone.
+    session.insert("https://x.example/b.png".into(), Picture::Ready(bytes(2)));
+    pictures::web_loaded(&ctx, &session);
+    assert_eq!(given().get("https://x.example/b.png").map(|d| d[0]), Some(2));
+    session.insert("https://x.example/a.png".into(), Picture::Ready(bytes(3)));
+    pictures::web_loaded(&ctx, &session);
+    assert_eq!(given().get("https://x.example/a.png").map(|d| d[0]), Some(3));
+    session.remove("https://x.example/a.png");
+    pictures::web_loaded(&ctx, &session);
+    assert_eq!(given().keys().collect::<Vec<_>>(), ["https://x.example/b.png"]);
+}

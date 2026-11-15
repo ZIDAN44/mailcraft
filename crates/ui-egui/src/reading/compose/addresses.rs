@@ -63,8 +63,8 @@ pub(super) fn from_choices(s: &Session) -> Vec<(String, String, String)> {
         .filter(|a| a.config.id == from || s.send_block(&a.config.id).is_none())
         .flat_map(|a| {
             let own = (a.config.id.clone(), String::new(), a.config.sender("").to_string());
-            let others = a.config.identities.iter().map(|i| (a.config.id.clone(), i.email.clone(), a.config.sender(&i.email).to_string()));
-            std::iter::once(own).chain(others).collect::<Vec<_>>()
+            let others = a.config.identities.iter().map(move |i| (a.config.id.clone(), i.email.clone(), a.config.sender(&i.email).to_string()));
+            std::iter::once(own).chain(others)
         })
         .collect()
 }
