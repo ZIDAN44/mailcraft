@@ -13,7 +13,7 @@ impl Data {
                 return vec![err(if self.unrouted(&folder) { "ErrorFolderNotFound" } else { "ErrorAccessDenied" })];
             }
             let items: String =
-                self.pim.iter().filter(|(_, f, _)| *f == folder).map(|(id, _, _)| format!("<t:Item><t:ItemId Id=\"{id}\"/></t:Item>")).collect();
+                self.pim.iter().filter(|p| p.folder == folder).map(|p| format!("<t:Item><t:ItemId Id=\"{}\"/></t:Item>", p.id)).collect();
             return vec![ok(format!("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Items>{items}</t:Items></m:RootFolder>"))];
         }
         // A folder the mailbox hasn't (a Notes folder, say): as Exchange answers.
@@ -78,11 +78,11 @@ impl Data {
         let mime = op.find("IncludeMimeContent").is_some_and(|m| m.text == "true");
         let mut out = Vec::new();
         for id in ids(op.child("ItemIds")) {
-            if self.pim.iter().any(|(i, f, _)| *i == id && self.unrouted(f)) {
+            if self.pim.iter().any(|p| p.id == id && self.unrouted(&p.folder)) {
                 out.push(err("ErrorItemNotFound"));
                 continue;
             }
-            if let Some((_, _, el)) = self.pim.iter().find(|(i, _, _)| *i == id) {
+            if let Some(PimItem { el, .. }) = self.pim.iter().find(|p| p.id == id) {
                 if let Some(code) = self.refuses_item(op, &id, el) {
                     out.push(err(code));
                     continue;
@@ -131,7 +131,7 @@ impl Data {
             if m.name == "CalendarItem" || m.name == "Contact" || sticky {
                 let id = self.id("P");
                 out.push(ok(format!("<m:Items><t:{0}><t:ItemId Id=\"{id}\" ChangeKey=\"ck\"/></t:{0}></m:Items>", m.name)));
-                self.pim.push((id, folder.clone(), m));
+                self.pim.push(PimItem { id, folder: folder.clone(), el: m });
                 continue;
             }
             let raw = m.child("MimeContent").and_then(|c| unb64(&c.text)).unwrap_or_default();
@@ -168,7 +168,7 @@ impl Data {
                 out.push(err("ErrorAccessDenied"));
                 continue;
             }
-            if let Some((_, _, el)) = self.pim.iter_mut().find(|(i, _, _)| *i == id) {
+            if let Some(PimItem { el, .. }) = self.pim.iter_mut().find(|p| p.id == id) {
                 for u in ch.child("Updates").map(|u| u.kids.clone()).unwrap_or_default() {
                     let field = u.find("FieldURI").and_then(|f| f.attr("FieldURI")).and_then(|f| f.split(':').nth(1)).unwrap_or("").to_string();
                     el.kids.retain(|k| k.name != field);
@@ -224,12 +224,12 @@ impl Data {
                 out.push(err("ErrorAccessDenied"));
                 continue;
             }
-            if !self.items.iter().any(|i| i.id == id) && !self.pim.iter().any(|(i, _, _)| *i == id) {
+            if !self.items.iter().any(|i| i.id == id) && !self.pim.iter().any(|p| p.id == id) {
                 out.push(err("ErrorItemNotFound"));
                 continue;
             }
             self.items.retain(|i| i.id != id);
-            self.pim.retain(|(i, _, _)| *i != id);
+            self.pim.retain(|p| p.id != id);
             out.push(ok(String::new()));
         }
         out

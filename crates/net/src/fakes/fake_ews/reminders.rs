@@ -3,11 +3,21 @@
 
 use super::*;
 
+/// A reminder listed.
+pub struct Listed {
+    /// Its item's id.
+    pub id: String,
+    /// Its series' id, or empty.
+    pub series: String,
+    /// When it starts, as `2026-…Z`.
+    pub start: String,
+}
+
 /// What the fake's reminders are and what was done to them.
 #[derive(Default)]
 pub struct Reminders {
-    /// The reminders listed: (item id, its series' id or empty, its start as `2026-…Z`).
-    pub listed: Vec<(String, String, String)>,
+    /// The reminders listed.
+    pub listed: Vec<Listed>,
     /// Actions taken: (`Dismiss` or `Snooze`, item id, the new reminder time).
     pub done: Vec<(String, String, String)>,
     /// An Exchange older than 2013: both operations are refused.
@@ -27,7 +37,7 @@ impl Data {
                 .reminders
                 .listed
                 .iter()
-                .map(|(id, series, start)| {
+                .map(|Listed { id, series, start }| {
                     let master = if series.is_empty() { String::new() } else { format!("<t:RecurringMasterItemId Id=\"{series}\" ChangeKey=\"m1\"/>") };
                     format!(
                         "<t:Reminder><t:Subject>Event</t:Subject><t:ReminderTime>{start}</t:ReminderTime><t:StartDate>{start}</t:StartDate>\
@@ -39,13 +49,13 @@ impl Data {
         }
         for a in op.find("ReminderItemActions").map(|l| l.kids.clone()).unwrap_or_default() {
             let id = a.child("ItemId").and_then(|i| i.attr("Id")).unwrap_or_default().to_string();
-            if !self.reminders.listed.iter().any(|(i, _, _)| *i == id) {
+            if !self.reminders.listed.iter().any(|l| l.id == id) {
                 return "<m:ResponseCode>ErrorItemNotFound</m:ResponseCode>".into();
             }
             let action = a.text_of("ActionType").unwrap_or_default().to_string();
             let time = a.text_of("NewReminderTime").unwrap_or_default().to_string();
             self.reminders.done.push((action, id.clone(), time));
-            self.reminders.listed.retain(|(i, _, _)| *i != id);
+            self.reminders.listed.retain(|l| l.id != id);
         }
         "<m:ResponseCode>NoError</m:ResponseCode><m:UpdatedItemIds/>".into()
     }

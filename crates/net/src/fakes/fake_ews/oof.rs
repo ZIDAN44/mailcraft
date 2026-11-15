@@ -3,16 +3,43 @@
 
 use super::*;
 
+/// The automatic replies, as last set.
+pub struct Oof {
+    /// `Disabled`, `Enabled` or `Scheduled`.
+    pub state: String,
+    pub start: String,
+    pub end: String,
+    /// The reply to people inside the organisation, as given (HTML).
+    pub inside: String,
+    /// The reply to people outside it.
+    pub outside: String,
+    /// Who outside is answered: `None`, `Known` or `All`.
+    pub audience: String,
+}
+
+impl Default for Oof {
+    fn default() -> Oof {
+        Oof {
+            state: "Disabled".into(),
+            start: String::new(),
+            end: String::new(),
+            inside: String::new(),
+            outside: String::new(),
+            audience: "All".into(),
+        }
+    }
+}
+
 impl Data {
     pub(super) fn oof_answer(&self) -> String {
-        let (state, start, end, msg, outside, audience) = self.oof.clone();
+        let Oof { state, start, end, inside, outside, audience } = &self.oof;
         format!(
             "<ResponseMessage ResponseClass=\"Success\"><ResponseCode>NoError</ResponseCode></ResponseMessage>\
              <OofSettings><OofState>{state}</OofState><ExternalAudience>{audience}</ExternalAudience>\
              <Duration><StartTime>{start}</StartTime><EndTime>{end}</EndTime></Duration>\
              <InternalReply><Message>{}</Message></InternalReply><ExternalReply><Message>{}</Message></ExternalReply></OofSettings>",
-            esc(&msg),
-            esc(&outside)
+            esc(inside),
+            esc(outside)
         )
     }
 
@@ -25,7 +52,8 @@ impl Data {
             return "<ResponseMessage ResponseClass=\"Error\"><MessageText>refused</MessageText><ResponseCode>ErrorInvalidParameter</ResponseCode></ResponseMessage>".into();
         }
         let outside = s.and_then(|s| s.find("ExternalReply")).and_then(|r| r.child("Message")).map(|m| m.text.clone()).unwrap_or_default();
-        self.oof = (get("OofState"), get("StartTime"), get("EndTime"), msg, outside, get("ExternalAudience"));
+        self.oof =
+            Oof { state: get("OofState"), start: get("StartTime"), end: get("EndTime"), inside: msg, outside, audience: get("ExternalAudience") };
         "<ResponseMessage ResponseClass=\"Success\"><ResponseCode>NoError</ResponseCode></ResponseMessage>".into()
     }
 }

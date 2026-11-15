@@ -6,6 +6,8 @@
 use std::sync::{Arc, Mutex};
 
 use crate::ews::{El, esc, parse, unb64};
+pub use oof::Oof;
+pub use reminders::Listed;
 use serving::serve_at;
 
 pub const USER: &str = "riley";
@@ -48,16 +50,30 @@ pub struct It {
     pub received: String,
 }
 
+/// An appointment, contact or the like: kept as the element it was created from.
+#[derive(Clone, Debug)]
+pub struct PimItem {
+    pub id: String,
+    /// Its folder's id, or `mailbox:<address>` for a shared mailbox's calendar.
+    pub folder: String,
+    pub el: El,
+}
+
+impl PimItem {
+    pub fn new(id: impl Into<String>, folder: impl Into<String>, el: El) -> PimItem {
+        PimItem { id: id.into(), folder: folder.into(), el }
+    }
+}
+
 pub struct Data {
     pub folders: Vec<Fo>,
     pub items: Vec<It>,
-    /// Appointments and contacts: (id, folder, the element as created).
-    pub pim: Vec<(String, String, El)>,
+    /// Appointments, contacts and the like.
+    pub pim: Vec<PimItem>,
     /// MIME sources sent.
     pub sent: Vec<Vec<u8>>,
-    /// (state, start, end, message)
-    /// State, start, end, inside reply, outside reply, outside audience.
-    pub oof: (String, String, String, String, String, String),
+    /// The automatic replies.
+    pub oof: Oof,
     /// Sign in with Basic instead of NTLM.
     pub basic: bool,
     /// Operations asked for, in order.
@@ -133,7 +149,7 @@ impl Default for Data {
             items: Vec::new(),
             pim: Vec::new(),
             sent: Vec::new(),
-            oof: ("Disabled".into(), String::new(), String::new(), String::new(), String::new(), "All".into()),
+            oof: Oof::default(),
             basic: false,
             calls: Vec::new(),
             handshakes: 0,
@@ -265,7 +281,7 @@ impl Data {
             "DistinguishedFolderId" if el.child("Mailbox").is_some() => {
                 let who = el.find("EmailAddress").map(|e| e.text.to_ascii_lowercase())?;
                 let id = format!("mailbox:{who}");
-                self.pim.iter().any(|(_, f, _)| *f == id).then_some(id)
+                self.pim.iter().any(|p| p.folder == id).then_some(id)
             }
             "DistinguishedFolderId" => {
                 let known = el.attr("Id")?;
@@ -276,24 +292,22 @@ impl Data {
     }
 
     fn folder_xml(&self, f: &Fo) -> String {
-        let total = self.items.iter().filter(|i| i.folder == f.id).count() + self.pim.iter().filter(|(_, x, _)| *x == f.id).count();
+        let total = self.items.iter().filter(|i| i.folder == f.id).count() + self.pim.iter().filter(|p| p.folder == f.id).count();
         let unread = self.items.iter().filter(|i| i.folder == f.id && !i.read).count();
-        // Public folders name the mailbox holding their content (a GUID, as ASCII, NUL-ended).
-        let replica = if self.pf_mailbox.is_some() && self.public_ids().contains(&f.id) {
-            format!(
+        // Its extended properties: public folders name the mailbox holding their content (a
+        // GUID, as ASCII, NUL-ended); a folder may be marked hidden.
+        let mut extended = String::new();
+        if self.pf_mailbox.is_some() && self.public_ids().contains(&f.id) {
+            extended.push_str(&format!(
                 "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x6698\" PropertyType=\"Binary\"/><t:Value>{}</t:Value></t:ExtendedProperty>",
                 mailcraft_model::base64::encode(format!("{PF_GUID}\0").as_bytes())
-            )
-        } else {
-            String::new()
-        };
-        let replica = if self.flagged_hidden.contains(&f.id) {
-            format!(
-                "{replica}<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x10f4\" PropertyType=\"Boolean\"/><t:Value>true</t:Value></t:ExtendedProperty>"
-            )
-        } else {
-            replica
-        };
+            ));
+        }
+        if self.flagged_hidden.contains(&f.id) {
+            extended.push_str(
+                "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x10f4\" PropertyType=\"Boolean\"/><t:Value>true</t:Value></t:ExtendedProperty>",
+            );
+        }
         // As Exchange answers: each folder in an element of its kind (EWS's folder array).
         let kind = match f.class.as_str() {
             c if c.starts_with("IPF.Contact") => "ContactsFolder",
@@ -302,7 +316,7 @@ impl Data {
             _ => "Folder",
         };
         format!(
-            "<t:{kind}><t:FolderId Id=\"{}\"/><t:ParentFolderId Id=\"{}\"/><t:FolderClass>{}</t:FolderClass><t:DisplayName>{}</t:DisplayName><t:TotalCount>{total}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{unread}</t:UnreadCount>{replica}</t:{kind}>",
+            "<t:{kind}><t:FolderId Id=\"{}\"/><t:ParentFolderId Id=\"{}\"/><t:FolderClass>{}</t:FolderClass><t:DisplayName>{}</t:DisplayName><t:TotalCount>{total}</t:TotalCount><t:ChildFolderCount>0</t:ChildFolderCount><t:UnreadCount>{unread}</t:UnreadCount>{extended}</t:{kind}>",
             f.id,
             f.parent,
             f.class,
@@ -373,7 +387,7 @@ impl Data {
     /// Whether this account may change an item: anything of its own, and someone else's only where
     /// they made it an editor.
     fn may_change(&self, id: &str) -> bool {
-        match self.pim.iter().find(|(i, _, _)| i == id).and_then(|(_, f, _)| f.strip_prefix("mailbox:")) {
+        match self.pim.iter().find(|p| p.id == *id).and_then(|p| p.folder.strip_prefix("mailbox:")) {
             Some(who) => self.editors.iter().any(|e| e == who),
             None => true,
         }

@@ -123,11 +123,11 @@ impl Exchange for Server {
         self.data.lock().unwrap().sent.last().cloned()
     }
     fn replies_are(&self, v: &Vacation) {
-        let oof = self.data.lock().unwrap().oof.clone();
+        let d = self.data.lock().unwrap();
         if v.external.is_some() {
-            assert_eq!((oof.4.as_str(), oof.5.as_str()), ("Out of office", "Known"));
+            assert_eq!((d.oof.outside.as_str(), d.oof.audience.as_str()), ("Out of office", "Known"));
         } else {
-            assert_eq!(oof.0, "Scheduled");
+            assert_eq!(d.oof.state, "Scheduled");
         }
     }
     fn after_first_sync(&self) {
@@ -145,7 +145,7 @@ fn automatic_replies_with_markup_characters_come_back_as_written() {
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
     let away = Vacation { enabled: true, text: "Back <soon>\nR&D on Monday".into(), ..Default::default() };
     c.set_vacation(&away).unwrap();
-    assert_eq!(server.data.lock().unwrap().oof.3, "Back &lt;soon&gt;<br>R&amp;D on Monday", "the HTML Exchange is given");
+    assert_eq!(server.data.lock().unwrap().oof.inside, "Back &lt;soon&gt;<br>R&amp;D on Monday", "the HTML Exchange is given");
     let back = c.vacation().unwrap();
     assert_eq!(back.text, away.text);
 }
@@ -492,7 +492,7 @@ fn serve_ews_for_the_app() {
     let teams = parse(
         "<t:CalendarItem><t:Subject>Weekly sync</t:Subject><t:Body BodyType=\"HTML\">&lt;html&gt;&lt;body&gt;&lt;p&gt;Agenda: the release.&lt;/p&gt;             &lt;div&gt;________________________________________________________________________________&lt;/div&gt;             &lt;div&gt;&lt;span style=\"font-size:24px\"&gt;Microsoft Teams &lt;a href=\"https://aka.ms/JoinTeamsMeeting\"&gt;Need help?&lt;/a&gt;&lt;/span&gt;&lt;/div&gt;             &lt;div&gt;&lt;a href=\"https://teams.microsoft.com/l/meetup-join/19%3ameeting_NjA3%40thread.v2/0?context=%7b%22Tid%22%3a%22c1%22%7d\"&gt;             &lt;span style=\"font-size:21px\"&gt;Join the meeting now&lt;/span&gt;&lt;/a&gt;&lt;/div&gt;&lt;div&gt;Meeting ID: 366 254 181 924&lt;/div&gt;             &lt;div&gt;Passcode: Ab3cD9&lt;/div&gt;&lt;/body&gt;&lt;/html&gt;</t:Body>             <t:Start>2026-10-20T13:00:00Z</t:Start><t:End>2026-10-20T13:30:00Z</t:End><t:IsAllDayEvent>false</t:IsAllDayEvent>             <t:Location>Microsoft Teams Meeting</t:Location><t:UID>weekly-sync-1</t:UID></t:CalendarItem>",
     );
-    d.pim.push(("E1".into(), agenda.clone(), teams.kids[0].clone()));
+    d.pim.push(PimItem::new("E1", agenda.clone(), teams.kids[0].clone()));
     let shared_cal = d.id("S");
     d.folders.push(Fo {
         id: shared_cal.clone(),
@@ -505,7 +505,7 @@ fn serve_ews_for_the_app() {
     let team = parse(
         "<t:CalendarItem><t:Subject>Team planning</t:Subject><t:Start>2026-10-20T09:00:00Z</t:Start><t:End>2026-10-20T10:00:00Z</t:End>             <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>team-plan-1</t:UID></t:CalendarItem>",
     );
-    d.pim.push(("T1".into(), shared_cal, team.kids[0].clone()));
+    d.pim.push(PimItem::new("T1", shared_cal, team.kids[0].clone()));
     // Issue #1: a Google Calendar invitation, its body as Exchange gives it as text (each
     // link written `label<url>`), long links and all.
     let tok = "AKUaPmZ3cDk0bWtnZ2I5NjBhYmRlZjEyMzQ1Njc4OTBhYmNkZWYxMjM0NTY3ODkwYWJjZGVm";
@@ -534,7 +534,7 @@ fn serve_ews_for_the_app() {
          <t:Location>https://meet.google.com/abc-defg-hij</t:Location><t:UID>google-invite-1</t:UID></t:CalendarItem>",
         xml(&invite)
     ));
-    d.pim.push(("G1".into(), agenda, google.kids[0].clone()));
+    d.pim.push(PimItem::new("G1", agenda, google.kids[0].clone()));
     // Issue #9: the organisation's directory, where someone new (Dana Whitfield) starts 45
     // seconds after the server does, for a search that finds her without a restart.
     for (n, a) in [("Alice Moreno", "alice.moreno@contoso.example"), ("Alicia Keyes", "alicia@contoso.example"), ("Bob Stone", "bob@contoso.example")]

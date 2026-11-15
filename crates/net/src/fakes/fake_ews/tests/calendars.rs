@@ -19,12 +19,12 @@ fn mailbox() -> (Data, String, String) {
     let contacts = d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
     let review =
         parse("<t:CalendarItem><t:Subject>Review</t:Subject><t:Start>2026-10-05T09:00:00Z</t:Start><t:UID>review-1</t:UID></t:CalendarItem>");
-    d.pim.push(("E1".into(), cal.clone(), review.kids[0].clone()));
+    d.pim.push(PimItem::new("E1", cal.clone(), review.kids[0].clone()));
     let ana = parse(
         "<t:Contact><t:DisplayName>Ana Silva</t:DisplayName><t:EmailAddresses><t:Entry Key=\"EmailAddress1\">ana@contoso.example</t:Entry>\
          </t:EmailAddresses></t:Contact>",
     );
-    d.pim.push(("K1".into(), contacts, ana.kids[0].clone()));
+    d.pim.push(PimItem::new("K1", contacts, ana.kids[0].clone()));
     (d, cal, "E1".into())
 }
 
@@ -140,7 +140,7 @@ fn a_calendar_the_server_refuses_says_so_once() {
 fn appointments_the_server_fails_on_are_said() {
     let (mut d, cal, first) = mailbox();
     let more = parse("<t:CalendarItem><t:Subject>Plan</t:Subject><t:Start>2026-10-06T09:00:00Z</t:Start><t:UID>plan-1</t:UID></t:CalendarItem>");
-    d.pim.push(("E2".into(), cal, more.kids[0].clone()));
+    d.pim.push(PimItem::new("E2", cal, more.kids[0].clone()));
     d.unreadable.push(first);
     let server = serve(d);
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();

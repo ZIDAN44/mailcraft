@@ -18,12 +18,12 @@ fn calendars_and_contacts_sync_and_autodiscover_finds_the_server() {
          <t:Recurrence><t:WeeklyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>Monday Wednesday Friday</t:DaysOfWeek></t:WeeklyRecurrence>\
          <t:NoEndRecurrence><t:StartDate>2026-10-05Z</t:StartDate></t:NoEndRecurrence></t:Recurrence></t:CalendarItem>",
     );
-    d.pim.push((
-        "OLD".into(),
+    d.pim.push(PimItem::new(
+        "OLD",
         cal.clone(),
         parse("<t:CalendarItem><t:Subject>Gone</t:Subject><t:Start>2026-10-01T09:00:00Z</t:Start></t:CalendarItem>").kids[0].clone(),
     ));
-    d.pim.push(("E1".into(), cal.clone(), standup.kids[0].clone()));
+    d.pim.push(PimItem::new("E1", cal.clone(), standup.kids[0].clone()));
     let server = serve(d);
     let user = format!("{DOMAIN}\\{USER}");
     assert_eq!(crate::ews::autodiscover("riley@contoso.example", &user, PASSWORD, Some(&server.url)).unwrap(), server.url);
@@ -93,7 +93,7 @@ fn sticky_notes_sync_with_the_notes_folder() {
         "<t:Message><t:ItemClass>IPM.StickyNote</t:ItemClass><t:Subject>Call Ana</t:Subject><t:Body BodyType=\"Text\">Call Ana\r\nabout the mix</t:Body>\
          <t:ExtendedProperty><t:ExtendedFieldURI PropertySetId=\"0006200E-0000-0000-C000-000000000046\" PropertyId=\"35584\" PropertyType=\"Integer\"/><t:Value>2</t:Value></t:ExtendedProperty></t:Message>",
     );
-    d.pim.push(("N1".into(), notes, old.kids[0].clone()));
+    d.pim.push(PimItem::new("N1", notes, old.kids[0].clone()));
     let server = serve(d);
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
     let mut pim = Pim::default();
@@ -123,7 +123,7 @@ fn someone_elses_calendar_opens_read_only() {
         "<t:CalendarItem><t:Subject>Budget review</t:Subject><t:Start>2026-10-06T13:00:00Z</t:Start><t:End>2026-10-06T14:00:00Z</t:End>\
          <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>budget-1</t:UID></t:CalendarItem>",
     );
-    d.pim.push(("S1".into(), "mailbox:ana@contoso.example".into(), review.kids[0].clone()));
+    d.pim.push(PimItem::new("S1", "mailbox:ana@contoso.example", review.kids[0].clone()));
     let server = serve(d);
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
     let pim = Pim { shared: vec!["ana@contoso.example".into(), "nobody@contoso.example".into()], ..Default::default() };
@@ -152,7 +152,7 @@ fn meetings_reusing_one_uid_each_reach_the_calendar() {
             "<t:CalendarItem><t:Subject>Safety committee</t:Subject><t:Start>2026-10-{day}T08:00:00Z</t:Start><t:End>2026-10-{day}T10:00:00Z</t:End>\
              <t:IsAllDayEvent>false</t:IsAllDayEvent><t:CalendarItemType>Single</t:CalendarItemType><t:UID>committee-series</t:UID></t:CalendarItem>"
         ));
-        d.pim.push((id.into(), cal.clone(), it.kids[0].clone()));
+        d.pim.push(PimItem::new(id, cal.clone(), it.kids[0].clone()));
     }
     let server = serve(d);
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
@@ -181,9 +181,9 @@ fn someone_elses_calendar_can_be_changed_by_an_editor() {
         .kids[0]
             .clone()
     };
-    d.pim.push(("S1".into(), "mailbox:ana@contoso.example".into(), item("Budget review", "budget-1")));
-    d.pim.push(("S2".into(), "mailbox:ana@contoso.example".into(), item("Team lunch", "lunch-1")));
-    d.pim.push(("B1".into(), "mailbox:ben@contoso.example".into(), item("Ben's call", "call-1")));
+    d.pim.push(PimItem::new("S1", "mailbox:ana@contoso.example", item("Budget review", "budget-1")));
+    d.pim.push(PimItem::new("S2", "mailbox:ana@contoso.example", item("Team lunch", "lunch-1")));
+    d.pim.push(PimItem::new("B1", "mailbox:ben@contoso.example", item("Ben's call", "call-1")));
     let server = serve(d);
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
     let (ana, ben) = (shared_calendar_id("ana@contoso.example"), shared_calendar_id("ben@contoso.example"));
@@ -210,15 +210,11 @@ fn someone_elses_calendar_can_be_changed_by_an_editor() {
     assert!(second.errors.is_empty(), "{:?}", second.errors);
     assert!(second.pushed_events.iter().all(|e| e.calendar == ana), "they stay in Ana's calendar");
     let d = server.data.lock().unwrap();
-    let in_ana: Vec<String> = d
-        .pim
-        .iter()
-        .filter(|(_, f, _)| f == "mailbox:ana@contoso.example")
-        .filter_map(|(_, _, el)| el.text_of("Subject").map(str::to_string))
-        .collect();
+    let in_ana: Vec<String> =
+        d.pim.iter().filter(|p| p.folder == "mailbox:ana@contoso.example").filter_map(|p| p.el.text_of("Subject").map(str::to_string)).collect();
     assert!(in_ana.contains(&"Budget review (moved)".to_string()) && in_ana.contains(&"Poster check".to_string()), "{in_ana:?}");
     assert!(!in_ana.contains(&"Team lunch".to_string()), "deleted");
-    assert!(!d.pim.iter().any(|(_, f, el)| !f.starts_with("mailbox:") && el.text_of("Subject") == Some("Poster check")), "not in this mailbox");
+    assert!(!d.pim.iter().any(|p| !p.folder.starts_with("mailbox:") && p.el.text_of("Subject") == Some("Poster check")), "not in this mailbox");
 }
 
 /// Issue #1, again: a server whose answer about someone's calendar folder doesn't say an
@@ -234,8 +230,8 @@ fn an_editor_is_known_by_the_events_rights_too() {
         "<t:CalendarItem><t:Subject>Budget review</t:Subject><t:Start>2026-10-06T13:00:00Z</t:Start><t:End>2026-10-06T14:00:00Z</t:End>\
          <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>budget-1</t:UID></t:CalendarItem>",
     );
-    d.pim.push(("S1".into(), "mailbox:ana@contoso.example".into(), item.kids[0].clone()));
-    d.pim.push(("B1".into(), "mailbox:ben@contoso.example".into(), item.kids[0].clone()));
+    d.pim.push(PimItem::new("S1", "mailbox:ana@contoso.example", item.kids[0].clone()));
+    d.pim.push(PimItem::new("B1", "mailbox:ben@contoso.example", item.kids[0].clone()));
     let server = serve(d);
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
     let pim = Pim { shared: vec!["ana@contoso.example".into(), "ben@contoso.example".into()], ..Default::default() };
@@ -263,15 +259,15 @@ fn public_folders_list_under_their_own_folder_and_sync() {
     let news = d.folder("Announcements", Some(&team), None, "IPF.Note");
     let rooms = d.folder("Rooms", Some(&root), None, "IPF.Appointment");
     let shared = d.folder("Company contacts", Some(&team), None, "IPF.Contact");
-    d.pim.push((
-        "PC1".into(),
+    d.pim.push(PimItem::new(
+        "PC1",
         shared,
         parse("<t:Contact><t:ItemId Id=\"PC1\" ChangeKey=\"k\"/><t:DisplayName>Front desk</t:DisplayName><t:EmailAddresses><t:Entry Key=\"EmailAddress1\">desk@contoso.example</t:Entry></t:EmailAddresses></t:Contact>")
             .kids[0]
             .clone(),
     ));
-    d.pim.push((
-        "PE1".into(),
+    d.pim.push(PimItem::new(
+        "PE1",
         rooms,
         parse("<t:CalendarItem><t:Subject>Room 2 booked</t:Subject><t:Start>2026-10-16T09:00:00Z</t:Start><t:End>2026-10-16T10:00:00Z</t:End><t:UID>room-1</t:UID></t:CalendarItem>")
             .kids[0]
@@ -345,7 +341,7 @@ fn a_shared_mailboxs_calendar_is_read_with_it() {
     let plan = parse(
         "<t:CalendarItem><t:Subject>Team planning</t:Subject><t:Start>2026-10-20T09:00:00Z</t:Start><t:End>2026-10-20T10:00:00Z</t:End>             <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>team-plan-1</t:UID></t:CalendarItem>",
     );
-    d.pim.push(("T1".into(), cal, plan.kids[0].clone()));
+    d.pim.push(PimItem::new("T1", cal, plan.kids[0].clone()));
     // A Teams meeting in the account's own calendar, its join link longer than a text line.
     let agenda = d.folders.iter().find(|f| f.name == "Agenda").map(|f| f.id.clone()).unwrap();
     let long = format!("https://teams.microsoft.com/l/meetup-join/19%3ameeting_{}%40thread.v2/0?context=%7b%22Tid%22%7d", "Nj".repeat(300));
@@ -353,7 +349,7 @@ fn a_shared_mailboxs_calendar_is_read_with_it() {
         "<t:CalendarItem><t:Subject>Sync</t:Subject><t:Body BodyType=\"HTML\">&lt;p&gt;Hi&lt;/p&gt;&lt;a href=\"{}\"&gt;Join the meeting now&lt;/a&gt;</t:Body>             <t:Start>2026-10-20T13:00:00Z</t:Start><t:End>2026-10-20T13:30:00Z</t:End><t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>sync-1</t:UID></t:CalendarItem>",
         long.replace('&', "&amp;amp;")
     ));
-    d.pim.push(("M1".into(), agenda, teams.kids[0].clone()));
+    d.pim.push(PimItem::new("M1", agenda, teams.kids[0].clone()));
     let server = serve(d);
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
     crate::ews::list_folders(&c, &mut crate::jmap::State::default(), "a1").unwrap();
@@ -467,7 +463,7 @@ fn private_and_show_as_go_to_exchange_and_back() {
         "<t:CalendarItem><t:Sensitivity>Private</t:Sensitivity><t:Start>2026-10-07T08:00:00Z</t:Start><t:End>2026-10-07T09:00:00Z</t:End>\
          <t:IsAllDayEvent>false</t:IsAllDayEvent><t:LegacyFreeBusyStatus>Busy</t:LegacyFreeBusyStatus><t:UID>hidden-1</t:UID></t:CalendarItem>",
     );
-    d.pim.push(("H1".into(), cal, hidden.kids[0].clone()));
+    d.pim.push(PimItem::new("H1", cal, hidden.kids[0].clone()));
     let server = serve(d);
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
     let mut e = CalEvent { uid: "doc-1".into(), summary: "Doctor".into(), start: 1_792_000_000, end: 1_792_003_600, ..Default::default() };
@@ -478,7 +474,7 @@ fn private_and_show_as_go_to_exchange_and_back() {
     assert!(sync.errors.is_empty(), "{:?}", sync.errors);
     let doc = sync.events.iter().find(|x| x.event.summary == "Doctor").unwrap();
     assert_eq!((privacy(&doc.event), show_as(&doc.event)), (Privacy::Private, ShowAs::OutOfOffice));
-    let stored = |s: &Server, id: &str| s.data.lock().unwrap().pim.iter().find(|(i, _, _)| i == id).map(|(_, _, el)| el.clone()).unwrap();
+    let stored = |s: &Server, id: &str| s.data.lock().unwrap().pim.iter().find(|p| p.id == id).map(|p| p.el.clone()).unwrap();
     let el = stored(&server, &doc.href);
     assert_eq!((el.text_of("Sensitivity"), el.text_of("LegacyFreeBusyStatus")), (Some("Private"), Some("OOF")));
     // Changed: show time only, and free.
@@ -561,7 +557,7 @@ fn private_show_as_and_a_meeting_together_through_exchange() {
     let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
     assert!(sync.errors.is_empty(), "{:?}", sync.errors);
     let doc = sync.events.iter().find(|x| x.event.summary == "Doctor").unwrap();
-    let el = server.data.lock().unwrap().pim.iter().find(|(i, _, _)| *i == doc.href).map(|(_, _, el)| el.clone()).unwrap();
+    let el = server.data.lock().unwrap().pim.iter().find(|p| p.id == doc.href).map(|p| p.el.clone()).unwrap();
     assert_eq!((el.text_of("Sensitivity"), el.text_of("LegacyFreeBusyStatus")), (Some("Private"), Some("WorkingElsewhere")));
     let back = &doc.event;
     assert_eq!((privacy(back), show_as(back)), (Privacy::Private, ShowAs::WorkingElsewhere));
@@ -600,11 +596,11 @@ fn reminders_answered_here_are_answered_on_exchange() {
     let one = parse(
         "<t:CalendarItem><t:Subject>Dentist</t:Subject><t:Start>2026-11-04T09:00:00Z</t:Start><t:ReminderIsSet>true</t:ReminderIsSet></t:CalendarItem>",
     );
-    d.pim.push(("E-one".into(), cal, one.kids[0].clone()));
+    d.pim.push(PimItem::new("E-one", cal, one.kids[0].clone()));
     d.reminders.listed = vec![
-        ("E-one".into(), String::new(), "2026-11-04T09:00:00Z".into()),
-        ("E-series-3".into(), "E-series".into(), "2026-11-03T09:00:00Z".into()),
-        ("E-series-4".into(), "E-series".into(), "2026-11-04T09:00:00Z".into()),
+        Listed { id: "E-one".into(), series: String::new(), start: "2026-11-04T09:00:00Z".into() },
+        Listed { id: "E-series-3".into(), series: "E-series".into(), start: "2026-11-03T09:00:00Z".into() },
+        Listed { id: "E-series-4".into(), series: "E-series".into(), start: "2026-11-04T09:00:00Z".into() },
     ];
     let server = serve(d);
     let user = format!("{DOMAIN}\\{USER}");
@@ -631,7 +627,7 @@ fn reminders_answered_here_are_answered_on_exchange() {
     assert!(sync.errors.is_empty(), "{:?}", sync.errors);
     assert_eq!(sync.answered.len(), 2, "neither waits: a series' can't be told to that server");
     let d = server.data.lock().unwrap();
-    let item = &d.pim.iter().find(|(id, _, _)| id == "E-one").unwrap().2;
+    let item = &d.pim.iter().find(|p| p.id == "E-one").unwrap().el;
     assert_eq!(item.text_of("ReminderIsSet"), Some("false"));
 }
 
@@ -649,7 +645,7 @@ fn a_refused_delete_is_said_and_kept() {
         "<t:CalendarItem><t:Subject>Ben's call</t:Subject><t:Start>2026-10-06T13:00:00Z</t:Start><t:End>2026-10-06T14:00:00Z</t:End>\
          <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>call-1</t:UID></t:CalendarItem>",
     );
-    d.pim.push(("B1".into(), "mailbox:ben@contoso.example".into(), call.kids[0].clone()));
+    d.pim.push(PimItem::new("B1", "mailbox:ben@contoso.example", call.kids[0].clone()));
     let server = serve(d);
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
     let ben = shared_calendar_id("ben@contoso.example");
@@ -663,7 +659,7 @@ fn a_refused_delete_is_said_and_kept() {
     let second = crate::ews_pim::sync(&c, &pim, 1_792_000_100).unwrap();
     assert_eq!(second.deleted, ["NOT-THERE"], "only the one that's gone");
     assert!(second.errors.iter().any(|e| e.contains("ErrorAccessDenied")), "{:?}", second.errors);
-    assert!(server.data.lock().unwrap().pim.iter().any(|(id, _, _)| id == "B1"), "still on the server");
+    assert!(server.data.lock().unwrap().pim.iter().any(|p| p.id == "B1"), "still on the server");
 }
 
 /// A contact changed here is made again in place of the old one; a contacts folder the server
@@ -677,12 +673,12 @@ fn a_changed_contact_is_made_again_and_refusals_are_said() {
     let cal = d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
     let contacts = d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
     let ben = parse("<t:Contact><t:DisplayName>Ben</t:DisplayName></t:Contact>");
-    d.pim.push(("K1".into(), contacts.clone(), ben.kids[0].clone()));
+    d.pim.push(PimItem::new("K1", contacts.clone(), ben.kids[0].clone()));
     let review = parse(
         "<t:CalendarItem><t:Subject>Review</t:Subject><t:Start>2026-10-06T13:00:00Z</t:Start><t:End>2026-10-06T14:00:00Z</t:End>\
          <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>review-1</t:UID></t:CalendarItem>",
     );
-    d.pim.push(("E1".into(), cal, review.kids[0].clone()));
+    d.pim.push(PimItem::new("E1", cal, review.kids[0].clone()));
     d.unreadable.push(contacts.clone());
     let server = serve(d);
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
@@ -695,7 +691,7 @@ fn a_changed_contact_is_made_again_and_refusals_are_said() {
     let made = &sync.pushed_cards;
     assert!(made.len() == 1 && made[0].href.starts_with("contact:") && made[0].href != "contact:K1" && made[0].card.name == "Ben Ito", "{made:?}");
     let d = server.data.lock().unwrap();
-    let names: Vec<&str> = d.pim.iter().filter(|(_, f, _)| *f == contacts).filter_map(|(_, _, el)| el.text_of("DisplayName")).collect();
+    let names: Vec<&str> = d.pim.iter().filter(|p| p.folder == contacts).filter_map(|p| p.el.text_of("DisplayName")).collect();
     assert_eq!(names, ["Ben Ito"], "the old one deleted");
     assert_eq!(sync.errors.len(), 2, "{:?}", sync.errors);
     assert!(sync.errors[0] == "Contacts: ErrorAccessDenied" && sync.errors[1].starts_with("Public folders: "), "{:?}", sync.errors);
