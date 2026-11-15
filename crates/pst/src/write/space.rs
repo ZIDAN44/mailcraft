@@ -81,6 +81,9 @@ pub(crate) struct Space {
     tail: u64,
     /// Free ranges to use first, in order, none crossing a run.
     free: Vec<(u64, u64)>,
+    /// For each size and alignment asked for, how many of the first free ranges can't hold it:
+    /// they are passed over, not looked at again.
+    passed: Vec<(u64, u64, usize)>,
     /// What's been taken from either.
     pub(crate) taken: Vec<(u64, u64)>,
     /// What's let go of: free only once the changes are committed.
@@ -90,7 +93,7 @@ pub(crate) struct Space {
 impl Space {
     pub(crate) fn new(format: Format, eof: u64) -> Space {
         let runs = eof.saturating_sub(FIRST_AMAP).div_ceil(AMAP_BYTES);
-        Space { format, runs, tail: eof.max(FIRST_AMAP), free: Vec::new(), taken: Vec::new(), released: Vec::new() }
+        Space { format, runs, tail: eof.max(FIRST_AMAP), free: Vec::new(), passed: Vec::new(), taken: Vec::new(), released: Vec::new() }
     }
 
     /// Runs the file has when opened.
@@ -106,11 +109,13 @@ impl Space {
     /// Adds what a map marks free, `(start, end)`, in file order.
     pub(crate) fn add_free(&mut self, ranges: Vec<(u64, u64)>) {
         self.free.extend(ranges);
+        self.passed.clear();
     }
 
     /// Lets go of everything the maps offered: they don't match what the file holds.
     pub(crate) fn distrust(&mut self) {
         self.free.clear();
+        self.passed.clear();
     }
 
     pub(crate) fn free_ranges(&self) -> &[(u64, u64)] {
@@ -127,8 +132,12 @@ impl Space {
         Ok(at)
     }
 
+    /// The first free range that holds `size` bytes aligned to `align` gives them.
     fn take_free(&mut self, size: u64, align: u64) -> Option<u64> {
-        for i in 0..self.free.len() {
+        // A range that can't hold an easier request (no bigger, its alignment dividing this one's)
+        // can't hold this one.
+        let from = self.passed.iter().filter(|(s, a, _)| *s <= size && align.checked_rem(*a) == Some(0)).map(|(_, _, n)| *n).max().unwrap_or(0);
+        for i in from..self.free.len() {
             let (start, end) = *self.free.get(i)?;
             let at = start.div_ceil(align).checked_mul(align)?;
             if at.checked_add(size)? <= end {
@@ -139,11 +148,27 @@ impl Space {
                 if at + size < end {
                     pieces.push((at + size, end));
                 }
+                // The pieces are smaller than the range: what it couldn't hold, they can't.
+                let count = pieces.len();
                 self.free.splice(i..=i, pieces);
+                for (_, _, n) in &mut self.passed {
+                    if *n > i {
+                        *n = *n - 1 + count;
+                    }
+                }
+                self.set_passed(size, align, i);
                 return Some(at);
             }
         }
+        self.set_passed(size, align, self.free.len());
         None
+    }
+
+    fn set_passed(&mut self, size: u64, align: u64, n: usize) {
+        match self.passed.iter_mut().find(|(s, a, _)| *s == size && *a == align) {
+            Some(entry) => entry.2 = n,
+            None => self.passed.push((size, align, n)),
+        }
     }
 
     fn take_tail(&mut self, size: u64, align: u64) -> io::Result<u64> {
@@ -288,5 +313,49 @@ mod tests {
     fn an_ansi_file_stops_where_its_format_does() {
         let mut s = Space::new(Format::Ansi, ANSI_MAX - 512);
         assert!(s.alloc(1024, 64).is_err());
+    }
+
+    /// The first free range that holds a request, found by looking at every one: what
+    /// `take_free` gives without passing any over.
+    fn first_fit(free: &mut Vec<(u64, u64)>, size: u64, align: u64) -> Option<u64> {
+        let i = free.iter().position(|&(start, end)| start.div_ceil(align) * align + size <= end)?;
+        let (start, end) = free[i];
+        let at = start.div_ceil(align) * align;
+        let pieces: Vec<(u64, u64)> = [(start, at), (at + size, end)].into_iter().filter(|(s, e)| s < e).collect();
+        free.splice(i..=i, pieces);
+        Some(at)
+    }
+
+    /// Free ranges passed over are never ones a later request could have used: every request
+    /// gets the place the first fit gives, over many lists of holes and mixes of blocks and pages.
+    #[test]
+    fn passing_ranges_over_gives_the_first_fit() {
+        let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+        let mut next = move |below: u64| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed % below
+        };
+        for _ in 0..300 {
+            let mut free = Vec::new();
+            let mut at = FIRST_AMAP + 512;
+            for _ in 0..next(200) {
+                at += 64 * (1 + next(40));
+                let units = if next(4) == 0 { 300 } else { 6 };
+                let end = at + 64 * (1 + next(units));
+                free.push((at, end));
+                at = end;
+            }
+            let mut s = Space::new(Format::Unicode, at.next_multiple_of(64) + AMAP_BYTES);
+            s.add_free(free.clone());
+            for _ in 0..400 {
+                let units = if next(3) == 0 { 128 } else { 8 };
+                let (size, align) = if next(5) == 0 { (512, 512) } else { (64 * (1 + next(units)), 64) };
+                let expected = first_fit(&mut free, size, align);
+                assert_eq!(s.take_free(size, align), expected, "{size} {align}");
+                assert_eq!(s.free, free);
+            }
+        }
     }
 }
