@@ -179,6 +179,7 @@ on GitHub.
 - Mail deleted in MailCraft from a very large Outlook file no longer comes back at random when the file is read again.
 - Moving the data files to a network folder no longer fails when the copy was fine.
 - Adding messages that carry many custom properties to an Outlook data file is faster.
+- Reading large Outlook data files (importing from one, exporting into one) is faster.
 
 ## 0.38.0 - 2026-11-13
 

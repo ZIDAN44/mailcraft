@@ -9,7 +9,7 @@ use std::rc::Rc;
 use std::time::Instant;
 
 use mailcraft_pst::write::{self, AttachmentContent, BatchMessage, Name, NewAttachment, NewMessage, NewProperty, NewValue, SpecialFolder};
-use mailcraft_pst::{Format, PS_PUBLIC_STRINGS, PropertyValue, PstFile, PstStore};
+use mailcraft_pst::{Format, Message, PS_PUBLIC_STRINGS, PropertyValue, PstFile, PstStore};
 use scratch::scratch;
 
 /// A file `name` in a scratch folder of its own.
@@ -228,4 +228,35 @@ fn measure_a_large_attachment_into_a_fragmented_file() {
         println!("file {:016x}", digest(&path));
     }
     println!("MEASURE a 40 MB attachment into a file of 20000 messages, every other one taken out: {best} ms (best of {ROUNDS})");
+}
+
+/// Every message of a big folder read: each one's node and blocks are looked up in the B-trees,
+/// whose pages are kept.
+#[test]
+#[ignore = "a measurement"]
+fn measure_reading_every_message_of_a_big_folder() {
+    let make = |p: &Path| {
+        write::create_empty(p, Format::Unicode).unwrap();
+        for b in 0..30 {
+            add(p, &["Inbox"], b * 2000, 2000);
+        }
+    };
+    let path = start_from("big-folder.pst", make);
+    let store = PstStore::read(Rc::new(PstFile::open(&path).unwrap())).unwrap();
+    let top = store.open_folder(store.ipm_subtree().unwrap()).unwrap();
+    let named_inbox = |id: u32| matches!(store.open_folder(id).unwrap().properties().get(0x3001), Some(PropertyValue::Unicode(s)) if String::from_utf16_lossy(s.buffer()).trim_end_matches('\0') == "Inbox");
+    let inbox = top.hierarchy_table().unwrap().rows_matrix().map(|r| r.id()).find(|id| named_inbox(*id)).unwrap();
+    let rows: Vec<u32> = store.open_folder(inbox).unwrap().contents_table().unwrap().rows_matrix().map(|r| r.id()).collect();
+    let mut best = u128::MAX;
+    for _ in 0..ROUNDS {
+        let t = Instant::now();
+        let mut subjects = 0;
+        for nid in &rows {
+            let message = Message::read(store.clone(), *nid).unwrap();
+            subjects += usize::from(message.properties().get(0x0037).is_some());
+        }
+        assert_eq!(subjects, rows.len());
+        best = best.min(t.elapsed().as_millis());
+    }
+    println!("MEASURE {} messages read: {best} ms (best of {ROUNDS})", rows.len());
 }

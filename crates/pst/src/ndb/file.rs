@@ -103,20 +103,21 @@ impl PstFile {
     pub(crate) fn page(&self, at: u64, ptype: u8, bid: u64) -> io::Result<Rc<[u8]>> {
         let mut pages = self.pages.try_borrow_mut().map_err(|_| io::Error::other("the page cache is in use"))?;
         if let Some(p) = pages.get(at) {
-            check_page(&p, self.header.format, ptype, bid)?;
+            // Its CRC was checked when it was read: what it is asked to be still is.
+            check_page(&p, self.header.format, ptype, bid, false)?;
             return Ok(p);
         }
         let mut buf = vec![0u8; PAGE];
         self.read_at(at, &mut buf)?;
-        check_page(&buf, self.header.format, ptype, bid)?;
+        check_page(&buf, self.header.format, ptype, bid, true)?;
         let page: Rc<[u8]> = buf.into();
         pages.put(at, page.clone());
         Ok(page)
     }
 }
 
-/// Whether a page's trailer says what it should.
-fn check_page(b: &[u8], format: Format, ptype: u8, bid: u64) -> io::Result<()> {
+/// Whether a page's trailer says what it should, and with `crc`, whether its CRC matches.
+fn check_page(b: &[u8], format: Format, ptype: u8, bid: u64, crc: bool) -> io::Result<()> {
     use crate::util::{u8_at, u32_at, u64_at};
     let data = format.page_data();
     let (found, again) = (u8_at(b, data)?, u8_at(b, data + 1)?);
@@ -126,11 +127,36 @@ fn check_page(b: &[u8], format: Format, ptype: u8, bid: u64) -> io::Result<()> {
     let (stored_crc, id) =
         if format.wide() { (u32_at(b, data + 4)?, u64_at(b, data + 8)?) } else { (u32_at(b, data + 8)?, u64::from(u32_at(b, data + 4)?)) };
     let body = b.get(..data).ok_or_else(crate::util::short)?;
-    if !crate::crc::matches(body, stored_crc) {
+    if crc && !crate::crc::matches(body, stored_crc) {
         return Err(invalid("a page is damaged"));
     }
     if bid != 0 && id != bid {
         return Err(invalid("a page isn't the one named"));
     }
     Ok(())
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    /// A page kept is still checked to be the one asked for, and a damaged one is refused when
+    /// it is read.
+    #[test]
+    fn a_kept_page_is_checked_for_what_it_is_asked_to_be() {
+        let path = crate::scratch::scratch("pst-page-cache").join("cache.pst");
+        crate::write::create_empty(&path, Format::Unicode).unwrap();
+        let pst = PstFile::open(&path).unwrap();
+        let Bref { bid, ib } = pst.header.root.nbt;
+        pst.page(ib, PT_NBT, bid).unwrap();
+        // Kept now: the same page again, then asked for as another.
+        pst.page(ib, PT_NBT, bid).unwrap();
+        assert!(pst.page(ib, PT_BBT, bid).is_err());
+        assert!(pst.page(ib, PT_NBT, bid + 4).is_err());
+        let mut bytes = std::fs::read(&path).unwrap();
+        bytes[usize::try_from(ib).unwrap()] ^= 1;
+        std::fs::write(&path, &bytes).unwrap();
+        let damaged = PstFile::open(&path).unwrap();
+        assert!(damaged.page(ib, PT_NBT, bid).unwrap_err().to_string().contains("damaged"));
+    }
 }
