@@ -24,7 +24,7 @@ pub use prepare::{BodyWork, PreparedBody};
 impl Session {
     /// A message file read by the network layer (issue #38), to show as `file.open` shows one.
     pub(crate) fn message_file_read(&mut self, path: &str, raw: Result<Vec<u8>, String>) {
-        let name = path.rsplit(['/', '\\']).next().unwrap_or(path).to_string();
+        let name = mailcraft_model::file_name(path).to_string();
         self.opened_file = Some(match raw {
             Ok(raw) => self.open_message_file(&name, &raw),
             Err(e) => Err(CmdError::Failed(format!("{name} can't be read as a message: {e}"))),

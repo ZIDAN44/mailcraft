@@ -635,7 +635,7 @@ pub(super) fn link_of<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str) -> Go
     let web = matches!(p(0x3705), Some(Val::Int(7)));
     let given = given_name(&s);
     // The file's own name, else the path's last part.
-    let leaf = path.rsplit(['\\', '/']).next().filter(|l| !l.trim().is_empty()).map(str::to_string);
+    let leaf = Some(mailcraft_model::file_name(&path)).filter(|l| !l.trim().is_empty()).map(str::to_string);
     let name = given.or(leaf).unwrap_or_else(|| "attachment".into());
     let name: String = name.chars().map(|c| if c.is_control() { ' ' } else { c }).take(MAX_LINK_NAME).collect();
     let cap = if super::lanes::is_pim(class) { super::out::MAX_PIM_FILE } else { MAX_ATTACHMENT };

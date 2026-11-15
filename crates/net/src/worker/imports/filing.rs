@@ -30,7 +30,7 @@ pub(crate) fn read_message_file(path: &str) -> std::result::Result<Vec<u8>, Stri
 
 /// A file's name, for saying which one couldn't go in.
 pub(in crate::worker) fn file_name(path: &str) -> String {
-    path.rsplit(['/', '\\']).next().unwrap_or(path).to_string()
+    mailcraft_model::file_name(path).to_string()
 }
 
 /// Read each file, and put the messages in with `put`: how many went in, and those that didn't.

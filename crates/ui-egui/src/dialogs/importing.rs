@@ -4,6 +4,7 @@
 //! an import came to, every loss by its reason.
 
 use mailcraft_engine::Changes;
+use mailcraft_engine::model::file_name;
 use mailcraft_engine::model::job::{DataFileFacts, ImportReport, SkipReason};
 
 use super::*;
@@ -40,11 +41,6 @@ pub(crate) fn skip_line(reason: SkipReason, n: u64) -> String {
 /// A note in the dialog's own colour, wrapped.
 fn say(ui: &mut Ui, words: String, color: egui::Color32) {
     ui.add(egui::Label::new(RichText::new(words).color(color)).wrap());
-}
-
-/// The data file's name at the end of `path`.
-fn file_name(path: &str) -> &str {
-    path.rsplit(['/', '\\']).next().unwrap_or(path)
 }
 
 /// The data file on a card: a file's mark, its name (its whole path on hover) and, under it,

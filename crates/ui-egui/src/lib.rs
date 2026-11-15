@@ -663,7 +663,7 @@ impl MailApp {
         use mailcraft_engine::CmdError;
         let mailto = mailcraft_engine::model::mailto::is_mailto(what);
         let r = if mailto { self.session.run("mail.mailto", &json!({"url": what})) } else { self.session.run("file.open", &json!({"path": what})) };
-        let name = what.rsplit(['/', '\\']).next().unwrap_or(what).to_string();
+        let name = mailcraft_engine::model::file_name(what);
         // How many the answer says were added or left out (none when it doesn't say).
         let tally = |answer: &Value, field: &str| answer[field].as_u64().unwrap_or(0);
         match r {
@@ -698,8 +698,8 @@ impl MailApp {
                 self.session.notice(tl!("Add an account first: events and people are kept with an account.").to_string(), true)
             }
             // One that names the file says all there is to say, by its name and not its whole path.
-            Err(CmdError::Params(m) | CmdError::Failed(m)) if m.contains(what) || m.contains(&name) => {
-                self.session.notice(m.replace(what, &name), true);
+            Err(CmdError::Params(m) | CmdError::Failed(m)) if m.contains(what) || m.contains(name) => {
+                self.session.notice(m.replace(what, name), true);
             }
             Err(e) => self.session.notice(tf!("Couldn't open {file}: {error}", file = name, error = e.to_string()), true),
         }

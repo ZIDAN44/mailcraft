@@ -413,7 +413,8 @@ pub fn picture_attachment(p: &Parsed, src: &str) -> Option<usize> {
         return None;
     }
     // Decoded and cut as the paperclip reads the HTML ([`HtmlRefs`]), so that the two agree.
-    use attachments::{last_segment, percent_decoded};
+    use attachments::percent_decoded;
+    use mailcraft_model::file_name;
     let name_is = |a: &AttachmentInfo, n: &str| !n.is_empty() && a.name.eq_ignore_ascii_case(n);
     if let Some(cid) = src.get(..4).filter(|s| s.eq_ignore_ascii_case("cid:")).and_then(|_| src.get(4..)) {
         let cid = cid.trim().trim_matches(['<', '>']);
@@ -426,10 +427,10 @@ pub fn picture_attachment(p: &Parsed, src: &str) -> Option<usize> {
             .map(|a| a.index);
     }
     let path = percent_decoded(src.split(['?', '#']).next().unwrap_or(src));
-    let file = last_segment(&path);
+    let file = file_name(&path);
     p.attachments
         .iter()
-        .find(|a| a.content_location.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(&path) || last_segment(l).eq_ignore_ascii_case(file)))
+        .find(|a| a.content_location.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(&path) || file_name(l).eq_ignore_ascii_case(file)))
         .or_else(|| p.attachments.iter().find(|a| name_is(a, file) || a.content_id.as_deref().is_some_and(|c| c.eq_ignore_ascii_case(file))))
         .map(|a| a.index)
 }

@@ -5,7 +5,7 @@ use std::borrow::Cow;
 
 use super::*;
 use crate::tnef::{TnefBody, is_tnef, read_tnef};
-use mailcraft_model::work;
+use mailcraft_model::{file_name, work};
 
 pub(crate) mod fields;
 mod index_text;
@@ -170,8 +170,10 @@ impl Refs {
                 let value = tag.get(a.value).unwrap_or_default();
                 let path = percent_decoded(value.split(['?', '#']).next().unwrap_or(value).trim());
                 if !path.is_empty() && r.paths.len() < MAX_REFS {
-                    if !last_segment(&path).is_empty() {
-                        r.files.insert(last_segment(&path).to_string());
+                    // The same last part as the reading pane's (`picture_attachment`), so that
+                    // they find the same picture.
+                    if !file_name(&path).is_empty() {
+                        r.files.insert(file_name(&path).to_string());
                     }
                     r.paths.insert(path);
                 }
@@ -179,12 +181,6 @@ impl Refs {
         }
         r
     }
-}
-
-/// A path's last segment (`chart.png` of `http://studio.example/a/chart.png`): one for the
-/// paperclip and the reading pane ([`picture_attachment`]), so that they find the same picture.
-pub(crate) fn last_segment(path: &str) -> &str {
-    path.rsplit(['/', '\\']).next().unwrap_or(path)
 }
 
 /// `%xx` escapes decoded (RFC 3986), as the reading pane decodes a picture's address
@@ -216,7 +212,7 @@ impl<'a> HtmlRefs<'a> {
         let cid = cid.map(|c| c.trim().trim_matches(['<', '>']).to_ascii_lowercase()).filter(|c| !c.is_empty());
         let location = location.map(|l| l.trim().trim_matches(['<', '>', '"']).to_ascii_lowercase()).filter(|l| !l.is_empty());
         cid.is_some_and(|c| r.cids.contains(&c) || r.files.contains(&c))
-            || location.is_some_and(|l| r.paths.contains(&l) || r.files.contains(last_segment(&l)) || r.cids.contains(&l))
+            || location.is_some_and(|l| r.paths.contains(&l) || r.files.contains(file_name(&l)) || r.cids.contains(&l))
     }
 }
 

@@ -126,9 +126,9 @@ fn same_path(a: &str, b: &str) -> bool {
 /// Whether this system's file names ignore case (`Archive.pst` is `archive.pst`).
 const FOLDS_CASE: bool = cfg!(any(windows, target_os = "macos"));
 
-/// The file's name at the end of a path.
+/// The file's name at the end of a path, kept.
 fn file_name(path: &str) -> String {
-    path.rsplit(['/', '\\']).next().unwrap_or(path).to_string()
+    mailcraft_model::file_name(path).to_string()
 }
 
 impl Session {

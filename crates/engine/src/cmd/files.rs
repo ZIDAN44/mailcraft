@@ -135,7 +135,7 @@ fn open_mail_file(s: &mut Session, v: &Value) -> CmdResult {
     if path.is_empty() {
         return Err(CmdError::Params("`path` is required".into()));
     }
-    let name = path.rsplit(['/', '\\']).next().unwrap_or(path).to_string();
+    let name = mailcraft_model::file_name(path).to_string();
     // Opened once: its first bytes say what it is, and the rest is read up to that kind's cap.
     let size = plain_file_size(path)?;
     let mut file = open_file(path)?;

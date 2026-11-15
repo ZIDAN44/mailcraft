@@ -143,7 +143,7 @@ fn note_of(path: &Path, source: &str) -> Option<Found> {
     let (owner, owner_path) = owner_of(&tx);
     let src = note.get("source")?;
     let noted = src.get("path")?.as_str()?;
-    if !noted.rsplit(['/', '\\']).next().is_some_and(|n| n.eq_ignore_ascii_case(source)) {
+    if !mailcraft_model::file_name(noted).eq_ignore_ascii_case(source) {
         return None;
     }
     let account = read(FOLDERS)
