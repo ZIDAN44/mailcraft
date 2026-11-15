@@ -373,6 +373,11 @@ pub fn install_fonts(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option
 /// when the main font hasn't them.
 pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Vec<(Vec<u8>, u32)>, rtl: Option<Vec<u8>>) {
     crate::bidi::set_coverage(regular.as_deref());
+    ctx.set_fonts(font_definitions(regular, bold, cjk, rtl));
+}
+
+/// The fonts [`install_fonts_with`] installs.
+fn font_definitions(regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Vec<(Vec<u8>, u32)>, rtl: Option<Vec<u8>>) -> FontDefinitions {
     let mut fonts = FontDefinitions::default();
     if let Some(bytes) = rtl {
         fonts.font_data.insert("rtl".into(), Arc::new(FontData::from_owned(bytes)));
@@ -385,6 +390,7 @@ pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: O
     for (i, (bytes, index)) in cjk.into_iter().enumerate() {
         let mut data = FontData::from_owned(bytes);
         data.index = index;
+        data.tweak.set_baseline_fallback(true);
         let name = format!("cjk-{i}");
         fonts.font_data.insert(name.clone(), Arc::new(data));
         for family in [FontFamily::Proportional, FontFamily::Monospace] {
@@ -408,14 +414,22 @@ pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: O
     }
     bold_list.extend(fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default());
     fonts.families.insert(bold_family, bold_list);
-    ctx.set_fonts(fonts);
+    fonts
 }
+
+/// Scripts whose fallback fonts sit on the line the main font's letters sit on: Chinese, Japanese
+/// and Korean. A fallback is otherwise centred on the line, which put a subject or a name mixing
+/// them with Latin letters and digits on two heights (GridCraft found this). Symbols and emoji
+/// stay centred.
+const ON_THE_BASELINE: [&str; 10] = ["Hani", "Hans", "Hant", "Jpan", "Hira", "Kana", "Hrkt", "Hang", "Kore", "Bopo"];
 
 /// Last of all, the fonts built in from craft-fonts (none unless built with them).
 pub(crate) fn add_craft_fallbacks(fonts: &mut FontDefinitions) {
     for (i, f) in crate::craft_fonts::fallbacks().enumerate() {
         let name = format!("craft-{i}");
-        fonts.font_data.insert(name.clone(), Arc::new(FontData::from_static(f.bytes)));
+        let mut data = FontData::from_static(f.bytes);
+        data.tweak.set_baseline_fallback(f.scripts.iter().any(|s| ON_THE_BASELINE.contains(s)));
+        fonts.font_data.insert(name.clone(), Arc::new(data));
         for family in [FontFamily::Proportional, FontFamily::Monospace] {
             if let Some(list) = fonts.families.get_mut(&family) {
                 list.push(name.clone());
@@ -435,6 +449,21 @@ pub fn regular(size: f32) -> egui::FontId {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Chinese, Japanese and Korean fallbacks sit on the main font's line; the others (Arabic and
+    /// Hebrew, symbols) stay centred on it.
+    #[test]
+    fn chinese_japanese_and_korean_sit_on_the_line() {
+        use egui::epaint::text::FallbackAlign::{Baseline, Center};
+        let fonts = font_definitions(None, None, vec![(vec![0], 0), (vec![0], 2)], Some(vec![0]));
+        let align = |name: &str| fonts.font_data.get(name).map(|d| d.tweak.fallback_align);
+        assert_eq!((align("cjk-0"), align("cjk-1")), (Some(Baseline), Some(Baseline)));
+        assert_eq!(align("rtl"), Some(Center));
+        for (i, f) in crate::craft_fonts::fallbacks().enumerate() {
+            let cjk = f.scripts.iter().any(|s| ["Jpan", "Hans", "Hang", "Kore"].contains(s));
+            assert_eq!(align(&format!("craft-{i}")), Some(if cjk { Baseline } else { Center }), "{}", f.family);
+        }
+    }
 
     /// Issue #41: a pale tint on a pale page is still a box (a newsletter's light yellow blocks
     /// on light grey, as Outlook shows them); the page's own colour, or one a shade off it, isn't.

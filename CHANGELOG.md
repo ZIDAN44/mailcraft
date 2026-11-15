@@ -210,6 +210,7 @@ on GitHub.
 - On Linux, a MailCraft started by another program packaged as an AppImage (a `mailto:` link clicked in a browser, say) no longer puts its update over that program's AppImage: the program passes on where its own file is, and the updater took it for MailCraft's.
 - On a Linux desktop running Wayland without X11's libraries (which the `.deb` and `.rpm` only recommend), MailCraft opens on Wayland instead of failing to start: it asked for XWayland, where it opens by default, without looking for them first. The log names the ones missing.
 - On macOS 26, Chinese in the interface and in mail is drawn in PingFang again, which macOS moved: it came out in a Japanese or Korean font. Traditional Chinese takes STHeiti first, as PingFang's first face there is Simplified.
+- Chinese, Japanese and Korean words in a subject, a name or a message sit on the same line as the Latin letters and digits beside them, as in a browser: they were centred on it, a little higher or lower.
 
 ## 0.38.0 - 2026-11-13
 
