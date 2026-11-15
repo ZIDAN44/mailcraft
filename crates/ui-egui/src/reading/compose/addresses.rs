@@ -204,7 +204,6 @@ fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, c
 
 /// A recipient box (To, Cc, Bcc) that suggests people from mail already seen: ↑/↓ choose,
 /// Enter or Tab takes the highlighted one, a click takes any.
-#[allow(clippy::too_many_arguments)]
 fn recipient_field(
     ui: &mut Ui,
     st: &mut UiState,

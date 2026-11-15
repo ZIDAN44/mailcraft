@@ -72,19 +72,21 @@ fn hidden_format(height: f32) -> TextFormat {
     TextFormat { font_id: theme::regular(1.0), line_height: Some(height), color: Color32::TRANSPARENT, ..Default::default() }
 }
 
-/// The text laid out with its styles; `shift` moves a paragraph right (alignment); `own`: the
-/// pictures' own sizes; `card`: a part of it drawn as something else.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn job(
-    text: &str,
-    st: &Styles,
-    plain: bool,
-    t: &Tokens,
-    wrap: f32,
-    shift: &[f32],
-    own: &HashMap<String, egui::Vec2>,
-    card: Option<&Card>,
-) -> LayoutJob {
+/// What the message's text is laid out with: its styles, whether it's plain text, the colours,
+/// the width it wraps at, its pictures' own sizes and a part of it drawn as something else.
+#[derive(Clone, Copy)]
+pub(super) struct Lay<'a> {
+    pub(super) st: &'a Styles,
+    pub(super) plain: bool,
+    pub(super) t: &'a Tokens,
+    pub(super) wrap: f32,
+    pub(super) own: &'a HashMap<String, egui::Vec2>,
+    pub(super) card: Option<&'a Card>,
+}
+
+/// The text laid out as `lay` says; `shift` moves a paragraph right (alignment).
+pub(super) fn job(text: &str, lay: Lay<'_>, shift: &[f32]) -> LayoutJob {
+    let Lay { st, plain, t, wrap, own, card } = lay;
     let card = card.filter(|_| !plain).map(|c| (c, c.last_line(text)));
     // A card's letter at `at`: how tall its line is, and the room before it (its last line's start).
     let hidden = |at: usize| {
@@ -199,19 +201,9 @@ pub(super) fn indent_empty_rows(g: Arc<Galley>, st: &Styles, plain: bool) -> Arc
 /// Lay the text out; centred and right-aligned paragraphs that fit on one line are moved over.
 /// (Afresh, for the tests: the editor keeps what it laid out with [`layout_kept`].)
 #[cfg(test)]
-#[allow(clippy::too_many_arguments)]
-pub(super) fn layout(
-    ui: &Ui,
-    text: &str,
-    st: &Styles,
-    plain: bool,
-    t: &Tokens,
-    wrap: f32,
-    own: &HashMap<String, egui::Vec2>,
-    card: Option<&Card>,
-) -> Arc<Galley> {
-    let first = ui.painter().layout_job(job(text, st, plain, t, wrap, &[], own, card));
-    indent_empty_rows(aligned(ui, first, text, st, plain, t, wrap, own, card), st, plain)
+pub(super) fn layout(ui: &Ui, text: &str, lay: Lay<'_>) -> Arc<Galley> {
+    let first = ui.painter().layout_job(job(text, lay, &[]));
+    indent_empty_rows(aligned(ui, first, text, lay), lay.st, lay.plain)
 }
 
 /// The text laid out last, given again while it would be laid out the same: egui gives back the
@@ -229,19 +221,9 @@ pub(super) struct Laid {
 
 /// The text laid out, its centred and right-aligned paragraphs that fit on one line moved over;
 /// given again from `laid` when it's the same.
-#[allow(clippy::too_many_arguments)]
-pub(super) fn layout_kept(
-    laid: &mut Laid,
-    ui: &Ui,
-    text: &str,
-    st: &Styles,
-    plain: bool,
-    t: &Tokens,
-    wrap: f32,
-    own: &HashMap<String, egui::Vec2>,
-    card: Option<&Card>,
-) -> Arc<Galley> {
-    let first = ui.painter().layout_job(job(text, st, plain, t, wrap, &[], own, card));
+pub(super) fn layout_kept(laid: &mut Laid, ui: &Ui, text: &str, lay: Lay<'_>) -> Arc<Galley> {
+    let Lay { st, plain, wrap, .. } = lay;
+    let first = ui.painter().layout_job(job(text, lay, &[]));
     if let (Some(was), Some(out)) = (&laid.first, &laid.out)
         && Arc::ptr_eq(was, &first)
         && laid.paras == st.paras
@@ -250,24 +232,14 @@ pub(super) fn layout_kept(
     {
         return out.clone();
     }
-    let out = indent_empty_rows(aligned(ui, first.clone(), text, st, plain, t, wrap, own, card), st, plain);
+    let out = indent_empty_rows(aligned(ui, first.clone(), text, lay), st, plain);
     *laid = Laid { first: Some(first), paras: st.paras.clone(), plain, wrap, out: Some(out.clone()) };
     out
 }
 
 /// `first` (the text laid out) with its centred and right-aligned paragraphs moved over.
-#[allow(clippy::too_many_arguments)]
-fn aligned(
-    ui: &Ui,
-    first: Arc<Galley>,
-    text: &str,
-    st: &Styles,
-    plain: bool,
-    t: &Tokens,
-    wrap: f32,
-    own: &HashMap<String, egui::Vec2>,
-    card: Option<&Card>,
-) -> Arc<Galley> {
+fn aligned(ui: &Ui, first: Arc<Galley>, text: &str, lay: Lay<'_>) -> Arc<Galley> {
+    let Lay { st, plain, wrap, .. } = lay;
     // A right-to-left paragraph left as it was sits against the right edge. (Each paragraph is
     // looked at once: it was again for each of its rows, and twice to align it.)
     let rtl: Vec<bool> = text.split('\n').map(|l| crate::bidi::has_rtl(l) && crate::bidi::paragraph_rtl(l)).collect();
@@ -302,7 +274,7 @@ fn aligned(
             }
         }
     }
-    let shifted = ui.painter().layout_job(job(text, st, plain, t, wrap, &shift, own, card));
+    let shifted = ui.painter().layout_job(job(text, lay, &shift));
     // A right-to-left paragraph left as it was and wrapped: each of its rows against the right edge.
     rtl_rows_right(shifted, |n| st.para(n).align == Align::Left && rtl_of(n), wrap, 2)
 }

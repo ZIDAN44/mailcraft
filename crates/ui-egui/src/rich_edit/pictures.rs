@@ -131,7 +131,6 @@ fn set_width(c: &mut Compose, at: usize, width: Option<u16>) {
 }
 
 /// Draw the picture at character `at` in its place; click, drag and right-click it.
-#[allow(clippy::too_many_arguments)]
 pub(super) fn picture(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, at: usize, cid: &str, place: Place) {
     let style = c.styles.style(at);
     let own = ed.pictures.get(cid).and_then(|p| p.as_ref().map(|p| p.size));

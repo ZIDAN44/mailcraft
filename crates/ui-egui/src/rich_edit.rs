@@ -486,8 +486,9 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let mut text = Tracked::new(&mut c.body);
     let styles = &c.styles;
     let laid = &mut ed.laid;
-    let mut layouter =
-        |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| layout_kept(laid, ui, buf.as_str(), styles, plain, &tokens, wrap, &own, card.as_ref());
+    let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| {
+        layout_kept(laid, ui, buf.as_str(), Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: card.as_ref() })
+    };
     // As tall as the pane, or, above the original of a reply shown as it came, as its text.
     let height = ed.min_height.unwrap_or_else(|| if c.quote.is_some() { 96.0 } else { ui.available_height().max(220.0) });
     // A right-click inside the selection keeps it (egui's text box moves the cursor on any

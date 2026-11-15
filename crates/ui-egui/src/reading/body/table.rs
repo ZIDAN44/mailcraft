@@ -16,7 +16,6 @@ impl Body<'_> {
     /// cell's background fills it, and its content sits at the top, in the middle or at the
     /// bottom, as its `valign` says. Heights are those the
     /// cells' content took the frame before (egui lays out once), so a row settles a frame on.
-    #[allow(clippy::too_many_arguments)]
     pub(crate) fn row(
         &mut self,
         st: &mut UiState,
