@@ -469,8 +469,9 @@ fn show_day(t: i64, s: &Session, acts: &mut Vec<Action>) {
     crate::calendar::show_day(s.clock.local_day(t), acts);
 }
 
+/// The reading pane with no message in it, saying `msg` (as shown: its callers translate it).
 fn empty(ui: &mut Ui, t: &Tokens, msg: &str) {
-    widgets::empty_state(ui, t, Icon::Read, tl!(msg));
+    widgets::empty_state(ui, t, Icon::Read, msg);
 }
 
 fn thread_list(s: &Session, t: &Tokens, ui: &mut Ui, thread: &[MessageKey], open: &MessageKey, acts: &mut Vec<Action>) {

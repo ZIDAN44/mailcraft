@@ -111,12 +111,12 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
         };
         let until = day_shown(s, cert.not_after);
         let who = whose(&cert.emails, &cert.name);
-        let line = tf!("Issued by {issuer}, valid until {date}", issuer = cert.issuer, date = until);
-        let expired = cert.not_after < s.clock.now;
-        let mut about = RichText::new(format!("{line} · {}", cert.key)).size(12.0).color(if expired { t.danger } else { t.faint });
-        if expired {
-            about = RichText::new(tf!("It ran out on {date}: messages can't be signed with it any more.", date = until)).size(12.0).color(t.danger);
-        }
+        let about = if cert.not_after < s.clock.now {
+            RichText::new(tf!("It ran out on {date}: messages can't be signed with it any more.", date = until)).size(12.0).color(t.danger)
+        } else {
+            let line = tf!("Issued by {issuer}, valid until {date}", issuer = cert.issuer, date = until);
+            RichText::new(format!("{line} · {}", cert.key)).size(12.0).color(t.faint)
+        };
         setting_row(ui, t, true, name(t, who), Some(about), |ui| {
             if ui
                 .button(RichText::new(tl!("Remove")).color(t.danger))

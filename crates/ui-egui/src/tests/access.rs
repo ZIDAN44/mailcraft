@@ -239,3 +239,20 @@ fn a_ribbon_label_with_a_value_is_translated_once() {
     crate::i18n::set_current(crate::i18n::Lang::EN);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// The empty reading pane says what to do translated once (it translated its caller's
+/// translation again: marked twice in the pseudo-language).
+#[test]
+fn the_empty_reading_pane_is_translated_once() {
+    use crate::i18n::pseudo;
+    let (mut a, dir) = app("empty-reading");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.reading.is_none());
+    pseudo::set(true);
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    pseudo::set(false);
+    let shown: Vec<&String> = texts.iter().filter(|t| t.contains("Select a message to read it")).collect();
+    assert_eq!(shown, ["⟦Select a message to read it⟧"], "{texts:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}

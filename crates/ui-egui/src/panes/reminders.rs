@@ -11,10 +11,29 @@ use crate::{Action, Dialog, widgets};
 
 /// How often the due list is worked out again.
 const EVERY_SECS: i64 = 15;
-/// The snoozes offered, in minutes (Outlook's list); negative: minutes before the start.
-const SNOOZES: [i64; 10] = [5, 10, 15, 30, 60, 120, 240, 480, 1440, 0];
-/// "Before start" choices go in as this minus the minutes (so 0 before start is `BEFORE`).
-const BEFORE: i64 = -1;
+/// A snooze: minutes from now, or until the event starts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Snooze {
+    Minutes(u32),
+    AtStart,
+}
+
+/// The snoozes offered (Outlook's list).
+const SNOOZES: [Snooze; 10] = [
+    Snooze::Minutes(5),
+    Snooze::Minutes(10),
+    Snooze::Minutes(15),
+    Snooze::Minutes(30),
+    Snooze::Minutes(60),
+    Snooze::Minutes(120),
+    Snooze::Minutes(240),
+    Snooze::Minutes(480),
+    Snooze::Minutes(1440),
+    Snooze::AtStart,
+];
+
+/// The snooze offered until another is picked.
+const FIRST_SNOOZE: Snooze = Snooze::Minutes(5);
 
 /// What the window keeps between frames.
 #[derive(Clone, Debug, Default)]
@@ -24,8 +43,8 @@ pub struct State {
     pub checked: i64,
     /// The one picked in the list.
     pub selected: Option<String>,
-    /// The snooze picked (minutes; [`BEFORE`] for "0 minutes before start").
-    pub snooze: i64,
+    /// The snooze picked; none yet: [`FIRST_SNOOZE`].
+    pub snooze: Option<Snooze>,
     /// Closed with these due: shown again only when another comes.
     pub closed: std::collections::BTreeSet<String>,
     /// Told on the desktop already.
@@ -82,8 +101,11 @@ fn due_in(r: &DueReminder, now: i64) -> String {
     }
 }
 
-fn snooze_label(m: i64) -> String {
-    if m == BEFORE { tl!("0 minutes before start").to_string() } else { crate::pim_dialogs::reminder_label(Some(m)) }
+fn snooze_label(snooze: Snooze) -> String {
+    match snooze {
+        Snooze::AtStart => tl!("0 minutes before start").to_string(),
+        Snooze::Minutes(m) => crate::pim_dialogs::reminder_label(Some(i64::from(m))),
+    }
 }
 
 /// The window, when something is due.
@@ -91,9 +113,7 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
     if !showing(st) {
         return;
     }
-    if st.snooze == 0 {
-        st.snooze = 5;
-    }
+    let snooze = *st.snooze.get_or_insert(FIRST_SNOOZE);
     let now = s.clock.now;
     let mut open = true;
     let title = if st.due.len() == 1 { tl!("1 Reminder").to_string() } else { tf!("{n} Reminders", n = st.due.len()) };
@@ -137,17 +157,18 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
             ui.add_space(4.0);
             ui.label(RichText::new(tl!("Click Snooze to be reminded again in:")).color(t.dim).small());
             ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("reminder-snooze").width(200.0).selected_text(snooze_label(st.snooze)).show_ui(ui, |ui| {
+                egui::ComboBox::from_id_salt("reminder-snooze").width(200.0).selected_text(snooze_label(snooze)).show_ui(ui, |ui| {
                     for m in SNOOZES {
-                        let m = if m == 0 { BEFORE } else { m };
-                        ui.selectable_value(&mut st.snooze, m, snooze_label(m));
+                        ui.selectable_value(&mut st.snooze, Some(m), snooze_label(m));
                     }
                 });
                 if let Some(r) = &picked
                     && ui.button(tl!("Snooze")).clicked()
                 {
-                    let p =
-                        if st.snooze == BEFORE { json!({ "key": r.key, "beforeStart": 0 }) } else { json!({ "key": r.key, "minutes": st.snooze }) };
+                    let p = match snooze {
+                        Snooze::AtStart => json!({ "key": r.key, "beforeStart": 0 }),
+                        Snooze::Minutes(m) => json!({ "key": r.key, "minutes": m }),
+                    };
                     acts.push(Action::Run("reminders.snooze", p));
                 }
             });

@@ -246,13 +246,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             let chev = m.rect(egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0)));
             icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.dim);
             ui.painter().circle_filled(m.pos(rect.min + vec2(26.0, 15.0)), 4.0, theme::account_color(a.config.color));
-            let label = if a.is_data_file() {
-                a.config.email.clone()
-            } else if a.is_local() {
-                tf!("{email} (sample)", email = a.config.email)
-            } else {
-                a.config.email.clone()
-            };
+            let label = if a.is_local() && !a.is_data_file() { tf!("{email} (sample)", email = a.config.email) } else { a.config.email.clone() };
             crate::widgets::named(ui, &resp, &label, true, Some(open));
             let g = crate::widgets::one_line(ui, &label, theme::bold(13.0), t.text, rect.width() - 44.0);
             let resp = if g.elided { resp.on_hover_text(&label) } else { resp };

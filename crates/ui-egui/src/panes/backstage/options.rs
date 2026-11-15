@@ -2,6 +2,9 @@
 
 use super::*;
 
+/// MailCraft's own colour, the accent when none is chosen ([`theme::APP_COLOR`]).
+const APP_RGB: [u8; 3] = [theme::APP_COLOR.r(), theme::APP_COLOR.g(), theme::APP_COLOR.b()];
+
 mod general;
 mod inbox;
 mod mail;
@@ -68,7 +71,7 @@ fn accent_choice(ui: &mut Ui, t: &Tokens, current: &str, acts: &mut Vec<Action>)
         ui.spacing_mut().item_spacing.x = 4.0;
         let picker = |ui: &mut Ui, acts: &mut Vec<Action>| {
             // Any colour: what's chosen now, or the accent in use, to start from.
-            let mut rgb = mailcraft_engine::accent_rgb(current).unwrap_or([0x0E, 0x7C, 0x86]);
+            let mut rgb = mailcraft_engine::accent_rgb(current).unwrap_or(APP_RGB);
             let r = egui::widgets::color_picker::color_edit_button_srgb(ui, &mut rgb).on_hover_text(tl!("Any colour"));
             if current.starts_with('#') {
                 ui.painter().rect_stroke(r.rect.expand(2.0), 4.0, egui::Stroke::new(2.0, t.text), egui::StrokeKind::Outside);
@@ -83,7 +86,7 @@ fn accent_choice(ui: &mut Ui, t: &Tokens, current: &str, acts: &mut Vec<Action>)
         }
         let ordered: Vec<(&str, &str)> = if from_end { names.iter().rev().copied().collect() } else { names.to_vec() };
         for (code, label) in ordered {
-            let rgb = mailcraft_engine::accent_rgb(code).unwrap_or([0x0E, 0x7C, 0x86]);
+            let rgb = mailcraft_engine::accent_rgb(code).unwrap_or(APP_RGB);
             let on = current == code || (code == "teal" && current.is_empty());
             let (rect, resp) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::click());
             widgets::named(ui, &resp, label, true, Some(on));

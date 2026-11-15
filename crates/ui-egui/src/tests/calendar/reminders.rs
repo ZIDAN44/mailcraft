@@ -69,6 +69,36 @@ fn a_due_reminder_changed_shows_on_the_next_frame() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// The window's Snooze: 5 minutes until another is picked, and "0 minutes before start" until
+/// the event starts.
+#[test]
+fn snooze_in_the_window_takes_the_choice_picked() {
+    let (mut a, dir) = app("reminder-snooze");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    big_calendar(&mut a, 0, 0);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.reminders.snooze, Some(crate::reminders::Snooze::Minutes(5)), "offered first");
+    let size = egui::vec2(1280.0, 800.0);
+    let snooze = |a: &mut MailApp, ctx: &egui::Context| {
+        let r = a.ui.reminders.due[0].clone();
+        let texts = drawn_text(ctx, a, size);
+        let row = texts.iter().find(|d| d.text.starts_with(&format!("{}  ·", r.summary))).map(|d| d.rect.center()).unwrap();
+        click(ctx, a, row);
+        let button = texts.iter().filter(|d| d.text == "Snooze").map(|d| d.rect.center()).max_by(|x, y| x.y.total_cmp(&y.y)).unwrap();
+        click(ctx, a, button);
+        frame(ctx, a, vec![]);
+        assert!(a.ui.reminders.due.iter().all(|d| d.key != r.key), "{} snoozed", r.summary);
+        (a.session.prefs.reminders.get(&r.key).copied(), r.start)
+    };
+    let (until, _) = snooze(&mut a, &ctx);
+    assert_eq!(until, Some(NOW + 5 * 60));
+    a.ui.reminders.snooze = Some(crate::reminders::Snooze::AtStart);
+    let (until, start) = snooze(&mut a, &ctx);
+    assert_eq!(until, Some(start));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// What the reminders cost a frame with 20,000 events and 5,000 tasks, three of them due (the
 /// window up), and a fingerprint of what the window draws (the same before and after a change
 /// that only makes it faster). Run in release under the machine's lock:
