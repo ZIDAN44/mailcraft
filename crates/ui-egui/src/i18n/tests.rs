@@ -544,7 +544,13 @@ fn a_tour_in_the_pseudo_language_only_draws_known_strings() {
     pseudo::set(false);
     let unknown: Vec<String> = pseudo::seen().into_iter().filter(|s| !known.contains(s)).collect();
     // Dynamic text (names, subjects, notices with values) also goes through `t`; only fixed
-    // interface wording must be known. Anything here that is wording needs adding to the scan.
+    // interface wording must be known. What reads as wording and the scan doesn't find (looked up
+    // through a variable: "Incoming mail (IMAP)", "No task matches.") must still be in every
+    // catalog; the only text drawn that isn't, the values the tour hands the interface.
+    let values = [
+        "Archive.pst: 100 messages imported".to_string(),
+        format!("{}. Turn on IMAP on Outlook.com.", mailcraft_engine::model::MICROSOFT_IMAP_CLOSED),
+    ];
     let wording: Vec<&String> = unknown
         .iter()
         .filter(|s| {
@@ -553,9 +559,11 @@ fn a_tour_in_the_pseudo_language_only_draws_known_strings() {
                 && s.chars().next().is_some_and(char::is_uppercase)
                 && s.split(' ').count() > 2
                 && !s.contains("Storyboard")
+                && !values.contains(s)
+                && Lang::all().skip(1).any(|l| l.0.catalog().get(s.as_str()).is_none())
         })
         .collect();
-    assert!(wording.len() < 40, "{wording:?}");
+    assert!(wording.is_empty(), "drawn, read as wording, but not in every catalog: {wording:?}");
     // Short labels too (the filter above passes "To:" and "Sent To", looked up by a variable):
     // what was drawn and is written as a literal in the interface's code is wording, and must
     // be in the catalogs.
