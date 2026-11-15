@@ -35,9 +35,6 @@ pub(crate) fn scratch(name: &str) -> PathBuf {
     folder
 }
 
-/// A big folder's list is kept in pages by number: read back newest first as it was; a flag
-/// change writes one page, new mail the last one; shrunk, the pages go; and a list kept whole
-/// (from before) still reads.
 /// Files handed to other apps go in a folder of the user's own, made when missing; on Linux
 /// and the BSDs not in the shared /tmp, and owner-only.
 #[test]
@@ -57,6 +54,9 @@ fn scratch_folders_are_the_users_own() {
     let _ = fs::remove_dir(&a);
 }
 
+/// A big folder's list is kept in pages by number: read back newest first as it was; a flag
+/// change writes one page, new mail the last one; shrunk, the pages go; and a list kept whole
+/// (from before) still reads.
 #[test]
 fn a_big_folder_list_is_kept_in_pages() {
     for packed in [false, true] {
