@@ -325,6 +325,7 @@ fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
     ui.separator();
 }
 
+/// The side pane: everyone, A to Z (searched from the box at the top), under the address books.
 pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     if widgets::accent_button(ui, Icon::Plus, "New contact", &t, !s.accounts.is_empty()).clicked() {

@@ -6,7 +6,6 @@ use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog};
 
-/// A ribbon button: icon over nothing, label to the right.
 /// The ribbon's buttons as it's drawn: those from `icons_from` on are icons alone, their labels
 /// tooltips (it didn't fit the window); how wide each label is, and how far right (and left, for
 /// a right-to-left ribbon) they reached.
@@ -149,7 +148,6 @@ fn reached(ui: &Ui, rect: egui::Rect) {
     });
 }
 
-/// An icon alone, its label as the tooltip (a ribbon too wide for the window).
 /// A button's background as the pointer comes and goes: the hover fades in and out (quickly),
 /// a press shows at once.
 fn hover_fill(ui: &Ui, resp: &Response, rect: egui::Rect, t: &Tokens, enabled: bool) {
@@ -172,6 +170,7 @@ pub(crate) fn named(ui: &Ui, resp: &Response, label: &str, enabled: bool, on: Op
     });
 }
 
+/// An icon alone, its label as the tooltip (a ribbon too wide for the window).
 fn icon_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, on: bool) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(32.0, 30.0), if enabled { Sense::click() } else { Sense::hover() });
     reached(ui, rect);
@@ -230,6 +229,8 @@ impl<'a> From<&'a String> for Label<'a> {
     }
 }
 
+/// A ribbon button: its icon, its label to the right (on the classic ribbon, a big icon over
+/// its label).
 pub fn tool_button<'a>(ui: &mut Ui, icon: Icon, label: impl Into<Label<'a>>, t: &Tokens, enabled: bool) -> Response {
     let label = label.into();
     let mut resp = tool_button_drawn(ui, icon, label.text(), t, enabled);
@@ -372,12 +373,12 @@ pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Re
     resp
 }
 
-/// An icon button on the coloured title bar.
 /// The top bar's hover: a lighter wash on the coloured bar, the pane's hover on a plain one.
 pub fn bar_wash(t: &Tokens) -> Color32 {
     if t.on_bar == Color32::WHITE { Color32::from_white_alpha(40) } else { t.hover }
 }
 
+/// An icon button on the coloured title bar.
 pub fn bar_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
     named(ui, &resp, tl!(tip), true, None);
