@@ -3,6 +3,8 @@
 //! missing (not downloaded), one the user marked (unread, flagged, categorized, pinned), or one
 //! whose attachments the reply doesn't carry stays.
 
+use std::collections::HashSet;
+
 use crate::Summary;
 
 /// How much of a text is compared (a longer one is kept: not worth the time, nor the risk).
@@ -40,7 +42,8 @@ pub fn movable(m: &Summary, categories: &[String]) -> bool {
 /// Which of a conversation's messages are redundant: `texts[i]` is message `i`'s text, when
 /// downloaded. A message is redundant when a later reply to it (its Message-ID is in the reply's
 /// `In-Reply-To` or `References`) quotes all of its text, as whole words, and, if it has
-/// attachments, has some too. The latest message is never redundant, nor one without an id.
+/// attachments, has some too. Later is as the list places them ([`Summary::when`]): the latest
+/// message is never redundant, nor one without an id.
 pub fn redundant(msgs: &[&Summary], texts: &[Option<String>], categories: &[String]) -> Vec<usize> {
     if msgs.len() > CONVERSATION_MAX {
         return Vec::new();
@@ -48,13 +51,14 @@ pub fn redundant(msgs: &[&Summary], texts: &[Option<String>], categories: &[Stri
     // Space-padded, so a match is of whole words.
     let plains: Vec<Option<String>> =
         texts.iter().map(|t| t.as_deref().filter(|t| t.len() <= TEXT_MAX).map(plain).filter(|p| !p.is_empty()).map(|p| format!(" {p} "))).collect();
+    let answers = answers(msgs);
     let mut out = Vec::new();
     for (i, m) in msgs.iter().enumerate() {
         let Some(id) = may_go(m, categories) else { continue };
         let Some(Some(mine)) = plains.get(i) else { continue };
-        let quoted = msgs.iter().enumerate().any(|(j, later)| {
+        let quoted = msgs.iter().zip(&answers).enumerate().any(|(j, (later, ids))| {
             j != i
-                && may_quote(later, m, &id)
+                && may_quote(later, ids, m, &id)
                 && plains.get(j).and_then(Option::as_ref).is_some_and(|theirs| theirs.len() > mine.len() && theirs.contains(mine.as_str()))
         });
         if quoted {
@@ -72,10 +76,11 @@ pub fn texts_wanted(msgs: &[&Summary], categories: &[String]) -> Vec<bool> {
     if msgs.len() > CONVERSATION_MAX {
         return wanted;
     }
+    let answers = answers(msgs);
     for (i, m) in msgs.iter().enumerate() {
         let Some(id) = may_go(m, categories) else { continue };
-        for (j, later) in msgs.iter().enumerate() {
-            if j != i && may_quote(later, m, &id) {
+        for (j, (later, ids)) in msgs.iter().zip(&answers).enumerate() {
+            if j != i && may_quote(later, ids, m, &id) {
                 for k in [i, j] {
                     if let Some(w) = wanted.get_mut(k) {
                         *w = true;
@@ -97,12 +102,19 @@ fn may_go(m: &Summary, categories: &[String]) -> Option<String> {
     (!id.is_empty()).then_some(id)
 }
 
-/// Whether `later` can stand for `m` (whose id is `id`) if it quotes it: later, a reply to it,
-/// and carrying attachments if `m` does.
-fn may_quote(later: &Summary, m: &Summary, id: &str) -> bool {
-    (later.date, &later.key) > (m.date, &m.key)
-        && (!m.has_attachments || later.has_attachments)
-        && std::iter::once(&later.in_reply_to).chain(&later.references).any(|r| crate::thread::norm_id(r).eq_ignore_ascii_case(id))
+/// The ids each message answers (its In-Reply-To and References), as [`may_go`] makes an id:
+/// made once for a conversation, where each was made again for every message it was checked
+/// against (one of 300, each naming the 256 before it, took half a second).
+fn answers(msgs: &[&Summary]) -> Vec<HashSet<String>> {
+    msgs.iter()
+        .map(|m| std::iter::once(&m.in_reply_to).chain(&m.references).map(|r| crate::thread::norm_id(r).to_ascii_lowercase()).collect())
+        .collect()
+}
+
+/// Whether `later` (which answers the ids `answers`) can stand for `m` (whose id is `id`) if it
+/// quotes it: later as the list places them, a reply to it, and carrying attachments if `m` does.
+fn may_quote(later: &Summary, answers: &HashSet<String>, m: &Summary, id: &str) -> bool {
+    (later.when(), &later.key) > (m.when(), &m.key) && (!m.has_attachments || later.has_attachments) && answers.contains(id)
 }
 
 #[cfg(test)]
@@ -202,6 +214,50 @@ mod tests {
             let only: Vec<Option<String>> = texts.iter().zip(&wanted).map(|(t, w)| t.clone().filter(|_| *w)).collect();
             assert_eq!(redundant(msgs, &only, &[]), redundant(msgs, &texts, &[]), "{n}");
         }
+    }
+
+    /// Later is as the list places messages, by when they came: a reply from a computer whose
+    /// clock is behind (its Date before the message it answers) still quotes it, and the
+    /// message the list shows last is the one kept.
+    #[test]
+    fn later_is_as_the_list_places_them() {
+        let texts = vec![Some("Can you send the frames?".to_string()), Some("Sure.\n> Can you send the frames?".to_string())];
+        let (mut first, mut reply) = (msg(1, 500), msg(2, 400));
+        (first.received, reply.received) = (510, 520);
+        assert_eq!(redundant(&[&first, &reply], &texts, &[]), [0]);
+        assert_eq!(texts_wanted(&[&first, &reply], &[]), [true, true]);
+        // Dates alone (nothing says when they came): the reply's Date is the earlier.
+        (first.received, reply.received) = (0, 0);
+        assert!(redundant(&[&first, &reply], &texts, &[]).is_empty());
+        assert_eq!(texts_wanted(&[&first, &reply], &[]), [false, false]);
+    }
+
+    /// The longest conversation looked at, each message naming the 256 before it as threading
+    /// keeps them: which texts it wants, then what's redundant (`MEASURE`, release, by hand).
+    #[test]
+    #[ignore]
+    fn measure_a_long_conversation() {
+        let msgs: Vec<Summary> = (1..=CONVERSATION_MAX as u32)
+            .map(|uid| {
+                let mut m = msg(uid, i64::from(uid) * 100);
+                m.references = (uid.saturating_sub(256).max(1)..uid).map(|n| format!("<m{n}@x.example>")).collect();
+                m
+            })
+            .collect();
+        let all: Vec<&Summary> = msgs.iter().collect();
+        let texts: Vec<Option<String>> = (0..msgs.len()).map(|i| Some(format!("Note {i}, on the frames."))).collect();
+        let runs = 5;
+        let ms = |t: std::time::Instant| t.elapsed().as_secs_f64() * 1000.0 / f64::from(runs);
+        let t = std::time::Instant::now();
+        for _ in 0..runs {
+            assert!(texts_wanted(&all, &[]).iter().all(|w| *w));
+        }
+        let wanted = ms(t);
+        let t = std::time::Instant::now();
+        for _ in 0..runs {
+            assert!(redundant(&all, &texts, &[]).is_empty());
+        }
+        println!("MEASURE clean up of {} messages: texts wanted {wanted:.1} ms, redundant {:.1} ms", msgs.len(), ms(t));
     }
 
     /// A keyword is a category here as everywhere else (shown as one, found by `is:categorized`)
