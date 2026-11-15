@@ -18,6 +18,7 @@ use super::super::resume::{self, Checkpoint, Found};
 use super::super::{ImportOptions, ImportSink, Imported, PlannedFolder, Progress, SkipReason, Stop, import_into, import_with};
 use crate::data_files::scratch::scratch;
 use crate::data_files::test_data::filetime;
+use crate::fakes::random::Rng;
 
 /// A data file with mail in three folders, two nested: plain and HTML messages, some with a file
 /// of 10-300 KiB or a picture the HTML shows, some with no message id. `big` gives every third
@@ -452,13 +453,8 @@ fn folders_go_where_they_always_went() {
         "Ünïcode",
         "Outbox",
     ];
-    let mut x = 0x2545_f491_4f6c_dd1du64;
-    let mut next = |n: usize| {
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        usize::try_from(x % n as u64).unwrap()
-    };
+    let mut random = Rng::new(0x2545_f491_4f6c_dd1d);
+    let mut next = |n: usize| usize::try_from(random.next_u64() % n as u64).unwrap();
     for round in 0..40 {
         // A tree: each folder at the top, or under one before it.
         let count = 1 + next(120);

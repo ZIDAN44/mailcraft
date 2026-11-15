@@ -743,16 +743,9 @@ fn a_mark_read_waits_little_for_an_index_pass() {
         },
     )
     .unwrap();
-    let mut x = 0x9E37_79B9_7F4A_7C15u64;
+    let mut rng = crate::fakes::random::Rng::new(0x9E37_79B9_7F4A_7C15);
     for uid in 1..=n {
-        let words: String = (0..800)
-            .map(|_| {
-                x ^= x << 13;
-                x ^= x >> 7;
-                x ^= x << 17;
-                format!("w{} ", x % 50_000)
-            })
-            .collect();
+        let words: String = (0..800).map(|_| format!("w{} ", rng.next_u64() % 50_000)).collect();
         let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid };
         s.write_body(&key, format!("Subject: m\r\nMessage-ID: <m{uid}@x>\r\n\r\n{words}\r\n").as_bytes()).unwrap();
     }

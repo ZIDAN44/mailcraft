@@ -11,17 +11,10 @@ fn temp(name: &str) -> std::path::PathBuf {
     d
 }
 
-/// Bytes that don't compress (xorshift).
+/// Bytes that don't compress, seeded as the store's tests seed theirs (a small `seed` spread
+/// over the word, never 0).
 fn noise(n: usize, seed: u64) -> Vec<u8> {
-    let mut x = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
-    (0..n)
-        .map(|_| {
-            x ^= x << 13;
-            x ^= x >> 7;
-            x ^= x << 17;
-            x as u8
-        })
-        .collect()
+    crate::fakes::random::noise(n, seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1)
 }
 
 /// Each message's size.

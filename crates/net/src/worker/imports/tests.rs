@@ -588,17 +588,10 @@ fn big_data_file(dir: &Path) -> PathBuf {
     old.save_folders("old", std::slice::from_ref(&folder)).unwrap();
     let mut st = old.load_folder("old", "zz").unwrap();
     st.validity = 1;
-    let mut x = 0x9E37_79B9_7F4A_7C15u64;
+    let mut rng = crate::fakes::random::Rng::new(0x9E37_79B9_7F4A_7C15);
     for uid in 1..=4 {
         let key = MessageKey { account: "old".into(), folder: "zz".into(), validity: 1, uid };
-        let body: Vec<u8> = (0..12 << 20)
-            .map(|_| {
-                x ^= x << 13;
-                x ^= x >> 7;
-                x ^= x << 17;
-                x as u8
-            })
-            .collect();
+        let body: Vec<u8> = (0..12 << 20).map(|_| rng.next_u64() as u8).collect();
         old.write_body(&key, &body).unwrap();
         st.messages.push(Summary { key, ..Summary::default() }.into());
     }

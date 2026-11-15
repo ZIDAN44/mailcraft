@@ -4,7 +4,7 @@
 use super::super::item::{File, Item};
 use super::super::rebuild::{message, summary_of, to_raw};
 use super::*;
-use crate::data_files::test_data::noise;
+use crate::fakes::random::noise;
 
 fn key() -> MessageKey {
     MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 1 }

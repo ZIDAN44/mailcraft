@@ -50,6 +50,7 @@ use mailcraft_pst::write::{self, BatchMessage, NewAttachment, NewMessage, NewRec
 
 use crate::data_files::scratch::scratch;
 use crate::data_files::test_data::filetime;
+use crate::fakes::random::Rng;
 use eta::{judge, judge_folders};
 
 fn env(name: &str) -> Option<String> {
@@ -57,15 +58,12 @@ fn env(name: &str) -> Option<String> {
 }
 
 /// A cheap repeatable stream of bytes (xorshift), so attachments aren't all zeros.
-struct Noise(u64);
+struct Noise(Rng);
 
 impl Noise {
     /// The stream's next number.
     fn next_u64(&mut self) -> u64 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 7;
-        self.0 ^= self.0 << 17;
-        self.0
+        self.0.next_u64()
     }
 
     fn bytes(&mut self, n: usize) -> Vec<u8> {
@@ -127,7 +125,7 @@ fn make() {
     let _ = std::fs::remove_file(&path);
     let folders: [(&[&str], usize); 5] =
         [(&["Inbox"], 55), (&["Sent Items"], 15), (&["Inbox", "Projects"], 15), (&["Archive", "2024"], 10), (&["Archive", "2023"], 5)];
-    let mut noise = Noise(0x9E37_79B9_7F4A_7C15);
+    let mut noise = Noise(Rng::new(0x9E37_79B9_7F4A_7C15));
     let began = Instant::now();
     let mut written = 0usize;
     let mut created = false;
@@ -295,7 +293,7 @@ fn run_with_pauses(
 ) -> (crate::pst::Imported, Vec<u64>) {
     let pause_at = knob("MC_PAUSE_AT");
     let gap_ms = u64::try_from(if env("MC_PAUSE_S").is_some() { knob("MC_PAUSE_S").max(2) } else { 8 }).unwrap_or(8) * 1000;
-    let mut noise = Noise(env("MC_SEED").and_then(|v| v.parse().ok()).unwrap_or(0x2545_F491_4F6C_DD1D));
+    let mut noise = Noise(Rng::new(env("MC_SEED").and_then(|v| v.parse().ok()).unwrap_or(0x2545_F491_4F6C_DD1D)));
     let mut waits: Vec<u64> = Vec::new();
     let seen = progress.seen;
     loop {

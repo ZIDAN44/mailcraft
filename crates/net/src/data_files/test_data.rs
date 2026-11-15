@@ -1,5 +1,5 @@
 //! What the data file tests (and the import worker's) make up the same way each time: times as
-//! Outlook keeps them, a plain message, bytes that don't repeat, a signed message's content.
+//! Outlook keeps them, a plain message, a signed message's content.
 
 use mailcraft_pst::write::NewMessage;
 
@@ -24,20 +24,6 @@ pub(crate) fn plain_message<'a>(subject: &'a str, message_id: &'a str) -> NewMes
         message_class: "IPM.Note",
         properties: &[],
     }
-}
-
-/// `len` bytes of xorshift from `seed`: the same each time, and nothing a compressor or a writer
-/// keeping repeated blocks once could make smaller.
-pub(crate) fn noise(len: usize, seed: u64) -> Vec<u8> {
-    let mut x = seed;
-    (0..len)
-        .map(|_| {
-            x ^= x << 13;
-            x ^= x >> 7;
-            x ^= x << 17;
-            x as u8
-        })
-        .collect()
 }
 
 /// A CMS `ContentInfo` of this type (2 signed data, 3 enveloped data), its content made up.

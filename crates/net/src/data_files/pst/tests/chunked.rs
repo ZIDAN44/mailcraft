@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use super::super::chunked::{ChunkReader, PAGE, Shared, Source};
 use super::super::open::open_read;
 use crate::data_files::scratch::scratch;
-use crate::data_files::test_data::noise;
+use crate::fakes::random::{Rng, noise};
 
 /// A file of `len` bytes that don't repeat in any short run.
 fn file_of(name: &str, len: usize) -> PathBuf {
@@ -31,13 +31,8 @@ fn the_reader_reads_what_the_file_holds() {
         let shared = source(&path, chunk_kb);
         let mut ours = ChunkReader::new(&shared);
         let mut plain = std::fs::File::open(&path).unwrap();
-        let mut x = 0x9e37_79b9_7f4a_7c15u64 ^ chunk_kb as u64;
-        let mut next = || {
-            x ^= x << 13;
-            x ^= x >> 7;
-            x ^= x << 17;
-            x
-        };
+        let mut rng = Rng::new(0x9e37_79b9_7f4a_7c15u64 ^ chunk_kb as u64);
+        let mut next = || rng.next_u64();
         for step in 0..10_000 {
             let r = next();
             match r % 5 {

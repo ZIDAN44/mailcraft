@@ -19,7 +19,8 @@ use super::super::resume::{self, CHECKPOINT_DOC, CheckState, Checkpoint, Found};
 use super::super::{ImportOptions, Imported, Stop, import_with, keep_as_is};
 use super::pipeline::{checkpoint, data_file, everything, stopped_at, store_at};
 use crate::data_files::scratch::scratch;
-use crate::data_files::test_data::{filetime, noise};
+use crate::data_files::test_data::filetime;
+use crate::fakes::random::noise;
 use crate::space::{Filling, LOW_SPACE};
 
 fn opts(lanes: usize, fault: Option<Fault>) -> ImportOptions {
