@@ -88,11 +88,36 @@ pub struct Conn<S> {
     used_count: usize,
     /// When the current command must be done by (`None`: none running, or IDLE waiting).
     deadline: Option<Instant>,
+    /// How far the response at the front of the buffer was looked through ([`Conn::complete_len`]).
+    scanned: Scanned,
+}
+
+/// How far the response not yet whole at the front of a [`Conn`]'s buffer was looked through,
+/// counted from its start (`pos`, which moves only as a response is taken, and then this starts
+/// over): where its first line not yet whole starts (those before it, with their literals, are
+/// whole), and how far that line was searched for its end without finding it. Or the line is
+/// whole and the literal it announces isn't: where the literal starts and how long it is, so the
+/// line isn't read again as the literal comes.
+#[derive(Clone, Copy, Debug, Default)]
+struct Scanned {
+    i: usize,
+    searched: usize,
+    literal: Option<(usize, usize)>,
 }
 
 impl<S: Read + Write> Conn<S> {
     pub fn new(s: S) -> Self {
-        Conn { s, buf: Vec::with_capacity(16 << 10), pos: 0, tag: 0, limits: Limits::default(), used_bytes: 0, used_count: 0, deadline: None }
+        Conn {
+            s,
+            buf: Vec::with_capacity(16 << 10),
+            pos: 0,
+            tag: 0,
+            limits: Limits::default(),
+            used_bytes: 0,
+            used_count: 0,
+            deadline: None,
+            scanned: Scanned::default(),
+        }
     }
 
     /// Replace the per-command budget (the hostile-server tests shrink it).
@@ -138,36 +163,55 @@ impl<S: Read + Write> Conn<S> {
         self.limits.bytes.saturating_sub(self.used_bytes)
     }
 
-    /// The length of the complete response at the front of the buffer, if there is one.
-    fn complete_len(&self) -> Result<Option<usize>> {
+    /// The length of the complete response at the front of the buffer, if there is one. Taken up
+    /// where the last look stopped ([`Scanned`]): a line of 30 MB comes 32 KB a read, and each
+    /// read looked through all of it again.
+    fn complete_len(&mut self) -> Result<Option<usize>> {
         let data = self.buf.get(self.pos..).unwrap_or_default();
-        let mut i = 0usize;
+        let Scanned { mut i, mut searched, mut literal } = self.scanned;
         loop {
-            let rest = data.get(i..).unwrap_or_default();
-            let Some(nl) = rest.iter().position(|&b| b == b'\n') else {
-                if rest.len() > MAX_LINE {
-                    return Err(NetError::Protocol("response line too long".into()));
-                }
-                return Ok(None);
-            };
-            if nl > MAX_LINE {
-                return Err(NetError::Protocol("response line too long".into()));
-            }
-            let line = rest.get(..nl).unwrap_or_default();
-            let line = line.strip_suffix(b"\r").unwrap_or(line);
-            i += nl + 1;
-            match literal_len(line) {
-                Some(n) if n > MAX_LITERAL => return Err(NetError::Protocol(format!("literal of {n} bytes is too large"))),
-                // Refuse before buffering it: the literal would take the command past its byte cap.
-                Some(n) if i.saturating_add(n) > self.room() => return Err(over_budget()),
-                Some(n) => {
-                    if data.len() < i + n {
+            let (at, n) = match literal.take() {
+                Some(awaited) => awaited,
+                None => {
+                    let rest = data.get(i..).unwrap_or_default();
+                    // The line's bytes looked through already hold no line end.
+                    let from = searched.saturating_sub(i);
+                    let Some(nl) = rest.get(from..).and_then(|r| r.iter().position(|&b| b == b'\n')).map(|p| p + from) else {
+                        if rest.len() > MAX_LINE {
+                            return Err(NetError::Protocol("response line too long".into()));
+                        }
+                        self.scanned = Scanned { i, searched: data.len(), literal: None };
                         return Ok(None);
+                    };
+                    if nl > MAX_LINE {
+                        return Err(NetError::Protocol("response line too long".into()));
                     }
-                    i += n;
+                    let line = rest.get(..nl).unwrap_or_default();
+                    let line = line.strip_suffix(b"\r").unwrap_or(line);
+                    let at = i + nl + 1;
+                    match literal_len(line) {
+                        Some(n) if n > MAX_LITERAL => return Err(NetError::Protocol(format!("literal of {n} bytes is too large"))),
+                        Some(n) => (at, n),
+                        None => {
+                            // The next response starts after this one: looked at from its start.
+                            self.scanned = Scanned::default();
+                            return Ok(Some(at));
+                        }
+                    }
                 }
-                None => return Ok(Some(i)),
+            };
+            // Refuse before buffering it: the literal would take the command past its byte cap.
+            // Asked again each time more has come (the room may have changed).
+            let end = at.saturating_add(n);
+            if end > self.room() {
+                return Err(over_budget());
             }
+            if data.len() < end {
+                self.scanned = Scanned { i, searched, literal: Some((at, n)) };
+                return Ok(None);
+            }
+            i = end;
+            searched = end;
         }
     }
 

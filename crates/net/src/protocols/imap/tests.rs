@@ -224,6 +224,64 @@ fn a_big_folders_search_line_is_read() {
     assert_eq!(c.uid_search("ALL").unwrap().len(), 200_000);
 }
 
+/// Responses are framed the same however the server's bytes come: each look at the buffer takes
+/// up where the last stopped, inside a line, before a literal or inside one.
+#[test]
+fn responses_are_framed_the_same_however_the_bytes_come() {
+    let s = b"* OK hi\r\n\
+* 1 FETCH (UID 7 BODY[] {12}\r\nSubject: x\r\n BODY[HEADER] {3}\r\nabc)\r\n\
+* SEARCH 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16\r\n\
+* 2 FETCH (BODY[] {0}\r\n)\r\n\
+M1 OK done\r\n";
+    let frames = |step: usize| {
+        let mut c = super::conn::Conn::new(Script { step, ..Script::new(s) });
+        std::iter::from_fn(|| c.read_raw().ok()).collect::<Vec<_>>()
+    };
+    let whole = frames(s.len());
+    assert_eq!(whole.len(), 5);
+    assert_eq!(whole.concat(), s);
+    for step in 1..=40 {
+        assert_eq!(frames(step), whole, "{step} bytes a read");
+    }
+}
+
+/// A line whose literal hasn't all come is read once: as the literal's bytes arrive only they are
+/// waited for (the line, up to `MAX_LINE` long, was searched from its first byte at every read).
+/// Shown by blanking the line in the buffer once it was read: the response is framed all the same.
+#[test]
+fn a_line_waiting_for_its_literal_is_not_read_again() {
+    let line = b"* 1 FETCH (UID 7 BODY[] {10}\r\n";
+    let mut c = super::conn::Conn::new(Script { step: 1 << 10, ..Script::new(&[&line[..], b"ab"].concat()) });
+    assert!(matches!(c.read_raw(), Err(NetError::Closed(_))), "the literal isn't whole yet");
+    c.buf.get_mut(c.pos..c.pos + line.len()).unwrap().fill(b'x');
+    c.buf.extend_from_slice(b"\ncdefghi)\r\n* 2 EXPUNGE\r\n");
+    assert_eq!(c.read_raw().unwrap().len(), line.len() + 10 + 3);
+    assert_eq!(c.read_raw().unwrap(), b"* 2 EXPUNGE\r\n");
+    // The command's byte budget is still asked about as the literal comes.
+    let mut c = super::conn::Conn::new(Script { step: 1 << 10, ..Script::new(&[&line[..], b"ab"].concat()) });
+    assert!(matches!(c.read_raw(), Err(NetError::Closed(_))));
+    c.set_limits(super::conn::Limits { bytes: line.len() + 9, ..Default::default() });
+    assert!(matches!(c.read_raw(), Err(NetError::Protocol(_))));
+}
+
+/// How long the longest answer `MAX_LINE` is for takes to frame: a folder's `UID SEARCH ALL` of
+/// three million messages on one line, read as a socket hands it over, 32 KB at a time.
+#[test]
+#[ignore]
+fn measure_a_huge_search_line() {
+    let mut s = b"* SEARCH".to_vec();
+    for u in 1..=3_000_000u32 {
+        s.extend(format!(" {u}").as_bytes());
+    }
+    s.extend(b"\r\n");
+    let len = s.len();
+    let mut c = super::conn::Conn::new(Script { step: 32 << 10, ..Script::new(&s) });
+    let began = std::time::Instant::now();
+    let raw = c.read_raw().unwrap();
+    eprintln!("MEASURE a {} MB search line framed in {:?}", len >> 20, began.elapsed());
+    assert_eq!(raw.len(), len);
+}
+
 /// A refused SELECT leaves no folder selected (RFC 3501 §6.3.1): the one before was still
 /// taken for selected, so IDLE waited on nothing and the Inbox's messages couldn't be opened.
 #[test]

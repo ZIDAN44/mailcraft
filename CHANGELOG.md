@@ -163,6 +163,7 @@ on GitHub.
 - IMAP messages from servers that send bare line feeds no longer go missing.
 - Automatic replies work on servers that have a Sieve script named ok, no or bye.
 - A folder change no longer briefly empties the folder pane when the folder list can't be read.
+- Folders with millions of messages sync noticeably faster.
 
 ## 0.38.0 - 2026-11-13
 
