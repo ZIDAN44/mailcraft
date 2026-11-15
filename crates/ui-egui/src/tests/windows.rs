@@ -1,8 +1,9 @@
-//! UI tests: windows of their own, where they open, fonts and the browser.
+//! UI tests: windows of their own, where they open, fonts and the browser, a message's source.
 
 use super::*;
 
 pub(super) mod layout;
+mod source;
 
 #[test]
 fn in_the_browser_a_popped_out_message_opens_in_a_window_of_its_own() {

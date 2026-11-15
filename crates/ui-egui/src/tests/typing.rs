@@ -1,7 +1,8 @@
-//! Typing: Alt+numpad character codes (issue #23), and a search as it's typed.
+//! Typing: Alt+numpad character codes (issue #23), a search as it's typed, and right-to-left text.
 
 use super::*;
 
+mod rtl;
 mod search_big;
 mod search_frames;
 

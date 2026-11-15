@@ -1,11 +1,14 @@
-//! UI tests: writing messages (the editor, recipients, the address book, date and words, several at once).
+//! UI tests: writing messages (the editor, recipients, the address book, date and words, several at once,
+//! files from the desktop, signatures).
 
 use super::*;
 
+mod files;
 mod form;
 mod names;
 mod quote;
 mod sending;
+mod signatures;
 mod suggest;
 
 #[test]

@@ -771,15 +771,11 @@ impl crate::Services for Ticking {
 mod access;
 mod accounts;
 mod calendar;
-mod files;
 mod organize;
 mod pictures;
 mod reading;
-mod rtl;
 mod selecting;
-mod signatures;
 mod soak;
-mod source;
 mod typing;
 mod updates;
 mod windows;
