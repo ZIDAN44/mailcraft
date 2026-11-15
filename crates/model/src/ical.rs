@@ -34,10 +34,8 @@ mod zones;
 pub use alarms::*;
 pub use find::*;
 pub use meeting::*;
-use notes::*;
 pub use notes::*;
 use reading::*;
-use recurrence::*;
 pub use recurrence::*;
 pub use scheduling::*;
 pub use showing::*;
@@ -271,7 +269,6 @@ fn parse_line(raw: &str) -> Option<Line> {
     Some(Line { name, params, value, raw: String::new() })
 }
 
-/// A TEXT value with its escapes undone.
 /// A list of texts (`CATEGORIES:Work,Clients\, big`): split at commas that aren't escaped, each
 /// unescaped and trimmed.
 pub fn split_text_list(v: &str) -> Vec<String> {
@@ -294,6 +291,7 @@ pub fn split_text_list(v: &str) -> Vec<String> {
     out.into_iter().filter(|c| !c.is_empty()).collect()
 }
 
+/// A TEXT value with its escapes undone.
 pub fn unescape(v: &str) -> String {
     let mut out = String::with_capacity(v.len());
     let mut it = v.chars();
@@ -691,8 +689,6 @@ fn write_events(events: &[CalEvent], method: Option<&str>, now: i64, purpose: Pu
     }
     out
 }
-
-// ----- recurrence -----
 
 #[cfg(test)]
 mod tests;

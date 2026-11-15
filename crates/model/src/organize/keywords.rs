@@ -87,6 +87,8 @@ pub fn check_keyword(k: &str) -> Result<(), &'static str> {
     if k.is_empty() {
         Err("a keyword can't be empty")
     } else if k.len() > MAX_KEYWORD {
+        // The number said is the cap's: the build stops if they part.
+        const _: () = assert!(MAX_KEYWORD == 50);
         Err("a keyword can have at most 50 characters")
     } else if !is_keyword(k) {
         Err("a keyword can only have letters, digits and symbols other than ( ) { } % * \" \\ ], no spaces")
