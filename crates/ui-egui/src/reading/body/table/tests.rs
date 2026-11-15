@@ -265,14 +265,14 @@ fn pictures_without_a_width_are_measured_when_known() {
         fit: true,
         ..Default::default()
     };
-    let here = with_ui(|ui| super::measure::measured_with(ui, &key(), &t, true, &mut |_| PictureWidth::Is(290.0)));
+    let here = with_ui(|ui| super::measure::measured_with(ui, &key(), None, &t, true, &mut |_| PictureWidth::Is(290.0)));
     assert_eq!(here.whole.map(|f| f.min), Some(290.0));
-    let coming = with_ui(|ui| super::measure::measured_with(ui, &key(), &t, false, &mut |_| PictureWidth::Coming));
+    let coming = with_ui(|ui| super::measure::measured_with(ui, &key(), None, &t, false, &mut |_| PictureWidth::Coming));
     assert_eq!(coming.whole, None);
     let alt = with_ui(|ui| {
-        let first = super::measure::measured_with(ui, &key(), &t, false, &mut |_| PictureWidth::Coming);
+        let first = super::measure::measured_with(ui, &key(), None, &t, false, &mut |_| PictureWidth::Coming);
         assert_eq!(first.whole, None);
-        super::measure::measured_with(ui, &key(), &t, false, &mut |_| PictureWidth::Alt)
+        super::measure::measured_with(ui, &key(), None, &t, false, &mut |_| PictureWidth::Alt)
     });
     assert!(alt.whole.is_some_and(|f| f.min > 10.0), "{alt:?}");
 }
@@ -351,6 +351,11 @@ fn all_tables(blocks: &[Block]) -> Vec<&mime::layout::Table> {
     out
 }
 
+/// What each table of `blocks` that's in no other holds, as it's made when one is drawn.
+fn outermost_held(ui: &Ui, blocks: &[Block]) -> Vec<Held> {
+    blocks.iter().filter_map(|b| if let Block::Table(t) = b { Some(Held::of(ui, t)) } else { None }).collect()
+}
+
 /// Tables measured on this thread so far.
 fn measured_count() -> usize {
     super::measure::MEASURED.with(std::cell::Cell::get)
@@ -411,12 +416,15 @@ fn tables_inside_are_measured_with_the_one_they_are_in() {
             };
             // Each alone, in a frame of its own.
             let alone: Vec<String> =
-                tables.iter().map(|t| with_ui(|ui| format!("{:?}", measured_with(ui, &key(), t, true, &mut |_| answer(&picture))))).collect();
+                tables.iter().map(|t| with_ui(|ui| format!("{:?}", measured_with(ui, &key(), None, t, true, &mut |_| answer(&picture))))).collect();
             // As drawn: the outermost first, then each inside it.
             let (drawn, measures) = with_ui(|ui| {
+                let held = outermost_held(ui, &blocks);
                 let before = measured_count();
-                let drawn: Vec<String> =
-                    tables.iter().map(|t| format!("{:?}", measured_with(ui, &key(), t, true, &mut |_| answer(&picture)))).collect();
+                let drawn: Vec<String> = tables
+                    .iter()
+                    .map(|t| format!("{:?}", measured_with(ui, &key(), held.iter().find(|h| h.has(t)), t, true, &mut |_| answer(&picture))))
+                    .collect();
                 (drawn, measured_count() - before)
             });
             assert_eq!(drawn, alone, "measured as alone");
@@ -440,6 +448,7 @@ fn a_table_is_measured_again_only_once_a_picture_comes() {
     let tables = all_tables(&blocks);
     let web = |sp: &mime::Span| sp.image.as_deref().is_some_and(|s| s.starts_with("https:"));
     let came = with_ui(|ui| {
+        let held = outermost_held(ui, &blocks);
         let draw = |come: &dyn Fn(&mime::Span) -> bool| -> (Vec<String>, usize) {
             let before = measured_count();
             let m = tables
@@ -447,7 +456,7 @@ fn a_table_is_measured_again_only_once_a_picture_comes() {
                 .map(|t| {
                     format!(
                         "{:?}",
-                        measured_with(ui, &key(), t, true, &mut |sp| if web(sp) && !come(sp) {
+                        measured_with(ui, &key(), held.iter().find(|h| h.has(t)), t, true, &mut |sp| if web(sp) && !come(sp) {
                             PictureWidth::Coming
                         } else {
                             PictureWidth::Is(90.0)
@@ -474,7 +483,7 @@ fn a_table_is_measured_again_only_once_a_picture_comes() {
         all
     });
     let alone: Vec<String> =
-        tables.iter().map(|t| with_ui(|ui| format!("{:?}", measured_with(ui, &key(), t, true, &mut |_| PictureWidth::Is(90.0))))).collect();
+        tables.iter().map(|t| with_ui(|ui| format!("{:?}", measured_with(ui, &key(), None, t, true, &mut |_| PictureWidth::Is(90.0))))).collect();
     assert_eq!(came, alone, "as measured alone once they're all here");
     assert!(!came.iter().any(|m| m.contains("None")), "{came:?}");
 }
@@ -501,4 +510,78 @@ fn a_table_where_another_was_has_its_own_measures() {
         let again = Box::new(table("Short"));
         assert_eq!(format!("{:?}", measured(ui, &key(), &again)), format!("{short:?}"));
     });
+}
+
+/// A frame hashes what a table holds once, however deep the tables in it are, and their measures
+/// are still kept from frame to frame. Every table hashed all it holds on every frame: what's in
+/// a table fourteen tables down, fifteen times.
+#[test]
+fn a_frame_hashes_what_a_table_holds_once() {
+    let hashed = || super::measure::HASHED.with(std::cell::Cell::get);
+    let blocks = deep_tables(14);
+    let Some(Block::Table(outer)) = blocks.first() else { panic!("a table") };
+    let session = Session::open(None, mailcraft_engine::model::dates::Clock::new(0, 0));
+    let (key, parsed) = (key(), mime::Parsed::default());
+    let ctx = egui::Context::default();
+    let mut st = UiState::default();
+    // What a frame hashes, how many tables it measures, and what hashing the outer table takes.
+    let mut frame = || {
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(900.0, 700.0))), ..Default::default() };
+        let (mut frame, mut once) = ((0, 0), 0);
+        let mut out = ctx.run_ui(input, |ui| {
+            let (mut shown, mut acts) = (Vec::new(), Vec::new());
+            let mut body = Body { s: &session, key: &key, p: &parsed, allowed: false, shown: &mut shown, acts: &mut acts, cells: None, held: None };
+            let before = (hashed(), measured_count());
+            body.blocks(&mut st, ui, &blocks, 800.0, [255; 3], mime::layout::Align::Left, 0);
+            frame = (hashed() - before.0, measured_count() - before.1);
+            let before = hashed();
+            let _ = Held::of(ui, outer);
+            once = hashed() - before;
+        });
+        out.textures_delta.clear();
+        (frame, once)
+    };
+    let ((_, measured), once) = frame();
+    assert_eq!(measured, 1, "those inside measured with the outer one, and found when drawn");
+    assert!(once > 100, "{once}");
+    for _ in 0..3 {
+        assert_eq!(frame(), ((once, 0), once), "hashed once, and nothing measured again");
+    }
+}
+
+/// Fonts installed again (another language's, one that came for Chinese) measure a line's width
+/// and a table's columns again: both were kept as measured in the fonts before, a centred line
+/// off-centre and columns the wrong width until MailCraft was started again.
+#[test]
+fn what_is_kept_is_measured_again_in_other_fonts() {
+    let line = vec![mime::Span { text: "Read the story of the fall collection".into(), ..Default::default() }];
+    let blocks = html_layout("<table><tr><td>Read the story of the fall collection</td><td>Riley Moreno</td></tr></table>");
+    let Some(Block::Table(t)) = blocks.first() else { panic!("a table") };
+    // The words' font changed for the monospace one, as wide again.
+    let mut other = egui::FontDefinitions::default();
+    if let Some(family) = other.families.get_mut(&egui::FontFamily::Proportional) {
+        family.insert(0, "Hack".into());
+    }
+    // The line as kept, as laid out now, and the table's measures.
+    let look = |ctx: &egui::Context| {
+        let mut got = None;
+        let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let now: f32 = line.iter().map(|sp| ui.fonts_mut(|f| f.layout_no_wrap(sp.text.clone(), span_font(sp), Color32::WHITE).size().x)).sum();
+            got = Some((line_width(ui, &line), now, format!("{:?}", measured(ui, &key(), t))));
+        });
+        out.textures_delta.clear();
+        got.expect("a frame")
+    };
+    let ctx = egui::Context::default();
+    let first = look(&ctx);
+    assert_eq!((first.0, look(&ctx)), (first.1, first.clone()), "kept in the same fonts");
+    ctx.set_fonts(other.clone());
+    let (kept, now, columns) = look(&ctx);
+    assert!((now - first.1).abs() > 20.0, "another width in the other font: {now} {}", first.1);
+    assert_eq!(kept, now, "the line measured again");
+    // As in a window that only ever had those fonts.
+    let fresh = egui::Context::default();
+    fresh.set_fonts(other);
+    assert_eq!(columns, look(&fresh).2, "the table measured again");
+    assert_ne!(columns, first.2);
 }

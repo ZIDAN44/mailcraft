@@ -79,7 +79,7 @@ fn a_parts_pictures_are_looked_for_as_deep_as_it_is_drawn() {
         let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(900.0, 700.0))), ..Default::default() };
         let mut out = ctx.run_ui(input, |ui| {
             let mut acts = Vec::new();
-            let mut body = Body { s: &session, key: &key, p: &parsed, allowed: false, shown: &mut drawn, acts: &mut acts, cells: None };
+            let mut body = Body { s: &session, key: &key, p: &parsed, allowed: false, shown: &mut drawn, acts: &mut acts, cells: None, held: None };
             body.blocks(&mut st, ui, &blocks, 800.0, [255; 3], mime::layout::Align::Left, 0);
         });
         out.textures_delta.clear();

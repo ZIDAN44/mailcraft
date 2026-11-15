@@ -117,7 +117,7 @@ pub(super) fn show(s: &Session, st: &mut UiState, ui: &mut Ui, c: &mut Compose, 
     let width = ui.available_width();
     let allowed = s.pictures_allowed();
     {
-        let mut body = Body { s, key: &q.key, p: &q.parsed, allowed, shown: &mut shown, acts, cells: Some(&mut cells) };
+        let mut body = Body { s, key: &q.key, p: &q.parsed, allowed, shown: &mut shown, acts, cells: Some(&mut cells), held: None };
         body.blocks(st, ui, &q.blocks, width, theme::surface_rgb(&t), mime::layout::Align::Left, 0);
     }
     let (changed, focus) = (std::mem::take(&mut cells.changed), cells.focus);

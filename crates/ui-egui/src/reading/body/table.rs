@@ -6,7 +6,7 @@ use super::*;
 mod measure;
 #[cfg(test)]
 pub(crate) use measure::measured;
-pub(crate) use measure::{Fit, PictureWidth, measured_with};
+pub(crate) use measure::{Fit, Held, PictureWidth, fonts_stamp, measured_with};
 
 /// What every row of one table is drawn with.
 #[derive(Clone, Copy)]

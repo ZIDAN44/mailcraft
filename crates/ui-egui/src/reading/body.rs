@@ -172,7 +172,7 @@ pub(super) fn rich_body(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Messag
     let allowed = s.pictures_allowed();
     let mut shown: Vec<String> = Vec::new();
     let width = ui.available_width();
-    let mut body = Body { s, key, p, allowed, shown: &mut shown, acts, cells: None };
+    let mut body = Body { s, key, p, allowed, shown: &mut shown, acts, cells: None, held: None };
     if long_text::many_lines(p) {
         // Thousands of lines: laid out by what's in view.
         long_text::rich(&mut body, st, ui, ui.scope_id().with(("long-text", key.to_id())), width, theme::surface_rgb(&t));
@@ -206,6 +206,9 @@ pub(super) struct Body<'a> {
     pub(super) acts: &'a mut Vec<Action>,
     /// Blocks of text drawn as text boxes, to change (the original under a reply).
     pub(super) cells: Option<&'a mut dyn CellEdit>,
+    /// What the table being drawn that's in no other holds (`None` between such tables): the
+    /// tables inside it keep their measures by it.
+    pub(super) held: Option<table::Held>,
 }
 
 /// Draws a block of text as a text box to change it (`false`: drawn as text after all).
@@ -427,7 +430,10 @@ impl Body<'_> {
                     // sets none and is as wide as what it holds (a `<table>`, a button).
                     let (s, key, p, allowed) = (self.s, self.key, self.p, self.allowed);
                     let ctx = ui.ctx().clone();
-                    let measures = table::measured_with(ui, key, table, allowed, &mut |sp| {
+                    // In no other table: all it holds is hashed here, once for those inside too.
+                    let outer = self.held.is_none();
+                    let held = self.held.take().unwrap_or_else(|| table::Held::of(ui, table));
+                    let measures = table::measured_with(ui, key, Some(&held), table, allowed, &mut |sp| {
                         let Some(src) = &sp.image else { return table::PictureWidth::Alt };
                         match picture_texture(s, st, &ctx, key, p, src, allowed) {
                             Pic::Ready(tex) => {
@@ -437,6 +443,7 @@ impl Body<'_> {
                             Pic::Missing => table::PictureWidth::Alt,
                         }
                     });
+                    self.held = Some(held);
                     let tw = match table.width {
                         Some(Width::Px(px)) => (px as f32).min(width),
                         Some(Width::Percent(pc)) => width * f32::from(pc) / 100.0,
@@ -484,6 +491,9 @@ impl Body<'_> {
                             }
                         });
                     });
+                    if outer {
+                        self.held = None;
+                    }
                 }
                 Block::Table(_) => {}
             }
@@ -651,7 +661,9 @@ const LINE_WIDTHS: usize = 8_192;
 pub(crate) fn line_width(ui: &Ui, line: &[mime::Span]) -> f32 {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    ui.ctx().pixels_per_point().to_bits().hash(&mut h);
+    // The fonts themselves: installed again (another language's, one come for Chinese), the
+    // same words are another width.
+    (ui.ctx().pixels_per_point().to_bits(), table::fonts_stamp(ui)).hash(&mut h);
     for sp in line {
         // What its font is made of (span_font).
         (&sp.text, sp.heading, sp.code, sp.bold, sp.size, sp.rise == mime::Rise::Normal).hash(&mut h);

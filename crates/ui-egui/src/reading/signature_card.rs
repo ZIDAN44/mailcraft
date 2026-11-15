@@ -93,7 +93,7 @@ pub(super) fn show(s: &Session, st: &mut UiState, ui: &mut Ui, c: &Compose, ed: 
     child.set_clip_rect(rect.intersect(ui.clip_rect()));
     {
         // The pictures it carries are shown; those it names on the web, once asked for (below).
-        let mut body = Body { s, key: &key, p: &parsed, allowed: view.asked, shown: &mut shown, acts, cells: None };
+        let mut body = Body { s, key: &key, p: &parsed, allowed: view.asked, shown: &mut shown, acts, cells: None, held: None };
         body.blocks(st, &mut child, &view.blocks, rect.width(), theme::surface_rgb(&t), mime::layout::Align::Left, 0);
     }
     ui.ctx().data_mut(|d| d.remove::<OwnPictures>(own_id()));

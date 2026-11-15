@@ -75,28 +75,103 @@ pub(crate) enum PictureWidth {
     Coming,
 }
 
-/// [`measured_with`], no picture's own size known.
+/// [`measured_with`], no picture's own size known, the table in no other.
 #[cfg(test)]
 pub(crate) fn measured(ui: &Ui, key: &MessageKey, t: &Table) -> Measured {
-    measured_with(ui, key, t, false, &mut |_| PictureWidth::Coming)
+    measured_with(ui, key, None, t, false, &mut |_| PictureWidth::Coming)
 }
 
-/// What tells `t`'s measures apart from every other table's: `key`, all the table holds, and
-/// `allowed`, whether its web pictures may show. (Its place in memory told it apart before: a
-/// table laid out again where another of the same shape had been took that one's measures.)
-fn kept_id(key: &MessageKey, t: &Table, allowed: bool) -> egui::Id {
+/// What tells the measures of a table that's in no other, and of the tables inside it, apart from
+/// every other table's: all the outer one holds and the fonts it's measured in, hashed once, and
+/// each table's number in it. (Every table hashed all it holds on every frame, so what's in a
+/// table ten tables down was hashed eleven times a frame.) Made as the outer table is drawn and
+/// used only while it is: the tables inside are found by where they are, which is theirs alone
+/// for as long as the outer one is held.
+#[derive(Default)]
+pub(crate) struct Held {
+    all: u64,
+    /// Where each table is, and its number: the outer one's 0, the others' as they come in it.
+    numbers: Vec<(usize, u32)>,
+}
+
+impl Held {
+    pub(crate) fn of(ui: &Ui, t: &Table) -> Held {
+        use std::hash::{Hash, Hasher};
+        let mut all = Quick(fonts_stamp(ui));
+        t.hash(&mut all);
+        let mut numbers = Vec::new();
+        number(t, 0, &mut numbers);
+        numbers.sort_unstable();
+        Held { all: all.finish(), numbers }
+    }
+
+    /// `t`'s number, when it's the outer table or one inside it.
+    fn number(&self, t: &Table) -> Option<u32> {
+        let at = std::ptr::from_ref(t).addr();
+        self.numbers.binary_search_by_key(&at, |(a, _)| *a).ok().and_then(|i| self.numbers.get(i)).map(|(_, n)| *n)
+    }
+
+    /// Whether `t` is the table this was made of, or one inside it.
+    #[cfg(test)]
+    pub(crate) fn has(&self, t: &Table) -> bool {
+        self.number(t).is_some()
+    }
+
+    /// What `t`'s measures are kept under, with `key` and `allowed`, whether its web pictures
+    /// may show. (A table's place in memory and its shape told it apart at first: one laid out
+    /// again where another of the same shape had been took that one's measures.)
+    fn id(&self, key: &MessageKey, t: &Table, allowed: bool) -> Option<egui::Id> {
+        self.number(t).map(|n| egui::Id::unique(("table-measures", key, self.all, n, allowed)))
+    }
+}
+
+/// `t` and the tables inside it numbered in the order they're in, as deep as they're drawn.
+fn number(t: &Table, depth: usize, out: &mut Vec<(usize, u32)>) {
+    out.push((std::ptr::from_ref(t).addr(), u32::try_from(out.len()).unwrap_or(u32::MAX)));
+    if depth >= MAX_NESTED {
+        return;
+    }
+    for c in t.rows.iter().flatten() {
+        for b in c.blocks.iter().chain(c.overlays.iter().flat_map(|o| &o.blocks)) {
+            if let Block::Table(inside) = b {
+                number(inside, depth + 1, out);
+            }
+        }
+    }
+}
+
+/// What tells the fonts text is laid out in apart from those before them: each font's name and
+/// face, where its file's bytes are and how many, and each family's fonts in their order. What's
+/// measured in them and kept between frames is kept by it too: fonts installed again (another
+/// language's, one that came for Chinese) measure it again.
+pub(crate) fn fonts_stamp(ui: &Ui) -> u64 {
     use std::hash::{Hash, Hasher};
-    let mut held = Quick(0);
-    t.hash(&mut held);
-    egui::Id::unique(("table-measures", key, held.finish(), allowed))
+    ui.fonts(|f| {
+        let fonts = f.definitions();
+        let mut h = Quick(0);
+        for (name, data) in &fonts.font_data {
+            let bytes: &[u8] = (*data.font).as_ref();
+            (name, data.index, bytes.as_ptr().addr(), bytes.len()).hash(&mut h);
+        }
+        fonts.families.hash(&mut h);
+        h.finish()
+    })
 }
 
-/// A quick hash of what a table holds, eight bytes at a time (as rustc's FxHasher): every table
-/// drawn is hashed every frame, which SipHash made a tenth of a newsletter's frame.
+/// A quick hash of what a table holds, eight bytes at a time (as rustc's FxHasher): SipHash made
+/// it a tenth of a newsletter's frame.
 struct Quick(u64);
+
+#[cfg(test)]
+thread_local! {
+    /// Words hashed on this thread, eight bytes each.
+    pub(crate) static HASHED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
 
 impl Quick {
     fn add(&mut self, word: u64) {
+        #[cfg(test)]
+        HASHED.with(|n| n.set(n.get().saturating_add(1)));
         self.0 = (self.0.rotate_left(5) ^ word).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
     }
 }
@@ -141,18 +216,34 @@ impl std::hash::Hasher for Quick {
     }
 }
 
-/// `t`'s measures, from those kept or measured now ([`kept_id`]); `picture` how wide one that
-/// sets no width is. Measured again once a picture that was coming has come (or can't be shown);
-/// the tables inside it that are measured with it are kept too, not measured again when drawn.
-pub(crate) fn measured_with(ui: &Ui, key: &MessageKey, t: &Table, allowed: bool, picture: &mut dyn FnMut(&mime::Span) -> PictureWidth) -> Measured {
-    let id = kept_id(key, t, allowed);
+/// `t`'s measures, from those kept or measured now; `held` what the table it's inside holds
+/// ([`Held`]; `None` for one that's in no other), `picture` how wide one that sets no width is.
+/// Measured again once a picture that was coming has come (or can't be shown); the tables inside
+/// it that are measured with it are kept too, not measured again when drawn.
+pub(crate) fn measured_with(
+    ui: &Ui,
+    key: &MessageKey,
+    held: Option<&Held>,
+    t: &Table,
+    allowed: bool,
+    picture: &mut dyn FnMut(&mime::Span) -> PictureWidth,
+) -> Measured {
+    // One that isn't of the table it's said to be in is held alone.
+    let alone;
+    let (held, id) = match held.and_then(|h| h.id(key, t, allowed).map(|id| (h, id))) {
+        Some(found) => found,
+        None => {
+            alone = Held::of(ui, t);
+            (&alone, egui::Id::unique(("table-measures", key, alone.all, 0u32, allowed)))
+        }
+    };
     let store = egui::Id::unique("mailcraft-table-measures");
     if let Some(e) = ui.ctx().data_mut(|d| d.get_temp_mut_or_default::<Kept>(store).each.get(&id).cloned())
         && e.coming.iter().all(|sp| matches!(picture(sp), PictureWidth::Coming))
     {
         return e.measured;
     }
-    let mut measure = Measure { ui, key, allowed, words: 0, picture, coming: Vec::new(), cut: false, inside: Vec::new() };
+    let mut measure = Measure { ui, key, held, allowed, words: 0, picture, coming: Vec::new(), cut: false, inside: Vec::new() };
     let measured = measure.table(t, 0);
     let (coming, inside) = (measure.coming, measure.inside);
     #[cfg(test)]
@@ -176,6 +267,8 @@ thread_local! {
 struct Measure<'a> {
     ui: &'a Ui,
     key: &'a MessageKey,
+    /// What the table that's in no other holds: those inside it are kept by it.
+    held: &'a Held,
     allowed: bool,
     /// Words measured so far.
     words: usize,
@@ -205,9 +298,11 @@ impl Measure<'_> {
     fn inside(&mut self, t: &Table, depth: usize) -> Measured {
         let (from, cut) = (self.coming.len(), std::mem::take(&mut self.cut));
         let measured = self.table(t, depth);
-        if !self.cut {
+        if !self.cut
+            && let Some(id) = self.held.id(self.key, t, self.allowed)
+        {
             let coming = self.coming.get(from..).unwrap_or_default().to_vec();
-            self.inside.push((kept_id(self.key, t, self.allowed), Entry { measured: measured.clone(), coming }));
+            self.inside.push((id, Entry { measured: measured.clone(), coming }));
         }
         self.cut |= cut;
         measured
