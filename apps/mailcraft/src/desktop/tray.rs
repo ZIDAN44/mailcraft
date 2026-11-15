@@ -295,7 +295,11 @@ mod native {
                 _ => Vec::new(),
             };
             let item = Item { words: words.clone(), picture, ask, ctx };
-            let handle = item.spawn().map_err(|e| e.to_string())?;
+            // In Flatpak's sandbox a name of its own on the bus isn't MailCraft's to take (the
+            // manifest grants talking to the watcher only), so the icon goes without one, as
+            // Chromium's does there.
+            let sandboxed = std::env::var_os("FLATPAK_ID").is_some() || std::path::Path::new("/.flatpak-info").exists();
+            let handle = item.disable_dbus_name(sandboxed).spawn().map_err(|e| e.to_string())?;
             Ok(Self { handle, words: words.clone() })
         }
 

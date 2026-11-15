@@ -28,6 +28,13 @@ finish-args:
   - --share=network
   # Passwords live in the user's keyring (Secret Service: GNOME Keyring, KWallet, KeePassXC).
   - --talk-name=org.freedesktop.secrets
+  # Screen readers (Orca) read the window through the accessibility bus (AccessKit's tree).
+  - --talk-name=org.a11y.Bus
+  # New-mail notifications, on the desktop's notification server.
+  - --talk-name=org.freedesktop.Notifications
+  # The icon in the notification area, for running with the window closed (a StatusNotifierItem,
+  # which goes without a bus name of its own in the sandbox: `desktop/tray.rs`).
+  - --talk-name=org.kde.StatusNotifierWatcher
   # Attach and Save dialogs go through the file-chooser portal (rfd), and attachments open with
   # the OpenURI portal, so picked files work anywhere without broad filesystem access.
   # Downloads is granted so saved attachments land in the usual place.

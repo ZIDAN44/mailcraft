@@ -211,6 +211,7 @@ on GitHub.
 - On a Linux desktop running Wayland without X11's libraries (which the `.deb` and `.rpm` only recommend), MailCraft opens on Wayland instead of failing to start: it asked for XWayland, where it opens by default, without looking for them first. The log names the ones missing.
 - On macOS 26, Chinese in the interface and in mail is drawn in PingFang again, which macOS moved: it came out in a Japanese or Korean font. Traditional Chinese takes STHeiti first, as PingFang's first face there is Simplified.
 - Chinese, Japanese and Korean words in a subject, a name or a message sit on the same line as the Latin letters and digits beside them, as in a browser: they were centred on it, a little higher or lower.
+- In the Flatpak, a screen reader (Orca) reads MailCraft's window, new mail is announced by the desktop's notifications, and the icon in the notification area is there: the sandbox let MailCraft reach none of them.
 
 ## 0.38.0 - 2026-11-13
 
