@@ -2,13 +2,22 @@
 
 use super::*;
 
+/// What Microsoft says when it took an OAuth token but won't open the mailbox over IMAP ("User is
+/// authenticated but not connected").
+const MICROSOFT_NOT_CONNECTED: &str = "authenticated but not connected";
+
+/// Whether a server's refusal is Microsoft's [`MICROSOFT_NOT_CONNECTED`].
+fn microsoft_not_connected(said: &str) -> bool {
+    said.to_ascii_lowercase().contains(MICROSOFT_NOT_CONNECTED)
+}
+
 impl Worker {
     /// What to sign in with: the password, or for OAuth accounts a current access token
     /// (refreshed from the stored refresh token when needed).
     pub(super) fn secret(&mut self) -> Result<String> {
         // Held while refreshing: the account's other connection waits for the new token rather
         // than refreshing with the same old one.
-        let mut auth = self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut auth = Auth::held(&self.auth);
         let Some(id) = self.acc.oauth.clone() else { return Ok(auth.secret.clone()) };
         if let Some(t) = &auth.access
             && !t.expired()
@@ -52,7 +61,7 @@ impl Worker {
 
     /// Drop the access token the server refused and fetch a new one with the refresh token.
     pub(super) fn renew_token(&mut self) -> Result<String> {
-        self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).access = None;
+        Auth::held(&self.auth).access = None;
         let t = self.secret()?;
         self.use_token(&t);
         Ok(t)
@@ -68,7 +77,7 @@ impl Worker {
 
     /// What Microsoft's sign-in granted (its scopes), when known.
     pub(super) fn granted(&self) -> String {
-        self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).access.as_ref().map(|t| t.granted.clone()).unwrap_or_default()
+        Auth::held(&self.auth).access.as_ref().map(|t| t.granted.clone()).unwrap_or_default()
     }
 
     /// Note a failure; drop the connection when it is unusable.
@@ -77,7 +86,7 @@ impl Worker {
         match e {
             // Microsoft took the token but won't open the mailbox: nothing to retry until changed.
             NetError::Auth(m) | NetError::Bad(m) | NetError::No(m)
-                if self.acc.oauth.as_deref() == Some("microsoft") && m.to_ascii_lowercase().contains("authenticated but not connected") =>
+                if self.acc.oauth.as_deref() == Some("microsoft") && microsoft_not_connected(&m) =>
             {
                 self.conn = None;
                 self.auth_failed = true;
@@ -215,7 +224,7 @@ impl Worker {
         let m = match c.login_xoauth2(user, token) {
             Ok(()) => return Ok(c),
             Err(NetError::Auth(m) | NetError::Bad(m) | NetError::No(m))
-                if self.acc.oauth.as_deref() == Some("microsoft") && m.to_ascii_lowercase().contains("not connected") =>
+                if self.acc.oauth.as_deref() == Some("microsoft") && microsoft_not_connected(&m) =>
             {
                 m
             }

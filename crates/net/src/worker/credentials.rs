@@ -5,6 +5,9 @@ use std::sync::Mutex;
 
 use mailcraft_model::AccountConfig;
 
+#[cfg(test)]
+mod tests;
+
 /// Where passwords live. The desktop app backs this with the system keychain.
 pub trait Credentials: Send + Sync {
     fn get(&self, account: &AccountConfig) -> Option<String>;
@@ -100,9 +103,7 @@ impl super::Worker {
                 }
             },
         };
-        if let Ok(mut a) = self.auth.lock() {
-            a.secret = password;
-        }
+        super::Auth::held(&self.auth).secret = password;
         if let Some(start) = self.quick_start.take() {
             start();
         }

@@ -82,6 +82,12 @@ impl Auth {
     fn shared(secret: impl Into<String>) -> Arc<Mutex<Auth>> {
         Arc::new(Mutex::new(Auth { secret: secret.into(), access: None }))
     }
+
+    /// An account's sign-in, held: taken back from a thread that panicked holding it (each part
+    /// of it is only ever set whole), never left unset for want of the lock.
+    fn held(auth: &Mutex<Auth>) -> std::sync::MutexGuard<'_, Auth> {
+        auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
 }
 
 /// Queue a job, unless it's a folder to read that is waiting already (a few messages sent in a
