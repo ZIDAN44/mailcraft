@@ -10,7 +10,7 @@
 //! JMAP transport's ([`jmap::State`], [`jmap::folders`]). Several small requests go as one
 //! `$batch` (four per batch; see [`BATCH`]).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use mailcraft_mime as mime;
 use mailcraft_model::{Flag, Flags, Folder, FolderRole, MessageKey, Op, Summary};
@@ -68,8 +68,13 @@ pub(crate) const NO_MAILBOX: &str = "this Microsoft account has no Outlook.com o
 If its mail is with another provider (such as Gmail), add it with that provider's settings instead";
 
 fn status_error(status: u16, body: &[u8]) -> Result<()> {
-    let error = serde_json::from_slice::<Value>(body).ok().and_then(|v| v.get("error").cloned());
-    let field = |k: &str| error.as_ref().and_then(|e| e.get(k)).and_then(Value::as_str).unwrap_or_default().to_string();
+    status_error_of(status, serde_json::from_slice::<Value>(body).ok().as_ref())
+}
+
+/// [`status_error`] of an answer already read (a `$batch` entry's body).
+fn status_error_of(status: u16, body: Option<&Value>) -> Result<()> {
+    let error = body.and_then(|v| v.get("error"));
+    let field = |k: &str| error.and_then(|e| e.get(k)).and_then(Value::as_str).unwrap_or_default().to_string();
     let detail = || {
         let message = field("message");
         if message.is_empty() { field("code") } else { message }
@@ -211,8 +216,7 @@ impl Client {
             if status == 404 {
                 continue;
             }
-            let bytes = serde_json::to_vec(&body).unwrap_or_default();
-            status_error(status, &bytes)?;
+            status_error_of(status, Some(&body))?;
         }
         Ok(())
     }
@@ -240,10 +244,11 @@ impl Client {
         let skip: Vec<String> = ids.iter().skip(roles.len()).flatten().cloned().collect();
 
         let mut out: Vec<Mailbox> = Vec::new();
+        let mut listed: HashSet<String> = HashSet::new();
         let mut pending: Vec<Value> = self.all(&format!("/me/mailFolders?$top=100&$select={FOLDER_FIELDS}"), MAX_FOLDERS)?;
         while let Some(f) = pending.pop() {
             let Some(id) = f.get("id").and_then(Value::as_str).map(str::to_string) else { continue };
-            if skip.contains(&id) || out.iter().any(|m| m.id == id) || out.len() >= MAX_FOLDERS {
+            if skip.contains(&id) || out.len() >= MAX_FOLDERS || !listed.insert(id.clone()) {
                 continue;
             }
             if f.get("childFolderCount").and_then(Value::as_u64).unwrap_or(0) > 0 {
@@ -510,7 +515,7 @@ fn batch_entry(i: usize, (method, url, body): &(&str, String, Option<Value>)) ->
 /// A batch entry's `Retry-After`, whatever case the key has and whether it's a string or number.
 fn entry_retry_after(r: &Value) -> Option<String> {
     let headers = r.get("headers")?.as_object()?;
-    match ["Retry-After", "retry-after", "RETRY-AFTER"].iter().find_map(|k| headers.get(*k))? {
+    match headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("Retry-After"))?.1 {
         Value::String(s) => Some(s.clone()),
         Value::Number(n) => Some(n.to_string()),
         _ => None,
@@ -738,5 +743,26 @@ mod tests {
         let e = status_error(403, br#"{"error": {"code": "ErrorAccessDenied", "message": "Access is denied."}}"#);
         assert!(matches!(e, Err(NetError::No(m)) if m == "HTTP 403 Access is denied."));
         assert!(Client::connect("http://graph.example.com/v1.0", "t").is_err(), "https only, except on this computer");
+        // A batch entry's refusal read from its body as it came, and its wait in any case.
+        let denied = json!({"error": {"code": "ErrorAccessDenied", "message": "Access is denied."}});
+        assert!(matches!(status_error_of(403, Some(&denied)), Err(NetError::No(m)) if m == "HTTP 403 Access is denied."));
+        assert!(status_error_of(200, Some(&Value::Null)).is_ok());
+        for headers in [json!({"Retry-after": "7"}), json!({"RETRY-AFTER": 7}), json!({"retry-After": "7"})] {
+            assert_eq!(entry_retry_after(&json!({ "headers": headers })).as_deref(), Some("7"));
+        }
+    }
+
+    /// A picture the body shows comes in the text first as such (its Content-ID, inline), as in
+    /// EWS's; a file, or a picture with no Content-ID, is a file.
+    #[test]
+    fn a_text_firsts_inline_picture_is_inline() {
+        let v = json!({"subject": "Logo", "body": {"contentType": "html", "content": "<p><img src=\"cid:logo@x\"></p>"},
+            "attachments": [
+                {"name": "logo.png", "contentType": "image/png", "size": 120, "isInline": true, "contentId": "logo@x"},
+                {"name": "notes.pdf", "contentType": "application/pdf", "size": 900, "isInline": false},
+                {"name": "odd.png", "contentType": "image/png", "size": 5, "isInline": true}]});
+        let p = mime::parse(&text_first::text_first(&v).unwrap()).unwrap();
+        let files: Vec<(&str, bool, Option<&str>)> = p.attachments.iter().map(|a| (a.name.as_str(), a.inline, a.content_id.as_deref())).collect();
+        assert_eq!(files, [("logo.png", true, Some("logo@x")), ("notes.pdf", false, None), ("odd.png", false, None)]);
     }
 }

@@ -150,7 +150,7 @@ impl Data {
                         .map(|p| p
                             .attachments
                             .iter()
-                            .map(|a| json!({"@odata.type": "#microsoft.graph.fileAttachment", "name": a.name, "contentType": a.mime, "size": a.size, "isInline": a.inline}))
+                            .map(|a| json!({"@odata.type": "#microsoft.graph.fileAttachment", "name": a.name, "contentType": a.mime, "size": a.size, "isInline": a.inline, "contentId": a.content_id}))
                             .collect::<Vec<_>>())
                         .unwrap_or_default());
                     ok(v)

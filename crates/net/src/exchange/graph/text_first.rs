@@ -23,7 +23,8 @@ impl Client {
     /// Message `id`'s text first, as MIME: `None` when it has no files (then the whole of it is
     /// as quick).
     pub fn download_text(&self, id: &str) -> Result<Option<Vec<u8>>> {
-        let v = self.get(&format!("/me/messages/{}?$select={FIELDS}&$expand=attachments($select=name,contentType,size,isInline)", seg(id)))?;
+        let v =
+            self.get(&format!("/me/messages/{}?$select={FIELDS}&$expand=attachments($select=name,contentType,size,isInline,contentId)", seg(id)))?;
         Ok(text_first(&v))
     }
 }
@@ -38,6 +39,9 @@ pub(super) fn text_first(v: &Value) -> Option<Vec<u8>> {
         .take(500)
         .map(|a| {
             let item = a.get("@odata.type").and_then(Value::as_str).is_some_and(|t| t.ends_with("itemAttachment"));
+            // A picture the body shows (`cid:`), as EWS's text first has it.
+            let content_id = a.get("contentId").and_then(Value::as_str).map(str::trim).filter(|c| !c.is_empty()).map(str::to_string);
+            let inline = a.get("isInline").and_then(Value::as_bool).unwrap_or(false) && content_id.is_some();
             mime::PendingFile {
                 name: a.get("name").and_then(Value::as_str).unwrap_or_default().to_string(),
                 mime: if item {
@@ -46,8 +50,8 @@ pub(super) fn text_first(v: &Value) -> Option<Vec<u8>> {
                     a.get("contentType").and_then(Value::as_str).unwrap_or("application/octet-stream").to_string()
                 },
                 size: a.get("size").and_then(Value::as_u64).unwrap_or(0),
-                content_id: None,
-                inline: false,
+                content_id,
+                inline,
             }
         })
         .collect();
