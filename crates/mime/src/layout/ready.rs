@@ -233,6 +233,12 @@ fn table_part(tag: &str) -> bool {
 /// Markup for a part of the tree, as `how` says. It goes no deeper than the tree, whose depth is
 /// capped ([`MAX_OPEN`]).
 pub(super) fn write_as(k: &Kid, out: &mut String, how: How) {
+    // Counted with the passes over hostile input ([`mailcraft_model::work`]): what's in a box is
+    // written again for each box around it that's read on its own.
+    mailcraft_model::work::steps(match k {
+        Kid::Text(t) => t.len().max(1),
+        Kid::El(_) => 1,
+    });
     match k {
         // Its size around the words: a space outside it stays a space between words.
         Kid::Text(t) if how.sizing && (how.size > 0 || how.bold) && !t.trim().is_empty() => {
