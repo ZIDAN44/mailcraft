@@ -56,16 +56,22 @@ fn literals() {
     assert_eq!(literal_len(b"{99999999999999999}"), None);
 }
 
+/// A password that can't be quoted (not ASCII) goes as a literal: its bytes are sent only once
+/// the server asks for them with `+`. A server that answers the command instead has refused the
+/// sign-in, and never sees the password.
 #[test]
-fn greeting_login_fetch_with_literals() {
-    let server = b"* OK [CAPABILITY IMAP4rev1 MOVE UIDPLUS] ready\r\n\
-M1 OK [CAPABILITY IMAP4rev1 MOVE UIDPLUS CONDSTORE] logged in\r\n\
-* 1 FETCH (UID 7 FLAGS (\\Seen) RFC822.SIZE 12 BODY[HEADER] {12}\r\nSubject: x\r\n)\r\n\
-* 2 FETCH (FLAGS (\\Flagged))\r\n\
-M2 OK done\r\n";
+fn a_literal_login_needs_its_continuation() {
+    let refused = b"* OK [CAPABILITY IMAP4rev1 MOVE UIDPLUS] ready\r\nM1 NO not like that\r\n";
+    let mut c = Client::from_stream(Script::new(refused)).unwrap();
+    assert!(c.has("move") && !c.has("CONDSTORE"), "the greeting's capabilities");
+    assert!(matches!(c.login("zoe@x", "pässword"), Err(NetError::Auth(m)) if m == "not like that"));
+    assert_eq!(c.conn.into_inner().written, b"M1 LOGIN \"zoe@x\" {9}\r\n", "the password held back");
+
+    let server = b"* OK [CAPABILITY IMAP4rev1 MOVE UIDPLUS] ready\r\n+ go on\r\nM1 OK [CAPABILITY IMAP4rev1 MOVE UIDPLUS CONDSTORE] logged in\r\n";
     let mut c = Client::from_stream(Script::new(server)).unwrap();
-    assert!(c.has("move") && !c.has("CONDSTORE"));
-    c.login("zoe@x", "pässword").unwrap_err(); // literal path needs a '+' the script lacks
+    c.login("zoe@x", "pässword").unwrap();
+    assert!(c.has("CONDSTORE"), "the capabilities said at sign-in");
+    assert_eq!(c.conn.into_inner().written, "M1 LOGIN \"zoe@x\" {9}\r\npässword\r\n".as_bytes());
 }
 
 #[test]
