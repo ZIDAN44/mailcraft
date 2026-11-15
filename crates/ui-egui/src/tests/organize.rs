@@ -57,6 +57,30 @@ fn junk_lists_block_and_draw() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Each Search Folder offered is known by what it searches for, not by its place in the list:
+/// its name from its kind, one that asks for people and one for a search, and each fixed one
+/// opened again as itself.
+#[test]
+fn search_folder_presets_are_known_by_kind() {
+    use crate::dialogs::{PresetKind, SEARCH_PRESETS, SearchFolderForm};
+    for (label, kind) in SEARCH_PRESETS {
+        assert_eq!(kind.label(), label);
+        if let PresetKind::Fixed(query) = kind {
+            let f = SearchFolderForm::edit(&mailcraft_engine::SearchFolder { name: label.into(), query: query.into() });
+            assert_eq!((f.preset, f.final_query()), (kind, query.to_string()));
+        }
+    }
+    for asks in [PresetKind::People, PresetKind::Custom] {
+        assert_eq!(SEARCH_PRESETS.iter().filter(|p| p.1 == asks).count(), 1, "{asks:?}");
+    }
+    assert_eq!(SearchFolderForm::new().preset, SEARCH_PRESETS[0].1);
+    // Custom starts from the search of the one it was.
+    let mut f = SearchFolderForm::new();
+    f.preset = PresetKind::Custom;
+    f.apply_preset(PresetKind::Fixed("is:flagged"));
+    assert_eq!((f.query.as_str(), f.name.as_str()), ("is:flagged", "Unread mail"), "a name typed (here, the first's) stays");
+}
+
 /// Search Folders: made from the dialog (a kind, or people), opened from the pane, the heading
 /// its name and the search box left empty; the dialog shows the reason when refused.
 #[test]
@@ -67,7 +91,7 @@ fn search_folders_are_made_from_the_dialog_and_open() {
     let mut f = crate::dialogs::SearchFolderForm::new();
     assert_eq!(f.final_query(), "is:unread");
     let before = f.preset;
-    f.preset = 8;
+    f.preset = crate::dialogs::PresetKind::People;
     f.apply_preset(before);
     assert_eq!(f.name, "Mail from specific people", "the name follows the kind until one is typed");
     f.people = "zoe@studio.example; Ana Lima, , \"x".into();
@@ -89,7 +113,7 @@ fn search_folders_are_made_from_the_dialog_and_open() {
     assert!(matches!(&a.ui.dialog, Some(Dialog::SearchFolder(f)) if f.error.is_some()));
     // Edited: a preset's search shows as that kind, anything else as Custom.
     let edit = crate::dialogs::SearchFolderForm::edit(&a.session.prefs.search_folders[0]);
-    assert_eq!((edit.preset, edit.query.as_str()), (9, "from:zoe@studio.example,\"Ana Lima\",x"));
+    assert_eq!((edit.preset, edit.query.as_str()), (crate::dialogs::PresetKind::Custom, "from:zoe@studio.example,\"Ana Lima\",x"));
     a.ui.dialog = Some(Dialog::SearchFolder(Box::new(edit)));
     frame(&ctx, &mut a, vec![]);
     // Many, with long names, draw.
