@@ -219,11 +219,11 @@ impl Services for Desktop {
     fn cjk_font(&mut self, lang: &str) -> Option<(Vec<u8>, u32)> {
         // The language's own font first (Chinese, Japanese and Korean draw shared characters
         // differently), then any that has the characters at all.
-        let (windows, macos, noto_index): (&[&str], &[&str], u32) = match lang {
-            "ja" => (&["YuGothM.ttc", "msgothic.ttc"], &["ヒラギノ角ゴシック W3.ttc", "Hiragino Sans GB.ttc"], 0),
-            "ko" => (&["malgun.ttf", "gulim.ttc"], &["AppleSDGothicNeo.ttc"], 1),
-            "zh-hant" => (&["msjh.ttc", "mingliu.ttc"], &["PingFang.ttc"], 3),
-            _ => (&["msyh.ttc", "simsun.ttc"], &["PingFang.ttc", "Hiragino Sans GB.ttc"], 2),
+        let (windows, noto_index): (&[&str], u32) = match lang {
+            "ja" => (&["YuGothM.ttc", "msgothic.ttc"], 0),
+            "ko" => (&["malgun.ttf", "gulim.ttc"], 1),
+            "zh-hant" => (&["msjh.ttc", "mingliu.ttc"], 3),
+            _ => (&["msyh.ttc", "simsun.ttc"], 2),
         };
         let mut candidates: Vec<(PathBuf, u32)> = Vec::new();
         if cfg!(target_os = "windows") {
@@ -232,9 +232,7 @@ impl Services for Desktop {
                 candidates.push((fonts.join(f), 0));
             }
         } else if cfg!(target_os = "macos") {
-            for f in macos.iter().chain(["PingFang.ttc", "AppleSDGothicNeo.ttc"].iter()) {
-                candidates.push((Path::new("/System/Library/Fonts").join(f), 0));
-            }
+            candidates.extend(macos_cjk_fonts(lang).into_iter().map(|p| (p, 0)));
         } else {
             // Noto Sans CJK collections hold Japanese, Korean, Simplified and Traditional faces.
             for p in [
@@ -395,6 +393,33 @@ fn windows_fonts_dir_in(windir: Option<std::ffi::OsString>) -> PathBuf {
     windir.map(PathBuf::from).filter(|d| d.is_absolute()).unwrap_or_else(|| PathBuf::from("C:\\Windows")).join("Fonts")
 }
 
+/// Where macOS 26 keeps PingFang, out of `/System/Library/Fonts`, where it was before: its first
+/// face is the Simplified Chinese one.
+const MACOS_PINGFANG_UI: &str = "/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc";
+
+/// The Mac's fonts for Chinese, Japanese or Korean (`lang`), first preferred: the language's own,
+/// then any that has the characters at all. PingFang moved in macOS 26 (PdfCraft found it): where
+/// `PingFang.ttc` is gone, Chinese came out in a Japanese or Korean font. For Traditional Chinese,
+/// STHeiti comes before the moved PingFang's first face, which is Simplified.
+fn macos_cjk_fonts(lang: &str) -> Vec<PathBuf> {
+    let own: &[&str] = match lang {
+        "ja" => &["ヒラギノ角ゴシック W3.ttc", "Hiragino Sans GB.ttc"],
+        "ko" => &["AppleSDGothicNeo.ttc"],
+        "zh-hant" => &["PingFang.ttc", "STHeiti Light.ttc", "STHeiti Medium.ttc", MACOS_PINGFANG_UI],
+        _ => &["PingFang.ttc", MACOS_PINGFANG_UI, "Hiragino Sans GB.ttc"],
+    };
+    let fonts = Path::new("/System/Library/Fonts");
+    let mut list: Vec<PathBuf> = Vec::new();
+    for f in own.iter().chain(&["PingFang.ttc", MACOS_PINGFANG_UI, "AppleSDGothicNeo.ttc"]) {
+        // An absolute path is taken as it is.
+        let path = fonts.join(f);
+        if !list.contains(&path) {
+            list.push(path);
+        }
+    }
+    list
+}
+
 /// Run `f` on a thread of its own made by `builder`: false, and `what` logged, when the system
 /// won't start one (short of resources), where `std::thread::spawn` panicked on the window's
 /// thread.
@@ -469,6 +494,28 @@ fn office_file(src: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Chinese on macOS 26, where PingFang is in another folder, comes in PingFang still, never in
+    /// a Japanese or Korean font first; Traditional Chinese in STHeiti before the moved PingFang,
+    /// whose first face is Simplified. Each font is looked for once.
+    #[test]
+    fn the_macs_chinese_font_is_found_where_macos_26_keeps_it() {
+        let at = |list: &[PathBuf], name: &str| list.iter().position(|p| p.ends_with(name));
+        let moved = PathBuf::from(MACOS_PINGFANG_UI);
+        let simplified = macos_cjk_fonts("zh-hans");
+        assert_eq!(simplified[0], Path::new("/System/Library/Fonts/PingFang.ttc"));
+        assert_eq!(simplified[1], moved);
+        assert!(at(&simplified, "Hiragino Sans GB.ttc") > Some(1) && at(&simplified, "AppleSDGothicNeo.ttc") > Some(1));
+        let traditional = macos_cjk_fonts("zh-hant");
+        assert!(at(&traditional, "STHeiti Medium.ttc") < traditional.iter().position(|p| *p == moved));
+        assert!(traditional.iter().position(|p| *p == moved) < at(&traditional, "AppleSDGothicNeo.ttc"));
+        for lang in ["ja", "ko", "zh-hans", "zh-hant"] {
+            let list = macos_cjk_fonts(lang);
+            assert!(list.contains(&moved), "{lang}");
+            assert!(list.iter().enumerate().all(|(i, p)| !list[..i].contains(p)), "{lang}: {list:?}");
+        }
+        assert_eq!(macos_cjk_fonts("ko")[0], Path::new("/System/Library/Fonts/AppleSDGothicNeo.ttc"));
+    }
 
     /// A thread the system won't start (here a stack no system gives) is said, not a panic on
     /// the window's thread, as `std::thread::spawn` made it for each new-mail notification.
