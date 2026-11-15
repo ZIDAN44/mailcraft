@@ -459,7 +459,7 @@ impl Out<'_> {
         note.resumed = cp.current;
         note.resumed_deferred = cp.deferred;
         self.sent = super::out::sent_ids::SentIds::from_map(&cp.sent);
-        self.folders = cp.folders;
+        self.set_folders(cp.folders);
         self.room_kept();
         skip
     }

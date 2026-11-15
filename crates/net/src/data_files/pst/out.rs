@@ -1,6 +1,8 @@
 //! What an import has written so far: folders, their lists, message sources and contacts, and
 //! the messages' words in the account's search index (`indexing`).
 
+use std::collections::HashSet;
+
 use super::budget::Budget;
 use super::item::Item;
 use super::lanes::Built;
@@ -40,7 +42,11 @@ pub(super) struct Open {
 pub(super) struct Out<'a> {
     pub(super) store: &'a Store,
     pub(super) account: &'a str,
+    /// The folders made (or, going on, made before: [`Out::set_folders`]), what they take, and
+    /// where each path is among them.
     pub(super) folders: Vec<Folder>,
+    taken: Taken,
+    at: HashMap<String, usize>,
     /// The folders being read: their next number, and their list going out a page at a time
     /// (a folder of hundreds of thousands isn't held whole; written ones keep only their counts).
     pub(super) states: HashMap<String, Open>,
@@ -106,6 +112,8 @@ impl<'a> Out<'a> {
             store,
             account,
             folders: Vec::new(),
+            taken: Taken::default(),
+            at: HashMap::new(),
             states: HashMap::new(),
             imported: 0,
             read: 0,
@@ -154,29 +162,66 @@ fn folder_name(name: &str) -> String {
     if name.is_empty() { "Folder".to_string() } else { name }
 }
 
-/// The path a folder named `name` (in the file) under `parent` gets beside `folders`, and its
-/// role when it's a usual top-level one (each role once).
-fn folder_path(folders: &[Folder], parent: Option<&str>, name: &str) -> (String, FolderRole) {
-    let name = folder_name(name);
-    let mut role = match parent {
-        None => FolderRole::from_name(&name, None),
-        Some(_) => FolderRole::Other,
-    };
-    if role != FolderRole::Other && folders.iter().any(|f| f.role == role) {
-        role = FolderRole::Other;
+/// What the folders made so far take, for a new one's place among them to be found without
+/// looking through them all (which cost a file of thousands of folders a time growing with their
+/// square before any item was read): their paths, as they're told apart (in any case: lower
+/// case), the roles taken, and the next number to try for a path taken already (`Name (2)`).
+#[derive(Clone, Default)]
+struct Taken {
+    paths: HashSet<String>,
+    roles: HashSet<FolderRole>,
+    next: HashMap<String, u32>,
+}
+
+impl Taken {
+    /// What `folders` take.
+    fn of(folders: &[Folder]) -> Taken {
+        let mut taken = Taken::default();
+        for f in folders {
+            taken.take(&f.path, f.role);
+        }
+        taken
     }
-    let base = match (role, parent) {
-        (FolderRole::Inbox, _) => "INBOX".to_string(),
-        (_, Some(p)) => format!("{p}/{}", utf7::encode(&name)),
-        (_, None) => utf7::encode(&name),
-    };
-    let mut path = base.clone();
-    let mut n = 2;
-    while folders.iter().any(|f| f.path.eq_ignore_ascii_case(&path)) {
-        path = format!("{base} ({n})");
-        n += 1;
+
+    fn take(&mut self, path: &str, role: FolderRole) {
+        self.paths.insert(path.to_ascii_lowercase());
+        self.roles.insert(role);
     }
-    (path, role)
+
+    /// The path a folder named `name` (in the file) under `parent` gets, and its role when it's a
+    /// usual top-level one (each role once), taken from here. A path taken already gets the first
+    /// number free after it (`Name (2)`, `Name (3)`…): the numbers below the one tried last for
+    /// it were all taken, and a path once taken stays so.
+    fn place(&mut self, parent: Option<&str>, name: &str) -> (String, FolderRole) {
+        let name = folder_name(name);
+        let mut role = match parent {
+            None => FolderRole::from_name(&name, None),
+            Some(_) => FolderRole::Other,
+        };
+        if role != FolderRole::Other && self.roles.contains(&role) {
+            role = FolderRole::Other;
+        }
+        let base = match (role, parent) {
+            (FolderRole::Inbox, _) => "INBOX".to_string(),
+            (_, Some(p)) => format!("{p}/{}", utf7::encode(&name)),
+            (_, None) => utf7::encode(&name),
+        };
+        let mut path = base.clone();
+        let key = base.to_ascii_lowercase();
+        if self.paths.contains(&key) {
+            let mut n = self.next.get(&key).copied().unwrap_or(2);
+            loop {
+                path = format!("{base} ({n})");
+                n = n.saturating_add(1);
+                if !self.paths.contains(&path.to_ascii_lowercase()) || n == u32::MAX {
+                    break;
+                }
+            }
+            self.next.insert(key, n);
+        }
+        self.take(&path, role);
+        (path, role)
+    }
 }
 
 /// How often the import's checkpoint is written ([`super::resume::CHECKPOINT_EVERY`], or as a
@@ -267,7 +312,8 @@ impl Out<'_> {
 
     /// A folder for `name` under `parent`, with a role when it's a usual top-level one.
     pub(super) fn add_folder(&mut self, parent: Option<&str>, name: &str) -> String {
-        let (path, role) = folder_path(&self.folders, parent, name);
+        let (path, role) = self.taken.place(parent, name);
+        self.at.entry(path.clone()).or_insert(self.folders.len());
         self.folders.push(Folder {
             account: self.account.to_string(),
             path: path.clone(),
@@ -280,21 +326,27 @@ impl Out<'_> {
         path
     }
 
+    /// The folders made before, going on from a checkpoint: a new one goes beside them.
+    pub(super) fn set_folders(&mut self, folders: Vec<Folder>) {
+        self.taken = Taken::of(&folders);
+        self.at = HashMap::new();
+        for (i, f) in folders.iter().enumerate() {
+            self.at.entry(f.path.clone()).or_insert(i);
+        }
+        self.folders = folders;
+    }
+
     /// The plan's mail folders (`outline`, in the order they come in), each with the path it gets
     /// (where it went, going on, or as it will be made), told to the sink before any comes in.
     pub(super) fn outline(&mut self, outline: &[super::order::Outlined]) {
-        let mut made = self.folders.clone();
+        let mut made = self.taken.clone();
         let mut paths: HashMap<usize, String> = HashMap::new();
         let mut planned = Vec::new();
         for f in outline {
             let parent = f.parent.and_then(|p| paths.get(&p)).cloned();
             let path = match self.known_path(f.node) {
                 Some(p) => p.to_string(),
-                None => {
-                    let (path, role) = folder_path(&made, parent.as_deref(), &f.name);
-                    made.push(Folder { path: path.clone(), role, ..Default::default() });
-                    path
-                }
+                None => made.place(parent.as_deref(), &f.name).0,
             };
             if planned.len() < OUTLINE_MAX {
                 planned.push(PlannedFolder { path: path.clone(), name: folder_name(&f.name), items: f.items });
@@ -504,7 +556,7 @@ impl Out<'_> {
                 (0, 0)
             }
         };
-        let Some(f) = self.folders.iter_mut().find(|f| f.path == path) else { return };
+        let Some(f) = self.at.get(path).and_then(|i| self.folders.get_mut(*i)) else { return };
         f.unread = unread;
         f.total = total;
         let f = f.clone();

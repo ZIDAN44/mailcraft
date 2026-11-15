@@ -180,6 +180,7 @@ on GitHub.
 - Moving the data files to a network folder no longer fails when the copy was fine.
 - Adding messages that carry many custom properties to an Outlook data file is faster.
 - Reading large Outlook data files (importing from one, exporting into one) is faster.
+- Importing an Outlook data file with thousands of folders no longer stalls before the first message comes in.
 
 ## 0.38.0 - 2026-11-13
 

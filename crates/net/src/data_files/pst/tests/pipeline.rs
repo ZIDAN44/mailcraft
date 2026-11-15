@@ -360,3 +360,148 @@ fn folders_finished_together_are_listed_in_one_write() {
     writes.dedup();
     assert!(writes.len() <= secs + 2, "{} writes in {secs} s", writes.len());
 }
+
+/// Where a folder of the file goes, found by looking through every folder made before it: the
+/// import's first way, which the outline and the folders made must still agree with.
+fn placed_by_scan(made: &[(String, FolderRole)], parent: Option<&str>, name: &str) -> (String, FolderRole) {
+    let name = name.trim().replace('/', "∕");
+    let name = if name.is_empty() { "Folder".to_string() } else { name };
+    let mut role = if parent.is_none() { FolderRole::from_name(&name, None) } else { FolderRole::Other };
+    if role != FolderRole::Other && made.iter().any(|f| f.1 == role) {
+        role = FolderRole::Other;
+    }
+    let base = match (role, parent) {
+        (FolderRole::Inbox, _) => "INBOX".to_string(),
+        (_, Some(p)) => format!("{p}/{}", mailcraft_model::utf7::encode(&name)),
+        (_, None) => mailcraft_model::utf7::encode(&name),
+    };
+    let (mut path, mut n) = (base.clone(), 2);
+    while made.iter().any(|f| f.0.eq_ignore_ascii_case(&path)) {
+        path = format!("{base} ({n})");
+        n += 1;
+    }
+    (path, role)
+}
+
+/// The outline told ahead of an import (the paths its folders will get).
+#[derive(Default)]
+struct Outline(Vec<PlannedFolder>);
+
+impl ImportSink for Outline {
+    fn progress(&mut self, _: Progress) {}
+    fn planned(&mut self, folders: &[PlannedFolder]) {
+        self.0 = folders.to_vec();
+    }
+}
+
+/// Folders of every kind of name (the usual ones in any case, names made `Name (2)` already,
+/// names that clean up the same, under one folder or another), in random trees: the outline
+/// says, and the import makes, each where looking through every folder made before put it, with
+/// the same role.
+#[test]
+fn folders_go_where_they_always_went() {
+    const NAMES: [&str; 18] = [
+        "Inbox",
+        "INBOX",
+        "inbox",
+        "Sent Items",
+        "sent items",
+        "Drafts",
+        "Deleted Items",
+        "Junk Email",
+        "Archive",
+        "archive",
+        "Work",
+        "Work (2)",
+        "work (3)",
+        "a/b",
+        "a∕b",
+        "  ",
+        "Ünïcode",
+        "Outbox",
+    ];
+    let mut x = 0x2545_f491_4f6c_dd1du64;
+    let mut next = |n: usize| {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        usize::try_from(x % n as u64).unwrap()
+    };
+    for round in 0..40 {
+        // A tree: each folder at the top, or under one before it.
+        let count = 1 + next(120);
+        let tree: Vec<(Option<usize>, &str)> =
+            (0..count).map(|i| (if i == 0 || next(3) == 0 { None } else { Some(next(i)) }, NAMES[next(NAMES.len())])).collect();
+        let mut made: Vec<(String, FolderRole)> = Vec::new();
+        for (parent, name) in &tree {
+            let parent = parent.map(|p| made[p].0.clone());
+            let placed = placed_by_scan(&made, parent.as_deref(), name);
+            made.push(placed);
+        }
+        let store = Store::memory();
+        let mut sink = Outline::default();
+        let mut out = Out::new(&store, "o1", &ImportOptions::default(), &mut sink);
+        let outline: Vec<super::super::order::Outlined> = tree
+            .iter()
+            .enumerate()
+            .map(|(index, (parent, name))| super::super::order::Outlined {
+                index,
+                parent: *parent,
+                node: u32::try_from(index).unwrap(),
+                name: name.to_string(),
+                items: 0,
+            })
+            .collect();
+        out.outline(&outline);
+        let mut paths: Vec<String> = Vec::new();
+        for (parent, name) in &tree {
+            let parent = parent.map(|p| paths[p].clone());
+            let path = out.add_folder(parent.as_deref(), name);
+            paths.push(path);
+        }
+        let roles: Vec<FolderRole> = out.folders.iter().map(|f| f.role).collect();
+        drop(out);
+        let told: Vec<String> = sink.0.iter().map(|f| f.path.clone()).collect();
+        let want: Vec<String> = made.iter().map(|f| f.0.clone()).collect();
+        assert_eq!(told, want, "round {round}: the outline");
+        assert_eq!(paths, want, "round {round}: the folders made");
+        assert_eq!(roles, made.iter().map(|f| f.1).collect::<Vec<_>>(), "round {round}: their roles");
+    }
+}
+
+/// MEASURE: a file of many folders placed (the outline told, each folder made, then written):
+/// distinct names, and one name over and over under one folder.
+#[test]
+#[ignore]
+fn measure_placing_many_folders() {
+    for (label, names) in
+        [("distinct names", (0..20_000).map(|n| format!("Folder {n}")).collect::<Vec<_>>()), ("one name", vec!["Folder".to_string(); 3_000])]
+    {
+        let store = Store::memory();
+        let mut sink = Outline::default();
+        let mut out = Out::new(&store, "m1", &ImportOptions::default(), &mut sink);
+        let outline: Vec<super::super::order::Outlined> = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| super::super::order::Outlined {
+                index,
+                parent: None,
+                node: u32::try_from(index).unwrap(),
+                name: name.clone(),
+                items: 0,
+            })
+            .collect();
+        let began = std::time::Instant::now();
+        out.outline(&outline);
+        let outlined = began.elapsed();
+        let paths: Vec<String> = names.iter().map(|name| out.add_folder(None, name)).collect();
+        let added = began.elapsed() - outlined;
+        for path in &paths {
+            out.save_folder(path);
+        }
+        let saved = began.elapsed() - outlined - added;
+        drop(out);
+        assert_eq!(sink.0.len(), names.len().min(2000));
+        println!("MEASURE {} folders, {label}: outline {outlined:?}, made {added:?}, written {saved:?}", names.len());
+    }
+}
