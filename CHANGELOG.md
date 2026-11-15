@@ -23,6 +23,7 @@ on GitHub.
 
 ### Fixed
 
+- A signature in HTML code with pictures from the web keeps them when you look at it under Formatted and go back (#91): Formatted can't show them, and coming back made the code anew without them. Formatted now says so. While writing, the signature is drawn as it's sent, its web pictures shown when you click Show pictures.
 - Enter opens the message selected in the list in a window of its own, as a double-click does, and a draft to go on writing it (#92). It did nothing, on every system.
 - A folder named archive inside the Inbox, with folders of its own, shows with them under it (#94): MailCraft takes it for the Archive, as it does on servers that don't mark one, and its folders were drawn among the Inbox's, under the wrong parent.
 - A meeting series' first invitation, once the organizer has changed one of its occurrences, says it's out of date (#101). Its answer buttons were still there, and answering it put the series back without the change.

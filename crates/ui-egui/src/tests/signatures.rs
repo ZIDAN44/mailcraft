@@ -330,3 +330,34 @@ fn the_drawn_signature_is_one_thing_in_the_text() {
     let text_box = drawn.iter().find(|d| d.text.contains("Storyboard review") && d.text.contains("Ms. Riley Moreno")).map(|d| d.ink);
     assert!(text_box.is_some_and(|ink| ink.top() < name && ink.bottom() > name + 40.0), "the signature inside the text: {text_box:?} {name}");
 }
+
+/// Issue #91: HTML code with a picture from the web, switched to Formatted (which can't show it)
+/// and back unchanged, is the code it was, picture and all; the editor says so. Changed there,
+/// it's made from what the editor has.
+#[test]
+fn a_signatures_web_pictures_survive_a_look_at_formatted() {
+    let (mut a, _) = app("signature-web-pictures");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Dialog::signature(&a.session);
+    let code =
+        r#"<table><tr><td><img style="border-style:none" src="https://studio.example/signature/logo.jpg"></td><td><b>Riley</b></td></tr></table>"#;
+    form_mut(&mut a).switch(true);
+    form_mut(&mut a).code = Some(code.into());
+    form_mut(&mut a).switch(false);
+    frame(&ctx, &mut a, vec![]);
+    let note = "Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.";
+    assert!(drawn_text(&ctx, &mut a, egui::vec2(1280.0, 900.0)).iter().any(|d| d.text == note), "the editor says so");
+    form_mut(&mut a).switch(true);
+    assert_eq!(form(&a).code.as_deref(), Some(code), "back as it was");
+
+    // Changed in the editor: made from what's there (the picture can't come with it).
+    form_mut(&mut a).switch(false);
+    form_mut(&mut a).compose.body.push_str(" Moreno");
+    form_mut(&mut a).switch(true);
+    assert!(form(&a).code.as_deref().is_some_and(|c| !c.contains("logo.jpg") && c.contains("Moreno")), "{:?}", form(&a).code);
+
+    assert!(crate::dialogs::has_web_pictures(r#"<IMG SRC='http://x.example/a.png'>"#));
+    assert!(crate::dialogs::has_web_pictures(r#"<img alt="x" src = "//cdn.example/a.png">"#));
+    assert!(!crate::dialogs::has_web_pictures(r#"<img src="cid:logo"><a href="https://x.example">x</a>"#));
+}

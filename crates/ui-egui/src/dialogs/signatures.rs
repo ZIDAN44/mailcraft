@@ -34,6 +34,23 @@ pub struct SignatureForm {
     pub picked: bool,
     /// What saving it as it was opened would send: changed from that, it's saved on switching.
     loaded: Value,
+    /// HTML code with pictures from the web, switched to the editor (which can't hold them,
+    /// issue #91): the code and its pictures, and the editor's text and look it made. Switched
+    /// back with these unchanged, the code comes back as it was, its pictures too.
+    kept_code: Option<(String, Vec<String>, String, mailcraft_engine::mime::rich::Styles)>,
+}
+
+/// Whether HTML code shows pictures from the web (`<img src="https://…">`), which only the code
+/// keeps.
+pub(crate) fn has_web_pictures(code: &str) -> bool {
+    let lower = code.to_ascii_lowercase();
+    lower.match_indices("<img").any(|(at, _)| {
+        let tag = lower.get(at..).and_then(|rest| rest.split('>').next()).unwrap_or("");
+        tag.split("src").skip(1).any(|v| {
+            let v = v.trim_start().trim_start_matches('=').trim_start().trim_start_matches(['"', '\'']);
+            v.starts_with("http://") || v.starts_with("https://") || v.starts_with("//")
+        })
+    })
 }
 
 impl SignatureForm {
@@ -60,6 +77,7 @@ impl SignatureForm {
             for_reply: config.signature_reply.clone(),
             picked: false,
             loaded: Value::Null,
+            kept_code: None,
         };
         f.load(s, first.as_deref());
         f
@@ -174,6 +192,15 @@ impl SignatureForm {
     pub fn switch(&mut self, to_code: bool) {
         use mailcraft_engine::mime;
         if to_code {
+            // Back unchanged from code with web pictures: that code, as it was.
+            if let Some((code, pictures, body, styles)) = self.kept_code.take()
+                && body == self.compose.body
+                && styles == self.compose.styles
+            {
+                self.code = Some(code);
+                self.pictures = pictures;
+                return;
+            }
             let mut styles = self.compose.styles.clone();
             styles.fit(&self.compose.body);
             let text = self.compose.body.trim_end();
@@ -184,6 +211,8 @@ impl SignatureForm {
         } else {
             let code = mime::code_with_pictures(self.code.as_deref().unwrap_or(""), &self.pictures);
             let (body, styles, inline) = mime::signature_html(&mime::signature_code(&code));
+            self.kept_code =
+                has_web_pictures(&code).then(|| (self.code.clone().unwrap_or_default(), self.pictures.clone(), body.clone(), styles.clone()));
             self.compose.body = body;
             self.compose.styles = styles;
             self.compose.inline = inline;
@@ -341,6 +370,14 @@ pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, 
 /// The signature formatted in its own editor, with its bar.
 fn signature_text(ui: &mut Ui, f: &mut SignatureForm, t: &Tokens, acts: &mut Vec<Action>) {
     ui.label(RichText::new(tl!("Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.")).color(t.dim).small());
+    // Its pictures from the web can't be here (issue #91): the code has them.
+    if f.kept_code.is_some() {
+        ui.label(
+            RichText::new(tl!("Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept."))
+                .color(t.danger)
+                .small(),
+        );
+    }
     let SignatureForm { compose, editor, .. } = f;
     crate::rich_edit::signature_bar(ui, t, &mut editor.0, compose, acts);
     // A picture on the clipboard is pasted as a picture (as into a message).

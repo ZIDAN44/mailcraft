@@ -23,6 +23,8 @@ mod organize;
 mod other;
 pub(crate) mod pim_dialogs;
 mod signatures;
+#[cfg(test)]
+pub(crate) use signatures::has_web_pictures;
 mod trust;
 mod writing;
 
