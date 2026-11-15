@@ -87,17 +87,35 @@ fn an_opened_files_copy_is_kept_beside_it_and_found_again() {
     std::fs::write(docs.join("Notes.mailcraft"), b"someone else's file").unwrap();
     assert_eq!(s.copy_beside(&other).unwrap().path, docs.join("Notes (2).mailcraft"));
     assert_eq!(std::fs::read(docs.join("Notes.mailcraft")).unwrap(), b"someone else's file", "left as it was");
-    // A file named from where MailCraft runs is in that folder; one whose folder isn't there to
-    // write goes with the others.
-    let b = s.copy_beside(std::path::Path::new("Archive.pst")).unwrap();
-    let here = std::env::current_dir().unwrap();
-    assert!(!b.elsewhere && b.path == here.join("Archive.mailcraft"), "{b:?}");
-    assert!(!here.join("Archive.mailcraft-probe").exists());
+    // A file named from where MailCraft runs is in that folder: asked by a process of its own,
+    // run from a scratch folder (this one's is the crate's source), which only looks there.
+    let here = t.join("here");
+    std::fs::create_dir_all(&here).unwrap();
+    let env = [("MC_CHILD_DIR", t.display().to_string())];
+    let out = super::commits::command("packed::tests::beside::named_from_where_it_runs", &env).current_dir(&here).output().unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success() && text.contains("beside where it runs"), "{text}\n{}", String::from_utf8_lossy(&out.stderr));
+    assert_eq!(std::fs::read_dir(&here).unwrap().count(), 0, "nothing left there");
+    // One whose folder isn't there to write goes with the others.
     let b = s.copy_beside(&t.join("gone").join("Archive.pst")).unwrap();
     assert!(b.elsewhere, "{b:?}");
     // A cache that doesn't keep data files has nowhere to put one.
     assert_eq!(Store::memory().copy_beside(&pst), None);
     drop(s);
+}
+
+/// Run by [`an_opened_files_copy_is_kept_beside_it_and_found_again`] from `here` in the folder
+/// it names: a file named from there has its copy there.
+#[test]
+#[ignore = "run by an_opened_files_copy_is_kept_beside_it_and_found_again"]
+fn named_from_where_it_runs() {
+    let Some(t) = std::env::var_os("MC_CHILD_DIR").map(std::path::PathBuf::from) else { return };
+    let here = std::env::current_dir().unwrap();
+    assert_eq!(here.canonicalize().unwrap(), t.join("here").canonicalize().unwrap(), "run from the scratch folder");
+    let s = Store::open_packed(t.join("child"), t.join("Child Files")).unwrap();
+    let b = s.copy_beside(std::path::Path::new("Archive.pst")).unwrap();
+    assert!(!b.elsewhere && b.path == here.join("Archive.mailcraft"), "{b:?}");
+    println!("beside where it runs");
 }
 
 /// A file whose folder can't be made a file in (here, a disc taken out: the folder isn't there

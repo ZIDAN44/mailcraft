@@ -12,6 +12,11 @@ use super::*;
 /// is set): a process that can be killed part-way. What it prints starts on the test harness's
 /// own line.
 pub(super) fn child(test: &str, env: &[(&str, String)]) -> std::process::Child {
+    command(test, env).spawn().unwrap()
+}
+
+/// The command [`child`] starts, for a test to change (where it runs) before it does.
+pub(super) fn command(test: &str, env: &[(&str, String)]) -> std::process::Command {
     let mut cmd = std::process::Command::new(std::env::current_exe().unwrap());
     cmd.args(["--ignored", "--exact", test, "--nocapture", "--test-threads=1"])
         .stdout(std::process::Stdio::piped())
@@ -19,7 +24,7 @@ pub(super) fn child(test: &str, env: &[(&str, String)]) -> std::process::Child {
     for (k, v) in env {
         cmd.env(k, v);
     }
-    cmd.spawn().unwrap()
+    cmd
 }
 
 /// Sources of every kind: text, a big text one, noise that doesn't compress (one in pieces), a
