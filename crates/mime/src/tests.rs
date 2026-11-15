@@ -1,3 +1,24 @@
+use super::*;
+use mailcraft_model::dates::Clock;
+use util::{PNG_1X1, key};
+
+mod data_urls;
+mod draft_source;
+mod importance;
+pub(crate) mod index_text;
+mod kept_cid;
+mod one_parse;
+mod parts_listed;
+mod percent;
+mod previews;
+mod reactions;
+mod reply_layout;
+mod report;
+mod report_status;
+mod signature_code;
+mod text_attach;
+pub(crate) mod util;
+
 /// An HTML body's links read whole from its `href`s: a 900-character Teams link that the
 /// text's footnote wraps (it came out cut at 395), quoted either way or not, with entities,
 /// once each; nothing that isn't a web address, and nothing runaway.
@@ -31,26 +52,17 @@ fn a_teams_invitations_join_link_survives_as_text() {
     assert!(event.links().contains(&"https://aka.ms/JoinTeamsMeeting".to_string()), "{text}");
 }
 
-use super::*;
-use mailcraft_model::dates::Clock;
-use util::{PNG_1X1, key};
-
-mod data_urls;
-mod draft_source;
-mod importance;
-pub(crate) mod index_text;
-mod kept_cid;
-mod one_parse;
-mod parts_listed;
-mod percent;
-mod previews;
-mod reactions;
-mod reply_layout;
-mod report;
-mod report_status;
-mod signature_code;
-mod text_attach;
-pub(crate) mod util;
+/// Issue #41: HTML laid out in tables reads as text without box-drawing rules around each
+/// table, and its preview keeps one block's words apart from the next's.
+#[test]
+fn tables_read_as_text_without_rules() {
+    let raw = b"From: news@studio.example\r\nSubject: x\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\
+<table><tr><td>BANNER</td></tr></table><table><tr><td><p><b>First</b> block</p></td></tr></table>\r\n";
+    let p = parse(raw).unwrap();
+    assert!(!p.text.chars().any(|c| ('\u{2500}'..='\u{257F}').contains(&c)), "{:?}", p.text);
+    let s = summary_from_header(raw, key(), Flags::default(), 0, 0);
+    assert_eq!(s.preview, "BANNER First block");
+}
 
 /// Issue #11 (#16's test): a signature's pictures are written into the HTML kept with the account, and come
 /// back from it as pictures of its text, with its look; pictures from the web, kinds a signature

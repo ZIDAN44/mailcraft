@@ -165,6 +165,12 @@ fn hostile_markup_is_survived() {
     let _ = html_layout("<table><tr><td><script>if (a < b) { document.write('<td>') }</script>z</td><td>y</td></tr></table>");
     let many = "<table><tr>".to_string() + &"<td>c</td>".repeat(5000) + "</tr></table>";
     assert!(html_layout(&many).is_empty(), "too many cells: flows as text");
+}
+
+/// A colour as CSS writes one: `#abc` is `#aabbcc`, an `rgb()` part over 255 is 255, and a hex
+/// colour of two digits is none.
+#[test]
+fn colours_read_as_css_writes_them() {
     assert_eq!(color("#abc"), Some([0xaa, 0xbb, 0xcc]));
     assert_eq!(color("rgb(1, 2, 300)"), Some([1, 2, 255]));
     assert_eq!(color("#12"), None);

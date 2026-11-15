@@ -1,3 +1,14 @@
+use super::*;
+
+mod find;
+mod kept;
+mod meeting;
+mod notes;
+mod occurring;
+mod showing;
+mod tasks;
+mod zones;
+
 /// Issue #1: a Google invitation as Exchange makes it text reads as it does in Outlook: each
 /// `words<address>` is a link named by its words, an address alone on its line is a link of
 /// its own, phone links stay text, and nothing else changes.
@@ -117,17 +128,6 @@ fn an_events_links_and_the_one_that_joins_it() {
     let _ = links_in(&junk);
     assert!(links_in("https://").is_empty() && links_in("http://x").is_empty());
 }
-
-use super::*;
-
-mod find;
-mod kept;
-mod meeting;
-mod notes;
-mod occurring;
-mod showing;
-mod tasks;
-mod zones;
 
 fn at(y: i64, m: u32, d: u32, h: i64, mi: i64) -> i64 {
     days_from_civil(y, m, d) * 86_400 + h * 3600 + mi * 60
