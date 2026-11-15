@@ -467,21 +467,26 @@ impl Packs {
     /// `.pst`: closed and no longer anyone's, so it can be opened again (File › Open & Export) and
     /// the same address added again gets a file of its own beside it. Returns the file.
     pub(crate) fn let_go(&self, account: &str) -> Option<PathBuf> {
-        let (_, name) = self.close_and_forget(account);
+        let (_, name) = self.forget_account(account);
+        name.map(|n| self.dir.join(n)).filter(|f| f.exists())
+    }
+
+    /// `account`'s data file closed and no longer its ([`Packs::close_and_forget`]), with nothing
+    /// left waiting to say how it's kept or to seal it, and the names saved without it. Whether it
+    /// was open, and its name.
+    fn forget_account(&self, account: &str) -> (bool, Option<String>) {
+        let forgotten = self.close_and_forget(account);
         Packs::lock(&self.fresh).remove(account);
         self.seals.forget(account);
         names::save(&self.root, &Packs::lock(&self.names));
-        name.map(|n| self.dir.join(n)).filter(|f| f.exists())
+        forgotten
     }
 
     pub(crate) fn remove_dir_all(&self, p: &Path) -> io::Result<()> {
         match self.place(p) {
             // The account goes: its data file with it.
             Place::Account(a) => {
-                let (had, name) = self.close_and_forget(&a);
-                Packs::lock(&self.fresh).remove(&a);
-                self.seals.forget(&a);
-                names::save(&self.root, &Packs::lock(&self.names));
+                let (had, name) = self.forget_account(&a);
                 let legacy = fs::remove_dir_all(p).is_ok();
                 match name.map(|n| fs::remove_file(self.dir.join(n))) {
                     Some(r) => r.or(Ok(())),
