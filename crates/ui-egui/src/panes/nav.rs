@@ -261,8 +261,9 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             }
             let config = &a.config;
             resp.context_menu(|ui| {
+                // This account's mail (issue #104: it was every account's).
                 if ui.button(tl!("Send / Receive")).clicked() {
-                    acts.push(Action::Run("mail.sync", json!({})));
+                    acts.push(Action::Run("mail.sync", json!({"account": config.id})));
                     ui.close();
                 }
                 // A Microsoft account with a password (refused there) switches to Microsoft sign-in.

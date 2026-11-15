@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 
+- An account can look for new mail only when you ask (#104): **File › Options › Mail › Checking for new mail › Only when I ask**. It isn't signed in as MailCraft starts nor looks by itself; **Send / Receive** on the account looks (and now looks at that account only: it looked at all of them), Send / Receive for all leaves it out, and sending or opening a message not downloaded yet still works.
 - A picture in a message has a menu on a right-click (#110): **Copy picture**, for another app to paste, and **Save picture as…**, for one the message carries or one from the web that's been shown.
 - In the dark theme, messages can be shown on a light background, in the colours they were written in (#109): **File › Options › General › Messages on a light background**, or the sun above a message to switch.
 - An event's repeat can be set as you need it (#103): every so many days, weeks, months or years, on the weekdays you pick, on a day of the month or its nth weekday (the third Thursday, the last Friday), and ending never, after so many times or on a date. A series from elsewhere opens with its rule to change, unless it says more than the form shows. A small month beside each date picks a day, and the end follows the start, keeping the event's length.

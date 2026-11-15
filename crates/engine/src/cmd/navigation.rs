@@ -7,8 +7,9 @@ use crate::session::Toward;
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
         // Send / Receive
-        CommandSpec::new("mail.sync", "Send / Receive all folders", "Send / Receive", |s, _| Ok(json!({"accounts": s.sync_all()})))
+        CommandSpec::new("mail.sync", "Send / Receive all folders", "Send / Receive", |s, v| Ok(json!({"accounts": s.sync_all(p::str(v, "account"))})))
             .key("F9")
+            .params(r#"{"account"?: string (that account's only, also one that looks only when asked; else all but those)}"#)
             .when(can_connect),
         CommandSpec::new("folder.sync", "Update folder", "Send / Receive", sync_folder).key("Shift+F9").when(can_connect),
         CommandSpec::new("edit.undo", "Undo", "Quick access", |s, _| s.undo_last())

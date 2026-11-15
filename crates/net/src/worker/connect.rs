@@ -361,7 +361,11 @@ impl Worker {
         self.flush_outbox();
         // Drafts kept while offline go to the server first.
         self.queue_kept_drafts();
-        self.last_full = None;
+        // Every folder read now, unless it looks only when asked (issue #104): then Send / Receive
+        // asks for that itself.
+        if !self.acc.check_by_hand {
+            self.last_full = None;
+        }
     }
 
     pub(super) fn client(&mut self) -> Result<&mut Client<Stream>> {

@@ -67,6 +67,12 @@ impl Pool {
             Job::SetSync { messages, offline } => self.set_sync(messages, offline),
             Job::WorkOffline { on } => self.work_offline(on),
             Job::Start { account, password } if self.offline => self.start_when_online(account, password),
+            // Looking only when asked (issue #104): not signed in until something is (one set so
+            // while it ran stops looking now).
+            Job::Start { account, password } if account.check_by_hand => {
+                self.stop(&account.id);
+                self.start_when_online(account, password);
+            }
             Job::Start { account, password } => self.start(account, password),
             // An empty one: the calendar server signs in as the mail server again.
             Job::DavPassword { account, password } if password.0.is_empty() => self.creds.delete_secret(&account, DAV_SECRET),
@@ -98,6 +104,7 @@ impl Pool {
                 self.edits.send(&self.store, &self.sink, account, op, wake);
             }
             other => {
+                self.start_when_asked(&other);
                 if let Some(job) = self.offline_answer(other) {
                     self.route_to_worker(job);
                 }
@@ -274,6 +281,26 @@ impl Pool {
         }
         self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::Offline });
         self.configs.insert(account.id.clone(), account);
+    }
+
+    /// An account that looks for mail only when asked (issue #104), not running: started for a
+    /// job its server is needed for (Send / Receive, sending, a message not downloaded yet).
+    fn start_when_asked(&mut self, job: &Job) {
+        let id = job.account();
+        if self.offline || self.workers.contains_key(id) {
+            return;
+        }
+        let Some(config) = self.configs.get(id).filter(|c| c.check_by_hand).cloned() else { return };
+        let needs_server = match job {
+            Job::SyncAll { .. } | Job::SyncFolder { .. } | Job::Send { .. } | Job::FlushOutbox { .. } | Job::MoreMail { .. } => true,
+            Job::SearchServer { .. } | Job::SearchDirectory { .. } | Job::GetVacation { .. } | Job::SetVacation { .. } => true,
+            Job::FindIdentities { .. } => true,
+            Job::FetchBody { key } => self.store.read_body(key).is_none(),
+            _ => false,
+        };
+        if needs_server {
+            self.start(config, None);
+        }
     }
 
     /// An account removed: its threads stopped, its index and any import into it dropped, and

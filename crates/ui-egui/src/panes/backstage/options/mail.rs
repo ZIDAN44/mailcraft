@@ -149,14 +149,24 @@ pub(super) fn checking(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
             setting(ui, t, i == 0, &c.email, None, |ui| {
                 let now = c.check_every.unwrap_or(0);
                 let word = |m: u32| if m == 0 { tl!("Automatically").to_string() } else { tf!("Every {n} minutes", n = m) };
+                // Only when asked (issue #104): Send / Receive on the account.
+                let shown = if c.check_by_hand { tl!("Only when I ask").to_string() } else { word(now) };
                 egui::ComboBox::from_id_salt(("check-every", c.id.as_str()))
                     .width(170.0)
-                    .selected_text(word(now))
+                    .selected_text(shown)
                     .show_ui(ui, |ui| {
                         for m in [0u32, 5, 10, 15, 30, 60] {
-                            if ui.selectable_label(m == now, word(m)).clicked() && m != now {
+                            if ui.selectable_label(m == now && !c.check_by_hand, word(m)).clicked() && (m != now || c.check_by_hand) {
                                 acts.push(Action::Run("account.checkEvery", json!({"account": c.id, "minutes": m})));
                             }
+                        }
+                        if ui
+                            .selectable_label(c.check_by_hand, tl!("Only when I ask"))
+                            .on_hover_text(tl!("Send / Receive on the account looks; Send / Receive for all leaves it out"))
+                            .clicked()
+                            && !c.check_by_hand
+                        {
+                            acts.push(Action::Run("account.checkEvery", json!({"account": c.id, "byHand": true})));
                         }
                     })
                     .response

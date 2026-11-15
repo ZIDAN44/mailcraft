@@ -204,7 +204,10 @@ fn start(s: &mut Session, store: &Store, account: &str) -> Result<Pool, String> 
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     // Session::open queued Start jobs without passwords; replace them with one that has it.
     let _ = s.take_jobs();
-    pool.submit(Job::Start { account: config, password: Some(Secret(pw)) });
+    // Asked for, whatever the account is set to: one that looks only when asked (issue #104)
+    // is asked now, by the command (held back, it never signed in, and the command waited).
+    let account = mailcraft_engine::model::AccountConfig { check_by_hand: false, ..config };
+    pool.submit(Job::Start { account, password: Some(Secret(pw)) });
     Ok(pool)
 }
 

@@ -16,6 +16,9 @@ const MINUTE: Duration = if cfg!(test) { Duration::from_millis(100) } else { Dur
 /// Every folder is read at most this often when an account looks at set times, however often it
 /// looks at the Inbox: as often as an account left to itself reads them.
 const FULL_SYNC_MINUTES: u32 = 15;
+/// How long an account that looks only when asked waits to look by itself: never, near enough
+/// (a year; a longer wait overflows the clock's sums).
+const BY_HAND: Duration = Duration::from_secs(365 * 24 * 3600);
 /// How long an IMAP connection stays quiet between looks. A server may drop one after 30 minutes
 /// of nothing (RFC 3501 5.4), which would come back as an error on the next thing asked of it.
 const QUIET_MINUTES: u32 = 10;
@@ -24,6 +27,23 @@ impl Worker {
     /// Wait for new mail: IDLE on the Inbox when the server supports it, else poll.
     pub(super) fn wait_for_mail(&mut self, rx: &Receiver<Job>) {
         self.working(false);
+        // Looking only when asked (issue #104): once it's been quiet a while, signed out until
+        // it's asked again, not kept awake for good.
+        if self.acc.check_by_hand {
+            let wait = MINUTE.saturating_mul(QUIET_MINUTES);
+            let Some(got) = self.recv_unless_set_aside(rx, wait) else { return };
+            match got {
+                Ok(j) => push_job(&mut self.queue, j),
+                Err(RecvTimeoutError::Disconnected) => self.closed = true,
+                Err(RecvTimeoutError::Timeout) => {
+                    if let Some(Conn::Imap(c)) = self.conn.as_mut() {
+                        c.logout();
+                    }
+                    self.conn = None;
+                }
+            }
+            return;
+        }
         if let Some(every) = self.check_every() {
             self.wait_for_set_time(rx, every);
             return;
@@ -90,6 +110,10 @@ impl Worker {
 
     /// How often the account was asked to look for new mail (issue #58); `None`: left to itself.
     pub(super) fn check_every(&self) -> Option<Duration> {
+        // Only when asked (issue #104): never by itself.
+        if self.acc.check_by_hand {
+            return Some(BY_HAND);
+        }
         self.acc.check_every.filter(|m| *m > 0).map(|m| MINUTE.saturating_mul(m.min(mailcraft_model::MAX_CHECK_MINUTES)))
     }
 

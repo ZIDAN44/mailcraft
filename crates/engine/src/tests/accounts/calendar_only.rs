@@ -33,7 +33,7 @@ fn a_calendar_only_account_starts_with_its_server_and_no_mail_one() {
     // Send / Receive and working offline take it in; a plain local account isn't.
     let local = again.run("account.add", &json!({"email": "me@example.org", "local": true})).unwrap()["account"].as_str().unwrap().to_string();
     again.take_jobs();
-    assert_eq!(again.sync_all(), 1);
+    assert_eq!(again.sync_all(None), 1);
     assert!(matches!(again.take_jobs().as_slice(), [Job::SyncAll { account }] if *account == id));
     again.set_work_offline(true);
     assert_eq!(again.account(&id).unwrap().status, mailcraft_model::SyncStatus::Offline);
@@ -183,4 +183,36 @@ fn a_meetings_invitations_go_through_a_server_that_schedules() {
             assert!(not_sent, "said it couldn't go: {:?}", s.notices);
         }
     }
+}
+
+/// Issue #104: an account set to look only when asked is left out of Send / Receive for all, and
+/// looked at by Send / Receive on it; a time set again makes it look by itself as before.
+#[test]
+fn an_account_looking_only_when_asked_is_left_out_of_send_receive_for_all() {
+    let mut s = Session::open(Some(temp("check-by-hand")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let add = |s: &mut Session, email: &str| {
+        let p = json!({"email": email, "deferSignIn": true, "imapHost": "imap.example.org", "imapPort": 993, "smtpHost": "smtp.example.org", "smtpPort": 465});
+        s.run("account.add", &p).unwrap()["account"].as_str().unwrap().to_string()
+    };
+    let (often, daily) = (add(&mut s, "boss@example.org"), add(&mut s, "news@example.org"));
+    s.run("account.checkEvery", &json!({"account": daily, "byHand": true})).unwrap();
+    let c = s.account(&daily).unwrap().config.clone();
+    assert!(c.check_by_hand && c.check_every.is_none());
+    s.take_jobs();
+    let synced = |s: &mut Session| -> Vec<String> {
+        s.take_jobs()
+            .into_iter()
+            .filter_map(|j| match j {
+                Job::SyncAll { account } => Some(account),
+                _ => None,
+            })
+            .collect()
+    };
+    assert_eq!(s.run("mail.sync", &json!({})).unwrap()["accounts"], 1);
+    assert_eq!(synced(&mut s), std::slice::from_ref(&often), "Send / Receive for all: not the one looking when asked");
+    assert_eq!(s.run("mail.sync", &json!({"account": daily})).unwrap()["accounts"], 1);
+    assert_eq!(synced(&mut s), std::slice::from_ref(&daily), "Send / Receive on it: it alone");
+    s.run("account.checkEvery", &json!({"account": daily, "minutes": 30})).unwrap();
+    let c = s.account(&daily).unwrap().config.clone();
+    assert!(!c.check_by_hand && c.check_every == Some(30));
 }

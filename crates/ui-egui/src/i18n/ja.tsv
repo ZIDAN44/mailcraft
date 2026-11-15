@@ -1742,3 +1742,5 @@ count	occurrences	回
 	Save picture as…	名前を付けて画像を保存…
 	The picture couldn't be copied	画像をコピーできませんでした
 	The picture couldn't be saved	画像を保存できませんでした
+	Only when I ask	指示したときだけ
+	Send / Receive on the account looks; Send / Receive for all leaves it out	アカウントで [送受信] すると確認します。すべての [送受信] では対象外です

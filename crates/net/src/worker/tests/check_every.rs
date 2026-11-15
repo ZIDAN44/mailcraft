@@ -137,3 +137,47 @@ fn a_pop_account_downloads_at_its_set_time() {
 fn pool_done(mut pool: Pool) {
     pool.submit(Job::Remove { account: "a1".into() });
 }
+
+/// Issue #104: an account that looks only when asked isn't signed in as MailCraft starts, nor
+/// looks by itself; Send / Receive on it looks, and after that it doesn't look again by itself
+/// (here a minute is a tenth of a second: two "hours" go by).
+#[test]
+fn an_account_looking_only_when_asked() {
+    let st = State::new();
+    let store = crate::fake::store("check-by-hand");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    pool.opts.prefetch = 0;
+    let account = AccountConfig { smtp: no_smtp(), check_by_hand: true, ..imap_account("a1", serve_tcp(&st)) };
+    st.lock().unwrap().add("INBOX", "Waiting", &[]);
+    pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
+    let quiet = |pool: &mut Pool, how_long: Duration| {
+        let end = Instant::now() + how_long;
+        let mut said = Vec::new();
+        while Instant::now() < end {
+            said.extend(pool.poll());
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        said
+    };
+    let said = quiet(&mut pool, Duration::from_secs(2));
+    assert!(st.lock().unwrap().log.is_empty(), "signed in by itself: {:?}", st.lock().unwrap().log);
+    assert!(!said.iter().any(inbox_changed), "{said:?}");
+
+    pool.submit(Job::SyncAll { account: "a1".into() });
+    until(&pool, "the mail, when asked for", inbox_changed);
+    // Its look done, and quiet a while: signed out, not kept awake.
+    let end = Instant::now() + Duration::from_secs(30);
+    while !st.lock().unwrap().log.iter().any(|c| c.eq_ignore_ascii_case("LOGOUT")) {
+        assert!(Instant::now() < end, "never let go: {:?}", st.lock().unwrap().log);
+        pool.poll();
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let looked = st.lock().unwrap().log.len();
+    st.lock().unwrap().add("INBOX", "Later", &[]);
+    let said = quiet(&mut pool, Duration::from_secs(12));
+    assert!(!said.iter().any(inbox_changed), "looked by itself: {said:?}");
+    let after: Vec<String> = st.lock().unwrap().log[looked..].to_vec();
+    assert!(after.is_empty(), "not signed in again by itself: {after:?}");
+    pool_done(pool);
+}

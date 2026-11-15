@@ -703,8 +703,15 @@ impl Session {
     }
 
     /// Ask every account with a server to sync now; how many were asked.
-    pub fn sync_all(&mut self) -> usize {
-        let ids: Vec<String> = self.accounts.iter().filter(|a| a.config.has_server()).map(|a| a.config.id.clone()).collect();
+    /// Send / Receive: every account's mail but those that look only when asked (issue #104),
+    /// or one account's (`only`), whatever it's set to.
+    pub fn sync_all(&mut self, only: Option<&str>) -> usize {
+        let ids: Vec<String> = self
+            .accounts
+            .iter()
+            .filter(|a| a.config.has_server() && only.map_or(!a.config.check_by_hand, |id| a.config.id == id))
+            .map(|a| a.config.id.clone())
+            .collect();
         for id in &ids {
             self.jobs.push(Job::SyncAll { account: id.clone() });
         }

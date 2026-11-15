@@ -169,6 +169,11 @@ pub struct AccountConfig {
     /// server says there's some, where a server can, and otherwise every two minutes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub check_every: Option<u32>,
+    /// It looks for new mail only when asked (issue #104): not as MailCraft starts, nor by
+    /// itself after, nor with Send / Receive for all accounts; Send / Receive on the account
+    /// does, and so does sending, or opening a message not downloaded yet.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub check_by_hand: bool,
     /// Calendars and contacts given by hand (issue #7), for a server MailCraft can't find from the
     /// address on its own, or one that wants a password of its own (an app password).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -229,6 +234,7 @@ impl AccountConfig {
             shared_mailboxes,
             online_only,
             check_every,
+            check_by_hand,
             dav,
             user_agent,
             trusted_certificates,
@@ -236,7 +242,7 @@ impl AccountConfig {
         (
             (email, username, imap, smtp, pop),
             (jmap, graph, ews, smtp_username, oauth, oauth_user),
-            (pop_delete, pop_keep_days, pop_delete_with_trash, shared_mailboxes, online_only, check_every),
+            (pop_delete, pop_keep_days, pop_delete_with_trash, shared_mailboxes, online_only, (check_every, check_by_hand)),
             (dav, user_agent, trusted_certificates),
         )
     }
