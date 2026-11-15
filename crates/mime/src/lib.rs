@@ -544,6 +544,15 @@ pub struct OutAttachment {
     pub content_id: String,
 }
 
+/// A meeting's invitation, answer or cancellation (iTIP, RFC 5546) carried in a message.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OutCalendar {
+    /// The iTIP method (`REQUEST`, `REPLY`, `CANCEL`…), as in the calendar's `METHOD`.
+    pub method: String,
+    /// The iCalendar text (RFC 5545).
+    pub data: String,
+}
+
 /// An outgoing message being written.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Draft {
@@ -567,6 +576,11 @@ pub struct Draft {
     /// Pictures the HTML shows by `cid:` (sent inline, `multipart/related`).
     #[serde(default)]
     pub inline: Vec<InlinePicture>,
+    /// A meeting's calendar, sent as iMIP says (RFC 6047 §2.4): a `text/calendar` part with its
+    /// `method` and `charset`, inline beside the text in `multipart/alternative`, as Outlook and
+    /// Thunderbird send it. Exchange takes a calendar only as a file for a file, not a meeting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calendar: Option<OutCalendar>,
     /// High (1) or low (-1) importance; 0 sends no header.
     #[serde(default)]
     pub importance: i8,
@@ -727,13 +741,24 @@ pub fn build<'d>(d: &'d Draft, from: &EmailAddress, date: i64, message_id: &str)
     // The text with bare line ends (mail-builder writes CR LF): copied only when it has others.
     let body: std::borrow::Cow<'d, str> = if d.body.contains("\r\n") { d.body.replace("\r\n", "\n").into() } else { d.body.as_str().into() };
     let text = MimePart::new("text/plain", body);
+    // A meeting's calendar: the last alternative, the one a calendar program reads (RFC 6047 §2.4).
+    let calendar = d.calendar.as_ref().map(calendar_part);
     let root = match &d.html {
-        None if files.is_empty() => text,
-        None => multipart("multipart/mixed", 1, std::iter::once(text).chain(files).collect()),
+        None => {
+            let body = match calendar {
+                Some(c) => multipart("multipart/alternative", 3, vec![text, c]),
+                None => text,
+            };
+            if files.is_empty() { body } else { multipart("multipart/mixed", 1, std::iter::once(body).chain(files).collect()) }
+        }
         Some(html) => {
             // mixed( related( alternative(text, html), pictures… ), attachments… ): the pictures
             // belong with the HTML that shows them (RFC 2387), the files with the message.
-            let alt = multipart("multipart/alternative", 3, vec![text, MimePart::new("text/html", html.as_str())]);
+            let alt = multipart(
+                "multipart/alternative",
+                3,
+                std::iter::once(text).chain(std::iter::once(MimePart::new("text/html", html.as_str()))).chain(calendar).collect(),
+            );
             let mut related = vec![alt];
             for p in &d.inline {
                 let mime = if p.mime.is_empty() { mime_from_name(&p.name).to_string() } else { p.mime.clone() };
@@ -752,6 +777,18 @@ pub fn build<'d>(d: &'d Draft, from: &EmailAddress, date: i64, message_id: &str)
         }
     };
     b.body(root).write_to_vec().map_err(|e| e.to_string())
+}
+
+/// A meeting's calendar as a message part: `text/calendar; charset=utf-8; method=…`, inline (no
+/// `Content-Disposition`), its line ends left to mail-builder (which writes CR LF).
+fn calendar_part(c: &OutCalendar) -> MimePart<'_> {
+    // The method is a token (RFC 5546 §1.4); anything else in it is left out of the header.
+    let method: String =
+        c.method.trim().chars().filter(|ch| ch.is_ascii_alphanumeric() || *ch == '-').take(64).collect::<String>().to_ascii_uppercase();
+    let ct = ContentType::new("text/calendar").attribute("charset", "utf-8");
+    let ct = if method.is_empty() { ct } else { ct.attribute("method", method) };
+    let data: std::borrow::Cow<'_, str> = if c.data.contains("\r\n") { c.data.replace("\r\n", "\n").into() } else { c.data.as_str().into() };
+    MimePart::new(ct, data)
 }
 
 /// Longest `Content-ID` an attachment keeps, in bytes: its header line stays within RFC 5322's

@@ -6,3 +6,4 @@ use super::*;
 mod draft_source;
 mod importance;
 mod kept_cid;
+mod meeting_parts;

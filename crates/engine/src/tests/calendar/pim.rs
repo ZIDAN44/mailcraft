@@ -117,6 +117,10 @@ fn invitations_are_answered_and_sent() {
     assert!(raw.to_ascii_lowercase().contains("text/calendar"), "sent as a calendar part");
     let to = mailcraft_mime::parse(raw.as_bytes()).unwrap().to;
     assert_eq!(to, [mailcraft_model::EmailAddress::new("Ana Lima", "ana@soundlab.example")], "to the organizer");
+    // As iMIP says (RFC 6047 §2.4), so Exchange takes it as an answer: inline beside the text,
+    // with its method and character set, not a file.
+    assert!(raw.contains("Content-Type: multipart/alternative") && raw.contains("text/calendar; charset=\"utf-8\"; method=\"REPLY\""), "{raw}");
+    assert!(!raw.contains("invite.ics") && !raw.contains("Content-Disposition: attachment"), "{raw}");
 
     // Declining takes it out of the calendar.
     s.run("invite.respond", &json!({"answer": "declined"})).unwrap();

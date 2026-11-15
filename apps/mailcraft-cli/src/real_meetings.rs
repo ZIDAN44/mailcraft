@@ -79,6 +79,32 @@ fn from_server(sv: &Servers, uid: &str) -> CalEvent {
     e
 }
 
+/// The source of the message with `subject` in `email`'s Inbox, as its server keeps it, read by a
+/// fresh copy of MailCraft.
+fn source_of(sv: &Servers, email: &str, subject: &str) -> String {
+    let (mut s, mut pool, store) = open("source", email, sv);
+    let key = s.list.iter().find(|m| m.subject == subject).map(|m| m.key.clone()).unwrap_or_else(|| panic!("{subject} wasn't delivered"));
+    let params = json!({"key": key.to_id()});
+    if s.run("message.source", &params).unwrap()["pending"].as_bool() == Some(true) {
+        pool.submit(Job::FetchBody { key: key.clone() });
+        drive(&mut s, &mut pool, Duration::from_secs(30), |e| matches!(e, Event::Body { .. }).then_some(Ok(()))).unwrap();
+    }
+    let text = s.run("message.source", &params).unwrap()["text"].as_str().unwrap_or_default().to_string();
+    let _ = std::fs::remove_dir_all(store.root());
+    text
+}
+
+/// A meeting's mail as iMIP sends it (RFC 6047 §2.4, issue #98): the calendar inline, the last
+/// alternative beside the text, with its method and character set; not a file.
+fn assert_imip(source: &str, method: &str) {
+    let unfolded = source.replace("\r\n ", " ").replace("\r\n\t", " ");
+    let types: Vec<&str> = unfolded.lines().filter_map(|l| l.strip_prefix("Content-Type: ")).collect();
+    assert!(types.first().is_some_and(|t| t.starts_with("multipart/alternative")), "{source}");
+    assert!(types.iter().any(|t| *t == format!("text/calendar; charset=\"utf-8\"; method=\"{method}\"")), "{source}");
+    assert!(!source.contains("Content-Disposition") && !source.contains("invite.ics"), "{source}");
+    assert!(source.contains(&format!("METHOD:{method}")), "{source}");
+}
+
 /// Run the jobs a change queued until the server has the event and the guests have mail.
 fn send(s: &mut Session, pool: &mut Pool) {
     let (mut pushed, mut sent) = (false, false);
@@ -148,6 +174,18 @@ fn real_meeting_through_a_calendar_server_and_an_invitation() {
     assert_eq!(invited.conferences()[0].label, "BigBlueButton");
     assert!(invited.description.contains("Access code: 123-456-789"));
     assert_eq!((ical::privacy(invited), ical::show_as(invited)), (ical::Privacy::Private, ical::ShowAs::OutOfOffice));
+    assert_imip(&source_of(&sv, ZOE, &subject), "REQUEST");
+
+    // Zoe's answer, as Riley's server delivered it.
+    z.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    z.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    drive(&mut z, &mut zpool, Duration::from_secs(60), |e| match e {
+        Event::Sent { .. } => Some(Ok(())),
+        Event::SendFailed { error, .. } => Some(Err(error.clone())),
+        _ => None,
+    })
+    .unwrap();
+    assert_imip(&source_of(&sv, RILEY, &format!("Accepted: Team meeting {tag}")), "REPLY");
 
     // Taken out: the calendar server's copy and the guests' update lose it, the notes stay.
     s.run("event.update", &json!({"uid": uid, "onlineMeeting": false})).unwrap();
@@ -155,6 +193,16 @@ fn real_meeting_through_a_calendar_server_and_an_invitation() {
     let back = from_server(&sv, &uid);
     assert_eq!((back.description.as_str(), back.location.as_str()), ("Team meeting", ""));
     assert!(back.conferences().is_empty() && back.join_link().is_none(), "{back:?}");
+
+    // Called off: the guest's cancellation.
+    s.run("event.delete", &json!({"uid": uid})).unwrap();
+    drive(&mut s, &mut pool, Duration::from_secs(60), |e| match e {
+        Event::Sent { .. } => Some(Ok(())),
+        Event::SendFailed { error, .. } => Some(Err(error.clone())),
+        _ => None,
+    })
+    .unwrap();
+    assert_imip(&source_of(&sv, ZOE, &format!("Cancelled: Team meeting {tag}")), "CANCEL");
     for st in [store, zstore] {
         let _ = std::fs::remove_dir_all(st.root());
     }

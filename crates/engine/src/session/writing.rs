@@ -563,6 +563,7 @@ impl Session {
             attachments: c.attachments.clone(),
             html,
             inline,
+            calendar: None,
             importance: c.importance,
             read_receipt: c.read_receipt,
             seven_bit: false,
