@@ -115,7 +115,6 @@ impl Client {
         Ok((count("TotalCount"), count("UnreadCount")))
     }
 
-    /// The newest `limit` messages of a folder with their flags.
     /// The newest `limit` messages' ids and flags, a page of up to a thousand at a time (EWS
     /// pages by offset; it says when the last page is in).
     pub(super) fn newest(&self, folder: &str, limit: usize) -> Result<Vec<(String, Flags)>> {

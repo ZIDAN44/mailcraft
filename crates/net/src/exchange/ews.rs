@@ -297,7 +297,7 @@ pub(crate) fn check_message(m: &El) -> Result<()> {
             let text = m.text_of("MessageText").unwrap_or(code);
             Err(match code {
                 "ErrorItemNotFound" | "ErrorFolderNotFound" => NetError::No(format!("{GONE} ({text})")),
-                "ErrorAccessDenied" => NetError::No(text.to_string()),
+                // Any other (access denied, the server busy) is refused as it says.
                 _ => NetError::No(text.to_string()),
             })
         }

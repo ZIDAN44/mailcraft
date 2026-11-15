@@ -262,8 +262,8 @@ impl Client {
         Ok(out)
     }
 
-    /// The newest `limit` messages of a folder with their list details ([`LIST_FIELDS`]), and its
-    /// (total, unread).
+    /// The newest `window` messages of a folder with their list details ([`LIST_FIELDS`]), and
+    /// its (total, unread).
     fn newest(&self, folder: &str, window: usize) -> Result<(Vec<Value>, (u32, u32))> {
         let page = window.clamp(1, 1000);
         let mut entries = self.all(
@@ -271,10 +271,9 @@ impl Client {
             window.min(100_000),
         )?;
         entries.retain(|m| m["id"].is_string());
-        let ids = entries;
         let f = self.get(&format!("/me/mailFolders/{}?$select=totalItemCount,unreadItemCount", seg(folder)))?;
         let count = |k: &str| f.get(k).and_then(Value::as_u64).and_then(|n| u32::try_from(n).ok()).unwrap_or(0);
-        Ok((ids, (count("totalItemCount"), count("unreadItemCount"))))
+        Ok((entries, (count("totalItemCount"), count("unreadItemCount"))))
     }
 
     /// Of these messages, those still in a folder, with their flags (through `$batch`).

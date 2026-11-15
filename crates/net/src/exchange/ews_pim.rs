@@ -535,7 +535,7 @@ fn calendar_folder(owner: Option<&str>) -> String {
     }
 }
 
-/// Whether this account may add items to a folder (its EffectiveRights): `None` when the server
+/// Whether this account may add items to a folder (its EffectiveRights): `false` when the server
 /// doesn't say. A folder's `Modify` is about the folder itself (its name and permissions, the
 /// owner's alone), so an editor is known by `CreateContents`.
 fn may_edit(c: &Client, folder: &str) -> Result<bool> {
