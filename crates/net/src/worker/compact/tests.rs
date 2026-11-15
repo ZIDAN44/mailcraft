@@ -45,22 +45,24 @@ fn setup(name: &str) -> (std::path::PathBuf, Store, Pool) {
     (dir, store, pool)
 }
 
-/// Events until one says the compaction ended (or a minute passes), and what it came to.
-fn until_compacted(p: &mut Pool) -> (Vec<Event>, Option<CompactReport>) {
-    let end = Instant::now() + Duration::from_secs(60);
+/// Events until one says the compaction ended, that one last, and what it came to. Polled (it
+/// releases the jobs a compaction held), so not through the waits on `Pool::wait`.
+fn until_compacted(p: &mut Pool) -> (Vec<Event>, CompactReport) {
     let mut seen = Vec::new();
-    while Instant::now() < end {
+    let mut ended = None;
+    crate::waiting::eventually("the compaction to end", || {
         for e in p.poll() {
+            if ended.is_some() {
+                break;
+            }
             if let Event::Compacted { report, .. } = &e {
-                let report = (**report).clone();
-                seen.push(e);
-                return (seen, Some(report));
+                ended = Some((**report).clone());
             }
             seen.push(e);
         }
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    (seen, None)
+        ended.is_some()
+    });
+    (seen, ended.unwrap())
 }
 
 #[test]
@@ -68,27 +70,27 @@ fn asked_for_a_data_file_is_compacted_on_its_thread() {
     let (dir, store, mut p) = setup("manual");
     let before = std::fs::metadata(store.data_file("c1").unwrap()).unwrap().len();
     p.submit(Job::DataFileHealth { account: "c1".into() });
-    let end = Instant::now() + Duration::from_secs(30);
-    let health = loop {
-        assert!(Instant::now() < end, "no health");
-        if let Some(Event::DataFileHealth { health, error, .. }) = p.poll().into_iter().find(|e| matches!(e, Event::DataFileHealth { .. })) {
-            assert_eq!(error, None);
-            break health.unwrap();
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    };
+    let mut said = None;
+    crate::waiting::eventually("the data file's health", || {
+        said = p.poll().into_iter().find_map(|e| match e {
+            Event::DataFileHealth { health, error, .. } => Some((health, error)),
+            _ => None,
+        });
+        said.is_some()
+    });
+    let (health, error) = said.unwrap();
+    assert_eq!(error, None);
+    let health = health.unwrap();
     assert!(health.can_compact() && !health.needs_compacting(), "offered, not done at idle: {health:?}");
 
     // At idle it isn't worth it: nothing done, and said so.
     p.submit(Job::CompactDataFile { account: "c1".into(), mode: CompactMode::Idle });
     let (_, report) = until_compacted(&mut p);
-    let report = report.unwrap();
     assert!(!report.compacted && report.error.is_none() && report.before == report.after, "{report:?}");
 
     // Asked for, it is: in place, the file had to itself for a moment, said as it begins.
     p.submit(Job::CompactDataFile { account: "c1".into(), mode: CompactMode::Manual });
     let (seen, report) = until_compacted(&mut p);
-    let report = report.unwrap();
     assert!(report.compacted && report.error.is_none() && report.mode == CompactMode::Manual, "{report:?}");
     assert!(report.before == before && report.after < before, "{report:?}");
     assert!(seen.iter().any(|e| matches!(e, Event::Compacting { phase: CompactPhase::Exclusive, exclusive_s: Some(_), .. })), "{seen:?}");
@@ -118,7 +120,7 @@ fn a_second_compaction_and_an_import_beside_one_are_refused() {
     );
     p.submit(Job::CompactDataFile { account: "c1".into(), mode: CompactMode::Manual });
     let (_, report) = until_compacted(&mut p);
-    assert!(report.unwrap().error.is_some_and(|e| e.contains("already")));
+    assert!(report.error.as_deref().is_some_and(|e| e.contains("already")), "{report:?}");
     p.submit(Job::ImportPst { account: "c1".into(), path: "archive.pst".into(), resume: false });
     p.submit(Job::ImportPst { account: "c1".into(), path: "archive.pst".into(), resume: true });
     let seen = p.poll();
