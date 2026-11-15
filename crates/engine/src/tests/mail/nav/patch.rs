@@ -128,11 +128,9 @@ fn marking_read_does_not_rebuild() {
         let keys: Vec<MessageKey> = s.row_keys().into_iter().filter(|k| s.summary(k).is_some_and(|m| !m.flags.seen)).take(100).collect();
         assert_eq!(keys.len(), 100, "{when}");
         let (built, threadings, revision) = (s.nav_structure(), s.nav.threadings(), s.revision);
-        let started = std::time::Instant::now();
         for k in &keys {
             s.open_message(k);
         }
-        eprintln!("{when}: 100 opened and marked read in {:?}", started.elapsed());
         assert!(keys.iter().all(|k| s.summary(k).is_some_and(|m| m.flags.seen)), "{when}: marked read");
         assert_eq!(s.nav_structure(), built, "{when}: no rows built");
         assert_eq!(s.nav.threadings(), threadings, "{when}: no conversations worked out");

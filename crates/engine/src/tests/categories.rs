@@ -152,8 +152,8 @@ fn rules_files_carry_their_categories_keywords() {
     assert_eq!(third.category("Team").map(|c| c.keyword.as_str()), Some("team"));
 }
 
-/// A long list with many keywords: the dialog's list of those not in the category list is
-/// counted in one pass, at most 100, most used first, any case counted as one.
+/// A long list with many keywords: the dialog's list of those not in the category list holds
+/// at most 100, most used first, any case counted as one.
 #[test]
 fn many_unlisted_keywords_are_counted_and_capped() {
     let mut s = sample_session("cat-many");
@@ -167,9 +167,7 @@ fn many_unlisted_keywords_are_counted_and_capped() {
             m.into()
         })
         .collect();
-    let started = std::time::Instant::now();
     let found = s.unlisted_keywords();
-    eprintln!("{} keywords counted in {:?}", found.len(), started.elapsed());
     assert_eq!(found.len(), 100);
     assert_eq!(found[0], ("Common".to_string(), 20_000), "one keyword whatever its case");
     assert!(!found.iter().any(|(k, _)| k == "$Junk"));

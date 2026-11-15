@@ -272,15 +272,10 @@ fn move_focus_never_rebuilds_rows() {
             rows_hold_their_messages(&s, &when);
             let (built, revision) = (s.nav_structure(), s.revision);
             let mut visited = Vec::new();
-            let started = std::time::Instant::now();
             for _ in 0..500 {
                 s.run("list.next", &json!({})).unwrap();
                 visited.extend(s.focus.clone());
             }
-            let stepped = started.elapsed();
-            let started = std::time::Instant::now();
-            drop(s.build_rows());
-            eprintln!("{when}: 500 Downs in {stepped:?}; building the rows (each Down's share before) {:?}", started.elapsed());
             assert_eq!(s.nav_structure(), built, "{when}: no rows built");
             assert_eq!(s.revision, revision, "{when}");
             assert_eq!(visited, order[..500].to_vec(), "{when}");
