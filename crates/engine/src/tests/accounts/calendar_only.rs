@@ -115,7 +115,7 @@ fn its_calendar_and_contacts_go_to_its_server() {
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { account } if *account == id)), "the server hears of a new event");
     assert_eq!(s.pim[&id].events.iter().map(|e| e.calendar.as_str()).collect::<Vec<_>>(), [cal.as_str()]);
     s.run("contact.create", &json!({"name": "Ana Lee", "account": id})).unwrap();
-    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { account } if *account == id)), "nor of a new contact");
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { account } if *account == id)), "and of a new contact");
     assert_eq!(s.pim[&id].cards.iter().map(|c| c.book.as_str()).collect::<Vec<_>>(), [book.as_str()]);
 }
 
