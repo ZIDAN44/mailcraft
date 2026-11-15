@@ -45,7 +45,6 @@ fn an_opened_files_copy_is_kept_beside_it_and_found_again() {
     std::fs::create_dir_all(&docs).unwrap();
     let pst = docs.join("Archive.pst");
     std::fs::write(&pst, b"!BDN not really a pst").unwrap();
-    // Another file of that name beside it, not MailCraft's.
     let s = Store::open_packed(t.join("app"), t.join("MailCraft Files")).unwrap();
     s.save_accounts(&[account("a1", "Archive.pst")]).unwrap();
 
@@ -375,7 +374,9 @@ fn a_copy_is_its_data_folders_and_another_is_told() {
     // Its own data folder (MailCraft started again on it) sees it as its own.
     let again = Store::open_packed(&one, t.join("Files 1")).unwrap();
     assert_eq!(again.data_folder_id(), Some(id1.clone()), "the same id, read back");
-    // Named by the first as a1's: not one of its to place again.
+    // Named by the first as a1's: not one of its to place again, but the next name for one.
+    let b = again.copy_beside(&pst).unwrap();
+    assert_eq!((b.path, b.found), (docs.join("Archive (2).mailcraft"), None));
     drop(again);
 
     // Taken over: the second's now, and held by it as the first sees it.
