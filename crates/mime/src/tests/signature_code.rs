@@ -129,6 +129,65 @@ fn handlers_and_scripts_are_found_as_a_browser_reads_them() {
     }
 }
 
+/// A tag ends where a browser ends it, so nothing a browser reads as the next tag goes out
+/// inside one: an `=` no name comes before is no value's start (`<p=">`), a `<` no name follows
+/// starts no tag, and what a `<style>` or `<textarea>` holds is text up to its end tag. Each hid a
+/// script or a handler in what was read as one harmless tag's quoted value.
+#[test]
+fn nothing_hides_in_a_tag_a_browser_ends_sooner() {
+    for code in [
+        "<p=\"> <script>alert(1)</script><img src=x onerror=alert(1) alt=\">",
+        "<p =\"x> <script>alert(1)</script><img src=x onerror=alert(1) y=\">",
+        "<p a=\"b\"=\"c> <script>alert(1)</script><img src=x onerror=alert(1) d=\">",
+        "<p a='b'='c> <script>alert(1)</script><img src=x onerror=alert(1) d='>",
+        "</p=\"> <script>alert(1)</script><img src=x onerror=alert(1) alt=\">",
+        "<3 a=\"> <script>alert(1)</script>\">",
+        "</ a=\"> <script>alert(1)</script>\">",
+        "<!x a=\"> <script>alert(1)</script>\">",
+        "<?x a=\"> <script>alert(1)</script>\">",
+        "<div><style><p a=\"</style><script>alert(1)</script>\"></style></div>",
+        "<div><style></stylex><p a=\"</style><script>alert(1)</script>\"></div>",
+        "<textarea><p a=\"</textarea><script>alert(1)</script>\">",
+        "<xmp><p a=\"</xmp><script>alert(1)</script>\">",
+        "<noscript><p a=\"</noscript><script>alert(1)</script>\">",
+    ] {
+        for kept in [signature_code(code), quote_html(code, &[], &[])] {
+            let lower = kept.to_ascii_lowercase();
+            assert!(!lower.contains("<script") && !lower.contains("alert") && !lower.contains("onerror"), "{code} -> {kept}");
+        }
+    }
+    // What such an element holds starts no tag where a browser reads tags there (in an `<svg>`).
+    for code in ["<svg><style><img src=x onerror=alert(1)></style></svg>", "<textarea></textareax><img src=x onerror=alert(1)>"] {
+        let kept = signature_code(code);
+        assert!(!kept.contains("<img"), "{code} -> {kept}");
+    }
+    // What isn't hidden stays as it was: a `<` in text, a style sheet, a value with a `>`.
+    for code in ["<p>1 < 2 and a<b</p>", "<style>p > a { color: #c03 }</style><p title=\"a>b\">x</p>", "<p=\">x</p>", "<textarea>a < b</textarea>"] {
+        assert_eq!(signature_code(code), code);
+    }
+}
+
+/// A numbered character reference is read with every digit it has, as a browser reads it: cut
+/// at eight, a `j` written with leading zeros hid a `javascript:`.
+#[test]
+fn a_reference_is_read_with_all_its_digits() {
+    for code in [
+        "<a href=\"&#00000000106;avascript:alert(1)\">x</a>",
+        "<a href=\"&#x0000000006A;avascript:alert(1)\">x</a>",
+        "<a href=\"&#X00000000000000000000006a;avascript:alert(1)\">x</a>",
+        "<a href=\"java&#0000000000009;script&#000000000058;alert(1)\">x</a>",
+        "<a href=\"vbscript&#x000000000003a;alert(1)\">x</a>",
+    ] {
+        for kept in [signature_code(code), quote_html(code, &[], &[])] {
+            assert!(!kept.contains("alert"), "{code} -> {kept}");
+        }
+    }
+    // A number no character has is no letter of a scheme, and stays as written.
+    for code in ["<a href=\"&#99999999999999999999;avascript:x\">x</a>", "<a href=\"&#xFFFFFFFFFFFFFFFFFFFF;avascript:x\">x</a>"] {
+        assert_eq!(signature_code(code), code);
+    }
+}
+
 /// A 2 MB newsletter quoted with 100 pictures behind its boxes, a signature with ten pictures
 /// of 1 MB made ready to send, and the tag full of `javascript:` quoted, timed. Run under the
 /// heavy lock:

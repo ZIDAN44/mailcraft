@@ -43,6 +43,13 @@ pub(super) fn harmless_code(html: &str, dropped: &[&str]) -> String {
             at = lower.get(i..).and_then(|r| work::scanned(r, r.find("-->"))).map_or(inner.len(), |e| i + e + 3);
             continue;
         }
+        // A `<` no name follows is text to a browser, and none of a tag here: read as one
+        // (`<3 a="> <script>…">`), the script a browser finds in it went out with it.
+        if !lower.as_bytes().get(i + 1).is_some_and(|c| c.is_ascii_alphabetic() || matches!(c, b'/' | b'!' | b'?')) {
+            out.push('<');
+            at = i + 1;
+            continue;
+        }
         // Its end as a browser finds it: a `>` in a quoted value isn't it (`<img alt="a>b"
         // onerror=…>` read as a tag ending at `a>` let its handler through as text).
         let Some(end) = inner.get(i..).and_then(tag_end).map(|e| i + e) else {
@@ -57,7 +64,9 @@ pub(super) fn harmless_code(html: &str, dropped: &[&str]) -> String {
         }
         let name: String =
             tag.trim_start_matches(['<', '/']).chars().take_while(|c| c.is_ascii_alphanumeric()).collect::<String>().to_ascii_lowercase();
-        if dropped.contains(&name.as_str()) {
+        // `<noscript>` goes too: a browser that runs scripts reads what's in it as text, one that
+        // doesn't as tags, and no one reading is safe for both.
+        if dropped.contains(&name.as_str()) || name == "noscript" {
             at = end;
             // The element's content too, up to its end.
             if !tag.starts_with("</") && !tag.ends_with("/>") && !matches!(name.as_str(), "meta" | "link" | "embed") {
@@ -72,9 +81,42 @@ pub(super) fn harmless_code(html: &str, dropped: &[&str]) -> String {
         }
         out.push_str(&harmless_tag(tag));
         at = end;
+        // What such an element holds is text to a browser, up to its end tag: read as tags
+        // (`<style><p a="</style><script>…">`), the script after that end tag went out inside
+        // a quoted value. It goes as written, less the `<` of anything a tag could start with
+        // (inside an `<svg>` a browser reads tags there).
+        if !tag.starts_with("</") && RAW_TEXT.contains(&name.as_str()) {
+            let close = raw_text_end(&lower, end, &name);
+            let text = inner.get(end..close).unwrap_or("");
+            work::steps(text.len());
+            let b = text.as_bytes();
+            out.extend(
+                text.char_indices()
+                    .filter(|(n, c)| !(*c == '<' && b.get(n + 1).is_some_and(|d| d.is_ascii_alphabetic() || *d == b'/')))
+                    .map(|(_, c)| c),
+            );
+            at = close;
+        }
     }
     out.push_str(inner.get(at..).unwrap_or(""));
     out.trim().to_string()
+}
+
+/// Elements whose content a browser reads as text, not tags, up to their end tag.
+const RAW_TEXT: [&str; 6] = ["style", "textarea", "xmp", "noembed", "noframes", "plaintext"];
+
+/// Where the content of the raw-text element `name` whose tag ends at `from` ends in `lower`:
+/// at its end tag as a browser finds it (`</name` and a space, `/` or `>`), or with the code.
+fn raw_text_end(lower: &str, from: usize, name: &str) -> usize {
+    let close = format!("</{name}");
+    let mut at = from;
+    while let Some(c) = lower.get(at..).and_then(|r| work::scanned(r, r.find(&close))).map(|c| at + c) {
+        if lower.as_bytes().get(c + close.len()).is_none_or(|b| b.is_ascii_whitespace() || matches!(b, b'/' | b'>')) {
+            return c;
+        }
+        at = c + close.len();
+    }
+    lower.len()
 }
 
 /// A tag without its `on…` attributes and with `javascript:` addresses emptied. Its attributes
@@ -308,8 +350,19 @@ fn reference(s: &str) -> Option<(char, usize)> {
         Some(h) => (true, h),
         None => (false, num),
     };
-    let n = digits.chars().take_while(|c| if hex { c.is_ascii_hexdigit() } else { c.is_ascii_digit() }).take(8).count();
-    let code = u32::from_str_radix(digits.get(..n)?, if hex { 16 } else { 10 }).ok()?;
+    // Every digit there is, as a browser takes them (`&#00000000106;` is a `j`: cut at eight, it
+    // hid a `javascript:`); a number too large for a character is U+FFFD, as there.
+    let n = digits.bytes().take_while(|c| if hex { c.is_ascii_hexdigit() } else { c.is_ascii_digit() }).count();
+    work::steps(n);
+    if n == 0 {
+        return None;
+    }
+    let written = digits.get(..n)?.trim_start_matches('0');
+    let code = match written.len() {
+        0 => 0,
+        1..=8 => u32::from_str_radix(written, if hex { 16 } else { 10 }).unwrap_or(u32::MAX),
+        _ => u32::MAX,
+    };
     let semi = usize::from(digits.get(n..).is_some_and(|r| r.starts_with(';')));
     Some((char::from_u32(code).unwrap_or('\u{fffd}'), 2 + usize::from(hex) + n + semi))
 }
