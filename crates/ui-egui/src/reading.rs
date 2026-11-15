@@ -16,6 +16,7 @@ use crate::{Action, UiState, widgets};
 mod attachments;
 pub(crate) mod body;
 mod compose;
+mod frame_lru;
 mod header;
 mod long_text;
 mod people;
@@ -29,11 +30,13 @@ mod videos;
 #[cfg(test)]
 pub(crate) use attachments::Shown;
 pub(crate) use attachments::ShownAttachment;
+pub(crate) use attachments::VIDEO_THUMBS;
 pub(crate) use attachments::bound_video_frames;
 pub(crate) use attachments::decode;
 #[cfg(test)]
 pub(crate) use attachments::previewed_text;
 use attachments::*;
+pub(crate) use body::WEB_PICTURES;
 use body::*;
 pub use compose::compose_window;
 #[cfg(test)]
@@ -42,6 +45,7 @@ pub(crate) use compose::parse_local;
 pub(crate) use compose::send_block_text;
 use compose::*;
 pub(crate) use compose::{ComposeAlert, Suggested};
+pub(crate) use frame_lru::FrameLru;
 pub(crate) use long_text::LongText;
 #[cfg(test)]
 pub(crate) use long_text::{CHUNK, chunks};

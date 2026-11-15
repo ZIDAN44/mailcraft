@@ -30,10 +30,10 @@ impl crate::Services for OwnFrames {
 /// The widths of the video thumbnails shown of `key`, by attachment, once they're all made.
 fn thumb_widths(ctx: &egui::Context, a: &mut MailApp, key: &MessageKey, videos: usize) -> Vec<usize> {
     a.run("list.open", json!({"key": key.to_id()}));
-    let shown = |a: &MailApp| a.ui.video_thumbs.iter().filter(|((k, _), (t, _))| k == key && t.is_some()).count() == videos;
+    let shown = |a: &MailApp| a.ui.video_thumbs.iter().filter(|((k, _), t)| k == key && t.is_some()).count() == videos;
     pump(ctx, a, WINDOW, 20, shown);
     let mut widths: Vec<(usize, usize)> =
-        a.ui.video_thumbs.iter().filter(|((k, _), _)| k == key).filter_map(|((_, i), (t, _))| Some((*i, t.as_ref()?.size()[0]))).collect();
+        a.ui.video_thumbs.iter().filter(|((k, _), _)| k == key).filter_map(|((_, i), t)| Some((*i, t.as_ref()?.size()[0]))).collect();
     widths.sort_unstable();
     widths.into_iter().map(|(_, w)| w).collect()
 }
@@ -154,7 +154,7 @@ fn a_video_is_written_and_decoded_off_the_window() {
         (w.run)();
     }
     pump(&ctx, &mut a, WINDOW, 2, |_| false);
-    assert!(a.ui.video_thumbs.values().all(|(t, _)| t.is_some()) && a.ui.video_thumbs.len() == 1, "its thumbnail shows");
+    assert!(a.ui.video_thumbs.iter().all(|(_, t)| t.is_some()) && a.ui.video_thumbs.len() == 1, "its thumbnail shows");
     assert!(take().is_empty(), "nothing asked again");
 }
 

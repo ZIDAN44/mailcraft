@@ -21,13 +21,12 @@ pub(super) fn video_preview(
 ) -> Option<egui::TextureHandle> {
     let id = (key.clone(), a.index);
     let now = st.pictures.frame();
-    if let Some((t, used)) = st.video_thumbs.get_mut(&id) {
-        *used = now;
-        return t.clone();
+    if let Some(t) = st.video_thumbs.get(&id, now) {
+        return t;
     }
     // As many shown in this frame as are kept: this chip shows its kind's icon (one past them
     // was read, written and decoded again every frame).
-    if st.video_thumbs.len() >= VIDEO_THUMBS && st.video_thumbs.values().all(|(_, used)| *used == now) {
+    if st.video_thumbs.full_of(now) {
         return None;
     }
     // The platform's decoder reads files, and the browser has none.
@@ -41,7 +40,7 @@ pub(super) fn video_preview(
         None => match st.videos.file(key, a.index, &a.name, s.store.as_ref()) {
             None => return None,
             Some(None) => {
-                keep_video_thumb(st, id, None);
+                st.video_thumbs.keep(id, None, now);
                 return None;
             }
             Some(Some(p)) => {
@@ -66,36 +65,19 @@ pub(super) fn video_preview(
     let tex = pixels.map(|(image, options)| ctx.load_texture(format!("video-{}-{}", key.to_id(), a.index), image, options));
     // Made into its thumbnail: the platform's frame isn't needed while that's kept (one that
     // couldn't be made stays noted, so it isn't asked for again).
-    if keep_video_thumb(st, id, tex.clone()) && st.video_frames.get(&path).is_some_and(|(f, _)| matches!(f, crate::VideoFrame::Ready(_))) {
+    if st.video_thumbs.keep(id, tex.clone(), now) && st.video_frames.get(&path).is_some_and(|(f, _)| matches!(f, crate::VideoFrame::Ready(_))) {
         st.video_frames.remove(&path);
     }
     tex
 }
 
 /// Most video thumbnails kept (those shown least recently go first, never one shown in this
-/// frame).
-const VIDEO_THUMBS: usize = 64;
+/// frame; past them, one more isn't kept).
+pub(crate) const VIDEO_THUMBS: usize = 64;
 
 /// Most frames kept that the platform made and no thumbnail was made of yet (their message
 /// left before they came): those asked for least recently go first.
 const VIDEO_FRAMES_WAITING: usize = 16;
-
-/// Whether the thumbnail was kept.
-fn keep_video_thumb(st: &mut UiState, id: (MessageKey, usize), tex: Option<egui::TextureHandle>) -> bool {
-    let now = st.pictures.frame();
-    while st.video_thumbs.len() >= VIDEO_THUMBS {
-        let Some(oldest) = st.video_thumbs.iter().filter(|(_, (_, used))| *used < now).min_by_key(|(_, (_, used))| *used).map(|(k, _)| k.clone())
-        else {
-            break;
-        };
-        st.video_thumbs.remove(&oldest);
-    }
-    if st.video_thumbs.len() < VIDEO_THUMBS {
-        st.video_thumbs.insert(id, (tex, now));
-        return true;
-    }
-    false
-}
 
 /// Once a frame: of the platform's frames waiting to be made thumbnails, no more than
 /// [`VIDEO_FRAMES_WAITING`], those asked for least recently let go of (asked again, the

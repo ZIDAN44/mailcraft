@@ -385,7 +385,7 @@ pub struct UiState {
     pub(crate) bodies: app::Bodies,
     /// Decoded web pictures, by address, and the frame each was last shown in (the oldest go
     /// when there are too many).
-    web_pictures: HashMap<String, (Option<egui::TextureHandle>, u64)>,
+    web_pictures: reading::FrameLru<String, Option<egui::TextureHandle>, { reading::WEB_PICTURES }>,
     pub toast: Option<(String, bool, f64)>,
     seen_notices: usize,
     scroll_to_focus: bool,
@@ -458,7 +458,7 @@ pub struct UiState {
     pub(crate) video_frames: HashMap<PathBuf, (VideoFrame, u64)>,
     /// Video frames made thumbnails, kept apart from the pictures (a few, by attachment), and
     /// the frame each was last shown in.
-    pub(crate) video_thumbs: HashMap<(MessageKey, usize), (Option<egui::TextureHandle>, u64)>,
+    pub(crate) video_thumbs: reading::FrameLru<(MessageKey, usize), Option<egui::TextureHandle>, { reading::VIDEO_THUMBS }>,
     /// The work behind them, on the pictures lane: the files written, the frames decoded.
     pub(crate) videos: reading::Videos,
     /// The File page, while it's open.

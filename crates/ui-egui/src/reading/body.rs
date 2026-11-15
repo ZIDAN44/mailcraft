@@ -703,8 +703,9 @@ pub(super) enum Pic {
     Missing,
 }
 
-/// Most web pictures kept decoded.
-const WEB_PICTURES: usize = 200;
+/// Most web pictures kept decoded (those shown least recently go first, never one shown in this
+/// frame; past them, one more is kept until it's no longer shown).
+pub(crate) const WEB_PICTURES: usize = 200;
 
 /// Whether a picture's address is on the web (`http://` or `https://`, in any case), read where
 /// it starts (the address isn't copied to be lowered, for each picture every frame).
@@ -743,23 +744,11 @@ pub(super) fn picture_texture(
     match s.pictures.get(src) {
         Some(mailcraft_engine::Picture::Ready(bytes)) => {
             let now = st.pictures.frame();
-            if let Some((t, used)) = st.web_pictures.get_mut(src) {
-                *used = now;
-                return t.clone().map_or(Pic::Missing, Pic::Ready);
+            if let Some(t) = st.web_pictures.get(src, now) {
+                return t.map_or(Pic::Missing, Pic::Ready);
             }
             let t = decode(ctx, &format!("web-{src}"), bytes, 1200);
-            // Those shown least recently go (never one shown in this frame: a message with more
-            // than that many pictures decoded all of them again every frame). Past that many
-            // shown at once it's kept anyway, and let go once no longer shown.
-            while st.web_pictures.len() >= WEB_PICTURES {
-                let Some(oldest) =
-                    st.web_pictures.iter().filter(|(_, (_, used))| *used < now).min_by_key(|(_, (_, used))| *used).map(|(k, _)| k.clone())
-                else {
-                    break;
-                };
-                st.web_pictures.remove(&oldest);
-            }
-            st.web_pictures.insert(src.to_string(), (t.clone(), now));
+            st.web_pictures.keep_anyway(src.to_string(), t.clone(), now);
             t.map_or(Pic::Missing, Pic::Ready)
         }
         Some(mailcraft_engine::Picture::Loading) => Pic::Loading,
