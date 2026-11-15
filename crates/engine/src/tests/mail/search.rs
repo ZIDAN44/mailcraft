@@ -100,7 +100,6 @@ fn search_finds_bodies_fields_and_attachment_names() {
     s.run("search.clear", &json!({})).unwrap();
     assert!(s.search.is_none());
     assert_eq!(s.list.len(), 7);
-    let _ = SearchScope::All;
 }
 
 /// Search reads accents away (both ways round), places `received:` days where the user is from

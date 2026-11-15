@@ -362,9 +362,10 @@ fn notes_are_written_coloured_and_deleted() {
         .unwrap()
         .to_string();
     s.take_jobs();
-    let uid = s.run("note.create", &json!({"text": "Sync me"})).unwrap()["uid"].as_str().unwrap().to_string();
+    let made = s.run("note.create", &json!({"text": "Sync me"})).unwrap();
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { .. })), "asks for a sync");
     assert!(s.pim[&id].notes[0].dirty);
+    assert_eq!(made["uid"].as_str(), Some(s.pim[&id].notes[0].note.uid.as_str()), "it answers the new note's uid");
     let stored = mailcraft_model::pim::StoredNote { href: "note:X1".into(), note: s.pim[&id].notes[0].note.clone(), ..Default::default() };
     let server_copy =
         mailcraft_model::pim::StoredNote { note: mailcraft_model::pim::Note { uid: "note:X1".into(), ..stored.note.clone() }, ..stored.clone() };
@@ -378,7 +379,6 @@ fn notes_are_written_coloured_and_deleted() {
     let texts: Vec<String> = s.notes("").into_iter().map(|n| n.note.text.clone()).collect();
     assert_eq!(texts.len(), 2, "{texts:?}: the note sent isn't doubled");
     assert!(texts.contains(&"From Outlook".to_string()) && texts.contains(&"Sync me".to_string()));
-    let _ = uid;
     s.run("note.delete", &json!({"uid": "note:X2"})).unwrap();
     assert!(s.pim[&id].deleted.iter().any(|t| t.href == "note:X2"), "deleted on the server next time");
 }

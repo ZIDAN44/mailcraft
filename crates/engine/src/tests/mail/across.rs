@@ -285,7 +285,7 @@ fn a_move_never_answered_is_forgotten_and_what_is_put_in_an_inbox_did_not_arrive
 /// after: it's dropped, and what was done before it is undone.
 #[test]
 fn nothing_moved_leaves_the_message_open_and_an_undo_that_cant_be_done_is_dropped() {
-    let (mut s, _file, server, [first, _second]) = two_accounts("across-undo");
+    let (mut s, _file, _server, [first, _second]) = two_accounts("across-undo");
     s.run("list.open", &json!({"key": first.to_id()})).unwrap();
     let r = s.run("mail.move", &json!({"folder": "INBOX"})).unwrap();
     assert_eq!(r["moved"], 0);
@@ -305,7 +305,6 @@ fn nothing_moved_leaves_the_message_open_and_an_undo_that_cant_be_done_is_droppe
     // The one before it is undone now.
     let undone = s.run("edit.undo", &json!({})).unwrap();
     assert_ne!(undone["undone"], json!("move"), "{undone}");
-    let _ = server;
 }
 
 /// Data files as the app keeps them: an account kept on this computer with an empty Inbox, and
