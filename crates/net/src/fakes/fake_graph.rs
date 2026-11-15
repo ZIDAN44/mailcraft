@@ -2,11 +2,13 @@
 //! names, children, paging), messages (list, get, patch, move, delete, `$value`, made from
 //! MIME), `sendMail`, mailbox settings and JSON batches, with a bearer token.
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufReader, Write};
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 
 use serde_json::{Value, json};
+
+use super::http;
 
 pub const TOKEN: &str = "test-token";
 const ROOT: &str = "root";
@@ -332,14 +334,20 @@ fn plain_id(id: &str) -> &str {
     id.strip_prefix(REGULAR).unwrap_or(id)
 }
 
+/// An answer; the connection is closed after it.
 fn respond(s: &mut impl Write, status: u16, body: &[u8], kind: &str) {
-    let mut head = format!("HTTP/1.1 {status} X\r\nContent-Type: {kind}\r\nContent-Length: {}\r\n", body.len());
+    let mut headers = vec![("Content-Type", kind.to_string())];
     if status == 429 {
-        head.push_str("Retry-After: 1\r\n");
+        headers.push(("Retry-After", "1".into()));
     }
-    head.push_str("Connection: close\r\n\r\n");
-    let _ = s.write_all(head.as_bytes());
-    let _ = s.write_all(body);
+    headers.push(("Connection", "close".into()));
+    http::respond(s, &format!("{status} X"), &headers, body);
+}
+
+/// Whether a `Prefer` header's value asks for ids in their immutable form, among its other
+/// preferences.
+fn asks_immutable(prefer: &str) -> bool {
+    prefer.split(',').any(|part| part.trim() == "IdType=\"ImmutableId\"")
 }
 
 /// Start the server; it runs until the test process ends.
@@ -351,51 +359,26 @@ pub fn serve(data: Data) -> Server {
     std::thread::spawn(move || {
         for conn in l.incoming() {
             let Ok(mut s) = conn else { continue };
-            let mut reader = BufReader::new(s.try_clone().unwrap());
-            let mut first = String::new();
-            if reader.read_line(&mut first).unwrap_or(0) == 0 {
-                continue;
-            }
-            let (mut len, mut authorized, mut immutable) = (0usize, false, false);
+            let Some(r) = s.try_clone().ok().and_then(|c| http::read_request(&mut BufReader::new(c))) else { continue };
             let (bearer, directory_bearer) = {
                 let d = shared.lock().unwrap();
                 (format!("Bearer {}", d.token.clone().unwrap_or_else(|| TOKEN.into())), d.directory_token.clone().map(|t| format!("Bearer {t}")))
             };
-            let (mut used, mut headers) = (String::new(), Vec::new());
-            loop {
-                let mut line = String::new();
-                if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
-                    break;
-                }
-                let lower = line.to_ascii_lowercase();
-                if let Some(v) = lower.strip_prefix("content-length:") {
-                    len = v.trim().parse().unwrap_or(0);
-                }
-                if let Some((k, v)) = line.split_once(':') {
-                    let v = v.trim();
-                    if k.eq_ignore_ascii_case("authorization") && (v == bearer || directory_bearer.as_deref() == Some(v)) {
-                        authorized = true;
-                        used = v.trim_start_matches("Bearer ").to_string();
-                    }
-                    headers.push((k.trim().to_string(), v.to_string()));
-                }
-                immutable |= line.starts_with("Prefer: IdType=\"ImmutableId\"");
-            }
-            let mut body = vec![0u8; len];
-            let _ = reader.read_exact(&mut body);
-            if !authorized {
+            let used = r.headers_named("authorization").find(|v| *v == bearer || directory_bearer.as_deref() == Some(*v));
+            let Some(used) = used.map(|v| v.trim_start_matches("Bearer ").to_string()) else {
                 respond(&mut s, 401, br#"{"error": {"code": "InvalidAuthenticationToken"}}"#, "application/json");
                 continue;
-            }
-            let directory = first.contains(" /v1.0/users?") || first.contains(" /v1.0/me/people?");
+            };
+            let immutable = r.headers_named("prefer").any(asks_immutable);
+            let directory = r.target.starts_with("/v1.0/users?") || r.target.starts_with("/v1.0/me/people?");
             if !immutable && !directory {
-                let (status, out, kind) = shared.lock().unwrap().refuse(format!("ids not asked for in their immutable form: {}", first.trim_end()));
+                let (status, out, kind) =
+                    shared.lock().unwrap().refuse(format!("ids not asked for in their immutable form: {} {}", r.method, r.target));
                 respond(&mut s, status, &out, kind);
                 continue;
             }
-            let mut words = first.split(' ');
-            let (method, target) = (words.next().unwrap_or("GET").to_string(), words.next().unwrap_or("/").to_string());
-            let target = target.strip_prefix("/v1.0").unwrap_or(&target).to_string();
+            let (method, body, headers) = (r.method, r.body, r.headers);
+            let target = r.target.strip_prefix("/v1.0").unwrap_or(&r.target).to_string();
             let (status, out, kind) = {
                 let mut d = shared.lock().unwrap();
                 if d.throttle > 0 {

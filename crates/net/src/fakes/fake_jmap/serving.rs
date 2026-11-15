@@ -1,71 +1,44 @@
 //! The fake's connections: one request each (`Connection: close`), or an event stream held
 //! open; the session, the API's method calls, blobs down and up.
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufReader, Write};
 use std::net::TcpStream;
 
 use super::*;
+use crate::fakes::http;
 
+/// An answer any web page may read; the connection is closed after it.
 fn respond(s: &mut impl Write, status: u16, body: &[u8], kind: &str) {
-    let head = format!("HTTP/1.1 {status} X\r\nContent-Type: {kind}\r\nContent-Length: {}\r\n{CORS}Connection: close\r\n\r\n", body.len());
-    let _ = s.write_all(head.as_bytes());
-    let _ = s.write_all(body);
+    let mut headers = vec![("Content-Type", kind.to_string())];
+    headers.extend(CORS.iter().map(|(k, v)| (*k, v.to_string())));
+    headers.push(("Connection", "close".into()));
+    http::respond(s, &format!("{status} X"), &headers, body);
 }
 
 /// Any web page may call (a test server on this computer).
-const CORS: &str = "Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, Accept\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
-
-/// A request: its first line, whether it came with the right sign-in, its body.
-struct Request {
-    first: String,
-    authorized: bool,
-    body: Vec<u8>,
-}
-
-/// The connection's request; `None` when it's closed before one came.
-fn read_request(s: &TcpStream, auth: &str) -> Option<Request> {
-    let mut reader = BufReader::new(s.try_clone().unwrap());
-    let mut first = String::new();
-    if reader.read_line(&mut first).unwrap_or(0) == 0 {
-        return None;
-    }
-    let (mut len, mut authorized) = (0usize, false);
-    loop {
-        let mut line = String::new();
-        if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
-            break;
-        }
-        let lower = line.to_ascii_lowercase();
-        if let Some(v) = lower.strip_prefix("content-length:") {
-            len = v.trim().parse().unwrap_or(0);
-        }
-        if line.split_once(':').is_some_and(|(k, v)| k.eq_ignore_ascii_case("authorization") && v.trim() == auth) {
-            authorized = true;
-        }
-    }
-    let mut body = vec![0u8; len];
-    let _ = reader.read_exact(&mut body);
-    Some(Request { first, authorized, body })
-}
+const CORS: [(&str, &str); 3] = [
+    ("Access-Control-Allow-Origin", "*"),
+    ("Access-Control-Allow-Headers", "Authorization, Content-Type, Accept"),
+    ("Access-Control-Allow-Methods", "GET, POST, OPTIONS"),
+];
 
 /// One connection: one request (`Connection: close`), or an event stream held open.
 pub(super) fn handle(mut s: TcpStream, shared: &Arc<Mutex<Data>>, auth: &str) {
-    let Some(r) = read_request(&s, auth) else { return };
+    let Some(r) = s.try_clone().ok().and_then(|c| http::read_request(&mut BufReader::new(c))) else { return };
     // A browser's CORS preflight carries no credentials.
-    if r.first.starts_with("OPTIONS ") {
+    if r.method == "OPTIONS" {
         respond(&mut s, 204, b"", "text/plain");
         return;
     }
-    if !r.authorized {
+    if !r.headers_named("authorization").any(|v| v == auth) {
         respond(&mut s, 401, b"{}", "application/json");
         return;
     }
-    let path = r.first.split(' ').nth(1).unwrap_or("/").to_string();
-    if path.starts_with("/events/") {
-        stream_events(s, shared, &path);
+    if r.target.starts_with("/events/") {
+        stream_events(s, shared, &r.target);
         return;
     }
-    let (status, body, kind) = shared.lock().unwrap().answer(&path, &r.body);
+    let (status, body, kind) = shared.lock().unwrap().answer(&r.target, &r.body);
     respond(&mut s, status, &body, kind);
 }
 
@@ -83,7 +56,8 @@ fn stream_events(mut s: TcpStream, shared: &Arc<Mutex<Data>>, path: &str) {
     let (tx, rx) = std::sync::mpsc::channel::<String>();
     d.listeners.push(tx);
     drop(d);
-    let _ = s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n{CORS}Transfer-Encoding: chunked\r\n\r\n").as_bytes());
+    let cors: String = CORS.iter().map(|(k, v)| format!("{k}: {v}\r\n")).collect();
+    let _ = s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n{cors}Transfer-Encoding: chunked\r\n\r\n").as_bytes());
     loop {
         let msg = match rx.recv_timeout(std::time::Duration::from_secs(1)) {
             Ok(m) => format!("event: state\r\ndata: {m}\r\n\r\n"),

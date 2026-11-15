@@ -5,7 +5,6 @@
 //! item stored over one of the same name (SOGo doesn't heed `If-None-Match`).
 
 use std::collections::BTreeMap;
-use std::io::Write;
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 
@@ -78,16 +77,6 @@ fn esc(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
-fn respond(s: &mut impl Write, status: &str, headers: &[(&str, String)], body: &str) {
-    let mut head = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n", body.len());
-    for (k, v) in headers {
-        head.push_str(&format!("{k}: {v}\r\n"));
-    }
-    head.push_str("\r\n");
-    let _ = s.write_all(head.as_bytes());
-    let _ = s.write_all(body.as_bytes());
-}
-
 fn multistatus(responses: &[String]) -> String {
     format!(
         "<?xml version=\"1.0\"?><d:multistatus xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\" xmlns:card=\"urn:ietf:params:xml:ns:carddav\" xmlns:cs=\"http://calendarserver.org/ns/\">{}</d:multistatus>",
@@ -112,8 +101,9 @@ pub fn serve() -> Server {
         for conn in l.incoming() {
             let Ok(mut s) = conn else { continue };
             let Some(r) = serving::read_request(&s, &auth) else { continue };
-            let (status, headers, body) = shared.lock().unwrap().answer(&r);
-            respond(&mut s, status, &headers, &body);
+            let (status, mut headers, body) = shared.lock().unwrap().answer(&r);
+            headers.push(("Connection", "close".into()));
+            super::http::respond(&mut s, status, &headers, body.as_bytes());
         }
     });
     Server { base, data }

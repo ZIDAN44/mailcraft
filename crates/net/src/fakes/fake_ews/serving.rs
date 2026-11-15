@@ -1,10 +1,11 @@
 //! The fake server's connections: each request read, signed in (NTLM once a connection, or
 //! Basic), and answered: Autodiscover, or one EWS operation in its SOAP envelope.
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 
 use super::*;
+use crate::fakes::http;
 
 /// What came to the server and went out: connections made, and each request, when it came (since
 /// the first), what it asked for, and whether it was answered.
@@ -56,14 +57,11 @@ impl Data {
     }
 }
 
+/// An answer, in XML; the connection stays open.
 fn respond(s: &mut impl Write, status: u16, headers: &[(&str, String)], body: &[u8]) {
-    let mut head = format!("HTTP/1.1 {status} X\r\nContent-Type: text/xml; charset=utf-8\r\nContent-Length: {}\r\n", body.len());
-    for (k, v) in headers {
-        head.push_str(&format!("{k}: {v}\r\n"));
-    }
-    head.push_str("\r\n");
-    let _ = s.write_all(head.as_bytes());
-    let _ = s.write_all(body);
+    let mut all = vec![("Content-Type", "text/xml; charset=utf-8".to_string())];
+    all.extend_from_slice(headers);
+    http::respond(s, &format!("{status} X"), &all, body);
 }
 
 /// Start the server on an address of its own.
@@ -101,38 +99,15 @@ struct Request {
 
 /// The next request on a connection; `None` once it's closed.
 fn read_request(reader: &mut BufReader<TcpStream>) -> Option<Request> {
-    let mut first = String::new();
-    if reader.read_line(&mut first).unwrap_or(0) == 0 {
-        return None;
-    }
-    let (mut len, mut r) = (0usize, Request::default());
-    loop {
-        let mut line = String::new();
-        if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
-            break;
-        }
-        if let Some((k, v)) = line.split_once(':') {
-            if k.eq_ignore_ascii_case("content-length") {
-                len = v.trim().parse().unwrap_or(0);
-            }
-            if k.eq_ignore_ascii_case("authorization") {
-                r.auth = v.trim().to_string();
-            }
-            if k.eq_ignore_ascii_case("x-publicfoldermailbox") {
-                r.routed = v.trim().to_string();
-            }
-            if k.eq_ignore_ascii_case("x-anchormailbox") {
-                r.anchor = v.trim().to_string();
-            }
-            if k.eq_ignore_ascii_case("user-agent") {
-                r.agent = v.trim().to_string();
-            }
-        }
-    }
-    let mut body = vec![0u8; len];
-    let _ = reader.read_exact(&mut body);
-    r.body = body;
-    Some(r)
+    let r = http::read_request(reader)?;
+    let header = |name: &str| r.header(name).unwrap_or_default().to_string();
+    Some(Request {
+        auth: header("authorization"),
+        routed: header("x-publicfoldermailbox"),
+        anchor: header("x-anchormailbox"),
+        agent: header("user-agent"),
+        body: r.body,
+    })
 }
 
 /// One connection's sign-in: NTLM's handshake, once (or Basic on every request, when set to).

@@ -7,11 +7,15 @@ use super::*;
 
 /// One request to the fake, by hand: the status it's answered with (0: none).
 fn status_of(server: &Server, target: &str, immutable: bool) -> u16 {
+    status_with(server, target, if immutable { "Prefer: IdType=\"ImmutableId\"\r\n" } else { "" })
+}
+
+/// One request to the fake, by hand, with these headers besides its sign-in: its status.
+fn status_with(server: &Server, target: &str, headers: &str) -> u16 {
     let addr = server.base.trim_start_matches("http://").trim_end_matches("/v1.0");
     let mut s = std::net::TcpStream::connect(addr).unwrap();
     s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
-    let prefer = if immutable { "Prefer: IdType=\"ImmutableId\"\r\n" } else { "" };
-    write!(s, "GET /v1.0{target} HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer {TOKEN}\r\n{prefer}\r\n").unwrap();
+    write!(s, "GET /v1.0{target} HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer {TOKEN}\r\n{headers}\r\n").unwrap();
     let mut out = String::new();
     let _ = s.read_to_string(&mut out);
     out.split(' ').nth(1).and_then(|c| c.parse().ok()).unwrap_or(0)
@@ -43,4 +47,17 @@ fn a_request_the_fake_forbids_is_refused_and_kept() {
 fn a_refusal_left_unseen_fails_the_test() {
     let server = with_inbox();
     assert_eq!(status_of(&server, "/me/mailFolders/inbox/messages", false), 400);
+}
+
+/// Found in review: the fake took ids as asked for in their immutable form only from a header
+/// spelled `Prefer: IdType="ImmutableId"…` at a line's start, though a header's name has no
+/// case and the preference may follow another, as a `$batch` entry's already were read.
+#[test]
+fn the_immutable_ids_preference_is_read_among_others_in_any_case() {
+    let server = with_inbox();
+    let target = "/me/mailFolders/inbox/messages";
+    assert_eq!(status_with(&server, target, "prefer: outlook.timezone=\"UTC\", IdType=\"ImmutableId\"\r\n"), 200);
+    assert_eq!(status_with(&server, target, "Prefer: outlook.timezone=\"UTC\"\r\nPrefer: IdType=\"ImmutableId\"\r\n"), 200);
+    assert_eq!(status_with(&server, target, "Prefer: IdType=\"ImmutableIdNot\"\r\n"), 400);
+    assert_eq!(std::mem::take(&mut server.data.lock().unwrap().violations).len(), 1);
 }

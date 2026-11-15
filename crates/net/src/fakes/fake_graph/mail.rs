@@ -19,7 +19,7 @@ impl Data {
             }
             // Graph reads Prefer from each batch entry's own headers.
             let prefer = r.pointer("/headers/Prefer").and_then(Value::as_str).unwrap_or_default();
-            self.asked_immutable = prefer.split(',').any(|part| part.trim() == "IdType=\"ImmutableId\"");
+            self.asked_immutable = asks_immutable(prefer);
             let b = serde_json::to_vec(&r["body"]).unwrap_or_default();
             let (status, rb, _) = self.route(r["method"].as_str().unwrap_or("GET"), r["url"].as_str().unwrap_or("/"), &b, base);
             self.asked_immutable = true;

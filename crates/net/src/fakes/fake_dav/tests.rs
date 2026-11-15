@@ -135,6 +135,25 @@ fn a_damaged_last_look_is_no_overflow() {
     }
 }
 
+/// Found in review: the fake heeded `If-Match` only spelled so, though every other header was
+/// read in any case: a change to an item since changed was stored over it when the header came
+/// in lower case.
+#[test]
+fn a_condition_is_heeded_in_any_case() {
+    use std::io::{Read, Write};
+    let server = serve();
+    let href = format!("{CAL}a.ics");
+    server.data.lock().unwrap().put(&href, "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n");
+    let auth = mailcraft_model::base64::encode(format!("{USER}:{PASSWORD}").as_bytes());
+    let mut s = std::net::TcpStream::connect(server.base.trim_start_matches("http://")).unwrap();
+    s.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
+    write!(s, "PUT {href} HTTP/1.1\r\nHost: x\r\nAuthorization: Basic {auth}\r\nif-match: \"stale\"\r\nContent-Length: 2\r\n\r\nhi").unwrap();
+    let mut out = String::new();
+    let _ = s.read_to_string(&mut out);
+    assert!(out.starts_with("HTTP/1.1 412 "), "{out}");
+    assert!(server.data.lock().unwrap().items[&href].1.starts_with("BEGIN:"), "the item as it was");
+}
+
 /// Two new events whose long uids differ only after the part a file name keeps each get an
 /// item of their own; an event already on the server keeps its address.
 #[test]

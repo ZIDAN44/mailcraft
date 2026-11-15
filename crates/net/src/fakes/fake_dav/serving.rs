@@ -1,9 +1,10 @@
 //! The fake server's requests: each read, signed in (Basic, or Digest when set to), and answered.
 
-use std::io::{BufRead, BufReader, Read};
+use std::io::BufReader;
 use std::net::TcpStream;
 
 use super::*;
+use crate::fakes::http;
 
 /// A request: what the server heeds of it.
 pub(super) struct Request {
@@ -27,39 +28,17 @@ fn reply(status: &'static str) -> Reply {
 
 /// The connection's request; `None` when it's closed before one came.
 pub(super) fn read_request(s: &TcpStream, auth: &str) -> Option<Request> {
-    let mut reader = BufReader::new(s.try_clone().unwrap());
-    let mut first = String::new();
-    if reader.read_line(&mut first).unwrap_or(0) == 0 {
-        return None;
-    }
-    let (mut len, mut basic_ok, mut if_match, mut if_none) = (0usize, false, None::<String>, false);
-    let mut given = String::new();
-    loop {
-        let mut line = String::new();
-        if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
-            break;
-        }
-        let lower = line.to_ascii_lowercase();
-        if let Some(v) = lower.strip_prefix("content-length:") {
-            len = v.trim().parse().unwrap_or(0);
-        }
-        if let Some((_, v)) = line.split_once(':').filter(|(k, _)| k.eq_ignore_ascii_case("authorization")) {
-            basic_ok = v.trim() == auth;
-            given = v.trim().to_string();
-        }
-        if let Some(v) = line.strip_prefix("If-Match:") {
-            if_match = Some(v.trim().to_string());
-        }
-        if lower.starts_with("if-none-match:") {
-            if_none = true;
-        }
-    }
-    let mut body = vec![0u8; len];
-    let _ = reader.read_exact(&mut body);
-    let body = String::from_utf8_lossy(&body).to_string();
-    let mut parts = first.split_whitespace();
-    let (method, path) = (parts.next().unwrap_or("").to_string(), parts.next().unwrap_or("/").to_string());
-    Some(Request { method, path, given, basic_ok, if_match, if_none, body })
+    let r = http::read_request(&mut BufReader::new(s.try_clone().ok()?))?;
+    let given = r.header("authorization").unwrap_or_default().to_string();
+    Some(Request {
+        basic_ok: given == auth,
+        given,
+        if_match: r.header("if-match").map(str::to_string),
+        if_none: r.header("if-none-match").is_some(),
+        body: String::from_utf8_lossy(&r.body).to_string(),
+        method: r.method,
+        path: r.target,
+    })
 }
 
 impl Data {
