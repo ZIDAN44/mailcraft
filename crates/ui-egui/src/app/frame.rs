@@ -100,7 +100,8 @@ impl MailApp {
     /// memory, a data file being imported or to be compacted, or an update waiting: ask first.
     fn decide_close(&mut self, ctx: &egui::Context) {
         self.forget_cancelled_close();
-        // Closing with online-only accounts' unsent mail or changes held in memory: ask first.
+        // Decided already (Close anyway, an update's restart or its question answered, the
+        // graphics lost): closed now, nothing asked.
         if self.ui.close_now {
             self.ui.close_now = false;
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);

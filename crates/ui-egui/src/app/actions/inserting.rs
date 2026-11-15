@@ -62,7 +62,6 @@ impl MailApp {
         }
     }
 
-    /// Put a picture's mark at the body's cursor.
     /// Where a picture goes: at the cursor in the message.
     pub(crate) fn picture_at(&self) -> usize {
         let n = self.session.compose.as_ref().map_or(0, |c| c.body.chars().count());

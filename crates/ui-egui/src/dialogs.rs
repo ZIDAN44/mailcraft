@@ -277,7 +277,6 @@ impl Dialog {
         }))
     }
 
-    /// Dialogs that belong to the message being written (shown in its window when it has one).
     /// A question that must be answered before going on, or a warning: read as an alert.
     pub fn is_alert(&self) -> bool {
         self.about_closing()
@@ -310,6 +309,7 @@ impl Dialog {
         )
     }
 
+    /// Dialogs that belong to the message being written (shown in its window when it has one).
     pub fn for_compose(&self) -> bool {
         matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::SendCheck(_) | Dialog::WordCount(..))
             || matches!(self, Dialog::Signature(f) if f.insert)

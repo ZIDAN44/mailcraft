@@ -125,7 +125,6 @@ fn tab_button(ui: &mut Ui, t: &Tokens, label: &str, on: Option<bool>) -> egui::R
     resp
 }
 
-/// The ribbon's height (its row of buttons), the same whichever tab is shown.
 /// Where the ribbon's card is drawn: its shape's place and its top (see `card_under_ribbon`).
 const RIBBON_CARD: &str = "ribbon-card";
 
@@ -143,6 +142,7 @@ pub(crate) fn card_under_ribbon(ui: &Ui, t: &Tokens, room: egui::Rect) {
     ui.painter().set(slot, egui::epaint::RectShape::new(rect, 8.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside));
 }
 
+/// The ribbon's height (its row of buttons), the same whichever tab is shown.
 pub(crate) const RIBBON_H: f32 = 30.0;
 /// The classic ribbon's: its tabs, then big buttons with the groups' names under them.
 pub(crate) const RIBBON_H_CLASSIC: f32 = widgets::CLASSIC_BUTTON_H + widgets::CLASSIC_CAPTION_H;
