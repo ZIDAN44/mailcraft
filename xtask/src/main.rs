@@ -318,8 +318,11 @@ mod tests {
     fn file_listings_are_whole_and_never_silently_empty() {
         assert_eq!(nul_separated(b"assets/\xc3\xa9 b.png\0docs/x.svg\0"), vec!["assets/é b.png".to_string(), "docs/x.svg".into()]);
         assert!(nul_separated(b"").is_empty());
-        let dir = std::env::temp_dir().join(format!("mailcraft-xtask-nogit-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        // Made new, under a name no one could have taken first: a folder or link already at a
+        // name it could guess would be someone else's, and the test would write into it.
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.subsec_nanos());
+        let dir = std::env::temp_dir().join(format!("mailcraft-xtask-nogit-{}-{nanos}", std::process::id()));
+        std::fs::create_dir(&dir).unwrap();
         std::fs::write(dir.join("ATTRIBUTION.md"), "").unwrap();
         let in_checkout = Command::new("git").current_dir(&dir).args(["rev-parse", "--git-dir"]).output().is_ok_and(|o| o.status.success());
         let (listed, checked) = (git_files(&dir, None), assets(&dir));
