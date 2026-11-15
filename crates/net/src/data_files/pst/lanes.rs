@@ -558,6 +558,9 @@ pub(super) mod tests {
         /// Items at this row of their folder (from 0) or past it wait, before they're read, until
         /// the import is asked to stop: their folder stays part-way for as long as a test looks.
         HoldRow(u64),
+        /// …until the import is thrown away: a pause meanwhile (the import's own, its data file
+        /// let go of under it, among them) doesn't let them go, so the import can't end before.
+        HoldRowUntilDiscard(u64),
     }
 
     /// The planner's faults ([`Fault::PlanAt`], [`Fault::PlannerAfter`], [`Fault::Understate`]).
@@ -634,6 +637,12 @@ pub(super) mod tests {
                 // A guard against hanging: a test that never stops it fails on its own.
                 let end = std::time::Instant::now() + Duration::from_secs(120);
                 while !ctx.opts.stop.raised() && std::time::Instant::now() < end {
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+            }
+            Some(Fault::HoldRowUntilDiscard(row)) if job.row >= row => {
+                let end = std::time::Instant::now() + Duration::from_secs(120);
+                while ctx.opts.stop.how() != Some(StopHow::Discard) && std::time::Instant::now() < end {
                     std::thread::sleep(Duration::from_millis(5));
                 }
             }

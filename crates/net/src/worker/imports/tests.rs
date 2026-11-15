@@ -32,6 +32,12 @@ fn hold(account: &str, row: u64) {
     faults().lock().unwrap().insert(account.to_string(), Fault::HoldRow(row));
 }
 
+/// `account`'s imports hold each folder's items from `row` on until they're thrown away (a pause,
+/// their own among them, doesn't let them go).
+fn hold_until_thrown_away(account: &str, row: u64) {
+    faults().lock().unwrap().insert(account.to_string(), Fault::HoldRowUntilDiscard(row));
+}
+
 /// The fault a test asked for in `account`'s import.
 pub(super) fn fault_for(account: &str) -> Option<Fault> {
     faults().lock().ok()?.get(account).copied()
@@ -399,9 +405,25 @@ fn closing_pauses_imports_and_dropping_never_waits() {
 /// as a removed account's is.
 #[test]
 fn a_new_account_given_the_id_while_an_import_is_thrown_away_keeps_its_file() {
-    let (dir, pst, store, mut p) = setup("window", 200, 0, "w1", 400);
+    // The Inbox (3 messages) comes in whole, the import notes the data file it made, and the
+    // Projects folder's items past its first three wait until the import is thrown away: it
+    // can't end before (it ran to its end first, on a busy computer, and wasn't thrown away).
+    let (dir, pst, store, mut p) = setup("window", 3, 50, "w1", 0);
+    hold_until_thrown_away("w1", 3);
     p.submit(Job::ImportPst { account: "w1".into(), path: pst, resume: false });
-    until(&p, "the import under way", |e| matches!(e, Event::ImportProgress { progress, .. } if progress.work.done > 0));
+    // Every folder but Projects done (the file's Deleted Items too), as the outline planned them:
+    // each done is said changed once, last of what's said of it.
+    let (mut planned, mut said) = (Vec::new(), HashSet::new());
+    until(&p, "the folders before Projects in", |e| {
+        match e {
+            Event::ImportPlanned { folders, .. } => planned = folders.iter().map(|f| f.path.clone()).filter(|p| p != "Projects").collect(),
+            Event::FolderChanged { folder, .. } => {
+                said.insert(folder.clone());
+            }
+            _ => {}
+        }
+        !planned.is_empty() && planned.iter().all(|f| said.contains(f))
+    });
     let kept = store.remove_account("w1").unwrap().expect("the import's data file, let go of");
     let inbox = Folder { account: "w1".into(), path: "INBOX".into(), role: FolderRole::Inbox, ..Folder::default() };
     store.save_folders("w1", std::slice::from_ref(&inbox)).unwrap();
