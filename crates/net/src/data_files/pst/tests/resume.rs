@@ -551,9 +551,10 @@ fn a_data_file_opened_again_after_a_failed_write_stops_the_import() {
         assert_eq!((part.stopped, part.skipped, part.blocked), (Some(StopHow::Pause), 0, None), "{at}");
         assert!(!part.skips.contains_key(&SkipReason::NotWritten), "{at}: {:?}", part.skips);
         assert!(part.messages < 900, "{at}: stopped part-way: {}", part.messages);
-        if let Found::Some(cp) = resume::load(&store, "a1") {
-            assert_eq!((cp.state, part.messages), (CheckState::Running, usize::try_from(cp.counts.imported).unwrap()), "{at}");
-        }
+        // The checkpoint the last durable commit carried (one goes with the first batch): it
+        // names only what was written before the drive filled.
+        let cp = checkpoint(&store);
+        assert_eq!((cp.state, part.messages), (CheckState::Running, usize::try_from(cp.counts.imported).unwrap()), "{at}");
         let o = ImportOptions { resume: true, space: roomy(), ..opts(2, None) };
         let done = import_with(&pst, &store, "a1", &o, &mut |_| {}).unwrap();
         assert_eq!((done.messages, done.skipped, done.blocked), (900, 0, None), "{at}");
