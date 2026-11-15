@@ -12,6 +12,7 @@ use crate::css::hex;
 use crate::html::escaped;
 use crate::{RichText, Span};
 
+pub mod markup;
 pub mod reply;
 
 /// Where a picture sits in the text.

@@ -8,10 +8,14 @@ use crate::tnef::{TnefBody, is_tnef, read_tnef};
 use mailcraft_model::{file_name, work};
 
 pub(crate) mod fields;
+pub(super) mod files;
 mod index_text;
+pub mod office;
 mod parts;
+pub(super) mod photos;
 mod reactions;
 mod text_first;
+pub(super) mod tnef;
 pub use index_text::index_doc;
 #[doc(hidden)]
 pub use index_text::{IndexStats, index_doc_stats};

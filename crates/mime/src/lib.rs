@@ -16,8 +16,8 @@ mod css;
 mod header;
 pub use header::{field_span, header_end, header_field, header_fields, report_type, without_line_end, written_message_id};
 pub mod layout;
-pub mod markup;
-pub mod office;
+pub use attachments::office;
+pub use rich::markup;
 pub mod rich;
 pub use rich::reply::{ReplyMode, quoted_body, reply, reply_doc, reply_head_doc};
 
@@ -30,13 +30,11 @@ use mailcraft_model::{EmailAddress, Flags, MessageKey, Summary};
 use serde::{Deserialize, Serialize};
 
 mod attachments;
-mod files;
+use attachments::{files, photos, tnef};
 mod hidden;
 mod html;
-mod photos;
 pub mod smime;
 pub use smime::pgp;
-mod tnef;
 /// Outlook's RTF bodies for tests (`test-support`).
 #[cfg(any(test, feature = "test-support"))]
 pub use tnef::fixtures as tnef_fixtures;
