@@ -125,14 +125,13 @@ fn people_in_the_address_book() {
     s.run("contact.delete", &json!({"uid": uid})).unwrap();
     assert!(s.find_person(&uid).is_none());
     // The sender of a message, once.
-    let k = s.list.iter().find(|m| m.from.email == "win@prizes.example").map(|m| m.key.clone());
-    if let Some(k) = k {
-        s.run("list.open", &json!({"key": k.to_id()})).unwrap();
-        let first = s.run("contact.fromMessage", &json!({})).unwrap();
-        let second = s.run("contact.fromMessage", &json!({})).unwrap();
-        assert_eq!(first["uid"], second["uid"]);
-        assert_eq!(second["existing"], true);
-    }
+    s.run("folder.open", &json!({"account": "sample", "folder": "Junk"})).unwrap();
+    let k = s.list.iter().find(|m| m.from.email == "win@prizes.example").map(|m| m.key.clone()).expect("the sample's prize mail");
+    s.run("list.open", &json!({"key": k.to_id()})).unwrap();
+    let first = s.run("contact.fromMessage", &json!({})).unwrap();
+    let second = s.run("contact.fromMessage", &json!({})).unwrap();
+    assert_eq!(first["uid"], second["uid"]);
+    assert_eq!(second["existing"], true);
 }
 
 #[test]
