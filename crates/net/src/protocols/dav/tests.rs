@@ -149,7 +149,7 @@ fn calendars_owned_by_someone_else_are_told_apart() {
 /// is finding each one's parts). Run by hand, in release:
 /// `cargo test --release -p mailcraft-net --lib measure_big_collections -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_big_collections() {
     use crate::fakes::fake_dav::{BOOK, CAL, PASSWORD, USER, serve};
     use mailcraft_model::zone::Zone;

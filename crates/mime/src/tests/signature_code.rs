@@ -134,7 +134,7 @@ fn handlers_and_scripts_are_found_as_a_browser_reads_them() {
 /// heavy lock:
 /// `cargo test --release -p mailcraft-mime --lib measure_pictures_written_in -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_pictures_written_in() {
     let boxes: String =
         (0..100).map(|i| format!("<table><tr><td background=\"https://pictures.example/p{i}.png\">Item {i}</td></tr></table>")).collect();

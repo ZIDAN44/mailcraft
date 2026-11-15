@@ -47,7 +47,7 @@ fn bobs_copy(m: &Mailcow, uid: &str) -> Option<(String, String)> {
 /// his laptop sleeps; the laptop wakes, takes the invitation in from the mail and used to store it
 /// over the calendar's copy: back to "needs action".
 #[test]
-#[ignore]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
 fn real_mailcow_an_answer_from_another_device_stays() {
     let Some(m) = Mailcow::from_env() else { return };
     let mark = format!("{MARK} phone");
@@ -93,7 +93,7 @@ fn real_mailcow_an_answer_from_another_device_stays() {
 /// his mail and, before its calendar syncs, she writes the agenda: the change was refused (412)
 /// and SOGo's copy kept, the agenda gone without a word. Both are on SOGo now.
 #[test]
-#[ignore]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
 fn real_mailcow_an_agenda_written_as_a_guest_answers_stays() {
     let Some(m) = Mailcow::from_env() else { return };
     let mark = format!("{MARK} agenda");

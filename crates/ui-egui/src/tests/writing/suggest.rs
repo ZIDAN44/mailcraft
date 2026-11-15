@@ -58,7 +58,7 @@ fn suggestions_follow_the_text_and_the_address_book() {
 /// that only makes it faster). Run in release under the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_suggestions -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_suggestions() {
     use std::hash::{Hash, Hasher};
     let (mut a, _) = app("measure-suggest");

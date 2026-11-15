@@ -411,7 +411,7 @@ fn a_message_to_no_one_is_told_apart() {
 /// mailcraft-engine --release measure_forward_as_attachment -- --ignored --nocapture`): the
 /// message goes whole, its files aren't read.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_forward_as_attachment() {
     let mut s = sample_session("measure-forward-attachment");
     let files = (0..4)

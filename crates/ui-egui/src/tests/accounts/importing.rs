@@ -546,7 +546,7 @@ fn an_outlook_files_copy_is_beside_it_and_found_again() {
 /// before and after a change that only makes it faster). Run in release under the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_import_outline -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_import_outline() {
     use std::hash::{Hash, Hasher};
     let (mut a, _) = app("measure-import-outline");

@@ -273,7 +273,7 @@ fn a_line_waiting_for_its_literal_is_not_read_again() {
 /// How long the longest answer `MAX_LINE` is for takes to frame: a folder's `UID SEARCH ALL` of
 /// three million messages on one line, read as a socket hands it over, 32 KB at a time.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_a_huge_search_line() {
     let mut s = b"* SEARCH".to_vec();
     for u in 1..=3_000_000u32 {

@@ -356,7 +356,7 @@ mod tests {
     /// How long a large encrypted message in BER takes to become DER: 16 MB of content in 4 KB
     /// pieces, as mail programs stream it, five levels deep (`--release`, by hand).
     #[test]
-    #[ignore]
+    #[ignore = "a measurement: run in release"]
     fn measure_to_der() {
         const DATA_OID: [u8; 11] = [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x01];
         let piece = vec![0x5Au8; 4096];

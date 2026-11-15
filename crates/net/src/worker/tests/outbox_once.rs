@@ -209,7 +209,7 @@ fn a_refused_message_is_marked_so_and_left() {
 /// (any password), `MAILCRAFT_REAL_OUTBOX="23025 23143"`. Delivered once to the recipient, one
 /// copy in Sent.
 #[test]
-#[ignore]
+#[ignore = "needs real SMTP and IMAP servers in MAILCRAFT_REAL_OUTBOX"]
 fn real_outbox_sends_once() {
     let Some((smtp, imap)) = std::env::var("MAILCRAFT_REAL_OUTBOX").ok().and_then(|v| {
         let mut p = v.split_whitespace().map(|p| p.parse::<u16>().ok());

@@ -454,7 +454,7 @@ fn the_rules_dialog_follows_the_language() {
 /// after a change that only makes it faster). Run in release under the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_rules_dialog -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_rules_dialog() {
     use std::hash::{Hash, Hasher};
     let (mut a, _) = app("measure-rules");

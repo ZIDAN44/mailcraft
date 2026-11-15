@@ -36,7 +36,7 @@ fn served(n: usize) -> Vec<StoredEvent> {
 /// reads them all again, timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-engine --lib measure_dav_merge -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_dav_merge() {
     let mut s = Session::open(Some(temp("measure-dav-merge")), mailcraft_model::dates::Clock::new(NOW, 0));
     let id = s.run("account.add", &json!({"email": "ana@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();

@@ -17,7 +17,7 @@ use crate::Session;
 use crate::model::dates::Clock;
 
 #[test]
-#[ignore]
+#[ignore = "a measurement: needs a copy of a real data folder in MC_DATA"]
 fn big_move() {
     let Ok(data) = std::env::var("MC_DATA") else {
         println!("MC_DATA: a copy of a data folder, to move its biggest folder in");

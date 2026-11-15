@@ -28,7 +28,7 @@ fn a_contact_is_found_by_its_whole_address() {
 /// about 2 KB. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-engine --lib measure_people_frame -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_people_frame() {
     use mailcraft_model::pim::{StoredCard, StoredNote};
     use mailcraft_model::vcard::{Card, Typed};

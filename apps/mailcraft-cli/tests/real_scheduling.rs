@@ -255,7 +255,7 @@ fn notifications_off() -> bool {
 /// or (with SOGo's mail off) in her calendar. The outside guest's answer, taken in, changes
 /// nothing for the others.
 #[test]
-#[ignore]
+#[ignore = "needs MAILCRAFT_REAL_MAILCOW and MAILCRAFT_REAL_OUTSIDE, servers on this computer"]
 fn real_scheduling_on_sogo() {
     let Some(m) = Mailcow::from_env() else { return };
     let Some((ext, ext_addr)) = outside() else { return eprintln!("MAILCRAFT_REAL_OUTSIDE isn't set: skipped") };
@@ -359,7 +359,7 @@ fn itip_mail(from: &str, to: &str, subject: &str, method: &str, e: &mailcraft_en
 /// from the message and from the calendar, reach ann once each: SOGo, which answers for any
 /// change to a guest's copy, isn't let to (bob's copy there is stored again as new).
 #[test]
-#[ignore]
+#[ignore = "needs MAILCRAFT_REAL_STALWART, MAILCRAFT_REAL_MAILCOW and MAILCRAFT_REAL_OUTSIDE, servers on this computer"]
 fn real_scheduling_on_stalwart_and_from_another_server() {
     let Some(st) = stalwart() else { return eprintln!("MAILCRAFT_REAL_STALWART isn't set: skipped") };
     let Some(m) = Mailcow::from_env() else { return };
@@ -419,7 +419,7 @@ fn real_scheduling_on_stalwart_and_from_another_server() {
 /// A server that doesn't schedule (Radicale): MailCraft mails at once, as before, and stores
 /// nothing about who schedules.
 #[test]
-#[ignore]
+#[ignore = "needs MAILCRAFT_REAL_RADICALE, MAILCRAFT_REAL_MAILCOW and MAILCRAFT_REAL_OUTSIDE, servers on this computer"]
 fn real_scheduling_without_a_scheduling_server() {
     let Ok(radicale) = std::env::var("MAILCRAFT_REAL_RADICALE") else { return eprintln!("MAILCRAFT_REAL_RADICALE isn't set: skipped") };
     let Some(m) = Mailcow::from_env() else { return };
@@ -452,7 +452,7 @@ fn real_scheduling_without_a_scheduling_server() {
 /// over it, and reaches the organizer once, from SOGo, by mail or in her calendar (it was kept
 /// as SOGo's and lost, neither stored nor mailed).
 #[test]
-#[ignore]
+#[ignore = "needs MAILCRAFT_REAL_MAILCOW and MAILCRAFT_REAL_OUTSIDE, servers on this computer"]
 fn real_scheduling_crossings_on_sogo() {
     let Some(m) = Mailcow::from_env() else { return };
     let Some((ext, ext_addr)) = outside() else { return eprintln!("MAILCRAFT_REAL_OUTSIDE isn't set: skipped") };

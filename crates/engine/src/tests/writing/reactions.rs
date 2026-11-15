@@ -57,7 +57,7 @@ fn reactions_are_sent_and_gathered_under_the_message() {
 /// cached, every one an answer to something (`cargo test -p mailcraft-engine --release
 /// measure_reactions_of_a_big_list -- --ignored --nocapture`): the reading pane asks every frame.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_reactions_of_a_big_list() {
     let store = temp("reactions-measured");
     sample::seed_if_empty(&store, NOW).unwrap();

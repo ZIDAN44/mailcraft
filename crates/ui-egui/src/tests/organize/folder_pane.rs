@@ -90,7 +90,7 @@ fn the_folder_tree_collapses_and_its_menu_knows_favorites() {
 /// faster). Run in release under the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_folder_pane -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_folder_pane() {
     use std::hash::{Hash, Hasher};
     let (mut a, _) = app("measure-folder-pane");

@@ -674,7 +674,7 @@ TITLE:Price=5 not encoded\r\nEND:VCARD\r\n";
     /// How long that card takes: `cargo test --release -p mailcraft-model --lib
     /// how_long_endless_breaks_take -- --ignored --nocapture`.
     #[test]
-    #[ignore]
+    #[ignore = "a measurement: run in release"]
     fn how_long_endless_breaks_take() {
         let text = endless_quoted_printable_breaks();
         let started = std::time::Instant::now();

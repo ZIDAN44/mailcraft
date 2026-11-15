@@ -30,7 +30,7 @@ fn letter(i: usize) -> Vec<u8> {
 /// the record of every message, once for each message downloaded. In memory, what the saving
 /// itself costs; on disk, with each source written as a file of its own.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_first_download() {
     for on_disk in [false, true] {
         for count in [5_000, 10_000] {
@@ -59,7 +59,7 @@ fn measure_first_download() {
 /// Deleted Items and deleted there for good: each looked up the server's record of every message
 /// in a list of the others.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_bookkeeping() {
     let ids: Vec<String> = (0..N).map(|i| format!("{i:0>12}{:0>12x}", i * 7919)).collect();
     let server = fake::serve(ids.iter().map(|id| (id.clone(), Vec::new())).collect());

@@ -99,7 +99,7 @@ fn junk_and_ignored_mail_move_together() {
 /// threaded once, not once per message). Run under the heavy lock:
 /// `cargo test -p mailcraft-engine --lib measure_ignore_many -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_ignore_many() {
     let mut s = Session::open(Some(temp("measure-ignore")), mailcraft_model::dates::Clock::new(NOW, 0));
     let id = many_arrive(&mut s, 5000);
@@ -204,7 +204,7 @@ fn a_big_move_into_the_inbox_is_remembered_whole() {
 /// 5,000 messages of an Archive of 50,000 (every tenth) moved into the Inbox, timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-engine --lib measure_move_in_many -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_move_in_many() {
     let mut s = Session::open(Some(temp("measure-move-in")), mailcraft_model::dates::Clock::new(NOW, 0));
     let id = archive_of(&mut s, 50_000);
@@ -276,7 +276,7 @@ fn stuck_snoozes(name: &str, n: u32, stuck: usize) -> (Session, String) {
 /// 20 snoozes stuck over a Snoozed folder of 10,000 messages, 1,000 frames timed. Run under the
 /// heavy lock: `cargo test --release -p mailcraft-engine --lib measure_stuck_snoozes -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_stuck_snoozes() {
     let (mut s, _) = stuck_snoozes("measure-stuck-snoozes", 10_000, 20);
     let t = std::time::Instant::now();
@@ -354,7 +354,7 @@ fn stuck_snoozes_arent_looked_for_every_frame() {
 /// `read` of each conversation's messages read (unread mail stays), timed. Run under the heavy
 /// lock: `cargo test --release -p mailcraft-engine --lib measure_clean_up_folder -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_clean_up_folder() {
     for read in [3, 0] {
         let mut s = Session::open(Some(temp(&format!("measure-clean-up-{read}"))), mailcraft_model::dates::Clock::new(NOW, 0));

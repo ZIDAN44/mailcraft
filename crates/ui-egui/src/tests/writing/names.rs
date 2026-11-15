@@ -88,7 +88,7 @@ fn a_long_address_book_scrolls_and_selects() {
 /// faster). Run in release under the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_select_names -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_select_names() {
     use std::hash::{Hash, Hasher};
     let (mut a, _) = app("measure-names");

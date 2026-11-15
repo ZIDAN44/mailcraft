@@ -445,7 +445,7 @@ fn a_local_mailbox_isnt_called_the_sample() {
 /// only makes it faster). Run in release under the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_status_bar -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_status_bar() {
     use std::hash::{Hash, Hasher};
     let (mut a, _) = app("measure-status-bar");

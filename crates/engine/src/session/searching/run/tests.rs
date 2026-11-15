@@ -45,7 +45,7 @@ fn candidates_are_checked_on_view_first_then_by_account_and_doc() {
 /// How long putting a common phrase's 16,667 candidates in order takes (`cargo test --release
 /// -p mailcraft-engine --lib sorting_the_candidates -- --ignored --nocapture`).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn sorting_the_candidates_takes() {
     let mut took: Vec<Duration> = (0..21)
         .map(|_| {

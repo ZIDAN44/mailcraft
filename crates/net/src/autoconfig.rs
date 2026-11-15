@@ -221,7 +221,7 @@ mod tests {
     /// Live: real DNS and the real ISP database (only domain names are sent). Run by hand with
     /// `cargo test -p mailcraft-net -- --ignored live_`.
     #[test]
-    #[ignore]
+    #[ignore = "needs the internet"]
     fn live_discovery() {
         assert!(!crate::dns::mx("gmail.com").is_empty(), "MX lookup through the system resolver");
         let f = discover("someone@gmail.com").unwrap();

@@ -76,7 +76,7 @@ fn many_brackets() -> [String; 3] {
 /// How long those lines take: `cargo test --release -p mailcraft-model --lib
 /// how_long_many_brackets_take -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn how_long_many_brackets_take() {
     for l in many_brackets() {
         let t = std::time::Instant::now();
@@ -88,7 +88,7 @@ fn how_long_many_brackets_take() {
 /// An invitation's notes as long as they're read (200,000 characters), read as lines and links.
 /// `cargo test --release -p mailcraft-model --lib measure_long_notes -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_long_notes() {
     let invite = "Join with Google Meet<https://meet.google.com/abc-defg-hij>\nOr dial: (US) +1 555-0100<tel:+1-555-0100%3B618%23> PIN: 618\nMore phone numbers<https://tel.meet/abc?pin=618&hs=1>\n\nSee https://example.org/agenda, and a < b > c.\n";
     let text = invite.repeat(200_000 / invite.len() + 1);

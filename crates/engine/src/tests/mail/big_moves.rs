@@ -43,7 +43,7 @@ fn account_with(s: &mut Session, email: &str, local: bool, folder: &str, n: u32)
 /// (so listed after them), then the move undone: the Undo timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-engine --lib measure_undo_big_move -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_undo_big_move() {
     let mut s = Session::open(Some(temp("measure-undo-move")), mailcraft_model::dates::Clock::new(NOW, 0));
     let id = account_with(&mut s, "ben@example.org", true, "Archive", 50_000);
@@ -70,7 +70,7 @@ fn measure_undo_big_move() {
 /// server's answer (all of them there) taken in, timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-engine --lib measure_big_move_across -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_big_move_across() {
     let mut s = Session::open(Some(temp("measure-move-across")), mailcraft_model::dates::Clock::new(NOW, 0));
     let from = account_with(&mut s, "ben@example.org", true, "INBOX", 10_000);
@@ -97,7 +97,7 @@ fn measure_big_move_across() {
 /// from its source as it comes ([`Event::Filled`]), timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-engine --lib measure_filled_big_folder -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_filled_big_folder() {
     let mut s = Session::open(Some(temp("measure-filled")), mailcraft_model::dates::Clock::new(NOW, 0));
     let id = account_with(&mut s, "zoe@example.org", false, "INBOX", 100_000);
@@ -116,7 +116,7 @@ fn measure_filled_big_folder() {
 /// Delete on it. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-engine --lib measure_commands_on_big_selection -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_commands_on_big_selection() {
     let mut s = Session::open(Some(temp("measure-big-selection")), mailcraft_model::dates::Clock::new(NOW, 0));
     let id = account_with(&mut s, "zoe@example.org", false, "INBOX", 0);

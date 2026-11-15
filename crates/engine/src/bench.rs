@@ -120,7 +120,7 @@ fn open_files(store: &Store) {
 }
 
 #[test]
-#[ignore]
+#[ignore = "a measurement: of MC_DATA or MC_CACHE, else a made-up big mailbox"]
 fn big_mailbox() {
     let (store, account) = bench_store().unwrap_or_else(|| {
         let store = Store::memory();

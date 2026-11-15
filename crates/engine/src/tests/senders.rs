@@ -252,7 +252,7 @@ fn the_sender_check_follows_the_organisation_and_the_accounts() {
 /// organisation's domains set, timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-engine --lib measure_senders_each_frame -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_senders_each_frame() {
     let mut s = sample_session("measure-senders");
     for n in 0..4 {

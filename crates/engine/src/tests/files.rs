@@ -390,7 +390,7 @@ fn base64_decode(text: &str) -> Vec<u8> {
 /// Run under the heavy lock:
 /// `cargo test -p mailcraft-engine --lib measure_attachments_parsed_once -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_attachments_parsed_once() {
     use std::fmt::Write as _;
     const DOT: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";

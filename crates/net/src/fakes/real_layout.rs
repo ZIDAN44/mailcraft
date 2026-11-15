@@ -12,7 +12,7 @@
 use super::real_servers::{at, delivered};
 
 #[test]
-#[ignore]
+#[ignore = "needs real SMTP and IMAP servers in MAILCRAFT_REAL_LAYOUT"]
 fn real_newsletter_layout() {
     use mailcraft_mime::layout::Block;
     let Ok(v) = std::env::var("MAILCRAFT_REAL_LAYOUT") else {

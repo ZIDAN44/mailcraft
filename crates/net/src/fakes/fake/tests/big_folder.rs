@@ -6,7 +6,7 @@ use super::*;
 /// CONDSTORE: the first sync, then one that asks every message's flags (some changed, some gone,
 /// some new). The digest is of the folder's list after, to tell a change of result.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_a_big_folder_synced_without_condstore() {
     const N: u32 = 50_000;
     let st = State::new();

@@ -264,7 +264,7 @@ fn a_waiting_search_waits_for_a_folders_marks_without_spinning() {
 /// --ignored --nocapture`): the step with its read mark handed over, and the mark written on the
 /// store's thread (each step waits for it, timed apart).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn down_steps_on_a_big_data_file_folder() {
     use std::time::{Duration, Instant};
     let root = scratch("down-data-file");
@@ -302,7 +302,7 @@ fn down_steps_on_a_big_data_file_folder() {
 /// waits for the disk the import keeps busy (its p99 45 to 230 ms when the window made it); the
 /// window doesn't wait for it.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn down_steps_during_an_import() {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::{Duration, Instant};

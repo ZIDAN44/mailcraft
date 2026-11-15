@@ -27,7 +27,7 @@ fn boxes_left_open() -> String {
 /// How long those take to read: `cargo test --release -p mailcraft-mime --lib
 /// how_long_deep_copies_take -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn how_long_deep_copies_take() {
     for html in tables_left_open().iter().chain([&boxes_left_open()]) {
         let started = std::time::Instant::now();

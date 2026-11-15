@@ -26,7 +26,7 @@ fn server() -> Option<(String, String, String)> {
 
 /// The calendar and the contacts a real server holds are read, each whole.
 #[test]
-#[ignore]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
 fn real_ews_calendar_and_contacts() {
     let Some((url, user, password)) = server() else {
         eprintln!("MAILCRAFT_REAL_EWS not set: skipped");
@@ -59,7 +59,7 @@ fn real_ews_calendar_and_contacts() {
 /// A mailbox with a dozen folders of mail to bring in has its calendar and contacts once the
 /// Inbox is in, not after the last folder (issue #80: the calendar stayed empty meanwhile).
 #[test]
-#[ignore]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
 fn real_ews_calendar_comes_with_the_inbox() {
     let Some((url, user, password)) = server() else {
         eprintln!("MAILCRAFT_REAL_EWS not set: skipped");

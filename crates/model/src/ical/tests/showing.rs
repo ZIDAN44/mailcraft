@@ -300,7 +300,7 @@ proptest! {
 /// as each name was looked for alone, then in one pass.
 /// `cargo test --release -p mailcraft-model --lib measure_showing -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_showing() {
     let extra: Vec<String> = [
         "X-MICROSOFT-CDO-APPT-SEQUENCE:0",

@@ -52,7 +52,7 @@ fn wait_subjects(m: &Mailcow, n: usize, folder: &str, what: &str, ok: impl Fn(&[
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
 fn real_mailcow_invitations_between_two_users() {
     let Some(m) = Mailcow::from_env() else { return };
     clean(&m);

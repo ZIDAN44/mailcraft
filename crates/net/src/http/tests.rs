@@ -147,7 +147,7 @@ fn a_paths_controls_are_written_as_their_utf8_bytes() {
 
 /// Run by hand (release, under the machine's lock): Url::parse on DAV-like addresses.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_url_parse() {
     let urls = ["https://dav.example.com/dav/calendars/riley/work/0123456789abcdef-0123-4567.ics", "https://h.example/a b/c d e/f g.ics"];
     for url in urls {

@@ -44,7 +44,7 @@ fn the_certificates_found_say_whose_they_are() {
 /// before and after a change that only makes it faster). Run in release under the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_held_keys_dialog -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_held_keys_dialog() {
     use std::hash::{Hash, Hasher};
     let (mut a, _) = app("measure-held-keys");

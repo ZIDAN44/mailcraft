@@ -505,7 +505,7 @@ mod tests {
 
     /// How long those lines take: `cargo test --release -p mailcraft-mime --lib how_long_open_marks_take -- --ignored --nocapture`.
     #[test]
-    #[ignore]
+    #[ignore = "a measurement: run in release"]
     fn how_long_open_marks_take() {
         for line in open_marks() {
             let started = std::time::Instant::now();

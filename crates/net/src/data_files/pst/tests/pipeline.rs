@@ -500,7 +500,7 @@ fn folders_go_where_they_always_went() {
 /// MEASURE: a file of many folders placed (the outline told, each folder made, then written):
 /// distinct names, and one name over and over under one folder.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_placing_many_folders() {
     for (label, names) in
         [("distinct names", (0..20_000).map(|n| format!("Folder {n}")).collect::<Vec<_>>()), ("one name", vec!["Folder".to_string(); 3_000])]

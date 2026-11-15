@@ -235,7 +235,7 @@ mod tests {
     /// The longest conversation looked at, each message naming the 256 before it as threading
     /// keeps them: which texts it wants, then what's redundant (`MEASURE`, release, by hand).
     #[test]
-    #[ignore]
+    #[ignore = "a measurement: run in release"]
     fn measure_a_long_conversation() {
         let msgs: Vec<Summary> = (1..=CONVERSATION_MAX as u32)
             .map(|uid| {

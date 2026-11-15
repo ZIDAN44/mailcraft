@@ -60,6 +60,8 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 dbg_macro = "warn"
+# A test left out of the run says why (`#[ignore = "a measurement"]`).
+ignore_without_reason = "warn"
 todo = "warn"
 too_many_arguments = "allow"
 type_complexity = "allow"

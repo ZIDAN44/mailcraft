@@ -20,7 +20,7 @@ use crate::pop::{self, Keep};
 /// Mail sent to a new mailbox comes down once, every message, and goes from the server when the
 /// account says so.
 #[test]
-#[ignore]
+#[ignore = "needs real POP and SMTP servers in MAILCRAFT_REAL_POP"]
 fn real_pop_server() {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_POP") else {
         eprintln!("MAILCRAFT_REAL_POP isn't set: skipped");

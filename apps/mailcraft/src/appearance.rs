@@ -162,7 +162,7 @@ mod tests {
     /// one that says dark, then changes to light): read at once, the change followed and the
     /// window woken for it.
     #[test]
-    #[ignore]
+    #[ignore = "needs a desktop portal on a session bus: MAILCRAFT_PORTAL=1"]
     fn follows_a_desktop_portal() {
         if std::env::var_os("MAILCRAFT_PORTAL").is_none() {
             eprintln!("MAILCRAFT_PORTAL isn't set: skipped");

@@ -116,7 +116,7 @@ mod tests {
 
     /// How long those take: `cargo test --release -p mailcraft-mime --lib how_long_deep_html_takes -- --ignored --nocapture`.
     #[test]
-    #[ignore]
+    #[ignore = "a measurement: run in release"]
     fn how_long_deep_html_takes() {
         let raw = format!("Content-Type: text/html\r\n\r\n{}", tables_left_open());
         let started = std::time::Instant::now();

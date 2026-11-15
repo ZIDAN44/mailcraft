@@ -21,7 +21,7 @@ use super::real_servers::{at, delivered, imap_account, until};
 use crate::worker::{MemoryCredentials, Pool};
 
 #[test]
-#[ignore]
+#[ignore = "needs real SMTP and IMAP servers in MAILCRAFT_REAL_PGP, keys in MAILCRAFT_PGP_DIR"]
 fn real_pgp_round_trip() {
     let (Ok(v), Ok(dir)) = (std::env::var("MAILCRAFT_REAL_PGP"), std::env::var("MAILCRAFT_PGP_DIR")) else {
         eprintln!("MAILCRAFT_REAL_PGP or MAILCRAFT_PGP_DIR isn't set: skipped");

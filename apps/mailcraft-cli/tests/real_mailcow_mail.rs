@@ -30,7 +30,7 @@ use serde_json::json;
 /// it when an address is typed: the encrypted ports first. Then the calendar and contacts
 /// found from Mailcow's own address, as `/.well-known/caldav` leads to SOGo.
 #[test]
-#[ignore]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
 fn real_mailcow_account_setup() {
     let Some(m) = Mailcow::from_env() else { return };
     let (email, _) = m.user(0);
@@ -90,7 +90,7 @@ fn real_mailcow_account_setup() {
 /// Inbox shared through SOGo, bob (who may change it) and carol (who may only read it) see the
 /// same; carol's change is refused, not taken and forgotten.
 #[test]
-#[ignore]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
 fn real_mailcow_categories_with_sogo() {
     let Some(m) = Mailcow::from_env() else { return };
     let tag = std::process::id();

@@ -179,7 +179,7 @@ fn the_search_survives_a_hostile_cache() {
 /// What [`the_search_survives_a_hostile_cache`]'s searches take (`cargo test -p mailcraft-engine
 /// --release measure_the_search_of_a_hostile_cache -- --ignored --nocapture`).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_the_search_of_a_hostile_cache() {
     let mut s = hostile_cache("calendar-search-hostile-measured");
     let started = std::time::Instant::now();

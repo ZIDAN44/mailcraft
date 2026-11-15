@@ -82,7 +82,7 @@ fn a_read_marks_echo_keeps_the_folder_and_the_list() {
 /// body downloaded on the way cost before it was said as its summary filled, `Filled`), and the
 /// summary filled taken in.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn down_steps_on_a_big_server_folder() {
     use std::time::{Duration, Instant};
     let (mut s, id) = server_inbox(10_941);

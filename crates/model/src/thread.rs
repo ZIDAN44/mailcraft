@@ -600,7 +600,7 @@ mod tests {
     /// again for every comparison of the sort.
     /// `cargo test --release -p mailcraft-model --lib measure_threads -- --ignored --nocapture`.
     #[test]
-    #[ignore]
+    #[ignore = "a measurement: run in release"]
     fn measure_threads() {
         let mut msgs = Vec::new();
         for i in 0..30_000_i64 {

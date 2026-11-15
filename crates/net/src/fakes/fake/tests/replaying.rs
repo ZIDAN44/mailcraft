@@ -40,7 +40,7 @@ fn all_sent(store: &Store, what: &str) {
 
 /// MEASURE: `n` changes made offline, each naming `per` messages, replayed once back online.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_replaying_queued_changes() {
     for (n, per) in [(250, 50), (500, 50), (1000, 50)] {
         let (_st, store, mut pool) = offline(per, &format!("replay-measure-{n}"));

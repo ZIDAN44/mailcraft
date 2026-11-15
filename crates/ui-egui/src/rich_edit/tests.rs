@@ -193,7 +193,7 @@ fn long_message(lines: usize) -> Compose {
 /// MEASURE: the room Undo keeps and the time it takes, a long message and 200 steps (the
 /// steps' looks undone and redone as they were).
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_undo_with_a_long_message() {
     let ctx = egui::Context::default();
     let mut c = long_message(3_400);
@@ -462,7 +462,7 @@ fn formatted_message(lines: usize) -> Compose {
 /// MEASURE: what a frame of the editor did with a long message and no longer does, each against
 /// what it does now (the median of 31 runs).
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_editor_frame_pieces() {
     use std::hint::black_box;
     fn median(mut f: impl FnMut()) -> std::time::Duration {
@@ -543,7 +543,7 @@ fn measure_editor_frame_pieces() {
 /// in it, and a selection drawn while the text doesn't have the keyboard; and the cursor in a
 /// long message with every kind of paragraph. What's drawn hashed, to show it's the same.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_editor_frames_with_a_long_message() {
     let mut c = long_message(3_400);
     c.id = 7;

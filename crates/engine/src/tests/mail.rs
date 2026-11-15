@@ -641,7 +641,7 @@ fn a_big_folder_changes_all_at_once() {
 /// What [`a_big_folder_changes_all_at_once`] takes (`cargo test -p mailcraft-engine --release
 /// measure_a_big_folder_changed_all_at_once -- --ignored --nocapture`).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_a_big_folder_changed_all_at_once() {
     let mut s = big_folder("big-folder-ops-measured");
     let began = std::time::Instant::now();

@@ -17,7 +17,7 @@ use crate::Session;
 use crate::model::dates::Clock;
 
 #[test]
-#[ignore]
+#[ignore = "needs a big mailbox in MC_DATA or MC_CACHE"]
 fn files_agree() {
     let Some((store, account)) = super::bench_store() else {
         println!("MC_CACHE or MC_DATA: the mailbox to count");

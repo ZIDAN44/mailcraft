@@ -180,7 +180,7 @@ fn a_folder_flagged_at_once_keeps_its_newest_however_the_list_is_arranged() {
 /// thread (`cargo test --release -p mailcraft-engine --lib flagging_a_big_folder -- --ignored
 /// --nocapture`).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn flagging_a_big_folder_for_the_bar_takes() {
     let mut took: Vec<std::time::Duration> = (0..5)
         .map(|_| {

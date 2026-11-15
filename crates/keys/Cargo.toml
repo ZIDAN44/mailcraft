@@ -16,6 +16,7 @@ unsafe_code = "deny"
 
 [lints.clippy]
 dbg_macro = "warn"
+ignore_without_reason = "warn"
 todo = "warn"
 too_many_arguments = "allow"
 type_complexity = "allow"

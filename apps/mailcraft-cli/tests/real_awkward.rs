@@ -28,7 +28,7 @@ fn message(n: u32) -> Vec<u8> {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs a real IMAP server in MAILCRAFT_REAL_AWKWARD"]
 fn real_awkward_names_and_mail_between_accounts() {
     let Ok(imap) = std::env::var("MAILCRAFT_REAL_AWKWARD") else {
         eprintln!("MAILCRAFT_REAL_AWKWARD isn't set: skipped");

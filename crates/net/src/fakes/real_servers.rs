@@ -88,7 +88,7 @@ pub(super) fn until(pool: &Pool, secs: u64, what: &str, f: impl FnMut(&Event) ->
 /// the whole Inbox a range at a time (its finds as they come), a search stopped, a 30 MB message
 /// read whole past the per-command caps, and mail put in by another client noticed at once.
 #[test]
-#[ignore]
+#[ignore = "needs a real IMAP server in MAILCRAFT_REAL_IMAP"]
 fn real_imap_server() {
     let Some((imap, user, pass, _)) = server("MAILCRAFT_REAL_IMAP") else {
         eprintln!("MAILCRAFT_REAL_IMAP isn't set: skipped");
@@ -169,7 +169,7 @@ fn real_imap_server() {
 /// a mailbox of its own): a message with a 45 MB file and a picture shows its text from its
 /// structure first, the files listed with no bytes; the whole of it comes after, as it was put.
 #[test]
-#[ignore]
+#[ignore = "needs a real IMAP server in MAILCRAFT_REAL_TEXT_FIRST"]
 fn real_imap_text_first() {
     let Some((imap, user, pass, _)) = server("MAILCRAFT_REAL_TEXT_FIRST") else {
         eprintln!("MAILCRAFT_REAL_TEXT_FIRST isn't set: skipped");
@@ -225,7 +225,7 @@ fn real_imap_text_first() {
 /// Outlook `.msg` and an `.eml` dropped on a folder go to the server as read mail, and come back
 /// in the folder's list; a file that isn't a message is said.
 #[test]
-#[ignore]
+#[ignore = "needs a real IMAP server in MAILCRAFT_REAL_FILING"]
 fn real_imap_message_files() {
     let Some((imap, user, pass, _)) = server("MAILCRAFT_REAL_FILING") else {
         eprintln!("MAILCRAFT_REAL_FILING isn't set: skipped");
@@ -277,7 +277,7 @@ fn real_imap_message_files() {
 /// recipient): a reaction sent to a message arrives marked a reaction, threaded under it, and
 /// its summary, from the recipient's sync, says so.
 #[test]
-#[ignore]
+#[ignore = "needs real SMTP and IMAP servers in MAILCRAFT_REAL_REACTION"]
 fn real_reaction_round_trip() {
     let Some((smtp, from, from_pw, more)) = server("MAILCRAFT_REAL_REACTION") else {
         eprintln!("MAILCRAFT_REAL_REACTION isn't set: skipped");
@@ -321,7 +321,7 @@ fn real_reaction_round_trip() {
 /// dismissed here is stored as its alarm acknowledged (RFC 9074), and read back so, from a copy
 /// another program would read; the alarm itself stays.
 #[test]
-#[ignore]
+#[ignore = "needs a real CalDAV server in MAILCRAFT_REAL_CALDAV"]
 fn real_caldav_dismissed_reminder() {
     use mailcraft_model::ical::{CalEvent, acknowledge, acknowledged, reminder_minutes, set_reminder};
     use mailcraft_model::pim::{Pim, StoredEvent};
@@ -365,7 +365,7 @@ fn real_caldav_dismissed_reminder() {
 /// refused sign-in, where the server refuses one, is a sign-in failure, not a refusal of the
 /// message.
 #[test]
-#[ignore]
+#[ignore = "needs a real SMTP server in MAILCRAFT_REAL_SMTP"]
 fn real_smtp_server() {
     let Some((smtp, user, pass, more)) = server("MAILCRAFT_REAL_SMTP") else {
         eprintln!("MAILCRAFT_REAL_SMTP isn't set: skipped");
@@ -406,7 +406,7 @@ fn real_smtp_server() {
 /// server delivered it, decrypted and its signature checked. That copy is written to
 /// `$MAILCRAFT_SMIME_OUT/mc-delivered.eml` too, for OpenSSL to verify and decrypt.
 #[test]
-#[ignore]
+#[ignore = "needs real SMTP and IMAP servers in MAILCRAFT_REAL_SMIME"]
 fn real_smime_round_trip() {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_SMIME") else {
         eprintln!("MAILCRAFT_REAL_SMIME isn't set: skipped");
@@ -490,7 +490,7 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
 /// renewed certificate: the old one, imported after, is kept for reading, and mail sent to it
 /// opens with its key.
 #[test]
-#[ignore]
+#[ignore = "needs real IMAP and CalDAV servers in MAILCRAFT_REAL_DAV"]
 fn real_calendar_by_hand_and_a_renewed_certificate() {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_DAV") else {
         eprintln!("MAILCRAFT_REAL_DAV isn't set: skipped");
@@ -557,7 +557,7 @@ fn real_calendar_by_hand_and_a_renewed_certificate() {
 ///   cargo test -p mailcraft-net real_caldav_private -- --ignored --nocapture
 /// ```
 #[test]
-#[ignore]
+#[ignore = "needs a real CalDAV server in MAILCRAFT_REAL_CALDAV"]
 fn real_caldav_private_and_show_as() {
     use mailcraft_model::ical::{EventQuery, Privacy, ShowAs, privacy, set_privacy, set_show_as, show_as};
     use mailcraft_model::pim::{Pim, StoredEvent};
@@ -714,7 +714,7 @@ fn real_caldav_private_and_show_as() {
 /// `shared/alice` holds a message with those three keywords; `bob` may write to it (`lrwsite`),
 /// `dave` only read (`lrs`); every password is the same.
 #[test]
-#[ignore]
+#[ignore = "needs a real IMAP server with a shared folder in MAILCRAFT_REAL_KEYWORDS"]
 fn real_keywords_in_a_shared_folder() {
     let Some((imap, user, pass, rest)) = server("MAILCRAFT_REAL_KEYWORDS") else {
         eprintln!("MAILCRAFT_REAL_KEYWORDS isn't set: skipped");

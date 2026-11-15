@@ -127,7 +127,7 @@ fn holding_down_over_big_messages_parses_none_in_a_frame() {
 /// (the command and its frame) takes under 16 ms. A timing test: run in release
 /// (`cargo test --release -p mailcraft-ui-egui holding_down_frames -- --ignored --nocapture`).
 #[test]
-#[ignore]
+#[ignore = "a timing test: run in release"]
 fn holding_down_frames_stay_under_16_ms() {
     let (mut a, _) = app("body-frames");
     let ctx = egui::Context::default();
@@ -160,7 +160,7 @@ fn holding_down_frames_stay_under_16_ms() {
 /// tags), all of it in the pane; and what cleaning its links' addresses takes. In release
 /// (`cargo test --release -p mailcraft-ui-egui --lib centred_newsletter_frames -- --ignored --nocapture`).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn centred_newsletter_frames() {
     let (mut a, _) = app("newsletter-frames");
     let ctx = egui::Context::default();
@@ -205,7 +205,7 @@ fn median_frame(ctx: &egui::Context, a: &mut MailApp) -> std::time::Duration {
 /// each of its innermost ones still coming (shown, not yet here), and then come. In release
 /// (`cargo test --release -p mailcraft-ui-egui --lib nested_tables_frames -- --ignored --nocapture`).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn nested_tables_frames() {
     let (mut a, _) = app("nested-frames");
     let ctx = egui::Context::default();

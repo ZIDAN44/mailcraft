@@ -102,7 +102,7 @@ fn snooze_in_the_window_takes_the_choice_picked() {
 /// that only makes it faster). Run in release under the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_reminders -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_reminders() {
     use std::hash::{Hash, Hasher};
     let (mut a, _) = app("measure-reminders");

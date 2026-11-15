@@ -62,7 +62,7 @@ fn watch(e: &Event) {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs real IMAP and CalDAV servers in MAILCRAFT_REAL_INVITES"]
 fn real_invitations_wait_for_the_calendar_and_leave_the_inbox() {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_INVITES") else {
         eprintln!("MAILCRAFT_REAL_INVITES isn't set: skipped");
@@ -219,7 +219,7 @@ impl Jmap {
 /// account's calendar there; answered from the calendar, it's moved to Deleted Items on the
 /// server by JMAP.
 #[test]
-#[ignore]
+#[ignore = "needs a real JMAP server in MAILCRAFT_REAL_INVITES_JMAP"]
 fn real_jmap_answered_invitation_leaves_the_inbox() {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_INVITES_JMAP") else {
         eprintln!("MAILCRAFT_REAL_INVITES_JMAP isn't set: skipped");
@@ -308,7 +308,7 @@ fn check_stored(ics: &str, uid: &str) {
 /// in its message (out of the Inbox), then stored in the server's calendar busy, with its
 /// meeting; made private and out of office, it's stored so, and found by its meeting's link.
 #[test]
-#[ignore]
+#[ignore = "needs real IMAP and CalDAV servers in MAILCRAFT_REAL_INVITES_TOGETHER"]
 fn real_outlook_meeting_held_accepted_private_and_found() {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_INVITES_TOGETHER") else {
         eprintln!("MAILCRAFT_REAL_INVITES_TOGETHER isn't set: skipped");
@@ -370,7 +370,7 @@ fn real_outlook_meeting_held_accepted_private_and_found() {
 /// room's meeting at once is stored with all of them; the Outlook invitation delivered by JMAP,
 /// accepted from the calendar and made private, likewise, and moved out of the Inbox.
 #[test]
-#[ignore]
+#[ignore = "needs a real JMAP server in MAILCRAFT_REAL_INVITES_JMAP"]
 fn real_jmap_private_meeting_and_outlook_invitation() {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_INVITES_JMAP") else {
         eprintln!("MAILCRAFT_REAL_INVITES_JMAP isn't set: skipped");

@@ -658,7 +658,7 @@ fn a_draft_finds_what_it_answers_however_its_id_is_kept() {
 /// others of 20,000 that aren't (`cargo test -p mailcraft-engine --release
 /// measure_a_draft_finding_what_it_answers -- --ignored --nocapture`).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_a_draft_finding_what_it_answers() {
     let store = temp("measure-draft-answers");
     sample::seed_if_empty(&store, NOW).unwrap();

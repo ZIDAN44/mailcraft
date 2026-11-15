@@ -490,7 +490,7 @@ fn a_certificate_is_sent_as_it_was_kept() {
 
 /// How long a signature takes to check, and its certificate's chain (`--release`, by hand).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_verify() {
     let ca = pem("ca.pem");
     for name in ["sig-rsa.der", "sig-ec.der"] {
@@ -508,7 +508,7 @@ fn measure_verify() {
 /// Writes MailCraft's signatures and encryption to `$MAILCRAFT_SMIME_OUT`, for OpenSSL to check
 /// (`openssl cms -verify` / `-decrypt`): run by hand.
 #[test]
-#[ignore]
+#[ignore = "writes files for OpenSSL to check, where MAILCRAFT_SMIME_OUT says"]
 fn write_for_openssl() {
     let Some(dir) = std::env::var_os("MAILCRAFT_SMIME_OUT") else { return };
     let dir = std::path::PathBuf::from(dir);
@@ -536,7 +536,7 @@ fn write_for_openssl() {
 /// How long a signer's chain takes to check among a system's worth of roots (150, the CA last),
 /// as the engine asks for each signed message shown (`--release`, by hand).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_check_among_roots() {
     let ca = pem("ca.pem");
     let others = [pem("ana.pem"), pem("zoe.pem"), pem("rev-kim.pem"), pem("rev-lee.pem"), pem("riley.pem")];
@@ -554,7 +554,7 @@ fn measure_check_among_roots() {
 /// How long a `.p12`'s key takes to be matched to its certificate: as files have it (the key's
 /// first) and with it after five others (`--release`, by hand).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_p12_key_match() {
     let riley = riley();
     let others: Vec<Vec<u8>> = ["ca.pem", "ana.pem", "zoe.pem", "rev-kim.pem", "rev-lee.pem"].into_iter().map(pem).collect();

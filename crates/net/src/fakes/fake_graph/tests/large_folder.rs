@@ -67,7 +67,7 @@ fn a_quiet_sync_of_a_large_folder_keeps_every_message_and_asks_for_none() {
 /// quickest of five). Run:
 /// `cargo test --release -p mailcraft-net --lib measure_graph_large_folder_sync -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_graph_large_folder_sync() {
     let n = 50_000;
     let server = inbox_of(n);

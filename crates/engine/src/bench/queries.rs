@@ -80,7 +80,7 @@ fn ms(d: Duration) -> f64 {
 }
 
 #[test]
-#[ignore]
+#[ignore = "a measurement: needs MC_QUERIES and a big mailbox in MC_DATA or MC_CACHE"]
 fn queries() {
     let list = std::fs::read_to_string(std::env::var("MC_QUERIES").expect("MC_QUERIES: a file of queries, one a line")).unwrap();
     let queries: Vec<&str> = list.lines().map(str::trim).filter(|q| !q.is_empty()).collect();

@@ -68,7 +68,7 @@ fn invitation(user: &str, uid: &str, sequence: u32, subject: &str, ago: i64) -> 
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs real IMAP and SMTP servers in MAILCRAFT_REAL_TOGETHER"]
 fn real_mail_side_together() {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_TOGETHER") else {
         eprintln!("MAILCRAFT_REAL_TOGETHER isn't set: skipped");
@@ -212,7 +212,7 @@ fn real_mail_side_together() {
 /// pw"`): another program's keyword shows as a category and a search for it by name asks the
 /// server for that keyword; the source of a message is downloaded as it came.
 #[test]
-#[ignore]
+#[ignore = "needs a real JMAP server in MAILCRAFT_REAL_TOGETHER_JMAP"]
 fn real_jmap_categories_and_source() {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_TOGETHER_JMAP") else {
         eprintln!("MAILCRAFT_REAL_TOGETHER_JMAP isn't set: skipped");

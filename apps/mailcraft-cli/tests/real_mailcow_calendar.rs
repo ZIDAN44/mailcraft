@@ -53,7 +53,7 @@ fn events(app: &mut App) -> Vec<Value> {
 
 /// Issues #32, #30, #25 and #33 against SOGo.
 #[test]
-#[ignore]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
 fn real_mailcow_private_events_and_shared_calendars() {
     let Some(m) = Mailcow::from_env() else { return };
     m.clean_calendars(&[0], MARK);

@@ -762,7 +762,7 @@ fn a_reply_quotes_every_picture() {
 /// MEASURE: the formatted lines of HTML made of many fragments of one format (#289): bold words
 /// and links of one address, each its own fragment, merged with the one before.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_rich_fragments() {
     let line = "<b>word</b> ".repeat(60) + &"<a href=\"https://links.example/a/rather/long/address?with=query&and=more\">link</a> ".repeat(60);
     let html = format!("<p>{line}</p>").repeat(400);

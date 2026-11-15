@@ -98,7 +98,7 @@ fn send(s: &mut Session, pool: &mut Pool) {
 }
 
 #[test]
-#[ignore]
+#[ignore = "needs real mail and calendar servers in MAILCRAFT_REAL_MEETING"]
 fn real_meeting_through_a_calendar_server_and_an_invitation() {
     let Some(sv) = servers() else {
         eprintln!("MAILCRAFT_REAL_MEETING isn't set: skipped");

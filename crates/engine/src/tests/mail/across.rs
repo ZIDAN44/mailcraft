@@ -347,7 +347,7 @@ fn data_files_to_copy(name: &str, here: u32, listed: u32, text: &str) -> (Store,
 /// this computer, in data files as the app keeps them, timed. Run under the heavy lock:
 /// `cargo test -p mailcraft-engine --lib measure_copy_many -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_copy_many() {
     let filler = "Some words of a long note, kept to see a copy's cost. ".repeat(70);
     let (store, mut s, local) = data_files_to_copy("measure-copy", 5000, 0, &filler);

@@ -63,7 +63,7 @@ fn address_and_phrases() -> Vec<Atom> {
 /// that waits does it, and a slice at a time as a search does with the index's text
 /// (`MEASURE`, release, by hand).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_a_long_text_asked_several_things() {
     let text = "Lorem Ipsum dolor sit amet, the frames are due on Thursday. ".repeat(15_000);
     let raw = format!("From: a@b.example\r\nSubject: x\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{text}\r\n");

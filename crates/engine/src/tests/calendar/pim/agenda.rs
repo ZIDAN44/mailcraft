@@ -8,7 +8,7 @@ use super::*;
 /// weekly series. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-engine --lib measure_agenda_frame -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_agenda_frame() {
     use mailcraft_model::ical::{Attendee, CalEvent};
     use mailcraft_model::pim::{LOCAL, StoredEvent};
@@ -45,7 +45,7 @@ fn measure_agenda_frame() {
 /// first day, 3,650 of them, each time.
 /// `cargo test --release -p mailcraft-engine --lib measure_old_series_frame -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_old_series_frame() {
     use mailcraft_model::ical::CalEvent;
     use mailcraft_model::pim::{LOCAL, StoredEvent};
@@ -77,7 +77,7 @@ fn measure_old_series_frame() {
 /// one's classification and Show as read for every item drawn.
 /// `cargo test --release -p mailcraft-engine --lib measure_outlook_events_frame -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_outlook_events_frame() {
     use mailcraft_model::ical::CalEvent;
     use mailcraft_model::pim::{LOCAL, StoredEvent};

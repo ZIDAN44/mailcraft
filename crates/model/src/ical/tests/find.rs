@@ -120,7 +120,7 @@ fn an_online_meeting_outside_the_place_and_notes_is_found() {
 
 /// A three-word search over a big calendar: each event's text built once, not once per term.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn measure_a_search_over_a_big_calendar() {
     let notes = "Agenda: budget, hiring and the studio move. ".repeat(40);
     let events: Vec<CalEvent> = (0..20_000)

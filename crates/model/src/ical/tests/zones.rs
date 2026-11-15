@@ -311,7 +311,7 @@ fn long_exdate_line() -> String {
 /// How long that calendar takes to read: `cargo test --release -p mailcraft-model --lib
 /// how_long_a_long_exdate_line_takes -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn how_long_a_long_exdate_line_takes() {
     let text = long_exdate_line();
     let started = std::time::Instant::now();

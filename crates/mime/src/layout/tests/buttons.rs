@@ -151,7 +151,7 @@ fn hostile_buttons_are_survived() {
 /// above, timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-mime --lib measure_layout_newsletter -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_layout_newsletter() {
     let style = "font-family:Helvetica,Arial,sans-serif;font-size:14px;line-height:20px;color:#333333;padding:4px 8px;margin:0;border:0;text-align:left;vertical-align:top;background-color:#ffffff;mso-line-height-rule:exactly";
     let cell = format!(
@@ -189,7 +189,7 @@ fn measure_layout_newsletter() {
 /// a reply ([`flatten`]), timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-mime --lib measure_flatten -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_flatten() {
     let cell = "<td><b>A heading</b> and some words of a long newsletter, kept to see what quoting it under a reply costs.</td>";
     let rows: String = (0..750).map(|_| format!("<tr>{cell}{cell}</tr>")).collect();

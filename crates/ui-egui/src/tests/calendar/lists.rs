@@ -181,7 +181,7 @@ fn long_lists_scroll_in_order_and_follow_changes() {
 /// that only makes it faster). Run in release under the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_long_lists -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_long_lists() {
     use std::hash::{Hash, Hasher};
     let (mut a, _) = app("measure-lists");

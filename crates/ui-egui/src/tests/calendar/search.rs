@@ -55,7 +55,7 @@ fn scroll_by(ctx: &egui::Context, a: &mut MailApp, by: f32) {
 /// the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_calendar_search -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_calendar_search() {
     use std::hash::{Hash, Hasher};
     let (mut a, _) = with_found_events(800);

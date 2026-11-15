@@ -40,7 +40,7 @@ fn the_categories_dialog_counts_keywords_on_mail_as_it_changes() {
 /// after a change that only makes it faster). Run in release under the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_categories_dialog -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_categories_dialog() {
     use std::hash::{Hash, Hasher};
     let store = Store::memory();

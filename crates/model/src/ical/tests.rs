@@ -558,7 +558,7 @@ fn notes_full_of_addresses() -> (String, String) {
 /// How long a big calendar and those notes take: `cargo test --release -p mailcraft-model --lib
 /// how_long_big_calendars_take -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn how_long_big_calendars_take() {
     let took = |what: &str, f: &dyn Fn()| {
         let started = std::time::Instant::now();

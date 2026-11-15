@@ -166,7 +166,7 @@ fn a_reply_from_the_outbox_keeps_its_original() {
 /// it each frame (each cell's text read to edit, then kept back), timed. Run under the heavy
 /// lock: `cargo test --release -p mailcraft-engine --lib measure_quote_frame -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_quote_frame() {
     let mut s = sample_session("measure-quote");
     let cells: String =
@@ -215,7 +215,7 @@ fn a_frame_keeps_the_cell_typed_into() {
 /// replied to, timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-engine --lib measure_files_taken_along -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_files_taken_along() {
     let mut s = sample_session("measure-files");
     // 200,001 bytes of 7, in base64.

@@ -255,7 +255,7 @@ fn events_and_tasks_take_categories_and_repeats_alike() {
 /// list, the To-Do Bar's), timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-engine --lib measure_tasks_frame -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_tasks_frame() {
     let mut s = sample_session("measure-tasks");
     let p = s.pim_mut("sample");

@@ -490,7 +490,7 @@ fn clearing_a_big_search_shows_the_folder_kept() {
 /// three times (`cargo test -p mailcraft-engine --release --lib measure_clearing_a_big_search --
 /// --ignored --nocapture`, under the heavy lock).
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_clearing_a_big_search() {
     let (mut s, t) = cold();
     s.run("folder.open", &json!({"account": big::ACCOUNT, "folder": "INBOX"})).unwrap();

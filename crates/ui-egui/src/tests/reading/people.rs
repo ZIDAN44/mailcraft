@@ -84,7 +84,7 @@ fn people_above_a_message_are_found_among_the_contacts() {
 /// change that only makes it faster). Run in release under the machine's lock:
 /// `cargo test --release -p mailcraft-ui-egui --lib measure_people_above_a_message -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_people_above_a_message() {
     use std::hash::{Hash, Hasher};
     let (mut a, _) = app("measure-people");

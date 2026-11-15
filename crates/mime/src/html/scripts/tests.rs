@@ -75,7 +75,7 @@ fn the_scans_stay_quick() {
 
 /// How long those scans take: `cargo test --release -p mailcraft-mime --lib how_long_the_scans_take -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn how_long_the_scans_take() {
     for html in hostile_scans() {
         let started = std::time::Instant::now();

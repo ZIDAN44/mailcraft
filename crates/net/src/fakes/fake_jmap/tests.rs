@@ -320,7 +320,7 @@ fn an_account_with_no_identity_gets_one_and_sends() {
 /// `MAILCRAFT_FAKE_JMAP_PORT`) for ten minutes, signing in as `me@studio.example` / `pw`.
 /// `cargo test -p mailcraft-net serve_for_the_browser -- --ignored --nocapture`
 #[test]
-#[ignore]
+#[ignore = "a server for trying the browser app, run by hand: it runs ten minutes"]
 fn serve_for_the_browser() {
     let mut d = Data::default();
     let inbox = d.mailbox("Inbox", None, Some("inbox"));

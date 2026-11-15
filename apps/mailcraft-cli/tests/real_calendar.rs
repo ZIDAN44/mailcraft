@@ -65,7 +65,7 @@ fn watch(e: &Event) {
 /// nothing is left to delete. Another's moved occurrence deleted on its own: the series is
 /// written again without it, an exception in its place.
 #[test]
-#[ignore]
+#[ignore = "needs real IMAP and CalDAV servers in MAILCRAFT_REAL_CALENDAR"]
 fn real_series_and_occurrence_deleted() {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_CALENDAR") else {
         eprintln!("MAILCRAFT_REAL_CALENDAR isn't set: skipped");
@@ -115,7 +115,7 @@ fn real_series_and_occurrence_deleted() {
 /// An event holding a component of 100,000 lines, then its alarm: synced, it keeps a few hundred
 /// of them, and its reminder.
 #[test]
-#[ignore]
+#[ignore = "needs real IMAP and CalDAV servers in MAILCRAFT_REAL_CALENDAR"]
 fn real_event_with_a_huge_component() {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_CALENDAR") else {
         eprintln!("MAILCRAFT_REAL_CALENDAR isn't set: skipped");

@@ -661,7 +661,7 @@ fn megabytes_of_comments() -> impl Iterator<Item = (String, String)> {
 /// How long the hostile copies above take to read: `cargo test --release -p mailcraft-mime --lib
 /// how_long_hostile_copies_take -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn how_long_hostile_copies_take() {
     let took = |what: &str, f: &dyn Fn()| {
         let started = std::time::Instant::now();

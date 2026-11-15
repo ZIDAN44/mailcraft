@@ -61,7 +61,7 @@ fn a_folders_numbers_are_its_lists() {
 /// Issue #396: a big folder's numbers read alone, against its whole list read for them (what
 /// forgetting the numbers no longer used on each full sync did), on disk.
 #[test]
-#[ignore]
+#[ignore = "a measurement"]
 fn folder_uids_timed() {
     let n: u32 = std::env::var("MC_N").ok().and_then(|v| v.parse().ok()).unwrap_or(100_000);
     let s = temp_store("folder-uids-timed");

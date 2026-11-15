@@ -102,7 +102,7 @@ fn hostile_footers_are_read_in_time() {
 
 /// How long those take: `cargo test --release -p mailcraft-mime --lib how_long_hostile_footers_take -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn how_long_hostile_footers_take() {
     for html in hostile_footers() {
         let started = std::time::Instant::now();

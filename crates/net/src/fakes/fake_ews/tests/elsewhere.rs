@@ -205,7 +205,7 @@ fn a_sync_walks_the_public_folders_once() {
 /// times: how long, how many requests, and a digest of what was listed and read.
 /// Run: `cargo test --release -p mailcraft-net --lib measure_syncs_with_public_folders -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "a measurement: run in release"]
 fn measure_syncs_with_public_folders() {
     use std::hash::{Hash, Hasher};
     let mut d = with_public_folders();
