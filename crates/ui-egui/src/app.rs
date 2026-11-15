@@ -6,7 +6,7 @@ mod bodies;
 pub(crate) mod boot;
 mod chrome;
 mod data_files;
-mod dropped;
+mod files;
 pub(crate) mod frame;
 mod keys;
 pub(crate) mod source;
@@ -19,6 +19,7 @@ use crate::*;
 pub(crate) use chrome::caption;
 use chrome::{bars, ribbon, search_box};
 pub(crate) use data_files::{compacting, importing};
+use files::dropped;
 
 pub use actions::Action;
 pub use alt_code::{alt_code_pages, alt_codes};

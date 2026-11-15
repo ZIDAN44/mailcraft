@@ -23,12 +23,9 @@ macro_rules! tf {
 
 mod a11y;
 mod app;
-mod backup;
 mod dialogs;
 pub mod i18n;
-mod kept;
 mod keytips;
-mod lists;
 mod look;
 mod panes;
 mod reading;

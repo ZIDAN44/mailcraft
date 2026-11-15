@@ -1,4 +1,7 @@
-//! The window's state that isn't the mail's (`UiState`): what's open, typed, picked and laid out.
+//! The window's state that isn't the mail's (`UiState`): what's open, typed, picked and laid out;
+//! and what of it is kept between runs.
+
+mod kept;
 
 use crate::*;
 
