@@ -12,14 +12,7 @@ fn online(st: &Arc<Mutex<State>>, name: &str) -> (crate::worker::Pool, Store, st
     let store = store(name);
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: smtp_port, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(imap_port, smtp_port);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     (pool, store, log)
@@ -416,13 +409,7 @@ fn a_draft_kept_on_close_goes_before_the_next_runs_save() {
     drop(pool);
     let port = serve_tcp(&st);
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(port, 1);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: next.clone(), folder: "Drafts".into(), replaces: None });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));

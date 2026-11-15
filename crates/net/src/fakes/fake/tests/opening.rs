@@ -18,17 +18,6 @@ fn with_a_big_file() -> Vec<u8> {
     .into_bytes()
 }
 
-fn account(id: &str, port: u16) -> AccountConfig {
-    AccountConfig {
-        id: id.into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    }
-}
-
 fn body_of(seen: &[Event], key: &MessageKey) -> Vec<Vec<u8>> {
     seen.iter()
         .filter_map(|e| match e {
@@ -49,7 +38,7 @@ fn a_big_message_comes_as_its_text_first() {
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    pool.submit(Job::Start { account: account("a1", serve_tcp(&st)), password: Some(Secret("pw".into())) });
+    pool.submit(Job::Start { account: imap_account(serve_tcp(&st), 1), password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let key = store.load_folder("a1", "INBOX").unwrap().messages[0].key.clone();
     assert!(!store.has_body(&key), "not downloaded ahead");
@@ -92,7 +81,7 @@ fn a_message_opened_during_a_sync_doesnt_wait_for_it() {
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    pool.submit(Job::Start { account: account("a1", serve_tcp(&st)), password: Some(Secret("pw".into())) });
+    pool.submit(Job::Start { account: imap_account(serve_tcp(&st), 1), password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let key = store.load_folder("a1", "INBOX").unwrap().messages[0].key.clone();
     assert!(!store.has_body(&key));

@@ -34,13 +34,7 @@ fn inbox_counts_said(make: bool) -> Option<(u32, u32)> {
     let store = store(if make { "counts-folder-made" } else { "counts-nothing-made" });
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(port, 1);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     let ops = if make { vec![Op::CreateFolder { path: "Plans".into() }] } else { Vec::new() };
     let mut seen = made_while_held(&mut pool, &store, holding, &ops);
@@ -89,13 +83,7 @@ fn a_folder_renamed_mid_sync_is_never_shown_undone() {
     let store = store("counts-folder-renamed");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(port, 1);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     let ops = [Op::RenameFolder { from: "Archive".into(), to: "Kept".into() }, Op::CreateFolder { path: "Plans".into() }];
     let mut seen = made_while_held(&mut pool, &store, holding, &ops);
@@ -162,13 +150,7 @@ fn a_folder_renamed_mid_sync_keeps_its_counts() {
     let store = store("counts-renamed-own");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(port, 1);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     let mut seen = made_while_held(&mut pool, &store, holding, &[Op::RenameFolder { from: "Archive".into(), to: "Kept".into() }]);
     seen.extend(until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. })));
@@ -213,13 +195,7 @@ fn a_folder_renamed_as_it_is_read_leaves_no_cache_behind() {
     let store = store("renamed-as-read");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(port, 1);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let cached = |path: &str| store.load_folder("a1", path).map(|f| f.messages.len()).unwrap_or(0);
@@ -259,13 +235,7 @@ fn a_folder_made_here_keeps_the_counts_of_mail_read_here() {
     let store = store("counts-read-then-made");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(port, 1);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let inbox = |l: &[mailcraft_model::Folder]| l.iter().find(|f| f.path == "INBOX").map(|f| (f.unread, f.total));

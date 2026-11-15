@@ -12,6 +12,20 @@ use crate::worker::apply_remote;
 mod opening;
 mod reactions;
 
+/// The account these tests sign in with (`a1`, me@studio.example, password `pw`): its mail on
+/// the fake at `imap_port`, its sending at `smtp_port` (1 where nothing is sent: no server).
+fn imap_account(imap_port: u16, smtp_port: u16) -> AccountConfig {
+    let at = |port| ServerConfig { host: "127.0.0.1".into(), port, security: Security::None };
+    AccountConfig {
+        id: "a1".into(),
+        email: "me@studio.example".into(),
+        username: "me@studio.example".into(),
+        imap: at(imap_port),
+        smtp: at(smtp_port),
+        ..Default::default()
+    }
+}
+
 #[test]
 fn wrong_password_is_an_auth_error() {
     let st = State::new();
@@ -406,14 +420,7 @@ fn mailbox_settings_over_imap_and_managesieve() {
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.sieve_port = sieve_port;
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(imap_port, 1);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     let seen = until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     assert!(seen.iter().any(|e| matches!(e, Event::Quota { limit: 1_048_576, used, .. } if *used >= 1024)), "GETQUOTAROOT, in bytes");
@@ -444,14 +451,7 @@ fn working_offline_keeps_drafts_and_mail_until_back() {
     let store = store("offline");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(imap_port, 1);
     // Working offline before it starts: it never connects.
     pool.submit(Job::WorkOffline { on: true });
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
@@ -518,11 +518,8 @@ fn an_online_only_account_syncs_and_reads_with_nothing_on_disk() {
     let account = |id: &str, port: u16, online_only: bool| AccountConfig {
         id: id.into(),
         email: format!("{id}@studio.example"),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
         online_only,
-        ..Default::default()
+        ..imap_account(port, 1)
     };
     let (a1, a2) = (account("a1", serve_tcp(&online), true), account("a2", serve_tcp(&kept), false));
     store.save_accounts(&[a1.clone(), a2.clone()]).unwrap();
@@ -581,14 +578,7 @@ fn outbox_holds_mail_until_smtp_is_back() {
     let store = store("outbox");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: smtp_port, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(imap_port, smtp_port);
     // Not started yet: a send goes straight to the Outbox.
     let raw = b"From: me@studio.example\r\nTo: zoe@studio.example\r\nSubject: queued\r\nMessage-ID: <q@x>\r\n\r\nhi\r\n".to_vec();
     let send = |id: u64| Job::Send {
@@ -650,15 +640,7 @@ fn worker_pool_end_to_end_over_tcp() {
     let store = store("e2e");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        name: "Me".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: smtp_port, security: Security::None },
-        ..Default::default()
-    };
+    let account = AccountConfig { name: "Me".into(), ..imap_account(imap_port, smtp_port) };
 
     // Wrong password first: the worker reports it and stops retrying.
     pool.submit(Job::Start { account: account.clone(), password: Some(Secret("nope".into())) });
@@ -714,15 +696,8 @@ fn the_outgoing_server_signs_in_with_its_own_user_name_and_password() {
     let store = store("smtp-own-sign-in");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: smtp_port, security: Security::None },
-        smtp_username: Some("relay-user".into()),
-        ..Default::default()
-    };
+    // Its own user name for sending: the point of the test.
+    let account = AccountConfig { smtp_username: Some("relay-user".into()), ..imap_account(imap_port, smtp_port) };
     pool.submit(Job::Start { account: account.clone(), password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let send = |id: u64| Job::Send {
@@ -792,14 +767,7 @@ fn a_draft_on_a_server_without_drafts_makes_the_folder() {
     let store = store("drafts-made");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port: imap_port, security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(imap_port, 1);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     eventually("its folders listed", || store.load_folders("a1").is_ok_and(|f| !f.is_empty()));
     assert!(st.lock().unwrap().mailbox("Drafts").is_none());

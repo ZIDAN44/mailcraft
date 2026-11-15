@@ -3,16 +3,6 @@
 
 use super::*;
 
-fn account(port: u16) -> AccountConfig {
-    AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        ..Default::default()
-    }
-}
-
 /// The Inbox's first `n` messages, as the cache keys them.
 fn keys(n: u32) -> Vec<MessageKey> {
     (1..=n).map(|uid| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 100, uid }).collect()
@@ -32,7 +22,7 @@ fn offline(n: u32, name: &str) -> (Arc<Mutex<State>>, Store, crate::worker::Pool
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.submit(Job::WorkOffline { on: true });
-    pool.submit(Job::Start { account: account(port), password: Some(Secret("pw".into())) });
+    pool.submit(Job::Start { account: imap_account(port, 1), password: Some(Secret("pw".into())) });
     until(&pool, "offline", |e| matches!(e, Event::Status { status: SyncStatus::Offline, .. }));
     (st, store, pool)
 }
@@ -82,7 +72,7 @@ fn a_move_into_a_folder_not_there_is_said_and_the_mail_stays() {
     let store = store("replay-move-nowhere");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    pool.submit(Job::Start { account: account(port), password: Some(Secret("pw".into())) });
+    pool.submit(Job::Start { account: imap_account(port, 1), password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let cached = || store.load_folder("a1", "INBOX").map(|f| f.messages.len()).unwrap_or(0);
     assert_eq!(cached(), 2);

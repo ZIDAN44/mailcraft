@@ -3,16 +3,6 @@
 
 use super::*;
 
-fn account(port: u16) -> AccountConfig {
-    AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        ..Default::default()
-    }
-}
-
 /// What a folder change made here while a full sync is on the Inbox, before the folder's turn,
 /// leaves said: the notices, and the server's folders after.
 fn mid_sync(op: Op, name: &str) -> (Vec<String>, Vec<String>) {
@@ -26,7 +16,7 @@ fn mid_sync(op: Op, name: &str) -> (Vec<String>, Vec<String>) {
     let port = serve_tcp(&st);
     let store = store(name);
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    pool.submit(Job::Start { account: account(port), password: Some(Secret("pw".into())) });
+    pool.submit(Job::Start { account: imap_account(port, 1), password: Some(Secret("pw".into())) });
     let mut seen = super::counts::made_while_held(&mut pool, &store, holding, &[op]);
     seen.extend(until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. })));
     seen.extend(events_until(&pool, "the change sent", |_| store.load_ops("a1").is_ok_and(|ops| ops.is_empty())));
@@ -78,7 +68,7 @@ fn a_folder_renamed_twice_offline_keeps_its_mail() {
     let port = serve_tcp(&st);
     let store = store("renamed-twice-offline");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    pool.submit(Job::Start { account: account(port), password: Some(Secret("pw".into())) });
+    pool.submit(Job::Start { account: imap_account(port, 1), password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let cached = |path: &str| store.load_folder("a1", path).map(|f| f.messages.len()).unwrap_or(0);
     assert_eq!((cached("Archive"), cached("Other")), (1, 1));

@@ -16,6 +16,18 @@ mod elsewhere;
 mod large_folder;
 mod pim;
 
+/// The account these tests sign in with (`a1`, Riley, `CONTOSO\riley`), on the EWS server at
+/// `url`.
+fn ews_account(url: &str) -> AccountConfig {
+    AccountConfig {
+        id: "a1".into(),
+        email: "riley@contoso.example".into(),
+        username: format!("{DOMAIN}\\{USER}"),
+        ews: Some(url.into()),
+        ..Default::default()
+    }
+}
+
 /// Gap #7: searching Exchange through EWS (`QueryString`, and a `Restriction` for the read
 /// state) for mail past the window.
 #[test]
@@ -37,13 +49,7 @@ fn ews_is_searched_past_the_window() {
         );
     }
     let server = serve(d);
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "riley@contoso.example".into(),
-        username: format!("{DOMAIN}\\{USER}"),
-        ews: Some(server.url.clone()),
-        ..Default::default()
-    };
+    let account = ews_account(&server.url);
     let data = server.data.clone();
     crate::fake::search_the_server_past_the_window("ews-search", account, PASSWORD, &|n, read| {
         let mut d = data.lock().unwrap();
@@ -68,14 +74,7 @@ fn an_on_premises_exchange_account_works_through_ews() {
     let mut d = Data::default();
     d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
     let server = serve(d);
-    let account = AccountConfig {
-        id: "a1".into(),
-        name: "Riley".into(),
-        email: "riley@contoso.example".into(),
-        username: format!("{DOMAIN}\\{USER}"),
-        ews: Some(server.url.clone()),
-        ..Default::default()
-    };
+    let account = AccountConfig { name: "Riley".into(), ..ews_account(&server.url) };
     let away = Vacation {
         enabled: true,
         subject: String::new(),
@@ -232,13 +231,7 @@ fn folder_edits_queued_together_each_find_their_folder() {
     let data = server.data.clone();
     let store = crate::fake::tests_store("ews-folder-burst");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "riley@contoso.example".into(),
-        username: format!("{DOMAIN}\\{USER}"),
-        ews: Some(server.url.clone()),
-        ..Default::default()
-    };
+    let account = ews_account(&server.url);
     pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let key = store.load_folder("a1", "INBOX").unwrap().messages[0].key.clone();
@@ -279,14 +272,7 @@ fn a_flag_set_mid_sync_is_not_lost() {
     let dir = std::env::temp_dir().join(format!("mailcraft-ews-changes-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let store = Store::open(&dir).unwrap();
-    let account = AccountConfig {
-        id: "a1".into(),
-        name: "Riley".into(),
-        email: "riley@contoso.example".into(),
-        username: format!("{DOMAIN}\\{USER}"),
-        ews: Some(server.url.clone()),
-        ..Default::default()
-    };
+    let account = AccountConfig { name: "Riley".into(), ..ews_account(&server.url) };
     let start = |store: &Store| {
         let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
         pool.submit(Job::Start { account: account.clone(), password: Some(Secret(PASSWORD.into())) });
@@ -341,14 +327,7 @@ fn sending_and_automatic_replies_dont_wait_for_a_long_sync() {
     let _ = std::fs::remove_dir_all(&dir);
     let store = Store::open(&dir).unwrap();
     let mut pool = crate::worker::Pool::new(store, Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        name: "Riley".into(),
-        email: "riley@contoso.example".into(),
-        username: format!("{DOMAIN}\\{USER}"),
-        ews: Some(server.url.clone()),
-        ..Default::default()
-    };
+    let account = AccountConfig { name: "Riley".into(), ..ews_account(&server.url) };
     pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
     // The folders are listed; listing their messages is held from here.
     until(&pool, "folders", |e| matches!(e, Event::Folders { .. }));

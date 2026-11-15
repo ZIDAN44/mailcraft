@@ -37,15 +37,7 @@ fn mail_arriving_after_the_inbox_sync_shows_before_idle() {
     let store = store("late-mail");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { port, security: Security::None, host: "127.0.0.1".into() },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
-    pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
+    pool.submit(Job::Start { account: imap_account(port, 1), password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     assert!(st.lock().unwrap().deliver_on.is_none(), "delivered during the sync");
     let has_late = || store.load_folder("a1", "INBOX").unwrap().messages.iter().any(|m| m.subject == "Late");

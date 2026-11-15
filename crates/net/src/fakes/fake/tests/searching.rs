@@ -246,14 +246,7 @@ fn a_server_search_stops_when_its_no_longer_wanted() {
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.submit(Job::SetSync { messages: 10, offline: 0 });
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(port, 1);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     // Slow searching, as a server reading every message.
@@ -306,14 +299,7 @@ fn show_more_and_search(caps: &'static str) {
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
     pool.submit(Job::SetSync { messages: 10, offline: 0 });
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port, security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account(port, 1);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     assert_eq!(store.load_folder("a1", "INBOX").unwrap().messages.len(), 10);

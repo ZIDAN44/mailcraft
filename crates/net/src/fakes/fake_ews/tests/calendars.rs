@@ -28,16 +28,6 @@ fn mailbox() -> (Data, String, String) {
     (d, cal, "E1".into())
 }
 
-fn account(url: &str) -> AccountConfig {
-    AccountConfig {
-        id: "a1".into(),
-        email: "riley@contoso.example".into(),
-        username: format!("{DOMAIN}\\{USER}"),
-        ews: Some(url.into()),
-        ..Default::default()
-    }
-}
-
 fn store(name: &str) -> Store {
     let dir = std::env::temp_dir().join(format!("mailcraft-ews-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -76,7 +66,7 @@ fn the_calendar_comes_with_the_inbox_the_first_time() {
     let server = serve(d);
     let store = store("calendar-first");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    pool.submit(Job::Start { account: account(&server.url), password: Some(Secret(PASSWORD.into())) });
+    pool.submit(Job::Start { account: ews_account(&server.url), password: Some(Secret(PASSWORD.into())) });
     let said = order(&pool);
     let at = |what: &str| said.iter().position(|s| s == what).unwrap_or_else(|| panic!("{what} isn't in {said:?}"));
     assert_eq!(at("INBOX"), 0, "{said:?}");
@@ -87,7 +77,7 @@ fn the_calendar_comes_with_the_inbox_the_first_time() {
     // Read before (the engine keeps when): after the mail, as ever.
     store.save_account_doc("a1", PIM_DOC, &Pim { dav_checked: Some(1_792_000_000), ..Default::default() }).unwrap();
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    pool.submit(Job::Start { account: account(&server.url), password: Some(Secret(PASSWORD.into())) });
+    pool.submit(Job::Start { account: ews_account(&server.url), password: Some(Secret(PASSWORD.into())) });
     let said = order(&pool);
     assert_eq!(said.last().map(String::as_str), Some("calendar"), "{said:?}");
     assert_eq!(said.len(), 5, "{said:?}");
@@ -110,7 +100,7 @@ fn a_calendar_the_server_refuses_says_so_once() {
 
     let store = store("calendar-refused");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    pool.submit(Job::Start { account: account(&server.url), password: Some(Secret(PASSWORD.into())) });
+    pool.submit(Job::Start { account: ews_account(&server.url), password: Some(Secret(PASSWORD.into())) });
     let errors = |pool: &crate::worker::Pool| {
         let seen = until(pool, "the calendar's answer", |e| matches!(e, Event::DavSynced { .. }));
         match seen.into_iter().next_back() {
