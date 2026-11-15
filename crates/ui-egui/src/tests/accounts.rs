@@ -75,6 +75,28 @@ fn the_file_page_shows_accounts_replies_space_and_options() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// An Exchange account's automatic replies: who outside the organisation gets one is shown as the
+/// server keeps it and saved as `account.setVacation` takes it; a reply of their own goes only to
+/// someone.
+#[test]
+fn automatic_replies_keep_who_outside_gets_one() {
+    use crate::dialogs::Outside;
+    for (kept, shown, sent) in [("", Outside::Anyone, "all"), ("known", Outside::Known, "known"), ("none", Outside::NoOne, "none")] {
+        let v = mailcraft_engine::model::job::Vacation {
+            enabled: true,
+            text: "Away".into(),
+            external: Some("Out".into()),
+            outside: kept.into(),
+            ..Default::default()
+        };
+        let Dialog::Vacation(f) = Dialog::vacation("sample", &v, true) else { panic!("not the replies dialog") };
+        assert_eq!(f.outside, shown, "{kept:?}");
+        let p = f.params();
+        assert_eq!(p["outside"], sent, "{kept:?}");
+        assert_eq!(p.get("external").is_some(), sent != "none", "{kept:?}");
+    }
+}
+
 /// Issue #61: calendars and contacts only, from a Nextcloud or Radicale address, with no email.
 #[test]
 fn the_account_form_adds_calendar_only_accounts() {

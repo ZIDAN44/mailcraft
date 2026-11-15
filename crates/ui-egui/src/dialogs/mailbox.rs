@@ -27,9 +27,40 @@ pub struct VacationForm {
     /// Outside gets a reply of its own.
     pub split: bool,
     pub external: String,
-    /// Who outside gets one: `all`, `known` or `none`.
-    pub outside: String,
+    /// Who outside gets one.
+    pub outside: Outside,
     pub error: Option<String>,
+}
+
+/// Who outside the organisation gets an automatic reply (Exchange).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Outside {
+    #[default]
+    Anyone,
+    /// The user's contacts only.
+    Known,
+    NoOne,
+}
+
+impl Outside {
+    /// As the account's replies say it (`Vacation::outside`): `known`, `none`, else (empty or
+    /// `all`) anyone.
+    pub fn from_code(code: &str) -> Outside {
+        match code {
+            "known" => Outside::Known,
+            "none" => Outside::NoOne,
+            _ => Outside::Anyone,
+        }
+    }
+
+    /// As `account.setVacation` takes it.
+    pub fn code(self) -> &'static str {
+        match self {
+            Outside::Anyone => "all",
+            Outside::Known => "known",
+            Outside::NoOne => "none",
+        }
+    }
 }
 
 impl VacationForm {
@@ -44,8 +75,8 @@ impl VacationForm {
             "until": day(&self.until),
         });
         if self.exchange {
-            p["outside"] = json!(self.outside);
-            if self.split && self.outside != "none" {
+            p["outside"] = json!(self.outside.code());
+            if self.split && self.outside != Outside::NoOne {
                 p["external"] = json!(self.external);
             }
         }
@@ -90,11 +121,11 @@ pub(super) fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut
             ui.add_space(6.0);
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(tl!("Outside my organization")).strong().small());
-                for (code, label) in [("all", "Anyone"), ("known", "My contacts only"), ("none", "No one")] {
-                    ui.radio_value(&mut f.outside, code.to_string(), tl!(label));
+                for (who, label) in [(Outside::Anyone, "Anyone"), (Outside::Known, "My contacts only"), (Outside::NoOne, "No one")] {
+                    ui.radio_value(&mut f.outside, who, tl!(label));
                 }
             });
-            if f.outside != "none" {
+            if f.outside != Outside::NoOne {
                 ui.checkbox(&mut f.split, tl!("A different reply for them"));
                 if f.split {
                     ui.add(

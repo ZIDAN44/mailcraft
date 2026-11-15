@@ -130,11 +130,40 @@ pub struct NamesForm {
     /// An Exchange Online account needs the user's permission to search its directory (issue #9).
     pub consent: bool,
     pub selected: Option<usize>,
-    /// The field a double-click adds to (`to`, `cc`, `bcc`).
-    pub target: &'static str,
+    /// The field a double-click adds to.
+    pub target: Recipients,
     pub to: String,
     pub cc: String,
     pub bcc: String,
+}
+
+/// A message's recipient fields.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Recipients {
+    #[default]
+    To,
+    Cc,
+    Bcc,
+}
+
+impl Recipients {
+    /// Its name in the commands' parameters and the widgets' ids: `to`, `cc` or `bcc`.
+    pub fn code(self) -> &'static str {
+        match self {
+            Recipients::To => "to",
+            Recipients::Cc => "cc",
+            Recipients::Bcc => "bcc",
+        }
+    }
+
+    /// This field of the three given (To, Cc and Bcc, in that order).
+    pub fn of<'a>(self, to: &'a mut String, cc: &'a mut String, bcc: &'a mut String) -> &'a mut String {
+        match self {
+            Recipients::To => to,
+            Recipients::Cc => cc,
+            Recipients::Bcc => bcc,
+        }
+    }
 }
 
 /// Add `a` to a recipient field (`a; b` as Outlook writes them), unless it's there: an address
@@ -226,7 +255,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         });
     }
     ui.add_space(6.0);
-    let mut add: Option<&'static str> = None;
+    let mut add: Option<Recipients> = None;
     egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(4).show(ui, |ui| {
         ui.set_min_size(vec2(ui.available_width(), 230.0));
         egui::Grid::new("names-head").num_columns(2).min_col_width(250.0).show(ui, |ui| {
@@ -305,26 +334,16 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         ui.add(egui::Label::new(RichText::new(tf!("The directory couldn't be searched: {error}", error = e)).color(t.warn).small()).wrap());
     }
     ui.add_space(8.0);
-    for (name, label) in [("to", "To ->"), ("cc", "Cc ->"), ("bcc", "Bcc ->")] {
+    for (field, label) in [(Recipients::To, "To ->"), (Recipients::Cc, "Cc ->"), (Recipients::Bcc, "Bcc ->")] {
         ui.horizontal(|ui| {
             if ui.add_sized(vec2(72.0, 24.0), egui::Button::new(tl!(label))).clicked() {
-                add = Some(name);
+                add = Some(field);
             }
-            let field = match name {
-                "to" => &mut f.to,
-                "cc" => &mut f.cc,
-                _ => &mut f.bcc,
-            };
-            ui.add(egui::TextEdit::singleline(field).desired_width(f32::INFINITY));
+            ui.add(egui::TextEdit::singleline(field.of(&mut f.to, &mut f.cc, &mut f.bcc)).desired_width(f32::INFINITY));
         });
     }
     if let (Some(target), Some(a)) = (add, f.selected.and_then(|i| f.list.get(i)).cloned()) {
-        let field = match target {
-            "to" => &mut f.to,
-            "cc" => &mut f.cc,
-            _ => &mut f.bcc,
-        };
-        add_to(field, &a);
+        add_to(target.of(&mut f.to, &mut f.cc, &mut f.bcc), &a);
     }
     let (ok, cancel) = buttons(ui, t, "OK", true);
     if ok {

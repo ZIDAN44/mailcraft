@@ -266,7 +266,7 @@ impl Dialog {
     }
 
     /// The address book for the message being written; a double-click adds to `field`.
-    pub fn select_names(c: &mailcraft_engine::Compose, field: &'static str) -> Dialog {
+    pub fn select_names(c: &mailcraft_engine::Compose, field: Recipients) -> Dialog {
         Dialog::SelectNames(Box::new(NamesForm {
             target: field,
             to: c.to.clone(),
@@ -447,7 +447,7 @@ impl Dialog {
             exchange,
             split: v.external.is_some(),
             external: v.external.clone().unwrap_or_default(),
-            outside: if v.outside.is_empty() { "all".into() } else { v.outside.clone() },
+            outside: Outside::from_code(&v.outside),
             error: None,
         }))
     }

@@ -101,7 +101,7 @@ impl MailApp {
         // window's; Ctrl+Shift+B opens the address book from any of its boxes.
         if typing && let Some(c) = self.session.compose.as_ref().filter(|c| compose_inline(c, ctx)) {
             if combo == "Mod+Shift+B" {
-                self.ui.dialog = Some(Dialog::select_names(c, "to"));
+                self.ui.dialog = Some(Dialog::select_names(c, crate::dialogs::Recipients::To));
             }
             if !matches!(combo, "Mod+S" | "Mod+Enter") {
                 return true;

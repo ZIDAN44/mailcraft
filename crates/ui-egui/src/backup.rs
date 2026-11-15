@@ -22,7 +22,7 @@ impl MailApp {
 
     /// Ask for a backup file to bring in.
     pub(crate) fn pick_backup(&mut self) {
-        if !self.services.pick_later("backup") {
+        if !self.services.pick_later(&crate::Picked::Backup) {
             self.session.notice(tl!("A backup is brought in where MailCraft runs in the browser."), true);
         }
     }

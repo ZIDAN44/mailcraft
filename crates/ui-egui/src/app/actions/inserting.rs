@@ -24,7 +24,7 @@ impl MailApp {
 
     /// Pictures from files, at the cursor (the browser's picker answers later).
     pub(super) fn insert_picture(&mut self) {
-        if self.services.pick_later("picture") {
+        if self.services.pick_later(&crate::Picked::Picture) {
             return;
         }
         for p in self.services.pick_pictures() {
@@ -54,7 +54,7 @@ impl MailApp {
 
     /// Files attached (the browser's picker answers later).
     pub(super) fn attach_files(&mut self) {
-        if self.services.pick_later("attach") {
+        if self.services.pick_later(&crate::Picked::Attach) {
             return;
         }
         for p in self.services.pick_files() {

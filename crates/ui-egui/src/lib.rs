@@ -66,7 +66,7 @@ pub(crate) fn os_window() -> egui::ViewportBuilder {
     egui::ViewportBuilder::default().with_app_id(APP_ID)
 }
 use icons::Icon;
-pub use services::{Backend, InstallAsks, KeptOnClose, Lane, NullBackend, NullServices, Services, UpdateState, Work};
+pub use services::{Backend, InstallAsks, KeptOnClose, Lane, NullBackend, NullServices, Picked, Services, UpdateState, Work};
 use theme::Tokens;
 
 /// How the app reads HTML from the clipboard, set once at start (the clipboard is the
@@ -405,14 +405,14 @@ pub struct UiState {
     pub(crate) quote_focus: Option<(u64, usize)>,
     /// Signatures written as HTML code, laid out for the messages being written (issue #90).
     pub(crate) signature_cards: reading::SignatureCards,
-    /// The recipient box showing suggestions (`to`, `cc`, `bcc`), the highlighted one, and the
-    /// text for which Escape hid them.
-    pub(crate) suggest_field: Option<&'static str>,
+    /// The recipient box showing suggestions, the highlighted one, and the text for which Escape
+    /// hid them.
+    pub(crate) suggest_field: Option<dialogs::Recipients>,
     pub(crate) suggest_index: usize,
     pub(crate) suggest_dismissed: Option<String>,
     /// The recipient box a suggestion was just picked into: it keeps the cursor through the rest
     /// of that click (the release lands outside the box, which would otherwise end its focus).
-    pub(crate) suggest_refocus: Option<&'static str>,
+    pub(crate) suggest_refocus: Option<dialogs::Recipients>,
     /// The people suggested for the text in that box, kept while it and what they're made of
     /// stay the same.
     pub(crate) suggested: Option<reading::Suggested>,
@@ -719,25 +719,26 @@ impl MailApp {
         }
         // Files chosen in the browser's picker.
         for (purpose, name, data) in self.services.take_picked() {
-            if let Some(account) = purpose.strip_prefix("certificate:") {
-                self.ui.dialog = Some(Dialog::Certificate { account: account.to_string(), path: name, data: Some(data), password: String::new() });
-            } else if purpose == "backup" {
-                self.backup_picked(name, data);
-            } else if purpose == "rules" {
-                self.rules_picked(&data);
-            } else if purpose == "categories" {
-                self.categories_picked(&data);
-            } else if purpose == "picture" {
-                let size = rich_edit::own_size(&data);
-                let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
-                // Handed over as they are, not as a JSON list (a value per byte).
-                let handed = self.session.hand(data);
-                let params = self.picture_place(json!({"name": name, "handed": handed, "width": width, "line": line}));
-                let r = self.session.run("compose.insertPicture", &params);
-                self.place_picture(r);
-            } else {
-                let handed = self.session.hand(data);
-                self.run("compose.attach", json!({"name": name, "handed": handed}));
+            match purpose {
+                Picked::Certificate(account) => {
+                    self.ui.dialog = Some(Dialog::Certificate { account, path: name, data: Some(data), password: String::new() });
+                }
+                Picked::Backup => self.backup_picked(name, data),
+                Picked::Rules => self.rules_picked(&data),
+                Picked::Categories => self.categories_picked(&data),
+                Picked::Picture => {
+                    let size = rich_edit::own_size(&data);
+                    let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
+                    // Handed over as they are, not as a JSON list (a value per byte).
+                    let handed = self.session.hand(data);
+                    let params = self.picture_place(json!({"name": name, "handed": handed, "width": width, "line": line}));
+                    let r = self.session.run("compose.insertPicture", &params);
+                    self.place_picture(r);
+                }
+                Picked::Attach => {
+                    let handed = self.session.hand(data);
+                    self.run("compose.attach", json!({"name": name, "handed": handed}));
+                }
             }
         }
         // Snoozed mail that is due comes back.

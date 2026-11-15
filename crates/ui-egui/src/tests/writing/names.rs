@@ -9,7 +9,7 @@ fn names_of(ctx: &egui::Context, a: &mut MailApp, n: usize) {
     a.run("mail.new", json!({}));
     frame(ctx, a, vec![]);
     let c = a.session.compose.clone().unwrap();
-    a.ui.dialog = Some(Dialog::select_names(&c, "to"));
+    a.ui.dialog = Some(Dialog::select_names(&c, crate::dialogs::Recipients::To));
     frame(ctx, a, vec![]);
     let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
     f.list = (0..n).map(|i| mailcraft_engine::model::EmailAddress::new(format!("Person {i:04}"), format!("p{i:04}@x.example"))).collect();
@@ -125,5 +125,39 @@ fn measure_select_names() {
             h.finish()
         );
     }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// Opened from Bcc, a double-click adds the person to Bcc; a field's button adds the one selected
+/// to that field.
+#[test]
+fn select_names_adds_to_the_field_asked() {
+    use crate::dialogs::Recipients;
+    let (mut a, dir) = app("names-fields");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.session.prefs.new_mail_window = false;
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().unwrap();
+    a.ui.dialog = Some(Dialog::select_names(&c, Recipients::Bcc));
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
+    f.list = (0..3).map(|i| mailcraft_engine::model::EmailAddress::new(format!("Person {i:04}"), format!("p{i:04}@x.example"))).collect();
+    frame(&ctx, &mut a, vec![]);
+    let fields = |a: &MailApp| match a.ui.dialog.as_ref() {
+        Some(Dialog::SelectNames(f)) => (f.to.clone(), f.cc.clone(), f.bcc.clone()),
+        _ => panic!("no dialog"),
+    };
+    let texts = drawn(&ctx, &mut a, vec![]);
+    let at = texts.iter().find(|(t, _)| t == "Person 0001").map(|(_, p)| *p + egui::vec2(10.0, 6.0)).expect("Person 0001 drawn");
+    click(&ctx, &mut a, at);
+    click(&ctx, &mut a, at);
+    assert_eq!(fields(&a), (String::new(), String::new(), "Person 0001 <p0001@x.example>; ".to_string()));
+    click_named(&ctx, &mut a, "Cc ->");
+    assert_eq!(fields(&a).1, "Person 0001 <p0001@x.example>; ");
+    click_named(&ctx, &mut a, "To ->");
+    assert_eq!(fields(&a).0, "Person 0001 <p0001@x.example>; ");
     let _ = std::fs::remove_dir_all(dir);
 }

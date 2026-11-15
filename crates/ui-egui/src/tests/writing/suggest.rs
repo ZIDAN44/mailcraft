@@ -19,7 +19,7 @@ fn typing_in_to(ctx: &egui::Context, a: &mut MailApp, typed: &str) {
     frame(ctx, a, vec![]);
     frame(ctx, a, vec![Event::Text(typed.into())]);
     assert_eq!(a.session.compose.as_ref().map(|c| c.to.as_str()), Some(typed));
-    assert_eq!(a.ui.suggest_field, Some("to"));
+    assert_eq!(a.ui.suggest_field, Some(crate::dialogs::Recipients::To));
 }
 
 /// What's suggested follows what's typed, and the address book as it changes while the same

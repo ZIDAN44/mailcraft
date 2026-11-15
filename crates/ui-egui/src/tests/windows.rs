@@ -44,7 +44,7 @@ fn a_message_page_s_reply_has_the_address_book() {
     tab.run("mail.reply", json!({}));
     frame(&ctx, &mut tab, vec![]);
     let c = tab.session.compose.clone().unwrap();
-    tab.ui.dialog = Some(Dialog::select_names(&c, "to"));
+    tab.ui.dialog = Some(Dialog::select_names(&c, crate::dialogs::Recipients::To));
     frame(&ctx, &mut tab, vec![]);
     assert_eq!(tab.ui.page_message.as_ref(), Some(&k), "still the page");
     let Some(Dialog::SelectNames(f)) = &tab.ui.dialog else { panic!("no dialog") };
@@ -166,7 +166,7 @@ fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
     a.run("mail.new", json!({}));
     a.act(crate::Action::AttachFiles);
     frame(&ctx, &mut a, vec![]);
-    assert_eq!(asked.borrow().as_slice(), ["attach"]);
+    assert_eq!(asked.borrow().as_slice(), [crate::Picked::Attach]);
     // Its bytes handed over as they are.
     assert!(a.session.compose.as_ref().is_some_and(|c| c.attachments.iter().any(|x| x.name == "notes.txt" && x.data == b"remember")));
     a.run("compose.discard", json!({}));
@@ -196,7 +196,7 @@ fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
     a.act(crate::Action::ImportCategories);
     frame(&ctx, &mut a, vec![]);
     assert_eq!(a.session.prefs.categories.len(), categories);
-    assert_eq!(asked.borrow().get(1..), Some(&["rules".to_string(), "categories".to_string()][..]));
+    assert_eq!(asked.borrow().get(1..), Some(&[crate::Picked::Rules, crate::Picked::Categories][..]));
     // A file that isn't one is said so, and nothing changes.
     a.act(crate::Action::ImportRules);
     frame(&ctx, &mut a, vec![]);

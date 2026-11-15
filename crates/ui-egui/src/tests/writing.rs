@@ -18,7 +18,7 @@ fn recipient_boxes_suggest_people() {
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![Event::Text("zo".into())]);
     assert_eq!(a.session.compose.as_ref().unwrap().to, "zo");
-    assert_eq!(a.ui.suggest_field, Some("to"));
+    assert_eq!(a.ui.suggest_field, Some(crate::dialogs::Recipients::To));
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
     assert_eq!(a.session.compose.as_ref().unwrap().to, "Zoe Park <zoe@studio.example>, ");
@@ -123,7 +123,7 @@ fn the_address_book_adds_people_to_to_cc_and_bcc() {
     a.run("mail.new", json!({}));
     frame(&ctx, &mut a, vec![]);
     let c = a.session.compose.clone().unwrap();
-    a.ui.dialog = Some(Dialog::select_names(&c, "to"));
+    a.ui.dialog = Some(Dialog::select_names(&c, crate::dialogs::Recipients::To));
     frame(&ctx, &mut a, vec![]);
     let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
     assert!(f.list.iter().any(|x| x.email == "zoe@studio.example"), "everyone mail was exchanged with: {:?}", f.list);
@@ -153,7 +153,7 @@ fn a_refused_dialog_submit_is_said() {
     a.run("mail.new", json!({}));
     frame(&ctx, &mut a, vec![]);
     let c = a.session.compose.clone().unwrap();
-    a.ui.dialog = Some(Dialog::select_names(&c, "to"));
+    a.ui.dialog = Some(Dialog::select_names(&c, crate::dialogs::Recipients::To));
     frame(&ctx, &mut a, vec![]);
     // The message went to be sent while the names were being picked: OK can't change it.
     if let Some(c) = a.session.compose.as_mut() {
@@ -605,7 +605,7 @@ fn the_directory_comes_into_select_names() {
     a.run("mail.new", json!({}));
     frame(&ctx, &mut a, vec![]);
     let c = a.session.compose.clone().unwrap();
-    a.ui.dialog = Some(Dialog::select_names(&c, "to"));
+    a.ui.dialog = Some(Dialog::select_names(&c, crate::dialogs::Recipients::To));
     frame(&ctx, &mut a, vec![]);
     let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
     assert!(f.directory, "an Exchange account has a directory");
@@ -666,7 +666,7 @@ fn select_names_asks_to_allow_the_directory() {
     a.run("mail.new", json!({}));
     frame(&ctx, &mut a, vec![]);
     let c = a.session.compose.clone().unwrap();
-    a.ui.dialog = Some(Dialog::select_names(&c, "to"));
+    a.ui.dialog = Some(Dialog::select_names(&c, crate::dialogs::Recipients::To));
     frame(&ctx, &mut a, vec![]);
     let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() else { panic!("no dialog") };
     f.source = "directory".into();

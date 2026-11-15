@@ -2,6 +2,7 @@
 //! suggested while an address is typed, Replies to, who can read it encrypted, and the subject.
 
 use super::*;
+use crate::dialogs::Recipients;
 
 /// Send, beside From, To, Cc and Bcc (when shown); then Replies to (when shown), who can read it
 /// encrypted, and the subject. `focus_to`: a new message starts in To.
@@ -18,19 +19,17 @@ pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engi
         crate::bidi::vertical(ui, |ui| {
             from_row(ui, &t, c, &f.accounts, acts);
             // To, Cc and Bcc open the address book, as in Outlook.
-            for (name, label, hint) in
-                [("to", "To", "Names <addresses>, separated by ; or ,"), ("cc", "Cc", ""), ("bcc", "Bcc", "Hidden from the other recipients")]
-            {
-                if name == "bcc" && !c.show_bcc {
+            for (field, label, hint) in [
+                (Recipients::To, "To", "Names <addresses>, separated by ; or ,"),
+                (Recipients::Cc, "Cc", ""),
+                (Recipients::Bcc, "Bcc", "Hidden from the other recipients"),
+            ] {
+                if field == Recipients::Bcc && !c.show_bcc {
                     continue;
                 }
-                let value = match name {
-                    "to" => &mut c.to,
-                    "cc" => &mut c.cc,
-                    _ => &mut c.bcc,
-                };
-                if recipient_field(ui, st, name, label, value, hint, name == "to" && focus_to, &f.suggestions) {
-                    let d = crate::Dialog::select_names(c, name);
+                let value = field.of(&mut c.to, &mut c.cc, &mut c.bcc);
+                if recipient_field(ui, st, field, label, value, hint, field == Recipients::To && focus_to, &f.suggestions) {
+                    let d = crate::Dialog::select_names(c, field);
                     acts.push(Action::Dialog(d));
                 }
             }
@@ -103,9 +102,9 @@ pub(super) fn suggestions(s: &mut Session, st: &mut UiState) -> Vec<Contact> {
     match (st.suggest_field, s.compose.as_ref()) {
         (Some(f), Some(c)) => {
             let text = match f {
-                "to" => c.to.clone(),
-                "cc" => c.cc.clone(),
-                _ => c.bcc.clone(),
+                Recipients::To => c.to.clone(),
+                Recipients::Cc => c.cc.clone(),
+                Recipients::Bcc => c.bcc.clone(),
             };
             if mailcraft_engine::model::contacts::last_token(&text).is_empty() || st.suggest_dismissed.as_deref() == Some(text.as_str()) {
                 Vec::new()
@@ -209,7 +208,7 @@ fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, c
 fn recipient_field(
     ui: &mut Ui,
     st: &mut UiState,
-    name: &'static str,
+    field: Recipients,
     label: &str,
     value: &mut String,
     hint: &str,
@@ -217,7 +216,7 @@ fn recipient_field(
     suggestions: &[Contact],
 ) -> bool {
     let t = st.tokens;
-    let showing = st.suggest_field == Some(name) && !suggestions.is_empty();
+    let showing = st.suggest_field == Some(field) && !suggestions.is_empty();
     let mut take: Option<usize> = None;
     if showing {
         let n = suggestions.len();
@@ -239,7 +238,7 @@ fn recipient_field(
     }
     // Backspace right after a whole recipient takes all of it, as Outlook does with a resolved
     // name (a half-typed one loses a character as usual).
-    let edit_id = ui.scope_id().with(("recipient", name));
+    let edit_id = ui.scope_id().with(("recipient", field.code()));
     if ui.memory(|m| m.has_focus(edit_id))
         && let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), edit_id)
         && let Some(range) = state.cursor.char_range().filter(|r| r.is_empty())
@@ -263,7 +262,7 @@ fn recipient_field(
     }
     // Picked from the suggestions: the box stays the one being typed in, cursor at the end,
     // until the click that picked is over.
-    if st.suggest_refocus == Some(name) {
+    if st.suggest_refocus == Some(field) {
         r.request_focus();
         if ui.input(|i| !i.pointer.any_down() && !i.pointer.any_released()) {
             st.suggest_refocus = None;
@@ -274,8 +273,9 @@ fn recipient_field(
         st.suggest_dismissed = None;
     }
     if showing && take.is_none() {
-        let area =
-            egui::Area::new(ui.scope_id().with(("suggest", name))).order(egui::Order::Foreground).fixed_pos(r.rect.left_bottom() + vec2(0.0, 2.0));
+        let area = egui::Area::new(ui.scope_id().with(("suggest", field.code())))
+            .order(egui::Order::Foreground)
+            .fixed_pos(r.rect.left_bottom() + vec2(0.0, 2.0));
         area.show(ui.ctx(), |ui| {
             egui::Frame::popup(ui.style()).inner_margin(egui::Margin::same(4)).show(ui, |ui| {
                 // As wide as the longest suggestion (within the box's width), every row taking
@@ -321,7 +321,7 @@ fn recipient_field(
     {
         *value = mailcraft_engine::model::contacts::complete(value, &c.address);
         st.suggest_index = 0;
-        st.suggest_refocus = Some(name);
+        st.suggest_refocus = Some(field);
         r.request_focus();
         if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), r.id) {
             let end = egui::text::CCursor::new(value.chars().count());
@@ -329,13 +329,13 @@ fn recipient_field(
             state.store(ui.ctx(), r.id);
         }
     }
-    if r.has_focus() || take.is_some() || st.suggest_refocus == Some(name) {
-        st.suggest_field = Some(name);
-    } else if st.suggest_field == Some(name) {
+    if r.has_focus() || take.is_some() || st.suggest_refocus == Some(field) {
+        st.suggest_field = Some(field);
+    } else if st.suggest_field == Some(field) {
         st.suggest_field = None;
     }
     // Half-typed addresses are fine while typing; check once the box is left.
-    address_check(ui, &t, value, !r.has_focus() && st.suggest_refocus != Some(name));
+    address_check(ui, &t, value, !r.has_focus() && st.suggest_refocus != Some(field));
     pressed
 }
 

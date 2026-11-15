@@ -417,7 +417,7 @@ fn keys(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
         ed.link = Some(LinkForm::open(c, ed.sel.clone()));
     }
     if book_k && c.id != SIGNATURE_ID {
-        acts.push(Action::Dialog(Dialog::select_names(c, "to")));
+        acts.push(Action::Dialog(Dialog::select_names(c, crate::dialogs::Recipients::To)));
     }
 }
 

@@ -9,7 +9,7 @@ use std::rc::Rc;
 use mailcraft_engine::Session;
 use mailcraft_engine::model::dates::Clock;
 use mailcraft_engine::store::Store;
-use mailcraft_ui_egui::{MailApp, Services};
+use mailcraft_ui_egui::{MailApp, Picked, Services};
 use wasm_bindgen::JsCast as _;
 
 use crate::backend::WebBackend;
@@ -304,12 +304,12 @@ impl eframe::App for WebShell {
 }
 
 /// Files chosen in the picker: (purpose, name, bytes).
-type Picked = Rc<RefCell<Vec<(String, String, Vec<u8>)>>>;
+type PickedFiles = Rc<RefCell<Vec<(Picked, String, Vec<u8>)>>>;
 /// A backup's files and settings the window asked to bring in.
 type Restoring = Rc<RefCell<Option<(Vec<(String, Vec<u8>)>, serde_json::Value)>>>;
 
 struct WebServices {
-    picked: Picked,
+    picked: PickedFiles,
     ctx: egui::Context,
     font: Rc<RefCell<FontFetch>>,
     restore: Restoring,
@@ -386,18 +386,14 @@ impl Services for WebServices {
         self.ctx.request_repaint();
         Ok(())
     }
-    fn pick_later(&mut self, purpose: &str) -> bool {
-        let (picked, ctx, purpose) = (self.picked.clone(), self.ctx.clone(), purpose.to_string());
-        let dialog = if purpose == "backup" {
-            rfd::AsyncFileDialog::new().add_filter("MailCraft backup", &["mailcraft-backup"])
-        } else if purpose == "rules" || purpose == "categories" {
-            rfd::AsyncFileDialog::new().add_filter("MailCraft file", &["json"])
-        } else if purpose == "picture" {
-            rfd::AsyncFileDialog::new().add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"])
-        } else if purpose.starts_with("certificate:") {
-            rfd::AsyncFileDialog::new().add_filter("Certificate with its key", &["p12", "pfx"])
-        } else {
-            rfd::AsyncFileDialog::new()
+    fn pick_later(&mut self, purpose: &Picked) -> bool {
+        let (picked, ctx, purpose) = (self.picked.clone(), self.ctx.clone(), purpose.clone());
+        let dialog = match purpose {
+            Picked::Backup => rfd::AsyncFileDialog::new().add_filter("MailCraft backup", &["mailcraft-backup"]),
+            Picked::Rules | Picked::Categories => rfd::AsyncFileDialog::new().add_filter("MailCraft file", &["json"]),
+            Picked::Picture => rfd::AsyncFileDialog::new().add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"]),
+            Picked::Certificate(_) => rfd::AsyncFileDialog::new().add_filter("Certificate with its key", &["p12", "pfx"]),
+            Picked::Attach => rfd::AsyncFileDialog::new(),
         };
         wasm_bindgen_futures::spawn_local(async move {
             let Some(files) = dialog.pick_files().await else { return };
@@ -409,7 +405,7 @@ impl Services for WebServices {
         });
         true
     }
-    fn take_picked(&mut self) -> Vec<(String, String, Vec<u8>)> {
+    fn take_picked(&mut self) -> Vec<(Picked, String, Vec<u8>)> {
         std::mem::take(&mut self.picked.borrow_mut())
     }
     fn cjk_font(&mut self, lang: &str) -> Option<(Vec<u8>, u32)> {

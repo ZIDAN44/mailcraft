@@ -7,7 +7,7 @@ impl MailApp {
     /// A `.p12` / `.pfx` file picked, then its password asked. The browser's picker answers
     /// later (with the file's bytes).
     pub(super) fn import_certificate(&mut self, account: String) {
-        if self.services.pick_later(&format!("certificate:{account}")) {
+        if self.services.pick_later(&crate::Picked::Certificate(account.clone())) {
             return;
         }
         if let Some(path) = self.services.pick_certificate() {

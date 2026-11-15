@@ -103,7 +103,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
         format_buttons(ui, t, c, &cur, para, &mut ops);
         sep(ui, t);
         if crate::widgets::tool_button(ui, Icon::AddressBook, "Address Book", t, !c.sending).on_hover_text(tl!("Ctrl+Shift+B")).clicked() {
-            acts.push(Action::Dialog(Dialog::select_names(c, "to")));
+            acts.push(Action::Dialog(Dialog::select_names(c, crate::dialogs::Recipients::To)));
         }
         if crate::widgets::tool_button(ui, Icon::Attach, "Attach File", t, !c.sending).clicked() {
             acts.push(Action::AttachFiles);

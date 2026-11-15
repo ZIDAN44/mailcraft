@@ -32,7 +32,7 @@ impl MailApp {
 
     pub(crate) fn import_rules(&mut self) {
         // The browser's picker answers later, with the file ([`MailApp::rules_picked`]).
-        if self.services.pick_later("rules") {
+        if self.services.pick_later(&crate::Picked::Rules) {
             return;
         }
         if let Some(path) = self.services.pick_rules_file() {
@@ -87,7 +87,7 @@ impl MailApp {
 
     pub(crate) fn import_categories(&mut self) {
         // As the rules: the browser's picker answers later ([`MailApp::categories_picked`]).
-        if self.services.pick_later("categories") {
+        if self.services.pick_later(&crate::Picked::Categories) {
             return;
         }
         if let Some(path) = self.services.pick_categories_file() {

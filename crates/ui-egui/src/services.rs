@@ -96,6 +96,24 @@ pub struct Work {
     pub first: bool,
 }
 
+/// What files are chosen for, where the picker answers later (the browser:
+/// [`Services::pick_later`]), handed back with them ([`Services::take_picked`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Picked {
+    /// Attached to the message being written.
+    Attach,
+    /// Put in the message being written, at its cursor.
+    Picture,
+    /// A backup to bring back (issue #83).
+    Backup,
+    /// Rules to bring in.
+    Rules,
+    /// Categories to bring in.
+    Categories,
+    /// An account's certificate with its key (`.p12` / `.pfx`), by the account's id.
+    Certificate(String),
+}
+
 /// Platform services the UI needs.
 /// What becomes of the window when it's closed and MailCraft is kept running.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -287,15 +305,14 @@ pub trait Services {
     fn restore(&mut self, _files: Vec<(String, Vec<u8>)>, _state: serde_json::Value) -> Result<(), String> {
         Err("a backup is brought in where MailCraft runs in the browser".into())
     }
-    /// Start choosing files without waiting (the browser): `purpose` is `attach`, `picture`,
-    /// `backup`, `rules`, `categories` or `certificate:<account>`, and the files arrive through
+    /// Start choosing files for `_purpose` without waiting (the browser): they arrive through
     /// [`Services::take_picked`]. `false` (the default) means [`Services::pick_files`] answers
     /// at once.
-    fn pick_later(&mut self, _purpose: &str) -> bool {
+    fn pick_later(&mut self, _purpose: &Picked) -> bool {
         false
     }
     /// Files chosen since the last call: (purpose, name, bytes).
-    fn take_picked(&mut self) -> Vec<(String, String, Vec<u8>)> {
+    fn take_picked(&mut self) -> Vec<(Picked, String, Vec<u8>)> {
         Vec::new()
     }
     /// Whether the desktop prefers dark, where the window system doesn't say (Linux and the BSDs
