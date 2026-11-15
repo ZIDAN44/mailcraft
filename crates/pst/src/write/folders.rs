@@ -5,13 +5,14 @@ use std::io;
 use std::path::Path;
 use std::rc::Rc;
 
+use super::FIRST_SUBNODE;
 use super::edit::{ADD_MAX_VALUE_SIZE, Editor};
 use super::message::{contents_cell, is_unread, text_of};
 use super::table::{Cell, NewRow, ROW_ID, ROW_VERSION};
 use super::text::{Text, same_ansi_name};
 use super::types::*;
-use crate::ltp::{Bytes, PropertyType as P, PropertyValue};
-use crate::messaging::{NID_MESSAGE_STORE, PstFolder, PstStore, node_of_entry_id};
+use crate::ltp::{Bytes, Properties, PropertyType as P, PropertyValue};
+use crate::messaging::{NID_MESSAGE_STORE, PstStore, node_of_entry_id};
 use crate::ndb::{
     NID_TYPE_ASSOC_CONTENTS_TABLE, NID_TYPE_CONTENTS_TABLE, NID_TYPE_HIERARCHY_TABLE, NID_TYPE_MASK, NID_TYPE_NORMAL_FOLDER, NID_TYPE_NORMAL_MESSAGE,
     PstFile, SubNodes,
@@ -47,8 +48,9 @@ fn folder_prop(p: &mut Vec<(u16, PropertyValue)>, id: u16, v: PropertyValue) {
     p.push((id, v));
 }
 
-pub(crate) fn writable(f: &PstFolder) -> Vec<(u16, PropertyValue)> {
-    f.properties().iter().map(|(k, v)| (*k, v.clone())).collect()
+/// A property set as a list to change and write again.
+pub(crate) fn writable(p: &Properties) -> Vec<(u16, PropertyValue)> {
+    p.iter().map(|(k, v)| (*k, v.clone())).collect()
 }
 
 /// A display name read as text.
@@ -108,11 +110,7 @@ impl Editor {
 
     /// The entry ID of node `nid` in this file.
     pub(crate) fn entry_id(&self, nid: u32) -> io::Result<Vec<u8>> {
-        let key = self.record_key()?;
-        let mut e = vec![0u8; 4];
-        e.extend_from_slice(&key);
-        e.extend(nid.to_le_bytes());
-        Ok(e)
+        Ok(super::entry_id(&self.record_key()?, nid))
     }
 
     pub(crate) fn record_key(&self) -> io::Result<[u8; 16]> {
@@ -155,7 +153,7 @@ impl Editor {
         // The parent says it has subfolders, in its own properties and in its row.
         let parent_folder = self.store.open_folder(parent)?;
         if !matches!(parent_folder.properties().get(SUBFOLDERS), Some(PropertyValue::Boolean(true))) {
-            let mut props = writable(&parent_folder);
+            let mut props = writable(parent_folder.properties());
             folder_prop(&mut props, SUBFOLDERS, PropertyValue::Boolean(true));
             self.rewrite_props(parent, props)?;
             let parent_parent = self.node(parent)?.parent;
@@ -174,14 +172,10 @@ impl Editor {
             (SUBFOLDERS, PropertyValue::Boolean(false)),
             (CONTAINER_CLASS, text.value(class)),
         ];
-        let built = super::heap::build_props(format, props, 0x80)?;
+        let built = super::heap::build_props(format, props, FIRST_SUBNODE)?;
         // A name too long for the heap goes in a subnode.
         let mut subs = SubNodes::new();
-        for (node, bytes) in built.external {
-            let bid = self.write_tree(&bytes)?;
-            subs.insert(node, (bid, 0));
-        }
-        let data = self.write_leaves(&built.blocks)?;
+        let data = self.write_props_into(built, &mut subs)?;
         let sub = self.write_subnodes(&subs)?;
         self.set_node(folder, data, sub, parent);
         let index = folder & !NID_TYPE_MASK;
@@ -279,7 +273,7 @@ impl Editor {
         };
         let added = i32::try_from(batch.iter().filter(|b| is_unread(&b.message)).count()).map_err(|_| short())?;
         let (count, unread) = (i32::try_from(count).map_err(|_| short())?, before.saturating_add(added));
-        let mut props = writable(&folder_obj);
+        let mut props = writable(folder_obj.properties());
         folder_prop(&mut props, CONTENT_COUNT, PropertyValue::Integer32(count));
         folder_prop(&mut props, CONTENT_UNREAD, PropertyValue::Integer32(unread));
         self.rewrite_props(folder, props)?;
@@ -516,12 +510,12 @@ pub(crate) fn set_special_folder(path: &Path, role: SpecialFolder, names: &[&str
         folder_prop(props, id, value);
     };
     if on_store {
-        let mut props: Vec<_> = ed.store.properties().iter().map(|(k, v)| (*k, v.clone())).collect();
+        let mut props = writable(ed.store.properties());
         set(&mut props);
         ed.rewrite_props(NID_MESSAGE_STORE, props)?;
     } else {
         for node in recording_folders(&ed.store)? {
-            let mut props = writable(&*ed.store.open_folder(node)?);
+            let mut props = writable(ed.store.open_folder(node)?.properties());
             set(&mut props);
             ed.rewrite_props(node, props)?;
         }
@@ -533,7 +527,7 @@ pub(crate) fn set_special_folder(path: &Path, role: SpecialFolder, names: &[&str
 pub(crate) fn set_store_display_name(path: &Path, name: &str) -> io::Result<()> {
     let mut ed = Editor::open(path)?;
     let text = Text::plain(ed.format());
-    let mut props: Vec<_> = ed.store.properties().iter().map(|(k, v)| (*k, v.clone())).collect();
+    let mut props = writable(ed.store.properties());
     folder_prop(&mut props, DISPLAY_NAME, text.value(name));
     ed.rewrite_props(NID_MESSAGE_STORE, props)?;
     ed.commit()

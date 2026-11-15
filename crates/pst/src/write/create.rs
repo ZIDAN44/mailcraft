@@ -12,6 +12,7 @@ use super::heap::build_props;
 use super::space::{self, AMAP_BYTES, AMAP_VALID, DLIST_AT, FIRST_AMAP};
 use super::table::{Cell, NewRow, ROW_ID, ROW_VERSION, Schema, build_table};
 use super::text::Text;
+use super::{FIRST_SUBNODE, entry_id};
 use crate::crypt::Crypt;
 use crate::ltp::{Bytes, PropertyType as P, PropertyValue};
 use crate::messaging::{BUCKET_COUNT, NID_MESSAGE_STORE, NID_NAME_TO_ID_MAP, STREAM_ENTRY, STREAM_GUID, STREAM_STRING};
@@ -286,9 +287,11 @@ impl Editor {
     }
 
     fn props_node(&mut self, nid: u32, props: Vec<(u16, PropertyValue)>, parent: u32) -> io::Result<()> {
-        let built = build_props(self.format(), props, 0x80)?;
-        let data = self.write_leaves(&built.blocks)?;
-        self.set_node(nid, data, 0, parent);
+        let built = build_props(self.format(), props, FIRST_SUBNODE)?;
+        let mut subs = SubNodes::new();
+        let data = self.write_props_into(built, &mut subs)?;
+        let sub = self.write_subnodes(&subs)?;
+        self.set_node(nid, data, sub, parent);
         Ok(())
     }
 
@@ -317,12 +320,7 @@ impl Editor {
         let text = Text::plain(self.format());
         let st = text.string_type();
         let key = random_key();
-        let entry = |nid: u32| {
-            let mut e = vec![0u8; 4];
-            e.extend_from_slice(&key);
-            e.extend(nid.to_le_bytes());
-            PropertyValue::Binary(Bytes(e))
-        };
+        let entry = |nid: u32| PropertyValue::Binary(Bytes(entry_id(&key, nid)));
         self.props_node(
             NID_MESSAGE_STORE,
             vec![

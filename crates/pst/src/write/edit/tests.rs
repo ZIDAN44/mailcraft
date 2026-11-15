@@ -423,7 +423,7 @@ fn records_of_other_types_survive_a_rewrite() {
         .map(|r| r.id())
         .find(|n| store.open_folder(*n).unwrap().contents_table().is_some_and(|t| t.rows_matrix().next().is_some()))
         .unwrap();
-    let mut props = super::super::folders::writable(&store.open_folder(inbox).unwrap());
+    let mut props = super::super::folders::writable(store.open_folder(inbox).unwrap().properties());
     props.push((0x7FF0, PropertyValue::Other(0x00FB, crate::ltp::Bytes(vec![1, 2, 3]))));
     props.push((0x7FF1, PropertyValue::Other(0x101F, crate::ltp::Bytes::default())));
     ed.rewrite_props(inbox, props).unwrap();

@@ -79,6 +79,18 @@ pub fn set_store_display_name(path: impl AsRef<Path>, name: &str) -> io::Result<
     folders::set_store_display_name(path.as_ref(), name)
 }
 
+/// A node's subnodes (values kept outside its heap, a table's cells kept apart) are numbered from
+/// this index up.
+pub(crate) const FIRST_SUBNODE: u32 = 0x80;
+
+/// The entry ID (`ENTRYID`, MS-PST 2.4.3.2) of node `nid` in the file whose record key is `key`.
+pub(crate) fn entry_id(key: &[u8; 16], nid: u32) -> Vec<u8> {
+    let mut e = vec![0u8; 4];
+    e.extend_from_slice(key);
+    e.extend(nid.to_le_bytes());
+    e
+}
+
 /// Writes an ID (a block's, a page's, a node's, a file offset) at the format's width.
 fn put_id(out: &mut Vec<u8>, format: Format, id: u64) -> io::Result<()> {
     if format.wide() {

@@ -9,6 +9,7 @@ use super::named::NamedIds;
 use super::table::{Built, Cell, NewRow, ROW_ID, ROW_VERSION, Schema, build_table};
 use super::text::Text;
 use super::types::*;
+use super::{FIRST_SUBNODE, entry_id};
 use crate::ltp::{Bytes, ObjectRef, PropertyType as P, PropertyValue};
 use crate::ndb::{Format, NID_TYPE_ATTACHMENT, NID_TYPE_INTERNAL, NID_TYPE_NORMAL_MESSAGE, SubNodes};
 use crate::util::short;
@@ -21,8 +22,6 @@ const MESSAGE_FLAG_HAS_ATTACH: i32 = 0x10;
 const NID_RECIPIENT_TABLE: u32 = 0x0692;
 const NID_ATTACHMENT_TABLE: u32 = 0x0671;
 
-/// A message's values kept in subnodes of the message get indexes from here.
-const FIRST_VALUE_NODE: u32 = 0x80;
 const FIRST_ATTACHMENT: u32 = 0x100;
 const FIRST_ATTACHMENT_DATA: u32 = 0x200;
 
@@ -241,14 +240,6 @@ fn props_bytes(b: &BuiltProps) -> usize {
 }
 
 impl Editor {
-    fn write_props_into(&mut self, built: BuiltProps, subs: &mut SubNodes) -> io::Result<u64> {
-        for (nid, bytes) in built.external {
-            let bid = self.write_tree(&bytes)?;
-            subs.insert(nid, (bid, 0));
-        }
-        self.write_leaves(&built.blocks)
-    }
-
     fn write_table_into(&mut self, nid: u32, built: Built, subs: &mut SubNodes) -> io::Result<()> {
         let inner = BTreeMap::new();
         let (data, sub) = self.write_built(built, inner)?;
@@ -385,11 +376,11 @@ impl Editor {
             self.write_table_into(NID_ATTACHMENT_TABLE, table, &mut subs)?;
         }
         // Built twice: its size is one of its own properties, of a fixed width.
-        let sized = build_props(format, message_properties(m, !attachments.is_empty(), named, nid, version, 0, text)?, FIRST_VALUE_NODE)?;
+        let sized = build_props(format, message_properties(m, !attachments.is_empty(), named, nid, version, 0, text)?, FIRST_SUBNODE)?;
         total = total.checked_add(props_bytes(&sized)).ok_or_else(short)?;
         // Outlook leaves the heap's six-byte header out of a message's size.
         let size = i32::try_from(total.saturating_sub(6)).map_err(|_| io::Error::new(io::ErrorKind::InvalidInput, "a message too big to keep"))?;
-        let built = build_props(format, message_properties(m, !attachments.is_empty(), named, nid, version, size, text)?, FIRST_VALUE_NODE)?;
+        let built = build_props(format, message_properties(m, !attachments.is_empty(), named, nid, version, size, text)?, FIRST_SUBNODE)?;
         let data = self.write_props_into(built, &mut subs)?;
         let sub = self.write_subnodes(&subs)?;
         Ok((data, sub, total))
@@ -412,7 +403,7 @@ fn finish_attachment(format: Format, mut props: Vec<(u16, PropertyValue)>, data_
     if !props.iter().any(|(id, _)| *id == 0x3701) {
         props.push((0x3701, PropertyValue::Binary(Bytes::default())));
     }
-    super::heap::build_props_linked(format, props, FIRST_VALUE_NODE, data_node.map(|n| (0x3701, P::BINARY, n)))
+    super::heap::build_props_linked(format, props, FIRST_SUBNODE, data_node.map(|n| (0x3701, P::BINARY, n)))
 }
 
 /// The cell of a message's row in its folder's contents table for a column.
@@ -446,12 +437,6 @@ pub(crate) fn contents_cell(
             }
         }
     }
-    let entry = |node: u32| {
-        let mut e = vec![0u8; 4];
-        e.extend_from_slice(record_key);
-        e.extend(node.to_le_bytes());
-        e
-    };
     let list = |t: RecipientType| {
         let d = display(m, t);
         if d.is_empty() { None } else { string(kind, text, &d) }
@@ -475,8 +460,8 @@ pub(crate) fn contents_cell(
         (0x0E08, P::INT32) => int(size),
         (0x0E1B, P::BOOLEAN) => boolean(has_attachments),
         (0x3FDE, P::INT32) => int(65001),
-        (0x0E09, P::BINARY) => Some(Cell::Bytes(entry(folder))),
-        (0x0FFF, P::BINARY) => Some(Cell::Bytes(entry(nid))),
+        (0x0E09, P::BINARY) => Some(Cell::Bytes(entry_id(record_key, folder))),
+        (0x0FFF, P::BINARY) => Some(Cell::Bytes(entry_id(record_key, nid))),
         (0x300B, P::BINARY) => Some(Cell::Bytes(m.message_id.as_bytes().to_vec())),
         _ => None,
     }

@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::io;
 
+use super::FIRST_SUBNODE;
 use super::edit::Editor;
 use super::heap::{HeapBuilder, MAX_ALLOC, build_tree};
 use crate::ltp::{Column, PropertyType, TC_SIG, Table};
@@ -82,9 +83,6 @@ pub(crate) struct Built {
     pub(crate) rows: Option<(u32, Vec<Vec<u8>>)>,
     pub(crate) external: Vec<(u32, Vec<u8>)>,
 }
-
-/// The node IDs of subnodes get from this index up.
-const FIRST_SUBNODE: u32 = 0x80;
 
 /// `rows` as a table of `schema`. The bytes of their cells move into it.
 pub(crate) fn build_table(format: Format, schema: &Schema, rows: Vec<NewRow>, keep_above: u32) -> io::Result<Built> {

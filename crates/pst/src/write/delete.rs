@@ -74,7 +74,7 @@ pub(crate) fn delete_messages(path: &Path, messages: &[u32]) -> io::Result<()> {
         };
         let count = i32::try_from(left).map_err(|_| short())?;
         let unread = before.saturating_sub(unread_gone).clamp(0, count);
-        let mut props = writable(&folder_obj);
+        let mut props = writable(folder_obj.properties());
         props.retain(|(id, _)| *id != CONTENT_COUNT && *id != CONTENT_UNREAD);
         props.push((CONTENT_COUNT, PropertyValue::Integer32(count)));
         props.push((CONTENT_UNREAD, PropertyValue::Integer32(unread)));

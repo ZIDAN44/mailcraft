@@ -3,6 +3,7 @@
 use std::io::{self, Read};
 
 use super::edit::Editor;
+use super::heap::BuiltProps;
 use super::put_id;
 use crate::ndb::btree::id_at;
 use crate::ndb::*;
@@ -32,10 +33,13 @@ impl Editor {
         self.write_block(&b, true)
     }
 
-    /// The tree over these leaf blocks (their IDs and sizes): one by itself needs none.
+    /// The tree over these leaf blocks (their IDs and sizes): one by itself needs none, and none
+    /// is one empty block.
     fn tree_over(&mut self, leaves: &[(u64, usize)]) -> io::Result<u64> {
-        if let [(bid, _)] = leaves {
-            return Ok(*bid);
+        match leaves {
+            [] => return self.write_block(&[], false),
+            [(bid, _)] => return Ok(*bid),
+            _ => {}
         }
         let room = self.list_room().max(1);
         let total = |part: &[(u64, usize)]| -> io::Result<u32> {
@@ -61,9 +65,6 @@ impl Editor {
     pub(crate) fn write_tree(&mut self, data: &[u8]) -> io::Result<u64> {
         let size = self.format().block_data();
         let mut leaves = Vec::with_capacity(data.len() / size + 1);
-        if data.is_empty() {
-            leaves.push((self.write_block(&[], false)?, 0));
-        }
         for chunk in data.chunks(size) {
             leaves.push((self.write_block(chunk, false)?, chunk.len()));
         }
@@ -72,14 +73,21 @@ impl Editor {
 
     /// Writes these blocks as a data tree (a heap's, or a table's rows).
     pub(crate) fn write_leaves(&mut self, blocks: &[Vec<u8>]) -> io::Result<u64> {
-        let mut leaves = Vec::with_capacity(blocks.len().max(1));
+        let mut leaves = Vec::with_capacity(blocks.len());
         for b in blocks {
             leaves.push((self.write_block(b, false)?, b.len()));
         }
-        if leaves.is_empty() {
-            leaves.push((self.write_block(&[], false)?, 0));
-        }
         self.tree_over(&leaves)
+    }
+
+    /// Writes a property set: its values kept outside the heap into subnodes added to `subs`, then
+    /// the heap's blocks as a data tree, whose ID it gives.
+    pub(crate) fn write_props_into(&mut self, built: BuiltProps, subs: &mut SubNodes) -> io::Result<u64> {
+        for (nid, bytes) in built.external {
+            let bid = self.write_tree(&bytes)?;
+            subs.insert(nid, (bid, 0));
+        }
+        self.write_leaves(&built.blocks)
     }
 
     /// Writes exactly `size` bytes read from `source` as a data tree, a block at a time.
@@ -98,9 +106,6 @@ impl Editor {
         let mut extra = [0u8; 1];
         if source.read(&mut extra)? != 0 {
             return Err(invalid("a file gave more than its size"));
-        }
-        if leaves.is_empty() {
-            leaves.push((self.write_block(&[], false)?, 0));
         }
         self.tree_over(&leaves)
     }
