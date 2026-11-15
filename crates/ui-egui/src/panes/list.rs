@@ -313,6 +313,9 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
         // Outlook marks them (issue #52); not in Sent or Drafts, whose rows are the replies and
         // forwards themselves.
         let drafted = if sent_view { Default::default() } else { s.drafted() };
+        // A search over several folders, or the unified Inbox: each row says where it is.
+        let several_folders =
+            s.search.as_ref().is_some_and(|(_, scope)| *scope != SearchScope::Current) || matches!(s.view, mailcraft_engine::View::Unified { .. });
         let first = tops.partition_point(|&top| top + mh < viewport.min.y);
         for (i, row) in rows.iter().enumerate().skip(first) {
             let top = tops.get(i).copied().unwrap_or(0.0);
@@ -340,7 +343,7 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                     let Some(m) = s.list.get(*index) else { continue };
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, mh));
                     let drafting = drafted.marks(m);
-                    let of = RowOf { m, r, count: *count, unread_in_thread: *unread, sent_view, drafting };
+                    let of = RowOf { m, r, count: *count, unread_in_thread: *unread, sent_view, drafting, several_folders };
                     message_row(s, &t, ui, of, acts);
                 }
             }

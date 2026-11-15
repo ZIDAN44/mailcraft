@@ -272,3 +272,32 @@ fn a_long_selection_is_drawn_without_copies() {
     assert_eq!(a.session.summary_clones(), copies, "no message copied to draw them");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Audit #466: a frame of the message list readies nothing for a row's right-click menu, which
+/// only its open menu reads. Run in release: `cargo test --release -p mailcraft-ui-egui --lib
+/// list_frames_measure -- --ignored --nocapture`.
+#[test]
+#[ignore = "a measurement"]
+fn list_frames_measure() {
+    let (mut a, dir) = app("list-frames-measure");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let screen = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 2000.0)));
+    let list = |ctx: &egui::Context, a: &mut MailApp| {
+        let mut out = ctx.run_ui(RawInput { screen_rect: screen, ..Default::default() }, |ui| {
+            crate::panes::list::show(&a.session, &mut a.ui, ui, &mut Vec::new());
+        });
+        out.textures_delta.clear();
+    };
+    for _ in 0..50 {
+        list(&ctx, &mut a);
+    }
+    const ROUNDS: u32 = 3000;
+    let t = std::time::Instant::now();
+    for _ in 0..ROUNDS {
+        list(&ctx, &mut a);
+    }
+    let rows = a.session.rows().len();
+    println!("MEASURE a frame of the message list, {rows} rows: {:.1} µs", t.elapsed().as_secs_f64() * 1e6 / f64::from(ROUNDS));
+    let _ = std::fs::remove_dir_all(dir);
+}

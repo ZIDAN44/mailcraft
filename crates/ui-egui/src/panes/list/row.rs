@@ -15,6 +15,9 @@ pub(super) struct RowOf<'a> {
     pub(super) sent_view: bool,
     /// A reply or forward to it was begun and left in Drafts.
     pub(super) drafting: bool,
+    /// The list holds several folders' mail (a search over more than this one, or the unified
+    /// Inbox): each row says where it is.
+    pub(super) several_folders: bool,
 }
 
 /// What a row's pieces share, worked out once.
@@ -30,6 +33,7 @@ struct MessageRow<'a> {
     count: usize,
     sent_view: bool,
     drafting: bool,
+    several_folders: bool,
     unread: bool,
     selected: bool,
     hovered: bool,
@@ -41,7 +45,7 @@ struct MessageRow<'a> {
 }
 
 pub(super) fn message_row(s: &Session, t: &theme::Tokens, ui: &mut Ui, of: RowOf<'_>, acts: &mut Vec<Action>) {
-    let RowOf { m, r, count, unread_in_thread, sent_view, drafting } = of;
+    let RowOf { m, r, count, unread_in_thread, sent_view, drafting, several_folders } = of;
     let id = ui.make_persistent_id(("row", &m.key));
     let resp = ui.interact(r, id, Sense::click_and_drag());
     // The pointer anywhere on the row, its own buttons included (egui hovers only the button
@@ -62,6 +66,7 @@ pub(super) fn message_row(s: &Session, t: &theme::Tokens, ui: &mut Ui, of: RowOf
         count,
         sent_view,
         drafting,
+        several_folders,
         unread,
         selected,
         hovered,
@@ -141,8 +146,9 @@ impl MessageRow<'_> {
     fn sender(&self, ui: &mut Ui, p: &egui::Painter) {
         let (s, t, m, r, mr, marks) = (self.s, self.t, self.m, self.r, self.mr, self.marks);
         let (unread, count, x, right, line1) = (self.unread, self.count, self.x, self.right, self.line1);
-        let who_addr = if self.sent_view { m.to.first().cloned().unwrap_or_default() } else { m.from.clone() };
         if !s.prefs.compact {
+            let nobody = mailcraft_engine::model::EmailAddress::default();
+            let who_addr = if self.sent_view { m.to.first().unwrap_or(&nobody) } else { &m.from };
             let c = mr.pos(egui::pos2(r.min.x + 14.0 + 17.0, r.min.y + 26.0));
             widgets::avatar(ui, c, 17.0, &who_addr.initials(), theme::avatar_color(&who_addr.email, t.dark));
         }
@@ -151,14 +157,12 @@ impl MessageRow<'_> {
         let time_g = p.layout_no_wrap(time, if unread { theme::bold(12.0) } else { theme::regular(12.0) }, if unread { t.accent } else { t.dim });
         let mut tw = time_g.size().x;
         p.galley(egui::pos2(mr.start(right - tw, tw), line1 + 1.0), time_g, t.dim);
-        // A search over several folders: each result says where it is, before its time.
-        let several =
-            s.search.as_ref().is_some_and(|(_, scope)| *scope != SearchScope::Current) || matches!(s.view, mailcraft_engine::View::Unified { .. });
         // In a narrow list the sender comes first: where a tag before the time would leave the name
         // (and the address beside it) no room to be read, the tag isn't drawn.
         let who_least = if marks.address { 150.0 } else { 90.0 };
         let fits = |tw: f32, w: f32| right - tw - 10.0 - w - 10.0 - x >= who_least;
-        if let Some(f) = s.folder(&m.key.account, &m.key.folder).filter(|_| several) {
+        // A search over several folders: each result says where it is, before its time.
+        if let Some(f) = s.folder(&m.key.account, &m.key.folder).filter(|_| self.several_folders) {
             let name: String = crate::i18n::folder(f).chars().take(24).collect();
             let fg = p.layout_no_wrap(name, theme::regular(11.5), t.faint);
             let fw = fg.size().x;
@@ -303,17 +307,12 @@ impl MessageRow<'_> {
         let line2 = self.line1 + 19.0;
         let mut clicked_action = false;
         let mut bx = self.right - 22.0;
-        let actions: [(Icon, &str, &'static str, serde_json::Value); 3] = [
-            (Icon::Delete, tl!("Delete"), "mail.delete", json!({})),
-            (Icon::Flag, tl!(if m.flags.flagged { "Unflag" } else { "Flag" }), "mail.flag", json!({})),
-            (
-                if m.flags.seen { Icon::Unread } else { Icon::Read },
-                tl!(if m.flags.seen { "Mark unread" } else { "Mark read" }),
-                "mail.toggleRead",
-                json!({}),
-            ),
+        let actions: [(Icon, &str, &'static str); 3] = [
+            (Icon::Delete, tl!("Delete"), "mail.delete"),
+            (Icon::Flag, tl!(if m.flags.flagged { "Unflag" } else { "Flag" }), "mail.flag"),
+            (if m.flags.seen { Icon::Unread } else { Icon::Read }, tl!(if m.flags.seen { "Mark unread" } else { "Mark read" }), "mail.toggleRead"),
         ];
-        for (ic, tip, cmd, params) in actions {
+        for (ic, tip, cmd) in actions {
             let br = mr.rect(Rect::from_min_size(egui::pos2(bx, line2 - 3.0), vec2(22.0, 22.0)));
             let bresp = ui.interact(br, id.with(cmd), Sense::click()).on_hover_text(tip);
             crate::widgets::named(ui, &bresp, tip, true, None);
@@ -327,7 +326,7 @@ impl MessageRow<'_> {
                 if !self.selected {
                     acts.push(Action::Run("list.select", json!({"key": m.key.to_id()})));
                 }
-                acts.push(Action::Run(cmd, params));
+                acts.push(Action::Run(cmd, json!({})));
             }
             bx -= 24.0;
         }
@@ -382,11 +381,9 @@ impl MessageRow<'_> {
     /// The row's right-click menu.
     fn menu(&self, resp: &egui::Response, acts: &mut Vec<Action>) {
         let (s, t, m, selected) = (self.s, self.t, self.m, self.selected);
-        let key = m.key.clone();
-        let flags = m.flags.clone();
-        let (subject, sender) = (m.subject.clone(), m.from.email.clone());
+        let (key, flags) = (&m.key, &m.flags);
         resp.context_menu(|ui| {
-            if !s.selection.contains(&key) {
+            if !s.selection.contains(key) {
                 acts.push(Action::Run("list.select", json!({"key": key.to_id()})));
             }
             let item = |ui: &mut Ui, acts: &mut Vec<Action>, label: &str, act: Action| {
@@ -430,10 +427,10 @@ impl MessageRow<'_> {
             ui.separator();
             // Find related, as Outlook's: the conversation, or everything from the sender.
             ui.menu_button(tl!("Find related"), |ui| {
-                let topic = mailcraft_engine::model::thread::base_subject(&subject);
+                let topic = mailcraft_engine::model::thread::base_subject(&m.subject);
                 let searches = [
                     ("Messages in this conversation", format!("subject:\"{}\"", topic.replace('"', ""))),
-                    ("Messages from sender", format!("from:{sender}")),
+                    ("Messages from sender", format!("from:{}", m.from.email)),
                 ];
                 for (label, query) in searches {
                     if ui.button(tl!(label)).clicked() {
