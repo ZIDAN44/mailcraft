@@ -21,12 +21,12 @@ pub(crate) type Changes = BTreeMap<u64, Option<Raw>>;
 
 /// A page's entries in a page's room: the most a page of `entry` bytes each holds.
 fn page_room(format: Format, entry: usize) -> usize {
-    (if format.wide() { 488 } else { 496 }) / entry
+    format.bt_entries() / entry
 }
 
 /// A page's bytes.
 pub(crate) fn page_bytes(format: Format, ptype: u8, ib: u64, bid: u64, entry: usize, level: u8, entries: &[Raw]) -> io::Result<Vec<u8>> {
-    let top = if format.wide() { 488 } else { 496 };
+    let top = format.bt_entries();
     let room = page_room(format, entry);
     if entries.len() > room {
         return Err(invalid("more entries than a page holds"));

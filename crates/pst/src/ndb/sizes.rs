@@ -4,6 +4,8 @@
 pub(crate) const PAGE: usize = 512;
 /// A block and its trailer take at most 8 KiB (MS-PST 2.2.2.8).
 pub(crate) const MAX_BLOCK: usize = 8192;
+/// A map page's bits, one per 64 bytes in an allocation map (MS-PST 2.2.2.7.2).
+pub(crate) const MAP_BYTES: usize = 496;
 
 // Page types (`ptype`).
 pub(crate) const PT_BBT: u8 = 0x80;

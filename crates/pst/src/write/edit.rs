@@ -102,11 +102,12 @@ impl Editor {
     fn find_free_space(&mut self) -> io::Result<()> {
         let (from, to) = self.space.scan();
         let eof = self.header.root.eof;
+        let bits_at = self.format().map_bits_at();
         let mut free = Vec::new();
         for i in from..to {
             let at = run_at(i);
             let Ok(page) = self.pst.page(at, PT_AMAP, at) else { return Ok(()) };
-            let bits = page.get(self.map_bits_at()..self.map_bits_at() + 496).ok_or_else(short)?;
+            let bits = page.get(bits_at..bits_at + MAP_BYTES).ok_or_else(short)?;
             free.extend(space::free_in(i, bits, eof));
         }
         if free.is_empty() {
@@ -119,10 +120,6 @@ impl Editor {
             self.maps_valid = false;
         }
         Ok(())
-    }
-
-    fn map_bits_at(&self) -> usize {
-        if self.format().wide() { 0 } else { 4 }
     }
 
     /// Whether nothing the file holds lies in the free ranges.
@@ -382,8 +379,8 @@ impl Editor {
         let old_runs = self.space.runs();
         let runs = self.space.final_runs();
         let mut delta = 0i64;
-        let bits_at = self.map_bits_at();
-        let mut amaps: BTreeMap<u64, [u8; 496]> = BTreeMap::new();
+        let bits_at = format.map_bits_at();
+        let mut amaps: BTreeMap<u64, [u8; MAP_BYTES]> = BTreeMap::new();
         let mut out = Vec::new();
         for i in old_runs..runs {
             let bits = space::new_bits(i);
@@ -407,7 +404,7 @@ impl Editor {
                     _ => PT_FPMAP,
                 };
                 let mut page = vec![0u8; PAGE];
-                page.get_mut(bits_at..bits_at + 496).ok_or_else(short)?.fill(filler);
+                page.get_mut(bits_at..bits_at + MAP_BYTES).ok_or_else(short)?.fill(filler);
                 finish_page(&mut page, format, ptype, at, at, false)?;
                 out.push((at, page));
                 at += PAGE as u64;
@@ -422,8 +419,8 @@ impl Editor {
                     if let std::collections::btree_map::Entry::Vacant(e) = amaps.entry(i) {
                         let at = run_at(i);
                         let page = self.pst.page(at, PT_AMAP, at)?;
-                        let mut bits = [0u8; 496];
-                        bits.copy_from_slice(page.get(bits_at..bits_at + 496).ok_or_else(short)?);
+                        let mut bits = [0u8; MAP_BYTES];
+                        bits.copy_from_slice(page.get(bits_at..bits_at + MAP_BYTES).ok_or_else(short)?);
                         e.insert(bits);
                     }
                     if let Some(bits) = amaps.get_mut(&i) {
@@ -435,7 +432,7 @@ impl Editor {
         for (i, bits) in amaps {
             let at = run_at(i);
             let mut page = vec![0u8; PAGE];
-            page.get_mut(bits_at..bits_at + 496).ok_or_else(short)?.copy_from_slice(&bits);
+            page.get_mut(bits_at..bits_at + MAP_BYTES).ok_or_else(short)?.copy_from_slice(&bits);
             finish_page(&mut page, format, PT_AMAP, at, at, false)?;
             out.push((at, page));
         }

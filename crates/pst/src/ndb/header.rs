@@ -78,6 +78,22 @@ impl Format {
         if self.wide() { 496 } else { 500 }
     }
 
+    /// The room for a B-tree page's entries, before its counts (`rgentries`, MS-PST 2.2.2.7.7.1).
+    pub(crate) fn bt_entries(self) -> usize {
+        if self.wide() { 488 } else { 496 }
+    }
+
+    /// Where a map page's bits start: an ANSI one has 4 bytes of padding first (MS-PST 2.2.2.7.2.1).
+    pub(crate) fn map_bits_at(self) -> usize {
+        if self.wide() { 0 } else { 4 }
+    }
+
+    /// A subnode block's header, before its entries (MS-PST 2.2.2.8.3.3): a Unicode one is padded
+    /// to 8 bytes.
+    pub(crate) fn sub_header(self) -> usize {
+        if self.wide() { 8 } else { 4 }
+    }
+
     /// The header's length (MS-PST 2.2.2.6).
     pub(crate) fn header_size(self) -> usize {
         if self.wide() { HEADER_READ } else { HEADER_ANSI }

@@ -40,7 +40,7 @@ impl BtPage {
     /// Takes in a page and checks its entries fit it. `leaf`: the size of the tree's leaf
     /// entries.
     pub(crate) fn parse(page: Rc<[u8]>, format: Format, leaf: usize) -> io::Result<BtPage> {
-        let top = if format.wide() { 488 } else { 496 };
+        let top = format.bt_entries();
         let count = usize::from(u8_at(&page, top)?);
         let entry = usize::from(u8_at(&page, top + 2)?);
         let level = u8_at(&page, top + 3)?;

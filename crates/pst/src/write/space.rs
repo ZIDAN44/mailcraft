@@ -6,7 +6,7 @@
 
 use std::io;
 
-use crate::ndb::{Format, PAGE};
+use crate::ndb::{Format, MAP_BYTES, PAGE};
 use crate::util::invalid;
 
 // Whether the header says the maps can be used (`fAMapValid`, MS-PST 2.2.2.5).
@@ -18,14 +18,14 @@ pub(crate) const DLIST_AT: u64 = 0x4200;
 /// Where the first map is.
 pub(crate) const FIRST_AMAP: u64 = 0x4400;
 /// The bytes one map covers, itself included.
-pub(crate) const AMAP_BYTES: u64 = 496 * 8 * 64;
+pub(crate) const AMAP_BYTES: u64 = MAP_BYTES as u64 * 8 * UNIT;
 /// A page map (`PMap`) comes every 8 runs, a free map every 496 after the first 128, and a free
 /// page map every 31,744 after the first 8,192: all deprecated, but still in their places.
 const PMAP_EVERY: u64 = 8;
 const FMAP_FIRST: u64 = 128;
-const FMAP_EVERY: u64 = 496;
+const FMAP_EVERY: u64 = MAP_BYTES as u64;
 const FPMAP_FIRST: u64 = 128 * 64;
-const FPMAP_EVERY: u64 = 496 * 64;
+const FPMAP_EVERY: u64 = FMAP_EVERY * 64;
 /// The most an ANSI file can hold: the end of the one free page map its header has.
 pub(crate) const ANSI_MAX: u64 = FIRST_AMAP + FPMAP_FIRST * AMAP_BYTES;
 /// Maps looked through for free space, from the end of the file.
@@ -183,8 +183,8 @@ impl Space {
 }
 
 /// The bits a map page would have for a new run: its map pages' space taken.
-pub(crate) fn new_bits(i: u64) -> [u8; 496] {
-    let mut bits = [0u8; 496];
+pub(crate) fn new_bits(i: u64) -> [u8; MAP_BYTES] {
+    let mut bits = [0u8; MAP_BYTES];
     let count = map_pages(i).len();
     for b in bits.iter_mut().take(count) {
         *b = 0xFF;

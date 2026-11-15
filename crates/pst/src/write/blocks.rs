@@ -112,7 +112,7 @@ impl Editor {
         }
         let f = self.format();
         let id = f.id_size();
-        let head = if f.wide() { 8 } else { 4 };
+        let head = f.sub_header();
         let room = (f.block_data() - head) / (id * 3);
         let list: Vec<(u32, (u64, u64))> = subs.iter().map(|(k, v)| (*k, *v)).collect();
         let mut leaves = Vec::new();
@@ -219,7 +219,7 @@ impl Editor {
         // The tree's own blocks: those it lists when it is two levels.
         if u8_at(&raw, 1)? == 1 {
             let f = self.format();
-            let head = if f.wide() { 8 } else { 4 };
+            let head = f.sub_header();
             for i in 0..usize::from(u16_at(&raw, 2)?) {
                 self.drop_ref(id_at(&raw, head + i * 2 * f.id_size() + f.id_size(), f)?)?;
             }

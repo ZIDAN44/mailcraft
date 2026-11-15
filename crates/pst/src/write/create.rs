@@ -17,7 +17,7 @@ use crate::ltp::{Bytes, PropertyType as P, PropertyValue};
 use crate::messaging::{BUCKET_COUNT, NID_MESSAGE_STORE, NID_NAME_TO_ID_MAP, STREAM_ENTRY, STREAM_GUID, STREAM_STRING};
 use crate::ndb::Bref;
 use crate::ndb::btree::{block_entry_size, node_entry_size};
-use crate::ndb::{CLIENT, Format, Header, MAGIC, PAGE, PT_AMAP, PT_BBT, PT_DLIST, PT_NBT, PT_PMAP, Root, SubNodes};
+use crate::ndb::{CLIENT, Format, Header, MAGIC, MAP_BYTES, PAGE, PT_AMAP, PT_BBT, PT_DLIST, PT_NBT, PT_PMAP, Root, SubNodes};
 
 const NID_IPM_SUBTREE: u32 = 0x8022;
 const NID_SEARCH_ROOT: u32 = 0x8042;
@@ -262,13 +262,13 @@ fn write_bare(path: &Path, format: Format) -> io::Result<()> {
     let mut dlist = vec![0u8; PAGE];
     finish_page(&mut dlist, format, PT_DLIST, DLIST_AT, header.next_page, true)?;
     put_page(DLIST_AT, &dlist)?;
-    let bits_at = if format.wide() { 0 } else { 4 };
+    let bits_at = format.map_bits_at();
     let mut amap = vec![0u8; PAGE];
-    amap.get_mut(bits_at..bits_at + 496).ok_or_else(crate::util::short)?.copy_from_slice(&bits);
+    amap.get_mut(bits_at..bits_at + MAP_BYTES).ok_or_else(crate::util::short)?.copy_from_slice(&bits);
     finish_page(&mut amap, format, PT_AMAP, base, base, false)?;
     put_page(base, &amap)?;
     let mut pmap = vec![0u8; PAGE];
-    pmap.get_mut(bits_at..bits_at + 496).ok_or_else(crate::util::short)?.fill(0xFF);
+    pmap.get_mut(bits_at..bits_at + MAP_BYTES).ok_or_else(crate::util::short)?.fill(0xFF);
     finish_page(&mut pmap, format, PT_PMAP, base + PAGE as u64, base + PAGE as u64, false)?;
     put_page(base + PAGE as u64, &pmap)?;
     put_page(nbt_at, &page_bytes(format, PT_NBT, nbt_at, 2, node_entry_size(format), 0, &[])?)?;

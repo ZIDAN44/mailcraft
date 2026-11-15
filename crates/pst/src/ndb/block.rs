@@ -240,7 +240,7 @@ impl SubnodeBlock {
         let level = u8_at(b, 1)?;
         let count = usize::from(u16_at(b, 2)?);
         let id = format.id_size();
-        let (first, entry) = (if format.wide() { 8 } else { 4 }, if level == 0 { 3 * id } else { 2 * id });
+        let (first, entry) = (format.sub_header(), if level == 0 { 3 * id } else { 2 * id });
         if count.saturating_mul(entry).saturating_add(first) > b.len() {
             return Err(invalid("a subnode tree's block ends past its data"));
         }
