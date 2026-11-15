@@ -5,6 +5,7 @@ use super::*;
 
 pub(super) mod atomic;
 pub(super) mod leases;
+mod memory;
 
 /// Where the files live.
 #[derive(Clone, Debug)]

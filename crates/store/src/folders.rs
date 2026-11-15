@@ -4,6 +4,11 @@ use mailcraft_model::Flags;
 
 use crate::*;
 
+mod lists;
+use lists::page_hash;
+pub use lists::{FolderState, ListTail, ListWriter, PAGE_MESSAGES, TAIL_PAGE_MAX, TAIL_PAGES_MAX};
+pub(crate) use lists::{StateFile, no_uids_left};
+
 impl Store {
     #[track_caller]
     pub fn load_folder(&self, account: &str, folder: &str) -> Result<FolderState> {

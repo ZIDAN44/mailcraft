@@ -107,6 +107,45 @@ impl Prepared {
     }
 }
 
+/// A message waiting in the Outbox (its source is stored next to it as `<id>.eml`).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OutboxItem {
+    pub id: u64,
+    /// Envelope sender and recipients (Bcc included: it isn't in the message).
+    pub from: String,
+    pub recipients: Vec<String>,
+    /// Where a copy goes once sent.
+    #[serde(default)]
+    pub sent_folder: Option<String>,
+    /// When it was queued (Unix seconds).
+    #[serde(default)]
+    pub queued: i64,
+    #[serde(default)]
+    pub attempts: u32,
+    /// Why the last attempt failed.
+    #[serde(default)]
+    pub error: Option<String>,
+    /// Held back until then (Unix seconds; 0 = send at once): Outlook's Delay Delivery.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub not_before: i64,
+    /// The server refused it for good (not a connection that failed): it isn't tried again, and
+    /// waits for the user to change or delete it.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub refused: bool,
+}
+
+/// How [`OutboxItem::error`] began for one refused for good, kept before
+/// [`OutboxItem::refused`] was.
+pub(crate) const OUTBOX_REFUSED: &str = "refused: ";
+
+fn is_zero(n: &i64) -> bool {
+    *n == 0
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
+}
+
 impl Store {
     pub fn read_body(&self, key: &MessageKey) -> Option<Vec<u8>> {
         self.reads.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
