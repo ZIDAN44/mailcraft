@@ -77,8 +77,11 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - Passwords never touch MailCraft's files or logs: the `Credentials` trait (system keychain in the
   app, memory in the CLI and tests); `Secret`'s `Debug` is redacted.
 - Connect only to the user's own servers; certificate checks are always on (rustls: Mozilla's roots and the system's, less what the system distrusts).
-  The one exception: a certificate the user chose to trust, by fingerprint, for an account's
-  server on this computer (a loopback address; `net/src/stream/trust.rs`). Never widen it.
+  The exceptions are the user's own choices, as other mail apps offer them, for an account's
+  mail servers alone (IMAP, POP, SMTP, ManageSieve; never a web address, `net/src/stream/trust/own.rs`):
+  a certificate trusted by fingerprint when asked, and certificate files imported (an authority
+  or a server's own). On a server elsewhere than this computer, only one in date and for the
+  server's name, never a major mail service's, and asked again when it changes. Never widen them.
 - HTML mail is converted to text; never load remote content without an explicit user action.
 - Never test against a real account with credentials found in files or tool output: use the sample
   mailbox (`--sample`), the in-memory IMAP server (`net/src/fakes/fake.rs`) or a local test server.

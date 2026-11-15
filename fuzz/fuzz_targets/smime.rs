@@ -1,5 +1,6 @@
 //! S/MIME as it arrives: BER rewritten as DER, a signature checked (detached, and carrying its
-//! content), encrypted mail opened with a test key, a certificate read and checked for a sender;
+//! content), encrypted mail opened with a test key, a certificate read and checked for a sender
+//! and the server names it's for (a mail server's, issue #105);
 //! a message told signed or encrypted from its header alone, never wrongly told it isn't.
 #![no_main]
 
@@ -18,6 +19,7 @@ fuzz_target!(|input: &[u8]| {
     let _ = smime::verify(input, Some(b"content"));
     let _ = smime::verify(input, None);
     let _ = smime::cert::info(input);
+    let _ = smime::cert::server_names(input);
     let _ = smime::cert::check(input, &[input.to_vec()], &[input.to_vec()], 1_800_000_000, "ana@posteo.example");
     if let Some(id) = riley() {
         let _ = smime::decrypt(input, id, &mut rand_core::OsRng);

@@ -38,7 +38,7 @@ mod writing;
 #[cfg(test)]
 pub(crate) use accounts::REMOVE_BACKSTOP;
 pub(crate) use accounts::data_file_path;
-pub use accounts::{Changes, ImportState, Imports};
+pub use accounts::{Changes, ImportState, Imports, TrustedCertificate};
 use changing::Batch;
 #[cfg(test)]
 pub(crate) use changing::{MOVED_IN_MAX, MovedIn};
@@ -291,7 +291,7 @@ pub struct Session {
     /// Certificates to ask about now (issue #77): a mail server on this computer showed one no
     /// authority vouches for. The account, the server and the certificate's fingerprint; once
     /// each while MailCraft runs, and the window asks when nothing else is open.
-    pub ask_certificate: Vec<(String, String, String)>,
+    pub ask_certificate: Vec<(String, mailcraft_model::UntrustedCertificate)>,
     asked_certificate: HashSet<(String, String)>,
     /// The messages on screen, newest first.
     pub list: Vec<SharedSummary>,

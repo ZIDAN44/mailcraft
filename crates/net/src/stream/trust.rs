@@ -1,5 +1,6 @@
 //! Which servers' certificates are trusted: the bundled Mozilla roots and the system's own (an
-//! internal CA that IT installed for an on-premises server), less what the system distrusts.
+//! internal CA that IT installed for an on-premises server), less what the system distrusts; and
+//! for an account's mail servers, what the user chose for it ([`own`]).
 
 use std::collections::HashSet;
 use std::sync::{Arc, OnceLock};
@@ -72,10 +73,15 @@ pub(super) fn root_store(extra: &[CertificateDer<'static>], distrusted: &Distrus
     let mut roots = RootCertStore::empty();
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     roots.add_parsable_certificates(extra.iter().cloned());
+    without_distrusted(&mut roots, distrusted);
+    roots
+}
+
+/// `roots` less any the system distrusts: the same subject and key as one of `distrusted`.
+pub(super) fn without_distrusted(roots: &mut RootCertStore, distrusted: &Distrusted) {
     let mut bad = RootCertStore::empty();
     bad.add_parsable_certificates(distrusted.iter().map(|d| CertificateDer::from(d.clone())));
     roots.roots.retain(|a| !bad.roots.iter().any(|b| b.subject == a.subject && b.subject_public_key_info == a.subject_public_key_info));
-    roots
 }
 
 /// The check every connection's certificates get, built once: the bundled Mozilla roots and the
@@ -98,89 +104,6 @@ pub(crate) fn fingerprint(der: &[u8]) -> String {
     crate::hex(ring::digest::digest(&ring::digest::SHA256, der).as_ref())
 }
 
-/// The check for a server on this computer (issue #77: a bridge to a mail service, with a
-/// certificate it made itself): the usual one, and when that refuses, the certificates the user
-/// chose to trust for the account, each by its fingerprint. One the system distrusts stays
-/// refused. A certificate refused is remembered, for the user to be asked about it.
-#[derive(Debug)]
-pub(crate) struct Local {
-    usual: Arc<Distrusting>,
-    trusted: Vec<String>,
-    refused: std::sync::Mutex<Option<String>>,
-}
-
-impl Local {
-    pub(crate) fn new(usual: Arc<Distrusting>, trusted: &[String]) -> Arc<Local> {
-        Arc::new(Local { usual, trusted: trusted.to_vec(), refused: std::sync::Mutex::new(None) })
-    }
-
-    /// Whether the user chose to trust the certificate with this fingerprint.
-    pub(crate) fn trusts(&self, fingerprint: &str) -> bool {
-        self.trusted.iter().any(|t| t.eq_ignore_ascii_case(fingerprint))
-    }
-
-    /// The fingerprint of the certificate this refused, if it refused one.
-    pub(crate) fn refused(&self) -> Option<String> {
-        self.refused.lock().ok().and_then(|r| r.clone())
-    }
-
-    /// The usual check's verdict on a certificate, or the user's when they trusted this one.
-    pub(crate) fn judge(&self, end_entity: &[u8], verdict: Result<(), rustls::Error>) -> Result<(), rustls::Error> {
-        match verdict {
-            Ok(()) => Ok(()),
-            Err(e @ rustls::Error::InvalidCertificate(CertificateError::Revoked)) => Err(e),
-            Err(e) => {
-                let found = fingerprint(end_entity);
-                if self.trusts(&found) {
-                    return Ok(());
-                }
-                if let Ok(mut refused) = self.refused.lock() {
-                    *refused = Some(found);
-                }
-                Err(e)
-            }
-        }
-    }
-}
-
-impl ServerCertVerifier for Local {
-    fn verify_server_cert(
-        &self,
-        end_entity: &CertificateDer<'_>,
-        intermediates: &[CertificateDer<'_>],
-        server_name: &ServerName<'_>,
-        ocsp_response: &[u8],
-        now: UnixTime,
-    ) -> Result<ServerCertVerified, rustls::Error> {
-        let verdict = self.usual.verify_server_cert(end_entity, intermediates, server_name, ocsp_response, now).map(|_| ());
-        self.judge(end_entity, verdict).map(|()| ServerCertVerified::assertion())
-    }
-
-    // The handshake is still signed with the certificate's key: whoever shows a trusted
-    // certificate has to hold its key.
-    fn verify_tls12_signature(
-        &self,
-        message: &[u8],
-        cert: &CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        self.usual.verify_tls12_signature(message, cert, dss)
-    }
-
-    fn verify_tls13_signature(
-        &self,
-        message: &[u8],
-        cert: &CertificateDer<'_>,
-        dss: &DigitallySignedStruct,
-    ) -> Result<HandshakeSignatureValid, rustls::Error> {
-        self.usual.verify_tls13_signature(message, cert, dss)
-    }
-
-    fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
-        self.usual.supported_verify_schemes()
-    }
-}
-
 /// A client configuration whose server certificates `verifier` checks.
 pub(super) fn client_config<V: ServerCertVerifier + 'static>(verifier: Arc<V>) -> Result<Arc<ClientConfig>, String> {
     let provider = Arc::new(rustls::crypto::ring::default_provider());
@@ -191,7 +114,7 @@ pub(super) fn client_config<V: ServerCertVerifier + 'static>(verifier: Arc<V>) -
 /// Checks the chain a TLS connection made elsewhere was given as `verifier` checks its own
 /// connections': the server's certificate first, then the CAs it sent along. For lettre (SMTP),
 /// which takes no verifier of ours: called after the handshake, before signing in.
-pub(crate) fn check_chain(verifier: &Distrusting, chain: &[Vec<u8>], host: &str) -> Result<(), rustls::Error> {
+pub(crate) fn check_chain<V: ServerCertVerifier>(verifier: &V, chain: &[Vec<u8>], host: &str) -> Result<(), rustls::Error> {
     let Some((leaf, rest)) = chain.split_first() else {
         return Err(rustls::Error::NoCertificatesPresented);
     };
@@ -248,6 +171,10 @@ impl ServerCertVerifier for Distrusting {
         self.inner.supported_verify_schemes()
     }
 }
+
+mod own;
+pub use own::Trusted;
+pub(crate) use own::{Own, public_service};
 
 #[cfg(test)]
 pub(crate) mod test_certs;

@@ -244,10 +244,11 @@ impl Worker {
         // IMAP: a Sieve script, through ManageSieve on the IMAP host.
         let secret = self.secret()?;
         let user = self.acc.login_name().to_string();
-        let mut s = crate::sieve::Client::connect_trusting(&self.acc.imap, self.sieve_port, &self.acc.trusted_certificates).map_err(|e| match e {
-            NetError::Io(_) => NetError::No("this server doesn't offer automatic replies (no ManageSieve)".into()),
-            e => e,
-        })?;
+        let mut s =
+            crate::sieve::Client::connect_trusting(&self.acc.imap, self.sieve_port, crate::stream::Trusted::of(&self.acc)).map_err(|e| match e {
+                NetError::Io(_) => NetError::No("this server doesn't offer automatic replies (no ManageSieve)".into()),
+                e => e,
+            })?;
         if self.acc.oauth.is_some() {
             s.login_xoauth2(&user, &secret)?;
         } else {

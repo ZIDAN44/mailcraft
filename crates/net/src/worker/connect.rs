@@ -281,7 +281,7 @@ impl Worker {
         let c = if self.acc.oauth.is_some() {
             self.imap_with_token(&user, &secret)?
         } else {
-            let mut c = Client::connect_trusting(&self.acc.imap, &self.acc.trusted_certificates)?;
+            let mut c = Client::connect_trusting(&self.acc.imap, crate::stream::Trusted::of(&self.acc))?;
             c.login(&user, &secret)?;
             c
         };
@@ -306,7 +306,7 @@ impl Worker {
     /// address. The address it signed in as is tried once; otherwise it's a refusal that says
     /// what to do, not a sign-in to ask for again (that only loops).
     pub(super) fn imap_with_token(&self, user: &str, token: &str) -> Result<Client<Stream>> {
-        let mut c = Client::connect_trusting(&self.acc.imap, &self.acc.trusted_certificates)?;
+        let mut c = Client::connect_trusting(&self.acc.imap, crate::stream::Trusted::of(&self.acc))?;
         let m = match c.login_xoauth2(user, token) {
             Ok(()) => return Ok(c),
             Err(NetError::Auth(m) | NetError::Bad(m) | NetError::No(m))
@@ -319,7 +319,7 @@ impl Worker {
         log::warn!("{}: {m}", self.acc.id);
         let other = self.acc.oauth_user.as_deref().filter(|o| !o.eq_ignore_ascii_case(user));
         if let Some(other) = other {
-            let mut c = Client::connect_trusting(&self.acc.imap, &self.acc.trusted_certificates)?;
+            let mut c = Client::connect_trusting(&self.acc.imap, crate::stream::Trusted::of(&self.acc))?;
             if c.login_xoauth2(other, token).is_ok() {
                 return Ok(c);
             }

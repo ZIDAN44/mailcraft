@@ -1748,3 +1748,17 @@ count	occurrences	ripetizioni
 	Only when I ask	Solo quando lo chiedo
 	Send / Receive on the account looks; Send / Receive for all leaves it out	Invia/Ricevi sull’account lo controlla; Invia/Ricevi per tutti lo esclude
 	There's no folder to put the PDF in for the viewer	Non c’è una cartella in cui mettere il PDF per il visualizzatore
+	Trust this mail server's certificate?	Considerare attendibile il certificato di questo server di posta?
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	Nessuna autorità considerata attendibile da questo computer garantisce il certificato mostrato da {host}. Il server di posta di un'azienda o uno domestico può crearne uno proprio, ma potrebbe mostrarne uno anche qualcuno tra te e il server. Consideralo attendibile solo se chi gestisce il server conferma questa impronta digitale.
+	Issued to	Rilasciato a
+	Issued by	Rilasciato da
+	Valid	Valido
+	{from} to {until}	Dal {from} al {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	Chi lo gestisce può invece darti il certificato come file: Impostazioni del server › Considera attendibile un file di certificato…
+	Certificates	Certificati
+	Issued by {issuer}	Rilasciato da {issuer}
+	Trusted when asked	Attendibile su richiesta
+	Stop trusting	Non considerare più attendibile
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Un'autorità gestita dalla tua organizzazione o il certificato proprio del tuo server di posta (.pem, .crt, .cer)
+	Trust a certificate file…	Considera attendibile un file di certificato…
+	The certificate is trusted for this account	Il certificato è attendibile per questo account

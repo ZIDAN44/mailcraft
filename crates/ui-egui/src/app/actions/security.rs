@@ -15,6 +15,17 @@ impl MailApp {
         }
     }
 
+    /// A certificate file picked for an account's mail servers to trust (issue #105): an
+    /// authority the organisation runs, or a server's own.
+    pub(super) fn trust_certificate_file(&mut self, account: String) {
+        if let Some(path) = self.services.pick_server_certificate() {
+            match self.session.run("account.trustCertificateFile", &json!({"account": account, "path": path.to_string_lossy()})) {
+                Ok(_) => self.session.notice(tl!("The certificate is trusted for this account").to_string(), false),
+                Err(e) => self.session.notice(e.to_string(), true),
+            }
+        }
+    }
+
     pub(super) fn import_pgp_key(&mut self, account: String) {
         if let Some(path) = self.services.pick_pgp_key() {
             self.ui.dialog = Some(Dialog::PgpKey { account, path: path.to_string_lossy().into_owned(), passphrase: String::new() });

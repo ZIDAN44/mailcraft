@@ -293,9 +293,9 @@ impl<S: Read + Write> Client<S> {
 
 impl Client<Stream> {
     /// Connect to the account's Sieve server: the IMAP host on port 4190, encrypted with
-    /// STARTTLS unless the account is plain (local test servers). `trusted` are the certificates
-    /// the user chose to trust for the account's server on this computer ([`stream::tls_trusting`]).
-    pub fn connect_trusting(imap: &ServerConfig, port: u16, trusted: &[String]) -> Result<Client<Stream>> {
+    /// STARTTLS unless the account is plain (local test servers). `trusted` is what the account
+    /// trusts besides the usual authorities ([`stream::tls_trusting`]).
+    pub fn connect_trusting(imap: &ServerConfig, port: u16, trusted: stream::Trusted<'_>) -> Result<Client<Stream>> {
         let sock = stream::tcp(&imap.host, port)?;
         let mut c = Client::from_stream(Stream::Plain(sock))?;
         if imap.security == Security::None {

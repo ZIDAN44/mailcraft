@@ -13,6 +13,7 @@ use lettre::transport::smtp::extension::{ClientId, Extension, MailBodyParameter,
 use mailcraft_model::{Security, ServerConfig};
 use rustls::pki_types::CertificateDer;
 
+use crate::stream::Trusted;
 use crate::stream::trust::{self, Distrusting};
 use crate::{NetError, Result};
 
@@ -23,13 +24,13 @@ mod tls_tests;
 /// the tests' way to put mail on a server.
 #[cfg(test)]
 pub fn send(server: &ServerConfig, user: &str, password: &str, from: &str, recipients: &[String], raw: &[u8]) -> Result<()> {
-    send_trusting(server, SignIn { user, password, oauth: false }, from, recipients, raw, &[])
+    send_trusting(server, SignIn { user, password, oauth: false }, from, recipients, raw, Trusted::default())
 }
 
 /// Submit `raw` (an RFC 5322 message) from `from` to `recipients` through an account's server,
-/// signing in as `sign_in` says: `trusted` are the certificates the user chose to trust for one
-/// on this computer (their fingerprints), as [`crate::stream::tls_trusting`] takes them.
-pub fn send_trusting(server: &ServerConfig, sign_in: SignIn<'_>, from: &str, recipients: &[String], raw: &[u8], trusted: &[String]) -> Result<()> {
+/// signing in as `sign_in` says: `trusted` is what the account trusts besides the usual
+/// authorities, as [`crate::stream::tls_trusting`] takes it.
+pub fn send_trusting(server: &ServerConfig, sign_in: SignIn<'_>, from: &str, recipients: &[String], raw: &[u8], trusted: Trusted<'_>) -> Result<()> {
     let from: Address = from.trim().parse().map_err(|e| NetError::Smtp(format!("sender {from}: {e}")))?;
     let mut to = Vec::with_capacity(recipients.len());
     for r in recipients {
@@ -53,12 +54,11 @@ pub struct SignIn<'a> {
 }
 
 /// What sending trusts: `roots` for lettre's handshake (the system's), and `verifier`, the check
-/// every connection's certificates get ([`trust::check_chain`]).
+/// every connection's certificates get, with what the account trusts besides ([`trust::Own`]).
 struct Trust<'a> {
     roots: &'a [CertificateDer<'static>],
     verifier: Arc<Distrusting>,
-    /// The certificates the user chose to trust for a server on this computer.
-    trusted: &'a [String],
+    trusted: Trusted<'a>,
 }
 
 /// One message over one connection, as lettre's `SmtpTransport` sends it (connect and EHLO,
@@ -71,9 +71,14 @@ fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: 
     // Each of the server's addresses in turn, as lettre would try them, greeted with this
     // computer's own address on the way to it.
     let addrs: Vec<SocketAddr> = (host, server.port).to_socket_addrs().map_err(NetError::Io)?.take(MAX_ADDRESSES).collect();
-    // A server on this computer (a bridge to a mail service) may show a certificate it made
-    // itself: lettre's handshake lets it by, and the check below decides, before any sign-in.
-    let local = !addrs.is_empty() && addrs.iter().all(|a| crate::stream::on_this_computer(a.ip()));
+    // A server may show a certificate the account trusts and no authority vouches for (one on
+    // this computer, a bridge to a mail service; a company's own, issue #105): lettre's handshake
+    // lets it by, and the account's check below decides, before any sign-in. Not a major mail
+    // service's server, whose certificate an authority always vouches for. lettre greets the
+    // server (EHLO, this computer's address) before that check: the greeting STARTTLS already
+    // says in the clear, never the password or the message.
+    let here = !addrs.is_empty() && addrs.iter().all(|a| crate::stream::on_this_computer(a.ip()));
+    let local = here || !trust::public_service(host);
     let wrapper = match server.security {
         Security::Tls => Some(tls_parameters(host, trust.roots, local)?),
         Security::StartTls | Security::None => None,
@@ -102,18 +107,12 @@ fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: 
     if server.security != Security::None {
         // After a handshake there's always a chain: lettre's call can't come back empty.
         let chain = conn.certificate_chain().map_err(failed)?;
-        let usual = trust::check_chain(&trust.verifier, &chain, host);
-        let verdict = match chain.first().filter(|_| local) {
-            // On this computer: one the user chose to trust, or it's said which it was.
-            Some(shown) => {
-                let check = trust::Local::new(Arc::clone(&trust.verifier), trust.trusted);
-                check.judge(shown, usual).map_err(|e| match check.refused() {
-                    Some(fingerprint) => NetError::Untrusted { host: host.to_string(), fingerprint },
-                    None => NetError::Tls(e.to_string()),
-                })
-            }
-            None => usual.map_err(|e| NetError::Tls(e.to_string())),
-        };
+        // The usual check, then what the account trusts; or it's said which certificate it was.
+        let check = trust::Own::new(Arc::clone(&trust.verifier), trust.trusted, host, here);
+        let verdict = check.check(&chain).map_err(|e| match check.refused() {
+            Some(shown) => NetError::Untrusted(Box::new(shown)),
+            None => NetError::Tls(e.to_string()),
+        });
         if let Err(e) = verdict {
             conn.abort();
             return Err(e);

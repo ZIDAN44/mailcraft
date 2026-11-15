@@ -24,7 +24,7 @@ pub use import::*;
 pub use keys::{HeldKey, Revocation};
 pub use op::Op;
 pub use progress::Work;
-pub use status::{FailureKind, SyncStatus};
+pub use status::{FailureKind, LOCAL_CERTIFICATE, REMOTE_CERTIFICATE, SyncStatus, UntrustedCertificate};
 pub use vacation::{Vacation, is_day};
 
 /// A password in transit. Its `Debug` form is redacted so it never reaches a log.

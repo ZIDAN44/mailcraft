@@ -29,7 +29,10 @@ pub use addr::identity::Identity;
 pub use dates::zone;
 pub use encoding::path;
 pub use encoding::{base64, utf7};
-pub use job::{Event, FailureKind, HeldKey, Job, Op, PgpSignature, PgpWork, Private, Revocation, Secret, SyncStatus};
+pub use job::{
+    Event, FailureKind, HeldKey, Job, LOCAL_CERTIFICATE, Op, PgpSignature, PgpWork, Private, REMOTE_CERTIFICATE, Revocation, Secret, SyncStatus,
+    UntrustedCertificate,
+};
 pub use path::file_name;
 pub use signature::Signature;
 pub use summary::{FOLLOW_UP_COMPLETE, Flag, Flags, MessageKey, PINNED, SharedSummary, Smime, Summary, is_keyword, keyword_for, sort_newest_first};
@@ -182,11 +185,18 @@ pub struct AccountConfig {
     /// server that lets in only the clients it knows. Checked by [`user_agent`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub user_agent: Option<String>,
-    /// Certificates the user chose to trust for this account's servers on this computer (issue
-    /// #77: a bridge to a mail service makes its own, which no authority vouches for), by their
-    /// SHA-256 fingerprints in hex. Only ever used for a server at a loopback address.
+    /// Certificates the user chose to trust for this account's mail servers when asked, by their
+    /// SHA-256 fingerprints in hex: one a server on this computer made itself (issue #77: a bridge
+    /// to a mail service), or one no authority vouches for elsewhere (issue #105: a company's or
+    /// home server's), then only while it's in date and for the server's name. Never for web
+    /// addresses, nor a major mail service's servers (`net/src/stream/trust.rs`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trusted_certificates: Vec<String>,
+    /// Certificates the user imported from files for this account's mail servers (issue #105): an
+    /// authority their organisation runs, or a server's own certificate, in base64 (DER). As
+    /// limited as [`Self::trusted_certificates`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub trusted_authorities: Vec<String>,
 }
 
 impl AccountConfig {
@@ -238,29 +248,21 @@ impl AccountConfig {
             dav,
             user_agent,
             trusted_certificates,
+            trusted_authorities,
         } = self;
         (
             (email, username, imap, smtp, pop),
             (jmap, graph, ews, smtp_username, oauth, oauth_user),
             (pop_delete, pop_keep_days, pop_delete_with_trash, shared_mailboxes, online_only, (check_every, check_by_hand)),
-            (dav, user_agent, trusted_certificates),
+            (dav, user_agent, trusted_certificates, trusted_authorities),
         )
     }
 }
 
-/// The most certificates an account trusts by hand.
+/// The most certificates an account trusts by hand, and imports from files (and how big one is).
 pub const MAX_TRUSTED_CERTIFICATES: usize = 8;
-
-/// Why a mail server on this computer was refused: it showed a certificate of its own, which no
-/// authority vouches for and the user hasn't trusted. The refusal says these words, then the
-/// server and the certificate's fingerprint; its kind ([`FailureKind::LocalCertificate`]) names
-/// them, so the UI can ask.
-pub const LOCAL_CERTIFICATE: &str = "the mail server on this computer uses a certificate of its own that isn't trusted yet";
-
-/// What a refusal for [`LOCAL_CERTIFICATE`] says: its words, the server and the fingerprint.
-pub fn local_certificate_refusal(host: &str, fingerprint: &str) -> String {
-    format!("{LOCAL_CERTIFICATE} ({host} {fingerprint})")
-}
+pub const MAX_TRUSTED_AUTHORITIES: usize = 4;
+pub const MAX_AUTHORITY_BYTES: usize = 16 << 10;
 
 /// Whether `s` is a SHA-256 fingerprint in hex.
 pub fn is_certificate_fingerprint(s: &str) -> bool {

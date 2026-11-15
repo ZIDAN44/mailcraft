@@ -1,7 +1,8 @@
 //! Certificates for the trust tests: an internal CA as a company's IT runs one, an issuing CA
 //! under it, servers they signed (with their keys, so a test can stand in for the server), and
 //! bytes no store can use. Made up for MailCraft's tests, valid until 2126, for `mail.corp.test`
-//! and 127.0.0.1; the CAs' keys were thrown away.
+//! and 127.0.0.1; the CAs' keys were thrown away. Then two servers' own certificates (their keys
+//! thrown away too): one out of date, one made by hand; and one for an address to write to.
 
 use rustls::pki_types::pem::PemObject;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -103,6 +104,59 @@ pub(crate) fn via_issuing() -> CertificateDer<'static> {
 /// The server under the issuing CA: its certificate, then the issuing CA's, and its key.
 pub(crate) fn via_issuing_identity() -> (Vec<CertificateDer<'static>>, PrivateKeyDer<'static>) {
     (vec![via_issuing(), issuing_ca()], PrivateKeyDer::from_pem_slice(VIA_ISSUING_KEY.as_bytes()).unwrap())
+}
+
+/// A server's own certificate that ran out on 1 January 2021, for `old.corp.test`.
+const EXPIRED: &str = "-----BEGIN CERTIFICATE-----
+MIIBoDCCAUWgAwIBAgIUATJUu6Qv7Cal3qkdTtwO6E+xfNcwCgYIKoZIzj0EAwIw
+GDEWMBQGA1UEAwwNb2xkLmNvcnAudGVzdDAeFw0yMDAxMDEwMDAwMDBaFw0yMTAx
+MDEwMDAwMDBaMBgxFjAUBgNVBAMMDW9sZC5jb3JwLnRlc3QwWTATBgcqhkjOPQIB
+BggqhkjOPQMBBwNCAARd1XQya38XKtC0QFaF3Qa7A7j7rnjBGf0k1sSZN/XYq2SB
+L186jZ9hFqYLa3Z6caluOJwLwGntNZ0c/jP2qDrho20wazAdBgNVHQ4EFgQUhj7v
+dI2SoNY66s/baTzOJS+TBTMwHwYDVR0jBBgwFoAUhj7vdI2SoNY66s/baTzOJS+T
+BTMwDwYDVR0TAQH/BAUwAwEB/zAYBgNVHREEETAPgg1vbGQuY29ycC50ZXN0MAoG
+CCqGSM49BAMCA0kAMEYCIQC2FQ7GbxJ8+gmAysZe63u990sjkigMYtdKZb7aQrNj
+zAIhANeIckwrfk3gf5A787HXI1Kjjy+TT+i9hlkPlOTc9mtH
+-----END CERTIFICATE-----";
+
+/// A server's own certificate as `openssl req -x509` makes one by hand: for `home.lan` in its
+/// common name alone, saying it's an authority, valid until 2126.
+const HAND_MADE: &str = "-----BEGIN CERTIFICATE-----
+MIIBfTCCASOgAwIBAgIUPU1r+e+KwYCaKp01AKtQukNtuT0wCgYIKoZIzj0EAwIw
+EzERMA8GA1UEAwwIaG9tZS5sYW4wIBcNMjYxMTE1MjExNTM5WhgPMjEyNjEwMjIy
+MTE1MzlaMBMxETAPBgNVBAMMCGhvbWUubGFuMFkwEwYHKoZIzj0CAQYIKoZIzj0D
+AQcDQgAEjb5bZifajgwQzypNdk/R5yVNilawdn8VkEVHLTVtmYVWWkg/mOPfdwBW
+/+QN300tNlW6m28zmjSy6FtG+yPMlqNTMFEwHQYDVR0OBBYEFJOK5+J1UnapI8C2
+txuPEFIP8yVOMB8GA1UdIwQYMBaAFJOK5+J1UnapI8C2txuPEFIP8yVOMA8GA1Ud
+EwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDSAAwRQIhAO8WcO4D8DmWac9XDvbS+IhX
+LIYgYnSA4eRWoFxUcL+sAiAMpfW2k21IPyQJY/wKLkIZzIJnZdDt00jrpFpKUPaR
+hA==
+-----END CERTIFICATE-----";
+
+/// A certificate whose only alternative name is an address to write to, its common name a
+/// server's: for no server.
+const EMAIL_ONLY: &str = "-----BEGIN CERTIFICATE-----
+MIIBoTCCAUigAwIBAgIUb/mY+SzNJlB3WKFfSDRTThEyvxAwCgYIKoZIzj0EAwIw
+GTEXMBUGA1UEAwwObWFpbC5jb3JwLnRlc3QwIBcNMjYxMTE1MjE0NzA4WhgPMjEy
+NjEwMjIyMTQ3MDhaMBkxFzAVBgNVBAMMDm1haWwuY29ycC50ZXN0MFkwEwYHKoZI
+zj0CAQYIKoZIzj0DAQcDQgAEstXCpTjdYemhPPJU+LBiz9Asin4JLcnMTNd5TX2f
+yBOALB1e0o0JZMQs7RPTPKN8xd/UZTaTndCXtbt6ofWcYaNsMGowHQYDVR0OBBYE
+FL3mtuXvqBw37hp1DaN0DsVDS5Q5MB8GA1UdIwQYMBaAFL3mtuXvqBw37hp1DaN0
+DsVDS5Q5MA8GA1UdEwEB/wQFMAMBAf8wFwYDVR0RBBAwDoEMaXRAY29ycC50ZXN0
+MAoGCCqGSM49BAMCA0cAMEQCIGR82E34tl7N0Ea8TGg31zL/vnr0i89gn8NLVAhE
+PNdUAiAapW+hHdUu+pgb5VHLDp9yvZxF7KpFmz46vYTvPC6iVA==
+-----END CERTIFICATE-----";
+
+pub(crate) fn email_only() -> CertificateDer<'static> {
+    cert(EMAIL_ONLY)
+}
+
+pub(crate) fn expired() -> CertificateDer<'static> {
+    cert(EXPIRED)
+}
+
+pub(crate) fn hand_made() -> CertificateDer<'static> {
+    cert(HAND_MADE)
 }
 
 /// What a damaged entry in a system store reads as.

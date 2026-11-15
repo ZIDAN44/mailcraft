@@ -124,12 +124,11 @@ pub enum Dialog {
         email: String,
         error: String,
     },
-    /// A mail server on this computer showed a certificate no authority vouches for (issue #77):
-    /// whether to trust that one for the account.
+    /// A mail server showed a certificate no authority vouches for (issues #77 and #105): whether
+    /// to trust that one for the account.
     TrustCertificate {
         account: String,
-        host: String,
-        fingerprint: String,
+        shown: Box<mailcraft_engine::model::UntrustedCertificate>,
     },
     Signature(Box<SignatureForm>),
     /// An account's name, user name and servers.

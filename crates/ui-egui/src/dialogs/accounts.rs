@@ -99,7 +99,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
-        Dialog::EditAccount(f) => edit_account(ui, f, t, acts),
+        Dialog::EditAccount(f) => edit_account(ui, f, s, t, acts),
         Dialog::AddSharedMailbox { account, address, error } => {
             ui.set_width(420.0);
             title(ui, t, "Add a shared mailbox");

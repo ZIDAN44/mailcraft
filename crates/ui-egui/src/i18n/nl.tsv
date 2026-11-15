@@ -1744,3 +1744,17 @@ count	occurrences	keer
 	Only when I ask	Alleen als ik erom vraag
 	Send / Receive on the account looks; Send / Receive for all leaves it out	Verzenden/ontvangen op het account kijkt; verzenden/ontvangen voor alle accounts slaat het over
 	There's no folder to put the PDF in for the viewer	Er is geen map om de pdf in te zetten voor de viewer
+	Trust this mail server's certificate?	Het certificaat van deze mailserver vertrouwen?
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	Geen instantie die deze computer vertrouwt, staat in voor het certificaat dat {host} toont. De mailserver van een bedrijf of een thuisserver kan er zelf een maken, maar iemand tussen u en de server kan er ook een tonen. Vertrouw het alleen als degene die de server beheert deze vingerafdruk bevestigt.
+	Issued to	Uitgegeven aan
+	Issued by	Uitgegeven door
+	Valid	Geldig
+	{from} to {until}	{from} tot {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	De beheerder kan u het certificaat ook als bestand geven: Serverinstellingen › Een certificaatbestand vertrouwen…
+	Certificates	Certificaten
+	Issued by {issuer}	Uitgegeven door {issuer}
+	Trusted when asked	Vertrouwd na vraag
+	Stop trusting	Niet meer vertrouwen
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Een certificeringsinstantie van uw organisatie, of het eigen certificaat van uw mailserver (.pem, .crt, .cer)
+	Trust a certificate file…	Een certificaatbestand vertrouwen…
+	The certificate is trusted for this account	Het certificaat wordt voor dit account vertrouwd

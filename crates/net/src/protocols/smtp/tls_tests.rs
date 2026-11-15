@@ -128,7 +128,7 @@ fn send_trusting_to(
     let (port, server) = serve(identity, security == Security::StartTls);
     let set: Distrusted = distrusted.iter().map(|c| c.to_vec()).collect();
     let roots = usable_roots(store.clone(), &set);
-    let trust = Trust { roots: &roots, verifier: check(store, distrusted), trusted };
+    let trust = Trust { roots: &roots, verifier: check(store, distrusted), trusted: crate::stream::Trusted::pinned(trusted) };
     let config = ServerConfig { host: "127.0.0.1".into(), port, security };
     let envelope = Envelope::new(Some("ana@corp.test".parse().unwrap()), vec!["ben@corp.test".parse().unwrap()]).unwrap();
     let message = b"Subject: hi\r\n\r\nhello\r\n";
@@ -147,7 +147,7 @@ fn refusal_text(result: Result<()>) -> String {
 /// The server and the certificate a refusal names as one of its own on this computer.
 fn untrusted(result: &Result<()>) -> Option<(String, String)> {
     match result {
-        Err(crate::NetError::Untrusted { host, fingerprint }) => Some((host.clone(), fingerprint.clone())),
+        Err(crate::NetError::Untrusted(shown)) => Some((shown.host.clone(), shown.fingerprint.clone())),
         _ => None,
     }
 }
@@ -179,20 +179,23 @@ fn a_distrusted_server_or_intermediate_never_gets_the_password() {
     }
 }
 
-/// A CA the system doesn't trust, or distrusts though it's among the roots: refused before
-/// signing in. The server is on this computer (as a bridge to a mail service is), so the refusal
-/// says which certificate it showed, for the user to be asked about it (issue #77).
+/// A CA the system doesn't trust: refused before signing in. The server is on this computer (as
+/// a bridge to a mail service is), so the refusal says which certificate it showed, for the user
+/// to be asked about it (issue #77). One the system distrusts, though it's among the roots, is
+/// refused as withdrawn, and never asked about (issue #105).
 #[test]
 fn a_ca_the_system_does_not_trust_is_refused() {
-    for (store, distrusted) in [(vec![], vec![]), (vec![internal_ca()], vec![internal_ca()])] {
-        for security in [Security::Tls, Security::StartTls] {
-            let (result, heard) = send_to(server_identity(), security, store.clone(), &distrusted);
-            let (host, fingerprint) = untrusted(&result).unwrap_or_default();
-            let why = refusal_text(result);
-            assert_eq!(host, "127.0.0.1", "{why}");
-            assert_eq!(fingerprint, crate::stream::trust::fingerprint(&server_identity().0[0]), "{why}");
-            assert!(!heard.contains("AUTH"), "{heard}");
-        }
+    for security in [Security::Tls, Security::StartTls] {
+        let (result, heard) = send_to(server_identity(), security, vec![], &[]);
+        let (host, fingerprint) = untrusted(&result).unwrap_or_default();
+        let why = refusal_text(result);
+        assert_eq!(host, "127.0.0.1", "{why}");
+        assert_eq!(fingerprint, crate::stream::trust::fingerprint(&server_identity().0[0]), "{why}");
+        assert!(!heard.contains("AUTH"), "{heard}");
+        let (result, heard) = send_to(server_identity(), security, vec![internal_ca()], &[internal_ca()]);
+        assert!(untrusted(&result).is_none());
+        assert!(refusal_text(result).contains("Revoked"));
+        assert!(!heard.contains("AUTH"), "{heard}");
     }
 }
 

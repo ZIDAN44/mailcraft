@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 
+- A mail server whose certificate no authority vouches for can be trusted, as other mail apps let you (#105): a company's own, or one set up at home. MailCraft asks, showing whom the certificate is for, who issued it, until when, and its fingerprint for whoever runs the server to confirm, and **Trust this certificate** keeps it for that account. Or the certificate file they give you, the server's own or the authority that issues it, is trusted under **File › Info › Server settings… › Trust a certificate file…**, where **Stop trusting** takes one back. Only for the account's mail servers, only a certificate in date and for the server's name, never for a major mail service's servers, and MailCraft asks again if it changes.
 - macOS: the Dock icon shows how much unread mail is in the Inboxes, as the window's title does, and nothing once it's all read (#93).
 - An account can look for new mail only when you ask (#104): **File › Options › Mail › Checking for new mail › Only when I ask**. It isn't signed in as MailCraft starts nor looks by itself; **Send / Receive** on the account looks (and now looks at that account only: it looked at all of them), Send / Receive for all leaves it out, and sending or opening a message not downloaded yet still works.
 - A picture in a message has a menu on a right-click (#110): **Copy picture**, for another app to paste, and **Save picture as…**, for one the message carries or one from the web that's been shown.

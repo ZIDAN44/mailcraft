@@ -1745,3 +1745,17 @@ count	occurrences	回
 	Only when I ask	指示したときだけ
 	Send / Receive on the account looks; Send / Receive for all leaves it out	アカウントで [送受信] すると確認します。すべての [送受信] では対象外です
 	There's no folder to put the PDF in for the viewer	ビューアー用の PDF を置くフォルダーがありません
+	Trust this mail server's certificate?	このメールサーバーの証明書を信頼しますか？
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	{host} が示す証明書を、このコンピューターが信頼する認証局は保証していません。会社や自宅のメールサーバーは独自の証明書を作ることがありますが、あなたとサーバーの間にいる第三者も同じように証明書を示すことができます。サーバーの管理者がこのフィンガープリントを確認した場合にのみ信頼してください。
+	Issued to	発行先
+	Issued by	発行者
+	Valid	有効期間
+	{from} to {until}	{from} から {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	管理者から証明書をファイルで受け取ることもできます: サーバー設定 › 証明書ファイルを信頼…
+	Certificates	証明書
+	Issued by {issuer}	発行者: {issuer}
+	Trusted when asked	確認して信頼済み
+	Stop trusting	信頼をやめる
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	組織が運用する認証局、またはメールサーバー自身の証明書 (.pem、.crt、.cer)
+	Trust a certificate file…	証明書ファイルを信頼…
+	The certificate is trusted for this account	このアカウントでこの証明書を信頼しました

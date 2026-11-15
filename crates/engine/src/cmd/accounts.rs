@@ -89,8 +89,23 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.trust_certificate(p::req_str(v, "account")?, p::req_str(v, "fingerprint")?)
         })
         .params(
-            r#"{"account": string, "fingerprint": string (the SHA-256, in hex, of the certificate a mail server on this computer showed: it's trusted for that account's servers on this computer only)}"#,
+            r#"{"account": string, "fingerprint": string (the SHA-256, in hex, of the certificate a mail server showed that no authority vouches for: it's trusted for that account's IMAP, POP, SMTP and Sieve servers, elsewhere than this computer only while it's in date and for the server's name)}"#,
         ),
+        CommandSpec::new("account.trustCertificateFile", "Trust a certificate file", "File › Accounts › Server settings", |s, v| {
+            let account = p::req_str(v, "account")?.to_string();
+            let data = match p::bytes(v, "data", 64 << 10)? {
+                Some(data) => data,
+                None => read_capped(p::req_str(v, "path")?.trim(), 64 << 10)?,
+            };
+            s.trust_certificate_file(&account, &data)
+        })
+        .params(
+            r#"{"account": string, "path": string (a certificate file, PEM or DER: an authority that issues the account's servers' certificates, or a server's own), "data"?: [bytes]}"#,
+        ),
+        CommandSpec::new("account.forgetCertificate", "Stop trusting this certificate", "File › Accounts › Server settings", |s, v| {
+            s.forget_certificate(p::req_str(v, "account")?, p::req_str(v, "fingerprint")?)
+        })
+        .params(r#"{"account": string, "fingerprint": string (a certificate it trusts, when asked or from a file)}"#),
         CommandSpec::new("account.dav", "Calendars and contacts", "File › Info › Account settings", set_dav).params(
             r#"{"account": string, "caldav"?: string (the calendar server's address: its own, the home, or one calendar; empty: found from the account's address), "carddav"?: string (the same for contacts), "username"?: string|null (its own sign-in; null: as the mail server), "password"?: string}"#,
         ),
@@ -261,6 +276,7 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         dav: None,
         user_agent,
         trusted_certificates: Vec::new(),
+        trusted_authorities: Vec::new(),
     };
     // A line break or tab pasted in with the user name: no server would ever take it (in an
     // Exchange `DOMAIN\user`, a `\r` read from JSON became part of it, and sign-in failed).

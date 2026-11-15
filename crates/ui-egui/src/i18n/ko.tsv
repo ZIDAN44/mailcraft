@@ -1748,3 +1748,17 @@ count	occurrences	회
 	Only when I ask	요청할 때만
 	Send / Receive on the account looks; Send / Receive for all leaves it out	계정에서 보내기/받기를 하면 확인하고, 모두 보내기/받기에서는 제외합니다
 	There's no folder to put the PDF in for the viewer	뷰어용 PDF를 넣을 폴더가 없습니다
+	Trust this mail server's certificate?	이 메일 서버의 인증서를 신뢰하시겠습니까?
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	이 컴퓨터가 신뢰하는 인증 기관 중 어느 곳도 {host}이(가) 보여 주는 인증서를 보증하지 않습니다. 회사나 집의 메일 서버는 자체 인증서를 만들 수 있지만, 사용자와 서버 사이에 있는 누군가도 그런 인증서를 보여 줄 수 있습니다. 서버 관리자가 이 지문을 확인해 준 경우에만 신뢰하세요.
+	Issued to	발급 대상
+	Issued by	발급자
+	Valid	유효 기간
+	{from} to {until}	{from}부터 {until}까지
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	관리자가 인증서를 파일로 줄 수도 있습니다: 서버 설정 › 인증서 파일 신뢰…
+	Certificates	인증서
+	Issued by {issuer}	발급자: {issuer}
+	Trusted when asked	물어본 뒤 신뢰함
+	Stop trusting	신뢰 중지
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	조직이 운영하는 인증 기관 또는 메일 서버 자체의 인증서 (.pem, .crt, .cer)
+	Trust a certificate file…	인증서 파일 신뢰…
+	The certificate is trusted for this account	이 계정에서 인증서를 신뢰합니다

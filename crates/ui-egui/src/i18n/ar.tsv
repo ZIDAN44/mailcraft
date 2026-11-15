@@ -1744,3 +1744,17 @@ count	occurrences	مرات
 	Only when I ask	فقط عندما أطلب
 	Send / Receive on the account looks; Send / Receive for all leaves it out	إرسال/تلقي على الحساب يتحقق منه؛ وإرسال/تلقي للكل يستثنيه
 	There's no folder to put the PDF in for the viewer	لا يوجد مجلد لوضع ملف PDF فيه للعارض
+	Trust this mail server's certificate?	هل تثق بشهادة خادم البريد هذا؟
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	لا تضمن أي جهة يثق بها هذا الحاسوب الشهادة التي يعرضها {host}. قد يُنشئ خادم بريد لشركة أو خادم منزلي شهادته الخاصة، لكن قد يعرض شخص ما بينك وبين الخادم شهادة مثلها أيضًا. لا تثق بها إلا إذا أكّد لك من يدير الخادم هذه البصمة.
+	Issued to	صادرة إلى
+	Issued by	صادرة عن
+	Valid	صالحة
+	{from} to {until}	من {from} إلى {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	يمكن لمن يديره أن يعطيك شهادته في ملف بدلًا من ذلك: إعدادات الخادم › الوثوق بملف شهادة…
+	Certificates	الشهادات
+	Issued by {issuer}	صادرة عن {issuer}
+	Trusted when asked	موثوقة عند السؤال
+	Stop trusting	إيقاف الثقة
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	جهة إصدار تديرها مؤسستك، أو الشهادة الخاصة بخادم بريدك (.pem، .crt، .cer)
+	Trust a certificate file…	الوثوق بملف شهادة…
+	The certificate is trusted for this account	الشهادة موثوقة لهذا الحساب

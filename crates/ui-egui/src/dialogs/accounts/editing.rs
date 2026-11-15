@@ -2,7 +2,7 @@
 
 use super::*;
 
-pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(480.0);
     title(ui, t, "Server settings");
     ui.label(RichText::new(&f.email).color(t.dim));
@@ -47,6 +47,10 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut
     }
     if f.pop.is_none() {
         online_only(ui, t, &mut f.online_only);
+    }
+    // Certificates trusted besides the usual authorities: for its own mail servers alone.
+    if f.ews.is_none() && (f.pop.is_some() || !f.jmap) {
+        super::super::trust::trusted_rows(ui, s, t, &f.account, acts);
     }
     if let Some(e) = &f.error {
         ui.add_space(6.0);

@@ -48,11 +48,11 @@ pub enum NetError {
     Io(#[from] io::Error),
     #[error("secure connection: {0}")]
     Tls(String),
-    /// A mail server on this computer showed a certificate of its own, which no authority vouches
-    /// for and the user hasn't trusted: the server, and the certificate's SHA-256 in hex, for the
-    /// user to be asked about it (issue #77). Otherwise a TLS failure.
-    #[error("secure connection: {}", mailcraft_model::local_certificate_refusal(.host, .fingerprint))]
-    Untrusted { host: String, fingerprint: String },
+    /// A mail server showed a certificate no authority vouches for, which the user hasn't trusted:
+    /// the certificate as it was shown, for the user to be asked about it (issues #77 and #105).
+    /// Otherwise a TLS failure.
+    #[error("secure connection: {}", .0.refusal())]
+    Untrusted(Box<mailcraft_model::UntrustedCertificate>),
     /// The server's response could not be understood.
     #[error("unexpected server response: {0}")]
     Protocol(String),
@@ -111,7 +111,7 @@ impl NetError {
     pub fn failure(&self) -> mailcraft_model::FailureKind {
         use mailcraft_model::FailureKind;
         match self {
-            NetError::Untrusted { host, fingerprint } => FailureKind::LocalCertificate { host: host.clone(), fingerprint: fingerprint.clone() },
+            NetError::Untrusted(shown) => FailureKind::UntrustedCertificate(shown.clone()),
             NetError::MailboxClosed(_) => FailureKind::MicrosoftImapClosed,
             _ => FailureKind::Other,
         }

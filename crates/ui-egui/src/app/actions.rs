@@ -20,11 +20,11 @@ impl MailApp {
                 self.ui.dialog = Some(Dialog::password(&a.config));
             }
         }
-        // A mail server on this computer with a certificate of its own asks to be trusted, the
-        // same way (issue #77).
+        // A mail server with a certificate no authority vouches for asks to be trusted, the same
+        // way (issues #77 and #105).
         if self.ui.dialog.is_none() && self.ui.backstage.is_none() && !self.session.ask_certificate.is_empty() {
-            let (account, host, fingerprint) = self.session.ask_certificate.remove(0);
-            self.ui.dialog = Some(Dialog::TrustCertificate { account, host, fingerprint });
+            let (account, shown) = self.session.ask_certificate.remove(0);
+            self.ui.dialog = Some(Dialog::TrustCertificate { account, shown: Box::new(shown) });
         }
         let news = self.session.take_new_mail();
         if !news.is_empty() {
@@ -145,6 +145,7 @@ impl MailApp {
             Action::Restore { data, password } => self.restore_backup(&data, &password),
             // An account's keys (`actions/security.rs`).
             Action::ImportCertificate(account) => self.import_certificate(account),
+            Action::TrustCertificateFile(account) => self.trust_certificate_file(account),
             Action::UnlockCertificate(account) => {
                 self.ui.dialog = Some(Dialog::Certificate { account, path: String::new(), data: None, password: String::new() });
             }
@@ -306,9 +307,9 @@ impl MailApp {
         use mailcraft_engine::model::FailureKind;
         let Some((config, status)) = self.session.account(id).map(|a| (a.config.clone(), a.status.clone())) else { return };
         match status {
-            // A server on this computer with a certificate of its own: asked about again.
-            SyncStatus::Error { kind: FailureKind::LocalCertificate { host, fingerprint }, .. } => {
-                self.ui.dialog = Some(Dialog::TrustCertificate { account: id.to_string(), host, fingerprint });
+            // A server with a certificate no authority vouches for: asked about again.
+            SyncStatus::Error { kind: FailureKind::UntrustedCertificate(shown), .. } => {
+                self.ui.dialog = Some(Dialog::TrustCertificate { account: id.to_string(), shown });
                 return;
             }
             // Microsoft took the sign-in but won't open the mailbox: say why, and what helps.

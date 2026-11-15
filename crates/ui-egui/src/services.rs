@@ -186,6 +186,11 @@ pub trait Services {
     fn pick_certificate(&mut self) -> Option<PathBuf> {
         None
     }
+    /// A server's certificate, or an authority's, to trust for an account's mail servers (`.pem`,
+    /// `.crt`, `.cer`; `None` when cancelled, or where there's no file picker).
+    fn pick_server_certificate(&mut self) -> Option<PathBuf> {
+        None
+    }
     /// An OpenPGP key file (`.asc`, `.gpg`, `.key`) to import (`None` when cancelled, or where
     /// there's no file picker).
     fn pick_pgp_key(&mut self) -> Option<PathBuf> {

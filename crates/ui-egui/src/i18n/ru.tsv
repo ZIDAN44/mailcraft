@@ -1748,3 +1748,17 @@ count	occurrences	повторений
 	Only when I ask	Только по запросу
 	Send / Receive on the account looks; Send / Receive for all leaves it out	«Отправить/получить» для учётной записи проверяет её; «Отправить/получить» для всех её пропускает
 	There's no folder to put the PDF in for the viewer	Нет папки, куда положить PDF для просмотра
+	Trust this mail server's certificate?	Доверять сертификату этого почтового сервера?
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	Ни один центр, которому доверяет этот компьютер, не ручается за сертификат, который показывает {host}. Почтовый сервер компании или домашний сервер может выпустить собственный, но и кто-то между вами и сервером может показать такой же. Доверяйте ему, только если тот, кто управляет сервером, подтвердит этот отпечаток.
+	Issued to	Кому выдан
+	Issued by	Кем выдан
+	Valid	Действителен
+	{from} to {until}	С {from} по {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	Администратор сервера может вместо этого дать вам его сертификат в виде файла: Параметры сервера › Доверять файлу сертификата…
+	Certificates	Сертификаты
+	Issued by {issuer}	Кем выдан: {issuer}
+	Trusted when asked	Доверен по запросу
+	Stop trusting	Больше не доверять
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Центр сертификации вашей организации или собственный сертификат вашего почтового сервера (.pem, .crt, .cer)
+	Trust a certificate file…	Доверять файлу сертификата…
+	The certificate is trusted for this account	Сертификату доверяют для этой учётной записи

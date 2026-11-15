@@ -419,7 +419,7 @@ pub(crate) fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::Acco
     match &a.status {
         SyncStatus::Error { kind: FailureKind::MicrosoftNoPasswords, .. } => (t.danger, tl!("Sign in with Microsoft").to_string()),
         SyncStatus::Error { kind: FailureKind::MicrosoftImapClosed, .. } => (t.danger, tl!("Mailbox won't open").to_string()),
-        SyncStatus::Error { kind: FailureKind::LocalCertificate { .. }, .. } => (t.danger, tl!("Certificate not trusted yet").to_string()),
+        SyncStatus::Error { kind: FailureKind::UntrustedCertificate(..), .. } => (t.danger, tl!("Certificate not trusted yet").to_string()),
         SyncStatus::Online { at } => (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock)))),
         SyncStatus::Syncing { folder } => {
             (t.accent, tf!("Updating {folder}…", folder = s.folder(&a.config.id, folder).map(i18n::folder).unwrap_or_default()))

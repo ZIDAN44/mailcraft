@@ -11,6 +11,7 @@ use std::thread::JoinHandle;
 use mailcraft_model::{Security, ServerConfig};
 use rustls::{ServerConnection, StreamOwned};
 
+use crate::stream::Trusted;
 use crate::stream::trust::fingerprint;
 use crate::stream::trust::test_certs::server_identity;
 use crate::{Result, imap, pop, sieve};
@@ -152,13 +153,13 @@ fn talk(p: Protocol, up: Upgrade, trusted: &[String]) -> (Result<()>, String) {
     let (port, server) = serve(p, up);
     let cfg = ServerConfig { host: "127.0.0.1".into(), port, security: Security::StartTls };
     let outcome: Result<()> = match p {
-        Protocol::Imap => imap::Client::connect_trusting(&cfg, trusted).map(|mut c| {
+        Protocol::Imap => imap::Client::connect_trusting(&cfg, Trusted::pinned(trusted)).map(|mut c| {
             // Capabilities from before TLS are forgotten.
             assert!(c.has("IDLE") && !c.has("STARTTLS"), "IMAP kept what it heard in the clear");
             c.logout();
         }),
-        Protocol::Pop => pop::Client::connect_trusting(&cfg, trusted).and_then(pop::Client::quit),
-        Protocol::Sieve => sieve::Client::connect_trusting(&cfg, port, trusted).map(|mut c| {
+        Protocol::Pop => pop::Client::connect_trusting(&cfg, Trusted::pinned(trusted)).and_then(pop::Client::quit),
+        Protocol::Sieve => sieve::Client::connect_trusting(&cfg, port, Trusted::pinned(trusted)).map(|mut c| {
             assert!(c.has_extension("vacation"), "Sieve kept the capabilities it heard in the clear");
             c.logout();
         }),
@@ -189,8 +190,8 @@ fn starttls_upgrades_to_a_certificate_the_user_trusts() {
 fn starttls_refuses_a_certificate_nobody_vouches_for() {
     for p in ALL {
         let (outcome, heard) = talk(p, Upgrade::Agrees, &[]);
-        let Err(crate::NetError::Untrusted { host, fingerprint }) = outcome else { panic!("{p:?}: {outcome:?}") };
-        assert_eq!((host.as_str(), fingerprint), ("127.0.0.1", the_certificate()), "{p:?}");
+        let Err(crate::NetError::Untrusted(shown)) = outcome else { panic!("{p:?}: {outcome:?}") };
+        assert_eq!((shown.host.as_str(), shown.fingerprint, shown.remote), ("127.0.0.1", the_certificate(), false), "{p:?}");
         assert!(!heard.contains("tls:"), "{p:?}: {heard}");
     }
 }

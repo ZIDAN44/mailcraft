@@ -359,7 +359,7 @@ fn many_accounts_waiting_dont_cover_the_counts() {
 /// the status bar says which (and no other), links to what helps, and Sign in again opens it.
 #[test]
 fn an_account_s_trouble_is_said_and_offers_what_helps() {
-    use mailcraft_engine::model::{FailureKind, MICROSOFT_IMAP_CLOSED, MICROSOFT_NO_PASSWORDS, local_certificate_refusal};
+    use mailcraft_engine::model::{FailureKind, MICROSOFT_IMAP_CLOSED, MICROSOFT_NO_PASSWORDS, UntrustedCertificate};
     let (mut a, _) = app("troubles");
     let ctx = egui::Context::default();
     let size = egui::vec2(1280.0, 800.0);
@@ -369,8 +369,9 @@ fn an_account_s_trouble_is_said_and_offers_what_helps() {
     let closed = format!("{MICROSOFT_IMAP_CLOSED}. Turn on IMAP on Outlook.com.");
     let words = ["Sign in with Microsoft", "Mailbox won't open", "Certificate not trusted yet"];
     let no_passwords = format!("{MICROSOFT_NO_PASSWORDS} (Basic authentication is disabled)");
-    let certificate = format!("secure connection: {}", local_certificate_refusal("127.0.0.1", &print));
-    let local = FailureKind::LocalCertificate { host: "127.0.0.1".into(), fingerprint: print.clone() };
+    let shown = UntrustedCertificate { host: "mail.example.org".into(), fingerprint: print.clone(), remote: true, ..Default::default() };
+    let certificate = format!("secure connection: {}", shown.refusal());
+    let local = FailureKind::UntrustedCertificate(Box::new(shown));
     let cases = [
         (SyncStatus::Error { error: no_passwords.clone(), kind: FailureKind::MicrosoftNoPasswords }, Some(words[0])),
         (SyncStatus::Error { error: closed.clone(), kind: FailureKind::MicrosoftImapClosed }, Some(words[1])),
@@ -394,8 +395,8 @@ fn an_account_s_trouble_is_said_and_offers_what_helps() {
         a.act(crate::Action::SignInAgain(id.clone()));
         match (said, &a.ui.dialog) {
             (Some("Mailbox won't open"), Some(Dialog::MailboxClosed { error, .. })) => assert_eq!(error, &closed),
-            (Some("Certificate not trusted yet"), Some(Dialog::TrustCertificate { host, fingerprint, .. })) => {
-                assert_eq!((host.as_str(), fingerprint.as_str()), ("127.0.0.1", print.as_str()));
+            (Some("Certificate not trusted yet"), Some(Dialog::TrustCertificate { shown, .. })) => {
+                assert_eq!((shown.host.as_str(), shown.fingerprint.as_str(), shown.remote), ("mail.example.org", print.as_str(), true));
             }
             (Some("Sign in with Microsoft") | None, Some(Dialog::Password { .. })) => {}
             (said, d) => panic!("{said:?}: {:?}", d.as_ref().map(std::mem::discriminant)),
@@ -508,4 +509,62 @@ fn saved_settings_keep_what_can_be_read() {
     let before = a.session.prefs.clone();
     a.restore_state(&json!({"prefs": "not settings"}));
     assert_eq!(a.session.prefs, before);
+}
+
+/// Issue #105: a mail server elsewhere showing a certificate no authority vouches for is asked
+/// about with what the certificate says of itself; trusting it keeps it with the account, and
+/// Server settings lists it with Stop trusting, next to Trust a certificate file….
+#[test]
+fn a_server_elsewhere_s_certificate_is_asked_about_and_listed() {
+    use mailcraft_engine::model::{FailureKind, UntrustedCertificate};
+    let (mut a, _) = app("trust-elsewhere");
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1280.0, 800.0);
+    a.act(crate::Action::Submit("account.add", json!({"email": "zoe@corp.test", "password": "pw", "imapHost": "mail.corp.test"})));
+    let id = a.session.accounts.iter().find(|x| x.config.email == "zoe@corp.test").map(|x| x.config.id.clone()).unwrap();
+    let print = "0a1b2c3d".repeat(8);
+    let shown = UntrustedCertificate {
+        host: "mail.corp.test".into(),
+        fingerprint: print.clone(),
+        remote: true,
+        subject: "mail.corp.test".into(),
+        issuer: "Corp Internal CA".into(),
+        names: vec!["mail.corp.test".into()],
+        not_before: 1_700_000_000,
+        not_after: 1_900_000_000,
+    };
+    let status = SyncStatus::Error { error: shown.refusal(), kind: FailureKind::UntrustedCertificate(Box::new(shown)) };
+    a.session.apply(MailEvent::Status { account: id.clone(), status });
+    a.ui.dialog = None;
+    a.announce(&ctx);
+    assert!(matches!(&a.ui.dialog, Some(Dialog::TrustCertificate { shown, .. }) if shown.remote), "asked at once");
+    // A dialog fades in over a few frames.
+    let settled = |a: &mut crate::MailApp| {
+        for _ in 0..3 {
+            frame(&ctx, a, vec![]);
+        }
+        drawn_strings(&ctx, a, size)
+    };
+    let texts = settled(&mut a);
+    for said in
+        ["Trust this mail server's certificate?", "Corp Internal CA", "mail.corp.test", "Issued by", "0A1B 2C3D 0A1B 2C3D 0A1B 2C3D 0A1B 2C3D"]
+    {
+        assert!(texts.iter().any(|t| t.contains(said)), "{said}: {texts:?}");
+    }
+    assert!(!texts.iter().any(|t| t.contains("is on this computer")), "{texts:?}");
+    // Trusted: kept, and listed in Server settings as one trusted when asked.
+    a.act(crate::Action::Run("account.trustCertificate", json!({"account": id, "fingerprint": print})));
+    let config = a.session.account(&id).map(|x| x.config.clone()).unwrap();
+    assert_eq!(config.trusted_certificates, std::slice::from_ref(&print));
+    a.ui.dialog = Some(Dialog::edit_account(&config));
+    let texts = settled(&mut a);
+    for said in ["Certificates", "Trusted when asked", "0A1B 2C3D 0A1B 2C3D …", "Stop trusting", "Trust a certificate file…"] {
+        assert!(texts.iter().any(|t| t == said), "{said}: {texts:?}");
+    }
+    // Stop trusting forgets it.
+    a.act(crate::Action::Run("account.forgetCertificate", json!({"account": id, "fingerprint": print})));
+    assert!(a.session.account(&id).is_some_and(|x| x.config.trusted_certificates.is_empty()));
+    let texts = settled(&mut a);
+    assert!(has(&texts, "Trust a certificate file…"), "{texts:?}");
+    assert!(!texts.iter().any(|t| t == "Trusted when asked"), "{texts:?}");
 }

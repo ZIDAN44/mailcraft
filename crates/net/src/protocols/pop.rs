@@ -152,9 +152,9 @@ fn proto(m: impl Into<String>) -> NetError {
 }
 
 impl Client<Stream> {
-    /// Connect as the server settings say (no sign-in yet): `trusted` are the certificates the
-    /// user chose to trust for the account's server on this computer ([`stream::tls_trusting`]).
-    pub fn connect_trusting(cfg: &ServerConfig, trusted: &[String]) -> Result<Client<Stream>> {
+    /// Connect as the server settings say (no sign-in yet): `trusted` is what the account trusts
+    /// besides the usual authorities ([`stream::tls_trusting`]).
+    pub fn connect_trusting(cfg: &ServerConfig, trusted: stream::Trusted<'_>) -> Result<Client<Stream>> {
         let sock = stream::tcp(&cfg.host, cfg.port)?;
         match cfg.security {
             Security::Tls => Client::greet(stream::tls_trusting(sock, &cfg.host, trusted)?),
@@ -319,7 +319,7 @@ fn auth(e: &NetError) -> NetError {
 pub fn open(acc: &AccountConfig, secret: &str) -> Result<Client<Stream>> {
     let cfg = acc.pop.as_ref().ok_or_else(|| proto("not a POP account"))?;
     let user = acc.login_name();
-    let mut c = Client::connect_trusting(cfg, &acc.trusted_certificates)?;
+    let mut c = Client::connect_trusting(cfg, stream::Trusted::of(acc))?;
     if acc.oauth.is_some() {
         c.login_xoauth2(user, secret)?;
     } else {

@@ -1749,3 +1749,17 @@ count	occurrences	kez
 	Only when I ask	Yalnızca istediğimde
 	Send / Receive on the account looks; Send / Receive for all leaves it out	Hesapta Gönder/Al denetler; tümü için Gönder/Al onu atlar
 	There's no folder to put the PDF in for the viewer	PDF'yi görüntüleyici için koyacak bir klasör yok
+	Trust this mail server's certificate?	Bu posta sunucusunun sertifikasına güvenilsin mi?
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	Bu bilgisayarın güvendiği hiçbir yetkili, {host} sunucusunun gösterdiği sertifikaya kefil değil. Bir şirketin ya da evdeki bir posta sunucusu kendi sertifikasını oluşturabilir, ancak sizinle sunucu arasındaki biri de böyle bir sertifika gösterebilir. Yalnızca sunucuyu yöneten kişi bu parmak izini onaylarsa güvenin.
+	Issued to	Verildiği
+	Issued by	Veren
+	Valid	Geçerlilik
+	{from} to {until}	{from} – {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	Sunucuyu yöneten kişi sertifikayı bunun yerine dosya olarak da verebilir: Sunucu ayarları › Bir sertifika dosyasına güven…
+	Certificates	Sertifikalar
+	Issued by {issuer}	Veren: {issuer}
+	Trusted when asked	Sorulunca güvenildi
+	Stop trusting	Güvenmeyi bırak
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Kuruluşunuzun yetkilisi ya da posta sunucunuzun kendi sertifikası (.pem, .crt, .cer)
+	Trust a certificate file…	Bir sertifika dosyasına güven…
+	The certificate is trusted for this account	Bu hesap için sertifikaya güveniliyor

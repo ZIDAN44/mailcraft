@@ -12,6 +12,7 @@ use rustls::{ClientConfig, ClientConnection, StreamOwned};
 use crate::{NetError, Result};
 
 pub(crate) mod trust;
+pub use trust::Trusted;
 pub(crate) use trust::{system_roots, system_verifier};
 
 pub const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
@@ -202,12 +203,10 @@ pub(crate) fn on_this_computer(ip: std::net::IpAddr) -> bool {
     ip.to_canonical().is_loopback()
 }
 
-/// [`tls`], for an account's own server. One on this computer (the connection made is to a
-/// loopback address) may show a certificate no authority vouches for, as a bridge to a mail
-/// service does: it's accepted when it's one of `trusted` (the account's, by their fingerprints),
-/// and otherwise refused saying which it was ([`NetError::Untrusted`]), so the user can be
-/// asked. Any other server is checked as every connection is.
-pub fn tls_trusting(sock: TcpStream, host: &str, trusted: &[String]) -> Result<Stream> {
+/// [`tls`], for an account's own mail server: a certificate no authority vouches for is accepted
+/// when the account trusts it (`trusted`, [`trust::Own`] says how far), and otherwise refused
+/// saying which it was ([`NetError::Untrusted`]), so the user can be asked.
+pub fn tls_trusting(sock: TcpStream, host: &str, trusted: Trusted<'_>) -> Result<Stream> {
     handshake(sock, host, Some(trusted))
 }
 
@@ -215,7 +214,7 @@ pub fn tls_trusting(sock: TcpStream, host: &str, trusted: &[String]) -> Result<S
 /// connection is wrapped in TLS as [`tls_trusting`] does. `unread` is how many bytes the client
 /// had already read past the server's go-ahead: any is plain text slipped in before TLS, which
 /// would be taken as if it came over TLS (RFC 3207 §4.2 analogue), so the connection is dropped.
-pub fn starttls(plain: Stream, unread: usize, host: &str, trusted: &[String]) -> Result<Stream> {
+pub fn starttls(plain: Stream, unread: usize, host: &str, trusted: Trusted<'_>) -> Result<Stream> {
     if unread != 0 {
         return Err(NetError::Tls("unexpected data before TLS negotiation".into()));
     }
@@ -227,11 +226,10 @@ pub fn starttls(plain: Stream, unread: usize, host: &str, trusted: &[String]) ->
 
 /// The handshake of [`tls`] (`trusted` is `None`: a web address, checked as ever, wherever it
 /// is) and of [`tls_trusting`].
-fn handshake(sock: TcpStream, host: &str, trusted: Option<&[String]>) -> Result<Stream> {
+fn handshake(sock: TcpStream, host: &str, trusted: Option<Trusted<'_>>) -> Result<Stream> {
     let name = ServerName::try_from(host.to_string()).map_err(|e| NetError::Tls(format!("{host}: {e}")))?;
-    let local = trusted
-        .filter(|_| sock.peer_addr().is_ok_and(|a| on_this_computer(a.ip())))
-        .map(|trusted| trust::system_verifier().map(|usual| trust::Local::new(usual, trusted)));
+    let here = sock.peer_addr().is_ok_and(|a| on_this_computer(a.ip()));
+    let local = trusted.map(|trusted| trust::system_verifier().map(|usual| trust::Own::new(usual, trusted, host, here)));
     let (config, local) = match local {
         Some(check) => {
             let check = check.map_err(NetError::Tls)?;
@@ -245,7 +243,7 @@ fn handshake(sock: TcpStream, host: &str, trusted: Option<&[String]>) -> Result<
     while s.conn.is_handshaking() {
         if let Err(e) = s.conn.complete_io(&mut s.sock) {
             return Err(match local.as_ref().and_then(|l| l.refused()) {
-                Some(fingerprint) => NetError::Untrusted { host: host.to_string(), fingerprint },
+                Some(shown) => NetError::Untrusted(Box::new(shown)),
                 None => NetError::Tls(e.to_string()),
             });
         }

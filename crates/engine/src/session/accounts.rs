@@ -3,10 +3,12 @@
 use super::*;
 
 mod importing;
+mod trusting;
 #[cfg(test)]
 pub(crate) use importing::REMOVE_BACKSTOP;
 pub(crate) use importing::data_file_path;
 pub use importing::{Changes, ImportState, Imports};
+pub use trusting::TrustedCertificate;
 
 /// A local account with more messages than this keeps the counts it saved when it opens, rather
 /// than reading every folder to count them.
@@ -544,40 +546,6 @@ impl Session {
         if let Some(a) = self.account(account) {
             self.jobs.push(Job::SmtpPassword { account: a.config.clone(), password: Secret(password) });
         }
-    }
-
-    /// A connection was refused, of a `kind` that says a mail server on this computer showed a
-    /// certificate no authority vouches for (issue #77): the window is to ask about it, once for
-    /// each certificate.
-    pub(crate) fn note_untrusted_certificate(&mut self, account: &str, kind: &FailureKind) {
-        let FailureKind::LocalCertificate { host, fingerprint } = kind else { return };
-        // Only a server's certificate, by its SHA-256, is asked about (and trusted).
-        if host.trim().is_empty() || !mailcraft_model::is_certificate_fingerprint(fingerprint) {
-            return;
-        }
-        let fingerprint = fingerprint.to_ascii_lowercase();
-        if self.asked_certificate.len() < 64 && self.asked_certificate.insert((account.to_string(), fingerprint.clone())) {
-            self.ask_certificate.push((account.to_string(), host.trim().to_string(), fingerprint));
-        }
-    }
-
-    /// Trust the certificate with this fingerprint for an account's servers on this computer,
-    /// and connect again. The newest [`mailcraft_model::MAX_TRUSTED_CERTIFICATES`] are kept.
-    pub fn trust_certificate(&mut self, account: &str, fingerprint: &str) -> CmdResult {
-        let fingerprint = fingerprint.trim().to_ascii_lowercase();
-        if !mailcraft_model::is_certificate_fingerprint(&fingerprint) {
-            return Err(CmdError::Params("`fingerprint` is a certificate's SHA-256 in hex: 64 characters".into()));
-        }
-        let mut config = self.config_of(account)?;
-        if !config.has_server() {
-            return Err(CmdError::Params("that account has no server".into()));
-        }
-        config.trusted_certificates.retain(|t| !t.eq_ignore_ascii_case(&fingerprint));
-        config.trusted_certificates.push(fingerprint.clone());
-        let over = config.trusted_certificates.len().saturating_sub(mailcraft_model::MAX_TRUSTED_CERTIFICATES);
-        config.trusted_certificates.drain(..over);
-        self.update_account(config, None)?;
-        Ok(serde_json::json!({ "account": account, "trusted": fingerprint }))
     }
 
     pub fn update_account(&mut self, mut config: AccountConfig, password: Option<String>) -> CmdResult {

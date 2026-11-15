@@ -1749,3 +1749,17 @@ count	occurrences	Terminen
 	Only when I ask	Nur auf Anforderung
 	Send / Receive on the account looks; Send / Receive for all leaves it out	„Senden/Empfangen“ für das Konto ruft ab; „Senden/Empfangen“ für alle lässt es aus
 	There's no folder to put the PDF in for the viewer	Es gibt keinen Ordner, in den das PDF für die Anzeige gelegt werden kann
+	Trust this mail server's certificate?	Dem Zertifikat dieses Mailservers vertrauen?
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	Keine Stelle, der dieser Computer vertraut, bürgt für das Zertifikat, das {host} zeigt. Der Mailserver einer Firma oder ein eigener Server zu Hause kann sich eines selbst ausstellen, aber auch jemand zwischen Ihnen und dem Server könnte eines zeigen. Vertrauen Sie ihm nur, wenn der Betreiber des Servers diesen Fingerabdruck bestätigt.
+	Issued to	Ausgestellt für
+	Issued by	Ausgestellt von
+	Valid	Gültig
+	{from} to {until}	{from} bis {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	Der Betreiber kann Ihnen das Zertifikat stattdessen als Datei geben: Servereinstellungen › Einer Zertifikatsdatei vertrauen…
+	Certificates	Zertifikate
+	Issued by {issuer}	Ausgestellt von {issuer}
+	Trusted when asked	Auf Nachfrage vertraut
+	Stop trusting	Nicht mehr vertrauen
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Eine Zertifizierungsstelle Ihrer Organisation oder das eigene Zertifikat Ihres Mailservers (.pem, .crt, .cer)
+	Trust a certificate file…	Einer Zertifikatsdatei vertrauen…
+	The certificate is trusted for this account	Dem Zertifikat wird für dieses Konto vertraut

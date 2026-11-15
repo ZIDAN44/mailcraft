@@ -302,7 +302,7 @@ impl Worker {
             None => (self.acc.login_name().to_string(), self.secret()?),
         };
         let sign_in = smtp::SignIn { user: &user, password: &secret, oauth: self.acc.oauth.is_some() };
-        let sent = smtp::send_trusting(&self.acc.smtp, sign_in, from, recipients, raw, &self.acc.trusted_certificates);
+        let sent = smtp::send_trusting(&self.acc.smtp, sign_in, from, recipients, raw, crate::stream::Trusted::of(&self.acc));
         sent.map_err(|e| match e {
             // Say whether the sign-in covered sending: Microsoft lists what it granted.
             NetError::Auth(m) if self.acc.oauth.as_deref() == Some("microsoft") => {

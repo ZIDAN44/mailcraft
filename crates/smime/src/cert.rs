@@ -99,6 +99,46 @@ pub(crate) fn emails(c: &Certificate) -> Vec<String> {
     each_once(out)
 }
 
+/// The server names a certificate (DER) is for, lower-case, each once: its DNS names and IP
+/// addresses (subject alternative names), or, when it has no alternative names at all, its
+/// subject's common name, as certificates made by hand often say it alone (RFC 6125 §6.4.4).
+/// Only names in ASCII (a host name in another script is written so, IDNA): one that isn't
+/// could be folded into another name. Empty when it can't be read. At most 100 (a certificate
+/// is from the network).
+pub fn server_names(cert: &[u8]) -> Vec<String> {
+    let Ok(c) = parse(cert) else { return Vec::new() };
+    let mut out: Vec<String> = Vec::new();
+    let alternative = extension::<SubjectAltName>(&c, oids::SUBJECT_ALT_NAME);
+    let ascii = |s: &str| s.is_ascii().then(|| s.trim().to_ascii_lowercase());
+    if let Some(SubjectAltName(names)) = &alternative {
+        for n in names.iter().take(100) {
+            match n {
+                GeneralName::DnsName(d) => out.extend(ascii(d.as_str())),
+                GeneralName::IpAddress(ip) => match *ip.as_bytes() {
+                    [a, b, c, d] => out.push(std::net::Ipv4Addr::new(a, b, c, d).to_string()),
+                    ref v6 => {
+                        if let Ok(bytes) = <[u8; 16]>::try_from(v6) {
+                            out.push(std::net::Ipv6Addr::from(bytes).to_string());
+                        }
+                    }
+                },
+                _ => {}
+            }
+        }
+    }
+    if alternative.is_none()
+        && let Some(cn) = name_part(&c.tbs_certificate.subject, oids::COMMON_NAME)
+    {
+        out.extend(ascii(&cn));
+    }
+    each_once(out)
+}
+
+/// A certificate's SHA-256, in lower-case hex, from its bytes alone (read or not).
+pub fn fingerprint(cert: &[u8]) -> String {
+    sha2::Sha256::digest(cert).iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// `found`'s addresses, the empty ones left out and each kept where it first came.
 fn each_once(found: Vec<String>) -> Vec<String> {
     let mut out: Vec<String> = Vec::with_capacity(found.len());

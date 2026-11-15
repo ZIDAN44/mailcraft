@@ -89,16 +89,16 @@ fn a_certificate_the_system_distrusts_is_refused() {
 #[test]
 fn a_chain_from_elsewhere_is_checked_the_same_way() {
     let chain = vec![via_issuing().to_vec(), issuing_ca().to_vec()];
-    assert_eq!(check_chain(&check(vec![internal_ca()], &[]), &chain, "mail.corp.test"), Ok(()));
-    assert_eq!(check_chain(&check(vec![internal_ca()], &[]), &chain, "127.0.0.1"), Ok(()));
-    let distrusted = check_chain(&check(vec![internal_ca()], &[issuing_ca()]), &chain, "mail.corp.test").unwrap_err();
+    assert_eq!(check_chain(&*check(vec![internal_ca()], &[]), &chain, "mail.corp.test"), Ok(()));
+    assert_eq!(check_chain(&*check(vec![internal_ca()], &[]), &chain, "127.0.0.1"), Ok(()));
+    let distrusted = check_chain(&*check(vec![internal_ca()], &[issuing_ca()]), &chain, "mail.corp.test").unwrap_err();
     assert!(distrusted.to_string().contains("Revoked"), "{distrusted}");
-    let unknown = check_chain(&check(vec![], &[]), &chain, "mail.corp.test").unwrap_err();
+    let unknown = check_chain(&*check(vec![], &[]), &chain, "mail.corp.test").unwrap_err();
     assert!(unknown.to_string().contains("UnknownIssuer"), "{unknown}");
-    let wrong_name = check_chain(&check(vec![internal_ca()], &[]), &chain, "other.corp.test").unwrap_err();
+    let wrong_name = check_chain(&*check(vec![internal_ca()], &[]), &chain, "other.corp.test").unwrap_err();
     assert!(wrong_name.to_string().contains("not valid for name"), "{wrong_name}");
-    assert!(check_chain(&check(vec![internal_ca()], &[]), &[], "mail.corp.test").is_err());
-    assert!(check_chain(&check(vec![internal_ca()], &[]), &[vec![1, 2, 3]], "mail.corp.test").is_err());
+    assert!(check_chain(&*check(vec![internal_ca()], &[]), &[], "mail.corp.test").is_err());
+    assert!(check_chain(&*check(vec![internal_ca()], &[]), &[vec![1, 2, 3]], "mail.corp.test").is_err());
 }
 
 /// The configuration connections use is built, and the system doesn't trust the test CA.
@@ -154,13 +154,13 @@ fn a_local_server_s_own_certificate_is_asked_about_then_trusted() {
     use mailcraft_model::{Security, ServerConfig};
     let shown = super::fingerprint(&server_identity().0[0]);
     let at = |port: u16| ServerConfig { host: "127.0.0.1".into(), port, security: Security::Tls };
-    let refused = |trusted: &[String]| Client::connect_trusting(&at(imap_over_tls(server_identity())), trusted).err();
+    let refused = |trusted: &[String]| Client::connect_trusting(&at(imap_over_tls(server_identity())), crate::stream::Trusted::pinned(trusted)).err();
     // Not trusted yet, or another certificate trusted: which one it showed.
     let other = super::fingerprint(&via_issuing_identity().0[0]);
     for trusted in [Vec::new(), vec![other]] {
         let why = refused(&trusted);
         let named = match &why {
-            Some(crate::NetError::Untrusted { host, fingerprint }) => Some((host.as_str(), fingerprint.as_str())),
+            Some(crate::NetError::Untrusted(shown)) => Some((shown.host.as_str(), shown.fingerprint.as_str())),
             _ => None,
         };
         assert_eq!(named, Some(("127.0.0.1", shown.as_str())), "{why:?}");
@@ -180,11 +180,12 @@ fn a_local_server_s_own_certificate_is_asked_about_then_trusted() {
 /// is of its own kind, naming the server and the certificate: what the window asks about.
 #[test]
 fn a_refusal_names_the_server_and_the_certificate() {
-    use mailcraft_model::{FailureKind, SyncStatus};
+    use mailcraft_model::{FailureKind, SyncStatus, UntrustedCertificate};
     let print = "ab".repeat(32);
-    let refused = crate::NetError::Untrusted { host: "127.0.0.1".into(), fingerprint: print.clone() };
+    let shown = UntrustedCertificate { host: "127.0.0.1".into(), fingerprint: print.clone(), ..UntrustedCertificate::default() };
+    let refused = crate::NetError::Untrusted(Box::new(shown.clone()));
     let said = format!("secure connection: {} (127.0.0.1 {print})", mailcraft_model::LOCAL_CERTIFICATE);
-    let kind = FailureKind::LocalCertificate { host: "127.0.0.1".into(), fingerprint: print.clone() };
+    let kind = FailureKind::UntrustedCertificate(Box::new(shown));
     assert_eq!(refused.to_string(), said);
     assert_eq!(refused.status(), SyncStatus::Error { error: said, kind });
     assert!(refused.is_fatal() && refused.is_retryable());

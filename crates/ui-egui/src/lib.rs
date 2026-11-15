@@ -210,6 +210,9 @@ pub enum Action {
     },
     /// Pick a `.p12` / `.pfx` file for an account's certificate, then ask its password.
     ImportCertificate(String),
+    /// Pick a certificate file (`.pem`, `.crt`, `.cer`) for an account's mail servers to trust:
+    /// an authority the organisation runs, or a server's own (issue #105).
+    TrustCertificateFile(String),
     /// The browser: open the account's certificate it keeps, with its password, for this page.
     UnlockCertificate(String),
     /// Pick an OpenPGP secret key file for an account, then ask its passphrase.

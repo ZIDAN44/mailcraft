@@ -1748,3 +1748,17 @@ count	occurrences	次
 	Only when I ask	僅在我要求時
 	Send / Receive on the account looks; Send / Receive for all leaves it out	在該帳戶上「傳送/接收」會檢查它；對所有帳戶「傳送/接收」時略過它
 	There's no folder to put the PDF in for the viewer	沒有可放置 PDF 供檢視器使用的資料夾
+	Trust this mail server's certificate?	要信任此郵件伺服器的憑證嗎？
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	這部電腦信任的任何憑證授權單位都沒有為 {host} 出示的憑證擔保。公司或家用的郵件伺服器可能會自行製作憑證，但你與伺服器之間的人也可能出示這樣的憑證。只有在伺服器管理員確認此指紋後才信任它。
+	Issued to	簽發給
+	Issued by	簽發者
+	Valid	有效期間
+	{from} to {until}	{from} 至 {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	管理員也可以把憑證以檔案提供給你：伺服器設定 › 信任憑證檔案…
+	Certificates	憑證
+	Issued by {issuer}	簽發者：{issuer}
+	Trusted when asked	詢問後已信任
+	Stop trusting	停止信任
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	你的組織營運的憑證授權單位，或你的郵件伺服器本身的憑證 (.pem、.crt、.cer)
+	Trust a certificate file…	信任憑證檔案…
+	The certificate is trusted for this account	此帳戶已信任該憑證

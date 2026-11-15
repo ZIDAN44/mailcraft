@@ -1744,3 +1744,17 @@ count	occurrences	פעמים
 	Only when I ask	רק כשאבקש
 	Send / Receive on the account looks; Send / Receive for all leaves it out	שליחה/קבלה בחשבון בודקת אותו; שליחה/קבלה לכולם מדלגת עליו
 	There's no folder to put the PDF in for the viewer	אין תיקייה לשים בה את ה-PDF עבור המציג
+	Trust this mail server's certificate?	לתת אמון באישור של שרת הדואר הזה?
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	אף רשות שהמחשב הזה נותן בה אמון אינה עומדת מאחורי האישור ש-{host} מציג. שרת דואר של חברה או שרת ביתי עשוי ליצור אישור משלו, אבל גם מישהו שנמצא בינך לבין השרת יכול להציג אישור כזה. תן בו אמון רק אם מי שמפעיל את השרת מאשר את טביעת האצבע הזו.
+	Issued to	הונפק עבור
+	Issued by	הונפק על ידי
+	Valid	בתוקף
+	{from} to {until}	{from} עד {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	מי שמפעיל אותו יכול לתת לך את האישור שלו כקובץ במקום: הגדרות שרת › לתת אמון בקובץ אישור…
+	Certificates	אישורים
+	Issued by {issuer}	הונפק על ידי {issuer}
+	Trusted when asked	קיבל אמון כשנשאלת
+	Stop trusting	להפסיק לתת אמון
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	רשות שהארגון שלך מפעיל, או האישור של שרת הדואר שלך עצמו (.pem, .crt, .cer)
+	Trust a certificate file…	לתת אמון בקובץ אישור…
+	The certificate is trusted for this account	לאישור ניתן אמון עבור החשבון הזה

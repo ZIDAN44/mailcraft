@@ -1745,3 +1745,17 @@ count	occurrences	次
 	Only when I ask	仅在我要求时
 	Send / Receive on the account looks; Send / Receive for all leaves it out	在该账户上“发送/接收”会检查它；对所有账户“发送/接收”时跳过它
 	There's no folder to put the PDF in for the viewer	没有可放置 PDF 供查看器使用的文件夹
+	Trust this mail server's certificate?	信任此邮件服务器的证书吗？
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	此电脑信任的任何颁发机构都没有为 {host} 出示的证书担保。公司或家庭的邮件服务器可能会自己制作证书，但你与服务器之间的人也可能出示这样的证书。只有在服务器管理员确认此指纹后才信任它。
+	Issued to	颁发给
+	Issued by	颁发者
+	Valid	有效期
+	{from} to {until}	{from} 至 {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	管理员也可以把证书作为文件交给你：服务器设置 › 信任证书文件…
+	Certificates	证书
+	Issued by {issuer}	颁发者：{issuer}
+	Trusted when asked	询问后已信任
+	Stop trusting	停止信任
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	你所在组织运营的颁发机构，或你的邮件服务器自己的证书 (.pem、.crt、.cer)
+	Trust a certificate file…	信任证书文件…
+	The certificate is trusted for this account	此帐户已信任该证书
