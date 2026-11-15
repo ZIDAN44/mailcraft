@@ -177,19 +177,14 @@ fn single(attrs: &SetOfVec<Attribute>, oid: ObjectIdentifier) -> Option<&Any> {
 /// and the content comes back. The first signer whose signature holds is the one returned; none
 /// holding is [`Error::BadSignature`].
 pub fn verify(cms: &[u8], detached: Option<&[u8]>) -> Result<(Signed, Vec<u8>), Error> {
-    let der_bytes = der_of(cms)?;
-    let ci = ContentInfo::from_der(&der_bytes).map_err(|_| Error::Malformed("not a signature"))?;
-    if ci.content_type != oids::SIGNED_DATA {
-        return Err(Error::Malformed("not a signature"));
-    }
-    let sd: SignedData = ci.content.decode_as().map_err(|_| Error::Malformed("the signature can't be read"))?;
+    let (signed_data, sd) = signed_data(cms)?;
     let carried = sd.encap_content_info.econtent.as_ref().map(|c| c.value().to_vec());
     let content: Vec<u8> = match (detached, carried) {
         (Some(d), _) => d.to_vec(),
         (None, Some(c)) => c,
         (None, None) => return Err(Error::Malformed("the signed content is missing")),
     };
-    let certs = carried_certs(&ci.content, sd.certificates.as_ref())?;
+    let certs = carried_certs(&signed_data, sd.certificates.as_ref())?;
     let mut seen_signer = false;
     for si in sd.signer_infos.0.iter() {
         let Some((signer_der, signer)) = certs.iter().find(|(_, c)| identifies(&si.sid, c)) else { continue };
@@ -291,25 +286,25 @@ fn cert_set_bytes(signed_data: &[u8]) -> Option<Vec<&[u8]>> {
 /// The content a signature carries (`smime-type=signed-data`), whether or not the signature holds:
 /// a message whose signature is broken is still shown, saying so.
 pub fn carried(cms: &[u8]) -> Result<Vec<u8>, Error> {
+    let (_, sd) = signed_data(cms)?;
+    sd.encap_content_info.econtent.map(|c| c.value().to_vec()).ok_or(Error::Malformed("the signed content is missing"))
+}
+
+/// The `SignedData` of `cms` (BER or DER `ContentInfo`), and its encoding as read (DER).
+fn signed_data(cms: &[u8]) -> Result<(Any, SignedData), Error> {
     let der_bytes = der_of(cms)?;
     let ci = ContentInfo::from_der(&der_bytes).map_err(|_| Error::Malformed("not a signature"))?;
     if ci.content_type != oids::SIGNED_DATA {
         return Err(Error::Malformed("not a signature"));
     }
     let sd: SignedData = ci.content.decode_as().map_err(|_| Error::Malformed("the signature can't be read"))?;
-    sd.encap_content_info.econtent.map(|c| c.value().to_vec()).ok_or(Error::Malformed("the signed content is missing"))
+    Ok((ci.content, sd))
 }
 
 /// Whether `sid` names `c` (by issuer and serial number, or by subject key identifier).
-pub(crate) fn identifies(sid: &SignerIdentifier, c: &Certificate) -> bool {
+fn identifies(sid: &SignerIdentifier, c: &Certificate) -> bool {
     match sid {
-        SignerIdentifier::IssuerAndSerialNumber(i) => i.issuer == c.tbs_certificate.issuer && i.serial_number == c.tbs_certificate.serial_number,
-        SignerIdentifier::SubjectKeyIdentifier(k) => key_id(c).is_some_and(|id| id == k.0.as_bytes()),
+        SignerIdentifier::IssuerAndSerialNumber(i) => cert::is_named(c, &i.issuer, &i.serial_number),
+        SignerIdentifier::SubjectKeyIdentifier(k) => cert::has_key_id(c, k.0.as_bytes()),
     }
-}
-
-/// A certificate's subject key identifier.
-pub(crate) fn key_id(c: &Certificate) -> Option<Vec<u8>> {
-    let e = c.tbs_certificate.extensions.as_ref()?.iter().find(|e| e.extn_id == oids::SUBJECT_KEY_ID)?;
-    OctetString::from_der(e.extn_value.as_bytes()).ok().map(|o| o.as_bytes().to_vec())
 }

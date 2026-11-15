@@ -19,7 +19,7 @@ use spki::AlgorithmIdentifierOwned;
 use x509_cert::Certificate;
 use x509_cert::attr::Attribute;
 
-use crate::{Error, Identity, cert, der_of, oids, sign};
+use crate::{Error, Identity, cert, der_of, oids};
 
 /// How the content is encrypted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -159,21 +159,46 @@ pub fn decrypt_with(cms: &[u8], cert: &[u8], id: &mut dyn crate::PrivateKey) -> 
     let der_bytes = der_of(cms)?;
     let ci = ContentInfo::from_der(&der_bytes).map_err(|_| Error::Malformed("not encrypted mail"))?;
     let me = cert::parse(cert)?;
-    if ci.content_type == oids::ENVELOPED_DATA {
-        let ed: EnvelopedData = ci.content.decode_as().map_err(|_| Error::Malformed("the encrypted mail can't be read"))?;
-        let key = content_key(&ed.recip_infos, &me, id)?;
-        return open(&ed.encrypted_content, &key, None).map(|c| (c, false));
-    }
-    if ci.content_type == oids::AUTH_ENVELOPED_DATA {
-        let aed: AuthEnvelopedData = ci.content.decode_as().map_err(|_| Error::Malformed("the encrypted mail can't be read"))?;
-        // Authenticated attributes would be covered by the tag as well; mail never has them.
-        if aed.auth_attrs.is_some() {
-            return Err(Error::Unsupported("authenticated attributes".into()));
+    match Envelope::of(&ci)? {
+        Envelope::Plain(ed) => {
+            let key = content_key(&ed.recip_infos, &me, id)?;
+            open(&ed.encrypted_content, &key, None).map(|c| (c, false))
         }
-        let key = content_key(&aed.recip_infos, &me, id)?;
-        return open(&aed.auth_encrypted_content, &key, Some(aed.mac.as_bytes())).map(|c| (c, true));
+        Envelope::Authenticated(aed) => {
+            // Authenticated attributes would be covered by the tag as well; mail never has them.
+            if aed.auth_attrs.is_some() {
+                return Err(Error::Unsupported("authenticated attributes".into()));
+            }
+            let key = content_key(&aed.recip_infos, &me, id)?;
+            open(&aed.auth_encrypted_content, &key, Some(aed.mac.as_bytes())).map(|c| (c, true))
+        }
     }
-    Err(Error::Malformed("not encrypted mail"))
+}
+
+/// What encrypted mail's `ContentInfo` holds.
+enum Envelope {
+    Plain(EnvelopedData),
+    Authenticated(AuthEnvelopedData),
+}
+
+impl Envelope {
+    fn of(ci: &ContentInfo) -> Result<Envelope, Error> {
+        let unreadable = |_| Error::Malformed("the encrypted mail can't be read");
+        if ci.content_type == oids::ENVELOPED_DATA {
+            return ci.content.decode_as().map(Envelope::Plain).map_err(unreadable);
+        }
+        if ci.content_type == oids::AUTH_ENVELOPED_DATA {
+            return ci.content.decode_as().map(Envelope::Authenticated).map_err(unreadable);
+        }
+        Err(Error::Malformed("not encrypted mail"))
+    }
+
+    fn recip_infos(&self) -> &RecipientInfos {
+        match self {
+            Envelope::Plain(ed) => &ed.recip_infos,
+            Envelope::Authenticated(aed) => &aed.recip_infos,
+        }
+    }
 }
 
 /// Whether `cms` (encrypted mail) is addressed to the certificate `cert` (DER): one of its
@@ -182,29 +207,20 @@ pub fn decrypt_with(cms: &[u8], cert: &[u8], id: &mut dyn crate::PrivateKey) -> 
 pub fn addressed_to(cms: &[u8], cert: &[u8]) -> bool {
     let (Ok(der_bytes), Ok(me)) = (der_of(cms), cert::parse(cert)) else { return false };
     let Ok(ci) = ContentInfo::from_der(&der_bytes) else { return false };
-    let infos = if ci.content_type == oids::ENVELOPED_DATA {
-        ci.content.decode_as::<EnvelopedData>().map(|e| e.recip_infos)
-    } else if ci.content_type == oids::AUTH_ENVELOPED_DATA {
-        ci.content.decode_as::<AuthEnvelopedData>().map(|e| e.recip_infos)
-    } else {
-        return false;
-    };
-    let Ok(infos) = infos else { return false };
-    let names = |issuer: &x509_cert::name::Name, serial: &x509_cert::serial_number::SerialNumber| {
-        *issuer == me.tbs_certificate.issuer && *serial == me.tbs_certificate.serial_number
-    };
-    let key_id = |k: &[u8]| sign::key_id(&me).is_some_and(|id| id == k);
-    infos.0.iter().any(|r| match r {
-        RecipientInfo::Ktri(k) => match &k.rid {
-            RecipientIdentifier::IssuerAndSerialNumber(i) => names(&i.issuer, &i.serial_number),
-            RecipientIdentifier::SubjectKeyIdentifier(s) => key_id(s.0.as_bytes()),
-        },
-        RecipientInfo::Kari(k) => k.recipient_enc_keys.iter().any(|e| match &e.rid {
-            cms::enveloped_data::KeyAgreeRecipientIdentifier::IssuerAndSerialNumber(i) => names(&i.issuer, &i.serial_number),
-            cms::enveloped_data::KeyAgreeRecipientIdentifier::RKeyId(k) => key_id(k.subject_key_identifier.0.as_bytes()),
-        }),
+    let Ok(envelope) = Envelope::of(&ci) else { return false };
+    envelope.recip_infos().0.iter().any(|r| match r {
+        RecipientInfo::Ktri(k) => names(&k.rid, &me),
+        RecipientInfo::Kari(k) => k.recipient_enc_keys.iter().any(|e| crate::kari::names(&e.rid, &me)),
         _ => false,
     })
+}
+
+/// Whether `rid` names `me` (by issuer and serial number, or by subject key identifier).
+fn names(rid: &RecipientIdentifier, me: &Certificate) -> bool {
+    match rid {
+        RecipientIdentifier::IssuerAndSerialNumber(i) => cert::is_named(me, &i.issuer, &i.serial_number),
+        RecipientIdentifier::SubjectKeyIdentifier(s) => cert::has_key_id(me, s.0.as_bytes()),
+    }
 }
 
 /// The content key from the recipient info that names `me`.
@@ -227,12 +243,7 @@ fn content_key(infos: &RecipientInfos, me: &Certificate, id: &mut dyn crate::Pri
             RecipientInfo::Ktri(k) => Some(k),
             _ => None,
         })
-        .filter(|k| match &k.rid {
-            RecipientIdentifier::IssuerAndSerialNumber(i) => {
-                i.issuer == me.tbs_certificate.issuer && i.serial_number == me.tbs_certificate.serial_number
-            }
-            RecipientIdentifier::SubjectKeyIdentifier(s) => sign::key_id(me).is_some_and(|k| k == s.0.as_bytes()),
-        })
+        .filter(|k| names(&k.rid, me))
         .collect();
     if mine.is_empty() {
         return Err(Error::Decrypt);

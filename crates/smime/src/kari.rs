@@ -18,7 +18,7 @@ use der::{Any, Encode, Sequence};
 use spki::AlgorithmIdentifierOwned;
 use x509_cert::Certificate;
 
-use crate::cert::Hash;
+use crate::cert::{self, Hash};
 use crate::{Error, oids};
 
 const SHA1_KDF: Oid = Oid::new_unwrap("1.3.133.16.840.63.0.2");
@@ -160,13 +160,16 @@ pub(crate) fn recipient(cert: &Certificate, cek: &[u8], rng: &mut impl rand_core
 /// The content key from a recipient info addressed to `me`, with `key` (an EC key's). `None` when
 /// it isn't addressed to `me`.
 pub(crate) fn content_key(info: &KeyAgreeRecipientInfo, me: &Certificate, key: &mut dyn crate::PrivateKey) -> Option<Result<Vec<u8>, Error>> {
-    let mine = info.recipient_enc_keys.iter().find(|r| match &r.rid {
-        KeyAgreeRecipientIdentifier::IssuerAndSerialNumber(i) => {
-            i.issuer == me.tbs_certificate.issuer && i.serial_number == me.tbs_certificate.serial_number
-        }
-        KeyAgreeRecipientIdentifier::RKeyId(k) => crate::sign::key_id(me).is_some_and(|id| id == k.subject_key_identifier.0.as_bytes()),
-    })?;
+    let mine = info.recipient_enc_keys.iter().find(|r| names(&r.rid, me))?;
     Some(open(info, mine, key))
+}
+
+/// Whether `rid` names `me` (by issuer and serial number, or by subject key identifier).
+pub(crate) fn names(rid: &KeyAgreeRecipientIdentifier, me: &Certificate) -> bool {
+    match rid {
+        KeyAgreeRecipientIdentifier::IssuerAndSerialNumber(i) => cert::is_named(me, &i.issuer, &i.serial_number),
+        KeyAgreeRecipientIdentifier::RKeyId(k) => cert::has_key_id(me, k.subject_key_identifier.0.as_bytes()),
+    }
 }
 
 fn open(info: &KeyAgreeRecipientInfo, mine: &RecipientEncryptedKey, key: &mut dyn crate::PrivateKey) -> Result<Vec<u8>, Error> {

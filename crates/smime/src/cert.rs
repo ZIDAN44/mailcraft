@@ -100,9 +100,25 @@ pub(crate) fn emails(c: &Certificate) -> Vec<String> {
     out
 }
 
-fn extension<T: for<'a> Decode<'a>>(c: &Certificate, oid: ObjectIdentifier) -> Option<T> {
+/// The extension `oid` of `c` (its first), decoded as `T`.
+pub(crate) fn extension<T: for<'a> Decode<'a>>(c: &Certificate, oid: ObjectIdentifier) -> Option<T> {
     let e = c.tbs_certificate.extensions.as_ref()?.iter().find(|e| e.extn_id == oid)?;
     T::from_der(e.extn_value.as_bytes()).ok()
+}
+
+/// A certificate's subject key identifier.
+pub(crate) fn key_id(c: &Certificate) -> Option<Vec<u8>> {
+    extension::<der::asn1::OctetString>(c, oids::SUBJECT_KEY_ID).map(|o| o.as_bytes().to_vec())
+}
+
+/// Whether an issuer and serial number (a signer's or a recipient's identifier) name `c`.
+pub(crate) fn is_named(c: &Certificate, issuer: &x509_cert::name::Name, serial: &x509_cert::serial_number::SerialNumber) -> bool {
+    *issuer == c.tbs_certificate.issuer && *serial == c.tbs_certificate.serial_number
+}
+
+/// Whether a subject key identifier (a signer's or a recipient's identifier) names `c`.
+pub(crate) fn has_key_id(c: &Certificate, id: &[u8]) -> bool {
+    key_id(c).is_some_and(|k| k == id)
 }
 
 /// The first value of an attribute in a name (`CN`, `O`…), as text.

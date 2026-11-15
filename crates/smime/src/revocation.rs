@@ -49,8 +49,6 @@ pub enum Status {
 /// Where a certificate says to ask: its CRLs' and OCSP responders' web addresses.
 pub fn points(cert_der: &[u8]) -> (Vec<String>, Vec<String>) {
     let Ok(c) = cert::parse(cert_der) else { return (Vec::new(), Vec::new()) };
-    let ext =
-        |oid: Oid| c.tbs_certificate.extensions.as_ref().and_then(|e| e.iter().find(|x| x.extn_id == oid)).map(|x| x.extn_value.as_bytes().to_vec());
     let web = |n: &GeneralName| match n {
         GeneralName::UniformResourceIdentifier(u) => {
             Some(u.as_str().trim().to_string()).filter(|u| u.starts_with("http://") || u.starts_with("https://"))
@@ -58,7 +56,7 @@ pub fn points(cert_der: &[u8]) -> (Vec<String>, Vec<String>) {
         _ => None,
     };
     let mut crls = Vec::new();
-    if let Some(CrlDistributionPoints(points)) = ext(CRL_POINTS).and_then(|b| CrlDistributionPoints::from_der(&b).ok()) {
+    if let Some(CrlDistributionPoints(points)) = cert::extension(&c, CRL_POINTS) {
         for p in points {
             if let Some(DistributionPointName::FullName(names)) = &p.distribution_point {
                 crls.extend(names.iter().filter_map(web));
@@ -66,7 +64,7 @@ pub fn points(cert_der: &[u8]) -> (Vec<String>, Vec<String>) {
         }
     }
     let mut ocsp = Vec::new();
-    if let Some(AuthorityInfoAccessSyntax(access)) = ext(AUTHORITY_INFO).and_then(|b| AuthorityInfoAccessSyntax::from_der(&b).ok()) {
+    if let Some(AuthorityInfoAccessSyntax(access)) = cert::extension(&c, AUTHORITY_INFO) {
         ocsp.extend(access.iter().filter(|a| a.access_method == OCSP_METHOD).filter_map(|a| web(&a.access_location)));
     }
     (crls, ocsp)
@@ -199,13 +197,7 @@ pub fn ocsp_status(answer: &[u8], cert_der: &[u8], issuer_der: &[u8], now: i64) 
     let by = |spki: &spki::SubjectPublicKeyInfoOwned| cert::signature_holds(spki, &basic.signature_algorithm, None, signed, sig);
     let delegated = basic.certs.iter().flatten().any(|r| {
         let Ok(r_der) = r.to_der() else { return false };
-        let for_ocsp = r
-            .tbs_certificate
-            .extensions
-            .as_ref()
-            .and_then(|e| e.iter().find(|x| x.extn_id == oids::EXT_KEY_USAGE))
-            .and_then(|x| ExtendedKeyUsage::from_der(x.extn_value.as_bytes()).ok())
-            .is_some_and(|ExtendedKeyUsage(u)| u.contains(&OCSP_SIGNING));
+        let for_ocsp = cert::extension(r, oids::EXT_KEY_USAGE).is_some_and(|ExtendedKeyUsage(u)| u.contains(&OCSP_SIGNING));
         // A delegated responder: for OCSP signing, issued by the same authority, and in date.
         for_ocsp && cert::in_date(r, now).is_ok() && cert::issued_by(&r_der, issuer_der) && by(&r.tbs_certificate.subject_public_key_info)
     });
