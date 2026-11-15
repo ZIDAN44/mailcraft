@@ -15,7 +15,7 @@ impl crate::Services for Copied {
 
 /// What the desktop hands over for one file let go over the window.
 #[derive(Debug)]
-struct LetGo(PathBuf);
+pub(super) struct LetGo(pub(super) PathBuf);
 
 impl egui::DroppedFile for LetGo {
     fn bytes(&self) -> Result<Vec<u8>, String> {
@@ -159,28 +159,13 @@ fn files_dropped_on_the_main_window_start_a_message() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// A backend that keeps the jobs it's given.
-#[derive(Clone, Default)]
-struct Kept(std::sync::Arc<std::sync::Mutex<Vec<mailcraft_engine::model::Job>>>);
-
-impl crate::Backend for Kept {
-    fn submit(&mut self, job: mailcraft_engine::model::Job) {
-        if let Ok(mut j) = self.0.lock() {
-            j.push(job);
-        }
-    }
-    fn poll(&mut self) -> Vec<mailcraft_engine::model::Event> {
-        Vec::new()
-    }
-}
-
 /// Issue #38: Outlook message files and `.eml` files dropped on the main window go into the
 /// folder open (it says so while they're held over it); other files dropped with them start a
 /// message with them attached. What went in is said once the folder has them.
 #[test]
 fn message_files_dropped_on_the_window_go_into_the_folder_open() {
     let (mut a, dir) = app("drop-messages");
-    let kept = Kept::default();
+    let kept = Jobs::default();
     a.backend = Box::new(kept.clone());
     let ctx = egui::Context::default();
     a.session.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
@@ -195,7 +180,7 @@ fn message_files_dropped_on_the_window_go_into_the_folder_open() {
     let mut out = ctx.run_ui(RawInput { screen_rect: screen, dropped_files: dropped, ..Default::default() }, |ui| a.ui(ui));
     out.textures_delta.clear();
     frame(&ctx, &mut a, vec![]);
-    let jobs = kept.0.lock().unwrap().clone();
+    let jobs = kept.take();
     let filed: Vec<&Vec<String>> = jobs
         .iter()
         .filter_map(|j| {
@@ -257,7 +242,7 @@ fn a_mail_file_is_opened_to_be_looked_at() {
         }
     }
     let (mut a, dir) = app("open-mail-file");
-    let kept = Kept::default();
+    let kept = Jobs::default();
     a.backend = Box::new(kept.clone());
     std::fs::create_dir_all(&dir).unwrap();
     let eml = dir.join("inspect me.eml");
@@ -301,7 +286,7 @@ fn a_mail_file_is_opened_to_be_looked_at() {
         assert!(!has(gone), "{gone:?} drawn: {drawn:?}");
     }
     // (The window's own search index may be built meanwhile.)
-    let asked = kept.0.lock().unwrap().clone();
+    let asked = kept.take();
     assert!(asked.iter().all(|j| matches!(j, mailcraft_engine::model::Job::Index { .. })), "nothing fetched or filed: {asked:?}");
     // In a narrow window everything wraps within it: the line saying where it was opened from
     // didn't, and widened the whole message past the window's edge.

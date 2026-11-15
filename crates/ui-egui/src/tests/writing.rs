@@ -453,22 +453,7 @@ fn a_close_becomes_the_platform_quit_unless_something_asks() {
 /// A file dragged from the desktop onto a message being written is attached to it.
 #[test]
 fn files_dropped_on_a_message_are_attached() {
-    use std::path::{Path, PathBuf};
-    /// What the desktop hands over for one file let go over the window.
-    #[derive(Debug)]
-    struct LetGo {
-        from: PathBuf,
-    }
-    impl egui::DroppedFile for LetGo {
-        fn bytes(&self) -> Result<Vec<u8>, String> {
-            let read = std::fs::read(&self.from);
-            read.map_err(|why| format!("{}: {why}", self.from.display()))
-        }
-
-        fn path(&self) -> &Path {
-            self.from.as_path()
-        }
-    }
+    use super::files::LetGo;
     let (mut a, dir) = app("drop-attach");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
@@ -476,8 +461,7 @@ fn files_dropped_on_a_message_are_attached() {
     frame(&ctx, &mut a, vec![]);
     let file = dir.join("dropped notes.txt");
     std::fs::write(&file, b"hello").unwrap();
-    let dropped: Vec<egui::DroppedFileHandle> =
-        vec![std::sync::Arc::new(LetGo { from: file }), std::sync::Arc::new(LetGo { from: "relative.txt".into() })];
+    let dropped: Vec<egui::DroppedFileHandle> = vec![std::sync::Arc::new(LetGo(file)), std::sync::Arc::new(LetGo("relative.txt".into()))];
     let input = RawInput {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
         dropped_files: dropped,
