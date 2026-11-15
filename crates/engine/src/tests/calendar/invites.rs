@@ -317,3 +317,31 @@ fn a_message_without_an_invitation_is_not_read_again_for_one() {
     assert_eq!(s.invite().unwrap().event.summary, "Card review");
     assert_eq!(store.reads(), reads + 1, "read once for the calendar's bytes");
 }
+
+/// Issue #101: the series' first invitation, in Deleted Items, once the organizer moved one of
+/// its occurrences: it's out of date (answered, it put the series back without the moved
+/// occurrence), and the calendar keeps the change.
+#[test]
+fn the_series_first_invitation_is_out_of_date_once_an_occurrence_moved() {
+    let mut s = sample_session("old-series-invitation");
+    let uid = "daily@studio.example";
+    let series = CalEvent { rrule: Some("FREQ=DAILY;COUNT=4".into()), ..invitation(uid, "Stand-up", 0) };
+    deliver(&mut s, 1, ZOE, "REQUEST", std::slice::from_ref(&series), NOW);
+    s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    let third = series.start + 2 * 86_400;
+    let moved = CalEvent { recurrence_id: Some(third), start: third + 3600, end: third + 7200, rrule: None, sequence: 2, ..series.clone() };
+    deliver(&mut s, 2, ZOE, "REQUEST", std::slice::from_ref(&moved), NOW);
+    s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+
+    s.run("folder.open", &json!({"account": "sample", "folder": "Trash"})).unwrap();
+    let old = s.folder_state("sample", "Trash").messages.iter().find(|m| m.subject == "REQUEST 1").map(|m| m.key.clone()).expect("in Deleted Items");
+    s.run("list.open", &json!({"key": old.to_id()})).unwrap();
+    assert_eq!(s.invite().and_then(|i| i.problem), Some(InviteProblem::OutOfDate));
+    assert!(s.run("invite.respond", &json!({"answer": "accepted"})).is_err());
+    assert!(parts(&s, uid).iter().any(|e| e.event.recurrence_id == Some(third) && e.event.start == third + 3600), "the move stays");
+
+    // A newer version of the series, from the organizer, is answered as ever.
+    let newer = CalEvent { sequence: 3, summary: "Stand-up (new room)".into(), ..series.clone() };
+    deliver(&mut s, 3, ZOE, "REQUEST", std::slice::from_ref(&newer), NOW);
+    assert_eq!(s.invite().and_then(|i| i.problem), None);
+}

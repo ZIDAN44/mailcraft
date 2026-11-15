@@ -238,7 +238,20 @@ impl Session {
                         .iter()
                         .any(|s| s.event.recurrence_id == m.recurrence_id && if request { m.sequence < s.event.sequence } else { older(m, &s.event) })
                 });
-                stale.then_some(InviteProblem::OutOfDate)
+                // The series' first invitation once the organizer changed one of its occurrences
+                // since (issue #101): no newer than the series, it leaves out an occurrence the
+                // calendar has in a later version. Answered, it put the series back without that
+                // change, as Outlook says such a one is out of date.
+                let superseded = request
+                    && msg.iter().find(|m| m.recurrence_id.is_none()).is_some_and(|m| {
+                        m.sequence <= master.event.sequence
+                            && parts.iter().any(|s| {
+                                s.event.recurrence_id.is_some()
+                                    && s.event.sequence > m.sequence
+                                    && !msg.iter().any(|x| x.recurrence_id == s.event.recurrence_id)
+                            })
+                    });
+                (stale || superseded).then_some(InviteProblem::OutOfDate)
             }
             _ => None,
         }
