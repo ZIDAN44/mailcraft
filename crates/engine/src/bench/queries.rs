@@ -30,7 +30,6 @@
 //! `MC_NO_PLACES` checks phrases against the texts kept instead, as a build before places did,
 //! to compare.
 
-use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use serde_json::json;
@@ -38,7 +37,6 @@ use serde_json::json;
 use crate::Session;
 use crate::model::dates::Clock;
 use crate::session::{SearchStats, SearchWork};
-use crate::store::Store;
 
 /// Most frames a prefix typed gets before the next character comes.
 const TYPED_FRAMES: usize = 30;
@@ -100,19 +98,7 @@ fn queries() {
         counts
     });
     let mut wrong = Vec::new();
-    let (store, account) = if let Ok(data) = std::env::var("MC_DATA") {
-        let data = PathBuf::from(data);
-        let store = Store::open_packed(data.clone(), data.join("MailCraft Files")).unwrap();
-        let account = store.load_accounts().unwrap().first().map(|a| a.id.clone()).expect("an account in MC_DATA");
-        (store, account)
-    } else {
-        let cache = PathBuf::from(std::env::var("MC_CACHE").expect("MC_CACHE: a cache a data file was imported into, or MC_DATA"));
-        let store = Store::open_packed(cache.join("root"), cache.join("files")).unwrap();
-        store
-            .save_accounts(&[crate::model::AccountConfig { id: "d1".into(), name: "Big".into(), email: "big@local".into(), ..Default::default() }])
-            .unwrap();
-        (store, "d1".to_string())
-    };
+    let (store, account) = super::bench_store().expect("MC_CACHE: a cache a data file was imported into, or MC_DATA");
     let (before, places_before) = crate::store::search::segment_bytes(&store, &account).unwrap();
     println!("segments before: {before} bytes, of them places pages {places_before}");
     let opened = Instant::now();

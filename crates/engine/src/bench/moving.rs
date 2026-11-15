@@ -9,14 +9,12 @@
 //! It prints the move's time, the commits it made that waited for the disk, sealed and not
 //! (how many, how long in all, the longest), and what a seal costs by itself after.
 
-use std::path::PathBuf;
 use std::time::Instant;
 
 use serde_json::json;
 
 use crate::Session;
 use crate::model::dates::Clock;
-use crate::store::Store;
 
 #[test]
 #[ignore]
@@ -25,10 +23,7 @@ fn big_move() {
         println!("MC_DATA: a copy of a data folder, to move its biggest folder in");
         return;
     };
-    let data = PathBuf::from(data);
-    let store = Store::open_packed(data.clone(), data.join("MailCraft Files")).unwrap();
-    store.open_data_files().unwrap();
-    let account = store.load_accounts().unwrap().first().map(|a| a.id.clone()).expect("an account in MC_DATA");
+    let (store, account) = super::data_store(&data);
     let mut s = Session::open(Some(store), Clock::new(1_800_000_000, 0));
     let folders: Vec<(String, u32)> = s.account(&account).map(|a| a.folders.iter().map(|f| (f.path.clone(), f.total)).collect()).unwrap_or_default();
     let Some(biggest) = folders.iter().filter(|(p, _)| p != "INBOX").max_by_key(|(_, n)| *n).map(|(p, _)| p.clone()) else {

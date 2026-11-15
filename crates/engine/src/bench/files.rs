@@ -10,31 +10,16 @@
 //! It prints the three counts (numbers only) and fails when they differ.
 
 use std::collections::HashSet;
-use std::path::PathBuf;
 
 use serde_json::json;
 
 use crate::Session;
 use crate::model::dates::Clock;
-use crate::store::Store;
 
 #[test]
 #[ignore]
 fn files_agree() {
-    let (store, account) = if let Ok(data) = std::env::var("MC_DATA") {
-        let data = PathBuf::from(data);
-        let store = Store::open_packed(data.clone(), data.join("MailCraft Files")).unwrap();
-        store.open_data_files().unwrap();
-        let account = store.load_accounts().unwrap().first().map(|a| a.id.clone()).expect("an account in MC_DATA");
-        (store, account)
-    } else if let Ok(cache) = std::env::var("MC_CACHE") {
-        let cache = PathBuf::from(cache);
-        let store = Store::open_packed(cache.join("root"), cache.join("files")).unwrap();
-        store
-            .save_accounts(&[crate::model::AccountConfig { id: "d1".into(), name: "Big".into(), email: "big@local".into(), ..Default::default() }])
-            .unwrap();
-        (store, "d1".to_string())
-    } else {
+    let Some((store, account)) = super::bench_store() else {
         println!("MC_CACHE or MC_DATA: the mailbox to count");
         return;
     };

@@ -84,26 +84,49 @@ fn walk(s: &mut Session) {
     }
 }
 
+/// The big mailbox the benches measure, and its account: `MC_DATA`, a data folder as the app's
+/// `--data` keeps it ([`data_store`]), or `MC_CACHE`, a cache a data file was imported into (its
+/// account saved as the made-up `d1`). Its data files are opened as the app opens them before
+/// it has a session ([`open_files`]). `None` when neither is set.
+fn bench_store() -> Option<(Store, String)> {
+    if let Ok(data) = std::env::var("MC_DATA") {
+        return Some(data_store(&data));
+    }
+    let cache = PathBuf::from(std::env::var("MC_CACHE").ok()?);
+    let store = Store::open_packed(cache.join("root"), cache.join("files")).unwrap();
+    store
+        .save_accounts(&[crate::model::AccountConfig { id: "d1".into(), name: "Big".into(), email: "big@local".into(), ..Default::default() }])
+        .unwrap();
+    open_files(&store);
+    Some((store, "d1".to_string()))
+}
+
+/// The data folder at `data` (`MC_DATA`), its data files opened ([`open_files`]), and its first
+/// account: the big one.
+fn data_store(data: &str) -> (Store, String) {
+    let data = PathBuf::from(data);
+    let store = Store::open_packed(data.clone(), data.join("MailCraft Files")).unwrap();
+    open_files(&store);
+    let account = store.load_accounts().unwrap().first().map(|a| a.id.clone()).expect("an account in MC_DATA");
+    (store, account)
+}
+
+/// Open `store`'s data files as the app does before its session (checking one that wasn't
+/// closed properly), timed apart: otherwise the first step to touch a file pays for opening it.
+fn open_files(store: &Store) {
+    let t = Instant::now();
+    store.open_data_files().unwrap();
+    println!("data files opened: {:.2} s", t.elapsed().as_secs_f64());
+}
+
 #[test]
 #[ignore]
 fn big_mailbox() {
-    let (store, account) = if let Ok(data) = std::env::var("MC_DATA") {
-        let data = PathBuf::from(data);
-        let store = Store::open_packed(data.clone(), data.join("MailCraft Files")).unwrap();
-        let account = store.load_accounts().unwrap().first().map(|a| a.id.clone()).expect("an account in MC_DATA");
-        (store, account)
-    } else if let Ok(cache) = std::env::var("MC_CACHE") {
-        let cache = PathBuf::from(cache);
-        let store = Store::open_packed(cache.join("root"), cache.join("files")).unwrap();
-        store
-            .save_accounts(&[crate::model::AccountConfig { id: "d1".into(), name: "Big".into(), email: "big@local".into(), ..Default::default() }])
-            .unwrap();
-        (store, "d1".to_string())
-    } else {
+    let (store, account) = bench_store().unwrap_or_else(|| {
         let store = Store::memory();
         big::generate(&store, 1_800_000_000, big::Shape::default()).unwrap();
         (store, big::ACCOUNT.to_string())
-    };
+    });
     // The words searched for: on the made-up mailbox, words it was made with (an everyday word
     // there finds nothing, measuring nothing).
     let made_up = account == big::ACCOUNT;
