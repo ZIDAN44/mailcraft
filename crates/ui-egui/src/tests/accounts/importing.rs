@@ -284,7 +284,7 @@ fn a_finished_import_shows_what_it_came_to() {
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.dialog.is_none(), "stopped: nothing to sum up yet");
     let texts = drawn(&ctx, &mut a);
-    assert!(has(&texts, "Import stopped: 0 of 0") || has(&texts, "Import stopped"), "{texts:?}");
+    assert!(texts.iter().any(|t| t == "Import stopped: Archive.pst"), "the status bar says so: {texts:?}");
 
     a.session.run("account.resumeImport", &json!({"account": id})).unwrap();
     a.session.apply(ended(&id, report(1234)));

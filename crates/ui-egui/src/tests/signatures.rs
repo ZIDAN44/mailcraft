@@ -50,7 +50,7 @@ fn an_outlook_signature_file_becomes_the_code() {
     assert!(code.starts_with("<div class=WordSection1>") && code.contains("Andr\u{e9} Moss") && code.contains("Caf\u{e9} \u{2013} Sales"), "{code}");
     assert!(code.contains("src=\"picture:1\"") && !code.contains("v:imagedata") && !code.contains("<![if"), "{code}");
     assert_eq!(f.pictures.len(), 1, "the one beside it, not the one outside its folder");
-    assert!(code.contains("src=\"file:../secret.png\"") || code.contains("src=\"../secret.png\""), "left as written: {code}");
+    assert!(code.contains("<img src=\"file:../secret.png\">"), "left as written, as a file it may not read: {code}");
 
     // To the formatted editor and back: the text and look, then the code again.
     let Some(Dialog::Signature(f)) = a.ui.dialog.as_mut() else { panic!() };
