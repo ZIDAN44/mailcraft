@@ -220,6 +220,11 @@ impl Data {
     pub(super) fn delete_item(&mut self, op: &El) -> Vec<String> {
         let mut out = Vec::new();
         for id in ids(op.child("ItemIds")) {
+            // Not an id of Exchange's at all: one starting `MALFORMED`, or none.
+            if id.is_empty() || id.starts_with("MALFORMED") {
+                out.push(err(if id.is_empty() { "ErrorInvalidIdEmpty" } else { "ErrorInvalidIdMalformed" }));
+                continue;
+            }
             if !self.may_change(&id) {
                 out.push(err("ErrorAccessDenied"));
                 continue;

@@ -8,6 +8,8 @@ impl Data {
     /// occurrences, reminders answered, contacts.
     pub(super) fn on_pim(&mut self, method: &str, parts: &[&str], input: &Value, query: &str) -> Answer {
         match (method, parts) {
+            // Not an id of Graph's at all: one starting `MALFORMED`.
+            ("DELETE", ["me", "events" | "contacts", id]) if id.starts_with("MALFORMED") => error(400, "ErrorInvalidIdMalformed", "Id is malformed."),
             ("GET", ["me", "calendars"]) => {
                 let list: Vec<Value> = self.calendars.iter().map(|(id, name)| json!({"id": id, "name": name, "canEdit": true})).collect();
                 ok(json!({ "value": list }))

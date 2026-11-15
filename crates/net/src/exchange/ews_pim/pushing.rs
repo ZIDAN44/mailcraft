@@ -12,13 +12,21 @@ fn delete(c: &Client, id: &str) -> Result<()> {
 }
 
 /// What was deleted here, deleted there (in someone else's calendar when it was in theirs): one
-/// the server hasn't any more is deleted too.
+/// the server hasn't any more is deleted too. One whose id the server can't read as an id (a
+/// damaged one, or one kept from another kind of account) is said once and not asked again: it
+/// was refused, and said, at every sync. Any other refusal (rights, the server busy) is asked
+/// again, as it may be taken later.
 pub(super) fn push_deletions(c: &Client, pim: &Pim, out: &mut DavSync) {
     for t in &pim.deleted {
         match in_calendar(c, &t.calendar, || delete(c, t.href.trim_start_matches("contact:").trim_start_matches("note:"))) {
             Ok(()) => out.deleted.push(t.href.clone()),
             Err(e) if crate::ews::gone(&e) => out.deleted.push(t.href.clone()),
-            Err(e) => out.errors.push(e.to_string()),
+            Err(e) => {
+                if crate::ews::no_such_id(&e) {
+                    out.deleted.push(t.href.clone());
+                }
+                out.errors.push(e.to_string());
+            }
         }
     }
 }

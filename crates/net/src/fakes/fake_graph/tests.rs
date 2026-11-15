@@ -586,3 +586,43 @@ fn a_refused_delete_is_said_and_kept() {
     assert!(second.errors.iter().any(|e| e.contains("403")), "{:?}", second.errors);
     assert!(server.data.lock().unwrap().events.iter().any(|e| e["id"] == "B1"), "still on the server");
 }
+
+/// A delete of an id Graph can't read as one (a damaged one, or one kept from another kind of
+/// account: 400, `ErrorInvalidIdMalformed`) can never be done: it's said once and its tombstone
+/// goes, where it was refused, and said, at every sync. One with no id at all isn't asked. One
+/// refused for want of rights (403) stays, as it may be allowed later.
+#[test]
+fn a_delete_of_an_id_that_isnt_one_is_said_once() {
+    use mailcraft_model::pim::{Pim, Tombstone, shared_calendar_id};
+    let mut d = Data { others: vec![("ben@contoso.example".into(), false)], ..Default::default() };
+    d.folder("Inbox", None, Some("inbox"));
+    d.calendars.push(("CAL1".into(), "Calendar".into()));
+    let at = |h: u32| json!({"dateTime": format!("2026-10-20T{h:02}:00:00.0000000")});
+    d.events
+        .push(json!({"id": "B1", "calendar": "user:ben@contoso.example", "iCalUId": "b1", "subject": "Ben's call", "start": at(9), "end": at(10)}));
+    let server = serve(d);
+    let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+    let tombstone = |href: &str, calendar: &str| Tombstone { href: href.into(), etag: String::new(), calendar: calendar.into() };
+    let mut pim = Pim { shared: vec!["ben@contoso.example".into()], ..Default::default() };
+    pim.deleted = vec![
+        tombstone("MALFORMED-1", ""),
+        tombstone("contact:MALFORMED-2", ""),
+        tombstone("", ""),
+        tombstone("contact:", ""),
+        tombstone("B1", &shared_calendar_id("ben@contoso.example")),
+    ];
+    let first = crate::graph_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    assert_eq!(first.deleted, ["MALFORMED-1", "contact:MALFORMED-2", "", "contact:"], "done with, as they can never be deleted");
+    let said = |errors: &[String], what: &str| errors.iter().filter(|e| e.contains(what)).count();
+    assert_eq!((said(&first.errors, "400"), said(&first.errors, "403")), (2, 1), "{:?}", first.errors);
+    // The next sync has only the one that may yet be allowed.
+    pim.deleted.retain(|t| !first.deleted.contains(&t.href));
+    let second = crate::graph_pim::sync(&c, &pim, 1_792_000_100).unwrap();
+    assert!(second.deleted.is_empty(), "{:?}", second.deleted);
+    assert_eq!((said(&second.errors, "400"), said(&second.errors, "403")), (0, 1), "{:?}", second.errors);
+    // Allowed since: it goes.
+    server.data.lock().unwrap().others = vec![("ben@contoso.example".into(), true)];
+    let third = crate::graph_pim::sync(&c, &pim, 1_792_000_200).unwrap();
+    assert_eq!(third.deleted, ["B1"]);
+    assert!(!server.data.lock().unwrap().events.iter().any(|e| e["id"] == "B1"));
+}

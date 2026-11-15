@@ -382,6 +382,36 @@ fn owner_path(calendar: &str) -> String {
     }
 }
 
+/// What was deleted here, deleted there: one Graph hasn't any more is deleted too. One whose id
+/// Graph can't read as an id (a damaged one, or one kept from another kind of account) is said
+/// once and not asked again: it was refused, and said, at every sync. Any other refusal (rights,
+/// the service busy) is asked again, as it may be taken later.
+fn push_deletions(c: &Client, pim: &Pim, out: &mut DavSync) {
+    for t in &pim.deleted {
+        let id = t.href.trim_start_matches("contact:");
+        // No id at all names nothing on the server (the request would be about the list itself).
+        if id.is_empty() {
+            out.deleted.push(t.href.clone());
+            continue;
+        }
+        let path = if t.href.starts_with("contact:") {
+            format!("/me/contacts/{}", seg(id))
+        } else {
+            format!("{}/events/{}", owner_path(&t.calendar), seg(id))
+        };
+        match c.send_raw("DELETE", &path, "application/json", Vec::new()) {
+            Ok(_) => out.deleted.push(t.href.clone()),
+            Err(e) if crate::ews::gone(&e) => out.deleted.push(t.href.clone()),
+            Err(e) => {
+                if crate::ews::no_such_id(&e) {
+                    out.deleted.push(t.href.clone());
+                }
+                out.errors.push(e.to_string());
+            }
+        }
+    }
+}
+
 /// Sync an account's calendars and contacts with Exchange Online.
 pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
     let mut out = DavSync { caldav_home: Some("graph".into()), carddav_home: Some("graph".into()), checked: now, ..Default::default() };
@@ -404,18 +434,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
         .collect();
     let default_cal = calendars.iter().find(|x| !x.read_only).map(|x| x.id.clone());
     // What changed here goes first.
-    for t in &pim.deleted {
-        let path = if t.href.starts_with("contact:") {
-            format!("/me/contacts/{}", seg(t.href.trim_start_matches("contact:")))
-        } else {
-            format!("{}/events/{}", owner_path(&t.calendar), seg(&t.href))
-        };
-        match c.send_raw("DELETE", &path, "application/json", Vec::new()) {
-            Ok(_) => out.deleted.push(t.href.clone()),
-            Err(e) if crate::ews::gone(&e) => out.deleted.push(t.href.clone()),
-            Err(e) => out.errors.push(e.to_string()),
-        }
-    }
+    push_deletions(c, pim, &mut out);
     for e in pim.events.iter().filter(|e| e.dirty) {
         let body = event_json(&e.event);
         let shared = mailcraft_model::pim::shared_calendar_owner(&e.calendar).is_some();

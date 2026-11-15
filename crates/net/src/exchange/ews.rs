@@ -305,6 +305,20 @@ pub(crate) fn gone(e: &NetError) -> bool {
     matches!(e, NetError::No(m) if m.starts_with(GONE))
 }
 
+/// How a refusal begins for an id the server can't read as one (EWS's and Graph's): malformed,
+/// or the other transport's. It names nothing there, and never will.
+pub(crate) const NO_SUCH_ID: &str = "not an id of this server's";
+/// How both servers' codes for such an id begin (`ErrorInvalidIdMalformed`, `ErrorInvalidIdEmpty`
+/// and the like).
+pub(crate) const INVALID_ID: &str = "ErrorInvalidId";
+
+/// Whether a refusal says the id can't be one of the server's ([`NO_SUCH_ID`]): asking again
+/// would be refused the same, where any other refusal but [`gone`] (rights, the server busy)
+/// may be taken later.
+pub(crate) fn no_such_id(e: &NetError) -> bool {
+    matches!(e, NetError::No(m) if m.starts_with(NO_SUCH_ID))
+}
+
 /// What a `…ResponseMessage` said.
 pub(crate) fn check_message(m: &El) -> Result<()> {
     match m.attr("ResponseClass") {
@@ -313,6 +327,7 @@ pub(crate) fn check_message(m: &El) -> Result<()> {
             let text = m.text_of("MessageText").unwrap_or(code);
             Err(match code {
                 "ErrorItemNotFound" | "ErrorFolderNotFound" => NetError::No(format!("{GONE} ({text})")),
+                _ if code.starts_with(INVALID_ID) => NetError::No(format!("{NO_SUCH_ID} ({text})")),
                 // Any other (access denied, the server busy) is refused as it says.
                 _ => NetError::No(text.to_string()),
             })

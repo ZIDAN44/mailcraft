@@ -660,6 +660,47 @@ fn a_refused_delete_is_said_and_kept() {
     assert!(server.data.lock().unwrap().pim.iter().any(|p| p.id == "B1"), "still on the server");
 }
 
+/// A delete of an id Exchange can't read as one (a damaged one, or one kept from another kind of
+/// account) can never be done: it's said once and its tombstone goes, where it was refused, and
+/// said, at every sync. One refused for want of rights stays, as it may be allowed later.
+#[test]
+fn a_delete_of_an_id_that_isnt_one_is_said_once() {
+    use mailcraft_model::pim::{Pim, Tombstone, shared_calendar_id};
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+    d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+    let call = parse(
+        "<t:CalendarItem><t:Subject>Ben's call</t:Subject><t:Start>2026-10-06T13:00:00Z</t:Start><t:End>2026-10-06T14:00:00Z</t:End>\
+         <t:IsAllDayEvent>false</t:IsAllDayEvent><t:UID>call-1</t:UID></t:CalendarItem>",
+    );
+    d.pim.push(PimItem::new("B1", "mailbox:ben@contoso.example", call.kids[0].clone()));
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let tombstone = |href: &str, calendar: &str| Tombstone { href: href.into(), etag: String::new(), calendar: calendar.into() };
+    let mut pim = Pim { shared: vec!["ben@contoso.example".into()], ..Default::default() };
+    pim.deleted = vec![
+        tombstone("MALFORMED-1", ""),
+        tombstone("contact:MALFORMED-2", ""),
+        tombstone("", ""),
+        tombstone("B1", &shared_calendar_id("ben@contoso.example")),
+    ];
+    let first = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    assert_eq!(first.deleted, ["MALFORMED-1", "contact:MALFORMED-2", ""], "done with, as they can never be deleted");
+    let said = |errors: &[String], what: &str| errors.iter().filter(|e| e.contains(what)).count();
+    assert_eq!((said(&first.errors, "ErrorInvalidId"), said(&first.errors, "ErrorAccessDenied")), (3, 1), "{:?}", first.errors);
+    // The next sync has only the one that may yet be allowed.
+    pim.deleted.retain(|t| !first.deleted.contains(&t.href));
+    let second = crate::ews_pim::sync(&c, &pim, 1_792_000_100).unwrap();
+    assert!(second.deleted.is_empty(), "{:?}", second.deleted);
+    assert_eq!((said(&second.errors, "ErrorInvalidId"), said(&second.errors, "ErrorAccessDenied")), (0, 1), "{:?}", second.errors);
+    // Allowed since: it goes.
+    server.data.lock().unwrap().editors.push("ben@contoso.example".into());
+    let third = crate::ews_pim::sync(&c, &pim, 1_792_000_200).unwrap();
+    assert_eq!(third.deleted, ["B1"]);
+    assert!(!server.data.lock().unwrap().pim.iter().any(|p| p.id == "B1"));
+}
+
 /// A contact changed here is made again in place of the old one; a contacts folder the server
 /// won't list, and public folders it won't, are said, and the calendar is read all the same.
 #[test]
