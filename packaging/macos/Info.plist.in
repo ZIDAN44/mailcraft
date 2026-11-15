@@ -69,7 +69,7 @@
   <!-- Documents MailCraft can be asked to open. Rank Alternate: it shows up in Open With and
        can be picked as the default in Get Info, but never takes a type over by itself. A saved
        message opens for reading; events and contacts are imported. macOS delivers them through
-       an Apple event that apps/mailcraft/src/apple_events.rs reads.
+       an Apple event that apps/mailcraft/src/platform/apple_events.rs reads.
 
        There is deliberately no CFBundleURLTypes entry for mailto. Links arrive as a different
        Apple event that MailCraft has no safe way to receive yet, so registering the scheme would

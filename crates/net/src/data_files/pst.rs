@@ -226,7 +226,7 @@ pub struct ImportOptions {
     pub space: Option<Arc<dyn Space>>,
     /// Leave the account's search index alone: the mail is indexed afterwards, by reading every
     /// message again. For a file read into a store of its own before it's added to an account
-    /// (`worker/imports/rereading.rs`), and for measuring what indexing as it imports costs.
+    /// (`worker/data_files/imports/rereading.rs`), and for measuring what indexing as it imports costs.
     #[doc(hidden)]
     pub no_index: bool,
     /// The reader's chunk of the file, in KiB, the data file's cache while the import writes to

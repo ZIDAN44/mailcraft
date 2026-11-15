@@ -67,7 +67,7 @@
                the exe, whose path survives updates. The Icon above stays for ARPPRODUCTICON. -->
           <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="MailCraft"
               Description="MailCraft email" WorkingDirectory="INSTALLFOLDER" Advertise="no">
-            <!-- The app id MailCraft's notifications are shown under (apps/mailcraft/src/toast.rs). -->
+            <!-- The app id MailCraft's notifications are shown under (apps/mailcraft/src/platform/toast.rs). -->
             <ShortcutProperty Key="System.AppUserModel.ID" Value="io.github.zidan44.MailCraft" />
           </Shortcut>
         </File>
@@ -78,7 +78,7 @@
            the Capabilities key puts it on the list in Settings > Apps > Default apps (under Email
            and the .eml, .ics and .vcf types) for the user to choose, and each extension's
            OpenWithProgids entry adds it to Explorer's "Open with" menu. A link or a file path is
-           passed as the one argument (apps/mailcraft/src/args.rs). Uninstalling removes it all. -->
+           passed as the one argument (apps/mailcraft/src/startup/args.rs). Uninstalling removes it all. -->
       <Component Id="MailcraftDefaultApp" Guid="B74ACD47-7B2E-4DEA-8113-42A3B3D00FDE">
         <RegistryKey Root="HKLM" Key="Software\RegisteredApplications">
           <RegistryValue Name="MailCraft" Type="string" Value="Software\MailCraft\Capabilities" KeyPath="yes" />

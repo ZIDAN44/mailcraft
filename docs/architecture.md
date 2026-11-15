@@ -252,7 +252,7 @@ MailCraft uses what the other Craft apps share where it fits, so the suite's fix
 
 | Shared piece | Used | Why, or why not |
 |---|---|---|
-| `craft-atomic` (craft-libs) | yes: `crates/store/src/atomic.rs` | The cache's file writes: a new scratch file never written through one at its name, a plain flush where a Mac's network share refuses a full one, renames tried again while Windows holds a file |
+| `craft-atomic` (craft-libs) | yes: `crates/store/src/files/atomic.rs` | The cache's file writes: a new scratch file never written through one at its name, a plain flush where a Mac's network share refuses a full one, renames tried again while Windows holds a file |
 | `craft-docpath` (craft-libs) | yes: `.pst` linked files | Whether a path a data file names is a local file: device names, Windows' file streams and `\\?\` forms refused |
 | craft-fonts, craft-common-actions | yes | The fonts in releases; CI, packaging lint and the FreeBSD and Windows ARM64 builds |
 | Dependabot, `SECURITY.md` | yes | Weekly grouped dependency updates; private vulnerability reports |

@@ -68,7 +68,7 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
   Use `get()`, checked/saturating arithmetic, char-boundary slicing, caps on allocations and
   recursion.
 - **Last-resort guard:** `Session::run` turns an escaped panic into an error, and every panic, on
-  any thread, is logged by where it happened (`apps/mailcraft/src/logfile.rs`, never its message).
+  any thread, is logged by where it happened (`apps/mailcraft/src/startup/logfile.rs`, never its message).
 - **Prove it:** every crash fix lands with a regression test; `engine/src/tests/organize.rs::every_command_survives_junk_params`
   runs every command with junk params — keep it green. A new parser of server or file input gets a
   target in `fuzz/` (cargo-fuzz, run weekly; `fuzz/README.md`); round trips get a proptest.

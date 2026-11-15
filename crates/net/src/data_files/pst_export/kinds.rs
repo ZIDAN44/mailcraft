@@ -1,5 +1,5 @@
 //! What a message is beyond a note, as Outlook keeps it: the reverse of what the import reads
-//! (`pst/protected.rs`, `pst/report.rs`).
+//! (`pst/rebuild/protected.rs`, `pst/rebuild/report.rs`).
 //!
 //! Signed and encrypted mail (MS-OXOSMIME 2.1): a clear-signed message is
 //! `IPM.Note.SMIME.MultipartSigned` with one attachment, `smime.p7m` (`multipart/signed`),

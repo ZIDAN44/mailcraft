@@ -121,7 +121,7 @@ foreach ($f in 'README.md', 'LICENSE', 'LICENSE-MIT', 'LICENSE-APACHE', 'ATTRIBU
   if (Test-Path $p) { Copy-Item $p $Portable }
 }
 # portable.txt beside mailcraft.exe switches on portable mode: everything goes to MailCraftData\ next
-# to the exe, passwords stay in memory (issue #4; see apps/mailcraft/src/portable.rs).
+# to the exe, passwords stay in memory (issue #4; see apps/mailcraft/src/startup/portable.rs).
 Copy-Item (Join-Path $PSScriptRoot 'portable.txt') $Portable
 $Zip = Join-Path $Dist "mailcraft-$Version-windows-$Arch-portable.zip"
 Remove-Item -Force $Zip -ErrorAction SilentlyContinue

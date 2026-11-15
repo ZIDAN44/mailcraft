@@ -59,7 +59,7 @@ Each account's worker repeats these stages:
   - A lost connection is retried after a growing pause, from 5 seconds up to 5 minutes.
   - If the server refuses the password, MailCraft asks the user for it (`NeedsPassword`).
   - If the server refuses a command, MailCraft reports it and syncs the folder again.
-- **Compact the data file.** While `worker/compact.rs` compacts the account's data file, the
+- **Compact the data file.** While `worker/data_files/compact.rs` compacts the account's data file, the
   account's sync pauses.
 
 ## Offline changes

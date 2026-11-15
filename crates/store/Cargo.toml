@@ -16,7 +16,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 thiserror = { workspace = true }
-# Files replaced in one step, as the other Craft apps save theirs (`atomic.rs`); in the browser it
+# Files replaced in one step, as the other Craft apps save theirs (`files/atomic.rs`); in the browser it
 # answers an error, and the cache there is in memory.
 craft-atomic = { workspace = true }
 
