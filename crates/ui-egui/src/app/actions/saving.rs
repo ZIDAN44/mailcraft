@@ -11,7 +11,15 @@ impl MailApp {
             self.download_message(true);
             return;
         }
-        let Some(path) = self.services.save_path(&format!("{}.pdf", self.message_file_name())) else { return };
+        // Shown as it will print before it prints (issue #97): straight into the PDF viewer, its
+        // pages there to look at and print. Not asked where to save it first (that's Save as
+        // PDF): a copy of MailCraft's own, in its scratch folder.
+        let name = mailcraft_engine::mime::sanitize_filename(&format!("{}.pdf", self.message_file_name()));
+        let Some(dir) = crate::scratch_dir("print") else {
+            self.session.notice(tl!("There's no folder to put the PDF in for the viewer"), true);
+            return;
+        };
+        let path = dir.join(name);
         match self.session.run("message.exportPdf", &json!({"path": path.to_string_lossy()})) {
             Ok(_) => match self.services.open_path(&path) {
                 Ok(()) => self.session.notice(tl!("Opened as a PDF: print it from the viewer"), false),

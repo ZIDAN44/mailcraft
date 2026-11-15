@@ -741,3 +741,19 @@ fn a_picture_is_copied_or_saved_from_its_menu() {
     // One from the web that isn't loaded isn't here to save.
     assert_eq!(a.session.picture_bytes(&k, "https://gallery.example/track/open.gif"), None);
 }
+
+/// Issue #97: Print shows the message as it will print before it prints, in the PDF viewer, at
+/// once: not asked first where to save a PDF (the test's services pick no place, and it printed
+/// nothing).
+#[test]
+fn print_opens_the_message_as_it_will_print() {
+    let (mut a, _) = app("print-preview");
+    let k = a.session.list.iter().find(|m| m.subject.contains("winter group show")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.act(crate::Action::Print);
+    let dir = crate::scratch_dir("print").expect("a folder for the viewer");
+    let made: Vec<_> = std::fs::read_dir(&dir).unwrap().filter_map(Result::ok).map(|e| e.path()).collect();
+    assert_eq!(made.len(), 1, "{made:?}");
+    let pdf = std::fs::read(&made[0]).unwrap();
+    assert!(pdf.starts_with(b"%PDF"), "a PDF");
+}
