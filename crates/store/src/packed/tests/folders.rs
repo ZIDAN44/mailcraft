@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 use std::io::BufRead;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::*;
 
@@ -108,7 +108,7 @@ fn another_process_on_the_folder_layout_keeps_its_folders() {
     let t = temp("folders-process");
     let app = t.join("app");
     drop(layout(&app));
-    let mut child = commits::child("packed::tests::folders::child_holds_the_folders", &[(CHILD_DIR, app.display().to_string())]);
+    let mut child = child("packed::tests::folders::child_holds_the_folders", &[(CHILD_DIR, app.display().to_string())]);
     let out = child.stdout.take().unwrap();
     let ready = std::io::BufReader::new(out).lines().map_while(|l| l.ok()).any(|l| l.contains("folders-held"));
     assert!(ready, "the child got as far as opening the folders");
@@ -119,17 +119,7 @@ fn another_process_on_the_folder_layout_keeps_its_folders() {
 
     child.kill().unwrap();
     let _ = child.wait();
-    // The system lets go of a dead process's locks a moment after it ends (Windows).
-    let deadline = Instant::now() + Duration::from_secs(10);
-    let s = loop {
-        match Store::open_packed(&app, t.join("Files")) {
-            Ok(s) => break s,
-            Err(e) if Instant::now() < deadline && e.to_string().contains("open in another copy") => {
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            Err(e) => panic!("the dead process's lease wasn't let go: {e}"),
-        }
-    };
+    let s = retry_while_held(|| Store::open_packed(&app, t.join("Files")), |e| e.to_string().contains("open in another copy"));
     assert!(!app.join("a1").exists(), "the folder came in");
     assert_eq!(s.read_body(&inbox(2)).unwrap(), b"Subject: child\r\n\r\nbody", "with what the child wrote");
     drop(s);

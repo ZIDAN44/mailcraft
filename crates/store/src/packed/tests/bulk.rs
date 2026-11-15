@@ -191,7 +191,7 @@ fn a_bulk_write_s_durable_commits_are_sealed() {
         let file = s.data_file("a1").unwrap();
         drop(s);
         let env = [("MC_CHILD_DIR", t.display().to_string()), ("MC_CHILD_MODE", mode.to_string())];
-        let out = super::commits::child("packed::tests::bulk::killed_in_a_bulk_write", &env).wait_with_output().unwrap();
+        let out = child("packed::tests::bulk::killed_in_a_bulk_write", &env).wait_with_output().unwrap();
         assert!(!out.status.success() && String::from_utf8_lossy(&out.stdout).contains("written"), "{mode}: the child was to write, then be killed");
         let (repairs, there) = super::commits::repairs_on_open(&t, &file);
         assert!(there, "{mode}: a durable write was lost");

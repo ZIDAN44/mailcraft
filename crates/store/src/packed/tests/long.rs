@@ -1,7 +1,7 @@
 //! A long write (a big local move): its data file sealed as it goes, so a crash part-way reopens
 //! the file at once rather than checking the whole of it.
 
-use super::commits::{child, repairs_on_open};
+use super::commits::repairs_on_open;
 use super::*;
 
 fn source(i: u32) -> Vec<u8> {

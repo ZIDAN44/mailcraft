@@ -4,7 +4,7 @@
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-use super::commits::{child, repairs_on_open};
+use super::commits::repairs_on_open;
 use super::*;
 use crate::OpenStage;
 

@@ -1,7 +1,6 @@
 //! An account switched between its data file and memory (online only, issue #4), measured: how
 //! long it takes and how much memory it needs at most, the account's size given.
 
-use super::commits::child;
 use super::measure::Process;
 use super::*;
 

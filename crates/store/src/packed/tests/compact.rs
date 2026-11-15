@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 use mailcraft_model::job::progress::Work;
 use redb::ReadableDatabase;
 
-use super::commits::child;
 use super::measure::{ms, percentile};
 use super::*;
 use crate::packed::compact::{Account, Step, Target};

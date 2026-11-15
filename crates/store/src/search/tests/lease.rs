@@ -3,9 +3,10 @@
 //! and after a holder that crashed.
 
 use std::io::BufRead;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::*;
+use crate::tests::process::{command, retry_while_held};
 
 /// A folder of its own for a test.
 fn base(name: &str) -> PathBuf {
@@ -145,10 +146,7 @@ const CHILD_DIR: &str = "MAILCRAFT_TEST_LEASE_CHILD";
 #[test]
 fn another_process_holds_the_index_until_it_dies() {
     let dir = base("process");
-    let mut child = std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["--ignored", "--exact", "search::tests::lease::child_holds_the_index", "--nocapture", "--test-threads=1"])
-        .env(CHILD_DIR, &dir)
-        .stdout(std::process::Stdio::piped())
+    let mut child = command("search::tests::lease::child_holds_the_index", &[(CHILD_DIR, dir.display().to_string())])
         .stderr(std::process::Stdio::null())
         .spawn()
         .unwrap();
@@ -169,15 +167,7 @@ fn another_process_holds_the_index_until_it_dies() {
 
     child.kill().unwrap();
     let _ = child.wait();
-    // The system lets go of a dead process's locks a moment after it ends (Windows).
-    let deadline = Instant::now() + Duration::from_secs(10);
-    let w = loop {
-        match Writer::open(&s, "a1") {
-            Ok(w) => break w,
-            Err(e) if Instant::now() < deadline && matches!(e, StoreError::Busy { .. }) => std::thread::sleep(Duration::from_millis(50)),
-            Err(e) => panic!("the dead process's lease wasn't let go: {e}"),
-        }
-    };
+    let w = retry_while_held(|| Writer::open(&s, "a1"), |e| matches!(e, StoreError::Busy { .. }));
     assert_eq!(files(&s).1, BTreeSet::new(), "its half-written commit removed");
     assert!(!r.refresh(&s).unwrap(), "the same generation");
     assert_eq!(found(&mut r, &s, Field::Body, "child").len(), 2);

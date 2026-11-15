@@ -8,25 +8,6 @@ use redb::{ReadableDatabase, ReadableTable};
 use super::measure::{ms, percentile, spread};
 use super::*;
 
-/// This test binary again, running only `test` (an ignored one that does nothing unless `env`
-/// is set): a process that can be killed part-way. What it prints starts on the test harness's
-/// own line.
-pub(super) fn child(test: &str, env: &[(&str, String)]) -> std::process::Child {
-    command(test, env).spawn().unwrap()
-}
-
-/// The command [`child`] starts, for a test to change (where it runs) before it does.
-pub(super) fn command(test: &str, env: &[(&str, String)]) -> std::process::Command {
-    let mut cmd = std::process::Command::new(std::env::current_exe().unwrap());
-    cmd.args(["--ignored", "--exact", test, "--nocapture", "--test-threads=1"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-    for (k, v) in env {
-        cmd.env(k, v);
-    }
-    cmd
-}
-
 /// Sources of every kind: text, a big text one, noise that doesn't compress (one in pieces), a
 /// tiny one, and one that is only just too small to compress.
 fn sources(seed: u64) -> Vec<Vec<u8>> {

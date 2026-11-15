@@ -92,7 +92,7 @@ fn an_opened_files_copy_is_kept_beside_it_and_found_again() {
     let here = t.join("here");
     std::fs::create_dir_all(&here).unwrap();
     let env = [("MC_CHILD_DIR", t.display().to_string())];
-    let out = super::commits::command("packed::tests::beside::named_from_where_it_runs", &env).current_dir(&here).output().unwrap();
+    let out = command("packed::tests::beside::named_from_where_it_runs", &env).current_dir(&here).output().unwrap();
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(out.status.success() && text.contains("beside where it runs"), "{text}\n{}", String::from_utf8_lossy(&out.stderr));
     assert_eq!(std::fs::read_dir(&here).unwrap().count(), 0, "nothing left there");
