@@ -22,7 +22,6 @@ impl Data {
             self.asked_immutable = asks_immutable(prefer);
             let b = serde_json::to_vec(&r["body"]).unwrap_or_default();
             let (status, rb, _) = self.route(r["method"].as_str().unwrap_or("GET"), r["url"].as_str().unwrap_or("/"), &b, base);
-            self.asked_immutable = true;
             let rbody: Value = serde_json::from_slice(&rb).unwrap_or(Value::Null);
             out.push(json!({"id": r["id"], "status": status, "body": rbody}));
         }

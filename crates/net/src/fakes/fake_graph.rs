@@ -84,8 +84,9 @@ pub struct Data {
     /// The bearer token and headers of the request being answered.
     bearer: String,
     headers: Vec<(String, String)>,
-    /// Set per request from its `Prefer` header; without `IdType="ImmutableId"` message ids
-    /// are returned in the other (prefixed) form.
+    /// Set per request from its `Prefer` header, and per `$batch` entry from the entry's own;
+    /// without `IdType="ImmutableId"` message ids are returned in the other (prefixed) form.
+    /// Only a batch entry gets them so: any other request for mail without it is refused.
     asked_immutable: bool,
     late: Vec<(std::time::Instant, Vec<u8>)>,
     next: u32,
@@ -374,7 +375,7 @@ pub fn serve(data: Data) -> Server {
                     d.throttle -= 1;
                     (429, br#"{"error": {"code": "TooManyRequests"}}"#.to_vec(), "application/json")
                 } else {
-                    d.asked_immutable |= !directory;
+                    d.asked_immutable = immutable;
                     d.bearer = used;
                     d.headers = headers;
                     let answer = d.route(&method, &target, &body, &b);
