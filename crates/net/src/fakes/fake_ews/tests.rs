@@ -137,6 +137,27 @@ fn automatic_replies_with_markup_characters_come_back_as_written() {
     assert_eq!(back.text, away.text);
 }
 
+/// What's read is what was written, whatever the reply has in it: one line with an `&` and no
+/// `<` came back `R&amp;D`, and grew by an `amp;` each time the replies were saved.
+#[test]
+fn automatic_replies_come_back_as_typed_however_often_they_are_saved() {
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    for typed in crate::exchange::REPLIES_AS_TYPED {
+        let away = Vacation { enabled: true, text: typed.into(), external: Some(format!("Outside: {typed}")), ..Default::default() };
+        c.set_vacation(&away).unwrap();
+        let once = c.vacation().unwrap();
+        assert_eq!(once, away, "read after the first save");
+        c.set_vacation(&once).unwrap();
+        assert_eq!(c.vacation().unwrap(), away, "read after the second save");
+    }
+    // A reply another program set, as a page: read as HTML.
+    server.data.lock().unwrap().oof.inside = "<html><body><div>Back &amp; forth</div><div>R&amp;D</div></body></html>".into();
+    assert_eq!(c.vacation().unwrap().text, "Back & forth\nR&D");
+}
+
 /// A server (or a proxy before it) naming its sign-in schemes in lower case: its `ntlm` challenge
 /// is answered as `NTLM`'s.
 #[test]

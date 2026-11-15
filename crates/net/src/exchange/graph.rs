@@ -341,10 +341,7 @@ impl Client {
             v.get(k).and_then(|d| d.get("dateTime")).and_then(Value::as_str).and_then(|d| d.get(..10)).filter(|d| mailcraft_model::job::is_day(d))
         };
         let scheduled = status == "scheduled";
-        let reply = |k: &str| {
-            let html = v.get(k).and_then(Value::as_str).unwrap_or_default();
-            if html.contains('<') { mime::html_to_text(html).trim().to_string() } else { html.trim().to_string() }
-        };
+        let reply = |k: &str| crate::exchange::reply_text(v.get(k).and_then(Value::as_str).unwrap_or_default());
         let (text, external) = (reply("internalReplyMessage"), reply("externalReplyMessage"));
         let outside = match v.get("externalAudience").and_then(Value::as_str).unwrap_or("all").to_ascii_lowercase().as_str() {
             "none" => "none",

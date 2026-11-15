@@ -538,6 +538,27 @@ fn reminders_answered_here_are_answered_on_graph() {
     assert_eq!(d.reminders[1].2["newReminderTime"], serde_json::json!({"dateTime": "2026-11-04T08:55:00", "timeZone": "UTC"}));
 }
 
+/// What's read is what was written, whatever the reply has in it: one line with an `&` and no
+/// `<` came back `R&amp;D`, and grew by an `amp;` each time the replies were saved.
+#[test]
+fn automatic_replies_come_back_as_typed_however_often_they_are_saved() {
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"));
+    let server = serve(d);
+    let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+    for typed in crate::exchange::REPLIES_AS_TYPED {
+        let away = Vacation { enabled: true, text: typed.into(), external: Some(format!("Outside: {typed}")), ..Default::default() };
+        c.set_vacation(&away).unwrap();
+        let once = c.vacation().unwrap();
+        assert_eq!(once, away, "read after the first save");
+        c.set_vacation(&once).unwrap();
+        assert_eq!(c.vacation().unwrap(), away, "read after the second save");
+    }
+    // A reply another program set, as a page: read as HTML.
+    server.data.lock().unwrap().replies["internalReplyMessage"] = json!("<html><body><div>Back &amp; forth</div><div>R&amp;D</div></body></html>");
+    assert_eq!(c.vacation().unwrap().text, "Back & forth\nR&D");
+}
+
 /// A delete Graph refuses (an event in someone's calendar this account may only read: 403) isn't
 /// taken for done: it's said, and its tombstone stays to be asked again. It was dropped as if
 /// the event were gone. One for something no longer there (404) is done.

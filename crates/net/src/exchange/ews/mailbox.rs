@@ -286,7 +286,7 @@ impl Client {
         let scheduled = state == "Scheduled";
         let reply = |which: &str| {
             let m = s.find(which).and_then(|r| r.child("Message")).map(|m| m.text.clone()).unwrap_or_default();
-            if m.contains('<') { mime::html_to_text(&m).trim().to_string() } else { m.trim().to_string() }
+            crate::exchange::reply_text(&m)
         };
         let (text, external) = (reply("InternalReply"), reply("ExternalReply"));
         let outside = match s.text_of("ExternalAudience").unwrap_or("All") {
