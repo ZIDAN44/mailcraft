@@ -22,6 +22,7 @@ on GitHub.
 
 ### Fixed
 
+- An event moved to another start keeps its length: a half-hour meeting moved became an hour long.
 - A recurring meeting moved to another time keeps the occurrences taken out of it out (#100): one deleted came back, for you and the guests, and an occurrence changed on its own stood beside the series' new one that day. Each moves with the series, and the guests' update carries the changed occurrences along.
 - Meeting invitations, answers and cancellations sent by MailCraft arrive in Exchange and Outlook as meetings, with buttons to answer (#98), not as a message with an `invite.ics` file: the calendar now goes inline beside the text, with its method and character set, as iMIP (RFC 6047) asks.
 - A certificate file (`.p12`, `.pfx`) saved by Thunderbird or Firefox is imported (#89): they write the file another way than OpenSSL and Windows do, and every one was refused as a wrong password, old files and new. What stops an import is now said as what it is: a wrong password, a file locked in a way MailCraft doesn't read, or a file that isn't a certificate file.

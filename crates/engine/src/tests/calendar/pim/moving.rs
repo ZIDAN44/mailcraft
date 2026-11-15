@@ -1,5 +1,6 @@
-//! A recurring meeting moved as a whole (issue #100): its occurrences taken out stay out, its
-//! changed ones stay the ones they were, and the guests hear of all of it.
+//! Events moved: one keeps its length, and a recurring meeting moved as a whole (issue #100)
+//! keeps its occurrences taken out out and its changed ones the ones they were, and the guests
+//! hear of all of it.
 
 use mailcraft_model::ical::{self, CalEvent};
 use mailcraft_model::pim::{CalendarInfo, StoredEvent};
@@ -129,4 +130,19 @@ fn a_series_changed_otherwise_keeps_its_occurrences() {
     s.run("event.update", &json!({"uid": "daily", "summary": "Daily stand-up"})).unwrap();
     assert_eq!(parts(&s).iter().map(|e| e.recurrence_id).collect::<Vec<_>>(), before);
     assert_eq!(parts(&s)[0].exdates, [berlin(18, 18, 10)]);
+}
+
+/// Moved to another start, an event keeps its length: a half-hour meeting became an hour long.
+/// A new one given only a start is an hour long.
+#[test]
+fn an_event_moved_keeps_its_length() {
+    let mut s = sample_session("moving-length");
+    let r = s.run("event.create", &json!({"summary": "Call", "start": berlin(16, 18, 10), "end": berlin(16, 18, 40)})).unwrap();
+    let uid = r["uid"].as_str().unwrap().to_string();
+    s.run("event.update", &json!({"uid": uid, "start": berlin(16, 18, 40)})).unwrap();
+    let e = s.find_event(&uid).unwrap().1.event.clone();
+    assert_eq!((e.start, e.end), (berlin(16, 18, 40), berlin(16, 19, 10)));
+    let r = s.run("event.create", &json!({"summary": "Lunch", "start": berlin(17, 12, 0)})).unwrap();
+    let e = s.find_event(r["uid"].as_str().unwrap()).unwrap().1.event.clone();
+    assert_eq!(e.end - e.start, 3600);
 }

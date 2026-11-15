@@ -329,7 +329,16 @@ pub(super) fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::C
     if let Some((t, all_day)) = when("start")? {
         e.start = t;
         e.all_day = p::bool(v, "allDay").unwrap_or(all_day);
-        e.end = t.saturating_add(length.max(if e.all_day { 86_400 } else { 3600 }));
+        // Moved, it keeps its length (a half-hour meeting became an hour long); a new one, with
+        // none yet, is an hour long, or a day.
+        let length = if e.all_day {
+            length.max(86_400)
+        } else if length > 0 {
+            length
+        } else {
+            3600
+        };
+        e.end = t.saturating_add(length);
     } else if let Some(a) = p::bool(v, "allDay") {
         e.all_day = a;
     }
