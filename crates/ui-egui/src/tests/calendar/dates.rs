@@ -38,6 +38,61 @@ fn month_names_and_days_written_out_as_before() {
     assert_eq!((crate::calendar::month_name(0), crate::calendar::month_name(13)), ("", ""));
 }
 
+/// An all-day invitation's card says its day as the follow-up dates do: its weekday as the
+/// language writes it (whatever that has in it: the card cut a date and time at its second
+/// space) and its date in the order chosen, the day the event is on wherever the viewer is. A
+/// timed one says its start and end as before.
+#[test]
+fn an_invitation_says_its_day() {
+    const WEEKDAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    use mailcraft_engine::model::dates::{DateOrder, DateStyle, zone::Zone};
+    let orders = [DateOrder::Iso, DateOrder::DayMonthYear, DateOrder::MonthDayYear, DateOrder::DayMonthYearDots];
+    let zones =
+        [Clock::new(NOW, 0), Clock::new(NOW, -14 * 3600), Clock::new(NOW, 14 * 3600), Clock::new(NOW, 0).in_zone(Zone::named("America/New_York"))];
+    let mut checked = 0;
+    for lang in crate::i18n::Lang::all() {
+        crate::i18n::set_current(lang);
+        for zone in &zones {
+            for order in orders {
+                for hours12 in [false, true] {
+                    let mut clock = *zone;
+                    clock.style = DateStyle { order, hours12, full_in_list: false };
+                    let s = Session::open(None, clock);
+                    for day in (-800_000i64..3_000_000).step_by(9_973).chain([-1, 0, 1, 20_740]) {
+                        let mut e = mailcraft_engine::model::ical::CalEvent {
+                            all_day: true,
+                            start: day * 86_400,
+                            end: (day + 1) * 86_400,
+                            ..Default::default()
+                        };
+                        let (y, m, d) = civil_from_days(day);
+                        let date = match order {
+                            DateOrder::Iso => format!("{y:04}-{m:02}-{d:02}"),
+                            DateOrder::DayMonthYear => format!("{d:02}/{m:02}/{y:04}"),
+                            DateOrder::MonthDayYear => format!("{m:02}/{d:02}/{y:04}"),
+                            DateOrder::DayMonthYearDots => format!("{d:02}.{m:02}.{y:04}"),
+                        };
+                        // 1 January 1970 was a Thursday.
+                        let weekday = crate::i18n::t(WEEKDAYS[(day + 3).rem_euclid(7) as usize]);
+                        assert_eq!(crate::reading::invite_when(&e, &s), format!("{weekday} {date}"), "{} {day}", lang.code());
+                        e.all_day = false;
+                        e.start = day * 86_400 + 13 * 3600 + 5 * 60;
+                        e.end = e.start + 3600;
+                        let was = format!("{} – {}", crate::i18n::date(&dates::full_time(e.start, &clock)), crate::calendar::hm(e.end, &s));
+                        assert_eq!(crate::reading::invite_when(&e, &s), was, "{} {day}", lang.code());
+                        checked += 1;
+                    }
+                }
+            }
+        }
+    }
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+    assert!(checked > 100_000, "{checked}");
+    let s = Session::open(None, Clock::new(NOW, 0));
+    let e = mailcraft_engine::model::ical::CalEvent { all_day: true, start: 20_740 * 86_400, end: 20_741 * 86_400, ..Default::default() };
+    assert_eq!(crate::reading::invite_when(&e, &s), "Wed 2026-10-14");
+}
+
 /// Showing a day (from an invitation, the To-Do Bar's month) and going to one (the calendar's
 /// "more", a search result) ask for what they asked before, the date as `civil` wrote it.
 #[test]

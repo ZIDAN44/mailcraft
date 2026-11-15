@@ -368,6 +368,16 @@ pub(crate) fn sender_warning(t: &Tokens, ui: &mut Ui, w: &mailcraft_engine::mode
     ui.add_space(8.0);
 }
 
+/// When an invitation's event is, as its card says: the day alone for an all-day one (its start
+/// is a local midnight), else the date and time it starts and the time it ends.
+pub(crate) fn invite_when(e: &mailcraft_engine::model::ical::CalEvent, s: &Session) -> String {
+    if e.all_day {
+        crate::i18n::date(&dates::day_text(s.clock.local_day(s.clock.utc(e.start)), &s.clock))
+    } else {
+        format!("{} – {}", crate::i18n::date(&dates::full_time(e.start, &s.clock)), crate::calendar::hm(e.end, s))
+    }
+}
+
 /// A meeting invitation (or an answer to one, or a cancellation) carried by the message.
 fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, acts: &mut Vec<Action>) {
     // Its files still coming: looked for once they're here (what's shown, not read again).
@@ -388,12 +398,7 @@ fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, act
             icons::paint(ui.painter(), r, Icon::Calendar, t.accent);
             ui.vertical(|ui| {
                 ui.label(RichText::new(&e.summary).font(theme::bold(15.0)).color(t.text));
-                let when = if e.all_day {
-                    crate::i18n::date(&dates::full_time(s.clock.utc(e.start), &s.clock)).split(' ').take(2).collect::<Vec<_>>().join(" ")
-                } else {
-                    format!("{} – {}", crate::i18n::date(&dates::full_time(e.start, &s.clock)), crate::calendar::hm(e.end, s))
-                };
-                ui.label(RichText::new(when).color(t.dim));
+                ui.label(RichText::new(invite_when(e, s)).color(t.dim));
                 if !e.location.is_empty() {
                     ui.label(RichText::new(&e.location).color(t.dim));
                 }
