@@ -84,17 +84,22 @@ impl DataFileHealth {
     }
 
     /// About how long compacting it in place would have it to itself, in ms: after compressing
-    /// again what it keeps raw when `recompressed` (the room that frees moves too).
-    pub fn exclusive_ms(&self, recompressed: bool) -> u64 {
-        let moved = self.reclaimable.saturating_add(if recompressed { self.recompress_gain } else { 0 });
+    /// again what it keeps raw when `after_recompress` (the room that frees moves too).
+    pub fn exclusive_ms(&self, after_recompress: bool) -> u64 {
+        let moved = self.reclaimable.saturating_add(if after_recompress { self.recompress_gain } else { 0 });
         compact_ms(self.file_bytes, moved, self.pace)
+    }
+
+    /// What compressing again would still save: nothing once it's all kept as this build keeps
+    /// it ([`DataFileHealth::recompressed`]).
+    fn pending_gain(&self) -> u64 {
+        if self.recompressed { 0 } else { self.recompress_gain }
     }
 
     /// About what compacting it gives back to the drive: the room it has over what it keeps,
     /// and what compressing again would save when an earlier build kept some of it raw.
     pub fn saving(&self) -> u64 {
-        let gain = if self.recompressed { 0 } else { self.recompress_gain };
-        self.reclaimable.saturating_add(gain)
+        self.reclaimable.saturating_add(self.pending_gain())
     }
 
     /// About how long compacting it by hand (Compact now) has the file to itself, in seconds, as
@@ -111,8 +116,7 @@ impl DataFileHealth {
     /// The room a copy of it needs on its drive: what it keeps (less what compressing again
     /// saves), a tenth more for the copy's own pages and its growing, and 2 GiB left over.
     pub fn copy_need(&self) -> u64 {
-        let gain = if self.recompressed { 0 } else { self.recompress_gain };
-        let live = self.live_bytes.saturating_sub(gain);
+        let live = self.live_bytes.saturating_sub(self.pending_gain());
         live.saturating_add(live / 10).saturating_add(2 * GIB)
     }
 }
@@ -222,12 +226,12 @@ pub fn plan(health: &DataFileHealth, mode: CompactMode, free: Option<u64>) -> Co
     if limit.is_none_or(|limit| seconds <= limit) {
         return CompactPlan::InPlace { recompress };
     }
-    match (mode, recompress) {
-        (CompactMode::Close, _) | (CompactMode::Idle, false) => CompactPlan::TooLong { seconds },
-        (_, true) if free.is_some_and(|f| f >= health.copy_need()) => CompactPlan::Copy,
-        (_, true) => CompactPlan::Reimport,
-        (CompactMode::Manual, false) => CompactPlan::InPlace { recompress: false },
+    // Longer than allowed: at idle or closing, or asked for with a file kept raw (by hand, no
+    // other has a limit). One not kept raw waits until asked for; closing never makes a copy.
+    if !recompress || mode == CompactMode::Close {
+        return CompactPlan::TooLong { seconds };
     }
+    if free.is_some_and(|f| f >= health.copy_need()) { CompactPlan::Copy } else { CompactPlan::Reimport }
 }
 
 /// What a compaction came to ([`crate::Event::Compacted`]).
