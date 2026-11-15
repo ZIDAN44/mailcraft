@@ -63,7 +63,7 @@ pub(crate) use open::locked_by_another;
 use out::Out;
 #[doc(hidden)]
 pub use props::Val;
-pub(crate) use props::{one_off_address, one_off_entry_id, text_of, without_nuls};
+pub(crate) use props::{decode, one_off_address, one_off_entry_id, text_of, without_nuls};
 #[doc(hidden)]
 pub use resume::checkpoint_from_bytes;
 pub use resume::keep_as_is;

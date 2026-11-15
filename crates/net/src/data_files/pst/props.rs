@@ -181,7 +181,7 @@ pub(super) fn clean_name(s: &str) -> String {
 /// ASCII is UTF-8 (Outlook labels some UTF-8 mail with the sender's code page) unless an HTML
 /// body declares another 8-bit charset in a `<meta>` tag near its top; anything else is in the
 /// page.
-pub(super) fn decode(bytes: &[u8], code_page: u32, html: bool) -> String {
+pub(crate) fn decode(bytes: &[u8], code_page: u32, html: bool) -> String {
     read(bytes, code_page, html).0
 }
 

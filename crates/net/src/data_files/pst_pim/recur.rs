@@ -263,7 +263,7 @@ fn info(b: &mut Bytes<'_>) -> Option<(Changed, u16)> {
     let text = |b: &mut Bytes<'_>| -> Option<String> {
         b.u16()?;
         let n = usize::from(b.u16()?);
-        Some(crate::pst::without_nuls(crate::pst::text_from_bytes(b.take(n)?, 1252, false)))
+        Some(crate::pst::without_nuls(crate::pst::decode(b.take(n)?, 1252, false)))
     };
     if flags & ARO_SUBJECT != 0 {
         c.subject = Some(text(b)?);
