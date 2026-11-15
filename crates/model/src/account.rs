@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 
+pub mod signature;
+
 /// How a connection to a server is secured.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

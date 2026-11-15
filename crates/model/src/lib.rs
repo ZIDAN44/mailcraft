@@ -14,7 +14,6 @@ pub mod mailto;
 pub mod messages;
 pub mod pim;
 pub mod search;
-pub mod signature;
 
 mod account;
 mod folder;
@@ -26,6 +25,7 @@ pub use account::{
 };
 pub use folder::{Folder, FolderRole, child_path, is_within, rebase_path, sort_folders};
 
+pub use account::signature;
 pub use addresses::{addr, contacts, lookalike};
 pub use messages::{organize, summary, thread};
 pub use pim::{ical, vcard};
