@@ -1,7 +1,7 @@
 use super::*;
 use crate::data_files::pst_bytes::{block_at, block_ends, crc, seal};
 use crate::data_files::scratch::scratch;
-use crate::data_files::test_data::filetime;
+use crate::data_files::test_data::{filetime, plain_message};
 use mailcraft_model::{EmailAddress, Flags, MessageKey};
 use mailcraft_pst::{
     Message, PstFile, PstFolder, PstStore,
@@ -11,22 +11,6 @@ use mailcraft_store::FolderState;
 use std::collections::BTreeMap;
 
 const NONE: &FollowUpDays = &FollowUpDays { due: BTreeMap::new(), done: BTreeMap::new() };
-
-/// A plain message of someone else's, as a data file the export adds to holds one already.
-fn plain_note<'a>(subject: &'a str, message_id: &'a str) -> write::NewMessage<'a> {
-    write::NewMessage {
-        subject,
-        sender_name: "Ana",
-        sender_email: "ana@example.com",
-        recipients: &[],
-        body: "Kept.",
-        html_body: None,
-        message_id,
-        delivery_time: filetime(1_704_067_200),
-        message_class: "IPM.Note",
-        properties: &[],
-    }
-}
 
 /// A big file's byte at `at`, the `n`th file's: not one repeated block, which a writer might
 /// keep once.
@@ -354,7 +338,7 @@ fn an_account_round_trips_through_a_data_file() {
 fn an_export_uses_the_special_folders_a_file_has() {
     let dir = scratch("pst-export-special");
     let file = dir.join("Theirs.pst");
-    let theirs = plain_note("Theirs", "<theirs@example.com>");
+    let theirs = plain_message("Theirs", "<theirs@example.com>");
     write::create_with(&file, &["Gesendete Elemente"], &theirs, &[]).unwrap();
     write::set_special_folder(&file, Special::SentItems, &["Gesendete Elemente"]).unwrap();
 
@@ -418,8 +402,8 @@ fn permute_encode(path: &Path) {
 fn an_export_adds_to_an_encoded_data_file() {
     let dir = scratch("pst-export-encoded");
     let file = dir.join("Outlook.pst");
-    write::create_with(&file, &["Inbox"], &plain_note("Theirs", "<theirs@example.com>"), &[]).unwrap();
-    write::append_message(&file, &["Inbox"], &plain_note("Both", "<m1@example.com>"), &[]).unwrap();
+    write::create_with(&file, &["Inbox"], &plain_message("Theirs", "<theirs@example.com>"), &[]).unwrap();
+    write::append_message(&file, &["Inbox"], &plain_message("Both", "<m1@example.com>"), &[]).unwrap();
     permute_encode(&file);
 
     let store = Store::open(dir.join("cache")).unwrap();
@@ -453,7 +437,7 @@ fn an_export_adds_to_a_file_whose_name_map_is_damaged() {
     use mailcraft_pst::PropertyValue as V;
     let dir = scratch("pst-export-name-map");
     let file = dir.join("Theirs.pst");
-    let theirs = plain_note("Theirs", "<theirs@example.com>");
+    let theirs = plain_message("Theirs", "<theirs@example.com>");
     write::create_with(&file, &["Inbox"], &theirs, &[]).unwrap();
     // The map's PidTagNameidBucketCount record (its ID 0x0001, PtypInteger32) set to 0, in the
     // one block that has it, its CRC made right.

@@ -40,8 +40,8 @@ fn an_account_goes_into_an_ansi_data_file_and_back() {
     // The file's own mail, one message of which the account has too.
     write::create_empty(&file, mailcraft_pst::Format::Ansi).unwrap();
     let batch = [
-        BatchMessage { message: plain_note("Theirs", "<theirs@example.com>"), attachments: &[] },
-        BatchMessage { message: plain_note("Both", "<m1@example.com>"), attachments: &[] },
+        BatchMessage { message: plain_message("Theirs", "<theirs@example.com>"), attachments: &[] },
+        BatchMessage { message: plain_message("Both", "<m1@example.com>"), attachments: &[] },
     ];
     write::append(&file, &["Inbox"], &batch).unwrap();
 

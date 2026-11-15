@@ -1,11 +1,29 @@
 //! What the data file tests (and the import worker's) make up the same way each time: times as
-//! Outlook keeps them, bytes that don't repeat, a signed message's content.
+//! Outlook keeps them, a plain message, bytes that don't repeat, a signed message's content.
+
+use mailcraft_pst::write::NewMessage;
 
 use super::outlook::EPOCH_1601;
 
 /// `unix` seconds as a FILETIME (100 ns since 1601), as an item's times are kept.
 pub(crate) const fn filetime(unix: i64) -> i64 {
     (unix + EPOCH_1601) * 10_000_000
+}
+
+/// A plain message to write into a data file: from Ana, a line of text, on 1 January 2024.
+pub(crate) fn plain_message<'a>(subject: &'a str, message_id: &'a str) -> NewMessage<'a> {
+    NewMessage {
+        subject,
+        sender_name: "Ana",
+        sender_email: "ana@example.com",
+        recipients: &[],
+        body: "Kept.",
+        html_body: None,
+        message_id,
+        delivery_time: filetime(1_704_067_200),
+        message_class: "IPM.Note",
+        properties: &[],
+    }
 }
 
 /// `len` bytes of xorshift from `seed`: the same each time, and nothing a compressor or a writer

@@ -19,6 +19,7 @@ use super::super::props::text_of;
 use super::pipeline::everything;
 use crate::data_files::pst_bytes::{blocks, crc, put32, put64, seal, u16_at, u32_at, u64_at};
 use crate::data_files::scratch::scratch;
+use crate::data_files::test_data::plain_message;
 
 /// The writer's node for an attachment's bytes (`NID_TYPE_INTERNAL`, index 0x200 + n) and for
 /// the attachment itself (`NID_TYPE_ATTACHMENT`, index 0x100 + n).
@@ -26,23 +27,7 @@ const DATA_NODE: u64 = (0x200 << 5) | 0x01;
 const ATTACHMENT_NODE: u64 = (0x100 << 5) | 0x05;
 
 fn message(subject: &str) -> NewMessage<'_> {
-    with_id(subject, "<outer@example.com>")
-}
-
-/// A message whose id (which the writer also makes its search key) is `message_id`.
-fn with_id<'a>(subject: &'a str, message_id: &'a str) -> NewMessage<'a> {
-    NewMessage {
-        subject,
-        sender_name: "Riley Moreno",
-        sender_email: "riley@example.com",
-        recipients: &[],
-        body: "See attached.",
-        html_body: None,
-        message_id,
-        delivery_time: 133_485_408_000_000_000,
-        message_class: "IPM.Note",
-        properties: &[],
-    }
+    plain_message(subject, "<outer@example.com>")
 }
 
 fn file<'a>(filename: &'a str, data: &'a [u8]) -> NewAttachment<'a> {
@@ -263,11 +248,11 @@ fn attach(f: &mut [u8], holder: u64, target: (u64, u64)) {
 fn with_nested_messages(dir: &Path) -> PathBuf {
     let path = dir.join("nested.pst");
     let outer = [file("a.bin", b"one"), file("empty.txt", b"")];
-    write::create_with(&path, &["Inbox"], &with_id("Outer", "<outer@example.com>"), &outer).unwrap();
+    write::create_with(&path, &["Inbox"], &plain_message("Outer", "<outer@example.com>"), &outer).unwrap();
     let middle = [file("b.bin", b"two"), file("middle.txt", b"in the middle")];
-    write::append_message(&path, &["Inbox"], &with_id("Middle", "<middle@example.com>"), &middle).unwrap();
+    write::append_message(&path, &["Inbox"], &plain_message("Middle", "<middle@example.com>"), &middle).unwrap();
     let deep = [file("deep.txt", b"at the bottom")];
-    write::append_message(&path, &["Inbox"], &with_id("Deep", "<deep@example.com>"), &deep).unwrap();
+    write::append_message(&path, &["Inbox"], &plain_message("Deep", "<deep@example.com>"), &deep).unwrap();
     let mut f = std::fs::read(&path).unwrap();
     let all = blocks(&f);
     let outer = message_blocks(&f, &all, "Outer");
@@ -652,8 +637,8 @@ fn hidden_files_are_left_out_by_the_items_class() {
         std::fs::create_dir_all(&at).unwrap();
         let path = at.join("hidden.pst");
         let files = [file("letter.bin", b"twelve bytes"), file("empty.txt", b"")];
-        write::create_with(&path, &["Inbox"], &with_id(subject, "<outer@example.com>"), &files).unwrap();
-        write::append_message(&path, &["Inbox"], &with_id("Other", "<other@example.com>"), &[]).unwrap();
+        write::create_with(&path, &["Inbox"], &plain_message(subject, "<outer@example.com>"), &files).unwrap();
+        write::append_message(&path, &["Inbox"], &plain_message("Other", "<other@example.com>"), &[]).unwrap();
         let mut f = std::fs::read(&path).unwrap();
         let all = blocks(&f);
         // The first file becomes the other message, which isn't one holding the message.

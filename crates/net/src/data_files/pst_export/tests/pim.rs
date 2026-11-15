@@ -230,7 +230,7 @@ fn contacts_groups_notes_and_tasks_round_trip_inside_a_data_file() {
 fn a_file_added_to_keeps_its_own_contacts() {
     let dir = scratch("pst-export-pim-added-to");
     let file = dir.join("Outlook.pst");
-    let first = plain_note("Hello", "<hello@example.com>");
+    let first = plain_message("Hello", "<hello@example.com>");
     write::create_with(&file, &["Inbox"], &first, &[]).unwrap();
     write::set_special_folder(&file, Special::Contacts, &["Kontakte"]).unwrap();
     let given = [
@@ -284,7 +284,7 @@ fn a_file_added_to_keeps_its_own_contacts() {
 fn a_file_added_to_takes_the_account_s_items_by_what_they_are() {
     let dir = scratch("pst-export-pim-same-names");
     let file = dir.join("Outlook.pst");
-    let first = plain_note("Hello", "<hello@example.com>");
+    let first = plain_message("Hello", "<hello@example.com>");
     write::create_with(&file, &["Inbox"], &first, &[]).unwrap();
     write::append_message(&file, &["Notes"], &NewMessage { message_id: "<field@example.com>", ..first }, &[]).unwrap();
     write::set_special_folder(&file, Special::Contacts, &["Kontakte"]).unwrap();
