@@ -26,25 +26,23 @@ use mailcraft_net::worker::{Credentials, Pool};
 use mailcraft_ui_egui::{Backend, BootCard, FramePart, MailApp, Services, VideoFrame};
 use secrets::Keychain;
 
-mod appearance;
 #[cfg(target_os = "macos")]
-mod apple_events;
-mod args;
-mod desktop;
-mod display;
-mod graphics;
-mod logfile;
-mod portable;
-mod secrets;
-mod self_update;
-mod single_instance;
+use platform::apple_events;
 #[cfg(windows)]
-mod toast;
-mod video;
+use platform::toast;
+use platform::{appearance, secrets};
+use startup::{args, logfile, portable, single_instance};
+#[cfg(all(unix, not(target_os = "macos")))]
+use window::xdnd;
+use window::{display, graphics};
+
+mod desktop;
+mod platform;
+mod self_update;
+mod startup;
+mod window;
 #[cfg(test)]
 mod windows_manifest;
-#[cfg(all(unix, not(target_os = "macos")))]
-mod xdnd;
 
 /// The system's UI font, if installed (never bundled).
 fn system_fonts() -> (Option<Vec<u8>>, Option<Vec<u8>>) {
@@ -727,6 +725,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use desktop::video;
 
     /// eframe is used without its default features, and copy and paste are one of them since
     /// 0.37: the app had no clipboard (nothing pasted anywhere) until it was named.

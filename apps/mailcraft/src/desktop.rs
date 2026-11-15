@@ -10,6 +10,7 @@ pub(crate) mod launch;
 pub(crate) mod start;
 pub(crate) mod state_writer;
 pub(crate) mod tray;
+pub(super) mod video;
 pub(crate) mod video_frames;
 pub(crate) mod window_frame;
 
