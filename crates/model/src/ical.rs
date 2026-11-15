@@ -499,8 +499,10 @@ fn whole<'a>(raw: impl IntoIterator<Item = &'a String>, left_out: &[&str]) -> Ve
             "BEGIN" => {
                 let name = l.value.trim().to_string();
                 let w = writing && !left_out.iter().any(|x| name.eq_ignore_ascii_case(x));
+                // Written as its end is, with nothing around its name (servers refuse a
+                // `BEGIN: valarm`, which reading takes).
                 if w {
-                    out.push(s.to_string());
+                    out.push(format!("BEGIN:{name}"));
                 }
                 open.push((name, w));
             }

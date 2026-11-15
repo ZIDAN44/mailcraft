@@ -171,6 +171,7 @@ on GitHub.
 - Public folders holding many subfolders now list them all.
 - Reminders written in unusual forms by other calendar programs are now found, changed and dismissed.
 - Calendar search is faster on large calendars.
+- Events with oddly written reminders from other programs can now be saved to the calendar server.
 
 ## 0.38.0 - 2026-11-13
 
