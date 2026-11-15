@@ -277,12 +277,15 @@ pub(super) fn expunge_keys<S: std::io::Read + std::io::Write>(c: &mut Client<S>,
     Ok(())
 }
 
-/// Apply one change on the server.
-pub fn apply_remote<S: std::io::Read + std::io::Write>(c: &mut Client<S>, op: &Op) -> Result<()> {
+/// Apply one change on the server, without the account's Trash: the tests' way to change a
+/// server's mail.
+#[cfg(test)]
+pub(crate) fn apply_remote<S: std::io::Read + std::io::Write>(c: &mut Client<S>, op: &Op) -> Result<()> {
     apply_remote_with(c, op, None)
 }
 
-/// [`apply_remote`] with the account's Trash path, which permanent deletes on Gmail need.
+/// Apply one change on the server, with the account's Trash path, which permanent deletes on
+/// Gmail need.
 pub fn apply_remote_with<S: std::io::Read + std::io::Write>(c: &mut Client<S>, op: &Op, trash: Option<&str>) -> Result<()> {
     match op {
         Op::SetFlag { keys, flag, on } => by_folder(c, keys, |c, _, set| c.uid_store(set, *on, flag.imap())),

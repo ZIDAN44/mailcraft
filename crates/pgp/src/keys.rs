@@ -209,8 +209,10 @@ pub fn info(data: &[u8]) -> Result<KeyInfo, Error> {
     guard(Error::Malformed("a key can't be read"), || Ok(analyse(&key).info))
 }
 
-/// Whether two public keys (binary) are the same key (their primary keys' fingerprints).
-pub fn same_key(a: &[u8], b: &[u8]) -> bool {
+/// Whether two public keys (binary) are the same key (their primary keys' fingerprints): the
+/// tests' way to compare a key read back with the one they made.
+#[cfg(test)]
+pub(crate) fn same_key(a: &[u8], b: &[u8]) -> bool {
     match (info(a), info(b)) {
         (Ok(x), Ok(y)) => x.fingerprint == y.fingerprint,
         _ => false,

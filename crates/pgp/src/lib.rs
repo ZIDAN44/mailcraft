@@ -28,7 +28,9 @@ mod keys;
 mod message;
 
 pub use armor::{Inline, inline};
-pub use keys::{KeyInfo, Problem, Unlocked, info, minimal, public_keys, read_secret_key, same_key};
+#[cfg(test)]
+use keys::same_key;
+pub use keys::{KeyInfo, Problem, Unlocked, info, minimal, public_keys, read_secret_key};
 pub use message::{Check, Decrypted, decrypt, encrypt, is_encrypted, open, recipients, sign, verify, verify_cleartext};
 
 /// Larger OpenPGP input than this isn't read, and nothing decrypts or decompresses to more.

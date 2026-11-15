@@ -364,8 +364,10 @@ pub(crate) const DIRECTORY_SECRET: &str = "directory";
 mod sync;
 
 pub use credentials::{Credentials, MemoryCredentials};
+#[cfg(test)]
+pub(crate) use remote::apply_remote;
+pub use remote::apply_remote_with;
 use remote::*;
-pub use remote::{apply_remote, apply_remote_with};
 
 /// Largest picture downloaded for a message.
 const MAX_PICTURE: usize = 8 << 20;
