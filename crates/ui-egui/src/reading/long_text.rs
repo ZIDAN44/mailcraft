@@ -18,8 +18,12 @@ pub(crate) const BLOCK_LINES: usize = 64;
 pub(crate) const MANY_LINES: usize = 2_000;
 /// Parts not measured yet that are laid out in a frame besides those in view.
 const MEASURED_PER_FRAME: usize = 2;
-/// Texts whose parts are kept (the reading pane's, and those of messages in their own windows).
+/// Texts whose parts are kept however long ago they were shown (the reading pane's, and those of
+/// messages in their own windows); past these, those not shown for `FORGET` seconds go.
 const KEPT: usize = 8;
+const FORGET: f64 = 30.0;
+/// Most texts whose parts are kept, however many are shown at once.
+const MOST: usize = 64;
 /// What the average letter's width is measured on.
 const SAMPLE: &str = "The quick brown fox jumps over the lazy dog, 0123456789.";
 
@@ -35,6 +39,18 @@ pub(crate) struct LongText {
     /// How many parts the last frame laid out, and where they were.
     pub(crate) laid: usize,
     pub(crate) shown: Vec<(usize, Rect)>,
+    /// When it was last shown (the input's time).
+    shown_at: f64,
+    /// A plain text's chunks and whether it has right-to-left letters, found once.
+    plain: Option<Plain>,
+}
+
+/// What a plain text is cut into, and how it reads, for the text of this length (a shown text's
+/// is one message's, as [`LongText::fit`] takes it).
+struct Plain {
+    len: usize,
+    ranges: Vec<Range<usize>>,
+    rtl: bool,
 }
 
 impl LongText {
@@ -113,20 +129,34 @@ fn take(st: &mut UiState, id: egui::Id) -> LongText {
     st.long_text.remove(&id).unwrap_or_default()
 }
 
-fn put_back(st: &mut UiState, id: egui::Id, v: LongText) {
-    if st.long_text.len() >= KEPT {
-        st.long_text.clear();
-    }
+/// Keep the state of the text shown under `id` at `now`. Past `KEPT`, those not shown for a while
+/// go, the latest first staying; never more than `MOST`. (Past eight, all went: with nine shown,
+/// each was measured anew every frame and its scroll bar never settled.)
+fn put_back(st: &mut UiState, id: egui::Id, mut v: LongText, now: f64) {
+    v.shown_at = now;
     st.long_text.insert(id, v);
+    if st.long_text.len() <= KEPT {
+        return;
+    }
+    let mut latest: Vec<(egui::Id, f64)> = st.long_text.iter().map(|(id, v)| (*id, v.shown_at)).collect();
+    latest.sort_by(|a, b| b.1.total_cmp(&a.1));
+    for (i, (id, at)) in latest.into_iter().enumerate() {
+        if i >= MOST || (i >= KEPT && now - at >= FORGET) {
+            st.long_text.remove(&id);
+        }
+    }
 }
 
 /// A long plain text (`LONG`), in chunks; right-to-left text keeps its own labels.
 pub(super) fn plain(st: &mut UiState, ui: &mut Ui, id: egui::Id, text: &str) {
     let t = st.tokens;
     let font = theme::regular(14.5);
-    let rtl = crate::bidi::has_rtl(text);
-    let ranges = chunks(text, CHUNK);
     let mut v = take(st, id);
+    // Cut and looked through once, not on every frame (4 MB took 3.4 ms a frame).
+    let (ranges, rtl) = match v.plain.take().filter(|p| p.len == text.len()) {
+        Some(p) => (p.ranges, p.rtl),
+        None => (chunks(text, CHUNK), crate::bidi::has_rtl(text)),
+    };
     v.fit(text.len(), ranges.len());
     let pins = text_selection::parts(st, ranges.len());
     let (row, letter) = metrics(ui, &font);
@@ -154,7 +184,8 @@ pub(super) fn plain(st: &mut UiState, ui: &mut Ui, id: egui::Id, text: &str) {
             }
         });
     });
-    put_back(st, id, v);
+    v.plain = Some(Plain { len: text.len(), ranges, rtl });
+    put_back(st, id, v, ui.input(|i| i.time));
 }
 
 /// A part of formatted text: some of its lines, or a table of its layout.
@@ -233,7 +264,7 @@ pub(super) fn rich(body: &mut Body, st: &mut UiState, ui: &mut Ui, id: egui::Id,
         (Some(Unit::Table(b)), false) => pictures_of_blocks(std::slice::from_ref(*b), body.shown, 0),
         (None, _) => {}
     });
-    put_back(st, id, v);
+    put_back(st, id, v, ui.input(|i| i.time));
 }
 
 fn pictures_of_lines(lines: &[Vec<mime::Span>], out: &mut Vec<String>) {
@@ -322,3 +353,6 @@ fn parts(
         ui.ctx().request_repaint();
     }
 }
+
+#[cfg(test)]
+mod tests;
