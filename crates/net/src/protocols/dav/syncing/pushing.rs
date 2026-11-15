@@ -189,9 +189,11 @@ fn answered(at: &Where, parts: &[&StoredEvent]) -> bool {
 
 /// The calendar's own item with this uid: its address, etag, newest `SEQUENCE` and events.
 fn the_servers(dav: &Dav, calendar: &str, uid: &str, local: mailcraft_model::zone::Zone) -> Result<Option<(String, String, u32, Vec<CalEvent>)>> {
+    // As the server stores it: a uid kept here as its sender wrote it has what a server leaves out.
+    let stored = ical::stored_uid(uid);
     let found = dav.find_uid(calendar, uid)?;
     for (href, etag, data) in dav.multiget(Kind::Calendars, calendar, &found)? {
-        let events: Vec<CalEvent> = ical::parse_in(&data, local).events.into_iter().filter(|e| e.uid == uid).collect();
+        let events: Vec<CalEvent> = ical::parse_in(&data, local).events.into_iter().filter(|e| ical::stored_uid(&e.uid) == stored).collect();
         if let Some(sequence) = events.iter().map(|e| e.sequence).max() {
             return Ok(Some((href, etag, sequence, events)));
         }

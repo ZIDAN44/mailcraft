@@ -243,7 +243,7 @@ fn has_all_of(server: &CalEvent, mine: &CalEvent) -> bool {
             (e.status.to_ascii_uppercase(), categories, ical::privacy(e), ical::show_as(e), ical::reminder_minutes(e)),
         )
     };
-    server.uid == mine.uid
+    ical::stored_uid(&server.uid) == ical::stored_uid(&mine.uid)
         && server.recurrence_id == mine.recurrence_id
         && what(server) == what(mine)
         && mine.attendees.iter().all(|a| answer(server, &a.email) == Some(a.partstat.to_ascii_uppercase()))

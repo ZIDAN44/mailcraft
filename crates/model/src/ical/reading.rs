@@ -102,6 +102,7 @@ impl<'a> EventReading<'a> {
     fn property(&mut self, l: &'a Line, zones: &FileZones) {
         let e = &mut self.event;
         match l.name.as_str() {
+            // As written: an answer echoes it, and its organizer looks for the meeting by it.
             "UID" => e.uid = l.value.trim().to_string(),
             "SUMMARY" => e.summary = unescape(&l.value),
             "DESCRIPTION" => e.description = unescape(&l.value),

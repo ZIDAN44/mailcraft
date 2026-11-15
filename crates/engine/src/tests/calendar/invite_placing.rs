@@ -342,3 +342,48 @@ fn dealt_with_while_held_stays_dealt_with() {
     assert!(account_parts(&s, &id, "off@studio.example").is_empty(), "cancelled: not back");
     assert_eq!(account_parts(&s, &id, "later@studio.example").len(), 1, "the others held still go in");
 }
+
+/// An invitation's uid with characters a calendar's line can't hold is kept as its organizer
+/// wrote it: the answer names it byte for byte (they look for their meeting by it; one read
+/// without them named another meeting), and the server's copy, which has it without them, is
+/// that meeting here, not another beside it, so the next answer and an update still find it.
+#[test]
+fn an_odd_uid_is_answered_as_it_was_written() {
+    let (mut s, id) = imap_session("placing-odd-uid");
+    const ODD: &str = "odd\u{1}uid\u{1b}-7\u{7f}@studio.example";
+    arrive(&mut s, &id, 1, "REQUEST", &[invitation(ODD, 0)]);
+    found(&mut s, &id, Vec::new());
+    assert_eq!(account_parts(&s, &id, ODD).len(), 1);
+    s.take_jobs();
+    let answer = |s: &mut Session, with: &str| {
+        s.run("event.respond", &json!({"uid": ODD, "answer": with})).unwrap();
+        let raw = s.take_jobs().into_iter().find_map(|j| if let Job::Send { raw, .. } = j { Some(raw) } else { None }).expect("an answer sent");
+        let part = mailcraft_mime::parse(&raw).unwrap().attachments.iter().find(|a| a.name.ends_with(".ics")).map(|a| a.index).unwrap();
+        String::from_utf8(mailcraft_mime::attachment_data(&raw, part).unwrap()).unwrap()
+    };
+    let reply = answer(&mut s, "accepted");
+    assert!(reply.contains(&format!("\r\nUID:{ODD}\r\n")), "{reply:?}");
+    // Stored, and read again from a server that keeps the uid without them, changed here since.
+    let mut theirs = account_parts(&s, &id, ODD)[0].clone();
+    theirs.event.uid = mailcraft_model::ical::stored_uid(ODD);
+    theirs.href = format!("{OWN}odd.ics");
+    theirs.dirty = false;
+    assert_eq!(theirs.event.uid, "odduid-7@studio.example");
+    found(&mut s, &id, vec![theirs.clone()]);
+    let parts = account_parts(&s, &id, ODD);
+    assert_eq!((parts.len(), s.pim[&id].events.len()), (1, 1), "{:?}", s.pim[&id].events);
+    // Unchanged here since: the server's copy, under the uid kept.
+    s.pim.get_mut(&id).unwrap().events.iter_mut().for_each(|e| e.dirty = false);
+    theirs.event.location = "Room 2".into();
+    found(&mut s, &id, vec![theirs]);
+    let parts = account_parts(&s, &id, ODD);
+    assert_eq!((parts.len(), s.pim[&id].events.len(), parts[0].event.location.as_str()), (1, 1, "Room 2"));
+    assert!(parts[0].href.ends_with("odd.ics"));
+    s.take_jobs();
+    let reply = answer(&mut s, "tentative");
+    assert!(reply.contains(&format!("\r\nUID:{ODD}\r\n")), "{reply:?}");
+    // The organizer's update finds it.
+    arrive(&mut s, &id, 2, "REQUEST", &[CalEvent { summary: "Moved".into(), ..invitation(ODD, 1) }]);
+    let parts = account_parts(&s, &id, ODD);
+    assert_eq!((parts.len(), s.pim[&id].events.len(), parts[0].event.summary.as_str()), (1, 1, "Moved"));
+}

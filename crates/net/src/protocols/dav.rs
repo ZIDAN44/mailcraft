@@ -455,7 +455,7 @@ impl Dav {
     pub fn find_uid(&self, calendar: &str, uid: &str) -> Result<Vec<String>> {
         let body = format!(
             "<?xml version=\"1.0\" encoding=\"utf-8\"?><c:calendar-query xmlns:d=\"{DAV}\" xmlns:c=\"{CALDAV}\"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name=\"VCALENDAR\"><c:comp-filter name=\"VEVENT\"><c:prop-filter name=\"UID\"><c:text-match collation=\"i;octet\">{}</c:text-match></c:prop-filter></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>",
-            crate::xml::esc(uid)
+            crate::xml::esc(&ical::stored_uid(uid))
         );
         let (resp, at) = self.request("REPORT", calendar, Some("1"), &body, &[])?;
         if resp.status != 207 {

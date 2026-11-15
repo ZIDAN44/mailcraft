@@ -205,3 +205,46 @@ fn measure_big_collections() {
     let digest = mailcraft_store::fnv64(&format!("{out:?}").replace(&empty.base, ""));
     println!("MEASURE sync with {N} events changed for another server: {:.0} ms (result {digest:016x})", pushed.as_secs_f64() * 1000.0);
 }
+
+/// An invitation whose uid holds control characters, kept, stored in the calendar at `calendar`
+/// as MailCraft stores it, then looked for by the uid kept: found, and read back with that uid.
+/// The item is deleted after.
+fn an_odd_uid_is_found(dav: &Dav, calendar: &str, tag: &str) {
+    let invitation = format!(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:odd\u{1}uid\u{1b}-{tag}\r\nDTSTAMP:20261101T090000Z\r\n\
+         DTSTART:20261102T090000Z\r\nDTEND:20261102T100000Z\r\nSUMMARY:Odd\u{1} one\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    );
+    let kept = ical::parse(&invitation, 0).events.remove(0);
+    assert_eq!(kept.uid, format!("odd\u{1}uid\u{1b}-{tag}"));
+    let href = format!("{}/odd-{tag}.ics", calendar.trim_end_matches('/'));
+    dav.put(&href, "text/calendar; charset=utf-8", &ical::write_for_server(std::slice::from_ref(&kept), 0), None).unwrap();
+    let found = dav.find_uid(calendar, &kept.uid).unwrap();
+    assert_eq!(found, std::slice::from_ref(&href));
+    let read = dav.multiget(Kind::Calendars, calendar, &found).unwrap();
+    let back: Vec<CalEvent> = read.iter().flat_map(|(_, _, data)| ical::parse(data, 0).events).collect();
+    assert!(back.iter().any(|e| e.uid == ical::stored_uid(&kept.uid) && e.summary == "Odd one"), "{read:?}");
+    let _ = dav.remove(&href, "");
+}
+
+/// Found in the audit: an invitation's uid with a control character was kept so and written so;
+/// the server kept it without, and the meeting wasn't found by the uid kept here.
+#[test]
+fn an_invitations_odd_uid_is_found_where_it_was_stored() {
+    use crate::fakes::fake_dav::{CAL, PASSWORD, USER, serve};
+    let server = serve();
+    an_odd_uid_is_found(&Dav::new(USER, PASSWORD), &format!("{}{CAL}", server.base), "fake");
+}
+
+/// The same on a real CalDAV server on this computer (Radicale; a made-up account):
+/// `MAILCRAFT_REAL_CALDAV="http://127.0.0.1:21232/odd/work/ odd pw"` (the calendar, made first).
+#[test]
+#[ignore = "needs a real CalDAV server in MAILCRAFT_REAL_CALDAV"]
+fn real_an_invitations_odd_uid_is_found_where_it_was_stored() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_CALDAV") else {
+        eprintln!("MAILCRAFT_REAL_CALDAV isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALDAV: url user password") };
+    an_odd_uid_is_found(&Dav::new(user, password), url, &std::process::id().to_string());
+}

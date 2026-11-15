@@ -116,7 +116,7 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
         }
         let t = &mut r.task;
         match l.name.as_str() {
-            "UID" => t.uid = l.value.trim().to_string(),
+            "UID" => t.uid = stored_uid(&l.value),
             "SUMMARY" => t.title = unescape(&l.value),
             "DESCRIPTION" => t.notes = unescape(&l.value),
             "DTSTART" => t.start = day_of(zones, l),

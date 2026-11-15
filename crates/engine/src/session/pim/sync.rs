@@ -94,19 +94,20 @@ impl Session {
             let foreign = |id: &str| foreign_ids.contains(id);
             let mine = |e: &StoredEvent| !foreign(&e.calendar) && !web(e);
             let part = |e: &StoredEvent| (e.event.uid.clone(), e.event.recurrence_id);
+            let events = as_kept(&p.events, &sync.events);
             let mut order: Vec<&String> = sync.synced_calendars.iter().collect();
             order.sort_by_key(|c| foreign(c));
             for cal in order {
                 p.events.retain(|e| &e.calendar != cal || e.dirty || e.href.is_empty() || kept.contains(e.href.as_str()));
                 // The user's own copies of each part, and the uids changed here (they stay as
                 // they are), as they are now: the calendars before this one are merged.
-                let own: HashSet<(String, Option<i64>)> = p.events.iter().chain(&sync.events).filter(|e| mine(e)).map(part).collect();
+                let own: HashSet<(String, Option<i64>)> = p.events.iter().chain(events.iter()).filter(|e| mine(e)).map(part).collect();
                 let changed_here: HashSet<&str> = p.events.iter().filter(|e| e.dirty).map(|e| e.event.uid.as_str()).collect();
                 // What the server sent for this calendar takes the place of what's here of the
                 // same part (the last it sent of one, if it sent one twice).
                 let mut taken: Vec<&StoredEvent> = Vec::new();
                 let mut parts: HashSet<(String, Option<i64>)> = HashSet::new();
-                for x in sync.events.iter().filter(|x| &x.calendar == cal).rev() {
+                for x in events.iter().filter(|x| &x.calendar == cal).rev() {
                     if foreign(&x.calendar) && own.contains(&part(x)) {
                         continue;
                     }
@@ -161,4 +162,24 @@ impl Session {
         // go in (issue #30).
         self.calendars_found(account, &answered);
     }
+}
+
+/// The events a server sent, each under the uid kept here for it. A meeting's uid is kept as
+/// its organizer wrote it, and a server stores it without the characters a line can't hold
+/// (`ical::stored_uid`): its copy is that meeting's, not another one beside it, and an answer
+/// still names the uid the organizer looks for. Nearly always the server's, as they are.
+fn as_kept<'a>(here: &[StoredEvent], server: &'a [StoredEvent]) -> std::borrow::Cow<'a, [StoredEvent]> {
+    let odd = |uid: &str| uid.contains(|c| !ical::allowed(c));
+    let kept: std::collections::HashMap<String, &str> =
+        here.iter().filter(|e| odd(&e.event.uid)).map(|e| (ical::stored_uid(&e.event.uid), e.event.uid.as_str())).collect();
+    if kept.is_empty() {
+        return std::borrow::Cow::Borrowed(server);
+    }
+    let mut server = server.to_vec();
+    for e in &mut server {
+        if let Some(uid) = kept.get(&e.event.uid) {
+            e.event.uid = (*uid).to_string();
+        }
+    }
+    std::borrow::Cow::Owned(server)
 }

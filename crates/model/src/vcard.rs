@@ -425,7 +425,7 @@ pub fn parse(text: &str) -> Vec<Card> {
                 let text = || components(value).join(" ").trim().to_string();
                 match name.as_str() {
                     "VERSION" | "PRODID" | "REV" => {}
-                    "UID" => c.uid = value.trim().to_string(),
+                    "UID" => c.uid = crate::ical::stored_uid(value),
                     "FN" => c.name = text(),
                     "N" => {
                         let n = components(value);
@@ -474,9 +474,11 @@ fn esc(v: &str) -> String {
     v.replace('\\', "\\\\").replace(';', "\\;").replace(',', "\\,").replace("\r\n", "\\n").replace(['\n', '\r'], "\\n")
 }
 
+/// Fold a content line at 75 octets, on character boundaries; a character it may not hold
+/// ([`crate::ical::allowed`]) is left out.
 fn fold(line: &str, out: &mut String) {
     let mut width = 0;
-    for c in line.chars() {
+    for c in line.chars().filter(|c| crate::ical::allowed(*c)) {
         let n = c.len_utf8();
         if width + n > 75 {
             out.push_str("\r\n ");
@@ -542,8 +544,19 @@ pub fn property_lines(c: &Card) -> Vec<String> {
             None => format!("BDAY:{}", b.replace('-', "")),
         });
     }
-    lines.extend(c.extra.iter().map(|x| x.replace(['\r', '\n'], "")));
+    // Without the characters a line can't hold (line breaks too), as they'll be written; one
+    // that would then begin or end a card when read back (`END:VCARD` and a control
+    // character, kept as no end) is left out.
+    let line = |x: &String| x.chars().filter(|ch| crate::ical::allowed(*ch)).collect::<String>();
+    lines.extend(c.extra.iter().map(line).filter(|x| !begins_or_ends_a_card(x)));
     lines
+}
+
+/// Whether a line is read as a card's `BEGIN` or `END`.
+fn begins_or_ends_a_card(line: &str) -> bool {
+    let Some((head, value)) = split_line(line) else { return false };
+    let name = head.split(';').next().unwrap_or("").rsplit('.').next().unwrap_or("").trim();
+    (name.eq_ignore_ascii_case("BEGIN") || name.eq_ignore_ascii_case("END")) && value.trim().eq_ignore_ascii_case("VCARD")
 }
 
 #[cfg(test)]
@@ -583,6 +596,26 @@ BEGIN:VCARD\r\nVERSION:4.0\r\nUID:urn:uuid:ann\r\nEMAIL:ann@x.example\r\nEND:VCA
         assert_eq!(unkept(&back[0]), Card { org: "Studio Lantern\\, Story".replace("\\,", ","), ..unkept(z) });
         assert!(z.as_written.iter().all(|(k, v)| back[0].as_written.get(k) == Some(v)), "lines kept as they were read: {:?}", back[0].as_written);
         assert!(z.matches("lantern") && z.matches("ZOE@home") && z.matches("+49151") && !z.matches("ann"));
+    }
+
+    /// Found in the audit: a card's uid or name with a control character was written raw (RFC
+    /// 6350 allows none but HTAB); it's left out of what's written and of a uid read, so the
+    /// uid kept is the one written.
+    #[test]
+    fn a_control_character_is_neither_written_nor_kept_in_a_uid() {
+        let c = Card { uid: "zoe\u{1}-1".into(), name: "Zoe\u{1b} Park".into(), ..Default::default() };
+        let text = write(&c);
+        assert!(!text.contains(|c: char| c.is_ascii_control() && !matches!(c, '\t' | '\r' | '\n')), "{text:?}");
+        let back = parse(&text).remove(0);
+        assert_eq!((back.uid.as_str(), back.name.as_str()), ("zoe-1", "Zoe Park"));
+        let kept = parse(&text.replace("UID:zoe-1", "UID:zoe\u{1}-1")).remove(0);
+        assert_eq!(kept.uid, "zoe-1");
+        // A line kept as written that would end the card once its control is left out.
+        let odd = "BEGIN:VCARD\r\nVERSION:4.0\r\nUID:z\r\nFN:Zoe\r\nEND:VCARD\u{1}\r\nX-AFTER:kept\r\nEND:VCARD\r\n";
+        let z = parse(odd).remove(0);
+        let back = parse(&write(&z));
+        assert_eq!(back.len(), 1);
+        assert_eq!(back[0].extra, ["X-AFTER:kept"]);
     }
 
     /// Issue #1: addresses and birthdays are fields of their own (Outlook's Business, Home and

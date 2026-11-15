@@ -309,6 +309,22 @@ pub fn unescape(v: &str) -> String {
     out
 }
 
+/// Whether a character may stand in a content line: any but the control characters, of which
+/// only HTAB is allowed (RFC 5545 §3.1, RFC 6350 §3.3). The others are left out of what's
+/// written (but of the uid a meeting's message echoes), and of a uid as a server stores it
+/// ([`stored_uid`]).
+pub fn allowed(c: char) -> bool {
+    c == '\t' || !c.is_ascii_control()
+}
+
+/// A `UID` value as a server stores it: what can be written of it ([`allowed`]), trimmed. A
+/// task's and a card's are kept so. An event's is kept as its organizer wrote it (they look for
+/// their meeting by it in an answer), and its copy on a server has this one: it's looked for
+/// there, and told from the others it reads, by this.
+pub fn stored_uid(v: &str) -> String {
+    v.chars().filter(|c| allowed(*c)).collect::<String>().trim().to_string()
+}
+
 /// A TEXT value escaped for writing.
 pub fn escape(v: &str) -> String {
     v.replace('\\', "\\\\").replace(';', "\\;").replace(',', "\\,").replace("\r\n", "\\n").replace(['\n', '\r'], "\\n")
@@ -466,10 +482,16 @@ fn calendar_property(cal: &mut ICalendar, l: &Line) {
 
 // ----- writing -----
 
-/// Fold a content line at 75 octets (RFC 5545 §3.1), on character boundaries.
+/// Fold a content line at 75 octets (RFC 5545 §3.1), on character boundaries; a character it
+/// may not hold ([`allowed`]) is left out.
 fn fold(line: &str, out: &mut String) {
+    fold_chars(line.chars().filter(|c| allowed(*c)), out);
+}
+
+/// Fold a content line of these characters at 75 octets.
+fn fold_chars(line: impl Iterator<Item = char>, out: &mut String) {
     let mut width = 0;
-    for c in line.chars() {
+    for c in line {
         let n = c.len_utf8();
         if width + n > 75 {
             out.push_str("\r\n ");
@@ -490,7 +512,9 @@ fn whole<'a>(raw: impl IntoIterator<Item = &'a String>, left_out: &[&str]) -> Ve
     // The components open around the line: each one's name, and whether it's written.
     let mut open: Vec<(String, bool)> = Vec::new();
     for r in raw {
-        let s = r.replace(['\r', '\n'], "");
+        // Line breaks, and the other characters a line can't hold ([`allowed`]), taken out
+        // before it's read: what it begins and ends is what it will when written and read back.
+        let s: String = r.chars().filter(|c| allowed(*c)).collect();
         // Not a folded line's next part, nor nothing.
         let s = s.trim_start_matches([' ', '\t']);
         let Some(l) = parse_line(s) else { continue };
@@ -564,7 +588,15 @@ enum Purpose {
 
 fn write_one(e: &CalEvent, now: i64, purpose: Purpose, out: &mut String) {
     let client = purpose == Purpose::Server && e.client_scheduled;
-    let mut lines: Vec<String> = vec!["BEGIN:VEVENT".into(), format!("UID:{}", e.uid.replace(['\r', '\n'], "")), format!("DTSTAMP:{}", stamp(now))];
+    fold("BEGIN:VEVENT", out);
+    // The uid of a file's or a message's event is the one it came with, whatever it holds but
+    // line breaks: an organizer finds their meeting by it in an answer. A server's copy has it
+    // as a line may hold it ([`stored_uid`]: servers store it so, or refuse it).
+    match purpose {
+        Purpose::Plain => fold_chars("UID:".chars().chain(e.uid.chars().filter(|c| !matches!(c, '\r' | '\n'))), out),
+        Purpose::Server => fold(&format!("UID:{}", e.uid), out),
+    }
+    let mut lines: Vec<String> = vec![format!("DTSTAMP:{}", stamp(now))];
     // Timed events in a zone are written in it (repeating at its wall-clock time); others in UTC.
     let zone = zone_of(e);
     let when = |prop: &str, t: i64| match &zone {
