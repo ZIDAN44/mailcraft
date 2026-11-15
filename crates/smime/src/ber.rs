@@ -8,6 +8,8 @@
 //! It's hostile input: depth, size and counts are bounded, and anything that doesn't parse whole
 //! is an error, never a guess.
 
+use std::borrow::Cow;
+
 use crate::Error;
 
 /// Deeper nesting than this isn't a mail program's CMS.
@@ -15,17 +17,25 @@ const DEPTH_MAX: usize = 64;
 /// The most elements read in one input.
 const NODES_MAX: usize = 200_000;
 
-/// One element: its tag byte(s), and either its contents (primitive) or its children.
+/// One element: its tag byte(s), and either its contents (primitive: as read, unless pieces were
+/// joined) or its children. `len` is its contents' length as DER writes them ([`sized`]).
 #[derive(Debug)]
-struct Node {
-    tag: Vec<u8>,
-    body: Body,
+struct Node<'a> {
+    tag: &'a [u8],
+    body: Body<'a>,
+    len: usize,
 }
 
 #[derive(Debug)]
-enum Body {
-    Bytes(Vec<u8>),
-    Children(Vec<Node>),
+enum Body<'a> {
+    Bytes(Cow<'a, [u8]>),
+    Children(Vec<Node<'a>>),
+}
+
+impl<'a> Node<'a> {
+    fn new(tag: &'a [u8], body: Body<'a>) -> Node<'a> {
+        Node { tag, body, len: 0 }
+    }
 }
 
 const OCTET_STRING: u8 = 0x04;
@@ -46,10 +56,7 @@ const INSIDE_MAX: usize = 4;
 /// `input` (one BER element, nothing after it) as DER.
 pub fn to_der(input: &[u8]) -> Result<Vec<u8>, Error> {
     let mut count = 0usize;
-    let node = tidy(whole(input, &mut count)?);
-    let mut out = Vec::with_capacity(input.len());
-    write(&node, &mut out);
-    Ok(out)
+    Ok(written(tidy(whole(input, &mut count)?)))
 }
 
 /// A `.p12` file (PKCS #12) as DER, inside as well as out: what it holds is DER or BER again
@@ -61,14 +68,11 @@ pub fn to_der(input: &[u8]) -> Result<Vec<u8>, Error> {
 /// there, and both are to be read) is given the NULL, which is what `pkcs5` reads.
 pub(crate) fn p12_to_der(input: &[u8]) -> Result<Vec<u8>, Error> {
     let mut count = 0usize;
-    let node = inside(tidy(whole(input, &mut count)?), 0, &mut count);
-    let mut out = Vec::with_capacity(input.len());
-    write(&node, &mut out);
-    Ok(out)
+    Ok(written(inside(tidy(whole(input, &mut count)?), 0, &mut count)))
 }
 
 /// The one element `input` is, with nothing after it.
-fn whole(input: &[u8], count: &mut usize) -> Result<Node, Error> {
+fn whole<'a>(input: &'a [u8], count: &mut usize) -> Result<Node<'a>, Error> {
     let (node, used) = read(input, 0, count)?;
     if input.get(used..).is_some_and(|rest| rest.iter().any(|b| *b != 0)) {
         return Err(Error::Malformed("data after the end"));
@@ -77,42 +81,41 @@ fn whole(input: &[u8], count: &mut usize) -> Result<Node, Error> {
 }
 
 /// [`p12_to_der`]'s part: `node` (tidied) with the data inside it tidied too.
-fn inside(node: Node, depth: usize, count: &mut usize) -> Node {
-    let Node { tag, body } = node;
-    let mut children: Vec<Node> = match body {
-        Body::Bytes(b) => return Node { tag, body: Body::Bytes(b) },
+fn inside<'a>(node: Node<'a>, depth: usize, count: &mut usize) -> Node<'a> {
+    let Node { tag, body, .. } = node;
+    let mut children: Vec<Node<'a>> = match body {
+        Body::Bytes(b) => return Node::new(tag, Body::Bytes(b)),
         Body::Children(c) => c.into_iter().map(|c| inside(c, depth, count)).collect(),
     };
     if tag != [SEQUENCE] {
-        return Node { tag, body: Body::Children(children) };
+        return Node::new(tag, Body::Children(children));
     }
     let oid = |n: Option<&Node>| match n {
-        Some(Node { tag, body: Body::Bytes(b) }) if tag == &[OBJECT_ID] => Some(b.clone()),
+        Some(Node { tag, body: Body::Bytes(b), .. }) if *tag == [OBJECT_ID] => Some(b.to_vec()),
         _ => None,
     };
     let first = oid(children.first());
     // `AlgorithmIdentifier ::= SEQUENCE { an HMAC }`, its parameters left out.
     if children.len() == 1 && first.as_deref().and_then(|b| b.strip_prefix(HMAC)).is_some_and(|last| matches!(last, [7..=11])) {
-        children.push(Node { tag: vec![NULL], body: Body::Bytes(Vec::new()) });
+        children.push(Node::new(&[NULL], Body::Bytes(Cow::Borrowed(&[]))));
     }
     // `ContentInfo ::= SEQUENCE { data, [0] EXPLICIT OCTET STRING }`: what the OCTET STRING holds.
     if children.len() == 2
         && first.as_deref() == Some(DATA)
         && depth < INSIDE_MAX
-        && let Some(Node { tag, body: Body::Children(wrapped) }) = children.get_mut(1)
-        && tag == &[CONTEXT_0_CONSTRUCTED]
-        && let [Node { tag, body: Body::Bytes(held) }] = wrapped.as_mut_slice()
-        && tag == &[OCTET_STRING]
+        && let Some(Node { tag, body: Body::Children(wrapped), .. }) = children.get_mut(1)
+        && *tag == [CONTEXT_0_CONSTRUCTED]
+        && let [Node { tag, body: Body::Bytes(held), .. }] = wrapped.as_mut_slice()
+        && *tag == [OCTET_STRING]
         && let Ok(node) = whole(held, count)
     {
-        let mut out = Vec::with_capacity(held.len());
-        write(&inside(tidy(node), depth + 1, count), &mut out);
-        *held = out;
+        let rewritten = written(inside(tidy(node), depth + 1, count));
+        *held = Cow::Owned(rewritten);
     }
-    Node { tag, body: Body::Children(children) }
+    Node::new(tag, Body::Children(children))
 }
 
-fn read(input: &[u8], depth: usize, count: &mut usize) -> Result<(Node, usize), Error> {
+fn read<'a>(input: &'a [u8], depth: usize, count: &mut usize) -> Result<(Node<'a>, usize), Error> {
     *count += 1;
     if depth > DEPTH_MAX || *count > NODES_MAX {
         return Err(Error::Malformed("nested too deep"));
@@ -132,7 +135,7 @@ fn read(input: &[u8], depth: usize, count: &mut usize) -> Result<(Node, usize), 
             }
         }
     }
-    let tag = input.get(..at).ok_or(Error::Malformed("cut short"))?.to_vec();
+    let tag = input.get(..at).ok_or(Error::Malformed("cut short"))?;
     let constructed = first & 0x20 != 0;
     let len_byte = *input.get(at).ok_or(Error::Malformed("cut short"))?;
     at += 1;
@@ -152,7 +155,7 @@ fn read(input: &[u8], depth: usize, count: &mut usize) -> Result<(Node, usize), 
             children.push(child);
             at += used;
         }
-        return Ok((Node { tag, body: Body::Children(children) }, at));
+        return Ok((Node::new(tag, Body::Children(children)), at));
     }
     let len = if len_byte & 0x80 == 0 {
         usize::from(len_byte)
@@ -171,7 +174,7 @@ fn read(input: &[u8], depth: usize, count: &mut usize) -> Result<(Node, usize), 
     let end = at.checked_add(len).ok_or(Error::Malformed("length too long"))?;
     let contents = input.get(at..end).ok_or(Error::Malformed("cut short"))?;
     if !constructed {
-        return Ok((Node { tag, body: Body::Bytes(contents.to_vec()) }, end));
+        return Ok((Node::new(tag, Body::Bytes(Cow::Borrowed(contents))), end));
     }
     let mut children = Vec::new();
     let mut pos = 0;
@@ -180,19 +183,19 @@ fn read(input: &[u8], depth: usize, count: &mut usize) -> Result<(Node, usize), 
         children.push(child);
         pos += used;
     }
-    Ok((Node { tag, body: Body::Children(children) }, end))
+    Ok((Node::new(tag, Body::Children(children)), end))
 }
 
 /// Joins what BER cuts into pieces, the way DER writes it.
-fn tidy(node: Node) -> Node {
-    let Node { tag, body } = node;
+fn tidy(node: Node<'_>) -> Node<'_> {
+    let Node { tag, body, .. } = node;
     let children = match body {
-        Body::Bytes(b) => return Node { tag, body: Body::Bytes(b) },
+        Body::Bytes(b) => return Node::new(tag, Body::Bytes(b)),
         Body::Children(c) => c.into_iter().map(tidy).collect::<Vec<_>>(),
     };
     // A constructed OCTET STRING: its pieces, joined.
     if tag == [OCTET_STRING | 0x20] {
-        return Node { tag: vec![OCTET_STRING], body: Body::Bytes(joined(&children)) };
+        return Node::new(&[OCTET_STRING], Body::Bytes(joined(children)));
     }
     // `EncryptedContentInfo ::= SEQUENCE { OID, AlgorithmIdentifier, [0] IMPLICIT OCTET STRING }`:
     // a constructed `[0]` there holds the encrypted content's pieces. (In `EncapsulatedContentInfo`,
@@ -203,45 +206,76 @@ fn tidy(node: Node) -> Node {
             let mut children = children;
             if let Some(last) = children.pop() {
                 let pieces = match last.body {
-                    Body::Children(c) => joined(&c),
+                    Body::Children(c) => joined(c),
                     Body::Bytes(b) => b,
                 };
-                children.push(Node { tag: vec![CONTEXT_0_PRIMITIVE], body: Body::Bytes(pieces) });
+                children.push(Node::new(&[CONTEXT_0_PRIMITIVE], Body::Bytes(pieces)));
             }
-            return Node { tag, body: Body::Children(children) };
+            return Node::new(tag, Body::Children(children));
         }
     }
-    Node { tag, body: Body::Children(children) }
+    Node::new(tag, Body::Children(children))
 }
 
-/// The bytes of OCTET STRING pieces, one after another.
-fn joined(pieces: &[Node]) -> Vec<u8> {
+/// The bytes of OCTET STRING pieces, one after another: a single piece as it is.
+fn joined(mut pieces: Vec<Node<'_>>) -> Cow<'_, [u8]> {
+    if let [Node { body: Body::Bytes(_), .. }] = pieces.as_slice()
+        && let Some(Node { body: Body::Bytes(b), .. }) = pieces.pop()
+    {
+        return b;
+    }
     let mut out = Vec::new();
+    gather(&pieces, &mut out);
+    Cow::Owned(out)
+}
+
+fn gather(pieces: &[Node<'_>], out: &mut Vec<u8>) {
     for p in pieces {
         match &p.body {
             Body::Bytes(b) => out.extend_from_slice(b),
-            Body::Children(c) => out.extend(joined(c)),
+            Body::Children(c) => gather(c, out),
         }
     }
+}
+
+/// `node` written as DER, its lengths worked out first so each element is written once,
+/// straight into the output.
+fn written(mut node: Node<'_>) -> Vec<u8> {
+    let total = sized(&mut node);
+    let mut out = Vec::with_capacity(total);
+    write(&node, &mut out);
     out
 }
 
-fn write(node: &Node, out: &mut Vec<u8>) {
-    out.extend_from_slice(&node.tag);
+/// Sets the contents' length of `node` and each element in it; gives how long `node` is
+/// written (tag, length and contents).
+fn sized(node: &mut Node<'_>) -> usize {
+    node.len = match &mut node.body {
+        Body::Bytes(b) => b.len(),
+        Body::Children(children) => children.iter_mut().map(sized).fold(0usize, usize::saturating_add),
+    };
+    node.tag.len().saturating_add(length_len(node.len)).saturating_add(node.len)
+}
+
+fn write(node: &Node<'_>, out: &mut Vec<u8>) {
+    out.extend_from_slice(node.tag);
+    length(node.len, out);
     match &node.body {
-        Body::Bytes(b) => {
-            length(b.len(), out);
-            out.extend_from_slice(b);
-        }
+        Body::Bytes(b) => out.extend_from_slice(b),
         Body::Children(children) => {
-            let mut inner = Vec::new();
             for c in children {
-                write(c, &mut inner);
+                write(c, out);
             }
-            length(inner.len(), out);
-            out.extend(inner);
         }
     }
+}
+
+/// How many bytes [`length`] writes for `n`.
+fn length_len(n: usize) -> usize {
+    if n < 0x80 {
+        return 1;
+    }
+    1 + n.to_be_bytes().iter().skip_while(|b| **b == 0).count()
 }
 
 fn length(n: usize, out: &mut Vec<u8>) {
@@ -317,5 +351,37 @@ mod tests {
         }
         let deep: Vec<u8> = std::iter::repeat_n([0x30u8, 0x80], 100).flatten().collect();
         assert!(to_der(&deep).is_err());
+    }
+
+    /// How long a large encrypted message in BER takes to become DER: 16 MB of content in 4 KB
+    /// pieces, as mail programs stream it, five levels deep (`--release`, by hand).
+    #[test]
+    #[ignore]
+    fn measure_to_der() {
+        const DATA_OID: [u8; 11] = [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x01];
+        let piece = vec![0x5Au8; 4096];
+        // ContentInfo { OID, [0] { EnvelopedData { INTEGER, SET {}, EncryptedContentInfo { OID,
+        // AlgorithmIdentifier, [0] { OCTET STRING pieces } } } } }, every length left open.
+        let mut ber = vec![0x30, 0x80];
+        ber.extend(DATA_OID);
+        ber.extend([0xA0, 0x80, 0x30, 0x80, 0x02, 0x01, 0x00, 0x31, 0x00, 0x30, 0x80]);
+        ber.extend(DATA_OID);
+        ber.extend([0x30, 0x0D]);
+        ber.extend(DATA_OID);
+        ber.extend([0x05, 0x00]);
+        ber.extend([0xA0, 0x80]);
+        for _ in 0..4096 {
+            ber.extend([0x04, 0x82, 0x10, 0x00]);
+            ber.extend(&piece);
+        }
+        ber.extend([0; 10]);
+        let n = 20;
+        let t = std::time::Instant::now();
+        let mut len = 0;
+        for _ in 0..n {
+            len = to_der(&ber).unwrap().len();
+        }
+        assert!(len > 16 << 20);
+        println!("MEASURE to_der of {} MB: {:.1} ms", ber.len() >> 20, t.elapsed().as_secs_f64() * 1e3 / f64::from(n));
     }
 }
