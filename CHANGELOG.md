@@ -204,6 +204,7 @@ on GitHub.
 - In a very long formatted message, a picture inside a box over a deeply nested table is no longer shown again after the text.
 - A meeting whose invitation's id holds an invisible control character is found again on the calendar server.
 - An account removed while it was syncing no longer has its folder list come back.
+- An account removed while it was connecting or making a change no longer has its files come back.
 
 ## 0.38.0 - 2026-11-13
 

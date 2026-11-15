@@ -11,6 +11,24 @@ fn microsoft_not_connected(said: &str) -> bool {
     said.to_ascii_lowercase().contains(MICROSOFT_NOT_CONNECTED)
 }
 
+/// Where a test has autodiscovery ask (its fake server), and what it does once the server is
+/// found, before it's kept: its way to come between them. Taken once, on this thread.
+type InTest = (Option<String>, Option<Box<dyn FnOnce()>>);
+
+#[cfg(test)]
+thread_local!(pub(super) static AUTODISCOVER_IN_TEST: std::cell::RefCell<InTest> = const { std::cell::RefCell::new((None, None)) });
+
+/// Where autodiscovery asks: the usual addresses (`AUTODISCOVER_IN_TEST` in a test).
+#[cfg(test)]
+fn autodiscover_in_test() -> InTest {
+    AUTODISCOVER_IN_TEST.with(|a| std::mem::take(&mut *a.borrow_mut()))
+}
+
+#[cfg(not(test))]
+fn autodiscover_in_test() -> InTest {
+    (None, None)
+}
+
 impl Worker {
     /// What to sign in with: the password, or for OAuth accounts a current access token
     /// (refreshed from the stored refresh token when needed).
@@ -170,8 +188,15 @@ impl Worker {
                     String::new()
                 });
                 if kept.is_empty() {
-                    let found = crate::ews::autodiscover_as(&self.acc.email, &user, &secret, None, self.acc.user_agent.as_deref())?;
-                    if let Err(e) = self.store.save_account_doc(&self.acc.id, "ews.json", &found) {
+                    let (base, then) = autodiscover_in_test();
+                    let found = crate::ews::autodiscover_as(&self.acc.email, &user, &secret, base.as_deref(), self.acc.user_agent.as_deref())?;
+                    if let Some(then) = then {
+                        then();
+                    }
+                    // Not once the account was removed (as autodiscovery went on): its files would
+                    // come back.
+                    let kept = self.store.while_kept(&self.acc.id, self.removals, || self.store.save_account_doc(&self.acc.id, "ews.json", &found));
+                    if let Some(Err(e)) = kept {
                         log::warn!("{}: the Exchange server found isn't kept, and is looked for again next time: {e}", self.acc.id);
                     }
                     found

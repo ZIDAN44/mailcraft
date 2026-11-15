@@ -122,3 +122,39 @@ fn a_folder_list_published_as_its_account_is_removed_writes_nothing() {
     assert!(!store.root().join("a1").exists(), "the account's files came back");
     assert!(!pool.poll().into_iter().any(|e| matches!(e, Event::Folders { .. })), "its folders said");
 }
+
+/// Found in the audit: a change made here to a POP account (a folder made: its worker makes it, as
+/// there's no server copy) and Show more, handled by a worker whose account was removed since it
+/// started, wrote the change, the change queued and the folder's window: the account's files came
+/// back. Nothing is written.
+#[test]
+fn changes_handled_after_their_account_was_removed_write_nothing() {
+    let store = crate::fake::store("removed-changes");
+    store.save_folders("p1", &[Folder { account: "p1".into(), path: "INBOX".into(), selectable: true, ..Default::default() }]).unwrap();
+    let pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
+    let mut w = Worker::new(pop_account(1), Auth::shared("pw"), store.clone(), pool.sink.clone(), SyncOptions::default());
+    store.remove_account("p1").unwrap();
+    w.handle(Job::Apply { account: "p1".into(), op: Op::CreateFolder { path: "Plans".into() } });
+    assert!(!store.root().join("p1").exists(), "a change made brought the account's files back");
+    w.handle(Job::MoreMail { account: "p1".into(), folder: "INBOX".into(), more: 25 });
+    assert!(!store.root().join("p1").exists(), "Show more brought the account's files back");
+}
+
+/// Found in the audit: the Exchange server autodiscovery found was kept (`ews.json`) whatever
+/// happened meanwhile, so an account removed while autodiscovery went on had its folder back.
+#[test]
+fn a_server_autodiscovered_as_its_account_is_removed_isnt_kept() {
+    use crate::fakes::fake_ews::{Data, PASSWORD, account, serve};
+    let server = serve(Data::default());
+    let store = crate::fake::store("removed-autodiscovered");
+    let pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
+    let mut w =
+        Worker::new(account("a1", crate::ews::AUTODISCOVER), Auth::shared(PASSWORD), store.clone(), pool.sink.clone(), SyncOptions::default());
+    // Found, then removed before it's kept.
+    let removing = store.clone();
+    let then: Box<dyn FnOnce()> = Box::new(move || drop(removing.remove_account("a1")));
+    crate::worker::connect::AUTODISCOVER_IN_TEST.with(|a| *a.borrow_mut() = (Some(server.url.clone()), Some(then)));
+    let _ = w.connect();
+    assert_eq!(store.load_account_doc::<String>("a1", "ews.json").unwrap_or_default(), "", "the server found kept");
+    assert!(!store.root().join("a1").exists(), "the account's files came back");
+}
