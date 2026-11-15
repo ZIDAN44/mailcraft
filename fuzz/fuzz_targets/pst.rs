@@ -74,9 +74,7 @@ fn good_file() -> Vec<u8> {
     let path = scratch("good.pst");
     let _ = pst_export::export(&store, "a1", "Riley's mail", &path, &Default::default(), &mut |_| {});
     let data = std::fs::read(&path).unwrap_or_default();
-    for f in ["good.pst", "good Calendar.ics", "good Contacts.vcf"] {
-        let _ = std::fs::remove_file(scratch(f));
-    }
+    let _ = std::fs::remove_file(&path);
     assert!(data.starts_with(b"!BDN"), "the exporter wrote no data file");
     data
 }
@@ -102,4 +100,5 @@ fuzz_target!(|data: &[u8]| {
     let store = Store::memory();
     let opts = pst::ImportOptions { lanes: 1, ..Default::default() };
     let _ = pst::import_with(&path, &store, "d1", &opts, &mut |_| {});
+    let _ = std::fs::remove_file(&path);
 });
