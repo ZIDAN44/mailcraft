@@ -1,6 +1,7 @@
 //! Against a real PKCS #11 module: SoftHSM 2 with a token holding an RSA and an EC certificate
-//! and their keys (`crates/keys/softhsm.sh` sets it up, in Docker). Run with
-//! `MAILCRAFT_PKCS11_MODULE=/usr/lib/softhsm/libsofthsm2.so cargo test -p mailcraft-keys -- --ignored`.
+//! and their keys (`crates/keys/softhsm.sh` sets it up, in Docker). With one token in, run
+//! `MAILCRAFT_PKCS11_MODULE=/usr/lib/softhsm/libsofthsm2.so cargo test -p mailcraft-keys -- --ignored --skip two_cards`;
+//! once the script adds the second, `cargo test -p mailcraft-keys two_cards -- --ignored`.
 
 use super::*;
 
@@ -40,11 +41,8 @@ fn base64_decode(s: &str) -> Option<Vec<u8>> {
 }
 
 #[test]
-#[ignore = "needs SoftHSM 2 (crates/keys/softhsm.sh)"]
+#[ignore = "needs SoftHSM 2 with one token (crates/keys/softhsm.sh)"]
 fn a_card_signs_and_decrypts_what_openssl_and_mailcraft_read() {
-    if std::env::var_os("MAILCRAFT_PKCS11_SECOND").is_some() {
-        return;
-    }
     let found = certificates(&module(), Some(PIN)).unwrap();
     assert_eq!(found.len(), 2, "{found:?}");
     // One card in: a wrong PIN is refused. The card now counts its tries down: a kept PIN isn't
@@ -102,9 +100,6 @@ fn modules_that_arent_there_arent_offered_and_dont_load() {
 #[test]
 #[ignore = "needs SoftHSM 2 with two tokens (crates/keys/softhsm.sh)"]
 fn two_cards_dont_share_a_pin() {
-    if std::env::var_os("MAILCRAFT_PKCS11_SECOND").is_none() {
-        return;
-    }
     let found = certificates(&module(), Some("000000")).unwrap();
     assert_eq!(found.len(), 2, "listed without logging in: {found:?}");
     assert!(open(&found[0].key, Some(PIN), PinFrom::Typed).is_ok());
