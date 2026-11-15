@@ -45,9 +45,10 @@ impl Sink {
     }
 }
 
+/// An account's thread, as the pool holds it. The thread itself isn't held: stopped, it ends on its
+/// own once it notices (a slow network call may hold it a while), and nothing waits for it.
 struct Handle {
     tx: Sender<Job>,
-    thread: Option<JoinHandle<()>>,
     /// The account's second connection, for work the user sees happen (sending, automatic
     /// replies): it never waits behind a sync. `None` where it can't be used (POP, JMAP sends).
     quick: Option<Sender<Job>>,
@@ -253,9 +254,8 @@ impl Pool {
             let stop: Arc<changes::Stopped> = Arc::default();
             w.stop = stop.clone();
             match std::thread::Builder::new().name(format!("mail-{}", account.id)).spawn(move || w.run_calendars(rx)) {
-                Ok(thread) => {
-                    let h =
-                        Handle { tx, thread: Some(thread), quick: None, no_password, busy, quick_link: Arc::default(), stop, waits: Arc::default() };
+                Ok(_) => {
+                    let h = Handle { tx, quick: None, no_password, busy, quick_link: Arc::default(), stop, waits: Arc::default() };
                     self.workers.insert(account.id.clone(), h);
                 }
                 Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::error(e.to_string()) }),
@@ -291,8 +291,8 @@ impl Pool {
         let waits = w.waits.clone();
         let name = format!("mail-{}", account.id);
         match std::thread::Builder::new().name(name).spawn(move || w.run(rx)) {
-            Ok(thread) => {
-                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, no_password, busy, quick_link, stop, waits });
+            Ok(_) => {
+                self.workers.insert(account.id.clone(), Handle { tx, quick, no_password, busy, quick_link, stop, waits });
             }
             Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::error(e.to_string()) }),
         }
@@ -308,18 +308,9 @@ impl Pool {
             if let Ok(mut q) = h.quick_link.lock() {
                 q.take();
             }
-            // The thread notices the closed channel within half a second (IDLE slices); don't
-            // block the UI waiting for a slow network call to finish.
-            // The second connection's thread ends as its queue closes (it was started by this one).
-            // Without a thread to wait on it (the system short of resources), it's left to end on
-            // its own: `std::thread::spawn` panicked here.
-            if let Some(t) = h.thread.take()
-                && let Err(e) = std::thread::Builder::new().name("worker-end".into()).spawn(move || {
-                    let _ = t.join();
-                })
-            {
-                log::warn!("{account}: {e}");
-            }
+            // The thread notices the closed channel within half a second (IDLE slices), and ends
+            // on its own: the UI never waits for a slow network call to finish. The second
+            // connection's thread ends as its queue closes (it was started by this one).
         }
     }
 
