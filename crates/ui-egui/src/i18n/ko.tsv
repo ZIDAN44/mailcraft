@@ -1741,3 +1741,7 @@ count	occurrences	회
 	In the dark theme, messages keep the light page and colours they were written in	어두운 테마에서도 메시지는 작성된 밝은 페이지와 색을 그대로 유지합니다
 	Show messages on a light background	메시지를 밝은 배경에 표시
 	Show messages on the dark background	메시지를 어두운 배경에 표시
+	Copy picture	그림 복사
+	Save picture as…	다른 이름으로 그림 저장…
+	The picture couldn't be copied	그림을 복사할 수 없습니다
+	The picture couldn't be saved	그림을 저장할 수 없습니다

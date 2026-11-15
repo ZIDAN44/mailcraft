@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 
+- A picture in a message has a menu on a right-click (#110): **Copy picture**, for another app to paste, and **Save picture as…**, for one the message carries or one from the web that's been shown.
 - In the dark theme, messages can be shown on a light background, in the colours they were written in (#109): **File › Options › General › Messages on a light background**, or the sun above a message to switch.
 - An event's repeat can be set as you need it (#103): every so many days, weeks, months or years, on the weekdays you pick, on a day of the month or its nth weekday (the third Thursday, the last Friday), and ending never, after so many times or on a date. A series from elsewhere opens with its rule to change, unless it says more than the form shows. A small month beside each date picks a day, and the end follows the start, keeping the event's length.
 - One of an account's other addresses can be the one new mail is written from (#88): tick **Write new mail from this address** when you add or change it under **File › Info › Other addresses**. A new message then starts from it, with its name and signature, and **From** still offers the others. An answer goes from the address the mail came to, as before, and from the chosen one when the mail came to none of the account's addresses (a list's mail, a hidden copy). For a mailbox that signs in as one address and writes as another, such as a Gmail mailbox with a domain of your own.

@@ -33,10 +33,13 @@ pub(crate) use attachments::ShownAttachment;
 pub(crate) use attachments::VIDEO_THUMBS;
 pub(crate) use attachments::bound_video_frames;
 pub(crate) use attachments::decode;
+pub(crate) use attachments::decode_pixels as picture_pixels;
 #[cfg(test)]
 pub(crate) use attachments::previewed_text;
 use attachments::*;
 pub(crate) use body::WEB_PICTURES;
+#[cfg(test)]
+pub(crate) use body::picture_menu_for_tests;
 use body::*;
 pub use compose::compose_window;
 #[cfg(test)]

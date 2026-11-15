@@ -72,6 +72,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .when(has_reading),
         CommandSpec::new("attachment.saveAll", "Save all attachments", "Reading pane", save_all_attachments).params(r#"{"dir": string, "indices"?: [number] (only these attachments)}"#).when(has_reading),
         CommandSpec::new("attachment.preview", "Preview attachment", "Reading pane", preview_attachment).params(r#"{"index": number}"#).when(has_reading),
+        CommandSpec::new("picture.save", "Save picture", "Reading pane › Picture", save_picture)
+            .params(r#"{"key": string (an open message), "src": string (the picture as the message names it), "path": string}"#),
     ]
 }
 
@@ -413,6 +415,17 @@ pub(super) fn save_attachment(s: &mut Session, v: &Value) -> CmdResult {
         refuse_runnable(path)?;
     }
     let data = s.attachment_bytes(index)?;
+    std::fs::write(path, &data).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
+    mark_from_internet(std::path::Path::new(path), &data);
+    Ok(json!({"saved": path, "bytes": data.len()}))
+}
+
+/// A picture a message open shows, saved (issue #110): one it carries, or one from the web loaded.
+fn save_picture(s: &mut Session, v: &Value) -> CmdResult {
+    let key = parse_key(v).ok_or_else(|| CmdError::Params("`key` is required (account:validity:uid:folder)".into()))?;
+    let src = p::req_str(v, "src")?;
+    let path = p::req_str(v, "path")?;
+    let data = s.picture_bytes(&key, src).ok_or_else(|| CmdError::Disabled("that picture isn't here".into()))?;
     std::fs::write(path, &data).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     mark_from_internet(std::path::Path::new(path), &data);
     Ok(json!({"saved": path, "bytes": data.len()}))

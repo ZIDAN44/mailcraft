@@ -159,6 +159,13 @@ pub enum Action {
     ForCompose(u64, Box<Action>),
     OpenAttachment(usize),
     SaveAttachment(usize),
+    /// Something to tell the user, as the app's notices do (already in their language).
+    Notice(String),
+    /// A picture in an open message (`src` as it names it) saved as a file (issue #110).
+    SavePicture {
+        key: MessageKey,
+        src: String,
+    },
     AttachFiles,
     FocusSearch,
     /// Make a note and write on it.

@@ -31,6 +31,9 @@ pub(crate) struct CardView {
 /// Per message being written.
 pub(crate) type SignatureCards = HashMap<u64, CardView>;
 
+/// The account the signature's stand-in message is drawn under (none of the user's).
+pub(super) const CARD_ACCOUNT: &str = "signature-card";
+
 /// The room kept before it has been drawn once.
 const FIRST_GUESS: egui::Vec2 = vec2(480.0, 96.0);
 
@@ -83,8 +86,7 @@ pub(super) fn show(s: &Session, st: &mut UiState, ui: &mut Ui, c: &Compose, ed: 
     let Some(mut view) = st.signature_cards.remove(&c.id) else { return };
     let t = st.tokens;
     // A message of its own to the drawing: none of its pictures is another message's.
-    let key =
-        MessageKey { account: "signature-card".into(), folder: String::new(), validity: 0, uid: u32::try_from(c.id & 0xFFFF_FFFF).unwrap_or(0) };
+    let key = MessageKey { account: CARD_ACCOUNT.into(), folder: String::new(), validity: 0, uid: u32::try_from(c.id & 0xFFFF_FFFF).unwrap_or(0) };
     let parsed = mime::Parsed::default();
     let mut shown: Vec<String> = Vec::new();
     ui.ctx().data_mut(|d| d.insert_temp(own_id(), view.pictures.clone()));

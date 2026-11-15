@@ -2,6 +2,9 @@
 
 use super::*;
 
+mod picture_menu;
+#[cfg(test)]
+pub(crate) use picture_menu::attach as picture_menu_for_tests;
 mod table;
 use table::{Room, Rows, column_widths, room_margin};
 
@@ -554,7 +557,7 @@ impl Body<'_> {
 
     /// Draw one picture of the message, `width` the room it's in, at the size the message sets
     /// (`size`); `false` when it can't be shown (yet).
-    pub(super) fn picture(&self, st: &mut UiState, ui: &mut Ui, src: &str, width: f32, size: Option<mime::ImageSize>) -> bool {
+    pub(super) fn picture(&mut self, st: &mut UiState, ui: &mut Ui, src: &str, width: f32, size: Option<mime::ImageSize>) -> bool {
         let tex = match picture_texture(self.s, st, ui.ctx(), self.key, self.p, src, self.allowed) {
             Pic::Ready(tex) => tex,
             Pic::Loading => {
@@ -564,7 +567,8 @@ impl Body<'_> {
             Pic::Missing => return false,
         };
         if let Some(at) = shown_size(tex.size_vec2(), size, width) {
-            ui.add(egui::Image::new(&tex).fit_to_exact_size(at).maintain_aspect_ratio(false));
+            let resp = ui.add(egui::Image::new(&tex).fit_to_exact_size(at).maintain_aspect_ratio(false).sense(Sense::click()));
+            picture_menu::attach(&resp, self.s, self.key, src, self.acts);
         }
         true
     }

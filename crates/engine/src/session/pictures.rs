@@ -136,3 +136,34 @@ impl Session {
         Ok(serde_json::json!({ "untrusted": was }))
     }
 }
+
+impl Session {
+    /// A picture a message open here shows (issue #110): one it carries (by `cid:` or the name
+    /// it was sent under), or one from the web that's been loaded. `None` for one not here.
+    pub fn picture_bytes(&self, key: &MessageKey, src: &str) -> Option<Vec<u8>> {
+        if src.starts_with("http://") || src.starts_with("https://") {
+            return match self.pictures.get(src) {
+                Some(crate::Picture::Ready(b)) => Some(b.to_vec()),
+                _ => None,
+            };
+        }
+        let open = self.reading.iter().chain(self.windows.iter()).find(|r| &r.key == key)?;
+        let index = mime::picture_attachment(open.parsed.as_ref()?, src)?;
+        mime::attachment_data(&self.readable_raw(key)?, index)
+    }
+
+    /// The name a picture is saved under: its file's, else `picture`.
+    pub fn picture_name(&self, key: &MessageKey, src: &str) -> String {
+        let named = if src.starts_with("http://") || src.starts_with("https://") {
+            src.split(['?', '#']).next().and_then(|u| u.rsplit('/').next()).map(str::to_string)
+        } else {
+            let open = self.reading.iter().chain(self.windows.iter()).find(|r| &r.key == key);
+            open.and_then(|r| r.parsed.as_ref()).and_then(|p| {
+                let i = mime::picture_attachment(p, src)?;
+                p.attachments.iter().find(|a| a.index == i).map(|a| a.name.clone())
+            })
+        };
+        let name = mime::sanitize_filename(named.as_deref().unwrap_or("").trim());
+        if name.is_empty() { "picture".into() } else { name }
+    }
+}

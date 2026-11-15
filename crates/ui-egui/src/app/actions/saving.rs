@@ -85,6 +85,21 @@ impl MailApp {
         }
     }
 
+    /// A picture of an open message saved as a file (issue #110); in the browser, downloaded.
+    pub(super) fn save_picture(&mut self, key: &MessageKey, src: &str) {
+        let name = self.session.picture_name(key, src);
+        if self.services.downloads() {
+            match self.session.picture_bytes(key, src) {
+                Some(b) => self.services.download(&name, &b),
+                None => self.session.notice(tl!("The picture couldn't be saved").to_string(), true),
+            }
+            return;
+        }
+        if let Some(path) = self.services.save_path(&name) {
+            self.run("picture.save", json!({"key": key.to_id(), "src": src, "path": path.to_string_lossy()}));
+        }
+    }
+
     pub(super) fn open_attachment(&mut self, i: usize) {
         if self.services.downloads() {
             self.download_attachment(i);

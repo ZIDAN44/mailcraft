@@ -157,6 +157,8 @@ impl MailApp {
             Action::ExportPdf => self.save_message(true),
             Action::SaveMessage => self.save_message(false),
             Action::SaveAttachment(i) => self.save_attachment(i),
+            Action::Notice(text) => self.session.notice(text, true),
+            Action::SavePicture { key, src } => self.save_picture(&key, &src),
             Action::OpenAttachment(i) => self.open_attachment(i),
             Action::SaveAll => self.save_attachments(None),
             Action::SaveAttachments(v) => self.save_attachments(Some(v)),

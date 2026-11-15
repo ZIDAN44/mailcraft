@@ -1738,3 +1738,7 @@ count	occurrences	回
 	In the dark theme, messages keep the light page and colours they were written in	ダーク テーマでも、メッセージは書かれたときの明るいページと色のまま表示されます
 	Show messages on a light background	メッセージを明るい背景で表示する
 	Show messages on the dark background	メッセージを暗い背景で表示する
+	Copy picture	画像をコピー
+	Save picture as…	名前を付けて画像を保存…
+	The picture couldn't be copied	画像をコピーできませんでした
+	The picture couldn't be saved	画像を保存できませんでした

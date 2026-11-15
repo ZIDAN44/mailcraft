@@ -690,3 +690,54 @@ fn messages_on_a_light_background_in_the_dark_theme() {
     a.ui.dark = Some(false);
     assert!(ink(&mut a) < 110, "the light theme as ever");
 }
+
+/// Issue #110: a picture in a message, right-clicked, offers to copy it (its pixels go on the
+/// clipboard, for another app to paste) and to save it as a file.
+#[test]
+fn a_picture_is_copied_or_saved_from_its_menu() {
+    let (mut a, dir) = app("picture-menu");
+    let k = a.session.list.iter().find(|m| m.subject.contains("winter group show")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    let src = "cid:poster@gallery.example";
+    // The menu on a picture's place, as the reading pane gives it, in a window of its own.
+    let ctx = egui::Context::default();
+    let mut acts = Vec::new();
+    let run = |events: Vec<Event>, acts: &mut Vec<crate::Action>| {
+        let input =
+            egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 400.0))), events, ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            let (_, resp) = ui.allocate_exact_size(egui::vec2(120.0, 120.0), egui::Sense::click());
+            crate::reading::picture_menu_for_tests(&resp, &a.session, &k, src, acts);
+        });
+        out.textures_delta.clear();
+        out
+    };
+    let at = egui::pos2(50.0, 50.0);
+    let press = |button, pressed| Event::PointerButton { pos: at, button, pressed, modifiers: Modifiers::NONE };
+    run(vec![Event::PointerMoved(at)], &mut acts);
+    run(vec![press(egui::PointerButton::Secondary, true)], &mut acts);
+    run(vec![press(egui::PointerButton::Secondary, false)], &mut acts);
+    let out = run(vec![], &mut acts);
+    let menu = crate::tests::texts_in(&out.shapes);
+    assert!(menu.iter().any(|d| d.text == "Save picture as…"), "{:?}", menu.iter().map(|d| &d.text).collect::<Vec<_>>());
+    let copy = menu.iter().find(|d| d.text == "Copy picture").map(|d| d.rect.center()).expect("Copy picture offered");
+    let click = |pressed| Event::PointerButton { pos: copy, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    run(vec![Event::PointerMoved(copy)], &mut acts);
+    run(vec![click(true)], &mut acts);
+    let out = run(vec![click(false)], &mut acts);
+    let copied = out.platform_output.commands.iter().find_map(|c| match c {
+        egui::OutputCommand::CopyImage(img) => Some(img.size),
+        _ => None,
+    });
+    assert!(copied.is_some_and(|[w, h]| w > 0 && h > 0), "its pixels on the clipboard: {:?}", out.platform_output.commands);
+    assert!(acts.is_empty(), "copied, so nothing to tell");
+
+    // Saved: the picture's own bytes, as the message carries it.
+    let path = dir.join("poster.png");
+    a.run("picture.save", json!({"key": k.to_id(), "src": src, "path": path.to_string_lossy()}));
+    let saved = std::fs::read(&path).expect("saved");
+    assert_eq!(Some(saved), a.session.picture_bytes(&k, src));
+    assert!(!a.session.picture_name(&k, src).is_empty());
+    // One from the web that isn't loaded isn't here to save.
+    assert_eq!(a.session.picture_bytes(&k, "https://gallery.example/track/open.gif"), None);
+}
