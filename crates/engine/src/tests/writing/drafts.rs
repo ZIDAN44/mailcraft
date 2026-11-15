@@ -31,8 +31,7 @@ fn a_draft_opens_again_as_it_was_saved() {
         });
     }
     s.run("compose.saveDraft", &json!({})).unwrap();
-    s.run("compose.close", &json!({"save": false})).unwrap_or_default();
-    s.compose = None;
+    s.run("compose.discard", &json!({})).unwrap();
     let key = draft_key(&mut s, "Re: Invoice");
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
     s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
@@ -77,7 +76,7 @@ fn a_draft_opens_again_as_it_was_saved() {
     s.run("mail.forward", &json!({})).unwrap();
     s.run("compose.update", &json!({"to": "ann@x.example"})).unwrap();
     s.run("compose.saveDraft", &json!({})).unwrap();
-    s.compose = None;
+    s.run("compose.discard", &json!({})).unwrap();
     let key = draft_key(&mut s, "Fwd: Invoice");
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
     s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
@@ -101,7 +100,7 @@ fn a_draft_keeps_its_signature_code() {
     s.run("compose.update", &json!({"to": "ann@x.example", "subject": "Card draft", "body": format!("Hello Ann,{}", written.body)})).unwrap();
     let before = s.compose.as_ref().unwrap().bodies_with(&written.signature_code).1.unwrap_or_default();
     s.run("compose.saveDraft", &json!({})).unwrap();
-    s.compose = None;
+    s.run("compose.discard", &json!({})).unwrap();
     let key = draft_key(&mut s, "Card draft");
     s.run("list.open", &json!({"key": key.to_id()})).unwrap();
     s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
@@ -230,7 +229,7 @@ fn reading_another_message_keeps_the_one_written_inline_in_drafts() {
     s.run("draft.edit", &json!({"key": key.to_id()})).unwrap();
     assert!(s.compose.as_ref().is_some_and(|c| c.to.contains("zoe@studio.example")), "carried on from Drafts");
     assert!(s.compose.as_ref().is_some_and(|c| c.body.starts_with("Please review.")), "the body kept in Drafts");
-    s.compose = None;
+    s.run("compose.discard", &json!({})).unwrap();
 
     // Nothing written: no draft.
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
@@ -348,7 +347,7 @@ fn a_message_is_held_until_its_draft_is_kept() {
     assert!(s.notices.last().is_none_or(|n| n.text != "Draft saved"), "not yet");
     s.apply(Event::DraftSaved { account: id.clone(), message_id: open_id, error: None });
     assert!(s.notices.last().is_some_and(|n| n.text == "Draft saved"));
-    s.compose = None;
+    s.run("compose.discard", &json!({})).unwrap();
 
     // Saved with Save, then MailCraft closed (or the graphics lost) before the server answered:
     // kept as the same draft, its Message-ID and the copy it replaces, not a second one (found in
@@ -362,7 +361,7 @@ fn a_message_is_held_until_its_draft_is_kept() {
     let (kept, kept_replaces) = kept.expect("kept");
     assert_eq!(mailcraft_mime::written_message_id(&kept), mailcraft_mime::written_message_id(&sent));
     assert_eq!(kept_replaces, replaces);
-    s.compose = None;
+    s.run("compose.discard", &json!({})).unwrap();
 
     // Closed, kept in Drafts: held until the server has it, then gone.
     write(&mut s, "First");

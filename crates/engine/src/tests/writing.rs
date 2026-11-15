@@ -437,7 +437,7 @@ fn new_mail_to_someone() {
     let mut s = sample_session("new-mail-to");
     s.run("mail.new", &json!({"to": "Zoe Park <zoe@studio.example>"})).unwrap();
     assert_eq!(s.compose.as_ref().unwrap().to, "Zoe Park <zoe@studio.example>; ");
-    s.compose = None;
+    s.run("compose.discard", &json!({})).unwrap();
     assert!(s.run("mail.new", &json!({"to": "not an address"})).is_err());
     assert!(s.compose.is_none(), "nothing opens for a bad address");
     s.run("mail.new", &json!({"to": "  "})).unwrap();
