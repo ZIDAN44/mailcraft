@@ -3,23 +3,8 @@
 
 use mailcraft_model::ical::{Attendee, CalEvent};
 
-use super::invites::{deliver, me, parts};
+use super::invites::{ZOE, deliver, invitation, parts};
 use super::*;
-
-const ZOE: (&str, &str) = ("Zoe Park", "zoe@studio.example");
-
-fn invitation(uid: &str, summary: &str, sequence: u32) -> CalEvent {
-    CalEvent {
-        uid: uid.into(),
-        summary: summary.into(),
-        start: NOW + 2 * 86_400,
-        end: NOW + 2 * 86_400 + 3600,
-        organizer: Some(Attendee { email: ZOE.1.into(), name: ZOE.0.into(), ..Default::default() }),
-        attendees: vec![me("NEEDS-ACTION")],
-        sequence,
-        ..Default::default()
-    }
-}
 
 /// What the sample account's Sent Items holds: answers go there (it has no server).
 fn sent(s: &mut Session) -> usize {

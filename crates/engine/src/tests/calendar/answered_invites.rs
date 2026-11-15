@@ -3,24 +3,9 @@
 
 use mailcraft_model::ical::{Attendee, CalEvent};
 
-use super::invites::{deliver, me, parts};
+use super::invites::{ZOE, deliver, invitation, parts};
 use super::*;
 use crate::{AnsweredInvites, Prefs};
-
-const ZOE: (&str, &str) = ("Zoe Park", "zoe@studio.example");
-
-fn invitation(uid: &str, sequence: u32) -> CalEvent {
-    CalEvent {
-        uid: uid.into(),
-        summary: "Grade review".into(),
-        start: NOW + 2 * 86_400,
-        end: NOW + 2 * 86_400 + 3600,
-        organizer: Some(Attendee { email: ZOE.1.into(), name: ZOE.0.into(), ..Default::default() }),
-        attendees: vec![me("NEEDS-ACTION")],
-        sequence,
-        ..Default::default()
-    }
-}
 
 /// The subjects in a folder of the sample mailbox (`deliver` names its messages `<METHOD> <n>`).
 fn subjects(s: &mut Session, folder: &str) -> Vec<String> {
@@ -49,10 +34,10 @@ fn outlooks_way_for_new_installs_and_none_for_old_settings() {
 fn answering_in_the_message_moves_it_and_its_earlier_versions() {
     let mut s = sample_session("answered-message");
     let uid = "grade@studio.example";
-    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation(uid, 0)], NOW);
-    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation("other@studio.example", 0)], NOW);
+    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation(uid, "Grade review", 0)], NOW);
+    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation("other@studio.example", "Grade review", 0)], NOW);
     let plain = subjects(&mut s, "INBOX").len();
-    deliver(&mut s, 3, ZOE, "REQUEST", &[invitation(uid, 1)], NOW);
+    deliver(&mut s, 3, ZOE, "REQUEST", &[invitation(uid, "Grade review", 1)], NOW);
     let r = s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
     assert_eq!(r["moved"], 2, "{r}");
     assert!(has(&mut s, "Trash", "REQUEST 1") && has(&mut s, "Trash", "REQUEST 3"));
@@ -68,14 +53,14 @@ fn answering_in_the_message_moves_it_and_its_earlier_versions() {
 #[test]
 fn answering_in_the_calendar_moves_it_too_and_keep_leaves_it() {
     let mut s = sample_session("answered-calendar");
-    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation("cal@studio.example", 0)], NOW);
+    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation("cal@studio.example", "Grade review", 0)], NOW);
     s.run("folder.open", &json!({"account": "sample", "folder": "Archive"})).unwrap();
     let r = s.run("event.respond", &json!({"uid": "cal@studio.example", "answer": "tentative"})).unwrap();
     assert_eq!(r["moved"], 1, "{r}");
     assert!(has(&mut s, "Trash", "REQUEST 1"));
 
     s.run("options.answeredInvites", &json!({"after": "keep"})).unwrap();
-    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation("kept@studio.example", 0)], NOW);
+    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation("kept@studio.example", "Grade review", 0)], NOW);
     let r = s.run("event.respond", &json!({"uid": "kept@studio.example", "answer": "accepted"})).unwrap();
     assert_eq!(r["moved"], 0);
     let r = s.run("invite.respond", &json!({"answer": "declined"})).unwrap();
@@ -89,10 +74,10 @@ fn answering_in_the_calendar_moves_it_too_and_keep_leaves_it() {
 fn a_folder_of_the_users_choosing() {
     let mut s = sample_session("answered-folder");
     s.run("options.answeredInvites", &json!({"after": "move"})).unwrap();
-    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation("one@studio.example", 0)], NOW);
+    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation("one@studio.example", "Grade review", 0)], NOW);
     assert_eq!(s.run("invite.respond", &json!({"answer": "accepted"})).unwrap()["moved"], 0, "no folder chosen yet");
     s.run("options.answeredInvites", &json!({"account": "sample", "folder": "Projects"})).unwrap();
-    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation("two@studio.example", 0)], NOW);
+    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation("two@studio.example", "Grade review", 0)], NOW);
     assert_eq!(s.run("invite.respond", &json!({"answer": "accepted"})).unwrap()["moved"], 1);
     assert!(has(&mut s, "Projects", "REQUEST 2") && has(&mut s, "INBOX", "REQUEST 1"));
     for bad in [
@@ -108,7 +93,7 @@ fn a_folder_of_the_users_choosing() {
     assert_eq!(s.prefs.answered_folders.get("sample").map(String::as_str), Some("Projects"));
     // The folder chosen is gone: nothing moves.
     s.prefs.answered_folders.insert("sample".into(), "Gone".into());
-    deliver(&mut s, 3, ZOE, "REQUEST", &[invitation("three@studio.example", 0)], NOW);
+    deliver(&mut s, 3, ZOE, "REQUEST", &[invitation("three@studio.example", "Grade review", 0)], NOW);
     assert_eq!(s.run("invite.respond", &json!({"answer": "accepted"})).unwrap()["moved"], 0);
 }
 
@@ -118,9 +103,9 @@ fn a_folder_of_the_users_choosing() {
 fn occurrences_and_cancellations() {
     let mut s = sample_session("answered-cancel");
     let uid = "weekly@studio.example";
-    let series = CalEvent { rrule: Some("FREQ=WEEKLY;COUNT=4".into()), ..invitation(uid, 0) };
+    let series = CalEvent { rrule: Some("FREQ=WEEKLY;COUNT=4".into()), ..invitation(uid, "Grade review", 0) };
     let week2 = series.start + 7 * 86_400;
-    let moved = CalEvent { recurrence_id: Some(week2), start: week2 + 3600, end: week2 + 7200, rrule: None, ..invitation(uid, 1) };
+    let moved = CalEvent { recurrence_id: Some(week2), start: week2 + 3600, end: week2 + 7200, rrule: None, ..invitation(uid, "Grade review", 1) };
     deliver(&mut s, 1, ZOE, "REQUEST", std::slice::from_ref(&series), NOW);
     s.run("options.answeredInvites", &json!({"after": "keep"})).unwrap();
     s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
@@ -130,16 +115,16 @@ fn occurrences_and_cancellations() {
     assert!(has(&mut s, "Trash", "REQUEST 2") && has(&mut s, "INBOX", "REQUEST 1"), "the series' invitation stays");
     // Week 3 cancelled: that cancellation only.
     let week3 = series.start + 14 * 86_400;
-    deliver(&mut s, 3, ZOE, "CANCEL", &[CalEvent { recurrence_id: Some(week3), rrule: None, ..invitation(uid, 2) }], NOW);
+    deliver(&mut s, 3, ZOE, "CANCEL", &[CalEvent { recurrence_id: Some(week3), rrule: None, ..invitation(uid, "Grade review", 2) }], NOW);
     assert_eq!(s.run("invite.apply", &json!({})).unwrap()["moved"], 1);
     assert!(has(&mut s, "INBOX", "REQUEST 1"));
     // The whole meeting cancelled: the cancellation and the invitation.
-    deliver(&mut s, 4, ZOE, "CANCEL", &[invitation(uid, 3)], NOW);
+    deliver(&mut s, 4, ZOE, "CANCEL", &[invitation(uid, "Grade review", 3)], NOW);
     assert_eq!(s.run("invite.apply", &json!({})).unwrap()["moved"], 2);
     assert!(has(&mut s, "Trash", "CANCEL 4") && has(&mut s, "Trash", "REQUEST 1"));
     assert!(parts(&s, uid).is_empty());
     // A cancellation of a meeting no longer in the calendar is taken in too.
-    deliver(&mut s, 5, ZOE, "CANCEL", &[invitation("gone@studio.example", 1)], NOW);
+    deliver(&mut s, 5, ZOE, "CANCEL", &[invitation("gone@studio.example", "Grade review", 1)], NOW);
     assert_eq!(s.run("invite.apply", &json!({})).unwrap()["moved"], 1);
 }
 
@@ -170,9 +155,9 @@ fn guests_answers_when_asked_for() {
 fn only_the_meetings_own_mail_moves() {
     let mut s = sample_session("answered-only");
     let uid = "own@studio.example";
-    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation(uid, 0)], NOW);
-    deliver(&mut s, 2, ZOE, "PUBLISH", &[invitation(uid, 0)], NOW);
-    deliver(&mut s, 3, ZOE, "REQUEST", &[invitation(uid, 1)], NOW);
+    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation(uid, "Grade review", 0)], NOW);
+    deliver(&mut s, 2, ZOE, "PUBLISH", &[invitation(uid, "Grade review", 0)], NOW);
+    deliver(&mut s, 3, ZOE, "REQUEST", &[invitation(uid, "Grade review", 1)], NOW);
     // Its body gone from the cache (kept online only): the answer still goes, it moves (it's
     // the one answered), the others are found by their own bodies.
     let store = s.store.clone().unwrap();
@@ -192,8 +177,15 @@ fn a_newer_update_not_taken_in_stays() {
     let mut s = sample_session("answered-newer");
     s.run("calendar.tentativeInvites", &json!({"on": false})).unwrap();
     let uid = "moved@studio.example";
-    deliver(&mut s, 1, ZOE, "REQUEST", &[CalEvent { start: NOW + 3 * 86_400, end: NOW + 3 * 86_400 + 3600, ..invitation(uid, 1) }], NOW + 60);
-    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation(uid, 0)], NOW);
+    deliver(
+        &mut s,
+        1,
+        ZOE,
+        "REQUEST",
+        &[CalEvent { start: NOW + 3 * 86_400, end: NOW + 3 * 86_400 + 3600, ..invitation(uid, "Grade review", 1) }],
+        NOW + 60,
+    );
+    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation(uid, "Grade review", 0)], NOW);
     let r = s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
     assert_eq!(r["moved"], 1, "only the one answered: {r}");
     assert!(has(&mut s, "Trash", "REQUEST 2") && has(&mut s, "INBOX", "REQUEST 1"), "the newer update stays");
@@ -210,7 +202,7 @@ fn a_newer_update_not_taken_in_stays() {
 fn the_calendars_own_stamp_isnt_a_version() {
     let mut s = sample_session("answered-stamp");
     let uid = "stamp@studio.example";
-    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation(uid, 0)], NOW + 3600);
+    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation(uid, "Grade review", 0)], NOW + 3600);
     for e in s.pim.get_mut("sample").unwrap().events.iter_mut().filter(|e| e.event.uid == uid) {
         e.event.dtstamp = NOW - 60;
     }
@@ -226,8 +218,8 @@ fn the_calendars_own_stamp_isnt_a_version() {
 fn answered_while_read_the_list_goes_on_to_the_next() {
     let mut s = sample_session("answered-next");
     let uid = "next@studio.example";
-    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation(uid, 0)], NOW - 30 * 86_400);
-    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation(uid, 1)], NOW);
+    deliver(&mut s, 1, ZOE, "REQUEST", &[invitation(uid, "Grade review", 0)], NOW - 30 * 86_400);
+    deliver(&mut s, 2, ZOE, "REQUEST", &[invitation(uid, "Grade review", 1)], NOW);
     // The newest invitation, read in the middle of the list (the list is by date).
     let store = s.store.clone().unwrap();
     let mut inbox = store.load_folder("sample", "INBOX").unwrap();
@@ -256,7 +248,7 @@ fn answered_while_read_the_list_goes_on_to_the_next() {
     let from = rows.iter().position(|k| *k == after).unwrap();
     assert_eq!(s.selection, rows[from..=from + 1].to_vec());
     // Answered from the calendar, the message read isn't the invitation: it stays read.
-    deliver(&mut s, 3, ZOE, "REQUEST", &[invitation("cal-next@studio.example", 0)], NOW);
+    deliver(&mut s, 3, ZOE, "REQUEST", &[invitation("cal-next@studio.example", "Grade review", 0)], NOW);
     s.run("list.open", &json!({"key": after.to_id()})).unwrap();
     s.run("event.respond", &json!({"uid": "cal-next@studio.example", "answer": "accepted"})).unwrap();
     assert!(has(&mut s, "Trash", "REQUEST 3"));
@@ -270,9 +262,9 @@ fn answered_while_read_the_list_goes_on_to_the_next() {
 fn each_inbox_message_is_read_once_to_tidy() {
     let mut s = sample_session("answered-reads");
     for n in 1..=6 {
-        deliver(&mut s, n, ZOE, "REQUEST", &[invitation(&format!("other{n}@studio.example"), 0)], NOW);
+        deliver(&mut s, n, ZOE, "REQUEST", &[invitation(&format!("other{n}@studio.example"), "Grade review", 0)], NOW);
     }
-    deliver(&mut s, 7, ZOE, "REQUEST", &[invitation("read@studio.example", 0)], NOW);
+    deliver(&mut s, 7, ZOE, "REQUEST", &[invitation("read@studio.example", "Grade review", 0)], NOW);
     s.run("folder.open", &json!({"account": "sample", "folder": "Archive"})).unwrap();
     let inbox = subjects(&mut s, "INBOX").len();
     let store = s.store.clone().unwrap();

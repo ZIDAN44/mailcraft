@@ -6,9 +6,9 @@ use mailcraft_model::ical::{Attendee, CalEvent};
 use mailcraft_model::pim::{CalendarInfo, DavSync, LOCAL, StoredEvent};
 use mailcraft_model::{Folder, MessageKey, Summary};
 
+use super::invites::ZOE;
 use super::*;
 
-const ZOE: (&str, &str) = ("Zoe Park", "zoe@studio.example");
 pub(super) const OWN: &str = "https://dav.example.org/SOGo/dav/riley/Calendar/personal/";
 const THEIRS: &str = "https://dav.example.org/SOGo/dav/riley/Calendar/sam_team/";
 

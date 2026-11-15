@@ -30,6 +30,23 @@ pub(super) fn me(partstat: &str) -> Attendee {
     Attendee { email: "riley@studio.example".into(), name: "Riley".into(), partstat: partstat.into(), rsvp: true }
 }
 
+/// Who sends the invitations of [`invitation`].
+pub(super) const ZOE: (&str, &str) = ("Zoe Park", "zoe@studio.example");
+
+/// An hour's meeting two days out that Zoe invites Riley to, not answered yet.
+pub(super) fn invitation(uid: &str, summary: &str, sequence: u32) -> CalEvent {
+    CalEvent {
+        uid: uid.into(),
+        summary: summary.into(),
+        start: NOW + 2 * 86_400,
+        end: NOW + 2 * 86_400 + 3600,
+        organizer: Some(Attendee { email: ZOE.1.into(), name: ZOE.0.into(), ..Default::default() }),
+        attendees: vec![me("NEEDS-ACTION")],
+        sequence,
+        ..Default::default()
+    }
+}
+
 pub(super) fn parts<'a>(s: &'a Session, uid: &str) -> Vec<&'a StoredEvent> {
     s.pim.get("sample").map(|p| p.events.iter().filter(|e| e.event.uid == uid).collect()).unwrap_or_default()
 }
