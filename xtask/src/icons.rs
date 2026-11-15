@@ -251,6 +251,7 @@ mod tests {
     fn svg_is_well_formed() {
         let s = svg();
         assert!(s.starts_with("<svg") && s.trim_end().ends_with("</svg>"));
-        assert!(s.contains("#0e7c86") || s.contains("#169aa6"));
+        assert!(s.contains(r##"stop-color="#169aa6""##), "the gradient starts at TOP");
+        assert!(s.contains(r##"stop-color="#0b6670""##), "the gradient ends at BOTTOM");
     }
 }

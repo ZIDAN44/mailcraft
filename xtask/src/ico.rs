@@ -96,7 +96,7 @@ mod tests {
     #[test]
     fn committed_icon_is_valid() {
         let path = crate::root().join("assets/app-icon/mailcraft.ico");
-        let Ok(ico) = std::fs::read(&path) else { return };
+        let ico = std::fs::read(&path).unwrap_or_else(|e| panic!("the committed {} can't be read: {e}", path.display()));
         assert_eq!(&ico[..4], &[0, 0, 1, 0]);
         let n = u16::from_le_bytes([ico[4], ico[5]]) as usize;
         assert!(n >= 4, "expected several sizes in {}", path.display());
