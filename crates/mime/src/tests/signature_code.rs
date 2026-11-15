@@ -233,6 +233,31 @@ fn pictures_behind_boxes_take_their_cids() {
     assert!(!quoted.contains("other@x"), "the first given for an address: {quoted}");
 }
 
+/// A picture behind a box is found after one left open too: an opener that ran on to another's
+/// closer took the ones between with it, and they kept their addresses.
+#[test]
+fn a_picture_behind_a_box_is_found_after_one_left_open() {
+    let given = [("a.png".to_string(), "a@x".to_string())];
+    let html = "<div style=\"background:url(x.png\">1</div><td background=\"a.png\">2</td><div style=\"background:url(a.png)\">3</div>";
+    let quoted = quote_html(html, &given, &[]);
+    assert!(quoted.contains("background=\"cid:a@x\"") && quoted.contains("url(cid:a@x)"), "{quoted}");
+    let html = "<td background=\"x.png>1</td><div style='background:url(a.png)'>2</div><td background=\"a.png\">3</td>";
+    let quoted = quote_html(html, &given, &[]);
+    assert!(quoted.contains("url(cid:a@x)") && quoted.contains("background=\"cid:a@x\""), "{quoted}");
+}
+
+/// Boxes whose pictures are left open by the thousand are read through once: each looked for
+/// its closer to the message's end.
+#[test]
+fn pictures_left_open_behind_boxes_are_read_once() {
+    let given = [("a.png".to_string(), "a@x".to_string())];
+    for open in ["<p style=\"background:url('x\">", "<p style='background:url(\"x'>", "<p style=\"background:url(x\">", "<td background='x>"] {
+        let html = format!("{}<td background=\"a.png\">1</td>", open.repeat(20_000));
+        let quoted = mailcraft_model::work::linear(html.len(), || quote_html(&html, &given, &[]));
+        assert!(quoted.len() >= html.len() / 2, "{open}");
+    }
+}
+
 /// A signature's pictures are named one way and read back the same way; a `cid:` that only
 /// starts like one (another sender's `signature.png@…`) isn't taken for one.
 #[test]

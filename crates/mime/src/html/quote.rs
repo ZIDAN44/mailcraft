@@ -115,39 +115,68 @@ pub fn quote_html(html: &str, given: &[(String, String)], trackers: &[String]) -
 /// of writing one took 0.17 s for a 2 MB newsletter with 100 of them).
 fn pictures_behind(html: &str, behind: &std::collections::HashMap<&str, String>) -> String {
     const OPENERS: [&str; 2] = ["background=", "url("];
-    let next = |from: usize, opener: &str| html.get(from..).and_then(|r| r.find(opener)).map(|i| from + i);
-    let mut found = [next(0, OPENERS[0]), next(0, OPENERS[1])];
+    // What ends an address: its quote and `)` for `url(`, its quote for `background=`, or `)`
+    // for an unquoted `url(`.
+    const CLOSERS: [&str; 5] = ["\")", "')", "\"", "'", ")"];
+    let next = |from: usize, opener: &str| html.get(from..).and_then(|r| work::scanned(r, r.find(opener))).map(|i| from + i);
+    let mut found = OPENERS.map(|o| next(0, o));
+    // Where each closer was last looked for from, and found: it's there still for every opener
+    // before it, and nowhere for any once it wasn't found (looked for again from each opener
+    // left open, a message of them was read through once for each).
+    let mut closed: [Option<(usize, Option<usize>)>; 5] = [None; 5];
+    // No address longer than the longest given is one of them.
+    let longest = behind.keys().map(|k| k.len()).max().unwrap_or(0);
     let mut out = String::with_capacity(html.len());
     let mut last = 0;
     // The nearest opener still to come, each in turn.
     while let Some((which, at)) = found.iter().enumerate().filter_map(|(w, f)| f.map(|at| (w, at))).min_by_key(|(_, at)| *at) {
+        let opener = OPENERS.get(which).copied().unwrap_or("");
+        // One inside an address just written over isn't one.
+        if at < last {
+            if let Some(f) = found.get_mut(which) {
+                *f = next(last, opener);
+            }
+            continue;
+        }
         let url = which == 1;
-        let open = at + OPENERS.get(which).map_or(0, |o| o.len());
-        let quote = match html.as_bytes().get(open) {
-            Some(b'"') => Some('"'),
-            Some(b'\'') => Some('\''),
-            _ => None,
-        };
+        let open = at + opener.len();
+        let quote = html.as_bytes().get(open).copied().filter(|q| matches!(q, b'"' | b'\''));
         let start = open + usize::from(quote.is_some());
-        // Where the address ends: its quote (and `)` for `url(`), or `)` for an unquoted `url(`;
         // `background=` without a quote isn't one of them.
-        let close = match (quote, url) {
-            (Some(q), true) => Some(format!("{q})")),
-            (Some(q), false) => Some(q.to_string()),
-            (None, true) => Some(")".to_string()),
+        let closer = match (quote, url) {
+            (Some(b'"'), true) => Some(0),
+            (Some(_), true) => Some(1),
+            (Some(b'"'), false) => Some(2),
+            (Some(_), false) => Some(3),
+            (None, true) => Some(4),
             (None, false) => None,
         };
-        let end = close.and_then(|c| html.get(start..)?.find(&c)).map(|e| start + e);
-        if let Some(end) = end
-            && let Some(own) = html.get(start..end).and_then(|a| behind.get(a))
-        {
-            out.push_str(html.get(last..start).unwrap_or(""));
-            out.push_str(own);
-            last = end;
-        }
-        // On past this one, and to the next of its kind.
+        let end = closer.and_then(|c| {
+            let kept = closed.get_mut(c)?;
+            match *kept {
+                Some((from, at)) if from <= start && at.is_none_or(|at| at >= start) => at,
+                _ => {
+                    let at = next(start, CLOSERS.get(c).copied()?);
+                    *kept = Some((start, at));
+                    at
+                }
+            }
+        });
+        let own = end.filter(|end| end.saturating_sub(start) <= longest).and_then(|end| Some((end, behind.get(html.get(start..end)?)?)));
+        // On past this one, and to the next of its kind: after an address written over, or just
+        // inside one that isn't given (an opener left open runs to another's closer, and the
+        // ones between are still to be read).
+        let on = match own {
+            Some((end, own)) => {
+                out.push_str(html.get(last..start).unwrap_or(""));
+                out.push_str(own);
+                last = end;
+                end
+            }
+            None => open,
+        };
         if let Some(f) = found.get_mut(which) {
-            *f = next(end.unwrap_or(open).max(open), OPENERS.get(which).copied().unwrap_or(""));
+            *f = next(on, opener);
         }
     }
     out.push_str(html.get(last..).unwrap_or(""));
