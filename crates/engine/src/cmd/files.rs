@@ -40,7 +40,15 @@ fn add_to_folder(s: &mut Session, v: &Value) -> CmdResult {
     let paths: Vec<String> = v
         .get("paths")
         .and_then(Value::as_array)
-        .map(|l| l.iter().filter_map(Value::as_str).map(str::trim).filter(|p| !p.is_empty()).map(str::to_string).take(500).collect())
+        .map(|l| {
+            l.iter()
+                .filter_map(Value::as_str)
+                .map(str::trim)
+                .filter(|p| !p.is_empty())
+                .map(str::to_string)
+                .take(mailcraft_model::job::MESSAGE_FILES_MAX)
+                .collect()
+        })
         .unwrap_or_default();
     if paths.is_empty() {
         return Err(CmdError::Params("`paths` names no files".into()));

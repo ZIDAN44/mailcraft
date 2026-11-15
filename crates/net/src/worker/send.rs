@@ -38,9 +38,7 @@ impl Worker {
             let Some(job) = waiting.remove(next) else { continue };
             self.fresh_token();
             match job {
-                Job::Send { account, id, raw, from, recipients, sent_folder } => {
-                    self.send_quick(Job::Send { account, id, raw, from, recipients, sent_folder });
-                }
+                j @ Job::Send { .. } => self.send_quick(j),
                 j @ (Job::GetVacation { .. } | Job::SetVacation { .. }) => self.handle(j),
                 // The whole of a message whose text the main connection gave first; or one opened
                 // while the main connection was busy, its text first when that's quicker.

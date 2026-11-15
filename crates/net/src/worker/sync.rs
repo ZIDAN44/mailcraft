@@ -238,7 +238,6 @@ impl Worker {
         self.folders.iter().find(|f| f.role == FolderRole::Inbox).map(|f| f.path.clone())
     }
 
-    /// The folder list, then every folder (Inbox first), staying responsive to opened messages.
     /// Refresh the folder list from the server; `false` when that failed.
     pub(super) fn relist(&mut self) -> bool {
         self.relist_as(false)
@@ -261,8 +260,8 @@ impl Worker {
             Some(Conn::Pop) => crate::pop::folders(&self.store, &id),
             None => Err(NetError::Closed("not connected".into())),
         };
-        let jmap = matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_) | Conn::Ews(_)));
-        if jmap {
+        let api = matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_) | Conn::Ews(_)));
+        if api {
             self.save_jstate();
         }
         match listed {
@@ -274,8 +273,8 @@ impl Worker {
                 if !matches!(self.conn, Some(Conn::Pop)) {
                     self.token_retried = false;
                 }
-                // JMAP lists the counts; IMAP's come from each folder's sync.
-                for f in list.iter_mut().filter(|_| !jmap) {
+                // JMAP, Graph and Exchange list the counts; IMAP's come from each folder's sync.
+                for f in list.iter_mut().filter(|_| !api) {
                     if let Some(old) = self.folders.iter().find(|o| o.path == f.path) {
                         f.unread = old.unread;
                         f.total = old.total;
@@ -336,6 +335,7 @@ impl Worker {
         read().inspect_err(|e| log::warn!("{id}: the folders gone from the server keep their cache for now: {e}")).ok()
     }
 
+    /// The folder list, then every folder (Inbox first), staying responsive to opened messages.
     pub(super) fn sync_all(&mut self, rx: &Receiver<Job>) {
         let began = Instant::now();
         if !self.relist() {
@@ -395,7 +395,7 @@ impl Worker {
             self.last_full = Some(Instant::now());
             self.looked = self.last_full;
             // All of it read: a connection lost from here on is tried again soonest.
-            self.backoff = Duration::from_secs(5);
+            self.backoff = FIRST_BACKOFF;
             // Anything left from a failed attempt gets another try every full sync.
             self.flush_outbox();
             log::info!("{}: synced {} folders in {:.1} s", self.acc.id, self.folders.len(), began.elapsed().as_secs_f32());

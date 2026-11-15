@@ -210,7 +210,7 @@ impl Worker {
     /// again every five seconds for good, the folders after that one never read.
     fn signed_in(&mut self) {
         if self.main.is_some() {
-            self.backoff = Duration::from_secs(5);
+            self.backoff = FIRST_BACKOFF;
         }
     }
 

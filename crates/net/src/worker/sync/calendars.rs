@@ -135,7 +135,7 @@ impl Worker {
         let now_at = Instant::now();
         match done {
             Ok(()) => {
-                self.backoff = Duration::from_secs(5);
+                self.backoff = FIRST_BACKOFF;
                 self.status(SyncStatus::Online { at: now() });
                 let every = self.check_every().unwrap_or(MINUTE.saturating_mul(CALENDAR_MINUTES));
                 now_at.checked_add(every)

@@ -266,6 +266,10 @@ impl ImportReport {
     }
 }
 
+/// The most message files [`super::Job::FileMessages`] puts into a folder at once: the engine
+/// asks for no more, and the network layer takes no more.
+pub const MESSAGE_FILES_MAX: usize = 500;
+
 /// What kind of data file a file is, by its name.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]

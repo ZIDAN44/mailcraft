@@ -379,6 +379,9 @@ const SENT_SOON: Duration = Duration::from_secs(3);
 const SENT_LATER: Duration = Duration::from_secs(15);
 /// An account's second connection lets go after this long with nothing to do.
 const QUICK_IDLE: Duration = Duration::from_secs(5 * 60);
+/// The first wait before connecting again after a connection is lost; it grows with each failure,
+/// and comes back to this once signed in again (the second connection) or synced (the main one).
+const FIRST_BACKOFF: Duration = Duration::from_secs(5);
 
 struct Worker {
     acc: AccountConfig,
@@ -565,7 +568,7 @@ impl Worker {
             whole_only: Arc::default(),
             busy: Arc::default(),
             waits: Arc::default(),
-            backoff: Duration::from_secs(5),
+            backoff: FIRST_BACKOFF,
             next_attempt: Instant::now(),
             last_full: None,
             looked: None,

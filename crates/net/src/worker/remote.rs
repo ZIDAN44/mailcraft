@@ -7,6 +7,11 @@ use mailcraft_model::Flags;
 use mailcraft_model::Summary;
 use mailcraft_model::job::Vacation;
 
+/// The most of a message's own keywords given a server with it.
+const KEYWORDS_MAX: usize = 32;
+/// The most messages one IMAP command names (a set of UIDs some servers take only so long).
+const UID_CHUNK: usize = 500;
+
 /// The connection to an account's server.
 pub(super) enum Conn {
     Imap(Client<Stream>),
@@ -200,7 +205,7 @@ fn imap_flags(flags: &Flags, keywords: bool) -> String {
         }
         // Any a server takes: MailCraft's own for a category (`to=20do` for "To do") has a
         // `=` in it, and was left behind with the message's categories.
-        out.extend(flags.keywords.iter().filter(|k| mailcraft_model::is_keyword(k)).take(32).map(String::as_str));
+        out.extend(flags.keywords.iter().filter(|k| mailcraft_model::is_keyword(k)).take(KEYWORDS_MAX).map(String::as_str));
     }
     out.join(" ")
 }
@@ -215,7 +220,7 @@ fn jmap_keywords(flags: &Flags) -> Vec<&str> {
             out.push(name);
         }
     }
-    out.extend(flags.keywords.iter().filter(|k| mailcraft_model::is_keyword(k)).take(32).map(String::as_str));
+    out.extend(flags.keywords.iter().filter(|k| mailcraft_model::is_keyword(k)).take(KEYWORDS_MAX).map(String::as_str));
     out
 }
 
@@ -234,7 +239,7 @@ pub(super) fn by_folder<S: std::io::Read + std::io::Write>(
         if uids.is_empty() {
             continue;
         }
-        for chunk in uids.chunks(500) {
+        for chunk in uids.chunks(UID_CHUNK) {
             f(c, folder, &uid_set(chunk))?;
         }
     }
@@ -263,7 +268,7 @@ pub(super) fn expunge_keys<S: std::io::Read + std::io::Write>(c: &mut Client<S>,
     })?;
     if let (Some(t), false) = (to_trash, in_trash.is_empty()) {
         c.select(t, false)?;
-        for chunk in in_trash.chunks(500) {
+        for chunk in in_trash.chunks(UID_CHUNK) {
             let set = uid_set(chunk);
             c.uid_store(&set, true, Flag::Deleted.imap())?;
             c.expunge(&set)?;

@@ -3,12 +3,10 @@
 //! and read; and a `.msg` read to be shown, as a mail file opened with MailCraft. (With the
 //! imports: they bring mail in from files too.)
 
+use mailcraft_model::job::MESSAGE_FILES_MAX;
 use mailcraft_model::{Flags, MessageKey};
 
 use super::*;
-
-/// The most files taken at once.
-const MAX_FILES: usize = 500;
 
 /// A message file read as a standard message: an Outlook `.msg` made one, else the file as it is
 /// when it reads as a message.
@@ -38,7 +36,7 @@ pub(in crate::worker) fn file_name(path: &str) -> String {
 /// Read each file, and put the messages in with `put`: how many went in, and those that didn't.
 fn file_each(paths: &[String], mut put: impl FnMut(&[u8]) -> Result<()>) -> (usize, Vec<(String, String)>) {
     let (mut added, mut failed) = (0usize, Vec::new());
-    for path in paths.iter().take(MAX_FILES) {
+    for path in paths.iter().take(MESSAGE_FILES_MAX) {
         match read_message_file(path) {
             Ok(raw) => match put(&raw) {
                 Ok(()) => added += 1,

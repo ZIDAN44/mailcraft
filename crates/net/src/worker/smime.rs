@@ -261,14 +261,12 @@ impl Pool {
                     let chain = [vec![cert], mailcraft_keys::windows::issuers(&at)].concat();
                     #[cfg(not(windows))]
                     let chain = vec![cert];
-                    let me = Me { chain, key: MyKey::Held { at, pin } };
                     // It's used once here, so a wrong PIN or a card taken out says so now (the PIN
                     // was just typed: the user's to try).
-                    let MyKey::Held { at, pin } = &me.key else { return Err("the key can't be found again".to_string()) };
-                    let pin = pin.as_ref().map(|p| p.0.as_str());
-                    with_held(at, pin, mailcraft_keys::pkcs11::PinFrom::Typed, |k| smime::sign_with(b"MailCraft", &me.chain, k, now()))
+                    let typed = pin.as_ref().map(|p| p.0.as_str());
+                    with_held(&at, typed, mailcraft_keys::pkcs11::PinFrom::Typed, |k| smime::sign_with(b"MailCraft", &chain, k, now()))
                         .map_err(|e| e.to_string())?;
-                    kept::take(creds.as_ref(), &account, &me, now())
+                    kept::take(creds.as_ref(), &account, &Me { chain, key: MyKey::Held { at, pin } }, now())
                 });
                 sink.emit(identity(account.id, done));
             }
