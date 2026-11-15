@@ -310,12 +310,26 @@ pub(super) fn seal(db: &Database, seals: &Seals, account: &str) -> io::Result<()
 /// is held: a commit that began before and wasn't sealed has said so by then (it says so before
 /// it commits), so none slips in unsealed between the look and the seal.
 pub(super) fn seal_if_due(db: &Database, seals: &Seals, account: &str) -> io::Result<()> {
-    let mut tx = db.begin_write().map_err(disk)?;
+    let tx = db.begin_write().map_err(disk)?;
     if !seals.seal_due(account) {
         return tx.abort().map_err(disk);
     }
+    commit_sealed(tx, seals, account)
+}
+
+/// A sealed commit of `account`'s data file that makes only the changes `f` makes (to `META`).
+pub(super) fn seal_with(db: &Database, seals: &Seals, account: &str, f: impl FnOnce(&redb::WriteTransaction) -> io::Result<()>) -> io::Result<()> {
+    let tx = db.begin_write().map_err(disk)?;
+    f(&tx)?;
+    commit_sealed(tx, seals, account)
+}
+
+/// `tx` committed sealed and durable: what was waiting for the disk is on it, and nothing
+/// written before it waits for a seal any more (the thread would only seal the file again).
+fn commit_sealed(mut tx: redb::WriteTransaction, seals: &Seals, account: &str) -> io::Result<()> {
     tx.set_quick_repair(true);
     let before = seals.count(account, None);
+    // Taken with the writer held: a write noted after it still waits for its seal.
     let at = Instant::now();
     tx.commit().map_err(|e| {
         seals.restore(account, before);
@@ -323,21 +337,6 @@ pub(super) fn seal_if_due(db: &Database, seals: &Seals, account: &str) -> io::Re
     })?;
     seals.timed(true, at.elapsed());
     seals.sealed(account, at);
-    Ok(())
-}
-
-/// A sealed commit of `account`'s data file that makes only the changes `f` makes (to `META`).
-pub(super) fn seal_with(db: &Database, seals: &Seals, account: &str, f: impl FnOnce(&redb::WriteTransaction) -> io::Result<()>) -> io::Result<()> {
-    let mut tx = db.begin_write().map_err(disk)?;
-    tx.set_quick_repair(true);
-    f(&tx)?;
-    let before = seals.count(account, None);
-    let at = Instant::now();
-    tx.commit().map_err(|e| {
-        seals.restore(account, before);
-        disk(e)
-    })?;
-    seals.timed(true, at.elapsed());
     Ok(())
 }
 

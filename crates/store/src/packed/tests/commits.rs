@@ -303,6 +303,22 @@ fn a_sealed_commit_leaves_a_later_write_waiting_for_its_seal() {
     drop(s);
 }
 
+/// A seal asked for (an import's end) leaves nothing waiting for the thread to seal again once
+/// quiet; a write after it waits for its own.
+#[test]
+fn a_seal_asked_for_is_not_made_again_once_quiet() {
+    let t = temp("asked-seal");
+    let s = packed_store(&t);
+    let packs = packs(&s);
+    s.write_body(&inbox(1), b"Subject: x\r\n\r\nx").unwrap();
+    assert!(packs.seals.waiting_for("a1"));
+    s.seal("a1").unwrap();
+    assert!(!packs.seals.waiting_for("a1"), "sealed, yet still due for another seal");
+    s.write_body(&inbox(2), b"Subject: y\r\n\r\ny").unwrap();
+    assert!(packs.seals.waiting_for("a1"), "a write after the seal waits for its own");
+    drop(s);
+}
+
 /// An account removed lets go of its data file for good: a seal under way ends first (it held the
 /// file open, so it couldn't be opened again or deleted), and none is left waiting for it.
 #[test]
