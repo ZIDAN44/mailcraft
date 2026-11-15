@@ -66,12 +66,7 @@ fn a_restart_keeps_the_drafts_on_their_way_first() {
     });
     let store = crate::fake::tests_store("restart-drafts");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
-        ..Default::default()
-    };
+    let account = imap_account("a1", port);
     pool.submit(Job::Start { account: account.clone(), password: Some(Secret("pw".into())) });
     let draft = b"Subject: Plans\r\nMessage-ID: <restart@studio.example>\r\n\r\nto finish\r\n".to_vec();
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: draft.clone(), folder: "Drafts".into(), replaces: None });
@@ -100,12 +95,7 @@ fn what_was_written_after_a_save_is_kept_on_close() {
     });
     let store = crate::fake::tests_store("written-after-save");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
-        ..Default::default()
-    };
+    let account = imap_account("a1", port);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     let saved = b"Subject: Plans\r\nMessage-ID: <later@studio.example>\r\n\r\nto finish\r\n".to_vec();
     let written = b"Subject: Plans\r\nMessage-ID: <later@studio.example>\r\n\r\nto finish, and the rest of it\r\n".to_vec();
@@ -134,13 +124,7 @@ pub(super) fn with_drafts(name: &str) -> (Arc<Mutex<crate::fake::State>>, Store,
         expunged: Vec::new(),
     });
     let port = crate::fake::serve_tcp(&st);
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
-        ..Default::default()
-    };
+    let account = imap_account("a1", port);
     let store = crate::fake::tests_store(name);
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     (st, store, account)
@@ -234,12 +218,7 @@ fn the_next_runs_failed_save_replaces_the_draft_kept_on_close() {
     // Nothing listening there.
     let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
-        ..Default::default()
-    };
+    let account = imap_account("a1", port);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     let newer = b"Subject: Plans\r\nMessage-ID: <y@studio.example>\r\n\r\nwritten the next day\r\n".to_vec();
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: newer, folder: "Drafts".into(), replaces: None });
@@ -350,13 +329,7 @@ fn a_removed_accounts_saved_draft_writes_nothing() {
     let port = crate::fake::serve_tcp(&st);
     let store = crate::fake::tests_store("removed-saved");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
-    let acc = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
-        ..Default::default()
-    };
+    let acc = imap_account("a1", port);
     let (hold, holding) = crate::fake::Hold::on("APPEND");
     st.lock().unwrap().hold_on = Some(hold);
     let w = Worker::new(acc, Auth::shared("pw"), store.clone(), pool.sink.clone(), SyncOptions::default());

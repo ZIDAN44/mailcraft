@@ -2,11 +2,12 @@
 //! kept here.
 
 use mailcraft_model::job::Secret;
-use mailcraft_model::{AccountConfig, Flags, MessageKey, Security, ServerConfig, SyncStatus};
+use mailcraft_model::{AccountConfig, Flags, MessageKey, SyncStatus};
 
 use super::*;
 use crate::fake::{State, serve_tcp};
 use crate::waiting::until;
+use crate::worker::tests::{imap_account, no_smtp, pop_account};
 
 mod kinds;
 
@@ -54,14 +55,7 @@ fn message_files_go_into_a_server_folder() {
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.test".into(),
-        username: "me@studio.test".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port: serve_tcp(&st), security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = AccountConfig { smtp: no_smtp(), ..imap_account("a1", serve_tcp(&st)) };
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let (dir, paths) = files("imap");
@@ -121,14 +115,7 @@ fn copies_of_mail_kept_here_go_into_a_server_folder() {
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.test".into(),
-        username: "me@studio.test".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port: serve_tcp(&st), security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = AccountConfig { smtp: no_smtp(), ..imap_account("a1", serve_tcp(&st)) };
     // Two messages of a data file's, one with its source here.
     let key = |uid| MessageKey { account: "file".into(), folder: "Kept".into(), validity: 1, uid };
     let raw = b"From: Zoe <zoe@studio.test>\r\nTo: me@studio.test\r\nSubject: From the file\r\nMessage-ID: <kept@studio.test>\r\nDate: Mon, 2 Nov 2026 10:00:00 +0000\r\n\r\nHi.\r\n";

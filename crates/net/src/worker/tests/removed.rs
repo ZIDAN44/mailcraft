@@ -20,13 +20,7 @@ fn a_folder_synced_as_its_account_is_removed_writes_nothing() {
     let port = crate::fake::serve_tcp(&st);
     let store = crate::fake::tests_store("removed-mid-sync");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
-    let acc = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
-        ..Default::default()
-    };
+    let acc = imap_account("a1", port);
     let w = Worker::new(acc, Auth::shared("pw"), store.clone(), pool.sink.clone(), SyncOptions::default());
     let (tx, rx) = mpsc::channel();
     tx.send(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() }).unwrap();

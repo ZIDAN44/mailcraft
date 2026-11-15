@@ -29,13 +29,7 @@ fn a_folder_kept_for_changes_waiting_keeps_its_cache_when_they_cant_be_read() {
     cache_one(&store, "Plans");
     store.add_op("a1", Op::RenameFolder { from: "Archive".into(), to: "Plans".into() }).unwrap();
     let pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
-    let acc = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
-        ..Default::default()
-    };
+    let acc = imap_account("a1", port);
     let mut w = Worker::new(acc, Auth::shared("pw"), store.clone(), pool.sink.clone(), SyncOptions::default());
     w.connect().unwrap();
     let cached = || store.load_folder("a1", "Plans").map(|f| f.messages.len()).unwrap_or(0);

@@ -70,13 +70,7 @@ fn a_message_opened_on_an_imap_server_comes_each_way() {
     crate::fakes::fake_dav::looked_for_today(&store, "i1");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    let acc = AccountConfig {
-        id: "i1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
-        ..Default::default()
-    };
+    let acc = imap_account("i1", port);
     each_way_says(&mut pool, &store, &acc, "pw", &raw);
     let _ = std::fs::remove_dir_all(store.root());
 }
@@ -145,13 +139,7 @@ fn a_pop_message_not_here_is_said_to_be_nowhere() {
     let server = crate::pop::fake::serve(Vec::new());
     let store = crate::fake::tests_store("opening-pop");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
-    let acc = AccountConfig {
-        id: "p1".into(),
-        email: "me@pop.example".into(),
-        username: "me@pop.example".into(),
-        pop: Some(mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port: server.port, security: mailcraft_model::Security::None }),
-        ..Default::default()
-    };
+    let acc = pop_account(server.port);
     let key = MessageKey { account: "p1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
     let said = opened_each_way(&mut pool, &store, &acc, "pw", &key);
     let nowhere = Event::BodyFailed { key, error: "the server refused: this message isn't on this computer".into() };

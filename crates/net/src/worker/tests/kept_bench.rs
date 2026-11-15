@@ -41,13 +41,7 @@ fn kept_drafts_filed_timed() {
         expunged: Vec::new(),
     });
     let port = crate::fake::serve_tcp(&st);
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
-        ..Default::default()
-    };
+    let account = imap_account("a1", port);
     // The app's store: each account one data file.
     let root = std::env::temp_dir().join(format!("mailcraft-kept-bench-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);

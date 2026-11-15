@@ -113,14 +113,7 @@ fn every_kind_of_server_takes_message_files_and_copies() {
     let store = crate::fake::store("filing-kinds-pop");
     crate::fakes::fake_dav::looked_for_today(&store, "p1");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "p1".into(),
-        email: "me@pop.example".into(),
-        username: "me@pop.example".into(),
-        pop: Some(ServerConfig { host: "127.0.0.1".into(), port: server.port, security: Security::None }),
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = AccountConfig { smtp: no_smtp(), ..pop_account(server.port) };
     let (added, copied, said) = file_both(&mut pool, &store, account, "pw", "Archive", "kinds-pop", &String::new);
     assert_eq!((added, copied), (2, 1));
     let changed = said.iter().filter(|e| matches!(e, Event::FolderChanged { folder, .. } if folder == "Archive")).count();
@@ -141,14 +134,7 @@ fn a_copy_imap_wont_keep_as_marked_goes_in_without_what_it_wont_keep() {
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.test".into(),
-        username: "me@studio.test".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port: serve_tcp(&st), security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = AccountConfig { smtp: no_smtp(), ..imap_account("a1", serve_tcp(&st)) };
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let key = kept_here(&store);

@@ -24,6 +24,35 @@ mod read_errors;
 mod removed;
 mod unstarted;
 
+/// An account `id` on an IMAP server of the tests' own at `port` on this computer, signing in as
+/// `me@studio.example`.
+pub(crate) fn imap_account(id: &str, port: u16) -> AccountConfig {
+    AccountConfig {
+        id: id.into(),
+        email: "me@studio.example".into(),
+        username: "me@studio.example".into(),
+        imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
+        ..Default::default()
+    }
+}
+
+/// An outgoing server on this computer where nothing listens (port 1).
+pub(crate) fn no_smtp() -> mailcraft_model::ServerConfig {
+    mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port: 1, security: mailcraft_model::Security::None }
+}
+
+/// The POP account `p1` on a server of the tests' own at `port` on this computer, signing in as
+/// `me@pop.example`.
+pub(crate) fn pop_account(port: u16) -> AccountConfig {
+    AccountConfig {
+        id: "p1".into(),
+        email: "me@pop.example".into(),
+        username: "me@pop.example".into(),
+        pop: Some(mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None }),
+        ..Default::default()
+    }
+}
+
 /// Sent Items asked for after each of several messages is read once.
 #[test]
 fn a_folder_waiting_to_be_read_isnt_queued_twice() {
@@ -254,13 +283,7 @@ fn synced_mail_is_indexed_and_found() {
     let store = crate::fake::tests_store("indexed");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.example".into(),
-        username: "me@studio.example".into(),
-        imap: mailcraft_model::ServerConfig { host: "127.0.0.1".into(), port, security: mailcraft_model::Security::None },
-        ..Default::default()
-    };
+    let account = imap_account("a1", port);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     // Asked twice in a row: one pass.

@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use mailcraft_model::job::Secret;
-use mailcraft_model::{AccountConfig, Security, ServerConfig, SyncStatus};
+use mailcraft_model::{AccountConfig, SyncStatus};
 
 use super::*;
 use crate::fake::{State, serve_tcp};
@@ -24,15 +24,7 @@ fn start(name: &str, minutes: Option<u32>) -> (std::sync::Arc<std::sync::Mutex<S
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@studio.test".into(),
-        username: "me@studio.test".into(),
-        imap: ServerConfig { host: "127.0.0.1".into(), port: serve_tcp(&st), security: Security::None },
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        check_every: minutes,
-        ..Default::default()
-    };
+    let account = AccountConfig { smtp: no_smtp(), check_every: minutes, ..imap_account("a1", serve_tcp(&st)) };
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", online);
     (st, pool, store)
@@ -132,15 +124,7 @@ fn a_pop_account_downloads_at_its_set_time() {
     crate::fakes::fake_dav::looked_for_today(&store, "p1");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    let account = AccountConfig {
-        id: "p1".into(),
-        email: "me@pop.example".into(),
-        username: "me@pop.example".into(),
-        pop: Some(ServerConfig { host: "127.0.0.1".into(), port: server.port, security: Security::None }),
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        check_every: Some(2),
-        ..Default::default()
-    };
+    let account = AccountConfig { smtp: no_smtp(), check_every: Some(2), ..pop_account(server.port) };
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", online);
     let mail = b"From: a@x.example\r\nTo: me@pop.example\r\nSubject: Hi\r\nMessage-ID: <n@x>\r\n\r\nhi\r\n".to_vec();

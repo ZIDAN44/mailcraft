@@ -24,14 +24,8 @@ fn a_copy_filed_in_a_folder_with_mail_shows_at_once() {
         crate::pop::file_locally(&store, "p1", folder, MAIL, Flags { seen: true, ..Default::default() }, 1).unwrap();
     }
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "p1".into(),
-        email: "me@pop.example".into(),
-        username: "me@pop.example".into(),
-        pop: Some(ServerConfig { host: "127.0.0.1".into(), port: server.port, security: Security::None }),
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: smtp_port, security: Security::None },
-        ..Default::default()
-    };
+    let account =
+        AccountConfig { smtp: ServerConfig { host: "127.0.0.1".into(), port: smtp_port, security: Security::None }, ..pop_account(server.port) };
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
 
