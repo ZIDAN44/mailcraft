@@ -43,4 +43,14 @@ fn times_kept_past_any_calendar_dont_overflow() {
     (e.event.start, e.event.end) = (-1000, i64::MAX);
     let r = s.run("event.update", &json!({"uid": uid, "summary": "Longer"}));
     assert!(matches!(&r, Err(CmdError::Params(m)) if m.contains("a year at most")), "{r:?}");
+    // An all-day one kept before any calendar's days: brought to its day's start without an
+    // overflow (it panicked in a debug build, and wrapped to the far future in a release one).
+    for (start, end) in [(i64::MIN, i64::MIN + 86_400), (i64::MIN + 1, i64::MIN)] {
+        let e = s.pim_mut("sample").events.iter_mut().find(|e| e.event.uid == uid).unwrap();
+        (e.event.start, e.event.end, e.event.all_day) = (start, end, true);
+        let r = s.run("event.update", &json!({"uid": uid, "summary": "Early"}));
+        assert!(!matches!(&r, Err(CmdError::Failed(m)) if m.contains("unexpectedly")), "{r:?}");
+        let e = &s.find_event(&uid).unwrap().1.event;
+        assert!(e.start < 0 && e.end < 0 && e.end >= e.start, "{e:?}");
+    }
 }

@@ -338,8 +338,9 @@ pub(super) fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::C
         e.end = if all_day && e.all_day { t.saturating_add(86_400) } else { t };
     }
     if e.all_day {
-        e.start -= e.start.rem_euclid(86_400);
-        e.end = (e.end - e.end.rem_euclid(86_400)).max(e.start.saturating_add(86_400));
+        // Times kept in the calendar's file are whatever it holds: none overflows here.
+        e.start = e.start.saturating_sub(e.start.rem_euclid(86_400));
+        e.end = e.end.saturating_sub(e.end.rem_euclid(86_400)).max(e.start.saturating_add(86_400));
     } else if e.tzid.is_empty()
         && let Some(zone) = s.clock.zone.and_then(|z| z.name())
     {
