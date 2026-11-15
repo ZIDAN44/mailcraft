@@ -4,7 +4,7 @@
 //! ```text
 //! MAILCRAFT_REAL_INVITES="127.0.0.1:21510 http://127.0.0.1:21532/riley@studio.example/personal/" \
 //! MAILCRAFT_REAL_INVITES_JMAP="http://127.0.0.1:21508 riley pw" \
-//! MAILCRAFT_REAL_TOGETHER="127.0.0.1:21510 http://127.0.0.1:21532/riley@studio.example/personal/" \
+//! MAILCRAFT_REAL_INVITES_TOGETHER="127.0.0.1:21510 http://127.0.0.1:21532/riley@studio.example/personal/" \
 //!   cargo test -p mailcraft-cli --test real_invitations -- --ignored --nocapture
 //! ```
 //!
@@ -302,19 +302,20 @@ fn check_stored(ics: &str, uid: &str) {
     }
 }
 
-/// Dovecot and Radicale (`MAILCRAFT_REAL_TOGETHER="imap calendar"`, as MAILCRAFT_REAL_INVITES):
+/// Dovecot and Radicale (`MAILCRAFT_REAL_INVITES_TOGETHER="imap calendar"`, as
+/// MAILCRAFT_REAL_INVITES; not `real_mail_together.rs`'s MAILCRAFT_REAL_TOGETHER, three servers):
 /// the Outlook invitation arrives while the calendar server can't be reached, is held, accepted
 /// in its message (out of the Inbox), then stored in the server's calendar busy, with its
 /// meeting; made private and out of office, it's stored so, and found by its meeting's link.
 #[test]
 #[ignore]
 fn real_outlook_meeting_held_accepted_private_and_found() {
-    let Ok(v) = std::env::var("MAILCRAFT_REAL_TOGETHER") else {
-        eprintln!("MAILCRAFT_REAL_TOGETHER isn't set: skipped");
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_INVITES_TOGETHER") else {
+        eprintln!("MAILCRAFT_REAL_INVITES_TOGETHER isn't set: skipped");
         return;
     };
     let p: Vec<&str> = v.split_whitespace().collect();
-    let [imap, calendar] = p.as_slice() else { panic!("MAILCRAFT_REAL_TOGETHER: imap calendar") };
+    let [imap, calendar] = p.as_slice() else { panic!("MAILCRAFT_REAL_INVITES_TOGETHER: imap calendar") };
     let target = calendar.trim_start_matches("http://").split('/').next().unwrap().to_string();
     let (proxy_port, mode) = proxy(&target);
     let home = calendar.trim_end_matches('/').rsplit_once('/').unwrap().0.to_string() + "/";
