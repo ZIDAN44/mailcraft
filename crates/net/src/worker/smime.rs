@@ -158,10 +158,6 @@ fn find_held(module: Option<&str>, pin: Option<&str>) -> std::result::Result<Vec
         .collect())
 }
 
-fn now() -> i64 {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(0)).unwrap_or(0)
-}
-
 /// `raw` signed and/or encrypted with `id`, as it will be sent.
 pub(crate) fn protect(
     raw: &[u8],

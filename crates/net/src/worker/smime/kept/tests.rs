@@ -46,6 +46,15 @@ fn the_key_is_kept_in_the_keychain_and_comes_back() {
     assert_eq!(unhex("zz"), None);
 }
 
+/// Every byte kept in the keychain as the two lower-case digits it always was comes back.
+#[test]
+fn every_byte_kept_as_hex_comes_back() {
+    let all: Vec<u8> = (0..=255).collect();
+    let written = hex(&all);
+    assert_eq!(written, all.iter().map(|x| format!("{x:02x}")).collect::<String>());
+    assert_eq!(unhex(&written), Some(all));
+}
+
 /// Issue #6: a certificate renewed. Whichever order they're imported in, the newer signs and
 /// encrypts and the older is kept to read mail encrypted to it; each message opens with the key
 /// it was sent to, and mail for neither says what's missing.

@@ -199,6 +199,11 @@ pub(crate) fn now() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX)).unwrap_or(0)
 }
 
+/// `m` locked, even when a thread panicked holding it: what it guards is still read.
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 impl Pool {
     pub fn new(store: Store, creds: Arc<dyn Credentials>) -> Pool {
         let (tx, rx) = mpsc::channel();

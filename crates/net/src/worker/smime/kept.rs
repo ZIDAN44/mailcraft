@@ -5,6 +5,8 @@
 //! holds.
 
 use super::*;
+use crate::hex;
+use crate::worker::credentials::unhex;
 
 /// The keychain entry, next to the account's password.
 pub(super) const SECRET: &str = "smime";
@@ -41,17 +43,6 @@ struct Kept {
     held: Option<KeyRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pin: Option<Secret>,
-}
-
-pub(super) fn hex(b: &[u8]) -> String {
-    b.iter().map(|x| format!("{x:02x}")).collect()
-}
-
-pub(super) fn unhex(s: &str) -> Option<Vec<u8>> {
-    if !s.len().is_multiple_of(2) {
-        return None;
-    }
-    (0..s.len()).step_by(2).map(|i| s.get(i..i + 2).and_then(|p| u8::from_str_radix(p, 16).ok())).collect()
 }
 
 fn write(creds: &dyn Credentials, account: &AccountConfig, entry: &str, me: &Me) -> std::result::Result<(), String> {

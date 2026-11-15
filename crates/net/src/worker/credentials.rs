@@ -69,6 +69,15 @@ impl Credentials for MemoryCredentials {
     }
 }
 
+/// The bytes a keychain entry keeps as hex ([`crate::hex`]: a key's secret part, a certificate)
+/// back, either case; `None` for anything else.
+pub(super) fn unhex(s: &str) -> Option<Vec<u8>> {
+    if !s.len().is_multiple_of(2) {
+        return None;
+    }
+    (0..s.len()).step_by(2).map(|i| s.get(i..i + 2).and_then(|p| u8::from_str_radix(p, 16).ok())).collect()
+}
+
 impl super::Sink {
     /// Says a password (`what`: "the password", "the outgoing server's password"…) couldn't be
     /// saved in the keychain, and why.

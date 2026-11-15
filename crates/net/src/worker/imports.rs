@@ -8,7 +8,6 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::PoisonError;
 
 use mailcraft_model::job::{Blocked, DataFileFacts, ITEM_WEIGHT, ImportPhase, ImportProgress, ImportReport, StopHow, Work};
 use mailcraft_model::pim::{PIM_DOC, Pim};
@@ -77,10 +76,6 @@ enum Next {
     Reread { path: String },
     /// Keep what a stopped import brought in as it is.
     Keep,
-}
-
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 impl Pool {

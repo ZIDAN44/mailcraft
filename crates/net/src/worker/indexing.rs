@@ -102,10 +102,6 @@ struct Shared {
     latest: Latest,
 }
 
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
 /// The pool's side of the indexer: its thread started at the first ask.
 #[derive(Default)]
 pub(super) struct Indexer {
