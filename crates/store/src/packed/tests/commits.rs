@@ -319,6 +319,33 @@ fn a_seal_asked_for_is_not_made_again_once_quiet() {
     drop(s);
 }
 
+/// When the sealing thread can't be started (the system has no more threads), writes go on, and
+/// starting it isn't tried again for each one: once a while has passed, when it starts.
+#[test]
+fn a_sealing_thread_that_cant_start_isnt_tried_on_every_write() {
+    use crate::packed::commit::{NO_THREAD, STARTS_TRIED};
+    let t = temp("seal-no-thread");
+    NO_THREAD.set(true);
+    STARTS_TRIED.set(0);
+    let s = packed_store(&t);
+    let write = |uid| s.write_prepared(vec![(inbox(uid), Store::prepare(true, b"Subject: x\r\n\r\nx".to_vec()))], false).unwrap();
+    for uid in 1..=5 {
+        write(uid);
+    }
+    let packs = packs(&s);
+    assert_eq!(STARTS_TRIED.get(), 1, "tried once, not for every write");
+    assert!(!packs.seals.thread_running() && packs.seals.waiting_for("a1"), "written, not sealed");
+    // A while later, it's tried again, and starts.
+    NO_THREAD.set(false);
+    write(6);
+    assert_eq!(STARTS_TRIED.get(), 1, "not yet");
+    packs.seals.thread_failed(Duration::from_secs(61));
+    write(7);
+    assert_eq!(STARTS_TRIED.get(), 2);
+    assert!(packs.seals.thread_running());
+    drop(s);
+}
+
 /// An account removed lets go of its data file for good: a seal under way ends first (it held the
 /// file open, so it couldn't be opened again or deleted), and none is left waiting for it.
 #[test]

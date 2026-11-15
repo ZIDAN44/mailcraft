@@ -1,4 +1,5 @@
-//! Store tests: a flag or category changed in a big folder's list ([`Store::apply_op`]).
+//! Store tests: a flag or category changed in a big folder's list ([`Store::apply_op`]), and
+//! marks kept on the store's thread for them ([`Store::mark_later`]).
 
 use mailcraft_model::{EmailAddress, Flag, Op};
 
@@ -61,6 +62,38 @@ fn a_flag_in_a_big_folder_writes_no_page() {
     st.messages.retain(|m| m.key.uid != 1);
     assert!(!s.has_marks(&s.folder_dir("a1", "INBOX").join(folders::MARKS)), "emptied");
     assert_eq!(Store::memory_from(s.snapshot(|_| true)).load_folder("a1", "INBOX").unwrap(), st);
+}
+
+/// When the thread for marks can't be started (the system has no more threads), marks are written
+/// as they're made, and starting it isn't tried again for each one: once a while has passed,
+/// when it starts.
+#[test]
+fn a_thread_for_marks_that_cant_start_isnt_tried_on_every_mark() {
+    let s = Store::memory();
+    let mut st = FolderState { validity: 3, uid_next: 11, messages: (1..=10).map(real).map(Into::into).collect(), ..Default::default() };
+    sort_newest_first(&mut st.messages);
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    let seen = Flags { seen: true, ..Default::default() };
+    let marks = |uid| vec![FolderMarks { folder: "INBOX".into(), validity: 3, flags: vec![(uid, seen.clone())] }];
+    marking::NO_THREAD.set(true);
+    marking::STARTS_TRIED.set(0);
+    for uid in 1..=5 {
+        s.mark_later("a1", marks(uid), Vec::new());
+    }
+    assert_eq!(marking::STARTS_TRIED.get(), 1, "tried once, not for every mark");
+    let back = s.load_folder("a1", "INBOX").unwrap();
+    assert!((1..=5).all(|uid| back.find(uid).unwrap().flags.seen), "written as they were made");
+    // A while later, it's tried again, and starts.
+    marking::NO_THREAD.set(false);
+    s.mark_later("a1", marks(6), Vec::new());
+    assert_eq!(marking::STARTS_TRIED.get(), 1, "not yet");
+    s.marks_thread_failed(std::time::Duration::from_secs(61));
+    s.mark_later("a1", marks(7), Vec::new());
+    assert_eq!(marking::STARTS_TRIED.get(), 2);
+    assert!(s.marks_thread_running());
+    assert!(s.flush_marks());
+    let back = s.load_folder("a1", "INBOX").unwrap();
+    assert!((1..=7).all(|uid| back.find(uid).unwrap().flags.seen));
 }
 
 /// How long one message flagged in a folder of 50,000 takes, on disk, and what it writes:

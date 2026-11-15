@@ -41,6 +41,11 @@ const GIVE_WAY: Duration = Duration::from_secs(1);
 /// logged with who waited: on the window's thread it held a frame (a hold of Down on a 38 GB
 /// data file once had frames of 0.5 and 1.8 s while marks were committed).
 pub(crate) const SLOW_WAIT: Duration = Duration::from_millis(50);
+/// After the thread for marks couldn't be started (the system had no more threads), marks are
+/// written as they're made, and it's tried again only once this has passed since: not before
+/// every mark (each paid for a failed start, and logged it).
+#[cfg(not(target_arch = "wasm32"))]
+const START_AGAIN: Duration = Duration::from_secs(60);
 
 /// One folder's messages marked: their number and what their flags are now, in the list of
 /// `validity` (a list made anew since isn't marked).
@@ -67,9 +72,31 @@ pub(crate) struct Marking {
     /// The thread's queue (none in the browser, which writes them at once): only the stores
     /// handing it marks hold it, so it closes, and the thread ends, once they have all gone.
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-    tx: Mutex<Option<Sender<Task>>>,
+    tx: Mutex<Thread>,
     /// What the thread shares with them.
     state: Arc<MarkState>,
+}
+
+/// The thread for marks, as the stores handing it marks know it.
+#[derive(Default)]
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+enum Thread {
+    /// Started with the first marks handed over.
+    #[default]
+    NotStarted,
+    /// Its queue.
+    Running(Sender<Task>),
+    /// It couldn't be started, last tried then: marks are written as they're made, and it's
+    /// tried again once [`START_AGAIN`] has passed.
+    Unavailable(std::time::Instant),
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Tests: the thread for marks can't be started on this thread (as when the system has no
+    /// more threads), and how many times it was tried.
+    pub(crate) static NO_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    pub(crate) static STARTS_TRIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[derive(Default)]
@@ -288,10 +315,24 @@ impl Store {
     #[cfg(not(target_arch = "wasm32"))]
     fn send_marks(&self, task: Task) -> std::result::Result<(), Task> {
         let mut tx = self.marking.tx.lock().unwrap_or_else(PoisonError::into_inner);
-        if tx.is_none() {
-            *tx = self.start_marking();
+        let start = match &*tx {
+            Thread::NotStarted => true,
+            Thread::Running(_) => false,
+            Thread::Unavailable(tried) => tried.elapsed() >= START_AGAIN,
+        };
+        if start {
+            *tx = match self.start_marking() {
+                Ok(sender) => Thread::Running(sender),
+                Err(e) => {
+                    // Told once: tried again later, quietly.
+                    if matches!(*tx, Thread::NotStarted) {
+                        log::warn!("read marks will be saved as they're made: {e}");
+                    }
+                    Thread::Unavailable(std::time::Instant::now())
+                }
+            };
         }
-        let Some(sender) = tx.as_ref() else { return Err(task) };
+        let Thread::Running(sender) = &*tx else { return Err(task) };
         // Counted before it's sent, so a flush right after waits for it.
         {
             let mut q = self.marking.queue();
@@ -301,7 +342,8 @@ impl Store {
         match sender.send(task) {
             Ok(()) => Ok(()),
             Err(mpsc::SendError(task)) => {
-                *tx = None;
+                // The thread ended: started again with the next.
+                *tx = Thread::NotStarted;
                 let mut q = self.marking.queue();
                 q.sent = q.sent.saturating_sub(1);
                 q.pending.pop_back();
@@ -314,7 +356,14 @@ impl Store {
     /// queue's sending end, so it ends once every store handing it marks has gone, and never
     /// waits on itself.
     #[cfg(not(target_arch = "wasm32"))]
-    fn start_marking(&self) -> Option<Sender<Task>> {
+    fn start_marking(&self) -> std::io::Result<Sender<Task>> {
+        #[cfg(test)]
+        {
+            STARTS_TRIED.set(STARTS_TRIED.get().saturating_add(1));
+            if NO_THREAD.get() {
+                return Err(std::io::Error::other("no thread (a test)"));
+            }
+        }
         let (tx, rx) = mpsc::channel::<Task>();
         let store = Store { marking: Arc::default(), ..self.clone() };
         let marking = self.marking.state.clone();
@@ -333,13 +382,21 @@ impl Store {
                 marking.written.notify_all();
             }
         });
-        match spawned {
-            Ok(_) => Some(tx),
-            Err(e) => {
-                log::warn!("read marks will be saved as they're made: {e}");
-                None
-            }
+        spawned.map(|_| tx)
+    }
+
+    /// Tests: the thread for marks last failed to start `ago`.
+    #[cfg(test)]
+    pub(crate) fn marks_thread_failed(&self, ago: Duration) {
+        if let Some(at) = std::time::Instant::now().checked_sub(ago) {
+            *self.marking.tx.lock().unwrap_or_else(PoisonError::into_inner) = Thread::Unavailable(at);
         }
+    }
+
+    /// Tests: whether the thread for marks is running.
+    #[cfg(test)]
+    pub(crate) fn marks_thread_running(&self) -> bool {
+        matches!(*self.marking.tx.lock().unwrap_or_else(PoisonError::into_inner), Thread::Running(_))
     }
 
     /// Write `task` (nothing for an account removed since): what the window should hear of.

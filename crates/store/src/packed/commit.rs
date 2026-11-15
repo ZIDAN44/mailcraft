@@ -126,13 +126,37 @@ struct Waiting {
     undurable: HashMap<String, usize>,
     /// The account whose data file the thread is sealing now (it holds the file meanwhile).
     sealing: Option<String>,
-    running: bool,
+    thread: SealThread,
     stop: bool,
     /// MailCraft is closing ([`Packs::seal_all`]): every commit is sealed.
     closing: bool,
     /// The most any data file has had waiting, and the biggest batch.
     #[cfg(test)]
     peak: (usize, usize),
+}
+
+/// The thread that seals data files once quiet.
+#[derive(Debug, Default)]
+enum SealThread {
+    /// Started with the first write that isn't sealed (again, once one has ended).
+    #[default]
+    NotStarted,
+    Running,
+    /// It couldn't be started, last tried then: writes go unsealed until the next seal of their
+    /// own (a crash meanwhile checks the file as it opens), and it's tried again once
+    /// [`START_AGAIN`] has passed, not on every write (each paid for a failed start, and logged it).
+    Unavailable(Instant),
+}
+
+/// How long after the sealing thread couldn't be started it's tried again.
+const START_AGAIN: Duration = Duration::from_secs(60);
+
+#[cfg(test)]
+thread_local! {
+    /// Tests: the sealing thread can't be started from this thread (as when the system has no
+    /// more threads), and how many times it was tried.
+    pub(super) static NO_THREAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    pub(super) static STARTS_TRIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 impl Seals {
@@ -187,15 +211,52 @@ impl Seals {
             return;
         }
         w.due.insert(account.to_string(), (Arc::downgrade(db), Instant::now()));
-        if !w.running {
-            let seals = self.clone();
-            match std::thread::Builder::new().name("data-file-seal".into()).spawn(move || seals.run()) {
-                Ok(_) => w.running = true,
-                Err(e) => log::warn!("data files won't be sealed as they go quiet: {e}"),
-            }
+        let start = match &w.thread {
+            SealThread::NotStarted => true,
+            SealThread::Running => false,
+            SealThread::Unavailable(tried) => tried.elapsed() >= START_AGAIN,
+        };
+        if start {
+            w.thread = match self.start() {
+                Ok(()) => SealThread::Running,
+                Err(e) => {
+                    // Told once: tried again later, quietly.
+                    if matches!(w.thread, SealThread::NotStarted) {
+                        log::warn!("data files won't be sealed as they go quiet: {e}");
+                    }
+                    SealThread::Unavailable(Instant::now())
+                }
+            };
         }
         drop(w);
         self.wake.notify_one();
+    }
+
+    /// The sealing thread started ([`Seals::run`]).
+    fn start(self: &Arc<Self>) -> io::Result<()> {
+        #[cfg(test)]
+        {
+            STARTS_TRIED.set(STARTS_TRIED.get().saturating_add(1));
+            if NO_THREAD.get() {
+                return Err(io::Error::other("no thread (a test)"));
+            }
+        }
+        let seals = self.clone();
+        std::thread::Builder::new().name("data-file-seal".into()).spawn(move || seals.run()).map(drop)
+    }
+
+    /// Tests: the sealing thread last failed to start `ago`.
+    #[cfg(test)]
+    pub(super) fn thread_failed(&self, ago: Duration) {
+        if let Some(at) = Instant::now().checked_sub(ago) {
+            self.lock().thread = SealThread::Unavailable(at);
+        }
+    }
+
+    /// Tests: whether the sealing thread is running.
+    #[cfg(test)]
+    pub(super) fn thread_running(&self) -> bool {
+        matches!(self.lock().thread, SealThread::Running)
     }
 
     /// The thread: each data file sealed once it has been quiet for [`QUIET`], one at a time.
@@ -225,7 +286,7 @@ impl Seals {
             w.sealing = None;
             self.sealed.notify_all();
         }
-        w.running = false;
+        w.thread = SealThread::NotStarted;
     }
 
     /// `account`'s data file was sealed by a commit of its own, begun to commit `at` (its writer
