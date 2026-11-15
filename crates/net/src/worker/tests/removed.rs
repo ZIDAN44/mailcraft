@@ -102,3 +102,23 @@ fn removed_mid_sync(name: &str, acc: AccountConfig, secret: &str, hold: &Hang) {
     assert_eq!(store.load_folder("j1", "INBOX").map(|f| f.messages.len()).unwrap_or(0), 0, "the Inbox cached again");
     assert!(!store.root().join("j1").exists(), "the account's files came back");
 }
+
+/// Found in the audit: the folder list was written once a look said the account was still
+/// there, so a removal coming between the look and the write brought its `folders.json` back
+/// (and the account's folder with it). Written while it's kept, it isn't.
+#[test]
+fn a_folder_list_published_as_its_account_is_removed_writes_nothing() {
+    let store = crate::fake::store("removed-folder-list");
+    let folder = |path: &str| Folder { account: "a1".into(), path: path.into(), selectable: true, ..Default::default() };
+    store.save_folders("a1", &[folder("INBOX")]).unwrap();
+    let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
+    let mut w = Worker::new(imap_account("a1", 1), Auth::shared("pw"), store.clone(), pool.sink.clone(), SyncOptions::default());
+    w.folders = vec![folder("Archive")];
+    // Removed after the worker decided to write its list, before it's written.
+    let removing = store.clone();
+    crate::worker::sync::BEFORE_FOLDERS_SAVED.with(|b| *b.borrow_mut() = Some(Box::new(move || drop(removing.remove_account("a1")))));
+    w.publish_folders();
+    assert!(store.load_folders("a1").unwrap_or_default().is_empty(), "the folder list written again");
+    assert!(!store.root().join("a1").exists(), "the account's files came back");
+    assert!(!pool.poll().into_iter().any(|e| matches!(e, Event::Folders { .. })), "its folders said");
+}

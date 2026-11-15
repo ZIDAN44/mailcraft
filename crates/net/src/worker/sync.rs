@@ -4,6 +4,11 @@ use super::*;
 
 mod calendars;
 
+// Run once, on this thread, as [`Worker::publish_folders`] is about to write the folder list: a
+// test's way to come between deciding to write it and writing it.
+#[cfg(test)]
+thread_local!(pub(super) static BEFORE_FOLDERS_SAVED: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) });
+
 /// How often a full sync says the counts of the folders it has synced, at most.
 const COUNTS_EVERY: Duration = Duration::from_secs(1);
 /// A minute of an account's own time between looks for new mail (short in tests, to see some pass).
@@ -571,12 +576,17 @@ impl Worker {
     }
 
     /// The account's folders written and said as this worker has them (listed from the server);
-    /// not once it was removed (found in review: its files came back).
+    /// not once it was removed (found in review: its files came back). Written while it's kept
+    /// ([`Store::while_kept`]): a removal coming as it's written waits for it, and one just before
+    /// is seen (a look first, then the write, let one in between bring the list back).
     pub(super) fn publish_folders(&self) {
-        if self.removed() {
+        #[cfg(test)]
+        if let Some(before) = BEFORE_FOLDERS_SAVED.with(|b| b.borrow_mut().take()) {
+            before();
+        }
+        if self.store.while_kept(&self.acc.id, self.removals, || self.store.save_folders(&self.acc.id, &self.folders)).is_none() {
             return;
         }
-        let _ = self.store.save_folders(&self.acc.id, &self.folders);
         self.sink.emit(Event::Folders { account: self.id(), folders: self.folders.clone() });
     }
 

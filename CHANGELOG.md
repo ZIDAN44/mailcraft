@@ -203,6 +203,7 @@ on GitHub.
 - A message with hundreds of pictures no longer slows down every frame of the reading pane.
 - In a very long formatted message, a picture inside a box over a deeply nested table is no longer shown again after the text.
 - A meeting whose invitation's id holds an invisible control character is found again on the calendar server.
+- An account removed while it was syncing no longer has its folder list come back.
 
 ## 0.38.0 - 2026-11-13
 
