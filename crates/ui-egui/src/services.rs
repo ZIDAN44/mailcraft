@@ -269,11 +269,13 @@ pub trait Services {
     fn background(&mut self, _lane: Lane, work: Work) -> Result<(), Work> {
         Err(work)
     }
-    /// Whether [`Services::background`] takes work. Asked each frame that work is out there,
-    /// which is when a lane caught on cancelled work is given a new thread.
+    /// Whether [`Services::background`] takes work (only asked: see [`Services::tend_background`]).
     fn has_background(&self) -> bool {
         false
     }
+    /// Look after the threads [`Services::background`] runs work on: called each frame that
+    /// work is out there, which is when a lane caught on cancelled work is given a new thread.
+    fn tend_background(&mut self) {}
     /// Whether this app can keep running with its window closed, and what becomes of the window
     /// then, as the option says of itself (none: the option isn't offered).
     fn keeps_running(&self) -> Option<KeptOnClose> {

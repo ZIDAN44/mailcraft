@@ -371,7 +371,7 @@ impl Pictures {
         } else if !self.batches.is_empty() {
             // On a thread, which asks for a frame as it makes each picture; looked in on now
             // and then (the lane may be caught on cancelled work).
-            services.has_background();
+            services.tend_background();
             ctx.request_repaint_after(LOOK_IN);
         }
         self.frame = self.frame.wrapping_add(1);

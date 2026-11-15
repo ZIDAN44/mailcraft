@@ -290,6 +290,9 @@ impl Services for Desktop {
     fn has_background(&self) -> bool {
         self.lanes.available()
     }
+    fn tend_background(&mut self) {
+        self.lanes.tend();
+    }
     fn pick_folder(&mut self) -> Option<PathBuf> {
         let folder = self.dialog("Save attachments to").pick_folder();
         self.used(folder, true)

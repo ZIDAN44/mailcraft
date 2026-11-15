@@ -600,3 +600,59 @@ fn work_on_a_thread_asks_for_frames_and_stops_when_left() {
     let (frames, _) = pump(&ctx, &mut a, WINDOW, 5, |a| a.ui.pictures.ready() == 7);
     assert!(frames < 5, "all shown ({} ready)", a.ui.pictures.ready());
 }
+
+/// Services that keep the work handed to them and count how often they're told to look after
+/// their threads.
+struct Tended(std::sync::Arc<std::sync::Mutex<Vec<crate::Work>>>, std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+impl crate::Services for Tended {
+    fn clock(&self) -> (i64, i32) {
+        (NOW, 0)
+    }
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        None
+    }
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Ok(())
+    }
+    fn background(&mut self, _: crate::Lane, work: crate::Work) -> Result<(), crate::Work> {
+        self.0.lock().unwrap().push(work);
+        Ok(())
+    }
+    fn has_background(&self) -> bool {
+        true
+    }
+    fn tend_background(&mut self) {
+        self.1.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+/// While pictures are being made on a thread, the threads are told to look after themselves
+/// each frame (where a lane caught on cancelled work gets a new one), by a call that says so;
+/// once the pictures are made, they aren't.
+#[test]
+fn the_lanes_are_tended_while_pictures_are_made_on_them() {
+    use std::sync::atomic::Ordering;
+    let (mut a, _) = app("pictures-tended");
+    let ctx = egui::Context::default();
+    let held = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let tended = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    a.services = Box::new(Tended(held.clone(), tended.clone()));
+    frame(&ctx, &mut a, vec![]);
+    let k = with_files(&mut a, 9016, pictures(4));
+    a.run("list.open", json!({"key": k.to_id()}));
+    pump(&ctx, &mut a, WINDOW, 4, |_| false);
+    assert!(!held.lock().unwrap().is_empty(), "the pictures' work is on the lane");
+    assert!(tended.load(Ordering::Relaxed) >= 2, "tended while it's there: {}", tended.load(Ordering::Relaxed));
+    let work: Vec<crate::Work> = std::mem::take(&mut *held.lock().unwrap());
+    for w in work {
+        (w.run)();
+    }
+    pump(&ctx, &mut a, WINDOW, 5, |a| a.ui.pictures.ready() == 4);
+    let after = tended.load(Ordering::Relaxed);
+    pump(&ctx, &mut a, WINDOW, 3, |_| false);
+    assert_eq!(tended.load(Ordering::Relaxed), after, "nothing on the lane: left alone");
+}
