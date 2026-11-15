@@ -173,6 +173,9 @@ No measurement logs or step-by-step history in the docs: that belongs in commit 
   issue (or a small PR there, safe for every app and no slower). `deny.yml`, `fuzz.yml` and
   `release.yml` still run their own jobs: nothing is added to them, and each moves only as a
   task of its own, once a shared workflow runs it.
+  Their jobs are hardened as the shared ones are: Harden-Runner (audit) first, checkouts that
+  keep no credentials, and StepSecurity's copies of third-party actions unless theirs is older
+  than the version pinned (`install-action` and `freebsd-vm` stay the originals).
 
 ## Running and looking at the app
 - `cargo run -p mailcraft -- --sample` (local sample mailbox). Script it at start-up:
