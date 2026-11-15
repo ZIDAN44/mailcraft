@@ -142,10 +142,10 @@ impl Editor {
     }
 }
 
-/// The message text box's id.
 /// The id of the signature being edited (the signature editor is a message editor of its own).
 pub(crate) const SIGNATURE_ID: u64 = u64::MAX;
 
+/// The message text box's id.
 pub(crate) fn body_id(c: &Compose) -> egui::Id {
     egui::Id::unique(("compose-body", c.id))
 }

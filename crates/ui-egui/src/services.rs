@@ -275,11 +275,11 @@ pub trait Services {
         false
     }
     /// Whether this app can keep running with its window closed, and what becomes of the window
-    /// then: what the option says of itself (none: it isn't offered), and what a close does now
-    /// (none: it closes).
+    /// then, as the option says of itself (none: the option isn't offered).
     fn keeps_running(&self) -> Option<KeptOnClose> {
         None
     }
+    /// What a close does to the window now, with the option on (none: it closes).
     fn kept_on_close(&self) -> Option<KeptOnClose> {
         None
     }

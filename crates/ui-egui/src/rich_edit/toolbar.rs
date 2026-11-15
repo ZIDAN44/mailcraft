@@ -88,8 +88,9 @@ pub(super) fn color_button(
 }
 
 /// The Message ribbon: font size, bold / italic / underline / strikethrough, colours, lists,
-/// alignment, indent, clear formatting; then names, files, links and pictures.
-/// The Message ribbon; `signatures` are the sending account's, by name (its Signature menu).
+/// alignment, indent, clear formatting; then names, files, links, pictures, the signature, the
+/// date and time, and the word count. `signatures` are the sending account's, by name (its
+/// Signature menu).
 pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, signatures: &[String], clock: &Clock, acts: &mut Vec<Action>) {
     let (sel, cur, para) = ribbon_state(ed, c);
     let mut ops: Vec<Op> = Vec::new();
