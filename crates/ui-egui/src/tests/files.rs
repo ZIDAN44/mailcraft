@@ -4,7 +4,7 @@ use super::*;
 use std::path::{Path, PathBuf};
 
 /// Services whose clipboard holds files copied in a file manager.
-pub(super) struct Copied(pub(super) Vec<PathBuf>);
+struct Copied(Vec<PathBuf>);
 
 impl crate::Services for Copied {
     stub_services!();
@@ -15,7 +15,7 @@ impl crate::Services for Copied {
 
 /// What the desktop hands over for one file let go over the window.
 #[derive(Debug)]
-pub(super) struct LetGo(pub(super) PathBuf);
+struct LetGo(PathBuf);
 
 impl egui::DroppedFile for LetGo {
     fn bytes(&self) -> Result<Vec<u8>, String> {
@@ -146,11 +146,12 @@ fn files_dropped_on_the_main_window_start_a_message() {
     out.textures_delta.clear();
     frame(&ctx, &mut a, vec![]);
     assert_eq!(attached(&a), ["brief.pdf"]);
-    // Dropped again while it's being written: attached to it, not another message.
+    // Dropped again while it's being written: attached to it, not another message (and again
+    // a file with no path to read is left).
     let again = dir.join("notes.txt");
     std::fs::write(&again, b"n").unwrap();
     let id = a.session.compose.as_ref().map(|c| c.id);
-    let dropped: Vec<egui::DroppedFileHandle> = vec![std::sync::Arc::new(LetGo(again))];
+    let dropped: Vec<egui::DroppedFileHandle> = vec![std::sync::Arc::new(LetGo(again)), std::sync::Arc::new(LetGo("relative.txt".into()))];
     let mut out = ctx.run_ui(RawInput { screen_rect: screen, dropped_files: dropped, ..Default::default() }, |ui| a.ui(ui));
     out.textures_delta.clear();
     frame(&ctx, &mut a, vec![]);

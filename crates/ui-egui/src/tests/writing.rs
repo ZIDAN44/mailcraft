@@ -450,64 +450,6 @@ fn a_close_becomes_the_platform_quit_unless_something_asks() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// A file dragged from the desktop onto a message being written is attached to it.
-#[test]
-fn files_dropped_on_a_message_are_attached() {
-    use super::files::LetGo;
-    let (mut a, dir) = app("drop-attach");
-    let ctx = egui::Context::default();
-    frame(&ctx, &mut a, vec![]);
-    a.run("mail.new", json!({}));
-    frame(&ctx, &mut a, vec![]);
-    let file = dir.join("dropped notes.txt");
-    std::fs::write(&file, b"hello").unwrap();
-    let dropped: Vec<egui::DroppedFileHandle> = vec![std::sync::Arc::new(LetGo(file)), std::sync::Arc::new(LetGo("relative.txt".into()))];
-    let input = RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))),
-        dropped_files: dropped,
-        ..Default::default()
-    };
-    // The message is in a window of its own, or in the main one where there are none: either
-    // way the drop reaches it.
-    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
-    out.textures_delta.clear();
-    frame(&ctx, &mut a, vec![]);
-    let names: Vec<String> = a.session.all_composes().flat_map(|c| c.attachments.iter().map(|x| x.name.clone())).collect();
-    assert_eq!(names, ["dropped notes.txt"], "the file with no path to read is left");
-    let _ = std::fs::remove_dir_all(dir);
-}
-
-/// Issue #10: files copied in a file manager and pasted into a message are attached, and their
-/// paths that came along as text aren't pasted; with no files on the clipboard, text is pasted.
-#[test]
-fn files_copied_in_a_file_manager_paste_as_attachments() {
-    let (mut a, dir) = app("paste-files");
-    a.session.prefs.new_mail_window = false;
-    let ctx = egui::Context::default();
-    frame(&ctx, &mut a, vec![]);
-    a.run("mail.new", json!({}));
-    a.run("compose.update", json!({"to": "ann@x.example", "subject": "Files", "body": ""}));
-    frame(&ctx, &mut a, vec![]);
-    let id = crate::rich_edit::body_id(a.session.compose.as_ref().unwrap());
-    ctx.memory_mut(|m| m.request_focus(id));
-    frame(&ctx, &mut a, vec![]);
-    let file = dir.join("budget 2026.pdf");
-    std::fs::write(&file, b"%PDF-1.4").unwrap();
-    a.services = Box::new(super::files::Copied(vec![file.clone(), "relative.txt".into()]));
-    frame(&ctx, &mut a, vec![Event::Paste(file.to_string_lossy().into_owned())]);
-    frame(&ctx, &mut a, vec![]);
-    let c = a.session.compose.clone().unwrap();
-    let names: Vec<&str> = c.attachments.iter().map(|x| x.name.as_str()).collect();
-    assert_eq!(names, ["budget 2026.pdf"], "the file with no path to read is left");
-    assert!(c.body.is_empty(), "the path isn't pasted as text: {:?}", c.body);
-    a.services = Box::new(super::files::Copied(Vec::new()));
-    frame(&ctx, &mut a, vec![Event::Paste("see attached".into())]);
-    frame(&ctx, &mut a, vec![]);
-    let c = a.session.compose.clone().unwrap();
-    assert_eq!((c.body.as_str(), c.attachments.len()), ("see attached", 1));
-    let _ = std::fs::remove_dir_all(dir);
-}
-
 /// Issue #10: a picture in a message shows as big as it is (it showed 72 points tall), and the
 /// handle at its corner, shown while it's hovered, resizes it (a small square edged in the accent).
 #[test]
