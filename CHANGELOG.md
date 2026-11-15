@@ -177,6 +177,7 @@ on GitHub.
 - Signing or encrypting a message, and exporting, no longer wait forever when the computer can't start another task.
 - Clean Up keeps the message the list shows last: a reply from a computer whose clock is behind now counts as later than the message it quotes.
 - Mail deleted in MailCraft from a very large Outlook file no longer comes back at random when the file is read again.
+- Moving the data files to a network folder no longer fails when the copy was fine.
 
 ## 0.38.0 - 2026-11-13
 
