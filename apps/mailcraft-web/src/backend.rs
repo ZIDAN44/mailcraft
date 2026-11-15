@@ -211,8 +211,7 @@ async fn connect(sh: &Rcs, id: &str) {
         return status(sh, id, SyncStatus::NeedsPassword { error: "enter the password: the browser doesn't keep it".into() });
     };
     status(sh, id, SyncStatus::Connecting);
-    let user = if config.username.is_empty() { config.email.clone() } else { config.username.clone() };
-    match Client::connect(Fetch, &url, &user, &password, false).await {
+    match Client::connect(Fetch, &url, config.login_name(), &password, false).await {
         Ok(c) => {
             {
                 let mut s = sh.borrow_mut();

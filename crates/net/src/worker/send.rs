@@ -293,7 +293,7 @@ impl Worker {
                 })?;
                 (u.to_string(), pw)
             }
-            None => (if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() }, self.secret()?),
+            None => (self.acc.login_name().to_string(), self.secret()?),
         };
         let sign_in = smtp::SignIn { user: &user, password: &secret, oauth: self.acc.oauth.is_some() };
         let sent = smtp::send_trusting(&self.acc.smtp, sign_in, from, recipients, raw, &self.acc.trusted_certificates);

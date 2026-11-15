@@ -665,6 +665,15 @@ pub fn sort_folders(folders: &mut [Folder]) {
 mod tests {
     use super::*;
 
+    /// An account signs in with its user name, or its address when it has none.
+    #[test]
+    fn the_login_name_is_the_user_name_else_the_address() {
+        let mut a = AccountConfig { email: "zoe@studio.example".into(), ..Default::default() };
+        assert_eq!(a.login_name(), "zoe@studio.example");
+        a.username = "zoe".into();
+        assert_eq!(a.login_name(), "zoe");
+    }
+
     #[test]
     fn microsofts_own_addresses_need_its_sign_in() {
         for e in ["a@outlook.com", "a@hotmail.com", "a@hotmail.co.uk", "a@live.nl", "a@msn.com", "A@Outlook.FR"] {

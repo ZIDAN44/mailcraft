@@ -76,10 +76,7 @@ impl Worker {
         let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
         let (user, password) = match &given.username {
             Some(u) => (u.clone(), self.creds.as_ref().and_then(|c| c.get_secret(&self.acc, DAV_SECRET)).unwrap_or_default()),
-            None => (
-                if self.acc.username.is_empty() { self.acc.email.clone() } else { self.acc.username.clone() },
-                self.auth.lock().unwrap_or_else(std::sync::PoisonError::into_inner).secret.clone(),
-            ),
+            None => (self.acc.login_name().to_string(), Auth::held(&self.auth).secret.clone()),
         };
         let dav = crate::dav::Dav::new(&user, &password).with_digest(self.dav_digest.take());
         let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
