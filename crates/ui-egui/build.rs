@@ -35,8 +35,23 @@ fn main() {
 
 /// One `CraftFont { .. }` initialiser per manifest line.
 fn craft_fonts(dir: &Path) -> Result<String, String> {
+    // Seen by the path as given (and its folder, for the manifest to appear or a link to it to be
+    // replaced) before it's checked: a build that went without the fonts is made again once
+    // they're there.
     let manifest = dir.join("fonts/manifest.txt");
     println!("cargo::rerun-if-changed={}", manifest.display());
+    if let Some(folder) = manifest.parent() {
+        println!("cargo::rerun-if-changed={}", folder.display());
+    }
+    // Every file compiled in comes from inside the checkout: a manifest line naming a path out of
+    // it (absolute, with `..`, or by a link) would put that file of the building computer into
+    // MailCraft (GridCraft found this).
+    let root = dir.canonicalize().map_err(|e| format!("{}: {e}", dir.display()))?;
+    let inside = |path: PathBuf| -> Result<PathBuf, String> {
+        let real = path.canonicalize().map_err(|e| format!("{}: {e}", path.display()))?;
+        if real.starts_with(&root) { Ok(real) } else { Err(format!("{} is outside the craft-fonts checkout {}", path.display(), root.display())) }
+    };
+    let manifest = inside(manifest)?;
     let text = std::fs::read_to_string(&manifest).map_err(|e| format!("{}: {e}", manifest.display()))?;
     // The browser build has a download to keep small: the Japanese and Korean interface fonts and
     // the small Arabic, Hebrew and Thai ones (the browser has no system fonts to fall back on).
@@ -58,8 +73,8 @@ fn craft_fonts(dir: &Path) -> Result<String, String> {
         if wasm && !WEB_FONTS.contains(&(*family, *style)) {
             continue;
         }
-        let path = dir.join(file).canonicalize().map_err(|e| format!("{file}: {e}"))?;
-        let licence_path = dir.join(licence_file).canonicalize().map_err(|e| format!("{licence_file}: {e}"))?;
+        let path = inside(root.join(file)).map_err(|e| format!("{file}: {e}"))?;
+        let licence_path = inside(root.join(licence_file)).map_err(|e| format!("{licence_file}: {e}"))?;
         println!("cargo::rerun-if-changed={}", path.display());
         println!("cargo::rerun-if-changed={}", licence_path.display());
         let scripts: Vec<String> = scripts.split(',').map(|s| format!("{:?}", s.trim())).collect();
