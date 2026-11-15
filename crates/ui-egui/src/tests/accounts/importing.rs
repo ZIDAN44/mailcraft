@@ -333,14 +333,17 @@ fn a_data_file_is_looked_at_before_it_is_imported() {
     a.act(Action::ImportDataFile { path: PATH.into(), again: false, changes: None, take_over: false });
     assert!(a.session.imports().any(|(_, st)| st.path == PATH));
     a.session.take_jobs();
-    // The same file again: caught, with another copy only when asked for.
-    a.ui.dialog = Some(Dialog::OpenDataFile { path: "c:/mail/ARCHIVE.pst".into() });
+    // The same file again, as it may be written: caught, with another copy only when asked for.
+    // Its other letter case is the same file only where file names ignore it (Windows, macOS):
+    // on Linux `ARCHIVE.pst` is another file.
+    let again = if cfg!(any(windows, target_os = "macos")) { r"c:\mail\ARCHIVE.pst" } else { r"C:\Mail\Archive.pst" };
+    a.ui.dialog = Some(Dialog::OpenDataFile { path: again.into() });
     let texts = drawn(&ctx, &mut a);
     assert!(has(&texts, "This data file is already open as Archive."), "{texts:?}");
     let before = a.session.accounts.len();
-    a.act(Action::ImportDataFile { path: "c:/mail/ARCHIVE.pst".into(), again: false, changes: None, take_over: false });
+    a.act(Action::ImportDataFile { path: again.into(), again: false, changes: None, take_over: false });
     assert_eq!(a.session.accounts.len(), before, "refused");
-    a.act(Action::ImportDataFile { path: "c:/mail/ARCHIVE.pst".into(), again: true, changes: None, take_over: false });
+    a.act(Action::ImportDataFile { path: again.into(), again: true, changes: None, take_over: false });
     assert_eq!(a.session.accounts.len(), before + 1);
 }
 
