@@ -87,16 +87,12 @@ fn mail_encrypted_and_signed_reads_back() {
 fn a_changed_message_doesnt_decrypt() {
     let ana = unlocked("Ana <ana@posteo.example>");
     let sealed = encrypt(&[b'x'; 2000], &[&ana.public], None, NOW, &mut rand_core::OsRng).unwrap();
-    let binary = {
-        let (m, _) = pgp::composed::Message::from_string(&sealed).unwrap();
-        let _ = m;
-        // Flip a byte in the middle of the armored body: the base64 or the integrity check fails.
-        let mut b = sealed.clone().into_bytes();
-        let mid = b.len() / 2;
-        b[mid] = if b[mid] == b'A' { b'B' } else { b'A' };
-        b
-    };
-    assert!(decrypt(&binary, &[&ana.secret], &[]).is_err());
+    assert!(decrypt(sealed.as_bytes(), &[&ana.secret], &[]).is_ok(), "as sent, it decrypts");
+    // Flip a byte in the middle of the armored body: the base64 or the integrity check fails.
+    let mut armored = sealed.into_bytes();
+    let mid = armored.len() / 2;
+    armored[mid] = if armored[mid] == b'A' { b'B' } else { b'A' };
+    assert!(decrypt(&armored, &[&ana.secret], &[]).is_err());
 }
 
 #[test]
