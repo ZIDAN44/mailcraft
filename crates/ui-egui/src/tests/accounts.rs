@@ -383,3 +383,53 @@ fn a_local_mailbox_isnt_called_the_sample() {
     assert!(!texts.iter().any(|t| t.contains("sample mailbox")), "{texts:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// What the status bar costs a frame with 100,000 messages in the list, then with a dozen
+/// accounts more; and a fingerprint of what it draws (the same before and after a change that
+/// only makes it faster). Run in release under the machine's lock:
+/// `cargo test --release -p mailcraft-ui-egui --lib measure_status_bar -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_status_bar() {
+    use std::hash::{Hash, Hasher};
+    let (mut a, dir) = app("measure-status-bar");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let first = a.session.list.first().map(|m| (**m).clone()).unwrap();
+    a.session.list = (0..100_000u32)
+        .map(|n| {
+            let mut m = first.clone();
+            m.key.uid = n + 1;
+            m.flags.seen = n % 3 != 0;
+            std::sync::Arc::new(m)
+        })
+        .collect();
+    a.session.revision = a.session.revision.wrapping_add(1);
+    let bar = |a: &mut MailApp| {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 26.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.status_bar(ui));
+        out.textures_delta.clear();
+        texts_in(&out.shapes)
+    };
+    for case in ["100,000 messages listed", "and 12 accounts more"] {
+        if case == "and 12 accounts more" {
+            for n in 0..12 {
+                let c = mailcraft_engine::model::AccountConfig::guess(&format!("more{n}@studio.example"));
+                let id = a.session.add_account(c, None).unwrap();
+                a.session.apply(MailEvent::Status { account: id, status: SyncStatus::Online { at: NOW - 600 } });
+            }
+        }
+        let drawn = bar(&mut a);
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        for d in &drawn {
+            (&d.text, d.rect.min.x.to_bits(), d.rect.min.y.to_bits()).hash(&mut h);
+        }
+        let t = std::time::Instant::now();
+        for _ in 0..200 {
+            let _ = bar(&mut a);
+        }
+        let each = t.elapsed().as_secs_f64() * 1000.0 / 200.0;
+        println!("MEASURE status bar, {case}: {each:.3} ms a frame; drawn {} texts, {:016x}", drawn.len(), h.finish());
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}

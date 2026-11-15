@@ -562,3 +562,42 @@ fn an_outlook_files_copy_is_beside_it_and_found_again() {
     assert!(has(&texts, "Take it over and read the changes in") && !has(&texts, "Open as it was"), "{texts:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// What the folder pane's outline of the folders still to come costs a frame, for a plan of
+/// 3,000 folders of which all but ten are in; and a fingerprint of what it draws (the same
+/// before and after a change that only makes it faster). Run in release under the machine's lock:
+/// `cargo test --release -p mailcraft-ui-egui --lib measure_import_outline -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_import_outline() {
+    use std::hash::{Hash, Hasher};
+    let (mut a, dir) = app("measure-import-outline");
+    let ctx = egui::Context::default();
+    let id = import(&mut a);
+    let plan: Vec<PlannedFolder> = (0..3000)
+        .map(|n| PlannedFolder { path: format!("Projects/Folder {:04}/Part {}", n / 10, n % 10), name: format!("Part {n}"), items: 1 })
+        .collect();
+    a.session.apply(MailEvent::ImportPlanned { account: id.clone(), folders: plan.clone() });
+    let base = a.session.accounts[0].folders.first().cloned().unwrap();
+    let have: Vec<mailcraft_engine::model::Folder> =
+        plan.iter().skip(10).map(|p| mailcraft_engine::model::Folder { path: p.path.clone(), ..base.clone() }).collect();
+    let t = crate::theme::Tokens::light();
+    let outline = |a: &MailApp| {
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(260.0, 900.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| crate::app::importing::outline(&a.session, &t, ui, &id, &have));
+        out.textures_delta.clear();
+        texts_in(&out.shapes)
+    };
+    let drawn = outline(&a);
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    for d in &drawn {
+        (&d.text, d.rect.min.x.to_bits(), d.rect.min.y.to_bits()).hash(&mut h);
+    }
+    let started = std::time::Instant::now();
+    for _ in 0..50 {
+        let _ = outline(&a);
+    }
+    let each = started.elapsed().as_secs_f64() * 1000.0 / 50.0;
+    println!("MEASURE import outline, 3000 planned, 2990 in: {each:.3} ms a frame; drawn {} texts, {:016x}", drawn.len(), h.finish());
+    let _ = std::fs::remove_dir_all(dir);
+}

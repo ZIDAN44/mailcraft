@@ -271,7 +271,10 @@ pub(crate) fn nav_line(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
 /// done with it).
 pub(crate) fn outline(s: &Session, t: &Tokens, ui: &mut Ui, account: &str, have: &[mailcraft_engine::model::Folder]) {
     let Some(st) = s.import_state(account).filter(|st| !st.removing) else { return };
-    for f in st.planned.iter().filter(|f| !have.iter().any(|h| h.path == f.path)) {
+    // Looked up, not searched for each planned folder: a plan of thousands of folders was
+    // compared with every folder in for each one, every frame.
+    let in_already: std::collections::HashSet<&str> = have.iter().map(|h| h.path.as_str()).collect();
+    for f in st.planned.iter().filter(|f| !in_already.contains(f.path.as_str())) {
         let depth = f.path.matches('/').count().saturating_add(1);
         let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
         let m = bidi::Mirror::new(rect);

@@ -180,6 +180,7 @@ pub(super) fn ribbon_search(ui: &mut Ui, s: &Session, ust: &mut UiState, t: Toke
         }
     }
     // Terms that narrow at once: on, or off again.
+    let words: Vec<&str> = query.split_whitespace().collect();
     for (icon, label, term) in [
         (Icon::Attach, "Has Attachments", "has:attachment"),
         (Icon::Unread, "Unread", "is:unread"),
@@ -188,7 +189,6 @@ pub(super) fn ribbon_search(ui: &mut Ui, s: &Session, ust: &mut UiState, t: Toke
         (Icon::Warning, "Important", "is:important"),
         (Icon::Send, "Awaiting reply", "is:awaiting"),
     ] {
-        let words: Vec<&str> = query.split_whitespace().collect();
         let on = words.iter().any(|w| w.eq_ignore_ascii_case(term));
         if widgets::tool_toggle(ui, icon, label, &t, on).clicked() {
             let q = if on {

@@ -83,7 +83,7 @@ impl MailApp {
         // gridcraft's ribbon found).
         // Right to left it starts scrolled to the right, where the row starts.
         let rtl = i18n::current().rtl();
-        egui::ScrollArea::horizontal().id_salt(("ribbon", format!("{:?}", ust.tab))).stick_to_right(rtl).show(ui, |ui| {
+        egui::ScrollArea::horizontal().id_salt(("ribbon", ust.tab)).stick_to_right(rtl).show(ui, |ui| {
             widgets::scrolled_row(ui, |ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 widgets::start_group(ui);

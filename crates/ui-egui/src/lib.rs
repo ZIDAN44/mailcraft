@@ -111,7 +111,7 @@ pub(crate) fn use_editor(st: &mut UiState, id: u64) {
     st.editor = st.editors.remove(&id);
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum RibbonTab {
     #[default]
     Home,

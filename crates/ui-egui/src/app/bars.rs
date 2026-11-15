@@ -319,16 +319,17 @@ fn accounts_status(ui: &mut Ui, s: &Session, t: Tokens, again: &mut Option<Strin
         }
         return;
     }
-    all_accounts(ui, s, t);
-    waiting_accounts(ui, s, t, again);
+    // Each account's line, made once for the hover of them all and for those waiting.
+    let lines: Vec<String> =
+        s.accounts.iter().map(|a| tf!("{account}: {status}", account = a.config.email, status = account_status(s, &t, a).1)).collect();
+    all_accounts(ui, s, t, &lines);
+    waiting_accounts(ui, s, t, &lines, again);
 }
 
 /// Several accounts' one status: updating, connecting, how many are disconnected, else up to
-/// date or offline; each account's on hover.
-fn all_accounts(ui: &mut Ui, s: &Session, t: Tokens) {
-    let each: Vec<String> =
-        s.accounts.iter().map(|a| tf!("{account}: {status}", account = a.config.email, status = account_status(s, &t, a).1)).collect();
-    let each = each.join("\n");
+/// date or offline; each account's line (`lines`) on hover.
+fn all_accounts(ui: &mut Ui, s: &Session, t: Tokens, lines: &[String]) {
+    let each = lines.join("\n");
     let busy = s.accounts.iter().any(|a| matches!(a.status, SyncStatus::Syncing { .. }));
     let connecting = s.accounts.iter().any(|a| matches!(a.status, SyncStatus::Connecting));
     let failed = s.accounts.iter().filter(|a| matches!(a.status, SyncStatus::Error { .. }) && !needs_you(a)).count();
@@ -353,29 +354,27 @@ fn all_accounts(ui: &mut Ui, s: &Session, t: Tokens) {
 
 /// Accounts waiting for you: a link each (it signs in again), as many as fit beside the counts
 /// on the left; the rest as "+N", each on hover (a dozen of them ran over "Items" and
-/// "Unread").
-fn waiting_accounts(ui: &mut Ui, s: &Session, t: Tokens, again: &mut Option<String>) {
-    let waiting: Vec<&mailcraft_engine::AccountState> = s.accounts.iter().rev().filter(|a| needs_you(a)).collect();
+/// "Unread"). `lines`: each account's, in the order of the accounts.
+fn waiting_accounts(ui: &mut Ui, s: &Session, t: Tokens, lines: &[String], again: &mut Option<String>) {
+    let waiting: Vec<(&mailcraft_engine::AccountState, &String)> = s.accounts.iter().zip(lines).rev().filter(|(a, _)| needs_you(a)).collect();
     let mut shown = 0;
-    for a in &waiting {
-        let text = tf!("{account}: {status}", account = a.config.email, status = account_status(s, &t, a).1);
-        let width = ui.painter().layout_no_wrap(text.clone(), egui::TextStyle::Small.resolve(ui.style()), t.danger).size().x;
+    for (a, text) in &waiting {
+        let width = ui.painter().layout_no_wrap(text.to_string(), egui::TextStyle::Small.resolve(ui.style()), t.danger).size().x;
         // Room for this one and a "+N" after it.
         if ui.available_width() < width + 70.0 {
             break;
         }
         ui.add_space(10.0);
-        if ui.link(RichText::new(text).color(t.danger).small()).on_hover_text(why(a)).clicked() {
+        if ui.link(RichText::new(text.as_str()).color(t.danger).small()).on_hover_text(why(a)).clicked() {
             *again = Some(a.config.id.clone());
         }
         dot(ui, t.danger);
         shown += 1;
     }
-    let rest: Vec<&&mailcraft_engine::AccountState> = waiting.iter().skip(shown).collect();
-    if let Some(first) = rest.first() {
+    let rest = waiting.get(shown..).unwrap_or_default();
+    if let Some((first, _)) = rest.first() {
         ui.add_space(10.0);
-        let each: Vec<String> =
-            rest.iter().map(|a| tf!("{account}: {status}", account = a.config.email, status = account_status(s, &t, a).1)).collect();
+        let each: Vec<&str> = rest.iter().map(|(_, line)| line.as_str()).collect();
         if ui.link(RichText::new(format!("+{}", rest.len())).color(t.danger).small()).on_hover_text(each.join("\n")).clicked() {
             *again = Some(first.config.id.clone());
         }
