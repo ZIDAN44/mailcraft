@@ -220,9 +220,10 @@ pub(super) fn ribbon_view(ui: &mut Ui, s: &Session, t: Tokens, dark: Option<bool
     // place and the theme in a menu each, the rest turned on or off.
     let r = widgets::tool_button(ui, Icon::Layout, "Reading pane", &t, true);
     egui::Popup::menu(&r).show(|ui| {
-        for (v, label) in [(ReadingPane::Right, "Right"), (ReadingPane::Bottom, "Bottom"), (ReadingPane::Off, "Off")] {
+        for (v, label, code) in [(ReadingPane::Right, "Right", "right"), (ReadingPane::Bottom, "Bottom", "bottom"), (ReadingPane::Off, "Off", "off")]
+        {
             if ui.selectable_label(s.prefs.reading_pane == v, tl!(label)).clicked() {
-                acts.push(Action::Run("view.readingPane", json!({"value": label.to_lowercase()})));
+                acts.push(Action::Run("view.readingPane", json!({"value": code})));
                 ui.close();
             }
         }

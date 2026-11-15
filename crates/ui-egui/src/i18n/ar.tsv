@@ -1708,3 +1708,4 @@ month	May	مايو
 	Nothing in the next 7 days	لا شيء في الأيام السبعة القادمة
 	Show the calendar, what's coming up and your tasks beside the mail	إظهار التقويم والمواعيد القادمة ومهامك بجانب البريد
 	Read / Unread (Ctrl+Q / Ctrl+U)	مقروء / غير مقروء (Ctrl+Q / Ctrl+U)
+	{name} couldn't be downloaded: {error}	تعذّر تنزيل {name}: {error}

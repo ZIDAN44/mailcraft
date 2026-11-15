@@ -1709,3 +1709,4 @@ month	May	5月
 	Nothing in the next 7 days	未来 7 天没有安排
 	Show the calendar, what's coming up and your tasks beside the mail	在邮件旁显示日历、即将到来的约会和任务
 	Read / Unread (Ctrl+Q / Ctrl+U)	已读 / 未读 (Ctrl+Q / Ctrl+U)
+	{name} couldn't be downloaded: {error}	无法下载 {name}: {error}

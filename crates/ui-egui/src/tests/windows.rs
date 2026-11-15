@@ -104,6 +104,35 @@ fn a_message_windows_attachments_are_its_own() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Save all in the browser says which attachment couldn't be downloaded, rather than leaving it
+/// out unseen (the others came, and it looked like all of them).
+#[test]
+fn in_the_browser_save_all_says_what_it_couldnt_download() {
+    let store = Store::memory();
+    sample::seed_if_empty(&store, NOW).unwrap();
+    let s = Session::open(Some(store), Clock::new(NOW, 0));
+    let web = WebLike::default();
+    let downloads = web.downloads.clone();
+    let mut a = MailApp::new(s, Box::new(NullBackend), Box::new(web));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let key = a.session.list.iter().find(|m| m.has_attachments).map(|m| m.key.clone()).unwrap();
+    a.session.open_message(&key);
+    frame(&ctx, &mut a, vec![]);
+    // One more the message doesn't have: its bytes can't be had.
+    let r = a.session.reading.as_mut().unwrap();
+    let mut parsed = (**r.parsed.as_ref().unwrap()).clone();
+    let mut gone = parsed.attachments.iter().find(|x| !x.inline).cloned().unwrap();
+    (gone.index, gone.name) = (999, "Missing.pdf".into());
+    parsed.attachments.push(gone);
+    let real = parsed.attachments.iter().filter(|x| !x.inline).count() - 1;
+    r.parsed = Some(std::sync::Arc::new(parsed));
+    a.act(crate::Action::SaveAll);
+    assert_eq!(downloads.borrow().len(), real, "the others came");
+    let said: Vec<&str> = a.session.notices.iter().filter(|n| n.error).map(|n| n.text.as_str()).collect();
+    assert!(said.iter().any(|t| t.starts_with("Missing.pdf couldn't be downloaded: ")), "{said:?}");
+}
+
 #[test]
 fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
     let store = Store::memory();

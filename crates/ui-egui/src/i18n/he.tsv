@@ -1708,3 +1708,4 @@ month	May	מאי
 	Nothing in the next 7 days	אין דבר ב-7 הימים הקרובים
 	Show the calendar, what's coming up and your tasks beside the mail	הצג את לוח השנה, את מה שמתקרב ואת המשימות שלך לצד הדואר
 	Read / Unread (Ctrl+Q / Ctrl+U)	נקרא / לא נקרא (Ctrl+Q / Ctrl+U)
+	{name} couldn't be downloaded: {error}	לא ניתן היה להוריד את {name}: {error}

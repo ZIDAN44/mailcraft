@@ -109,9 +109,11 @@ impl MailApp {
                 .and_then(|r| r.parsed.as_ref())
                 .map(|p| p.attachments.iter().filter(|a| !a.inline).map(|a| (a.index, a.name.clone())).collect())
                 .unwrap_or_default();
+            // One that can't be had is said, not skipped unseen (the rest looked like all).
             for (i, name) in files {
-                if let Ok(b) = self.session.attachment_bytes(i) {
-                    self.services.download(&mailcraft_engine::mime::sanitize_filename(&name), &b);
+                match self.session.attachment_bytes(i) {
+                    Ok(b) => self.services.download(&mailcraft_engine::mime::sanitize_filename(&name), &b),
+                    Err(e) => self.session.notice(tf!("{name} couldn't be downloaded: {error}", name = name, error = e), true),
                 }
             }
             return;

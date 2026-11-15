@@ -1713,3 +1713,4 @@ month	May	mayo
 	Nothing in the next 7 days	Nada en los próximos 7 días
 	Show the calendar, what's coming up and your tasks beside the mail	Mostrar el calendario, lo próximo y sus tareas junto al correo
 	Read / Unread (Ctrl+Q / Ctrl+U)	Leído / No leído (Ctrl+Q / Ctrl+U)
+	{name} couldn't be downloaded: {error}	No se pudo descargar {name}: {error}

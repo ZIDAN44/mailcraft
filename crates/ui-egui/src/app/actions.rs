@@ -327,16 +327,15 @@ impl MailApp {
     }
 
     /// Follow a link from a message: only web pages and mail addresses, never local files or
-    /// other schemes.
+    /// other schemes. A `mailto:` link is read as one the system hands MailCraft is (RFC 6068:
+    /// its addresses decoded, its subject, copies and first words taken, nothing attached).
     pub(crate) fn open_link(&mut self, url: &str) {
         // Where it really goes, without what says who clicked (File › Options › Safety).
         let cleaned = if self.session.prefs.clean_links { mailcraft_engine::mime::clean_link(url) } else { url.to_string() };
         let u = cleaned.trim();
         let lower = u.to_ascii_lowercase();
-        if let Some(rest) = u.get(7..).filter(|_| lower.starts_with("mailto:")) {
-            let to = rest.split('?').next().unwrap_or("").replace("%40", "@");
-            self.run("mail.new", json!({}));
-            self.run("compose.update", json!({"to": to}));
+        if lower.starts_with("mailto:") {
+            self.run("mail.mailto", json!({"url": u}));
         } else if lower.starts_with("https://") || lower.starts_with("http://") {
             if let Err(e) = self.services.open_url(u) {
                 self.session.notice(tf!("The link couldn't be opened: {error}", error = e), true);

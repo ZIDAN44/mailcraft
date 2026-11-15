@@ -742,3 +742,16 @@ fn a_reply_drawn_and_left_untouched_closes_without_asking() {
     assert!(a.ui.dialog.is_none(), "nothing asked: {:?}", a.ui.dialog);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A `mailto:` link clicked in a message is read as one the system hands MailCraft is: its
+/// address decoded, its subject and copies taken (only `%40` was decoded, and everything after
+/// the `?` was dropped).
+#[test]
+fn a_mailto_link_clicked_in_a_message_fills_in_the_new_message() {
+    let (mut a, dir) = app("mailto-link");
+    let link = "mailto:first%2Elast@studio.example?subject=Tickets%20for%20Friday&cc=zoe%2Bshows@studio.example";
+    a.act(crate::Action::OpenUrl(link.into()));
+    let c = a.session.compose.as_ref().expect("a new message");
+    assert_eq!((c.to.as_str(), c.subject.as_str(), c.cc.as_str()), ("first.last@studio.example", "Tickets for Friday", "zoe+shows@studio.example"));
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -185,6 +185,8 @@ on GitHub.
 - Messages attached side by side without their own ids no longer come in with the same id.
 - PDF previews draw text in bold when the PDF names a bold font it doesn't include.
 - The Read / Unread button's tooltip on the Home tab is now shown in your language.
+- Clicking a mailto: link in a message now fills in its subject and copies, and decodes characters such as %2E.
+- Save all in the browser now says which attachment couldn't be downloaded.
 
 ## 0.38.0 - 2026-11-13
 
