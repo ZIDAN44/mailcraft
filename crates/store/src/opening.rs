@@ -12,13 +12,32 @@ use super::*;
 
 /// Where opening the data files is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u8)]
 pub enum OpenStage {
-    /// Opening one (quick, unless the disk is slow).
-    Opening,
+    /// Opening one (quick, unless the disk is slow). Kept as 0: where a new [`OpenProgress`]
+    /// starts.
+    Opening = 0,
     /// Checking one that wasn't closed properly.
-    Checking,
+    Checking = 1,
     /// All opened (or not: [`OpenProgress::problems`]).
-    Done,
+    Done = 2,
+}
+
+impl OpenStage {
+    /// As [`OpenProgress`] keeps it.
+    const fn raw(self) -> u8 {
+        self as u8
+    }
+
+    /// From [`OpenStage::raw`]: anything else is taken as done (never kept, but the window must
+    /// never wait on it).
+    const fn from_raw(raw: u8) -> OpenStage {
+        match raw {
+            r if r == OpenStage::Opening.raw() => OpenStage::Opening,
+            r if r == OpenStage::Checking.raw() => OpenStage::Checking,
+            _ => OpenStage::Done,
+        }
+    }
 }
 
 /// How opening the data files is going: written by the thread opening them, read by the window
@@ -27,6 +46,7 @@ pub enum OpenStage {
 pub struct OpenProgress {
     /// The data file being opened (its file name only).
     file: Mutex<String>,
+    /// The [`OpenStage`] ([`OpenStage::raw`]).
     stage: AtomicU8,
     /// The bytes the data files have read: how far a pass over the one being checked has come.
     read: AtomicU64,
@@ -82,11 +102,7 @@ impl OpenProgress {
     }
 
     pub fn stage(&self) -> OpenStage {
-        match self.stage.load(Ordering::Acquire) {
-            0 => OpenStage::Opening,
-            1 => OpenStage::Checking,
-            _ => OpenStage::Done,
-        }
+        OpenStage::from_raw(self.stage.load(Ordering::Acquire))
     }
 
     /// The data file being opened or checked (its file name).
@@ -146,7 +162,7 @@ impl OpenProgress {
 
     /// All of them opened, or given up on.
     pub fn finish(&self) {
-        self.stage.store(2, Ordering::Release);
+        self.stage.store(OpenStage::Done.raw(), Ordering::Release);
     }
 
     /// `total` data files to open.
@@ -158,13 +174,14 @@ impl OpenProgress {
     pub fn opening(&self, file: &str) {
         *lock(&self.file) = file.to_string();
         *lock(&self.pass) = Pass::default();
-        self.stage.store(0, Ordering::Release);
+        self.stage.store(OpenStage::Opening.raw(), Ordering::Release);
     }
 
     /// The database is checking `file`, `fraction` of the way: called by it as it goes (on the
     /// thread opening it).
     pub fn checking(&self, file: &str, fraction: f64) {
-        if self.stage.swap(1, Ordering::AcqRel) != 1 {
+        let checking = OpenStage::Checking.raw();
+        if self.stage.swap(checking, Ordering::AcqRel) != checking {
             *lock(&self.file) = file.to_string();
             self.checked.fetch_add(1, Ordering::Relaxed);
         }
@@ -189,7 +206,7 @@ impl OpenProgress {
     /// A check ended (the file opened, or not): the next one is told and counted, a data file
     /// opened later included (as the command line opens them, where none counts as opened).
     pub fn checked_one(&self) {
-        if self.stage.compare_exchange(1, 0, Ordering::AcqRel, Ordering::Acquire).is_ok() {
+        if self.stage.compare_exchange(OpenStage::Checking.raw(), OpenStage::Opening.raw(), Ordering::AcqRel, Ordering::Acquire).is_ok() {
             // The next check starts from nothing, though no file was said to open before it.
             *lock(&self.pass) = Pass::default();
         }
@@ -198,7 +215,7 @@ impl OpenProgress {
     /// One more data file opened.
     pub fn opened(&self) {
         self.done.fetch_add(1, Ordering::Relaxed);
-        self.stage.store(0, Ordering::Release);
+        self.stage.store(OpenStage::Opening.raw(), Ordering::Release);
     }
 
     /// Checks hold (`true`) until let go (`false`): what else goes on meanwhile is tested.
