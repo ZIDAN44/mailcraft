@@ -91,6 +91,12 @@ impl Services for Desktop {
         }
     }
 
+    /// The system's cursor, in physical pixels (winit makes MailCraft per-monitor DPI aware).
+    #[cfg(target_os = "windows")]
+    fn pointer_on_screen(&mut self) -> Option<[i32; 2]> {
+        winsafe::GetCursorPos().ok().map(|p| [p.x, p.y])
+    }
+
     fn clock(&self) -> (i64, i32) {
         let now = chrono::Local::now();
         (now.timestamp(), now.offset().local_minus_utc())

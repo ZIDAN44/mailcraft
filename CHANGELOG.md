@@ -215,6 +215,7 @@ on GitHub.
 - An internal error while the window or one of its windows was being drawn (a message, a dialog, a pane) no longer closes MailCraft with what's being written in it: it's said, the dialog it may have come from is put away, and MailCraft goes on. Only a window that fails frame after frame still closes, and keeps what's being written in Drafts first.
 - A window that was on a monitor since unplugged opens on screen when another monitor of the same size is left: it opened where no monitor was, out of reach. MailCraft now looks at where the monitors are, not their sizes alone, and brings a window it couldn't be dragged back by its top edge onto the main monitor.
 - On Windows, MailCraft started again in the instant the running one sets up to answer launches no longer waits five seconds and opens a second window: a launch that asked too early asks again, and Windows sometimes didn't tell the running MailCraft the first ask was gone, so it waited for it while the second one timed out.
+- On Windows, a pen or a finger moves the window by MailCraft's own title bar and resizes it from its edges, and drags a maximized window out restored, under the pen where it took it. It did nothing, and afterwards the mouse couldn't move the window either until MailCraft was restarted. A resize stops at the window's smallest size, as the mouse's does.
 
 ## 0.38.0 - 2026-11-13
 

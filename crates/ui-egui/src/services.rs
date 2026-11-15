@@ -137,6 +137,12 @@ pub trait Services {
     fn keep_frame(&mut self) {}
     /// MailCraft's own title bar is about to maximize or restore the window, in this frame.
     fn before_zoom(&mut self) {}
+    /// Where the system's cursor is on the screen, in physical pixels, while a pen or a finger
+    /// drags the window by MailCraft's own title bar (Windows): the window follows it where it
+    /// follows the pen. `None`: not known.
+    fn pointer_on_screen(&mut self) -> Option<[i32; 2]> {
+        None
+    }
     /// The local time zone's IANA name (`Europe/Berlin`), when the system says.
     fn zone(&self) -> Option<String> {
         None

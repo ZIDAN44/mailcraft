@@ -231,6 +231,8 @@ impl MailApp {
         if self.services.own_title_bar() {
             self.services.keep_frame();
             super::caption::clear_scroll_bars(&ctx);
+            // Where a pen dragging the window is, before the title bar reads it.
+            super::caption::note_os_pointer(&ctx, || self.services.pointer_on_screen());
         }
         super::windows::track_place(&mut self.ui.places, "main", ui);
         if !self.ui.fonts_ready {

@@ -18,8 +18,8 @@ thread_local! {
     static FRAME: Cell<usize> = const { Cell::new(0) };
 }
 
-/// The smallest window MailCraft goes to (`apps/mailcraft`: its `with_min_inner_size`).
-const SMALL: egui::Vec2 = egui::vec2(760.0, 480.0);
+/// The smallest window MailCraft goes to.
+const SMALL: egui::Vec2 = crate::MIN_WINDOW_SIZE;
 
 /// Frames in a window of `size`, in `lang` ("": as the app has it), until the test ends.
 pub(crate) struct Dressed;
