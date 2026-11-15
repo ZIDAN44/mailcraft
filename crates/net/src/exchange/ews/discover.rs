@@ -12,6 +12,15 @@ pub(super) fn autodiscover_urls(email: &str) -> Vec<String> {
     vec![format!("https://autodiscover.{domain}/autodiscover/autodiscover.xml"), format!("https://{domain}/autodiscover/autodiscover.xml")]
 }
 
+/// What Autodiscover is asked about an address (POX's request).
+pub(super) fn autodiscover_request(address: &str) -> String {
+    format!(
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?><Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/outlook/requestschema/2006\">\
+         <Request><EMailAddress>{}</EMailAddress><AcceptableResponseSchema>http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a</AcceptableResponseSchema></Request></Autodiscover>",
+        esc(address)
+    )
+}
+
 /// The EWS address in an Autodiscover answer (the outside one first), or the address to ask
 /// about instead (a redirect).
 pub(super) fn autodiscover_answer(xml: &str) -> (Option<String>, Option<String>) {
@@ -39,11 +48,7 @@ pub fn autodiscover(email: &str, user: &str, password: &str, base: Option<&str>)
 pub fn autodiscover_as(email: &str, user: &str, password: &str, base: Option<&str>, agent: Option<&str>) -> Result<String> {
     let mut address = email.to_string();
     for _ in 0..3 {
-        let body = format!(
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?><Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/outlook/requestschema/2006\">\
-             <Request><EMailAddress>{}</EMailAddress><AcceptableResponseSchema>http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a</AcceptableResponseSchema></Request></Autodiscover>",
-            esc(&address)
-        );
+        let body = autodiscover_request(&address);
         let urls = base.map_or_else(|| autodiscover_urls(&address), |b| vec![b.to_string()]);
         let mut redirect = None;
         let mut last = NetError::No("Autodiscover found no Exchange server for this address".into());

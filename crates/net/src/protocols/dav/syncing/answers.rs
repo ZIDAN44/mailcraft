@@ -149,9 +149,15 @@ pub(super) fn answers_more(mine: &CalEvent, server: &[CalEvent]) -> bool {
 /// The user's copy with the answers the server's copy has where it has none yet (guests who
 /// answered since it was read).
 fn with_their_answers(mine: &CalEvent, server: &[CalEvent]) -> CalEvent {
+    with_server_answers(mine, server, false)
+}
+
+/// The user's copy with the answers the server's copy of it has: in place of every one of its own
+/// (`all`), or only where it has none.
+fn with_server_answers(mine: &CalEvent, server: &[CalEvent], all: bool) -> CalEvent {
     let mut e = mine.clone();
     if let Some(s) = server.iter().find(|s| s.recurrence_id == mine.recurrence_id) {
-        for a in e.attendees.iter_mut().filter(|a| unanswered(&a.partstat)) {
+        for a in e.attendees.iter_mut().filter(|a| all || unanswered(&a.partstat)) {
             if let Some(theirs) = s.attendees.iter().find(|x| x.email.eq_ignore_ascii_case(&a.email) && !unanswered(&x.partstat)) {
                 a.partstat = theirs.partstat.clone();
             }
@@ -219,15 +225,7 @@ fn fills_in(mine: &CalEvent, server: &[CalEvent]) -> bool {
 
 /// The user's copy with every answer the server's copy has in place of its own.
 fn with_newer_answers(mine: &CalEvent, server: &[CalEvent]) -> CalEvent {
-    let mut e = mine.clone();
-    if let Some(s) = server.iter().find(|s| s.recurrence_id == mine.recurrence_id) {
-        for a in e.attendees.iter_mut() {
-            if let Some(theirs) = s.attendees.iter().find(|x| x.email.eq_ignore_ascii_case(&a.email) && !unanswered(&x.partstat)) {
-                a.partstat = theirs.partstat.clone();
-            }
-        }
-    }
-    e
+    with_server_answers(mine, server, true)
 }
 
 /// Whether the server's copy of an event (or of one occurrence) has everything the user's copy

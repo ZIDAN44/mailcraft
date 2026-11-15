@@ -466,9 +466,40 @@ pub fn day_label(day: i64) -> String {
     weekday_and_day(day, DateOrder::Iso)
 }
 
+/// A moment (Unix seconds) as its date and time in UTC, without a zone: `2026-11-03T10:00:00`
+/// (what Microsoft Graph takes with `"timeZone": "UTC"` beside it).
+pub fn utc_date_time(t: i64) -> String {
+    let s = t.rem_euclid(86_400);
+    format!("{}T{:02}:{:02}:{:02}", day_string(t.div_euclid(86_400)), s / 3600, s / 60 % 60, s % 60)
+}
+
+/// A moment (Unix seconds) as an RFC 3339 time in UTC: `2026-11-03T10:00:00Z`.
+pub fn utc_stamp(t: i64) -> String {
+    format!("{}Z", utc_date_time(t))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// UTC times written as each of the network layer's own copies wrote them.
+    #[test]
+    fn utc_times_as_written_before() {
+        let old = |t: i64| {
+            let (y, m, d) = civil_from_days(t.div_euclid(86_400));
+            let s = t.rem_euclid(86_400);
+            format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", s / 3600, s / 60 % 60, s % 60)
+        };
+        let mut t: i64 = -70_000_000_000;
+        while t < 70_000_000_000 {
+            assert_eq!(utc_stamp(t), old(t), "{t}");
+            assert_eq!(format!("{}Z", utc_date_time(t)), utc_stamp(t));
+            t += 7_919_993;
+        }
+        assert_eq!(utc_stamp(1_793_700_000), "2026-11-03T10:00:00Z");
+        assert_eq!(utc_date_time(-1), "1969-12-31T23:59:59");
+        assert!(!utc_stamp(i64::MAX).is_empty() && !utc_stamp(i64::MIN).is_empty());
+    }
 
     #[test]
     fn follow_up_days() {

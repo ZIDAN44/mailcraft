@@ -102,6 +102,12 @@ impl Url {
     }
 }
 
+/// Whether a [`Url`]'s host is this computer (`localhost`, `127.0.0.1`, `::1`: an IPv6 host is
+/// kept without its brackets): the one place plain http is let through, to a test server.
+pub fn is_loopback(host: &str) -> bool {
+    matches!(host, "localhost" | "127.0.0.1" | "::1")
+}
+
 fn default_port(https: bool) -> u16 {
     if https { 443 } else { 80 }
 }

@@ -11,7 +11,7 @@ use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, LOCAL, Pim, StoredCa
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
 use serde_json::{Value, json};
 
-use crate::graph::Client;
+use crate::graph::{Client, seg};
 use crate::{NetError, Result};
 
 /// Most events read from one calendar, and contacts in all.
@@ -20,10 +20,6 @@ const MAX_ITEMS: usize = 5000;
 pub const CONTACTS: &str = "graph:contacts";
 const EVENT_FIELDS: &str = "id,iCalUId,subject,body,start,end,isAllDay,location,attendees,organizer,recurrence,changeKey,isCancelled,type,categories,onlineMeeting,isReminderOn,reminderMinutesBeforeStart,sensitivity,showAs";
 const CONTACT_FIELDS: &str = "id,changeKey,displayName,givenName,surname,emailAddresses,businessPhones,homePhones,mobilePhone,companyName,jobTitle,personalNotes,businessAddress,homeAddress,otherAddress,birthday";
-
-fn seg(id: &str) -> String {
-    mailcraft_jmap::pct(id)
-}
 
 fn s(v: &Value, k: &str) -> String {
     v.get(k).and_then(Value::as_str).unwrap_or_default().to_string()
@@ -35,15 +31,11 @@ fn when(v: Option<&Value>) -> Option<i64> {
 }
 
 fn date_time(t: i64) -> Value {
-    let days = t.div_euclid(86_400);
-    let secs = t.rem_euclid(86_400);
-    let (y, m, d) = mailcraft_model::dates::civil_from_days(days);
-    json!({"dateTime": format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}", secs / 3600, secs / 60 % 60, secs % 60), "timeZone": "UTC"})
+    json!({"dateTime": mailcraft_model::dates::utc_date_time(t), "timeZone": "UTC"})
 }
 
 fn ymd(t: i64) -> String {
-    let (y, m, d) = mailcraft_model::dates::civil_from_days(t.div_euclid(86_400));
-    format!("{y:04}-{m:02}-{d:02}")
+    mailcraft_model::dates::day_string(t.div_euclid(86_400))
 }
 
 const DAYS: [(&str, &str); 7] =
@@ -346,13 +338,7 @@ pub fn card_of(v: &Value) -> Option<Card> {
             })
             .collect(),
         // The start of the day where it was set, in UTC (or noon, as MailCraft writes it).
-        birthday: mailcraft_jmap::utc_date(&s(v, "birthday"))
-            .map(|t| {
-                let (y, m, d) = mailcraft_model::dates::civil_from_days((t + 12 * 3600 - 1).div_euclid(86_400));
-                format!("{y:04}-{m:02}-{d:02}")
-            })
-            .and_then(|b| mailcraft_model::vcard::birthday_of(&b))
-            .unwrap_or_default(),
+        birthday: crate::exchange::birthday(&s(v, "birthday")),
         ..Default::default()
     })
 }

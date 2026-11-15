@@ -7,6 +7,7 @@
 //! appointments updated field by field, changed contacts made again, deletions done (no meeting
 //! mail is ever sent); then both folders are read again.
 
+use mailcraft_model::dates::utc_stamp;
 use mailcraft_model::ical::{Attendee, CalEvent, Privacy, ShowAs, personal, privacy, set_personal, set_privacy, set_show_as, show_as};
 use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, Note, Pim, StoredCard, StoredEvent, StoredNote};
 use mailcraft_model::vcard::{Card, PostalAddress, Typed};
@@ -24,12 +25,6 @@ const MAX_ITEMS: usize = 5000;
 const BATCH: usize = 50;
 const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-fn utc(t: i64) -> String {
-    let (y, m, d) = mailcraft_model::dates::civil_from_days(t.div_euclid(86_400));
-    let s = t.rem_euclid(86_400);
-    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", s / 3600, s / 60 % 60, s % 60)
-}
 
 fn text(e: &El, name: &str) -> String {
     e.text_of(name).unwrap_or_default().trim().to_string()
@@ -246,8 +241,8 @@ fn event_fields(e: &CalEvent) -> Vec<(&'static str, String)> {
         f.push(("ReminderMinutesBeforeStart", format!("<t:ReminderMinutesBeforeStart>{m}</t:ReminderMinutesBeforeStart>")));
     }
     f.extend([
-        ("Start", format!("<t:Start>{}</t:Start>", utc(start))),
-        ("End", format!("<t:End>{}</t:End>", utc(end))),
+        ("Start", format!("<t:Start>{}</t:Start>", utc_stamp(start))),
+        ("End", format!("<t:End>{}</t:End>", utc_stamp(end))),
         ("IsAllDayEvent", format!("<t:IsAllDayEvent>{}</t:IsAllDayEvent>", e.all_day)),
         ("LegacyFreeBusyStatus", format!("<t:LegacyFreeBusyStatus>{}</t:LegacyFreeBusyStatus>", free_busy(e))),
         ("Location", format!("<t:Location>{}</t:Location>", esc(&e.location))),
@@ -401,18 +396,7 @@ pub fn card_of(it: &El) -> Option<Card> {
                 .collect()
         })
         .unwrap_or_default();
-    // Exchange keeps a birthday as the start of that day where it was set, in UTC (the evening
-    // before, east of Greenwich); MailCraft writes noon. Either way, the day from just after
-    // noon the day before to noon is the one.
-    let birthday = it
-        .text_of("Birthday")
-        .and_then(|b| mailcraft_jmap::utc_date(b.trim()))
-        .map(|t| {
-            let (y, m, d) = mailcraft_model::dates::civil_from_days((t + 12 * 3600 - 1).div_euclid(86_400));
-            format!("{y:04}-{m:02}-{d:02}")
-        })
-        .and_then(|b| mailcraft_model::vcard::birthday_of(&b))
-        .unwrap_or_default();
+    let birthday = it.text_of("Birthday").map(crate::exchange::birthday).unwrap_or_default();
     let body = it.child("Body").map(|b| b.text.trim().to_string()).unwrap_or_default();
     Some(Card {
         uid: id,

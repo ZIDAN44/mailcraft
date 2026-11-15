@@ -215,7 +215,7 @@ pub(super) fn items_in(c: &Client, parent: &str, extra: &str) -> Result<Read> {
     }
     let mut read = Read { items: Vec::new(), refused: 0, why: String::new() };
     for chunk in ids.chunks(BATCH) {
-        let list: String = chunk.iter().map(|id| format!("<t:ItemId Id=\"{}\"/>", esc(id))).collect();
+        let list = crate::ews::item_ids(chunk);
         let doc = c.call(&format!(
             "<m:GetItem><m:ItemShape><t:BaseShape>AllProperties</t:BaseShape><t:BodyType>Text</t:BodyType>\
              <t:AdditionalProperties><t:FieldURI FieldURI=\"item:EffectiveRights\"/>{extra}</t:AdditionalProperties></m:ItemShape>\

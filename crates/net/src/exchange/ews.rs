@@ -331,8 +331,7 @@ impl Client {
     /// A session for `url` (checked with the first request).
     pub fn new(url: &str, user: &str, password: &str, email: &str) -> Result<Client> {
         let u = http::Url::parse(url)?;
-        let local = matches!(u.host.as_str(), "127.0.0.1" | "localhost" | "::1");
-        if !u.https && !local {
+        if !u.https && !http::is_loopback(&u.host) {
             return Err(NetError::Protocol("Exchange is reached over https only".into()));
         }
         Ok(Client {
@@ -582,7 +581,7 @@ fn in_path<T>(c: &Client, st: &State, path: &str, f: impl FnOnce() -> Result<T>)
     }
 }
 
-fn item_ids(ids: &[String]) -> String {
+pub(crate) fn item_ids(ids: &[String]) -> String {
     ids.iter().map(|id| format!("<t:ItemId Id=\"{}\"/>", esc(id))).collect()
 }
 
@@ -730,8 +729,8 @@ mod mailbox;
 mod requests;
 #[cfg(test)]
 use discover::autodiscover_answer;
-use discover::autodiscover_urls;
 pub use discover::{autodiscover, autodiscover_as};
+use discover::{autodiscover_request, autodiscover_urls};
 pub(crate) use requests::into_messages;
 #[cfg(test)]
 use requests::scheme_token;

@@ -175,7 +175,7 @@ impl Client {
     pub(super) fn still_in(&self, folder: &str, ids: &[String]) -> Result<Vec<(String, Flags)>> {
         let mut out = Vec::new();
         for chunk in ids.chunks(BATCH) {
-            let list: String = chunk.iter().map(|id| format!("<t:ItemId Id=\"{}\"/>", esc(id))).collect();
+            let list = item_ids(chunk);
             let doc = self.call(&format!(
                 "<m:GetItem><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>{FLAG_FIELDS}\
                  <t:FieldURI FieldURI=\"item:ParentFolderId\"/></t:AdditionalProperties></m:ItemShape><m:ItemIds>{list}</m:ItemIds></m:GetItem>"
@@ -196,7 +196,7 @@ impl Client {
     pub(super) fn headers(&self, ids: &[String]) -> Result<Vec<El>> {
         let mut out = Vec::new();
         for chunk in ids.chunks(BATCH) {
-            let list: String = chunk.iter().map(|id| format!("<t:ItemId Id=\"{}\"/>", esc(id))).collect();
+            let list = item_ids(chunk);
             let doc = self.call(&format!(
                 "<m:GetItem><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>{HEADER_FIELDS}{FLAG_FIELDS}</t:AdditionalProperties></m:ItemShape>\
                  <m:ItemIds>{list}</m:ItemIds></m:GetItem>"
@@ -226,29 +226,28 @@ impl Client {
 
     /// Store a MIME message in a folder (as a draft when it's one); its id.
     pub fn create(&self, raw: &[u8], folder: &str, draft: bool) -> Result<String> {
-        let flags = if draft {
-            "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x0E07\" PropertyType=\"Integer\"/><t:Value>8</t:Value></t:ExtendedProperty>"
-        } else {
-            ""
-        };
-        let m = self.in_folder(folder, || {
-            self.call_one(&format!(
-                "<m:CreateItem MessageDisposition=\"SaveOnly\"><m:SavedItemFolderId><t:FolderId Id=\"{}\"/></m:SavedItemFolderId>\
-                 <m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">{}</t:MimeContent>{flags}</t:Message></m:Items></m:CreateItem>",
-                esc(folder),
-                base64::encode(raw)
-            ))
-        })?;
-        Ok(m.find("ItemId").and_then(|i| i.attr("Id")).unwrap_or_default().to_string())
+        self.store(raw, folder, draft.then_some(8))
     }
 
     /// Store a MIME message in a folder as mail received and read (not a draft): issue #38.
     pub fn create_received(&self, raw: &[u8], folder: &str) -> Result<String> {
+        self.store(raw, folder, Some(1))
+    }
+
+    /// Store a MIME message in a folder with its message flags (`PR_MESSAGE_FLAGS`: 8 a draft, 1
+    /// read) when given, else as the server sets them; its id.
+    fn store(&self, raw: &[u8], folder: &str, flags: Option<u8>) -> Result<String> {
+        let flags = flags
+            .map(|f| {
+                format!(
+                    "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x0E07\" PropertyType=\"Integer\"/><t:Value>{f}</t:Value></t:ExtendedProperty>"
+                )
+            })
+            .unwrap_or_default();
         let m = self.in_folder(folder, || {
             self.call_one(&format!(
                 "<m:CreateItem MessageDisposition=\"SaveOnly\"><m:SavedItemFolderId><t:FolderId Id=\"{}\"/></m:SavedItemFolderId>\
-                 <m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">{}</t:MimeContent><t:ExtendedProperty>\
-                 <t:ExtendedFieldURI PropertyTag=\"0x0E07\" PropertyType=\"Integer\"/><t:Value>1</t:Value></t:ExtendedProperty></t:Message></m:Items></m:CreateItem>",
+                 <m:Items><t:Message><t:MimeContent CharacterSet=\"UTF-8\">{}</t:MimeContent>{flags}</t:Message></m:Items></m:CreateItem>",
                 esc(folder),
                 base64::encode(raw)
             ))
@@ -281,9 +280,8 @@ impl Client {
             let t = s.find(name)?.text.clone();
             let secs = jmap::utc_date(&t)?;
             // The end is the moment after the last day.
-            let secs = if end { secs - 1 } else { secs };
-            let (y, m, d) = mailcraft_model::dates::civil_from_days(secs.div_euclid(86_400));
-            Some(format!("{y:04}-{m:02}-{d:02}"))
+            let secs = if end { secs.saturating_sub(1) } else { secs };
+            Some(mailcraft_model::dates::day_string(secs.div_euclid(86_400)))
         };
         let scheduled = state == "Scheduled";
         let reply = |which: &str| {

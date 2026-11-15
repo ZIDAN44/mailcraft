@@ -90,7 +90,7 @@ fn json_body(body: &[u8]) -> Result<Value> {
     serde_json::from_slice(body).map_err(|e| NetError::Protocol(format!("Graph: {e}")))
 }
 
-fn seg(id: &str) -> String {
+pub(crate) fn seg(id: &str) -> String {
     http::pct(id)
 }
 
@@ -99,7 +99,7 @@ impl Client {
     pub fn connect(base: &str, token: &str) -> Result<Client> {
         let base = base.trim().trim_end_matches('/').to_string();
         let url = http::Url::parse(&base)?;
-        if !url.https && !matches!(url.host.as_str(), "127.0.0.1" | "localhost") {
+        if !url.https && !http::is_loopback(&url.host) {
             return Err(NetError::Tls("the Graph address isn't https".into()));
         }
         let c = Client { base, auth: format!("Bearer {token}") };

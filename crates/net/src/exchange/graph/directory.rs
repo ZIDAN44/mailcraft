@@ -34,7 +34,7 @@ pub fn search_directory(base: &str, token: &str, query: &str) -> Result<Vec<(Str
     }
     let base = base.trim().trim_end_matches('/');
     let url = http::Url::parse(base)?;
-    if !url.https && !matches!(url.host.as_str(), "127.0.0.1" | "localhost") {
+    if !url.https && !http::is_loopback(&url.host) {
         return Err(NetError::Tls("the Graph address isn't https".into()));
     }
     let auth = format!("Bearer {token}");

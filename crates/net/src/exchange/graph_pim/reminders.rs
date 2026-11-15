@@ -2,6 +2,7 @@
 //! `dismissReminder` and `snoozeReminder` on the event, or on the one occurrence of a series
 //! (found among the series' `instances` around its start), so Outlook doesn't show them again.
 
+use mailcraft_model::dates::utc_stamp;
 use mailcraft_model::pim::ReminderAnswer;
 
 use super::*;
@@ -9,13 +10,6 @@ use super::*;
 /// How far from the occurrence's start its instance is looked for: a day either way, for an
 /// all-day occurrence kept as its local day.
 const AROUND: i64 = 86_400;
-
-/// Graph's date-time in a query (`2026-11-03T10:00:00Z`).
-fn query_time(t: i64) -> String {
-    let (y, m, d) = mailcraft_model::dates::civil_from_days(t.div_euclid(86_400));
-    let s = t.rem_euclid(86_400);
-    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", s / 3600, s / 60 % 60, s % 60)
-}
 
 /// The event to answer: the item itself, or the series' occurrence nearest its start.
 fn item(c: &Client, a: &ReminderAnswer) -> Result<String> {
@@ -25,8 +19,8 @@ fn item(c: &Client, a: &ReminderAnswer) -> Result<String> {
     let path = format!(
         "/me/events/{}/instances?startDateTime={}&endDateTime={}&$select=id,start&$top=10",
         seg(&a.href),
-        query_time(a.occurrence.saturating_sub(AROUND)),
-        query_time(a.occurrence.saturating_add(AROUND))
+        utc_stamp(a.occurrence.saturating_sub(AROUND)),
+        utc_stamp(a.occurrence.saturating_add(AROUND))
     );
     let v = c.get(&path)?;
     let list = v.get("value").and_then(Value::as_array).cloned().unwrap_or_default();

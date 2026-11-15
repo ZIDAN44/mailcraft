@@ -132,6 +132,9 @@ fn urls() {
     assert_eq!((u.https, u.host.as_str(), u.port, u.path.as_str()), (true, "mail.example.com", 443, "/a/b?x=1"));
     assert_eq!(Url::parse("http://h:8080").unwrap().path, "/");
     assert_eq!(Url::parse("http://[::1]:99/x").unwrap().host, "::1");
+    for (url, here) in [("http://[::1]:99/", true), ("http://LOCALHOST/", true), ("http://127.0.0.1:8/", true), ("http://127.0.0.2/", false)] {
+        assert_eq!(is_loopback(&Url::parse(url).unwrap().host), here, "{url}");
+    }
     assert_eq!(Url::parse("http://h/a b").unwrap().path, "/a%20b");
     for bad in ["ftp://h/", "http://", "http://user@h/", "http://h:0/", "http://h:x/", "javascript:alert(1)", "http://h h/"] {
         assert!(Url::parse(bad).is_err(), "{bad}");

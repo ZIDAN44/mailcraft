@@ -22,8 +22,8 @@ fn reminder_item(c: &Client, a: &ReminderAnswer) -> Result<(String, String)> {
     let doc = c.call_2013(&format!(
         "<m:GetReminders><m:BeginTime>{}</m:BeginTime><m:EndTime>{}</m:EndTime><m:MaxItems>{MAX_LISTED}</m:MaxItems>\
          <m:ReminderType>All</m:ReminderType></m:GetReminders>",
-        utc(from),
-        utc(a.occurrence.saturating_add(AROUND))
+        utc_stamp(from),
+        utc_stamp(a.occurrence.saturating_add(AROUND))
     ))?;
     if let Some(m) = doc.find("GetRemindersResponse") {
         check_message(m)?;
@@ -61,7 +61,7 @@ pub(super) fn answer(c: &Client, a: &ReminderAnswer) -> Result<()> {
     };
     let (action, time) = match a.snooze_until {
         None => ("Dismiss", String::new()),
-        Some(until) => ("Snooze", format!("<t:NewReminderTime>{}</t:NewReminderTime>", utc(until))),
+        Some(until) => ("Snooze", format!("<t:NewReminderTime>{}</t:NewReminderTime>", utc_stamp(until))),
     };
     let doc = c.call_2013(&format!(
         "<m:PerformReminderAction><m:ReminderItemActions><t:ReminderItemAction><t:ActionType>{action}</t:ActionType>\

@@ -2,6 +2,14 @@
 
 use super::*;
 
+/// Run `f` with `slot` (where requests are anchored, or routed) set to `mailbox`, then as it was.
+fn with_mailbox<T>(slot: &RefCell<Option<String>>, mailbox: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
+    let before = slot.replace(Some(mailbox.to_string()));
+    let r = f();
+    *slot.borrow_mut() = before;
+    r
+}
+
 impl Client {
     /// The shared mailboxes added to the account by hand.
     pub fn set_shared(&self, addresses: &[String]) {
@@ -74,10 +82,7 @@ impl Client {
 
     /// Run `f` with every request routed to another mailbox (a shared one).
     pub(super) fn anchored_to<T>(&self, mailbox: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
-        let before = self.anchor.replace(Some(mailbox.to_string()));
-        let r = f();
-        *self.anchor.borrow_mut() = before;
-        r
+        with_mailbox(&self.anchor, mailbox, f)
     }
 
     /// Run `f` with its requests sent where folder `id` (its EWS id) is kept: to the shared
@@ -163,11 +168,7 @@ impl Client {
     /// Ask Autodiscover about an address (at the Exchange server's own Autodiscover first, then
     /// the domain's): the first answer.
     pub(super) fn ask_autodiscover(&self, address: &str) -> Result<String> {
-        let body = format!(
-            "<?xml version=\"1.0\" encoding=\"utf-8\"?><Autodiscover xmlns=\"http://schemas.microsoft.com/exchange/autodiscover/outlook/requestschema/2006\">\
-             <Request><EMailAddress>{}</EMailAddress><AcceptableResponseSchema>http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a</AcceptableResponseSchema></Request></Autodiscover>",
-            esc(address)
-        );
+        let body = autodiscover_request(address);
         let mut urls = Vec::new();
         if let Ok(u) = http::Url::parse(&self.url)
             && let Some(origin) = self.url.len().checked_sub(u.path.len()).and_then(|end| self.url.get(..end))
@@ -206,10 +207,7 @@ impl Client {
 
     /// Run `f` with every request routed to a public folder mailbox.
     pub(crate) fn routed_to<T>(&self, mailbox: &str, f: impl FnOnce() -> Result<T>) -> Result<T> {
-        let before = self.route.replace(Some(mailbox.to_string()));
-        let r = f();
-        *self.route.borrow_mut() = before;
-        r
+        with_mailbox(&self.route, mailbox, f)
     }
 
     /// The address of the public folder mailbox with this GUID, from Autodiscover (asked at

@@ -207,7 +207,7 @@ impl Dav {
         for _ in 0..=http::MAX_REDIRECTS {
             // Plain http only to this computer (a test server): the password never crosses the
             // network in the clear, wherever a redirect or a server's href points.
-            if Url::parse(&url).is_ok_and(|u| !u.https && !local_host(&u.host)) {
+            if Url::parse(&url).is_ok_and(|u| !u.https && !http::is_loopback(&u.host)) {
                 return Err(NetError::Tls(format!("{url} isn't https: MailCraft won't send the calendar password there")));
             }
             let mut req = if body.is_empty() {
@@ -571,15 +571,10 @@ pub fn given_url(given: &str) -> Option<String> {
     let lower = g.to_ascii_lowercase();
     let full = if lower.starts_with("https://") || lower.starts_with("http://") { g.to_string() } else { format!("https://{g}") };
     let u = Url::parse(&full).ok()?;
-    if !u.https && !local_host(&u.host) {
+    if !u.https && !http::is_loopback(&u.host) {
         return None;
     }
     Some(format!("{}{}", u.origin(), if u.path.is_empty() { "/" } else { &u.path }))
-}
-
-/// This computer, by name or address.
-fn local_host(host: &str) -> bool {
-    matches!(host, "localhost" | "127.0.0.1" | "[::1]" | "::1")
 }
 
 /// The collection an address is in (`…/calendars/me/default` → `…/calendars/me/`); none above a
