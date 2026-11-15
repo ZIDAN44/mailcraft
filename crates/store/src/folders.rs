@@ -55,10 +55,10 @@ impl Store {
     /// numbers alone took four times as long, measured on 100,000 messages). In no order.
     pub fn folder_uids(&self, account: &str, folder: &str) -> Result<Vec<u32>> {
         let dir = self.folder_dir(account, folder);
-        let head: UidsFile = self.read_json(&dir.join("state.json"))?;
+        let head: UidsFile = self.read_json(&dir.join(HEAD))?;
         let mut uids: Vec<u32> = head.messages.iter().map(|m| m.key.uid).collect();
         for i in 0..head.pages.len() {
-            let page: Vec<UidOnly> = self.read_json(&dir.join(format!("state-{i}.json")))?;
+            let page: Vec<UidOnly> = self.read_json(&page_path(&dir, i))?;
             uids.extend(page.iter().map(|m| m.key.uid));
         }
         Ok(uids)

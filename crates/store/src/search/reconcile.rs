@@ -111,7 +111,7 @@ pub fn revision(store: &Store, account: &str, folder: &str) -> Option<u64> {
         #[serde(default)]
         validity: u32,
     }
-    let path = store.folder_dir(account, folder).join("state.json");
+    let path = store.folder_dir(account, folder).join(crate::folders::HEAD);
     let head = match store.files.read(&path) {
         Ok(b) => b,
         Err(e) if e.kind() == io::ErrorKind::NotFound => Vec::new(),
