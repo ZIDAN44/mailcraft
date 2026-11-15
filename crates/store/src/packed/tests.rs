@@ -627,12 +627,13 @@ fn threads_opening_a_data_file_together_all_get_it() {
     }
 }
 
-/// Listing a real data file's mail, timed (counts and timings only): `MC_DATA` names a copy of a
-/// data folder (opening a data file may write to it, so never the original), its data files in
-/// "MailCraft Files".
+/// Listing a real data file's mail, timed (counts and timings told, not held to a mark):
+/// `MC_DATA` names a copy of a data folder (opening a data file may write to it, so never the
+/// original), its data files in "MailCraft Files". Each folder's cached mail is listed once
+/// each, and its own files without the mail inside its folders.
 #[test]
 #[ignore = "needs a copy of a real data folder in MC_DATA"]
-fn a_real_data_files_mail_is_listed_quickly() {
+fn a_real_data_files_mail_listing_is_timed() {
     let Some(root) = std::env::var_os("MC_DATA").map(std::path::PathBuf::from) else { return };
     let s = Store::open_packed(&root, root.join("MailCraft Files")).unwrap();
     for a in s.load_accounts().unwrap() {
@@ -641,12 +642,18 @@ fn a_real_data_files_mail_is_listed_quickly() {
         for f in s.load_folders(&a.id).unwrap() {
             let validity = s.load_folder(&a.id, &f.path).unwrap().validity;
             let t = std::time::Instant::now();
-            bodies += s.cached_bodies(&a.id, &f.path, validity).len();
+            let mut uids = s.cached_bodies(&a.id, &f.path, validity);
             listing += t.elapsed();
+            let dir = s.folder_dir(&a.id, &f.path);
             let t = std::time::Instant::now();
-            names += s.files.list(&s.folder_dir(&a.id, &f.path)).len();
+            let listed = s.files.list(&dir);
             listing_folders += t.elapsed();
-            folders += 1;
+            let n = uids.len();
+            uids.sort_unstable();
+            uids.dedup();
+            assert_eq!(uids.len(), n, "{}: each cached message once", f.path);
+            assert!(listed.iter().all(|(_, p)| p.parent() == Some(dir.as_path())), "{}: only the folder's own files", f.path);
+            (bodies, names, folders) = (bodies + n, names + listed.len(), folders + 1);
         }
         eprintln!("{folders} folders: cached_bodies {bodies} in {listing:?}; folder files {names} in {listing_folders:?}");
     }

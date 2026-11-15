@@ -353,22 +353,25 @@ fn a_compaction_sets_the_baseline() {
     drop(s);
 }
 
-/// A real data file's health, timed (counts and timings only): `MC_DATA` names a copy of a data
-/// folder (opening a data file may write to it, so never the original), its data files in
-/// "MailCraft Files". Cold the first time only on a copy not yet read (copied unbuffered, or after
-/// a standby purge); the second is warm.
+/// A real data file's health, timed (counts and timings told, not held to a mark): `MC_DATA`
+/// names a copy of a data folder (opening a data file may write to it, so never the original),
+/// its data files in "MailCraft Files". Cold the first time only on a copy not yet read (copied
+/// unbuffered, or after a standby purge); the second is warm, and finds the same.
 #[test]
 #[ignore = "needs a copy of a real data folder in MC_DATA"]
-fn a_real_data_files_health_is_measured_quickly() {
+fn a_real_data_files_health_measuring_is_timed() {
     let Some(root) = std::env::var_os("MC_DATA").map(std::path::PathBuf::from) else { return };
     let t = std::time::Instant::now();
     let s = Store::open_packed(&root, root.join("MailCraft Files")).unwrap();
     eprintln!("opened in {:?}", t.elapsed());
     for a in s.load_accounts().unwrap() {
+        let mut runs = Vec::new();
         for run in ["cold", "warm"] {
             let t = std::time::Instant::now();
             let h = s.data_file_health(&a.id).unwrap();
             eprintln!("{run}: {:?} {h:?}", t.elapsed());
+            runs.push(h);
         }
+        assert_eq!(runs[0], runs[1], "{}: the same file, the same health", a.id);
     }
 }

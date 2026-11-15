@@ -56,7 +56,9 @@ fn packets_nested_without_end_dont_overflow() {
     // Thousands of one-pass signature packets, none ended.
     let ops = packet(4, &[3, 0, 8, 22, 1, 2, 3, 4, 5, 6, 7, 8, 0]);
     let many: Vec<u8> = std::iter::repeat_n(ops, 5000).flatten().chain(literal(b"x")).collect();
-    assert!(open(&many, &[]).is_err() || open(&many, &[]).is_ok_and(|d| d.check.is_some()));
+    // Refused: never read as the literal inside, signed or not.
+    let opened = open(&many, &[]);
+    assert_eq!(opened.map(|d| (d.data, d.check)), Err(Error::Malformed("the signed message can't be read")));
 }
 
 /// Eve's user ID, with her own signature, put on Ana's key: not Ana's, so mail to Eve's
