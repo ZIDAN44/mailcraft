@@ -91,6 +91,42 @@ fn a_parts_pictures_are_looked_for_as_deep_as_it_is_drawn() {
     }
 }
 
+/// A plain text shown where another as long was (the same message, read again) is cut for
+/// itself and reads its own way: the first one's cuts were kept by its length, some of them
+/// inside a letter of the second (those chunks drew as nothing), and its direction.
+#[test]
+fn a_text_as_long_as_the_one_before_is_cut_for_itself() {
+    let first = "Quarterly figures, region by region.\n".repeat(1_000);
+    // As many bytes: two-byte letters, right-to-left, in lines of another length.
+    let line = format!("{}\n", "\u{5e9}".repeat(40));
+    let mut second = line.repeat(first.len() / line.len());
+    second.push_str(&"x".repeat(first.len() - second.len()));
+    assert_eq!(first.len(), second.len());
+    assert_ne!(stamp(&first), stamp(&second));
+    let ctx = egui::Context::default();
+    let mut st = UiState::default();
+    let mut kept = |text: &str| {
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(900.0, 700.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| plain(&mut st, ui, id(1), text));
+        });
+        out.textures_delta.clear();
+        st.long_text.get(&id(1)).and_then(|v| v.plain.as_ref()).map(|p| (p.ranges.clone(), p.rtl))
+    };
+    assert_eq!(kept(&first), Some((chunks(&first, CHUNK), false)));
+    assert_eq!(kept(&first), Some((chunks(&first, CHUNK), false)), "kept for the same text");
+    let (ranges, rtl) = kept(&second).unwrap();
+    assert!(ranges.iter().all(|r| second.get(r.clone()).is_some()), "no cut inside a letter");
+    assert_eq!((ranges, rtl), (chunks(&second, CHUNK), true));
+    // Texts that differ in one byte, wherever it is, are told apart.
+    let text = "a".repeat(100);
+    for at in 0..text.len() {
+        let mut other = text.clone().into_bytes();
+        other[at] = b'b';
+        assert_ne!(stamp(&text), stamp(&String::from_utf8(other).unwrap()), "{at}");
+    }
+}
+
 /// A frame of a long plain text, in view at its top: how long it takes (a text of 4 MB was cut
 /// in chunks and looked through for right-to-left letters on every frame).
 #[test]

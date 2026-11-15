@@ -45,12 +45,30 @@ pub(crate) struct LongText {
     plain: Option<Plain>,
 }
 
-/// What a plain text is cut into, and how it reads, for the text of this length (a shown text's
-/// is one message's, as [`LongText::fit`] takes it).
+/// What a plain text is cut into, and how it reads, for the text that is this ([`stamp`]).
 struct Plain {
-    len: usize,
+    stamp: u64,
     ranges: Vec<Range<usize>>,
     rtl: bool,
+}
+
+/// What tells a text from every other, one as long too: all of it, hashed (four strands side by
+/// side, eight bytes at a time each: a text of megabytes is hashed every frame it's shown). By
+/// its length alone, another text as long shown in its place (a message read again in another
+/// encoding) kept the first one's cuts, some of them inside a letter, and its direction.
+fn stamp(text: &str) -> u64 {
+    const BY: u64 = 0x51_7c_c1_b7_27_22_0a_95;
+    let mix = |h: u64, word: u64| (h.rotate_left(5) ^ word).wrapping_mul(BY);
+    let mut strands = [text.len() as u64, 1, 2, 3];
+    let (blocks, rest) = text.as_bytes().as_chunks::<32>();
+    for block in blocks {
+        let (words, _) = block.as_chunks::<8>();
+        for (strand, word) in strands.iter_mut().zip(words) {
+            *strand = mix(*strand, u64::from_le_bytes(*word));
+        }
+    }
+    let all = strands.iter().fold(0, |h, strand| mix(h, *strand));
+    rest.iter().fold(all, |h, byte| mix(h, u64::from(*byte)))
 }
 
 impl LongText {
@@ -153,7 +171,8 @@ pub(super) fn plain(st: &mut UiState, ui: &mut Ui, id: egui::Id, text: &str) {
     let font = theme::regular(14.5);
     let mut v = take(st, id);
     // Cut and looked through once, not on every frame (4 MB took 3.4 ms a frame).
-    let (ranges, rtl) = match v.plain.take().filter(|p| p.len == text.len()) {
+    let stamp = stamp(text);
+    let (ranges, rtl) = match v.plain.take().filter(|p| p.stamp == stamp) {
         Some(p) => (p.ranges, p.rtl),
         None => (chunks(text, CHUNK), crate::bidi::has_rtl(text)),
     };
@@ -184,7 +203,7 @@ pub(super) fn plain(st: &mut UiState, ui: &mut Ui, id: egui::Id, text: &str) {
             }
         });
     });
-    v.plain = Some(Plain { len: text.len(), ranges, rtl });
+    v.plain = Some(Plain { stamp, ranges, rtl });
     put_back(st, id, v, ui.input(|i| i.time));
 }
 
