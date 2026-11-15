@@ -5,6 +5,16 @@ use crate::*;
 mod mail_tabs;
 mod modules;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum RibbonTab {
+    #[default]
+    Home,
+    SendReceive,
+    View,
+    /// While searching, as Outlook's Search tab: the scope, terms to narrow it, Close Search.
+    Search,
+}
+
 impl MailApp {
     /// The ribbon's tabs: File, Home, Send / Receive, View, and Search while searching. They sit
     /// on the top bar beside the search box (issue #22), one row where there were two, the
