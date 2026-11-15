@@ -10,23 +10,8 @@ const LATIN: &[u8] = b"Caf\xe9 au lait\r\n\x93quoted\x94 costs \xa35\r\nlast lin
 
 /// Base64 in lines of 76.
 fn base64(data: &[u8]) -> String {
-    const ABC: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::new();
-    for (i, chunk) in data.chunks(3).enumerate() {
-        if i > 0 && i % 19 == 0 {
-            out.push_str("\r\n");
-        }
-        let b = [chunk[0], chunk.get(1).copied().unwrap_or(0), chunk.get(2).copied().unwrap_or(0)];
-        let n = u32::from(b[0]) << 16 | u32::from(b[1]) << 8 | u32::from(b[2]);
-        for k in 0..4 {
-            if k <= chunk.len() {
-                out.push(char::from(ABC[(n >> (18 - 6 * k) & 63) as usize]));
-            } else {
-                out.push('=');
-            }
-        }
-    }
-    out
+    let text = encodify::base64::STANDARD.encode(data);
+    text.as_bytes().chunks(76).map(String::from_utf8_lossy).collect::<Vec<_>>().join("\r\n")
 }
 
 /// Quoted-printable with every byte that isn't plain ASCII escaped (line ends too), in lines
