@@ -7,7 +7,7 @@ use super::invites::{ZOE, deliver, invitation, parts};
 use super::*;
 
 /// What the sample account's Sent Items holds: answers go there (it has no server).
-fn sent(s: &mut Session) -> usize {
+fn sent_count(s: &mut Session) -> usize {
     let path = s.account("sample").and_then(|a| a.folder(FolderRole::Sent)).map(|f| f.path.clone()).unwrap_or_default();
     s.folder_state("sample", &path).messages.len()
 }
@@ -23,17 +23,17 @@ fn an_invitation_is_in_the_calendar_as_it_arrives() {
     let mut s = sample_session("tentative-arrives");
     // The invitation stays in the Inbox once answered (moving it: answered_invites.rs).
     s.run("options.answeredInvites", &json!({"after": "keep"})).unwrap();
-    let before = sent(&mut s);
+    let before = sent_count(&mut s);
     deliver(&mut s, 1, ZOE, "REQUEST", &[invitation("crit@studio.example", "Storyboard crit", 0)], NOW);
     assert_eq!(answer(&s, "crit@studio.example"), ["NEEDS-ACTION"]);
     let item = s.agenda(NOW, NOW + 7 * 86_400).into_iter().find(|i| i.uid == "crit@studio.example").expect("on the calendar");
     assert!(item.needs_reply, "drawn as tentative");
-    assert_eq!(sent(&mut s), before, "nothing went to the organizer");
+    assert_eq!(sent_count(&mut s), before, "nothing went to the organizer");
     let inv = s.invite().unwrap();
     assert!(inv.in_calendar && inv.problem.is_none() && inv.answer == "NEEDS-ACTION", "{inv:?}");
     s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
     assert_eq!(answer(&s, "crit@studio.example"), ["ACCEPTED"]);
-    assert_eq!(sent(&mut s), before + 1, "the answer went");
+    assert_eq!(sent_count(&mut s), before + 1, "the answer went");
     // Deleting the invitation leaves the meeting, as Outlook does.
     s.run("mail.delete", &json!({})).unwrap();
     assert_eq!(parts(&s, "crit@studio.example").len(), 1);

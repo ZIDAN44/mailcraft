@@ -79,7 +79,8 @@ pub(super) fn found(s: &mut Session, id: &str, events: Vec<StoredEvent>) {
     s.apply(Event::DavSynced { account: id.into(), sync: Box::new(sync) });
 }
 
-pub(super) fn parts<'a>(s: &'a Session, id: &str, uid: &str) -> Vec<&'a StoredEvent> {
+/// The copies of the event `uid` in account `id`'s calendars ([`super::invites::parts`]: the sample's).
+pub(super) fn account_parts<'a>(s: &'a Session, id: &str, uid: &str) -> Vec<&'a StoredEvent> {
     s.pim[id].events.iter().filter(|e| e.event.uid == uid).collect()
 }
 
@@ -96,7 +97,7 @@ fn held_until_the_calendars_are_found() {
     let (mut s, id) = imap_session("placing-held");
     assert!(s.calendars_pending(&id));
     arrive(&mut s, &id, 1, "REQUEST", &[invitation("a@studio.example", 0)]);
-    assert!(parts(&s, &id, "a@studio.example").is_empty(), "not on this computer's calendar");
+    assert!(account_parts(&s, &id, "a@studio.example").is_empty(), "not on this computer's calendar");
     assert_eq!(s.pim[&id].held.len(), 1);
     // A restart keeps it.
     let store = s.store.clone().unwrap();
@@ -105,7 +106,7 @@ fn held_until_the_calendars_are_found() {
     assert_eq!(s.pim[&id].held.len(), 1, "kept with the calendar");
     s.take_jobs();
     found(&mut s, &id, Vec::new());
-    let e = parts(&s, &id, "a@studio.example");
+    let e = account_parts(&s, &id, "a@studio.example");
     assert_eq!(e.len(), 1);
     assert!(e[0].calendar == OWN && e[0].dirty && e[0].href.is_empty(), "{:?}", e[0]);
     assert!(s.pim[&id].held.is_empty() && s.pim[&id].placed.is_empty());
@@ -115,7 +116,7 @@ fn held_until_the_calendars_are_found() {
     folders(&mut s, &id);
     s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
     arrive(&mut s, &id, 2, "REQUEST", &[invitation("b@studio.example", 0)]);
-    assert_eq!(parts(&s, &id, "b@studio.example")[0].calendar, OWN);
+    assert_eq!(account_parts(&s, &id, "b@studio.example")[0].calendar, OWN);
 }
 
 /// Waited too long (the server slow or unreachable): on this computer, then moved to the
@@ -130,10 +131,10 @@ fn too_long_to_wait_goes_here_then_moves() {
     s.store.as_ref().unwrap().remove_body(&key);
     s.clock.now = NOW + crate::session::invite::HOLD_SECS - 1;
     s.tick();
-    assert!(parts(&s, &id, "slow@studio.example").is_empty(), "still waiting");
+    assert!(account_parts(&s, &id, "slow@studio.example").is_empty(), "still waiting");
     s.clock.now = NOW + crate::session::invite::HOLD_SECS;
     s.tick();
-    assert_eq!(parts(&s, &id, "slow@studio.example")[0].calendar, LOCAL);
+    assert_eq!(account_parts(&s, &id, "slow@studio.example")[0].calendar, LOCAL);
     assert_eq!(s.pim[&id].placed, ["slow@studio.example", "dup@studio.example"]);
     // Answered here meanwhile.
     s.run("event.respond", &json!({"uid": "dup@studio.example", "answer": "accepted"})).unwrap();
@@ -147,9 +148,9 @@ fn too_long_to_wait_goes_here_then_moves() {
         dirty: false,
     };
     found(&mut s, &id, vec![server_copy]);
-    let slow = parts(&s, &id, "slow@studio.example");
+    let slow = account_parts(&s, &id, "slow@studio.example");
     assert!(slow.len() == 1 && slow[0].calendar == OWN && slow[0].dirty && slow[0].href.is_empty(), "{slow:?}");
-    let dup = parts(&s, &id, "dup@studio.example");
+    let dup = account_parts(&s, &id, "dup@studio.example");
     assert_eq!(dup.len(), 1, "not doubled: {dup:?}");
     assert!(dup[0].calendar == OWN && dup[0].href.ends_with("dup.ics") && dup[0].dirty, "{dup:?}");
     assert!(dup[0].event.attendees.iter().any(|a| a.email == "riley@studio.example" && a.partstat == "ACCEPTED"), "the answer kept");
@@ -165,19 +166,19 @@ fn no_calendars_then_a_server_given_by_hand() {
     let (mut s, id) = imap_session("placing-given");
     arrive(&mut s, &id, 1, "REQUEST", &[invitation("x@studio.example", 0)]);
     s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(DavSync { checked: NOW, ..Default::default() }) });
-    assert_eq!(parts(&s, &id, "x@studio.example")[0].calendar, LOCAL);
+    assert_eq!(account_parts(&s, &id, "x@studio.example")[0].calendar, LOCAL);
     assert!(s.local_events(&id).is_none(), "nowhere to move them yet");
     // One the user made here: not MailCraft's to move by itself.
     s.run("event.create", &json!({"account": id, "summary": "Dentist", "start": NOW + 3600, "end": NOW + 7200})).unwrap();
     s.run("account.dav", &json!({"account": id, "caldav": "https://dav.example.org/SOGo/dav/riley/"})).unwrap();
     assert!(s.calendars_pending(&id), "looked for again");
     arrive(&mut s, &id, 2, "REQUEST", &[invitation("y@studio.example", 0)]);
-    assert!(parts(&s, &id, "y@studio.example").is_empty(), "held");
+    assert!(account_parts(&s, &id, "y@studio.example").is_empty(), "held");
     s.take_jobs();
     found(&mut s, &id, Vec::new());
     assert!(asks_sync(&mut s), "one sync for the one moved and the one held");
-    assert_eq!(parts(&s, &id, "x@studio.example")[0].calendar, OWN);
-    assert_eq!(parts(&s, &id, "y@studio.example")[0].calendar, OWN);
+    assert_eq!(account_parts(&s, &id, "x@studio.example")[0].calendar, OWN);
+    assert_eq!(account_parts(&s, &id, "y@studio.example")[0].calendar, OWN);
     let dentist = s.pim[&id].events.iter().find(|e| e.event.summary == "Dentist").unwrap();
     assert_eq!(dentist.calendar, LOCAL);
     // Offered: Move 1 event to Personal Calendar.
@@ -199,7 +200,7 @@ fn held_in_order() {
     s.apply(Event::FolderChanged { account: id.clone(), folder: "INBOX".into() });
     assert_eq!(s.pim[&id].held.len(), 2);
     found(&mut s, &id, Vec::new());
-    assert!(parts(&s, &id, "c@studio.example").is_empty());
+    assert!(account_parts(&s, &id, "c@studio.example").is_empty());
 }
 
 /// The Default calendar: the user's choice, kept to calendars that can be added to; offered
@@ -239,7 +240,7 @@ fn accounts_never_asked_dont_wait() {
     s.accounts.iter_mut().filter(|a| a.config.id == id).for_each(|a| a.config.oauth = Some("google".into()));
     assert!(!s.calendars_pending(&id));
     arrive(&mut s, &id, 1, "REQUEST", &[invitation("o@studio.example", 0)]);
-    assert_eq!(parts(&s, &id, "o@studio.example")[0].calendar, LOCAL);
+    assert_eq!(account_parts(&s, &id, "o@studio.example")[0].calendar, LOCAL);
 }
 
 /// Trying to break it: an invitation too big to hold, more than can be held, a held calendar
@@ -252,7 +253,7 @@ fn holding_has_its_limits() {
     let mut big = invitation("big@studio.example", 0);
     big.description = "x".repeat(300 << 10);
     arrive(&mut s, &id, 1, "REQUEST", &[big]);
-    assert_eq!(parts(&s, &id, "big@studio.example")[0].calendar, LOCAL);
+    assert_eq!(account_parts(&s, &id, "big@studio.example")[0].calendar, LOCAL);
     assert!(s.pim[&id].held.is_empty());
     // Junk in what's held.
     let junk = mailcraft_model::pim::HeldInvite {
@@ -295,7 +296,7 @@ fn only_a_calendar_on_the_server_is_the_default() {
     }
     assert_eq!(s.pim[&id].chosen_calendar, None);
     arrive(&mut s, &id, 1, "REQUEST", &[invitation("d@studio.example", 0)]);
-    let d = parts(&s, &id, "d@studio.example");
+    let d = account_parts(&s, &id, "d@studio.example");
     assert!(!d.is_empty() && d.iter().all(|e| e.calendar == OWN));
 }
 
@@ -314,10 +315,10 @@ fn only_invitations_are_held_and_only_so_much() {
     let held = s.pim[&id].held.len();
     let bytes: usize = s.pim[&id].held.iter().map(|h| h.ics.len()).sum();
     assert!(held > 0 && held < 12 && bytes <= 2 << 20, "{held} held, {bytes} bytes");
-    let here = (0..12).filter(|n| parts(&s, &id, &format!("big{n}@studio.example")).iter().any(|e| e.calendar == LOCAL)).count();
+    let here = (0..12).filter(|n| account_parts(&s, &id, &format!("big{n}@studio.example")).iter().any(|e| e.calendar == LOCAL)).count();
     assert_eq!(held + here, 12, "none lost");
     found(&mut s, &id, Vec::new());
-    assert!((0..12).all(|n| parts(&s, &id, &format!("big{n}@studio.example")).iter().all(|e| e.calendar == OWN)));
+    assert!((0..12).all(|n| account_parts(&s, &id, &format!("big{n}@studio.example")).iter().all(|e| e.calendar == OWN)));
 }
 
 /// Trying to break it: an invitation answered (declined) from its message while held, or a
@@ -337,7 +338,7 @@ fn dealt_with_while_held_stays_dealt_with() {
     s.run("list.open", &json!({"key": cancel.to_id()})).unwrap();
     s.run("invite.apply", &json!({})).unwrap();
     found(&mut s, &id, Vec::new());
-    assert!(parts(&s, &id, "no@studio.example").is_empty(), "declined: not back as tentative");
-    assert!(parts(&s, &id, "off@studio.example").is_empty(), "cancelled: not back");
-    assert_eq!(parts(&s, &id, "later@studio.example").len(), 1, "the others held still go in");
+    assert!(account_parts(&s, &id, "no@studio.example").is_empty(), "declined: not back as tentative");
+    assert!(account_parts(&s, &id, "off@studio.example").is_empty(), "cancelled: not back");
+    assert_eq!(account_parts(&s, &id, "later@studio.example").len(), 1, "the others held still go in");
 }

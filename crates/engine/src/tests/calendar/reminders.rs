@@ -49,7 +49,7 @@ fn due(s: &Session) -> Vec<String> {
     s.due_reminders(s.clock.now).into_iter().map(|r| r.uid).collect()
 }
 
-fn key_of(s: &Session, uid: &str) -> String {
+fn reminder_key(s: &Session, uid: &str) -> String {
     s.due_reminders(s.clock.now).into_iter().find(|r| r.uid == uid).map(|r| r.key).unwrap()
 }
 
@@ -62,7 +62,7 @@ fn an_answer_on_exchange_waits_for_the_server() {
         account_with("reminder-exchange", vec![with_reminder("one", "AAMk-one", false), with_reminder("daily", "AAMk-daily", true)], true);
     s.clock.now = NOW + 3600 - 10 * 60;
     assert_eq!(due(&s).len(), 2, "{:?}", due(&s));
-    let (one, daily) = (key_of(&s, "one"), key_of(&s, "daily"));
+    let (one, daily) = (reminder_key(&s, "one"), reminder_key(&s, "daily"));
     s.run("reminders.dismiss", &json!({"key": one})).unwrap();
     s.run("reminders.snooze", &json!({"key": daily, "minutes": 5})).unwrap();
     assert!(due(&s).is_empty());
@@ -92,7 +92,7 @@ fn an_answer_on_exchange_waits_for_the_server() {
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { account } if *account == id)), "the server is told at once");
     // The same occurrence answered again replaces its answer.
     s.clock.now += 300;
-    let daily = key_of(&s, "daily");
+    let daily = reminder_key(&s, "daily");
     s.run("reminders.dismiss", &json!({"key": daily})).unwrap();
     let answers = &s.pim.get(&id).unwrap().reminder_answers;
     assert_eq!(answers.len(), 2);
@@ -112,7 +112,7 @@ fn a_dismissal_on_caldav_acknowledges_the_alarm() {
     let (mut s, id) =
         account_with("reminder-caldav", vec![with_reminder("one", "/cal/one.ics", false), with_reminder("two", "/cal/two.ics", false)], false);
     s.clock.now = NOW + 3600 - 10 * 60;
-    let (one, two) = (key_of(&s, "one"), key_of(&s, "two"));
+    let (one, two) = (reminder_key(&s, "one"), reminder_key(&s, "two"));
     s.run("reminders.snooze", &json!({"key": two, "minutes": 5})).unwrap();
     assert!(!s.find_event("two").unwrap().1.dirty, "a snooze isn't the server's");
     s.run("reminders.dismiss", &json!({"key": one})).unwrap();
@@ -171,7 +171,7 @@ fn a_tasks_reminder_stays_here_and_an_event_with_its_uid_is_told() {
 fn a_uid_with_a_bar_is_told_to_the_server() {
     let (mut s, id) = account_with("reminder-bar", vec![with_reminder("one|two|", "/cal/bar.ics", false)], false);
     s.clock.now = NOW + 3600 - 10 * 60;
-    let k = key_of(&s, "one|two|");
+    let k = reminder_key(&s, "one|two|");
     s.run("reminders.dismiss", &json!({"key": k})).unwrap();
     let (_, e) = s.find_event("one|two|").unwrap();
     assert!(e.dirty && ical::acknowledged(&e.event) == Some(s.clock.now));
