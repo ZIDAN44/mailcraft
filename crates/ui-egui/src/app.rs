@@ -21,6 +21,7 @@ pub use alt_code::{alt_code_pages, alt_codes};
 pub(crate) use bodies::Bodies;
 pub use boot::BootCard;
 pub use dropped::{ClipboardRead, clipboard_keys};
+pub use frame::FramePart;
 pub(crate) use ribbon::junk_menu;
 pub(crate) use search_box::{SearchDrop, SearchTimes, scope_label};
 pub use windows::{WindowPlace, after_open};

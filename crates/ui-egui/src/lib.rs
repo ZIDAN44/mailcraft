@@ -52,7 +52,7 @@ use mailcraft_engine::{CalMode, Module, ReadingPane, SearchScope, Session};
 use serde_json::{Value, json};
 
 pub use app::caption::take_zooming;
-pub use app::{BootCard, ClipboardRead, WindowPlace, after_open, alt_code_pages, alt_codes, clipboard_keys};
+pub use app::{BootCard, ClipboardRead, FramePart, WindowPlace, after_open, alt_code_pages, alt_codes, clipboard_keys};
 pub(crate) use app::{SearchDrop, junk_menu, scope_label};
 pub use dialogs::{AccountKind, Dialog};
 
@@ -293,6 +293,8 @@ pub struct UiState {
     /// The window's GPU device is gone: nothing is drawn any more, and MailCraft closes
     /// ([`MailApp::graphics_lost`]).
     pub graphics_lost: bool,
+    /// How the frames run under the guard went ([`MailApp::frame_part_ended`]).
+    pub(crate) frame_guard: app::frame::FrameGuard,
     pub close_now: bool,
     /// When the close was last decided (the input's time): [`MailApp::logic`] decides it, and
     /// `ui` in the same pass doesn't again.

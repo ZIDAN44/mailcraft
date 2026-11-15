@@ -65,7 +65,9 @@ impl MailApp {
             _ => builder,
         };
         let (session, st, services) = (&mut self.session, &mut self.ui, &mut self.services);
-        let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
+        // Under the frame's guard: a panic in this window's own pass is said once it's over.
+        let mut caught = None;
+        let mut draw = |ui: &mut egui::Ui| {
             track_place(&mut st.places, "compose", ui);
             let mut mine_acts: Vec<Action> = Vec::new();
             let mut closing = ui.input(|i| i.viewport().close_requested());
@@ -96,7 +98,9 @@ impl MailApp {
             }
             acts.extend(mine_acts);
             closing
-        });
+        };
+        let close = ctx.show_viewport_immediate(id, builder, |ui, _| super::frame::guarded_window(&mut caught, || draw(ui)));
+        self.window_drawn(ctx, caught);
         if close {
             forget_open(ctx, id);
             acts.push(Action::Run("compose.close", json!({"save": false})));
@@ -157,6 +161,8 @@ impl MailApp {
                 }
             }
         }
+        // Under the frame's guard: a panic in a window's own pass is said once they're drawn.
+        let mut caught = None;
         for w in self.session.windows.clone() {
             let key = w.key.clone();
             let subject =
@@ -172,7 +178,7 @@ impl MailApp {
                 _ => builder,
             };
             let (session, st) = (&mut self.session, &mut self.ui);
-            let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
+            let mut draw = |ui: &mut egui::Ui| {
                 // Reading here is the user being back, as much as in the main window.
                 st.compact.note_input(ui);
                 raise_once(ui.ctx(), id);
@@ -204,12 +210,14 @@ impl MailApp {
                     a => a,
                 }));
                 closing && !leave
-            });
+            };
+            let close = ctx.show_viewport_immediate(id, builder, |ui, _| super::frame::guarded_window(&mut caught, || draw(ui)));
             if close {
                 forget_open(ctx, id);
                 acts.push(Action::Run("message.closeWindow", json!({"key": key.to_id()})));
             }
         }
+        self.window_drawn(ctx, caught);
     }
 }
 

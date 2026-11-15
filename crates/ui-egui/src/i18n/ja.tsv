@@ -1711,3 +1711,4 @@ month	May	5月
 	Show the calendar, what's coming up and your tasks beside the mail	メールの横に予定表、今後の予定、タスクを表示します
 	Read / Unread (Ctrl+Q / Ctrl+U)	既読 / 未読 (Ctrl+Q / Ctrl+U)
 	{name} couldn't be downloaded: {error}	{name} をダウンロードできませんでした: {error}
+	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	ウィンドウで問題が起きたため、実行中の処理を中止しました。MailCraft はそのまま使えます。発生した場所はログに記録されています。

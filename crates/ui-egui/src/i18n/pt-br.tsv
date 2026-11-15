@@ -1715,3 +1715,4 @@ month	May	maio
 	Show the calendar, what's coming up and your tasks beside the mail	Mostrar o calendário, o que vem a seguir e suas tarefas ao lado do email
 	Read / Unread (Ctrl+Q / Ctrl+U)	Lido / Não lido (Ctrl+Q / Ctrl+U)
 	{name} couldn't be downloaded: {error}	Não foi possível baixar {name}: {error}
+	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	Algo deu errado na janela, e o que ela estava fazendo foi interrompido. O MailCraft continua; o log diz onde aconteceu.

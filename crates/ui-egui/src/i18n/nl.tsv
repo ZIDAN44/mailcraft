@@ -1710,3 +1710,4 @@ month	May	mei
 	Show the calendar, what's coming up and your tasks beside the mail	De agenda, wat eraan komt en uw taken naast de e-mail weergeven
 	Read / Unread (Ctrl+Q / Ctrl+U)	Gelezen / Ongelezen (Ctrl+Q / Ctrl+U)
 	{name} couldn't be downloaded: {error}	{name} kon niet worden gedownload: {error}
+	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	Er ging iets mis in het venster, en wat het aan het doen was, is gestopt. MailCraft gaat door; het logboek zegt waar het gebeurde.

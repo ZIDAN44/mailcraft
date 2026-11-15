@@ -212,6 +212,7 @@ on GitHub.
 - On macOS 26, Chinese in the interface and in mail is drawn in PingFang again, which macOS moved: it came out in a Japanese or Korean font. Traditional Chinese takes STHeiti first, as PingFang's first face there is Simplified.
 - Chinese, Japanese and Korean words in a subject, a name or a message sit on the same line as the Latin letters and digits beside them, as in a browser: they were centred on it, a little higher or lower.
 - In the Flatpak, a screen reader (Orca) reads MailCraft's window, new mail is announced by the desktop's notifications, and the icon in the notification area is there: the sandbox let MailCraft reach none of them.
+- An internal error while the window or one of its windows was being drawn (a message, a dialog, a pane) no longer closes MailCraft with what's being written in it: it's said, the dialog it may have come from is put away, and MailCraft goes on. Only a window that fails frame after frame still closes, and keeps what's being written in Drafts first.
 
 ## 0.38.0 - 2026-11-13
 

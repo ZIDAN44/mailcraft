@@ -23,7 +23,7 @@ use mailcraft_engine::model::dates::Clock;
 use mailcraft_engine::model::{Event, Job};
 use mailcraft_engine::store::{OpenProgress, Store, location};
 use mailcraft_net::worker::{Credentials, Pool};
-use mailcraft_ui_egui::{Backend, BootCard, MailApp, Services, VideoFrame};
+use mailcraft_ui_egui::{Backend, BootCard, FramePart, MailApp, Services, VideoFrame};
 use secrets::Keychain;
 
 mod appearance;
@@ -220,10 +220,28 @@ impl App {
     }
 }
 
+// Each part of a frame runs under the guard: a panic in it is said and MailCraft goes on, rather
+// than ending with the messages being written (`MailApp::frame_part_ended`).
 impl eframe::App for App {
+    fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.app.frame_part_starts(FramePart::Logic);
+        let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.logic_unguarded(ctx, frame)));
+        self.app.frame_part_ended(ctx, FramePart::Logic, ran);
+    }
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        self.app.frame_part_starts(FramePart::Ui);
+        let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.ui_unguarded(ui, frame)));
+        self.app.frame_part_ended(ui.ctx(), FramePart::Ui, ran);
+    }
+    fn on_exit(&mut self) {
+        self.exiting();
+    }
+}
+
+impl App {
     // Every frame, the window minimized or hidden too (when eframe runs no `ui`): started again,
     // this window comes forward instead of a second one, and opens what that launch handed over.
-    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn logic_unguarded(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // The GPU device is gone: what's being written is kept as drafts and MailCraft closes, as
         // nothing can be drawn any more.
         if self.lost.as_ref().is_some_and(graphics::LostWatch::lost) {
@@ -247,7 +265,7 @@ impl eframe::App for App {
         #[cfg(target_os = "macos")]
         MailApp::quit_instead_of_close(ctx, apple_events::quit);
     }
-    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+    fn ui_unguarded(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         // Nothing is drawn with a lost device (egui-wgpu would panic making its buffers).
         if self.app.ui.graphics_lost {
             return;
@@ -264,7 +282,7 @@ impl eframe::App for App {
             drag_out(frame, path);
         }
     }
-    fn on_exit(&mut self) {
+    fn exiting(&mut self) {
         if let Some(server) = &self.instance {
             server.close();
         }

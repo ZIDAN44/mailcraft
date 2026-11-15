@@ -1715,3 +1715,4 @@ month	May	Mayıs
 	Show the calendar, what's coming up and your tasks beside the mail	Takvimi, yaklaşanları ve görevlerinizi postanın yanında gösterin
 	Read / Unread (Ctrl+Q / Ctrl+U)	Okundu / Okunmadı (Ctrl+Q / Ctrl+U)
 	{name} couldn't be downloaded: {error}	{name} indirilemedi: {error}
+	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	Pencerede bir şeyler ters gitti ve yaptığı iş durduruldu. MailCraft çalışmaya devam ediyor; nerede olduğu günlükte yazıyor.

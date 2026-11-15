@@ -9,6 +9,8 @@ impl MailApp {
     pub(crate) fn source_windows(&mut self, ctx: &egui::Context, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
         let (sources, st) = (&self.session.sources, &mut self.ui);
+        // Under the frame's guard: a panic in a window's own pass is said once they're drawn.
+        let mut caught = None;
         for v in sources {
             let key = v.key.clone();
             let subject = if v.subject.trim().is_empty() { tl!("(no subject)").to_string() } else { v.subject.trim().to_string() };
@@ -21,7 +23,7 @@ impl MailApp {
                 Some(p) if super::windows::opening(ctx, id) => p.apply(builder),
                 _ => builder,
             };
-            let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
+            let mut draw = |ui: &mut egui::Ui| {
                 st.compact.note_input(ui);
                 super::windows::track_place(&mut st.places, "source", ui);
                 if st.raise_source.as_ref() == Some(&key) {
@@ -78,13 +80,15 @@ impl MailApp {
                     source_text(ui, &t, v, header_only);
                 });
                 closing
-            });
+            };
+            let close = ctx.show_viewport_immediate(id, builder, |ui, _| super::frame::guarded_window(&mut caught, || draw(ui)));
             if close {
                 super::windows::forget_open(ctx, id);
                 st.source_headers.remove(&key);
                 acts.push(Action::Run("message.closeSource", json!({"key": key.to_id()})));
             }
         }
+        self.window_drawn(ctx, caught);
     }
 }
 
