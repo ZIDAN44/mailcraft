@@ -1,7 +1,7 @@
 //! Links in the message editor: Insert link, and addresses as they're shown and written.
 
 use super::*;
-use mailcraft_engine::model::mailto::{percent_decode, percent_encode};
+use mailcraft_engine::model::mailto::{self, percent_encode};
 
 /// Outlook's Insert Hyperlink, with what mail needs: a web page or file, or an email address.
 #[derive(Clone, Debug, Default)]
@@ -26,16 +26,11 @@ impl LinkForm {
         let existing = c.styles.style(sel.start).link.filter(|_| !c.body.is_empty());
         let multi = chosen.contains('\n');
         let mut f = LinkForm { text: if multi { String::new() } else { chosen }, sel, editing: existing.is_some(), multi, ..Default::default() };
-        match existing {
-            Some(url) if url.to_ascii_lowercase().starts_with("mailto:") => {
-                f.email = true;
-                let rest = url.get(7..).unwrap_or_default();
-                let (to, query) = rest.split_once('?').unwrap_or((rest, ""));
-                f.to = percent_decode(to);
-                f.subject = query.split('&').find_map(|kv| kv.strip_prefix("subject=")).map(percent_decode).unwrap_or_default();
+        if let Some(url) = existing {
+            match mailto::parse(&url) {
+                Some(m) => (f.email, f.to, f.subject) = (true, m.to, m.subject),
+                None => f.address = url,
             }
-            Some(url) => f.address = url,
-            None => {}
         }
         f
     }

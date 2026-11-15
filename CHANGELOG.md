@@ -196,6 +196,7 @@ on GitHub.
 - People's List view highlights the row under the pointer.
 - In a small window the month view shows all six weeks.
 - Searching a large mailbox for a phrase, and checking long result lists against the text kept, is faster.
+- Insert link reads an existing email link's subject and address however the link spells them.
 
 ## 0.38.0 - 2026-11-13
 

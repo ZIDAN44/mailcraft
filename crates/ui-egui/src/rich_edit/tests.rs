@@ -22,6 +22,24 @@ fn link_addresses() {
     assert_eq!((f.to.as_str(), f.subject.as_str(), f.text.as_str()), ("ann@x.example", "Hi there", "write"));
 }
 
+/// A mailto link from elsewhere (a quoted message, a pasted page) opens as RFC 6068 reads it:
+/// field names in any case, addresses in `to=`, no `#fragment`, the subject on one line.
+#[test]
+fn a_mailto_link_opens_as_the_rfc_reads_it() {
+    let open = |link: &str| {
+        let mut c = Compose { body: "write".into(), ..Default::default() };
+        c.styles = Styles::plain(&c.body);
+        c.styles.restyle(&c.body, 0..5, |s| Style { link: Some(link.into()), ..s.clone() });
+        let f = LinkForm::open(&c, 0..5);
+        (f.email, f.to, f.subject)
+    };
+    let mail = |to: &str, subject: &str| (true, to.to_string(), subject.to_string());
+    assert_eq!(open("MAILTO:ann@x.example?SUBJECT=Hi%20there"), mail("ann@x.example", "Hi there"));
+    assert_eq!(open("mailto:?to=bob@x.example&Subject=Plans"), mail("bob@x.example", "Plans"));
+    assert_eq!(open("mailto:ann@x.example?subject=Hi#top"), mail("ann@x.example", "Hi"));
+    assert_eq!(open("mailto:ann@x.example?subject=Hi%0D%0ABcc:%20b@x.example"), mail("ann@x.example", "Hi Bcc: b@x.example"));
+}
+
 /// Right-to-left paragraphs in a message start against the editor's right edge, a short one
 /// and every row of a wrapped one, in rich and plain text; a left-to-right one stays left. (egui
 /// put them against the widest line, so a short Hebrew line sat in the middle.)
