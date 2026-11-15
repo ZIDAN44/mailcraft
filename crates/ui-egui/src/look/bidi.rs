@@ -52,15 +52,6 @@ pub fn shown(text: &str) -> (std::borrow::Cow<'_, str>, bool) {
     (std::borrow::Cow::Borrowed(text), has_rtl(text) && paragraph_rtl(text))
 }
 
-/// A label for text that may be right to left: wrapped at the width there is, right-to-left
-/// paragraphs against the right edge.
-pub fn label(ui: &mut egui::Ui, text: &str, font: egui::FontId, color: egui::Color32) -> egui::Response {
-    if !has_rtl(text) {
-        return ui.label(egui::RichText::new(text).font(font).color(color));
-    }
-    add_label(ui, egui::text::LayoutJob::simple(text.to_string(), font, color, ui.available_width()))
-}
-
 /// A label for a laid-out job, wrapped at the width there is. One whose first paragraph reads
 /// right to left goes against the right edge, where it starts; egui then puts each of its
 /// right-to-left rows there too.
