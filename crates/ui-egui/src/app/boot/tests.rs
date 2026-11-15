@@ -4,12 +4,30 @@ use egui::{Pos2, RawInput, Rect, vec2};
 
 use super::*;
 
+/// One frame at `time` seconds with `events`, in a window of 1280 by 800: whether the window may
+/// go on, and what the frame put out.
+fn run(
+    ctx: &egui::Context,
+    card: &mut BootCard,
+    progress: &OpenProgress,
+    ready: bool,
+    time: f64,
+    events: Vec<egui::Event>,
+) -> (bool, egui::FullOutput) {
+    let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 800.0))), time: Some(time), events, ..Default::default() };
+    let mut go = false;
+    let mut out = ctx.run_ui(input, |ui| go = card.ui(ui, progress, ready));
+    // No renderer here: drop the texture uploads deliberately.
+    out.textures_delta.clear();
+    (go, out)
+}
+
 /// One frame at `time` seconds: whether the window may go on, and how many shapes it drew.
 fn frame(ctx: &egui::Context, card: &mut BootCard, progress: &OpenProgress, ready: bool, time: f64) -> (bool, usize) {
     with(ctx, card, progress, ready, time, Vec::new()).0
 }
 
-/// One frame at `time` seconds with `events`: as [`frame`], and where `label` was drawn.
+/// One frame at `time` seconds with `events`: as [`frame`], and where Continue was drawn.
 fn with(
     ctx: &egui::Context,
     card: &mut BootCard,
@@ -18,10 +36,7 @@ fn with(
     time: f64,
     events: Vec<egui::Event>,
 ) -> ((bool, usize), Option<Pos2>) {
-    let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 800.0))), time: Some(time), events, ..Default::default() };
-    let mut go = false;
-    let mut out = ctx.run_ui(input, |ui| go = card.ui(ui, progress, ready));
-    out.textures_delta.clear();
+    let (go, out) = run(ctx, card, progress, ready, time, events);
     let at = out.shapes.iter().find_map(|c| match &c.shape {
         egui::Shape::Text(t) if t.galley.text() == "Continue" => Some(t.visual_bounding_rect().center()),
         _ => None,
@@ -40,11 +55,7 @@ fn press_continue(ctx: &egui::Context, card: &mut BootCard, progress: &OpenProgr
 
 /// The text a frame drew.
 fn text(ctx: &egui::Context, card: &mut BootCard, progress: &OpenProgress, ready: bool, time: f64) -> String {
-    let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 800.0))), time: Some(time), ..Default::default() };
-    let mut out = ctx.run_ui(input, |ui| {
-        card.ui(ui, progress, ready);
-    });
-    out.textures_delta.clear();
+    let (_, out) = run(ctx, card, progress, ready, time, Vec::new());
     let mut s = String::new();
     for c in &out.shapes {
         if let egui::Shape::Text(t) = &c.shape {
@@ -190,12 +201,7 @@ fn the_card_draws_the_title_bar_the_window_lacks() {
     let button = |pressed| egui::Event::PointerButton { pos: close, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
     let mut sent = Vec::new();
     for (time, events) in [(1.0, vec![]), (1.4, vec![]), (1.5, vec![egui::Event::PointerMoved(close)]), (1.6, vec![button(true), button(false)])] {
-        let input =
-            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(1280.0, 800.0))), time: Some(time), events, ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| {
-            card.ui(ui, &progress, false);
-        });
-        out.textures_delta.clear();
+        let (_, out) = run(&ctx, &mut card, &progress, false, time, events);
         sent.extend(out.viewport_output.into_values().flat_map(|v| v.commands));
     }
     assert!(sent.contains(&egui::ViewportCommand::Close), "{sent:?}");
