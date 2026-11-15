@@ -68,8 +68,35 @@ struct Handle {
     waits: Arc<AtomicUsize>,
 }
 
+impl Handle {
+    /// The pool's hold on an account's main connection `w` (its only one, for calendars alone),
+    /// which reads `tx`.
+    fn of(w: &Worker, tx: Sender<Job>) -> Handle {
+        let quick_link = w.quick.clone();
+        let quick = quick_link.lock().ok().and_then(|q| q.clone());
+        Handle { tx, quick, no_password: w.no_password.clone(), busy: w.busy.clone(), quick_link, stop: w.stop.clone(), waits: w.waits.clone() }
+    }
+}
+
 /// The second connection's queue, as the main one holds it ([`Handle::quick_link`]).
 type QuickLink = Arc<Mutex<Option<Sender<Job>>>>;
+
+/// What an account's connections share with the pool, and with each other, handed to each as
+/// it's made ([`Worker::with`]): set one by one after, a part forgotten ran against a stand-in of
+/// its own rather than the pool's.
+#[derive(Clone)]
+struct Shared {
+    store: Store,
+    sink: Sink,
+    opts: SyncOptions,
+    /// Where passwords live (none for a worker of the tests' own).
+    creds: Option<Arc<dyn Credentials>>,
+    /// The server search still wanted ([`Pool::search`]).
+    search: Arc<AtomicU64>,
+    order: changes::Order,
+    filing: Arc<changes::Filing>,
+    sieve_port: u16,
+}
 
 /// What an account signs in with, shared by its connections: the password or refresh token, and
 /// the current access token (refreshed by one, used by both).
@@ -241,64 +268,39 @@ impl Pool {
         }
     }
 
+    /// What an account's connections share with the pool.
+    fn shared(&self) -> Shared {
+        Shared {
+            store: self.store.clone(),
+            sink: self.sink.clone(),
+            opts: self.opts,
+            creds: Some(self.creds.clone()),
+            search: self.search.clone(),
+            order: self.order.clone(),
+            filing: self.filing.clone(),
+            sieve_port: self.sieve_port,
+        }
+    }
+
     fn start(&mut self, account: AccountConfig, password: Option<Secret>) {
         self.stop(&account.id);
         let (tx, rx) = mpsc::channel();
         // The password is kept in the keychain, or read from it, by the account's own thread
         // (`credentials.rs`): the keychain may ask the user first (macOS, after an update), and
         // the window keeps drawing meanwhile.
-        let auth = Auth::shared(String::new());
-        let mut w = Worker::new(account.clone(), auth.clone(), self.store.clone(), self.sink.clone(), self.opts);
-        w.creds = Some(self.creds.clone());
-        w.keychain = Some(password.map(|p| p.0));
-        let no_password = w.no_password.clone();
-        w.sieve_port = self.sieve_port;
-        w.search = self.search.clone();
+        let mut w = Worker::main_connection(account.clone(), self.shared(), password.map(|p| p.0));
         // No mail server (issue #61): its calendars and contacts are all its thread does.
-        if account.is_calendar_only() {
-            let busy = w.busy.clone();
-            let stop: Arc<changes::Stopped> = Arc::default();
-            w.stop = stop.clone();
-            match std::thread::Builder::new().name(format!("mail-{}", account.id)).spawn(move || w.run_calendars(rx)) {
-                Ok(_) => {
-                    let h = Handle { tx, quick: None, no_password, busy, quick_link: Arc::default(), stop, waits: Arc::default() };
-                    self.workers.insert(account.id.clone(), h);
-                }
-                Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::error(e.to_string()) }),
-            }
-            self.configs.insert(account.id.clone(), account);
-            return;
+        let calendars_only = account.is_calendar_only();
+        if !calendars_only {
+            let q = w.second_connection(tx.clone(), self.shared());
+            w.pair(q);
         }
-        // The second connection: quiet (the account's status is the main one's), connecting
-        // only when there's something to do.
-        let (qtx, qrx) = mpsc::channel();
-        let mut q = Worker::new(account.clone(), auth, self.store.clone(), self.sink.clone(), self.opts);
-        q.creds = Some(self.creds.clone());
-        q.sieve_port = self.sieve_port;
-        q.main = Some(tx.clone());
-        q.given_back = w.given_back.clone();
-        q.whole_only = w.whole_only.clone();
-        let busy = w.busy.clone();
-        // Started by the main connection once the password is known; what's for it waits in its
-        // queue till then.
-        let quick_name = format!("mail-{}-quick", account.id);
-        w.quick_start = Some(Box::new(move || {
-            if let Err(e) = std::thread::Builder::new().name(quick_name).spawn(move || q.run_quick(qrx)) {
-                log::warn!("the account's second connection didn't start: {e}");
-            }
-        }));
-        let quick = Some(qtx);
-        let quick_link: QuickLink = Arc::new(Mutex::new(quick.clone()));
-        w.quick = quick_link.clone();
-        let stop: Arc<changes::Stopped> = Arc::default();
-        w.stop = stop.clone();
-        w.order = self.order.clone();
-        w.filing = self.filing.clone();
-        let waits = w.waits.clone();
+        let handle = Handle::of(&w, tx);
         let name = format!("mail-{}", account.id);
-        match std::thread::Builder::new().name(name).spawn(move || w.run(rx)) {
+        let spawned = std::thread::Builder::new().name(name).spawn(move || if calendars_only { w.run_calendars(rx) } else { w.run(rx) });
+        match spawned {
             Ok(_) => {
-                self.workers.insert(account.id.clone(), Handle { tx, quick, no_password, busy, quick_link, stop, waits });
+                self.workers.insert(account.id.clone(), handle);
             }
             Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::error(e.to_string()) }),
         }
@@ -472,7 +474,60 @@ const WINDOWS: &str = "windows.json";
 const FOUND_MAX: usize = 500;
 
 impl Worker {
+    /// A connection of the tests' own: nothing shared with a pool, no passwords kept.
+    #[cfg(test)]
     fn new(acc: AccountConfig, auth: Arc<Mutex<Auth>>, store: Store, sink: Sink, opts: SyncOptions) -> Worker {
+        let shared = Shared {
+            store,
+            sink,
+            opts,
+            creds: None,
+            search: Arc::default(),
+            order: changes::Order::default(),
+            filing: Arc::default(),
+            sieve_port: crate::sieve::PORT,
+        };
+        Worker::with(acc, auth, shared)
+    }
+
+    /// An account's main connection, its only one when it has calendars alone. `password`: one
+    /// just given, kept in the keychain on its own thread before it first connects; `None` to read
+    /// the one kept there.
+    fn main_connection(acc: AccountConfig, shared: Shared, password: Option<String>) -> Worker {
+        let mut w = Worker::with(acc, Auth::shared(String::new()), shared);
+        w.keychain = Some(password);
+        w
+    }
+
+    /// The account's second connection, for work the user sees happen (sending, automatic
+    /// replies): quiet, the account's status being the main one's (`self`), and connecting only
+    /// when there's something to do. It signs in as the main one does, leaves to it (`main`, its
+    /// queue) what it can't do, and shares with it the messages given back and those whose text
+    /// went first.
+    fn second_connection(&self, main: Sender<Job>, shared: Shared) -> Worker {
+        let mut q = Worker::with(self.acc.clone(), self.auth.clone(), shared);
+        q.main = Some(main);
+        q.given_back = self.given_back.clone();
+        q.whole_only = self.whole_only.clone();
+        q
+    }
+
+    /// The main connection's second one, `q`: started once the password is known (what's for it
+    /// waits in its queue till then).
+    fn pair(&mut self, q: Worker) {
+        let (qtx, qrx) = mpsc::channel();
+        let name = format!("mail-{}-quick", self.acc.id);
+        self.quick_start = Some(Box::new(move || {
+            if let Err(e) = std::thread::Builder::new().name(name).spawn(move || q.run_quick(qrx)) {
+                log::warn!("the account's second connection didn't start: {e}");
+            }
+        }));
+        self.quick = Arc::new(Mutex::new(Some(qtx)));
+    }
+
+    /// A connection of `acc`'s, signing in with `auth`, with what it shares with the pool.
+    fn with(acc: AccountConfig, auth: Arc<Mutex<Auth>>, shared: Shared) -> Worker {
+        let Shared { store, sink, opts, creds, search, order, filing, sieve_port } = shared;
         let folders = store.load_folders(&acc.id).unwrap_or_default();
         let jstate = if acc.is_api() { jmap::State::load(&store, &acc.id) } else { jmap::State::default() };
         // Online only (issue #4): nothing downloaded in full ahead of reading; a message comes
@@ -496,8 +551,8 @@ impl Worker {
             quick: Arc::default(),
             given_back: Arc::default(),
             stop: Arc::default(),
-            order: changes::Order::default(),
-            filing: Arc::default(),
+            order,
+            filing,
             kept: changes::KeptDrafts::default(),
             counts_unsaid: Vec::new(),
             gone_meanwhile: Vec::new(),
@@ -513,12 +568,12 @@ impl Worker {
             auth_failed: false,
             token_retried: false,
             closed: false,
-            creds: None,
-            sieve_port: crate::sieve::PORT,
+            creds,
+            sieve_port,
             no_push: false,
             pushed: false,
             soon: Vec::new(),
-            search: Arc::new(AtomicU64::new(0)),
+            search,
             dav_digest: None,
             dav_said: None,
             keychain: None,
