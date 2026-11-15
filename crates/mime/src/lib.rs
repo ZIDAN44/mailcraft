@@ -19,7 +19,7 @@ pub mod layout;
 pub use attachments::office;
 pub use rich::markup;
 pub mod rich;
-pub use rich::reply::{ReplyMode, quoted_body, reply, reply_doc, reply_head_doc};
+pub use outgoing::reply::{ReplyMode, quoted_body, reply, reply_doc, reply_head_doc};
 
 use mail_builder::MessageBuilder;
 use mail_builder::headers::content_type::ContentType;

@@ -2,6 +2,8 @@
 //! what a saved one asks of its sending (its importance, a read receipt, the message it
 //! answers or forwards).
 
+pub mod reply;
+
 use super::*;
 
 /// The header a draft's copy names the message it answers or forwards in ([`Draft::source`]).

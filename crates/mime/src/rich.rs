@@ -13,7 +13,6 @@ use crate::html::escaped;
 use crate::{RichText, Span};
 
 pub mod markup;
-pub mod reply;
 
 /// Where a picture sits in the text.
 pub const PICTURE: char = '\u{FFFC}';
