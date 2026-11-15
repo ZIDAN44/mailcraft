@@ -549,6 +549,8 @@ impl Store {
                 for g in &gone {
                     self.clear_folder(account, g)?;
                 }
+                // A set: a folder with thousands of subfolders (an import's) was gone × folders.
+                let gone: HashSet<String> = gone.into_iter().collect();
                 list.retain(|f| !gone.contains(&f.path));
                 Vec::new()
             }
@@ -610,12 +612,20 @@ impl Store {
 /// whether any count changed.
 pub(crate) fn set_counts(list: &mut [Folder], counts: &[(String, u32, u32)]) -> (usize, bool) {
     let (mut found, mut changed) = (0, false);
-    for (path, unread, total) in counts {
-        if let Some(f) = list.iter_mut().find(|f| f.path == *path) {
+    // Each path's first folder (a damaged list may name one twice), looked up once each: a search
+    // of the list for each count was counts × folders (41 ms for an import's 5,000).
+    let mut at: HashMap<&str, usize> = HashMap::with_capacity(list.len());
+    for (i, f) in list.iter().enumerate() {
+        at.entry(f.path.as_str()).or_insert(i);
+    }
+    let found_at: Vec<(usize, u32, u32)> =
+        counts.iter().filter_map(|(path, unread, total)| Some((*at.get(path.as_str())?, *unread, *total))).collect();
+    for (i, unread, total) in found_at {
+        if let Some(f) = list.get_mut(i) {
             found += 1;
-            changed |= f.unread != *unread || f.total != *total;
-            f.unread = *unread;
-            f.total = *total;
+            changed |= f.unread != unread || f.total != total;
+            f.unread = unread;
+            f.total = total;
         }
     }
     (found, changed)

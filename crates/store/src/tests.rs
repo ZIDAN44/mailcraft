@@ -3,6 +3,7 @@ use mailcraft_model::{Flag, Flags};
 use super::*;
 
 mod changes;
+mod counts;
 mod flagging;
 mod folder_uids;
 mod lists;
