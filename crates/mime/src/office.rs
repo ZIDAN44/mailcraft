@@ -625,7 +625,6 @@ fn sheet(xml: &str, shared: &[String]) -> Vec<Vec<String>> {
                                 "FALSE".into()
                             }
                         }
-                        "e" => value.clone(),
                         _ => value.clone(),
                     };
                     if shown.is_empty() {

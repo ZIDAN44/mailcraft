@@ -236,6 +236,17 @@ fn a_centred_column_in_points_or_ems_keeps_its_width() {
     assert_eq!((length_px("-3px"), length_px("1e9px"), length_px("NaNpx"), length_px("10vw")), (None, Some(100_000.0), None, None));
 }
 
+proptest::proptest! {
+    /// A cell's least height read with [`length_px`] alone is what it was read as a bare number
+    /// first and `length_px` after: a bare number is one `length_px` reads, as the cell keeps it.
+    #[test]
+    fn a_height_read_once(v in "[-+]?([0-9]{0,6}(\\.[0-9]{0,3})?|inf|NaN|infinity)(e[0-9])?(px|pt|em|in|%|vw)?") {
+        let kept = |px: f32| (px.is_finite() && px >= 1.0).then(|| (px.round() as u16).min(MAX_CELL_HEIGHT));
+        let before = v.parse::<f32>().ok().or_else(|| length_px(&v)).and_then(kept);
+        proptest::prop_assert_eq!(length_px(&v).and_then(kept), before);
+    }
+}
+
 /// Issue #41, as Outlook shows it: a title centred in the column (`text-align: center`) stays
 /// centred, and its size, set on a span inside `<b>` as Outlook writes it, makes it a title.
 #[test]

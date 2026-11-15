@@ -47,18 +47,7 @@ fn quoted_original(p: &Parsed, clock: &Clock, body: bool) -> (String, rich::Styl
     }
     if body {
         let (orig, ost) = quoted_body(p);
-        rich::append(
-            &mut text,
-            &mut styles,
-            "
-
-",
-            &rich::Styles::plain(
-                "
-
-",
-            ),
-        );
+        rich::append(&mut text, &mut styles, "\n\n", &rich::Styles::plain("\n\n"));
         rich::append(&mut text, &mut styles, &orig, &ost);
     }
     (text, styles)

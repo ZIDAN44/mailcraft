@@ -660,16 +660,15 @@ pub(super) fn has_columns(b: &[Block]) -> bool {
 
 /// The pictures behind boxes in a layout (to be shown, or held back, like the message's others).
 pub fn background_pictures(b: &[Block]) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    let mut add = |src: &Option<String>, out: &mut Vec<String>| {
+    fn add(src: &Option<String>, out: &mut Vec<String>) {
         if let Some(s) = src
             && !out.contains(s)
             && out.len() < 200
         {
             out.push(s.clone());
         }
-    };
-    pub(super) fn walk(b: &[Block], out: &mut Vec<String>, add: &mut dyn FnMut(&Option<String>, &mut Vec<String>), depth: usize) {
+    }
+    fn walk(b: &[Block], out: &mut Vec<String>, depth: usize) {
         if depth > MAX_DEPTH * 2 {
             return;
         }
@@ -678,14 +677,15 @@ pub fn background_pictures(b: &[Block]) -> Vec<String> {
                 add(&t.background_image, out);
                 for c in t.rows.iter().flatten() {
                     add(&c.background_image, out);
-                    walk(&c.blocks, out, add, depth + 1);
+                    walk(&c.blocks, out, depth + 1);
                     for o in &c.overlays {
-                        walk(&o.blocks, out, add, depth + 1);
+                        walk(&o.blocks, out, depth + 1);
                     }
                 }
             }
         }
     }
-    walk(b, &mut out, &mut add, 0);
+    let mut out = Vec::new();
+    walk(b, &mut out, 0);
     out
 }

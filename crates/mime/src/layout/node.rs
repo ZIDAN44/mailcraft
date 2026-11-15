@@ -262,7 +262,7 @@ impl Node {
         if v.ends_with('%') {
             return None;
         }
-        let px = v.parse::<f32>().ok().or_else(|| length_px(v))?;
+        let px = length_px(v)?;
         (px.is_finite() && px >= 1.0).then(|| (px.round() as u16).min(MAX_CELL_HEIGHT))
     }
 
