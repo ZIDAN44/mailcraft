@@ -77,7 +77,7 @@ pub(super) fn draw(ui: &mut Ui, f: &mut AddressForm, s: &Session, t: &Tokens, ac
         ui.label(tl!("Replies go to"));
         ui.add(egui::TextEdit::singleline(&mut f.reply_to).hint_text(f.address.trim().to_string()).min_size(size).desired_width(size.x));
         ui.end_row();
-        ui.label(tl!("Signature"));
+        let l = ui.label(tl!("Signature"));
         let own = tl!("(the account's own)").to_string();
         let names: Vec<String> = config.map(|c| c.signatures.iter().map(|g| g.name.clone()).collect()).unwrap_or_default();
         egui::ComboBox::from_id_salt("account-address-signature")
@@ -88,7 +88,9 @@ pub(super) fn draw(ui: &mut Ui, f: &mut AddressForm, s: &Session, t: &Tokens, ac
                 for n in &names {
                     ui.selectable_value(&mut f.signature, Some(n.clone()), n.as_str());
                 }
-            });
+            })
+            .response
+            .labelled_by(l.id);
         ui.end_row();
     });
     ui.add_space(6.0);

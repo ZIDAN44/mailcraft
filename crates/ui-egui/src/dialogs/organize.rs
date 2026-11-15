@@ -135,30 +135,40 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.label(tl!("Name"));
                 ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(300.0));
                 ui.end_row();
-                ui.label(tl!("When mail"));
-                egui::ComboBox::from_id_salt("rule-test").width(300.0).selected_text(f.test.label()).show_ui(ui, |ui| {
-                    for x in RuleTest::ALL {
-                        ui.selectable_value(&mut f.test, x, x.label());
-                    }
-                });
+                let l = ui.label(tl!("When mail"));
+                egui::ComboBox::from_id_salt("rule-test")
+                    .width(300.0)
+                    .selected_text(f.test.label())
+                    .show_ui(ui, |ui| {
+                        for x in RuleTest::ALL {
+                            ui.selectable_value(&mut f.test, x, x.label());
+                        }
+                    })
+                    .response
+                    .labelled_by(l.id);
                 ui.end_row();
                 if f.test.needs_text() {
                     ui.label("");
                     ui.add(egui::TextEdit::singleline(&mut f.text).hint_text(tl!("Text or address")).desired_width(300.0));
                     ui.end_row();
                 }
-                ui.label(tl!("Then"));
-                egui::ComboBox::from_id_salt("rule-do").width(300.0).selected_text(f.action.label()).show_ui(ui, |ui| {
-                    for x in RuleDo::ALL {
-                        if ui.selectable_value(&mut f.action, x, x.label()).changed() {
-                            f.target.clear();
+                let l = ui.label(tl!("Then"));
+                egui::ComboBox::from_id_salt("rule-do")
+                    .width(300.0)
+                    .selected_text(f.action.label())
+                    .show_ui(ui, |ui| {
+                        for x in RuleDo::ALL {
+                            if ui.selectable_value(&mut f.action, x, x.label()).changed() {
+                                f.target.clear();
+                            }
                         }
-                    }
-                });
+                    })
+                    .response
+                    .labelled_by(l.id);
                 ui.end_row();
                 match f.action {
                     RuleDo::MoveTo => {
-                        ui.label(tl!("Folder"));
+                        let l = ui.label(tl!("Folder"));
                         let shown = f
                             .account
                             .as_deref()
@@ -167,28 +177,38 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                                 format!("{} ({})", crate::i18n::folder(x), s.account(&x.account).map(|a| a.config.email.as_str()).unwrap_or_default())
                             })
                             .unwrap_or_else(|| tl!("Choose…").into());
-                        egui::ComboBox::from_id_salt("rule-folder").width(300.0).selected_text(shown).show_ui(ui, |ui| {
-                            for a in &s.accounts {
-                                ui.label(RichText::new(&a.config.email).small().color(t.faint));
-                                for x in a.folders.iter().filter(|x| x.selectable) {
-                                    let on = f.account.as_deref() == Some(a.config.id.as_str()) && f.target == x.path;
-                                    if ui.selectable_label(on, format!("{}{}", "    ".repeat(x.depth()), crate::i18n::folder(x))).clicked() {
-                                        f.account = Some(a.config.id.clone());
-                                        f.target = x.path.clone();
+                        egui::ComboBox::from_id_salt("rule-folder")
+                            .width(300.0)
+                            .selected_text(shown)
+                            .show_ui(ui, |ui| {
+                                for a in &s.accounts {
+                                    ui.label(RichText::new(&a.config.email).small().color(t.faint));
+                                    for x in a.folders.iter().filter(|x| x.selectable) {
+                                        let on = f.account.as_deref() == Some(a.config.id.as_str()) && f.target == x.path;
+                                        if ui.selectable_label(on, format!("{}{}", "    ".repeat(x.depth()), crate::i18n::folder(x))).clicked() {
+                                            f.account = Some(a.config.id.clone());
+                                            f.target = x.path.clone();
+                                        }
                                     }
                                 }
-                            }
-                        });
+                            })
+                            .response
+                            .labelled_by(l.id);
                         ui.end_row();
                     }
                     RuleDo::Categorize => {
-                        ui.label(tl!("Category"));
+                        let l = ui.label(tl!("Category"));
                         let shown = if f.target.is_empty() { tl!("Choose…").to_string() } else { tl!(&f.target).to_string() };
-                        egui::ComboBox::from_id_salt("rule-cat").width(300.0).selected_text(shown).show_ui(ui, |ui| {
-                            for c in &s.prefs.categories {
-                                ui.selectable_value(&mut f.target, c.name.clone(), &c.name);
-                            }
-                        });
+                        egui::ComboBox::from_id_salt("rule-cat")
+                            .width(300.0)
+                            .selected_text(shown)
+                            .show_ui(ui, |ui| {
+                                for c in &s.prefs.categories {
+                                    ui.selectable_value(&mut f.target, c.name.clone(), &c.name);
+                                }
+                            })
+                            .response
+                            .labelled_by(l.id);
                         ui.end_row();
                     }
                     _ => {}
@@ -237,13 +257,18 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     .wrap(),
             );
             ui.add_space(8.0);
-            ui.label(RichText::new(tl!("Show")).color(t.dim).small());
+            let l = ui.label(RichText::new(tl!("Show")).color(t.dim).small());
             let before = f.preset;
-            egui::ComboBox::from_id_salt("search-folder-preset").width(ui.available_width()).selected_text(tl!(f.preset.label())).show_ui(ui, |ui| {
-                for (label, kind) in SEARCH_PRESETS {
-                    ui.selectable_value(&mut f.preset, kind, tl!(label));
-                }
-            });
+            egui::ComboBox::from_id_salt("search-folder-preset")
+                .width(ui.available_width())
+                .selected_text(tl!(f.preset.label()))
+                .show_ui(ui, |ui| {
+                    for (label, kind) in SEARCH_PRESETS {
+                        ui.selectable_value(&mut f.preset, kind, tl!(label));
+                    }
+                })
+                .response
+                .labelled_by(l.id);
             if f.preset != before {
                 f.apply_preset(before);
             }
@@ -296,30 +321,40 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.checkbox(&mut f.pin, tl!("Pin"));
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.label(tl!("Categorize"));
+                let l = ui.label(tl!("Categorize"));
                 let shown = if f.category.is_empty() { tl!("None").to_string() } else { f.category.clone() };
-                egui::ComboBox::from_id_salt("quick-step-category").width(220.0).selected_text(shown).show_ui(ui, |ui| {
-                    ui.selectable_value(&mut f.category, String::new(), tl!("None"));
-                    for c in &s.prefs.categories {
-                        ui.selectable_value(&mut f.category, c.name.clone(), c.name.as_str());
-                    }
-                });
+                egui::ComboBox::from_id_salt("quick-step-category")
+                    .width(220.0)
+                    .selected_text(shown)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut f.category, String::new(), tl!("None"));
+                        for c in &s.prefs.categories {
+                            ui.selectable_value(&mut f.category, c.name.clone(), c.name.as_str());
+                        }
+                    })
+                    .response
+                    .labelled_by(l.id);
             });
             ui.horizontal(|ui| {
-                ui.label(tl!("Then move to"));
-                egui::ComboBox::from_id_salt("quick-step-move").width(220.0).selected_text(QuickStepForm::move_label(&f.move_to)).show_ui(ui, |ui| {
-                    let mut choices = vec![
-                        StepMove::Stay,
-                        StepMove::Role(FolderRole::Archive),
-                        StepMove::Role(FolderRole::Trash),
-                        StepMove::Role(FolderRole::Junk),
-                    ];
-                    choices.extend(f.folders.iter().map(|p| StepMove::Folder(p.clone())));
-                    for c in choices {
-                        let label = QuickStepForm::move_label(&c);
-                        ui.selectable_value(&mut f.move_to, c, label);
-                    }
-                });
+                let l = ui.label(tl!("Then move to"));
+                egui::ComboBox::from_id_salt("quick-step-move")
+                    .width(220.0)
+                    .selected_text(QuickStepForm::move_label(&f.move_to))
+                    .show_ui(ui, |ui| {
+                        let mut choices = vec![
+                            StepMove::Stay,
+                            StepMove::Role(FolderRole::Archive),
+                            StepMove::Role(FolderRole::Trash),
+                            StepMove::Role(FolderRole::Junk),
+                        ];
+                        choices.extend(f.folders.iter().map(|p| StepMove::Folder(p.clone())));
+                        for c in choices {
+                            let label = QuickStepForm::move_label(&c);
+                            ui.selectable_value(&mut f.move_to, c, label);
+                        }
+                    })
+                    .response
+                    .labelled_by(l.id);
             });
             if let Some(e) = &f.error {
                 ui.add_space(4.0);

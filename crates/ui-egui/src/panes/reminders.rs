@@ -155,13 +155,18 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
                 });
             });
             ui.add_space(4.0);
-            ui.label(RichText::new(tl!("Click Snooze to be reminded again in:")).color(t.dim).small());
+            let again = ui.label(RichText::new(tl!("Click Snooze to be reminded again in:")).color(t.dim).small());
             ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("reminder-snooze").width(200.0).selected_text(snooze_label(snooze)).show_ui(ui, |ui| {
-                    for m in SNOOZES {
-                        ui.selectable_value(&mut st.snooze, Some(m), snooze_label(m));
-                    }
-                });
+                egui::ComboBox::from_id_salt("reminder-snooze")
+                    .width(200.0)
+                    .selected_text(snooze_label(snooze))
+                    .show_ui(ui, |ui| {
+                        for m in SNOOZES {
+                            ui.selectable_value(&mut st.snooze, Some(m), snooze_label(m));
+                        }
+                    })
+                    .response
+                    .labelled_by(again.id);
                 if let Some(r) = &picked
                     && ui.button(tl!("Snooze")).clicked()
                 {

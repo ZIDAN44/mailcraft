@@ -1711,3 +1711,4 @@ month	May	מאי
 	Read / Unread (Ctrl+Q / Ctrl+U)	נקרא / לא נקרא (Ctrl+Q / Ctrl+U)
 	{name} couldn't be downloaded: {error}	לא ניתן היה להוריד את {name}: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	משהו השתבש בחלון, ומה שעשה הופסק. MailCraft ממשיך לפעול; היומן מציין היכן זה קרה.
+	Font size	גודל גופן

@@ -1716,3 +1716,4 @@ month	May	mayo
 	Read / Unread (Ctrl+Q / Ctrl+U)	Leído / No leído (Ctrl+Q / Ctrl+U)
 	{name} couldn't be downloaded: {error}	No se pudo descargar {name}: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	Algo salió mal en la ventana y se detuvo lo que estaba haciendo. MailCraft sigue funcionando; el registro indica dónde ocurrió.
+	Font size	Tamaño de fuente

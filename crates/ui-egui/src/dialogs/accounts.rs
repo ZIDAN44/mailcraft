@@ -221,5 +221,8 @@ pub(super) fn security_combo(ui: &mut Ui, id: &str, v: &mut Security) {
             ui.selectable_value(v, Security::Tls, "SSL/TLS");
             ui.selectable_value(v, Security::StartTls, "STARTTLS");
             ui.selectable_value(v, Security::None, tl!("None (unsafe)"));
-        });
+        })
+        .response
+        // Nothing beside it says what it is: the server row's name sits above the host.
+        .accessible_name(tl!("Security"));
 }

@@ -14,12 +14,17 @@ use crate::theme::Tokens;
 pub(super) fn show_as_row(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
     form_row(ui, t, true, Some(Icon::Clock), "Show as", |ui| {
         ui.allocate_ui_with_layout(vec2(170.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            egui::ComboBox::from_id_salt("event-show-as").width(164.0).selected_text(show_as_label(f.show_as)).show_ui(ui, |ui| {
-                for s in ShowAs::ALL {
-                    let label = RichText::new(show_as_label(s));
-                    ui.selectable_value(&mut f.show_as, s, if s == ShowAs::OutOfOffice { label.color(AWAY) } else { label });
-                }
-            });
+            egui::ComboBox::from_id_salt("event-show-as")
+                .width(164.0)
+                .selected_text(show_as_label(f.show_as))
+                .show_ui(ui, |ui| {
+                    for s in ShowAs::ALL {
+                        let label = RichText::new(show_as_label(s));
+                        ui.selectable_value(&mut f.show_as, s, if s == ShowAs::OutOfOffice { label.color(AWAY) } else { label });
+                    }
+                })
+                .response
+                .accessible_name(tl!("Show as"));
         });
         ui.add_space(6.0);
         // Wrapped under it when a language's words don't fit beside it.

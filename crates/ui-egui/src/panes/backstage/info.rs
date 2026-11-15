@@ -40,13 +40,19 @@ fn account_picker(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, b: &mu
     ui.horizontal_wrapped(|ui| {
         let current = account_label(a);
         let width = (ui.available_width() - 2.0 * ui.spacing().button_padding.x).min(420.0);
-        egui::ComboBox::from_id_salt("backstage-account").width(width).selected_text(current).truncate().show_ui(ui, |ui| {
-            for x in &s.accounts {
-                if ui.selectable_label(&x.config.id == id, account_label(x)).clicked() {
-                    b.account = Some(x.config.id.clone());
+        egui::ComboBox::from_id_salt("backstage-account")
+            .width(width)
+            .selected_text(current)
+            .truncate()
+            .show_ui(ui, |ui| {
+                for x in &s.accounts {
+                    if ui.selectable_label(&x.config.id == id, account_label(x)).clicked() {
+                        b.account = Some(x.config.id.clone());
+                    }
                 }
-            }
-        });
+            })
+            .response
+            .accessible_name(tl!("Account"));
         if widgets::pill_button(ui, Icon::Plus, "Add account…", t).clicked() {
             acts.push(Action::Dialog(Dialog::add_account()));
         }

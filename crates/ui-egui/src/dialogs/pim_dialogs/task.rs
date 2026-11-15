@@ -155,14 +155,19 @@ pub(super) fn category_chips(ui: &mut Ui, t: &Tokens, all: &[(String, u8)], chos
     });
 }
 
-/// A drop-down of a form, `width` wide.
-fn choice<T: PartialEq + Copy>(ui: &mut Ui, id: &str, width: f32, value: &mut T, options: &[T], label: impl Fn(T) -> &'static str) {
+/// A drop-down of a form, `width` wide, `name`d for a screen reader (its row's name is painted).
+fn choice<T: PartialEq + Copy>(ui: &mut Ui, id: &str, name: &str, width: f32, value: &mut T, options: &[T], label: impl Fn(T) -> &'static str) {
     ui.allocate_ui_with_layout(vec2(width, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-        egui::ComboBox::from_id_salt(id).width(width - 6.0).selected_text(tl!(label(*value))).show_ui(ui, |ui| {
-            for o in options {
-                ui.selectable_value(value, *o, tl!(label(*o)));
-            }
-        });
+        egui::ComboBox::from_id_salt(id)
+            .width(width - 6.0)
+            .selected_text(tl!(label(*value)))
+            .show_ui(ui, |ui| {
+                for o in options {
+                    ui.selectable_value(value, *o, tl!(label(*o)));
+                }
+            })
+            .response
+            .accessible_name(name);
     });
 }
 
@@ -178,7 +183,7 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
     });
     let before = f.status;
     form_row(ui, t, true, Some(Icon::Task), "Status", |ui| {
-        choice(ui, "task-status", 220.0, &mut f.status, &TaskStatus::ALL, status_label);
+        choice(ui, "task-status", tl!("Status"), 220.0, &mut f.status, &TaskStatus::ALL, status_label);
         ui.add_space(6.0);
         ui.allocate_ui_with_layout(vec2(ui.available_width(), FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.add(egui::DragValue::new(&mut f.percent).range(0..=100).suffix("%"));
@@ -195,7 +200,15 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
         };
     }
     form_row(ui, t, true, Some(Icon::Star), "Priority", |ui| {
-        choice(ui, "task-priority", 140.0, &mut f.priority, &[TaskPriority::Low, TaskPriority::Normal, TaskPriority::High], priority_label);
+        choice(
+            ui,
+            "task-priority",
+            tl!("Priority"),
+            140.0,
+            &mut f.priority,
+            &[TaskPriority::Low, TaskPriority::Normal, TaskPriority::High],
+            priority_label,
+        );
     });
     form_row(ui, t, true, Some(Icon::Clock), "Reminder", |ui| {
         ui.allocate_ui_with_layout(vec2(90.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
@@ -219,11 +232,16 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
         let name = f.accounts.get(f.account).map(|a| a.1.clone()).unwrap_or_default();
         form_row(ui, t, true, Some(Icon::Person), "Account", |ui| {
             ui.allocate_ui_with_layout(vec2(260.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                egui::ComboBox::from_id_salt("task-account").width(254.0).selected_text(name).show_ui(ui, |ui| {
-                    for (i, a) in f.accounts.iter().enumerate() {
-                        ui.selectable_value(&mut f.account, i, &a.1);
-                    }
-                });
+                egui::ComboBox::from_id_salt("task-account")
+                    .width(254.0)
+                    .selected_text(name)
+                    .show_ui(ui, |ui| {
+                        for (i, a) in f.accounts.iter().enumerate() {
+                            ui.selectable_value(&mut f.account, i, &a.1);
+                        }
+                    })
+                    .response
+                    .accessible_name(tl!("Account"));
             });
         });
     }

@@ -180,13 +180,18 @@ fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich:
     ui.add_enabled_ui(!c.plain, |ui| {
         // In the middle of the row's height, as the buttons' faces are.
         ui.allocate_ui_with_layout(vec2(0.0, ROW_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            egui::ComboBox::from_id_salt(("font-size", c.id)).width(48.0).selected_text(cur.size().to_string()).show_ui(ui, |ui| {
-                for z in rich::SIZES {
-                    if ui.selectable_label(cur.size() == z, z.to_string()).clicked() {
-                        ops.push(Op::Size(z));
+            egui::ComboBox::from_id_salt(("font-size", c.id))
+                .width(48.0)
+                .selected_text(cur.size().to_string())
+                .show_ui(ui, |ui| {
+                    for z in rich::SIZES {
+                        if ui.selectable_label(cur.size() == z, z.to_string()).clicked() {
+                            ops.push(Op::Size(z));
+                        }
                     }
-                }
-            });
+                })
+                .response
+                .accessible_name(tl!("Font size"));
         });
         ui.add_space(4.0);
         let letter = |bold: bool, italic: bool, under: bool, strike: bool| {

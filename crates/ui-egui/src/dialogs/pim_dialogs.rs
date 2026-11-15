@@ -455,11 +455,16 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
                 if !choices.contains(&f.reminder) {
                     choices.push(f.reminder);
                 }
-                egui::ComboBox::from_id_salt("event-reminder").width(194.0).selected_text(reminder_label(f.reminder)).show_ui(ui, |ui| {
-                    for c in choices {
-                        ui.selectable_value(&mut f.reminder, c, reminder_label(c));
-                    }
-                });
+                egui::ComboBox::from_id_salt("event-reminder")
+                    .width(194.0)
+                    .selected_text(reminder_label(f.reminder))
+                    .show_ui(ui, |ui| {
+                        for c in choices {
+                            ui.selectable_value(&mut f.reminder, c, reminder_label(c));
+                        }
+                    })
+                    .response
+                    .accessible_name(tl!("Reminder"));
             });
         });
         showing::show_as_row(ui, t, f);
@@ -481,11 +486,16 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
             let name = f.calendars.get(f.calendar).map(|c| c.2.clone()).unwrap_or_default();
             form_row(ui, t, true, Some(Icon::Calendar), "Calendar", |ui| {
                 ui.allocate_ui_with_layout(vec2(260.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    egui::ComboBox::from_id_salt("event-calendar").width(254.0).selected_text(name).show_ui(ui, |ui| {
-                        for (i, c) in f.calendars.iter().enumerate() {
-                            ui.selectable_value(&mut f.calendar, i, &c.2);
-                        }
-                    });
+                    egui::ComboBox::from_id_salt("event-calendar")
+                        .width(254.0)
+                        .selected_text(name)
+                        .show_ui(ui, |ui| {
+                            for (i, c) in f.calendars.iter().enumerate() {
+                                ui.selectable_value(&mut f.calendar, i, &c.2);
+                            }
+                        })
+                        .response
+                        .accessible_name(tl!("Calendar"));
                 });
             });
         }

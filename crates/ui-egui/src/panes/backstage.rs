@@ -391,13 +391,18 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
                         if ui.button(tl!("Export…")).clicked() {
                             acts.push(Action::ExportDataFile(id.clone()));
                         }
-                        egui::ComboBox::from_id_salt("export-account").width(300.0).selected_text(label).show_ui(ui, |ui| {
-                            for a in &s.accounts {
-                                if ui.selectable_label(&a.config.id == id, account_label(a)).clicked() {
-                                    b.export = Some(a.config.id.clone());
+                        egui::ComboBox::from_id_salt("export-account")
+                            .width(300.0)
+                            .selected_text(label)
+                            .show_ui(ui, |ui| {
+                                for a in &s.accounts {
+                                    if ui.selectable_label(&a.config.id == id, account_label(a)).clicked() {
+                                        b.export = Some(a.config.id.clone());
+                                    }
                                 }
-                            }
-                        });
+                            })
+                            .response
+                            .accessible_name(tl!("Account"));
                     },
                 );
             },

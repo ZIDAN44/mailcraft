@@ -1711,3 +1711,4 @@ month	May	مايو
 	Read / Unread (Ctrl+Q / Ctrl+U)	مقروء / غير مقروء (Ctrl+Q / Ctrl+U)
 	{name} couldn't be downloaded: {error}	تعذّر تنزيل {name}: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	حدث خطأ في النافذة، فأُوقف ما كانت تقوم به. يواصل MailCraft العمل، ويذكر السجل أين حدث ذلك.
+	Font size	حجم الخط

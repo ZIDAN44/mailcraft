@@ -149,13 +149,19 @@ pub(super) fn checking(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
             setting(ui, t, i == 0, &c.email, None, |ui| {
                 let now = c.check_every.unwrap_or(0);
                 let word = |m: u32| if m == 0 { tl!("Automatically").to_string() } else { tf!("Every {n} minutes", n = m) };
-                egui::ComboBox::from_id_salt(("check-every", c.id.as_str())).width(170.0).selected_text(word(now)).show_ui(ui, |ui| {
-                    for m in [0u32, 5, 10, 15, 30, 60] {
-                        if ui.selectable_label(m == now, word(m)).clicked() && m != now {
-                            acts.push(Action::Run("account.checkEvery", json!({"account": c.id, "minutes": m})));
+                egui::ComboBox::from_id_salt(("check-every", c.id.as_str()))
+                    .width(170.0)
+                    .selected_text(word(now))
+                    .show_ui(ui, |ui| {
+                        for m in [0u32, 5, 10, 15, 30, 60] {
+                            if ui.selectable_label(m == now, word(m)).clicked() && m != now {
+                                acts.push(Action::Run("account.checkEvery", json!({"account": c.id, "minutes": m})));
+                            }
                         }
-                    }
-                });
+                    })
+                    .response
+                    // The row's name, the account's address, under the card's Checking for new mail.
+                    .accessible_name(c.email.as_str());
             });
         }
     });

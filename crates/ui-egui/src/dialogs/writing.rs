@@ -212,7 +212,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             }
         }
         ui.add_space(12.0);
-        ui.label(RichText::new(tl!("Address Book")).strong());
+        let book = ui.label(RichText::new(tl!("Address Book")).strong());
         // Everyone (the people written to or heard from, and contacts), every contact, or one
         // address book (each account's Contacts, an organisation's shared ones).
         let accounts = f.books.iter().map(|(_, _, a)| a).collect::<std::collections::BTreeSet<_>>().len();
@@ -234,19 +234,24 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             }
         }
         let shown = choices.iter().find(|(s, _, _)| *s == f.source).map_or_else(|| tl!("All addresses").to_string(), |(_, l, _)| l.clone());
-        egui::ComboBox::from_id_salt("address-book").width(220.0).selected_text(shown).show_ui(ui, |ui| {
-            for (source, label, tip) in &choices {
-                let mut r = ui.selectable_label(f.source == *source, label);
-                if !tip.is_empty() {
-                    r = r.on_hover_text(*tip);
+        egui::ComboBox::from_id_salt("address-book")
+            .width(220.0)
+            .selected_text(shown)
+            .show_ui(ui, |ui| {
+                for (source, label, tip) in &choices {
+                    let mut r = ui.selectable_label(f.source == *source, label);
+                    if !tip.is_empty() {
+                        r = r.on_hover_text(*tip);
+                    }
+                    if r.clicked() && f.source != *source {
+                        f.source = source.clone();
+                        f.stale = true;
+                        f.selected = None;
+                    }
                 }
-                if r.clicked() && f.source != *source {
-                    f.source = source.clone();
-                    f.stale = true;
-                    f.selected = None;
-                }
-            }
-        });
+            })
+            .response
+            .labelled_by(book.id);
     });
     // Outlook's "Show this address list first".
     if !f.source.is_empty() && f.source != f.default_source {

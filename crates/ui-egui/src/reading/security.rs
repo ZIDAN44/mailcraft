@@ -104,6 +104,7 @@ pub(super) fn scheme_menu(ui: &mut Ui, c: &mut mailcraft_engine::Compose) {
             }
         })
         .response
+        .accessible_name(tl!("Signing and encryption"))
         .on_hover_text(tl!("Sign and encrypt with S/MIME or OpenPGP; Automatic takes the one every recipient can receive"));
 }
 

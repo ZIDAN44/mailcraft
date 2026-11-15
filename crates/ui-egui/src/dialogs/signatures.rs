@@ -219,14 +219,19 @@ impl std::fmt::Debug for SignatureEditor {
 fn default_picker(ui: &mut Ui, id: &str, label: String, names: &[String], value: &mut Option<String>) -> bool {
     let before = value.clone();
     ui.horizontal(|ui| {
-        ui.add_sized([150.0, 22.0], egui::Label::new(label));
+        let l = ui.add_sized([150.0, 22.0], egui::Label::new(label));
         let none = tl!("(none)").to_string();
-        egui::ComboBox::from_id_salt(id).width(240.0).selected_text(value.clone().unwrap_or_else(|| none.clone())).show_ui(ui, |ui| {
-            ui.selectable_value(value, None, none.as_str());
-            for n in names {
-                ui.selectable_value(value, Some(n.clone()), n.as_str());
-            }
-        });
+        egui::ComboBox::from_id_salt(id)
+            .width(240.0)
+            .selected_text(value.clone().unwrap_or_else(|| none.clone()))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(value, None, none.as_str());
+                for n in names {
+                    ui.selectable_value(value, Some(n.clone()), n.as_str());
+                }
+            })
+            .response
+            .labelled_by(l.id);
     });
     *value != before
 }
@@ -239,14 +244,20 @@ pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, 
     let mut pick: Option<Option<String>> = None;
     ui.horizontal(|ui| {
         let shown = if f.editing.is_some() { f.name.clone() } else { tl!("New signature").to_string() };
-        egui::ComboBox::from_id_salt("signature-pick").width(220.0).selected_text(shown).show_ui(ui, |ui| {
-            for n in &f.names {
-                let on = f.editing.as_deref().is_some_and(|e| e.eq_ignore_ascii_case(n));
-                if ui.selectable_label(on, n.as_str()).clicked() && !on {
-                    pick = Some(Some(n.clone()));
+        egui::ComboBox::from_id_salt("signature-pick")
+            .width(220.0)
+            .selected_text(shown)
+            .show_ui(ui, |ui| {
+                for n in &f.names {
+                    let on = f.editing.as_deref().is_some_and(|e| e.eq_ignore_ascii_case(n));
+                    if ui.selectable_label(on, n.as_str()).clicked() && !on {
+                        pick = Some(Some(n.clone()));
+                    }
                 }
-            }
-        });
+            })
+            .response
+            // Which signature is being edited: no label sits beside it.
+            .accessible_name(tl!("Signature"));
         if ui.button(tl!("New")).clicked() {
             pick = Some(None);
         }

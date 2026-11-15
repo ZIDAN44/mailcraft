@@ -183,15 +183,20 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
                 1 => tl!("Home"),
                 _ => tl!("Other"),
             };
-            egui::ComboBox::from_id_salt("contact-address").selected_text(name(shown)).show_ui(ui, |ui| {
-                for i in 0..3 {
-                    let filled = f.addresses.get(i).is_some_and(|a| !a.is_empty());
-                    let label = if filled { format!("{} ✓", name(i)) } else { name(i).to_string() };
-                    if ui.selectable_label(shown == i, label).clicked() {
-                        f.address_shown = i;
+            egui::ComboBox::from_id_salt("contact-address")
+                .selected_text(name(shown))
+                .show_ui(ui, |ui| {
+                    for i in 0..3 {
+                        let filled = f.addresses.get(i).is_some_and(|a| !a.is_empty());
+                        let label = if filled { format!("{} ✓", name(i)) } else { name(i).to_string() };
+                        if ui.selectable_label(shown == i, label).clicked() {
+                            f.address_shown = i;
+                        }
                     }
-                }
-            });
+                })
+                .response
+                // The row's name is painted, not a widget: the box carries it.
+                .accessible_name(tl!("Address"));
         });
         let shown = f.address_shown.min(2);
         if let Some(a) = f.addresses.get_mut(shown) {

@@ -1715,3 +1715,4 @@ month	May	5월
 	Read / Unread (Ctrl+Q / Ctrl+U)	읽음 / 읽지 않음(Ctrl+Q / Ctrl+U)
 	{name} couldn't be downloaded: {error}	{name}을(를) 다운로드할 수 없습니다: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	창에서 문제가 생겨 하던 작업을 중단했습니다. MailCraft는 계속 사용할 수 있으며, 문제가 생긴 위치는 로그에 있습니다.
+	Font size	글꼴 크기

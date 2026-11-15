@@ -1712,3 +1712,4 @@ month	May	5月
 	Read / Unread (Ctrl+Q / Ctrl+U)	已读 / 未读 (Ctrl+Q / Ctrl+U)
 	{name} couldn't be downloaded: {error}	无法下载 {name}: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	窗口出了问题，正在进行的操作已停止。MailCraft 可以继续使用；日志中记录了出错的位置。
+	Font size	字号

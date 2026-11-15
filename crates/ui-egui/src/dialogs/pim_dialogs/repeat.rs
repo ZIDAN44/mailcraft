@@ -62,17 +62,22 @@ impl Repeat {
 pub(super) fn repeat_row(ui: &mut Ui, t: &Tokens, id: &str, repeat: &mut Repeat) {
     form_row(ui, t, true, Some(Icon::Sync), "Repeat", |ui| {
         ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            egui::ComboBox::from_id_salt(id).width(194.0).selected_text(repeat.label()).show_ui(ui, |ui| {
-                for r in Repeat::PLAIN {
-                    if ui.selectable_label(*repeat == r, r.label()).clicked() {
-                        *repeat = r;
+            egui::ComboBox::from_id_salt(id)
+                .width(194.0)
+                .selected_text(repeat.label())
+                .show_ui(ui, |ui| {
+                    for r in Repeat::PLAIN {
+                        if ui.selectable_label(*repeat == r, r.label()).clicked() {
+                            *repeat = r;
+                        }
                     }
-                }
-                if matches!(repeat, Repeat::Custom(_)) {
-                    // Already the choice: picking it again changes nothing.
-                    let _ = ui.selectable_label(true, tl!("Custom"));
-                }
-            });
+                    if matches!(repeat, Repeat::Custom(_)) {
+                        // Already the choice: picking it again changes nothing.
+                        let _ = ui.selectable_label(true, tl!("Custom"));
+                    }
+                })
+                .response
+                .accessible_name(tl!("Repeat"));
         });
     });
 }

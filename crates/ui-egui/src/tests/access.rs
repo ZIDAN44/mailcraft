@@ -62,6 +62,73 @@ fn every_control_says_what_it_is() {
     assert!(seen.is_empty(), "{} controls a screen reader can't name:\n{}", seen.len(), seen.join("\n"));
 }
 
+/// The drop-downs a frame in a window of `size` tells a screen reader of: each one's name (its
+/// own label, else the text of the label it's labelled by; never its value) and its value.
+fn drop_downs(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2) -> Vec<(Option<String>, Option<String>)> {
+    let out = sized_frame(ctx, a, size, vec![]);
+    let nodes = out.platform_output.accesskit_update.expect("AccessKit is on").nodes;
+    let text = |n: &Node| n.label().or(n.value()).filter(|l| !l.trim().is_empty()).map(str::to_string);
+    let named = |n: &Node| {
+        n.label().filter(|l| !l.trim().is_empty()).map(str::to_string).or_else(|| {
+            let by: Vec<String> = n.labelled_by().iter().filter_map(|id| nodes.iter().find(|(x, _)| x == id)).filter_map(|(_, l)| text(l)).collect();
+            (!by.is_empty()).then(|| by.join(" "))
+        })
+    };
+    nodes.iter().filter(|(_, n)| n.role() == Role::ComboBox).map(|(_, n)| (named(n), n.value().map(str::to_string))).collect()
+}
+
+/// Every drop-down is announced by what it's for, not only by what it shows (DeckCraft's
+/// drop-downs taught this): the shown text was its value and it had no name, so a screen reader
+/// read "combo box, Move to the folder" with nothing saying what was being chosen. The main window
+/// with a message being written, a rule (both its folder and its category rows), File › Options
+/// and an event.
+#[test]
+fn every_drop_down_says_what_it_is_for() {
+    let (mut a, _) = app("access-drop-downs");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let mut nameless = Vec::new();
+    let mut names = std::collections::BTreeSet::new();
+    let mut check = |a: &mut MailApp, what: &str, size: egui::Vec2| {
+        let _size = windows::layout::Dressed::new(size, "");
+        // The first frames lay out (the ribbon fits, the dialog settles); the last is read.
+        for _ in 0..3 {
+            frame(&ctx, a, vec![]);
+        }
+        let boxes = drop_downs(&ctx, a, size);
+        assert!(!boxes.is_empty(), "{what}: no drop-downs drawn");
+        for (name, value) in boxes {
+            match name {
+                Some(n) => {
+                    names.insert(n);
+                }
+                None => nameless.push(format!("{what}: showing {value:?}")),
+            }
+        }
+    };
+    let wide = egui::vec2(1280.0, 800.0);
+    a.run("mail.new", json!({}));
+    check(&mut a, "new message", wide);
+    a.run("compose.discard", json!({}));
+    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example"));
+    for action in [crate::dialogs::RuleDo::MoveTo, crate::dialogs::RuleDo::Categorize] {
+        if let Some(Dialog::EditRule(f)) = a.ui.dialog.as_mut() {
+            f.action = action;
+            f.target.clear();
+        }
+        check(&mut a, &format!("rule {action:?}"), wide);
+    }
+    a.ui.dialog = Some(Dialog::new_event(&a.session, None));
+    check(&mut a, "event", wide);
+    a.ui.dialog = None;
+    a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    check(&mut a, "File › Options", egui::vec2(1280.0, 2400.0));
+    assert!(nameless.is_empty(), "{} drop-downs a screen reader can't name:\n{}", nameless.len(), nameless.join("\n"));
+    for want in ["Font size", "When mail", "Then", "Folder", "Category", "Repeat", "Reminder", "Show as", "Dates", "Language"] {
+        assert!(names.contains(want), "no drop-down named {want}: {names:?}");
+    }
+}
+
 /// A question that must be answered is read as an alert, by its title; a form is a dialog
 /// (wordcraft's save prompt taught this).
 #[test]

@@ -86,17 +86,21 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
                 Some((a, c)) => all.iter().find(|(x, y, _)| x == a && y == c).map_or_else(|| tl!("All calendars").to_string(), |x| x.2.clone()),
                 None => tl!("All calendars").to_string(),
             };
-            egui::ComboBox::from_id_salt("calendar-search-scope").selected_text(shown).show_ui(ui, |ui| {
-                if ui.selectable_label(st.cal_search.scope.is_none(), tl!("All calendars")).clicked() {
-                    st.cal_search.scope = None;
-                }
-                for (a, c, name) in &all {
-                    let on = st.cal_search.scope.as_ref().is_some_and(|(x, y)| x == a && y == c);
-                    if ui.selectable_label(on, name).clicked() {
-                        st.cal_search.scope = Some((a.clone(), c.clone()));
+            egui::ComboBox::from_id_salt("calendar-search-scope")
+                .selected_text(shown)
+                .show_ui(ui, |ui| {
+                    if ui.selectable_label(st.cal_search.scope.is_none(), tl!("All calendars")).clicked() {
+                        st.cal_search.scope = None;
                     }
-                }
-            });
+                    for (a, c, name) in &all {
+                        let on = st.cal_search.scope.as_ref().is_some_and(|(x, y)| x == a && y == c);
+                        if ui.selectable_label(on, name).clicked() {
+                            st.cal_search.scope = Some((a.clone(), c.clone()));
+                        }
+                    }
+                })
+                .response
+                .accessible_name(tl!("Look in"));
         });
     });
     let hits = st.cal_search.results(s);
