@@ -79,7 +79,7 @@ impl Worker {
                     }
                 }
                 let applied = match &op {
-                    Op::Move { keys, to } if self.acc.pop.is_some() => crate::pop::move_locally(&self.store, &self.acc.id, keys, to),
+                    Op::Move { keys, to } => crate::pop::move_locally(&self.store, &self.acc.id, keys, to),
                     _ => self.store.apply_op(&self.acc.id, &op).map_err(NetError::from),
                 };
                 match applied {
@@ -348,6 +348,7 @@ impl Worker {
                         break;
                     }
                     let mut folders: Vec<String> = op.keys().iter().map(|k| k.folder.clone()).collect();
+                    folders.sort();
                     folders.dedup();
                     for f in &folders {
                         if let Ok(mut st) = self.store.load_folder(&self.acc.id, f) {

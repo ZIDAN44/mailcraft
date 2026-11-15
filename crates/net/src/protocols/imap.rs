@@ -71,11 +71,6 @@ pub fn uid_set(uids: &[u32]) -> String {
     out
 }
 
-/// Split UIDs into chunks whose sets stay short (servers limit command length).
-pub fn uid_chunks(uids: &[u32], per: usize) -> Vec<Vec<u32>> {
-    uids.chunks(per.max(1)).map(<[u32]>::to_vec).collect()
-}
-
 /// Unix seconds as an INTERNALDATE in UTC (`14-Oct-2026 07:30:00 +0000`); none for a time
 /// before 1970 or past the year 9999, which no server takes.
 pub fn internal_date(t: i64) -> Option<String> {

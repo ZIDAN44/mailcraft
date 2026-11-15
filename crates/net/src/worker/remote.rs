@@ -234,8 +234,8 @@ pub(super) fn by_folder<S: std::io::Read + std::io::Write>(
         if uids.is_empty() {
             continue;
         }
-        for chunk in crate::imap::uid_chunks(&uids, 500) {
-            f(c, folder, &uid_set(&chunk))?;
+        for chunk in uids.chunks(500) {
+            f(c, folder, &uid_set(chunk))?;
         }
     }
     Ok(())
@@ -263,8 +263,8 @@ pub(super) fn expunge_keys<S: std::io::Read + std::io::Write>(c: &mut Client<S>,
     })?;
     if let (Some(t), false) = (to_trash, in_trash.is_empty()) {
         c.select(t, false)?;
-        for chunk in crate::imap::uid_chunks(&in_trash, 500) {
-            let set = uid_set(&chunk);
+        for chunk in in_trash.chunks(500) {
+            let set = uid_set(chunk);
             c.uid_store(&set, true, Flag::Deleted.imap())?;
             c.expunge(&set)?;
         }

@@ -23,7 +23,7 @@ use mailcraft_model::{Flags, MessageKey, SharedSummary, Summary, sort_newest_fir
 use mailcraft_store::{FolderState, Store};
 
 use crate::exchange::window::{kept_numbers, places};
-use crate::imap::{Client, Fetched, uid_chunks, uid_set};
+use crate::imap::{Client, Fetched, uid_set};
 use crate::{NetError, Result};
 
 pub use mailcraft_jmap::{SyncOptions, SyncReport, fill_from_source, keep_source};
@@ -399,7 +399,6 @@ pub fn find_on_server<S: Read + Write>(
         // How long the server took to answer: what the next range's size follows (not the
         // headers fetched after, nor what the caller does with the finds).
         let took = began.elapsed();
-        uids.sort_unstable();
         let uids = uids.split_off(uids.len().saturating_sub(cap - total));
         total += uids.len();
         let kept = kept_numbers(&st);
@@ -476,8 +475,8 @@ pub(crate) fn fetch_headers<S: Read + Write>(
 ) -> Result<()> {
     // The numbers kept, in a set (looked up in the list, each new one was a pass over the folder).
     let mut kept = kept_numbers(st);
-    for chunk in uid_chunks(uids, 200) {
-        for f in c.uid_fetch(&uid_set(&chunk), HEADER_ITEMS, "")? {
+    for chunk in uids.chunks(200) {
+        for f in c.uid_fetch(&uid_set(chunk), HEADER_ITEMS, "")? {
             // A flag change the server tells of in passing (with QRESYNC it names the UID) is
             // no header: it made an empty message, and its real header was then skipped.
             if f.header.is_none() || !chunk.contains(&f.uid) {
@@ -503,7 +502,7 @@ fn prefetch<S: Read + Write>(
     opts: &SyncOptions,
     seen: u64,
 ) -> Result<usize> {
-    let wanted: Vec<(u32, u32)> = st
+    let mut wanted: Vec<(u32, u32)> = st
         .messages
         .iter()
         .take(opts.prefetch)
@@ -511,7 +510,6 @@ fn prefetch<S: Read + Write>(
         .map(|m| (m.key.uid, m.size))
         .collect();
     // Reactions (issue #39): their emoji is in their small body, wanted whatever else is.
-    let mut wanted = wanted;
     for m in st
         .messages
         .iter()
