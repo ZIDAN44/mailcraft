@@ -80,6 +80,32 @@ pub(crate) fn mark(ui: &mut Ui, t: &Tokens) {
     icons::paint(ui.painter(), icons::centered(tile, 14.0), Icon::Unread, ink);
 }
 
+/// The mark alone at the start of `free` (a title bar with nothing else on it: the File page's,
+/// the card's before MailCraft is in the window), right to left too.
+pub(crate) fn mark_in(ui: &mut Ui, t: &Tokens, free: Rect) {
+    ui.scope_builder(egui::UiBuilder::new().max_rect(free).layout(bidi::row_from_start(egui::Align::Center)), |ui| mark(ui, t));
+}
+
+/// The title bar's top row, where the window's buttons are, of `bar` (its whole rect).
+pub(crate) fn top_row(bar: Rect) -> Rect {
+    Rect::from_min_size(bar.min, vec2(bar.width(), super::frame::TOP_BAR_H))
+}
+
+/// MailCraft's own title bar over `bar`, its whole rect (the top bar's panel, margins and all):
+/// its free space to drag the window by, laid first so what's drawn on it keeps its clicks, and
+/// the window's buttons at the end of its top row, flush with the window's corner (named to a
+/// screen reader unless they're laid again over a dialog). Where the bar's own contents go:
+/// inside its margins, clear of the buttons. The top bar, the File page and the card shown
+/// before MailCraft is in the window all draw theirs here.
+pub(crate) fn title_bar(ui: &mut Ui, t: &Tokens, bar: Rect) -> Rect {
+    drag_area(ui, bar, &[]);
+    let live = !laid_over_a_dialog(ui.ctx());
+    caption_buttons(ui, t, top_row(bar), live);
+    let margin = vec2(f32::from(super::frame::TOP_BAR_MARGIN.0), f32::from(super::frame::TOP_BAR_MARGIN.1));
+    let inner = bar.shrink2(margin);
+    Rect::from_min_max(inner.min, pos2(inner.max.x - (CAPTIONS_W - margin.x), inner.max.y))
+}
+
 /// The minimize, maximize (restore) and close buttons at the right end of `bar` (the title
 /// bar's outer rect), as tall as it and flush with the window's edge, so a maximized window's
 /// corner hits Close. Close asks the window to close, as the system's button does (MailCraft then

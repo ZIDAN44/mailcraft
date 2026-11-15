@@ -372,18 +372,11 @@ impl MailApp {
                     .exact_size(TOP_BAR_H)
                     .frame(egui::Frame::new().fill(t.bar).inner_margin(Margin::symmetric(TOP_BAR_MARGIN.0, TOP_BAR_MARGIN.1)))
                     .show(ui, |ui| {
-                        let inner = ui.max_rect();
-                        let bar = inner.expand2(vec2(f32::from(TOP_BAR_MARGIN.0), f32::from(TOP_BAR_MARGIN.1)));
-                        super::caption::drag_area(ui, bar, &[]);
-                        let live = !super::caption::laid_over_a_dialog(ui.ctx());
-                        super::caption::caption_buttons(ui, &t, bar, live);
-                        super::caption::note_bar(ui.ctx(), bar, bar, Vec::new());
-                        // The mark at the bar's start, clear of the buttons (right to left too).
-                        let room = super::caption::CAPTIONS_W - f32::from(TOP_BAR_MARGIN.0);
-                        let free = egui::Rect::from_min_max(inner.min, egui::pos2(inner.max.x - room, inner.max.y));
-                        ui.scope_builder(egui::UiBuilder::new().max_rect(free).layout(bidi::row_from_start(Align::Center)), |ui| {
-                            super::caption::mark(ui, &t)
-                        });
+                        let bar = ui.max_rect().expand2(vec2(f32::from(TOP_BAR_MARGIN.0), f32::from(TOP_BAR_MARGIN.1)));
+                        let free = super::caption::title_bar(ui, &t, bar);
+                        super::caption::note_bar(ui.ctx(), bar, super::caption::top_row(bar), Vec::new());
+                        // The mark at the bar's start, clear of the buttons.
+                        super::caption::mark_in(ui, &t, free);
                     });
             }
         }

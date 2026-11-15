@@ -128,11 +128,8 @@ impl BootCard {
         use super::caption;
         let bar = egui::Rect::from_min_size(window.min, vec2(window.width(), super::frame::TOP_BAR_H));
         ui.painter().rect_filled(bar, 0.0, t.bar);
-        caption::drag_area(ui, bar, &[]);
-        caption::caption_buttons(ui, t, bar, true);
-        let margin = f32::from(super::frame::TOP_BAR_MARGIN.0);
-        let free = egui::Rect::from_min_max(bar.min + vec2(margin, 0.0), egui::pos2(bar.max.x - caption::CAPTIONS_W, bar.max.y));
-        ui.scope_builder(egui::UiBuilder::new().max_rect(free).layout(crate::bidi::row_from_start(Align::Center)), |ui| caption::mark(ui, t));
+        let free = caption::title_bar(ui, t, bar);
+        caption::mark_in(ui, t, free);
         caption::resize_zones(ui);
         bar
     }

@@ -24,25 +24,14 @@ impl MailApp {
     pub(crate) fn top_bar(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let own = self.services.own_title_bar();
         let inner = ui.max_rect();
-        if own {
-            // The panel's whole rect, its margins too: the buttons sit flush with the window's
-            // corner, and the bar's free space drags the window (laid first, so the controls on
-            // it keep their clicks).
-            let t = self.ui.tokens;
-            let bar = inner.expand2(vec2(f32::from(super::frame::TOP_BAR_MARGIN.0), f32::from(super::frame::TOP_BAR_MARGIN.1)));
-            super::caption::drag_area(ui, bar, &[]);
-            let top = egui::Rect::from_min_size(bar.min, vec2(bar.width(), super::frame::TOP_BAR_H));
-            let live = !super::caption::laid_over_a_dialog(ui.ctx());
-            super::caption::caption_buttons(ui, &t, top, live);
-        }
+        // The panel's whole rect, its margins too: the window's buttons sit flush with its corner.
+        let bar = inner.expand2(vec2(f32::from(super::frame::TOP_BAR_MARGIN.0), f32::from(super::frame::TOP_BAR_MARGIN.1)));
         // The bar's contents keep clear of the window's buttons.
-        let room = if own { super::caption::CAPTIONS_W - f32::from(super::frame::TOP_BAR_MARGIN.0) } else { 0.0 };
-        let full = egui::Rect::from_min_max(inner.min, egui::pos2(inner.max.x - room, inner.max.y));
+        let t = self.ui.tokens;
+        let full = if own { super::caption::title_bar(ui, &t, bar) } else { inner };
         let controls = ui.scope_builder(egui::UiBuilder::new().max_rect(full), |ui| self.top_bar_rows(ui, full, own, acts)).inner;
         if own {
-            let bar = inner.expand2(vec2(f32::from(super::frame::TOP_BAR_MARGIN.0), f32::from(super::frame::TOP_BAR_MARGIN.1)));
-            let top = egui::Rect::from_min_size(bar.min, vec2(bar.width(), super::frame::TOP_BAR_H));
-            super::caption::note_bar(ui.ctx(), bar, top, controls);
+            super::caption::note_bar(ui.ctx(), bar, super::caption::top_row(bar), controls);
         }
     }
 
