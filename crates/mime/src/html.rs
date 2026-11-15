@@ -3,6 +3,7 @@
 use super::*;
 use std::collections::{HashMap, VecDeque};
 
+mod body;
 mod deep;
 mod entities;
 mod fonts;
@@ -16,6 +17,7 @@ mod quote;
 mod scripts;
 mod signature;
 mod tags;
+pub(crate) use body::{html_bodies, shown_text};
 pub(crate) use entities::{Refs, decode_refs, escaped};
 pub(crate) use footers::footers_last;
 use lines::{bullet, heading_of, line_spans, table_rules};

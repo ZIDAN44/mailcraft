@@ -84,6 +84,23 @@ pub(super) fn attached<'a>(m: &'a Message<'_>) -> (Vec<Attached<'a>>, TnefBody) 
     (out, body)
 }
 
+/// The body the first `winmail.dat` with one carries, as [`attached`] gives it, without the
+/// message's other files read.
+pub(super) fn tnef_body(m: &Message<'_>) -> TnefBody {
+    let mut body = TnefBody::None;
+    for p in files_of(m.root()) {
+        if !is_tnef(&mime_of(p).unwrap_or_default(), p.attachment_name()) {
+            continue;
+        }
+        if let Some(t) = read_tnef(&contents(p)).filter(|t| !t.attachments.is_empty() || !t.body.is_empty())
+            && body.is_empty()
+        {
+            body = t.body;
+        }
+    }
+    body
+}
+
 /// Whether a message carries a file: the paperclip, "Has files" and `has:attachment` agree
 /// with search's count ([`index_doc`]), and with a data file's import ([`draft_carries_files`]),
 /// by sharing [`carries_file`].

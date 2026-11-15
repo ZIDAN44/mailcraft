@@ -43,6 +43,7 @@ mod kept_cid;
 mod one_parse;
 mod parts_listed;
 mod percent;
+mod previews;
 mod reactions;
 mod reply_layout;
 mod report;

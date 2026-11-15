@@ -27,7 +27,7 @@ pub use flat::{cell_text, flatten, text_blocks};
 pub(crate) use parse::void;
 use parse::{parse, parse_as};
 use ready::{How, write_as};
-pub(crate) use ready::{ready, sized_html};
+pub(crate) use ready::{Ready, ready, sized_html};
 pub use write::to_html;
 
 /// Tables nested deeper than this are flattened into text.
