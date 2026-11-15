@@ -102,30 +102,37 @@ impl Data {
     /// operators MailCraft asks, the words checked in the raw message.
     fn matches(&self, e: &Em, f: &Value) -> bool {
         if let Some(op) = f.get("operator").and_then(Value::as_str) {
-            let conds = f.get("conditions").and_then(Value::as_array).cloned().unwrap_or_default();
+            let conds = f.get("conditions").and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
             return match op {
                 "AND" => conds.iter().all(|c| self.matches(e, c)),
                 "OR" => conds.iter().any(|c| self.matches(e, c)),
                 _ => !conds.iter().any(|c| self.matches(e, c)),
             };
         }
-        let raw = String::from_utf8_lossy(&self.blobs.get(&e.blob).cloned().unwrap_or_default()).to_lowercase();
+        let word = |k: &str| f.get(k).and_then(Value::as_str);
+        let listed = word("inMailbox").is_none_or(|m| e.mailboxes.contains(m))
+            && word("hasKeyword").is_none_or(|k| e.keywords.contains(k))
+            && word("notKeyword").is_none_or(|k| !e.keywords.contains(k));
+        // The message's words read only when a condition asks for some.
+        if !listed || ["text", "from", "to", "subject", "body"].iter().all(|k| word(k).is_none()) {
+            return listed;
+        }
+        let raw = String::from_utf8_lossy(self.blobs.get(&e.blob).map(Vec::as_slice).unwrap_or_default()).to_lowercase();
         let (head, body) = raw.split_once("\r\n\r\n").unwrap_or((&raw, ""));
-        let header = |n: &str| head.split("\r\n").filter(|l| l.starts_with(&format!("{n}:"))).collect::<Vec<_>>().join(" ");
-        let has = |hay: &str, k: &str| f.get(k).and_then(Value::as_str).is_none_or(|w| hay.contains(&w.to_lowercase()));
-        f.get("inMailbox").and_then(Value::as_str).is_none_or(|m| e.mailboxes.contains(m))
-            && f.get("hasKeyword").and_then(Value::as_str).is_none_or(|k| e.keywords.contains(k))
-            && f.get("notKeyword").and_then(Value::as_str).is_none_or(|k| !e.keywords.contains(k))
-            && has(&raw, "text")
-            && has(&header("from"), "from")
-            && has(&header("to"), "to")
-            && has(&header("subject"), "subject")
-            && has(body, "body")
+        let has = |hay: &str, k: &str| word(k).is_none_or(|w| hay.contains(&w.to_lowercase()));
+        // A header's lines (`name:` first), when its condition is there.
+        let in_header = |n: &str| {
+            word(n).is_none() || {
+                let lines: Vec<&str> = head.split("\r\n").filter(|l| l.strip_prefix(n).is_some_and(|r| r.starts_with(':'))).collect();
+                has(&lines.join(" "), n)
+            }
+        };
+        has(&raw, "text") && in_header("from") && in_header("to") && in_header("subject") && has(body, "body")
     }
 
     fn email_json(&self, e: &Em) -> Value {
-        let raw = self.blobs.get(&e.blob).cloned().unwrap_or_default();
-        let text = String::from_utf8_lossy(&raw).to_string();
+        let raw = self.blobs.get(&e.blob).map(Vec::as_slice).unwrap_or_default();
+        let text = String::from_utf8_lossy(raw).to_string();
         let (head, body) = text.split_once("\r\n\r\n").unwrap_or((&text, ""));
         let mut headers: Vec<(String, String)> = Vec::new();
         for line in head.split("\r\n") {

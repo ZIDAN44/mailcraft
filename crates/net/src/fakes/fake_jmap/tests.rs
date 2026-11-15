@@ -367,6 +367,30 @@ fn serve_for_the_browser() {
     }
 }
 
+/// What an `Email/query` costs the fake over 20,000 messages (as `serve_for_the_browser` with
+/// `MAILCRAFT_FAKE_COUNT=20000`): a folder's listing, and a search of it for a word.
+#[test]
+#[ignore = "a measurement"]
+fn measure_jmap_query() {
+    let mut d = Data::default();
+    let projects = d.mailbox("Projects", None, None);
+    for n in 1..=20_000 {
+        let raw = format!(
+            "From: Zoe Park <zoe@studio.example>\r\nTo: {USER}\r\nSubject: Message {n}\r\nMessage-ID: <old{n}@x>\r\n\r\nOld body needle-{n}.\r\n"
+        );
+        d.deliver(&projects, raw.as_bytes(), &["$seen"], "2025-01-01T00:00:00Z");
+    }
+    let listing = json!({"inMailbox": projects});
+    let search = json!({"operator": "AND", "conditions": [{"inMailbox": projects}, {"text": "needle-777."}]});
+    for (what, filter, found) in [("a folder's listing", &listing, 20_000), ("a word in it", &search, 1)] {
+        let t = std::time::Instant::now();
+        for _ in 0..10 {
+            assert_eq!(d.emails.iter().filter(|e| d.matches(e, filter)).count(), found);
+        }
+        println!("MEASURE Email/query over 20,000, {what}: {:?} each", t.elapsed() / 10);
+    }
+}
+
 fn jmap_number(store: &Store, id: &str) -> Option<u32> {
     let mut st = crate::jmap::State::load(store, "a1");
     let known = st.id(1).is_some() || st.id(2).is_some();
