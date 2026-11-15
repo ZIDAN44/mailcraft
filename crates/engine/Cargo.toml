@@ -25,7 +25,7 @@ thiserror = { workspace = true }
 # Rust, wasm too; the generation the S/MIME crate builds already.
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 aes-gcm = { version = "0.10", default-features = false, features = ["aes", "alloc"] }
-pbkdf2 = { version = "0.12", default-features = false, features = ["hmac"] }
+pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
 sha2 = "0.10"
 
 [features]

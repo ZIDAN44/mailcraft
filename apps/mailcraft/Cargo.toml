@@ -26,7 +26,7 @@ log = { workspace = true }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 iana-time-zone = "0.1"
 # Native file dialogs (attach, save as).
-rfd = "0.17"
+rfd = "0.18"
 # Pictures pasted into a message.
 arboard = { version = "3", default-features = false, features = ["image-data"] }
 # Desktop notifications for new mail (toasts, Notification Center, freedesktop notifications).
