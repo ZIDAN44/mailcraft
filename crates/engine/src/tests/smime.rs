@@ -515,6 +515,47 @@ fn settings_never_kept_are_the_defaults() {
     }
 }
 
+/// Audit #468: the account's own certificates, read once each time they change, are what its
+/// settings hold after every change (imported, renewed, an older one forgotten, the one in use
+/// forgotten) and when MailCraft opens again; a damaged one is left out, the rest still found.
+#[test]
+fn own_certificates_follow_every_change() {
+    let fingerprint = |der: &[u8]| smime::cert::info(der).unwrap().fingerprint;
+    let mut s = with_certificate("smime-own-follow");
+    let store = s.store.clone().unwrap();
+    let old = smime::read_p12(&testdata("riley-2025.p12"), "secret").unwrap();
+    let now = riley().chain[0].clone();
+    let shown = |s: &Session| {
+        (s.identity("sample").map(|i| i.fingerprint.clone()), s.older_identities("sample").iter().map(|i| i.fingerprint.clone()).collect::<Vec<_>>())
+    };
+    assert_eq!(shown(&s), (Some(fingerprint(&now)), vec![]));
+    // Renewed: the older one kept for reading, a damaged one beside it left out.
+    s.apply(Event::Identity {
+        account: "sample".into(),
+        chain: riley().chain,
+        older: vec![b"junk".to_vec(), old.chain[0].clone()],
+        for_reading: true,
+        error: None,
+    });
+    assert_eq!(shown(&s), (Some(fingerprint(&now)), vec![fingerprint(&old.chain[0])]));
+    // The one in use signs the account's mail, the certificate with what's read of it.
+    let (der, info) = s.own_cert_for("sample", "").unwrap();
+    assert_eq!((der, info.fingerprint.clone()), (now.as_slice(), fingerprint(&now)));
+    // As MailCraft opens again.
+    let again = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(LATER, 0));
+    assert_eq!(shown(&again), shown(&s));
+    // The one in use forgotten: the older one signs, itself, not the damaged one before it.
+    s.run("security.forget", &json!({})).unwrap();
+    assert_eq!(shown(&s), (None, vec![fingerprint(&old.chain[0])]));
+    let (der, info) = s.own_cert_for("sample", "").unwrap();
+    assert_eq!((der, info.fingerprint.clone()), (old.chain[0].as_slice(), fingerprint(&old.chain[0])));
+    // Then the older one.
+    s.run("security.forget", &json!({"older": fingerprint(&old.chain[0])})).unwrap();
+    assert_eq!(shown(&s), (None, vec![]));
+    let again = Session::open(Some(store), mailcraft_model::dates::Clock::new(LATER, 0));
+    assert_eq!(shown(&again), (None, vec![]));
+}
+
 /// Audit #264: what a message being written and sent reads of the account's settings (whether
 /// it signs, sends its key) costs the same with 5000 people's certificates and keys known as
 /// with none. Run in release: `cargo test --release -p mailcraft-engine --lib
@@ -540,4 +581,33 @@ fn settings_read_with_many_known() {
         s.signing_follows_from("sample", "riley@studio.example");
     }
     println!("MEASURE a send's and a From change's settings read, 5000 known: {:.3} ms", t.elapsed().as_secs_f64() * 1000.0 / f64::from(ROUNDS));
+}
+
+/// Audit #468: what File › Info's Security card asks of the account's own certificates on every
+/// frame (the one in use, the older ones, which addresses each signs, whether it can protect),
+/// and a message being written (which certificate signs it), parse none of them. Run in
+/// release: `cargo test --release -p mailcraft-engine --lib own_certificates_read_measure --
+/// --ignored --nocapture`.
+#[test]
+#[ignore = "a measurement"]
+fn own_certificates_read_measure() {
+    let mut s = with_certificate("smime-own-measure");
+    let old = smime::read_p12(&testdata("riley-2025.p12"), "secret").unwrap();
+    s.apply(Event::Identity { account: "sample".into(), chain: riley().chain, older: vec![old.chain[0].clone(); 4], for_reading: true, error: None });
+    assert_eq!(s.older_identities("sample").len(), 4);
+    const ROUNDS: u32 = 2000;
+    let t = std::time::Instant::now();
+    for _ in 0..ROUNDS {
+        let in_use = s.identity("sample").map(|c| c.not_after);
+        let mut signs = 0;
+        for c in s.older_identities("sample") {
+            signs += s.signed_by_certificate("sample", &c.fingerprint).len();
+        }
+        let signer = s.identity_for("sample", "riley@studio.example").is_some();
+        std::hint::black_box((in_use, signs, signer, s.can_protect("sample")));
+    }
+    println!(
+        "MEASURE a frame's questions of an account's certificates, 1 in use and 4 older: {:.1} µs",
+        t.elapsed().as_secs_f64() * 1e6 / f64::from(ROUNDS)
+    );
 }

@@ -387,6 +387,8 @@ pub struct Session {
     /// memory only: the MIME entity inside, and whether it was authenticated), the ones being
     /// decrypted and why others couldn't be, and messages waiting to be signed or encrypted.
     smime: HashMap<String, SmimeSettings>,
+    /// What each account's own certificates are, read once each time they change.
+    smime_own: HashMap<String, security::OwnCerts>,
     trust_roots: Vec<Vec<u8>>,
     opened: security::Opened,
     opening: HashSet<MessageKey>,
@@ -550,6 +552,7 @@ impl Session {
             contacts_built: 0,
             senders: None,
             smime: HashMap::new(),
+            smime_own: HashMap::new(),
             trust_roots: Vec::new(),
             opened: security::Opened::default(),
             opening: HashSet::new(),

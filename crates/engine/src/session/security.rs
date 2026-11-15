@@ -19,6 +19,7 @@ mod opened;
 mod pgp;
 mod reading;
 mod revocation;
+pub(crate) use addresses::OwnCerts;
 pub use cards::CardSearch;
 pub(crate) use opened::Opened;
 pub(crate) use pgp::PgpState;
@@ -171,12 +172,18 @@ impl Session {
             let s: SmimeSettings = store.load_account_doc(&a.config.id, SMIME_DOC).unwrap_or_default();
             self.smime.insert(a.config.id.clone(), s);
         }
+        let ids: Vec<String> = self.smime.keys().cloned().collect();
+        for id in ids {
+            self.read_own_certs(&id);
+        }
         self.load_pgp();
     }
 
     fn save_smime(&mut self, account: &str) {
         // A certificate replaced keeps their count, which the reach shown was told apart by.
         self.forget_reach();
+        // Every change to its certificates is kept: what they are is read again with it.
+        self.read_own_certs(account);
         let (Some(store), Some(s)) = (&self.store, self.smime.get(account)) else { return };
         if let Err(e) = store.save_account_doc(account, SMIME_DOC, s) {
             self.notice(format!("the S/MIME settings could not be saved: {e}"), true);
@@ -187,16 +194,6 @@ impl Session {
     /// hold up to 5000 people's certificates, and most ask only whether it signs.
     pub fn smime_settings(&self, account: &str) -> &SmimeSettings {
         self.smime.get(account).unwrap_or(&NO_SMIME)
-    }
-
-    /// The account's certificate, when it has one.
-    pub fn identity(&self, account: &str) -> Option<smime::CertInfo> {
-        self.smime.get(account).and_then(|s| s.chain.first()).and_then(|c| smime::cert::info(c).ok())
-    }
-
-    /// The account's older certificates, kept to read mail encrypted to them, newest first.
-    pub fn older_identities(&self, account: &str) -> Vec<smime::CertInfo> {
-        self.smime.get(account).map(|s| s.older.iter().filter_map(|c| smime::cert::info(c).ok()).collect()).unwrap_or_default()
     }
 
     /// Forget an older certificate (`fingerprint`, its [`smime::CertInfo::fingerprint`]) and its
@@ -355,7 +352,7 @@ impl Session {
         // One of the account's own addresses: its own certificate, that address's when it
         // has one.
         if self.account(account).is_some_and(|a| a.config.has_address(&email)) {
-            return self.own_cert_for(account, &email).map(|(c, _)| c).or_else(|| s.chain.first().cloned()).map(|c| (c, true));
+            return self.own_cert_for(account, &email).map(|(c, _)| c).or_else(|| s.chain.first().map(Vec::as_slice)).map(|c| (c.to_vec(), true));
         }
         let k = s.known.get(&email)?;
         // Out of date certificates aren't encrypted to, nor one its authority withdrew.
@@ -378,7 +375,7 @@ impl Session {
         // The certificate of the address it's from (issue #81): one that names another address
         // would sign as someone who isn't the sender. Only encrypted, the account's own does
         // for the copy it keeps.
-        let own = match self.own_cert_for(&c.account, from).map(|(c, _)| c) {
+        let own = match self.own_cert_for(&c.account, from).map(|(c, _)| c.to_vec()) {
             Some(own) => own,
             None if s.chain.is_empty() && s.older.is_empty() => {
                 return Err(CmdError::Params(
@@ -472,7 +469,7 @@ impl Session {
                             );
                         }
                         None => {
-                            let who = self.identity(&account).map(who).unwrap_or_default();
+                            let who = self.identity(&account).cloned().map(who).unwrap_or_default();
                             let then = if signing { "new messages are signed" } else { "it signs and encrypts from now on" };
                             self.notice(format!("Your certificate for {who} is ready: {then}"), false);
                         }

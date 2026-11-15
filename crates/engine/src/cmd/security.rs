@@ -45,10 +45,10 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"older": string (an older certificate's SHA-256, from security.certificates), "account"?: string}"#),
         CommandSpec::new("security.certificates", "Certificates", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
-            let show = |i: mailcraft_smime::CertInfo| {
+            let show = |i: &mailcraft_smime::CertInfo| {
                 json!({ "name": i.name, "emails": i.emails, "issuer": i.issuer, "notBefore": i.not_before, "notAfter": i.not_after, "fingerprint": i.fingerprint })
             };
-            Ok(json!({ "inUse": s.identity(&account).map(show), "older": s.older_identities(&account).into_iter().map(show).collect::<Vec<_>>() }))
+            Ok(json!({ "inUse": s.identity(&account).map(show), "older": s.older_identities(&account).iter().map(show).collect::<Vec<_>>() }))
         })
         .params(r#"{"account"?: string}"#),
         CommandSpec::new("security.defaults", "Sign or encrypt new messages", "File › Info › Security", |s, v| {

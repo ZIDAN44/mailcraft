@@ -27,7 +27,8 @@ pub(super) fn pgp(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, acts: 
             setting_row(ui, t, true, name(t, tl!("OpenPGP keys work in the desktop app")), None, |_| {});
             return;
         }
-        match s.pgp_key(&id) {
+        let key = s.pgp_key(&id);
+        match &key {
             None => setting_row(
                 ui,
                 t,
@@ -43,7 +44,7 @@ pub(super) fn pgp(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, acts: 
             Some(k) => {
                 let who = k.emails.first().cloned().unwrap_or_else(|| k.name.clone());
                 let bad = k.revoked.is_some() || k.expires.is_some_and(|at| at <= s.clock.now);
-                let about = RichText::new(format!("{} · {} · {}", k.spaced(), k.algorithm, validity(s, &k))).size(12.0).color(if bad {
+                let about = RichText::new(format!("{} · {} · {}", k.spaced(), k.algorithm, validity(s, k))).size(12.0).color(if bad {
                     t.danger
                 } else {
                     t.faint
@@ -99,7 +100,7 @@ pub(super) fn pgp(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, acts: 
             });
         }
         let settings = s.pgp_settings(&id);
-        if s.pgp_key(&id).is_some() {
+        if key.is_some() {
             setting_row(
                 ui,
                 t,
