@@ -104,7 +104,7 @@ impl Worker {
 
     /// Gmail files sent mail itself.
     fn files_itself(&self) -> bool {
-        self.acc.smtp.host.ends_with("gmail.com") || self.acc.smtp.host.ends_with("googlemail.com")
+        mailcraft_model::files_sent_mail_itself(&self.acc.smtp.host)
     }
 
     /// The folder a sent message's copy goes in: the one it was sent with, else the account's

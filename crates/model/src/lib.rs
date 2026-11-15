@@ -291,6 +291,14 @@ pub const EWS_AUTODISCOVER: &str = "autodiscover";
 /// Microsoft Graph's address, for Exchange Online accounts.
 pub const GRAPH_URL: &str = "https://graph.microsoft.com/v1.0";
 
+/// Whether the outgoing server at `smtp_host` files a copy of what it sends in Sent itself, as
+/// Gmail's do: Google's own domains and their servers only, never a host that merely ends in
+/// the same letters (`smtp.notgmail.com`).
+pub fn files_sent_mail_itself(smtp_host: &str) -> bool {
+    let h = smtp_host.trim().trim_end_matches('.').to_ascii_lowercase();
+    ["gmail.com", "googlemail.com"].iter().any(|d| lookalike::is_under(&h, d))
+}
+
 /// The OAuth provider that runs an IMAP server, when it's one MailCraft knows.
 pub fn oauth_provider_for(imap_host: &str) -> Option<&'static str> {
     let h = imap_host.trim().to_ascii_lowercase();
@@ -672,6 +680,18 @@ mod tests {
         assert_eq!(a.login_name(), "zoe@studio.example");
         a.username = "zoe".into();
         assert_eq!(a.login_name(), "zoe");
+    }
+
+    /// Issue #19's cause: a server whose name only ends in "gmail.com" was taken for Gmail's,
+    /// and its account's sent mail kept nowhere.
+    #[test]
+    fn only_gmails_own_servers_file_sent_mail_themselves() {
+        for h in ["smtp.gmail.com", "SMTP.Gmail.COM", " smtp.googlemail.com ", "smtp.gmail.com.", "gmail.com"] {
+            assert!(files_sent_mail_itself(h), "{h}");
+        }
+        for h in ["smtp.notgmail.com", "mail.xgmail.com", "gmail.com.example", "smtp.googlemail.co", "", "."] {
+            assert!(!files_sent_mail_itself(h), "{h}");
+        }
     }
 
     #[test]
