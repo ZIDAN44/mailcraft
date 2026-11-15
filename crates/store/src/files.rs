@@ -3,6 +3,9 @@
 
 use super::*;
 
+pub(super) mod atomic;
+pub(super) mod leases;
+
 /// Where the files live.
 #[derive(Clone, Debug)]
 pub(super) enum Files {

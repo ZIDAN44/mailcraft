@@ -12,6 +12,8 @@
 
 use crate::*;
 
+pub(super) mod merging;
+
 /// Where MailCraft's copy of an Outlook data file goes, or is already ([`Store::copy_beside`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Beside {

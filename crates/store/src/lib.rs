@@ -780,10 +780,12 @@ pub fn clear_scratch() {
 pub use accounts::Recompressed;
 use atomic::private_dir;
 pub use atomic::write_atomic;
+use beside::merging;
 pub use beside::{Beside, Found, stamp as file_stamp};
 pub use bodies::{CommitTimes, Filing, LongWrite, Prepared, Timed, Waiting};
 pub use compacting::Shrunk;
 use files::{Files, Routed};
+use files::{atomic, leases};
 pub use folders::FolderLoad;
 pub use mailcraft_model::job::DataFileHealth;
 pub use marking::{FolderMarks, MarksAfter};
@@ -791,15 +793,12 @@ pub use merging::{Merged, SEEN_DOC};
 pub use opening::{OpenProgress, OpenStage};
 
 mod accounts;
-mod atomic;
 mod beside;
 mod bodies;
 mod compacting;
 mod files;
 mod folders;
-mod leases;
 mod marking;
-mod merging;
 mod opening;
 
 #[cfg(test)]
