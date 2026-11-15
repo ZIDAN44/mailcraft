@@ -44,13 +44,30 @@ impl Op {
 pub(super) fn cuts(ops: &[Op], first: f32, room: f32, most: usize) -> (Vec<f32>, bool) {
     let room = room.max(40.0);
     let total = ops.iter().map(|o| o.span().1).fold(0.0f32, f32::max);
-    // What a cut must not go through: a line of text, a picture that fits a page.
-    let whole: Vec<(f32, f32)> = ops
+    // What a cut must not go through: a line of text, a picture that fits a page; from the top.
+    let mut whole: Vec<(f32, f32)> = ops
         .iter()
         .filter(|o| matches!(o, Op::Text { .. } | Op::Image { .. }))
         .map(Op::span)
         .filter(|(top, bottom)| bottom - top <= room && bottom > top)
         .collect();
+    whole.sort_by(|a, b| a.0.total_cmp(&b.0));
+    // How far down each reaches, or one above it does: the first to reach past a cut is found by
+    // halves, not by looking at all of them for each page.
+    let reach: Vec<f32> = whole
+        .iter()
+        .scan(f32::NEG_INFINITY, |deepest, (_, bottom)| {
+            *deepest = deepest.max(*bottom);
+            Some(*deepest)
+        })
+        .collect();
+    // The top of the highest thing a cut at `cut` goes through: the first, from the top, that
+    // reaches past it, when it starts above it.
+    let through = |cut: f32| {
+        let above = whole.partition_point(|(top, _)| *top < cut);
+        let first = reach.partition_point(|bottom| *bottom <= cut);
+        whole.get(first).filter(|_| first < above).map(|(top, _)| *top)
+    };
     let mut tops = vec![0.0f32];
     let mut start = 0.0f32;
     let mut cap = first.max(0.0);
@@ -63,11 +80,8 @@ pub(super) fn cuts(ops: &[Op], first: f32, room: f32, most: usize) -> (Vec<f32>,
         let mut cut = limit;
         // Up to the top of whatever the cut would go through, until it goes through nothing.
         for _ in 0..64 {
-            let through = whole.iter().filter(|(top, bottom)| *top < cut && *bottom > cut).map(|(top, _)| *top).fold(f32::INFINITY, f32::min);
-            if !through.is_finite() {
-                break;
-            }
-            cut = through;
+            let Some(top) = through(cut) else { break };
+            cut = top;
         }
         if cut <= start {
             // What's left of the first page holds nothing whole: the sheet starts on the next.
@@ -90,8 +104,9 @@ pub(super) fn cuts(ops: &[Op], first: f32, room: f32, most: usize) -> (Vec<f32>,
 /// top. A box crossing a cut is on both pages, as much of it as each has.
 pub(super) fn pages(ops: Vec<Op>, tops: &[f32]) -> Vec<Vec<Op>> {
     let mut out: Vec<Vec<Op>> = tops.iter().map(|_| Vec::new()).collect();
-    // The page a point of the sheet is on: the last one that starts at or above it.
-    let page_of = |y: f32| tops.iter().rposition(|t| *t <= y).unwrap_or(0);
+    // The page a point of the sheet is on: the last one that starts at or above it (the tops
+    // go down the sheet).
+    let page_of = |y: f32| tops.partition_point(|t| *t <= y).saturating_sub(1);
     let end_of = |page: usize| tops.get(page + 1).copied().unwrap_or(f32::INFINITY);
     for op in ops {
         match op {
@@ -148,6 +163,21 @@ mod tests {
         let ops: Vec<Op> = (0..25).map(|i| line(i as f32 * 10.0)).collect();
         let (tops, more) = cuts(&ops, 95.0, 100.0, 2);
         assert_eq!((tops.len(), more), (2, true));
+    }
+
+    /// How long a sheet as long as the layout makes one takes to cut into as many pages as are
+    /// written, and to share out among them.
+    #[test]
+    #[ignore = "a measurement"]
+    fn measure_cutting_the_longest_sheet() {
+        let ops: Vec<Op> = (0..crate::blocks::MAX_OPS).map(|i| line(i as f32 * 10.0)).collect();
+        let start = std::time::Instant::now();
+        let (tops, more) = cuts(&ops, 700.0, 700.0, crate::MAX_PAGES);
+        let cut = start.elapsed();
+        let start = std::time::Instant::now();
+        let pages = pages(ops, &tops);
+        let shared = start.elapsed();
+        println!("MEASURE {} ops on {} pages (more: {more}): cuts {cut:?}, pages {shared:?}", crate::blocks::MAX_OPS, pages.len());
     }
 
     #[test]
