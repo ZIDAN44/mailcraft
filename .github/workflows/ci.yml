@@ -32,3 +32,6 @@ jobs:
       # Headroom over the shared 60 minutes for the Windows and macOS legs (the job this replaces
       # had GitHub's six-hour default).
       timeout-minutes: 120
+      # A run that hangs is stopped a few minutes before that, with the processes still running
+      # listed, rather than cut off with nothing said.
+      gate-timeout-minutes: 115

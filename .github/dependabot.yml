@@ -11,6 +11,10 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "06:00"
+    # A release is offered once it's a week old, as the shared actions' updates are: one pulled
+    # or found bad in its first days never reaches a pull request.
+    cooldown:
+      default-days: 7
     groups:
       cargo-dependencies:
         patterns:
@@ -69,6 +73,10 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "06:00"
+    # A release is offered once it's a week old, as the shared actions' updates are: one pulled
+    # or found bad in its first days never reaches a pull request.
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns:
