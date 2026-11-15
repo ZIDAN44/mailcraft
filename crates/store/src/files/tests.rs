@@ -80,6 +80,71 @@ proptest! {
     }
 }
 
+/// A read refused ("access denied") is made again after a wait for as long as it's told to go
+/// on, and the answer that ends it is the one given: the file once it's let go of, the refusal
+/// once time is up. Any other error is given at once, with no wait.
+#[test]
+fn a_refused_read_is_made_again_only_while_told_to() {
+    let denied = || io::Error::from(io::ErrorKind::PermissionDenied);
+    // Refused twice, then read.
+    let (mut reads, mut waits) = (0u32, 0u32);
+    let read = read_again(
+        || {
+            reads += 1;
+            if reads <= 2 { Err(denied()) } else { Ok(b"ops".to_vec()) }
+        },
+        || true,
+        || waits += 1,
+    );
+    assert_eq!((read.unwrap(), reads, waits), (b"ops".to_vec(), 3, 2));
+    // Refused for good: given up once time is up (after three reads here).
+    let (reads, mut waits) = (std::cell::Cell::new(0u32), 0u32);
+    let read = read_again(
+        || {
+            reads.set(reads.get() + 1);
+            Err(denied())
+        },
+        || reads.get() < 3,
+        || waits += 1,
+    );
+    assert_eq!((read.map_err(|e| e.kind()), reads.get(), waits), (Err(io::ErrorKind::PermissionDenied), 3, 2));
+    // A disk that fails: not read again.
+    let (mut reads, mut waits) = (0u32, 0u32);
+    let read = read_again(
+        || {
+            reads += 1;
+            Err(io::Error::other("failed on purpose"))
+        },
+        || true,
+        || waits += 1,
+    );
+    assert_eq!((read.map_err(|e| e.kind()), reads, waits), (Err(io::ErrorKind::Other), 1, 0));
+}
+
+/// Only Windows refuses a read for a moment as the file is replaced; anywhere else "access
+/// denied" is the file's permissions, and a read of the disk is made once: it waited half a
+/// second there on every file that couldn't be read.
+#[cfg(unix)]
+#[test]
+fn a_file_that_cant_be_read_is_read_once_off_windows() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = crate::tests::scratch("read-once");
+    fs::create_dir_all(&dir).unwrap();
+    let p = dir.join("ops.json");
+    fs::write(&p, b"[]").unwrap();
+    fs::set_permissions(&p, fs::Permissions::from_mode(0o000)).unwrap();
+    // Run as root, every file can be read: nothing to see.
+    if fs::read(&p).is_ok() {
+        return;
+    }
+    let began = std::time::Instant::now();
+    for _ in 0..20 {
+        assert_eq!(Files::Disk.read(&p).map_err(|e| e.kind()), Err(io::ErrorKind::PermissionDenied));
+    }
+    // 20 reads tried again for half a second each are 10 s.
+    assert!(began.elapsed() < std::time::Duration::from_secs(5), "{:?}", began.elapsed());
+}
+
 /// The in-memory move, removal and size of one account's folder among many accounts' files,
 /// against going over every file as they did.
 #[test]

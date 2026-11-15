@@ -73,7 +73,7 @@ fn not_found() -> io::Error {
 }
 
 /// How long a read refused as its file is replaced or removed is tried again, at most.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(windows)]
 const REFUSED_FOR: std::time::Duration = std::time::Duration::from_millis(500);
 
 /// A file read from the disk. On Windows a read that comes as another thread replaces the file
@@ -82,22 +82,27 @@ const REFUSED_FOR: std::time::Duration = std::time::Duration::from_millis(500);
 /// a disk that fails (the changes waiting read by the worker as none, and not put back on a
 /// folder it had just synced). It's read again, a few milliseconds apart, for half a second at
 /// most: a file that stays refused (its permissions) is still an error.
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(windows)]
 fn read_settled(p: &Path) -> io::Result<Vec<u8>> {
     let began = std::time::Instant::now();
+    read_again(|| fs::read(p), || began.elapsed() < REFUSED_FOR, || std::thread::sleep(std::time::Duration::from_millis(5)))
+}
+
+/// `read`, again after each `wait` while it's refused ("access denied") and `still` says to go on.
+#[cfg(any(windows, test))]
+fn read_again(mut read: impl FnMut() -> io::Result<Vec<u8>>, mut still: impl FnMut() -> bool, mut wait: impl FnMut()) -> io::Result<Vec<u8>> {
     loop {
-        match fs::read(p) {
-            Err(e) if e.kind() == io::ErrorKind::PermissionDenied && began.elapsed() < REFUSED_FOR => {
-                std::thread::sleep(std::time::Duration::from_millis(5));
-            }
+        match read() {
+            Err(e) if e.kind() == io::ErrorKind::PermissionDenied && still() => wait(),
             read => return read,
         }
     }
 }
 
-/// A file read from the disk, in the browser: read once (no clock there to wait by, and no
-/// other thread replacing the file).
-#[cfg(target_arch = "wasm32")]
+/// A file read from the disk, anywhere else: read once. A rename over a file or its removal
+/// doesn't refuse a read there, so "access denied" is the file's permissions, an error at once
+/// (and in the browser there's no clock to wait by).
+#[cfg(not(windows))]
 fn read_settled(p: &Path) -> io::Result<Vec<u8>> {
     fs::read(p)
 }

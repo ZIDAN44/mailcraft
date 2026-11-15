@@ -276,7 +276,11 @@ impl Worker {
     /// changed as a result. Not once the account was removed.
     pub(super) fn reapply_waiting(&mut self, path: &str) -> bool {
         let mut any = false;
-        for op in self.store.load_ops(&self.acc.id).unwrap_or_default() {
+        let waiting = self.store.load_ops(&self.acc.id).unwrap_or_else(|e| {
+            log::warn!("the changes waiting couldn't be read, so none is put back over {path}: {e}");
+            Vec::new()
+        });
+        for op in waiting {
             let touches = match &op {
                 Op::EmptyFolder { path: p } => p == path,
                 o if o.is_folder_op() => false,
