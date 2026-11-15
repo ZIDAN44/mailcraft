@@ -336,6 +336,7 @@ fn sending_and_automatic_replies_dont_wait_for_a_long_sync() {
     assert_eq!(data.lock().unwrap().held, 1, "the sync still held");
     assert_eq!(data.lock().unwrap().sent.len(), 1, "sent once");
     // Several at once, and the replies changed meanwhile: each goes once, in order.
+    let last_sends = Instant::now();
     for (id, subject) in [(8u64, "Second"), (9, "Third"), (10, "Fourth")] {
         pool.submit(Job::Send {
             account: "a1".into(),
@@ -366,6 +367,13 @@ fn sending_and_automatic_replies_dont_wait_for_a_long_sync() {
     pool.submit(Job::Remove { account: "a1".into() });
     pool.submit(Job::GetVacation { account: "a1".into() });
     until(&pool, "offline answer", |e| matches!(e, Event::Vacation { error: Some(_), .. }));
+    // Its threads end before the test's folder goes: the main one still wrote in it after the
+    // test's thread ended, and the folder was left behind.
+    pool.shutdown_and_wait();
+    // And they end with the account, not with the later look at Sent Items each of those sends
+    // asked for: that held the main one until 15 s after the send, never sooner.
+    let took = last_sends.elapsed();
+    assert!(took < Duration::from_secs(10), "the account's threads ended {took:?} after its last sends");
 }
 
 #[test]

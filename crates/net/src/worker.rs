@@ -340,6 +340,14 @@ impl Pool {
             self.stop(&id);
         }
     }
+
+    /// Shut down as [`Pool::shutdown`] does, then wait for every account's threads to end (each
+    /// holds the pool's `filing`): nothing writes in the test's folder after, when it's removed.
+    #[cfg(test)]
+    pub(crate) fn shutdown_and_wait(mut self) {
+        self.shutdown();
+        crate::waiting::eventually("the pool's account threads to end", || Arc::strong_count(&self.filing) == 1);
+    }
 }
 
 mod changes;
@@ -379,6 +387,8 @@ const POLL_EVERY: Duration = Duration::from_secs(120);
 /// moment later), and once more in case that was too soon.
 const SENT_SOON: Duration = Duration::from_secs(3);
 const SENT_LATER: Duration = Duration::from_secs(15);
+/// How often the wait for those looks whether its connection has ended.
+const SENT_LATER_SLICE: Duration = Duration::from_millis(250);
 /// An account's second connection lets go after this long with nothing to do.
 const QUICK_IDLE: Duration = Duration::from_secs(5 * 60);
 /// The first wait before connecting again after a connection is lost; it grows with each failure,
@@ -411,6 +421,10 @@ struct Worker {
     /// What the pool did as it stopped this worker: it says nothing more of the account, and
     /// leaves the drafts the pool kept then (`changes/drafts.rs`).
     stop: Arc<changes::Stopped>,
+    /// Held while this worker lives: a thread it starts to ask something of the main connection
+    /// later (Sent Items read again) ends with it, rather than keep a stopped account's main
+    /// thread waiting for its jobs.
+    alive: Arc<()>,
     /// The order drafts were handed out to be saved and kept as MailCraft closed (the pool's).
     order: changes::Order,
     /// The drafts being filed on the server now, by this worker or another (the pool's).
@@ -561,6 +575,7 @@ impl Worker {
             quick: Arc::default(),
             given_back: Arc::default(),
             stop: Arc::default(),
+            alive: Arc::default(),
             order,
             filing,
             kept: changes::KeptDrafts::default(),

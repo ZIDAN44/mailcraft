@@ -230,10 +230,18 @@ impl Worker {
         let job = Job::SyncFolder { account: self.id(), folder: folder.clone() };
         let _ = main.send(job.clone());
         if self.acc.is_api() {
-            // Graph and Exchange file the copy a moment after taking the message.
+            // Graph and Exchange file the copy a moment after taking the message. Not past this
+            // connection's end: it would keep a stopped account's main thread waiting for it.
+            let alive = Arc::downgrade(&self.alive);
             let _ = std::thread::Builder::new().name("sent-later".into()).spawn(move || {
                 for wait in [SENT_SOON, SENT_LATER.saturating_sub(SENT_SOON)] {
-                    std::thread::sleep(wait);
+                    let until = Instant::now() + wait;
+                    while let Some(left) = until.checked_duration_since(Instant::now()).filter(|l| !l.is_zero()) {
+                        if alive.upgrade().is_none() {
+                            return;
+                        }
+                        std::thread::sleep(left.min(SENT_LATER_SLICE));
+                    }
                     if main.send(job.clone()).is_err() {
                         return;
                     }
