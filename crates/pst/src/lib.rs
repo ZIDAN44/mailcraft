@@ -27,6 +27,9 @@ pub mod write;
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) use write::table_types as write_table;
 #[cfg(test)]
+#[path = "../tests/support/sample.rs"]
+mod sample;
+#[cfg(test)]
 #[path = "../tests/support/scratch.rs"]
 mod scratch;
 

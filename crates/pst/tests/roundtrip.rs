@@ -1,5 +1,7 @@
 //! Files written here and read back: new ones, added to, changed, in both formats.
 
+#[path = "support/sample.rs"]
+mod sample;
 #[path = "support/scratch.rs"]
 mod scratch;
 
@@ -7,6 +9,7 @@ use std::rc::Rc;
 
 use mailcraft_pst::write::{self, *};
 use mailcraft_pst::*;
+use sample::message;
 use scratch::scratch;
 
 /// A file `name` in a scratch folder of its own.
@@ -27,18 +30,7 @@ fn text(v: Option<&PropertyValue>) -> String {
 }
 
 fn msg<'a>(subject: &'a str, recipients: &'a [NewRecipient<'a>], properties: &'a [NewProperty<'a>]) -> NewMessage<'a> {
-    NewMessage {
-        subject,
-        sender_name: "Ann",
-        sender_email: "ann@example.org",
-        recipients,
-        body: "The body.",
-        html_body: None,
-        message_id: "<one@example.org>",
-        delivery_time: 133_000_000_000_000_000,
-        message_class: "IPM.Note",
-        properties,
-    }
+    NewMessage { recipients, properties, ..message(subject) }
 }
 
 /// The child of `folder` named `name`.

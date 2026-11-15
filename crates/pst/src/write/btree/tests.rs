@@ -5,23 +5,9 @@ use std::path::{Path, PathBuf};
 use super::*;
 use crate::ndb::PT_NBT;
 use crate::ndb::btree::node_entry_size;
+use crate::sample::message;
 use crate::scratch::scratch;
-use crate::write::{NewMessage, append_message, create_empty};
-
-fn message(subject: &str) -> NewMessage<'_> {
-    NewMessage {
-        subject,
-        sender_name: "Ann",
-        sender_email: "ann@example.org",
-        recipients: &[],
-        body: "The body.",
-        html_body: None,
-        message_id: "<one@example.org>",
-        delivery_time: 133_000_000_000_000_000,
-        message_class: "IPM.Note",
-        properties: &[],
-    }
-}
+use crate::write::{append_message, create_empty};
 
 /// A file `name` in a scratch folder of its own.
 fn file(name: &str) -> PathBuf {

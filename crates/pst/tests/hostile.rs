@@ -1,6 +1,8 @@
 //! Damaged files: whatever a file holds, reading it or adding to it gives data or an error, and
 //! ends. (The fuzz targets go further, with the CRCs out of the way; `fuzz/README.md`.)
 
+#[path = "support/sample.rs"]
+mod sample;
 #[path = "support/scratch.rs"]
 mod scratch;
 
@@ -9,26 +11,12 @@ use std::rc::Rc;
 
 use mailcraft_pst::write::{self, *};
 use mailcraft_pst::*;
+use sample::message;
 use scratch::scratch;
 
 /// A file `name` in a scratch folder of its own.
 fn temp(name: &str) -> std::path::PathBuf {
     scratch(&format!("pst-hostile-{name}")).join(name)
-}
-
-fn message(subject: &str) -> NewMessage<'_> {
-    NewMessage {
-        subject,
-        sender_name: "Ann",
-        sender_email: "ann@example.org",
-        recipients: &[],
-        body: "The body.",
-        html_body: None,
-        message_id: "<one@example.org>",
-        delivery_time: 133_000_000_000_000_000,
-        message_class: "IPM.Note",
-        properties: &[],
-    }
 }
 
 /// A small file of the format, mail in two folders.

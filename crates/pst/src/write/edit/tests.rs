@@ -7,22 +7,13 @@ use super::super::table::{Schema, build_table};
 use super::super::types::{NewAttachment, NewProperty, NewValue};
 use super::*;
 use crate::ltp::PropertyValue;
+use crate::sample::message;
 use crate::scratch::scratch;
 use crate::write::{NewMessage, append_message, create_empty, delete_messages};
 
-fn message(subject: &str) -> NewMessage<'_> {
-    NewMessage {
-        subject,
-        sender_name: "Ann",
-        sender_email: "ann@example.org",
-        recipients: &[],
-        body: "The body.",
-        html_body: None,
-        message_id: "<one@example.org>",
-        delivery_time: 133_000_000_000_000_000,
-        message_class: "IPM.Note",
-        properties: &[],
-    }
+/// A file `name` in a scratch folder of its own.
+fn file(name: &str) -> PathBuf {
+    scratch(&format!("pst-edit-{name}")).join(name)
 }
 
 /// The messages in the folders at the top of the file.
@@ -42,7 +33,7 @@ fn mail_in(path: &Path) -> Vec<u32> {
 /// rewritten: the rewrite would put entries where the rest of the tree doesn't look for them.
 #[test]
 fn a_page_with_its_keys_out_of_order_is_refused() {
-    let path = scratch("pst-order").join("order.pst");
+    let path = file("order.pst");
     create_empty(&path, Format::Unicode).unwrap();
     append_message(&path, &["Inbox"], &message("Mail"), &[]).unwrap();
     let editor = Editor::open(&path).unwrap();
@@ -73,7 +64,7 @@ fn a_page_with_its_keys_out_of_order_is_refused() {
 /// new first key would take its parent's lookups from the page before.
 #[test]
 fn a_page_with_keys_its_parent_does_not_send_to_it_is_refused() {
-    let path = scratch("pst-range").join("range.pst");
+    let path = file("range.pst");
     create_empty(&path, Format::Unicode).unwrap();
     append_message(&path, &["Inbox"], &message("Mail"), &[]).unwrap();
     let editor = Editor::open(&path).unwrap();
@@ -98,9 +89,8 @@ fn a_page_with_keys_its_parent_does_not_send_to_it_is_refused() {
 /// anything the file still uses; in both formats.
 #[test]
 fn the_maps_match_what_the_file_holds() {
-    let dir = scratch("pst-maps");
-    for (format, name) in [(Format::Unicode, "u.pst"), (Format::Ansi, "a.pst")] {
-        let path = dir.join(name);
+    for (format, name) in [(Format::Unicode, "maps-u.pst"), (Format::Ansi, "maps-a.pst")] {
+        let path = file(name);
         create_empty(&path, format).unwrap();
         for _ in 0..20 {
             append_message(&path, &["Inbox"], &message("Mail"), &[]).unwrap();
@@ -116,11 +106,6 @@ fn the_maps_match_what_the_file_holds() {
 }
 
 // --- Files damaged with their checksums made right ---------------------------------------
-
-/// A file `name` in a scratch folder of its own.
-fn file(name: &str) -> PathBuf {
-    scratch(&format!("pst-forged-{name}")).join(name)
-}
 
 /// A file with one message.
 fn one_message(name: &str, properties: &[NewProperty<'_>], attachments: &[NewAttachment<'_>]) -> PathBuf {
