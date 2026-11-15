@@ -680,3 +680,45 @@ fn measure_catalogs() {
     println!("MEASURE first typed time (cold, every catalog's AM and PM): {cold:?}");
     println!("MEASURE parsing all {} catalogs ({} entries): {each:?}", LANGUAGES.len(), entries / ROUNDS as usize);
 }
+
+/// Every catalog's strings with a context are found by context and English as by their whole
+/// key, and there are no others; the plain translation stays the fallback.
+#[test]
+fn contexted_strings_are_found_without_a_key() {
+    for l in Lang::all() {
+        let mut n = 0;
+        for (key, t) in l.0.catalog() {
+            if let Some((ctx, s)) = key.split_once(CTX) {
+                assert_eq!(l.0.contexted(ctx, s), Some(t.as_str()), "{} {key:?}", l.code());
+                n += 1;
+            }
+        }
+        let indexed: usize = l.0.loaded().contexted.values().map(HashMap::len).sum();
+        assert_eq!(indexed, n, "{}", l.code());
+        assert!(n > 0 || l == Lang::EN, "{} has the folder names", l.code());
+    }
+    assert_eq!(Lang::from_code("de").and_then(|de| de.0.contexted("folder", "Archive")), Some("Archiv"));
+    assert_eq!(Lang::from_code("de").and_then(|de| de.0.contexted("folder", "Projects")), None);
+}
+
+/// A folder's name looked up with its context, as the folder pane does for every folder on
+/// every frame: in English, and in German (which has the folder's own word).
+#[test]
+#[ignore = "a measurement: cargo test --release -p mailcraft-ui-egui --lib measure_contexted_lookup -- --ignored --nocapture"]
+fn measure_contexted_lookup() {
+    for code in ["en", "de"] {
+        set_current(Lang::from_code(code).unwrap_or(Lang::EN));
+        let _ = tc("folder", "Archive");
+        const ROUNDS: u32 = 1_000_000;
+        let start = std::time::Instant::now();
+        let mut bytes = 0;
+        for _ in 0..ROUNDS {
+            for name in ["Inbox", "Archive", "Projects"] {
+                bytes += tc("folder", std::hint::black_box(name)).len();
+            }
+        }
+        assert!(bytes > 0);
+        println!("MEASURE tc(\"folder\", …) in {code}: {:?} a call", start.elapsed() / (ROUNDS * 3));
+    }
+    set_current(Lang::EN);
+}

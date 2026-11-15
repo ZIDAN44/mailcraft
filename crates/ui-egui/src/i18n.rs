@@ -34,7 +34,7 @@ pub struct LangInfo {
     pub cjk: bool,
     /// Written right to left (its text goes through [`crate::bidi`]).
     pub rtl: bool,
-    catalog: OnceLock<HashMap<String, String>>,
+    catalog: OnceLock<Catalog>,
 }
 
 pub static LANGUAGES: [LangInfo; 15] = [
@@ -147,14 +147,39 @@ fn find(text: &str, s: &str) -> Option<String> {
         .map(|(_, t)| t)
 }
 
+/// A language's translations: each by its key (the English, after its context and [`CTX`] when
+/// it has one), and those with a context again by context, then English, so that looking one
+/// up builds no key.
+#[derive(Default)]
+struct Catalog {
+    all: HashMap<String, String>,
+    contexted: HashMap<String, HashMap<String, String>>,
+}
+
 impl LangInfo {
     fn catalog(&self) -> &HashMap<String, String> {
+        &self.loaded().all
+    }
+
+    /// `s`'s translation where its context is `ctx`, if the catalog has one.
+    fn contexted(&self, ctx: &str, s: &str) -> Option<&str> {
+        self.loaded().contexted.get(ctx)?.get(s).map(String::as_str)
+    }
+
+    fn loaded(&self) -> &Catalog {
         self.catalog.get_or_init(|| {
             let (entries, errors) = parse(self.source);
             for e in errors {
                 log::warn!("{} catalog: {e} (shown in English)", self.code);
             }
-            entries.into_iter().collect()
+            let mut catalog = Catalog::default();
+            for (key, translation) in entries {
+                if let Some((ctx, s)) = key.split_once(CTX) {
+                    catalog.contexted.entry(ctx.to_string()).or_default().insert(s.to_string(), translation.clone());
+                }
+                catalog.all.insert(key, translation);
+            }
+            catalog
         })
     }
 }
@@ -286,7 +311,7 @@ pub fn tc<'a>(ctx: &str, s: &'a str) -> &'a str {
     if pseudo::on() {
         return pseudo::mark(s);
     }
-    current().0.catalog().get(&format!("{ctx}{CTX}{s}")).map_or_else(|| t(s), String::as_str)
+    current().0.contexted(ctx, s).unwrap_or_else(|| t(s))
 }
 
 /// A folder's name as shown: the name its server gives a special folder as it is (Exchange
