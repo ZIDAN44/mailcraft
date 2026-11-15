@@ -27,7 +27,7 @@ pub fn read_p12(bytes: &[u8], password: &str) -> Result<Identity, Error> {
     for (_, entry) in store.entries() {
         let p12_keystore::KeyStoreEntry::PrivateKeyChain(c) = entry else { continue };
         let certs: Vec<Vec<u8>> = c.chain().iter().map(|x| x.as_der().to_vec()).collect();
-        let Some(leaf) = certs.iter().find(|d| matches_key(d, c.key())) else { continue };
+        let Some(leaf) = leaf_of(c.key(), &certs) else { continue };
         found.push(Identity { key: c.key().to_vec(), chain: ordered(leaf, &certs) });
     }
     // The one for email first, when there are several.
@@ -77,12 +77,11 @@ fn refused(e: &StoreError) -> Error {
     }
 }
 
-/// Whether the certificate `cert` (DER) is the public half of `key` (PKCS #8 DER).
-pub(crate) fn matches_key(cert_der: &[u8], key: &[u8]) -> bool {
-    let Ok(c) = Certificate::from_der(cert_der) else { return false };
-    let spki = &c.tbs_certificate.subject_public_key_info;
-    let Ok(ours) = public_of(key) else { return false };
-    spki.to_der().ok() == Some(ours)
+/// The certificate among `certs` (DER) that is the public half of `key` (PKCS #8 DER).
+/// The key's public half is worked out once (an RSA key is checked as it's read), not for each.
+pub(crate) fn leaf_of<'c>(key: &[u8], certs: &'c [Vec<u8>]) -> Option<&'c Vec<u8>> {
+    let ours = public_of(key).ok()?;
+    certs.iter().find(|d| Certificate::from_der(d).is_ok_and(|c| c.tbs_certificate.subject_public_key_info.to_der().is_ok_and(|s| s == ours)))
 }
 
 /// The public key (SubjectPublicKeyInfo DER) of a PKCS #8 private key.

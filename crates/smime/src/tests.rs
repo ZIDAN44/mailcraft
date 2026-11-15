@@ -550,3 +550,29 @@ fn measure_check_among_roots() {
     }
     println!("MEASURE check among {} roots: {:.1} us", roots.len(), t.elapsed().as_secs_f64() * 1e6 / f64::from(n));
 }
+
+/// How long a `.p12`'s key takes to be matched to its certificate: as files have it (the key's
+/// first) and with it after five others (`--release`, by hand).
+#[test]
+#[ignore]
+fn measure_p12_key_match() {
+    let riley = riley();
+    let others: Vec<Vec<u8>> = ["ca.pem", "ana.pem", "zoe.pem", "rev-kim.pem", "rev-lee.pem"].into_iter().map(pem).collect();
+    for (what, certs) in
+        [("first", [vec![riley.chain[0].clone()], others.clone()].concat()), ("last", [others, vec![riley.chain[0].clone()]].concat())]
+    {
+        let n = 200;
+        let t = std::time::Instant::now();
+        for _ in 0..n {
+            assert_eq!(p12::leaf_of(&riley.key, &certs), Some(&riley.chain[0]));
+        }
+        println!("MEASURE key matched, its certificate {what} of 6: {:.1} us", t.elapsed().as_secs_f64() * 1e6 / f64::from(n));
+    }
+    let file = data("riley-aes.p12");
+    let n = 20;
+    let t = std::time::Instant::now();
+    for _ in 0..n {
+        read_p12(&file, "secret").unwrap();
+    }
+    println!("MEASURE read_p12 riley-aes.p12: {:.1} us", t.elapsed().as_secs_f64() * 1e6 / f64::from(n));
+}
