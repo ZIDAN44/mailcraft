@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 /// The versions a lock file has of each package, by name.
-type Locked = BTreeMap<String, Vec<String>>;
+pub(crate) type Locked = BTreeMap<String, Vec<String>>;
 
 /// A package the fuzz workspace has at a version the main one doesn't.
 #[derive(Debug, PartialEq)]
@@ -17,7 +17,7 @@ struct Apart {
     main: Vec<String>,
 }
 
-fn packages(lock: &str) -> Locked {
+pub(crate) fn packages(lock: &str) -> Locked {
     let mut out = Locked::new();
     for block in lock.split("[[package]]").skip(1) {
         let field = |key: &str| block.lines().find_map(|l| l.trim().strip_prefix(key)?.strip_prefix(" = \"")?.strip_suffix('"'));
