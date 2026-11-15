@@ -201,9 +201,9 @@ impl Pool {
             self.submit(if keep { Job::KeepDraft { account, raw, folder, replaces } } else { Job::SaveDraft { account, raw, folder, replaces } });
             return;
         }
-        let creds = self.creds.clone();
-        let sink = self.sink.clone();
-        let spawned = std::thread::Builder::new().name("mail-pgp".into()).spawn(move || {
+        let (creds, sink) = (self.creds.clone(), self.sink.clone());
+        let unstarted = Unstarted::of(&account.id, &work);
+        let spawned = super::routing::spawn("mail-pgp", move || {
             let creds = creds.as_ref();
             let event = match work {
                 PgpWork::Import { file, passphrase } => match pgp::read_secret_key(&file.0, &passphrase.0) {
@@ -236,7 +236,42 @@ impl Pool {
         });
         if let Err(e) = spawned {
             log::warn!("OpenPGP: {e}");
+            if let Some(event) = unstarted.answer(format!("OpenPGP: {e}")) {
+                self.sink.emit(event);
+            }
         }
+    }
+}
+
+/// What a job is answered with, noted before its work goes to its thread: given as its failure
+/// when the thread can't start, so nothing waits for an answer that never comes (a message to
+/// be sent waits for [`Event::Protected`]).
+enum Unstarted {
+    Keys(String),
+    Decrypted(mailcraft_model::MessageKey),
+    Protected(String, u64),
+    /// A draft is sealed before any thread.
+    Nothing,
+}
+
+impl Unstarted {
+    fn of(account: &str, work: &PgpWork) -> Unstarted {
+        match work {
+            PgpWork::Import { .. } | PgpWork::Use { .. } | PgpWork::Forget { .. } => Unstarted::Keys(account.to_string()),
+            PgpWork::Decrypt { key, .. } => Unstarted::Decrypted(key.clone()),
+            PgpWork::Protect { id, .. } => Unstarted::Protected(account.to_string(), *id),
+            PgpWork::SealDraft { .. } => Unstarted::Nothing,
+        }
+    }
+
+    fn answer(self, error: String) -> Option<Event> {
+        Some(match self {
+            // No keys said: the account's stay as they are.
+            Unstarted::Keys(account) => Event::PgpKeys { account, keys: Vec::new(), imported: None, error: Some(error) },
+            Unstarted::Decrypted(key) => Event::PgpDecrypted { key, content: None, signature: None, error: Some(error) },
+            Unstarted::Protected(account, id) => Event::Protected { account, id, raw: None, error: Some(error) },
+            Unstarted::Nothing => return None,
+        })
     }
 }
 

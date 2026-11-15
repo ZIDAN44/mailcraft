@@ -74,8 +74,8 @@ struct Run {
 impl Pool {
     /// Measure an account's data file, on a thread of its own (a cold one takes a moment).
     pub(super) fn data_file_health(&mut self, account: String) {
-        let (store, sink) = (self.store.clone(), self.sink.clone());
-        let spawned = std::thread::Builder::new().name("mail-health".into()).spawn(move || {
+        let (store, sink, asked) = (self.store.clone(), self.sink.clone(), account.clone());
+        let spawned = super::routing::spawn("mail-health", move || {
             let measured = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| store.data_file_health(&account)));
             let (health, error) = match measured {
                 Ok(Ok(h)) => (h.map(Box::new), None),
@@ -84,8 +84,11 @@ impl Pool {
             };
             sink.emit(Event::DataFileHealth { account, health, error });
         });
+        // Answered all the same: who asked (the idle policy) waits for this account's answer.
         if let Err(e) = spawned {
             log::warn!("data file health: {e}");
+            let error = Some(format!("the data file couldn't be measured: {e}"));
+            self.sink.emit(Event::DataFileHealth { account: asked, health: None, error });
         }
     }
 

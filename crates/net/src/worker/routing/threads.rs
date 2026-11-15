@@ -4,6 +4,23 @@
 
 use super::*;
 
+/// Run `f` on a thread of its own, named `name`. When it can't start (the computer out of
+/// threads, or a test's [`NO_THREADS`]), the caller answers the job with its failure: nothing is
+/// left waiting for an answer that never comes.
+pub(in crate::worker) fn spawn(name: &str, f: impl FnOnce() + Send + 'static) -> std::io::Result<()> {
+    #[cfg(test)]
+    if NO_THREADS.with(std::cell::Cell::get) {
+        return Err(std::io::Error::other("no thread could be started"));
+    }
+    std::thread::Builder::new().name(name.into()).spawn(f).map(drop)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// On this (test) thread, [`spawn`] starts no thread.
+    pub(in crate::worker) static NO_THREADS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 impl Pool {
     /// Browser sign-in for an OAuth account, on its own thread: the page opens through the UI
     /// (`Event::OpenUrl`), the refresh token goes to the keychain, then the account starts.
@@ -12,8 +29,8 @@ impl Pool {
             let error = format!("signing in with {} isn't set up in this copy of MailCraft", account.oauth.as_deref().unwrap_or("that provider"));
             return self.sink.emit(Event::Status { account: account.id, status: SyncStatus::NeedsPassword { error } });
         };
-        let (sink, creds) = (self.sink.clone(), self.creds.clone());
-        let spawned = std::thread::Builder::new().name("mail-sign-in".into()).spawn(move || {
+        let (sink, creds, id) = (self.sink.clone(), self.creds.clone(), account.id.clone());
+        let spawned = spawn("mail-sign-in", move || {
             let mut open = |url: &str| -> std::result::Result<(), String> {
                 sink.emit(Event::OpenUrl { url: url.to_string() });
                 Ok(())
@@ -37,6 +54,8 @@ impl Pool {
         });
         if let Err(e) = spawned {
             log::warn!("sign-in: {e}");
+            let error = format!("the sign-in couldn't begin: {e}");
+            self.sink.emit(Event::Status { account: id, status: SyncStatus::NeedsPassword { error } });
         }
     }
 
@@ -48,8 +67,8 @@ impl Pool {
             let error = "only an Exchange Online account signed in with Microsoft asks for this".to_string();
             return self.sink.emit(Event::DirectoryAllowed { account: account.id, error: Some(error) });
         };
-        let (sink, creds) = (self.sink.clone(), self.creds.clone());
-        let spawned = std::thread::Builder::new().name("mail-directory-consent".into()).spawn(move || {
+        let (sink, creds, id) = (self.sink.clone(), self.creds.clone(), account.id.clone());
+        let spawned = spawn("mail-directory-consent", move || {
             let mut open = |url: &str| -> std::result::Result<(), String> {
                 sink.emit(Event::OpenUrl { url: url.to_string() });
                 Ok(())
@@ -68,6 +87,7 @@ impl Pool {
         });
         if let Err(e) = spawned {
             log::warn!("directory consent: {e}");
+            self.sink.emit(Event::DirectoryAllowed { account: id, error: Some(format!("the permission couldn't be asked for: {e}")) });
         }
     }
 
@@ -139,9 +159,8 @@ impl Pool {
     pub(super) fn export_pst(&mut self, account: String, path: String, name: String, follow_up: mailcraft_model::organize::FollowUpDays) {
         // With the changes made just before it.
         self.edits.flush();
-        let sink = self.sink.clone();
-        let store = self.store.clone();
-        let spawned = std::thread::Builder::new().name("mail-export".into()).spawn(move || {
+        let (sink, store, id) = (self.sink.clone(), self.store.clone(), account.clone());
+        let spawned = spawn("mail-export", move || {
             let mut progress = |messages| {
                 sink.emit(Event::Exported {
                     account: account.clone(),
@@ -182,7 +201,17 @@ impl Pool {
             sink.emit(event);
         });
         if let Err(e) = spawned {
-            self.sink.emit(Event::Notice { account: String::new(), message: format!("export: {e}") });
+            self.sink.emit(Event::Exported {
+                account: id,
+                messages: 0,
+                skipped: 0,
+                already: 0,
+                occurrences: 0,
+                replaced: 0,
+                folders_skipped: 0,
+                done: true,
+                error: Some(format!("export: {e}")),
+            });
         }
     }
 
@@ -204,8 +233,8 @@ impl Pool {
     /// The servers for an address being set up (autoconfiguration), looked for on a thread of
     /// its own.
     pub(super) fn discover(&self, email: String) {
-        let sink = self.sink.clone();
-        let spawned = std::thread::Builder::new().name("mail-discover".into()).spawn(move || {
+        let (sink, asked) = (self.sink.clone(), email.clone());
+        let spawned = spawn("mail-discover", move || {
             let found = crate::autoconfig::discover(&email);
             let (config, source) = match found {
                 Some(f) => (Some(Box::new(f.config)), f.source),
@@ -214,7 +243,9 @@ impl Pool {
             sink.emit(Event::Discovered { email, config, source });
         });
         if let Err(e) = spawned {
+            // Nothing found: the user fills the servers in.
             log::warn!("autoconfiguration: {e}");
+            self.sink.emit(Event::Discovered { email: asked, config: None, source: String::new() });
         }
     }
 }

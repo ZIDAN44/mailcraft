@@ -4,6 +4,9 @@
 use super::*;
 
 mod threads;
+#[cfg(test)]
+pub(super) use threads::NO_THREADS;
+pub(super) use threads::spawn;
 
 /// What a job for an account's mail is told when no thread of the account can take it.
 const OFFLINE: &str = "the account is offline";

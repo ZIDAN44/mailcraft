@@ -174,6 +174,7 @@ on GitHub.
 - Events with oddly written reminders from other programs can now be saved to the calendar server.
 - A message the server refused for good shows the server's reason in the Outbox, and no longer reads as one that will be tried again.
 - Sent mail is kept for outgoing servers whose names only end like Gmail's, and Gmail's own server is recognised however its name is written.
+- Signing or encrypting a message, and exporting, no longer wait forever when the computer can't start another task.
 
 ## 0.38.0 - 2026-11-13
 

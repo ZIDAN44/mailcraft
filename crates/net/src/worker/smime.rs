@@ -215,9 +215,9 @@ impl Pool {
     }
 
     pub(super) fn smime(&mut self, job: Job) {
-        let creds = self.creds.clone();
-        let sink = self.sink.clone();
-        let spawned = std::thread::Builder::new().name("mail-smime".into()).spawn(move || match job {
+        let (creds, sink) = (self.creds.clone(), self.sink.clone());
+        let unstarted = Unstarted::of(&job);
+        let spawned = super::routing::spawn("mail-smime", move || match job {
             Job::ImportIdentity { account, data, password } => {
                 let done = smime::read_p12(&data, &password.0)
                     .map_err(|e| e.to_string())
@@ -280,7 +280,49 @@ impl Pool {
         });
         if let Err(e) = spawned {
             log::warn!("S/MIME: {e}");
+            if let Some(event) = unstarted.answer(format!("S/MIME: {e}")) {
+                self.sink.emit(event);
+            }
         }
+    }
+}
+
+/// What a job is answered with, noted before it goes to its thread: given as its failure when
+/// the thread can't start, so nothing waits for an answer that never comes (a message to be
+/// sent waits for [`Event::Protected`]).
+enum Unstarted {
+    Identity(String),
+    Protected(String, u64),
+    Decrypted(MessageKey),
+    HeldKeys,
+    Revocation(Vec<u8>),
+    /// Forgetting a certificate is answered by nothing.
+    Nothing,
+}
+
+impl Unstarted {
+    fn of(job: &Job) -> Unstarted {
+        match job {
+            Job::ImportIdentity { account, .. } | Job::UseOlderIdentity { account, .. } | Job::UseHeldKey { account, .. } => {
+                Unstarted::Identity(account.id.clone())
+            }
+            Job::Protect { account, id, .. } => Unstarted::Protected(account.id.clone(), *id),
+            Job::Decrypt { key, .. } => Unstarted::Decrypted(key.clone()),
+            Job::FindHeldKeys { .. } => Unstarted::HeldKeys,
+            Job::CheckRevocation { chain } => Unstarted::Revocation(chain.first().cloned().unwrap_or_default()),
+            _ => Unstarted::Nothing,
+        }
+    }
+
+    fn answer(self, error: String) -> Option<Event> {
+        Some(match self {
+            Unstarted::Identity(account) => identity(account, Err(error)),
+            Unstarted::Protected(account, id) => Event::Protected { account, id, raw: None, error: Some(error) },
+            Unstarted::Decrypted(key) => Event::Decrypted { key, content: None, authenticated: false, error: Some(error) },
+            Unstarted::HeldKeys => Event::HeldKeys { keys: Vec::new(), error: Some(error) },
+            Unstarted::Revocation(cert) => Event::Revocation { cert, status: Revocation::Unknown { why: error } },
+            Unstarted::Nothing => return None,
+        })
     }
 }
 
