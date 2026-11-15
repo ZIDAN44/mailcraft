@@ -4,7 +4,9 @@
 //! right to left.
 
 use mailcraft_engine::model::Job;
-use mailcraft_engine::model::job::{Blocked, DataFileFacts, ImportPhase, ImportProgress, ImportReport, PlannedFolder, SkipReason, StopHow, Work};
+use mailcraft_engine::model::job::{
+    Blocked, DataFileFacts, DataFileKind, ImportPhase, ImportProgress, ImportReport, PlannedFolder, SkipReason, StopHow, Work,
+};
 
 use super::*;
 use crate::Action;
@@ -518,7 +520,7 @@ fn an_outlook_files_copy_is_beside_it_and_found_again() {
     frame(&ctx, &mut a, vec![]);
     let path = "D:/Mail/Old.pst";
     let facts = |copy: &str, changed: bool, elsewhere: bool| DataFileFacts {
-        kind: "pst".into(),
+        kind: DataFileKind::Pst,
         messages: 40,
         folders: 3,
         estimate: 3 << 20,

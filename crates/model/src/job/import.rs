@@ -266,13 +266,39 @@ impl ImportReport {
     }
 }
 
+/// What kind of data file a file is, by its name.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DataFileKind {
+    /// None MailCraft reads.
+    #[default]
+    Unknown,
+    /// An Outlook data file (`.pst`, Unicode or ANSI).
+    Pst,
+    /// An Outlook offline data file (`.ost`).
+    Ost,
+    /// MailCraft's own (`.mailcraft`).
+    MailCraft,
+}
+
+impl DataFileKind {
+    /// The kind the file at `path` is, by its name's ending (in any case).
+    pub fn of(path: &str) -> DataFileKind {
+        let lower = path.to_ascii_lowercase();
+        [(".pst", DataFileKind::Pst), (".ost", DataFileKind::Ost), (".mailcraft", DataFileKind::MailCraft)]
+            .into_iter()
+            .find_map(|(end, kind)| lower.ends_with(end).then_some(kind))
+            .unwrap_or_default()
+    }
+}
+
 /// What a data file holds and what importing it takes, found before it's imported.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct DataFileFacts {
     pub path: String,
-    /// "pst", "pst-ansi", "ost" or "mailcraft".
-    pub kind: String,
+    /// What kind of data file it is, by its name.
+    pub kind: DataFileKind,
     pub size: u64,
     /// Last changed (Unix seconds).
     pub modified: i64,
@@ -309,7 +335,7 @@ pub struct DataFileFacts {
 impl DataFileFacts {
     /// An Outlook `.pst` (Unicode or ANSI), its copy beside it; not MailCraft's own data file.
     pub fn is_pst(&self) -> bool {
-        self.kind.starts_with("pst")
+        self.kind == DataFileKind::Pst
     }
 }
 
@@ -330,6 +356,23 @@ pub struct DataSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A data file's kind by its name, in any case; only an Outlook `.pst` is one its copy goes
+    /// beside.
+    #[test]
+    fn a_data_files_kind_is_its_names_ending() {
+        let kind = |p: &str| DataFileKind::of(p);
+        assert_eq!(kind("C:/Mail/Archive.pst"), DataFileKind::Pst);
+        assert_eq!(kind("C:/Mail/OLD.PST"), DataFileKind::Pst);
+        assert_eq!(kind("C:/Mail/me@corp.ost"), DataFileKind::Ost);
+        assert_eq!(kind("D:/Copy.MailCraft"), DataFileKind::MailCraft);
+        for p in ["C:/Mail/Archive.pst.bak", "notes.txt", "", "pst"] {
+            assert_eq!(kind(p), DataFileKind::Unknown, "{p}");
+        }
+        let facts = |p: &str| DataFileFacts { kind: DataFileKind::of(p), ..Default::default() };
+        assert!(facts("a.pst").is_pst() && !facts("a.ost").is_pst() && !facts("a.mailcraft").is_pst());
+        assert_eq!(serde_json::to_string(&DataFileKind::MailCraft).unwrap(), "\"mailcraft\"");
+    }
 
     #[test]
     fn progress_weighs_items_and_bytes() {

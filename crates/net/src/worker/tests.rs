@@ -127,8 +127,18 @@ fn a_mailcraft_data_file_is_imported() {
         })
         .collect();
     let size = std::fs::metadata(&file).unwrap().len();
-    assert!(facts.iter().any(|f| f.path == path && f.kind == "mailcraft" && f.size == size && f.modified > 0 && f.error.is_none()), "{facts:?}");
-    assert!(facts.iter().any(|f| f.path.ends_with("gone.pst") && f.kind == "pst" && f.error.is_some()), "{facts:?}");
+    assert!(
+        facts.iter().any(|f| f.path == path
+            && f.kind == mailcraft_model::job::DataFileKind::MailCraft
+            && f.size == size
+            && f.modified > 0
+            && f.error.is_none()),
+        "{facts:?}"
+    );
+    assert!(
+        facts.iter().any(|f| f.path.ends_with("gone.pst") && f.kind == mailcraft_model::job::DataFileKind::Pst && f.error.is_some()),
+        "{facts:?}"
+    );
     p.submit(Job::ImportPst { account: "p1".into(), path, resume: false });
     let seen = until(&p, "the import to end", |e| matches!(e, Event::Imported { done: true, .. }));
     assert!(seen.iter().any(|e| matches!(e, Event::Imported { messages: 1, done: true, error: None, .. })), "{seen:?}");

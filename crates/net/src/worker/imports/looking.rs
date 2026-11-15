@@ -1,6 +1,8 @@
 //! Data files looked at before they're imported: what kind each is, how big, what it holds as
 //! its import would plan it, and where MailCraft's copy goes, with the room there.
 
+use mailcraft_model::job::DataFileKind;
+
 use super::*;
 
 /// A data file as it was when it was looked at ([`Job::InspectDataFile`]), and its plan.
@@ -30,12 +32,12 @@ impl Pool {
                 error: Some("the data file couldn't be looked at: it may be damaged".into()),
                 ..DataFileFacts::default()
             });
-            let beside = if facts.error.is_none() && facts.kind.starts_with("pst") { store.copy_beside(Path::new(&path)) } else { None };
+            let beside = if facts.error.is_none() && facts.is_pst() { store.copy_beside(Path::new(&path)) } else { None };
             let found = beside.as_ref().and_then(|b| b.found.clone());
+            // Beside the file, unless that can't be written; or read again afresh, with the data
+            // files, before what's new is added to the copy.
             let destination = match &beside {
-                // Read again afresh, with the data files, before what's new is added to the copy.
-                _ if found.as_ref().is_some_and(|f| f.changed) => dir,
-                Some(b) if !b.elsewhere => b.path.parent().map_or(dir, Path::to_path_buf),
+                Some(b) if !b.elsewhere && !found.as_ref().is_some_and(|f| f.changed) => b.path.parent().map_or(dir, Path::to_path_buf),
                 _ => dir,
             };
             room_for(&mut facts, &destination, space.as_ref());
@@ -77,7 +79,7 @@ pub(super) fn drive_for(path: &str) -> Arc<dyn crate::space::Space> {
 /// What the data file at `path` holds, planned (an Outlook one's plan kept in `looked`).
 pub(super) fn look_at(path: &str, looked: &Mutex<Option<Looked>>) -> DataFileFacts {
     let mut facts = facts_of(path);
-    if facts.error.is_none() && facts.kind == "pst" {
+    if facts.error.is_none() && facts.is_pst() {
         match crate::pst::inspect(Path::new(path)) {
             Ok(planned) => {
                 (facts.messages, facts.folders, facts.pim_items, facts.bytes) = (planned.messages, planned.folders, planned.pim_items, planned.bytes);
@@ -97,8 +99,9 @@ pub(super) fn look_at(path: &str, looked: &Mutex<Option<Looked>>) -> DataFileFac
 /// messages' own sizes; one of MailCraft's is copied as it is, and read from a copy of it made on
 /// that drive first ([`copy_need`]).
 pub(super) fn room_for(facts: &mut DataFileFacts, destination: &Path, space: &dyn crate::space::Space) {
-    facts.estimate = if facts.kind == "mailcraft" { facts.size } else { facts.bytes / 100 * COPY_PCT };
-    facts.need = if facts.kind == "mailcraft" { copy_need(facts.size) } else { need(facts.estimate) };
+    let own = facts.kind == DataFileKind::MailCraft;
+    facts.estimate = if own { facts.size } else { facts.bytes / 100 * COPY_PCT };
+    facts.need = if own { copy_need(facts.size) } else { need(facts.estimate) };
     facts.destination = destination.to_string_lossy().into_owned();
     facts.free = space.free(destination);
 }
@@ -124,9 +127,7 @@ pub(super) fn planned_for(looked: &Mutex<Option<Looked>>, path: &str) -> Option<
 
 /// What the file system says of a data file (nothing read from inside it).
 pub(super) fn facts_of(path: &str) -> DataFileFacts {
-    let lower = path.to_ascii_lowercase();
-    let kind = [".pst", ".ost", ".mailcraft"].iter().find(|k| lower.ends_with(*k)).map_or("", |k| k.trim_start_matches('.'));
-    let mut facts = DataFileFacts { path: path.to_string(), kind: kind.to_string(), ..DataFileFacts::default() };
+    let mut facts = DataFileFacts { path: path.to_string(), kind: DataFileKind::of(path), ..DataFileFacts::default() };
     match std::fs::metadata(path) {
         Ok(m) if m.is_file() => {
             facts.size = m.len();

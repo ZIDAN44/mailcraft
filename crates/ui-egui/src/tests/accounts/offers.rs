@@ -2,7 +2,7 @@
 //! what it says, the buttons it draws, and what a click on each does.
 
 use egui::{Event, PointerButton, Pos2};
-use mailcraft_engine::model::job::{DataFileFacts, ImportReport, StopHow};
+use mailcraft_engine::model::job::{DataFileFacts, DataFileKind, ImportReport, StopHow};
 
 use super::*;
 use crate::Action;
@@ -81,7 +81,7 @@ fn offers(s: &Session, path: &str) -> Vec<String> {
 fn pst(path: &str) -> DataFileFacts {
     DataFileFacts {
         path: path.into(),
-        kind: "pst".into(),
+        kind: DataFileKind::Pst,
         size: 5 << 20,
         modified: 1_000,
         messages: 40,
@@ -121,7 +121,7 @@ fn every_data_file_offers_its_buttons() {
             "broken",
             DataFileFacts {
                 path: "D:/Mail/Broken.pst".into(),
-                kind: "pst".into(),
+                kind: DataFileKind::Pst,
                 error: Some("not an Outlook data file".into()),
                 ..Default::default()
             },
@@ -130,8 +130,8 @@ fn every_data_file_offers_its_buttons() {
         ("elsewhere", DataFileFacts { elsewhere: true, destination: "C:/MailCraft Files".into(), ..pst("D:/Mail/Elsewhere.pst") }),
         ("no room", no_room(pst("D:/Mail/Big.pst"))),
         ("no room elsewhere", no_room(DataFileFacts { elsewhere: true, ..pst("D:/Mail/BigElsewhere.pst") })),
-        ("mailcraft", DataFileFacts { kind: "mailcraft".into(), ..pst("D:/Mail/Old.mailcraft") }),
-        ("mailcraft no room", no_room(DataFileFacts { kind: "mailcraft".into(), ..pst("D:/Mail/BigOld.mailcraft") })),
+        ("mailcraft", DataFileFacts { kind: DataFileKind::MailCraft, ..pst("D:/Mail/Old.mailcraft") }),
+        ("mailcraft no room", no_room(DataFileFacts { kind: DataFileKind::MailCraft, ..pst("D:/Mail/BigOld.mailcraft") })),
         ("copy", DataFileFacts { estimate: 0, need: 0, ..copy("D:/Mail/Copy.pst", false, true) }),
         ("copy changed", copy("D:/Mail/Changed.pst", true, true)),
         ("copy changed, no note", copy("D:/Mail/NoNote.pst", true, false)),

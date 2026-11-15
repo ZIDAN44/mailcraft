@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use mailcraft_model::Summary;
-use mailcraft_model::job::{ImportPhase, StopHow};
+use mailcraft_model::job::{DataFileKind, ImportPhase, StopHow};
 use mailcraft_pst::write::{self, BatchMessage, NewMessage, NewRecipient, RecipientType};
 
 use super::*;
@@ -513,7 +513,7 @@ fn a_mailcraft_copy_onto_a_full_drive_waits_with_nothing_kept() {
     p.submit(Job::InspectDataFile { path: path.clone() });
     let seen = until(&p, "the file looked at", |e| matches!(e, Event::DataFileInspected { .. }));
     let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
-    assert_eq!((facts.kind.as_str(), facts.size, facts.free), ("mailcraft", size, Some(short)), "{facts:?}");
+    assert_eq!((facts.kind, facts.size, facts.free), (DataFileKind::MailCraft, size, Some(short)), "{facts:?}");
     assert!(facts.need > 2 * size + NEED_EXTRA && facts.need > short, "{facts:?}");
     let drive = give_drive("c1", Filling::new(0, short));
     p.submit(Job::ImportPst { account: "c1".into(), path: path.clone(), resume: true });

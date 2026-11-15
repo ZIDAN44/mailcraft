@@ -259,7 +259,10 @@ fn a_copy_another_data_folder_has_is_refused_until_taken_over() {
     closed(&other, &pst);
     // The window looked at the file before the copy was there: what it knows is put right, so
     // the Open dialog says who has the copy and offers to take it over.
-    other.data_file_inspected(&pst, Box::new(mailcraft_model::job::DataFileFacts { kind: "pst".into(), ..Default::default() }));
+    other.data_file_inspected(
+        &pst,
+        Box::new(mailcraft_model::job::DataFileFacts { kind: mailcraft_model::job::DataFileKind::Pst, ..Default::default() }),
+    );
     let refused = other.run("account.importPst", &json!({"path": pst})).unwrap_err();
     let app = dir.join("app").to_string_lossy().into_owned();
     assert!(refused_for(&refused, &dir.join("app")), "{refused}");
