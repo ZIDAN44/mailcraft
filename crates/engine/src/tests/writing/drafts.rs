@@ -120,16 +120,12 @@ fn a_draft_keeps_its_signature_code() {
 /// (found by its Message-ID once listed) instead of adding another, as Outlook keeps one.
 #[test]
 fn a_draft_saved_twice_to_a_server_replaces_its_copy() {
-    let store = temp("draft-server");
-    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
-    s.apply(Event::Folders {
-        account: id.clone(),
-        folders: vec![
-            mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() },
-            mailcraft_model::Folder { account: id.clone(), path: "Drafts".into(), role: FolderRole::Drafts, selectable: true, ..Default::default() },
-        ],
-    });
+    let (mut s, id) = server_account(
+        "draft-server",
+        json!({"email": "zoe@example.org", "password": "pw"}),
+        &[("INBOX", FolderRole::Inbox), ("Drafts", FolderRole::Drafts)],
+    );
+    let store = s.store.clone().unwrap();
     s.take_jobs();
     s.run("mail.new", &json!({"account": id})).unwrap();
     s.run("compose.update", &json!({"to": "ann@example.org", "subject": "Plans", "body": "First"})).unwrap();
@@ -179,16 +175,11 @@ fn a_draft_saved_twice_to_a_server_replaces_its_copy() {
 /// sent, both built anew from what the draft says.
 #[test]
 fn the_mark_on_a_drafts_copy_goes_nowhere_else() {
-    let store = temp("draft-mark");
-    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
-    s.apply(Event::Folders {
-        account: id.clone(),
-        folders: vec![
-            mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() },
-            mailcraft_model::Folder { account: id.clone(), path: "Drafts".into(), role: FolderRole::Drafts, selectable: true, ..Default::default() },
-        ],
-    });
+    let (mut s, id) = server_account(
+        "draft-mark",
+        json!({"email": "zoe@example.org", "password": "pw"}),
+        &[("INBOX", FolderRole::Inbox), ("Drafts", FolderRole::Drafts)],
+    );
     s.take_jobs();
     let mark = "0123456789abcdef0123456789abcdef";
     let raw = format!(
@@ -283,12 +274,7 @@ fn reading_another_message_keeps_the_one_written_inline_in_drafts() {
 /// done; a message closed meanwhile is held until then too.
 #[test]
 fn a_draft_saved_twice_on_the_way_stays_one_draft() {
-    let store = temp("draft-twice");
-    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
-    let drafts =
-        mailcraft_model::Folder { account: id.clone(), path: "Drafts".into(), role: FolderRole::Drafts, selectable: true, ..Default::default() };
-    s.apply(Event::Folders { account: id.clone(), folders: vec![drafts] });
+    let (mut s, id) = server_account("draft-twice", json!({"email": "zoe@example.org", "password": "pw"}), &[("Drafts", FolderRole::Drafts)]);
     s.take_jobs();
     let saved = |s: &mut Session| {
         let raw = s.take_jobs().into_iter().find_map(|j| match j {
@@ -330,16 +316,11 @@ fn a_draft_saved_twice_on_the_way_stays_one_draft() {
 /// why, instead of being lost. Held, it's still kept as a draft if MailCraft closes.
 #[test]
 fn a_message_is_held_until_its_draft_is_kept() {
-    let store = temp("draft-held");
-    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
-    s.apply(Event::Folders {
-        account: id.clone(),
-        folders: vec![
-            mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() },
-            mailcraft_model::Folder { account: id.clone(), path: "Drafts".into(), role: FolderRole::Drafts, selectable: true, ..Default::default() },
-        ],
-    });
+    let (mut s, id) = server_account(
+        "draft-held",
+        json!({"email": "zoe@example.org", "password": "pw"}),
+        &[("INBOX", FolderRole::Inbox), ("Drafts", FolderRole::Drafts)],
+    );
     // Two messages to read.
     let mut keys = Vec::new();
     for uid in 1..=2u32 {

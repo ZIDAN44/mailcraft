@@ -693,11 +693,12 @@ fn an_account_is_set_to_look_for_mail_every_so_often() {
 /// was announced as new.
 #[test]
 fn mail_moved_into_the_inbox_is_not_new_mail() {
-    let store = temp("moved-in");
-    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
-    let folder = |path: &str, role| mailcraft_model::Folder { account: id.clone(), path: path.into(), role, selectable: true, ..Default::default() };
-    s.apply(Event::Folders { account: id.clone(), folders: vec![folder("INBOX", FolderRole::Inbox), folder("Archive", FolderRole::Archive)] });
+    let (mut s, id) = server_account(
+        "moved-in",
+        json!({"email": "riley@studio.example", "password": "pw"}),
+        &[("INBOX", FolderRole::Inbox), ("Archive", FolderRole::Archive)],
+    );
+    let store = s.store.clone().unwrap();
     let mail = |folder: &str, uid: u32, subject: &str, mid: &str| -> mailcraft_model::SharedSummary {
         mailcraft_model::Summary {
             key: mailcraft_model::MessageKey { account: id.clone(), folder: folder.into(), validity: 1, uid },

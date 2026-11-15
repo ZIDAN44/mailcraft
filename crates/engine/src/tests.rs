@@ -59,6 +59,19 @@ fn sample_session(name: &str) -> Session {
     s
 }
 
+/// A session on a [`temp`] cache with one account on a server, added with `add` (account.add's
+/// params), and its folders (each a path and its role) as its server lists them on connecting.
+fn server_account(name: &str, add: Value, folders: &[(&str, FolderRole)]) -> (Session, String) {
+    let mut s = Session::open(Some(temp(name)), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &add).unwrap()["account"].as_str().unwrap().to_string();
+    let folders = folders
+        .iter()
+        .map(|&(path, role)| mailcraft_model::Folder { account: id.clone(), path: path.into(), role, selectable: true, ..Default::default() })
+        .collect();
+    s.apply(Event::Folders { account: id.clone(), folders });
+    (s, id)
+}
+
 /// The sample in `store` with its Projects made a folder of `n` unread messages, `Report <uid>`
 /// a minute apart, and a session on it.
 fn big_projects(store: &Store, n: u32) -> Session {

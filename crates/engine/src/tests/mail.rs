@@ -337,12 +337,8 @@ fn mailbox_settings_commands() {
 
 #[test]
 fn web_pictures_load_only_when_asked() {
-    let store = temp("pictures");
-    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
-    let inbox =
-        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
-    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    let (mut s, id) = server_account("pictures", json!({"email": "zoe@example.org", "password": "pw"}), &[("INBOX", FolderRole::Inbox)]);
+    let store = s.store.clone().unwrap();
     let key = |uid| mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 1, uid };
     let msgs = vec![
         mailcraft_model::Summary { key: key(1), subject: "News".into(), date: NOW, ..Default::default() },
@@ -421,12 +417,8 @@ fn web_pictures_load_only_when_asked() {
 
 #[test]
 fn only_mail_that_arrives_later_is_announced() {
-    let store = temp("notify");
-    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
-    let inbox =
-        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
-    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    let (mut s, id) = server_account("notify", json!({"email": "zoe@example.org", "password": "pw"}), &[("INBOX", FolderRole::Inbox)]);
+    let store = s.store.clone().unwrap();
     let m = |uid: u32, seen: bool, age: i64| mailcraft_model::Summary {
         key: mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 9, uid },
         subject: format!("m{uid}"),
@@ -471,12 +463,8 @@ fn only_mail_that_arrives_later_is_announced() {
 /// calendar). Synced in full, the empty Inbox is marked.
 #[test]
 fn the_first_message_of_an_empty_inbox_is_new() {
-    let store = temp("notify-empty");
-    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
-    let inbox =
-        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
-    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    let (mut s, id) = server_account("notify-empty", json!({"email": "zoe@example.org", "password": "pw"}), &[("INBOX", FolderRole::Inbox)]);
+    let store = s.store.clone().unwrap();
     s.apply(Event::Status { account: id.clone(), status: SyncStatus::Online { at: NOW } });
     let m = mailcraft_model::Summary {
         key: mailcraft_model::MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 9, uid: 1 },
@@ -496,12 +484,8 @@ fn the_first_message_of_an_empty_inbox_is_new() {
 /// what comes after it did.
 #[test]
 fn an_inbox_numbered_again_brings_no_new_mail() {
-    let store = temp("notify-renumbered");
-    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
-    let inbox =
-        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
-    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    let (mut s, id) = server_account("notify-renumbered", json!({"email": "zoe@example.org", "password": "pw"}), &[("INBOX", FolderRole::Inbox)]);
+    let store = s.store.clone().unwrap();
     let state = |validity: u32, uids: std::ops::RangeInclusive<u32>| {
         let messages = uids
             .map(|uid| {

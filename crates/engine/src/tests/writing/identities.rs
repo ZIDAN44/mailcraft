@@ -2,21 +2,18 @@
 //! written from any of its addresses, with that address's name, signature and place for
 //! replies, and the server is told that address sends it.
 
-use mailcraft_model::{Folder, MessageKey};
+use mailcraft_model::MessageKey;
 
 use super::*;
 
 /// A session with one account on a server (`zoe@example.org`), its Inbox and Drafts in, two
 /// signatures ("Full" for new mail and replies, "Shop"), and no other address yet.
 fn one_account(name: &str) -> (Session, String) {
-    let mut s = Session::open(Some(temp(name)), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw", "name": "Zoe Park"})).unwrap()["account"]
-        .as_str()
-        .unwrap()
-        .to_string();
-    let folder =
-        |path: &str, role| Folder { account: id.clone(), path: path.into(), delimiter: Some('/'), role, selectable: true, ..Default::default() };
-    s.apply(Event::Folders { account: id.clone(), folders: vec![folder("INBOX", FolderRole::Inbox), folder("Drafts", FolderRole::Drafts)] });
+    let (mut s, id) = server_account(
+        name,
+        json!({"email": "zoe@example.org", "password": "pw", "name": "Zoe Park"}),
+        &[("INBOX", FolderRole::Inbox), ("Drafts", FolderRole::Drafts)],
+    );
     s.run("account.setSignature", &json!({"account": id, "name": "Full", "signature": "Zoe Park\nStudio"})).unwrap();
     s.run("account.setSignature", &json!({"account": id, "name": "Shop", "signature": "The shop's desk"})).unwrap();
     s.run("account.signatureDefaults", &json!({"account": id, "new": "Full", "reply": "Full"})).unwrap();

@@ -270,11 +270,8 @@ fn the_sample_mailbox_can_send_and_a_local_one_cant() {
 /// sent" for good. Delivered, kept for later or refused, the news finds it.
 #[test]
 fn a_message_set_aside_as_it_goes_hears_what_became_of_it() {
-    let mut s = Session::open(Some(temp("set-aside-sending")), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
-    let inbox =
-        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
-    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    let (mut s, id) =
+        server_account("set-aside-sending", json!({"email": "riley@studio.example", "password": "pw"}), &[("INBOX", FolderRole::Inbox)]);
     let send = |s: &mut Session, subject: &str| -> u64 {
         s.run("mail.new", &json!({"account": id})).unwrap();
         s.run("compose.update", &json!({"to": "ben@x.example", "subject": subject, "body": "hi"})).unwrap();
@@ -337,11 +334,7 @@ fn an_outbox_selection_follows_its_message() {
 /// again with the reason; one that does go is done with.
 #[test]
 fn a_message_closed_as_it_goes_comes_back_if_refused() {
-    let mut s = Session::open(Some(temp("closed-sending")), mailcraft_model::dates::Clock::new(NOW, 0));
-    let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
-    let inbox =
-        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
-    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    let (mut s, id) = server_account("closed-sending", json!({"email": "riley@studio.example", "password": "pw"}), &[("INBOX", FolderRole::Inbox)]);
     for (close, params) in [("compose.close", json!({"save": true})), ("compose.discard", json!({}))] {
         s.run("mail.new", &json!({"account": id})).unwrap();
         s.run("compose.update", &json!({"to": "ben@x.example", "subject": "Refused", "body": "hi"})).unwrap();
