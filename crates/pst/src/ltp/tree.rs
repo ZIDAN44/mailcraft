@@ -129,8 +129,10 @@ mod tests {
         index.extend(2u16.to_le_bytes());
         index.extend(hid(0, 2).to_le_bytes());
         let h = Heap::of(vec![heap_block(0xBC, hid(0, 1), &[&tree_header(2, 4, 7, hid(0, 2)), &index])]).unwrap();
-        // It ends one way or the other (a leaf-sized reading of the index, here), and quickly.
-        let _ = records(&h, h.root, 2, 4);
+        // It ends, and quickly: read as leaves the index's records are keys 1 and 2, then the
+        // second reading of it starts again at 1.
+        let e = records(&h, h.root, 2, 4).err().unwrap();
+        assert!(e.to_string().contains("out of order"), "{e}");
     }
 
     #[test]

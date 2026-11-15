@@ -687,7 +687,15 @@ mod tests {
 
     #[test]
     fn embeds_a_system_font_when_there_is_one() {
-        let Some(data) = system_font() else { return };
+        let Some(data) = system_font() else {
+            // Windows and macOS always have one of them, so it's tested there; a Linux without
+            // DejaVu has none to embed.
+            if cfg!(any(windows, target_os = "macos")) {
+                panic!("no system font to embed");
+            }
+            eprintln!("skipped: no system font to embed");
+            return;
+        };
         let p = pdf(&doc("Hello café — ünïcödé"), Some(Fonts { regular: &data, bold: None }));
         let text = String::from_utf8_lossy(&p);
         assert!(text.contains("/Subtype /CIDFontType2") && text.contains("/FontFile2") && text.contains("/ToUnicode"));
