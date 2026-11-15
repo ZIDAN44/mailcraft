@@ -45,16 +45,27 @@ pub struct Run {
     pub italic: bool,
 }
 
+/// The kinds of Office file this previews.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kind {
+    /// A Word document (`.docx`, `.docm`).
+    Word,
+    /// An Excel workbook (`.xlsx`, `.xlsm`).
+    Excel,
+    /// A PowerPoint presentation (`.pptx`, `.pptm`).
+    PowerPoint,
+}
+
 /// The kind of Office file a name (or type) is, when it's one this can preview.
-pub fn kind(name: &str, mime: &str) -> Option<&'static str> {
+pub fn kind(name: &str, mime: &str) -> Option<Kind> {
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
     let m = mime.to_ascii_lowercase();
     if ext == "docx" || ext == "docm" || m.contains("wordprocessingml") {
-        Some("docx")
+        Some(Kind::Word)
     } else if ext == "xlsx" || ext == "xlsm" || m.contains("spreadsheetml") {
-        Some("xlsx")
+        Some(Kind::Excel)
     } else if ext == "pptx" || ext == "pptm" || m.contains("presentationml") {
-        Some("pptx")
+        Some(Kind::PowerPoint)
     } else {
         None
     }
@@ -67,9 +78,9 @@ pub fn preview(name: &str, mime: &str, data: &[u8]) -> Option<Preview> {
     }
     let zip = Zip::new(data)?;
     match kind(name, mime)? {
-        "docx" => document(&String::from_utf8_lossy(&zip.read("word/document.xml")?)),
-        "xlsx" => workbook(&zip),
-        _ => slides(&zip),
+        Kind::Word => document(&String::from_utf8_lossy(&zip.read("word/document.xml")?)),
+        Kind::Excel => workbook(&zip),
+        Kind::PowerPoint => slides(&zip),
     }
 }
 
@@ -355,13 +366,29 @@ fn on(attrs: &str) -> bool {
 
 // ----- Word -----
 
+/// A Word table being read: nested tables flatten into the cell of the outer one.
+#[derive(Default)]
+struct OpenTable {
+    rows: Vec<Vec<String>>,
+    /// The row being read.
+    row: Vec<String>,
+    /// The cell's text so far.
+    cell: String,
+}
+
+/// A Word paragraph being read.
+#[derive(Default)]
+struct OpenPara {
+    runs: Vec<Run>,
+    heading: bool,
+    list: bool,
+}
+
 fn document(xml: &str) -> Option<Preview> {
     let mut blocks = Vec::new();
-    // Inside a table: its rows, the row being read, the cell's text; nested tables flatten into
-    // the cell of the outer one.
-    let mut table: Option<(Vec<Vec<String>>, Vec<String>, String)> = None;
+    let mut table: Option<OpenTable> = None;
     let mut depth = 0usize;
-    let mut para: Option<(Vec<Run>, bool, bool)> = None;
+    let mut para: Option<OpenPara> = None;
     let mut run = Run::default();
     let mut in_text = false;
     for t in tokens(xml) {
@@ -373,20 +400,20 @@ fn document(xml: &str) -> Option<Preview> {
                 "tbl" if !empty => {
                     depth += 1;
                     if depth == 1 {
-                        table = Some((Vec::new(), Vec::new(), String::new()));
+                        table = Some(OpenTable::default());
                     }
                 }
                 "tr" if depth == 1 && !empty => {
                     if let Some(tb) = table.as_mut() {
-                        tb.1.clear();
+                        tb.row.clear();
                     }
                 }
                 "tc" if depth == 1 && !empty => {
                     if let Some(tb) = table.as_mut() {
-                        tb.2.clear();
+                        tb.cell.clear();
                     }
                 }
-                "p" if !empty => para = Some((Vec::new(), false, false)),
+                "p" if !empty => para = Some(OpenPara::default()),
                 "p" => {
                     if table.is_none() {
                         blocks.push(Block::Paragraph { runs: Vec::new(), heading: false, list: false });
@@ -395,12 +422,12 @@ fn document(xml: &str) -> Option<Preview> {
                 "pStyle" => {
                     let v = attr(attrs, "val").unwrap_or_default().to_ascii_lowercase();
                     if let Some(p) = para.as_mut() {
-                        p.1 = v.starts_with("heading") || v == "title" || v.starts_with("berschrift") || v.starts_with("titre");
+                        p.heading = v.starts_with("heading") || v == "title" || v.starts_with("berschrift") || v.starts_with("titre");
                     }
                 }
                 "numPr" => {
                     if let Some(p) = para.as_mut() {
-                        p.2 = true;
+                        p.list = true;
                     }
                 }
                 "r" if !empty => run = Run::default(),
@@ -419,41 +446,41 @@ fn document(xml: &str) -> Option<Preview> {
                     if let Some(p) = para.as_mut()
                         && !run.text.is_empty()
                     {
-                        p.0.push(std::mem::take(&mut run));
+                        p.runs.push(std::mem::take(&mut run));
                     }
                 }
                 "p" => {
-                    let Some((runs, heading, list)) = para.take() else { continue };
+                    let Some(OpenPara { runs, heading, list }) = para.take() else { continue };
                     match table.as_mut() {
                         Some(tb) => {
-                            if !tb.2.is_empty() {
-                                tb.2.push('\n');
+                            if !tb.cell.is_empty() {
+                                tb.cell.push('\n');
                             }
-                            tb.2.extend(runs.iter().map(|r| r.text.as_str()));
+                            tb.cell.extend(runs.iter().map(|r| r.text.as_str()));
                         }
                         None => blocks.push(Block::Paragraph { runs, heading, list }),
                     }
                 }
                 "tc" if depth == 1 => {
                     if let Some(tb) = table.as_mut()
-                        && tb.1.len() < MAX_COLS
+                        && tb.row.len() < MAX_COLS
                     {
-                        let cell = std::mem::take(&mut tb.2);
-                        tb.1.push(cell);
+                        let cell = std::mem::take(&mut tb.cell);
+                        tb.row.push(cell);
                     }
                 }
                 "tr" if depth == 1 => {
                     if let Some(tb) = table.as_mut()
-                        && tb.0.len() < MAX_ROWS
+                        && tb.rows.len() < MAX_ROWS
                     {
-                        let row = std::mem::take(&mut tb.1);
-                        tb.0.push(row);
+                        let row = std::mem::take(&mut tb.row);
+                        tb.rows.push(row);
                     }
                 }
                 "tbl" => {
                     depth = depth.saturating_sub(1);
                     if depth == 0
-                        && let Some((rows, _, _)) = table.take()
+                        && let Some(OpenTable { rows, .. }) = table.take()
                     {
                         blocks.push(Block::Table(rows));
                     }

@@ -140,6 +140,14 @@ fn deflated_parts_as_office_writes_them() {
 }
 
 #[test]
+fn kinds_by_name_or_type() {
+    assert_eq!(kind("Plan.DOCM", ""), Some(Kind::Word));
+    assert_eq!(kind("x", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), Some(Kind::Excel));
+    assert_eq!(kind("deck.pptx", "application/octet-stream"), Some(Kind::PowerPoint));
+    assert_eq!(kind("notes.txt", "text/plain"), None);
+}
+
+#[test]
 fn junk_is_no_preview() {
     assert_eq!(preview("a.docx", "", b"not a zip"), None);
     assert_eq!(preview("a.docx", "", &zip(&[("other.xml", "<x/>")])), None);
