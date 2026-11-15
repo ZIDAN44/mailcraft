@@ -502,7 +502,7 @@ impl Packs {
         // A file made new that couldn't say so as it was made says in its writes that everything
         // in it is kept as this build keeps it (none of it needs compressing again), until one of
         // them reaches the disk: one that doesn't is lost to a crash or a full drive.
-        let fresh = Packs::lock(&self.fresh).contains(account);
+        let fresh = lock(&self.fresh).contains(account);
         if fresh {
             self.write_fresh_meta(&tx, account)?;
         }
@@ -531,7 +531,7 @@ impl Packs {
             self.seals.timed(how.seal, at.elapsed());
         }
         if fresh && how.durable {
-            Packs::lock(&self.fresh).remove(account);
+            lock(&self.fresh).remove(account);
         }
         if let Some(keys) = touched {
             self.copied_again(account, keys);
@@ -650,7 +650,7 @@ impl Packs {
             w.closing = true;
             w.due.clear();
         }
-        let open: Vec<(String, Arc<Database>)> = Packs::lock(&self.open).dbs.iter().map(|(a, db)| (a.clone(), db.clone())).collect();
+        let open: Vec<(String, Arc<Database>)> = lock(&self.open).dbs.iter().map(|(a, db)| (a.clone(), db.clone())).collect();
         let mut done = Ok(());
         for (a, db) in open {
             if let Err(e) = seal(&db, &self.seals, &a) {

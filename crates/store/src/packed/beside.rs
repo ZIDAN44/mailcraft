@@ -49,7 +49,7 @@ impl Packs {
         if dir.to_str().is_none() {
             return elsewhere;
         }
-        let held: HashSet<String> = Packs::lock(&self.names).values().map(|n| same_key(&self.dir.join(n))).collect();
+        let held: HashSet<String> = lock(&self.names).values().map(|n| same_key(&self.dir.join(n))).collect();
         for i in 1..=TRIES {
             let name = if i == 1 { format!("{stem}.{EXTENSION}") } else { format!("{stem} ({i}).{EXTENSION}") };
             let path = dir.join(name);
@@ -82,7 +82,7 @@ impl Packs {
             }
             if let (Some(account), Some(p)) = (take, path.to_str()) {
                 {
-                    let mut names = Packs::lock(&self.names);
+                    let mut names = lock(&self.names);
                     // Another account's since it was looked at: the next name.
                     if names.values().any(|n| same_key(&self.dir.join(n)) == same_key(&path)) {
                         continue;

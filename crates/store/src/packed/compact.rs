@@ -476,7 +476,7 @@ struct Running<'a>(&'a Packs, &'a str);
 
 impl Drop for Running<'_> {
     fn drop(&mut self) {
-        Packs::lock(&self.0.recompressing).remove(self.1);
+        lock(&self.0.recompressing).remove(self.1);
     }
 }
 
@@ -494,7 +494,7 @@ impl Packs {
         if self.file(account).is_none() || self.db(account, false)?.is_none() {
             return Ok(None);
         }
-        if !Packs::lock(&self.recompressing).insert(account.to_string()) {
+        if !lock(&self.recompressing).insert(account.to_string()) {
             return Err(io::Error::new(io::ErrorKind::ResourceBusy, "the data file is being compressed again already"));
         }
         let _running = Running(self, account);

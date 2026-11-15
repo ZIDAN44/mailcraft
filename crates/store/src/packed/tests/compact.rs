@@ -11,8 +11,9 @@ use redb::ReadableDatabase;
 
 use super::measure::{ms, percentile};
 use super::*;
+use crate::lock;
+use crate::packed::Tables;
 use crate::packed::compact::{Account, Step, Target};
-use crate::packed::{Packs, Tables};
 
 /// What a data file from before holds: path → bytes as kept.
 pub(super) type Kept = Vec<(String, Vec<u8>)>;
@@ -345,14 +346,14 @@ fn a_file_moved_behind_a_recompress_is_compressed_too() {
     let mut before = read_back(&s);
     let p = packs(&s);
     // As a batch is written: a run under way (as `Packs::recompress` says it is).
-    Packs::lock(&p.recompressing).insert("a1".into());
+    lock(&p.recompressing).insert("a1".into());
     let target = Moving {
         inner: Account { packs: p, account: "a1", reopened: p.reopened("a1"), kept: &always },
         moves: moves.to_vec(),
         done: AtomicBool::new(false),
     };
     let r = super::super::compact::recompress(&target, &AtomicBool::new(false), &mut |_| {}).unwrap();
-    Packs::lock(&p.recompressing).remove("a1");
+    lock(&p.recompressing).remove("a1");
     eprintln!("{r:?}");
     assert!(r.finished);
     for (from, to) in moves {

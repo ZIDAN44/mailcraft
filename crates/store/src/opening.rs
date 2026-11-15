@@ -89,10 +89,6 @@ fn next_said(permille: u32) -> u32 {
     }
 }
 
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
 impl OpenProgress {
     /// Nothing to open (a cache of plain files, or in memory): done already.
     pub fn finished() -> OpenProgress {

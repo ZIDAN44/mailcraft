@@ -61,12 +61,12 @@ fn a_compaction_that_fails_leaves_the_file_to_be_opened_again() {
     let before = read_back(&s);
     let p = packs(&s);
     let open_before = p.db("a1", false).unwrap().unwrap();
-    *crate::packed::Packs::lock(&p.compact_hook) = Some(Box::new(|| Err(std::io::Error::other("the drive went away"))));
+    *crate::packed::lock(&p.compact_hook) = Some(Box::new(|| Err(std::io::Error::other("the drive went away"))));
     drop(open_before);
     let e = s.compact_data_file("a1").unwrap_err();
     assert!(e.to_string().contains("the drive went away"), "{e}");
-    assert!(!crate::packed::Packs::lock(&p.open).dbs.contains_key("a1"), "closed, not given back");
-    *crate::packed::Packs::lock(&p.compact_hook) = None;
+    assert!(!crate::packed::lock(&p.open).dbs.contains_key("a1"), "closed, not given back");
+    *crate::packed::lock(&p.compact_hook) = None;
     assert_eq!(read_back(&s), before, "opened again as it was");
     assert_eq!(s.read_body(&kept[1]).unwrap(), noise(64 << 10, 2));
     assert!(s.compact_data_file("a1").unwrap().is_some(), "and compacts next time");
@@ -84,7 +84,7 @@ fn the_account_waits_for_a_compaction_in_place() {
     // after this. (Its thread's own clock after it returns can come later than a waiting read's.)
     let hook_done = std::sync::Arc::new(std::sync::Mutex::new(None::<Instant>));
     let done = hook_done.clone();
-    *crate::packed::Packs::lock(&p.compact_hook) = Some(Box::new(move || {
+    *crate::packed::lock(&p.compact_hook) = Some(Box::new(move || {
         let _ = started.lock().unwrap().send(());
         std::thread::sleep(Duration::from_millis(300));
         *done.lock().unwrap() = Some(Instant::now());
@@ -299,7 +299,7 @@ fn a_copy_is_put_in_place_while_something_holds_the_file_a_moment() {
     let want = read_back(&s);
     let (held, holder) = (Arc::new(Mutex::new(None::<std::fs::File>)), file.clone());
     let holding = held.clone();
-    *crate::packed::Packs::lock(&packs(&s).compact_hook) = Some(Box::new(move || {
+    *crate::packed::lock(&packs(&s).compact_hook) = Some(Box::new(move || {
         // Shared with nobody: a rename over it is refused until it's let go of.
         *holding.lock().unwrap() = Some(std::fs::File::options().read(true).share_mode(0).open(&holder)?);
         Ok(())
@@ -312,7 +312,7 @@ fn a_copy_is_put_in_place_while_something_holds_the_file_a_moment() {
     })));
     let shrunk = s.copy_data_file("a1", &mut |_| true, &mut || true);
     crate::atomic::RENAME_REFUSED.set(None);
-    *crate::packed::Packs::lock(&packs(&s).compact_hook) = None;
+    *crate::packed::lock(&packs(&s).compact_hook) = None;
     drop(held.lock().unwrap().take());
     let shrunk = shrunk.unwrap().unwrap();
     assert!(*refused.lock().unwrap() >= 1, "refused while held, then put in place");
@@ -334,7 +334,7 @@ fn the_windows_thread_isnt_kept_waiting_by_a_compaction() {
     let (go, held) = mpsc::channel::<()>();
     let let_go = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let (hold, was_let_go) = (std::sync::Mutex::new((started, held)), let_go.clone());
-    *crate::packed::Packs::lock(&p.compact_hook) = Some(Box::new(move || {
+    *crate::packed::lock(&p.compact_hook) = Some(Box::new(move || {
         let hold = hold.lock().unwrap();
         if hold.0.send(()).is_ok() && hold.1.recv_timeout(Duration::from_secs(60)).is_ok() {
             was_let_go.store(true, std::sync::atomic::Ordering::SeqCst);
@@ -363,8 +363,8 @@ fn the_windows_thread_isnt_kept_waiting_by_a_compaction() {
         assert!(e.to_string().contains("being compacted"), "{e}");
         assert!(wrote_at >= done_at, "the write waited for it");
     });
-    *crate::packed::Packs::lock(&p.compact_hook) = None;
+    *crate::packed::lock(&p.compact_hook) = None;
     assert_eq!(s.read_body(&kept[1]).unwrap(), b"Subject: w\r\n\r\nx");
-    assert!(crate::packed::Packs::lock(&p.open).taken.is_empty(), "given back");
+    assert!(crate::packed::lock(&p.open).taken.is_empty(), "given back");
     drop(s);
 }

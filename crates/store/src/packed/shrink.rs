@@ -69,7 +69,7 @@ impl Taken<'_> {
     /// The file open again for everyone, as it is.
     fn give_back(mut self) {
         if let Some(db) = self.db.take() {
-            Packs::lock(&self.packs.open).dbs.insert(self.account.to_string(), Arc::new(db));
+            lock(&self.packs.open).dbs.insert(self.account.to_string(), Arc::new(db));
         }
     }
 }
@@ -79,7 +79,7 @@ impl Drop for Taken<'_> {
         // Not given back (an error, a panic, or a copy put in its place): closed, opened again
         // when next asked for (after a panic the database writes nothing, and it's checked then).
         if let Some(db) = self.db.take() {
-            Packs::lock(&self.packs.open).caches.remove(self.account);
+            lock(&self.packs.open).caches.remove(self.account);
             drop(db);
         }
     }
@@ -90,7 +90,7 @@ struct Journaling<'a>(&'a Packs, &'a str);
 
 impl Drop for Journaling<'_> {
     fn drop(&mut self) {
-        Packs::lock(&self.0.copying).remove(self.1);
+        lock(&self.0.copying).remove(self.1);
     }
 }
 
@@ -278,12 +278,12 @@ fn write_copy(db: &Database, f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>) 
 impl Packs {
     /// Whether `account`'s data file is being copied: what's written to it is noted.
     pub(super) fn copying(&self, account: &str) -> bool {
-        Packs::lock(&self.copying).contains_key(account)
+        lock(&self.copying).contains_key(account)
     }
 
     /// `keys` were written to `account`'s data file while it's copied.
     pub(super) fn copied_again(&self, account: &str, keys: Vec<String>) {
-        if let Some(j) = Packs::lock(&self.copying).get_mut(account) {
+        if let Some(j) = lock(&self.copying).get_mut(account) {
             j.keys.extend(keys);
             if j.keys.len() > JOURNAL_MAX {
                 j.full = true;
@@ -316,7 +316,7 @@ impl Packs {
                     std::thread::sleep(Duration::from_millis(5));
                 }
                 Err(held) => {
-                    Packs::lock(&self.open).dbs.insert(account.to_string(), held);
+                    lock(&self.open).dbs.insert(account.to_string(), held);
                     return Err(io::Error::new(io::ErrorKind::ResourceBusy, "the data file is in use; try again in a moment"));
                 }
             }
@@ -333,7 +333,7 @@ impl Packs {
         let before = fs::metadata(&path)?.len();
         let pace = read_meta(&db.begin_read().map_err(disk)?)?.pace;
         #[cfg(test)]
-        if let Some(hook) = Packs::lock(&self.compact_hook).as_ref() {
+        if let Some(hook) = lock(&self.compact_hook).as_ref() {
             hook()?;
         }
         db.compact().map_err(other)?;
@@ -372,7 +372,7 @@ impl Packs {
         }
         // What's written from here on is noted. The writer taken once after: a write that began
         // before and didn't see it has committed by then, and the copy reads what it wrote.
-        if Packs::lock(&self.copying).insert(account.to_string(), Journal::default()).is_some() {
+        if lock(&self.copying).insert(account.to_string(), Journal::default()).is_some() {
             return Err(io::Error::new(io::ErrorKind::ResourceBusy, "the data file is being copied already"));
         }
         let _journaling = Journaling(self, account);
@@ -392,7 +392,7 @@ impl Packs {
             return Ok(Some(cancelled));
         }
         let Some(mut taken) = self.take(account)? else { return Ok(None) };
-        let journal = Packs::lock(&self.copying).get_mut(account).map(std::mem::take).unwrap_or_default();
+        let journal = lock(&self.copying).get_mut(account).map(std::mem::take).unwrap_or_default();
         if journal.full {
             taken.give_back();
             return Err(io::Error::other("too much was written to the data file while it was copied; it's tried again later"));
@@ -442,7 +442,7 @@ impl Packs {
     fn swap_in(&self, account: &str, copy: &mut CopyFile, path: &Path, taken: Taken<'_>) -> io::Result<()> {
         // A test's: something holding the file as it's put in place.
         #[cfg(test)]
-        if let Some(hook) = Packs::lock(&self.compact_hook).as_ref() {
+        if let Some(hook) = lock(&self.compact_hook).as_ref() {
             hook()?;
         }
         crate::atomic::rename(&copy.path, path)?;
@@ -472,7 +472,7 @@ impl Packs {
                 }
             }
         }
-        let beside: Vec<PathBuf> = Packs::lock(&self.names).values().map(Path::new).filter(|p| p.is_absolute()).map(copy_path).collect();
+        let beside: Vec<PathBuf> = lock(&self.names).values().map(Path::new).filter(|p| p.is_absolute()).map(copy_path).collect();
         for copy in beside {
             if fs::symlink_metadata(&copy).is_ok_and(|m| m.is_file()) {
                 remove(&copy);

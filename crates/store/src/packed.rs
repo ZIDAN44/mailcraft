@@ -24,7 +24,7 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use redb::{Database, ReadableDatabase, ReadableTable, TableDefinition};
 
-use crate::{CACHE, CommitTimes, OpenProgress, Prepared, Result, StoreError, io_err, write_atomic};
+use crate::{CACHE, CommitTimes, OpenProgress, Prepared, Result, StoreError, io_err, lock, write_atomic};
 
 mod beside;
 mod commit;
@@ -223,23 +223,19 @@ impl Packs {
         }
     }
 
-    fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-        m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
-    }
-
     /// The data file of an account, when it has one (or is named already).
     pub(crate) fn file(&self, account: &str) -> Option<PathBuf> {
-        Packs::lock(&self.names).get(account).map(|n| self.dir.join(n))
+        lock(&self.names).get(account).map(|n| self.dir.join(n))
     }
 
     /// The name of an account's data file, chosen the first time: its address, as Outlook names
     /// a `.pst` (an opened data file keeps that file's name).
     fn name(&self, account: &str) -> String {
-        if let Some(n) = Packs::lock(&self.names).get(account) {
+        if let Some(n) = lock(&self.names).get(account) {
             return n.clone();
         }
         let stem = names::stem(&self.root, account);
-        let mut names = Packs::lock(&self.names);
+        let mut names = lock(&self.names);
         let taken = |n: &str| names.values().any(|v| v.eq_ignore_ascii_case(n)) || self.dir.join(n).exists();
         let mut name = format!("{stem}.{EXTENSION}");
         let mut i = 2;
@@ -440,7 +436,7 @@ impl Packs {
                     }
                     // A recompress may have passed where it went: it goes back for it.
                     match raw_to {
-                        Some(to) => pull_back(tx, &t.files, &to, Packs::lock(&self.recompressing).contains(&a)),
+                        Some(to) => pull_back(tx, &t.files, &to, lock(&self.recompressing).contains(&a)),
                         None => Ok(()),
                     }
                 })
@@ -476,9 +472,9 @@ impl Packs {
     /// was open, and its name.
     fn forget_account(&self, account: &str) -> (bool, Option<String>) {
         let forgotten = self.close_and_forget(account);
-        Packs::lock(&self.fresh).remove(account);
+        lock(&self.fresh).remove(account);
         self.seals.forget(account);
-        names::save(&self.root, &Packs::lock(&self.names));
+        names::save(&self.root, &lock(&self.names));
         forgotten
     }
 

@@ -82,7 +82,7 @@ pub(super) struct Opening<'a> {
 
 impl Drop for Opening<'_> {
     fn drop(&mut self) {
-        let mut open = Packs::lock(&self.packs.open);
+        let mut open = lock(&self.packs.open);
         open.opening.remove(self.account);
         open.taken.remove(self.account);
         drop(open);
@@ -144,7 +144,7 @@ pub(super) fn being_compacted() -> io::Error {
 impl Packs {
     /// The open files, once no thread is opening `account`'s.
     pub(super) fn settled(&self, account: &str) -> std::sync::MutexGuard<'_, Open> {
-        let mut open = Packs::lock(&self.open);
+        let mut open = lock(&self.open);
         while open.opening.contains(account) {
             open = self.opened.wait(open).unwrap_or_else(std::sync::PoisonError::into_inner);
         }
@@ -155,7 +155,7 @@ impl Packs {
     /// a compaction has to itself is refused at once ([`being_compacted`]).
     fn settled_or_busy(&self, account: &str) -> io::Result<std::sync::MutexGuard<'_, Open>> {
         let refuse = NO_WAITING.with(std::cell::Cell::get) && !WRITING.with(std::cell::Cell::get);
-        let mut open = Packs::lock(&self.open);
+        let mut open = lock(&self.open);
         while open.opening.contains(account) {
             if refuse && open.taken.contains(account) {
                 return Err(being_compacted());
@@ -183,10 +183,10 @@ impl Packs {
         open.caches.remove(account);
         let was_open = open.dbs.remove(account).is_some();
         #[cfg(test)]
-        if let Some(hook) = Packs::lock(&self.let_go_hook).as_ref() {
+        if let Some(hook) = lock(&self.let_go_hook).as_ref() {
             hook();
         }
-        let name = Packs::lock(&self.names).remove(account);
+        let name = lock(&self.names).remove(account);
         drop(open);
         (was_open, name)
     }
@@ -211,7 +211,7 @@ impl Packs {
     /// How many times `account`'s data file was let go of after a write the disk failed: a writer
     /// that sees it change knows what it wrote without waiting for the disk may be gone.
     pub(crate) fn reopened(&self, account: &str) -> u64 {
-        Packs::lock(&self.open).reopened.get(account).copied().unwrap_or(0)
+        lock(&self.open).reopened.get(account).copied().unwrap_or(0)
     }
 
     /// Whether the data file let go of after a failed write is still held, waiting
@@ -221,7 +221,7 @@ impl Packs {
         let end = Instant::now().checked_add(LET_GO_WAIT);
         loop {
             {
-                let mut open = Packs::lock(&self.open);
+                let mut open = lock(&self.open);
                 match open.failed.get(account).map(Weak::strong_count) {
                     None => return false,
                     Some(0) => {
@@ -275,7 +275,7 @@ impl Packs {
     /// Whether `account` takes a bulk or a long write now: each of its commits that waits for the
     /// disk is sealed meanwhile, and its batches that don't run longer between them.
     pub(super) fn sealing(&self, account: &str) -> bool {
-        let open = Packs::lock(&self.open);
+        let open = lock(&self.open);
         open.bulk_writers.contains(account) || open.long_writers.contains_key(account)
     }
 
@@ -287,7 +287,7 @@ impl Packs {
     /// so wasn't sealed, has committed by then, and is sealed after.
     pub(crate) fn long_begin(&self, account: &str) {
         {
-            let mut open = Packs::lock(&self.open);
+            let mut open = lock(&self.open);
             let n = open.long_writers.entry(account.to_string()).or_default();
             *n = n.saturating_add(1);
         }
@@ -305,7 +305,7 @@ impl Packs {
 
     /// One of `account`'s long writes is over.
     pub(crate) fn long_end(&self, account: &str) {
-        let mut open = Packs::lock(&self.open);
+        let mut open = lock(&self.open);
         if let Some(n) = open.long_writers.get_mut(account) {
             *n = n.saturating_sub(1);
             if *n == 0 {
@@ -342,11 +342,11 @@ impl Packs {
         // went): what waited is made durable, or the file stays open and its seal still due.
         if let Err(e) = seal(&db, &self.seals, account) {
             log::warn!("{account}: its data file couldn't be sealed to change its cache: {e}");
-            Packs::lock(&self.open).dbs.insert(account.to_string(), Arc::new(db));
+            lock(&self.open).dbs.insert(account.to_string(), Arc::new(db));
             return false;
         }
         let used = CacheUse::of(&db);
-        let mut open = Packs::lock(&self.open);
+        let mut open = lock(&self.open);
         let spent = open.spent.get(account).copied().unwrap_or_default().add(used);
         open.spent.insert(account.to_string(), spent);
         open.caches.remove(account);
@@ -397,7 +397,7 @@ impl Packs {
             }
         }
         let cache = open.wanted(account);
-        let known = Packs::lock(&self.names).contains_key(account);
+        let known = lock(&self.names).contains_key(account);
         if !create && !known {
             return Ok(None);
         }
@@ -455,14 +455,14 @@ impl Packs {
                 Ok(()) => {}
                 Err(e) => {
                     log::warn!("{}: made, but couldn't say how it's kept yet: {e}", path.display());
-                    Packs::lock(&self.fresh).insert(account.to_string());
+                    lock(&self.fresh).insert(account.to_string());
                 }
             }
         } else if let Some(folder) = self.held_elsewhere_open(&name, &db) {
             return Err(taken_over(&path, &folder));
         }
         let db = Arc::new(db);
-        let mut open = Packs::lock(&self.open);
+        let mut open = lock(&self.open);
         open.dbs.insert(account.to_string(), db.clone());
         if cache == CACHE {
             open.caches.remove(account);
@@ -509,7 +509,7 @@ impl Packs {
     pub(crate) fn open_all(&self) -> Result<()> {
         self.bring_in_folders()?;
         self.remove_copies();
-        let mut files: Vec<(String, String)> = Packs::lock(&self.names).iter().map(|(a, n)| (n.clone(), a.clone())).collect();
+        let mut files: Vec<(String, String)> = lock(&self.names).iter().map(|(a, n)| (n.clone(), a.clone())).collect();
         files.sort();
         self.progress.start(files.len());
         for (name, account) in &files {

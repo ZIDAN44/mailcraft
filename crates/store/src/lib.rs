@@ -85,6 +85,11 @@ pub(crate) fn open_elsewhere(what: String) -> io::Error {
     io::Error::other(OpenElsewhere(what))
 }
 
+/// A lock that outlives a panic elsewhere (what it guards is whole between steps).
+pub(crate) fn lock<T>(m: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
 fn io_err(path: &Path) -> impl FnOnce(io::Error) -> StoreError + '_ {
     move |source| StoreError::Io { path: path.display().to_string(), source }
 }
