@@ -274,9 +274,9 @@ fn a_note_s_files_open_from_the_note() {
     let notices = a.session.notices.len();
     a.act(crate::Action::NoteFile { uid: uid.clone(), index: 0, open: true });
     assert!(a.session.notices.iter().skip(notices).any(|n| n.text.contains("swatch.pdf")), "{:?}", a.session.notices);
-    if let Some(open) = mailcraft_engine::store::scratch_dir("open") {
-        assert_eq!(std::fs::read(open.join("swatch.pdf")).unwrap(), b"%PDF-1.7");
-    }
+    // In the test's own folder for files handed to other apps, not the user's.
+    let open = own_scratch_dir("open").unwrap();
+    assert_eq!(std::fs::read(open.join("swatch.pdf")).unwrap(), b"%PDF-1.7");
     // Save as… with nowhere chosen saves nothing and says nothing.
     let notices = a.session.notices.len();
     a.act(crate::Action::NoteFile { uid, index: 0, open: false });

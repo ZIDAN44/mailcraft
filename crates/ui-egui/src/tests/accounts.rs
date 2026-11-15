@@ -8,6 +8,50 @@ mod held_keys;
 pub(super) mod importing;
 mod offers;
 
+pub(super) fn jmap_form() -> Dialog {
+    let mut d = Dialog::add_account_with("zoe@fastmail.example", true);
+    if let Dialog::AddAccount(f) = &mut d {
+        f.kind = crate::dialogs::AccountKind::Jmap;
+        f.jmap_url = " https://api.fastmail.example/jmap/session".into();
+        f.password = "pw".into();
+    }
+    d
+}
+
+pub(super) fn pop_form() -> Dialog {
+    let mut d = Dialog::add_account_with("ana@example.org", true);
+    if let Dialog::AddAccount(f) = &mut d {
+        f.imap_host = "imap.example.org".into();
+        f.smtp_host = "smtp.example.org".into();
+        f.kind = crate::dialogs::AccountKind::Pop;
+        f.pop_host = "pop.example.org".into();
+        f.pop_port = "995".into();
+        f.pop_security = mailcraft_engine::model::Security::Tls;
+        f.pst = "C:/Mail/old.pst".into();
+        f.password = "pw".into();
+    }
+    d
+}
+
+pub(super) fn calendar_form() -> Dialog {
+    let mut d = Dialog::add_account();
+    if let Dialog::AddAccount(f) = &mut d {
+        f.calendar_only = true;
+        f.dav_url = " https://cloud.example.org/remote.php/dav ".into();
+        f.email = "zoe@example.org".into();
+        f.password = "app-pw".into();
+    }
+    d
+}
+
+pub(super) fn graph_form() -> Dialog {
+    let mut d = Dialog::add_account_with("ana@contoso.example", true);
+    if let Dialog::AddAccount(f) = &mut d {
+        f.kind = crate::dialogs::AccountKind::Graph;
+    }
+    d
+}
+
 #[test]
 fn the_account_form_adds_exchange_accounts() {
     let (mut a, _) = app("graph-form");

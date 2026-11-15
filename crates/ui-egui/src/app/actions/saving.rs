@@ -147,7 +147,7 @@ impl MailApp {
             return None;
         }
         let name = self.attachment_name(i);
-        let Some(dir) = mailcraft_engine::store::scratch_dir("open") else {
+        let Some(dir) = crate::scratch_dir("open") else {
             self.session.notice(tl!("There's no folder to put the attachment in for another app"), true);
             return None;
         };
@@ -179,7 +179,7 @@ impl MailApp {
             .and_then(|n| n.note.kept_files().get(index).map(|f| mailcraft_engine::mime::sanitize_filename(f.file_name())))
             .unwrap_or_else(|| "attachment".into());
         let path = if open {
-            let Some(dir) = mailcraft_engine::store::scratch_dir("open") else {
+            let Some(dir) = crate::scratch_dir("open") else {
                 self.session.notice(tl!("There's no folder to put the attachment in for another app"), true);
                 return;
             };

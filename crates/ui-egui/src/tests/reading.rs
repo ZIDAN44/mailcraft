@@ -131,6 +131,7 @@ fn attachments_drag_out_as_files() {
     a.act(crate::Action::DragOut(index));
     let path = a.take_drag_out().expect("a file to drag");
     assert!(path.is_file() && path.metadata().unwrap().len() > 0, "{path:?}");
+    assert!(path.starts_with(own_scratch_dir("open").unwrap()), "the test's own folder, not the user's: {path:?}");
 }
 
 #[test]

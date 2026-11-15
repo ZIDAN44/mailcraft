@@ -95,6 +95,16 @@ pub(crate) fn clipboard_html() -> Option<String> {
     CLIPBOARD_HTML.get().and_then(|read| read())
 }
 
+/// The user's folder `name` for files handed to other apps ([`mailcraft_engine::store::scratch_dir`]);
+/// in the tests, the test's own (the user's is shared with a running MailCraft and other runs).
+pub(crate) fn scratch_dir(name: &str) -> Option<std::path::PathBuf> {
+    #[cfg(test)]
+    if let Some(own) = tests::own_scratch_dir(name) {
+        return Some(own);
+    }
+    mailcraft_engine::store::scratch_dir(name)
+}
+
 /// Whether the message being written shows in the reading pane: when it isn't popped out, or
 /// where windows of its own can't open (the browser).
 pub(crate) fn compose_inline(c: &mailcraft_engine::Compose, ctx: &egui::Context) -> bool {

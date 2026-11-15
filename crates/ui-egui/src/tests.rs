@@ -77,6 +77,8 @@ struct Scratch {
     /// The caches made in them: their read marks are written first (written after, on their
     /// own thread, they'd make the folder again).
     stores: Vec<Store>,
+    /// Where the window puts files for other apps in this test ([`own_scratch_dir`]).
+    handed: Option<std::path::PathBuf>,
 }
 
 impl Drop for Scratch {
@@ -84,7 +86,7 @@ impl Drop for Scratch {
         for store in self.stores.drain(..) {
             store.flush_marks();
         }
-        for folder in &self.folders {
+        for folder in self.folders.iter().chain(&self.handed) {
             // Leftovers in the temporary folder are harmless; a failed clean-up isn't a failed test.
             let _ = std::fs::remove_dir_all(folder);
         }
@@ -100,6 +102,25 @@ pub(crate) fn scratch(name: &str) -> std::path::PathBuf {
     let _ = std::fs::remove_dir_all(&folder);
     SCRATCH.with(|s| s.borrow_mut().folders.push(folder.clone()));
     folder
+}
+
+/// The folder `name` the window puts files for other apps in ([`crate::scratch_dir`]), for a
+/// test that has a [`scratch`] folder: `<that folder>-handed/<name>`, gone with it. `None` on a
+/// thread with none (work a test sent to a thread of its own), which takes the user's.
+pub(crate) fn own_scratch_dir(name: &str) -> Option<std::path::PathBuf> {
+    let root = SCRATCH.with(|s| {
+        let mut s = s.borrow_mut();
+        if s.handed.is_none() {
+            let first = s.folders.first()?;
+            let handed = first.with_file_name(format!("{}-handed", first.file_name()?.to_string_lossy()));
+            let _ = std::fs::remove_dir_all(&handed);
+            s.handed = Some(handed);
+        }
+        s.handed.clone()
+    })?;
+    let dir = root.join(name);
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir)
 }
 
 /// A cache made in a [`scratch`] folder, its marks written before the folder goes.
@@ -473,10 +494,10 @@ pub(crate) fn tour() {
             Dialog::Rules,
             Dialog::rule_from("zoe@studio.example"),
             Dialog::add_account_with("zoe@gmail.com", true),
-            jmap_form(),
-            graph_form(),
-            pop_form(),
-            calendar_form(),
+            accounts::jmap_form(),
+            accounts::graph_form(),
+            accounts::pop_form(),
+            accounts::calendar_form(),
             Dialog::Preview {
                 title: "notes.txt".into(),
                 header: vec![("From".into(), "Zoe".into())],
@@ -549,50 +570,6 @@ line two"
         a.session.apply(MailEvent::Status { account: "sample".into(), status: st });
         frame(&ctx, &mut a, vec![]);
     }
-}
-
-fn jmap_form() -> Dialog {
-    let mut d = Dialog::add_account_with("zoe@fastmail.example", true);
-    if let Dialog::AddAccount(f) = &mut d {
-        f.kind = crate::dialogs::AccountKind::Jmap;
-        f.jmap_url = " https://api.fastmail.example/jmap/session".into();
-        f.password = "pw".into();
-    }
-    d
-}
-
-fn pop_form() -> Dialog {
-    let mut d = Dialog::add_account_with("ana@example.org", true);
-    if let Dialog::AddAccount(f) = &mut d {
-        f.imap_host = "imap.example.org".into();
-        f.smtp_host = "smtp.example.org".into();
-        f.kind = crate::dialogs::AccountKind::Pop;
-        f.pop_host = "pop.example.org".into();
-        f.pop_port = "995".into();
-        f.pop_security = mailcraft_engine::model::Security::Tls;
-        f.pst = "C:/Mail/old.pst".into();
-        f.password = "pw".into();
-    }
-    d
-}
-
-fn calendar_form() -> Dialog {
-    let mut d = Dialog::add_account();
-    if let Dialog::AddAccount(f) = &mut d {
-        f.calendar_only = true;
-        f.dav_url = " https://cloud.example.org/remote.php/dav ".into();
-        f.email = "zoe@example.org".into();
-        f.password = "app-pw".into();
-    }
-    d
-}
-
-fn graph_form() -> Dialog {
-    let mut d = Dialog::add_account_with("ana@contoso.example", true);
-    if let Dialog::AddAccount(f) = &mut d {
-        f.kind = crate::dialogs::AccountKind::Graph;
-    }
-    d
 }
 
 /// The browser's services: a popped-out message goes to a browser window of its own.
