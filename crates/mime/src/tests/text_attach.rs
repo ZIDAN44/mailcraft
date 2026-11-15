@@ -43,19 +43,6 @@ fn a_file_with_a_content_id_is_still_a_file() {
     let p = parse(&raw).unwrap();
     let listed: Vec<(&str, bool)> = p.attachments.iter().map(|a| (a.name.as_str(), a.inline)).collect();
     assert_eq!(listed, [("invoice.pdf", false), ("logo.png", true)]);
-    // An address written without quotes is whole.
-    assert_eq!(
-        crate::html_images("<img src=https://x.example/a/b.png width=1><img src=cid:logo@x /><img src=https://x.example/c.png/>"),
-        ["https://x.example/a/b.png", "cid:logo@x", "https://x.example/c.png"]
-    );
-    // Its `src` read as the other passes read it (the rich text, its sizes): after a tab, with
-    // spaces around its `=`. Missed here, a picture the text shows wasn't asked about.
-    assert_eq!(
-        crate::html_images(
-            "<img\tsrc=\"https://x.example/t.png\"><img src = \"https://x.example/s.png\"><img alt=\" src=x\" src=\"https://x.example/r.png\">"
-        ),
-        ["https://x.example/t.png", "https://x.example/s.png", "https://x.example/r.png"]
-    );
 }
 
 /// A message with a short text body and these parts after it, each `(headers, body)`.

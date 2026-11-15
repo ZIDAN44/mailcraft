@@ -154,4 +154,23 @@ mod tests {
         let tracker = "<img alt=\"a>b\" src=\"https://t.mailtrack.example/open?id=1\" width=\"1\" height=\"1\">";
         assert_eq!(crate::trackers::trackers(tracker).pictures.len(), 1);
     }
+
+    /// A picture's address is read whole, from its `src` wherever the tag writes it: without
+    /// quotes (cut at its first slash, or keeping a `/>`'s slash, it was another address), and
+    /// as the other passes read it (the rich text, its sizes): after a tab, with spaces around
+    /// its `=`, not inside another attribute's quoted value. Missed here, a picture the text
+    /// shows wasn't asked about.
+    #[test]
+    fn a_pictures_address_is_read_whole_wherever_its_src_is() {
+        assert_eq!(
+            crate::html_images("<img src=https://x.example/a/b.png width=1><img src=cid:logo@x /><img src=https://x.example/c.png/>"),
+            ["https://x.example/a/b.png", "cid:logo@x", "https://x.example/c.png"]
+        );
+        assert_eq!(
+            crate::html_images(
+                "<img\tsrc=\"https://x.example/t.png\"><img src = \"https://x.example/s.png\"><img alt=\" src=x\" src=\"https://x.example/r.png\">"
+            ),
+            ["https://x.example/t.png", "https://x.example/s.png", "https://x.example/r.png"]
+        );
+    }
 }
