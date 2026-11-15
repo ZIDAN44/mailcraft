@@ -9,12 +9,7 @@
 //! over IMAP the way the account's sync downloads it: its layout keeps each table's own room and
 //! each block's padding and colour, and its text and preview read without rules or run-on words.
 
-use mailcraft_model::{Security, ServerConfig};
-
-fn at(addr: &str) -> ServerConfig {
-    let (host, port) = addr.rsplit_once(':').unwrap_or((addr, "0"));
-    ServerConfig { host: host.into(), port: port.parse().unwrap_or(0), security: Security::None }
-}
+use super::real_servers::{at, delivered};
 
 #[test]
 #[ignore]
@@ -45,10 +40,7 @@ fn real_newsletter_layout() {
     crate::smtp::send(&at(smtp), user, password, "news@studio.test", &[user.to_string()], raw.as_bytes()).unwrap();
     let mut c = crate::imap::Client::connect(&at(imap)).unwrap();
     c.login(user, password).unwrap();
-    c.select("INBOX", true).unwrap();
-    let found = c.uid_search(&format!("SUBJECT \"Stacked {id}\"")).unwrap();
-    let uid = *found.last().expect("delivered");
-    let got = c.uid_fetch(&uid.to_string(), "UID BODY.PEEK[]", "").unwrap().into_iter().find_map(|f| f.body).unwrap();
+    let (uid, got) = delivered(&mut c, &format!("Stacked {id}"));
     let p = mailcraft_mime::parse(&got).unwrap();
     let Some(Block::Table(outer)) = p.layout.first() else { panic!("no layout: {:?}", p.layout) };
     let blocks: Vec<_> = outer.rows[0][0].blocks.iter().filter_map(|b| if let Block::Table(t) = b { Some(t) } else { None }).collect();

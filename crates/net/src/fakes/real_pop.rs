@@ -11,15 +11,11 @@
 
 use std::time::Instant;
 
-use mailcraft_model::{AccountConfig, Security, ServerConfig};
+use mailcraft_model::AccountConfig;
 use mailcraft_store::Store;
 
+use super::real_servers::at;
 use crate::pop::{self, Keep};
-
-fn addr(a: &str) -> Option<ServerConfig> {
-    let (host, port) = a.rsplit_once(':')?;
-    Some(ServerConfig { host: host.into(), port: port.parse().ok()?, security: Security::None })
-}
 
 /// Mail sent to a new mailbox comes down once, every message, and goes from the server when the
 /// account says so.
@@ -31,7 +27,8 @@ fn real_pop_server() {
         return;
     };
     let mut parts = v.split_whitespace();
-    let (pop_cfg, smtp) = (parts.next().and_then(addr).unwrap(), parts.next().and_then(addr).unwrap());
+    let mut next = || at(parts.next().expect("MAILCRAFT_REAL_POP: pop smtp [count]"));
+    let (pop_cfg, smtp) = (next(), next());
     let count: usize = parts.next().map_or(30, |n| n.parse().unwrap());
     let run = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis();
     let me = format!("pop{run}@gm.test");

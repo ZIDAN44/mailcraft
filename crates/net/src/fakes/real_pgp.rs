@@ -14,17 +14,11 @@
 //! Ole's key, and their signatures checked. MailCraft's copy is written to `<dir>/mc-delivered.eml`,
 //! for GnuPG to decrypt and verify in turn.
 
-use std::time::{Duration, Instant};
-
 use mailcraft_model::job::Secret;
-use mailcraft_model::{AccountConfig, Event, Job, PgpSignature, PgpWork, Private, Security, ServerConfig};
+use mailcraft_model::{AccountConfig, Event, Job, PgpSignature, PgpWork, Private};
 
+use super::real_servers::{at, delivered, imap_account, until};
 use crate::worker::{MemoryCredentials, Pool};
-
-/// Events until `f` says yes (`secs` at most, as a real server takes): all of them, that one last.
-fn until(pool: &Pool, secs: u64, what: &str, f: impl FnMut(&Event) -> bool) -> Vec<Event> {
-    crate::waiting::until_within(pool, Duration::from_secs(secs), what, f)
-}
 
 #[test]
 #[ignore]
@@ -35,23 +29,12 @@ fn real_pgp_round_trip() {
     };
     let p: Vec<&str> = v.split_whitespace().collect();
     let [smtp, imap, pia, pia_pw, ole, ole_pw] = p.as_slice() else { panic!("MAILCRAFT_REAL_PGP: smtp imap pia pia-password ole ole-password") };
-    let cfg = |a: &str| {
-        let (host, port) = a.rsplit_once(':').unwrap();
-        ServerConfig { host: host.into(), port: port.parse().unwrap(), security: Security::None }
-    };
-    let (smtp, imap) = (cfg(smtp), cfg(imap));
+    let (smtp, imap) = (at(smtp), at(imap));
     let dir = std::path::PathBuf::from(dir);
     let file = |n: &str| std::fs::read(dir.join(n)).unwrap_or_else(|e| panic!("{n}: {e}"));
     let store = crate::fake::store("real-pgp");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
-    let account = |id: &str, email: &str| AccountConfig {
-        id: id.into(),
-        email: email.into(),
-        username: email.into(),
-        imap: imap.clone(),
-        smtp: smtp.clone(),
-        ..Default::default()
-    };
+    let account = |id: &str, email: &str| AccountConfig { smtp: smtp.clone(), ..imap_account(id, email, &imap) };
     let (pia_acc, ole_acc) = (account("p1", pia), account("o1", ole));
     // Each one's secret key, imported: Pia's with its passphrase, which a wrong one doesn't open.
     let mut import = |acc: &AccountConfig, name: &str, passphrase: &str| -> std::result::Result<Vec<Vec<u8>>, String> {
@@ -93,21 +76,9 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
     // Both as the server delivered them to Ole, decrypted with Ole's key.
     let mut c = crate::imap::Client::connect(&imap).unwrap();
     c.login(ole, ole_pw).unwrap();
-    let mut raw_of = |subject: &str| -> Vec<u8> {
-        let end = Instant::now() + Duration::from_secs(30);
-        let uid = loop {
-            c.select("INBOX", true).unwrap();
-            if let Some(u) = c.uid_search(&format!("SUBJECT \"{subject}\"")).unwrap().last().copied() {
-                break u;
-            }
-            assert!(Instant::now() < end, "{subject} wasn't delivered");
-            std::thread::sleep(Duration::from_millis(300));
-        };
-        c.uid_fetch(&uid.to_string(), "BODY.PEEK[]", "").unwrap().into_iter().find_map(|f| f.body).unwrap()
-    };
     // Encrypted, the subject outside is `[...]`: MailCraft's is found by GnuPG's, then by elimination.
-    let delivered_gpg = raw_of(&gpg_subject);
-    let delivered_mc = raw_of("[...]");
+    let (_, delivered_gpg) = delivered(&mut c, &gpg_subject);
+    let (_, delivered_mc) = delivered(&mut c, "[...]");
     std::fs::write(dir.join("mc-delivered.eml"), &delivered_mc).unwrap();
     assert!(String::from_utf8_lossy(&delivered_mc).contains(&format!("Autocrypt: addr={pia}; keydata=")));
     for (n, raw) in [(1u32, &delivered_mc), (2, &delivered_gpg)] {

@@ -22,13 +22,65 @@ fn server(var: &str) -> Option<(ServerConfig, String, String, Vec<String>)> {
     let v = std::env::var(var).ok()?;
     let mut parts = v.split_whitespace().map(str::to_string);
     let (addr, user, pass) = (parts.next()?, parts.next()?, parts.next()?);
-    let (host, port) = addr.rsplit_once(':')?;
-    let cfg = ServerConfig { host: host.into(), port: port.parse().ok()?, security: Security::None };
-    Some((cfg, user, pass, parts.collect()))
+    Some((at(&addr), user, pass, parts.collect()))
+}
+
+/// A server on this computer at `host:port`, without TLS; a test given anything else fails
+/// saying so.
+pub(super) fn at(addr: &str) -> ServerConfig {
+    let Some((host, port)) = addr.rsplit_once(':').and_then(|(h, p)| Some((h, p.parse().ok()?))) else {
+        panic!("not a host:port: {addr}");
+    };
+    ServerConfig { host: host.into(), port, security: Security::None }
+}
+
+/// An account reading its mail as `user` over `imap`, sending nowhere.
+pub(super) fn imap_account(id: &str, user: &str, imap: &ServerConfig) -> AccountConfig {
+    AccountConfig {
+        id: id.into(),
+        email: user.into(),
+        username: user.into(),
+        imap: imap.clone(),
+        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
+        ..Default::default()
+    }
+}
+
+/// The newest message with `subject` in the Inbox `c` is signed in to, waited for as a real
+/// server delivers a moment after it accepts (Postfix to Dovecot; GreenMail at once), 30 s at
+/// most: its UID and its source.
+pub(super) fn delivered(c: &mut crate::imap::Client<crate::stream::Stream>, subject: &str) -> (u32, Vec<u8>) {
+    let end = Instant::now() + Duration::from_secs(30);
+    let uid = loop {
+        c.select("INBOX", true).unwrap();
+        if let Some(u) = c.uid_search(&format!("SUBJECT \"{subject}\"")).unwrap().last().copied() {
+            break u;
+        }
+        assert!(Instant::now() < end, "{subject} wasn't delivered");
+        std::thread::sleep(Duration::from_millis(300));
+    };
+    (uid, c.uid_fetch(&uid.to_string(), "BODY.PEEK[]", "").unwrap().into_iter().find_map(|f| f.body).unwrap())
+}
+
+/// `MAILCRAFT_REAL_CALDAV` (`url user password`): the calendar's address, the user, and a
+/// client signed in as them; `None` (the test is skipped) when it isn't set.
+fn caldav_env() -> Option<(String, String, crate::dav::Dav)> {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_CALDAV") else {
+        eprintln!("MAILCRAFT_REAL_CALDAV isn't set: skipped");
+        return None;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALDAV: url user password") };
+    Some((url.to_string(), user.to_string(), crate::dav::Dav::new(user, password)))
+}
+
+/// Where a CalDAV sync looks: the calendar at `url`, as `user`.
+fn caldav_where<'a>(url: &'a str, user: &'a str) -> crate::dav::Where<'a> {
+    crate::dav::Where { email: user, username: "", others: &[], imap_host: "127.0.0.1", caldav: Some(url), carddav: None, mails: true }
 }
 
 /// Events until `f` says yes (`secs` at most, as a real server takes): all of them, that one last.
-fn until(pool: &Pool, secs: u64, what: &str, f: impl FnMut(&Event) -> bool) -> Vec<Event> {
+pub(super) fn until(pool: &Pool, secs: u64, what: &str, f: impl FnMut(&Event) -> bool) -> Vec<Event> {
     crate::waiting::until_within(pool, Duration::from_secs(secs), what, f)
 }
 
@@ -45,14 +97,7 @@ fn real_imap_server() {
     let store = crate::fake::store("real-imap");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     pool.submit(Job::SetSync { messages: 25, offline: 0 });
-    let account = AccountConfig {
-        id: "r1".into(),
-        email: user.clone(),
-        username: user.clone(),
-        imap: imap.clone(),
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account("r1", &user, &imap);
     let began = Instant::now();
     pool.submit(Job::Start { account, password: Some(Secret(pass.clone())) });
     until(&pool, 120, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
@@ -149,14 +194,7 @@ fn real_imap_text_first() {
     let store = crate::fake::store("real-text-first");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    let account = AccountConfig {
-        id: "r1".into(),
-        email: user.clone(),
-        username: user.clone(),
-        imap,
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account("r1", &user, &imap);
     pool.submit(Job::Start { account, password: Some(Secret(pass)) });
     until(&pool, 120, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let subject = format!("Rushes {id}");
@@ -206,14 +244,7 @@ fn real_imap_message_files() {
     let store = crate::fake::store("real-filing");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    let account = AccountConfig {
-        id: "r1".into(),
-        email: user.clone(),
-        username: user.clone(),
-        imap: imap.clone(),
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account("r1", &user, &imap);
     pool.submit(Job::Start { account, password: Some(Secret(pass.clone())) });
     until(&pool, 120, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let paths = [&msg, &eml, &png].iter().map(|p| p.to_string_lossy().into_owned()).collect();
@@ -252,8 +283,7 @@ fn real_reaction_round_trip() {
         return;
     };
     let [imap_at, to, to_pw] = more.as_slice() else { panic!("…: smtp user password imap user password") };
-    let (host, port) = imap_at.rsplit_once(':').unwrap();
-    let imap = ServerConfig { host: host.into(), port: port.parse().unwrap(), security: Security::None };
+    let imap = at(imap_at);
     let id = std::process::id();
     let original = format!(
         "From: Ben <{to}>\r\nTo: Ana <{from}>\r\nSubject: Launch plan {id}\r\nMessage-ID: <plan{id}@studio.test>\r\n\r\nHere's the plan.\r\n"
@@ -266,14 +296,7 @@ fn real_reaction_round_trip() {
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     // Nothing downloaded ahead: the reaction's body comes because its header says what it is.
     pool.opts.prefetch = 0;
-    let account = AccountConfig {
-        id: "r1".into(),
-        email: to.clone(),
-        username: to.clone(),
-        imap,
-        smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-        ..Default::default()
-    };
+    let account = imap_account("r1", to, &imap);
     pool.submit(Job::Start { account, password: Some(Secret(to_pw.clone())) });
     until(&pool, 120, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let subject = format!("Re: Launch plan {id}");
@@ -301,14 +324,8 @@ fn real_reaction_round_trip() {
 fn real_caldav_dismissed_reminder() {
     use mailcraft_model::ical::{CalEvent, acknowledge, acknowledged, reminder_minutes, set_reminder};
     use mailcraft_model::pim::{Pim, StoredEvent};
-    let Ok(v) = std::env::var("MAILCRAFT_REAL_CALDAV") else {
-        eprintln!("MAILCRAFT_REAL_CALDAV isn't set: skipped");
-        return;
-    };
-    let p: Vec<&str> = v.split_whitespace().collect();
-    let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALDAV: url user password") };
-    let dav = crate::dav::Dav::new(user, password);
-    let at = crate::dav::Where { email: user, username: "", others: &[], imap_host: "127.0.0.1", caldav: Some(url), carddav: None, mails: true };
+    let Some((url, user, dav)) = caldav_env() else { return };
+    let at = caldav_where(&url, &user);
     let zone = mailcraft_model::zone::Zone::Fixed(0);
     let now = 1_793_782_000;
     let sync = |pim: &Pim| {
@@ -371,9 +388,8 @@ fn real_smtp_server() {
         }
     };
     // Read back over the same server's IMAP, when given.
-    if let Some((host, port)) = more.first().and_then(|a| a.rsplit_once(':')) {
-        let cfg = ServerConfig { host: host.into(), port: port.parse().unwrap(), security: Security::None };
-        let mut c = crate::imap::Client::connect(&cfg).unwrap();
+    if let Some(imap) = more.first() {
+        let mut c = crate::imap::Client::connect(&at(imap)).unwrap();
         c.login(&user, &pass).unwrap();
         let info = c.select("INBOX", true).unwrap();
         let found = c.uid_search(&format!("SUBJECT \"{subject}\"")).unwrap();
@@ -395,19 +411,15 @@ fn real_smime_round_trip() {
         eprintln!("MAILCRAFT_REAL_SMIME isn't set: skipped");
         return;
     };
-    let mut parts = v.split_whitespace();
-    let cfg = |a: Option<&str>| {
-        let (host, port) = a.and_then(|a| a.rsplit_once(':')).unwrap();
-        ServerConfig { host: host.into(), port: port.parse().unwrap(), security: Security::None }
-    };
-    let (smtp, imap) = (cfg(parts.next()), cfg(parts.next()));
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [smtp, imap] = p.as_slice() else { panic!("MAILCRAFT_REAL_SMIME: smtp imap") };
+    let (smtp, imap) = (at(smtp), at(imap));
     let data = |n: &str| std::fs::read(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../smime/testdata").join(n)).unwrap();
     let pem = |n: &str| der::pem::decode_vec(&data(n)).unwrap().1;
     let riley = "riley@studio.example";
     let store = crate::fake::store("real-smime");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
-    let account =
-        AccountConfig { id: "r1".into(), email: riley.into(), username: riley.into(), imap: imap.clone(), smtp: smtp.clone(), ..Default::default() };
+    let account = AccountConfig { smtp: smtp.clone(), ..imap_account("r1", riley, &imap) };
     // The certificate, imported: its key into the keychain (here, memory).
     pool.submit(Job::ImportIdentity { account: account.clone(), data: data("riley-legacy.p12"), password: Secret("secret".into()) });
     let seen = until(&pool, 30, "the certificate", |e| matches!(e, Event::Identity { .. }));
@@ -437,23 +449,9 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
     // Both, as the server delivered them to Riley.
     let mut c = crate::imap::Client::connect(&imap).unwrap();
     c.login(riley, "pw").unwrap();
-    c.select("INBOX", true).unwrap();
-    // A real server delivers a moment after it accepts (Postfix to Dovecot); GreenMail at once.
-    let mut raw_of = |subject: &str| -> Vec<u8> {
-        let end = Instant::now() + Duration::from_secs(30);
-        let uid = loop {
-            c.select("INBOX", true).unwrap();
-            if let Some(u) = c.uid_search(&format!("SUBJECT \"{subject}\"")).unwrap().last().copied() {
-                break u;
-            }
-            assert!(Instant::now() < end, "{subject} wasn't delivered");
-            std::thread::sleep(Duration::from_millis(300));
-        };
-        c.uid_fetch(&uid.to_string(), "BODY.PEEK[]", "").unwrap().into_iter().find_map(|f| f.body).unwrap()
-    };
     let key = |uid: u32| mailcraft_model::MessageKey { account: "r1".into(), folder: "INBOX".into(), validity: 1, uid };
     for (n, subject) in [(1, format!("From Ana {tag}")), (2, format!("Reply {tag}"))] {
-        let raw = raw_of(&subject);
+        let (_, raw) = delivered(&mut c, &subject);
         let mailcraft_mime::smime::Protection::Encrypted(cms) = mailcraft_mime::smime::protection(&raw) else { panic!("{subject}: not encrypted") };
         pool.submit(Job::Decrypt { account: account.clone(), key: key(n), cms });
         let seen = until(&pool, 30, "decrypted", |e| matches!(e, Event::Decrypted { key: k, .. } if k.uid == n));
@@ -499,19 +497,14 @@ fn real_calendar_by_hand_and_a_renewed_certificate() {
     };
     let p: Vec<&str> = v.split_whitespace().collect();
     let [imap, calendar, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_DAV: imap calendar user password") };
-    let (host, port) = imap.rsplit_once(':').unwrap();
-    let imap = ServerConfig { host: host.into(), port: port.parse().unwrap(), security: Security::None };
+    let imap = at(imap);
     let root = calendar.split("/zoe").next().unwrap().to_string() + "/";
     let store = crate::fake::store("real-dav");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     let account = |id: &str| AccountConfig {
-        id: id.into(),
-        email: (*user).into(),
-        username: (*user).into(),
-        imap: imap.clone(),
         smtp: imap.clone(),
         dav: Some(mailcraft_model::DavSettings { caldav: (*calendar).into(), carddav: root.clone(), username: Some((*user).into()) }),
-        ..Default::default()
+        ..imap_account(id, user, &imap)
     };
     let a = account("d1");
     pool.submit(Job::DavPassword { account: a.clone(), password: Secret((*password).into()) });
@@ -567,14 +560,8 @@ fn real_calendar_by_hand_and_a_renewed_certificate() {
 fn real_caldav_private_and_show_as() {
     use mailcraft_model::ical::{EventQuery, Privacy, ShowAs, privacy, set_privacy, set_show_as, show_as};
     use mailcraft_model::pim::{Pim, StoredEvent};
-    let Ok(v) = std::env::var("MAILCRAFT_REAL_CALDAV") else {
-        eprintln!("MAILCRAFT_REAL_CALDAV isn't set: skipped");
-        return;
-    };
-    let p: Vec<&str> = v.split_whitespace().collect();
-    let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALDAV: url user password") };
-    let dav = crate::dav::Dav::new(user, password);
-    let at = crate::dav::Where { email: user, username: "", others: &[], imap_host: "127.0.0.1", caldav: Some(url), carddav: None, mails: true };
+    let Some((url, user, dav)) = caldav_env() else { return };
+    let at = caldav_where(&url, &user);
     let zone = mailcraft_model::zone::Zone::Fixed(0);
     let now = 1_792_000_000;
     // Each sync merged as the engine does, roughly: what the server has, what was pushed.
@@ -738,14 +725,7 @@ fn real_keywords_in_a_shared_folder() {
     let store = crate::fake::store("real-keywords");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
     let start = |pool: &mut Pool, id: &str, who: &str| {
-        let account = AccountConfig {
-            id: id.into(),
-            email: who.into(),
-            username: who.into(),
-            imap: imap.clone(),
-            smtp: ServerConfig { host: "127.0.0.1".into(), port: 1, security: Security::None },
-            ..Default::default()
-        };
+        let account = imap_account(id, who, &imap);
         pool.submit(Job::Start { account, password: Some(Secret(pass.clone())) });
         until(pool, 120, "online", |e| matches!(e, Event::Status { account, status: SyncStatus::Online { .. } } if account == id));
     };
