@@ -2,20 +2,20 @@
 
 mod actions;
 mod alt_code;
-mod bars;
 mod bodies;
 pub(crate) mod boot;
-pub(crate) mod caption;
-pub(crate) mod compacting;
+mod chrome;
+mod data_files;
 mod dropped;
 pub(crate) mod frame;
-pub(crate) mod importing;
 mod keys;
-mod ribbon;
-mod search_box;
 pub(crate) mod source;
 mod updates;
 mod windows;
+
+pub(crate) use chrome::caption;
+use chrome::{bars, ribbon, search_box};
+pub(crate) use data_files::{compacting, importing};
 
 pub use alt_code::{alt_code_pages, alt_codes};
 pub(crate) use bodies::Bodies;

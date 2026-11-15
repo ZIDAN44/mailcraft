@@ -384,7 +384,7 @@ pub(crate) fn needs_you(a: &mailcraft_engine::AccountState) -> bool {
 }
 
 /// The long work going on in the background the status bar shows when no data file is being
-/// imported (that goes first, `app/importing.rs`): a data file's compaction, else the search
+/// imported (that goes first, `app/data_files/importing.rs`): a data file's compaction, else the search
 /// index's build. Its words, how far it has come in thousandths, and what hovering it says
 /// (`now`: the input's time, for the part of a compaction that goes by the time expected).
 pub(crate) fn background_work(s: &Session, compact: &super::compacting::CompactUi, now: f64) -> Option<(String, Option<u16>, String)> {
