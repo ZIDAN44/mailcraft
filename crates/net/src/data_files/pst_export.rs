@@ -192,7 +192,8 @@ pub fn export(
             let folder: Vec<&str> = folder.iter().map(String::as_str).collect();
             let mut batch = Vec::new();
             let mut bytes = 0usize;
-            for s in &st.messages {
+            let mut messages = st.messages.iter().peekable();
+            while let Some(s) = messages.next() {
                 let state = item::state(s, f.role, follow_up);
                 match store.read_body(&s.key).and_then(|raw| item::owned(&raw, s.received, state, &owner, Some(&spill))) {
                     Some(m) if !m.message_id.is_empty() && had.contains(&mailcraft_model::thread::norm_id(&m.message_id)) => done.already += 1,
@@ -202,7 +203,9 @@ pub fn export(
                     }
                     None => done.skipped += 1,
                 }
-                if batch.len() >= BATCH || bytes >= BATCH_BYTES || spill.bytes() >= SPILL_BYTES {
+                // Written once full, and what's left at the folder's end.
+                let full = batch.len() >= BATCH || bytes >= BATCH_BYTES || spill.bytes() >= SPILL_BYTES;
+                if full || (messages.peek().is_none() && !batch.is_empty()) {
                     let n = batch.len();
                     write(&temp, &folder, &std::mem::take(&mut batch), &mut created)?;
                     spill.clear();
@@ -210,12 +213,6 @@ pub fn export(
                     done.messages += n;
                     progress(done.messages);
                 }
-            }
-            if !batch.is_empty() {
-                write(&temp, &folder, &batch, &mut created)?;
-                spill.clear();
-                done.messages += batch.len();
-                progress(done.messages);
             }
         }
         record_special(&temp, &folders, &targets, created);
