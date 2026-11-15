@@ -373,8 +373,8 @@ impl Store {
         let mut list = self.read_folders(account)?;
         let (found, recounted) = folders::set_counts(&mut list, counts);
         if recounted {
-            let path = self.account_dir(account).join("folders.json");
-            let bytes = serde_json::to_vec(&list).map_err(|source| StoreError::Json { path: path.display().to_string(), source })?;
+            let path = self.folders_path(account);
+            let bytes = to_json(&path, &list)?;
             writes.push((path, bytes));
         }
         if !writes.is_empty() {
@@ -387,7 +387,7 @@ impl Store {
     /// What keeping one folder's marks writes (with the lock held), and the pages it no longer has.
     fn flag_writes(&self, account: &str, marks: &FolderMarks) -> Result<(Vec<(PathBuf, Vec<u8>)>, Vec<PathBuf>)> {
         let dir = self.folder_dir(account, &marks.folder);
-        let head: StateFile = self.read_json(&dir.join("state.json"))?;
+        let head: StateFile = self.read_json(&dir.join(folders::HEAD))?;
         if head.validity != marks.validity {
             return Ok((Vec::new(), Vec::new()));
         }
@@ -399,7 +399,7 @@ impl Store {
             all.extend(now.iter().map(|(uid, f)| (*uid, *f)));
             if all.len() <= folders::MARKS_MAX {
                 let list: Vec<(u32, &Flags)> = all.into_iter().collect();
-                let bytes = serde_json::to_vec(&list).map_err(|source| StoreError::Json { path: mark_path.display().to_string(), source })?;
+                let bytes = to_json(&mark_path, &list)?;
                 return Ok((vec![(mark_path, bytes)], Vec::new()));
             }
             // Too many: into their pages, as the list has them with these.

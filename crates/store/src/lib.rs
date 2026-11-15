@@ -231,9 +231,8 @@ impl ListWriter {
     }
 
     fn write_page(&mut self, store: &Store) -> Result<()> {
-        let path = store.folder_dir(&self.account, &self.folder).join(format!("state-{}.json", self.pages.len()));
-        let p = path.display().to_string();
-        let bytes = serde_json::to_vec(&self.page).map_err(|source| StoreError::Json { path: p, source })?;
+        let path = folders::page_path(&store.folder_dir(&self.account, &self.folder), self.pages.len());
+        let bytes = to_json(&path, &self.page)?;
         store.files.write(&path, &bytes)?;
         self.pages.push(page_hash(&bytes));
         self.page.clear();
@@ -268,7 +267,7 @@ impl ListWriter {
             self.write_page(store)?;
         }
         let dir = store.folder_dir(&self.account, &self.folder);
-        let path = dir.join("state.json");
+        let path = dir.join(folders::HEAD);
         let old: StateFile = store.read_json(&path).unwrap_or_default();
         let file = StateFile {
             validity: head.validity,
@@ -279,8 +278,7 @@ impl ListWriter {
             count: self.total,
             pages: self.pages,
         };
-        let p = path.display().to_string();
-        let bytes = serde_json::to_vec(&file).map_err(|source| StoreError::Json { path: p, source })?;
+        let bytes = to_json(&path, &file)?;
         // A new list: no marks from an old one put on it.
         let marks = dir.join(folders::MARKS);
         let mut writes = vec![(path, bytes)];
@@ -289,7 +287,7 @@ impl ListWriter {
         }
         store.write_files(writes)?;
         for i in file.pages.len()..old.pages.len() {
-            let _ = store.files.remove_file(&dir.join(format!("state-{i}.json")));
+            let _ = store.files.remove_file(&folders::page_path(&dir, i));
         }
         Ok(counts)
     }
@@ -374,6 +372,14 @@ fn is_zero(n: &i64) -> bool {
 
 fn is_false(b: &bool) -> bool {
     !*b
+}
+
+/// An account's folder list with its counts, in the account's folder.
+pub(crate) const FOLDERS: &str = "folders.json";
+
+/// `value` as the JSON a cache file keeps, or an error naming the file it was for.
+pub(crate) fn to_json<T: Serialize + ?Sized>(path: &Path, value: &T) -> Result<Vec<u8>> {
+    serde_json::to_vec(value).map_err(|source| StoreError::Json { path: path.display().to_string(), source })
 }
 
 /// FNV-1a: a stable, dependency-free hash for folder directory names (folder names can hold
@@ -610,8 +616,7 @@ impl Store {
     }
 
     fn write_json<T: Serialize + ?Sized>(&self, path: &Path, value: &T) -> Result<()> {
-        let bytes = serde_json::to_vec(value).map_err(|source| StoreError::Json { path: path.display().to_string(), source })?;
-        self.files.write(path, &bytes)
+        self.files.write(path, &to_json(path, value)?)
     }
 
     /// A small document at the top of the data folder (`rules.json`, `snoozes.json`); empty when
@@ -663,7 +668,12 @@ impl Store {
     /// [`Store::load_folders`] without waiting for the marks: with the lock held, which their
     /// thread takes.
     pub(crate) fn read_folders(&self, account: &str) -> Result<Vec<Folder>> {
-        self.read_json(&self.account_dir(account).join("folders.json"))
+        self.read_json(&self.folders_path(account))
+    }
+
+    /// Where `account`'s folder list is kept.
+    fn folders_path(&self, account: &str) -> PathBuf {
+        self.account_dir(account).join(FOLDERS)
     }
 
     /// Keep an account's folder list as it is now. It's written under the same lock as
@@ -678,7 +688,7 @@ impl Store {
 
     /// [`Store::save_folders`] with the lock held already.
     fn write_folders(&self, account: &str, folders: &[Folder]) -> Result<()> {
-        self.write_json(&self.account_dir(account).join("folders.json"), folders)
+        self.write_json(&self.folders_path(account), folders)
     }
 }
 

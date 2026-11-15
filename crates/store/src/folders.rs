@@ -29,7 +29,7 @@ impl Store {
 
     fn list_load(&self, account: &str, folder: &str) -> Result<FolderLoad> {
         let dir = self.folder_dir(account, folder);
-        let file: StateFile = self.read_json(&dir.join("state.json"))?;
+        let file: StateFile = self.read_json(&dir.join(HEAD))?;
         let st = FolderState {
             validity: file.validity,
             uid_next: file.uid_next,
@@ -84,6 +84,15 @@ struct UidOfKey {
 /// the whole list puts them into the pages and empties it.
 pub(crate) const MARKS: &str = "state-marks.json";
 
+/// A folder's list's head ([`StateFile`]): its sync state, and its messages or the pages they're
+/// kept in.
+pub(crate) const HEAD: &str = "state.json";
+
+/// Page `i` of a list kept in pages, in its folder's directory `dir`.
+pub(crate) fn page_path(dir: &Path, i: usize) -> PathBuf {
+    dir.join(format!("state-{i}.json"))
+}
+
 /// The most messages kept marked beside a list's pages (about 50 KB): one more puts them into
 /// their pages.
 pub const MARKS_MAX: usize = 512;
@@ -110,7 +119,7 @@ impl FolderLoad {
         if self.next >= self.pages {
             return Ok(true);
         }
-        let page: Vec<Summary> = store.read_json(&self.dir.join(format!("state-{}.json", self.next)))?;
+        let page: Vec<Summary> = store.read_json(&page_path(&self.dir, self.next))?;
         self.st.messages.extend(page.into_iter().map(SharedSummary::new));
         self.next += 1;
         Ok(self.next >= self.pages)
@@ -211,11 +220,7 @@ impl Store {
         changed: Option<&std::collections::HashSet<u32>>,
     ) -> Result<(Vec<(PathBuf, Vec<u8>)>, Vec<PathBuf>)> {
         let dir = self.folder_dir(account, folder);
-        let head = dir.join("state.json");
-        let json_err = |p: &Path| {
-            let p = p.display().to_string();
-            move |source| StoreError::Json { path: p, source }
-        };
+        let head = dir.join(HEAD);
         let old: StateFile = self.read_json(&head).unwrap_or_default();
         let mut file = StateFile {
             validity: state.validity,
@@ -244,7 +249,7 @@ impl Store {
                 }
                 if marks.len() <= MARKS_MAX {
                     let list: Vec<(u32, &Flags)> = marks.into_iter().collect();
-                    let bytes = serde_json::to_vec(&list).map_err(json_err(&marks_path))?;
+                    let bytes = to_json(&marks_path, &list)?;
                     let mut writes = vec![(marks_path, bytes)];
                     // A head that says more than the one on disk (a newer modseq) written too,
                     // naming the same pages.
@@ -253,7 +258,7 @@ impl Store {
                     {
                         file.pages.clone_from(&old.pages);
                         file.count = old.count;
-                        writes.push((head.clone(), serde_json::to_vec(&file).map_err(json_err(&head))?));
+                        writes.push((head.clone(), to_json(&head, &file)?));
                     }
                     return Ok((writes, Vec::new()));
                 }
@@ -273,8 +278,8 @@ impl Store {
                     file.pages.push(hash);
                     continue;
                 }
-                let path = dir.join(format!("state-{i}.json"));
-                let bytes = serde_json::to_vec(page).map_err(json_err(&path))?;
+                let path = page_path(&dir, i);
+                let bytes = to_json(&path, page)?;
                 let hash = page_hash(&bytes);
                 if old.pages.get(i) != Some(&hash) || !self.files.is_file(&path) {
                     writes.push((path, bytes));
@@ -286,8 +291,8 @@ impl Store {
         if self.has_marks(&marks_path) {
             writes.push((marks_path, b"[]".to_vec()));
         }
-        writes.push((head.clone(), serde_json::to_vec(&file).map_err(json_err(&head))?));
-        let stale = (file.pages.len()..old.pages.len()).map(|i| dir.join(format!("state-{i}.json"))).collect();
+        writes.push((head.clone(), to_json(&head, &file)?));
+        let stale = (file.pages.len()..old.pages.len()).map(|i| page_path(&dir, i)).collect();
         Ok((writes, stale))
     }
 
@@ -322,7 +327,7 @@ impl Store {
         };
         let _held = self.hold_changes();
         let dir = self.folder_dir(account, folder);
-        let head = dir.join("state.json");
+        let head = dir.join(HEAD);
         let mut file: StateFile = self.read_json(&head)?;
         if file.validity != found.validity {
             return Ok(0);
@@ -338,7 +343,7 @@ impl Store {
             if seen >= wanted {
                 break;
             }
-            let path = dir.join(format!("state-{i}.json"));
+            let path = page_path(&dir, i);
             let mut page: Vec<Summary> = self.read_json(&path)?;
             let mut here = 0usize;
             for m in &mut page {
@@ -349,8 +354,7 @@ impl Store {
             if here == 0 {
                 continue;
             }
-            let p = path.display().to_string();
-            let bytes = serde_json::to_vec(&page).map_err(|source| StoreError::Json { path: p, source })?;
+            let bytes = to_json(&path, &page)?;
             *hash = page_hash(&bytes);
             writes.push((path, bytes));
             changed += here;
@@ -358,8 +362,8 @@ impl Store {
         if changed == 0 {
             return Ok(0);
         }
-        let p = head.display().to_string();
-        writes.push((head, serde_json::to_vec(&file).map_err(|source| StoreError::Json { path: p, source })?));
+        let bytes = to_json(&head, &file)?;
+        writes.push((head, bytes));
         self.write_files(writes)?;
         Ok(changed)
     }

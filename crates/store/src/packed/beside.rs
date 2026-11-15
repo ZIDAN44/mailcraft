@@ -17,7 +17,7 @@ const TRIES: u32 = 100;
 const NOTE_MAX: usize = 64 << 20;
 /// The import's note in a data file, and the account's folder list.
 const NOTE: &str = "import.json";
-const FOLDERS: &str = "folders.json";
+const FOLDERS: &str = crate::FOLDERS;
 /// Added to a copy's name for the file made to try its folder.
 const PROBE: &str = "-probe";
 
