@@ -1,8 +1,8 @@
 //! The files of an item's attachments: one the reader fails on is read from its row, the ones
 //! left out are counted, and the paperclip is the one the rebuilt source gives.
 
-use super::super::item::{File, Files, Got, from_row, linked, local_path, read_linked};
-use super::super::rebuild::{message, summary_of};
+use super::super::super::item::{File, Files, Got, from_row, linked, local_path, read_linked};
+use super::super::super::rebuild::{message, summary_of};
 use super::*;
 use crate::data_files::scratch::scratch;
 
@@ -24,9 +24,9 @@ fn a_blank_long_name_gives_way_to_the_short_one() {
             _ => String::new(),
         }
     };
-    assert_eq!(super::super::item::name_of(&names("plan.pdf")), "plan.pdf");
-    assert_eq!(super::super::item::name_of(&names(" \t ")), "PLAN~1.PDF");
-    assert_eq!(super::super::item::name_of(&|_| " ".to_string()), "attachment");
+    assert_eq!(super::super::super::item::name_of(&names("plan.pdf")), "plan.pdf");
+    assert_eq!(super::super::super::item::name_of(&names(" \t ")), "PLAN~1.PDF");
+    assert_eq!(super::super::super::item::name_of(&|_| " ".to_string()), "attachment");
     let link = HashMap::from([
         (0x3705, Val::Int(4)),
         (0x370D, Val::Text("C:\\nowhere\\plan.pdf".into())),
@@ -200,7 +200,7 @@ fn a_link_s_file_is_read_only_by_a_plain_path() {
 #[test]
 fn slow_link_reads_stop_reading_links() {
     use std::time::Duration;
-    let reads = super::super::item::LinkReads::default();
+    let reads = super::super::super::item::LinkReads::default();
     let asked = std::cell::Cell::new(0);
     let read = |_: &str, _: usize| {
         asked.set(asked.get() + 1);
@@ -211,7 +211,7 @@ fn slow_link_reads_stop_reading_links() {
     }
     assert_eq!(asked.get(), 4);
     // Quick reads don't count.
-    let quick = super::super::item::LinkReads::default();
+    let quick = super::super::super::item::LinkReads::default();
     asked.set(0);
     for _ in 0..10 {
         quick.read_with("C:\\gone\\plan.pdf", 100, &read, Duration::from_secs(60));

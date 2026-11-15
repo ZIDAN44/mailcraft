@@ -1,7 +1,7 @@
 //! An item's class is told in one place, as each of the lists it was told by told it.
 
-use super::super::item::{Class, EXCEPTION};
-use super::super::lanes::{is_mail, is_pim};
+use super::super::super::item::{Class, EXCEPTION};
+use super::super::super::lanes::{is_mail, is_pim};
 
 /// The classes Outlook writes (and some that only start the same), in any case.
 const CLASSES: [&str; 40] = [

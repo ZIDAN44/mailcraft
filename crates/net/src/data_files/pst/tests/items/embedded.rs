@@ -5,9 +5,9 @@
 
 use std::cell::Cell;
 
-use super::super::embedded::{Holder, MAX_LINK_READS, MAX_NODES, Part, Walk, item_in, item_with_files};
-use super::super::item::{File, Got, Item, from_row, item_of, link_of};
-use super::super::rebuild::to_raw;
+use super::super::super::embedded::{Holder, MAX_LINK_READS, MAX_NODES, Part, Walk, item_in, item_with_files};
+use super::super::super::item::{File, Got, Item, from_row, item_of, link_of};
+use super::super::super::rebuild::to_raw;
 use super::*;
 
 /// One of a made-up message's attachments: a file of so many bytes, or the message at that

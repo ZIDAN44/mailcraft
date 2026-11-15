@@ -3,9 +3,9 @@
 use mailcraft_mime::smime::{self, Protection};
 use mailcraft_model::EmailAddress;
 
-use super::super::item::{File, Item};
-use super::super::rebuild::{message, summary_of};
-use super::files_of;
+use super::super::super::item::{File, Item};
+use super::super::super::rebuild::{message, summary_of};
+use super::super::files_of;
 use crate::data_files::test_data::cms;
 
 /// What MailCraft signs, as the entity a signature covers.

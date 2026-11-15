@@ -761,19 +761,15 @@ fn imports_a_data_file() {
 }
 
 mod chunked;
-mod classes;
-mod embedded;
-mod files;
 mod indexing;
+mod items;
 mod losses;
+mod messages;
 mod options;
 mod pim_gaps;
 mod pim_written;
 mod pipeline;
-mod protected;
 mod reader;
-mod rebuilt;
-mod report;
 mod resume;
 mod sent_ids;
 

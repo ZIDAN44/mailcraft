@@ -1,8 +1,8 @@
 //! A message rebuilt from its item, and its summary: what the summary takes from the item before
 //! the item goes into the message.
 
-use super::super::item::{File, Item};
-use super::super::rebuild::{message, summary_of, to_raw};
+use super::super::super::item::{File, Item};
+use super::super::super::rebuild::{message, summary_of, to_raw};
 use super::*;
 use crate::fakes::random::noise;
 
