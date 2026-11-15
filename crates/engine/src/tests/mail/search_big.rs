@@ -452,7 +452,8 @@ fn the_end_of_a_run_starts_a_step() {
 /// comes back as it was (not copied out of the cache, arranged and put into conversations
 /// again), and what the search showed and held is let go of a slice a tick, not in the frame
 /// that clears it (on a real file's 10,941-message folder that frame took 56–91 ms). A message
-/// marked read meanwhile builds it again, with the mark.
+/// marked read meanwhile builds it again, with the mark. How long the clear takes:
+/// [`measure_clearing_a_big_search`].
 #[test]
 fn clearing_a_big_search_shows_the_folder_kept() {
     let (mut s, t) = cold();
@@ -460,11 +461,6 @@ fn clearing_a_big_search_shows_the_folder_kept() {
     let inbox: Vec<MessageKey> = s.list.iter().map(|m| m.key.clone()).collect();
     assert!(inbox.len() >= 10_000, "{}", inbox.len());
     let threadings = s.nav.threadings();
-    let clear = |s: &mut Session| {
-        let began = Instant::now();
-        s.run("search.run", &json!({"query": ""})).unwrap();
-        began.elapsed()
-    };
     for round in 0..2 {
         s.run("search.run", &json!({"query": "is:read", "scope": "all"})).unwrap();
         while !s.search_step(64).done {}
@@ -472,8 +468,7 @@ fn clearing_a_big_search_shows_the_folder_kept() {
         // What the last clear let go of is gone by now.
         assert_eq!(s.letting_go(), 0, "round {round}");
         let structure = s.nav_structure();
-        let took = clear(&mut s);
-        eprintln!("cleared {} found in {took:?}", t.read);
+        s.run("search.run", &json!({"query": ""})).unwrap();
         assert_eq!(s.list.iter().map(|m| m.key.clone()).collect::<Vec<_>>(), inbox, "the Inbox as it was");
         assert_ne!(s.nav_structure(), structure, "its rows are drawn again");
         assert_eq!(s.nav.threadings(), threadings, "its conversations not worked out again");
@@ -488,6 +483,26 @@ fn clearing_a_big_search_shows_the_folder_kept() {
         assert_eq!(s.letting_go(), 0);
         s.run("list.select", &json!({"key": inbox.first().unwrap().to_id()})).unwrap();
         assert_eq!(s.selection.len(), 1, "it's the list shown");
+    }
+}
+
+/// What the frame that clears [`clearing_a_big_search_shows_the_folder_kept`]'s search takes,
+/// three times (`cargo test -p mailcraft-engine --release --lib measure_clearing_a_big_search --
+/// --ignored --nocapture`, under the heavy lock).
+#[test]
+#[ignore]
+fn measure_clearing_a_big_search() {
+    let (mut s, t) = cold();
+    s.run("folder.open", &json!({"account": big::ACCOUNT, "folder": "INBOX"})).unwrap();
+    for _ in 0..3 {
+        s.run("search.run", &json!({"query": "is:read", "scope": "all"})).unwrap();
+        while !s.search_step(64).done {}
+        for _ in 0..41 {
+            s.tick();
+        }
+        let began = Instant::now();
+        s.run("search.run", &json!({"query": ""})).unwrap();
+        println!("MEASURE cleared a search of {} found in {} ms", t.read, began.elapsed().as_millis());
     }
 }
 
