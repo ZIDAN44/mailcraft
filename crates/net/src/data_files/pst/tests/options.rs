@@ -225,6 +225,14 @@ fn only_windows_sharing_violations_say_the_file_is_open_elsewhere() {
     }
     assert!(!locked_by_another(&std::io::Error::from_raw_os_error(5)), "access denied");
     assert!(!locked_by_another(&std::io::Error::other("no number")));
+    // Going on from where it stopped, the import waits for the file to be let go of only then.
+    use super::super::resume::blocked_by;
+    use mailcraft_model::job::Blocked;
+    let locked = if cfg!(windows) { Blocked::Locked } else { Blocked::SourceChanged };
+    assert_eq!(blocked_by(&std::io::Error::from_raw_os_error(32)), locked);
+    assert_eq!(blocked_by(&std::io::Error::from_raw_os_error(33)), locked);
+    assert_eq!(blocked_by(&std::io::Error::from(std::io::ErrorKind::NotFound)), Blocked::SourceMissing);
+    assert_eq!(blocked_by(&std::io::Error::other("no number")), Blocked::SourceChanged);
 }
 
 /// A data file another program holds open to no one else (as Outlook does) is said to be open

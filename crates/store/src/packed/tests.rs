@@ -21,6 +21,30 @@ fn temp(name: &str) -> std::path::PathBuf {
     scratch(&format!("packed-{name}"))
 }
 
+/// Only Windows' sharing and lock violations say something else has a data file open: elsewhere
+/// the same numbers are other errors (a broken pipe, a number out of range). On Windows, a data
+/// file held open to no one else is said to be in use as it's read.
+#[test]
+fn only_windows_sharing_violations_say_a_data_file_is_in_use() {
+    for code in [32, 33] {
+        assert_eq!(super::held_elsewhere(&std::io::Error::from_raw_os_error(code)), cfg!(windows), "{code}");
+    }
+    assert!(!super::held_elsewhere(&std::io::Error::from_raw_os_error(5)), "access denied");
+    assert!(!super::held_elsewhere(&std::io::Error::other("no number")));
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        let t = temp("held");
+        std::fs::create_dir_all(&t).unwrap();
+        let file = t.join("held.mailcraft");
+        std::fs::write(&file, b"anything").unwrap();
+        let held = std::fs::OpenOptions::new().read(true).share_mode(0).open(&file).unwrap();
+        let e = super::read_data_file(&file, &t.join("read.tmp"), &|| false, &mut |_| Ok(())).unwrap_err();
+        drop(held);
+        assert!(e.to_string().contains("in use"), "{e}");
+    }
+}
+
 fn account(id: &str, email: &str) -> AccountConfig {
     AccountConfig { id: id.into(), email: email.into(), ..Default::default() }
 }

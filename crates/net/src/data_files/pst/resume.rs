@@ -366,10 +366,12 @@ pub(super) fn facts(path: &Path) -> (u64, i64) {
 
 /// Why a file can't be gone on with, from the error opening it gave.
 pub(super) fn blocked_by(e: &io::Error) -> Blocked {
-    match (e.kind(), e.raw_os_error()) {
-        (io::ErrorKind::NotFound, _) => Blocked::SourceMissing,
-        (_, Some(32 | 33)) => Blocked::Locked,
-        _ => Blocked::SourceChanged,
+    if e.kind() == io::ErrorKind::NotFound {
+        Blocked::SourceMissing
+    } else if super::open::locked_by_another(e) {
+        Blocked::Locked
+    } else {
+        Blocked::SourceChanged
     }
 }
 

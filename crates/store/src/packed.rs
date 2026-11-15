@@ -640,6 +640,15 @@ const BATCH: usize = 32 << 20;
 /// (a big one takes minutes).
 const COPY_CHUNK: usize = 8 << 20;
 
+/// Whether reading a file failed because something else has it open: Windows' sharing and lock
+/// violations (`ERROR_SHARING_VIOLATION`, `ERROR_LOCK_VIOLATION`). Elsewhere nothing keeps a file
+/// from being read so, and the same numbers are other errors (`EPIPE`, `EDOM`): never.
+fn held_elsewhere(e: &io::Error) -> bool {
+    const ERROR_SHARING_VIOLATION: i32 = 32;
+    const ERROR_LOCK_VIOLATION: i32 = 33;
+    cfg!(windows) && matches!(e.raw_os_error(), Some(ERROR_SHARING_VIOLATION | ERROR_LOCK_VIOLATION))
+}
+
 /// Every file in the data file at `path` (its path inside the account, its bytes), handed to
 /// `each` in batches. It's read from a copy at `tmp`, so the original is never changed (opening a
 /// database may write to it) and one another MailCraft has open can still be read. `stop` is
@@ -659,11 +668,7 @@ pub(crate) fn read_data_file(
     }
     if let Err(e) = copy_until(path, tmp, stop) {
         let _ = fs::remove_file(tmp);
-        return Err(match e.raw_os_error() {
-            // Windows' sharing and lock violations: something else has it open.
-            Some(32 | 33) => in_use(),
-            _ => io_err(e),
-        });
+        return Err(if held_elsewhere(&e) { in_use() } else { io_err(e) });
     }
     let read = (|| -> Result<usize> {
         let not_ours = |e: &dyn std::fmt::Display| io_err(io::Error::new(io::ErrorKind::InvalidData, format!("not a MailCraft data file ({e})")));
