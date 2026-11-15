@@ -118,6 +118,7 @@ fn the_editor_formats_as_you_see_it_with_outlooks_keys() {
 fn the_address_book_adds_people_to_to_cc_and_bcc() {
     let (mut a, dir) = app("names");
     let ctx = egui::Context::default();
+    ctx.enable_accesskit();
     a.session.prefs.new_mail_window = false;
     frame(&ctx, &mut a, vec![]);
     a.run("mail.new", json!({}));
@@ -135,8 +136,8 @@ fn the_address_book_adds_people_to_to_cc_and_bcc() {
     f.to = "Zoe Park <zoe@studio.example>; ".into();
     f.cc = "ann@x.example".into();
     // OK: the fields go to the message.
-    let p = json!({"to": f.to.trim(), "cc": f.cc.trim(), "bcc": ""});
-    a.act(crate::Action::Submit("compose.update", p));
+    click_named(&ctx, &mut a, "OK");
+    assert!(a.ui.dialog.is_none(), "{:?}", a.ui.dialog);
     let c = a.session.compose.clone().unwrap();
     assert!(c.to.contains("zoe@studio.example") && c.cc == "ann@x.example");
     let _ = std::fs::remove_dir_all(dir);

@@ -9,6 +9,7 @@ mod folder_pane;
 fn organising_renders_and_rules_save() {
     let (mut a, dir) = app("organise");
     let ctx = egui::Context::default();
+    ctx.enable_accesskit();
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list[1].key.clone();
     a.run("list.select", json!({"key": k.to_id()}));
@@ -19,18 +20,20 @@ fn organising_renders_and_rules_save() {
     frame(&ctx, &mut a, vec![]);
     a.run("list.focusTab", json!({"value": "other"}));
     frame(&ctx, &mut a, vec![]);
-    // The rule editor saves a rule; the Rules dialog lists it.
+    // The rule editor saves the rule its form says; the Rules dialog lists it.
     a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example"));
     frame(&ctx, &mut a, vec![]);
     if let Some(Dialog::EditRule(f)) = a.ui.dialog.as_mut() {
         f.action = crate::dialogs::RuleDo::Categorize;
         f.target = "Work".into();
     }
-    a.act(crate::Action::Submit(
-        "rules.set",
-        json!({"rules": [{"name": "Zoe", "conditions": [{"if": "from", "value": "zoe@"}], "actions": [{"do": "categorize", "value": "Work"}]}]}),
-    ));
-    assert_eq!(a.session.rules.len(), 1);
+    // A frame for the dialog to settle, taller with its Category row.
+    frame(&ctx, &mut a, vec![]);
+    click_named(&ctx, &mut a, "Save");
+    assert!(a.ui.dialog.is_none(), "saved and closed: {:?}", a.ui.dialog);
+    use mailcraft_engine::model::organize::{Condition, RuleAction};
+    let rules: Vec<_> = a.session.rules.iter().map(|r| (r.conditions.clone(), r.actions.clone())).collect();
+    assert_eq!(rules, [(vec![Condition::From("zoe@studio.example".into())], vec![RuleAction::Categorize("Work".into())])]);
     a.ui.dialog = Some(Dialog::Rules);
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![]);
@@ -235,6 +238,7 @@ fn favorites_can_be_hidden() {
 fn categories_from_other_programs_render_and_join_the_list() {
     let (mut a, dir) = app("categories-28");
     let ctx = egui::Context::default();
+    ctx.enable_accesskit();
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list[0].key.clone();
     a.run("list.select", json!({"key": k.to_id()}));
@@ -251,8 +255,8 @@ fn categories_from_other_programs_render_and_join_the_list() {
     if let Some(Dialog::NewCategory { name, .. }) = a.ui.dialog.as_mut() {
         *name = "Rückfrage".into();
     }
-    a.act(crate::Action::Submit("category.create", json!({"name": "Rückfrage", "keyword": "r=c3=bcckfrage", "color": 4})));
-    assert!(a.ui.dialog.is_none());
+    click_named(&ctx, &mut a, "Create");
+    assert!(a.ui.dialog.is_none(), "{:?}", a.ui.dialog);
     assert_eq!(a.session.category("rückfrage").map(|c| c.keyword.as_str()), Some("r=c3=bcckfrage"));
     // Taken: the dialog stays, saying why.
     a.ui.dialog = Some(Dialog::new_category(&a.session));
