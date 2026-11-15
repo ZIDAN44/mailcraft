@@ -3,18 +3,6 @@
 
 use super::*;
 
-/// The spans of `blocks` whose text is `words`.
-fn spans(blocks: &[Block], words: &str) -> Vec<crate::Span> {
-    let mut all = blocks.to_vec();
-    let mut out = Vec::new();
-    each_span(&mut all, &mut |s| {
-        if s.text.trim() == words {
-            out.push(s.clone());
-        }
-    });
-    out
-}
-
 /// The steps an order goes through, drawn with cells that hold nothing: a dot as wide and tall
 /// as it says, a line between two dots. They were left out, and the steps' names stood alone.
 #[test]

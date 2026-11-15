@@ -8,6 +8,18 @@ fn text(b: &Block) -> String {
     }
 }
 
+/// The spans of `blocks` whose text is `words`.
+fn spans(blocks: &[Block], words: &str) -> Vec<crate::Span> {
+    let mut all = blocks.to_vec();
+    let mut out = Vec::new();
+    each_span(&mut all, &mut |s| {
+        if s.text.trim() == words {
+            out.push(s.clone());
+        }
+    });
+    out
+}
+
 #[test]
 fn a_newsletter_keeps_its_columns() {
     let html = r##"<html><head><style>.hide{display:none}</style></head><body>
@@ -97,26 +109,15 @@ fn pictures_behind_boxes_are_kept() {
 #[test]
 fn text_takes_its_cells_colour() {
     // White on a dark band, set on the cell (or the table), as CSS inherits it.
-    let colour_of = |b: &[Block], word: &str| {
-        format!("{b:?}").contains(word).then(|| {
-            fn spans(b: &[Block], out: &mut Vec<(String, Option<[u8; 3]>)>) {
-                for x in b {
-                    match x {
-                        Block::Text(r) => out.extend(r.iter().flatten().map(|s| (s.text.clone(), s.color))),
-                        Block::Table(t) => t.rows.iter().flatten().for_each(|c| spans(&c.blocks, out)),
-                    }
-                }
-            }
-            let mut v = Vec::new();
-            spans(b, &mut v);
-            v.into_iter().find(|(t, _)| t.contains(word)).and_then(|(_, c)| c)
-        })
+    let colour_of = |b: &[Block], word: &str| match spans(b, word).as_slice() {
+        [s, ..] => s.color,
+        [] => panic!("no {word} in {b:?}"),
     };
     let cell = html_layout(r##"<table><tr><td style="color:#ffffff" bgcolor="#123456">Band</td><td>Other</td></tr></table>"##);
-    assert_eq!(colour_of(&cell, "Band").flatten(), Some([255, 255, 255]), "{cell:?}");
-    assert_eq!(colour_of(&cell, "Other").flatten(), None, "a neighbour keeps its own");
+    assert_eq!(colour_of(&cell, "Band"), Some([255, 255, 255]), "{cell:?}");
+    assert_eq!(colour_of(&cell, "Other"), None, "a neighbour keeps its own");
     let table = html_layout(r##"<table style="color:#00ff00"><tr><td>A</td><td>B</td></tr></table>"##);
-    assert_eq!(colour_of(&table, "A").flatten(), Some([0, 255, 0]));
+    assert_eq!(colour_of(&table, "A"), Some([0, 255, 0]));
     // A colour can't smuggle markup in.
     let evil = html_layout(r##"<table><tr><td style="color:red&quot;><script>x</script>">A</td><td>B</td></tr></table>"##);
     assert!(!format!("{evil:?}").contains("script"), "{evil:?}");
