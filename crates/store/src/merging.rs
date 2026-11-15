@@ -17,17 +17,65 @@ use crate::*;
 /// The account document noting what came into it from its data file, by identity: kept beside
 /// the import's own note.
 pub const SEEN_DOC: &str = "import-seen.json";
-/// The most identities of each kind kept: a file of more has its newest read past it.
+/// The most identities of each kind kept, the oldest noted let go first: past it, a message or
+/// item of those deleted here would come back with the next read of the file.
 const SEEN_MAX: usize = 4_000_000;
 /// Messages copied into the account together, at most (one write).
 const BATCH: usize = 500;
 
-/// What came into an account from its data file, by identity ([`message_id`], [`item_id`]).
+/// What came into an account from its data file, by identity ([`message_id`], [`item_id`]),
+/// each list in the order it was noted (the oldest first).
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 struct Seen {
     messages: Vec<u64>,
     items: Vec<u64>,
+}
+
+/// Identities noted, to look up and add to, keeping the order they were noted in.
+#[derive(Debug, Default)]
+struct Noted {
+    set: HashSet<u64>,
+    /// In the order noted; one taken back ([`Noted::remove`]) is left here and dropped at the end.
+    order: Vec<u64>,
+}
+
+impl Noted {
+    fn new(order: Vec<u64>) -> Noted {
+        Noted { set: order.iter().copied().collect(), order }
+    }
+
+    /// Note `id`: whether it's new.
+    fn insert(&mut self, id: u64) -> bool {
+        let new = self.set.insert(id);
+        if new {
+            self.order.push(id);
+        }
+        new
+    }
+
+    fn remove(&mut self, id: u64) {
+        self.set.remove(&id);
+    }
+
+    /// The identities noted, oldest first, each once.
+    fn into_list(mut self) -> Vec<u64> {
+        self.order.retain(|id| self.set.remove(id));
+        self.order
+    }
+}
+
+/// `list` (oldest first) with each identity once, where it was first noted, and no more than
+/// `max` of them: the oldest go.
+pub(crate) fn kept(list: Vec<u64>, max: usize) -> Vec<u64> {
+    let mut once = HashSet::with_capacity(list.len());
+    let mut list: Vec<u64> = list.into_iter().filter(|id| once.insert(*id)).collect();
+    let excess = list.len().saturating_sub(max);
+    if excess > 0 {
+        log::warn!("more than {max} identities noted from a data file: the oldest {excess} let go of");
+        list.drain(..excess);
+    }
+    list
 }
 
 /// What reading a data file again added to its copy ([`Store::merge_from`]).
@@ -130,13 +178,10 @@ impl Store {
         serde_json::from_slice(&bytes).map_err(|source| StoreError::Json { path, source })
     }
 
-    fn save_seen(&self, account: &str, mut seen: Seen) -> Result<()> {
-        for list in [&mut seen.messages, &mut seen.items] {
-            list.sort_unstable();
-            list.dedup();
-            let excess = list.len().saturating_sub(SEEN_MAX);
-            list.drain(..excess);
-        }
+    /// Keep the note of what came in (each list oldest first), each identity once and no more
+    /// than [`SEEN_MAX`] of a kind.
+    fn save_seen(&self, account: &str, seen: Seen) -> Result<()> {
+        let seen = Seen { messages: kept(seen.messages, SEEN_MAX), items: kept(seen.items, SEEN_MAX) };
         self.save_account_doc(account, SEEN_DOC, &seen)
     }
 
@@ -151,8 +196,7 @@ impl Store {
     /// ([`Store::has_seen`]).
     pub fn merge_from(&self, account: &str, from: &Store, from_account: &str) -> Result<Merged> {
         let seen = self.seen_of(account)?;
-        let (mut seen_messages, mut seen_items): (HashSet<u64>, HashSet<u64>) =
-            (seen.messages.iter().copied().collect(), seen.items.iter().copied().collect());
+        let (mut seen_messages, mut seen_items) = (Noted::new(seen.messages), Noted::new(seen.items));
         let mut have: HashSet<u64> = HashSet::new();
         for f in &self.load_folders(account)? {
             have.extend(self.load_folder(account, &f.path)?.messages.iter().map(|m| message_id(m)));
@@ -185,7 +229,7 @@ impl Store {
                     let Some(raw) = from.load_body(&m.key)? else {
                         // Not come in: not noted as come in either, so the next read tries it
                         // again (and another copy of it in the file may come in now).
-                        seen_messages.remove(&id);
+                        seen_messages.remove(id);
                         have.remove(&id);
                         unreadable += 1;
                         continue;
@@ -221,7 +265,7 @@ impl Store {
                 log::warn!("{account}: the days of its new messages' follow-ups weren't kept: {e}");
             }
         }
-        self.save_seen(account, Seen { messages: seen_messages.into_iter().collect(), items: seen_items.into_iter().collect() })?;
+        self.save_seen(account, Seen { messages: seen_messages.into_list(), items: seen_items.into_list() })?;
         Ok(merged)
     }
 
@@ -298,7 +342,7 @@ impl Store {
     /// The contacts, calendar items, notes and tasks of `from_account` that `account` hasn't and
     /// didn't have from the file before, added (each with a uid of its own here). How many of
     /// each.
-    fn merge_pim(&self, account: &str, from: &Store, from_account: &str, seen: &mut HashSet<u64>) -> Result<[usize; 4]> {
+    fn merge_pim(&self, account: &str, from: &Store, from_account: &str, seen: &mut Noted) -> Result<[usize; 4]> {
         let theirs: Pim = from.load_account_doc(from_account, PIM_DOC)?;
         let mut pim: Pim = self.load_account_doc(account, PIM_DOC)?;
         pim.ensure_defaults();

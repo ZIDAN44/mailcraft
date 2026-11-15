@@ -52,3 +52,32 @@ fn a_message_whose_source_cant_be_read_comes_in_next_time() {
     assert!(s.read_body(&two).unwrap().ends_with(b"body of two@x"));
     assert_eq!(s.merge_from("a1", &fresh, "r").unwrap().messages, 0);
 }
+
+/// What came in from the file is noted in the order it came, so the oldest go past the cap;
+/// they were kept in the order of their hashes, and the smallest went, whatever their age.
+#[test]
+fn what_came_in_is_noted_oldest_first() {
+    let id = |m: &str| crate::fnv64(&format!("m:{m}"));
+    let (before, after) = (["one@x", "two@x", "three@x"], ["four@x", "five@x", "six@x"]);
+    // Kept by hash, the new ones would be among the old.
+    assert!(after.iter().map(|m| id(m)).min() < before.iter().map(|m| id(m)).max());
+    let s = Store::memory();
+    for (uid, m) in (1..).zip(before) {
+        put(&s, "a1", uid, m);
+    }
+    s.note_imported("a1").unwrap();
+    let fresh = Store::memory();
+    for (uid, m) in (1..).zip(before.iter().chain(&after)) {
+        put(&fresh, "r", uid, m);
+    }
+    assert_eq!(s.merge_from("a1", &fresh, "r").unwrap().messages, 3);
+    let noted: serde_json::Value = s.load_account_doc("a1", crate::SEEN_DOC).unwrap();
+    let noted: Vec<u64> = noted["messages"].as_array().unwrap().iter().map(|n| n.as_u64().unwrap()).collect();
+    let set = |ids: &[u64]| ids.iter().copied().collect::<HashSet<u64>>();
+    assert_eq!(noted.len(), 6);
+    assert_eq!(set(&noted[..3]), before.iter().map(|m| id(m)).collect(), "the first read's first: {noted:?}");
+    assert_eq!(set(&noted[3..]), after.iter().map(|m| id(m)).collect());
+    // Past the cap, the oldest noted go; each is kept once, where it was first noted.
+    assert_eq!(crate::merging::kept(vec![50, 30, 50, 90, 10], 3), [30, 90, 10]);
+    assert_eq!(crate::merging::kept(vec![50, 30, 50], 3), [50, 30]);
+}
