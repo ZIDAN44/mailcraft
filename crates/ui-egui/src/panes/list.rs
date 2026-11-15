@@ -333,15 +333,8 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                 }
                 Row::Group(name) => {
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
-                    let (name, _) = crate::bidi::shown(name);
                     let m = crate::bidi::Mirror::new(r);
-                    ui.painter().text(
-                        m.pos(r.left_bottom() + vec2(14.0, -8.0)),
-                        m.align(egui::Align2::LEFT_BOTTOM),
-                        name.as_ref(),
-                        theme::bold(12.5),
-                        t.dim,
-                    );
+                    ui.painter().text(m.pos(r.left_bottom() + vec2(14.0, -8.0)), m.align(egui::Align2::LEFT_BOTTOM), name, theme::bold(12.5), t.dim);
                 }
                 Row::Message { index, count, unread } => {
                     let Some(m) = s.list.get(*index) else { continue };

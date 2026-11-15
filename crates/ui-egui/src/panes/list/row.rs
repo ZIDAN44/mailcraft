@@ -195,7 +195,7 @@ impl MessageRow<'_> {
         }
         let who = if self.sent_view { tf!("To: {names}", names = addr::display_list(&m.to)) } else { m.from.display().to_string() };
         let who = if count > 1 && !marks.address { format!("{who}  ({count})") } else { who };
-        let (who, who_rtl) = crate::bidi::shown(&who);
+        let who_rtl = crate::bidi::reads_rtl(&who);
         let who_right = right - tw - 10.0;
         let who_font = if unread { theme::bold(14.0) } else { theme::regular(14.0) };
         if marks.address {
@@ -285,13 +285,13 @@ impl MessageRow<'_> {
         let unread = self.unread;
         let subject = if m.subject.is_empty() { tl!("(no subject)").to_string() } else { m.subject.clone() };
         let subj_color = if unread { t.accent } else { t.text };
-        let (subject, subj_rtl) = crate::bidi::shown(&subject);
+        let subj_rtl = crate::bidi::reads_rtl(&subject);
         let subj_right = right - icons_w.max(if self.hovered { 70.0 } else { 0.0 }) - 4.0;
         let subj_g = widgets::one_line(ui, &subject, if unread { theme::bold(13.0) } else { theme::regular(13.0) }, subj_color, subj_right - x);
         p.galley(egui::pos2(self.place(subj_rtl, x, subj_right, subj_g.size().x), line2), subj_g, subj_color);
         if self.s.prefs.show_preview && !self.s.prefs.compact && !m.preview.is_empty() {
-            let (preview, pv_rtl) = crate::bidi::shown(&m.preview);
-            let pv = widgets::one_line(ui, &preview, theme::regular(12.5), t.dim, right - x);
+            let pv_rtl = crate::bidi::reads_rtl(&m.preview);
+            let pv = widgets::one_line(ui, &m.preview, theme::regular(12.5), t.dim, right - x);
             p.galley(egui::pos2(self.place(pv_rtl, x, right, pv.size().x), line2 + 19.0), pv, t.dim);
         }
     }

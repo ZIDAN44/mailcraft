@@ -188,12 +188,12 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     let p = ui.painter().with_clip_rect(rect);
     // The title, struck through when done.
     let title = if task.title.trim().is_empty() { tl!("(no title)").to_string() } else { task.title.clone() };
-    let (shown, title_rtl) = crate::bidi::shown(&title);
+    let title_rtl = crate::bidi::reads_rtl(&title);
     let title_color = if done { t.faint } else { t.text };
     // Cut with "…" where it doesn't fit, as the list's subjects are (it stopped mid-letter at
     // the next column).
     let room = (x_due - x_title - 10.0).max(10.0);
-    let galley = widgets::one_line(ui, &shown, theme::bold(13.0), title_color, room);
+    let galley = widgets::one_line(ui, &title, theme::bold(13.0), title_color, room);
     let title_w = galley.size().x.min(room);
     let title_x = if title_rtl && !mr.on() { rect.min.x + x_title + room - title_w } else { rect.min.x + x_title };
     // Under it: that it repeats, its categories, its notes' first line.

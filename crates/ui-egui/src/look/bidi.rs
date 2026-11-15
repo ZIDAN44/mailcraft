@@ -46,10 +46,10 @@ pub fn has_rtl(s: &str) -> bool {
     s.chars().any(is_rtl)
 }
 
-/// One line of mail (a subject, a name) to paint, and whether it reads right to left (then it
-/// belongs against the right edge, where it starts). The text is as written; egui orders it.
-pub fn shown(text: &str) -> (std::borrow::Cow<'_, str>, bool) {
-    (std::borrow::Cow::Borrowed(text), has_rtl(text) && paragraph_rtl(text))
+/// Whether one line of mail painted by hand (a subject, a name) reads right to left: then it
+/// belongs against the right edge, where it starts. It's painted as written; egui orders it.
+pub fn reads_rtl(text: &str) -> bool {
+    has_rtl(text) && paragraph_rtl(text)
 }
 
 /// A label for a laid-out job, wrapped at the width there is. One whose first paragraph reads
@@ -73,7 +73,7 @@ pub fn selectable_label(ui: &mut egui::Ui, text: &str, font: egui::FontId, color
 
 fn add_label_with(ui: &mut egui::Ui, mut job: egui::text::LayoutJob, selectable: bool) -> egui::Response {
     job.wrap.max_width = ui.available_width();
-    let rtl = has_rtl(&job.text) && paragraph_rtl(&job.text);
+    let rtl = reads_rtl(&job.text);
     let label = egui::Label::new(job).selectable(selectable);
     if rtl { ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| ui.add(label)).inner } else { ui.add(label) }
 }
@@ -193,8 +193,7 @@ mod tests {
         let line: String = rows.concat().into_iter().collect();
         // A left-to-right stretch inside keeps its own order ("abc 123").
         assert_eq!(line, "םלוע abc 123 םולש", "seen left to right on the screen");
-        assert_eq!(shown("שלום abc").0, "שלום abc", "handed over unchanged");
-        assert!(shown("שלום abc").1 && !shown("abc שלום").1 && !shown("plain").1);
+        assert!(reads_rtl("שלום abc") && !reads_rtl("abc שלום") && !reads_rtl("plain"));
     }
 
     /// A wrapped right-to-left paragraph keeps every word, and its short last line sits against
