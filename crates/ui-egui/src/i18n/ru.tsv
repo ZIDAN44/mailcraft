@@ -1716,3 +1716,23 @@ month	May	Май
 	{name} couldn't be downloaded: {error}	Не удалось загрузить {name}: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	В окне что-то пошло не так, и то, что оно делало, остановлено. MailCraft продолжает работу; в журнале указано, где это произошло.
 	Font size	Размер шрифта
+	Repeats every	Повторять каждые
+	On these days	По этим дням
+	Which day	Какой день
+	Series ends	Конец серии
+	After	После
+	Pick a date	Выбрать дату
+	On day {day}	{day}-го числа
+	On {month} {day}	{month}, {day}-го
+	On the {nth} {weekday}	В {nth} {weekday}
+	On the {nth} {weekday} of {month}	В {nth} {weekday} ({month})
+interval	days	дн.
+interval	weeks	нед.
+interval	months	мес.
+interval	years	г.
+nth	first	первый
+nth	second	второй
+nth	third	третий
+nth	fourth	четвёртый
+nth	last	последний
+count	occurrences	повторений

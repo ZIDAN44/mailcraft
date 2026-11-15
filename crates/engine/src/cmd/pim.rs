@@ -412,7 +412,11 @@ pub(super) fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::C
     match repeat_param(v)? {
         // No repeat: none of a file's added dates either.
         Some(None) => (e.rrule, e.rdates) = (None, Vec::new()),
-        Some(rule) => e.rrule = rule,
+        Some(rule) => {
+            e.rrule = rule;
+            // A last day (the form's "Until"): the end of that day where the event is (issue #103).
+            mailcraft_model::ical::until_where_it_is(&mut e);
+        }
         None => {}
     }
     super::meetings::apply(s, v, &mut e)?;

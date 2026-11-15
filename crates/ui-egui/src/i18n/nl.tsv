@@ -1712,3 +1712,23 @@ month	May	mei
 	{name} couldn't be downloaded: {error}	{name} kon niet worden gedownload: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	Er ging iets mis in het venster, en wat het aan het doen was, is gestopt. MailCraft gaat door; het logboek zegt waar het gebeurde.
 	Font size	Lettergrootte
+	Repeats every	Herhalen elke
+	On these days	Op deze dagen
+	Which day	Welke dag
+	Series ends	Reeks eindigt
+	After	Na
+	Pick a date	Kies een datum
+	On day {day}	Op dag {day}
+	On {month} {day}	Op {day} {month}
+	On the {nth} {weekday}	Op de {nth} {weekday}
+	On the {nth} {weekday} of {month}	Op de {nth} {weekday} van {month}
+interval	days	dagen
+interval	weeks	weken
+interval	months	maanden
+interval	years	jaar
+nth	first	eerste
+nth	second	tweede
+nth	third	derde
+nth	fourth	vierde
+nth	last	laatste
+count	occurrences	keer

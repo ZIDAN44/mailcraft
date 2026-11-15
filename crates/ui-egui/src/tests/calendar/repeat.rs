@@ -104,7 +104,9 @@ fn every_repeat_choice_saves_its_rule() {
             // The task form says a repeating task comes back.
             let back = drawn(&ctx, &mut a, vec![]).iter().any(|(s, _)| s == "Marked complete, it comes back on its next due date.");
             assert_eq!(back, kind == "task" && rule.is_some(), "{title}: the note");
-            assert_eq!(params(&a)["repeat"], word, "{title}: sent");
+            // An event's form sends the rule it makes (issue #103), a task's the list's word.
+            let sent = if kind == "event" { rule.unwrap_or("none") } else { word };
+            assert_eq!(params(&a)["repeat"], sent, "{title}: sent");
             assert_eq!(saved(&mut a, &title).as_deref(), rule, "{title}: saved");
         }
     }
@@ -120,7 +122,7 @@ fn a_rule_of_its_own_is_kept_as_custom() {
     let start = NOW + 3 * 86_400;
     for kind in ["event", "task"] {
         for (rule, label, word, kept) in [
-            ("FREQ=WEEKLY;BYDAY=MO,WE", "Custom", "FREQ=WEEKLY;BYDAY=MO,WE", "FREQ=WEEKLY;BYDAY=MO,WE"),
+            ("FREQ=DAILY;BYHOUR=9,17", "Custom", "FREQ=DAILY;BYHOUR=9,17", "FREQ=DAILY;BYHOUR=9,17"),
             ("freq=weekly", "Every week", "weekly", "FREQ=WEEKLY"),
         ] {
             let title = format!("{kind} {rule}");
@@ -141,7 +143,8 @@ fn a_rule_of_its_own_is_kept_as_custom() {
             a.ui.dialog = Some(open(&a));
             drawn(&ctx, &mut a, vec![]);
             assert_eq!(shown(&ctx, &mut a).0, label, "{title}: shown");
-            assert_eq!(params(&a)["repeat"], word, "{title}: sent");
+            let sent = if kind == "event" && label != "Custom" { kept } else { word };
+            assert_eq!(params(&a)["repeat"], sent, "{title}: sent");
             assert_eq!(saved(&mut a, &title).as_deref(), Some(kept), "{title}: saved");
             if label != "Custom" {
                 continue;
@@ -159,4 +162,96 @@ fn a_rule_of_its_own_is_kept_as_custom() {
             assert_eq!(saved(&mut a, &title).as_deref(), Some("FREQ=DAILY"), "{title}: replaced");
         }
     }
+}
+
+fn event_form(a: &mut MailApp) -> &mut crate::pim_dialogs::EventForm {
+    match &mut a.ui.dialog {
+        Some(Dialog::Event(f)) => f,
+        _ => panic!("no event form"),
+    }
+}
+
+/// Issue #103: every second week on Tuesdays and Thursdays, six times; the form shows how it
+/// repeats under Repeat, saves its rule, and opens with it again to change.
+#[test]
+fn a_pattern_is_saved_and_opens_again() {
+    let (mut a, _) = app("repeat-pattern");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Some(Dialog::new_event(&a.session, Some(NOW + 3 * 86_400)));
+    event_form(&mut a).summary = "Mix review".into();
+    drawn(&ctx, &mut a, vec![]);
+    pick(&ctx, &mut a, &PLAIN, "Every week");
+    let texts: Vec<String> = drawn(&ctx, &mut a, vec![]).into_iter().map(|(s, _)| s).collect();
+    for row in ["Repeats every", "weeks", "On these days", "Mon", "Series ends", "Never"] {
+        assert!(texts.iter().any(|s| s == row), "{row} in {texts:?}");
+    }
+    let f = event_form(&mut a);
+    let p = f.pattern.as_mut().expect("a pattern for Every week");
+    (p.interval, p.days, p.end) = (2, vec![1, 3], mailcraft_engine::model::ical::PatternEnd::Count(6));
+    let rule = "FREQ=WEEKLY;INTERVAL=2;BYDAY=TU,TH;COUNT=6";
+    assert_eq!(params(&a)["repeat"], rule);
+    assert_eq!(saved(&mut a, "Mix review").as_deref(), Some(rule));
+
+    let item = a.session.agenda(NOW, NOW + 30 * 86_400).into_iter().find(|i| i.summary == "Mix review").unwrap();
+    a.ui.dialog = Some(Dialog::open_event(&a.session, &item.uid, item.occurrence).unwrap());
+    assert_eq!(shown(&ctx, &mut a).0, "Every week", "shown as a week's, not Custom");
+    let f = event_form(&mut a);
+    assert_eq!(f.pattern.as_ref().map(|p| (p.interval, p.days.clone())), Some((2, vec![1, 3])));
+    assert_eq!(params(&a)["repeat"], rule, "unchanged, it's sent as it was");
+}
+
+/// A series ending on a day ends at the end of that day where it is, in UTC (RFC 5545 for a
+/// timed event).
+#[test]
+fn a_series_until_a_day_ends_that_day() {
+    let (mut a, _) = app("repeat-until");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Some(Dialog::new_event(&a.session, Some(NOW + 3 * 86_400)));
+    event_form(&mut a).summary = "Daily until".into();
+    drawn(&ctx, &mut a, vec![]);
+    pick(&ctx, &mut a, &PLAIN, "Every day");
+    drawn(&ctx, &mut a, vec![]);
+    let f = event_form(&mut a);
+    let last = crate::dialogs::pim_dialogs::pattern_day(&f.date).unwrap() + 4;
+    f.pattern.as_mut().unwrap().end = mailcraft_engine::model::ical::PatternEnd::Until(last);
+    let rule = saved(&mut a, "Daily until").unwrap();
+    assert!(rule.starts_with("FREQ=DAILY;UNTIL=") && rule.ends_with('Z'), "{rule}");
+    let item = a.session.agenda(NOW, NOW + 30 * 86_400).into_iter().filter(|i| i.summary == "Daily until").count();
+    assert_eq!(item, 5, "five days, the last one's included");
+}
+
+/// The end keeps the event's length when the start is changed (issue #103); an end changed by
+/// hand gives it a new one.
+#[test]
+fn the_end_follows_the_start() {
+    use crate::pim_dialogs::{end_follows_start, typed_moment};
+    let (a, _) = app("repeat-end-follows");
+    let Dialog::Event(mut f) = Dialog::new_event(&a.session, Some(NOW + 3 * 86_400)) else { panic!("no event form") };
+    (f.date, f.start, f.end_date, f.end) = ("2026-11-19".into(), "10:00".into(), "2026-11-19".into(), "10:30".into());
+    let typed = |f: &crate::pim_dialogs::EventForm| typed_moment(&f.date, &f.start, f.all_day);
+    let now = typed(&f);
+    end_follows_start(&mut f, now);
+    let before = typed(&f);
+    f.start = "23:45".into();
+    end_follows_start(&mut f, before);
+    assert_eq!((f.end_date.as_str(), f.end.as_str()), ("2026-11-20", "00:15"), "half an hour later, past midnight");
+    let before = typed(&f);
+    f.date = "2026-11-21".into();
+    end_follows_start(&mut f, before);
+    assert_eq!((f.end_date.as_str(), f.end.as_str()), ("2026-11-22", "00:15"), "a new day too");
+    // The end changed by hand: the new length from then on.
+    f.end = "01:45".into();
+    let now = typed(&f);
+    end_follows_start(&mut f, now);
+    let before = typed(&f);
+    f.start = "09:00".into();
+    end_follows_start(&mut f, before);
+    assert_eq!((f.end_date.as_str(), f.end.as_str()), ("2026-11-21", "11:00"));
+    // Half typed, the end waits.
+    let before = typed(&f);
+    f.start = "9:".into();
+    end_follows_start(&mut f, before);
+    assert_eq!(f.end, "11:00");
 }

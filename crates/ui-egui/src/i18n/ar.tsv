@@ -1712,3 +1712,23 @@ month	May	مايو
 	{name} couldn't be downloaded: {error}	تعذّر تنزيل {name}: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	حدث خطأ في النافذة، فأُوقف ما كانت تقوم به. يواصل MailCraft العمل، ويذكر السجل أين حدث ذلك.
 	Font size	حجم الخط
+	Repeats every	التكرار كل
+	On these days	في هذه الأيام
+	Which day	أي يوم
+	Series ends	تنتهي السلسلة
+	After	بعد
+	Pick a date	اختر تاريخًا
+	On day {day}	في اليوم {day}
+	On {month} {day}	في {day} {month}
+	On the {nth} {weekday}	في {weekday} {nth}
+	On the {nth} {weekday} of {month}	في {weekday} {nth} من {month}
+interval	days	أيام
+interval	weeks	أسابيع
+interval	months	أشهر
+interval	years	سنوات
+nth	first	الأول
+nth	second	الثاني
+nth	third	الثالث
+nth	fourth	الرابع
+nth	last	الأخير
+count	occurrences	مرات

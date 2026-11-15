@@ -1716,3 +1716,23 @@ month	May	5월
 	{name} couldn't be downloaded: {error}	{name}을(를) 다운로드할 수 없습니다: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	창에서 문제가 생겨 하던 작업을 중단했습니다. MailCraft는 계속 사용할 수 있으며, 문제가 생긴 위치는 로그에 있습니다.
 	Font size	글꼴 크기
+	Repeats every	반복 간격
+	On these days	요일
+	Which day	날짜 지정
+	Series ends	시리즈 종료
+	After	횟수
+	Pick a date	날짜 선택
+	On day {day}	매월 {day}일
+	On {month} {day}	매년 {month} {day}일
+	On the {nth} {weekday}	매월 {nth} {weekday}
+	On the {nth} {weekday} of {month}	매년 {month} {nth} {weekday}
+interval	days	일마다
+interval	weeks	주마다
+interval	months	개월마다
+interval	years	년마다
+nth	first	첫째
+nth	second	둘째
+nth	third	셋째
+nth	fourth	넷째
+nth	last	마지막
+count	occurrences	회

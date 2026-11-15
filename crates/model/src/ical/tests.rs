@@ -6,6 +6,7 @@ mod meeting;
 mod moving;
 mod notes;
 mod occurring;
+mod pattern;
 mod showing;
 mod tasks;
 mod zones;

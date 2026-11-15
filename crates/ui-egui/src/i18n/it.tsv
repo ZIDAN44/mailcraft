@@ -1716,3 +1716,23 @@ month	May	maggio
 	{name} couldn't be downloaded: {error}	Impossibile scaricare {name}: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	Qualcosa è andato storto nella finestra e ciò che stava facendo è stato interrotto. MailCraft continua; il registro indica dove è successo.
 	Font size	Dimensione carattere
+	Repeats every	Ripeti ogni
+	On these days	In questi giorni
+	Which day	Quale giorno
+	Series ends	Fine della serie
+	After	Dopo
+	Pick a date	Scegli una data
+	On day {day}	Il giorno {day}
+	On {month} {day}	Il {day} {month}
+	On the {nth} {weekday}	Ogni {nth} {weekday}
+	On the {nth} {weekday} of {month}	Ogni {nth} {weekday} di {month}
+interval	days	giorni
+interval	weeks	settimane
+interval	months	mesi
+interval	years	anni
+nth	first	primo
+nth	second	secondo
+nth	third	terzo
+nth	fourth	quarto
+nth	last	ultimo
+count	occurrences	ripetizioni

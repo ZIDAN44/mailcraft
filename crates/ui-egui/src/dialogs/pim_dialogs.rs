@@ -10,7 +10,11 @@ use crate::theme::{self, Tokens};
 use crate::{Action, widgets};
 
 mod contact;
+mod date_pick;
 mod online_meeting;
+mod pattern;
+#[cfg(test)]
+pub(crate) use pattern::form_day as pattern_day;
 mod repeat;
 mod showing;
 mod task;
@@ -86,6 +90,12 @@ pub struct EventForm {
     /// Its times are shown on a 12-hour clock (File › Options).
     pub hours12: bool,
     pub repeat: Repeat,
+    /// How it repeats, when the form can show the rule (issue #103): sent in place of `repeat`.
+    pub pattern: Option<mailcraft_engine::model::ical::Pattern>,
+    /// The series' last day as typed (`YYYY-MM-DD`).
+    pub until_text: String,
+    /// Its length in minutes, from its start and end as typed: a new start keeps it (issue #103).
+    pub length: Option<i64>,
     /// Its reminder, in minutes before it starts (`None`: none).
     pub reminder: Option<i64>,
     /// Who sees what of it, and how it shows its time (issue #32).
@@ -195,6 +205,11 @@ impl EventForm {
         // guests read back as they were.
         let written = |a: &mailcraft_engine::model::ical::Attendee| mailcraft_engine::model::EmailAddress::new(&a.name, &a.email).to_string();
         let links = e.links();
+        let pattern = e.rrule.as_deref().and_then(|r| mailcraft_engine::model::ical::Pattern::read(r, s.clock.local_day(start)));
+        let until_text = match pattern.as_ref().map(|p| p.end) {
+            Some(mailcraft_engine::model::ical::PatternEnd::Until(d)) => dates::day_string(d),
+            _ => String::new(),
+        };
         Some(EventForm {
             uid: Some(uid.to_string()),
             occurrence: Some(occurrence),
@@ -213,7 +228,10 @@ impl EventForm {
             reminder: mailcraft_engine::model::ical::reminder_minutes(e),
             privacy: mailcraft_engine::model::ical::privacy(e),
             show_as: mailcraft_engine::model::ical::show_as(e),
-            repeat: Repeat::from_rrule(e.rrule.as_deref()),
+            repeat: pattern.as_ref().map_or_else(|| Repeat::from_rrule(e.rrule.as_deref()), pattern::repeat_of),
+            pattern,
+            until_text,
+            length: None,
             organizer: e.organizer.as_ref().map(written),
             attendees: e.attendees.iter().map(|a| (if a.name.is_empty() { a.email.clone() } else { a.name.clone() }, a.partstat.clone())).collect(),
             needs_reply: e.attendees.iter().any(|a| mine.contains(&a.email.to_ascii_lowercase()) && a.partstat == "NEEDS-ACTION"),
@@ -243,7 +261,7 @@ impl EventForm {
             "start": start,
             "end": end,
             "allDay": self.all_day,
-            "repeat": self.repeat.param(),
+            "repeat": pattern::repeat_param(self),
             "reminder": self.reminder.map_or_else(|| json!("none"), |m| json!(m)),
             "categories": self.categories,
             "privacy": self.privacy.code(),
@@ -418,6 +436,38 @@ fn footer_rule(ui: &mut Ui, t: &Tokens) {
     ui.add_space(10.0);
 }
 
+/// A date and time as typed, in minutes on the local clock (`None`: not one yet). An all-day
+/// event's is its date's midnight.
+pub(crate) fn typed_moment(date: &str, time: &str, all_day: bool) -> Option<i64> {
+    let day = pattern::form_day(date)?;
+    let (h, m) = if all_day { (0, 0) } else { crate::i18n::read_time(time)? };
+    Some(day.saturating_mul(1440).saturating_add(i64::from(h) * 60 + i64::from(m)))
+}
+
+/// The end keeps the event's length when its start is changed (issue #103): moving a half-hour
+/// meeting by half an hour left it no time, or an hour. `before`: the start before this frame's
+/// typing. An end changed by hand gives it its new length.
+pub(crate) fn end_follows_start(f: &mut EventForm, before: Option<i64>) {
+    let start = typed_moment(&f.date, &f.start, f.all_day);
+    let end = typed_moment(&f.end_date, &f.end, f.all_day);
+    match (start, f.length) {
+        (Some(s), Some(len)) if start != before => {
+            let to = s.saturating_add(len);
+            f.end_date = dates::day_string(to.div_euclid(1440));
+            if !f.all_day {
+                let minute = to.rem_euclid(1440);
+                let style = dates::DateStyle { hours12: f.hours12, ..dates::DateStyle::default() };
+                f.end = crate::i18n::time_box(u32::try_from(minute / 60).unwrap_or(0), u32::try_from(minute % 60).unwrap_or(0), style);
+            }
+        }
+        _ => {
+            if let (Some(s), Some(e)) = (start, end) {
+                f.length = Some(e.saturating_sub(s));
+            }
+        }
+    }
+}
+
 pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(540.0);
     form_header(ui, t, Ok(Icon::Calendar), if f.uid.is_some() { "Event" } else { "New event" });
@@ -431,14 +481,16 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
     online_meeting::row(ui, f, t, acts);
     ui.add_enabled_ui(!f.read_only, |ui| {
         title_field(ui, &mut f.summary);
+        let start_before = typed_moment(&f.date, &f.start, f.all_day);
         form_row(ui, t, true, Some(Icon::Clock), "Starts", |ui| {
-            field(ui, &mut f.date, "YYYY-MM-DD", 120.0);
+            date_pick::date_field(ui, t, "event-start", &mut f.date);
             if !f.all_day {
                 time_field(ui, &mut f.start, 9, f.hours12);
             }
         });
+        end_follows_start(f, start_before);
         form_row(ui, t, true, None, "Ends", |ui| {
-            field(ui, &mut f.end_date, "YYYY-MM-DD", 120.0);
+            date_pick::date_field(ui, t, "event-end", &mut f.end_date);
             if !f.all_day {
                 time_field(ui, &mut f.end, 10, f.hours12);
             }
@@ -448,6 +500,8 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
             });
         });
         repeat_row(ui, t, "event-repeat", &mut f.repeat);
+        pattern::follow_choice(f);
+        pattern::rows(ui, t, f);
         form_row(ui, t, true, Some(Icon::Clock), "Reminder", |ui| {
             ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 let mut choices: Vec<Option<i64>> = std::iter::once(None).chain(REMINDER_CHOICES.iter().map(|m| Some(*m))).collect();

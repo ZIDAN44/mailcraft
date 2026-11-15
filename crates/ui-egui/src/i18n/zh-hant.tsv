@@ -1716,3 +1716,23 @@ month	May	5月
 	{name} couldn't be downloaded: {error}	無法下載 {name}: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	視窗發生問題，正在進行的操作已停止。MailCraft 可以繼續使用；記錄中寫明了出錯的位置。
 	Font size	字型大小
+	Repeats every	重複間隔
+	On these days	在這些日子
+	Which day	哪一天
+	Series ends	系列結束
+	After	次數
+	Pick a date	選擇日期
+	On day {day}	每月{day}日
+	On {month} {day}	每年{month}{day}日
+	On the {nth} {weekday}	每月{nth}{weekday}
+	On the {nth} {weekday} of {month}	每年{month}{nth}{weekday}
+interval	days	天
+interval	weeks	週
+interval	months	個月
+interval	years	年
+nth	first	第一個
+nth	second	第二個
+nth	third	第三個
+nth	fourth	第四個
+nth	last	最後一個
+count	occurrences	次

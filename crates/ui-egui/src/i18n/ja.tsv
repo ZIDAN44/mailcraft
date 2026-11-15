@@ -1713,3 +1713,23 @@ month	May	5月
 	{name} couldn't be downloaded: {error}	{name} をダウンロードできませんでした: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	ウィンドウで問題が起きたため、実行中の処理を中止しました。MailCraft はそのまま使えます。発生した場所はログに記録されています。
 	Font size	フォントサイズ
+	Repeats every	繰り返しの間隔
+	On these days	曜日
+	Which day	日付の指定
+	Series ends	シリーズの終了
+	After	回数
+	Pick a date	日付を選ぶ
+	On day {day}	毎月{day}日
+	On {month} {day}	毎年{month}{day}日
+	On the {nth} {weekday}	毎月{nth}{weekday}
+	On the {nth} {weekday} of {month}	毎年{month}の{nth}{weekday}
+interval	days	日ごと
+interval	weeks	週ごと
+interval	months	か月ごと
+interval	years	年ごと
+nth	first	第1
+nth	second	第2
+nth	third	第3
+nth	fourth	第4
+nth	last	最終
+count	occurrences	回

@@ -1717,3 +1717,23 @@ month	May	Mayıs
 	{name} couldn't be downloaded: {error}	{name} indirilemedi: {error}
 	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	Pencerede bir şeyler ters gitti ve yaptığı iş durduruldu. MailCraft çalışmaya devam ediyor; nerede olduğu günlükte yazıyor.
 	Font size	Yazı tipi boyutu
+	Repeats every	Tekrar aralığı: her
+	On these days	Bu günlerde
+	Which day	Hangi gün
+	Series ends	Seri biter
+	After	Toplam
+	Pick a date	Tarih seç
+	On day {day}	Ayın {day}. günü
+	On {month} {day}	{day} {month}
+	On the {nth} {weekday}	Ayın {nth} {weekday} günü
+	On the {nth} {weekday} of {month}	{month} ayının {nth} {weekday} günü
+interval	days	gün
+interval	weeks	hafta
+interval	months	ay
+interval	years	yıl
+nth	first	birinci
+nth	second	ikinci
+nth	third	üçüncü
+nth	fourth	dördüncü
+nth	last	son
+count	occurrences	kez
