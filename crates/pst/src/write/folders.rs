@@ -53,6 +53,35 @@ pub(crate) fn writable(p: &Properties) -> Vec<(u16, PropertyValue)> {
     p.iter().map(|(k, v)| (*k, v.clone())).collect()
 }
 
+/// A new folder's row in its parent's hierarchy table.
+struct FolderRow<'a> {
+    folder: u32,
+    name: &'a str,
+    class: &'a str,
+    version: u32,
+    text: Text,
+    /// The folder's entry ID; none when the store has no record key.
+    entry: Option<Vec<u8>>,
+}
+
+impl FolderRow<'_> {
+    /// The row's cell for a hierarchy column.
+    fn cell(&self, id: u16, kind: u16) -> Option<Cell> {
+        match (id, kind) {
+            #[allow(clippy::cast_possible_wrap)]
+            (ROW_ID, P::INT32) => Some(Cell::Fixed((self.folder as i32).to_le_bytes().to_vec())),
+            #[allow(clippy::cast_possible_wrap)]
+            (ROW_VERSION, P::INT32) => Some(Cell::Fixed((self.version as i32).to_le_bytes().to_vec())),
+            (DISPLAY_NAME, _) => self.text.cell(kind, self.name).map(Cell::Bytes),
+            (CONTENT_COUNT | CONTENT_UNREAD, P::INT32) => Some(Cell::Fixed(0i32.to_le_bytes().to_vec())),
+            (SUBFOLDERS, P::BOOLEAN) => Some(Cell::Fixed(vec![0])),
+            (CONTAINER_CLASS, _) => self.text.cell(kind, self.class).map(Cell::Bytes),
+            (0x0FFF, P::BINARY) => self.entry.clone().map(Cell::Bytes),
+            _ => None,
+        }
+    }
+}
+
 /// A display name read as text.
 fn name_matches(v: Option<&PropertyValue>, wanted: &str) -> bool {
     match v {
@@ -89,23 +118,6 @@ impl Editor {
             }
         }
         Ok(None)
-    }
-
-    /// The cell a new folder's row has for a hierarchy column.
-    fn folder_cell(&self, id: u16, kind: u16, folder: u32, name: &str, class: &str, version: u32) -> Option<Cell> {
-        let text = Text::plain(self.format());
-        match (id, kind) {
-            #[allow(clippy::cast_possible_wrap)]
-            (ROW_ID, P::INT32) => Some(Cell::Fixed((folder as i32).to_le_bytes().to_vec())),
-            #[allow(clippy::cast_possible_wrap)]
-            (ROW_VERSION, P::INT32) => Some(Cell::Fixed((version as i32).to_le_bytes().to_vec())),
-            (DISPLAY_NAME, _) => text.cell(kind, name).map(Cell::Bytes),
-            (CONTENT_COUNT | CONTENT_UNREAD, P::INT32) => Some(Cell::Fixed(0i32.to_le_bytes().to_vec())),
-            (SUBFOLDERS, P::BOOLEAN) => Some(Cell::Fixed(vec![0])),
-            (CONTAINER_CLASS, _) => text.cell(kind, class).map(Cell::Bytes),
-            (0x0FFF, P::BINARY) => Some(Cell::Bytes(self.entry_id(folder).ok()?)),
-            _ => None,
-        }
     }
 
     /// The entry ID of node `nid` in this file.
@@ -145,8 +157,9 @@ impl Editor {
         let version = self.header.unique;
         // The parent's hierarchy table gets a row.
         let hierarchy = (parent & !NID_TYPE_MASK) | NID_TYPE_HIERARCHY_TABLE;
-        self.rewrite_table(hierarchy, |ed, schema, rows| {
-            let cells = schema.columns.iter().map(|c| ed.folder_cell(c.prop_id(), c.prop_type(), folder, name, class, version)).collect();
+        let row = FolderRow { folder, name, class, version, text, entry: self.entry_id(folder).ok() };
+        self.rewrite_table(hierarchy, |schema, rows| {
+            let cells = schema.columns.iter().map(|c| row.cell(c.prop_id(), c.prop_type())).collect();
             rows.push(NewRow { id: folder, cells });
             Ok(())
         })?;
@@ -198,7 +211,7 @@ impl Editor {
     /// Sets cells of rows in the table at `nid`, by row ID.
     pub(crate) fn patch_rows(&mut self, nid: u32, patches: &BTreeMap<u32, Vec<(u16, Cell)>>) -> io::Result<()> {
         let version = self.header.unique;
-        self.rewrite_table(nid, |_, schema, rows| {
+        self.rewrite_table(nid, |schema, rows| {
             for row in rows.iter_mut() {
                 let Some(cells) = patches.get(&row.id) else { continue };
                 for (id, cell) in cells {
@@ -240,7 +253,7 @@ impl Editor {
             written.push(Written { nid, size: i32::try_from(total.saturating_sub(6)).map_err(|_| short())? });
         }
         let contents = (folder & !NID_TYPE_MASK) | NID_TYPE_CONTENTS_TABLE;
-        let count = self.rewrite_table(contents, |_, schema, rows| {
+        let count = self.rewrite_table(contents, |schema, rows| {
             for (input, w) in batch.iter().zip(&written) {
                 let text = text_of(format, &input.message, input.attachments);
                 let cells = schema

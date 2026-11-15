@@ -351,7 +351,7 @@ fn overlapping_columns_are_refused_on_rewrite() {
     ed.set_node(0x7EE, data, sub, 0);
     ed.commit().unwrap();
     let mut ed = Editor::open(&path).unwrap();
-    let e = ed.rewrite_table(0x7EE, |_, _, _| Ok(())).unwrap_err();
+    let e = ed.rewrite_table(0x7EE, |_, _| Ok(())).unwrap_err();
     assert!(e.to_string().contains("overlap"), "{e}");
 }
 

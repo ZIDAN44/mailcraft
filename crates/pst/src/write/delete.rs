@@ -63,7 +63,7 @@ pub(crate) fn delete_messages(path: &Path, messages: &[u32]) -> io::Result<()> {
         let (entry, table) = ed.read_table(node)?;
         let unread_gone =
             i32::try_from(table.rows_matrix().filter(|r| removed.contains(&r.id()) && row_unread(&table, r)).count()).map_err(|_| short())?;
-        let left = ed.rewrite_read_table(node, entry, &table, |_, _, rows| {
+        let left = ed.rewrite_read_table(node, entry, &table, |_, rows| {
             rows.retain(|r| !removed.contains(&r.id));
             Ok(())
         })?;
@@ -121,7 +121,7 @@ pub(crate) fn delete_messages(path: &Path, messages: &[u32]) -> io::Result<()> {
         let Ok(table) = Table::read(ed.pst.clone(), entry.data, entry.sub) else { continue };
         let folder = (entry.nid & !NID_TYPE_MASK) | NID_TYPE_SEARCH_FOLDER;
         if ed.node(folder).is_ok() && table.rows_matrix().any(|r| removed.contains(&r.id())) {
-            ed.rewrite_read_table(entry.nid, entry, &table, |_, _, rows| {
+            ed.rewrite_read_table(entry.nid, entry, &table, |_, rows| {
                 rows.retain(|r| !removed.contains(&r.id));
                 Ok(())
             })?;

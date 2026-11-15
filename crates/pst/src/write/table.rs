@@ -201,7 +201,7 @@ impl Editor {
 
     /// The table at node `nid`, with `edit` applied to its rows: what's in the file is let go
     /// of and the node written again. `edit` can read each row as cells of the layout.
-    pub(crate) fn rewrite_table(&mut self, nid: u32, edit: impl FnOnce(&mut Self, &Schema, &mut Vec<NewRow>) -> io::Result<()>) -> io::Result<usize> {
+    pub(crate) fn rewrite_table(&mut self, nid: u32, edit: impl FnOnce(&Schema, &mut Vec<NewRow>) -> io::Result<()>) -> io::Result<usize> {
         let (entry, table) = self.read_table(nid)?;
         self.rewrite_read_table(nid, entry, &table, edit)
     }
@@ -219,11 +219,11 @@ impl Editor {
         nid: u32,
         entry: NodeEntry,
         table: &Table,
-        edit: impl FnOnce(&mut Self, &Schema, &mut Vec<NewRow>) -> io::Result<()>,
+        edit: impl FnOnce(&Schema, &mut Vec<NewRow>) -> io::Result<()>,
     ) -> io::Result<usize> {
         let schema = Schema { columns: table.columns().to_vec(), ends: table.ends() };
         let mut rows = table.new_rows()?;
-        edit(self, &schema, &mut rows)?;
+        edit(&schema, &mut rows)?;
         // Cells kept in subnodes stay where they are.
         let kept: HashSet<u32> =
             rows.iter().flat_map(|r| r.cells.iter().flatten()).filter_map(|c| if let Cell::Node(n) = c { Some(*n) } else { None }).collect();
