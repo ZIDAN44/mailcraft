@@ -329,7 +329,8 @@ impl LexStream {
         Ok(LexStream { raw, pos, left: n, prev: Vec::new(), next_doc, post_pages, pos_pages, places_at })
     }
 
-    /// What it holds, in bytes.
+    /// What it holds, in bytes (the tests' count of a merge's peak).
+    #[cfg(test)]
     pub(crate) fn held(&self) -> usize {
         self.raw.len().saturating_add(self.prev.len())
     }

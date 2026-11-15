@@ -93,7 +93,8 @@ impl Input {
         Input { info, next_page: 0, page: None, word: None, post: None, places: None }
     }
 
-    /// What it holds in memory.
+    /// What it holds in memory (the tests' count of a merge's peak).
+    #[cfg(test)]
     fn held(&self) -> usize {
         let word = self.word.as_ref().map_or(0, |e| e.key.len() + if let Postings::Inline(d) = &e.at { d.len() * 4 } else { 0 });
         let page = self.page.as_ref().map_or(0, LexStream::held);
@@ -173,18 +174,24 @@ impl Writer {
             return Ok(false);
         }
         let budget = budget.clamp(LEX_PAGE, BACKGROUND_COMMIT);
-        match self.due(now) {
-            Some(Due::Renumber) => self.renumber(store, budget)?,
-            Some(Due::Merge(segs)) => self.merge(store, &segs, budget, now)?,
+        // The doc table looked through once a step: the merge says what it leaves.
+        let dead = self.tombstones();
+        let left = match self.due(now, &dead) {
+            Some(Due::Renumber) => {
+                // Only the live docs are given ids: no removed doc is left.
+                self.renumber(store, budget)?;
+                Vec::new()
+            }
+            Some(Due::Merge(segs)) => self.merge(store, &segs, dead, budget, now)?,
             None => {
-                let since = self.dead_since(&self.meta.segments, &self.tombstones(), now);
+                let since = self.dead_since(&self.meta.segments, &dead, now);
                 if since != self.meta.dead_since {
                     self.write_since(store, since)?;
                 }
                 return Ok(false);
             }
-        }
-        Ok(self.due(now).is_some())
+        };
+        Ok(self.due(now, &left).is_some())
     }
 
     #[cfg(not(test))]
@@ -215,16 +222,16 @@ impl Writer {
         }
     }
 
-    fn due(&self, now: u64) -> Option<Due> {
+    /// What's due, `dead` the [`tombstones`](Writer::tombstones).
+    fn due(&self, now: u64, dead: &[u32]) -> Option<Due> {
         let (next, live) = (self.docs.len() as u64, u64::from(self.live));
         if next > live.saturating_mul(2).saturating_add(u64::from(self.renumber_slack())) {
             return Some(Due::Renumber);
         }
         let segs = &self.meta.segments;
-        let dead = self.tombstones();
         let since = self.meta.dead_since;
         if since != 0 && now.saturating_sub(since) >= TOMBSTONE_AGE {
-            let holding: Vec<usize> = segs.iter().enumerate().filter(|(_, s)| holds(&dead, s)).map(|(i, _)| i).collect();
+            let holding: Vec<usize> = segs.iter().enumerate().filter(|(_, s)| holds(dead, s)).map(|(i, _)| i).collect();
             if !holding.is_empty() {
                 return Some(Due::Merge(smallest(segs, holding, MAX_MERGE)));
             }
@@ -251,8 +258,9 @@ impl Writer {
         Ok(())
     }
 
-    /// Merge these segments into one, the words of removed docs left out.
-    fn merge(&mut self, store: &Store, segs: &[usize], budget: usize, now: u64) -> Result<()> {
+    /// Merge these segments into one, the words of removed docs (`dead`, the
+    /// [`tombstones`](Writer::tombstones)) left out. The tombstones it leaves.
+    fn merge(&mut self, store: &Store, segs: &[usize], dead: Vec<u32>, budget: usize, now: u64) -> Result<Vec<u32>> {
         let next_doc = self.meta.next_doc;
         let base = self.base.clone();
         let mut inputs: Vec<Input> = segs.iter().filter_map(|&i| self.meta.segments.get(i).copied()).map(Input::new).collect();
@@ -262,6 +270,7 @@ impl Writer {
         let mut b = SegBuilder::default();
         let mut seen = Bits::new(next_doc);
         let mut last: Option<Vec<u8>> = None;
+        #[cfg(test)]
         let mut peak = 0usize;
         loop {
             // The lowest word now, and its docs in every segment that has it.
@@ -287,11 +296,16 @@ impl Writer {
                 };
                 lists.push((docs, places));
             }
+            // What it holds at most, as the tests count it.
+            #[cfg(test)]
             let listed = lists.iter().map(|(d, p)| d.len() * 4 + p.as_ref().map_or(0, Vec::len)).fold(0, usize::saturating_add);
             let live = |d: u32| self.docs.get(d as usize).is_some_and(DocRec::live);
             let merged = merge_lists(&key, lists, live).map_err(|what| damaged(&base, what))?;
-            let held = inputs.iter().map(Input::held).fold(b.held(), usize::saturating_add);
-            peak = peak.max(held.saturating_add(listed).saturating_add(merged.docs.len() * 4 + merged.places.len()));
+            #[cfg(test)]
+            {
+                let held = inputs.iter().map(Input::held).fold(b.held(), usize::saturating_add);
+                peak = peak.max(held.saturating_add(listed).saturating_add(merged.docs.len() * 4 + merged.places.len()));
+            }
             if !merged.docs.is_empty() {
                 for &d in &merged.docs {
                     seen.set(d);
@@ -318,7 +332,6 @@ impl Writer {
             self.seg_files(id, seg, &mut files);
             self.write_batches(store, files)?;
         }
-        let dead = self.tombstones();
         let (purged, kept): (Vec<u32>, Vec<u32>) = dead.into_iter().partition(|&d| !within(&left, d));
         let mut files = Vec::new();
         let mut pages: BTreeSet<usize> = purged.iter().map(|&d| (d / DOCS_PER_PAGE) as usize).collect();
@@ -356,9 +369,7 @@ impl Writer {
         {
             self.merge_peak = peak;
         }
-        #[cfg(not(test))]
-        let _ = peak;
-        Ok(())
+        Ok(kept)
     }
 
     fn write_pages(&self, store: &Store, id: u32, pages: Vec<SegPage>) -> Result<()> {
