@@ -218,33 +218,6 @@ pub(super) fn png(w: u32, h: u32) -> Vec<u8> {
     out
 }
 
-/// A message with these files put first in the Inbox, and the Inbox shown.
-fn with_files(a: &mut MailApp, uid: u32, files: Vec<(String, &str, Vec<u8>)>) -> MessageKey {
-    use mailcraft_engine::mime::{self, Draft, OutAttachment};
-    let d = Draft {
-        subject: format!("Files {uid}"),
-        body: "Here they are.".into(),
-        attachments: files.into_iter().map(|(name, mime, data)| OutAttachment { name, mime: mime.into(), data, ..Default::default() }).collect(),
-        ..Default::default()
-    };
-    let raw = mime::build(&d, &mailcraft_engine::model::EmailAddress::new("Sam", "sam@studio.example"), NOW, &format!("<files{uid}@x>")).unwrap();
-    with_raw(a, uid, &raw)
-}
-
-/// A message of this source put first in the Inbox, and the Inbox shown.
-fn with_raw(a: &mut MailApp, uid: u32, raw: &[u8]) -> MessageKey {
-    use mailcraft_engine::mime;
-    let store = a.session.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
-    inbox.messages.insert(0, mime::summary_from_full(raw, key.clone(), Default::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, raw).unwrap();
-    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
-    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
-    key
-}
-
 fn pictures(n: usize) -> Vec<(String, &'static str, Vec<u8>)> {
     (0..n).map(|i| (format!("photo {i}.png"), "image/png", png(8 + (i % 5) as u32, 8))).collect()
 }

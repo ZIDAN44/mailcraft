@@ -36,7 +36,6 @@ fn deleting_a_word_after_hebrew_takes_one_word() {
 #[test]
 fn a_long_hebrew_subject_keeps_its_start() {
     let (mut a, dir) = app("rtl-subject");
-    let store = a.session.store.clone().unwrap();
     let subject = "שלום לכולם, זהו נושא ארוך מאוד בעברית שלא נכנס בשורה אחת של הרשימה בשום אופן";
     let messages = vec![Summary {
         key: MessageKey { account: "sample".into(), folder: "Archive".into(), validity: 1, uid: 1 },
@@ -44,15 +43,7 @@ fn a_long_hebrew_subject_keeps_its_start() {
         date: NOW - 3600,
         ..Default::default()
     }];
-    store
-        .save_folder(
-            "sample",
-            "Archive",
-            &FolderState { validity: 1, uid_next: 2, highest_modseq: 0, messages: messages.into_iter().map(Into::into).collect(), window: 0 },
-        )
-        .unwrap();
-    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "Archive".into() });
-    a.run("folder.open", json!({"account": "sample", "folder": "Archive"}));
+    archive_of(&mut a, messages);
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));

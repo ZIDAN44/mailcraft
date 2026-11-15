@@ -173,7 +173,6 @@ fn new_mail_is_announced_and_counted_in_the_title() {
 #[test]
 fn long_folders_render_quickly() {
     let (mut a, dir) = app("long");
-    let store = a.session.store.clone().unwrap();
     let messages: Vec<Summary> = (1..=2000u32)
         .rev()
         .map(|uid| Summary {
@@ -184,15 +183,7 @@ fn long_folders_render_quickly() {
             ..Default::default()
         })
         .collect();
-    store
-        .save_folder(
-            "sample",
-            "Archive",
-            &FolderState { validity: 1, uid_next: 2001, highest_modseq: 0, messages: messages.into_iter().map(Into::into).collect(), window: 0 },
-        )
-        .unwrap();
-    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "Archive".into() });
-    a.run("folder.open", json!({"account": "sample", "folder": "Archive"}));
+    archive_of(&mut a, messages);
     assert_eq!(a.session.list.len(), 2000);
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
@@ -403,14 +394,7 @@ fn a_known_name_on_a_strange_address_shows_in_the_list_and_the_reading_pane() {
     let d = mailcraft_engine::mime::Draft { subject: "Quick favour".into(), body: "Are you at your desk?".into(), ..Default::default() };
     let from = mailcraft_engine::model::EmailAddress::new("Zoe Park", "zoe.park.director@gmail.com");
     let raw = mailcraft_engine::mime::build(&d, &from, NOW, "<favour@x>").unwrap();
-    let store = a.session.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9900 };
-    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(&raw, key.clone(), Default::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, &raw).unwrap();
-    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
-    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    let key = with_raw(&mut a, 9900, &raw);
     a.run("view.externalTag", json!({"on": true}));
     let labels = |ctx: &egui::Context, a: &mut MailApp| -> Vec<String> {
         named(ctx, a, egui::vec2(1280.0, 800.0)).iter().filter_map(Named::name).map(str::to_string).collect()
@@ -452,12 +436,7 @@ fn a_narrow_row_keeps_the_senders_name_readable() {
     let d = mailcraft_engine::mime::Draft { subject: "Invoice".into(), body: "Attached.".into(), ..Default::default() };
     let from = mailcraft_engine::model::EmailAddress::new(name, "alexandra.whitfield.accounts@example-billing.com");
     let raw = mailcraft_engine::mime::build(&d, &from, NOW, "<narrow@x>").unwrap();
-    let store = a.session.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9901 };
-    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(&raw, key, Default::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    arrive(&mut a, 9901, &raw);
     a.run("folder.unified", json!({"role": "inbox"}));
     a.run("view.senderAddresses", json!({"show": "always"}));
     a.run("view.externalTag", json!({"on": true}));

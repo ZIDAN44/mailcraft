@@ -102,15 +102,11 @@ fn a_forward_shows_the_web_picture_the_reader_was_shown_centred() {
     );
     let store = a.session.store.clone().unwrap();
     let key = MessageKey { account: "sample".into(), folder: "Archive".into(), validity: 1, uid: 1 };
-    let messages = vec![Summary { key: key.clone(), subject: "Confirmation".into(), date: NOW - 3600, ..Default::default() }];
-    let state = FolderState { validity: 1, uid_next: 2, highest_modseq: 0, messages: messages.into_iter().map(Into::into).collect(), window: 0 };
-    store.save_folder("sample", "Archive", &state).unwrap();
     let raw = format!(
         "From: Trips <trips@x.example>\r\nSubject: Confirmation\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=utf-8\r\n\r\n{html}\r\n"
     );
     store.write_body(&key, raw.as_bytes()).unwrap();
-    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "Archive".into() });
-    a.run("folder.open", json!({"account": "sample", "folder": "Archive"}));
+    archive_of(&mut a, vec![Summary { key: key.clone(), subject: "Confirmation".into(), date: NOW - 3600, ..Default::default() }]);
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("list.open", json!({"key": key.to_id()}));

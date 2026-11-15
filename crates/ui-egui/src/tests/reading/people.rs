@@ -26,14 +26,7 @@ fn save_people(a: &mut MailApp, n: usize) {
 fn open_message(a: &mut MailApp, from: &EmailAddress, to: Vec<EmailAddress>) {
     let d = mailcraft_engine::mime::Draft { subject: "Plans".into(), body: "See you there.".into(), to, ..Default::default() };
     let raw = mailcraft_engine::mime::build(&d, from, NOW, "<people@x>").unwrap();
-    let store = a.session.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9950 };
-    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(&raw, key.clone(), Default::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, &raw).unwrap();
-    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
-    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    let key = with_raw(a, 9950, &raw);
     a.run("list.open", json!({"key": key.to_id()}));
 }
 

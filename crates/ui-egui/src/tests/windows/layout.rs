@@ -258,12 +258,8 @@ fn a_long_subject_and_a_conversation_keep_their_room() {
     let store = a.session.store.clone().unwrap();
     let long = "long subject words ".repeat(120);
     let key = MessageKey { account: "sample".into(), folder: "Archive".into(), validity: 1, uid: 1 };
-    let messages = vec![Summary { key: key.clone(), subject: long.clone(), date: NOW - 3600, ..Default::default() }];
-    let state = FolderState { validity: 1, uid_next: 2, highest_modseq: 0, messages: messages.into_iter().map(Into::into).collect(), window: 0 };
-    store.save_folder("sample", "Archive", &state).unwrap();
     store.write_body(&key, format!("Subject: {long}\r\n\r\nbody\r\n").as_bytes()).unwrap();
-    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "Archive".into() });
-    a.run("folder.open", json!({"account": "sample", "folder": "Archive"}));
+    archive_of(&mut a, vec![Summary { key: key.clone(), subject: long.clone(), date: NOW - 3600, ..Default::default() }]);
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("list.open", json!({"key": key.to_id()}));

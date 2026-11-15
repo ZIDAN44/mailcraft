@@ -234,7 +234,6 @@ fn twenty_queued_downs_land_twenty_rows_on() {
 #[test]
 fn a_long_selection_is_drawn_without_copies() {
     let (mut a, dir) = app("select-all-long");
-    let store = a.session.store.clone().unwrap();
     let messages: Vec<Summary> = (1..=20_000u32)
         .rev()
         .map(|uid| Summary {
@@ -244,15 +243,7 @@ fn a_long_selection_is_drawn_without_copies() {
             ..Default::default()
         })
         .collect();
-    store
-        .save_folder(
-            "sample",
-            "Archive",
-            &FolderState { validity: 1, uid_next: 20_001, highest_modseq: 0, messages: messages.into_iter().map(Into::into).collect(), window: 0 },
-        )
-        .unwrap();
-    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "Archive".into() });
-    a.run("folder.open", json!({"account": "sample", "folder": "Archive"}));
+    archive_of(&mut a, messages);
     assert_eq!(a.session.list.len(), 20_000);
     let ctx = egui::Context::default();
     ctx.enable_accesskit();

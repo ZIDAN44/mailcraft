@@ -112,14 +112,7 @@ fn a_double_clicked_attachment_only_opens() {
         --b1\r\nContent-Type: message/rfc822\r\nContent-Disposition: attachment; filename=\"earlier.eml\"\r\n\r\n\
         From: Zoe <zoe@studio.example>\r\nSubject: Earlier\r\n\r\nThe first one.\r\n\
         --b1\r\nContent-Type: application/x-unknown\r\nContent-Disposition: attachment; filename=\"data.qqq\"\r\n\r\nxyz\r\n--b1--\r\n";
-    let store = a.session.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let own = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9901 };
-    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(raw, own.clone(), Default::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&own, raw).unwrap();
-    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
-    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    with_raw(&mut a, 9901, raw);
     let mut clock = Clocked(1.0);
     for subject in ["Your proof", "festival poster", "Forwarded with a file"] {
         let k = a.session.list.iter().find(|m| m.subject.contains(subject)).map(|m| m.key.clone()).unwrap();

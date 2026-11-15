@@ -2,18 +2,6 @@
 
 use super::*;
 
-/// File `raw` in the sample's Inbox at `uid`, as mail coming in.
-fn arrive(a: &mut MailApp, uid: u32, raw: &[u8]) -> MessageKey {
-    let store = a.session.store.clone().unwrap();
-    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
-    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
-    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(raw, key.clone(), Default::default(), 0, NOW).into());
-    store.save_folder("sample", "INBOX", &inbox).unwrap();
-    store.write_body(&key, raw).unwrap();
-    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
-    key
-}
-
 /// The reaction chips the frame shows, as a screen reader is told them.
 fn chips(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
     let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };

@@ -219,6 +219,48 @@ pub(crate) fn click_named(ctx: &egui::Context, a: &mut MailApp, label: &str) {
     click(ctx, a, at);
 }
 
+/// A message of this source filed first in the sample's Inbox at `uid`, as mail coming in.
+pub(crate) fn arrive(a: &mut MailApp, uid: u32, raw: &[u8]) -> MessageKey {
+    let store = a.session.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid };
+    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(raw, key.clone(), Default::default(), 0, NOW).into());
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, raw).unwrap();
+    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    key
+}
+
+/// A message of this source put first in the Inbox, and the Inbox shown.
+pub(crate) fn with_raw(a: &mut MailApp, uid: u32, raw: &[u8]) -> MessageKey {
+    let key = arrive(a, uid, raw);
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    key
+}
+
+/// A message with these files put first in the Inbox, and the Inbox shown.
+pub(crate) fn with_files(a: &mut MailApp, uid: u32, files: Vec<(String, &str, Vec<u8>)>) -> MessageKey {
+    use mailcraft_engine::mime::{self, Draft, OutAttachment};
+    let d = Draft {
+        subject: format!("Files {uid}"),
+        body: "Here they are.".into(),
+        attachments: files.into_iter().map(|(name, mime, data)| OutAttachment { name, mime: mime.into(), data, ..Default::default() }).collect(),
+        ..Default::default()
+    };
+    let raw = mime::build(&d, &mailcraft_engine::model::EmailAddress::new("Sam", "sam@studio.example"), NOW, &format!("<files{uid}@x>")).unwrap();
+    with_raw(a, uid, &raw)
+}
+
+/// The sample's Archive made of these summaries alone (keys in Archive, validity 1), and shown.
+pub(crate) fn archive_of(a: &mut MailApp, messages: Vec<Summary>) {
+    let store = a.session.store.clone().unwrap();
+    let uid_next = messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
+    let state = FolderState { validity: 1, uid_next, highest_modseq: 0, messages: messages.into_iter().map(Into::into).collect(), window: 0 };
+    store.save_folder("sample", "Archive", &state).unwrap();
+    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "Archive".into() });
+    a.run("folder.open", json!({"account": "sample", "folder": "Archive"}));
+}
+
 /// Every pane layout, state and dialog, in light and dark (also run in the pseudo-language by
 /// the translation tests).
 pub(crate) fn tour() {
