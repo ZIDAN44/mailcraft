@@ -70,12 +70,7 @@ impl Url {
         } else {
             tail.to_string()
         };
-        // Spaces and controls are percent-encoded rather than sent raw.
-        let path: String = path
-            .chars()
-            .flat_map(|c| if c == ' ' || c.is_control() { format!("%{:02X}", u32::from(c) & 0xff).chars().collect::<Vec<_>>() } else { vec![c] })
-            .collect();
-        Ok(Url { https, host: host.to_ascii_lowercase(), port, path })
+        Ok(Url { https, host: host.to_ascii_lowercase(), port, path: spaces_escaped(path) })
     }
 
     /// `Location` resolved against this URL.
@@ -100,6 +95,26 @@ impl Url {
         let host = if self.host.contains(':') { format!("[{}]", self.host) } else { self.host.clone() };
         if self.port == default_port(self.https) { format!("{scheme}://{host}") } else { format!("{scheme}://{host}:{}", self.port) }
     }
+}
+
+/// A path with its spaces and controls percent-encoded rather than sent raw (each of their UTF-8
+/// bytes: `U+0085` is `%C2%85`); the path itself, untouched, when it has none.
+fn spaces_escaped(path: String) -> String {
+    let raw = |c: char| c == ' ' || c.is_control();
+    if !path.contains(raw) {
+        return path;
+    }
+    let mut out = String::with_capacity(path.len() + 16);
+    let mut utf8 = [0u8; 4];
+    for c in path.chars() {
+        if raw(c) {
+            // Neither is unreserved: every byte comes out as `%XX`.
+            out.push_str(&pct(c.encode_utf8(&mut utf8)));
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// Whether a [`Url`]'s host is this computer (`localhost`, `127.0.0.1`, `::1`: an IPv6 host is
@@ -316,7 +331,11 @@ impl Conn {
 
     /// Whether this connection reaches `url`'s server.
     pub fn reaches(&self, url: &str) -> bool {
-        Url::parse(url).is_ok_and(|u| u.https == self.url.https && u.host.eq_ignore_ascii_case(&self.url.host) && u.port == self.url.port)
+        Url::parse(url).is_ok_and(|u| self.reaches_url(&u))
+    }
+
+    fn reaches_url(&self, u: &Url) -> bool {
+        u.https == self.url.https && u.host.eq_ignore_ascii_case(&self.url.host) && u.port == self.url.port
     }
 
     /// Whether another request can go on it.
@@ -330,7 +349,7 @@ impl Conn {
             return Err(NetError::Closed("the server closed the connection".into()));
         }
         let url = Url::parse(&req.url)?;
-        if !self.reaches(&req.url) {
+        if !self.reaches_url(&url) {
             return Err(NetError::Protocol("a request for another server".into()));
         }
         // Assume the worst until a full response has been read: after an error mid-exchange the
@@ -390,7 +409,7 @@ fn read_head<S: Read>(s: &mut S) -> Result<(u16, Vec<(String, String)>, Vec<u8>)
         buf.extend_from_slice(tmp.get(..n).unwrap_or_default());
     };
     let head = String::from_utf8_lossy(buf.get(..head_end).unwrap_or_default()).to_string();
-    let mut rest: Vec<u8> = buf.get(head_end + 4..).map(<[u8]>::to_vec).unwrap_or_default();
+    let rest: Vec<u8> = buf.get(head_end + 4..).map(<[u8]>::to_vec).unwrap_or_default();
     let mut lines = head.split("\r\n");
     let status_line = lines.next().unwrap_or("");
     let mut parts = status_line.split_whitespace();
@@ -405,7 +424,7 @@ fn read_head<S: Read>(s: &mut S) -> Result<(u16, Vec<(String, String)>, Vec<u8>)
     }
     let headers: Vec<(String, String)> =
         lines.filter_map(|l| l.split_once(':')).map(|(k, v)| (k.trim().to_string(), v.trim().to_string())).take(200).collect();
-    Ok((status, headers, std::mem::take(&mut rest)))
+    Ok((status, headers, rest))
 }
 
 /// The answer and its body (at most `max` bytes), read whole: as a download is
