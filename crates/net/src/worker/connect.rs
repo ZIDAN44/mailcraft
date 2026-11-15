@@ -155,10 +155,16 @@ impl Worker {
         if let Some(url) = &self.acc.ews {
             // `autodiscover`: found the first time, then kept.
             let url = if url == crate::ews::AUTODISCOVER {
-                let kept: String = self.store.load_account_doc(&self.acc.id, "ews.json").unwrap_or_default();
+                // One that can't be read is found again (and kept anew: it's only the address).
+                let kept: String = self.store.load_account_doc(&self.acc.id, "ews.json").unwrap_or_else(|e| {
+                    log::warn!("{}: the Exchange server found before couldn't be read: {e}", self.acc.id);
+                    String::new()
+                });
                 if kept.is_empty() {
                     let found = crate::ews::autodiscover_as(&self.acc.email, &user, &secret, None, self.acc.user_agent.as_deref())?;
-                    let _ = self.store.save_account_doc(&self.acc.id, "ews.json", &found);
+                    if let Err(e) = self.store.save_account_doc(&self.acc.id, "ews.json", &found) {
+                        log::warn!("{}: the Exchange server found isn't kept, and is looked for again next time: {e}", self.acc.id);
+                    }
                     found
                 } else {
                     kept

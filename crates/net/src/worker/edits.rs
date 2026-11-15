@@ -138,9 +138,13 @@ fn apply(store: &Store, sink: &Sink, account: &str, op: Op, wake: Option<Sender<
 fn make(store: &Store, sink: &Sink, account: &str, op: &Op) {
     match store.apply_op(account, op) {
         Ok(changed) => {
+            // A list that can't be read isn't said: said empty, the account would show no folders
+            // until the next listing, and a folder open would be left for the Inbox.
             if op.is_folder_op() {
-                let folders = store.load_folders(account).unwrap_or_default();
-                sink.emit(Event::Folders { account: account.to_string(), folders });
+                match store.load_folders(account) {
+                    Ok(folders) => sink.emit(Event::Folders { account: account.to_string(), folders }),
+                    Err(e) => log::warn!("{account}: the folders couldn't be read again: {e}"),
+                }
             }
             if let Err(e) = store.add_op(account, op.clone()) {
                 sink.emit(Event::Notice { account: account.to_string(), message: e.to_string() });

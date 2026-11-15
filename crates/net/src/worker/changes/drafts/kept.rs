@@ -122,11 +122,17 @@ impl Worker {
         let kept: Vec<Kept> = store
             .while_kept(account, self.removals, || {
                 let _one_at_a_time = pending_file();
-                let kept = stored::load(store, account);
-                if let Ok(list) = &kept {
-                    stored::sweep(store, account, list);
+                match stored::load(store, account) {
+                    Ok(list) => {
+                        stored::sweep(store, account, &list);
+                        list
+                    }
+                    // None filed this time; they stay kept, read again at the next connection.
+                    Err(e) => {
+                        log::warn!("{account}: the drafts kept on this computer couldn't be read: {e}");
+                        Vec::new()
+                    }
                 }
-                kept.unwrap_or_default()
             })
             .unwrap_or_default();
         let hashes: Vec<u64> = kept.iter().map(|d| d.source.hash()).collect();

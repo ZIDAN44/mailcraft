@@ -55,7 +55,9 @@ impl Worker {
         }
         let kept = self.store.while_kept(&self.acc.id, self.removals, || {
             let _one_at_a_time = pending_file();
-            let mut list: Vec<FiledDraft> = self.store.load_account_doc(&self.acc.id, FILED_DRAFTS).unwrap_or_default();
+            // One that can't be read is left as it is: written over with just this one, the copies
+            // remembered in it would be forgotten.
+            let mut list: Vec<FiledDraft> = self.store.load_account_doc(&self.acc.id, FILED_DRAFTS)?;
             if list.len() >= MAX_FILED {
                 list.remove(0);
             }

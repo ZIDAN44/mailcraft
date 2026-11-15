@@ -353,7 +353,9 @@ impl Worker {
                         if let Ok(mut st) = self.store.load_folder(&self.acc.id, f) {
                             st.highest_modseq = 0;
                             st.uid_next = 0;
-                            let _ = self.store.save_folder(&self.acc.id, f, &st);
+                            if let Err(e) = self.store.save_folder(&self.acc.id, f, &st) {
+                                log::warn!("{}: {f} isn't marked to be read in full again: {e}", self.acc.id);
+                            }
                         }
                     }
                     relist |= op.is_folder_op();

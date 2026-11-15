@@ -162,6 +162,7 @@ on GitHub.
 - A message attached inside a winmail.dat now opens the same way every time, and one with no date of its own no longer shows the time it was opened.
 - IMAP messages from servers that send bare line feeds no longer go missing.
 - Automatic replies work on servers that have a Sieve script named ok, no or bye.
+- A folder change no longer briefly empties the folder pane when the folder list can't be read.
 
 ## 0.38.0 - 2026-11-13
 

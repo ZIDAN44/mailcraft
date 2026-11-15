@@ -2,6 +2,26 @@ use std::cell::Cell;
 
 use super::*;
 
+/// Found in review: the list of MailCraft's own copies of drafts, when it couldn't be read, was
+/// taken for none and written over with the one just filed, every other copy in it forgotten
+/// (and left on the server beside the next filing of its draft). It's left as it was.
+#[test]
+fn a_list_of_drafts_filed_that_cant_be_read_isnt_written_over() {
+    let store = Store::failing();
+    let list = serde_json::json!([{ "message_id": "a@x", "mark": "m1" }, { "message_id": "b@x", "mark": "m2" }]);
+    store.save_account_doc("a1", "drafts-filed.json", &list).unwrap();
+    let pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
+    let acc = AccountConfig { id: "a1".into(), ..Default::default() };
+    let w = Worker::new(acc, Auth::shared("pw"), store.clone(), pool.sink.clone(), SyncOptions::default());
+    store.fail(Some("drafts-filed.json"), None);
+    w.filed_draft("c@x", "m3");
+    store.fail(None, None);
+    assert_eq!(store.load_account_doc::<serde_json::Value>("a1", "drafts-filed.json").unwrap(), list);
+    // Read, the one filed is remembered with the others.
+    w.filed_draft("c@x", "m3");
+    assert_eq!(store.load_account_doc::<Vec<serde_json::Value>>("a1", "drafts-filed.json").unwrap().len(), 3);
+}
+
 /// An outcome by name.
 fn named(o: &Outcome) -> &'static str {
     match o {
