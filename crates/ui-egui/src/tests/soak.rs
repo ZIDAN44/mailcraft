@@ -101,6 +101,8 @@ fn action(d: &mut Dice, size: egui::Vec2) -> Vec<Event> {
 /// Plays `actions` random actions with `seed`; any panic fails the test with the seed and step.
 fn play(seed: u64, actions: usize) {
     let (mut a, dir) = app(&format!("soak-{seed}"));
+    // The count is the process's: what other tests caught before this one began isn't its.
+    let caught = PANICS_CAUGHT.load(Ordering::Relaxed);
     let ctx = egui::Context::default();
     let mut d = Dice(seed);
     let mut slowest = std::time::Duration::ZERO;
@@ -138,10 +140,10 @@ fn play(seed: u64, actions: usize) {
         slowest = slowest.max(took);
         total += took;
         if step % 10 == 9 {
-            assert_eq!(PANICS_CAUGHT.load(Ordering::Relaxed), 0, "seed {seed}, step {step}: a command panicked (see the log)");
+            assert_eq!(PANICS_CAUGHT.load(Ordering::Relaxed), caught, "seed {seed}, step {step}: a command panicked (see the log)");
         }
     }
-    assert_eq!(PANICS_CAUGHT.load(Ordering::Relaxed), 0, "seed {seed}: a command panicked");
+    assert_eq!(PANICS_CAUGHT.load(Ordering::Relaxed), caught, "seed {seed}: a command panicked");
     let mean = total / actions.max(1) as u32;
     eprintln!(
         "soak seed {seed}: {actions} actions, mean {mean:?}, slowest {slowest:?}; a dialog open {dialogs}, writing {writing}, selected {selected}"
