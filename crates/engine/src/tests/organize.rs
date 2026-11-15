@@ -505,7 +505,7 @@ fn clean_up_moves_only_what_a_reply_quotes() {
     }
     store.save_folder("sample", "INBOX", &st).unwrap();
     s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
-    let in_trash = |s: &mut Session, uid_subject: &str| s.folder_state("sample", &trash).messages.iter().any(|m| m.message_id == uid_subject);
+    let in_trash = |s: &mut Session, message_id: &str| s.folder_state("sample", &trash).messages.iter().any(|m| m.message_id == message_id);
     // The selection's conversation only.
     s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
     let k = s.list.iter().find(|m| m.message_id == "c803@studio.example").map(|m| json!({"key": m.key.to_id()})).unwrap();
