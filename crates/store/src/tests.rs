@@ -7,7 +7,9 @@ mod counts;
 mod flagging;
 mod folder_uids;
 mod lists;
+mod memory;
 mod merging;
+mod pages;
 pub(crate) mod process;
 pub(crate) mod random;
 
@@ -55,251 +57,9 @@ fn scratch_folders_are_the_users_own() {
     let _ = fs::remove_dir(&a);
 }
 
-/// A big folder's list is kept in pages by number: read back newest first as it was; a flag
-/// change writes one page, new mail the last one; shrunk, the pages go; and a list kept whole
-/// (from before) still reads.
-#[test]
-fn a_big_folder_list_is_kept_in_pages() {
-    for packed in [false, true] {
-        let dir = scratch(&format!("pages-{packed}"));
-        let s = if packed { Store::open_packed(dir.join("app"), dir.join("Files")).unwrap() } else { Store::open(&dir).unwrap() };
-        let n = PAGE_MESSAGES as u32 * 2 + 500;
-        let msg = |uid: u32| Summary {
-            key: MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 3, uid },
-            subject: format!("Report {uid}"),
-            date: 1_700_000_000 + i64::from(uid % 977) * 60,
-            ..Default::default()
-        };
-        let mut st = FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(msg).map(Into::into).collect(), ..Default::default() };
-        sort_newest_first(&mut st.messages);
-        assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 4, "three pages and the list");
-        let back = s.load_folder("a1", "INBOX").unwrap();
-        assert_eq!(back, st, "{packed}: read back newest first, as it was");
-        // Read a page at a time (a search reading it over frames): the same list.
-        let mut load = s.folder_load("a1", "INBOX").unwrap();
-        let mut steps = 0;
-        while !load.step(&s).unwrap() {
-            steps += 1;
-        }
-        assert_eq!((steps, load.pages_read()), (2, 4), "a page a step, the head counted");
-        assert!(load.done() && load.step(&s).unwrap(), "done stays done");
-        assert_eq!(load.finish(), st);
-        // A flag: one page.
-        if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 10).map(std::sync::Arc::make_mut) {
-            m.flags.seen = true;
-        }
-        assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 2, "one page and the list");
-        assert!(s.load_folder("a1", "INBOX").unwrap().find(10).unwrap().flags.seen);
-        // Told which changed: kept beside the pages, which aren't even looked at.
-        if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 8000).map(std::sync::Arc::make_mut) {
-            m.flags.flagged = true;
-        }
-        let changed: std::collections::HashSet<u32> = [8000].into_iter().collect();
-        assert_eq!(s.save_folder_counted("a1", "INBOX", &st, Some(&changed)).unwrap(), 1, "the marks alone");
-        assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
-        // New mail: the last page, and the page the mark was kept beside (the marks emptied).
-        st.messages.insert(0, msg(n + 1).into());
-        st.uid_next = n + 2;
-        assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 4);
-        assert!(s.load_folder("a1", "INBOX").unwrap().find(8000).unwrap().flags.flagged);
-        assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), n as usize + 1);
-        // Told only of a flag, but a message came too: every page looked at, so it's kept.
-        st.messages.insert(0, msg(n + 2).into());
-        st.uid_next = n + 3;
-        assert_eq!(s.save_folder_counted("a1", "INBOX", &st, Some(&changed)).unwrap(), 2);
-        assert_eq!(s.load_folder("a1", "INBOX").unwrap().messages.len(), n as usize + 2);
-        // Nothing changed: the list alone.
-        assert_eq!(s.save_folder_counted("a1", "INBOX", &st, None).unwrap(), 1);
-        // Shrunk to a small folder: kept whole again, the pages gone.
-        st.messages.truncate(10);
-        s.save_folder("a1", "INBOX", &st).unwrap();
-        assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
-        assert!(!s.files.is_file(&s.folder_dir("a1", "INBOX").join("state-0.json")));
-    }
-}
-
-/// Summaries put right about their files (what an index pass found): only the pages holding
-/// one that changed are written again, with the list's head; a list of another validity, or
-/// messages already right, write nothing; a list kept whole is put right in place.
-#[test]
-fn a_files_flip_writes_only_the_pages_it_touches() {
-    let s = Store::memory();
-    let n = PAGE_MESSAGES as u32 * 2 + 500;
-    let mut st =
-        FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(|uid| msg(uid, true)).map(Into::into).collect(), ..Default::default() };
-    for m in st.messages.iter_mut().filter(|m| m.key.uid % 2 == 0).map(std::sync::Arc::make_mut) {
-        m.has_attachments = true;
-    }
-    sort_newest_first(&mut st.messages);
-    s.save_folder("a1", "INBOX", &st).unwrap();
-    s.track_changes();
-    // 10 had files only by its pictures; 4097 (the second page) carries one after all.
-    let found = search::FilesFound { validity: 3, with: vec![4097], without: vec![10] };
-    assert_eq!(s.set_has_files("a1", "INBOX", &found).unwrap(), 2);
-    let mut written: Vec<String> = s.take_changes().into_iter().map(|(p, _)| p.rsplit('/').next().unwrap_or_default().to_string()).collect();
-    written.sort();
-    assert_eq!(written, ["state-0.json", "state-1.json", "state.json"], "the third page isn't written");
-    let back = s.load_folder("a1", "INBOX").unwrap();
-    assert!(!back.find(10).unwrap().has_attachments && back.find(4097).unwrap().has_attachments);
-    assert!(back.find(12).unwrap().has_attachments && !back.find(11).unwrap().has_attachments, "the others as they were");
-    assert_eq!(back.messages.len(), st.messages.len());
-    // Already right, or another validity: nothing written.
-    assert_eq!(s.set_has_files("a1", "INBOX", &found).unwrap(), 0);
-    assert_eq!(s.set_has_files("a1", "INBOX", &search::FilesFound { validity: 4, without: vec![12], ..Default::default() }).unwrap(), 0);
-    assert!(s.take_changes().is_empty());
-    assert!(s.load_folder("a1", "INBOX").unwrap().find(12).unwrap().has_attachments);
-    // A small list, kept whole.
-    let small = FolderState { validity: 3, uid_next: 3, messages: vec![msg(2, false).into(), msg(1, false).into()], ..Default::default() };
-    s.save_folder("a1", "Small", &small).unwrap();
-    assert_eq!(s.set_has_files("a1", "Small", &search::FilesFound { validity: 3, with: vec![1], ..Default::default() }).unwrap(), 1);
-    let back = s.load_folder("a1", "Small").unwrap();
-    assert!(back.find(1).unwrap().has_attachments && !back.find(2).unwrap().has_attachments);
-}
-
 pub(crate) fn temp_store(name: &str) -> Store {
     let dir = scratch(&format!("store-{name}"));
     Store::open(dir).unwrap()
-}
-
-/// A message marked read in a big folder writes a few bytes beside its pages (with the folder's
-/// counts, in one write), not a page of thousands; read back, the list has the mark, and what
-/// puts the summaries right about their files keeps it. Too many marks go into their pages; a
-/// list written afresh has none; a damaged marks file isn't fatal.
-#[test]
-fn a_mark_in_a_big_folder_writes_a_few_bytes() {
-    let s = Store::memory();
-    let n = PAGE_MESSAGES as u32 * 2 + 749;
-    let mut st =
-        FolderState { validity: 3, uid_next: n + 1, messages: (1..=n).map(|uid| msg(uid, false)).map(Into::into).collect(), ..Default::default() };
-    sort_newest_first(&mut st.messages);
-    s.save_folder("a1", "INBOX", &st).unwrap();
-    s.save_folders("a1", &[Folder { account: "a1".into(), path: "INBOX".into(), unread: n, total: n, ..Default::default() }]).unwrap();
-    s.track_changes();
-    let mark = |st: &mut FolderState, uids: &[u32]| {
-        for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)).map(std::sync::Arc::make_mut) {
-            m.flags.seen = true;
-        }
-        let flags = st.messages.iter().filter(|m| uids.contains(&m.key.uid)).map(|m| (m.key.uid, m.flags.clone())).collect();
-        let unread = u32::try_from(st.messages.iter().filter(|m| !m.flags.seen).count()).unwrap();
-        s.save_flags("a1", &[FolderMarks { folder: "INBOX".into(), validity: 3, flags }], &[("INBOX".into(), unread, n)]).unwrap()
-    };
-    assert_eq!(mark(&mut st, &[5000]), 1, "the folder is in the account's list");
-    let written = s.take_changes();
-    let bytes: usize = written.iter().map(|(_, b)| b.as_ref().map_or(0, Vec::len)).sum();
-    let mut names: Vec<&str> = written.iter().map(|(p, _)| p.rsplit('/').next().unwrap_or_default()).collect();
-    names.sort_unstable();
-    assert_eq!(names, ["folders.json", "state-marks.json"], "no page");
-    assert!(bytes < 64 << 10, "{bytes} bytes");
-    let back = s.load_folder("a1", "INBOX").unwrap();
-    assert_eq!(back, st, "read back with the mark");
-    assert_eq!(s.load_folders("a1").unwrap()[0].unread, n - 1);
-    // Put right about its files, the page is written again from disk: the mark stays.
-    let found = search::FilesFound { validity: 3, with: vec![5001], without: Vec::new() };
-    assert_eq!(s.set_has_files("a1", "INBOX", &found).unwrap(), 1);
-    if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 5001).map(std::sync::Arc::make_mut) {
-        m.has_attachments = true;
-    }
-    assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
-    // More than the marks hold: into their pages, the marks emptied.
-    let many: Vec<u32> = (1..=u32::try_from(folders::MARKS_MAX).unwrap()).map(|i| i * 17).collect();
-    s.take_changes();
-    mark(&mut st, &many);
-    let mut names: Vec<String> = s.take_changes().into_iter().map(|(p, _)| p.rsplit('/').next().unwrap_or_default().to_string()).collect();
-    names.sort_unstable();
-    assert_eq!(names, ["folders.json", "state-0.json", "state-1.json", "state-2.json", "state-marks.json", "state.json"]);
-    let marks = s.folder_dir("a1", "INBOX").join(folders::MARKS);
-    assert!(!s.has_marks(&marks), "emptied");
-    assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
-    // A damaged marks file: set aside, the list read as its pages have it.
-    mark(&mut st, &[7]);
-    s.files.write(&marks, b"[[7, {\"seen\": tr").unwrap();
-    let back = s.load_folder("a1", "INBOX").unwrap();
-    assert!(!back.find(7).unwrap().flags.seen && back.find(17).unwrap().flags.seen);
-    // A list written afresh (an import's) has no marks from before.
-    mark(&mut st, &[9]);
-    let mut w = s.list_writer("a1", "INBOX");
-    let mut fresh: Vec<Summary> = (1..=n).map(|uid| msg(uid, false)).collect();
-    fresh.sort_by_key(|m| m.key.uid);
-    w.push(&s, fresh).unwrap();
-    w.finish(&s, &st).unwrap();
-    assert!(!s.load_folder("a1", "INBOX").unwrap().find(9).unwrap().flags.seen);
-}
-
-/// Marks handed to the store's thread ([`Store::mark_later`]) are in the list whoever reads it
-/// next (a reader waits for them), the counts with them; a small list is written whole, a list
-/// made anew since (another validity) isn't marked, and a mark that can't be written is told.
-#[test]
-fn marks_kept_later_are_there_for_the_next_reader() {
-    let s = Store::failing();
-    let mut st =
-        FolderState { validity: 3, uid_next: 11, messages: (1..=10).map(|uid| msg(uid, false)).map(Into::into).collect(), ..Default::default() };
-    sort_newest_first(&mut st.messages);
-    s.save_folder("a1", "INBOX", &st).unwrap();
-    s.save_folders("a1", &[Folder { account: "a1".into(), path: "INBOX".into(), unread: 10, total: 10, ..Default::default() }]).unwrap();
-    let seen = Flags { seen: true, ..Default::default() };
-    let marks = |validity, uid| vec![FolderMarks { folder: "INBOX".into(), validity, flags: vec![(uid, seen.clone())] }];
-    {
-        let _paused = s.pause_marks();
-        s.mark_later("a1", marks(3, 4), vec![("INBOX".into(), 9, 10)]);
-        assert!(s.marks_waiting(), "not written while the thread waits");
-    }
-    assert!(s.load_folder("a1", "INBOX").unwrap().find(4).unwrap().flags.seen, "the reader waited for it");
-    assert_eq!(s.load_folders("a1").unwrap()[0].unread, 9);
-    s.mark_later("a1", marks(2, 5), vec![("INBOX".into(), 8, 10)]);
-    assert!(!s.load_folder("a1", "INBOX").unwrap().find(5).unwrap().flags.seen, "another list's");
-    s.fail(None, Some("state.json"));
-    s.mark_later("a1", marks(3, 6), Vec::new());
-    assert!(s.flush_marks());
-    s.fail(None, None);
-    let after = s.take_marks_failed();
-    assert!(matches!(after.as_slice(), [MarksAfter::Failed { account, folders, .. }] if account == "a1" && folders == &["INBOX"]), "{after:?}");
-    assert!(!s.load_folder("a1", "INBOX").unwrap().find(6).unwrap().flags.seen);
-}
-
-/// A big list saved after only flags changed, with a newer modseq: the few marks beside its
-/// pages, and its head with the modseq (it was dropped, the marks alone written).
-#[test]
-fn a_flag_save_keeps_a_newer_head() {
-    let s = Store::memory();
-    let n = PAGE_MESSAGES as u32 * 2 + 9;
-    let mut st = FolderState {
-        validity: 3,
-        uid_next: n + 1,
-        highest_modseq: 40,
-        messages: (1..=n).map(|uid| msg(uid, false)).map(Into::into).collect(),
-        ..Default::default()
-    };
-    sort_newest_first(&mut st.messages);
-    s.save_folder("a1", "INBOX", &st).unwrap();
-    if let Some(m) = st.messages.iter_mut().find(|m| m.key.uid == 7).map(std::sync::Arc::make_mut) {
-        m.flags.seen = true;
-    }
-    st.highest_modseq = 41;
-    s.track_changes();
-    s.save_folder_changed("a1", "INBOX", &st, &[7].into_iter().collect()).unwrap();
-    let mut names: Vec<String> = s.take_changes().into_iter().map(|(p, _)| p.rsplit('/').next().unwrap_or_default().to_string()).collect();
-    names.sort_unstable();
-    assert_eq!(names, ["state-marks.json", "state.json"], "no page");
-    assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
-}
-
-/// The marks' thread lets the store go once its last handle has: the data file it holds is
-/// closed, and a store opened again on the folder reads it (it was "open in another copy").
-#[test]
-fn the_marks_thread_lets_the_store_go() {
-    let s = Store::memory();
-    let st = FolderState { validity: 3, uid_next: 2, messages: vec![msg(1, false).into()], ..Default::default() };
-    s.save_folder("a1", "INBOX", &st).unwrap();
-    let seen = Flags { seen: true, ..Default::default() };
-    s.mark_later("a1", vec![FolderMarks { folder: "INBOX".into(), validity: 3, flags: vec![(1, seen)] }], Vec::new());
-    assert!(s.flush_marks());
-    let (marking, changes) = (Arc::downgrade(&s.marking), Arc::downgrade(&s.changes));
-    drop(s);
-    let gone = (0..200).any(|_| {
-        std::thread::sleep(std::time::Duration::from_millis(10));
-        marking.upgrade().is_none() && changes.upgrade().is_none()
-    });
-    assert!(gone, "the thread still holds the store");
 }
 
 fn msg(uid: u32, seen: bool) -> Summary {
@@ -492,107 +252,6 @@ fn hostile_names_stay_inside_the_root() {
     assert!(!p.to_string_lossy().contains(".."));
 }
 
-#[test]
-fn a_memory_cache_reports_its_changes_once_asked() {
-    let s = Store::memory();
-    s.save_doc("rules.json", &vec![1]).unwrap();
-    assert!(s.take_changes().is_empty(), "not tracked yet");
-    s.save_folders("a1", &[Folder { account: "a1".into(), path: "Projects".into(), delimiter: Some('/'), ..Default::default() }]).unwrap();
-    s.track_changes();
-    s.save_doc("rules.json", &vec![2]).unwrap();
-    let key = MessageKey { account: "a1".into(), folder: "Projects".into(), validity: 1, uid: 4 };
-    s.write_body(
-        &key,
-        b"Subject: x
-
-hi",
-    )
-    .unwrap();
-    let changes = s.take_changes();
-    assert_eq!(changes.len(), 2, "{changes:?}");
-    assert!(changes.contains(&("rules.json".into(), Some(b"[2]".to_vec()))));
-    let body = changes.iter().find(|(p, _)| p.ends_with("/4.eml")).unwrap();
-    assert!(body.0.starts_with("a1/f"));
-    assert!(s.take_changes().is_empty(), "taken");
-    // A rename is a removal and a write; removing an account removes each file.
-    s.apply_op("a1", &Op::RenameFolder { from: "Projects".into(), to: "Work".into() }).unwrap();
-    let changes = s.take_changes();
-    assert!(changes.iter().any(|(p, v)| p == &body.0 && v.is_none()), "{changes:?}");
-    assert!(changes.iter().any(|(p, v)| p.ends_with("/4.eml") && p != &body.0 && v.is_some()));
-    s.remove_account("a1").unwrap();
-    assert!(s.take_changes().iter().filter(|(p, _)| p.ends_with(".eml")).all(|(_, v)| v.is_none()));
-    // A store kept from them comes back the same.
-    let back = Store::memory_from(s.snapshot(|_| true));
-    assert_eq!(back.load_doc::<Vec<i32>>("rules.json").unwrap(), vec![2]);
-}
-
-#[test]
-fn a_memory_cache_works_like_the_disk_and_keeps_a_snapshot() {
-    let s = Store::memory();
-    assert!(s.is_memory());
-    let acc = AccountConfig { id: "a1".into(), email: "z@x".into(), ..Default::default() };
-    s.save_accounts(std::slice::from_ref(&acc)).unwrap();
-    let folders = vec![
-        Folder { account: "a1".into(), path: "Projects".into(), delimiter: Some('/'), ..Default::default() },
-        Folder { account: "a1".into(), path: "Projects/Film".into(), delimiter: Some('/'), ..Default::default() },
-    ];
-    s.save_folders("a1", &folders).unwrap();
-    let st = FolderState { validity: 3, uid_next: 3, messages: vec![msg(2, false).into(), msg(1, true).into()], ..Default::default() };
-    s.save_folder("a1", "Projects/Film", &st).unwrap();
-    let key = MessageKey { account: "a1".into(), folder: "Projects/Film".into(), validity: 3, uid: 2 };
-    s.write_body(
-        &key,
-        b"Subject: m2
-
-hi",
-    )
-    .unwrap();
-    assert!(s.has_body(&key));
-    assert_eq!(s.cached_bodies("a1", "Projects/Film", 3), vec![2]);
-    assert!(s.account_size("a1") > 0);
-
-    // A renamed folder takes its cache with it, children too.
-    s.apply_op("a1", &Op::RenameFolder { from: "Projects".into(), to: "Work".into() }).unwrap();
-    assert_eq!(s.load_folder("a1", "Work/Film").unwrap().messages.len(), 2);
-    let moved = MessageKey { folder: "Work/Film".into(), ..key.clone() };
-    assert_eq!(
-        s.read_body(&moved).unwrap(),
-        b"Subject: m2
-
-hi"
-    );
-    assert!(s.load_folder("a1", "Projects/Film").unwrap().messages.is_empty());
-    s.apply_op("a1", &Op::SetFlag { keys: vec![MessageKey { uid: 2, ..moved.clone() }], flag: Flag::Seen, on: true }).unwrap();
-    assert!(s.load_folder("a1", "Work/Film").unwrap().messages.iter().all(|m| m.flags.seen));
-
-    let item = OutboxItem { id: 5, from: "z@x".into(), recipients: vec!["a@y".into()], ..Default::default() };
-    s.outbox_add("a1", &item, b"x").unwrap();
-    assert_eq!(s.outbox("a1"), vec![item]);
-    s.outbox_remove("a1", 5).unwrap();
-    assert!(s.outbox("a1").is_empty());
-
-    // What outlasts the page: here everything but message sources.
-    let snap = s.snapshot(|p| !p.ends_with(".eml"));
-    assert!(snap.iter().any(|(p, _)| p == "accounts.json"));
-    assert!(snap.iter().all(|(p, _)| !p.ends_with(".eml")));
-    let back = Store::memory_from(snap);
-    assert_eq!(back.load_accounts().unwrap(), vec![acc]);
-    assert_eq!(back.load_folder("a1", "Work/Film").unwrap().messages.len(), 2);
-    assert!(!back.has_body(&moved));
-    // Paths from a snapshot stay inside the cache.
-    let odd = Store::memory_from(vec![("../accounts.json".into(), b"[]".to_vec()), ("a//b".into(), b"x".to_vec())]);
-    assert!(odd.snapshot(|_| true).is_empty());
-
-    s.remove_account("a1").unwrap();
-    assert!(s.load_folders("a1").unwrap().is_empty() && s.account_size("a1") == 0);
-    // Clones share the cache; a damaged document starts fresh.
-    let other = s.clone();
-    other.save_doc("rules.json", &vec![1, 2]).unwrap();
-    assert_eq!(s.load_doc::<Vec<i32>>("rules.json").unwrap(), vec![1, 2]);
-    let bad = Store::memory_from(vec![("rules.json".into(), b"{oops".to_vec())]);
-    assert!(bad.load_doc::<Vec<i32>>("rules.json").unwrap().is_empty());
-}
-
 /// Message sources read are counted, across the cache's clones (a search that needs none can be
 /// shown to read none); lists, flags and listing the cached mail read none.
 #[test]
@@ -610,30 +269,6 @@ fn message_sources_read_are_counted() {
     assert!(s.read_body(&MessageKey { uid: 2, ..key.clone() }).is_none());
     assert_eq!((s.reads(), other.reads()), (2, 2));
     assert_eq!(Store::memory().reads(), 0, "a cache of its own counts its own");
-}
-
-/// A memory cache lists a folder from where its files start: only the files directly in it, not
-/// a sibling whose name starts the same, nor what's in a folder inside; and a folder with files
-/// under it exists.
-#[test]
-fn a_memory_folder_lists_only_its_own_files() {
-    let s = Store::memory();
-    let key = |folder: &str, validity: u32, uid: u32| MessageKey { account: "a1".into(), folder: folder.into(), validity, uid };
-    let bodies: Vec<(MessageKey, Vec<u8>)> = [key("INBOX", 7, 1), key("INBOX", 7, 2), key("INBOX", 70, 3), key("INBOX2", 7, 4), key("INB", 7, 5)]
-        .into_iter()
-        .map(|k| (k, b"Subject: x\r\n\r\nx".to_vec()))
-        .collect();
-    s.write_bodies(bodies).unwrap();
-    let mut cached = s.cached_bodies("a1", "INBOX", 7);
-    cached.sort_unstable();
-    assert_eq!(cached, [1, 2]);
-    assert_eq!(s.cached_bodies("a1", "INBOX", 70), [3]);
-    assert_eq!(s.cached_bodies("a1", "INBOX2", 7), [4]);
-    assert!(s.cached_bodies("a1", "INBOX", 9).is_empty() && s.cached_bodies("a1", "Other", 7).is_empty());
-    let dir = s.folder_dir("a1", "INBOX");
-    assert!(s.files.exists(&dir) && s.files.exists(&dir.join("70")));
-    assert!(!s.files.exists(&dir.join("8")) && !s.files.exists(&s.folder_dir("a1", "Other")));
-    assert_eq!(s.files.main.walk(&dir).len(), 3);
 }
 
 /// A store that fails says so: a source that isn't kept is told from one that can't be read, and
@@ -666,47 +301,6 @@ fn a_failing_store_says_so_and_writes_nothing_over() {
     assert_eq!(s.load_body(&k9).unwrap().as_deref(), Some(&b"x"[..]));
 }
 
-/// A folder's list written part-way, noted as its tail, and gone on with from that tail (an
-/// import that stopped and goes on) comes out as the list written in one go: the same pages,
-/// counts and order. A tail that doesn't add up is refused, with nothing written.
-#[test]
-fn a_list_goes_on_from_its_tail_as_if_never_stopped() {
-    let n = PAGE_MESSAGES as u32 * 2 + 700;
-    let unread = |uid: u32| msg(uid, !uid.is_multiple_of(3));
-    let head = FolderState { validity: 3, uid_next: n + 1, ..Default::default() };
-    for stop in [10, PAGE_MESSAGES as u32 - 1, PAGE_MESSAGES as u32 + 5, 2 * PAGE_MESSAGES as u32] {
-        let (whole, parts) = (Store::memory(), Store::memory());
-        let mut w = whole.list_writer("a1", "INBOX");
-        w.push(&whole, (1..=n).map(unread).collect()).unwrap();
-        let counts = w.finish(&whole, &head).unwrap();
-
-        let mut w = parts.list_writer("a1", "INBOX");
-        w.push(&parts, (1..=stop).map(unread).collect()).unwrap();
-        // Messages written since the last page, not yet handed over, go in the tail too.
-        let tail = w.tail(&[unread(stop + 1), unread(stop + 2)]);
-        drop(w);
-        let back: ListTail = serde_json::from_slice(&serde_json::to_vec(&tail).unwrap()).unwrap();
-        let mut w = parts.resume_list_writer("a1", "INBOX", back).unwrap();
-        w.push(&parts, (stop + 3..=n).map(unread).collect()).unwrap();
-        assert_eq!(w.finish(&parts, &head).unwrap(), counts, "stopped at {stop}");
-        assert_eq!(parts.load_folder("a1", "INBOX").unwrap(), whole.load_folder("a1", "INBOX").unwrap(), "stopped at {stop}");
-        assert_eq!(parts.snapshot(|_| true), whole.snapshot(|_| true), "stopped at {stop}: the same files");
-    }
-    let s = Store::memory();
-    s.track_changes();
-    let refused = |tail: ListTail| s.resume_list_writer("a1", "INBOX", tail).is_err();
-    assert!(refused(ListTail { pages: vec![1], in_pages: 3, ..Default::default() }), "a page that isn't a full one");
-    assert!(refused(ListTail { pages: vec![1], in_pages: PAGE_MESSAGES as u64, unread_in_pages: u32::MAX, ..Default::default() }));
-    assert!(refused(ListTail { page: (1..=TAIL_PAGE_MAX as u32 + 1).map(unread).collect(), ..Default::default() }), "too long");
-    assert!(refused(ListTail { page: vec![unread(5), unread(4)], ..Default::default() }), "out of order");
-    assert!(refused(ListTail {
-        pages: vec![0; TAIL_PAGES_MAX + 1],
-        in_pages: (TAIL_PAGES_MAX as u64 + 1) * PAGE_MESSAGES as u64,
-        ..Default::default()
-    }));
-    assert!(s.take_changes().is_empty(), "nothing written for a tail refused");
-}
-
 /// The sources of a folder past a number go, read as numbers (10 is past 9), in one change, and
 /// only that folder's under that validity; a batch and the document naming it go in together.
 #[test]
@@ -735,37 +329,6 @@ fn sources_past_a_number_are_dropped_by_number() {
     }
 }
 
-/// The summaries a folder's list holds are shared in memory (`SharedSummary`), not on disk: a
-/// `state.json` written while the list held them plain reads back the same, and is written back
-/// byte for byte as the plain list was.
-#[test]
-fn a_list_of_shared_summaries_is_kept_as_it_was_before() {
-    // As a list of plain summaries wrote it (fields left out read as their defaults).
-    let before = br#"{"validity":3,"uid_next":10,"highest_modseq":77,"messages":[{"key":{"account":"a1","folder":"INBOX","validity":3,"uid":9},"subject":"Hello","flags":{"seen":true}},{"key":{"account":"a1","folder":"INBOX","validity":3,"uid":4},"subject":"Older","size":120}],"window":0}"#;
-    let s = temp_store("shared-format");
-    let dir = s.folder_dir("a1", "INBOX");
-    fs::create_dir_all(&dir).unwrap();
-    fs::write(dir.join("state.json"), before).unwrap();
-    let st = s.load_folder("a1", "INBOX").unwrap();
-    assert_eq!((st.validity, st.uid_next, st.highest_modseq, st.messages.len()), (3, 10, 77, 2));
-    let plain: Vec<Summary> = st.messages.iter().map(|m| Summary::clone(m)).collect();
-    assert_eq!((plain[0].subject.as_str(), plain[0].flags.seen, plain[1].key.uid, plain[1].size), ("Hello", true, 4, 120));
-    // Written back: what the plain list made of the same summaries.
-    #[derive(Serialize)]
-    struct Before {
-        validity: u32,
-        uid_next: u32,
-        highest_modseq: u64,
-        messages: Vec<Summary>,
-        window: usize,
-    }
-    s.save_folder("a1", "INBOX", &st).unwrap();
-    let written = String::from_utf8(fs::read(dir.join("state.json")).unwrap()).unwrap();
-    let old = Before { validity: 3, uid_next: 10, highest_modseq: 77, messages: plain.clone(), window: 0 };
-    assert_eq!(written, serde_json::to_string(&old).unwrap());
-    assert_eq!(serde_json::to_vec(&st.messages).unwrap(), serde_json::to_vec(&plain).unwrap());
-}
-
 /// Turning online-only on with one of the account's files unreadable leaves it all where it was,
 /// and says so. That file was left behind unread and its only copy removed with the rest (its
 /// changes waiting for the server among what could go).
@@ -791,22 +354,4 @@ fn online_only_with_a_file_that_cant_be_read_keeps_it() {
     // Readable again, all of it goes over.
     s.set_online_only("a1", true).unwrap();
     assert_eq!((s.load_ops("a1").unwrap().len(), s.load_folder("a1", "INBOX").unwrap().messages.len()), (1, 1));
-}
-
-/// The browser's cache is in memory, kept in IndexedDB by what it changes: a change waiting for
-/// the server goes out with those changes and comes back from them on the next visit, and
-/// leaves with them once sent (the page held its queue itself, and lost it to a reload).
-#[test]
-fn a_memory_cache_keeps_its_queued_changes_between_visits() {
-    let s = Store::memory();
-    s.track_changes();
-    let op = Op::SetFlag { keys: vec![msg(1, false).key], flag: Flag::Flagged, on: true };
-    s.add_op("a1", op.clone()).unwrap();
-    let kept: Vec<(String, Vec<u8>)> = s.take_changes().into_iter().filter_map(|(p, b)| Some((p, b?))).collect();
-    assert_eq!(kept.iter().map(|(p, _)| p.as_str()).collect::<Vec<_>>(), ["a1/ops.json"]);
-    let next = Store::memory_from(kept);
-    next.track_changes();
-    assert_eq!(next.load_ops("a1").unwrap(), std::slice::from_ref(&op), "back on the next visit");
-    next.remove_op("a1", &op).unwrap();
-    assert_eq!(next.take_changes(), [("a1/ops.json".to_string(), None)], "gone from what's kept once sent");
 }

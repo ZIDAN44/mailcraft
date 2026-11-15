@@ -82,3 +82,44 @@ fn a_head_that_cant_be_read_fails_the_save() {
     assert!(!s.files.is_file(&folders::page_path(&s.folder_dir("a1", "INBOX"), 2)));
     assert_eq!(s.load_folder("a1", "INBOX").unwrap(), two);
 }
+
+/// A folder's list written part-way, noted as its tail, and gone on with from that tail (an
+/// import that stopped and goes on) comes out as the list written in one go: the same pages,
+/// counts and order. A tail that doesn't add up is refused, with nothing written.
+#[test]
+fn a_list_goes_on_from_its_tail_as_if_never_stopped() {
+    let n = PAGE_MESSAGES as u32 * 2 + 700;
+    let unread = |uid: u32| msg(uid, !uid.is_multiple_of(3));
+    let head = FolderState { validity: 3, uid_next: n + 1, ..Default::default() };
+    for stop in [10, PAGE_MESSAGES as u32 - 1, PAGE_MESSAGES as u32 + 5, 2 * PAGE_MESSAGES as u32] {
+        let (whole, parts) = (Store::memory(), Store::memory());
+        let mut w = whole.list_writer("a1", "INBOX");
+        w.push(&whole, (1..=n).map(unread).collect()).unwrap();
+        let counts = w.finish(&whole, &head).unwrap();
+
+        let mut w = parts.list_writer("a1", "INBOX");
+        w.push(&parts, (1..=stop).map(unread).collect()).unwrap();
+        // Messages written since the last page, not yet handed over, go in the tail too.
+        let tail = w.tail(&[unread(stop + 1), unread(stop + 2)]);
+        drop(w);
+        let back: ListTail = serde_json::from_slice(&serde_json::to_vec(&tail).unwrap()).unwrap();
+        let mut w = parts.resume_list_writer("a1", "INBOX", back).unwrap();
+        w.push(&parts, (stop + 3..=n).map(unread).collect()).unwrap();
+        assert_eq!(w.finish(&parts, &head).unwrap(), counts, "stopped at {stop}");
+        assert_eq!(parts.load_folder("a1", "INBOX").unwrap(), whole.load_folder("a1", "INBOX").unwrap(), "stopped at {stop}");
+        assert_eq!(parts.snapshot(|_| true), whole.snapshot(|_| true), "stopped at {stop}: the same files");
+    }
+    let s = Store::memory();
+    s.track_changes();
+    let refused = |tail: ListTail| s.resume_list_writer("a1", "INBOX", tail).is_err();
+    assert!(refused(ListTail { pages: vec![1], in_pages: 3, ..Default::default() }), "a page that isn't a full one");
+    assert!(refused(ListTail { pages: vec![1], in_pages: PAGE_MESSAGES as u64, unread_in_pages: u32::MAX, ..Default::default() }));
+    assert!(refused(ListTail { page: (1..=TAIL_PAGE_MAX as u32 + 1).map(unread).collect(), ..Default::default() }), "too long");
+    assert!(refused(ListTail { page: vec![unread(5), unread(4)], ..Default::default() }), "out of order");
+    assert!(refused(ListTail {
+        pages: vec![0; TAIL_PAGES_MAX + 1],
+        in_pages: (TAIL_PAGES_MAX as u64 + 1) * PAGE_MESSAGES as u64,
+        ..Default::default()
+    }));
+    assert!(s.take_changes().is_empty(), "nothing written for a tail refused");
+}
