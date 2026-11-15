@@ -161,11 +161,11 @@ fn an_accounts_jobs_wait_while_its_file_is_had_to_itself() {
     assert!(p.compacts.held.get("c1").is_some_and(|h| h.len() == 1), "a stop isn't held");
     // Given back: what waited goes on, in order.
     exclusive.store(false, Ordering::SeqCst);
-    let end = Instant::now() + Duration::from_secs(10);
     let mut seen = Vec::new();
-    while !seen.iter().any(|e| matches!(e, Event::Body { .. })) && Instant::now() < end {
+    crate::waiting::eventually("the held body read", || {
         seen.extend(p.poll());
-    }
+        seen.iter().any(|e| matches!(e, Event::Body { .. }))
+    });
     assert!(seen.iter().any(|e| matches!(e, Event::Body { key, raw } if key.uid == 2 && *raw == noise(SIZE, 2))), "{seen:?}");
     assert!(p.compacts.held.is_empty());
     let _ = go.send(());
