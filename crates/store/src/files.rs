@@ -82,12 +82,29 @@ fn read_settled(p: &Path) -> io::Result<Vec<u8>> {
     fs::read(p)
 }
 
-/// The paths at or under `dir` in memory, from where they start in the map (paths sort by
-/// component, so everything under a folder is together): an online-only account's listing doesn't
-/// pass over every other file.
-fn under<'a>(m: &'a BTreeMap<PathBuf, Vec<u8>>, dir: &'a Path) -> impl Iterator<Item = &'a PathBuf> + 'a {
+/// The files at or under `dir` in memory, from where they start in the map (paths sort by
+/// component, so everything under a folder is together): an online-only account's listing,
+/// move, removal or size doesn't pass over every other file.
+fn entries_under<'a>(m: &'a BTreeMap<PathBuf, Vec<u8>>, dir: &'a Path) -> impl Iterator<Item = (&'a PathBuf, &'a Vec<u8>)> + 'a {
     use std::ops::Bound;
-    m.range::<Path, _>((Bound::Included(dir), Bound::Unbounded)).map(|(k, _)| k).take_while(move |k| k.starts_with(dir))
+    m.range::<Path, _>((Bound::Included(dir), Bound::Unbounded)).take_while(move |(k, _)| k.starts_with(dir))
+}
+
+/// The paths at or under `dir` in memory ([`entries_under`]).
+fn under<'a>(m: &'a BTreeMap<PathBuf, Vec<u8>>, dir: &'a Path) -> impl Iterator<Item = &'a PathBuf> + 'a {
+    entries_under(m, dir).map(|(k, _)| k)
+}
+
+/// Each file under `p` on the disk, folders followed eight deep at most.
+fn disk_files(p: &Path, depth: usize, each: &mut dyn FnMut(&fs::DirEntry)) {
+    let Ok(rd) = fs::read_dir(p) else { return };
+    for e in rd.filter_map(|e| e.ok()) {
+        match e.file_type() {
+            Ok(t) if t.is_dir() && depth < 8 => disk_files(&e.path(), depth + 1, each),
+            Ok(t) if t.is_file() => each(&e),
+            _ => {}
+        }
+    }
 }
 
 impl Files {
@@ -297,7 +314,7 @@ impl Files {
             Files::Packed(x) => x.rename(from, to),
             Files::Memory(m, _) => {
                 let moved = Files::with(m, |m| {
-                    let moving: Vec<PathBuf> = m.keys().filter(|k| k.starts_with(from)).cloned().collect();
+                    let moving: Vec<PathBuf> = under(m, from).cloned().collect();
                     let mut moved = Vec::new();
                     for k in moving {
                         if let (Some(v), Ok(rest)) = (m.remove(&k), k.strip_prefix(from)) {
@@ -346,7 +363,7 @@ impl Files {
             Files::Packed(x) => x.remove_dir_all(p),
             Files::Memory(m, _) => {
                 let gone: Vec<PathBuf> = Files::with(m, |m| {
-                    let gone: Vec<PathBuf> = m.keys().filter(|k| k.starts_with(p)).cloned().collect();
+                    let gone: Vec<PathBuf> = under(m, p).cloned().collect();
                     for k in &gone {
                         m.remove(k);
                     }
@@ -406,20 +423,10 @@ impl Files {
 
     /// Every file under a folder, at any depth.
     pub(super) fn walk(&self, dir: &Path) -> Vec<PathBuf> {
-        fn disk(p: &Path, depth: usize, out: &mut Vec<PathBuf>) {
-            let Ok(rd) = fs::read_dir(p) else { return };
-            for e in rd.filter_map(|e| e.ok()) {
-                match e.file_type() {
-                    Ok(t) if t.is_dir() && depth < 8 => disk(&e.path(), depth + 1, out),
-                    Ok(t) if t.is_file() => out.push(e.path()),
-                    _ => {}
-                }
-            }
-        }
         match self {
             Files::Disk => {
                 let mut out = Vec::new();
-                disk(dir, 0, &mut out);
+                disk_files(dir, 0, &mut |e| out.push(e.path()));
                 out
             }
             #[cfg(not(target_arch = "wasm32"))]
@@ -431,23 +438,16 @@ impl Files {
 
     /// Bytes under a folder.
     pub(super) fn size(&self, dir: &Path) -> u64 {
-        fn walk(p: &Path, depth: usize) -> u64 {
-            let Ok(rd) = fs::read_dir(p) else { return 0 };
-            rd.filter_map(|e| e.ok())
-                .map(|e| match e.file_type() {
-                    Ok(t) if t.is_dir() && depth < 8 => walk(&e.path(), depth + 1),
-                    Ok(t) if t.is_file() => e.metadata().map(|m| m.len()).unwrap_or(0),
-                    _ => 0,
-                })
-                .fold(0u64, u64::saturating_add)
-        }
+        let disk = || {
+            let mut bytes = 0u64;
+            disk_files(dir, 0, &mut |e| bytes = bytes.saturating_add(e.metadata().map(|m| m.len()).unwrap_or(0)));
+            bytes
+        };
         match self {
-            Files::Disk => walk(dir, 0),
+            Files::Disk => disk(),
             #[cfg(not(target_arch = "wasm32"))]
-            Files::Packed(x) => x.size(dir).unwrap_or_else(|| walk(dir, 0)),
-            Files::Memory(m, _) => {
-                Files::with(m, |m| m.iter().filter(|(k, _)| k.starts_with(dir)).map(|(_, v)| v.len() as u64).fold(0u64, u64::saturating_add))
-            }
+            Files::Packed(x) => x.size(dir).unwrap_or_else(disk),
+            Files::Memory(m, _) => Files::with(m, |m| entries_under(m, dir).map(|(_, v)| v.len() as u64).fold(0u64, u64::saturating_add)),
             Files::Failing(f) => f.files.size(dir),
         }
     }
@@ -565,3 +565,6 @@ impl Routed {
         self.at(dir).size(dir)
     }
 }
+
+#[cfg(test)]
+mod tests;
