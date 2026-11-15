@@ -94,10 +94,13 @@ pub fn pdf_page(data: &Arc<Vec<u8>>, n: usize, fit: Fit, limit: u32, fonts: Font
 }
 
 /// Whether a font a PDF asks for is drawn with the bold font: one of the standard fonts' bold
-/// faces.
+/// faces, or a bold one the PDF names and doesn't carry (a CID font, Calibri-Bold say).
 fn is_bold(q: &FontQuery) -> bool {
     use StandardFont::*;
-    matches!(q, FontQuery::Standard(HelveticaBold | HelveticaBoldOblique | CourierBold | CourierBoldOblique | TimesBold | TimesBoldItalic))
+    match q {
+        FontQuery::Standard(s) => matches!(s, HelveticaBold | HelveticaBoldOblique | CourierBold | CourierBoldOblique | TimesBold | TimesBoldItalic),
+        FontQuery::Fallback(f) => f.is_bold,
+    }
 }
 
 #[cfg(test)]
@@ -154,14 +157,16 @@ mod tests {
         assert!(img.size[1] > 2000, "as big as it may be: {:?}", img.size);
     }
 
+    /// One of egui's own fonts, as the interface's fonts are handed to the PDF renderer.
+    fn egui_font(name: &str) -> Option<Arc<Vec<u8>>> {
+        egui::FontDefinitions::default().font_data.get(name).map(|f| Arc::new((*f.font).as_ref().to_vec()))
+    }
+
     /// Text in each standard font, drawn with two different fonts as the regular and bold ones:
     /// the bold faces (and only they) take the bold one.
     #[test]
     fn standard_bold_faces_take_the_bold_font() {
-        let font = |name: &str| -> Option<Arc<Vec<u8>>> {
-            egui::FontDefinitions::default().font_data.get(name).map(|f| Arc::new((*f.font).as_ref().to_vec()))
-        };
-        let (regular, other) = (font("Ubuntu-Light"), font("Hack"));
+        let (regular, other) = (egui_font("Ubuntu-Light"), egui_font("Hack"));
         assert!(regular.is_some() && other.is_some(), "egui's own fonts");
         let draw = |base: &str, bold: &Option<Arc<Vec<u8>>>| {
             let resources = format!("<< /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /{base} >> >> >>");
@@ -173,6 +178,28 @@ mod tests {
             let (same, apart) = (draw(base, &regular), draw(base, &other));
             assert!(same.iter().any(|p| p.r() < 128), "{base}: the text is drawn");
             assert_eq!(same != apart, bold_faces.contains(&base), "{base}");
+        }
+    }
+
+    /// A CID font the PDF names but doesn't carry (and that isn't like a standard one) is drawn
+    /// with the bold font when it's bold, as hayro's own fallback picks a bold face for it.
+    #[test]
+    fn a_bold_font_left_out_takes_the_bold_font() {
+        let (regular, other) = (egui_font("Ubuntu-Light"), egui_font("Hack"));
+        let draw = |base: &str, bold: &Option<Arc<Vec<u8>>>| {
+            let cid = format!(
+                "<< /Type /Font /Subtype /CIDFontType2 /BaseFont /{base} /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> \
+                 /FontDescriptor << /Type /FontDescriptor /FontName /{base} /Flags 32 /ItalicAngle 0 /Ascent 900 /Descent -200 /CapHeight 700 /StemV 80 /FontBBox [0 -200 1000 900] >> /DW 600 >>"
+            );
+            let resources =
+                format!("<< /Font << /F1 << /Type /Font /Subtype /Type0 /BaseFont /{base} /Encoding /Identity-H /DescendantFonts [{cid}] >> >> >>");
+            let pdf = one_page("BT /F1 24 Tf 5 15 Td <002B00440050> Tj ET", &resources);
+            pdf_first_page(&pdf, 200, (regular.clone(), bold.clone())).expect("a page").pixels
+        };
+        for (base, bold) in [("Calibri", false), ("Calibri-Bold", true)] {
+            let (same, apart) = (draw(base, &regular), draw(base, &other));
+            assert!(same.iter().any(|p| p.r() < 128), "{base}: the text is drawn");
+            assert_eq!(same != apart, bold, "{base}");
         }
     }
 }

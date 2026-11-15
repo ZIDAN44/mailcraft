@@ -183,6 +183,7 @@ on GitHub.
 - Importing an Outlook data file with thousands of folders no longer stalls before the first message comes in.
 - An attachment whose long name is blank comes in under its short name instead of a name of spaces.
 - Messages attached side by side without their own ids no longer come in with the same id.
+- PDF previews draw text in bold when the PDF names a bold font it doesn't include.
 
 ## 0.38.0 - 2026-11-13
 
