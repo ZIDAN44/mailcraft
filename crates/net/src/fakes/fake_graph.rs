@@ -293,20 +293,9 @@ pub(crate) fn words_match(query: &str, raw: &[u8]) -> bool {
     true
 }
 
+/// A MIME source as Graph takes it, in base64; nothing when it isn't base64.
 fn unbase64(body: &[u8]) -> Vec<u8> {
-    const A: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = Vec::new();
-    let (mut acc, mut bits) = (0u32, 0);
-    for c in body {
-        let Some(v) = A.iter().position(|a| a == c) else { continue };
-        acc = (acc << 6) | v as u32;
-        bits += 6;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((acc >> bits) as u8);
-        }
-    }
-    out
+    crate::ews::unb64(&String::from_utf8_lossy(body)).unwrap_or_default()
 }
 
 pub struct Server {
