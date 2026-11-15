@@ -73,7 +73,9 @@ fmv-macos-events = "=0.1.0"
 # come in through eframe already; muda builds the menu.
 dispatch2 = { version = "0.3.1", default-features = false, features = ["std"] }
 objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSResponder"] }
+# The Dock's count of unread mail (issue #93), as the window's title has it.
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSDockTile"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSString"] }
 muda = { version = "0.21.2", default-features = false }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]

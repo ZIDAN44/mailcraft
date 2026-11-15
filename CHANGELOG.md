@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 
+- macOS: the Dock icon shows how much unread mail is in the Inboxes, as the window's title does, and nothing once it's all read (#93).
 - An account can look for new mail only when you ask (#104): **File › Options › Mail › Checking for new mail › Only when I ask**. It isn't signed in as MailCraft starts nor looks by itself; **Send / Receive** on the account looks (and now looks at that account only: it looked at all of them), Send / Receive for all leaves it out, and sending or opening a message not downloaded yet still works.
 - A picture in a message has a menu on a right-click (#110): **Copy picture**, for another app to paste, and **Save picture as…**, for one the message carries or one from the web that's been shown.
 - In the dark theme, messages can be shown on a light background, in the colours they were written in (#109): **File › Options › General › Messages on a light background**, or the sun above a message to switch.

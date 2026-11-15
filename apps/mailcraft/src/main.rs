@@ -186,6 +186,9 @@ struct App {
     /// Documents macOS sent over since the last frame (`apple_events.rs`).
     #[cfg(target_os = "macos")]
     finder: fmv_macos_events::Inbox,
+    /// The unread count the Dock icon shows (issue #93), once it's been set.
+    #[cfg(target_os = "macos")]
+    badge: Option<u32>,
     native_wayland: bool,
     /// Installs a downloaded update as MailCraft closes.
     updater: Option<self_update::Updater>,
@@ -275,7 +278,14 @@ impl App {
             }
         }
         #[cfg(target_os = "macos")]
-        apple_events::deliver(&self.finder, &mut self.app, ctx);
+        {
+            apple_events::deliver(&self.finder, &mut self.app, ctx);
+            let unread = self.app.session.inbox_unread();
+            if self.badge != Some(unread) {
+                apple_events::dock_badge(unread);
+                self.badge = Some(unread);
+            }
+        }
         // An update ready while the window is minimized or behind others: the system says so.
         self.app.follow_update(ctx);
         self.tray.follow(&mut self.app, ctx);
@@ -689,6 +699,8 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                     instance,
                     #[cfg(target_os = "macos")]
                     finder,
+                    #[cfg(target_os = "macos")]
+                    badge: None,
                     native_wayland,
                     updater,
                     looked: std::time::Instant::now(),

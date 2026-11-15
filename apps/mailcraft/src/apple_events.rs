@@ -67,6 +67,15 @@ pub fn quit() -> bool {
     true
 }
 
+/// The Dock icon's badge: the Inboxes' unread mail, as the window's title counts it (issue #93),
+/// none when there's none. All safe objc2 calls, on the main thread (where the window's logic
+/// runs; elsewhere nothing happens).
+pub fn dock_badge(unread: u32) {
+    let Some(mtm) = objc2::MainThreadMarker::new() else { return };
+    let label = (unread > 0).then(|| objc2_foundation::NSString::from_str(&if unread > 9999 { "9999+".to_string() } else { unread.to_string() }));
+    objc2_app_kit::NSApplication::sharedApplication(mtm).dockTile().setBadgeLabel(label.as_deref());
+}
+
 thread_local! {
     /// The installed app menu: muda's items must outlive the native menu that shows them.
     static MENU: std::cell::RefCell<Option<muda::Menu>> = const { std::cell::RefCell::new(None) };
