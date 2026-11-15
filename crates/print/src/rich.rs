@@ -145,7 +145,7 @@ pub(super) fn lay(faces: &[Face<'_>], lines: &[Vec<Run>], width: f32, mut put: i
                     let face = faces.get(usize::from(run.bold));
                     let advance = |c: char| face.map_or(0.0, |f| f.width(c));
                     let cut = cut_word(word, size_of(run), width, advance, |done, dw| {
-                        put(lead_of(&row).max(run.size.map_or(LEAD, |s| s * LEAD / SIZE)), vec![piece(run, done, 0.0, dw)])
+                        put(lead_of(&row).max(size_of(run) * LEAD / SIZE), vec![piece(run, done, 0.0, dw)])
                     });
                     let Some((part, pw)) = cut else { return false };
                     row.push(piece(run, part, 0.0, pw));
@@ -220,6 +220,21 @@ mod tests {
         assert!(narrow.iter().flatten().all(|p| p.x + p.width <= 80.5), "within the width");
         let words: String = narrow.iter().flatten().map(|p| p.text.trim()).collect();
         assert_eq!(words, "HelloRiley,seethelinktothereportnow");
+    }
+
+    /// A word too wide for the page in a size bigger than is printed: each line it's cut into
+    /// takes the room of the size it's printed at (they went down the page 395 points apart).
+    #[test]
+    fn a_word_cut_in_a_huge_size_takes_the_room_of_its_printed_size() {
+        let faces = [Face::Helvetica { bold: false }, Face::Helvetica { bold: true }];
+        let huge = Run { size: Some(300.0), ..run(&"x".repeat(400)) };
+        let mut leads = Vec::new();
+        assert!(lay(&faces, &[vec![huge]], 100.0, |lead, _| {
+            leads.push(lead);
+            true
+        }));
+        assert!(leads.len() > 5, "{leads:?}");
+        assert!(leads.iter().all(|l| (*l - 36.0 * LEAD / SIZE).abs() < 0.01), "{leads:?}");
     }
 
     #[test]

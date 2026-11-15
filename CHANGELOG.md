@@ -157,6 +157,7 @@ on GitHub.
 - An event whose repeat rule has a frequency calendars don't define (such as FORTNIGHTLY) now still shows in the calendar, once.
 - Setting up an account whose address is typed with a trailing dot now finds the provider's servers.
 - Printing a message with a very long word followed by many accent marks no longer hangs.
+- Printing a message with huge text and a very long word no longer leaves near-empty pages.
 
 ## 0.38.0 - 2026-11-13
 
