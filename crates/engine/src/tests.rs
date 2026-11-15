@@ -59,6 +59,42 @@ fn sample_session(name: &str) -> Session {
     s
 }
 
+/// The sample in `store` with its Projects made a folder of `n` unread messages, `Report <uid>`
+/// a minute apart, and a session on it.
+fn big_projects(store: &Store, n: u32) -> Session {
+    big_projects_with(store, n, mailcraft_model::Flags::default(), false)
+}
+
+/// [`big_projects`] with each message's flags `flags`, and with `sources`, a short source for
+/// each, written in batches of 500.
+fn big_projects_with(store: &Store, n: u32, flags: mailcraft_model::Flags, sources: bool) -> Session {
+    sample::seed_if_empty(store, NOW).unwrap();
+    let mut st = store.load_folder("sample", "Projects").unwrap();
+    st.validity = 7;
+    st.messages = (1..=n)
+        .map(|uid| mailcraft_model::Summary {
+            key: mailcraft_model::MessageKey { account: "sample".into(), folder: "Projects".into(), validity: 7, uid },
+            subject: format!("Report {uid}"),
+            date: NOW - i64::from(uid) * 60,
+            flags: flags.clone(),
+            ..Default::default()
+        })
+        .map(Into::into)
+        .collect();
+    if sources {
+        let bodies: Vec<(mailcraft_model::MessageKey, Vec<u8>)> =
+            st.messages.iter().map(|m| (m.key.clone(), format!("Subject: Report {}\r\n\r\nThe figures.\r\n", m.key.uid).into_bytes())).collect();
+        for chunk in bodies.chunks(500) {
+            store.write_bodies(chunk.to_vec()).unwrap();
+        }
+    }
+    store.save_folder("sample", "Projects", &st).unwrap();
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    assert_eq!(s.list.len(), n as usize);
+    s
+}
+
 /// The key the next message to come into `account`'s `folder` gets: the validity of its list as
 /// kept, and the uid past its highest.
 fn next_key(s: &Session, account: &str, folder: &str) -> mailcraft_model::MessageKey {

@@ -674,25 +674,7 @@ fn measure_a_big_folder_changed_all_at_once() {
 
 /// The sample, on disk, with its Projects made a folder of 20,000 messages, open.
 fn big_folder(name: &str) -> Session {
-    let store = temp(name);
-    sample::seed_if_empty(&store, NOW).unwrap();
-    let n = 20_000u32;
-    let mut st = store.load_folder("sample", "Projects").unwrap();
-    st.validity = 7;
-    st.messages = (1..=n)
-        .map(|uid| mailcraft_model::Summary {
-            key: mailcraft_model::MessageKey { account: "sample".into(), folder: "Projects".into(), validity: 7, uid },
-            subject: format!("Report {uid}"),
-            date: NOW - i64::from(uid) * 60,
-            ..Default::default()
-        })
-        .map(Into::into)
-        .collect();
-    store.save_folder("sample", "Projects", &st).unwrap();
-    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
-    s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
-    assert_eq!(s.list.len(), n as usize);
-    s
+    big_projects(&temp(name), 20_000)
 }
 
 /// Issue #4: closing loses what online-only accounts hold in memory only (unsent mail, changes

@@ -1,29 +1,9 @@
 //! Engine tests: read marks, flags and categories on a data file's (a local account's) mail,
 //! written on the store's thread for marks rather than in the window's frame.
 
-use mailcraft_model::{MessageKey, Summary};
+use mailcraft_model::MessageKey;
 
 use super::*;
-
-/// The sample's Projects made a folder of `n` unread messages in `store`, and a session on it.
-fn big_projects(store: &Store, n: u32) -> Session {
-    sample::seed_if_empty(store, NOW).unwrap();
-    let mut st = store.load_folder("sample", "Projects").unwrap();
-    st.validity = 7;
-    st.messages = (1..=n)
-        .map(|uid| Summary {
-            key: MessageKey { account: "sample".into(), folder: "Projects".into(), validity: 7, uid },
-            subject: format!("Report {uid}"),
-            date: NOW - i64::from(uid) * 60,
-            ..Default::default()
-        })
-        .map(Into::into)
-        .collect();
-    store.save_folder("sample", "Projects", &st).unwrap();
-    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
-    s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
-    s
-}
 
 /// A message marked read in a folder of 10,941 of a data file's account writes nothing on the
 /// window's thread: it's written on the store's thread for marks, a few bytes with the folder's

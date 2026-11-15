@@ -1,7 +1,7 @@
 //! Engine tests: a long local move in a data file seals the file as it goes, so a crash part-way
 //! reopens it at once; a short one doesn't. A long copy is written in batches too.
 
-use mailcraft_model::{Flags, MessageKey, Summary};
+use mailcraft_model::{Flags, Summary};
 
 use super::*;
 
@@ -9,27 +9,7 @@ use super::*;
 /// each with its source.
 fn projects(root: &std::path::Path, n: u32) -> (Store, Session) {
     let store = Store::open_packed(root, root.join("files")).unwrap();
-    sample::seed_if_empty(&store, NOW).unwrap();
-    let mut st = store.load_folder("sample", "Projects").unwrap();
-    st.validity = 7;
-    st.messages = (1..=n)
-        .map(|uid| Summary {
-            key: MessageKey { account: "sample".into(), folder: "Projects".into(), validity: 7, uid },
-            subject: format!("Report {uid}"),
-            date: NOW - i64::from(uid) * 60,
-            flags: Flags { seen: true, ..Default::default() },
-            ..Default::default()
-        })
-        .map(Into::into)
-        .collect();
-    let bodies: Vec<(MessageKey, Vec<u8>)> =
-        st.messages.iter().map(|m| (m.key.clone(), format!("Subject: Report {}\r\n\r\nThe figures.\r\n", m.key.uid).into_bytes())).collect();
-    for chunk in bodies.chunks(500) {
-        store.write_bodies(chunk.to_vec()).unwrap();
-    }
-    store.save_folder("sample", "Projects", &st).unwrap();
-    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
-    s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    let s = big_projects_with(&store, n, Flags { seen: true, ..Default::default() }, true);
     (store, s)
 }
 

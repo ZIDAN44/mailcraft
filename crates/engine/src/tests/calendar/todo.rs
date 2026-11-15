@@ -137,21 +137,7 @@ fn things_go_under_the_day_they_are_due() {
 /// The sample's Projects made a folder of `n` messages, none flagged, open, and every folder's
 /// flagged mail read by the bar.
 fn projects_of(n: u32) -> Session {
-    let store = Store::memory();
-    sample::seed_if_empty(&store, NOW).unwrap();
-    let mut st = store.load_folder("sample", "Projects").unwrap();
-    st.messages = (1..=n)
-        .map(|uid| mailcraft_model::Summary {
-            key: mailcraft_model::MessageKey { account: "sample".into(), folder: "Projects".into(), validity: st.validity, uid },
-            subject: format!("Report {uid}"),
-            date: NOW - i64::from(uid) * 60,
-            ..Default::default()
-        })
-        .map(Into::into)
-        .collect();
-    store.save_folder("sample", "Projects", &st).unwrap();
-    let mut s = Session::open(Some(store), mailcraft_model::dates::Clock::new(NOW, 0));
-    s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    let mut s = big_projects(&Store::memory(), n);
     read_all(&mut s);
     s
 }
