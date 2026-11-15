@@ -80,6 +80,22 @@ fn a_summary_is_placed_by_delivery_and_keeps_the_conversation() {
     assert_eq!(summary(Item { date: 5, body: "b".into(), ..Default::default() }).thread_own, 0);
 }
 
+/// Attached messages with no id of their own each get one made from the item's, numbered in
+/// turn: two side by side came out with the same Message-ID (and an attached meeting with the
+/// other's calendar uid).
+#[test]
+fn attached_messages_without_ids_get_ids_of_their_own() {
+    let attached = |subject: &str| File::Message(Box::new(Item { subject: subject.into(), body: "Inside.".into(), ..Default::default() }));
+    let item = Item { subject: "Two inside".into(), body: "See both.".into(), files: vec![attached("One"), attached("Two")], ..Default::default() };
+    let raw = to_raw(item, "item@pst.invalid").unwrap();
+    let p = mime::parse(&raw).unwrap();
+    let inner: Vec<usize> = (0..p.attachments.len()).filter(|i| p.attachments[*i].mime == "message/rfc822").collect();
+    assert_eq!(inner.len(), 2);
+    let ids: Vec<String> =
+        mime::attachments_data(&raw, &inner, 1 << 20, 1 << 20).into_iter().map(|(_, data)| mime::parse(&data).unwrap().message_id).collect();
+    assert_eq!(ids, ["item@pst.invalid.1", "item@pst.invalid.2"]);
+}
+
 /// A received message's header is put back in the built source's own buffer without doubling
 /// it: the source waits in its import batch in that buffer, and a file that won't compress is
 /// stored as it is.

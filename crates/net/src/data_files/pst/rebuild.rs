@@ -79,6 +79,9 @@ fn build(mut it: Item, text: String, fallback_id: &str, depth: usize) -> Result<
     let make = || html.clone().unwrap_or_default();
     let refs = mime::HtmlRefs::new(&make);
     let report = super::report::report_type(&it.headers, &mut it.files);
+    // The attached messages, numbered in turn: one with no id of its own gets the item's with
+    // its number (`<id>.1`, `<id>.2`…), so no two have the same.
+    let mut attached = 0u32;
     for f in std::mem::take(&mut it.files) {
         match f {
             File::Data { name, mime, cid, data } => {
@@ -93,7 +96,8 @@ fn build(mut it: Item, text: String, fallback_id: &str, depth: usize) -> Result<
             File::Message(_) if depth >= MAX_NESTING => log::info!("an attached message deeper than {MAX_NESTING} was left out"),
             File::Message(inner) => {
                 let subject = if inner.subject.trim().is_empty() { "message".to_string() } else { inner.subject.trim().to_string() };
-                let raw = attached_raw(*inner, &format!("{fallback_id}.1"), depth.saturating_add(1))?;
+                attached = attached.saturating_add(1);
+                let raw = attached_raw(*inner, &format!("{fallback_id}.{attached}"), depth.saturating_add(1))?;
                 d.attachments.push(OutAttachment { name: format!("{subject}.eml"), mime: "message/rfc822".into(), data: raw, ..Default::default() });
             }
         }
