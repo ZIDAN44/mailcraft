@@ -10,7 +10,7 @@
 
 use mail_parser::MessageParser;
 
-use crate::attachments::contents;
+use crate::parts::contents;
 
 use super::{RAW_MAX, crlf, fields, find, first_part, protect_with, split};
 

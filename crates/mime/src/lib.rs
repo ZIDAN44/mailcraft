@@ -34,6 +34,7 @@ use attachments::{files, photos, tnef};
 mod hidden;
 mod html;
 mod outgoing;
+mod parts;
 pub mod smime;
 pub use smime::pgp;
 /// Outlook's RTF bodies for tests (`test-support`).

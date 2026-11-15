@@ -8,7 +8,7 @@
 
 use mail_parser::{MessageParser, MessagePart};
 
-use crate::attachments::contents;
+use crate::parts::contents;
 
 pub mod pgp;
 

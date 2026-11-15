@@ -11,16 +11,15 @@ pub(crate) mod fields;
 pub(super) mod files;
 mod index_text;
 pub mod office;
-mod parts;
 pub(super) mod photos;
 mod reactions;
 mod text_first;
 pub(super) mod tnef;
+use crate::parts::sent_bytes;
+pub(crate) use crate::parts::{contents, files_of, header_raw, header_top};
 pub use index_text::index_doc;
 #[doc(hidden)]
 pub use index_text::{IndexStats, index_doc_stats};
-use parts::sent_bytes;
-pub(crate) use parts::{contents, files_of, header_raw, header_top};
 pub(crate) use reactions::reaction_of;
 pub use reactions::{REACTIONS, is_reaction_text, reaction};
 pub use text_first::{PendingFile, TEXT_FIRST, is_text_first, part_name, text_first};
