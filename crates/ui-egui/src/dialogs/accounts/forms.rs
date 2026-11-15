@@ -325,9 +325,7 @@ impl EditForm {
             "smtpPort": port(&self.smtp_port),
             "smtpSecurity": self.smtp_security.code(),
         });
-        if !self.jmap {
-            self.smtp_sign_in.params(&mut v);
-        }
+        self.smtp_sign_in.params(&mut v);
         v
     }
 }
