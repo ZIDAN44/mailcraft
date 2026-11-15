@@ -130,13 +130,23 @@ fn item_id<T: Serialize>(kind: &str, item: &T, uid: &str) -> u64 {
     fnv64(&format!("{kind}:{json}"))
 }
 
+/// What an item of an account's [`Pim`] is: each kind's place in what
+/// [`Store::merge_pim`] counts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    Card = 0,
+    Event = 1,
+    Note = 2,
+    Task = 3,
+}
+
 /// Every item of `pim` by identity, with where it is (its kind and place in its list).
-fn items_of(pim: &Pim) -> Vec<(u64, u8, usize)> {
+fn items_of(pim: &Pim) -> Vec<(u64, Kind, usize)> {
     let mut out = Vec::with_capacity(pim.cards.len() + pim.events.len() + pim.notes.len() + pim.tasks.len());
-    out.extend(pim.cards.iter().enumerate().map(|(i, c)| (item_id("c", &c.card, &c.card.uid), 0, i)));
-    out.extend(pim.events.iter().enumerate().map(|(i, e)| (item_id("e", &e.event, &e.event.uid), 1, i)));
-    out.extend(pim.notes.iter().enumerate().map(|(i, n)| (item_id("n", &n.note, &n.note.uid), 2, i)));
-    out.extend(pim.tasks.iter().enumerate().map(|(i, t)| (item_id("t", &t.task, &t.task.uid), 3, i)));
+    out.extend(pim.cards.iter().enumerate().map(|(i, c)| (item_id("c", &c.card, &c.card.uid), Kind::Card, i)));
+    out.extend(pim.events.iter().enumerate().map(|(i, e)| (item_id("e", &e.event, &e.event.uid), Kind::Event, i)));
+    out.extend(pim.notes.iter().enumerate().map(|(i, n)| (item_id("n", &n.note, &n.note.uid), Kind::Note, i)));
+    out.extend(pim.tasks.iter().enumerate().map(|(i, t)| (item_id("t", &t.task, &t.task.uid), Kind::Task, i)));
     out
 }
 
@@ -341,7 +351,7 @@ impl Store {
 
     /// The contacts, calendar items, notes and tasks of `from_account` that `account` hasn't and
     /// didn't have from the file before, added (each with a uid of its own here). How many of
-    /// each.
+    /// each, in [`Kind`]'s order.
     fn merge_pim(&self, account: &str, from: &Store, from_account: &str, seen: &mut Noted) -> Result<[usize; 4]> {
         let theirs: Pim = from.load_account_doc(from_account, PIM_DOC)?;
         let mut pim: Pim = self.load_account_doc(account, PIM_DOC)?;
@@ -366,7 +376,7 @@ impl Store {
                 continue;
             }
             match kind {
-                0 => {
+                Kind::Card => {
                     if let Some(c) = theirs.cards.get(i) {
                         let mut c = c.clone();
                         c.card.uid = fresh();
@@ -374,7 +384,7 @@ impl Store {
                         pim.cards.push(c);
                     }
                 }
-                1 => {
+                Kind::Event => {
                     if let Some(e) = theirs.events.get(i) {
                         let mut e = e.clone();
                         e.event.uid = fresh();
@@ -384,14 +394,14 @@ impl Store {
                         pim.events.push(e);
                     }
                 }
-                2 => {
+                Kind::Note => {
                     if let Some(x) = theirs.notes.get(i) {
                         let mut x = x.clone();
                         x.note.uid = fresh();
                         pim.notes.push(x);
                     }
                 }
-                _ => {
+                Kind::Task => {
                     if let Some(t) = theirs.tasks.get(i) {
                         let mut t = t.clone();
                         t.task.uid = fresh();
@@ -399,7 +409,7 @@ impl Store {
                     }
                 }
             }
-            if let Some(n) = added.get_mut(usize::from(kind.min(3))) {
+            if let Some(n) = added.get_mut(kind as usize) {
                 *n += 1;
             }
         }
