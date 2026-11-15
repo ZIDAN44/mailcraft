@@ -204,7 +204,7 @@ fn visit(
                 return;
             }
         }
-        let Looked { sub, rows, bytes, kind, name } = match look(store, node, plan.folders.len(), ctx) {
+        let Looked { sub, rows, bytes, kind, name } = match ctx.fault_looking(plan.folders.len()).and_then(|()| look(store, node)) {
             Ok(l) => l,
             Err(e) => {
                 log::info!("a folder could not be read: {e}");
@@ -234,15 +234,8 @@ fn visit(
     }
 }
 
-/// The folder at `node` (the plan's `index`th) opened, with what it is and holds.
-fn look(store: &PstStore, node: u32, index: usize, ctx: &Ctx<'_>) -> io::Result<Looked> {
-    #[cfg(test)]
-    if let Some(super::lanes::tests::Fault::PlanAt(n)) = ctx.opts.fault
-        && index == n
-    {
-        return Err(io::Error::other("a test's plan fault"));
-    }
-    let _ = (index, ctx);
+/// The folder at `node` opened, with what it is and holds.
+fn look(store: &PstStore, node: u32) -> io::Result<Looked> {
     let sub = store.open_folder(node)?;
     let (rows, bytes) = sub.contents_table().map_or((0, 0), |t| sizes(t).fold((0u64, 0u64), |(n, b), (_, s)| (n + 1, b.saturating_add(s))));
     let kind = classify(&sub.properties().get(0x3613).and_then(text_of).unwrap_or_default());
@@ -435,14 +428,7 @@ fn folder(store: &PstStore, index: usize, f: &PlanFolder, feed: &mut Feed, ctx: 
                         }
                         return false;
                     }
-                    #[cfg(test)]
-                    let size = match ctx.opts.fault {
-                        // The walk fails; the Sent Items folder read after it doesn't.
-                        Some(super::lanes::tests::Fault::PlannerAfter(n)) if feed.handed == n && sent.is_none() => panic!("a test's planner fault"),
-                        // The file says every item is tiny.
-                        Some(super::lanes::tests::Fault::Understate) => 1,
-                        _ => size,
-                    };
+                    let size = ctx.fault_handing(feed.handed, sent.is_some(), size);
                     feed.handed += 1;
                     if !feed.job(node, size, (index, f, row), sent, &stopped) {
                         return false;

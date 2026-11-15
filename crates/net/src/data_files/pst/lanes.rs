@@ -162,6 +162,21 @@ impl<'a> Ctx<'a> {
     }
 }
 
+/// Where the planner lets a test put a fault: nothing outside tests (a test's are in `tests`).
+#[cfg(not(test))]
+impl Ctx<'_> {
+    /// As the planner looks at the folder that is `index` into the file.
+    pub(super) fn fault_looking(&self, _index: usize) -> io::Result<()> {
+        Ok(())
+    }
+
+    /// The size an item of `size` is handed out with, after `handed` others (`sent`: one of the
+    /// Sent Items folder, read last).
+    pub(super) fn fault_handing(&self, _handed: u64, _sent: bool, size: u64) -> u64 {
+        size
+    }
+}
+
 /// The lanes read at most this many items at once.
 const MAX_LANES: usize = 12;
 
@@ -543,6 +558,28 @@ pub(super) mod tests {
         /// Items at this row of their folder (from 0) or past it wait, before they're read, until
         /// the import is asked to stop: their folder stays part-way for as long as a test looks.
         HoldRow(u64),
+    }
+
+    /// The planner's faults ([`Fault::PlanAt`], [`Fault::PlannerAfter`], [`Fault::Understate`]).
+    impl Ctx<'_> {
+        /// Looking at the folder that is `index` into the file fails at [`Fault::PlanAt`].
+        pub(in super::super) fn fault_looking(&self, index: usize) -> io::Result<()> {
+            match self.opts.fault {
+                Some(Fault::PlanAt(n)) if index == n => Err(io::Error::other("a test's plan fault")),
+                _ => Ok(()),
+            }
+        }
+
+        /// Handing out an item after `handed` others: the walk fails at [`Fault::PlannerAfter`]
+        /// (the Sent Items folder read after it, `sent`, doesn't), and the file says every item
+        /// is a byte at [`Fault::Understate`].
+        pub(in super::super) fn fault_handing(&self, handed: u64, sent: bool, size: u64) -> u64 {
+            match self.opts.fault {
+                Some(Fault::PlannerAfter(n)) if handed == n && !sent => panic!("a test's planner fault"),
+                Some(Fault::Understate) => 1,
+                _ => size,
+            }
+        }
     }
 
     /// What a test does to each item of a data file read (whether it's one of the Sent Items
