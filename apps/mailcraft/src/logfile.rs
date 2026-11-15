@@ -184,10 +184,21 @@ fn enabled(target: &str, level: Level) -> bool {
 }
 
 /// One line as written: when (UTC), how serious, where from, what (a message over several lines
-/// indented under it).
+/// indented under it). What a server or a file put in a message can't pass for a line of its own
+/// or steer the terminal it's echoed to: a carriage return and every other control character but
+/// a tab are written as escapes (`\r`, `\u{1b}`).
 fn line(stamp: &str, level: Level, target: &str, msg: &str) -> String {
-    let msg = msg.trim_end().replace("\r\n", "\n").replace('\n', "\n    ");
-    format!("{stamp} {level:<5} {target}: {msg}\n")
+    let mut out = format!("{stamp} {level:<5} {target}: ");
+    for c in msg.trim_end().replace("\r\n", "\n").chars() {
+        match c {
+            '\n' => out.push_str("\n    "),
+            '\t' => out.push('\t'),
+            c if c.is_control() => out.extend(c.escape_default()),
+            c => out.push(c),
+        }
+    }
+    out.push('\n');
+    out
 }
 
 /// Now, as `2026-10-19 14:03:07` (UTC).
@@ -296,6 +307,10 @@ mod tests {
         assert!(!enabled("rustls::client", Level::Info));
         assert!(enabled("rustls::client", Level::Warn));
         assert_eq!(line("2026-10-19 14:03:07", Level::Warn, "x", "a\r\nb\n"), "2026-10-19 14:03:07 WARN  x: a\n    b\n");
+        // A server's text can't forge a line, move the terminal's cursor or clear its screen.
+        let forged = line("2026-10-19 14:03:07", Level::Warn, "x", "no\r2026-10-19 14:03:08 INFO  y: fine\x1b[2J\u{7}\tend");
+        assert_eq!(forged, "2026-10-19 14:03:07 WARN  x: no\\r2026-10-19 14:03:08 INFO  y: fine\\u{1b}[2J\\u{7}\tend\n");
+        assert_eq!(forged.lines().count(), 1);
         let s = stamp();
         assert_eq!((s.len(), s.as_bytes()[4], s.as_bytes()[13]), (19, b'-', b':'));
     }
