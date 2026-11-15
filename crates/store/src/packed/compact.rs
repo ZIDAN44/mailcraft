@@ -271,13 +271,114 @@ pub(super) fn count(db: &Database, cursor: Option<&str>) -> io::Result<Work> {
     Ok(w)
 }
 
+/// What a run has counted: what it reports, and what the data file records of every run in `META`
+/// (bytes that stayed raw, saved, and passed over). A batch is counted on a copy, kept once the
+/// batch is written: a commit that fails leaves the totals as they were.
+#[derive(Clone)]
+struct Totals {
+    report: Recompressed,
+    stayed_raw: u64,
+    saved: u64,
+    passed: u64,
+}
+
+impl Totals {
+    /// Every run's so far, as `meta` records them; nothing reported yet.
+    fn from_meta(meta: &Meta) -> Totals {
+        Totals { report: Recompressed::default(), stayed_raw: meta.stayed_raw, saved: meta.saved, passed: meta.passed }
+    }
+
+    /// These with what's known of `batch` before it's written: the files it passed over, and
+    /// those that stayed raw (`None` in `out`).
+    fn read(&self, batch: &Batch, out: &[Option<Vec<u8>>]) -> Totals {
+        let mut t = self.clone();
+        t.report.passed_over = t.report.passed_over.saturating_add(batch.passed);
+        t.report.passed_over_bytes = t.report.passed_over_bytes.saturating_add(batch.passed_bytes);
+        t.passed = t.passed.saturating_add(batch.passed_bytes);
+        for (f, _) in batch.files.iter().zip(out).filter(|(_, p)| p.is_none()) {
+            t.report.stayed_raw = t.report.stayed_raw.saturating_add(1);
+            t.report.stayed_raw_bytes = t.report.stayed_raw_bytes.saturating_add(f.print.len);
+            t.stayed_raw = t.stayed_raw.saturating_add(f.print.len);
+        }
+        t
+    }
+
+    /// A file of `len` bytes as kept written again as `packed` bytes.
+    fn written(&mut self, len: u64, packed: u64) {
+        self.report.files = self.report.files.saturating_add(1);
+        self.report.before = self.report.before.saturating_add(len);
+        self.report.after = self.report.after.saturating_add(packed);
+        self.saved = self.saved.saturating_add(len.saturating_sub(packed));
+    }
+
+    /// Recorded in `META` with the batch.
+    fn put(&self, tx: &redb::WriteTransaction) -> io::Result<()> {
+        write_meta(
+            tx,
+            &[
+                (STAYED_RAW, self.stayed_raw.to_le_bytes().as_slice()),
+                (SAVED, self.saved.to_le_bytes().as_slice()),
+                (PASSED, self.passed.to_le_bytes().as_slice()),
+            ],
+        )
+    }
+
+    /// What the run reports as it ends.
+    fn end(self, finished: bool) -> Recompressed {
+        Recompressed { saved_in_all: self.saved, finished, ..self.report }
+    }
+}
+
+/// `batch` (read once `target` said its writes were at `seen`) written with its files compressed
+/// (`out`, as [`compress`] made them) where they are still as read, and the cursor moved on past
+/// `last`: the totals with it, and where the cursor is now (a move may have pulled it back).
+fn write_batch(
+    target: &dyn Target,
+    batch: &Batch,
+    out: &[Option<Vec<u8>>],
+    seen: Option<u64>,
+    last: &str,
+    before: Totals,
+) -> io::Result<(Totals, Option<String>)> {
+    let written = out.iter().flatten().fold(0usize, |n, p| n.saturating_add(p.len()));
+    let (mut done, mut next) = (None, None);
+    target.commit(Step::Batch(written), &mut |t, tx| {
+        // Counted afresh each time it's tried (a commit that failed tried nothing).
+        let mut run = before.clone();
+        // Nothing written since the batch was read: each file is as read.
+        let quiet = seen.is_some_and(|n| target.none_since(n));
+        for (f, p) in batch.files.iter().zip(out) {
+            let Some(p) = p else { continue };
+            let now = match quiet {
+                true => Some(f.print),
+                false => match t.files.get(f.key.as_str()).map_err(disk)? {
+                    Some(v) => print_of(&f.key, v.value(), Some(&t.pieces), false)?.map(|(print, _)| print),
+                    None => None,
+                },
+            };
+            if now != Some(f.print) {
+                run.report.changed = run.report.changed.saturating_add(1);
+                continue;
+            }
+            t.put_kept(&f.key, p)?;
+            run.written(f.print.len, p.len() as u64);
+        }
+        next = earlier(Some(last.to_string()), take_back(tx)?);
+        put_cursor(tx, next.as_deref())?;
+        run.put(tx)?;
+        done = Some(run);
+        Ok(())
+    })?;
+    Ok((done.unwrap_or(before), next))
+}
+
 /// Compress again what `target` keeps raw, from where a run before stopped, until it's all done or
 /// `cancel` is set (looked at between batches). `progress` hears after each batch.
 pub(super) fn recompress(target: &dyn Target, cancel: &AtomicBool, progress: &mut dyn FnMut(Work)) -> io::Result<Recompressed> {
-    let mut report = Recompressed::default();
     let meta = read_meta(&target.db()?.begin_read().map_err(disk)?)?;
+    let mut totals = Totals::from_meta(&meta);
     if meta.deflate >= DEFLATE_NOW {
-        return Ok(Recompressed { saved_in_all: meta.saved, finished: true, ..report });
+        return Ok(totals.end(true));
     }
     // Where it goes on from, settled with the writer held: a move made before this sees the run
     // (it pulled the cursor back, taken here), and one after it is in what the run reads.
@@ -287,74 +388,22 @@ pub(super) fn recompress(target: &dyn Target, cancel: &AtomicBool, progress: &mu
         put_cursor(tx, cursor.as_deref())
     })?;
     let mut work = count(&*target.db()?, cursor.as_deref())?;
-    let (mut stayed_raw, mut saved, mut passed) = (meta.stayed_raw, meta.saved, meta.passed);
     progress(work);
     loop {
         if cancel.load(Ordering::Relaxed) {
             // The cursor written so far made durable, and the file sealed.
             target.commit(Step::Last, &mut |_, _| Ok(()))?;
-            return Ok(Recompressed { saved_in_all: saved, ..report });
+            return Ok(totals.end(false));
         }
         let seen = target.writes();
         let batch = read_batch(&*target.db()?, cursor.as_deref())?;
-        if let Some(last) = batch.last.clone() {
+        if let Some(last) = batch.last.as_deref() {
             let out = compress(&batch.files.iter().map(|f| f.bytes.as_slice()).collect::<Vec<_>>());
-            let (mut run, mut written) = (report.clone(), 0usize);
-            run.passed_over = run.passed_over.saturating_add(batch.passed);
-            run.passed_over_bytes = run.passed_over_bytes.saturating_add(batch.passed_bytes);
-            let (mut run_raw, mut run_saved, run_passed) = (stayed_raw, saved, passed.saturating_add(batch.passed_bytes));
-            for (f, p) in batch.files.iter().zip(&out) {
-                match p {
-                    Some(p) => written = written.saturating_add(p.len()),
-                    None => {
-                        run.stayed_raw = run.stayed_raw.saturating_add(1);
-                        run.stayed_raw_bytes = run.stayed_raw_bytes.saturating_add(f.print.len);
-                        run_raw = run_raw.saturating_add(f.print.len);
-                    }
-                }
-            }
-            let mut next = None;
-            target.commit(Step::Batch(written), &mut |t, tx| {
-                // Counted afresh each time it's tried (a commit that failed tried nothing).
-                let (mut r, mut s) = (run.clone(), run_saved);
-                // Nothing written since the batch was read: each file is as read.
-                let quiet = seen.is_some_and(|n| target.none_since(n));
-                for (f, p) in batch.files.iter().zip(&out) {
-                    let Some(p) = p else { continue };
-                    let now = match quiet {
-                        true => Some(f.print),
-                        false => match t.files.get(f.key.as_str()).map_err(disk)? {
-                            Some(v) => print_of(&f.key, v.value(), Some(&t.pieces), false)?.map(|(print, _)| print),
-                            None => None,
-                        },
-                    };
-                    if now != Some(f.print) {
-                        r.changed = r.changed.saturating_add(1);
-                        continue;
-                    }
-                    t.put_kept(&f.key, p)?;
-                    r.files = r.files.saturating_add(1);
-                    r.before = r.before.saturating_add(f.print.len);
-                    r.after = r.after.saturating_add(p.len() as u64);
-                    s = s.saturating_add(f.print.len.saturating_sub(p.len() as u64));
-                }
-                next = earlier(Some(last.clone()), take_back(tx)?);
-                put_cursor(tx, next.as_deref())?;
-                write_meta(
-                    tx,
-                    &[
-                        (STAYED_RAW, run_raw.to_le_bytes().as_slice()),
-                        (SAVED, s.to_le_bytes().as_slice()),
-                        (PASSED, run_passed.to_le_bytes().as_slice()),
-                    ],
-                )?;
-                run = r;
-                run_saved = s;
-                Ok(())
-            })?;
+            let next;
+            (totals, next) = write_batch(target, &batch, &out, seen, last, totals.read(&batch, &out))?;
             // A move pulled the cursor back: what's after it is looked at again.
-            let pulled = next.as_deref() != Some(last.as_str());
-            (report, cursor, stayed_raw, saved, passed) = (run, next, run_raw, run_saved, run_passed);
+            let pulled = next.as_deref() != Some(last);
+            cursor = next;
             work.done = work.done.saturating_add(batch.looked).min(work.total);
             work.bytes_done = work.bytes_done.saturating_add(batch.looked_bytes).min(work.bytes_total);
             progress(work);
@@ -379,7 +428,7 @@ pub(super) fn recompress(target: &dyn Target, cancel: &AtomicBool, progress: &mu
         let Some(back) = again else { break };
         cursor = (!back.is_empty()).then_some(back);
     }
-    Ok(Recompressed { saved_in_all: saved, finished: true, ..report })
+    Ok(totals.end(true))
 }
 
 /// An account's data file in the store, as a run's [`Target`].
