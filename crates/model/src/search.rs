@@ -29,7 +29,7 @@ mod tests;
 pub use advanced::Advanced;
 pub use dates::{DateBound, DatePoint, DateSpec, Edge, Relative};
 pub use fold::{MAX_TOKEN_CHARS, Placed, TOKENIZER_VERSION, fold_all, fold_word, folded_has_phrase, parts, placed_tokens, tokens};
-pub use matching::{Doc, SummaryText, TextField, TextSource, Tri, indexed};
+pub use matching::{Doc, DocText, SummaryText, TextField, TextSource, Tri, WholeText, indexed};
 use parse::split_tokens;
 pub(crate) use parse::split_tokens_with;
 

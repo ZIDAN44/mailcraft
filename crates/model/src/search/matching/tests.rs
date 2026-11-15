@@ -3,7 +3,7 @@
 use proptest::prelude::*;
 
 use super::*;
-use crate::search::fold::{AsciiWords, pieces};
+use crate::search::fold::{AsciiWords, join, pieces};
 use proptest::strategy::ValueTree;
 
 /// How [`SummaryText::with_parts`] made a summary's text before: a string for each part, word

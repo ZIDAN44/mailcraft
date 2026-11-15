@@ -46,6 +46,50 @@ fn a_slice_starts_and_ends_between_words() {
     }
 }
 
+/// What a message's text is asked by a search of an address and three phrases.
+fn address_and_phrases() -> Vec<Atom> {
+    let phrase = |w: &[&str]| Atom::Phrase(TextField::Body, w.iter().map(|w| w.to_string()).collect(), w.join(" "));
+    vec![
+        Atom::Word(TextField::Body, "ana@studio.example".into()),
+        Atom::Word(TextField::Names, "ana@studio.example".into()),
+        phrase(&["quarterly", "report"]),
+        phrase(&["budget", "plan"]),
+        phrase(&["thank", "you", "for"]),
+        Atom::Phrase(TextField::Body, Vec::new(), "@".into()),
+    ]
+}
+
+/// Checking a 900 KB text for an address and three phrases: read from its source as a search
+/// that waits does it, and a slice at a time as a search does with the index's text
+/// (`MEASURE`, release, by hand).
+#[test]
+#[ignore]
+fn measure_a_long_text_asked_several_things() {
+    let text = "Lorem Ipsum dolor sit amet, the frames are due on Thursday. ".repeat(15_000);
+    let raw = format!("From: a@b.example\r\nSubject: x\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{text}\r\n");
+    let atoms = address_and_phrases();
+    let runs = 5;
+    let t = std::time::Instant::now();
+    for _ in 0..runs {
+        let a = from_source(raw.as_bytes(), &atoms);
+        assert!(a.atoms.iter().all(|(_, t)| *t == Tri::No), "{a:?}");
+    }
+    let source = t.elapsed().as_secs_f64() * 1000.0 / f64::from(runs);
+    let t = std::time::Instant::now();
+    for _ in 0..runs {
+        let mut found = vec![false; atoms.len()];
+        let mut at = 0;
+        while at < text.len() {
+            let (start, end) = slice_at(&text, at);
+            check_slice(&atoms, &mut found, text.get(start..end).unwrap_or_default());
+            at = end.max(at.saturating_add(1));
+        }
+        assert!(found.iter().all(|f| !f));
+    }
+    let slices = t.elapsed().as_secs_f64() * 1000.0 / f64::from(runs);
+    println!("MEASURE {} KB asked {} things: from its source {source:.1} ms, a slice at a time {slices:.1} ms", text.len() >> 10, atoms.len());
+}
+
 /// Folded texts are kept up to their room: what the search running uses stays, room is made of
 /// what only searches before it used, and past that a text isn't kept (a search through more
 /// than fits keeps the first it checked, rather than letting each go before it comes round).

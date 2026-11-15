@@ -10,7 +10,7 @@
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use mailcraft_model::search::indexed;
+use mailcraft_model::search::{WholeText, indexed};
 use mailcraft_store::search::{Blob, DocInfo, Field, Reader};
 
 use super::folded::{Folded, TextOf};
@@ -39,7 +39,7 @@ impl Atom {
     }
 
     /// Whether `text` holds it.
-    fn in_text(&self, text: &str) -> bool {
+    fn in_text(&self, text: &WholeText<'_>) -> bool {
         match self {
             Atom::Word(f, w) => text.word(*f, w) == Tri::Yes,
             Atom::Phrase(f, words, raw) => text.phrase(*f, words, raw) == Tri::Yes,
@@ -281,12 +281,14 @@ pub(crate) fn classify(query: &Query, m: &Summary, st: &SummaryText, awaiting: b
 /// What `atoms` find in a message's source, read the way the index reads it.
 pub(crate) fn from_source(raw: &[u8], atoms: &[Atom]) -> Answers {
     let doc = mime::index_doc(raw);
+    // Read once for all the atoms.
+    let text = doc.read();
     let atoms = atoms
         .iter()
         .map(|a| {
             let t = match a {
-                Atom::Word(f, w) => doc.word(*f, w),
-                Atom::Phrase(f, words, r) => doc.phrase(*f, words, r),
+                Atom::Word(f, w) => text.word(*f, w),
+                Atom::Phrase(f, words, r) => text.phrase(*f, words, r),
             };
             (a.clone(), t)
         })
@@ -389,13 +391,7 @@ impl Verifying {
                     }
                     folding.slices.push(folded);
                 }
-                None => {
-                    for (a, f) in self.atoms.iter().zip(self.found.iter_mut()) {
-                        if !*f && a.field() == TextField::Body && a.in_text(chunk) {
-                            *f = true;
-                        }
-                    }
-                }
+                None => check_slice(&self.atoms, &mut self.found, chunk),
             }
             self.at = end.max(self.at.saturating_add(1));
             if self.at < text.len() {
@@ -432,6 +428,7 @@ impl Verifying {
 
     /// The files' names checked.
     fn check_names(&mut self, names: &[String]) {
+        let names: Vec<WholeText<'_>> = names.iter().map(|n| WholeText::new(n)).collect();
         for (a, f) in self.atoms.iter().zip(self.found.iter_mut()) {
             if a.field() == TextField::Names && names.iter().any(|n| a.in_text(n)) {
                 *f = true;
@@ -444,6 +441,17 @@ impl Verifying {
         let (truncated, has_text) = (self.info.truncated, self.info.has_text);
         let atoms = self.atoms.iter().zip(&self.found).map(|(a, f)| (a.clone(), indexed(*f, a.field(), truncated, has_text))).collect();
         Answers { atoms, files: self.info.files_known(), truncated }
+    }
+}
+
+/// The body's atoms not found yet looked for in a slice of the text as written (lower-cased and
+/// folded once for them all).
+fn check_slice(atoms: &[Atom], found: &mut [bool], chunk: &str) {
+    let chunk = WholeText::new(chunk);
+    for (a, f) in atoms.iter().zip(found.iter_mut()) {
+        if !*f && a.field() == TextField::Body && a.in_text(&chunk) {
+            *f = true;
+        }
     }
 }
 

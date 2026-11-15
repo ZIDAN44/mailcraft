@@ -8,10 +8,10 @@
 //! no ends it, so the text is only asked about for a message that passes everything else.
 
 use std::borrow::Cow;
-use std::cell::RefCell;
+use std::cell::{OnceCell, RefCell};
 use std::rc::Rc;
 
-use super::fold::{all_words, fold_all_into, has_phrase, has_prefix, join, with_parts};
+use super::fold::{all_words, fold_all, fold_all_into, folded_has_phrase, has_phrase, has_prefix, with_parts};
 use super::*;
 use crate::EmailAddress;
 
@@ -96,41 +96,105 @@ pub fn indexed(found: bool, _field: TextField, truncated: bool, _has_text: bool)
 }
 
 /// A whole text known: each answer is yes or no. Both fields are this text (a message's text
-/// and names [joined](IndexDoc::joined)).
-impl TextSource for &str {
+/// and names [joined](IndexDoc::joined)). It's lower-cased and folded when a word or a phrase
+/// first needs it, and kept for the next: a text asked several things (an address and phrases)
+/// was copied and folded again for each.
+pub struct WholeText<'a> {
+    text: &'a str,
+    lowered: OnceCell<String>,
+    folded: OnceCell<String>,
+}
+
+impl<'a> WholeText<'a> {
+    pub fn new(text: &'a str) -> WholeText<'a> {
+        WholeText { text, lowered: OnceCell::new(), folded: OnceCell::new() }
+    }
+
+    /// The text lower-cased, as written.
+    fn lowered(&self) -> &str {
+        self.lowered.get_or_init(|| self.text.to_lowercase())
+    }
+
+    /// Its words folded, joined by spaces ([`fold_all`]).
+    fn folded(&self) -> &str {
+        self.folded.get_or_init(|| fold_all(self.text))
+    }
+}
+
+impl TextSource for WholeText<'_> {
     fn word(&self, _: TextField, prefix: &str) -> Tri {
         // An address is also found inside a word (`ana@studio.example` in `<ana@studio.example>`);
         // a word, as one of the parts of one (`word` in "site.word"), as the index has it.
-        Tri::from(with_parts(all_words(self)).any(|w| w.starts_with(prefix)) || (prefix.contains(['@', '.']) && self.to_lowercase().contains(prefix)))
+        Tri::from(with_parts(all_words(self.text)).any(|w| w.starts_with(prefix)) || (prefix.contains(['@', '.']) && self.lowered().contains(prefix)))
     }
 
     fn phrase(&self, _: TextField, phrase: &[String], raw: &str) -> Tri {
         if phrase.is_empty() {
-            return Tri::from(!raw.is_empty() && self.to_lowercase().contains(raw));
+            return Tri::from(!raw.is_empty() && self.lowered().contains(raw));
         }
-        let mut text = String::with_capacity(self.len());
-        join(all_words(self), &mut text);
-        Tri::from(has_phrase(&text, &phrase.join(" ")))
+        Tri::from(folded_has_phrase(self.folded(), phrase))
     }
 }
 
-/// A message's text read for search: its text and its names, each known, unless it was cut
-/// short or had no text ([`indexed`]).
-impl TextSource for IndexDoc {
+/// A text asked one thing: [`WholeText`], kept for no other.
+impl TextSource for &str {
+    fn word(&self, field: TextField, prefix: &str) -> Tri {
+        WholeText::new(self).word(field, prefix)
+    }
+
+    fn phrase(&self, field: TextField, phrase: &[String], raw: &str) -> Tri {
+        WholeText::new(self).phrase(field, phrase, raw)
+    }
+}
+
+/// A message's text read for search ([`IndexDoc::read`]): its text and its names, each a
+/// [`WholeText`] known, unless it was cut short or had no text ([`indexed`]).
+pub struct DocText<'a> {
+    text: WholeText<'a>,
+    names: Vec<WholeText<'a>>,
+    truncated: bool,
+    has_text: bool,
+}
+
+impl IndexDoc {
+    /// Its text and names as search reads them, each lower-cased and folded once however many
+    /// things are asked.
+    pub fn read(&self) -> DocText<'_> {
+        DocText {
+            text: WholeText::new(&self.text),
+            names: self.names.iter().map(|n| WholeText::new(n)).collect(),
+            truncated: self.truncated,
+            has_text: self.has_text,
+        }
+    }
+}
+
+impl TextSource for DocText<'_> {
     fn word(&self, field: TextField, prefix: &str) -> Tri {
         let found = match field {
-            TextField::Body => self.text.as_str().word(field, prefix) == Tri::Yes,
-            TextField::Names => self.names.iter().any(|n| n.as_str().word(field, prefix) == Tri::Yes),
+            TextField::Body => self.text.word(field, prefix) == Tri::Yes,
+            TextField::Names => self.names.iter().any(|n| n.word(field, prefix) == Tri::Yes),
         };
         indexed(found, field, self.truncated, self.has_text)
     }
 
     fn phrase(&self, field: TextField, phrase: &[String], raw: &str) -> Tri {
         let found = match field {
-            TextField::Body => self.text.as_str().phrase(field, phrase, raw) == Tri::Yes,
-            TextField::Names => self.names.iter().any(|n| n.as_str().phrase(field, phrase, raw) == Tri::Yes),
+            TextField::Body => self.text.phrase(field, phrase, raw) == Tri::Yes,
+            TextField::Names => self.names.iter().any(|n| n.phrase(field, phrase, raw) == Tri::Yes),
         };
         indexed(found, field, self.truncated, self.has_text)
+    }
+}
+
+/// A message's text asked one thing: [`IndexDoc::read`], kept for no other.
+impl TextSource for IndexDoc {
+    fn word(&self, field: TextField, prefix: &str) -> Tri {
+        self.read().word(field, prefix)
+    }
+
+    fn phrase(&self, field: TextField, phrase: &[String], raw: &str) -> Tri {
+        self.read().phrase(field, phrase, raw)
     }
 }
 
