@@ -147,8 +147,15 @@ impl Store {
     /// Many message sources at once: one transaction for all of them in a data file (importing
     /// hundreds of thousands, a commit each spent most of the time waiting for the disk). Each is
     /// compressed before the transaction starts, so the data file is held only to store them.
-    pub fn write_bodies(&self, bodies: &[(MessageKey, Vec<u8>)]) -> Result<()> {
-        let prepared = bodies.iter().map(|(k, raw)| (k.clone(), Store::prepare(self.packs(&k.account), raw.clone()))).collect();
+    /// Taken by value: each source is moved into what's written, the batch never held twice.
+    pub fn write_bodies(&self, bodies: Vec<(MessageKey, Vec<u8>)>) -> Result<()> {
+        let prepared = bodies
+            .into_iter()
+            .map(|(k, raw)| {
+                let packs = self.packs(&k.account);
+                (k, Store::prepare(packs, raw))
+            })
+            .collect();
         self.write_prepared(prepared, true)
     }
 
@@ -502,7 +509,7 @@ impl Store {
         self.files.list(&self.kept_drafts_dir(account)).into_iter().filter_map(|(n, _)| n.strip_suffix(".eml").and_then(|n| n.parse().ok())).collect()
     }
 
-    /// Cached sources across all folders of an account, as (key, path) pairs, for indexing.
+    /// The uids of the sources cached for one folder at one validity (in no set order).
     pub fn cached_bodies(&self, account: &str, folder: &str, validity: u32) -> Vec<u32> {
         let dir = self.folder_dir(account, folder).join(validity.to_string());
         self.files.list(&dir).into_iter().filter_map(|(n, _)| n.strip_suffix(".eml").and_then(|n| n.parse().ok())).collect()

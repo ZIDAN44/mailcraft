@@ -215,7 +215,7 @@ fn big_files_are_kept_in_pieces_and_come_back_whole() {
 x"
     .to_vec();
     let key = |uid: u32| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid };
-    s.write_bodies(&[(key(1), big.clone()), (key(2), edge.clone()), (key(3), small.clone())]).unwrap();
+    s.write_bodies(vec![(key(1), big.clone()), (key(2), edge.clone()), (key(3), small.clone())]).unwrap();
     assert_eq!(s.read_body(&key(1)).unwrap(), big);
     assert_eq!(s.read_body(&key(2)).unwrap(), edge);
     assert_eq!(s.read_body(&key(3)).unwrap(), small);
@@ -253,7 +253,7 @@ x"
     let bodies: Vec<(MessageKey, Vec<u8>)> =
         (0..120u32).map(|i| (key(i), noise(70_000 + (i as usize * 2_731) % 200_000, u64::from(i) + 9))).collect();
     let stored: usize = bodies.iter().map(|(_, b)| b.len()).sum();
-    s.write_bodies(&bodies).unwrap();
+    s.write_bodies(bodies.clone()).unwrap();
     let file2 = s.data_file("a1").unwrap();
     drop(s);
     let pages = |path: &std::path::Path| {
@@ -544,7 +544,7 @@ fn an_online_only_account_leaves_nothing_on_disk() {
     assert_eq!(s.read_body(&k("a1", 1)).unwrap(), b"Subject: EARLIER-ZOE\r\n\r\nEARLIER-ZOE body");
     // New mail, changes, the Outbox and documents: in memory only.
     fill(&s, "a1", 2, "SECRET-ZOE");
-    s.write_bodies(&[(k("a1", 3), b"Subject: x\r\n\r\nSECRET-BATCH".to_vec()), (k("a2", 3), b"Subject: x\r\n\r\nANA-BATCH".to_vec())]).unwrap();
+    s.write_bodies(vec![(k("a1", 3), b"Subject: x\r\n\r\nSECRET-BATCH".to_vec()), (k("a2", 3), b"Subject: x\r\n\r\nANA-BATCH".to_vec())]).unwrap();
     s.save_ops("a1", &[mailcraft_model::Op::Expunge { keys: vec![k("a1", 1)] }]).unwrap();
     s.outbox_add("a1", &crate::OutboxItem { id: 4, ..Default::default() }, b"Subject: later\r\n\r\nSECRET-OUTBOX").unwrap();
     s.save_account_doc("a1", "pim.json", &serde_json::json!({"notes": ["SECRET-NOTE"]})).unwrap();
@@ -648,7 +648,7 @@ fn a_folder_is_listed_without_walking_what_is_inside_it() {
     let key = |validity: u32, uid: u32| MessageKey { account: "a1".into(), folder: "INBOX".into(), validity, uid };
     let mut bodies: Vec<(MessageKey, Vec<u8>)> = (1..=2000).map(|uid| (key(7, uid), b"Subject: x\r\n\r\nx".to_vec())).collect();
     bodies.push((key(70, 1), b"Subject: y\r\n\r\ny".to_vec()));
-    s.write_bodies(&bodies).unwrap();
+    s.write_bodies(bodies).unwrap();
     let st = crate::FolderState { validity: 7, ..Default::default() };
     s.save_folder("a1", "INBOX", &st).unwrap();
     let dir = s.folder_dir("a1", "INBOX");

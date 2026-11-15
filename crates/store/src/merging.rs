@@ -205,7 +205,7 @@ impl Store {
                     added.push(SharedSummary::new(s));
                 }
                 // The sources first: a list never names one that isn't there.
-                self.write_bodies(&bodies)?;
+                self.write_bodies(bodies)?;
             }
             if unreadable > 0 {
                 log::warn!("{account}/{}: {unreadable} message(s) of the file read again couldn't be read, left for the next read", f.path);

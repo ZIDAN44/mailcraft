@@ -43,7 +43,7 @@ fn written_to_fill(s: &Store, account: &str, size: u64, body: impl Fn(u32) -> Ve
     let key = |uid: u32| MessageKey { account: account.into(), folder: "INBOX".into(), validity: 1, uid };
     let raw = body(0);
     let mut written = raw.len() as u64;
-    s.write_bodies(&[(key(0), raw)]).unwrap();
+    s.write_bodies(vec![(key(0), raw)]).unwrap();
     let file = s.data_file(account).unwrap();
     for uid in 1..1000 {
         if std::fs::metadata(&file).map_or(0, |m| m.len()) > size {
@@ -51,7 +51,7 @@ fn written_to_fill(s: &Store, account: &str, size: u64, body: impl Fn(u32) -> Ve
         }
         let raw = body(uid);
         written += raw.len() as u64;
-        s.write_bodies(&[(key(uid), raw)]).unwrap();
+        s.write_bodies(vec![(key(uid), raw)]).unwrap();
     }
     panic!("{account}: {written} bytes written and the data file is still under {size}");
 }

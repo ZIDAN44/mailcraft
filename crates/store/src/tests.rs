@@ -619,7 +619,7 @@ fn a_memory_folder_lists_only_its_own_files() {
         .into_iter()
         .map(|k| (k, b"Subject: x\r\n\r\nx".to_vec()))
         .collect();
-    s.write_bodies(&bodies).unwrap();
+    s.write_bodies(bodies).unwrap();
     let mut cached = s.cached_bodies("a1", "INBOX", 7);
     cached.sort_unstable();
     assert_eq!(cached, [1, 2]);

@@ -25,7 +25,7 @@ fn projects(root: &std::path::Path, n: u32) -> (Store, Session) {
     let bodies: Vec<(MessageKey, Vec<u8>)> =
         st.messages.iter().map(|m| (m.key.clone(), format!("Subject: Report {}\r\n\r\nThe figures.\r\n", m.key.uid).into_bytes())).collect();
     for chunk in bodies.chunks(500) {
-        store.write_bodies(chunk).unwrap();
+        store.write_bodies(chunk.to_vec()).unwrap();
     }
     store.save_folder("sample", "Projects", &st).unwrap();
     let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));

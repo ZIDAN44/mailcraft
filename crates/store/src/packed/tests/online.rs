@@ -115,7 +115,7 @@ fn measure_online_only_switch() {
         s.save_accounts(&[account("a1", "zoe@studio.example"), account("a2", "ana@studio.example")]).unwrap();
         for batch in (0..SOURCES).collect::<Vec<_>>().chunks(32) {
             let bodies: Vec<_> = batch.iter().map(|&uid| (key("a1", uid), source(uid))).collect();
-            s.write_bodies(&bodies).unwrap();
+            s.write_bodies(bodies).unwrap();
         }
     }
     for mode in ["on", "off"] {

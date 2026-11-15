@@ -193,7 +193,7 @@ fn killed_during_write_bodies() {
     let seed: u64 = std::env::var("MC_CHILD_SEED").ok().and_then(|s| s.parse().ok()).unwrap_or(1);
     let s = Store::open_packed(dir.join("app"), dir.join("Files")).unwrap();
     for n in 0..u32::MAX {
-        s.write_bodies(&crash_batch(n)).unwrap();
+        s.write_bodies(crash_batch(n)).unwrap();
         println!("done {n}");
         // The clock starts once the file is open and written: the kill lands among the writes.
         if n == 0 {
@@ -456,7 +456,7 @@ fn a_data_file_brought_in_goes_in_short_batches() {
     let t = temp("bring-in-batches");
     let old = packed_store(&t);
     let raw: Vec<(MessageKey, Vec<u8>)> = (0..24u32).map(|i| (inbox(i), noise(700 << 10, u64::from(i) + 11))).collect();
-    old.write_bodies(&raw).unwrap();
+    old.write_bodies(raw.clone()).unwrap();
     let file = old.data_file("a1").unwrap();
     drop(old);
     let s = Store::open_packed(t.join("new"), t.join("New Files")).unwrap();
