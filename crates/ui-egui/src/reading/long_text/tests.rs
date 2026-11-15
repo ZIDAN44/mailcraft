@@ -54,6 +54,43 @@ fn texts_not_shown_for_a_while_go() {
     assert!((100 - MOST as u64..100).all(|n| st.long_text.contains_key(&id(n))));
 }
 
+/// The pictures of a part not laid out are those drawing it shows, however deep its tables go:
+/// a box placed over a cell holds what's one table deeper than the cell's own table, as drawn
+/// (they were looked for a table deeper still, so a table in a box at the deepest drawn had its
+/// pictures shown again after the text).
+#[test]
+fn a_parts_pictures_are_looked_for_as_deep_as_it_is_drawn() {
+    use mime::layout::{Block, Cell, Overlay, Table};
+    let table = |cell: Cell| Block::Table(Table { rows: vec![vec![cell]], ..Default::default() });
+    let picture = |src: &str| Block::Text(vec![vec![mime::Span { image: Some(src.into()), ..Default::default() }]]);
+    let session = Session::open(None, mailcraft_engine::model::dates::Clock::new(0, 0));
+    let (key, parsed) = (MessageKey::default(), mime::Parsed::default());
+    for depth in 12..=MAX_NESTED {
+        // A table `depth` tables down, with a picture in a cell, and one in a table in a box over it.
+        let boxed = Overlay { blocks: vec![table(Cell { blocks: vec![picture("cid:boxed")], ..Default::default() })], ..Default::default() };
+        let mut b = table(Cell { blocks: vec![picture("cid:cell")], overlays: vec![boxed], ..Default::default() });
+        for _ in 0..depth {
+            b = table(Cell { blocks: vec![b], ..Default::default() });
+        }
+        let blocks = [b];
+        let mut drawn = Vec::new();
+        let ctx = egui::Context::default();
+        let mut st = UiState::default();
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(900.0, 700.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            let mut acts = Vec::new();
+            let mut body = Body { s: &session, key: &key, p: &parsed, allowed: false, shown: &mut drawn, acts: &mut acts, cells: None };
+            body.blocks(&mut st, ui, &blocks, 800.0, [255; 3], mime::layout::Align::Left, 0);
+        });
+        out.textures_delta.clear();
+        let mut looked = Vec::new();
+        pictures_of_blocks(&blocks, &mut looked, 0);
+        drawn.sort();
+        looked.sort();
+        assert_eq!(looked, drawn, "{depth} tables down");
+    }
+}
+
 /// A frame of a long plain text, in view at its top: how long it takes (a text of 4 MB was cut
 /// in chunks and looked through for right-to-left letters on every frame).
 #[test]

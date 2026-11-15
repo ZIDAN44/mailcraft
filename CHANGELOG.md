@@ -201,6 +201,7 @@ on GitHub.
 - Newsletters with many centred lines and links draw faster.
 - Mail laid out in tables no longer slows down while its web pictures load.
 - A message with hundreds of pictures no longer slows down every frame of the reading pane.
+- In a very long formatted message, a picture inside a box over a deeply nested table is no longer shown again after the text.
 
 ## 0.38.0 - 2026-11-13
 

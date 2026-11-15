@@ -282,7 +282,7 @@ fn pictures_of_blocks(blocks: &[mime::layout::Block], out: &mut Vec<String>, dep
                     out.extend(c.background_image.clone());
                     pictures_of_blocks(&c.blocks, out, depth + 1);
                     for o in &c.overlays {
-                        pictures_of_blocks(&o.blocks, out, depth + 2);
+                        pictures_of_blocks(&o.blocks, out, depth + 1);
                     }
                 }
             }
