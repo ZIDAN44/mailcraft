@@ -179,6 +179,10 @@ impl MailApp {
 
     /// A command asked for, with what the window does about some first (or instead).
     fn act_run(&mut self, id: &'static str, p: Value) {
+        // Deleting from Deleted Items is for good: asked first (the answer deletes, `permanent`).
+        if id == "mail.delete" && p.get("permanent").is_none() && self.ask_before_deleting() {
+            return;
+        }
         match id {
             "attachment.preview" => match self.session.run(id, &p) {
                 Ok(v) => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),
@@ -189,12 +193,6 @@ impl MailApp {
                 Ok(v) => self.ui.raise_source = v.get("key").and_then(Value::as_str).and_then(MessageKey::from_id),
                 Err(e) => self.session.notice(e.to_string(), true),
             },
-            // Deleting from Deleted Items is for good: asked first wherever it's asked from
-            // (a row's bin, the menu, a message's own window and the reading pane's button
-            // didn't, one slip from Flag).
-            "mail.delete" if p.get("permanent").is_none() && self.needs_delete_confirm() => {
-                self.ui.dialog = Some(Dialog::ConfirmDelete { count: self.session.selection.len() });
-            }
             _ => {
                 // A Search Folder isn't a search typed in: the box is left empty.
                 if matches!(id, "search.clear" | "searchFolder.open") {

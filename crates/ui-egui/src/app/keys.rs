@@ -173,8 +173,7 @@ impl MailApp {
         if self.session.module != Module::Mail && list_key(id) {
             return true;
         }
-        if id == "mail.delete" && self.needs_delete_confirm() {
-            self.ui.dialog = Some(Dialog::ConfirmDelete { count: self.session.selection.len() });
+        if id == "mail.delete" && self.ask_before_deleting() {
             return true;
         }
         if id == "mail.move" {
@@ -182,6 +181,17 @@ impl MailApp {
             return true;
         }
         false
+    }
+
+    /// Deleting from Deleted Items is for good: asked first, wherever it's asked from (a row's
+    /// bin, the menu, the ribbon, Delete, a message's own window and the reading pane's button).
+    /// Whether it was asked (and the delete waits for the answer).
+    pub(crate) fn ask_before_deleting(&mut self) -> bool {
+        if !self.needs_delete_confirm() {
+            return false;
+        }
+        self.ui.dialog = Some(Dialog::ConfirmDelete { count: self.session.selection.len() });
+        true
     }
 
     /// Deleting from Deleted Items is permanent: ask first.

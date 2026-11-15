@@ -227,12 +227,7 @@ impl MailApp {
             self.services.keep_frame();
             super::caption::clear_scroll_bars(&ctx);
         }
-        let mut main = self.ui.places.get("main").copied();
-        after_open(ui, main);
-        WindowPlace::note(&mut main, ui);
-        if let Some(p) = main {
-            self.ui.places.insert("main".into(), p);
-        }
+        super::windows::track_place(&mut self.ui.places, "main", ui);
         if !self.ui.fonts_ready {
             // Fonts take effect from the next frame; drawing now would miss the bold family.
             self.install_fonts(&ctx, None, None);
@@ -460,28 +455,21 @@ impl MailApp {
                 todo_bar::panel(&mut self.session, &mut self.ui, ui, least, acts);
             }
             let list_frame = egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border));
-            match (module, pane) {
-                (Module::Calendar, _) => {
+            // Calendar, People, Tasks and Notes: their pane fills the rest.
+            let other: Option<fn(&Session, &mut UiState, &mut Ui, &mut Vec<Action>)> = match module {
+                Module::Calendar => Some(calendar::show),
+                Module::People => Some(people::show),
+                Module::Tasks => Some(tasks::show),
+                Module::Notes => Some(notes::show),
+                Module::Mail => None,
+            };
+            match (other, pane) {
+                (Some(show), _) => {
                     egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                        calendar::show(&self.session, &mut self.ui, ui, acts);
+                        show(&self.session, &mut self.ui, ui, acts);
                     });
                 }
-                (Module::People, _) => {
-                    egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                        people::show(&self.session, &mut self.ui, ui, acts);
-                    });
-                }
-                (Module::Tasks, _) => {
-                    egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                        tasks::show(&self.session, &mut self.ui, ui, acts);
-                    });
-                }
-                (Module::Notes, _) => {
-                    egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                        notes::show(&self.session, &mut self.ui, ui, acts);
-                    });
-                }
-                (Module::Mail, pane) => match pane {
+                (None, pane) => match pane {
                     ReadingPane::Right => {
                         let most = (ui.available_width() - READING_LEAST).clamp(LIST_LEAST, 720.0);
                         start("list").resizable(true).default_size(390.0).size_range(LIST_LEAST..=most).frame(list_frame).show(ui, |ui| {

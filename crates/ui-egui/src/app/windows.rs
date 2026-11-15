@@ -66,12 +66,7 @@ impl MailApp {
         };
         let (session, st, services) = (&mut self.session, &mut self.ui, &mut self.services);
         let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
-            let mut place = st.places.get("compose").copied();
-            after_open(ui, place);
-            WindowPlace::note(&mut place, ui);
-            if let Some(p) = place {
-                st.places.insert("compose".into(), p);
-            }
+            track_place(&mut st.places, "compose", ui);
             let mut mine_acts: Vec<Action> = Vec::new();
             let mut closing = ui.input(|i| i.viewport().close_requested());
             // Something written: ask first, as Outlook does.
@@ -180,13 +175,8 @@ impl MailApp {
             let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
                 // Reading here is the user being back, as much as in the main window.
                 st.compact.note_input(ui);
-                let mut place = st.places.get("message").copied();
-                after_open(ui, place);
                 raise_once(ui.ctx(), id);
-                WindowPlace::note(&mut place, ui);
-                if let Some(p) = place {
-                    st.places.insert("message".into(), p);
-                }
+                track_place(&mut st.places, "message", ui);
                 let mut mine: Vec<Action> = Vec::new();
                 let closing = ui.input(|i| i.viewport().close_requested() || i.key_pressed(Key::Escape));
                 egui::Panel::top(egui::Id::unique(("message-window-bar", key.to_id())))
@@ -294,7 +284,7 @@ impl WindowPlace {
             return;
         }
         if let (Some(outer), Some(inner)) = (v.outer_rect, v.inner_rect) {
-            let monitor = v.monitor_size.filter(|m| m.is_finite() && m.x > 0.0 && m.y > 0.0).map(|m| [m.x, m.y]);
+            let monitor = monitor_of(&v).map(|m| [m.x, m.y]);
             *place = Some(WindowPlace { x: outer.min.x, y: outer.min.y, w: inner.width(), h: inner.height(), maximized: false, monitor });
         }
     }
@@ -308,7 +298,7 @@ impl WindowPlace {
             return None;
         }
         let saved = egui::Vec2::from(self.monitor?);
-        let now = info.monitor_size.filter(|s| s.is_finite() && s.x > 0.0 && s.y > 0.0)?;
+        let now = monitor_of(info)?;
         if (now - saved).length() <= 1.0 {
             return None;
         }
@@ -325,7 +315,7 @@ impl WindowPlace {
         if info.maximized == Some(true) || info.fullscreen == Some(true) || info.minimized == Some(true) {
             return None;
         }
-        let monitor = info.monitor_size.filter(|s| s.is_finite() && s.x > 0.0 && s.y > 0.0)?;
+        let monitor = monitor_of(info)?;
         let inner = info.inner_rect.filter(|r| r.is_finite())?;
         let outer = info.outer_rect.filter(|r| r.is_finite()).unwrap_or(inner);
         let frame = (outer.size() - inner.size()).max(egui::Vec2::ZERO);
@@ -376,7 +366,7 @@ pub fn after_open(ui: &Ui, place: Option<WindowPlace>) {
     // A window with no place (the system put it) is checked too.
     let pending = pending.unwrap_or_else(|| Some(place.unwrap_or_default()));
     let info = ui.input(|i| i.viewport().clone());
-    let known = info.monitor_size.is_some_and(|m| m.is_finite() && m.x > 0.0 && m.y > 0.0);
+    let known = monitor_of(&info).is_some();
     let pending = match pending {
         Some(p) if known => {
             let restored = place.is_some();
@@ -393,6 +383,29 @@ pub fn after_open(ui: &Ui, place: Option<WindowPlace>) {
         other => other,
     };
     ctx.data_mut(|d| d.insert_temp(id, pending));
+}
+
+/// What every window does at the top of each of its frames: [`after_open`] from where windows of
+/// its `kind` ("main", "message", "compose", "source") were last, then where it is now noted
+/// there for the next one.
+pub(crate) fn track_place(places: &mut std::collections::BTreeMap<String, WindowPlace>, kind: &str, ui: &Ui) {
+    let mut place = places.get(kind).copied();
+    after_open(ui, place);
+    WindowPlace::note(&mut place, ui);
+    if let Some(p) = place {
+        // The kind's key made only the once, not at every frame.
+        match places.get_mut(kind) {
+            Some(kept) => *kept = p,
+            None => {
+                places.insert(kind.to_string(), p);
+            }
+        }
+    }
+}
+
+/// The size of the monitor a window is on, when the system has told a sensible one.
+fn monitor_of(info: &egui::ViewportInfo) -> Option<egui::Vec2> {
+    info.monitor_size.filter(|m| m.is_finite() && m.x > 0.0 && m.y > 0.0)
 }
 
 /// True until [`after_open`] has run for this viewport. Saved geometry goes into the builder
@@ -493,26 +506,32 @@ fn toolbar_row(
             acts.push(Action::Open(key.clone()));
             acts.push(Action::Print);
         }
-        // More, as the reading pane's ⋯: what's done to this message alone, staying open.
-        let more = widgets::more_pill(ui, "More actions", t);
-        egui::Popup::menu(&more).show(|ui| {
-            if ui.button(tl!("View message source")).clicked() {
-                acts.push(Action::Run("message.source", json!({"key": key.to_id()})));
-                ui.close();
-            }
-            if let Some(p) = s.windows.iter().find(|w| &w.key == key).and_then(|w| w.parsed.as_ref()) {
-                reading::plain_text_check(s, st, ui, key, p, acts);
-            }
-        });
-        // Drawn inside the page (the browser), the window has no title bar to close it from.
-        if ui.ctx().embed_viewports() {
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if widgets::tool_button(ui, Icon::Close, "Close", t, true).clicked() {
-                    acts.push(close());
-                }
-            });
+        more_and_close(ui, s, st, key, acts);
+    });
+}
+
+/// The end of a message window's toolbar: More, as the reading pane's ⋯ (what's done to this
+/// message alone, staying open), and Close where the window has no title bar to close it from
+/// (drawn inside the page, the browser's).
+fn more_and_close(ui: &mut Ui, s: &Session, st: &UiState, key: &MessageKey, acts: &mut Vec<Action>) {
+    let t = &st.tokens;
+    let more = widgets::more_pill(ui, "More actions", t);
+    egui::Popup::menu(&more).show(|ui| {
+        if ui.button(tl!("View message source")).clicked() {
+            acts.push(Action::Run("message.source", json!({"key": key.to_id()})));
+            ui.close();
+        }
+        if let Some(p) = s.windows.iter().find(|w| &w.key == key).and_then(|w| w.parsed.as_ref()) {
+            reading::plain_text_check(s, st, ui, key, p, acts);
         }
     });
+    if ui.ctx().embed_viewports() {
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            if widgets::tool_button(ui, Icon::Close, "Close", t, true).clicked() {
+                acts.push(Action::Run("message.closeWindow", json!({"key": key.to_id()})));
+            }
+        });
+    }
 }
 
 /// The toolbar of an opened message file's window (issue #56): what looks at it or keeps a copy
@@ -535,22 +554,6 @@ fn opened_file_toolbar(ui: &mut Ui, s: &Session, st: &UiState, key: &MessageKey,
                 ui.close();
             }
         });
-        let more = widgets::more_pill(ui, "More actions", t);
-        egui::Popup::menu(&more).show(|ui| {
-            if ui.button(tl!("View message source")).clicked() {
-                acts.push(Action::Run("message.source", json!({"key": key.to_id()})));
-                ui.close();
-            }
-            if let Some(p) = s.windows.iter().find(|w| &w.key == key).and_then(|w| w.parsed.as_ref()) {
-                reading::plain_text_check(s, st, ui, key, p, acts);
-            }
-        });
-        if ui.ctx().embed_viewports() {
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if widgets::tool_button(ui, Icon::Close, "Close", t, true).clicked() {
-                    acts.push(Action::Run("message.closeWindow", json!({"key": key.to_id()})));
-                }
-            });
-        }
+        more_and_close(ui, s, st, key, acts);
     });
 }

@@ -75,7 +75,6 @@ impl MailApp {
             });
             return;
         }
-        let confirm_delete = self.needs_delete_confirm();
         let s = &self.session;
         let ust = &mut self.ui;
         // A narrow window scrolls the ribbon sideways rather than cutting buttons off; each tab
@@ -88,7 +87,7 @@ impl MailApp {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 widgets::start_group(ui);
                 match ust.tab {
-                    RibbonTab::Home => mail_tabs::ribbon_home(ui, s, t, confirm_delete, acts),
+                    RibbonTab::Home => mail_tabs::ribbon_home(ui, s, t, acts),
                     RibbonTab::SendReceive => mail_tabs::ribbon_send_receive(ui, s, t, ust.has_files, acts),
                     RibbonTab::Search => mail_tabs::ribbon_search(ui, s, ust, t, acts),
                     RibbonTab::View => mail_tabs::ribbon_view(ui, s, t, ust.dark, acts),
@@ -164,34 +163,31 @@ pub(crate) fn module_switch(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut 
         ui.spacing_mut().item_spacing.x = 4.0;
         let n = MODULES.len() as f32;
         let w = ((ui.available_width() - 4.0 * (n - 1.0)) / n).clamp(26.0, 40.0);
-        for (m, icon, label, code) in MODULES {
-            let (r, resp) = ui.allocate_exact_size(vec2(w, 34.0), Sense::click());
-            let on = m == module;
-            widgets::named(ui, &resp, tl!(label), true, Some(on));
-            if on || resp.hovered() {
-                ui.painter().rect_filled(r, 6.0, if on { t.accent_soft } else { t.hover });
-            }
-            icons::paint(ui.painter(), icons::centered(r, 19.0), icon, if on { t.accent } else { t.dim });
-            if resp.on_hover_text(tl!(label)).clicked() {
-                acts.push(Action::Run("view.module", json!({"name": code})));
-            }
+        for each in MODULES {
+            module_button(ui, t, module, each, w, acts);
         }
     });
 }
 
 /// The modules one above another (the minimized folder pane).
 pub(crate) fn module_switch_vertical(ui: &mut Ui, t: &Tokens, module: Module, acts: &mut Vec<Action>) {
-    for (m, icon, label, code) in MODULES {
-        let (r, resp) = ui.allocate_exact_size(vec2(40.0, 34.0), Sense::click());
-        let on = m == module;
-        widgets::named(ui, &resp, tl!(label), true, Some(on));
-        if on || resp.hovered() {
-            ui.painter().rect_filled(r, 6.0, if on { t.accent_soft } else { t.hover });
-        }
-        icons::paint(ui.painter(), icons::centered(r, 19.0), icon, if on { t.accent } else { t.dim });
-        if resp.on_hover_text(tl!(label)).clicked() {
-            acts.push(Action::Run("view.module", json!({"name": code})));
-        }
+    for each in MODULES {
+        module_button(ui, t, module, each, 40.0, acts);
+    }
+}
+
+/// One module's button, `width` wide (of [`MODULES`]; `module`: the one shown): its icon, named
+/// and on hover; a click shows the module.
+fn module_button(ui: &mut Ui, t: &Tokens, module: Module, (m, icon, label, code): (Module, Icon, &str, &str), width: f32, acts: &mut Vec<Action>) {
+    let (r, resp) = ui.allocate_exact_size(vec2(width, 34.0), Sense::click());
+    let on = m == module;
+    widgets::named(ui, &resp, tl!(label), true, Some(on));
+    if on || resp.hovered() {
+        ui.painter().rect_filled(r, 6.0, if on { t.accent_soft } else { t.hover });
+    }
+    icons::paint(ui.painter(), icons::centered(r, 19.0), icon, if on { t.accent } else { t.dim });
+    if resp.on_hover_text(tl!(label)).clicked() {
+        acts.push(Action::Run("view.module", json!({"name": code})));
     }
 }
 

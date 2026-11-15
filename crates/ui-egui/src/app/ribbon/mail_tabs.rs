@@ -9,7 +9,7 @@ fn enabled(s: &Session, id: &str) -> bool {
 }
 
 /// Home: new items, deleting, moving, responding, tags and finding.
-pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, confirm_delete: bool, acts: &mut Vec<Action>) {
+pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
     if widgets::accent_button(ui, Icon::NewMail, "New mail", &t, enabled(s, "mail.new")).on_hover_text(tl!("New mail (Ctrl+N)")).clicked() {
         acts.push(Action::Run("mail.new", json!({})));
     }
@@ -31,11 +31,8 @@ pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, confirm_delete: b
     });
     widgets::group(ui, &t, "New", false);
     if widgets::tool_button(ui, Icon::Delete, "Delete", &t, enabled(s, "mail.delete")).on_hover_text(tl!("Delete (Del)")).clicked() {
-        if confirm_delete {
-            acts.push(Action::Dialog(Dialog::ConfirmDelete { count: s.selection.len() }));
-        } else {
-            acts.push(Action::Run("mail.delete", json!({})));
-        }
+        // Asked first when it's for good (`act_run`).
+        acts.push(Action::Run("mail.delete", json!({})));
     }
     // Ignore the conversation, as Outlook's Delete drop-down.
     let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "More delete options", &t);

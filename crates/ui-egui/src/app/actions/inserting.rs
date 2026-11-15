@@ -29,10 +29,7 @@ impl MailApp {
         }
         for p in self.services.pick_pictures() {
             // Wider than a page: in at a page's width (its header read, nothing decoded).
-            let head = std::fs::File::open(&p).and_then(|f| {
-                let mut v = Vec::new();
-                std::io::Read::read_to_end(&mut std::io::Read::take(f, 1 << 20), &mut v).map(|_| v)
-            });
+            let head = read_capped(&p, 1 << 20);
             let size = head.ok().as_deref().and_then(rich_edit::own_size);
             let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
             let r =
@@ -102,9 +99,7 @@ impl MailApp {
             self.services.clipboard_picture().map(|png| ("pasted.png".to_string(), png)).into_iter().collect()
         } else {
             let read = |p: &std::path::PathBuf| {
-                let f = std::fs::File::open(p).ok()?;
-                let mut v = Vec::new();
-                std::io::Read::read_to_end(&mut std::io::Read::take(f, SIGNATURE_PICTURE_MAX as u64 + 1), &mut v).ok()?;
+                let v = read_capped(p, SIGNATURE_PICTURE_MAX as u64 + 1).ok()?;
                 Some((p.file_name()?.to_string_lossy().to_string(), v))
             };
             self.services.pick_pictures().iter().filter_map(read).collect()
@@ -143,10 +138,7 @@ impl MailApp {
         }
         let Some(path) = self.services.pick_files().into_iter().next() else { return };
         let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-        let read = std::fs::File::open(&path).and_then(|f| {
-            let mut v = Vec::new();
-            std::io::Read::read_to_end(&mut std::io::Read::take(f, mime::SIGNATURE_CODE_MAX as u64 + 1), &mut v).map(|_| v)
-        });
+        let read = read_capped(&path, mime::SIGNATURE_CODE_MAX as u64 + 1);
         let bytes = match read {
             Ok(b) if b.len() <= mime::SIGNATURE_CODE_MAX => b,
             _ => {
@@ -189,6 +181,14 @@ impl MailApp {
             Err(e) => self.session.notice(e.to_string(), true),
         }
     }
+}
+
+/// A file's first `max` bytes (all of it, when it's no bigger): what's read of a file picked,
+/// which can be of any size.
+fn read_capped(path: &std::path::Path, max: u64) -> std::io::Result<Vec<u8>> {
+    let mut v = Vec::new();
+    std::io::Read::read_to_end(&mut std::io::Read::take(std::fs::File::open(path)?, max), &mut v)?;
+    Ok(v)
 }
 
 /// `%20` and the like decoded (an address in a saved web page), as UTF-8, else in Windows'

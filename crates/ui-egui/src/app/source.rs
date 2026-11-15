@@ -23,12 +23,7 @@ impl MailApp {
             };
             let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
                 st.compact.note_input(ui);
-                let mut place = st.places.get("source").copied();
-                super::windows::after_open(ui, place);
-                super::windows::WindowPlace::note(&mut place, ui);
-                if let Some(p) = place {
-                    st.places.insert("source".into(), p);
-                }
+                super::windows::track_place(&mut st.places, "source", ui);
                 if st.raise_source.as_ref() == Some(&key) {
                     st.raise_source = None;
                     ui.ctx().send_viewport_cmd(egui::ViewportCommand::Focus);

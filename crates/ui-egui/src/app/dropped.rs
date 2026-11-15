@@ -9,6 +9,12 @@ use crate::*;
 /// Most files taken from one paste or drop.
 const MAX_FILES: usize = 100;
 
+/// Of the paths pasted or dropped, the files (not folders, nor a path relative to nowhere), as
+/// many as are taken at once.
+fn real_files(paths: impl IntoIterator<Item = PathBuf>) -> Vec<PathBuf> {
+    paths.into_iter().filter(|p| p.is_absolute() && p.is_file()).take(MAX_FILES).collect()
+}
+
 /// Set while the text of a message being written has the keyboard in a window: Ctrl+V there looks
 /// for files first ([`clipboard_keys`]).
 fn files_wanted(viewport: egui::ViewportId) -> egui::Id {
@@ -52,8 +58,7 @@ pub fn clipboard_keys(ctx: &egui::Context, raw: &mut egui::RawInput, clipboard: 
         } else if key == Key::Copy || (m.command_only() && key == Key::C) || (windows && m.ctrl && key == Key::Insert) {
             out.push(egui::Event::Copy);
         } else if key == Key::Paste || (m.command_only() && key == Key::V) || (windows && m.shift && key == Key::Insert) {
-            let files: Vec<PathBuf> =
-                if wanted { clipboard.files().into_iter().filter(|p| p.is_absolute() && p.is_file()).take(MAX_FILES).collect() } else { Vec::new() };
+            let files: Vec<PathBuf> = if wanted { real_files(clipboard.files()) } else { Vec::new() };
             if files.is_empty() {
                 out.extend(clipboard.paste());
             } else {
@@ -83,7 +88,7 @@ pub(crate) fn pasted_files(ctx: &egui::Context, services: &mut dyn Services, s: 
     if !focused || !ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Paste(_) | egui::Event::PasteImage(_)))) {
         return Vec::new();
     }
-    let files: Vec<PathBuf> = services.clipboard_files().into_iter().filter(|p| p.is_absolute() && p.is_file()).take(MAX_FILES).collect();
+    let files = real_files(services.clipboard_files());
     if !files.is_empty() {
         ctx.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Paste(_) | egui::Event::PasteImage(_))));
     }
@@ -137,12 +142,7 @@ impl MailApp {
             p.rect(card, 8.0, t.surface, egui::Stroke::new(1.0, t.accent), egui::StrokeKind::Inside);
             p.galley(card.center() - g.size() / 2.0, g, t.text);
         }
-        let files: Vec<String> = dropped
-            .iter()
-            .filter(|f| f.path().is_absolute() && f.path().is_file())
-            .take(MAX_FILES)
-            .map(|f| f.path().to_string_lossy().to_string())
-            .collect();
+        let files: Vec<String> = real_files(dropped.iter().map(|f| f.path().to_path_buf())).iter().map(|p| p.to_string_lossy().to_string()).collect();
         let (messages, files): (Vec<String>, Vec<String>) =
             files.into_iter().partition(|f| open.is_some() && mailcraft_engine::cmd::is_message_file(f));
         if !messages.is_empty() {
@@ -186,7 +186,7 @@ impl MailApp {
     /// The text's right-click Paste in a message: files copied in a file manager are attached
     /// (the text paste that follows is called off), as Outlook attaches them.
     pub(crate) fn paste_files(&mut self) {
-        let files: Vec<PathBuf> = self.services.clipboard_files().into_iter().filter(|p| p.is_absolute() && p.is_file()).take(MAX_FILES).collect();
+        let files = real_files(self.services.clipboard_files());
         if files.is_empty() {
             return;
         }
