@@ -38,6 +38,13 @@ pub struct CalendarInfo {
     pub foreign: bool,
 }
 
+impl CalendarInfo {
+    /// The calendar on this computer ([`LOCAL`]).
+    pub fn local() -> CalendarInfo {
+        CalendarInfo { id: LOCAL.into(), name: "Calendar".into(), ..Default::default() }
+    }
+}
+
 /// An event with where it lives.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoredEvent {
@@ -65,6 +72,13 @@ pub struct BookInfo {
     pub ctag: String,
 }
 
+impl BookInfo {
+    /// The address book on this computer ([`LOCAL`]).
+    pub fn local() -> BookInfo {
+        BookInfo { id: LOCAL.into(), name: "Contacts".into(), read_only: false, ctag: String::new() }
+    }
+}
+
 /// A card with where it lives.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoredCard {
@@ -78,14 +92,17 @@ pub struct StoredCard {
     pub dirty: bool,
 }
 
+/// What the id of someone else's calendar opened by their address starts with.
+const SHARED: &str = "shared:";
+
 /// The id of someone else's calendar opened by their address.
 pub fn shared_calendar_id(email: &str) -> String {
-    format!("shared:{}", email.trim().to_ascii_lowercase())
+    format!("{SHARED}{}", email.trim().to_ascii_lowercase())
 }
 
 /// Whose calendar a shared calendar's id is (`shared:<address>`).
 pub fn shared_calendar_owner(id: &str) -> Option<&str> {
-    id.strip_prefix("shared:").filter(|e| !e.is_empty())
+    id.strip_prefix(SHARED).filter(|e| !e.is_empty())
 }
 
 /// A calendar subscribed to by its link (an iCal or `webcal://` address, issue #7), as Outlook's
@@ -415,10 +432,10 @@ impl Pim {
     /// Make sure there is somewhere to put events and people.
     pub fn ensure_defaults(&mut self) {
         if self.calendars.is_empty() {
-            self.calendars.push(CalendarInfo { id: LOCAL.into(), name: "Calendar".into(), ..Default::default() });
+            self.calendars.push(CalendarInfo::local());
         }
         if self.books.is_empty() {
-            self.books.push(BookInfo { id: LOCAL.into(), name: "Contacts".into(), read_only: false, ctag: String::new() });
+            self.books.push(BookInfo::local());
         }
     }
 
@@ -429,7 +446,7 @@ impl Pim {
     pub fn leave_server(&mut self) {
         let mut kept_any = false;
         self.events.retain_mut(|e| {
-            if e.calendar == LOCAL || e.calendar.starts_with("shared:") {
+            if e.calendar == LOCAL || e.calendar.starts_with(SHARED) {
                 return true;
             }
             if !e.dirty {
@@ -457,14 +474,14 @@ impl Pim {
             true
         });
         self.deleted.clear();
-        self.calendars.retain(|c| c.id == LOCAL || c.id.starts_with("shared:"));
+        self.calendars.retain(|c| c.id == LOCAL || c.id.starts_with(SHARED));
         self.books.retain(|b| b.id == LOCAL);
         if kept_any || self.calendars.is_empty() {
             if !self.calendars.iter().any(|c| c.id == LOCAL) {
-                self.calendars.insert(0, CalendarInfo { id: LOCAL.into(), name: "Calendar".into(), ..Default::default() });
+                self.calendars.insert(0, CalendarInfo::local());
             }
             if !self.books.iter().any(|b| b.id == LOCAL) {
-                self.books.insert(0, BookInfo { id: LOCAL.into(), name: "Contacts".into(), read_only: false, ctag: String::new() });
+                self.books.insert(0, BookInfo::local());
             }
         }
         self.caldav_home = None;
@@ -480,15 +497,13 @@ impl Pim {
     /// account's own on its server (SOGo's `personal` first) rather than someone else's listed
     /// with it, else the first that can be added to (issue #30).
     pub fn default_calendar(&self) -> Option<&CalendarInfo> {
-        pick_calendar(&self.calendars, self.chosen_calendar.as_deref())
+        pick_calendar(self.calendars.iter(), self.chosen_calendar.as_deref())
     }
 
     /// The calendar on the server events move to from this computer: as
     /// [`Pim::default_calendar`], among the server's own calendars only.
     pub fn server_calendar(&self) -> Option<&CalendarInfo> {
-        let server: Vec<CalendarInfo> = self.calendars.iter().filter(|c| is_server_calendar(&c.id)).cloned().collect();
-        let id = pick_calendar(&server, self.chosen_calendar.as_deref())?.id.clone();
-        self.calendars.iter().find(|c| c.id == id)
+        pick_calendar(self.calendars.iter().filter(|c| is_server_calendar(&c.id)), self.chosen_calendar.as_deref())
     }
 
     /// The user's own calendars on the server, that they may change: not someone else's listed
@@ -514,20 +529,20 @@ pub fn is_server_calendar(id: &str) -> bool {
 }
 
 /// The calendar new events go to among these (see [`Pim::default_calendar`]).
-pub fn pick_calendar<'a>(calendars: &'a [CalendarInfo], chosen: Option<&str>) -> Option<&'a CalendarInfo> {
+pub fn pick_calendar<'a>(calendars: impl Iterator<Item = &'a CalendarInfo> + Clone, chosen: Option<&str>) -> Option<&'a CalendarInfo> {
     let writable = |c: &&CalendarInfo| !c.read_only && !is_web_calendar(&c.id);
-    if let Some(c) = chosen.and_then(|id| calendars.iter().filter(writable).find(|c| c.id == id)) {
+    if let Some(c) = chosen.and_then(|id| calendars.clone().filter(writable).find(|c| c.id == id)) {
         return Some(c);
     }
     let own = |c: &&CalendarInfo| writable(c) && !c.foreign && shared_calendar_owner(&c.id).is_none();
     let personal = |c: &&CalendarInfo| c.id.trim_end_matches('/').rsplit('/').next().is_some_and(|n| n.eq_ignore_ascii_case("personal"));
     calendars
-        .iter()
+        .clone()
         .filter(own)
         .find(personal)
-        .or_else(|| calendars.iter().find(own))
-        .or_else(|| calendars.iter().find(|c| writable(c) && shared_calendar_owner(&c.id).is_none()))
-        .or_else(|| calendars.iter().find(writable))
+        .or_else(|| calendars.clone().find(own))
+        .or_else(|| calendars.clone().find(|c| writable(c) && shared_calendar_owner(&c.id).is_none()))
+        .or_else(|| calendars.clone().find(writable))
 }
 
 /// Make UIDs unique within each calendar. A calendar can hold several plain (non-recurring)
@@ -536,13 +551,17 @@ pub fn pick_calendar<'a>(calendars: &'a [CalendarInfo], chosen: Option<&str>) ->
 /// `<uid>/<start>` here. Recurring masters and exceptions are untouched, and the new UID never
 /// goes back to the server.
 pub fn separate_shared_uids(events: &mut [StoredEvent]) {
-    let mut seen: std::collections::HashMap<(String, String), usize> = std::collections::HashMap::new();
-    for e in events.iter().filter(|e| e.event.recurrence_id.is_none()) {
-        *seen.entry((e.calendar.clone(), e.event.uid.clone())).or_default() += 1;
-    }
+    // Which events share their calendar and UID with another: counted on the events' own
+    // strings, before any is changed.
+    let shared: Vec<bool> = {
+        let mut seen: std::collections::HashMap<(&str, &str), usize> = std::collections::HashMap::new();
+        for e in events.iter().filter(|e| e.event.recurrence_id.is_none()) {
+            *seen.entry((e.calendar.as_str(), e.event.uid.as_str())).or_default() += 1;
+        }
+        events.iter().map(|e| seen.get(&(e.calendar.as_str(), e.event.uid.as_str())).is_some_and(|n| *n > 1)).collect()
+    };
     let mut taken: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
-    for e in events.iter_mut() {
-        let shared = seen.get(&(e.calendar.clone(), e.event.uid.clone())).is_some_and(|n| *n > 1);
+    for (e, shared) in events.iter_mut().zip(shared) {
         if !shared || e.event.recurrence_id.is_some() || e.event.rrule.is_some() {
             continue;
         }
@@ -631,14 +650,14 @@ mod default_calendar_tests {
             cal("https://d.example/u/personal/", false, false),
             cal(LOCAL, false, false),
         ];
-        let pick = |chosen: Option<&str>| pick_calendar(&list, chosen).map(|c| c.id.clone());
+        let pick = |chosen: Option<&str>| pick_calendar(list.iter(), chosen).map(|c| c.id.clone());
         assert_eq!(pick(None).as_deref(), Some("https://d.example/u/personal/"));
         assert_eq!(pick(Some("https://d.example/u/sam_team/")).as_deref(), Some("https://d.example/u/sam_team/"), "chosen");
         assert_eq!(pick(Some("https://d.example/web/")).as_deref(), Some("https://d.example/u/personal/"), "read-only: not taken");
         assert_eq!(pick(Some("gone")).as_deref(), Some("https://d.example/u/personal/"));
-        let theirs = vec![cal("https://d.example/u/sam_team/", false, true), cal(&web_calendar_id("https://x/a.ics"), false, false)];
-        assert_eq!(pick_calendar(&theirs, None).map(|c| c.id.as_str()), Some("https://d.example/u/sam_team/"), "only someone else's");
-        assert!(pick_calendar(&[cal("https://d.example/ro/", true, false)], None).is_none());
+        let theirs = [cal("https://d.example/u/sam_team/", false, true), cal(&web_calendar_id("https://x/a.ics"), false, false)];
+        assert_eq!(pick_calendar(theirs.iter(), None).map(|c| c.id.as_str()), Some("https://d.example/u/sam_team/"), "only someone else's");
+        assert!(pick_calendar([cal("https://d.example/ro/", true, false)].iter(), None).is_none());
         let p = Pim { calendars: list.clone(), ..Default::default() };
         assert_eq!(p.server_calendar().map(|c| c.id.as_str()), Some("https://d.example/u/personal/"));
         let only_here =

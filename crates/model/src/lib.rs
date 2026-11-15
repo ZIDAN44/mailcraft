@@ -639,7 +639,6 @@ pub fn sort_folders(folders: &mut [Folder]) {
             Some(d) => f.path.split(d).map(|p| utf7::decode(p).to_lowercase()).collect(),
             None => vec![utf7::decode(&f.path).to_lowercase()],
         };
-        let rank = |role: FolderRole| if role == FolderRole::Other { 6 } else { role.rank() };
         let top_role = |n: usize| {
             let top = f.delimiter.map(|d| f.path.split(d).take(n).collect::<Vec<_>>().join(&d.to_string())).unwrap_or_else(|| f.path.clone());
             roles.get(&top).copied().unwrap_or(FolderRole::Other)
@@ -649,11 +648,11 @@ pub fn sort_folders(folders: &mut [Folder]) {
         if f.mailbox.is_some() {
             let mailbox = if parts.is_empty() { String::new() } else { parts.remove(0) };
             let role = if f.mailbox_role == FolderRole::Other { top_role(2) } else { f.mailbox_role };
-            return (7, mailbox, if parts.is_empty() { 0 } else { 1 + rank(role) }, parts);
+            return (7, mailbox, if parts.is_empty() { 0 } else { 1 + role.rank() }, parts);
         }
         // A special folder keeps its own place; another goes where its top folder is.
         let role = if f.role == FolderRole::Other { top_role(1) } else { f.role };
-        (rank(role), String::new(), 0, parts)
+        (role.rank(), String::new(), 0, parts)
     });
 }
 
