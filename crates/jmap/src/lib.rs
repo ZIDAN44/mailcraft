@@ -82,6 +82,14 @@ pub enum Error {
     Store(#[from] StoreError),
 }
 
+impl Error {
+    /// Whether a change that met it waits in its queue for the next connection (the network,
+    /// the sign-in), rather than being given up as refused.
+    pub fn stops_the_queue(&self) -> bool {
+        matches!(self, Error::Io(_) | Error::Closed(_) | Error::Tls(_) | Error::Auth(_))
+    }
+}
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// An HTTP request.

@@ -386,7 +386,7 @@ async fn replay(sh: &Rcs, id: &str, refresh: bool) {
         let Some(c) = client(sh, id) else { return };
         let Some(op) = store.load_ops(id).unwrap_or_default().into_iter().next() else { return };
         match send(sh, id, &c, &op, refresh).await {
-            Err(e @ (Error::Io(_) | Error::Closed(_) | Error::Tls(_) | Error::Auth(_))) => return failed(sh, id, e),
+            Err(e) if e.stops_the_queue() => return failed(sh, id, e),
             sent => {
                 if let Err(e) = store.remove_op(id, &op) {
                     return notice(sh, id, e.to_string());

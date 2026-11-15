@@ -154,3 +154,17 @@ fn folders_cost() {
     println!("MEASURE folders of 20000 mailboxes: {} ms", t.elapsed().as_millis());
     assert_eq!(f.len(), 20_000);
 }
+
+/// A change waits in its queue for the network and the sign-in, and for nothing else: what the
+/// server refused is given up and said.
+#[test]
+fn only_the_network_and_the_sign_in_keep_a_change_waiting() {
+    let m = || "x".to_string();
+    for waits in [Error::Io(m()), Error::Tls(m()), Error::Auth(m()), Error::Closed(m())] {
+        assert!(waits.stops_the_queue(), "{waits}");
+    }
+    let refused = [Error::Protocol(m()), Error::No(m()), Error::Bad(m()), Error::Send(m()), Error::Store(StoreError::Busy { path: m() })];
+    for given_up in refused {
+        assert!(!given_up.stops_the_queue(), "{given_up}");
+    }
+}
