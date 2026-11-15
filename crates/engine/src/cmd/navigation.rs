@@ -118,6 +118,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.pop_out(&k)
         })
         .params(r#"{"key"?: string}"#),
+        // Enter in the list opens what's selected, as a double-click does (issue #92): a draft to
+        // go on writing, other mail in a window of its own.
+        CommandSpec::new("list.openItem", "Open", "Message list › Open", |s, _| {
+            let k = s
+                .focus
+                .clone()
+                .or_else(|| s.selection.first().cloned())
+                .ok_or_else(|| CmdError::Disabled("select a message first".into()))?;
+            let draft = s.view_role() == Some(FolderRole::Drafts) || s.summary(&k).is_some_and(|m| m.flags.draft);
+            if draft { s.edit_draft(&k) } else { s.pop_out(&k) }
+        })
+        .key("Enter"),
         CommandSpec::new("message.closeWindow", "Close the message window", "Message window", |s, v| {
             let k = parse_key(v).ok_or_else(|| CmdError::Params("`key` is required".into()))?;
             s.close_window(&k);

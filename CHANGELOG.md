@@ -23,6 +23,7 @@ on GitHub.
 
 ### Fixed
 
+- Enter opens the message selected in the list in a window of its own, as a double-click does, and a draft to go on writing it (#92). It did nothing, on every system.
 - A folder named archive inside the Inbox, with folders of its own, shows with them under it (#94): MailCraft takes it for the Archive, as it does on servers that don't mark one, and its folders were drawn among the Inbox's, under the wrong parent.
 - A meeting series' first invitation, once the organizer has changed one of its occurrences, says it's out of date (#101). Its answer buttons were still there, and answering it put the series back without the change.
 - Declining one changed occurrence of a meeting series works on SOGo (#101): it was refused (HTTP 403) and nothing reached the organizer. The occurrence now keeps your answer instead of being taken out of the organizer's meeting, and isn't shown in your calendar. An answered invitation goes out of the Inbox only once the server has the answer: one it refuses stays to be answered again.

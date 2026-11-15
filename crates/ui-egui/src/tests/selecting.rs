@@ -282,3 +282,36 @@ fn list_frames_measure() {
     let rows = a.session.rows().len();
     println!("MEASURE a frame of the message list, {rows} rows: {:.1} µs", t.elapsed().as_secs_f64() * 1e6 / f64::from(ROUNDS));
 }
+
+/// Issue #92: Enter opens the message selected in the list in a window of its own, as a
+/// double-click does; a draft goes on being written. In a text box Enter is the box's.
+#[test]
+fn enter_opens_the_selected_message() {
+    let (mut a, _) = app("enter-opens");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    let first = a.session.selection[0].clone();
+    assert!(a.session.windows.is_empty());
+    frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
+    assert_eq!(a.session.windows.iter().map(|w| w.key.clone()).collect::<Vec<_>>(), [first], "its own window");
+
+    // Typed into the search box, Enter searches: nothing more opens.
+    a.ui.focus_search = true;
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![Event::Text("x".into()), key(Key::Enter, Modifiers::NONE)]);
+    assert_eq!(a.session.windows.len(), 1);
+
+    // A draft: Enter goes on writing it.
+    a.run("search.clear", json!({}));
+    a.run("mail.new", json!({}));
+    a.run("compose.saveDraft", json!({}));
+    a.run("compose.close", json!({}));
+    assert_eq!(a.session.all_composes().count(), 0);
+    a.run("folder.open", json!({"account": "sample", "folder": "Drafts"}));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::NONE)]);
+    assert!(!a.session.selection.is_empty(), "the draft is in Drafts");
+    frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
+    assert_eq!(a.session.all_composes().count(), 1, "the draft is being written");
+}
