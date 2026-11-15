@@ -16,9 +16,9 @@ pub(crate) fn size_mark(px: u16) -> char {
     char::from_u32(SIZE_MARKS + u32::from(px.clamp(SMALLEST, LARGEST))).unwrap_or(SIZE_END)
 }
 
-/// The size a character marks.
+/// The size a character marks, held to what [`size_mark`] writes.
 fn marked_size(c: char) -> Option<u16> {
-    u32::from(c).checked_sub(SIZE_MARKS).filter(|n| *n < 256).and_then(|n| u16::try_from(n).ok())
+    u32::from(c).checked_sub(SIZE_MARKS).filter(|n| *n < 256).and_then(|n| u16::try_from(n).ok()).map(|px| px.clamp(SMALLEST, LARGEST))
 }
 
 /// `html` with `<sup>` and `<sub>` made spans, a mark at each end of what's in them, and any mark

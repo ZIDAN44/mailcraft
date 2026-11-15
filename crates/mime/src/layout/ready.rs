@@ -50,7 +50,13 @@ pub(crate) fn ready(raw: &str, copy: &OutlookCopy) -> Ready {
         return r;
     }
     let hide = !otherwise;
-    read(raw, None, hide).unwrap_or_else(|| marked(raw.to_string(), raw, None, false, hide))
+    read(raw, None, hide).unwrap_or_else(|| marked(as_it_came(raw), raw, None, false, hide))
+}
+
+/// `html` to show as it came, read without its tree: without the marks a size is given with,
+/// which only [`sized_html`] writes (written by a sender, one set the size of the text after it).
+fn as_it_came(html: &str) -> String {
+    crate::html::marks::without(html, crate::html::marks::is_size).into_owned()
 }
 
 /// [`ready`] for `html`, Outlook's copy or not (`outlook`), what it hides from Outlook hidden or
@@ -61,7 +67,7 @@ fn read(html: &str, outlook: Option<&OutlookCopy>, hide: bool) -> Option<Ready> 
     let lower = html.to_ascii_lowercase();
     let styles = sets_styles(&lower);
     if !(styles || outlooks || nests) {
-        return Some(marked(html.to_string(), html, None, copy, hide));
+        return Some(marked(as_it_came(html), html, None, copy, hide));
     }
     // What's written from it is read up to a multiple of the cap on what's read; past it, it's
     // read as it came.

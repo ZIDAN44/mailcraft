@@ -92,3 +92,12 @@ fn how_long_the_scans_take() {
 fn lowered_text_is_written_plainly() {
     assert_eq!(html_to_text("<p>H<sub>2</sub>O and x<sub>ab</sub> and 1<sup>st</sup></p>"), "H2O and xab and 1st");
 }
+
+/// A mark stands for a size [`size_mark`] writes, whatever character of the marks' range it is:
+/// one from outside what's written (U+F00FF, 255 pixels) set its text that large.
+#[test]
+fn a_mark_is_no_size_past_what_is_written() {
+    assert_eq!(marked_size(size_mark(24)), Some(24));
+    assert_eq!((marked_size('\u{F00FF}'), marked_size('\u{F0001}')), (Some(96), Some(9)));
+    assert_eq!((marked_size(SIZE_END), marked_size('a')), (None, None));
+}

@@ -254,5 +254,8 @@ mod tests {
         assert_eq!(r.iter().flatten().map(|s| (s.text.as_str(), s.size)).collect::<Vec<_>>(), [("abc", None)]);
         let p = crate::tests::util::message("<p style=\"font-size:10px\">a\u{F0018}b</p>");
         assert!(p.rich.iter().flatten().all(|s| s.size == Some(10) && !s.text.contains('\u{F0018}')), "{:?}", p.rich);
+        // In a message that sets no styles too, which is read as it came.
+        let p = crate::tests::util::message("<p>a\u{F0018}b\u{F00FF}c\u{F0100}d</p>");
+        assert_eq!(p.rich.iter().flatten().map(|s| (s.text.as_str(), s.size)).collect::<Vec<_>>(), [("abcd", None)]);
     }
 }
