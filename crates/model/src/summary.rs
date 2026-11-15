@@ -18,7 +18,8 @@ pub struct MessageKey {
 }
 
 impl MessageKey {
-    /// `account/validity/uid/folder`: a compact string form for agents and the CLI.
+    /// `account:validity:uid:folder`: a compact string form for agents and the CLI, read back by
+    /// [`from_id`](MessageKey::from_id) (the folder comes last, so it may hold `:`).
     pub fn to_id(&self) -> String {
         format!("{}:{}:{}:{}", self.account, self.validity, self.uid, self.folder)
     }

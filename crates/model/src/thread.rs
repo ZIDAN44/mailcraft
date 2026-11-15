@@ -95,10 +95,9 @@ pub fn is_reply_subject(subject: &str) -> bool {
     tags_and_rest(subject).2
 }
 
-/// Normalise a Message-ID for comparison: no angle brackets or surrounding space.
-/// A Message-ID without its brackets. Whitespace and control characters, which an id can't
-/// hold (RFC 5322 §3.6.4), are dropped: a hostile one's bare CR would otherwise be copied into
-/// a reply's In-Reply-To and References.
+/// A Message-ID without its brackets, as it's compared. Whitespace and control characters, which
+/// an id can't hold (RFC 5322 §3.6.4), are dropped: a hostile one's bare CR would otherwise be
+/// copied into a reply's In-Reply-To and References.
 pub fn norm_id(id: &str) -> String {
     let id: String = id.chars().filter(|c| !c.is_control() && !c.is_whitespace()).take(998).collect();
     id.trim_start_matches('<').trim_end_matches('>').to_string()
