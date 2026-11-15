@@ -2,14 +2,31 @@ use super::*;
 
 const ICS: &str = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//MailCraft//EN\r\nMETHOD:REQUEST\r\nBEGIN:VEVENT\r\nUID:m1@studio.example\r\nDTSTAMP:20261116T170000Z\r\nDTSTART:20261116T170000Z\r\nDTEND:20261116T180000Z\r\nSUMMARY:Tonmischung – Abnahme für Jürgen\r\nORGANIZER:mailto:riley@studio.example\r\nATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:ana@soundlab.example\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
 
-fn meeting(method: &str) -> Draft {
+/// The calendar a message with `method` carries: its `METHOD` line, and what a REPLY (the guest's
+/// answer) or a CANCEL (the meeting called off) says beside it (RFC 5546 §3.2).
+fn ics_for(method: &str) -> String {
+    let ics = ICS.replace("METHOD:REQUEST\r\n", &format!("METHOD:{method}\r\n"));
+    match method {
+        "REPLY" => ics.replace("PARTSTAT=NEEDS-ACTION;RSVP=TRUE", "PARTSTAT=ACCEPTED"),
+        "CANCEL" => ics.replace("END:VEVENT", "STATUS:CANCELLED\r\nEND:VEVENT"),
+        _ => ics,
+    }
+}
+
+/// A meeting message with `method` in its header and `data` as its calendar.
+fn meeting_with(method: &str, data: &str) -> Draft {
     Draft {
         to: vec![EmailAddress::new("Ana", "ana@soundlab.example")],
         subject: "Invitation: Tonmischung".into(),
         body: "When: Mon 16 Nov 18:00".into(),
-        calendar: Some(OutCalendar { method: method.into(), data: ICS.into() }),
+        calendar: Some(OutCalendar { method: method.into(), data: data.into() }),
         ..Default::default()
     }
+}
+
+/// A meeting message with `method`, its calendar saying the same.
+fn meeting(method: &str) -> Draft {
+    meeting_with(method, &ics_for(method))
 }
 
 fn built(d: &Draft) -> (Vec<u8>, String) {
@@ -50,7 +67,8 @@ fn a_meeting_is_sent_inline_beside_the_text() {
         let data = attachment_data(&raw, a.index).unwrap();
         let ics = String::from_utf8(data.to_vec()).unwrap();
         assert!(ics.contains("SUMMARY:Tonmischung – Abnahme für Jürgen\r\n"), "{ics}");
-        assert_eq!(ics.replace("\r\n", "\n").trim_end(), ICS.replace("\r\n", "\n").trim_end());
+        // The whole calendar comes back, its METHOD line and what the method says included.
+        assert_eq!(ics.replace("\r\n", "\n").trim_end(), ics_for(method).replace("\r\n", "\n").trim_end());
     }
 }
 
@@ -77,7 +95,8 @@ fn a_meeting_with_files_or_formatting_keeps_its_calendar_beside_the_text() {
 /// A method is a word: whatever else is in it stays out of the header.
 #[test]
 fn a_meetings_method_is_a_word() {
-    let (_, text) = built(&meeting("re\"quest;\r\nBcc: x@evil.example"));
+    // The calendar stays the plain one: the raw method on its METHOD line could add lines to it.
+    let (_, text) = built(&meeting_with("re\"quest;\r\nBcc: x@evil.example", ICS));
     let cal = content_types(&text).into_iter().find(|t| t.starts_with("text/calendar")).unwrap();
     assert!(cal.contains("method=requestbccxevilexample"), "{cal}");
     assert!(!text.contains("Bcc:"), "{text}");
