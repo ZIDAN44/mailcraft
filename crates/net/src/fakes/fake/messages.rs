@@ -125,6 +125,7 @@ fn fetch(b: &Mailbox, words: &[&str], rest: &str, upper: &str, max: u32) -> Done
     let set = words.get(2).copied().unwrap_or("");
     let since: u64 = rest.split("CHANGEDSINCE ").nth(1).and_then(|s| s.trim_end_matches(')').trim().parse().ok()).unwrap_or(0);
     let mut lines = Vec::new();
+    let (bodystructure, sections) = (upper.contains("BODYSTRUCTURE"), structure::asked_sections(upper));
     for (i, m) in b.msgs.iter().enumerate() {
         if !in_set(m.uid, set, max) || m.modseq <= since {
             continue;
@@ -141,11 +142,13 @@ fn fetch(b: &Mailbox, words: &[&str], rest: &str, upper: &str, max: u32) -> Done
             item.extend(format!(" BODY[HEADER] {{{end}}}\r\n").as_bytes());
             item.extend(&m.raw[..end]);
         }
-        if upper.contains("BODYSTRUCTURE") {
-            item.extend(format!(" BODYSTRUCTURE {}", structure::Part::of(&m.raw).structure()).as_bytes());
+        // Its parts, split once, when something asked needs them.
+        let parts = (bodystructure || !sections.is_empty()).then(|| structure::Part::of(&m.raw));
+        if let Some(p) = parts.as_ref().filter(|_| bodystructure) {
+            item.extend(format!(" BODYSTRUCTURE {}", p.structure()).as_bytes());
         }
-        for (spec, path, mime) in structure::asked_sections(upper) {
-            if let Some(data) = structure::Part::of(&m.raw).section(&path, mime) {
+        for (spec, path, mime) in &sections {
+            if let Some(data) = parts.as_ref().and_then(|p| p.section(path, *mime)) {
                 item.extend(format!(" BODY[{spec}] {{{}}}\r\n", data.len()).as_bytes());
                 item.extend(&data);
             }

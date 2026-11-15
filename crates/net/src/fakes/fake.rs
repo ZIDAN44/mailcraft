@@ -404,6 +404,10 @@ fn paren_arg(s: &str) -> Vec<String> {
     s[open + 1..close].split_whitespace().map(str::to_string).collect()
 }
 
+/// The most a read hands the client: short and odd-sized, so the client's reading of lines and
+/// literals across many partial reads is exercised, as a slow link splits them.
+const SHORT_READ: usize = 11;
+
 impl Read for Fake {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let trickle = self.st.lock().map(|s| s.trickle).unwrap_or_default();
@@ -415,7 +419,7 @@ impl Read for Fake {
         {
             self.out.extend(f.iter());
         }
-        let n = buf.len().min(self.out.len()).min(11);
+        let n = buf.len().min(self.out.len()).min(SHORT_READ);
         for b in buf.iter_mut().take(n) {
             *b = self.out.pop_front().unwrap_or(0);
         }

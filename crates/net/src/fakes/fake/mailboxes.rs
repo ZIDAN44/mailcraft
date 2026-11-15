@@ -31,8 +31,7 @@ impl Fake {
                 if let Some(p) = permanent {
                     self.say(&format!("* OK [PERMANENTFLAGS ({p})] ok"));
                 }
-                if let Some((qv, qm)) = qresync.filter(|(qv, _)| *qv == v) {
-                    let _ = qv;
+                if let Some((_, qm)) = qresync.filter(|(qv, _)| *qv == v) {
                     let gone: Vec<String> = b.expunged.iter().filter(|(_, m)| *m > qm).map(|(u, _)| u.to_string()).collect();
                     let changed: Vec<String> = b
                         .msgs
