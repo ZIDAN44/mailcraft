@@ -159,6 +159,7 @@ on GitHub.
 - Printing a message with a very long word followed by many accent marks no longer hangs.
 - Printing a message with huge text and a very long word no longer leaves near-empty pages.
 - A link that puts a name and password before its address is counted as a tracker, or not, by its real host.
+- A message attached inside a winmail.dat now opens the same way every time, and one with no date of its own no longer shows the time it was opened.
 
 ## 0.38.0 - 2026-11-13
 

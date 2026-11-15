@@ -345,6 +345,33 @@ fn a_winmail_dat_gives_its_files_and_body() {
     assert_eq!(inner.attachments.first().map(|a| a.name.as_str()), Some("notes.txt"));
 }
 
+/// An attached message is written the same each time its `winmail.dat` is read: its Message-ID
+/// and boundary from its stream's hash, its date its own (the epoch, read as none, without one).
+/// Left to mail-builder, they came from the clock and a random number, and differed every time.
+#[test]
+fn an_attached_message_is_the_same_each_time() {
+    let eml = || read_tnef(&outlook_stream()).unwrap().attachments.pop().unwrap().data;
+    let first = eml();
+    assert_eq!(first, eml());
+    let inner = crate::parse(&first).unwrap();
+    assert_eq!(inner.message_id, "winmail.15ea124d783d9ef5@mailcraft.invalid");
+    // One without a date of its own: none read back, not the time it was read.
+    let mut a = Vec::new();
+    attr(&mut a, 1, ATT_SUBJECT, b"Undated\0");
+    let mut object = vec![0x07, 0x03, 0x02, 0x00, 0, 0, 0, 0, 0xC0, 0, 0, 0, 0, 0, 0, 0x46];
+    object.extend(stream(&a));
+    let mut outer = Vec::new();
+    attr(&mut outer, 2, ATT_REND_DATA, &[1, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0, 0, 0, 0, 0, 0, 0, 0]);
+    attr(
+        &mut outer,
+        2,
+        ATT_ATTACHMENT,
+        &props(&[(0x001E, PR_DISPLAY_NAME, str8("Undated")), (0x0003, PR_ATTACH_METHOD, long(5)), (0x000D, PR_ATTACH_DATA, binary(&object))]),
+    );
+    let undated = read_tnef(&stream(&outer)).unwrap().attachments.pop().unwrap().data;
+    assert_eq!(crate::parse(&undated).unwrap().date, 0, "{}", String::from_utf8_lossy(&undated));
+}
+
 /// The plain text when there's no RTF; the HTML property over the RTF; strings in the message's
 /// code page.
 #[test]

@@ -281,8 +281,9 @@ fn file(f: Building, index: usize, oem: u32, cp: u32, depth: u8) -> Option<TnefF
     let (name, mime, data) = match (prop(p, PR_ATTACH_DATA), embedded) {
         // An attached Outlook message: a stream of its own, after the object's interface id.
         (Some(Value::Object(o)), true) => {
-            let inner = o.get(16..).filter(|_| depth < MAX_DEPTH).and_then(|t| read_at(t, depth + 1))?;
-            let eml = to_eml(&inner)?;
+            let stream = o.get(16..).filter(|_| depth < MAX_DEPTH)?;
+            let inner = read_at(stream, depth + 1)?;
+            let eml = to_eml(&inner, mailcraft_model::hash::fnv1a(stream))?;
             let title = name.unwrap_or_else(|| if inner.subject.is_empty() { format!("message {}", index + 1) } else { inner.subject.clone() });
             (Some(format!("{}.eml", title.trim_end_matches(".msg"))), "message/rfc822".to_string(), eml)
         }
@@ -302,14 +303,15 @@ fn file(f: Building, index: usize, oem: u32, cp: u32, depth: u8) -> Option<TnefF
     Some(TnefFile { name, mime, data, content_id, hidden })
 }
 
-/// An attached Outlook message as an RFC 5322 message, so the reading pane opens it as one.
-fn to_eml(t: &Tnef) -> Option<Vec<u8>> {
-    let mut b = MessageBuilder::new().subject(t.subject.clone());
+/// An attached Outlook message as an RFC 5322 message, so the reading pane opens it as one. The
+/// same each time it's read: its Message-ID and boundary come from `seed` (a hash of its
+/// stream), and its date is its own, or the epoch (read as no date) when it has none. Left to
+/// mail-builder, they came from the clock and a random number: a crate that runs in the browser
+/// too doesn't read either, and the same `winmail.dat` gave a different message every time.
+fn to_eml(t: &Tnef, seed: u64) -> Option<Vec<u8>> {
+    let mut b = MessageBuilder::new().subject(t.subject.clone()).message_id(format!("winmail.{seed:016x}@mailcraft.invalid")).date(t.date.max(0));
     if !t.from_email.is_empty() {
         b = b.from((t.from_name.clone(), t.from_email.clone()));
-    }
-    if t.date > 0 {
-        b = b.date(t.date);
     }
     let body = match &t.body {
         TnefBody::Html(h) => MimePart::new(ContentType::new("text/html").attribute("charset", "utf-8"), h.clone()),
@@ -325,7 +327,11 @@ fn to_eml(t: &Tnef) -> Option<Vec<u8>> {
         };
         parts.push(part);
     }
-    b = if parts.len() == 1 { b.body(parts.remove(0)) } else { b.body(MimePart::new(ContentType::new("multipart/mixed"), parts)) };
+    b = if parts.len() == 1 {
+        b.body(parts.remove(0))
+    } else {
+        b.body(MimePart::new(ContentType::new("multipart/mixed").attribute("boundary", format!("=_mcw{seed:016x}")), parts))
+    };
     b.write_to_vec().ok()
 }
 
