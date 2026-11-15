@@ -4,6 +4,7 @@ use super::*;
 
 pub(super) mod compacting;
 mod forms;
+mod held_keys;
 pub(super) mod importing;
 mod offers;
 

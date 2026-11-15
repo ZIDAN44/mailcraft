@@ -415,6 +415,9 @@ fn a_certificate_on_a_smart_card_becomes_the_accounts() {
     s.apply(Event::HeldKeys { keys: vec![card.clone()], error: None });
     assert_eq!((s.card_search().searching, s.card_search().keys.len()), (false, 1));
     assert_eq!(s.card_search().modules, ["/usr/lib/opensc-pkcs11.so"], "kept across searches");
+    // Its certificate read once, as it came, for the dialog to show whose it is.
+    assert_eq!(s.card_search().info(0).map(|i| i.emails.clone()), Some(vec!["riley@studio.example".to_string()]));
+    assert!(s.card_search().info(1).is_none());
     s.run("security.useKey", &json!({"index": 0})).unwrap();
     let job = s.take_jobs().into_iter().find(|j| matches!(j, Job::UseHeldKey { .. })).unwrap();
     assert!(matches!(&job, Job::UseHeldKey { at, cert, pin: Some(p), .. } if *at == card.at && *cert == card.cert && p.0 == "123456"));
@@ -426,6 +429,7 @@ fn a_certificate_on_a_smart_card_becomes_the_accounts() {
     assert!(s.take_jobs().iter().any(|j| matches!(j, Job::FindHeldKeys { module: None, pin: None })));
     s.apply(Event::HeldKeys { keys: Vec::new(), error: None });
     assert!(s.card_search().error.is_some());
+    assert!(s.card_search().info(0).is_none(), "the last search's certificates are gone");
 }
 
 #[test]

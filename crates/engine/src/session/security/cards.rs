@@ -13,6 +13,9 @@ pub struct CardSearch {
     pub modules: Vec<String>,
     pub searching: bool,
     pub keys: Vec<HeldKey>,
+    /// What each of `keys`' certificates says (`None`: it can't be read), read once as they
+    /// came, not each time they're shown.
+    infos: Vec<Option<smime::cert::CertInfo>>,
     pub error: Option<String>,
     /// The PIN the search logged in with, for the key chosen from it (memory only; its `Debug`
     /// form, as the rest's, never shows it).
@@ -34,6 +37,11 @@ impl CardSearch {
     /// The search logged in to a card with a PIN.
     pub fn pin_given(&self) -> bool {
         self.pin.is_some()
+    }
+
+    /// What the certificate of the key found at `index` says, when it can be read.
+    pub fn info(&self, index: usize) -> Option<&smime::cert::CertInfo> {
+        self.infos.get(index).and_then(Option::as_ref)
     }
 }
 
@@ -63,6 +71,7 @@ impl Session {
     pub(super) fn heard_held_keys(&mut self, keys: Vec<HeldKey>, error: Option<String>) {
         self.cards.searching = false;
         self.cards.error = error.or_else(|| keys.is_empty().then(|| "no certificate with its key was found".to_string()));
+        self.cards.infos = keys.iter().map(|k| smime::cert::info(&k.cert).ok()).collect();
         self.cards.keys = keys;
     }
 }

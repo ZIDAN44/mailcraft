@@ -288,11 +288,10 @@ fn held_keys(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, accou
     for (i, k) in search.keys.iter().enumerate() {
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            let info = mailcraft_engine::smime::cert::info(&k.cert).ok();
             ui.vertical(|ui| {
                 ui.label(RichText::new(&k.label).color(t.text));
-                if let Some(info) = &info {
-                    let who = info.emails.first().cloned().unwrap_or_else(|| info.name.clone());
+                if let Some(info) = search.info(i) {
+                    let who = info.emails.first().unwrap_or(&info.name);
                     ui.label(RichText::new(format!("{who} · {} · {}", info.issuer, info.key)).color(t.faint).small());
                 }
             });
