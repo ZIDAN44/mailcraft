@@ -247,7 +247,7 @@ pub(crate) fn classify(query: &Query, m: &Summary, st: &SummaryText, awaiting: b
     let doc = index.and_then(|ix| ix.doc(m));
     // Files as the index read them: pictures the text shows aren't counted (`has:attachment`).
     // One it couldn't read is the summary's to say, as for the Has files filter.
-    let files = known.and_then(|k| k.files).or_else(|| doc.and_then(|(_, i)| i.files_known()));
+    let files = known.and_then(|k| k.files).or_else(|| doc.and_then(|(_, i)| i.files_known));
     let eval = |text: &dyn TextSource| query.eval(&Doc { summary: m, summary_text: st, awaiting, files, text });
     let settled = |t: Tri| match t {
         Tri::Yes => Verdict::Yes,
@@ -440,7 +440,7 @@ impl Verifying {
     fn answers(&self) -> Answers {
         let truncated = self.info.truncated;
         let atoms = self.atoms.iter().zip(&self.found).map(|(a, f)| (a.clone(), indexed(*f, truncated))).collect();
-        Answers { atoms, files: self.info.files_known(), truncated }
+        Answers { atoms, files: self.info.files_known, truncated }
     }
 }
 

@@ -49,19 +49,11 @@ pub struct DocInfo {
     pub no_source: bool,
     pub msgid_hash: u64,
     pub size: u32,
-}
-
-impl DocInfo {
     /// Whether the message carries files, as far as the index knows: `None` when its source
     /// isn't kept or it couldn't be read (its summary says, then). `has:attachment` and the
-    /// summaries put right by a pass ([`Pass::take_files`]) read it alike.
-    pub fn files_known(&self) -> Option<bool> {
-        let bits = if self.has_text { HAS_TEXT } else { 0 }
-            | if self.truncated { TRUNCATED } else { 0 }
-            | if self.no_source { NO_SOURCE } else { 0 }
-            | if self.parts_cut { 0 } else { WHOLE };
-        files_known(self.files, bits)
-    }
+    /// summaries put right by a pass ([`Pass::take_files`]) read it alike, from its doc's flags
+    /// ([`files_known`]).
+    pub files_known: Option<bool>,
 }
 
 /// Where a [`Reader::scan_prefix`] got to.
@@ -383,6 +375,7 @@ impl Reader {
             no_source: d.bits & NO_SOURCE != 0,
             msgid_hash: d.msgid_hash,
             size: d.size,
+            files_known: d.files_known(),
         })
     }
 

@@ -339,7 +339,10 @@ fn a_message_with_no_source_is_known_as_such() {
     drop(w);
     let mut r = Reader::open(&s, "a1").unwrap().unwrap();
     assert_eq!(r.doc(&mk("INBOX", 1)), Some(d));
-    assert_eq!(r.info(d), Some(DocInfo { files: 0, has_text: false, truncated: false, parts_cut: false, no_source: true, msgid_hash: 9, size: 99 }));
+    assert_eq!(
+        r.info(d),
+        Some(DocInfo { files: 0, has_text: false, truncated: false, parts_cut: false, no_source: true, msgid_hash: 9, size: 99, files_known: None })
+    );
     assert_eq!(r.text(&s, d).unwrap(), None);
     assert!(found(&mut r, &s, Field::Body, "").is_empty());
 }
@@ -668,8 +671,8 @@ fn a_doc_cut_in_its_parts_leaves_the_paperclip() {
 
     let r = Reader::open(&s, "a1").unwrap().unwrap();
     let info = |uid| r.doc(&mk("INBOX", uid)).and_then(|d| r.info(d)).unwrap();
-    assert_eq!((info(2).parts_cut, info(2).files_known()), (true, None));
-    assert_eq!((info(1).parts_cut, info(1).files_known()), (false, Some(false)));
+    assert_eq!((info(2).parts_cut, info(2).files_known), (true, None));
+    assert_eq!((info(1).parts_cut, info(1).files_known), (false, Some(false)));
     // The list changed (a message marked read): the plan reads the docs, and finds only 1.
     let w = Writer::open(&s, "a1").unwrap();
     let mut st = s.load_folder("a1", "INBOX").unwrap();
@@ -684,4 +687,45 @@ fn a_doc_cut_in_its_parts_leaves_the_paperclip() {
     assert_eq!(files_known(1, TRUNCATED), Some(true));
     assert_eq!(files_known(0, HAS_TEXT | TRUNCATED | WHOLE), Some(false));
     assert_eq!(files_known(1, WHOLE | NO_SOURCE), None);
+}
+
+/// What the reader says of a doc's files is what its doc's flags say, as the writer reads them,
+/// for every way a doc is added, and for docs written before [`WHOLE`] came.
+#[test]
+fn the_reader_knows_files_as_the_doc_table_says() {
+    let s = Store::memory();
+    let mut w = Writer::open(&s, "a1").unwrap();
+    for bits in 0..16u32 {
+        let doc = IndexDoc {
+            has_text: bits & 1 != 0,
+            truncated: bits & 2 != 0,
+            parts_cut: bits & 4 != 0,
+            files: bits >> 3,
+            ..text(if bits & 1 != 0 { "hello" } else { "" }, &[], 0)
+        };
+        w.add(&mk("INBOX", bits + 1), 1, 1, &doc).unwrap();
+    }
+    w.add_no_source(&mk("INBOX", 100), 1, 1).unwrap();
+    w.flush(&s).unwrap();
+    let agree = |s: &Store, w: &Writer| {
+        let r = Reader::open(s, "a1").unwrap().unwrap();
+        let by = w.docs_by_folder().remove("INBOX").unwrap();
+        let mut seen = BTreeSet::new();
+        for i in by.values() {
+            let info = r.info(i.doc).unwrap();
+            assert_eq!(info.files_known, i.files, "{info:?}");
+            seen.insert(info.files_known);
+        }
+        seen
+    };
+    assert_eq!(agree(&s, &w), BTreeSet::from([None, Some(false), Some(true)]));
+    // As written before WHOLE: the flag cleared in every doc, read again by both.
+    drop(w);
+    let meta = load_meta(&s, "a1").unwrap().unwrap();
+    let path = Name::Docs { generation: meta.doc_pages[0], page: 0 }.path(&dir(&s, "a1"));
+    let mut recs = decode_docs(&s.files.read(&path).unwrap(), meta.next_doc as usize, meta.folders.len(), meta.text_pages.len()).unwrap();
+    recs.iter_mut().for_each(|d| d.bits &= !WHOLE);
+    s.files.write(&path, &encode_docs(&recs)).unwrap();
+    let w = Writer::open(&s, "a1").unwrap();
+    assert_eq!(agree(&s, &w), BTreeSet::from([None, Some(false), Some(true)]));
 }

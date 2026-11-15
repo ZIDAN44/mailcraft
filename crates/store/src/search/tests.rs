@@ -96,7 +96,16 @@ fn an_index_reads_back_on_every_layout() {
         assert_eq!(r.key(moved), Some(mk("Archive", 3)));
         assert_eq!(
             r.info(resume),
-            Some(DocInfo { files: 1, has_text: true, truncated: false, parts_cut: false, no_source: false, msgid_hash: 11, size: 900 })
+            Some(DocInfo {
+                files: 1,
+                has_text: true,
+                truncated: false,
+                parts_cut: false,
+                no_source: false,
+                msgid_hash: 11,
+                size: 900,
+                files_known: Some(true)
+            })
         );
         let blob = r.text(&s, resume).unwrap().unwrap();
         assert_eq!((blob.text.as_str(), blob.names), ("Your Résumé, from Ana <ana@studio.example>", vec!["Q3 Plan.pdf".to_string()]));
