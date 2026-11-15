@@ -171,10 +171,7 @@ fn details_ui(ui: &mut Ui, s: &Session, t: &Tokens, account: &str, st: &ImportSt
         let words = tf!("Not brought in so far: {n}", n = p.skipped);
         let shown = ui.add(egui::Label::new(RichText::new(words).color(t.dim).small()).wrap());
         if !why.is_empty() {
-            shown.on_hover_text(why.join(
-                "
-",
-            ));
+            shown.on_hover_text(why.join("\n"));
         }
     }
     if let Some(b) = &p.blocked {
