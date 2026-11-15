@@ -452,8 +452,14 @@ impl Store {
     fn on_folders(root: PathBuf, alone: bool) -> Result<Store> {
         private_dir(&root)?;
         let folders = leases::folder_layout(&root, alone)?;
-        Ok(Store {
-            files: Routed::new(&root, Files::Disk),
+        Ok(Store::with(root, Files::Disk, folders))
+    }
+
+    /// A cache at `root` whose files are `files`, holding the folder layout's lease `folders`
+    /// (when it has one): what every way of opening one shares.
+    fn with(root: PathBuf, files: Files, folders: Option<Arc<leases::Lease>>) -> Store {
+        Store {
+            files: Routed::new(&root, files),
             root,
             changes: Arc::default(),
             reads: Arc::default(),
@@ -461,7 +467,7 @@ impl Store {
             removals: Arc::default(),
             marking: Arc::default(),
             _folders: folders,
-        })
+        }
     }
 
     /// A cache whose accounts are each one data file in `files` (as Outlook keeps a `.pst` per
@@ -472,16 +478,7 @@ impl Store {
         let root = root.into();
         private_dir(&root)?;
         let packs = packed::Packs::open(&root, files.as_ref())?;
-        Ok(Store {
-            files: Routed::new(&root, Files::Packed(Arc::new(packs))),
-            root,
-            changes: Arc::default(),
-            reads: Arc::default(),
-            search_writers: Arc::default(),
-            removals: Arc::default(),
-            marking: Arc::default(),
-            _folders: None,
-        })
+        Ok(Store::with(root, Files::Packed(Arc::new(packs)), None))
     }
 
     /// [`Store::open_packed`]'s cache with nothing opened yet: no data file, and no folder from
@@ -492,49 +489,20 @@ impl Store {
         let root = root.into();
         private_dir(&root)?;
         let packs = packed::Packs::new(&root, files.as_ref())?;
-        Ok(Store {
-            files: Routed::new(&root, Files::Packed(Arc::new(packs))),
-            root,
-            changes: Arc::default(),
-            reads: Arc::default(),
-            search_writers: Arc::default(),
-            removals: Arc::default(),
-            marking: Arc::default(),
-            _folders: None,
-        })
+        Ok(Store::with(root, Files::Packed(Arc::new(packs)), None))
     }
 
     /// A cache kept in memory only (clones share it).
     pub fn memory() -> Store {
-        let root = PathBuf::from("memory");
-        Store {
-            files: Routed::new(&root, Files::Memory(Arc::default(), Arc::default())),
-            root,
-            changes: Arc::default(),
-            reads: Arc::default(),
-            search_writers: Arc::default(),
-            removals: Arc::default(),
-            marking: Arc::default(),
-            _folders: None,
-        }
+        Store::with(PathBuf::from("memory"), Files::Memory(Arc::default(), Arc::default()), None)
     }
 
     /// A memory cache whose files can be made to fail ([`Store::fail`]), for tests of what a
     /// store error loses.
     #[doc(hidden)]
     pub fn failing() -> Store {
-        let root = PathBuf::from("memory");
         let faults = files::Faults { files: Files::Memory(Arc::default(), Arc::default()), reads: Mutex::default(), writes: Mutex::default() };
-        Store {
-            files: Routed::new(&root, Files::Failing(Arc::new(faults))),
-            root,
-            changes: Arc::default(),
-            reads: Arc::default(),
-            search_writers: Arc::default(),
-            removals: Arc::default(),
-            marking: Arc::default(),
-            _folders: None,
-        }
+        Store::with(PathBuf::from("memory"), Files::Failing(Arc::new(faults)), None)
     }
 
     /// From now on, a [`Store::failing`] cache fails to read the files whose path ends with
