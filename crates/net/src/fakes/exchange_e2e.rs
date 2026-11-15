@@ -83,7 +83,7 @@ pub(super) fn an_exchange_account_end_to_end<S: Exchange>(
     let second = server.deliver(&inbox, &mail("Sound mix", "m2"), false, "2024-05-06T10:00:00Z");
     server.deliver(&projects, &mail("Plan", "m3"), true, "2024-05-01T10:00:00Z");
 
-    let store = crate::fakes::fake::tests_store(name);
+    let store = crate::fakes::fake::store(name);
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     assert!(!account.is_local() && account.is_api());
 
@@ -224,7 +224,7 @@ pub(super) fn one_unreadable_message_holds_up_nothing(name: &str, server: &impl 
     let bad = server.deliver(&inbox, &mail("two"), false, "2026-10-01T10:00:00Z");
     server.deliver(&inbox, &mail("three"), false, "2026-10-01T11:00:00Z");
     server.unreadable(&bad);
-    let store = crate::fakes::fake::tests_store(name);
+    let store = crate::fakes::fake::store(name);
     sync(&store);
     let fs = store.load_folder("a1", "INBOX").unwrap();
     assert_eq!(fs.messages.len(), 3);

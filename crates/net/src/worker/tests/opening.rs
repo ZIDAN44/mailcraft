@@ -66,7 +66,7 @@ fn a_message_opened_on_an_imap_server_comes_each_way() {
     st.lock().unwrap().add("INBOX", "hello", &[]);
     let raw = st.lock().unwrap().boxes[0].msgs[0].raw.clone();
     let port = crate::fake::serve_tcp(&st);
-    let store = crate::fake::tests_store("opening-imap");
+    let store = crate::fake::store("opening-imap");
     crate::fakes::fake_dav::looked_for_today(&store, "i1");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
@@ -83,7 +83,7 @@ fn a_message_opened_on_a_jmap_server_comes_each_way() {
     let raw = mail("jmap");
     d.deliver(&inbox, &raw, &[], "2024-05-06T09:00:00Z");
     let server = serve(d);
-    let store = crate::fake::tests_store("opening-jmap");
+    let store = crate::fake::store("opening-jmap");
     crate::fakes::fake_dav::looked_for_today(&store, "j1");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
@@ -100,7 +100,7 @@ fn a_message_opened_on_microsoft_graph_comes_each_way() {
     let raw = mail("graph");
     d.deliver(&inbox, &raw, false, "2024-05-06T09:00:00Z");
     let server = serve(d);
-    let store = crate::fake::tests_store("opening-graph");
+    let store = crate::fake::store("opening-graph");
     crate::fakes::fake_dav::looked_for_today(&store, "g1");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
@@ -117,7 +117,7 @@ fn a_message_opened_on_exchange_comes_each_way() {
     let raw = mail("ews");
     d.deliver(&inbox, &raw, false, "2024-05-06T09:00:00Z");
     let server = serve(d);
-    let store = crate::fake::tests_store("opening-ews");
+    let store = crate::fake::store("opening-ews");
     crate::fakes::fake_dav::looked_for_today(&store, "e1");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
@@ -137,7 +137,7 @@ fn a_message_opened_on_exchange_comes_each_way() {
 #[test]
 fn a_pop_message_not_here_is_said_to_be_nowhere() {
     let server = crate::pop::fake::serve(Vec::new());
-    let store = crate::fake::tests_store("opening-pop");
+    let store = crate::fake::store("opening-pop");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let acc = pop_account(server.port);
     let key = MessageKey { account: "p1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };

@@ -229,7 +229,7 @@ fn folder_edits_queued_together_each_find_their_folder() {
     d.deliver(&inbox, &mail("Storyboard", "m1"), false, "2024-05-06T09:00:00Z");
     let server = serve(d);
     let data = server.data.clone();
-    let store = crate::fake::tests_store("ews-folder-burst");
+    let store = crate::fake::store("ews-folder-burst");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     let account = ews_account(&server.url);
     pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });

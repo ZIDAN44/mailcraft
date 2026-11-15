@@ -80,7 +80,7 @@ fn a_search_or_a_download_writes_nothing_for_an_account_removed_meanwhile() {
     }
     let server = serve(d);
     let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
-    let store = crate::fake::tests_store("graph-removed");
+    let store = crate::fake::store("graph-removed");
     let mut st = crate::jmap::State::default();
     crate::graph::list_folders(&c, &mut st, "a1").unwrap();
     crate::graph::sync_folder(&c, &mut st, &store, "a1", "INBOX", &crate::sync::SyncOptions { window: 2, prefetch: 0, ..Default::default() })
@@ -224,7 +224,7 @@ fn exchange_calendars_and_contacts_sync_both_ways() {
 #[test]
 fn a_microsoft_account_without_a_mailbox_says_so_and_stops() {
     let server = serve(Data { no_mailbox: true, ..Default::default() });
-    let store = crate::fake::tests_store("graph-nomailbox");
+    let store = crate::fake::store("graph-nomailbox");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig { id: "a1".into(), email: "me@gmail.example".into(), graph: Some(server.base.clone()), ..Default::default() };
     pool.submit(Job::Start { account, password: Some(Secret(TOKEN.into())) });
@@ -254,7 +254,7 @@ fn graph_batched_details_keep_stable_ids_and_retry_when_busy() {
         d.deliver(&inbox, raw.as_bytes(), true, &format!("2024-05-{:02}T09:00:00Z", n % 28 + 1));
     }
     let server = serve(d);
-    let store = crate::fake::tests_store("graph-batches");
+    let store = crate::fake::store("graph-batches");
     let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
     let mut st = crate::jmap::State::default();
     crate::graph::list_folders(&c, &mut st, "a1").unwrap();
@@ -290,7 +290,7 @@ fn a_sent_message_shows_in_sent_items_soon_after() {
     d.folder("Inbox", None, Some("inbox"));
     d.folder("Sent Items", None, Some("sentitems"));
     let server = serve(d);
-    let store = crate::fake::tests_store("graph-sentsoon");
+    let store = crate::fake::store("graph-sentsoon");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig { id: "a1".into(), email: "me@contoso.example".into(), graph: Some(server.base.clone()), ..Default::default() };
     pool.submit(Job::Start { account, password: Some(Secret(TOKEN.into())) });
@@ -400,7 +400,7 @@ fn a_message_with_files_comes_as_its_text_first() {
     );
     d.deliver(&inbox, raw.as_bytes(), false, "2024-05-06T10:00:00Z");
     let server = serve(d);
-    let store = crate::fake::tests_store("graph-text-first");
+    let store = crate::fake::store("graph-text-first");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig { id: "a1".into(), email: "me@contoso.example".into(), graph: Some(server.base.clone()), ..Default::default() };
     pool.submit(Job::Start { account, password: Some(Secret(TOKEN.into())) });

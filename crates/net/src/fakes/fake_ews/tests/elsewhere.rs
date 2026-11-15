@@ -35,7 +35,7 @@ fn requests_go_where_their_folder_is_and_nowhere_else() {
     d.deliver(&sales, &order, false, "2026-10-19T10:00:00Z");
     let server = serve(d);
     let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
-    let store = crate::fake::tests_store("ews-elsewhere");
+    let store = crate::fake::store("ews-elsewhere");
     let mut st = crate::jmap::State::default();
     // Listed again, the folders the mailbox hasn't (an Archive) are asked for once, as the
     // first time, when there were no shared mailboxes or public folders known to ask.

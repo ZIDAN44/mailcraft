@@ -27,7 +27,7 @@ fn renewing(id: &str, answers: &[(&str, &str)]) -> Renewing {
     let inbox = d.folder("Inbox", None, Some("inbox"));
     d.deliver(&inbox, &mail("Before", "m1"), true, "2024-05-06T09:00:00Z");
     let server = serve(d);
-    let store = crate::fake::tests_store(id);
+    let store = crate::fake::store(id);
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
     let account = AccountConfig {
         id: "a1".into(),

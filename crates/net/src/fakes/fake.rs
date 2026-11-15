@@ -13,7 +13,7 @@ use search::{in_set, search_matches, search_tokens};
 use serving::login;
 pub use serving::serve_tcp;
 use serving::serve_tcp_on;
-pub(crate) use serving::{search_the_server_past_the_window, store, tests_store};
+pub(crate) use serving::{search_the_server_past_the_window, store};
 
 pub struct Msg {
     pub uid: u32,

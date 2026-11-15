@@ -92,7 +92,7 @@ fn a_mailbox_microsoft_wont_open_says_why() {
     let st = crate::fake::State::new();
     st.lock().unwrap().not_connected.push("zoe@hotmail.example".into());
     let port = crate::fake::serve_tcp(&st);
-    let store = crate::fake::tests_store("closed-mailbox");
+    let store = crate::fake::store("closed-mailbox");
     let pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let mut acc = AccountConfig {
         id: "a1".into(),
@@ -118,7 +118,7 @@ fn a_mailbox_microsoft_wont_open_says_why() {
     let w = Worker::new(
         AccountConfig { oauth_user: None, ..w.acc.clone() },
         Auth::shared("refresh"),
-        crate::fake::tests_store("closed-mailbox-2"),
+        crate::fake::store("closed-mailbox-2"),
         pool.sink.clone(),
         SyncOptions::default(),
     );
@@ -281,7 +281,7 @@ fn synced_mail_is_indexed_and_found() {
         s.add("INBOX", "second", &["\\Seen"]);
     }
     let port = crate::fake::serve_tcp(&st);
-    let store = crate::fake::tests_store("indexed");
+    let store = crate::fake::store("indexed");
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let account = imap_account("a1", port);

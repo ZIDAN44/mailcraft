@@ -21,7 +21,7 @@ fn inbox_of(n: u32) -> Server {
 /// and the requests it made.
 fn sync_then_again(server: &Server, n: u32, name: &str, quiet: usize) -> (Duration, Duration, crate::sync::SyncReport, Vec<String>, Store) {
     let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
-    let store = crate::fake::tests_store(name);
+    let store = crate::fake::store(name);
     let mut st = crate::jmap::State::default();
     crate::graph::list_folders(&c, &mut st, "a1").unwrap();
     let opts = crate::sync::SyncOptions { window: n as usize, prefetch: 0, ..Default::default() };

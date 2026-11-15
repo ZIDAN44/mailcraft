@@ -121,7 +121,7 @@ fn an_old_list_that_cant_be_removed_is_moved_once() {
 /// removed; but not while a damaged list is set aside, whose draft it may be.
 #[test]
 fn a_source_no_draft_names_is_removed_unless_a_damaged_list_may() {
-    let store = crate::fake::tests_store("kept-sweep");
+    let store = crate::fake::store("kept-sweep");
     for n in 1..=2 {
         keep_draft(&store, "a1", "Drafts", None, text(n).into_bytes(), false, &Order::default()).unwrap();
     }

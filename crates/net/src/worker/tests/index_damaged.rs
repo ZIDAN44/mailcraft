@@ -35,7 +35,7 @@ fn sorted(mut uids: Vec<u32>) -> Vec<u32> {
 /// out of search till the next ask for every folder. It's made again over every folder.
 #[test]
 fn an_index_found_damaged_as_a_pass_begins_is_made_again_over_every_folder() {
-    let s = crate::fake::tests_store("index-damaged-begins");
+    let s = crate::fake::store("index-damaged-begins");
     two_folders(&s);
     let mut pool = Pool::new(s.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Index { account: "a1".into(), folders: Vec::new() });

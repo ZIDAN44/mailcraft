@@ -8,7 +8,7 @@ use crate::fakes::proxy::{Cut, Proxy};
 /// (found in review: the queue was dropped, and the message stayed held, unseen, all session).
 #[test]
 fn a_worker_stopped_keeps_the_drafts_it_had_still_to_save() {
-    let store = crate::fake::tests_store("stopped-drafts");
+    let store = crate::fake::store("stopped-drafts");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let acc = AccountConfig { id: "a1".into(), ..Default::default() };
     let w = Worker::new(acc, Auth::shared("pw"), store.clone(), pool.sink.clone(), SyncOptions::default());
@@ -33,7 +33,7 @@ fn a_worker_stopped_keeps_the_drafts_it_had_still_to_save() {
 /// same name later had it. A draft of an account removed since its worker started isn't kept.
 #[test]
 fn a_removed_accounts_drafts_are_not_kept_again() {
-    let store = crate::fake::tests_store("removed-drafts");
+    let store = crate::fake::store("removed-drafts");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let acc = AccountConfig { id: "a1".into(), ..Default::default() };
     let w = Worker::new(acc, Auth::shared("pw"), store.clone(), pool.sink.clone(), SyncOptions::default());
@@ -71,7 +71,7 @@ fn silent_server() -> u16 {
 fn a_restart_keeps_the_drafts_on_their_way_first() {
     // The worker waits on a server that never answers.
     let port = silent_server();
-    let store = crate::fake::tests_store("restart-drafts");
+    let store = crate::fake::store("restart-drafts");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let account = imap_account("a1", port);
     pool.submit(Job::Start { account: account.clone(), password: Some(Secret("pw".into())) });
@@ -94,7 +94,7 @@ fn a_restart_keeps_the_drafts_on_their_way_first() {
 fn what_was_written_after_a_save_is_kept_on_close() {
     // The save stays on its way to a server that never answers.
     let port = silent_server();
-    let store = crate::fake::tests_store("written-after-save");
+    let store = crate::fake::store("written-after-save");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let account = imap_account("a1", port);
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
@@ -126,7 +126,7 @@ pub(super) fn with_drafts(name: &str) -> (Arc<Mutex<crate::fake::State>>, Store,
     });
     let port = crate::fake::serve_tcp(&st);
     let account = imap_account("a1", port);
-    let store = crate::fake::tests_store(name);
+    let store = crate::fake::store(name);
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     (st, store, account)
 }
@@ -200,7 +200,7 @@ fn closed_with(store: &Store, raw: &[u8]) {
 /// kept and dropped: what was written that run was lost. A later run's save is newer.
 #[test]
 fn the_next_runs_save_offline_replaces_the_draft_kept_on_close() {
-    let store = crate::fake::tests_store("next-run-offline");
+    let store = crate::fake::store("next-run-offline");
     closed_with(&store, b"Subject: Plans\r\nMessage-ID: <x@studio.example>\r\n\r\nkept on close\r\n");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let newer = b"Subject: Plans\r\nMessage-ID: <x@studio.example>\r\n\r\nwritten the next day\r\n".to_vec();
@@ -214,7 +214,7 @@ fn the_next_runs_save_offline_replaces_the_draft_kept_on_close() {
 /// over the draft kept as MailCraft closed the run before.
 #[test]
 fn the_next_runs_failed_save_replaces_the_draft_kept_on_close() {
-    let store = crate::fake::tests_store("next-run-failed");
+    let store = crate::fake::store("next-run-failed");
     closed_with(&store, b"Subject: Plans\r\nMessage-ID: <y@studio.example>\r\n\r\nkept on close\r\n");
     // Nothing listening there.
     let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
@@ -302,7 +302,7 @@ fn a_save_filed_after_work_offline_says_nothing_of_the_account() {
 /// save made after it is newer, and replaces it.
 #[test]
 fn a_save_made_after_a_draft_is_kept_replaces_it() {
-    let store = crate::fake::tests_store("saved-after-kept");
+    let store = crate::fake::store("saved-after-kept");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let kept = b"Subject: Plans\r\nMessage-ID: <z@studio.example>\r\n\r\nkept\r\n".to_vec();
     pool.submit(Job::KeepDraft { account: "a1".into(), raw: kept, folder: "Drafts".into(), replaces: None });

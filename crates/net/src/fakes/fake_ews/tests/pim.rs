@@ -289,7 +289,7 @@ fn public_folders_list_under_their_own_folder_and_sync() {
     assert_eq!((pf.parent.as_deref(), team_box.parent.as_deref()), (None, Some(pf.id.as_str())));
     assert_eq!(boxes.iter().find(|m| m.name == "Announcements").unwrap().parent.as_deref(), Some(team_box.id.as_str()));
     // Their mail syncs as any folder's.
-    let store = crate::fake::tests_store("public-folders");
+    let store = crate::fake::store("public-folders");
     let mut st = crate::jmap::State::default();
     let folders = crate::ews::list_folders(&c, &mut st, "a1").unwrap();
     let news_path = folders.iter().find(|f| f.path.ends_with("Announcements")).map(|f| f.path.clone()).unwrap();
@@ -436,7 +436,7 @@ fn shared_mailboxes_open_by_themselves_or_by_hand() {
         ],
     );
     // Their mail syncs as any folder's.
-    let store = crate::fake::tests_store("shared-mailboxes");
+    let store = crate::fake::store("shared-mailboxes");
     let r = crate::ews::sync_folder(&c, &mut st, &store, "a1", &format!("{sales_top}/Inbox"), &crate::sync::SyncOptions::default()).unwrap();
     assert_eq!(r.new, 1);
     assert_eq!(store.load_folder("a1", &format!("{sales_top}/Inbox")).unwrap().messages[0].subject, "Order 17");

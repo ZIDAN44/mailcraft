@@ -42,11 +42,8 @@ pub(crate) fn serve_tcp_on(listener: std::net::TcpListener, st: &Arc<Mutex<State
     });
 }
 
-/// A store in a temporary folder of its own, for other fakes' tests.
-pub(crate) fn tests_store(name: &str) -> Store {
-    store(name)
-}
-
+/// A store in a temporary folder of its own (emptied first), for the tests of every fake and of
+/// the worker.
 pub(crate) fn store(name: &str) -> Store {
     let dir = std::env::temp_dir().join(format!("mailcraft-fake-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);

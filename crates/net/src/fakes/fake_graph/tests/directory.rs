@@ -61,7 +61,7 @@ fn exchange_online_searches_with_a_token_of_its_own() {
     d.deliver(&inbox, &mail("Hello", "m1"), true, "2024-05-06T09:00:00Z");
     people(&mut d);
     let server = serve(d);
-    let store = crate::fake::tests_store("graph-directory");
+    let store = crate::fake::store("graph-directory");
     let creds = Arc::new(crate::worker::MemoryCredentials::default());
     let mut pool = crate::worker::Pool::new(store.clone(), creds.clone());
     let account = AccountConfig {
@@ -126,7 +126,7 @@ fn the_directory_is_allowed_in_a_sign_in_of_its_own() {
     let mut p = crate::oauth::tests::local(&format!("{oauth_base}/token"));
     p.id = "test-graph-allow".into();
     crate::oauth::TEST_PROVIDERS.lock().unwrap().push(p);
-    let store = crate::fake::tests_store("graph-allow");
+    let store = crate::fake::store("graph-allow");
     let creds = Arc::new(crate::worker::MemoryCredentials::default());
     let mut pool = crate::worker::Pool::new(store.clone(), creds.clone());
     let account = AccountConfig {

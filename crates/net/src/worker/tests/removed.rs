@@ -18,7 +18,7 @@ fn a_folder_synced_as_its_account_is_removed_writes_nothing() {
         s.hold_on = Some(hold);
     }
     let port = crate::fake::serve_tcp(&st);
-    let store = crate::fake::tests_store("removed-mid-sync");
+    let store = crate::fake::store("removed-mid-sync");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let acc = imap_account("a1", port);
     let w = Worker::new(acc, Auth::shared("pw"), store.clone(), pool.sink.clone(), SyncOptions::default());
@@ -88,7 +88,7 @@ fn a_graph_folder_synced_as_its_account_is_removed_writes_nothing() {
 /// An account (`j1`) removed while its worker syncs the Inbox, its listing held by `hold`: nothing
 /// of it is on disk after.
 fn removed_mid_sync(name: &str, acc: AccountConfig, secret: &str, hold: &Hang) {
-    let store = crate::fake::tests_store(name);
+    let store = crate::fake::store(name);
     let pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let w = Worker::new(acc, Auth::shared(secret), store.clone(), pool.sink.clone(), SyncOptions::default());
     let (tx, rx) = mpsc::channel();
