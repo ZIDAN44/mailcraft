@@ -244,6 +244,42 @@ pub(crate) const SYSTEM_BAR: egui::Vec2 = egui::vec2(48.0, 48.0);
 /// The smallest a window is made to fit its monitor (the main window's minimum size).
 pub(crate) const FIT_MIN: egui::Vec2 = egui::vec2(760.0, 480.0);
 
+/// The monitors as the system lists them, in physical pixels: every one, and the primary one
+/// where the system says which (not on Wayland, nor in the browser).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Monitors {
+    pub all: Vec<egui::Rect>,
+    pub primary: Option<egui::Rect>,
+}
+
+fn monitors_id() -> egui::Id {
+    egui::Id::unique("system-monitors")
+}
+
+/// Tell every window where the monitors are (the app asks the system every so often), for a
+/// window opening where none is any more ([`WindowPlace::rescue`]).
+pub fn set_monitors(ctx: &egui::Context, monitors: Option<Monitors>) {
+    ctx.data_mut(|d| d.insert_temp(monitors_id(), monitors.map(std::sync::Arc::new)));
+}
+
+/// What [`set_monitors`] said last.
+fn monitors(ctx: &egui::Context) -> Option<std::sync::Arc<Monitors>> {
+    ctx.data(|d| d.get_temp::<Option<std::sync::Arc<Monitors>>>(monitors_id())).flatten()
+}
+
+/// How much of a window's top edge must be on one monitor for the pointer to drag it back.
+const GRIP: egui::Vec2 = egui::vec2(96.0, 16.0);
+
+/// Whether a [`GRIP`] of `window`'s top edge is on one of `monitors` (all in one unit).
+pub(crate) fn reachable(window: egui::Rect, monitors: &[egui::Rect]) -> bool {
+    let top = egui::Rect::from_min_size(window.min, egui::vec2(window.width(), window.height().min(GRIP.y)));
+    let need = GRIP.min(top.size());
+    monitors.iter().any(|m| {
+        let on = top.intersect(*m);
+        on.is_positive() && on.width() >= need.x && on.height() >= need.y
+    })
+}
+
 /// Light or dark as chosen in MailCraft (none: as the system is), for the title bars the system
 /// draws on its windows: they followed the system alone, a dark bar on a light MailCraft (issue
 /// #74). Said once a frame by the main window; each window tells the system when it changes.
@@ -298,20 +334,31 @@ impl WindowPlace {
     }
 
     /// Where to move a restored window, once its monitor is known (the other Craft apps' fix): a
-    /// window whose monitor differs from the one it was saved on (an external monitor unplugged)
-    /// may sit where no monitor is any more, so it's centred on the primary one, whose top-left
-    /// corner is the origin. A maximized window fills whichever monitor the system picks.
-    pub fn rescue(self, info: &egui::ViewportInfo) -> Option<egui::Pos2> {
+    /// window whose monitor differs from the one it was saved on (an external monitor unplugged),
+    /// or that the system's `monitors` say no monitor holds enough of to be dragged by, is
+    /// centred on the primary monitor (whose top-left corner is the origin where the system
+    /// doesn't say where it is). Sizes alone can't tell: a monitor unplugged can leave one of
+    /// the same size (WordCraft found). A maximized window fills whichever monitor the system
+    /// picks.
+    pub fn rescue(self, info: &egui::ViewportInfo, monitors: Option<&Monitors>) -> Option<egui::Pos2> {
         if self.maximized {
             return None;
         }
-        let saved = egui::Vec2::from(self.monitor?);
         let now = monitor_of(info)?;
-        if (now - saved).length() <= 1.0 {
+        let other = self.monitor.is_some_and(|saved| (now - egui::Vec2::from(saved)).length() > 1.0);
+        // In the monitors' physical pixels.
+        let ppp = info.native_pixels_per_point.filter(|p| p.is_finite() && *p > 0.0).unwrap_or(1.0);
+        let lost = match (monitors.filter(|m| !m.all.is_empty()), info.outer_rect.filter(|r| r.is_finite())) {
+            (Some(m), Some(outer)) => !reachable(egui::Rect::from_min_max(outer.min * ppp, outer.max * ppp), &m.all),
+            _ => false,
+        };
+        if !other && !lost {
             return None;
         }
-        let free = now - egui::vec2(self.w, self.h);
-        Some(egui::pos2((free.x / 2.0).max(0.0), (free.y / 2.0).max(0.0)))
+        let primary = monitors.and_then(|m| m.primary).map(|r| egui::Rect::from_min_max(r.min / ppp, r.max / ppp));
+        let area = primary.unwrap_or_else(|| egui::Rect::from_min_size(egui::Pos2::ZERO, now));
+        let free = area.size() - egui::vec2(self.w, self.h);
+        Some(area.min + (free / 2.0).max(egui::Vec2::ZERO))
     }
 
     /// Once the monitor is known, a smaller size and a centred position for a window that doesn't
@@ -378,7 +425,7 @@ pub fn after_open(ui: &Ui, place: Option<WindowPlace>) {
     let pending = match pending {
         Some(p) if known => {
             let restored = place.is_some();
-            if let Some(pos) = p.rescue(&info) {
+            if let Some(pos) = p.rescue(&info, monitors(ctx).as_deref()) {
                 ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
             } else if !p.maximized
                 && let Some((pos, size)) = WindowPlace::fit(&info, restored)

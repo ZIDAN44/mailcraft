@@ -290,11 +290,48 @@ fn a_window_whose_monitor_went_comes_back_on_screen() {
     use crate::WindowPlace;
     let saved = WindowPlace { x: 2100.0, y: 50.0, w: 1200.0, h: 800.0, maximized: false, monitor: Some([1920.0, 1080.0]) };
     let info = |monitor: egui::Vec2| egui::ViewportInfo { monitor_size: Some(monitor), ..Default::default() };
-    assert_eq!(saved.rescue(&info(egui::vec2(1600.0, 900.0))), Some(egui::pos2(200.0, 50.0)));
-    assert_eq!(saved.rescue(&info(egui::vec2(1920.0, 1080.0))), None, "the same monitor");
-    assert_eq!(saved.rescue(&egui::ViewportInfo::default()), None, "not known yet");
-    assert_eq!(WindowPlace { maximized: true, ..saved }.rescue(&info(egui::vec2(1600.0, 900.0))), None);
-    assert_eq!(WindowPlace { monitor: None, ..saved }.rescue(&info(egui::vec2(1600.0, 900.0))), None, "saved before monitors were kept");
+    assert_eq!(saved.rescue(&info(egui::vec2(1600.0, 900.0)), None), Some(egui::pos2(200.0, 50.0)));
+    assert_eq!(saved.rescue(&info(egui::vec2(1920.0, 1080.0)), None), None, "the same monitor");
+    assert_eq!(saved.rescue(&egui::ViewportInfo::default(), None), None, "not known yet");
+    assert_eq!(WindowPlace { maximized: true, ..saved }.rescue(&info(egui::vec2(1600.0, 900.0)), None), None);
+    assert_eq!(WindowPlace { monitor: None, ..saved }.rescue(&info(egui::vec2(1600.0, 900.0)), None), None, "saved before monitors were kept");
+}
+
+/// A window restored where no monitor is any more, though one of the same size took the place of
+/// its own (two alike, one unplugged), comes back on screen: the system's monitors say so, not
+/// their sizes. Centred on the primary monitor, wherever that is; one that can be dragged back by
+/// its top edge stays where it is (WordCraft's fix).
+#[test]
+fn a_window_on_no_monitor_comes_back_though_the_sizes_match() {
+    use crate::{Monitors, WindowPlace};
+    let left = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1920.0, 1080.0));
+    let right = egui::Rect::from_min_size(egui::pos2(1920.0, 0.0), egui::vec2(1920.0, 1080.0));
+    let saved = WindowPlace { x: 2100.0, y: 50.0, w: 1200.0, h: 800.0, maximized: false, monitor: Some([1920.0, 1080.0]) };
+    let at = |x: f32, y: f32| egui::ViewportInfo {
+        monitor_size: Some(egui::vec2(1920.0, 1080.0)),
+        outer_rect: Some(egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(1200.0, 830.0))),
+        native_pixels_per_point: Some(1.0),
+        ..Default::default()
+    };
+    let one = Monitors { all: vec![left], primary: Some(left) };
+    let both = Monitors { all: vec![left, right], primary: Some(left) };
+    assert_eq!(saved.rescue(&at(2100.0, 50.0), Some(&one)), Some(egui::pos2(360.0, 140.0)), "its monitor went");
+    assert_eq!(saved.rescue(&at(2100.0, 50.0), Some(&both)), None, "still there");
+    assert_eq!(saved.rescue(&at(2100.0, 50.0), None), None, "the system lists none: sizes only");
+    assert_eq!(saved.rescue(&at(1920.0 - 96.0, 50.0), Some(&one)), None, "enough of its top edge to drag by");
+    assert_eq!(saved.rescue(&at(1920.0 - 95.0, 50.0), Some(&one)), Some(egui::pos2(360.0, 140.0)));
+    assert_eq!(saved.rescue(&at(100.0, -900.0), Some(&one)), Some(egui::pos2(360.0, 140.0)), "its top edge above every monitor");
+    assert_eq!(WindowPlace { monitor: None, ..saved }.rescue(&at(2100.0, 50.0), Some(&one)), Some(egui::pos2(360.0, 140.0)));
+    assert_eq!(WindowPlace { maximized: true, ..saved }.rescue(&at(2100.0, 50.0), Some(&one)), None);
+    // The primary monitor left of the origin, and at twice the pixels: in points, centred on it.
+    let primary = egui::Rect::from_min_size(egui::pos2(-2560.0, 240.0), egui::vec2(2560.0, 1440.0));
+    let hidpi = egui::ViewportInfo {
+        native_pixels_per_point: Some(2.0),
+        outer_rect: Some(egui::Rect::from_min_size(egui::pos2(5000.0, 50.0), egui::vec2(1200.0, 830.0))),
+        ..at(0.0, 0.0)
+    };
+    let far = Monitors { all: vec![primary], primary: Some(primary) };
+    assert_eq!(saved.rescue(&hidpi, Some(&far)), Some(egui::pos2(-1280.0 + 40.0, 120.0)));
 }
 
 /// A window too big for its screen, frame included, shrinks to fit and is centred; one that fits

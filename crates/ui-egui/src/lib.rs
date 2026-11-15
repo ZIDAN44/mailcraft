@@ -52,7 +52,7 @@ use mailcraft_engine::{CalMode, Module, ReadingPane, SearchScope, Session};
 use serde_json::{Value, json};
 
 pub use app::caption::take_zooming;
-pub use app::{BootCard, ClipboardRead, FramePart, WindowPlace, after_open, alt_code_pages, alt_codes, clipboard_keys};
+pub use app::{BootCard, ClipboardRead, FramePart, Monitors, WindowPlace, after_open, alt_code_pages, alt_codes, clipboard_keys, set_monitors};
 pub(crate) use app::{SearchDrop, junk_menu, scope_label};
 pub use dialogs::{AccountKind, Dialog};
 

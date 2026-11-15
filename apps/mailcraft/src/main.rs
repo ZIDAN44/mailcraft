@@ -191,6 +191,8 @@ struct App {
     updater: Option<self_update::Updater>,
     /// When the settings were last looked at ([`App::keep_state`]).
     looked: std::time::Instant,
+    /// When the system was last asked where the monitors are ([`App::look_at_monitors`]).
+    monitors_looked: Option<std::time::Instant>,
     /// MailCraft's icon in the notification area, while it's kept running there.
     tray: desktop::tray::Tray,
 }
@@ -198,7 +200,26 @@ struct App {
 /// How often changed settings are written while MailCraft runs.
 const KEEP_STATE_EVERY: std::time::Duration = std::time::Duration::from_secs(5);
 
+/// How often the system is asked where the monitors are.
+const MONITORS_EVERY: std::time::Duration = std::time::Duration::from_secs(3);
+
 impl App {
+    /// Tell MailCraft's windows where the monitors are, asking the system every few seconds (a
+    /// monitor plugged in or out shows soon enough): a window restored where none is any more is
+    /// brought back on screen (`WindowPlace::rescue`).
+    fn look_at_monitors(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
+        if self.monitors_looked.is_some_and(|at| at.elapsed() < MONITORS_EVERY) {
+            return;
+        }
+        self.monitors_looked = Some(std::time::Instant::now());
+        let rect = |(x, y): (i32, i32), (w, h): (u32, u32)| egui::Rect::from_min_size(egui::pos2(x as f32, y as f32), egui::vec2(w as f32, h as f32));
+        let monitors = frame.winit_window().map(|w| mailcraft_ui_egui::Monitors {
+            all: w.available_monitors().map(|m| rect((m.position().x, m.position().y), (m.size().width, m.size().height))).collect(),
+            primary: w.primary_monitor().map(|m| rect((m.position().x, m.position().y), (m.size().width, m.size().height))),
+        });
+        mailcraft_ui_egui::set_monitors(ctx, monitors);
+    }
+
     /// Write the settings when they've changed: a reminder dismissed or a sender blocked isn't
     /// lost if MailCraft is ended without closing (a crash, a power cut, a forced quit).
     fn keep_state(&mut self, ctx: Option<&egui::Context>, force: bool) {
@@ -276,6 +297,7 @@ impl App {
         {
             graphics::log_errors(&device);
         }
+        self.look_at_monitors(ui.ctx(), frame);
         self.app.ui(ui);
         self.keep_state(Some(ui.ctx()), false);
         if let Some(path) = self.app.take_drag_out() {
@@ -670,6 +692,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                     native_wayland,
                     updater,
                     looked: std::time::Instant::now(),
+                    monitors_looked: None,
                     tray: desktop::tray::Tray::new(native_wayland),
                 }
             });

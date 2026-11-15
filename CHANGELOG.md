@@ -213,6 +213,7 @@ on GitHub.
 - Chinese, Japanese and Korean words in a subject, a name or a message sit on the same line as the Latin letters and digits beside them, as in a browser: they were centred on it, a little higher or lower.
 - In the Flatpak, a screen reader (Orca) reads MailCraft's window, new mail is announced by the desktop's notifications, and the icon in the notification area is there: the sandbox let MailCraft reach none of them.
 - An internal error while the window or one of its windows was being drawn (a message, a dialog, a pane) no longer closes MailCraft with what's being written in it: it's said, the dialog it may have come from is put away, and MailCraft goes on. Only a window that fails frame after frame still closes, and keeps what's being written in Drafts first.
+- A window that was on a monitor since unplugged opens on screen when another monitor of the same size is left: it opened where no monitor was, out of reach. MailCraft now looks at where the monitors are, not their sizes alone, and brings a window it couldn't be dragged back by its top edge onto the main monitor.
 
 ## 0.38.0 - 2026-11-13
 
