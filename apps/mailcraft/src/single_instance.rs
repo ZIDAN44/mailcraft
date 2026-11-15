@@ -411,6 +411,14 @@ impl<'a> Patient<'a> {
     fn new(stream: &'a UnixStream) -> Self {
         Patient { stream, until: std::time::Instant::now() + TIMEOUT }
     }
+
+    /// What can be read without waiting: never a wait with no timeout set.
+    fn read_now(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.stream.set_nonblocking(true)?;
+        let read = std::io::Read::read(&mut self.stream, buf);
+        self.stream.set_nonblocking(false)?;
+        read
+    }
 }
 
 impl std::io::Read for Patient<'_> {
@@ -422,7 +430,11 @@ impl std::io::Read for Patient<'_> {
                 return Err(TimedOut.into());
             }
             // A timeout of zero is refused: at least a millisecond.
-            self.stream.set_read_timeout(Some(left.min(READ_SLICE).max(Duration::from_millis(1))))?;
+            if let Err(refused) = self.stream.set_read_timeout(Some(left.min(READ_SLICE).max(Duration::from_millis(1)))) {
+                // macOS refuses a timeout on a socket whose other end has closed ("invalid
+                // argument"): what's there is read without waiting, the close as the end it is.
+                return self.read_now(buf).map_err(|_| refused);
+            }
             match std::io::Read::read(&mut self.stream, buf) {
                 Err(e) if matches!(e.kind(), TimedOut | WouldBlock | Interrupted) => {}
                 read => return read,
