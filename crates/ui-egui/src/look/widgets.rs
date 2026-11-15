@@ -181,15 +181,61 @@ fn icon_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, 
     resp.on_hover_text(label)
 }
 
-pub fn tool_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
-    let mut resp = tool_button_drawn(ui, icon, label, t, enabled);
+/// A ribbon button's label: its English words, which the button translates and finds its key
+/// tip by, or words already in the language shown (a label with a value in it, made with
+/// `tf!`, has no English key of its own), with the English words its key tip goes by.
+#[derive(Clone, Copy, Debug)]
+pub enum Label<'a> {
+    Key(&'a str),
+    Shown { key: &'a str, text: &'a str },
+}
+
+impl<'a> Label<'a> {
+    /// `text`, already translated (a `tf!` with a value), its key tip found by `key`.
+    pub fn shown(key: &'a str, text: &'a str) -> Self {
+        Label::Shown { key, text }
+    }
+
+    /// What's drawn.
+    fn text(self) -> &'a str {
+        match self {
+            Label::Key(key) => tl!(key),
+            Label::Shown { text, .. } => text,
+        }
+    }
+
+    /// The English words its key tip goes by.
+    fn key(self) -> &'a str {
+        match self {
+            Label::Key(key) | Label::Shown { key, .. } => key,
+        }
+    }
+}
+
+impl<'a> From<&'a str> for Label<'a> {
+    fn from(key: &'a str) -> Self {
+        Label::Key(key)
+    }
+}
+
+/// A label made at run time (`tf!`, a value in it) is shown as it is: translating it again
+/// looked the translation up as English.
+impl<'a> From<&'a String> for Label<'a> {
+    fn from(text: &'a String) -> Self {
+        Label::Shown { key: text, text }
+    }
+}
+
+pub fn tool_button<'a>(ui: &mut Ui, icon: Icon, label: impl Into<Label<'a>>, t: &Tokens, enabled: bool) -> Response {
+    let label = label.into();
+    let mut resp = tool_button_drawn(ui, icon, label.text(), t, enabled);
     // Its key tip, by its label in English (Alt, then its tab's letters and its own).
-    crate::keytips::apply(ui, label, &mut resp, enabled, t);
+    crate::keytips::apply(ui, label.key(), &mut resp, enabled, t);
     resp
 }
 
+/// A ribbon button labelled `label` (in the language shown).
 fn tool_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
-    let label = tl!(label);
     if classic(ui) {
         // Its label's width noted all the same, so the simplified ribbon fits at once when it's back.
         let width = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text).size().x;
@@ -220,15 +266,16 @@ fn tool_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: 
 }
 
 /// A ribbon button that stays lit while it's on (a search term in the box, say).
-pub fn tool_toggle(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -> Response {
-    let mut resp = tool_toggle_drawn(ui, icon, label, t, on);
+pub fn tool_toggle<'a>(ui: &mut Ui, icon: Icon, label: impl Into<Label<'a>>, t: &Tokens, on: bool) -> Response {
+    let label = label.into();
+    let mut resp = tool_toggle_drawn(ui, icon, label.text(), t, on);
     // Its key tip, by its label in English (Alt, then its tab's letters and its own).
-    crate::keytips::apply(ui, label, &mut resp, true, t);
+    crate::keytips::apply(ui, label.key(), &mut resp, true, t);
     resp
 }
 
+/// A ribbon toggle labelled `label` (in the language shown).
 fn tool_toggle_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -> Response {
-    let label = tl!(label);
     if classic(ui) {
         // Its label's width noted all the same, so the simplified ribbon fits at once when it's back.
         let width = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text).size().x;
@@ -280,15 +327,16 @@ pub fn more_pill(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
 }
 
 /// The filled "New mail" button.
-pub fn accent_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
-    let mut resp = accent_button_drawn(ui, icon, label, t, enabled);
+pub fn accent_button<'a>(ui: &mut Ui, icon: Icon, label: impl Into<Label<'a>>, t: &Tokens, enabled: bool) -> Response {
+    let label = label.into();
+    let mut resp = accent_button_drawn(ui, icon, label.text(), t, enabled);
     // Its key tip, by its label in English (Alt, then its tab's letters and its own).
-    crate::keytips::apply(ui, label, &mut resp, enabled, t);
+    crate::keytips::apply(ui, label.key(), &mut resp, enabled, t);
     resp
 }
 
+/// The filled button labelled `label` (in the language shown).
 fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
-    let label = tl!(label);
     if classic(ui) {
         let resp = big_button(ui, icon, label, t, enabled, false, true);
         named(ui, &resp, label, enabled, None);

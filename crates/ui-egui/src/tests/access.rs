@@ -209,3 +209,33 @@ fn a_reply_left_in_drafts_is_said() {
     assert!(seen.iter().any(|l| l.starts_with("Drafts, Items: ")), "{seen:?}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// A ribbon button whose label carries a value (View › Arrange by: Date) shows it translated
+/// once: the button took the translation as English and looked it up again (in the
+/// pseudo-language, marked twice; a translation that is also an English key, swapped).
+#[test]
+fn a_ribbon_label_with_a_value_is_translated_once() {
+    use crate::i18n::pseudo;
+    let (mut a, dir) = app("arrange-label");
+    let ctx = egui::Context::default();
+    a.ui.tab = crate::RibbonTab::View;
+    frame(&ctx, &mut a, vec![]);
+    let size = egui::vec2(1280.0, 800.0);
+    let field = a.session.prefs.arrange.label();
+    pseudo::set(true);
+    let texts = drawn_strings(&ctx, &mut a, size);
+    pseudo::set(false);
+    let shown: Vec<&String> = texts.iter().filter(|t| t.contains("Arrange by: ")).collect();
+    assert_eq!(shown, [&format!("⟦Arrange by: ⟦{field}⟧⟧")], "{texts:?}");
+    // In German, as its catalog writes it (in a window wide enough for every label).
+    a.ui.language = "de".into();
+    let wide = egui::vec2(2600.0, 800.0);
+    for _ in 0..3 {
+        let _ = drawn_strings(&ctx, &mut a, wide);
+    }
+    let texts = drawn_strings(&ctx, &mut a, wide);
+    let want = crate::i18n::tfmt("Arrange by: {field}", &[("field", crate::i18n::t(field))]);
+    assert!(want.starts_with("Anordnen nach: ") && texts.contains(&want), "{want}: {texts:?}");
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+    let _ = std::fs::remove_dir_all(dir);
+}
