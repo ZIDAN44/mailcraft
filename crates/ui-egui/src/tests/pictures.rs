@@ -84,19 +84,7 @@ fn pictures_show_at_their_size_and_resize() {
 struct Clip(Vec<u8>);
 
 impl crate::Services for Clip {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
-        Ok(())
-    }
-    fn notify(&mut self, _: &str, _: &str) {}
+    stub_services!();
     fn clipboard_picture(&mut self) -> Option<Vec<u8>> {
         Some(self.0.clone())
     }
@@ -522,18 +510,7 @@ fn a_picture_too_big_for_the_budget_evicts_nothing() {
 struct Threads;
 
 impl crate::Services for Threads {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
-        Ok(())
-    }
+    stub_services!();
     fn background(&mut self, _: crate::Lane, work: crate::Work) -> Result<(), crate::Work> {
         std::thread::spawn(work.run);
         Ok(())
@@ -547,18 +524,7 @@ impl crate::Services for Threads {
 struct Held(std::sync::Arc<std::sync::Mutex<Vec<crate::Work>>>);
 
 impl crate::Services for Held {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
-        Ok(())
-    }
+    stub_services!();
     fn background(&mut self, _: crate::Lane, work: crate::Work) -> Result<(), crate::Work> {
         self.0.lock().unwrap().push(work);
         Ok(())
@@ -572,18 +538,7 @@ impl crate::Services for Held {
 struct Refused;
 
 impl crate::Services for Refused {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
-        Ok(())
-    }
+    stub_services!();
     fn background(&mut self, _: crate::Lane, work: crate::Work) -> Result<(), crate::Work> {
         Err(work)
     }

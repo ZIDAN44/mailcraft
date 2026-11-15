@@ -350,22 +350,10 @@ fn a_data_file_is_looked_at_before_it_is_imported() {
 }
 
 /// Services whose file picker hands over one data file.
-struct Picks(&'static str);
+struct PicksDataFile(&'static str);
 
-impl crate::Services for Picks {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
-        Ok(())
-    }
-    fn notify(&mut self, _: &str, _: &str) {}
+impl crate::Services for PicksDataFile {
+    stub_services!();
     fn pick_data_file(&mut self) -> Option<std::path::PathBuf> {
         Some(self.0.into())
     }
@@ -400,7 +388,7 @@ fn facts(free: u64) -> DataFileFacts {
 #[test]
 fn a_data_file_picked_again_is_looked_at_again() {
     let (mut a, dir) = app("import-again");
-    a.services = Box::new(Picks("E:/Big.pst"));
+    a.services = Box::new(PicksDataFile("E:/Big.pst"));
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.act(Action::OpenDataFile);

@@ -7,19 +7,7 @@ use std::path::{Path, PathBuf};
 pub(super) struct Copied(pub(super) Vec<PathBuf>);
 
 impl crate::Services for Copied {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &Path) -> Result<(), String> {
-        Ok(())
-    }
-    fn notify(&mut self, _: &str, _: &str) {}
+    stub_services!();
     fn clipboard_files(&mut self) -> Vec<PathBuf> {
         self.0.clone()
     }
@@ -261,21 +249,9 @@ fn a_mail_files_own_pictures_are_shown() {
 /// toolbar answers or files nothing, and a file that's no message says so.
 #[test]
 fn a_mail_file_is_opened_to_be_looked_at() {
-    struct Picks(std::path::PathBuf);
-    impl crate::Services for Picks {
-        fn clock(&self) -> (i64, i32) {
-            (NOW, 0)
-        }
-        fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-            Vec::new()
-        }
-        fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-            None
-        }
-        fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
-            Ok(())
-        }
-        fn notify(&mut self, _: &str, _: &str) {}
+    struct PicksMailFile(std::path::PathBuf);
+    impl crate::Services for PicksMailFile {
+        stub_services!();
         fn pick_mail_file(&mut self) -> Option<std::path::PathBuf> {
             Some(self.0.clone())
         }
@@ -293,7 +269,7 @@ fn a_mail_file_is_opened_to_be_looked_at() {
          --b\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=update.exe\r\n\r\nMZ\r\n--b--\r\n",
     )
     .unwrap();
-    a.services = Box::new(Picks(eml));
+    a.services = Box::new(PicksMailFile(eml));
     // Even from a sender whose pictures always load.
     a.session.prefs.trusted_senders.insert("billing@paypa1.example".into());
     a.act(crate::Action::OpenMailFile);
@@ -351,7 +327,7 @@ fn a_mail_file_is_opened_to_be_looked_at() {
     // Bytes that are no message: said, in one line that names it once.
     let junk = dir.join("junk.eml");
     std::fs::write(&junk, [0xFFu8, 0xFE, 0x00, 0x01, 0x80].repeat(400)).unwrap();
-    a.services = Box::new(Picks(junk));
+    a.services = Box::new(PicksMailFile(junk));
     a.act(crate::Action::OpenMailFile);
     assert!(a.ui.dialog.is_none());
     let said = a.session.notices.last().unwrap();
@@ -360,7 +336,7 @@ fn a_mail_file_is_opened_to_be_looked_at() {
     // Past what's read: said by its name, not its path, and not as a program's error.
     let huge = dir.join("huge.eml");
     std::fs::File::create(&huge).unwrap().set_len(65 << 20).unwrap();
-    a.services = Box::new(Picks(huge));
+    a.services = Box::new(PicksMailFile(huge));
     a.act(crate::Action::OpenMailFile);
     assert_eq!(a.session.notices.last().unwrap().text, "huge.eml is too big");
     let _ = std::fs::remove_dir_all(dir);

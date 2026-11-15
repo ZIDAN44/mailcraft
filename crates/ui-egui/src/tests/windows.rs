@@ -420,15 +420,7 @@ impl OwnTitleBar {
 }
 
 impl crate::Services for OwnTitleBar {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
+    stub_services!(clock, pick_files, save_path);
     fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
         Err("not available".into())
     }

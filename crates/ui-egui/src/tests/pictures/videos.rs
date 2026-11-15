@@ -7,19 +7,7 @@ use super::*;
 struct Frames;
 
 impl crate::Services for Frames {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
-        Ok(())
-    }
-    fn notify(&mut self, _: &str, _: &str) {}
+    stub_services!();
     fn video_frame(&mut self, _: &std::path::Path) -> crate::VideoFrame {
         crate::VideoFrame::Ready(png(32, 18))
     }
@@ -30,18 +18,7 @@ impl crate::Services for Frames {
 struct OwnFrames;
 
 impl crate::Services for OwnFrames {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
-        Ok(())
-    }
+    stub_services!();
     fn video_frame(&mut self, path: &std::path::Path) -> crate::VideoFrame {
         match std::fs::read(path).ok().and_then(|d| d.first().copied()) {
             Some(b) => crate::VideoFrame::Ready(png(8 + u32::from(b), 8)),
@@ -126,18 +103,7 @@ fn videos_past_those_kept_make_no_texture_each_frame() {
 struct HeldFrames(std::sync::Arc<std::sync::Mutex<Vec<crate::Work>>>);
 
 impl crate::Services for HeldFrames {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
-        Ok(())
-    }
+    stub_services!();
     fn video_frame(&mut self, _: &std::path::Path) -> crate::VideoFrame {
         crate::VideoFrame::Ready(png(32, 18))
     }

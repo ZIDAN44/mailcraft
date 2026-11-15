@@ -3,25 +3,16 @@
 //! code, from a file saved as Outlook saves one, and back to the formatted editor.
 
 use super::*;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Services whose file picker gives this file.
-struct Picks(PathBuf);
+struct PicksFile(PathBuf);
 
-impl crate::Services for Picks {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
+impl crate::Services for PicksFile {
+    stub_services!(clock, save_path, open_path);
     fn pick_files(&mut self) -> Vec<PathBuf> {
         vec![self.0.clone()]
     }
-    fn save_path(&mut self, _: &str) -> Option<PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &Path) -> Result<(), String> {
-        Ok(())
-    }
-    fn notify(&mut self, _: &str, _: &str) {}
 }
 
 fn form(a: &MailApp) -> &crate::dialogs::SignatureForm {
@@ -50,7 +41,7 @@ fn an_outlook_signature_file_becomes_the_code() {
     htm.retain(|b| *b != b'\r');
     let file = folder.join("Andr\u{e9} Moss.htm");
     std::fs::write(&file, &htm).unwrap();
-    a.services = Box::new(Picks(file));
+    a.services = Box::new(PicksFile(file));
     frame(&ctx, &mut a, vec![]);
     a.ui.dialog = Dialog::signature(&a.session);
     a.act(crate::Action::SignatureFile);

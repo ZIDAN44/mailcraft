@@ -17,6 +17,38 @@ use crate::{Dialog, MailApp, NullBackend, NullServices};
 
 const NOW: i64 = 1_791_979_200;
 
+/// The methods [`crate::Services`] requires, as a test's services that don't vary them have
+/// them: the clock at [`NOW`], no files picked or saved to, and a file opened without complaint.
+/// `stub_services!()` writes all four; `stub_services!(clock, save_path)` only those named.
+macro_rules! stub_services {
+    () => {
+        stub_services!(clock, pick_files, save_path, open_path);
+    };
+    ($($method:ident),+) => {
+        $(stub_services!(@ $method);)+
+    };
+    (@ clock) => {
+        fn clock(&self) -> (i64, i32) {
+            (crate::tests::NOW, 0)
+        }
+    };
+    (@ pick_files) => {
+        fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+            Vec::new()
+        }
+    };
+    (@ save_path) => {
+        fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+            None
+        }
+    };
+    (@ open_path) => {
+        fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+            Ok(())
+        }
+    };
+}
+
 /// A backend that keeps the jobs it's given (the tests look at them).
 #[derive(Clone, Default)]
 struct Jobs(std::sync::Arc<std::sync::Mutex<Vec<mailcraft_engine::model::Job>>>);
@@ -530,15 +562,7 @@ fn graph_form() -> Dialog {
 struct PageServices(std::rc::Rc<std::cell::RefCell<Vec<String>>>);
 
 impl crate::Services for PageServices {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
+    stub_services!(clock, pick_files, save_path);
     fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
         Err("no".into())
     }
@@ -647,18 +671,7 @@ pub(crate) fn pim_tour(a: &mut MailApp, ctx: &egui::Context) {
 struct Recorder(std::sync::Arc<std::sync::Mutex<Vec<(String, String)>>>);
 
 impl crate::Services for Recorder {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
-        Ok(())
-    }
+    stub_services!();
     fn notify(&mut self, title: &str, body: &str) {
         self.0.lock().unwrap().push((title.into(), body.into()));
     }
@@ -681,9 +694,7 @@ struct WebLike {
 }
 
 impl crate::Services for WebLike {
-    fn clock(&self) -> (i64, i32) {
-        (NOW, 0)
-    }
+    stub_services!(clock);
     fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
         panic!("the browser can't pick files at once")
     }
@@ -714,17 +725,9 @@ impl crate::Services for WebLike {
 struct Ticking(std::sync::Arc<std::sync::Mutex<i64>>, std::sync::Arc<std::sync::Mutex<Vec<(String, String)>>>);
 
 impl crate::Services for Ticking {
+    stub_services!(pick_files, save_path, open_path);
     fn clock(&self) -> (i64, i32) {
         (*self.0.lock().unwrap(), 0)
-    }
-    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
-        Vec::new()
-    }
-    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
-        None
-    }
-    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
-        Ok(())
     }
     fn notify(&mut self, title: &str, body: &str) {
         self.1.lock().unwrap().push((title.into(), body.into()));
