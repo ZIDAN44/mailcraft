@@ -1,4 +1,5 @@
 use super::*;
+use crate::outgoing::{MAX_CID, seven_bit};
 use mailcraft_model::dates::Clock;
 use util::{PNG_1X1, key};
 
