@@ -174,7 +174,7 @@ fn message_files_go_into_the_folder_open_and_a_msg_is_shown_when_read() {
     });
     assert_eq!(s.take_filed().iter().map(|f| (f.added, f.failed.len())).collect::<Vec<_>>(), [(1, 1)]);
     assert!(s.take_filed().is_empty());
-    assert!(mailcraft_engine_is_message_file("x.MSG") && mailcraft_engine_is_message_file("y.eml") && !mailcraft_engine_is_message_file("z.pdf"));
+    assert!(crate::cmd::is_message_file("x.MSG") && crate::cmd::is_message_file("y.eml") && !crate::cmd::is_message_file("z.pdf"));
 
     // A .msg opened: read elsewhere, then shown.
     let t = TempFolder::new("msg");
@@ -314,10 +314,6 @@ fn texts(b: &mailcraft_mime::layout::Block) -> Vec<String> {
         mailcraft_mime::layout::Block::Text(lines) => lines.iter().flatten().map(|sp| sp.text.clone()).collect(),
         mailcraft_mime::layout::Block::Table(t) => t.rows.iter().flatten().flat_map(|c| c.blocks.iter().flat_map(texts)).collect(),
     }
-}
-
-fn mailcraft_engine_is_message_file(path: &str) -> bool {
-    crate::cmd::is_message_file(path)
 }
 
 /// Print and Save as PDF lay a message out as it's read (it came out as lines of text, its

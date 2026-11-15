@@ -203,11 +203,6 @@ fn the_version_line_names_the_program_and_its_build() {
     assert!(crate::version_line("mailcraft").starts_with(&format!("mailcraft {}", env!("CARGO_PKG_VERSION"))));
 }
 
-/// The start of 2026-10-16, local, as the sample's clock has it.
-fn mailcraft_engine_day(s: &Session) -> i64 {
-    crate::parse_local("2026-10-16", &s.clock).map(|(t, _)| t).unwrap()
-}
-
 mod accounts;
 mod calendar;
 mod categories;

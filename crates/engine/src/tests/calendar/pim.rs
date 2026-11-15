@@ -378,7 +378,7 @@ fn events_take_their_categorys_colour() {
     add("Pitch", json!(["clients"]));
     add("Mix", json!("Studio, Clients"));
     add("Plain", json!([]));
-    let day = mailcraft_engine_day(&s);
+    let day = crate::parse_local("2026-10-16", &s.clock).map(|(t, _)| t).unwrap();
     let item = |name: &str| s.agenda(day, day + 86_400).into_iter().find(|i| i.summary == name).unwrap();
     assert_eq!(item("Pitch").category, Some(5), "a category's own colour, whatever its case");
     let studio = item("Mix").category.unwrap();
