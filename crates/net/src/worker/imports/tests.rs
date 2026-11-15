@@ -334,7 +334,7 @@ fn an_import_after_a_discard_runs_once_that_is_over() {
 }
 
 /// A data file looked at before it's imported is planned then: what it holds is told, and its
-/// import goes by that plan (a fault planning its Inbox costs nothing) while the file is as it
+/// import goes by that plan (a fault planning one of its folders costs nothing) while the file is as it
 /// was; changed since, it's planned again.
 #[test]
 fn a_file_looked_at_is_imported_as_planned_then() {
@@ -344,7 +344,7 @@ fn a_file_looked_at_is_imported_as_planned_then() {
     let Some(Event::DataFileInspected { facts, .. }) = seen.last() else { panic!("{seen:?}") };
     assert_eq!((facts.messages, facts.folders, facts.error.as_deref()), (35, 3, None), "{facts:?}");
     assert!(facts.bytes > 0);
-    let fault = Fault::PlanAt(1);
+    let fault = Fault::PlanAt(2);
     faults().lock().unwrap().insert("l1".into(), fault);
     p.submit(Job::ImportPst { account: "l1".into(), path: pst.clone(), resume: false });
     let seen = until(&p, "the import to end", ended);
@@ -357,8 +357,20 @@ fn a_file_looked_at_is_imported_as_planned_then() {
     faults().lock().unwrap().insert("l2".into(), fault);
     p.submit(Job::ImportPst { account: "l2".into(), path: pst, resume: false });
     let seen = until(&p, "the import to end", ended);
-    assert!(matches!(seen.last(), Some(Event::Imported { messages, .. }) if *messages < 35), "{:?}", seen.last());
-    assert!(store.load_folders("l2").is_ok());
+    let Some(Event::Imported { messages, report: Some(report), .. }) = seen.last() else { panic!("{:?}", seen.last()) };
+    // The fault struck one folder, and only that: Projects and its 5 were left out, said so; the
+    // Inbox's 30 came in, and are listed.
+    let listed = |account: &str| -> Vec<(String, usize)> {
+        let folders = store.load_folders(account).unwrap();
+        folders.iter().map(|f| (f.path.clone(), store.load_folder(account, &f.path).unwrap().messages.len())).filter(|(_, n)| *n > 0).collect()
+    };
+    assert_eq!(*messages, 30, "{report:?}");
+    let skips: Vec<_> = report.skips.iter().map(|s| (s.reason, s.count)).collect();
+    assert_eq!(skips, [(mailcraft_model::job::SkipReason::FolderUnreadable, 1)], "{report:?}");
+    assert_eq!(listed("l2"), [("INBOX".to_string(), 30)], "what came in is listed");
+    // By the plan made as it was looked at, the same fault left nothing out.
+    assert_eq!(listed("l1").iter().map(|(_, n)| n).sum::<usize>(), 35, "{:?}", listed("l1"));
+    assert_eq!(listed("l1").len(), 2, "{:?}", listed("l1"));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
