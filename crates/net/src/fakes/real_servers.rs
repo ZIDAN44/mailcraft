@@ -340,7 +340,7 @@ fn real_caldav_dismissed_reminder() {
     let fresh = sync(&Pim::default());
     let back = fresh.events.iter().find(|x| x.event.uid == uid).expect("read back");
     assert_eq!((acknowledged(&back.event), reminder_minutes(&back.event)), (Some(now), Some(15)));
-    let _ = dav.delete(&stored.href, "");
+    let _ = dav.remove(&stored.href, "");
 }
 
 /// A real SMTP server: a message sent, then found in the recipient's mailbox over IMAP; a
@@ -709,7 +709,7 @@ fn real_caldav_private_and_show_as() {
     // Cleaned up.
     for u in [&uid, &other, &invite] {
         let e = pim.events.iter().find(|e| &e.event.uid == u).unwrap();
-        dav.delete(&e.href, "").unwrap();
+        dav.remove(&e.href, "").unwrap().unwrap();
     }
 }
 

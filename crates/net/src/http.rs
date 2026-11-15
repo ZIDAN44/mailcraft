@@ -473,7 +473,7 @@ pub fn open_events(url: &str, headers: &[(&str, &str)]) -> Result<EventStream<St
         return Err(NetError::Protocol("not an event stream".into()));
     }
     let chunked = get("transfer-encoding").is_some_and(|t| t.contains("chunked"));
-    Ok(EventStream { s, raw: rest, text: Vec::new(), chunked, left: 0, crlf: false })
+    Ok(EventStream { raw: rest, ..EventStream::new(s, chunked) })
 }
 
 impl<S: Read + stream::Timeouts> EventStream<S> {

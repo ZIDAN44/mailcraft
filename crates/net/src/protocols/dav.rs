@@ -435,11 +435,7 @@ impl Dav {
         }
     }
 
-    pub fn delete(&self, url: &str, etag: &str) -> Result<()> {
-        self.remove(url, etag)?.map_err(|r| NetError::No(r.to_string()))
-    }
-
-    /// [`Dav::delete`], telling why the server didn't delete it (`Err` inside).
+    /// Delete an item (when it still has `etag`, if given): why the server didn't (`Err` inside).
     pub fn remove(&self, url: &str, etag: &str) -> Result<std::result::Result<(), Refused>> {
         let mut req = Request { method: "DELETE".into(), url: url.into(), max: 1 << 20, ..Default::default() };
         if !etag.is_empty() {
