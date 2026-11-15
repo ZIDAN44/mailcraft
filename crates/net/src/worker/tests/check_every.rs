@@ -115,11 +115,11 @@ fn a_long_time_is_quiet_but_send_receive_still_looks() {
 /// to get there either way.
 #[test]
 fn a_connection_the_server_dropped_meanwhile_is_no_error() {
-    let (st, pool, store) = start("check-every-dropped", Some(3));
+    let (st, pool, _store) = start("check-every-dropped", Some(3));
     st.lock().unwrap().add("INBOX", "New one", &[]);
     st.lock().unwrap().hang_up = true;
     let said = until(&pool, "the mail", inbox_changed);
-    assert_eq!(connect::waits::begun(&store, "a1"), 0, "waited to try again: {said:?}");
+    assert_eq!(pool.waits_begun("a1"), 0, "waited to try again: {said:?}");
     assert!(!said.iter().any(|e| matches!(e, Event::Status { status: SyncStatus::Error { .. }, .. } | Event::Notice { .. })), "{said:?}");
     pool_done(pool);
 }

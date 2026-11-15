@@ -16,10 +16,6 @@ use super::*;
 /// How long [`Edits::flush`] waits for the changes before it to be on disk.
 const FLUSH_WAIT: Duration = Duration::from_secs(10);
 
-/// The thread each change was made on, by account (tests).
-#[cfg(test)]
-pub(super) static APPLIED_ON: Mutex<Vec<(String, Option<String>)>> = Mutex::new(Vec::new());
-
 enum Edit {
     /// A change to make, and the account's thread to wake after (none when it isn't running);
     /// how many times the account had been removed when it was made ([`Store::while_kept`]).
@@ -128,10 +124,6 @@ impl Edits {
 /// Make the change in the cache, queue it for the server and wake the account's thread to send
 /// it; each folder it changed is said to have changed. Nothing, for an account removed since.
 fn apply(store: &Store, sink: &Sink, account: &str, op: Op, wake: Option<Sender<Job>>, seen: u64) {
-    #[cfg(test)]
-    if let Ok(mut on) = APPLIED_ON.lock() {
-        on.push((account.to_string(), std::thread::current().name().map(str::to_string)));
-    }
     let made = store.while_kept(account, seen, || make(store, sink, account, &op));
     if made.is_none() {
         log::info!("{account}: a change to mail dropped, the account removed");

@@ -770,15 +770,22 @@ fn a_mark_read_waits_little_for_an_index_pass() {
 fn a_change_is_made_off_the_callers_thread() {
     let s = indexed_mail(3);
     let mut pool = Pool::new(s.clone(), Arc::new(MemoryCredentials::default()));
+    // The thread each event is said on: the change's own are said where it's made.
+    let said_on: Arc<Mutex<Vec<Option<String>>>> = Arc::default();
+    let on = said_on.clone();
+    pool.set_waker(Arc::new(move || on.lock().unwrap().push(std::thread::current().name().map(str::to_string))));
     let key = MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 7, uid: 2 };
     pool.submit(Job::Apply { account: "a1".into(), op: Op::SetFlag { keys: vec![key], flag: Flag::Seen, on: true } });
     until(&pool, "the Inbox changed", |e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
     assert!(s.load_folder("a1", "INBOX").unwrap().messages.iter().any(|m| m.key.uid == 2 && m.flags.seen));
     assert_eq!(s.load_ops("a1").unwrap().len(), 1, "queued for the server");
     let me = std::thread::current().name().map(str::to_string);
-    let on = edits::APPLIED_ON.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-    assert!(on.iter().any(|(_, t)| t.as_deref() == Some("mail-edits")), "{on:?}");
-    assert!(!on.iter().any(|(_, t)| *t == me), "made on the caller's thread: {on:?}");
+    // The waker runs just after the event is sent: it may come a moment after it.
+    let made_there = || said_on.lock().unwrap().iter().any(|t| t.as_deref() == Some("mail-edits"));
+    eventually("the change's thread said", made_there);
+    let on = said_on.lock().unwrap().clone();
+    assert!(on.iter().any(|t| t.as_deref() == Some("mail-edits")), "{on:?}");
+    assert!(!on.contains(&me), "made on the caller's thread: {on:?}");
 }
 
 /// Changes made in a row are made in that order, and are all on disk once the pool has shut

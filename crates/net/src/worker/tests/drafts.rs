@@ -513,7 +513,7 @@ fn saves_that_drop_the_connection_hold_the_next_back_by_no_wait() {
     // Whether it waited is counted, not timed.
     events_until(&pool, "the save on the server", |_| on_the_server(&st).iter().any(|m| m == plans));
     // Each connection a filing dropped made again at once: no wait to connect again on its way.
-    assert_eq!(connect::waits::begun(&store, "a1"), 0, "waited to connect again");
+    assert_eq!(pool.waits_begun("a1"), 0, "waited to connect again");
     until_waiting(&pool);
     // One connection more for each that dropped it, and none after: each waits on its own.
     assert_eq!(connections.load(Ordering::Relaxed), 4);
@@ -547,7 +547,7 @@ fn online_saving_drafts_that_drop(name: &str, drops: usize) -> (Arc<Mutex<crate:
 #[test]
 fn drafts_that_drop_each_connection_sign_in_again_at_once_a_few_times_at_most() {
     let (_st, store, mut pool, connections) = online_saving_drafts_that_drop("saves-drop-many", 8);
-    events_until(&pool, "the worker to wait to connect again", |_| connect::waits::begun(&store, "a1") > 0);
+    events_until(&pool, "the worker to wait to connect again", |_| pool.waits_begun("a1") > 0);
     // The first connection's, and four made again at once; the fifth's drop waits as a connection
     // that failed does, and the saves left, made meanwhile, are each kept here with no sign-in.
     assert_eq!(connections.load(Ordering::Relaxed), 5);

@@ -280,30 +280,6 @@ impl Worker {
     }
 }
 
-/// The waits workers began before connecting again after a connection failed, for the tests to
-/// count rather than time: by the store's folder and the account.
-#[cfg(test)]
-pub(crate) mod waits {
-    use std::path::PathBuf;
-    use std::sync::Mutex;
-
-    use mailcraft_store::Store;
-
-    static BEGUN: Mutex<Vec<(PathBuf, String)>> = Mutex::new(Vec::new());
-
-    /// `account`'s worker over `store` began a wait to connect again.
-    pub(crate) fn began(store: &Store, account: &str) {
-        if let Ok(mut b) = BEGUN.lock() {
-            b.push((store.root().to_path_buf(), account.to_string()));
-        }
-    }
-
-    /// The waits to connect again `account`'s workers over `store` have begun.
-    pub(crate) fn begun(store: &Store, account: &str) -> usize {
-        BEGUN.lock().map_or(0, |b| b.iter().filter(|(root, a)| root == store.root() && a == account).count())
-    }
-}
-
 /// The account's main threads (not their second connections) that have ended, for the tests to
 /// wait on rather than time: by the store's folder and the account.
 #[cfg(test)]

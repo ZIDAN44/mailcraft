@@ -7,7 +7,7 @@
 //! password stops retrying until the user enters a new one.
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, TryRecvError};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
@@ -61,6 +61,10 @@ struct Handle {
     quick_link: QuickLink,
     /// What the pool did as it stopped the worker: that it did, and the drafts it kept then.
     stop: Arc<changes::Stopped>,
+    /// How many waits to connect again the main connection began ([`Worker::waits`]): read by
+    /// the tests only, counted in every build.
+    #[cfg_attr(not(test), allow(dead_code))]
+    waits: Arc<AtomicUsize>,
 }
 
 /// The second connection's queue, as the main one holds it ([`Handle::quick_link`]).
@@ -250,7 +254,8 @@ impl Pool {
             w.stop = stop.clone();
             match std::thread::Builder::new().name(format!("mail-{}", account.id)).spawn(move || w.run_calendars(rx)) {
                 Ok(thread) => {
-                    let h = Handle { tx, thread: Some(thread), quick: None, no_password, busy, quick_link: Arc::default(), stop };
+                    let h =
+                        Handle { tx, thread: Some(thread), quick: None, no_password, busy, quick_link: Arc::default(), stop, waits: Arc::default() };
                     self.workers.insert(account.id.clone(), h);
                 }
                 Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::error(e.to_string()) }),
@@ -283,10 +288,11 @@ impl Pool {
         w.stop = stop.clone();
         w.order = self.order.clone();
         w.filing = self.filing.clone();
+        let waits = w.waits.clone();
         let name = format!("mail-{}", account.id);
         match std::thread::Builder::new().name(name).spawn(move || w.run(rx)) {
             Ok(thread) => {
-                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, no_password, busy, quick_link, stop });
+                self.workers.insert(account.id.clone(), Handle { tx, thread: Some(thread), quick, no_password, busy, quick_link, stop, waits });
             }
             Err(e) => self.sink.emit(Event::Status { account: account.id.clone(), status: SyncStatus::error(e.to_string()) }),
         }
@@ -315,6 +321,12 @@ impl Pool {
                 log::warn!("{account}: {e}");
             }
         }
+    }
+
+    /// How many waits to connect again `account`'s main connection has begun.
+    #[cfg(test)]
+    fn waits_begun(&self, account: &str) -> usize {
+        self.workers.get(account).map_or(0, |h| h.waits.load(Ordering::Relaxed))
     }
 
     /// Stop every account's threads.
@@ -408,6 +420,9 @@ struct Worker {
     whole_only: Arc<std::sync::Mutex<std::collections::HashSet<mailcraft_model::MessageKey>>>,
     /// Set while the main connection works rather than waits ([`Worker::working`]).
     busy: Arc<AtomicBool>,
+    /// How many waits to connect again after a connection failed it began, shared with the
+    /// pool: counted, not timed (the tests ask).
+    waits: Arc<AtomicUsize>,
     backoff: Duration,
     next_attempt: Instant,
     last_full: Option<Instant>,
@@ -492,6 +507,7 @@ impl Worker {
             removals,
             whole_only: Arc::default(),
             busy: Arc::default(),
+            waits: Arc::default(),
             backoff: Duration::from_secs(5),
             next_attempt: Instant::now(),
             last_full: None,
@@ -586,8 +602,7 @@ impl Worker {
                 }
                 let wait = self.next_attempt.saturating_duration_since(Instant::now());
                 if !wait.is_zero() {
-                    #[cfg(test)]
-                    connect::waits::began(&self.store, &self.acc.id);
+                    self.waits.fetch_add(1, Ordering::Relaxed);
                     self.working(false);
                     match rx.recv_timeout(wait) {
                         Ok(j) => push_job(&mut self.queue, j),

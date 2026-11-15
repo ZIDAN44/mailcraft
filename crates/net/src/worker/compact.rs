@@ -24,13 +24,17 @@ use crate::space::{LOW_SPACE, Space};
 const PROGRESS_EVERY: Duration = Duration::from_millis(250);
 
 /// The compactions running, by account, and the jobs waiting for one to give its file back.
-#[derive(Default)]
 pub(super) struct Compacts {
     running: HashMap<String, CompactCtl>,
     held: HashMap<String, Vec<Job>>,
-    /// The drive asked for room (a test's, else the computer's own).
-    #[cfg(test)]
-    pub(super) space: Option<Arc<dyn Space>>,
+    /// The drive asked for room: the computer's own (a test may give its own).
+    pub(super) space: Arc<dyn Space>,
+}
+
+impl Default for Compacts {
+    fn default() -> Self {
+        Compacts { running: HashMap::new(), held: HashMap::new(), space: Arc::new(crate::space::Drives) }
+    }
 }
 
 /// A compaction: how it's stopped, whether it has the file to itself now, and its thread.
@@ -101,10 +105,7 @@ impl Pool {
             return self.sink.emit(Event::Compacted { account, report: Box::new(report) });
         }
         let (cancel, exclusive) = (Arc::new(AtomicBool::new(false)), Arc::new(AtomicBool::new(false)));
-        #[cfg(test)]
-        let space = self.compacts.space.clone().unwrap_or_else(|| Arc::new(crate::space::Drives));
-        #[cfg(not(test))]
-        let space: Arc<dyn Space> = Arc::new(crate::space::Drives);
+        let space = self.compacts.space.clone();
         let run = Run {
             store: self.store.clone(),
             sink: self.sink.clone(),
