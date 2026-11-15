@@ -10,12 +10,13 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex};
 
 use mailcraft_engine::mime;
 use mailcraft_engine::model::MessageKey;
 use mailcraft_engine::store::Store;
 
+use crate::lock;
 use crate::services::{Lane, Services, Work};
 
 /// A video attachment: its message and index.
@@ -46,10 +47,6 @@ enum Job {
 enum Made {
     File(Option<PathBuf>),
     Frame(Option<Pixels>),
-}
-
-fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The video thumbnails' work, asked for by the chips and handed to the pictures lane.

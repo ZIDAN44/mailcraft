@@ -2,15 +2,11 @@
 //! (the biggest message took 0.1 s, a frame the window couldn't draw), shown when it's back.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex};
 
 use mailcraft_engine::{BodyWork, PreparedBody};
 
 use crate::*;
-
-fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(PoisonError::into_inner)
-}
 
 /// What the window and the reading lane share.
 #[derive(Default)]

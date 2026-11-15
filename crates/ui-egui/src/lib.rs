@@ -66,6 +66,12 @@ pub const APP_ID: &str = "io.github.zidan44.MailCraft";
 pub(crate) fn os_window() -> egui::ViewportBuilder {
     egui::ViewportBuilder::default().with_app_id(APP_ID)
 }
+
+/// A lock that outlives a panic elsewhere (what the window's work shares with its threads is
+/// whole between steps).
+pub(crate) fn lock<T>(m: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
 use icons::Icon;
 pub use services::{Backend, InstallAsks, KeptOnClose, Lane, NullBackend, NullServices, Picked, Services, UpdateState, Work};
 use theme::Tokens;

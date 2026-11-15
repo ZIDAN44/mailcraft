@@ -14,13 +14,14 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::time::Duration;
 
 use mailcraft_engine::mime::{self, AttachmentInfo, AttachmentKind};
 use mailcraft_engine::model::MessageKey;
 use mailcraft_engine::store::Store;
 
+use crate::lock;
 use crate::services::{Lane, Services, Work};
 use crate::thumbs::{self, Fit, Fonts};
 
@@ -153,11 +154,6 @@ impl Done {
     fn bytes(&self) -> usize {
         self.image.as_ref().map_or(0, |(i, _)| i.size[0].saturating_mul(i.size[1]).saturating_mul(4))
     }
-}
-
-/// A lock that outlives a panic elsewhere (what it guards is whole between steps).
-fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
-    m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// The pictures shown, kept as textures, and the work making them.
