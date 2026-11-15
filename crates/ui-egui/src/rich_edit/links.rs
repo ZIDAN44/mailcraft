@@ -22,7 +22,7 @@ pub(super) struct LinkForm {
 impl LinkForm {
     /// The dialog for the selection: its text, and the link already on it.
     pub(super) fn open(c: &Compose, sel: Range<usize>) -> LinkForm {
-        let chosen: String = c.body.chars().skip(sel.start).take(sel.end.saturating_sub(sel.start)).collect();
+        let chosen: String = chars_in(&c.body, sel.clone()).collect();
         let existing = c.styles.style(sel.start).link.filter(|_| !c.body.is_empty());
         let multi = chosen.contains('\n');
         let mut f = LinkForm { text: if multi { String::new() } else { chosen }, sel, editing: existing.is_some(), multi, ..Default::default() };
@@ -132,7 +132,7 @@ pub(crate) fn link_dialog(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Comp
             let sel = f.sel.clone();
             let n = c.body.chars().count();
             let sel = sel.start.min(n)..sel.end.min(n);
-            let current: String = c.body.chars().skip(sel.start).take(sel.end - sel.start).collect();
+            let current: String = chars_in(&c.body, sel.clone()).collect();
             let shown = if f.text.trim().is_empty() {
                 url.strip_prefix("mailto:").map_or(url.as_str(), |a| a.split('?').next().unwrap_or(a)).to_string()
             } else {

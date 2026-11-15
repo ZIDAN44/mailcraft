@@ -162,6 +162,11 @@ fn set_selection(ctx: &egui::Context, id: egui::Id, r: Range<usize>) {
     state.store(ctx, id);
 }
 
+/// The characters of `text` in `range` (character positions, as the selection's are).
+fn chars_in(text: &str, range: Range<usize>) -> impl Iterator<Item = char> + '_ {
+    text.chars().skip(range.start).take(range.end.saturating_sub(range.start))
+}
+
 /// The look typing at `at` takes: the character before (or after, at a paragraph's start),
 /// without a link the text doesn't continue.
 fn typing_style(text: &str, styles: &Styles, at: usize) -> Style {
@@ -598,7 +603,7 @@ fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut
     let n = c.body.chars().count();
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
     // What's selected, copied out only when it's cut or copied (not every frame).
-    let chosen = |text: &str| -> String { text.chars().skip(sel.start).take(sel.end - sel.start).collect() };
+    let chosen = |text: &str| -> String { chars_in(text, sel.clone()).collect() };
     let link = c.styles.style(sel.start).link.filter(|_| n > 0);
     let shown = resp.context_menu(|ui| {
         ui.set_min_width(190.0);
