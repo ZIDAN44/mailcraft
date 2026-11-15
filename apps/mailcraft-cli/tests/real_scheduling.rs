@@ -30,7 +30,8 @@
 //! - GreenMail (`greenmail/standalone`, `-Dgreenmail.setup.test.all -Dgreenmail.auth.disabled`),
 //!   IMAP on 24143: the outside domain.
 //! - Radicale (`tomsquest/docker-radicale`, `[auth] type = none`) on 25232, with a calendar
-//!   `cal/` made for `ann@mc31.test` (`MKCALENDAR`): a server that doesn't schedule.
+//!   `cal/` made for Mailcow's first user, `ann@mc31.test` (`MKCALENDAR`): a server that doesn't
+//!   schedule.
 
 #[path = "support/mailcow.rs"]
 mod mailcow;
@@ -422,7 +423,7 @@ fn real_scheduling_on_stalwart_and_from_another_server() {
 fn real_scheduling_without_a_scheduling_server() {
     let Ok(radicale) = std::env::var("MAILCRAFT_REAL_RADICALE") else { return eprintln!("MAILCRAFT_REAL_RADICALE isn't set: skipped") };
     let Some(m) = Mailcow::from_env() else { return };
-    let Some((ext, ext_addr)) = outside() else { return };
+    let Some((ext, ext_addr)) = outside() else { return eprintln!("MAILCRAFT_REAL_OUTSIDE isn't set: skipped") };
     let bob_box = Mailbox::new(&m.imap, m.user(1).0, m.user(1).1);
     for b in [&bob_box, &ext] {
         b.clear();
@@ -433,7 +434,9 @@ fn real_scheduling_without_a_scheduling_server() {
     let uid = create(&mut ann, &aid, &tag, &format!("{}, {ext_addr}", m.user(1).0));
     let (_, e) = ann.s.find_event(&uid).unwrap();
     assert!(e.calendar.starts_with(&radicale) && !e.event.client_scheduled, "{e:?}");
-    let r = mailcow::http("GET", &e.href, &[("Authorization", &format!("Basic {}", mailcow::base64(b"ann@mc31.test:x")))], b"");
+    // Read back as the user MailCraft stored it as (Radicale's `auth = none` takes any password).
+    let auth = format!("Basic {}", mailcow::base64(format!("{}:x", m.user(0).0).as_bytes()));
+    let r = mailcow::http("GET", &e.href, &[("Authorization", &auth)], b"");
     assert!(r.status == 200 && !r.text().contains("SCHEDULE-AGENT"), "{}", r.text());
     counted(&tag, &[("bob", &bob_box, 1), ("outside", &ext, 1)]);
     ann.s.run("event.delete", &json!({"uid": uid})).unwrap();
