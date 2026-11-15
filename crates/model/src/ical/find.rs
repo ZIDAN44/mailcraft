@@ -136,35 +136,35 @@ impl EventQuery {
                 _ => (false, tok),
             };
             let field = tok.split_once(':').filter(|(k, v)| !v.is_empty() && !k.starts_with('"'));
+            // The token as typed, looked for anywhere: a bare word, and a field that isn't one or
+            // whose value can't be read.
+            let anywhere = || EventTerm::Text(EventField::Any, needles(&tok));
             let term = match field {
-                Some((k, v)) if k.eq_ignore_ascii_case("after") || k.eq_ignore_ascii_case("before") => {
-                    // A date that can't be read is looked for as words.
-                    match date_value(v) {
-                        Some(d) => {
-                            // `-after:x` is before it, `-before:x` from it on.
-                            if k.eq_ignore_ascii_case("after") != negated {
-                                q.after = Some(q.after.map_or(d, |a| a.max(d)));
-                            } else {
-                                q.before = Some(q.before.map_or(d, |b| b.min(d)));
-                            }
-                            continue;
+                Some((k, v)) if k.eq_ignore_ascii_case("after") || k.eq_ignore_ascii_case("before") => match date_value(v) {
+                    Some(d) => {
+                        // `-after:x` is before it, `-before:x` from it on.
+                        if k.eq_ignore_ascii_case("after") != negated {
+                            q.after = Some(q.after.map_or(d, |a| a.max(d)));
+                        } else {
+                            q.before = Some(q.before.map_or(d, |b| b.min(d)));
                         }
-                        None => Some(EventTerm::Text(EventField::Any, needles(&tok))),
+                        continue;
                     }
-                }
+                    None => anywhere(),
+                },
                 Some((k, v)) if k.eq_ignore_ascii_case("is") => match v.to_ascii_lowercase().as_str() {
-                    "private" | "confidential" => Some(EventTerm::Private),
-                    "recurring" | "series" => Some(EventTerm::Recurring),
-                    _ => Some(EventTerm::Text(EventField::Any, needles(&tok))),
+                    "private" | "confidential" => EventTerm::Private,
+                    "recurring" | "series" => EventTerm::Recurring,
+                    _ => anywhere(),
                 },
                 Some((k, v)) => match FIELDS.iter().find(|(f, _)| f.eq_ignore_ascii_case(k)) {
-                    Some((_, f)) => Some(EventTerm::Text(*f, needles(v))),
-                    None => Some(EventTerm::Text(EventField::Any, needles(&tok))),
+                    Some((_, f)) => EventTerm::Text(*f, needles(v)),
+                    None => anywhere(),
                 },
-                None => Some(EventTerm::Text(EventField::Any, needles(&tok))),
+                None => anywhere(),
             };
-            if let Some(t) = term.filter(|t| !matches!(t, EventTerm::Text(_, n) if n.is_empty())) {
-                q.terms.push((t, negated));
+            if !matches!(&term, EventTerm::Text(_, n) if n.is_empty()) {
+                q.terms.push((term, negated));
             }
         }
         q
