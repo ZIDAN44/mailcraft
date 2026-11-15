@@ -196,13 +196,19 @@ fn long_folders_render_quickly() {
     assert_eq!(a.session.list.len(), 2000);
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
+    // Virtualised: only the rows in view are laid out, a window's worth of the 2000.
+    let rows = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 800.0)).iter().filter(|t| t.starts_with("Message ")).count();
+    assert!((5..60).contains(&rows), "{rows} rows laid out");
     let t = std::time::Instant::now();
     for _ in 0..10 {
         frame(&ctx, &mut a, vec![]);
     }
     let per = t.elapsed() / 10;
-    // Virtualised: only visible rows are laid out (debug builds are slow; this is generous).
-    assert!(per.as_millis() < 400, "frame took {per:?}");
+    eprintln!("a frame of a folder of 2000: {per:?}");
+    // Timed only in a release build: a debug build on a busy machine measures the machine.
+    if !cfg!(debug_assertions) {
+        assert!(per.as_millis() < 400, "frame took {per:?}");
+    }
     let _ = std::fs::remove_dir_all(dir);
 }
 

@@ -38,10 +38,11 @@ fn a_huge_source_draws_quickly() {
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list[0].key.clone();
     let mut raw = b"Subject: big\r\nContent-Type: application/octet-stream\r\nContent-Transfer-Encoding: base64\r\n\r\n".to_vec();
-    let line = [b'Q'; 76];
+    // Each line its own (numbered), so each one laid out is a galley of its own.
+    let mut n = 0u32;
     while raw.len() < 30 << 20 {
-        raw.extend_from_slice(&line);
-        raw.extend_from_slice(b"\r\n");
+        n += 1;
+        raw.extend_from_slice(format!("{n:Q>76}\r\n").as_bytes());
     }
     // And a line of 2 MB with nothing to break it.
     raw.extend(std::iter::repeat_n(b'x', 2 << 20));
@@ -73,7 +74,18 @@ fn a_huge_source_draws_quickly() {
     }
     let drawn = began.elapsed();
     eprintln!("30 MB source: prepared in {opened:?}, 20 frames in {drawn:?}");
-    assert!(opened.as_secs() < 5 && drawn.as_secs() < 20, "{opened:?} {drawn:?}");
+    // Only its start is kept, and of that only the lines in view are laid out.
+    let kept: usize = a.session.sources[0].lines.iter().map(String::len).sum();
+    assert!(kept <= mailcraft_engine::SOURCE_SHOWN, "{kept} bytes kept");
+    a.ui.source_headers.remove(&k);
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    let laid = ctx.fonts(|f| f.num_galleys_in_cache());
+    assert!(laid < 1000, "{laid} texts laid out");
+    // Timed only in a release build: a debug build on a busy machine measures the machine.
+    if !cfg!(debug_assertions) {
+        assert!(opened.as_secs() < 5 && drawn.as_secs() < 20, "{opened:?} {drawn:?}");
+    }
     let _ = std::fs::remove_dir_all(dir);
 }
 
