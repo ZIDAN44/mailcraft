@@ -260,3 +260,32 @@ fn measure_reading_every_message_of_a_big_folder() {
     }
     println!("MEASURE {} messages read: {best} ms (best of {ROUNDS})", rows.len());
 }
+
+/// Messages with many named properties added to a file whose name-to-ID map holds many: each
+/// addition looks every name it gives up in the map.
+#[test]
+#[ignore = "a measurement"]
+fn measure_named_properties_looked_up_in_a_big_name_map() {
+    let names: Vec<String> = (0..5000).map(|i| format!("Label {i}")).collect();
+    let named = |range: std::ops::Range<usize>| -> Vec<NewProperty<'_>> {
+        names[range].iter().map(|n| NewProperty::named(PS_PUBLIC_STRINGS, Name::String(n), NewValue::Integer32(1))).collect()
+    };
+    let make = |p: &Path| {
+        write::create_empty(p, Format::Unicode).unwrap();
+        for k in 0..50 {
+            add_with(p, &["Inbox"], k, 1, &named(k * 100..k * 100 + 100));
+        }
+    };
+    let given = named(0..300);
+    let mut best = u128::MAX;
+    for _ in 0..ROUNDS {
+        let path = start_from("name-map.pst", make);
+        let t = Instant::now();
+        for b in 0..20 {
+            add_with(&path, &["Inbox"], 1000 + b * 5, 5, &given);
+        }
+        best = best.min(t.elapsed().as_millis());
+        println!("file {:016x}", digest(&path));
+    }
+    println!("MEASURE 20 batches of 5 messages of 300 names into a map of 5000: {best} ms (best of {ROUNDS})");
+}

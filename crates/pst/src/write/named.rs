@@ -1,7 +1,7 @@
 //! Named properties: each one given is looked up in the file's name-to-ID map, and added to it
 //! when it isn't there (MS-PST 2.4.7).
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io;
 
 use super::FIRST_SUBNODE;
@@ -108,19 +108,23 @@ fn collect<'a>(messages: &mut Vec<&'a NewMessage<'a>>, attachments: &'a [NewAtta
 impl Editor {
     /// The ID of each named property `batch` gives; those the map lacks are added to it.
     pub(crate) fn resolve_named(&mut self, batch: &[BatchMessage<'_>]) -> io::Result<NamedIds> {
+        // In the order first given, which is the order those the map lacks are added in.
         let mut wanted: Vec<NameKey> = Vec::new();
+        let mut seen: HashSet<NameKey> = HashSet::new();
         for input in batch {
             let mut messages = vec![&input.message];
             collect(&mut messages, input.attachments);
             for p in messages.iter().flat_map(|m| m.properties) {
                 if let PropertyKey::Named(set, name) = p.key {
                     let key = NameKey::of(&set, name);
-                    if !wanted.contains(&key) {
+                    if !seen.contains(&key) {
+                        seen.insert(key.clone());
                         wanted.push(key);
                     }
                 }
             }
         }
+        let strings_wanted = wanted.iter().any(|k| matches!(k, NameKey::String(..)));
         let mut named = NamedIds::default();
         if wanted.is_empty() {
             return Ok(named);
@@ -158,13 +162,15 @@ impl Editor {
             };
             let key = if guid & 1 == 0 {
                 NameKey::Id(set, id)
+            } else if !strings_wanted {
+                continue;
             } else {
                 match string_at(&strings, id) {
                     Some(n) => NameKey::String(set, n),
                     None => continue,
                 }
             };
-            if index <= MAX_PROP_INDEX && wanted.contains(&key) {
+            if index <= MAX_PROP_INDEX && seen.contains(&key) {
                 named.ids.entry(key).or_insert(0x8000 + index);
             }
         }
