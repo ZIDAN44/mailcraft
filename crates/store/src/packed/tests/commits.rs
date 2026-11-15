@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 
 use redb::{ReadableDatabase, ReadableTable};
 
+use super::measure::{ms, percentile, spread};
 use super::*;
 
 /// This test binary again, running only `test` (an ignored one that does nothing unless `env`
@@ -19,17 +20,6 @@ pub(super) fn child(test: &str, env: &[(&str, String)]) -> std::process::Child {
         cmd.env(k, v);
     }
     cmd.spawn().unwrap()
-}
-
-fn ms(d: Duration) -> f64 {
-    d.as_secs_f64() * 1000.0
-}
-
-/// (median, mean, 90th percentile) in ms.
-fn spread(mut v: Vec<f64>) -> (f64, f64, f64) {
-    v.sort_by(f64::total_cmp);
-    let at = |q: f64| v.get(((v.len() as f64 - 1.0) * q).round() as usize).copied().unwrap_or(0.0);
-    (at(0.5), v.iter().sum::<f64>() / v.len().max(1) as f64, at(0.9))
 }
 
 /// Sources of every kind: text, a big text one, noise that doesn't compress (one in pieces), a
@@ -559,10 +549,10 @@ fn a_write_from_the_window_waits_little_for_a_background_writer() {
     }
     stop.store(true, std::sync::atomic::Ordering::Relaxed);
     let batches = writer.join().unwrap();
-    let waits: Vec<f64> = packs.seals.waits.lock().unwrap().drain(..).map(ms).collect();
+    let mut waits: Vec<f64> = packs.seals.waits.lock().unwrap().drain(..).map(ms).collect();
     assert_eq!(waits.len(), 100, "only the writes from the window are timed");
     let (wait, write) = (spread(waits.clone()), spread(whole.clone()));
-    let (wait99, write99) = (p99(waits), p99(whole));
+    let (wait99, write99) = (percentile(&mut waits, 0.99), percentile(&mut whole, 0.99));
     eprintln!(
         "{batches} background batches; waits for the writer: median {:.1} ms, p99 {wait99:.1} ms; whole writes: median {:.1} ms, p99 {write99:.1} ms",
         wait.0, write.0
@@ -617,12 +607,6 @@ fn background_batch(uid: &mut u32) -> Vec<(MessageKey, crate::Prepared)> {
             (inbox(*uid), Store::prepare(true, one.clone()))
         })
         .collect()
-}
-
-/// The 99th percentile of `v`.
-fn p99(mut v: Vec<f64>) -> f64 {
-    v.sort_by(f64::total_cmp);
-    v.get((v.len() * 99 / 100).saturating_sub(1)).copied().unwrap_or(0.0)
 }
 
 /// One commit of `items` (as kept) into `db`, timed.

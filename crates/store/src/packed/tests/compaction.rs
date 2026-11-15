@@ -20,6 +20,7 @@ use std::time::{Duration, Instant};
 
 use redb::{ReadableDatabase, ReadableTable};
 
+use super::measure::Process;
 use super::*;
 use crate::packed::{DEFLATED, FILES, META, PIECES, Tables, pieced_len, unpack};
 
@@ -33,42 +34,9 @@ fn var(name: &str) -> Option<PathBuf> {
     std::env::var_os(name).map(PathBuf::from)
 }
 
-/// What the process has read and written (every read and write it asked for, the system's cache
-/// included) and the most memory it has held, from the system.
-#[derive(Clone, Copy, Debug, Default)]
-struct Process {
-    read: u64,
-    written: u64,
-    peak: u64,
-}
-
-impl Process {
-    #[cfg(windows)]
-    fn now() -> Process {
-        let script = format!(
-            "$p = Get-CimInstance Win32_Process -Filter 'ProcessId={}'; \"$($p.ReadTransferCount) $($p.WriteTransferCount) $($p.PeakWorkingSetSize)\"",
-            std::process::id()
-        );
-        let out = std::process::Command::new("powershell").args(["-NoProfile", "-Command", &script]).output().unwrap();
-        let text = String::from_utf8_lossy(&out.stdout);
-        let n: Vec<u64> = text.split_whitespace().filter_map(|w| w.parse().ok()).collect();
-        // The peak working set is in KiB.
-        Process { read: n[0], written: n[1], peak: n[2] << 10 }
-    }
-
-    #[cfg(not(windows))]
-    fn now() -> Process {
-        let field = |text: &str, name: &str| {
-            text.lines().find_map(|l| l.strip_prefix(name)).and_then(|v| v.split_whitespace().next()?.parse::<u64>().ok()).unwrap_or(0)
-        };
-        let io = std::fs::read_to_string("/proc/self/io").unwrap_or_default();
-        let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
-        Process { read: field(&io, "rchar:"), written: field(&io, "wchar:"), peak: field(&status, "VmHWM:") << 10 }
-    }
-
-    fn since(self, before: Process) -> Process {
-        Process { read: self.read - before.read, written: self.written - before.written, peak: self.peak }
-    }
+/// What the process has read, written and held so far: a measurement can't go on without it.
+fn counts() -> Process {
+    Process::now().expect("the system's counts for this process")
 }
 
 /// `file` opened past the system's cache on Windows (for writing: made new, and written through
@@ -273,7 +241,7 @@ fn a_data_file_copied_to_a_new_one() {
     let raw_at: Option<f64> = std::env::var("MC_COPY_RAW").ok().map(|r| r.parse().unwrap());
     assert!(!to.exists(), "{} is made new", to.display());
     eprintln!("made cold in {:.1?}", cold(&from));
-    let before = Process::now();
+    let before = counts();
     let t = Instant::now();
     // With the cache a data file has (redb's own is 1 GiB).
     let src = redb::Database::builder().set_cache_size(crate::CACHE).open_read_only(&from).unwrap();
@@ -337,7 +305,7 @@ fn a_data_file_copied_to_a_new_one() {
     commits += 1;
     drop(db);
     let took = t.elapsed();
-    let used = Process::now().since(before);
+    let used = counts().since(before);
     let (from_len, to_len) = (std::fs::metadata(&from).unwrap().len(), std::fs::metadata(&to).unwrap().len());
     eprintln!(
         "copied {count} files ({:.0} MiB as kept) in {commits} commits, {took:.1?}: {:.0} MiB -> {:.0} MiB; \
@@ -364,11 +332,11 @@ fn a_real_data_file_is_compressed_again() {
     let (s, id, _) = only_data_file(&root);
     let before = s.data_file_health(&id).unwrap().unwrap();
     eprintln!("before: {before:?}");
-    let used = Process::now();
+    let used = counts();
     let (t, mut heard) = (Instant::now(), 0u64);
     let r = s.recompress_data_file(&id, &AtomicBool::new(false), &mut |_| heard += 1).unwrap().unwrap();
     let took = t.elapsed();
-    let used = Process::now().since(used);
+    let used = counts().since(used);
     eprintln!("compressed again in {took:.1?} ({heard} reports): {r:?}");
     eprintln!("read {:.0} MiB, wrote {:.0} MiB, peak working set {:.0} MiB", mib(used.read), mib(used.written), mib(used.peak));
     let after = s.data_file_health(&id).unwrap().unwrap();
@@ -401,7 +369,7 @@ fn a_data_file_compacts_in_place() {
     eprintln!("made cold in {:.1?}", cold(&file));
     let (read_rate, write_rate) = drive_rates(&file);
     eprintln!("the drive: reads {:.0} MiB/s, writes {:.0} MiB/s", read_rate / MIB, write_rate / MIB);
-    let before = Process::now();
+    let before = counts();
     let t = Instant::now();
     let mut db = redb::Database::builder().set_cache_size(crate::CACHE).create(&file).unwrap();
     let opened = t.elapsed();
@@ -417,7 +385,7 @@ fn a_data_file_compacts_in_place() {
     let sealed = t.elapsed();
     drop(db);
     let shrank = shrinks.stop();
-    let used = Process::now().since(before);
+    let used = counts().since(before);
     let after_len = std::fs::metadata(&file).unwrap().len();
     let (s, id, _) = only_data_file(&root);
     let after = s.data_file_health(&id).unwrap().unwrap();

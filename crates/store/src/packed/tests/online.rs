@@ -2,6 +2,7 @@
 //! long it takes and how much memory it needs at most, the account's size given.
 
 use super::commits::child;
+use super::measure::Process;
 use super::*;
 
 /// The account: this many sources of 1 MiB, each different and not compressible.
@@ -44,18 +45,8 @@ fn expected() -> u64 {
 /// The most memory this process has had so far (MiB): its working set and its private bytes, as
 /// the system counts them.
 fn peak() -> (u64, u64) {
-    let mib = |b: u64| b >> 20;
-    if cfg!(windows) {
-        let script = format!("$p = Get-Process -Id {}; \"$($p.PeakWorkingSet64) $($p.PeakPagedMemorySize64)\"", std::process::id());
-        let out = std::process::Command::new("powershell").args(["-NoProfile", "-Command", &script]).output().unwrap();
-        let text = String::from_utf8_lossy(&out.stdout).to_string();
-        let mut n = text.split_whitespace().map(|n| n.parse::<u64>().unwrap_or(0));
-        (mib(n.next().unwrap_or(0)), mib(n.next().unwrap_or(0)))
-    } else {
-        let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
-        let kb = |field: &str| status.lines().find_map(|l| l.strip_prefix(field)?.trim().strip_suffix("kB")?.trim().parse::<u64>().ok()).unwrap_or(0);
-        (kb("VmHWM:") >> 10, kb("VmPeak:") >> 10)
-    }
+    let p = Process::now().expect("the system's counts for this process");
+    (p.peak >> 20, p.peak_private >> 20)
 }
 
 /// Run by [`measure_online_only_switch`] in a process of its own, so its peak is the switch's:

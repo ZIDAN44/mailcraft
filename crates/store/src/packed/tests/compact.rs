@@ -10,6 +10,7 @@ use mailcraft_model::job::progress::Work;
 use redb::ReadableDatabase;
 
 use super::commits::child;
+use super::measure::{ms, percentile};
 use super::*;
 use crate::packed::compact::{Account, Step, Target};
 use crate::packed::{Packs, Tables};
@@ -496,8 +497,6 @@ fn killed_during_recompress() {
 #[test]
 #[ignore = "a measurement: run alone with --ignored --nocapture"]
 fn a_write_from_the_window_waits_little_for_a_recompress() {
-    let ms = |d: Duration| d.as_secs_f64() * 1000.0;
-    let at = |v: &[f64], q: f64| v.get(((v.len() as f64 - 1.0) * q).round() as usize).copied().unwrap_or(0.0);
     for big in [false, true] {
         let t = temp(&format!("recompress-latency-{big}"));
         let mut kept: Kept = (0..600u32).map(|i| (format!("INBOX/1/{i}.eml"), base64(&noise(90_000, u64::from(i) + 1)))).collect();
@@ -528,16 +527,17 @@ fn a_write_from_the_window_waits_little_for_a_recompress() {
         }
         let (r, run) = running.join().unwrap();
         let mut waits: Vec<f64> = p.seals.waits.lock().unwrap().drain(..).map(ms).collect();
-        waits.sort_by(f64::total_cmp);
-        took.sort_by(f64::total_cmp);
-        let (p50, p99, max) = (at(&took, 0.5), at(&took, 0.99), took.last().copied().unwrap_or(0.0));
+        // Sorted by the percentiles, so the last is the most.
+        let wait99 = percentile(&mut waits, 0.99);
+        let (p50, p99) = (percentile(&mut took, 0.5), percentile(&mut took, 0.99));
+        let max = took.last().copied().unwrap_or(0.0);
         eprintln!(
             "{}: recompressed {} files in {run:?}; {} writes from the window took p50 {p50:.1} ms, p99 {p99:.1} ms, \
              at most {max:.1} ms; their wait for the writer p99 {:.1} ms, at most {:.1} ms",
             if big { "with big attachments" } else { "mail alone" },
             r.files,
             took.len(),
-            at(&waits, 0.99),
+            wait99,
             waits.last().copied().unwrap_or(0.0),
         );
         assert!(r.finished && r.files == files);
