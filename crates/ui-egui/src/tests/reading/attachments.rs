@@ -4,7 +4,7 @@ use super::*;
 
 #[test]
 fn every_kind_of_attachment_previews_in_the_reading_pane() {
-    let (mut a, dir) = app("attachment-preview");
+    let (mut a, _) = app("attachment-preview");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list.iter().find(|m| m.subject.starts_with("Your proof")).map(|m| m.key.clone()).unwrap();
@@ -26,13 +26,12 @@ fn every_kind_of_attachment_previews_in_the_reading_pane() {
     // One that isn't there any more (another message's index) is just the message.
     a.ui.attachment_view = Some((k.clone(), 99));
     frame(&ctx, &mut a, vec![]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Back from a previewed attachment, its chip isn't left selected.
 #[test]
 fn leaving_an_attachment_preview_lets_go_of_its_chip() {
-    let (mut a, dir) = app("attach-back");
+    let (mut a, _) = app("attach-back");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list.iter().find(|m| m.subject.contains("festival poster")).map(|m| m.key.clone()).unwrap();
@@ -44,7 +43,6 @@ fn leaving_an_attachment_preview_lets_go_of_its_chip() {
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
     assert!(a.ui.attachment_view.is_none() && a.ui.attachment_selected.is_none());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Frames at a time of the test's own, so a double-click's two clicks can come closer together
@@ -104,7 +102,7 @@ impl Clocked {
 /// message and a file of no known kind.
 #[test]
 fn a_double_clicked_attachment_only_opens() {
-    let (mut a, dir) = app("attach-double");
+    let (mut a, _) = app("attach-double");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let raw = b"From: Sam <sam@studio.example>\r\nSubject: Forwarded with a file\r\nMIME-Version: 1.0\r\n\
@@ -135,13 +133,12 @@ fn a_double_clicked_attachment_only_opens() {
             assert!(a.ui.attachment_view.is_none());
         }
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The same in a message's own window: a double-click only opens, a click previews.
 #[test]
 fn a_double_clicked_attachment_only_opens_in_a_message_window() {
-    let (mut a, dir) = app("attach-double-window");
+    let (mut a, _) = app("attach-double-window");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let mut clock = Clocked(1.0);
@@ -160,7 +157,6 @@ fn a_double_clicked_attachment_only_opens_in_a_message_window() {
     let index = w.parsed.as_ref().and_then(|p| p.attachments.get(1)).map(|x| x.index).unwrap();
     let shown = clock.double_then_single(&ctx, &mut a, chips[1], "the window's PDF");
     assert_eq!(shown, Some((with, index)), "a click previews it in the window");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The text read out of a frame (AccessKit's labels and values).
@@ -177,7 +173,7 @@ fn previews_kept(ctx: &egui::Context, a: &MailApp) -> usize {
 /// the whole message is here, the same preview shows the file. It said "no preview" for good.
 #[test]
 fn a_file_previewed_before_it_came_shows_once_it_does() {
-    let (mut a, dir) = app("attach-came");
+    let (mut a, _) = app("attach-came");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     frame(&ctx, &mut a, vec![]);
@@ -210,7 +206,6 @@ fn a_file_previewed_before_it_came_shows_once_it_does() {
     let shown = read_out(&ctx, &mut a);
     assert!(shown.iter().any(|l| l.contains("The first line of the notes.")), "{shown:?}");
     assert!(!shown.iter().any(|l| l.contains("There's no preview for this file.")), "{shown:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// One attachment after another previewed keeps one preview at most (each was kept for the
@@ -218,7 +213,7 @@ fn a_file_previewed_before_it_came_shows_once_it_does() {
 /// message; and the one shown isn't read again frame after frame.
 #[test]
 fn previews_of_many_attachments_are_not_all_kept() {
-    let (mut a, dir) = app("attach-kept");
+    let (mut a, _) = app("attach-kept");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let with: Vec<MessageKey> = a.session.list.iter().filter(|m| m.has_attachments).map(|m| m.key.clone()).collect();
@@ -251,5 +246,4 @@ fn previews_of_many_attachments_are_not_all_kept() {
         frame(&ctx, &mut a, vec![]);
     }
     assert_eq!(a.session.store.as_ref().map_or(0, |s| s.reads()), reads, "read again while shown");
-    let _ = std::fs::remove_dir_all(dir);
 }

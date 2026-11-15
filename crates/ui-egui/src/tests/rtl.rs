@@ -9,7 +9,7 @@ use super::*;
 /// (it did in debug builds; release builds took the whole box).
 #[test]
 fn deleting_a_word_after_hebrew_takes_one_word() {
-    let (mut a, dir) = app("rtl-search");
+    let (mut a, _) = app("rtl-search");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let word = if cfg!(target_os = "macos") { Modifiers::ALT } else { Modifiers::CTRL };
@@ -28,14 +28,13 @@ fn deleting_a_word_after_hebrew_takes_one_word() {
         frame(&ctx, &mut a, vec![key(Key::End, Modifiers::NONE)]);
         frame(&ctx, &mut a, vec![key(Key::ArrowLeft, word)]);
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A Hebrew subject too long for the list keeps its start, on the right, and loses its end ("…"
 /// on the left): it was laid against the left and cut on the right, its first words gone.
 #[test]
 fn a_long_hebrew_subject_keeps_its_start() {
-    let (mut a, dir) = app("rtl-subject");
+    let (mut a, _) = app("rtl-subject");
     let subject = "שלום לכולם, זהו נושא ארוך מאוד בעברית שלא נכנס בשורה אחת של הרשימה בשום אופן";
     let messages = vec![Summary {
         key: MessageKey { account: "sample".into(), folder: "Archive".into(), validity: 1, uid: 1 },
@@ -52,7 +51,6 @@ fn a_long_hebrew_subject_keeps_its_start() {
     let (ink, clip) = (shown[0].ink, shown[0].clip);
     // Within the list (nothing cut by the clip), its start against the right of the room.
     assert!(clip.min.x <= ink.min.x && ink.max.x <= clip.max.x, "{ink:?} in {clip:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Folder names in the narrowest folder pane stay on one line, "…" where they don't fit (they
@@ -60,7 +58,7 @@ fn a_long_hebrew_subject_keeps_its_start() {
 #[test]
 fn folder_names_stay_on_one_line() {
     for lang in ["ar", "he", "de", "ru", "en"] {
-        let (a, dir) = app(&format!("rtl-folders-{lang}"));
+        let (a, _) = app(&format!("rtl-folders-{lang}"));
         crate::i18n::set_current(crate::i18n::Lang::from_code(lang).unwrap_or(crate::i18n::Lang::EN));
         let ctx = egui::Context::default();
         let t = crate::theme::Tokens::light();
@@ -74,7 +72,6 @@ fn folder_names_stay_on_one_line() {
                 assert_eq!(t.galley.rows.len(), 1, "{lang}: {:?} on one line", t.galley.job.text);
             }
         }
-        let _ = std::fs::remove_dir_all(dir);
     }
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }
@@ -84,7 +81,7 @@ fn folder_names_stay_on_one_line() {
 #[test]
 fn a_right_to_left_interface_is_mirrored() {
     for (lang, file, view, inbox) in [("ar", "ملف", "عرض", "علبة الوارد"), ("en", "File", "View", "Inbox")] {
-        let (mut a, dir) = app(&format!("rtl-mirror-{lang}"));
+        let (mut a, _) = app(&format!("rtl-mirror-{lang}"));
         a.ui.language = lang.into();
         let ctx = egui::Context::default();
         for _ in 0..3 {
@@ -109,7 +106,6 @@ fn a_right_to_left_interface_is_mirrored() {
             .next();
         let time = time.unwrap_or_else(|| panic!("{lang}: no time by the sender"));
         assert_eq!(time.center().x < who.center().x, rtl, "{lang}: the time's side");
-        let _ = std::fs::remove_dir_all(dir);
     }
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }
@@ -122,7 +118,7 @@ fn top_search_query_follows_interface_direction() {
     const QUERY: &str = "R7Q";
     for module in ["mail", "people"] {
         for (lang, rtl) in [("en", false), ("he", true)] {
-            let (mut a, dir) = app(&format!("rtl-search-edge-{module}-{lang}"));
+            let (mut a, _) = app(&format!("rtl-search-edge-{module}-{lang}"));
             a.ui.language = lang.into();
             if module == "people" {
                 a.run("view.module", json!({"name": "people"}));
@@ -146,7 +142,6 @@ fn top_search_query_follows_interface_direction() {
             let space_right = rect.right() - ink.right();
             assert!(space_left.is_finite() && space_right.is_finite(), "{module} {lang}: invalid search text geometry");
             assert_eq!(space_right < space_left, rtl, "{module} {lang}: text should start at the reading edge, ink={ink:?}, field={rect:?}");
-            let _ = std::fs::remove_dir_all(dir);
         }
     }
     crate::i18n::set_current(crate::i18n::Lang::EN);
@@ -156,7 +151,7 @@ fn top_search_query_follows_interface_direction() {
 /// what doesn't fit can be scrolled to (it ran off the left edge, out of reach).
 #[test]
 fn a_narrow_right_to_left_ribbon_scrolls() {
-    let (mut a, dir) = app("rtl-ribbon");
+    let (mut a, _) = app("rtl-ribbon");
     a.ui.language = "ar".into();
     let ctx = egui::Context::default();
     let size = egui::vec2(480.0, 700.0);
@@ -172,7 +167,6 @@ fn a_narrow_right_to_left_ribbon_scrolls() {
     let left_of_window = texts.iter().filter(|d| (d.ink.center().y - ribbon_y).abs() < 12.0 && d.ink.min.x < -1.0).count();
     assert_eq!(left_of_window, 0, "{texts:?}");
     crate::i18n::set_current(crate::i18n::Lang::EN);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Gap 2: a message's Hebrew and Arabic text is selected with the pointer, as it reads, and copied
@@ -224,7 +218,7 @@ fn calendar_results_and_the_source_bar_are_mirrored() {
     for (lang, all, past, whole, header) in
         [("ar", "الكل", "السابقة", "الرسالة كاملة", "الترويسة فقط"), ("en", "All", "Past", "Whole message", "Header only")]
     {
-        let (mut a, dir) = app(&format!("rtl-found-{lang}"));
+        let (mut a, _) = app(&format!("rtl-found-{lang}"));
         a.ui.language = lang.into();
         let ctx = egui::Context::default();
         a.run("view.module", json!({"name": "calendar"}));
@@ -251,7 +245,6 @@ fn calendar_results_and_the_source_bar_are_mirrored() {
         let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
         let at = |name: &str| texts.iter().find(|d| d.text == name).map(|d| d.ink).unwrap_or_else(|| panic!("{lang}: no {name:?} in {texts:?}"));
         assert_eq!(at(whole).center().x > at(header).center().x, rtl, "{lang}: the source's bar");
-        let _ = std::fs::remove_dir_all(dir);
     }
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }
@@ -263,7 +256,7 @@ fn people_navigation_and_table_follow_interface_direction() {
     for (lang, rtl, full_name, company) in
         [("en", false, "Full name", "Company"), ("he", true, "שם מלא", "חברה"), ("ar", true, "الاسم الكامل", "الشركة")]
     {
-        let (mut a, dir) = app(&format!("rtl-people-views-{lang}"));
+        let (mut a, _) = app(&format!("rtl-people-views-{lang}"));
         a.ui.language = lang.into();
         a.run("view.module", json!({"name": "people"}));
         let ctx = egui::Context::default();
@@ -295,7 +288,6 @@ fn people_navigation_and_table_follow_interface_direction() {
                 crate::people::PeopleView::Cards => {}
             }
         }
-        let _ = std::fs::remove_dir_all(dir);
     }
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }
@@ -307,7 +299,7 @@ fn long_latin_contact_details_stay_inside_rtl_navigation() {
     const NAME: &str = "Alexandria Maximilian Turing with an exceptionally long and descriptive contact display name";
     const EMAIL: &str = "extremely.long.contact.address.with.many.names.and.extra.details@really-long-example-domain.example";
     for lang in ["he", "ar"] {
-        let (mut a, dir) = app(&format!("rtl-long-contact-{lang}"));
+        let (mut a, _) = app(&format!("rtl-long-contact-{lang}"));
         let mut f = crate::pim_dialogs::ContactForm { name: NAME.into(), ..Default::default() };
         f.emails[0] = EMAIL.into();
         a.ui.dialog = Some(Dialog::new_contact());
@@ -330,7 +322,6 @@ fn long_latin_contact_details_stay_inside_rtl_navigation() {
                 "{lang}: long Latin contact text extends beyond nav clip: {ink:?} in {clip:?}"
             );
         }
-        let _ = std::fs::remove_dir_all(dir);
     }
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }

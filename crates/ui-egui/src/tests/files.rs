@@ -113,7 +113,6 @@ fn files_copied_in_a_file_manager_are_attached_when_pasted() {
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.compose.as_ref().unwrap().body.contains("hello there"));
     assert_eq!(attached(&a).len(), 3);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Files dropped on the main window with nothing being written start a message with them
@@ -157,7 +156,6 @@ fn files_dropped_on_the_main_window_start_a_message() {
     frame(&ctx, &mut a, vec![]);
     assert_eq!(a.session.compose.as_ref().map(|c| c.id), id);
     assert_eq!(attached(&a), ["brief.pdf", "notes.txt"]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #38: Outlook message files and `.eml` files dropped on the main window go into the
@@ -193,7 +191,6 @@ fn message_files_dropped_on_the_window_go_into_the_folder_open() {
     a.session.apply(mailcraft_engine::model::Event::MessagesFiled { account: "sample".into(), folder: "INBOX".into(), added: 2, failed: Vec::new() });
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.notices.last().is_some_and(|n| n.text.contains('2') && !n.error), "{:?}", a.session.notices.last());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #56: the pictures a mail file opened to be looked at carries in itself are shown, as a
@@ -226,7 +223,6 @@ fn a_mail_files_own_pictures_are_shown() {
         }
     }
     assert!(got, "the file's own picture is shown");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #56: a mail file opened to be looked at, picked in MailCraft itself, shows in a message
@@ -325,7 +321,6 @@ fn a_mail_file_is_opened_to_be_looked_at() {
     a.services = Box::new(PicksMailFile(huge));
     a.act(crate::Action::OpenMailFile);
     assert_eq!(a.session.notices.last().unwrap().text, "huge.eml is too big");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A mail file handed to MailCraft opens in front: its window is brought forward once, when it's
@@ -357,5 +352,4 @@ fn a_mail_files_window_comes_to_the_front() {
     assert_eq!(focused(&mut a, 3), 0);
     a.open_handed(&eml.to_string_lossy());
     assert_eq!(focused(&mut a, 6), 1, "opened again: in front again");
-    let _ = std::fs::remove_dir_all(dir);
 }

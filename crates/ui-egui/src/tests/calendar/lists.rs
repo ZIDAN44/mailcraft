@@ -96,7 +96,7 @@ fn a_run_of(shown: &[String], all: &[String], from: usize, top: bool) {
 /// takes what's typed.
 #[test]
 fn long_lists_scroll_in_order_and_follow_changes() {
-    let (mut a, dir) = app("long-lists");
+    let (mut a, _) = app("long-lists");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     big_lists(&mut a, 1200, 400, 120);
@@ -174,7 +174,6 @@ fn long_lists_scroll_in_order_and_follow_changes() {
     assert!(!texts.iter().any(|(t, _)| t.starts_with("Note 00000")), "scrolled away");
     let _ = drawn(&ctx, &mut a, vec![Event::Text("!".into())]);
     assert!(a.ui.note_edit.as_ref().is_some_and(|(_, text)| text.ends_with('!')), "{:?}", a.ui.note_edit);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// What People, Tasks and Notes cost a frame with 5,000 contacts, 3,000 tasks and 1,000 notes, at
@@ -185,7 +184,7 @@ fn long_lists_scroll_in_order_and_follow_changes() {
 #[ignore]
 fn measure_long_lists() {
     use std::hash::{Hash, Hasher};
-    let (mut a, dir) = app("measure-lists");
+    let (mut a, _) = app("measure-lists");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     big_lists(&mut a, 5000, 3000, 1000);
@@ -229,5 +228,4 @@ fn measure_long_lists() {
             println!("MEASURE {case}, {place}: {each:.2} ms a frame; drawn {} texts, {:016x}", texts.len(), h.finish());
         }
     }
-    let _ = std::fs::remove_dir_all(dir);
 }

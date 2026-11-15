@@ -51,7 +51,7 @@ fn says(nodes: &[Named], name: &str) -> bool {
 /// who isn't gets "Add to contacts…" (and the From line's button for it).
 #[test]
 fn people_above_a_message_are_found_among_the_contacts() {
-    let (mut a, dir) = app("people-known");
+    let (mut a, _) = app("people-known");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     save_people(&mut a, 3);
@@ -77,7 +77,6 @@ fn people_above_a_message_are_found_among_the_contacts() {
     let card = click_with(&ctx, &mut a, at(&nodes, "Pat"), egui::PointerButton::Primary);
     assert!(says(&card, "Person 1"), "{card:?}");
     assert!(says(&card, "Edit contact…"), "{card:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A frame of a message to 50 people (the most named above it, about half of them saved), with no
@@ -88,7 +87,7 @@ fn people_above_a_message_are_found_among_the_contacts() {
 #[ignore]
 fn measure_people_above_a_message() {
     use std::hash::{Hash, Hasher};
-    let (mut a, dir) = app("measure-people");
+    let (mut a, _) = app("measure-people");
     let ctx = egui::Context::default();
     let to: Vec<EmailAddress> = (0..50).map(|i| EmailAddress::new(format!("Reader {i}"), format!("person{}@example.org", i * 197))).collect();
     open_message(&mut a, &EmailAddress::new("Pat", "pat@example.org"), to);
@@ -113,5 +112,4 @@ fn measure_people_above_a_message() {
     save_people(&mut a, 5000);
     let many = timed(&mut a, "5000 contacts");
     println!("MEASURE the contacts' part of a frame: {:.3} ms", many - none);
-    let _ = std::fs::remove_dir_all(dir);
 }

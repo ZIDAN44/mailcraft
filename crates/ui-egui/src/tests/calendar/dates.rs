@@ -67,7 +67,7 @@ fn a_day_is_shown_as_before() {
 /// out of reach). And in a roomy window its rows aren't squeezed.
 #[test]
 fn the_month_view_shows_every_week_in_a_small_window() {
-    let (mut a, dir) = app("month-small");
+    let (mut a, _) = app("month-small");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("view.module", json!({"name": "calendar"}));
@@ -86,5 +86,4 @@ fn the_month_view_shows_every_week_in_a_small_window() {
         let hidden: Vec<String> = days.iter().filter(|d| d.rect.max.y > d.clip.max.y).map(|d| format!("{} at {:?}", d.text, d.rect)).collect();
         assert!(hidden.is_empty(), "{size:?}: below the pane's edge ({:?}): {hidden:?}", head.clip);
     }
-    let _ = std::fs::remove_dir_all(dir);
 }

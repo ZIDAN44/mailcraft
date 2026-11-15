@@ -18,7 +18,7 @@ fn button<'n>(nodes: &'n [Named], name: &str) -> Option<&'n Named> {
 
 #[test]
 fn send_from_a_data_file_says_to_add_an_account() {
-    let (mut a, dir) = app("send-data-file");
+    let (mut a, _) = app("send-data-file");
     a.session.prefs.new_mail_window = false;
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
@@ -79,13 +79,12 @@ fn send_from_a_data_file_says_to_add_an_account() {
     assert!(!nodes.iter().any(|n| n.name() == Some(why.as_str()) || n.name() == Some("Add an account")), "the bar is gone");
     let send = button(&nodes, "Send").expect("Send");
     assert!(!send.disabled, "Send is on");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// From the sample mailbox, Send is on and nothing about adding an account shows.
 #[test]
 fn send_from_an_account_that_can_shows_nothing_more() {
-    let (mut a, dir) = app("send-sample");
+    let (mut a, _) = app("send-sample");
     a.session.prefs.new_mail_window = false;
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
@@ -97,14 +96,13 @@ fn send_from_an_account_that_can_shows_nothing_more() {
     let send = button(&nodes, "Send").expect("Send");
     assert!(!send.disabled);
     assert!(!nodes.iter().filter_map(Named::name).any(|name| name.contains("Add an account")));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Sent to no one: the alert says so in the window's words, whatever the engine's error says;
 /// any other reason it gives is said as it gives it, as a sentence. Neither offers an account.
 #[test]
 fn send_to_no_one_says_to_add_a_name() {
-    let (mut a, dir) = app("send-no-one");
+    let (mut a, _) = app("send-no-one");
     a.session.prefs.new_mail_window = false;
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
@@ -132,7 +130,6 @@ fn send_to_no_one_says_to_add_a_name() {
     let nodes = shown(&ctx, &mut a);
     assert!(nodes.iter().any(|n| n.name() == Some("To: not an email address: ann@.")), "{nodes:?}");
     assert!(!nodes.iter().any(|n| n.name() == Some("Add an account")));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The window's GPU device goes (a driver reset after sleep): nothing can be drawn, so nobody can
@@ -140,7 +137,7 @@ fn send_to_no_one_says_to_add_a_name() {
 /// window closes without asking (as PhotoCraft's).
 #[test]
 fn a_lost_gpu_keeps_whats_written_and_closes() {
-    let (mut a, dir) = app("gpu-lost");
+    let (mut a, _) = app("gpu-lost");
     a.session.prefs.new_mail_window = false;
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
@@ -157,14 +154,13 @@ fn a_lost_gpu_keeps_whats_written_and_closes() {
     for subject in ["First thoughts", "Second thoughts"] {
         assert_eq!(a.session.list.iter().filter(|m| m.subject == subject).count(), 1, "{subject} in Drafts once");
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The check before sending, when what it found can't be read: it says there's something about
 /// the recipients to look at, and Send anyway is still there.
 #[test]
 fn a_check_before_sending_that_cant_be_shown_still_says_so() {
-    let (mut a, dir) = app("send-check-unread");
+    let (mut a, _) = app("send-check-unread");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.ui.dialog = Some(Dialog::SendCheck(Vec::new()));
@@ -172,5 +168,4 @@ fn a_check_before_sending_that_cant_be_shown_still_says_so() {
     let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 800.0));
     assert!(has(&texts, "Something about the recipients was found to look at, but it can't be shown."), "{texts:?}");
     assert!(has(&texts, "Send anyway"), "{texts:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }

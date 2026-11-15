@@ -50,7 +50,7 @@ fn scroll(ctx: &egui::Context, a: &mut MailApp, by: f32) {
 /// the person selected, and To adds them.
 #[test]
 fn a_long_address_book_scrolls_and_selects() {
-    let (mut a, dir) = app("names-long");
+    let (mut a, _) = app("names-long");
     let ctx = egui::Context::default();
     names_of(&ctx, &mut a, 2000);
     let texts = drawn(&ctx, &mut a, vec![]);
@@ -81,7 +81,6 @@ fn a_long_address_book_scrolls_and_selects() {
         .collect();
     assert_eq!(whole.last().map(String::as_str), Some("Person 1999"), "{whole:?}");
     assert!(whole.len() >= 5, "{whole:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A frame of Select Names with 2,000 people (address_book's most), at the top and scrolled,
@@ -92,7 +91,7 @@ fn a_long_address_book_scrolls_and_selects() {
 #[ignore]
 fn measure_select_names() {
     use std::hash::{Hash, Hasher};
-    let (mut a, dir) = app("measure-names");
+    let (mut a, _) = app("measure-names");
     let ctx = egui::Context::default();
     names_of(&ctx, &mut a, 2000);
     let timed = |a: &mut MailApp| {
@@ -125,7 +124,6 @@ fn measure_select_names() {
             h.finish()
         );
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Opened from Bcc, a double-click adds the person to Bcc; a field's button adds the one selected
@@ -133,7 +131,7 @@ fn measure_select_names() {
 #[test]
 fn select_names_adds_to_the_field_asked() {
     use crate::dialogs::Recipients;
-    let (mut a, dir) = app("names-fields");
+    let (mut a, _) = app("names-fields");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     a.session.prefs.new_mail_window = false;
@@ -159,5 +157,4 @@ fn select_names_adds_to_the_field_asked() {
     assert_eq!(fields(&a).1, "Person 0001 <p0001@x.example>; ");
     click_named(&ctx, &mut a, "To ->");
     assert_eq!(fields(&a).0, "Person 0001 <p0001@x.example>; ");
-    let _ = std::fs::remove_dir_all(dir);
 }

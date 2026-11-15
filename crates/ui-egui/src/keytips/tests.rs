@@ -125,7 +125,7 @@ fn sequences_in_two_parts_read_as_whole_ones() {
 /// each Home button's after H, and only those that go on from R after H, R.
 #[test]
 fn buttons_show_the_letters_left_to_type() {
-    let (mut a, dir) = app("keytips-badges");
+    let (mut a, _) = app("keytips-badges");
     let ctx = Context::default();
     ctx.set_os(OperatingSystem::Windows);
     frame(&ctx, &mut a, vec![]);
@@ -149,14 +149,13 @@ fn buttons_show_the_letters_left_to_type() {
     let shown = badges(&crate::tests::drawn_strings(&ctx, &mut a, size));
     assert!(shown.iter().any(|s| s == "RP") && shown.iter().any(|s| s == "RA"), "{shown:?}");
     assert!(!shown.iter().any(|s| s == "N" || s == "D" || s == "FW"), "{shown:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// In the app: Alt, H, R, P on a message opens its reply, as in Outlook; the File page and the
 /// search box have theirs.
 #[test]
 fn alt_h_r_p_replies() {
-    let (mut a, dir) = app("keytips");
+    let (mut a, _) = app("keytips");
     let ctx = Context::default();
     ctx.set_os(OperatingSystem::Windows);
     frame(&ctx, &mut a, vec![]);
@@ -172,7 +171,6 @@ fn alt_h_r_p_replies() {
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.compose.is_some(), "the reply opened");
     assert_eq!(a.ui.keytips.prefix(), None);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Found in review: with no message selected, Alt, H, D pressed a popped-out message window's own
@@ -180,7 +178,7 @@ fn alt_h_r_p_replies() {
 /// buttons take key tips.
 #[test]
 fn only_the_ribbons_buttons_take_key_tips() {
-    let (mut a, dir) = app("keytips-window");
+    let (mut a, _) = app("keytips-window");
     let ctx = Context::default();
     ctx.set_os(OperatingSystem::Windows);
     frame(&ctx, &mut a, vec![]);
@@ -198,7 +196,6 @@ fn only_the_ribbons_buttons_take_key_tips() {
     frame(&ctx, &mut a, vec![]);
     assert_eq!(a.session.windows.len(), 1, "its window stays");
     assert!(a.session.summary(&k).is_some_and(|m| !m.flags.deleted), "the message stays");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// What the Home tab's buttons pay for key tips on a frame where none show (Alt not pressed), as

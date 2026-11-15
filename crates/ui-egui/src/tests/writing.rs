@@ -10,7 +10,7 @@ mod suggest;
 
 #[test]
 fn recipient_boxes_suggest_people() {
-    let (mut a, dir) = app("suggest");
+    let (mut a, _) = app("suggest");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("mail.new", json!({}));
@@ -40,14 +40,12 @@ fn recipient_boxes_suggest_people() {
     frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE), key(Key::Escape, Modifiers::NONE)]);
     frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
     assert!(a.session.compose.as_ref().unwrap().to.ends_with(", sh"), "{}", a.session.compose.as_ref().unwrap().to);
-
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn the_editor_formats_as_you_see_it_with_outlooks_keys() {
     use mailcraft_engine::mime::rich::{Align, List, PICTURE};
-    let (mut a, dir) = app("editor");
+    let (mut a, _) = app("editor");
     a.services = Box::new(Recorder(Default::default()));
     a.session.prefs.new_mail_window = false;
     let ctx = egui::Context::default();
@@ -111,12 +109,11 @@ fn the_editor_formats_as_you_see_it_with_outlooks_keys() {
     assert!(c(&a).body.contains(PICTURE) && c(&a).inline.len() == 1);
     a.run("compose.format", json!({"plain": true}));
     frame(&ctx, &mut a, vec![]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn the_address_book_adds_people_to_to_cc_and_bcc() {
-    let (mut a, dir) = app("names");
+    let (mut a, _) = app("names");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     a.session.prefs.new_mail_window = false;
@@ -140,14 +137,13 @@ fn the_address_book_adds_people_to_to_cc_and_bcc() {
     assert!(a.ui.dialog.is_none(), "{:?}", a.ui.dialog);
     let c = a.session.compose.clone().unwrap();
     assert!(c.to.contains("zoe@studio.example") && c.cc == "ann@x.example");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A dialog's OK refused by the command is said, even by a dialog with no error line of its
 /// own (Select Names), and with no dialog open at all.
 #[test]
 fn a_refused_dialog_submit_is_said() {
-    let (mut a, dir) = app("names-refused");
+    let (mut a, _) = app("names-refused");
     let ctx = egui::Context::default();
     a.session.prefs.new_mail_window = false;
     frame(&ctx, &mut a, vec![]);
@@ -176,12 +172,11 @@ fn a_refused_dialog_submit_is_said() {
     assert_eq!(a.session.notices.len(), before + 2, "{:?}", a.session.notices);
     let Some(Dialog::EditRule(f)) = &a.ui.dialog else { panic!("no dialog") };
     assert!(f.error.as_ref().is_some_and(|e| !e.starts_with("bad parameters")), "{:?}", f.error);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn delay_delivery_and_replies_to_draw_while_writing() {
-    let (mut a, dir) = app("compose-delay");
+    let (mut a, _) = app("compose-delay");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     // Delay Delivery shows for a server account (the Outbox sends it later), with its time.
@@ -203,14 +198,13 @@ fn delay_delivery_and_replies_to_draw_while_writing() {
     assert_eq!(crate::reading::parse_local("2026-10-16", "8:30 pm"), Some((20_742, 1230)));
     assert_eq!(crate::reading::parse_local("2026-10-16", "12 AM"), Some((20_742, 0)));
     assert_eq!(crate::reading::parse_local("2026-10-16", "13 PM"), None);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Writing: today's date or the time goes in at the cursor (a plain message stays plain, and
 /// Undo takes it out); Word count counts the message, or what's selected.
 #[test]
 fn the_date_goes_in_and_words_are_counted() {
-    let (mut a, dir) = app("date-words");
+    let (mut a, _) = app("date-words");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let choices = crate::rich_edit::date_choices(&a.session.clock);
@@ -248,7 +242,6 @@ fn the_date_goes_in_and_words_are_counted() {
     assert!(Dialog::WordCount(n, false).for_compose());
     a.ui.dialog = Some(Dialog::WordCount(n, false));
     frame(&ctx, &mut a, vec![]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Several messages written at once, each in its own window: a second New mail keeps the first;
@@ -256,7 +249,7 @@ fn the_date_goes_in_and_words_are_counted() {
 /// dialog opened from one shows in that one.
 #[test]
 fn several_messages_are_written_at_once() {
-    let (mut a, dir) = app("several-composes");
+    let (mut a, _) = app("several-composes");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("mail.new", json!({}));
@@ -289,13 +282,12 @@ fn several_messages_are_written_at_once() {
     for _ in 0..3 {
         frame(&ctx, &mut a, vec![]);
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Closing MailCraft with messages being written asks first; Save keeps each as a draft.
 #[test]
 fn closing_with_messages_written_asks_and_keeps_them() {
-    let (mut a, dir) = app("save-on-close");
+    let (mut a, _) = app("save-on-close");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("mail.new", json!({}));
@@ -309,7 +301,6 @@ fn closing_with_messages_written_asks_and_keeps_them() {
     let drafts = a.session.account("sample").and_then(|x| x.folder(mailcraft_engine::model::FolderRole::Drafts)).map(|f| f.path.clone()).unwrap();
     let subjects: Vec<String> = a.session.folder_state("sample", &drafts).messages.iter().map(|m| m.subject.clone()).collect();
     assert!(subjects.contains(&"Half done".into()) && subjects.contains(&"Also half done".into()), "{subjects:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A message closed with its draft saved is held, out of sight, while a server's save is on its
@@ -318,9 +309,7 @@ fn closing_with_messages_written_asks_and_keeps_them() {
 /// only (found in review: the held ones were dropped with the pool's queue).
 #[test]
 fn closing_keeps_the_drafts_on_their_way_to_a_server() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-ui-held-drafts-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let mut s = Session::open(Some(Store::open(&dir).unwrap()), Clock::new(NOW, 0));
+    let mut s = Session::open(Some(scratch_store(Store::open(scratch("held-drafts")).unwrap())), Clock::new(NOW, 0));
     let id = s.run("account.add", &json!({"email": "ana@studio.test", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
     let jobs = Jobs::default();
     let mut a = MailApp::new(s, Box::new(jobs.clone()), Box::new(NullServices(NOW)));
@@ -364,14 +353,13 @@ fn closing_keeps_the_drafts_on_their_way_to_a_server() {
     close(&ctx, &mut a);
     let raws = kept(&jobs);
     assert!(raws.len() == 1 && raws[0].contains("Subject: Held too"), "only the held one: {raws:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Closing while a message is still being sent asks first: it isn't in the Outbox yet, and was
 /// lost (found testing issue #19).
 #[test]
 fn closing_while_a_message_is_sent_asks() {
-    let (mut a, dir) = app("close-while-sending");
+    let (mut a, _) = app("close-while-sending");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("mail.new", json!({}));
@@ -384,7 +372,6 @@ fn closing_while_a_message_is_sent_asks() {
     for _ in 0..2 {
         frame(&ctx, &mut a, vec![]);
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Closed from the taskbar while minimized, when eframe runs `logic` alone and no `ui`: the close
@@ -392,7 +379,7 @@ fn closing_while_a_message_is_sent_asks() {
 /// eframe closed the window, and the messages being written were lost).
 #[test]
 fn closing_while_minimized_still_asks() {
-    let (mut a, dir) = app("save-on-close-minimized");
+    let (mut a, _) = app("save-on-close-minimized");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("mail.new", json!({}));
@@ -412,7 +399,6 @@ fn closing_while_minimized_still_asks() {
     let mut out = ctx.run_ui(close, |ui| a.ui(ui));
     out.textures_delta.clear();
     assert!(matches!(a.ui.dialog, Some(Dialog::SaveOnClose(1))));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// macOS quits through `terminate:` rather than closing the window: a close nothing holds open
@@ -422,7 +408,7 @@ fn closing_while_minimized_still_asks() {
 fn a_close_becomes_the_platform_quit_unless_something_asks() {
     let ctx = egui::Context::default();
     // Nothing being written: the quit runs, and the window waits for it.
-    let (mut a, dir) = app("quit-takes-over");
+    let (mut a, _) = app("quit-takes-over");
     let quits = std::cell::Cell::new(0);
     let mut out = ctx.run_logic(&close_input(), |ctx| {
         a.logic(ctx);
@@ -448,7 +434,6 @@ fn a_close_becomes_the_platform_quit_unless_something_asks() {
         assert!(!MailApp::quit_instead_of_close(ctx, || panic!("asked first")));
     });
     assert!(matches!(a.ui.dialog, Some(Dialog::SaveOnClose(1))));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #10: a picture in a message shows as big as it is (it showed 72 points tall), and the
@@ -456,7 +441,7 @@ fn a_close_becomes_the_platform_quit_unless_something_asks() {
 #[test]
 fn pictures_in_a_message_show_their_size_and_resize_by_their_handle() {
     use egui::{Pos2, Rect, Shape, vec2};
-    let (mut a, dir) = app("picture-size");
+    let (mut a, _) = app("picture-size");
     a.session.prefs.new_mail_window = false;
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
@@ -507,7 +492,6 @@ fn pictures_in_a_message_show_their_size_and_resize_by_their_handle() {
     let c = a.session.compose.clone().unwrap();
     let at = c.body.chars().position(|ch| ch == mailcraft_engine::mime::rich::PICTURE).unwrap();
     assert!(c.styles.style(at).picture_width.is_some_and(|w| w.abs_diff(200) <= 1), "{:?}", c.styles.style(at));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #9: with an Exchange account, Select Names offers its Global Address List, the people
@@ -515,7 +499,7 @@ fn pictures_in_a_message_show_their_size_and_resize_by_their_handle() {
 /// stays selected when they do (the list moving under the selection added someone else).
 #[test]
 fn the_directory_comes_into_select_names() {
-    let (mut a, dir) = app("names-directory");
+    let (mut a, _) = app("names-directory");
     let ctx = egui::Context::default();
     a.session.prefs.new_mail_window = false;
     frame(&ctx, &mut a, vec![]);
@@ -577,14 +561,13 @@ fn the_directory_comes_into_select_names() {
     frame(&ctx, &mut a, vec![]);
     let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_ref() else { panic!("no dialog") };
     assert!(f.searching);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #9, online: with an Exchange Online account still to allow it, Select Names asks for the
 /// permission (Allow searching the directory…) rather than showing an error.
 #[test]
 fn select_names_asks_to_allow_the_directory() {
-    let (mut a, dir) = app("names-consent");
+    let (mut a, _) = app("names-consent");
     let ctx = egui::Context::default();
     a.session.prefs.new_mail_window = false;
     a.session.oauth_available = vec!["microsoft".into()];
@@ -610,14 +593,13 @@ fn select_names_asks_to_allow_the_directory() {
     frame(&ctx, &mut a, vec![]);
     let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_ref() else { panic!("no dialog") };
     assert!(f.consent && f.directory_errors.is_empty(), "{:?}", f.directory_errors);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #11: a picture pasted into the signature editor (or added with Pictures) is kept with
 /// the signature when it's saved, and goes into the next message with it.
 #[test]
 fn a_signature_keeps_a_picture_pasted_into_it() {
-    let (mut a, dir) = app("signature-picture");
+    let (mut a, _) = app("signature-picture");
     // Its clipboard holds a picture.
     a.services = Box::new(Recorder(Default::default()));
     a.session.prefs.new_mail_window = false;
@@ -647,14 +629,13 @@ fn a_signature_keeps_a_picture_pasted_into_it() {
     a.run("mail.new", json!({}));
     let c = a.session.compose.clone().unwrap();
     assert_eq!((c.body.matches('\u{FFFC}').count(), c.inline.len()), (1, 1), "the next message has it");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A reply drawn in the editor and left as MailCraft made it closes asking nothing: the frames
 /// that draw it (and fit its styles to its text) change nothing in it.
 #[test]
 fn a_reply_drawn_and_left_untouched_closes_without_asking() {
-    let (mut a, dir) = app("reply-untouched");
+    let (mut a, _) = app("reply-untouched");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
@@ -667,7 +648,6 @@ fn a_reply_drawn_and_left_untouched_closes_without_asking() {
     assert!(a.session.compose.is_some() && !a.session.compose_written(), "as made");
     close(&ctx, &mut a);
     assert!(a.ui.dialog.is_none(), "nothing asked: {:?}", a.ui.dialog);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A `mailto:` link clicked in a message is read as one the system hands MailCraft is: its
@@ -675,10 +655,9 @@ fn a_reply_drawn_and_left_untouched_closes_without_asking() {
 /// the `?` was dropped).
 #[test]
 fn a_mailto_link_clicked_in_a_message_fills_in_the_new_message() {
-    let (mut a, dir) = app("mailto-link");
+    let (mut a, _) = app("mailto-link");
     let link = "mailto:first%2Elast@studio.example?subject=Tickets%20for%20Friday&cc=zoe%2Bshows@studio.example";
     a.act(crate::Action::OpenUrl(link.into()));
     let c = a.session.compose.as_ref().expect("a new message");
     assert_eq!((c.to.as_str(), c.subject.as_str(), c.cc.as_str()), ("first.last@studio.example", "Tickets for Friday", "zoe+shows@studio.example"));
-    let _ = std::fs::remove_dir_all(dir);
 }

@@ -15,7 +15,7 @@ fn chips(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
 /// comes: the user's own, filed in Sent Items, and someone else's, in the list.
 #[test]
 fn reactions_under_a_message_follow_those_that_come() {
-    let (mut a, dir) = app("reactions-row");
+    let (mut a, _) = app("reactions-row");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let plan = b"From: Sam Lee <sam@studio.test>\r\nTo: riley@studio.example\r\nSubject: Launch plan\r\nMessage-ID: <plan-1@studio.test>\r\n\r\nHere's the plan.\r\n";
@@ -37,5 +37,4 @@ fn reactions_under_a_message_follow_those_that_come() {
     chips(&ctx, &mut a);
     let both = chips(&ctx, &mut a);
     assert!(both.len() == 2 && both.iter().any(|c| c == "Reacted with ❤️: Kim"), "{both:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }

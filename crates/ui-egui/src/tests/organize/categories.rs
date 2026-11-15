@@ -14,7 +14,7 @@ fn categories_drawn(ctx: &egui::Context, a: &mut MailApp) -> Vec<(String, egui::
 /// dialog stays open, and the keyword leaves "not in the list" once a category has it.
 #[test]
 fn the_categories_dialog_counts_keywords_on_mail_as_it_changes() {
-    let (mut a, dir) = app("categories-unlisted");
+    let (mut a, _) = app("categories-unlisted");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let keys: Vec<String> = a.session.list.iter().take(2).map(|m| m.key.to_id()).collect();
@@ -33,7 +33,6 @@ fn the_categories_dialog_counts_keywords_on_mail_as_it_changes() {
     let texts = categories_drawn(&ctx, &mut a);
     assert_eq!(row(&texts), None, "{texts:?}");
     assert!(texts.iter().any(|(t, _)| t == "Project Xprojectx"), "{texts:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A frame of the Categories dialog over the made-up big mailbox's Inbox (12,000 messages), each

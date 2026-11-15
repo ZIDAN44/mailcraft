@@ -100,7 +100,7 @@ fn action(d: &mut Dice, size: egui::Vec2) -> Vec<Event> {
 
 /// Plays `actions` random actions with `seed`; any panic fails the test with the seed and step.
 fn play(seed: u64, actions: usize) {
-    let (mut a, dir) = app(&format!("soak-{seed}"));
+    let (mut a, _) = app(&format!("soak-{seed}"));
     // The count is the process's: what other tests caught before this one began isn't its.
     let caught = PANICS_CAUGHT.load(Ordering::Relaxed);
     let ctx = egui::Context::default();
@@ -154,7 +154,6 @@ fn play(seed: u64, actions: usize) {
     if !cfg!(debug_assertions) {
         assert!(mean < std::time::Duration::from_millis(400), "seed {seed}: frames take {mean:?}");
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 use mailcraft_engine::PANICS_CAUGHT;

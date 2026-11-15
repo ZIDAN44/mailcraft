@@ -58,7 +58,7 @@ fn scroll_by(ctx: &egui::Context, a: &mut MailApp, by: f32) {
 #[ignore]
 fn measure_calendar_search() {
     use std::hash::{Hash, Hasher};
-    let (mut a, dir) = with_found_events(800);
+    let (mut a, _) = with_found_events(800);
     let ctx = egui::Context::default();
     for _ in 0..3 {
         frame(&ctx, &mut a, vec![]);
@@ -94,14 +94,13 @@ fn measure_calendar_search() {
             h.finish()
         );
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The search's results: the rows in view drawn (their dates, times, titles and what's under
 /// them), scrolled down the ones there, and one clicked opens its event.
 #[test]
 fn many_results_are_listed_and_scrolled() {
-    let (mut a, dir) = with_found_events(40);
+    let (mut a, _) = with_found_events(40);
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.ui.cal_search.query = "Measure".into();
@@ -136,5 +135,4 @@ fn many_results_are_listed_and_scrolled() {
     click(&ctx, &mut a, *at);
     assert!(matches!(&a.ui.dialog, Some(Dialog::Event(f)) if f.summary == last.summary), "{} opened", last.summary);
     assert_eq!(a.session.cal_day(), a.session.clock.local_day(last.start));
-    let _ = std::fs::remove_dir_all(dir);
 }

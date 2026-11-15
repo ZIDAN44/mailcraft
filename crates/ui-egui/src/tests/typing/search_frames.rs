@@ -152,7 +152,7 @@ fn the_search_command_takes_none_of_the_search_in_the_window() {
 /// advanced search has the received dates.
 #[test]
 fn the_list_says_how_a_search_is_going() {
-    let (mut a, dir) = app("search-status");
+    let (mut a, _) = app("search-status");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let account = a.session.accounts[0].config.id.clone();
@@ -206,5 +206,4 @@ fn the_list_says_how_a_search_is_going() {
     frame(&ctx, &mut a, vec![]);
     let texts = drawn(&ctx, &mut a);
     assert!(["Received after", "Received before", "2024-03-01"].iter().all(|w| texts.iter().any(|t| t == w)), "{texts:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }

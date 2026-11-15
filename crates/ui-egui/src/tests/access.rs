@@ -26,7 +26,7 @@ fn unnamed(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
 /// (wordcraft's ribbon fields taught this: drawn buttons say nothing unless told).
 #[test]
 fn every_control_says_what_it_is() {
-    let (mut a, dir) = app("access");
+    let (mut a, _) = app("access");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let mut seen = Vec::new();
@@ -60,14 +60,13 @@ fn every_control_says_what_it_is() {
     seen.sort();
     seen.dedup();
     assert!(seen.is_empty(), "{} controls a screen reader can't name:\n{}", seen.len(), seen.join("\n"));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A question that must be answered is read as an alert, by its title; a form is a dialog
 /// (wordcraft's save prompt taught this).
 #[test]
 fn a_question_is_read_as_an_alert_by_its_title() {
-    let (mut a, dir) = app("access-alert");
+    let (mut a, _) = app("access-alert");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     for (d, role, title) in [
@@ -104,7 +103,6 @@ fn a_question_is_read_as_an_alert_by_its_title() {
         assert_eq!(named, vec![title.to_string()]);
         a.ui.dialog = None;
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Every update the window sends is one the system's screen-reader adapter takes: its focus is
@@ -121,7 +119,7 @@ fn every_update_keeps_its_focus_among_its_nodes() {
         fn focus_moved(&mut self, _: Option<&accesskit_consumer::NodeRef<'_>>, _: Option<&accesskit_consumer::NodeRef<'_>>) {}
         fn node_removed(&mut self, _: &accesskit_consumer::NodeRef<'_>) {}
     }
-    let (mut a, dir) = app("access-focus");
+    let (mut a, _) = app("access-focus");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let mut tree: Option<accesskit_consumer::Tree> = None;
@@ -156,14 +154,13 @@ fn every_update_keeps_its_focus_among_its_nodes() {
     step(&mut a, vec![]);
     let tree = tree.expect("the window sends AccessKit updates");
     assert!(tree.state().has_node(tree.state().focus_id_in_tree()));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Esc in a File page field leaves the field, and only the next Esc leaves the File page (as
 /// GridCraft's): it used to close the whole page while typing, the edit with it.
 #[test]
 fn esc_leaves_a_file_page_field_before_the_page() {
-    let (mut a, dir) = app("esc-backstage");
+    let (mut a, _) = app("esc-backstage");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
@@ -183,14 +180,13 @@ fn esc_leaves_a_file_page_field_before_the_page() {
         frame(&ctx, &mut a, events);
     }
     assert!(a.ui.backstage.is_none(), "the next Esc leaves the File page");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #52: a message whose reply was left in Drafts is read as "[Draft]" first, as the list
 /// draws it, and Drafts says how many items it holds (never as unread).
 #[test]
 fn a_reply_left_in_drafts_is_said() {
-    let (mut a, dir) = app("access-drafts");
+    let (mut a, _) = app("access-drafts");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let labels = |a: &mut MailApp| named(&ctx, a, egui::vec2(1280.0, 800.0)).into_iter().filter_map(|n| n.label).collect::<Vec<_>>();
@@ -207,7 +203,6 @@ fn a_reply_left_in_drafts_is_said() {
     let subject = if m.subject.is_empty() { "(no subject)".to_string() } else { m.subject.clone() };
     assert!(seen.iter().any(|l| l.starts_with("[Draft], ") && l.contains(&subject)), "{seen:?}");
     assert!(seen.iter().any(|l| l.starts_with("Drafts, Items: ")), "{seen:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A ribbon button whose label carries a value (View › Arrange by: Date) shows it translated
@@ -216,7 +211,7 @@ fn a_reply_left_in_drafts_is_said() {
 #[test]
 fn a_ribbon_label_with_a_value_is_translated_once() {
     use crate::i18n::pseudo;
-    let (mut a, dir) = app("arrange-label");
+    let (mut a, _) = app("arrange-label");
     let ctx = egui::Context::default();
     a.ui.tab = crate::RibbonTab::View;
     frame(&ctx, &mut a, vec![]);
@@ -237,7 +232,6 @@ fn a_ribbon_label_with_a_value_is_translated_once() {
     let want = crate::i18n::tfmt("Arrange by: {field}", &[("field", crate::i18n::t(field))]);
     assert!(want.starts_with("Anordnen nach: ") && texts.contains(&want), "{want}: {texts:?}");
     crate::i18n::set_current(crate::i18n::Lang::EN);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The empty reading pane says what to do translated once (it translated its caller's
@@ -245,7 +239,7 @@ fn a_ribbon_label_with_a_value_is_translated_once() {
 #[test]
 fn the_empty_reading_pane_is_translated_once() {
     use crate::i18n::pseudo;
-    let (mut a, dir) = app("empty-reading");
+    let (mut a, _) = app("empty-reading");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.reading.is_none());
@@ -254,5 +248,4 @@ fn the_empty_reading_pane_is_translated_once() {
     pseudo::set(false);
     let shown: Vec<&String> = texts.iter().filter(|t| t.contains("Select a message to read it")).collect();
     assert_eq!(shown, ["⟦Select a message to read it⟧"], "{texts:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }

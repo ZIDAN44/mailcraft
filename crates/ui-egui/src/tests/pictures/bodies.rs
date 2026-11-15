@@ -18,7 +18,7 @@ fn run_held(held: &std::sync::Arc<std::sync::Mutex<Vec<crate::Work>>>) -> usize 
 /// lane read (the cache isn't read again for them).
 #[test]
 fn a_body_is_read_on_the_reading_lane() {
-    let (mut a, dir) = app("body-lane");
+    let (mut a, _) = app("body-lane");
     let ctx = egui::Context::default();
     let held = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     a.services = Box::new(Held(held.clone()));
@@ -39,14 +39,13 @@ fn a_body_is_read_on_the_reading_lane() {
     assert!(frames < 50, "all shown ({} ready)", a.ui.pictures.ready());
     assert_eq!(a.ui.pictures.counts().0, 1, "one extraction");
     assert_eq!(a.ui.pictures.reads(), 0, "from the source read to show the message");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Moving down the list faster than the lane reads hands it one piece of work, which reads the
 /// message landed on (not each one passed); a reply then acts on that message, read at once.
 #[test]
 fn the_lane_reads_only_the_latest() {
-    let (mut a, dir) = app("body-latest");
+    let (mut a, _) = app("body-latest");
     let ctx = egui::Context::default();
     let held = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     a.services = Box::new(Held(held.clone()));
@@ -75,13 +74,12 @@ fn the_lane_reads_only_the_latest() {
     assert!(a.session.compose.as_ref().is_some_and(|c| c.subject.contains(&a.session.summary(&next).unwrap().subject)));
     run_held(&held);
     frame(&ctx, &mut a, vec![]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Work no thread takes is done in the window: the message shows in the frame it was opened in.
 #[test]
 fn a_body_no_lane_takes_is_read_in_the_window() {
-    let (mut a, dir) = app("body-refused");
+    let (mut a, _) = app("body-refused");
     let ctx = egui::Context::default();
     a.services = Box::new(Refused);
     a.defer_bodies();
@@ -91,14 +89,13 @@ fn a_body_no_lane_takes_is_read_in_the_window() {
     assert!(a.session.body_waiting(&k));
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.reading.as_ref().unwrap().parsed.is_some() && !a.session.body_waiting(&k));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// On a thread of its own (as in the app), holding Down over big messages parses none of them
 /// in a frame, and the one landed on shows.
 #[test]
 fn holding_down_over_big_messages_parses_none_in_a_frame() {
-    let (mut a, dir) = app("body-threads");
+    let (mut a, _) = app("body-threads");
     let ctx = egui::Context::default();
     a.services = Box::new(Threads);
     a.defer_bodies();
@@ -124,7 +121,6 @@ fn holding_down_over_big_messages_parses_none_in_a_frame() {
     assert!(shown(&a), "shown");
     assert_eq!(a.session.reading.as_ref().unwrap().key, landed);
     assert_eq!(a.session.bodies_parsed_here(), before, "none parsed in a frame");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The arc's target: holding Down over 200 big messages on threads of their own, every step
@@ -133,7 +129,7 @@ fn holding_down_over_big_messages_parses_none_in_a_frame() {
 #[test]
 #[ignore]
 fn holding_down_frames_stay_under_16_ms() {
-    let (mut a, dir) = app("body-frames");
+    let (mut a, _) = app("body-frames");
     let ctx = egui::Context::default();
     a.services = Box::new(Threads);
     a.defer_bodies();
@@ -158,5 +154,4 @@ fn holding_down_frames_stay_under_16_ms() {
     }
     println!("worst step {:.1} ms", worst.as_secs_f64() * 1000.0);
     assert!(worst < std::time::Duration::from_millis(16), "worst step {worst:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }

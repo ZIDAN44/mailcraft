@@ -67,7 +67,6 @@ fn an_outlook_signature_file_becomes_the_code() {
     a.ui.dialog = Dialog::signature(&a.session);
     assert!(form(&a).code.as_deref().is_some_and(|c| c.contains("WordSection1")));
     frame(&ctx, &mut a, vec![]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 fn form_mut(a: &mut MailApp) -> &mut crate::dialogs::SignatureForm {
@@ -79,7 +78,7 @@ fn form_mut(a: &mut MailApp) -> &mut crate::dialogs::SignatureForm {
 /// replies, renamed (the defaults following it) and deleted; "(none)" is a choice too.
 #[test]
 fn signatures_are_made_renamed_and_chosen_in_the_editor() {
-    let (mut a, dir) = app("signatures-editor");
+    let (mut a, _) = app("signatures-editor");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     frame(&ctx, &mut a, vec![]);
@@ -121,14 +120,13 @@ fn signatures_are_made_renamed_and_chosen_in_the_editor() {
     assert_eq!(a.session.account("sample").unwrap().config.signature_new, None, "(none) for new messages");
     a.run("mail.new", json!({}));
     assert_eq!(a.session.compose.as_ref().unwrap().body, "");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The message's Signature menu lists the account's signatures: one picked takes the place of
 /// the one in the message.
 #[test]
 fn the_signature_menu_lists_the_accounts_signatures() {
-    let (mut a, dir) = app("signatures-menu");
+    let (mut a, _) = app("signatures-menu");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     a.session.prefs.new_mail_window = false;
@@ -150,14 +148,13 @@ fn the_signature_menu_lists_the_accounts_signatures() {
     let c = a.session.compose.as_ref().unwrap();
     assert_eq!(c.account, desk);
     assert!(c.body.ends_with("-- \nFront desk") && c.body.matches("-- ").count() == 1, "{:?}", c.body);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Renamed to another signature's name, it isn't saved (it would take that one's place), nor
 /// left behind by switching: the editor says why and waits.
 #[test]
 fn a_signature_cant_take_anothers_name() {
-    let (mut a, dir) = app("signatures-taken");
+    let (mut a, _) = app("signatures-taken");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     a.run("account.setSignature", json!({"account": "sample", "name": "Short", "signature": "R."}));
@@ -176,14 +173,13 @@ fn a_signature_cant_take_anothers_name() {
     click_named(&ctx, &mut a, "Save");
     let config = a.session.account("sample").unwrap().config.clone();
     assert_eq!(config.signatures.iter().map(|g| g.name.as_str()).collect::<Vec<_>>(), ["Long", "Short"]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// An account's first signature shows for new messages and replies alike, as it's saved; one
 /// chosen for new messages only, "(none)" for replies, is saved so (it went into both).
 #[test]
 fn the_first_signature_is_saved_with_the_defaults_chosen() {
-    let (mut a, dir) = app("signatures-first");
+    let (mut a, _) = app("signatures-first");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     a.run("account.removeSignature", json!({"account": "sample", "name": "Signature"}));
@@ -203,7 +199,6 @@ fn the_first_signature_is_saved_with_the_defaults_chosen() {
     click_named(&ctx, &mut a, "Save");
     let config = a.session.account("sample").unwrap().config.clone();
     assert_eq!((config.signature_new.as_deref(), config.signature_reply.as_deref()), (Some("Signature"), None));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #90: a signature written as HTML code shows in the message being written as it's sent,
@@ -216,7 +211,7 @@ fn a_signature_in_columns_is_drawn_in_columns_while_writing() {
 <td width="120" style="width:120px">STUDIO</td>
 <td width="200" style="width:200px;padding:0 16px 0 12px"><b>Ms. Riley Moreno</b><br>riley@studio.example</td>
 <td style="padding:0 0 0 16px;border-left:1px solid #E30613;font-size:11px">12 Harbour Road<br>Portside</td></tr></table>"#;
-    let (mut a, dir) = app("signature-card");
+    let (mut a, _) = app("signature-card");
     let ctx = egui::Context::default();
     a.run("account.setSignature", json!({"account": "sample", "name": "Card", "signature": "", "code": CODE}));
     a.run("account.signatureDefaults", json!({"account": "sample", "new": "Card"}));
@@ -250,7 +245,6 @@ fn a_signature_in_columns_is_drawn_in_columns_while_writing() {
     a.run("compose.update", json!({"body": changed}));
     assert!(a.session.compose.as_ref().unwrap().signature_card().is_none());
     assert!(piece(&mut a, "12 Harbour Road").is_none());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The drawn signature is one thing in the text (issue #90): Backspace after it, or Delete
@@ -264,7 +258,7 @@ fn the_drawn_signature_is_one_thing_in_the_text() {
 <td width="120" style="width:120px"><img src="https://studio.example/logo.png" width="96" height="40" alt="Studio"></td>
 <td width="200" style="width:200px"><b>Ms. Riley Moreno</b><br>riley@studio.example</td>
 <td style="padding:0 0 0 16px;border-left:1px solid #E30613;font-size:11px">12 Harbour Road<br>Portside</td></tr></table>"#;
-    let (mut a, dir) = app("signature-card-keys");
+    let (mut a, _) = app("signature-card-keys");
     // (Written beside the list, where one editor draws it: a window of its own draws it the same.)
     a.session.prefs.new_mail_window = false;
     let ctx = egui::Context::default();
@@ -335,5 +329,4 @@ fn the_drawn_signature_is_one_thing_in_the_text() {
     assert!(quoted.contains("Storyboard review"), "{quoted:?}");
     let text_box = drawn.iter().find(|d| d.text.contains("Storyboard review") && d.text.contains("Ms. Riley Moreno")).map(|d| d.ink);
     assert!(text_box.is_some_and(|ink| ink.top() < name && ink.bottom() > name + 40.0), "the signature inside the text: {text_box:?} {name}");
-    let _ = std::fs::remove_dir_all(dir);
 }

@@ -190,7 +190,6 @@ fn every_data_file_offers_its_buttons() {
     for ((name, got), (_, want)) in shown.iter().zip(EXPECTED) {
         assert_eq!(got, want, "{name}");
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// What the dialog showed for each, before its rows of buttons were drawn from one place: its

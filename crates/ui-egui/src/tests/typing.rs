@@ -31,7 +31,7 @@ fn code(digits: &str) -> Vec<Event> {
 /// another key interrupts types nothing, and neither does Alt alone.
 #[test]
 fn alt_codes_type_their_characters() {
-    let (mut a, dir) = app("alt-codes");
+    let (mut a, _) = app("alt-codes");
     let ctx = egui::Context::default();
     a.session.prefs.new_mail_window = false;
     frame(&ctx, &mut a, vec![]);
@@ -65,5 +65,4 @@ fn alt_codes_type_their_characters() {
     alt_frame(&ctx, &mut a, second.to_vec());
     frame(&ctx, &mut a, vec![]);
     assert!(body_text(&a).ends_with("ÉÈÇé\tÇ"), "{:?}", body_text(&a));
-    let _ = std::fs::remove_dir_all(dir);
 }

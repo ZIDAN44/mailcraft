@@ -46,7 +46,7 @@ fn thumb_widths(ctx: &egui::Context, a: &mut MailApp, key: &MessageKey, videos: 
 #[test]
 fn videos_of_one_name_each_have_their_own_thumbnail() {
     let ctx = egui::Context::default();
-    let (mut a, dir) = app("video-names");
+    let (mut a, _) = app("video-names");
     a.services = Box::new(OwnFrames);
     frame(&ctx, &mut a, vec![]);
     let both = with_files(&mut a, 9040, vec![("clip.mp4".into(), "video/mp4", vec![1u8; 64]), ("clip.mp4".into(), "video/mp4", vec![5u8; 64])]);
@@ -60,7 +60,7 @@ fn videos_of_one_name_each_have_their_own_thumbnail() {
     assert_eq!(thumb_widths(&ctx, &mut a, &first, 1), vec![10]);
     assert_eq!(thumb_widths(&ctx, &mut a, &second, 1), vec![11]);
     // The same message (account, folder, uid) in another data folder, with another clip.
-    let (mut b, other) = app("video-names-other");
+    let (mut b, _) = app("video-names-other");
     b.services = Box::new(OwnFrames);
     frame(&ctx, &mut b, vec![]);
     let there = with_files(&mut b, 9041, vec![("clip.mp4".into(), "video/mp4", vec![4u8; 64])]);
@@ -70,8 +70,6 @@ fn videos_of_one_name_each_have_their_own_thumbnail() {
     let file = |x: &MailApp| x.ui.video_files.iter().find(|((k, _), _)| *k == first).map(|(_, p)| p.clone());
     assert!(file(&a).is_some());
     assert_ne!(file(&b), file(&a), "each data folder's own file");
-    let _ = std::fs::remove_dir_all(dir);
-    let _ = std::fs::remove_dir_all(other);
 }
 
 /// More videos in a message than video thumbnails are kept: those past them show their kind's
@@ -79,7 +77,7 @@ fn videos_of_one_name_each_have_their_own_thumbnail() {
 /// every frame).
 #[test]
 fn videos_past_those_kept_make_no_texture_each_frame() {
-    let (mut a, dir) = app("many-videos");
+    let (mut a, _) = app("many-videos");
     let ctx = egui::Context::default();
     a.services = Box::new(Frames);
     frame(&ctx, &mut a, vec![]);
@@ -95,7 +93,6 @@ fn videos_past_those_kept_make_no_texture_each_frame() {
         let out = ctx.run_ui(input(), |ui| a.ui(ui));
         assert!(out.textures_delta.set.is_empty(), "{} textures made", out.textures_delta.set.len());
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Services that keep the pictures lane's work for the test to run when it says (the reading
@@ -125,7 +122,7 @@ impl crate::Services for HeldFrames {
 /// thumbnail shows once that work is done. Work for a message left does nothing.
 #[test]
 fn a_video_is_written_and_decoded_off_the_window() {
-    let (mut a, dir) = app("video-held");
+    let (mut a, _) = app("video-held");
     let ctx = egui::Context::default();
     let held = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     a.services = Box::new(HeldFrames(held.clone()));
@@ -159,7 +156,6 @@ fn a_video_is_written_and_decoded_off_the_window() {
     pump(&ctx, &mut a, WINDOW, 2, |_| false);
     assert!(a.ui.video_thumbs.values().all(|(t, _)| t.is_some()) && a.ui.video_thumbs.len() == 1, "its thumbnail shows");
     assert!(take().is_empty(), "nothing asked again");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Found in audit (#228): the platform's frame of every video looked at was kept for the
@@ -169,7 +165,7 @@ fn a_video_is_written_and_decoded_off_the_window() {
 #[test]
 fn video_frames_are_not_kept_for_the_session() {
     let ctx = egui::Context::default();
-    let (mut a, dir) = app("video-frames-kept");
+    let (mut a, _) = app("video-frames-kept");
     a.services = Box::new(OwnFrames);
     frame(&ctx, &mut a, vec![]);
     let k = with_files(&mut a, 9050, vec![("one.mp4".into(), "video/mp4", vec![1u8; 64]), ("two.mp4".into(), "video/mp4", vec![2u8; 64])]);
@@ -190,5 +186,4 @@ fn video_frames_are_not_kept_for_the_session() {
     assert_eq!(ready.len(), 16, "{ready:?}");
     assert!(a.ui.video_frames.contains_key(std::path::Path::new("shown.mp4")), "asked for in this frame: kept");
     assert!(a.ui.video_frames.contains_key(std::path::Path::new("none.mp4")), "one that can't be made stays noted");
-    let _ = std::fs::remove_dir_all(dir);
 }

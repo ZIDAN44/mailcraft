@@ -8,7 +8,7 @@ use super::*;
 /// written while it's drawn.
 #[test]
 fn a_reply_shows_the_original_as_it_came_and_changes_it_in_place() {
-    let (mut a, dir) = app("quote-shown");
+    let (mut a, _) = app("quote-shown");
     a.session.prefs.reply_window = false;
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
@@ -55,14 +55,13 @@ fn a_reply_shows_the_original_as_it_came_and_changes_it_in_place() {
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.compose.as_ref().is_some_and(|c| c.quote.is_some()));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A draft in Drafts says it isn't sent yet, and opens again to carry on writing it, as it was
 /// (its original as it came under it): from its Edit button or a double-click in the list.
 #[test]
 fn a_draft_opens_again_from_drafts() {
-    let (mut a, dir) = app("draft-again");
+    let (mut a, _) = app("draft-again");
     a.session.prefs.reply_window = false;
     a.session.prefs.new_mail_window = false;
     let ctx = egui::Context::default();
@@ -85,7 +84,6 @@ fn a_draft_opens_again_from_drafts() {
     let c = a.session.compose.as_ref().expect("being written again");
     assert_eq!(c.draft.as_ref(), Some(&key));
     assert!(c.quote.as_ref().is_some_and(|q| !q.parsed.layout.is_empty()), "its original as it came");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #74: a message with a logo from the web, centred over its text, forwarded. The logo the
@@ -94,7 +92,7 @@ fn a_draft_opens_again_from_drafts() {
 #[test]
 fn a_forward_shows_the_web_picture_the_reader_was_shown_centred() {
     use egui::{Pos2, Rect, Shape, vec2};
-    let (mut a, dir) = app("forward-web-picture");
+    let (mut a, _) = app("forward-web-picture");
     a.session.prefs.reply_window = false;
     let url = "https://pictures.example/logo.png";
     let html = format!(
@@ -143,5 +141,4 @@ fn a_forward_shows_the_web_picture_the_reader_was_shown_centred() {
     // In the middle of the pane it's in (which starts right of the folders and the list).
     let pane = Rect::from_min_max(Pos2::new(620.0, 0.0), Pos2::new(1280.0, 800.0));
     assert!((logo.center().x - pane.center().x).abs() < 40.0, "centred: {logo:?} in {pane:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }

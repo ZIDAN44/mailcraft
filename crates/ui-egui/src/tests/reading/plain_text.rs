@@ -24,7 +24,7 @@ fn click_last(ctx: &egui::Context, a: &mut MailApp, label: &str) {
 #[test]
 fn plain_text_is_in_more_actions_the_view_ribbon_and_options() {
     let _tall = windows::layout::Dressed::new(SCREEN, "");
-    let (mut a, dir) = app("plain-text");
+    let (mut a, _) = app("plain-text");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     frame(&ctx, &mut a, vec![]);
@@ -92,7 +92,6 @@ fn plain_text_is_in_more_actions_the_view_ribbon_and_options() {
     // The command keeps its id, for the CLI and --cmd.
     a.run("view.html", json!({"on": true}));
     assert!(a.session.prefs.show_html);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A message in a window of its own can be shown as plain text too: its toolbar's More actions
@@ -100,7 +99,7 @@ fn plain_text_is_in_more_actions_the_view_ribbon_and_options() {
 #[test]
 fn a_message_window_can_be_shown_as_plain_text() {
     let _tall = windows::layout::Dressed::new(SCREEN, "");
-    let (a, dir) = app("plain-text-window");
+    let (a, _) = app("plain-text-window");
     let opened = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
     let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(PageServices(opened)));
     let ctx = egui::Context::default();
@@ -120,5 +119,4 @@ fn a_message_window_can_be_shown_as_plain_text() {
     click_last(&ctx, &mut a, "Show formatted");
     frame(&ctx, &mut a, vec![]);
     assert!(!shows(&ctx, &mut a, "Shown as text."), "and back");
-    let _ = std::fs::remove_dir_all(dir);
 }

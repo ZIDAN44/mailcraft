@@ -7,7 +7,7 @@ mod folder_pane;
 
 #[test]
 fn organising_renders_and_rules_save() {
-    let (mut a, dir) = app("organise");
+    let (mut a, _) = app("organise");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     frame(&ctx, &mut a, vec![]);
@@ -37,13 +37,12 @@ fn organising_renders_and_rules_save() {
     a.ui.dialog = Some(Dialog::Rules);
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Junk Email: the menu blocks the sender, and the lists in Options draw, long ones in part.
 #[test]
 fn junk_lists_block_and_draw() {
-    let (mut a, dir) = app("junk-lists");
+    let (mut a, _) = app("junk-lists");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("list.open", json!({"key": "sample:1:1:INBOX"}));
@@ -57,7 +56,6 @@ fn junk_lists_block_and_draw() {
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.backstage.is_some());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Each Search Folder offered is known by what it searches for, not by its place in the list:
@@ -88,7 +86,7 @@ fn search_folder_presets_are_known_by_kind() {
 /// its name and the search box left empty; the dialog shows the reason when refused.
 #[test]
 fn search_folders_are_made_from_the_dialog_and_open() {
-    let (mut a, dir) = app("search-folders");
+    let (mut a, _) = app("search-folders");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let mut f = crate::dialogs::SearchFolderForm::new();
@@ -127,13 +125,12 @@ fn search_folders_are_made_from_the_dialog_and_open() {
     frame(&ctx, &mut a, vec![]);
     a.run("search.run", json!({"query": "storyboard"}));
     assert!(crate::view_title(&a.session).contains("storyboard"));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Quick Steps: made from the dialog, done with Ctrl+Shift+1, changed and deleted from it.
 #[test]
 fn quick_steps_are_made_and_done_with_their_keys() {
-    let (mut a, dir) = app("quick-steps");
+    let (mut a, _) = app("quick-steps");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let mut f = crate::dialogs::QuickStepForm::new(&a.session);
@@ -173,7 +170,6 @@ fn quick_steps_are_made_and_done_with_their_keys() {
     assert_eq!(a.session.prefs.quick_steps.len(), 1);
     // Nothing to do: the dialog can't be saved.
     assert!(crate::dialogs::QuickStepForm { name: "x".into(), ..Default::default() }.actions().is_empty());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #4: the search box's recent searches (those with what's typed so far; none, closed)
@@ -181,7 +177,7 @@ fn quick_steps_are_made_and_done_with_their_keys() {
 /// closes them; where it looks named in every language's terms.
 #[test]
 fn the_search_box_drops_down_recent_and_advanced_search() {
-    let (mut a, dir) = app("search-box");
+    let (mut a, _) = app("search-box");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.session.prefs.recent_searches = vec!["budget".into(), "storyboard".into()];
@@ -206,14 +202,13 @@ fn the_search_box_drops_down_recent_and_advanced_search() {
     for scope in mailcraft_engine::SearchScope::ALL {
         assert!(!crate::scope_label(scope).is_empty());
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #11: Favorites can be hidden from the top of the folder pane (View › Favorites), not
 /// only collapsed, and shown again.
 #[test]
 fn favorites_can_be_hidden() {
-    let (mut a, dir) = app("favorites-hidden");
+    let (mut a, _) = app("favorites-hidden");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let headings = |a: &mut MailApp| {
@@ -228,7 +223,6 @@ fn favorites_can_be_hidden() {
     a.run("view.favorites", json!({}));
     headings(&mut a);
     assert!(headings(&mut a) > 0, "shown again");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #28: a keyword another program set shows on the message (in the list, the reading pane
@@ -236,7 +230,7 @@ fn favorites_can_be_hidden() {
 /// keyword; a keyword another category has is refused in the dialog.
 #[test]
 fn categories_from_other_programs_render_and_join_the_list() {
-    let (mut a, dir) = app("categories-28");
+    let (mut a, _) = app("categories-28");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     frame(&ctx, &mut a, vec![]);
@@ -269,14 +263,13 @@ fn categories_from_other_programs_render_and_join_the_list() {
     a.act(crate::Action::Submit("category.edit", json!({"name": "Rückfrage", "newName": "Nachfrage", "color": 2})));
     assert_eq!(a.session.category("Nachfrage").map(|c| c.keyword.as_str()), Some("r=c3=bcckfrage"));
     frame(&ctx, &mut a, vec![]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A follow-up marked complete shows as done: the list row says so (and draws its tick where the
 /// flag was), the reading pane says on which day, and Clear Flag takes it away.
 #[test]
 fn a_completed_follow_up_shows_as_done() {
-    let (mut a, dir) = app("follow-up-complete");
+    let (mut a, _) = app("follow-up-complete");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let labels = |ctx: &egui::Context, a: &mut MailApp| -> Vec<String> {
@@ -306,7 +299,6 @@ fn a_completed_follow_up_shows_as_done() {
     a.run("mail.flag", json!({"on": false}));
     let shown = labels(&ctx, &mut a);
     assert!(!shown.iter().any(|l| l.contains("Completed")), "{shown:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A rule with more than the editor shows (two conditions, any of which will do, two actions,
@@ -350,7 +342,7 @@ fn a_rule_shown_in_part_keeps_the_rest() {
 /// ("Posteingang" in German), as well as by its path on the server ("INBOX").
 #[test]
 fn folder_search_finds_the_name_shown() {
-    let (mut a, dir) = app("move-search");
+    let (mut a, _) = app("move-search");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list[1].key.clone();
@@ -375,7 +367,6 @@ fn folder_search_finds_the_name_shown() {
     }
     assert_eq!(rows(&mut a, moving("gel"), "gel"), ["Gelöschte Elemente"]);
     crate::i18n::set_current(crate::i18n::Lang::EN);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// `n` rules, the fourth moving mail to "Projects/Short film", the others flagging it.
@@ -409,7 +400,7 @@ fn rules_drawn(ctx: &egui::Context, a: &mut MailApp, find: &str) -> Vec<(String,
 /// shows), the find box keeps the rules it names, and a rule's switch turns that rule alone off.
 #[test]
 fn the_rules_dialog_describes_finds_and_switches() {
-    let (mut a, dir) = app("rules-dialog");
+    let (mut a, _) = app("rules-dialog");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     frame(&ctx, &mut a, vec![]);
@@ -437,7 +428,6 @@ fn the_rules_dialog_describes_finds_and_switches() {
     let mut expected = many_rules(8);
     expected[1].enabled = false;
     assert_eq!(a.session.rules, expected);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The Rules dialog's lines follow the language as it's switched, between languages that word
@@ -467,7 +457,7 @@ fn the_rules_dialog_follows_the_language() {
 #[ignore]
 fn measure_rules_dialog() {
     use std::hash::{Hash, Hasher};
-    let (mut a, dir) = app("measure-rules");
+    let (mut a, _) = app("measure-rules");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let base = a.session.accounts[0].folders[0].clone();
@@ -503,5 +493,4 @@ fn measure_rules_dialog() {
             h.finish()
         );
     }
-    let _ = std::fs::remove_dir_all(dir);
 }

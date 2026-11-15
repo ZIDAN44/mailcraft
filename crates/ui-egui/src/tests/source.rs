@@ -6,7 +6,7 @@ use super::*;
 /// stays one window, brought to the front; Escape closes it.
 #[test]
 fn a_source_window_opens_once_and_closes() {
-    let (mut a, dir) = app("source-window");
+    let (mut a, _) = app("source-window");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list[0].key.clone();
@@ -26,14 +26,13 @@ fn a_source_window_opens_once_and_closes() {
     a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
     a.act(crate::Action::Run("message.source", json!({})));
     assert!(a.session.sources.is_empty());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A source of 30 MB: its window draws quickly, scrolled through and its header alone, without
 /// laying out all of it.
 #[test]
 fn a_huge_source_draws_quickly() {
-    let (mut a, dir) = app("source-huge");
+    let (mut a, _) = app("source-huge");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list[0].key.clone();
@@ -86,7 +85,6 @@ fn a_huge_source_draws_quickly() {
     if !cfg!(debug_assertions) {
         assert!(opened.as_secs() < 5 && drawn.as_secs() < 20, "{opened:?} {drawn:?}");
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The window is filled with lines to its foot: the rows laid out are counted at the height

@@ -19,7 +19,7 @@ fn form(d: &mut Option<Dialog>) -> &mut crate::pim_dialogs::EventForm {
 
 #[test]
 fn the_event_form_adds_and_removes_a_meeting() {
-    let (mut a, dir) = app("meeting-form");
+    let (mut a, _) = app("meeting-form");
     let ctx = egui::Context::default();
     rooms(&mut a);
     let mut d = Some(Dialog::new_event(&a.session, Some(NOW + 3 * 86_400)));
@@ -62,14 +62,13 @@ fn the_event_form_adds_and_removes_a_meeting() {
     a.act(crate::Action::Submit("event.update", params));
     let e = a.session.find_event(&e.uid).unwrap().1.event.clone();
     assert!(e.conferences().is_empty() && e.description == "Agenda" && e.location.is_empty(), "{e:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// "Add an online meeting to all meetings with guests": the form shows it as soon as there are
 /// guests (Reply with meeting has them at once), unless the user takes it out.
 #[test]
 fn meetings_with_guests_get_one_in_the_form() {
-    let (mut a, dir) = app("meeting-all-form");
+    let (mut a, _) = app("meeting-all-form");
     let ctx = egui::Context::default();
     rooms(&mut a);
     a.run("meetings.forAll", json!({"on": true}));
@@ -101,13 +100,12 @@ fn meetings_with_guests_get_one_in_the_form() {
     f.guests = "zoe@studio.example".into();
     frame(&ctx, &mut a, vec![]);
     assert_eq!(form(&mut a.ui.dialog).meeting.current, None);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The options card and the form's room menu draw, in light and dark, with rooms and hosts.
 #[test]
 fn the_options_card_and_the_room_menu_draw() {
-    let (mut a, dir) = app("meeting-draw");
+    let (mut a, _) = app("meeting-draw");
     let ctx = egui::Context::default();
     rooms(&mut a);
     a.run("meetings.addHost", json!({"host": "video.partner.example"}));
@@ -119,7 +117,6 @@ fn the_options_card_and_the_room_menu_draw() {
         a.ui.dialog = Some(Dialog::new_event(&a.session, None));
         frame(&ctx, &mut a, vec![]);
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The form with every choice of v0.31 at once (issues #25, #30, #32): a new event goes to the
@@ -129,7 +126,7 @@ fn the_options_card_and_the_room_menu_draw() {
 fn the_form_with_privacy_show_as_and_a_meeting() {
     use mailcraft_engine::model::ical::{Privacy, ShowAs};
     use mailcraft_engine::model::pim::CalendarInfo;
-    let (mut a, dir) = app("meeting-together");
+    let (mut a, _) = app("meeting-together");
     let ctx = egui::Context::default();
     rooms(&mut a);
     let theirs = "https://dav.example.org/SOGo/dav/riley/Calendar/sam_team/";
@@ -170,14 +167,13 @@ fn the_form_with_privacy_show_as_and_a_meeting() {
     assert_eq!(stored.calendar, own);
     assert_eq!((mailcraft_engine::model::ical::privacy(e), mailcraft_engine::model::ical::show_as(e)), (Privacy::Confidential, ShowAs::OutOfOffice));
     assert_eq!(e.online_meeting().as_deref(), Some(room.url.as_str()));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A guest whose name has a comma (`"Park, Zoe"`) is one guest in the form, so the event opened
 /// and saved again keeps them; the organizer shows by name and address.
 #[test]
 fn a_guest_named_with_a_comma_stays_one_guest() {
-    let (mut a, dir) = app("guest-comma");
+    let (mut a, _) = app("guest-comma");
     let made = a.session.run(
         "event.create",
         &json!({"summary": "Cut review", "start": "2026-10-20T10:00", "end": "2026-10-20T11:00", "attendees": "\"Park, Zoe\" <zoe@studio.example>, ann@x.example"}),
@@ -201,5 +197,4 @@ fn a_guest_named_with_a_comma_stays_one_guest() {
     let (_, kept) = a.session.find_event(&e.uid).unwrap();
     let guests: Vec<(&str, &str)> = kept.event.attendees.iter().map(|g| (g.name.as_str(), g.email.as_str())).collect();
     assert_eq!(guests, [("Park, Zoe", "zoe@studio.example"), ("", "ann@x.example")]);
-    let _ = std::fs::remove_dir_all(dir);
 }

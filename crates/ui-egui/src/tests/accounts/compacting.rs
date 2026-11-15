@@ -15,14 +15,13 @@ use crate::backstage::{Backstage, Page};
 const TALL: egui::Vec2 = egui::vec2(1280.0, 2400.0);
 
 /// The window over a store of data files, with one account kept in one.
-fn with_data_file(name: &str) -> (MailApp, Jobs, String, std::path::PathBuf) {
-    let dir = std::env::temp_dir().join(format!("mailcraft-ui-compact-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let store = Store::open_packed(dir.join("app"), dir.join("MailCraft Files")).unwrap();
+fn with_data_file(name: &str) -> (MailApp, Jobs, String) {
+    let dir = scratch(&format!("compact-{name}"));
+    let store = scratch_store(Store::open_packed(dir.join("app"), dir.join("MailCraft Files")).unwrap());
     let mut s = Session::open(Some(store), Clock::new(NOW, 0));
     let id = kept_in_a_data_file(&mut s, "zoe@example.org");
     let jobs = Jobs::default();
-    (MailApp::new(s, Box::new(jobs.clone()), Box::new(crate::NullServices(NOW))), jobs, id, dir)
+    (MailApp::new(s, Box::new(jobs.clone()), Box::new(crate::NullServices(NOW))), jobs, id)
 }
 
 /// An account added whose mail is kept in a data file of its own; its id.
@@ -41,11 +40,6 @@ fn kept_in_a_data_file(s: &mut Session, email: &str) -> String {
     s.apply(MailEvent::Status { account: id.clone(), status: SyncStatus::Online { at: NOW } });
     s.take_jobs();
     id
-}
-
-fn finish(a: MailApp, dir: std::path::PathBuf) {
-    drop(a);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A frame at `time` (seconds of the input's clock), with `events`.
@@ -128,7 +122,7 @@ pub(crate) fn tour(a: &mut MailApp, ctx: &egui::Context) {
 fn file_page_tour(ctx: &egui::Context, dark: Option<bool>, language: &str) {
     static RUN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let (mut a, _jobs, id, dir) = with_data_file(&format!("tour-{n}"));
+    let (mut a, _jobs, id) = with_data_file(&format!("tour-{n}"));
     a.ui.dark = dark;
     a.ui.language = language.to_string();
     let mut b = Backstage::new(Page::Info);
@@ -155,12 +149,11 @@ fn file_page_tour(ctx: &egui::Context, dark: Option<bool>, language: &str) {
         a.session.compaction.last.insert(id.clone(), r);
         frame(ctx, &mut a, vec![]);
     }
-    finish(a, dir);
 }
 
 #[test]
 fn the_file_page_offers_compacting_and_says_what_it_came_to() {
-    let (mut a, jobs, id, dir) = with_data_file("file-page");
+    let (mut a, jobs, id) = with_data_file("file-page");
     let ctx = egui::Context::default();
     let mut b = Backstage::new(Page::Info);
     b.account = Some(id.clone());
@@ -199,7 +192,6 @@ fn the_file_page_offers_compacting_and_says_what_it_came_to() {
     measured(&mut a, &id, DataFileHealth { file_bytes: 2 << 30, live_bytes: 2 << 30, recompressed: true, ..DataFileHealth::default() });
     let texts = drawn(&ctx, &mut a);
     assert!(!has(&texts, "can be reclaimed"), "{texts:?}");
-    finish(a, dir);
 }
 
 #[test]
@@ -221,7 +213,7 @@ fn what_a_compaction_came_to_is_said_in_a_line() {
 
 #[test]
 fn left_alone_the_policy_is_told_and_coming_back_stops_an_idle_compaction() {
-    let (mut a, jobs, id, dir) = with_data_file("idle");
+    let (mut a, jobs, id) = with_data_file("idle");
     let ctx = egui::Context::default();
     // (The first frame only loads the fonts.)
     frame_at(&ctx, &mut a, 0.5, vec![]);
@@ -264,12 +256,11 @@ fn left_alone_the_policy_is_told_and_coming_back_stops_an_idle_compaction() {
     a.session.apply(MailEvent::Compacted { account: id.clone(), report: Box::new(CompactReport::default()) });
     frame_at(&ctx, &mut a, 710.0, vec![]);
     assert!(a.ui.dialog.is_none());
-    finish(a, dir);
 }
 
 #[test]
 fn closing_compacts_when_chosen_and_short_and_offers_a_long_one() {
-    let (mut a, jobs, id, dir) = with_data_file("close");
+    let (mut a, jobs, id) = with_data_file("close");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     measured(&mut a, &id, bloated());
@@ -291,8 +282,8 @@ fn closing_compacts_when_chosen_and_short_and_offers_a_long_one() {
     assert!(a.ui.closing_anyway, "done: it closes");
 
     // Too long for closing: offered by hand, with how long it takes; closing without it closes.
-    let (mut a, jobs, id, dir2) = {
-        finish(a, dir);
+    let (mut a, jobs, id) = {
+        drop(a);
         with_data_file("close-long")
     };
     frame(&ctx, &mut a, vec![]);
@@ -311,7 +302,6 @@ fn closing_compacts_when_chosen_and_short_and_offers_a_long_one() {
     // Close now: closed though it runs (stopped as MailCraft goes; what's done is kept).
     a.act(Action::CompactOnClose(None));
     assert!(a.ui.closing_anyway && a.ui.close_now);
-    finish(a, dir2);
 }
 
 /// "Compact, then close" clicked in the offer compacts the data file and closes once it's done.
@@ -319,7 +309,7 @@ fn closing_compacts_when_chosen_and_short_and_offers_a_long_one() {
 /// on a 38 GB file MailCraft closed at once with nothing compacted.
 #[test]
 fn compact_then_close_clicked_compacts_before_closing() {
-    let (mut a, jobs, id, dir) = with_data_file("close-click");
+    let (mut a, jobs, id) = with_data_file("close-click");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     frame(&ctx, &mut a, vec![]);
@@ -343,8 +333,8 @@ fn compact_then_close_clicked_compacts_before_closing() {
     assert!(a.ui.closing_anyway, "done: it closes");
 
     // "Close without compacting", clicked, closes with nothing begun.
-    let (mut a, jobs, id, dir2) = {
-        finish(a, dir);
+    let (mut a, jobs, id) = {
+        drop(a);
         with_data_file("close-click-not")
     };
     frame(&ctx, &mut a, vec![]);
@@ -355,12 +345,11 @@ fn compact_then_close_clicked_compacts_before_closing() {
     click_named(&ctx, &mut a, "Close without compacting");
     assert!(jobs.take().iter().all(|j| !matches!(j, Job::CompactDataFile { .. })));
     assert!(a.ui.closing_anyway && a.ui.close_now);
-    finish(a, dir2);
 }
 
 #[test]
 fn putting_the_closing_dialog_away_keeps_mailcraft_open() {
-    let (mut a, _jobs, id, dir) = with_data_file("close-kept");
+    let (mut a, _jobs, id) = with_data_file("close-kept");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("dataFile.compactOnClose", json!({ "on": true }));
@@ -373,12 +362,11 @@ fn putting_the_closing_dialog_away_keeps_mailcraft_open() {
     a.session.apply(MailEvent::Compacted { account: id.clone(), report: Box::new(CompactReport { mode: CompactMode::Close, ..Default::default() }) });
     frame(&ctx, &mut a, vec![]);
     assert!(!a.ui.closing_anyway && !a.ui.close_now, "done, and MailCraft stays open");
-    finish(a, dir);
 }
 
 #[test]
 fn the_status_bar_shows_a_compaction_before_the_index() {
-    let (mut a, _jobs, id, dir) = with_data_file("status");
+    let (mut a, _jobs, id) = with_data_file("status");
     let ctx = egui::Context::default();
     a.session
         .compaction
@@ -390,14 +378,13 @@ fn the_status_bar_shows_a_compaction_before_the_index() {
     assert!(text.starts_with("Compacting "));
     a.session.compaction.running.clear();
     assert!(crate::app::compacting::status(&a.session, &a.ui.compact, 0.0).is_none());
-    finish(a, dir);
 }
 
 /// Closing waits for every data file it compacts: the dialog goes on to the next as one ends,
 /// and MailCraft closes once the last is done (it once stayed open, the close dropped silently).
 #[test]
 fn closing_waits_for_every_data_file_it_compacts() {
-    let (mut a, jobs, id, dir) = with_data_file("close-two");
+    let (mut a, jobs, id) = with_data_file("close-two");
     let other = kept_in_a_data_file(&mut a.session, "yan@example.org");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
@@ -418,13 +405,12 @@ fn closing_waits_for_every_data_file_it_compacts() {
     a.session.apply(MailEvent::Compacted { account: second.clone(), report: done() });
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.closing_anyway, "both done: it closes");
-    finish(a, dir);
 }
 
 /// A data file too long for closing is still offered when another is compacted quickly first.
 #[test]
 fn a_long_one_is_offered_once_the_quick_ones_are_done() {
-    let (mut a, jobs, id, dir) = with_data_file("close-quick-long");
+    let (mut a, jobs, id) = with_data_file("close-quick-long");
     let other = kept_in_a_data_file(&mut a.session, "yan@example.org");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
@@ -440,13 +426,12 @@ fn a_long_one_is_offered_once_the_quick_ones_are_done() {
     assert!(!a.ui.closing_anyway, "asked first");
     a.act(Action::CompactOnClose(None));
     assert!(a.ui.closing_anyway && a.ui.close_now);
-    finish(a, dir);
 }
 
 /// Reading in a message's own window is the user being back: an idle compaction stops.
 #[test]
 fn input_in_a_window_of_its_own_stops_an_idle_compaction() {
-    let (mut a, jobs, id, dir) = with_data_file("idle-elsewhere");
+    let (mut a, jobs, id) = with_data_file("idle-elsewhere");
     let ctx = egui::Context::default();
     frame_at(&ctx, &mut a, 0.5, vec![]);
     frame_at(&ctx, &mut a, 1.0, vec![]);
@@ -459,7 +444,6 @@ fn input_in_a_window_of_its_own_stops_an_idle_compaction() {
     out.textures_delta.clear();
     frame_at(&ctx, &mut a, 3.0, vec![]);
     assert_eq!(jobs.take().iter().filter(|j| matches!(j, Job::CancelCompact { account } if *account == id)).count(), 1);
-    finish(a, dir);
 }
 
 /// Every state of compacting, its File page row included, drawn in Hebrew and Arabic, light and
@@ -467,7 +451,7 @@ fn input_in_a_window_of_its_own_stops_an_idle_compaction() {
 #[test]
 fn compacting_is_drawn_right_to_left() {
     for lang in ["he", "ar"] {
-        let (mut a, _jobs, _id, dir) = with_data_file(&format!("rtl-{lang}"));
+        let (mut a, _jobs, _id) = with_data_file(&format!("rtl-{lang}"));
         a.ui.language = lang.to_string();
         crate::i18n::set_current(crate::i18n::Lang::from_code(lang).unwrap());
         let ctx = egui::Context::default();
@@ -477,6 +461,5 @@ fn compacting_is_drawn_right_to_left() {
         }
         assert_ne!(crate::i18n::t("{size} can be reclaimed"), "{size} can be reclaimed", "{lang}: translated");
         crate::i18n::set_current(crate::i18n::Lang::EN);
-        finish(a, dir);
     }
 }

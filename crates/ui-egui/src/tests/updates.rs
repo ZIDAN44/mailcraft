@@ -79,7 +79,7 @@ pub(crate) fn tour(a: &mut MailApp, ctx: &egui::Context) {
 /// MailCraft isn't in front.
 #[test]
 fn a_ready_update_is_said_once() {
-    let (mut a, dir) = app("update-ready");
+    let (mut a, _) = app("update-ready");
     let asked = updating(&mut a);
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
@@ -110,14 +110,13 @@ fn a_ready_update_is_said_once() {
     frame(&ctx, &mut a, vec![]);
     close(&ctx, &mut a);
     assert!(a.ui.dialog.is_none() && asked.borrow().restart);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Restart now with a message being written: the save question comes first, and Cancel there
 /// leaves MailCraft as it was (no restart, and the next close asks about the update again).
 #[test]
 fn restart_now_can_still_be_called_off() {
-    let (mut a, dir) = app("update-restart-cancel");
+    let (mut a, _) = app("update-restart-cancel");
     let asked = updating(&mut a);
     asked.borrow_mut().state = ready(false);
     let ctx = egui::Context::default();
@@ -144,7 +143,6 @@ fn restart_now_can_still_be_called_off() {
     frame(&ctx, &mut a, vec![]);
     close(&ctx, &mut a);
     assert!(!asked.borrow().restart, "installed as it closes, not reopened");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Closing with an update ready asks what becomes of it; Close without updating keeps it for
@@ -152,7 +150,7 @@ fn restart_now_can_still_be_called_off() {
 /// follows the download if it finishes meanwhile.
 #[test]
 fn closing_says_what_becomes_of_the_update() {
-    let (mut a, dir) = app("update-close");
+    let (mut a, _) = app("update-close");
     let asked = updating(&mut a);
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
@@ -167,7 +165,7 @@ fn closing_says_what_becomes_of_the_update() {
     a.act(Action::UpdateOnClose(false));
     assert!(asked.borrow().later && a.ui.close_now, "kept for later, and closing");
 
-    let (mut a, dir2) = app("update-close-downloading");
+    let (mut a, _) = app("update-close-downloading");
     let asked = updating(&mut a);
     asked.borrow_mut().state = UpdateState::Downloading { version: "0.25.0".into(), done: 1 << 20, total: 4 << 20 };
     frame(&ctx, &mut a, vec![]);
@@ -188,8 +186,6 @@ fn closing_says_what_becomes_of_the_update() {
     assert!(matches!(&a.ui.dialog, Some(Dialog::UpdateOnClose(_))), "asked again");
     a.act(Action::UpdateOnClose(true));
     assert!(!asked.borrow().later && a.ui.close_now && a.ui.update_answered);
-    let _ = std::fs::remove_dir_all(dir);
-    let _ = std::fs::remove_dir_all(dir2);
 }
 
 /// A start that brought the mail over from MailCraft's Flatpak under its id before 0.36.
@@ -238,7 +234,7 @@ fn the_old_flatpak_is_named_once_its_mail_came_over() {
 /// what a close asks. Off, or with no icon to come back from, a close is a close.
 #[test]
 fn closing_the_window_keeps_mailcraft_running_when_asked_to() {
-    let (mut a, dir) = app("keep-running");
+    let (mut a, _) = app("keep-running");
     let asked = updating(&mut a);
     asked.borrow_mut().tray = Some(crate::KeptOnClose::Hidden);
     let ctx = egui::Context::default();
@@ -276,5 +272,4 @@ fn closing_the_window_keeps_mailcraft_running_when_asked_to() {
     // Where the app can't keep running at all, a close is a close.
     asked.borrow_mut().tray = None;
     assert!(!closed(&mut a).contains(&egui::ViewportCommand::CancelClose));
-    let _ = std::fs::remove_dir_all(dir);
 }

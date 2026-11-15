@@ -16,7 +16,7 @@ fn renders_every_state_without_panicking() {
 /// both themes and in a narrow reading pane (where its columns stack).
 #[test]
 fn a_banner_and_a_placed_label_draw() {
-    let (mut a, dir) = app("banner");
+    let (mut a, _) = app("banner");
     let ctx = egui::Context::default();
     let k = a.session.list.iter().find(|m| m.subject.contains("winter group show")).map(|m| m.key.clone()).unwrap();
     a.run("list.open", json!({"key": k.to_id()}));
@@ -31,14 +31,13 @@ fn a_banner_and_a_placed_label_draw() {
             }
         }
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Dialogs kept the size of the last big one (their buttons' row took all the room left): Add
 /// account stayed tall after Server settings closed, Remove account opened as tall as Options.
 #[test]
 fn dialogs_fit_what_they_show() {
-    let (mut a, dir) = app("dialog-size");
+    let (mut a, _) = app("dialog-size");
     let ctx = egui::Context::default();
     let height = |ctx: &egui::Context, d: &Dialog| {
         // Its own window (or, before, the one all dialogs shared).
@@ -64,12 +63,11 @@ fn dialogs_fit_what_they_show() {
     let remove = Dialog::RemoveAccount { account: "sample".into(), email: "x".into() };
     let small = height(&ctx, &shown(&mut a, remove));
     assert!(small > 0.0 && small < 220.0, "Remove account: {small}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn keyboard_shortcuts_run_commands() {
-    let (mut a, dir) = app("keys");
+    let (mut a, _) = app("keys");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
@@ -90,12 +88,11 @@ fn keyboard_shortcuts_run_commands() {
     frame(&ctx, &mut a, vec![key(Key::Delete, Modifiers::NONE)]);
     assert_eq!(a.session.list.len(), n);
     frame(&ctx, &mut a, vec![key(Key::M, Modifiers::COMMAND | Modifiers::SHIFT)]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn folder_dialogs_create_rename_and_report_errors() {
-    let (mut a, dir) = app("folders");
+    let (mut a, _) = app("folders");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.ui.dialog = Some(Dialog::new_folder("sample", None));
@@ -115,12 +112,11 @@ fn folder_dialogs_create_rename_and_report_errors() {
     a.run("folder.favorite", json!({"account": "sample", "folder": "Clients"}));
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.favorites().iter().any(|f| f.folder == "Clients"));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn attachments_drag_out_as_files() {
-    let (mut a, dir) = app("drag-out");
+    let (mut a, _) = app("drag-out");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list.iter().find(|m| m.has_attachments).map(|m| m.key.clone()).unwrap();
@@ -135,12 +131,11 @@ fn attachments_drag_out_as_files() {
     a.act(crate::Action::DragOut(index));
     let path = a.take_drag_out().expect("a file to drag");
     assert!(path.is_file() && path.metadata().unwrap().len() > 0, "{path:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn new_mail_is_announced_and_counted_in_the_title() {
-    let (mut a, dir) = app("announce");
+    let (mut a, _) = app("announce");
     let shown = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
     a.services = Box::new(Recorder(shown.clone()));
     let ctx = egui::Context::default();
@@ -167,12 +162,11 @@ fn new_mail_is_announced_and_counted_in_the_title() {
     a.session.new_mail = vec![m(94, "Cy", "While away")];
     a.logic(&ctx);
     assert_eq!(shown.lock().unwrap().last(), Some(&("Cy".to_string(), "While away".to_string())));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn long_folders_render_quickly() {
-    let (mut a, dir) = app("long");
+    let (mut a, _) = app("long");
     let messages: Vec<Summary> = (1..=2000u32)
         .rev()
         .map(|uid| Summary {
@@ -200,7 +194,6 @@ fn long_folders_render_quickly() {
     if !cfg!(debug_assertions) {
         assert!(per.as_millis() < 400, "frame took {per:?}");
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A text file in another charset previews in it: the pane read its bytes as they came (Save's)
@@ -226,7 +219,7 @@ fn a_text_attachment_previews_in_its_charset() {
 /// Ctrl+A goes to what was last clicked: the attachments when they were, else the mail list.
 #[test]
 fn ctrl_a_selects_attachments_when_they_have_the_keyboard() {
-    let (mut a, dir) = app("attach-all");
+    let (mut a, _) = app("attach-all");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list.iter().find(|m| m.subject.contains("festival poster")).map(|m| m.key.clone()).unwrap();
@@ -252,14 +245,13 @@ fn ctrl_a_selects_attachments_when_they_have_the_keyboard() {
     assert!(a.ui.attachment_selected.is_none(), "a click elsewhere lets go of them");
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     assert_eq!(a.session.selection.len(), a.session.list.len());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Enter in a dialog's one field submits it: the dialog gave the field its focus back before
 /// looking for the Enter that had just ended input, so only the button worked.
 #[test]
 fn enter_submits_a_one_field_dialog() {
-    let (mut a, dir) = app("enter-submits");
+    let (mut a, _) = app("enter-submits");
     let ctx = egui::Context::default();
     // The sample account isn't an Exchange one, so the submit comes back as the dialog's error.
     a.ui.dialog = Some(Dialog::AddSharedMailbox { account: "sample".into(), address: "sales@contoso.example".into(), error: None });
@@ -268,14 +260,13 @@ fn enter_submits_a_one_field_dialog() {
     frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
     frame(&ctx, &mut a, vec![]);
     assert!(matches!(&a.ui.dialog, Some(Dialog::AddSharedMailbox { error: Some(_), .. })), "submitted: {:?}", a.ui.dialog.is_some());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Motion: the folder pane slides between its two widths and the rest draws through it; Play
 /// animations off makes egui's own motion instant too; a message just opened fades in.
 #[test]
 fn motion_plays_and_stops() {
-    let (mut a, dir) = app("motion");
+    let (mut a, _) = app("motion");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     assert!(crate::motion::enabled(&ctx));
@@ -296,7 +287,6 @@ fn motion_plays_and_stops() {
     a.run("view.animations", json!({}));
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.prefs.animations && crate::motion::enabled(&ctx));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #10: a picture of an HTML message shows at the size the message sets, as Outlook and
@@ -332,7 +322,7 @@ fn html_pictures_show_at_the_size_the_message_sets() {
 /// list beside it had saved, the whole height, under the same name.
 #[test]
 fn the_reading_pane_shows_below_the_list() {
-    let (mut a, dir) = app("reading-bottom");
+    let (mut a, _) = app("reading-bottom");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let k = a.session.list.first().map(|m| m.key.clone()).unwrap();
@@ -350,14 +340,13 @@ fn the_reading_pane_shows_below_the_list() {
     a.run("view.readingPane", json!({"value": "bottom"}));
     let bottom = reply_all(&mut a);
     assert!(bottom.is_some_and(|y| y > right + 150.0 && y < 760.0), "below the list, on screen: {bottom:?} (beside it: {right})");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #24: a message whose text came first shows it, its files named and sized, and says
 /// they're downloading; the whole message, once it comes, takes its place.
 #[test]
 fn a_message_text_first_says_its_files_are_coming() {
-    let (mut a, dir) = app("text-first");
+    let (mut a, _) = app("text-first");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     frame(&ctx, &mut a, vec![]);
@@ -381,14 +370,13 @@ fn a_message_text_first_says_its_files_are_coming() {
     frame(&ctx, &mut a, vec![]);
     let shown = labels(&ctx, &mut a);
     assert!(!shown.iter().any(|l| l.contains("Downloading the attachments")), "{shown:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #29: a contact's name on a free-mail address shows that address in the list with a
 /// warning sign, the reading pane says whose name it is, and the External tag shows when on.
 #[test]
 fn a_known_name_on_a_strange_address_shows_in_the_list_and_the_reading_pane() {
-    let (mut a, dir) = app("known-name");
+    let (mut a, _) = app("known-name");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     let d = mailcraft_engine::mime::Draft { subject: "Quick favour".into(), body: "Are you at your desk?".into(), ..Default::default() };
@@ -422,7 +410,6 @@ fn a_known_name_on_a_strange_address_shows_in_the_list_and_the_reading_pane() {
         a.run("view.compact", json!({}));
         frame(&ctx, &mut a, vec![]);
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #29: with the sender's address shown in a narrow list, the name keeps room enough to be
@@ -430,7 +417,7 @@ fn a_known_name_on_a_strange_address_shows_in_the_list_and_the_reading_pane() {
 /// a few letters.
 #[test]
 fn a_narrow_row_keeps_the_senders_name_readable() {
-    let (mut a, dir) = app("narrow-sender");
+    let (mut a, _) = app("narrow-sender");
     let ctx = egui::Context::default();
     let name = "Alexandra Whitfield";
     let d = mailcraft_engine::mime::Draft { subject: "Invoice".into(), body: "Attached.".into(), ..Default::default() };
@@ -447,7 +434,6 @@ fn a_narrow_row_keeps_the_senders_name_readable() {
     }
     let full = ctx.fonts_mut(|f| f.layout_no_wrap(name.into(), crate::theme::regular(14.0), egui::Color32::WHITE).size().x);
     assert!(widths.iter().any(|w| *w >= full * 0.6), "the name drawn {widths:?} wide of {full}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The External tag stays one line in a pane too narrow for it (wrapped, its word stood in a
@@ -561,7 +547,7 @@ fn scroll_to_end(ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2) {
 /// height is the one it's laid out at, so the text in view stays put as those above are measured.
 #[test]
 fn a_long_message_lays_out_what_is_in_view() {
-    let (mut a, dir) = app("long-text");
+    let (mut a, _) = app("long-text");
     let ctx = egui::Context::default();
     let (text, first) = open_long(&mut a, &ctx, long_message(4400));
     assert!(text.len() > 300_000, "{}", text.len());
@@ -579,14 +565,13 @@ fn a_long_message_lays_out_what_is_in_view() {
     let v = long_state(&a);
     assert!(v.shown.iter().any(|(i, _)| *i + 1 == n), "the last chunk, at the end: {:?}", v.shown);
     assert!(v.laid < n / 4, "{} of {n}", v.laid);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A selection from the first chunk to one far below (scrolled to, Shift+clicked) copies all the
 /// text between, chunks passed over included; Ctrl+A in the text copies all of it.
 #[test]
 fn a_selection_over_chunks_passed_over_copies_them() {
-    let (mut a, dir) = app("long-select");
+    let (mut a, _) = app("long-select");
     let ctx = egui::Context::default();
     let (text, _) = open_long(&mut a, &ctx, long_message(4400));
     let ranges = crate::reading::chunks(&text, crate::reading::CHUNK);
@@ -609,13 +594,12 @@ fn a_selection_over_chunks_passed_over_copies_them() {
     assert_eq!(a.session.selection.len(), 1);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert!(got == text, "{} of {}", got.len(), text.len());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Formatted mail of thousands of lines is laid out in blocks of lines in the same way.
 #[test]
 fn a_long_formatted_message_lays_out_what_is_in_view() {
-    let (mut a, dir) = app("long-rich");
+    let (mut a, _) = app("long-rich");
     let ctx = egui::Context::default();
     let mut raw = b"From: Sam <sam@studio.example>\r\nSubject: Long\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<html><body>".to_vec();
     for i in 0..3000 {
@@ -632,14 +616,13 @@ fn a_long_formatted_message_lays_out_what_is_in_view() {
     scroll_to_end(&ctx, &mut a, at);
     let v = long_state(&a);
     assert!(v.shown.iter().any(|(i, _)| *i + 1 == n), "the last block, at the end: {:?}", v.shown);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Ctrl+A in the long text, then Ctrl+E to the search box: Ctrl+A and a copy there are the box's,
 /// and no longer copy the whole message (that copy came last, so it was the one kept).
 #[test]
 fn ctrl_a_in_the_search_box_after_a_long_message_does_not_copy_it_whole() {
-    let (mut a, dir) = app("long-select-all");
+    let (mut a, _) = app("long-select-all");
     let ctx = egui::Context::default();
     let (text, _) = open_long(&mut a, &ctx, long_message(4400));
     let first = long_state(&a).shown.first().map(|(_, r)| *r).unwrap();
@@ -654,7 +637,6 @@ fn ctrl_a_in_the_search_box_after_a_long_message_does_not_copy_it_whole() {
     assert!(!a.ui.text_selection.keys, "the search box has the keys");
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert!(got.len() < text.len(), "{} of {}", got.len(), text.len());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 mod text_selection;

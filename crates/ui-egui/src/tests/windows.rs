@@ -6,7 +6,7 @@ pub(super) mod layout;
 
 #[test]
 fn in_the_browser_a_popped_out_message_opens_in_a_window_of_its_own() {
-    let (a, dir) = app("tabs");
+    let (a, _) = app("tabs");
     let opened = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
     let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(PageServices(opened.clone())));
     let ctx = egui::Context::default();
@@ -25,7 +25,6 @@ fn in_the_browser_a_popped_out_message_opens_in_a_window_of_its_own() {
     tab.act(crate::Action::Run("message.closeWindow", json!({"key": k.to_id()})));
     frame(&ctx, &mut tab, vec![]);
     assert_eq!(opened.borrow().last().map(String::as_str), Some("closed"));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A reply written in a message's own page (the browser) has the address book as the main
@@ -33,7 +32,7 @@ fn in_the_browser_a_popped_out_message_opens_in_a_window_of_its_own() {
 /// the page's frame never filling it in).
 #[test]
 fn a_message_page_s_reply_has_the_address_book() {
-    let (a, dir) = app("page-names");
+    let (a, _) = app("page-names");
     let opened = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
     let mut tab = MailApp::new(a.session, Box::new(NullBackend), Box::new(PageServices(opened)));
     let ctx = egui::Context::default();
@@ -49,12 +48,11 @@ fn a_message_page_s_reply_has_the_address_book() {
     assert_eq!(tab.ui.page_message.as_ref(), Some(&k), "still the page");
     let Some(Dialog::SelectNames(f)) = &tab.ui.dialog else { panic!("no dialog") };
     assert!(f.list.iter().any(|x| x.email == "zoe@studio.example"), "everyone mail was exchanged with: {:?}", f.list);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn double_clicked_mail_opens_in_its_own_window() {
-    let (mut a, dir) = app("windows");
+    let (mut a, _) = app("windows");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list[0].key.clone();
@@ -75,14 +73,13 @@ fn double_clicked_mail_opens_in_its_own_window() {
     frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.windows.is_empty(), "Escape closes the window");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A message's own window: its attachment buttons work on its message, not the one in the
 /// reading pane (they used to act on the reading pane's, and fail).
 #[test]
 fn a_message_windows_attachments_are_its_own() {
-    let (mut a, dir) = app("window-attachments");
+    let (mut a, _) = app("window-attachments");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.services = Box::new(Recorder(Default::default()));
@@ -101,7 +98,6 @@ fn a_message_windows_attachments_are_its_own() {
     let name = w.parsed.as_ref().and_then(|p| p.attachments.first()).map(|x| x.name.clone()).unwrap();
     assert!(path.is_file() && path.file_name().is_some_and(|n| n.to_string_lossy() == name), "{path:?}");
     assert_eq!(a.session.reading.as_ref().map(|r| r.key.clone()), Some(plain), "the reading pane is as it was");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Save all in the browser says which attachment couldn't be downloaded, rather than leaving it
@@ -226,7 +222,7 @@ fn in_the_browser_files_download_and_attachments_come_from_the_picker() {
 
 #[test]
 fn new_mail_writes_in_its_own_window_and_replies_pop_out() {
-    let (mut a, dir) = app("compose-window");
+    let (mut a, _) = app("compose-window");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.run("mail.new", json!({}));
@@ -252,7 +248,6 @@ fn new_mail_writes_in_its_own_window_and_replies_pop_out() {
     frame(&ctx, &mut a, vec![]);
     let c = a.session.compose.as_ref().unwrap();
     assert!(!c.window && c.body.contains("\nSent: "));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Fonts built in from craft-fonts (`CRAFT_FONTS_DIR`) are the last fallbacks, with their
@@ -353,17 +348,16 @@ fn a_damaged_system_font_doesnt_stop_the_window() {
     }
     let ctx = egui::Context::default();
     ctx.set_fonts(defs);
-    let (mut a, dir) = app("bad-fonts");
+    let (mut a, _) = app("bad-fonts");
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Ctrl+Q is Mark as read (Outlook's): it marked the message read and then closed MailCraft,
 /// egui's own quit shortcut being Ctrl+Q too. Now the window stays (a Mac keeps Cmd+Q to quit).
 #[test]
 fn ctrl_q_marks_read_and_keeps_the_window() {
-    let (mut a, dir) = app("ctrl-q");
+    let (mut a, _) = app("ctrl-q");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let k = a.session.list.iter().find(|m| !m.flags.seen).map(|m| m.key.clone()).unwrap();
@@ -383,7 +377,6 @@ fn ctrl_q_marks_read_and_keeps_the_window() {
     } else {
         assert!(!closes, "the window stays");
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Every window of MailCraft's own carries its app id, as the main one does: a Wayland dock
@@ -437,7 +430,7 @@ impl crate::Services for OwnTitleBar {
 /// note is gone after the frame.
 #[test]
 fn the_window_is_told_before_its_own_title_bar_zooms_it() {
-    let (a, dir) = app("told-before-maximize");
+    let (a, _) = app("told-before-maximize");
     let told = OwnTitleBar::new();
     let count = std::rc::Rc::clone(&told.0);
     let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(told));
@@ -485,7 +478,6 @@ fn the_window_is_told_before_its_own_title_bar_zooms_it() {
     run(&mut a, click(max), true);
     run(&mut a, vec![], true);
     assert_eq!(count.get(), 3, "so does Restore");
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 /// Issue #22: on Windows the top bar is the window's title bar, in MailCraft's colour as
@@ -494,7 +486,7 @@ fn the_window_is_told_before_its_own_title_bar_zooms_it() {
 /// window's edges resizing it, and the File page keeping the bar. Without it, none of that.
 #[test]
 fn the_top_bar_is_the_window_title_bar_when_it_has_none_of_the_systems() {
-    let (a, dir) = app("own-title-bar");
+    let (a, _) = app("own-title-bar");
     let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(OwnTitleBar::new()));
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
@@ -617,15 +609,13 @@ fn the_top_bar_is_the_window_title_bar_when_it_has_none_of_the_systems() {
     let out = run(&mut a, vec![]);
     assert!(named(&out).iter().any(|(l, _)| l == "Close"), "the File page's title bar");
     // With the system's title bar, MailCraft draws none of it.
-    let (b, dir2) = app("system-title-bar");
+    let (b, _) = app("system-title-bar");
     let mut b = b;
     for _ in 0..3 {
         run(&mut b, vec![]);
     }
     let out = run(&mut b, vec![]);
     assert!(!named(&out).iter().any(|(l, _)| l == "Minimize"));
-    let _ = std::fs::remove_dir_all(dir);
-    let _ = std::fs::remove_dir_all(dir2);
 }
 
 /// The title bar laid over a dialog stays off a dialog that reaches into the bar (a short window,
@@ -635,7 +625,7 @@ fn the_top_bar_is_the_window_title_bar_when_it_has_none_of_the_systems() {
 /// drawn over Close).
 #[test]
 fn the_title_bar_keeps_off_a_dialog_in_it_and_its_buttons_off_the_mark() {
-    let (a, dir) = app("own-title-bar-short");
+    let (a, _) = app("own-title-bar-short");
     let mut a = MailApp::new(a.session, Box::new(NullBackend), Box::new(OwnTitleBar::new()));
     let ctx = egui::Context::default();
     let time = std::cell::Cell::new(0.0f64);
@@ -708,7 +698,6 @@ fn the_title_bar_keeps_off_a_dialog_in_it_and_its_buttons_off_the_mark() {
     assert!(!tiles.is_empty(), "the mark drawn");
     assert!(tiles.iter().all(|r| r.right() <= size.x - crate::app::caption::CAPTIONS_W), "clear of the buttons: {tiles:?}");
     crate::i18n::set_current(crate::i18n::Lang::EN);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Audit #473: a ribbon button asks whether the ribbon is the classic one without copying what

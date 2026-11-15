@@ -77,7 +77,7 @@ const PLAIN: [&str; 5] = ["Never", "Every day", "Every week", "Every month", "Ev
 /// and what's saved is its rule.
 #[test]
 fn every_repeat_choice_saves_its_rule() {
-    let (mut a, dir) = app("repeat-choices");
+    let (mut a, _) = app("repeat-choices");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let choices = [
@@ -108,14 +108,13 @@ fn every_repeat_choice_saves_its_rule() {
             assert_eq!(saved(&mut a, &title).as_deref(), rule, "{title}: saved");
         }
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A rule the list has no word for is shown as Custom, offered after the five, and saved as it
 /// was; a plain one written in small letters is shown as its word. Picking a word replaces it.
 #[test]
 fn a_rule_of_its_own_is_kept_as_custom() {
-    let (mut a, dir) = app("repeat-custom");
+    let (mut a, _) = app("repeat-custom");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let start = NOW + 3 * 86_400;
@@ -160,5 +159,4 @@ fn a_rule_of_its_own_is_kept_as_custom() {
             assert_eq!(saved(&mut a, &title).as_deref(), Some("FREQ=DAILY"), "{title}: replaced");
         }
     }
-    let _ = std::fs::remove_dir_all(dir);
 }

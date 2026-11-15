@@ -40,7 +40,7 @@ fn big_calendar(a: &mut MailApp, events: usize, tasks: usize) -> Vec<String> {
 /// says the new name on the next frame, not at the next 15-second look.
 #[test]
 fn a_due_reminder_changed_shows_on_the_next_frame() {
-    let (mut a, dir) = app("reminder-renamed");
+    let (mut a, _) = app("reminder-renamed");
     let ctx = egui::Context::default();
     // Looked at once already: what follows is seen by what changed, not by the time.
     frame(&ctx, &mut a, vec![]);
@@ -66,14 +66,13 @@ fn a_due_reminder_changed_shows_on_the_next_frame() {
     a.run("account.remove", json!({"account": "sample"}));
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.reminders.due.is_empty(), "{:?}", names(&a));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The window's Snooze: 5 minutes until another is picked, and "0 minutes before start" until
 /// the event starts.
 #[test]
 fn snooze_in_the_window_takes_the_choice_picked() {
-    let (mut a, dir) = app("reminder-snooze");
+    let (mut a, _) = app("reminder-snooze");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     big_calendar(&mut a, 0, 0);
@@ -96,7 +95,6 @@ fn snooze_in_the_window_takes_the_choice_picked() {
     a.ui.reminders.snooze = Some(crate::reminders::Snooze::AtStart);
     let (until, start) = snooze(&mut a, &ctx);
     assert_eq!(until, Some(start));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// What the reminders cost a frame with 20,000 events and 5,000 tasks, three of them due (the
@@ -107,7 +105,7 @@ fn snooze_in_the_window_takes_the_choice_picked() {
 #[ignore]
 fn measure_reminders() {
     use std::hash::{Hash, Hasher};
-    let (mut a, dir) = app("measure-reminders");
+    let (mut a, _) = app("measure-reminders");
     let ctx = egui::Context::default();
     big_calendar(&mut a, 20_000, 5_000);
     frame(&ctx, &mut a, vec![]);
@@ -138,5 +136,4 @@ fn measure_reminders() {
         a.ui.reminders.due.len(),
         h.finish()
     );
-    let _ = std::fs::remove_dir_all(dir);
 }

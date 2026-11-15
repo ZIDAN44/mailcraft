@@ -21,7 +21,7 @@ fn held_drawn(ctx: &egui::Context, a: &mut MailApp) -> Vec<(String, egui::Pos2)>
 /// a new search's answer shows in place of the last.
 #[test]
 fn the_certificates_found_say_whose_they_are() {
-    let (mut a, dir) = app("held-keys");
+    let (mut a, _) = app("held-keys");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.session.apply(MailEvent::HeldKeys { keys: found(2), error: None });
@@ -38,7 +38,6 @@ fn the_certificates_found_say_whose_they_are() {
     let texts: Vec<String> = held_drawn(&ctx, &mut a).into_iter().map(|(t, _)| t).collect();
     assert!(texts.iter().any(|t| t == "Riley (Keychain)") && !texts.iter().any(|t| t == "Key 0"), "{texts:?}");
     assert_eq!(texts.iter().filter(|t| **t == line).count(), 1, "{texts:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A frame of the dialog with 40 certificates found, and a fingerprint of what it draws (the same
@@ -48,7 +47,7 @@ fn the_certificates_found_say_whose_they_are() {
 #[ignore]
 fn measure_held_keys_dialog() {
     use std::hash::{Hash, Hasher};
-    let (mut a, dir) = app("measure-held-keys");
+    let (mut a, _) = app("measure-held-keys");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.session.apply(MailEvent::HeldKeys { keys: found(40), error: None });
@@ -74,5 +73,4 @@ fn measure_held_keys_dialog() {
         drawn.len(),
         h.finish()
     );
-    let _ = std::fs::remove_dir_all(dir);
 }

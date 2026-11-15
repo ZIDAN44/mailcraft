@@ -30,7 +30,7 @@ fn in_bar(ctx: &egui::Context, a: &mut MailApp, what: &str, from: f32) -> egui::
 /// that isn't on screen). Not in the other modules, nor in a window too narrow for it.
 #[test]
 fn the_bar_is_beside_the_mail() {
-    let (mut a, dir) = app("todo-bar-shown");
+    let (mut a, _) = app("todo-bar-shown");
     let ctx = egui::Context::default();
     settle(&ctx, &mut a);
     let before: Vec<String> = drawn(&ctx, &mut a, SIZE).into_iter().map(|(s, _)| s).collect();
@@ -81,14 +81,13 @@ fn the_bar_is_beside_the_mail() {
     assert!(a.session.prefs.todo_bar.tasks);
     settle(&ctx, &mut a);
     in_bar(&ctx, &mut a, "Type a new task", edge - 1.0);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A day clicked in the bar's month opens the calendar on that day; a task typed in its box is
 /// made, due today; a flagged message clicked opens in a window, and its flag marks it complete.
 #[test]
 fn clicks_in_the_bar_go_where_outlooks_do() {
-    let (mut a, dir) = app("todo-bar-clicks");
+    let (mut a, _) = app("todo-bar-clicks");
     let ctx = egui::Context::default();
     a.run("view.todoBar", json!({"part": "calendar", "on": true}));
     a.run("view.todoBar", json!({"part": "tasks", "on": true}));
@@ -132,14 +131,13 @@ fn clicks_in_the_bar_go_where_outlooks_do() {
     assert_eq!(a.session.cal_mode, mailcraft_engine::CalMode::Day);
     let (_, _, d) = mailcraft_engine::model::dates::civil_from_days(a.session.cal_day());
     assert_eq!(d, 15);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The days with something on them are told from the free ones (the bar's month draws them
 /// bold, as the Calendar's own does now).
 #[test]
 fn busy_days_are_the_ones_with_events() {
-    let (a, dir) = app("todo-bar-busy");
+    let (a, _) = app("todo-bar-busy");
     let s = &a.session;
     let today = mailcraft_engine::model::dates::today(&s.clock);
     let busy = crate::calendar::busy_days(s, today - 14, today + 28);
@@ -163,13 +161,12 @@ fn busy_days_are_the_ones_with_events() {
     events.push(forever);
     let busy = crate::calendar::busy_days(&a.session, today, today + 7);
     assert!(busy.len() <= 7, "{busy:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// In a right-to-left interface the bar is at the window's left, where its lines end.
 #[test]
 fn the_bar_is_at_the_left_in_hebrew() {
-    let (mut a, dir) = app("todo-bar-rtl");
+    let (mut a, _) = app("todo-bar-rtl");
     a.ui.language = "he".into();
     let ctx = egui::Context::default();
     a.run("view.todoBar", json!({}));
@@ -177,7 +174,6 @@ fn the_bar_is_at_the_left_in_hebrew() {
     let all = drawn(&ctx, &mut a, SIZE);
     let at = all.iter().find(|(s, _)| s == "הקלד משימה חדשה").map(|(_, r)| *r).expect("the new task box");
     assert!(at.right() <= f32::from(a.session.prefs.todo_bar.width), "{at:?}");
-    let _ = std::fs::remove_dir_all(dir);
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }
 
@@ -185,7 +181,7 @@ fn the_bar_is_at_the_left_in_hebrew() {
 /// Off for all of them.
 #[test]
 fn the_view_tab_turns_its_parts_on_and_off() {
-    let (mut a, dir) = app("todo-bar-menu");
+    let (mut a, _) = app("todo-bar-menu");
     let ctx = egui::Context::default();
     a.ui.tab = crate::RibbonTab::View;
     settle(&ctx, &mut a);
@@ -214,5 +210,4 @@ fn the_view_tab_turns_its_parts_on_and_off() {
     let off = find(&ctx, &mut a, "Off", under);
     click(&ctx, &mut a, off.center());
     assert!(!a.session.prefs.todo_bar.shown());
-    let _ = std::fs::remove_dir_all(dir);
 }

@@ -142,7 +142,7 @@ fn first_message(a: &MailApp) -> String {
 #[test]
 fn a_small_window_keeps_room_to_read_and_write() {
     let _dressed = Dressed::new(SMALL, "de");
-    let (mut a, dir) = app("layout-small");
+    let (mut a, _) = app("layout-small");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let k = first_message(&a);
@@ -168,7 +168,6 @@ fn a_small_window_keeps_room_to_read_and_write() {
     assert!(book.is_some() && link.is_some(), "the ribbon's buttons are drawn");
     let apart = link.unwrap_or(0.0) - book.unwrap_or(0.0);
     assert!((0.0..=40.0).contains(&apart), "rows {apart} apart");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The calendar, tasks, people and the File page in the smallest window, in languages with long
@@ -177,7 +176,7 @@ fn a_small_window_keeps_room_to_read_and_write() {
 fn the_other_pages_fit_a_small_window() {
     for lang in ["fr", "de", "ru"] {
         let _dressed = Dressed::new(SMALL, lang);
-        let (mut a, dir) = app(&format!("layout-pages-{lang}"));
+        let (mut a, _) = app(&format!("layout-pages-{lang}"));
         let ctx = egui::Context::default();
         // Mail first: the folder pane is at its narrowest from there on.
         frame(&ctx, &mut a, vec![]);
@@ -200,7 +199,6 @@ fn the_other_pages_fit_a_small_window() {
         a.act(crate::Action::Backstage(crate::backstage::Page::Info));
         let (_, found) = settled(&ctx, &mut a);
         assert!(found.is_empty(), "{lang} File: {found:?}");
-        let _ = std::fs::remove_dir_all(dir);
     }
 }
 
@@ -209,7 +207,7 @@ fn the_other_pages_fit_a_small_window() {
 #[test]
 fn an_opened_message_and_a_notice_are_where_they_are_looked_for() {
     let _dressed = Dressed::new(SMALL, "ar");
-    let (mut a, dir) = app("layout-opened");
+    let (mut a, _) = app("layout-opened");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let last = a.session.list.last().cloned().unwrap();
@@ -229,7 +227,6 @@ fn an_opened_message_and_a_notice_are_where_they_are_looked_for() {
     let (drawn, _) = settled(&ctx, &mut a);
     let notice = drawn.iter().find(|p| p.text.starts_with("Archive.pst")).map(|p| p.ink);
     assert!(notice.is_some_and(|r| r.max.x < SMALL.x / 2.0), "{notice:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A message in a window of its own: its toolbar fits the window, its last buttons without
@@ -238,7 +235,7 @@ fn an_opened_message_and_a_notice_are_where_they_are_looked_for() {
 #[test]
 fn a_message_windows_toolbar_fits() {
     let _dressed = Dressed::new(egui::vec2(900.0, 600.0), "fr");
-    let (mut a, dir) = app("layout-window");
+    let (mut a, _) = app("layout-window");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let k = first_message(&a);
@@ -246,7 +243,6 @@ fn a_message_windows_toolbar_fits() {
     let (drawn, found) = settled(&ctx, &mut a);
     assert!(drawn.iter().any(|p| p.text == crate::i18n::t("Reply all")), "the window's toolbar is drawn");
     assert!(found.is_empty(), "{found:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A subject of two thousand characters is a few lines over its message, not the whole pane;
@@ -254,7 +250,7 @@ fn a_message_windows_toolbar_fits() {
 #[test]
 fn a_long_subject_and_a_conversation_keep_their_room() {
     let _dressed = Dressed::new(SMALL, "en");
-    let (mut a, dir) = app("layout-subject");
+    let (mut a, _) = app("layout-subject");
     let store = a.session.store.clone().unwrap();
     let long = "long subject words ".repeat(120);
     let key = MessageKey { account: "sample".into(), folder: "Archive".into(), validity: 1, uid: 1 };
@@ -275,7 +271,6 @@ fn a_long_subject_and_a_conversation_keep_their_room() {
     let (drawn, found) = settled(&ctx, &mut a);
     assert!(drawn.iter().any(|p| p.text.contains("messages in this conversation")), "the conversation is listed");
     assert!(found.is_empty(), "{found:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A tour of every pane and dialog at three window sizes in five languages, printing what
@@ -304,7 +299,7 @@ fn tour_findings() {
 /// the simplified one; switched off, the simplified ribbon comes back.
 #[test]
 fn the_classic_ribbon_draws_every_tab() {
-    let (mut a, dir) = app("classic-ribbon");
+    let (mut a, _) = app("classic-ribbon");
     let ctx = egui::Context::default();
     let sized = |ctx: &egui::Context, a: &mut MailApp, w: f32| {
         sized_frame(ctx, a, egui::vec2(w, 800.0), vec![]);
@@ -337,7 +332,6 @@ fn the_classic_ribbon_draws_every_tab() {
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![]);
     assert!((a.ui.ribbon_rect.unwrap().height() - simplified).abs() < 1.0);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #22: the ribbon's tabs and the search box share the top bar, one row where there were
@@ -345,7 +339,7 @@ fn the_classic_ribbon_draws_every_tab() {
 /// wide window, the narrowest and a narrow one; the File page has the window to itself.
 #[test]
 fn the_tabs_and_search_share_one_bar() {
-    let (mut a, dir) = app("one-bar");
+    let (mut a, _) = app("one-bar");
     let ctx = egui::Context::default();
     let sized = |ctx: &egui::Context, a: &mut MailApp, w: f32| {
         sized_frame(ctx, a, egui::vec2(w, 800.0), vec![]);
@@ -399,5 +393,4 @@ fn the_tabs_and_search_share_one_bar() {
     a.act(crate::Action::Backstage(crate::backstage::Page::Info));
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.top_bar_rect.is_none() && a.ui.ribbon_rect.is_none(), "the File page has no bar");
-    let _ = std::fs::remove_dir_all(dir);
 }

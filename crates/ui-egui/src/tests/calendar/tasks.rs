@@ -6,7 +6,7 @@ use super::*;
 
 #[test]
 fn tasks_are_made_listed_and_shown_in_the_calendar() {
-    let (mut a, dir) = app("tasks-ui");
+    let (mut a, _) = app("tasks-ui");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     // Ctrl+4, as Outlook's key for Tasks.
@@ -57,7 +57,6 @@ fn tasks_are_made_listed_and_shown_in_the_calendar() {
         a.run("calendar.view", json!({"mode": mode}));
         frame(&ctx, &mut a, vec![]);
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// In Arabic the task list is mirrored: a task's due day is left of its title, and the Due date
@@ -65,7 +64,7 @@ fn tasks_are_made_listed_and_shown_in_the_calendar() {
 #[test]
 fn the_task_list_is_mirrored() {
     for (lang, subject, due) in [("ar", "الموضوع", "تاريخ الاستحقاق"), ("en", "Task subject", "Due date")] {
-        let (mut a, dir) = app(&format!("tasks-rtl-{lang}"));
+        let (mut a, _) = app(&format!("tasks-rtl-{lang}"));
         a.ui.language = lang.into();
         let ctx = egui::Context::default();
         a.run("view.module", json!({"name": "tasks"}));
@@ -86,7 +85,6 @@ fn the_task_list_is_mirrored() {
             .next()
             .unwrap_or_else(|| panic!("{lang}: nothing beside the task in {texts:?}"));
         assert_eq!(date.center().x < title.center().x, rtl, "{lang}: the due day's side");
-        let _ = std::fs::remove_dir_all(dir);
     }
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }

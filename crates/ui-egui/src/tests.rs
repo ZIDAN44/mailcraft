@@ -70,10 +70,48 @@ impl crate::Backend for Jobs {
     }
 }
 
+/// What a test made in the temporary folder, removed when the test's thread ends, passed or not.
+#[derive(Default)]
+struct Scratch {
+    folders: Vec<std::path::PathBuf>,
+    /// The caches made in them: their read marks are written first (written after, on their
+    /// own thread, they'd make the folder again).
+    stores: Vec<Store>,
+}
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        for store in self.stores.drain(..) {
+            store.flush_marks();
+        }
+        for folder in &self.folders {
+            // Leftovers in the temporary folder are harmless; a failed clean-up isn't a failed test.
+            let _ = std::fs::remove_dir_all(folder);
+        }
+    }
+}
+
+thread_local!(static SCRATCH: std::cell::RefCell<Scratch> = std::cell::RefCell::default());
+
+/// A scratch folder for the test, `mailcraft-ui-<name>-<pid>` in the temporary folder: what a
+/// run before left there is removed now, and the folder with all in it once the test is over.
+pub(crate) fn scratch(name: &str) -> std::path::PathBuf {
+    let folder = std::env::temp_dir().join(format!("mailcraft-ui-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&folder);
+    SCRATCH.with(|s| s.borrow_mut().folders.push(folder.clone()));
+    folder
+}
+
+/// A cache made in a [`scratch`] folder, its marks written before the folder goes.
+pub(crate) fn scratch_store(store: Store) -> Store {
+    SCRATCH.with(|s| s.borrow_mut().stores.push(store.clone()));
+    store
+}
+
+/// The window over the sample mailbox, in a [`scratch`] folder (also given, for the test's files).
 pub(crate) fn app(name: &str) -> (MailApp, std::path::PathBuf) {
-    let dir = std::env::temp_dir().join(format!("mailcraft-ui-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let store = Store::open(&dir).unwrap();
+    let dir = scratch(name);
+    let store = scratch_store(Store::open(&dir).unwrap());
     sample::seed_if_empty(&store, NOW).unwrap();
     let s = Session::open(Some(store), Clock::new(NOW, 0));
     (MailApp::new(s, Box::new(NullBackend), Box::new(NullServices(NOW))), dir)
@@ -298,7 +336,7 @@ pub(crate) fn archive_of(a: &mut MailApp, messages: Vec<Summary>) {
 pub(crate) fn tour() {
     static RUN: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let n = RUN.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let (mut a, dir) = app(&format!("states-{n}"));
+    let (mut a, _) = app(&format!("states-{n}"));
     let ctx = egui::Context::default();
     for dark in [Some(false), Some(true)] {
         a.ui.dark = dark;
@@ -511,7 +549,6 @@ line two"
         a.session.apply(MailEvent::Status { account: "sample".into(), status: st });
         frame(&ctx, &mut a, vec![]);
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 fn jmap_form() -> Dialog {

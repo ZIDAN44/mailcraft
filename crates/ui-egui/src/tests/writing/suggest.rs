@@ -26,7 +26,7 @@ fn typing_in_to(ctx: &egui::Context, a: &mut MailApp, typed: &str) {
 /// text stays in the box; an address already in the box isn't suggested again.
 #[test]
 fn suggestions_follow_the_text_and_the_address_book() {
-    let (mut a, dir) = app("suggest-follow");
+    let (mut a, _) = app("suggest-follow");
     let ctx = egui::Context::default();
     typing_in_to(&ctx, &mut a, "qu");
     let shows = |texts: &[(String, egui::Pos2)], what: &str| texts.iter().any(|(t, _)| t == what);
@@ -51,7 +51,6 @@ fn suggestions_follow_the_text_and_the_address_book() {
     }
     let texts = drawn(&ctx, &mut a, vec![]);
     assert!(!shows(&texts, "quinn.saved@example.org"), "{texts:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A frame of a new message with an address being typed in To, the suggestions showing, with
@@ -62,7 +61,7 @@ fn suggestions_follow_the_text_and_the_address_book() {
 #[ignore]
 fn measure_suggestions() {
     use std::hash::{Hash, Hasher};
-    let (mut a, dir) = app("measure-suggest");
+    let (mut a, _) = app("measure-suggest");
     let ctx = egui::Context::default();
     let p = a.session.pim_mut("sample");
     let book = p.books.first().map(|b| b.id.clone()).unwrap_or_default();
@@ -100,5 +99,4 @@ fn measure_suggestions() {
     a.ui.suggest_dismissed = a.session.compose.as_ref().map(|c| c.to.clone());
     let none = timed(&mut a, "the list put away");
     println!("MEASURE the suggestions' part of a frame: {:.3} ms", showing - none);
-    let _ = std::fs::remove_dir_all(dir);
 }

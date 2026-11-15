@@ -51,7 +51,7 @@ fn order_of(text: &str, what: &[&str]) -> Vec<usize> {
 /// left alone.
 #[test]
 fn ctrl_a_selects_the_whole_message_and_copies_it_in_order() {
-    let (mut a, dir) = app("select-all-blocks");
+    let (mut a, _) = app("select-all-blocks");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, mixed());
     click_at(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
@@ -73,13 +73,12 @@ fn ctrl_a_selects_the_whole_message_and_copies_it_in_order() {
     );
     assert!(at.windows(2).all(|w| w[0] < w[1]), "in reading order: {got:?}");
     assert!(got.contains("in it.\n"), "a line break between blocks: {got:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// With the message list clicked after the text, Ctrl+A is the list's again: every message.
 #[test]
 fn ctrl_a_in_the_message_list_still_selects_its_messages() {
-    let (mut a, dir) = app("select-all-list");
+    let (mut a, _) = app("select-all-list");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, mixed());
     click_at(&ctx, &mut a, area.left_top() + egui::vec2(4.0, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
@@ -92,14 +91,13 @@ fn ctrl_a_in_the_message_list_still_selects_its_messages() {
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.selection.len() > 1, "{} selected", a.session.selection.len());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Shift with the arrows, End and Ctrl+End goes on across lines (each a block of its own, where
 /// it stopped at the block's edge), and the message list doesn't move.
 #[test]
 fn shift_and_the_arrows_select_across_lines() {
-    let (mut a, dir) = app("select-shift-arrows");
+    let (mut a, _) = app("select-shift-arrows");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, lines(40));
     let open_key = a.session.reading.as_ref().map(|r| r.key.clone());
@@ -123,13 +121,12 @@ fn shift_and_the_arrows_select_across_lines() {
     assert!(got.starts_with("Line 000") && got.ends_with("Line 039 of the message."), "{got:?}");
     assert_eq!(a.session.selection.len(), 1, "the list's selection is as it was");
     assert_eq!(a.session.reading.as_ref().map(|r| r.key.clone()), open_key, "the same message is open");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Shift+Up from below goes back a line, and Shift+click moves the end to the line clicked.
 #[test]
 fn shift_up_and_shift_click_move_the_end() {
-    let (mut a, dir) = app("select-shift-up");
+    let (mut a, _) = app("select-shift-up");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, lines(20));
     let row = area.height() / 20.0;
@@ -141,14 +138,13 @@ fn shift_up_and_shift_click_move_the_end() {
     click_at(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 6.0 * row + 6.0), egui::PointerButton::Primary, Modifiers::SHIFT);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert_eq!(got, "Line 003 of the message.\nLine 004 of the message.\nLine 005 of the message.\n");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A drag held below the reading pane scrolls the message on, and the selection grows with it
 /// to lines that weren't in view (it stopped at the view's edge).
 #[test]
 fn a_drag_past_the_bottom_scrolls_and_keeps_selecting() {
-    let (mut a, dir) = app("select-drag-scroll");
+    let (mut a, _) = app("select-drag-scroll");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, lines(200));
     let start = area.left_top() + egui::vec2(0.5, 8.0);
@@ -182,14 +178,13 @@ fn a_drag_past_the_bottom_scrolls_and_keeps_selecting() {
     frame(&ctx, &mut a, vec![button(above, false)]);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert!(got.lines().count() > 30, "{got:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// In a message's own window: Ctrl+A and Shift with the arrows select its text as in the reading
 /// pane, and the copy is its text.
 #[test]
 fn a_message_window_selects_its_text_the_same_way() {
-    let (mut a, dir) = app("select-window");
+    let (mut a, _) = app("select-window");
     let ctx = egui::Context::default();
     let _ = open(&mut a, &ctx, lines(12));
     let k = a.session.reading.as_ref().map(|r| r.key.clone()).unwrap();
@@ -209,7 +204,6 @@ fn a_message_window_selects_its_text_the_same_way() {
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert!(got.starts_with("Line 000") && got.ends_with("Line 011 of the message."), "{got:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A plain message, and one in Hebrew: Ctrl+A copies the text as written, every line.
@@ -219,7 +213,7 @@ fn ctrl_a_takes_a_plain_message_whole_in_either_direction() {
         "Dear Riley,\n\nThe cut is ready.\nSee you Tuesday.\n",
         "\u{5e9}\u{5dc}\u{5d5}\u{5dd},\n\n\u{5d4}\u{5d2}\u{5e8}\u{5e1}\u{5d4} \u{5de}\u{5d5}\u{5db}\u{5e0}\u{5d4}.\n",
     ] {
-        let (mut a, dir) = app("select-plain");
+        let (mut a, _) = app("select-plain");
         let ctx = egui::Context::default();
         let d = mailcraft_engine::mime::Draft { subject: "Plain".into(), body: body.into(), ..Default::default() };
         let from = mailcraft_engine::model::EmailAddress::new("Sam", "sam@studio.example");
@@ -229,7 +223,6 @@ fn ctrl_a_takes_a_plain_message_whole_in_either_direction() {
         frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
         let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
         assert_eq!(got, text);
-        let _ = std::fs::remove_dir_all(dir);
     }
 }
 
@@ -237,7 +230,7 @@ fn ctrl_a_takes_a_plain_message_whole_in_either_direction() {
 /// the text that comes under the pointer.
 #[test]
 fn the_wheel_scrolls_while_a_selection_is_dragged() {
-    let (mut a, dir) = app("select-drag-wheel");
+    let (mut a, _) = app("select-drag-wheel");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, lines(200));
     let start = area.left_top() + egui::vec2(0.5, 8.0);
@@ -266,14 +259,13 @@ fn the_wheel_scrolls_while_a_selection_is_dragged() {
     frame(&ctx, &mut a, vec![button(mid, false)]);
     let after = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert!(after.starts_with("Line 000") && after.lines().count() > before.lines().count() + 10, "{before:?} then {after:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The scroll bar beside the text drags the view, not a selection, and what was selected stays
 /// selected (a press there let go of it).
 #[test]
 fn the_scroll_bar_scrolls_and_leaves_the_selection() {
-    let (mut a, dir) = app("select-scroll-bar");
+    let (mut a, _) = app("select-scroll-bar");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, lines(200));
     click_at(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
@@ -293,14 +285,13 @@ fn the_scroll_bar_scrolls_and_leaves_the_selection() {
     assert!(text_area(&a, egui::Order::Background).top() < area.top() - 200.0, "the bar scrolled the message");
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert_eq!(got, selected);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Shift+End goes to the end of the line on the screen, past a bold word in it (it stopped at the
 /// end of the words before the bold ones), and Shift+Home back to its start.
 #[test]
 fn shift_end_and_home_take_a_line_of_several_runs() {
-    let (mut a, dir) = app("select-shift-end");
+    let (mut a, _) = app("select-shift-end");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, mixed());
     click_at(&ctx, &mut a, area.left_top() + egui::vec2(0.5, 8.0), egui::PointerButton::Primary, Modifiers::NONE);
@@ -312,14 +303,13 @@ fn shift_end_and_home_take_a_line_of_several_runs() {
     frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::SHIFT)]);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert_eq!(got, "First paragraph with bold words in it.");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A press and the drag on from it arriving in one frame (a quick hand): the selection starts
 /// where it was pressed, not where the pointer had got to.
 #[test]
 fn a_quick_drag_starts_where_it_was_pressed() {
-    let (mut a, dir) = app("select-quick-drag");
+    let (mut a, _) = app("select-quick-drag");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, lines(40));
     let row = area.height() / 40.0;
@@ -330,7 +320,6 @@ fn a_quick_drag_starts_where_it_was_pressed() {
     frame(&ctx, &mut a, vec![Event::PointerMoved(to), button(to, false)]);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert_eq!(got, "Line 000 of the message.\nLine 001 of the message.\n");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A drag held on the last line in view of the reading pane, short of its edge: the message
@@ -338,7 +327,7 @@ fn a_quick_drag_starts_where_it_was_pressed() {
 /// running on under a still pointer).
 #[test]
 fn a_drag_held_on_the_last_line_in_view_stays() {
-    let (mut a, dir) = app("select-drag-last-line");
+    let (mut a, _) = app("select-drag-last-line");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, lines(200));
     let view = a.ui.text_selection.view(egui::Order::Background).expect("the text is in view");
@@ -359,14 +348,13 @@ fn a_drag_held_on_the_last_line_in_view_stays() {
     let still = copied(&ctx, &mut a, vec![Event::PointerMoved(last), Event::Copy]).expect("copied");
     assert_eq!(still, held, "the selection stays too");
     frame(&ctx, &mut a, vec![button(last, false)]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// On a touch screen, a finger dragged up over the text scrolls the message, as over egui's
 /// labels there, and selects nothing (the drag selected text, and scrolled only at the edge).
 #[test]
 fn a_finger_dragged_over_the_text_scrolls_it() {
-    let (mut a, dir) = app("select-touch");
+    let (mut a, _) = app("select-touch");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, lines(200));
     let start = egui::pos2(area.left() + 40.0, 600.0);
@@ -389,14 +377,13 @@ fn a_finger_dragged_over_the_text_scrolls_it() {
     assert!(top < area.top() - 200.0, "the finger scrolled it: {top} from {}", area.top());
     let got = copied(&ctx, &mut a, vec![Event::Copy]);
     assert!(got.as_deref().is_none_or(str::is_empty), "nothing selected: {got:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Another message shown, then this one again by the keyboard (Down, Up in the list): its text
 /// shows unselected and Ctrl+A is the list's (the old selection came back, keys and all).
 #[test]
 fn a_message_shown_again_starts_unselected() {
-    let (mut a, dir) = app("select-shown-again");
+    let (mut a, _) = app("select-shown-again");
     let ctx = egui::Context::default();
     let area = open(&mut a, &ctx, mixed());
     let first = a.session.reading.as_ref().map(|r| r.key.clone()).unwrap();
@@ -420,14 +407,13 @@ fn a_message_shown_again_starts_unselected() {
     frame(&ctx, &mut a, vec![]);
     assert!(!a.ui.text_selection.all(), "Ctrl+A isn't the text's");
     assert!(a.session.selection.len() > 1, "but the list's: {} selected", a.session.selection.len());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A message popped out into its own window: Ctrl+A there, without a click in it first, selects
 /// its whole text (its text had the keys only once clicked into).
 #[test]
 fn a_message_window_has_the_keys_from_the_start() {
-    let (mut a, dir) = app("select-window-keys");
+    let (mut a, _) = app("select-window-keys");
     let ctx = egui::Context::default();
     let _ = open(&mut a, &ctx, lines(12));
     let k = a.session.reading.as_ref().map(|r| r.key.clone()).unwrap();
@@ -441,7 +427,6 @@ fn a_message_window_has_the_keys_from_the_start() {
     frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
     let got = copied(&ctx, &mut a, vec![Event::Copy]).expect("copied");
     assert!(got.starts_with("Line 000") && got.ends_with("Line 011 of the message."), "{got:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Ctrl+A over a line with bold words in it, on a screen at 125%: each run's shading meets the
@@ -449,7 +434,7 @@ fn a_message_window_has_the_keys_from_the_start() {
 /// pixels, a darker line down the selection, the shading being translucent).
 #[test]
 fn the_shading_has_no_seam_between_runs_on_a_line() {
-    let (mut a, dir) = app("select-seam");
+    let (mut a, _) = app("select-seam");
     let ctx = egui::Context::default();
     ctx.set_pixels_per_point(1.25);
     let area = open(&mut a, &ctx, mixed());
@@ -479,5 +464,4 @@ fn the_shading_has_no_seam_between_runs_on_a_line() {
     for w in shades.windows(2) {
         assert!((w[1].left() - w[0].right()).abs() < 0.01, "edge to edge: {} then {}", w[0].right(), w[1].left());
     }
-    let _ = std::fs::remove_dir_all(dir);
 }

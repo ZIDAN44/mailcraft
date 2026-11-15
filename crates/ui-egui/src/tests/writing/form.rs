@@ -11,7 +11,7 @@ fn drawn(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2) -> Vec<String> 
 
 /// Each state of the form: its name, and what it draws (settled over a few frames).
 fn states() -> Vec<(&'static str, Vec<String>)> {
-    let (mut a, dir) = app("form-states");
+    let (mut a, _) = app("form-states");
     a.session.prefs.new_mail_window = false;
     let ctx = egui::Context::default();
     let wide = egui::vec2(1280.0, 800.0);
@@ -98,7 +98,6 @@ fn states() -> Vec<(&'static str, Vec<String>)> {
     settle(&mut a, "blocked", wide);
     a.ui.compose_alert = Some(crate::reading::ComposeAlert::Blocked(mailcraft_engine::SendBlock::DataFile));
     settle(&mut a, "blocked-alert", wide);
-    let _ = std::fs::remove_dir_all(dir);
     out
 }
 

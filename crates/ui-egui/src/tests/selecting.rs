@@ -30,7 +30,7 @@ fn subjects(a: &MailApp) -> Vec<String> {
 /// box Shift+Down selects text, not mail.
 #[test]
 fn shift_arrows_select_from_the_keyboard() {
-    let (mut a, dir) = app("shift-keys");
+    let (mut a, _) = app("shift-keys");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     frame(&ctx, &mut a, vec![]);
@@ -62,7 +62,6 @@ fn shift_arrows_select_from_the_keyboard() {
     let before = a.session.selection.clone();
     frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::SHIFT)]);
     assert_eq!(a.session.selection, before);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Shift+click selects from the row clicked first to the one Shift+clicked; right-clicking one
@@ -70,7 +69,7 @@ fn shift_arrows_select_from_the_keyboard() {
 /// selected it alone: Delete took just that one).
 #[test]
 fn shift_click_and_a_right_click_on_the_selection() {
-    let (mut a, dir) = app("shift-click-ui");
+    let (mut a, _) = app("shift-click-ui");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     for _ in 0..3 {
@@ -90,14 +89,13 @@ fn shift_click_and_a_right_click_on_the_selection() {
     // A right-click on one outside them: that one alone.
     click_at(&ctx, &mut a, rows[3].1.center(), egui::PointerButton::Secondary, Modifiers::NONE);
     assert_eq!(subjects(&a), vec![all[3].clone()]);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The list's keys are Mail's: in Calendar the list isn't there, and End read its last message,
 /// Delete and Backspace took the mail selected away unseen (found reviewing issue #26).
 #[test]
 fn list_keys_stay_in_mail() {
-    let (mut a, dir) = app("keys-in-calendar");
+    let (mut a, _) = app("keys-in-calendar");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let first = a.session.row_keys()[0].clone();
@@ -118,14 +116,13 @@ fn list_keys_stay_in_mail() {
     // Back in Mail they work.
     frame(&ctx, &mut a, vec![key(Key::End, Modifiers::NONE)]);
     assert_eq!(a.session.selection.last(), a.session.row_keys().last());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A right-click on one of several selected: Reply, Reply all, Forward and Quick print are for
 /// one message, so they're off (they failed, or asked where to save a PDF of nothing).
 #[test]
 fn the_menu_of_several_has_no_reply() {
-    let (mut a, dir) = app("menu-several");
+    let (mut a, _) = app("menu-several");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     for _ in 0..3 {
@@ -146,7 +143,6 @@ fn the_menu_of_several_has_no_reply() {
             assert!(found.iter().all(|d| *d), "{name} is off: {found:?}");
         }
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Down held: the presses queued in one frame (faster than frames were drawn) are one step of
@@ -155,7 +151,7 @@ fn the_menu_of_several_has_no_reply() {
 /// them is a step of its own.
 #[test]
 fn queued_downs_read_only_the_message_landed_on() {
-    let (mut a, dir) = app("queued-downs");
+    let (mut a, _) = app("queued-downs");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::NONE)]);
@@ -194,16 +190,13 @@ fn queued_downs_read_only_the_message_landed_on() {
     assert_eq!(a.session.anchor.as_ref(), Some(&keys[2]));
     assert_eq!(a.session.focus.as_ref(), Some(&keys[4]));
     assert_eq!(a.session.selection.len(), 3);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// The same on an Inbox longer than the presses (the sample's is shorter, so the test above stops
 /// at its last row): 20 Downs in one frame read the 21st message, and only it.
 #[test]
 fn twenty_queued_downs_land_twenty_rows_on() {
-    let dir = std::env::temp_dir().join(format!("mailcraft-ui-twenty-downs-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    let store = Store::open(&dir).unwrap();
+    let store = scratch_store(Store::open(scratch("twenty-downs")).unwrap());
     sample::seed_if_empty(&store, NOW).unwrap();
     let mut st = store.load_folder(sample::SAMPLE_ACCOUNT, "INBOX").unwrap();
     let first = st.messages.iter().map(|m| m.key.uid).max().unwrap_or(0) + 1;
@@ -226,14 +219,13 @@ fn twenty_queued_downs_land_twenty_rows_on() {
     frame(&ctx, &mut a, downs);
     assert_eq!(a.session.reading.as_ref().map(|r| &r.key), Some(&keys[20]), "20 rows on");
     assert_eq!(a.session.messages_shown(), shown + 1, "one message shown for 20 presses");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Every message of a long folder selected (Ctrl+A): drawing the window copies none of them. The
 /// ribbon, the menus and the Delete check each copied the whole selection, every frame.
 #[test]
 fn a_long_selection_is_drawn_without_copies() {
-    let (mut a, dir) = app("select-all-long");
+    let (mut a, _) = app("select-all-long");
     let messages: Vec<Summary> = (1..=20_000u32)
         .rev()
         .map(|uid| Summary {
@@ -261,7 +253,6 @@ fn a_long_selection_is_drawn_without_copies() {
     assert!(!a.needs_delete_confirm(), "not in Deleted Items");
     assert_eq!(a.session.selection.len(), 20_000, "still all of them");
     assert_eq!(a.session.summary_clones(), copies, "no message copied to draw them");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Audit #466: a frame of the message list readies nothing for a row's right-click menu, which
@@ -270,7 +261,7 @@ fn a_long_selection_is_drawn_without_copies() {
 #[test]
 #[ignore = "a measurement"]
 fn list_frames_measure() {
-    let (mut a, dir) = app("list-frames-measure");
+    let (mut a, _) = app("list-frames-measure");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let screen = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 2000.0)));
@@ -290,5 +281,4 @@ fn list_frames_measure() {
     }
     let rows = a.session.rows().len();
     println!("MEASURE a frame of the message list, {rows} rows: {:.1} µs", t.elapsed().as_secs_f64() * 1e6 / f64::from(ROUNDS));
-    let _ = std::fs::remove_dir_all(dir);
 }

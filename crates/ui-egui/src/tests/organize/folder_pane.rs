@@ -39,7 +39,7 @@ fn pane(ctx: &egui::Context, a: &mut MailApp, height: f32, events: Vec<Event>) -
 /// folder's menu says whether it's in Favorites, and Show in Favorites puts it there.
 #[test]
 fn the_folder_tree_collapses_and_its_menu_knows_favorites() {
-    let (mut a, dir) = app("folder-tree");
+    let (mut a, _) = app("folder-tree");
     let ctx = egui::Context::default();
     big_tree(&mut a, 3, 2);
     let names = |texts: &[(String, egui::Pos2)]| {
@@ -82,7 +82,6 @@ fn the_folder_tree_collapses_and_its_menu_knows_favorites() {
         let favorite = a.session.favorites().iter().any(|r| r.folder == "Projects/p0");
         assert_eq!(favorite, said == "Show in Favorites", "after {said}");
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// What the folder pane costs a frame with 3,300 folders (300 with ten in each) and ten of them
@@ -94,7 +93,7 @@ fn the_folder_tree_collapses_and_its_menu_knows_favorites() {
 #[ignore]
 fn measure_folder_pane() {
     use std::hash::{Hash, Hasher};
-    let (mut a, dir) = app("measure-folder-pane");
+    let (mut a, _) = app("measure-folder-pane");
     let ctx = egui::Context::default();
     big_tree(&mut a, 300, 10);
     for n in 0..10 {
@@ -125,5 +124,4 @@ fn measure_folder_pane() {
         let each = timed(&mut a);
         println!("MEASURE folder pane, 3300 folders, {case}: {each:.3} ms a frame; drawn {} texts, {:016x}", drawn.len(), h.finish());
     }
-    let _ = std::fs::remove_dir_all(dir);
 }

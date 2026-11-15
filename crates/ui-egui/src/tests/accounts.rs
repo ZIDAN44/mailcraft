@@ -10,7 +10,7 @@ mod offers;
 
 #[test]
 fn the_account_form_adds_exchange_accounts() {
-    let (mut a, dir) = app("graph-form");
+    let (mut a, _) = app("graph-form");
     let p = match graph_form() {
         Dialog::AddAccount(f) => f.params(),
         _ => serde_json::Value::Null,
@@ -22,12 +22,11 @@ fn the_account_form_adds_exchange_accounts() {
     a.act(crate::Action::Submit("account.add", p));
     let added = a.session.accounts.iter().find(|x| x.config.email == "ana@contoso.example").unwrap();
     assert!(added.config.graph.is_some() && added.config.oauth.is_some());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn the_file_page_shows_accounts_replies_space_and_options() {
-    let (mut a, dir) = app("backstage");
+    let (mut a, _) = app("backstage");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     backstage_tour(&mut a, &ctx);
@@ -72,7 +71,6 @@ fn the_file_page_shows_accounts_replies_space_and_options() {
     // Escape leaves the File page too.
     frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
     assert!(a.ui.backstage.is_none() && a.ui.dialog.is_none());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// An Exchange account's automatic replies: who outside the organisation gets one is shown as the
@@ -100,7 +98,7 @@ fn automatic_replies_keep_who_outside_gets_one() {
 /// Issue #61: calendars and contacts only, from a Nextcloud or Radicale address, with no email.
 #[test]
 fn the_account_form_adds_calendar_only_accounts() {
-    let (mut a, dir) = app("calendar-form");
+    let (mut a, _) = app("calendar-form");
     let p = match calendar_form() {
         Dialog::AddAccount(f) => f.calendar_params(),
         _ => serde_json::Value::Null,
@@ -137,12 +135,11 @@ fn the_account_form_adds_calendar_only_accounts() {
     drawn_text(&ctx, &mut a, size);
     let pane: Vec<String> = drawn_strings(&ctx, &mut a, size);
     assert!(pane.iter().any(|t| t == "Calendars and contacts") && !pane.iter().any(|t| t.contains("zoe@example.org")), "{pane:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn the_account_form_adds_jmap_accounts() {
-    let (mut a, dir) = app("jmap-form");
+    let (mut a, _) = app("jmap-form");
     let p = match jmap_form() {
         Dialog::AddAccount(f) => f.params(),
         _ => serde_json::Value::Null,
@@ -152,12 +149,11 @@ fn the_account_form_adds_jmap_accounts() {
     a.act(crate::Action::Submit("account.add", p));
     let added = a.session.accounts.iter().find(|x| x.config.email == "zoe@fastmail.example").unwrap();
     assert!(added.config.jmap.is_some() && !added.is_local());
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 #[test]
 fn the_account_form_adds_pop_accounts_with_their_old_data_file() {
-    let (mut a, dir) = app("pop-form");
+    let (mut a, _) = app("pop-form");
     let p = match pop_form() {
         Dialog::AddAccount(f) => f.params(),
         _ => serde_json::Value::Null,
@@ -177,7 +173,6 @@ fn the_account_form_adds_pop_accounts_with_their_old_data_file() {
     assert_eq!((e.params()["popKeepDays"].clone(), e.params()["popDeleteWithTrash"].clone()), (json!(0), json!(true)));
     e.pop_keep.keep = false;
     assert_eq!((e.params()["popDelete"].clone(), e.params()["popDeleteWithTrash"].clone()), (json!(true), json!(false)));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #1: a shared mailbox is a mailbox of its own in the folder pane, after the account's
@@ -186,7 +181,7 @@ fn the_account_form_adds_pop_accounts_with_their_old_data_file() {
 #[test]
 fn a_shared_mailbox_draws_as_a_mailbox_of_its_own() {
     use mailcraft_engine::model::{Folder, FolderRole};
-    let (mut a, dir) = app("shared-mailbox");
+    let (mut a, _) = app("shared-mailbox");
     let mut folders = a.session.account("sample").unwrap().folders.clone();
     if let Some(inbox) = folders.iter_mut().find(|f| f.role == FolderRole::Inbox) {
         inbox.name = Some("Postvak IN".into());
@@ -217,7 +212,6 @@ fn a_shared_mailbox_draws_as_a_mailbox_of_its_own() {
     frame(&ctx, &mut a, vec![]);
     let e = a.session.run("folder.rename", &json!({"account": "sample", "folder": "Test Grommunio/Postvak IN", "name": "X"})).unwrap_err();
     assert!(e.to_string().contains("can't be renamed"), "{e}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #3: Server settings show the outgoing server's own sign-in; left alone, its kept
@@ -243,7 +237,7 @@ fn server_settings_keep_the_outgoing_servers_own_sign_in() {
 /// for each account that can be online only (not the sample mailbox), and Account settings keeps it.
 #[test]
 fn an_account_is_kept_online_only_from_the_forms() {
-    let (mut a, dir) = app("online-only");
+    let (mut a, _) = app("online-only");
     let ctx = egui::Context::default();
     a.session.portable = true;
     a.ui.dialog = Some(Dialog::add_account_with("zoe@example.org", false));
@@ -288,14 +282,13 @@ fn an_account_is_kept_online_only_from_the_forms() {
     a.ui.dialog = Some(Dialog::add_account_with("ana@example.org", false));
     frame(&ctx, &mut a, vec![]);
     assert!(matches!(&a.ui.dialog, Some(Dialog::AddAccount(f)) if f.online_only == Some(false) && f.params().get("onlineOnly").is_none()));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A dozen accounts waiting for their password: the status bar shows as many as fit and "+N"
 /// for the rest, never over "Items" and "Unread" on its left (they ran over them).
 #[test]
 fn many_accounts_waiting_dont_cover_the_counts() {
-    let (mut a, dir) = app("status-many");
+    let (mut a, _) = app("status-many");
     let ctx = egui::Context::default();
     for n in 0..12 {
         let c = mailcraft_engine::model::AccountConfig::guess(&format!("waiting{n}@studio.example"));
@@ -316,7 +309,6 @@ fn many_accounts_waiting_dont_cover_the_counts() {
     assert!(counts_end > 0.0, "{texts:?}");
     assert!(waiting.iter().any(|(s, ..)| s.starts_with('+')), "the rest as +N: {texts:?}");
     assert!(waiting.iter().all(|(_, l, _)| *l > counts_end), "nothing over the counts: {texts:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// An account's trouble that needs you is told apart from one that only waits to be tried again:
@@ -324,7 +316,7 @@ fn many_accounts_waiting_dont_cover_the_counts() {
 #[test]
 fn an_account_s_trouble_is_said_and_offers_what_helps() {
     use mailcraft_engine::model::{FailureKind, MICROSOFT_IMAP_CLOSED, MICROSOFT_NO_PASSWORDS, local_certificate_refusal};
-    let (mut a, dir) = app("troubles");
+    let (mut a, _) = app("troubles");
     let ctx = egui::Context::default();
     let size = egui::vec2(1280.0, 800.0);
     a.act(crate::Action::Submit("account.add", json!({"email": "zoe@example.org", "password": "pw", "imapHost": "mail.example.org"})));
@@ -365,13 +357,12 @@ fn an_account_s_trouble_is_said_and_offers_what_helps() {
             (said, d) => panic!("{said:?}: {:?}", d.as_ref().map(std::mem::discriminant)),
         }
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Issue #58: File › Options gives each account with a server a time of its own to look for mail.
 #[test]
 fn options_gives_each_account_its_time_to_look_for_mail() {
-    let (mut a, dir) = app("check-every");
+    let (mut a, _) = app("check-every");
     let ctx = egui::Context::default();
     a.act(crate::Action::Submit("account.add", json!({"email": "zoe@example.org", "password": "pw", "imapHost": "mail.example.org"})));
     let id = a.session.accounts.iter().find(|x| x.config.email == "zoe@example.org").map(|x| x.config.id.clone()).unwrap();
@@ -384,14 +375,13 @@ fn options_gives_each_account_its_time_to_look_for_mail() {
     drawn_text(&ctx, &mut a, tall);
     let texts = drawn_strings(&ctx, &mut a, tall);
     assert!(has(&texts, "Every 30 minutes"), "{texts:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// File › Info for a mailbox kept on this computer that isn't the sample: its automatic replies
 /// aren't available, and it isn't called the sample mailbox.
 #[test]
 fn a_local_mailbox_isnt_called_the_sample() {
-    let (mut a, dir) = app("local-no-server");
+    let (mut a, _) = app("local-no-server");
     let ctx = egui::Context::default();
     a.act(crate::Action::Submit("account.add", json!({"email": "me@home.example", "local": true})));
     let id = a.session.accounts.iter().find(|x| x.config.email == "me@home.example").map(|x| x.config.id.clone()).unwrap();
@@ -404,7 +394,6 @@ fn a_local_mailbox_isnt_called_the_sample() {
     let texts = drawn_strings(&ctx, &mut a, tall);
     assert!(texts.iter().any(|t| t == "Not available: this mailbox has no server."), "{texts:?}");
     assert!(!texts.iter().any(|t| t.contains("sample mailbox")), "{texts:?}");
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// What the status bar costs a frame with 100,000 messages in the list, then with a dozen
@@ -415,7 +404,7 @@ fn a_local_mailbox_isnt_called_the_sample() {
 #[ignore]
 fn measure_status_bar() {
     use std::hash::{Hash, Hasher};
-    let (mut a, dir) = app("measure-status-bar");
+    let (mut a, _) = app("measure-status-bar");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let first = a.session.list.first().map(|m| (**m).clone()).unwrap();
@@ -454,14 +443,13 @@ fn measure_status_bar() {
         let each = t.elapsed().as_secs_f64() * 1000.0 / 200.0;
         println!("MEASURE status bar, {case}: {each:.3} ms a frame; drawn {} texts, {:016x}", drawn.len(), h.finish());
     }
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// Saved settings with one a later (or earlier) version wrote otherwise: that one starts as it does
 /// for everyone, the others are kept; and settings that aren't settings at all change nothing.
 #[test]
 fn saved_settings_keep_what_can_be_read() {
-    let (mut a, dir) = app("kept-settings");
+    let (mut a, _) = app("kept-settings");
     let mut saved = a.saved_state();
     saved["prefs"]["conversations"] = json!(true);
     saved["prefs"]["keepMessages"] = json!(250);
@@ -476,5 +464,4 @@ fn saved_settings_keep_what_can_be_read() {
     let before = a.session.prefs.clone();
     a.restore_state(&json!({"prefs": "not settings"}));
     assert_eq!(a.session.prefs, before);
-    let _ = std::fs::remove_dir_all(dir);
 }
