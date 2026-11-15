@@ -116,11 +116,7 @@ impl SegBuilder {
         }
         (self.done.lo, self.done.hi) = (self.done.lo.min(first), self.done.hi.max(last));
         let mut list = Vec::with_capacity(docs.len() * 2);
-        let mut last = None;
-        for &d in docs {
-            put_var(&mut list, u64::from(last.map_or(d, |l: u32| d.wrapping_sub(l))));
-            last = Some(d);
-        }
+        put_rising(&mut list, docs);
         let mut payload = Vec::with_capacity(16);
         let placed = if places.is_empty() { 0 } else { PLACED };
         if docs.len() <= INLINE {
@@ -371,22 +367,7 @@ impl LexStream {
                 if df as usize > INLINE {
                     return Err("too many docs inline");
                 }
-                let mut docs = Vec::with_capacity(df as usize);
-                let mut last: Option<u32> = None;
-                for _ in 0..df {
-                    let d = r.var32()?;
-                    let doc = match last {
-                        None => d,
-                        Some(l) if d > 0 => l.checked_add(d).ok_or("doc past the ids")?,
-                        Some(_) => return Err("docs out of order"),
-                    };
-                    if doc >= next_doc {
-                        return Err("doc past the ids");
-                    }
-                    docs.push(doc);
-                    last = Some(doc);
-                }
-                Postings::Inline(docs)
+                Postings::Inline(Rising::Docs(next_doc).read(&mut r, df as usize)?)
             }
             _ => {
                 let at = Postings::At { page: r.var32()?, offset: r.var32()?, len: r.var32()? };
@@ -426,21 +407,7 @@ pub(crate) fn decode_post_page(b: &[u8]) -> R<&[u8]> {
 /// `df` docs from their varint deltas, rising and below `next_doc`.
 pub(crate) fn decode_postings(b: &[u8], df: u32, next_doc: u32) -> R<Vec<u32>> {
     let mut r = Rd::new(b);
-    let mut out = Vec::with_capacity((df as usize).min(b.len()));
-    let mut last: Option<u32> = None;
-    for _ in 0..df {
-        let d = r.var32()?;
-        let doc = match last {
-            None => d,
-            Some(l) if d > 0 => l.checked_add(d).ok_or("doc past the ids")?,
-            Some(_) => return Err("docs out of order"),
-        };
-        if doc >= next_doc {
-            return Err("doc past the ids");
-        }
-        out.push(doc);
-        last = Some(doc);
-    }
+    let out = Rising::Docs(next_doc).read(&mut r, df as usize)?;
     r.end()?;
     Ok(out)
 }

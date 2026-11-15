@@ -39,11 +39,7 @@ pub fn long_key(field: Field) -> Vec<u8> {
 /// to `out` as its block.
 pub(crate) fn put_places(out: &mut Vec<u8>, places: &[u32]) {
     put_len(out, places.len());
-    let mut last: Option<u32> = None;
-    for &p in places {
-        put_var(out, u64::from(last.map_or(p, |l| p.wrapping_sub(l))));
-        last = Some(p);
-    }
+    put_rising(out, places);
 }
 
 /// The block at the start of `b`: its count of places and where their bytes are; `None` when `b`
@@ -82,18 +78,7 @@ pub(crate) fn decode_places(b: &[u8], count: usize) -> R<Vec<u32>> {
         return Err("more places than bytes");
     }
     let mut r = Rd::new(b);
-    let mut out = Vec::with_capacity(count);
-    let mut last: Option<u32> = None;
-    for _ in 0..count {
-        let d = r.var32()?;
-        let p = match last {
-            None => d,
-            Some(l) if d > 0 => l.checked_add(d).ok_or("place past the end")?,
-            Some(_) => return Err("places out of order"),
-        };
-        out.push(p);
-        last = Some(p);
-    }
+    let out = Rising::Places.read(&mut r, count)?;
     r.end()?;
     Ok(out)
 }

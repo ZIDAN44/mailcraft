@@ -146,6 +146,63 @@ fn put_len(out: &mut Vec<u8>, n: usize) {
     put_var(out, n as u64);
 }
 
+/// Numbers kept rising, the first as it is and each after as the step from the one before (a
+/// varint each): a word's docs, below the index's next doc, or a doc's places of a word.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Rising {
+    /// Docs below this one.
+    Docs(u32),
+    Places,
+}
+
+impl Rising {
+    fn past(self) -> &'static str {
+        match self {
+            Rising::Docs(_) => "doc past the ids",
+            Rising::Places => "place past the end",
+        }
+    }
+
+    fn out_of_order(self) -> &'static str {
+        match self {
+            Rising::Docs(_) => "docs out of order",
+            Rising::Places => "places out of order",
+        }
+    }
+
+    /// `n` of them read from `r`: each step more than nothing, none past the end.
+    fn read(self, r: &mut Rd<'_>, n: usize) -> R<Vec<u32>> {
+        // Each is at least a byte.
+        let mut out = Vec::with_capacity(n.min(r.left()));
+        let mut last: Option<u32> = None;
+        for _ in 0..n {
+            let d = r.var32()?;
+            let v = match last {
+                None => d,
+                Some(l) if d > 0 => l.checked_add(d).ok_or(self.past())?,
+                Some(_) => return Err(self.out_of_order()),
+            };
+            if let Rising::Docs(below) = self
+                && v >= below
+            {
+                return Err(self.past());
+            }
+            out.push(v);
+            last = Some(v);
+        }
+        Ok(out)
+    }
+}
+
+/// Numbers rising, none twice, added to `out` as [`Rising`] reads them.
+fn put_rising(out: &mut Vec<u8>, values: &[u32]) {
+    let mut last: Option<u32> = None;
+    for &v in values {
+        put_var(out, u64::from(last.map_or(v, |l| v.wrapping_sub(l))));
+        last = Some(v);
+    }
+}
+
 /// Most bytes set aside for a run before it is read (its length is the file's word).
 const RUN_RESERVE: usize = 16 << 20;
 
@@ -669,6 +726,45 @@ mod tests {
 
     fn page(magic: &[u8; 4], data: &[u8]) -> Vec<u8> {
         [magic.as_slice(), &[VERSION], data].concat()
+    }
+
+    proptest::proptest! {
+        /// Rising numbers read back as they went in, as docs and as places; read as docs, one
+        /// at or past the doc given is damage.
+        #[test]
+        fn rising_numbers_read_back(v in proptest::collection::btree_set(proptest::prelude::any::<u32>(), 0..40)) {
+            let v: Vec<u32> = v.into_iter().collect();
+            let mut b = Vec::new();
+            put_rising(&mut b, &v);
+            for kind in [Rising::Places, Rising::Docs(u32::MAX)] {
+                let mut r = Rd::new(&b);
+                let got = kind.read(&mut r, v.len());
+                proptest::prop_assert!(r.end().is_ok() || got.is_err());
+                match kind {
+                    Rising::Docs(_) if v.last() == Some(&u32::MAX) => proptest::prop_assert_eq!(got, Err("doc past the ids")),
+                    _ => proptest::prop_assert_eq!(got, Ok(v.clone())),
+                }
+            }
+            if let Some(&last) = v.last() {
+                proptest::prop_assert_eq!(Rising::Docs(last).read(&mut Rd::new(&b), v.len()), Err("doc past the ids"));
+            }
+        }
+    }
+
+    /// Each way rising numbers can be damaged, the words said for docs and for places.
+    #[test]
+    fn rising_numbers_damaged() {
+        let read = |kind: Rising, b: &[u8], n| kind.read(&mut Rd::new(b), n);
+        assert_eq!(read(Rising::Docs(10), &[3, 0], 2), Err("docs out of order"), "a step of nothing");
+        assert_eq!(read(Rising::Places, &[3, 0], 2), Err("places out of order"));
+        let over = [0xff, 0xff, 0xff, 0xff, 0x0f, 1];
+        assert_eq!(read(Rising::Docs(u32::MAX), &over, 2), Err("doc past the ids"), "past u32");
+        assert_eq!(read(Rising::Places, &over, 2), Err("place past the end"));
+        assert_eq!(read(Rising::Docs(5), &[2, 3], 2), Err("doc past the ids"), "at the doc given");
+        assert_eq!(read(Rising::Docs(5), &[5], 1), Err("doc past the ids"), "the first too");
+        assert_eq!(read(Rising::Places, &[2], 2), Err("cut short"));
+        assert_eq!(read(Rising::Places, &[0x80, 0x80, 0x80, 0x80, 0x10], 1), Err("number too big"));
+        assert_eq!(read(Rising::Docs(5), &[2, 2], 2), Ok(vec![2, 4]));
     }
 
     /// A run read across pages; and each way one can be wrong, damage of the page it is in.
