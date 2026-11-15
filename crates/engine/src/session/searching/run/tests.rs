@@ -13,11 +13,7 @@ fn run_to_verify() -> SearchRun {
         .collect();
     let mut run = SearchRun::new("\"a b\"", SearchScope::All, Query::parse("\"a b\""), folders.clone(), false);
     run.on_view = 1;
-    let mut x = 0x9e37_79b9_7f4a_7c15u64;
-    for n in 0..16_667u32 {
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
+    for (n, x) in (0..16_667u32).zip(crate::tests::Xorshift(crate::tests::XORSHIFT_SEED)) {
         let fi = usize::try_from(u64::from(n) * 40 / 16_667).unwrap();
         let (account, folder) = folders[fi].clone();
         let key = MessageKey { account, folder, validity: 1, uid: n + 1 };

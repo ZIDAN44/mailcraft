@@ -318,15 +318,7 @@ fn down_steps_during_an_import() {
         let (store, stop) = (store.clone(), stop.clone());
         std::thread::spawn(move || {
             // Noise that doesn't compress, 100 KiB a message, 2 MiB a batch.
-            let mut x = 0x9E37_79B9_7F4A_7C15u64;
-            let one: Vec<u8> = (0..100 << 10)
-                .map(|_| {
-                    x ^= x << 13;
-                    x ^= x >> 7;
-                    x ^= x << 17;
-                    x.to_le_bytes()[0]
-                })
-                .collect();
+            let one: Vec<u8> = Xorshift(XORSHIFT_SEED).take(100 << 10).map(|x| x.to_le_bytes()[0]).collect();
             let (mut uid, mut batches) = (100_000u32, 0u32);
             while !stop.load(Ordering::Relaxed) {
                 let batch = (0..20)

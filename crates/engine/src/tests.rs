@@ -184,6 +184,32 @@ fn waits_logged() -> usize {
     WAITED.with(Cell::get)
 }
 
+/// The seed the engine's tests start [`Xorshift`] from.
+pub(crate) const XORSHIFT_SEED: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// The xorshift64 steps (13, 7, 17) from a seed (not 0): the same numbers every run, for tests
+/// that want many different values (bytes that don't compress, docs in no order), not randomness.
+pub(crate) struct Xorshift(pub(crate) u64);
+
+impl Iterator for Xorshift {
+    type Item = u64;
+
+    fn next(&mut self) -> Option<u64> {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        Some(self.0)
+    }
+}
+
+/// [`Xorshift`] gives the sequence its tests were written with (worked out apart, in Python).
+#[test]
+fn xorshift_gives_the_same_numbers() {
+    let first: Vec<u64> = Xorshift(XORSHIFT_SEED).take(3).collect();
+    assert_eq!(first, [0xdc1b_77ae_0bf3_4dad, 0x64f0_eeb9_026e_6076, 0x7b07_ce91_e590_6136]);
+    assert_eq!(Xorshift(XORSHIFT_SEED).nth(99_999), Some(0xdeaf_6465_dc02_951c));
+}
+
 fn key_of(s: &Session, subject: &str) -> Value {
     let m = s.list.iter().find(|m| m.subject == subject).unwrap_or_else(|| panic!("no {subject}"));
     json!({"key": m.key.to_id()})
