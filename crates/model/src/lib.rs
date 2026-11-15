@@ -645,8 +645,10 @@ pub fn child_path(parent: Option<&str>, delimiter: Option<char>, name: &str) -> 
 }
 
 /// Sort folders for the folder pane: special folders in their usual order, then the others by
-/// path so children follow their parents. A folder of the user's goes with the folder at the top
-/// of its path, so one made in the Inbox shows under the Inbox, as Outlook shows it.
+/// path so children follow their parents. A folder of the user's goes with the nearest special
+/// folder above it, else the folder at the top of its path, so one made in the Inbox shows under
+/// the Inbox, as Outlook shows it, and one in a special folder under that (issue #94: the
+/// subfolders of `INBOX/archive`, the account's Archive, were shown among the Inbox's).
 pub fn sort_folders(folders: &mut [Folder]) {
     let roles: std::collections::HashMap<String, FolderRole> = folders.iter().map(|f| (f.path.clone(), f.look())).collect();
     folders.sort_by_cached_key(|f| {
@@ -665,8 +667,10 @@ pub fn sort_folders(folders: &mut [Folder]) {
             let role = if f.mailbox_role == FolderRole::Other { top_role(2) } else { f.mailbox_role };
             return (7, mailbox, if parts.is_empty() { 0 } else { 1 + role.rank() }, parts);
         }
-        // A special folder keeps its own place; another goes where its top folder is.
-        let role = if f.role == FolderRole::Other { top_role(1) } else { f.role };
+        // A special folder keeps its own place; another goes where the nearest special folder
+        // above it is, else its top folder.
+        let above = (1..parts.len()).rev().map(top_role).find(|r| *r != FolderRole::Other);
+        let role = if f.role == FolderRole::Other { above.unwrap_or_else(|| top_role(1)) } else { f.role };
         (role.rank(), String::new(), 0, parts)
     });
 }
@@ -816,5 +820,21 @@ mod tests {
         sort_folders(&mut v);
         let names: Vec<_> = v.iter().map(|f| f.path.as_str()).collect();
         assert_eq!(names, ["INBOX", "Trash", "Alpha", "Zeta"]);
+        // Issue #94: a special folder in the Inbox (`INBOX/archive`, taken for the Archive by its
+        // name) has its own folders under it, not among the Inbox's.
+        let mut v = vec![
+            mk("INBOX/archive/001 privat", FolderRole::Other),
+            mk("INBOX/LibreNMS", FolderRole::Other),
+            mk("INBOX/archive", FolderRole::Archive),
+            mk("INBOX/001 privat", FolderRole::Other),
+            mk("INBOX", FolderRole::Inbox),
+            mk("INBOX/archive/099 Bittel TV", FolderRole::Other),
+        ];
+        sort_folders(&mut v);
+        let names: Vec<_> = v.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(
+            names,
+            ["INBOX", "INBOX/001 privat", "INBOX/LibreNMS", "INBOX/archive", "INBOX/archive/001 privat", "INBOX/archive/099 Bittel TV"]
+        );
     }
 }

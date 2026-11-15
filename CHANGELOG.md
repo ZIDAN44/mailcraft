@@ -23,6 +23,7 @@ on GitHub.
 
 ### Fixed
 
+- A folder named archive inside the Inbox, with folders of its own, shows with them under it (#94): MailCraft takes it for the Archive, as it does on servers that don't mark one, and its folders were drawn among the Inbox's, under the wrong parent.
 - A meeting series' first invitation, once the organizer has changed one of its occurrences, says it's out of date (#101). Its answer buttons were still there, and answering it put the series back without the change.
 - Declining one changed occurrence of a meeting series works on SOGo (#101): it was refused (HTTP 403) and nothing reached the organizer. The occurrence now keeps your answer instead of being taken out of the organizer's meeting, and isn't shown in your calendar. An answered invitation goes out of the Inbox only once the server has the answer: one it refuses stays to be answered again.
 - Your meeting saved again without a change no longer sends the guests an update (#102), nor does a change only you see: its reminder, its categories or how it shows your time. Each update asked the guests to answer again.
