@@ -63,10 +63,11 @@ pub fn tab_letters(tab: RibbonTab) -> Option<&'static str> {
     letters(Top::Tab(tab))
 }
 
-/// The whole sequence of a button on `tab` labelled `label` (its tab's letters, then its own).
-pub fn button_sequence(tab: RibbonTab, label: &str) -> Option<String> {
+/// The whole sequence of a button on `tab` labelled `label`, in its two parts: its tab's letters,
+/// then its own.
+pub fn button_letters(tab: RibbonTab, label: &str) -> Option<(&'static str, &'static str)> {
     let own = BUTTONS.iter().find_map(|(t, letters, l)| (*t == tab && *l == label).then_some(*letters))?;
-    Some(format!("{}{own}", tab_letters(tab)?))
+    Some((tab_letters(tab)?, own))
 }
 
 /// What a whole sequence reaches.
@@ -77,22 +78,29 @@ pub enum Entry {
     Button(String),
 }
 
-/// Every whole sequence, and what it reaches.
-fn all() -> impl Iterator<Item = (String, Entry)> {
-    let tops = TOPS.iter().map(|(letters, top)| (letters.to_string(), Entry::Top(*top)));
-    let buttons = BUTTONS.iter().filter_map(|(tab, letters, _)| {
-        let sequence = format!("{}{letters}", tab_letters(*tab)?);
-        Some((sequence.clone(), Entry::Button(sequence)))
-    });
+/// Every whole sequence, in two parts (a button's: its tab's letters, then its own), and the
+/// top it reaches (none: a button).
+fn all() -> impl Iterator<Item = (&'static str, &'static str, Option<Top>)> {
+    let tops = TOPS.iter().map(|(letters, top)| (*letters, "", Some(*top)));
+    let buttons = BUTTONS.iter().filter_map(|(tab, letters, _)| Some((tab_letters(*tab)?, *letters, None)));
     tops.chain(buttons)
 }
 
 /// What `sequence` reaches, if it's whole.
 pub fn lookup(sequence: &str) -> Option<Entry> {
-    all().find(|(s, _)| s == sequence).map(|(_, e)| e)
+    let (_, _, top) = all().find(|(head, tail, _)| sequence.strip_prefix(head) == Some(tail))?;
+    Some(top.map_or_else(|| Entry::Button(sequence.to_string()), Entry::Top))
 }
 
 /// Whether a longer sequence starts with `prefix` (more letters are waited for).
 pub fn has_deeper(prefix: &str) -> bool {
-    all().any(|(s, _)| s.len() > prefix.len() && s.starts_with(prefix))
+    all().any(|(head, tail, _)| head.len() + tail.len() > prefix.len() && starts_with(head, tail, prefix))
+}
+
+/// Whether `head` then `tail` starts with `prefix`.
+fn starts_with(head: &str, tail: &str, prefix: &str) -> bool {
+    match prefix.strip_prefix(head) {
+        Some(rest) => tail.starts_with(rest),
+        None => head.starts_with(prefix),
+    }
 }

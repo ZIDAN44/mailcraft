@@ -275,19 +275,29 @@ pub fn on_ribbon<R>(ui: &mut egui::Ui, draw: impl FnOnce(&mut egui::Ui) -> R) ->
 /// A ribbon button labelled `label` (in English, as [`table::BUTTONS`] names it): its letters
 /// drawn under it while its tab's show, and pressed when they were typed (and it can be).
 pub fn apply(ui: &egui::Ui, label: &str, resp: &mut egui::Response, enabled: bool, t: &Tokens) {
-    let Some(frame) = ui.ctx().data(|d| d.get_temp::<Frame>(frame_id())).filter(|f| f.ribbon) else { return };
-    let Some(tab) = frame.tab else { return };
-    let Some(sequence) = table::button_sequence(tab, label) else { return };
-    // Pressed once: a button drawn in its place this frame isn't pressed too.
-    if frame.press.as_deref() == Some(sequence.as_str()) && enabled {
+    // Read where the frame is kept, not copied out; nothing more is done while no key tips show
+    // and no press waits (every frame but those after Alt).
+    let key = egui::util::id_type_map::RawKey::new::<Frame>(frame_id());
+    let (pressed, letters) = ui.ctx().data_mut(|d| {
+        let Some(frame) = d.get_temp_raw_mut(key).and_then(|f| f.downcast_mut::<Frame>()) else { return (false, None) };
+        if !frame.ribbon || (frame.prefix.is_none() && frame.press.is_none()) {
+            return (false, None);
+        }
+        let Some((head, own)) = frame.tab.and_then(|tab| table::button_letters(tab, label)) else { return (false, None) };
+        // Pressed once: a button drawn in its place this frame isn't pressed too.
+        let pressed = enabled && frame.press.as_deref().is_some_and(|p| p.strip_prefix(head) == Some(own));
+        if pressed {
+            frame.press = None;
+        }
+        // Its letters show once its tab's are typed, while they can still be typed.
+        let shows = frame.prefix.as_deref().and_then(|p| p.strip_prefix(head)).is_some_and(|typed| own.len() > typed.len() && own.starts_with(typed));
+        (pressed, shows.then_some(own))
+    });
+    if pressed {
         resp.flags.insert(egui::response::Flags::FAKE_PRIMARY_CLICKED);
-        ui.ctx().data_mut(|d| d.get_temp_mut_or_default::<Frame>(frame_id()).press = None);
     }
-    // Its letters show once its tab's are typed, while they can still be typed.
-    let Some(prefix) = frame.prefix.as_deref() else { return };
-    let tab_letters = table::tab_letters(tab).map_or(0, str::len);
-    if prefix.len() >= tab_letters && sequence.len() > prefix.len() && sequence.starts_with(prefix) {
-        badge(ui.ctx(), resp.rect, sequence.get(tab_letters..).unwrap_or_default(), enabled, t);
+    if let Some(letters) = letters {
+        badge(ui.ctx(), resp.rect, letters, enabled, t);
     }
 }
 
