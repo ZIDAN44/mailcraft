@@ -2,7 +2,7 @@
 //! highlight, underlined and struck-through text) wrapped to the page's width, each run in its
 //! own font and size on a shared baseline.
 
-use super::{Face, Placed};
+use super::{Face, Placed, cut_word};
 
 /// A run of text in one format.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -41,8 +41,13 @@ fn too_light(c: [u8; 3]) -> bool {
     0.299 * f32::from(c[0]) + 0.587 * f32::from(c[1]) + 0.114 * f32::from(c[2]) > 200.0
 }
 
+/// The size a run is printed at: its own, kept to what a page can show.
+fn size_of(run: &Run) -> f32 {
+    run.size.map_or(SIZE, |s| s.clamp(6.0, 36.0))
+}
+
 fn piece(run: &Run, text: String, x: f32, width: f32) -> Placed {
-    let size = run.size.map_or(SIZE, |s| s.clamp(6.0, 36.0));
+    let size = size_of(run);
     // A highlight keeps the colour written on it, as a background of the message's does;
     // without one, the paper is white.
     let color = run.color.filter(|c| run.background.is_some() || run.on_background || !too_light(*c));
@@ -65,8 +70,7 @@ fn piece(run: &Run, text: String, x: f32, width: f32) -> Placed {
 
 /// A run's size, and how wide `text` is in it.
 fn measured(faces: &[Face<'_>], run: &Run, text: &str) -> f32 {
-    let size = run.size.map_or(SIZE, |s| s.clamp(6.0, 36.0));
-    faces.get(usize::from(run.bold)).map_or(0.0, |f| f.text_width(text, size))
+    faces.get(usize::from(run.bold)).map_or(0.0, |f| f.text_width(text, size_of(run)))
 }
 
 /// What a line needs across: at least its longest word (a picture shrinks to fit), and how
@@ -138,20 +142,12 @@ pub(super) fn lay(faces: &[Face<'_>], lines: &[Vec<Run>], width: f32, mut put: i
                 }
                 if w > width {
                     // A word wider than the page is cut by characters.
-                    let mut part = String::new();
-                    for c in word.chars() {
-                        part.push(c);
-                        if measure(run, &part) > width && part.chars().count() > 1 {
-                            let last = part.pop().unwrap_or(' ');
-                            let done = std::mem::take(&mut part);
-                            let dw = measure(run, &done);
-                            if !put(lead_of(&row).max(run.size.map_or(LEAD, |s| s * LEAD / SIZE)), vec![piece(run, done, 0.0, dw)]) {
-                                return false;
-                            }
-                            part.push(last);
-                        }
-                    }
-                    let pw = measure(run, &part);
+                    let face = faces.get(usize::from(run.bold));
+                    let advance = |c: char| face.map_or(0.0, |f| f.width(c));
+                    let cut = cut_word(word, size_of(run), width, advance, |done, dw| {
+                        put(lead_of(&row).max(run.size.map_or(LEAD, |s| s * LEAD / SIZE)), vec![piece(run, done, 0.0, dw)])
+                    });
+                    let Some((part, pw)) = cut else { return false };
                     row.push(piece(run, part, 0.0, pw));
                     x = pw;
                 } else if space && x > 0.0 && i == 0 {

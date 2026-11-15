@@ -244,20 +244,48 @@ fn wrap(face: &Face<'_>, text: &str, size: f32, width: f32) -> Vec<String> {
                 out.push(std::mem::take(&mut line));
             }
             // A word wider than the line is cut by characters.
-            let mut piece = String::new();
-            for c in w.chars() {
-                piece.push(c);
-                if face.text_width(&piece, size) > width && piece.chars().count() > 1 {
-                    let last = piece.pop().unwrap_or(' ');
-                    out.push(std::mem::take(&mut piece));
-                    piece.push(last);
-                }
-            }
-            line = piece;
+            let cut = cut_word(
+                w,
+                size,
+                width,
+                |c| face.width(c),
+                |done, _| {
+                    out.push(done);
+                    true
+                },
+            );
+            line = cut.map(|(rest, _)| rest).unwrap_or_default();
         }
         out.push(line);
     }
     out
+}
+
+/// Cut `word`, wider than `width`, by characters, `advance` giving each one's width in
+/// thousandths of `size`: `full` is given each full piece and its width, and says whether to go
+/// on. What is left of the word and its width; `None` when `full` said to stop.
+///
+/// The width is added up as the piece grows, not measured again at each character: characters
+/// that take no room (a long run of accents) never fill a piece, which made that quadratic.
+fn cut_word(word: &str, size: f32, width: f32, advance: impl Fn(char) -> f32, mut full: impl FnMut(String, f32) -> bool) -> Option<(String, f32)> {
+    let mut piece = String::new();
+    // In thousandths of the size, added in the order [`Face::text_width`] adds them (from -0).
+    let mut units = -0.0f32;
+    for c in word.chars() {
+        let w = advance(c);
+        let grown = units + w;
+        if grown * size / 1000.0 > width && !piece.is_empty() {
+            if !full(std::mem::take(&mut piece), units * size / 1000.0) {
+                return None;
+            }
+            piece.push(c);
+            units = w;
+        } else {
+            piece.push(c);
+            units = grown;
+        }
+    }
+    Some((piece, units * size / 1000.0))
 }
 
 fn compress(data: &[u8]) -> Vec<u8> {
@@ -588,8 +616,8 @@ mod tests {
         assert!(String::from_utf8_lossy(&p).contains(&format!("/Count {MAX_PAGES}")));
     }
 
-    #[test]
-    fn embeds_a_system_font_when_there_is_one() {
+    /// A TrueType font the system has, when it has one of these.
+    fn system_font() -> Option<Vec<u8>> {
         // Windows' fonts are in its folder (`%WINDIR%`), which needn't be `C:\Windows`.
         let windows = std::env::var_os("WINDIR").map_or_else(|| std::path::PathBuf::from("C:\\Windows"), std::path::PathBuf::from).join("Fonts");
         let candidates = [
@@ -598,7 +626,68 @@ mod tests {
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf".into(),
             "/System/Library/Fonts/Supplemental/Arial.ttf".into(),
         ];
-        let Some(data) = candidates.iter().find_map(|p| std::fs::read(p).ok()) else { return };
+        candidates.iter().find_map(|p| std::fs::read(p).ok())
+    }
+
+    /// How long a word too wide for the line takes to cut when a long run of accents follows it
+    /// (they take no room, so the piece they're on never fills).
+    /// A long word is cut asking each character's width once: its piece was measured again
+    /// from its start at every character, so a run of characters that take no room (accents),
+    /// which never fills a piece, was measured as many times over as it is long.
+    #[test]
+    fn a_word_is_cut_measuring_each_character_once() {
+        let asked = std::cell::Cell::new(0usize);
+        // Accents take no room; a letter half the size.
+        let advance = |c: char| {
+            asked.set(asked.get() + 1);
+            if c == '\u{301}' { 0.0 } else { 500.0 }
+        };
+        let word: String = "\u{301}".repeat(3000) + &"a".repeat(7) + &"\u{301}".repeat(2000) + "bc";
+        let mut pieces: Vec<(String, f32)> = Vec::new();
+        // Size 10, 20 wide: four letters a piece.
+        let rest = cut_word(&word, 10.0, 20.0, advance, |piece, w| {
+            pieces.push((piece, w));
+            true
+        });
+        assert_eq!(asked.get(), word.chars().count(), "each character's width asked once");
+        pieces.extend(rest);
+        let letters: Vec<usize> = pieces.iter().map(|(p, _)| p.chars().filter(|c| *c != '\u{301}').count()).collect();
+        assert_eq!(letters, [4, 4, 1]);
+        let widths: Vec<f32> = pieces.iter().map(|(_, w)| *w).collect();
+        assert_eq!(widths, [20.0, 20.0, 5.0]);
+        assert_eq!(pieces.iter().map(|(p, _)| p.as_str()).collect::<String>(), word, "nothing lost");
+        // Told to stop at the first full piece: no more asked than the characters up to it.
+        asked.set(0);
+        assert!(cut_word(&word, 10.0, 20.0, advance, |_, _| false).is_none());
+        assert_eq!(asked.get(), 3005);
+    }
+
+    #[test]
+    #[ignore = "a measurement, with a system font"]
+    fn measure_cutting_a_word_of_accents() {
+        let data = system_font().unwrap();
+        let faces = [Face::parse(&data).unwrap(), Face::Helvetica { bold: true }];
+        assert_eq!(faces[0].width('\u{308}'), 0.0, "the accent takes no room");
+        let word = format!("{}{}", "x".repeat(200), "\u{308}".repeat(20_000));
+        let start = std::time::Instant::now();
+        let lines = wrap(&faces[0], &word, 11.0, 480.0);
+        let plain = start.elapsed();
+        let start = std::time::Instant::now();
+        let mut rows = 0;
+        rich::lay(&faces, &[vec![Run { text: word.clone(), ..Default::default() }]], 480.0, |_, _| {
+            rows += 1;
+            true
+        });
+        let formatted = start.elapsed();
+        println!(
+            "MEASURE cutting a word of 200 letters and 20,000 accents: wrap {plain:?} ({} lines), rich::lay {formatted:?} ({rows} rows)",
+            lines.len()
+        );
+    }
+
+    #[test]
+    fn embeds_a_system_font_when_there_is_one() {
+        let Some(data) = system_font() else { return };
         let p = pdf(&doc("Hello café — ünïcödé"), Some(Fonts { regular: &data, bold: None }));
         let text = String::from_utf8_lossy(&p);
         assert!(text.contains("/Subtype /CIDFontType2") && text.contains("/FontFile2") && text.contains("/ToUnicode"));
