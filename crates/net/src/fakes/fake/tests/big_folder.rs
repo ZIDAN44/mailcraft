@@ -46,5 +46,4 @@ fn measure_a_big_folder_synced_without_condstore() {
         first_took.as_secs_f64() * 1000.0,
         again_took.as_secs_f64() * 1000.0
     );
-    let _ = std::fs::remove_dir_all(store.root());
 }

@@ -170,7 +170,6 @@ fn mail_past_whats_kept_is_found_and_shown_more() {
     // The usual window again: nothing is dropped.
     sync_folder(&mut c, &store, "a1", "INBOX", &SyncOptions { window: 10, prefetch: 0, ..Default::default() }).unwrap();
     assert_eq!(store.load_folder("a1", "INBOX").unwrap().messages.len(), 20);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Issue #4: a large folder is searched newest first, a range of message numbers at a time
@@ -227,7 +226,6 @@ fn a_large_folder_is_searched_a_range_at_a_time_and_can_stop() {
     uids.sort_unstable();
     assert_eq!(uids, (19..=30).map(|n| n * 100).collect::<Vec<u32>>());
     assert_eq!(searches(&st).len(), 2);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Issue #4: Esc (the search box cleared) stops a server search that's still going: the
@@ -268,7 +266,6 @@ fn a_server_search_stops_when_its_no_longer_wanted() {
     pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
     until(&pool, "synced", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Issue #4 through the worker: Show more keeps the folder's larger window across syncs
@@ -333,7 +330,6 @@ fn show_more_and_search(caps: &'static str) {
     // Offline: answered at once.
     pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: "x".into(), search: 2 });
     until(&pool, "offline answer", |e| matches!(e, Event::ServerSearched { error: Some(_), .. }));
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Found in review: a server search, and a message downloaded, wrote the account's cache with
@@ -376,5 +372,4 @@ fn a_search_or_a_download_writes_nothing_for_an_account_removed_meanwhile() {
     let fetched = crate::sync::fetch_body(&mut c, &store, &key, seen);
     assert!(!store.has_body(&key) && gone(), "the message kept for an account removed");
     assert!(fetched.is_err());
-    let _ = std::fs::remove_dir_all(store.root());
 }

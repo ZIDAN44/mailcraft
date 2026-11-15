@@ -35,7 +35,6 @@ fn counts_said_before_a_rename_reaches_the_worker_follow_it() {
     assert_eq!(counts("Kept"), Some((1, 2)));
     assert_eq!(counts("Kept/2025"), Some((3, 4)));
     assert!(w.counts_unsaid.is_empty(), "{:?}", w.counts_unsaid);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Found in review: a POP account's folder made here had its worker write the folder list with
@@ -65,5 +64,4 @@ fn a_pop_folder_made_here_keeps_the_counts_of_mail_read_here() {
         })
         .collect();
     assert_eq!(said, [(2, 3)]);
-    let _ = std::fs::remove_dir_all(store.root());
 }

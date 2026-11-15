@@ -72,7 +72,6 @@ fn a_message_opened_on_an_imap_server_comes_each_way() {
     pool.opts.prefetch = 0;
     let acc = imap_account("i1", port);
     each_way_says(&mut pool, &store, &acc, "pw", &raw);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -89,7 +88,6 @@ fn a_message_opened_on_a_jmap_server_comes_each_way() {
     pool.opts.prefetch = 0;
     let acc = account("j1", &server.base);
     each_way_says(&mut pool, &store, &acc, PASSWORD, &raw);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -106,7 +104,6 @@ fn a_message_opened_on_microsoft_graph_comes_each_way() {
     pool.opts.prefetch = 0;
     let acc = account("g1", &server.base);
     each_way_says(&mut pool, &store, &acc, TOKEN, &raw);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -123,7 +120,6 @@ fn a_message_opened_on_exchange_comes_each_way() {
     pool.opts.prefetch = 0;
     let acc = account("e1", &server.url);
     each_way_says(&mut pool, &store, &acc, PASSWORD, &raw);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// POP mail is downloaded whole: a message not here isn't anywhere. On the main connection the
@@ -138,5 +134,4 @@ fn a_pop_message_not_here_is_said_to_be_nowhere() {
     let said = opened_each_way(&mut pool, &store, &acc, "pw", &key);
     let nowhere = Event::BodyFailed { key, error: "the server refused: this message isn't on this computer".into() };
     assert_eq!(said, [vec![nowhere.clone()], vec![nowhere], Vec::new(), Vec::new()]);
-    let _ = std::fs::remove_dir_all(store.root());
 }

@@ -130,8 +130,7 @@ fn a_jmap_account_syncs_changes_and_sends() {
     let server = serve(d);
     let data = server.data.clone();
 
-    let dir = std::env::temp_dir().join(format!("mailcraft-jmap-e2e-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = crate::data_files::scratch::scratch("jmap-e2e");
     let store = Store::open(&dir).unwrap();
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
@@ -276,7 +275,6 @@ fn a_jmap_account_syncs_changes_and_sends() {
     pool.submit(Job::Remove { account: "a1".into() });
     assert_eq!(numbers, Some(key.uid));
     assert!(data.lock().unwrap().calls.iter().any(|c| c == "EmailSubmission/set"));
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// A JMAP account the server made with no identity to send from (Stalwart's new accounts):
@@ -288,8 +286,7 @@ fn an_account_with_no_identity_gets_one_and_sends() {
     d.mailbox("Sent", None, Some("sent"));
     let server = serve(d);
     let data = server.data.clone();
-    let dir = std::env::temp_dir().join(format!("mailcraft-jmap-identity-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
+    let dir = crate::data_files::scratch::scratch("jmap-identity");
     let store = Store::open(&dir).unwrap();
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
@@ -313,7 +310,6 @@ fn an_account_with_no_identity_gets_one_and_sends() {
     assert_eq!(d.submissions.len(), 2);
     drop(d);
     drop(pool);
-    let _ = std::fs::remove_dir_all(dir);
 }
 
 /// For trying the browser app by hand: a sample JMAP server at http://127.0.0.1:8775 (or

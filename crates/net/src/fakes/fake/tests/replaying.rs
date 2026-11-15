@@ -54,7 +54,6 @@ fn measure_replaying_queued_changes() {
         eprintln!("MEASURE replay: {n} changes of {per} messages ({} KB queued) sent in {took:?}", bytes / 1024);
         pool.submit(Job::Remove { account: "a1".into() });
         pool.shutdown();
-        let _ = std::fs::remove_dir_all(store.root());
     }
 }
 
@@ -81,7 +80,6 @@ fn a_move_into_a_folder_not_there_is_said_and_the_mail_stays() {
     assert_eq!(st.lock().unwrap().mailbox("INBOX").map(|b| b.msgs.len()), Some(2), "on the server");
     eventually("the mail back here", || cached() == 2);
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// `n` changes made offline: keyword `$k0`, `$k1`… put on the Inbox's first message.
@@ -120,7 +118,6 @@ fn a_change_queued_while_others_replay_is_kept_and_sent_once() {
     let flags = st.lock().unwrap().mailbox("INBOX").unwrap().msgs[0].flags.clone();
     assert!(words.iter().all(|w| flags.contains(w)), "{flags:?}");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// The connection lost part-way through the replay: the changes made are off the queue and
@@ -146,5 +143,4 @@ fn a_replay_stopped_part_way_sends_the_rest_once() {
     let words: Vec<String> = (0..10).map(|i| format!("$k{i}")).collect();
     assert_eq!(stored(&st, &words), vec![1; 10], "each sent once");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }

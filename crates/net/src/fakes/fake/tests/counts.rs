@@ -50,7 +50,6 @@ fn inbox_counts_said(make: bool) -> Option<(u32, u32)> {
     let kept = store.load_folders("a1").unwrap_or_default().into_iter().find(|f| f.path == "INBOX").map(|f| (f.unread, f.total));
     assert_eq!(said, kept, "said as kept");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
     said
 }
 
@@ -126,7 +125,6 @@ fn a_folder_renamed_mid_sync_is_never_shown_undone() {
     assert_eq!(said, Some((3, 3)), "the pool's count said");
     assert_eq!(inbox(&store.load_folders("a1").unwrap()), Some((0, 3)), "the window's count kept");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Found in review: a folder renamed here while a full sync was on another folder, its own counts
@@ -176,7 +174,6 @@ fn a_folder_renamed_mid_sync_keeps_its_counts() {
     assert!(said.len() >= 2 && said[1..].iter().all(|c| *c == (1, 2)), "said: {said:?}");
     assert_eq!(kept(&store.load_folders("a1").unwrap_or_default()), Some((1, 2)), "kept");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Found in review: a folder renamed here while it was being read: the read, ending after its
@@ -213,7 +210,6 @@ fn a_folder_renamed_as_it_is_read_leaves_no_cache_behind() {
     assert_eq!(cached("Archive"), 0, "a cache left under the old name");
     assert_eq!(cached("Kept"), 3, "the renamed folder's mail");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Found in review: a folder made here had the pool read the account's folder list again with its
@@ -264,5 +260,4 @@ fn a_folder_made_here_keeps_the_counts_of_mail_read_here() {
     let said = said(&seen);
     assert!(said.len() >= 2 && said.iter().all(|c| *c == (2, 3)), "said: {said:?}");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }

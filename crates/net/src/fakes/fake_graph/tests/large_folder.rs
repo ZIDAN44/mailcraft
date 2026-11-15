@@ -60,7 +60,6 @@ fn a_quiet_sync_of_a_large_folder_keeps_every_message_and_asks_for_none() {
     let uids: std::collections::HashSet<u32> = fs.messages.iter().map(|m| m.key.uid).collect();
     assert_eq!(uids.len(), n as usize, "each message once");
     assert_eq!(fs.messages.first().map(|m| m.subject.as_str()), Some("Note 2999"), "newest first");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// How long syncing a 50,000-message folder takes, first and again with nothing changed (the
@@ -76,5 +75,4 @@ fn measure_graph_large_folder_sync() {
     assert!(!calls.iter().any(|c| per_message(c)));
     assert_eq!(store.load_folder("a1", "INBOX").unwrap().messages.len(), n as usize);
     println!("MEASURE graph sync of {n} messages: first {first:?}, again with nothing changed {again:?} (quickest of 5)");
-    let _ = std::fs::remove_dir_all(store.root());
 }

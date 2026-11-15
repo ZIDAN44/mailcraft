@@ -112,5 +112,4 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
             assert!(text.contains("from GnuPG"), "{text}");
         }
     }
-    let _ = std::fs::remove_dir_all(store.root());
 }

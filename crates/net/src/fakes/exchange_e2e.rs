@@ -210,7 +210,6 @@ pub(super) fn an_exchange_account_end_to_end<S: Exchange>(
     eventually("one draft left", || server.drafts() == 1);
     server.at_the_end();
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A message whose source the server won't give doesn't stop the folder: the others download,
@@ -230,5 +229,4 @@ pub(super) fn one_unreadable_message_holds_up_nothing(name: &str, server: &impl 
     assert_eq!(fs.messages.len(), 3);
     let with_body: Vec<&str> = fs.messages.iter().filter(|m| store.has_body(&m.key)).map(|m| m.subject.as_str()).collect();
     assert_eq!(with_body, ["three", "one"], "the others downloaded");
-    let _ = std::fs::remove_dir_all(store.root());
 }

@@ -297,7 +297,6 @@ fn public_folders_list_under_their_own_folder_and_sync() {
     let fs = store.load_folder("a1", &news_path).unwrap();
     assert_eq!(fs.messages.len(), 1);
     assert_eq!(fs.messages[0].subject, "Holiday hours");
-    let _ = std::fs::remove_dir_all(store.root());
     // Issue #1: the organisation's shared contacts and calendars come in, read-only.
     let sync = crate::ews_pim::sync(&c, &mailcraft_model::pim::Pim::default(), 0).unwrap();
     let books = sync.books.clone().unwrap_or_default();
@@ -444,7 +443,6 @@ fn shared_mailboxes_open_by_themselves_or_by_hand() {
     assert_eq!(store.load_folder("a1", "Team/Inbox").unwrap().messages[0].subject, "Standup");
     let anchors = server.data.lock().unwrap().anchors.clone();
     assert!(anchors.iter().any(|a| a == "sales@contoso.example") && anchors.iter().any(|a| a == "team@contoso.example"), "{anchors:?}");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Issue #32 against the fake Exchange: a private, out-of-office event made here is stored with

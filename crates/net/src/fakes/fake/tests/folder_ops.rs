@@ -31,7 +31,6 @@ fn mid_sync(op: Op, name: &str) -> (Vec<String>, Vec<String>) {
         .collect();
     let folders = st.lock().unwrap().boxes.iter().map(|b| b.name.clone()).collect();
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
     (notices, folders)
 }
 
@@ -101,5 +100,4 @@ fn a_folder_renamed_twice_offline_keeps_its_mail() {
     assert_eq!(cached("Done"), 1);
     assert_eq!(cached("Other"), 0, "the folder deleted on the server keeps its cache");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }

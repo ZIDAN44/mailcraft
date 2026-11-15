@@ -162,7 +162,6 @@ fn real_imap_server() {
     }
     eprintln!("new mail noticed in {:?}", began.elapsed());
     pool.submit(Job::Remove { account: "r1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Issue #24 on a real IMAP server (`MAILCRAFT_REAL_TEXT_FIRST="127.0.0.1:3143 user password"`,
@@ -478,7 +477,6 @@ MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Transfer
             std::fs::write(std::path::Path::new(&dir).join("mc-delivered.eml"), &raw).unwrap();
         }
     }
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Issues #6 and #7 through a real mail server and a real calendar server
@@ -542,7 +540,6 @@ fn real_calendar_by_hand_and_a_renewed_certificate() {
     let seen = until(&pool, 30, "decrypted", |e| matches!(e, Event::Decrypted { .. }));
     let Some(Event::Decrypted { content: Some(c), error: None, .. }) = seen.last() else { panic!("{seen:?}") };
     assert_eq!(c.0, body);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Issue #32 on a real CalDAV server (Radicale, Stalwart): an event made private, out of the
@@ -784,5 +781,4 @@ fn real_keywords_in_a_shared_folder() {
     eprintln!("refused: {:?}", seen.last());
     pool.submit(Job::Remove { account: "w".into() });
     pool.submit(Job::Remove { account: "r".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }

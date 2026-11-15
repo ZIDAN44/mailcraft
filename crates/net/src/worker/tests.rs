@@ -303,7 +303,6 @@ fn synced_mail_is_indexed_and_found() {
         assert!(!matches!(pool.wait(Duration::from_millis(100)), Some(Event::Indexed { .. })), "a second pass ran");
     }
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// An account of `n` messages in its Inbox, each with its source: `word{uid}` and `common`.

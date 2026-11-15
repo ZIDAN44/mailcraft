@@ -70,7 +70,6 @@ impl Renewing {
         assert_eq!(seen.len(), count, "{seen:?}");
         assert!(seen.iter().all(|r| r.contains("grant_type=refresh_token&refresh_token=r1")), "{seen:?}");
         self.pool.submit(Job::Remove { account: "a1".into() });
-        let _ = std::fs::remove_dir_all(self.store.root());
     }
 }
 

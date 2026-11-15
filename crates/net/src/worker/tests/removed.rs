@@ -36,7 +36,6 @@ fn a_folder_synced_as_its_account_is_removed_writes_nothing() {
     assert!(store.load_folders("a1").unwrap_or_default().is_empty(), "the folder list written again");
     let said_failed = pool.poll().into_iter().any(|e| matches!(e, Event::Status { status: SyncStatus::Error { .. }, .. }));
     assert!(!said_failed, "a failure said of an account removed");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// `base`, a server's address on this computer (`http://127.0.0.1:port/path`), through a
@@ -102,5 +101,4 @@ fn removed_mid_sync(name: &str, acc: AccountConfig, secret: &str, hold: &Hang) {
     let _ = t.join();
     assert_eq!(store.load_folder("j1", "INBOX").map(|f| f.messages.len()).unwrap_or(0), 0, "the Inbox cached again");
     assert!(!store.root().join("j1").exists(), "the account's files came back");
-    let _ = std::fs::remove_dir_all(store.root());
 }

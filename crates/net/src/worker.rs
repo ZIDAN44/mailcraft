@@ -207,6 +207,14 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 impl Pool {
     pub fn new(store: Store, creds: Arc<dyn Credentials>) -> Pool {
         let (tx, rx) = mpsc::channel();
+        let filing: Arc<changes::Filing> = Arc::default();
+        // A test's folders go once the pool and its accounts' threads (each holds `filing`)
+        // have ended: none writes in them after.
+        #[cfg(test)]
+        {
+            let threads = Arc::downgrade(&filing);
+            crate::data_files::scratch::wait_for(move || threads.strong_count() > 0);
+        }
         Pool {
             store,
             creds,
@@ -224,7 +232,7 @@ impl Pool {
             edits: edits::Edits::default(),
             compacts: compact::Compacts::default(),
             order: changes::Order::default(),
-            filing: Arc::default(),
+            filing,
         }
     }
 

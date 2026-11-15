@@ -25,7 +25,6 @@ fn a_worker_stopped_keeps_the_drafts_it_had_still_to_save() {
     keep_draft(&store, "a1", "Drafts", None, draft, true, &Order::default()).unwrap();
     assert_eq!(kept_raws(&store, "a1").unwrap().len(), 1);
     assert_eq!(store.kept_draft_ids("a1").len(), 1, "the one it replaced has no source left");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Found in review: an account removed while its worker still had a draft to save had the
@@ -46,20 +45,23 @@ fn a_removed_accounts_drafts_are_not_kept_again() {
     assert!(kept_raws(&store, "a1").unwrap_or_default().is_empty(), "kept again");
     assert!(store.kept_draft_ids("a1").is_empty(), "its source kept again");
     assert!(!pool.poll().into_iter().any(|e| matches!(e, Event::DraftSaved { .. })), "nothing said of it");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
-/// A server that takes the connections (four at most) and never answers, holding them a minute:
-/// its port.
-fn silent_server() -> u16 {
+/// A server that takes the connections and never answers, until what it gives back with its
+/// port is dropped (the test's end): then it lets them go, so a worker waiting on it ends, and
+/// nothing writes in the test's folder after it went. (It held them a minute, past the test.)
+fn silent_server() -> (u16, std::sync::mpsc::Sender<()>) {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
     let port = listener.local_addr().unwrap().port();
+    let (tx, rx) = std::sync::mpsc::channel::<()>();
     std::thread::spawn(move || {
-        let held: Vec<std::net::TcpStream> = listener.incoming().take(4).filter_map(std::result::Result::ok).collect();
-        std::thread::sleep(Duration::from_secs(60));
-        drop(held);
+        let mut held: Vec<std::net::TcpStream> = Vec::new();
+        while let Err(std::sync::mpsc::RecvTimeoutError::Timeout) = rx.recv_timeout(Duration::from_millis(20)) {
+            held.extend(std::iter::from_fn(|| listener.accept().ok().map(|(s, _)| s)));
+        }
     });
-    port
+    (port, tx)
 }
 
 /// A worker restarted (a password or setting changed) while busy, with a draft handed to it and
@@ -70,7 +72,7 @@ fn silent_server() -> u16 {
 #[test]
 fn a_restart_keeps_the_drafts_on_their_way_first() {
     // The worker waits on a server that never answers.
-    let port = silent_server();
+    let (port, _server) = silent_server();
     let store = crate::fake::store("restart-drafts");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let account = imap_account("a1", port);
@@ -83,7 +85,6 @@ fn a_restart_keeps_the_drafts_on_their_way_first() {
         pool.poll().into_iter().any(|e| matches!(e, Event::DraftSaved { message_id, error: None, .. } if message_id == "restart@studio.example"));
     assert!(saved, "said kept");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Found in review: saved, written on, and MailCraft closed while the save was still on its way:
@@ -93,7 +94,7 @@ fn a_restart_keeps_the_drafts_on_their_way_first() {
 #[test]
 fn what_was_written_after_a_save_is_kept_on_close() {
     // The save stays on its way to a server that never answers.
-    let port = silent_server();
+    let (port, _server) = silent_server();
     let store = crate::fake::store("written-after-save");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     let account = imap_account("a1", port);
@@ -108,7 +109,6 @@ fn what_was_written_after_a_save_is_kept_on_close() {
     keep_draft(&store, "a1", "Drafts", None, saved, false, &pool.order).unwrap();
     assert_eq!(kept_raws(&store, "a1").unwrap(), [written]);
     drop(pool);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A fake IMAP server with an empty Drafts, and an account on it whose calendars and contacts
@@ -161,7 +161,6 @@ fn kept_drafts_stay_kept_until_each_is_filed() {
     assert_eq!(on_the_server(&st), texts[..1]);
     assert_eq!(kept_texts(&store), texts[1..]);
     drop(pool);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// The drafts kept on this computer, by their text.
@@ -200,7 +199,6 @@ fn the_next_runs_save_offline_replaces_the_draft_kept_on_close() {
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: newer, folder: "Drafts".into(), replaces: None });
     assert!(pool.poll().iter().any(|e| matches!(e, Event::DraftSaved { error: None, .. })), "said kept");
     assert_eq!(kept_texts(&store), ["Subject: Plans\r\nMessage-ID: <x@studio.example>\r\n\r\nwritten the next day\r\n"]);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// The same with the account online and its server not answering: the save fails, and is kept
@@ -220,7 +218,6 @@ fn the_next_runs_failed_save_replaces_the_draft_kept_on_close() {
     assert!(seen.iter().any(|e| matches!(e, Event::DraftSaved { error: None, .. })), "said kept");
     assert_eq!(kept_texts(&store), ["Subject: Plans\r\nMessage-ID: <y@studio.example>\r\n\r\nwritten the next day\r\n"]);
     pool.shutdown();
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Found in review: a save on its way as Work Offline was turned on, and a newer version of the
@@ -252,7 +249,6 @@ fn a_draft_saved_offline_outlives_the_older_save_filed_after() {
     pool.submit(Job::WorkOffline { on: false });
     eventually("the later filed", || on_the_server(&st) == [later] && kept_texts(&store).is_empty());
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Found in review: a save on its way as Work Offline was turned on, filed after: the stopped
@@ -288,7 +284,6 @@ fn a_save_filed_after_work_offline_says_nothing_of_the_account() {
     let appended = log.iter().position(|c| c.starts_with("APPEND")).unwrap();
     assert!(!log[appended..].iter().any(|c| c.starts_with("SELECT") || c.starts_with("EXAMINE")), "read again: {log:?}");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Kept as the newest version (Keep all, or a held message let go) while MailCraft runs on: a
@@ -303,7 +298,6 @@ fn a_save_made_after_a_draft_is_kept_replaces_it() {
     DraftOrder::handed(&pool.order, &newer);
     keep_draft(&store, "a1", "Drafts", None, newer, false, &pool.order).unwrap();
     assert_eq!(kept_texts(&store), ["Subject: Plans\r\nMessage-ID: <z@studio.example>\r\n\r\nwritten after\r\n"]);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Found in review: an account removed while its draft was on the way to the server, saved
@@ -330,7 +324,6 @@ fn a_removed_accounts_saved_draft_writes_nothing() {
     assert!(!pool.poll().iter().any(|e| matches!(e, Event::DraftSaved { .. })), "nothing said of it");
     assert!(store.load_folders("a1").unwrap_or_default().is_empty(), "the folder list written again");
     assert!(store.load_folder("a1", "Drafts").map(|f| f.messages.len()).unwrap_or(0) == 0, "the draft cached again");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A proxy to the server at `port` that drops the connection, both ways, when the client sends
@@ -382,7 +375,6 @@ fn a_kept_draft_that_drops_the_connection_holds_nothing_up() {
         .collect();
     assert_eq!(saved, ["plans@studio.example", "big@studio.example"], "each save said done once, and the kept draft not at all");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A kept draft that fails each time it's tried (Send / Receive tries it again at once) is said
@@ -410,7 +402,6 @@ fn a_kept_draft_failing_again_is_said_once() {
     assert_eq!(connections.load(Ordering::Relaxed), 3);
     assert_eq!(kept_texts(&store), [big]);
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Three drafts kept on this computer, each dropping the connection as it's filed, and a save
@@ -437,7 +428,6 @@ fn save_behind_kept_drafts_that_drop(name: &str, reconnecting: bool) -> (usize, 
     events_until(&pool, "the save on the server", |_| on_the_server(&st).iter().any(|m| m == plans));
     let taken = connections.load(Ordering::Relaxed);
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
     (before, taken)
 }
 
@@ -475,7 +465,6 @@ fn saves_that_drop_the_connection_hold_the_next_back_by_no_wait() {
     assert_eq!(connections.load(Ordering::Relaxed), 4);
     assert_eq!(kept_texts(&store).len(), 3, "those that dropped it kept here");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// An account online, its first sync over, through a proxy that drops the connection on a draft
@@ -509,5 +498,4 @@ fn drafts_that_drop_each_connection_sign_in_again_at_once_a_few_times_at_most() 
     assert_eq!(connections.load(Ordering::Relaxed), 5);
     assert_eq!(kept_texts(&store).len(), 8, "each kept here");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }

@@ -108,7 +108,6 @@ fn exchange_online_searches_with_a_token_of_its_own() {
     }
     assert!(!directory_refresh.contains("Mail."), "{directory_refresh}");
     eventually("its directory sign-in removed with it", || crate::worker::Credentials::get_secret(creds.as_ref(), &account, "directory").is_none());
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Allowing it: the browser asked for the directory's permissions alone (no mail ones), the
@@ -144,5 +143,4 @@ fn the_directory_is_allowed_in_a_sign_in_of_its_own() {
     pool.submit(Job::AllowDirectory { account: imap });
     let seen = until(&pool, "refused", |e| matches!(e, Event::DirectoryAllowed { account, .. } if account == "a2"));
     assert!(matches!(seen.last(), Some(Event::DirectoryAllowed { error: Some(_), .. })));
-    let _ = std::fs::remove_dir_all(store.root());
 }

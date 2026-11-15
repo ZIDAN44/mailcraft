@@ -107,7 +107,6 @@ fn full_sync_cycle() {
     assert_eq!(cache.validity, 101);
     assert!(cache.messages.iter().all(|m| m.key.validity == 101));
     assert_eq!(cache.messages.len(), 3);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -149,7 +148,6 @@ fn qresync_learns_expunges_and_flags_from_select() {
     let r = sync_folder(&mut c, &store, "a1", "INBOX", &opts).unwrap();
     assert!(r.reset);
     assert_eq!(store.load_folder("a1", "INBOX").unwrap().messages.len(), 4);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -167,7 +165,6 @@ fn without_condstore_flags_are_compared() {
     let r = sync_folder(&mut c, &store, "a1", "INBOX", &SyncOptions::default()).unwrap();
     assert_eq!(r.changed, 1);
     assert!(store.load_folder("a1", "INBOX").unwrap().messages[0].flags.seen);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -204,7 +201,6 @@ fn first_sync_takes_a_window() {
     assert_eq!(sync_folder(&mut c, &store, "a1", "INBOX", &more).unwrap().new, 0, "once");
     let all = SyncOptions { window: usize::MAX, ..opts };
     assert_eq!(sync_folder(&mut c, &store, "a1", "INBOX", &all).unwrap().new, 3, "all of it");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Permanent delete on a Gmail-style server: moved into Trash and expunged there. Other
@@ -379,7 +375,6 @@ fn keywords_round_trip_with_the_server() {
     sync_folder(&mut c, &store, "a1", "INBOX", &SyncOptions::default()).unwrap();
     let m = store.load_folder("a1", "INBOX").unwrap().messages[0].clone();
     assert!(m.flags.has("$label2") && m.flags.pinned(), "{:?}", m.flags);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -439,7 +434,6 @@ fn mailbox_settings_over_imap_and_managesieve() {
     // An offline account answers at once.
     pool.submit(Job::GetVacation { account: "a1".into() });
     until(&pool, "offline answer", |e| matches!(e, Event::Vacation { vacation: None, error: Some(_), .. }));
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Send / Receive › Work Offline: connections close; changes, sent mail and drafts wait on
@@ -479,7 +473,6 @@ fn working_offline_keeps_drafts_and_mail_until_back() {
     assert!(String::from_utf8_lossy(&saved).contains("written offline"));
     assert!(store.outbox("a1").iter().any(|i| i.id == 7), "sent mail waits in the Outbox");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 mod big_folder;
@@ -624,7 +617,6 @@ fn outbox_holds_mail_until_smtp_is_back() {
     assert_eq!(store.outbox("a1").iter().map(|i| i.id).collect::<Vec<_>>(), vec![3], "the held-back one waits");
     eventually("both copies in Sent", || st.lock().unwrap().mailbox("Sent").unwrap().msgs.len() >= 2);
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
@@ -682,7 +674,6 @@ fn worker_pool_end_to_end_over_tcp() {
     assert_eq!(store.load_folder("a1", "Sent").unwrap().messages[0].subject, "e2e");
 
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Issue #3: an outgoing server whose user name and password aren't the incoming server's.
@@ -721,7 +712,6 @@ fn the_outgoing_server_signs_in_with_its_own_user_name_and_password() {
     assert!(log.contains(&own), "SMTP signed in as relay-user: {log}");
     assert!(!log.contains(&mailcraft_model::base64::encode(b"\0me@studio.example\0pw")), "not as the IMAP user");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A folder whose PERMANENTFLAGS has no `\*` (a shared folder without the right to write, on
@@ -784,5 +774,4 @@ fn a_draft_on_a_server_without_drafts_makes_the_folder() {
         store.load_folders("a1").is_ok_and(|f| f.iter().any(|f| f.path == "Drafts" && f.role == FolderRole::Drafts))
     });
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }

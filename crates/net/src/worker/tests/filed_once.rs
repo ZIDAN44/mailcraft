@@ -34,7 +34,6 @@ fn restarted_while_filing(name: &str, kept: Option<&str>, saved: Option<&str>) -
     seen.extend(until_waiting(&pool));
     let (filed, kept) = (on_the_server(&st), kept_texts(&store));
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
     (filed, seen, kept)
 }
 
@@ -85,7 +84,6 @@ fn a_draft_whose_answer_was_lost_is_filed_once() {
     until_waiting(&pool);
     assert_eq!(on_the_server(&st), [text]);
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A draft whose filing hangs, and another.
@@ -130,7 +128,6 @@ fn restarted_while_a_filing_hangs(name: &str, idle: bool, newer: Option<&str>) -
     until_waiting(&pool);
     let filed = on_the_server(&st);
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
     filed
 }
 
@@ -174,7 +171,6 @@ fn filed_then_offline_before_heard(name: &str, uidplus: bool) -> (usize, usize, 
     let said = seen.iter().filter(|e| matches!(e, Event::DraftSaved { message_id, .. } if message_id == "heard@studio.example")).count();
     let filed = on_the_server(&st);
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
     (said, kept, filed)
 }
 

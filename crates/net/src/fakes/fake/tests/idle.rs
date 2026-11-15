@@ -43,5 +43,4 @@ fn mail_arriving_after_the_inbox_sync_shows_before_idle() {
     let has_late = || store.load_folder("a1", "INBOX").unwrap().messages.iter().any(|m| m.subject == "Late");
     events_until(&pool, "the late mail", |_| has_late());
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }

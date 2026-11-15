@@ -45,7 +45,6 @@ fn drafts_an_earlier_version_kept_are_moved_and_filed() {
     assert!(store.kept_draft_ids("a1").is_empty(), "no source left");
     pool.submit(Job::Remove { account: "a1".into() });
     drop(pool);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Stopped as the drafts were moved, after the new list was written and before the old one was
@@ -68,7 +67,6 @@ fn stopped_after_the_move_the_drafts_are_not_doubled() {
     assert_eq!(on_the_server(&st), texts, "each filed once");
     pool.submit(Job::Remove { account: "a1".into() });
     drop(pool);
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// The move failing part way (the new list, or a source, can't be written): nothing is lost,
@@ -132,5 +130,4 @@ fn a_source_no_draft_names_is_removed_unless_a_damaged_list_may() {
     std::fs::remove_file(store.root().join("a1").join(format!("{KEPT_DRAFTS}.bad"))).unwrap();
     sweep_kept(&store, "a1", &[]);
     assert!(store.kept_draft_ids("a1").is_empty(), "removed");
-    let _ = std::fs::remove_dir_all(store.root());
 }

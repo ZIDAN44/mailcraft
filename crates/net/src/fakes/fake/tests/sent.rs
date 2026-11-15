@@ -54,7 +54,6 @@ fn a_sent_folder_is_made_where_there_is_none() {
         store.load_folders("a1").unwrap_or_default().iter().any(|f| f.path == "Sent" && f.role == FolderRole::Sent)
     });
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A server that keeps every folder in the Inbox (cPanel, Courier) refuses `Sent`: `INBOX/Sent`
@@ -67,12 +66,11 @@ fn a_sent_folder_is_made_in_the_inbox_where_folders_must_be() {
         s.boxes.retain(|b| b.name == "INBOX");
         s.create_under = Some("INBOX/".into());
     }
-    let (mut pool, store, _log) = online(&st, "sent-in-inbox");
+    let (mut pool, _store, _log) = online(&st, "sent-in-inbox");
     send(&mut pool);
     copy_in(&st, "INBOX/Sent");
     assert!(st.lock().unwrap().mailbox("Sent").is_none());
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Sent Items by another language's name, without the server saying so (`Gesendet`): that one
@@ -87,13 +85,12 @@ fn a_sent_folder_in_another_language_takes_the_copy() {
             b.attr = "";
         }
     }
-    let (mut pool, store, _log) = online(&st, "sent-gesendet");
+    let (mut pool, _store, _log) = online(&st, "sent-gesendet");
     send(&mut pool);
     copy_in(&st, "Gesendet");
     assert!(st.lock().unwrap().mailbox("Sent").is_none(), "nothing made");
     assert!(!st.lock().unwrap().log.iter().any(|c| c.starts_with("CREATE")));
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Listed ahead of the server's flagged Sent (Dovecot lists cPanel's `INBOX.Sent` last): another
@@ -119,7 +116,6 @@ fn the_flagged_sent_folder_takes_the_copy_wherever_it_is_listed() {
         assert!(st.lock().unwrap().mailbox(other).is_some_and(|b| b.msgs.is_empty()), "{other} got it");
     }
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Found testing drafts on GreenMail started afresh: Sent and Drafts deleted on the server after
@@ -140,7 +136,6 @@ fn a_sent_or_drafts_folder_deleted_on_the_server_is_made_again() {
     until(&pool, "draft saved", |e| matches!(e, Event::DraftSaved { message_id, error: None, .. } if message_id == "again@studio.example"));
     assert!(st.lock().unwrap().mailbox("Drafts").is_some_and(|b| b.msgs.len() == 1), "the draft is in Drafts again");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Sent and Drafts renamed on the server since they were listed (by another client), still the
@@ -151,7 +146,7 @@ fn a_sent_or_drafts_folder_deleted_on_the_server_is_made_again() {
 fn a_sent_or_drafts_folder_renamed_on_the_server_is_found_again() {
     let st = State::new();
     with_drafts(&st);
-    let (mut pool, store, _log) = online(&st, "sent-renamed");
+    let (mut pool, _store, _log) = online(&st, "sent-renamed");
     for (from, to) in [("Sent", "Sent Messages"), ("Drafts", "Brouillons")] {
         if let Some(b) = st.lock().unwrap().boxes.iter_mut().find(|b| b.name == from) {
             b.name = to.into();
@@ -167,7 +162,6 @@ fn a_sent_or_drafts_folder_renamed_on_the_server_is_found_again() {
     assert!(s.mailbox("Sent").is_none() && s.mailbox("Drafts").is_none(), "{:?}", s.boxes.iter().map(|b| b.name.clone()).collect::<Vec<_>>());
     drop(s);
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A draft kept on this computer as MailCraft closed, while its save was on its way and got there
@@ -177,7 +171,7 @@ fn a_sent_or_drafts_folder_renamed_on_the_server_is_found_again() {
 fn a_draft_saved_twice_is_there_once() {
     let st = State::new();
     with_drafts(&st);
-    let (mut pool, store, _log) = online(&st, "draft-twice");
+    let (mut pool, _store, _log) = online(&st, "draft-twice");
     let draft = b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <twice@studio.example>\r\n\r\nto finish\r\n".to_vec();
     for _ in 0..2 {
         pool.submit(Job::SaveDraft { account: "a1".into(), raw: draft.clone(), folder: "Drafts".into(), replaces: None });
@@ -185,7 +179,6 @@ fn a_draft_saved_twice_is_there_once() {
     }
     assert_eq!(st.lock().unwrap().mailbox("Drafts").map(|b| b.msgs.len()), Some(1), "once");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Drafts, with nothing in it yet, on `st`.
@@ -233,7 +226,7 @@ fn own_copy_saved_again(name: &str, caps: &'static str, stamp: Option<&'static s
     st.lock().unwrap().stamp_appends = stamp;
     with_drafts(&st);
     with_trash(&st);
-    let (mut pool, store, _log) = online(&st, name);
+    let (mut pool, _store, _log) = online(&st, name);
     let own =
         b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <own@studio.example>\r\n\r\nto finish the plans for the winter show\r\n".to_vec();
     save_draft(&mut pool, &own, "own@studio.example");
@@ -245,7 +238,6 @@ fn own_copy_saved_again(name: &str, caps: &'static str, stamp: Option<&'static s
     save_draft(&mut pool, &own, "own@studio.example");
     let (drafts, trash) = (in_folder(&st, "Drafts"), in_folder(&st, "Trash"));
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
     (drafts, trash, own)
 }
 
@@ -305,7 +297,7 @@ fn without_uidplus_the_own_copy_is_marked_deleted() {
         if let Some(m) = st.lock().unwrap().mailbox("Drafts").and_then(|b| b.msgs.last_mut()) {
             m.flags.push(r"\Deleted".into());
         }
-        let (mut pool, store, _log) = online(&st, &format!("draft-no-uidplus-{pass}"));
+        let (mut pool, _store, _log) = online(&st, &format!("draft-no-uidplus-{pass}"));
         let own = b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <own@studio.example>\r\n\r\nto finish\r\n".to_vec();
         save_draft(&mut pool, &own, "own@studio.example");
         put_in_drafts(&st, PHONE.to_vec());
@@ -318,7 +310,6 @@ fn without_uidplus_the_own_copy_is_marked_deleted() {
         let log = st.lock().unwrap().log.clone();
         assert!(!log.iter().any(|c| ["EXPUNGE", "UID EXPUNGE", "UID MOVE", "UID COPY"].iter().any(|v| c.starts_with(v))), "{caps}: {log:?}");
         pool.submit(Job::Remove { account: "a1".into() });
-        let _ = std::fs::remove_dir_all(store.root());
     }
 }
 
@@ -334,7 +325,7 @@ fn each_save_replaces_its_copy_alone() {
         st.lock().unwrap().caps = caps;
         with_drafts(&st);
         with_trash(&st);
-        let (mut pool, store, _log) = online(&st, &format!("draft-versions-{pass}"));
+        let (mut pool, _store, _log) = online(&st, &format!("draft-versions-{pass}"));
         let mut replaces = None;
         let mut last = Vec::new();
         for n in 1..=3 {
@@ -352,7 +343,6 @@ fn each_save_replaces_its_copy_alone() {
         let expunges = log.iter().filter(|c| c.starts_with("UID EXPUNGE")).count();
         assert_eq!(expunges, if caps.contains("UIDPLUS") { 2 } else { 0 }, "{caps}: each replaced copy once: {log:?}");
         pool.submit(Job::Remove { account: "a1".into() });
-        let _ = std::fs::remove_dir_all(store.root());
     }
 }
 
@@ -389,7 +379,6 @@ fn a_draft_kept_on_close_goes_before_the_next_runs_save() {
     let appends = st.lock().unwrap().log.iter().filter(|c| c.contains("APPEND")).count();
     assert_eq!(appends, 3, "{:?}", st.lock().unwrap().log);
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// A server where no Sent Items can be made: the message goes, and that no copy was kept comes as
@@ -403,7 +392,7 @@ fn a_copy_that_cant_be_kept_is_said_by_its_own_event() {
         s.boxes.retain(|b| b.name == "INBOX");
         s.create_under = Some("Elsewhere/".into());
     }
-    let (mut pool, store, _log) = online(&st, "sent-not-kept");
+    let (mut pool, _store, _log) = online(&st, "sent-not-kept");
     send(&mut pool);
     let mut said = String::new();
     until(&pool, "word that no copy was kept", |e| match e {
@@ -416,5 +405,4 @@ fn a_copy_that_cant_be_kept_is_said_by_its_own_event() {
     assert!(said.contains("no copy was saved"), "{said}");
     assert_eq!(st.lock().unwrap().boxes.len(), 1, "nothing made");
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(store.root());
 }

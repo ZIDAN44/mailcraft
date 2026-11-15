@@ -102,7 +102,6 @@ fn a_search_or_a_download_writes_nothing_for_an_account_removed_meanwhile() {
     let unread = crate::sync::word_query("is:unread").unwrap();
     assert_eq!(crate::graph::find_on_server(&c, &mut st, &store, ("a1", seen), "INBOX", &unread, 500).unwrap().1, 3);
     assert!(crate::graph::fetch_body(&c, &st, &store, &key, seen).is_ok() && store.has_body(&key));
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 fn mail(subject: &str, id: &str) -> Vec<u8> {
@@ -238,7 +237,6 @@ fn a_microsoft_account_without_a_mailbox_says_so_and_stops() {
     eventually("the account's thread waiting", || pool.idle("a1"));
     let tries = server.data.lock().unwrap().calls.len();
     assert!(tries <= 2, "asked once, not over and over: {tries} requests");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Two regressions together. Batched GETs lacked the ImmutableId preference, so their ids
@@ -279,7 +277,6 @@ fn graph_batched_details_keep_stable_ids_and_retry_when_busy() {
     let calls = server.data.lock().unwrap().calls.clone();
     assert_eq!((again.new, again.removed), (0, 0), "{calls:?}");
     assert!(!calls.iter().any(|c| c.contains("/me/messages/")), "no per-message GETs on a quiet sync: {calls:?}");
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Graph files a sent message's copy a moment after taking it: Sent Items showed it only at the
@@ -305,7 +302,6 @@ fn a_sent_message_shows_in_sent_items_soon_after() {
     });
     until(&pool, "sent", |e| matches!(e, Event::Sent { .. }));
     eventually("the copy in Sent Items", || store.load_folder("a1", "Sent Items").is_ok_and(|f| f.messages.iter().any(|m| m.subject == "Poster")));
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// The story every Exchange account is checked by, over Graph (small requests going in batches).

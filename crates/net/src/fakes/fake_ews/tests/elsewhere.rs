@@ -93,7 +93,6 @@ fn requests_go_where_their_folder_is_and_nowhere_else() {
     forget(&server);
     crate::ews_pim::sync(&c, &mailcraft_model::pim::Pim::default(), 0).unwrap();
     assert!(server.data.lock().unwrap().anchors.iter().any(|a| a == "sales@contoso.example"));
-    let _ = std::fs::remove_dir_all(store.root());
 }
 
 /// Public folders on Exchange 2013 and later: the hierarchy and the content each in a

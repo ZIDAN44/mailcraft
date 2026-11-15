@@ -42,12 +42,10 @@ pub(crate) fn serve_tcp_on(listener: std::net::TcpListener, st: &Arc<Mutex<State
     });
 }
 
-/// A store in a temporary folder of its own (emptied first), for the tests of every fake and of
-/// the worker.
+/// A store in a temporary folder of its own (emptied first, removed when the test's thread ends:
+/// [`crate::data_files::scratch::scratch`]), for the tests of every fake and of the worker.
 pub(crate) fn store(name: &str) -> Store {
-    let dir = std::env::temp_dir().join(format!("mailcraft-fake-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    Store::open(dir).unwrap()
+    Store::open(crate::data_files::scratch::scratch(&format!("fake-{name}"))).unwrap()
 }
 
 /// Gap #7 through the worker, the same for JMAP, Graph and EWS accounts: a server whose Inbox

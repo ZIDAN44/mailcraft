@@ -48,7 +48,6 @@ fn an_index_found_damaged_as_a_pass_begins_is_made_again_over_every_folder() {
     assert_eq!(found(&s, "filed"), [1], "the Archive searched again");
     assert_eq!(sorted(found(&s, "common")), [1, 2]);
     pool.submit(Job::Remove { account: "a1".into() });
-    let _ = std::fs::remove_dir_all(s.root());
 }
 
 /// Found in review: a pass that found the index damaged part-way (a page of its texts) set it
