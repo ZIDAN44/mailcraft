@@ -188,6 +188,7 @@ on GitHub.
 - Clicking a mailto: link in a message now fills in its subject and copies, and decodes characters such as %2E.
 - Save all in the browser now says which attachment couldn't be downloaded.
 - Accounts with thousands of folders, such as an imported Outlook file, update folder counts and delete folders faster.
+- S/MIME mail encrypted with AES-192-GCM can now be read.
 
 ## 0.38.0 - 2026-11-13
 

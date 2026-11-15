@@ -295,6 +295,9 @@ fn open(eci: &EncryptedContentInfo, key: &[u8], tag: Option<&[u8]>) -> Result<Ve
         let nonce = aes_gcm::Nonce::from_slice(nonce);
         let out = match len {
             16 => aes_gcm::Aes128Gcm::new_from_slice(key).map_err(|_| Error::Decrypt)?.decrypt(nonce, whole.as_slice()),
+            24 => aes_gcm::AesGcm::<aes::Aes192, aes_gcm::aead::consts::U12>::new_from_slice(key)
+                .map_err(|_| Error::Decrypt)?
+                .decrypt(nonce, whole.as_slice()),
             _ => aes_gcm::Aes256Gcm::new_from_slice(key).map_err(|_| Error::Decrypt)?.decrypt(nonce, whole.as_slice()),
         };
         out.map_err(|_| Error::Decrypt)
@@ -304,6 +307,7 @@ fn open(eci: &EncryptedContentInfo, key: &[u8], tag: Option<&[u8]>) -> Result<Ve
         oids::AES192_CBC if tag.is_none() => cbc(24),
         oids::AES256_CBC if tag.is_none() => cbc(32),
         oids::AES128_GCM if tag.is_some() => gcm(16),
+        oids::AES192_GCM if tag.is_some() => gcm(24),
         oids::AES256_GCM if tag.is_some() => gcm(32),
         oids::DES_EDE3_CBC if tag.is_none() => {
             let iv = iv()?;

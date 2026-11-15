@@ -142,9 +142,16 @@ fn trust_needs_a_root_the_address_and_dates() {
 #[test]
 fn openssl_encryption_decrypts() {
     let id = riley();
-    for (name, authenticated) in
-        [("enc-cbc.der", false), ("enc-cbc-ber.der", false), ("enc-3des.der", false), ("enc-gcm.der", true), ("enc-oaep.der", false)]
-    {
+    // AES-GCM of each key size: 256 (`enc-gcm`), 128 and 192.
+    for (name, authenticated) in [
+        ("enc-cbc.der", false),
+        ("enc-cbc-ber.der", false),
+        ("enc-3des.der", false),
+        ("enc-gcm.der", true),
+        ("enc-gcm128.der", true),
+        ("enc-gcm192.der", true),
+        ("enc-oaep.der", false),
+    ] {
         let (plain, auth) = decrypt(&data(name), &id, &mut rng()).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(plain, BODY, "{name}");
         assert_eq!(auth, authenticated, "{name}");
@@ -180,11 +187,13 @@ fn openssl_mail_to_an_ec_key_decrypts() {
 fn changed_encrypted_mail_fails_closed() {
     let id = riley();
     // GCM: any byte changed fails the tag.
-    let gcm = data("enc-gcm.der");
-    for at in [gcm.len() - 1, gcm.len() - 20, gcm.len() - 40] {
-        let mut m = gcm.clone();
-        m[at] ^= 0x55;
-        assert!(decrypt(&m, &id, &mut rng()).is_err(), "byte {at}");
+    for name in ["enc-gcm.der", "enc-gcm128.der", "enc-gcm192.der"] {
+        let gcm = data(name);
+        for at in [gcm.len() - 1, gcm.len() - 20, gcm.len() - 40] {
+            let mut m = gcm.clone();
+            m[at] ^= 0x55;
+            assert!(decrypt(&m, &id, &mut rng()).is_err(), "{name}: byte {at}");
+        }
     }
     // Every cut and every flipped byte of a CBC message: an error or (CBC can't tell) other
     // bytes, never a panic.
