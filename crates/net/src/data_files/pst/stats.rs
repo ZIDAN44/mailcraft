@@ -24,9 +24,11 @@ pub struct ImportStats {
     pub write_ms: u64,
     /// Writing the folder lists, the folders, the contacts and events, and sealing the file.
     pub commit_ms: u64,
-    /// The writer waiting for items to be read, and readers waiting for room in the budget.
+    /// The writer waiting for items to be read, and readers waiting for room in the budget (and
+    /// how many times one waited, however briefly).
     pub writer_idle_ms: u64,
     pub budget_wait_ms: u64,
+    pub budget_waits: u64,
     /// Taking the messages' text and words out for search (on the lanes), and putting them in the
     /// account's search index and writing it (on a thread of its own), summed: mostly alongside
     /// the import, not added to it (that's measured against an import without the index). And
@@ -84,6 +86,8 @@ pub(super) struct Tally {
     /// Writes without a checkpoint and with one: how many, and their nanoseconds.
     batches: [AtomicU64; 2],
     checkpoints: [AtomicU64; 2],
+    /// Times a lane waited for room.
+    waits: AtomicU64,
     peak: AtomicU64,
     raw: AtomicU64,
     kept: AtomicU64,
@@ -121,6 +125,7 @@ impl Tally {
 
     /// A lane waited for room since `began`.
     pub(super) fn waited(&self, began: Instant) {
+        self.waits.fetch_add(1, Ordering::Relaxed);
         self.since(Phase::Wait, began);
     }
 
@@ -152,6 +157,7 @@ impl Tally {
             commit_ms: ms(Phase::Commit),
             writer_idle_ms: ms(Phase::Idle),
             budget_wait_ms: ms(Phase::Wait),
+            budget_waits: self.waits.load(Ordering::Relaxed),
             index_ms: ms(Phase::Index),
             indexed: 0,
             peak_budget_bytes: self.peak.load(Ordering::Relaxed),

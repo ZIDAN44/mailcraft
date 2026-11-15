@@ -171,7 +171,11 @@ fn an_item_bigger_than_the_file_says_is_charged_for_what_it_is() {
     let opts = ImportOptions { lanes: 4, budget_bytes: 4 << 20, fault: Some(Fault::Understate), ..ImportOptions::default() };
     let done = within_a_minute(move || run(&path, &s, "u1", &opts));
     assert_eq!((done.messages, done.skipped), (36, 0));
-    assert!(done.stats.budget_wait_ms > 0 || done.stats.peak_budget_bytes > 0, "{:?}", done.stats);
+    // Charged 3.5 times its 900 KB once read, no two fit in the 4 MB together: a lane waits for
+    // room while the one before is made and written. Charged for the byte the file says, none
+    // would wait. (The writer's peak shows nothing: it holds one item at a time either way.)
+    // Counted, not timed: a wait may be shorter than the millisecond the time is told in.
+    assert!(done.stats.budget_waits > 0, "the megabyte items waited for room: {:?}", done.stats);
     assert_eq!(everything(&store, "u1"), everything(&plain, "u1"));
 }
 
