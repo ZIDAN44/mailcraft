@@ -11,6 +11,60 @@ fn microsoft_not_connected(said: &str) -> bool {
     said.to_ascii_lowercase().contains(MICROSOFT_NOT_CONNECTED)
 }
 
+/// The connections made again at once with a renewed OAuth token, lately. A refusal after the
+/// server took a token gets a fresh one each time ([`Worker::failed`]); a server that takes every
+/// token for its folder list and refuses it for what comes next would have a new token asked
+/// for, and a connection made, without a pause and without end. So only so many go at once.
+#[derive(Default)]
+pub(super) struct Renewals(VecDeque<Instant>);
+
+/// How many connections a renewed token makes again at once within [`RENEWALS_WITHIN`]; each
+/// one past that waits until the oldest of them is that long ago.
+const RENEWALS_AT_ONCE: usize = 3;
+const RENEWALS_WITHIN: Duration = Duration::from_secs(10 * 60);
+
+impl Renewals {
+    /// A token was renewed at `now`: when its connection is made (`now`, or later).
+    fn connect_at(&mut self, now: Instant) -> Instant {
+        while self.0.front().is_some_and(|t| now.saturating_duration_since(*t) >= RENEWALS_WITHIN) {
+            self.0.pop_front();
+        }
+        let at = match self.0.front() {
+            Some(oldest) if self.0.len() >= RENEWALS_AT_ONCE => {
+                let at = oldest.checked_add(RENEWALS_WITHIN).unwrap_or(now).max(now);
+                self.0.pop_front();
+                at
+            }
+            _ => now,
+        };
+        self.0.push_back(at);
+        at
+    }
+}
+
+/// Renewals go at once a few times, then no faster than [`RENEWALS_AT_ONCE`] in
+/// [`RENEWALS_WITHIN`], however long the server goes on refusing; and at once again after a quiet
+/// while.
+#[test]
+fn renewed_tokens_connect_at_once_only_so_often() {
+    let start = Instant::now();
+    let mut r = Renewals::default();
+    let mut now = start;
+    let mut made = Vec::new();
+    // A server refusing each token a second after it took it, for an hour.
+    while now.saturating_duration_since(start) < Duration::from_secs(60 * 60) {
+        let at = r.connect_at(now);
+        made.push(at.saturating_duration_since(start).as_secs());
+        now = at + Duration::from_secs(1);
+    }
+    assert_eq!(made.get(..4), Some(&[0, 1, 2, 600][..]), "{made:?}");
+    assert!(made.len() <= 6 * RENEWALS_AT_ONCE + 1, "{} connections in an hour: {made:?}", made.len());
+    assert!(r.0.len() <= RENEWALS_AT_ONCE);
+    // Left alone for the while, the next is at once.
+    let later = now + RENEWALS_WITHIN + RENEWALS_WITHIN;
+    assert_eq!(r.connect_at(later), later);
+}
+
 /// Where a test has autodiscovery ask (its fake server), and what it does once the server is
 /// found, before it's kept: its way to come between them. Taken once, on this thread.
 type InTest = (Option<String>, Option<Box<dyn FnOnce()>>);
@@ -127,8 +181,15 @@ impl Worker {
                 match self.renew_token() {
                     Ok(_) => {
                         self.conn = None;
-                        self.next_attempt = Instant::now();
-                        self.status(SyncStatus::Connecting);
+                        // At once, unless tokens are being refused one after another.
+                        let now = Instant::now();
+                        self.next_attempt = self.renewals.connect_at(now);
+                        if self.next_attempt > now {
+                            let said = format!("the server keeps refusing the sign-in it is given ({m}); trying again in a while");
+                            self.status(NetError::Refused(said).status());
+                        } else {
+                            self.status(SyncStatus::Connecting);
+                        }
                     }
                     Err(e) => self.failed(e),
                 }

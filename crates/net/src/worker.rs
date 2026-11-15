@@ -466,6 +466,8 @@ struct Worker {
     auth_failed: bool,
     /// An OAuth refusal was answered with a fresh token once; another means signing in again.
     token_retried: bool,
+    /// The connections made again at once with a renewed token, lately: only so many are.
+    renewals: connect::Renewals,
     closed: bool,
     /// Where a rotated OAuth refresh token is saved.
     creds: Option<Arc<dyn Credentials>>,
@@ -600,6 +602,7 @@ impl Worker {
             directory_token: None,
             auth_failed: false,
             token_retried: false,
+            renewals: connect::Renewals::default(),
             closed: false,
             creds,
             sieve_port,

@@ -104,7 +104,7 @@ on GitHub.
 - Select Names adds someone whose address is part of another address, or of a name, already in the field.
 - Two video attachments with the same name now each show their own thumbnail.
 - An import no longer stops on its own when its account is switched to or from keeping mail online only.
-- A Microsoft or Google sign-in service that is busy or failing no longer makes MailCraft ask you to sign in again; it tries again later.
+- A Microsoft or Google sign-in service that is busy or failing no longer makes MailCraft ask you to sign in again; it tries again later. A server that takes a renewed sign-in and then refuses it again is asked a few times, then at longer waits.
 - Exporting into an existing data file that can't be written to no longer loses track of its own Sent Items, Deleted Items, Drafts and Junk folders.
 - Exporting to a large Outlook data file is faster.
 - In the task list and the To-Do Bar, due dates are written in the order chosen under Dates, with the weekday.
