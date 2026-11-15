@@ -120,9 +120,14 @@ impl Data {
 
     /// A calendar-query by uid, or a multiget of the items named.
     fn report(&self, p: &str, body: &str) -> Reply {
+        // A control character XML 1.0 doesn't allow: not well-formed, refused, as Radicale does.
+        if body.contains(|c: char| c < ' ' && !matches!(c, '\t' | '\n' | '\r')) {
+            return reply("400 Bad Request");
+        }
         if p == CAL && body.contains("calendar-query") {
             // By uid: its text-match finds the uid inside longer ones too, as RFC 4791's does.
-            let wanted = body.split("<c:text-match").nth(1).and_then(|x| x.split_once('>')).and_then(|(_, x)| x.split("</c:text-match>").next());
+            let query = crate::xml::parse(body);
+            let wanted = query.find("text-match").map(|t| t.text.as_str());
             let mut rs = Vec::new();
             for (href, (etag, data)) in self.items.iter().filter(|(h, _)| h.starts_with(p)) {
                 if wanted.is_some_and(|w| uid_of(data).is_some_and(|u| u.contains(w))) {

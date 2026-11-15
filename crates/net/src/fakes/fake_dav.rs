@@ -8,6 +8,8 @@ use std::collections::BTreeMap;
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 
+use crate::xml::esc;
+
 pub const USER: &str = "me@studio.example";
 pub const PASSWORD: &str = "pw";
 pub const CAL: &str = "/dav/cal/work/";
@@ -71,10 +73,6 @@ impl Data {
 pub struct Server {
     pub base: String,
     pub data: Arc<Mutex<Data>>,
-}
-
-fn esc(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 fn multistatus(responses: &[String]) -> String {

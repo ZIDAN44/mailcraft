@@ -29,6 +29,19 @@ fn a_folded_uid_is_read_whole() {
     assert_eq!(uid_of("BEGIN:VEVENT\nUID:ab\n c\nEND:VEVENT\n"), Some("abc".into()));
 }
 
+/// Found in the audit: a uid with a control character went into the calendar-query raw, XML
+/// 1.0 doesn't allow it, and Radicale answered 400, so the item was never found. Radicale
+/// keeps the uid without the control, and so finds it by the query with the control left out.
+#[test]
+fn a_uid_with_a_control_character_is_looked_for() {
+    let server = serve();
+    let href = format!("{CAL}c.ics");
+    server.data.lock().unwrap().put(&href, &ical::write(&[event("probe\"two&<x>", "Kept", 1_800_000_000)], None, 0));
+    let cal = format!("{}{CAL}", server.base);
+    let found = Dav::new(USER, PASSWORD).find_uid(&cal, "probe\"\u{1}two&<x>").unwrap();
+    assert_eq!(found, vec![format!("{}{href}", server.base)]);
+}
+
 #[test]
 fn finds_reads_writes_and_deletes() {
     let server = serve();

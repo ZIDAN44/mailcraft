@@ -383,7 +383,7 @@ impl Dav {
     pub fn multiget(&self, kind: Kind, collection: &str, hrefs: &[String]) -> Result<Vec<(String, String, String)>> {
         let mut out = Vec::new();
         for chunk in hrefs.chunks(BATCH) {
-            let refs: String = chunk.iter().map(|h| format!("<d:href>{}</d:href>", xml_escape(&path_of(h)))).collect();
+            let refs: String = chunk.iter().map(|h| format!("<d:href>{}</d:href>", crate::xml::esc(&path_of(h)))).collect();
             let body = match kind {
                 Kind::Calendars => format!(
                     "<?xml version=\"1.0\" encoding=\"utf-8\"?><c:calendar-multiget xmlns:d=\"{DAV}\" xmlns:c=\"{CALDAV}\"><d:prop><d:getetag/><c:calendar-data/></d:prop>{refs}</c:calendar-multiget>"
@@ -455,7 +455,7 @@ impl Dav {
     pub fn find_uid(&self, calendar: &str, uid: &str) -> Result<Vec<String>> {
         let body = format!(
             "<?xml version=\"1.0\" encoding=\"utf-8\"?><c:calendar-query xmlns:d=\"{DAV}\" xmlns:c=\"{CALDAV}\"><d:prop><d:getetag/></d:prop><c:filter><c:comp-filter name=\"VCALENDAR\"><c:comp-filter name=\"VEVENT\"><c:prop-filter name=\"UID\"><c:text-match collation=\"i;octet\">{}</c:text-match></c:prop-filter></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>",
-            xml_escape(uid)
+            crate::xml::esc(uid)
         );
         let (resp, at) = self.request("REPORT", calendar, Some("1"), &body, &[])?;
         if resp.status != 207 {
@@ -528,10 +528,6 @@ fn mark_foreign(items: &mut [Item], at: &str, home: &str) {
         let owner = i.hrefs.get("owner").and_then(|o| o.first()).map(|h| path(h)).filter(|o| !o.is_empty());
         i.foreign = !mine.is_empty() && owner.is_some_and(|o| !mine.contains(&o));
     }
-}
-
-fn xml_escape(s: &str) -> String {
-    s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 /// An href (absolute, or a path) made absolute against the address it came from.
