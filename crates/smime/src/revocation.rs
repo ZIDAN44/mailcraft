@@ -70,10 +70,6 @@ pub fn points(cert_der: &[u8]) -> (Vec<String>, Vec<String>) {
     (crls, ocsp)
 }
 
-fn secs(t: &x509_cert::time::Time) -> i64 {
-    i64::try_from(t.to_unix_duration().as_secs()).unwrap_or(i64::MAX)
-}
-
 /// What the CRL `crl` (DER) says about `cert`, issued by `issuer` (both DER), at `now`.
 pub fn crl_status(crl: &[u8], cert_der: &[u8], issuer_der: &[u8], now: i64) -> Status {
     let (Ok(c), Ok(issuer)) = (cert::parse(cert_der), cert::parse(issuer_der)) else { return Status::Unknown("a certificate can't be read".into()) };
@@ -94,10 +90,10 @@ pub fn crl_status(crl: &[u8], cert_der: &[u8], issuer_der: &[u8], now: i64) -> S
     if !holds {
         return Status::Unknown("the list's signature doesn't hold".into());
     }
-    if secs(&tbs.this_update) > now + SKEW {
+    if cert::secs(tbs.this_update.to_unix_duration()) > now + SKEW {
         return Status::Unknown("the list is from the future".into());
     }
-    let until = tbs.next_update.as_ref().map(secs);
+    let until = tbs.next_update.map(|t| cert::secs(t.to_unix_duration()));
     if until.is_some_and(|u| u < now) {
         return Status::Unknown("the list is out of date".into());
     }
@@ -110,7 +106,7 @@ pub fn crl_status(crl: &[u8], cert_der: &[u8], issuer_der: &[u8], now: i64) -> S
         return Status::Unknown("the list's entry for the certificate can't be read".into());
     }
     match revoked {
-        Some(r) => Status::Revoked { at: secs(&r.revocation_date) },
+        Some(r) => Status::Revoked { at: cert::secs(r.revocation_date.to_unix_duration()) },
         None => Status::Good { until },
     }
 }
@@ -207,18 +203,17 @@ pub fn ocsp_status(answer: &[u8], cert_der: &[u8], issuer_der: &[u8], now: i64) 
     let Some(single) = basic.tbs_response_data.responses.iter().find(|r| same_cert(&r.cert_id, &c, &issuer)) else {
         return Status::Unknown("the OCSP answer is about another certificate".into());
     };
-    let this = i64::try_from(single.this_update.0.to_unix_duration().as_secs()).unwrap_or(i64::MAX);
+    let this = cert::secs(single.this_update.0.to_unix_duration());
     if this > now + SKEW {
         return Status::Unknown("the OCSP answer is from the future".into());
     }
-    let until =
-        single.next_update.map(|n| i64::try_from(n.0.to_unix_duration().as_secs()).unwrap_or(i64::MAX)).unwrap_or(this.saturating_add(OCSP_FRESH));
+    let until = single.next_update.map(|n| cert::secs(n.0.to_unix_duration())).unwrap_or(this.saturating_add(OCSP_FRESH));
     if until < now {
         return Status::Unknown("the OCSP answer is out of date".into());
     }
     match &single.cert_status {
         CertStatus::Good(_) => Status::Good { until: Some(until) },
-        CertStatus::Revoked(info) => Status::Revoked { at: i64::try_from(info.revocation_time.0.to_unix_duration().as_secs()).unwrap_or(0) },
+        CertStatus::Revoked(info) => Status::Revoked { at: cert::secs(info.revocation_time.0.to_unix_duration()) },
         CertStatus::Unknown(_) => Status::Unknown("the OCSP responder doesn't know the certificate".into()),
     }
 }

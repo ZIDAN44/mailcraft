@@ -212,7 +212,7 @@ pub fn verify(cms: &[u8], detached: Option<&[u8]>) -> Result<(Signed, Vec<u8>), 
         let signed_at = single(attrs, oids::SIGNING_TIME)
             .and_then(|v| v.to_der().ok())
             .and_then(|d| x509_cert::time::Time::from_der(&d).ok())
-            .and_then(|t| i64::try_from(t.to_unix_duration().as_secs()).ok());
+            .map(|t| cert::secs(t.to_unix_duration()));
         let reads = single(attrs, oids::SMIME_CAPABILITIES)
             .and_then(|v| v.decode_as::<Vec<AlgorithmIdentifierOwned>>().ok())
             .map(|v| v.into_iter().map(|a| a.oid).collect())

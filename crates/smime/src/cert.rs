@@ -4,7 +4,7 @@
 //! email, and naming the address the message is from.
 
 use der::asn1::ObjectIdentifier;
-use der::{Decode, Encode, Tag, Tagged};
+use der::{Decode, Tag, Tagged};
 use sha2::Digest as _;
 use x509_cert::Certificate;
 use x509_cert::ext::pkix::name::GeneralName;
@@ -59,17 +59,22 @@ pub fn info(cert: &[u8]) -> Result<CertInfo, Error> {
     let emails = emails(&c);
     let name = name_part(&tbs.subject, oids::COMMON_NAME).or_else(|| emails.first().cloned()).unwrap_or_default();
     let issuer = name_part(&tbs.issuer, oids::COMMON_NAME).or_else(|| name_part(&tbs.issuer, oids::ORGANIZATION)).unwrap_or_default();
-    let secs = |t: &x509_cert::time::Time| i64::try_from(t.to_unix_duration().as_secs()).unwrap_or(i64::MAX);
     let fingerprint = sha2::Sha256::digest(cert).iter().map(|b| format!("{b:02X}")).collect::<Vec<_>>().join(":");
     Ok(CertInfo {
         name,
         emails,
         issuer,
-        not_before: secs(&tbs.validity.not_before),
-        not_after: secs(&tbs.validity.not_after),
+        not_before: secs(tbs.validity.not_before.to_unix_duration()),
+        not_after: secs(tbs.validity.not_after.to_unix_duration()),
         fingerprint,
         key: key_description(&c),
     })
+}
+
+/// A time (a certificate's, a list's, an answer's) in Unix seconds. `der`'s times end in 9999,
+/// far inside an `i64`: the fallback is never reached.
+pub(crate) fn secs(since_1970: std::time::Duration) -> i64 {
+    i64::try_from(since_1970.as_secs()).unwrap_or(i64::MAX)
 }
 
 /// The addresses a certificate is for, lower-case, each once.
@@ -305,13 +310,13 @@ pub fn newer(a: &[u8], b: &[u8], now: i64) -> bool {
 
 /// Whether a certificate (DER) is a root: issued by itself.
 pub fn self_signed(cert: &[u8]) -> bool {
-    parse(cert).is_ok_and(|c| same_name(&c.tbs_certificate.subject, &c.tbs_certificate.issuer))
+    parse(cert).is_ok_and(|c| c.tbs_certificate.subject == c.tbs_certificate.issuer)
 }
 
 /// Whether the certificate `issuer` (DER) signed `cert` (DER).
 pub(crate) fn issued_by(cert: &[u8], issuer: &[u8]) -> bool {
     match (parse(cert), parse(issuer)) {
-        (Ok(c), Ok(i)) => same_name(&i.tbs_certificate.subject, &c.tbs_certificate.issuer) && issued(cert, &c, &i),
+        (Ok(c), Ok(i)) => i.tbs_certificate.subject == c.tbs_certificate.issuer && issued(cert, &c, &i),
         _ => false,
     }
 }
@@ -323,22 +328,18 @@ fn issued(cert: &[u8], c: &Certificate, issuer: &Certificate) -> bool {
     signature_holds(&issuer.tbs_certificate.subject_public_key_info, &c.signature_algorithm, None, tbs, sig)
 }
 
-fn same_name(a: &x509_cert::name::Name, b: &x509_cert::name::Name) -> bool {
-    matches!((a.to_der(), b.to_der()), (Ok(x), Ok(y)) if x == y)
-}
-
 fn is_ca(c: &Certificate) -> bool {
     extension::<BasicConstraints>(c, oids::BASIC_CONSTRAINTS).is_some_and(|b| b.ca)
 }
 
 pub(crate) fn in_date(c: &Certificate, now: i64) -> Result<(), Problem> {
     let v = &c.tbs_certificate.validity;
-    let secs = |t: &x509_cert::time::Time| i64::try_from(t.to_unix_duration().as_secs()).unwrap_or(i64::MAX);
-    if now < secs(&v.not_before) {
-        return Err(Problem::NotYetValid(secs(&v.not_before)));
+    let (from, until) = (secs(v.not_before.to_unix_duration()), secs(v.not_after.to_unix_duration()));
+    if now < from {
+        return Err(Problem::NotYetValid(from));
     }
-    if now > secs(&v.not_after) {
-        return Err(Problem::Expired(secs(&v.not_after)));
+    if now > until {
+        return Err(Problem::Expired(until));
     }
     Ok(())
 }
@@ -391,7 +392,7 @@ pub fn check_with_path(signer: &[u8], others: &[Vec<u8>], roots: &[Vec<u8>], now
         }
         let (der_now, c) = &current;
         let up = pool.iter().find(|(d, cand, _)| {
-            d.as_slice() != der_now.as_slice() && same_name(&cand.tbs_certificate.subject, &c.tbs_certificate.issuer) && issued(der_now, c, cand)
+            d.as_slice() != der_now.as_slice() && cand.tbs_certificate.subject == c.tbs_certificate.issuer && issued(der_now, c, cand)
         });
         let Some((d, cand, _)) = up else { break };
         // A root is one of `roots` however it was reached: messages often carry the root too.
