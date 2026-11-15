@@ -6,6 +6,7 @@ use super::*;
 
 mod drafts;
 mod keeping;
+mod outbox;
 mod quote;
 mod reactions;
 mod reopen;

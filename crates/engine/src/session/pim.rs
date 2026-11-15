@@ -15,6 +15,7 @@ pub mod directory;
 pub use directory::Directory;
 mod find;
 pub use find::{EVENT_HITS_MAX, EventHit, EventWhen};
+pub mod invite;
 mod local;
 pub use local::LocalEvents;
 mod reminders;

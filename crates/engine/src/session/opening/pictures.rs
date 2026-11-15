@@ -53,7 +53,7 @@ impl Session {
     }
 
     /// Ask the network layer for the open message's pictures, when allowed.
-    pub(super) fn request_pictures(&mut self) {
+    pub(crate) fn request_pictures(&mut self) {
         if !self.pictures_allowed() {
             return;
         }

@@ -15,7 +15,7 @@ impl Session {
         }
     }
 
-    pub(super) fn after_outbox_change(&mut self) {
+    pub(crate) fn after_outbox_change(&mut self) {
         let before: Vec<(String, u64)> = self.outbox.iter().map(|(a, i)| (a.clone(), i.id)).collect();
         self.refresh_outbox();
         if self.view == View::Outbox {
@@ -55,7 +55,7 @@ impl Session {
 
     /// Queued messages, as list rows. Their key is `(account, OUTBOX, 0, n)`, `n` counting from 1
     /// in Outbox order.
-    pub(super) fn outbox_summaries(&self) -> Vec<Summary> {
+    pub(crate) fn outbox_summaries(&self) -> Vec<Summary> {
         let Some(store) = &self.store else { return Vec::new() };
         let mut out = Vec::new();
         for (n, (account, item)) in self.outbox.iter().enumerate() {

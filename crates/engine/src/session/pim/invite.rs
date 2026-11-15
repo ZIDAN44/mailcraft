@@ -161,7 +161,7 @@ impl Session {
     }
 
     /// [`Session::message_invitation`], its source `raw` when it's been read already.
-    pub(super) fn invitation_in(&self, key: &MessageKey, raw: Option<Vec<u8>>) -> Option<(ICalendar, String)> {
+    pub(crate) fn invitation_in(&self, key: &MessageKey, raw: Option<Vec<u8>>) -> Option<(ICalendar, String)> {
         let (ics, from) = self.message_ics(key, raw)?;
         let cal = ical::parse_in(&ics, self.clock.local_zone());
         (!cal.events.is_empty()).then_some((cal, from))
@@ -639,13 +639,13 @@ fn set_answer(e: &mut CalEvent, mine: &[String], me: &str, stat: &str) {
 
 /// The occurrences `parts` (each a part's `RECURRENCE-ID`) name, when they name occurrences
 /// only (`None`: one is the series, so all of it).
-pub(super) fn occurrences_only(parts: &[Option<i64>]) -> Option<Vec<i64>> {
+pub(crate) fn occurrences_only(parts: &[Option<i64>]) -> Option<Vec<i64>> {
     (!parts.iter().any(Option::is_none)).then(|| parts.iter().flatten().copied().collect())
 }
 
 /// Take a cancelled meeting out of the calendar: the whole of it, or the occurrences `parts`
 /// name ([`occurrences_only`]). True when the server has something to learn.
-pub(super) fn cancel_parts(p: &mut Pim, uid: &str, parts: &[Option<i64>]) -> bool {
+pub(crate) fn cancel_parts(p: &mut Pim, uid: &str, parts: &[Option<i64>]) -> bool {
     match occurrences_only(parts) {
         None => {
             let gone: Vec<StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid).cloned().collect();
@@ -658,7 +658,7 @@ pub(super) fn cancel_parts(p: &mut Pim, uid: &str, parts: &[Option<i64>]) -> boo
 
 /// Delete these parts of an event on the server: each item once. True when the server has
 /// something to learn.
-pub(super) fn delete_items(p: &mut Pim, gone: &[StoredEvent]) -> bool {
+pub(crate) fn delete_items(p: &mut Pim, gone: &[StoredEvent]) -> bool {
     let mut remote = false;
     for g in gone.iter().filter(|g| !g.href.is_empty()) {
         if !p.deleted.iter().any(|t| t.href == g.href) {
@@ -673,7 +673,7 @@ pub(super) fn delete_items(p: &mut Pim, gone: &[StoredEvent]) -> bool {
 /// on the series, and a changed copy of it goes. On the server only that copy's own item is
 /// deleted; one it shares with the rest of the series (CalDAV keeps a series in one item) is
 /// written again without it. True when the server has something to learn.
-pub(super) fn drop_occurrence(p: &mut Pim, uid: &str, at: i64) -> bool {
+pub(crate) fn drop_occurrence(p: &mut Pim, uid: &str, at: i64) -> bool {
     let gone: Vec<StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid && e.event.recurrence_id == Some(at)).cloned().collect();
     p.events.retain(|e| !(e.event.uid == uid && e.event.recurrence_id == Some(at)));
     let mut remote = false;
@@ -699,7 +699,7 @@ pub(super) fn drop_occurrence(p: &mut Pim, uid: &str, at: i64) -> bool {
 
 /// Whether a series keeps as many occurrences taken out as it can ([`MAX_EXDATES`]), `at` not
 /// among them: taking that one out ([`drop_occurrence`]) would leave it in.
-pub(super) fn exceptions_full(p: &Pim, uid: &str, at: i64) -> bool {
+pub(crate) fn exceptions_full(p: &Pim, uid: &str, at: i64) -> bool {
     p.events
         .iter()
         .find(|e| e.event.uid == uid && e.event.recurrence_id.is_none())

@@ -23,14 +23,9 @@ use crate::{CmdError, CmdResult, Registry};
 mod accounts;
 mod changing;
 mod events;
-mod folder_edits;
-pub mod invite;
-mod mailbox_settings;
 mod mailboxes;
 mod opening;
 mod organize;
-mod outbox;
-mod pictures;
 mod prefs;
 mod searching;
 mod security;
@@ -39,11 +34,11 @@ mod writing;
 pub(crate) use accounts::REMOVE_BACKSTOP;
 pub(crate) use accounts::data_file_path;
 pub use accounts::{Changes, ImportState, Imports, TrustedCertificate};
+pub use accounts::{Compacting, Compaction, IDLE_AFTER_S};
 use changing::Batch;
+use changing::keys_by_account;
 #[cfg(test)]
 pub(crate) use changing::{MOVED_IN_MAX, MovedIn};
-use folder_edits::keys_by_account;
-pub use mailbox_settings::{Compacting, Compaction, IDLE_AFTER_S};
 #[cfg(test)]
 pub(crate) use opening::source_lines;
 pub use opening::{BodyWork, PreparedBody, SOURCE_SHOWN, SourceView, Toward};
@@ -62,6 +57,7 @@ pub use opening::SenderMarks;
 pub use organize::{junk, quick_steps, search_folders};
 pub use prefs::{ACCENTS, NotesOrder, Prefs, ReadInPane, ReadingPane, SenderAddresses, accent_code, accent_rgb};
 pub mod pim;
+pub use pim::invite;
 
 /// One account and what the session knows about it.
 #[derive(Clone, Debug, PartialEq)]

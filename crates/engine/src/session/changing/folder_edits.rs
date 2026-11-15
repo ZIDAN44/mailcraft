@@ -9,13 +9,13 @@ use super::*;
 
 impl Session {
     /// The account's hierarchy delimiter (from any folder that has one).
-    pub(super) fn delimiter(&self, account: &str) -> Option<char> {
+    pub(crate) fn delimiter(&self, account: &str) -> Option<char> {
         self.account(account).and_then(|a| a.folders.iter().find_map(|f| f.delimiter))
     }
 
     /// Where top-level folders go: the root, or `INBOX` on servers that keep every folder under
     /// it (`INBOX.Sent`, `INBOX.Projects`).
-    pub(super) fn top_parent(&self, account: &str) -> Option<String> {
+    pub(crate) fn top_parent(&self, account: &str) -> Option<String> {
         let a = self.account(account)?;
         let d = self.delimiter(account)?;
         let others: Vec<&Folder> = a.folders.iter().filter(|f| !f.path.eq_ignore_ascii_case("INBOX")).collect();
@@ -23,12 +23,12 @@ impl Session {
         (!others.is_empty() && others.iter().all(|f| f.path.starts_with(&format!("{}{d}", inbox.path)))).then(|| inbox.path.clone())
     }
 
-    pub(super) fn parent_of(path: &str, delimiter: Option<char>) -> Option<&str> {
+    pub(crate) fn parent_of(path: &str, delimiter: Option<char>) -> Option<&str> {
         delimiter.and_then(|d| path.rsplit_once(d)).map(|(p, _)| p)
     }
 
     /// A user folder (not Inbox or another special folder) that exists, for changing.
-    pub(super) fn user_folder(&self, account: &str, path: &str) -> Result<Folder, CmdError> {
+    pub(crate) fn user_folder(&self, account: &str, path: &str) -> Result<Folder, CmdError> {
         if self.account(account).is_none() {
             return Err(CmdError::Params(format!("no account `{account}`")));
         }
@@ -193,7 +193,7 @@ impl Session {
 
     /// Count `only` (all the account's folders when `None`) and set the counts in the account's
     /// list here: the counts, to keep on disk.
-    pub(super) fn count_local(&mut self, account: &str, only: Option<&[String]>) -> Vec<(String, u32, u32)> {
+    pub(crate) fn count_local(&mut self, account: &str, only: Option<&[String]>) -> Vec<(String, u32, u32)> {
         let paths: Vec<String> = match only {
             Some(list) => list.to_vec(),
             None => self.account(account).map(|a| a.folders.iter().map(|f| f.path.clone()).collect()).unwrap_or_default(),
@@ -224,7 +224,7 @@ impl Session {
     /// What came of the read marks the store kept behind the window ([`Store::mark_later`]): one
     /// that couldn't be kept is said, and its folders read again as the disk has them; an account
     /// whose folder list on disk had none of the folders counted gets the window's written whole.
-    pub(super) fn marks_kept(&mut self) {
+    pub(crate) fn marks_kept(&mut self) {
         let Some(store) = self.store.clone() else { return };
         for after in store.take_marks_failed() {
             match after {
@@ -274,7 +274,7 @@ impl Session {
     /// The message to show after `gone` leave the list: the next row down, else the one above,
     /// as the rows are shown (pinned ones first, a conversation one row). By the list's own
     /// order, deleting a message jumped up to a pinned one, or into the conversation above.
-    pub(super) fn successor(&self, gone: &[MessageKey]) -> Option<MessageKey> {
+    pub(crate) fn successor(&self, gone: &[MessageKey]) -> Option<MessageKey> {
         let gone: HashSet<&MessageKey> = gone.iter().collect();
         if let Some(last) = gone.iter().filter_map(|k| self.msg_row_of(k)).max() {
             let stays = |p: usize| self.row_key(p).filter(|k| !gone.contains(k));
@@ -384,7 +384,7 @@ impl Session {
         Ok(serde_json::json!({ "deleted": n }))
     }
 
-    pub(super) fn after_removal(&mut self, next: Option<MessageKey>) {
+    pub(crate) fn after_removal(&mut self, next: Option<MessageKey>) {
         self.reading = None;
         self.selection.clear();
         self.focus = None;
@@ -416,7 +416,7 @@ impl Session {
     /// Put a mark on `sel` or take it off (`on`), each account's in one change, in the
     /// accounts' order: `has` says whether a message has it, `op` is the change for some keys.
     /// One Undo puts back the ones that changed.
-    pub(super) fn mark_selection(
+    pub(crate) fn mark_selection(
         &mut self,
         sel: &[SharedSummary],
         on: bool,
@@ -577,7 +577,7 @@ impl Session {
         self.prefs.follow_up_done.get(&m.follow_up_id()).copied()
     }
 
-    pub(super) fn remember(&mut self, u: Undo) {
+    pub(crate) fn remember(&mut self, u: Undo) {
         self.undo.push(u);
         if self.undo.len() > UNDO_DEPTH {
             self.undo.remove(0);
@@ -688,7 +688,7 @@ fn put_day(days: &mut BTreeMap<String, i64>, id: String, day: Option<i64>) {
 }
 
 /// Message keys by their account, the accounts in order (the changes made to each go out so).
-pub(super) fn keys_by_account(keys: impl IntoIterator<Item = MessageKey>) -> BTreeMap<String, Vec<MessageKey>> {
+pub(crate) fn keys_by_account(keys: impl IntoIterator<Item = MessageKey>) -> BTreeMap<String, Vec<MessageKey>> {
     let mut out: BTreeMap<String, Vec<MessageKey>> = BTreeMap::new();
     for k in keys {
         out.entry(k.account.clone()).or_default().push(k);

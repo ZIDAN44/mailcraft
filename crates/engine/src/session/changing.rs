@@ -4,6 +4,9 @@ use std::collections::VecDeque;
 
 use super::*;
 
+mod folder_edits;
+pub(crate) use folder_edits::keys_by_account;
+
 /// The most moves into an Inbox or Junk remembered ([`MovedIn`]) before the oldest are
 /// forgotten: the server's answer takes each out again, so only those it never confirms stay.
 pub(crate) const MOVED_IN_MAX: usize = 50_000;

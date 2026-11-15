@@ -7,6 +7,7 @@ pub(crate) const UNREADABLE: &str = "this message could not be read";
 
 mod files;
 pub(crate) use files::OpenedFile;
+mod pictures;
 mod selecting;
 mod source;
 pub use selecting::Toward;

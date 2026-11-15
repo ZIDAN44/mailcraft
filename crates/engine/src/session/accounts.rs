@@ -3,11 +3,13 @@
 use super::*;
 
 mod importing;
+mod mailbox_settings;
 mod trusting;
 #[cfg(test)]
 pub(crate) use importing::REMOVE_BACKSTOP;
 pub(crate) use importing::data_file_path;
 pub use importing::{Changes, ImportState, Imports};
+pub use mailbox_settings::{Compacting, Compaction, IDLE_AFTER_S};
 pub use trusting::TrustedCertificate;
 
 /// A local account with more messages than this keeps the counts it saved when it opens, rather
