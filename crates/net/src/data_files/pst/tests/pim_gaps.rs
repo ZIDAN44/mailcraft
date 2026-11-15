@@ -12,13 +12,9 @@ use super::super::ImportOptions;
 use super::super::item::{File, Item};
 use super::super::out::Out;
 use super::super::rebuild::message;
+use super::files_of;
 use crate::data_files::scratch::scratch;
 use crate::pst_pim::Extra;
-
-/// The names of a message's files, read back from its source.
-fn files_of(raw: &[u8]) -> Vec<String> {
-    mailcraft_mime::parse(raw).map(|p| p.attachments.into_iter().map(|a| a.name).collect()).unwrap_or_default()
-}
 
 /// A meeting item as read: the meeting's time and its organizer's id.
 fn meeting(class: &str) -> Item {

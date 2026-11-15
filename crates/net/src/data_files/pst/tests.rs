@@ -12,6 +12,12 @@ fn get<'a>(props: &HashMap<u16, Val<'a>>, id: u16) -> Option<Val<'a>> {
     props.get(&id).cloned()
 }
 
+/// The names of a rebuilt message's files, read back from its source (which must parse: a
+/// message that doesn't carries no file either, and would pass for one that has none).
+fn files_of(raw: &[u8]) -> Vec<String> {
+    mailcraft_mime::parse(raw).expect("the rebuilt message parses").attachments.into_iter().map(|a| a.name).collect()
+}
+
 /// An item from its properties alone, with no recipients.
 fn item_with<'a>(props: &HashMap<u16, Val<'a>>, files: Vec<File>, named: &Named) -> Item {
     let none: [fn(u16) -> Option<Val<'a>>; 0] = [];
