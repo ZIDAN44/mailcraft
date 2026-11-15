@@ -350,8 +350,8 @@ fn run_with_pauses(
 fn print_report(done: &crate::pst::Imported, store: &mailcraft_store::Store, cache: &Path, secs: f64, mut waits: Vec<u64>) -> Option<String> {
     if !waits.is_empty() {
         waits.sort_unstable();
-        let at = |q: usize| waits.get((waits.len() * q / 100).min(waits.len() - 1)).copied().unwrap_or(0);
-        println!("pauses: {}, to stop p50 {} ms, p99 {} ms, max {} ms", waits.len(), at(50), at(99), waits.last().copied().unwrap_or(0));
+        let at = |q: usize| crate::fakes::measure::percentile(&waits, q).unwrap_or(0);
+        println!("pauses: {}, to stop p50 {} ms, p99 {} ms, max {} ms", waits.len(), at(50), at(99), at(100));
     }
     let listed: usize = done.folders.iter().map(|f| store.load_folder("d1", &f.path).map(|st| st.messages.len()).unwrap_or(0)).sum();
     assert_eq!(listed, done.messages, "every imported message listed once");

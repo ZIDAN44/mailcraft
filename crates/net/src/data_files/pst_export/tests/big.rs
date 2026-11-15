@@ -7,6 +7,7 @@
 
 use super::*;
 use crate::data_files::scratch::scratch;
+use crate::fakes::measure::peak_working_set as peak;
 
 /// Each file's size: more than the import keeps (100 MB).
 const BIG: usize = 120 << 20;
@@ -20,19 +21,6 @@ const MAX_GROWTH: u64 = 350 << 20;
 /// Whether this system says what a process's peak working set is ([`peak`]): elsewhere the
 /// memory bound isn't checked, only the file.
 const MEASURED: bool = cfg!(any(windows, target_os = "linux"));
-
-/// This process's peak working set, in bytes (Windows' count, asked of PowerShell; Linux's
-/// `VmHWM`); `None` where neither is there.
-fn peak() -> Option<u64> {
-    if cfg!(windows) {
-        let script = format!("(Get-Process -Id {}).PeakWorkingSet64", std::process::id());
-        let out = std::process::Command::new("powershell").args(["-NoProfile", "-Command", &script]).output().ok()?;
-        return String::from_utf8_lossy(&out.stdout).trim().parse().ok();
-    }
-    let status = std::fs::read_to_string("/proc/self/status").ok()?;
-    let kb = status.lines().find_map(|l| l.strip_prefix("VmHWM:"))?.trim().trim_end_matches("kB").trim().parse::<u64>().ok()?;
-    Some(kb << 10)
-}
 
 /// The export, alone in its process: started by [`big_files_are_written_with_bounded_memory`].
 #[test]

@@ -3,6 +3,7 @@ use std::net::{TcpListener, TcpStream};
 use std::time::{Duration, Instant};
 
 use super::*;
+use crate::fakes::measure::peak_working_set;
 
 /// Found in review: a redirect to another site took the request's sign-in along (the
 /// password of a JMAP account, a Microsoft token). It stays with the site it was for.
@@ -299,18 +300,6 @@ impl Write for Chunks {
     }
 }
 
-/// This process's peak working set in bytes (Windows: asked of PowerShell; Linux: `VmHWM`).
-fn peak() -> Option<u64> {
-    if cfg!(windows) {
-        let script = format!("(Get-Process -Id {}).PeakWorkingSet64", std::process::id());
-        let out = std::process::Command::new("powershell").args(["-NoProfile", "-Command", &script]).output().ok()?;
-        return String::from_utf8_lossy(&out.stdout).trim().parse().ok();
-    }
-    let status = std::fs::read_to_string("/proc/self/status").ok()?;
-    let kb = status.lines().find_map(|l| l.strip_prefix("VmHWM:"))?.trim().trim_end_matches("kB").trim().parse::<u64>().ok()?;
-    Some(kb << 10)
-}
-
 /// Time and peak memory of reading a chunked answer of `n` bytes in chunks of `size`.
 fn measure_chunked(n: usize, size: usize) {
     let url = Url::parse("http://127.0.0.1/big").unwrap();
@@ -318,12 +307,12 @@ fn measure_chunked(n: usize, size: usize) {
     let mut head = std::io::Cursor::new(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n".to_vec());
     let mut body = Chunks { left: n, size, out: Vec::new(), pos: 0, ended: false };
     let mut s = ReadThen(&mut head, &mut body);
-    let before = peak();
+    let before = peak_working_set();
     let t = std::time::Instant::now();
     let r = exchange(&mut s, &req, &url).unwrap();
     let took = t.elapsed();
     assert_eq!(r.body.len(), n);
-    let grew = before.zip(peak()).map(|(b, a)| a.saturating_sub(b) >> 20);
+    let grew = before.zip(peak_working_set()).map(|(b, a)| a.saturating_sub(b) >> 20);
     println!("MEASURE chunked {} MB in {size}-byte chunks: {took:?}, peak working set grew {grew:?} MB", n >> 20);
 }
 

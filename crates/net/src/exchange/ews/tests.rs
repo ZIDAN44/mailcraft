@@ -1,4 +1,5 @@
 use super::*;
+use crate::fakes::measure::peak_working_set;
 
 #[test]
 fn answers_are_read_carefully() {
@@ -46,19 +47,6 @@ fn answers_are_read_carefully() {
     assert_eq!(unb64("aGk=\r\n"), Some(b"hi".to_vec()));
     assert_eq!(unb64("**"), None);
     assert_eq!(esc("a<b&\"c\u{1}"), "a&lt;b&amp;&quot;c");
-}
-
-/// This process's peak working set in bytes (Windows' count, asked of PowerShell; Linux's
-/// `VmHWM`).
-fn peak() -> Option<u64> {
-    if cfg!(windows) {
-        let script = format!("(Get-Process -Id {}).PeakWorkingSet64", std::process::id());
-        let out = std::process::Command::new("powershell").args(["-NoProfile", "-Command", &script]).output().ok()?;
-        return String::from_utf8_lossy(&out.stdout).trim().parse().ok();
-    }
-    let status = std::fs::read_to_string("/proc/self/status").ok()?;
-    let kb = status.lines().find_map(|l| l.strip_prefix("VmHWM:"))?.trim().trim_end_matches("kB").trim().parse::<u64>().ok()?;
-    Some(kb << 10)
 }
 
 /// Audit #112: a big message's source downloaded (60 MB, 80 MB of base64 in the answer), from a
@@ -117,12 +105,12 @@ fn a_big_source_downloads() {
     let mut times = Vec::new();
     let mut growth = None;
     for round in 0..12 {
-        let before = peak();
+        let before = peak_working_set();
         let t = std::time::Instant::now();
         let got = c.download("I1").unwrap();
         times.push(t.elapsed().as_millis());
         if round == 0 {
-            growth = before.zip(peak()).map(|(b, a)| a.saturating_sub(b) >> 20);
+            growth = before.zip(peak_working_set()).map(|(b, a)| a.saturating_sub(b) >> 20);
         }
         assert!(got == raw, "the source byte for byte");
     }

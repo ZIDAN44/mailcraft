@@ -5,6 +5,7 @@ use mailcraft_pst::write;
 use mailcraft_store::search;
 
 use super::*;
+use crate::fakes::measure::percentile;
 use crate::waiting::{events_until, eventually, until};
 
 mod calendar_only;
@@ -759,7 +760,7 @@ fn a_mark_read_waits_little_for_an_index_pass() {
     };
     let at = |took: &mut Vec<f64>, q: usize| {
         took.sort_by(f64::total_cmp);
-        took.get((took.len() * q / 100).min(took.len().saturating_sub(1))).copied().unwrap_or(0.0)
+        percentile(took, q).unwrap_or(0.0)
     };
     let mut alone: Vec<f64> = (0..50).map(|i| mark(i % 2 == 0)).collect();
     let (alone50, alone99) = (at(&mut alone, 50), at(&mut alone, 99));

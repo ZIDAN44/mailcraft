@@ -61,8 +61,8 @@ fn working_set() -> Option<(u64, u64)> {
 /// Times in ms: the median, p99 and most.
 fn spread(took: &mut [f64]) -> (f64, f64, f64) {
     took.sort_by(f64::total_cmp);
-    let at = |q: usize| took.get((took.len() * q / 100).min(took.len().saturating_sub(1))).copied().unwrap_or(0.0);
-    (at(50), at(99), took.last().copied().unwrap_or(0.0))
+    let at = |q: usize| percentile(took, q).unwrap_or(0.0);
+    (at(50), at(99), at(100))
 }
 
 #[test]
