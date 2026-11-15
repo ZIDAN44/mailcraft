@@ -285,27 +285,37 @@ fn a_copy_stopped_at_the_swap_is_thrown_away() {
 }
 
 /// Another program holding the data file for a moment as the copy is put in its place (an
-/// antivirus scan as it's closed): the rename is tried again, and the copy isn't lost.
+/// antivirus scan as it's closed): the rename is refused, tried again, and the copy isn't lost.
+/// The file is let go of once the rename has been seen refused (not after a time: under load,
+/// the retries could run out first), so a rename that isn't tried again fails here every time.
 #[cfg(windows)]
 #[test]
 fn a_copy_is_put_in_place_while_something_holds_the_file_a_moment() {
     use std::os::windows::fs::OpenOptionsExt;
+    use std::sync::{Arc, Mutex};
     let t = temp("shrink-copy-held");
     let s = old_store(&t, &bloated());
     let file = s.data_file("a1").unwrap();
     let want = read_back(&s);
-    let held = file.clone();
+    let (held, holder) = (Arc::new(Mutex::new(None::<std::fs::File>)), file.clone());
+    let holding = held.clone();
     *crate::packed::Packs::lock(&packs(&s).compact_hook) = Some(Box::new(move || {
         // Shared with nobody: a rename over it is refused until it's let go of.
-        let f = std::fs::File::options().read(true).share_mode(0).open(&held)?;
-        std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(150));
-            drop(f);
-        });
+        *holding.lock().unwrap() = Some(std::fs::File::options().read(true).share_mode(0).open(&holder)?);
         Ok(())
     }));
-    let shrunk = s.copy_data_file("a1", &mut |_| true, &mut || true).unwrap().unwrap();
+    let refused = Arc::new(Mutex::new(0usize));
+    let (seen, let_go) = (refused.clone(), held.clone());
+    crate::atomic::RENAME_REFUSED.set(Some(Box::new(move || {
+        *seen.lock().unwrap() += 1;
+        drop(let_go.lock().unwrap().take());
+    })));
+    let shrunk = s.copy_data_file("a1", &mut |_| true, &mut || true);
+    crate::atomic::RENAME_REFUSED.set(None);
     *crate::packed::Packs::lock(&packs(&s).compact_hook) = None;
+    drop(held.lock().unwrap().take());
+    let shrunk = shrunk.unwrap().unwrap();
+    assert!(*refused.lock().unwrap() >= 1, "refused while held, then put in place");
     assert!(shrunk.copied, "{shrunk:?}");
     assert_eq!(read_back(&s), want);
     drop(s);

@@ -43,7 +43,21 @@ pub(crate) fn sync_folder_of(path: &Path) {
 /// or lock violation, or access denied: it's tried again for up to about a second before that
 /// counts as a failure (craft-atomic's `retry_rename`).
 pub(crate) fn rename(from: &Path, to: &Path) -> std::io::Result<()> {
-    craft_atomic::retry_rename(RenameRetry::platform(), || fs::rename(from, to))
+    craft_atomic::retry_rename(RenameRetry::platform(), || {
+        let renamed = fs::rename(from, to);
+        #[cfg(test)]
+        if renamed.is_err() {
+            RENAME_REFUSED.with_borrow_mut(|heard| heard.as_mut().map(|h| h()));
+        }
+        renamed
+    })
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Tests: told of each rename on this thread that was refused, before it's tried again (a
+    /// test holding the file lets go of it once its rename has been seen refused).
+    pub(crate) static RENAME_REFUSED: std::cell::RefCell<Option<Box<dyn FnMut()>>> = const { std::cell::RefCell::new(None) };
 }
 
 /// Makes the cache's folder if it isn't there. On Unix a folder that others can get into is
