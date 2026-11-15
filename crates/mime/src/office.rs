@@ -18,6 +18,8 @@ const MAX_ROWS: usize = 500;
 const MAX_COLS: usize = 40;
 const MAX_SHEETS: usize = 20;
 const MAX_SLIDES: usize = 200;
+/// Relationships of a workbook or presentation followed (a sheet's or a slide's among them).
+const MAX_RELATIONSHIPS: usize = 10_000;
 /// Most paragraphs read from one slide.
 const MAX_SLIDE_PARAS: usize = 400;
 
@@ -263,12 +265,19 @@ fn attr<'a>(attrs: &'a str, name: &str) -> Option<&'a str> {
 
 /// The parts the package's `main` part lists in its `element`s, in order, each by its `r:id`
 /// followed through `rels` (a target under `dir`, or from the package's root with a `/`), with
-/// the element's `name` when it has one. Empty when there are no relationships to follow: the
-/// format ties a sheet or a slide to its part so, not by the part's number.
-fn in_order(zip: &Zip<'_>, main: &str, rels: &str, element: &str, dir: &str) -> Vec<(Option<String>, String)> {
+/// the element's `name` when it has one; the first `most` of them. Empty when there are no
+/// relationships to follow: the format ties a sheet or a slide to its part so, not by the
+/// part's number.
+fn in_order(zip: &Zip<'_>, main: &str, rels: &str, element: &str, dir: &str, most: usize) -> Vec<(Option<String>, String)> {
     let Some(rels) = zip.read(rels) else { return Vec::new() };
-    let mut targets: Vec<(String, String)> = Vec::new();
+    // Each relationship's part by its id (the first of an id, as it was found), looked up once
+    // for each element: looked for through all of them, a file of thousands of each was read
+    // through thousands of times.
+    let mut targets: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     for t in tokens(&String::from_utf8_lossy(&rels)) {
+        if targets.len() >= MAX_RELATIONSHIPS {
+            break;
+        }
         if let Tok::Start { name, attrs, .. } = t
             && local(name) == "Relationship"
             && let (Some(id), Some(target)) = (attr(attrs, "Id"), attr(attrs, "Target"))
@@ -278,16 +287,19 @@ fn in_order(zip: &Zip<'_>, main: &str, rels: &str, element: &str, dir: &str) -> 
                 Some(from_root) => from_root.to_string(),
                 None => format!("{dir}{target}"),
             };
-            targets.push((id.to_string(), part));
+            targets.entry(id.to_string()).or_insert(part);
         }
     }
     let Some(x) = zip.read(main) else { return Vec::new() };
     let mut out = Vec::new();
     for t in tokens(&String::from_utf8_lossy(&x)) {
+        if out.len() >= most {
+            break;
+        }
         if let Tok::Start { name, attrs, .. } = t
             && local(name) == element
             && let Some(id) = prefixed_attr(attrs, "id")
-            && let Some((_, part)) = targets.iter().find(|(i, _)| i == id)
+            && let Some(part) = targets.get(id)
         {
             out.push((attr(attrs, "name").map(|n| unescape(n).into_owned()), part.clone()));
         }
@@ -495,17 +507,18 @@ fn workbook(zip: &Zip<'_>) -> Option<Preview> {
         }
     }
     // The sheets as the workbook lists them, each followed to its part.
-    let listed = in_order(zip, "xl/workbook.xml", "xl/_rels/workbook.xml.rels", "sheet", "xl/");
-    if !listed.is_empty() {
-        let mut sheets = Vec::new();
-        for (n, (name, part)) in listed.into_iter().take(MAX_SHEETS).enumerate() {
-            let Some(x) = zip.read(&part) else { continue };
-            let name = name.filter(|s| !s.is_empty()).unwrap_or_else(|| format!("Sheet{}", n + 1));
-            sheets.push((name, sheet(&String::from_utf8_lossy(&x), &shared)));
-        }
+    let listed = in_order(zip, "xl/workbook.xml", "xl/_rels/workbook.xml.rels", "sheet", "xl/", MAX_SHEETS);
+    let mut sheets = Vec::new();
+    for (n, (name, part)) in listed.into_iter().enumerate() {
+        let Some(x) = zip.read(&part) else { continue };
+        let name = name.filter(|s| !s.is_empty()).unwrap_or_else(|| format!("Sheet{}", n + 1));
+        sheets.push((name, sheet(&String::from_utf8_lossy(&x), &shared)));
+    }
+    if !sheets.is_empty() {
         return Some(Preview::Workbook(sheets));
     }
-    // A package without its relationships: its parts by number, its names in order.
+    // A package without its relationships, or whose relationships lead to no part that reads:
+    // its parts by number, its names in order.
     let mut names = Vec::new();
     if let Some(x) = zip.read("xl/workbook.xml") {
         for t in tokens(&String::from_utf8_lossy(&x)) {
@@ -516,7 +529,6 @@ fn workbook(zip: &Zip<'_>) -> Option<Preview> {
             }
         }
     }
-    let mut sheets = Vec::new();
     for n in 1..=MAX_SHEETS {
         let part = format!("xl/worksheets/sheet{n}.xml");
         if !zip.has(&part) {
@@ -615,10 +627,13 @@ fn sheet(xml: &str, shared: &[String]) -> Vec<Vec<String>> {
 
 fn slides(zip: &Zip<'_>) -> Option<Preview> {
     let mut out = Vec::new();
-    // As the presentation lists them, each followed to its part; without its relationships, by
-    // number.
-    let mut parts: Vec<String> =
-        in_order(zip, "ppt/presentation.xml", "ppt/_rels/presentation.xml.rels", "sldId", "ppt/").into_iter().map(|(_, p)| p).collect();
+    // As the presentation lists them, each followed to its part; without its relationships, or
+    // when they lead to no part there is, by number.
+    let mut parts: Vec<String> = in_order(zip, "ppt/presentation.xml", "ppt/_rels/presentation.xml.rels", "sldId", "ppt/", MAX_SLIDES)
+        .into_iter()
+        .map(|(_, p)| p)
+        .filter(|p| zip.has(p))
+        .collect();
     if parts.is_empty() {
         parts = (1..=MAX_SLIDES).map(|n| format!("ppt/slides/slide{n}.xml")).take_while(|p| zip.has(p)).collect();
     }

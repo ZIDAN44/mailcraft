@@ -104,6 +104,35 @@ fn sheets_and_slides_follow_their_relationships() {
     assert_eq!(preview("d.pptx", "", &file), Some(Preview::Slides(vec![vec!["first".into()], vec!["second".into()]])));
 }
 
+/// Relationships that lead to no part there is (written wrongly, or by a path not followed)
+/// leave the sheets and slides read by number, as a package without them: the preview was an
+/// empty workbook. Of two relationships with one id, the first is followed.
+#[test]
+fn relationships_that_lead_nowhere_leave_the_parts_by_number() {
+    let wb = r#"<workbook><sheets><sheet name="Costs" sheetId="1" r:id="rId1"/><sheet name="Days" sheetId="2" r:id="rId2"/></sheets></workbook>"#;
+    let rels = r#"<Relationships><Relationship Id="rId1" Target="sheets/one.xml"/><Relationship Id="rId2" Target="sheets/two.xml"/></Relationships>"#;
+    let sheet =
+        |t: &str| format!(r#"<worksheet><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>{t}</t></is></c></row></sheetData></worksheet>"#);
+    let (one, two) = (sheet("one"), sheet("two"));
+    let file =
+        zip(&[("xl/workbook.xml", wb), ("xl/_rels/workbook.xml.rels", rels), ("xl/worksheets/sheet1.xml", &one), ("xl/worksheets/sheet2.xml", &two)]);
+    let Some(Preview::Workbook(sheets)) = preview("x.xlsx", "", &file) else { panic!() };
+    let read: Vec<(&str, &str)> = sheets.iter().map(|(n, g)| (n.as_str(), g[0][0].as_str())).collect();
+    assert_eq!(read, [("Costs", "one"), ("Days", "two")]);
+    let pres = r#"<p:presentation><p:sldIdLst><p:sldId id="256" r:id="rId1"/></p:sldIdLst></p:presentation>"#;
+    let rels = r#"<Relationships><Relationship Id="rId1" Target="elsewhere/slide.xml"/></Relationships>"#;
+    let slide = "<p:sld><p:txBody><a:p><a:r><a:t>first</a:t></a:r></a:p></p:txBody></p:sld>";
+    let file = zip(&[("ppt/presentation.xml", pres), ("ppt/_rels/presentation.xml.rels", rels), ("ppt/slides/slide1.xml", slide)]);
+    assert_eq!(preview("d.pptx", "", &file), Some(Preview::Slides(vec![vec!["first".into()]])));
+    // One id twice: the first.
+    let wb = r#"<workbook><sheets><sheet name="Only" sheetId="1" r:id="rId1"/></sheets></workbook>"#;
+    let rels = r#"<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId1" Target="worksheets/sheet2.xml"/></Relationships>"#;
+    let file =
+        zip(&[("xl/workbook.xml", wb), ("xl/_rels/workbook.xml.rels", rels), ("xl/worksheets/sheet1.xml", &one), ("xl/worksheets/sheet2.xml", &two)]);
+    let Some(Preview::Workbook(sheets)) = preview("x.xlsx", "", &file) else { panic!() };
+    assert_eq!(sheets.iter().map(|(n, g)| (n.as_str(), g[0][0].as_str())).collect::<Vec<_>>(), [("Only", "one")]);
+}
+
 #[test]
 fn deflated_parts_as_office_writes_them() {
     use std::io::Write;
