@@ -8,7 +8,8 @@
 //!   says who signed and what they can read ([`Signed`]).
 //! * [`encrypt`] makes `EnvelopedData` (AES-256-CBC, what every mail program reads) or
 //!   `AuthEnvelopedData` (AES-256-GCM, authenticated: for recipients who said they read it), to
-//!   RSA certificates; [`decrypt`] opens both, with AES-CBC/GCM or 3DES, PKCS #1 v1.5 or OAEP.
+//!   RSA certificates (key transport) and EC ones (ECDH key agreement, RFC 5753); [`decrypt`]
+//!   opens both, with AES-CBC/GCM or 3DES, PKCS #1 v1.5, OAEP or ECDH.
 //! * A key MailCraft can't read (a smart card's, the system keychain's) signs and decrypts through
 //!   [`PrivateKey`] ([`sign_with`], [`decrypt_with`]).
 //! * [`cert::info`] says what a certificate is, and [`cert::check`] whether to trust it for a

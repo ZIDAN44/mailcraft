@@ -1,12 +1,13 @@
 //! Encryption: `EnvelopedData` (RFC 5652 §6) and `AuthEnvelopedData` (RFC 5083, AES-GCM by
 //! RFC 5084), each recipient's copy of the content key encrypted to their RSA key
-//! (`KeyTransRecipientInfo`).
+//! (`KeyTransRecipientInfo`) or wrapped with one agreed with their EC key by ECDH
+//! (`KeyAgreeRecipientInfo`, RFC 5753, in `kari.rs`).
 //!
 //! Sent: AES-256-CBC by default, since Thunderbird before 154 and older Outlook read nothing
 //! else; AES-256-GCM, which can't be changed undetected (EFAIL), when every recipient said they
 //! read it. Read: AES-CBC and AES-GCM of every key size, and 3DES for old mail; the content key
-//! by RSA PKCS #1 v1.5 or OAEP. Any failure on the way is [`Error::Decrypt`], one error, so
-//! nothing about the key leaks through what went wrong.
+//! by RSA PKCS #1 v1.5 or OAEP, or by ECDH on P-256 or P-384. Any failure on the way is
+//! [`Error::Decrypt`], one error, so nothing about the key leaks through what went wrong.
 
 use cms::cert::IssuerAndSerialNumber;
 use cms::content_info::{CmsVersion, ContentInfo};
