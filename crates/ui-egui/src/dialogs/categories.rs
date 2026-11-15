@@ -32,7 +32,7 @@ impl Dialog {
     }
 }
 
-/// A colour dot, as a button when `pick` (the one chosen ringed).
+/// A colour dot to pick, the one chosen ringed: whether it was clicked.
 fn swatch(ui: &mut Ui, t: &Tokens, c: u8, chosen: bool) -> bool {
     let (rect, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
     if resp.hovered() {

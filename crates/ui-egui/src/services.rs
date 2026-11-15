@@ -114,7 +114,6 @@ pub enum Picked {
     Certificate(String),
 }
 
-/// Platform services the UI needs.
 /// What becomes of the window when it's closed and MailCraft is kept running.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KeptOnClose {
@@ -125,6 +124,7 @@ pub enum KeptOnClose {
     Minimized,
 }
 
+/// Platform services the UI needs.
 pub trait Services {
     /// Unix seconds and the local UTC offset in seconds.
     fn clock(&self) -> (i64, i32);
@@ -284,7 +284,7 @@ pub trait Services {
         None
     }
     /// Whether files can be dragged out of the window to other apps (see
-    /// [`MailApp::take_drag_out`]).
+    /// [`MailApp::take_drag_out`](crate::MailApp::take_drag_out)).
     fn can_drag_out(&self) -> bool {
         false
     }

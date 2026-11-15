@@ -363,7 +363,6 @@ fn area(ui: &mut Ui, value: &mut String, hint: &str, rows: usize) -> egui::Respo
     ui.add(egui::TextEdit::multiline(value).hint_text(hint).desired_width(w).desired_rows(rows).margin(Margin::symmetric(8, 6)))
 }
 
-/// The line above a form's buttons.
 /// The tallest the notes are shown before they scroll.
 const NOTES_MAX_H: f32 = 320.0;
 
@@ -407,6 +406,7 @@ fn notes(ui: &mut Ui, t: &Tokens, text: &str, acts: &mut Vec<Action>) {
     });
 }
 
+/// The line above a form's buttons.
 fn footer_rule(ui: &mut Ui, t: &Tokens) {
     ui.add_space(6.0);
     let r = ui.available_rect_before_wrap();

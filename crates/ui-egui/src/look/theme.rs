@@ -287,7 +287,6 @@ pub fn quiet_text(t: &Tokens) -> Color32 {
     if t.dark { Color32::from_rgb(0x8F, 0x96, 0x9F) } else { Color32::from_rgb(0x6B, 0x72, 0x7C) }
 }
 
-/// Use an installed system UI font when the app found one (never bundled: see AGENTS.md).
 /// WCAG relative luminance of an sRGB colour.
 fn luminance(c: [u8; 3]) -> f32 {
     let ch = |v: u8| {
@@ -364,6 +363,7 @@ pub fn mail_colors_on(fg: Option<[u8; 3]>, bg: Option<[u8; 3]>, page: [u8; 3], t
     (text, bg.map(|b| Color32::from_rgb(b[0], b[1], b[2])))
 }
 
+/// Use an installed system UI font when the app found one (never bundled: see AGENTS.md).
 pub fn install_fonts(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>) {
     install_fonts_with(ctx, regular, bold, Vec::new(), None);
 }

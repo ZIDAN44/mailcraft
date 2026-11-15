@@ -467,13 +467,13 @@ pub struct UiState {
     pub people_view: people::PeopleView,
     /// The People list's columns and sort.
     pub people_list: people::ListSettings,
-    /// Notes: the search, the note being written on (and its text), a new note to write on,
-    /// and the keyboard to give its text box.
-    pub(crate) notes_query: String,
     /// The calendar's search (issue #33): what's typed, the switches, what it found.
     pub(crate) cal_search: calendar::CalSearch,
     /// How far the calendar's month grip has been dragged since it last added or took a month.
     pub(crate) months_drag: f32,
+    /// Notes: the search, the note being written on (and its text; a new one's is empty), and
+    /// the keyboard to give its text box.
+    pub(crate) notes_query: String,
     pub(crate) note_edit: Option<(String, String)>,
     pub(crate) note_focus: bool,
     /// Tasks: the search, and the task picked (uid).
