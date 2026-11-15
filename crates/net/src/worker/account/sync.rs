@@ -7,7 +7,7 @@ mod calendars;
 // Run once, on this thread, as [`Worker::publish_folders`] is about to write the folder list: a
 // test's way to come between deciding to write it and writing it.
 #[cfg(test)]
-thread_local!(pub(super) static BEFORE_FOLDERS_SAVED: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) });
+thread_local!(pub(crate) static BEFORE_FOLDERS_SAVED: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = const { std::cell::RefCell::new(None) });
 
 /// How often a full sync says the counts of the folders it has synced, at most.
 const COUNTS_EVERY: Duration = Duration::from_secs(1);
@@ -25,7 +25,7 @@ const QUIET_MINUTES: u32 = 10;
 
 impl Worker {
     /// Wait for new mail: IDLE on the Inbox when the server supports it, else poll.
-    pub(super) fn wait_for_mail(&mut self, rx: &Receiver<Job>) {
+    pub(crate) fn wait_for_mail(&mut self, rx: &Receiver<Job>) {
         self.working(false);
         // Looking only when asked (issue #104): once it's been quiet a while, signed out until
         // it's asked again, not kept awake for good.
@@ -109,7 +109,7 @@ impl Worker {
     }
 
     /// How often the account was asked to look for new mail (issue #58); `None`: left to itself.
-    pub(super) fn check_every(&self) -> Option<Duration> {
+    pub(crate) fn check_every(&self) -> Option<Duration> {
         // Only when asked (issue #104): never by itself.
         if self.acc.check_by_hand {
             return Some(BY_HAND);
@@ -119,7 +119,7 @@ impl Worker {
 
     /// How long between reading every folder: an account looking less often than that reads them
     /// when it looks, and nothing in between.
-    pub(super) fn full_sync_every(&self) -> Duration {
+    pub(crate) fn full_sync_every(&self) -> Duration {
         self.check_every().map_or(FULL_SYNC_EVERY, |every| every.max(MINUTE.saturating_mul(FULL_SYNC_MINUTES)))
     }
 
@@ -178,7 +178,7 @@ impl Worker {
     /// Whether the server dropped an IMAP connection left quiet between looks, as servers do, some
     /// within a minute. Found out here it's nothing to report: the connection is let go, to be made
     /// again at `back_at` or by whatever needs it first, instead of failing what's asked of it next.
-    pub(super) fn dropped_while_quiet(&mut self, back_at: Instant) -> bool {
+    pub(crate) fn dropped_while_quiet(&mut self, back_at: Instant) -> bool {
         let Some(Conn::Imap(c)) = self.conn.as_mut() else { return false };
         let Err(e) = c.noop() else { return false };
         log::info!("{}: the server let a quiet connection go: {e}", self.acc.id);
@@ -212,7 +212,7 @@ impl Worker {
     /// JMAP push: hold the server's event stream open (as IMAP holds IDLE), checking for jobs
     /// between short reads; a `state` event means something changed. `false` when the server
     /// can't push (the caller polls instead).
-    pub(super) fn wait_for_push(&mut self, rx: &Receiver<Job>) -> bool {
+    pub(crate) fn wait_for_push(&mut self, rx: &Receiver<Job>) -> bool {
         let Some(Conn::Jmap(c)) = &self.conn else { return false };
         let mut es = match c.events() {
             Ok(Some(es)) => es,
@@ -263,23 +263,23 @@ impl Worker {
         true
     }
 
-    pub(super) fn inbox(&self) -> Option<String> {
+    pub(crate) fn inbox(&self) -> Option<String> {
         self.folders.iter().find(|f| f.role == FolderRole::Inbox).map(|f| f.path.clone())
     }
 
     /// Refresh the folder list from the server; `false` when that failed.
-    pub(super) fn relist(&mut self) -> bool {
+    pub(crate) fn relist(&mut self) -> bool {
         self.relist_as(false)
     }
 
     /// [`Worker::relist`]; `quiet`, the second connection's: the list is its own (not published
     /// or saved), and a failure only logged (the account's status is the main one's to say).
-    pub(super) fn relist_as(&mut self, quiet: bool) -> bool {
+    pub(crate) fn relist_as(&mut self, quiet: bool) -> bool {
         self.relist_with(quiet, true)
     }
 
     /// [`Worker::relist_as`]; the main connection's list not said (nor written) unless `say`.
-    pub(super) fn relist_with(&mut self, quiet: bool, say: bool) -> bool {
+    pub(crate) fn relist_with(&mut self, quiet: bool, say: bool) -> bool {
         let id = self.id();
         let listed = match self.conn.as_mut() {
             Some(Conn::Imap(c)) => c.list(&id),
@@ -365,7 +365,7 @@ impl Worker {
     }
 
     /// The folder list, then every folder (Inbox first), staying responsive to opened messages.
-    pub(super) fn sync_all(&mut self, rx: &Receiver<Job>) {
+    pub(crate) fn sync_all(&mut self, rx: &Receiver<Job>) {
         let began = Instant::now();
         if !self.relist() {
             return;
@@ -460,7 +460,7 @@ impl Worker {
     /// Forget the numbers of JMAP messages no longer cached (nor waiting in a change). Not when
     /// the changes or a folder can't be read (the disk failing): their numbers would be lost, and
     /// the changes never sent (found in review). The next full sync tries again.
-    pub(super) fn prune_jmap_numbers(&mut self) {
+    pub(crate) fn prune_jmap_numbers(&mut self) {
         if !matches!(self.conn, Some(Conn::Jmap(_) | Conn::Graph(_) | Conn::Ews(_))) {
             return;
         }
@@ -491,7 +491,7 @@ impl Worker {
     /// read (the disk failing) leaves this worker's as it was, and `false` (found in review: it
     /// was left with none, and a POP account's wrote that over the one on disk, its mail out of
     /// reach).
-    pub(super) fn reload_folders(&mut self) -> bool {
+    pub(crate) fn reload_folders(&mut self) -> bool {
         self.say_counts();
         match self.store.load_folders(&self.acc.id) {
             Ok(folders) => {
@@ -509,7 +509,7 @@ impl Worker {
     /// counts it hasn't said yet follow it, so they're said under the new name (found in review:
     /// said under the old one, which the list on disk had no more, they were lost, and the
     /// renamed folder showed empty).
-    pub(super) fn renamed(&mut self, from: &str, to: &str) {
+    pub(crate) fn renamed(&mut self, from: &str, to: &str) {
         let delimiter = self.folders.iter().find_map(|f| f.delimiter);
         for f in &mut self.folders {
             if let Some(new) = mailcraft_model::rebase_path(&f.path, from, to, f.delimiter.or(delimiter)) {
@@ -528,7 +528,7 @@ impl Worker {
     /// again under the name it had, which the account's list has no more. That copy goes (found
     /// in review: left for good beside the renamed folder). Called before this worker's list
     /// follows the change; one the list on disk has again (made anew since) stays.
-    pub(super) fn clear_left_behind(&self, op: &Op) {
+    pub(crate) fn clear_left_behind(&self, op: &Op) {
         let (Op::RenameFolder { from: gone, .. } | Op::DeleteFolder { path: gone }) = op else { return };
         let Ok(listed) = self.store.load_folders(&self.acc.id) else { return };
         let delimiter = self.folders.iter().find_map(|f| f.delimiter);
@@ -565,7 +565,7 @@ impl Worker {
     /// list on disk hasn't (renamed here, the worker yet to hear of it) stay unsaid, to follow it
     /// to its new name ([`Worker::renamed`]), or go with it from this worker's list. Nothing once
     /// the account was removed.
-    pub(super) fn say_counts(&mut self) {
+    pub(crate) fn say_counts(&mut self) {
         let paths = std::mem::take(&mut self.counts_unsaid);
         let counts: Vec<(String, u32, u32)> =
             paths.iter().filter_map(|p| self.folders.iter().find(|f| f.path == *p)).map(|f| (f.path.clone(), f.unread, f.total)).collect();
@@ -603,7 +603,7 @@ impl Worker {
     /// not once it was removed (found in review: its files came back). Written while it's kept
     /// ([`Store::while_kept`]): a removal coming as it's written waits for it, and one just before
     /// is seen (a look first, then the write, let one in between bring the list back).
-    pub(super) fn publish_folders(&self) {
+    pub(crate) fn publish_folders(&self) {
         #[cfg(test)]
         if let Some(before) = BEFORE_FOLDERS_SAVED.with(|b| b.borrow_mut().take()) {
             before();
@@ -618,7 +618,7 @@ impl Worker {
     /// `$search` and EWS's `QueryString`, the messages found brought into their folders' lists
     /// and sent as they're found (an IMAP folder a range at a time, the others a folder at a
     /// time). Stops between two when a newer search is asked, or none (the search box cleared).
-    pub(super) fn search_server(&mut self, folders: &[String], query: String, search: u64) {
+    pub(crate) fn search_server(&mut self, folders: &[String], query: String, search: u64) {
         let id = self.id();
         let (sink, wanted) = (self.sink.clone(), self.search.clone());
         let still = move || wanted.load(Ordering::Relaxed) == search;
@@ -689,14 +689,14 @@ impl Worker {
     /// [`Self::sync_one`] for a folder a message was just filed in. A POP account's folders other
     /// than its Inbox are only on this computer, so reading one finds nothing new: said here, or
     /// the list on screen went without it until MailCraft started again (issue #57).
-    pub(super) fn sync_filed(&mut self, path: &str) {
+    pub(crate) fn sync_filed(&mut self, path: &str) {
         if matches!(self.conn, Some(Conn::Pop)) {
             self.sink.emit(Event::FolderChanged { account: self.id(), folder: path.to_string() });
         }
         self.sync_one(path);
     }
 
-    pub(super) fn sync_one(&mut self, path: &str) {
+    pub(crate) fn sync_one(&mut self, path: &str) {
         if self.sync_counted(path) {
             self.counts_unsaid.push(path.to_string());
             self.say_counts();
@@ -783,7 +783,7 @@ impl Worker {
     }
 
     /// Report the space used on the server (when it publishes a quota).
-    pub(super) fn report_quota(&mut self) {
+    pub(crate) fn report_quota(&mut self) {
         let q = match self.conn.as_mut() {
             Some(Conn::Imap(c)) => c.quota(),
             Some(Conn::Jmap(c)) => c.quota(),

@@ -13,7 +13,7 @@ const KEYWORDS_MAX: usize = 32;
 const UID_CHUNK: usize = 500;
 
 /// The connection to an account's server.
-pub(super) enum Conn {
+pub(crate) enum Conn {
     Imap(Client<Stream>),
     Jmap(jmap::Client),
     Graph(crate::graph::Client),
@@ -24,14 +24,14 @@ pub(super) enum Conn {
 
 /// A search of the server as each kind asks it: IMAP's `SEARCH` keys, JMAP's filter, and the
 /// words Graph and Exchange search for. `None` where that kind has nothing to ask.
-pub(super) struct ServerQuery {
+pub(crate) struct ServerQuery {
     imap: Option<Vec<SearchArg>>,
     filter: Option<serde_json::Value>,
     words: Option<WordQuery>,
 }
 
 impl ServerQuery {
-    pub(super) fn new(query: &str) -> ServerQuery {
+    pub(crate) fn new(query: &str) -> ServerQuery {
         ServerQuery { imap: crate::sync::imap_criteria(query), filter: mailcraft_jmap::search_filter(query), words: crate::sync::word_query(query) }
     }
 }
@@ -41,7 +41,7 @@ impl Conn {
     /// cache's lacks what only the message says; not kept once the account was removed since it
     /// had been removed `seen` times (an error then). POP mail is downloaded whole: what isn't
     /// here isn't anywhere.
-    pub(super) fn fetch_body(&mut self, jstate: &jmap::State, store: &Store, key: &MessageKey, seen: u64) -> Result<(Vec<u8>, Option<Summary>)> {
+    pub(crate) fn fetch_body(&mut self, jstate: &jmap::State, store: &Store, key: &MessageKey, seen: u64) -> Result<(Vec<u8>, Option<Summary>)> {
         match self {
             Conn::Imap(c) => crate::sync::fetch_body(c, store, key, seen),
             Conn::Jmap(c) => jmap::fetch_body(c, jstate, store, key, seen),
@@ -53,7 +53,7 @@ impl Conn {
 
     /// A message's text first, when the server gives it apart from its files and the message is
     /// big enough for that to be quicker (issue #24): `None` otherwise (JMAP and POP: never).
-    pub(super) fn fetch_text(&mut self, jstate: &jmap::State, store: &Store, key: &MessageKey) -> Result<Option<Vec<u8>>> {
+    pub(crate) fn fetch_text(&mut self, jstate: &jmap::State, store: &Store, key: &MessageKey) -> Result<Option<Vec<u8>>> {
         match self {
             Conn::Imap(c) => crate::sync::fetch_text(c, store, key),
             Conn::Graph(c) => crate::graph::fetch_text(c, jstate, store, key),
@@ -64,7 +64,7 @@ impl Conn {
 
     /// Carry out one change on the server, with the account's Trash (permanent deletes on Gmail
     /// need it). POP: changes are made here only (the cache has them already).
-    pub(super) fn apply_remote(&mut self, jstate: &jmap::State, op: &Op, trash: Option<&str>) -> Result<()> {
+    pub(crate) fn apply_remote(&mut self, jstate: &jmap::State, op: &Op, trash: Option<&str>) -> Result<()> {
         match self {
             Conn::Imap(c) => apply_remote_with(c, op, trash),
             Conn::Jmap(c) => jmap::apply_remote(c, jstate, op),
@@ -77,7 +77,7 @@ impl Conn {
     /// The automatic replies a server keeps itself (JMAP, Graph, Exchange), first changed to
     /// `set` when given; POP has none. `None` for IMAP: its go through ManageSieve, on a
     /// connection of their own.
-    pub(super) fn vacation(&self, set: Option<&Vacation>) -> Option<Result<Vacation>> {
+    pub(crate) fn vacation(&self, set: Option<&Vacation>) -> Option<Result<Vacation>> {
         let r = match self {
             Conn::Jmap(c) => set.map_or(Ok(()), |v| c.set_vacation(v)).and_then(|()| c.vacation()),
             Conn::Graph(c) => set.map_or(Ok(()), |v| c.set_vacation(v)).and_then(|()| c.vacation()),
@@ -91,7 +91,7 @@ impl Conn {
     /// File a draft in `folder` on a server reached through its API (JMAP, Graph, Exchange),
     /// then delete the copy it replaces. `None` for IMAP and POP, whose drafts the worker files
     /// itself (a Drafts folder made, MailCraft's own copies looked for; the cache).
-    pub(super) fn file_api_draft(&mut self, jstate: &jmap::State, folder: &str, raw: &[u8], replaces: Option<&MessageKey>) -> Option<Result<()>> {
+    pub(crate) fn file_api_draft(&mut self, jstate: &jmap::State, folder: &str, raw: &[u8], replaces: Option<&MessageKey>) -> Option<Result<()>> {
         let gone = replaces.map(|old| Op::Expunge { keys: vec![old.clone()] });
         let r = match self {
             Conn::Jmap(c) => jmap::append(c, jstate, folder, raw, &["$draft", "$seen"])
@@ -109,7 +109,7 @@ impl Conn {
     /// Put message `raw` into `folder` as received, marked with `flags`; for IMAP, `date` is when
     /// it came (`None`: now, as the server sees it). A POP account's folders are on this computer:
     /// `account`'s, in `store`.
-    pub(super) fn put(
+    pub(crate) fn put(
         &mut self,
         jstate: &jmap::State,
         store: &Store,
@@ -151,7 +151,7 @@ impl Conn {
     }
 
     /// Whether this kind of server has anything to ask for a search (POP: never).
-    pub(super) fn asks(&self, q: &ServerQuery) -> bool {
+    pub(crate) fn asks(&self, q: &ServerQuery) -> bool {
         match self {
             Conn::Imap(_) => q.imap.is_some(),
             Conn::Jmap(_) => q.filter.is_some(),
@@ -164,7 +164,7 @@ impl Conn {
     /// into the folder's list, as it's found (IMAP, a range at a time) or at the end. `None` when
     /// this kind of server has nothing to ask ([`Conn::asks`]). Nothing found is kept once the
     /// account was removed since it had been removed `seen` times.
-    pub(super) fn find_on_server(
+    pub(crate) fn find_on_server(
         &mut self,
         jstate: &mut jmap::State,
         store: &Store,
@@ -224,7 +224,7 @@ fn jmap_keywords(flags: &Flags) -> Vec<&str> {
 }
 
 /// Group keys by folder, select each folder, and skip keys whose UIDVALIDITY is stale.
-pub(super) fn by_folder<S: std::io::Read + std::io::Write>(
+pub(crate) fn by_folder<S: std::io::Read + std::io::Write>(
     c: &mut Client<S>,
     keys: &[MessageKey],
     mut f: impl FnMut(&mut Client<S>, &str, &str) -> Result<()>,
@@ -248,7 +248,7 @@ pub(super) fn by_folder<S: std::io::Read + std::io::Write>(
 /// Permanent delete. On Gmail (`X-GM-EXT-1`) an EXPUNGE in a label folder merely archives to
 /// All Mail, so those messages are first moved into Trash (COPYUID gives their new UIDs) and
 /// expunged in Trash.
-pub(super) fn expunge_keys<S: std::io::Read + std::io::Write>(c: &mut Client<S>, keys: &[MessageKey], trash: Option<&str>) -> Result<()> {
+pub(crate) fn expunge_keys<S: std::io::Read + std::io::Write>(c: &mut Client<S>, keys: &[MessageKey], trash: Option<&str>) -> Result<()> {
     let to_trash = trash.filter(|_| c.has("X-GM-EXT-1"));
     let mut in_trash: Vec<u32> = Vec::new();
     by_folder(c, keys, |c, folder, set| match to_trash {

@@ -5,13 +5,13 @@ use super::*;
 mod drafts;
 mod filing;
 
-pub(super) use drafts::{DraftOrder, KeptDrafts, Order, Stopped, keep_draft};
+pub(crate) use drafts::{DraftOrder, KeptDrafts, Order, Stopped, keep_draft};
 #[cfg(test)]
-pub(super) use drafts::{KEPT_DRAFTS, PENDING_DRAFTS, PendingDraft, kept_raws, sweep_kept};
-pub(super) use filing::{Filed, Filing, LOOK_ASIDE_EVERY, SetAside};
+pub(crate) use drafts::{KEPT_DRAFTS, PENDING_DRAFTS, PendingDraft, kept_raws, sweep_kept};
+pub(crate) use filing::{Filed, Filing, LOOK_ASIDE_EVERY, SetAside};
 
 impl Worker {
-    pub(super) fn handle(&mut self, job: Job) {
+    pub(crate) fn handle(&mut self, job: Job) {
         match job {
             Job::SyncAll { .. } => {
                 // Send / Receive: the drafts kept here go too, those that failed tried again now.
@@ -199,7 +199,7 @@ impl Worker {
     /// Connected for a job that needs the server, with one try when it isn't. A refused sign-in
     /// isn't tried again (the password known to be wrong was sent with each such job), and a
     /// try that fails shows as the account's status (left at "Connecting…" otherwise).
-    pub(super) fn connected_for_job(&mut self) -> std::result::Result<(), String> {
+    pub(crate) fn connected_for_job(&mut self) -> std::result::Result<(), String> {
         if self.conn.is_some() {
             return Ok(());
         }
@@ -222,7 +222,7 @@ impl Worker {
 
     /// Read (and first change, when `set`) the automatic replies: JMAP's own, or a Sieve script
     /// through ManageSieve on the IMAP host.
-    pub(super) fn vacation(&mut self, set: Option<&mailcraft_model::job::Vacation>) -> Result<mailcraft_model::job::Vacation> {
+    pub(crate) fn vacation(&mut self, set: Option<&mailcraft_model::job::Vacation>) -> Result<mailcraft_model::job::Vacation> {
         // Not connected: one try, and a failure shows as the account's status (it said
         // "Connecting…" for good when the vacation page was opened on an account that can't).
         // (The second connection asks ManageSieve straight away: it needs no IMAP session.)
@@ -262,7 +262,7 @@ impl Worker {
         v
     }
 
-    pub(super) fn report_vacation(&self, r: Result<mailcraft_model::job::Vacation>, failed: Option<String>) {
+    pub(crate) fn report_vacation(&self, r: Result<mailcraft_model::job::Vacation>, failed: Option<String>) {
         let (vacation, error) = match r {
             Ok(v) => (Some(v), failed),
             // What the server said, without "the server refused:" before it: the page says
@@ -275,7 +275,7 @@ impl Worker {
 
     /// Re-apply queued ops that touch `path` to its freshly saved cache. True if the cache
     /// changed as a result. Not once the account was removed.
-    pub(super) fn reapply_waiting(&mut self, path: &str) -> bool {
+    pub(crate) fn reapply_waiting(&mut self, path: &str) -> bool {
         let mut any = false;
         let waiting = self.store.load_ops(&self.acc.id).unwrap_or_else(|e| {
             log::warn!("the changes waiting couldn't be read, so none is put back over {path}: {e}");
@@ -300,7 +300,7 @@ impl Worker {
     }
 
     /// Replay offline changes on the server, oldest first.
-    pub(super) fn replay(&mut self) {
+    pub(crate) fn replay(&mut self) {
         let mut destinations: Vec<String> = Vec::new();
         let mut relist = false;
         let trash = self.folders.iter().find(|f| f.role == FolderRole::Trash).map(|f| f.path.clone());

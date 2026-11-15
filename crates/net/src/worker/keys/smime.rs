@@ -196,7 +196,7 @@ fn identity(account: String, done: std::result::Result<kept::Has, String>) -> Ev
 impl Pool {
     /// A draft encrypted to the account's own certificate, at once (it may be the last thing
     /// before MailCraft closes). Without the key it stays as it is, and the user is told.
-    pub(super) fn seal(&self, account: &AccountConfig, raw: Vec<u8>) -> Vec<u8> {
+    pub(crate) fn seal(&self, account: &AccountConfig, raw: Vec<u8>) -> Vec<u8> {
         let sealed = kept(self.creds.as_ref(), account).map_err(KeyError::Other).and_then(|me| {
             let own = me.chain.first().cloned().ok_or_else(|| other("the certificate is missing"))?;
             protect(&raw, &me, false, &[own], true, false)
@@ -214,10 +214,10 @@ impl Pool {
         }
     }
 
-    pub(super) fn smime(&mut self, job: Job) {
+    pub(crate) fn smime(&mut self, job: Job) {
         let (creds, sink) = (self.creds.clone(), self.sink.clone());
         let unstarted = Unstarted::of(&job);
-        let spawned = super::routing::spawn("mail-smime", move || match job {
+        let spawned = crate::worker::routing::spawn("mail-smime", move || match job {
             Job::ImportIdentity { account, data, password } => {
                 let done = smime::read_p12(&data, &password.0)
                     .map_err(|e| e.to_string())

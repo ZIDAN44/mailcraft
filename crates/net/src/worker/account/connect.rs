@@ -16,7 +16,7 @@ fn microsoft_not_connected(said: &str) -> bool {
 /// token for its folder list and refuses it for what comes next would have a new token asked
 /// for, and a connection made, without a pause and without end. So only so many go at once.
 #[derive(Default)]
-pub(super) struct Renewals(VecDeque<Instant>);
+pub(crate) struct Renewals(VecDeque<Instant>);
 
 /// How many connections a renewed token makes again at once within [`RENEWALS_WITHIN`]; each
 /// one past that waits until the oldest of them is that long ago.
@@ -70,7 +70,7 @@ fn renewed_tokens_connect_at_once_only_so_often() {
 type InTest = (Option<String>, Option<Box<dyn FnOnce()>>);
 
 #[cfg(test)]
-thread_local!(pub(super) static AUTODISCOVER_IN_TEST: std::cell::RefCell<InTest> = const { std::cell::RefCell::new((None, None)) });
+thread_local!(pub(crate) static AUTODISCOVER_IN_TEST: std::cell::RefCell<InTest> = const { std::cell::RefCell::new((None, None)) });
 
 /// Where autodiscovery asks: the usual addresses (`AUTODISCOVER_IN_TEST` in a test).
 #[cfg(test)]
@@ -86,7 +86,7 @@ fn autodiscover_in_test() -> InTest {
 impl Worker {
     /// What to sign in with: the password, or for OAuth accounts a current access token
     /// (refreshed from the stored refresh token when needed).
-    pub(super) fn secret(&mut self) -> Result<String> {
+    pub(crate) fn secret(&mut self) -> Result<String> {
         // Held while refreshing: the account's other connection waits for the new token rather
         // than refreshing with the same old one.
         let mut auth = Auth::held(&self.auth);
@@ -121,7 +121,7 @@ impl Worker {
 
     /// Before each job: an OAuth account's Graph or JMAP connection carries the current access
     /// token, refreshed when it ran out by the wall clock (or by the account's other connection).
-    pub(super) fn fresh_token(&mut self) {
+    pub(crate) fn fresh_token(&mut self) {
         if self.acc.oauth.is_none() || !matches!(self.conn, Some(Conn::Graph(_) | Conn::Jmap(_))) {
             return;
         }
@@ -132,7 +132,7 @@ impl Worker {
     }
 
     /// Drop the access token the server refused and fetch a new one with the refresh token.
-    pub(super) fn renew_token(&mut self) -> Result<String> {
+    pub(crate) fn renew_token(&mut self) -> Result<String> {
         Auth::held(&self.auth).access = None;
         let t = self.secret()?;
         self.use_token(&t);
@@ -148,12 +148,12 @@ impl Worker {
     }
 
     /// What Microsoft's sign-in granted (its scopes), when known.
-    pub(super) fn granted(&self) -> String {
+    pub(crate) fn granted(&self) -> String {
         Auth::held(&self.auth).access.as_ref().map(|t| t.granted.clone()).unwrap_or_default()
     }
 
     /// Note a failure; drop the connection when it is unusable.
-    pub(super) fn failed(&mut self, e: NetError) {
+    pub(crate) fn failed(&mut self, e: NetError) {
         log::warn!("{}: {e}", self.acc.id);
         match e {
             // Microsoft took the token but won't open the mailbox: nothing to retry until changed.
@@ -214,7 +214,7 @@ impl Worker {
         self.backoff = (self.backoff * 2).min(Duration::from_secs(300));
     }
 
-    pub(super) fn connect(&mut self) -> Result<()> {
+    pub(crate) fn connect(&mut self) -> Result<()> {
         if self.conn.is_some() {
             return Ok(());
         }
@@ -305,7 +305,7 @@ impl Worker {
     /// it (Outlook.com's own setting, or an organisation's), or the browser signed in as another
     /// address. The address it signed in as is tried once; otherwise it's a refusal that says
     /// what to do, not a sign-in to ask for again (that only loops).
-    pub(super) fn imap_with_token(&self, user: &str, token: &str) -> Result<Client<Stream>> {
+    pub(crate) fn imap_with_token(&self, user: &str, token: &str) -> Result<Client<Stream>> {
         let mut c = Client::connect_trusting(&self.acc.imap, crate::stream::Trusted::of(&self.acc))?;
         let m = match c.login_xoauth2(user, token) {
             Ok(()) => return Ok(c),
@@ -330,7 +330,7 @@ impl Worker {
     /// A connection that couldn't be made is never tried again at once (that looped, showing
     /// "Connecting…" for good): a refusal (Graph's "no mailbox", a setting the server won't take)
     /// waits until asked, anything else for the backoff.
-    pub(super) fn connect_failed(&mut self, e: NetError) {
+    pub(crate) fn connect_failed(&mut self, e: NetError) {
         match e {
             e @ NetError::Auth(_) => self.failed(e),
             e if e.is_fatal() => self.failed(e),
@@ -352,7 +352,7 @@ impl Worker {
         }
     }
 
-    pub(super) fn connect_and_sync(&mut self) {
+    pub(crate) fn connect_and_sync(&mut self) {
         if let Err(e) = self.connect() {
             self.connect_failed(e);
             return;
@@ -368,7 +368,7 @@ impl Worker {
         }
     }
 
-    pub(super) fn client(&mut self) -> Result<&mut Client<Stream>> {
+    pub(crate) fn client(&mut self) -> Result<&mut Client<Stream>> {
         match self.conn.as_mut() {
             Some(Conn::Imap(c)) => Ok(c),
             _ => Err(NetError::Closed("not connected".into())),
@@ -376,7 +376,7 @@ impl Worker {
     }
 
     /// Save the JMAP / Graph numbering after it changed; not once the account was removed.
-    pub(super) fn save_jstate(&self) {
+    pub(crate) fn save_jstate(&self) {
         if self.acc.is_api()
             && let Some(Err(e)) = self.store.while_kept(&self.acc.id, self.removals, || self.jstate.save(&self.store, &self.acc.id))
         {

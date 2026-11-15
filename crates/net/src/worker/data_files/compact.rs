@@ -24,11 +24,11 @@ use crate::space::{LOW_SPACE, Space};
 const PROGRESS_EVERY: Duration = Duration::from_millis(250);
 
 /// The compactions running, by account, and the jobs waiting for one to give its file back.
-pub(super) struct Compacts {
+pub(crate) struct Compacts {
     running: HashMap<String, CompactCtl>,
     held: HashMap<String, Vec<Job>>,
     /// The drive asked for room: the computer's own (a test may give its own).
-    pub(super) space: Arc<dyn Space>,
+    pub(crate) space: Arc<dyn Space>,
 }
 
 impl Default for Compacts {
@@ -73,9 +73,9 @@ struct Run {
 
 impl Pool {
     /// Measure an account's data file, on a thread of its own (a cold one takes a moment).
-    pub(super) fn data_file_health(&mut self, account: String) {
+    pub(crate) fn data_file_health(&mut self, account: String) {
         let (store, sink, asked) = (self.store.clone(), self.sink.clone(), account.clone());
-        let spawned = super::routing::spawn("mail-health", move || {
+        let spawned = crate::worker::routing::spawn("mail-health", move || {
             let measured = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| store.data_file_health(&account)));
             let (health, error) = match measured {
                 Ok(Ok(h)) => (h.map(Box::new), None),
@@ -94,7 +94,7 @@ impl Pool {
 
     /// Compact an account's data file on a thread of its own; one compacting already, or
     /// importing, is told so.
-    pub(super) fn compact_data_file(&mut self, account: String, mode: CompactMode) {
+    pub(crate) fn compact_data_file(&mut self, account: String, mode: CompactMode) {
         self.prune_compacts();
         let refused = if self.compacts.running.contains_key(&account) {
             Some("its data file is being compacted already")
@@ -143,7 +143,7 @@ impl Pool {
     }
 
     /// Stop compacting an account's data file where that can be stopped (heard between batches).
-    pub(super) fn cancel_compact(&mut self, account: &str) {
+    pub(crate) fn cancel_compact(&mut self, account: &str) {
         if let Some(c) = self.compacts.running.get(account) {
             c.cancel.store(true, Ordering::Relaxed);
         }
@@ -151,7 +151,7 @@ impl Pool {
 
     /// Every compaction asked to stop, none waited for (MailCraft closing): one that has its file
     /// to itself ends with the process, and the file is checked as it next opens.
-    pub(super) fn cancel_compacts(&mut self) {
+    pub(crate) fn cancel_compacts(&mut self) {
         for c in self.compacts.running.values() {
             c.cancel.store(true, Ordering::Relaxed);
         }
@@ -159,7 +159,7 @@ impl Pool {
 
     /// `job`, unless its account's data file is being had to itself by a compaction: then it
     /// waits here, and goes on once that's over ([`Pool::release_compacted`]).
-    pub(super) fn held_for_compaction(&mut self, job: Job) -> Option<Job> {
+    pub(crate) fn held_for_compaction(&mut self, job: Job) -> Option<Job> {
         if matches!(job, Job::CancelCompact { .. } | Job::CompactDataFile { .. }) {
             return Some(job);
         }
@@ -175,7 +175,7 @@ impl Pool {
 
     /// The jobs held for accounts whose compaction no longer has the file to itself, sent on in
     /// the order they came.
-    pub(super) fn release_compacted(&mut self) {
+    pub(crate) fn release_compacted(&mut self) {
         if self.compacts.held.is_empty() {
             return;
         }
@@ -195,7 +195,7 @@ impl Pool {
 
     /// Whether an account's data file is being compacted: no import is begun meanwhile. Both are
     /// decided here, on the pool's thread, so neither can start beside the other.
-    pub(super) fn compacting(&mut self, account: &str) -> bool {
+    pub(crate) fn compacting(&mut self, account: &str) -> bool {
         self.prune_compacts();
         self.compacts.running.contains_key(account)
     }

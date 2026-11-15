@@ -358,26 +358,24 @@ impl Pool {
     }
 }
 
-mod changes;
-mod compact;
-mod connect;
+mod account;
 mod credentials;
-mod directory;
+mod data_files;
 mod edits;
-mod imports;
 mod indexing;
-mod opening;
-mod pgp;
-mod remote;
+mod keys;
 mod routing;
-mod send;
-mod smime;
 
 /// The keychain entry of an account's calendar and contacts server's own password.
 pub(crate) const DAV_SECRET: &str = "dav";
 /// Where an Exchange Online account's directory sign-in (its refresh token) is kept (issue #9).
 pub(crate) const DIRECTORY_SECRET: &str = "directory";
-mod sync;
+
+#[cfg(test)]
+use account::sync;
+use account::{changes, connect, remote};
+use data_files::{compact, imports};
+use keys::{pgp, smime};
 
 pub use credentials::{Credentials, MemoryCredentials};
 #[cfg(test)]

@@ -5,7 +5,7 @@ use super::*;
 
 impl Worker {
     /// Look `query` up in the account's directory and say who was found.
-    pub(super) fn search_directory(&mut self, query: String) {
+    pub(crate) fn search_directory(&mut self, query: String) {
         let mut consent = false;
         let r = match &self.conn {
             Some(Conn::Ews(c)) => c.search_directory(&query),

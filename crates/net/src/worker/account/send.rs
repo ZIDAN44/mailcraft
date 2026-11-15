@@ -16,7 +16,7 @@ impl Worker {
     /// The account's second connection: sends mail and reads or changes the automatic replies,
     /// whatever the main connection is doing. It connects when there's something to do, and lets
     /// go of an idle connection after a while.
-    pub(super) fn run_quick(mut self, rx: Receiver<Job>) {
+    pub(crate) fn run_quick(mut self, rx: Receiver<Job>) {
         let mut waiting: VecDeque<Job> = VecDeque::new();
         loop {
             if waiting.is_empty() {
@@ -64,7 +64,7 @@ impl Worker {
     }
 
     /// Close an idle connection (servers drop them anyway).
-    pub(super) fn let_go(&mut self) {
+    pub(crate) fn let_go(&mut self) {
         if let Some(Conn::Imap(c)) = self.conn.as_mut() {
             c.logout();
         }
@@ -74,7 +74,7 @@ impl Worker {
     /// Send on the second connection. Sent: a copy filed in Sent Items (IMAP), and the main
     /// connection told to look there. Not sent for now (offline, asked to wait): handed to the
     /// main connection, which keeps it in the Outbox; refused: said.
-    pub(super) fn send_quick(&mut self, job: Job) {
+    pub(crate) fn send_quick(&mut self, job: Job) {
         let Job::Send { id, raw, from, recipients, sent_folder, .. } = &job else { return };
         match self.deliver(raw, from, recipients, sent_folder.as_deref()) {
             Ok(()) => {
@@ -109,7 +109,7 @@ impl Worker {
     /// Sent Items. An IMAP account with none gets one, as Thunderbird, Evolution and Outlook make
     /// one (issue #19: sent mail was kept nowhere, and nothing said so): `Sent`, or `INBOX.Sent`
     /// on a server that keeps every folder in the Inbox. Connects to make it.
-    pub(super) fn sent_folder(&mut self, given: Option<String>) -> Result<Option<String>> {
+    pub(crate) fn sent_folder(&mut self, given: Option<String>) -> Result<Option<String>> {
         if let Some(f) = given.or_else(|| self.folders.iter().find(|f| f.role == FolderRole::Sent).map(|f| f.path.clone())) {
             return Ok(Some(f));
         }
@@ -125,7 +125,7 @@ impl Worker {
     /// afresh): the folders are listed again, and the role's folder, wherever it is now, takes it.
     /// Only when there is none is the folder made again. Where it went, and whether it was made
     /// (the folders are then to be listed again).
-    pub(super) fn file_in(&mut self, folder: &str, role: FolderRole, flags: &str, raw: &[u8]) -> Result<(String, bool)> {
+    pub(crate) fn file_in(&mut self, folder: &str, role: FolderRole, flags: &str, raw: &[u8]) -> Result<(String, bool)> {
         match self.client()?.append(folder, flags, raw) {
             Ok(_) => return Ok((folder.to_string(), false)),
             Err(NetError::NoFolder(m)) => log::info!("{}: {folder} isn't on the server ({m}); its folders are listed again", self.acc.id),
@@ -151,7 +151,7 @@ impl Worker {
     /// The account's folder for `role` (Sent Items, Drafts) on an IMAP server that lists none:
     /// one there by its name without the role (another client's), else one made, `name` or
     /// `INBOX.name` on a server that keeps every folder in the Inbox. Connects to make it.
-    pub(super) fn role_folder(&mut self, role: FolderRole, name: &str) -> Result<Option<String>> {
+    pub(crate) fn role_folder(&mut self, role: FolderRole, name: &str) -> Result<Option<String>> {
         if let Some(f) = self.folders.iter().find(|f| f.role == role) {
             return Ok(Some(f.path.clone()));
         }
@@ -207,7 +207,7 @@ impl Worker {
     /// A sent message's copy: Exchange, Graph and JMAP file it themselves; IMAP servers get one
     /// (not Gmail, which files its own). Then the main connection reads Sent Items, now and, where
     /// the server files it a moment later, again then.
-    pub(super) fn file_sent_quick(&mut self, id: u64, raw: &[u8], sent_folder: Option<String>) {
+    pub(crate) fn file_sent_quick(&mut self, id: u64, raw: &[u8], sent_folder: Option<String>) {
         // What the main connection has listed since this one started.
         if let Ok(listed) = self.store.load_folders(&self.acc.id)
             && !listed.is_empty()
@@ -254,7 +254,7 @@ impl Worker {
     /// the copy in Sent).
     /// An OAuth token the server refuses (SMTP's XOAUTH2, Graph's 401) is renewed from the
     /// refresh token and the message tried once more.
-    pub(super) fn deliver(&mut self, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<&str>) -> Result<()> {
+    pub(crate) fn deliver(&mut self, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<&str>) -> Result<()> {
         match self.deliver_once(raw, from, recipients, sent_folder) {
             Err(NetError::Auth(m)) if self.acc.oauth.is_some() => {
                 log::info!("{}: sending: token refused ({m}); refreshing it", self.acc.id);
@@ -320,7 +320,7 @@ impl Worker {
         })
     }
 
-    pub(super) fn send(&mut self, id: u64, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<String>) {
+    pub(crate) fn send(&mut self, id: u64, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<String>) {
         let sent = self.deliver(raw, from, recipients, sent_folder.as_deref());
         if let Err(e) = sent {
             if e.is_retryable() {
@@ -352,7 +352,7 @@ impl Worker {
 
     /// Send what waits in the Outbox, oldest first. Stops at the first failure that may clear
     /// up later (still offline); a message refused for good stays, marked with the error.
-    pub(super) fn flush_outbox(&mut self) {
+    pub(crate) fn flush_outbox(&mut self) {
         self.store.outbox_sweep(&self.acc.id);
         for mut item in self.store.outbox(&self.acc.id) {
             // Sent, or refused for good, already: the Outbox couldn't be told.
@@ -407,7 +407,7 @@ impl Worker {
     }
 
     /// A message went out: tell the engine and file a copy in Sent.
-    pub(super) fn after_sent(&mut self, id: u64, raw: &[u8], sent_folder: Option<String>) {
+    pub(crate) fn after_sent(&mut self, id: u64, raw: &[u8], sent_folder: Option<String>) {
         self.sink.emit(Event::Sent { account: self.id(), id });
         if self.acc.is_api() {
             // Filed when it was submitted.

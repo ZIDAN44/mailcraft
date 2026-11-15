@@ -15,7 +15,7 @@ use mailcraft_model::pim::{PIM_DOC, Pim};
 use super::*;
 use crate::pst::{ImportOptions, ImportSink, Imported, Planned, Progress, Stop};
 
-pub(super) mod filing;
+pub(crate) mod filing;
 mod looking;
 mod rereading;
 use looking::*;
@@ -23,7 +23,7 @@ use looking::*;
 /// How long closing MailCraft waits for its imports to pause: each lets go of the items it's
 /// reading at their next read and writes what it holds. One that takes longer (a read stuck on a
 /// drive that doesn't answer) is let go.
-pub(super) const IMPORT_STOP_WAIT: Duration = Duration::from_secs(10);
+pub(crate) const IMPORT_STOP_WAIT: Duration = Duration::from_secs(10);
 /// The account's folder list is sent at most this often while an import finishes folders, but for
 /// a folder the list sent last didn't have.
 const FOLDERS_EVERY: Duration = Duration::from_millis(500);
@@ -43,7 +43,7 @@ const ROOM_EVERY: Duration = Duration::from_millis(250);
 
 /// The imports running, by account, and the data file looked at last, as planned.
 #[derive(Default)]
-pub(super) struct Imports {
+pub(crate) struct Imports {
     running: HashMap<String, ImportCtl>,
     looked: Arc<Mutex<Option<Looked>>>,
 }
@@ -84,7 +84,7 @@ impl Pool {
     /// one whose import is being thrown away gets it once that's over. One whose data file is
     /// being compacted isn't begun (a compaction isn't begun beside an import either): one going
     /// on stays paused, a new one is refused.
-    pub(super) fn import_pst(&mut self, account: String, path: String, resume: bool) {
+    pub(crate) fn import_pst(&mut self, account: String, path: String, resume: bool) {
         if self.compacting(&account) {
             if resume {
                 never_began(&self.sink, &account, &path, StopHow::Pause);
@@ -126,7 +126,7 @@ impl Pool {
     /// Read an Outlook data file again into the account keeping its copy (`rereading.rs`), on
     /// the account's import thread: not beside an import or a compaction of the account, nor
     /// while one is being thrown away (its account removed).
-    pub(super) fn reread_data_file(&mut self, account: String, path: String) {
+    pub(crate) fn reread_data_file(&mut self, account: String, path: String) {
         self.prune_imports();
         let busy = if self.compacting(&account) {
             Some("its data file is being compacted; read the file again once that's done")
@@ -187,7 +187,7 @@ impl Pool {
 
     /// Stop an account's import as `how` says. With none running, the answer comes at once: it's
     /// over, and nothing more will come of it (thrown away, as far as anything was left of it).
-    pub(super) fn stop_import(&mut self, account: &str, how: StopHow) {
+    pub(crate) fn stop_import(&mut self, account: &str, how: StopHow) {
         self.prune_imports();
         match self.imports.running.get(account) {
             Some(ctl) => ctl.stop.raise(how),
@@ -204,7 +204,7 @@ impl Pool {
     /// stopped is still ending (it said so just before), it follows on that thread. An import or
     /// a compaction asked for meanwhile is refused, as beside an import, and one asked for while
     /// the data file is compacted is refused too. Removing the account stops it before it writes.
-    pub(super) fn keep_import(&mut self, account: String) {
+    pub(crate) fn keep_import(&mut self, account: String) {
         if self.compacting(&account) {
             let error = Some("its data file is being compacted; keep it once that's done".to_string());
             return self.sink.emit(Event::ImportKept { account, error });
@@ -283,7 +283,7 @@ impl Pool {
     }
 
     /// Whether an account has an import running.
-    pub(super) fn importing(&self, account: &str) -> bool {
+    pub(crate) fn importing(&self, account: &str) -> bool {
         self.imports.running.get(account).is_some_and(|c| !c.thread.is_finished())
     }
 }

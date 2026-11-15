@@ -10,13 +10,13 @@ use super::*;
 impl Worker {
     /// Whether the main connection is at work (a sync, a job) rather than waiting for one: a
     /// message opened meanwhile goes to the second connection ([`Pool`] reads it).
-    pub(super) fn working(&self, busy: bool) {
+    pub(crate) fn working(&self, busy: bool) {
         self.busy.store(busy, Ordering::Relaxed);
     }
 
     /// A message opened: from here, or else from the server; a big message's text first, the
     /// whole of it later ([`Worker::fetch_whole`]).
-    pub(super) fn fetch(&mut self, key: MessageKey) {
+    pub(crate) fn fetch(&mut self, key: MessageKey) {
         // Given back by the second connection: the whole of it, here.
         let whole = self.given_back.lock().is_ok_and(|mut g| g.remove(&key));
         self.fetch_as(key, whole);
@@ -25,7 +25,7 @@ impl Worker {
     /// On the second connection, a message opened while the main one was busy: its text first
     /// when that's quicker, then the whole of it, both here. `true` when the whole is still to
     /// come (after any other message opened meanwhile).
-    pub(super) fn fetch_opened(&mut self, key: MessageKey) -> bool {
+    pub(crate) fn fetch_opened(&mut self, key: MessageKey) -> bool {
         if self.said_from_here(&key) {
             return false;
         }
@@ -47,7 +47,7 @@ impl Worker {
 
     /// On the second connection: the whole of a message, its text maybe given first (issue
     /// #24), with the message ids the main one keeps; one it can't get goes back there.
-    pub(super) fn fetch_for_main(&mut self, key: MessageKey) {
+    pub(crate) fn fetch_for_main(&mut self, key: MessageKey) {
         if self.said_from_here(&key) {
             return;
         }
@@ -78,7 +78,7 @@ impl Worker {
     }
 
     /// The whole of a message whose text went first.
-    pub(super) fn fetch_whole(&mut self, key: MessageKey) {
+    pub(crate) fn fetch_whole(&mut self, key: MessageKey) {
         self.fetch_as(key, true);
     }
 

@@ -7,14 +7,14 @@
 use mailcraft_model::{PgpSignature, PgpWork, Private};
 use mailcraft_pgp as pgp;
 
-use super::credentials::unhex;
 use super::*;
 use crate::hex;
+use crate::worker::credentials::unhex;
 
 /// The list of the account's keys' fingerprints (JSON), the one in use first.
 const LIST: &str = "pgp";
 /// The most keys kept for an account.
-pub(super) const KEYS_MAX: usize = 16;
+pub(crate) const KEYS_MAX: usize = 16;
 
 /// Held while the entries change (each job runs on a thread of its own).
 static CHANGING: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -28,7 +28,7 @@ fn entry(fingerprint: &str) -> String {
 }
 
 /// The fingerprints of the account's keys, the one in use first.
-pub(super) fn list(creds: &dyn Credentials, account: &AccountConfig) -> Vec<String> {
+pub(crate) fn list(creds: &dyn Credentials, account: &AccountConfig) -> Vec<String> {
     let mut l: Vec<String> = creds.get_secret(account, LIST).and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default();
     l.truncate(KEYS_MAX);
     l
@@ -207,14 +207,14 @@ fn work_on(creds: &dyn Credentials, account: &AccountConfig, work: PgpWork) -> O
 }
 
 impl Pool {
-    pub(super) fn pgp(&mut self, account: AccountConfig, work: PgpWork) {
+    pub(crate) fn pgp(&mut self, account: AccountConfig, work: PgpWork) {
         // A draft is sealed at once (it may be the last thing before MailCraft closes), then saved.
         if let PgpWork::SealDraft { raw, folder, replaces, keep } = work {
             return self.seal_pgp_draft(&account, raw, folder, replaces, keep);
         }
         let (creds, sink) = (self.creds.clone(), self.sink.clone());
         let unstarted = Unstarted::of(&account.id, &work);
-        let spawned = super::routing::spawn("mail-pgp", move || {
+        let spawned = crate::worker::routing::spawn("mail-pgp", move || {
             if let Some(event) = work_on(creds.as_ref(), &account, work) {
                 sink.emit(event);
             }
