@@ -248,7 +248,7 @@ impl<S: Read + Write> Client<S> {
         let _ = self.run("LOGOUT");
     }
 
-    /// The automatic replies this script holds (`None`: never set up here).
+    /// The automatic replies this script holds (the default when never set up here).
     pub fn vacation(&mut self) -> Result<Vacation> {
         let (names, active) = self.list()?;
         if !names.iter().any(|n| n == SCRIPT) {

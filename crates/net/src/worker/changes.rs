@@ -188,8 +188,6 @@ impl Worker {
         }
     }
 
-    /// Read (and first change, when `set`) the automatic replies: JMAP's own, or a Sieve script
-    /// through ManageSieve on the IMAP host.
     /// Connected for a job that needs the server, with one try when it isn't. A refused sign-in
     /// isn't tried again (the password known to be wrong was sent with each such job), and a
     /// try that fails shows as the account's status (left at "Connecting…" otherwise).
@@ -214,6 +212,8 @@ impl Worker {
         })
     }
 
+    /// Read (and first change, when `set`) the automatic replies: JMAP's own, or a Sieve script
+    /// through ManageSieve on the IMAP host.
     pub(super) fn vacation(&mut self, set: Option<&mailcraft_model::job::Vacation>) -> Result<mailcraft_model::job::Vacation> {
         // Not connected: one try, and a failure shows as the account's status (it said
         // "Connecting…" for good when the vacation page was opened on an account that can't).

@@ -33,7 +33,7 @@ const SAVE_EVERY: usize = 500;
 const SAVE_BYTES: usize = 16 << 20;
 const SAVE_AFTER: Duration = Duration::from_secs(5);
 /// The ids of downloaded messages, kept with the account.
-/// Before: the ids downloaded, a list (still read, once).
+/// Before: the ids downloaded, a list (still read whenever no state is kept, [`STATE_DOC`]).
 const SEEN_DOC: &str = "pop-seen.json";
 /// What's known of each message on the server (by its `UIDL` id): see [`Kept`].
 const STATE_DOC: &str = "pop-state.json";
