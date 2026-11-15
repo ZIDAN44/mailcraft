@@ -74,6 +74,22 @@ fn compose_reply_and_send_locally() {
     assert!(part.contains("Subject: Character turnarounds") && !part[..300.min(part.len())].contains("base64"));
 }
 
+/// A TrueType font the system has, when it has one of these (as the print crate's tests find one).
+fn system_font() -> Option<Vec<u8>> {
+    // Windows' fonts are in its folder (`%WINDIR%`), which needn't be `C:\Windows`.
+    let windows = std::env::var_os("WINDIR").map_or_else(|| std::path::PathBuf::from("C:\\Windows"), std::path::PathBuf::from).join("Fonts");
+    let candidates = [
+        windows.join("segoeui.ttf"),
+        windows.join("arial.ttf"),
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf".into(),
+        "/System/Library/Fonts/Supplemental/Arial.ttf".into(),
+    ];
+    candidates.iter().find_map(|p| std::fs::read(p).ok())
+}
+
+/// The open message saved as `.eml`, and as PDF: in Helvetica with no fonts given, and with the
+/// fonts the app gives (`print_fonts`) embedded. Windows and macOS always have one to give; a
+/// Linux without DejaVu has none, and checks the first only.
 #[test]
 fn messages_save_as_eml_and_pdf() {
     let mut s = sample_session("export");
@@ -84,20 +100,39 @@ fn messages_save_as_eml_and_pdf() {
     let eml = dir.join("m.eml");
     s.run("message.saveAs", &json!({"path": eml.to_string_lossy()})).unwrap();
     assert_eq!(mailcraft_mime::parse(&std::fs::read(&eml).unwrap()).unwrap().subject, "Storyboard review on Thursday");
-    // Windows' fonts are in its folder (`%WINDIR%`), which needn't be `C:\Windows`.
-    let windows = std::env::var_os("WINDIR").map_or_else(|| std::path::PathBuf::from("C:\\Windows"), std::path::PathBuf::from).join("Fonts");
-    if let Some(font) =
-        [windows.join("segoeui.ttf"), "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf".into()].iter().find_map(|p| std::fs::read(p).ok())
-    {
-        s.print_fonts = Some((font, None));
-    }
     let pdf = dir.join("m.pdf");
-    s.run("message.exportPdf", &json!({"path": pdf.to_string_lossy()})).unwrap();
-    let bytes = std::fs::read(&pdf).unwrap();
-    assert!(bytes.starts_with(b"%PDF-") && bytes.ends_with(b"%%EOF\n"));
-    if let Ok(keep) = std::env::var("MAILCRAFT_KEEP_PDF") {
-        let _ = std::fs::copy(&pdf, keep);
-    }
+    let export = |s: &mut Session| {
+        s.run("message.exportPdf", &json!({"path": pdf.to_string_lossy()})).unwrap();
+        let bytes = std::fs::read(&pdf).unwrap();
+        assert!(bytes.starts_with(b"%PDF-") && bytes.ends_with(b"%%EOF\n"));
+        String::from_utf8_lossy(&bytes).into_owned()
+    };
+    assert!(s.print_fonts.is_none());
+    let plain = export(&mut s);
+    assert!(plain.contains("/BaseFont /Helvetica") && !plain.contains("/FontFile2"), "no fonts given: Helvetica");
+    let Some(font) = system_font() else {
+        if cfg!(any(windows, target_os = "macos")) {
+            panic!("no system font to embed");
+        }
+        return;
+    };
+    s.print_fonts = Some((font, None));
+    let embedded = export(&mut s);
+    assert!(embedded.contains("/FontFile2"), "the font given is embedded");
+}
+
+/// Hand-run: the open message saved as PDF, with a system font, to the file
+/// `MAILCRAFT_KEEP_PDF` names, to look at (`cargo test -p mailcraft-engine --lib
+/// a_pdf_to_look_at -- --ignored`).
+#[test]
+#[ignore = "writes a PDF to look at, where MAILCRAFT_KEEP_PDF says"]
+fn a_pdf_to_look_at() {
+    let keep = std::env::var_os("MAILCRAFT_KEEP_PDF").expect("MAILCRAFT_KEEP_PDF: where the PDF goes");
+    let mut s = sample_session("export-kept");
+    let k = key_of(&s, "Storyboard review on Thursday");
+    s.run("list.open", &k).unwrap();
+    s.print_fonts = system_font().map(|f| (f, None));
+    s.run("message.exportPdf", &json!({"path": std::path::PathBuf::from(keep).to_string_lossy()})).unwrap();
 }
 
 #[test]
