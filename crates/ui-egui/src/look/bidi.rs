@@ -9,8 +9,6 @@
 
 use std::sync::atomic::{AtomicU8, Ordering};
 
-use unicode_bidi::BidiInfo;
-
 const ARABIC: u8 = 1;
 const HEBREW: u8 = 2;
 /// What the main font draws: Arabic letters, Hebrew letters.
@@ -167,9 +165,10 @@ pub fn vertical<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> e
     ui.scope_builder(egui::UiBuilder::new().layout(column()), add)
 }
 
-/// Whether a paragraph reads right to left (its first strong letter is).
+/// Whether a paragraph reads right to left (its first strong letter is, outside any isolate: UAX
+/// #9's P2 and P3). Read from the start up to that letter, not the whole text.
 pub fn paragraph_rtl(text: &str) -> bool {
-    BidiInfo::new(text, None).paragraphs.first().is_some_and(|p| p.level.is_rtl())
+    matches!(unicode_bidi::get_base_direction(text), unicode_bidi::Direction::Rtl)
 }
 
 #[cfg(test)]
@@ -220,5 +219,46 @@ mod tests {
         want.sort_unstable();
         assert_eq!(seen, want);
         assert!(lefts.last().is_some_and(|l| *l > 20.0), "the last line starts away from the left: {lefts:?}");
+    }
+
+    /// A paragraph's direction is the one the whole algorithm gives its first paragraph, for
+    /// every text of up to five characters from both directions' letters, digits, neutrals,
+    /// marks, embeddings, isolates (closed or not) and paragraph breaks.
+    #[test]
+    fn paragraph_direction_is_the_whole_algorithms() {
+        const CHARS: [char; 12] = ['a', 'ש', 'ب', '1', ' ', '\u{200F}', '\u{202B}', '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}', '\n'];
+        let mut tried = 0;
+        for len in 0..=5u32 {
+            for mut n in 0..CHARS.len().pow(len) {
+                let mut text = String::new();
+                for _ in 0..len {
+                    text.push(CHARS[n % CHARS.len()]);
+                    n /= CHARS.len();
+                }
+                let whole = unicode_bidi::BidiInfo::new(&text, None).paragraphs.first().is_some_and(|p| p.level.is_rtl());
+                assert_eq!(paragraph_rtl(&text), whole, "{text:?}");
+                tried += 1;
+            }
+        }
+        assert_eq!(tried, 271_453);
+    }
+
+    /// How long reading one paragraph's direction takes: a subject, and a message's long
+    /// paragraph, each right to left.
+    #[test]
+    #[ignore = "a measurement: cargo test --release -p mailcraft-ui-egui --lib measure_paragraph_rtl -- --ignored --nocapture"]
+    fn measure_paragraph_rtl() {
+        let subject = "أرفقنا الترجمة العربية للفيلم القصير (النسخة 2)";
+        let paragraph = "أرفقنا الترجمة العربية للفيلم القصير (النسخة 2). راجعنا التوقيت مع ملف shot_list_v2 وعدد الأسطر 128. ".repeat(20);
+        for (what, text) in [("a subject", subject), ("a 3 KB paragraph", paragraph.as_str())] {
+            const ROUNDS: u32 = 20_000;
+            let start = std::time::Instant::now();
+            let mut rtl = 0;
+            for _ in 0..ROUNDS {
+                rtl += usize::from(paragraph_rtl(std::hint::black_box(text)));
+            }
+            assert_eq!(rtl, ROUNDS as usize);
+            println!("MEASURE paragraph_rtl, {what} ({} bytes): {:?} a call", text.len(), start.elapsed() / ROUNDS);
+        }
     }
 }
