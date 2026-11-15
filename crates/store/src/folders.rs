@@ -29,17 +29,25 @@ impl Store {
 
     fn list_load(&self, account: &str, folder: &str) -> Result<FolderLoad> {
         let dir = self.folder_dir(account, folder);
-        let file: StateFile = self.read_json(&dir.join(HEAD))?;
-        let st = FolderState {
-            validity: file.validity,
-            uid_next: file.uid_next,
-            highest_modseq: file.highest_modseq,
-            messages: file.messages,
-            window: file.window,
-        };
+        let mut head: StateFile = self.read_json(&dir.join(HEAD))?;
         // A list in pages: the flags marked since its pages were written, put on them at the end.
-        let marks: Vec<(u32, Flags)> = if file.pages.is_empty() { Vec::new() } else { self.read_json(&dir.join(MARKS))? };
-        Ok(FolderLoad { account: account.to_string(), folder: folder.to_string(), dir, st, pages: file.pages.len(), next: 0, marks })
+        let marks: Vec<(u32, Flags)> = if head.pages.is_empty() { Vec::new() } else { self.read_json(&dir.join(MARKS))? };
+        Ok(FolderLoad::from_head(account, folder, dir, &mut head, marks))
+    }
+
+    /// [`Store::list_from_disk`] from its head read already (`head`, in `dir`: its messages taken
+    /// from it), with `marks` put on its pages: only the pages are read.
+    pub(crate) fn list_from_head(
+        &self,
+        account: &str,
+        folder: &str,
+        dir: PathBuf,
+        head: &mut StateFile,
+        marks: Vec<(u32, Flags)>,
+    ) -> Result<FolderState> {
+        let mut load = FolderLoad::from_head(account, folder, dir, head, marks);
+        while !load.step(self)? {}
+        Ok(load.finish())
     }
 
     /// The numbers of a folder's messages, the rest of each one's summary not read: the numbers
@@ -114,6 +122,19 @@ pub struct FolderLoad {
 }
 
 impl FolderLoad {
+    /// A list's reading from its `head` (in `dir`; its messages taken from it), with `marks` to put
+    /// on its pages.
+    fn from_head(account: &str, folder: &str, dir: PathBuf, head: &mut StateFile, marks: Vec<(u32, Flags)>) -> FolderLoad {
+        let st = FolderState {
+            validity: head.validity,
+            uid_next: head.uid_next,
+            highest_modseq: head.highest_modseq,
+            messages: std::mem::take(&mut head.messages),
+            window: head.window,
+        };
+        FolderLoad { account: account.to_string(), folder: folder.to_string(), dir, st, pages: head.pages.len(), next: 0, marks }
+    }
+
     /// Read the next page of the list; `true` once there is none left.
     pub fn step(&mut self, store: &Store) -> Result<bool> {
         if self.next >= self.pages {
@@ -220,9 +241,25 @@ impl Store {
         state: &FolderState,
         changed: Option<&std::collections::HashSet<u32>>,
     ) -> Result<(Vec<(PathBuf, Vec<u8>)>, Vec<PathBuf>)> {
+        // Missing or damaged reads as none; a failed read is an error, not a list without pages
+        // (which wrote every page again, and left the stale ones).
+        let old: StateFile = self.read_json(&self.folder_dir(account, folder).join(HEAD))?;
+        self.list_writes_over(account, folder, state, changed, &old, None)
+    }
+
+    /// [`Store::list_writes`] over the head read already from the disk (`old`), and the marks beside
+    /// its pages when they were read too (`kept`; `None`: read when they're needed).
+    pub(crate) fn list_writes_over(
+        &self,
+        account: &str,
+        folder: &str,
+        state: &FolderState,
+        changed: Option<&std::collections::HashSet<u32>>,
+        old: &StateFile,
+        kept: Option<&[(u32, Flags)]>,
+    ) -> Result<(Vec<(PathBuf, Vec<u8>)>, Vec<PathBuf>)> {
         let dir = self.folder_dir(account, folder);
         let head = dir.join(HEAD);
-        let old: StateFile = self.read_json(&head).unwrap_or_default();
         let mut file = StateFile {
             validity: state.validity,
             uid_next: state.uid_next,
@@ -243,7 +280,14 @@ impl Store {
             // Few marked since the pages were written: those kept beside them, nothing else.
             let mut folded: Option<std::collections::HashSet<u32>> = None;
             if let Some(changed) = same {
-                let kept: Vec<(u32, Flags)> = self.read_json(&marks_path)?;
+                let read: Vec<(u32, Flags)>;
+                let kept = match kept {
+                    Some(kept) => kept,
+                    None => {
+                        read = self.read_json(&marks_path)?;
+                        &read
+                    }
+                };
                 let mut marks: BTreeMap<u32, &Flags> = kept.iter().map(|(uid, f)| (*uid, f)).collect();
                 for m in state.messages.iter().filter(|m| changed.contains(&m.key.uid)) {
                     marks.insert(m.key.uid, &m.flags);
@@ -289,7 +333,7 @@ impl Store {
                 file.pages.push(hash);
             }
         }
-        let stale = self.head_writes(&dir, &file, &old, &mut writes)?;
+        let stale = self.head_writes(&dir, &file, old, &mut writes)?;
         Ok((writes, stale))
     }
 

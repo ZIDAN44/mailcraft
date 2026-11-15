@@ -449,7 +449,7 @@ impl Store {
     /// What keeping one folder's marks writes (with the lock held), and the pages it no longer has.
     fn flag_writes(&self, account: &str, marks: &FolderMarks) -> Result<(Vec<(PathBuf, Vec<u8>)>, Vec<PathBuf>)> {
         let dir = self.folder_dir(account, &marks.folder);
-        let head: StateFile = self.read_json(&dir.join(folders::HEAD))?;
+        let mut head: StateFile = self.read_json(&dir.join(folders::HEAD))?;
         if head.validity != marks.validity {
             return Ok((Vec::new(), Vec::new()));
         }
@@ -469,14 +469,17 @@ impl Store {
                 now.entry(*uid).or_insert(f);
             }
         }
-        let mut st = self.list_from_disk(account, &marks.folder)?;
+        // The list from the head and marks read above (under the lock, so as they still are): only
+        // its pages read now. The marks kept are in `now`, put on it below.
+        let mut st = self.list_from_head(account, &marks.folder, dir, &mut head, Vec::new())?;
         for m in &mut st.messages {
             if let Some(f) = now.get(&m.key.uid) {
                 SharedSummary::make_mut(m).flags.clone_from(f);
             }
         }
         let changed: std::collections::HashSet<u32> = now.keys().copied().collect();
-        self.list_writes(account, &marks.folder, &st, Some(&changed))
+        let kept = (!head.pages.is_empty()).then_some(kept.as_slice());
+        self.list_writes_over(account, &marks.folder, &st, Some(&changed), &head, kept)
     }
 }
 

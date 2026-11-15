@@ -269,7 +269,18 @@ impl ListWriter {
         store.flush_marks_of(&self.account, Some(&self.folder));
         let _held = store.hold_changes();
         let dir = store.folder_dir(&self.account, &self.folder);
-        let old: StateFile = store.read_json(&dir.join(folders::HEAD)).unwrap_or_default();
+        // Its pages are written already, over the old list's: the head is written whatever the old
+        // one reads as, or the old head would name a mix of both lists' pages. Missing or damaged
+        // reads as none; one that can't be read names no pages, so the ones this list no longer
+        // has are found by looking for their files.
+        let old: StateFile = match store.read_json(&dir.join(folders::HEAD)) {
+            Ok(old) => old,
+            Err(e) => {
+                log::warn!("{}/{}: the list's old head not read: {e}", self.account, self.folder);
+                let after = (self.pages.len()..TAIL_PAGES_MAX).take_while(|i| store.files.is_file(&folders::page_path(&dir, *i))).count();
+                StateFile { pages: vec![0; self.pages.len().saturating_add(after)], ..StateFile::default() }
+            }
+        };
         let file = StateFile {
             validity: head.validity,
             uid_next: head.uid_next,
@@ -502,7 +513,12 @@ impl Store {
     /// store error loses.
     #[doc(hidden)]
     pub fn failing() -> Store {
-        let faults = files::Faults { files: Files::Memory(Arc::default(), Arc::default()), reads: Mutex::default(), writes: Mutex::default() };
+        let faults = files::Faults {
+            files: Files::Memory(Arc::default(), Arc::default()),
+            reads: Mutex::default(),
+            writes: Mutex::default(),
+            watch: Mutex::default(),
+        };
         Store::with(PathBuf::from("memory"), Files::Failing(Arc::new(faults)), None)
     }
 

@@ -23,9 +23,29 @@ pub(super) struct Faults {
     pub(super) files: Files,
     pub(super) reads: Mutex<Option<String>>,
     pub(super) writes: Mutex<Option<String>>,
+    /// Told each path as it's read or written, before it is ([`Store::watch_files`]).
+    pub(super) watch: Mutex<Option<Watch>>,
+}
+
+/// What a test has told of each file read or written.
+#[derive(Clone)]
+pub(super) struct Watch(Arc<dyn Fn(&Path) + Send + Sync>);
+
+impl std::fmt::Debug for Watch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Watch")
+    }
 }
 
 impl Faults {
+    /// Tell the test watching, if one is, that `p` is about to be read or written.
+    fn tell(&self, p: &Path) {
+        let watch = self.watch.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+        if let Some(Watch(told)) = watch {
+            told(p);
+        }
+    }
+
     /// An error when `rule` names how `p` ends: never "not found", which the store reads as an
     /// empty file. A rule starting with `!` is a damaged file (invalid data), and one starting
     /// with `#` a full drive, not a failing disk. Several endings are separated by `|`.
@@ -130,6 +150,7 @@ impl Files {
             Files::Packed(x) => x.read(p),
             Files::Memory(m, _) => Files::with(m, |m| m.get(p).cloned().ok_or_else(not_found)),
             Files::Failing(f) => {
+                f.tell(p);
                 Faults::check(&f.reads, p)?;
                 f.files.read(p)
             }
@@ -147,6 +168,7 @@ impl Files {
                 Ok(())
             }
             Files::Failing(f) => {
+                f.tell(p);
                 Faults::check(&f.writes, p).map_err(io_err(p))?;
                 f.files.write(p, bytes)
             }
@@ -563,6 +585,17 @@ impl Routed {
 
     pub(super) fn size(&self, dir: &Path) -> u64 {
         self.at(dir).size(dir)
+    }
+}
+
+#[cfg(test)]
+impl Store {
+    /// From now on, a [`Store::failing`] cache tells `told` each path it reads or writes, just
+    /// before it does (`None`: no more).
+    pub(crate) fn watch_files(&self, told: Option<Arc<dyn Fn(&Path) + Send + Sync>>) {
+        if let Files::Failing(f) = &self.files.main {
+            *f.watch.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = told.map(Watch);
+        }
     }
 }
 
