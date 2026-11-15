@@ -71,6 +71,18 @@ impl Feed {
     pub fn ours(&self, url: &str) -> Option<String> {
         (url.starts_with(&self.files) && url.len() < 1024 && !url.contains(['\r', '\n', ' '])).then(|| url.to_string())
     }
+
+    /// The one address the file `name` of the release tagged `tag` may have, as GitHub makes them:
+    /// `<files>download/<tag>/<name>`, a `+` written `%2B`. None for a tag or name with anything
+    /// but ASCII letters, digits and `._+-` in it, or that is `.` or `..`: so a file whose address
+    /// leads to another release's, or out of the project's releases (by `..`, or a slash or dot
+    /// written `%2f`, `%2e`, which GitHub reads as one), isn't taken.
+    pub fn file_address(&self, tag: &str, name: &str) -> Option<String> {
+        let plain = |s: &str| {
+            !s.is_empty() && s.len() <= 200 && s != "." && s != ".." && s.bytes().all(|b| b.is_ascii_alphanumeric() || b"._+-".contains(&b))
+        };
+        (plain(tag) && plain(name)).then(|| format!("{}download/{}/{}", self.files, tag.replace('+', "%2B"), name.replace('+', "%2B")))
+    }
 }
 
 /// The largest answer read (thirty releases with their files lists).
@@ -245,16 +257,20 @@ pub fn parse_from(feed: &Feed, body: &str, suffix: Option<&str>) -> Result<Vec<R
         let page = ours(&text(r, "html_url")).unwrap_or_else(|| feed.files.trim_end_matches('/').to_string());
         let assets: &[Value] = r.get("assets").and_then(Value::as_array).map_or(&[], |a| a.as_slice());
         let assets = assets.get(..assets.len().min(100)).unwrap_or_default();
+        // A file's address is taken only when it's the one its release gives it.
+        let address = |a: &Value| {
+            let url = text(a, "browser_download_url");
+            feed.file_address(&tag, &text(a, "name")).filter(|own| *own == url)
+        };
         let installer = suffix.and_then(|s| assets.iter().find(|a| text(a, "name").ends_with(s)));
-        let download = installer.and_then(|a| ours(&text(a, "browser_download_url"))).unwrap_or_default();
+        let download = installer.and_then(address).unwrap_or_default();
         // GitHub records each file's SHA-256 as `"digest": "sha256:<hex>"`.
         let sha256 = installer
             .filter(|_| !download.is_empty())
             .and_then(|a| text(a, "digest").strip_prefix("sha256:").filter(|h| is_sha256(h)).map(str::to_ascii_lowercase))
             .unwrap_or_default();
         let size = installer.filter(|_| !download.is_empty()).and_then(|a| a.get("size")?.as_u64()).unwrap_or(0);
-        let sums =
-            assets.iter().find(|a| text(a, "name") == "SHA256SUMS.txt").and_then(|a| ours(&text(a, "browser_download_url"))).unwrap_or_default();
+        let sums = assets.iter().find(|a| text(a, "name") == "SHA256SUMS.txt").and_then(address).unwrap_or_default();
         let commit = text(r, "target_commitish");
         out.push(Release {
             tag: tag.chars().take(64).collect(),
@@ -315,6 +331,41 @@ mod tests {
         assert_eq!(parse(body, None).unwrap()[0].download, "");
         assert!(parse("{\"message\": \"Not Found\"}", None).is_err());
         assert!(parse("not json", None).is_err());
+    }
+
+    /// A file is taken only at the address its own release gives it: not another release's, not
+    /// one leaving the project's releases by `..` or a slash or dot written as `%2f`, `%2e`.
+    #[test]
+    fn a_files_address_is_its_own_releases() {
+        let release = |name: &str, url: &str| {
+            format!(
+                r#"[{{"tag_name": "v0.40.0", "draft": false, "html_url": "https://github.com/ZIDAN44/mailcraft/releases/tag/v0.40.0",
+                    "assets": [{{"name": "{name}", "browser_download_url": "{url}"}},
+                               {{"name": "SHA256SUMS.txt", "browser_download_url": "{url}"}}]}}]"#
+            )
+        };
+        let base = "https://github.com/ZIDAN44/mailcraft/releases/download";
+        let name = "mailcraft-0.40.0-windows-x64.msi";
+        let own = format!("{base}/v0.40.0/{name}");
+        let r = &parse(&release(name, &own), Some("-windows-x64.msi")).unwrap()[0];
+        assert_eq!(r.download, own);
+        assert_eq!(r.sums, "", "the checksums file's address must be its own too");
+        for elsewhere in [
+            format!("{base}/v0.39.0/{name}"),
+            format!("{base}/v0.40.0/../../../../other/repo/releases/download/v1/{name}"),
+            format!("{base}/v0.40.0/%2e%2e/%2e%2e/{name}"),
+            format!("{base}/v0.40.0/x%2f..%2f{name}"),
+            format!("{base}/v0.40.0/{name}?x=1"),
+            format!("{base}/v0.40.0/{name}#x"),
+        ] {
+            assert_eq!(parse(&release(name, &elsewhere), Some("-windows-x64.msi")).unwrap()[0].download, "", "{elsewhere}");
+        }
+        // A name or tag GitHub would write otherwise has no address of its own here.
+        let feed = Feed::github();
+        assert_eq!(feed.file_address("v1.0.0", "a b.msi"), None);
+        assert_eq!(feed.file_address("..", "x.msi"), None);
+        assert_eq!(feed.file_address("v1.0.0", ".."), None);
+        assert_eq!(feed.file_address("v1.0.0+1", "x.msi").as_deref(), Some(format!("{base}/v1.0.0%2B1/x.msi").as_str()));
     }
 
     /// What the updater holds a download to: GitHub's digest, else the checksums file's line;
