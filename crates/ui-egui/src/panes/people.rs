@@ -665,10 +665,11 @@ fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
         let weight = |c: &Option<Column>| c.map_or(1.5, Column::weight);
         let total: f32 = cols.iter().map(weight).sum::<f32>().max(1.0);
         let widths: Vec<f32> = cols.iter().map(|c| w * weight(c) / total).collect();
-        let row = |ui: &mut Ui, cells: &[String], header: bool, fill: Option<egui::Color32>| -> (egui::Response, Vec<egui::Rect>) {
+        // A row, filled with `fill`, or (`lit`) lit up while it's pointed at.
+        let row = |ui: &mut Ui, cells: &[String], header: bool, fill: Option<egui::Color32>, lit: bool| -> (egui::Response, Vec<egui::Rect>) {
             let (r, resp) = ui.allocate_exact_size(vec2(w, 30.0), Sense::click());
             let mirror = crate::bidi::Mirror::new(r);
-            if let Some(f) = fill {
+            if let Some(f) = if lit && resp.hovered() { Some(t.hover_row) } else { fill } {
                 ui.painter().rect_filled(r, 4.0, f);
             }
             let mut x = r.left() + 8.0;
@@ -691,7 +692,7 @@ fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 if *c == list.sort { format!("{name}{arrow}") } else { name }
             })
             .collect();
-        let (head, rects) = row(ui, &heads, true, None);
+        let (head, rects) = row(ui, &heads, true, None, false);
         if head.clicked()
             && let Some(p) = head.interact_pointer_pos()
             && let Some(i) = rects.iter().position(|r| r.contains(p))
@@ -731,17 +732,15 @@ fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                     let cells: Vec<String> = cols.iter().map(|col| col.map_or_else(|| c.display(), |col| col.text(s, &p))).collect();
                     let selected = st.person.as_deref() == Some(c.uid.as_str());
                     let id = ui.scope_id().with(("phone-row", i));
-                    let hovered = ui.ctx().read_response(id).is_some_and(|r| r.hovered());
+                    // Picked, it stays so under the pointer; else every other row is shaded.
                     let fill = if selected {
                         Some(t.accent_soft)
-                    } else if hovered {
-                        Some(t.hover_row)
                     } else if i % 2 == 1 {
                         Some(t.chrome)
                     } else {
                         None
                     };
-                    let resp = ui.push_id(id, |ui| row(ui, &cells, false, fill).0).inner;
+                    let resp = ui.push_id(id, |ui| row(ui, &cells, false, fill, !selected).0).inner;
                     if resp.clicked() {
                         st.person = Some(c.uid.clone());
                     }

@@ -206,6 +206,35 @@ fn the_people_list_names_address_books_as_the_side_pane_does() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Audit #472: in the List view, the row under the pointer lights up (its hover was read from a
+/// widget nothing registered, and never did), and the others don't.
+#[test]
+fn the_people_list_view_lights_the_row_pointed_at() {
+    let (mut a, dir) = app("people-list-hover");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.module", json!({"name": "people"}));
+    a.ui.people_view = crate::people::PeopleView::Phone;
+    let size = egui::vec2(1280.0, 800.0);
+    frame(&ctx, &mut a, vec![]);
+    let name = a.session.people("").first().map(|p| p.card.display()).unwrap();
+    let texts = drawn_with(&ctx, &mut a, size, vec![]);
+    // Its name in the list, right of the side pane's.
+    let at = texts.iter().filter(|d| d.text == name).map(|d| d.rect.center()).max_by(|x, y| x.x.total_cmp(&y.x)).unwrap();
+    let hover = a.ui.tokens.hover_row;
+    let lit = |out: &egui::FullOutput, at: egui::Pos2| {
+        out.shapes.iter().any(|s| matches!(&s.shape, egui::Shape::Rect(r) if r.fill == hover && r.rect.contains(at)))
+    };
+    let _ = sized_frame(&ctx, &mut a, size, vec![Event::PointerMoved(at)]);
+    let out = sized_frame(&ctx, &mut a, size, vec![]);
+    assert!(lit(&out, at), "the row pointed at lights up");
+    let away = at + egui::vec2(0.0, 60.0);
+    let _ = sized_frame(&ctx, &mut a, size, vec![Event::PointerMoved(away)]);
+    let out = sized_frame(&ctx, &mut a, size, vec![]);
+    assert!(!lit(&out, at) && lit(&out, away), "the light follows the pointer");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn notes_are_written_on_and_kept() {
     let (mut a, dir) = app("notes-ui");
