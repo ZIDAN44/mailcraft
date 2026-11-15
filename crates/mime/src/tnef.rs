@@ -18,6 +18,8 @@ use mail_builder::mime::MimePart;
 use crate::files::mime_from_name;
 
 mod codepage;
+#[cfg(any(test, feature = "test-support"))]
+pub mod fixtures;
 mod rtf;
 
 pub use codepage::{byte_code_page, decode_code_page, known_code_page, unsupported_code_page, utf16_code_page};

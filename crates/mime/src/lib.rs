@@ -37,6 +37,9 @@ mod photos;
 pub mod smime;
 pub use smime::pgp;
 mod tnef;
+/// Outlook's RTF bodies for tests (`test-support`).
+#[cfg(any(test, feature = "test-support"))]
+pub use tnef::fixtures as tnef_fixtures;
 mod trackers;
 pub use attachments::{
     AttachmentInfo, AttachmentKind, HtmlRefs, MAX_WANTED, PendingFile, TEXT_FIRST, attachment_data, attachment_out, attachment_text,

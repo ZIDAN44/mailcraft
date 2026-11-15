@@ -103,11 +103,7 @@ const DICTIONARY_LEN: usize = 207;
 /// reaches past where the dictionary was written to when it started.
 #[test]
 fn the_specifications_compressed_rtf_comes_out() {
-    let simple = [
-        0x2d, 0x00, 0x00, 0x00, 0x2b, 0x00, 0x00, 0x00, 0x4c, 0x5a, 0x46, 0x75, 0xf1, 0xc5, 0xc7, 0xa7, 0x03, 0x00, 0x0a, 0x00, 0x72, 0x63, 0x70,
-        0x67, 0x31, 0x32, 0x35, 0x42, 0x32, 0x0a, 0xf3, 0x20, 0x68, 0x65, 0x6c, 0x09, 0x00, 0x20, 0x62, 0x77, 0x05, 0xb0, 0x6c, 0x64, 0x7d, 0x0a,
-        0x80, 0x0f, 0xa0,
-    ];
+    let simple = fixtures::SPEC_LZFU;
     assert_eq!(decompress_rtf(&simple).as_deref(), Some(&b"{\\rtf1\\ansi\\ansicpg1252\\pard hello world}\r\n"[..]));
     let crossing = [
         0x1a, 0x00, 0x00, 0x00, 0x1c, 0x00, 0x00, 0x00, 0x4c, 0x5a, 0x46, 0x75, 0xe2, 0xd4, 0x4b, 0x51, 0x41, 0x00, 0x04, 0x20, 0x57, 0x58, 0x59,
@@ -115,11 +111,7 @@ fn the_specifications_compressed_rtf_comes_out() {
     ];
     assert_eq!(decompress_rtf(&crossing).as_deref(), Some(&b"{\\rtf1 WXYZWXYZWXYZWXYZWXYZ}"[..]));
     // Stored as it is (`MELA`).
-    let mut plain = 16u32.to_le_bytes().to_vec();
-    plain.extend(4u32.to_le_bytes());
-    plain.extend(0x414C_454Du32.to_le_bytes());
-    plain.extend(0u32.to_le_bytes());
-    plain.extend(b"{\\rt");
+    let plain = fixtures::stored_rtf(b"{\\rt");
     assert_eq!(decompress_rtf(&plain).as_deref(), Some(&b"{\\rt"[..]));
     assert_eq!(decompress_rtf(&compress(b"{\\rtf1 any RTF at all}")).as_deref(), Some(&b"{\\rtf1 any RTF at all}"[..]));
     // Not compressed RTF; cut short; a size far past what's there.
@@ -233,7 +225,7 @@ fn formatting_inside_a_link_stays_within_the_cap() {
 /// A `winmail.dat` as Outlook writes one: a subject, an RTF body wrapping HTML with a picture in
 /// it, a file, and an attached message with a file of its own.
 pub(crate) fn outlook_stream() -> Vec<u8> {
-    let rtf = br#"{\rtf1\ansi\ansicpg1252\fromhtml1 \deff0{\fonttbl{\f0\fswiss Calibri;}}{\*\htmltag19 <html>}{\*\htmltag34 <body>}{\*\htmltag <p>}\htmlrtf {\htmlrtf0 Hi Riley, the {\*\htmltag <b>}\htmlrtf\b\htmlrtf0 storyboard{\*\htmltag </b>}\htmlrtf\b0\htmlrtf0  is attached.{\*\htmltag <img src="cid:logo@studio.example">}\htmlrtf\par\htmlrtf0}{\*\htmltag </p></body></html>}}"#;
+    let rtf = fixtures::STORYBOARD_RTF;
     let mut inner_attrs = Vec::new();
     attr(&mut inner_attrs, 1, ATT_SUBJECT, b"Notes from Monday\0");
     attr(
