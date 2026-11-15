@@ -11,11 +11,9 @@ use crate::theme::{self, Tokens};
 use crate::{Action, Icon, widgets};
 
 mod accounts;
-mod addresses;
 mod backup;
 mod categories;
 mod closing;
-mod dav;
 mod folders;
 mod importing;
 mod mailbox;
@@ -25,10 +23,10 @@ pub(crate) mod pim_dialogs;
 mod signatures;
 #[cfg(test)]
 pub(crate) use signatures::has_web_pictures;
-mod trust;
 mod writing;
 
 pub use accounts::*;
+use accounts::{addresses, dav, trust};
 pub use addresses::AddressForm;
 pub use backup::RestoreForm;
 pub use dav::DavForm;

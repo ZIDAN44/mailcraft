@@ -49,7 +49,7 @@ impl DavForm {
     }
 }
 
-pub(super) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub(crate) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(480.0);
     title(ui, t, "Calendars and contacts");
     let about = tl!(
@@ -91,7 +91,7 @@ pub(super) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Acti
 
 /// Adding a calendar-only account (issue #61): a CalDAV and CardDAV server with no email. Its
 /// address names the account, as every account's does, and the meetings it organises.
-pub(super) fn add_calendar_only(ui: &mut Ui, f: &mut super::AccountForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub(crate) fn add_calendar_only(ui: &mut Ui, f: &mut super::AccountForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(440.0);
     title(ui, t, "Add an account");
     let about = tl!(

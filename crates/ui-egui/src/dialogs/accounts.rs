@@ -1,11 +1,15 @@
-//! Dialogs: accounts (adding one, its settings, its password, removing it), and the rows the
-//! account dialogs share.
+//! Dialogs: accounts (adding one, its settings, its password, removing it, its other addresses,
+//! its calendars and contacts given by hand, its server's certificate), and the rows the account
+//! dialogs share.
 
 use super::*;
 
 mod adding;
+pub(super) mod addresses;
+pub(super) mod dav;
 mod editing;
 mod forms;
+pub(super) mod trust;
 
 use adding::add_account;
 use editing::edit_account;

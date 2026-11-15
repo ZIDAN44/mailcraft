@@ -42,7 +42,7 @@ fn what_it_says(ui: &mut Ui, s: &Session, t: &Tokens, shown: &UntrustedCertifica
 }
 
 /// Whether the dialog stays open.
-pub(super) fn draw(ui: &mut Ui, d: &Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub(crate) fn draw(ui: &mut Ui, d: &Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     let Dialog::TrustCertificate { account, shown } = d else { return false };
     ui.set_width(460.0);
     if shown.remote {
@@ -90,7 +90,7 @@ pub(super) fn draw(ui: &mut Ui, d: &Dialog, s: &Session, t: &Tokens, acts: &mut 
 /// The certificates an account trusts besides the usual authorities, each with Stop trusting,
 /// and Trust a certificate file… (issue #105): in Server settings, for an account with mail
 /// servers of its own.
-pub(super) fn trusted_rows(ui: &mut Ui, s: &Session, t: &Tokens, account: &str, acts: &mut Vec<Action>) {
+pub(crate) fn trusted_rows(ui: &mut Ui, s: &Session, t: &Tokens, account: &str, acts: &mut Vec<Action>) {
     ui.add_space(6.0);
     ui.label(RichText::new(tl!("Certificates")).color(t.dim));
     for c in s.trusted_certificates(account) {

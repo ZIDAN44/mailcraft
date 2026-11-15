@@ -51,7 +51,7 @@ impl AddressForm {
     }
 }
 
-pub(super) fn draw(ui: &mut Ui, f: &mut AddressForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub(crate) fn draw(ui: &mut Ui, f: &mut AddressForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(460.0);
     title(ui, t, if f.changing { "Change an address" } else { "Add an address" });
     let about = tl!(
