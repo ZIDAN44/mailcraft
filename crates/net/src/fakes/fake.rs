@@ -32,6 +32,13 @@ pub struct Mailbox {
     pub expunged: Vec<(u32, u64)>,
 }
 
+impl Mailbox {
+    /// An empty folder: its name, its SPECIAL-USE attribute (or none), its UIDVALIDITY.
+    pub fn new(name: impl Into<String>, attr: &'static str, validity: u32) -> Mailbox {
+        Mailbox { name: name.into(), attr, validity, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() }
+    }
+}
+
 pub struct State {
     pub boxes: Vec<Mailbox>,
     pub modseq: u64,
@@ -86,10 +93,10 @@ impl State {
     pub fn new() -> Arc<Mutex<State>> {
         Arc::new(Mutex::new(State {
             boxes: vec![
-                Mailbox { name: "INBOX".into(), attr: "", validity: 100, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() },
-                Mailbox { name: "Sent".into(), attr: "\\Sent", validity: 200, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() },
-                Mailbox { name: "Archive".into(), attr: "\\Archive", validity: 300, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() },
-                Mailbox { name: "Projects/Caf&AOk-".into(), attr: "", validity: 400, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() },
+                Mailbox::new("INBOX", "", 100),
+                Mailbox::new("Sent", "\\Sent", 200),
+                Mailbox::new("Archive", "\\Archive", 300),
+                Mailbox::new("Projects/Caf&AOk-", "", 400),
             ],
             modseq: 10,
             caps: "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA",

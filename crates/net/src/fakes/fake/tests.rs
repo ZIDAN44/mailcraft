@@ -216,7 +216,7 @@ fn gmail_permanent_delete_moves_to_trash_then_expunges() {
         let mut s = st.lock().unwrap();
         s.caps = "IMAP4rev1 UIDPLUS MOVE X-GM-EXT-1";
         for (name, attr, validity) in [("[Gmail]/All Mail", "\\All", 500), ("[Gmail]/Trash", "\\Trash", 600)] {
-            s.boxes.push(Mailbox { name: name.into(), attr, validity, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() });
+            s.boxes.push(Mailbox::new(name, attr, validity));
         }
         for subject in ["a", "b", "c", "d"] {
             s.add("INBOX", subject, &[]);

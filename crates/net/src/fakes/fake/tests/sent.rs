@@ -105,7 +105,7 @@ fn the_flagged_sent_folder_takes_the_copy_wherever_it_is_listed() {
     {
         let mut s = st.lock().unwrap();
         for (at, name) in (1..).zip(["Clients", "Clients/Sent", "Sent Items"]) {
-            let b = Mailbox { name: name.into(), attr: "", validity: 500 + at, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() };
+            let b = Mailbox::new(name, "", 500 + at);
             s.boxes.insert(at as usize, b);
         }
     }
@@ -129,14 +129,7 @@ fn the_flagged_sent_folder_takes_the_copy_wherever_it_is_listed() {
 #[test]
 fn a_sent_or_drafts_folder_deleted_on_the_server_is_made_again() {
     let st = State::new();
-    st.lock().unwrap().boxes.push(Mailbox {
-        name: "Drafts".into(),
-        attr: r"\Drafts",
-        validity: 600,
-        uid_next: 1,
-        msgs: Vec::new(),
-        expunged: Vec::new(),
-    });
+    with_drafts(&st);
     let (mut pool, store, _log) = online(&st, "sent-gone");
     assert!(store.load_folders("a1").unwrap_or_default().iter().any(|f| f.path == "Drafts"), "listed");
     st.lock().unwrap().boxes.retain(|b| b.name != "Sent" && b.name != "Drafts");
@@ -157,14 +150,7 @@ fn a_sent_or_drafts_folder_deleted_on_the_server_is_made_again() {
 #[test]
 fn a_sent_or_drafts_folder_renamed_on_the_server_is_found_again() {
     let st = State::new();
-    st.lock().unwrap().boxes.push(Mailbox {
-        name: "Drafts".into(),
-        attr: r"\Drafts",
-        validity: 600,
-        uid_next: 1,
-        msgs: Vec::new(),
-        expunged: Vec::new(),
-    });
+    with_drafts(&st);
     let (mut pool, store, _log) = online(&st, "sent-renamed");
     for (from, to) in [("Sent", "Sent Messages"), ("Drafts", "Brouillons")] {
         if let Some(b) = st.lock().unwrap().boxes.iter_mut().find(|b| b.name == from) {
@@ -190,14 +176,7 @@ fn a_sent_or_drafts_folder_renamed_on_the_server_is_found_again() {
 #[test]
 fn a_draft_saved_twice_is_there_once() {
     let st = State::new();
-    st.lock().unwrap().boxes.push(Mailbox {
-        name: "Drafts".into(),
-        attr: r"\Drafts",
-        validity: 600,
-        uid_next: 1,
-        msgs: Vec::new(),
-        expunged: Vec::new(),
-    });
+    with_drafts(&st);
     let (mut pool, store, _log) = online(&st, "draft-twice");
     let draft = b"From: me@studio.example\r\nSubject: Plans\r\nMessage-ID: <twice@studio.example>\r\n\r\nto finish\r\n".to_vec();
     for _ in 0..2 {
@@ -211,14 +190,7 @@ fn a_draft_saved_twice_is_there_once() {
 
 /// Drafts, with nothing in it yet, on `st`.
 fn with_drafts(st: &Arc<Mutex<State>>) {
-    st.lock().unwrap().boxes.push(Mailbox {
-        name: "Drafts".into(),
-        attr: r"\Drafts",
-        validity: 600,
-        uid_next: 1,
-        msgs: Vec::new(),
-        expunged: Vec::new(),
-    });
+    st.lock().unwrap().boxes.push(Mailbox::new("Drafts", r"\Drafts", 600));
 }
 
 /// A message put in Drafts by another program.
@@ -244,14 +216,7 @@ fn in_folder(st: &Arc<Mutex<State>>, folder: &str) -> Vec<Vec<u8>> {
 
 /// A Trash folder (SPECIAL-USE `\Trash`), with nothing in it yet, on `st`.
 fn with_trash(st: &Arc<Mutex<State>>) {
-    st.lock().unwrap().boxes.push(Mailbox {
-        name: "Trash".into(),
-        attr: r"\Trash",
-        validity: 700,
-        uid_next: 1,
-        msgs: Vec::new(),
-        expunged: Vec::new(),
-    });
+    st.lock().unwrap().boxes.push(Mailbox::new("Trash", r"\Trash", 700));
 }
 
 /// A draft saved again on a phone, which kept its Message-ID and built the rest anew.

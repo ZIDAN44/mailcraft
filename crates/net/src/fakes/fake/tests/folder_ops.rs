@@ -62,7 +62,7 @@ fn a_folder_renamed_twice_offline_keeps_its_mail() {
     {
         let mut s = st.lock().unwrap();
         s.add("Archive", "kept", &[]);
-        s.boxes.push(Mailbox { name: "Other".into(), attr: "", validity: 400, uid_next: 1, msgs: Vec::new(), expunged: Vec::new() });
+        s.boxes.push(Mailbox::new("Other", "", 400));
         s.add("Other", "elsewhere", &[]);
     }
     let port = serve_tcp(&st);
