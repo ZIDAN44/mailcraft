@@ -1,6 +1,6 @@
 //! A message written: its properties, its recipients, its attachments and those attached to it.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io;
 
 use super::edit::Editor;
@@ -425,64 +425,80 @@ fn finish_attachment(format: Format, mut props: Vec<(u16, PropertyValue)>, data_
     super::heap::build_props_linked(format, props, FIRST_SUBNODE, data_node.map(|n| (0x3701, P::BINARY, n)))
 }
 
-/// The cell of a message's row in its folder's contents table for a column.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn contents_cell(
-    id: u16,
-    kind: u16,
-    m: &NewMessage<'_>,
-    has_attachments: bool,
-    named: &NamedIds,
-    record_key: &[u8; 16],
-    folder: u32,
-    nid: u32,
-    version: u32,
-    size: i32,
-    text: Text,
-) -> Option<Cell> {
-    // An added property's value, as the message has it.
-    if id != 0x0E07 {
-        for p in m.properties {
-            if named.property_id(&p.key).ok() == Some(id) {
-                if let NewValue::Unicode(s) = p.value {
-                    return string(kind, text, s);
-                }
-                let v = text.narrow(p.value.property_value());
-                if value_type(&v) != kind {
-                    return None;
-                }
-                let bytes = super::heap::value_bytes(&v);
-                return Some(if P(kind).row_width().is_none() { Cell::Bytes(bytes) } else { Cell::Fixed(bytes) });
-            }
+/// The properties given with a message by the ID each is written with: the first given for an ID,
+/// as it is the one a contents table's row shows. A named property the file has no ID for is left
+/// out.
+pub(crate) fn given_by_id<'a>(m: &NewMessage<'a>, named: &NamedIds) -> HashMap<u16, NewValue<'a>> {
+    let mut given = HashMap::new();
+    for p in m.properties {
+        if let Ok(id) = named.property_id(&p.key) {
+            given.entry(id).or_insert(p.value);
         }
     }
-    let list = |t: RecipientType| {
-        let d = display(m, t);
-        if d.is_empty() { None } else { string(kind, text, &d) }
-    };
-    match (id, kind) {
-        #[allow(clippy::cast_possible_wrap)]
-        (ROW_ID, P::INT32) => int(nid as i32),
-        #[allow(clippy::cast_possible_wrap)]
-        (ROW_VERSION, P::INT32) => int(version as i32),
-        (0x001A, _) => string(kind, text, m.message_class),
-        (0x0037 | 0x0E1D | 0x0070 | 0x3001, _) => string(kind, text, m.subject),
-        (0x0042 | 0x0C1A, _) => string(kind, text, m.sender_name),
-        (0x0C1F, _) => string(kind, text, m.sender_email),
-        (0x0E02, _) => list(RecipientType::Bcc),
-        (0x0E03, _) => list(RecipientType::Cc),
-        (0x0E04, _) => list(RecipientType::To),
-        (0x1035, _) => string(kind, text, m.message_id),
-        (0x0039 | 0x0E06 | 0x3008, P::TIME) => Some(Cell::Fixed(m.delivery_time.to_le_bytes().to_vec())),
-        (0x0E17, P::INT32) => int(0),
-        (0x0E07, P::INT32) => int(message_flags(m, has_attachments)),
-        (0x0E08, P::INT32) => int(size),
-        (0x0E1B, P::BOOLEAN) => boolean(has_attachments),
-        (0x3FDE, P::INT32) => int(65001),
-        (0x0E09, P::BINARY) => Some(Cell::Bytes(entry_id(record_key, folder))),
-        (0x0FFF, P::BINARY) => Some(Cell::Bytes(entry_id(record_key, nid))),
-        (0x300B, P::BINARY) => Some(Cell::Bytes(m.message_id.as_bytes().to_vec())),
-        _ => None,
+    given
+}
+
+/// A new message's row in its folder's contents table: what its cells are made of, worked out
+/// once for the row.
+pub(crate) struct ContentsRow<'a> {
+    pub(crate) message: &'a NewMessage<'a>,
+    pub(crate) has_attachments: bool,
+    /// The properties given with it, from [`given_by_id`].
+    pub(crate) given: HashMap<u16, NewValue<'a>>,
+    pub(crate) record_key: &'a [u8; 16],
+    pub(crate) folder: u32,
+    pub(crate) nid: u32,
+    pub(crate) version: u32,
+    pub(crate) size: i32,
+    pub(crate) text: Text,
+}
+
+impl ContentsRow<'_> {
+    /// The row's cell for a column.
+    pub(crate) fn cell(&self, id: u16, kind: u16) -> Option<Cell> {
+        let (m, text) = (self.message, self.text);
+        // An added property's value, as the message has it.
+        if id != 0x0E07
+            && let Some(value) = self.given.get(&id)
+        {
+            if let NewValue::Unicode(s) = value {
+                return string(kind, text, s);
+            }
+            let v = text.narrow(value.property_value());
+            if value_type(&v) != kind {
+                return None;
+            }
+            let bytes = super::heap::value_bytes(&v);
+            return Some(if P(kind).row_width().is_none() { Cell::Bytes(bytes) } else { Cell::Fixed(bytes) });
+        }
+        let list = |t: RecipientType| {
+            let d = display(m, t);
+            if d.is_empty() { None } else { string(kind, text, &d) }
+        };
+        match (id, kind) {
+            #[allow(clippy::cast_possible_wrap)]
+            (ROW_ID, P::INT32) => int(self.nid as i32),
+            #[allow(clippy::cast_possible_wrap)]
+            (ROW_VERSION, P::INT32) => int(self.version as i32),
+            (0x001A, _) => string(kind, text, m.message_class),
+            (0x0037 | 0x0E1D | 0x0070 | 0x3001, _) => string(kind, text, m.subject),
+            (0x0042 | 0x0C1A, _) => string(kind, text, m.sender_name),
+            (0x0C1F, _) => string(kind, text, m.sender_email),
+            (0x0E02, _) => list(RecipientType::Bcc),
+            (0x0E03, _) => list(RecipientType::Cc),
+            (0x0E04, _) => list(RecipientType::To),
+            (0x1035, _) => string(kind, text, m.message_id),
+            (0x0039 | 0x0E06 | 0x3008, P::TIME) => Some(Cell::Fixed(m.delivery_time.to_le_bytes().to_vec())),
+            (0x0E17, P::INT32) => int(0),
+            (0x0E07, P::INT32) => int(message_flags(m, self.has_attachments)),
+            (0x0E08, P::INT32) => int(self.size),
+            (0x0E1B, P::BOOLEAN) => boolean(self.has_attachments),
+            (0x3FDE, P::INT32) => int(65001),
+            (0x0E09, P::BINARY) => Some(Cell::Bytes(entry_id(self.record_key, self.folder))),
+            (0x0FFF, P::BINARY) => Some(Cell::Bytes(entry_id(self.record_key, self.nid))),
+            (0x300B, P::BINARY) => Some(Cell::Bytes(m.message_id.as_bytes().to_vec())),
+            _ => None,
+        }
     }
 }
 
@@ -514,5 +530,45 @@ mod tests {
         ];
         assert_eq!(recipient_columns(st), expected);
         assert!(recipient_template_columns(st).iter().all(|c| expected.contains(c)));
+    }
+
+    /// A contents row shows the first property given for a column's ID, nothing when its type
+    /// isn't the column's, and the message's own flags whatever is given for them.
+    #[test]
+    fn a_contents_row_shows_the_first_property_given_for_a_column() {
+        let props = [
+            NewProperty::tagged(0x0E17, NewValue::Integer32(5)),
+            NewProperty::tagged(0x0E17, NewValue::Integer32(6)),
+            NewProperty::tagged(0x0E08, NewValue::Unicode("not a size")),
+            NewProperty::tagged(0x0E07, NewValue::Integer32(0x7777)),
+        ];
+        let m = NewMessage {
+            subject: "Subject",
+            sender_name: "Ann",
+            sender_email: "ann@example.org",
+            recipients: &[],
+            body: "Body",
+            html_body: None,
+            message_id: "<m@example.org>",
+            delivery_time: 0,
+            message_class: "IPM.Note",
+            properties: &props,
+        };
+        let key = [7u8; 16];
+        let row = ContentsRow {
+            message: &m,
+            has_attachments: false,
+            given: given_by_id(&m, &NamedIds::default()),
+            record_key: &key,
+            folder: 0x8022,
+            nid: 0x20_0024,
+            version: 1,
+            size: 10,
+            text: Text::plain(Format::Unicode),
+        };
+        assert_eq!(row.cell(0x0E17, P::INT32), int(5));
+        assert_eq!(row.cell(0x0E08, P::INT32), None);
+        assert_eq!(row.cell(0x0E07, P::INT32), int(message_flags(&m, false)));
+        assert_eq!(row.cell(0x0FFF, P::BINARY), Some(Cell::Bytes(entry_id(&key, 0x20_0024))));
     }
 }

@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 use super::FIRST_SUBNODE;
 use super::edit::{ADD_MAX_VALUE_SIZE, Editor};
-use super::message::{contents_cell, is_unread, text_of};
+use super::message::{ContentsRow, given_by_id, is_unread, text_of};
 use super::table::{Cell, NewRow, ROW_ID, ROW_VERSION};
 use super::text::{Text, same_ansi_name};
 use super::types::*;
@@ -241,6 +241,7 @@ impl Editor {
         struct Written {
             nid: u32,
             size: i32,
+            text: Text,
         }
         let mut written = Vec::with_capacity(batch.len());
         let mut updates = Vec::with_capacity(batch.len() + 1);
@@ -250,31 +251,23 @@ impl Editor {
             let (data, sub, total) = self.write_message(&input.message, input.attachments, &named, nid, version, text)?;
             self.set_node(nid, data, sub, folder);
             updates.push((SUD_MSG_ADD, folder, nid));
-            written.push(Written { nid, size: i32::try_from(total.saturating_sub(6)).map_err(|_| short())? });
+            written.push(Written { nid, size: i32::try_from(total.saturating_sub(6)).map_err(|_| short())?, text });
         }
         let contents = (folder & !NID_TYPE_MASK) | NID_TYPE_CONTENTS_TABLE;
         let count = self.rewrite_table(contents, |schema, rows| {
             for (input, w) in batch.iter().zip(&written) {
-                let text = text_of(format, &input.message, input.attachments);
-                let cells = schema
-                    .columns
-                    .iter()
-                    .map(|c| {
-                        contents_cell(
-                            c.prop_id(),
-                            c.prop_type(),
-                            &input.message,
-                            !input.attachments.is_empty(),
-                            &named,
-                            &key,
-                            folder,
-                            w.nid,
-                            version,
-                            w.size,
-                            text,
-                        )
-                    })
-                    .collect();
+                let row = ContentsRow {
+                    message: &input.message,
+                    has_attachments: !input.attachments.is_empty(),
+                    given: given_by_id(&input.message, &named),
+                    record_key: &key,
+                    folder,
+                    nid: w.nid,
+                    version,
+                    size: w.size,
+                    text: w.text,
+                };
+                let cells = schema.columns.iter().map(|c| row.cell(c.prop_id(), c.prop_type())).collect();
                 rows.push(NewRow { id: w.nid, cells });
             }
             Ok(())

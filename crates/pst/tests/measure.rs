@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::time::Instant;
 
-use mailcraft_pst::write::{self, BatchMessage, NewMessage, SpecialFolder};
-use mailcraft_pst::{Format, PropertyValue, PstFile, PstStore};
+use mailcraft_pst::write::{self, BatchMessage, Name, NewMessage, NewProperty, NewValue, SpecialFolder};
+use mailcraft_pst::{Format, PS_PUBLIC_STRINGS, PropertyValue, PstFile, PstStore};
 use scratch::scratch;
 
 /// A file `name` in a scratch folder of its own.
@@ -45,6 +45,11 @@ fn digest(path: &Path) -> u64 {
 
 /// `n` small messages, numbered from `from`, added to the folder at `folder`.
 fn add(path: &Path, folder: &[&str], from: usize, n: usize) {
+    add_with(path, folder, from, n, &[]);
+}
+
+/// [`add`], each message carrying `properties`.
+fn add_with(path: &Path, folder: &[&str], from: usize, n: usize, properties: &[NewProperty<'_>]) {
     let subjects: Vec<String> = (from..from + n).map(|i| format!("Message {i}")).collect();
     let ids: Vec<String> = (from..from + n).map(|i| format!("<m{i}@example.org>")).collect();
     let batch: Vec<BatchMessage<'_>> = subjects
@@ -62,7 +67,7 @@ fn add(path: &Path, folder: &[&str], from: usize, n: usize) {
                 message_id: id,
                 delivery_time: 133_000_000_000_000_000 + i64::try_from(from + i).unwrap() * 10_000_000,
                 message_class: "IPM.Note",
-                properties: &[],
+                properties,
             },
             attachments: &[],
         })
@@ -150,4 +155,26 @@ fn measure_a_big_folder_added_to_and_taken_from() {
         println!("file {:016x}", digest(&path));
     }
     println!("MEASURE 5 batches of 2000 into a folder of 60000: {added} ms; 5 deletes of 20: {taken} ms (best of {ROUNDS})");
+}
+
+/// Messages that carry named properties: each one's row in its folder's contents table is made
+/// from them.
+#[test]
+#[ignore = "a measurement"]
+fn measure_messages_with_named_properties() {
+    let names: Vec<String> = (0..30).map(|i| format!("Label {i}")).collect();
+    let values: Vec<String> = (0..30).map(|i| format!("value {i}")).collect();
+    let properties: Vec<NewProperty<'_>> =
+        names.iter().zip(&values).map(|(n, v)| NewProperty::named(PS_PUBLIC_STRINGS, Name::String(n), NewValue::Unicode(v))).collect();
+    let mut best = u128::MAX;
+    for _ in 0..ROUNDS {
+        let path = start_from("named.pst", |p| write::create_empty(p, Format::Unicode).unwrap());
+        let t = Instant::now();
+        for b in 0..5 {
+            add_with(&path, &["Inbox"], b * 1000, 1000, &properties);
+        }
+        best = best.min(t.elapsed().as_millis());
+        println!("file {:016x}", digest(&path));
+    }
+    println!("MEASURE 5 batches of 1000 messages of 30 named properties: {best} ms (best of {ROUNDS})");
 }

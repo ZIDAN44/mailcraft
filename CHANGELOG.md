@@ -178,6 +178,7 @@ on GitHub.
 - Clean Up keeps the message the list shows last: a reply from a computer whose clock is behind now counts as later than the message it quotes.
 - Mail deleted in MailCraft from a very large Outlook file no longer comes back at random when the file is read again.
 - Moving the data files to a network folder no longer fails when the copy was fine.
+- Adding messages that carry many custom properties to an Outlook data file is faster.
 
 ## 0.38.0 - 2026-11-13
 
