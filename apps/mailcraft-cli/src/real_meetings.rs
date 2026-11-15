@@ -207,3 +207,58 @@ fn real_meeting_through_a_calendar_server_and_an_invitation() {
         let _ = std::fs::remove_dir_all(st.root());
     }
 }
+
+/// Issue #100: a daily meeting with one day taken out, then moved ten minutes later. The day
+/// taken out stays out on the calendar server and for the guest; it came back, at the old
+/// time in the `EXDATE`.
+#[test]
+#[ignore = "needs real mail and calendar servers in MAILCRAFT_REAL_MEETING"]
+fn real_series_moved_keeps_its_day_taken_out() {
+    let Some(sv) = servers() else {
+        eprintln!("MAILCRAFT_REAL_MEETING isn't set: skipped");
+        return;
+    };
+    let (mut s, mut pool, store) = open("riley-series", RILEY, &sv);
+    let calendar = s.pim.values().flat_map(|p| p.calendars.iter()).find(|c| c.id.starts_with("http")).map(|c| c.id.clone()).unwrap();
+    let tag = std::process::id();
+    let day = 86_400;
+    let first = (chrono::Utc::now().timestamp() / day + 2) * day + 17 * 3600 + 600;
+    let r = s
+        .run(
+            "event.create",
+            &json!({"summary": format!("Stand-up {tag}"), "start": first, "end": first + 1800, "repeat": "FREQ=DAILY;COUNT=5",
+                    "attendees": format!("Zoe Park <{ZOE}>"), "calendar": calendar}),
+        )
+        .unwrap();
+    let uid = r["uid"].as_str().unwrap().to_string();
+    send(&mut s, &mut pool);
+    s.run("event.delete", &json!({"uid": uid, "occurrence": first + 2 * day})).unwrap();
+    send(&mut s, &mut pool);
+    s.run("event.update", &json!({"uid": uid, "start": first + 600})).unwrap();
+    send(&mut s, &mut pool);
+
+    // On the calendar server, read by another copy of MailCraft.
+    let back = from_server(&sv, &uid);
+    assert_eq!((back.start, back.exdates.as_slice()), (first + 600, [first + 2 * day + 600].as_slice()), "{back:?}");
+    let on_third: Vec<i64> = ical::occurrences(&[back], first + 2 * day - 3600, first + 3 * day - 3600).iter().map(|o| o.start).collect();
+    assert!(on_third.is_empty(), "the day taken out stays out: {on_third:?}");
+
+    // For the guest: the newest of the invitations, by the meeting's version (two may come
+    // within a second).
+    let (mut z, mut zpool, zstore) = open("zoe-series", ZOE, &sv);
+    let subject = format!("Invitation: Stand-up {tag}");
+    let keys: Vec<_> = z.list.iter().filter(|m| m.subject == subject).map(|m| m.key.clone()).collect();
+    assert_eq!(keys.len(), 2, "the invitation and the update");
+    for k in &keys {
+        if z.message_calendar(k).is_none() {
+            zpool.submit(Job::FetchBody { key: k.clone() });
+            drive(&mut z, &mut zpool, Duration::from_secs(30), |e| matches!(e, Event::Body { key, .. } if key == k).then_some(Ok(()))).unwrap();
+        }
+    }
+    let series =
+        keys.iter().filter_map(|k| z.message_calendar(k)?.events.into_iter().find(|e| e.recurrence_id.is_none())).max_by_key(|e| e.sequence).unwrap();
+    assert_eq!((series.start, series.exdates.as_slice()), (first + 600, [first + 2 * day + 600].as_slice()));
+    for st in [store, zstore] {
+        let _ = std::fs::remove_dir_all(st.root());
+    }
+}

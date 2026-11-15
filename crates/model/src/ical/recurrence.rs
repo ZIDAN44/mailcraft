@@ -302,6 +302,27 @@ pub fn starts(e: &CalEvent, before: i64) -> Vec<i64> {
     starts_from(e, i64::MIN, before)
 }
 
+/// Where each of the occurrences `at` of the series `old` is once the series is `new` (its start
+/// or its rule changed): the occurrence of the same number in `new` (issue #100), so one taken
+/// out or changed stays the one it was, whatever summer time or a change of day does to the
+/// times. `None`: `new` has no occurrence of that number. A time that isn't one of `old`'s
+/// occurrences (or lies past the starts followed) moves as the series' start does.
+pub fn moved_occurrences(old: &CalEvent, new: &CalEvent, at: &[i64]) -> Vec<Option<i64>> {
+    let same = old.start == new.start && old.rrule == new.rrule && old.rdates == new.rdates && old.tzid == new.tzid;
+    let Some(last) = at.iter().copied().max().filter(|_| !same) else {
+        return at.iter().copied().map(Some).collect();
+    };
+    let shift = new.start.saturating_sub(old.start);
+    let before = starts(old, last.saturating_add(1));
+    let after = starts(new, i64::MAX);
+    at.iter()
+        .map(|x| match before.binary_search(x) {
+            Ok(n) => after.get(n).copied(),
+            Err(_) => Some(x.saturating_add(shift)),
+        })
+        .collect()
+}
+
 /// [`starts`] in `[from, before)`, and maybe some before `from`. A rule without `COUNT` is looked
 /// at from near `from`: walked from its first start, a series was worked through day by day each
 /// time the calendar was drawn, and one begun long ago (a daily one 55 years back) ran out of

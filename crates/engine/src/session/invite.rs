@@ -530,7 +530,20 @@ impl Session {
             (format!("Invitation: {}", event.summary), format!("{}\nWhen: {when}{place}\n\n{}", event.summary, event.description))
         };
         let n = to.len();
-        self.send_itip(account, Itip { from: &from, to, method, events: &[e], subject: &subject, body: &body })?;
+        // A series sent as a whole goes with its changed occurrences (RFC 5546 §3.2.2): a guest's
+        // calendar takes the whole series as the message has it, and dropped those it left out.
+        let mut events = vec![e];
+        if method == "REQUEST"
+            && event.recurrence_id.is_none()
+            && (event.rrule.is_some() || !event.rdates.is_empty())
+            && let Some(p) = self.pim.get(account)
+        {
+            let changed = p.events.iter().filter(|x| {
+                x.event.uid == event.uid && x.event.recurrence_id.is_some() && x.event.status != "CANCELLED" && !p.is_theirs(&x.calendar)
+            });
+            events.extend(changed.map(|x| x.event.clone()));
+        }
+        self.send_itip(account, Itip { from: &from, to, method, events: &events, subject: &subject, body: &body })?;
         Ok(n)
     }
 

@@ -18,6 +18,7 @@ pub use find::{EVENT_HITS_MAX, EventHit, EventWhen};
 mod local;
 pub use local::LocalEvents;
 mod reminders;
+mod series;
 mod sync;
 mod tasks;
 pub use tasks::{ListedTask, TASKS_CALENDAR, TaskRef, TasksOrder};
@@ -363,14 +364,19 @@ impl Session {
         if mailcraft_model::ical::details_hidden(&stored.event) {
             return Err(CmdError::Params("only this event's time can be seen: it can't be changed".into()));
         }
-        let mut e = stored.event.clone();
+        let old = stored.event.clone();
+        let mut e = old.clone();
         change(&mut e);
         check_event(&e)?;
         e.sequence = e.sequence.saturating_add(1);
-        stored.event = e;
-        let remote = stored.calendar != LOCAL;
-        stored.dirty |= remote;
-        self.after_pim_change(&account, remote);
+        let calendar = stored.calendar.clone();
+        let remote = calendar != LOCAL;
+        let occurrences = series::carry_occurrences(p, &calendar, uid, &old, &mut e);
+        if let Some(stored) = p.events.iter_mut().find(|x| x.event.uid == uid && x.calendar == calendar && x.event.recurrence_id.is_none()) {
+            stored.event = e;
+            stored.dirty |= remote;
+        }
+        self.after_pim_change(&account, remote || occurrences);
         Ok(serde_json::json!({"uid": uid}))
     }
 
