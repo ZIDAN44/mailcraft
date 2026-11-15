@@ -11,7 +11,7 @@ use mailcraft_smime as smime;
 /// A small RSA test identity (the crate's test CA's Riley), read once.
 fn riley() -> Option<&'static smime::Identity> {
     static ID: std::sync::OnceLock<Option<smime::Identity>> = std::sync::OnceLock::new();
-    ID.get_or_init(|| smime::read_p12(include_bytes!("../../crates/smime/testdata/riley-aes.p12"), "secret").ok()).as_ref()
+    ID.get_or_init(|| smime::read_p12(include_bytes!("../../../crates/smime/testdata/riley-aes.p12"), "secret").ok()).as_ref()
 }
 
 fuzz_target!(|input: &[u8]| {

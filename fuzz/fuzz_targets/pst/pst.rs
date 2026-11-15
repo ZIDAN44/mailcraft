@@ -12,7 +12,6 @@
 //! right so damage reaches the code behind them.
 #![no_main]
 
-#[path = "pst/harness.rs"]
 mod harness;
 
 use harness::scratch;
