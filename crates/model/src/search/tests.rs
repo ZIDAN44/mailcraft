@@ -243,9 +243,8 @@ fn a_truncated_doc_is_unknown_when_a_word_is_missing() {
     // Names: cut short, a name may be missing; no text says nothing about names.
     assert_eq!(t("attachment:report", &cut), Tri::Unknown);
     assert_eq!((t("attachment:scan", &files_only), t("attachment:report", &files_only)), (Tri::Yes, Tri::No));
-    assert_eq!(indexed(false, TextField::Body, false, true), Tri::No);
-    assert_eq!(indexed(false, TextField::Body, false, false), Tri::No, "read whole, no text");
-    assert_eq!(indexed(false, TextField::Body, true, false), Tri::Unknown);
+    assert_eq!(indexed(false, false), Tri::No, "read whole: text or none");
+    assert_eq!(indexed(false, true), Tri::Unknown);
 }
 
 /// Plain words the index found are settled: the summary alone doesn't have them.

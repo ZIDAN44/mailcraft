@@ -146,8 +146,8 @@ struct IndexText<'a> {
 }
 
 impl IndexText<'_> {
-    fn not_found(&self, field: TextField) -> Tri {
-        indexed(false, field, self.info.truncated, self.info.has_text)
+    fn not_found(&self) -> Tri {
+        indexed(false, self.info.truncated)
     }
 }
 
@@ -166,7 +166,7 @@ impl TextSource for IndexText<'_> {
         if address && !prefix.starts_with(char::is_alphanumeric) {
             return Tri::Unknown;
         }
-        self.not_found(field)
+        self.not_found()
     }
 
     fn phrase(&self, field: TextField, phrase: &[String], _raw: &str) -> Tri {
@@ -176,14 +176,14 @@ impl TextSource for IndexText<'_> {
         for w in phrase {
             match self.terms.has(Field::from(field), w, self.doc) {
                 Some(true) => {}
-                Some(false) => return self.not_found(field),
+                Some(false) => return self.not_found(),
                 None => return Tri::Unknown,
             }
         }
         // Its places say what the text kept says: a doc cut short may still have it past the cut.
         match self.terms.phrase(Field::from(field), phrase, self.doc) {
             Some(true) => Tri::Yes,
-            Some(false) => self.not_found(field),
+            Some(false) => self.not_found(),
             None => Tri::Unknown,
         }
     }
@@ -438,8 +438,8 @@ impl Verifying {
 
     /// What the text said, all of it checked.
     fn answers(&self) -> Answers {
-        let (truncated, has_text) = (self.info.truncated, self.info.has_text);
-        let atoms = self.atoms.iter().zip(&self.found).map(|(a, f)| (a.clone(), indexed(*f, a.field(), truncated, has_text))).collect();
+        let truncated = self.info.truncated;
+        let atoms = self.atoms.iter().zip(&self.found).map(|(a, f)| (a.clone(), indexed(*f, truncated))).collect();
         Answers { atoms, files: self.info.files_known(), truncated }
     }
 }

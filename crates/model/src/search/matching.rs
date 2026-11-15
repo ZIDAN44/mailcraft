@@ -84,10 +84,11 @@ pub trait TextSource {
 }
 
 /// What an index answers for a word it looked up (`found`, or not). Not there is a no, unless
-/// what it was made from was cut short (too long, too many parts), when it can't tell. A message
-/// read whole with no text (pictures and files only) has no word: `-word` finds it (658 such
-/// messages of the 41 GB file weren't found by one, and were counted as not indexed yet).
-pub fn indexed(found: bool, _field: TextField, truncated: bool, _has_text: bool) -> Tri {
+/// what it was made from was cut short (too long, too many parts), when it can't tell. Whatever
+/// the field, and with text or none: a message read whole with no text (pictures and files only)
+/// has no word, and `-word` finds it (658 such messages of the 41 GB file weren't found by one,
+/// and were counted as not indexed yet).
+pub fn indexed(found: bool, truncated: bool) -> Tri {
     match found {
         true => Tri::Yes,
         false if truncated => Tri::Unknown,
@@ -153,19 +154,13 @@ pub struct DocText<'a> {
     text: WholeText<'a>,
     names: Vec<WholeText<'a>>,
     truncated: bool,
-    has_text: bool,
 }
 
 impl IndexDoc {
     /// Its text and names as search reads them, each lower-cased and folded once however many
     /// things are asked.
     pub fn read(&self) -> DocText<'_> {
-        DocText {
-            text: WholeText::new(&self.text),
-            names: self.names.iter().map(|n| WholeText::new(n)).collect(),
-            truncated: self.truncated,
-            has_text: self.has_text,
-        }
+        DocText { text: WholeText::new(&self.text), names: self.names.iter().map(|n| WholeText::new(n)).collect(), truncated: self.truncated }
     }
 }
 
@@ -175,7 +170,7 @@ impl TextSource for DocText<'_> {
             TextField::Body => self.text.word(field, prefix) == Tri::Yes,
             TextField::Names => self.names.iter().any(|n| n.word(field, prefix) == Tri::Yes),
         };
-        indexed(found, field, self.truncated, self.has_text)
+        indexed(found, self.truncated)
     }
 
     fn phrase(&self, field: TextField, phrase: &[String], raw: &str) -> Tri {
@@ -183,7 +178,7 @@ impl TextSource for DocText<'_> {
             TextField::Body => self.text.phrase(field, phrase, raw) == Tri::Yes,
             TextField::Names => self.names.iter().any(|n| n.phrase(field, phrase, raw) == Tri::Yes),
         };
-        indexed(found, field, self.truncated, self.has_text)
+        indexed(found, self.truncated)
     }
 }
 
