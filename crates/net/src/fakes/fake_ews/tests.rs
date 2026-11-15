@@ -453,7 +453,7 @@ fn special_folders_keep_the_names_exchange_gives_them() {
 /// `pw`): add the account with `"ews": "http://127.0.0.1:8085/EWS/Exchange.asmx"`.
 /// Run: `cargo test -p mailcraft-net serve_ews_for_the_app -- --ignored`.
 #[test]
-#[ignore]
+#[ignore = "a server for looking at the app, run by hand: it never ends"]
 fn serve_ews_for_the_app() {
     // `MAILCRAFT_FAKE_OPEN`: signed in by a front in front of it (gap 5's Kerberos one).
     let mut d = Data { open: std::env::var_os("MAILCRAFT_FAKE_OPEN").is_some(), ..Default::default() };
@@ -527,12 +527,11 @@ fn serve_ews_for_the_app() {
          Sent by Google Calendar<https://calendar.google.com/calendar/>\n\nYou are receiving this email because you are an attendee on the event.\n\n\
          Forwarding this invitation could allow any recipient to send a response to the organizer, be added to the guest list, invite others regardless of their own invitation status, or modify your RSVP. Learn more<https://support.google.com/calendar/answer/37135#forwarding>\n"
     ));
-    let xml = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
     let google = parse(&format!(
         "<t:CalendarItem><t:Subject>Invitation: Design review @ Wed 21 Oct 2026 14:00 - 15:00 (EET)</t:Subject><t:Body BodyType=\"Text\">{}</t:Body>\
          <t:Start>2026-10-21T12:00:00Z</t:Start><t:End>2026-10-21T13:00:00Z</t:End><t:IsAllDayEvent>false</t:IsAllDayEvent>\
          <t:Location>https://meet.google.com/abc-defg-hij</t:Location><t:UID>google-invite-1</t:UID></t:CalendarItem>",
-        xml(&invite)
+        esc(&invite)
     ));
     d.pim.push(PimItem::new("G1", agenda, google.kids[0].clone()));
     // Issue #9: the organisation's directory, where someone new (Dana Whitfield) starts 45

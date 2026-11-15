@@ -301,7 +301,7 @@ fn remote_changes_flags_moves_deletes_and_appends() {
 /// disabled"); `MAILCRAFT_FAKE_CLOSED` (an address) takes that address's token but won't
 /// open its mailbox. Run: `cargo test -p mailcraft-net serve_imap_for_the_app -- --ignored`.
 #[test]
-#[ignore]
+#[ignore = "a server for looking at the app, run by hand: it never ends"]
 fn serve_imap_for_the_app() {
     let st = State::new();
     {
@@ -329,26 +329,9 @@ fn serve_imap_for_the_app() {
             }
         }
     }
-    let listener = std::net::TcpListener::bind("127.0.0.1:1143").unwrap();
-    for sock in listener.incoming().flatten() {
-        let st = st.clone();
-        std::thread::spawn(move || {
-            let mut fake = Fake::connect(&st);
-            let mut sock = sock;
-            let mut buf = [0u8; 8192];
-            loop {
-                let out: Vec<u8> = fake.out.drain(..).collect();
-                if !out.is_empty() && sock.write_all(&out).is_err() {
-                    return;
-                }
-                match sock.read(&mut buf) {
-                    Ok(0) | Err(_) => return,
-                    Ok(n) => {
-                        let _ = fake.write(&buf[..n]);
-                    }
-                }
-            }
-        });
+    serve_tcp_on(std::net::TcpListener::bind("127.0.0.1:1143").unwrap(), &st);
+    loop {
+        std::thread::park();
     }
 }
 

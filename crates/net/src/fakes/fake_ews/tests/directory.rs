@@ -157,9 +157,9 @@ fn someone_new_in_the_directory_is_found_without_a_restart() {
 /// Run: `MAILCRAFT_EWS_FRONT=http://127.0.0.1:8086/EWS/Exchange.asmx cargo test -p mailcraft-net
 /// through_a_front_end -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "needs MAILCRAFT_EWS_FRONT, a front end in Docker: see the doc"]
 fn through_a_front_end_that_checks_the_user_agent() {
-    let Ok(front) = std::env::var("MAILCRAFT_EWS_FRONT") else { return };
+    let Ok(front) = std::env::var("MAILCRAFT_EWS_FRONT") else { panic!("set MAILCRAFT_EWS_FRONT to run it (see its doc)") };
     let dir = std::env::temp_dir().join(format!("mailcraft-ews-front-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let store = Store::open(&dir).unwrap();
@@ -221,9 +221,9 @@ fn through_a_front_end_that_checks_the_user_agent() {
 /// Run: `MAILCRAFT_EWS_KERBEROS=http://localhost:8087/EWS/Exchange.asmx MAILCRAFT_KDC=127.0.0.1:88
 /// cargo test -p mailcraft-net through_a_kerberos -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "needs MAILCRAFT_EWS_KERBEROS and MAILCRAFT_KDC, a Kerberos front in Docker: see the doc"]
 fn through_a_kerberos_front() {
-    let Ok(front) = std::env::var("MAILCRAFT_EWS_KERBEROS") else { return };
+    let Ok(front) = std::env::var("MAILCRAFT_EWS_KERBEROS") else { panic!("set MAILCRAFT_EWS_KERBEROS to run it (see its doc)") };
     let c = crate::ews::Client::connect(&front, "riley@contoso.test", PASSWORD, "riley@contoso.test").unwrap();
     println!("signed in with Kerberos: {} folders", c.mailboxes().unwrap().len());
     // As Exchange users type it, the domain's NetBIOS name before the user: the realm from the
@@ -263,12 +263,12 @@ fn through_a_kerberos_front() {
 /// Run: `MAILCRAFT_GROMMUNIO=http://127.0.0.1:18090/EWS/Exchange.asmx MAILCRAFT_GROMMUNIO_USER=riley@studio.test
 /// MAILCRAFT_GROMMUNIO_PASSWORD=… cargo test -p mailcraft-net against_grommunio -- --ignored --nocapture`.
 #[test]
-#[ignore]
+#[ignore = "needs MAILCRAFT_GROMMUNIO and its user and password, grommunio in Docker: see the doc"]
 fn against_grommunio() {
     let (Ok(url), Ok(user), Ok(password)) =
         (std::env::var("MAILCRAFT_GROMMUNIO"), std::env::var("MAILCRAFT_GROMMUNIO_USER"), std::env::var("MAILCRAFT_GROMMUNIO_PASSWORD"))
     else {
-        return;
+        panic!("set MAILCRAFT_GROMMUNIO, MAILCRAFT_GROMMUNIO_USER and MAILCRAFT_GROMMUNIO_PASSWORD to run it (see its doc)");
     };
     let dir = std::env::temp_dir().join(format!("mailcraft-grommunio-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);

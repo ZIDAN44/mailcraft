@@ -8,6 +8,12 @@ use super::*;
 pub fn serve_tcp(st: &Arc<Mutex<State>>) -> u16 {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
+    serve_tcp_on(listener, st);
+    port
+}
+
+/// Serve the fake on a listener of the caller's (one thread per connection).
+pub(crate) fn serve_tcp_on(listener: std::net::TcpListener, st: &Arc<Mutex<State>>) {
     let st = st.clone();
     std::thread::spawn(move || {
         for sock in listener.incoming().flatten() {
@@ -34,7 +40,6 @@ pub fn serve_tcp(st: &Arc<Mutex<State>>) -> u16 {
             });
         }
     });
-    port
 }
 
 /// A store in a temporary folder of its own, for other fakes' tests.
