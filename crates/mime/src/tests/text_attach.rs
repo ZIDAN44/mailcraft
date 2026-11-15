@@ -31,7 +31,6 @@ fn quoted_printable(data: &[u8]) -> String {
     out
 }
 
-/// A message with a short text body and these parts after it, each `(headers, body)`.
 /// Found in review: a file with a Content-ID and nothing on how it's shown (as some invoicing
 /// programs attach a PDF) was taken for a picture in the text: counted (the paperclip), and
 /// then listed nowhere. It's a file. A picture like that is still the text's.
@@ -59,6 +58,7 @@ fn a_file_with_a_content_id_is_still_a_file() {
     );
 }
 
+/// A message with a short text body and these parts after it, each `(headers, body)`.
 fn message(parts: &[(String, Vec<u8>)]) -> Vec<u8> {
     let mut raw = b"From: Sam <sam@studio.example>\r\nTo: Lee <lee@studio.example>\r\nSubject: Files\r\nMIME-Version: 1.0\r\n\
         Content-Type: multipart/mixed; boundary=\"b1\"\r\n\r\n--b1\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nHere.\r\n"
