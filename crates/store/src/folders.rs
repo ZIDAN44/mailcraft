@@ -258,7 +258,8 @@ impl Store {
                     {
                         file.pages.clone_from(&old.pages);
                         file.count = old.count;
-                        writes.push((head.clone(), to_json(&head, &file)?));
+                        let bytes = to_json(&head, &file)?;
+                        writes.push((head, bytes));
                     }
                     return Ok((writes, Vec::new()));
                 }
@@ -287,13 +288,23 @@ impl Store {
                 file.pages.push(hash);
             }
         }
-        // The pages have every flag now: the marks beside them emptied, with them.
-        if self.has_marks(&marks_path) {
-            writes.push((marks_path, b"[]".to_vec()));
-        }
-        writes.push((head.clone(), to_json(&head, &file)?));
-        let stale = (file.pages.len()..old.pages.len()).map(|i| page_path(&dir, i)).collect();
+        let stale = self.head_writes(&dir, &file, &old, &mut writes)?;
         Ok((writes, stale))
+    }
+
+    /// `file` written as the head of the list in `dir` after its pages (in `writes`), with the
+    /// lock held: the marks beside the pages emptied first when they have any (the pages have
+    /// every flag now), then the head. The pages `old` (the head it replaces) named and `file`
+    /// doesn't, to go once these are written.
+    pub(crate) fn head_writes(&self, dir: &Path, file: &StateFile, old: &StateFile, writes: &mut Vec<(PathBuf, Vec<u8>)>) -> Result<Vec<PathBuf>> {
+        let marks = dir.join(MARKS);
+        if self.has_marks(&marks) {
+            writes.push((marks, b"[]".to_vec()));
+        }
+        let head = dir.join(HEAD);
+        let bytes = to_json(&head, file)?;
+        writes.push((head, bytes));
+        Ok((file.pages.len()..old.pages.len()).map(|i| page_path(dir, i)).collect())
     }
 
     /// Put right whether these messages carry files (what an index pass found their summaries

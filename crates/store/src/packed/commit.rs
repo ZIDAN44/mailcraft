@@ -521,6 +521,17 @@ impl Packs {
     /// Sources made ready away from the writer, moved in: one transaction per data file, that only
     /// stores them (compressing them in it held the file several times as long).
     pub(crate) fn write_prepared(&self, items: Vec<(PathBuf, Prepared)>, durable: bool) -> Result<()> {
+        for (a, files) in self.sources_by_account(items)? {
+            let bytes = files.iter().map(|(_, p)| p.kept_len()).fold(0usize, usize::saturating_add);
+            let how = if durable { Commit::PLAIN } else { Commit::BATCH };
+            self.change_with(&a, how, bytes, |t| put_prepared(t, &files)).map_err(|source| StoreError::Io { path: a.clone(), source })?;
+        }
+        Ok(())
+    }
+
+    /// Sources by the account whose data file they go in, each with its key there; one that goes
+    /// in none is written to the disk now.
+    fn sources_by_account(&self, items: Vec<(PathBuf, Prepared)>) -> Result<BTreeMap<String, Vec<(String, Prepared)>>> {
         let mut by_account: BTreeMap<String, Vec<(String, Prepared)>> = BTreeMap::new();
         for (p, prepared) in items {
             match self.place(&p) {
@@ -528,22 +539,7 @@ impl Packs {
                 Place::Account(_) | Place::Disk => write_atomic(&p, &prepared.into_raw().map_err(io_err(&p))?)?,
             }
         }
-        for (a, files) in by_account {
-            let bytes = files.iter().map(|(_, p)| p.kept_len()).fold(0usize, usize::saturating_add);
-            let how = if durable { Commit::PLAIN } else { Commit::BATCH };
-            self.change_with(&a, how, bytes, |t| {
-                for (k, prepared) in &files {
-                    if prepared.kept {
-                        t.put_kept(k, &prepared.bytes)?;
-                    } else {
-                        t.put(k, &prepared.bytes)?;
-                    }
-                }
-                Ok(())
-            })
-            .map_err(|source| StoreError::Io { path: a.clone(), source })?;
-        }
-        Ok(())
+        Ok(by_account)
     }
 
     /// Sources and the documents saying what they are (an import's checkpoint), in one durable,
@@ -551,13 +547,8 @@ impl Packs {
     /// Refused with nothing written once the file was let go of after a failed write since it
     /// was let go of `reopened` times ([`Packs::reopened`]).
     pub(crate) fn write_batch(&self, items: Vec<(PathBuf, Prepared)>, docs: Vec<(PathBuf, Vec<u8>)>, reopened: u64) -> Result<()> {
-        let mut by_account: BTreeMap<String, (Vec<(String, Prepared)>, Vec<(String, Vec<u8>)>)> = BTreeMap::new();
-        for (p, prepared) in items {
-            match self.place(&p) {
-                Place::In(a, k) => by_account.entry(a).or_default().0.push((k, prepared)),
-                Place::Account(_) | Place::Disk => write_atomic(&p, &prepared.into_raw().map_err(io_err(&p))?)?,
-            }
-        }
+        let mut by_account: BTreeMap<String, (Vec<(String, Prepared)>, Vec<(String, Vec<u8>)>)> =
+            self.sources_by_account(items)?.into_iter().map(|(a, files)| (a, (files, Vec::new()))).collect();
         for (p, bytes) in docs {
             match self.place(&p) {
                 Place::In(a, k) => by_account.entry(a).or_default().1.push((k, bytes)),
@@ -566,13 +557,7 @@ impl Packs {
         }
         for (a, (files, docs)) in by_account {
             self.change_since(&a, Commit::SEALED, 0, Some(reopened), |t| {
-                for (k, prepared) in &files {
-                    if prepared.kept {
-                        t.put_kept(k, &prepared.bytes)?;
-                    } else {
-                        t.put(k, &prepared.bytes)?;
-                    }
-                }
+                put_prepared(t, &files)?;
                 for (k, bytes) in &docs {
                     t.put(k, bytes)?;
                 }
@@ -616,6 +601,19 @@ impl Packs {
         }
         done
     }
+}
+
+/// Sources made ready ([`Store::prepare`](crate::Store::prepare)) put in a data file's tables
+/// as they were made: compressed ones as kept, the rest as they are.
+fn put_prepared(t: &mut Tables<'_>, files: &[(String, Prepared)]) -> io::Result<()> {
+    for (k, prepared) in files {
+        if prepared.kept {
+            t.put_kept(k, &prepared.bytes)?;
+        } else {
+            t.put(k, &prepared.bytes)?;
+        }
+    }
+    Ok(())
 }
 
 impl Drop for Packs {

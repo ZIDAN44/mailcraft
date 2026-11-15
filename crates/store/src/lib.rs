@@ -266,9 +266,12 @@ impl ListWriter {
         if !self.page.is_empty() {
             self.write_page(store)?;
         }
+        // The head under the lock every head written takes, after the marks handed over before,
+        // as save_folder writes it.
+        store.flush_marks_of(&self.account, Some(&self.folder));
+        let _held = store.hold_changes();
         let dir = store.folder_dir(&self.account, &self.folder);
-        let path = dir.join(folders::HEAD);
-        let old: StateFile = store.read_json(&path).unwrap_or_default();
+        let old: StateFile = store.read_json(&dir.join(folders::HEAD)).unwrap_or_default();
         let file = StateFile {
             validity: head.validity,
             uid_next: head.uid_next,
@@ -278,17 +281,11 @@ impl ListWriter {
             count: self.total,
             pages: self.pages,
         };
-        let bytes = to_json(&path, &file)?;
         // A new list: no marks from an old one put on it.
-        let marks = dir.join(folders::MARKS);
-        let mut writes = vec![(path, bytes)];
-        if store.has_marks(&marks) {
-            writes.push((marks, b"[]".to_vec()));
-        }
+        let mut writes = Vec::new();
+        let stale = store.head_writes(&dir, &file, &old, &mut writes)?;
         store.write_files(writes)?;
-        for i in file.pages.len()..old.pages.len() {
-            let _ = store.files.remove_file(&folders::page_path(&dir, i));
-        }
+        store.remove_stale(stale);
         Ok(counts)
     }
 }
