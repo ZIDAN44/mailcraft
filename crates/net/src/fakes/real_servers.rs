@@ -166,7 +166,7 @@ fn real_imap_server() {
 }
 
 /// Issue #24 on a real IMAP server (`MAILCRAFT_REAL_TEXT_FIRST="127.0.0.1:3143 user password"`,
-/// a mailbox of its own): a message with a 10 MB file and a picture shows its text from its
+/// a mailbox of its own): a message with a 45 MB file and a picture shows its text from its
 /// structure first, the files listed with no bytes; the whole of it comes after, as it was put.
 #[test]
 #[ignore]
@@ -176,8 +176,9 @@ fn real_imap_text_first() {
         return;
     };
     let id = std::process::id();
-    let file =
-        "QUJDRA".repeat(10 << 20).chars().collect::<Vec<_>>().chunks(76).map(|l| l.iter().collect::<String>()).collect::<Vec<_>>().join("\r\n");
+    // 45 MiB (47,185,920 bytes) as base64, in lines of 76; ASCII, so split as bytes.
+    let file = "QUJDRA".repeat(10 << 20);
+    let file = file.as_bytes().chunks(76).map(|l| std::str::from_utf8(l).unwrap_or_default()).collect::<Vec<_>>().join("\r\n");
     let raw = format!(
         "From: Sam <sam@studio.test>\r\nTo: {user}\r\nSubject: Rushes {id}\r\nMessage-ID: <rushes{id}@studio.test>\r\nDate: Tue, 3 Nov 2026 10:00:00 +0000\r\n\
          MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"B{id}\"\r\n\r\n\
