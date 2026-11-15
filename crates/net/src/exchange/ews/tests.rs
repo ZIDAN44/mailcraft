@@ -140,12 +140,39 @@ fn autodiscover_answers() {
     let ok = "<Autodiscover><Response><Account><AccountType>email</AccountType><Action>settings</Action>\
                   <Protocol><Type>EXCH</Type><EwsUrl>https://mail.corp.local/EWS/Exchange.asmx</EwsUrl></Protocol>\
                   <Protocol><Type>EXPR</Type><EwsUrl>https://mail.contoso.example/EWS/Exchange.asmx</EwsUrl></Protocol></Account></Response></Autodiscover>";
-    assert_eq!(autodiscover_answer(ok).0.as_deref(), Some("https://mail.contoso.example/EWS/Exchange.asmx"), "the outside address first");
+    assert_eq!(autodiscover_answer(ok, false).0.as_deref(), Some("https://mail.contoso.example/EWS/Exchange.asmx"), "the outside address first");
     let redirect = "<Autodiscover><Response><Account><Action>redirectAddr</Action><RedirectAddr>riley@corp.example</RedirectAddr></Account></Response></Autodiscover>";
-    assert_eq!(autodiscover_answer(redirect).1.as_deref(), Some("riley@corp.example"));
-    assert_eq!(autodiscover_answer("<x/>"), (None, None));
+    assert_eq!(autodiscover_answer(redirect, false).1.as_deref(), Some("riley@corp.example"));
+    assert_eq!(autodiscover_answer("<x/>", false), (None, None));
     let plain = "<Autodiscover><Response><Account><Protocol><Type>EXPR</Type><EwsUrl>http://mail.contoso.example/EWS</EwsUrl></Protocol></Account></Response></Autodiscover>";
-    assert_eq!(autodiscover_answer(plain).0, None, "never plain http");
+    for here in [false, true] {
+        assert_eq!(autodiscover_answer(plain, here).0, None, "never plain http");
+    }
+    // But to this computer, under any of its names, when the server asked is on this computer
+    // too (the user's own, or a test's): an answer from the network never names one.
+    let at = |url: &str| {
+        format!("<Autodiscover><Response><Account><Protocol><Type>EXPR</Type><EwsUrl>{url}</EwsUrl></Protocol></Account></Response></Autodiscover>")
+    };
+    for here in ["http://127.0.0.1:8080/EWS/Exchange.asmx", "http://localhost/EWS/Exchange.asmx", "http://[::1]:99/EWS/Exchange.asmx"] {
+        assert_eq!(autodiscover_answer(&at(here), true).0.as_deref(), Some(here));
+        assert_eq!(autodiscover_answer(&at(here), false).0, None, "{here} from the network");
+    }
+    for not in ["http://127.0.0.1.evil.example/EWS", "ftp://mail.contoso.example/EWS", "https://"] {
+        assert_eq!(autodiscover_answer(&at(not), true).0, None, "{not}");
+        assert_eq!(autodiscover_answer(&at(not), false).0, None, "{not}");
+    }
+    // Which server was asked is read from its address, as the client reads it.
+    for (asked, here) in [
+        ("http://127.0.0.1:8080/autodiscover/autodiscover.xml", true),
+        ("https://localhost/autodiscover/autodiscover.xml", true),
+        ("http://[::1]:99/autodiscover/autodiscover.xml", true),
+        ("https://autodiscover.contoso.example/autodiscover/autodiscover.xml", false),
+        ("https://127.0.0.1.evil.example/autodiscover/autodiscover.xml", false),
+        ("https://localhost.evil.example/autodiscover/autodiscover.xml", false),
+        ("", false),
+    ] {
+        assert_eq!(discover::asked_here(asked), here, "{asked}");
+    }
     assert_eq!(autodiscover_urls("riley@Contoso.example")[0], "https://autodiscover.contoso.example/autodiscover/autodiscover.xml");
     assert!(autodiscover_urls("riley@bad/host").is_empty());
     // A public folder's content mailbox: PR_REPLICA_LIST as Exchange sends it.

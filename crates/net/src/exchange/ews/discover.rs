@@ -21,9 +21,16 @@ pub(super) fn autodiscover_request(address: &str) -> String {
     )
 }
 
+/// Whether the address Autodiscover was asked at is this computer: the user's own server on it,
+/// the only one whose answer may name a plain http address (on this computer too).
+pub(super) fn asked_here(url: &str) -> bool {
+    http::Url::parse(url).is_ok_and(|u| http::is_loopback(&u.host))
+}
+
 /// The EWS address in an Autodiscover answer (the outside one first), or the address to ask
-/// about instead (a redirect).
-pub(super) fn autodiscover_answer(xml: &str) -> (Option<String>, Option<String>) {
+/// about instead (a redirect). `here`: the answer is from a server on this computer
+/// ([`asked_here`]); one from the network never names anything but https.
+pub(super) fn autodiscover_answer(xml: &str, here: bool) -> (Option<String>, Option<String>) {
     let doc = parse(xml);
     let Some(account) = doc.find("Account") else { return (None, None) };
     if account.text_of("Action") == Some("redirectAddr") {
@@ -34,7 +41,8 @@ pub(super) fn autodiscover_answer(xml: &str) -> (Option<String>, Option<String>)
         .iter()
         .find_map(|kind| protocols.iter().find(|p| p.text_of("Type") == Some(kind)).and_then(|p| p.text_of("EwsUrl")))
         .map(|u| u.trim().to_string())
-        .filter(|u| u.starts_with("https://") || (cfg!(test) && u.starts_with("http://127.0.0.1")));
+        // https; plain http only to this computer, and only when a server on it says so.
+        .filter(|u| http::Url::parse(u).is_ok_and(|p| p.https || (here && http::is_loopback(&p.host))));
     (url, None)
 }
 
@@ -61,7 +69,7 @@ pub fn autodiscover_as(email: &str, user: &str, password: &str, base: Option<&st
                 }
             };
             match c.post(body.clone().into_bytes()) {
-                Ok(resp) if resp.ok() => match autodiscover_answer(&String::from_utf8_lossy(&resp.body)) {
+                Ok(resp) if resp.ok() => match autodiscover_answer(&String::from_utf8_lossy(&resp.body), asked_here(&url)) {
                     (Some(url), _) => return Ok(url),
                     (None, Some(r)) => {
                         redirect = Some(r);
