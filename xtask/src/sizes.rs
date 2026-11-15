@@ -14,6 +14,10 @@ use std::path::Path;
 pub const MAX_LINES: usize = 1000;
 /// The most Rust files directly in one folder.
 pub const MAX_FILES: usize = 16;
+/// Where splitting starts, before the wall (CLAUDE.md: "split first" past ~800 lines): files and
+/// folders this big are named, without failing, so they're split by topic while there's room.
+pub const NEAR_LINES: usize = 800;
+pub const NEAR_FILES: usize = 14;
 /// The budget file, from the workspace root.
 const BUDGET: &str = "xtask/sizes.txt";
 
@@ -81,6 +85,18 @@ pub fn lowered(files: &BTreeMap<String, usize>, dirs: &BTreeMap<String, usize>, 
         .collect()
 }
 
+/// What's near the limits, not over them: (path, measured, the limit), biggest share first.
+pub fn near(files: &BTreeMap<String, usize>, dirs: &BTreeMap<String, usize>) -> Vec<(String, usize, usize)> {
+    let mut out: Vec<(String, usize, usize)> = files
+        .iter()
+        .filter(|(_, n)| (NEAR_LINES + 1..=MAX_LINES).contains(*n))
+        .map(|(p, n)| (p.clone(), *n, MAX_LINES))
+        .chain(dirs.iter().filter(|(_, n)| (NEAR_FILES..=MAX_FILES).contains(*n)).map(|(p, n)| (p.clone(), *n, MAX_FILES)))
+        .collect();
+    out.sort_by(|a, b| (b.1 * a.2).cmp(&(a.1 * b.2)).then_with(|| a.0.cmp(&b.0)));
+    out
+}
+
 fn write_budget(root: &Path, budget: &BTreeMap<String, usize>) -> Result<(), String> {
     let mut text = String::from(
         "# Files and folders over the size limits (xtask/src/sizes.rs) when the rule came in, and\n\
@@ -110,6 +126,15 @@ pub fn run(root: &Path, args: &[&str]) -> Result<(), String> {
     if !bad.is_empty() {
         return Err(report(&bad));
     }
+    let close = near(&files, &dirs);
+    if !close.is_empty() && args.contains(&"--near") {
+        for (p, n, max) in &close {
+            let what = if p.ends_with('/') { "Rust files" } else { "lines" };
+            println!("  near: {p}: {n} {what} of {max}");
+        }
+    } else if !close.is_empty() {
+        println!("sizes: {} files and folders are near the limits: split them by topic first (`cargo xtask sizes --near`)", close.len());
+    }
     let shrunk = lowered(&files, &dirs, &budget);
     if shrunk != budget {
         println!("sizes: ok; some files shrank: `cargo xtask sizes --update` lowers their budget");
@@ -128,7 +153,7 @@ fn report(bad: &[(String, usize, usize)]) -> String {
     s.push_str(
         "split by topic: `foo.rs` keeps what's shared and declares `mod bar;`, the pieces go in \
          `foo/bar.rs` (an `impl` can be continued there, a test module's tests too); a full folder \
-         gets subfolders. See CLAUDE.md › File size.",
+         gets subfolders. See CLAUDE.md › File size and organisation.",
     );
     s
 }
@@ -136,6 +161,15 @@ fn report(bad: &[(String, usize, usize)]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Past ~800 lines, or at 14 files in a folder, it's named: the biggest share first.
+    #[test]
+    fn near_the_limits_is_named() {
+        let files = map(&[("a.rs", 800), ("b.rs", 801), ("c.rs", 990), ("d.rs", 1001)]);
+        let dirs = map(&[("x/", 13), ("y/", 14), ("z/", 16)]);
+        let named: Vec<String> = near(&files, &dirs).into_iter().map(|(p, _, _)| p).collect();
+        assert_eq!(named, ["z/", "c.rs", "y/", "b.rs"]);
+    }
 
     fn map(v: &[(&str, usize)]) -> BTreeMap<String, usize> {
         v.iter().map(|(k, n)| (k.to_string(), *n)).collect()

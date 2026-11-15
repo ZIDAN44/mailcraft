@@ -1,0 +1,11 @@
+# Cycles between a crate's top-level modules when the rule came in (xtask/src/modules.rs):
+# each may shrink or split as code moves, never take in another module, and none is added.
+# `cargo xtask modules --cycles` says when one shrank: list it here as it is now.
+crates/engine/src/ cmd sample session
+crates/mime/src/ html layout markup rich
+crates/model/src/ addr organize summary thread
+crates/model/src/ ical pim vcard
+crates/net/src/ data_files exchange fakes oauth protocols sync worker
+crates/pst/src/ ltp messaging ndb write
+crates/store/src/ folders search
+crates/ui-egui/src/ app dialogs i18n keytips look panes reading rich_edit services
