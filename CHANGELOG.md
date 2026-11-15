@@ -194,6 +194,7 @@ on GitHub.
 - An event whose guest has a comma in their name can be saved again.
 - People's List view names an address book from the server the way the side pane does.
 - People's List view highlights the row under the pointer.
+- In a small window the month view shows all six weeks.
 
 ## 0.38.0 - 2026-11-13
 

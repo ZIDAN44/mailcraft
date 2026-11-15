@@ -61,3 +61,30 @@ fn a_day_is_shown_as_before() {
         }
     }
 }
+
+/// Audit #476: in the smallest window MailCraft goes to, the month view shows all six of its
+/// weeks: each day's number inside the calendar's pane (the last weeks were drawn below its edge,
+/// out of reach). And in a roomy window its rows aren't squeezed.
+#[test]
+fn the_month_view_shows_every_week_in_a_small_window() {
+    let (mut a, dir) = app("month-small");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.module", json!({"name": "calendar"}));
+    a.run("calendar.view", json!({"mode": "month"}));
+    // The classic ribbon, taller, leaves the least room.
+    for (size, classic) in [(egui::vec2(760.0, 480.0), false), (egui::vec2(760.0, 480.0), true), (egui::vec2(1280.0, 800.0), false)] {
+        a.run("view.classicRibbon", json!({ "on": classic }));
+        for _ in 0..3 {
+            let _ = drawn_with(&ctx, &mut a, size, vec![]);
+        }
+        let texts = drawn_with(&ctx, &mut a, size, vec![]);
+        // The grid's heading (its first weekday) and its days' numbers, in the same room.
+        let head = texts.iter().filter(|d| d.text == tl!(dates::WEEKDAYS[0])).max_by(|x, y| x.rect.min.y.total_cmp(&y.rect.min.y)).unwrap();
+        let days: Vec<&Drawn> = texts.iter().filter(|d| d.clip == head.clip && d.text.parse::<u32>().is_ok_and(|n| (1..=31).contains(&n))).collect();
+        assert_eq!(days.len(), 42, "{size:?}: {:?}", days.iter().map(|d| &d.text).collect::<Vec<_>>());
+        let hidden: Vec<String> = days.iter().filter(|d| d.rect.max.y > d.clip.max.y).map(|d| format!("{} at {:?}", d.text, d.rect)).collect();
+        assert!(hidden.is_empty(), "{size:?}: below the pane's edge ({:?}): {hidden:?}", head.clip);
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -387,6 +387,9 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> e
     resp
 }
 
+/// The month view's rows at their shortest: a day's number over its "n more" link.
+const MONTH_ROW_MIN: f32 = 42.0;
+
 /// A calendar's name as shown: the local one's in the language shown.
 fn calendar_name(id: &str, name: &str) -> String {
     if id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { name.to_string() }
@@ -398,7 +401,10 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
     let area = ui.available_rect_before_wrap().shrink2(vec2(10.0, 4.0));
     let head = 22.0;
     let cw = area.width() / 7.0;
-    let rh = ((area.height() - head) / 6.0).max(60.0);
+    // Six weeks in the pane's height: a short pane's days show fewer events each, the rest
+    // behind "n more" (as tall as a day's number and that link). Only `area` is allocated: rows
+    // kept 60 points tall ran the last weeks past the pane's edge, where nothing scrolls.
+    let rh = ((area.height() - head) / 6.0).max(MONTH_ROW_MIN);
     for (i, d) in dates::WEEKDAYS.iter().enumerate() {
         ui.painter().text(pos2(area.min.x + cw * (i as f32 + 0.5), area.min.y + 10.0), Align2::CENTER_CENTER, tl!(d), theme::regular(12.0), t.dim);
     }
