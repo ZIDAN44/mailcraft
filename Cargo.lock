@@ -3995,7 +3995,9 @@ dependencies = [
  "winit",
  "winresource",
  "winsafe",
+ "x11-dl",
  "x11rb 0.14.0",
+ "xkbcommon-dl",
  "zbus",
 ]
 

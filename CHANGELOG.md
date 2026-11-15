@@ -208,6 +208,7 @@ on GitHub.
 - An account removed while it was syncing no longer has its folder list come back.
 - An account removed while it was connecting or making a change no longer has its files come back.
 - On Linux, a MailCraft started by another program packaged as an AppImage (a `mailto:` link clicked in a browser, say) no longer puts its update over that program's AppImage: the program passes on where its own file is, and the updater took it for MailCraft's.
+- On a Linux desktop running Wayland without X11's libraries (which the `.deb` and `.rpm` only recommend), MailCraft opens on Wayland instead of failing to start: it asked for XWayland, where it opens by default, without looking for them first. The log names the ones missing.
 
 ## 0.38.0 - 2026-11-13
 

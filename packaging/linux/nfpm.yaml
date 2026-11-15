@@ -27,7 +27,8 @@ description: |-
 # GPU (Vulkan, EGL/GL) are loaded at runtime, so they are dependencies/recommendations here
 # rather than ELF NEEDED entries. On X11 (and through XWayland, how MailCraft opens on a Wayland
 # desktop by default) winit also loads libxkbcommon-x11: without it the window couldn't open
-# ("Library libxkbcommon-x11.so could not be loaded", seen on a clean Debian). D-Bus (the
+# ("Library libxkbcommon-x11.so could not be loaded", seen on a clean Debian); without any of
+# them it now opens on Wayland when a compositor is running (`display.rs`). D-Bus (the
 # keyring) is spoken in pure Rust; a Secret Service provider (GNOME Keyring, KWallet, KeePassXC)
 # stores the passwords.
 overrides:
@@ -66,6 +67,7 @@ overrides:
     recommends:
       - libwayland-client.so.0()(64bit)
       - libX11.so.6()(64bit)
+      - libX11-xcb.so.1()(64bit)
       - libxkbcommon-x11.so.0()(64bit)
       - libXcursor.so.1()(64bit)
       - libXi.so.6()(64bit)
