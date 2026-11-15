@@ -6,6 +6,9 @@ use serde::{Deserialize, Serialize};
 use crate::ical::CalEvent;
 use crate::vcard::Card;
 
+pub mod ical;
+pub mod vcard;
+
 mod kept_file;
 mod task;
 pub use kept_file::{KeptFile, kept_file};

@@ -6,23 +6,21 @@
 //! and Outlook-style date grouping. Nothing here does I/O, so it builds for wasm.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
-pub mod addr;
-pub mod contacts;
+pub mod addresses;
 pub mod dates;
 pub mod encoding;
-pub mod ical;
 pub mod job;
-pub mod lookalike;
 pub mod mailto;
-pub mod organize;
+pub mod messages;
 pub mod pim;
 pub mod search;
 pub mod signature;
-pub mod summary;
-pub mod thread;
-pub mod vcard;
 
 use serde::{Deserialize, Serialize};
+
+pub use addresses::{addr, contacts, lookalike};
+pub use messages::{organize, summary, thread};
+pub use pim::{ical, vcard};
 
 pub use addr::EmailAddress;
 pub use addr::identity::Identity;
