@@ -140,17 +140,21 @@ fn files_dropped_on_the_main_window_start_a_message() {
     out.textures_delta.clear();
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.compose.is_none(), "a folder starts no message");
-    let dropped: Vec<egui::DroppedFileHandle> = vec![std::sync::Arc::new(LetGo(file)), std::sync::Arc::new(LetGo("relative.txt".into()))];
+    // A path relative to nowhere is left, even one that names a file from where MailCraft runs
+    // (the tests run in the crate's folder): it isn't what was dropped.
+    let relative = PathBuf::from("Cargo.toml");
+    assert!(relative.is_file(), "a relative path to a file");
+    let dropped: Vec<egui::DroppedFileHandle> = vec![std::sync::Arc::new(LetGo(file)), std::sync::Arc::new(LetGo(relative.clone()))];
     let mut out = ctx.run_ui(RawInput { screen_rect: screen, dropped_files: dropped, ..Default::default() }, |ui| a.ui(ui));
     out.textures_delta.clear();
     frame(&ctx, &mut a, vec![]);
     assert_eq!(attached(&a), ["brief.pdf"]);
     // Dropped again while it's being written: attached to it, not another message (and again
-    // a file with no path to read is left).
+    // a relative path is left, by the message's own form).
     let again = dir.join("notes.txt");
     std::fs::write(&again, b"n").unwrap();
     let id = a.session.compose.as_ref().map(|c| c.id);
-    let dropped: Vec<egui::DroppedFileHandle> = vec![std::sync::Arc::new(LetGo(again)), std::sync::Arc::new(LetGo("relative.txt".into()))];
+    let dropped: Vec<egui::DroppedFileHandle> = vec![std::sync::Arc::new(LetGo(again)), std::sync::Arc::new(LetGo(relative))];
     let mut out = ctx.run_ui(RawInput { screen_rect: screen, dropped_files: dropped, ..Default::default() }, |ui| a.ui(ui));
     out.textures_delta.clear();
     frame(&ctx, &mut a, vec![]);
