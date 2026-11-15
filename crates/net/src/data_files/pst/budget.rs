@@ -165,9 +165,46 @@ pub(super) fn held(bytes: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::AtomicU64;
+    use std::sync::atomic::{AtomicU64, AtomicUsize};
 
     use super::*;
+
+    /// Waits for `what` to hold, looking every millisecond, not spinning a core. A guard against
+    /// hanging, not a deadline the code is held to: a test whose `what` never comes fails after
+    /// two minutes.
+    fn eventually(what: &str, holds: impl Fn() -> bool) {
+        let end = Instant::now() + Duration::from_secs(120);
+        while !holds() {
+            assert!(Instant::now() < end, "{what}: never");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    }
+
+    /// A lane's `stopped` counting how often it's asked: a lane that goes at once asks once (as
+    /// it takes its charge), one that waits asks again at each look while it waits.
+    struct Looks(AtomicUsize);
+
+    impl Looks {
+        fn new() -> Looks {
+            Looks(AtomicUsize::new(0))
+        }
+
+        /// Not stopped, and counted.
+        fn ask(&self) -> bool {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            false
+        }
+
+        /// Stopped from its second ask: a lane asked so gives up at its first look while waiting,
+        /// instead of the test waiting for it.
+        fn once(&self) -> bool {
+            self.0.fetch_add(1, Ordering::SeqCst) > 0
+        }
+
+        fn count(&self) -> usize {
+            self.0.load(Ordering::SeqCst)
+        }
+    }
 
     /// Lanes taking charges bigger than the whole budget, in random order: every one gets in (the
     /// one the writer needs next always does), and all of it comes back.
@@ -212,20 +249,20 @@ mod tests {
         // The item the writer needs holds most of the room.
         assert!(budget.acquire(0, 90, &stopped, &tally));
         let order = std::sync::Mutex::new(Vec::new());
+        let looks = Looks::new();
         std::thread::scope(|s| {
             let big = s.spawn(|| {
                 assert!(budget.acquire(1, 50, &stopped, &tally));
                 order.lock().unwrap().push(1);
             });
-            while !budget.waiting() {
-                std::thread::yield_now();
-            }
+            eventually("the big one waiting", || budget.waiting());
             let small = s.spawn(|| {
-                assert!(budget.acquire(2, 5, &stopped, &tally));
+                assert!(budget.acquire(2, 5, &|| looks.ask(), &tally));
                 order.lock().unwrap().push(2);
             });
-            // Looked at the room more than once meanwhile, the small one still waits.
-            std::thread::sleep(RECHECK * 3);
+            // Looked at the room more than once meanwhile, the small one still waits (gone, it
+            // looked once).
+            eventually("the small one looking again", || looks.count() >= 3 || !order.lock().unwrap().is_empty());
             let passed = order.lock().unwrap().clone();
             budget.release(90);
             big.join().unwrap();
@@ -247,26 +284,20 @@ mod tests {
         assert!(budget.acquire(0, 10, &stopped, &tally));
         std::thread::scope(|s| {
             let big = s.spawn(|| budget.acquire(1, 500, &stopped, &tally));
-            while !budget.waiting() {
-                std::thread::yield_now();
-            }
-            // Later items that fit go, though the big one waits (held up, they'd be stopped).
-            let small = s.spawn(|| budget.acquire(2, 20, &stopped, &tally) && budget.acquire(3, 20, &stopped, &tally));
-            let began = Instant::now();
-            while !small.is_finished() && began.elapsed() < Duration::from_secs(2) {
-                std::thread::yield_now();
-            }
-            let went = small.is_finished();
-            if !went {
-                stop.store(true, Ordering::Relaxed);
-                budget.wake();
-            }
-            assert!(small.join().unwrap() && went, "small items waited behind one over the cap");
-            assert_eq!(budget.in_flight(), 50);
-            assert!(budget.waiting(), "the big one waits for room");
-            // Its turn: it goes.
+            eventually("the big one waiting", || budget.waiting());
+            // Later items that fit go at once, though the big one waits (held up, they'd give up
+            // at their first look while waiting).
+            let small = s.spawn(|| {
+                let (two, three) = (Looks::new(), Looks::new());
+                budget.acquire(2, 20, &|| two.once(), &tally) && budget.acquire(3, 20, &|| three.once(), &tally)
+            });
+            let (went, held, waits) = (small.join().unwrap(), budget.in_flight(), budget.waiting());
+            // Its turn: it goes (before anything is checked, so a failure doesn't leave it waiting).
             budget.advance(1);
             assert!(big.join().unwrap());
+            assert!(went, "small items waited behind one over the cap");
+            assert_eq!(held, 50);
+            assert!(waits, "the big one waits for room");
         });
         assert!(!budget.waiting());
         assert_eq!(budget.in_flight(), 550);
@@ -285,23 +316,16 @@ mod tests {
         std::thread::scope(|s| {
             // Read at 150: 90 more, under the cap, but 150 in all.
             let big = s.spawn(|| budget.acquire_more(1, 60, 90, &stopped, &tally));
-            while !budget.waiting() {
-                std::thread::yield_now();
-            }
-            let small = s.spawn(|| budget.acquire(2, 10, &stopped, &tally) && budget.acquire(3, 10, &stopped, &tally));
-            let began = Instant::now();
-            while !small.is_finished() && began.elapsed() < Duration::from_secs(2) {
-                std::thread::yield_now();
-            }
-            let went = small.is_finished();
-            if !went {
-                stop.store(true, Ordering::Relaxed);
-                budget.wake();
-            }
-            assert!(small.join().unwrap() && went, "small items waited behind a top-up over the cap");
-            assert_eq!(budget.in_flight(), 90);
+            eventually("the top-up waiting", || budget.waiting());
+            let small = s.spawn(|| {
+                let (two, three) = (Looks::new(), Looks::new());
+                budget.acquire(2, 10, &|| two.once(), &tally) && budget.acquire(3, 10, &|| three.once(), &tally)
+            });
+            let (went, held) = (small.join().unwrap(), budget.in_flight());
             budget.advance(1);
             assert!(big.join().unwrap());
+            assert!(went, "small items waited behind a top-up over the cap");
+            assert_eq!(held, 90);
         });
         assert_eq!(budget.in_flight(), 180);
     }
@@ -317,9 +341,7 @@ mod tests {
         assert!(budget.acquire(0, 10, &stopped, &tally));
         std::thread::scope(|s| {
             let waiter = s.spawn(|| budget.acquire(1, 5, &stopped, &tally));
-            while !budget.waiting() {
-                std::thread::yield_now();
-            }
+            eventually("the lane waiting", || budget.waiting());
             stop.store(true, Ordering::Relaxed);
             budget.wake();
             assert!(!waiter.join().unwrap());
