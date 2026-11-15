@@ -64,13 +64,7 @@ fn exchange_online_searches_with_a_token_of_its_own() {
     let store = crate::fake::store("graph-directory");
     let creds = Arc::new(crate::worker::MemoryCredentials::default());
     let mut pool = crate::worker::Pool::new(store.clone(), creds.clone());
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@contoso.example".into(),
-        graph: Some(server.base.clone()),
-        oauth: Some("test-graph-directory".into()),
-        ..Default::default()
-    };
+    let account = AccountConfig { oauth: Some("test-graph-directory".into()), ..account("a1", &server.base) };
     pool.submit(Job::Start { account: account.clone(), password: Some(Secret("r1".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let search = |pool: &mut crate::worker::Pool, q: &str| {
@@ -129,13 +123,7 @@ fn the_directory_is_allowed_in_a_sign_in_of_its_own() {
     let store = crate::fake::store("graph-allow");
     let creds = Arc::new(crate::worker::MemoryCredentials::default());
     let mut pool = crate::worker::Pool::new(store.clone(), creds.clone());
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@contoso.example".into(),
-        graph: Some("http://127.0.0.1:9/v1.0".into()),
-        oauth: Some("test-graph-allow".into()),
-        ..Default::default()
-    };
+    let account = AccountConfig { oauth: Some("test-graph-allow".into()), ..account("a1", "http://127.0.0.1:9/v1.0") };
     // The "browser" answers the page MailCraft opens: allowed, then refused.
     for (allow, kept) in [(true, true), (false, false)] {
         crate::worker::Credentials::delete_secret(creds.as_ref(), &account, "directory");

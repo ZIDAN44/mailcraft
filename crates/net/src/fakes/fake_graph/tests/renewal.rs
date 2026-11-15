@@ -29,13 +29,7 @@ fn renewing(id: &str, answers: &[(&str, &str)]) -> Renewing {
     let server = serve(d);
     let store = crate::fake::store(id);
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        email: "me@contoso.example".into(),
-        graph: Some(server.base.clone()),
-        oauth: Some(id.into()),
-        ..Default::default()
-    };
+    let account = AccountConfig { oauth: Some(id.into()), ..account("a1", &server.base) };
     pool.submit(Job::Start { account, password: Some(Secret("r1".into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     Renewing { pool, server, store, inbox, token_requests }

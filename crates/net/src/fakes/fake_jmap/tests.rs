@@ -58,7 +58,7 @@ fn a_jmap_server_is_searched_past_the_window() {
         );
     }
     let server = serve(d);
-    let account = AccountConfig { id: "a1".into(), email: USER.into(), username: USER.into(), jmap: Some(server.base.clone()), ..Default::default() };
+    let account = account("a1", &server.base);
     let data = server.data.clone();
     crate::fake::search_the_server_past_the_window("jmap-search", account, PASSWORD, &|n, read| {
         let mut d = data.lock().unwrap();
@@ -94,7 +94,7 @@ fn a_change_after_a_rename_outlives_a_failed_listing() {
     let store = Store::open(&dir).unwrap();
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig { id: "a1".into(), email: USER.into(), username: USER.into(), jmap: Some(server.base.clone()), ..Default::default() };
+    let account = account("a1", &server.base);
     pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     // Both queued before the worker gets to them, the listing after the rename failing.
@@ -135,14 +135,7 @@ fn a_jmap_account_syncs_changes_and_sends() {
     let store = Store::open(&dir).unwrap();
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        name: "Me".into(),
-        email: USER.into(),
-        username: USER.into(),
-        jmap: Some(server.base.clone()),
-        ..Default::default()
-    };
+    let account = AccountConfig { name: "Me".into(), ..account("a1", &server.base) };
     assert!(!account.is_local());
 
     // A wrong password is reported, not retried.
@@ -300,14 +293,7 @@ fn an_account_with_no_identity_gets_one_and_sends() {
     let store = Store::open(&dir).unwrap();
     crate::fakes::fake_dav::looked_for_today(&store, "a1");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "a1".into(),
-        name: "Me".into(),
-        email: USER.into(),
-        username: USER.into(),
-        jmap: Some(server.base.clone()),
-        ..Default::default()
-    };
+    let account = AccountConfig { name: "Me".into(), ..account("a1", &server.base) };
     pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let raw = b"From: me@studio.example\r\nTo: zoe@studio.example\r\nSubject: first\r\nMessage-ID: <id1@x>\r\n\r\nhi\r\n".to_vec();

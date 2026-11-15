@@ -77,7 +77,7 @@ fn a_message_opened_on_an_imap_server_comes_each_way() {
 
 #[test]
 fn a_message_opened_on_a_jmap_server_comes_each_way() {
-    use crate::fakes::fake_jmap::{Data, PASSWORD, USER, serve};
+    use crate::fakes::fake_jmap::{Data, PASSWORD, account, serve};
     let mut d = Data::default();
     let inbox = d.mailbox("Inbox", None, Some("inbox"));
     let raw = mail("jmap");
@@ -87,14 +87,14 @@ fn a_message_opened_on_a_jmap_server_comes_each_way() {
     crate::fakes::fake_dav::looked_for_today(&store, "j1");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    let acc = AccountConfig { id: "j1".into(), email: USER.into(), username: USER.into(), jmap: Some(server.base.clone()), ..Default::default() };
+    let acc = account("j1", &server.base);
     each_way_says(&mut pool, &store, &acc, PASSWORD, &raw);
     let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
 fn a_message_opened_on_microsoft_graph_comes_each_way() {
-    use crate::fakes::fake_graph::{Data, TOKEN, serve};
+    use crate::fakes::fake_graph::{Data, TOKEN, account, serve};
     let mut d = Data::default();
     let inbox = d.folder("Inbox", None, Some("inbox"));
     let raw = mail("graph");
@@ -104,14 +104,14 @@ fn a_message_opened_on_microsoft_graph_comes_each_way() {
     crate::fakes::fake_dav::looked_for_today(&store, "g1");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    let acc = AccountConfig { id: "g1".into(), email: "me@contoso.example".into(), graph: Some(server.base.clone()), ..Default::default() };
+    let acc = account("g1", &server.base);
     each_way_says(&mut pool, &store, &acc, TOKEN, &raw);
     let _ = std::fs::remove_dir_all(store.root());
 }
 
 #[test]
 fn a_message_opened_on_exchange_comes_each_way() {
-    use crate::fakes::fake_ews::{DOMAIN, Data, PASSWORD, USER, serve};
+    use crate::fakes::fake_ews::{Data, PASSWORD, account, serve};
     let mut d = Data::default();
     let inbox = d.folder("Inbox", None, Some("inbox"), "IPF.Note");
     let raw = mail("ews");
@@ -121,13 +121,7 @@ fn a_message_opened_on_exchange_comes_each_way() {
     crate::fakes::fake_dav::looked_for_today(&store, "e1");
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.opts.prefetch = 0;
-    let acc = AccountConfig {
-        id: "e1".into(),
-        email: "riley@contoso.example".into(),
-        username: format!("{DOMAIN}\\{USER}"),
-        ews: Some(server.url.clone()),
-        ..Default::default()
-    };
+    let acc = account("e1", &server.url);
     each_way_says(&mut pool, &store, &acc, PASSWORD, &raw);
     let _ = std::fs::remove_dir_all(store.root());
 }

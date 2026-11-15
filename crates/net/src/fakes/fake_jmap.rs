@@ -13,6 +13,12 @@ use serde_json::{Map, Value, json};
 pub const ACCOUNT: &str = "A1";
 pub const USER: &str = "me@studio.example";
 pub const PASSWORD: &str = "pw";
+
+/// The account these tests sign in with (`id`, as [`USER`]), on the fake at `base`.
+pub fn account(id: &str, base: &str) -> mailcraft_model::AccountConfig {
+    mailcraft_model::AccountConfig { id: id.into(), email: USER.into(), username: USER.into(), jmap: Some(base.into()), ..Default::default() }
+}
+
 /// The most objects one `/get` takes (the session's `maxObjectsInGet`).
 const MAX_GET: usize = 100;
 

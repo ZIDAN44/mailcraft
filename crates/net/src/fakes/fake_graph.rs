@@ -13,6 +13,11 @@ use super::http;
 pub const TOKEN: &str = "test-token";
 const ROOT: &str = "root";
 
+/// The account these tests sign in with (`id`, `me@contoso.example`), on the fake at `base`.
+pub fn account(id: &str, base: &str) -> mailcraft_model::AccountConfig {
+    mailcraft_model::AccountConfig { id: id.into(), email: "me@contoso.example".into(), graph: Some(base.into()), ..Default::default() }
+}
+
 #[derive(Clone, Debug)]
 pub struct Fo {
     pub id: String,

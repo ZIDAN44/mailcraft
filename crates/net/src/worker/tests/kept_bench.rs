@@ -32,14 +32,7 @@ fn draft(n: usize, size: usize) -> Vec<u8> {
 fn kept_drafts_filed_timed() {
     let (n, kb) = (env("MC_KEPT", 40), env("MC_KEPT_KB", 1024));
     let st = crate::fake::State::new();
-    st.lock().unwrap().boxes.push(crate::fake::Mailbox {
-        name: "Drafts".into(),
-        attr: r"\Drafts",
-        validity: 600,
-        uid_next: 1,
-        msgs: Vec::new(),
-        expunged: Vec::new(),
-    });
+    st.lock().unwrap().boxes.push(crate::fake::Mailbox::new("Drafts", r"\Drafts", 600));
     let port = crate::fake::serve_tcp(&st);
     let account = imap_account("a1", port);
     // The app's store: each account one data file.

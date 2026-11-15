@@ -14,6 +14,18 @@ pub const USER: &str = "riley";
 pub const DOMAIN: &str = "CONTOSO";
 pub const PASSWORD: &str = "pw";
 
+/// The account these tests sign in with (`id`, Riley, `CONTOSO\riley`), on the EWS server at
+/// `url`.
+pub fn account(id: &str, url: &str) -> mailcraft_model::AccountConfig {
+    mailcraft_model::AccountConfig {
+        id: id.into(),
+        email: "riley@contoso.example".into(),
+        username: format!("{DOMAIN}\\{USER}"),
+        ews: Some(url.into()),
+        ..Default::default()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Fo {
     pub id: String,

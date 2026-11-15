@@ -52,7 +52,7 @@ fn graph_is_searched_past_the_window() {
         );
     }
     let server = serve(d);
-    let account = AccountConfig { id: "a1".into(), email: "me@contoso.example".into(), graph: Some(server.base.clone()), ..Default::default() };
+    let account = account("a1", &server.base);
     let data = server.data.clone();
     crate::fake::search_the_server_past_the_window("graph-search", account, TOKEN, &|n, read| {
         let mut d = data.lock().unwrap();
@@ -292,7 +292,7 @@ fn a_sent_message_shows_in_sent_items_soon_after() {
     let server = serve(d);
     let store = crate::fake::store("graph-sentsoon");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig { id: "a1".into(), email: "me@contoso.example".into(), graph: Some(server.base.clone()), ..Default::default() };
+    let account = account("a1", &server.base);
     pool.submit(Job::Start { account, password: Some(Secret(TOKEN.into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     pool.submit(Job::Send {
@@ -313,14 +313,7 @@ fn a_sent_message_shows_in_sent_items_soon_after() {
 fn an_exchange_account_syncs_changes_and_sends_through_graph() {
     let d = Data { replies: json!({"status": "disabled", "internalReplyMessage": ""}), ..Default::default() };
     let server = serve(d);
-    let account = AccountConfig {
-        id: "a1".into(),
-        name: "Me".into(),
-        email: "me@contoso.example".into(),
-        username: "me@contoso.example".into(),
-        graph: Some(server.base.clone()),
-        ..Default::default()
-    };
+    let account = AccountConfig { name: "Me".into(), username: "me@contoso.example".into(), ..account("a1", &server.base) };
     let away = Vacation {
         enabled: true,
         subject: String::new(),
@@ -402,7 +395,7 @@ fn a_message_with_files_comes_as_its_text_first() {
     let server = serve(d);
     let store = crate::fake::store("graph-text-first");
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig { id: "a1".into(), email: "me@contoso.example".into(), graph: Some(server.base.clone()), ..Default::default() };
+    let account = account("a1", &server.base);
     pool.submit(Job::Start { account, password: Some(Secret(TOKEN.into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let st = store.load_folder("a1", "INBOX").unwrap();

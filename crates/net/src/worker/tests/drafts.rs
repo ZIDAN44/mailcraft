@@ -116,14 +116,7 @@ fn what_was_written_after_a_save_is_kept_on_close() {
 /// for on the network.
 pub(super) fn with_drafts(name: &str) -> (Arc<Mutex<crate::fake::State>>, Store, AccountConfig) {
     let st = crate::fake::State::new();
-    st.lock().unwrap().boxes.push(crate::fake::Mailbox {
-        name: "Drafts".into(),
-        attr: r"\Drafts",
-        validity: 600,
-        uid_next: 1,
-        msgs: Vec::new(),
-        expunged: Vec::new(),
-    });
+    st.lock().unwrap().boxes.push(crate::fake::Mailbox::new("Drafts", r"\Drafts", 600));
     let port = crate::fake::serve_tcp(&st);
     let account = imap_account("a1", port);
     let store = crate::fake::store(name);

@@ -69,13 +69,13 @@ fn a_folder_list_that_cant_be_read_again_leaves_the_workers_as_it_was() {
 /// change could never be sent. Nothing is pruned then.
 #[test]
 fn jmap_numbers_are_kept_when_the_changes_cant_be_read() {
-    use crate::fakes::fake_jmap::{Data, PASSWORD, USER, serve};
+    use crate::fakes::fake_jmap::{Data, PASSWORD, account, serve};
     let mut d = Data::default();
     d.mailbox("Inbox", None, Some("inbox"));
     let server = serve(d);
     let store = Store::failing();
     let pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
-    let acc = AccountConfig { id: "a1".into(), email: USER.into(), username: USER.into(), jmap: Some(server.base.clone()), ..Default::default() };
+    let acc = account("a1", &server.base);
     let mut w = Worker::new(acc, Auth::shared(PASSWORD), store.clone(), pool.sink.clone(), SyncOptions::default());
     w.connect().unwrap();
     w.folders = vec![folder("INBOX")];

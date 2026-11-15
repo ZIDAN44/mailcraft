@@ -59,13 +59,7 @@ fn every_kind_of_server_takes_message_files_and_copies() {
     let server = fake_jmap::serve(d);
     let store = crate::fake::store("filing-kinds-jmap");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "j1".into(),
-        email: fake_jmap::USER.into(),
-        username: fake_jmap::USER.into(),
-        jmap: Some(server.base.clone()),
-        ..Default::default()
-    };
+    let account = fake_jmap::account("j1", &server.base);
     assert_eq!(both(file_both(&mut pool, &store, account, fake_jmap::PASSWORD, "INBOX", "kinds-jmap", &String::new)), (2, 1));
     {
         let data = server.data.lock().unwrap();
@@ -81,7 +75,7 @@ fn every_kind_of_server_takes_message_files_and_copies() {
     let server = fake_graph::serve(d);
     let store = crate::fake::store("filing-kinds-graph");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
-    let account = AccountConfig { id: "g1".into(), email: "me@contoso.example".into(), graph: Some(server.base.clone()), ..Default::default() };
+    let account = fake_graph::account("g1", &server.base);
     assert_eq!(both(file_both(&mut pool, &store, account, fake_graph::TOKEN, "INBOX", "kinds-graph", &String::new)), (2, 1));
     assert_eq!(server.data.lock().unwrap().messages.len(), 3);
 
@@ -91,13 +85,7 @@ fn every_kind_of_server_takes_message_files_and_copies() {
     let server = fake_ews::serve(d);
     let store = crate::fake::store("filing-kinds-ews");
     let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
-    let account = AccountConfig {
-        id: "e1".into(),
-        email: "riley@contoso.example".into(),
-        username: format!("{}\\{}", fake_ews::DOMAIN, fake_ews::USER),
-        ews: Some(server.url.clone()),
-        ..Default::default()
-    };
+    let account = fake_ews::account("e1", &server.url);
     assert_eq!(
         both(file_both(&mut pool, &store, account, fake_ews::PASSWORD, "INBOX", "kinds-ews", &|| server
             .data

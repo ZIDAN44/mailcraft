@@ -113,7 +113,7 @@ fn someone_new_in_the_directory_is_found_without_a_restart() {
     let _ = std::fs::remove_dir_all(&dir);
     let store = Store::open(&dir).unwrap();
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    let account = AccountConfig { user_agent: Some(EVOLUTION.into()), ..ews_account(&server.url) };
+    let account = AccountConfig { user_agent: Some(EVOLUTION.into()), ..account("a1", &server.url) };
     pool.submit(Job::Start { account: account.clone(), password: Some(Secret(PASSWORD.into())) });
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let search = |pool: &mut crate::worker::Pool, q: &str| {
@@ -157,7 +157,7 @@ fn through_a_front_end_that_checks_the_user_agent() {
     let _ = std::fs::remove_dir_all(&dir);
     let store = Store::open(&dir).unwrap();
     let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
-    let mut account = AccountConfig { id: "front".into(), ..ews_account(&front) };
+    let mut account = AccountConfig { id: "front".into(), ..account("a1", &front) };
     pool.submit(Job::Start { account: account.clone(), password: Some(Secret(PASSWORD.into())) });
     let seen = until(&pool, "refused", |e| matches!(e, Event::Status { status: SyncStatus::Error { .. }, .. }));
     let why = seen.iter().rev().find_map(|e| match e {
