@@ -53,7 +53,7 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     let mut out = DavSync::default();
     // Where the collections live (looked up once; again a day after finding none). An address
     // the user gave is followed instead of looking, and what's wrong with it is said.
-    let retry = pim.dav_checked.is_none_or(|t| now - t > 86_400);
+    let retry = pim.dav_checked.is_none_or(|t| now.saturating_sub(t) > 86_400);
     // A given address that holds nothing is said once and remembered as none, as one that wasn't
     // found is (looked at again a day on, or when it's changed); a refused sign-in stops the sync.
     let find = |kind: Kind, given: Option<&str>, errors: &mut Vec<String>| -> Result<Option<String>> {

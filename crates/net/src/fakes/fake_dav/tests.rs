@@ -120,6 +120,21 @@ fn finds_reads_writes_and_deletes() {
     assert!(fourth.events.is_empty());
 }
 
+/// When the servers were last looked for, read from a damaged cache (far off either way), is a
+/// time like any other: the sync goes ahead, nothing overflows.
+#[test]
+fn a_damaged_last_look_is_no_overflow() {
+    let server = serve();
+    let dav = Dav::new(USER, PASSWORD);
+    let home = dav.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)).unwrap().unwrap();
+    let book_home = dav.home_from(Kind::Contacts, &format!("{}/.well-known/carddav", server.base)).unwrap().unwrap();
+    for checked in [i64::MIN, i64::MAX, -1] {
+        let pim = Pim { caldav_home: Some(home.clone()), carddav_home: Some(book_home.clone()), dav_checked: Some(checked), ..Default::default() };
+        let out = sync(&dav, &AT, &pim, 100, Zone::UTC).unwrap();
+        assert!(out.errors.is_empty(), "{:?}", out.errors);
+    }
+}
+
 /// Two new events whose long uids differ only after the part a file name keeps each get an
 /// item of their own; an event already on the server keeps its address.
 #[test]
