@@ -130,8 +130,9 @@ impl FolderLoad {
         self.next >= self.pages
     }
 
-    /// Pages read so far, the head counted.
-    pub fn pages_read(&self) -> usize {
+    /// Pages read so far, the head counted (tests).
+    #[cfg(test)]
+    pub(crate) fn pages_read(&self) -> usize {
         self.next.saturating_add(1)
     }
 

@@ -35,8 +35,9 @@ dirs = "7"
 [features]
 # The data files' caches count their use (`Store::cache_use`), for measuring: the import bench.
 cache-metrics = ["redb/cache_metrics"]
-# A drive tests can fill (`Store::fill_drive`), for the tests of the crates over the store: the
-# import's, in net.
+# A drive tests can fill (`Store::fill_drive`), and the thread for read marks held up
+# (`Store::pause_marks`), for the tests of the crates over the store: net's and the engine's.
+# Not in the app.
 test-drive = []
 
 [dev-dependencies]

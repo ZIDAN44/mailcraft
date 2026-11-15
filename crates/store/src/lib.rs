@@ -24,8 +24,6 @@ pub mod location;
 mod packed;
 pub mod search;
 #[cfg(not(target_arch = "wasm32"))]
-pub use packed::EXTENSION as DATA_FILE_EXTENSION;
-#[cfg(not(target_arch = "wasm32"))]
 pub use packed::growth as data_file_growth;
 #[cfg(not(target_arch = "wasm32"))]
 #[doc(hidden)]

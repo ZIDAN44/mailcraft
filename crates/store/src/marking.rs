@@ -77,6 +77,7 @@ struct MarkState {
     queue: Mutex<Queue>,
     written: Condvar,
     /// Held by a test to keep the thread from writing ([`Store::pause_marks`]).
+    #[cfg(any(test, feature = "test-drive"))]
     pause: Mutex<()>,
 }
 
@@ -248,6 +249,7 @@ impl Store {
     }
 
     /// Whether marks handed over aren't on disk yet (tests).
+    #[cfg(any(test, feature = "test-drive"))]
     #[doc(hidden)]
     pub fn marks_waiting(&self) -> bool {
         let q = self.marking.queue();
@@ -263,6 +265,7 @@ impl Store {
 
     /// Keep the thread from writing marks while the guard is held (tests: what the window's thread
     /// writes itself).
+    #[cfg(any(test, feature = "test-drive"))]
     #[doc(hidden)]
     pub fn pause_marks(&self) -> std::sync::MutexGuard<'_, ()> {
         self.marking.state.pause.lock().unwrap_or_else(PoisonError::into_inner)
@@ -270,6 +273,7 @@ impl Store {
 
     /// Hold the lock every change of a list is made under, as the thread for marks does through a
     /// commit (tests: what the window's thread would wait for).
+    #[cfg(any(test, feature = "test-drive"))]
     #[doc(hidden)]
     pub fn hold_lists(&self) -> MutexGuard<'_, ()> {
         self.hold_changes()
@@ -316,6 +320,7 @@ impl Store {
         let marking = self.marking.state.clone();
         let spawned = std::thread::Builder::new().name("mail-marks".into()).spawn(move || {
             for task in rx {
+                #[cfg(any(test, feature = "test-drive"))]
                 drop(marking.pause.lock().unwrap_or_else(PoisonError::into_inner));
                 let after = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| store.write_marks(&task))).unwrap_or_else(|_| {
                     log::error!("{}: read marks failed unexpectedly", task.account);
