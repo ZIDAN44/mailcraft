@@ -53,7 +53,6 @@ fn an_unreadable_attachment_comes_from_its_row() {
     let mut storage = short.clone();
     storage.insert(0x3705, Val::Int(6));
     assert!(matches!(get(&storage, &unreadable()), Got::Left(SkipReason::AttachmentUnreadable)));
-    let other = unreadable();
     let mut hidden = short.clone();
     hidden.insert(0x7FFE, Val::Bool(true));
     assert!(matches!(get(&hidden, &unreadable()), Got::Left(SkipReason::AttachmentUnreadable)), "a message's hidden file");
@@ -87,7 +86,7 @@ fn an_unreadable_attachment_comes_from_its_row() {
     for method in [2, 3, 4, 7] {
         let mut link = short.clone();
         link.insert(0x3705, Val::Int(method));
-        assert!(matches!(get(&link, &other), Got::Left(SkipReason::AttachmentLink)), "method {method}: no path, nothing to name");
+        assert!(matches!(get(&link, &unreadable()), Got::Left(SkipReason::AttachmentLink)), "method {method}: no path, nothing to name");
     }
 }
 

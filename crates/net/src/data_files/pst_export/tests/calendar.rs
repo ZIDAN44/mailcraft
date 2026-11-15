@@ -527,29 +527,29 @@ fn hours_and_added_dates_go_in_as_their_occurrences() {
 
 /// The pattern the export writes for `e` (none when it goes in one occurrence at a time).
 fn written(e: &CalEvent) -> Option<Vec<u8>> {
-    crate::data_files::pst_export::calendar::series(e, &[], &Default::default(), false)?.into_iter().find_map(|(k, v)| match (k, v) {
-        (crate::data_files::pst_export::pim::Key::Lid(_, 0x8216), crate::data_files::pst_export::pim::Value::Bin(b)) => Some(b),
+    cal::series(e, &[], &Default::default(), false)?.into_iter().find_map(|(k, v)| match (k, v) {
+        (Key::Lid(_, 0x8216), Value::Bin(b)) => Some(b),
         _ => None,
     })
 }
 
 /// A rule of a kind Outlook's pattern says, as RFC 5545 writes it.
-fn rule_strategy() -> impl proptest::strategy::Strategy<Value = (String, bool)> {
+fn rule_strategy() -> impl proptest::strategy::Strategy<Value = String> {
     use proptest::prelude::*;
     let days = proptest::sample::subsequence(vec!["SU", "MO", "TU", "WE", "TH", "FR", "SA"], 1..=7).prop_map(|d| d.join(","));
     let nth = prop_oneof![Just(-1i32), 1..=4i32];
     let weekday = proptest::sample::select(vec!["SU", "MO", "TU", "WE", "TH", "FR", "SA"]);
     let end = prop_oneof![Just(String::new()), (1u32..40).prop_map(|n| format!(";COUNT={n}")), (1i64..700).prop_map(|d| format!(";UNTIL=+{d}"))];
     let kind = prop_oneof![
-        (1u32..5).prop_map(|i| (format!("FREQ=DAILY;INTERVAL={i}"), true)),
+        (1u32..5).prop_map(|i| format!("FREQ=DAILY;INTERVAL={i}")),
         (1u32..4, days, proptest::sample::select(vec!["", ";WKST=MO", ";WKST=SU"]))
-            .prop_map(|(i, d, w)| (format!("FREQ=WEEKLY;INTERVAL={i};BYDAY={d}{w}"), true)),
-        (1u32..4, prop_oneof![Just(-1i32), 1..=28i32]).prop_map(|(i, d)| (format!("FREQ=MONTHLY;INTERVAL={i};BYMONTHDAY={d}"), false)),
-        (1u32..4, nth.clone(), weekday.clone()).prop_map(|(i, n, w)| (format!("FREQ=MONTHLY;INTERVAL={i};BYDAY={n}{w}"), false)),
-        (1u32..3).prop_map(|i| (format!("FREQ=YEARLY;INTERVAL={i}"), false)),
-        (1u32..3, nth, weekday).prop_map(|(i, n, w)| (format!("FREQ=YEARLY;INTERVAL={i};BYMONTH=M;BYDAY={n}{w}"), false)),
+            .prop_map(|(i, d, w)| format!("FREQ=WEEKLY;INTERVAL={i};BYDAY={d}{w}")),
+        (1u32..4, prop_oneof![Just(-1i32), 1..=28i32]).prop_map(|(i, d)| format!("FREQ=MONTHLY;INTERVAL={i};BYMONTHDAY={d}")),
+        (1u32..4, nth.clone(), weekday.clone()).prop_map(|(i, n, w)| format!("FREQ=MONTHLY;INTERVAL={i};BYDAY={n}{w}")),
+        (1u32..3).prop_map(|i| format!("FREQ=YEARLY;INTERVAL={i}")),
+        (1u32..3, nth, weekday).prop_map(|(i, n, w)| format!("FREQ=YEARLY;INTERVAL={i};BYMONTH=M;BYDAY={n}{w}")),
     ];
-    (kind, end).prop_map(|((k, by_day), e)| (format!("{k}{e}"), by_day))
+    (kind, end).prop_map(|(k, e)| format!("{k}{e}"))
 }
 
 proptest::proptest! {
@@ -559,7 +559,7 @@ proptest::proptest! {
     /// (`pst_pim::recur`), the series has the same occurrences over three years.
     #[test]
     fn a_rule_written_and_read_back_keeps_its_occurrences(
-        (rule, _) in rule_strategy(),
+        rule in rule_strategy(),
         day in 0i64..1000,
         minute in 0i64..(24 * 4),
         zone in proptest::sample::select(vec!["", "America/New_York", "Europe/Berlin", "Australia/Sydney", "Asia/Kolkata"]),
