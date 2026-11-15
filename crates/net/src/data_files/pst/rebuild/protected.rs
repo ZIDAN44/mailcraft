@@ -6,14 +6,14 @@
 
 use mailcraft_mime::smime;
 
-use super::item::File;
+use super::super::item::File;
 
 /// Longest header line the entity may have, as any message's.
 const MAX_LINE: usize = 998;
 
 /// What an S/MIME item's attachment holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Kind {
+pub(crate) enum Kind {
     /// A `multipart/signed` entity, its own header fields and all.
     Signed,
     /// A CMS `ContentInfo` (DER): signed data with its content inside, or encrypted data.
@@ -21,7 +21,7 @@ pub(super) enum Kind {
 }
 
 /// What an item of class `class` keeps as its attachment, when it's S/MIME.
-pub(super) fn kind(class: &str) -> Option<Kind> {
+pub(crate) fn kind(class: &str) -> Option<Kind> {
     let class = class.to_ascii_lowercase();
     if class.starts_with("ipm.note.smime.multipartsigned") {
         Some(Kind::Signed)
@@ -33,7 +33,7 @@ pub(super) fn kind(class: &str) -> Option<Kind> {
 }
 
 /// The content an S/MIME item's files hold: its one file, when that is all it has.
-pub(super) fn content(files: &[File]) -> Option<&[u8]> {
+pub(crate) fn content(files: &[File]) -> Option<&[u8]> {
     match files {
         [File::Data { data, .. }] if !data.is_empty() => Some(data),
         _ => None,
@@ -45,7 +45,7 @@ pub(super) fn content(files: &[File]) -> Option<&[u8]> {
 /// (the message then keeps it as a file, as before). An entity is put back as it is, since its
 /// signature covers those bytes; it is taken only when its header has nothing but its own
 /// `Content-*` fields, each a clean line, so the file can't add fields to the message.
-pub(super) fn message(built: &[u8], kind: Kind, content: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn message(built: &[u8], kind: Kind, content: &[u8]) -> Option<Vec<u8>> {
     let mut out = smime::outer_headers(built);
     match kind {
         Kind::Signed => {

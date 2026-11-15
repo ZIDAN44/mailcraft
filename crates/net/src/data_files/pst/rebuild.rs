@@ -3,6 +3,9 @@
 use super::item::{File, Item};
 use super::*;
 
+pub(super) mod protected;
+pub(super) mod report;
+
 /// What a message's summary takes from its item, read before the item goes into its rebuilt
 /// source (which takes the item apart).
 pub(super) struct Glance {

@@ -5,7 +5,7 @@
 //! among them and the message is a `multipart/report` of its `report-type` again. Anything else
 //! stays mixed, every part kept.
 
-use super::item::File;
+use super::super::item::File;
 use super::*;
 
 /// What a returned message can be, beside the status: the whole of it or its header.
@@ -14,7 +14,7 @@ const RETURNED: [&str; 2] = ["message/rfc822", "text/rfc822-headers"];
 /// The `report-type` of an item whose original header (`0x007D`) says `multipart/report`, when
 /// its files are one status and at most one returned message; those are then put status first.
 /// `None` (and the files as they were) otherwise.
-pub(super) fn report_type(original: &str, files: &mut [File]) -> Option<String> {
+pub(crate) fn report_type(original: &str, files: &mut [File]) -> Option<String> {
     if !rebuild::usable_headers(original) {
         return None;
     }
@@ -37,7 +37,7 @@ pub(super) fn report_type(original: &str, files: &mut [File]) -> Option<String> 
 /// The built message as a report of this kind: its top-level `multipart/mixed` becomes
 /// `multipart/report; report-type=…` (its boundary as it was). A message whose top isn't mixed
 /// is left as it is.
-pub(super) fn as_report(mut built: Vec<u8>, kind: &str) -> Vec<u8> {
+pub(crate) fn as_report(mut built: Vec<u8>, kind: &str) -> Vec<u8> {
     let Some(blank) = mime::header_end(&built) else { return built };
     let head = built.get(..blank.start).unwrap_or_default();
     // Its value, past the colon and the white space after it.
