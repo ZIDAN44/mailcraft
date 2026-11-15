@@ -70,17 +70,20 @@ impl Session {
     /// Keywords on the messages in the list now that aren't categories in the list, with how
     /// many messages have each, most used first (at most 100).
     pub fn unlisted_keywords(&self) -> Vec<(String, usize)> {
-        // Drawn every frame while the dialog is open, over a list that may be long: one pass,
-        // each keyword looked at once.
+        // Over a list that may be long (the dialog keeps the answer while the list and the
+        // categories stay the same): one pass, each keyword lower-cased into the same buffer and
+        // looked at once, a new one kept.
         let listed: HashSet<String> = self.prefs.categories.iter().map(|c| c.keyword.to_ascii_lowercase()).collect();
         let mut seen: HashMap<String, (String, usize)> = HashMap::new();
+        let mut low = String::new();
         for m in &self.list {
             for k in &m.flags.keywords {
-                let low = k.to_ascii_lowercase();
-                if let Some((_, n)) = seen.get_mut(&low) {
+                low.clear();
+                low.extend(k.chars().map(|c| c.to_ascii_lowercase()));
+                if let Some((_, n)) = seen.get_mut(low.as_str()) {
                     *n += 1;
-                } else if seen.len() < 1000 && !listed.contains(&low) && !is_system_keyword(k) {
-                    seen.insert(low, (k.clone(), 1));
+                } else if seen.len() < 1000 && !listed.contains(low.as_str()) && !is_system_keyword(k) {
+                    seen.insert(low.clone(), (k.clone(), 1));
                 }
             }
         }

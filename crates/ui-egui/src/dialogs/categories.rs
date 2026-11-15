@@ -45,6 +45,30 @@ fn swatch(ui: &mut Ui, t: &Tokens, c: u8, chosen: bool) -> bool {
     resp.clicked()
 }
 
+/// The keywords on the mail listed that aren't categories in the list, with how many messages
+/// have each ([`Session::unlisted_keywords`]), for the dialog: kept between frames, and counted
+/// again only when the list (its revision) or the categories' keywords change.
+struct Unlisted {
+    revision: u64,
+    keywords: Vec<String>,
+    found: Vec<(String, usize)>,
+}
+
+/// The dialog's [`Unlisted`] for the list and categories now.
+fn unlisted(ctx: &egui::Context, s: &Session) -> std::sync::Arc<Unlisted> {
+    let id = egui::Id::unique("categories-unlisted");
+    if let Some(kept) = ctx.data(|d| d.get_temp::<std::sync::Arc<Unlisted>>(id))
+        && kept.revision == s.revision
+        && kept.keywords.iter().eq(s.prefs.categories.iter().map(|c| &c.keyword))
+    {
+        return kept;
+    }
+    let keywords = s.prefs.categories.iter().map(|c| c.keyword.clone()).collect();
+    let made = std::sync::Arc::new(Unlisted { revision: s.revision, keywords, found: s.unlisted_keywords() });
+    ctx.data_mut(|d| d.insert_temp(id, made.clone()));
+    made
+}
+
 /// One line of the list: a dot, the name, the keyword dim beside it; the buttons the caller
 /// puts on the right.
 fn row(ui: &mut Ui, t: &Tokens, c: &Category, odd: bool, extra: &str, buttons: impl FnOnce(&mut Ui)) {
@@ -95,7 +119,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.label(RichText::new(tl!("Keyword on the server")).small().color(t.dim));
             // Left empty, one made from the name as Thunderbird makes a tag's (a category being
             // changed keeps its own): shown as the hint.
-            let made = match editing.as_ref().and_then(|e| s.category(e)) {
+            let current = editing.as_ref().and_then(|e| s.category(e));
+            let made = match current {
                 Some(c) => c.keyword.clone(),
                 None => keywords::new_keyword(name, &s.prefs.categories),
             };
@@ -113,7 +138,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             } else if let Some(c) = taken {
                 ui.label(RichText::new(tf!("{name} has that keyword already.", name = c.name)).color(t.danger).small());
             } else {
-                let note = match editing.as_ref().and_then(|e| s.category(e)) {
+                let note = match current {
                     Some(c) if !wanted.is_empty() && !wanted.eq_ignore_ascii_case(&c.keyword) => {
                         tl!("Mail that has the old keyword keeps it, shown as a category not in the list.")
                     }
@@ -156,7 +181,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     .small(),
             );
             ui.add_space(6.0);
-            let unlisted = s.unlisted_keywords();
+            let unlisted = unlisted(ui.ctx(), s);
             egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).show(ui, |ui| {
                 egui::ScrollArea::vertical().max_height(360.0).auto_shrink([false, true]).show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;
@@ -177,14 +202,14 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     }
                     // Outlook's "not in the Master Category List": on mail here, from another
                     // program or another computer, until they're added.
-                    if !unlisted.is_empty() {
+                    if !unlisted.found.is_empty() {
                         ui.add_space(6.0);
                         ui.horizontal(|ui| {
                             ui.add_space(8.0);
                             ui.label(RichText::new(tl!("On mail here, not in the list")).color(t.dim).small().strong());
                         });
                         ui.add_space(2.0);
-                        for (i, (k, n)) in unlisted.iter().enumerate() {
+                        for (i, (k, n)) in unlisted.found.iter().enumerate() {
                             let c = Session::unlisted_category(k);
                             let count = tf!("Messages: {n}", n = n);
                             row(ui, t, &c, i % 2 == 1, &count, |ui| {

@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod categories;
 mod folder_pane;
 
 #[test]
