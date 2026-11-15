@@ -3,11 +3,9 @@ use mailcraft_model::dates::Clock;
 use util::{PNG_1X1, key};
 
 mod data_urls;
-mod draft_source;
-mod importance;
 pub(crate) mod index_text;
-mod kept_cid;
 mod one_parse;
+mod outgoing;
 mod parts_listed;
 mod percent;
 mod previews;
