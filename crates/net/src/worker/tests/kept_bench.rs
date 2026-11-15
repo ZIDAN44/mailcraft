@@ -50,16 +50,10 @@ fn kept_drafts_filed_timed() {
     let start = Instant::now();
     let mut pool = Pool::new(store.clone(), Arc::new(MemoryCredentials::default()));
     pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
-    let end = Instant::now() + Duration::from_secs(600);
-    while st.lock().unwrap().mailbox("Drafts").map_or(0, |b| b.msgs.len()) < n {
-        assert!(Instant::now() < end, "timed out");
-        std::thread::sleep(Duration::from_millis(5));
-    }
     // The last one is kept no more just after it's filed.
-    while !kept_texts(&store).is_empty() {
-        assert!(Instant::now() < end, "timed out");
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    crate::waiting::eventually_within(Duration::from_secs(600), "every kept draft filed, and kept no more", || {
+        st.lock().unwrap().mailbox("Drafts").map_or(0, |b| b.msgs.len()) >= n && kept_texts(&store).is_empty()
+    });
     let filing = start.elapsed();
     println!(
         "MEASURE kept drafts: {n} of {kb} KB; keeping all {:.0} ms; filing all at one connection {:.0} ms; data file {} MB",

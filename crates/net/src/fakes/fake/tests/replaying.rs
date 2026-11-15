@@ -31,11 +31,9 @@ fn offline(n: u32, name: &str) -> (Arc<Mutex<State>>, Store, crate::worker::Pool
 /// on Windows a look while the worker replaces or removes it can be refused for a moment, and
 /// that read as gone (found under load: the last changes never sent by the time it was).
 fn all_sent(store: &Store, what: &str) {
-    let end = Instant::now() + Duration::from_secs(600);
-    while !store.load_ops("a1").is_ok_and(|ops| ops.is_empty()) {
-        assert!(Instant::now() < end, "{what}: never all sent");
-        std::thread::sleep(Duration::from_millis(5));
-    }
+    // Longer than the usual deadline: the measurement replays a thousand changes.
+    let sent = || store.load_ops("a1").is_ok_and(|ops| ops.is_empty());
+    crate::waiting::eventually_within(Duration::from_secs(600), &format!("every change sent ({what})"), sent);
 }
 
 /// MEASURE: `n` changes made offline, each naming `per` messages, replayed once back online.

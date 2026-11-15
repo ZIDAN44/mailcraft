@@ -50,15 +50,13 @@ pub(super) fn imap_account(id: &str, user: &str, imap: &ServerConfig) -> Account
 /// server delivers a moment after it accepts (Postfix to Dovecot; GreenMail at once), 30 s at
 /// most: its UID and its source.
 pub(super) fn delivered(c: &mut crate::imap::Client<crate::stream::Stream>, subject: &str) -> (u32, Vec<u8>) {
-    let end = Instant::now() + Duration::from_secs(30);
-    let uid = loop {
+    let mut found = None;
+    crate::waiting::eventually_within(Duration::from_secs(30), &format!("{subject} to be delivered"), || {
         c.select("INBOX", true).unwrap();
-        if let Some(u) = c.uid_search(&format!("SUBJECT \"{subject}\"")).unwrap().last().copied() {
-            break u;
-        }
-        assert!(Instant::now() < end, "{subject} wasn't delivered");
-        std::thread::sleep(Duration::from_millis(300));
-    };
+        found = c.uid_search(&format!("SUBJECT \"{subject}\"")).unwrap().last().copied();
+        found.is_some()
+    });
+    let uid = found.unwrap();
     (uid, c.uid_fetch(&uid.to_string(), "BODY.PEEK[]", "").unwrap().into_iter().find_map(|f| f.body).unwrap())
 }
 
@@ -107,11 +105,7 @@ fn real_imap_server() {
 
     // Show more: 25 more, through the QRESYNC sync (Dovecot has it).
     pool.submit(Job::MoreMail { account: "r1".into(), folder: "INBOX".into(), more: 25 });
-    let end = Instant::now() + Duration::from_secs(60);
-    while kept() < 50 {
-        assert!(Instant::now() < end, "Show more brought {} of 50", kept());
-        let _ = pool.wait(Duration::from_millis(100));
-    }
+    crate::waiting::events_until_within(&pool, Duration::from_secs(60), "Show more to bring 50", |_| kept() >= 50);
 
     // Search the server: newest first, its finds as they come.
     let began = Instant::now();
@@ -155,11 +149,8 @@ fn real_imap_server() {
         format!("From: x@studio.test\r\nTo: {user}\r\nSubject: {subject}\r\nMessage-ID: <late{}@studio.test>\r\n\r\nhi\r\n", std::process::id());
     let began = Instant::now();
     other.append("INBOX", "", raw.as_bytes()).unwrap();
-    let end = Instant::now() + Duration::from_secs(45);
-    while !store.load_folder("r1", "INBOX").unwrap().messages.iter().any(|m| m.subject == subject) {
-        assert!(Instant::now() < end, "the new message wasn't noticed in 45 s");
-        let _ = pool.wait(Duration::from_millis(100));
-    }
+    let noticed = |_: &[Event]| store.load_folder("r1", "INBOX").unwrap().messages.iter().any(|m| m.subject == subject);
+    crate::waiting::events_until_within(&pool, Duration::from_secs(45), "the new message to be noticed", noticed);
     eprintln!("new mail noticed in {:?}", began.elapsed());
     pool.submit(Job::Remove { account: "r1".into() });
 }
@@ -300,18 +291,17 @@ fn real_reaction_round_trip() {
     pool.submit(Job::Start { account, password: Some(Secret(to_pw.clone())) });
     until(&pool, 120, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     let subject = format!("Re: Launch plan {id}");
-    let end = Instant::now() + Duration::from_secs(30);
-    let got = loop {
-        let found = store.load_folder("r1", "INBOX").unwrap().messages.into_iter().find(|m| m.subject == subject);
-        match found {
-            Some(m) if !m.reaction.is_empty() => break m,
-            _ if Instant::now() > end => panic!("the reaction didn't arrive marked as one"),
-            _ => {
-                pool.submit(Job::SyncFolder { account: "r1".into(), folder: "INBOX".into() });
-                let _ = pool.wait(Duration::from_millis(500));
-            }
+    // The Inbox asked for again until it's there.
+    let mut arrived = None;
+    crate::waiting::eventually_within(Duration::from_secs(30), "the reaction to arrive marked as one", || {
+        arrived = store.load_folder("r1", "INBOX").unwrap().messages.into_iter().find(|m| m.subject == subject && !m.reaction.is_empty());
+        if arrived.is_none() {
+            pool.submit(Job::SyncFolder { account: "r1".into(), folder: "INBOX".into() });
+            let _ = pool.wait(Duration::from_millis(500));
         }
-    };
+        arrived.is_some()
+    });
+    let got = arrived.unwrap();
     eprintln!("arrived: {:?} answering {}", got.reaction, got.in_reply_to);
     assert_eq!((got.reaction.as_str(), got.in_reply_to.as_str()), ("🎉", format!("plan{id}@studio.test").as_str()));
 }
@@ -739,19 +729,19 @@ fn real_keywords_in_a_shared_folder() {
     pool.submit(Job::Apply { account: "w".into(), op: Op::SetKeyword { keys: vec![m.key.clone()], keyword: "to=20do".into(), on: false } });
     let mut other = crate::imap::Client::connect(&imap).unwrap();
     other.login(&user, &pass).unwrap();
-    let end = Instant::now() + Duration::from_secs(30);
-    loop {
+    crate::waiting::eventually_within(Duration::from_secs(30), "the keywords set here to be on the server", || {
         other.select(&folder, true).unwrap();
         let f: Vec<String> =
             other.uid_fetch(&m.key.uid.to_string(), "FLAGS", "").unwrap().into_iter().flat_map(|x| x.flags.unwrap_or_default()).collect();
         let has = |k: &str| f.iter().any(|x| x.eq_ignore_ascii_case(k));
-        if has("$label7") && !has("to=20do") {
-            eprintln!("on the server: {:?}", f);
-            break;
+        let there = has("$label7") && !has("to=20do");
+        if there {
+            eprintln!("on the server: {f:?}");
+        } else {
+            let _ = pool.wait(Duration::from_millis(200));
         }
-        assert!(Instant::now() < end, "not on the server: {f:?}");
-        let _ = pool.wait(Duration::from_millis(200));
-    }
+        there
+    });
 
     // The server searched for a Thunderbird keyword (it was left out of the search before).
     let q = "keyword:r=c3=bcckfrage";
