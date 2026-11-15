@@ -249,6 +249,25 @@ fn what_mailcraft_encrypts_decrypts_for_each_recipient() {
     assert!(encrypt(BODY, &[], Cipher::Aes256Cbc, &mut rng()).is_err());
 }
 
+/// A certificate named twice (the sender writing to themselves, their own copy added too) is one
+/// recipient: one copy of the content key for it, RSA or EC.
+#[test]
+fn a_recipient_named_twice_is_one() {
+    use cms::enveloped_data::EnvelopedData;
+    use der::Decode as _;
+    let (riley, zoe) = (pem("riley.pem"), pem("zoe.pem"));
+    let infos = |recipients: &[Vec<u8>]| {
+        let sealed = encrypt(BODY, recipients, Cipher::Aes256Cbc, &mut rng()).unwrap();
+        let ci = cms::content_info::ContentInfo::from_der(&sealed).unwrap();
+        ci.content.decode_as::<EnvelopedData>().unwrap().recip_infos.0.len()
+    };
+    assert_eq!(infos(&[riley.clone(), riley.clone()]), 1);
+    assert_eq!(infos(&[zoe.clone(), riley.clone(), zoe.clone(), riley.clone()]), 2);
+    let id = self::riley();
+    let sealed = encrypt(BODY, &[riley.clone(), riley], Cipher::Aes256Gcm, &mut rng()).unwrap();
+    assert_eq!(decrypt(&sealed, &id, &mut rng()).unwrap().0, BODY);
+}
+
 /// Which of several certificates a message is for, read from its recipient infos (RSA's and
 /// EC's, OpenSSL's and MailCraft's, BER too), without a key.
 #[test]

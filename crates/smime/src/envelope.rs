@@ -67,12 +67,18 @@ pub fn encrypt(content: &[u8], recipients: &[Vec<u8>], cipher: Cipher, rng: &mut
     let mut key = [0u8; 32];
     rng.fill_bytes(&mut key);
     let mut infos = SetOfVec::new();
+    let mut seen: Vec<&[u8]> = Vec::new();
     for r in recipients {
+        // A certificate named twice (the sender's own, to themselves) gets one copy of the key.
+        if seen.contains(&r.as_slice()) {
+            continue;
+        }
+        seen.push(r);
         let c = cert::parse(r)?;
         let spki = &c.tbs_certificate.subject_public_key_info;
         // An EC key: the content key wrapped with one agreed by ECDH (RFC 5753).
         if spki.algorithm.oid == oids::EC_PUBLIC_KEY {
-            let _ = infos.insert(RecipientInfo::Kari(crate::kari::recipient(&c, &key, rng)?));
+            written(infos.insert(RecipientInfo::Kari(crate::kari::recipient(&c, &key, rng)?)))?;
             continue;
         }
         if spki.algorithm.oid != oids::RSA_ENCRYPTION {
@@ -89,8 +95,7 @@ pub fn encrypt(content: &[u8], recipients: &[Vec<u8>], cipher: Cipher, rng: &mut
             key_enc_alg: AlgorithmIdentifierOwned { oid: oids::RSA_ENCRYPTION, parameters: Some(Any::null()) },
             enc_key: written(OctetString::new(wrapped))?,
         };
-        // Two recipients with the same certificate are one.
-        let _ = infos.insert(RecipientInfo::Ktri(ktri));
+        written(infos.insert(RecipientInfo::Ktri(ktri)))?;
     }
     // Version 0 when every recipient is RSA by issuer and serial, else 2 (RFC 5652 §6.1).
     let version = if infos.iter().all(|r| matches!(r, RecipientInfo::Ktri(_))) { CmsVersion::V0 } else { CmsVersion::V2 };
