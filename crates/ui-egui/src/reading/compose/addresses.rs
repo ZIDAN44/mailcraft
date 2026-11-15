@@ -15,7 +15,7 @@ pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engi
         if send_button(ui, &t, height, c.sending, f.blocked_text.as_deref()).clicked() {
             send(c, f.blocked, acts);
         }
-        ui.add_space(10.0);
+        ui.add_space(SEND_GAP);
         crate::bidi::vertical(ui, |ui| {
             from_row(ui, &t, c, &f.accounts, acts);
             // To, Cc and Bcc open the address book, as in Outlook.
@@ -37,18 +37,18 @@ pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engi
     });
     if c.show_reply_to || !c.reply_to.is_empty() {
         ui.horizontal(|ui| {
-            ui.add_space(76.0);
+            ui.add_space(PAST_SEND);
             crate::bidi::vertical(ui, |ui| field(ui, &t, "Replies to", &mut c.reply_to, "Where replies go instead of to you", true, false));
         });
     }
     if let Some(r) = f.reach.as_ref().filter(|r| !matches!(r, mailcraft_engine::Reach::NotSetUp | mailcraft_engine::Reach::NoOne)) {
         ui.horizontal(|ui| {
-            ui.add_space(76.0 + LABEL_W);
+            ui.add_space(PAST_SEND + LABEL_W);
             security::encryption_line(ui, &t, r, c.encrypt);
         });
     }
     ui.horizontal(|ui| {
-        ui.add_space(76.0);
+        ui.add_space(PAST_SEND);
         crate::bidi::vertical(ui, |ui| field(ui, &t, "Subject", &mut c.subject, "Add a subject", false, false));
     });
 }
@@ -176,7 +176,7 @@ fn label_button_menu(ui: &mut Ui, t: &Tokens, label: &str, enabled: bool, menu: 
 /// Outlook's tall Send button beside the address rows. `blocked`: why the message can't go from
 /// its account; it's drawn off, and a click says why.
 fn send_button(ui: &mut Ui, t: &Tokens, height: f32, sending: bool, blocked: Option<&str>) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(vec2(66.0, height), if sending { Sense::hover() } else { Sense::click() });
+    let (rect, resp) = ui.allocate_exact_size(vec2(SEND_W, height), if sending { Sense::hover() } else { Sense::click() });
     let on = !sending && blocked.is_none();
     crate::widgets::named(ui, &resp, if sending { tl!("Sending…") } else { tl!("Send") }, on, None);
     let fill = if resp.hovered() && on { t.hover } else { t.surface };

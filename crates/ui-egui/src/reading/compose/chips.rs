@@ -7,7 +7,7 @@ use super::*;
 /// are; each one's × takes it out.
 pub(super) fn attachment_chips(ui: &mut Ui, t: &Tokens, keep_photo_location: bool, c: &mailcraft_engine::Compose, acts: &mut Vec<Action>) {
     ui.horizontal(|ui| {
-        ui.add_space(76.0 + LABEL_W);
+        ui.add_space(PAST_SEND + LABEL_W);
         let mut remove = None;
         crate::bidi::vertical(ui, |ui| {
             // Wrapped into rows, scrolling past two, as Outlook's are.
