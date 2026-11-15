@@ -490,7 +490,7 @@ impl Dialog {
     }
 
     /// A new rule for mail like this (from its sender, into Archive).
-    pub fn rule_from(sender: &str, _subject: &str) -> Dialog {
+    pub fn rule_from(sender: &str) -> Dialog {
         Dialog::EditRule(Box::new(RuleForm {
             index: None,
             name: tf!("Mail from {sender}", sender = sender),

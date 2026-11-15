@@ -19,7 +19,7 @@ fn organising_renders_and_rules_save() {
     a.run("list.focusTab", json!({"value": "other"}));
     frame(&ctx, &mut a, vec![]);
     // The rule editor saves a rule; the Rules dialog lists it.
-    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example", ""));
+    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example"));
     frame(&ctx, &mut a, vec![]);
     if let Some(Dialog::EditRule(f)) = a.ui.dialog.as_mut() {
         f.action = crate::dialogs::RuleDo::Categorize;

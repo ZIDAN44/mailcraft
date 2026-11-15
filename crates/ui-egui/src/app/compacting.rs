@@ -259,7 +259,6 @@ impl MailApp {
     /// from it, "Compact, then close" once closed at once with nothing compacted).
     pub(crate) fn compact_on_close(&mut self, account: Option<String>) {
         self.ui.compact.answered = true;
-        let compact = account.is_some();
         self.ui.dialog = None;
         if let Some(account) = account {
             self.run("dataFile.compact", json!({ "account": account }));
@@ -271,7 +270,7 @@ impl MailApp {
                 self.ui.close_asked = true;
                 return;
             }
-        } else if !compact {
+        } else {
             // Close now (or without compacting): nothing more is waited for or offered.
             self.ui.compact.dont_wait = true;
         }

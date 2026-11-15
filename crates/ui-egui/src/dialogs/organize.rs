@@ -102,7 +102,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 if ui.button(tl!("New rule…")).clicked() {
-                    acts.push(Action::Dialog(Dialog::rule_from("", "")));
+                    acts.push(Action::Dialog(Dialog::rule_from("")));
                 }
                 let any_on = s.rules.iter().any(|r| r.enabled);
                 if ui

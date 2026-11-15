@@ -359,7 +359,7 @@ pub(crate) fn tour() {
             Dialog::name_keyword("r=c3=bcckfrage"),
             Dialog::Categories,
             Dialog::Rules,
-            Dialog::rule_from("zoe@studio.example", "x"),
+            Dialog::rule_from("zoe@studio.example"),
             Dialog::add_account_with("zoe@gmail.com", true),
             jmap_form(),
             graph_form(),
