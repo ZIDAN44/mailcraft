@@ -5,8 +5,11 @@
 //! camera wrote it: the picture itself, its orientation, its colours, its date.
 //!
 //! Only the bytes that say where are touched: the GPS block is zeroed where it lies (so nothing
-//! else in the file moves), and an XMP packet that carries a position is left out. The input is
-//! whatever the user attached, so every offset is checked before it's followed.
+//! else in the file moves), and an XMP packet that carries a position is left out. One thing
+//! goes whole: a PNG's EXIF (its own `eXIf` chunk, or the text chunk ImageMagick writes it in),
+//! which the chunk's checksum covers, is left out with or without a position in it, and its
+//! orientation and date with it. The input is whatever the
+//! user attached, so every offset is checked before it's followed.
 
 /// The tag in a TIFF directory that points to the GPS block (EXIF 2.3, 4.6.3).
 const GPS_POINTER: u16 = 0x8825;

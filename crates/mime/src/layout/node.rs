@@ -100,7 +100,7 @@ impl Node {
     }
 
     /// The picture behind it: the `background` attribute, or `url(…)` in `background-image` or
-    /// `background`. Web, `cid:` and `data:` addresses only (nothing that runs).
+    /// `background`. Web and `cid:` addresses only (nothing that runs, and no `data:` picture).
     pub(super) fn background_image(&self) -> Option<String> {
         let from_css = || {
             let v = self.style_as_written("background-image").or_else(|| self.style_as_written("background"))?;
@@ -610,7 +610,6 @@ impl Node {
         only.font_size().or_else(|| only.wrapped_font_size(depth + 1))
     }
 
-    /// Its size in pixels, when its style or `<font size>` sets one.
     /// The size of the text in it, in pixels, given the size of what's around it (`0`: not
     /// known). A size of nothing (`font-size: 0`, on a template's columns) is passed over.
     pub(super) fn text_size(&self, around: u16) -> u16 {
@@ -639,6 +638,7 @@ impl Node {
         }
     }
 
+    /// Its size in pixels, when its style or `<font size>` sets one.
     pub(super) fn font_size(&self) -> Option<f32> {
         self.style("font-size")
             .as_deref()

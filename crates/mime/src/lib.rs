@@ -292,7 +292,7 @@ pub struct Parsed {
     /// how many words.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub hidden_text: String,
-    #[serde(default, skip_serializing_if = "is_none")]
+    #[serde(default, skip_serializing_if = "is_zero")]
     pub hidden_words: usize,
     /// Tracking pictures and links that report clicks, in the HTML body.
     #[serde(default, skip_serializing_if = "Trackers::is_empty")]
@@ -364,12 +364,9 @@ impl Rise {
     }
 }
 
-fn is_none(v: &usize) -> bool {
-    *v == 0
-}
-
-fn is_zero(v: &u8) -> bool {
-    *v == 0
+/// Whether a number is 0, for a field left out of what's kept when it is.
+fn is_zero<T: Default + PartialEq>(v: &T) -> bool {
+    *v == T::default()
 }
 
 /// Lines of a rich message, each a list of spans.
@@ -654,8 +651,6 @@ pub fn new_message_id(from_email: &str, time: i64, seed: u64) -> String {
     format!("{:x}.{:016x}@{}", time.max(0), seed, domain)
 }
 
-/// Serialise a draft to RFC 5322 bytes. Bcc is written into a draft's copy only
-/// ([`Draft::keep_bcc`]); a message sent carries it in the SMTP envelope alone.
 /// The message with its `Date:` set to `date` (a message held back to be sent later is dated
 /// when it goes, as Outlook dates delayed mail). Messages without a header block come back as
 /// they were.
@@ -668,6 +663,8 @@ pub fn with_date(raw: &[u8], date: i64) -> Vec<u8> {
     out
 }
 
+/// Serialise a draft to RFC 5322 bytes. Bcc is written into a draft's copy only
+/// ([`Draft::keep_bcc`]); a message sent carries it in the SMTP envelope alone.
 pub fn build<'d>(d: &'d Draft, from: &EmailAddress, date: i64, message_id: &str) -> Result<Vec<u8>, String> {
     let mut b = MessageBuilder::new().from(b_addr(from)).subject(d.subject.clone()).date(date.max(0)).message_id(message_id.to_string());
     if !d.to.is_empty() {

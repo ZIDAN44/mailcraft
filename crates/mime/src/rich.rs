@@ -164,7 +164,8 @@ impl Styles {
         if let Some(i) = self.palette.iter().position(|p| *p == s) {
             return u16::try_from(i).unwrap_or(0);
         }
-        // A long-lived message can collect many: drop the unused ones first.
+        // A full palette (a long-lived message can collect many; restyling forgets the unused
+        // ones, [`Styles::compact`]) gives what's new the plain style.
         if self.palette.len() >= usize::from(u16::MAX) {
             return 0;
         }
