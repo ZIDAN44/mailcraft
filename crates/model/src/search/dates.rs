@@ -13,7 +13,7 @@
 //! The days are the user's: [`Query::resolve`] places them in the local zone (each on the offset
 //! in force that day), from the clock the caller passes, as the model never reads the time.
 
-use crate::dates::{Clock, civil_from_days, days_from_civil};
+use crate::dates::{Clock, civil_from_days, days_from_civil, month_len};
 
 use super::{Query, Term};
 
@@ -181,8 +181,8 @@ fn month(s: &str) -> Option<u32> {
 
 fn day(y: &str, m: &str, d: &str) -> Option<DatePoint> {
     let (y, m, d) = (year(y)?, month(m)?, number(d, 2)?);
-    // A day its month has: 2023-02-29 comes back as March the 1st.
-    (d >= 1 && civil_from_days(days_from_civil(y, m, d)) == (y, m, d)).then_some(DatePoint::Day { y, m, d })
+    // A day its month has: not 2023-02-29.
+    (1..=month_len(y, m)).contains(&i64::from(d)).then_some(DatePoint::Day { y, m, d })
 }
 
 fn next_month(y: i64, m: u32) -> (i64, u32) {
