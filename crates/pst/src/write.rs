@@ -2,7 +2,7 @@
 //! and a change that doesn't finish leaves the file as it was.
 
 pub(crate) mod table_types {
-    pub(crate) use super::table::{Cell, NewRow, kept_elsewhere};
+    pub(crate) use super::table::{Cell, NewRow};
 }
 
 mod blocks;

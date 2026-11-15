@@ -39,23 +39,6 @@ pub(crate) struct NewRow {
     pub(crate) cells: Vec<Option<Cell>>,
 }
 
-/// The bytes a value of this type takes in a row, and whether it is there (else it is kept
-/// elsewhere, and the row holds where).
-fn width_of(kind: u16) -> (u8, bool) {
-    match kind {
-        PropertyType::INT16 => (2, true),
-        PropertyType::INT32 | PropertyType::FLOAT32 | PropertyType::ERROR => (4, true),
-        PropertyType::BOOLEAN => (1, true),
-        PropertyType::FLOAT64 | PropertyType::CURRENCY | PropertyType::APP_TIME | PropertyType::INT64 | PropertyType::TIME => (8, true),
-        _ => (4, false),
-    }
-}
-
-/// Whether a column's value is kept outside the row.
-pub(crate) fn kept_elsewhere(kind: u16) -> bool {
-    !width_of(kind).1
-}
-
 impl Schema {
     /// A layout for these columns (`(id, type)`): the row ID and version first, then 8- and
     /// 4-byte columns, 2-byte, 1-byte, and the bitmap saying which cells exist.
@@ -66,7 +49,8 @@ impl Schema {
         let mut ends = [0u16; 4];
         for (i, group) in [&[8u8, 4][..], &[2][..], &[1][..]].into_iter().enumerate() {
             for (id, kind) in list {
-                let (size, _) = width_of(*kind);
+                // A value kept elsewhere: the row holds where, in four bytes.
+                let size = PropertyType(*kind).row_width().unwrap_or(4);
                 if group.contains(&size) {
                     columns.push(Column::new(*kind, *id, offset, size, bit));
                     offset += u16::from(size);

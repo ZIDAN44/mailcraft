@@ -31,45 +31,21 @@ impl PropertyType {
     pub const BINARY: u16 = 0x0102;
     pub const MULTI: u16 = 0x1000;
 
-    /// Whether properties have this type (MS-OXCDATA 2.11.1).
+    /// Whether properties have this type (MS-OXCDATA 2.11.1): those [`parse`] reads.
     pub(crate) fn known(self) -> bool {
-        const M: u16 = PropertyType::MULTI;
-        Self::kept_whole(self.0)
-            || matches!(
-                self.0,
-                Self::NULL
-                    | Self::INT16
-                    | Self::INT32
-                    | Self::FLOAT32
-                    | Self::FLOAT64
-                    | Self::CURRENCY
-                    | Self::APP_TIME
-                    | Self::ERROR
-                    | Self::BOOLEAN
-                    | Self::OBJECT
-                    | Self::INT64
-                    | Self::STRING8
-                    | Self::UNICODE
-                    | Self::TIME
-                    | Self::GUID
-                    | Self::BINARY
-            )
-            || (self.0 & M != 0
-                && matches!(
-                    self.0 & !M,
-                    Self::INT16
-                        | Self::INT32
-                        | Self::FLOAT32
-                        | Self::FLOAT64
-                        | Self::CURRENCY
-                        | Self::APP_TIME
-                        | Self::INT64
-                        | Self::STRING8
-                        | Self::UNICODE
-                        | Self::TIME
-                        | Self::GUID
-                        | Self::BINARY
-                ))
+        reader(self.0).is_some()
+    }
+
+    /// The bytes a value of this type takes in a table's row, for one kept there (MS-PST
+    /// 2.3.4.4.1); `None` for one kept elsewhere, the row holding where.
+    pub(crate) fn row_width(self) -> Option<u8> {
+        match self.0 {
+            Self::INT16 => Some(2),
+            Self::INT32 | Self::FLOAT32 | Self::ERROR => Some(4),
+            Self::BOOLEAN => Some(1),
+            Self::FLOAT64 | Self::CURRENCY | Self::APP_TIME | Self::INT64 | Self::TIME => Some(8),
+            _ => None,
+        }
     }
 
     /// A type MailCraft has no use for, whose bytes are kept whole to be written back: the
@@ -190,27 +166,6 @@ pub enum PropertyValue {
     Other(u16, Bytes),
 }
 
-/// The value of a fixed-size type kept in `b`, `None` for a type that isn't.
-fn fixed(kind: u16, b: &[u8]) -> io::Result<Option<PropertyValue>> {
-    use PropertyValue as V;
-    let i64_of = |b: &[u8]| -> io::Result<i64> { bytes_at(b, 0).map(i64::from_le_bytes) };
-    Ok(Some(match kind {
-        PropertyType::INT16 => V::Integer16(i16::from_le_bytes(bytes_at(b, 0)?)),
-        PropertyType::INT32 => V::Integer32(i32::from_le_bytes(bytes_at(b, 0)?)),
-        PropertyType::FLOAT32 => V::Floating32(f32::from_le_bytes(bytes_at(b, 0)?)),
-        PropertyType::FLOAT64 => V::Floating64(f64::from_bits(u64_at(b, 0)?)),
-        PropertyType::CURRENCY => V::Currency(i64_of(b)?),
-        PropertyType::APP_TIME => V::FloatingTime(f64::from_bits(u64_at(b, 0)?)),
-        PropertyType::ERROR => V::ErrorCode(i32::from_le_bytes(bytes_at(b, 0)?)),
-        PropertyType::BOOLEAN => V::Boolean(crate::util::u8_at(b, 0)? != 0),
-        PropertyType::INT64 => V::Integer64(i64_of(b)?),
-        PropertyType::TIME => V::Time(i64_of(b)?),
-        PropertyType::GUID => V::Guid(GuidValue::parse(b)?),
-        PropertyType::OBJECT => V::Object(ObjectRef { node: u32_at(b, 0)?, size: u32_at(b, 4)? }),
-        _ => return Ok(None),
-    }))
-}
-
 /// UTF-16LE text, up to its NUL (MS-OXCDATA 2.11.1).
 fn utf16(b: &[u8]) -> Utf16 {
     Utf16(b.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).take_while(|c| *c != 0).collect())
@@ -246,35 +201,61 @@ fn each<T>(b: &[u8], width: usize, one: impl Fn(&[u8]) -> io::Result<T>) -> io::
     (0..n).map(|i| one(b.get(i * width..).ok_or_else(short)?)).collect()
 }
 
+fn i64_of(b: &[u8]) -> io::Result<i64> {
+    bytes_at(b, 0).map(i64::from_le_bytes)
+}
+
+fn f64_of(b: &[u8]) -> io::Result<f64> {
+    u64_at(b, 0).map(f64::from_bits)
+}
+
+/// How a value of a type is read from its bytes (given its type, and them).
+type Reader = fn(u16, &[u8]) -> io::Result<PropertyValue>;
+
+/// How a value of type `kind` is read; `None` for a type no property has. The one list of the
+/// types there are: [`PropertyType::known`] is the types it has.
+fn reader(kind: u16) -> Option<Reader> {
+    use PropertyValue as V;
+    const M: u16 = PropertyType::MULTI;
+    let read: Reader = match kind {
+        PropertyType::NULL => |_, _| Ok(V::Null),
+        PropertyType::INT16 => |_, b| Ok(V::Integer16(i16::from_le_bytes(bytes_at(b, 0)?))),
+        PropertyType::INT32 => |_, b| Ok(V::Integer32(i32::from_le_bytes(bytes_at(b, 0)?))),
+        PropertyType::FLOAT32 => |_, b| Ok(V::Floating32(f32::from_le_bytes(bytes_at(b, 0)?))),
+        PropertyType::FLOAT64 => |_, b| Ok(V::Floating64(f64_of(b)?)),
+        PropertyType::CURRENCY => |_, b| Ok(V::Currency(i64_of(b)?)),
+        PropertyType::APP_TIME => |_, b| Ok(V::FloatingTime(f64_of(b)?)),
+        PropertyType::ERROR => |_, b| Ok(V::ErrorCode(i32::from_le_bytes(bytes_at(b, 0)?))),
+        PropertyType::BOOLEAN => |_, b| Ok(V::Boolean(crate::util::u8_at(b, 0)? != 0)),
+        PropertyType::INT64 => |_, b| Ok(V::Integer64(i64_of(b)?)),
+        PropertyType::TIME => |_, b| Ok(V::Time(i64_of(b)?)),
+        PropertyType::GUID => |_, b| Ok(V::Guid(GuidValue::parse(b)?)),
+        PropertyType::OBJECT => |_, b| Ok(V::Object(ObjectRef { node: u32_at(b, 0)?, size: u32_at(b, 4)? })),
+        PropertyType::STRING8 => |_, b| Ok(V::String8(string8(b))),
+        PropertyType::UNICODE => |_, b| Ok(V::Unicode(utf16(b))),
+        PropertyType::BINARY => |_, b| Ok(V::Binary(Bytes(b.to_vec()))),
+        k if k == M | PropertyType::INT16 => |_, b| Ok(V::MultipleInteger16(each(b, 2, |b| Ok(i16::from_le_bytes(bytes_at(b, 0)?)))?)),
+        k if k == M | PropertyType::INT32 => |_, b| Ok(V::MultipleInteger32(each(b, 4, |b| Ok(i32::from_le_bytes(bytes_at(b, 0)?)))?)),
+        k if k == M | PropertyType::FLOAT32 => |_, b| Ok(V::MultipleFloating32(each(b, 4, |b| Ok(f32::from_le_bytes(bytes_at(b, 0)?)))?)),
+        k if k == M | PropertyType::FLOAT64 => |_, b| Ok(V::MultipleFloating64(each(b, 8, f64_of)?)),
+        k if k == M | PropertyType::CURRENCY => |_, b| Ok(V::MultipleCurrency(each(b, 8, i64_of)?)),
+        k if k == M | PropertyType::APP_TIME => |_, b| Ok(V::MultipleFloatingTime(each(b, 8, f64_of)?)),
+        k if k == M | PropertyType::INT64 => |_, b| Ok(V::MultipleInteger64(each(b, 8, i64_of)?)),
+        k if k == M | PropertyType::TIME => |_, b| Ok(V::MultipleTime(each(b, 8, i64_of)?)),
+        k if k == M | PropertyType::GUID => |_, b| Ok(V::MultipleGuid(each(b, 16, GuidValue::parse)?)),
+        k if k == M | PropertyType::STRING8 => |_, b| Ok(V::MultipleString8(pieces(b)?.into_iter().map(string8).collect())),
+        k if k == M | PropertyType::UNICODE => |_, b| Ok(V::MultipleUnicode(pieces(b)?.into_iter().map(utf16).collect())),
+        k if k == M | PropertyType::BINARY => |_, b| Ok(V::MultipleBinary(pieces(b)?.into_iter().map(|p| Bytes(p.to_vec())).collect())),
+        k if PropertyType::kept_whole(k) => |k, b| Ok(V::Other(k, Bytes(b.to_vec()))),
+        _ => return None,
+    };
+    Some(read)
+}
+
 /// The value of type `kind` kept as `b`.
 pub(crate) fn parse(kind: u16, b: &[u8]) -> io::Result<PropertyValue> {
-    use PropertyValue as V;
-    if let Some(v) = fixed(kind, b)? {
-        return Ok(v);
-    }
-    let i64_of = |b: &[u8]| -> io::Result<i64> { bytes_at(b, 0).map(i64::from_le_bytes) };
-    let f64_of = |b: &[u8]| -> io::Result<f64> { u64_at(b, 0).map(f64::from_bits) };
-    const M: u16 = PropertyType::MULTI;
-    Ok(match kind {
-        PropertyType::NULL => V::Null,
-        PropertyType::STRING8 => V::String8(string8(b)),
-        PropertyType::UNICODE => V::Unicode(utf16(b)),
-        PropertyType::BINARY => V::Binary(Bytes(b.to_vec())),
-        k if k == M | PropertyType::INT16 => V::MultipleInteger16(each(b, 2, |b| Ok(i16::from_le_bytes(bytes_at(b, 0)?)))?),
-        k if k == M | PropertyType::INT32 => V::MultipleInteger32(each(b, 4, |b| Ok(i32::from_le_bytes(bytes_at(b, 0)?)))?),
-        k if k == M | PropertyType::FLOAT32 => V::MultipleFloating32(each(b, 4, |b| Ok(f32::from_le_bytes(bytes_at(b, 0)?)))?),
-        k if k == M | PropertyType::FLOAT64 => V::MultipleFloating64(each(b, 8, f64_of)?),
-        k if k == M | PropertyType::CURRENCY => V::MultipleCurrency(each(b, 8, i64_of)?),
-        k if k == M | PropertyType::APP_TIME => V::MultipleFloatingTime(each(b, 8, f64_of)?),
-        k if k == M | PropertyType::INT64 => V::MultipleInteger64(each(b, 8, i64_of)?),
-        k if k == M | PropertyType::TIME => V::MultipleTime(each(b, 8, i64_of)?),
-        k if k == M | PropertyType::GUID => V::MultipleGuid(each(b, 16, GuidValue::parse)?),
-        k if k == M | PropertyType::STRING8 => V::MultipleString8(pieces(b)?.into_iter().map(string8).collect()),
-        k if k == M | PropertyType::UNICODE => V::MultipleUnicode(pieces(b)?.into_iter().map(utf16).collect()),
-        k if k == M | PropertyType::BINARY => V::MultipleBinary(pieces(b)?.into_iter().map(|p| Bytes(p.to_vec())).collect()),
-        k if PropertyType::kept_whole(k) => V::Other(k, Bytes(b.to_vec())),
-        k => return Err(invalid(format!("a property of type {k:#x}, which none has"))),
-    })
+    let read = reader(kind).ok_or_else(|| invalid(format!("a property of type {kind:#x}, which none has")))?;
+    read(kind, b)
 }
 
 #[cfg(test)]
@@ -300,6 +281,17 @@ mod tests {
         b.extend([b'a', 0, b'b', 0, b'c', 0]);
         let v = parse(PropertyType::MULTI | PropertyType::UNICODE, &b).unwrap();
         assert_eq!(v, PropertyValue::MultipleUnicode(vec![Utf16(vec![97]), Utf16(vec![98, 99])]));
+    }
+
+    /// A value a table keeps in its rows reads from a cell as wide as the row gives it.
+    #[test]
+    fn a_value_kept_in_a_row_reads_from_its_cell() {
+        let kept: Vec<u16> = (0..=u16::MAX).filter(|k| PropertyType(*k).row_width().is_some()).collect();
+        assert_eq!(kept.len(), 10);
+        for kind in kept {
+            let width = PropertyType(kind).row_width().map(usize::from).unwrap();
+            assert!(PropertyType(kind).known() && parse(kind, &vec![0; width]).is_ok(), "{kind:#x}");
+        }
     }
 
     #[test]

@@ -6,7 +6,7 @@ use std::io;
 use super::edit::Editor;
 use super::heap::{BuiltProps, build_props, value_type};
 use super::named::NamedIds;
-use super::table::{Built, Cell, NewRow, ROW_ID, ROW_VERSION, Schema, build_table, kept_elsewhere};
+use super::table::{Built, Cell, NewRow, ROW_ID, ROW_VERSION, Schema, build_table};
 use super::text::Text;
 use super::types::*;
 use crate::ltp::{Bytes, ObjectRef, PropertyType as P, PropertyValue};
@@ -442,7 +442,7 @@ pub(crate) fn contents_cell(
                     return None;
                 }
                 let bytes = super::heap::value_bytes(&v);
-                return Some(if kept_elsewhere(kind) { Cell::Bytes(bytes) } else { Cell::Fixed(bytes) });
+                return Some(if P(kind).row_width().is_none() { Cell::Bytes(bytes) } else { Cell::Fixed(bytes) });
             }
         }
     }
