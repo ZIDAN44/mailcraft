@@ -394,16 +394,52 @@ fn hand_over(stream: UnixStream, socket: &Path, open: &[String], mut wait: impl 
     hand_over_once(&stream, socket, open)
 }
 
+/// How long one read on the socket waits before it's made again, until [`TIMEOUT`]. Windows can
+/// miss waking a read for a close that comes just as the read starts (about one in four hundred),
+/// as a launch that asks again closes a connection it sent nothing on; data always wakes it. The
+/// read then waited out all of [`TIMEOUT`], and the ask behind it timed out and opened a second
+/// window. A read made again sees the close at once.
+const READ_SLICE: Duration = Duration::from_millis(50);
+
+/// Reads `stream` until `TIMEOUT` from when it's made, [`READ_SLICE`] at a time.
+struct Patient<'a> {
+    stream: &'a UnixStream,
+    until: std::time::Instant,
+}
+
+impl<'a> Patient<'a> {
+    fn new(stream: &'a UnixStream) -> Self {
+        Patient { stream, until: std::time::Instant::now() + TIMEOUT }
+    }
+}
+
+impl std::io::Read for Patient<'_> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        use std::io::ErrorKind::{Interrupted, TimedOut, WouldBlock};
+        loop {
+            let left = self.until.saturating_duration_since(std::time::Instant::now());
+            if left.is_zero() {
+                return Err(TimedOut.into());
+            }
+            // A timeout of zero is refused: at least a millisecond.
+            self.stream.set_read_timeout(Some(left.min(READ_SLICE).max(Duration::from_millis(1))))?;
+            match std::io::Read::read(&mut self.stream, buf) {
+                Err(e) if matches!(e.kind(), TimedOut | WouldBlock | Interrupted) => {}
+                read => return read,
+            }
+        }
+    }
+}
+
 /// Ask once, with the key beside the socket, and wait for the `ok`.
 fn hand_over_once(stream: &UnixStream, socket: &Path, open: &[String]) -> std::io::Result<()> {
     use std::io::{BufRead, Read, Write};
-    stream.set_read_timeout(Some(TIMEOUT))?;
     stream.set_write_timeout(Some(TIMEOUT))?;
     let key = read_key(socket)?;
     let mut writer = stream;
     writer.write_all(request(&key, open).as_bytes())?;
     let mut reply = String::new();
-    std::io::BufReader::new(stream.take(16)).read_line(&mut reply)?;
+    std::io::BufReader::new(Patient::new(stream).take(16)).read_line(&mut reply)?;
     if reply == OK { Ok(()) } else { Err(std::io::Error::other("no ok")) }
 }
 
@@ -431,10 +467,9 @@ fn serve(listener: UnixListener, path: &Path, key: String) -> Claim {
 /// Read one launch's request (anything without the key is refused), note it and confirm.
 fn answer(stream: &UnixStream, server: &Server) -> std::io::Result<()> {
     use std::io::{BufRead, Read, Write};
-    stream.set_read_timeout(Some(TIMEOUT))?;
     stream.set_write_timeout(Some(TIMEOUT))?;
     let mut line = String::new();
-    std::io::BufReader::new(stream.take(MAX_REQUEST)).read_line(&mut line)?;
+    std::io::BufReader::new(Patient::new(stream).take(MAX_REQUEST)).read_line(&mut line)?;
     let open = parse_request(&line, &server.key).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "not a request with the key"))?;
     server.ask(open);
     let mut writer = stream;
@@ -478,6 +513,7 @@ mod tests {
             socket_at("handed"),
             socket_at("lost"),
             socket_at("early"),
+            socket_at("patient"),
         ] {
             let len = p.as_os_str().len();
             assert!(len < 104, "{len} bytes: {}", p.display());
@@ -615,6 +651,40 @@ mod tests {
             assert_eq!((asked, first.take()), (KEY_TRIES - 1, None));
             first.close();
         }
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    /// Found while a test failed one run in twenty: a read on the socket is made again every
+    /// [`READ_SLICE`] until its time is up, so a close Windows didn't wake it for is seen at the
+    /// next (it waited out all of [`TIMEOUT`], and the ask behind it timed out). What comes after
+    /// a few slices is still read, and the read gives up when its time is.
+    #[test]
+    fn a_read_is_made_again_until_its_time_is_up() {
+        use std::io::{Read, Write};
+        let path = socket("patient");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let listener = UnixListener::bind(&path).unwrap();
+        let mut late = UnixStream::connect(&path).unwrap();
+        let (ours, _) = listener.accept().unwrap();
+        let writer = std::thread::spawn(move || {
+            std::thread::sleep(READ_SLICE * 4);
+            late.write_all(b"ok\n").unwrap();
+            late
+        });
+        let mut got = [0u8; 3];
+        Patient::new(&ours).read_exact(&mut got).unwrap();
+        assert_eq!(&got, b"ok\n", "read after four slices");
+        let late = writer.join().unwrap();
+        // Nothing more comes: the read gives up at its time, not at the first slice.
+        let started = std::time::Instant::now();
+        let until = started + READ_SLICE * 5;
+        let gave_up = Patient { stream: &ours, until }.read(&mut got);
+        assert_eq!(gave_up.map_err(|e| e.kind()), Err(std::io::ErrorKind::TimedOut));
+        assert!(started.elapsed() >= READ_SLICE * 5, "{:?}", started.elapsed());
+        // A close is an end, as before.
+        drop(late);
+        assert_eq!(Patient::new(&ours).read(&mut got).unwrap(), 0);
+        drop((ours, listener));
         let _ = std::fs::remove_dir_all(path.parent().unwrap());
     }
 
