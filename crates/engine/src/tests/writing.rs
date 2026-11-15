@@ -7,6 +7,8 @@ mod identities;
 mod quote;
 mod reactions;
 mod sending;
+mod signature_code;
+mod signatures;
 
 #[test]
 fn compose_reply_and_send_locally() {

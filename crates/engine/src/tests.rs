@@ -244,17 +244,10 @@ fn the_version_line_names_the_program_and_its_build() {
 
 mod accounts;
 mod calendar;
-mod categories;
 mod directory;
-mod files;
 mod mail;
+mod opening;
 mod organize;
 mod safety;
-mod selecting;
-mod senders;
-mod signature_code;
-mod signatures;
 mod smime;
-mod source;
-mod text_first;
 mod writing;

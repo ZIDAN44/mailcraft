@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod categories;
 mod focused;
 mod junk;
 mod many;
