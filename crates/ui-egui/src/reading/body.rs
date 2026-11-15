@@ -211,7 +211,7 @@ pub(super) trait CellEdit {
 /// Narrower than this, a table's columns go one under the other.
 pub(super) const MIN_COLUMN: f32 = 140.0;
 
-pub(super) fn span_font(sp: &mime::Span) -> egui::FontId {
+pub(crate) fn span_font(sp: &mime::Span) -> egui::FontId {
     let font = span_font_at_full_size(sp);
     match sp.rise {
         mime::Rise::Normal => font,
@@ -296,8 +296,7 @@ impl Body<'_> {
                     });
                     continue;
                 }
-                let line_w: f32 =
-                    line.iter().map(|sp| ui.fonts_mut(|f| f.layout_no_wrap(sp.text.clone(), span_font(sp), Color32::WHITE).size().x)).sum();
+                let line_w = line_width(ui, line);
                 if line.iter().all(|sp| sp.image.is_none()) && line_w < width {
                     let space = if align == Align::Center { (width - line_w) / 2.0 } else { width - line_w };
                     ui.horizontal(|ui| {
@@ -364,9 +363,20 @@ impl Body<'_> {
         }
         match &sp.link {
             Some(link) => {
-                // Hovered, a link says where it will open (cleaned, when links are).
-                let shown = if self.s.prefs.clean_links { mime::clean_link(link) } else { link.clone() };
-                let r = text_selection::run(st, ui, rt.color(fg), Some(fg)).on_hover_text(shown);
+                // Hovered, a link says where it will open (cleaned, when links are): written only
+                // when it's shown, or a screen reader is told it (not for every link every frame).
+                let clean = self.s.prefs.clean_links;
+                let shown = || if clean { mime::clean_link(link) } else { link.clone() };
+                let r = text_selection::run(st, ui, rt.color(fg), Some(fg));
+                let r = if r.ctx.has_accesskit_node(r.id) {
+                    r.on_hover_text(shown())
+                } else {
+                    // As `on_hover_text` draws it.
+                    r.on_hover_ui(|ui| {
+                        ui.set_max_width(ui.spacing().tooltip_width);
+                        ui.add(egui::Label::new(shown()));
+                    })
+                };
                 if r.clicked() {
                     self.acts.push(Action::OpenUrl(link.clone()));
                 }
@@ -627,11 +637,44 @@ pub(super) fn natural_width(ui: &Ui, blocks: &[mime::layout::Block]) -> Option<f
             if line.iter().any(|sp| sp.image.is_some()) {
                 return None;
             }
-            let w: f32 = line.iter().map(|sp| ui.fonts_mut(|f| f.layout_no_wrap(sp.text.clone(), span_font(sp), Color32::WHITE).size().x)).sum();
-            widest = widest.max(w);
+            widest = widest.max(line_width(ui, line));
         }
     }
     Some(widest)
+}
+
+/// Line widths kept, by what each line says and in what fonts.
+#[derive(Clone, Default)]
+struct LineWidths(std::collections::HashMap<u64, f32>);
+
+/// More line widths than this kept, they're let go and measured again as they're drawn.
+const LINE_WIDTHS: usize = 8_192;
+
+/// How wide a line of formatted text is unwrapped: its spans' words in their fonts, measured the
+/// first time and kept by what they are (a newsletter's centred lines were each laid out twice a
+/// frame, to measure and to draw, a sixth of its frame).
+pub(crate) fn line_width(ui: &Ui, line: &[mime::Span]) -> f32 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    ui.ctx().pixels_per_point().to_bits().hash(&mut h);
+    for sp in line {
+        // What its font is made of (span_font).
+        (&sp.text, sp.heading, sp.code, sp.bold, sp.size, sp.rise == mime::Rise::Normal).hash(&mut h);
+    }
+    let key = h.finish();
+    let store = egui::Id::unique("mailcraft-line-widths");
+    if let Some(w) = ui.ctx().data_mut(|d| d.get_temp_mut_or_default::<LineWidths>(store).0.get(&key).copied()) {
+        return w;
+    }
+    let w: f32 = line.iter().map(|sp| ui.fonts_mut(|f| f.layout_no_wrap(sp.text.clone(), span_font(sp), Color32::WHITE).size().x)).sum();
+    ui.ctx().data_mut(|d| {
+        let kept = d.get_temp_mut_or_default::<LineWidths>(store);
+        if kept.0.len() >= LINE_WIDTHS {
+            kept.0.clear();
+        }
+        kept.0.insert(key, w);
+    });
+    w
 }
 
 /// Right-click on right-to-left text (selectable too): copy the line, or the whole message, as
@@ -663,6 +706,12 @@ pub(super) enum Pic {
 /// Most web pictures kept decoded.
 const WEB_PICTURES: usize = 200;
 
+/// Whether a picture's address is on the web (`http://` or `https://`, in any case), read where
+/// it starts (the address isn't copied to be lowered, for each picture every frame).
+pub(crate) fn on_the_web(src: &str) -> bool {
+    ["http://", "https://"].iter().any(|scheme| src.get(..scheme.len()).is_some_and(|s| s.eq_ignore_ascii_case(scheme)))
+}
+
 /// A picture of an HTML message: one inside it (`cid:`) always, one on the web once allowed.
 pub(super) fn picture_texture(
     s: &Session,
@@ -678,8 +727,7 @@ pub(super) fn picture_texture(
         return Pic::Ready(own);
     }
     // One sent with the message: by `cid:`, or by the name or address it was sent under.
-    let lower = src.to_ascii_lowercase();
-    if !(lower.starts_with("http://") || lower.starts_with("https://")) {
+    if !on_the_web(src) {
         let Some(index) = mime::picture_attachment(p, src) else { return Pic::Missing };
         // At a size to read it at (an attachment's card has a small thumbnail: a picture wider
         // than that came out that wide, issue #10), taken out with the message's others.

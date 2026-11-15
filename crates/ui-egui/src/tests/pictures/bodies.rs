@@ -155,3 +155,48 @@ fn holding_down_frames_stay_under_16_ms() {
     println!("worst step {:.1} ms", worst.as_secs_f64() * 1000.0);
     assert!(worst < std::time::Duration::from_millis(16), "worst step {worst:?}");
 }
+
+/// MEASURE: a frame of a newsletter of centred lines, each with a tracked link (a redirect with
+/// tags), all of it in the pane; and what cleaning its links' addresses takes. In release
+/// (`cargo test --release -p mailcraft-ui-egui --lib centred_newsletter_frames -- --ignored --nocapture`).
+#[test]
+#[ignore]
+fn centred_newsletter_frames() {
+    let (mut a, _) = app("newsletter-frames");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let mut html = String::from("<table width=\"600\" align=\"center\"><tr><td align=\"center\">");
+    let mut links = Vec::new();
+    for i in 0..400 {
+        let link =
+            format!("https://click.news.example/r?u=https%3A%2F%2Fshop.example%2Fitem%2F{i}%3Futm_source%3Dnews&utm_medium=email&utm_campaign=fall");
+        html.push_str(&format!("<p>Read <a href=\"{link}\">story {i} of the fall</a> and <b>save</b> today.</p>"));
+        links.push(link);
+    }
+    html.push_str("</td></tr></table>");
+    let raw = format!("From: Shop <news@shop.example>\r\nSubject: Fall\r\nContent-Type: text/html\r\n\r\n{html}");
+    let k = with_raw(&mut a, 9800, raw.as_bytes());
+    a.run("list.open", json!({"key": k.to_id()}));
+    assert!(a.session.prefs.clean_links);
+    let whole = median_frame(&ctx, &mut a);
+    const ROUNDS: u32 = 100;
+    let t = std::time::Instant::now();
+    let cleaned: usize = (0..ROUNDS).map(|_| links.iter().map(|l| mailcraft_engine::mime::clean_link(l).len()).sum::<usize>()).sum();
+    let clean = t.elapsed() / ROUNDS;
+    println!("MEASURE centred newsletter, {} lines with links: median frame {whole:?}; its links cleaned {clean:?} ({cleaned})", links.len());
+}
+
+/// The median of 100 frames of the open message, after 5 to settle (the machine is shared: the
+/// slowest are others' work).
+fn median_frame(ctx: &egui::Context, a: &mut MailApp) -> std::time::Duration {
+    pump(ctx, a, WINDOW, 5, |_| false);
+    let mut frames: Vec<std::time::Duration> = (0..100)
+        .map(|_| {
+            let t = std::time::Instant::now();
+            pump(ctx, a, WINDOW, 1, |_| false);
+            t.elapsed()
+        })
+        .collect();
+    frames.sort();
+    frames[frames.len() / 2]
+}
