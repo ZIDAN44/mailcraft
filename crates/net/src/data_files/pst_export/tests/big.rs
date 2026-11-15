@@ -17,13 +17,6 @@ const DIR_VAR: &str = "MC_EXPORT_BIG_DIR";
 /// held with their batch, as before, came to 411 MB.
 const MAX_GROWTH: u64 = 350 << 20;
 
-/// A big file's byte at `at`, the `n`th file's: not one repeated block, which a writer might
-/// keep once.
-fn byte(n: usize, at: usize) -> u8 {
-    let x = (at as u64).wrapping_add(n as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
-    (x >> 56) as u8
-}
-
 /// Whether this system says what a process's peak working set is ([`peak`]): elsewhere the
 /// memory bound isn't checked, only the file.
 const MEASURED: bool = cfg!(any(windows, target_os = "linux"));
@@ -70,7 +63,7 @@ fn files_in(path: &Path) -> usize {
         let Some(AttachmentData::Binary(b)) = a.data() else { panic!("{subject}: no file") };
         let data = b.buffer();
         assert_eq!(data.len(), BIG);
-        assert!(data.iter().enumerate().all(|(at, x)| *x == byte(n, at)), "{subject}: the file isn't as it was");
+        assert!(data.iter().enumerate().all(|(at, x)| *x == big_byte(n, at)), "{subject}: the file isn't as it was");
         seen += 1;
     }
     seen
@@ -83,7 +76,7 @@ fn big_files_are_written_with_bounded_memory() {
     let store = Store::open(dir.join("cache")).unwrap();
     let mut messages = Vec::new();
     for n in 1..=2u32 {
-        let data: Vec<u8> = (0..BIG).map(|at| byte(n as usize, at)).collect();
+        let data = big_file(n as usize, BIG);
         let d = mime::Draft {
             to: vec![EmailAddress::new("Ana", "ana@studio.example")],
             subject: format!("Footage {n}"),

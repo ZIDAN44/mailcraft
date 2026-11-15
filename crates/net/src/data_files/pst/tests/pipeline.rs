@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use mailcraft_model::job::StopHow;
 use mailcraft_model::{Folder, FolderRole};
 use mailcraft_pst::write::{self, BatchMessage, NewAttachment, NewMessage, NewRecipient, RecipientType};
 use mailcraft_store::Store;
@@ -13,8 +14,10 @@ use mailcraft_store::Store;
 use super::super::lanes::MAX_PANICS;
 use super::super::lanes::tests::Fault;
 use super::super::out::Out;
-use super::super::{ImportOptions, ImportSink, Imported, PlannedFolder, Progress, SkipReason, import_into, import_with};
+use super::super::resume::{self, Checkpoint, Found};
+use super::super::{ImportOptions, ImportSink, Imported, PlannedFolder, Progress, SkipReason, Stop, import_into, import_with};
 use crate::data_files::scratch::scratch;
+use crate::data_files::test_data::filetime;
 
 /// A data file with mail in three folders, two nested: plain and HTML messages, some with a file
 /// of 10-300 KiB or a picture the HTML shows, some with no message id. `big` gives every third
@@ -62,7 +65,7 @@ pub(super) fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, P
                     body: if k % 4 == 2 { "" } else { &body },
                     html_body: (k % 2 == 1).then_some("<p>The plan</p><img src=\"cid:c@run.example\">"),
                     message_id: &o.1,
-                    delivery_time: (1_700_000_000 + (f * per_folder + k) as i64 * 60 + 11_644_473_600) * 10_000_000,
+                    delivery_time: filetime(1_700_000_000 + (f * per_folder + k) as i64 * 60),
                     message_class: "IPM.Note",
                     properties: &[],
                 },
@@ -83,6 +86,31 @@ pub(super) fn data_file(name: &str, per_folder: usize, big: bool) -> (PathBuf, P
 fn file_bytes(k: usize, big: bool) -> Vec<u8> {
     let len = if big { 900 * 1024 + k * 1024 } else { 10 * 1024 + (k * 7919) % (290 * 1024) };
     (0..len).map(|i| (i.wrapping_mul(31).wrapping_add(k) % 251) as u8).collect()
+}
+
+/// A store in `dir`'s folder `name`, kept in a data file as the app keeps one.
+pub(super) fn store_at(dir: &Path, name: &str) -> Store {
+    Store::open_packed(dir.join(name).join("app"), dir.join(name).join("Files")).unwrap()
+}
+
+/// An import into `store`'s `a1` with `o`, stopped as `how` once `at` items are read.
+pub(super) fn stopped_at(pst: &Path, store: &Store, at: usize, how: StopHow, o: ImportOptions) -> Imported {
+    let stop = Stop::default();
+    let o = ImportOptions { stop: stop.clone(), ..o };
+    import_with(pst, store, "a1", &o, &mut |p| {
+        if p.read >= at {
+            stop.raise(how);
+        }
+    })
+    .unwrap()
+}
+
+/// The checkpoint an import into `store`'s `a1` left: the test fails without one.
+pub(super) fn checkpoint(store: &Store) -> Checkpoint {
+    match resume::load(store, "a1") {
+        Found::Some(cp) => *cp,
+        _ => panic!("no checkpoint"),
+    }
 }
 
 fn lanes(n: usize) -> ImportOptions {

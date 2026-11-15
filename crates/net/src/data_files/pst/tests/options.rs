@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use super::super::{ImportOptions, Stop, import, import_with};
 use crate::data_files::scratch::scratch;
+use crate::data_files::test_data::filetime;
 
 /// One lane reads the items: what these tests count is one reader's.
 fn one_lane() -> ImportOptions {
@@ -33,7 +34,7 @@ fn data_file(name: &str, n: usize) -> (PathBuf, PathBuf) {
                 body: &body,
                 html_body: None,
                 message_id: &o.1,
-                delivery_time: (1_700_000_000 + k as i64 * 60 + 11_644_473_600) * 10_000_000,
+                delivery_time: filetime(1_700_000_000 + k as i64 * 60),
                 message_class: "IPM.Note",
                 properties: &[],
             },

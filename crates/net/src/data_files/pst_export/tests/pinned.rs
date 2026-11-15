@@ -115,18 +115,7 @@ fn a_message_without_the_pin_comes_in_unpinned() {
     use mailcraft_pst::write::{Name, NewValue};
     let dir = scratch("pst-export-unpinned");
     let file = dir.join("Theirs.pst");
-    let message = |subject, message_id, properties| NewMessage {
-        subject,
-        sender_name: "Ana",
-        sender_email: "ana@example.com",
-        recipients: &[],
-        body: "Kept.",
-        html_body: None,
-        message_id,
-        delivery_time: 133_485_408_000_000_000,
-        message_class: "IPM.Note",
-        properties,
-    };
+    let message = |subject, message_id, properties| write::NewMessage { properties, ..plain_note(subject, message_id) };
     let unpinned = [NewProperty::named(PS_PUBLIC_STRINGS, Name::String(crate::pst_pim::PINNED), NewValue::Boolean(false))];
     let batch = [
         BatchMessage { message: message("Plain", "<plain@example.com>", &[]), attachments: &[] },

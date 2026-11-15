@@ -39,21 +39,9 @@ fn an_account_goes_into_an_ansi_data_file_and_back() {
     let file = dir.join("Old.pst");
     // The file's own mail, one message of which the account has too.
     write::create_empty(&file, mailcraft_pst::Format::Ansi).unwrap();
-    let theirs = |subject, message_id| NewMessage {
-        subject,
-        sender_name: "Ana",
-        sender_email: "ana@example.com",
-        recipients: &[],
-        body: "Kept as it was.",
-        html_body: None,
-        message_id,
-        delivery_time: 133_485_408_000_000_000,
-        message_class: "IPM.Note",
-        properties: &[],
-    };
     let batch = [
-        BatchMessage { message: theirs("Theirs", "<theirs@example.com>"), attachments: &[] },
-        BatchMessage { message: theirs("Both", "<m1@example.com>"), attachments: &[] },
+        BatchMessage { message: plain_note("Theirs", "<theirs@example.com>"), attachments: &[] },
+        BatchMessage { message: plain_note("Both", "<m1@example.com>"), attachments: &[] },
     ];
     write::append(&file, &["Inbox"], &batch).unwrap();
 

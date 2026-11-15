@@ -49,6 +49,7 @@ use mailcraft_model::job::StopHow;
 use mailcraft_pst::write::{self, BatchMessage, NewAttachment, NewMessage, NewRecipient, RecipientType};
 
 use crate::data_files::scratch::scratch;
+use crate::data_files::test_data::filetime;
 use eta::{judge, judge_folders};
 
 fn env(name: &str) -> Option<String> {
@@ -148,7 +149,7 @@ fn make() {
                 });
                 // Delivery times are Windows file times (100 ns since 1601).
                 let unix = 1_700_000_000 + k as i64 * 60;
-                owned.push((subject, body, html, format!("<m{k}@bench.example>"), file, (unix + 11_644_473_600) * 10_000_000));
+                owned.push((subject, body, html, format!("<m{k}@bench.example>"), file, filetime(unix)));
             }
             let recipients =
                 [NewRecipient { name: "Zoe Park", email: "zoe@studio.example", recipient_type: RecipientType::To, ..Default::default() }];

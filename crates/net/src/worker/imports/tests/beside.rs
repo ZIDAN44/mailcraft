@@ -23,7 +23,7 @@ fn add_to_file(pst: &str, subject: &str, id: &str) {
         body: "Later.",
         html_body: None,
         message_id: id,
-        delivery_time: (1_800_000_000 + 11_644_473_600) * 10_000_000,
+        delivery_time: filetime(1_800_000_000),
         message_class: "IPM.Note",
         properties: &[],
     };

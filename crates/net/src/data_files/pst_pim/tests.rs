@@ -526,7 +526,7 @@ fn a_request_carries_its_changed_occurrences() {
 
 /// Unix seconds as a FILETIME value.
 fn filetime(t: i64) -> Val<'static> {
-    Val::Time((t + 11_644_473_600) * 10_000_000)
+    Val::Time(crate::data_files::test_data::filetime(t))
 }
 
 /// A task's own properties (MS-OXOTASK) come in: status, percent (a fraction, as a double),

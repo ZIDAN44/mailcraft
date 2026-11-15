@@ -14,6 +14,7 @@ use super::super::out::Out;
 use super::super::rebuild::message;
 use super::files_of;
 use crate::data_files::scratch::scratch;
+use crate::data_files::test_data::filetime;
 use crate::pst_pim::Extra;
 
 /// A meeting item as read: the meeting's time and its organizer's id.
@@ -403,9 +404,6 @@ fn a_data_files_tasks_come_in() {
     let pst = dir.join("tasks.pst");
     let task_set = GuidValue::new(0x0006_2003, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
     let day = mailcraft_model::dates::days_from_civil(2026, 11, 5) * 86_400;
-    fn filetime(t: i64) -> i64 {
-        (t + 11_644_473_600) * 10_000_000
-    }
     fn message<'a>(subject: &'a str, id: &'a str, class: &'a str, properties: &'a [NewProperty<'a>]) -> NewMessage<'a> {
         NewMessage {
             subject,
@@ -468,7 +466,7 @@ fn what_was_thrown_away_stays_out_of_the_address_book_and_calendar() {
             body: "Notes",
             html_body: None,
             message_id: id,
-            delivery_time: (1_700_000_000 + 11_644_473_600) * 10_000_000,
+            delivery_time: filetime(1_700_000_000),
             message_class: class,
             properties: &[],
         }

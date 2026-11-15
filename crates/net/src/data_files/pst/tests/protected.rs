@@ -6,6 +6,7 @@ use mailcraft_model::EmailAddress;
 use super::super::item::{File, Item};
 use super::super::rebuild::{message, summary_of};
 use super::files_of;
+use crate::data_files::test_data::cms;
 
 /// What MailCraft signs, as the entity a signature covers.
 const ENTITY: &[u8] = b"Content-Type: text/plain; charset=utf-8\r\n\r\nApproved.\r\n";
@@ -27,13 +28,6 @@ fn smime_item(class: &str, mime: &str, content: &[u8]) -> Item {
 /// The `multipart/signed` entity Outlook keeps for a clear-signed message.
 fn signed_entity() -> Vec<u8> {
     smime::signed_message(b"", ENTITY, &[0xAB; 64], "=_s1")
-}
-
-/// A CMS `ContentInfo` of this type (2 signed data, 3 enveloped data), its content made up.
-fn cms(kind: u8) -> Vec<u8> {
-    let mut b = vec![0x30, 0x80, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, kind, 0xA0, 0x80];
-    b.extend([0x5A; 40]);
-    b
 }
 
 /// A clear-signed item comes back as the `multipart/signed` message it was, its signature over

@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::data_files::scratch::scratch;
+use crate::data_files::test_data::cms;
 use mailcraft_mime::smime::{self, Protection};
 use mailcraft_pst::{Attachment, AttachmentData};
 
@@ -148,8 +149,7 @@ fn signed_and_encrypted_mail_goes_in_as_outlook_keeps_it() {
         smime::protect(&build(&draft("Sealed", "Secret plans.", Vec::new()), "s2@studio.example"), None, Some(&mut encrypt), false, false, "=_e")
             .unwrap();
     // A made-up opaque signature: its bytes come back, whatever they hold.
-    let mut cms = vec![0x30, 0x80, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02, 0xA0, 0x80];
-    cms.extend([0x5A; 40]);
+    let cms = cms(2);
     let outer = b"From: Riley <riley@studio.example>\r\nTo: ana@studio.example\r\nSubject: Opaque\r\nDate: Mon, 2 Nov 2026 10:00:00 +0000\r\nMessage-ID: <s3@studio.example>\r\n";
     let opaque = smime::pkcs7_message(outer, &cms, "signed-data");
     let (path, back) = round_trip(&dir, &[signed, secret, opaque]);
@@ -238,11 +238,6 @@ fn meeting_mail_and_reports_keep_their_classes() {
         let p = mime::parse(&raw).unwrap();
         assert!(p.attachments.iter().any(|a| a.mime == returned), "{subject}: {:?}", p.attachments);
     }
-}
-
-/// A big file's bytes, the `n`th file's: not one repeated block.
-fn big_file(n: u8, len: usize) -> Vec<u8> {
-    (0..len).map(|at| ((at as u64).wrapping_add(u64::from(n)).wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 56) as u8).collect()
 }
 
 /// A big file waits in a file of its own, not in the cache: a message whose source leaves the

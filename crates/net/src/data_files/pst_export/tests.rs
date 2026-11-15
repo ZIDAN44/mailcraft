@@ -1,6 +1,7 @@
 use super::*;
 use crate::data_files::pst_bytes::{block_at, block_ends, crc, seal};
 use crate::data_files::scratch::scratch;
+use crate::data_files::test_data::filetime;
 use mailcraft_model::{EmailAddress, Flags, MessageKey};
 use mailcraft_pst::{
     Message, PstFile, PstFolder, PstStore,
@@ -10,6 +11,34 @@ use mailcraft_store::FolderState;
 use std::collections::BTreeMap;
 
 const NONE: &FollowUpDays = &FollowUpDays { due: BTreeMap::new(), done: BTreeMap::new() };
+
+/// A plain message of someone else's, as a data file the export adds to holds one already.
+fn plain_note<'a>(subject: &'a str, message_id: &'a str) -> write::NewMessage<'a> {
+    write::NewMessage {
+        subject,
+        sender_name: "Ana",
+        sender_email: "ana@example.com",
+        recipients: &[],
+        body: "Kept.",
+        html_body: None,
+        message_id,
+        delivery_time: filetime(1_704_067_200),
+        message_class: "IPM.Note",
+        properties: &[],
+    }
+}
+
+/// A big file's byte at `at`, the `n`th file's: not one repeated block, which a writer might
+/// keep once.
+fn big_byte(n: usize, at: usize) -> u8 {
+    let x = (at as u64).wrapping_add(n as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    (x >> 56) as u8
+}
+
+/// The `n`th big file's `len` bytes ([`big_byte`]).
+fn big_file(n: usize, len: usize) -> Vec<u8> {
+    (0..len).map(|at| big_byte(n, at)).collect()
+}
 
 /// A data file's named property: its ID, by its property set's data1 (PSETID_Task's is
 /// 0x00062003) and LID, as the writer's own reader reads the file's map.
@@ -222,7 +251,7 @@ fn an_account_round_trips_through_a_data_file() {
     let task_due = named_id(&file, 0x0006_2003, 0x8105).unwrap();
     let task_start = named_id(&file, 0x0006_2003, 0x8104).unwrap();
     let flag_request = named_id(&file, 0x0006_2008, 0x8530).unwrap();
-    let day = (20_000 * 86_400 + 11_644_473_600) * 10_000_000;
+    let day = filetime(20_000 * 86_400);
     let got =
         props_of(&file, &["Inbox"], "Plan — café", &[task_due, task_start, flag_request, 0x1095, 0x0E2B, 0x0C1E, 0x0065, 0x0036, 0x0E06, 0x0039]);
     assert!(matches!(got[0], Some(V::Time(t)) if t == day), "{:?}", got[0]);
@@ -325,18 +354,7 @@ fn an_account_round_trips_through_a_data_file() {
 fn an_export_uses_the_special_folders_a_file_has() {
     let dir = scratch("pst-export-special");
     let file = dir.join("Theirs.pst");
-    let theirs = NewMessage {
-        subject: "Theirs",
-        sender_name: "Ana",
-        sender_email: "ana@example.com",
-        recipients: &[],
-        body: "Kept.",
-        html_body: None,
-        message_id: "<theirs@example.com>",
-        delivery_time: 133_485_408_000_000_000,
-        message_class: "IPM.Note",
-        properties: &[],
-    };
+    let theirs = plain_note("Theirs", "<theirs@example.com>");
     write::create_with(&file, &["Gesendete Elemente"], &theirs, &[]).unwrap();
     write::set_special_folder(&file, Special::SentItems, &["Gesendete Elemente"]).unwrap();
 
@@ -400,20 +418,8 @@ fn permute_encode(path: &Path) {
 fn an_export_adds_to_an_encoded_data_file() {
     let dir = scratch("pst-export-encoded");
     let file = dir.join("Outlook.pst");
-    let theirs = |subject, message_id| NewMessage {
-        subject,
-        sender_name: "Ana",
-        sender_email: "ana@example.com",
-        recipients: &[],
-        body: "Kept as it was.",
-        html_body: None,
-        message_id,
-        delivery_time: 133_485_408_000_000_000,
-        message_class: "IPM.Note",
-        properties: &[],
-    };
-    write::create_with(&file, &["Inbox"], &theirs("Theirs", "<theirs@example.com>"), &[]).unwrap();
-    write::append_message(&file, &["Inbox"], &theirs("Both", "<m1@example.com>"), &[]).unwrap();
+    write::create_with(&file, &["Inbox"], &plain_note("Theirs", "<theirs@example.com>"), &[]).unwrap();
+    write::append_message(&file, &["Inbox"], &plain_note("Both", "<m1@example.com>"), &[]).unwrap();
     permute_encode(&file);
 
     let store = Store::open(dir.join("cache")).unwrap();
@@ -447,18 +453,7 @@ fn an_export_adds_to_a_file_whose_name_map_is_damaged() {
     use mailcraft_pst::PropertyValue as V;
     let dir = scratch("pst-export-name-map");
     let file = dir.join("Theirs.pst");
-    let theirs = NewMessage {
-        subject: "Theirs",
-        sender_name: "Ana",
-        sender_email: "ana@example.com",
-        recipients: &[],
-        body: "Kept.",
-        html_body: None,
-        message_id: "<theirs@example.com>",
-        delivery_time: 133_485_408_000_000_000,
-        message_class: "IPM.Note",
-        properties: &[],
-    };
+    let theirs = plain_note("Theirs", "<theirs@example.com>");
     write::create_with(&file, &["Inbox"], &theirs, &[]).unwrap();
     // The map's PidTagNameidBucketCount record (its ID 0x0001, PtypInteger32) set to 0, in the
     // one block that has it, its CRC made right.
@@ -545,7 +540,7 @@ fn a_completed_follow_up_round_trips() {
     let days = FollowUpDays { due: due.clone(), done };
     assert_eq!(export(&store, "a1", "Done", &path, &days, &mut |_| {}).unwrap().messages, 2);
 
-    let midnight = |day: i64| (day * 86_400 + 11_644_473_600) * 10_000_000;
+    let midnight = |day: i64| filetime(day * 86_400);
     let [status, when, icon, to_do] = props_of(&path, &["Inbox"], "Done", &[0x1090, 0x1091, 0x1095, 0x0E2B]).try_into().unwrap();
     assert!(matches!(status, Some(V::Integer32(1))), "{status:?}");
     assert!(matches!(when, Some(V::Time(t)) if t == midnight(20_390)), "{when:?}");

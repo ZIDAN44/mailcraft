@@ -1,6 +1,7 @@
 use std::io::Write;
 
 use super::*;
+use crate::data_files::test_data::filetime;
 
 /// A property of a message file being built: its tag, and its value as the file keeps it.
 enum P {
@@ -44,7 +45,7 @@ fn write_props(cf: &mut CompoundFile<Cursor<Vec<u8>>>, dir: &str, header: usize,
 }
 
 /// 2026-11-03 10:00 UTC as a FILETIME.
-const FILETIME: i64 = (1_793_700_000 + 11_644_473_600) * 10_000_000;
+const FILETIME: i64 = filetime(1_793_700_000);
 
 /// A message as Outlook saves one: text and HTML, a sender, two recipients, a file and an
 /// attached message with a file of its own.

@@ -14,16 +14,12 @@ use mailcraft_store::Store;
 
 use super::super::import;
 use crate::data_files::scratch::scratch;
+use crate::data_files::test_data::filetime;
 
 /// PSETID_Appointment and PSETID_Address (MS-OXPROPS 1.3.2).
 const PSETID_APPOINTMENT: GuidValue = GuidValue::new(0x0006_2002, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
 const PSETID_ADDRESS: GuidValue = GuidValue::new(0x0006_2004, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
 const PSETID_SHARING: GuidValue = GuidValue::new(0x0006_2040, 0, 0, [0xC0, 0, 0, 0, 0, 0, 0, 0x46]);
-
-/// Unix seconds as a FILETIME.
-fn filetime(t: i64) -> i64 {
-    (t + 11_644_473_600) * 10_000_000
-}
 
 fn message<'a>(subject: &'a str, class: &'a str, body: &'a str, properties: &'a [NewProperty<'a>]) -> NewMessage<'a> {
     NewMessage {

@@ -4,6 +4,7 @@
 use super::super::item::{File, Item};
 use super::super::rebuild::{message, summary_of, to_raw};
 use super::*;
+use crate::data_files::test_data::noise;
 
 fn key() -> MessageKey {
     MessageKey { account: "a1".into(), folder: "INBOX".into(), validity: 1, uid: 1 }
@@ -101,15 +102,7 @@ fn attached_messages_without_ids_get_ids_of_their_own() {
 /// stored as it is.
 #[test]
 fn the_original_header_goes_back_without_doubling_the_source() {
-    let mut x = 0x9e37_79b9_7f4a_7c15u64;
-    let data: Vec<u8> = (0..2 << 20)
-        .map(|_| {
-            x ^= x << 13;
-            x ^= x >> 7;
-            x ^= x << 17;
-            x as u8
-        })
-        .collect();
+    let data = noise(2 << 20, 0x9e37_79b9_7f4a_7c15);
     let received = "Received: from relay.example.com by mx.example.org; Mon, 1 Jan 2024 00:00:00 +0000\r\n".repeat(80);
     let item = Item {
         headers: format!("{received}From: Ana <ana@example.com>\r\nSubject: Scans\r\nContent-Type: multipart/mixed\r\n"),

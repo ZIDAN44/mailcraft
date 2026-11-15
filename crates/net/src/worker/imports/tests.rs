@@ -9,6 +9,7 @@ use mailcraft_model::job::{DataFileKind, ImportPhase, StopHow};
 use mailcraft_pst::write::{self, BatchMessage, NewMessage, NewRecipient, RecipientType};
 
 use super::*;
+use crate::data_files::test_data::filetime;
 use crate::pst::Fault;
 use crate::space::{Filling, LOW_SPACE};
 use crate::waiting::{eventually, until, until_within};
@@ -122,7 +123,7 @@ fn setup(name: &str, inbox: usize, projects: usize, account: &str, ms: u64) -> (
                     body: "The week's plan, as agreed.",
                     html_body: None,
                     message_id: &o.1,
-                    delivery_time: (1_700_000_000 + k as i64 * 60 + 11_644_473_600) * 10_000_000,
+                    delivery_time: filetime(1_700_000_000 + k as i64 * 60),
                     message_class: "IPM.Note",
                     properties: &[],
                 },

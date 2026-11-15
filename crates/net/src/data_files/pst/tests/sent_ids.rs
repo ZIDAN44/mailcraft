@@ -18,10 +18,9 @@ use super::super::lanes::{Ctx, Job, Outcome, work};
 use super::super::order::Step;
 use super::super::out::Out;
 use super::super::out::sent_ids::SentIds;
-use super::super::resume::{self, CheckState, Found};
-use super::super::resume::{Checkpoint, Current};
-use super::super::{ImportOptions, ImportSink, Imported, Progress, Stop, import_into, import_with};
-use super::pipeline::{data_file, everything};
+use super::super::resume::{CheckState, Checkpoint, Current};
+use super::super::{ImportOptions, ImportSink, Imported, Progress, import_into, import_with};
+use super::pipeline::{checkpoint, data_file, everything, stopped_at, store_at};
 
 /// The file's "Projects" folder taken for its Sent Items: a folder with one under it, between
 /// two others.
@@ -29,10 +28,6 @@ const SENT: &str = "Projects";
 
 fn opts(lanes: usize, sent: bool, fault: Option<Fault>) -> ImportOptions {
     ImportOptions { lanes, fault, sent_folder: sent.then_some(SENT), ..ImportOptions::default() }
-}
-
-fn store_at(dir: &Path, name: &str) -> Store {
-    Store::open_packed(dir.join(name).join("app"), dir.join(name).join("Files")).unwrap()
 }
 
 /// What an import left, in an order that doesn't depend on when its folders were listed.
@@ -76,10 +71,7 @@ fn the_sent_folder_is_read_last_and_comes_out_the_same() {
         paths.sort_unstable();
         before.sort_unstable();
         assert_eq!(paths, before);
-        let cp = match resume::load(&store, "a1") {
-            Found::Some(cp) => cp,
-            _ => panic!("no checkpoint"),
-        };
+        let cp = checkpoint(&store);
         assert_eq!((cp.state, cp.deferred.is_none()), (CheckState::Done, true));
     }
 }
@@ -98,18 +90,6 @@ fn a_walk_that_fails_after_sent_was_seen_still_imports_sent() {
     assert_eq!(store.load_folder("a1", "Projects/2024").unwrap().messages.len(), 20);
 }
 
-/// An import into `store`'s `a1` stopped as `how` once `at` items are read.
-fn stopped_at(pst: &Path, store: &Store, at: usize, how: StopHow) -> Imported {
-    let stop = Stop::default();
-    let o = ImportOptions { stop: stop.clone(), ..opts(2, true, None) };
-    import_with(pst, store, "a1", &o, &mut |p| {
-        if p.read >= at {
-            stop.raise(how);
-        }
-    })
-    .unwrap()
-}
-
 fn go_on(pst: &Path, store: &Store) -> Imported {
     import_with(pst, store, "a1", &ImportOptions { resume: true, ..opts(2, true, None) }, &mut |_| {}).unwrap()
 }
@@ -125,12 +105,9 @@ fn stopped_around_the_sent_folder_and_gone_on_with_is_the_same_import() {
     let cases = [(400, StopHow::Pause, true), (400, StopHow::Cancel, true), (800, StopHow::Pause, false), (800, StopHow::Cancel, false)];
     for (n, (at, how, before)) in cases.into_iter().enumerate() {
         let store = store_at(&dir, &format!("part{n}"));
-        let part = stopped_at(&pst, &store, at, how);
+        let part = stopped_at(&pst, &store, at, how, opts(2, true, None));
         assert_eq!(part.stopped, Some(how));
-        let cp = match resume::load(&store, "a1") {
-            Found::Some(cp) => cp,
-            _ => panic!("no checkpoint"),
-        };
+        let cp = checkpoint(&store);
         assert_eq!(cp.deferred.is_some(), before, "{at} {how:?}: put off");
         assert_eq!(cp.current.as_ref().map(|c| c.path == SENT), Some(!before), "{at} {how:?}: part-way");
         if how == StopHow::Pause {
@@ -236,7 +213,7 @@ fn sent_items_get_their_ids_back_whatever_stops_the_import() {
     assert_eq!(kept(&four), kept(&whole), "4 lanes");
     for (n, (at, how)) in [(400, StopHow::Pause), (800, StopHow::Pause), (700, StopHow::Cancel), (870, StopHow::Pause)].into_iter().enumerate() {
         let store = store_at(&dir, &format!("part{n}"));
-        stopped_at(&pst, &store, at, how);
+        stopped_at(&pst, &store, at, how, opts(2, true, None));
         go_on(&pst, &store);
         assert_eq!(kept(&store), kept(&whole), "{at} {how:?}");
     }

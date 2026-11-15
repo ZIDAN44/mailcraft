@@ -7,21 +7,13 @@ use std::path::{Path, PathBuf};
 use super::super::chunked::{ChunkReader, PAGE, Shared, Source};
 use super::super::open::open_read;
 use crate::data_files::scratch::scratch;
+use crate::data_files::test_data::noise;
 
 /// A file of `len` bytes that don't repeat in any short run.
 fn file_of(name: &str, len: usize) -> PathBuf {
     let dir = scratch(&format!("pst-chunked-{name}"));
     let path = dir.join("data.bin");
-    let mut x = 0x2545_f491_4f6c_dd1du64;
-    let bytes: Vec<u8> = (0..len)
-        .map(|_| {
-            x ^= x << 13;
-            x ^= x >> 7;
-            x ^= x << 17;
-            x as u8
-        })
-        .collect();
-    std::fs::write(&path, bytes).unwrap();
+    std::fs::write(&path, noise(len, 0x2545_f491_4f6c_dd1d)).unwrap();
     path
 }
 
