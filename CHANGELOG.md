@@ -16,6 +16,10 @@ on GitHub.
 
 - One of an account's other addresses can be the one new mail is written from (#88): tick **Write new mail from this address** when you add or change it under **File › Info › Other addresses**. A new message then starts from it, with its name and signature, and **From** still offers the others. An answer goes from the address the mail came to, as before, and from the chosen one when the mail came to none of the account's addresses (a list's mail, a hidden copy). For a mailbox that signs in as one address and writes as another, such as a Gmail mailbox with a domain of your own.
 
+### Removed
+
+- Windows 32-bit (x86) builds are no longer released, as the other Craft apps' aren't: 64-bit Windows runs the x64 or ARM64 build. A 32-bit copy already installed keeps working but gets no more updates; install the x64 one to keep up.
+
 ### Fixed
 
 - A certificate file (`.p12`, `.pfx`) saved by Thunderbird or Firefox is imported (#89): they write the file another way than OpenSSL and Windows do, and every one was refused as a wrong password, old files and new. What stops an import is now said as what it is: a wrong password, a file locked in a way MailCraft doesn't read, or a file that isn't a certificate file.

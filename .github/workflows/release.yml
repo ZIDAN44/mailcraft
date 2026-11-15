@@ -1,4 +1,4 @@
-# MailCraft's releases, for every platform: macOS universal, Windows x64/x86/arm64, Linux
+# MailCraft's releases, for every platform: macOS universal, Windows x64/arm64, Linux
 # x86_64/aarch64 (AppImage, deb, rpm, tar.gz), Flatpak x86_64/aarch64, Linux riscv64, FreeBSD and
 # the web. Run by hand only (Actions › Release › Run workflow); nothing starts it on a push.
 # `kind` picks what it publishes: a release (the default), `v<version>` titled "MailCraft
@@ -137,7 +137,6 @@ jobs:
       matrix:
         include:
           - { arch: x64, target: x86_64-pc-windows-msvc }
-          - { arch: x86, target: i686-pc-windows-msvc }
           - { arch: arm64, target: aarch64-pc-windows-msvc }
     env:
       VERSION: ${{ needs.version.outputs.version }}
@@ -479,7 +478,7 @@ jobs:
 
           | Platform | Files |
           |---|---|
-          | Windows x64 / x86 / ARM64 | \`.msi\` installer, or the \`-portable.zip\` |
+          | Windows x64 / ARM64 | \`.msi\` installer, or the \`-portable.zip\` |
           | macOS (Apple silicon and Intel) | \`.dmg\` |
           | Linux x86_64 / aarch64 | \`.AppImage\`, \`.deb\`, \`.rpm\`, \`.flatpak\`, \`.tar.gz\` |
           | Linux riscv64 | \`.deb\`, \`.rpm\`, \`.tar.gz\` |
