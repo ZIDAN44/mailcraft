@@ -97,7 +97,7 @@ fn queries() {
         assert_eq!(counts.len(), queries.len(), "MC_TRUTH: a count for each query");
         counts
     });
-    let mut wrong = Vec::new();
+    let mut misses = Misses { truth, wrong: Vec::new() };
     let (store, account) = super::bench_store().expect("MC_CACHE: a cache a data file was imported into, or MC_DATA");
     let (before, places_before) = crate::store::search::segment_bytes(&store, &account).unwrap();
     println!("segments before: {before} bytes, of them places pages {places_before}");
@@ -147,73 +147,18 @@ fn queries() {
         let s = session.as_mut().unwrap_or(&mut used);
         let rounds: &[&str] = if alone { &["just opened", "again"] } else { &["first time in use", "again"] };
         for &round in rounds {
-            let before = s.search_stats();
-            let (took, kinds) = frames_by_kind(s, q, usize::MAX);
-            let d = delta(before, s.search_stats());
-            let worst = took.iter().max().copied().unwrap_or_default();
-            println!(
-                "query {} ({round}): {} found, {:.1} ms in {} frames, the longest {:.1} ms; index pages {}, text pages {}, texts checked {}",
-                i + 1,
-                s.list.len(),
-                ms(took.iter().sum()),
-                took.len(),
-                ms(worst),
-                d.reader_pages,
-                d.text_pages,
-                d.texts,
-            );
-            let kinds: Vec<String> = kinds.iter().map(|(w, t)| format!("{} {:.1} ms", w.name(), ms(*t))).collect();
-            println!("  by kind: {}", kinds.join(", "));
-            if let Some(want) = truth.as_ref().and_then(|t| t.get(i)).filter(|n| **n != s.list.len()) {
-                wrong.push(format!("query {} ({round}): {} found, {want} there", i + 1, s.list.len()));
-            }
+            searched(s, q, i, round, "", read, &mut misses);
         }
     }
     // Each the first time in a session opened a moment before.
     for (i, q) in queries.iter().enumerate() {
         let (mut s, ticks, longest) = settled();
-        let before = s.search_stats();
-        let (took, kinds) = frames_by_kind(&mut s, q, usize::MAX);
-        let d = delta(before, s.search_stats());
-        println!(
-            "query {} (a moment after opening, {ticks} ticks, the longest {:.1} ms): {} found, {:.1} ms in {} frames, the longest {:.1} ms; index pages {}, text pages {}, texts checked {}",
-            i + 1,
-            ms(longest),
-            s.list.len(),
-            ms(took.iter().sum()),
-            took.len(),
-            ms(took.iter().max().copied().unwrap_or_default()),
-            d.reader_pages,
-            d.text_pages,
-            d.texts,
-        );
-        let kinds: Vec<String> = kinds.iter().map(|(w, t)| format!("{} {:.1} ms", w.name(), ms(*t))).collect();
-        println!("  by kind: {}", kinds.join(", "));
-        if let Some(want) = truth.as_ref().and_then(|t| t.get(i)).filter(|n| **n != s.list.len()) {
-            wrong.push(format!("query {} (a moment after opening): {} found, {want} there", i + 1, s.list.len()));
-        }
+        let detail = format!(", {ticks} ticks, the longest {:.1} ms", ms(longest));
+        searched(&mut s, q, i, "a moment after opening", &detail, read, &mut misses);
     }
     // Each searched before the session's first tick.
     for (i, q) in queries.iter().enumerate() {
-        let mut s = unticked();
-        let before = s.search_stats();
-        let (took, kinds) = frames_by_kind(&mut s, q, usize::MAX);
-        let after = s.search_stats();
-        println!(
-            "query {} (at the first tick): {} found, {:.1} ms in {} frames, the longest {:.1} ms; texts made by the search {}, made aside {}",
-            i + 1,
-            s.list.len(),
-            ms(took.iter().sum()),
-            took.len(),
-            ms(took.iter().max().copied().unwrap_or_default()),
-            after.summary_texts.saturating_sub(before.summary_texts),
-            after.summary_texts_aside.saturating_sub(before.summary_texts_aside),
-        );
-        let kinds: Vec<String> = kinds.iter().map(|(w, t)| format!("{} {:.1} ms", w.name(), ms(*t))).collect();
-        println!("  by kind: {}", kinds.join(", "));
-        if let Some(want) = truth.as_ref().and_then(|t| t.get(i)).filter(|n| **n != s.list.len()) {
-            wrong.push(format!("query {} (at the first tick): {} found, {want} there", i + 1, s.list.len()));
-        }
+        searched(&mut unticked(), q, i, "at the first tick", "", made, &mut misses);
     }
     // Each typed a character at a time, in a session just opened.
     let mut every = Vec::new();
@@ -237,16 +182,62 @@ fn queries() {
     every.sort();
     let longest = every.last().copied().unwrap_or_default();
     println!("typed, all: {} frames, the longest {:.1} ms", every.len(), ms(longest));
-    assert!(wrong.is_empty(), "found other than there is: {wrong:?}");
+    assert!(misses.wrong.is_empty(), "found other than there is: {:?}", misses.wrong);
     // A frame of the window's is 8 ms at most, typing as searching (run on a machine at rest).
     assert!(longest <= Duration::from_millis(8), "a typed frame of {:.1} ms", ms(longest));
 }
 
-fn delta(before: SearchStats, after: SearchStats) -> SearchStats {
-    SearchStats {
-        reader_pages: after.reader_pages.saturating_sub(before.reader_pages),
-        text_pages: after.text_pages.saturating_sub(before.text_pages),
-        texts: after.texts.saturating_sub(before.texts),
-        ..SearchStats::default()
+/// What `MC_TRUTH` says each query should find, and the searches that found another number.
+struct Misses {
+    truth: Option<Vec<usize>>,
+    wrong: Vec<String>,
+}
+
+impl Misses {
+    /// Query `i` (from 0) found `found` in `round`: kept when the truth says otherwise.
+    fn check(&mut self, i: usize, round: &str, found: usize) {
+        if let Some(want) = self.truth.as_ref().and_then(|t| t.get(i)).filter(|n| **n != found) {
+            self.wrong.push(format!("query {} ({round}): {found} found, {want} there", i + 1));
+        }
     }
+}
+
+/// Search query `i` (from 0), `q`, in `s` as the window does ([`frames_by_kind`]) and print it:
+/// `round` (and `detail` after it) says which, then what it found, the frames and the longest,
+/// `work` (from the session's stats before and after), and its time by kind. A count the truth
+/// says otherwise goes in `misses`.
+fn searched(s: &mut Session, q: &str, i: usize, round: &str, detail: &str, work: fn(SearchStats, SearchStats) -> String, misses: &mut Misses) {
+    let before = s.search_stats();
+    let (took, kinds) = frames_by_kind(s, q, usize::MAX);
+    let work = work(before, s.search_stats());
+    println!(
+        "query {} ({round}{detail}): {} found, {:.1} ms in {} frames, the longest {:.1} ms; {work}",
+        i + 1,
+        s.list.len(),
+        ms(took.iter().sum()),
+        took.len(),
+        ms(took.iter().max().copied().unwrap_or_default()),
+    );
+    let kinds: Vec<String> = kinds.iter().map(|(w, t)| format!("{} {:.1} ms", w.name(), ms(*t))).collect();
+    println!("  by kind: {}", kinds.join(", "));
+    misses.check(i, round, s.list.len());
+}
+
+/// What a search read: the index's pages and the texts' pages, and the texts it checked.
+fn read(before: SearchStats, after: SearchStats) -> String {
+    format!(
+        "index pages {}, text pages {}, texts checked {}",
+        after.reader_pages.saturating_sub(before.reader_pages),
+        after.text_pages.saturating_sub(before.text_pages),
+        after.texts.saturating_sub(before.texts)
+    )
+}
+
+/// How many summaries' texts a search made itself, and how many the threads made aside meanwhile.
+fn made(before: SearchStats, after: SearchStats) -> String {
+    format!(
+        "texts made by the search {}, made aside {}",
+        after.summary_texts.saturating_sub(before.summary_texts),
+        after.summary_texts_aside.saturating_sub(before.summary_texts_aside)
+    )
 }
