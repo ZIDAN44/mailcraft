@@ -59,23 +59,26 @@ fn env(name: &str) -> Option<String> {
 struct Noise(u64);
 
 impl Noise {
+    /// The stream's next number.
+    fn next_u64(&mut self) -> u64 {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        self.0
+    }
+
     fn bytes(&mut self, n: usize) -> Vec<u8> {
         let mut out = Vec::with_capacity(n);
         while out.len() < n {
-            self.0 ^= self.0 << 13;
-            self.0 ^= self.0 >> 7;
-            self.0 ^= self.0 << 17;
-            out.extend_from_slice(&self.0.to_le_bytes());
+            let next = self.next_u64();
+            out.extend_from_slice(&next.to_le_bytes());
         }
         out.truncate(n);
         out
     }
 
     fn below(&mut self, n: u64) -> u64 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 7;
-        self.0 ^= self.0 << 17;
-        self.0 % n.max(1)
+        self.next_u64() % n.max(1)
     }
 }
 
@@ -113,7 +116,7 @@ fn sentence(n: &mut Noise, words: usize) -> String {
 /// Make a data file of `MC_MESSAGES` messages (default 20 000) across a few folders, one in three
 /// with an attachment of about `MC_ATTACH_KB` (default 200 KB), at `MC_PST`.
 #[test]
-#[ignore]
+#[ignore = "run by hand: writes a data file at MC_PST"]
 fn make() {
     let path = PathBuf::from(env("MC_PST").expect("MC_PST: where to write the data file"));
     let total: usize = env("MC_MESSAGES").and_then(|v| v.parse().ok()).unwrap_or(20_000);
@@ -205,7 +208,7 @@ fn make() {
 /// Import the data file at `MC_PST` into a fresh packed cache at `MC_CACHE` (as the app keeps
 /// accounts), printing progress with the time, then where it went.
 #[test]
-#[ignore]
+#[ignore = "run by hand: needs MC_PST and MC_CACHE"]
 fn import() {
     let path = PathBuf::from(env("MC_PST").expect("MC_PST: the data file to import"));
     let cache = PathBuf::from(env("MC_CACHE").expect("MC_CACHE: an empty folder for the cache"));
@@ -223,112 +226,17 @@ fn import() {
     // The messages in so far, for the pauses that wait for them (`MC_PAUSE_AT`).
     let seen = std::sync::atomic::AtomicUsize::new(0);
     let mut progress = Watch { began, last: began, samples: Vec::new(), ends: Vec::new(), totals: (0, 0), seen: &seen };
-    let knob = |name: &str| env(name).and_then(|v| v.parse::<usize>().ok()).unwrap_or(0);
-    let mut opts = crate::pst::ImportOptions {
-        lanes: knob("MC_LANES"),
-        budget_bytes: knob("MC_BUDGET_MB").saturating_mul(1024 * 1024),
-        chunk_kb: knob("MC_CHUNK_KB"),
-        cache_bytes: knob("MC_BULK_CACHE_MB").saturating_mul(1024 * 1024),
-        batch_bytes: knob("MC_BATCH_KB").saturating_mul(1024),
-        // `MC_NO_INDEX`: without the search index, to see what indexing as it goes costs.
-        no_index: env("MC_NO_INDEX").is_some(),
-        // `MC_RESUME`: go on from where the import into this cache stopped (one cut off, say).
-        resume: env("MC_RESUME").is_some(),
-        // `MC_CHECKPOINT_S`: a checkpoint this often instead of the app's, to see what they cost.
-        checkpoint_every: env("MC_CHECKPOINT_S").and_then(|v| v.parse().ok()).map(Duration::from_secs),
-        ..Default::default()
-    };
-    // `MC_PAUSES=n`: paused n times, each between 1 s and `MC_PAUSE_S` (default 8) into its run,
-    // and gone on with each time; how long each took to stop is timed. `MC_PAUSE_AT=m`: none
-    // before m messages are in, the first as they are and the rest that long after.
+    let mut opts = options();
     let pauses = knob("MC_PAUSES");
-    let pause_at = knob("MC_PAUSE_AT");
-    let gap_ms = u64::try_from(if env("MC_PAUSE_S").is_some() { knob("MC_PAUSE_S").max(2) } else { 8 }).unwrap_or(8) * 1000;
-    let mut noise = Noise(env("MC_SEED").and_then(|v| v.parse().ok()).unwrap_or(0x2545_F491_4F6C_DD1D));
-    let mut waits: Vec<u64> = Vec::new();
-    let done = loop {
-        if waits.len() >= pauses {
-            // Gone on with to the end: the last pause's stop isn't this run's.
-            opts.stop = crate::pst::Stop::default();
-            break crate::pst::import_into(&path, &store, "d1", &opts, &mut progress).unwrap();
-        }
-        let stop = crate::pst::Stop::default();
-        opts.stop = stop.clone();
-        // Aimed, the first pause comes as soon as the messages are in.
-        let after = if pause_at > 0 && waits.is_empty() { Duration::ZERO } else { Duration::from_millis(1000 + noise.below(gap_ms - 1000)) };
-        // Told when the import ended by itself first, so it isn't paused after.
-        let (tx, rx) = std::sync::mpsc::channel::<()>();
-        let seen = &seen;
-        let (done, took) = std::thread::scope(|s| {
-            let pauser = s.spawn(move || {
-                let mut clock: Option<Instant> = None;
-                loop {
-                    if clock.is_none() && seen.load(std::sync::atomic::Ordering::Relaxed) >= pause_at {
-                        clock = Some(Instant::now());
-                    }
-                    if clock.is_some_and(|c| c.elapsed() >= after) {
-                        stop.raise(StopHow::Pause);
-                        return Some(Instant::now());
-                    }
-                    match rx.recv_timeout(Duration::from_millis(10)) {
-                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-                        _ => return None,
-                    }
-                }
-            });
-            let done = crate::pst::import_into(&path, &store, "d1", &opts, &mut progress).unwrap();
-            let returned = Instant::now();
-            let _ = tx.send(());
-            let raised = pauser.join().ok().flatten();
-            (done, raised.map(|r| u64::try_from(returned.saturating_duration_since(r).as_millis()).unwrap_or(u64::MAX)))
-        });
-        opts.resume = true;
-        match (took, done.stopped) {
-            (Some(ms), Some(StopHow::Pause)) => {
-                // With the run's own numbers, to see where a slow stop went.
-                println!("paused: {} messages in, {ms} ms to stop; {}", done.messages, serde_json::to_string(&done.stats).unwrap());
-                waits.push(ms);
-            }
-            // Done before it was asked to stop.
-            _ => break done,
-        }
-    };
+    let (done, waits) = run_with_pauses(&path, &store, &mut opts, &mut progress, pauses);
     let secs = began.elapsed().as_secs_f64();
     let end_ms = u64::try_from(began.elapsed().as_millis()).unwrap_or(u64::MAX);
-    if !waits.is_empty() {
-        waits.sort_unstable();
-        let at = |q: usize| waits.get((waits.len() * q / 100).min(waits.len() - 1)).copied().unwrap_or(0);
-        println!("pauses: {}, to stop p50 {} ms, p99 {} ms, max {} ms", waits.len(), at(50), at(99), waits.last().copied().unwrap_or(0));
-    }
-    let listed: usize = done.folders.iter().map(|f| store.load_folder("d1", &f.path).map(|st| st.messages.len()).unwrap_or(0)).sum();
-    assert_eq!(listed, done.messages, "every imported message listed once");
-    println!(
-        "done: {} messages ({} skipped) in {:.0} s, {:.0}/s; cache {:.2} GB",
-        done.messages,
-        done.skipped,
-        secs,
-        done.messages as f64 / secs,
-        dir_size(&cache) as f64 / 1e9
-    );
-    println!("stats: {}", serde_json::to_string(&done.stats).unwrap());
-    // What the import's report says was left out, and what else came in.
-    println!(
-        "report: contacts {}, events {}, notes {}, body not converted {}, skips {}",
-        done.contacts,
-        done.events,
-        done.notes,
-        done.body_not_converted,
-        serde_json::to_string(&done.skips).unwrap()
-    );
-    println!("cache: {}", serde_json::to_string(&store.cache_use("d1")).unwrap());
-    if let Some(io) = io_counts() {
-        println!("io: {io}");
-        // `MC_PEAK_MB`: the most the peak working set may be (an import indexing as it goes is
-        // held to 150 MB over the same import's with `MC_NO_INDEX`).
-        if let Some(limit) = env("MC_PEAK_MB").and_then(|v| v.parse::<u64>().ok()) {
-            let peak = serde_json::from_str::<serde_json::Value>(&io).ok().and_then(|v| v["peak_ws_bytes"].as_u64()).unwrap_or(0);
-            assert!(peak > 0 && peak <= limit << 20, "peak working set {} MB, over {limit} MB", peak >> 20);
-        }
+    let io = print_report(&done, &store, &cache, secs, waits);
+    // `MC_PEAK_MB`: the most the peak working set may be (an import indexing as it goes is held
+    // to 150 MB over the same import's with `MC_NO_INDEX`).
+    if let (Some(io), Some(limit)) = (io, env("MC_PEAK_MB").and_then(|v| v.parse::<u64>().ok())) {
+        let peak = serde_json::from_str::<serde_json::Value>(&io).ok().and_then(|v| v["peak_ws_bytes"].as_u64()).unwrap_or(0);
+        assert!(peak > 0 && peak <= limit << 20, "peak working set {} MB, over {limit} MB", peak >> 20);
     }
     // What an item and a byte cost, and how far off the time left the window says would have
     // been: for a run read from start to end only.
@@ -346,72 +254,203 @@ fn import() {
         judge(&samples, totals, end_ms);
     }
     if env("MC_VERIFY").is_some() {
-        let (mut present, mut parsed, mut attachments) = (0usize, 0usize, 0usize);
-        let mut kept = kept::Kept::default();
-        // Digests over what the import left: the whole, and the folders, their lists and the
-        // sources apart, to see where two imports differ; numbers, nothing of the mail itself.
-        let (mut digest, mut parts) = (Fnv::default(), [Fnv::default(), Fnv::default(), Fnv::default()]);
-        // `MC_VERIFY=folders`: a line for each folder too, by its place in the list.
-        let each = env("MC_VERIFY").as_deref() == Some("folders");
-        for (n, f) in done.folders.iter().enumerate() {
-            let json = serde_json::to_vec(f).unwrap();
-            digest.add(&json);
-            parts[0].add(&json);
-            let Ok(st) = store.load_folder("d1", &f.path) else { continue };
-            let (mut list, mut sources) = (Fnv::default(), Fnv::default());
-            for m in &st.messages {
-                let json = serde_json::to_vec(m).unwrap();
-                for d in [&mut digest, &mut parts[1], &mut list] {
-                    d.add(&json);
+        verify(&store, &done);
+    }
+}
+
+/// An import knob from the environment: a number, 0 when it isn't set.
+fn knob(name: &str) -> usize {
+    env(name).and_then(|v| v.parse::<usize>().ok()).unwrap_or(0)
+}
+
+/// The import's options from its knobs; unset, the app's.
+fn options() -> crate::pst::ImportOptions {
+    crate::pst::ImportOptions {
+        lanes: knob("MC_LANES"),
+        budget_bytes: knob("MC_BUDGET_MB").saturating_mul(1024 * 1024),
+        chunk_kb: knob("MC_CHUNK_KB"),
+        cache_bytes: knob("MC_BULK_CACHE_MB").saturating_mul(1024 * 1024),
+        batch_bytes: knob("MC_BATCH_KB").saturating_mul(1024),
+        // `MC_NO_INDEX`: without the search index, to see what indexing as it goes costs.
+        no_index: env("MC_NO_INDEX").is_some(),
+        // `MC_RESUME`: go on from where the import into this cache stopped (one cut off, say).
+        resume: env("MC_RESUME").is_some(),
+        // `MC_CHECKPOINT_S`: a checkpoint this often instead of the app's, to see what they cost.
+        checkpoint_every: env("MC_CHECKPOINT_S").and_then(|v| v.parse().ok()).map(Duration::from_secs),
+        ..Default::default()
+    }
+}
+
+/// The import of `path` into `store`, paused `pauses` times (`MC_PAUSES`), each between 1 s and
+/// `MC_PAUSE_S` (default 8) into its run, and gone on with each time; `MC_PAUSE_AT=m`: none
+/// before m messages are in, the first as they are and the rest that long after. What it
+/// imported in its last run, and how long each pause took to stop it, in ms.
+fn run_with_pauses(
+    path: &Path,
+    store: &mailcraft_store::Store,
+    opts: &mut crate::pst::ImportOptions,
+    progress: &mut Watch<'_>,
+    pauses: usize,
+) -> (crate::pst::Imported, Vec<u64>) {
+    let pause_at = knob("MC_PAUSE_AT");
+    let gap_ms = u64::try_from(if env("MC_PAUSE_S").is_some() { knob("MC_PAUSE_S").max(2) } else { 8 }).unwrap_or(8) * 1000;
+    let mut noise = Noise(env("MC_SEED").and_then(|v| v.parse().ok()).unwrap_or(0x2545_F491_4F6C_DD1D));
+    let mut waits: Vec<u64> = Vec::new();
+    let seen = progress.seen;
+    loop {
+        if waits.len() >= pauses {
+            // Gone on with to the end: the last pause's stop isn't this run's.
+            opts.stop = crate::pst::Stop::default();
+            return (crate::pst::import_into(path, store, "d1", opts, progress).unwrap(), waits);
+        }
+        let stop = crate::pst::Stop::default();
+        opts.stop = stop.clone();
+        // Aimed, the first pause comes as soon as the messages are in.
+        let after = if pause_at > 0 && waits.is_empty() { Duration::ZERO } else { Duration::from_millis(1000 + noise.below(gap_ms - 1000)) };
+        // Told when the import ended by itself first, so it isn't paused after.
+        let (tx, rx) = std::sync::mpsc::channel::<()>();
+        let (done, took) = std::thread::scope(|s| {
+            let pauser = s.spawn(move || {
+                let mut clock: Option<Instant> = None;
+                loop {
+                    if clock.is_none() && seen.load(std::sync::atomic::Ordering::Relaxed) >= pause_at {
+                        clock = Some(Instant::now());
+                    }
+                    if clock.is_some_and(|c| c.elapsed() >= after) {
+                        stop.raise(StopHow::Pause);
+                        return Some(Instant::now());
+                    }
+                    match rx.recv_timeout(Duration::from_millis(10)) {
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                        _ => return None,
+                    }
                 }
-                let Some(raw) = store.read_body(&m.key) else { continue };
-                for d in [&mut digest, &mut parts[2], &mut sources] {
-                    d.add(&raw);
-                }
-                present += 1;
-                kept.add(m, &raw);
-                if let Some(p) = mailcraft_mime::parse(&raw) {
-                    parsed += 1;
-                    attachments += p.attachments.len();
-                }
+            });
+            let done = crate::pst::import_into(path, store, "d1", opts, progress).unwrap();
+            let returned = Instant::now();
+            let _ = tx.send(());
+            let raised = pauser.join().ok().flatten();
+            (done, raised.map(|r| u64::try_from(returned.saturating_duration_since(r).as_millis()).unwrap_or(u64::MAX)))
+        });
+        opts.resume = true;
+        match (took, done.stopped) {
+            (Some(ms), Some(StopHow::Pause)) => {
+                // With the run's own numbers, to see where a slow stop went.
+                println!("paused: {} messages in, {ms} ms to stop; {}", done.messages, serde_json::to_string(&done.stats).unwrap());
+                waits.push(ms);
             }
-            if each {
-                println!(
-                    "  folder {n}: {} messages, folder {:016x}, list {:016x}, sources {:016x}",
-                    st.messages.len(),
-                    fnv1a(&json),
-                    list.value(),
-                    sources.value()
-                );
+            // Done before it was asked to stop.
+            _ => return (done, waits),
+        }
+    }
+}
+
+/// What the import `done` took (`secs`) and left in `store` (at `cache`): the pauses, the
+/// counts, its stats, what its report says was left out, how the data file's cache was used
+/// and, on Windows, the process's `io:` numbers (returned, for `MC_PEAK_MB`).
+fn print_report(done: &crate::pst::Imported, store: &mailcraft_store::Store, cache: &Path, secs: f64, mut waits: Vec<u64>) -> Option<String> {
+    if !waits.is_empty() {
+        waits.sort_unstable();
+        let at = |q: usize| waits.get((waits.len() * q / 100).min(waits.len() - 1)).copied().unwrap_or(0);
+        println!("pauses: {}, to stop p50 {} ms, p99 {} ms, max {} ms", waits.len(), at(50), at(99), waits.last().copied().unwrap_or(0));
+    }
+    let listed: usize = done.folders.iter().map(|f| store.load_folder("d1", &f.path).map(|st| st.messages.len()).unwrap_or(0)).sum();
+    assert_eq!(listed, done.messages, "every imported message listed once");
+    println!(
+        "done: {} messages ({} skipped) in {:.0} s, {:.0}/s; cache {:.2} GB",
+        done.messages,
+        done.skipped,
+        secs,
+        done.messages as f64 / secs,
+        dir_size(cache) as f64 / 1e9
+    );
+    println!("stats: {}", serde_json::to_string(&done.stats).unwrap());
+    // What the import's report says was left out, and what else came in.
+    println!(
+        "report: contacts {}, events {}, notes {}, body not converted {}, skips {}",
+        done.contacts,
+        done.events,
+        done.notes,
+        done.body_not_converted,
+        serde_json::to_string(&done.skips).unwrap()
+    );
+    println!("cache: {}", serde_json::to_string(&store.cache_use("d1")).unwrap());
+    let io = io_counts();
+    if let Some(io) = &io {
+        println!("io: {io}");
+    }
+    io
+}
+
+/// Every listed message read back from the cache: those present, those that parse and their
+/// attachments (counts only), what came in of what the file says of its mail (`kept.rs`), and
+/// digests of the folders, their lists and every source, to see where two imports differ
+/// (numbers, nothing of the mail itself); then the PIM's digest, and what a search index pass
+/// would still have to do.
+fn verify(store: &mailcraft_store::Store, done: &crate::pst::Imported) {
+    let (mut present, mut parsed, mut attachments) = (0usize, 0usize, 0usize);
+    let mut kept = kept::Kept::default();
+    let (mut digest, mut parts) = (Fnv::default(), [Fnv::default(), Fnv::default(), Fnv::default()]);
+    // `MC_VERIFY=folders`: a line for each folder too, by its place in the list.
+    let each = env("MC_VERIFY").as_deref() == Some("folders");
+    for (n, f) in done.folders.iter().enumerate() {
+        let json = serde_json::to_vec(f).unwrap();
+        digest.add(&json);
+        parts[0].add(&json);
+        let Ok(st) = store.load_folder("d1", &f.path) else { continue };
+        let (mut list, mut sources) = (Fnv::default(), Fnv::default());
+        for m in &st.messages {
+            let json = serde_json::to_vec(m).unwrap();
+            for d in [&mut digest, &mut parts[1], &mut list] {
+                d.add(&json);
+            }
+            let Some(raw) = store.read_body(&m.key) else { continue };
+            for d in [&mut digest, &mut parts[2], &mut sources] {
+                d.add(&raw);
+            }
+            present += 1;
+            kept.add(m, &raw);
+            if let Some(p) = mailcraft_mime::parse(&raw) {
+                parsed += 1;
+                attachments += p.attachments.len();
             }
         }
-        println!(
-            "verify: {present} present, {parsed} parsed, {} unparsed, {attachments} attachments, digest {:016x} (folders {:016x}, lists {:016x}, sources {:016x})",
-            present - parsed,
-            digest.value(),
-            parts[0].value(),
-            parts[1].value(),
-            parts[2].value()
-        );
-        println!("kept: {}", serde_json::to_string(&kept).unwrap());
-        // The contacts, calendar, tasks, notes and journal that came in.
-        let pim: mailcraft_model::pim::Pim = store.load_account_doc("d1", mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-        let json = serde_json::to_vec(&pim).unwrap();
-        println!("pim: {} bytes, digest {:016x}", json.len(), fnv1a(&json));
-        // What a pass would still have to do for search, now the import is in.
-        let reads = store.reads();
-        let w = mailcraft_store::search::Writer::open(&store, "d1").unwrap();
-        let plan = mailcraft_store::search::plan(&store, &w, "d1", &[]).unwrap();
-        println!(
-            "index: {} live, then to add {}, no source {}, to remove {}, folders read {}, messages read {}",
-            w.live(),
-            plan.add.len(),
-            plan.no_source.len(),
-            plan.remove.len(),
-            plan.total,
-            store.reads() - reads
-        );
+        if each {
+            println!(
+                "  folder {n}: {} messages, folder {:016x}, list {:016x}, sources {:016x}",
+                st.messages.len(),
+                fnv1a(&json),
+                list.value(),
+                sources.value()
+            );
+        }
     }
+    println!(
+        "verify: {present} present, {parsed} parsed, {} unparsed, {attachments} attachments, digest {:016x} (folders {:016x}, lists {:016x}, sources {:016x})",
+        present - parsed,
+        digest.value(),
+        parts[0].value(),
+        parts[1].value(),
+        parts[2].value()
+    );
+    println!("kept: {}", serde_json::to_string(&kept).unwrap());
+    // The contacts, calendar, tasks, notes and journal that came in.
+    let pim: mailcraft_model::pim::Pim = store.load_account_doc("d1", mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+    let json = serde_json::to_vec(&pim).unwrap();
+    println!("pim: {} bytes, digest {:016x}", json.len(), fnv1a(&json));
+    // What a pass would still have to do for search, now the import is in.
+    let reads = store.reads();
+    let w = mailcraft_store::search::Writer::open(store, "d1").unwrap();
+    let plan = mailcraft_store::search::plan(store, &w, "d1", &[]).unwrap();
+    println!(
+        "index: {} live, then to add {}, no source {}, to remove {}, folders read {}, messages read {}",
+        w.live(),
+        plan.add.len(),
+        plan.no_source.len(),
+        plan.remove.len(),
+        plan.total,
+        store.reads() - reads
+    );
 }
 
 /// This process's bytes read and written, and its peak working set, as Windows counts them
