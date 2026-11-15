@@ -200,3 +200,36 @@ fn median_frame(ctx: &egui::Context, a: &mut MailApp) -> std::time::Duration {
     frames.sort();
     frames[frames.len() / 2]
 }
+
+/// MEASURE: a frame of a newsletter laid out in tables three deep, a picture from the web in
+/// each of its innermost ones still coming (shown, not yet here), and then come. In release
+/// (`cargo test --release -p mailcraft-ui-egui --lib nested_tables_frames -- --ignored --nocapture`).
+#[test]
+#[ignore]
+fn nested_tables_frames() {
+    let (mut a, _) = app("nested-frames");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let words = "Our fall collection is here with coats boots and scarves for every day of the season ".repeat(8);
+    let mut html = String::from("<table width=\"100%\"><tr><td>");
+    let mut urls = Vec::new();
+    for i in 0..20 {
+        let url = format!("https://cdn.shop.example/{i}.png");
+        html.push_str(&format!(
+            "<table><tr><td><table><tr><td>{words}</td><td><img src=\"{url}\" alt=\"Coat {i}\"></td></tr></table></td><td>{words}</td></tr></table>"
+        ));
+        urls.push(url);
+    }
+    html.push_str("</td></tr></table>");
+    let raw = format!("From: Shop <news@shop.example>\r\nSubject: Fall\r\nContent-Type: text/html\r\n\r\n{html}");
+    let k = with_raw(&mut a, 9801, raw.as_bytes());
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.run("message.showPictures", json!({}));
+    let coming = median_frame(&ctx, &mut a);
+    assert!(urls.iter().all(|u| matches!(a.session.pictures.get(u), Some(mailcraft_engine::Picture::Loading))), "still coming");
+    for u in &urls {
+        a.session.apply(MailEvent::Fetched { url: u.clone(), data: Some(png(40, 30)), error: None });
+    }
+    let here = median_frame(&ctx, &mut a);
+    println!("MEASURE nested tables, 20 pictures from the web: median frame while they're coming {coming:?}; once they're here {here:?}");
+}

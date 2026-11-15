@@ -199,6 +199,7 @@ on GitHub.
 - Insert link reads an existing email link's subject and address however the link spells them.
 - Long messages open in several windows at once keep their scroll bars steady.
 - Newsletters with many centred lines and links draw faster.
+- Mail laid out in tables no longer slows down while its web pictures load.
 
 ## 0.38.0 - 2026-11-13
 

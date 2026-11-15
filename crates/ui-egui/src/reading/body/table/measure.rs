@@ -36,11 +36,37 @@ const MAX_COLUMNS: usize = 64;
 /// Tables whose measures are kept, the oldest let go past it.
 const KEPT: usize = 2_048;
 
-/// The measures kept between frames (measured once, the first time a table is drawn).
+/// The measures kept between frames (measured once, the first time a table is drawn, or with
+/// the table it's in).
 #[derive(Clone, Default)]
 struct Kept {
-    each: HashMap<egui::Id, Measured>,
+    each: HashMap<egui::Id, Entry>,
     order: VecDeque<egui::Id>,
+}
+
+/// A table's measures as kept, and the pictures that were still coming when it was measured
+/// (the first of each block of text that has one, whose words after it weren't measured): kept
+/// until one of those comes.
+#[derive(Clone)]
+struct Entry {
+    measured: Measured,
+    coming: Vec<mime::Span>,
+}
+
+impl Kept {
+    fn keep(&mut self, id: egui::Id, entry: Entry) {
+        if let Some(e) = self.each.get_mut(&id) {
+            *e = entry;
+            return;
+        }
+        while self.order.len() >= KEPT {
+            if let Some(old) = self.order.pop_front() {
+                self.each.remove(&old);
+            }
+        }
+        self.order.push_back(id);
+        self.each.insert(id, entry);
+    }
 }
 
 /// How wide a picture that sets no width of its own shows.
@@ -59,52 +85,87 @@ pub(crate) fn measured(ui: &Ui, key: &MessageKey, t: &Table) -> Measured {
     measured_with(ui, key, t, false, &mut |_| PictureWidth::Coming)
 }
 
-/// `t`'s measures, from those kept or measured now. `key` with the table's place in memory and
-/// its shape tells it apart from every other table drawn; `allowed` whether its web pictures may
-/// show; `picture` how wide one that sets no width is. Measured again while a picture's coming.
-pub(crate) fn measured_with(ui: &Ui, key: &MessageKey, t: &Table, allowed: bool, picture: &mut dyn FnMut(&mime::Span) -> PictureWidth) -> Measured {
+/// What tells `t`'s measures apart from every other table's: `key` with the table's place in
+/// memory and its shape, and `allowed`, whether its web pictures may show.
+fn kept_id(key: &MessageKey, t: &Table, allowed: bool) -> egui::Id {
     let shape: Vec<usize> = t.rows.iter().map(Vec::len).take(64).collect();
     let width = t.width.map(|w| match w {
         Width::Px(px) => (false, px),
         Width::Percent(pc) => (true, u32::from(pc)),
     });
-    let id = egui::Id::unique(("table-measures", key, std::ptr::from_ref(t).addr(), t.rows.len(), shape, width, t.spacing, t.padding, allowed));
+    egui::Id::unique(("table-measures", key, std::ptr::from_ref(t).addr(), t.rows.len(), shape, width, t.spacing, t.padding, allowed))
+}
+
+/// `t`'s measures, from those kept or measured now ([`kept_id`]); `picture` how wide one that
+/// sets no width is. Measured again once a picture that was coming has come (or can't be shown);
+/// the tables inside it that are measured with it are kept too, not measured again when drawn.
+pub(crate) fn measured_with(ui: &Ui, key: &MessageKey, t: &Table, allowed: bool, picture: &mut dyn FnMut(&mime::Span) -> PictureWidth) -> Measured {
+    let id = kept_id(key, t, allowed);
     let store = egui::Id::unique("mailcraft-table-measures");
-    if let Some(m) = ui.ctx().data_mut(|d| d.get_temp_mut_or_default::<Kept>(store).each.get(&id).cloned()) {
-        return m;
+    if let Some(e) = ui.ctx().data_mut(|d| d.get_temp_mut_or_default::<Kept>(store).each.get(&id).cloned())
+        && e.coming.iter().all(|sp| matches!(picture(sp), PictureWidth::Coming))
+    {
+        return e.measured;
     }
-    let mut measure = Measure { ui, words: 0, picture, coming: false };
-    let m = measure.table(t, 0);
-    if measure.coming {
-        return m;
-    }
+    let mut measure = Measure { ui, key, allowed, words: 0, picture, coming: Vec::new(), cut: false, inside: Vec::new() };
+    let measured = measure.table(t, 0);
+    let (coming, inside) = (measure.coming, measure.inside);
+    #[cfg(test)]
+    MEASURED.with(|n| n.set(n.get().saturating_add(1)));
     ui.ctx().data_mut(|d| {
         let kept = d.get_temp_mut_or_default::<Kept>(store);
-        while kept.order.len() >= KEPT {
-            if let Some(old) = kept.order.pop_front() {
-                kept.each.remove(&old);
-            }
+        for (id, e) in inside {
+            kept.keep(id, e);
         }
-        kept.order.push_back(id);
-        kept.each.insert(id, m.clone());
+        kept.keep(id, Entry { measured: measured.clone(), coming });
     });
-    m
+    measured
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Tables measured on this thread (as drawn: those inside one are measured with it).
+    pub(crate) static MEASURED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 struct Measure<'a> {
     ui: &'a Ui,
+    key: &'a MessageKey,
+    allowed: bool,
     /// Words measured so far.
     words: usize,
     picture: &'a mut dyn FnMut(&mime::Span) -> PictureWidth,
-    /// A picture's still to come: these measures aren't kept.
-    coming: bool,
+    /// The pictures still to come, the first of each block of text that has one.
+    coming: Vec<mime::Span>,
+    /// Something was left unmeasured for a limit (words, tables nested) that a table inside,
+    /// measured alone, might not have reached.
+    cut: bool,
+    /// The tables inside, measured whole on the way: kept under their own ids.
+    inside: Vec<(egui::Id, Entry)>,
 }
 
 impl Measure<'_> {
     /// How wide `text` is in `font`, unwrapped.
     fn width(&mut self, text: &str, font: egui::FontId) -> Option<f32> {
         self.words = self.words.saturating_add(1);
-        (self.words <= MAX_WORDS).then(|| self.ui.fonts_mut(|f| f.layout_no_wrap(text.to_string(), font, Color32::WHITE).size().x))
+        if self.words > MAX_WORDS {
+            self.cut = true;
+            return None;
+        }
+        Some(self.ui.fonts_mut(|f| f.layout_no_wrap(text.to_string(), font, Color32::WHITE).size().x))
+    }
+
+    /// A table inside, measured as it would be alone unless a limit cut it short (it then
+    /// would be measured again, alone, when drawn).
+    fn inside(&mut self, t: &Table, depth: usize) -> Measured {
+        let (from, cut) = (self.coming.len(), std::mem::take(&mut self.cut));
+        let measured = self.table(t, depth);
+        if !self.cut {
+            let coming = self.coming.get(from..).unwrap_or_default().to_vec();
+            self.inside.push((kept_id(self.key, t, self.allowed), Entry { measured: measured.clone(), coming }));
+        }
+        self.cut |= cut;
+        measured
     }
 
     /// Formatted lines: the widest word or picture, and the widest line.
@@ -123,7 +184,7 @@ impl Measure<'_> {
                             PictureWidth::Is(w) => w,
                             PictureWidth::Alt => self.width(&held_back_words(&sp.text), span_font(sp))?,
                             PictureWidth::Coming => {
-                                self.coming = true;
+                                self.coming.push(sp.clone());
                                 return None;
                             }
                         },
@@ -154,8 +215,11 @@ impl Measure<'_> {
                 Block::Table(t) => match t.width {
                     Some(Width::Px(px)) => Fit { min: px as f32, max: px as f32 },
                     Some(Width::Percent(_)) => return None,
-                    None if depth < MAX_NESTED => self.table(t, depth + 1).whole?,
-                    None => return None,
+                    None if depth < MAX_NESTED => self.inside(t, depth + 1).whole?,
+                    None => {
+                        self.cut = true;
+                        return None;
+                    }
                 },
             };
             fit.min = fit.min.max(f.min);

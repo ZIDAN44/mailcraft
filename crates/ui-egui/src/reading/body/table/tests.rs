@@ -333,3 +333,148 @@ fn a_signature_in_columns_stays_in_columns_in_a_pane_of_the_usual_width() {
     }
     assert!(widths(400.0 + address.min - 20.0).1, "no room for its widest word: one under the other");
 }
+
+/// Every table in `blocks`, those inside others too (in their cells and the boxes over them).
+fn all_tables(blocks: &[Block]) -> Vec<&mime::layout::Table> {
+    let mut out = Vec::new();
+    for b in blocks {
+        if let Block::Table(t) = b {
+            out.push(t);
+            for c in t.rows.iter().flatten() {
+                out.extend(all_tables(&c.blocks));
+                for o in &c.overlays {
+                    out.extend(all_tables(&o.blocks));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Tables measured on this thread so far.
+fn measured_count() -> usize {
+    super::measure::MEASURED.with(std::cell::Cell::get)
+}
+
+/// Tables inside tables `levels` deep (more than the layout makes of HTML), each with a few
+/// words beside the next.
+fn deep_tables(levels: usize) -> Vec<Block> {
+    let words = |text: String| Block::Text(vec![vec![mime::Span { text, ..Default::default() }]]);
+    let mut inner = vec![words("the bottom".into())];
+    for i in (0..levels).rev() {
+        let cells = vec![
+            Cell { blocks: vec![words(format!("level {i} {}", "a word ".repeat(i % 3)))], span: 1, ..Default::default() },
+            Cell { blocks: inner, span: 1, ..Default::default() },
+        ];
+        inner = vec![Block::Table(mime::layout::Table { rows: vec![cells], ..Default::default() })];
+    }
+    inner
+}
+
+/// Mail laid out in tables inside tables: some too deep to measure whole, some of too many
+/// words, one after a table that's a share of its room, with pictures that set their width and
+/// some that don't.
+fn nested_samples() -> Vec<Vec<Block>> {
+    let words = "Our fall collection is here with coats and boots ".repeat(6);
+    let huge = format!(
+        "<table><tr><td><table><tr><td>{words}</td></tr></table></td><td>{}</td></tr><tr><td><table><tr><td>{}</td></tr></table></td></tr></table>",
+        "word ".repeat(19_990),
+        "more words ".repeat(20)
+    );
+    let mut shop = String::from("<table width=\"100%\"><tr><td>");
+    for i in 0..6 {
+        shop.push_str(&format!(
+            "<table><tr><td><table cellpadding=\"4\"><tr><td>{words}</td><td><img src=\"https://cdn.shop.example/{i}.png\" alt=\"Coat {i}\"></td></tr></table></td><td><img src=\"cid:p@x\" width=\"120\"> {words}</td></tr></table>"
+        ));
+    }
+    shop.push_str("</td></tr></table>");
+    let percent = format!(
+        "<table><tr><td>Fall</td><td><table><tr><td>{words}</td><td>a</td></tr></table><table width=\"50%\"><tr><td>{words}</td><td>b</td></tr></table><table><tr><td>{words}</td><td>c</td></tr></table></td></tr></table>"
+    );
+    vec![deep_tables(22), html_layout(&huge), html_layout(&shop), html_layout(&percent), deep_tables(10)]
+}
+
+/// Each table inside another is measured with it, as it would be measured alone (unless a limit
+/// cut it short there: then it's measured alone when drawn), and isn't measured again when
+/// drawn. Found in audit (#479): each was measured once for itself and again for every table
+/// it's inside.
+#[test]
+fn tables_inside_are_measured_with_the_one_they_are_in() {
+    for (n, blocks) in nested_samples().into_iter().enumerate() {
+        let tables = all_tables(&blocks);
+        assert!(tables.len() > 2, "{n}: {} tables", tables.len());
+        for picture in [PictureWidth::Is(90.0), PictureWidth::Alt] {
+            let answer = |p: &PictureWidth| match p {
+                PictureWidth::Is(w) => PictureWidth::Is(*w),
+                PictureWidth::Alt => PictureWidth::Alt,
+                PictureWidth::Coming => PictureWidth::Coming,
+            };
+            // Each alone, in a frame of its own.
+            let alone: Vec<String> =
+                tables.iter().map(|t| with_ui(|ui| format!("{:?}", measured_with(ui, &key(), t, true, &mut |_| answer(&picture))))).collect();
+            // As drawn: the outermost first, then each inside it.
+            let (drawn, measures) = with_ui(|ui| {
+                let before = measured_count();
+                let drawn: Vec<String> =
+                    tables.iter().map(|t| format!("{:?}", measured_with(ui, &key(), t, true, &mut |_| answer(&picture)))).collect();
+                (drawn, measured_count() - before)
+            });
+            assert_eq!(drawn, alone, "measured as alone");
+            let outermost = blocks.iter().filter(|b| matches!(b, Block::Table(_))).count();
+            match n {
+                // Cut short by the nesting limit, past the words measured, or after a share of
+                // the room: what's inside is measured alone when drawn, the rest with it.
+                0 | 1 | 3 => assert!(measures > outermost && measures < tables.len(), "{n}: {measures} of {} tables measured", tables.len()),
+                _ => assert_eq!(measures, outermost, "only the outermost measured, of {}", tables.len()),
+            }
+        }
+    }
+}
+
+/// A table with a picture still coming is measured once and kept until it comes, the tables
+/// inside it too; then measured again, as it would be in a frame of its own. Found in audit
+/// (#479): it was measured again every frame while the picture came.
+#[test]
+fn a_table_is_measured_again_only_once_a_picture_comes() {
+    let blocks = nested_samples().swap_remove(2);
+    let tables = all_tables(&blocks);
+    let web = |sp: &mime::Span| sp.image.as_deref().is_some_and(|s| s.starts_with("https:"));
+    let came = with_ui(|ui| {
+        let draw = |come: &dyn Fn(&mime::Span) -> bool| -> (Vec<String>, usize) {
+            let before = measured_count();
+            let m = tables
+                .iter()
+                .map(|t| {
+                    format!(
+                        "{:?}",
+                        measured_with(ui, &key(), t, true, &mut |sp| if web(sp) && !come(sp) {
+                            PictureWidth::Coming
+                        } else {
+                            PictureWidth::Is(90.0)
+                        })
+                    )
+                })
+                .collect();
+            (m, measured_count() - before)
+        };
+        let (coming, first) = draw(&|_| false);
+        assert!(coming.iter().any(|m| m.contains("None")), "unmeasured while coming");
+        assert!(first > 0 && first < tables.len(), "{first} of {}", tables.len());
+        for _ in 0..5 {
+            assert_eq!(draw(&|_| false), (coming.clone(), 0), "kept while they're coming");
+        }
+        // One comes: what it's in is measured again (as little as that), and kept.
+        let one = |sp: &mime::Span| sp.image.as_deref() == Some("https://cdn.shop.example/3.png");
+        let (_, again) = draw(&one);
+        assert!(again > 0 && again <= first, "measured again with it: {again}");
+        assert_eq!(draw(&one).1, 0, "and kept");
+        let (all, last) = draw(&|_| true);
+        assert!(last > 0);
+        assert_eq!(draw(&|_| true).1, 0);
+        all
+    });
+    let alone: Vec<String> =
+        tables.iter().map(|t| with_ui(|ui| format!("{:?}", measured_with(ui, &key(), t, true, &mut |_| PictureWidth::Is(90.0))))).collect();
+    assert_eq!(came, alone, "as measured alone once they're all here");
+    assert!(!came.iter().any(|m| m.contains("None")), "{came:?}");
+}
