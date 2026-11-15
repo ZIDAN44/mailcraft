@@ -91,16 +91,16 @@ fn nothing_is_installed_while_mailcraft_still_runs() {
     let dir = scratch("still-running");
     let done = dir.join("installed");
     let log = dir.join("install.log");
-    let ended = {
-        let mut child = if cfg!(windows) {
-            std::process::Command::new("cmd").args(["/C", "exit"]).spawn().unwrap()
-        } else {
-            std::process::Command::new("true").spawn().unwrap()
-        };
-        let pid = child.id();
-        child.wait().unwrap();
-        pid
+    // A process that has ended, kept (its `Child`) until the checks are done: on Windows its id
+    // can't be given to another process while it's held (on a busy computer one would otherwise
+    // get it, and the update would wait on that one).
+    let mut gone = if cfg!(windows) {
+        std::process::Command::new("cmd").args(["/C", "exit"]).spawn().unwrap()
+    } else {
+        std::process::Command::new("true").spawn().unwrap()
     };
+    gone.wait().unwrap();
+    let ended = gone.id();
     for (pid, installs) in [(std::process::id(), false), (ended, true)] {
         let _ = std::fs::remove_file(&done);
         let status = if cfg!(windows) {
@@ -117,6 +117,7 @@ fn nothing_is_installed_while_mailcraft_still_runs() {
             assert!(std::fs::read_to_string(&log).unwrap_or_default().contains("still running"));
         }
     }
+    drop(gone);
     let _ = std::fs::remove_dir_all(&dir);
 }
 
