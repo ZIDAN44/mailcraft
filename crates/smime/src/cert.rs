@@ -96,14 +96,17 @@ pub(crate) fn emails(c: &Certificate) -> Vec<String> {
             }
         }
     }
-    out.retain(|e| !e.is_empty());
-    out.dedup();
-    let mut seen = Vec::new();
-    out.retain(|e| {
-        let new = !seen.contains(e);
-        seen.push(e.clone());
-        new
-    });
+    each_once(out)
+}
+
+/// `found`'s addresses, the empty ones left out and each kept where it first came.
+fn each_once(found: Vec<String>) -> Vec<String> {
+    let mut out: Vec<String> = Vec::with_capacity(found.len());
+    for e in found {
+        if !e.is_empty() && !out.contains(&e) {
+            out.push(e);
+        }
+    }
     out
 }
 
