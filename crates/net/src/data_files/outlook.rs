@@ -25,6 +25,12 @@ pub(crate) const VCAL_UID: &[u8; 12] = b"vCal-Uid\x01\0\0\0";
 pub(crate) const EPOCH_1601: i64 = 11_644_473_600;
 /// The same in minutes (a recurrence pattern's times).
 pub(crate) const EPOCH_MINUTES: i64 = EPOCH_1601 / 60;
+
+/// Unix seconds as a FILETIME: 100 ns since 1601 (0 before then).
+pub(crate) fn filetime(unix: i64) -> i64 {
+    unix.saturating_add(EPOCH_1601).saturating_mul(10_000_000).max(0)
+}
+
 /// When a series that doesn't end ends, as Outlook says it: 31 December 4500, 23:59, in minutes
 /// from 1601 (a pattern's EndDate).
 pub(crate) const NO_END: u32 = 0x5AE9_80DF;
@@ -98,5 +104,18 @@ mod tests {
                 (0x3A1F, "")
             ]
         );
+    }
+
+    /// The Exchange sign-in's FILETIME was a sum of its own, `(now + 11_644_473_600) *
+    /// 10_000_000` in u64: the shared one gives the same for every time through the year 28000
+    /// (it saturates at i64's end, near the year 30800); before 1601 it gives 0, and nothing
+    /// overflows.
+    #[test]
+    fn filetime_is_the_sign_ins_old_sum() {
+        for now in (0..=850_000_000_000u64).step_by(9_973_331).chain([1_763_164_800, u64::from(u32::MAX), 850_000_000_000]) {
+            let old = (now + 11_644_473_600) * 10_000_000;
+            assert_eq!(u64::try_from(filetime(i64::try_from(now).unwrap())), Ok(old), "{now}");
+        }
+        assert_eq!((filetime(-EPOCH_1601), filetime(i64::MIN), filetime(i64::MAX)), (0, 0, i64::MAX));
     }
 }

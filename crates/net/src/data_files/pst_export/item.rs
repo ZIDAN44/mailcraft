@@ -9,8 +9,7 @@ use mailcraft_pst::{
     write::{Name, NewProperty, NewValue},
 };
 
-use crate::data_files::outlook::EPOCH_1601;
-pub(super) use crate::data_files::outlook::{PSETID_COMMON, PSETID_TASK};
+pub(super) use crate::data_files::outlook::{PSETID_COMMON, PSETID_TASK, filetime};
 
 /// `PidTagMessageFlags`' mfRead and mfUnsent (MS-OXCMSG 2.2.1.6).
 const READ: i32 = 0x1;
@@ -100,11 +99,6 @@ pub(super) struct State {
     /// Pinned to the top of its folder (`$Pinned`): Outlook's files have no pin, so it goes in
     /// as MailCraft's own property (`pst_pim::PINNED`).
     pub(super) pinned: bool,
-}
-
-/// Unix seconds as 100 ns since 1601 (0 before then).
-pub(super) fn filetime(unix: i64) -> i64 {
-    unix.saturating_add(EPOCH_1601).saturating_mul(10_000_000).max(0)
 }
 
 /// What the store keeps of `s`, a message in a folder of role `role`; `days`: when flagged ones
@@ -298,6 +292,7 @@ pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<New
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::data_files::outlook::EPOCH_1601;
     use std::collections::BTreeMap;
 
     #[test]

@@ -85,8 +85,10 @@ impl Client {
                         let mut client_challenge = [0u8; 8];
                         ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut client_challenge)
                             .map_err(|_| NetError::Protocol("no randomness".into()))?;
-                        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-                        let filetime = (now + 11_644_473_600) * 10_000_000;
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
+                        let filetime = u64::try_from(crate::data_files::outlook::filetime(now)).unwrap_or(0);
                         let answer = crate::ntlm::authenticate(&challenge, &self.user, &self.password, filetime, client_challenge);
                         let resp = self.send_on_conn(&base.clone().header("Authorization", &format!("{name} {}", base64::encode(&answer))))?;
                         if resp.status != 401 {
