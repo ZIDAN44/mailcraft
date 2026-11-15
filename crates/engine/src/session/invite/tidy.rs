@@ -38,7 +38,85 @@ impl AnsweredInvites {
     }
 }
 
+/// An answered invitation's mail waiting for the server to take the answer (issue #101): it moves
+/// once the server has it, and stays to be answered again if the server refuses it (SOGo refused
+/// a guest's change to a meeting, and the invitation had gone to Deleted Items all the same).
+#[derive(Clone, Debug)]
+pub(crate) struct WaitingTidy {
+    account: String,
+    uid: String,
+    only: Option<Vec<i64>>,
+    upto: Vec<CalEvent>,
+    also: Option<MessageKey>,
+    /// The items on the server the answer deletes (a series declined).
+    hrefs: Vec<String>,
+}
+
+/// Most answers waiting for the server at once; the oldest are let go (their mail stays).
+const MAX_WAITING: usize = 200;
+
 impl Session {
+    /// [`Session::tidy_meeting_mail`] for an answer just given: at once when nothing waits for a
+    /// server, else once it has the answer ([`Session::tidy_after_sync`]). `gone`: the items on
+    /// the server it deletes.
+    pub(super) fn tidy_when_stored(
+        &mut self,
+        account: &str,
+        uid: &str,
+        only: Option<&[i64]>,
+        upto: &[CalEvent],
+        also: Option<&MessageKey>,
+        gone: &[StoredEvent],
+    ) -> usize {
+        let w = WaitingTidy {
+            account: account.to_string(),
+            uid: uid.to_string(),
+            only: only.map(<[i64]>::to_vec),
+            upto: upto.to_vec(),
+            also: also.cloned(),
+            hrefs: gone.iter().filter(|e| !e.href.is_empty()).map(|e| e.href.clone()).collect(),
+        };
+        if self.answer_pending(&w) {
+            self.tidy_waiting.retain(|x| !(x.account == w.account && x.uid == w.uid));
+            self.tidy_waiting.push(w);
+            if self.tidy_waiting.len() > MAX_WAITING {
+                self.tidy_waiting.remove(0);
+            }
+            return 0;
+        }
+        self.tidy_meeting_mail(account, uid, &["REQUEST"], only, upto, also)
+    }
+
+    /// Whether the server still has to take the answer `w` waits for: a change of the meeting not
+    /// stored yet, or one of its items not deleted yet.
+    fn answer_pending(&self, w: &WaitingTidy) -> bool {
+        let Some(p) = self.pim.get(&w.account) else { return false };
+        let theirs = p.theirs();
+        p.events
+            .iter()
+            .filter(|e| e.event.uid == w.uid && !theirs.contains(&e.calendar))
+            .any(|e| e.dirty || (e.href.is_empty() && e.calendar != LOCAL))
+            || p.deleted.iter().any(|t| w.hrefs.contains(&t.href))
+    }
+
+    /// After a sync of an account's calendars: the mail of answers the server now has goes out of
+    /// the way; that of answers it refused (`refused`: their meetings' uids) stays.
+    pub(crate) fn tidy_after_sync(&mut self, account: &str, refused: &[String]) {
+        let (mine, rest): (Vec<WaitingTidy>, Vec<WaitingTidy>) =
+            std::mem::take(&mut self.tidy_waiting).into_iter().partition(|w| w.account == account);
+        self.tidy_waiting = rest;
+        for w in mine {
+            if refused.contains(&w.uid) {
+                continue;
+            }
+            if self.answer_pending(&w) {
+                self.tidy_waiting.push(w);
+            } else {
+                self.tidy_meeting_mail(&w.account, &w.uid, &["REQUEST"], w.only.as_deref(), &w.upto, w.also.as_ref());
+            }
+        }
+    }
+
     /// Where an account's answered meeting mail goes, if anywhere: Deleted Items, or the folder
     /// chosen (one that's still there).
     pub fn answered_folder(&self, account: &str) -> Option<String> {

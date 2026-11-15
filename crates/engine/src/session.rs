@@ -412,6 +412,8 @@ pub struct Session {
     pub(crate) transfers: Vec<mailboxes::Transfer>,
     /// Mail that arrived and may hold an invitation, waiting for its body (issue #20).
     pub(crate) arrived_invites: Vec<MessageKey>,
+    /// Answered invitations to put out of the way once the server has the answer (issue #101).
+    pub(crate) tidy_waiting: Vec<invite::WaitingTidy>,
     /// New mail to announce (desktop notifications), oldest first.
     pub new_mail: Vec<Summary>,
     /// Inbox rules, run on mail as it arrives (`rules.json`).
@@ -567,6 +569,7 @@ impl Session {
             moved_at: 0,
             transfers: Vec::new(),
             arrived_invites: Vec::new(),
+            tidy_waiting: Vec::new(),
             new_mail: Vec::new(),
             rules: Vec::new(),
             snoozes: Vec::new(),

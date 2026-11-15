@@ -160,8 +160,10 @@ impl Session {
             self.notice(format!("calendars and contacts: {e}"), true);
         }
         self.save_pim(account);
-        // Meeting messages waiting for the server (see `invite::notices`).
+        // Meeting messages waiting for the server (see `invite::notices`), and answered
+        // invitations waiting to go out of the way.
         self.after_dav_sync(account);
+        self.tidy_after_sync(account, &sync.refused);
         // Invitations put on this computer meanwhile move to the server's calendar, those held
         // go in (issue #30).
         self.calendars_found(account, &answered);

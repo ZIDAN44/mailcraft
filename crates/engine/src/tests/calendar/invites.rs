@@ -7,8 +7,8 @@ use mailcraft_model::pim::{CalendarInfo, DavSync, StoredEvent};
 use super::*;
 use crate::InviteProblem;
 
-const WEEK: i64 = 7 * 86_400;
-const ANA: (&str, &str) = ("Ana Lima", "ana@soundlab.example");
+pub(super) const WEEK: i64 = 7 * 86_400;
+pub(super) const ANA: (&str, &str) = ("Ana Lima", "ana@soundlab.example");
 
 /// Put a message carrying a calendar in the sample Inbox and open it.
 pub(super) fn deliver(s: &mut Session, n: u32, from: (&str, &str), method: &str, events: &[CalEvent], stamp: i64) {
@@ -54,7 +54,7 @@ pub(super) fn parts<'a>(s: &'a Session, uid: &str) -> Vec<&'a StoredEvent> {
 /// A weekly meeting Ana organizes, in a server calendar: the series and one moved occurrence in
 /// one item (as CalDAV keeps them), and one more moved occurrence stored as its own item (as
 /// Exchange and Microsoft Graph keep them).
-fn weekly_series(s: &mut Session) -> CalEvent {
+pub(super) fn weekly_series(s: &mut Session) -> CalEvent {
     let cal = "https://dav.example.org/cal/work/".to_string();
     let master = CalEvent {
         uid: "weekly@soundlab.example".into(),
@@ -126,13 +126,18 @@ fn answering_one_occurrence_keeps_the_series() {
     assert!(now.iter().any(|e| e.event.recurrence_id == Some(week(3)) && e.dirty), "week 3 goes to the server");
     assert!(s.pim["sample"].deleted.is_empty(), "nothing is deleted on the server");
 
-    // Declining week 4 only: an exception on the series, nothing deleted.
+    // Declining week 4 only: the occurrence stays with the user's answer, the only change a guest
+    // may make to the organizer's meeting (issue #101: SOGo refused an occurrence taken out);
+    // nothing deleted, and the calendar doesn't show it.
     deliver(&mut s, 2, ANA, "REQUEST", &[one(4, 2)], NOW);
     s.run("invite.respond", &json!({"answer": "declined"})).unwrap();
     let m = s.find_event(&uid).expect("the series stays").1.clone();
-    assert!(m.event.exdates.contains(&week(4)) && m.dirty, "{m:?}");
-    assert_eq!(parts(&s, &uid).len(), 4);
+    assert!(m.event.exdates.is_empty(), "{m:?}");
+    let declined = parts(&s, &uid).into_iter().find(|e| e.event.recurrence_id == Some(week(4))).expect("week 4 stays");
+    assert!(declined.dirty && declined.event.attendees.iter().any(|a| a.email == "riley@studio.example" && a.partstat == "DECLINED"));
+    assert_eq!(parts(&s, &uid).len(), 5);
     assert!(s.pim["sample"].deleted.is_empty(), "nothing is deleted on the server");
+    assert!(!s.agenda(week(4), week(4) + 86_400).iter().any(|a| a.uid == uid), "not shown");
 
     // Ana cancels week 1 (stored in the series' item): the item is written again without it.
     deliver(&mut s, 3, ANA, "CANCEL", &[CalEvent { status: "CANCELLED".into(), ..one(1, 3) }], NOW);
@@ -148,7 +153,7 @@ fn answering_one_occurrence_keeps_the_series() {
     let hrefs: Vec<&str> = s.pim["sample"].deleted.iter().map(|t| t.href.as_str()).collect();
     assert_eq!(hrefs, ["graph-occurrence-5"]);
     assert!(s.find_event(&uid).is_some_and(|(_, m)| m.event.exdates.contains(&week(5))));
-    assert_eq!(parts(&s, &uid).len(), 2, "the series and week 3");
+    assert_eq!(parts(&s, &uid).len(), 3, "the series, week 3, and week 4 declined");
 
     // A message with the series itself still replaces it.
     let whole = CalEvent { summary: "Mix review (new room)".into(), sequence: 4, attendees: vec![me("NEEDS-ACTION")], ..master.clone() };

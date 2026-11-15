@@ -2,8 +2,9 @@
 //! "Delete meeting requests and notifications from Inbox after responding".
 
 use mailcraft_model::ical::{Attendee, CalEvent};
+use mailcraft_model::pim::{DavSync, StoredEvent};
 
-use super::invites::{ZOE, deliver, invitation, parts};
+use super::invites::{ANA, WEEK, ZOE, deliver, invitation, me, parts, weekly_series};
 use super::*;
 use crate::{AnsweredInvites, Prefs};
 
@@ -275,4 +276,45 @@ fn each_inbox_message_is_read_once_to_tidy() {
     // And the one moved, read again as it moves.
     assert_eq!(reads, inbox as u64 + 1, "an Inbox of {inbox}");
     assert!(has(&mut s, "Trash", "REQUEST 7") && (1..=6).all(|n| has(&mut s, "INBOX", &format!("REQUEST {n}"))));
+}
+
+/// Issue #101: an answer goes into a calendar on a server first, and the invitation moves only
+/// once the server has it. One the server refuses (SOGo refused a guest's change) leaves the
+/// invitation in the Inbox, to be answered again; it went to Deleted Items with nothing recorded.
+#[test]
+fn an_invitation_moves_once_the_server_has_the_answer() {
+    let mut s = sample_session("answered-on-the-server");
+    let master = weekly_series(&mut s);
+    let uid = master.uid.clone();
+    let week3 = master.start + 3 * WEEK;
+    let moved = CalEvent {
+        recurrence_id: Some(week3),
+        start: week3 + 3600,
+        end: week3 + 7200,
+        rrule: None,
+        sequence: 2,
+        attendees: vec![me("NEEDS-ACTION")],
+        ..master.clone()
+    };
+    deliver(&mut s, 1, ANA, "REQUEST", &[moved], NOW);
+    let r = s.run("invite.respond", &json!({"answer": "declined"})).unwrap();
+    assert_eq!(r["moved"], 0, "not before the server has it: {r}");
+    assert!(has(&mut s, "INBOX", "REQUEST 1"));
+
+    // Refused: the server's copy stays, and so does the invitation.
+    let refused = DavSync { refused: vec![uid.clone()], checked: NOW, ..Default::default() };
+    s.apply(Event::DavSynced { account: "sample".into(), sync: Box::new(refused) });
+    assert!(has(&mut s, "INBOX", "REQUEST 1"), "still to be answered");
+
+    // Answered again, and stored this time: then it moves.
+    s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    assert!(has(&mut s, "INBOX", "REQUEST 1"));
+    // Stored as the server stores it: in the series' item.
+    let item = parts(&s, &uid).iter().find(|e| e.event.recurrence_id.is_none()).map(|e| e.href.clone()).unwrap();
+    let pushed: Vec<StoredEvent> =
+        parts(&s, &uid).into_iter().filter(|e| e.dirty).map(|e| StoredEvent { href: item.clone(), etag: "\"2\"".into(), ..e.clone() }).collect();
+    assert!(!pushed.is_empty());
+    let stored = DavSync { pushed_events: pushed, checked: NOW, ..Default::default() };
+    s.apply(Event::DavSynced { account: "sample".into(), sync: Box::new(stored) });
+    assert!(has(&mut s, "Trash", "REQUEST 1") && !has(&mut s, "INBOX", "REQUEST 1"));
 }

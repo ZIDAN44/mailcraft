@@ -21,6 +21,7 @@ pub(crate) use arrival::HOLD_SECS;
 pub(crate) use arrival::drop_empty_local;
 pub use notices::Route;
 pub use tidy::AnsweredInvites;
+pub(crate) use tidy::WaitingTidy;
 
 /// The most occurrences one message can take out of a series.
 const MAX_EXDATES: usize = 1000;
@@ -87,6 +88,13 @@ fn same_address(one: &str, other: &str) -> bool {
 pub(crate) fn is_mine(value: &str, mine: &[String]) -> bool {
     let value = without_mailto(value);
     mine.iter().any(|m| m.eq_ignore_ascii_case(value))
+}
+
+/// An occurrence of someone's meeting that the user declined: kept, with their answer, in the
+/// organizer's meeting (issue #101), and neither shown in the calendar nor reminded of, as
+/// Outlook takes a declined meeting out.
+pub(crate) fn declined_occurrence(e: &CalEvent, mine: &[String]) -> bool {
+    e.recurrence_id.is_some() && e.attendees.iter().any(|a| is_mine(&a.email, mine) && a.partstat.eq_ignore_ascii_case("DECLINED"))
 }
 
 /// An attendee or organizer value as a plain address: trimmed, any `mailto:` (in any case) taken
@@ -331,12 +339,12 @@ impl Session {
                 }
             }
         } else {
-            // Some occurrences: those change, the series and the others stay.
+            // Some occurrences: those change, the series and the others stay. One declined stays
+            // too, with the user's answer, as a guest may change only that in the organizer's
+            // meeting (RFC 6638 §3.2.2.1): taken out, SOGo refused it (issue #101). The calendar
+            // doesn't show it.
             for e in &events {
-                remote |= match e.recurrence_id {
-                    Some(at) if stat == "DECLINED" => drop_occurrence(p, &uid, at),
-                    _ => put_occurrence(p, &calendar, e.clone()),
-                };
+                remote |= put_occurrence(p, &calendar, e.clone());
             }
         }
         // Put on this computer before the account's calendar on its server was found: moved
@@ -352,8 +360,10 @@ impl Session {
         }
         // The invitation, and its earlier versions in the Inbox, out of the way (issue #31): all
         // of the meeting's for an answer to the series, else those naming only these occurrences.
+        // Once the server has the answer (issue #101): one it refuses leaves the invitation here.
         let only = (!whole).then_some(answered.as_slice());
-        let moved = self.tidy_meeting_mail(&account, &uid, &["REQUEST"], only, &events, Some(&key));
+        let gone = if whole && stat == "DECLINED" { existing.as_slice() } else { &[] };
+        let moved = self.tidy_when_stored(&account, &uid, only, &events, Some(&key), gone);
         Ok(serde_json::json!({"answer": stat, "uid": uid, "moved": moved}))
     }
 
@@ -392,7 +402,7 @@ impl Session {
             // #31), unless it's the user's own meeting.
             let theirs = m.organizer.as_ref().is_some_and(|o| !is_mine(&o.email, &mine));
             if theirs {
-                moved = self.tidy_meeting_mail(&account, uid, &["REQUEST"], None, &answered, None);
+                moved = self.tidy_when_stored(&account, uid, None, &answered, None, &[]);
             }
         }
         Ok(serde_json::json!({"answer": stat, "uid": uid, "moved": moved}))

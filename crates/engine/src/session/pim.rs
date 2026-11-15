@@ -271,7 +271,7 @@ impl Session {
                 for o in ical::occurrences(&events, from.saturating_sub(86_400), to.saturating_add(86_400)) {
                     let Some(e) = events.get(o.event) else { continue };
                     let (start, end) = if e.all_day { (self.clock.utc(o.start), self.clock.utc(o.end)) } else { (o.start, o.end) };
-                    if start >= to || end.max(start.saturating_add(1)) <= from {
+                    if start >= to || end.max(start.saturating_add(1)) <= from || super::invite::declined_occurrence(e, &mine) {
                         continue;
                     }
                     let needs_reply = e.attendees.iter().any(|a| a.partstat == "NEEDS-ACTION" && super::invite::is_mine(&a.email, &mine));

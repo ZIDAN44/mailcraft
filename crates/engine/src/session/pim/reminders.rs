@@ -41,6 +41,7 @@ impl Session {
     /// haven't ended a day ago, weren't dismissed, and aren't snoozed past `now`; and tasks'.
     pub fn due_reminders(&self, now: i64) -> Vec<DueReminder> {
         let ahead = ical::REMINDER_MAX_MINUTES * 60;
+        let mine = self.my_addresses();
         let mut out = Vec::new();
         for (account, p) in &self.pim {
             if self.account(account).is_none() {
@@ -66,7 +67,7 @@ impl Session {
                 for o in ical::occurrences(&events, now - REMINDER_KEPT_AFTER_END - 86_400, now + ahead + 86_400) {
                     let Some(e) = events.get(o.event) else { continue };
                     let Some(minutes) = ical::reminder_minutes(e) else { continue };
-                    if e.status.eq_ignore_ascii_case("CANCELLED") {
+                    if e.status.eq_ignore_ascii_case("CANCELLED") || super::invite::declined_occurrence(e, &mine) {
                         continue;
                     }
                     let (start, end) = if e.all_day { (self.clock.utc(o.start), self.clock.utc(o.end)) } else { (o.start, o.end) };
