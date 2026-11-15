@@ -13,6 +13,43 @@ are shared through [`storytold/craft-common-actions`](https://github.com/storyto
 2. Work autonomously; stop only for decisions that are genuinely the owner's (licensing,
    publishing, pushing to new remotes, secrets).
 
+## How changes are made
+The rules the Craft apps share (the storytold house rules, `standards/house-rules-core.md` and
+`standards/house-rules-rust.md` in storytold/craft-contrib), as they fit MailCraft: `main` takes
+the owner's commits directly, and dates keep MailCraft's own `model::dates`.
+- **Check, then claim.** Before writing code, read the issue comments, search pull requests for
+  `#N` and the keywords, and check recent commits on `main`. Comment on the issue first. Release a
+  claim you will not finish.
+- **Verify, don't guess.** Open a definition before using it; confirm a cause in the code, even
+  when a report names the place.
+- **Narrow and tested.** Fix what the report describes, where the bug is, with a test that fails
+  without the fix. Nothing unrelated rides along.
+- **Read the diff before committing:** every name used exists, the test fails without the fix,
+  the message says what's true, and the line endings are the file's own.
+- **Report only what ran:** say what was tested, and what couldn't be (no Mac, no Flatpak, no
+  server of that kind) rather than implying it was.
+- **Guards say why.** A check that looks removable says what it prevents; read that before
+  changing it.
+- **Readable by everyone:** these instructions and the docs hold nothing about one machine and
+  link nothing a reader can't open (a machine's own notes go in an untracked `CLAUDE.local.md`).
+- **Nothing personal** in the repository, the log or a request: no one's addresses, mail,
+  passwords or names beyond the credits.
+- **No agent attribution.** A pull request does not say an agent wrote it, and a commit carries no
+  agent's `Co-Authored-By` line. A repository rule may not require that. (People whose work a
+  change takes are still credited with theirs.)
+
+### Licence allowlist
+Dependencies and assets use SPDX identifiers. An expression is allowed when every identifier is in
+this list: `ISC`, `MIT`, `BSD-2-Clause`, `BSD-3-Clause`, `Apache-2.0`, `OFL-1.1`,
+`Ubuntu-font-1.0`, `Bitstream-Vera`, `CC0-1.0`, `CC-BY-4.0`, `CC-BY-SA-4.0`,
+`LicenseRef-Public-Domain`. A crate offering a choice is taken under one of these (`self_cell`'s
+Apache-2.0, never its GPL). What `deny.toml` checks is that list and the permissive ones the
+common Rust crates under every Craft app bring, as the Craft apps' own `deny.toml` allow them:
+`Unicode-3.0` (`unicode-ident`, ICU), `Zlib`, `BSL-1.0`, `0BSD`, `MIT-0`, `Unlicense`,
+`Apache-2.0 WITH LLVM-exception`, `CDLA-Permissive-2.0` (Mozilla's root certificates), and
+`MPL-2.0` for `option-ext` alone. A new dependency takes from the allowlist above wherever it
+can; one that can't is the owner's call.
+
 ## Never crash
 A mail client that crashes loses drafts and trust. **This outranks feature work.**
 - **No panics in non-test code:** no `unwrap()`, `expect()`, `panic!`, `unreachable!`, `todo!`,
