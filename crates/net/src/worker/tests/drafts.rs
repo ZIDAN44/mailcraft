@@ -503,3 +503,15 @@ fn drafts_that_drop_each_connection_sign_in_again_at_once_a_few_times_at_most() 
     assert_eq!(kept_texts(&store).len(), 8, "each kept here");
     pool.submit(Job::Remove { account: "a1".into() });
 }
+
+/// A pending-drafts list that can't be read isn't saved over with just the newest draft: the
+/// drafts waiting in it stay.
+#[test]
+fn a_draft_kept_offline_doesnt_write_over_a_list_that_cant_be_read() {
+    let store = Store::failing();
+    keep_draft(&store, "a1", "Drafts", None, b"Subject: first\r\n\r\nOne\r\n".to_vec(), false, &Order::default()).unwrap();
+    store.fail(Some(KEPT_DRAFTS), None);
+    assert!(keep_draft(&store, "a1", "Drafts", None, b"Subject: second\r\n\r\nTwo\r\n".to_vec(), false, &Order::default()).is_err());
+    store.fail(None, None);
+    assert_eq!(kept_raws(&store, "a1").unwrap(), [b"Subject: first\r\n\r\nOne\r\n".to_vec()]);
+}
