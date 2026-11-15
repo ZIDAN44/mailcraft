@@ -87,7 +87,6 @@ fn keyboard_shortcuts_run_commands() {
     let n = a.session.list.len();
     frame(&ctx, &mut a, vec![key(Key::Delete, Modifiers::NONE)]);
     assert_eq!(a.session.list.len(), n);
-    frame(&ctx, &mut a, vec![key(Key::M, Modifiers::COMMAND | Modifiers::SHIFT)]);
 }
 
 #[test]
@@ -260,7 +259,7 @@ fn enter_submits_a_one_field_dialog() {
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
     frame(&ctx, &mut a, vec![]);
-    assert!(matches!(&a.ui.dialog, Some(Dialog::AddSharedMailbox { error: Some(_), .. })), "submitted: {:?}", a.ui.dialog.is_some());
+    assert!(matches!(&a.ui.dialog, Some(Dialog::AddSharedMailbox { error: Some(_), .. })), "submitted: {:?}", a.ui.dialog);
 }
 
 /// Motion: the folder pane slides between its two widths and the rest draws through it; Play

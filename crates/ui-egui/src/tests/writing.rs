@@ -447,9 +447,7 @@ fn pictures_in_a_message_show_their_size_and_resize_by_their_handle() {
     frame(&ctx, &mut a, vec![]);
     a.run("mail.new", json!({}));
     a.run("compose.update", json!({"to": "ann@x.example", "subject": "Poster", "body": ""}));
-    let mut png = Vec::new();
-    let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(320, 200, image::Rgba([200, 90, 30, 255])));
-    img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+    let png = super::pictures::png(320, 200);
     a.run("compose.insertPicture", json!({"name": "poster.png", "data": png, "at": 0}));
     // What a frame paints: where the picture is (the one image not of the fonts), and whether a
     // handle shows (a small square in the accent colour).

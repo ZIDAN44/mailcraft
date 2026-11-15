@@ -255,7 +255,7 @@ fn categories_from_other_programs_render_and_join_the_list() {
     // Taken: the dialog stays, saying why.
     a.ui.dialog = Some(Dialog::new_category(&a.session));
     a.act(crate::Action::Submit("category.create", json!({"name": "Other", "keyword": "R=C3=BCCKFRAGE"})));
-    assert!(matches!(&a.ui.dialog, Some(Dialog::NewCategory { error: Some(e), .. }) if e.contains("Rückfrage")), "{:?}", a.ui.dialog.is_some());
+    assert!(matches!(&a.ui.dialog, Some(Dialog::NewCategory { error: Some(e), .. }) if e.contains("Rückfrage")), "{:?}", a.ui.dialog);
     // Edited: renamed, keyword kept.
     let c = a.session.category("Rückfrage").cloned().unwrap();
     a.ui.dialog = Some(Dialog::edit_category(&c));

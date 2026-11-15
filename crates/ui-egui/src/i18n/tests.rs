@@ -434,6 +434,8 @@ fn french_keeps_filled_in_values_away_from_words_that_elide() {
     assert_eq!(word_before("{x}", 0), "");
 }
 
+/// Every interface string is in every catalog. With `MAILCRAFT_DUMP_STRINGS=<file>` set, the
+/// strings are also written to that file, one a line, for a new language's catalog to start from.
 #[test]
 fn every_interface_string_is_translated() {
     let strings = interface_strings();

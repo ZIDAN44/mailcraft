@@ -129,9 +129,7 @@ fn a_forward_shows_the_web_picture_the_reader_was_shown_centred() {
     };
     paint(&mut a);
     assert!(paint(&mut a).is_empty(), "not shown to the reader: not shown here");
-    let mut png = Vec::new();
-    let img = image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(160, 50, image::Rgba([40, 120, 200, 255])));
-    img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+    let png = crate::tests::pictures::png(160, 50);
     a.session.pictures.insert(url.to_string(), mailcraft_engine::Picture::Ready(std::sync::Arc::new(png)));
     paint(&mut a);
     let shown = paint(&mut a);

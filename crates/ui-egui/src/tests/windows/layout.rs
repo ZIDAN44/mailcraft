@@ -136,6 +136,11 @@ fn first_message(a: &MailApp) -> String {
     a.session.list.first().map(|m| m.key.to_id()).unwrap_or_default()
 }
 
+/// A frame in a window `w` wide and 800 tall (not dressed or looked at, as [`frame`]'s are).
+fn sized(ctx: &egui::Context, a: &mut MailApp, w: f32) {
+    sized_frame(ctx, a, egui::vec2(w, 800.0), vec![]);
+}
+
 /// In the smallest window the message read keeps a width it can be read in: the folders and the
 /// list give way. It was a strip a word wide ("Storyboa / rd"), and a reply written there had a
 /// ribbon of one button a row.
@@ -301,9 +306,6 @@ fn tour_findings() {
 fn the_classic_ribbon_draws_every_tab() {
     let (mut a, _) = app("classic-ribbon");
     let ctx = egui::Context::default();
-    let sized = |ctx: &egui::Context, a: &mut MailApp, w: f32| {
-        sized_frame(ctx, a, egui::vec2(w, 800.0), vec![]);
-    };
     for _ in 0..3 {
         frame(&ctx, &mut a, vec![]);
     }
@@ -341,9 +343,6 @@ fn the_classic_ribbon_draws_every_tab() {
 fn the_tabs_and_search_share_one_bar() {
     let (mut a, _) = app("one-bar");
     let ctx = egui::Context::default();
-    let sized = |ctx: &egui::Context, a: &mut MailApp, w: f32| {
-        sized_frame(ctx, a, egui::vec2(w, 800.0), vec![]);
-    };
     for _ in 0..3 {
         frame(&ctx, &mut a, vec![]);
     }

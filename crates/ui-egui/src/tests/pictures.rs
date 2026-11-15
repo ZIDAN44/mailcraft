@@ -38,8 +38,7 @@ fn pictures_show_at_their_size_and_resize() {
     a.run("mail.new", json!({}));
     frame(&ctx, &mut a, vec![]);
     // A screenshot 1600 wide, pasted.
-    let mut png = Vec::new();
-    image::DynamicImage::ImageRgba8(image::RgbaImage::new(1600, 800)).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+    let png = png(1600, 800);
     assert_eq!(own_size(&png), Some((1600, 800)));
     let size = own_size(&png);
     let r = a.session.run(
