@@ -205,7 +205,7 @@ pub(super) struct Body<'a> {
 /// Draws a block of text as a text box to change it (`false`: drawn as text after all).
 pub(super) trait CellEdit {
     /// `page`: the colour it's on (its cell's), for its colours to read.
-    fn edit(&mut self, ui: &mut Ui, lines: &[Vec<mime::Span>], page: [u8; 3], acts: &mut Vec<Action>) -> bool;
+    fn edit(&mut self, ui: &mut Ui, lines: &mime::RichText, page: [u8; 3], acts: &mut Vec<Action>) -> bool;
 }
 
 /// Narrower than this, a table's columns go one under the other.

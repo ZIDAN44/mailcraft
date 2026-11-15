@@ -52,7 +52,7 @@ const MAX_BUTTONS: usize = 500;
 const MAX_OFFSET: i32 = 4_000;
 
 /// A part of a laid-out message.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Block {
     /// Formatted lines.
     Text(RichText),
@@ -60,7 +60,7 @@ pub enum Block {
 }
 
 /// How wide something wants to be.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Width {
     Px(u32),
     Percent(u8),
@@ -68,7 +68,7 @@ pub enum Width {
 
 /// Where a cell's content sits down its row (`valign`, `vertical-align`): a table cell's in its
 /// middle unless it says otherwise, as HTML has it; a box laid out with CSS at its top.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum VAlign {
     #[default]
     Top,
@@ -77,7 +77,7 @@ pub enum VAlign {
 }
 
 /// Where content sits across its space.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Align {
     #[default]
     Left,
@@ -86,7 +86,7 @@ pub enum Align {
 }
 
 /// A line around a box.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Line {
     /// In pixels.
     pub width: u8,
@@ -100,7 +100,7 @@ fn no_lines(b: &[Option<Line>; 4]) -> bool {
 /// The widest line drawn around a box, in pixels.
 const MAX_LINE: u32 = 8;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Table {
     pub rows: Vec<Vec<Cell>>,
     pub width: Option<Width>,
@@ -131,7 +131,7 @@ pub struct Table {
     pub border: Option<Line>,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Cell {
     pub blocks: Vec<Block>,
     pub width: Option<Width>,
@@ -178,7 +178,7 @@ pub const MAX_ROOM: u16 = 200;
 
 /// A box placed over its container: `x` pixels from its left edge (from the right when
 /// `from_right`), `y` from its top (from the bottom when `from_bottom`).
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Overlay {
     pub x: i32,
     pub y: i32,

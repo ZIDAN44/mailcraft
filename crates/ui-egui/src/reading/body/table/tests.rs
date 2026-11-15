@@ -478,3 +478,27 @@ fn a_table_is_measured_again_only_once_a_picture_comes() {
     assert_eq!(came, alone, "as measured alone once they're all here");
     assert!(!came.iter().any(|m| m.contains("None")), "{came:?}");
 }
+
+/// A table laid out again where another of the same shape was (a signature changed, a message
+/// read again) has its own measures; the same table, wherever it is, the same. Found in audit
+/// (#480): the measures were kept by the table's place in memory and its shape.
+#[test]
+fn a_table_where_another_was_has_its_own_measures() {
+    let table = |words: &str| {
+        let blocks = html_layout(&format!("<table><tr><td>{words}</td><td>Riley Moreno</td></tr></table>"));
+        let Some(Block::Table(t)) = blocks.into_iter().next() else { panic!("a table") };
+        t
+    };
+    with_ui(|ui| {
+        let mut t = table("Short");
+        let short = measured(ui, &key(), &t);
+        // Another table, in the same place (the same shape).
+        t = table("A much longer line of words than the first one");
+        let long = measured(ui, &key(), &t);
+        assert_eq!(format!("{long:?}"), format!("{:?}", with_ui(|ui| measured(ui, &key(), &t))), "as measured alone");
+        assert!(long.columns[0].unwrap().max > short.columns[0].unwrap().max + 100.0, "its own: {short:?} {long:?}");
+        // The first again, somewhere else: as it was.
+        let again = Box::new(table("Short"));
+        assert_eq!(format!("{:?}", measured(ui, &key(), &again)), format!("{short:?}"));
+    });
+}

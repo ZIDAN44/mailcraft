@@ -314,7 +314,7 @@ pub struct Parsed {
 }
 
 /// A run of text in a rich (HTML) message, with its formatting.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Span {
     pub text: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -353,7 +353,7 @@ pub struct Span {
 }
 
 /// Text set above or below its line.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Rise {
     #[default]
     Normal,

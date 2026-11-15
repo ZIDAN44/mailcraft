@@ -41,7 +41,7 @@ pub(super) const RICH_MAX_LINES: usize = 20_000;
 /// pixels; a width can be a share of the space it's in), as Outlook and browsers show it: a
 /// picture twice as big as it says (a sharp one for screens that have the pixels) shows at the
 /// size it says, and the layout around it stays as it was made (issue #10).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ImageSize {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub width: Option<layout::Width>,

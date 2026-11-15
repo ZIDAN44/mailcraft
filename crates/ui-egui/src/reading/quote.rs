@@ -49,7 +49,7 @@ struct Cells<'a> {
     c: &'a mut Compose,
     /// Each block's text and styles as it is (read once a frame).
     texts: Vec<(String, mime::rich::Styles)>,
-    /// Each block of text by where its lines are (the drawing walks the same blocks).
+    /// Each block of text by where it is ([`block_at`]; the drawing walks the same blocks).
     index: HashMap<usize, usize>,
     eds: &'a mut QuoteEditors,
     tokens: Tokens,
@@ -59,8 +59,8 @@ struct Cells<'a> {
 }
 
 impl CellEdit for Cells<'_> {
-    fn edit(&mut self, ui: &mut Ui, lines: &[Vec<mime::Span>], page: [u8; 3], acts: &mut Vec<Action>) -> bool {
-        let Some(&n) = self.index.get(&(lines.as_ptr() as usize)) else { return false };
+    fn edit(&mut self, ui: &mut Ui, lines: &mime::RichText, page: [u8; 3], acts: &mut Vec<Action>) -> bool {
+        let Some(&n) = self.index.get(&block_at(lines)) else { return false };
         let Some((text, styles)) = self.texts.get(n).cloned() else { return false };
         let id = self.c.id;
         let mut ed = self.eds.remove(&(id, n)).unwrap_or_else(|| cell_editor(id, n));
@@ -85,6 +85,19 @@ impl CellEdit for Cells<'_> {
     }
 }
 
+/// Where a block of text of the quote is, while it's drawn: the block's own (its lines' `Vec`),
+/// one for each block. (Where its lines' buffer is told them apart before, and every empty one
+/// has the same: two would have been one cell.)
+#[allow(clippy::ptr_arg, reason = "the Vec itself is what's told apart, not its lines")]
+pub(super) fn block_at(lines: &mime::RichText) -> usize {
+    std::ptr::from_ref(lines).addr()
+}
+
+/// The quote's blocks of text by where each is ([`block_at`]), to their cell numbers.
+pub(super) fn cell_index(blocks: &[mime::layout::Block]) -> HashMap<usize, usize> {
+    mime::layout::text_blocks(blocks).into_iter().enumerate().map(|(n, (lines, _))| (block_at(lines), n)).collect()
+}
+
 /// `c`'s quote, under its text: drawn as the reading pane draws it, each block of its text a
 /// text box.
 pub(super) fn show(s: &Session, st: &mut UiState, ui: &mut Ui, c: &mut Compose, eds: &mut QuoteEditors, acts: &mut Vec<Action>) {
@@ -97,8 +110,7 @@ pub(super) fn show(s: &Session, st: &mut UiState, ui: &mut Ui, c: &mut Compose, 
         ui.add_space(8.0);
         return;
     }
-    let index: HashMap<usize, usize> =
-        mime::layout::text_blocks(&q.blocks).into_iter().enumerate().map(|(n, (lines, _))| (lines.as_ptr() as usize, n)).collect();
+    let index = cell_index(&q.blocks);
     let texts = q.cell_texts();
     let mut cells = Cells { c, texts, index, eds, tokens: t, changed: Vec::new(), focus: None };
     let mut shown: Vec<String> = Vec::new();
@@ -116,4 +128,35 @@ pub(super) fn show(s: &Session, st: &mut UiState, ui: &mut Ui, c: &mut Compose, 
         st.quote_focus = Some((c.id, n));
     }
     ui.add_space(8.0);
+}
+
+#[cfg(test)]
+mod tests {
+    use mime::layout::{Block, Cell, Table};
+
+    use super::*;
+
+    /// Each block of text of a quote is a cell of its own, empty ones too (every empty one's
+    /// lines are kept at the same place, so two were taken for one: found in audit, #480).
+    #[test]
+    fn every_block_of_text_is_a_cell_of_its_own() {
+        let text = |t: &str| Block::Text(vec![vec![mime::Span { text: t.into(), ..Default::default() }]]);
+        let cell = |blocks: Vec<Block>| Cell { blocks, span: 1, ..Default::default() };
+        let blocks = vec![
+            Block::Text(Vec::new()),
+            text("Dear Sam,"),
+            Block::Text(Vec::new()),
+            Block::Table(Table { rows: vec![vec![cell(vec![Block::Text(Vec::new())]), cell(vec![text("Total")])]], ..Default::default() }),
+        ];
+        let found = mime::layout::text_blocks(&blocks);
+        assert_eq!(found.len(), 5);
+        let empty: Vec<&mime::RichText> = found.iter().map(|(lines, _)| *lines).filter(|l| l.is_empty()).collect();
+        assert!(empty.len() == 3 && empty.iter().all(|l| l.as_ptr() == empty[0].as_ptr()), "their lines all in one place");
+        let index = cell_index(&blocks);
+        assert_eq!(index.len(), 5, "a cell each");
+        let mut cells: Vec<usize> = found.iter().map(|(lines, _)| index[&block_at(lines)]).collect();
+        assert_eq!(cells, [0, 1, 2, 3, 4], "each its own, in order");
+        cells.dedup();
+        assert_eq!(cells.len(), 5);
+    }
 }

@@ -85,15 +85,64 @@ pub(crate) fn measured(ui: &Ui, key: &MessageKey, t: &Table) -> Measured {
     measured_with(ui, key, t, false, &mut |_| PictureWidth::Coming)
 }
 
-/// What tells `t`'s measures apart from every other table's: `key` with the table's place in
-/// memory and its shape, and `allowed`, whether its web pictures may show.
+/// What tells `t`'s measures apart from every other table's: `key`, all the table holds, and
+/// `allowed`, whether its web pictures may show. (Its place in memory told it apart before: a
+/// table laid out again where another of the same shape had been took that one's measures.)
 fn kept_id(key: &MessageKey, t: &Table, allowed: bool) -> egui::Id {
-    let shape: Vec<usize> = t.rows.iter().map(Vec::len).take(64).collect();
-    let width = t.width.map(|w| match w {
-        Width::Px(px) => (false, px),
-        Width::Percent(pc) => (true, u32::from(pc)),
-    });
-    egui::Id::unique(("table-measures", key, std::ptr::from_ref(t).addr(), t.rows.len(), shape, width, t.spacing, t.padding, allowed))
+    use std::hash::{Hash, Hasher};
+    let mut held = Quick(0);
+    t.hash(&mut held);
+    egui::Id::unique(("table-measures", key, held.finish(), allowed))
+}
+
+/// A quick hash of what a table holds, eight bytes at a time (as rustc's FxHasher): every table
+/// drawn is hashed every frame, which SipHash made a tenth of a newsletter's frame.
+struct Quick(u64);
+
+impl Quick {
+    fn add(&mut self, word: u64) {
+        self.0 = (self.0.rotate_left(5) ^ word).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+    }
+}
+
+impl std::hash::Hasher for Quick {
+    fn write(&mut self, bytes: &[u8]) {
+        let (words, rest) = bytes.as_chunks::<8>();
+        for word in words {
+            self.add(u64::from_le_bytes(*word));
+        }
+        if !rest.is_empty() {
+            let mut word = [0u8; 8];
+            if let Some(w) = word.get_mut(..rest.len()) {
+                w.copy_from_slice(rest);
+            }
+            self.add(u64::from_le_bytes(word));
+        }
+    }
+
+    fn write_u8(&mut self, n: u8) {
+        self.add(u64::from(n));
+    }
+
+    fn write_u16(&mut self, n: u16) {
+        self.add(u64::from(n));
+    }
+
+    fn write_u32(&mut self, n: u32) {
+        self.add(u64::from(n));
+    }
+
+    fn write_u64(&mut self, n: u64) {
+        self.add(n);
+    }
+
+    fn write_usize(&mut self, n: usize) {
+        self.add(n as u64);
+    }
+
+    fn finish(&self) -> u64 {
+        self.0
+    }
 }
 
 /// `t`'s measures, from those kept or measured now ([`kept_id`]); `picture` how wide one that
