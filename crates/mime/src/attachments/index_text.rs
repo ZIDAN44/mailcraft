@@ -69,6 +69,19 @@ struct Scope<'b> {
     maybe_shown: Vec<(Option<String>, Option<String>, Option<String>)>,
 }
 
+/// How a MIME entity is read.
+#[derive(Clone, Copy)]
+struct Reading<'d> {
+    /// How deep it is among the multiparts.
+    depth: usize,
+    /// Its text is taken (of an alternative's parts, only the one read as text).
+    text_on: bool,
+    /// A text part here is a body, as mail-parser takes it; elsewhere it's a file.
+    bodily: bool,
+    /// Its type when it says none (`message/rfc822` in a digest).
+    default: &'d str,
+}
+
 #[derive(Default)]
 struct Walk {
     doc: IndexDoc,
@@ -91,7 +104,7 @@ impl Walk {
             self.push_text(s);
         }
         let mut scope = Scope::default();
-        self.entity(part, raw, body, depth, text_on, true, "text/plain", &mut scope);
+        self.entity(part, raw, body, Reading { depth, text_on, bodily: true, default: "text/plain" }, &mut scope);
         if scope.maybe_shown.is_empty() {
             return;
         }
@@ -111,20 +124,9 @@ impl Walk {
         }
     }
 
-    /// One MIME entity: `whole` is its header and body, `body` the body alone. A text part is
-    /// a body only where mail-parser takes it as one (`bodily`); elsewhere it's a file.
-    #[allow(clippy::too_many_arguments)]
-    fn entity<'b>(
-        &mut self,
-        part: Option<MessagePart<'_>>,
-        whole: &'b [u8],
-        body: &'b [u8],
-        depth: usize,
-        text_on: bool,
-        bodily: bool,
-        default: &str,
-        scope: &mut Scope<'b>,
-    ) {
+    /// One MIME entity: `whole` is its header and body, `body` the body alone, read as `how` says.
+    fn entity<'b>(&mut self, part: Option<MessagePart<'_>>, whole: &'b [u8], body: &'b [u8], how: Reading<'_>, scope: &mut Scope<'b>) {
+        let Reading { depth, text_on, bodily, default } = how;
         self.stats.parts += 1;
         let mime = part.and_then(mime_of).unwrap_or_else(|| default.to_string());
         let attachment = part.and_then(|p| p.content_disposition()).is_some_and(|d| d.ctype().eq_ignore_ascii_case("attachment"));
@@ -203,7 +205,7 @@ impl Walk {
             let named = part.and_then(|p| p.attachment_name()).is_some_and(|n| !n.is_empty());
             let bodily = alternative || i == 0 || (mime != "multipart/related" && !named);
             let on = text_on && chosen.is_none_or(|c| c == i);
-            self.entity(part, whole, body, depth + 1, on, bodily, default, scope);
+            self.entity(part, whole, body, Reading { depth: depth + 1, text_on: on, bodily, default }, scope);
         }
         true
     }

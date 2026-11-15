@@ -109,7 +109,6 @@ impl Conn {
     /// Put message `raw` into `folder` as received, marked with `flags`; for IMAP, `date` is when
     /// it came (`None`: now, as the server sees it). A POP account's folders are on this computer:
     /// `account`'s, in `store`.
-    #[allow(clippy::too_many_arguments)]
     pub(super) fn put(
         &mut self,
         jstate: &jmap::State,

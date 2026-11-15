@@ -498,7 +498,8 @@ impl Session {
         let who = if me.0.is_empty() { me.1.clone() } else { me.0.clone() };
         let body = format!("{who} {} the invitation to {}.", word.to_ascii_lowercase(), event.summary);
         let to = vec![EmailAddress::new(organizer.name.clone(), organizer.email.clone())];
-        self.send_itip(account, &invited, to, "REPLY", &[reply], &format!("{word}: {}", event.summary), &body)
+        let subject = format!("{word}: {}", event.summary);
+        self.send_itip(account, Itip { from: &invited, to, method: "REPLY", events: &[reply], subject: &subject, body: &body })
     }
 
     /// Invite the guests of one of the user's events (or tell them of a change: `REQUEST`, or
@@ -529,23 +530,13 @@ impl Session {
             (format!("Invitation: {}", event.summary), format!("{}\nWhen: {when}{place}\n\n{}", event.summary, event.description))
         };
         let n = to.len();
-        self.send_itip(account, &from, to, method, &[e], &subject, &body)?;
+        self.send_itip(account, Itip { from: &from, to, method, events: &[e], subject: &subject, body: &body })?;
         Ok(n)
     }
 
-    /// Send a message carrying a calendar (`text/calendar; method=…`, RFC 6047), from the
-    /// account's address `from` (one of its others; empty: its own).
-    #[allow(clippy::too_many_arguments)]
-    fn send_itip(
-        &mut self,
-        account: &str,
-        from: &str,
-        to: Vec<EmailAddress>,
-        method: &str,
-        events: &[CalEvent],
-        subject: &str,
-        body: &str,
-    ) -> Result<(), CmdError> {
+    /// Send a message carrying a calendar (`text/calendar; method=…`, RFC 6047) from `account`.
+    fn send_itip(&mut self, account: &str, m: Itip) -> Result<(), CmdError> {
+        let Itip { from, to, method, events, subject, body } = m;
         // From an account that can't send, the answer stays unsent, and the user is told (it was
         // filed in a data file's Sent Items as if it had gone).
         if let Some(b) = self.send_block(account) {
@@ -582,6 +573,18 @@ impl Session {
         self.jobs.push(Job::Send { account: account.to_string(), id, raw, from: from.email.clone(), recipients: d.recipients(), sent_folder });
         Ok(())
     }
+}
+
+/// A message carrying a calendar, to send.
+struct Itip<'a> {
+    /// The account's address it's from: one of its others; empty, its own.
+    from: &'a str,
+    to: Vec<EmailAddress>,
+    /// What it asks or answers (`REQUEST`, `CANCEL`, `REPLY`).
+    method: &'a str,
+    events: &'a [CalEvent],
+    subject: &'a str,
+    body: &'a str,
 }
 
 /// Set the user's answer on an event (adding them as a guest when the invitation came through a

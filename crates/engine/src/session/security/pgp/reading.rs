@@ -156,7 +156,6 @@ impl Session {
     }
 
     /// An encrypted message: what it held when it's been decrypted, else asked for.
-    #[allow(clippy::too_many_arguments)]
     fn open_encrypted(&mut self, key: &MessageKey, cur: &[u8], data: Vec<u8>, inline: bool, charset: &str, from: &str, sec: &mut Security) -> Step {
         // One encryption is decrypted; another inside it stays as it is.
         if sec.lock.is_some() {

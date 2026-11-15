@@ -172,7 +172,6 @@ struct Special {
 
 /// Plan the folders under `folder`: they go under `parent` (`.0`), and are thrown away (`.1`)
 /// when it's Deleted Items or under it.
-#[allow(clippy::too_many_arguments)]
 fn visit(
     store: &PstStore,
     folder: &PstFolder,
