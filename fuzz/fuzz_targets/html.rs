@@ -13,7 +13,6 @@ fuzz_target!(|input: &[u8]| {
     // The ways MailCraft reads a received HTML body.
     let _ = mime::html_to_rich(&page);
     let _ = mime::html_to_text(&page);
-    let _ = mime::html_links(&page);
     let _ = mime::html_images(&page);
     for link in mime::html_links(&page) {
         let _ = mime::clean_link(&link);
@@ -21,7 +20,8 @@ fuzz_target!(|input: &[u8]| {
     let _ = mime::trackers(&page);
     let _ = mime::hidden_text(&page);
     let _ = mime::clean_link(&page);
-    let _ = mime::layout::inline_css(&page);
+    // Its style sheets written into its tags (`layout::inline_css`): `quote_html` below does that
+    // to this same page.
     // Read as Outlook reads it (its conditional comments and VML), as a message's body is.
     let outlook = mime::as_outlook_reads(&page);
     let _ = mime::layout::html_layout(&mime::layout::inline_css(&outlook));
