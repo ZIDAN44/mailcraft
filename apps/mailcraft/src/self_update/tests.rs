@@ -15,6 +15,38 @@ fn verbatim_paths_are_made_plain() {
     assert_eq!(plain(PathBuf::from("/Applications/MailCraft.app")), PathBuf::from("/Applications/MailCraft.app"));
 }
 
+/// A new AppImage takes the old one's place, runnable, and leaves nothing beside it; one left at
+/// the name a copy used to be made under (a link, say) is never written through.
+#[test]
+fn an_appimage_is_replaced_through_a_file_of_its_own() {
+    let dir = scratch("appimage-replace");
+    let (new, image, other) = (dir.join("download.AppImage"), dir.join("MailCraft.AppImage"), dir.join("someone-elses"));
+    std::fs::write(&new, b"the new version").unwrap();
+    std::fs::write(&image, b"the old version").unwrap();
+    std::fs::write(&other, b"not MailCraft's").unwrap();
+    // The name the copy was made under before: a link there led the update elsewhere.
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&other, dir.join(".MailCraft.AppImage.new")).unwrap();
+    #[cfg(not(unix))]
+    std::fs::write(dir.join(".MailCraft.AppImage.new"), b"left over").unwrap();
+    replace_appimage(&new, &image).unwrap();
+    assert_eq!(std::fs::read(&image).unwrap(), b"the new version");
+    assert_eq!(std::fs::read(&other).unwrap(), b"not MailCraft's");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(std::fs::metadata(&image).unwrap().permissions().mode() & 0o777, 0o755);
+    }
+    let mut left: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    left.sort();
+    assert_eq!(left, [".MailCraft.AppImage.new", "MailCraft.AppImage", "download.AppImage", "someone-elses"]);
+    // A download that can't be read changes nothing, and leaves nothing.
+    assert!(replace_appimage(&dir.join("gone.AppImage"), &image).is_err());
+    assert_eq!(std::fs::read(&image).unwrap(), b"the new version");
+    assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 4);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
 #[test]
 fn checks_spread_around_the_hour() {
     let waits: Vec<u64> = [0, 1, 599, 600, 1200, u64::MAX].iter().map(|s| next_wait(*s).as_secs()).collect();

@@ -200,19 +200,47 @@ fn spawn(mut cmd: std::process::Command) -> Result<(), String> {
     cmd.spawn().map(|_| ()).map_err(|e| format!("couldn't start the installer ({e})"))
 }
 
-/// Put the new AppImage in place of `path`: copied beside it, made runnable, renamed over it.
-fn replace_appimage(new: &Path, path: &Path) -> Result<(), String> {
+/// Put the new AppImage in place of `path`: copied into a file made new beside it, made runnable,
+/// renamed over it. The copy is a file no one had made yet, under a name of this run's (never
+/// through a file or link already at a name that could be guessed, which would have written the
+/// update wherever that link led), written and made runnable through its own handle. (Not
+/// craft-atomic's write, which opens the file it replaces first: a running AppImage can't be.)
+pub(super) fn replace_appimage(new: &Path, path: &Path) -> Result<(), String> {
     let dir = path.parent().ok_or("the AppImage isn't in a folder")?;
     let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let staged = dir.join(format!(".{name}.new"));
-    std::fs::copy(new, &staged).map_err(|e| format!("couldn't write beside {} ({e})", path.display()))?;
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
-    }
-    std::fs::rename(&staged, path).map_err(|e| {
+    let (staged, mut file) = new_file_beside(dir, &name).map_err(|e| format!("couldn't write beside {} ({e})", path.display()))?;
+    let written = std::fs::File::open(new)
+        .and_then(|mut from| std::io::copy(&mut from, &mut file))
+        .and_then(|_| {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                file.set_permissions(std::fs::Permissions::from_mode(0o755))?;
+            }
+            file.sync_all()
+        })
+        .map_err(|e| format!("couldn't write beside {} ({e})", path.display()));
+    drop(file);
+    let put = written.and_then(|()| std::fs::rename(&staged, path).map_err(|e| format!("couldn't replace {} ({e})", path.display())));
+    if put.is_err() {
         let _ = std::fs::remove_file(&staged);
-        format!("couldn't replace {} ({e})", path.display())
-    })
+    }
+    put
+}
+
+/// A file made new in `dir` for `name`'s replacement, and its path: hidden, named for this
+/// process and a count, and made only where nothing is (a name taken is passed over).
+fn new_file_beside(dir: &Path, name: &str) -> std::io::Result<(std::path::PathBuf, std::fs::File)> {
+    static COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let stem: String = name.chars().take(64).collect();
+    for _ in 0..16 {
+        let n = COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let staged = dir.join(format!(".{stem}.{}-{n}.new", std::process::id()));
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&staged) {
+            Ok(file) => return Ok((staged, file)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "no free name for the new copy"))
 }
