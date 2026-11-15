@@ -117,9 +117,26 @@ pub fn is_day(value: &str) -> bool {
 /// `date: friday`) is words that happen to follow the field's name.
 pub(super) fn looks_like_date(value: &str) -> bool {
     let v = unquote(value);
-    let named: String = v.chars().filter(|c| !matches!(c, ' ' | '-' | '_')).collect();
-    v.starts_with(|c: char| c.is_ascii_digit() || matches!(c, '<' | '>' | '=' | '.'))
-        || ["today", "yesterday", "thisweek", "lastweek", "thismonth", "lastmonth", "thisyear", "lastyear"].iter().any(|n| named.starts_with(n))
+    let named = squashed(&v);
+    v.starts_with(|c: char| c.is_ascii_digit() || matches!(c, '<' | '>' | '=' | '.')) || RELATIVE.iter().any(|(n, _)| named.starts_with(n))
+}
+
+/// The periods named from today, as [`squashed`].
+const RELATIVE: [(&str, Relative); 8] = [
+    ("today", Relative::Today),
+    ("yesterday", Relative::Yesterday),
+    ("thisweek", Relative::ThisWeek),
+    ("lastweek", Relative::LastWeek),
+    ("thismonth", Relative::ThisMonth),
+    ("lastmonth", Relative::LastMonth),
+    ("thisyear", Relative::ThisYear),
+    ("lastyear", Relative::LastYear),
+];
+
+/// A value as a name from today is read: lower-cased, without spaces, `-` or `_`
+/// (`"Last week"`, `last-week` and `last_week` are `lastweek`).
+fn squashed(s: &str) -> String {
+    s.chars().filter(|c| !matches!(c, ' ' | '-' | '_')).collect::<String>().to_ascii_lowercase()
 }
 
 fn unquote(value: &str) -> String {
@@ -130,20 +147,9 @@ fn unquote(value: &str) -> String {
 
 /// A period as written: a year, month or day, or one named from today.
 fn point(s: &str) -> Option<DatePoint> {
-    let named: String = s.chars().filter(|c| !matches!(c, ' ' | '-' | '_')).collect::<String>().to_ascii_lowercase();
-    let rel = match named.as_str() {
-        "today" => Some(Relative::Today),
-        "yesterday" => Some(Relative::Yesterday),
-        "thisweek" => Some(Relative::ThisWeek),
-        "lastweek" => Some(Relative::LastWeek),
-        "thismonth" => Some(Relative::ThisMonth),
-        "lastmonth" => Some(Relative::LastMonth),
-        "thisyear" => Some(Relative::ThisYear),
-        "lastyear" => Some(Relative::LastYear),
-        _ => None,
-    };
-    if let Some(r) = rel {
-        return Some(DatePoint::Rel(r));
+    let named = squashed(s);
+    if let Some((_, r)) = RELATIVE.iter().find(|(n, _)| *n == named) {
+        return Some(DatePoint::Rel(*r));
     }
     let s = s.trim();
     // `20240315`, as the calendar's search reads it too.

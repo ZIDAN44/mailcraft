@@ -72,7 +72,13 @@ fn fold_chars(w: &str, out: &mut String) {
 /// A text's words, folded, as search indexes them: none empty, none longer than
 /// [`MAX_TOKEN_CHARS`].
 pub fn tokens(text: &str) -> impl Iterator<Item = Cow<'_, str>> {
-    all_words(text).filter(|w| w.len() <= MAX_TOKEN_CHARS || w.chars().count() <= MAX_TOKEN_CHARS)
+    all_words(text).filter(|w| fits(w))
+}
+
+/// Whether a word is short enough to index ([`MAX_TOKEN_CHARS`]): its bytes counted first, its
+/// characters only when they're more.
+fn fits(w: &str) -> bool {
+    w.len() <= MAX_TOKEN_CHARS || w.chars().count() <= MAX_TOKEN_CHARS
 }
 
 /// A text's words, folded, long ones too (what a message's own fields are checked against).
@@ -97,7 +103,6 @@ pub enum Placed<'a> {
 /// finds "site.word"), each with its place, and the places of its words too long to index: what a
 /// phrase is told from without the text.
 pub fn placed_tokens(text: &str) -> impl Iterator<Item = Placed<'_>> {
-    let fits = |w: &str| w.len() <= MAX_TOKEN_CHARS || w.chars().count() <= MAX_TOKEN_CHARS;
     all_words(text).enumerate().flat_map(move |(i, w)| {
         let at = u32::try_from(i).unwrap_or(u32::MAX);
         let parts: Vec<Placed<'_>> = parts(&w).filter(|p| fits(p)).map(|p| Placed::Part(at, p.to_string())).collect();
@@ -118,27 +123,31 @@ pub(super) fn with_parts<'a>(words: impl Iterator<Item = Cow<'a, str>>) -> impl 
 /// its pieces (ExtendNumLet): "site.word", "l'avion", "ratio:word" and "snake_case" are each
 /// one word. Between digits only (MidNum: `10,000`) isn't split.
 fn joins(c: char) -> bool {
-    matches!(
-        c,
-        '.' | ':'
-            | '\''
-            | '_'
-            | '\u{b7}'
-            | '\u{387}'
-            | '\u{55f}'
-            | '\u{5f4}'
-            | '\u{2018}'
-            | '\u{2019}'
-            | '\u{2024}'
-            | '\u{2027}'
-            | '\u{203f}'
-            | '\u{2040}'
-            | '\u{2054}'
-            | '\u{fe13}'
-            | '\u{fe33}'
-            | '\u{fe34}'
-            | '\u{fe4d}'..='\u{fe4f}' | '\u{fe52}' | '\u{fe55}' | '\u{ff07}' | '\u{ff0e}' | '\u{ff1a}' | '\u{ff3f}'
-    )
+    u8::try_from(c).is_ok_and(is_ascii_join)
+        || matches!(
+            c,
+            '\u{b7}'
+                | '\u{387}'
+                | '\u{55f}'
+                | '\u{5f4}'
+                | '\u{2018}'
+                | '\u{2019}'
+                | '\u{2024}'
+                | '\u{2027}'
+                | '\u{203f}'
+                | '\u{2040}'
+                | '\u{2054}'
+                | '\u{fe13}'
+                | '\u{fe33}'
+                | '\u{fe34}'
+                | '\u{fe4d}'..='\u{fe4f}' | '\u{fe52}' | '\u{fe55}' | '\u{ff07}' | '\u{ff0e}' | '\u{ff1a}' | '\u{ff3f}'
+        )
+}
+
+/// The ASCII characters of [`joins`] (`.`, `:`, `'`, `_`), a byte at a time: what an ASCII word
+/// is looked through and split at.
+fn is_ascii_join(b: u8) -> bool {
+    matches!(b, b'.' | b':' | b'\'' | b'_')
 }
 
 /// The pieces of a folded word that joins them ([`joins`]), each found by itself too: a word
@@ -153,7 +162,7 @@ pub fn parts(w: &str) -> impl Iterator<Item = &str> {
 /// split for [`parts`] at all. A look at its bytes first: one all ASCII with none of `.:'_` has
 /// none.
 pub(super) fn has_joins(text: &str) -> bool {
-    text.bytes().any(|b| matches!(b, b'.' | b':' | b'\'' | b'_') || !b.is_ascii()) && text.contains(joins)
+    text.bytes().any(|b| is_ascii_join(b) || !b.is_ascii()) && text.contains(joins)
 }
 
 /// Words joined by spaces, added to `out` (a space first when `out` has something).
@@ -199,8 +208,8 @@ fn fold_one_into(w: &str, ascii: bool, start: usize, out: &mut String, pieces: &
         out.push_str(w);
         if let Some(folded) = out.get_mut(at..) {
             folded.make_ascii_lowercase();
-            if folded.bytes().any(|b| matches!(b, b'.' | b':' | b'\'' | b'_')) {
-                for p in folded.split(['.', ':', '\'', '_']).filter(|p| p.len() > 1) {
+            if folded.bytes().any(is_ascii_join) {
+                for p in folded.split(|c: char| u8::try_from(c).is_ok_and(is_ascii_join)).filter(|p| p.len() > 1) {
                     pieces.push(' ');
                     pieces.push_str(p);
                 }
