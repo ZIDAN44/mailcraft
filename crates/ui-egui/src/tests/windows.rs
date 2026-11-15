@@ -718,3 +718,44 @@ fn the_title_bar_keeps_off_a_dialog_in_it_and_its_buttons_off_the_mark() {
     crate::i18n::set_current(crate::i18n::Lang::EN);
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Audit #473: a ribbon button asks whether the ribbon is the classic one without copying what
+/// was noted of every button before it. A ribbon of 120 buttons in groups of 6, both kinds. Run
+/// in release: `cargo test --release -p mailcraft-ui-egui --lib ribbon_buttons_measure --
+/// --ignored --nocapture`.
+#[test]
+#[ignore = "a measurement"]
+fn ribbon_buttons_measure() {
+    let t = crate::theme::Tokens::light();
+    for classic in [false, true] {
+        let ctx = egui::Context::default();
+        let screen = Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 200.0)));
+        let ribbon = |ctx: &egui::Context| {
+            let mut out = ctx.run_ui(RawInput { screen_rect: screen, ..Default::default() }, |ui| {
+                let id = crate::widgets::ribbon_fit_id();
+                let start = crate::widgets::RibbonFit { active: true, classic, icons_from: usize::MAX, ..Default::default() };
+                ui.ctx().data_mut(|d| d.insert_temp(id, start));
+                ui.horizontal(|ui| {
+                    for g in 0..20 {
+                        for _ in 0..6 {
+                            let _ = crate::widgets::tool_button(ui, crate::icons::Icon::Reply, "Reply", &t, true);
+                        }
+                        crate::widgets::group(ui, &t, "Respond", g == 19);
+                    }
+                });
+                ui.ctx().data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<crate::widgets::RibbonFit>(id)));
+            });
+            out.textures_delta.clear();
+        };
+        for _ in 0..20 {
+            ribbon(&ctx);
+        }
+        const ROUNDS: u32 = 1000;
+        let at = std::time::Instant::now();
+        for _ in 0..ROUNDS {
+            ribbon(&ctx);
+        }
+        let kind = if classic { "classic" } else { "simplified" };
+        println!("MEASURE a {kind} ribbon of 120 buttons: {:.1} µs a frame", at.elapsed().as_secs_f64() * 1e6 / f64::from(ROUNDS));
+    }
+}

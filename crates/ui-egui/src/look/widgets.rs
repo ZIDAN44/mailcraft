@@ -85,9 +85,13 @@ fn ribbon_button(ui: &Ui, label_width: f32) -> bool {
     })
 }
 
-/// Whether the ribbon being drawn is the classic one.
+/// Whether the ribbon being drawn is the classic one (read in place: a copy would take every
+/// label width noted so far with it, for every button).
 fn classic(ui: &Ui) -> bool {
-    ui.ctx().data_mut(|d| d.get_temp::<RibbonFit>(ribbon_fit_id()).is_some_and(|f| f.active && f.classic))
+    ui.ctx().data_mut(|d| {
+        let f = d.get_temp_mut_or_default::<RibbonFit>(ribbon_fit_id());
+        f.active && f.classic
+    })
 }
 
 /// A button filled in the app colour: faint when it can't be used, lighter under the pointer.
@@ -542,7 +546,7 @@ pub fn group_sep(ui: &mut Ui, t: &Tokens) {
 /// the line before the next one, unless it's the `last`.
 pub fn group(ui: &mut Ui, t: &Tokens, name: &str, last: bool) {
     if classic(ui) {
-        let from = ui.ctx().data_mut(|d| d.get_temp::<RibbonFit>(ribbon_fit_id()).map_or(0.0, |f| f.group_from));
+        let from = ui.ctx().data_mut(|d| d.get_temp_mut_or_default::<RibbonFit>(ribbon_fit_id()).group_from);
         let to = cursor_x(ui);
         let y = ui.max_rect().top() + CLASSIC_BUTTON_H + CLASSIC_CAPTION_H / 2.0 + 4.0;
         let mid = if from > 0.0 && from != to { (from + to) / 2.0 } else { to };
@@ -586,9 +590,9 @@ fn cursor_x(ui: &Ui) -> f32 {
 pub fn start_group(ui: &Ui) {
     let x = cursor_x(ui);
     ui.ctx().data_mut(|d| {
-        if let Some(mut f) = d.get_temp::<RibbonFit>(ribbon_fit_id()).filter(|f| f.active) {
+        let f = d.get_temp_mut_or_default::<RibbonFit>(ribbon_fit_id());
+        if f.active {
             f.group_from = x;
-            d.insert_temp(ribbon_fit_id(), f);
         }
     });
 }
