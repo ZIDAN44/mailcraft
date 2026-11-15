@@ -27,8 +27,11 @@ impl Data {
                 return forbidden();
             }
             if !search.is_empty() && header("ConsistencyLevel") != "eventual" {
-                let e = json!({"error": {"code": "Request_UnsupportedQuery", "message": "Request with $search query parameter only works through MSGraph with a special request header: 'ConsistencyLevel: eventual'"}});
-                return (400, e.to_string().into_bytes(), "application/json");
+                return error(
+                    400,
+                    "Request_UnsupportedQuery",
+                    "Request with $search query parameter only works through MSGraph with a special request header: 'ConsistencyLevel: eventual'",
+                );
             }
             let value: Vec<Value> = found.iter().map(|(n, a)| json!({"displayName": n, "mail": a, "userPrincipalName": a})).collect();
             return ok(json!({"@odata.count": value.len(), "value": value}));

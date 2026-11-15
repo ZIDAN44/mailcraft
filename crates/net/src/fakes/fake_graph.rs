@@ -170,8 +170,7 @@ impl Data {
         let input: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
         // As Graph answers a Microsoft account with no mailbox (one made with a Gmail address).
         if self.no_mailbox && matches!(parts.as_slice(), ["me", "mailFolders" | "messages" | "sendMail" | "mailboxSettings", ..]) {
-            let e = json!({"error": {"code": "MailboxNotEnabledForRESTAPI", "message": "The mailbox is either inactive, soft-deleted, or is hosted on-premise."}});
-            return (404, e.to_string().into_bytes(), "application/json");
+            return error(404, "MailboxNotEnabledForRESTAPI", "The mailbox is either inactive, soft-deleted, or is hosted on-premise.");
         }
         let directory = matches!(parts.as_slice(), ["users"] | ["me", "people"]);
         if let Some(dt) = self.directory_token.clone() {
@@ -198,9 +197,9 @@ impl Data {
     /// A request breaking what the fake checks of the client: kept for the test to fail on, and
     /// answered 400 with why (not asserted here: that would kill the server, not fail the test).
     fn refuse(&mut self, why: String) -> Answer {
-        let body = json!({"error": {"code": "BadRequest", "message": format!("the fake refuses it: {why}")}}).to_string().into_bytes();
+        let refused = error(400, "BadRequest", &format!("the fake refuses it: {why}"));
         self.violations.push(why);
-        (400, body, "application/json")
+        refused
     }
 
     /// A listing two items a page, with `@odata.nextLink` for the rest.
@@ -212,7 +211,7 @@ impl Data {
             let rest: String = query.split('&').filter(|kv| !kv.starts_with("$skip=")).collect::<Vec<_>>().join("&");
             v["@odata.nextLink"] = json!(format!("{base}{path}?{rest}&$skip={}", skip + 2));
         }
-        (200, v.to_string().into_bytes(), "application/json")
+        ok(v)
     }
 }
 
@@ -220,21 +219,32 @@ impl Data {
 type Answer = (u16, Vec<u8>, &'static str);
 
 fn ok(v: Value) -> Answer {
-    (200, v.to_string().into_bytes(), "application/json")
+    answer(200, &v)
+}
+
+/// An answer in JSON.
+fn answer(status: u16, v: &Value) -> Answer {
+    (status, v.to_string().into_bytes(), "application/json")
+}
+
+/// An error as Graph answers one: its code and its message, each left out when empty.
+fn error(status: u16, code: &str, message: &str) -> Answer {
+    let mut e = serde_json::Map::new();
+    if !code.is_empty() {
+        e.insert("code".into(), json!(code));
+    }
+    if !message.is_empty() {
+        e.insert("message".into(), json!(message));
+    }
+    answer(status, &json!({ "error": e }))
 }
 
 fn not_found() -> Answer {
-    (404, json!({"error": {"code": "ErrorItemNotFound", "message": "Not found."}}).to_string().into_bytes(), "application/json")
+    error(404, "ErrorItemNotFound", "Not found.")
 }
 
 fn forbidden() -> Answer {
-    (
-        403,
-        json!({"error": {"code": "Authorization_RequestDenied", "message": "Insufficient privileges to complete the operation."}})
-            .to_string()
-            .into_bytes(),
-        "application/json",
-    )
+    error(403, "Authorization_RequestDenied", "Insufficient privileges to complete the operation.")
 }
 
 /// A query's parameter, as given (still percent-encoded).
@@ -356,7 +366,8 @@ pub fn serve(data: Data) -> Server {
             };
             let used = r.headers_named("authorization").find(|v| *v == bearer || directory_bearer.as_deref() == Some(*v));
             let Some(used) = used.map(|v| v.trim_start_matches("Bearer ").to_string()) else {
-                respond(&mut s, 401, br#"{"error": {"code": "InvalidAuthenticationToken"}}"#, "application/json");
+                let (status, out, kind) = error(401, "InvalidAuthenticationToken", "");
+                respond(&mut s, status, &out, kind);
                 continue;
             };
             let immutable = r.headers_named("prefer").any(asks_immutable);
@@ -373,7 +384,7 @@ pub fn serve(data: Data) -> Server {
                 let mut d = shared.lock().unwrap();
                 if d.throttle > 0 {
                     d.throttle -= 1;
-                    (429, br#"{"error": {"code": "TooManyRequests"}}"#.to_vec(), "application/json")
+                    error(429, "TooManyRequests", "")
                 } else {
                     d.asked_immutable = immutable;
                     d.bearer = used;

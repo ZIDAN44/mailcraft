@@ -16,23 +16,12 @@ impl Data {
                 let list: Vec<Value> = self.events.iter().filter(|e| e["calendar"] == *cal).cloned().collect();
                 ok(json!({ "value": list }))
             }
-            ("POST", ["me", "calendars", cal, "events"]) => {
-                let id = self.id("EV");
-                let mut e = input.clone();
-                e["id"] = json!(id);
-                e["iCalUId"] = json!(format!("ical-{id}"));
-                e["changeKey"] = json!("ck1");
-                e["calendar"] = json!(cal);
-                self.events.push(e.clone());
-                (201, e.to_string().into_bytes(), "application/json")
-            }
+            ("POST", ["me", "calendars", cal, "events"]) => self.new_event(input, cal),
             // `/me/events` reaches only this mailbox's own events, as Graph's does.
             ("PATCH", ["me", "events", id]) => {
                 match self.events.iter_mut().find(|e| e["id"] == *id && !e["calendar"].as_str().unwrap_or("").starts_with("user:")) {
                     Some(e) => {
-                        for (k, v) in input.as_object().cloned().unwrap_or_default() {
-                            e[k.as_str()] = v;
-                        }
+                        merge(e, input);
                         e["changeKey"] = json!("ck2");
                         ok(e.clone())
                     }
@@ -50,7 +39,7 @@ impl Data {
                 c["id"] = json!(id);
                 c["changeKey"] = json!("ck1");
                 self.contacts.push(c.clone());
-                (201, c.to_string().into_bytes(), "application/json")
+                answer(201, &c)
             }
             ("DELETE", ["me", "contacts", id]) => {
                 if !self.contacts.iter().any(|c| c["id"] == *id) {
@@ -80,32 +69,19 @@ impl Data {
     pub(super) fn on_others(&mut self, method: &str, who: &str, parts: &[&str], input: &Value) -> Answer {
         let who = who.replace("%40", "@").to_ascii_lowercase();
         let Some(edit) = self.others.iter().find(|(e, _)| *e == who).map(|(_, e)| *e) else {
-            return (404, json!({"error": {"code": "ErrorItemNotFound"}}).to_string().into_bytes(), "application/json");
+            return error(404, "ErrorItemNotFound", "");
         };
-        let denied =
-            || (403, json!({"error": {"code": "ErrorAccessDenied", "message": "Access is denied."}}).to_string().into_bytes(), "application/json");
         let cal = format!("user:{who}");
         match (method, parts.get(2..).unwrap_or_default()) {
             ("GET", ["calendar"]) => ok(json!({"id": cal, "canEdit": edit})),
             ("GET", ["calendar", "events"]) => {
                 ok(json!({"value": self.events.iter().filter(|e| e["calendar"] == cal.as_str()).cloned().collect::<Vec<_>>()}))
             }
-            (_, _) if !edit => denied(),
-            ("POST", ["calendar", "events"]) => {
-                let id = self.id("EV");
-                let mut e = input.clone();
-                e["id"] = json!(id);
-                e["iCalUId"] = json!(format!("ical-{id}"));
-                e["changeKey"] = json!("ck1");
-                e["calendar"] = json!(cal);
-                self.events.push(e.clone());
-                (201, e.to_string().into_bytes(), "application/json")
-            }
+            (_, _) if !edit => error(403, "ErrorAccessDenied", "Access is denied."),
+            ("POST", ["calendar", "events"]) => self.new_event(input, &cal),
             ("PATCH", ["events", id]) => match self.events.iter_mut().find(|e| e["id"] == *id && e["calendar"] == cal.as_str()) {
                 Some(e) => {
-                    for (k, v) in input.as_object().cloned().unwrap_or_default() {
-                        e[k.as_str()] = v;
-                    }
+                    merge(e, input);
                     ok(e.clone())
                 }
                 None => not_found(),
@@ -116,5 +92,25 @@ impl Data {
             }
             _ => not_found(),
         }
+    }
+
+    /// An event made in calendar `cal` from what was posted, given its id, iCalendar uid and
+    /// first change key: 201 with it.
+    fn new_event(&mut self, input: &Value, cal: &str) -> Answer {
+        let id = self.id("EV");
+        let mut e = input.clone();
+        e["id"] = json!(id);
+        e["iCalUId"] = json!(format!("ical-{id}"));
+        e["changeKey"] = json!("ck1");
+        e["calendar"] = json!(cal);
+        self.events.push(e.clone());
+        answer(201, &e)
+    }
+}
+
+/// A PATCH's fields over what is stored, each replaced whole.
+fn merge(stored: &mut Value, patch: &Value) {
+    for (k, v) in patch.as_object().cloned().unwrap_or_default() {
+        stored[k.as_str()] = v;
     }
 }

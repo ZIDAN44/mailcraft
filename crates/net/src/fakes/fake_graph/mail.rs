@@ -185,7 +185,7 @@ impl Data {
                 }
             }
             ("GET", ["me", "messages", id, "$value"]) if self.unreadable.iter().any(|u| u == plain_id(id)) => {
-                (500, json!({"error": {"code": "ErrorInternalServerError", "message": "can't read it"}}).to_string().into_bytes(), "application/json")
+                error(500, "ErrorInternalServerError", "can't read it")
             }
             ("GET", ["me", "messages", id, "$value"]) => match self.message(id) {
                 Some(m) => (200, m.raw.clone(), "text/plain"),
@@ -200,11 +200,7 @@ impl Data {
     pub(super) fn send_mail(&mut self, body: &[u8]) -> Answer {
         let raw = unbase64(body);
         if String::from_utf8_lossy(&raw).contains("nobody@") {
-            return (
-                400,
-                json!({"error": {"code": "ErrorInvalidRecipients", "message": "no such recipient"}}).to_string().into_bytes(),
-                "application/json",
-            );
+            return error(400, "ErrorInvalidRecipients", "no such recipient");
         }
         if self.file_late {
             self.late.push((std::time::Instant::now() + std::time::Duration::from_secs(1), raw.clone()));
@@ -223,7 +219,7 @@ impl Data {
             ("PATCH", ["me", "mailboxSettings"]) => {
                 let r = input["automaticRepliesSetting"].clone();
                 if r["internalReplyMessage"].as_str() == Some("refuse") {
-                    return (400, json!({"error": {"message": "refused"}}).to_string().into_bytes(), "application/json");
+                    return error(400, "", "refused");
                 }
                 self.replies = r;
                 ok(json!({}))
