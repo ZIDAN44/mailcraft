@@ -194,6 +194,11 @@ impl Writer {
         Ok(placed)
     }
 
+    /// The file of committed text page `p` (for what's wrong with it).
+    pub(super) fn text_path(&self, p: u32) -> PathBuf {
+        Name::Text { generation: self.meta.text_pages.get(p as usize).map_or(0, |t| t.generation), page: p }.path(&self.base)
+    }
+
     /// A committed text page's texts.
     pub(super) fn read_text_page(&self, store: &Store, p: u32) -> Result<Vec<(u32, Vec<u8>)>> {
         let Some(t) = self.meta.text_pages.get(p as usize).filter(|t| t.generation != 0) else { return Ok(Vec::new()) };
@@ -356,8 +361,7 @@ impl Writer {
                 if self.docs.get(doc as usize).is_none_or(|d| !d.live() || d.text != p) {
                     continue;
                 }
-                let path = Name::Text { generation: self.meta.text_pages.get(p as usize).map_or(0, |t| t.generation), page: p }.path(&self.base);
-                let blob = format::decode_blob(&blob).map_err(|what| damaged(&path, what))?;
+                let blob = format::decode_blob(&blob).map_err(|what| damaged(&self.text_path(p), what))?;
                 bytes = bytes.saturating_add(add_words(&mut words, doc, &blob.text, &blob.names));
                 docs = docs.saturating_add(1);
             }

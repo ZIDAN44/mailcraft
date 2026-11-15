@@ -10,11 +10,12 @@
 //! it reads only the doc pages and segments a newer generation changed.
 
 use std::collections::HashMap;
+use std::ops::Range;
 use std::sync::Arc;
 
 use mailcraft_model::search::TOKENIZER_VERSION;
 
-use super::format::{Blob, LexEntry, Meta, Postings, Run, SegInfo, decode_blob, decode_head, decode_lex, decode_postings, decode_text_page};
+use super::format::{Blob, LexEntry, Meta, Postings, Run, SegInfo, decode_blob, decode_head, decode_lex, decode_postings, text_page_index};
 use super::*;
 
 mod phrase;
@@ -71,10 +72,11 @@ pub struct ScanCursor {
     entry: usize,
 }
 
-/// Pages read lately, the least recently used let go first.
+/// Pages read lately, by the index's epoch and the page's file, the least recently used let go
+/// first.
 #[derive(Debug, Default)]
 struct Cache {
-    pages: HashMap<String, (u64, Arc<Vec<u8>>)>,
+    pages: HashMap<(u64, Name), (u64, Arc<Vec<u8>>)>,
     bytes: usize,
     tick: u64,
     /// Pages read from the store (not found here).
@@ -82,18 +84,20 @@ struct Cache {
 }
 
 impl Cache {
-    fn get(&mut self, store: &Store, epoch: u64, path: &Path) -> Result<Arc<Vec<u8>>> {
+    /// The page `name` of the index of `epoch` (its files under `base`): its path made only to
+    /// read it.
+    fn get(&mut self, store: &Store, epoch: u64, name: Name, base: &Path) -> Result<Arc<Vec<u8>>> {
         self.tick = self.tick.wrapping_add(1);
-        let key = format!("{epoch:016x}/{}", path.display());
+        let key = (epoch, name);
         if let Some((t, page)) = self.pages.get_mut(&key) {
             *t = self.tick;
             return Ok(page.clone());
         }
         self.reads = self.reads.wrapping_add(1);
-        let page = Arc::new(need_file(store, path)?);
+        let page = Arc::new(need_file(store, &name.path(base))?);
         if page.len() <= CACHE_BYTES / 4 {
             while self.bytes + page.len() > CACHE_BYTES {
-                let Some(oldest) = self.pages.iter().min_by_key(|(_, (t, _))| *t).map(|(k, _)| k.clone()) else { break };
+                let Some(oldest) = self.pages.iter().min_by_key(|(_, (t, _))| *t).map(|(k, _)| *k) else { break };
                 if let Some((_, p)) = self.pages.remove(&oldest) {
                     self.bytes = self.bytes.saturating_sub(p.len());
                 }
@@ -121,6 +125,10 @@ pub struct Reader {
     places: Cache,
     /// The text pages read lately, apart from `cache`.
     texts: Cache,
+    /// Where each text is in the text page read last (as `texts` held it): verifying a phrase
+    /// asks for one text after another of the same page, and reading the page's whole list again
+    /// for each was most of it (a page holds thousands of short texts).
+    text_held: Option<(Arc<Vec<u8>>, Vec<(u32, Range<usize>)>)>,
     /// The lexicon page looked through last, decoded, with the epoch and segment it's of: a word
     /// with thousands of words starting so (a one-letter word) is looked up a few at a unit, on
     /// the same page unit after unit, and decoding the page again for each was most of it (177 ms
@@ -182,6 +190,7 @@ impl Reader {
             cache: Cache::default(),
             places: Cache::default(),
             texts: Cache::default(),
+            text_held: None,
             lex_held: None,
             lex_decoded: 0,
         };
@@ -315,7 +324,8 @@ impl Reader {
 
     /// About how many bytes it holds in memory: its doc table and the maps over it, the
     /// lexicon pages' first words, and the pages its caches hold (none until a search reads
-    /// some). An estimate from the collections' capacities, not the allocator's count.
+    /// some), with where the texts are in the text page held. An estimate from the collections'
+    /// capacities, not the allocator's count.
     pub fn held_bytes(&self) -> usize {
         use std::mem::size_of;
         let docs = self.docs.capacity().saturating_mul(size_of::<DocRec>());
@@ -327,7 +337,8 @@ impl Reader {
                 n.saturating_add(w.capacity()).saturating_add(size_of::<Vec<u8>>())
             })
         });
-        let caches = self.cache.bytes.saturating_add(self.places.bytes).saturating_add(self.texts.bytes);
+        let text_held = self.text_held.as_ref().map_or(0, |(_, at)| at.capacity().saturating_mul(size_of::<(u32, Range<usize>)>()));
+        let caches = self.cache.bytes.saturating_add(self.places.bytes).saturating_add(self.texts.bytes).saturating_add(text_held);
         docs.saturating_add(by_key).saturating_add(folders).saturating_add(heads).saturating_add(caches)
     }
 
@@ -450,10 +461,11 @@ impl Reader {
         {
             return Ok(entries.clone());
         }
-        let path = Name::SegLex(info.id, page).path(&self.base);
-        let bytes = self.cache.get(store, epoch, &path)?;
+        let name = Name::SegLex(info.id, page);
+        let bytes = self.cache.get(store, epoch, name, &self.base)?;
         self.lex_decoded = self.lex_decoded.wrapping_add(1);
-        let entries = Arc::new(decode_lex(&bytes, self.meta.next_doc, info.post_pages, info.pos_pages).map_err(|what| damaged(&path, what))?);
+        let entries =
+            Arc::new(decode_lex(&bytes, self.meta.next_doc, info.post_pages, info.pos_pages).map_err(|what| damaged(&name.path(&self.base), what))?);
         self.lex_held = Some((epoch, *info, page, entries.clone()));
         Ok(entries)
     }
@@ -475,12 +487,14 @@ impl Reader {
             Postings::Inline(docs) => (docs.clone(), 0),
             &Postings::At { page, offset, len } => {
                 let (epoch, mut read) = (self.meta.epoch, 0usize);
-                let bytes = Run::Postings.read(&self.base, info, (page, offset as usize, len as usize), |_, path| {
+                let base = &self.base;
+                let bytes = Run::Postings.read(base, info, (page, offset as usize, len as usize), |p, _| {
                     read += 1;
-                    self.cache.get(store, epoch, path)
+                    self.cache.get(store, epoch, Name::SegPost(info.id, p), base)
                 })?;
-                let path = Name::SegPost(info.id, page).path(&self.base);
-                (decode_postings(&bytes, e.df, self.meta.next_doc).map_err(|what| damaged(&path, what))?, read)
+                let docs =
+                    decode_postings(&bytes, e.df, self.meta.next_doc).map_err(|what| damaged(&Name::SegPost(info.id, page).path(base), what))?;
+                (docs, read)
             }
         })
     }
@@ -489,13 +503,26 @@ impl Reader {
     pub fn text(&mut self, store: &Store, doc: u32) -> Result<Option<Blob>> {
         let Some(d) = self.docs.get(doc as usize).filter(|d| d.live() && d.text != NO_TEXT) else { return Ok(None) };
         let Some(t) = self.meta.text_pages.get(d.text as usize).filter(|t| t.generation != 0) else { return Ok(None) };
-        let path = Name::Text { generation: t.generation, page: d.text }.path(&self.base);
-        let bytes = self.texts.get(store, self.meta.epoch, &path)?;
-        let recs = decode_text_page(&bytes, self.meta.next_doc).map_err(|what| damaged(&path, what))?;
-        let Ok(i) = recs.binary_search_by_key(&doc, |(d, _)| *d) else { return Ok(None) };
-        let Some((_, blob)) = recs.get(i) else { return Ok(None) };
-        decode_blob(blob).map(Some).map_err(|what| damaged(&path, what))
+        let name = Name::Text { generation: t.generation, page: d.text };
+        let bytes = self.texts.get(store, self.meta.epoch, name, &self.base)?;
+        if !self.text_held.as_ref().is_some_and(|(page, _)| Arc::ptr_eq(page, &bytes)) {
+            let at = text_page_index(&bytes, self.meta.next_doc).map_err(|what| damaged(&name.path(&self.base), what))?;
+            // Only a page the cache keeps is held (a longer one is read again each time).
+            if bytes.len() > CACHE_BYTES / 4 {
+                return text_at(&bytes, &at, doc).map_err(|what| damaged(&name.path(&self.base), what));
+            }
+            self.text_held = Some((bytes.clone(), at));
+        }
+        let at = self.text_held.as_ref().map(|(_, at)| at.as_slice()).unwrap_or_default();
+        text_at(&bytes, at, doc).map_err(|what| damaged(&name.path(&self.base), what))
     }
+}
+
+/// Doc `doc`'s text in a text page (`at`: where each of its texts is); `None` when it hasn't one.
+fn text_at(page: &[u8], at: &[(u32, Range<usize>)], doc: u32) -> std::result::Result<Option<Blob>, &'static str> {
+    let Ok(i) = at.binary_search_by_key(&doc, |(d, _)| *d) else { return Ok(None) };
+    let Some(blob) = at.get(i).and_then(|(_, r)| page.get(r.clone())) else { return Ok(None) };
+    decode_blob(blob).map(Some)
 }
 
 /// The index doesn't read back: set aside to be made again, `None`. While its writer is held,

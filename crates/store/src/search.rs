@@ -319,7 +319,7 @@ pub(crate) fn meta_path(store: &Store, account: &str) -> PathBuf {
 }
 
 /// A file of the index, by what it is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum Name {
     /// A doc page as of a generation.
     Docs {

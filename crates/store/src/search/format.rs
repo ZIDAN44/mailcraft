@@ -3,6 +3,7 @@
 //! checked (lengths against what's left, counts against caps, doc ids against the meta's), so a
 //! damaged or hostile file is an error, never a panic or a huge allocation.
 
+use std::ops::Range;
 use std::sync::Arc;
 
 use mailcraft_model::search::IndexDoc;
@@ -698,6 +699,13 @@ pub(crate) fn encode_text_page<'a>(recs: impl Iterator<Item = (u32, &'a [u8])>) 
 
 /// A text page's texts (not yet read), their docs rising and below `next_doc`.
 pub(crate) fn decode_text_page(b: &[u8], next_doc: u32) -> R<Vec<(u32, &[u8])>> {
+    let at = text_page_index(b, next_doc)?;
+    Ok(at.into_iter().map(|(doc, at)| (doc, b.get(at).unwrap_or_default())).collect())
+}
+
+/// A text page's texts as [`decode_text_page`] reads them: each doc and where its text is in
+/// the page (kept by a reader asked for one text after another of the same page).
+pub(crate) fn text_page_index(b: &[u8], next_doc: u32) -> R<Vec<(u32, Range<usize>)>> {
     if b.len() > MAX_TEXT_PAGE {
         return Err("too big");
     }
@@ -707,14 +715,16 @@ pub(crate) fn decode_text_page(b: &[u8], next_doc: u32) -> R<Vec<(u32, &[u8])>> 
     if n.saturating_mul(TEXT_REC_HEAD) > r.left() {
         return Err("texts past what's there");
     }
-    let mut out: Vec<(u32, &[u8])> = Vec::with_capacity(n);
+    let mut out: Vec<(u32, Range<usize>)> = Vec::with_capacity(n);
     for _ in 0..n {
         let doc = r.u32()?;
         let len = r.u32()? as usize;
         if doc >= next_doc || out.last().is_some_and(|(d, _)| *d >= doc) {
             return Err("text of a doc out of order");
         }
-        out.push((doc, r.take(len)?));
+        let start = b.len() - r.left();
+        r.take(len)?;
+        out.push((doc, start..start + len));
     }
     r.end()?;
     Ok(out)

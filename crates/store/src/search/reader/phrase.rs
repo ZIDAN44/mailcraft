@@ -266,7 +266,7 @@ impl Reader {
             if st.page >= info.pos_pages {
                 return Err(damaged(&path, "places past the segment"));
             }
-            let raw = self.places.get(store, self.meta.epoch, &path)?;
+            let raw = self.places.get(store, self.meta.epoch, Name::SegPos(info.id, st.page), &self.base)?;
             *read += 1;
             let data = decode_pos_page(&raw).map_err(|what| damaged(&path, what))?;
             let rest = data.get(st.offset..).filter(|r| !r.is_empty()).ok_or_else(|| damaged(&path, "places past the page"))?;

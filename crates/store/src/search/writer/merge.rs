@@ -390,6 +390,8 @@ impl Writer {
         self.orphans = true;
         let mut docs: Vec<DocRec> = Vec::with_capacity(self.live as usize);
         let mut files: Vec<(PathBuf, Prepared)> = Vec::new();
+        // What `files` keeps, in bytes.
+        let mut pending = 0usize;
         let mut page: Vec<(u32, Vec<u8>)> = Vec::new();
         let mut packer = TextPacker::default();
         let mut read: Option<(u32, Vec<(u32, Vec<u8>)>)> = None;
@@ -403,17 +405,16 @@ impl Writer {
                     read.take();
                     read = Some((d.text, self.read_text_page(store, d.text)?));
                 }
-                let path =
-                    Name::Text { generation: self.meta.text_pages.get(d.text as usize).map_or(0, |t| t.generation), page: d.text }.path(&self.base);
                 let recs = read.as_ref().map(|(_, r)| r.as_slice()).unwrap_or_default();
                 let old = u32::try_from(old).unwrap_or(u32::MAX);
                 let blob = recs.binary_search_by_key(&old, |(doc, _)| *doc).ok().and_then(|i| recs.get(i)).map(|(_, b)| b);
-                let blob = blob.ok_or_else(|| damaged(&path, "a doc's text isn't in its page"))?;
-                let text = decode_blob(blob).map_err(|what| damaged(&path, what))?;
+                let blob = blob.ok_or_else(|| damaged(&self.text_path(d.text), "a doc's text isn't in its page"))?;
+                let text = decode_blob(blob).map_err(|what| damaged(&self.text_path(d.text), what))?;
                 word_bytes = word_bytes.saturating_add(add_words(&mut words, new, &text.text, &text.names));
                 word_docs = word_docs.saturating_add(1);
                 if packer.full(blob.len()) {
                     self.close_text_page(&mut meta, std::mem::take(&mut page), &mut files);
+                    pending = pending.saturating_add(files.last().map_or(0, |(_, p)| p.kept_len()));
                     packer = TextPacker::default();
                 }
                 rec.text = u32::try_from(meta.text_pages.len()).map_err(|_| damaged(&self.base, "too many text pages"))?;
@@ -425,8 +426,9 @@ impl Writer {
                 self.write_segment(store, &mut meta, std::mem::take(&mut words), word_docs)?;
                 (word_bytes, word_docs) = (0, 0);
             }
-            if files.iter().map(|(_, p)| p.kept_len()).fold(0, usize::saturating_add) >= budget {
+            if pending >= budget {
                 self.write_batches(store, std::mem::take(&mut files))?;
+                pending = 0;
             }
         }
         if !page.is_empty() {
