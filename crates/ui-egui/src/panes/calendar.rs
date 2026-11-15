@@ -387,6 +387,11 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> e
     resp
 }
 
+/// A calendar's name as shown: the local one's in the language shown.
+fn calendar_name(id: &str, name: &str) -> String {
+    if id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { name.to_string() }
+}
+
 fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, acts: &mut Vec<Action>) {
     let (_, shown_month, _) = civil_from_days(s.cal_day());
     let now = today(s);

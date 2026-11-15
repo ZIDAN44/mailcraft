@@ -9,7 +9,7 @@ use egui::{Align2, Margin, Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::ical::Privacy;
 use mailcraft_engine::{EventHit, EventWhen, Session};
 
-use super::{color, event_title, hm, long_date, time_strip};
+use super::{calendar_name, color, event_title, hm, long_date, time_strip};
 use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog, UiState};
@@ -59,7 +59,7 @@ fn calendars(s: &Session) -> Vec<(String, String, String)> {
     for a in &s.accounts {
         if let Some(p) = s.pim.get(&a.config.id) {
             for c in &p.calendars {
-                let name = if c.id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { c.name.clone() };
+                let name = calendar_name(&c.id, &c.name);
                 out.push((a.config.id.clone(), c.id.clone(), format!("{name} · {}", a.config.email)));
             }
         }
@@ -190,7 +190,7 @@ fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> Option<egui::Respo
         .pim
         .get(&h.account)
         .and_then(|p| p.calendars.iter().find(|c| c.id == h.calendar))
-        .map(|c| if c.id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { c.name.clone() })
+        .map(|c| calendar_name(&c.id, &c.name))
         .unwrap_or_default();
     let under: Vec<String> = [h.location.clone(), h.categories.join(", "), calendar].into_iter().filter(|x| !x.trim().is_empty()).collect();
     p.with_clip_rect(mr.rect(rect.with_min_x(x).with_max_x(rect.max.x - 8.0))).text(

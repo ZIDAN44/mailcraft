@@ -10,7 +10,7 @@ use mailcraft_engine::model::pim::{TaskPriority, TaskStatus};
 use mailcraft_engine::{ListedTask, Session, TasksOrder};
 use serde_json::json;
 
-use crate::icons::{self, Icon};
+use crate::icons::Icon;
 use crate::shown;
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog, UiState, widgets};
@@ -65,16 +65,8 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     let t = st.tokens;
     let list = shown::tasks(s, &mut st.shown, &st.tasks_query);
     if list.is_empty() {
-        ui.centered_and_justified(|ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(ui.available_height() * 0.35);
-                let (r, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
-                icons::paint(ui.painter(), r, Icon::Task, t.border);
-                ui.add_space(8.0);
-                let empty = st.tasks_query.trim().is_empty() && !s.prefs.tasks_hide_done;
-                ui.label(RichText::new(tl!(if empty { "No tasks yet: New task adds one." } else { "No task matches." })).color(t.faint));
-            });
-        });
+        let empty = st.tasks_query.trim().is_empty() && !s.prefs.tasks_hide_done;
+        widgets::empty_state(ui, &t, Icon::Task, tl!(if empty { "No tasks yet: New task adds one." } else { "No task matches." }));
         return;
     }
     egui::Frame::new().inner_margin(Margin::symmetric(14, 8)).show(ui, |ui| {

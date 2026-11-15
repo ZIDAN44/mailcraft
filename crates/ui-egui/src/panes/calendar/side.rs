@@ -136,7 +136,7 @@ fn calendar_row(s: &Session, t: &Tokens, ui: &mut Ui, rows: &Rows<'_>, c: &Calen
         if resp.on_hover_text(tip).clicked() {
             acts.push(Action::Run("calendar.show", json!({"account": a.config.id, "calendar": c.id, "shown": !shown})));
         }
-        let name = if c.id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { c.name.clone() };
+        let name = calendar_name(&c.id, &c.name);
         let tip = if let Some(owner) = shared.as_ref().filter(|_| !opened) {
             tf!("Shared mailbox {address}, opened by {email}", address = owner, email = a.config.email)
         } else if shared.is_some() {

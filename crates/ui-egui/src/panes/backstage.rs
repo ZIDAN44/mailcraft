@@ -4,7 +4,6 @@
 //! Options and About.
 
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
 
 use egui::{Margin, RichText, Sense, Ui, vec2};
 use mailcraft_engine::{AccountState, ReadingPane, Session, VacationState};
@@ -55,6 +54,21 @@ impl Backstage {
     pub fn new(page: Page) -> Backstage {
         Backstage { page, account: None, asked: HashSet::new(), cached: HashMap::new(), measured: HashSet::new(), export: None }
     }
+}
+
+/// An account as the File page's pickers name it: its address and what kind it is.
+fn account_label(a: &AccountState) -> String {
+    format!("{}   ·   {}", a.config.email, tl!(kind(a)))
+}
+
+/// Whose a certificate or key is, as its row names it: its first address, else its name.
+fn whose<'a>(emails: &'a [String], name: &'a str) -> &'a str {
+    emails.first().map_or(name, String::as_str)
+}
+
+/// The day of `at` (a certificate or key running out, say), as the interface writes dates.
+fn day_shown(s: &Session, at: i64) -> String {
+    crate::i18n::date(&mailcraft_engine::model::dates::day_text(at.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400), &s.clock))
 }
 
 /// What kind of account it is, for the picker.
@@ -359,7 +373,7 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
             .and_then(|id| s.account(id))
             .or_else(|| s.current_account())
             .or_else(|| s.accounts.first())
-            .map(|a| (a.config.id.clone(), format!("{}   ·   {}", a.config.email, tl!(kind(a)))));
+            .map(|a| (a.config.id.clone(), account_label(a)));
         card(
             ui,
             t,
@@ -379,7 +393,7 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
                         }
                         egui::ComboBox::from_id_salt("export-account").width(300.0).selected_text(label).show_ui(ui, |ui| {
                             for a in &s.accounts {
-                                if ui.selectable_label(&a.config.id == id, format!("{}   ·   {}", a.config.email, tl!(kind(a)))).clicked() {
+                                if ui.selectable_label(&a.config.id == id, account_label(a)).clicked() {
                                     b.export = Some(a.config.id.clone());
                                 }
                             }

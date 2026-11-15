@@ -60,16 +60,8 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     }
     let editing = editing.flatten();
     if notes.is_empty() {
-        ui.centered_and_justified(|ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(ui.available_height() * 0.35);
-                let (r, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
-                icons::paint(ui.painter(), r, Icon::Note, t.border);
-                ui.add_space(8.0);
-                let empty = st.notes_query.trim().is_empty();
-                ui.label(RichText::new(tl!(if empty { "No notes yet: New note starts one." } else { "No note matches." })).color(t.faint));
-            });
-        });
+        let empty = st.notes_query.trim().is_empty();
+        widgets::empty_state(ui, &t, Icon::Note, tl!(if empty { "No notes yet: New note starts one." } else { "No note matches." }));
         return;
     }
     let mut clicked_off = ui.input(|i| i.pointer.primary_pressed()) && ui.rect_contains_pointer(ui.max_rect());

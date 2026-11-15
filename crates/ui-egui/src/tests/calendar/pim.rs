@@ -172,6 +172,40 @@ fn people_lay_out_as_a_list_cards_or_a_phone_list() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// Audit #471: the List view's Address book column names a server's address book as the side
+/// pane does: one with no name (or the server's own "Contacts") is "Contacts" in the language
+/// shown (the column left it blank).
+#[test]
+fn the_people_list_names_address_books_as_the_side_pane_does() {
+    use mailcraft_engine::model::pim::{BookInfo, StoredCard};
+    let (mut a, dir) = app("people-book-names");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let pim = a.session.pim.get_mut("sample").unwrap();
+    for (id, name, who) in [("server", "", "Zed Nameless"), ("server-2", "Contacts", "Yara Servers")] {
+        pim.books.push(BookInfo { id: id.into(), name: name.into(), ..Default::default() });
+        let card = mailcraft_engine::model::vcard::Card { uid: who.into(), name: who.into(), ..Default::default() };
+        pim.cards.push(StoredCard { book: id.into(), card, ..Default::default() });
+    }
+    a.session.pim_revision += 1;
+    a.run("view.module", json!({"name": "people"}));
+    a.ui.people_view = crate::people::PeopleView::Phone;
+    a.ui.people_list.columns = vec![crate::people::Column::Book];
+    frame(&ctx, &mut a, vec![]);
+    let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    for who in ["Zed Nameless", "Yara Servers"] {
+        // The row's name in the list (right of the side pane's), and what's beside it.
+        let row = texts.iter().filter(|d| d.text == who).max_by(|x, y| x.rect.min.x.total_cmp(&y.rect.min.x)).unwrap();
+        let book: Vec<&str> = texts
+            .iter()
+            .filter(|d| d.rect.min.x > row.rect.max.x && (d.rect.center().y - row.rect.center().y).abs() < 2.0)
+            .map(|d| d.text.as_str())
+            .collect();
+        assert_eq!(book, ["Contacts"], "{who}");
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn notes_are_written_on_and_kept() {
     let (mut a, dir) = app("notes-ui");

@@ -120,8 +120,7 @@ pub(super) fn mailbox(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, a: 
             setting_row(ui, t, false, name(t, tl!("Location")), Some(note(t, &file.display().to_string())), |ui| {
                 if ui.button(tl!("Open folder")).clicked() {
                     // The folder the data file is in (or the account's own folder).
-                    let dir = if file.is_dir() { file.clone() } else { file.parent().map_or_else(|| file.clone(), Path::to_path_buf) };
-                    acts.push(Action::OpenFolder(dir));
+                    acts.push(Action::OpenFolder(crate::nav::folder_of(file)));
                 }
             });
             setting_row(

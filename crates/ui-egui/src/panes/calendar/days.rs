@@ -92,7 +92,7 @@ fn calendar_headings(s: &Session, t: &Tokens, ui: &mut Ui, cols: &Columns, width
     for (j, (account, id, name, c)) in cols.cals.iter().enumerate() {
         let r = Rect::from_min_size(pos2(names.min.x + cols.pane_x(j), names.min.y), vec2(cols.pane, 24.0)).shrink2(vec2(0.0, 1.0));
         ui.painter().rect_filled(r, 3.0, color(*c, t).gamma_multiply(if t.dark { 0.45 } else { 0.3 }));
-        let mut label = if id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { name.clone() };
+        let mut label = calendar_name(id, name);
         // Two accounts' "Calendar": which is whose.
         if cols.cals.iter().filter(|(_, _, n, _)| n == name).count() > 1
             && let Some(email) = s.account(account).map(|a| a.config.email.clone())

@@ -80,8 +80,13 @@ impl<'a> Tree<'a> {
     }
 }
 
-/// A section's heading that collapses it (Favorites), with its arrow; whether it was clicked.
-fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -> bool {
+/// The folder to open for a file: the one it's in (itself, when it's a folder).
+pub(crate) fn folder_of(file: &std::path::Path) -> std::path::PathBuf {
+    if file.is_dir() { file.to_path_buf() } else { file.parent().unwrap_or(file).to_path_buf() }
+}
+
+/// A section's heading that collapses it (Favorites, Search Folders), with its arrow.
+fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -> egui::Response {
     ui.add_space(2.0);
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
     crate::widgets::named(ui, &resp, tl!(label), true, Some(open));
@@ -98,7 +103,7 @@ fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -> bool {
         theme::bold(12.0),
         t.faint,
     );
-    resp.clicked()
+    resp
 }
 
 /// What a folder row counts: its unread mail, bold in the accent colour, or (Drafts) the items
@@ -179,7 +184,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         ui.spacing_mut().item_spacing.y = 1.0;
         // Hidden altogether (View › Favorites), or collapsed to its heading.
         let favorites_open = s.prefs.show_favorites && !s.prefs.collapsed.contains("favorites");
-        if s.prefs.show_favorites && section_header(ui, t, "Favorites", favorites_open) {
+        if s.prefs.show_favorites && section_header(ui, t, "Favorites", favorites_open).clicked() {
             acts.push(Action::Run("view.collapse", json!({"key": "favorites"})));
         }
         if favorites_open && several_mailboxes(s) {
@@ -271,8 +276,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 if let Some(file) = s.store.as_ref().map(|store| store.account_path(&config.id)).filter(|p| p.exists())
                     && ui.button(tl!("Open file location")).clicked()
                 {
-                    let dir = if file.is_dir() { file.clone() } else { file.parent().map_or_else(|| file.clone(), std::path::Path::to_path_buf) };
-                    acts.push(Action::OpenFolder(dir));
+                    acts.push(Action::OpenFolder(folder_of(&file)));
                     ui.close();
                 }
                 if !a.is_local() && ui.button(tl!("Account settings…")).clicked() {
@@ -338,23 +342,14 @@ fn search_folders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) 
         return;
     }
     let open = !s.prefs.collapsed.contains("searchFolders");
-    ui.add_space(4.0);
+    ui.add_space(2.0);
     let new = |ui: &mut Ui, acts: &mut Vec<Action>| {
         if ui.button(tl!("New Search Folder…")).clicked() {
             acts.push(Action::Dialog(Dialog::SearchFolder(Box::new(crate::dialogs::SearchFolderForm::new()))));
             ui.close();
         }
     };
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
-    crate::widgets::named(ui, &resp, tl!("Search Folders"), true, Some(open));
-    if resp.hovered() {
-        ui.painter().rect_filled(rect, 4.0, t.hover_row);
-    }
-    let m = crate::bidi::Mirror::new(rect);
-    let chev = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 2.0, rect.center().y - 6.0), vec2(12.0, 12.0)));
-    icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.faint);
-    let at = m.pos(egui::pos2(rect.min.x + 18.0, rect.center().y));
-    ui.painter().text(at, m.align(egui::Align2::LEFT_CENTER), tl!("Search Folders"), theme::bold(12.0), t.faint);
+    let resp = section_header(ui, t, "Search Folders", open);
     if resp.clicked() {
         acts.push(Action::Run("view.collapse", json!({"key": "searchFolders"})));
     }

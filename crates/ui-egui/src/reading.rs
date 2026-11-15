@@ -470,16 +470,7 @@ fn show_day(t: i64, s: &Session, acts: &mut Vec<Action>) {
 }
 
 fn empty(ui: &mut Ui, t: &Tokens, msg: &str) {
-    let msg = tl!(msg);
-    ui.centered_and_justified(|ui| {
-        ui.vertical_centered(|ui| {
-            ui.add_space(ui.available_height() * 0.35);
-            let (r, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
-            icons::paint(ui.painter(), r, Icon::Read, t.border);
-            ui.add_space(8.0);
-            ui.label(RichText::new(msg).color(t.faint));
-        });
-    });
+    widgets::empty_state(ui, t, Icon::Read, tl!(msg));
 }
 
 fn thread_list(s: &Session, t: &Tokens, ui: &mut Ui, thread: &[MessageKey], open: &MessageKey, acts: &mut Vec<Action>) {

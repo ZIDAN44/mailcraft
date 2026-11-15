@@ -40,9 +40,11 @@ fn other_sources(ui: &mut Ui, t: &Tokens, id: &str, acts: &mut Vec<Action>) {
     );
 }
 
-/// The day a certificate runs out, as the interface writes dates.
-fn until(s: &Session, not_after: i64) -> String {
-    crate::i18n::date(&mailcraft_engine::model::dates::day_text(not_after.saturating_add(i64::from(s.clock.offset)).div_euclid(86_400), &s.clock))
+/// The browser's Unlock… button (its certificates' password given again); whether it was clicked.
+fn unlock(ui: &mut Ui) -> bool {
+    ui.button(tl!("Unlock…"))
+        .on_hover_text(tl!("Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)"))
+        .clicked()
 }
 
 /// The account's other certificates: those of its other addresses, which sign mail from them
@@ -50,18 +52,18 @@ fn until(s: &Session, not_after: i64) -> String {
 /// with buttons to sign and encrypt with it again or to forget it.
 fn older(s: &Session, t: &Tokens, ui: &mut Ui, id: &str, acts: &mut Vec<Action>) {
     for cert in s.older_identities(id) {
-        let who = cert.emails.first().cloned().unwrap_or_else(|| cert.name.clone());
+        let who = whose(&cert.emails, &cert.name);
         let signs = s.signed_by_certificate(id, &cert.fingerprint);
         let about = if signs.is_empty() {
-            tf!("Older certificate, valid until {date}: kept to read mail encrypted to it", date = until(s, cert.not_after))
+            tf!("Older certificate, valid until {date}: kept to read mail encrypted to it", date = day_shown(s, cert.not_after))
         } else {
-            tf!("Valid until {date}: signs mail from {addresses}", date = until(s, cert.not_after), addresses = signs.join(", "))
+            tf!("Valid until {date}: signs mail from {addresses}", date = day_shown(s, cert.not_after), addresses = signs.join(", "))
         };
         // Each by its own certificate: a renewed one names the same address as the one in use
         // (the row's label), and the two rows, taking each other's measures, were laid out
         // anew every frame for as long as the page was open.
         ui.push_id(("older-certificate", &cert.fingerprint), |ui| {
-            setting_row(ui, t, false, name(t, &who), Some(note(t, &about)), |ui| {
+            setting_row(ui, t, false, name(t, who), Some(note(t, &about)), |ui| {
                 if ui
                     .button(RichText::new(tl!("Remove")).color(t.danger))
                     .on_hover_text(tl!("Forget this certificate: mail encrypted to it can't be read any more"))
@@ -98,15 +100,7 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
                         acts.push(Action::ImportCertificate(id.clone()));
                     }
                     // Older ones kept in the browser open with their password, to read old mail.
-                    if cfg!(target_arch = "wasm32")
-                        && !s.older_identities(&id).is_empty()
-                        && ui
-                            .button(tl!("Unlock…"))
-                            .on_hover_text(tl!(
-                                "Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)"
-                            ))
-                            .clicked()
-                    {
+                    if cfg!(target_arch = "wasm32") && !s.older_identities(&id).is_empty() && unlock(ui) {
                         acts.push(Action::UnlockCertificate(id.clone()));
                     }
                 },
@@ -115,15 +109,15 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
             other_sources(ui, t, &id, acts);
             return;
         };
-        let until = until(s, cert.not_after);
-        let who = cert.emails.first().cloned().unwrap_or_else(|| cert.name.clone());
+        let until = day_shown(s, cert.not_after);
+        let who = whose(&cert.emails, &cert.name);
         let line = tf!("Issued by {issuer}, valid until {date}", issuer = cert.issuer, date = until);
         let expired = cert.not_after < s.clock.now;
         let mut about = RichText::new(format!("{line} · {}", cert.key)).size(12.0).color(if expired { t.danger } else { t.faint });
         if expired {
             about = RichText::new(tf!("It ran out on {date}: messages can't be signed with it any more.", date = until)).size(12.0).color(t.danger);
         }
-        setting_row(ui, t, true, name(t, &who), Some(about), |ui| {
+        setting_row(ui, t, true, name(t, who), Some(about), |ui| {
             if ui
                 .button(RichText::new(tl!("Remove")).color(t.danger))
                 .on_hover_text(tl!("Forget this certificate: its key goes from the keychain too"))
@@ -138,12 +132,7 @@ pub(super) fn security(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, a
             {
                 acts.push(Action::ImportCertificate(id.clone()));
             }
-            if cfg!(target_arch = "wasm32")
-                && ui
-                    .button(tl!("Unlock…"))
-                    .on_hover_text(tl!("Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)"))
-                    .clicked()
-            {
+            if cfg!(target_arch = "wasm32") && unlock(ui) {
                 acts.push(Action::UnlockCertificate(id.clone()));
             }
         });

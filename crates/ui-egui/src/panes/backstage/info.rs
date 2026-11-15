@@ -38,11 +38,11 @@ pub(super) fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mu
 fn account_picker(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, b: &mut Backstage, acts: &mut Vec<Action>) {
     let id = &a.config.id;
     ui.horizontal_wrapped(|ui| {
-        let current = format!("{}   ·   {}", a.config.email, tl!(kind(a)));
+        let current = account_label(a);
         let width = (ui.available_width() - 2.0 * ui.spacing().button_padding.x).min(420.0);
         egui::ComboBox::from_id_salt("backstage-account").width(width).selected_text(current).truncate().show_ui(ui, |ui| {
             for x in &s.accounts {
-                if ui.selectable_label(&x.config.id == id, format!("{}   ·   {}", x.config.email, tl!(kind(x)))).clicked() {
+                if ui.selectable_label(&x.config.id == id, account_label(x)).clicked() {
                     b.account = Some(x.config.id.clone());
                 }
             }

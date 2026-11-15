@@ -90,6 +90,17 @@ fn classic(ui: &Ui) -> bool {
     ui.ctx().data_mut(|d| d.get_temp::<RibbonFit>(ribbon_fit_id()).is_some_and(|f| f.active && f.classic))
 }
 
+/// A button filled in the app colour: faint when it can't be used, lighter under the pointer.
+fn accent_fill(t: &Tokens, enabled: bool, hovered: bool) -> Color32 {
+    if !enabled {
+        t.faint
+    } else if hovered {
+        t.accent.gamma_multiply(0.88)
+    } else {
+        t.accent
+    }
+}
+
 /// The classic ribbon's buttons: this tall, the group names under them.
 pub const CLASSIC_BUTTON_H: f32 = 60.0;
 pub const CLASSIC_CAPTION_H: f32 = 22.0;
@@ -104,14 +115,7 @@ fn big_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, o
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     reached(ui, rect);
     if fill {
-        let c = if !enabled {
-            t.faint
-        } else if resp.hovered() {
-            t.accent.gamma_multiply(0.88)
-        } else {
-            t.accent
-        };
-        ui.painter().rect_filled(rect, 6.0, c);
+        ui.painter().rect_filled(rect, 6.0, accent_fill(t, enabled, resp.hovered()));
     } else if on {
         ui.painter().rect(rect, 6.0, t.accent_soft, Stroke::new(1.0, t.accent.gamma_multiply(0.5)), egui::StrokeKind::Inside);
     } else {
@@ -295,14 +299,7 @@ fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled
     let size = vec2(galley.size().x + 40.0, 30.0);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     named(ui, &resp, label, enabled, None);
-    let fill = if !enabled {
-        t.faint
-    } else if resp.hovered() {
-        t.accent.gamma_multiply(0.88)
-    } else {
-        t.accent
-    };
-    ui.painter().rect_filled(rect, 6.0, fill);
+    ui.painter().rect_filled(rect, 6.0, accent_fill(t, enabled, resp.hovered()));
     let m = crate::bidi::Mirror::new(rect);
     let ir = m.rect(egui::Rect::from_min_size(rect.min + vec2(10.0, 7.0), vec2(16.0, 16.0)));
     icons::paint(ui.painter(), ir, icon, t.on_accent);
@@ -318,14 +315,7 @@ pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Re
     let size = vec2((galley.size().x + 28.0).max(76.0), 30.0);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     named(ui, &resp, label, enabled, None);
-    let fill = if !enabled {
-        t.faint
-    } else if resp.hovered() {
-        t.accent.gamma_multiply(0.88)
-    } else {
-        t.accent
-    };
-    ui.painter().rect_filled(rect, 6.0, fill);
+    ui.painter().rect_filled(rect, 6.0, accent_fill(t, enabled, resp.hovered()));
     ui.painter().galley_with_override_text_color(rect.center() - galley.size() / 2.0, galley, t.on_accent);
     resp
 }
@@ -552,6 +542,20 @@ pub fn start_group(ui: &Ui) {
             f.group_from = x;
             d.insert_temp(ribbon_fit_id(), f);
         }
+    });
+}
+
+/// What a pane shows with nothing in it: a big faint icon over a line saying why (`text`, as
+/// shown).
+pub fn empty_state(ui: &mut Ui, t: &Tokens, icon: Icon, text: &str) {
+    ui.centered_and_justified(|ui| {
+        ui.vertical_centered(|ui| {
+            ui.add_space(ui.available_height() * 0.35);
+            let (r, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
+            icons::paint(ui.painter(), r, icon, t.border);
+            ui.add_space(8.0);
+            ui.label(RichText::new(text).color(t.faint));
+        });
     });
 }
 

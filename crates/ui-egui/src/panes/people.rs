@@ -102,12 +102,9 @@ impl Column {
             Column::Mobile => phone(&["cell", "mobile"]),
             Column::Home => phone(&["home"]),
             Column::Notes => c.note.lines().next().unwrap_or_default().to_string(),
-            Column::Book => s
-                .pim
-                .get(p.account)
-                .and_then(|pim| pim.books.iter().find(|b| b.id == p.book))
-                .map(|b| if b.id == mailcraft_engine::model::pim::LOCAL { tl!("Contacts").to_string() } else { b.name.clone() })
-                .unwrap_or_default(),
+            Column::Book => {
+                s.pim.get(p.account).and_then(|pim| pim.books.iter().find(|b| b.id == p.book)).map(|b| book_name(&b.id, &b.name)).unwrap_or_default()
+            }
         }
     }
 }
@@ -165,6 +162,12 @@ impl PeopleView {
             PeopleView::Phone => Icon::Phone,
         }
     }
+}
+
+/// An address book's name as shown: the local one's, one with none and a server's own
+/// "Contacts" in the language shown.
+fn book_name(id: &str, name: &str) -> String {
+    if id == mailcraft_engine::model::pim::LOCAL || name.is_empty() || name == "Contacts" { tl!("Contacts").to_string() } else { name.to_string() }
 }
 
 fn initials(name: &str) -> String {
@@ -311,11 +314,7 @@ fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
     }
     for (account, b, email) in &all {
         let on = st.people_book.as_ref().is_some_and(|(a, x)| a == account && *x == b.id);
-        let name = if b.id == mailcraft_engine::model::pim::LOCAL || b.name.is_empty() || b.name == "Contacts" {
-            tl!("Contacts").to_string()
-        } else {
-            b.name.clone()
-        };
+        let name = book_name(&b.id, &b.name);
         let label = if accounts > 1 && !b.read_only { format!("{name} ({email})") } else { name };
         let tip = if b.read_only { tf!("Shared with you through {account}: read-only", account = email) } else { email.clone() };
         if row(ui, on, &label, Some(tip), b.read_only) {
@@ -433,8 +432,7 @@ fn side_row(s: &Session, st: &mut UiState, ui: &mut Ui, p: &mailcraft_engine::Pe
     if selected || resp.hovered() {
         ui.painter().rect_filled(r, 6.0, if selected { t.accent_soft } else { t.hover_row });
     }
-    let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
-    widgets::avatar(ui, mirror.pos(r.left_center() + vec2(20.0, 0.0)), 14.0, &initials, theme::avatar_color(&name, t.dark));
+    widgets::avatar(ui, mirror.pos(r.left_center() + vec2(20.0, 0.0)), 14.0, &initials(&name), theme::avatar_color(&name, t.dark));
     // Each on one line, "…" where the pane is too narrow (they were cut mid-letter).
     let room = r.width() - 46.0;
     let line = widgets::one_line(ui, &name, theme::regular(13.5), t.text, room);
@@ -461,15 +459,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
         PeopleView::People => {}
     }
     let Some(p) = st.person.as_deref().and_then(|u| s.find_person(u)) else {
-        ui.centered_and_justified(|ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(ui.available_height() * 0.35);
-                let (r, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
-                icons::paint(ui.painter(), r, Icon::People, t.border);
-                ui.add_space(8.0);
-                ui.label(RichText::new(tl!("Pick someone to see their details")).color(t.faint));
-            });
-        });
+        widgets::empty_state(ui, &t, Icon::People, tl!("Pick someone to see their details"));
         return;
     };
     let c = &p.card;
@@ -478,8 +468,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
         egui::Frame::new().inner_margin(Margin { left: 28, right: 28, top: 24, bottom: 24 }).show(ui, |ui| {
             ui.horizontal(|ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(72.0, 72.0), Sense::hover());
-                let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
-                widgets::avatar(ui, r.center(), 34.0, &initials, theme::avatar_color(&name, t.dark));
+                widgets::avatar(ui, r.center(), 34.0, &initials(&name), theme::avatar_color(&name, t.dark));
                 ui.add_space(10.0);
                 ui.vertical(|ui| {
                     ui.label(RichText::new(&name).font(theme::bold(22.0)).color(t.text));
