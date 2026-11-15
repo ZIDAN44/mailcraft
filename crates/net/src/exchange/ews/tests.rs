@@ -177,6 +177,13 @@ fn autodiscover_answers() {
     assert!(autodiscover_urls("riley@bad/host").is_empty());
     // A public folder's content mailbox: PR_REPLICA_LIST as Exchange sends it.
     assert_eq!(replica_guid("MWVjMmEyMzYtZWQ5My00Zjg4LWI5YzYtMzNlNjNmYTRhYTQ0AA==").as_deref(), Some("1ec2a236-ed93-4f88-b9c6-33e63fa4aa44"));
+    // Its tag, asked for as always and known however an answer writes it.
+    assert_eq!(replica_list(), "<t:ExtendedFieldURI PropertyTag=\"26264\" PropertyType=\"Binary\"/>");
+    for (tag, is) in
+        [("0x6698", true), ("0X6698", true), ("26264", true), (" 26264 ", true), ("0x6699", false), ("6698", false), ("0x", false), ("", false)]
+    {
+        assert_eq!(is_replica_tag(tag), is, "{tag:?}");
+    }
     assert_eq!(replica_guid("bm90IGEgZ3VpZA=="), None);
     assert_eq!(replica_guid("%%%"), None);
     let pf =

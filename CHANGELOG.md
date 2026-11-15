@@ -168,6 +168,7 @@ on GitHub.
 - Exchange automatic replies containing <, > or & are kept as typed.
 - Exchange servers or proxies that name NTLM in lower case can be signed in to.
 - In Microsoft 365 accounts, pictures shown in a message's body no longer appear as attachments while the message is still downloading.
+- Public folders holding many subfolders now list them all.
 
 ## 0.38.0 - 2026-11-13
 

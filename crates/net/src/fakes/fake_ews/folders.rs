@@ -3,6 +3,10 @@
 
 use super::*;
 
+/// How many pages of public folders [`Data::endless_public`] says more follow for: far more than
+/// a client that stops asks for, and an end for one that doesn't.
+pub const ENDLESS_PAGES: usize = 40;
+
 impl Data {
     pub(super) fn get_folder(&self, op: &El) -> Vec<String> {
         let mut out = Vec::new();
@@ -38,7 +42,7 @@ impl Data {
     pub(super) fn find_folder(&self, op: &El) -> Vec<String> {
         let parent = op.child("ParentFolderIds").and_then(|p| p.kids.first());
         if op.attr("Traversal") == Some("Shallow") {
-            return self.find_folder_shallow(parent);
+            return self.find_folder_shallow(op, parent);
         }
         if parent.and_then(|f| self.shared_of(f)).is_some() {
             return self.find_folder_shared(op, parent);
@@ -58,10 +62,17 @@ impl Data {
         ))]
     }
 
-    fn find_folder_shallow(&self, parent: Option<&El>) -> Vec<String> {
+    /// In pages of three at most, as the deep listings.
+    fn find_folder_shallow(&self, op: &El, parent: Option<&El>) -> Vec<String> {
         let parent = parent.and_then(|f| self.folder_id(f)).unwrap_or_default();
         if self.unrouted_hierarchy(&parent) {
             return vec![err("ErrorFolderNotFound")];
+        }
+        if self.endless_public {
+            // More always follow, until a test has had its answer (it counts the pages asked for).
+            let last = self.calls.iter().filter(|c| *c == "FindFolder").count() > ENDLESS_PAGES;
+            let page = "<t:Folder><t:DisplayName>No id</t:DisplayName><t:ChildFolderCount>0</t:ChildFolderCount></t:Folder>".repeat(3);
+            return vec![ok(format!("<m:RootFolder IncludesLastItemInRange=\"{last}\"><t:Folders>{page}</t:Folders></m:RootFolder>"))];
         }
         let kids: Vec<String> = self
             .folders
@@ -72,7 +83,12 @@ impl Data {
                 self.folder_xml(f).replace("<t:ChildFolderCount>0</t:ChildFolderCount>", &format!("<t:ChildFolderCount>{n}</t:ChildFolderCount>"))
             })
             .collect();
-        vec![ok(format!("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Folders>{}</t:Folders></m:RootFolder>", kids.concat()))]
+        let view = op.child("IndexedPageFolderView");
+        let offset: usize = view.and_then(|v| v.attr("Offset")).and_then(|o| o.parse().ok()).unwrap_or(0);
+        let max: usize = view.and_then(|v| v.attr("MaxEntriesReturned")).and_then(|o| o.parse().ok()).unwrap_or(1000).min(3);
+        let page: String = kids.iter().skip(offset).take(max).cloned().collect();
+        let last = offset + max >= kids.len();
+        vec![ok(format!("<m:RootFolder IncludesLastItemInRange=\"{last}\"><t:Folders>{page}</t:Folders></m:RootFolder>"))]
     }
 
     /// Deep, in a shared mailbox: refused without access to it; in pages, as the account's own.

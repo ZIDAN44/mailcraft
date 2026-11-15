@@ -87,6 +87,9 @@ pub struct Data {
     /// The public folder hierarchy mailbox (Exchange 2013 and later): listing public folders is
     /// only answered when routed there.
     pub pf_hierarchy: Option<String>,
+    /// A public folder's folders are listed without ids, each page saying more follow (a server
+    /// gone wrong).
+    pub endless_public: bool,
     /// The request's `X-PublicFolderMailbox` header.
     routed: String,
     /// Other mailboxes on the server.
@@ -143,6 +146,7 @@ impl Default for Data {
             unreadable: Vec::new(),
             pf_mailbox: None,
             pf_hierarchy: None,
+            endless_public: false,
             routed: String::new(),
             shared: Vec::new(),
             anchors: Vec::new(),

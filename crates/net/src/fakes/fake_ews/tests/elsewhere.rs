@@ -112,6 +112,44 @@ fn public_root(d: &Data) -> String {
     d.folders.iter().find(|f| f.known.as_deref() == Some("publicfoldersroot")).map(|f| f.id.clone()).unwrap()
 }
 
+/// A public folder holding more folders than one page of the server's answer has (the fake
+/// answers three at a time): every one is listed, at the top and further down.
+#[test]
+fn every_page_of_a_public_folders_folders_is_listed() {
+    let mut d = with_public_folders();
+    let root = public_root(&d);
+    let names: Vec<String> = (1..=7).map(|i| format!("Project {i}")).collect();
+    let mut last = String::new();
+    for n in &names {
+        last = d.folder(n, Some(&root), None, "IPF.Note");
+    }
+    for i in 1..=5 {
+        d.folder(&format!("Part {i}"), Some(&last), None, "IPF.Note");
+    }
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let paths: Vec<String> = crate::ews::list_folders(&c, &mut crate::jmap::State::default(), "a1").unwrap().into_iter().map(|f| f.path).collect();
+    for n in names.iter().chain(&(1..=5).map(|i| format!("Part {i}")).collect::<Vec<_>>()) {
+        assert!(paths.iter().any(|p| p.ends_with(&format!("/{n}"))), "{n} in {paths:?}");
+    }
+}
+
+/// A server that lists a public folder's folders without ids and says, page after page, that
+/// more follow: the listing ends at the first page that brings no folder, where it was asked
+/// for without end. The account's own folders are listed all the same.
+#[test]
+fn a_public_folder_listing_that_never_ends_is_given_up() {
+    let mut d = with_public_folders();
+    d.endless_public = true;
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let folders = crate::ews::list_folders(&c, &mut crate::jmap::State::default(), "a1").unwrap();
+    assert!(folders.iter().any(|f| f.path == "INBOX"), "{:?}", folders.iter().map(|f| &f.path).collect::<Vec<_>>());
+    assert!(folders.iter().all(|f| !f.path.contains("No id")));
+    let pages = ops(&server, "FindFolder");
+    assert!(pages < folders::ENDLESS_PAGES / 2, "{pages} pages asked for");
+}
+
 /// The names of the calendars and address books a calendar and contacts sync read.
 fn read(sync: &mailcraft_model::pim::DavSync) -> (Vec<String>, Vec<String>) {
     let calendars = sync.calendars.iter().flatten().map(|c| c.name.clone()).collect();

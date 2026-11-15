@@ -226,8 +226,24 @@ struct TreeFolder {
     replica: Option<String>,
 }
 
-/// `PR_REPLICA_LIST`, asked for with public folders.
-const REPLICA_LIST: &str = "<t:ExtendedFieldURI PropertyTag=\"26264\" PropertyType=\"Binary\"/>";
+/// `PR_REPLICA_LIST`'s property tag, asked for with public folders.
+const REPLICA_TAG: u32 = 0x6698;
+
+/// `PR_REPLICA_LIST` as a property asked for (its tag in decimal, as it has always been sent).
+fn replica_list() -> String {
+    format!("<t:ExtendedFieldURI PropertyTag=\"{REPLICA_TAG}\" PropertyType=\"Binary\"/>")
+}
+
+/// Whether a property tag as an answer writes it (`0x6698`, or `26264` in decimal) is
+/// `PR_REPLICA_LIST`'s.
+fn is_replica_tag(tag: &str) -> bool {
+    let tag = tag.trim();
+    let n = match tag.get(..2).filter(|p| p.eq_ignore_ascii_case("0x")) {
+        Some(_) => tag.get(2..).and_then(|h| u32::from_str_radix(h, 16).ok()),
+        None => tag.parse::<u32>().ok(),
+    };
+    n == Some(REPLICA_TAG)
+}
 
 /// The mailbox GUID in a `PR_REPLICA_LIST` value (base64 of the GUID as ASCII, NUL-ended).
 fn replica_guid(value: &str) -> Option<String> {
