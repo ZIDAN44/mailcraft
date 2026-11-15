@@ -731,3 +731,22 @@ fn shared_mailboxes_are_mailboxes_of_their_own_in_the_pane() {
     s.apply(Event::Folders { account: a.clone(), folders: vec![folder("INBOX", None), folder("Team", Some("team@contoso.example"))] });
     assert_eq!(keys(&s), [a.clone(), format!("{a}|team@contoso.example"), "sample".to_string()]);
 }
+
+/// Preferences saved by a version that typed one setting otherwise: that one starts as it does for
+/// everyone and is named, the others are kept; what isn't preferences at all is none.
+#[test]
+fn saved_preferences_keep_what_can_be_read() {
+    let mut saved = serde_json::to_value(crate::Prefs { conversations: true, keep_messages: 250, ..Default::default() }).unwrap();
+    assert_eq!(crate::Prefs::from_saved(&saved).map(|(p, unread)| (p.keep_messages, unread)), Some((250, Vec::new())));
+    saved["readingPane"] = json!(42);
+    saved["compact"] = json!("very");
+    saved["fromALaterVersion"] = json!({"any": "thing"});
+    let (p, mut unread) = crate::Prefs::from_saved(&saved).unwrap();
+    unread.sort();
+    assert_eq!(unread, ["compact", "readingPane"]);
+    assert!(p.conversations && p.keep_messages == 250);
+    let d = crate::Prefs::default();
+    assert_eq!((p.reading_pane, p.compact), (d.reading_pane, d.compact));
+    assert!(crate::Prefs::from_saved(&json!("not preferences")).is_none());
+    assert!(crate::Prefs::from_saved(&json!([1, 2])).is_none());
+}

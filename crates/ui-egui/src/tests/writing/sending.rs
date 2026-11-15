@@ -1,5 +1,6 @@
 //! UI tests: a message written from an account that can't send (an Outlook data file, with no
-//! account set up) says so, Send says why instead of "Message sent", and the message stays open.
+//! account set up) says so, Send says why instead of "Message sent", and the message stays open;
+//! the check before sending says there's something to look at even when it can't say what.
 
 use egui::accesskit::Role;
 
@@ -156,5 +157,20 @@ fn a_lost_gpu_keeps_whats_written_and_closes() {
     for subject in ["First thoughts", "Second thoughts"] {
         assert_eq!(a.session.list.iter().filter(|m| m.subject == subject).count(), 1, "{subject} in Drafts once");
     }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The check before sending, when what it found can't be read: it says there's something about
+/// the recipients to look at, and Send anyway is still there.
+#[test]
+fn a_check_before_sending_that_cant_be_shown_still_says_so() {
+    let (mut a, dir) = app("send-check-unread");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Some(Dialog::SendCheck(Vec::new()));
+    frame(&ctx, &mut a, vec![]);
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    assert!(has(&texts, "Something about the recipients was found to look at, but it can't be shown."), "{texts:?}");
+    assert!(has(&texts, "Send anyway"), "{texts:?}");
     let _ = std::fs::remove_dir_all(dir);
 }

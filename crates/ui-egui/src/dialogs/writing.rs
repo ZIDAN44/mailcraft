@@ -43,16 +43,20 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
             ui.set_width(440.0);
             title(ui, t, "Check before sending");
             let mut exposed = false;
-            for f in found.iter() {
-                let line = match f {
-                    SendCheck::Lookalike { address, like } => {
-                        tf!("{address} looks like an address at {like}, but isn't one. Is it the right one?", address = address, like = like)
-                    }
-                    SendCheck::Exposed { count } => {
-                        exposed = true;
-                        tf!("{n} people who may not know each other will all see each other's addresses.", n = count)
-                    }
-                };
+            // What was found can't be shown (see `MailApp::run`): that there is something.
+            let unread = found.is_empty().then(|| {
+                tl!("Something about the recipients was found to look at, but it can't be shown. Look them over before sending.").to_string()
+            });
+            let lines = found.iter().map(|f| match f {
+                SendCheck::Lookalike { address, like } => {
+                    tf!("{address} looks like an address at {like}, but isn't one. Is it the right one?", address = address, like = like)
+                }
+                SendCheck::Exposed { count } => {
+                    exposed = true;
+                    tf!("{n} people who may not know each other will all see each other's addresses.", n = count)
+                }
+            });
+            for line in unread.into_iter().chain(lines) {
                 ui.horizontal(|ui| {
                     let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), egui::Sense::hover());
                     crate::icons::paint(ui.painter(), r, crate::icons::Icon::Warning, t.warn);

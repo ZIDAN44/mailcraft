@@ -1111,6 +1111,7 @@ month	May	Май
 	Check before sending	Проверьте перед отправкой
 	{address} looks like an address at {like}, but isn't one. Is it the right one?	{address} похож на адрес в {like}, но им не является. Это правильный адрес?
 	{n} people who may not know each other will all see each other's addresses.	{n} человек, возможно незнакомых друг с другом, увидят адреса всех остальных.
+	Something about the recipients was found to look at, but it can't be shown. Look them over before sending.	Среди получателей найдено то, на что стоит взглянуть, но показать это нельзя. Проверьте их перед отправкой.
 	Put everyone in Bcc	Поместить всех в скрытую копию
 	Each of them gets the message without seeing who else did; you're in To	Каждый получит письмо, не видя остальных получателей; вы будете в поле «Кому»
 	Open links without their tracking	Открывать ссылки без отслеживания

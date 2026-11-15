@@ -456,3 +456,25 @@ fn measure_status_bar() {
     }
     let _ = std::fs::remove_dir_all(dir);
 }
+
+/// Saved settings with one a later (or earlier) version wrote otherwise: that one starts as it does
+/// for everyone, the others are kept; and settings that aren't settings at all change nothing.
+#[test]
+fn saved_settings_keep_what_can_be_read() {
+    let (mut a, dir) = app("kept-settings");
+    let mut saved = a.saved_state();
+    saved["prefs"]["conversations"] = json!(true);
+    saved["prefs"]["keepMessages"] = json!(250);
+    saved["prefs"]["readingPane"] = json!(42);
+    saved["prefs"]["compact"] = json!("very");
+    a.restore_state(&saved);
+    let p = &a.session.prefs;
+    assert!(p.conversations, "kept");
+    assert_eq!(p.keep_messages, 250, "kept");
+    let d = mailcraft_engine::Prefs::default();
+    assert_eq!((p.reading_pane, p.compact), (d.reading_pane, d.compact), "as they start");
+    let before = a.session.prefs.clone();
+    a.restore_state(&json!({"prefs": "not settings"}));
+    assert_eq!(a.session.prefs, before);
+    let _ = std::fs::remove_dir_all(dir);
+}

@@ -1107,6 +1107,7 @@ month	May	mei
 	Check before sending	Controleren voor verzenden
 	{address} looks like an address at {like}, but isn't one. Is it the right one?	{address} lijkt een adres bij {like}, maar is het niet. Is het het juiste adres?
 	{n} people who may not know each other will all see each other's addresses.	{n} mensen die elkaar misschien niet kennen, zien allemaal elkaars adres.
+	Something about the recipients was found to look at, but it can't be shown. Look them over before sending.	Er is bij de ontvangers iets gevonden om na te kijken, maar het kan niet worden getoond. Kijk ze na voordat je verzendt.
 	Put everyone in Bcc	Iedereen in Bcc zetten
 	Each of them gets the message without seeing who else did; you're in To	Ieder krijgt het bericht zonder te zien wie nog meer; u staat in Aan
 	Open links without their tracking	Koppelingen openen zonder tracking

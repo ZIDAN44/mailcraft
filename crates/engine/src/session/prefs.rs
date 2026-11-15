@@ -338,6 +338,29 @@ impl Default for Prefs {
     }
 }
 
+impl Prefs {
+    /// The preferences as the app saved them, from this version or another that names or types
+    /// a setting otherwise: a setting that can't be read starts as it does for everyone (its name
+    /// is in the answer), the others are kept. `None` when `saved` isn't preferences at all.
+    pub fn from_saved(saved: &serde_json::Value) -> Option<(Prefs, Vec<String>)> {
+        if let Ok(p) = serde_json::from_value::<Prefs>(saved.clone()) {
+            return Some((p, Vec::new()));
+        }
+        // One at a time: each read alone (the rest as they start), those that can be kept.
+        let mut kept = serde_json::Map::new();
+        let mut unread = Vec::new();
+        for (name, value) in saved.as_object()? {
+            let alone = serde_json::Value::Object(std::iter::once((name.clone(), value.clone())).collect());
+            if serde_json::from_value::<Prefs>(alone).is_ok() {
+                kept.insert(name.clone(), value.clone());
+            } else {
+                unread.push(name.clone());
+            }
+        }
+        serde_json::from_value(serde_json::Value::Object(kept)).ok().map(|p| (p, unread))
+    }
+}
+
 /// The accent colours offered by name (issue #8), each `(name, #rrggbb)`: MailCraft's teal
 /// first. Any other colour can be given as `#rrggbb`.
 pub const ACCENTS: [(&str, &str); 8] = [

@@ -1107,6 +1107,7 @@ month	May	مايو
 	Check before sending	تحقّق قبل الإرسال
 	{address} looks like an address at {like}, but isn't one. Is it the right one?	يبدو {address} كعنوان في {like}، لكنه ليس كذلك. هل هو العنوان الصحيح؟
 	{n} people who may not know each other will all see each other's addresses.	سيرى {n} أشخاص قد لا يعرف بعضهم بعضًا عناوينَ بعضهم.
+	Something about the recipients was found to look at, but it can't be shown. Look them over before sending.	عُثر في المستلمين على شيء يستحق النظر، لكن لا يمكن عرضه. راجعهم قبل الإرسال.
 	Put everyone in Bcc	ضع الجميع في Bcc
 	Each of them gets the message without seeing who else did; you're in To	يتلقى كل منهم الرسالة دون أن يرى من تلقاها غيره؛ وتكون أنت في «إلى»
 	Open links without their tracking	فتح الروابط دون التتبّع

@@ -26,6 +26,7 @@ mod app;
 mod backup;
 mod dialogs;
 pub mod i18n;
+mod kept;
 mod keytips;
 mod lists;
 mod look;
@@ -620,7 +621,12 @@ impl MailApp {
         match self.session.run(id, &params) {
             // Held to be looked at first: said in the message's window when it has one.
             Ok(v) if id == "compose.send" && v.get("check").is_some() => {
-                let found = serde_json::from_value(v["check"].clone()).unwrap_or_default();
+                // One that can't be read (none ever should) still holds the message, the dialog
+                // saying so rather than nothing.
+                let found = serde_json::from_value(v["check"].clone()).unwrap_or_else(|e| {
+                    log::warn!("what the check before sending found couldn't be read: {e}");
+                    Vec::new()
+                });
                 self.ui.dialog_for = self.session.compose.as_ref().filter(|c| c.window).map(|c| c.id);
                 self.ui.dialog = Some(Dialog::SendCheck(found));
             }
@@ -748,42 +754,6 @@ impl MailApp {
     fn flush_jobs(&mut self) {
         for j in self.session.take_jobs() {
             self.backend.submit(j);
-        }
-    }
-
-    /// Preferences and theme for the app to save.
-    pub fn saved_state(&self) -> Value {
-        json!({ "prefs": self.session.prefs, "dark": self.ui.dark, "language": self.ui.language, "windows": self.ui.places, "peopleView": self.ui.people_view, "peopleList": self.ui.people_list })
-    }
-
-    pub fn restore_state(&mut self, v: &Value) {
-        if let Some(p) = v.get("prefs").and_then(|p| serde_json::from_value::<mailcraft_engine::Prefs>(p.clone()).ok()) {
-            let offline = p.work_offline;
-            let keep = (p.keep_messages, p.keep_offline);
-            self.session.prefs = p;
-            self.session.refresh_list();
-            // How much mail to keep, before any account connects (when it isn't the default).
-            let d = mailcraft_engine::Prefs::default();
-            if keep != (d.keep_messages, d.keep_offline) {
-                self.session.apply_sync_prefs();
-            }
-            // Still working offline from last time: before any account connects.
-            if offline {
-                self.session.set_work_offline(true);
-            }
-        }
-        self.ui.dark = v.get("dark").and_then(Value::as_bool);
-        if let Some(pv) = v.get("peopleView").and_then(|w| serde_json::from_value(w.clone()).ok()) {
-            self.ui.people_view = pv;
-        }
-        if let Some(pl) = v.get("peopleList").and_then(|w| serde_json::from_value(w.clone()).ok()) {
-            self.ui.people_list = pl;
-        }
-        if let Some(w) = v.get("windows").and_then(|w| serde_json::from_value(w.clone()).ok()) {
-            self.ui.places = w;
-        }
-        if let Some(l) = v.get("language").and_then(Value::as_str).filter(|l| *l == i18n::AUTO || i18n::Lang::from_code(l).is_some()) {
-            self.ui.language = l.to_string();
         }
     }
 }

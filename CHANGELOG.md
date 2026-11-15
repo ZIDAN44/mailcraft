@@ -190,6 +190,7 @@ on GitHub.
 - Accounts with thousands of folders, such as an imported Outlook file, update folder counts and delete folders faster.
 - S/MIME mail encrypted with AES-192-GCM can now be read.
 - Signed messages are checked faster.
+- A setting saved by another version that can't be read no longer resets all the others.
 
 ## 0.38.0 - 2026-11-13
 
