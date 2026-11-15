@@ -187,17 +187,19 @@ impl SnoozeUntil {
     /// When, in Unix seconds, for a user at `clock` (local time).
     pub fn at(self, clock: &Clock) -> i64 {
         let day = clock.local(clock.now).div_euclid(86_400);
-        let morning = |d: i64| clock.utc(d * 86_400 + 8 * 3600);
+        // A clock at the ends of time (a damaged one) stays there rather than overflowing.
+        let morning = |days_on: i64| clock.utc(day.saturating_add(days_on).saturating_mul(86_400).saturating_add(8 * 3600));
         // 0 = Monday … 6 = Sunday.
         let weekday = i64::from(crate::dates::weekday_index(day));
         match self {
             SnoozeUntil::LaterToday => {
-                let t = clock.now + 3 * 3600;
-                t - t.rem_euclid(3600) + 3600 * i64::from(t.rem_euclid(3600) > 0)
+                let t = clock.now.saturating_add(3 * 3600);
+                // The next whole hour.
+                t.saturating_add((3600 - t.rem_euclid(3600)).rem_euclid(3600))
             }
-            SnoozeUntil::Tomorrow => morning(day + 1),
-            SnoozeUntil::Weekend => morning(day + if weekday < 5 { 5 - weekday } else { 7 - weekday + 5 }),
-            SnoozeUntil::NextWeek => morning(day + 7 - weekday),
+            SnoozeUntil::Tomorrow => morning(1),
+            SnoozeUntil::Weekend => morning(if weekday < 5 { 5 - weekday } else { 7 - weekday + 5 }),
+            SnoozeUntil::NextWeek => morning(7 - weekday),
         }
     }
 }
@@ -318,6 +320,18 @@ mod tests {
         assert_eq!(civil_from_days(SnoozeUntil::NextWeek.at(&sunday).div_euclid(86_400)), (2026, 10, 19));
         assert_eq!(civil_from_days(SnoozeUntil::Weekend.at(&sunday).div_euclid(86_400)), (2026, 10, 24));
         assert_eq!(SnoozeUntil::from_code("NEXTWEEK"), Some(SnoozeUntil::NextWeek));
+    }
+
+    /// A clock at either end of time (a damaged one) gives a time, not an overflow.
+    #[test]
+    fn snoozing_at_the_ends_of_time() {
+        for now in [i64::MAX - 5, i64::MIN + 5] {
+            let clock = Clock::new(now, 0);
+            for s in [SnoozeUntil::LaterToday, SnoozeUntil::Tomorrow, SnoozeUntil::Weekend, SnoozeUntil::NextWeek] {
+                let _ = s.at(&clock);
+            }
+        }
+        assert_eq!(SnoozeUntil::LaterToday.at(&Clock::new(i64::MAX - 5, 0)), i64::MAX);
     }
 
     #[test]

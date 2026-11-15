@@ -294,6 +294,18 @@ fn alarms_are_found_as_reading_finds_them() {
     assert_eq!(e.extra, ["BEGIN:VALARM", "TRIGGER:-PT5M", "ACKNOWLEDGED:20261102T000000Z", "END:VALARM", "BEGIN:VALARM", "TRIGGER:-PT1M"]);
 }
 
+/// An event from a damaged cache, starting at the end of time, is written without overflowing.
+#[test]
+fn an_event_at_the_end_of_time_is_written() {
+    for (all_day, tzid) in [(true, ""), (false, ""), (false, "Europe/Berlin"), (false, "Nowhere/Made-up")] {
+        for start in [i64::MAX - 10, i64::MIN + 10] {
+            let e = CalEvent { uid: "far".into(), start, end: 0, all_day, tzid: tzid.into(), ..Default::default() };
+            let text = write(std::slice::from_ref(&e), None, 0) + &write_for_server(&[e], 0);
+            assert!(text.contains("UID:far") && text.contains("DTEND"), "{text}");
+        }
+    }
+}
+
 #[test]
 fn writes_what_it_reads() {
     let cal = parse(INVITE, 0);

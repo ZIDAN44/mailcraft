@@ -573,7 +573,7 @@ fn write_one(e: &CalEvent, now: i64, purpose: Purpose, out: &mut String) {
     };
     if e.all_day {
         lines.push(format!("DTSTART;VALUE=DATE:{}", day(e.start)));
-        lines.push(format!("DTEND;VALUE=DATE:{}", day(e.end.max(e.start + 86_400))));
+        lines.push(format!("DTEND;VALUE=DATE:{}", day(e.end.max(e.start.saturating_add(86_400)))));
     } else {
         lines.push(when("DTSTART", e.start));
         lines.push(when("DTEND", e.end.max(e.start)));
