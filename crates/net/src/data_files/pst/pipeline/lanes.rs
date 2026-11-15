@@ -18,30 +18,30 @@ use super::rebuild::{message, summary_of};
 use super::*;
 
 /// Panics in a row, in any lane, that stop the import.
-pub(super) const MAX_PANICS: usize = 32;
+pub(crate) const MAX_PANICS: usize = 32;
 
 /// An item to read.
-pub(super) struct Job {
-    pub(super) seq: u64,
-    pub(super) node: u32,
+pub(crate) struct Job {
+    pub(crate) seq: u64,
+    pub(crate) node: u32,
     /// Its size as the file gives it (0: not given), and what it's charged.
-    pub(super) size: u64,
-    pub(super) charge: u64,
+    pub(crate) size: u64,
+    pub(crate) charge: u64,
     /// The plan's folder it's in, and whether that's contacts or a calendar; and that folder's
     /// node and the item's row in it (from 0), where a checkpoint notes it.
-    pub(super) folder: usize,
-    pub(super) pim: bool,
+    pub(crate) folder: usize,
+    pub(crate) pim: bool,
     /// In Deleted Items or a folder under it (`PlanFolder::trash`).
-    pub(super) trash: bool,
-    pub(super) folder_node: u32,
-    pub(super) row: u64,
+    pub(crate) trash: bool,
+    pub(crate) folder_node: u32,
+    pub(crate) row: u64,
     /// In the Sent Items folder, read last: the replies read before it, which give its items
     /// with no id of their own theirs (`out/sent_ids.rs`).
-    pub(super) sent: Option<Arc<SentIds>>,
+    pub(crate) sent: Option<Arc<SentIds>>,
 }
 
 /// What became of an item.
-pub(super) enum Outcome {
+pub(crate) enum Outcome {
     /// A message, ready to keep.
     Built(Box<Built>),
     /// A contact, calendar item, task or note.
@@ -58,57 +58,57 @@ pub(super) enum Outcome {
 
 /// A message made from an item: its summary (its key is the writer's to give), its source ready
 /// to keep, its words for search (when the import indexes), and what the report counts of it.
-pub(super) struct Built {
-    pub(super) summary: mailcraft_model::Summary,
-    pub(super) prepared: mailcraft_store::Prepared,
-    pub(super) doc: Option<mailcraft_store::search::Ready>,
-    pub(super) raw_len: usize,
-    pub(super) charset_unsupported: bool,
-    pub(super) body_not_converted: bool,
-    pub(super) without_address: usize,
-    pub(super) left_out: BTreeMap<SkipReason, usize>,
+pub(crate) struct Built {
+    pub(crate) summary: mailcraft_model::Summary,
+    pub(crate) prepared: mailcraft_store::Prepared,
+    pub(crate) doc: Option<mailcraft_store::search::Ready>,
+    pub(crate) raw_len: usize,
+    pub(crate) charset_unsupported: bool,
+    pub(crate) body_not_converted: bool,
+    pub(crate) without_address: usize,
+    pub(crate) left_out: BTreeMap<SkipReason, usize>,
     /// The reply it is (its parent index's hash, and the id it answers), and the id it was
     /// given as a sent item, for the writer to note.
-    pub(super) reply: Option<(u64, String)>,
-    pub(super) given: Option<Given>,
+    pub(crate) reply: Option<(u64, String)>,
+    pub(crate) given: Option<Given>,
     /// The local day it's flagged to be followed up by, and the day it was done.
-    pub(super) due: Option<i64>,
-    pub(super) done: Option<i64>,
+    pub(crate) due: Option<i64>,
+    pub(crate) done: Option<i64>,
 }
 
 /// What an import's threads share.
-pub(super) struct Ctx<'a> {
-    pub(super) path: &'a Path,
-    pub(super) opts: &'a ImportOptions,
-    pub(super) account: &'a str,
+pub(crate) struct Ctx<'a> {
+    pub(crate) path: &'a Path,
+    pub(crate) opts: &'a ImportOptions,
+    pub(crate) account: &'a str,
     /// Names this file in the message ids made for items that have none.
-    pub(super) filetag: String,
-    pub(super) packs: bool,
+    pub(crate) filetag: String,
+    pub(crate) packs: bool,
     /// Whether the messages' words are made for the account's search index.
-    pub(super) index: bool,
-    pub(super) budget: Arc<Budget>,
-    pub(super) tally: Arc<Tally>,
+    pub(crate) index: bool,
+    pub(crate) budget: Arc<Budget>,
+    pub(crate) tally: Arc<Tally>,
     /// Going on from a checkpoint: what the planner leaves out, and whether the file turned out
     /// not to be the one the checkpoint was of.
-    pub(super) resume: Option<super::resume::Skip>,
-    pub(super) changed: AtomicBool,
+    pub(crate) resume: Option<super::resume::Skip>,
+    pub(crate) changed: AtomicBool,
     /// Set to stop every thread: the writer is done (or failed), or the file is damaged.
-    pub(super) halt: AtomicBool,
-    pub(super) damaged: AtomicBool,
+    pub(crate) halt: AtomicBool,
+    pub(crate) damaged: AtomicBool,
     panics: AtomicUsize,
     /// Lanes still reading, and whether the last went with work left to read.
-    pub(super) live: AtomicUsize,
-    pub(super) orphaned: AtomicBool,
+    pub(crate) live: AtomicUsize,
+    pub(crate) orphaned: AtomicBool,
     /// Links' files read, which stop once a drive is too slow to answer.
-    pub(super) links: item::LinkReads,
+    pub(crate) links: item::LinkReads,
     /// Items the lanes have taken, for a test's faults.
     #[cfg(test)]
-    pub(super) items_taken: std::sync::atomic::AtomicU64,
+    pub(crate) items_taken: std::sync::atomic::AtomicU64,
 }
 
 impl<'a> Ctx<'a> {
     /// For a file imported into `account`, as `out` writes it.
-    pub(super) fn new(path: &'a Path, opts: &'a ImportOptions, account: &'a str, out: &Out<'_>) -> Self {
+    pub(crate) fn new(path: &'a Path, opts: &'a ImportOptions, account: &'a str, out: &Out<'_>) -> Self {
         Ctx {
             account,
             filetag: filetag(path),
@@ -121,7 +121,7 @@ impl<'a> Ctx<'a> {
     }
 
     /// For a file only looked at ([`super::inspect`]): planned, and nothing written.
-    pub(super) fn looking(path: &'a Path, opts: &'a ImportOptions) -> Self {
+    pub(crate) fn looking(path: &'a Path, opts: &'a ImportOptions) -> Self {
         Ctx {
             path,
             opts,
@@ -145,18 +145,18 @@ impl<'a> Ctx<'a> {
     }
 
     /// Whether to stop: told to, or asked to by the user.
-    pub(super) fn stopped(&self) -> bool {
+    pub(crate) fn stopped(&self) -> bool {
         self.halt.load(Ordering::Relaxed) || self.opts.stop.raised()
     }
 
     /// Stop every thread, waking the lanes waiting for room.
-    pub(super) fn stop(&self) {
+    pub(crate) fn stop(&self) {
         self.halt.store(true, Ordering::Relaxed);
         self.budget.wake();
     }
 
     /// How many lanes to read with.
-    pub(super) fn lanes(&self) -> usize {
+    pub(crate) fn lanes(&self) -> usize {
         let n = if self.opts.lanes > 0 { self.opts.lanes } else { std::thread::available_parallelism().map_or(2, |n| n.get()).saturating_sub(1) };
         n.clamp(1, MAX_LANES)
     }
@@ -166,13 +166,13 @@ impl<'a> Ctx<'a> {
 #[cfg(not(test))]
 impl Ctx<'_> {
     /// As the planner looks at the folder that is `index` into the file.
-    pub(super) fn fault_looking(&self, _index: usize) -> io::Result<()> {
+    pub(crate) fn fault_looking(&self, _index: usize) -> io::Result<()> {
         Ok(())
     }
 
     /// The size an item of `size` is handed out with, after `handed` others (`sent`: one of the
     /// Sent Items folder, read last).
-    pub(super) fn fault_handing(&self, _handed: u64, _sent: bool, size: u64) -> u64 {
+    pub(crate) fn fault_handing(&self, _handed: u64, _sent: bool, size: u64) -> u64 {
         size
     }
 }
@@ -202,7 +202,7 @@ fn filetag(path: &Path) -> String {
 }
 
 /// The jobs, shared by the lanes: each takes the next in turn.
-pub(super) type Jobs = Mutex<Receiver<Job>>;
+pub(crate) type Jobs = Mutex<Receiver<Job>>;
 
 /// The next job, or none once the planner is done.
 fn next_job(jobs: &Jobs) -> Option<Job> {
@@ -210,7 +210,7 @@ fn next_job(jobs: &Jobs) -> Option<Job> {
 }
 
 /// A lane: reads jobs until there are none.
-pub(super) fn run(ctx: &Ctx<'_>, jobs: &Jobs, results: &Sender<Done>) {
+pub(crate) fn run(ctx: &Ctx<'_>, jobs: &Jobs, results: &Sender<Done>) {
     let Some(first) = next_job(jobs) else { return };
     lane_of_file(ctx, first, jobs, results);
 }
@@ -218,7 +218,7 @@ pub(super) fn run(ctx: &Ctx<'_>, jobs: &Jobs, results: &Sender<Done>) {
 /// `n` lanes are gone. The last (every one could fail to open the file, or not start): nothing
 /// would take the planner's jobs, so the import stops, and if the planner had more to hand out
 /// (it hasn't said it's done), the file wasn't read to its end.
-pub(super) fn gone(ctx: &Ctx<'_>, jobs: &Jobs, n: usize) {
+pub(crate) fn gone(ctx: &Ctx<'_>, jobs: &Jobs, n: usize) {
     if ctx.live.fetch_sub(n, Ordering::AcqRel) == n {
         let done = matches!(jobs.lock().unwrap_or_else(PoisonError::into_inner).try_recv(), Err(TryRecvError::Disconnected));
         if !done && !ctx.stopped() {
@@ -267,11 +267,11 @@ impl Drop for Answer<'_> {
 }
 
 /// Reads an item of the file by its node.
-pub(super) type ReadItem<'a> = dyn Fn(u32) -> io::Result<Item> + 'a;
+pub(crate) type ReadItem<'a> = dyn Fn(u32) -> io::Result<Item> + 'a;
 
 /// The lane's loop over its jobs, from `first`: `read` reads an item, `reset` lets go of the
 /// handle it reads through (it's opened again for the next).
-pub(super) fn work(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done>, read: &ReadItem<'_>, reset: &dyn Fn()) {
+pub(crate) fn work(ctx: &Ctx<'_>, first: Job, jobs: &Jobs, results: &Sender<Done>, read: &ReadItem<'_>, reset: &dyn Fn()) {
     let mut next = Some(first);
     while let Some(job) = next.take().or_else(|| next_job(jobs)) {
         let mut answer = Answer::new(&job, results);
@@ -364,13 +364,13 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
 /// are a post (an RSS feed's among them), a document, a recall (and its report), a sharing
 /// invitation and a task request; appointments, contacts and tasks in a mail folder aren't
 /// ([`is_pim`]).
-pub(super) fn is_mail(class: &str) -> bool {
+pub(crate) fn is_mail(class: &str) -> bool {
     super::item::Class::of(class).is_mail()
 }
 
 /// Whether an item of `class` is a contact, contact group, calendar item, task, note or journal
 /// entry, which goes to the address book, calendar, tasks or notes wherever it's found.
-pub(super) fn is_pim(class: &str) -> bool {
+pub(crate) fn is_pim(class: &str) -> bool {
     super::item::Class::of(class).is_pim()
 }
 
@@ -391,7 +391,7 @@ fn weight(it: &Item) -> u64 {
 
 /// An item made into its message, summary and source ready to keep (`packs`: compressed, as
 /// the data file keeps it), and its words for search (`index`), from the message as rebuilt.
-pub(super) fn build(mut it: Item, fallback: &str, packs: bool, index: bool, tally: &Tally) -> Outcome {
+pub(crate) fn build(mut it: Item, fallback: &str, packs: bool, index: bool, tally: &Tally) -> Outcome {
     // What the report counts, read before the item goes into its message.
     let (charset_unsupported, body_not_converted, without_address) = (it.charset_unsupported, it.body_not_converted, it.recipients_without_address);
     let (due, done) = (it.due, it.done);
@@ -526,7 +526,7 @@ impl Holder for Held<'_> {
 }
 
 #[cfg(test)]
-pub(super) mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// A fault a test puts in an import's threads.
@@ -566,7 +566,7 @@ pub(super) mod tests {
     /// The planner's faults ([`Fault::PlanAt`], [`Fault::PlannerAfter`], [`Fault::Understate`]).
     impl Ctx<'_> {
         /// Looking at the folder that is `index` into the file fails at [`Fault::PlanAt`].
-        pub(in super::super) fn fault_looking(&self, index: usize) -> io::Result<()> {
+        pub(crate) fn fault_looking(&self, index: usize) -> io::Result<()> {
             match self.opts.fault {
                 Some(Fault::PlanAt(n)) if index == n => Err(io::Error::other("a test's plan fault")),
                 _ => Ok(()),
@@ -576,7 +576,7 @@ pub(super) mod tests {
         /// Handing out an item after `handed` others: the walk fails at [`Fault::PlannerAfter`]
         /// (the Sent Items folder read after it, `sent`, doesn't), and the file says every item
         /// is a byte at [`Fault::Understate`].
-        pub(in super::super) fn fault_handing(&self, handed: u64, sent: bool, size: u64) -> u64 {
+        pub(crate) fn fault_handing(&self, handed: u64, sent: bool, size: u64) -> u64 {
             match self.opts.fault {
                 Some(Fault::PlannerAfter(n)) if handed == n && !sent => panic!("a test's planner fault"),
                 Some(Fault::Understate) => 1,
@@ -587,11 +587,11 @@ pub(super) mod tests {
 
     /// What a test does to each item of a data file read (whether it's one of the Sent Items
     /// folder's) before it's made: what the files its writer makes can't hold.
-    pub(in super::super) type Touch = fn(bool, &mut Item);
+    pub(crate) type Touch = fn(bool, &mut Item);
     static TOUCH: std::sync::Mutex<Vec<(std::path::PathBuf, Touch)>> = std::sync::Mutex::new(Vec::new());
 
     /// Items read from the data file at `path` are touched by `touch` from here.
-    pub(in super::super) fn touch_items(path: &Path, touch: Touch) {
+    pub(crate) fn touch_items(path: &Path, touch: Touch) {
         if let Ok(mut t) = TOUCH.lock() {
             t.push((path.to_path_buf(), touch));
         }
@@ -613,7 +613,7 @@ pub(super) mod tests {
     }
 
     /// The slow reads the lanes have begun of the data file at `path`, in every import of it.
-    pub(in super::super) fn slow_reads(path: &Path) -> u64 {
+    pub(crate) fn slow_reads(path: &Path) -> u64 {
         SLOW_READS.lock().ok().and_then(|r| r.iter().find(|(p, _)| p == path).map(|(_, n)| n.load(Ordering::Relaxed))).unwrap_or(0)
     }
 

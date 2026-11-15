@@ -23,7 +23,7 @@ use super::*;
 /// What an import may hold when not told otherwise. With room given in order the lanes keep the
 /// writer busy with less: on the 41 GB file, in the app, 288 MiB kept it 84 to 90% busy at peaks
 /// of 818 to 860 MB, where 384 MiB peaked at 950 to 972 MB (850 MB aimed at).
-pub(super) const CAP: u64 = 288 * 1024 * 1024;
+pub(crate) const CAP: u64 = 288 * 1024 * 1024;
 /// A waiting lane looks at the stop flag this often, woken or not.
 const RECHECK: Duration = Duration::from_millis(200);
 
@@ -38,7 +38,7 @@ struct State {
     short: usize,
 }
 
-pub(super) struct Budget {
+pub(crate) struct Budget {
     cap: u64,
     state: Mutex<State>,
     changed: Condvar,
@@ -46,11 +46,11 @@ pub(super) struct Budget {
 
 impl Budget {
     /// A budget of `cap` bytes (0: [`CAP`]).
-    pub(super) fn new(cap: u64) -> Self {
+    pub(crate) fn new(cap: u64) -> Self {
         Budget { cap: if cap == 0 { CAP } else { cap }, state: Mutex::default(), changed: Condvar::new() }
     }
 
-    pub(super) fn cap(&self) -> u64 {
+    pub(crate) fn cap(&self) -> u64 {
         self.cap
     }
 
@@ -61,13 +61,13 @@ impl Budget {
     /// Take `charge` for item `seq`, waiting while it doesn't fit or an item before it waits
     /// (unless `seq` is the item the writer needs next). False, with nothing taken, once `stopped`
     /// says to stop. The time it waited is counted to `tally`.
-    pub(super) fn acquire(&self, seq: u64, charge: u64, stopped: &dyn Fn() -> bool, tally: &Tally) -> bool {
+    pub(crate) fn acquire(&self, seq: u64, charge: u64, stopped: &dyn Fn() -> bool, tally: &Tally) -> bool {
         self.acquire_more(seq, 0, charge, stopped, tally)
     }
 
     /// Take `charge` more for item `seq`, whose lane holds `held` for it already (an item read
     /// bigger than the file said): as [`Budget::acquire`], the item weighing the two together.
-    pub(super) fn acquire_more(&self, seq: u64, held: u64, charge: u64, stopped: &dyn Fn() -> bool, tally: &Tally) -> bool {
+    pub(crate) fn acquire_more(&self, seq: u64, held: u64, charge: u64, stopped: &dyn Fn() -> bool, tally: &Tally) -> bool {
         let mut st = self.lock();
         let began = Instant::now();
         let (mut waited, mut counted) = (false, false);
@@ -111,7 +111,7 @@ impl Budget {
     }
 
     /// Give back `charge`.
-    pub(super) fn release(&self, charge: u64) {
+    pub(crate) fn release(&self, charge: u64) {
         if charge == 0 {
             return;
         }
@@ -122,7 +122,7 @@ impl Budget {
     }
 
     /// The writer needs item `seq` next (it only goes forward).
-    pub(super) fn advance(&self, seq: u64) {
+    pub(crate) fn advance(&self, seq: u64) {
         let mut st = self.lock();
         if seq > st.oldest {
             st.oldest = seq;
@@ -132,17 +132,17 @@ impl Budget {
     }
 
     /// Whether a lane is waiting for room (not only for its turn).
-    pub(super) fn waiting(&self) -> bool {
+    pub(crate) fn waiting(&self) -> bool {
         self.lock().short > 0
     }
 
     #[cfg(test)]
-    pub(super) fn in_flight(&self) -> u64 {
+    pub(crate) fn in_flight(&self) -> u64 {
         self.lock().in_flight
     }
 
     /// Wake every waiting lane (to see that it should stop).
-    pub(super) fn wake(&self) {
+    pub(crate) fn wake(&self) {
         self.changed.notify_all();
     }
 }
@@ -150,7 +150,7 @@ impl Budget {
 /// What an item is charged before it's read: the size the file gives it (taken as at least 4 KiB
 /// and at most [`MAX_CHARGE`]; 1 MiB when it gives none), times what its message holds at
 /// once while it's made (its parts, the message, the compressed copy), 3.5.
-pub(super) fn charge_for(size: Option<i64>) -> u64 {
+pub(crate) fn charge_for(size: Option<i64>) -> u64 {
     let est = match size {
         Some(n) if n > 0 => u64::try_from(n).unwrap_or(0).clamp(4 * 1024, MAX_CHARGE),
         _ => 1024 * 1024,
@@ -159,7 +159,7 @@ pub(super) fn charge_for(size: Option<i64>) -> u64 {
 }
 
 /// What `bytes` of an item hold at once while its message is made.
-pub(super) fn held(bytes: u64) -> u64 {
+pub(crate) fn held(bytes: u64) -> u64 {
     bytes.saturating_mul(7) / 2
 }
 

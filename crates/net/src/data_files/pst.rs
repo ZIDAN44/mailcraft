@@ -31,21 +31,18 @@ use mailcraft_model::{EmailAddress, Flags, Folder, FolderRole, MessageKey, utf7}
 use mailcraft_pst::{Attachment, AttachmentData, Message, PropertyValue, PstFile, PstFolder, PstStore, Row, Table};
 use mailcraft_store::{FolderState, Store};
 
-mod budget;
 mod chunked;
 mod embedded;
 mod fuzzing;
 mod item;
-mod lanes;
 mod open;
-mod order;
 mod out;
-mod plan;
+mod pipeline;
+use pipeline::{budget, lanes, order, plan, run};
 pub(in crate::data_files) use plan::{Guard, MAX_ROWS};
 mod props;
 mod rebuild;
 mod resume;
-mod run;
 mod stats;
 #[cfg(test)]
 mod tests;

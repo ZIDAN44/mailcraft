@@ -244,7 +244,7 @@ fn planner(ctx: &lanes::Ctx<'_>, mut feed: plan::Feed) -> io::Result<()> {
 
 /// The file opened to be planned and read. Read only, and kept from writers while it's read.
 /// Locked by Outlook, this is what fails, and the import says so.
-pub(super) fn opened(ctx: &lanes::Ctx<'_>) -> io::Result<(Rc<PstStore>, Shared)> {
+pub(crate) fn opened(ctx: &lanes::Ctx<'_>) -> io::Result<(Rc<PstStore>, Shared)> {
     let source = open::source(ctx.path, ctx.opts)?;
     let pst = PstFile::read_from(open::handle(&source))?;
     pst.set_max_value_size(MAX_VALUE);

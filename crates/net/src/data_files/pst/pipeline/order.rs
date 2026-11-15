@@ -14,22 +14,22 @@ const FLUSH_EVERY: Duration = Duration::from_secs(1);
 
 /// A mail folder of the plan (its `index` there, under the plan's folder `parent`), as the
 /// outline of what comes in says it: its node, its name in the file and the items it holds.
-pub(super) struct Outlined {
-    pub(super) index: usize,
-    pub(super) parent: Option<usize>,
-    pub(super) node: u32,
-    pub(super) name: String,
-    pub(super) items: u64,
+pub(crate) struct Outlined {
+    pub(crate) index: usize,
+    pub(crate) parent: Option<usize>,
+    pub(crate) node: u32,
+    pub(crate) name: String,
+    pub(crate) items: u64,
 }
 
 /// One numbered thing for the writer to apply, with what it holds of the budget.
-pub(super) struct Done {
-    pub(super) seq: u64,
-    pub(super) step: Step,
-    pub(super) charge: u64,
+pub(crate) struct Done {
+    pub(crate) seq: u64,
+    pub(crate) step: Step,
+    pub(crate) charge: u64,
 }
 
-pub(super) enum Step {
+pub(crate) enum Step {
     /// What the file holds, for the progress, its record key and fingerprint, for its
     /// checkpoints, and its mail folders, for the outline the window shows ahead.
     Totals { items: u64, bytes: u64, folders: usize, record_key: String, fingerprint: u64, outline: Vec<Outlined> },
@@ -55,7 +55,7 @@ pub(super) enum Step {
 
 /// Apply what comes through `results` to `out`, in order, until every sender is gone or the
 /// import is stopped.
-pub(super) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) {
+pub(crate) fn write(out: &mut Out<'_>, ctx: &Ctx<'_>, results: &Receiver<Done>) {
     let mut waiting: BTreeMap<u64, Done> = BTreeMap::new();
     let mut next = 0u64;
     let mut paths: Vec<Option<String>> = Vec::new();

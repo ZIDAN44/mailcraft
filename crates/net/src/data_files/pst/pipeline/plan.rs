@@ -17,9 +17,9 @@ use super::out::sent_ids::SentIds;
 use super::*;
 
 /// Jobs waiting for a lane, at most.
-pub(super) const JOBS: usize = 1024;
+pub(crate) const JOBS: usize = 1024;
 /// Folders read, at most; past this the rest of the file isn't.
-pub(super) const MAX_FOLDERS: usize = 100_000;
+pub(crate) const MAX_FOLDERS: usize = 100_000;
 /// Items handed out, at most.
 const MAX_ITEMS: u64 = 10_000_000;
 /// Items read of one folder, at most.
@@ -29,7 +29,7 @@ const MESSAGE_SIZE: u16 = 0x0E08;
 
 /// What a folder is brought in as.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Kind {
+pub(crate) enum Kind {
     Mail,
     /// Contacts, a calendar, tasks, notes or a journal: their items go to the address book and calendar.
     Pim,
@@ -38,33 +38,33 @@ pub(super) enum Kind {
     LeftOut,
 }
 
-pub(super) struct PlanFolder {
-    pub(super) node: u32,
+pub(crate) struct PlanFolder {
+    pub(crate) node: u32,
     /// The mail folder it goes under (by its place in [`Plan::folders`]); none at the top.
-    pub(super) parent: Option<usize>,
-    pub(super) name: String,
-    pub(super) kind: Kind,
-    pub(super) rows: u64,
-    pub(super) bytes: u64,
+    pub(crate) parent: Option<usize>,
+    pub(crate) name: String,
+    pub(crate) kind: Kind,
+    pub(crate) rows: u64,
+    pub(crate) bytes: u64,
     /// The file's Deleted Items folder, or one under it: a contact, calendar item, task or note
     /// there was thrown away, and stays out of the address book, calendar, tasks and notes.
-    pub(super) trash: bool,
+    pub(crate) trash: bool,
 }
 
 #[derive(Default)]
-pub(super) struct Plan {
-    pub(super) folders: Vec<PlanFolder>,
+pub(crate) struct Plan {
+    pub(crate) folders: Vec<PlanFolder>,
     /// Items in the folders brought in, and the bytes the file gives them.
-    pub(super) items: u64,
-    pub(super) bytes: u64,
+    pub(crate) items: u64,
+    pub(crate) bytes: u64,
     /// Folders the plan left out, by reason.
-    pub(super) lost: BTreeMap<SkipReason, usize>,
+    pub(crate) lost: BTreeMap<SkipReason, usize>,
     /// Past [`MAX_FOLDERS`] or [`MAX_ITEMS`]: nothing more is planned.
     full: bool,
     /// The file's own record key (PidTagRecordKey of its store), in hex.
-    pub(super) record_key: String,
+    pub(crate) record_key: String,
     /// The Sent Items folder's node, read last (`stream`).
-    pub(super) sent: Option<u32>,
+    pub(crate) sent: Option<u32>,
 }
 
 /// The folders a plan has taken, against the file going round in circles or on for ever: none
@@ -112,7 +112,7 @@ impl Plan {
     /// What the file holds, in one number: each folder brought in, by its node, kind, items and
     /// their bytes, and the file's record key. A file changed where its items aren't (Outlook
     /// writing its header) has the same; one with an item more or less, another.
-    pub(super) fn fingerprint(&self) -> u64 {
+    pub(crate) fn fingerprint(&self) -> u64 {
         let mut h = mailcraft_model::hash::Fnv::new();
         h.add(self.record_key.as_bytes());
         for f in self.folders.iter().filter(|f| f.kind != Kind::LeftOut) {
@@ -140,7 +140,7 @@ impl Plan {
 
 /// The plan of the file `store` reads (stopping early, with what was planned, when the import
 /// stops).
-pub(super) fn plan(store: &PstStore, ctx: &Ctx<'_>) -> io::Result<Plan> {
+pub(crate) fn plan(store: &PstStore, ctx: &Ctx<'_>) -> io::Result<Plan> {
     let top = store.ipm_subtree().and_then(|n| store.open_folder(n))?;
     let mut plan = Plan { record_key: record_key(store), ..Plan::default() };
     let mut guard = Guard::default();
@@ -270,13 +270,13 @@ fn sizes<'a>(table: &'a Table) -> impl Iterator<Item = (u32, u64)> + 'a {
 }
 
 /// Hands the plan out: steps to the writer, jobs to the lanes, numbered as one sequence.
-pub(super) struct Feed {
-    pub(super) seq: u64,
-    pub(super) jobs: SyncSender<Job>,
-    pub(super) results: Sender<Done>,
+pub(crate) struct Feed {
+    pub(crate) seq: u64,
+    pub(crate) jobs: SyncSender<Job>,
+    pub(crate) results: Sender<Done>,
     /// Items handed out so far, and whether that came to [`MAX_ITEMS`] (said once).
-    pub(super) handed: u64,
-    pub(super) capped: bool,
+    pub(crate) handed: u64,
+    pub(crate) capped: bool,
 }
 
 impl Feed {
@@ -315,7 +315,7 @@ impl Feed {
 /// Sent Items folder is made in its place, so the folders come out as they would, but read
 /// after every other, with the replies read before it (`out/sent_ids.rs`): even when a folder
 /// before it panicked, which is raised again once it's read.
-pub(super) fn stream(store: &PstStore, plan: &Plan, feed: &mut Feed, ctx: &Ctx<'_>) {
+pub(crate) fn stream(store: &PstStore, plan: &Plan, feed: &mut Feed, ctx: &Ctx<'_>) {
     let skip = ctx.resume.as_ref();
     let folders = plan.folders.iter().filter(|f| f.kind == Kind::Mail).count();
     let outline = plan
