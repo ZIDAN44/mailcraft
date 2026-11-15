@@ -4,6 +4,7 @@ use super::*;
 
 mod changes;
 mod flagging;
+mod folder_uids;
 mod merging;
 
 /// The folders a test made ([`scratch`]), removed when its thread ends, whether the test passed

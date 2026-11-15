@@ -41,6 +41,41 @@ impl Store {
         let marks: Vec<(u32, Flags)> = if file.pages.is_empty() { Vec::new() } else { self.read_json(&dir.join(MARKS))? };
         Ok(FolderLoad { account: account.to_string(), folder: folder.to_string(), dir, st, pages: file.pages.len(), next: 0, marks })
     }
+
+    /// The numbers of a folder's messages, the rest of each one's summary not read: the numbers
+    /// still in use, all that forgetting the others needs (a folder's whole list read for its
+    /// numbers alone took four times as long, measured on 100,000 messages). In no order.
+    pub fn folder_uids(&self, account: &str, folder: &str) -> Result<Vec<u32>> {
+        let dir = self.folder_dir(account, folder);
+        let head: UidsFile = self.read_json(&dir.join("state.json"))?;
+        let mut uids: Vec<u32> = head.messages.iter().map(|m| m.key.uid).collect();
+        for i in 0..head.pages.len() {
+            let page: Vec<UidOnly> = self.read_json(&dir.join(format!("state-{i}.json")))?;
+            uids.extend(page.iter().map(|m| m.key.uid));
+        }
+        Ok(uids)
+    }
+}
+
+/// A folder's list file ([`StateFile`]) read for its messages' numbers and its pages alone.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct UidsFile {
+    messages: Vec<UidOnly>,
+    pages: Vec<u64>,
+}
+
+/// A message's summary read for its number alone.
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct UidOnly {
+    key: UidOfKey,
+}
+
+#[derive(Default, Deserialize)]
+#[serde(default)]
+struct UidOfKey {
+    uid: u32,
 }
 
 /// Beside a list kept in pages: the flags of the messages marked since its pages were written

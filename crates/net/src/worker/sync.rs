@@ -437,9 +437,9 @@ impl Worker {
         }
         let read = || -> std::result::Result<std::collections::HashSet<u32>, mailcraft_store::StoreError> {
             let ops = self.store.load_ops(&self.acc.id)?;
-            let mut keep: std::collections::HashSet<u32> = ops.iter().flat_map(|o| o.keys().iter().map(|k| k.uid).collect::<Vec<_>>()).collect();
+            let mut keep: std::collections::HashSet<u32> = ops.iter().flat_map(|o| o.keys().iter().map(|k| k.uid)).collect();
             for f in &self.folders {
-                keep.extend(self.store.load_folder(&self.acc.id, &f.path)?.messages.iter().map(|m| m.key.uid));
+                keep.extend(self.store.folder_uids(&self.acc.id, &f.path)?);
             }
             Ok(keep)
         };
