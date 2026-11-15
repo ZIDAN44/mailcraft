@@ -437,7 +437,7 @@ pub(super) fn photo<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str, data: &
         return Some(Got::Left(SkipReason::AttachmentTooBig));
     }
     let s = |id: u16| p(id).and_then(Val::into_text).unwrap_or_default();
-    let mime = Some(s(0x370E)).filter(|m| !m.is_empty()).unwrap_or_else(|| mime::mime_from_name(&name_of(&s)).to_string());
+    let mime = mime_or_from_name(s(0x370E), &name_of(&s));
     Some(Got::Photo(mime, data.to_vec()))
 }
 
@@ -597,7 +597,7 @@ pub(super) struct Link {
 impl Link {
     /// Its file, read (`data`).
     pub(super) fn file(self, data: Vec<u8>) -> Got {
-        let mime = Some(self.mime).filter(|m| !m.is_empty()).unwrap_or_else(|| mime::mime_from_name(&self.name).to_string());
+        let mime = mime_or_from_name(self.mime, &self.name);
         Got::File(File::Data { name: self.name, mime, cid: self.cid, data })
     }
 
@@ -633,7 +633,7 @@ pub(super) fn link_of<'a>(p: &dyn Fn(u16) -> Option<Val<'a>>, class: &str) -> Go
         return Got::Left(SkipReason::AttachmentLink);
     }
     let web = matches!(p(0x3705), Some(Val::Int(7)));
-    let given = [s(0x3707), s(0x3704), s(0x3001)].into_iter().find(|n| !n.trim().is_empty());
+    let given = given_name(&s);
     // The file's own name, else the path's last part.
     let leaf = path.rsplit(['\\', '/']).next().filter(|l| !l.trim().is_empty()).map(str::to_string);
     let name = given.or(leaf).unwrap_or_else(|| "attachment".into());
@@ -747,9 +747,20 @@ pub(super) fn local_path(path: &str) -> bool {
     absolute && craft_docpath::resolve_absolute(path, None).is_ok()
 }
 
-/// A file's name: its long name, its short one, then its display name.
-fn name_of(s: &dyn Fn(u16) -> String) -> String {
-    [s(0x3707), s(0x3704), s(0x3001)].into_iter().find(|n| !n.is_empty()).unwrap_or_else(|| "attachment".into())
+/// A file's name as its attachment's properties (`s`, text) give it: its long name, its short
+/// one, then its display name, the first that isn't blank. A data file's, and a `.msg` file's.
+pub(crate) fn given_name(s: &dyn Fn(u16) -> String) -> Option<String> {
+    [0x3707, 0x3704, 0x3001].into_iter().map(s).find(|n| !n.trim().is_empty())
+}
+
+/// A file's name ([`given_name`]), or "attachment" when it gives none.
+pub(super) fn name_of(s: &dyn Fn(u16) -> String) -> String {
+    given_name(s).unwrap_or_else(|| "attachment".into())
+}
+
+/// A file's type: the one its attachment states, else the one its name says.
+fn mime_or_from_name(stated: String, name: &str) -> String {
+    if stated.is_empty() { mime::mime_from_name(name).to_string() } else { stated }
 }
 
 /// A table's rows as property maps.

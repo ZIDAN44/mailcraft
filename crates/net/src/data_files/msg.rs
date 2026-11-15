@@ -134,7 +134,7 @@ impl Reader<'_> {
             let at = format!("{dir}/{a}");
             let p = self.props(&at, PART_HEADER);
             let text = |id: u16| p.iter().find(|x| x.id == id).and_then(|x| text_value(x, cp));
-            let name = text(0x3707).or_else(|| text(0x3704)).or_else(|| text(0x3001)).unwrap_or_default();
+            let name = crate::pst::given_name(&|id| text(id).unwrap_or_default()).unwrap_or_default();
             let mime = text(0x370E).unwrap_or_default();
             let cid = text(0x3712).unwrap_or_default();
             let inner = format!("{at}/__substg1.0_3701000D");

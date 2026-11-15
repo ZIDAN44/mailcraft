@@ -55,6 +55,7 @@ use chunked::Shared;
 use embedded::{Holder, Part, item_with_files};
 #[doc(hidden)]
 pub use fuzzing::{rebuilt, repeating, repeating_task, text_from_bytes};
+pub(crate) use item::given_name;
 use item::{File, Item, attachment, item, message_class, message_code_page, unread_attachment};
 #[cfg(test)]
 pub(crate) use lanes::tests::Fault;

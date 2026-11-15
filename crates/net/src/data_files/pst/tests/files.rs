@@ -11,6 +11,34 @@ fn unreadable() -> io::Error {
     io::Error::other("damaged")
 }
 
+/// A file's name is its long name, its short one, then its display name, the first that isn't
+/// blank, whether the file is in the data file or a link names it: a long name of spaces made a
+/// blank file name of one and fell through for the other.
+#[test]
+fn a_blank_long_name_gives_way_to_the_short_one() {
+    let names = |long: &'static str| {
+        move |id: u16| match id {
+            0x3707 => long.to_string(),
+            0x3704 => "PLAN~1.PDF".to_string(),
+            0x3001 => "Plan".to_string(),
+            _ => String::new(),
+        }
+    };
+    assert_eq!(super::super::item::name_of(&names("plan.pdf")), "plan.pdf");
+    assert_eq!(super::super::item::name_of(&names(" \t ")), "PLAN~1.PDF");
+    assert_eq!(super::super::item::name_of(&|_| " ".to_string()), "attachment");
+    let link = HashMap::from([
+        (0x3705, Val::Int(4)),
+        (0x370D, Val::Text("C:\\nowhere\\plan.pdf".into())),
+        (0x3707, Val::Text("  ".into())),
+        (0x3704, Val::Text("PLAN~1.PDF".into())),
+    ]);
+    match linked(&|id| link.get(&id).cloned(), &|_, _| None) {
+        Got::Link(File::Data { name, .. }) => assert_eq!(name, "PLAN~1.PDF (link).txt"),
+        _ => panic!("a link named"),
+    }
+}
+
 /// An attachment the reader couldn't read comes from its row: a link is counted; an attached
 /// message is counted as one; anything else is counted as unreadable; a hidden one is as any
 /// other, except a contact's (its picture) and a recurring series' changed occurrence.

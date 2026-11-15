@@ -222,6 +222,26 @@ fn eight_bit_file_names_are_read_in_the_messages_code_page() {
     assert!(ip.attachments.iter().any(|a| a.name == "Отчет.txt"), "{:?}", ip.attachments);
 }
 
+/// A file whose long name is blank is named by its short name, as a data file's is: it came
+/// in named with spaces.
+#[test]
+fn a_blank_long_file_name_gives_way_to_the_short_one() {
+    let mut cf = CompoundFile::create(Cursor::new(Vec::new())).unwrap();
+    write_props(&mut cf, "", TOP_HEADER, &[(0x001A_001F, P::Text("IPM.Note")), (0x0037_001F, P::Text("Plan")), (0x1000_001F, P::Text("Attached."))]);
+    let file = "/__attach_version1.0_#00000000";
+    cf.create_storage(file).unwrap();
+    write_props(
+        &mut cf,
+        file,
+        PART_HEADER,
+        &[(0x3707_001F, P::Text("   ")), (0x3704_001F, P::Text("PLAN~1.CSV")), (0x3705_0003, P::Int(1)), (0x3701_0102, P::Bin(b"a,b\n".to_vec()))],
+    );
+    cf.flush().unwrap();
+    let raw = to_mime(&cf.into_inner().into_inner()).unwrap();
+    let p = mailcraft_mime::parse(&raw).unwrap();
+    assert_eq!(p.attachments.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), ["PLAN~1.CSV"]);
+}
+
 /// What isn't a message file is an error, never a panic: other files, a compound file that
 /// holds no message, one cut short, one damaged byte by byte, and one too big.
 #[test]
