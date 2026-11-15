@@ -1,4 +1,5 @@
 use super::*;
+use crate::client::{expand, template_url};
 
 #[test]
 fn session_urls_dates_and_keywords() {
