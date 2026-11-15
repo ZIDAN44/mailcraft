@@ -50,6 +50,8 @@ fn bobs_copy(m: &Mailcow, uid: &str) -> Option<(String, String)> {
 #[ignore]
 fn real_mailcow_an_answer_from_another_device_stays() {
     let Some(m) = Mailcow::from_env() else { return };
+    let mark = format!("{MARK} phone");
+    m.clean_calendars(&[0, 1], &mark);
     let web = format!("{}/", m.web);
     let (mut bob, bid) = App::new(&m, 1, "answers-phone");
     bob.s.run("account.dav", &json!({"account": bid, "caldav": web})).unwrap();
@@ -60,7 +62,7 @@ fn real_mailcow_an_answer_from_another_device_stays() {
     let (mut ann, aid) = App::new(&m, 0, "answers-phone");
     ann.s.run("account.dav", &json!({"account": aid, "caldav": web})).unwrap();
     ann.sync_dav(&aid);
-    let title = format!("{MARK} {} phone", std::process::id());
+    let title = format!("{mark} {}", std::process::id());
     let uid = invite_bob(&m, &mut ann, &aid, &title, "2026-12-21T10:00");
     let (href, data) = bobs_copy(&m, &uid).expect("SOGo's copy in bob's calendar");
     let (u, p) = m.user(1);
@@ -84,13 +86,7 @@ fn real_mailcow_an_answer_from_another_device_stays() {
     let local = bob.s.find_event(&uid).map(|(_, e)| e.event.attendees.iter().map(|a| a.partstat.clone()).collect::<Vec<_>>());
     assert_eq!(local, Some(vec!["ACCEPTED".to_string()]));
     assert_eq!(m.calendar(1, &format!("{}personal/", m.dav_home(1))).iter().filter(|(_, d)| d.contains(&uid)).count(), 1);
-    for n in [0, 1] {
-        for (h, d) in m.calendar(n, &format!("{}personal/", m.dav_home(n))) {
-            if d.contains(MARK) {
-                m.dav(n, "DELETE", &format!("{}{h}", m.web), None, "");
-            }
-        }
-    }
+    m.clean_calendars(&[0, 1], &mark);
 }
 
 /// SOGo writes bob's answer into ann's copy itself. ann's MailCraft takes the same answer in from
@@ -100,12 +96,14 @@ fn real_mailcow_an_answer_from_another_device_stays() {
 #[ignore]
 fn real_mailcow_an_agenda_written_as_a_guest_answers_stays() {
     let Some(m) = Mailcow::from_env() else { return };
+    let mark = format!("{MARK} agenda");
+    m.clean_calendars(&[0, 1], &mark);
     let web = format!("{}/", m.web);
     let (mut ann, aid) = App::new(&m, 0, "answers-agenda");
     ann.s.run("account.dav", &json!({"account": aid, "caldav": web})).unwrap();
     online(&mut ann);
     ann.sync_dav(&aid);
-    let title = format!("{MARK} {} agenda", std::process::id());
+    let title = format!("{mark} {}", std::process::id());
     let uid = invite_bob(&m, &mut ann, &aid, &title, "2026-12-22T10:00");
     let (mut bob, bid) = App::new(&m, 1, "answers-agenda");
     bob.s.run("account.dav", &json!({"account": bid, "caldav": web})).unwrap();
@@ -145,11 +143,5 @@ fn real_mailcow_an_agenda_written_as_a_guest_answers_stays() {
     let (_, stored) = m.dav(0, "GET", &local.href.clone(), None, "");
     eprintln!("ann's copy on SOGo:\n{stored}");
     assert!(stored.contains("Agenda: budget") && stored.contains("PARTSTAT=ACCEPTED"), "both: {stored}");
-    for n in [0, 1] {
-        for (h, d) in m.calendar(n, &format!("{}personal/", m.dav_home(n))) {
-            if d.contains(MARK) {
-                m.dav(n, "DELETE", &format!("{}{h}", m.web), None, "");
-            }
-        }
-    }
+    m.clean_calendars(&[0, 1], &mark);
 }

@@ -111,6 +111,19 @@ impl Mailcow {
         }
         out
     }
+
+    /// Take out of users `who`'s personal calendars every item titled from `mark` on: what a run
+    /// before left there, passed or failed (called as a test starts, and as it ends).
+    pub fn clean_calendars(&self, who: &[usize], mark: &str) {
+        for &n in who {
+            for (href, data) in self.calendar(n, &format!("{}personal/", self.dav_home(n))) {
+                if data.contains(&format!("SUMMARY:{mark}")) {
+                    let (st, _) = self.dav(n, "DELETE", &format!("{}{href}", self.web), None, "");
+                    eprintln!("cleaned {href}: {st}");
+                }
+            }
+        }
+    }
 }
 
 fn hrefs_in(xml: &str) -> Vec<String> {

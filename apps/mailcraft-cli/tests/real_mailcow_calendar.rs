@@ -23,17 +23,6 @@ use serde_json::{Value, json};
 /// Events the tests made, by their titles' start.
 const MARK: &str = "Mailcow test";
 
-/// Take out what an earlier run left in ann's calendar.
-fn clean(m: &Mailcow) {
-    let cal = format!("{}personal/", m.dav_home(0));
-    for (href, data) in m.calendar(0, &cal) {
-        if data.contains(&format!("SUMMARY:{MARK}")) {
-            let (st, _) = m.dav(0, "DELETE", &format!("{}{href}", m.web), None, "");
-            eprintln!("cleaned {href}: {st}");
-        }
-    }
-}
-
 /// The calendar data stored for a title (as ann sees it).
 fn stored(m: &Mailcow, summary: &str) -> String {
     let cal = format!("{}personal/", m.dav_home(0));
@@ -67,7 +56,7 @@ fn events(app: &mut App) -> Vec<Value> {
 #[ignore]
 fn real_mailcow_private_events_and_shared_calendars() {
     let Some(m) = Mailcow::from_env() else { return };
-    clean(&m);
+    m.clean_calendars(&[0], MARK);
     share(&m);
     let web = format!("{}/", m.web);
 
@@ -233,5 +222,5 @@ fn real_mailcow_private_events_and_shared_calendars() {
     eprintln!("--- SOGo's private event renamed in MailCraft:\n{therapy}");
     assert_eq!(therapy.matches("CLASS:").count(), 1, "{therapy}");
     assert!(therapy.contains("CLASS:PRIVATE") && therapy.contains("TRANSP:OPAQUE"), "{therapy}");
-    clean(&m);
+    m.clean_calendars(&[0], MARK);
 }

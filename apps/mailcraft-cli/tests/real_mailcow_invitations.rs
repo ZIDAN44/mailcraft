@@ -27,13 +27,8 @@ const MARK: &str = "Mailcow meeting";
 
 /// Take out what an earlier run left in ann's and bob's calendars and Inboxes.
 fn clean(m: &Mailcow) {
+    m.clean_calendars(&[0, 1], MARK);
     for n in [0, 1] {
-        let cal = format!("{}personal/", m.dav_home(n));
-        for (href, data) in m.calendar(n, &cal) {
-            if data.contains(&format!("SUMMARY:{MARK}")) {
-                m.dav(n, "DELETE", &format!("{}{href}", m.web), None, "");
-            }
-        }
         let mut imap = m.imap_as(n);
         for folder in ["INBOX", "Trash"] {
             imap.cmd(&format!("SELECT {folder}"));
