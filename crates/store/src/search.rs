@@ -301,6 +301,23 @@ impl DocRec {
     }
 }
 
+/// Each live doc of a doc table by its folder and uid: how the writer and the reader find a
+/// message's doc.
+pub(crate) fn by_key(docs: &[DocRec]) -> HashMap<(u16, u32), u32> {
+    let mut by_key = HashMap::with_capacity(docs.iter().filter(|d| d.live()).count());
+    for (i, d) in docs.iter().enumerate() {
+        if d.live() {
+            by_key.insert((d.folder, d.uid), u32::try_from(i).unwrap_or(u32::MAX));
+        }
+    }
+    by_key
+}
+
+/// Each folder an index names by its number (its place in the list: the doc table's folder).
+pub(crate) fn folder_ix(folders: &[String]) -> HashMap<String, u16> {
+    folders.iter().enumerate().filter_map(|(i, f)| Some((f.clone(), u16::try_from(i).ok()?))).collect()
+}
+
 /// Whether a doc's message carries files (`files` of them, `bits` its flags), as far as the
 /// index knows: not when its source isn't kept, nor when parts of it went unread and no file was
 /// found (a file may be past the cut: nested too deep, one part too many). The summary says, then.

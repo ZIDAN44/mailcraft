@@ -171,13 +171,14 @@ impl Reader {
             return Ok(None);
         }
         let docs = load_docs(store, &base, &meta)?;
+        let by_key = by_key(&docs);
         let mut r = Reader {
             account: account.to_string(),
             base,
             meta: Meta::default(),
             docs,
             folder_ix: HashMap::new(),
-            by_key: HashMap::new(),
+            by_key,
             heads: Vec::new(),
             cache: Cache::default(),
             places: Cache::default(),
@@ -186,18 +187,13 @@ impl Reader {
             lex_held: None,
             lex_decoded: 0,
         };
-        for (i, d) in r.docs.iter().enumerate() {
-            if d.live() {
-                r.by_key.insert((d.folder, d.uid), u32::try_from(i).unwrap_or(u32::MAX));
-            }
-        }
         r.heads = r.load_heads(store, &meta)?;
         r.set_meta(meta);
         Ok(Some(r))
     }
 
     fn set_meta(&mut self, meta: Meta) {
-        self.folder_ix = meta.folders.iter().enumerate().filter_map(|(i, f)| Some((f.clone(), u16::try_from(i).ok()?))).collect();
+        self.folder_ix = folder_ix(&meta.folders);
         self.meta = meta;
     }
 
@@ -395,10 +391,8 @@ impl Reader {
             let page = match cur.page {
                 Some(p) => p,
                 None => {
-                    // The last page starting at or before the prefix: its words may run into it.
-                    let at = firsts.partition_point(|f| f.as_slice() <= target.as_slice()).saturating_sub(1);
                     cur.entry = 0;
-                    u32::try_from(at).unwrap_or(u32::MAX)
+                    first_page(firsts, &target)
                 }
             };
             cur.page = Some(page);
@@ -411,12 +405,10 @@ impl Reader {
             }
             let entries = self.lex_page(store, &info, page)?;
             read += 1;
+            // The page's words are in order: those before the prefix passed over at once.
+            cur.entry = cur.entry.max(entries.partition_point(|e| e.key.as_slice() < target.as_slice()));
             let mut past = false;
             while let Some(e) = entries.get(cur.entry) {
-                if e.key.as_slice() < target.as_slice() {
-                    cur.entry += 1;
-                    continue;
-                }
                 if !e.key.starts_with(&target) {
                     past = true;
                     break;
@@ -516,6 +508,14 @@ fn text_at(page: &[u8], at: &[(u32, Range<usize>)], doc: u32) -> std::result::Re
     let Ok(i) = at.binary_search_by_key(&doc, |(d, _)| *d) else { return Ok(None) };
     let Some(blob) = at.get(i).and_then(|(_, r)| page.get(r.clone())) else { return Ok(None) };
     decode_blob(blob).map(Some)
+}
+
+/// The lexicon page of a segment (`firsts`: each page's first word) where `key` is, or where
+/// the words starting with it start: the last page starting at or before it (its words may run
+/// into it).
+fn first_page(firsts: &[Vec<u8>], key: &[u8]) -> u32 {
+    let at = firsts.partition_point(|f| f.as_slice() <= key).saturating_sub(1);
+    u32::try_from(at).unwrap_or(u32::MAX)
 }
 
 /// The index doesn't read back: set aside to be made again, `None`. While its writer is held,

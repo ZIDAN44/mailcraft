@@ -212,7 +212,7 @@ impl Writer {
     fn with(store: &Store, account: &str, base: PathBuf, meta: Meta, docs: Vec<DocRec>, held: Held) -> Writer {
         let folders = meta.folders.clone();
         let folder_bytes = folders.iter().map(String::len).fold(0, usize::saturating_add);
-        let folder_ix = folders.iter().enumerate().filter_map(|(i, f)| Some((f.clone(), u16::try_from(i).ok()?))).collect();
+        let folder_ix = folder_ix(&folders);
         let by_key = by_key(&docs);
         let marks = meta.marks.iter().copied().collect();
         Writer {
@@ -520,17 +520,6 @@ pub struct Indexed {
     pub source: bool,
     /// Whether it carries files, as far as the index knows ([`DocInfo::files_known`]).
     pub files: Option<bool>,
-}
-
-/// Each live doc by its folder and uid.
-fn by_key(docs: &[DocRec]) -> HashMap<(u16, u32), u32> {
-    let mut by_key = HashMap::with_capacity(docs.len());
-    for (i, d) in docs.iter().enumerate() {
-        if d.live() {
-            by_key.insert((d.folder, d.uid), u32::try_from(i).unwrap_or(u32::MAX));
-        }
-    }
-    by_key
 }
 
 /// An account's index as committed: its meta and doc table; `None` when it has none.

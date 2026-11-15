@@ -181,9 +181,7 @@ impl Reader {
                 Stage::Last { page, entry } if scan.stream.is_none() => {
                     let target = key(field, words.last().map_or("", String::as_str));
                     let Some((_, firsts)) = self.heads.get(scan.seg) else { continue };
-                    // The last page starting at or before the prefix: its words may run into it.
-                    let first = || firsts.partition_point(|f| f.as_slice() <= target.as_slice()).saturating_sub(1);
-                    let page = page.unwrap_or_else(|| u32::try_from(first()).unwrap_or(u32::MAX));
+                    let page = page.unwrap_or_else(|| first_page(firsts, &target));
                     if page >= info.lex_pages {
                         scan.stage = Stage::Long;
                         continue;
@@ -193,10 +191,8 @@ impl Reader {
                     if self.lex_decoded != decoded {
                         read += 1;
                     }
-                    let mut at = entry;
-                    while entries.get(at).is_some_and(|e| e.key.as_slice() < target.as_slice()) {
-                        at += 1;
-                    }
+                    // The page's words are in order: those before the prefix passed over at once.
+                    let at = entry.max(entries.partition_point(|e| e.key.as_slice() < target.as_slice()));
                     scan.stage = match entries.get(at) {
                         None => Stage::Last { page: Some(page.saturating_add(1)), entry: 0 },
                         Some(e) if !e.key.starts_with(&target) => Stage::Long,
@@ -227,8 +223,7 @@ impl Reader {
     /// The entry of `key` in a segment, when it has it; `read` counts a lexicon page decoded.
     fn entry(&mut self, store: &Store, info: &SegInfo, key: &[u8], read: &mut usize) -> Result<Option<LexEntry>> {
         let Some((_, firsts)) = self.heads.iter().find(|(s, _)| s == info) else { return Ok(None) };
-        let page = firsts.partition_point(|f| f.as_slice() <= key).saturating_sub(1);
-        let page = u32::try_from(page).unwrap_or(u32::MAX);
+        let page = first_page(firsts, key);
         if page >= info.lex_pages {
             return Ok(None);
         }
@@ -323,7 +318,7 @@ fn weigh(scan: &mut PhraseScan, stage: Stage, n: usize, doc: u32, places: &[u32]
     // Whether the word is at `at` places after a place the phrase may start at (any, alone).
     let follows = |starts: Option<&Vec<u32>>, at: usize| match starts {
         None => !places.is_empty(),
-        Some(s) => s.iter().any(|p| p.checked_add(u32::try_from(at).unwrap_or(u32::MAX)).is_some_and(|q| places.binary_search(&q).is_ok())),
+        Some(s) => s.iter().any(|&p| at_after(places, p, at)),
     };
     let starts = if n > 1 { scan.starts.get(&doc) } else { None };
     match stage {
@@ -335,11 +330,7 @@ fn weigh(scan: &mut PhraseScan, stage: Stage, n: usize, doc: u32, places: &[u32]
         }
         Stage::Word(i) => {
             let Some(s) = scan.starts.get(&doc) else { return };
-            let kept: Vec<u32> = s
-                .iter()
-                .copied()
-                .filter(|p| p.checked_add(u32::try_from(i).unwrap_or(u32::MAX)).is_some_and(|q| places.binary_search(&q).is_ok()))
-                .collect();
+            let kept: Vec<u32> = s.iter().copied().filter(|&p| at_after(places, p, i)).collect();
             if !kept.is_empty() {
                 scan.next.insert(doc, kept);
             }
@@ -355,6 +346,11 @@ fn weigh(scan: &mut PhraseScan, stage: Stage, n: usize, doc: u32, places: &[u32]
             }
         }
     }
+}
+
+/// Whether one of a word's `places` (rising) is `at` places after `start`.
+fn at_after(places: &[u32], start: u32, at: usize) -> bool {
+    start.checked_add(u32::try_from(at).unwrap_or(u32::MAX)).is_some_and(|q| places.binary_search(&q).is_ok())
 }
 
 fn end_segment(scan: &mut PhraseScan) {
