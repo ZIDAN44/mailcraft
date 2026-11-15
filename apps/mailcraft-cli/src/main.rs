@@ -37,24 +37,58 @@ struct Args {
     rest: Vec<String>,
 }
 
-/// The options that take no value. Every other option takes the word after it: a switch was
-/// taken so too, and swallowed what followed it (`source --headers KEY` lost its KEY).
-const SWITCHES: [&str; 2] = ["--headers", "--checked"];
+/// The options that take no value. A switch was taken as the others, and swallowed what followed
+/// it (`source --headers KEY` lost its KEY).
+const SWITCHES: [&str; 6] = ["--headers", "--checked", "--help", "-h", "--version", "-V"];
 
-/// Whether `a` is an option's name (`--to`), not a value that starts with dashes (`-- Riley`, a
-/// signature's).
+/// The options that take the word after them, whatever it starts with (`--body "--Riley"`).
+const OPTIONS: [&str; 20] = [
+    "--data",
+    "--email",
+    "--name",
+    "--username",
+    "--imap",
+    "--smtp",
+    "--imap-security",
+    "--smtp-security",
+    "--jmap",
+    "--account",
+    "--timeout",
+    "--folder",
+    "--limit",
+    "--to",
+    "--cc",
+    "--subject",
+    "--body",
+    "--signature",
+    "--from",
+    "--attach",
+];
+
+/// Whether `a` is one of the CLI's options or switches.
+fn is_known(a: &str) -> bool {
+    OPTIONS.contains(&a) || SWITCHES.contains(&a)
+}
+
+/// Whether `a` is written as an option (`--to`), not as a value that starts with dashes
+/// (`-- Riley`, a signature's).
 fn is_option(a: &str) -> bool {
     a.strip_prefix("--").is_some_and(|n| n.starts_with(|c: char| c.is_ascii_alphabetic()))
 }
 
 impl Args {
-    /// Every option that takes a value has one: one given none took the next option for it
-    /// (`--to --subject x` sent to "--subject").
+    /// Every option is one the CLI has, and each that takes a value has one: one given none took
+    /// the next option for it (`--to --subject x` sent to "--subject"). A value is the word after
+    /// its option, dashes or not; only another option's name there says it was left out.
     fn check(&self) -> Result<(), String> {
         let mut it = self.rest.iter();
         while let Some(a) = it.next() {
-            if is_option(a) && !SWITCHES.contains(&a.as_str()) && !it.next().is_some_and(|v| !is_option(v)) {
-                return Err(format!("{a} needs a value"));
+            if OPTIONS.contains(&a.as_str()) {
+                if !it.next().is_some_and(|v| !is_known(v)) {
+                    return Err(format!("{a} needs a value"));
+                }
+            } else if is_option(a) && !SWITCHES.contains(&a.as_str()) {
+                return Err(format!("no option {a} (see --help)"));
             }
         }
         Ok(())
@@ -79,8 +113,8 @@ impl Args {
                 skip = false;
                 continue;
             }
-            if is_option(a) {
-                skip = !SWITCHES.contains(&a.as_str());
+            if is_known(a) {
+                skip = OPTIONS.contains(&a.as_str());
                 continue;
             }
             if i == n {
@@ -219,6 +253,11 @@ fn run() -> Result<(), String> {
     }
     let args = Args { rest: raw };
     args.check()?;
+    if args.flag("--help") || args.flag("-h") {
+        // Before the data folder is opened: the help needs none.
+        outln!("{}", include_str!("help.txt"));
+        return Ok(());
+    }
     let root =
         args.opt("--data").map(std::path::PathBuf::from).or_else(mailcraft_engine::store::default_root).ok_or("no data folder: pass --data DIR")?;
     // The same data files as the app: in Documents\MailCraft Files (or where they were moved),
@@ -369,11 +408,8 @@ mod tests {
     #[test]
     fn the_help_names_every_option() {
         let help = include_str!("help.txt");
-        for src in [include_str!("main.rs"), include_str!("commands.rs"), include_str!("commands/send.rs")] {
-            for (i, _) in src.match_indices("\"--") {
-                let name: String = src[i + 1..].chars().take_while(|c| *c == '-' || c.is_ascii_alphanumeric()).collect();
-                assert!(name.len() <= 2 || help.contains(&name), "{name} isn't in help.txt");
-            }
+        for name in OPTIONS.iter().chain(&SWITCHES) {
+            assert!(name.len() <= 2 || help.contains(name), "{name} isn't in help.txt");
         }
     }
 
@@ -388,9 +424,40 @@ mod tests {
         assert_eq!((a.opt("--to").as_deref(), a.opt("--body").as_deref(), a.flag("--checked")), (Some("zoe@studio.example"), Some("-- Riley"), true));
         assert_eq!(args(&["send", "--to", "--subject", "x"]).check(), Err("--to needs a value".into()));
         assert_eq!(args(&["list", "--limit"]).check(), Err("--limit needs a value".into()));
+        assert_eq!(args(&["send", "--to", "--checked"]).check(), Err("--to needs a value".into()));
         assert_eq!(args(&["list", "--limit", "5"]).number("--limit", 30), Ok(5));
         assert_eq!(args(&["list"]).number("--limit", 30), Ok(30));
         assert!(args(&["list", "--limit", "two"]).number("--limit", 30).is_err());
+    }
+
+    /// A value is the word after its option, whatever it starts with: one that began with two
+    /// dashes and a letter was refused as an option without a value. The switches for the help
+    /// take none, and an option the CLI doesn't have is said.
+    #[test]
+    fn a_value_may_start_with_dashes() {
+        let a = args(&["send", "--to", "zoe@studio.example", "--subject", "--force is deprecated", "--body", "--Riley"]);
+        assert_eq!(a.check(), Ok(()));
+        assert_eq!((a.opt("--subject").as_deref(), a.opt("--body").as_deref()), (Some("--force is deprecated"), Some("--Riley")));
+        assert_eq!((a.positional(0).as_deref(), a.positional(1)), (Some("send"), None));
+        let a = args(&["search", "--data", "--mine", "from:zoe"]);
+        assert_eq!((a.check(), a.opt("--data").as_deref(), a.positional(1).as_deref()), (Ok(()), Some("--mine"), Some("from:zoe")));
+        for help in ["--help", "-h"] {
+            let a = args(&[help]);
+            assert_eq!((a.check(), a.flag(help), a.positional(0)), (Ok(()), true, None));
+        }
+        assert_eq!(args(&["list", "--limt", "5"]).check(), Err("no option --limt (see --help)".into()));
+    }
+
+    /// Every option the CLI reads is one `check` knows, with or without a value.
+    #[test]
+    fn every_option_read_is_known() {
+        for src in [include_str!("main.rs"), include_str!("commands.rs"), include_str!("commands/send.rs")] {
+            for (i, _) in src.match_indices("opt(\"--").chain(src.match_indices("number(\"--")).chain(src.match_indices("flag(\"--")) {
+                let name: String = src[i..].chars().skip_while(|c| *c != '-').take_while(|c| *c == '-' || c.is_ascii_alphanumeric()).collect();
+                assert!(is_known(&name), "{name} isn't in OPTIONS or SWITCHES");
+                assert_eq!(src[i..].starts_with("flag("), SWITCHES.contains(&name.as_str()), "{name}");
+            }
+        }
     }
 
     /// A change made with `run` waits for `sync` instead of being dropped.

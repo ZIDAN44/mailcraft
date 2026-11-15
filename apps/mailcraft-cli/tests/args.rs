@@ -30,6 +30,19 @@ fn a_closed_pipe_doesnt_crash() {
         drop(child.stdout.take());
         let out = child.wait_with_output().unwrap();
         assert!(!String::from_utf8_lossy(&out.stderr).contains("panicked"), "{}", String::from_utf8_lossy(&out.stderr));
-        assert_ne!(out.status.code(), Some(101), "a panic's exit code");
+        // The help was on its way into the pipe, not an error about the arguments.
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    }
+}
+
+/// `--help` and `-h` print the help and succeed, without a data folder: they were refused as
+/// options given no value.
+#[test]
+fn help_is_printed_when_asked_for() {
+    for help in ["--help", "-h"] {
+        let out = std::process::Command::new(env!("CARGO_BIN_EXE_mailcraft-cli")).arg(help).output().unwrap();
+        assert!(out.status.success(), "{help}: {}", String::from_utf8_lossy(&out.stderr));
+        assert!(String::from_utf8_lossy(&out.stdout).contains("mailcraft-cli [--data DIR] <command>"), "{help}");
+        assert!(out.stderr.is_empty(), "{help}: {}", String::from_utf8_lossy(&out.stderr));
     }
 }

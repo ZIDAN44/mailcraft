@@ -25,5 +25,6 @@ mailcraft-cli [--data DIR] <command>
                                  to mail go to the server with the next `sync`;
                                  `dataFile.compact` runs here, its progress on stderr)
   --version                      print the version
+  --help                         print this
 
 Passwords are read from MAILCRAFT_PASSWORD or asked for on the terminal; they are never kept.
