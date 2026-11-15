@@ -588,13 +588,11 @@ fn the_fuzz_targets_data_files_read_back_the_same() {
     assert!(crate::fuzz_data_file(&seed));
     let written = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fuzz/seeds/data_file/kinds");
     assert_eq!(std::fs::read(&written).ok().as_deref(), Some(seed.as_slice()), "fuzz/seeds/data_file/kinds is the seed made here");
-    let mut x = 0x2545_f491_4f6c_dd1du64;
+    let mut rng = crate::tests::random::Rng(0x2545_f491_4f6c_dd1d);
     for round in 0..300 {
         let mut input = seed.clone();
         for _ in 0..1 + round % 8 {
-            x ^= x << 13;
-            x ^= x >> 7;
-            x ^= x << 17;
+            let x = rng.next_u64();
             let at = (x >> 8) as usize % input.len();
             input[at] = (x >> 40) as u8;
         }

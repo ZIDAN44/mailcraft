@@ -419,7 +419,7 @@ fn damaged_files_are_errors() {
             }),
         };
     };
-    let mut x = 0x9e37_79b9_7f4a_7c15u64;
+    let mut rng = crate::tests::random::Rng(0x9e37_79b9_7f4a_7c15);
     let mut all: Vec<(Option<Name>, Vec<u8>)> = meta.uses().into_iter().map(|n| (Some(n), s.files.read(&n.path(&dir(&s, "a1"))).unwrap())).collect();
     all.push((None, encode_meta(&meta)));
     let before_places = Meta { segments: meta.segments.iter().map(|s| SegInfo { pos_pages: 0, ..*s }).collect(), ..meta.clone() };
@@ -434,10 +434,8 @@ fn damaged_files_are_errors() {
         }
         for _ in 0..2000 {
             let mut b = good.clone();
-            for _ in 0..1 + x % 4 {
-                x ^= x << 13;
-                x ^= x >> 7;
-                x ^= x << 17;
+            for _ in 0..1 + rng.0 % 4 {
+                let x = rng.next_u64();
                 let i = (x % b.len() as u64) as usize;
                 b[i] = (x >> 32) as u8;
             }

@@ -13,13 +13,10 @@ fn key(account: &str, uid: u32) -> MessageKey {
 }
 
 fn source(uid: u32) -> Vec<u8> {
-    let mut x = (0x9E37_79B9_7F4A_7C15u64 ^ u64::from(uid).wrapping_mul(0x2545_F491_4F6C_DD1D)) | 1;
+    let mut rng = crate::tests::random::Rng((0x9E37_79B9_7F4A_7C15u64 ^ u64::from(uid).wrapping_mul(0x2545_F491_4F6C_DD1D)) | 1);
     let mut v = format!("Subject: {uid}\r\n\r\n").into_bytes();
     while v.len() < SOURCE {
-        x ^= x << 13;
-        x ^= x >> 7;
-        x ^= x << 17;
-        v.extend_from_slice(&x.to_le_bytes());
+        v.extend_from_slice(&rng.next_u64().to_le_bytes());
     }
     v.truncate(SOURCE);
     v

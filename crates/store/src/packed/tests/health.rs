@@ -4,6 +4,7 @@
 use redb::ReadableDatabase;
 
 use super::*;
+use crate::tests::random::Rng;
 
 /// What the database itself has in use: its allocated pages (walking every one).
 fn allocated(s: &Store) -> u64 {
@@ -11,18 +12,6 @@ fn allocated(s: &Store) -> u64 {
     let tx = db.begin_write().unwrap();
     let stats = tx.stats().unwrap();
     stats.allocated_pages() * stats.page_size() as u64
-}
-
-/// A small xorshift: the same file every run.
-struct Rng(u64);
-
-impl Rng {
-    fn next(&mut self, below: u64) -> u64 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 7;
-        self.0 ^= self.0 << 17;
-        self.0 % below.max(1)
-    }
 }
 
 /// What the pieces of a file take is counted as cutting it would cut it, without cutting it.
@@ -35,7 +24,7 @@ fn what_pieces_take_is_counted_without_cutting() {
             .sum()
     };
     let mut rng = Rng(0x5eed);
-    let lens = (0..2000).map(|i| if i < 200 { i * 337 } else { rng.next(5 << 20) as usize });
+    let lens = (0..2000).map(|i| if i < 200 { i * 337 } else { rng.below(5 << 20) as usize });
     for len in lens.chain([4095, 4096, 3584, 3585, 31744, 64512, 65024, 65025, 65536 * 3, 65024 + 64512]) {
         assert_eq!(super::super::pieced_footprint(len as u64), cut(len), "{len}");
     }
@@ -52,12 +41,12 @@ fn the_walk_comes_within_two_percent_of_the_database() {
     let s = packed_store(&t);
     let mut rng = Rng(0x9e37_79b9);
     let source = |rng: &mut Rng, uid: u32| -> Vec<u8> {
-        let n = match rng.next(4) {
-            0 => 200 + rng.next(3000),
-            1 => 4000 + rng.next(60_000),
-            _ => 60_000 + rng.next(400_000),
+        let n = match rng.below(4) {
+            0 => 200 + rng.below(3000),
+            1 => 4000 + rng.below(60_000),
+            _ => 60_000 + rng.below(400_000),
         } as usize;
-        if rng.next(3) == 0 { text(n, u64::from(uid)) } else { noise(n, rng.next(u64::MAX)) }
+        if rng.below(3) == 0 { text(n, u64::from(uid)) } else { noise(n, rng.below(u64::MAX)) }
     };
     let mut kept: Vec<u32> = Vec::new();
     for round in 0..40u32 {
@@ -67,16 +56,16 @@ fn the_walk_comes_within_two_percent_of_the_database() {
             batch.push((inbox(uid), Store::prepare(true, source(&mut rng, uid))));
             kept.push(uid);
         }
-        s.write_prepared(batch, rng.next(2) == 0).unwrap();
+        s.write_prepared(batch, rng.below(2) == 0).unwrap();
         // Small changes between: a document written over, a message written again or removed.
         for _ in 0..10 {
-            match rng.next(3) {
-                0 => s.save_account_doc("a1", &format!("doc{}.json", rng.next(30)), &vec![rng.next(1000); rng.next(200) as usize]).unwrap(),
+            match rng.below(3) {
+                0 => s.save_account_doc("a1", &format!("doc{}.json", rng.below(30)), &vec![rng.below(1000); rng.below(200) as usize]).unwrap(),
                 1 if !kept.is_empty() => {
-                    let uid = kept[rng.next(kept.len() as u64) as usize];
+                    let uid = kept[rng.below(kept.len() as u64) as usize];
                     s.write_body(&inbox(uid), &source(&mut rng, uid)).unwrap();
                 }
-                _ if !kept.is_empty() => s.remove_body(&inbox(kept.swap_remove(rng.next(kept.len() as u64) as usize))),
+                _ if !kept.is_empty() => s.remove_body(&inbox(kept.swap_remove(rng.below(kept.len() as u64) as usize))),
                 _ => {}
             }
         }
@@ -116,10 +105,10 @@ fn the_walk_counts_small_messages_as_the_pages_they_take() {
             .map(|i| {
                 let uid = round * 500 + i;
                 kept.push(uid);
-                (inbox(uid), Store::prepare(true, noise(1_000 + rng.next(2_500) as usize, u64::from(uid) + 1)))
+                (inbox(uid), Store::prepare(true, noise(1_000 + rng.below(2_500) as usize, u64::from(uid) + 1)))
             })
             .collect();
-        s.write_prepared(batch, rng.next(2) == 0).unwrap();
+        s.write_prepared(batch, rng.below(2) == 0).unwrap();
     }
     let health = s.data_file_health("a1").unwrap().unwrap();
     let used = allocated(&s);
@@ -128,7 +117,7 @@ fn the_walk_counts_small_messages_as_the_pages_they_take() {
     assert!(off <= 0.02, "the walk is {:.2}% off the database's count", off * 100.0);
 
     for _ in 0..3_000 {
-        let i = rng.next(kept.len() as u64) as usize;
+        let i = rng.below(kept.len() as u64) as usize;
         s.remove_body(&inbox(kept.swap_remove(i)));
     }
     let after = s.data_file_health("a1").unwrap().unwrap();

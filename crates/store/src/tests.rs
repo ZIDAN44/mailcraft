@@ -8,6 +8,7 @@ mod flagging;
 mod folder_uids;
 mod lists;
 mod merging;
+pub(crate) mod random;
 
 /// The folders a test made ([`scratch`]), removed when its thread ends, whether the test passed
 /// or failed (after the test's own values, its stores among them, have gone).
