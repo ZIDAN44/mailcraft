@@ -243,7 +243,7 @@ fn content_key(infos: &RecipientInfos, me: &Certificate, id: &mut dyn crate::Pri
             id.rsa_decrypt(wrapped, None)
         } else if k.key_enc_alg.oid == oids::RSAES_OAEP {
             // A hash that isn't known isn't guessed at.
-            let Some(hash) = oaep_hash(&k.key_enc_alg) else { continue };
+            let Some(hash) = cert::params_hash(&k.key_enc_alg) else { continue };
             id.rsa_decrypt(wrapped, Some(hash))
         } else {
             continue;
@@ -253,20 +253,6 @@ fn content_key(infos: &RecipientInfos, me: &Certificate, id: &mut dyn crate::Pri
         }
     }
     Err(Error::Decrypt)
-}
-
-/// The digest RSAES-OAEP parameters name (`[0] hashFunc`, SHA-1 when absent; RFC 8017 A.2.1).
-fn oaep_hash(alg: &AlgorithmIdentifierOwned) -> Option<cert::Hash> {
-    use der::Reader as _;
-    let Some(p) = alg.parameters.as_ref() else { return Some(cert::Hash::Sha1) };
-    let content = p.value();
-    if content.first() != Some(&0xA0) {
-        return Some(cert::Hash::Sha1);
-    }
-    let mut r = der::SliceReader::new(content).ok()?;
-    let explicit: Any = r.decode().ok()?;
-    let a = AlgorithmIdentifierOwned::from_der(explicit.value()).ok()?;
-    cert::Hash::from_oid(&a.oid)
 }
 
 /// The content of `eci` decrypted with `key`; `tag` is the GCM tag when it's authenticated.

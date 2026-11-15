@@ -196,7 +196,7 @@ pub(crate) fn signature_holds(
         _ => None,
     };
     let is_pss = alg.oid == oids::RSASSA_PSS;
-    let hash = if is_pss { pss_hash(alg) } else { named.or(digest) };
+    let hash = if is_pss { params_hash(alg) } else { named.or(digest) };
     let Some(hash) = hash else { return false };
     let hashed = hash.digest(message);
     let key = &spki.algorithm.oid;
@@ -237,11 +237,12 @@ pub(crate) fn signature_holds(
     false
 }
 
-/// The digest an RSASSA-PSS signature names in its parameters (SHA-1 when it names none,
-/// RFC 4055 §3.1).
-fn pss_hash(alg: &spki::AlgorithmIdentifierOwned) -> Option<Hash> {
+/// The digest RSASSA-PSS or RSAES-OAEP parameters name (SHA-1 when they name none: RFC 4055
+/// §3.1, RFC 8017 A.2.1). `None` for one that isn't known, which isn't guessed at.
+pub(crate) fn params_hash(alg: &spki::AlgorithmIdentifierOwned) -> Option<Hash> {
     use der::Reader as _;
-    // RSASSA-PSS-params ::= SEQUENCE { hashAlgorithm [0] EXPLICIT HashAlgorithm DEFAULT sha1, … }
+    // RSASSA-PSS-params and RSAES-OAEP-params both begin
+    // `SEQUENCE { [0] EXPLICIT HashAlgorithm DEFAULT sha1, … }`.
     let Some(p) = alg.parameters.as_ref() else { return Some(Hash::Sha1) };
     let content = p.value();
     if content.first() != Some(&0xA0) {
