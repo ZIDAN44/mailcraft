@@ -114,6 +114,22 @@
       <key>CFBundleTypeRole</key>
       <string>Viewer</string>
     </dict>
+    <!-- Any other file, to be dropped on the Dock icon and sent (issue #96): attached to a new
+         message (apple_events.rs). Rank None: MailCraft never becomes the app a type opens with
+         and isn't offered for one; it takes a file only when it's given one. No folder:
+         public.data is files alone. -->
+    <dict>
+      <key>CFBundleTypeName</key>
+      <string>MailCraft attachment</string>
+      <key>LSItemContentTypes</key>
+      <array>
+        <string>public.data</string>
+      </array>
+      <key>LSHandlerRank</key>
+      <string>None</string>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+    </dict>
   </array>
 </dict>
 </plist>

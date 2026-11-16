@@ -59,6 +59,12 @@ install -Dm755 "$BIN/mailcraft" "$STAGE/usr/bin/mailcraft"
 install -Dm755 "$BIN/mailcraft-cli" "$STAGE/usr/bin/mailcraft-cli"
 "${CROSS_COMPILE:-}strip" "$STAGE/usr/bin/mailcraft" "$STAGE/usr/bin/mailcraft-cli" 2>/dev/null || true
 install -Dm644 "$HERE/$APP_ID.desktop" "$STAGE/usr/share/applications/$APP_ID.desktop"
+# Send with MailCraft in the file managers' menus for files (issue #96): Dolphin, Nemo, and those
+# that read FileManager-Actions (PCManFM-Qt, Caja). GNOME Files and COSMIC Files take no such
+# entries from a package; nor can an AppImage or a Flatpak put them in place.
+install -Dm644 "$HERE/file-managers/dolphin.desktop" "$STAGE/usr/share/kio/servicemenus/$APP_ID.desktop"
+install -Dm644 "$HERE/file-managers/nemo.nemo_action" "$STAGE/usr/share/nemo/actions/$APP_ID.nemo_action"
+install -Dm644 "$HERE/file-managers/file-manager-actions.desktop" "$STAGE/usr/share/file-manager/actions/$APP_ID.desktop"
 mkdir -p "$STAGE/usr/share/metainfo"
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$MAILCRAFT_BUILD_DATE/g" \
   "$HERE/$APP_ID.metainfo.xml.in" >"$STAGE/usr/share/metainfo/$APP_ID.metainfo.xml"

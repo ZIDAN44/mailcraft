@@ -108,3 +108,10 @@ These are outside MailCraft's control, or accepted as they are.
 - **Linked files on another computer or the web.** `.pst` import and export leave them out.
 - **Repeat rules Outlook can't express.** Export writes such a series as its occurrences, up to
   2,000 of them.
+- **The system's Share menu.** Windows 11's Share window lists only apps installed as signed MSIX
+  packages, and the Mac's Share menu only apps with a signed extension; GNOME Files and COSMIC
+  Files take no menu entry from a package, and a Flatpak or an AppImage can't add one anywhere.
+  Instead: **Send to › MailCraft** in Explorer (added for whoever installs or updates MailCraft;
+  another user on the computer can copy it into their own `shell:sendto` folder), **Send with
+  MailCraft** in Dolphin, Nemo and PCManFM-Qt, and files dropped on MailCraft's Dock icon or
+  window.

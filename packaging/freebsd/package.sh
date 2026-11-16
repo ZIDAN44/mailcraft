@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Build and package MailCraft for FreeBSD:
 #
-#   $DIST/mailcraft-<version>-freebsd-<arch>.tar.gz   bin/, share/ (desktop entry, icons, AppStream)
+#   $DIST/mailcraft-<version>-freebsd-<arch>.tar.gz   bin/, share/ (desktop entry, file managers'
+#                                                     Send with MailCraft, icons, AppStream)
 #
 # Usage: packaging/freebsd/package.sh [--skip-build]
 #
@@ -63,6 +64,11 @@ mkdir -p "$STAGE/bin" "$STAGE/share/applications" "$STAGE/share/metainfo" "$STAG
 install -m 755 "$BIN/mailcraft" "$BIN/mailcraft-cli" "$STAGE/bin/"
 strip "$STAGE/bin/mailcraft" "$STAGE/bin/mailcraft-cli" 2>/dev/null || true
 install -m 644 "$LINUX/$APP_ID.desktop" "$STAGE/share/applications/"
+# Send with MailCraft in Dolphin's, Nemo's and PCManFM-Qt's menus for files (issue #96).
+mkdir -p "$STAGE/share/kio/servicemenus" "$STAGE/share/nemo/actions" "$STAGE/share/file-manager/actions"
+install -m 644 "$LINUX/file-managers/dolphin.desktop" "$STAGE/share/kio/servicemenus/$APP_ID.desktop"
+install -m 644 "$LINUX/file-managers/nemo.nemo_action" "$STAGE/share/nemo/actions/$APP_ID.nemo_action"
+install -m 644 "$LINUX/file-managers/file-manager-actions.desktop" "$STAGE/share/file-manager/actions/$APP_ID.desktop"
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@DATE@/$MAILCRAFT_BUILD_DATE/g" \
   "$LINUX/$APP_ID.metainfo.xml.in" >"$STAGE/share/metainfo/$APP_ID.metainfo.xml"
 cp -R "$ROOT/assets/app-icon/hicolor" "$STAGE/share/icons/"

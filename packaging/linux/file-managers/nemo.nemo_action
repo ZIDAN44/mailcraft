@@ -1,0 +1,25 @@
+# Nemo's (Cinnamon's) menu for files: Send with MailCraft, a new message with them attached
+# (issue #96, `--attach` in apps/mailcraft/src/startup/args.rs). Installed as
+# /usr/share/nemo/actions/io.github.zidan44.MailCraft.nemo_action (packaging/linux/package.sh).
+# Files only, never a folder; shown while mailcraft is installed.
+[Nemo Action]
+Name=Send with MailCraft
+Name[ar]=إرسال عبر MailCraft
+Name[de]=Mit MailCraft senden
+Name[es]=Enviar con MailCraft
+Name[fr]=Envoyer avec MailCraft
+Name[he]=שליחה באמצעות MailCraft
+Name[it]=Invia con MailCraft
+Name[ja]=MailCraft で送信
+Name[ko]=MailCraft로 보내기
+Name[nl]=Verzenden met MailCraft
+Name[pt_BR]=Enviar com o MailCraft
+Name[ru]=Отправить через MailCraft
+Name[tr]=MailCraft ile gönder
+Name[zh_CN]=使用 MailCraft 发送
+Name[zh_TW]=使用 MailCraft 傳送
+Icon-Name=io.github.zidan44.MailCraft
+Exec=mailcraft --attach %F
+Selection=notnone
+Extensions=nodirs;
+Dependencies=mailcraft;

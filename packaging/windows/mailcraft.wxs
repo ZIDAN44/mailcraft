@@ -5,8 +5,9 @@
     wix build mailcraft.wxs -arch x64 -d Version=1.2.3 -d BinDir=... -d IconPath=... -o out.msi
 
   Per-machine install into Program Files, a Start Menu shortcut, and mailcraft.exe on the App
-  Paths list (so Win+R `mailcraft` starts it), and MailCraft offered as the mail app and for
-  .eml, .msg, .ics and .vcf files (MailcraftDefaultApp, below).
+  Paths list (so Win+R `mailcraft` starts it), MailCraft offered as the mail app and for .eml,
+  .msg, .ics and .vcf files (MailcraftDefaultApp, below), and Send to > MailCraft for files
+  (MailcraftSendTo).
 
   UpgradeCode is fixed for MailCraft forever (playbook §6); never change it.
 -->
@@ -49,6 +50,7 @@
       <Directory Id="INSTALLFOLDER" Name="MailCraft" />
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder" />
+    <StandardDirectory Id="SendToFolder" />
 
     <Feature Id="Main" Title="MailCraft" Level="1">
       <ComponentGroupRef Id="MailcraftFiles" />
@@ -180,6 +182,18 @@
         <RegistryKey Root="HKLM" Key="Software\Classes\.vcf\OpenWithProgids">
           <RegistryValue Name="MailCraft.vcf" Type="string" Value="" />
         </RegistryKey>
+      </Component>
+
+      <!-- Send to > MailCraft in Explorer's menu for files (issue #96): a new message with them
+           attached. Explorer starts the shortcut's target with its argument and then the files'
+           paths, all of them in one start; MailCraft reads everything after that argument as a
+           file and nothing else (apps/mailcraft/src/startup/args.rs). Windows has a Send to
+           folder for each user and none for all of them, so this is the one of whoever installs
+           or updates MailCraft, and the component's key is in that user's registry. -->
+      <Component Id="MailcraftSendTo" Directory="SendToFolder" Guid="DDAAABBB-DF7B-4CF7-9DF3-4C80516F1DC1">
+        <Shortcut Id="SendToShortcut" Name="MailCraft" Description="Attach to a new message in MailCraft"
+            Target="[#MailcraftExe]" Arguments="--attach" WorkingDirectory="INSTALLFOLDER" Advertise="no" />
+        <RegistryValue Root="HKCU" Key="Software\MailCraft" Name="SendTo" Type="integer" Value="1" KeyPath="yes" />
       </Component>
 
       <Component Id="MailcraftCli">
