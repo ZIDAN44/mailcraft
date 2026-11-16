@@ -236,7 +236,8 @@ fn esc_leaves_a_file_page_field_before_the_page() {
     let mut field = None;
     for _ in 0..4 {
         let nodes = named(&ctx, &mut a, tall);
-        field = nodes.into_iter().find(|n| n.role == Role::TextInput && !n.disabled).and_then(|n| n.centre());
+        // One on screen: the page is taller than the window (and grows as options are added).
+        field = nodes.into_iter().filter(|n| n.role == Role::TextInput && !n.disabled).filter_map(|n| n.centre()).find(|c| c.y < tall.y - 20.0);
     }
     click(&ctx, &mut a, field.expect("the Options page has a text field"));
     assert!(ctx.text_edit_focused(), "the field has the keyboard");

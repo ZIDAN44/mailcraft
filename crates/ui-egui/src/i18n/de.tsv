@@ -260,6 +260,13 @@
 	Select a message first.	Wählen Sie zuerst eine Nachricht aus.
 	Send	Senden
 	Send (Ctrl+Enter)	Senden (Strg+Eingabe)
+	Send this message?	Diese Nachricht senden?
+	Ctrl+Enter sends the message you're writing.	Strg+Eingabe sendet die Nachricht, die Sie schreiben.
+	Don't ask again	Nicht mehr fragen
+	Don't send	Nicht senden
+	Ctrl+Enter in a message	Strg+Eingabe in einer Nachricht
+	Ask first	Zuerst fragen
+	Do nothing	Nichts tun
 	Send / Receive	Senden/Empfangen
 	Send / Receive all folders (F9)	Alle Ordner senden/empfangen (F9)
 	Send anyway	Trotzdem senden

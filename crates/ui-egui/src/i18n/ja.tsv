@@ -260,6 +260,13 @@
 	Select a message first.	先にメッセージを選択してください。
 	Send	送信
 	Send (Ctrl+Enter)	送信 (Ctrl+Enter)
+	Send this message?	このメッセージを送信しますか?
+	Ctrl+Enter sends the message you're writing.	Ctrl+Enter を押すと、作成中のメッセージが送信されます。
+	Don't ask again	今後は確認しない
+	Don't send	送信しない
+	Ctrl+Enter in a message	メッセージでの Ctrl+Enter
+	Ask first	先に確認する
+	Do nothing	何もしない
 	Send / Receive	送受信
 	Send / Receive all folders (F9)	すべてのフォルダーを送受信 (F9)
 	Send anyway	このまま送信

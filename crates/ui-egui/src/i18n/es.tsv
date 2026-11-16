@@ -260,6 +260,13 @@
 	Select a message first.	Selecciona primero un mensaje.
 	Send	Enviar
 	Send (Ctrl+Enter)	Enviar (Ctrl+Entrar)
+	Send this message?	¿Enviar este mensaje?
+	Ctrl+Enter sends the message you're writing.	Ctrl+Entrar envía el mensaje que estás escribiendo.
+	Don't ask again	No volver a preguntar
+	Don't send	No enviar
+	Ctrl+Enter in a message	Ctrl+Entrar en un mensaje
+	Ask first	Preguntar antes
+	Do nothing	No hacer nada
 	Send / Receive	Enviar y recibir
 	Send / Receive all folders (F9)	Enviar y recibir todas las carpetas (F9)
 	Send anyway	Enviar de todos modos

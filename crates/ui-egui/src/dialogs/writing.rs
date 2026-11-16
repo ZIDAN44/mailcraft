@@ -3,7 +3,7 @@
 use super::*;
 use crate::icons::Icon;
 
-pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::SelectNames(f) => select_names(ui, f, t, acts),
         Dialog::SaveChanges => {
@@ -37,6 +37,36 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
                 return false;
             }
             !cancel
+        }
+        Dialog::CtrlEnter { remember } => {
+            ui.set_width(380.0);
+            title(ui, t, "Send this message?");
+            ui.label(RichText::new(tl!("Ctrl+Enter sends the message you're writing.")).color(t.dim));
+            ui.add_space(6.0);
+            ui.checkbox(remember, tl!("Don't ask again"));
+            ui.add_space(10.0);
+            let (mut send, mut not) = (false, false);
+            // Right to left: Send rightmost, as each dialog's main button.
+            button_row(ui, |ui| {
+                send = widgets::accent_button(ui, Icon::Send, "Send", t, true).clicked();
+                not = ui.button(tl!("Don't send")).clicked();
+            });
+            if send || not {
+                if *remember {
+                    acts.push(Action::Run("options.ctrlEnter", json!({"does": if send { "send" } else { "nothing" }})));
+                }
+                if send {
+                    // Sent as Send sends it: asked first about a missing subject.
+                    let empty = s.compose.as_ref().is_some_and(|c| c.subject.trim().is_empty());
+                    if empty && s.compose_send_block().is_none() {
+                        acts.push(Action::Dialog(Dialog::EmptySubject));
+                    } else {
+                        acts.push(Action::Run("compose.send", json!({})));
+                    }
+                }
+                return false;
+            }
+            true
         }
         Dialog::SendCheck(found) => {
             use mailcraft_engine::SendCheck;

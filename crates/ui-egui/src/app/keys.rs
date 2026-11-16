@@ -35,7 +35,7 @@ impl MailApp {
             }
             let Some(spec) = reg.by_shortcut(&combo) else { continue };
             let id = spec.id;
-            if self.intercepted(ctx, id) {
+            if self.intercepted(ctx, id, &combo) {
                 continue;
             }
             // Page Up and Page Down go as many rows as the list shows.
@@ -143,7 +143,7 @@ impl MailApp {
 
     /// The commands whose shortcut is done otherwise, or not here: whether `id`'s was (and so
     /// isn't run).
-    fn intercepted(&mut self, ctx: &egui::Context, id: &str) -> bool {
+    fn intercepted(&mut self, ctx: &egui::Context, id: &str, combo: &str) -> bool {
         // Ctrl+Enter sends the message being written beside the list, as its Send
         // button does: asked first when it has no subject (the command's own words
         // came up instead, in English, braces and all), and not while the keys are
@@ -159,6 +159,13 @@ impl MailApp {
             });
             let here = self.session.module == Module::Mail && !self.ui.search_focused && self.ui.dialog.is_none() && in_it;
             let Some(c) = self.session.compose.as_ref().filter(|c| here && !c.sending && compose_inline(c, ctx)) else { return true };
+            // Ctrl+Enter asks first, or does nothing, as set (issue #115); Alt+S sends as ever.
+            if combo == "Mod+Enter" && self.session.prefs.ctrl_enter != mailcraft_engine::CtrlEnter::Send {
+                if self.session.prefs.ctrl_enter == mailcraft_engine::CtrlEnter::Ask {
+                    self.ui.dialog = Some(Dialog::CtrlEnter { remember: false });
+                }
+                return true;
+            }
             if c.subject.trim().is_empty() && self.session.compose_send_block().is_none() {
                 self.ui.dialog = Some(Dialog::EmptySubject);
                 return true;

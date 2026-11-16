@@ -260,6 +260,13 @@
 	Select a message first.	請先選擇一封郵件。
 	Send	傳送
 	Send (Ctrl+Enter)	傳送 (Ctrl+Enter)
+	Send this message?	要傳送這封郵件嗎?
+	Ctrl+Enter sends the message you're writing.	Ctrl+Enter 會傳送你正在撰寫的郵件。
+	Don't ask again	不再詢問
+	Don't send	不要傳送
+	Ctrl+Enter in a message	郵件中的 Ctrl+Enter
+	Ask first	先詢問
+	Do nothing	不執行任何動作
 	Send / Receive	傳送/接收
 	Send / Receive all folders (F9)	傳送/接收所有資料夾 (F9)
 	Send anyway	仍要傳送

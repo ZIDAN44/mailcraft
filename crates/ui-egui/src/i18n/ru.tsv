@@ -260,6 +260,13 @@
 	Select a message first.	Сначала выберите письмо.
 	Send	Отправить
 	Send (Ctrl+Enter)	Отправить (Ctrl+Enter)
+	Send this message?	Отправить это письмо?
+	Ctrl+Enter sends the message you're writing.	Ctrl+Enter отправляет письмо, которое вы пишете.
+	Don't ask again	Больше не спрашивать
+	Don't send	Не отправлять
+	Ctrl+Enter in a message	Ctrl+Enter в письме
+	Ask first	Сначала спрашивать
+	Do nothing	Ничего не делать
 	Send / Receive	Отправить и получить
 	Send / Receive all folders (F9)	Отправить и получить во всех папках (F9)
 	Send anyway	Всё равно отправить

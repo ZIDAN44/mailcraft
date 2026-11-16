@@ -260,6 +260,13 @@
 	Select a message first.	בחר הודעה קודם.
 	Send	שלח
 	Send (Ctrl+Enter)	שלח (Ctrl+Enter)
+	Send this message?	לשלוח את ההודעה הזו?
+	Ctrl+Enter sends the message you're writing.	Ctrl+Enter שולח את ההודעה שאתה כותב.
+	Don't ask again	אל תשאל שוב
+	Don't send	אל תשלח
+	Ctrl+Enter in a message	Ctrl+Enter בהודעה
+	Ask first	לשאול קודם
+	Do nothing	לא לעשות דבר
 	Send / Receive	שלח / קבל
 	Send / Receive all folders (F9)	שלח וקבל בכל התיקיות (F9)
 	Send anyway	שלח בכל זאת

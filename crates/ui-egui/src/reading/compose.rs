@@ -148,7 +148,7 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     let fresh = st.compose_shown.insert(c.id);
     let focus_to = fresh && c.to.trim().is_empty();
     let focus_body = fresh && !focus_to;
-    shortcuts(ui, c, &f, acts);
+    shortcuts(ui, c, &f, s.prefs.ctrl_enter, acts);
     egui::Frame::new().inner_margin(Margin { left: 16, right: 16, top: 8, bottom: 12 }).show(ui, |ui| {
         // From the right in a right-to-left interface, its rows too (the message's own text goes
         // the way it's written).
@@ -235,7 +235,7 @@ fn send(c: &mailcraft_engine::Compose, blocked: Option<SendBlock>, acts: &mut Ve
 
 /// Alt+S sends, as in Outlook; in a window of its own the main window's shortcuts don't reach
 /// it, so Ctrl+Enter and Ctrl+S are the message's own there.
-fn shortcuts(ui: &mut Ui, c: &mailcraft_engine::Compose, f: &Form, acts: &mut Vec<Action>) {
+fn shortcuts(ui: &mut Ui, c: &mailcraft_engine::Compose, f: &Form, ctrl_enter: mailcraft_engine::CtrlEnter, acts: &mut Vec<Action>) {
     if c.sending {
         return;
     }
@@ -246,8 +246,11 @@ fn shortcuts(ui: &mut Ui, c: &mailcraft_engine::Compose, f: &Form, acts: &mut Ve
             f.in_window && i.consume_key(egui::Modifiers::COMMAND, egui::Key::S),
         )
     });
-    if alt_s || send_key {
+    // Ctrl+Enter asks first, or does nothing, as set (issue #115); Alt+S sends as ever.
+    if alt_s || (send_key && ctrl_enter == mailcraft_engine::CtrlEnter::Send) {
         send(c, f.blocked, acts);
+    } else if send_key && ctrl_enter == mailcraft_engine::CtrlEnter::Ask {
+        acts.push(Action::Dialog(crate::Dialog::CtrlEnter { remember: false }));
     }
     if save_key {
         acts.push(Action::Run("compose.saveDraft", json!({})));

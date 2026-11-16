@@ -260,6 +260,13 @@
 	Select a message first.	请先选择一封邮件。
 	Send	发送
 	Send (Ctrl+Enter)	发送 (Ctrl+Enter)
+	Send this message?	发送这封邮件吗?
+	Ctrl+Enter sends the message you're writing.	Ctrl+Enter 会发送你正在写的邮件。
+	Don't ask again	不再询问
+	Don't send	不发送
+	Ctrl+Enter in a message	邮件中的 Ctrl+Enter
+	Ask first	先询问
+	Do nothing	不执行任何操作
 	Send / Receive	发送/接收
 	Send / Receive all folders (F9)	发送/接收所有文件夹 (F9)
 	Send anyway	仍然发送

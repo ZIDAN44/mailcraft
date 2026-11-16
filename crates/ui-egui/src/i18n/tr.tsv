@@ -260,6 +260,13 @@
 	Select a message first.	Önce bir ileti seçin.
 	Send	Gönder
 	Send (Ctrl+Enter)	Gönder (Ctrl+Enter)
+	Send this message?	Bu ileti gönderilsin mi?
+	Ctrl+Enter sends the message you're writing.	Ctrl+Enter yazdığınız iletiyi gönderir.
+	Don't ask again	Bir daha sorma
+	Don't send	Gönderme
+	Ctrl+Enter in a message	İletide Ctrl+Enter
+	Ask first	Önce sor
+	Do nothing	Hiçbir şey yapma
 	Send / Receive	Gönder / Al
 	Send / Receive all folders (F9)	Tüm klasörleri gönder / al (F9)
 	Send anyway	Yine de gönder

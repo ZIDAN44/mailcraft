@@ -73,6 +73,17 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
         for (label, on, cmd) in windows {
             switch_row(ui, t, false, Switch { label, about: None, on, cmd }, acts);
         }
+        // Issue #115: Ctrl+Enter sends at once only when that's chosen.
+        setting(ui, t, false, tl!("Ctrl+Enter in a message"), None, |ui| {
+            use mailcraft_engine::CtrlEnter;
+            let ways = [CtrlEnter::Ask, CtrlEnter::Send, CtrlEnter::Nothing];
+            let now = ways.iter().position(|w| *w == s.prefs.ctrl_enter).unwrap_or(0);
+            if let Some(i) = widgets::segmented(ui, t, "ctrl-enter", &[tl!("Ask first"), tl!("Send"), tl!("Do nothing")], now)
+                && let Some(w) = ways.get(i)
+            {
+                acts.push(Action::Run("options.ctrlEnter", json!({"does": w})));
+            }
+        });
         // Every message as plain text, as Outlook's own setting for all mail: here, out of the
         // way, and View › Plain text; one message's More actions (⋯) and Show formatted switch
         // that message alone.

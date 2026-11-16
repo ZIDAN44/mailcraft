@@ -260,6 +260,13 @@
 	Select a message first.	اختر رسالة أولًا.
 	Send	إرسال
 	Send (Ctrl+Enter)	إرسال (Ctrl+Enter)
+	Send this message?	هل تريد إرسال هذه الرسالة؟
+	Ctrl+Enter sends the message you're writing.	يرسل Ctrl+Enter الرسالة التي تكتبها.
+	Don't ask again	لا تسأل مرة أخرى
+	Don't send	لا ترسل
+	Ctrl+Enter in a message	Ctrl+Enter في الرسالة
+	Ask first	اسأل أولًا
+	Do nothing	لا تفعل شيئًا
 	Send / Receive	إرسال / استلام
 	Send / Receive all folders (F9)	إرسال / استلام كل المجلدات (F9)
 	Send anyway	إرسال على أي حال

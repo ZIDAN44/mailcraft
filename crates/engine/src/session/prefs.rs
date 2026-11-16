@@ -37,6 +37,18 @@ pub enum ReadInPane {
     Left,
 }
 
+/// What Ctrl+Enter does in a message being written (issue #115): it sent at once, and a slip of
+/// the keys sent a message unfinished. It asks first, as Outlook does the first time, until the
+/// answer is kept ("Don't ask again", or File › Options › Mail); Alt+S and Send are as ever.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CtrlEnter {
+    #[default]
+    Ask,
+    Send,
+    Nothing,
+}
+
 /// Settings the user changes from the View tab (saved by the app).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -124,6 +136,8 @@ pub struct Prefs {
     /// Replies and forwards open in a window of their own too, not in the reading pane (issue
     /// #11: Pop out each time).
     pub reply_window: bool,
+    /// What Ctrl+Enter does in a message being written.
+    pub ctrl_enter: CtrlEnter,
     /// The folder pane shows Favorites at its top (issue #11: it could only be collapsed).
     pub show_favorites: bool,
     /// Meeting invitations go into the calendar as tentative when they arrive, before they're
@@ -293,6 +307,7 @@ impl Default for Prefs {
             system_title_bar: false,
             date_style: mailcraft_model::dates::DateStyle::default(),
             confirm_permanent_delete: true,
+            ctrl_enter: CtrlEnter::Ask,
             favorites: None,
             notify: true,
             close_to_tray: false,

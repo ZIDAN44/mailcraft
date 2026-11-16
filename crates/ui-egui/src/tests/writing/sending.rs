@@ -43,7 +43,8 @@ fn send_from_a_data_file_says_to_add_an_account() {
     assert_eq!(a.ui.compose_alert, Some(blocked.clone()));
     assert_eq!(a.session.compose.as_ref(), Some(&written));
     assert!(!a.session.notices.iter().any(|n| n.text.contains("sent")), "{:?}", a.session.notices);
-    // Ctrl+Enter and Alt+S, the same.
+    // Ctrl+Enter (set to send at once: issue #115's question is tested below) and Alt+S, the same.
+    a.session.prefs.ctrl_enter = mailcraft_engine::CtrlEnter::Send;
     for (k, m) in [(Key::Enter, Modifiers::COMMAND), (Key::S, Modifiers::ALT)] {
         a.ui.compose_alert = None;
         frame(&ctx, &mut a, vec![Event::ModifiersChanged(m), key(k, m)]);
@@ -168,4 +169,76 @@ fn a_check_before_sending_that_cant_be_shown_still_says_so() {
     let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 800.0));
     assert!(has(&texts, "Something about the recipients was found to look at, but it can't be shown."), "{texts:?}");
     assert!(has(&texts, "Send anyway"), "{texts:?}");
+}
+
+/// Issue #115: Ctrl+Enter sent at once, and a slip of the keys sent a message unfinished. It asks
+/// first: Don't send leaves the message as it was; Send sends it, and with Don't ask again ticked,
+/// Ctrl+Enter sends from then on (or, kept with Don't send, does nothing). Alt+S sends as ever, and
+/// a message in a window of its own asks the same.
+#[test]
+fn ctrl_enter_asks_before_sending() {
+    use mailcraft_engine::CtrlEnter;
+    let (mut a, _) = app("ctrl-enter-asks");
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    assert_eq!(a.session.prefs.ctrl_enter, CtrlEnter::Ask, "it asks unless told otherwise");
+    let write = |a: &mut MailApp| {
+        a.run("mail.new", json!({}));
+        a.run("compose.update", json!({"to": "ann@example.org", "subject": "Plans", "body": "See you"}));
+        for _ in 0..3 {
+            frame(&ctx, a, vec![]);
+        }
+    };
+    let press = |a: &mut MailApp, k: Key, m: Modifiers| {
+        frame(&ctx, a, vec![Event::ModifiersChanged(m), key(k, m)]);
+        frame(&ctx, a, vec![Event::ModifiersChanged(Modifiers::NONE)]);
+    };
+    write(&mut a);
+    let written = a.session.compose.clone();
+    press(&mut a, Key::Enter, Modifiers::COMMAND);
+    assert!(matches!(a.ui.dialog, Some(Dialog::CtrlEnter { remember: false })), "asked: {:?}", a.ui.dialog.is_some());
+    assert_eq!(a.session.compose, written, "not sent yet");
+    click_named(&ctx, &mut a, "Don't send");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none());
+    assert_eq!(a.session.compose, written, "Don't send: the message stays as it was");
+    assert_eq!(a.session.prefs.ctrl_enter, CtrlEnter::Ask, "and it asks again next time");
+    // Send, its answer kept.
+    press(&mut a, Key::Enter, Modifiers::COMMAND);
+    click_named(&ctx, &mut a, "Don't ask again");
+    assert!(matches!(a.ui.dialog, Some(Dialog::CtrlEnter { remember: true })));
+    // The dialog's Send: the one beside its Don't send (the message's own is in the message).
+    let nodes = shown(&ctx, &mut a);
+    let beside = button(&nodes, "Don't send").and_then(Named::centre).expect("the dialog's Don't send");
+    let sends = nodes.iter().filter(|n| n.name() == Some("Send") && !n.disabled).filter_map(Named::centre);
+    let send = sends.min_by(|p, q| p.distance(beside).total_cmp(&q.distance(beside))).expect("the dialog's Send");
+    click(&ctx, &mut a, send);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.compose.is_none(), "sent");
+    assert_eq!(a.session.prefs.ctrl_enter, CtrlEnter::Send, "kept");
+    // From then on, Ctrl+Enter sends at once.
+    write(&mut a);
+    press(&mut a, Key::Enter, Modifiers::COMMAND);
+    assert!(a.ui.dialog.is_none() && a.session.compose.is_none(), "sent without asking");
+    // Set to do nothing (File › Options › Mail), it does nothing.
+    a.run("options.ctrlEnter", json!({"does": "nothing"}));
+    write(&mut a);
+    let written = a.session.compose.clone();
+    press(&mut a, Key::Enter, Modifiers::COMMAND);
+    assert!(a.ui.dialog.is_none());
+    assert_eq!(a.session.compose, written, "nothing done");
+    // Alt+S sends, asking nothing, whatever Ctrl+Enter does.
+    a.run("options.ctrlEnter", json!({"does": "ask"}));
+    press(&mut a, Key::S, Modifiers::ALT);
+    assert!(a.ui.dialog.is_none() && a.session.compose.is_none(), "Alt+S sent it");
+    // In a window of its own, the message's own Ctrl+Enter asks the same.
+    a.session.prefs.new_mail_window = true;
+    ctx.set_embed_viewports(false);
+    write(&mut a);
+    let written = a.session.compose.clone();
+    assert!(written.as_ref().is_some_and(|c| c.window));
+    press(&mut a, Key::Enter, Modifiers::COMMAND);
+    assert!(matches!(a.ui.dialog, Some(Dialog::CtrlEnter { .. })), "asked in its window");
+    assert_eq!(a.session.compose, written, "not sent");
 }

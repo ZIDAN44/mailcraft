@@ -107,6 +107,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         toggle!("view.closeToTray", "Keep MailCraft running when its window is closed", "File › Options › General", close_to_tray),
         toggle!("view.newMailWindow", "New messages in their own window", "File › Options › Mail", new_mail_window),
         toggle!("view.replyWindow", "Replies and forwards in their own window", "File › Options › Mail", reply_window),
+        CommandSpec::new("options.ctrlEnter", "What Ctrl+Enter does in a message", "File › Options › Mail", |s, v| {
+            if let Some(does) = p::str(v, "does") {
+                s.prefs.ctrl_enter = match does {
+                    "ask" => crate::CtrlEnter::Ask,
+                    "send" => crate::CtrlEnter::Send,
+                    "nothing" => crate::CtrlEnter::Nothing,
+                    other => return Err(CmdError::Params(format!("`{other}`: Ctrl+Enter asks, sends or does nothing"))),
+                };
+            }
+            Ok(json!({"does": s.prefs.ctrl_enter}))
+        })
+        .params(r#"{"does"?: "ask"|"send"|"nothing"}"#),
         toggle!("calendar.tentativeInvites", "Invitations into the calendar as tentative", "File › Options › Calendar", tentative_invites),
         CommandSpec::new("options.answeredInvites", "After answering a meeting invitation", "File › Options › Mail", |s, v| {
             if let Some(after) = p::str(v, "after") {

@@ -260,6 +260,13 @@
 	Select a message first.	먼저 메시지를 선택하세요.
 	Send	보내기
 	Send (Ctrl+Enter)	보내기 (Ctrl+Enter)
+	Send this message?	이 메시지를 보낼까요?
+	Ctrl+Enter sends the message you're writing.	Ctrl+Enter를 누르면 작성 중인 메시지가 전송됩니다.
+	Don't ask again	다시 묻지 않기
+	Don't send	보내지 않기
+	Ctrl+Enter in a message	메시지에서 Ctrl+Enter
+	Ask first	먼저 묻기
+	Do nothing	아무것도 하지 않기
 	Send / Receive	보내기/받기
 	Send / Receive all folders (F9)	모든 폴더 보내기/받기 (F9)
 	Send anyway	그래도 보내기

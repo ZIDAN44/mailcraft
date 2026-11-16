@@ -109,6 +109,10 @@ pub enum Dialog {
         copy: bool,
     },
     EmptySubject,
+    /// Ctrl+Enter pressed in a message (issue #115): send it? `remember`: "Don't ask again".
+    CtrlEnter {
+        remember: bool,
+    },
     /// What `compose.send` held the message for (a lookalike recipient, many people seeing each
     /// other's addresses).
     SendCheck(Vec<mailcraft_engine::SendCheck>),
@@ -290,6 +294,7 @@ impl Dialog {
                     | Dialog::MailboxClosed { .. }
                     | Dialog::TrustCertificate { .. }
                     | Dialog::EmptySubject
+                    | Dialog::CtrlEnter { .. }
                     | Dialog::SaveChanges
                     | Dialog::SendCheck(_)
             )
@@ -310,8 +315,15 @@ impl Dialog {
 
     /// Dialogs that belong to the message being written (shown in its window when it has one).
     pub fn for_compose(&self) -> bool {
-        matches!(self, Dialog::SelectNames(_) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::SendCheck(_) | Dialog::WordCount(..))
-            || matches!(self, Dialog::Signature(f) if f.insert)
+        matches!(
+            self,
+            Dialog::SelectNames(_)
+                | Dialog::SaveChanges
+                | Dialog::EmptySubject
+                | Dialog::CtrlEnter { .. }
+                | Dialog::SendCheck(_)
+                | Dialog::WordCount(..)
+        ) || matches!(self, Dialog::Signature(f) if f.insert)
     }
 
     /// The add-account dialog with the address filled in (servers guessed from it).
@@ -675,9 +687,12 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::ConfirmEmpty { .. } => folders::draw(ui, d, s, t, acts),
         Dialog::NewCategory { .. } | Dialog::Categories => categories::draw(ui, d, s, t, acts),
         Dialog::Rules | Dialog::EditRule(..) | Dialog::SearchFolder(..) | Dialog::QuickStep(..) => organize::draw(ui, d, s, t, acts),
-        Dialog::SelectNames(..) | Dialog::SaveChanges | Dialog::EmptySubject | Dialog::SendCheck(_) | Dialog::WordCount(..) => {
-            writing::draw(ui, d, s, t, acts)
-        }
+        Dialog::SelectNames(..)
+        | Dialog::SaveChanges
+        | Dialog::EmptySubject
+        | Dialog::CtrlEnter { .. }
+        | Dialog::SendCheck(_)
+        | Dialog::WordCount(..) => writing::draw(ui, d, s, t, acts),
         Dialog::ConfirmDeleteContact { .. }
         | Dialog::PicturePreview { .. }
         | Dialog::Preview { .. }
