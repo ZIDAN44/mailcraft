@@ -17,7 +17,7 @@ These numbers are as of v0.34.
 | Crates | 12 libraries, 3 apps and `xtask` |
 | Commands | 283 (list them with `mailcraft-cli commands`) |
 | Tests | 2,006, over in-memory servers, data files, TCP and the headless UI |
-| Languages | 15, including Arabic and Hebrew |
+| Languages | 16, including Arabic and Hebrew |
 | Platforms | Windows, macOS and Linux; the browser, for JMAP accounts |
 
 ## Next

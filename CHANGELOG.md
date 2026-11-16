@@ -12,8 +12,11 @@ on GitHub.
 
 *What testers met in their first days with 0.39.*
 
+Thanks to Peter Páleník for the Slovak translation (#124).
+
 ### Added
 
+- Slovak as an interface language (#121): **File › Options › General › Language › Slovenčina**, and a Slovak system picks it.
 - Attachments selected together (Ctrl+click, ⌘-click on a Mac) drag out together (#120), onto a folder to save them there or into another app, as **Save Selected** saves them: only the one under the pointer went.
 - Choose how MailCraft signs in to an account's mail servers (#123), under **Server settings** when it's added or changed: **Sign in with**, under each server, Automatic, Password, or NTLM (Secure Password Authentication, as a company's Exchange may ask for it: the password never crosses the network), and for the outgoing server No sign-in. Left on Automatic, a server that offers NTLM and not a password is signed in to with NTLM.
 

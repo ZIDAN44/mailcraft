@@ -624,6 +624,12 @@
 	Remove it from the server after	Odstrániť ju zo servera po uplynutí
 	days	dní
 	Remove it from the server once it's deleted from Deleted Items	Odstrániť ju zo servera po odstránení z priečinka Odstránené položky
+	A copy on the server	Kópia na serveri
+	None: mail is removed from the server once downloaded	Žiadna: pošta sa po stiahnutí odstráni zo servera
+	Kept for {n} days	Ponecháva sa {n} dní
+	Kept for {n} days, or until deleted from Deleted Items	Ponecháva sa {n} dní alebo do odstránenia z priečinka Odstránené položky
+	Kept until deleted from Deleted Items	Ponecháva sa do odstránenia z priečinka Odstránené položky
+	Kept for good	Ponecháva sa natrvalo
 	Arrange by: {field}	Usporiadať podľa: {field}
 	By {field} ⏷	Podľa: {field} ⏷
 	Reverse sort	Obrátiť zoradenie
@@ -668,7 +674,10 @@
 	Low importance	Nízka dôležitosť
 	Read receipt	Potvrdenie o prečítaní
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Požiadať príjemcov o potvrdenie prečítania (ich poštová aplikácia to nemusí podporovať alebo sa ich môže opýtať)
-	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Funguje s ľubovoľným poskytovateľom: IMAP alebo POP so SMTP, JMAP alebo Exchange. Heslo sa uchováva v kľúčenke tohto počítača a odosiela sa iba na váš poštový server.
+	Works with IMAP, POP, JMAP and Exchange. Your password is kept in this computer's keychain and sent only to your mail server.	Funguje s IMAP, POP, JMAP a Exchange. Heslo sa uchováva v kľúčenke tohto počítača a odosiela sa iba na váš poštový server.
+	Mail stays on the server and looks the same on every device.	Pošta zostáva na serveri a na každom zariadení vyzerá rovnako.
+	Mail is downloaded to this computer. The server can keep a copy for a while.	Pošta sa stiahne do tohto počítača. Server si môže nejaký čas ponechať jej kópiu.
+	A newer way to reach your mail, offered by some providers such as Fastmail.	Novší spôsob prístupu k pošte, ktorý ponúkajú niektorí poskytovatelia, napríklad Fastmail.
 	Run it now on the mail already in the Inbox	Spustiť ho teraz na poštu, ktorá už je v priečinku Doručená pošta
 	Run on the mail already in the Inbox	Spustiť na poštu, ktorá už je v priečinku Doručená pošta
 	More options	Ďalšie možnosti
@@ -969,6 +978,9 @@ month	May	máj
 	Opened by the server for your access to it	Otvorené serverom na základe vášho prístupu
 	Shared mailbox {address}, opened by {email}	Zdieľaná schránka {address}, otvorená cez {email}
 	The outgoing server has its own user name and password	Server odchádzajúcej pošty má vlastné používateľské meno a heslo
+	Sign in with	Spôsob prihlásenia
+	NTLM (Secure Password Authentication)	NTLM (zabezpečené overenie heslom)
+	No sign-in	Bez prihlásenia
 	Its user name	Jeho používateľské meno
 	Its password	Jeho heslo
 	Password (unchanged when empty)	Heslo (ak je prázdne, nezmení sa)
@@ -992,7 +1004,7 @@ month	May	máj
 	Close anyway	Napriek tomu zavrieť
 	Edit notes	Upraviť poznámky
 	Getting them from the server…	Získavajú sa zo servera…
-	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	Pošta zostáva na serveri a v pamäti sa drží len počas behu MailCraftu: nič z nej sa nezapisuje na tento počítač a každá správa sa stiahne až pri otvorení. Odosielaná pošta ide priamo na server; čaká len pošta, ktorú zatiaľ nemožno odoslať (offline), a ak sa MailCraft predtým zavrie, stratí sa spolu so zmenami urobenými offline (budete sa musieť rozhodnúť). Kalendáre, kontakty a poznámky na serveri tam zostávajú; tie, ktoré sú len v MailCrafte, sa po jeho zatvorení stratia.
+	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	Správy sa stiahnu až pri otvorení a držia sa len v pamäti: nič sa nezapisuje na tento počítač. Zmeny urobené offline, pošta čakajúca na odoslanie a kalendáre, kontakty a poznámky uchovávané len v MailCrafte sa po jeho zatvorení stratia (najprv sa vás spýta).
 	Mail older than what's kept here is only on the server.	Pošta staršia ako tá, ktorá je uložená tu, je len na serveri.
 	Search the server	Hľadať na serveri
 	Searching the server…	Hľadá sa na serveri…
@@ -1713,9 +1725,12 @@ month	May	máj
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Automaticky prijíma novú poštu hneď, ako server oznámi, že nejaká je, ak to server dokáže; inak sa pozrie každé dve minúty. Pri nastavenom čase sa konto pozrie len vtedy. Odosielaná pošta odchádza okamžite a Odoslať / prijať sa pozrie hneď.
 	Automatically	Automaticky
 	Every {n} minutes	Každých {n} min
-	Calendars and contacts only, with no email (CalDAV and CardDAV)	Len kalendáre a kontakty, bez e-mailu (CalDAV a CardDAV)
+	Only calendars and contacts, with no email?	Len kalendáre a kontakty, bez e-mailu?
+	Add a CalDAV and CardDAV account	Pridať konto CalDAV a CardDAV
 	Calendar and contacts server	Server kalendára a kontaktov
-	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Pre ľubovoľný server CalDAV a CardDAV, ktorý uchováva vaše kalendáre a kontakty, napríklad Nextcloud, Baïkal, SOGo alebo Radicale, bez e-mailu. Heslo sa uchováva v kľúčenke tohto počítača a odosiela sa iba na ten server.
+	Add calendars and contacts	Pridať kalendáre a kontakty
+	For a CalDAV and CardDAV server with no email, such as Nextcloud, Baïkal, SOGo or Radicale. Your password is kept in this computer's keychain and sent only to that server.	Pre server CalDAV a CardDAV bez e-mailu, napríklad Nextcloud, Baïkal, SOGo alebo Radicale. Heslo sa uchováva v kľúčenke tohto počítača a odosiela sa iba na ten server.
+	Add an email account instead	Radšej pridať e-mailové konto
 	Server: {url} (CalDAV and CardDAV)	Server: {url} (CalDAV a CardDAV)
 	Not available: this account has no mail server.	Nedostupné: toto konto nemá poštový server.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Vaša pošta sa preniesla z predchádzajúcej verzie MailCraftu vo formáte Flatpak, ktorá je stále nainštalovaná. Ak ju chcete odstrániť, spustite: flatpak uninstall --delete-data {id}

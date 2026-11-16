@@ -37,7 +37,7 @@ pub struct LangInfo {
     catalog: OnceLock<Catalog>,
 }
 
-pub static LANGUAGES: [LangInfo; 15] = [
+pub static LANGUAGES: [LangInfo; 16] = [
     LangInfo { code: "en", name: "English", source: "", cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "es", name: "Español", source: include_str!("i18n/es.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "fr", name: "Français", source: include_str!("i18n/fr.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
@@ -46,6 +46,7 @@ pub static LANGUAGES: [LangInfo; 15] = [
     LangInfo { code: "pt-br", name: "Português (Brasil)", source: include_str!("i18n/pt-br.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "it", name: "Italiano", source: include_str!("i18n/it.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "tr", name: "Türkçe", source: include_str!("i18n/tr.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "sk", name: "Slovenčina", source: include_str!("i18n/sk.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "ru", name: "Русский", source: include_str!("i18n/ru.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "ja", name: "日本語", source: include_str!("i18n/ja.tsv"), cjk: true, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "ko", name: "한국어", source: include_str!("i18n/ko.tsv"), cjk: true, rtl: false, catalog: OnceLock::new() },
