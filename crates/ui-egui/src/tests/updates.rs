@@ -277,7 +277,8 @@ fn closing_the_window_keeps_mailcraft_running_when_asked_to() {
 /// Issues #116 and #117, with MailCraft kept running in the notification area: its icon is told
 /// the Inboxes' unread mail (none with that off); started put away, MailCraft is in the
 /// notification area, and comes back minimized where no icon could be made to bring it back; the
-/// File page offers both under keeping it running, and neither without it.
+/// File page offers both under keeping it running (the count not on a Mac, whose Dock's icon has
+/// it already), and neither without it.
 #[test]
 fn the_tray_icon_counts_unread_mail_and_mailcraft_can_start_there() {
     let (mut a, _) = app("tray-unread");
@@ -310,7 +311,7 @@ fn the_tray_icon_counts_unread_mail_and_mailcraft_can_start_there() {
     };
     assert_eq!(offered(&mut a), (false, false), "not kept running: neither");
     a.run("view.closeToTray", json!({"on": true}));
-    assert_eq!(offered(&mut a), (true, true), "kept running: both");
+    assert_eq!(offered(&mut a), (true, !cfg!(target_os = "macos")), "kept running: both (a Mac's Dock counts unread mail)");
     a.run("view.startInTray", json!({"on": true}));
     assert!(a.session.prefs.start_in_tray);
 }
