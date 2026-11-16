@@ -230,6 +230,75 @@ fn a_message_from_files_sent_comes_to_the_front() {
     assert_eq!(focused(&mut a, 6), 0, "and left alone after");
 }
 
+/// Found testing issue #96 on X11 (Openbox): started for files to send, MailCraft's main window,
+/// shown once it had drawn, took the focus 40 ms after the message's window had it, so the
+/// message stayed behind (a mail file MailCraft was started with too). The message comes forward
+/// again once, if nothing was clicked or typed in the main window first; then it's left alone.
+/// The message's window is a window of its own here, with its own input, as eframe runs it.
+#[test]
+fn a_message_window_comes_back_in_front_of_the_main_window_once() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+    // Whether the main window has the focus (the message's has it otherwise), and how many
+    // times the message's window asked for it.
+    let main = Rc::new(Cell::new(false));
+    let asked = Rc::new(Cell::new(0usize));
+    let focus = |out: &egui::FullOutput| {
+        out.viewport_output.values().flat_map(|v| v.commands.iter()).filter(|c| matches!(c, egui::ViewportCommand::Focus)).count()
+    };
+    {
+        let (main, asked) = (Rc::clone(&main), Rc::clone(&asked));
+        egui::Context::set_immediate_viewport_renderer(move |ctx, viewport| {
+            let egui::ImmediateViewport { ids, mut viewport_ui_cb, .. } = viewport;
+            let mut input = RawInput {
+                viewport_id: ids.this,
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(900.0, 720.0))),
+                ..Default::default()
+            };
+            input.viewports.entry(egui::ViewportId::ROOT).or_default().focused = Some(main.get());
+            input.viewports.entry(ids.this).or_default().focused = Some(!main.get());
+            let mut out = ctx.run_ui(input, |ui| viewport_ui_cb(ui));
+            out.textures_delta.clear();
+            asked.set(asked.get() + focus(&out));
+        });
+    }
+    // A frame of the main window, with the focus there or not and what was done there.
+    let frame = |ctx: &egui::Context, a: &mut MailApp, focused: bool, events: Vec<Event>| {
+        main.set(focused);
+        let mut input =
+            RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
+        input.viewports.entry(egui::ViewportId::ROOT).or_default().focused = Some(focused);
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        assert_eq!(focus(&out), 0, "the main window isn't brought forward");
+        asked.replace(0)
+    };
+    let started = |name: &str| {
+        let (mut a, dir) = app(name);
+        a.session.prefs.new_mail_window = true;
+        let file = dir.join("report.pdf");
+        std::fs::write(&file, b"%PDF-1.4").unwrap();
+        let ctx = egui::Context::default();
+        ctx.set_embed_viewports(false);
+        a.attach_handed(&[file.to_string_lossy().to_string()]);
+        let first: usize = (0..3).map(|_| frame(&ctx, &mut a, false, vec![])).sum();
+        assert_eq!(first, 1, "{name}: in front as it opens");
+        (a, ctx)
+    };
+    // The main window takes the focus: the message comes back, once.
+    let (mut a, ctx) = started("send-to-taken");
+    assert_eq!(frame(&ctx, &mut a, true, vec![]), 1, "back in front");
+    let after: usize = (0..4).map(|_| frame(&ctx, &mut a, true, vec![])).sum();
+    assert_eq!(after, 0, "then left alone");
+    // Something clicked in the main window first: that's where the user is.
+    let (mut b, ctx) = started("send-to-clicked");
+    let click =
+        Event::PointerButton { pos: egui::pos2(600.0, 400.0), button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() };
+    assert_eq!(frame(&ctx, &mut b, true, vec![click]), 0);
+    let after: usize = (0..4).map(|_| frame(&ctx, &mut b, true, vec![])).sum();
+    assert_eq!(after, 0, "left in the main window");
+}
+
 /// Issue #38: Outlook message files and `.eml` files dropped on the main window go into the
 /// folder open (it says so while they're held over it); other files dropped with them start a
 /// message with them attached. What went in is said once the folder has them.

@@ -479,23 +479,52 @@ pub(crate) fn opening(ctx: &egui::Context, viewport: egui::ViewportId) -> bool {
 pub(crate) fn forget_open(ctx: &egui::Context, viewport: egui::ViewportId) {
     ctx.data_mut(|d| {
         d.remove::<Option<WindowPlace>>(egui::Id::unique(("after-open", viewport)));
-        d.remove::<u8>(egui::Id::unique(("raised", viewport)));
+        d.remove::<Raised>(egui::Id::unique(("raised", viewport)));
     });
 }
 
-/// A message window just opened comes to the front, once, when it's on screen (its second
-/// frame). The window of a mail file handed to a running MailCraft opened behind the main
-/// window, which that launch had just brought forward; so did one for a file MailCraft was
-/// started with.
+/// How far a window just opened has come to the front ([`raise_once`]).
+#[derive(Clone, Copy)]
+struct Raised {
+    /// Its frames so far, counted to two.
+    frames: u8,
+    /// When it opened (egui's input time).
+    opened: f64,
+    /// Done with: brought forward again, or something done in the main window.
+    settled: bool,
+}
+
+/// How long after a window opens the main window taking the focus from it is the system's doing,
+/// not the user's.
+const RAISE_FOR: f64 = 2.0;
+
+/// A message window just opened comes to the front when it's on screen (its second frame), and
+/// once more if the main window takes the focus from it in its first [`RAISE_FOR`] seconds with
+/// nothing clicked or typed there. The window of a mail file handed to a running MailCraft opened
+/// behind the main window, which that launch had just brought forward; so did one for a file
+/// MailCraft was started with: on X11 (Openbox), the main window, shown once it has drawn, took
+/// the focus 40 ms after the message window had it.
 fn raise_once(ctx: &egui::Context, viewport: egui::ViewportId) {
     let id = egui::Id::unique(("raised", viewport));
-    let frames = ctx.data(|d| d.get_temp::<u8>(id).unwrap_or(0));
-    if frames < 2 {
-        ctx.data_mut(|d| d.insert_temp(id, frames + 1));
-    }
-    if frames == 1 {
+    let now = ctx.input(|i| i.time);
+    let mut r = ctx.data(|d| d.get_temp::<Raised>(id)).unwrap_or(Raised { frames: 0, opened: now, settled: false });
+    if r.frames == 1 {
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+    } else if r.frames > 1 && !r.settled {
+        let acted = ctx.input_for(egui::ViewportId::ROOT, |i| {
+            i.events.iter().any(|e| matches!(e, egui::Event::Key { .. } | egui::Event::PointerButton { .. } | egui::Event::Text(_)))
+        });
+        let taken =
+            ctx.input_for(egui::ViewportId::ROOT, |i| i.viewport().focused == Some(true)) && ctx.input(|i| i.viewport().focused != Some(true));
+        if acted || now - r.opened > RAISE_FOR {
+            r.settled = true;
+        } else if taken {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            r.settled = true;
+        }
     }
+    r.frames = r.frames.saturating_add(1).min(2);
+    ctx.data_mut(|d| d.insert_temp(id, r));
 }
 
 /// The toolbar of a message window. Replying and forwarding happen in the main window, so
