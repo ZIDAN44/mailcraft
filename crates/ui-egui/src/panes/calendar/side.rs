@@ -117,7 +117,11 @@ fn calendar_row(s: &Session, t: &Tokens, ui: &mut Ui, rows: &Rows<'_>, c: &Calen
     let shown = s.calendar_shown(&a.config.id, &c.id);
     // Subscribed to by its link (issue #7): where it's read from, and how that went.
     let web = p.subscribed.iter().find(|w| w.id == c.id);
+    // The width of the pane, its name and tags no more than drawn on it: a right-click anywhere on
+    // it opens its menu (issue #119: its name, a text that could be selected, took the click, and
+    // the row was as wide as what's in it, so Remove couldn't be reached).
     let row = ui.horizontal(|ui| {
+        ui.set_min_width(ui.available_width());
         if grouped {
             ui.add_space(10.0);
         }
@@ -151,13 +155,14 @@ fn calendar_row(s: &Session, t: &Tokens, ui: &mut Ui, rows: &Rows<'_>, c: &Calen
         } else {
             a.config.email.clone()
         };
-        ui.label(RichText::new(name).color(t.text)).on_hover_text(tip);
+        ui.add(egui::Label::new(RichText::new(name).color(t.text)).selectable(false)).on_hover_text(tip);
         if web.is_some_and(|w| w.error.is_some()) {
-            ui.label(RichText::new(tl!("couldn't be read")).color(t.danger).small());
+            ui.add(egui::Label::new(RichText::new(tl!("couldn't be read")).color(t.danger).small()).selectable(false));
         } else if c.read_only {
-            ui.label(RichText::new(tl!("read-only")).color(t.faint).small());
+            ui.add(egui::Label::new(RichText::new(tl!("read-only")).color(t.faint).small()).selectable(false));
         } else if default.as_deref() == Some(c.id.as_str()) && choices > 1 {
-            ui.label(RichText::new(tl!("default")).color(t.faint).small()).on_hover_text(tl!("New events and invitations go to this calendar"));
+            ui.add(egui::Label::new(RichText::new(tl!("default")).color(t.faint).small()).selectable(false))
+                .on_hover_text(tl!("New events and invitations go to this calendar"));
         }
     });
     // One of the account's that can be added to: right-click makes it the one new

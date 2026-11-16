@@ -9,5 +9,6 @@ mod pim;
 mod reminders;
 mod repeat;
 mod search;
+mod subscribed;
 mod tasks;
 mod todo_bar;
