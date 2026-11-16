@@ -69,23 +69,7 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
     });
     ui.add_space(4.0);
     if s.focus_split() {
-        ui.horizontal(|ui| {
-            for (other, label) in [(false, "Focused"), (true, "Other")] {
-                let on = s.focus_other == other;
-                let text =
-                    RichText::new(tl!(label)).color(if on { t.text } else { t.dim }).font(if on { theme::bold(14.0) } else { theme::regular(14.0) });
-                let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
-                if on {
-                    ui.painter().line_segment(
-                        [pos2(r.rect.left() + 2.0, r.rect.bottom() + 1.0), pos2(r.rect.right() - 2.0, r.rect.bottom() + 1.0)],
-                        egui::Stroke::new(2.0, t.accent),
-                    );
-                }
-                if r.clicked() && !on {
-                    acts.push(Action::Run("list.focusTab", json!({"value": if other { "other" } else { "focused" }})));
-                }
-            }
-        });
+        ui.horizontal(|ui| focus_tabs(s, t, ui, 14.0, [false, true], acts));
         ui.add_space(2.0);
     }
     ui.horizontal(|ui| {
@@ -171,6 +155,26 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
     search_status(s, t, ui);
 }
 
+/// The Inbox's Focused and Other (`others` in the order they're laid out), the one shown
+/// underlined; text `size` points.
+fn focus_tabs(s: &Session, t: &theme::Tokens, ui: &mut Ui, size: f32, others: [bool; 2], acts: &mut Vec<Action>) {
+    for other in others {
+        let label = if other { "Other" } else { "Focused" };
+        let on = s.focus_other == other;
+        let text = RichText::new(tl!(label)).color(if on { t.text } else { t.dim }).font(if on { theme::bold(size) } else { theme::regular(size) });
+        let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
+        if on {
+            ui.painter().line_segment(
+                [pos2(r.rect.left() + 2.0, r.rect.bottom() + 1.0), pos2(r.rect.right() - 2.0, r.rect.bottom() + 1.0)],
+                egui::Stroke::new(2.0, t.accent),
+            );
+        }
+        if r.clicked() && !on {
+            acts.push(Action::Run("list.focusTab", json!({"value": if other { "other" } else { "focused" }})));
+        }
+    }
+}
+
 /// The single-line list's head, on one line: the list's name, then against the other side its
 /// filter in a menu (named by the one chosen), where a search looks or how the list is arranged.
 fn list_head_line(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
@@ -213,6 +217,10 @@ fn list_head_line(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Ac
                     }
                 }
             });
+            // The Inbox's Focused and Other, before the filter (laid out from the end: Other first).
+            if s.focus_split() {
+                focus_tabs(s, t, ui, 12.5, [true, false], acts);
+            }
             // The name has what's left, cut short where it's too long.
             ui.with_layout(crate::bidi::row_from_start(egui::Align::Center), |ui| {
                 ui.add(egui::Label::new(RichText::new(crate::view_title(s)).font(theme::bold(13.5)).color(t.text)).truncate());

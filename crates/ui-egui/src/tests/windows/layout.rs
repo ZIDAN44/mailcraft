@@ -445,6 +445,31 @@ fn the_single_line_list_has_its_head_on_one_line() {
     places(&ctx, &mut a, "Unread ⏷");
 }
 
+/// The single-line list's head keeps the Inbox's Focused and Other: one of them clicked shows
+/// that part of the Inbox, as in the list's usual head.
+#[test]
+fn the_single_line_list_keeps_focused_and_other() {
+    let (mut a, _) = app("single-line-focused");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.session.prefs.focused_inbox = true;
+    a.run("view.singleLine", json!({}));
+    assert!(a.session.focus_split(), "the sample opens on its Inbox");
+    let size = egui::vec2(1280.0, 800.0);
+    let seen = |ctx: &egui::Context, a: &mut MailApp, text: &str| {
+        let mut drawn = Vec::new();
+        for _ in 0..2 {
+            drawn = drawn_text(ctx, a, size);
+        }
+        drawn.iter().any(|d| d.text == text && d.seen())
+    };
+    assert!(seen(&ctx, &mut a, "Focused") && seen(&ctx, &mut a, "Other"), "Focused and Other on the head's line");
+    assert!(!a.session.focus_other);
+    click_named(&ctx, &mut a, "Other");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.focus_other, "Other clicked shows the Inbox's other mail");
+}
+
 /// Issue #22: the ribbon's tabs and the search box share the top bar, one row where there were
 /// two, with the ribbon's buttons right under it, as tall on every tab and in every module, in a
 /// wide window, the narrowest and a narrow one; the File page has the window to itself.
