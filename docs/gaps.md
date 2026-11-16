@@ -92,6 +92,19 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   that hostile or huge mail stays quick: a copy cut there would run its paragraphs together, and
   past two dozen tables, each one nested deeper makes its text slower to read.
 
+### 8. EteSync
+
+- **Impact:** MailCraft can't sign in to an EteSync account itself. EteSync encrypts contacts,
+  calendars, tasks and notes end to end, with its own protocol (Etebase).
+- **Workaround:** Run EteSync's own bridge, `etesync-dav`, which offers the account as a calendar
+  and contacts server on this computer. In MailCraft, add an account and tick **Calendars and
+  contacts only, with no email (CalDAV and CardDAV)**: the address `http://localhost:37358/`, the
+  EteSync user name, and the password the bridge shows (not the EteSync password). Calendars and
+  contacts sync both ways. Lists of tasks don't (MailCraft keeps its tasks on this computer), and
+  the bridge doesn't offer notes.
+- **Cause:** It needs an Etebase client of MailCraft's own: the Rust library EteSync publishes
+  brings C libraries with it (OpenSSL and libsodium), which MailCraft doesn't build with.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.
