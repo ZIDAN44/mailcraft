@@ -1288,6 +1288,8 @@ month	May	5月
 	Your provider's calendar server wasn't found: give its address	プロバイダーの予定表サーバーが見つかりません: アドレスを入力してください
 	Classic ribbon	クラシック リボン
 	Big buttons with their names under them, in named groups	名前付きのグループに、名前を下に表示した大きなボタン
+	Hide the ribbon	リボンを非表示にする
+	Its tabs stay on the top bar: click one for its buttons, twice to keep them	タブは上部のバーに残ります: クリックでボタンを表示し、ダブルクリックで表示したままにします
 	New	新規
 	Respond	返信
 	Tags	タグ

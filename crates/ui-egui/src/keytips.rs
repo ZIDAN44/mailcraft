@@ -324,7 +324,10 @@ impl crate::MailApp {
         for act in self.ui.keytips.process(ctx, enabled) {
             match act {
                 Act::File => file = true,
-                Act::Tab(tab) => self.ui.tab = tab,
+                Act::Tab(tab) => {
+                    self.ui.tab = tab;
+                    self.ui.ribbon_peek = self.session.prefs.ribbon_hidden;
+                }
                 Act::Search => self.ui.focus_search = true,
                 Act::Press(sequence) => press = Some(sequence),
             }

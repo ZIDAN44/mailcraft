@@ -1291,6 +1291,8 @@ month	May	5月
 	Your provider's calendar server wasn't found: give its address	找不到服務商的行事曆伺服器：請填寫其位址
 	Classic ribbon	傳統功能區
 	Big buttons with their names under them, in named groups	依具名群組排列、名稱顯示在下方的大按鈕
+	Hide the ribbon	隱藏功能區
+	Its tabs stay on the top bar: click one for its buttons, twice to keep them	索引標籤仍留在頂端列：按一下顯示其按鈕，按兩下保持顯示
 	New	新增
 	Respond	回應
 	Tags	標記

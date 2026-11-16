@@ -37,6 +37,13 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
             cmd: "view.plainTopBar",
         };
         switch_row(ui, &t, false, plain, acts);
+        let ribbon = Switch {
+            label: tl!("Hide the ribbon"),
+            about: Some(tl!("Its tabs stay on the top bar: click one for its buttons, twice to keep them")),
+            on: s.prefs.ribbon_hidden,
+            cmd: "view.hideRibbon",
+        };
+        switch_row(ui, &t, false, ribbon, acts);
         // Windows: the top bar is the window's title bar (issue #22), or the system's is kept.
         if cfg!(windows) {
             let system = Switch {
