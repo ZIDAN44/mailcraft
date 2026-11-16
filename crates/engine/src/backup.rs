@@ -268,6 +268,17 @@ mod tests {
         }
     }
 
+    /// A locked backup's key is PBKDF2-HMAC-SHA256: RFC 7914's test vectors (section 11, the
+    /// first 32 of their 64 bytes, as the key takes). A backup locked by an older MailCraft opens
+    /// in a newer one only while this holds: moving to pbkdf2 0.13 and sha2 0.11 changed the
+    /// crates' traits, and must not change the key.
+    #[test]
+    fn the_key_is_pbkdf2_with_sha256() {
+        let hex = |k: [u8; 32]| k.iter().map(|b| format!("{b:02x}")).collect::<String>();
+        assert_eq!(hex(key("passwd", b"salt", 1)), "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc");
+        assert_eq!(hex(key("Password", b"NaCl", 80_000)), "4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56");
+    }
+
     #[test]
     fn a_backup_comes_back_as_it_went() {
         let b = sample();
