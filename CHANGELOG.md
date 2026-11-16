@@ -49,6 +49,7 @@ Thanks to Peter Páleník for the Slovak translation (#124).
 - MailCraft can start in the notification area (#116): with **File › Options › General › Keep MailCraft running when its window is closed** on, **Start MailCraft in the notification area** starts it there, checking for mail and announcing it with no window coming up (minimized where a window can't be hidden, as on a Mac). Started to open a link or a file, it opens the window.
 - MailCraft's icon in the notification area shows how much unread mail the Inboxes have, in its corner (#117), as the window's title does; **Show the unread mail on its icon** turns that off.
 - The message list can leave out its headings (Today, Yesterday…): **Show in groups** in the menu of how the list is arranged (By Date ⏷), on as before.
+- The ribbon can be hidden, for more room for mail: **File › Options › General › Hide the ribbon**, Ctrl+F1, or a double click on one of its tabs. The tabs stay on the top bar: a click on one shows its buttons until you click elsewhere.
 
 ### Removed
 

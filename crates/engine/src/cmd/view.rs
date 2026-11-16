@@ -17,6 +17,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         toggle!("view.compact", "Compact list", "View › Layout", compact),
         toggle!("view.groups", "Show in groups", "View › Arrangement", groups),
         toggle!("view.classicRibbon", "Classic ribbon", "View › Layout", classic_ribbon),
+        toggle!("view.hideRibbon", "Hide the ribbon", "View › Layout", ribbon_hidden).key("Mod+F1"),
         CommandSpec::new("view.accent", "Accent colour", "File › Options › Personalize", |s, v| {
             let given = p::req_str(v, "color")?;
             s.prefs.accent = crate::session::accent_code(given)

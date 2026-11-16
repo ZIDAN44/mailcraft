@@ -334,45 +334,51 @@ impl MailApp {
                     self.top_bar(ui, acts);
                 });
             self.ui.top_bar_rect = Some(bar.response.rect);
-            egui::Panel::top("ribbon")
-                .frame(
-                    egui::Frame::new()
-                        .fill(t.chrome)
-                        .inner_margin(Margin { left: 8, right: 8, top: 4, bottom: 6 })
-                        .stroke(egui::Stroke::new(1.0, t.border)),
-                )
-                .show(ui, |ui| {
-                    // Too wide for the window: its last buttons lose their labels, as few as it
-                    // takes (worked out from this frame for the next).
-                    // One height on every tab: switching tabs doesn't nudge the window below.
-                    let classic = self.session.prefs.classic_ribbon;
-                    ui.set_min_height(if classic { RIBBON_H_CLASSIC } else { RIBBON_H });
-                    let id = widgets::ribbon_fit_id();
-                    let start = widgets::RibbonFit {
-                        active: true,
-                        classic,
-                        icons_from: self.ui.ribbon_icons_from,
-                        right: ui.max_rect().left(),
-                        left: ui.max_rect().right(),
-                        ..Default::default()
-                    };
-                    ui.ctx().data_mut(|d| d.insert_temp(id, start));
-                    // Right to left: its rows from the right (egui runs a row in a layout aligned
-                    // right from the right), File first.
-                    let rtl = i18n::current().rtl();
-                    let room = ui.max_rect();
-                    ui.with_layout(Layout::top_down(if rtl { Align::Max } else { Align::Min }), |ui| {
-                        crate::keytips::on_ribbon(ui, |ui| self.ribbon(ui, acts))
+            // Hidden (`Prefs::ribbon_hidden`), it's drawn while a tab clicked shows it.
+            if self.ribbon_shown() {
+                egui::Panel::top("ribbon")
+                    .frame(
+                        egui::Frame::new()
+                            .fill(t.chrome)
+                            .inner_margin(Margin { left: 8, right: 8, top: 4, bottom: 6 })
+                            .stroke(egui::Stroke::new(1.0, t.border)),
+                    )
+                    .show(ui, |ui| {
+                        // Too wide for the window: its last buttons lose their labels, as few as it
+                        // takes (worked out from this frame for the next).
+                        // One height on every tab: switching tabs doesn't nudge the window below.
+                        let classic = self.session.prefs.classic_ribbon;
+                        ui.set_min_height(if classic { RIBBON_H_CLASSIC } else { RIBBON_H });
+                        let id = widgets::ribbon_fit_id();
+                        let start = widgets::RibbonFit {
+                            active: true,
+                            classic,
+                            icons_from: self.ui.ribbon_icons_from,
+                            right: ui.max_rect().left(),
+                            left: ui.max_rect().right(),
+                            ..Default::default()
+                        };
+                        ui.ctx().data_mut(|d| d.insert_temp(id, start));
+                        // Right to left: its rows from the right (egui runs a row in a layout aligned
+                        // right from the right), File first.
+                        let rtl = i18n::current().rtl();
+                        let room = ui.max_rect();
+                        ui.with_layout(Layout::top_down(if rtl { Align::Max } else { Align::Min }), |ui| {
+                            crate::keytips::on_ribbon(ui, |ui| self.ribbon(ui, acts))
+                        });
+                        super::ribbon::card_under_ribbon(ui, &t, room);
+                        let fit = ui.ctx().data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<widgets::RibbonFit>(id)));
+                        self.ui.ribbon_rect = Some(ui.min_rect());
+                        let from = fit.fit(room, rtl);
+                        if from != self.ui.ribbon_icons_from.min(fit.count) {
+                            self.ui.ribbon_icons_from = from;
+                            ui.ctx().request_repaint();
+                        }
                     });
-                    super::ribbon::card_under_ribbon(ui, &t, room);
-                    let fit = ui.ctx().data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<widgets::RibbonFit>(id)));
-                    self.ui.ribbon_rect = Some(ui.min_rect());
-                    let from = fit.fit(room, rtl);
-                    if from != self.ui.ribbon_icons_from.min(fit.count) {
-                        self.ui.ribbon_icons_from = from;
-                        ui.ctx().request_repaint();
-                    }
-                });
+                self.ribbon_peek_ends(ui.ctx());
+            } else {
+                self.ui.ribbon_rect = None;
+            }
             // A newer MailCraft ready to install (or a copy left from before): a bar of its own.
             if self.update_bar_wanted() {
                 egui::Panel::top("update-bar")

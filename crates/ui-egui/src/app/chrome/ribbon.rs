@@ -34,6 +34,10 @@ impl MailApp {
         ui.spacing_mut().item_spacing.x = 0.0;
         // Alt pressed: each tab's key tip under it (`keytips`).
         let tips = self.ui.keytips.prefix() == Some("");
+        // The ribbon hidden: no tab is the one shown until one is clicked, which shows its
+        // buttons until a click elsewhere (or on it again); a double click hides or keeps it.
+        let hidden = s.prefs.ribbon_hidden;
+        let shown = self.ribbon_shown();
         let file = tab_button(ui, &t, tl!("File"), None);
         if let Some(letters) = crate::keytips::table::letters(crate::keytips::table::Top::File).filter(|_| tips) {
             crate::keytips::badge(ui.ctx(), file.rect, letters, true, &t);
@@ -43,7 +47,7 @@ impl MailApp {
         }
         let tabs = [(RibbonTab::Home, "Home"), (RibbonTab::SendReceive, "Send / Receive"), (RibbonTab::View, "View"), (RibbonTab::Search, "Search")];
         for (tab, label) in tabs.into_iter().filter(|(tab, _)| *tab != RibbonTab::Search || searching) {
-            let on = self.ui.tab == tab;
+            let on = shown && self.ui.tab == tab;
             let r = tab_button(ui, &t, tl!(label), Some(on));
             if let Some(letters) = crate::keytips::table::tab_letters(tab).filter(|_| tips) {
                 crate::keytips::badge(ui.ctx(), r.rect, letters, true, &t);
@@ -59,7 +63,30 @@ impl MailApp {
             }
             if r.clicked() {
                 self.ui.tab = tab;
+                self.ui.ribbon_peek = hidden && !on;
             }
+            if r.double_clicked() {
+                acts.push(Action::Run("view.hideRibbon", json!({})));
+            }
+        }
+    }
+
+    /// Whether the ribbon's buttons are drawn: always, unless it's hidden and no tab was clicked.
+    pub(crate) fn ribbon_shown(&self) -> bool {
+        !self.session.prefs.ribbon_hidden || self.ui.ribbon_peek
+    }
+
+    /// The hidden ribbon, shown by a click on a tab, goes again with a press anywhere but on it,
+    /// the top bar or a menu (its own menus are over it).
+    pub(crate) fn ribbon_peek_ends(&mut self, ctx: &egui::Context) {
+        if !self.ui.ribbon_peek {
+            return;
+        }
+        let Some(at) = ctx.input(|i| i.pointer.primary_pressed().then(|| i.pointer.interact_pos()).flatten()) else { return };
+        let on_bars = [self.ui.ribbon_rect, self.ui.top_bar_rect].into_iter().flatten().any(|r| r.contains(at));
+        let in_menu = ctx.layer_id_at(at).is_some_and(|l| l.order != egui::Order::Background);
+        if !on_bars && !in_menu {
+            self.ui.ribbon_peek = false;
         }
     }
 

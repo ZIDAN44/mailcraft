@@ -361,6 +361,58 @@ fn the_list_without_groups_has_no_headings() {
     assert!(drawn_headings(&ctx, &mut a) > 0, "headings again");
 }
 
+/// The ribbon hidden: its buttons go and the list has their room, the tabs stay on the top bar;
+/// a click on a tab shows its buttons until a click elsewhere, and Ctrl+F1 brings it back.
+#[test]
+fn the_ribbon_hides_and_a_tab_shows_it_for_now() {
+    let (mut a, _) = app("ribbon-hidden");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let ribbon = a.ui.ribbon_rect.expect("the ribbon is drawn");
+    let rows_before = a.ui.list_page;
+    a.run("view.hideRibbon", json!({}));
+    assert!(a.session.prefs.ribbon_hidden);
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert!(a.ui.ribbon_rect.is_none(), "the ribbon's buttons are gone");
+    assert!(a.ui.top_bar_rect.is_some(), "the top bar, with the tabs, stays");
+    assert!(a.ui.list_page > rows_before, "{} rows, {rows_before} before", a.ui.list_page);
+    // A tab shows its buttons, over where they were.
+    click_named(&ctx, &mut a, "View");
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.tab, crate::RibbonTab::View);
+    let shown = a.ui.ribbon_rect.expect("a tab clicked shows the ribbon");
+    assert!((shown.height() - ribbon.height()).abs() < 1.0);
+    // A click on the ribbon keeps it, one in the window below puts it away.
+    click(&ctx, &mut a, egui::pos2(shown.right() - 4.0, shown.center().y));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.ribbon_rect.is_some(), "a click on the ribbon keeps it");
+    let size = SIZE.with(std::cell::Cell::get);
+    click(&ctx, &mut a, egui::pos2(size.x - 30.0, size.y - 60.0));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.ribbon_rect.is_none(), "a click elsewhere puts it away");
+    assert!(a.session.prefs.ribbon_hidden);
+    // The same tab clicked twice: shown, then put away.
+    click_named(&ctx, &mut a, "Home");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.ribbon_rect.is_some());
+    click_named(&ctx, &mut a, "Home");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.ribbon_rect.is_none(), "its tab clicked again puts it away");
+    // Ctrl+F1 brings it back for good.
+    frame(&ctx, &mut a, vec![key(egui::Key::F1, egui::Modifiers::COMMAND)]);
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert!(!a.session.prefs.ribbon_hidden);
+    assert!(a.ui.ribbon_rect.is_some());
+    assert_eq!(a.ui.list_page, rows_before);
+}
+
 /// Issue #22: the ribbon's tabs and the search box share the top bar, one row where there were
 /// two, with the ribbon's buttons right under it, as tall on every tab and in every module, in a
 /// wide window, the narrowest and a narrow one; the File page has the window to itself.

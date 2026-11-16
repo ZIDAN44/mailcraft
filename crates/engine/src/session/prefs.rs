@@ -92,6 +92,9 @@ pub struct Prefs {
     /// The classic ribbon (issue #8): big icons over their labels, in named groups, instead of
     /// one row of small ones.
     pub classic_ribbon: bool,
+    /// The ribbon's buttons hidden, its tabs kept on the top bar: one clicked shows its buttons
+    /// until a click elsewhere.
+    pub ribbon_hidden: bool,
     /// The accent colour (issue #8): empty for MailCraft's teal, a named one ([`ACCENTS`]), or
     /// any colour as `#rrggbb`. The window adjusts it to read well in light and dark.
     pub accent: String,
@@ -311,6 +314,7 @@ impl Default for Prefs {
             compact: false,
             groups: true,
             classic_ribbon: false,
+            ribbon_hidden: false,
             accent: String::new(),
             plain_top_bar: false,
             light_messages: false,
