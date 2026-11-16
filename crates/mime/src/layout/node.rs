@@ -549,7 +549,8 @@ impl Node {
         kids.iter().all(|k| k.beside()).then(|| vec![kids])
     }
 
-    /// Rows (through table sections), each its row element and cells.
+    /// Rows (through table sections, and a form around rows, as a browser reads one), each its row
+    /// element and cells.
     pub(super) fn rows(&self) -> Vec<(&Node, Vec<&Node>)> {
         let mut out = Vec::new();
         for k in &self.kids {
@@ -563,7 +564,7 @@ impl Node {
                         .filter(|c| matches!(c.tag.as_str(), "td" | "th") && !c.hidden())
                         .collect(),
                 )),
-                "tbody" | "thead" | "tfoot" => out.extend(n.rows()),
+                "tbody" | "thead" | "tfoot" | "form" => out.extend(n.rows()),
                 _ => {}
             }
         }

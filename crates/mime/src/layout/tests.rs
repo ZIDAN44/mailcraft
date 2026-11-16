@@ -172,6 +172,18 @@ fn hostile_markup_is_survived() {
     }
 }
 
+/// Rows in a form in a table (a survey a newsletter asks to fill in): a browser shows them as the
+/// table's rows. They were looked for through the table's sections only: the table came out
+/// empty.
+#[test]
+fn rows_in_a_form_are_the_tables_rows() {
+    let b = html_layout(
+        r#"<table width="600"><form action="https://survey.example/"><tr><td>How did we do?</td><td><input type="radio"> Good</td></tr></form></table>"#,
+    );
+    let s = format!("{b:?}");
+    assert!(s.contains("How did we do?") && s.contains("Good"), "{b:?}");
+}
+
 /// A colour as CSS writes one: `#abc` is `#aabbcc`, an `rgb()` part over 255 is 255, and a hex
 /// colour of two digits is none.
 #[test]
