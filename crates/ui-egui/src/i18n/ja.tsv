@@ -629,6 +629,7 @@ month	May	5月
 	Arrange by: {field}	並べ替え: {field}
 	By {field} ⏷	{field} 順 ⏷
 	Reverse sort	逆順に並べ替え
+	Show in groups	グループで表示
 	Size	サイズ
 	Flag status	フラグの状態
 	Attachments	添付ファイル

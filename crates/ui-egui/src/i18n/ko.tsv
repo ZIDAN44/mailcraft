@@ -626,6 +626,7 @@
 	Arrange by: {field}	정렬 기준: {field}
 	By {field} ⏷	{field} 기준 ⏷
 	Reverse sort	역순 정렬
+	Show in groups	그룹으로 표시
 	Size	크기
 	Flag status	플래그 상태
 	Attachments	첨부 파일

@@ -23,7 +23,7 @@ use row::{RowOf, message_row};
 /// the row height changes. The rows themselves are the engine's, borrowed each frame: a big
 /// folder's hundreds of thousands of rows were made again every frame, then each time it changed.
 pub(crate) struct ListRows {
-    key: (u64, u32),
+    key: (u64, u32, u32),
     tops: Vec<f32>,
     total: f32,
 }
@@ -249,13 +249,15 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
 
     let mh = row_height(s);
     let rows = s.rows();
-    let key = (s.nav_structure(), mh.to_bits());
+    // Not shown in groups: the headings take no room and aren't drawn.
+    let header_h = if s.prefs.groups { HEADER_H } else { 0.0 };
+    let key = (s.nav_structure(), mh.to_bits(), header_h.to_bits());
     if st.list_rows.as_ref().is_none_or(|c| c.key != key || c.tops.len() != rows.len()) {
         let mut tops = Vec::with_capacity(rows.len());
         let mut y = 0.0;
         for r in rows {
             tops.push(y);
-            y += if matches!(r, Row::Header(_) | Row::Group(_)) { HEADER_H } else { mh };
+            y += if matches!(r, Row::Header(_) | Row::Group(_)) { header_h } else { mh };
         }
         st.list_rows = Some(ListRows { key, tops, total: y });
     }
@@ -323,6 +325,7 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                 break;
             }
             match row {
+                Row::Header(_) | Row::Group(_) if !s.prefs.groups => {}
                 Row::Header(label) => {
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
                     let m = crate::bidi::Mirror::new(r);
@@ -413,6 +416,10 @@ pub(crate) fn arrange_menu(ui: &mut Ui, s: &Session, acts: &mut Vec<Action>) {
     ui.separator();
     if ui.selectable_label(s.prefs.reverse_sort, tl!("Reverse sort")).clicked() {
         acts.push(Action::Run("view.reverseSort", json!({})));
+        ui.close();
+    }
+    if ui.selectable_label(s.prefs.groups, tl!("Show in groups")).clicked() {
+        acts.push(Action::Run("view.groups", json!({})));
         ui.close();
     }
 }
