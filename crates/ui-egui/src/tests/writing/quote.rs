@@ -57,7 +57,7 @@ fn a_reply_shows_the_original_as_it_came_and_changes_it_in_place() {
     assert!(a.session.compose.as_ref().is_some_and(|c| c.quote.is_some()));
 }
 
-/// The owner's report (issue #118): in a reply with its original shown as it came, Ctrl+A
+/// Issue #118: in a reply with its original shown as it came, Ctrl+A
 /// stopped at a paragraph, selecting the text being written or the block of the original with
 /// the cursor, alone. From either, it selects the text and all of the original, as Outlook does:
 /// Copy takes all of it, Delete or typing takes all of it away, the original too, and Undo
