@@ -166,6 +166,10 @@ fn hostile_markup_is_survived() {
     let _ = html_layout("<table><tr><td><script>if (a < b) { document.write('<td>') }</script>z</td><td>y</td></tr></table>");
     let many = "<table><tr>".to_string() + &"<td>c</td>".repeat(5000) + "</tr></table>";
     assert!(html_layout(&many).is_empty(), "too many cells: flows as text");
+    // Content outside cells, each given a row and cell of its own (#122), as deep as it goes.
+    for stray in ["<table><div>".repeat(5000), "<table><tr>x".repeat(5000), "<table><tbody><span>y".repeat(5000)] {
+        let _ = html_layout(&stray);
+    }
 }
 
 /// A colour as CSS writes one: `#abc` is `#aabbcc`, an `rgb()` part over 255 is 255, and a hex

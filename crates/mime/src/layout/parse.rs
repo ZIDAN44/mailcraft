@@ -61,6 +61,27 @@ impl Sink {
         }
     }
 
+    /// Content put straight in a table or a row, outside a cell, goes in a cell of its own, in a
+    /// row of its own when it isn't in one: the open table part is read for rows and cells only,
+    /// and it was left out (#122: a newsletter's column of boxes in a table its Outlook copy
+    /// opens around them, every section an empty cell). A browser moves such content before the
+    /// table; Outlook draws it where it is, as here. The cell ends with the next row or cell, or
+    /// the table, as a written one does.
+    fn cell_for_stray(&self, stack: &mut Vec<Node>) {
+        let implied: &[&str] = match stack.last().map(|n| n.tag.as_str()) {
+            Some("table" | "tbody" | "thead" | "tfoot") => &["tr", "td"],
+            Some("tr") => &["td"],
+            _ => &[],
+        };
+        for tag in implied {
+            if stack.len() >= MAX_OPEN {
+                return;
+            }
+            self.nodes.set(self.nodes.get().saturating_add(1));
+            stack.push(Node { tag: (*tag).into(), ..Default::default() });
+        }
+    }
+
     /// An attribute's value, without Outlook's marks when they're read ([`unmarked`]).
     fn unmarked<'a>(&self, value: &'a str) -> std::borrow::Cow<'a, str> {
         let mark = crate::html::OUTLOOK_MARK;
@@ -112,6 +133,34 @@ impl TokenSink for Sink {
                             "tbody" | "thead" | "tfoot" => self.close(&mut stack, &["tbody", "thead", "tfoot"], &["table"]),
                             "p" | "li" => self.close(&mut stack, &[name.as_str()], &["td", "th", "table", "ul", "ol", "div"]),
                             _ => {}
+                        }
+                        // What a table may hold outside its cells, as a browser leaves it there;
+                        // anything else is content, put in a cell ([`Sink::cell_for_stray`]).
+                        let in_table = matches!(
+                            name.as_str(),
+                            "tr" | "td"
+                                | "th"
+                                | "tbody"
+                                | "thead"
+                                | "tfoot"
+                                | "caption"
+                                | "colgroup"
+                                | "col"
+                                | "style"
+                                | "script"
+                                | "template"
+                                | "form"
+                        ) || (name == "input"
+                            && tag.attrs.iter().any(|a| &*a.name.local == "type" && a.value.eq_ignore_ascii_case("hidden")));
+                        if !in_table {
+                            self.cell_for_stray(&mut stack);
+                        } else if matches!(name.as_str(), "td" | "th")
+                            && matches!(stack.last().map(|n| n.tag.as_str()), Some("table" | "tbody" | "thead" | "tfoot"))
+                            && stack.len() < MAX_OPEN
+                        {
+                            // A cell with no row: in one, as a browser reads it.
+                            self.nodes.set(self.nodes.get().saturating_add(1));
+                            stack.push(Node { tag: "tr".into(), ..Default::default() });
                         }
                         let outlooks = self.marks && marked && name == "table";
                         let mut attrs: Vec<(String, String)> = tag
@@ -165,6 +214,10 @@ impl TokenSink for Sink {
                 self.marked.set(mark == Some(&*c));
             }
             Token::CharacterTokens(t) => {
+                // Words outside a table's cells too; the spaces between its tags stay where they are.
+                if !t.trim().is_empty() {
+                    self.cell_for_stray(&mut stack);
+                }
                 if let Some(top) = stack.last_mut() {
                     match top.kids.last_mut() {
                         Some(Kid::Text(s)) => s.push_str(&t),

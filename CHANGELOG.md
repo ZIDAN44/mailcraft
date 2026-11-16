@@ -19,6 +19,7 @@ on GitHub.
 ### Fixed
 
 - On Linux and the BSDs, attachments drag out of MailCraft on a desktop running Wayland, such as GNOME's or KDE Plasma's (#120): drag one onto a folder in your file manager to save it there. The window opens through XWayland so that they can, but dragging them was still left off there, and nothing happened.
+- Newsletters that put a table around each section for Outlook alone, as HubSpot's do, show their text (#122): every section came out empty, and only the background and pictures showed. A title in a quote in a colour of its own no longer starts with `> ##`.
 
 ## 0.39.0 - 2026-11-16
 

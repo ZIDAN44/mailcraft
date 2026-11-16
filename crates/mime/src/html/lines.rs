@@ -57,11 +57,14 @@ pub(super) fn line_spans(line: &html2text::render::TaggedLine<Vec<html2text::ren
 }
 
 /// A line of a heading given its level: headings come out as `## <mark>Title`, each line of them
-/// (see [`mark_headings`]): both dropped, the level kept.
+/// (see [`mark_headings`]), and in a quote as `> ## <mark>Title`: the marks dropped, the level
+/// kept. Before a title in a colour of its own they're spans of their own, dropped too (#122:
+/// one in a quote kept `> ## ` as words).
 pub(super) fn heading_of(spans: &mut [Span]) {
     let mut level = 0u8;
     let mut hashes = 0usize;
-    for sp in spans.iter_mut() {
+    let mut marked_at = 0;
+    for (at, sp) in spans.iter_mut().enumerate() {
         if level > 0 {
             break;
         }
@@ -70,16 +73,17 @@ pub(super) fn heading_of(spans: &mut [Span]) {
                 hashes += sp.text.get(..i).unwrap_or("").chars().filter(|c| *c == '#').count();
                 level = u8::try_from(hashes.clamp(1, 6)).unwrap_or(1);
                 sp.text = sp.text.get(i + HEADING_MARK.len_utf8()..).unwrap_or("").to_string();
+                marked_at = at;
             }
             None => hashes += sp.text.chars().filter(|c| *c == '#').count(),
         }
     }
     if level > 0 {
-        if let Some(first) = spans.first_mut()
-            && first.text.trim_start_matches('#').trim().is_empty()
-            && first.image.is_none()
-        {
-            first.text.clear();
+        let marks_only = |sp: &Span| sp.image.is_none() && sp.text.chars().all(|c| c == '#' || c == '>' || c.is_whitespace());
+        for sp in spans.iter_mut().take(marked_at.saturating_add(1)) {
+            if marks_only(sp) {
+                sp.text.clear();
+            }
         }
         for sp in spans.iter_mut() {
             sp.heading = level;

@@ -25,6 +25,28 @@ fn a_heading_in_lines_of_its_own_has_no_marks() {
     assert!(matches!(&outer.rows[0][0].blocks[0], crate::layout::Block::Table(t) if t.rows[0][0].align == crate::layout::Align::Center), "{b:?}");
 }
 
+/// Found on issue #122: a title in a quote, its words in a colour of their own
+/// (`<blockquote><h2><span style="color:…">`), kept the marks the text converter writes before
+/// it as words: `> ## How the week went`. It reads as a title, as one in no colour does.
+#[test]
+fn a_coloured_title_in_a_quote_has_no_marks() {
+    for html in [
+        r#"<blockquote><h2><span style="color: #15245e;">How the week went</span></h2></blockquote>"#,
+        r#"<blockquote style="line-height:175%"><div dir="ltr"><h2 style="text-align:center" align="center"><span style="color:#15245e">How the week went</span></h2><ul></ul></div></blockquote>"#,
+        "<blockquote><h2>How the week went</h2></blockquote>",
+        r#"<h2><span style="color:#15245e">How the week went</span></h2>"#,
+    ] {
+        let r = html_to_rich(html);
+        let line = r.iter().find(|l| l.iter().any(|s| s.text.contains("week"))).unwrap_or_else(|| panic!("{html}: {r:?}"));
+        assert_eq!(line.iter().map(|s| s.text.as_str()).collect::<String>().trim(), "How the week went", "{html}: {r:?}");
+        assert!(line.iter().filter(|s| !s.text.is_empty()).all(|s| s.heading == 2), "{html}: {r:?}");
+        let p = message(&format!(r#"<table width="600"><tr><td>{html}<p>Then the rest.</p></td></tr></table>"#));
+        // Laid out too (the plain text keeps its `## `, as it does for every title).
+        let laid_out = format!("{:?}", p.layout);
+        assert!(laid_out.contains("How the week went") && !laid_out.contains("##") && !laid_out.contains("\"> "), "{html}: {laid_out}");
+    }
+}
+
 /// Found on the same notice: `^{$}15⁹⁸` for a price written `<sup>$</sup>15<sup>98</sup>`.
 #[test]
 fn raised_text_is_raised_and_not_written_out() {

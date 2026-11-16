@@ -281,6 +281,45 @@ fn a_box_of_colour_keeps_it() {
     assert!(matches!(&t.rows[0][0].blocks[0], Block::Text(_)), "{b:?}");
 }
 
+/// Issue #122: a newsletter whose every section is a column of boxes, with a table around the
+/// column for Outlook alone (in conditional comments) that has no row or cell of its own. Read
+/// as Outlook reads it, the boxes were straight inside that table and left out: every section
+/// an empty cell, no text and no pictures. They're drawn where they are, in a cell of their own,
+/// as Outlook draws them, and the table keeps its width.
+#[test]
+fn boxes_put_straight_in_outlooks_table_are_shown() {
+    let section = |inner: &str| {
+        format!(
+            r#"<div class="section" style="padding:0 10px"><div class="container" style="max-width:600px;margin:0 auto">
+<!--[if (mso)|(IE)]><table align="center" style="width:600px;" cellpadding="0" cellspacing="0" width="600"><tr><td valign="top" style="width:600px;"><![endif]-->
+<!--[if gte mso 9]><table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px"><![endif]-->
+<div class="column"><table role="presentation"><tbody><tr><td style="padding:10px 20px">{inner}</td></tr></tbody></table></div>
+<!--[if gte mso 9]></table><![endif]--><!--[if (mso)|(IE)]></td></tr></table><![endif]--></div></div>"#
+        )
+    };
+    let html = format!(
+        r#"<html><body><div style="display:none">Preheader</div><div class="body" style="background-color:#ffffff">{}{}{}</div></body></html>"#,
+        section(r#"<img src="cid:logo@studio.example" alt="Studio logo" width="200">"#),
+        section(r#"<div style="text-align:center"><p style="font-size:28px"><span>Weekly progress</span></p></div>"#),
+        section("<p>Hello Riley,</p><p>Here is how the week went.</p>"),
+    );
+    let p = message(&html);
+    let shown = words(&p.layout);
+    for w in ["Weekly progress", "Hello Riley,", "Here is how the week went."] {
+        assert!(shown.contains(w), "{w}: {shown:?}");
+    }
+    assert!(format!("{:?}", p.layout).contains("cid:logo@studio.example"), "the picture too");
+    assert!(!shown.contains("Preheader"));
+    assert!(tables(&p.layout).iter().any(|t| t.width == Some(Width::Px(600))), "{:?}", p.layout);
+    // Words between rows, and cells with no row, as a browser reads them; a style sheet in the
+    // table makes no cell.
+    let b = html_layout(r#"<table width="600"><style>p{color:red}</style><td>One</td><td>Two</td></table>"#);
+    let Block::Table(t) = &b[0] else { panic!("{b:?}") };
+    assert_eq!((t.rows.len(), t.rows[0].len()), (1, 2), "{b:?}");
+    let b = html_layout(r#"<table width="600"><tr><td>A</td><td>B</td></tr>Between rows<tr><td>C</td><td>D</td></tr></table>"#);
+    assert!(words(&b).contains("Between rows"), "{b:?}");
+}
+
 /// A template's style sheet written into its elements: boxes with classes nested as deep as the
 /// tree goes, a few thousand words at the bottom, timed. Run under the heavy lock:
 /// `cargo test --release -p mailcraft-mime --lib measure_deep_style_sheet -- --ignored --nocapture`.
