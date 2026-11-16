@@ -527,6 +527,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                         updater: updater.clone(),
                         own_title_bar,
                         frame_guard,
+                        x11,
                         ..Default::default()
                     }),
                 );

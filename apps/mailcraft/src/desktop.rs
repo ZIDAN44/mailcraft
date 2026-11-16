@@ -53,6 +53,9 @@ pub(crate) struct Desktop {
     /// The window draws its own title bar (Windows, issue #22), and what keeps it borderless.
     pub(crate) own_title_bar: bool,
     pub(crate) frame_guard: Option<window_frame::FrameGuard>,
+    /// The window opened on X11 (Linux and the BSDs, `window/display.rs`): through XWayland on a
+    /// Wayland desktop too, where attachments drag out as on X11 itself.
+    pub(crate) x11: bool,
 }
 
 impl Desktop {
@@ -282,9 +285,10 @@ impl Services for Desktop {
         tray::kept_on_close()
     }
     fn can_drag_out(&self) -> bool {
-        // Elsewhere, under X11 only: a Wayland window isn't an X window.
-        cfg!(any(target_os = "windows", target_os = "macos"))
-            || (std::env::var_os("DISPLAY").is_some() && std::env::var_os("WAYLAND_DISPLAY").is_none())
+        // Elsewhere, from a window on X11 only (a Wayland window isn't an X window). That's the
+        // window's own: on a Wayland desktop it opens through XWayland, `WAYLAND_DISPLAY` still
+        // set, and attachments didn't drag out there at all (#120).
+        cfg!(any(target_os = "windows", target_os = "macos")) || self.x11
     }
     fn video_frame(&mut self, path: &Path) -> VideoFrame {
         self.frames.frame(path)
@@ -576,6 +580,17 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
         assert!(d.last_dir.as_ref().is_some_and(|p| !p.is_dir()), "gone: the dialog opens where the system says");
         let _ = d.dialog("Attach files");
+    }
+
+    /// Issue #120: on a Wayland desktop the window opens through XWayland, where attachments drag
+    /// out as on X11, but they didn't drag at all: dragging was told from `WAYLAND_DISPLAY`, which
+    /// is still set there. It follows the window: on X11 they drag out, on Wayland not (winit can't
+    /// start a drag there), and on Windows and macOS always.
+    #[test]
+    fn attachments_drag_out_of_a_window_on_x11() {
+        let drags = |x11| Desktop { x11, ..Default::default() }.can_drag_out();
+        assert!(drags(true));
+        assert_eq!(drags(false), cfg!(any(target_os = "windows", target_os = "macos")));
     }
 
     /// Issue #11: a logo older Word and Outlook copy as a file of their own comes along as a
