@@ -204,8 +204,9 @@ impl App {
         self.look_at_monitors(ui.ctx(), frame);
         self.app.ui(ui);
         self.keep_state(Some(ui.ctx()), false);
-        if let Some(path) = self.app.take_drag_out() {
-            drag_out(frame, path);
+        let dragged = self.app.take_drag_out();
+        if !dragged.is_empty() {
+            drag_out(frame, dragged);
         }
     }
     fn exiting(&mut self) {

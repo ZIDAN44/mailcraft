@@ -67,10 +67,24 @@ impl MailApp {
         }
     }
 
-    pub(super) fn drag_out(&mut self, i: usize) {
-        if self.services.can_drag_out() {
-            self.ui.drag_out = self.attachment_to_temp(i, false);
+    /// The attachments `v` dragged out together (those selected, or the one dragged), each as a
+    /// file for the system's drag and drop. Two of the same name keep it, the second in a folder
+    /// of its own (`open/2`), rather than one written over the other.
+    pub(super) fn drag_out(&mut self, v: Vec<usize>) {
+        if !self.services.can_drag_out() {
+            return;
         }
+        let mut names: Vec<String> = Vec::new();
+        let mut files = Vec::new();
+        for i in v {
+            let name = mailcraft_engine::mime::sanitize_filename(&self.attachment_name(i)).to_lowercase();
+            let before = names.iter().filter(|n| **n == name).count();
+            names.push(name);
+            if let Some(path) = self.attachment_to_temp_in(i, false, (before > 0).then_some(before.saturating_add(1))) {
+                files.push(path);
+            }
+        }
+        self.ui.drag_out = files;
     }
 
     /// An attachment downloaded (the browser's, to save or open it).
@@ -166,11 +180,20 @@ impl MailApp {
     /// Write an attachment to a temporary file to hand to another app: dragged out (a copy, as
     /// saving), or to be opened (never a program, script or shortcut: the engine refuses).
     pub(crate) fn attachment_to_temp(&mut self, i: usize, open: bool) -> Option<PathBuf> {
+        self.attachment_to_temp_in(i, open, None)
+    }
+
+    /// [`Self::attachment_to_temp`], in the numbered folder `sub` of the temporary one when given.
+    fn attachment_to_temp_in(&mut self, i: usize, open: bool, sub: Option<usize>) -> Option<PathBuf> {
         if !self.ui.has_files {
             return None;
         }
         let name = self.attachment_name(i);
-        let Some(dir) = crate::scratch_dir("open") else {
+        let dir = crate::scratch_dir("open").and_then(|d| match sub {
+            Some(n) => std::fs::create_dir_all(d.join(n.to_string())).ok().map(|()| d.join(n.to_string())),
+            None => Some(d),
+        });
+        let Some(dir) = dir else {
             self.session.notice(tl!("There's no folder to put the attachment in for another app"), true);
             return None;
         };

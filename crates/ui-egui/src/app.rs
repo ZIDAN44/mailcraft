@@ -86,10 +86,10 @@ impl MailApp {
         MailApp { session, backend, services, ui }
     }
 
-    /// A file the user started dragging out of the window, for the app to hand to the system's
-    /// drag and drop (egui can't).
-    pub fn take_drag_out(&mut self) -> Option<PathBuf> {
-        self.ui.drag_out.take()
+    /// The files the user started dragging out of the window (none when no drag started), for
+    /// the app to hand to the system's drag and drop (egui can't).
+    pub fn take_drag_out(&mut self) -> Vec<PathBuf> {
+        std::mem::take(&mut self.ui.drag_out)
     }
 
     /// Register the UI fonts, preferring an installed system font (call before the first frame).

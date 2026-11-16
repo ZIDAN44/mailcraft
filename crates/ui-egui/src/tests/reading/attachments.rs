@@ -247,3 +247,60 @@ fn previews_of_many_attachments_are_not_all_kept() {
     }
     assert_eq!(a.session.store.as_ref().map_or(0, |s| s.reads()), reads, "read again while shown");
 }
+
+/// Issue #120: attachments selected together drag out together, as Save Selected saves them (only
+/// the one under the pointer went); a drag on one not selected takes it alone. Two of the same
+/// name both go, under that name, neither written over the other.
+#[test]
+fn selected_attachments_drag_out_together() {
+    let (mut a, _) = app("attach-drag-several");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.services = Box::new(Recorder(Default::default()));
+    a.ui.can_drag_out = true;
+    let mut clock = Clocked(1.0);
+    let k = a.session.list.iter().find(|m| m.subject.starts_with("Your proof")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    let mut chips = Vec::new();
+    for _ in 0..3 {
+        chips = clock.frame(&ctx, &mut a, vec![], 0.5);
+    }
+    assert_eq!(chips.len(), 4);
+    let attachments = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.attachments.clone()).unwrap_or_default();
+    let name = |p: &std::path::PathBuf| p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let body = |more: egui::Rect| egui::pos2(more.left() - 60.0, more.center().y);
+    // The first and the third, picked with Ctrl.
+    for chip in [chips[0], chips[2]] {
+        let at = body(chip);
+        let press = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::COMMAND };
+        clock.frame(&ctx, &mut a, vec![Event::ModifiersChanged(Modifiers::COMMAND), Event::PointerMoved(at)], 0.05);
+        clock.frame(&ctx, &mut a, vec![press(true)], 0.05);
+        clock.frame(&ctx, &mut a, vec![press(false)], 0.05);
+    }
+    clock.frame(&ctx, &mut a, vec![Event::ModifiersChanged(Modifiers::NONE)], 0.5);
+    assert_eq!(a.ui.attachment_selected.as_ref().map(|(_, v)| v.len()), Some(2));
+    // A drag from `chip`: the files it hands the system.
+    let mut drag_from = |a: &mut MailApp, chip: egui::Rect| {
+        let at = body(chip);
+        let to = at + egui::vec2(-40.0, 30.0);
+        let press = |pressed, pos| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+        clock.frame(&ctx, a, vec![Event::PointerMoved(at)], 0.05);
+        clock.frame(&ctx, a, vec![press(true, at)], 0.05);
+        clock.frame(&ctx, a, vec![Event::PointerMoved(at + egui::vec2(-20.0, 15.0))], 0.05);
+        clock.frame(&ctx, a, vec![Event::PointerMoved(to)], 0.05);
+        let files = a.take_drag_out();
+        clock.frame(&ctx, a, vec![press(false, to)], 0.05);
+        clock.frame(&ctx, a, vec![], 0.5);
+        files
+    };
+    let both = drag_from(&mut a, chips[2]);
+    assert_eq!(both.iter().map(name).collect::<Vec<_>>(), [attachments[0].name.clone(), attachments[2].name.clone()]);
+    assert!(both.iter().all(|p| p.is_file()), "{both:?}");
+    let alone = drag_from(&mut a, chips[1]);
+    assert_eq!(alone.iter().map(name).collect::<Vec<_>>(), [attachments[1].name.clone()], "one not selected goes alone");
+    // The same name twice: two files of that name, in folders of their own.
+    a.act(crate::Action::DragOut(vec![attachments[0].index, attachments[0].index]));
+    let twice = a.take_drag_out();
+    assert_eq!(twice.len(), 2);
+    assert!(twice[0] != twice[1] && twice.iter().all(|p| p.is_file() && name(p) == attachments[0].name), "{twice:?}");
+}

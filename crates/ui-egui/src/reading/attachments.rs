@@ -281,9 +281,10 @@ pub(super) fn attachment_card(
         acts.push(Action::OpenAttachment(a.index));
     }
     resp.context_menu(|ui| menu(ui, acts));
-    // Drag it onto the desktop or another app to copy the file there.
+    // Drag it onto the desktop or another app to copy the file there; one of several selected
+    // takes them all, as Save Selected does (#120).
     if st.can_drag_out && resp.drag_started() && !on_more {
-        acts.push(Action::DragOut(a.index));
+        acts.push(Action::DragOut(if picked.contains(&a.index) { picked } else { vec![a.index] }));
     }
     if !on_more {
         resp.on_hover_text(a.name.clone());

@@ -5,7 +5,7 @@
 //! let go there. Under a Wayland session the window isn't an X window, so there is no drag.
 
 use std::os::unix::ffi::OsStrExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use x11rb::connection::Connection;
@@ -56,9 +56,9 @@ pub fn file_uri(path: &Path) -> String {
     out
 }
 
-/// Drag `path` out of `own` (our window, which never takes the drop itself), until the button is
-/// let go. `display`: the X display (`None`: `$DISPLAY`). `Ok(true)` when a window took it.
-pub fn drag(display: Option<&str>, own: Window, path: &Path) -> Result<bool, String> {
+/// Drag `paths` out of `own` (our window, which never takes the drop itself), until the button is
+/// let go. `display`: the X display (`None`: `$DISPLAY`). `Ok(true)` when a window took them.
+pub fn drag(display: Option<&str>, own: Window, paths: &[PathBuf]) -> Result<bool, String> {
     let (conn, screen_num) = x11rb::connect(display).map_err(err)?;
     let root = conn.setup().roots.get(screen_num).map(|s| s.root).ok_or("no screen")?;
     let atom = |name: &str| -> Result<Atom, String> { Ok(conn.intern_atom(false, name.as_bytes()).map_err(err)?.reply().map_err(err)?.atom) };
@@ -79,7 +79,8 @@ pub fn drag(display: Option<&str>, own: Window, path: &Path) -> Result<bool, Str
     conn.create_window(0, src, root, -10, -10, 1, 1, 0, WindowClass::INPUT_ONLY, x11rb::COPY_FROM_PARENT, &CreateWindowAux::new()).map_err(err)?;
     conn.set_selection_owner(src, a.selection, x11rb::CURRENT_TIME).map_err(err)?;
     conn.flush().map_err(err)?;
-    let data = format!("{}\r\n", file_uri(path)).into_bytes();
+    // A list of addresses, each line ended with CR LF (RFC 2483).
+    let data: Vec<u8> = paths.iter().flat_map(|p| format!("{}\r\n", file_uri(p)).into_bytes()).collect();
     let result = run(&conn, root, own, src, &a, &data);
     let _ = conn.destroy_window(src);
     let _ = conn.flush();
@@ -301,9 +302,9 @@ mod tests {
     }
 
     /// A whole drag on a real X server (Xvfb, when it's installed): a window that takes drops
-    /// gets the file's address. While the pointer stands still over it, it's told the place
-    /// once (found in audit, #243: a position every 15 ms, answered or not). Let go just after
-    /// a move, it's told that place before the drop.
+    /// gets the files' addresses, each on a line. While the pointer stands still over it, it's
+    /// told the place once (found in audit, #243: a position every 15 ms, answered or not). Let
+    /// go just after a move, it's told that place before the drop.
     #[test]
     fn a_file_is_dropped_on_a_window_that_takes_it() {
         let Some(xvfb) = ["/usr/bin/Xvfb", "/usr/local/bin/Xvfb"].iter().find(|p| Path::new(p).exists()) else { return };
@@ -334,8 +335,9 @@ mod tests {
         conn.xtest_fake_input(MOTION_NOTIFY_EVENT, 0, 0, root, 100, 100, 0).unwrap();
         conn.xtest_fake_input(BUTTON_PRESS_EVENT, 1, 0, root, 0, 0, 0).unwrap();
         conn.flush().unwrap();
-        let file = std::env::temp_dir().join("mailcraft drag.txt");
-        let (d, f) = (display.clone(), file.clone());
+        // Two attachments dragged together (#120).
+        let files = vec![std::env::temp_dir().join("mailcraft drag.txt"), std::env::temp_dir().join("2").join("mailcraft drag.txt")];
+        let (d, f) = (display.clone(), files.clone());
         let source = std::thread::spawn(move || drag(Some(&d), own, &f));
 
         // The drop target's side of the protocol.
@@ -403,7 +405,7 @@ mod tests {
         }
         let taken = source.join().unwrap();
         let _ = server.kill();
-        assert_eq!(got.as_deref(), Some(format!("{}\r\n", file_uri(&file)).as_str()));
+        assert_eq!(got.as_deref(), Some(format!("{}\r\n{}\r\n", file_uri(&files[0]), file_uri(&files[1])).as_str()));
         assert_eq!(taken, Ok(true));
         assert_eq!(dropped_at_place, Some((600 << 16) | 200), "dropped where the button was let go");
     }

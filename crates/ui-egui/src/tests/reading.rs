@@ -123,13 +123,13 @@ fn attachments_drag_out_as_files() {
     a.run("list.open", json!({"key": k.to_id()}));
     frame(&ctx, &mut a, vec![]);
     // Not offered where the system can't take the file.
-    a.act(crate::Action::DragOut(0));
-    assert!(a.take_drag_out().is_none());
+    a.act(crate::Action::DragOut(vec![0]));
+    assert!(a.take_drag_out().is_empty());
     a.services = Box::new(Recorder(Default::default()));
     a.ui.can_drag_out = true;
     let index = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).and_then(|p| p.attachments.first()).map(|x| x.index).unwrap();
-    a.act(crate::Action::DragOut(index));
-    let path = a.take_drag_out().expect("a file to drag");
+    a.act(crate::Action::DragOut(vec![index]));
+    let path = a.take_drag_out().pop().expect("a file to drag");
     assert!(path.is_file() && path.metadata().unwrap().len() > 0, "{path:?}");
     assert!(path.starts_with(own_scratch_dir("open").unwrap()), "the test's own folder, not the user's: {path:?}");
 }

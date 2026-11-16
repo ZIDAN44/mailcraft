@@ -127,8 +127,8 @@ pub enum Action {
     FocusMain,
     /// Open the File page at a page.
     Backstage(backstage::Page),
-    /// An attachment is being dragged out of the window: hand it to the system as a file.
-    DragOut(usize),
+    /// Attachments are being dragged out of the window: hand them to the system as files.
+    DragOut(Vec<usize>),
     /// Choose an Outlook data file and look at it before it's imported.
     OpenDataFile,
     /// A saved message to look at (`.eml`, `.msg`), picked here as one handed over by the system.
@@ -317,7 +317,7 @@ impl MailApp {
             Action::SaveAll => self.save_attachments(None),
             Action::SaveAttachments(v) => self.save_attachments(Some(v)),
             Action::OpenInCraft(i, cmd) => self.open_in_craft(i, cmd),
-            Action::DragOut(i) => self.drag_out(i),
+            Action::DragOut(v) => self.drag_out(v),
             Action::NoteFile { uid, index, open } => self.note_file(&uid, index, open),
             // Into the message being written or the signature being edited (`actions/inserting.rs`).
             Action::EditSignature { account, insert } => {

@@ -12,6 +12,10 @@ on GitHub.
 
 *What testers met in their first days with 0.39.*
 
+### Added
+
+- Attachments selected together (Ctrl+click, ⌘-click on a Mac) drag out together (#120), onto a folder to save them there or into another app, as **Save Selected** saves them: only the one under the pointer went.
+
 ### Fixed
 
 - On Linux and the BSDs, attachments drag out of MailCraft on a desktop running Wayland, such as GNOME's or KDE Plasma's (#120): drag one onto a folder in your file manager to save it there. The window opens through XWayland so that they can, but dragging them was still left off there, and nothing happened.

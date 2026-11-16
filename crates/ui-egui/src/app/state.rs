@@ -249,8 +249,8 @@ pub struct UiState {
     pub(crate) shown: shown::Shown,
     /// The invitation in the open message, worked out once per message and calendar change.
     pub(crate) invite: Option<(MessageKey, u64, Option<mailcraft_engine::Invite>)>,
-    /// A file to drag out of the window (the app starts the system drag).
-    pub(crate) drag_out: Option<PathBuf>,
+    /// Files to drag out of the window (the app starts the system drag).
+    pub(crate) drag_out: Vec<PathBuf>,
     /// The platform can drag files out.
     pub(crate) can_drag_out: bool,
     /// The account whose import's details are shown, beside the status bar.

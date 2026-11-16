@@ -26,13 +26,13 @@ pub(super) fn app_icon() -> egui::IconData {
     }
 }
 
-/// Hand a file to the system's drag and drop (Windows and macOS; elsewhere egui has no way to).
+/// Hand files to the system's drag and drop (Windows and macOS; elsewhere egui has no way to).
 #[cfg(any(target_os = "windows", target_os = "macos"))]
-pub(super) fn drag_out(frame: &eframe::Frame, path: PathBuf) {
+pub(super) fn drag_out(frame: &eframe::Frame, paths: Vec<PathBuf>) {
     let options = drag::Options { skip_animatation_on_cancel_or_failure: false, mode: drag::DragMode::Copy };
     // The drag crate is native code; a failure there must not take the app down.
     let started = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        drag::start_drag(frame, drag::DragItem::Files(vec![path]), drag::Image::Raw(APP_ICON_PNG.to_vec()), |_, _| {}, options)
+        drag::start_drag(frame, drag::DragItem::Files(paths), drag::Image::Raw(APP_ICON_PNG.to_vec()), |_, _| {}, options)
     }));
     match started {
         Ok(Ok(())) => {}
@@ -41,9 +41,9 @@ pub(super) fn drag_out(frame: &eframe::Frame, path: PathBuf) {
     }
 }
 
-/// Hand a file to X11's drag and drop (XDND), on a thread of its own while the button is held.
+/// Hand files to X11's drag and drop (XDND), on a thread of its own while the button is held.
 #[cfg(all(unix, not(target_os = "macos")))]
-pub(super) fn drag_out(frame: &eframe::Frame, path: PathBuf) {
+pub(super) fn drag_out(frame: &eframe::Frame, paths: Vec<PathBuf>) {
     use raw_window_handle::{HasWindowHandle, RawWindowHandle};
     let own = match frame.window_handle().map(|h| h.as_raw()) {
         Ok(RawWindowHandle::Xlib(h)) => u32::try_from(h.window).ok(),
@@ -55,7 +55,7 @@ pub(super) fn drag_out(frame: &eframe::Frame, path: PathBuf) {
         return;
     };
     let spawned = std::thread::Builder::new().name("drag-out".into()).spawn(move || {
-        if let Err(e) = xdnd::drag(None, own, &path) {
+        if let Err(e) = xdnd::drag(None, own, &paths) {
             log::warn!("drag out: {e}");
         }
     });
@@ -65,4 +65,4 @@ pub(super) fn drag_out(frame: &eframe::Frame, path: PathBuf) {
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos", unix)))]
-pub(super) fn drag_out(_frame: &eframe::Frame, _path: PathBuf) {}
+pub(super) fn drag_out(_frame: &eframe::Frame, _paths: Vec<PathBuf>) {}

@@ -94,8 +94,8 @@ fn a_message_windows_attachments_are_its_own() {
     assert_eq!(a.session.reading.as_ref().map(|r| r.key.clone()), Some(plain.clone()));
     let w = a.session.windows.iter().find(|w| w.key == with).cloned().expect("the window");
     let index = w.parsed.as_ref().and_then(|p| p.attachments.first()).map(|x| x.index).unwrap();
-    a.act(crate::Action::InWindow(with.clone(), Box::new(crate::Action::DragOut(index))));
-    let path = a.take_drag_out().expect("the window's attachment, as a file");
+    a.act(crate::Action::InWindow(with.clone(), Box::new(crate::Action::DragOut(vec![index]))));
+    let path = a.take_drag_out().pop().expect("the window's attachment, as a file");
     let name = w.parsed.as_ref().and_then(|p| p.attachments.first()).map(|x| x.name.clone()).unwrap();
     assert!(path.is_file() && path.file_name().is_some_and(|n| n.to_string_lossy() == name), "{path:?}");
     assert_eq!(a.session.reading.as_ref().map(|r| r.key.clone()), Some(plain), "the reading pane is as it was");
