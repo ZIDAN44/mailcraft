@@ -115,13 +115,24 @@ fn read_request(reader: &mut BufReader<TcpStream>) -> Option<Request> {
 struct SignIn {
     signed_in: bool,
     challenge: Option<crate::ntlm::Challenge>,
+    /// A request was answered on it, signed in.
+    answered: bool,
+    /// Its sign-in was dropped ([`Data::expire_ntlm_once`]): the next handshake is one again.
+    expired: bool,
 }
 
 impl SignIn {
     /// Whether the request may be answered; when not, its 401 (with a challenge) is sent.
     fn admits(&mut self, s: &mut impl Write, shared: &Arc<Mutex<Data>>, auth: &str) -> bool {
         let (basic, open, lower) = {
-            let d = shared.lock().unwrap();
+            let mut d = shared.lock().unwrap();
+            // The sign-in dropped once, for the whole server (not again on each new connection).
+            if !d.basic && !d.open && d.expire_ntlm_once && self.signed_in && self.answered {
+                d.expire_ntlm_once = false;
+                self.signed_in = false;
+                self.challenge = None;
+                self.expired = true;
+            }
             (d.basic, d.open, d.lower_case_schemes)
         };
         let named = |scheme: &str| if lower { scheme.to_ascii_lowercase() } else { scheme.to_string() };
@@ -146,7 +157,11 @@ impl SignIn {
                         return false;
                     }
                     self.signed_in = true;
-                    shared.lock().unwrap().handshakes += 1;
+                    let mut d = shared.lock().unwrap();
+                    d.handshakes += 1;
+                    if std::mem::take(&mut self.expired) {
+                        d.ntlm_reauthentications += 1;
+                    }
                 }
                 _ => {
                     respond(s, 401, &[("WWW-Authenticate", named("Negotiate")), ("WWW-Authenticate", named("NTLM"))], b"");
@@ -154,6 +169,7 @@ impl SignIn {
                 }
             }
         }
+        self.answered = self.signed_in;
         true
     }
 }

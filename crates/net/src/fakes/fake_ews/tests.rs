@@ -170,6 +170,33 @@ fn a_server_naming_ntlm_in_lower_case_is_signed_in() {
     assert!(server.data.lock().unwrap().handshakes >= 1, "signed in with NTLM");
 }
 
+/// A proxy can drop an NTLM sign-in while the TCP connection stays open (SmarterMail behind IIS
+/// ARR, PR #73): the next request is answered 401 on a connection signed in. It's signed in
+/// again, once, and goes through; not taken for a refused password.
+#[test]
+fn ntlm_reauthenticates_after_a_401_on_an_existing_connection() {
+    let mut d = Data { expire_ntlm_once: true, ..Default::default() };
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    assert_eq!(server.data.lock().unwrap().handshakes, 1, "initial sign-in");
+    assert_eq!(c.mailboxes().unwrap().len(), 1, "request succeeds after NTLM reauthentication");
+    assert_eq!(server.data.lock().unwrap().ntlm_reauthentications, 1, "one successful reauthentication on the existing connection");
+    assert_eq!(c.mailboxes().unwrap().len(), 1);
+    assert_eq!(server.data.lock().unwrap().ntlm_reauthentications, 1, "no repeated authentication expiry");
+}
+
+/// A rejected NTLM Type 3 response must fail instead of retrying forever.
+#[test]
+fn ntlm_rejects_bad_credentials_without_reauthentication_loop() {
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let server = serve(d);
+    let result = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), "incorrect-password", "riley@contoso.example");
+    assert!(matches!(result, Err(crate::NetError::Auth(_))), "bad credentials must be rejected");
+    assert_eq!(server.data.lock().unwrap().handshakes, 0, "no successful NTLM handshake");
+}
+
 /// A folder flagged hidden is not offered as mail, nor is anything nested in it at any
 /// depth; its siblings and their subfolders still are.
 #[test]
