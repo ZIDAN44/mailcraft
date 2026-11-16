@@ -6,13 +6,67 @@
 //! The first MailCraft opens them once its window is up; a later launch hands them to the one
 //! running (`single_instance.rs`), with each path made absolute, since that one doesn't share
 //! this launch's working folder. On macOS, files come as Apple events instead (`apple_events.rs`).
+//!
+//! Files to send come after `--attach` (issue #96): Windows' Send to › MailCraft, the file
+//! managers' Send with MailCraft (`packaging/linux/`), and on macOS any other file dropped on the
+//! Dock icon. They make a new message with them attached, as files dropped on the window do.
+//! Nothing else attaches a file: never a `mailto:` link, which a web page can start MailCraft
+//! with, and never what follows `--open`, which comes from a link or a file the system opened.
 
 use std::path::Path;
+
+/// What a launch gives the window: links and files to open, and files to attach, each group to a
+/// new message of its own.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Handed {
+    /// `mailto:` links and mail files ([`handed`]).
+    pub open: Vec<String>,
+    /// Files to send ([`attaching`]), a group from each launch.
+    pub attach: Vec<Vec<String>>,
+}
+
+impl Handed {
+    /// Links and files to open, and one launch's files to send (a new message, when there are
+    /// any).
+    pub fn new(open: Vec<String>, attach: Vec<String>) -> Handed {
+        Handed { open, attach: if attach.is_empty() { Vec::new() } else { vec![attach] } }
+    }
+
+    /// Links and files to open, nothing to attach.
+    #[cfg(test)]
+    pub fn opening(open: Vec<String>) -> Handed {
+        Handed::new(open, Vec::new())
+    }
+
+    /// Nothing to open or attach.
+    pub fn is_empty(&self) -> bool {
+        self.open.is_empty() && self.attach.is_empty()
+    }
+
+    /// Files the Finder sent (opened with MailCraft, or dropped on its Dock icon): message,
+    /// calendar and contact files are opened as ever, any others attached to one new message.
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+    pub fn from_finder(files: Vec<String>) -> Handed {
+        let (open, attach): (Vec<String>, Vec<String>) = files.into_iter().partition(|f| mailcraft_engine::cmd::is_mail_file(f));
+        Handed::new(open, attach.into_iter().take(MAX_ATTACHED).collect())
+    }
+
+    /// Give the window what was handed over: links and files opened, files attached.
+    pub fn give(self, app: &mut mailcraft_ui_egui::MailApp) {
+        for what in &self.open {
+            app.open_handed(what);
+        }
+        for files in &self.attach {
+            app.attach_handed(files);
+        }
+    }
+}
 
 /// What `--help` prints.
 pub const USAGE: &str = "MailCraft: mail, calendar, contacts and notes.
 
 Usage: mailcraft [options] [mailto:LINK | FILE]…
+       mailcraft [options] --attach FILE…
 
   --sample          open the sample mailbox (its own data, nothing of yours)
   --data DIR        keep everything in DIR instead of the usual folders
@@ -21,6 +75,8 @@ Usage: mailcraft [options] [mailto:LINK | FILE]…
                     --cmd 'list.open={\"key\":\"sample:1:1:INBOX\"}' --cmd mail.reply
   --open LINK|FILE  open that and take nothing after it for an option (how the
                     system starts MailCraft for a link or a file)
+  --attach FILE…    a new message with these files attached; everything after
+                    it is a file (how Send to › MailCraft starts it)
   --log             also write the log to the terminal
   --version, -V     print the version
   --help, -h        print this
@@ -57,10 +113,27 @@ pub fn opened(args: Vec<String>) -> (Vec<String>, Option<Vec<String>>) {
     (Vec::new(), Some(one(&what).into_iter().collect()))
 }
 
+/// Files to send: the options before `--attach`, and the files after it, each a path made absolute
+/// (or a `file:` link's), in order. Nothing after it is an option: a file there named like one
+/// (`--data`) is a file. Links of any other kind (`mailto:`, `https:`) and empty ones are left
+/// out; whether each is a file is for the window to find ([`MailApp::attach_handed`]).
+///
+/// [`MailApp::attach_handed`]: mailcraft_ui_egui::MailApp::attach_handed
+pub fn attaching(mut args: Vec<String>) -> (Vec<String>, Vec<String>) {
+    let Some(at) = args.iter().position(|a| a == "--attach") else {
+        return (args, Vec::new());
+    };
+    let files: Vec<String> = args.split_off(at).into_iter().skip(1).take(MAX_ATTACHED * 8).collect();
+    let files = rejoin_split_paths(files, |p| Path::new(p).is_file());
+    (args, files.iter().filter_map(|f| local_path(f)).take(MAX_ATTACHED).collect())
+}
+
 /// Options followed by a value of their own.
 const WITH_VALUE: [&str; 2] = ["--data", "--cmd"];
 /// Most links and files taken from one launch.
 const MAX_HANDED: usize = 64;
+/// Most files attached from one launch (as many as one drop on the window attaches).
+pub const MAX_ATTACHED: usize = 100;
 
 /// The links and files among `args` (everything that isn't an option or an option's value), in
 /// order: links as they are, paths absolute. Junk is kept for the window to say it can't open.
@@ -133,6 +206,16 @@ fn one(arg: &str) -> Option<String> {
             end = end.saturating_sub(1);
         }
         return arg.get(..end).map(str::to_string);
+    }
+    local_path(arg)
+}
+
+/// A path or a `file:` link to one on this computer, as an absolute path; nothing for an empty
+/// one or a link of another kind.
+fn local_path(arg: &str) -> Option<String> {
+    let arg = arg.trim();
+    if arg.is_empty() {
+        return None;
     }
     let path = match scheme(arg) {
         Some(s) if s.eq_ignore_ascii_case("file") => from_file_link(arg)?,
@@ -220,6 +303,48 @@ mod tests {
         let given = args(&["--sample", "--open", "mailto:a@x.example", "--cmd", "ui.about"]);
         assert_eq!(opened(given.clone()), (given.clone(), None));
         assert_eq!(handed_with(&given, |_| false), ["mailto:a@x.example"]);
+    }
+
+    /// Issue #96: what follows `--attach` is files to send, never options; links of any kind but
+    /// `file:` aren't taken. The options before it are read as ever, and nothing after it is
+    /// opened.
+    #[test]
+    fn files_after_attach_are_sent() {
+        let args = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let here = std::env::current_dir().unwrap();
+        let abs = |p: &str| here.join(p).to_string_lossy().to_string();
+        let (options, files) =
+            attaching(args(&["--sample", "--attach", "report.pdf", "--data", "mailto:a@x.example", "https://x.example/a", " ", "photo.jpg"]));
+        assert_eq!(options, args(&["--sample"]), "the options before it");
+        assert_eq!(files, [abs("report.pdf"), abs("--data"), abs("photo.jpg")], "a file named like an option is a file; links aren't files");
+        assert!(handed(&options).is_empty(), "nothing to open");
+        if cfg!(windows) {
+            assert_eq!(attaching(args(&["--attach", "file:///C:/Users/Zoe/My%20Files/a.pdf"])).1, [r"C:\Users\Zoe\My Files\a.pdf"]);
+        } else {
+            assert_eq!(attaching(args(&["--attach", "file:///home/zoe/My%20Files/a.pdf"])).1, ["/home/zoe/My Files/a.pdf"]);
+        }
+        assert_eq!(attaching(args(&["--light", "invite.ics"])), (args(&["--light", "invite.ics"]), Vec::new()), "no --attach, nothing sent");
+        assert_eq!(attaching(args(&["--attach"])), (Vec::new(), Vec::new()));
+        let many: Vec<String> = std::iter::once("--attach".to_string()).chain((0..500).map(|i| format!("{i}.txt"))).collect();
+        assert_eq!(attaching(many).1.len(), MAX_ATTACHED);
+        // Started by the system for a link or a file: `--attach` after it is part of what's opened.
+        let (options, opened) = opened(args(&["--open", "mailto:a@x.example", "--attach", "C:/secret.txt"]));
+        assert_eq!(attaching(options), (Vec::new(), Vec::new()), "a link never attaches a file");
+        assert_eq!(opened.unwrap(), ["mailto:a@x.example"]);
+    }
+
+    /// Issue #96 on macOS: of the files the Finder sends, message, calendar and contact files are
+    /// opened as ever; any others are attached to one new message.
+    #[test]
+    fn finder_files_are_opened_or_sent() {
+        let files = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let h = Handed::from_finder(files(&["/u/a.eml", "/u/report.pdf", "/u/Invite.ICS", "/u/b.vcf", "/u/photo.jpg", "/u/c.msg", "/u/d.emlx"]));
+        assert_eq!(h.open, files(&["/u/a.eml", "/u/Invite.ICS", "/u/b.vcf", "/u/c.msg", "/u/d.emlx"]));
+        assert_eq!(h.attach, [files(&["/u/report.pdf", "/u/photo.jpg"])], "one message");
+        assert_eq!(Handed::from_finder(files(&["/u/a.eml"])), Handed::opening(files(&["/u/a.eml"])), "nothing to attach, no message");
+        assert!(Handed::from_finder(Vec::new()).is_empty());
+        let many: Vec<String> = (0..500).map(|i| format!("/u/{i}.pdf")).collect();
+        assert_eq!(Handed::from_finder(many).attach[0].len(), MAX_ATTACHED);
     }
 
     /// Paths are made absolute against this launch's folder; `file:` links are read.

@@ -100,7 +100,7 @@ pub(crate) struct Booting {
     /// Installs a downloaded update if MailCraft is closed meanwhile.
     pub(crate) updater: Option<self_update::Updater>,
     /// What later launches handed over meanwhile, opened once MailCraft is in the window.
-    pub(crate) handed: Vec<String>,
+    pub(crate) handed: args::Handed,
     pub(crate) native_wayland: bool,
     /// Keeps the window borderless while it draws its own title bar (Windows, issue #22), on the
     /// start-up screen too.
@@ -138,9 +138,7 @@ impl Booting {
     fn start(&mut self, ctx: &egui::Context) -> Option<App> {
         let (opened, start) = (self.came.take()?, self.start.take()?);
         let mut app = start(ctx, opened, self.instance.take());
-        for h in std::mem::take(&mut self.handed) {
-            app.app.open_handed(&h);
-        }
+        std::mem::take(&mut self.handed).give(&mut app.app);
         Some(app)
     }
 }
@@ -163,7 +161,8 @@ impl eframe::App for Window {
                 }
                 if let Some(handed) = b.instance.as_ref().and_then(single_instance::Server::take) {
                     single_instance::show(ctx, b.native_wayland);
-                    b.handed.extend(handed);
+                    b.handed.open.extend(handed.open);
+                    b.handed.attach.extend(handed.attach);
                 }
                 b.look();
                 // On a Mac a close quits through AppKit (`apple_events::quit`), as MailCraft's does

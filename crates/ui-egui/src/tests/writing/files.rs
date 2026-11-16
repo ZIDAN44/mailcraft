@@ -162,6 +162,74 @@ fn files_dropped_on_the_main_window_start_a_message() {
     assert_eq!(attached(&a), ["brief.pdf", "notes.txt"]);
 }
 
+/// Issue #96: files handed to MailCraft to send (Windows' Send to, the file managers' Send with
+/// MailCraft, the Dock icon) start a new message with them attached, one for each time they're
+/// sent. A folder isn't attached, and says so; a file that can't be read is said over the
+/// message; with no account, nothing starts and it says one is needed first.
+#[test]
+fn files_handed_to_send_start_a_message() {
+    let (mut a, dir) = app("send-to");
+    let (report, photo) = (dir.join("report.pdf"), dir.join("photo one.jpg"));
+    std::fs::write(&report, b"%PDF-1.4").unwrap();
+    std::fs::write(&photo, b"\xFF\xD8\xFF").unwrap();
+    let path = |p: &Path| p.to_string_lossy().to_string();
+    a.attach_handed(&[path(&report), path(&dir), path(&photo)]);
+    assert_eq!(attached(&a), ["report.pdf", "photo one.jpg"]);
+    let folder = dir.file_name().unwrap().to_string_lossy().to_string();
+    assert!(a.session.notices.last().is_some_and(|n| n.error && n.text.contains(&folder)), "{:?}", a.session.notices.last());
+    // Sent again: a message of its own.
+    let first = a.session.compose.as_ref().map(|c| c.id);
+    a.attach_handed(&[path(&photo)]);
+    assert_ne!(a.session.compose.as_ref().map(|c| c.id), first);
+    assert_eq!(attached(&a), ["photo one.jpg"]);
+    // A folder alone: no message.
+    let now = a.session.compose.as_ref().map(|c| c.id);
+    a.attach_handed(&[path(&dir)]);
+    assert_eq!(a.session.compose.as_ref().map(|c| c.id), now, "a folder starts no message");
+    // Gone by the time it's read: the message, and why it has nothing, over it.
+    a.ui.compose_alert = None;
+    a.attach_handed(&[path(&dir.join("gone.pdf"))]);
+    assert_ne!(a.session.compose.as_ref().map(|c| c.id), now);
+    assert!(attached(&a).is_empty() && a.ui.compose_alert.is_some());
+    // No account yet.
+    let (mut none, _) = app("send-to-no-account");
+    none.session.accounts.clear();
+    none.attach_handed(&[path(&report)]);
+    assert!(none.session.compose.is_none());
+    assert!(none.session.notices.last().is_some_and(|n| n.error && n.text.starts_with("Add an account first")), "{:?}", none.session.notices.last());
+}
+
+/// Issue #96: the window of a message started from files sent to MailCraft comes to the front
+/// once (found on Linux: it opened behind the main window, which the launch had brought
+/// forward); one started with New mail is left where it opens.
+#[test]
+fn a_message_from_files_sent_comes_to_the_front() {
+    let (mut a, dir) = app("send-to-front");
+    a.session.prefs.new_mail_window = true;
+    let file = dir.join("report.pdf");
+    std::fs::write(&file, b"%PDF-1.4").unwrap();
+    let ctx = egui::Context::default();
+    // Windows of their own, as on the desktop (not drawn in the main one).
+    ctx.set_embed_viewports(false);
+    let focused = |a: &mut MailApp, frames: usize| {
+        let mut n = 0;
+        for _ in 0..frames {
+            let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+            out.textures_delta.clear();
+            n += out.viewport_output.values().flat_map(|v| v.commands.iter()).filter(|c| matches!(c, egui::ViewportCommand::Focus)).count();
+        }
+        n
+    };
+    assert_eq!(focused(&mut a, 3), 0);
+    a.run("mail.new", json!({}));
+    assert_eq!(focused(&mut a, 6), 0, "New mail: where it opens");
+    a.attach_handed(&[file.to_string_lossy().to_string()]);
+    assert_eq!(attached(&a), ["report.pdf"]);
+    assert_eq!(focused(&mut a, 6), 1, "brought forward once");
+    assert_eq!(focused(&mut a, 6), 0, "and left alone after");
+}
+
 /// Issue #38: Outlook message files and `.eml` files dropped on the main window go into the
 /// folder open (it says so while they're held over it); other files dropped with them start a
 /// message with them attached. What went in is said once the folder has them.

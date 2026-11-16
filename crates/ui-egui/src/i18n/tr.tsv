@@ -1099,6 +1099,7 @@ month	May	Mayıs
 	Added to your calendar from {file}: {n}	{file} dosyasından takviminize eklenen: {n}
 	Added to your contacts from {file}: {n}	{file} dosyasından kişilerinize eklenen: {n}
 	Add an account first: a new message needs an account to send from.	Önce bir hesap ekleyin: yeni bir iletinin gönderileceği bir hesap gerekir.
+	{folder} isn't attached: it's a folder	{folder} eklenmez: bu bir klasör
 	Add an account first: events and people are kept with an account.	Önce bir hesap ekleyin: etkinlikler ve kişiler bir hesapla birlikte tutulur.
 	Couldn't open {file}: {error}	{file} açılamadı: {error}
 	Safety	Güvenlik önlemleri

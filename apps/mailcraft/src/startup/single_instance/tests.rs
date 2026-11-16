@@ -93,20 +93,20 @@ fn each_data_folder_and_screen_has_its_own_socket() {
 #[test]
 fn a_second_launch_shows_the_first() {
     let path = socket("show");
-    let Claim::Primary(first) = claim_at(&path, &[]) else { panic!("the first launch listens") };
+    let Claim::Primary(first) = claim_at(&path, &Handed::default()) else { panic!("the first launch listens") };
     assert!(first.take().is_none());
-    assert!(matches!(claim_at(&path, &[]), Claim::Shown));
-    assert!(matches!(claim_at(&path, &[]), Claim::Shown));
-    assert_eq!(first.take(), Some(Vec::new()), "asked");
+    assert!(matches!(claim_at(&path, &Handed::default()), Claim::Shown));
+    assert!(matches!(claim_at(&path, &Handed::default()), Claim::Shown));
+    assert_eq!(first.take(), Some(Handed::default()), "asked");
     assert!(first.take().is_none(), "once");
     // Woken when the window exists.
     let ctx = egui::Context::default();
     first.connect(&ctx);
-    assert!(matches!(claim_at(&path, &[]), Claim::Shown));
+    assert!(matches!(claim_at(&path, &Handed::default()), Claim::Shown));
     assert!(first.take().is_some());
     first.close();
     assert!(std::fs::symlink_metadata(&path).is_err(), "the socket goes");
-    assert!(matches!(claim_at(&path, &[]), Claim::Primary(_)), "no one listens: this one is first");
+    assert!(matches!(claim_at(&path, &Handed::default()), Claim::Primary(_)), "no one listens: this one is first");
     let _ = std::fs::remove_dir_all(path.parent().unwrap());
 }
 
@@ -118,13 +118,13 @@ fn a_second_launch_shows_the_first() {
 #[test]
 fn a_launch_that_loses_the_socket_leaves_the_key() {
     let path = socket("lost");
-    let Claim::Primary(first) = claim_at(&path, &[]) else { panic!("the first launch listens") };
+    let Claim::Primary(first) = claim_at(&path, &Handed::default()) else { panic!("the first launch listens") };
     let key = read_key(&path).unwrap();
     // The other launch's step after its connect failed, while the first listens.
     assert!(matches!(listen(&path), Ok(None)), "the socket is the first's");
     assert_eq!(read_key(&path).unwrap(), key, "the first's key stays");
-    assert!(matches!(claim_at(&path, &[]), Claim::Shown), "later launches still reach it");
-    assert_eq!(first.take(), Some(Vec::new()));
+    assert!(matches!(claim_at(&path, &Handed::default()), Claim::Shown), "later launches still reach it");
+    assert_eq!(first.take(), Some(Handed::default()));
     // Nothing of the other launch's is left beside the socket: the socket, its lock, its key.
     let dir = path.parent().unwrap();
     let mut left: Vec<String> = std::fs::read_dir(dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
@@ -143,7 +143,7 @@ fn a_launch_that_loses_the_socket_leaves_the_key() {
 fn a_launch_before_the_key_is_in_place_asks_again() {
     let path = socket("early");
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    let open = vec!["mailto:ana@x.example".to_string()];
+    let open = Handed::opening(vec!["mailto:ana@x.example".to_string()]);
     for before in [None, Some("the-key-of-the-run-before")] {
         // Listening, its key not yet under its name.
         let listener = UnixListener::bind(&path).unwrap();
@@ -218,7 +218,7 @@ fn launches_started_together_open_one_window() {
             let (path, barrier) = (path.clone(), Arc::clone(&barrier));
             std::thread::spawn(move || {
                 barrier.wait();
-                claim_at(&path, &[])
+                claim_at(&path, &Handed::default())
             })
         })
         .collect();
@@ -236,7 +236,7 @@ fn a_stale_socket_is_replaced_and_junk_is_refused() {
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     drop(UnixListener::bind(&path).unwrap());
     assert!(std::fs::symlink_metadata(&path).is_ok(), "left behind");
-    let Claim::Primary(first) = claim_at(&path, &[]) else { panic!("replaced") };
+    let Claim::Primary(first) = claim_at(&path, &Handed::default()) else { panic!("replaced") };
     {
         use std::io::{Read, Write};
         let mut s = UnixStream::connect(&path).unwrap();
@@ -254,7 +254,7 @@ fn a_stale_socket_is_replaced_and_junk_is_refused() {
     let silent = socket("silent");
     std::fs::create_dir_all(silent.parent().unwrap()).unwrap();
     let _listener = UnixListener::bind(&silent).unwrap();
-    assert!(matches!(claim_at(&silent, &[]), Claim::Alone));
+    assert!(matches!(claim_at(&silent, &Handed::default()), Claim::Alone));
     let _ = std::fs::remove_dir_all(path.parent().unwrap());
     let _ = std::fs::remove_dir_all(silent.parent().unwrap());
 }
@@ -264,20 +264,20 @@ fn a_stale_socket_is_replaced_and_junk_is_refused() {
 #[test]
 fn a_launch_hands_over_its_links_and_files() {
     let path = socket("handed");
-    let Claim::Primary(first) = claim_at(&path, &[]) else { panic!("the first launch listens") };
+    let Claim::Primary(first) = claim_at(&path, &Handed::default()) else { panic!("the first launch listens") };
     let key = read_key(&path).unwrap();
     assert_eq!(key, first.key);
     assert!(key.len() >= 40, "{key}");
     let open = vec!["mailto:ana@x.example?subject=Hi".to_string(), "C:/Users/zoe/Downloads/Invite.ics".to_string()];
-    assert!(matches!(claim_at(&path, &open), Claim::Shown));
-    assert!(matches!(claim_at(&path, &["/home/zoe/x.eml".to_string()]), Claim::Shown));
+    assert!(matches!(claim_at(&path, &Handed::opening(open.clone())), Claim::Shown));
+    assert!(matches!(claim_at(&path, &Handed::opening(vec!["/home/zoe/x.eml".to_string()])), Claim::Shown));
     let mut all = open.clone();
     all.push("/home/zoe/x.eml".into());
-    assert_eq!(first.take(), Some(all));
+    assert_eq!(first.take(), Some(Handed::opening(all)));
     assert!(first.take().is_none());
     first.close();
     assert!(std::fs::symlink_metadata(path.with_extension("key")).is_err(), "the key goes with the socket");
-    let Claim::Primary(second) = claim_at(&path, &[]) else { panic!("first again") };
+    let Claim::Primary(second) = claim_at(&path, &Handed::default()) else { panic!("first again") };
     assert_ne!(second.key, key, "a new key each run");
     second.close();
     let _ = std::fs::remove_dir_all(path.parent().unwrap());
@@ -289,14 +289,14 @@ fn a_launch_hands_over_its_links_and_files() {
 fn requests_without_the_key_are_refused() {
     use std::io::{Read, Write};
     let path = socket("keyed");
-    let Claim::Primary(first) = claim_at(&path, &[]) else { panic!("the first launch listens") };
+    let Claim::Primary(first) = claim_at(&path, &Handed::default()) else { panic!("the first launch listens") };
     let guesses = [
         "show\n".to_string(),
         "{\"open\":[\"mailto:a@x.example\"]}\n".into(),
-        request("", &["mailto:a@x.example".into()]),
-        request("not-the-key", &["mailto:a@x.example".into()]),
-        request(&format!("{}x", first.key), &["mailto:a@x.example".into()]),
-        request(first.key.get(1..).unwrap(), &["mailto:a@x.example".into()]),
+        request("", &Handed::opening(vec!["mailto:a@x.example".into()])),
+        request("not-the-key", &Handed::opening(vec!["mailto:a@x.example".into()])),
+        request(&format!("{}x", first.key), &Handed::opening(vec!["mailto:a@x.example".into()])),
+        request(first.key.get(1..).unwrap(), &Handed::opening(vec!["mailto:a@x.example".into()])),
         format!("{{\"key\":\"{}\",\"open\":\"mailto:a@x.example\"}}\n", first.key),
         format!("{{\"key\":\"{}\",\"open\":[1]}}\n", first.key),
     ];
@@ -312,11 +312,11 @@ fn requests_without_the_key_are_refused() {
     // The right key: accepted.
     let mut s = UnixStream::connect(&path).unwrap();
     s.set_read_timeout(Some(TIMEOUT * 2)).unwrap();
-    s.write_all(request(&first.key, &["mailto:a@x.example".into()]).as_bytes()).unwrap();
+    s.write_all(request(&first.key, &Handed::opening(vec!["mailto:a@x.example".into()])).as_bytes()).unwrap();
     let mut reply = String::new();
     let _ = s.read_to_string(&mut reply);
     assert_eq!(reply, OK);
-    assert_eq!(first.take(), Some(vec!["mailto:a@x.example".to_string()]));
+    assert_eq!(first.take(), Some(Handed::opening(vec!["mailto:a@x.example".to_string()])));
     first.close();
     let _ = std::fs::remove_dir_all(path.parent().unwrap());
 }
@@ -325,15 +325,52 @@ fn requests_without_the_key_are_refused() {
 #[test]
 fn requests_are_read_strictly() {
     let open: Vec<String> = (0..100).map(|i| format!("/m/{i}.eml")).collect();
-    let line = request("k3y", &open);
+    let line = request("k3y", &Handed::opening(open.clone()));
     assert!(line.ends_with('\n') && !line.trim_end().contains('\n'), "one line");
-    assert_eq!(parse_request(&line, "k3y").map(|v| v.len()), Some(MAX_OPEN));
+    assert_eq!(parse_request(&line, "k3y").map(|h| h.open.len()), Some(MAX_OPEN));
     assert_eq!(parse_request(&line, "k3Y"), None);
     assert_eq!(parse_request(&line, ""), None, "no key, no requests");
-    assert_eq!(parse_request(&request("", &[]), ""), None);
-    assert_eq!(parse_request("{\"key\":\"k\",\"open\":[\"\",\" \",\"a\"]}", "k"), Some(vec!["a".to_string()]));
+    assert_eq!(parse_request(&request("", &Handed::default()), ""), None);
+    assert_eq!(parse_request("{\"key\":\"k\",\"open\":[\"\",\" \",\"a\"]}", "k"), Some(Handed::opening(vec!["a".to_string()])));
     for junk in ["", "{}", "[]", "null", "{\"key\":\"k\"}", "{\"key\":5,\"open\":[]}", "\u{0}\u{ff}"] {
         assert_eq!(parse_request(junk, "k"), None, "{junk:?}");
     }
     assert!(keys_match(b"abc", b"abc") && !keys_match(b"abc", b"abd") && !keys_match(b"abc", b"ab"));
+}
+
+/// Issue #96: a launch's files to send reach the running window as one group, a new message
+/// each; a request from a MailCraft before 0.39 (no `attach`) is read as ever, and one whose
+/// `attach` isn't a list of strings is refused.
+#[test]
+fn a_launch_hands_over_its_files_to_send() {
+    let path = socket("attach");
+    let Claim::Primary(first) = claim_at(&path, &Handed::default()) else { panic!("the first launch listens") };
+    let files = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let one = Handed { open: Vec::new(), attach: vec![files(&["/u/report.pdf", "/u/photo.jpg"])] };
+    let two = Handed { open: files(&["mailto:a@x.example"]), attach: vec![files(&["/u/notes.txt"])] };
+    assert!(matches!(claim_at(&path, &one), Claim::Shown));
+    assert!(matches!(claim_at(&path, &two), Claim::Shown));
+    let got = first.take().unwrap();
+    assert_eq!(got.open, files(&["mailto:a@x.example"]));
+    assert_eq!(got.attach, [files(&["/u/report.pdf", "/u/photo.jpg"]), files(&["/u/notes.txt"])], "a message each, in order");
+    // As many as wait at once.
+    for _ in 0..MAX_WAITING_SENDS + 4 {
+        first.ask(one.clone());
+    }
+    assert_eq!(first.take().unwrap().attach.len(), MAX_WAITING_SENDS);
+    first.close();
+    let _ = std::fs::remove_dir_all(path.parent().unwrap());
+
+    let many: Vec<String> = (0..500).map(|i| format!("/u/{i}.pdf")).collect();
+    let read = parse_request(&request("k", &Handed { open: Vec::new(), attach: vec![many] }), "k").unwrap();
+    assert_eq!(read.attach.iter().map(Vec::len).collect::<Vec<_>>(), [MAX_ATTACHED]);
+    assert_eq!(parse_request("{\"key\":\"k\",\"open\":[\"a\"]}", "k"), Some(Handed::opening(vec!["a".to_string()])), "before 0.39");
+    assert_eq!(parse_request("{\"key\":\"k\",\"open\":[],\"attach\":[\"\",\" \"]}", "k"), Some(Handed::default()), "nothing to send");
+    for junk in [
+        "{\"key\":\"k\",\"open\":[],\"attach\":\"/u/a.pdf\"}",
+        "{\"key\":\"k\",\"open\":[],\"attach\":[1]}",
+        "{\"key\":\"k\",\"attach\":[\"/u/a.pdf\"]}",
+    ] {
+        assert_eq!(parse_request(junk, "k"), None, "{junk:?}");
+    }
 }

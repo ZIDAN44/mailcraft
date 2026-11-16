@@ -169,9 +169,7 @@ impl App {
         }
         if let Some(handed) = self.instance.as_ref().and_then(single_instance::Server::take) {
             single_instance::show(ctx, self.native_wayland);
-            for h in &handed {
-                self.app.open_handed(h);
-            }
+            handed.give(&mut self.app);
         }
         #[cfg(target_os = "macos")]
         {
@@ -547,9 +545,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                     app.ui.dark = theme;
                 }
                 desktop::start::commands(&mut app, &args);
-                for h in &handed {
-                    app.open_handed(h);
-                }
+                handed.give(&mut app);
                 // From here the open message's body is read and parsed on a thread of its own (the
                 // commands above answered at once, as they do in the CLI).
                 app.defer_bodies();
@@ -579,7 +575,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                 start: Some(start),
                 instance,
                 updater: booting_updater,
-                handed: Vec::new(),
+                handed: args::Handed::default(),
                 native_wayland,
                 frame_guard: booting_guard,
             }))))

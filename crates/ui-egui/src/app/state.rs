@@ -91,6 +91,10 @@ pub struct UiState {
     pub(crate) search_times: app::SearchTimes,
     /// Why the message being written couldn't be sent or saved, shown over it until dismissed.
     pub compose_alert: Option<reading::ComposeAlert>,
+    /// A message started from another app (files sent to MailCraft, issue #96), whose window
+    /// comes to the front once it opens: it opened behind the main window, which that launch had
+    /// just brought forward.
+    pub(crate) compose_to_front: Option<u64>,
     /// The attachment shown in place of its message's text (a click on its chip), as Outlook
     /// previews attachments in the reading pane.
     pub attachment_view: Option<(MessageKey, usize)>,

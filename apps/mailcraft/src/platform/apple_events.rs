@@ -1,5 +1,7 @@
 //! macOS document opening: an `.eml`, `.ics` or `.vcf` sent to MailCraft from the Finder
-//! (double-click, Open With, dropped on the Dock tile) or from `open -a MailCraft invite.ics`.
+//! (double-click, Open With, dropped on the Dock tile) or from `open -a MailCraft invite.ics`;
+//! and any other file dropped on the Dock tile, attached to a new message (issue #96), as
+//! `packaging/macos/Info.plist.in` lets it be dropped there.
 //!
 //! Such files never show up in `argv`. LaunchServices delivers them as an `odoc` Apple event,
 //! and winit 0.30 drops that event on the floor. Catching it means declaring an Objective-C
@@ -30,7 +32,8 @@ pub fn repaint_on_arrival(queue: &Inbox, ctx: &egui::Context) {
 }
 
 /// Called once per frame: every queued file goes to the app just like a path given at
-/// start-up, and a Quit from the Dock or the menu closes the window the normal way (so a
+/// start-up (a message, calendar or contacts file opened, the others of one drop attached to a
+/// new message), and a Quit from the Dock or the menu closes the window the normal way (so a
 /// draft still gets its "save?" question).
 pub fn deliver(queue: &Inbox, app: &mut mailcraft_ui_egui::MailApp, ctx: &egui::Context) {
     for event in queue.drain() {
@@ -42,7 +45,8 @@ pub fn deliver(queue: &Inbox, app: &mut mailcraft_ui_egui::MailApp, ctx: &egui::
             }
             Event::Open(files) => files,
         };
-        files.iter().for_each(|file| app.open_handed(&file.to_string_lossy()));
+        let files = files.iter().map(|file| file.to_string_lossy().into_owned()).collect();
+        crate::args::Handed::from_finder(files).give(app);
     }
 }
 

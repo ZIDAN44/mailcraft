@@ -1095,6 +1095,7 @@ month	May	5月
 	Added to your calendar from {file}: {n}	{file} から予定表に追加: {n}
 	Added to your contacts from {file}: {n}	{file} から連絡先に追加: {n}
 	Add an account first: a new message needs an account to send from.	先にアカウントを追加してください。新しいメッセージの送信にはアカウントが必要です。
+	{folder} isn't attached: it's a folder	{folder} は添付されません: フォルダーです
 	Add an account first: events and people are kept with an account.	先にアカウントを追加してください。予定と連絡先はアカウントに保存されます。
 	Couldn't open {file}: {error}	{file} を開けませんでした: {error}
 	Safety	安全

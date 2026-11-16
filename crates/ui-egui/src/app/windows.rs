@@ -69,6 +69,11 @@ impl MailApp {
         let mut caught = None;
         let mut draw = |ui: &mut egui::Ui| {
             track_place(&mut st.places, "compose", ui);
+            // Started from another app: in front. One set aside when another was started stays
+            // behind the one being written.
+            if st.compose_to_front == Some(mine) {
+                raise_once(ui.ctx(), id);
+            }
             let mut mine_acts: Vec<Action> = Vec::new();
             let mut closing = ui.input(|i| i.viewport().close_requested());
             // Something written: ask first, as Outlook does.

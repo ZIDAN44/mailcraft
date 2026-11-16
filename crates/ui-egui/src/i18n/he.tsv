@@ -1094,6 +1094,7 @@ month	May	מאי
 	Added to your calendar from {file}: {n}	נוספו ללוח השנה מתוך {file}: {n}
 	Added to your contacts from {file}: {n}	נוספו לאנשי הקשר מתוך {file}: {n}
 	Add an account first: a new message needs an account to send from.	יש להוסיף חשבון קודם: הודעה חדשה צריכה חשבון לשליחה.
+	{folder} isn't attached: it's a folder	{folder} לא צורף: זו תיקייה
 	Add an account first: events and people are kept with an account.	יש להוסיף חשבון קודם: אירועים ואנשים נשמרים בחשבון.
 	Couldn't open {file}: {error}	לא ניתן לפתוח את {file}: {error}
 	Safety	בטיחות

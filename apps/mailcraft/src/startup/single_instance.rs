@@ -17,8 +17,9 @@
 //! from `uds_windows` (std has no Unix sockets there, and Winsock directly would need `unsafe`).
 //!
 //! A launch also hands over what it was started with: `mailto:` links and mail files, from
-//! MailCraft being the system's mail app or Open with (`args.rs`), which the running window
-//! opens. The exchange is one line each way: a JSON request, `{"key": …, "open": […]}`, and `ok`.
+//! MailCraft being the system's mail app or Open with, which the running window opens, and files
+//! to send (`--attach`, `args.rs`), which it attaches to a new message. The exchange is one line
+//! each way: a JSON request, `{"key": …, "open": […], "attach": […]}`, and `ok`.
 //! The key is drawn afresh by each first MailCraft from the system's secure random source and
 //! kept beside the socket in a file only the user can read (`.key`); a request without it is
 //! refused, so another program can't start messages or add events through the socket (one that
@@ -28,6 +29,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
+
+use super::args::{Handed, MAX_ATTACHED};
 
 #[cfg(unix)]
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -42,6 +45,8 @@ const MAX_REQUEST: u64 = 1 << 20;
 const MAX_OPEN: usize = 64;
 /// Most links and files waiting for the window.
 const MAX_WAITING: usize = 256;
+/// Most launches' files to send waiting for the window (a new message each).
+const MAX_WAITING_SENDS: usize = 16;
 /// Longest key file read.
 const MAX_KEY: u64 = 256;
 /// How long either side waits for the other.
@@ -65,7 +70,7 @@ pub enum Claim {
 #[derive(Default)]
 struct Asks {
     show: AtomicBool,
-    open: Mutex<Vec<String>>,
+    handed: Mutex<Handed>,
     wake: Mutex<Option<egui::Context>>,
 }
 
@@ -86,17 +91,19 @@ impl Server {
 
     /// What launches handed over since the last call (links and files, in order), or `None`
     /// when no launch asked: the window comes forward either way.
-    pub fn take(&self) -> Option<Vec<String>> {
-        let open = std::mem::take(&mut *self.asks.open.lock().unwrap_or_else(PoisonError::into_inner));
+    pub fn take(&self) -> Option<Handed> {
+        let handed = std::mem::take(&mut *self.asks.handed.lock().unwrap_or_else(PoisonError::into_inner));
         let show = self.asks.show.swap(false, Ordering::AcqRel);
-        (show || !open.is_empty()).then_some(open)
+        (show || !handed.is_empty()).then_some(handed)
     }
 
-    fn ask(&self, open: Vec<String>) {
+    fn ask(&self, handed: Handed) {
         {
-            let mut waiting = self.asks.open.lock().unwrap_or_else(PoisonError::into_inner);
-            let room = MAX_WAITING.saturating_sub(waiting.len());
-            waiting.extend(open.into_iter().take(room));
+            let mut waiting = self.asks.handed.lock().unwrap_or_else(PoisonError::into_inner);
+            let room = MAX_WAITING.saturating_sub(waiting.open.len());
+            waiting.open.extend(handed.open.into_iter().take(room));
+            let room = MAX_WAITING_SENDS.saturating_sub(waiting.attach.len());
+            waiting.attach.extend(handed.attach.into_iter().take(room));
         }
         self.asks.show.store(true, Ordering::Release);
         if let Some(ctx) = self.asks.wake.lock().unwrap_or_else(PoisonError::into_inner).as_ref() {
@@ -123,34 +130,44 @@ pub fn show(ctx: &egui::Context, native_wayland: bool) {
     }
 }
 
-/// Decide what a launch on the data folder `data` does; `open` is what it hands over to a
+/// Decide what a launch on the data folder `data` does; `handed` is what it hands over to a
 /// running MailCraft (links, and files with absolute paths).
-pub fn claim(data: &Path, open: &[String]) -> Claim {
+pub fn claim(data: &Path, handed: &Handed) -> Claim {
     match socket_path(data) {
-        Some(path) => claim_at(&path, open),
+        Some(path) => claim_at(&path, handed),
         None => Claim::Alone,
     }
 }
 
-/// The request a launch sends: the key, what it hands over, and a newline.
-fn request(key: &str, open: &[String]) -> String {
-    let open: Vec<&String> = open.iter().take(MAX_OPEN).collect();
-    let mut line = serde_json::json!({ "key": key, "open": open }).to_string();
+/// The request a launch sends: the key, what it hands over, and a newline. A launch has one group
+/// of files to send at most (its `--attach`); a MailCraft from before 0.39 reads no `attach`.
+fn request(key: &str, handed: &Handed) -> String {
+    let open: Vec<&String> = handed.open.iter().take(MAX_OPEN).collect();
+    let attach: Vec<&String> = handed.attach.iter().flatten().take(MAX_ATTACHED).collect();
+    let mut line = serde_json::json!({ "key": key, "open": open, "attach": attach }).to_string();
     line.push('\n');
     line
 }
 
 /// What a request hands over, or `None` when it isn't one with `key`: anything but one JSON
-/// object with that key and a list of strings (empty ones and those past [`MAX_OPEN`] left out).
-fn parse_request(line: &str, key: &str) -> Option<Vec<String>> {
+/// object with that key, a list of strings to open and, if there is one, a list of strings to
+/// send (empty ones, and those past [`MAX_OPEN`] or [`MAX_ATTACHED`], left out).
+fn parse_request(line: &str, key: &str) -> Option<Handed> {
     let value: serde_json::Value = serde_json::from_str(line.trim_end()).ok()?;
     let sent = value.get("key")?.as_str()?;
     if key.is_empty() || !keys_match(sent.as_bytes(), key.as_bytes()) {
         return None;
     }
-    let open = value.get("open")?.as_array()?;
-    let open = open.iter().map(|v| v.as_str().map(str::to_string)).collect::<Option<Vec<String>>>()?;
-    Some(open.into_iter().filter(|s| !s.trim().is_empty()).take(MAX_OPEN).collect())
+    let strings = |list: &serde_json::Value, most: usize| -> Option<Vec<String>> {
+        let list = list.as_array()?.iter().map(|v| v.as_str().map(str::to_string)).collect::<Option<Vec<String>>>()?;
+        Some(list.into_iter().filter(|s| !s.trim().is_empty()).take(most).collect())
+    };
+    let open = strings(value.get("open")?, MAX_OPEN)?;
+    let attach = match value.get("attach") {
+        Some(list) => strings(list, MAX_ATTACHED)?,
+        None => Vec::new(),
+    };
+    Some(Handed::new(open, attach))
 }
 
 /// Compares a sent key with ours without stopping at the first wrong byte, so a caller timing
@@ -318,7 +335,7 @@ fn election(socket: &Path) -> Option<std::fs::File> {
 }
 
 /// [`claim`] with the socket at `path`.
-fn claim_at(path: &Path, open: &[String]) -> Claim {
+fn claim_at(path: &Path, handed: &Handed) -> Claim {
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
@@ -328,7 +345,7 @@ fn claim_at(path: &Path, open: &[String]) -> Claim {
     for _ in 0..3 {
         match UnixStream::connect(path) {
             Ok(stream) => {
-                return match hand_over(stream, path, open, || std::thread::sleep(KEY_WAIT)) {
+                return match hand_over(stream, path, handed, || std::thread::sleep(KEY_WAIT)) {
                     Ok(()) => Claim::Shown,
                     Err(e) => {
                         log::warn!("the running MailCraft didn't answer ({e}); opening a window");
@@ -373,15 +390,15 @@ fn new_key(key_file: &Path) -> std::io::Result<String> {
     Ok(key)
 }
 
-/// Ask the MailCraft at the other end of `stream` to show its window and open `open`, again
+/// Ask the MailCraft at the other end of `stream` to show its window and take `handed`, again
 /// (after `wait`, a few times) while its key isn't in place: it listens before its key has its
 /// name ([`listen`]), so a launch that reaches it in between, without the election lock, finds
 /// no key or the one of the run before, was refused and opened a second window. One that doesn't
 /// answer in time isn't asked again.
-fn hand_over(stream: UnixStream, socket: &Path, open: &[String], mut wait: impl FnMut()) -> std::io::Result<()> {
+fn hand_over(stream: UnixStream, socket: &Path, handed: &Handed, mut wait: impl FnMut()) -> std::io::Result<()> {
     let mut stream = stream;
     for _ in 1..KEY_TRIES {
-        match hand_over_once(&stream, socket, open) {
+        match hand_over_once(&stream, socket, handed) {
             Err(e) if !matches!(e.kind(), std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock) => {
                 log::info!("single instance: not answered ({e}); asking again");
                 drop(stream);
@@ -391,7 +408,7 @@ fn hand_over(stream: UnixStream, socket: &Path, open: &[String], mut wait: impl 
             done => return done,
         }
     }
-    hand_over_once(&stream, socket, open)
+    hand_over_once(&stream, socket, handed)
 }
 
 /// How long one read on the socket waits before it's made again, until [`TIMEOUT`]. Windows can
@@ -444,12 +461,12 @@ impl std::io::Read for Patient<'_> {
 }
 
 /// Ask once, with the key beside the socket, and wait for the `ok`.
-fn hand_over_once(stream: &UnixStream, socket: &Path, open: &[String]) -> std::io::Result<()> {
+fn hand_over_once(stream: &UnixStream, socket: &Path, handed: &Handed) -> std::io::Result<()> {
     use std::io::{BufRead, Read, Write};
     stream.set_write_timeout(Some(TIMEOUT))?;
     let key = read_key(socket)?;
     let mut writer = stream;
-    writer.write_all(request(&key, open).as_bytes())?;
+    writer.write_all(request(&key, handed).as_bytes())?;
     let mut reply = String::new();
     std::io::BufReader::new(Patient::new(stream).take(16)).read_line(&mut reply)?;
     if reply == OK { Ok(()) } else { Err(std::io::Error::other("no ok")) }
@@ -482,8 +499,9 @@ fn answer(stream: &UnixStream, server: &Server) -> std::io::Result<()> {
     stream.set_write_timeout(Some(TIMEOUT))?;
     let mut line = String::new();
     std::io::BufReader::new(Patient::new(stream).take(MAX_REQUEST)).read_line(&mut line)?;
-    let open = parse_request(&line, &server.key).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "not a request with the key"))?;
-    server.ask(open);
+    let handed =
+        parse_request(&line, &server.key).ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "not a request with the key"))?;
+    server.ask(handed);
     let mut writer = stream;
     writer.write_all(OK.as_bytes())
 }

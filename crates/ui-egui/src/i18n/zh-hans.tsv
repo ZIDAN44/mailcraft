@@ -1095,6 +1095,7 @@ month	May	5月
 	Added to your calendar from {file}: {n}	已从 {file} 添加到日历：{n}
 	Added to your contacts from {file}: {n}	已从 {file} 添加到联系人：{n}
 	Add an account first: a new message needs an account to send from.	请先添加帐户：新邮件需要一个用于发送的帐户。
+	{folder} isn't attached: it's a folder	{folder} 未附加：它是文件夹
 	Add an account first: events and people are kept with an account.	请先添加帐户：事件和联系人保存在帐户中。
 	Couldn't open {file}: {error}	无法打开 {file}：{error}
 	Safety	安全

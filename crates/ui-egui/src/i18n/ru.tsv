@@ -1098,6 +1098,7 @@ month	May	Май
 	Added to your calendar from {file}: {n}	Добавлено в календарь из {file}: {n}
 	Added to your contacts from {file}: {n}	Добавлено в контакты из {file}: {n}
 	Add an account first: a new message needs an account to send from.	Сначала добавьте учётную запись: новому письму нужна учётная запись для отправки.
+	{folder} isn't attached: it's a folder	{folder} не прикрепляется: это папка
 	Add an account first: events and people are kept with an account.	Сначала добавьте учётную запись: события и люди хранятся в учётной записи.
 	Couldn't open {file}: {error}	Не удалось открыть {file}: {error}
 	Safety	Безопасность

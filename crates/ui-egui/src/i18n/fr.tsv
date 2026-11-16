@@ -1099,6 +1099,7 @@ month	May	mai
 	Added to your calendar from {file}: {n}	Ajoutés à votre calendrier depuis {file} : {n}
 	Added to your contacts from {file}: {n}	Ajoutés à vos contacts depuis {file} : {n}
 	Add an account first: a new message needs an account to send from.	Ajoutez d’abord un compte : un nouveau message a besoin d’un compte d’envoi.
+	{folder} isn't attached: it's a folder	{folder} n’est pas joint : c’est un dossier
 	Add an account first: events and people are kept with an account.	Ajoutez d’abord un compte : les événements et les personnes sont enregistrés dans un compte.
 	Couldn't open {file}: {error}	Impossible d’ouvrir {file} : {error}
 	Safety	Sécurité

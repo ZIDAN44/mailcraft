@@ -33,6 +33,12 @@ pub fn is_message_file(path: &str) -> bool {
     matches!(ext.as_str(), "eml" | "msg")
 }
 
+/// Whether MailCraft opens a file itself, by its name: a message, calendar or contacts file
+/// (`file.open`). Others the Finder sends it are attached to a new message (issue #96).
+pub fn is_mail_file(path: &str) -> bool {
+    Kind::by_name(path).is_some()
+}
+
 /// Message files put into a folder (issue #38): the open one unless another is named. The files
 /// are read and filed by the network layer ([`Job::FileMessages`]); the folder shows them once
 /// it's read again, and [`Session::filed`] says how many went in.
@@ -91,13 +97,19 @@ impl Kind {
         if head.starts_with(&OUTLOOK_FILE) {
             return Kind::Outlook;
         }
+        Kind::by_name(path).unwrap_or_else(|| Kind::sniff(head))
+    }
+
+    /// What `path` holds by its extension, if that tells.
+    fn by_name(path: &str) -> Option<Kind> {
         let ext = path.rsplit_once('.').map(|(_, e)| e.to_ascii_lowercase()).unwrap_or_default();
         match ext.as_str() {
-            "ics" | "ical" | "icalendar" | "ifb" => Kind::Calendar,
-            "vcf" | "vcard" => Kind::Contacts,
-            "eml" => Kind::Message,
-            "msg" => Kind::Outlook,
-            _ => Kind::sniff(head),
+            "ics" | "ical" | "icalendar" | "ifb" => Some(Kind::Calendar),
+            "vcf" | "vcard" => Some(Kind::Contacts),
+            // Apple Mail's own message file is a message with a line before it.
+            "eml" | "emlx" => Some(Kind::Message),
+            "msg" => Some(Kind::Outlook),
+            _ => None,
         }
     }
 

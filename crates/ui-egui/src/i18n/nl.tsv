@@ -1094,6 +1094,7 @@ month	May	mei
 	Added to your calendar from {file}: {n}	Aan je agenda toegevoegd uit {file}: {n}
 	Added to your contacts from {file}: {n}	Aan je contactpersonen toegevoegd uit {file}: {n}
 	Add an account first: a new message needs an account to send from.	Voeg eerst een account toe: een nieuw bericht heeft een account nodig om vanaf te verzenden.
+	{folder} isn't attached: it's a folder	{folder} wordt niet bijgevoegd: het is een map
 	Add an account first: events and people are kept with an account.	Voeg eerst een account toe: afspraken en personen worden bij een account bewaard.
 	Couldn't open {file}: {error}	{file} kon niet worden geopend: {error}
 	Safety	Veiligheid

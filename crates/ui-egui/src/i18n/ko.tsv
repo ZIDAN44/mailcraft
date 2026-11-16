@@ -1098,6 +1098,7 @@ month	May	5월
 	Added to your calendar from {file}: {n}	{file}에서 일정에 추가됨: {n}
 	Added to your contacts from {file}: {n}	{file}에서 연락처에 추가됨: {n}
 	Add an account first: a new message needs an account to send from.	먼저 계정을 추가하세요. 새 메시지를 보내려면 계정이 필요합니다.
+	{folder} isn't attached: it's a folder	{folder}은(는) 첨부되지 않습니다: 폴더입니다
 	Add an account first: events and people are kept with an account.	먼저 계정을 추가하세요. 일정과 사람은 계정에 저장됩니다.
 	Couldn't open {file}: {error}	{file}을(를) 열 수 없습니다: {error}
 	Safety	안전

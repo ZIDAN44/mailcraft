@@ -241,6 +241,34 @@ impl MailApp {
         }
     }
 
+    /// Files handed to MailCraft to send (issue #96: Windows' Send to › MailCraft, the file
+    /// managers' Send with MailCraft, files dropped on its Dock icon): a new message with them
+    /// attached, as files dropped on the window start one. A folder isn't attached; one that
+    /// can't be read is said over the message.
+    pub fn attach_handed(&mut self, files: &[String]) {
+        use mailcraft_engine::CmdError;
+        let (folders, files): (Vec<&String>, Vec<&String>) = files.iter().partition(|f| std::path::Path::new(f.as_str()).is_dir());
+        for f in folders.iter().take(3) {
+            self.session.notice(tf!("{folder} isn't attached: it's a folder", folder = mailcraft_engine::model::file_name(f)), true);
+        }
+        if files.is_empty() {
+            return;
+        }
+        match self.session.run("mail.new", &json!({})) {
+            Ok(_) => {
+                self.ui.backstage = None;
+                self.ui.compose_to_front = self.session.compose.as_ref().map(|c| c.id);
+            }
+            Err(CmdError::Disabled(_)) => {
+                return self.session.notice(tl!("Add an account first: a new message needs an account to send from.").to_string(), true);
+            }
+            Err(e) => return self.session.notice(e.to_string(), true),
+        }
+        for f in files {
+            self.run("compose.attach", json!({"path": f}));
+        }
+    }
+
     pub(super) fn pump(&mut self) {
         let (now, offset) = self.services.clock();
         let before = self.session.clock.offset;

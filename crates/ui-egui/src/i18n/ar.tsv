@@ -1094,6 +1094,7 @@ month	May	مايو
 	Added to your calendar from {file}: {n}	أُضيفت إلى التقويم من {file}: {n}
 	Added to your contacts from {file}: {n}	أُضيفت إلى جهات الاتصال من {file}: {n}
 	Add an account first: a new message needs an account to send from.	أضف حسابًا أولًا: تحتاج الرسالة الجديدة إلى حساب لإرسالها منه.
+	{folder} isn't attached: it's a folder	لم يُرفق {folder}: إنه مجلد
 	Add an account first: events and people are kept with an account.	أضف حسابًا أولًا: تُحفظ الأحداث والأشخاص في حساب.
 	Couldn't open {file}: {error}	تعذّر فتح {file}: {error}
 	Safety	الأمان
