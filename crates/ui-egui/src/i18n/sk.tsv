@@ -1,0 +1,1778 @@
+# MailCraft interface strings: Slovak (Slovenčina).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  Načítavajú sa priečinky…
+	(Top level)	(Najvyššia úroveň)
+	(no subject)	(bez predmetu)
+	1 attachment	1 príloha
+	1. List	1. Zoznam
+	</>	</>
+	Accounts	Kontá
+	Accounts and settings	Kontá a nastavenia
+	Add a subject	Pridajte predmet
+	Add account…	Pridať konto…
+	Add an account	Pridať konto
+	Add an email account	Pridať e-mailové konto
+	Added to new messages, replies and forwards.	Pridá sa do nových správ, odpovedí a preposlaní.
+	All	Všetko
+	All Inboxes	Všetky doručené
+	All Sent	Všetky odoslané
+	All caught up: nothing in this folder.	Všetko vybavené: v tomto priečinku nič nie je.
+	All folders	Všetky priečinky
+	Always show from {sender}	Vždy zobrazovať od odosielateľa {sender}
+	Apr	Apr
+	Archive	Archivovať
+	Archive (Backspace)	Archivovať (Backspace)
+	Ask before deleting for good	Pred trvalým odstránením sa opýtať
+	At the top of {account}	Na začiatok konta {account}
+	Attach file	Priložiť súbor
+	Audio	Zvuk
+	Aug	Aug
+	B	T
+	Bcc	Skrytá kópia
+	Bold (Ctrl+B)	Tučné (Ctrl+B)
+	Bottom	Dole
+	Bulleted list	Odrážkový zoznam
+	Cancel	Zrušiť
+	Categorize	Kategorizovať
+	Category	Kategória
+	Cc	Kópia
+	Cc / Bcc	Kópia / Skrytá kópia
+	Cc: {names}	Kópia: {names}
+	Choose…	Vybrať…
+	Clear search	Vymazať hľadanie
+	Close	Zavrieť
+	Code	Kód
+	Compact	Kompaktné
+	Connect	Pripojiť
+	Connecting…	Pripája sa…
+	Conversations	Konverzácie
+	Create	Vytvoriť
+	Create rule…	Vytvoriť pravidlo…
+	Dark	Tmavý
+	Date	Dátum
+	Dec	Dec
+	Delete	Odstrániť
+	Delete (Del)	Odstrániť (Del)
+	Delete folder…	Odstrániť priečinok…
+	Delete permanently?	Odstrániť natrvalo?
+	Delete “{folder}”?	Odstrániť priečinok „{folder}“?
+	Deleted Items	Odstránené položky
+	Discard	Zahodiť
+	Disconnected: {error}	Odpojené: {error}
+	Document	Dokument
+	Don't run later rules on mail this one matches	Na poštu, ktorej zodpovedá toto pravidlo, nepoužiť ďalšie pravidlá
+	Downloading the message…	Sťahuje sa správa…
+	Downloading the attachments…	Sťahujú sa prílohy…
+	Draft saved	Koncept bol uložený
+	[Draft]	[Koncept]
+	Drafts	Koncepty
+	Edit	Upraviť
+	Edit rule	Upraviť pravidlo
+	Email address	E-mailová adresa
+	Enter the password for {email}.	Zadajte heslo pre {email}.
+	Enter the password for {email}, which signs in as {user}.	Zadajte heslo pre {email}, ktoré sa prihlasuje ako {user}.
+	Favorites	Obľúbené
+	Feb	Feb
+	File	Súbor
+	Flag	Označiť príznakom
+	Flag / Unflag (Insert)	Označiť / zrušiť príznak (Insert)
+	Flagged	S príznakom
+	Focused	Prioritné
+	Focused Inbox	Prioritná doručená pošta
+	Focused Inbox: put newsletters and automatic mail in Other	Prioritná doručená pošta: bulletiny a automatickú poštu presúvať do Ostatné
+	Folder	Priečinok
+	Folder name	Názov priečinka
+	Forward	Preposlať
+	Forward (Ctrl+F)	Preposlať (Ctrl+F)
+	Fri	Pi
+	Friday	piatok
+	From	Od
+	From contains	Odosielateľ obsahuje
+	From {names}	Od: {names}
+	Group messages by conversation	Zoskupovať správy podľa konverzácie
+	Has attachments	Má prílohy
+	Has files	Obsahuje súbory
+	Heading	Nadpis
+	Hidden from the other recipients	Skryté pred ostatnými príjemcami
+	Home	Domov
+	I	K
+	If it {condition}: {action}	Ak {condition}: {action}
+	Important	Dôležité
+	Inbox	Doručená pošta
+	Incoming mail (IMAP)	Prichádzajúca pošta (IMAP)
+	Insert a picture (or paste one)	Vložiť obrázok (alebo ho prilepiť)
+	Inside {folder} ({account})	V priečinku {folder} ({account})
+	Is a newsletter or list mail	Je bulletin alebo pošta z mailing listu
+	Italic (Ctrl+I)	Kurzíva (Ctrl+I)
+	Items: {n}	Položky: {n}
+	Jan	Jan
+	Jul	Júl
+	Jun	Jún
+	Junk Email	Nevyžiadaná pošta
+	Language	Jazyk
+	Dates	Dátumy
+	In the message list, the reading pane and the header of a reply	V zozname správ, na table na čítanie a v hlavičke odpovede
+	Time	Čas
+	24-hour	24-hodinový
+	12-hour	12-hodinový
+	Whole date and time in the list	Celý dátum a čas v zozname
+	Earlier this month	Začiatkom tohto mesiaca
+	Last month	Minulý mesiac
+	Last week	Minulý týždeň
+	Later	Neskôr
+	Later today	Neskôr dnes
+	Light	Svetlý
+	Link	Odkaz
+	Link (Ctrl+K)	Odkaz (Ctrl+K)
+	Links like {link} aren't opened	Odkazy ako {link} sa neotvárajú
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Najprv lokálne: pošta sa ukladá na tomto počítači pre rýchle vyhľadávanie aj offline. Heslá zostávajú v systémovej kľúčenke.
+	Looking up the server settings…	Zisťujú sa nastavenia servera…
+	Mail from {sender}	Pošta od odosielateľa {sender}
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · aplikácia ArtCraft · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	Mailing list: odhlásenie na adrese {address}
+	Mar	Mar
+	Mark all as read	Označiť všetko ako prečítané
+	Mark as read	Označiť ako prečítané
+	Mark as unread	Označiť ako neprečítané
+	Mark read	Prečítané
+	Mark unread	Neprečítané
+	May	Máj
+	Message preview	Ukážka správy
+	Message sent	Správa bola odoslaná
+	Messages waiting to be sent	Správy čakajúce na odoslanie
+	Messages without a subject are easy to overlook.	Správy bez predmetu sa ľahko prehliadnu.
+	Mon	Po
+	Monday	pondelok
+	{time} AM	{time} AM
+	{time} PM	{time} PM
+	{hour} AM	{hour} AM
+	{hour} PM	{hour} PM
+	Move	Presunúť
+	Move 1 message	Presunúť 1 správu
+	Move folder…	Presunúť priečinok…
+	Move to	Presunúť do
+	Move to a folder (Ctrl+Shift+V)	Presunúť do priečinka (Ctrl+Shift+V)
+	Move to folder	Presunúť do priečinka
+	Move to…	Presunúť do…
+	Move {n} messages	Presunúť správy ({n})
+	Copy to folder	Kopírovať do priečinka
+	Copy to…	Kopírovať do…
+	Copy 1 message	Kopírovať 1 správu
+	Copy {n} messages	Kopírovať správy ({n})
+	Move “{folder}” to	Presunúť priečinok „{folder}“ do
+	Name	Meno
+	Names <addresses>, separated by ; or ,	Mená <adresy>, oddelené ; alebo ,
+	New category	Nová kategória
+	New category…	Nová kategória…
+	New folder	Nový priečinok
+	New folder…	Nový priečinok…
+	New mail	Nová pošta
+	New mail (Ctrl+N)	Nová pošta (Ctrl+N)
+	New rule	Nové pravidlo
+	New rule…	Nové pravidlo…
+	Next week	Budúci týždeň
+	No published settings: the usual server names are filled in. Check them under Server settings.	Nastavenia nie sú zverejnené: doplnili sa bežné názvy serverov. Skontrolujte ich v časti Nastavenia servera.
+	No results. Try fewer words, or search all folders.	Žiadne výsledky. Skúste menej slov alebo hľadajte vo všetkých priečinkoch.
+	No rules yet.	Zatiaľ žiadne pravidlá.
+	None (unsafe)	Žiadne (nezabezpečené)
+	Not an email address: {address}	Nie je to e-mailová adresa: {address}
+	Not junk	Nie je nevyžiadaná
+	Not sent: {error}	Neodoslané: {error}
+	Nothing matches this filter.	Tomuto filtru nič nezodpovedá.
+	Nov	Nov
+	Numbered list	Číslovaný zoznam
+	Oct	Okt
+	Off	Vypnuté
+	Offline	Offline
+	Older	Staršie
+	On / off	Zapnúť / vypnúť
+	Open	Otvoriť
+	Open as a PDF to print	Otvoriť ako PDF na tlač
+	Open in {app}	Otvoriť v aplikácii {app}
+	Open it in the Craft app for this kind of file	Otvoriť v aplikácii Craft pre tento typ súboru
+	Open with the system's app	Otvoriť systémovou aplikáciou
+	Opened as a PDF: print it from the viewer	Otvorené ako PDF: vytlačte ho z prehliadača
+	Options	Možnosti
+	Other	Ostatné
+	Outbox	Pošta na odoslanie
+	Outbox: {n}	Na odoslanie: {n}
+	Outgoing mail (SMTP)	Odchádzajúca pošta (SMTP)
+	Password	Heslo
+	Password needed	Vyžaduje sa heslo
+	Password…	Heslo…
+	Personal	Osobné
+	Picture	Obrázok
+	Pictures from the web are hidden to protect your privacy.	Obrázky z webu sú skryté kvôli ochrane vášho súkromia.
+	Picture…	Obrázok…
+	Pin	Pripnúť
+	Plain text	Obyčajný text
+	Preview	Ukážka
+	Print	Tlačiť
+	Put newsletters and automatic mail in Other	Bulletiny a automatickú poštu presúvať do Ostatné
+	Quote	Citát
+	Reading pane	Tabla na čítanie
+	Remove	Odstrániť
+	Remove account?	Odstrániť konto?
+	Remove account…	Odstrániť konto…
+	Remove from Favorites	Odstrániť z obľúbených
+	Remove…	Odstrániť…
+	Rename	Premenovať
+	Rename folder	Premenovať priečinok
+	Rename folder…	Premenovať priečinok…
+	Reply	Odpovedať
+	Reply (Ctrl+R)	Odpovedať (Ctrl+R)
+	Reply all	Odpovedať všetkým
+	Reply all (Ctrl+Shift+R)	Odpovedať všetkým (Ctrl+Shift+R)
+	Report junk	Nahlásiť ako nevyžiadanú
+	Results for “{query}”	Výsledky pre „{query}“
+	Right	Vpravo
+	Rules	Pravidlá
+	Rules run on new mail as it arrives in an Inbox, in this order.	Pravidlá sa v tomto poradí spúšťajú na novú poštu, keď príde do priečinka Doručená pošta.
+	Rules…	Pravidlá…
+	Run now	Spustiť teraz
+	Run on the folder on screen	Spustiť na zobrazenom priečinku
+	S	P
+	Same as the system	Podľa systému
+	Sample mailbox (offline)	Ukážková schránka (offline)
+	Sample mailbox, kept on this computer only	Ukážková schránka, uložená len na tomto počítači
+	Sat	So
+	Saturday	sobota
+	Save	Uložiť
+	Save all…	Uložiť všetko…
+	Save as PDF…	Uložiť ako PDF…
+	Save as email (.eml)…	Uložiť ako e-mail (.eml)…
+	Save as…	Uložiť ako…
+	Save draft	Uložiť koncept
+	Save draft (Ctrl+S)	Uložiť koncept (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	Uložené v priečinku Pošta na odoslanie: odošle sa, keď budete znova online
+	Saved {n} attachments in {folder}	Uložené prílohy ({n}) do priečinka {folder}
+	Saved {path}	Uložené: {path}
+	Search folders	Hľadať priečinky
+	(the rest isn't shown: open the file to see it all)	(zvyšok sa nezobrazuje: celý obsah uvidíte po otvorení súboru)
+	Pick a category	Vyberte kategóriu
+	Pick a folder	Vyberte priečinok
+	Say what to look for	Zadajte, čo sa má hľadať
+	Give the rule a name	Pomenujte pravidlo
+	Search mail (from:, subject:, has:attachment…)	Hľadať v pošte (from:, subject:, has:attachment…)
+	Select a message first.	Najprv vyberte správu.
+	Send	Odoslať
+	Send (Ctrl+Enter)	Odoslať (Ctrl+Enter)
+	Send this message?	Odoslať túto správu?
+	Ctrl+Enter sends the message you're writing.	Ctrl+Enter odošle správu, ktorú píšete.
+	Don't ask again	Už sa nepýtať
+	Don't send	Neodosielať
+	Ctrl+Enter in a message	Ctrl+Enter v správe
+	Ask first	Najprv sa opýtať
+	Do nothing	Nerobiť nič
+	Send / Receive	Odoslať / prijať
+	Send / Receive all folders (F9)	Odoslať / prijať všetky priečinky (F9)
+	Send anyway	Napriek tomu odoslať
+	Send now	Odoslať teraz
+	Send without a subject?	Odoslať bez predmetu?
+	Send without formatting	Odoslať bez formátovania
+	Sender, recipients or subject contain	Odosielateľ, príjemcovia alebo predmet obsahujú
+	Sending…	Odosiela sa…
+	Sent Items	Odoslaná pošta
+	Sep	Sep
+	Server settings	Nastavenia servera
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Servery: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
+	Settings found: {source}	Nájdené nastavenia: {source}
+	Show a desktop notification when new mail arrives	Pri príchode novej pošty zobraziť upozornenie na pracovnej ploche
+	Keep MailCraft running when its window is closed	Nechať MailCraft spustený aj po zatvorení okna
+	Start MailCraft in the notification area	Spúšťať MailCraft v oblasti oznámení
+	Start MailCraft minimized	Spúšťať MailCraft minimalizovaný
+	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	Kontroluje poštu a oznamuje ju so skrytým oknom, ako keď je zatvorený. Ak sa spustí na otvorenie odkazu alebo súboru, otvorí okno.
+	Show the unread mail on its icon	Zobrazovať neprečítanú poštu na ikone
+	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Počet neprečítaných správ v priečinkoch Doručená pošta, v rohu ikony MailCraftu v oblasti oznámení
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Zostáva v oblasti oznámení, kontroluje poštu a oznamuje ju. Zatvoríte ho príkazom Skončiť na stránke Súbor alebo v ponuke jeho ikony.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Okno je minimalizované a MailCraft naďalej kontroluje poštu a oznamuje ju. Zatvoríte ho príkazom Skončiť na stránke Súbor.
+	Open MailCraft	Otvoriť MailCraft
+	Show as plain text	Zobraziť ako obyčajný text
+	Show formatted	Zobraziť formátované
+	Show in Favorites	Zobraziť v obľúbených
+	Show pictures	Zobraziť obrázky
+	Shown as text.	Zobrazené ako text.
+	Shown on mail you send	Zobrazuje sa v pošte, ktorú odosielate
+	Sign in	Prihlásiť sa
+	Sign in again	Prihlásiť sa znova
+	Sign in again…	Prihlásiť sa znova…
+	Sign in with {provider}	Prihlásiť sa cez {provider}
+	Signature	Podpis
+	Signature…	Podpis…
+	Snooze	Odložiť
+	Stop showing pictures from this sender	Prestať zobrazovať obrázky od tohto odosielateľa
+	Strikethrough	Prečiarknuté
+	Subject	Predmet
+	Subject contains	Predmet obsahuje
+	Sun	Ne
+	Sunday	nedeľa
+	Switch to dark mode	Prepnúť na tmavý režim
+	Switch to light mode	Prepnúť na svetlý režim
+	System	Systém
+	Text	Text
+	Text or address	Text alebo adresa
+	The PDF couldn't be opened: {error}	PDF sa nepodarilo otvoriť: {error}
+	The folder and everything in it will be moved to Deleted Items.	Priečinok a všetko v ňom sa presunie do priečinka Odstránené položky.
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	Priečinok, jeho podpriečinky a všetka pošta v nich sa natrvalo odstránia. Túto akciu nemožno vrátiť späť.
+	The link couldn't be opened: {error}	Odkaz sa nepodarilo otvoriť: {error}
+	The sign-in page couldn't be opened: {error}	Prihlasovaciu stránku sa nepodarilo otvoriť: {error}
+	Theme	Motív
+	Then	Potom
+	These {n} messages will be deleted for good. This can't be undone.	Tieto správy ({n}) sa natrvalo odstránia. Túto akciu nemožno vrátiť späť.
+	This folder	Tento priečinok
+	This message couldn't be downloaded: {error}	Túto správu sa nepodarilo stiahnuť: {error}
+	This message will be deleted for good. This can't be undone.	Táto správa sa natrvalo odstráni. Túto akciu nemožno vrátiť späť.
+	This weekend	Tento víkend
+	Three weeks ago	Pred tromi týždňami
+	Thu	Št
+	Thursday	štvrtok
+	To	Komu
+	To do	Úlohy
+	To or Cc contains	Komu alebo Kópia obsahuje
+	To: {names}	Komu: {names}
+	Today	Dnes
+	Tomorrow	Zajtra
+	Try again	Skúsiť znova
+	Tue	Ut
+	Tuesday	utorok
+	Two weeks ago	Pred dvomi týždňami
+	Unflag	Zrušiť príznak
+	Unpin	Odopnúť
+	Unread	Neprečítané
+	Unread: {n}	Neprečítané: {n}
+	Upcoming	Nadchádzajúce
+	Update folder	Aktualizovať priečinok
+	Updated {time}	Aktualizované {time}
+	Updating {folder}…	Aktualizuje sa {folder}…
+	User name	Používateľské meno
+	Usually the email address	Zvyčajne e-mailová adresa
+	Video	Video
+	View	Zobraziť
+	Waiting in the Outbox. Last try: {error}	Čaká v priečinku Pošta na odoslanie. Posledný pokus: {error}
+	Waiting in the Outbox: it will be sent when you're back online.	Čaká v priečinku Pošta na odoslanie: odošle sa, keď budete znova online.
+	Wed	St
+	Wednesday	streda
+	Welcome to MailCraft	Vitajte v MailCrafte
+	When mail	Keď pošta
+	Without encryption your password travels in the clear. Use only for local test servers.	Bez šifrovania sa heslo prenáša nechránené. Používajte len pre lokálne testovacie servery.
+	Work	Práca
+	Write your message…	Napíšte správu…
+	Yesterday	Včera
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Vaša pošta na vašom počítači. Pridajte ľubovoľné konto IMAP: správy sa uchovávajú v tomto zariadení, takže sa v nich rýchlo hľadá a dajú sa čítať aj offline. Heslo zostáva v systémovej kľúčenke.
+	Your name	Vaše meno
+	categorize {category}	zaradiť do kategórie {category}
+	folder	priečinok
+	from “{text}”	je od „{text}“
+	in your browser: no password stored	v prehliadači: heslo sa neukladá
+	mentions “{text}”	spomína „{text}“
+	move to {folder}	presunúť do priečinka {folder}
+	subject has “{text}”	predmet obsahuje „{text}“
+	you@example.com	vy@example.com
+	{app} couldn't open it: {error}	Aplikácia {app} ho nedokázala otvoriť: {error}
+	{a} and {b}	{a} a {b}
+	{a}, {b} and others	{a}, {b} a ďalší
+	{email} (sample)	{email} (ukážka)
+	{name} could not be opened: {error}	{name} sa nepodarilo otvoriť: {error}
+	{n} attachments	Prílohy: {n}
+	{n} messages in this conversation	Správy v tejto konverzácii: {n}
+	{n} new messages	Nové správy: {n}
+	• List	• Zoznam
+	Select a message to read it	Vyberte správu, ktorú chcete čítať
+	MailCraft – Sample mailbox	MailCraft – Ukážková schránka
+
+	Mail server	Poštový server
+	IMAP and SMTP	IMAP a SMTP
+	JMAP	JMAP
+	JMAP session address	Adresa relácie JMAP
+	Server: {url} (JMAP)	Server: {url} (JMAP)
+	Open in new window	Otvoriť v novom okne
+	{subject} – Message	{subject} – Správa
+	About	O aplikácii
+	About MailCraft	O aplikácii MailCraft
+	Account information	Informácie o konte
+	Account settings	Nastavenia konta
+	Free and open source · MIT OR Apache-2.0	Bezplatný a open source · MIT OR Apache-2.0
+	Automatic replies	Automatické odpovede
+	Back	Späť
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	Vytvorený otvorene podľa e-mailových štandardov: žiadny kód, ikony ani prvky z iných poštových aplikácií.
+	Change this account's name, servers and sign-in, or its signature.	Zmena názvu tohto konta, serverov a prihlásenia alebo jeho podpisu.
+	Checking with the server…	Overuje sa na serveri…
+	Compact list	Kompaktný zoznam
+	Don't send automatic replies	Neodosielať automatické odpovede
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Každý odosielateľ dostane jednu odpoveď denne, kým sú zapnuté. Sú uložené na vašom poštovom serveri, takže fungujú, aj keď je tento počítač vypnutý.
+	Empty	Vyprázdniť
+	Empty Deleted Items…	Vyprázdniť Odstránené položky…
+	Empty Junk Email…	Vyprázdniť Nevyžiadanú poštu…
+	Empty “{folder}”?	Vyprázdniť priečinok „{folder}“?
+	Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone.	Všetko v ňom sa natrvalo odstráni vrátane pošty, ktorá nie je stiahnutá do tohto počítača. Túto akciu nemožno vrátiť späť.
+	General	Všeobecné
+	Google (IMAP)	Google (IMAP)
+	I'm away until…	Som preč do…
+	Inbox and notifications	Doručená pošta a upozornenia
+	Info	Informácie
+	Kept on this computer: {size}	Uložené na tomto počítači: {size}
+	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft komunikuje len s vašimi vlastnými poštovými servermi cez šifrované pripojenia. Obrázky z webu sa načítajú, len keď o to požiadate.
+	MailCraft {version}	MailCraft {version}
+	Mailbox	Poštová schránka
+	Mailbox settings	Nastavenia poštovej schránky
+	Manage rules	Spravovať pravidlá
+	Mark messages as read when opened	Pri otvorení označiť správy ako prečítané
+	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
+	No senders yet.	Zatiaľ žiadni odosielatelia.
+	Not available: this mailbox has no server.	Nedostupné: táto schránka nemá server.
+	Not available: {error}	Nedostupné: {error}
+	On	Zapnuté
+	On from {from}	Zapnuté od {from}
+	On from {from} until {until}	Zapnuté od {from} do {until}
+	On until {until}	Zapnuté do {until}
+	Only between these days	Len medzi týmito dňami
+	Pictures from the web load only when you ask. These senders' pictures always load:	Obrázky z webu sa načítajú, len keď o to požiadate. Obrázky od týchto odosielateľov sa načítajú vždy:
+	Privacy	Ochrana súkromia
+	Reading	Čítanie
+	Rules: {n}	Pravidlá: {n}
+	Sample mailbox	Ukážková schránka
+	See how much space your mail takes, and empty Deleted Items and Junk Email.	Pozrite si, koľko miesta zaberá vaša pošta, a vyprázdnite Odstránené položky a Nevyžiadanú poštu.
+	Send automatic replies	Odosielať automatické odpovede
+	Server settings…	Nastavenia servera…
+	Read all mail as plain text	Čítať všetku poštu ako obyčajný text
+	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	Formátovanie, farby a obrázky sa vynechajú. Príkaz Zobraziť formátované nad správou zobrazí danú správu tak, ako bola odoslaná.
+	Show mail without its formatting	Zobrazovať poštu bez formátovania
+	Show a line of each message in the list	V zozname zobrazovať riadok z každej správy
+	Sort new mail as it arrives: move it, flag it, categorize it.	Triedenie novej pošty pri príchode: presunúť, označiť príznakom, zaradiť do kategórie.
+	Source code and issues	Zdrojový kód a hlásenia chýb
+	Subject (optional)	Predmet (nepovinné)
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Dajte ľuďom vedieť, že ste preč: každý odosielateľ dostane jednu odpoveď, kým sú zapnuté, aj keď je tento počítač vypnutý.
+	The server doesn't say how much space is used.	Server neuvádza, koľko miesta je obsadeného.
+	Until	Do
+	{free} free of {total}	Voľné: {free} z {total}
+	{used} used on the server	Obsadené na serveri: {used}
+	this server doesn't offer automatic replies	tento server neponúka automatické odpovede
+	this server doesn't offer automatic replies (no ManageSieve)	tento server neponúka automatické odpovede (chýba ManageSieve)
+	the account is offline	konto je offline
+	Drag it to a folder or another app to copy it	Presuňte ho do priečinka alebo inej aplikácie, čím ho skopírujete
+	Accept	Prijať
+	Accepted	Prijaté
+	Add a title	Pridajte názov
+	All day	Celý deň
+	April	apríl
+	Attendees: {names}	Účastníci: {names}
+	August	august
+	Calendar	Kalendár
+	Calendars	Kalendáre
+	Changes apply to every occurrence.	Zmeny platia pre každý výskyt.
+	Company	Spoločnosť
+	Custom	Vlastné
+	Day	Deň
+	December	december
+	Decline	Odmietnuť
+	Declined	Odmietnuté
+	Delete the series	Odstrániť celú sériu
+	Delete this occurrence	Odstrániť tento výskyt
+	Edit contact	Upraviť kontakt
+	Email	E-mail
+	Ends	Koniec
+	Event	Udalosť
+	Every day	Každý deň
+	Every month	Každý mesiac
+	Every week	Každý týždeň
+	Every year	Každý rok
+	February	február
+	In the address book of {account}	V adresári konta {account}
+	January	január
+	Job title	Funkcia
+	July	júl
+	June	jún
+	Location	Miesto
+	Mail	Pošta
+	March	marec
+	Month	Mesiac
+	Never	Nikdy
+	New contact	Nový kontakt
+	New event	Nová udalosť
+	Next	Nasledujúce
+	Next month	Budúci mesiac
+	No answer yet	Zatiaľ bez odpovede
+	No contacts yet.	Zatiaľ žiadne kontakty.
+	No one matches.	Nikto nezodpovedá.
+	Notes	Poznámky
+	November	november
+	October	október
+	One address per line	Jedna adresa na riadok
+	Organizer: {name}	Organizátor: {name}
+	People	Ľudia
+	Phone	Telefón
+	Pick someone to see their details	Vyberte osobu, ktorej podrobnosti chcete vidieť
+	Previous	Predchádzajúce
+	Previous month	Predchádzajúci mesiac
+	Repeat	Opakovať
+	Search people	Hľadať ľudí
+	September	september
+	Starts	Začiatok
+	Tentative	Predbežne
+	Week	Týždeň
+	Your answer:	Vaša odpoveď:
+	{from} {month_from} – {to} {month} {year}	{from}. {month_from} – {to}. {month} {year}
+	{from} – {to} {month} {year}	{from}. – {to}. {month} {year}
+	{month} {year}	{month} {year}
+	{n} more	Ďalšie: {n}
+	{weekday}, {day} {month} {year}	{weekday} {day}. {month} {year}
+	Add to contacts	Pridať do kontaktov
+	Invite	Pozvať
+	Record the answer	Zaznamenať odpoveď
+	Remove from calendar	Odstrániť z kalendára
+	Show in calendar	Zobraziť v kalendári
+	This event was cancelled.	Táto udalosť bola zrušená.
+	{name} accepted.	{name}: prijaté.
+	{name} answered.	{name}: odpovedané.
+	{name} declined.	{name}: odmietnuté.
+	{name} said maybe.	{name}: možno.
+	You accepted.	Prijali ste.
+	You said maybe.	Odpovedali ste možno.
+	You declined.	Odmietli ste.
+	Open & Export	Otvoriť a exportovať
+	Open data file	Otvoriť údajový súbor
+	Open Outlook data file	Otvoriť údajový súbor Outlooku
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	Načítanie pošty z údajového súboru Outlooku (.pst). Otvorí sa ako samostatná schránka so svojimi priečinkami, uložená na tomto počítači.
+	Open now: {files}	Momentálne otvorené: {files}
+	Outlook data file	Údajový súbor Outlooku
+	Opened from an Outlook data file, kept on this computer only	Otvorené z údajového súboru Outlooku, uložené len na tomto počítači
+	Not available: a data file has no server.	Nedostupné: údajový súbor nemá dostupný server.
+	Exchange (Microsoft 365)	Exchange (Microsoft 365)
+	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
+	Server: {url} (Microsoft Graph)	Server: {url} (Microsoft Graph)
+	Signing in with Microsoft isn't set up in this copy of MailCraft.	Prihlasovanie cez Microsoft nie je v tejto kópii MailCraftu nastavené.
+	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	Synchronizuje sa cez Microsoft Graph, pre pracovné a školské kontá s vypnutým IMAP. Prihlásite sa cez Microsoft v prehliadači: žiadne heslo sa neukladá.
+	In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server.	V prehliadači MailCraft pracuje s poskytovateľmi JMAP. Heslo zostáva len na tejto karte a odosiela sa iba na váš poštový server.
+	Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only.	Vaša pošta v prehliadači. Pridajte konto JMAP (napríklad Fastmail): MailCraft komunikuje priamo s vaším poštovým serverom a heslo zostáva len na tejto karte.
+	Pop out	Do samostatného okna
+	Pop in	Späť do hlavného okna
+	Back to the reading pane	Späť na tablu na čítanie
+	Write it in a window of its own	Písať v samostatnom okne
+	Hide Bcc	Skryť Skrytú kópiu
+	Untitled	Bez názvu
+	Write new messages in a window of their own	Písať nové správy v samostatnom okne
+	Saved in Drafts	Uložené v priečinku Koncepty
+	Underline (Ctrl+U)	Podčiarknuté (Ctrl+U)
+	Text highlight color	Farba zvýraznenia textu
+	Font color	Farba písma
+	No color	Bez farby
+	Automatic	Automaticky
+	Bullets (Ctrl+Shift+L)	Odrážky (Ctrl+Shift+L)
+	Numbering	Číslovanie
+	Decrease indent (Ctrl+Shift+T)	Zmenšiť zarážku (Ctrl+Shift+T)
+	Increase indent (Ctrl+T)	Zväčšiť zarážku (Ctrl+T)
+	Align left (Ctrl+L)	Zarovnať doľava (Ctrl+L)
+	Center (Ctrl+E)	Na stred (Ctrl+E)
+	Align right (Ctrl+R)	Zarovnať doprava (Ctrl+R)
+	Clear all formatting (Ctrl+Space)	Vymazať celé formátovanie (Ctrl+medzerník)
+	Address Book	Adresár
+	Ctrl+Shift+B	Ctrl+Shift+B
+	Attach File	Priložiť súbor
+	Ctrl+K	Ctrl+K
+	Pictures	Obrázky
+	Address	Adresa
+	Insert	Vložiť
+	Remove link	Odstrániť odkaz
+	Select Names	Vybrať mená
+	Search	Hľadať
+	Name or address	Meno alebo adresa
+	All addresses	Všetky adresy
+	Contacts	Kontakty
+	Email Address	E-mailová adresa
+	No one found.	Nikto sa nenašiel.
+	To ->	Komu ->
+	Cc ->	Kópia ->
+	Bcc ->	Skrytá kópia ->
+	OK	OK
+	Want to save your changes?	Chcete uložiť zmeny?
+	The message is kept in Drafts if you save it.	Ak správu uložíte, zostane v priečinku Koncepty.
+	Yes	Áno
+	No	Nie
+	Exporting to {file}…	Exportuje sa do {file}…
+	Export	Exportovať
+	Export to Outlook data file	Exportovať do údajového súboru Outlooku
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	Zápis pošty konta aj s priečinkami do údajového súboru Outlooku (.pst), ktorý otvorí Outlook aj iné poštové aplikácie.
+	Exchange server (EWS)	Server Exchange (EWS)
+	Exchange server	Server Exchange
+	Server: {url} (EWS)	Server: {url} (EWS)
+	DOMAIN\\user, or the email address	DOMÉNA\\používateľ alebo e-mailová adresa
+	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	Pre servery Exchange spravované vašou organizáciou, cez Exchange Web Services. Prihlasuje sa sieťovým používateľským menom a heslom.
+	Found automatically when left empty	Ak ponecháte prázdne, bude sa zisťovať automaticky
+	Its contacts, calendar, notes and tasks go inside it too.	Patria doň aj jeho kontakty, kalendár, poznámky a úlohy.
+	You can close this window.	Toto okno môžete zavrieť.
+	Browse…	Prehľadávať…
+	Existing Outlook data file (optional)	Existujúci údajový súbor Outlooku (nepovinné)
+	Incoming mail (POP)	Prichádzajúca pošta (POP)
+	Mail from an old .pst comes in first	Najprv sa načíta pošta zo starého súboru .pst
+	POP and SMTP	POP a SMTP
+	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Servery: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
+	Fonts	Písma
+	Data files	Údajové súbory
+	Open folder	Otvoriť priečinok
+	Move…	Presunúť…
+	Save as an Outlook data file…	Uložiť ako údajový súbor Outlooku…
+	Moves to {folder} the next time MailCraft starts.	Presunie sa do {folder} pri ďalšom spustení MailCraftu.
+	Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here.	Zvolené pri spustení MailCraftu (--data alebo MAILCRAFT_DATA), preto sa tu nedá presunúť.
+	Your mail couldn't be moved, so it stays where it was: {error}	Poštu sa nepodarilo presunúť, zostáva tam, kde bola: {error}
+	Your mail is now kept in {folder}	Vaša pošta je teraz uložená v {folder}
+	Your mail moves there the next time MailCraft starts.	Pošta sa tam presunie pri ďalšom spustení MailCraftu.
+	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	Pošta, kontakty a kalendár každého konta sa uchovávajú v údajovom súbore MailCraftu (.mailcraft) v tomto priečinku, podobne ako Outlook uchováva každé konto v súbore .pst v priečinku Outlook Files. Otvorený údajový súbor Outlooku tu dostane vlastný súbor .mailcraft; súbor Outlooku zostane nezmenený. Ak chcete kópiu vo formáte .pst, použite Uložiť ako údajový súbor Outlooku v časti Informácie.
+	Keep a copy of downloaded mail on the server	Ponechať kópiu stiahnutej pošty na serveri
+	Remove it from the server after	Odstrániť ju zo servera po uplynutí
+	days	dní
+	Remove it from the server once it's deleted from Deleted Items	Odstrániť ju zo servera po odstránení z priečinka Odstránené položky
+	Arrange by: {field}	Usporiadať podľa: {field}
+	By {field} ⏷	Podľa: {field} ⏷
+	Reverse sort	Obrátiť zoradenie
+	Size	Veľkosť
+	Flag status	Stav príznaku
+	Attachments	Prílohy
+	Under 10 KB	Menej ako 10 kB
+	10 to 25 KB	10 až 25 kB
+	25 to 100 KB	25 až 100 kB
+	100 to 500 KB	100 až 500 kB
+	500 KB to 1 MB	500 kB až 1 MB
+	1 to 5 MB	1 až 5 MB
+	Over 5 MB	Viac ako 5 MB
+	Not flagged	Bez príznaku
+	With attachments	S prílohami
+	Without attachments	Bez príloh
+	(nobody)	(nikto)
+	Send / Receive all folders	Odoslať / prijať všetky priečinky
+	Send all	Odoslať všetko
+	Send what's waiting in the Outbox	Odoslať, čo čaká v priečinku Pošta na odoslanie
+	Work offline	Pracovať offline
+	Working offline	Práca offline
+	Close every connection: changes, mail you send and drafts wait on this computer	Zavrieť všetky pripojenia: zmeny, odosielaná pošta a koncepty počkajú na tomto počítači
+	Undo (Ctrl+Z)	Späť (Ctrl+Z)
+	Filter	Filter
+	Categorized	S kategóriou
+	To or Cc me	Mne v poli Komu alebo Kópia
+	New items	Nové položky
+	Email message	E-mailová správa
+	Contact	Kontakt
+	More delete options	Ďalšie možnosti odstránenia
+	Ignore the conversation	Ignorovať konverzáciu
+	Stop ignoring the conversation	Prestať ignorovať konverzáciu
+	Its messages, and replies that arrive later, go to Deleted Items	Správy konverzácie a odpovede, ktoré prídu neskôr, idú do priečinka Odstránené položky
+	Folder pane	Tabla priečinkov
+	Minimize the folder pane	Minimalizovať tablu priečinkov
+	Show the folder pane	Zobraziť tablu priečinkov
+	Save As	Uložiť ako
+	Save Attachments	Uložiť prílohy
+	Exit	Skončiť
+	High importance	Vysoká dôležitosť
+	Low importance	Nízka dôležitosť
+	Read receipt	Potvrdenie o prečítaní
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Požiadať príjemcov o potvrdenie prečítania (ich poštová aplikácia to nemusí podporovať alebo sa ich môže opýtať)
+	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Funguje s ľubovoľným poskytovateľom: IMAP alebo POP so SMTP, JMAP alebo Exchange. Heslo sa uchováva v kľúčenke tohto počítača a odosiela sa iba na váš poštový server.
+	Run it now on the mail already in the Inbox	Spustiť ho teraz na poštu, ktorá už je v priečinku Doručená pošta
+	Run on the mail already in the Inbox	Spustiť na poštu, ktorá už je v priečinku Doručená pošta
+	More options	Ďalšie možnosti
+	Save As…	Uložiť ako…
+	Save All Attachments…	Uložiť všetky prílohy…
+	This picture can't be shown.	Tento obrázok sa nedá zobraziť.
+	Close Search	Zavrieť hľadanie
+	Look in	Hľadať v
+	Account	Konto
+	Account settings…	Nastavenia konta…
+	Delete all…	Odstrániť všetko…
+	Delete all	Odstrániť všetko
+	Delete everything in “{folder}”?	Odstrániť všetko v priečinku „{folder}“?
+	Every message in it will be moved to Deleted Items.	Všetky správy v ňom sa presunú do priečinka Odstránené položky.
+	Find related	Nájsť súvisiace
+	Messages in this conversation	Správy v tejto konverzácii
+	Messages from sender	Správy od odosielateľa
+	Forward as attachment	Preposlať ako prílohu
+	Reply with meeting	Odpovedať schôdzou
+	More actions	Ďalšie akcie
+	Ignore	Ignorovať
+	Messages	Správy
+	Open file location	Otvoriť umiestnenie súboru
+	Properties…	Vlastnosti…
+	{folder} Properties	Vlastnosti priečinka {folder}
+	Size on this computer	Veľkosť na tomto počítači
+	Quick print	Rýchla tlač
+	Always move to Focused	Vždy presúvať do Prioritné
+	Always move to Other	Vždy presúvať do Ostatné
+	Follow up	Spracovať neskôr
+	No date	Bez dátumu
+	Mark complete	Označiť ako dokončené
+	Clear flag	Zrušiť príznak
+	This week	Tento týždeň
+	Follow up.	Spracovať neskôr.
+	Follow up. Due today.	Spracovať neskôr. Termín dnes.
+	Follow up. Due {date}.	Spracovať neskôr. Termín {date}.
+	Follow up. Overdue: it was due {date}.	Spracovať neskôr. Po termíne: termín bol {date}.
+	Completed.	Dokončené.
+	Completed on {date}.	Dokončené {date}.
+	This message was sent with high importance.	Táto správa bola odoslaná s vysokou dôležitosťou.
+	This message was sent with low importance.	Táto správa bola odoslaná s nízkou dôležitosťou.
+	Delay delivery	Oneskoriť doručenie
+	Don't send before	Neodoslať pred
+	Have replies sent to another address	Odpovede posielať na inú adresu
+	Held in the Outbox: it will be sent {when}.	Podržaná v priečinku Pošta na odoslanie: odošle sa {when}.
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	Ponechať v priečinku Pošta na odoslanie a odoslať neskôr (MailCraft vtedy musí byť spustený)
+	Replies to	Odpovede na
+	Send right away	Odoslať hneď
+	Sends {when}	Odošle sa {when}
+	Set	Nastaviť
+	Where replies go instead of to you	Kam idú odpovede namiesto vás
+	In 1 hour	O 1 hodinu
+	Tomorrow morning	Zajtra ráno
+	Monday morning	V pondelok ráno
+	and	a
+	or	alebo
+	delete	odstrániť
+	flag	označiť príznakom
+	has attachments	má prílohy
+	is list mail	je pošta z mailing listu
+	mark read	označiť ako prečítané
+	pin	pripnúť
+	to “{text}”	je pre „{text}“
+	Add a place	Pridajte miesto
+	Add at least one name in To, Cc or Bcc before sending.	Pred odoslaním pridajte aspoň jedno meno do poľa Komu, Kópia alebo Skrytá kópia.
+	Edit link	Upraviť odkaz
+	Edit link…	Upraviť odkaz…
+	First and last name	Meno a priezvisko
+	Link to	Odkaz na
+	One number per line	Jedno číslo na riadok
+	Text to display	Zobrazený text
+	The address itself	Samotná adresa
+	Web page or file	Webová stránka alebo súbor
+	Cut	Vystrihnúť
+	Copy	Kopírovať
+	Paste	Prilepiť
+	Select all	Vybrať všetko
+	Link…	Odkaz…
+	Open link	Otvoriť odkaz
+	Clear formatting	Vymazať formátovanie
+	Insert link	Vložiť odkaz
+	The selected text	Vybraný text
+	Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account.	Adresy Outlook.com, Hotmail a Live sa pripájajú len cez Prihlásiť sa cez Microsoft: Microsoft už neprijíma heslá z poštových aplikácií. Táto kópia MailCraftu nebola zostavená s prihlasovaním cez Microsoft, preto toto konto nemôže pridať.
+	Back to message	Späť na správu
+	Esc	Esc
+	Open it in its app, or save it.	Otvorte ho v jeho aplikácii alebo ho uložte.
+	Page {n}	Strana {n}
+	Slide {n}	Snímka {n}
+	The document is empty.	Dokument je prázdny.
+	The first {shown} of {total} pages: open it to read the rest.	Prvé strany ({shown} z {total}): zvyšok si prečítate po otvorení.
+	The sheet is empty.	Hárok je prázdny.
+	There's no preview for this file.	Pre tento súbor nie je k dispozícii ukážka.
+	{n} people	Ľudia: {n}
+	Cards	Vizitky
+	Phone list	Telefónny zoznam
+	Full name	Celé meno
+	Search notes	Hľadať v poznámkach
+	{n} notes	Poznámky: {n}
+	No notes yet: New note starts one.	Zatiaľ žiadne poznámky: začnite tlačidlom Nová poznámka.
+	No note matches.	Žiadna poznámka nezodpovedá.
+	Write your note…	Napíšte poznámku…
+	Blue	Modrá
+	Green	Zelená
+	Pink	Ružová
+	Yellow	Žltá
+	White	Biela
+	Color	Farba
+	New note	Nová poznámka
+	Open a shared calendar	Otvoriť zdieľaný kalendár
+	Open shared calendar…	Otvoriť zdieľaný kalendár…
+	Remove this calendar	Odstrániť tento kalendár
+	Shared with you, opened from {account}	Zdieľané s vami, otvorené z konta {account}
+	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	Čí kalendár? Otvorí sa len na čítanie vedľa vášho, ak vám ho vlastník sprístupnil v Exchange.
+	read-only	len na čítanie
+	Public Folders	Verejné priečinky
+	Copy the whole message	Kopírovať celú správu
+	Existing data file (optional)	Existujúci údajový súbor (nepovinné)
+	Mail from an old .pst or .mailcraft file comes in first	Najprv sa načíta pošta zo starého súboru .pst alebo z .mailcraft
+	Open a data file	Otvoriť údajový súbor
+	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Načítanie údajového súboru Outlooku (.pst) alebo MailCraftu (.mailcraft). Otvorí sa ako samostatná schránka so svojimi priečinkami, uložená na tomto počítači.
+	Move up	Posunúť nahor
+	Move down	Posunúť nadol
+	Updating…	Aktualizuje sa…
+	All folders are up to date	Všetky priečinky sú aktuálne
+	1 account disconnected	1 konto je odpojené
+	{n} accounts disconnected	Odpojené kontá: {n}
+	{account}: {status}	{account}: {status}
+	Sign in with Microsoft	Prihlásiť sa cez Microsoft
+	Sign in with Microsoft…	Prihlásiť sa cez Microsoft…
+	Mailbox won't open	Schránka sa neotvorí
+	Trust this computer's mail server?	Dôverovať poštovému serveru na tomto počítači?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	{host} je na tomto počítači a zobrazuje certifikát, ktorý si vytvoril sám a za ktorý neručí žiadna certifikačná autorita. Takto sa správa program, ktorý sprístupňuje poštovú službu poštovým aplikáciám. Dôverujte mu, len ak ste taký program nastavili vy.
+	Certificate fingerprint (SHA-256)	Odtlačok certifikátu (SHA-256)
+	MailCraft asks again if the server shows another certificate.	Ak server zobrazí iný certifikát, MailCraft sa opýta znova.
+	Trust this certificate	Dôverovať tomuto certifikátu
+	Certificate not trusted yet	Certifikát zatiaľ nie je dôveryhodný
+	The mailbox won't open	Schránka sa neotvorí
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	Microsoft Graph sa dostane k schránke bez IMAP a prinesie aj jej kalendár a kontakty. Konto sa cez neho nastaví nanovo: pošta sa stiahne zo servera.
+	Turned IMAP on, or picked another account in the browser? Sign in again	Zapli ste IMAP alebo ste v prehliadači vybrali iné konto? Prihláste sa znova
+	Use Microsoft Graph	Použiť Microsoft Graph
+	A message opened in its own window (double-click) is always marked as read.	Správa otvorená v samostatnom okne (dvojklikom) sa vždy označí ako prečítaná.
+	Mark messages as read in the reading pane	Označovať správy ako prečítané na table na čítanie
+	When I choose another message	Keď vyberiem inú správu
+	When it's shown, after	Keď sa zobrazí, po
+	seconds	sekundách
+	Arrange by	Usporiadať podľa
+	Last changed	Posledná zmena
+	Title (A to Z)	Názov (A až Z)
+	Insert signature	Vložiť podpis
+	Save and insert	Uložiť a vložiť
+	Signatures…	Podpisy…
+	Categories	Kategórie
+	1 month	1 mesiac
+	{n} months	Mesiace: {n}
+	Day and week show each calendar in a column of its own	Deň a týždeň zobrazujú každý kalendár v samostatnom stĺpci
+	Drag down to show more months	Potiahnutím nadol zobrazíte viac mesiacov
+	Hidden: click to show it	Skrytý: kliknutím ho zobrazíte
+	Shown: click to hide it	Zobrazený: kliknutím ho skryjete
+	Side by side	Vedľa seba
+	Mail kept on this computer	Pošta uložená na tomto počítači
+	Of each folder, keep	Z každého priečinka uchovať
+	Download in full for reading offline	Stiahnuť celé na čítanie offline
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Nová pošta príde vždy. Staršia pošta nad tento rozsah zostáva na serveri; zvyšok každej správy sa stiahne pri jej otvorení.
+	the newest 1,000	najnovších 1 000
+	the newest 40	najnovších 40
+	all	všetko
+	A different reply for them	Pre nich iná odpoveď
+	Inside my organization	V rámci mojej organizácie
+	Outside my organization	Mimo mojej organizácie
+	Anyone	Ktokoľvek
+	My contacts only	Len moje kontakty
+	No one	Nikto
+	In a shared address book: read-only	V zdieľanom adresári: len na čítanie
+	Click a column to sort by it; right-click to choose the columns	Kliknutím na stĺpec podľa neho zoradíte; kliknutím pravým tlačidlom vyberiete stĺpce
+	Columns	Stĺpce
+	List	Zoznam
+	Business phone	Telefón do práce
+	Mobile phone	Mobilný telefón
+	Home phone	Telefón domov
+	Address book	Adresár
+	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Ak ho prilepíte z Outlooku alebo Wordu, zachová si vzhľad; Ctrl+B, Ctrl+I a Ctrl+U ho formátujú.
+	Formatted	Formátovaný
+	HTML code	Kód HTML
+	From a file…	Zo súboru…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write.	Prilepte HTML podpisu vytvoreného v inom programe alebo otvorte podpis uložený ako webová stránka (súbor .htm z Outlooku). Odošle sa tak, ako je napísaný, a tak sa aj zobrazuje pri písaní.
+	Your signature as it will be sent. To change it, pick Signature above the message.	Váš podpis zobrazený tak, ako sa odošle. Ak ho chcete zmeniť, vyberte Podpis nad správou.
+	{name} can't be read as a signature	{name} sa nedá načítať ako podpis
+	All contacts	Všetky kontakty
+	Always open with this address book	Vždy otvárať s týmto adresárom
+	Day and week show each calendar in a pane of its own	Deň a týždeň zobrazujú každý kalendár v samostatnej table
+	Every contact, in every address book	Všetky kontakty v každom adresári
+	Everyone you've written to or heard from, and your contacts	Všetci, ktorým ste písali alebo od ktorých ste dostali poštu, a vaše kontakty
+	Hide {calendar}	Skryť {calendar}
+	Write your signature, or paste it…	Napíšte podpis alebo ho prilepte…
+	Address books	Adresáre
+	Birthday	Narodeniny
+	Business	Firemné
+	City	Mesto
+	Fax	Fax
+	Mobile	Mobil
+	Pager	Pager
+	Shared with you through {account}: read-only	Zdieľané s vami cez {account}: len na čítanie
+	YYYY-MM-DD	RRRR-MM-DD
+	Email 2	E-mail 2
+	Email 3	E-mail 3
+	Business fax	Fax do práce
+	Other phone	Iný telefón
+	Street	Ulica
+	Postal code	PSČ
+	State/Province	Kraj/provincia
+	Country/Region	Krajina/oblasť
+	Business address	Adresa do práce
+	Home address	Adresa domov
+	Delete “{name}”?	Odstrániť „{name}“?
+	Delete this contact?	Odstrániť tento kontakt?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	Tento kontakt sa odstráni spolu so všetkým, čo je o ňom uložené. Túto akciu nemožno vrátiť späť.
+	Export…	Exportovať…
+	{file} isn't a MailCraft backup.	{file} nie je záloha MailCraftu.
+	A backup is brought in where MailCraft runs in the browser.	Záloha sa načíta tam, kde MailCraft beží v prehliadači.
+	Backup saved as {file}	Záloha bola uložená ako {file}
+	Restore…	Obnoviť…
+	Bring a backup file in. It takes the place of what's kept here now.	Načítanie súboru zálohy. Nahradí to, čo je tu teraz uložené.
+	Back up…	Zálohovať…
+	Save what's kept here to a file, with a password if you like.	Uloženie toho, čo je tu uložené, do súboru, ak chcete, aj s heslom.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	MailCraft uchováva vaše kontá, nastavenia a poštu len v tomto prehliadači. Vymazaním údajov prehliadača pre túto stránku sa odstránia: súbor zálohy ich vráti, tu alebo v inom prehliadači.
+	Backup	Záloha
+	The backup's password	Heslo pre zálohu
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Nahradí sa všetko, čo MailCraft teraz uchováva v tomto prehliadači: kontá, ich nastavenia a pošta. Heslo sa bude znova vyžadovať pri každom konte.
+	Restore from a backup…	Obnoviť zo zálohy…
+	Restore from backup	Obnoviť zo zálohy
+	The two passwords aren't the same.	Heslá sa nezhodujú.
+	Save backup	Uložiť zálohu
+	The file can't be opened without this password: MailCraft can't recover it.	Bez tohto hesla sa súbor nedá otvoriť: MailCraft ho nevie obnoviť.
+	Without a password, anyone who has the file can read what's in it.	Bez hesla môže obsah súboru prečítať hocikto, kto ho má.
+	The password again	Heslo znova
+	Password for the file (optional)	Heslo k súboru (nepovinné)
+	Include the mail downloaded to this browser	Zahrnúť poštu stiahnutú do tohto prehliadača
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	Vaše kontá a ich nastavenia, pravidlá, podpisy, kalendáre a kontakty sa uložia do jedného súboru. Heslá v ňom nikdy nie sú.
+	Back up	Zálohovať
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Pridanie pravidiel zo súboru uloženého MailCraftom. Pravidlo pre konto, ktoré tento počítač nemá, sa načíta vypnuté.
+	Change…	Zmeniť…
+	Clean up	Vyčistiť
+	Export rules	Exportovať pravidlá
+	Import rules	Importovať pravidlá
+	Rules imported: {n}	Importované pravidlá: {n}
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	Importované pravidlá: {n} (vypnuté: {off}, lebo ich konto nie je na tomto počítači)
+	Import…	Importovať…
+	No data file is open.	Nie je otvorený žiadny údajový súbor.
+	On the server	Na serveri
+	On this computer	Na tomto počítači
+	Open…	Otvoriť…
+	Remove account	Odstrániť konto
+	Save your rules in a file, to keep them or to use them on another computer.	Uloženie pravidiel do súboru, aby ste si ich ponechali alebo použili na inom počítači.
+	Rules saved in {file}: {n}	Pravidlá uložené do {file}: {n}
+	Save {n} Selected…	Uložiť vybrané ({n})…
+	Run all	Spustiť všetky
+	Run every rule that's on, on the mail already in the Inbox	Spustiť každé zapnuté pravidlo na poštu, ktorá už je v priečinku Doručená pošta
+	Find a rule	Nájsť pravidlo
+	No rule matches.	Žiadne pravidlo nezodpovedá.
+	 and {n} more	 a ďalšie ({n})
+	Add to contacts…	Pridať do kontaktov…
+	Copy address	Kopírovať adresu
+	Edit contact…	Upraviť kontakt…
+	Send email	Odoslať e-mail
+	Add	Pridať
+	Add a shared mailbox	Pridať zdieľanú schránku
+	Other addresses	Ďalšie adresy
+	Key {key}: signs mail from {addresses}	Kľúč {key}: podpisuje poštu od {addresses}
+	Valid until {date}: signs mail from {addresses}	Platný do {date}: podpisuje poštu od {addresses}
+	Find on the server	Nájsť na serveri
+	Addresses of this same mailbox that you also send from.	Adresy tej istej schránky, z ktorých tiež odosielate.
+	Add an address	Pridať adresu
+	Change an address	Zmeniť adresu
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Ďalšia adresa tej istej schránky, napríklad alias, z ktorej možno odosielať poštu. Pri písaní správy ju vyberte v poli Od. Váš poštový server musí odosielanie z nej povoliť.
+	Name on mail from it	Meno v pošte z nej
+	Replies go to	Odpovede idú na
+	(the account's own)	(vlastná adresa konta)
+	Write new mail from this address	Písať novú poštu z tejto adresy
+	A new message starts from this address, not from {email}. Pick another in From as ever.	Nová správa sa začne z tejto adresy, nie z {email}. Inú môžete ako vždy vybrať v poli Od.
+	{address} (new mail)	{address} (nová pošta)
+	Add…	Pridať…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	Jej priečinky sa zobrazujú pod týmto kontom. Na serveri Exchange k nej musíte mať prístup; tie, ku ktorým máte úplný prístup, sa otvoria samy.
+	Mailboxes you have full access to open by themselves.	Schránky, ku ktorým máte úplný prístup, sa otvoria samy.
+	Shared mailboxes	Zdieľané schránky
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	{email} sa odstráni z MailCraftu. Jeho údajový súbor {file} zostane v priečinku MailCraft Files: ak chcete jeho poštu znova vidieť, otvorte ho cez Súbor › Otvoriť a exportovať. Na serveri sa nič neodstráni.
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	{email} sa odstráni z MailCraftu. Na serveri sa nič neodstráni.
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	{email} sa odstráni z MailCraftu. Jeho údajový súbor {file} zostane v priečinku MailCraft Files: ak chcete jeho poštu znova vidieť, otvorte ho cez Súbor › Otvoriť a exportovať.
+	{email} will be removed from MailCraft.	{email} sa odstráni z MailCraftu.
+
+# The Archive folder, where the plain entry is the command.
+folder	Archive	Archív
+
+# A month's full name, where it differs from its short form.
+month	May	máj
+	Add shared mailbox…	Pridať zdieľanú schránku…
+	Remove shared mailbox	Odstrániť zdieľanú schránku
+	Opened by the server for your access to it	Otvorené serverom na základe vášho prístupu
+	Shared mailbox {address}, opened by {email}	Zdieľaná schránka {address}, otvorená cez {email}
+	The outgoing server has its own user name and password	Server odchádzajúcej pošty má vlastné používateľské meno a heslo
+	Its user name	Jeho používateľské meno
+	Its password	Jeho heslo
+	Password (unchanged when empty)	Heslo (ak je prázdne, nezmení sa)
+	There's no folder to put the attachment in for another app	Nie je k dispozícii priečinok, do ktorého by sa príloha uložila pre inú aplikáciu
+	Check for updates	Vyhľadať aktualizácie
+	Checking…	Overuje sa…
+	Couldn't check for updates: {error}	Aktualizácie sa nepodarilo vyhľadať: {error}
+	Download	Stiahnuť
+	Join meeting	Pripojiť sa k schôdzi
+	Links:	Odkazy:
+	MailCraft {version} is available.	K dispozícii je MailCraft {version}.
+	What's new	Novinky
+	You have the newest version.	Máte najnovšiu verziu.
+	Online only: keep none of this account's mail on this computer	Len online: na tomto počítači neuchovávať žiadnu poštu tohto konta
+	Online only: none of this account's mail is kept on this computer.	Len online: na tomto počítači sa neuchováva žiadna pošta tohto konta.
+	Online only: {email}	Len online: {email}
+	New message	Nová správa
+	Open MailCraft to read it.	Otvorte MailCraft a prečítajte si ju.
+	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	Prenosná verzia: všetko sa uchováva v priečinku MailCraftData vedľa MailCraftu a heslá len do jeho zatvorenia.
+	Close MailCraft?	Zavrieť MailCraft?
+	Close anyway	Napriek tomu zavrieť
+	Edit notes	Upraviť poznámky
+	Getting them from the server…	Získavajú sa zo servera…
+	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	Pošta zostáva na serveri a v pamäti sa drží len počas behu MailCraftu: nič z nej sa nezapisuje na tento počítač a každá správa sa stiahne až pri otvorení. Odosielaná pošta ide priamo na server; čaká len pošta, ktorú zatiaľ nemožno odoslať (offline), a ak sa MailCraft predtým zavrie, stratí sa spolu so zmenami urobenými offline (budete sa musieť rozhodnúť). Kalendáre, kontakty a poznámky na serveri tam zostávajú; tie, ktoré sú len v MailCrafte, sa po jeho zatvorení stratia.
+	Mail older than what's kept here is only on the server.	Pošta staršia ako tá, ktorá je uložená tu, je len na serveri.
+	Search the server	Hľadať na serveri
+	Searching the server…	Hľadá sa na serveri…
+	Show more	Zobraziť viac
+	The account list (no passwords), the window's settings and the log	Zoznam kont (bez hesiel), nastavenia okna a protokol
+	The server found {n}	Server našiel: {n}
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	Tieto položky sa držia len v pamäti, pretože ich kontá sú len online, a ak sa MailCraft teraz zavrie, stratia sa: {what}. Najprv sa pripojte a odošlite ich (Odoslať / prijať), alebo napriek tomu zavrite.
+	{n} more on the server	Ďalšie na serveri: {n}
+	Changes not yet on the server: {n}	Zmeny, ktoré ešte nie sú na serveri: {n}
+	Messages waiting to be sent: {n}	Správy čakajúce na odoslanie: {n}
+	{day} {month}	{day}. {month}
+	Restart to update	Reštartovať a aktualizovať
+	MailCraft {version} is downloaded. It installs when you close MailCraft.	MailCraft {version} je stiahnutý. Nainštaluje sa, keď MailCraft zavriete.
+	Reminder	Pripomenutie
+	None	Žiadne
+	1 minute	1 minúta
+	{n} minutes	{n} min
+	1 hour	1 hodina
+	{n} hours	{n} h
+	1 day	1 deň
+	{n} days	{n} d
+	1 week	1 týždeň
+	{n} weeks	{n} týž.
+	0 minutes before start	0 minút pred začiatkom
+	1 Reminder	1 pripomenutie
+	{n} Reminders	Pripomenutia: {n}
+	Click Snooze to be reminded again in:	Kliknite na Odložiť a pripomenutie sa zobrazí znova o:
+	Dismiss	Zavrieť
+	Dismiss All	Zavrieť všetko
+	Open Item	Otvoriť položku
+	Overdue	Po termíne
+	Now	Teraz
+	In {n} minutes	O {n} min
+	In {n} hours	O {n} h
+	In {n} days	O {n} d
+	Junk	Nevyžiadaná
+	Junk options	Možnosti nevyžiadanej pošty
+	Junk Email options…	Možnosti nevyžiadanej pošty…
+	Block sender	Blokovať odosielateľa
+	Never block sender	Nikdy neblokovať odosielateľa
+	Never block sender's domain	Nikdy neblokovať doménu odosielateľa
+	Their mail goes to Junk Email from now on	Jeho pošta odteraz pôjde do priečinka Nevyžiadaná pošta
+	Their mail is never treated as junk	Jeho pošta sa nikdy nebude považovať za nevyžiadanú
+	Mail from anyone at their domain is never treated as junk	Pošta od kohokoľvek z jeho domény sa nikdy nebude považovať za nevyžiadanú
+	Blocked senders	Blokovaní odosielatelia
+	Safe senders	Bezpeční odosielatelia
+	Mail from these addresses and domains goes to Junk Email as it arrives.	Pošta z týchto adries a domén ide pri príchode do priečinka Nevyžiadaná pošta.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	Pošta z týchto adries a domén sa nikdy nepovažuje za nevyžiadanú a jej obrázky sa načítajú.
+	name@example.com or @example.com	meno@example.com alebo @example.com
+	And {n} more	A ďalšie ({n})
+	Clean up conversation	Vyčistiť konverzáciu
+	Clean up folder	Vyčistiť priečinok
+	Messages quoted in full by a later reply go to Deleted Items	Správy, ktoré sú celé citované v neskoršej odpovedi, idú do priečinka Odstránené položky
+	Work week	Pracovný týždeň
+	No conversations to clean up	Žiadne konverzácie na vyčistenie
+	Nothing to clean up: no message is quoted in full by a later reply	Nie je čo čistiť: žiadna správa nie je celá citovaná v neskoršej odpovedi
+	Search Folders	Priečinky hľadania
+	New Search Folder…	Nový priečinok hľadania…
+	New Search Folder	Nový priečinok hľadania
+	Edit Search Folder	Upraviť priečinok hľadania
+	Customize this Search Folder…	Prispôsobiť tento priečinok hľadania…
+	Delete Search Folder	Odstrániť priečinok hľadania
+	Shows the mail it finds in every folder, except Deleted Items and Junk Email.	Zobrazuje poštu, ktorú nájde vo všetkých priečinkoch okrem Odstránené položky a Nevyžiadaná pošta.
+	Show	Zobraziť
+	From these people (addresses or names, separated by commas)	Od týchto ľudí (adresy alebo mená oddelené čiarkami)
+	Search for	Hľadať
+	Unread mail	Neprečítaná pošta
+	Mail flagged for follow up	Pošta s príznakom na spracovanie
+	Important mail	Dôležitá pošta
+	Categorized mail	Pošta s kategóriou
+	Mail with attachments	Pošta s prílohami
+	Large mail (over 100 KB)	Veľká pošta (nad 100 kB)
+	Pinned mail	Pripnutá pošta
+	Mail from specific people	Pošta od konkrétnych ľudí
+	Quick steps	Rýchle kroky
+	No Quick Steps yet.	Zatiaľ žiadne rýchle kroky.
+	New Quick Step…	Nový rýchly krok…
+	New Quick Step	Nový rýchly krok
+	Edit a Quick Step	Upraviť rýchly krok
+	Edit Quick Step	Upraviť rýchly krok
+	Done to the selected mail in one click; the first nine also with Ctrl+Shift+1 to 9.	Vykoná sa na vybranej pošte jedným kliknutím; prvých deväť aj klávesmi Ctrl+Shift+1 až 9.
+	Done	Hotovo
+	Then move to	Potom presunúť do
+	Don't move	Nepresúvať
+	Delete this Quick Step	Odstrániť tento rýchly krok
+	Date & time	Dátum a čas
+	Word count	Počet slov
+	Words	Slová
+	Characters (no spaces)	Znaky (bez medzier)
+	Characters (with spaces)	Znaky (s medzerami)
+	Paragraphs	Odseky
+	Lines	Riadky
+	Save the message you're writing?	Uložiť správu, ktorú píšete?
+	Save the messages you're writing?	Uložiť správy, ktoré píšete?
+	It's kept in Drafts if you save it.	Ak ju uložíte, zostane v priečinku Koncepty.
+	{n} messages are being written. They're kept in Drafts if you save them.	Rozpísané správy: {n}. Ak ich uložíte, zostanú v priečinku Koncepty.
+	Don't save	Neukladať
+	Also being written:	Rozpísané sú aj:
+	Play animations	Prehrávať animácie
+	Hovers, selections and panes ease into place; off, everything changes at once	Ukázanie myšou, výbery a tably sa presúvajú plynulo; ak je vypnuté, všetko sa zmení naraz
+	Current Folder	Aktuálny priečinok
+	Subfolders	Podpriečinky
+	Current Mailbox	Aktuálna schránka
+	All Mailboxes	Všetky schránky
+	Recent searches	Nedávne hľadania
+	Clear recent searches	Vymazať nedávne hľadania
+	Advanced search	Rozšírené hľadanie
+	Message text	Text správy
+	Other terms	Ďalšie výrazy
+	Clear	Vymazať
+	No results. Try fewer words.	Žiadne výsledky. Skúste menej slov.
+	This update wasn't sent by the meeting's organizer, so it can't change your calendar.	Túto aktualizáciu neposlal organizátor schôdze, preto nemôže zmeniť váš kalendár.
+	This answer wasn't sent by the guest it's from, so it can't be recorded.	Túto odpoveď neposlal hosť, od ktorého pochádza, preto ju nemožno zaznamenať.
+	This invitation is out of date: your calendar has a newer version.	Táto pozvánka je zastaraná: váš kalendár má novšiu verziu.
+	Left out because they couldn't be read: {n}	Vynechané, lebo sa nedali načítať: {n}
+	Added to your calendar from {file}: {n}	Pridané do kalendára zo súboru {file}: {n}
+	Added to your contacts from {file}: {n}	Pridané do kontaktov zo súboru {file}: {n}
+	Add an account first: a new message needs an account to send from.	Najprv pridajte konto: nová správa potrebuje konto, z ktorého sa odošle.
+	{folder} isn't attached: it's a folder	{folder} sa nepriložil: je to priečinok
+	Add an account first: events and people are kept with an account.	Najprv pridajte konto: udalosti a ľudia sa uchovávajú pri konte.
+	Couldn't open {file}: {error}	{file} sa nepodarilo otvoriť: {error}
+	Safety	Bezpečnosť
+	Send where photos were taken	Odosielať miesto, kde boli fotky nasnímané
+	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	Ak je vypnuté, miesto, ktoré telefón zapíše do fotky, sa pri odosielaní odstráni zo súborov JPEG a PNG
+	These photos say where they were taken, and go that way (File › Options › Safety)	Tieto fotky obsahujú miesto, kde boli nasnímané, a tak sa aj odošlú (Súbor › Možnosti › Bezpečnosť)
+	Where these photos were taken is left out as they're sent	Miesto nasnímania týchto fotiek sa pri odosielaní vynechá
+	Careful: this comes from {domain}, which looks like {like} but isn't it.	Pozor: táto správa prichádza z domény {domain}, ktorá vyzerá ako {like}, ale nie je to ona.
+	Careful: the sender's name shows {shown}, but this comes from {real}.	Pozor: meno odosielateľa ukazuje {shown}, ale správa prichádza z {real}.
+	Don't open its links or attachments, or answer it, unless you're sure who sent it.	Neotvárajte jej odkazy ani prílohy a neodpovedajte na ňu, kým si nie ste istí, kto ju poslal.
+	Check before sending	Skontrolovať pred odoslaním
+	{address} looks like an address at {like}, but isn't one. Is it the right one?	{address} vyzerá ako adresa v doméne {like}, ale nie je. Je správna?
+	{n} people who may not know each other will all see each other's addresses.	Ľudia, ktorí sa možno nepoznajú, uvidia navzájom svoje adresy (počet: {n}).
+	Something about the recipients was found to look at, but it can't be shown. Look them over before sending.	Na príjemcoch sa našlo niečo, čo treba skontrolovať, ale nedá sa to zobraziť. Pred odoslaním si ich prezrite.
+	Put everyone in Bcc	Pridať všetkých do Skrytej kópie
+	Each of them gets the message without seeing who else did; you're in To	Každý z nich dostane správu bez toho, aby videl, kto ešte; vy ste v poli Komu
+	Open links without their tracking	Otvárať odkazy bez sledovania
+	A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked	Odkaz sa otvorí tam, kam naozaj vedie: bez presmerovaní, ktoré nesú skutočnú adresu, a bez značiek, ktoré prezradia, kto klikol
+	Links open as they are (File › Options › Safety)	Odkazy sa otvárajú tak, ako sú (Súbor › Možnosti › Bezpečnosť)
+	Links open without their tracking tags, and out of redirects that carry the real address	Odkazy sa otvárajú bez sledovacích značiek a bez presmerovaní, ktoré nesú skutočnú adresu
+	Links that report clicks: {links}	Odkazy, ktoré hlásia kliknutia: {links}
+	Tracking pictures, never loaded: {pictures}	Sledovacie obrázky, nikdy nenačítané: {pictures}
+	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	Sledovacie obrázky, nikdy nenačítané: {pictures} · Odkazy, ktoré hlásia kliknutia: {links}
+	This message hides text from you ({n} words).	Táto správa pred vami skrýva text (počet slov: {n}).
+	Hidden text is a way to slip past spam filters, or to give instructions to tools and assistants that read mail for you.	Skrytý text slúži na obchádzanie filtrov spamu alebo na zadávanie pokynov nástrojom a asistentom, ktoré čítajú poštu za vás.
+	Show the hidden text	Zobraziť skrytý text
+	Hide it again	Znova ho skryť
+	Sent mail waiting for a reply	Odoslaná pošta čakajúca na odpoveď
+	Awaiting reply	Čaká na odpoveď
+	its certificate isn't from an authority this computer trusts	jeho certifikát nepochádza od autority, ktorej tento počítač dôveruje
+	its certificate ran out on {date}	platnosť jeho certifikátu vypršala {date}
+	its certificate isn't valid until {date}	jeho certifikát je platný až od {date}
+	its certificate is for {addresses}, not for the sender	jeho certifikát je pre {addresses}, nie pre odosielateľa
+	its certificate isn't for signing email	jeho certifikát nie je určený na podpisovanie e-mailov
+	Encrypted. Decrypting it…	Šifrované. Dešifruje sa…
+	This message is encrypted, and it couldn't be decrypted: {error}	Táto správa je šifrovaná a nepodarilo sa ju dešifrovať: {error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	Nie je podpísaná, takže mohla byť cestou zmenená: buďte opatrní s tým, o čo žiada.
+	Encrypted: only you and its other recipients can read it.	Šifrované: prečítať ju môžete len vy a jej ďalší príjemcovia.
+	Issued by {issuer}, valid until {date}	Vydal {issuer}, platný do {date}
+	Signed {date}	Podpísané {date}
+	Signed with SHA-1, which no longer proves much.	Podpísané pomocou SHA-1, čo už veľa nedokazuje.
+	Signed by {signer}: the signature holds (certificate from {issuer}).	Podpísal {signer}: podpis je platný (certifikát od {issuer}).
+	Signed by {signer}, but {why}.	Podpísal {signer}, ale {why}.
+	The signature doesn't hold: {why}.	Podpis nie je platný: {why}.
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	Podpisujte svoje správy, aby ľudia vedeli, že sú od vás, a čítajte a odosielajte šifrovanú poštu pomocou certifikátu (S/MIME).
+	Security	Zabezpečenie
+	No certificate	Žiadny certifikát
+	Import the .p12 or .pfx file your certificate came in.	Importujte súbor .p12 alebo .pfx, v ktorom ste dostali certifikát.
+	Import certificate…	Importovať certifikát…
+	It ran out on {date}: messages can't be signed with it any more.	Jeho platnosť vypršala {date}: správy ním už nemožno podpisovať.
+	Forget this certificate: its key goes from the keychain too	Zabudnúť tento certifikát: jeho kľúč sa odstráni aj z kľúčenky
+	Replace…	Nahradiť…
+	Sign new messages	Podpisovať nové správy
+	Encrypt new messages	Šifrovať nové správy
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	Každý príjemca vám musí najprv poslať podpísanú správu; odpovede na šifrovanú poštu sú vždy šifrované.
+	Certificates from signed mail: {n}	Certifikáty z podpísanej pošty: {n}
+	Import certificate	Importovať certifikát
+	The password {file} was saved with:	Heslo, s ktorým bol uložený súbor {file}:
+	Its private key is kept in the system's keychain, not in MailCraft's files.	Jeho súkromný kľúč sa uchováva v systémovej kľúčenke, nie v súboroch MailCraftu.
+	Import	Importovať
+	Sign	Podpísať
+	Encrypt	Šifrovať
+	Signed with your certificate: the recipients can tell it's from you and unchanged	Podpísané vaším certifikátom: príjemcovia vedia overiť, že je od vás a nezmenená
+	Only the recipients can read it: each needs to have sent you a signed message	Prečítať ju môžu len príjemcovia: každý vám musí najprv poslať podpísanú správu
+	the message was changed after it was signed, or the signature isn't the sender's	správa bola po podpísaní zmenená alebo podpis nepatrí odosielateľovi
+	this account has no certificate to decrypt it with (File › Info › Security)	toto konto nemá certifikát, ktorým by sa dala dešifrovať (Súbor › Informácie › Zabezpečenie)
+	it can't be decrypted with your certificate	vaším certifikátom sa nedá dešifrovať
+	its account is gone	jej konto už neexistuje
+	Hide the subject of encrypted mail	Skryť predmet šifrovanej pošty
+	On the way it reads [...]; the real one is inside, for its recipients (header protection).	Cestou sa zobrazuje [...]; skutočný predmet je vnútri, pre príjemcov (ochrana hlavičky).
+	Its subject and addresses were protected inside it too.	Jej predmet a adresy boli tiež chránené vnútri.
+	Check whether certificates were withdrawn	Kontrolovať, či certifikáty neboli odvolané
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	Pri zobrazení podpísanej pošty sa MailCraft opýta autority jej certifikátu, či ho neodvolala. Autorita sa tak dozvie, čiu poštu čítate
+	Asking its authority whether the certificate was withdrawn…	Overuje sa u autority, či certifikát nebol odvolaný…
+	Its authority says the certificate wasn't withdrawn.	Podľa autority certifikát nebol odvolaný.
+	Whether the certificate was withdrawn couldn't be checked: {why}.	Nepodarilo sa overiť, či certifikát nebol odvolaný: {why}.
+	its authority withdrew its certificate on {date}	jeho autorita odvolala certifikát {date}
+	its certificate doesn't say where to ask	jeho certifikát neuvádza, kde sa opýtať
+	its authority's responder didn't answer	služba OCSP jeho autority neodpovedala
+	its authority's list of withdrawn certificates couldn't be had	zoznam odvolaných certifikátov jeho autority sa nepodarilo získať
+	the certificate's authority isn't known	autorita certifikátu nie je známa
+	the list of withdrawn certificates can't be read	zoznam odvolaných certifikátov sa nedá načítať
+	the list isn't from the certificate's authority	zoznam nepochádza od autority certifikátu
+	the list's signature doesn't hold	podpis zoznamu nie je platný
+	the list is from the future	zoznam je z budúcnosti
+	the list is out of date	zoznam je zastaraný
+	a certificate can't be read	certifikát sa nedá načítať
+	the OCSP answer can't be read	odpoveď OCSP sa nedá načítať
+	the OCSP responder didn't answer	služba OCSP neodpovedala
+	the OCSP answer is of another kind	odpoveď OCSP je iného typu
+	the OCSP answer isn't signed by the certificate's authority	odpoveď OCSP nie je podpísaná autoritou certifikátu
+	the OCSP answer is about another certificate	odpoveď OCSP sa týka iného certifikátu
+	the OCSP answer is from the future	odpoveď OCSP je z budúcnosti
+	the OCSP answer is out of date	odpoveď OCSP je zastaraná
+	the OCSP responder doesn't know the certificate	služba OCSP certifikát nepozná
+	Use a smart card	Použiť čipovú kartu
+	Use a smart card…	Použiť čipovú kartu…
+	Find certificates	Nájsť certifikáty
+	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Importujte súbor .p12 alebo .pfx, v ktorom ste dostali certifikát, alebo použite certifikát na čipovej karte.
+	Look in the Keychain	Hľadať v Kľúčenke
+	Looking…	Hľadá sa…
+	The card's PIN	PIN karty
+	The key stays on the card; its PIN is kept in the system's keychain.	Kľúč zostáva na karte; jej PIN sa uchováva v systémovej kľúčenke.
+	The module your card came with (OpenSC's reads most cards):	Modul dodaný s vašou kartou (modul OpenSC prečíta väčšinu kariet):
+	Use	Použiť
+	no certificate with its key was found	nenašiel sa žiadny certifikát s kľúčom
+	the PIN is wrong, or the card is locked	PIN je nesprávny alebo je karta zamknutá
+	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	systémová kľúčenka nemôže podpisovať pre MailCraft: použite modul čipovej karty alebo importujte súbor .p12
+	Unlock	Odomknúť
+	Unlock…	Odomknúť…
+	Unlock certificate	Odomknúť certifikát
+	Your certificate's password, to use it in this browser until the page is closed:	Heslo certifikátu na jeho použitie v tomto prehliadači až do zatvorenia stránky:
+	The browser keeps the file, locked with its password; the password itself isn't kept.	Prehliadač uchováva súbor zamknutý heslom; samotné heslo sa neuchováva.
+	Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)	Zadajte heslo znova, aby ste mohli na tejto stránke podpisovať a dešifrovať (odomkne každý certifikát s týmto heslom)
+	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	váš certifikát je v tomto prehliadači zamknutý: odomknite ho heslom (Súbor › Informácie › Zabezpečenie)
+	there's no certificate kept in this browser: import its .p12 file	v tomto prehliadači nie je uložený žiadny certifikát: importujte jeho súbor .p12
+	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	čipové karty a systémovú kľúčenku používa desktopová aplikácia MailCraft, nie prehliadač
+	the browser can't ask a certificate's authority	prehliadač sa nemôže opýtať autority certifikátu
+	A certificate this computer already has, its key staying where it is	Certifikát, ktorý už tento počítač má; jeho kľúč zostáva tam, kde je
+	Look in Windows	Hľadať vo Windows
+	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	Certifikáty pre e-mail vo vašej Kľúčenke. Kľúč tam zostáva; macOS sa môže pred jeho použitím opýtať.
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	Certifikáty pre e-mail v úložisku certifikátov Windows (Osobné). Kľúč zostáva vo Windows; pred jeho použitím sa môžu opýtať.
+	Use a certificate from Windows	Použiť certifikát z Windows
+	Use a certificate from the Keychain	Použiť certifikát z Kľúčenky
+	Use one from Windows…	Použiť certifikát z Windows…
+	Use one from the Keychain…	Použiť certifikát z Kľúčenky…
+	the certificate is in another computer's certificate store	certifikát je v úložisku certifikátov iného počítača
+	Or use one this computer has	Alebo použite certifikát, ktorý má tento počítač
+	On a smart card, or kept by the system: the key stays where it is.	Na čipovej karte alebo uložený v systéme: kľúč zostáva tam, kde je.
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows sa s týmto kľúčom EC nedokáže dohodnúť na kľúči (jeho poskytovateľ ho môže uchovávať len na podpisovanie)
+	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	karte zostáva málo pokusov na PIN, preto ho MailCraft neskúsi: zadajte PIN znova (Súbor › Informácie › Zabezpečenie › Použiť čipovú kartu…)
+	the list holds only what changed since another one	zoznam obsahuje len zmeny oproti inému zoznamu
+	the list covers only some certificates or reasons	zoznam pokrýva len niektoré certifikáty alebo dôvody
+	the list is for other certificates	zoznam je pre iné certifikáty
+	the list has a part MailCraft can't read	zoznam obsahuje časť, ktorú MailCraft nevie načítať
+	the list's entry for the certificate can't be read	záznam zoznamu pre tento certifikát sa nedá načítať
+	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	certifikát nemá heslo, preto ho prehliadač používa do zatvorenia stránky a neuchováva ho
+	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	karta vyžaduje PIN (zadajte ho v Súbor › Informácie › Zabezpečenie › Použiť čipovú kartu…)
+	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	karta odmietla PIN, preto ho MailCraft zabudol: pri ďalšom pokuse by sa karta zamkla (zadajte ho znova v Súbor › Informácie › Zabezpečenie › Použiť čipovú kartu…)
+	Close without updating	Zavrieť bez aktualizácie
+	Downloading MailCraft {version}…	Sťahuje sa MailCraft {version}…
+	Downloading MailCraft {version}… {percent}%	Sťahuje sa MailCraft {version}… {percent} %
+	If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft.	Ak MailCraft teraz zavriete, sťahovanie sa pozastaví a pri ďalšom otvorení MailCraftu bude pokračovať tam, kde skončilo.
+	Install MailCraft {version} as it closes?	Nainštalovať MailCraft {version} pri zatvorení?
+	It installs the next time you close MailCraft.	Nainštaluje sa pri ďalšom zatvorení MailCraftu.
+	It installs when you close MailCraft.	Nainštaluje sa, keď MailCraft zavriete.
+	Keep MailCraft open	Nechať MailCraft otvorený
+	MailCraft {version} is downloading.	MailCraft {version} sa sťahuje.
+	MailCraft {version} is ready	MailCraft {version} je pripravený
+	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} je pripravený. Reštartujte ho teraz a nainštalujte, alebo sa nainštaluje, keď MailCraft zavriete.
+	Restart MailCraft to install it now, or it installs when you close MailCraft.	Reštartujte MailCraft a nainštalujte ho teraz, alebo sa nainštaluje, keď MailCraft zavriete.
+	Restart now	Reštartovať teraz
+	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	Aktualizácia je stiahnutá a overená. Nainštaluje sa teraz pri zatváraní MailCraftu, čo chvíľu potrvá; po dokončení MailCraft znova otvorte.
+	Update and close	Aktualizovať a zavrieť
+	Windows asks for an administrator's permission.	Windows požiada o povolenie správcu.
+	The system asks for your password to install it.	Systém si na inštaláciu vyžiada vaše heslo.
+	Your software installer opens to install it.	Na inštaláciu sa otvorí inštalátor softvéru.
+	An update is still downloading	Aktualizácia sa ešte sťahuje
+	MailCraft {version} is downloading ({done} of {total}).	MailCraft {version} sa sťahuje ({done} z {total}).
+	Add another…	Pridať ďalší…
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	Obnovený certifikát preberá podpisovanie a šifrovanie; starší sa ponechá na čítanie starej pošty
+	Older certificate, valid until {date}: kept to read mail encrypted to it	Starší certifikát, platný do {date}: ponechaný na čítanie pošty, ktorá je ním šifrovaná
+	Use for sending	Použiť na odosielanie
+	Sign and encrypt with this one again; the one in use is kept for reading	Znova podpisovať a šifrovať týmto certifikátom; používaný sa ponechá na čítanie
+	Forget this certificate: mail encrypted to it can't be read any more	Zabudnúť tento certifikát: pošta ním šifrovaná sa už nebude dať prečítať
+	Calendars and contacts	Kalendáre a kontakty
+	Calendar server…	Server kalendára…
+	Calendar server (CalDAV)	Server kalendára (CalDAV)
+	Contacts server (CardDAV)	Server kontaktov (CardDAV)
+	Calendars at {url}	Kalendáre na adrese {url}
+	Calendars come from a server of their own: give its address and sign-in	Kalendáre pochádzajú z vlastného servera: zadajte jeho adresu a prihlasovacie údaje
+	Looked for when the account syncs	Hľadá sa pri synchronizácii konta
+	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft hľadá vaše kalendáre a kontakty na serveri vášho poskytovateľa pošty. Ak ich nenájde, zadajte adresy zo stránok pomoci poskytovateľa; ak niektorú necháte prázdnu, bude ju naďalej hľadať.
+	No calendars were found at the address given: check it, and its sign-in	Na zadanej adrese sa nenašli žiadne kalendáre: skontrolujte ju aj prihlasovacie údaje
+	Password (kept: type to change it)	Heslo (uložené: na zmenu ho prepíšte)
+	Some providers want an app password for calendars: make one in your account's settings there.	Niektorí poskytovatelia vyžadujú pre kalendáre heslo aplikácie: vytvorte si ho v nastaveniach svojho konta u nich.
+	The calendar server has its own user name and password	Server kalendára má vlastné používateľské meno a heslo
+	Your provider's calendar server wasn't found: give its address	Server kalendára vášho poskytovateľa sa nenašiel: zadajte jeho adresu
+	Classic ribbon	Klasický pás s nástrojmi
+	Big buttons with their names under them, in named groups	Veľké tlačidlá s názvami pod nimi, v pomenovaných skupinách
+	New	Nové
+	Respond	Odpovedať
+	Tags	Značky
+	Find	Hľadať
+	Send & Receive	Odoslať a prijať
+	Preferences	Predvoľby
+	Scope	Rozsah
+	Refine	Spresniť
+	Layout	Rozloženie
+	Arrangement	Usporiadanie
+	Appearance	Vzhľad
+	Expand	Rozbaliť
+	Collapse	Zbaliť
+	Sent To	Odoslané komu
+	Has Attachments	Má prílohy
+	To:	Komu:
+	Cc:	Kópia:
+	Accent colour	Farba zvýraznenia
+	Any colour	Ľubovoľná farba
+	Buttons, links, the selection and the top bar	Tlačidlá, odkazy, výber a horný pruh
+	Everyone in your organisation's directory, asked of the server	Všetci v adresári vašej organizácie, vyhľadaní na serveri
+	Global Address List	Globálny zoznam adries
+	Indigo	Indigová
+	Left empty: MailCraft's own	Ak zostane prázdne: vlastný MailCraftu
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Len ak server vašej organizácie odmieta MailCraft: názov poštového programu, ktorý povoľuje.
+	Only letters, digits, spaces and punctuation, up to 256 characters.	Len písmená, číslice, medzery a interpunkcia, najviac 256 znakov.
+	Orange	Oranžová
+	Plain top bar	Jednoduchý horný pruh
+	Minimize	Minimalizovať
+	Maximize	Maximalizovať
+	Restore	Obnoviť
+	Use the system title bar	Použiť systémový záhlavný pruh
+	Applies when MailCraft starts again	Prejaví sa po ďalšom spustení MailCraftu
+	Red	Červená
+	Refresh: search the directory again and read the address books from the server	Obnoviť: znova prehľadať adresár a načítať adresáre zo servera
+	Rose	Ružovočervená
+	Search the directory now	Prehľadať adresár teraz
+	Searching your organisation's directory…	Prehľadáva sa adresár vašej organizácie…
+	Teal	Modrozelená
+	The directory couldn't be searched: {error}	Adresár sa nepodarilo prehľadať: {error}
+	The top bar in the panes' colours instead of the accent colour	Horný pruh vo farbách tabiel namiesto farby zvýraznenia
+	Type a name to search your organisation's directory.	Zadajte meno a prehľadajte adresár vašej organizácie.
+	User-Agent (optional)	User-Agent (nepovinné)
+	Violet	Fialová
+	Allow searching the directory…	Povoliť prehľadávanie adresára…
+	Microsoft asks in your browser; your mail's sign-in stays as it is	Microsoft sa opýta v prehliadači; prihlásenie k pošte zostane, ako je
+	Your organisation's directory needs your permission to be searched from MailCraft.	Na prehľadávanie adresára vašej organizácie z MailCraftu je potrebné vaše povolenie.
+	Keep unlocked in this browser	Ponechať odomknuté v tomto prehliadači
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	Heslo sa uchováva zapečatené kľúčom, ktorý tento prehliadač vytvorí a nikdy nevydá: ktokoľvek, kto používa tento profil prehliadača, môže podpisovať a čítať vašu šifrovanú poštu, ale nikto nemôže kľúč preniesť inam.
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	Prehliadač uchováva súbor zamknutý heslom a heslo zapečatené kľúčom, ktorý nikdy neopustí tento prehliadač.
+	Your certificate's password, to keep it unlocked in this browser:	Heslo certifikátu, aby zostal v tomto prehliadači odomknutý:
+	Subscribe to a calendar	Odoberať kalendár
+	Subscribe to a calendar…	Odoberať kalendár…
+	Paste the calendar's link (iCal or webcal://). It shows beside yours, read-only, and is read again every few hours.	Prilepte odkaz na kalendár (iCal alebo webcal://). Zobrazí sa vedľa vášho, len na čítanie, a každých niekoľko hodín sa znova načíta.
+	Name (optional)	Názov (nepovinné)
+	Subscribe	Odoberať
+	Couldn't be read: {error}	Nepodarilo sa načítať: {error}
+	Reading it…	Načítava sa…
+	Read {time}	Načítané {time}
+	couldn't be read	nepodarilo sa načítať
+	Refresh	Obnoviť
+	Drop to attach them to a new message	Pustením ich priložíte k novej správe
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	{name} nemôže byť v podpise: obrázky najviac 1 MB, najviac 10 (PNG, JPEG, GIF, WebP)
+	Original size	Pôvodná veľkosť
+	Write replies and forwards in a window of their own	Písať odpovede a preposlania v samostatnom okne
+	Show Favorites at the top of the folder pane	Zobrazovať Obľúbené navrchu tably priečinkov
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Správy, ktoré sa ešte odosielajú: {n}. Ak sa MailCraft teraz zavrie, nemusia sa odoslať: chvíľu počkajte alebo ho napriek tomu zavrite.
+	Add meeting invitations to the calendar as tentative when they arrive	Pozvánky na schôdze pridávať do kalendára pri príchode ako predbežné
+	Before they're answered; nothing is sent until you answer	Pred odpoveďou; nič sa neodošle, kým neodpoviete
+	View message source	Zobraziť zdroj správy
+	{n} messages selected	Vybrané správy: {n}
+	Message source	Zdroj správy
+	View the message as it came, headers and all	Zobraziť správu tak, ako prišla, vrátane hlavičiek
+	Message	Správa
+	{subject} – Message source	{subject} – Zdroj správy
+	Whole message	Celá správa
+	Header only	Len hlavička
+	Copy all	Kopírovať všetko
+	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	Zobrazuje sa len prvých {shown} z {size}. Uložiť ako e-mail (.eml) zachová všetko.
+	The source couldn't be downloaded: {error}	Zdroj sa nepodarilo stiahnuť: {error}
+	Always	Vždy
+	External	Externé
+	Check who sent it	Overte, kto ju poslal
+	Careful: you know {name} as {known}, but this comes from {real}.	Pozor: {name} poznáte ako {known}, ale táto správa prichádza z {real}.
+	This sender is outside your organisation.	Tento odosielateľ je mimo vašej organizácie.
+	Sender addresses in the message list	Adresy odosielateľov v zozname správ
+	The address a message comes from, after the sender's name: a familiar name can come from anyone's address	Adresa, z ktorej správa prichádza, za menom odosielateľa: známe meno môže prísť z hocijakej adresy
+	People you don't know	Ľudia, ktorých nepoznáte
+	Tag mail from outside your organisation	Označovať poštu spoza organizácie
+	Messages from other domains are tagged External, in the list and above the message	Správy z iných domén sa označia ako Externé, v zozname aj nad správou
+	Your organisation's domains	Domény vašej organizácie
+	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	Oddelené čiarkami. Ak zostane prázdne, použijú sa domény vašich kont, okrem poštových služieb ako Gmail
+	None: nothing is tagged	Žiadne: nič sa neoznačuje
+	Signatures	Podpisy
+	(none)	(žiadny)
+	A signature needs a name, on one line.	Podpis potrebuje názov na jednom riadku.
+	Default signatures for {email}	Predvolené podpisy pre {email}
+	New signature	Nový podpis
+	No signatures yet	Zatiaľ žiadne podpisy
+	New messages:	Nové správy:
+	Replies/forwards:	Odpovede/preposlania:
+	Another signature has that name.	Iný podpis už má tento názov.
+	Add to the list	Pridať do zoznamu
+	All categories…	Všetky kategórie…
+	Categories imported: {n} new, {changed} changed	Importované kategórie – nové: {n}, zmenené: {changed}
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	Importované kategórie – nové: {n}, zmenené: {changed}, vynechané: {skipped} (ich kľúčové slovo tu patrí inej kategórii)
+	Categories saved in {file}: {n}	Kategórie uložené do {file}: {n}
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	Každá kategória sa uchováva pri pošte na serveri ako kľúčové slovo, ktoré vidia aj iné poštové programy.
+	Edit category	Upraviť kategóriu
+	Keyword on the server	Kľúčové slovo na serveri
+	Mail that has the old keyword keeps it, shown as a category not in the list.	Pošta so starým kľúčovým slovom si ho ponechá a zobrazí sa ako kategória, ktorá nie je v zozname.
+	No categories yet.	Zatiaľ žiadne kategórie.
+	Not in the category list	Nie je v zozname kategórií
+	Not in the category list: click to name it and choose its colour	Nie je v zozname kategórií: kliknutím ju pomenujete a vyberiete jej farbu
+	On mail here, not in the list	V tejto pošte, ale nie v zozname
+	Other mail programs that set the same keyword show the same category.	Iné poštové programy, ktoré nastavia to isté kľúčové slovo, zobrazia tú istú kategóriu.
+	That keyword has another use.	Toto kľúčové slovo sa už používa inak.
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	Najviac 50 písmen, číslic a symbolov, bez medzier, úvodzoviek, spätných lomiek a ( ) { } ] % *
+	{name} has that keyword already.	{name} už má toto kľúčové slovo.
+	Messages: {n}	Správy: {n}
+	All calendars	Všetky kalendáre
+	Busy	Zaneprázdnený
+	Free	Voľný
+	No events match.	Žiadne udalosti nezodpovedajú.
+	Out of office	Mimo kancelárie
+	Past	Minulé
+	Private	Súkromné
+	Private appointment	Súkromná udalosť
+	Search calendar (location:, organizer:, after:…)	Hľadať v kalendári (location:, organizer:, after:…)
+	Show as	Zobraziť ako
+	Show time only	Zobraziť len čas
+	Working elsewhere	Pracujem inde
+	After answering a meeting invitation	Po odpovedi na pozvánku na schôdzu
+	Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in	Po odpovedi v správe alebo v kalendári pozvánka a jej staršie verzie opustia priečinok Doručená pošta; po spracovaní aj zrušenie
+	Leave it	Ponechať
+	A folder	Do priečinka
+	Folder for {email}	Priečinok pre {email}
+	Choose a folder	Vyberte priečinok
+	Guests' answers to my meetings go the same way, once recorded	Odpovede hostí na moje schôdze sa po zaznamenaní spracujú rovnako
+	default	predvolený
+	New events and invitations go to this calendar	Nové udalosti a pozvánky idú do tohto kalendára
+	Use as default calendar	Použiť ako predvolený kalendár
+	Events kept on this computer only: {count}	Udalosti uložené len na tomto počítači: {count}
+	Move them to {calendar}	Presunúť ich do {calendar}
+	Keep them here	Ponechať ich tu
+	Online meeting	Online schôdza
+	Online meetings	Online schôdze
+	Join:	Pripojiť sa:
+	Access code:	Prístupový kód:
+	Access code	Prístupový kód
+	Remove online meeting	Odstrániť online schôdzu
+	Add online meeting	Pridať online schôdzu
+	Adds {room}: its link as the place, and how to join in the notes	Pridá {room}: jej odkaz ako miesto a pokyny na pripojenie do poznámok
+	Add your meeting rooms under File › Options › Online meetings	Svoje miestnosti na schôdze pridajte v časti Súbor › Možnosti › Online schôdze
+	Choose a room	Vyberte miestnosť
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	Vaše vlastné miestnosti na schôdze (odkaz na miestnosť BigBlueButton, Jitsi a podobne a jej prístupový kód). Pridať online schôdzu v udalosti pridá jednu z nich: jej odkaz ako miesto a pokyny na pripojenie do poznámok.
+	Add an online meeting to all meetings with guests	Pridávať online schôdzu ku všetkým schôdzam s hosťami
+	The first room's, as the meeting is made	Prvej miestnosti, pri vytvorení schôdze
+	access code {code}	prístupový kód {code}
+	Make default	Nastaviť ako predvolenú
+	Add online meeting adds this room unless another is chosen	Pridať online schôdzu pridá túto miestnosť, ak sa nevyberie iná
+	Add room	Pridať miestnosť
+	Meeting hosts	Hostitelia schôdzí
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	Odkazy na tieto servery slúžia na pripojenie k schôdzi (Teams, Zoom, Google Meet, Webex, miestnosti BigBlueButton a servery vašich miestností to robia už teraz)
+	Dial-in numbers and other lines for the invitation (optional)	Telefónne čísla na pripojenie a ďalšie riadky do pozvánky (nepovinné)
+	Calendar and contacts couldn't be read: changes to them won't be saved	Kalendár a kontakty sa nepodarilo načítať: ich zmeny sa neuložia
+	Your rules couldn't be read: changes to them won't be saved	Vaše pravidlá sa nepodarilo načítať: ich zmeny sa neuložia
+	Snoozed mail couldn't be read: changes to it won't be saved	Odloženú poštu sa nepodarilo načítať: jej zmeny sa neuložia
+	What replies waiting in the Outbox answer couldn't be read: that mail may not be marked as answered	Nepodarilo sa načítať, na čo odpovedajú odpovede čakajúce v priečinku Pošta na odoslanie: táto pošta sa nemusí označiť ako zodpovedaná
+	Checking your data file	Kontroluje sa váš údajový súbor
+	Opening your mail…	Otvára sa vaša pošta…
+	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	{file} sa minule nezavrel správne. MailCraft ho kontroluje; pri veľkom súbore to môže trvať minútu alebo dve.
+	{percent}% checked	Skontrolované: {percent} %
+	{done} of {total} data files	Údajové súbory: {done} z {total}
+	Some of your mail couldn't be opened	Časť vašej pošty sa nepodarilo otvoriť
+	MailCraft opens without them; each account says what's wrong when you use it.	MailCraft sa otvorí bez nej; každé konto pri použití oznámi, čo je zlé.
+	Continue	Pokračovať
+	MailCraft couldn't open its data files, so it runs without its mail cache this time.	MailCraft nedokázal otvoriť svoje údajové súbory, preto tentoraz beží bez vyrovnávacej pamäte pošty.
+	Indexing {percent}%	Indexuje sa: {percent} %
+	Indexing…	Indexuje sa…
+	Making your mail searchable: {done} of {total} messages	Vaša pošta sa pripravuje na hľadanie: {done} z {total} správ
+	Searching…	Hľadá sa…
+	Some results may be missing: still indexing ({percent}%)	Niektoré výsledky môžu chýbať: indexovanie ešte prebieha ({percent} %)
+	Some results may be missing: still indexing	Niektoré výsledky môžu chýbať: indexovanie ešte prebieha
+	Some long messages were searched only in part	Niektoré dlhé správy sa prehľadali len čiastočne
+	Couldn't read the date “{value}”	Dátum „{value}“ sa nepodarilo prečítať
+	Couldn't read “{value}”	„{value}“ sa nepodarilo prečítať
+	Part of a long search was left out	Časť dlhého hľadania sa vynechala
+	Received after	Prijaté po
+	Received before	Prijaté pred
+	About {h} h {m} min left	Zostáva asi {h} h {m} min
+	About {n} min left	Zostáva asi {n} min
+	Another program is using the data file.	Údajový súbor používa iný program.
+	Calendar items: {n}	Položky kalendára: {n}
+	Close MailCraft	Zavrieť MailCraft
+	Contacts: {n}	Kontakty: {n}
+	Continue importing	Pokračovať v importe
+	Counting items…	Počítajú sa položky…
+	Data: {done} of {total}	Údaje: {done} z {total}
+	Folder: {folder} ({n} of {total})	Priečinok: {folder} ({n} z {total})
+	Free there: {free}	Voľné miesto tam: {free}
+	Go to Inbox	Prejsť do doručenej pošty
+	Go to it	Prejsť naň
+	Import another copy	Importovať ďalšiu kópiu
+	Import paused	Import je pozastavený
+	Import paused: {done} of {total}	Import je pozastavený: {done} z {total}
+	Import paused: {file}	Import je pozastavený: {file}
+	Import report…	Správa o importe…
+	Import stopped	Import bol zastavený
+	Import stopped: {done} of {total}	Import bol zastavený: {done} z {total}
+	Import stopped: {file}	Import bol zastavený: {file}
+	Imported {file}	Importovaný {file}
+	Importing {file}…	Importuje sa {file}…
+	Importing {file}… {percent}%	Importuje sa {file}… {percent} %
+	Importing {folder}…	Importuje sa {folder}…
+	Importing {folder}… {percent}%	Importuje sa {folder}… {percent} %
+	Importing {percent}%	Importuje sa: {percent} %
+	Importing…	Importuje sa…
+	Keep importing	Pokračovať v importe
+	Keep what's imported	Ponechať importované
+	Not imported yet	Zatiaľ neimportované
+	Less than a minute left	Zostáva menej ako minúta
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	MailCraft importuje {file} ({percent} %). Ak ho teraz zavriete, import bude pokračovať pri ďalšom otvorení MailCraftu.
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	MailCraft importuje {file}. Ak ho teraz zavriete, import bude pokračovať pri ďalšom otvorení MailCraftu.
+	MailCraft makes its own copy, about {size}, in {folder}.	MailCraft si vytvorí vlastnú kópiu, približne {size}, v {folder}.
+	Messages: {done} of {total}	Správy: {done} z {total}
+	Not brought in	Nenačítané
+	Not brought in so far: {n}	Zatiaľ nenačítané: {n}
+	Notes: {n}	Poznámky: {n}
+	Open an Outlook data file…	Otvoriť údajový súbor Outlooku…
+	Removing…	Odstraňuje sa…
+	Saved in: {path}	Uložené v: {path}
+	Show how the import is going	Zobraziť priebeh importu
+	Start again	Začať znova
+	Stop	Zastaviť
+	Stop importing and remove {file}?	Zastaviť import a odstrániť {file}?
+	Stop importing {file}?	Zastaviť import súboru {file}?
+	Stop importing…	Zastaviť import…
+	Stopping the import of {file}…	Zastavuje sa import súboru {file}…
+	Stopping…	Zastavuje sa…
+	The data file changed after the import began.	Údajový súbor sa po začatí importu zmenil.
+	The data file isn't where it was.	Údajový súbor už nie je tam, kde bol.
+	The file is damaged: reading stopped early ({n})	Súbor je poškodený: čítanie sa skončilo predčasne ({n})
+	The part imported so far is deleted. The data file itself isn't changed.	Doteraz importovaná časť sa odstráni. Samotný údajový súbor sa nezmení.
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	Na kópiu nie je dosť miesta. Uvoľnite miesto alebo presuňte priečinok s údajmi MailCraftu (Súbor › Možnosti).
+	There's too little room left on the drive ({free} free).	Na disku zostáva príliš málo miesta (voľné: {free}).
+	This data file is already open as {name}.	Tento údajový súbor je už otvorený ako {name}.
+	This file couldn't be looked at: {error}	Tento súbor sa nepodarilo preskúmať: {error}
+	What came in goes, and the data file is read from its start.	Načítané údaje sa zahodia a údajový súbor sa bude čítať od začiatku.
+	What's imported so far is kept. You can continue later.	Doteraz importované údaje sa ponechajú. Neskôr môžete pokračovať.
+	{h} h {m} min	{h} h {m} min
+	{items} items in {folders} folders	Položky: {items}, priečinky: {folders}
+	{messages} messages in {folders} folders ({time})	Správy: {messages}, priečinky: {folders} ({time})
+	{n} attached messages couldn't be read	Priložené správy, ktoré sa nepodarilo prečítať: {n}
+	{n} attached messages lost some of their files	Priložené správy, ktoré prišli o niektoré súbory: {n}
+	{n} attachments couldn't be read	Prílohy, ktoré sa nepodarilo prečítať: {n}
+	{n} attachments were only links to files elsewhere	Prílohy, ktoré boli len odkazmi na súbory inde: {n}
+	{n} attachments were too big to bring in	Prílohy príliš veľké na načítanie: {n}
+	{n} contacts, calendar items, tasks or notes couldn't be read	Kontakty, položky kalendára, úlohy alebo poznámky, ktoré sa nepodarilo prečítať: {n}
+	{n} folders couldn't be read	Priečinky, ktoré sa nepodarilo prečítať: {n}
+	{n} folders of a kind MailCraft has no place for	Priečinky typu, pre ktorý MailCraft nemá miesto: {n}
+	{n} folders were nested too deep	Priečinky vnorené príliš hlboko: {n}
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	Priečinky, ktorých zoznamy sa nepodarilo uložiť (ich pošta sa ponechá, mimo zoznamu): {n}
+	{n} items couldn't be used (such as an empty note)	Položky, ktoré sa nedali použiť (napríklad prázdna poznámka): {n}
+	{n} items for other reasons	Položky z iných dôvodov: {n}
+	{n} items in those folders	Položky v týchto priečinkoch: {n}
+	{n} message texts couldn't be converted	Texty správ, ktoré sa nepodarilo previesť: {n}
+	{n} message texts were in a character set MailCraft can't read	Texty správ v znakovej sade, ktorú MailCraft nevie prečítať: {n}
+	{n} messages couldn't be put back together	Správy, ktoré sa nepodarilo zostaviť: {n}
+	{n} messages couldn't be read	Správy, ktoré sa nepodarilo prečítať: {n}
+	{n} messages couldn't be saved	Správy, ktoré sa nepodarilo uložiť: {n}
+	{n} messages were attached too deep inside others	Správy priložené príliš hlboko v iných správach: {n}
+	{n} min	{n} min
+	{n} recipients had no address	Príjemcovia bez adresy: {n}
+	{n} s	{n} s
+	{time} so far	Doteraz {time}
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	Údajový súbor s miestom na uvoľnenie sa zmenší pri zatváraní MailCraftu, ak to trvá najviac pol minúty. Inak sa to urobí, keď MailCraft nepoužívate, alebo príkazom Zhutniť teraz v časti Informácie.
+	Being compacted…	Zhutňuje sa…
+	Close now	Zavrieť teraz
+	Close without compacting	Zavrieť bez zhutnenia
+	Compact data files on close	Pri zatváraní zhutniť údajové súbory
+	Compact now	Zhutniť teraz
+	Compact {file} before closing?	Zhutniť {file} pred zatvorením?
+	Compact, then close	Zhutniť a zavrieť
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	Zhutnené: {before} → {after} (uvoľnené {saved}) za {time}
+	Compacting was stopped; what was done is kept.	Zhutňovanie bolo zastavené; vykonaná časť sa ponechá.
+	Compacting {file} before closing…	Pred zatvorením sa zhutňuje {file}…
+	Compacting {file}…	Zhutňuje sa {file}…
+	Compacting {file}… {percent}%	Zhutňuje sa {file}… {percent} %
+	Compressing mail again	Pošta sa znova komprimuje
+	Copying it into a smaller file	Kopíruje sa do menšieho súboru
+	Finishing: about {n} s	Dokončuje sa: asi {n} s
+	Finishing…	Dokončuje sa…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	Vráti disku miesto, ktoré zaberala odstránená pošta. Vaša pošta zostane, ako je.
+	Hide	Skryť
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	Ak toto skryjete, pokračuje sa na pozadí. Vaša pošta zostane, ako je: zmení sa len miesto, ktoré zaberá.
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	Môže uvoľniť asi {size}, ale trvá to {time}, dlhšie, než MailCraft pri zatváraní čaká. Medzitým sa nedá otvoriť nič z tohto konta.
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	Môže uvoľniť asi {size}. Robí sa to skopírovaním do nového súboru, čo pri veľkom súbore môže trvať veľa minút; MailCraft sa po dokončení zavrie.
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	Ponechané, ako bolo: zhutnenie trvá asi {time}. Zhutniť teraz ho vykoná bez ohľadu na to, ako dlho to trvá.
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	MailCraft má pre túto časť údajový súbor len pre seba, preto sa nedá zastaviť. Ak sa počítač medzitým vypne, nič sa nestratí: súbor sa skontroluje pri ďalšom otvorení MailCraftu.
+	Making the data file smaller: the room deleted mail took goes back to the drive.	Zmenšuje sa údajový súbor: miesto, ktoré zaberala odstránená pošta, sa vráti disku.
+	Measuring the data file…	Meria sa údajový súbor…
+	Not compacted: {error}	Nezhutnené: {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	Ak teraz zavriete, nič sa nestratí: vykonaná časť sa ponechá a zvyšok sa urobí inokedy.
+	Nothing to give back.	Nie je čo uvoľniť.
+	Stop compacting	Zastaviť zhutňovanie
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	Príliš veľký na zhutnenie tu a na disku nie je miesto na kópiu: opätovný import súboru ho zmenší rovnako.
+	You can also compact it later from File › Info, or turn this off in File › Options.	Zhutniť ho môžete aj neskôr v časti Súbor › Informácie alebo to vypnúť v časti Súbor › Možnosti.
+	about {n} min	asi {n} min
+	about {n} s	asi {n} s
+	{size} can be reclaimed	Možno uvoľniť {size}
+	Add an account to send mail.	Na odosielanie pošty pridajte konto.
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	Z údajového súboru Outlooku nemožno odosielať poštu. Na odosielanie pošty pridajte konto.
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	Zo schránky uloženej len na tomto počítači nemožno odosielať poštu. Na odosielanie pošty pridajte konto.
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	Toto konto nemá server odchádzajúcej pošty (SMTP). Na odosielanie pošty ho pridajte v nastaveniach konta.
+	Tasks	Úlohy
+	Search tasks	Hľadať úlohy
+	New task	Nová úloha
+	Task	Úloha
+	All tasks	Všetky úlohy
+	Active tasks	Aktívne úlohy
+	{n} tasks	Úlohy: {n}
+	{n} overdue	Po termíne: {n}
+	No tasks yet: New task adds one.	Zatiaľ žiadne úlohy: pridajte ich tlačidlom Nová úloha.
+	No task matches.	Žiadna úloha nezodpovedá.
+	Task subject	Predmet úlohy
+	Due date	Termín
+	Status	Stav
+	Priority	Priorita
+	Mark not complete	Označiť ako nedokončené
+	(no title)	(bez názvu)
+	Repeats	Opakuje sa
+	Start date	Dátum začiatku
+	complete	dokončené
+	Remind me	Pripomenúť
+	Marked complete, it comes back on its next due date.	Po označení ako dokončená sa vráti k ďalšiemu termínu.
+	Not started	Nezačaté
+	In progress	Prebieha
+	Completed	Dokončené
+	Waiting on someone else	Čaká sa na niekoho iného
+	Deferred	Odložené
+	Low	Nízka
+	Normal	Normálna
+	High	Vysoká
+	Hide completed	Skryť dokončené
+	Tasks: {n}	Úlohy: {n}
+	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	Kópia tohto súboru v MailCrafte je vedľa neho, so zmenami urobenými v MailCrafte: {file}
+	The file has changed since MailCraft read it.	Súbor sa zmenil, odkedy ho MailCraft načítal.
+	MailCraft has no note of what came in from this file before, so its changes can't be read in.	MailCraft nemá záznam o tom, čo sa z tohto súboru načítalo predtým, preto jeho zmeny nemožno načítať.
+	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	Do priečinka tohto súboru sa nedá zapisovať: kópia MailCraftu, približne {size}, sa uloží do {folder}.
+	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	MailCraft si uchováva vlastnú kópiu vedľa súboru, približne {size}, v {folder}. Samotný súbor sa nikdy nemení.
+	There isn't room for the copy beside the file. Free up space on that drive.	Vedľa súboru nie je miesto na kópiu. Uvoľnite miesto na danom disku.
+	Read the changes in	Načítať zmeny
+	Open as it was	Otvoriť tak, ako bol
+	It's an account in another MailCraft data folder: {folder}	Je to konto v inom priečinku s údajmi MailCraftu: {folder}
+	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Otvorte ho tam alebo ho prevezmite sem: potom bude patriť tomuto priečinku s údajmi a jeho konto tam by sa malo odstrániť.
+	Take it over and read the changes in	Prevziať a načítať zmeny
+	Take it over	Prevziať
+	Drop to add them to {folder}	Pustením ich pridáte do {folder}
+	Added to {folder}: {n}	Pridané do {folder}: {n}
+	Couldn't add {file} to {folder}: {error}	{file} sa nepodarilo pridať do {folder}: {error}
+	React	Reagovať
+	Send a reaction to everyone it went to	Poslať reakciu všetkým, ktorým bola správa adresovaná
+	Reacted with {emoji}: {people}	Reakcia {emoji}: {people}
+	its key ran out on {date}	platnosť jeho kľúča vypršala {date}
+	its key isn't valid until {date}	jeho kľúč je platný až od {date}
+	its key is for {addresses}, not for the sender	jeho kľúč je pre {addresses}, nie pre odosielateľa
+	its owner withdrew the key on {date}	jeho vlastník kľúč odvolal {date}
+	OpenPGP key {fingerprint}	Kľúč OpenPGP {fingerprint}
+	Signed by {signer}: the signature holds (OpenPGP key {key}).	Podpísal {signer}: podpis je platný (kľúč OpenPGP {key}).
+	Signed with the OpenPGP key {key}, which MailCraft doesn't have, so the signature can't be checked.	Podpísané kľúčom OpenPGP {key}, ktorý MailCraft nemá, preto podpis nemožno overiť.
+	Their key comes with their mail (Autocrypt), or can be imported in File › Info › Security.	Jeho kľúč prichádza s jeho poštou (Autocrypt) alebo ho možno importovať v časti Súbor › Informácie › Zabezpečenie.
+	Encryption available: every recipient can receive it (S/MIME)	Šifrovanie je k dispozícii: každý príjemca ho dokáže prijať (S/MIME)
+	Encryption available: every recipient can receive it (OpenPGP)	Šifrovanie je k dispozícii: každý príjemca ho dokáže prijať (OpenPGP)
+	Encryption not available for {names}: there's no certificate or OpenPGP key for them	Šifrovanie nie je k dispozícii pre {names}: chýba pre nich certifikát alebo kľúč OpenPGP
+	S/MIME	S/MIME
+	OpenPGP	OpenPGP
+	Sign and encrypt with S/MIME or OpenPGP; Automatic takes the one every recipient can receive	Podpisovať a šifrovať pomocou S/MIME alebo OpenPGP; Automaticky zvolí to, čo dokáže prijať každý príjemca
+	Signed with your certificate or OpenPGP key: the recipients can tell it's from you and unchanged	Podpísané vaším certifikátom alebo kľúčom OpenPGP: príjemcovia vedia overiť, že je od vás a nezmenená
+	Only the recipients can read it: each needs a certificate or OpenPGP key MailCraft has	Prečítať ju môžu len príjemcovia: každý potrebuje certifikát alebo kľúč OpenPGP, ktorý MailCraft má
+	Signing and encryption	Podpisovanie a šifrovanie
+	Encrypt when every recipient can receive it	Šifrovať, keď to každý príjemca dokáže prijať
+	A new message is encrypted by itself while MailCraft has a certificate or OpenPGP key for everyone in it.	Nová správa sa zašifruje sama, ak má MailCraft certifikát alebo kľúč OpenPGP pre každého, kto v nej je.
+	Withdrawn on {date}	Odvolaný {date}
+	It ran out on {date}	Platnosť vypršala {date}
+	Valid until {date}	Platný do {date}
+	No end date	Bez dátumu skončenia
+	Sign and encrypt with OpenPGP, the way many people and mail programs do: with your own key, and the keys of the people you write to.	Podpisujte a šifrujte pomocou OpenPGP, ako to robí mnoho ľudí a poštových programov: vlastným kľúčom a kľúčmi ľudí, ktorým píšete.
+	OpenPGP keys work in the desktop app	Kľúče OpenPGP fungujú v desktopovej aplikácii
+	No OpenPGP key	Žiadny kľúč OpenPGP
+	Import your secret key file (.asc or .gpg), with its passphrase.	Importujte súbor so svojím tajným kľúčom (.asc alebo .gpg) spolu s prístupovou frázou.
+	Import key…	Importovať kľúč…
+	Forget this key: its secret part goes from the keychain too	Zabudnúť tento kľúč: jeho tajná časť sa odstráni aj z kľúčenky
+	A new key takes over signing and decrypting; the one in use is kept to decrypt old mail	Nový kľúč preberá podpisovanie a dešifrovanie; používaný sa ponechá na dešifrovanie starej pošty
+	Older key {key}: kept to decrypt mail sent to it	Starší kľúč {key}: ponechaný na dešifrovanie pošty, ktorá mu bola poslaná
+	Forget this key: mail encrypted to it can't be read any more	Zabudnúť tento kľúč: pošta ním šifrovaná sa už nebude dať prečítať
+	Sign and decrypt with this key again; the one in use is kept to decrypt	Znova podpisovať a dešifrovať týmto kľúčom; používaný sa ponechá na dešifrovanie
+	Send your public key with your mail	Posielať verejný kľúč spolu s poštou
+	Their mail programs can then encrypt their answers (Autocrypt).	Ich poštové programy potom môžu šifrovať odpovede (Autocrypt).
+	Keys of the people you write to: {n}	Kľúče ľudí, ktorým píšete: {n}
+	They come with their mail, or from a key file they gave you.	Prichádzajú s ich poštou alebo zo súboru s kľúčom, ktorý vám dali.
+	Import someone's key…	Importovať kľúč inej osoby…
+	Import OpenPGP key	Importovať kľúč OpenPGP
+	The passphrase {file} is locked with (none, if it has none):	Prístupová fráza, ktorou je {file} zamknutý (žiadna, ak ju nemá):
+	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	Jeho tajná časť sa uchováva v systémovej kľúčenke, nie v súboroch MailCraftu; prístupová fráza sa neuchováva.
+	this account has no OpenPGP key to decrypt it with (File › Info › Security)	toto konto nemá kľúč OpenPGP, ktorým by sa dala dešifrovať (Súbor › Informácie › Zabezpečenie)
+	it can't be decrypted with your OpenPGP key	vaším kľúčom OpenPGP sa nedá dešifrovať
+	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	vaše kľúče OpenPGP používa desktopová aplikácia MailCraft, nie prehliadač
+	Not sent yet: this is a draft.	Ešte neodoslané: toto je koncept.
+	Show web pictures unless a message looks suspicious	Zobrazovať obrázky z webu, ak správa nevyzerá podozrivo
+	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Obrázky sa načítajú pri otvorení správy, ak váš poštový server overil odosielateľa a správa nie je v nevyžiadanej pošte. Server, na ktorom je každý obrázok, vidí vašu IP adresu a čas otvorenia. Sledovacie obrázky zostávajú blokované
+	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Táto správa vyzerá podozrivo alebo sa nepodarilo overiť jej odosielateľa, preto jej obrázky zostávajú skryté.
+	These senders' pictures always load, even when a message looks suspicious:	Obrázky od týchto odosielateľov sa načítajú vždy, aj keď správa vyzerá podozrivo:
+	Open a mail file	Otvoriť poštový súbor
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	Zobrazenie uloženej správy (.eml alebo .msg z Outlooku) v samostatnom okne bez pridania do priečinka. Obrázky z webu sa načítajú, len ak o to požiadate, a nič v nej sa nespustí.
+	Nothing is kept: closing it leaves no trace in your mail.	Nič sa neuchováva: po zatvorení nezostane vo vašej pošte žiadna stopa.
+	and {n} more	a ďalšie ({n})
+	Checking for new mail	Kontrola novej pošty
+	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Automaticky prijíma novú poštu hneď, ako server oznámi, že nejaká je, ak to server dokáže; inak sa pozrie každé dve minúty. Pri nastavenom čase sa konto pozrie len vtedy. Odosielaná pošta odchádza okamžite a Odoslať / prijať sa pozrie hneď.
+	Automatically	Automaticky
+	Every {n} minutes	Každých {n} min
+	Calendars and contacts only, with no email (CalDAV and CardDAV)	Len kalendáre a kontakty, bez e-mailu (CalDAV a CardDAV)
+	Calendar and contacts server	Server kalendára a kontaktov
+	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Pre ľubovoľný server CalDAV a CardDAV, ktorý uchováva vaše kalendáre a kontakty, napríklad Nextcloud, Baïkal, SOGo alebo Radicale, bez e-mailu. Heslo sa uchováva v kľúčenke tohto počítača a odosiela sa iba na ten server.
+	Server: {url} (CalDAV and CardDAV)	Server: {url} (CalDAV a CardDAV)
+	Not available: this account has no mail server.	Nedostupné: toto konto nemá poštový server.
+	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Vaša pošta sa preniesla z predchádzajúcej verzie MailCraftu vo formáte Flatpak, ktorá je stále nainštalovaná. Ak ju chcete odstrániť, spustite: flatpak uninstall --delete-data {id}
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	Otvorené zo súboru {file}. Nie je v žiadnom priečinku, obrázky z webu sa načítajú, len ak o to požiadate, a po zatvorení nezostane žiadna stopa.
+	To-Do Bar	Panel úloh
+	Appointments	Udalosti
+	Type a new task	Zadajte novú úlohu
+	Nothing to do	Nič na práci
+	Nothing in the next 7 days	Nič v najbližších 7 dňoch
+	Show the calendar, what's coming up and your tasks beside the mail	Zobraziť kalendár, čo vás čaká, a úlohy vedľa pošty
+	Read / Unread (Ctrl+Q / Ctrl+U)	Prečítané / neprečítané (Ctrl+Q / Ctrl+U)
+	{name} couldn't be downloaded: {error}	{name} sa nepodarilo stiahnuť: {error}
+	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	V okne sa niečo pokazilo a to, čo robilo, sa zastavilo. MailCraft pokračuje; v protokole je uvedené, kde sa to stalo.
+	Font size	Veľkosť písma
+	Repeats every	Interval opakovania
+	On these days	V tieto dni
+	Which day	Ktorý deň
+	Series ends	Séria končí
+	After	Po dosiahnutí
+	Pick a date	Vyberte dátum
+	On day {day}	{day}. deň v mesiaci
+	On {month} {day}	{day}. deň v mesiaci {month}
+	On the {nth} {weekday}	Deň {weekday}, {nth} v mesiaci
+	On the {nth} {weekday} of {month}	Deň {weekday}, {nth} v mesiaci {month}
+interval	days	(dni)
+interval	weeks	(týždne)
+interval	months	(mesiace)
+interval	years	(roky)
+nth	first	prvý
+nth	second	druhý
+nth	third	tretí
+nth	fourth	štvrtý
+nth	last	posledný
+count	occurrences	opakovaní
+	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Obrázky z webu sa tu nezobrazujú. Ak sa vrátite ku kódu HTML bez zmeny tu, zostanú zachované.
+	Messages on a light background	Správy na svetlom pozadí
+	In the dark theme, messages keep the light page and colours they were written in	V tmavom motíve si správy zachovajú svetlú stránku a farby, v ktorých boli napísané
+	Show messages on a light background	Zobrazovať správy na svetlom pozadí
+	Show messages on the dark background	Zobrazovať správy na tmavom pozadí
+	Copy picture	Kopírovať obrázok
+	Save picture as…	Uložiť obrázok ako…
+	The picture couldn't be copied	Obrázok sa nepodarilo skopírovať
+	The picture couldn't be saved	Obrázok sa nepodarilo uložiť
+	Only when I ask	Len na požiadanie
+	Send / Receive on the account looks; Send / Receive for all leaves it out	Odoslať / prijať pre konto ho skontroluje; Odoslať / prijať pre všetky ho vynechá
+	There's no folder to put the PDF in for the viewer	Nie je k dispozícii priečinok, do ktorého by sa PDF uložilo pre prehliadač
+	Trust this mail server's certificate?	Dôverovať certifikátu tohto poštového servera?
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	Za certifikát, ktorý zobrazuje {host}, neručí žiadna autorita, ktorej tento počítač dôveruje. Firemný alebo domáci poštový server si môže vytvoriť vlastný, ale taký môže zobraziť aj niekto medzi vami a serverom. Dôverujte mu, len ak tento odtlačok potvrdí ten, kto server spravuje.
+	Issued to	Vydaný pre
+	Issued by	Vydal
+	Valid	Platný
+	{from} to {until}	{from} až {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	Správca servera vám môže namiesto toho dať certifikát ako súbor: Nastavenia servera › Dôverovať súboru certifikátu…
+	Certificates	Certifikáty
+	Issued by {issuer}	Vydal {issuer}
+	Trusted when asked	Dôveryhodný na požiadanie
+	Stop trusting	Prestať dôverovať
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Autorita, ktorú prevádzkuje vaša organizácia, alebo vlastný certifikát vášho poštového servera (.pem, .crt, .cer)
+	Trust a certificate file…	Dôverovať súboru certifikátu…
+	The certificate is trusted for this account	Certifikát je pre toto konto dôveryhodný
