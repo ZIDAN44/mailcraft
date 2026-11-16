@@ -336,6 +336,31 @@ fn the_classic_ribbon_draws_every_tab() {
     assert!((a.ui.ribbon_rect.unwrap().height() - simplified).abs() < 1.0);
 }
 
+/// Not shown in groups, the list has no headings (Today, Yesterday…) between its messages;
+/// shown in groups again, the headings are back.
+#[test]
+fn the_list_without_groups_has_no_headings() {
+    let (mut a, _) = app("list-no-groups");
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1280.0, 800.0);
+    let headings: Vec<&'static str> =
+        a.session.rows().iter().filter_map(|r| if let mailcraft_engine::Row::Header(h) = r { Some(*h) } else { None }).collect();
+    assert!(headings.len() > 1, "the sample's list has headings: {headings:?}");
+    let drawn_headings = |ctx: &egui::Context, a: &mut MailApp| {
+        let mut drawn = Vec::new();
+        for _ in 0..2 {
+            drawn = drawn_text(ctx, a, size);
+        }
+        drawn.iter().filter(|d| d.seen() && headings.contains(&d.text.as_str())).count()
+    };
+    assert!(drawn_headings(&ctx, &mut a) > 0, "headings are drawn");
+    a.run("view.groups", json!({}));
+    assert!(!a.session.prefs.groups);
+    assert_eq!(drawn_headings(&ctx, &mut a), 0, "no heading is drawn");
+    a.run("view.groups", json!({}));
+    assert!(drawn_headings(&ctx, &mut a) > 0, "headings again");
+}
+
 /// Issue #22: the ribbon's tabs and the search box share the top bar, one row where there were
 /// two, with the ribbon's buttons right under it, as tall on every tab and in every module, in a
 /// wide window, the narrowest and a narrow one; the File page has the window to itself.

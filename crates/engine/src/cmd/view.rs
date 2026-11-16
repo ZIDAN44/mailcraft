@@ -15,6 +15,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"on"?: bool}"#),
         toggle!("view.preview", "Message preview", "View › Messages", show_preview),
         toggle!("view.compact", "Compact list", "View › Layout", compact),
+        toggle!("view.groups", "Show in groups", "View › Arrangement", groups),
         toggle!("view.classicRibbon", "Classic ribbon", "View › Layout", classic_ribbon),
         CommandSpec::new("view.accent", "Accent colour", "File › Options › Personalize", |s, v| {
             let given = p::req_str(v, "color")?;
