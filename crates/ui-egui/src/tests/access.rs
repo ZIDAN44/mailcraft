@@ -231,7 +231,7 @@ fn esc_leaves_a_file_page_field_before_the_page() {
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
-    let tall = egui::vec2(1280.0, 2400.0);
+    let tall = egui::vec2(1280.0, 2800.0);
     let _tall = windows::layout::Dressed::new(tall, "");
     let mut field = None;
     for _ in 0..4 {
