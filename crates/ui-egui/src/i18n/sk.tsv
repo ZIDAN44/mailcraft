@@ -45,6 +45,7 @@
 	Close	Zavrieť
 	Code	Kód
 	Compact	Kompaktné
+	Single line	Jeden riadok
 	Connect	Pripojiť
 	Connecting…	Pripája sa…
 	Conversations	Konverzácie
@@ -401,6 +402,8 @@
 	Change this account's name, servers and sign-in, or its signature.	Zmena názvu tohto konta, serverov a prihlásenia alebo jeho podpisu.
 	Checking with the server…	Overuje sa na serveri…
 	Compact list	Kompaktný zoznam
+	Single-line list	Jednoriadkový zoznam
+	One line a message: the sender, the subject and the time	Jeden riadok na správu: odosielateľ, predmet a čas
 	Don't send automatic replies	Neodosielať automatické odpovede
 	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Každý odosielateľ dostane jednu odpoveď denne, kým sú zapnuté. Sú uložené na vašom poštovom serveri, takže fungujú, aj keď je tento počítač vypnutý.
 	Empty	Vyprázdniť
@@ -633,6 +636,7 @@
 	Arrange by: {field}	Usporiadať podľa: {field}
 	By {field} ⏷	Podľa: {field} ⏷
 	Reverse sort	Obrátiť zoradenie
+	Show in groups	Zobraziť v skupinách
 	Size	Veľkosť
 	Flag status	Stav príznaku
 	Attachments	Prílohy
@@ -1304,6 +1308,8 @@ month	May	máj
 	Your provider's calendar server wasn't found: give its address	Server kalendára vášho poskytovateľa sa nenašiel: zadajte jeho adresu
 	Classic ribbon	Klasický pás s nástrojmi
 	Big buttons with their names under them, in named groups	Veľké tlačidlá s názvami pod nimi, v pomenovaných skupinách
+	Hide the ribbon	Skryť pás s nástrojmi
+	Its tabs stay on the top bar: click one for its buttons, twice to keep them	Jeho karty zostanú v hornom pruhu: kliknutím na kartu zobrazíte jej tlačidlá, dvojitým kliknutím ich ponecháte
 	New	Nové
 	Respond	Odpovedať
 	Tags	Značky

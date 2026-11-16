@@ -12,13 +12,16 @@ on GitHub.
 
 *What testers met in their first days with 0.39.*
 
-Thanks to Peter Páleník for the Slovak translation (#124).
+Thanks to Peter Páleník for the Slovak translation (#124), and to flash7777 for #125–#130.
 
 ### Added
 
 - Slovak as an interface language (#121): **File › Options › General › Language › Slovenčina**, and a Slovak system picks it.
 - Attachments selected together (Ctrl+click, ⌘-click on a Mac) drag out together (#120), onto a folder to save them there or into another app, as **Save Selected** saves them: only the one under the pointer went.
 - Choose how MailCraft signs in to an account's mail servers (#123), under **Server settings** when it's added or changed: **Sign in with**, under each server, Automatic, Password, or NTLM (Secure Password Authentication, as a company's Exchange may ask for it: the password never crosses the network), and for the outgoing server No sign-in. Left on Automatic, a server that offers NTLM and not a password is signed in to with NTLM.
+- The message list can leave out its headings, such as Today and Yesterday (#129): **Show in groups** in the menu of how the list is arranged (By Date ⏷), on as before.
+- The ribbon can be hidden, for more room for mail (#127): **File › Options › General › Hide the ribbon**, Ctrl+F1, or a double click on one of its tabs. The tabs stay on the top bar: a click on one shows its buttons until you click elsewhere.
+- The message list can show a message on one line, as a table's row (#125): the sender, the subject, its markers and the time, so many more fit in the window. **View › Single line**, or **File › Options › Mail › Single-line list**. Its head is one line too: the folder's name, with the filters (All, Unread…) in a menu beside it.
 
 ### Changed
 
@@ -48,9 +51,6 @@ Thanks to Peter Páleník for the Slovak translation (#124).
 - Ctrl+Enter asks before it sends the message you're writing (#115), so a slip of the keys sends nothing unfinished: **Don't ask again** keeps the answer, and **File › Options › Mail › Ctrl+Enter in a message** sets it to ask first, send, or do nothing. Alt+S and Send send as before.
 - MailCraft can start in the notification area (#116): with **File › Options › General › Keep MailCraft running when its window is closed** on, **Start MailCraft in the notification area** starts it there, checking for mail and announcing it with no window coming up (minimized where a window can't be hidden, as on a Mac). Started to open a link or a file, it opens the window.
 - MailCraft's icon in the notification area shows how much unread mail the Inboxes have, in its corner (#117), as the window's title does; **Show the unread mail on its icon** turns that off.
-- The message list can leave out its headings (Today, Yesterday…): **Show in groups** in the menu of how the list is arranged (By Date ⏷), on as before.
-- The ribbon can be hidden, for more room for mail: **File › Options › General › Hide the ribbon**, Ctrl+F1, or a double click on one of its tabs. The tabs stay on the top bar: a click on one shows its buttons until you click elsewhere.
-- The message list can show a message on one line, as a table's row: the sender, the subject, its markers and the time, so many more fit in the window. **View › Single line**, or **File › Options › Mail › Single-line list**. Its head is one line too: the folder's name, with the filters (All, Unread…) in a menu beside it.
 
 ### Removed
 
