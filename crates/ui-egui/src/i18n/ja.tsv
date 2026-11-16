@@ -626,6 +626,12 @@ month	May	5月
 	Remove it from the server after	次の期間後にサーバーから削除:
 	days	日
 	Remove it from the server once it's deleted from Deleted Items	[削除済みアイテム] から削除したらサーバーからも削除する
+	A copy on the server	サーバー上のコピー
+	None: mail is removed from the server once downloaded	なし: ダウンロードしたメールはサーバーから削除されます
+	Kept for {n} days	{n} 日間保存
+	Kept for {n} days, or until deleted from Deleted Items	{n} 日間、または [削除済みアイテム] から削除するまで保存
+	Kept until deleted from Deleted Items	[削除済みアイテム] から削除するまで保存
+	Kept for good	無期限に保存
 	Arrange by: {field}	並べ替え: {field}
 	By {field} ⏷	{field} 順 ⏷
 	Reverse sort	逆順に並べ替え
@@ -670,7 +676,10 @@ month	May	5月
 	Low importance	重要度 - 低
 	Read receipt	開封確認
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	受信者に開封の確認を求めます (受信者のメール アプリが応答しない場合や、確認を求める場合があります)
-	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	IMAP または POP と SMTP、JMAP、Exchange に対応したどのプロバイダーでも使えます。パスワードはこのコンピューターのキーチェーンに保存され、メール サーバーにのみ送信されます。
+	Works with IMAP, POP, JMAP and Exchange. Your password is kept in this computer's keychain and sent only to your mail server.	IMAP、POP、JMAP、Exchange に対応しています。パスワードはこのコンピューターのキーチェーンに保存され、メール サーバーにのみ送信されます。
+	Mail stays on the server and looks the same on every device.	メールはサーバーに残り、どのデバイスでも同じように表示されます。
+	Mail is downloaded to this computer. The server can keep a copy for a while.	メールはこのコンピューターにダウンロードされます。サーバーにしばらくコピーを残すこともできます。
+	A newer way to reach your mail, offered by some providers such as Fastmail.	メールにアクセスする新しい方法で、Fastmail など一部のプロバイダーが提供しています。
 	Run it now on the mail already in the Inbox	受信トレイにあるメールに今すぐ実行する
 	Run on the mail already in the Inbox	受信トレイにあるメールに実行
 	More options	その他のオプション
@@ -965,8 +974,7 @@ month	May	5月
 	Opened by the server for your access to it	アクセス権があるため、サーバーが開いています
 	Shared mailbox {address}, opened by {email}	共有メールボックス {address} ({email} で開いています)
 	The outgoing server has its own user name and password	送信サーバーには独自のユーザー名とパスワードがある
-	Sign in to the incoming server with	受信サーバーへのサインイン方法
-	Sign in to the outgoing server with	送信サーバーへのサインイン方法
+	Sign in with	サインイン方法
 	NTLM (Secure Password Authentication)	NTLM (セキュリティで保護されたパスワード認証)
 	No sign-in	サインインしない
 	Its user name	そのユーザー名
@@ -992,7 +1000,7 @@ month	May	5月
 	Close anyway	閉じる
 	Edit notes	メモを編集
 	Getting them from the server…	サーバーから取得しています…
-	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	メールはサーバーに残り、MailCraft の実行中はメモリにのみ保持されます。このコンピューターには何も書き込まれず、各メッセージは開いたときにダウンロードされます。送信したメールはそのままサーバーに送られます。まだ送信できないメール (オフライン時) だけが待機し、先に MailCraft を閉じるとオフライン中の変更とともに失われます (確認されます)。サーバー上の予定表・連絡先・メモはそのまま残ります。MailCraft にのみ保存されているものは閉じると失われます。
+	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	メッセージは開いたときにダウンロードされ、メモリにのみ保持されます。このコンピューターには何も書き込まれません。オフライン中の変更、送信待ちのメール、MailCraft にのみある予定表、連絡先、メモは、終了時に失われます (先に確認されます)。
 	Mail older than what's kept here is only on the server.	ここに保存されているより古いメールはサーバーにのみあります。
 	Search the server	サーバーを検索
 	Searching the server…	サーバーを検索しています…
@@ -1713,9 +1721,12 @@ month	May	5月
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	自動では、サーバーが通知できる場合は新着メールをすぐに受け取り、できない場合は 2 分ごとに確認します。時間を設定すると、アカウントはそのときだけ確認します。送信するメールはすぐに送られ、送受信はすぐに確認します。
 	Automatically	自動
 	Every {n} minutes	{n} 分ごと
-	Calendars and contacts only, with no email (CalDAV and CardDAV)	予定表と連絡先のみ、メールなし (CalDAV と CardDAV)
+	Only calendars and contacts, with no email?	予定表と連絡先だけで、メールは使いませんか?
+	Add a CalDAV and CardDAV account	CalDAV と CardDAV のアカウントを追加
 	Calendar and contacts server	予定表と連絡先のサーバー
-	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Nextcloud、Baïkal、SOGo、Radicale など、メールなしで予定表と連絡先を保存する CalDAV / CardDAV サーバー用です。パスワードはこのコンピューターのキーチェーンに保存され、そのサーバーにのみ送信されます。
+	Add calendars and contacts	予定表と連絡先を追加
+	For a CalDAV and CardDAV server with no email, such as Nextcloud, Baïkal, SOGo or Radicale. Your password is kept in this computer's keychain and sent only to that server.	メールのない CalDAV と CardDAV のサーバー (Nextcloud、Baïkal、SOGo、Radicale など) 用です。パスワードはこのコンピューターのキーチェーンに保存され、そのサーバーにのみ送信されます。
+	Add an email account instead	代わりにメール アカウントを追加
 	Server: {url} (CalDAV and CardDAV)	サーバー: {url} (CalDAV と CardDAV)
 	Not available: this account has no mail server.	利用できません: このアカウントにはメール サーバーがありません。
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	メールは以前の MailCraft の Flatpak から引き継がれました。そちらはまだインストールされています。削除するには次を実行してください: flatpak uninstall --delete-data {id}

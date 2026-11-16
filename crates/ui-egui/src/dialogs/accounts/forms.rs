@@ -38,6 +38,8 @@ pub struct AccountForm {
     pub pop_keep: PopKeep,
     /// POP: an existing data file (Outlook's `.pst` or MailCraft's own `.mailcraft`) whose mail comes in first.
     pub pst: String,
+    /// Its part of the form opened.
+    pub pst_open: bool,
     /// Keep none of its mail on this computer (issue #4; not for POP). Until it's chosen, as
     /// MailCraft runs: on when portable.
     pub online_only: Option<bool>,
@@ -142,20 +144,26 @@ impl SignInMethods {
         p["smtpSignIn"] = json!(self.outgoing.code());
     }
 
-    pub(crate) fn ui(&mut self, ui: &mut Ui) {
-        ui.add_space(4.0);
-        ui.horizontal(|ui| {
-            ui.label(tl!("Sign in to the incoming server with"));
-            method_combo(ui, "sign-in-incoming", &mut self.incoming, false);
-        });
-        ui.horizontal(|ui| {
-            ui.label(tl!("Sign in to the outgoing server with"));
-            method_combo(ui, "sign-in-outgoing", &mut self.outgoing, true);
-        });
+    /// Under the incoming server's row: how it's signed in to.
+    pub(crate) fn incoming_ui(&mut self, ui: &mut Ui) {
+        method_row(ui, "sign-in-incoming", &mut self.incoming, false);
+    }
+
+    /// Under the outgoing server's row: how it's signed in to, or that it isn't.
+    pub(crate) fn outgoing_ui(&mut self, ui: &mut Ui) {
+        method_row(ui, "sign-in-outgoing", &mut self.outgoing, true);
     }
 }
 
-/// A server's sign-in method; `none` offers No sign-in (the outgoing server's alone).
+/// "Sign in with" and a server's sign-in method; `none` offers No sign-in (the outgoing
+/// server's alone).
+fn method_row(ui: &mut Ui, id: &str, v: &mut SignInMethod, none: bool) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(tl!("Sign in with")).small());
+        method_combo(ui, id, v, none);
+    });
+}
+
 fn method_combo(ui: &mut Ui, id: &str, v: &mut SignInMethod, none: bool) {
     let name = |m: SignInMethod| match m {
         SignInMethod::Automatic => tl!("Automatic"),
@@ -182,12 +190,14 @@ pub struct PopKeep {
     pub for_days: bool,
     pub days: String,
     pub until_deleted: bool,
+    /// Its part of the form opened (closed, a line says what it's set to).
+    pub open: bool,
 }
 
 impl Default for PopKeep {
     /// A copy stays on the server for 14 days.
     fn default() -> Self {
-        PopKeep { keep: true, for_days: true, days: "14".into(), until_deleted: false }
+        PopKeep { keep: true, for_days: true, days: "14".into(), until_deleted: false, open: false }
     }
 }
 
@@ -198,18 +208,45 @@ impl PopKeep {
             for_days: c.pop_keep_days.is_some(),
             days: c.pop_keep_days.unwrap_or(14).to_string(),
             until_deleted: c.pop_delete_with_trash,
+            open: false,
         }
+    }
+
+    /// For how many days a copy is kept (14 when what's typed isn't a number of days).
+    fn days(&self) -> u32 {
+        self.days.trim().parse::<u32>().ok().filter(|d| *d > 0).unwrap_or(14)
     }
 
     /// `popDelete`, `popKeepDays` (0: for good) and `popDeleteWithTrash`.
     pub(crate) fn params(&self, p: &mut serde_json::Value) {
-        let days = if self.keep && self.for_days { self.days.trim().parse::<u32>().ok().filter(|d| *d > 0).unwrap_or(14) } else { 0 };
+        let days = if self.keep && self.for_days { self.days() } else { 0 };
         p["popDelete"] = json!(!self.keep);
         p["popKeepDays"] = json!(days);
         p["popDeleteWithTrash"] = json!(self.keep && self.until_deleted);
     }
 
-    pub(crate) fn ui(&mut self, ui: &mut Ui) {
+    /// What's chosen, in brief, for when its part of the form is closed.
+    fn summary(&self) -> String {
+        match (self.keep, self.for_days, self.until_deleted) {
+            (false, _, _) => tl!("None: mail is removed from the server once downloaded").to_string(),
+            (true, true, false) => tf!("Kept for {n} days", n = self.days()),
+            (true, true, true) => tf!("Kept for {n} days, or until deleted from Deleted Items", n = self.days()),
+            (true, false, true) => tl!("Kept until deleted from Deleted Items").to_string(),
+            (true, false, false) => tl!("Kept for good").to_string(),
+        }
+    }
+
+    /// A part of its own, closed at first: most leave it as it is.
+    pub(crate) fn ui(&mut self, ui: &mut Ui, t: &Tokens) {
+        let summary = self.summary();
+        disclosure(ui, t, &mut self.open, "A copy on the server", Some(&summary));
+        if !self.open {
+            return;
+        }
+        indented(ui, |ui| self.choices(ui));
+    }
+
+    fn choices(&mut self, ui: &mut Ui) {
         ui.checkbox(&mut self.keep, tl!("Keep a copy of downloaded mail on the server"));
         ui.add_enabled_ui(self.keep, |ui| {
             ui.horizontal(|ui| {

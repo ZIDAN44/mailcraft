@@ -623,6 +623,12 @@
 	Remove it from the server after	Van de server verwijderen na
 	days	dagen
 	Remove it from the server once it's deleted from Deleted Items	Van de server verwijderen zodra het uit Verwijderde items is verwijderd
+	A copy on the server	Een kopie op de server
+	None: mail is removed from the server once downloaded	Geen: mail wordt na het downloaden van de server verwijderd
+	Kept for {n} days	{n} dagen bewaard
+	Kept for {n} days, or until deleted from Deleted Items	{n} dagen bewaard, of tot het uit Verwijderde items is verwijderd
+	Kept until deleted from Deleted Items	Bewaard tot het uit Verwijderde items is verwijderd
+	Kept for good	Voorgoed bewaard
 	Arrange by: {field}	Rangschikken op: {field}
 	By {field} ⏷	Op {field} ⏷
 	Reverse sort	Omgekeerd sorteren
@@ -667,7 +673,10 @@
 	Low importance	Lage urgentie
 	Read receipt	Leesbevestiging
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	De ontvangers vragen te bevestigen dat ze het hebben gelezen (hun mail-app doet dat misschien niet, of vraagt het hun)
-	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Werkt met elke provider: IMAP of POP met SMTP, JMAP of Exchange. Je wachtwoord wordt in de sleutelhanger van deze computer bewaard en alleen naar je mailserver verzonden.
+	Works with IMAP, POP, JMAP and Exchange. Your password is kept in this computer's keychain and sent only to your mail server.	Werkt met IMAP, POP, JMAP en Exchange. Je wachtwoord wordt in de sleutelhanger van deze computer bewaard en alleen naar je mailserver verzonden.
+	Mail stays on the server and looks the same on every device.	E-mail blijft op de server en ziet er op elk apparaat hetzelfde uit.
+	Mail is downloaded to this computer. The server can keep a copy for a while.	E-mail wordt naar deze computer gedownload. De server kan een tijdje een kopie bewaren.
+	A newer way to reach your mail, offered by some providers such as Fastmail.	Een nieuwere manier om bij je e-mail te komen, aangeboden door sommige providers zoals Fastmail.
 	Run it now on the mail already in the Inbox	Nu uitvoeren op de mail die al in Postvak IN staat
 	Run on the mail already in the Inbox	Uitvoeren op de mail die al in Postvak IN staat
 	More options	Meer opties
@@ -964,8 +973,7 @@ month	May	mei
 	Opened by the server for your access to it	Door de server geopend omdat u er toegang toe hebt
 	Shared mailbox {address}, opened by {email}	Gedeeld postvak {address}, geopend via {email}
 	The outgoing server has its own user name and password	De server voor uitgaande e-mail heeft een eigen gebruikersnaam en wachtwoord
-	Sign in to the incoming server with	Aanmelden bij de server voor inkomende e-mail met
-	Sign in to the outgoing server with	Aanmelden bij de server voor uitgaande e-mail met
+	Sign in with	Aanmelden met
 	NTLM (Secure Password Authentication)	NTLM (beveiligde wachtwoordverificatie)
 	No sign-in	Zonder aanmelden
 	Its user name	Gebruikersnaam ervan
@@ -991,7 +999,7 @@ month	May	mei
 	Close anyway	Toch sluiten
 	Edit notes	Notities bewerken
 	Getting them from the server…	Ophalen van de server…
-	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	De e-mail blijft op de server en wordt alleen in het geheugen gehouden zolang MailCraft draait: er wordt niets op deze computer geschreven, en elk bericht wordt gedownload wanneer u het opent. E-mail die u verzendt, gaat direct naar de server; alleen e-mail die nog niet kan worden verzonden (offline) wacht, en die gaat samen met offline gemaakte wijzigingen verloren als MailCraft eerder wordt gesloten (u wordt dit gevraagd). Agenda's, contactpersonen en notities op een server blijven daar; die alleen in MailCraft staan, gaan verloren bij het sluiten.
+	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	Berichten worden gedownload als je ze opent en alleen in het geheugen bewaard: er wordt niets op deze computer geschreven. Wijzigingen die je offline maakt, e-mail die nog verzonden moet worden en agenda's, contactpersonen en notities die alleen in MailCraft staan, gaan verloren als het sluit (je wordt eerst gevraagd).
 	Mail older than what's kept here is only on the server.	E-mail die ouder is dan wat hier wordt bewaard, staat alleen op de server.
 	Search the server	Zoeken op de server
 	Searching the server…	Zoeken op de server…
@@ -1712,9 +1720,12 @@ month	May	mei
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Automatisch haalt nieuwe e-mail op zodra de server die meldt, als een server dat kan, en kijkt anders elke twee minuten. Met een vaste tijd kijkt een account alleen dan. Wat je verstuurt gaat meteen weg en Verzenden/ontvangen kijkt direct.
 	Automatically	Automatisch
 	Every {n} minutes	Elke {n} minuten
-	Calendars and contacts only, with no email (CalDAV and CardDAV)	Alleen agenda's en contactpersonen, zonder e-mail (CalDAV en CardDAV)
+	Only calendars and contacts, with no email?	Alleen agenda's en contactpersonen, zonder e-mail?
+	Add a CalDAV and CardDAV account	Een CalDAV- en CardDAV-account toevoegen
 	Calendar and contacts server	Server voor agenda's en contactpersonen
-	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Voor elke CalDAV- en CardDAV-server die je agenda's en contactpersonen bewaart, zoals Nextcloud, Baïkal, SOGo of Radicale, zonder e-mail. Je wachtwoord wordt in de sleutelhanger van deze computer bewaard en alleen naar die server verzonden.
+	Add calendars and contacts	Agenda's en contactpersonen toevoegen
+	For a CalDAV and CardDAV server with no email, such as Nextcloud, Baïkal, SOGo or Radicale. Your password is kept in this computer's keychain and sent only to that server.	Voor een CalDAV- en CardDAV-server zonder e-mail, zoals Nextcloud, Baïkal, SOGo of Radicale. Je wachtwoord wordt in de sleutelhanger van deze computer bewaard en alleen naar die server verzonden.
+	Add an email account instead	In plaats daarvan een e-mailaccount toevoegen
 	Server: {url} (CalDAV and CardDAV)	Server: {url} (CalDAV en CardDAV)
 	Not available: this account has no mail server.	Niet beschikbaar: dit account heeft geen mailserver.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Je e-mail is overgenomen uit de eerdere Flatpak van MailCraft, die nog geïnstalleerd is. Verwijder die met: flatpak uninstall --delete-data {id}

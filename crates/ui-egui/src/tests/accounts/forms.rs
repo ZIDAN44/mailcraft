@@ -53,8 +53,8 @@ fn params(d: &Dialog) -> serde_json::Value {
     }
 }
 
-/// The dialog drawn alone (twice: a dialog just opened is measured first), then, when `click`
-/// names a text it drew, clicked there.
+/// The dialog drawn alone (three times: a dialog just opened is measured first, then centred by
+/// that size, then by its own), then, when `click` names a text it drew, clicked there.
 fn look(s: &Session, d: &mut Dialog, click: Option<&str>) -> Look {
     let ctx = egui::Context::default();
     let t = crate::theme::Tokens::light();
@@ -69,16 +69,24 @@ fn look(s: &Session, d: &mut Dialog, click: Option<&str>) -> Look {
         texts_in(&out.shapes).into_iter().map(|d| (d.text, d.rect)).collect::<Vec<_>>()
     };
     run(d, vec![], &mut acts);
-    let texts = run(d, vec![], &mut acts);
-    let shown = Look { texts, acts: acts.iter().map(act_text).collect(), params: params(d) };
-    let Some(what) = click else { return shown };
-    let at = shown.texts.iter().find(|(x, _)| x == what).map(|(_, r)| r.center()).unwrap_or_else(|| panic!("no {what:?}:\n{}", shown.dump()));
-    let press = |pressed| Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
-    run(d, vec![Event::PointerMoved(at)], &mut acts);
-    run(d, vec![press(true)], &mut acts);
-    run(d, vec![press(false)], &mut acts);
-    let after = run(d, vec![], &mut acts);
-    Look { texts: after, acts: acts.iter().map(act_text).collect(), params: params(d) }
+    run(d, vec![], &mut acts);
+    let mut texts = run(d, vec![], &mut acts);
+    // Each text in turn, "a › b" for b in what clicking a showed (a list's choice).
+    for what in click.into_iter().flat_map(|c| c.split(" › ")) {
+        // Near the text's right end: a link wrapped after other words is laid out from the row's
+        // start, so the middle of its text's box can be on the words before it.
+        let at = texts.iter().rev().find(|(x, _)| x == what).map(|(_, r)| r.right_center() - egui::vec2(6.0, 0.0)).unwrap_or_else(|| {
+            panic!("no {what:?}:\n{}", Look { texts: texts.clone(), acts: acts.iter().map(act_text).collect(), params: params(d) }.dump())
+        });
+        let press = |pressed| Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        run(d, vec![Event::PointerMoved(at)], &mut acts);
+        run(d, vec![press(true)], &mut acts);
+        run(d, vec![press(false)], &mut acts);
+        // Twice: a list just opened is measured first, unseen.
+        run(d, vec![], &mut acts);
+        texts = run(d, vec![], &mut acts);
+    }
+    Look { texts, acts: acts.iter().map(act_text).collect(), params: params(d) }
 }
 
 fn session() -> Session {
@@ -222,9 +230,11 @@ fn cases() -> Vec<Case> {
                 f.imap_host = "imap.mail.example.org".into();
                 f.pop_host.clear();
             }),
-            Some("POP and SMTP"),
+            Some("IMAP and SMTP › POP and SMTP"),
         ),
-        ("pop, switched to jmap", plain(), add("zoe@example.org", true, |f| f.kind = AccountKind::Pop), Some("JMAP")),
+        ("pop, switched to jmap", plain(), add("zoe@example.org", true, |f| f.kind = AccountKind::Pop), Some("POP and SMTP › JMAP")),
+        ("pop, copy on the server opened", plain(), add("zoe@example.org", true, |f| f.kind = AccountKind::Pop), Some("A copy on the server")),
+        ("pop, data file opened", plain(), add("zoe@example.org", true, |f| f.kind = AccountKind::Pop), Some("Existing data file (optional)")),
         (
             "jmap",
             plain(),
@@ -282,6 +292,7 @@ fn cases() -> Vec<Case> {
         ("outlook.com over ews", with_oauth(), add("ana@outlook.com", false, |f| f.kind = AccountKind::Ews), None),
         ("in the browser", browser(), add("zoe@fastmail.example", false, |_| {}), None),
         ("portable", portable(), add("zoe@example.org", false, |_| {}), Some("Connect")),
+        ("to calendars only", plain(), add("zoe@example.org", false, |_| {}), Some("Add a CalDAV and CardDAV account")),
         (
             "calendars and contacts only",
             plain(),
@@ -300,7 +311,7 @@ fn cases() -> Vec<Case> {
                 f.kind = AccountKind::Pop;
                 f.calendar_only = true;
             }),
-            Some("Calendars and contacts only, with no email (CalDAV and CardDAV)"),
+            Some("Add an email account instead"),
         ),
         (
             "edit imap",
@@ -377,19 +388,23 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
         }
     };
     let clear = "Without encryption your password travels in the clear. Use only for local test servers.";
-    let imap_rows = [
-        "Incoming mail (IMAP)",
-        "Outgoing mail (SMTP)",
-        "User name",
-        "mail.example.org",
-        "993",
-        "465",
-        "Sign in to the incoming server with",
-        "Sign in to the outgoing server with",
-    ];
+    let imap_rows = ["Incoming mail (IMAP)", "Outgoing mail (SMTP)", "User name", "mail.example.org", "993", "465", "Sign in with"];
     rows("imap", &imap_rows, &["Incoming mail (POP)", clear, "JMAP session address"]);
     rows("imap in the clear", &[clear, "None (unsafe)", "STARTTLS"], &[]);
-    rows("pop", &["Incoming mail (POP)", "Outgoing mail (SMTP)", "Existing data file (optional)", "Browse…", clear], &["Incoming mail (IMAP)"]);
+    rows("pop", &["Incoming mail (POP)", "Outgoing mail (SMTP)", clear], &["Incoming mail (IMAP)"]);
+    // What most leave as it is, POP's copy on the server and a data file to start from, in parts
+    // of their own, closed, saying what they're set to; opened, their choices.
+    let copy = "Keep a copy of downloaded mail on the server";
+    let pst_hint = "Mail from an old .pst or .mailcraft file comes in first";
+    rows(
+        "pop",
+        &["A copy on the server", "Kept for 30 days, or until deleted from Deleted Items", "Existing data file (optional)", "C:/Mail/old.pst"],
+        &[copy, "Browse…", pst_hint],
+    );
+    rows("pop, copy on the server opened", &[copy, "Remove it from the server after"], &["Browse…"]);
+    rows("pop, data file opened", &["Browse…", "Kept for 14 days"], &[copy]);
+    // The kind of server is a list: closed, only the one chosen shows.
+    rows("imap", &["Mail server", "IMAP and SMTP"], &["POP and SMTP", "Exchange server (EWS)"]);
     rows("jmap", &["JMAP session address", "User name"], &["Outgoing mail (SMTP)", "Incoming mail (IMAP)"]);
     rows("graph", &["Sign in with Microsoft"], &["Password", "User name", "Outgoing mail (SMTP)"]);
     rows("graph, no Microsoft sign-in", &["Exchange (Microsoft 365)", "Signing in with Microsoft isn't set up in this copy of MailCraft."], &[]);
@@ -405,24 +420,34 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
     rows("imap, settings found", &["Settings found: the provider", "imap.provider.example", "out.example.org", "587"], &[]);
     rows("pop, settings found", &["pop3.example.org", "110", "zoe.park"], &[]);
     rows("looking the settings up", &["Looking up the server settings…"], &[]);
-    rows("calendars and contacts only", &["Calendar and contacts server"], &["Server settings"]);
+    rows(
+        "calendars and contacts only",
+        &["Add calendars and contacts", "Calendar and contacts server", "Add an email account instead"],
+        &["Server settings"],
+    );
+    rows("to calendars only", &["Add calendars and contacts", "Calendar and contacts server"], &["Add an email account", "Server settings"]);
+    // The way to calendars alone is offered under the email account's form, not before it.
+    rows("imap, settings closed", &["Only calendars and contacts, with no email?", "Add a CalDAV and CardDAV account"], &[]);
+    // Each kind says what it is; Microsoft 365 has no servers to look up, so nothing is said of that.
+    rows("imap", &["Mail stays on the server and looks the same on every device."], &[]);
+    rows("pop", &["Mail is downloaded to this computer. The server can keep a copy for a while."], &[]);
+    rows("jmap", &["A newer way to reach your mail, offered by some providers such as Fastmail."], &[]);
+    rows("graph", &[], &["Connect", "No published settings: the usual server names are filled in. Check them under Server settings."]);
     rows("back from calendars only", &["Incoming mail (POP)"], &["Calendar and contacts server"]);
     rows("outlook.com", &["Sign in with Microsoft"], &["Password"]);
     rows("outlook.com over ews", &["Password", "Sign in with Microsoft"], &[]);
     rows("in the browser", &["JMAP session address"], &["Server settings", "IMAP and SMTP"]);
     rows("edit imap", &imap_rows, &["JMAP session address"]);
-    rows("edit imap", &[clear, "The outgoing server has its own user name and password", "out"], &[]);
+    // No sign-in for sending (#123): its own user name for that has nothing to do, and isn't shown.
+    rows("edit imap", &[clear], &["The outgoing server has its own user name and password"]);
+    rows("edit pop", &["The outgoing server has its own user name and password", "out"], &[]);
     rows("edit imap", &["NTLM (Secure Password Authentication)", "No sign-in"], &["Automatic"]);
     rows("imap", &["Automatic"], &["NTLM (Secure Password Authentication)", "No sign-in"]);
     // Signed in through the browser: no password, so no way to sign in with one to choose.
-    rows(
-        "edit imap signed in with google",
-        &["Outgoing mail (SMTP)"],
-        &["Sign in to the incoming server with", "Sign in to the outgoing server with"],
-    );
+    rows("edit imap signed in with google", &["Outgoing mail (SMTP)"], &["Sign in with"]);
     rows("edit imap, switched to jmap", &["JMAP session address"], &["Incoming mail (IMAP)", "Outgoing mail (SMTP)"]);
     rows("edit jmap, switched to imap", &["Incoming mail (IMAP)", "Outgoing mail (SMTP)"], &["JMAP session address"]);
-    rows("edit pop", &["Incoming mail (POP)", "Outgoing mail (SMTP)", "pop.example.org", "Keep a copy of downloaded mail on the server"], &[clear]);
+    rows("edit pop", &["Incoming mail (POP)", "Outgoing mail (SMTP)", "pop.example.org", "A copy on the server", "Kept for 7 days"], &[clear, copy]);
     // A POP account's servers without encryption are warned of, as when it was added.
     rows("edit pop in the clear", &[clear], &[]);
     rows("edit pop, sending in the clear", &[clear], &[]);
@@ -439,7 +464,7 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
         (id.to_string(), serde_json::from_str::<serde_json::Value>(v).unwrap())
     };
     // The settings are looked up as the server settings are open (once a frame, until found).
-    assert_eq!(acts("imap in the clear"), vec![r#"run account.discover {"email":"zoe@example.org"}"#; 2]);
+    assert_eq!(acts("imap in the clear"), vec![r#"run account.discover {"email":"zoe@example.org"}"#; 3]);
     assert_eq!(
         submitted("imap"),
         (

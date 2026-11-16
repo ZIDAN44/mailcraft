@@ -624,6 +624,12 @@
 	Remove it from the server after	Quitarla del servidor después de
 	days	días
 	Remove it from the server once it's deleted from Deleted Items	Quitarla del servidor cuando se elimine de Elementos eliminados
+	A copy on the server	Una copia en el servidor
+	None: mail is removed from the server once downloaded	Ninguna: el correo se quita del servidor al descargarlo
+	Kept for {n} days	Se conserva {n} días
+	Kept for {n} days, or until deleted from Deleted Items	Se conserva {n} días, o hasta que se elimine de Elementos eliminados
+	Kept until deleted from Deleted Items	Se conserva hasta que se elimine de Elementos eliminados
+	Kept for good	Se conserva siempre
 	Arrange by: {field}	Organizar por: {field}
 	By {field} ⏷	Por {field} ⏷
 	Reverse sort	Invertir orden
@@ -668,7 +674,10 @@
 	Low importance	Importancia baja
 	Read receipt	Confirmación de lectura
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Pedir a los destinatarios que confirmen que lo han leído (puede que su aplicación de correo no lo haga, o que les pregunte)
-	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Funciona con cualquier proveedor: IMAP o POP con SMTP, JMAP o Exchange. Tu contraseña se guarda en el llavero de este equipo y solo se envía a tu servidor de correo.
+	Works with IMAP, POP, JMAP and Exchange. Your password is kept in this computer's keychain and sent only to your mail server.	Funciona con IMAP, POP, JMAP y Exchange. Tu contraseña se guarda en el llavero de este equipo y solo se envía a tu servidor de correo.
+	Mail stays on the server and looks the same on every device.	El correo se queda en el servidor y se ve igual en todos tus dispositivos.
+	Mail is downloaded to this computer. The server can keep a copy for a while.	El correo se descarga en este equipo. El servidor puede guardar una copia durante un tiempo.
+	A newer way to reach your mail, offered by some providers such as Fastmail.	Una forma más nueva de acceder a tu correo, que ofrecen algunos proveedores como Fastmail.
 	Run it now on the mail already in the Inbox	Ejecutarla ahora en el correo que ya está en la Bandeja de entrada
 	Run on the mail already in the Inbox	Ejecutar en el correo que ya está en la Bandeja de entrada
 	More options	Más opciones
@@ -969,8 +978,7 @@ month	May	mayo
 	Opened by the server for your access to it	Lo abre el servidor porque tienes acceso
 	Shared mailbox {address}, opened by {email}	Buzón compartido {address}, abierto por {email}
 	The outgoing server has its own user name and password	El servidor de salida tiene su propio nombre de usuario y contraseña
-	Sign in to the incoming server with	Iniciar sesión en el servidor de entrada con
-	Sign in to the outgoing server with	Iniciar sesión en el servidor de salida con
+	Sign in with	Iniciar sesión con
 	NTLM (Secure Password Authentication)	NTLM (autenticación segura de contraseña)
 	No sign-in	Sin iniciar sesión
 	Its user name	Su nombre de usuario
@@ -996,7 +1004,7 @@ month	May	mayo
 	Close anyway	Cerrar de todos modos
 	Edit notes	Editar notas
 	Getting them from the server…	Obteniéndolos del servidor…
-	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	Su correo permanece en el servidor y solo se mantiene en memoria mientras MailCraft está abierto: no se escribe nada en este equipo, y cada mensaje se descarga al abrirlo. El correo que envías va directamente al servidor; solo espera el que aún no puede enviarse (sin conexión), y se pierde junto con los cambios hechos sin conexión si MailCraft se cierra antes (se te pregunta). Los calendarios, contactos y notas de un servidor permanecen allí; los guardados solo en MailCraft se pierden al cerrarlo.
+	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	Los mensajes se descargan al abrirlos y solo se guardan en memoria: no se escribe nada en este equipo. Los cambios hechos sin conexión, el correo pendiente de enviar y los calendarios, contactos y notas que solo están en MailCraft se pierden al cerrarlo (se te pregunta antes).
 	Mail older than what's kept here is only on the server.	El correo más antiguo que el guardado aquí solo está en el servidor.
 	Search the server	Buscar en el servidor
 	Searching the server…	Buscando en el servidor…
@@ -1717,9 +1725,12 @@ month	May	mayo
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Automáticamente recibe el correo nuevo en cuanto el servidor lo indica, si puede hacerlo, y si no, busca cada dos minutos. Con una hora fijada, la cuenta solo busca entonces. Lo que envías sale al momento, y Enviar y recibir busca enseguida.
 	Automatically	Automáticamente
 	Every {n} minutes	Cada {n} minutos
-	Calendars and contacts only, with no email (CalDAV and CardDAV)	Solo calendarios y contactos, sin correo (CalDAV y CardDAV)
+	Only calendars and contacts, with no email?	¿Solo calendarios y contactos, sin correo?
+	Add a CalDAV and CardDAV account	Agregar una cuenta de CalDAV y CardDAV
 	Calendar and contacts server	Servidor de calendarios y contactos
-	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Para cualquier servidor CalDAV y CardDAV que guarde tus calendarios y contactos, como Nextcloud, Baïkal, SOGo o Radicale, sin correo. Tu contraseña se guarda en el llavero de este equipo y solo se envía a ese servidor.
+	Add calendars and contacts	Agregar calendarios y contactos
+	For a CalDAV and CardDAV server with no email, such as Nextcloud, Baïkal, SOGo or Radicale. Your password is kept in this computer's keychain and sent only to that server.	Para un servidor CalDAV y CardDAV sin correo, como Nextcloud, Baïkal, SOGo o Radicale. Tu contraseña se guarda en el llavero de este equipo y solo se envía a ese servidor.
+	Add an email account instead	Agregar una cuenta de correo en su lugar
 	Server: {url} (CalDAV and CardDAV)	Servidor: {url} (CalDAV y CardDAV)
 	Not available: this account has no mail server.	No disponible: esta cuenta no tiene servidor de correo.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Tu correo se ha traído del Flatpak anterior de MailCraft, que sigue instalado. Para quitarlo, ejecuta: flatpak uninstall --delete-data {id}

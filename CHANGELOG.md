@@ -15,7 +15,11 @@ on GitHub.
 ### Added
 
 - Attachments selected together (Ctrl+click, ⌘-click on a Mac) drag out together (#120), onto a folder to save them there or into another app, as **Save Selected** saves them: only the one under the pointer went.
-- Choose how MailCraft signs in to an account's mail servers (#123), under **Server settings** when it's added or changed: **Sign in to the incoming server with** and **Sign in to the outgoing server with** Automatic, Password, or NTLM (Secure Password Authentication, as a company's Exchange may ask for it: the password never crosses the network), and for the outgoing server No sign-in. Left on Automatic, a server that offers NTLM and not a password is signed in to with NTLM.
+- Choose how MailCraft signs in to an account's mail servers (#123), under **Server settings** when it's added or changed: **Sign in with**, under each server, Automatic, Password, or NTLM (Secure Password Authentication, as a company's Exchange may ask for it: the password never crosses the network), and for the outgoing server No sign-in. Left on Automatic, a server that offers NTLM and not a password is signed in to with NTLM.
+
+### Changed
+
+- **Add an email account** is shorter and says more: what it works with and where your password goes, at the top; **Server settings** folds away, naming the servers it found; opened, the kind of mail server is picked from a list, with a line saying what each is, and a POP account's copy on the server and data file to start from fold away too, saying what they're set to; an Exchange (Microsoft 365) or Outlook.com account goes on with **Sign in with Microsoft**, its only way in; and an account for calendars and contacts alone is a link under the form, to a form of its own. **Server settings** for an account already added are laid out the same way, each server and how it's signed in to.
 
 ### Fixed
 

@@ -625,6 +625,12 @@ month	May	مايو
 	Remove it from the server after	إزالتها من الخادم بعد
 	days	يومًا
 	Remove it from the server once it's deleted from Deleted Items	إزالتها من الخادم بعد حذفها من «العناصر المحذوفة»
+	A copy on the server	نسخة على الخادم
+	None: mail is removed from the server once downloaded	لا شيء: يُزال البريد من الخادم بعد تنزيله
+	Kept for {n} days	تُحفظ لمدة {n} يومًا
+	Kept for {n} days, or until deleted from Deleted Items	تُحفظ لمدة {n} يومًا، أو حتى حذفها من «العناصر المحذوفة»
+	Kept until deleted from Deleted Items	تُحفظ حتى حذفها من «العناصر المحذوفة»
+	Kept for good	تُحفظ دائمًا
 	Arrange by: {field}	ترتيب حسب: {field}
 	By {field} ⏷	حسب {field} ⏷
 	Reverse sort	عكس الترتيب
@@ -669,7 +675,10 @@ month	May	مايو
 	Low importance	أهمية منخفضة
 	Read receipt	إيصال القراءة
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	اطلب من المستلمين تأكيد قراءتها (قد لا يفعل تطبيق البريد لديهم ذلك، أو قد يسألهم)
-	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	يعمل مع أي مزوّد: IMAP أو POP مع SMTP، أو JMAP، أو Exchange. تُحفظ كلمة مرورك في سلسلة مفاتيح هذا الكمبيوتر ولا تُرسل إلا إلى خادم بريدك.
+	Works with IMAP, POP, JMAP and Exchange. Your password is kept in this computer's keychain and sent only to your mail server.	يعمل مع IMAP وPOP وJMAP وExchange. تُحفظ كلمة مرورك في سلسلة مفاتيح هذا الكمبيوتر ولا تُرسل إلا إلى خادم بريدك.
+	Mail stays on the server and looks the same on every device.	يبقى البريد على الخادم ويظهر بالشكل نفسه على كل جهاز.
+	Mail is downloaded to this computer. The server can keep a copy for a while.	يُنزَّل البريد إلى هذا الكمبيوتر. يمكن للخادم الاحتفاظ بنسخة منه لفترة.
+	A newer way to reach your mail, offered by some providers such as Fastmail.	طريقة أحدث للوصول إلى بريدك، يقدّمها بعض المزوّدين مثل Fastmail.
 	Run it now on the mail already in the Inbox	تشغيلها الآن على البريد الموجود في «علبة الوارد»
 	Run on the mail already in the Inbox	تشغيل على البريد الموجود في «علبة الوارد»
 	More options	خيارات أخرى
@@ -964,8 +973,7 @@ month	May	مايو
 	Opened by the server for your access to it	يفتحه الخادم لأن لديك حق الوصول إليه
 	Shared mailbox {address}, opened by {email}	صندوق البريد المشترك {address}، يفتحه {email}
 	The outgoing server has its own user name and password	لخادم البريد الصادر اسم مستخدم وكلمة مرور خاصان به
-	Sign in to the incoming server with	تسجيل الدخول إلى خادم البريد الوارد باستخدام
-	Sign in to the outgoing server with	تسجيل الدخول إلى خادم البريد الصادر باستخدام
+	Sign in with	تسجيل الدخول باستخدام
 	NTLM (Secure Password Authentication)	NTLM (مصادقة كلمة المرور الآمنة)
 	No sign-in	بدون تسجيل دخول
 	Its user name	اسم المستخدم الخاص به
@@ -991,7 +999,7 @@ month	May	مايو
 	Close anyway	إغلاق على أي حال
 	Edit notes	تحرير الملاحظات
 	Getting them from the server…	جارٍ جلبها من الخادم…
-	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	يبقى بريده على الخادم ويُحتفظ به في الذاكرة فقط أثناء تشغيل MailCraft: لا يُكتب منه شيء على هذا الكمبيوتر، وتُنزَّل كل رسالة عند فتحها. يذهب البريد الذي ترسله إلى الخادم مباشرة؛ ولا ينتظر إلا البريد الذي لا يمكن إرساله بعد (دون اتصال)، ويضيع مع التغييرات التي أُجريت دون اتصال إذا أُغلق MailCraft قبل ذلك (وستُسأل). تبقى التقويمات وجهات الاتصال والملاحظات الموجودة على خادم هناك؛ أما المحفوظة في MailCraft فقط فتضيع عند إغلاقه.
+	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	تُنزَّل الرسائل عند فتحها وتُحفظ في الذاكرة فقط: لا يُكتب شيء على هذا الكمبيوتر. التغييرات التي تُجرى دون اتصال، والبريد الذي ينتظر الإرسال، والتقويمات وجهات الاتصال والملاحظات المحفوظة في MailCraft وحده تضيع عند إغلاقه (يُسأل عن ذلك أولًا).
 	Mail older than what's kept here is only on the server.	البريد الأقدم مما يُحتفظ به هنا موجود على الخادم فقط.
 	Search the server	البحث في الخادم
 	Searching the server…	جارٍ البحث في الخادم…
@@ -1712,9 +1720,12 @@ month	May	مايو
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	تلقائيًا: يصل البريد الجديد فور إبلاغ الخادم عنه إن كان قادرًا على ذلك، وإلا يتم التحقق كل دقيقتين. عند تحديد وقت، لا يتحقق الحساب إلا حينها. ما ترسله يخرج فورًا، و«إرسال/تلقي» يتحقق في الحال.
 	Automatically	تلقائيًا
 	Every {n} minutes	كل {n} دقيقة
-	Calendars and contacts only, with no email (CalDAV and CardDAV)	التقويمات وجهات الاتصال فقط، دون بريد إلكتروني (CalDAV وCardDAV)
+	Only calendars and contacts, with no email?	تقويمات وجهات اتصال فقط، دون بريد إلكتروني؟
+	Add a CalDAV and CardDAV account	إضافة حساب CalDAV وCardDAV
 	Calendar and contacts server	خادم التقويمات وجهات الاتصال
-	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	لأي خادم CalDAV وCardDAV يحفظ تقويماتك وجهات اتصالك، مثل Nextcloud أو Baïkal أو SOGo أو Radicale، دون بريد إلكتروني. تُحفظ كلمة مرورك في سلسلة مفاتيح هذا الكمبيوتر ولا تُرسل إلا إلى ذلك الخادم.
+	Add calendars and contacts	إضافة تقويمات وجهات اتصال
+	For a CalDAV and CardDAV server with no email, such as Nextcloud, Baïkal, SOGo or Radicale. Your password is kept in this computer's keychain and sent only to that server.	لخادم CalDAV وCardDAV دون بريد إلكتروني، مثل Nextcloud أو Baïkal أو SOGo أو Radicale. تُحفظ كلمة مرورك في سلسلة مفاتيح هذا الكمبيوتر ولا تُرسل إلا إلى ذلك الخادم.
+	Add an email account instead	إضافة حساب بريد إلكتروني بدلًا من ذلك
 	Server: {url} (CalDAV and CardDAV)	الخادم: {url} (CalDAV وCardDAV)
 	Not available: this account has no mail server.	غير متاح: هذا الحساب بلا خادم بريد.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	انتقل بريدك من إصدار Flatpak السابق من MailCraft، وهو لا يزال مثبتًا. لإزالته، شغّل: flatpak uninstall --delete-data {id}

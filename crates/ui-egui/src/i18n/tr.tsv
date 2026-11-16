@@ -624,6 +624,12 @@
 	Remove it from the server after	Şu süreden sonra sunucudan kaldır
 	days	gün
 	Remove it from the server once it's deleted from Deleted Items	Silinmiş Öğeler'den silindiğinde sunucudan kaldır
+	A copy on the server	Sunucudaki kopya
+	None: mail is removed from the server once downloaded	Yok: posta indirildikten sonra sunucudan kaldırılır
+	Kept for {n} days	{n} gün tutulur
+	Kept for {n} days, or until deleted from Deleted Items	{n} gün ya da Silinmiş Öğeler'den silinene kadar tutulur
+	Kept until deleted from Deleted Items	Silinmiş Öğeler'den silinene kadar tutulur
+	Kept for good	Hep tutulur
 	Arrange by: {field}	Sıralama: {field}
 	By {field} ⏷	Sıralama: {field} ⏷
 	Reverse sort	Sıralamayı ters çevir
@@ -668,7 +674,10 @@
 	Low importance	Düşük önem
 	Read receipt	Okundu bilgisi
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Alıcılardan okuduklarını onaylamalarını iste (posta uygulamaları bunu yapmayabilir veya onlara sorabilir)
-	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	Her sağlayıcıyla çalışır: SMTP ile IMAP veya POP, JMAP ya da Exchange. Parolanız bu bilgisayarın anahtarlığında tutulur ve yalnızca posta sunucunuza gönderilir.
+	Works with IMAP, POP, JMAP and Exchange. Your password is kept in this computer's keychain and sent only to your mail server.	IMAP, POP, JMAP ve Exchange ile çalışır. Parolanız bu bilgisayarın anahtarlığında tutulur ve yalnızca posta sunucunuza gönderilir.
+	Mail stays on the server and looks the same on every device.	Postalar sunucuda kalır ve her cihazda aynı görünür.
+	Mail is downloaded to this computer. The server can keep a copy for a while.	Postalar bu bilgisayara indirilir. Sunucu bir süre kopyasını tutabilir.
+	A newer way to reach your mail, offered by some providers such as Fastmail.	Postalarınıza ulaşmanın daha yeni bir yolu; Fastmail gibi bazı sağlayıcılar sunar.
 	Run it now on the mail already in the Inbox	Gelen Kutusundaki mevcut postalarda şimdi çalıştır
 	Run on the mail already in the Inbox	Gelen Kutusundaki mevcut postalarda çalıştır
 	More options	Diğer seçenekler
@@ -969,8 +978,7 @@ month	May	Mayıs
 	Opened by the server for your access to it	Erişiminiz olduğu için sunucu tarafından açıldı
 	Shared mailbox {address}, opened by {email}	Paylaşılan posta kutusu {address}, {email} üzerinden açıldı
 	The outgoing server has its own user name and password	Giden sunucunun kendi kullanıcı adı ve parolası var
-	Sign in to the incoming server with	Gelen sunucuda oturum açma yöntemi
-	Sign in to the outgoing server with	Giden sunucuda oturum açma yöntemi
+	Sign in with	Oturum açma yöntemi
 	NTLM (Secure Password Authentication)	NTLM (Güvenli Parola Kimlik Doğrulaması)
 	No sign-in	Oturum açmadan
 	Its user name	Kullanıcı adı
@@ -996,7 +1004,7 @@ month	May	Mayıs
 	Close anyway	Yine de kapat
 	Edit notes	Notları düzenle
 	Getting them from the server…	Sunucudan alınıyor…
-	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	Postaları sunucuda kalır ve yalnızca MailCraft çalışırken bellekte tutulur: hiçbiri bu bilgisayara yazılmaz ve her ileti açtığınızda indirilir. Gönderdiğiniz postalar doğrudan sunucuya gider; yalnızca henüz gidemeyen postalar (çevrimdışıyken) bekler ve MailCraft önce kapanırsa çevrimdışı yapılan değişikliklerle birlikte kaybolur (size sorulur). Bir sunucudaki takvimler, kişiler ve notlar orada kalır; yalnızca MailCraft'ta tutulanlar kapandığında kaybolur.
+	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	İletiler açtığınızda indirilir ve yalnızca bellekte tutulur: bu bilgisayara hiçbir şey yazılmaz. Çevrimdışıyken yapılan değişiklikler, gönderilmeyi bekleyen postalar ve yalnızca MailCraft'ta duran takvimler, kişiler ve notlar kapatıldığında kaybolur (önce size sorulur).
 	Mail older than what's kept here is only on the server.	Burada tutulandan daha eski postalar yalnızca sunucudadır.
 	Search the server	Sunucuda ara
 	Searching the server…	Sunucuda aranıyor…
@@ -1717,9 +1725,12 @@ month	May	Mayıs
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Otomatik: sunucu bildirebiliyorsa yeni posta bildirildiği anda gelir, aksi halde iki dakikada bir bakılır. Belirli bir süre seçildiğinde hesap yalnızca o zaman bakar. Gönderdikleriniz hemen gider, Gönder/Al ise hemen bakar.
 	Automatically	Otomatik
 	Every {n} minutes	Her {n} dakikada
-	Calendars and contacts only, with no email (CalDAV and CardDAV)	Yalnızca takvimler ve kişiler, e-posta olmadan (CalDAV ve CardDAV)
+	Only calendars and contacts, with no email?	Yalnızca takvimler ve kişiler mi, e-posta olmadan?
+	Add a CalDAV and CardDAV account	CalDAV ve CardDAV hesabı ekle
 	Calendar and contacts server	Takvim ve kişi sunucusu
-	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	Nextcloud, Baïkal, SOGo veya Radicale gibi, takvimlerinizi ve kişilerinizi e-posta olmadan tutan her CalDAV ve CardDAV sunucusu için. Parolanız bu bilgisayarın anahtarlığında tutulur ve yalnızca o sunucuya gönderilir.
+	Add calendars and contacts	Takvim ve kişi ekle
+	For a CalDAV and CardDAV server with no email, such as Nextcloud, Baïkal, SOGo or Radicale. Your password is kept in this computer's keychain and sent only to that server.	E-postası olmayan bir CalDAV ve CardDAV sunucusu için; örneğin Nextcloud, Baïkal, SOGo veya Radicale. Parolanız bu bilgisayarın anahtarlığında tutulur ve yalnızca o sunucuya gönderilir.
+	Add an email account instead	Bunun yerine e-posta hesabı ekle
 	Server: {url} (CalDAV and CardDAV)	Sunucu: {url} (CalDAV ve CardDAV)
 	Not available: this account has no mail server.	Kullanılamıyor: bu hesabın posta sunucusu yok.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	Postanız MailCraft'ın önceki Flatpak'ından taşındı; o hâlâ yüklü. Kaldırmak için şunu çalıştırın: flatpak uninstall --delete-data {id}

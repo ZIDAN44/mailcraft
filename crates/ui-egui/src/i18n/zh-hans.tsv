@@ -626,6 +626,12 @@ month	May	5月
 	Remove it from the server after	在以下天数后从服务器删除：
 	days	天
 	Remove it from the server once it's deleted from Deleted Items	从“已删除邮件”中删除后，也从服务器删除
+	A copy on the server	服务器上的副本
+	None: mail is removed from the server once downloaded	无：邮件下载后即从服务器删除
+	Kept for {n} days	保留 {n} 天
+	Kept for {n} days, or until deleted from Deleted Items	保留 {n} 天，或直到从“已删除邮件”中删除
+	Kept until deleted from Deleted Items	保留到从“已删除邮件”中删除为止
+	Kept for good	一直保留
 	Arrange by: {field}	排列方式：{field}
 	By {field} ⏷	按{field} ⏷
 	Reverse sort	反向排序
@@ -670,7 +676,10 @@ month	May	5月
 	Low importance	重要性 - 低
 	Read receipt	已读回执
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	请收件人确认已读（对方的邮件应用可能不发送，或会询问对方）
-	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	适用于任何提供商：IMAP 或 POP 加 SMTP、JMAP 或 Exchange。密码保存在这台电脑的钥匙串中，只会发送到你的邮件服务器。
+	Works with IMAP, POP, JMAP and Exchange. Your password is kept in this computer's keychain and sent only to your mail server.	适用于 IMAP、POP、JMAP 和 Exchange。密码保存在这台电脑的钥匙串中，只会发送到你的邮件服务器。
+	Mail stays on the server and looks the same on every device.	邮件保留在服务器上，在每台设备上都一样。
+	Mail is downloaded to this computer. The server can keep a copy for a while.	邮件会下载到这台电脑。服务器可以保留一段时间的副本。
+	A newer way to reach your mail, offered by some providers such as Fastmail.	一种较新的收取邮件方式，部分提供商（如 Fastmail）提供。
 	Run it now on the mail already in the Inbox	立即对收件箱中已有的邮件运行
 	Run on the mail already in the Inbox	对收件箱中已有的邮件运行
 	More options	更多选项
@@ -965,8 +974,7 @@ month	May	5月
 	Opened by the server for your access to it	因你有访问权限，由服务器打开
 	Shared mailbox {address}, opened by {email}	共享邮箱 {address}，由 {email} 打开
 	The outgoing server has its own user name and password	发送服务器有自己的用户名和密码
-	Sign in to the incoming server with	登录接收服务器的方式
-	Sign in to the outgoing server with	登录发送服务器的方式
+	Sign in with	登录方式
 	NTLM (Secure Password Authentication)	NTLM（安全密码身份验证）
 	No sign-in	不登录
 	Its user name	其用户名
@@ -992,7 +1000,7 @@ month	May	5月
 	Close anyway	仍然关闭
 	Edit notes	编辑备注
 	Getting them from the server…	正在从服务器获取…
-	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	其邮件保留在服务器上，仅在 MailCraft 运行期间保存在内存中：不会写入此电脑，每封邮件在打开时下载。你发送的邮件会直接发往服务器；只有暂时无法发送的邮件（脱机时）才会等待，如果 MailCraft 先关闭，它们会连同脱机时所做的更改一起丢失（会先询问你）。服务器上的日历、联系人和便笺会保留在那里；仅保存在 MailCraft 中的会在关闭时丢失。
+	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	邮件在打开时下载，只保存在内存中：不会写入这台电脑。离线时所做的更改、尚待发送的邮件，以及只保存在 MailCraft 中的日历、联系人和笔记，会在它关闭时丢失（会先询问你）。
 	Mail older than what's kept here is only on the server.	比此处保留的更早的邮件仅在服务器上。
 	Search the server	搜索服务器
 	Searching the server…	正在搜索服务器…
@@ -1713,9 +1721,12 @@ month	May	5月
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	自动：服务器能通知时，新邮件一到就收取，否则每两分钟检查一次。设置时间后，帐户只在那时检查。发送的邮件会立即发出，“发送/接收”会马上检查。
 	Automatically	自动
 	Every {n} minutes	每 {n} 分钟
-	Calendars and contacts only, with no email (CalDAV and CardDAV)	仅日历和联系人，无邮件 (CalDAV 和 CardDAV)
+	Only calendars and contacts, with no email?	只要日历和联系人，不用邮件？
+	Add a CalDAV and CardDAV account	添加 CalDAV 和 CardDAV 帐户
 	Calendar and contacts server	日历和联系人服务器
-	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	用于任何保存日历和联系人但不含邮件的 CalDAV 和 CardDAV 服务器，例如 Nextcloud、Baïkal、SOGo 或 Radicale。密码保存在这台电脑的钥匙串中，只会发送到该服务器。
+	Add calendars and contacts	添加日历和联系人
+	For a CalDAV and CardDAV server with no email, such as Nextcloud, Baïkal, SOGo or Radicale. Your password is kept in this computer's keychain and sent only to that server.	适用于没有邮件的 CalDAV 和 CardDAV 服务器，例如 Nextcloud、Baïkal、SOGo 或 Radicale。密码保存在这台电脑的钥匙串中，只会发送到该服务器。
+	Add an email account instead	改为添加电子邮件帐户
 	Server: {url} (CalDAV and CardDAV)	服务器: {url} (CalDAV 和 CardDAV)
 	Not available: this account has no mail server.	不可用：此帐户没有邮件服务器。
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	邮件已从 MailCraft 之前的 Flatpak 迁移过来，旧版仍已安装。要删除它，请运行：flatpak uninstall --delete-data {id}

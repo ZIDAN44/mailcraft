@@ -93,36 +93,42 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Acti
 /// address names the account, as every account's does, and the meetings it organises.
 pub(crate) fn add_calendar_only(ui: &mut Ui, f: &mut super::AccountForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(440.0);
-    title(ui, t, "Add an account");
-    let about = tl!(
-        "For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server."
+    title(ui, t, "Add calendars and contacts");
+    super::about(
+        ui,
+        t,
+        tl!(
+            "For a CalDAV and CardDAV server with no email, such as Nextcloud, Baïkal, SOGo or Radicale. Your password is kept in this computer's keychain and sent only to that server."
+        ),
     );
-    ui.add(egui::Label::new(RichText::new(about).color(t.dim).small()).wrap());
-    ui.add_space(6.0);
-    ui.checkbox(&mut f.calendar_only, tl!("Calendars and contacts only, with no email (CalDAV and CardDAV)"));
     ui.add_space(10.0);
+    // Who you are, as when an email account is added; then the server, and who signs in to it.
     let size = vec2(300.0, 26.0);
-    egui::Grid::new("calendar-account").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
-        ui.label(tl!("Calendar and contacts server"));
-        let server = egui::TextEdit::singleline(&mut f.dav_url).hint_text("https://cloud.example.com/remote.php/dav");
-        ui.add(server.min_size(size).desired_width(size.x));
-        ui.end_row();
-        ui.label(tl!("User name"));
-        ui.add(egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")).min_size(size).desired_width(size.x));
-        ui.end_row();
-        ui.label(tl!("Password"));
-        ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(size).desired_width(size.x));
-        ui.end_row();
+    egui::Grid::new("calendar-account").num_columns(2).spacing(vec2(12.0, 8.0)).show(ui, |ui| {
         ui.label(tl!("Email address"));
         ui.add(egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")).min_size(size).desired_width(size.x));
         ui.end_row();
         ui.label(tl!("Your name"));
-        ui.add(egui::TextEdit::singleline(&mut f.name).min_size(size).desired_width(size.x));
+        ui.add(egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")).min_size(size).desired_width(size.x));
+        ui.end_row();
+        ui.label(tl!("Password"));
+        ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(size).desired_width(size.x));
         ui.end_row();
     });
+    ui.add_space(10.0);
+    let w = ui.available_width();
+    super::field_label(ui, "Calendar and contacts server");
+    ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.dav_url).hint_text("https://cloud.example.com/remote.php/dav"));
+    ui.add_space(6.0);
+    super::field_label(ui, "User name");
+    ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
     if let Some(e) = &f.error {
         ui.add_space(6.0);
-        ui.label(RichText::new(e.as_str()).color(t.danger));
+        ui.add(egui::Label::new(RichText::new(e.as_str()).color(t.danger)).wrap());
+    }
+    ui.add_space(8.0);
+    if ui.link(RichText::new(tl!("Add an email account instead")).color(t.accent).small()).clicked() {
+        f.calendar_only = false;
     }
     let ready = !f.dav_url.trim().is_empty() && !f.email.trim().is_empty() && !f.password.is_empty();
     let (ok, cancel) = buttons(ui, t, "Connect", ready);

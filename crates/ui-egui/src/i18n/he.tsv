@@ -625,6 +625,12 @@ month	May	מאי
 	Remove it from the server after	הסר אותו מהשרת אחרי
 	days	ימים
 	Remove it from the server once it's deleted from Deleted Items	הסר אותו מהשרת כשהוא נמחק מ'פריטים שנמחקו'
+	A copy on the server	עותק בשרת
+	None: mail is removed from the server once downloaded	ללא: הדואר מוסר מהשרת לאחר ההורדה
+	Kept for {n} days	נשמר למשך {n} ימים
+	Kept for {n} days, or until deleted from Deleted Items	נשמר למשך {n} ימים, או עד שנמחק מ'פריטים שנמחקו'
+	Kept until deleted from Deleted Items	נשמר עד שנמחק מ'פריטים שנמחקו'
+	Kept for good	נשמר לצמיתות
 	Arrange by: {field}	סדר לפי: {field}
 	By {field} ⏷	לפי {field} ⏷
 	Reverse sort	הפוך מיון
@@ -669,7 +675,10 @@ month	May	מאי
 	Low importance	חשיבות נמוכה
 	Read receipt	אישור קריאה
 	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	בקש מהנמענים לאשר שקראו (ייתכן שתוכנת הדואר שלהם לא תעשה זאת, או שתשאל אותם)
-	Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.	עובד עם כל ספק: IMAP או POP עם SMTP, ‏JMAP או Exchange. הסיסמה נשמרת במחזיק המפתחות של המחשב הזה ונשלחת רק לשרת הדואר שלך.
+	Works with IMAP, POP, JMAP and Exchange. Your password is kept in this computer's keychain and sent only to your mail server.	עובד עם IMAP, ‏POP, ‏JMAP ו־Exchange. הסיסמה נשמרת במחזיק המפתחות של המחשב הזה ונשלחת רק לשרת הדואר שלך.
+	Mail stays on the server and looks the same on every device.	הדואר נשאר בשרת ונראה אותו דבר בכל מכשיר.
+	Mail is downloaded to this computer. The server can keep a copy for a while.	הדואר מורד למחשב הזה. השרת יכול לשמור עותק לזמן מה.
+	A newer way to reach your mail, offered by some providers such as Fastmail.	דרך חדשה יותר להגיע לדואר שלך, שחלק מהספקים מציעים, כמו Fastmail.
 	Run it now on the mail already in the Inbox	הפעל אותו עכשיו על הדואר שכבר בתיבת הדואר הנכנס
 	Run on the mail already in the Inbox	הפעל על הדואר שכבר בתיבת הדואר הנכנס
 	More options	אפשרויות נוספות
@@ -964,8 +973,7 @@ month	May	מאי
 	Opened by the server for your access to it	נפתחה על ידי השרת כי יש לך גישה אליה
 	Shared mailbox {address}, opened by {email}	תיבת דואר משותפת {address}, נפתחת על ידי {email}
 	The outgoing server has its own user name and password	לשרת הדואר היוצא יש שם משתמש וסיסמה משלו
-	Sign in to the incoming server with	כניסה לשרת הדואר הנכנס באמצעות
-	Sign in to the outgoing server with	כניסה לשרת הדואר היוצא באמצעות
+	Sign in with	כניסה באמצעות
 	NTLM (Secure Password Authentication)	NTLM (אימות סיסמה מאובטח)
 	No sign-in	ללא כניסה
 	Its user name	שם המשתמש שלו
@@ -991,7 +999,7 @@ month	May	מאי
 	Close anyway	לסגור בכל זאת
 	Edit notes	עריכת הערות
 	Getting them from the server…	מביא אותן מהשרת…
-	Its mail stays on the server and is held in memory only while MailCraft runs: none of it is written to this computer, and each message downloads when you open it. Mail you send goes straight to the server; only mail that can't go yet (while offline) waits, and it's lost with changes made offline if MailCraft closes first (you're asked). Calendars, contacts and notes on a server stay there; those kept only in MailCraft are lost when it closes.	הדואר שלו נשאר בשרת ונשמר בזיכרון בלבד בזמן ש-MailCraft פועל: דבר ממנו אינו נכתב למחשב הזה, וכל הודעה מורדת כשפותחים אותה. דואר שאתה שולח הולך ישר לשרת; רק דואר שעדיין אי אפשר לשלוח (במצב לא מקוון) ממתין, והוא אובד יחד עם שינויים שנעשו במצב לא מקוון אם MailCraft נסגר קודם (תישאל). לוחות שנה, אנשי קשר והערות בשרת נשארים שם; אלה שנשמרים רק ב-MailCraft אובדים כשהוא נסגר.
+	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	ההודעות מורדות כשפותחים אותן ונשמרות בזיכרון בלבד: שום דבר לא נכתב למחשב הזה. שינויים שנעשו במצב לא מקוון, דואר שעדיין ממתין לשליחה ולוחות שנה, אנשי קשר ופתקים שנשמרו רק ב־MailCraft אובדים כשהוא נסגר (תתבקש לאשר קודם).
 	Mail older than what's kept here is only on the server.	דואר ישן יותר ממה שנשמר כאן נמצא רק בשרת.
 	Search the server	חיפוש בשרת
 	Searching the server…	מחפש בשרת…
@@ -1712,9 +1720,12 @@ month	May	מאי
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	אוטומטית: דואר חדש מגיע ברגע שהשרת מודיע עליו, אם הוא יכול, ואחרת הבדיקה נעשית כל שתי דקות. עם זמן קבוע, החשבון בודק רק אז. מה ששולחים יוצא מיד, ו"שליחה/קבלה" בודק מיד.
 	Automatically	אוטומטית
 	Every {n} minutes	כל {n} דקות
-	Calendars and contacts only, with no email (CalDAV and CardDAV)	לוחות שנה ואנשי קשר בלבד, ללא דואר (CalDAV ו־CardDAV)
+	Only calendars and contacts, with no email?	רק לוחות שנה ואנשי קשר, בלי דואר?
+	Add a CalDAV and CardDAV account	הוספת חשבון CalDAV ו־CardDAV
 	Calendar and contacts server	שרת לוחות שנה ואנשי קשר
-	For any CalDAV and CardDAV server that keeps your calendars and contacts, such as Nextcloud, Baïkal, SOGo or Radicale, with no email. Your password is kept in this computer's keychain and only ever sent to that server.	לכל שרת CalDAV ו-CardDAV ששומר את לוחות השנה ואנשי הקשר שלך, כמו Nextcloud, Baïkal, SOGo או Radicale, ללא דואר. הסיסמה נשמרת במחזיק המפתחות של המחשב הזה ונשלחת רק לשרת הזה.
+	Add calendars and contacts	הוספת לוחות שנה ואנשי קשר
+	For a CalDAV and CardDAV server with no email, such as Nextcloud, Baïkal, SOGo or Radicale. Your password is kept in this computer's keychain and sent only to that server.	לשרת CalDAV ו־CardDAV בלי דואר, כמו Nextcloud, ‏Baïkal, ‏SOGo או Radicale. הסיסמה נשמרת במחזיק המפתחות של המחשב הזה ונשלחת רק לשרת הזה.
+	Add an email account instead	הוספת חשבון דואר אלקטרוני במקום זאת
 	Server: {url} (CalDAV and CardDAV)	שרת: {url} (CalDAV ו־CardDAV)
 	Not available: this account has no mail server.	לא זמין: לחשבון הזה אין שרת דואר.
 	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	הדואר שלך הועבר מה-Flatpak הקודם של MailCraft, שעדיין מותקן. כדי להסיר אותו, הרץ: flatpak uninstall --delete-data {id}

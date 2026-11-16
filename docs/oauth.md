@@ -61,7 +61,7 @@ added with an app password.
 3. In MailCraft, add the account with your address and that app password, not your usual one.
 
 MailCraft fills in Gmail's servers for a `gmail.com` address. For an address on your own domain,
-tick **Server settings**: `imap.gmail.com`, 993, SSL/TLS, and `smtp.gmail.com`, 465, SSL/TLS, with
+open **Server settings**: `imap.gmail.com`, 993, SSL/TLS, and `smtp.gmail.com`, 465, SSL/TLS, with
 your full address as the user name.
 
 If Google shows no App passwords page, 2-Step Verification is off, the account is in Advanced
