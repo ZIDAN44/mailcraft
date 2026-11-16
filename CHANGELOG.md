@@ -25,6 +25,7 @@ on GitHub.
 - Ctrl+Enter asks before it sends the message you're writing (#115), so a slip of the keys sends nothing unfinished: **Don't ask again** keeps the answer, and **File › Options › Mail › Ctrl+Enter in a message** sets it to ask first, send, or do nothing. Alt+S and Send send as before.
 - MailCraft can start in the notification area (#116): with **File › Options › General › Keep MailCraft running when its window is closed** on, **Start MailCraft in the notification area** starts it there, checking for mail and announcing it with no window coming up (minimized where a window can't be hidden, as on a Mac). Started to open a link or a file, it opens the window.
 - MailCraft's icon in the notification area shows how much unread mail the Inboxes have, in its corner (#117), as the window's title does; **Show the unread mail on its icon** turns that off.
+- The message list can show a message on one line, as a table's row: the sender, the subject, its markers and the time, so many more fit in the window. **View › Single line**, or **File › Options › Mail › Single-line list**. Its head is one line too: the folder's name, with the filters (All, Unread…) in a menu beside it.
 
 ### Removed
 

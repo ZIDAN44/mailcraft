@@ -45,6 +45,7 @@
 	Close	Sluiten
 	Code	Code
 	Compact	Compact
+	Single line	Eén regel
 	Connect	Verbinden
 	Connecting…	Verbinden…
 	Conversations	Gesprekken
@@ -400,6 +401,8 @@
 	Change this account's name, servers and sign-in, or its signature.	Wijzig de naam, servers en aanmelding van dit account, of de handtekening.
 	Checking with the server…	Navragen bij de server…
 	Compact list	Compacte lijst
+	Single-line list	Lijst met één regel
+	One line a message: the sender, the subject and the time	Eén regel per bericht: de afzender, het onderwerp en de tijd
 	Don't send automatic replies	Geen automatische antwoorden verzenden
 	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Elke afzender krijgt één antwoord per dag zolang ze aanstaan. Ze staan op je mailserver, dus ze werken ook als deze computer uit staat.
 	Empty	Leegmaken

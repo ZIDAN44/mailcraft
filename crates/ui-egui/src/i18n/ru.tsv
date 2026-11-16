@@ -45,6 +45,7 @@
 	Close	Закрыть
 	Code	Код
 	Compact	Компактно
+	Single line	Одна строка
 	Connect	Подключить
 	Connecting…	Подключение…
 	Conversations	Беседы
@@ -400,6 +401,8 @@
 	Change this account's name, servers and sign-in, or its signature.	Измените имя, серверы и вход этой учётной записи или её подпись.
 	Checking with the server…	Запрос к серверу…
 	Compact list	Компактный список
+	Single-line list	Список в одну строку
+	One line a message: the sender, the subject and the time	Одна строка на сообщение: отправитель, тема и время
 	Don't send automatic replies	Не отправлять автоответы
 	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Каждый отправитель получает один ответ в день, пока они включены. Они хранятся на почтовом сервере и работают, даже когда этот компьютер выключен.
 	Empty	Очистить

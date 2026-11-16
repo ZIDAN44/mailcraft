@@ -86,6 +86,8 @@ pub struct Prefs {
     pub show_preview: bool,
     /// Tighter rows.
     pub compact: bool,
+    /// A message on one line, as a table's row: the sender, the subject, the time.
+    pub single_line: bool,
     /// The classic ribbon (issue #8): big icons over their labels, in named groups, instead of
     /// one row of small ones.
     pub classic_ribbon: bool,
@@ -306,6 +308,7 @@ impl Default for Prefs {
             read_after_secs: 0,
             show_preview: true,
             compact: false,
+            single_line: false,
             classic_ribbon: false,
             accent: String::new(),
             plain_top_bar: false,

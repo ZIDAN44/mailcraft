@@ -45,6 +45,7 @@
 	Close	סגור
 	Code	קוד
 	Compact	צפוף
+	Single line	שורה אחת
 	Connect	התחבר
 	Connecting…	מתחבר…
 	Conversations	שיחות
@@ -400,6 +401,8 @@
 	Change this account's name, servers and sign-in, or its signature.	שנה את שם החשבון, השרתים והכניסה שלו, או את החתימה שלו.
 	Checking with the server…	בודק מול השרת…
 	Compact list	רשימה צפופה
+	Single-line list	רשימה בשורה אחת
+	One line a message: the sender, the subject and the time	שורה אחת לכל הודעה: השולח, הנושא והשעה
 	Don't send automatic replies	אל תשלח תשובות אוטומטיות
 	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	כל שולח מקבל תשובה אחת ביום כל עוד הן פעילות. הן נשמרות בשרת הדואר שלך, כך שהן פועלות גם כשהמחשב כבוי.
 	Empty	רוקן

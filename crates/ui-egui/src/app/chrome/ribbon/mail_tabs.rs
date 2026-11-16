@@ -234,6 +234,7 @@ pub(super) fn ribbon_view(ui: &mut Ui, s: &Session, t: Tokens, dark: Option<bool
         (s.prefs.conversations, Icon::Conversation, "Conversations", "Group messages by conversation", "view.conversations"),
         (s.prefs.show_preview, Icon::Preview, "Message preview", "", "view.preview"),
         (s.prefs.compact, Icon::Compact, "Compact", "", "view.compact"),
+        (s.prefs.single_line, Icon::ListBullet, "Single line", "One line a message: the sender, the subject and the time", "view.singleLine"),
         (!s.prefs.folder_pane_minimized, Icon::Folder, "Folder pane", "", "view.folderPane"),
         (s.prefs.show_favorites, Icon::Star, "Favorites", "Show Favorites at the top of the folder pane", "view.favorites"),
     ] {
