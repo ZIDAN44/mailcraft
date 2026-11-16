@@ -701,3 +701,18 @@ fn the_web_pictures_given_follow_the_readers() {
     pictures::web_loaded(&ctx, &session);
     assert_eq!(given().keys().collect::<Vec<_>>(), ["https://x.example/b.png"]);
 }
+
+/// A signature drawn as itself (a [`Card`]) is laid out in the frame a letter is typed where it
+/// will be once the frame is over (issue #114): moved along with a change before it, left where
+/// it is by one after it, and none when the change is in it (its text is the writer's then).
+#[test]
+fn a_card_moves_with_what_changes_before_it() {
+    let card = Card { range: 3..7, whole: 3..7, size: vec2(10.0, 10.0) };
+    let old = "ab\nSIGN";
+    let at = |new: &str| card.moved(old, new).map(|c| (c.range, c.whole));
+    assert_eq!(at("Xab\nSIGN"), Some((4..8, 4..8)), "typed before it");
+    assert_eq!(at("b\nSIGN"), Some((2..6, 2..6)), "taken out before it");
+    assert_eq!(at("ab\nSIGN!"), Some((3..7, 3..7)), "typed after it");
+    assert_eq!(at("ab\nSXGN"), None, "changed in it");
+    assert_eq!(at(old), Some((3..7, 3..7)));
+}

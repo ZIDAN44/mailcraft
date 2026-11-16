@@ -60,6 +60,25 @@ impl Card {
         above.unwrap_or(self.whole.start)
     }
 
+    /// Where it is in `new`, the text `old` once changed: moved along with what was typed or
+    /// taken out before it; none when the change is in it (its text is the writer's then).
+    pub(super) fn moved(&self, old: &str, new: &str) -> Option<Card> {
+        let same_start = old.chars().zip(new.chars()).take_while(|(a, b)| a == b).count();
+        if same_start < self.whole.end {
+            // A change before it, all of it before it: the same text after the change.
+            let (old_len, new_len) = (old.chars().count(), new.chars().count());
+            let same_end = old.chars().rev().zip(new.chars().rev()).take_while(|(a, b)| a == b).count();
+            if old_len.saturating_sub(same_end) > self.whole.start {
+                return None;
+            }
+            let shift = |at: usize| (at + new_len).checked_sub(old_len);
+            let range = shift(self.range.start)?..shift(self.range.end)?;
+            let whole = shift(self.whole.start)?..shift(self.whole.end)?;
+            return Some(Card { range, whole, size: self.size });
+        }
+        Some(self.clone())
+    }
+
     /// The character its last line starts at: the line that keeps the room.
     pub(super) fn last_line(&self, text: &str) -> usize {
         let breaks = text.chars().enumerate().take(self.range.end).skip(self.range.start);

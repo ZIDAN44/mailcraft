@@ -239,6 +239,7 @@ on GitHub.
 - On Windows, a pen or a finger moves the window by MailCraft's own title bar and resizes it from its edges, and drags a maximized window out restored, under the pen where it took it. It did nothing, and afterwards the mouse couldn't move the window either until MailCraft was restarted. A resize stops at the window's smallest size, as the mouse's does.
 - A screen reader says what each drop-down is for: **Font size** while writing, **When mail** and **Then** in a rule, **Show as**, **Reminder** and **Repeat** on an event or task, **Language** and **Dates** in **File › Options**, and the others with them. They were read only by what they showed ("combo box, 15 minutes"), and one showing nothing by nothing at all.
 - On Linux, a mail file MailCraft is started with opens in front of the main window: its window opened behind it, as the main window took the focus once it had drawn.
+- Typing above a signature with a picture in it no longer makes the text under it jump at every letter (#114).
 
 ## 0.38.0 - 2026-11-13
 

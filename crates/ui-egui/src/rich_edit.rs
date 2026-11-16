@@ -482,12 +482,31 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let tokens = *t;
     let own = if plain { HashMap::new() } else { pictures::own_sizes(ui.ctx(), ed, c) };
     let card = ed.card.clone().filter(|_| !plain);
-    // The text box changes the text; its look is laid out as it was at the frame's start.
+    // The text box changes the text in this frame, and lays it out at once: its look (and the
+    // card's place) moved along with the change, as they are once the frame is over. Laid out
+    // with the frame's first ones, all that followed the change was a letter off for a frame: a
+    // picture after it was laid out as a letter, and the text under it jumped (issue #114).
+    let was = c.body.clone();
+    let (typing, at) = (ed.typing.clone(), ed.sel.start);
+    let mut moved: Option<(String, Styles, Option<Card>)> = None;
     let mut text = Tracked::new(&mut c.body);
     let styles = &c.styles;
     let laid = &mut ed.laid;
     let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| {
-        layout_kept(laid, ui, buf.as_str(), Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: card.as_ref() })
+        let now = buf.as_str();
+        if now == was {
+            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: card.as_ref() });
+        }
+        if moved.as_ref().is_none_or(|(laid_for, ..)| laid_for != now) {
+            let mut st = styles.clone();
+            let typing = typing.clone().unwrap_or_else(|| typing_style(&was, styles, at));
+            st.edit_at(&was, now, &typing, None);
+            moved = Some((now.to_string(), st, card.as_ref().and_then(|card| card.moved(&was, now))));
+        }
+        let Some((_, st, card)) = moved.as_ref() else {
+            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: None });
+        };
+        layout_kept(laid, ui, now, Lay { st, plain, t: &tokens, wrap, own: &own, card: card.as_ref() })
     };
     // As tall as the pane, or, above the original of a reply shown as it came, as its text.
     let height = ed.min_height.unwrap_or_else(|| if c.quote.is_some() { 96.0 } else { ui.available_height().max(220.0) });

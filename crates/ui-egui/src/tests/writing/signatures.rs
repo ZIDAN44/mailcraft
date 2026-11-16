@@ -361,3 +361,40 @@ fn a_signatures_web_pictures_survive_a_look_at_formatted() {
     assert!(crate::dialogs::has_web_pictures(r#"<img alt="x" src = "//cdn.example/a.png">"#));
     assert!(!crate::dialogs::has_web_pictures(r#"<img src="cid:logo"><a href="https://x.example">x</a>"#));
 }
+
+/// Issue #114: typing above a signature with a picture in it leaves the text under it where it
+/// is. The editor laid each frame's text out with the look it had at the frame's start, so in
+/// the frame a letter was typed, the picture after it was a letter off and laid out as one: the
+/// text under it went up a row and came back, at every letter.
+#[test]
+fn typing_above_a_signatures_picture_moves_nothing_under_it() {
+    const PNG: &str = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGAAAAAoCAIAAACO8WhuAAAAWklEQVR4nO3QMQ0AIADAMJRw418FsnDAR9jRZAKWjj2XLo3vB/EAAQIECFA4QIAAAQIUDhAgQIAAhQMECBAgQOEAAQIECFA4QIAAAQIUDhAgQIAAhQMECNDTDuTJ0uI32OGAAAAAAElFTkSuQmCC";
+    let (mut a, _) = app("signature-picture-typing");
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    let html = format!(r#"<p><b>Riley Moreno</b></p><p><img src="{PNG}" width="96" height="40"></p>"#);
+    a.run("account.setSignature", json!({"account": "sample", "name": "Card", "signature": "Riley Moreno", "html": html}));
+    a.run("account.signatureDefaults", json!({"account": "sample", "new": "Card", "reply": "Card"}));
+    frame(&ctx, &mut a, vec![]);
+    a.run("list.open", json!({"key": "sample:1:1:INBOX"}));
+    a.run("mail.reply", json!({}));
+    assert_eq!(a.session.compose.as_ref().unwrap().inline.len(), 1, "the signature's picture is in the reply");
+    let size = egui::vec2(1280.0, 800.0);
+    // The reply's text, signature and original under it, laid out as one piece: where it ends.
+    let bottom =
+        |drawn: &[crate::tests::Drawn]| drawn.iter().find(|d| d.text.contains("Riley Moreno") && d.text.contains("From:")).map(|d| d.rect.bottom());
+    for _ in 0..4 {
+        drawn_text(&ctx, &mut a, size);
+    }
+    a.ui.editor.as_mut().unwrap().refocus = Some(0..0);
+    for _ in 0..3 {
+        drawn_text(&ctx, &mut a, size);
+    }
+    let settled = bottom(&drawn_text(&ctx, &mut a, size)).expect("the reply's text is drawn");
+    for letter in ["H", "i", "!"] {
+        let typed = bottom(&drawn_with(&ctx, &mut a, size, vec![Event::Text(letter.into())]));
+        let after = bottom(&drawn_text(&ctx, &mut a, size));
+        assert_eq!((typed, after), (Some(settled), Some(settled)), "after {letter:?}: the text under the signature stays put");
+    }
+    assert!(a.session.compose.as_ref().unwrap().body.starts_with("Hi!"));
+}
