@@ -51,7 +51,7 @@ use serde_json::{Value, json};
 pub use app::caption::{MIN_WINDOW_SIZE, take_zooming};
 pub use app::{
     Action, BootCard, ClipboardRead, FramePart, MailApp, Monitors, RibbonTab, UiState, WindowPlace, after_open, alt_code_pages, alt_codes,
-    clipboard_keys, set_monitors,
+    clipboard_keys, control_click, set_monitors,
 };
 pub(crate) use app::{SearchDrop, junk_menu, scope_label, use_editor};
 pub use dialogs::{AccountKind, Dialog};

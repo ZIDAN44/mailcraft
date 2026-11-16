@@ -61,3 +61,29 @@ fn a_right_click_on_a_subscribed_calendar_removes_it() {
     let left: Vec<String> = texts(&ctx, &mut a, vec![]).into_iter().map(|d| d.text).collect();
     assert!(!has(&left, "Holidays"), "{left:?}");
 }
+
+/// On a Mac, a Control-click is the right-click (issue #119: the reporter's was a Mac). It came as
+/// a click, so no right-click menu opened on a Mac with no second button or two-finger click; now
+/// it opens the calendar's, its release read with it though Control was let go first.
+#[test]
+fn a_control_click_on_a_mac_opens_a_calendars_menu() {
+    let (mut a, ctx, name, _) = with_holidays("calendar-control-click");
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    // A frame whose input is read as each window's is on a Mac.
+    let mac = |a: &mut MailApp, events: Vec<Event>| {
+        let mut raw = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), events, ..Default::default() };
+        crate::control_click(&ctx, &mut raw, true);
+        let mut out = ctx.run_ui(raw, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        texts_in(&out.shapes)
+    };
+    let control = Modifiers { ctrl: true, ..Default::default() };
+    let press = |pressed, modifiers| Event::PointerButton { pos: name, button: egui::PointerButton::Primary, pressed, modifiers };
+    mac(&mut a, vec![Event::ModifiersChanged(control), Event::PointerMoved(name)]);
+    mac(&mut a, vec![press(true, control)]);
+    mac(&mut a, vec![Event::ModifiersChanged(Modifiers::NONE)]);
+    mac(&mut a, vec![press(false, Modifiers::NONE)]);
+    let menu = mac(&mut a, vec![]);
+    at(&menu, "Remove this calendar");
+    assert_eq!(subscribed(&a), 1, "the menu is open, nothing done yet");
+}

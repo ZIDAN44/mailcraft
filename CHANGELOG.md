@@ -245,6 +245,7 @@ on GitHub.
 - Typing above a signature with a picture in it no longer makes the text under it jump at every letter (#114).
 - Ctrl+A in a reply or forward selects all of it, the original under your text included (#118): it stopped at a paragraph, selecting only your text or the block of the original with the cursor. Copy and Cut take all of it, Delete removes all of it and typing replaces it, and Undo brings it back.
 - A right-click on a calendar in the Calendar's list of calendars opens its menu, from its name or anywhere on its row (#119): its name took the click, so **Remove this calendar** for one you subscribed to, **Refresh** and **Use as default calendar** couldn't be reached.
+- On a Mac, Control-click opens the right-click menus, as in other Mac apps (#119): it was taken as a plain click, so on a Mac with no second button or two-finger click no menu could be opened. Command-click still adds a message to the selection.
 
 ## 0.38.0 - 2026-11-13
 

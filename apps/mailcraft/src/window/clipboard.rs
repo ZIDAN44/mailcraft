@@ -4,8 +4,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Runs MailCraft's own keys on each window's input: Cut, Copy and Paste
-/// ([`mailcraft_ui_egui::clipboard_keys`]) and, on Windows, Alt+numpad character codes
-/// ([`mailcraft_ui_egui::alt_codes`], in the code pages for the user's language).
+/// ([`mailcraft_ui_egui::clipboard_keys`]); on Windows, Alt+numpad character codes
+/// ([`mailcraft_ui_egui::alt_codes`], in the code pages for the user's language); on a Mac,
+/// Control-click as the right-click ([`mailcraft_ui_egui::control_click`]).
 pub(crate) struct ClipboardKeys {
     #[cfg_attr(not(windows), allow(dead_code))]
     pub(crate) pages: (u16, u16),
@@ -23,6 +24,7 @@ impl eframe::ViewportHooks for ClipboardKeys {
         #[cfg(windows)]
         mailcraft_ui_egui::alt_codes(ctx, raw_input, self.pages);
         mailcraft_ui_egui::clipboard_keys(ctx, raw_input, &mut SystemClipboard);
+        mailcraft_ui_egui::control_click(ctx, raw_input, cfg!(target_os = "macos"));
     }
 }
 
