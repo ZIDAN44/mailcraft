@@ -92,6 +92,11 @@ pub struct Data {
     pub calls: Vec<String>,
     /// NTLM handshakes done (one per connection).
     pub handshakes: usize,
+    /// A connection signed in is asked to sign in again, once, after a request answered on it:
+    /// as behind a proxy that dropped the sign-in it held, its TCP connection still open.
+    pub expire_ntlm_once: bool,
+    /// Handshakes done again on a connection signed in before ([`Data::expire_ntlm_once`]).
+    pub ntlm_reauthentications: usize,
     /// The EWS address, for Autodiscover's answer.
     pub url: String,
     /// People whose calendars this account may change (delegates with editor rights).
@@ -165,6 +170,8 @@ impl Default for Data {
             basic: false,
             calls: Vec::new(),
             handshakes: 0,
+            expire_ntlm_once: false,
+            ntlm_reauthentications: 0,
             url: String::new(),
             editors: Vec::new(),
             item_rights_only: false,
