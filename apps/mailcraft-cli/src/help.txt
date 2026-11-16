@@ -3,6 +3,7 @@ mailcraft-cli [--data DIR] <command>
   accounts                       list accounts and folders
   add --email E [--name N] [--username U] [--imap HOST:PORT] [--smtp HOST:PORT]
       [--imap-security tls|starttls|none] [--smtp-security tls|starttls|none]
+      [--sign-in automatic|password|ntlm] [--smtp-sign-in automatic|password|ntlm|none]
       [--jmap SESSION-URL]       a JMAP account instead of IMAP and SMTP
                                  add an account (servers guessed from the address)
   test [--account ID] [--timeout SECONDS]

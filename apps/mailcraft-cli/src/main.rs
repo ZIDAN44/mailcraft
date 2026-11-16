@@ -42,7 +42,7 @@ struct Args {
 const SWITCHES: [&str; 6] = ["--headers", "--checked", "--help", "-h", "--version", "-V"];
 
 /// The options that take the word after them, whatever it starts with (`--body "--Riley"`).
-const OPTIONS: [&str; 20] = [
+const OPTIONS: [&str; 22] = [
     "--data",
     "--email",
     "--name",
@@ -51,6 +51,8 @@ const OPTIONS: [&str; 20] = [
     "--smtp",
     "--imap-security",
     "--smtp-security",
+    "--sign-in",
+    "--smtp-sign-in",
     "--jmap",
     "--account",
     "--timeout",

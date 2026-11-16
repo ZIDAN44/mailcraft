@@ -4,7 +4,7 @@ use egui::{Margin, Rect, RichText, Sense, Ui, vec2};
 use mailcraft_engine::Compose;
 use mailcraft_engine::Session;
 use mailcraft_engine::model::organize::{Condition, Rule, RuleAction};
-use mailcraft_engine::model::{AccountConfig, Folder, FolderRole, Security};
+use mailcraft_engine::model::{AccountConfig, Folder, FolderRole, Security, SignInMethod};
 use serde_json::json;
 
 use crate::theme::{self, Tokens};
@@ -440,6 +440,8 @@ impl Dialog {
             smtp_port: a.smtp.port.to_string(),
             smtp_security: a.smtp.security,
             smtp_sign_in: SmtpSignIn::of(a),
+            sign_in: SignInMethods::of(a),
+            oauth: a.oauth.is_some(),
             online_only: a.online_only,
             error: None,
         }))

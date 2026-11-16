@@ -969,6 +969,10 @@ month	May	Mayıs
 	Opened by the server for your access to it	Erişiminiz olduğu için sunucu tarafından açıldı
 	Shared mailbox {address}, opened by {email}	Paylaşılan posta kutusu {address}, {email} üzerinden açıldı
 	The outgoing server has its own user name and password	Giden sunucunun kendi kullanıcı adı ve parolası var
+	Sign in to the incoming server with	Gelen sunucuda oturum açma yöntemi
+	Sign in to the outgoing server with	Giden sunucuda oturum açma yöntemi
+	NTLM (Secure Password Authentication)	NTLM (Güvenli Parola Kimlik Doğrulaması)
+	No sign-in	Oturum açmadan
 	Its user name	Kullanıcı adı
 	Its password	Parolası
 	Password (unchanged when empty)	Parola (boşsa değişmez)

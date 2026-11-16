@@ -258,6 +258,45 @@ impl<S: Read + Write> Client<S> {
         Ok(())
     }
 
+    /// Sign in with the password as `method` says (issue #123): NTLM when asked for (Outlook's
+    /// Secure Password Authentication), else `USER` and `PASS`, as left to MailCraft too.
+    pub fn login_as(&mut self, user: &str, password: &str, method: mailcraft_model::SignInMethod) -> Result<()> {
+        match method {
+            mailcraft_model::SignInMethod::Ntlm => self.login_ntlm(user, password),
+            _ => self.login(user, password),
+        }
+    }
+
+    /// NTLM's messages through RFC 5034's `AUTH` exchange (as [MS-POP3] has it): the server's
+    /// challenge answered, the password never sent.
+    fn login_ntlm(&mut self, user: &str, password: &str) -> Result<()> {
+        // As a password's refusal is read: a mailbox in use, or signed in to too soon again, waits.
+        let refused = |l: &str| auth(&NetError::No(l.trim_start_matches("-ERR").trim().to_string()));
+        // `+ <data>` goes on (its data), `+OK` and `-ERR` end it.
+        let goes_on = |l: &str| l.strip_prefix('+').filter(|_| !l.starts_with("+OK")).map(|d| d.trim().to_string());
+        self.send("AUTH NTLM")?;
+        let l = self.line()?;
+        if goes_on(&l).is_none() {
+            return Err(refused(&l));
+        }
+        self.send(&mailcraft_model::base64::encode(&crate::ntlm::negotiate()))?;
+        let l = self.line()?;
+        let Some(challenge) = goes_on(&l) else { return Err(refused(&l)) };
+        let answer = crate::ews::unb64(&challenge).ok_or_else(|| proto("bad NTLM challenge")).and_then(|c| crate::ntlm::answer(&c, user, password));
+        let answer = match answer {
+            Ok(a) => a,
+            Err(e) => {
+                // Cancelled, as RFC 5034 cancels: the server's `-ERR` read, the reason said.
+                self.send("*")?;
+                let _ = self.line();
+                return Err(e);
+            }
+        };
+        self.send(&mailcraft_model::base64::encode(&answer))?;
+        let l = self.line()?;
+        if l.starts_with("+OK") { Ok(()) } else { Err(refused(&l)) }
+    }
+
     /// Sign in with an OAuth token (`AUTH XOAUTH2`).
     pub fn login_xoauth2(&mut self, user: &str, token: &str) -> Result<()> {
         self.ok(&format!("AUTH XOAUTH2 {}", crate::oauth::xoauth2(user, token))).map(drop).map_err(|e| auth(&e))
@@ -323,7 +362,7 @@ pub fn open(acc: &AccountConfig, secret: &str) -> Result<Client<Stream>> {
     if acc.oauth.is_some() {
         c.login_xoauth2(user, secret)?;
     } else {
-        c.login(user, secret)?;
+        c.login_as(user, secret, acc.sign_in)?;
     }
     Ok(c)
 }

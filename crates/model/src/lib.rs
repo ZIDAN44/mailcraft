@@ -20,8 +20,8 @@ mod folder;
 
 pub use account::{
     AccountConfig, DavSettings, EWS_AUTODISCOVER, GRAPH_URL, MAX_AUTHORITY_BYTES, MAX_CHECK_MINUTES, MAX_TRUSTED_AUTHORITIES,
-    MAX_TRUSTED_CERTIFICATES, MAX_USER_AGENT, MICROSOFT_IMAP_CLOSED, MICROSOFT_NO_PASSWORDS, Security, ServerConfig, files_sent_mail_itself,
-    is_certificate_fingerprint, microsoft_consumer, microsoft_password_account, oauth_provider_for, user_agent,
+    MAX_TRUSTED_CERTIFICATES, MAX_USER_AGENT, MICROSOFT_IMAP_CLOSED, MICROSOFT_NO_PASSWORDS, Security, ServerConfig, SignInMethod,
+    files_sent_mail_itself, is_certificate_fingerprint, microsoft_consumer, microsoft_password_account, oauth_provider_for, user_agent,
 };
 pub use folder::{Folder, FolderRole, child_path, is_within, rebase_path, sort_folders};
 

@@ -405,3 +405,74 @@ fn a_completion_in_another_language_is_still_done() {
     let info = c.select("INBOX", false).unwrap();
     assert_eq!((info.exists, info.validity, info.uid_next), (3, 5, 9));
 }
+
+/// Issue #123: NTLM (Outlook's Secure Password Authentication). A server that offers NTLM and not
+/// the password (`AUTH=PLAIN`) is signed in to with it, left to MailCraft or chosen: one that takes
+/// no password on the connection, and Cyrus with NTLM alone, which names no `LOGINDISABLED` and
+/// refuses `LOGIN`. It was "the server does not allow sign-in", or a refused password. The answer
+/// proves the password, which never crosses.
+#[test]
+fn ntlm_signs_in_where_a_password_isnt_taken() {
+    use mailcraft_model::SignInMethod;
+    let challenge = crate::ntlm::make_challenge([9; 8], &[]);
+    let rest = format!("+ \r\n+ {}\r\nM1 OK [CAPABILITY IMAP4rev1 MOVE] signed in\r\n", mailcraft_model::base64::encode(&challenge));
+    let greetings =
+        ["* OK [CAPABILITY IMAP4rev1 AUTH=NTLM AUTH=GSSAPI LOGINDISABLED] ready\r\n", "* OK [CAPABILITY IMAP4rev1 AUTH=NTLM SASL-IR] Cyrus\r\n"];
+    for (greeting, method) in greetings.iter().flat_map(|g| [(g, SignInMethod::Automatic), (g, SignInMethod::Ntlm)]) {
+        let server = format!("{greeting}{rest}");
+        let mut c = Client::from_stream(Script::new(server.as_bytes())).unwrap();
+        c.login_as("CORP\\riley", "my pw!", method).unwrap();
+        assert!(c.has("MOVE"), "the capabilities said at sign-in");
+        let written = String::from_utf8(c.conn.into_inner().written).unwrap();
+        let lines: Vec<&str> = written.split("\r\n").collect();
+        assert_eq!(lines[0], "M1 AUTHENTICATE NTLM");
+        assert!(lines[1].starts_with("TlRMTVNTUAAB"), "the negotiate message: {written}");
+        let answer = crate::ews::unb64(lines[2]).unwrap();
+        let c = crate::ntlm::challenge(&challenge).unwrap();
+        assert!(crate::ntlm::verify(&c, &answer, "riley", "CORP", "my pw!"), "the answer proves the password");
+        assert!(!written.contains("my pw!"));
+    }
+    // Refused: in the server's words, as a refused sign-in.
+    let refused = format!(
+        "* OK [CAPABILITY IMAP4rev1 AUTH=NTLM] ready\r\n+ \r\n+ {}\r\nM1 NO [AUTHENTICATIONFAILED] wrong password\r\n",
+        mailcraft_model::base64::encode(&challenge)
+    );
+    let mut c = Client::from_stream(Script::new(refused.as_bytes())).unwrap();
+    let e = c.login_as("riley", "nope", SignInMethod::Ntlm);
+    assert!(matches!(&e, Err(NetError::Auth(m)) if m.ends_with("wrong password")), "{e:?}");
+    // A challenge that isn't one: cancelled with `*`, never answered.
+    let junk = "* OK [CAPABILITY IMAP4rev1 AUTH=NTLM] ready\r\n+ \r\n+ bm90IGEgY2hhbGxlbmdl\r\nM1 BAD cancelled\r\n";
+    let mut c = Client::from_stream(Script::new(junk.as_bytes())).unwrap();
+    assert!(c.login_as("riley", "pw", SignInMethod::Ntlm).is_err());
+    assert!(String::from_utf8(c.conn.into_inner().written).unwrap().ends_with("\r\n*\r\n"));
+}
+
+/// Chosen, NTLM is used where a password would be taken too, and the password where both are;
+/// NTLM chosen on a server that doesn't offer it is said, with what it does offer, and nothing
+/// is sent.
+#[test]
+fn the_chosen_sign_in_is_the_one_used() {
+    use mailcraft_model::SignInMethod;
+    let both = "* OK [CAPABILITY IMAP4rev1 AUTH=PLAIN AUTH=NTLM] ready\r\nM1 OK signed in\r\nM2 OK done\r\n";
+    for method in [SignInMethod::Automatic, SignInMethod::Password] {
+        let mut c = Client::from_stream(Script::new(both.as_bytes())).unwrap();
+        c.login_as("riley", "pw", method).unwrap();
+        assert!(String::from_utf8(c.conn.into_inner().written).unwrap().starts_with("M1 LOGIN "), "{method:?}");
+    }
+    let mut c = Client::from_stream(Script::new(b"* OK [CAPABILITY IMAP4rev1 AUTH=PLAIN] ready\r\n")).unwrap();
+    let e = c.login_as("riley", "pw", SignInMethod::Ntlm).unwrap_err();
+    assert!(matches!(&e, NetError::Auth(m) if m.contains("doesn't offer NTLM") && m.contains("LOGIN, PLAIN")), "{e:?}");
+    assert!(c.conn.into_inner().written.is_empty());
+    // The LOGIN command and AUTH=LOGIN are named once.
+    let mut c = Client::from_stream(Script::new(b"* OK [CAPABILITY IMAP4rev1 AUTH=LOGIN AUTH=PLAIN] ready\r\n")).unwrap();
+    let e = c.login_as("riley", "pw", SignInMethod::Ntlm).unwrap_err();
+    assert!(matches!(&e, NetError::Auth(m) if m.ends_with("it offers: LOGIN, PLAIN")), "{e:?}");
+    // A server that asks on and on during NTLM is left, not answered for good.
+    let asking = format!("* OK [CAPABILITY IMAP4rev1 AUTH=NTLM] ready\r\n{}", "+ \r\n".repeat(50));
+    let mut c = Client::from_stream(Script::new(asking.as_bytes())).unwrap();
+    assert!(matches!(c.login_as("riley", "pw", SignInMethod::Ntlm), Err(NetError::Protocol(_))));
+    // No password on this connection and no NTLM: said, with what's offered.
+    let mut c = Client::from_stream(Script::new(b"* OK [CAPABILITY IMAP4rev1 AUTH=GSSAPI LOGINDISABLED] ready\r\n")).unwrap();
+    let e = c.login_as("riley", "pw", SignInMethod::Automatic).unwrap_err();
+    assert!(matches!(&e, NetError::Auth(m) if m.contains("use TLS") && m.contains("GSSAPI")), "{e:?}");
+}

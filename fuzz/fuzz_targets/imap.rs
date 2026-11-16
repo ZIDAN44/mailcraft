@@ -1,7 +1,7 @@
 //! An IMAP server's side of a session: the input is everything the server sends, read by the
-//! client through a run of commands (greeting, CAPABILITY, LOGIN, LIST, SELECT, a folder sync,
-//! STATUS, QUOTA, APPEND, MOVE). Each command reads on after the last one failed, as a
-//! reconnect would see a fresh server.
+//! client through a run of commands (greeting, CAPABILITY, LOGIN, an NTLM sign-in, LIST, SELECT,
+//! a folder sync, STATUS, QUOTA, APPEND, MOVE). Each command reads on after the last one failed,
+//! as a reconnect would see a fresh server.
 #![no_main]
 
 use std::io::{self, Read, Write};
@@ -45,6 +45,8 @@ fuzz_target!(|data: &[u8]| {
     let Ok(mut c) = Client::from_stream(Server { data }) else { return };
     let _ = c.capability();
     let _ = c.login("me", "pw");
+    // NTLM (issue #123): the server's challenge, as it sends it, read and answered.
+    let _ = c.login_as("CORP\\riley", "pw", mailcraft_model::SignInMethod::Ntlm);
     let _ = c.list("a");
     let store = Store::memory();
     let opts = SyncOptions { window: 50, prefetch: 5, prefetch_max_bytes: 1 << 20 };

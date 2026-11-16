@@ -81,15 +81,8 @@ impl Client {
                             }
                             return Err(NetError::Auth("the server didn't answer the sign-in".into()));
                         };
-                        let challenge = crate::ntlm::challenge(&unb64(token).ok_or_else(|| NetError::Protocol("bad NTLM challenge".into()))?)?;
-                        let mut client_challenge = [0u8; 8];
-                        ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut client_challenge)
-                            .map_err(|_| NetError::Protocol("no randomness".into()))?;
-                        let now = std::time::SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
-                        let filetime = u64::try_from(crate::data_files::outlook::filetime(now)).unwrap_or(0);
-                        let answer = crate::ntlm::authenticate(&challenge, &self.user, &self.password, filetime, client_challenge);
+                        let challenge = unb64(token).ok_or_else(|| NetError::Protocol("bad NTLM challenge".into()))?;
+                        let answer = crate::ntlm::answer(&challenge, &self.user, &self.password)?;
                         let resp = self.send_on_conn(&base.clone().header("Authorization", &format!("{name} {}", base64::encode(&answer))))?;
                         if resp.status != 401 {
                             *self.signed_in.borrow_mut() = true;

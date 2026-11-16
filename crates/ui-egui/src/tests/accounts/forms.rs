@@ -309,10 +309,14 @@ fn cases() -> Vec<Case> {
                 c.imap.security = Security::None;
                 c.smtp_username = Some("out".into());
                 c.online_only = true;
+                // Issue #123: NTLM in, no sign-in out.
+                c.sign_in = mailcraft_engine::model::SignInMethod::Ntlm;
+                c.smtp_sign_in = mailcraft_engine::model::SignInMethod::None;
             }),
             Some("Save"),
         ),
         ("edit imap, switched to jmap", plain(), edit(|_| {}), Some("JMAP")),
+        ("edit imap signed in with google", plain(), edit(|c| c.oauth = Some("google".into())), Some("Save")),
         ("edit jmap", plain(), edit(|c| c.jmap = Some("https://api.example.org/jmap/session".into())), Some("Save")),
         ("edit jmap, switched to imap", plain(), edit(|c| c.jmap = Some("https://api.example.org/jmap/session".into())), Some("IMAP and SMTP")),
         (
@@ -373,7 +377,16 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
         }
     };
     let clear = "Without encryption your password travels in the clear. Use only for local test servers.";
-    let imap_rows = ["Incoming mail (IMAP)", "Outgoing mail (SMTP)", "User name", "mail.example.org", "993", "465"];
+    let imap_rows = [
+        "Incoming mail (IMAP)",
+        "Outgoing mail (SMTP)",
+        "User name",
+        "mail.example.org",
+        "993",
+        "465",
+        "Sign in to the incoming server with",
+        "Sign in to the outgoing server with",
+    ];
     rows("imap", &imap_rows, &["Incoming mail (POP)", clear, "JMAP session address"]);
     rows("imap in the clear", &[clear, "None (unsafe)", "STARTTLS"], &[]);
     rows("pop", &["Incoming mail (POP)", "Outgoing mail (SMTP)", "Existing data file (optional)", "Browse…", clear], &["Incoming mail (IMAP)"]);
@@ -399,6 +412,14 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
     rows("in the browser", &["JMAP session address"], &["Server settings", "IMAP and SMTP"]);
     rows("edit imap", &imap_rows, &["JMAP session address"]);
     rows("edit imap", &[clear, "The outgoing server has its own user name and password", "out"], &[]);
+    rows("edit imap", &["NTLM (Secure Password Authentication)", "No sign-in"], &["Automatic"]);
+    rows("imap", &["Automatic"], &["NTLM (Secure Password Authentication)", "No sign-in"]);
+    // Signed in through the browser: no password, so no way to sign in with one to choose.
+    rows(
+        "edit imap signed in with google",
+        &["Outgoing mail (SMTP)"],
+        &["Sign in to the incoming server with", "Sign in to the outgoing server with"],
+    );
     rows("edit imap, switched to jmap", &["JMAP session address"], &["Incoming mail (IMAP)", "Outgoing mail (SMTP)"]);
     rows("edit jmap, switched to imap", &["Incoming mail (IMAP)", "Outgoing mail (SMTP)"], &["JMAP session address"]);
     rows("edit pop", &["Incoming mail (POP)", "Outgoing mail (SMTP)", "pop.example.org", "Keep a copy of downloaded mail on the server"], &[clear]);
@@ -426,18 +447,18 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
             json!({"email": "zoe@example.org", "name": "Zoe Park", "password": "pw", "username": "zoe@example.org",
                 "imapHost": "mail.example.org", "imapPort": 993, "imapSecurity": "tls",
                 "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "tls",
-                "smtpUsername": "out", "smtpPassword": "spw"})
+                "smtpUsername": "out", "signIn": "automatic", "smtpSignIn": "automatic", "smtpPassword": "spw"})
         )
     );
     assert_eq!(
         get("imap in the clear").params,
         json!({"email": "zoe@example.org", "name": "Zoe Park", "password": "pw", "username": "zoe",
             "imapHost": "mail.example.org", "imapPort": 143, "imapSecurity": "none",
-            "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "starttls", "smtpUsername": null})
+            "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "starttls", "smtpUsername": null, "signIn": "automatic", "smtpSignIn": "automatic"})
     );
     let guessed = json!({"email": "zoe@example.org", "name": "Zoe Park", "password": "pw", "username": "zoe@example.org",
         "imapHost": "mail.example.org", "imapPort": 993, "imapSecurity": "tls",
-        "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "tls", "smtpUsername": null});
+        "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "tls", "smtpUsername": null, "signIn": "automatic", "smtpSignIn": "automatic"});
     assert_eq!(submitted("imap, settings closed"), ("account.add".into(), guessed.clone()));
     assert_eq!(submitted("imap, no servers yet"), ("account.add".into(), guessed.clone()));
     let mut on = guessed.clone();
@@ -447,14 +468,14 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
         get("imap, settings found").params,
         json!({"email": "zoe@example.org", "name": "Zoe Park", "password": "pw", "username": "zoe@example.org",
             "imapHost": "imap.provider.example", "imapPort": 993, "imapSecurity": "tls",
-            "smtpHost": "out.example.org", "smtpPort": 587, "smtpSecurity": "starttls", "smtpUsername": null})
+            "smtpHost": "out.example.org", "smtpPort": 587, "smtpSecurity": "starttls", "smtpUsername": null, "signIn": "automatic", "smtpSignIn": "automatic"})
     );
     assert_eq!(
         get("pop, settings found").params,
         json!({"email": "zoe@example.org", "name": "Zoe Park", "password": "pw", "username": "zoe.park", "pop": true,
             "popHost": "pop3.example.org", "popPort": 110, "popSecurity": "starttls",
             "smtpHost": "out.example.org", "smtpPort": 587, "smtpSecurity": "starttls",
-            "popDelete": false, "popKeepDays": 14, "popDeleteWithTrash": false, "smtpUsername": null})
+            "popDelete": false, "popKeepDays": 14, "popDeleteWithTrash": false, "smtpUsername": null, "signIn": "automatic", "smtpSignIn": "automatic"})
     );
     assert_eq!(
         submitted("pop"),
@@ -463,7 +484,7 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
             json!({"email": "zoe@example.org", "name": "Zoe Park", "password": "pw", "username": "zoe@example.org", "pop": true,
                 "popHost": "pop.example.org", "popPort": 995, "popSecurity": "tls",
                 "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "none",
-                "popDelete": false, "popKeepDays": 30, "popDeleteWithTrash": true, "smtpUsername": null,
+                "popDelete": false, "popKeepDays": 30, "popDeleteWithTrash": true, "smtpUsername": null, "signIn": "automatic", "smtpSignIn": "automatic",
                 "pst": "C:/Mail/old.pst"})
         )
     );
@@ -474,7 +495,7 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
             json!({"email": "zoe@example.org", "name": "Zoe Park", "password": "pw", "username": "zoe@example.org", "pop": true,
                 "popHost": "mail.example.org", "popPort": 995, "popSecurity": "tls",
                 "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "tls",
-                "popDelete": true, "popKeepDays": 0, "popDeleteWithTrash": false, "smtpUsername": null})
+                "popDelete": true, "popKeepDays": 0, "popDeleteWithTrash": false, "smtpUsername": null, "signIn": "automatic", "smtpSignIn": "automatic"})
         )
     );
     assert_eq!(get("pop, settings closed").params["popKeepDays"], json!(0));
@@ -531,10 +552,12 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
             "account.update".into(),
             json!({"account": "zoe", "name": "Zoe Park", "username": "zoe", "jmap": null,
                 "imapHost": "mail.example.org", "imapPort": 993, "imapSecurity": "none",
-                "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "tls", "smtpUsername": "out", "onlineOnly": true})
+                "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "tls", "smtpUsername": "out", "signIn": "ntlm", "smtpSignIn": "none", "onlineOnly": true})
         )
     );
     assert_eq!(get("edit imap, switched to jmap").params["jmap"], json!(""));
+    let google = submitted("edit imap signed in with google").1;
+    assert!(google.get("signIn").is_none() && google.get("smtpSignIn").is_none(), "{google}");
     assert_eq!(
         submitted("edit jmap"),
         (
@@ -550,7 +573,7 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
             json!({"account": "zoe", "name": "Zoe Park", "username": "zoe",
                 "popHost": "pop.example.org", "popPort": 995, "popSecurity": "tls",
                 "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "tls",
-                "popDelete": false, "popKeepDays": 7, "popDeleteWithTrash": false, "smtpUsername": "out"})
+                "popDelete": false, "popKeepDays": 7, "popDeleteWithTrash": false, "smtpUsername": "out", "signIn": "automatic", "smtpSignIn": "automatic"})
         )
     );
     assert_eq!(

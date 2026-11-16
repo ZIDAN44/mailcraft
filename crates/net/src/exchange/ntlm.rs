@@ -1,5 +1,6 @@
-//! NTLMv2 sign-in (MS-NLMP), as on-premises Exchange asks for it over HTTPS: a negotiate
-//! message, the server's challenge, and the answer proving the password without sending it.
+//! NTLMv2 sign-in (MS-NLMP), as on-premises Exchange asks for it over HTTPS, and IMAP, POP3 and
+//! SMTP servers as Secure Password Authentication (issue #123): a negotiate message, the
+//! server's challenge, and the answer proving the password without sending it.
 //! Only NTLMv2 responses are made (never the older LM or NTLMv1 ones), with no signing or
 //! sealing: the connection is TLS.
 //!
@@ -127,6 +128,19 @@ fn responses(key: &[u8; 16], c: &Challenge, client_challenge: [u8; 8], time: [u8
     let mut lm = hmac_md5(key, &[&c.server_challenge, &client_challenge]).to_vec();
     lm.extend_from_slice(&client_challenge);
     (lm, nt)
+}
+
+/// The authenticate message answering the challenge message `m` (as the server sent it,
+/// decoded) as `user` with `password`: a client challenge of its own and the time now, as each
+/// sign-in makes them (EWS over HTTPS; IMAP, POP and SMTP with Secure Password Authentication).
+pub fn answer(m: &[u8], user: &str, password: &str) -> Result<Vec<u8>> {
+    let c = challenge(m)?;
+    let mut client_challenge = [0u8; 8];
+    ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut client_challenge)
+        .map_err(|_| NetError::Protocol("no randomness".into()))?;
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
+    let filetime = u64::try_from(crate::data_files::outlook::filetime(now)).unwrap_or(0);
+    Ok(authenticate(&c, user, password, filetime, client_challenge))
 }
 
 /// The authenticate message (type 3) answering a challenge as `user` (`DOMAIN\user`,

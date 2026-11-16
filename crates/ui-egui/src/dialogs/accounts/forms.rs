@@ -20,6 +20,8 @@ pub struct AccountForm {
     pub smtp_security: Security,
     /// The outgoing server's own user name and password.
     pub smtp_sign_in: SmtpSignIn,
+    /// How each server is signed in to (issue #123).
+    pub sign_in: SignInMethods,
     /// The kind of mail server: each kind uses its own fields below.
     pub kind: AccountKind,
     /// JMAP: its session address.
@@ -118,6 +120,58 @@ impl SmtpSignIn {
             });
         }
     }
+}
+
+/// How the incoming and outgoing servers are signed in to with the password (issue #123), as
+/// Outlook's Secure Password Authentication and "My outgoing server requires authentication"
+/// choose it: left to MailCraft, the password, NTLM, or, for the outgoing server, no sign-in.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct SignInMethods {
+    pub incoming: SignInMethod,
+    pub outgoing: SignInMethod,
+}
+
+impl SignInMethods {
+    pub(crate) fn of(c: &AccountConfig) -> SignInMethods {
+        SignInMethods { incoming: c.sign_in, outgoing: c.smtp_sign_in }
+    }
+
+    /// `signIn` and `smtpSignIn`.
+    pub(crate) fn params(&self, p: &mut serde_json::Value) {
+        p["signIn"] = json!(self.incoming.code());
+        p["smtpSignIn"] = json!(self.outgoing.code());
+    }
+
+    pub(crate) fn ui(&mut self, ui: &mut Ui) {
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.label(tl!("Sign in to the incoming server with"));
+            method_combo(ui, "sign-in-incoming", &mut self.incoming, false);
+        });
+        ui.horizontal(|ui| {
+            ui.label(tl!("Sign in to the outgoing server with"));
+            method_combo(ui, "sign-in-outgoing", &mut self.outgoing, true);
+        });
+    }
+}
+
+/// A server's sign-in method; `none` offers No sign-in (the outgoing server's alone).
+fn method_combo(ui: &mut Ui, id: &str, v: &mut SignInMethod, none: bool) {
+    let name = |m: SignInMethod| match m {
+        SignInMethod::Automatic => tl!("Automatic"),
+        SignInMethod::Password => tl!("Password"),
+        SignInMethod::Ntlm => tl!("NTLM (Secure Password Authentication)"),
+        SignInMethod::None => tl!("No sign-in"),
+    };
+    let mut methods = vec![SignInMethod::Automatic, SignInMethod::Password, SignInMethod::Ntlm];
+    if none {
+        methods.push(SignInMethod::None);
+    }
+    egui::ComboBox::from_id_salt(id).selected_text(name(*v)).show_ui(ui, |ui| {
+        for m in methods {
+            ui.selectable_value(v, m, name(m));
+        }
+    });
 }
 
 /// When a POP server's copy of downloaded mail goes: kept (for so many days, or until it's deleted
@@ -239,6 +293,7 @@ impl AccountForm {
             p["smtpPort"] = json!(port(&self.smtp_port));
             p["smtpSecurity"] = json!(self.smtp_security.code());
             self.smtp_sign_in.params(&mut p);
+            self.sign_in.params(&mut p);
         }
         p
     }
@@ -269,6 +324,10 @@ pub struct EditForm {
     pub smtp_security: Security,
     /// The outgoing server's own user name and password.
     pub smtp_sign_in: SmtpSignIn,
+    /// How each server is signed in to (issue #123); not for an account signing in through the
+    /// browser (`oauth`), which has no password to sign in with.
+    pub sign_in: SignInMethods,
+    pub oauth: bool,
     /// Keep none of its mail on this computer (issue #4; not for POP).
     pub online_only: bool,
     pub error: Option<String>,
@@ -311,6 +370,9 @@ impl EditForm {
             });
             self.pop_keep.params(&mut v);
             self.smtp_sign_in.params(&mut v);
+            if !self.oauth {
+                self.sign_in.params(&mut v);
+            }
             return v;
         }
         let mut v = json!({
@@ -326,6 +388,9 @@ impl EditForm {
             "smtpSecurity": self.smtp_security.code(),
         });
         self.smtp_sign_in.params(&mut v);
+        if !self.oauth {
+            self.sign_in.params(&mut v);
+        }
         v
     }
 }

@@ -10,7 +10,7 @@ use lettre::transport::smtp::authentication::{Credentials, DEFAULT_MECHANISMS, M
 use lettre::transport::smtp::client::{Certificate, SmtpConnection, TlsParameters};
 use lettre::transport::smtp::commands::{Data, Mail, Rcpt};
 use lettre::transport::smtp::extension::{ClientId, Extension, MailBodyParameter, MailParameter};
-use mailcraft_model::{Security, ServerConfig};
+use mailcraft_model::{Security, ServerConfig, SignInMethod};
 use rustls::pki_types::CertificateDer;
 
 use crate::stream::Trusted;
@@ -18,13 +18,15 @@ use crate::stream::trust::{self, Distrusting};
 use crate::{NetError, Result};
 
 #[cfg(test)]
+mod sign_in_tests;
+#[cfg(test)]
 mod tls_tests;
 
 /// Submit `raw` (an RFC 5322 message) from `from` to `recipients`, signing in with a password:
 /// the tests' way to put mail on a server.
 #[cfg(test)]
 pub fn send(server: &ServerConfig, user: &str, password: &str, from: &str, recipients: &[String], raw: &[u8]) -> Result<()> {
-    send_trusting(server, SignIn { user, password, oauth: false }, from, recipients, raw, Trusted::default())
+    send_trusting(server, SignIn { user, password, oauth: false, method: SignInMethod::Automatic }, from, recipients, raw, Trusted::default())
 }
 
 /// Submit `raw` (an RFC 5322 message) from `from` to `recipients` through an account's server,
@@ -44,13 +46,14 @@ pub fn send_trusting(server: &ServerConfig, sign_in: SignIn<'_>, from: &str, rec
     submit(server, sign_in, &envelope, raw, recipients, &trust)
 }
 
-/// Who signs in, and how: a password, or an OAuth access token (XOAUTH2) when `oauth`. An empty
-/// `user` sends without signing in.
+/// Who signs in, and how: a password as `method` says, or an OAuth access token (XOAUTH2) when
+/// `oauth`. An empty `user` sends without signing in.
 pub struct SignIn<'a> {
     pub user: &'a str,
     /// The password, or the access token when `oauth`.
     pub password: &'a str,
     pub oauth: bool,
+    pub method: SignInMethod,
 }
 
 /// What sending trusts: `roots` for lettre's handshake (the system's), and `verifier`, the check
@@ -118,13 +121,103 @@ fn submit(server: &ServerConfig, sign_in: SignIn<'_>, envelope: &Envelope, raw: 
             return Err(e);
         }
     }
-    if !sign_in.user.is_empty() {
-        let mechanisms: &[Mechanism] = if sign_in.oauth { &[Mechanism::Xoauth2] } else { DEFAULT_MECHANISMS };
-        conn.auth(mechanisms, &Credentials::new(sign_in.user.to_string(), sign_in.password.to_string())).map_err(failed)?;
+    if let Err(e) = sign_in_to(&mut conn, &hello, &sign_in, recipients) {
+        conn.abort();
+        return Err(e);
     }
     let sent = hand_over(&mut conn, envelope, raw, recipients);
     conn.abort();
     sent
+}
+
+/// Sign in as `sign_in` says, once the connection is secured (issue #123). An OAuth token goes
+/// as XOAUTH2. With a password: `PLAIN` or `LOGIN` (lettre's), or NTLM, Outlook's Secure Password
+/// Authentication; left to MailCraft, the password when the server takes it, NTLM when it takes
+/// only that, and no sign-in when it offers none (a company's server that takes mail from where
+/// it's sent). An empty user name or [`SignInMethod::None`] sends without signing in.
+fn sign_in_to(conn: &mut SmtpConnection, hello: &ClientId, sign_in: &SignIn<'_>, recipients: &[String]) -> Result<()> {
+    let failed = |e: lettre::transport::smtp::Error| failure(e, recipients);
+    if sign_in.user.is_empty() || sign_in.method == SignInMethod::None {
+        return Ok(());
+    }
+    let credentials = Credentials::new(sign_in.user.to_string(), sign_in.password.to_string());
+    if sign_in.oauth {
+        return conn.auth(&[Mechanism::Xoauth2], &credentials).map(drop).map_err(failed);
+    }
+    let offered = offered_sign_ins(conn, hello).map_err(failed)?;
+    let has = |m: &str| offered.iter().any(|o| o == m);
+    let password = has("PLAIN") || has("LOGIN");
+    let names = || if offered.is_empty() { "none".to_string() } else { offered.join(", ") };
+    match sign_in.method {
+        SignInMethod::Automatic if offered.is_empty() => Ok(()),
+        SignInMethod::Automatic | SignInMethod::Password if password => conn.auth(DEFAULT_MECHANISMS, &credentials).map(drop).map_err(failed),
+        SignInMethod::Automatic | SignInMethod::Ntlm if has("NTLM") => ntlm(conn, sign_in, recipients),
+        SignInMethod::Ntlm => {
+            Err(NetError::Auth(format!("the outgoing server doesn't offer NTLM (Secure Password Authentication); it offers: {}", names())))
+        }
+        SignInMethod::Password if offered.is_empty() => Err(NetError::Auth(
+            "the outgoing server offers no sign-in: if it takes mail without one, choose No sign-in in the account's Server settings".into(),
+        )),
+        _ => Err(NetError::Auth(format!("the outgoing server offers no sign-in MailCraft can use; it offers: {}", names()))),
+    }
+}
+
+/// The sign-in methods the server names (`AUTH PLAIN LOGIN NTLM`, or the older `AUTH=`), upper
+/// case: `EHLO` asked again, as lettre keeps only those it speaks (RFC 5321 lets it be asked any
+/// time).
+fn offered_sign_ins(conn: &mut SmtpConnection, hello: &ClientId) -> std::result::Result<Vec<String>, lettre::transport::smtp::Error> {
+    let r = conn.command(lettre::transport::smtp::commands::Ehlo::new(hello.clone()))?;
+    let mut out: Vec<String> = Vec::new();
+    for line in r.message() {
+        let line = line.trim();
+        let Some(rest) = line.get(..5).filter(|p| p.eq_ignore_ascii_case("AUTH ") || p.eq_ignore_ascii_case("AUTH=")).and(line.get(5..)) else {
+            continue;
+        };
+        for m in rest.split_whitespace().take(32) {
+            let m = m.to_ascii_uppercase();
+            if !out.contains(&m) {
+                out.push(m);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// A line MailCraft writes itself (a step of a sign-in lettre doesn't speak).
+struct Line(String);
+
+impl std::fmt::Display for Line {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}\r\n", self.0)
+    }
+}
+
+/// NTLM's messages through RFC 4954's `AUTH` exchange (as [MS-SMTPNTLM] has it): the server's
+/// challenge answered, the password never sent.
+fn ntlm(conn: &mut SmtpConnection, sign_in: &SignIn<'_>, recipients: &[String]) -> Result<()> {
+    let failed = |e: lettre::transport::smtp::Error| failure(e, recipients);
+    conn.command(Line("AUTH NTLM".into())).map_err(failed)?;
+    let r = conn.command(Line(mailcraft_model::base64::encode(&crate::ntlm::negotiate()))).map_err(failed)?;
+    let answer = r
+        .first_word()
+        .and_then(crate::ews::unb64)
+        .ok_or_else(|| NetError::Protocol("bad NTLM challenge".into()))
+        .and_then(|c| crate::ntlm::answer(&c, sign_in.user, sign_in.password));
+    let answer = match answer {
+        Ok(a) => a,
+        Err(e) => {
+            // Cancelled, as RFC 4954 cancels; the server's refusal of that is expected.
+            let _ = conn.command(Line("*".into()));
+            return Err(e);
+        }
+    };
+    // Signed in only on 235: a server asking on (334) isn't, and is cancelled.
+    let r = conn.command(Line(mailcraft_model::base64::encode(&answer))).map_err(failed)?;
+    if r.has_code(235) {
+        return Ok(());
+    }
+    let _ = conn.command(Line("*".into()));
+    Err(NetError::Auth("the outgoing server didn't finish the NTLM sign-in".into()))
 }
 
 /// MAIL, RCPT, DATA and the message, as lettre's `SmtpConnection::send` goes through them, one

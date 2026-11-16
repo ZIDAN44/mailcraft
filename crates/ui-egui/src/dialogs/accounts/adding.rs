@@ -191,6 +191,7 @@ fn server_settings(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tokens, ac
     field_label(ui, "User name");
     edited |= ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
     f.smtp_sign_in.ui(ui, w);
+    f.sign_in.ui(ui);
     f.servers_edited |= edited;
     if pop {
         // Outlook's "use an existing data file": mail kept from before comes in first.
@@ -290,8 +291,11 @@ fn sign_in(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tokens, consumer: 
             f.error = None;
             let mut params = f.params();
             params["oauth"] = json!(p);
+            // Signed in through the browser: no password, nor a way to sign in with one.
             if let Some(o) = params.as_object_mut() {
-                o.remove("password");
+                for key in ["password", "signIn", "smtpSignIn"] {
+                    o.remove(key);
+                }
             }
             acts.push(Action::Submit("account.add", params));
         }

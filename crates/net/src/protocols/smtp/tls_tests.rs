@@ -132,7 +132,7 @@ fn send_trusting_to(
     let config = ServerConfig { host: "127.0.0.1".into(), port, security };
     let envelope = Envelope::new(Some("ana@corp.test".parse().unwrap()), vec!["ben@corp.test".parse().unwrap()]).unwrap();
     let message = b"Subject: hi\r\n\r\nhello\r\n";
-    let sign_in = SignIn { user: "ana@corp.test", password: "made-up", oauth: false };
+    let sign_in = SignIn { user: "ana@corp.test", password: "made-up", oauth: false, method: SignInMethod::Automatic };
     let result = submit(&config, sign_in, &envelope, message, &["ben@corp.test".into()], &trust);
     (result, server.join().unwrap())
 }

@@ -9,6 +9,7 @@ mod data_files;
 mod half_done;
 mod importing;
 mod reconnecting;
+mod sign_in;
 mod trusting;
 mod which_account;
 

@@ -21,6 +21,49 @@ pub enum Security {
     None,
 }
 
+/// How MailCraft signs in to a mail server with a password (issue #123), as Outlook's "Require
+/// logon using Secure Password Authentication" and "My outgoing server requires authentication"
+/// choose it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SignInMethod {
+    /// As the server offers: the password (`PLAIN` or `LOGIN`), else NTLM; an outgoing server
+    /// that offers no sign-in is sent to without one.
+    #[default]
+    Automatic,
+    /// The password, as the server asks for it (`PLAIN` or `LOGIN`).
+    Password,
+    /// NTLM, Outlook's Secure Password Authentication: the password never crosses the network.
+    Ntlm,
+    /// No sign-in: an outgoing server that takes mail from where it's sent (a company's own).
+    None,
+}
+
+impl SignInMethod {
+    pub fn code(self) -> &'static str {
+        match self {
+            SignInMethod::Automatic => "automatic",
+            SignInMethod::Password => "password",
+            SignInMethod::Ntlm => "ntlm",
+            SignInMethod::None => "none",
+        }
+    }
+
+    pub fn from_code(s: &str) -> Option<SignInMethod> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "automatic" | "auto" | "" => Some(SignInMethod::Automatic),
+            "password" | "plain" | "login" => Some(SignInMethod::Password),
+            "ntlm" | "spa" => Some(SignInMethod::Ntlm),
+            "none" => Some(SignInMethod::None),
+            _ => None,
+        }
+    }
+
+    pub fn is_automatic(&self) -> bool {
+        *self == SignInMethod::Automatic
+    }
+}
+
 impl Security {
     pub fn code(self) -> &'static str {
         match self {
@@ -65,6 +108,12 @@ pub struct AccountConfig {
     /// (its password is kept apart in the keychain); otherwise SMTP signs in as IMAP or POP does.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub smtp_username: Option<String>,
+    /// How the incoming server (IMAP or POP) is signed in to with the password (issue #123).
+    #[serde(default, skip_serializing_if = "SignInMethod::is_automatic")]
+    pub sign_in: SignInMethod,
+    /// How the outgoing server (SMTP) is signed in to, or that it isn't (issue #123).
+    #[serde(default, skip_serializing_if = "SignInMethod::is_automatic")]
+    pub smtp_sign_in: SignInMethod,
     /// Its signatures by name (issue #11: "Full", "Short"…), as Outlook's Signatures keeps them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub signatures: Vec<Signature>,
@@ -197,6 +246,8 @@ impl AccountConfig {
             imap,
             smtp,
             smtp_username,
+            sign_in,
+            smtp_sign_in,
             oauth,
             jmap,
             graph,
@@ -217,7 +268,7 @@ impl AccountConfig {
         } = self;
         (
             (email, username, imap, smtp, pop),
-            (jmap, graph, ews, smtp_username, oauth, oauth_user),
+            (jmap, graph, ews, smtp_username, oauth, oauth_user, (sign_in, smtp_sign_in)),
             (pop_delete, pop_keep_days, pop_delete_with_trash, shared_mailboxes, online_only, (check_every, check_by_hand)),
             (dav, user_agent, trusted_certificates, trusted_authorities),
         )

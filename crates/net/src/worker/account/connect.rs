@@ -282,7 +282,7 @@ impl Worker {
             self.imap_with_token(&user, &secret)?
         } else {
             let mut c = Client::connect_trusting(&self.acc.imap, crate::stream::Trusted::of(&self.acc))?;
-            c.login(&user, &secret)?;
+            c.login_as(&user, &secret, self.acc.sign_in)?;
             c
         };
         self.conn = Some(Conn::Imap(c));

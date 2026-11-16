@@ -968,6 +968,10 @@ month	May	Май
 	Opened by the server for your access to it	Открыт сервером, так как у вас есть доступ
 	Shared mailbox {address}, opened by {email}	Общий почтовый ящик {address}, открыт через {email}
 	The outgoing server has its own user name and password	У сервера исходящей почты свои имя пользователя и пароль
+	Sign in to the incoming server with	Вход на сервер входящей почты
+	Sign in to the outgoing server with	Вход на сервер исходящей почты
+	NTLM (Secure Password Authentication)	NTLM (безопасная проверка пароля)
+	No sign-in	Без входа
 	Its user name	Его имя пользователя
 	Its password	Его пароль
 	Password (unchanged when empty)	Пароль (без изменений, если пусто)

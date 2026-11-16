@@ -969,6 +969,10 @@ month	May	mai
 	Opened by the server for your access to it	Ouverte par le serveur, car vous y avez accès
 	Shared mailbox {address}, opened by {email}	Boîte aux lettres partagée {address}, ouverte par {email}
 	The outgoing server has its own user name and password	Le serveur sortant a son propre nom d'utilisateur et son propre mot de passe
+	Sign in to the incoming server with	Se connecter au serveur entrant avec
+	Sign in to the outgoing server with	Se connecter au serveur sortant avec
+	NTLM (Secure Password Authentication)	NTLM (authentification sécurisée par mot de passe)
+	No sign-in	Sans connexion
 	Its user name	Son nom d'utilisateur
 	Its password	Son mot de passe
 	Password (unchanged when empty)	Mot de passe (inchangé si vide)

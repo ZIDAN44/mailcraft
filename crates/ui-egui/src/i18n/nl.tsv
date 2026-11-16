@@ -964,6 +964,10 @@ month	May	mei
 	Opened by the server for your access to it	Door de server geopend omdat u er toegang toe hebt
 	Shared mailbox {address}, opened by {email}	Gedeeld postvak {address}, geopend via {email}
 	The outgoing server has its own user name and password	De server voor uitgaande e-mail heeft een eigen gebruikersnaam en wachtwoord
+	Sign in to the incoming server with	Aanmelden bij de server voor inkomende e-mail met
+	Sign in to the outgoing server with	Aanmelden bij de server voor uitgaande e-mail met
+	NTLM (Secure Password Authentication)	NTLM (beveiligde wachtwoordverificatie)
+	No sign-in	Zonder aanmelden
 	Its user name	Gebruikersnaam ervan
 	Its password	Wachtwoord ervan
 	Password (unchanged when empty)	Wachtwoord (ongewijzigd als leeg)

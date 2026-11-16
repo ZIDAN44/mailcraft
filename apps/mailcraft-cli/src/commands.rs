@@ -16,9 +16,15 @@ pub(crate) fn call(s: &mut Session, id: &str, params: &Value) -> Result<Value, S
 pub(crate) fn add(s: &mut Session, args: &Args) -> Result<(), String> {
     let email = args.opt("--email").ok_or("--email is required")?;
     let mut p = json!({"email": email});
-    for (flag, key) in
-        [("--name", "name"), ("--username", "username"), ("--imap-security", "imapSecurity"), ("--smtp-security", "smtpSecurity"), ("--jmap", "jmap")]
-    {
+    for (flag, key) in [
+        ("--name", "name"),
+        ("--username", "username"),
+        ("--imap-security", "imapSecurity"),
+        ("--smtp-security", "smtpSecurity"),
+        ("--sign-in", "signIn"),
+        ("--smtp-sign-in", "smtpSignIn"),
+        ("--jmap", "jmap"),
+    ] {
         if let Some(v) = args.opt(flag) {
             p[key] = json!(v);
         }

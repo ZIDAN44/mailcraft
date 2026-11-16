@@ -964,6 +964,10 @@ month	May	مايو
 	Opened by the server for your access to it	يفتحه الخادم لأن لديك حق الوصول إليه
 	Shared mailbox {address}, opened by {email}	صندوق البريد المشترك {address}، يفتحه {email}
 	The outgoing server has its own user name and password	لخادم البريد الصادر اسم مستخدم وكلمة مرور خاصان به
+	Sign in to the incoming server with	تسجيل الدخول إلى خادم البريد الوارد باستخدام
+	Sign in to the outgoing server with	تسجيل الدخول إلى خادم البريد الصادر باستخدام
+	NTLM (Secure Password Authentication)	NTLM (مصادقة كلمة المرور الآمنة)
+	No sign-in	بدون تسجيل دخول
 	Its user name	اسم المستخدم الخاص به
 	Its password	كلمة المرور الخاصة به
 	Password (unchanged when empty)	كلمة المرور (لا تتغير إن تُركت فارغة)

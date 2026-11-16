@@ -317,3 +317,65 @@ fn a_listing_of_every_message_up_to_the_limit_comes_whole() {
     let e = c.uidl().unwrap_err();
     assert!(e.to_string().contains("more than 200000 messages"), "{e}");
 }
+
+/// A canned server that keeps what it's sent.
+struct Talk {
+    input: std::io::Cursor<Vec<u8>>,
+    written: Vec<u8>,
+}
+impl Read for Talk {
+    fn read(&mut self, b: &mut [u8]) -> std::io::Result<usize> {
+        self.input.read(b)
+    }
+}
+impl Write for Talk {
+    fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+        self.written.extend_from_slice(b);
+        Ok(b.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Issue #123: NTLM (Outlook's Secure Password Authentication) over POP, when chosen: the
+/// server's challenge answered, the password never sent. Left to MailCraft, `USER` and `PASS`.
+#[test]
+fn ntlm_signs_in_to_pop_when_chosen() {
+    use mailcraft_model::SignInMethod;
+    let challenge = crate::ntlm::make_challenge([7; 8], &[]);
+    let server = format!("+OK ready\r\n+ \r\n+ {}\r\n+OK signed in\r\n", mailcraft_model::base64::encode(&challenge));
+    let mut c = Client::greet(Talk { input: std::io::Cursor::new(server.into_bytes()), written: Vec::new() }).unwrap();
+    c.login_as("CORP\\riley", "my pw!", SignInMethod::Ntlm).unwrap();
+    let written = String::from_utf8(c.r.into_inner().written).unwrap();
+    let lines: Vec<&str> = written.split("\r\n").collect();
+    assert_eq!(lines[0], "AUTH NTLM");
+    assert!(lines[1].starts_with("TlRMTVNTUAAB"), "{written}");
+    let challenge = crate::ntlm::challenge(&challenge).unwrap();
+    assert!(crate::ntlm::verify(&challenge, &crate::ews::unb64(lines[2]).unwrap(), "riley", "CORP", "my pw!"));
+    assert!(!written.contains("my pw!"));
+    // Refused at the end, in the server's words; or at once, by a server without NTLM.
+    for (server, said) in [
+        (
+            format!(
+                "+OK ready\r\n+ \r\n+ {}\r\n-ERR [AUTH] wrong password\r\n",
+                mailcraft_model::base64::encode(&crate::ntlm::make_challenge([7; 8], &[]))
+            ),
+            "[AUTH] wrong password",
+        ),
+        ("+OK ready\r\n-ERR unknown command\r\n".to_string(), "unknown command"),
+    ] {
+        let mut c = Client::greet(canned(server.as_bytes())).unwrap();
+        let e = c.login_as("riley", "pw", SignInMethod::Ntlm).unwrap_err();
+        assert!(matches!(&e, NetError::Auth(m) if m == said), "{e:?}");
+    }
+    // A mailbox signed in to too soon again, as Cyrus refuses it: said to wait, not taken for a
+    // wrong password (found against Cyrus 3.6, which allows one sign-in a minute).
+    let challenge = mailcraft_model::base64::encode(&crate::ntlm::make_challenge([7; 8], &[]));
+    let soon = format!("+OK ready\r\n+ \r\n+ {challenge}\r\n-ERR [LOGIN-DELAY] Logins must be at least 1 minute apart\r\n");
+    let mut c = Client::greet(canned(soon.as_bytes())).unwrap();
+    assert!(matches!(c.login_as("riley", "pw", SignInMethod::Ntlm), Err(NetError::Later(_))));
+    let mut c = Client::greet(Talk { input: std::io::Cursor::new(b"+OK ready\r\n+OK\r\n+OK\r\n".to_vec()), written: Vec::new() }).unwrap();
+    c.login_as("riley", "pw", SignInMethod::Automatic).unwrap();
+    assert_eq!(c.r.into_inner().written, b"USER riley\r\nPASS pw\r\n");
+}

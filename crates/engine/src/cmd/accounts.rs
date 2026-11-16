@@ -18,7 +18,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"account"?: string, "folder"?: string (Deleted Items and Junk are emptied for good; any other folder's mail goes to Deleted Items), "role"?: "trash"|"junk"}"#),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "dav"?: string (calendars and contacts only, with no mail server: its CalDAV and CardDAV server's address; signs in as username, or the address, with password), "userAgent"?: string (with ews: the User-Agent its requests name instead of MailCraft's, for a server that lets in only clients it knows), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "signIn"?: "automatic"|"password"|"ntlm" (how the incoming server is signed in to), "smtpSignIn"?: "automatic"|"password"|"ntlm"|"none" (the outgoing server's; "none": it takes mail without a sign-in), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "dav"?: string (calendars and contacts only, with no mail server: its CalDAV and CardDAV server's address; signs in as username, or the address, with password), "userAgent"?: string (with ews: the User-Agent its requests name instead of MailCraft's, for a server that lets in only clients it knows), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#),
         CommandSpec::new("account.exportPst", "Export to Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             let account = account_param(s, v)?;
@@ -141,7 +141,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("account.removeAddress", "Remove an address", "File › Info › Account settings", remove_address)
             .params(r#"{"account": string, "address": string}"#),
         CommandSpec::new("account.update", "Account settings", "File › Info › Account settings", update_account).params(
-            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "smtpUsername"?: string|null (the outgoing server's own sign-in; null: the incoming server's), "smtpPassword"?: string, "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool, "onlineOnly"?: bool, "ews"?: string, "userAgent"?: string (Exchange: the User-Agent its requests name; "" for MailCraft's)}"#,
+            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "smtpUsername"?: string|null (the outgoing server's own sign-in; null: the incoming server's), "smtpPassword"?: string, "signIn"?: "automatic"|"password"|"ntlm", "smtpSignIn"?: "automatic"|"password"|"ntlm"|"none", "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool, "onlineOnly"?: bool, "ews"?: string, "userAgent"?: string (Exchange: the User-Agent its requests name; "" for MailCraft's)}"#,
         ),
         CommandSpec::new("account.mailbox", "Mailbox settings", "File › Info › Mailbox settings", |s, v| {
             let id = account_param(s, v)?;
@@ -247,6 +247,8 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         imap: if plain || pop.is_some() { ServerConfig::default() } else { server(v, "imap", &guess.imap)? },
         smtp: if plain { ServerConfig::default() } else { server(v, "smtp", &guess.smtp)? },
         smtp_username: None,
+        sign_in: mailcraft_model::SignInMethod::default(),
+        smtp_sign_in: mailcraft_model::SignInMethod::default(),
         signature: p::str(v, "signature").unwrap_or_default().to_string(),
         signature_html: String::new(),
         signature_code: String::new(),
@@ -295,6 +297,7 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
     }
     // The outgoing server's own sign-in (IMAP or POP with SMTP).
     let mut config = config;
+    sign_in_methods(v, &mut config)?;
     let smtp_password = smtp_sign_in(v, &mut config, true)?;
     // `pst`: an existing data file whose mail comes into the account first. Checked before the
     // account is made: refused after, the account was there although the command failed.
@@ -418,6 +421,7 @@ pub(super) fn update_account(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(on) = p::bool(v, "onlineOnly") {
         c.online_only = on;
     }
+    sign_in_methods(v, &mut c)?;
     let smtp_password = smtp_sign_in(v, &mut c, false)?;
     let done = s.update_account(c, None)?;
     if let Some(pw) = smtp_password {
@@ -449,6 +453,35 @@ pub(super) fn smtp_sign_in(v: &Value, c: &mut AccountConfig, adding: bool) -> Re
     }
     c.smtp_username = Some(user);
     Ok(password)
+}
+
+/// How the servers are signed in to with the password (issue #123): `signIn` for the incoming
+/// server, `smtpSignIn` for the outgoing one ("automatic", "password", "ntlm", and "none" for the
+/// outgoing server alone). Only accounts that sign in to IMAP, POP or SMTP with a password have
+/// them to choose.
+pub(super) fn sign_in_methods(v: &Value, c: &mut AccountConfig) -> Result<(), CmdError> {
+    use mailcraft_model::SignInMethod;
+    let read = |key: &str| -> Result<Option<SignInMethod>, CmdError> {
+        match p::str(v, key) {
+            None => Ok(None),
+            Some(x) => SignInMethod::from_code(x).map(Some).ok_or_else(|| CmdError::Params(format!("{key}: unknown `{x}`"))),
+        }
+    };
+    let (incoming, outgoing) = (read("signIn")?, read("smtpSignIn")?);
+    let chosen = [incoming, outgoing].iter().flatten().any(|m| !m.is_automatic());
+    if chosen && (c.is_local() || c.is_api() || c.is_calendar_only() || c.oauth.is_some()) {
+        return Err(CmdError::Params("only accounts that sign in to IMAP, POP or SMTP with a password choose how".into()));
+    }
+    if incoming == Some(SignInMethod::None) {
+        return Err(CmdError::Params("signIn: the incoming server always needs a sign-in".into()));
+    }
+    if let Some(m) = incoming {
+        c.sign_in = m;
+    }
+    if let Some(m) = outgoing {
+        c.smtp_sign_in = m;
+    }
+    Ok(())
 }
 
 /// `account.dav`: where the account's calendars and contacts are, given by hand.

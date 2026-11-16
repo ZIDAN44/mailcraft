@@ -15,12 +15,14 @@ on GitHub.
 ### Added
 
 - Attachments selected together (Ctrl+click, ⌘-click on a Mac) drag out together (#120), onto a folder to save them there or into another app, as **Save Selected** saves them: only the one under the pointer went.
+- Choose how MailCraft signs in to an account's mail servers (#123), under **Server settings** when it's added or changed: **Sign in to the incoming server with** and **Sign in to the outgoing server with** Automatic, Password, or NTLM (Secure Password Authentication, as a company's Exchange may ask for it: the password never crosses the network), and for the outgoing server No sign-in. Left on Automatic, a server that offers NTLM and not a password is signed in to with NTLM.
 
 ### Fixed
 
 - On Linux and the BSDs, attachments drag out of MailCraft on a desktop running Wayland, such as GNOME's or KDE Plasma's (#120): drag one onto a folder in your file manager to save it there. The window opens through XWayland so that they can, but dragging them was still left off there, and nothing happened.
 - Newsletters that put a table around each section for Outlook alone, as HubSpot's do, show their text (#122): every section came out empty, and only the background and pictures showed. A title in a quote in a colour of its own no longer starts with `> ##`.
 - A table whose rows are inside a form, as a survey in a newsletter has them, shows its rows: it came out empty.
+- Mail goes out through an outgoing server that takes it without a sign-in, as a company's own may (#123): MailCraft signed in anyway, and couldn't send. A server that offers only sign-in methods MailCraft doesn't speak is said to, naming them.
 
 ## 0.39.0 - 2026-11-16
 
