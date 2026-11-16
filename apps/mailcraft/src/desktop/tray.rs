@@ -14,11 +14,17 @@
 //!   Wayland (whose windows can't be hidden and shown again by the app), the window is minimized.
 //! - **macOS:** the window is minimized to the Dock, whose icon brings it back, as a Mac app's
 //!   does; Quit (⌘Q, the menu's, the Dock's) ends MailCraft, as Exit does.
+//!
+//! The icon shows the Inboxes' unread mail in its corner, when that's on (issue #117,
+//! [`badge`]); and MailCraft can start with its window put away as a close puts it (#116).
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
 
 use mailcraft_ui_egui::{KeptOnClose, MailApp};
+
+#[cfg_attr(target_os = "macos", allow(dead_code))]
+mod badge;
 
 /// Whether the icon is in the notification area now.
 static SHOWN: AtomicBool = AtomicBool::new(false);
@@ -45,6 +51,13 @@ pub(crate) fn kept_on_close() -> Option<KeptOnClose> {
     Some(if hides() && SHOWN.load(Ordering::Relaxed) { KeptOnClose::Hidden } else { KeptOnClose::Minimized })
 }
 
+/// Whether a window started put away (issue #116) can be hidden: not on a Mac (the Dock is the
+/// way back to a minimized one) nor a Wayland window. Whether the icon can be made isn't known
+/// yet: when it can't, the window comes back minimized ([`Tray::follow`]).
+pub(crate) fn hides_at_start(native_wayland: bool) -> bool {
+    !cfg!(target_os = "macos") && !native_wayland
+}
+
 /// Quit, asked from outside the window (the Mac's menu, ⌘Q, the Dock): MailCraft ends, where a
 /// close of its window would only put it away. False when nothing is there to take it yet.
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
@@ -63,9 +76,18 @@ enum Ask {
     Exit,
 }
 
-/// The tooltip (the window's title, with the unread count) and the menu's two lines.
+/// The tooltip (the window's title, with the unread count), the menu's two lines, and the
+/// unread count the icon shows (none when that's off).
 #[cfg(not(target_os = "macos"))]
-type Words = (String, String, String);
+type Words = (String, String, String, u32);
+
+/// MailCraft's icon, with the badge for `unread` (none: as it is), as RGBA, and its size.
+#[cfg(not(target_os = "macos"))]
+fn picture(unread: u32) -> (Vec<u8>, u32, u32) {
+    let app = crate::app_icon();
+    let rgba = if app.width == app.height { badge::badged(&app.rgba, app.width, unread) } else { app.rgba };
+    (rgba, app.width, app.height)
+}
 
 pub(crate) struct Tray {
     #[cfg(not(target_os = "macos"))]
@@ -109,7 +131,7 @@ impl Tray {
     }
 
     #[cfg(not(target_os = "macos"))]
-    fn keep(&mut self, app: &MailApp, ctx: &egui::Context) {
+    fn keep(&mut self, app: &mut MailApp, ctx: &egui::Context) {
         if !app.session.prefs.close_to_tray {
             if self.icon.take().is_some() {
                 SHOWN.store(false, Ordering::Relaxed);
@@ -130,6 +152,10 @@ impl Tray {
                     log::info!("notification area: no icon ({e}); the window is minimized when closed");
                     self.failed = true;
                     FAILED.store(true, Ordering::Relaxed);
+                    // Started hidden, with no icon to bring it back: minimized, within reach.
+                    if app.in_tray() {
+                        app.back_minimized(ctx);
+                    }
                 }
             },
             None => {}
@@ -149,7 +175,13 @@ mod native {
     use tray_icon::menu::{Menu, MenuEvent, MenuItem};
     use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
-    use super::{Ask, Words, tooltip};
+    use super::{Ask, Words, picture, tooltip};
+
+    /// The picture for `unread`, as the tray takes it.
+    fn icon_for(unread: u32) -> Result<tray_icon::Icon, String> {
+        let (rgba, width, height) = picture(unread);
+        tray_icon::Icon::from_rgba(rgba, width, height).map_err(|e| e.to_string())
+    }
 
     pub(super) struct Icon {
         icon: TrayIcon,
@@ -160,13 +192,12 @@ mod native {
 
     impl Icon {
         pub(super) fn new(words: &Words, ask: std::sync::mpsc::Sender<Ask>, ctx: egui::Context) -> Result<Self, String> {
-            let (tip, open_text, exit_text) = words;
+            let (tip, open_text, exit_text, unread) = words;
             let open = MenuItem::new(open_text, true, None);
             let exit = MenuItem::new(exit_text, true, None);
             let menu = Menu::new();
             menu.append_items(&[&open, &exit]).map_err(|e| e.to_string())?;
-            let picture = crate::app_icon();
-            let picture = tray_icon::Icon::from_rgba(picture.rgba, picture.width, picture.height).map_err(|e| e.to_string())?;
+            let picture = icon_for(*unread)?;
             let icon = TrayIconBuilder::new()
                 .with_menu(Box::new(menu))
                 .with_menu_on_left_click(false)
@@ -205,8 +236,13 @@ mod native {
             if *words == self.words {
                 return;
             }
-            let (tip, open, exit) = words;
+            let (tip, open, exit, unread) = words;
             if let Err(e) = self.icon.set_tooltip(Some(tooltip(tip))) {
+                log::warn!("notification area: {e}");
+            }
+            if *unread != self.words.3
+                && let Err(e) = icon_for(*unread).and_then(|p| self.icon.set_icon(Some(p)).map_err(|e| e.to_string()))
+            {
                 log::warn!("notification area: {e}");
             }
             self.open.set_text(open);
@@ -232,6 +268,7 @@ mod native {
     /// MailCraft as a StatusNotifierItem: what the notification area asks it, answered from here.
     struct Item {
         words: Words,
+        /// MailCraft's icon, with the badge for the unread count in `words` when there's one.
         picture: Vec<ksni::Icon>,
         ask: std::sync::mpsc::Sender<Ask>,
         ctx: egui::Context,
@@ -254,9 +291,10 @@ mod native {
             "MailCraft".to_string()
         }
         /// The installed icon, by the name the packages give it; the picture below where it
-        /// isn't installed (a build run from its folder).
+        /// isn't installed (a build run from its folder), or while it shows the unread count
+        /// (the notification area takes a name before a picture).
         fn icon_name(&self) -> String {
-            mailcraft_ui_egui::APP_ID.to_string()
+            if self.words.3 > 0 { String::new() } else { mailcraft_ui_egui::APP_ID.to_string() }
         }
         fn icon_pixmap(&self) -> Vec<ksni::Icon> {
             self.picture.clone()
@@ -287,14 +325,7 @@ mod native {
         /// Fails where nothing on the session's bus takes notification-area icons (GNOME without
         /// its AppIndicator extension, a bare window manager), or there's no bus.
         pub(super) fn new(words: &Words, ask: std::sync::mpsc::Sender<Ask>, ctx: egui::Context) -> Result<Self, String> {
-            let app = crate::app_icon();
-            // Its pixels as the specification wants them: ARGB, most significant byte first.
-            let data: Vec<u8> = app.rgba.as_chunks::<4>().0.iter().flat_map(|[r, g, b, a]| [*a, *r, *g, *b]).collect();
-            let picture = match (i32::try_from(app.width), i32::try_from(app.height)) {
-                (Ok(width), Ok(height)) if !data.is_empty() => vec![ksni::Icon { width, height, data }],
-                _ => Vec::new(),
-            };
-            let item = Item { words: words.clone(), picture, ask, ctx };
+            let item = Item { words: words.clone(), picture: pixmap(words.3), ask, ctx };
             // In Flatpak's sandbox a name of its own on the bus isn't MailCraft's to take (the
             // manifest grants talking to the watcher only), so the icon goes without one, as
             // Chromium's does there.
@@ -308,9 +339,26 @@ mod native {
             if *words == self.words {
                 return;
             }
+            let picture = (words.3 != self.words.3).then(|| pixmap(words.3));
             self.words = words.clone();
             let words = words.clone();
-            let _ = self.handle.update(move |item: &mut Item| item.words = words);
+            let _ = self.handle.update(move |item: &mut Item| {
+                item.words = words;
+                if let Some(picture) = picture {
+                    item.picture = picture;
+                }
+            });
+        }
+    }
+
+    /// MailCraft's icon with the badge for `unread`, as the specification wants it: ARGB, most
+    /// significant byte first.
+    fn pixmap(unread: u32) -> Vec<ksni::Icon> {
+        let (rgba, width, height) = super::picture(unread);
+        let data: Vec<u8> = rgba.as_chunks::<4>().0.iter().flat_map(|[r, g, b, a]| [*a, *r, *g, *b]).collect();
+        match (i32::try_from(width), i32::try_from(height)) {
+            (Ok(width), Ok(height)) if !data.is_empty() => vec![ksni::Icon { width, height, data }],
+            _ => Vec::new(),
         }
     }
 

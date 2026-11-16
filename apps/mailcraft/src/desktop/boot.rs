@@ -105,6 +105,10 @@ pub(crate) struct Booting {
     /// Keeps the window borderless while it draws its own title bar (Windows, issue #22), on the
     /// start-up screen too.
     pub(crate) frame_guard: Option<super::window_frame::FrameGuard>,
+    /// To start with the window put away (issue #116), done in the first frame.
+    pub(crate) put_away: bool,
+    /// Put away as it started: hidden (true) or minimized; none once it's been brought up.
+    pub(crate) away: Option<bool>,
 }
 
 impl Booting {
@@ -138,6 +142,9 @@ impl Booting {
     fn start(&mut self, ctx: &egui::Context) -> Option<App> {
         let (opened, start) = (self.came.take()?, self.start.take()?);
         let mut app = start(ctx, opened, self.instance.take());
+        if let Some(hidden) = self.away.take() {
+            app.app.started_away(hidden);
+        }
         std::mem::take(&mut self.handed).give(&mut app.app);
         Some(app)
     }
@@ -159,7 +166,16 @@ impl eframe::App for Window {
                 if let Some(guard) = &b.frame_guard {
                     guard.keep();
                 }
+                // Started put away (issue #116): hidden from its first frame (eframe shows a
+                // window once it has drawn, and this comes after), or minimized where a hidden
+                // window couldn't be brought back.
+                if std::mem::take(&mut b.put_away) {
+                    let hidden = super::tray::hides_at_start(b.native_wayland);
+                    ctx.send_viewport_cmd(if hidden { egui::ViewportCommand::Visible(false) } else { egui::ViewportCommand::Minimized(true) });
+                    b.away = Some(hidden);
+                }
                 if let Some(handed) = b.instance.as_ref().and_then(single_instance::Server::take) {
+                    b.away = None;
                     single_instance::show(ctx, b.native_wayland);
                     b.handed.open.extend(handed.open);
                     b.handed.attach.extend(handed.attach);

@@ -445,6 +445,7 @@ struct Started {
 fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
     let Started { launch, opening: Opening { progress, opened, card, made }, state_path, instance, updater, looks: Looks { saved_ui, theme, x11 } } =
         started;
+    let put_away = launch.starts_away(saved_ui.as_ref());
     let Launch { args: cmd_args, handed, sample, base, .. } = launch;
     // The guard stays here, outside the closure, so the handlers live as long as the loop.
     #[cfg(target_os = "macos")]
@@ -578,6 +579,8 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                 handed: args::Handed::default(),
                 native_wayland,
                 frame_guard: booting_guard,
+                put_away,
+                away: None,
             }))))
         }),
     )

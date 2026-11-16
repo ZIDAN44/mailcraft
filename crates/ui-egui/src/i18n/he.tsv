@@ -282,6 +282,11 @@
 	Settings found: {source}	נמצאו הגדרות: {source}
 	Show a desktop notification when new mail arrives	הצג התראה בשולחן העבודה כשמגיע דואר חדש
 	Keep MailCraft running when its window is closed	להשאיר את MailCraft פועל כשהחלון שלו נסגר
+	Start MailCraft in the notification area	הפעלת MailCraft באזור ההודעות
+	Start MailCraft minimized	הפעלת MailCraft ממוזער
+	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	הוא בודק דואר ומודיע עליו כשהחלון שלו מוסתר, כמו כשהוא סגור. כשהוא מופעל כדי לפתוח קישור או קובץ, הוא פותח את החלון.
+	Show the unread mail on its icon	הצגת הדואר שלא נקרא על הסמל שלו
+	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	כמה הודעות שלא נקראו יש בתיבות הדואר הנכנס, בפינת הסמל של MailCraft באזור ההודעות
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	הוא נשאר באזור ההודעות, בודק דואר ומודיע עליו. ”יציאה“ בדף ”קובץ“, או בתפריט של הסמל שלו, סוגרת אותו.
 	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	החלון שלו ממוזער, ו־MailCraft ממשיך לבדוק דואר ולהודיע עליו. ”יציאה“ בדף ”קובץ“ סוגרת אותו.
 	Open MailCraft	פתיחת MailCraft

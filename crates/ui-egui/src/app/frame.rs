@@ -52,9 +52,30 @@ impl MailApp {
     }
 
     /// What the notification area's icon says: its tooltip (the window's title, with the unread
-    /// count) and its menu's two lines, in the language shown.
-    pub fn tray_words(&self) -> (String, String, String) {
-        (self.ui.title_shown.clone(), tl!("Open MailCraft").to_string(), tl!("Exit").to_string())
+    /// count), its menu's two lines in the language shown, and the unread count it shows on
+    /// itself (issue #117; none when that's off).
+    pub fn tray_words(&self) -> (String, String, String, u32) {
+        let unread = if self.session.prefs.tray_unread { self.session.inbox_unread() } else { 0 };
+        (self.ui.title_shown.clone(), tl!("Open MailCraft").to_string(), tl!("Exit").to_string(), unread)
+    }
+
+    /// MailCraft started with its window put away (issue #116): `hidden` in the notification
+    /// area, or minimized where a hidden window couldn't be brought back.
+    pub fn started_away(&mut self, hidden: bool) {
+        self.ui.in_tray = hidden;
+    }
+
+    /// Whether the window is hidden, its icon in the notification area the way back to it.
+    pub fn in_tray(&self) -> bool {
+        self.ui.in_tray
+    }
+
+    /// The window back where the user can reach it, minimized: hidden with no icon to bring it
+    /// back (the notification area wouldn't take one), it would be out of reach.
+    pub fn back_minimized(&mut self, ctx: &egui::Context) {
+        self.ui.in_tray = false;
+        ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
     }
 
     /// Where the platform has a quit of its own (macOS: `terminate:`, `quit` returning true), a

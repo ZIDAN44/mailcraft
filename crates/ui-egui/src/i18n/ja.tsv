@@ -282,6 +282,11 @@
 	Settings found: {source}	設定が見つかりました: {source}
 	Show a desktop notification when new mail arrives	新しいメールが届いたらデスクトップ通知を表示する
 	Keep MailCraft running when its window is closed	ウィンドウを閉じても MailCraft を実行したままにする
+	Start MailCraft in the notification area	MailCraft を通知領域で起動する
+	Start MailCraft minimized	MailCraft を最小化して起動する
+	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	ウィンドウを閉じたときと同じく、ウィンドウをしまったままメールを確認して通知します。リンクやファイルを開くために起動したときはウィンドウを開きます。
+	Show the unread mail on its icon	アイコンに未読メールを表示する
+	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	受信トレイの未読メッセージの数を、通知領域の MailCraft アイコンの隅に表示します
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	通知領域に残り、メールを確認して新着を知らせます。「ファイル」ページ、またはアイコンのメニューの「終了」で閉じます。
 	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	ウィンドウは最小化され、MailCraft はメールの確認と新着の通知を続けます。「ファイル」ページの「終了」で閉じます。
 	Open MailCraft	MailCraft を開く

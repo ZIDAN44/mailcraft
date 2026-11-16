@@ -111,6 +111,12 @@ pub struct Prefs {
     /// Closing the window leaves MailCraft running in the notification area, where the app
     /// has one (issue #67): mail is still checked and announced.
     pub close_to_tray: bool,
+    /// With `close_to_tray`, MailCraft starts with its window put away as a close puts it
+    /// (issue #116): at sign-in, it checks for mail and announces it with no window coming up.
+    /// Read as MailCraft starts.
+    pub start_in_tray: bool,
+    /// The notification area's icon shows the Inboxes' unread mail (issue #117).
+    pub tray_unread: bool,
     /// The categories offered, in order.
     pub categories: Vec<mailcraft_model::organize::Category>,
     /// Split the Inbox into Focused and Other.
@@ -311,6 +317,8 @@ impl Default for Prefs {
             favorites: None,
             notify: true,
             close_to_tray: false,
+            start_in_tray: false,
+            tray_unread: true,
             categories: mailcraft_model::organize::default_categories(),
             focused_inbox: false,
             focus_overrides: std::collections::BTreeMap::new(),

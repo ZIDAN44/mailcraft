@@ -282,6 +282,11 @@
 	Settings found: {source}	Ayarlar bulundu: {source}
 	Show a desktop notification when new mail arrives	Yeni posta geldiğinde masaüstü bildirimi göster
 	Keep MailCraft running when its window is closed	Penceresi kapatıldığında MailCraft çalışmaya devam etsin
+	Start MailCraft in the notification area	MailCraft'ı bildirim alanında başlat
+	Start MailCraft minimized	MailCraft'ı simge durumunda başlat
+	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	Penceresi kapatıldığındaki gibi kaldırılmışken postayı denetler ve duyurur. Bir bağlantıyı veya dosyayı açmak için başlatıldığında pencereyi açar.
+	Show the unread mail on its icon	Okunmamış postayı simgesinde göster
+	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Gelen Kutularındaki okunmamış ileti sayısı, bildirim alanındaki MailCraft simgesinin köşesinde
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Bildirim alanında kalır, postayı denetler ve yeni postayı bildirir. Dosya sayfasındaki veya simgesinin menüsündeki “Çıkış” onu kapatır.
 	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Penceresi simge durumuna küçültülür ve MailCraft postayı denetlemeyi ve yeni postayı bildirmeyi sürdürür. Dosya sayfasındaki “Çıkış” onu kapatır.
 	Open MailCraft	MailCraft’ı aç

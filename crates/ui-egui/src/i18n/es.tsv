@@ -282,6 +282,11 @@
 	Settings found: {source}	Configuración encontrada: {source}
 	Show a desktop notification when new mail arrives	Mostrar una notificación de escritorio cuando llegue correo nuevo
 	Keep MailCraft running when its window is closed	Mantener MailCraft en ejecución al cerrar su ventana
+	Start MailCraft in the notification area	Iniciar MailCraft en el área de notificación
+	Start MailCraft minimized	Iniciar MailCraft minimizado
+	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	Comprueba el correo y lo anuncia con la ventana guardada, como cuando se cierra. Si se inicia para abrir un enlace o un archivo, abre la ventana.
+	Show the unread mail on its icon	Mostrar el correo sin leer en su icono
+	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Cuántos mensajes sin leer tienen las bandejas de entrada, en la esquina del icono de MailCraft en el área de notificación
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Se queda en el área de notificación, comprueba el correo y lo anuncia. «Salir» en la página Archivo, o en el menú de su icono, lo cierra.
 	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Su ventana se minimiza, y MailCraft sigue comprobando el correo y anunciándolo. «Salir» en la página Archivo lo cierra.
 	Open MailCraft	Abrir MailCraft

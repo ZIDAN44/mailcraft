@@ -282,6 +282,11 @@
 	Settings found: {source}	عُثر على الإعدادات: {source}
 	Show a desktop notification when new mail arrives	اعرض إشعارًا على سطح المكتب عند وصول بريد جديد
 	Keep MailCraft running when its window is closed	إبقاء MailCraft قيد التشغيل عند إغلاق نافذته
+	Start MailCraft in the notification area	تشغيل MailCraft في منطقة الإعلامات
+	Start MailCraft minimized	تشغيل MailCraft مصغّرًا
+	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	يتحقق من البريد ويعلن عنه ونافذته مخفية، كما لو كانت مغلقة. وإذا شُغّل لفتح رابط أو ملف، فإنه يفتح النافذة.
+	Show the unread mail on its icon	إظهار البريد غير المقروء على أيقونته
+	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	عدد الرسائل غير المقروءة في صناديق الوارد، في زاوية أيقونة MailCraft في منطقة الإعلامات
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	يبقى في منطقة الإعلامات، ويتحقق من البريد ويعلن عنه. يغلقه «خروج» في صفحة «ملف» أو في قائمة أيقونته.
 	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	تُصغَّر نافذته، ويواصل MailCraft التحقق من البريد والإعلان عنه. يغلقه «خروج» في صفحة «ملف».
 	Open MailCraft	فتح MailCraft

@@ -273,3 +273,44 @@ fn closing_the_window_keeps_mailcraft_running_when_asked_to() {
     asked.borrow_mut().tray = None;
     assert!(!closed(&mut a).contains(&egui::ViewportCommand::CancelClose));
 }
+
+/// Issues #116 and #117, with MailCraft kept running in the notification area: its icon is told
+/// the Inboxes' unread mail (none with that off); started put away, MailCraft is in the
+/// notification area, and comes back minimized where no icon could be made to bring it back; the
+/// File page offers both under keeping it running, and neither without it.
+#[test]
+fn the_tray_icon_counts_unread_mail_and_mailcraft_can_start_there() {
+    let (mut a, _) = app("tray-unread");
+    let asked = updating(&mut a);
+    asked.borrow_mut().tray = Some(crate::KeptOnClose::Hidden);
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    let unread = a.session.inbox_unread();
+    assert!(unread > 0, "the sample has unread mail");
+    assert_eq!(a.tray_words().3, unread, "the icon's count is the title's");
+    a.run("view.trayUnread", json!({"on": false}));
+    assert_eq!(a.tray_words().3, 0, "off: a plain icon");
+    a.run("view.trayUnread", json!({"on": true}));
+    // Started put away: in the notification area; with no icon there, back within reach.
+    a.started_away(true);
+    assert!(a.in_tray());
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| a.back_minimized(ui.ctx()));
+    out.textures_delta.clear();
+    let commands = out.viewport_output.remove(&egui::ViewportId::ROOT).map(|v| v.commands).unwrap_or_default();
+    assert!(commands.contains(&egui::ViewportCommand::Visible(true)) && commands.contains(&egui::ViewportCommand::Minimized(true)), "{commands:?}");
+    assert!(!a.in_tray());
+    // The File page's options: under keeping it running, once that's on.
+    let tall = egui::vec2(1280.0, 2400.0);
+    let _tall = super::windows::layout::Dressed::new(tall, "");
+    a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    let offered = |a: &mut MailApp| {
+        let texts: Vec<String> = (0..3).map(|_| drawn_strings(&ctx, a, tall)).last().unwrap_or_default();
+        (texts.iter().any(|t| t == "Start MailCraft in the notification area"), texts.iter().any(|t| t == "Show the unread mail on its icon"))
+    };
+    assert_eq!(offered(&mut a), (false, false), "not kept running: neither");
+    a.run("view.closeToTray", json!({"on": true}));
+    assert_eq!(offered(&mut a), (true, true), "kept running: both");
+    a.run("view.startInTray", json!({"on": true}));
+    assert!(a.session.prefs.start_in_tray);
+}

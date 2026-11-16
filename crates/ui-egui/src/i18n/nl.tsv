@@ -282,6 +282,11 @@
 	Settings found: {source}	Instellingen gevonden: {source}
 	Show a desktop notification when new mail arrives	Een bureaubladmelding tonen wanneer er nieuwe mail binnenkomt
 	Keep MailCraft running when its window is closed	MailCraft actief houden wanneer het venster wordt gesloten
+	Start MailCraft in the notification area	MailCraft starten in het systeemvak
+	Start MailCraft minimized	MailCraft geminimaliseerd starten
+	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	Het controleert op e-mail en meldt die met het venster weggezet, zoals wanneer het gesloten is. Gestart om een link of bestand te openen, opent het het venster.
+	Show the unread mail on its icon	Ongelezen e-mail op het pictogram tonen
+	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Hoeveel ongelezen berichten de Postvakken IN hebben, in de hoek van het MailCraft-pictogram in het systeemvak
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	Het blijft in het systeemvak, controleert op e-mail en meldt die. ‘Afsluiten’ op de pagina Bestand, of in het menu van het pictogram, sluit het.
 	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Het venster wordt geminimaliseerd en MailCraft blijft op e-mail controleren en die melden. ‘Afsluiten’ op de pagina Bestand sluit het.
 	Open MailCraft	MailCraft openen

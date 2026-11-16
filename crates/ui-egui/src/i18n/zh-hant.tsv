@@ -282,6 +282,11 @@
 	Settings found: {source}	已找到設定: {source}
 	Show a desktop notification when new mail arrives	收到新郵件時顯示桌面通知
 	Keep MailCraft running when its window is closed	關閉視窗後讓 MailCraft 繼續執行
+	Start MailCraft in the notification area	在通知區域啟動 MailCraft
+	Start MailCraft minimized	以最小化方式啟動 MailCraft
+	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	它會像關閉視窗時一樣，在視窗收起的情況下檢查並提示新郵件。為開啟連結或檔案而啟動時，它會開啟視窗。
+	Show the unread mail on its icon	在圖示上顯示未讀郵件
+	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	收件匣中未讀郵件的數量，顯示在通知區域中 MailCraft 圖示的角落
 	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	它會留在通知區域，檢查郵件並在有新郵件時通知。在「檔案」頁面或其圖示的選單中選擇「結束」即可關閉。
 	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	視窗會最小化，MailCraft 會繼續檢查郵件並在有新郵件時通知。在「檔案」頁面選擇「結束」即可關閉。
 	Open MailCraft	開啟 MailCraft

@@ -105,6 +105,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         toggle!("view.confirmDelete", "Ask before deleting for good", "File › Options › Mail", confirm_permanent_delete),
         toggle!("view.notifications", "Desktop notifications", "File › Options › Mail", notify),
         toggle!("view.closeToTray", "Keep MailCraft running when its window is closed", "File › Options › General", close_to_tray),
+        toggle!("view.startInTray", "Start MailCraft with its window put away", "File › Options › General", start_in_tray),
+        toggle!("view.trayUnread", "The unread count on the notification area's icon", "File › Options › General", tray_unread),
         toggle!("view.newMailWindow", "New messages in their own window", "File › Options › Mail", new_mail_window),
         toggle!("view.replyWindow", "Replies and forwards in their own window", "File › Options › Mail", reply_window),
         CommandSpec::new("options.ctrlEnter", "What Ctrl+Enter does in a message", "File › Options › Mail", |s, v| {

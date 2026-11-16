@@ -59,6 +59,14 @@ impl Launch {
         Launch { args, handed, sample, chosen, portable, base, root }
     }
 
+    /// Whether MailCraft starts with its window put away (issue #116): kept running in the
+    /// notification area and set to start there (`saved_ui`'s settings), and started with
+    /// nothing to open (a link, a file or files to send bring the window up).
+    pub(crate) fn starts_away(&self, saved_ui: Option<&Value>) -> bool {
+        let pref = |k: &str| saved_ui.and_then(|v| v.get("prefs")?.get(k)?.as_bool()).unwrap_or(false);
+        pref("closeToTray") && pref("startInTray") && self.handed.is_empty()
+    }
+
     /// Whether `option` was given.
     pub(crate) fn has(&self, option: &str) -> bool {
         self.args.iter().any(|a| a == option)
@@ -209,6 +217,19 @@ mod tests {
         assert!(env.chosen && env.base.is_none());
         // A missing `--data` value is the usual place.
         assert_eq!(launch(&["--data"], None, false).root, mailcraft_engine::store::default_root());
+    }
+
+    /// Issue #116: MailCraft starts put away when it's kept running in the notification area
+    /// and set to start there, and was started with nothing to open.
+    #[test]
+    fn a_launch_starts_away_when_set_to() {
+        let ui = |keep: bool, start: bool| serde_json::json!({"prefs": {"closeToTray": keep, "startInTray": start}});
+        assert!(launch(&[], None, false).starts_away(Some(&ui(true, true))));
+        assert!(!launch(&[], None, false).starts_away(Some(&ui(false, true))), "not kept running");
+        assert!(!launch(&[], None, false).starts_away(Some(&ui(true, false))), "not set to");
+        assert!(!launch(&[], None, false).starts_away(None), "no settings yet");
+        assert!(!launch(&["mailto:a@x.example"], None, false).starts_away(Some(&ui(true, true))), "a link to open");
+        assert!(!launch(&["--attach", "/u/a.pdf"], None, false).starts_away(Some(&ui(true, true))), "files to send");
     }
 
     /// What's handed over comes from `--open` when MailCraft was started by the system,
