@@ -470,6 +470,29 @@ fn the_single_line_list_keeps_focused_and_other() {
     assert!(a.session.focus_other, "Other clicked shows the Inbox's other mail");
 }
 
+/// Shown for now by a tab while hidden, then kept (Ctrl+F1) and hidden again (Ctrl+F1): it hides,
+/// as it would had no tab been clicked.
+#[test]
+fn the_ribbon_hidden_again_hides_after_a_tab_showed_it() {
+    let (mut a, _) = app("ribbon-hidden-again");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.run("view.hideRibbon", json!({}));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "View");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.ribbon_rect.is_some(), "a tab clicked shows it");
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![key(egui::Key::F1, egui::Modifiers::COMMAND)]);
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert!(a.session.prefs.ribbon_hidden);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.ribbon_rect.is_none(), "hidden again, it's hidden");
+}
+
 /// Issue #22: the ribbon's tabs and the search box share the top bar, one row where there were
 /// two, with the ribbon's buttons right under it, as tall on every tab and in every module, in a
 /// wide window, the narrowest and a narrow one; the File page has the window to itself.

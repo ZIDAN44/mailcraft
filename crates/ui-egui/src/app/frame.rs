@@ -334,7 +334,12 @@ impl MailApp {
                     self.top_bar(ui, acts);
                 });
             self.ui.top_bar_rect = Some(bar.response.rect);
-            // Hidden (`Prefs::ribbon_hidden`), it's drawn while a tab clicked shows it.
+            // Hidden (`Prefs::ribbon_hidden`), it's drawn while a tab clicked shows it. Not hidden,
+            // there's nothing to show for now: a tab clicked before it was kept doesn't keep it
+            // up once it's hidden again.
+            if !self.session.prefs.ribbon_hidden {
+                self.ui.ribbon_peek = false;
+            }
             if self.ribbon_shown() {
                 egui::Panel::top("ribbon")
                     .frame(
