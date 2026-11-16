@@ -45,6 +45,7 @@
 	Close	Cerrar
 	Code	Código
 	Compact	Compacto
+	Single line	Una línea
 	Connect	Conectar
 	Connecting…	Conectando…
 	Conversations	Conversaciones
@@ -401,6 +402,8 @@
 	Change this account's name, servers and sign-in, or its signature.	Cambia el nombre, los servidores y el inicio de sesión de esta cuenta, o su firma.
 	Checking with the server…	Consultando al servidor…
 	Compact list	Lista compacta
+	Single-line list	Lista de una línea
+	One line a message: the sender, the subject and the time	Una línea por mensaje: el remitente, el asunto y la hora
 	Don't send automatic replies	No enviar respuestas automáticas
 	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Cada remitente recibe una respuesta al día mientras están activadas. Se guardan en tu servidor de correo, así que funcionan aunque este equipo esté apagado.
 	Empty	Vaciar

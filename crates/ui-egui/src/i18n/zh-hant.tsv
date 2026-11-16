@@ -45,6 +45,7 @@
 	Close	關閉
 	Code	程式碼
 	Compact	精簡
+	Single line	單行
 	Connect	連線
 	Connecting…	正在連線…
 	Conversations	交談
@@ -400,6 +401,8 @@
 	Change this account's name, servers and sign-in, or its signature.	變更這個帳戶的名稱、伺服器和登入方式，或簽名。
 	Checking with the server…	正在向伺服器確認…
 	Compact list	精簡清單
+	Single-line list	單行清單
+	One line a message: the sender, the subject and the time	每封郵件一行：寄件者、主旨和時間
 	Don't send automatic replies	不要傳送自動回覆
 	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	開啟期間，每位寄件者每天收到一次回覆。回覆保存在郵件伺服器上，即使這台電腦關機也能運作。
 	Empty	清空

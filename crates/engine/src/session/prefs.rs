@@ -89,6 +89,8 @@ pub struct Prefs {
     /// The list under headings, as it's arranged (Today, Yesterday…; a sender's name): off, its
     /// messages follow one another with nothing between.
     pub groups: bool,
+    /// A message on one line, as a table's row: the sender, the subject, the time.
+    pub single_line: bool,
     /// The classic ribbon (issue #8): big icons over their labels, in named groups, instead of
     /// one row of small ones.
     pub classic_ribbon: bool,
@@ -313,6 +315,7 @@ impl Default for Prefs {
             show_preview: true,
             compact: false,
             groups: true,
+            single_line: false,
             classic_ribbon: false,
             ribbon_hidden: false,
             accent: String::new(),

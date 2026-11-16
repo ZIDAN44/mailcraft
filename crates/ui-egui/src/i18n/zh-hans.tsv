@@ -45,6 +45,7 @@
 	Close	关闭
 	Code	代码
 	Compact	紧凑
+	Single line	单行
 	Connect	连接
 	Connecting…	正在连接…
 	Conversations	对话
@@ -400,6 +401,8 @@
 	Change this account's name, servers and sign-in, or its signature.	更改此帐户的名称、服务器和登录方式，或签名。
 	Checking with the server…	正在向服务器查询…
 	Compact list	紧凑列表
+	Single-line list	单行列表
+	One line a message: the sender, the subject and the time	每封邮件一行：发件人、主题和时间
 	Don't send automatic replies	不发送自动答复
 	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	开启期间，每位发件人每天收到一次答复。答复保存在邮件服务器上，因此即使这台电脑关机也能工作。
 	Empty	清空

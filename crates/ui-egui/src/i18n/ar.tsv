@@ -45,6 +45,7 @@
 	Close	إغلاق
 	Code	شيفرة
 	Compact	مضغوط
+	Single line	سطر واحد
 	Connect	اتصال
 	Connecting…	جارٍ الاتصال…
 	Conversations	المحادثات
@@ -400,6 +401,8 @@
 	Change this account's name, servers and sign-in, or its signature.	غيّر اسم هذا الحساب وخوادمه وتسجيل دخوله، أو توقيعه.
 	Checking with the server…	جارٍ التحقق مع الخادم…
 	Compact list	قائمة مضغوطة
+	Single-line list	قائمة بسطر واحد
+	One line a message: the sender, the subject and the time	سطر واحد لكل رسالة: المرسل والموضوع والوقت
 	Don't send automatic replies	لا ترسل ردودًا تلقائية
 	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	يتلقى كل مرسل ردًا واحدًا يوميًا أثناء تشغيلها. تُحفظ على خادم بريدك، فتعمل حتى عندما يكون هذا الكمبيوتر مطفأ.
 	Empty	إفراغ

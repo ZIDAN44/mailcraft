@@ -45,6 +45,7 @@
 	Close	閉じる
 	Code	コード
 	Compact	コンパクト
+	Single line	1 行
 	Connect	接続
 	Connecting…	接続しています…
 	Conversations	スレッド
@@ -400,6 +401,8 @@
 	Change this account's name, servers and sign-in, or its signature.	このアカウントの名前、サーバー、サインイン、署名を変更します。
 	Checking with the server…	サーバーに確認しています…
 	Compact list	コンパクトな一覧
+	Single-line list	1 行の一覧
+	One line a message: the sender, the subject and the time	メッセージごとに 1 行: 差出人、件名、時刻
 	Don't send automatic replies	自動応答を送信しない
 	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	オンの間、送信者ごとに 1 日 1 回返信します。メール サーバーに保存されるので、このコンピューターの電源が切れていても動作します。
 	Empty	空にする

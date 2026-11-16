@@ -413,6 +413,38 @@ fn the_ribbon_hides_and_a_tab_shows_it_for_now() {
     assert_eq!(a.ui.list_page, rows_before);
 }
 
+/// The single-line list's head is one line: the folder's name, and on the same line the filter,
+/// in a menu named by the one chosen; choosing another there filters the list.
+#[test]
+fn the_single_line_list_has_its_head_on_one_line() {
+    let (mut a, _) = app("single-line-head");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = egui::vec2(1280.0, 800.0);
+    let title = crate::view_title(&a.session);
+    // The filter's menu, and the folder's name where it's drawn on that line (the folder pane has it too).
+    let places = |ctx: &egui::Context, a: &mut MailApp, filter: &str| {
+        let mut drawn = Vec::new();
+        for _ in 0..2 {
+            drawn = drawn_text(ctx, a, size);
+        }
+        let menu = drawn.iter().find(|d| d.text == filter && d.seen()).map(|d| d.rect).unwrap_or_else(|| panic!("{filter} isn't drawn"));
+        let name = drawn.iter().filter(|d| d.text == title && d.seen()).map(|d| d.rect).find(|r| r.top() < menu.bottom() && r.bottom() > menu.top());
+        (name, menu)
+    };
+    a.run("view.singleLine", json!({}));
+    let (name, filter) = places(&ctx, &mut a, "All ⏷");
+    let name = name.expect("the folder's name is on the filter's line");
+    assert!(filter.left() > name.right(), "the filter after the name: {name:?} {filter:?}");
+    // Its menu has the filters.
+    click(&ctx, &mut a, filter.center());
+    frame(&ctx, &mut a, vec![]);
+    click_named(&ctx, &mut a, "Unread");
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.filter, mailcraft_engine::ListFilter::Unread);
+    places(&ctx, &mut a, "Unread ⏷");
+}
+
 /// Issue #22: the ribbon's tabs and the search box share the top bar, one row where there were
 /// two, with the ribbon's buttons right under it, as tall on every tab and in every module, in a
 /// wide window, the narrowest and a narrow one; the File page has the window to itself.
@@ -469,4 +501,53 @@ fn the_tabs_and_search_share_one_bar() {
     a.act(crate::Action::Backstage(crate::backstage::Page::Info));
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.top_bar_rect.is_none() && a.ui.ribbon_rect.is_none(), "the File page has no bar");
+}
+
+/// The single-line list: a message's sender, subject and time on one line, the subject after
+/// the sender's column, and more messages in the same height; switched off, the subject is
+/// back under the sender.
+#[test]
+fn the_single_line_list_has_a_message_on_one_line() {
+    let (mut a, _) = app("single-line-list");
+    let ctx = egui::Context::default();
+    let (name, subject) = ("Alexandra Whitfield", "Quarterly figures for the board");
+    let d = mailcraft_engine::mime::Draft { subject: subject.into(), body: "Attached.".into(), ..Default::default() };
+    let from = mailcraft_engine::model::EmailAddress::new(name, "alexandra@example.com");
+    let raw = mailcraft_engine::mime::build(&d, &from, NOW, "<single@x>").unwrap();
+    with_raw(&mut a, 9902, &raw);
+    a.session.prefs.reading_pane = ReadingPane::Bottom;
+    let size = egui::vec2(1280.0, 800.0);
+    let places = |ctx: &egui::Context, a: &mut MailApp| {
+        let mut drawn = Vec::new();
+        for _ in 0..2 {
+            drawn = drawn_text(ctx, a, size);
+        }
+        let of = |text: &str| drawn.iter().find(|d| d.text == text && d.seen()).map(|d| d.rect).unwrap_or_else(|| panic!("{text} isn't drawn"));
+        (of(name), of(subject))
+    };
+    let (who, what) = places(&ctx, &mut a);
+    assert!(what.top() > who.bottom() - 4.0, "the subject under the sender: {who:?} {what:?}");
+    let page = a.ui.list_page;
+    a.run("view.singleLine", json!({}));
+    assert!(a.session.prefs.single_line);
+    let (who, what) = places(&ctx, &mut a);
+    assert!((what.center().y - who.center().y).abs() < 3.0, "on one line: {who:?} {what:?}");
+    assert!(what.left() > who.right(), "the subject after the sender: {who:?} {what:?}");
+    assert!(a.ui.list_page > page, "more rows a page: {} then {page}", a.ui.list_page);
+    // Every other setting of the list with it, light and dark, wide and narrow, right to left.
+    for (compact, preview) in [(true, false), (false, true)] {
+        a.session.prefs.compact = compact;
+        a.session.prefs.show_preview = preview;
+        for pane in [ReadingPane::Right, ReadingPane::Off, ReadingPane::Bottom] {
+            a.session.prefs.reading_pane = pane;
+            for w in [1280.0, 520.0] {
+                sized(&ctx, &mut a, w);
+            }
+        }
+    }
+    let (who, what) = places(&ctx, &mut a);
+    assert!((what.center().y - who.center().y).abs() < 3.0, "still on one line: {who:?} {what:?}");
+    a.run("view.singleLine", json!({"on": false}));
+    let (who, what) = places(&ctx, &mut a);
+    assert!(what.top() > who.bottom() - 4.0, "the subject under the sender again: {who:?} {what:?}");
 }

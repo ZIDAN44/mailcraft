@@ -45,6 +45,7 @@
 	Close	닫기
 	Code	코드
 	Compact	간단히
+	Single line	한 줄
 	Connect	연결
 	Connecting…	연결하는 중…
 	Conversations	대화
@@ -400,6 +401,8 @@
 	Change this account's name, servers and sign-in, or its signature.	이 계정의 이름, 서버, 로그인 또는 서명을 변경합니다.
 	Checking with the server…	서버에 확인하는 중…
 	Compact list	간단한 목록
+	Single-line list	한 줄 목록
+	One line a message: the sender, the subject and the time	메시지마다 한 줄: 보낸 사람, 제목, 시간
 	Don't send automatic replies	자동 회신 보내지 않기
 	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	켜져 있는 동안 보낸 사람마다 하루에 한 번 회신합니다. 메일 서버에 보관되므로 이 컴퓨터가 꺼져 있어도 작동합니다.
 	Empty	비우기

@@ -50,6 +50,7 @@ Thanks to Peter Páleník for the Slovak translation (#124).
 - MailCraft's icon in the notification area shows how much unread mail the Inboxes have, in its corner (#117), as the window's title does; **Show the unread mail on its icon** turns that off.
 - The message list can leave out its headings (Today, Yesterday…): **Show in groups** in the menu of how the list is arranged (By Date ⏷), on as before.
 - The ribbon can be hidden, for more room for mail: **File › Options › General › Hide the ribbon**, Ctrl+F1, or a double click on one of its tabs. The tabs stay on the top bar: a click on one shows its buttons until you click elsewhere.
+- The message list can show a message on one line, as a table's row: the sender, the subject, its markers and the time, so many more fit in the window. **View › Single line**, or **File › Options › Mail › Single-line list**. Its head is one line too: the folder's name, with the filters (All, Unread…) in a menu beside it.
 
 ### Removed
 

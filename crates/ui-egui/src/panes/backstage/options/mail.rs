@@ -20,6 +20,7 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             (tl!("Group messages by conversation"), None, s.prefs.conversations, "view.conversations"),
             (tl!("Show a line of each message in the list"), None, s.prefs.show_preview, "view.preview"),
             (tl!("Compact list"), None, s.prefs.compact, "view.compact"),
+            (tl!("Single-line list"), Some(tl!("One line a message: the sender, the subject and the time")), s.prefs.single_line, "view.singleLine"),
             (
                 tl!("Classic ribbon"),
                 Some(tl!("Big buttons with their names under them, in named groups")),

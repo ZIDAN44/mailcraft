@@ -42,7 +42,13 @@ struct MessageRow<'a> {
     x: f32,
     right: f32,
     line1: f32,
+    /// The whole row on that first line (the single-line list): the sender in a column of its
+    /// own, then the subject, the markers and the time.
+    single: bool,
 }
+
+/// The single-line list: the least room the subject keeps before a tag is left out.
+const SUBJECT_LEAST: f32 = 120.0;
 
 pub(super) fn message_row(s: &Session, t: &theme::Tokens, ui: &mut Ui, of: RowOf<'_>, acts: &mut Vec<Action>) {
     let RowOf { m, r, count, unread_in_thread, sent_view, drafting, several_folders } = of;
@@ -55,7 +61,13 @@ pub(super) fn message_row(s: &Session, t: &theme::Tokens, ui: &mut Ui, of: RowOf
     let unread = if count > 1 { unread_in_thread > 0 } else { !m.flags.seen };
     // Who the sender is (issue #29): their address beside their name, a warning, External.
     let marks = if sent_view { mailcraft_engine::SenderMarks::default() } else { s.sender_marks(m) };
-    let compact = s.prefs.compact;
+    let single = s.prefs.single_line;
+    let compact = s.prefs.compact || single;
+    let first_line = match (single, compact) {
+        (true, _) => 5.0,
+        (false, true) => 6.0,
+        (false, false) => 9.0,
+    };
     let row = MessageRow {
         s,
         t,
@@ -73,15 +85,16 @@ pub(super) fn message_row(s: &Session, t: &theme::Tokens, ui: &mut Ui, of: RowOf
         marks,
         x: r.min.x + 14.0 + if compact { 0.0 } else { 44.0 },
         right: r.max.x - 14.0,
-        line1: r.min.y + if compact { 6.0 } else { 9.0 },
+        line1: r.min.y + first_line,
+        single,
     };
     resp.widget_info(|| row.spoken());
     let p = ui.painter_at(r);
     row.ground(ui, &p);
-    row.sender(ui, &p);
-    let icons_w = row.markers(&p);
-    row.subject(ui, &p, icons_w);
-    let clicked_action = hovered && row.hover_actions(ui, acts);
+    let end = row.sender(ui, &p);
+    let icons_w = row.markers(&p, end);
+    row.subject(ui, &p, end, icons_w);
+    let clicked_action = hovered && row.hover_actions(ui, end, acts);
     row.clicks(ui, &resp, clicked_action, acts);
     row.menu(&resp, acts);
     // Reply actions need the message open; not one of several selected, which the menu acts on
@@ -141,12 +154,24 @@ impl MessageRow<'_> {
         self.mr.start(if rtl && !self.mr.on() { to - w } else { from }, w)
     }
 
+    /// Where the subject's line is: the second, or the first in the single-line list.
+    fn line2(&self) -> f32 {
+        if self.single { self.line1 } else { self.line1 + 19.0 }
+    }
+
+    /// Where the subject starts: under the sender, or after the sender's column in the
+    /// single-line list (about a quarter of the row, so the subjects line up down the list).
+    fn subject_x(&self) -> f32 {
+        if self.single { self.x + ((self.right - self.x) * 0.26).clamp(96.0, 220.0) + 12.0 } else { self.x }
+    }
+
     /// The avatar, then the first line: the sender (or recipients in Sent) and the time, with
-    /// the folder of a search's result, the External tag, a warning and [Draft].
-    fn sender(&self, ui: &mut Ui, p: &egui::Painter) {
+    /// the folder of a search's result, the External tag, a warning and [Draft]. Where the
+    /// subject's line ends: the row's end, or before the time in the single-line list.
+    fn sender(&self, ui: &mut Ui, p: &egui::Painter) -> f32 {
         let (s, t, m, r, mr, marks) = (self.s, self.t, self.m, self.r, self.mr, self.marks);
         let (unread, count, x, right, line1) = (self.unread, self.count, self.x, self.right, self.line1);
-        if !s.prefs.compact {
+        if !s.prefs.compact && !self.single {
             let nobody = mailcraft_engine::model::EmailAddress::default();
             let who_addr = if self.sent_view { m.to.first().unwrap_or(&nobody) } else { &m.from };
             let c = mr.pos(egui::pos2(r.min.x + 14.0 + 17.0, r.min.y + 26.0));
@@ -160,7 +185,12 @@ impl MessageRow<'_> {
         // In a narrow list the sender comes first: where a tag before the time would leave the name
         // (and the address beside it) no room to be read, the tag isn't drawn.
         let who_least = if marks.address { 150.0 } else { 90.0 };
-        let fits = |tw: f32, w: f32| right - tw - 10.0 - w - 10.0 - x >= who_least;
+        // On one line it's the subject a tag would leave no room.
+        let (single, subject_x) = (self.single, self.subject_x());
+        let fits = |tw: f32, w: f32| {
+            let left = right - tw - 10.0 - w - 10.0;
+            if single { left - subject_x >= SUBJECT_LEAST } else { left - x >= who_least }
+        };
         // A search over several folders: each result says where it is, before its time.
         if let Some(f) = s.folder(&m.key.account, &m.key.folder).filter(|_| self.several_folders) {
             let name: String = crate::i18n::folder(f).chars().take(24).collect();
@@ -200,7 +230,7 @@ impl MessageRow<'_> {
         let who = if self.sent_view { tf!("To: {names}", names = addr::display_list(&m.to)) } else { m.from.display().to_string() };
         let who = if count > 1 && !marks.address { format!("{who}  ({count})") } else { who };
         let who_rtl = crate::bidi::reads_rtl(&who);
-        let who_right = right - tw - 10.0;
+        let who_right = if single { subject_x - 12.0 } else { right - tw - 10.0 };
         let who_font = if unread { theme::bold(14.0) } else { theme::regular(14.0) };
         if marks.address {
             // The name, then the address it really came from, dimmer. The address is what tells, so
@@ -228,14 +258,15 @@ impl MessageRow<'_> {
             let who_g = widgets::one_line(ui, &who, who_font, t.text, who_right - who_x);
             p.galley(egui::pos2(self.place(who_rtl, who_x, who_right, who_g.size().x), line1), who_g, t.text);
         }
+        if single { right - tw - 10.0 } else { right }
     }
 
-    /// The second line's markers at its end, unless the row is pointed at (its buttons go there):
-    /// pinned, flagged, attachments, S/MIME, importance, answered, then a dot per category. How
-    /// wide they are.
-    fn markers(&self, p: &egui::Painter) -> f32 {
-        let (t, m, mr, right) = (self.t, self.m, self.mr, self.right);
-        let line2 = self.line1 + 19.0;
+    /// The subject line's markers at its end (`right`), unless the row is pointed at (its buttons
+    /// go there): pinned, flagged, attachments, S/MIME, importance, answered, then a dot per
+    /// category. How wide they are.
+    fn markers(&self, p: &egui::Painter, right: f32) -> f32 {
+        let (t, m, mr) = (self.t, self.m, self.mr);
+        let line2 = self.line2();
         let mut icons_w = 0.0;
         let marker = |ic: Icon, color: Color32, w: &mut f32| {
             *w += 18.0;
@@ -282,31 +313,33 @@ impl MessageRow<'_> {
         icons_w
     }
 
-    /// The subject, before the markers (`icons_w` wide), and under it the preview.
-    fn subject(&self, ui: &mut Ui, p: &egui::Painter, icons_w: f32) {
+    /// The subject, before the markers (`icons_w` wide, ending at `end`), and under it the
+    /// preview.
+    fn subject(&self, ui: &mut Ui, p: &egui::Painter, end: f32, icons_w: f32) {
         let (t, m, x, right) = (self.t, self.m, self.x, self.right);
-        let line2 = self.line1 + 19.0;
+        let (line2, subject_x) = (self.line2(), self.subject_x());
         let unread = self.unread;
         let subject = if m.subject.is_empty() { tl!("(no subject)").to_string() } else { m.subject.clone() };
         let subj_color = if unread { t.accent } else { t.text };
         let subj_rtl = crate::bidi::reads_rtl(&subject);
-        let subj_right = right - icons_w.max(if self.hovered { 70.0 } else { 0.0 }) - 4.0;
-        let subj_g = widgets::one_line(ui, &subject, if unread { theme::bold(13.0) } else { theme::regular(13.0) }, subj_color, subj_right - x);
-        p.galley(egui::pos2(self.place(subj_rtl, x, subj_right, subj_g.size().x), line2), subj_g, subj_color);
-        if self.s.prefs.show_preview && !self.s.prefs.compact && !m.preview.is_empty() {
+        let subj_right = end - icons_w.max(if self.hovered { 70.0 } else { 0.0 }) - 4.0;
+        let subj_font = if unread { theme::bold(13.0) } else { theme::regular(13.0) };
+        let subj_g = widgets::one_line(ui, &subject, subj_font, subj_color, subj_right - subject_x);
+        p.galley(egui::pos2(self.place(subj_rtl, subject_x, subj_right, subj_g.size().x), line2), subj_g, subj_color);
+        if self.s.prefs.show_preview && !self.s.prefs.compact && !self.single && !m.preview.is_empty() {
             let pv_rtl = crate::bidi::reads_rtl(&m.preview);
             let pv = widgets::one_line(ui, &m.preview, theme::regular(12.5), t.dim, right - x);
             p.galley(egui::pos2(self.place(pv_rtl, x, right, pv.size().x), line2 + 19.0), pv, t.dim);
         }
     }
 
-    /// Delete, Flag and Mark read, at the second line's end while the row is pointed at. Whether
-    /// one was clicked.
-    fn hover_actions(&self, ui: &mut Ui, acts: &mut Vec<Action>) -> bool {
+    /// Delete, Flag and Mark read, at the subject line's end (`end`) while the row is pointed at.
+    /// Whether one was clicked.
+    fn hover_actions(&self, ui: &mut Ui, end: f32, acts: &mut Vec<Action>) -> bool {
         let (t, m, mr, id) = (self.t, self.m, self.mr, self.id);
-        let line2 = self.line1 + 19.0;
+        let line2 = self.line2();
         let mut clicked_action = false;
-        let mut bx = self.right - 22.0;
+        let mut bx = end - 22.0;
         let actions: [(Icon, &str, &'static str); 3] = [
             (Icon::Delete, tl!("Delete"), "mail.delete"),
             (Icon::Flag, tl!(if m.flags.flagged { "Unflag" } else { "Flag" }), "mail.flag"),

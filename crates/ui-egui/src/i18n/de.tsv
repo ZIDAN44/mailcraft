@@ -45,6 +45,7 @@
 	Close	Schließen
 	Code	Code
 	Compact	Kompakt
+	Single line	Einzeilig
 	Connect	Verbinden
 	Connecting…	Verbindung wird hergestellt…
 	Conversations	Unterhaltungen
@@ -401,6 +402,8 @@
 	Change this account's name, servers and sign-in, or its signature.	Ändern Sie Namen, Server und Anmeldung dieses Kontos oder seine Signatur.
 	Checking with the server…	Wird beim Server abgefragt…
 	Compact list	Kompakte Liste
+	Single-line list	Einzeilige Liste
+	One line a message: the sender, the subject and the time	Eine Zeile je Nachricht: Absender, Betreff und Uhrzeit
 	Don't send automatic replies	Keine automatischen Antworten senden
 	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Jeder Absender erhält eine Antwort pro Tag, solange sie aktiv sind. Sie liegen auf Ihrem Mailserver und funktionieren auch, wenn dieser Computer aus ist.
 	Empty	Leeren
