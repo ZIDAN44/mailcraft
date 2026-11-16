@@ -243,6 +243,7 @@ on GitHub.
 - A screen reader says what each drop-down is for: **Font size** while writing, **When mail** and **Then** in a rule, **Show as**, **Reminder** and **Repeat** on an event or task, **Language** and **Dates** in **File › Options**, and the others with them. They were read only by what they showed ("combo box, 15 minutes"), and one showing nothing by nothing at all.
 - On Linux, a mail file MailCraft is started with opens in front of the main window: its window opened behind it, as the main window took the focus once it had drawn.
 - Typing above a signature with a picture in it no longer makes the text under it jump at every letter (#114).
+- Ctrl+A in a reply or forward selects all of it, the original under your text included (#118): it stopped at a paragraph, selecting only your text or the block of the original with the cursor. Copy and Cut take all of it, Delete removes all of it and typing replaces it, and Undo brings it back.
 
 ## 0.38.0 - 2026-11-13
 

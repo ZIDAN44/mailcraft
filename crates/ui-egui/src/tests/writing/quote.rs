@@ -57,6 +57,101 @@ fn a_reply_shows_the_original_as_it_came_and_changes_it_in_place() {
     assert!(a.session.compose.as_ref().is_some_and(|c| c.quote.is_some()));
 }
 
+/// The owner's report (issue #118): in a reply with its original shown as it came, Ctrl+A
+/// stopped at a paragraph, selecting the text being written or the block of the original with
+/// the cursor, alone. From either, it selects the text and all of the original, as Outlook does:
+/// Copy takes all of it, Delete or typing takes all of it away, the original too, and Undo
+/// brings it back in one step; a key that moves the cursor ends it.
+#[test]
+fn ctrl_a_selects_the_text_and_all_of_the_original() {
+    let (mut a, _) = app("quote-select-all");
+    a.session.prefs.reply_window = false;
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let open = a.session.list.iter().find(|m| m.subject == "Open call: winter group show").map(|m| m.key.to_id()).expect("the sample newsletter");
+    a.run("list.open", json!({"key": open}));
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.reply", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.as_ref().unwrap();
+    let body = crate::rich_edit::body_id(c);
+    ctx.memory_mut(|m| m.request_focus(body));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![Event::Text("Thanks".into())]);
+    let c = a.session.compose.clone().unwrap();
+    let q = c.quote.clone().expect("its original as it came");
+    let blocks = q.cell_texts();
+    assert!(blocks.len() > 3, "{} blocks", blocks.len());
+    // Everything selected: the text and every block of the original.
+    let all_selected = |a: &MailApp| {
+        let c = a.session.compose.as_ref().unwrap();
+        let text = a.ui.editor.as_ref().is_some_and(|ed| ed.sel == (0..c.body.chars().count()));
+        let original =
+            blocks.iter().enumerate().all(|(n, (t, _))| a.ui.quote_editors.get(&(c.id, n)).is_some_and(|ed| ed.sel == (0..t.chars().count())));
+        text && original
+    };
+    // From a block of the original.
+    let n = (0..q.cells()).find(|n| q.cell(*n).is_some_and(|(t, _)| t.starts_with("Dear artists"))).expect("its first words' block");
+    let cell = mailcraft_engine::Compose { id: crate::reading::cell_id(c.id, n), ..Default::default() };
+    ctx.memory_mut(|m| m.request_focus(crate::rich_edit::body_id(&cell)));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(all_selected(&a), "all of it, from a block of the original");
+    // Copy takes all of it, as the message's plain text has it. Ctrl comes first, as a key of
+    // its own: it keeps all of it selected.
+    frame(&ctx, &mut a, vec![key(Key::ControlLeft, Modifiers::COMMAND)]);
+    let size = crate::tests::windows::layout::SIZE.with(std::cell::Cell::get);
+    let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)), events: vec![Event::Copy], ..Default::default() };
+    let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+    out.textures_delta.clear();
+    let copied: Vec<String> = out
+        .platform_output
+        .commands
+        .into_iter()
+        .filter_map(|c| match c {
+            egui::OutputCommand::CopyText(t) => Some(t),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(copied.len(), 1, "{copied:?}");
+    assert!(copied[0].starts_with("Thanks") && copied[0].contains(&q.text()), "{:?}", copied[0]);
+    assert!(all_selected(&a), "still selected once copied");
+    // Delete takes all of it away, the original too; Undo brings it back, Redo takes it again.
+    frame(&ctx, &mut a, vec![key(Key::Delete, Modifiers::NONE)]);
+    frame(&ctx, &mut a, vec![]);
+    let now = a.session.compose.as_ref().unwrap();
+    assert!(now.body.is_empty() && now.quote.is_none(), "{:?}", now.body);
+    frame(&ctx, &mut a, vec![key(Key::Z, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![]);
+    let now = a.session.compose.as_ref().unwrap();
+    assert_eq!((&now.body, &now.quote), (&c.body, &c.quote), "back as it was");
+    let unselected = |a: &MailApp| a.ui.quote_editors.iter().filter(|((of, _), _)| *of == c.id).all(|(_, ed)| ed.sel.is_empty());
+    assert!(unselected(&a), "back with nothing in it selected, the block that had the cursor too");
+    frame(&ctx, &mut a, vec![key(Key::Y, Modifiers::COMMAND)]);
+    let now = a.session.compose.as_ref().unwrap();
+    assert!(now.body.is_empty() && now.quote.is_none(), "taken again: {:?}", now.body);
+    frame(&ctx, &mut a, vec![key(Key::Z, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![]);
+    // From the text: a key that moves the cursor lets the original go.
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(all_selected(&a), "all of it, from the text");
+    frame(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(unselected(&a), "the original no longer selected");
+    // Typed over, all of it goes for what's typed, and comes back with one Undo.
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![Event::Text("New".into())]);
+    frame(&ctx, &mut a, vec![Event::Text(" text".into())]);
+    let now = a.session.compose.as_ref().unwrap();
+    assert!(now.body == "New text" && now.quote.is_none(), "{:?}", now.body);
+    frame(&ctx, &mut a, vec![key(Key::Z, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![]);
+    let now = a.session.compose.as_ref().unwrap();
+    assert_eq!((&now.body, &now.quote), (&c.body, &c.quote), "back as it was");
+}
+
 /// A draft in Drafts says it isn't sent yet, and opens again to carry on writing it, as it was
 /// (its original as it came under it): from its Edit button or a double-click in the list.
 #[test]

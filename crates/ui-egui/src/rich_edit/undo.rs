@@ -12,17 +12,19 @@ pub(super) const UNDO_MAX: usize = 200;
 /// Most room the steps take (bytes; the newest is kept whatever its size).
 pub(super) const UNDO_BYTES: usize = 32 << 20;
 
-/// The text and its look as they were, and where the cursor was.
+/// The text and its look as they were, the original quoted under it (shared, not copied), and
+/// where the cursor was.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(super) struct Snap {
     pub text: String,
     pub styles: Styles,
+    pub quote: Option<Arc<Quote>>,
     pub cursor: usize,
 }
 
 impl Snap {
     pub(super) fn of(c: &Compose, cursor: usize) -> Snap {
-        Snap { text: c.body.clone(), styles: c.styles.clone(), cursor }
+        Snap { text: c.body.clone(), styles: c.styles.clone(), quote: c.quote.clone(), cursor }
     }
 
     fn bytes(&self) -> usize {
@@ -128,6 +130,7 @@ struct Diff {
     chars: Splice<Vec<u16>>,
     palette: Splice<Vec<Style>>,
     paras: Splice<Vec<rich::Para>>,
+    quote: Option<Arc<Quote>>,
     cursor: usize,
 }
 
@@ -139,6 +142,7 @@ impl Diff {
             chars: Splice::list(&new.styles.chars, &old.styles.chars),
             palette: Splice::list(&new.styles.palette, &old.styles.palette),
             paras: Splice::list(&new.styles.paras, &old.styles.paras),
+            quote: old.quote.clone(),
             cursor: old.cursor,
         }
     }
@@ -149,7 +153,7 @@ impl Diff {
         let chars = self.chars.onto_list(&new.styles.chars)?;
         let palette = self.palette.onto_list(&new.styles.palette)?;
         let paras = self.paras.onto_list(&new.styles.paras)?;
-        Some(Snap { text, styles: Styles { chars, palette, paras }, cursor: self.cursor })
+        Some(Snap { text, styles: Styles { chars, palette, paras }, quote: self.quote.clone(), cursor: self.cursor })
     }
 
     fn bytes(&self) -> usize {

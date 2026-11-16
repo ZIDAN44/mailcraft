@@ -44,6 +44,107 @@ fn cell_editor(compose: u64, n: usize) -> rich_edit::Editor {
     ed
 }
 
+/// Ctrl+A in a reply or forward with its original shown as it came selects the text and all of
+/// the original, as Outlook does: each block of the original is a text box of its own, so Ctrl+A
+/// took the one with the cursor alone (issue #118). While all of it is selected, Copy and Cut
+/// take it as text, and Delete, Backspace, typing or a paste take all of it away, the original
+/// too (Undo brings it back); a click, another key or the keyboard going elsewhere ends it.
+/// Before the text boxes are drawn, so they don't take those keys themselves.
+pub(super) fn select_all(st: &mut UiState, ui: &mut Ui, c: &mut Compose, ed: &mut rich_edit::Editor, eds: &mut QuoteEditors) {
+    let id = c.id;
+    let ctx = ui.ctx().clone();
+    let cells = c.quote.as_ref().filter(|_| !c.plain && !c.sending).map_or(0, |q| q.cells());
+    let ours = |f: egui::Id| f == rich_edit::text_id(id) || (0..cells).any(|n| f == rich_edit::text_id(cell_id(id, n)));
+    let selected = st.all_selected == Some(id);
+    if cells == 0 || !ctx.memory(|m| m.focused()).is_some_and(ours) {
+        if selected {
+            unselect(st, &ctx, ed, eds);
+        }
+        return;
+    }
+    if ui.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::A)) {
+        st.all_selected = Some(id);
+        rich_edit::select(&ctx, ed, 0..c.body.chars().count());
+        for (n, (text, _)) in c.quote.as_ref().map(|q| q.cell_texts()).unwrap_or_default().into_iter().enumerate() {
+            let cell = eds.entry((id, n)).or_insert_with(|| cell_editor(id, n));
+            rich_edit::select(&ctx, cell, 0..text.chars().count());
+        }
+        return;
+    }
+    if !selected {
+        return;
+    }
+    let (mut copy, mut take, mut other) = (false, false, false);
+    ui.input_mut(|i| {
+        i.events.retain(|e| match e {
+            egui::Event::Copy => {
+                copy = true;
+                false
+            }
+            egui::Event::Cut => {
+                (copy, take) = (true, true);
+                false
+            }
+            egui::Event::Key { key: egui::Key::Delete | egui::Key::Backspace, pressed, .. } => {
+                take |= *pressed;
+                false
+            }
+            // Typed in place of all of it, once it's gone.
+            egui::Event::Key { key: egui::Key::Enter, pressed: true, modifiers, .. } if !modifiers.command && !modifiers.alt => {
+                take = true;
+                true
+            }
+            egui::Event::Text(_) | egui::Event::Paste(_) | egui::Event::Ime(egui::ImeEvent::Commit(_)) => {
+                take = true;
+                true
+            }
+            // Ctrl, Shift, Alt or the Windows key alone (pressed first for Ctrl+C) keeps it.
+            egui::Event::Key { key, pressed: true, .. } if !is_modifier(*key) => {
+                other = true;
+                true
+            }
+            egui::Event::PointerButton { pressed: true, .. } => {
+                other = true;
+                true
+            }
+            _ => true,
+        });
+    });
+    if copy && let Some(q) = &c.quote {
+        let mut styles = c.styles.clone();
+        styles.fit(&c.body);
+        // As the plain-text copy of the message has it.
+        ctx.copy_text(format!("{}\n\n{}", mime::rich::to_text(&c.body, &styles), q.text()));
+    }
+    if take {
+        // The text has the keyboard from now on: no block of the original keeps a selection to
+        // show once Undo brings it back.
+        ctx.memory_mut(|m| m.request_focus(rich_edit::body_id(c)));
+        unselect(st, &ctx, ed, eds);
+        rich_edit::clear_all(&ctx, ed, c);
+    } else if other {
+        unselect(st, &ctx, ed, eds);
+    }
+}
+
+/// Ctrl, Shift, Alt or the Windows key (egui sends each as a key of its own too).
+fn is_modifier(key: egui::Key) -> bool {
+    use egui::Key as K;
+    matches!(key, K::ShiftLeft | K::ShiftRight | K::ControlLeft | K::ControlRight | K::AltLeft | K::AltRight | K::SuperLeft | K::SuperRight)
+}
+
+/// All of the text and the original no longer selected: what's selected in the boxes without
+/// the keyboard is let go (the one with it goes on from its own).
+fn unselect(st: &mut UiState, ctx: &egui::Context, ed: &mut rich_edit::Editor, eds: &mut QuoteEditors) {
+    let Some(id) = st.all_selected.take() else { return };
+    let eds = eds.iter_mut().filter(|((of, _), _)| *of == id).map(|(_, ed)| ed);
+    for ed in std::iter::once(ed).chain(eds) {
+        if !ctx.memory(|m| m.has_focus(rich_edit::text_id(ed.id))) {
+            rich_edit::select(ctx, ed, 0..0);
+        }
+    }
+}
+
 /// The blocks of text drawn as text boxes, as the reading pane's drawing comes to them.
 struct Cells<'a> {
     c: &'a mut Compose,

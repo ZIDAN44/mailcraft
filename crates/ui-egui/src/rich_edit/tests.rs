@@ -256,7 +256,7 @@ fn undo_steps_come_back_as_they_were() {
     let mut rand = numbers(0x9E37_79B9_7F4A_7C15);
     let mut history = undo::History::default();
     let mut whole: Vec<undo::Snap> = Vec::new();
-    let mut s = undo::Snap { text: "Hello".into(), styles: Styles::plain("Hello"), cursor: 0 };
+    let mut s = undo::Snap { text: "Hello".into(), styles: Styles::plain("Hello"), quote: None, cursor: 0 };
     let pieces = ["a", "é", "東京", "🙂", "\n", "x\ny", "", "naïve café "];
     let (mut undos, mut trimmed) = (0, false);
     for _ in 0..3_000 {
@@ -313,7 +313,7 @@ fn undo_steps_come_back_as_they_were() {
 #[test]
 fn undo_keeps_to_its_room() {
     let mut history = undo::History::default();
-    let step = |k: usize| undo::Snap { text: ["a", "b"][k % 2].repeat((3 << 20) + k), styles: Styles::default(), cursor: k };
+    let step = |k: usize| undo::Snap { text: ["a", "b"][k % 2].repeat((3 << 20) + k), styles: Styles::default(), quote: None, cursor: k };
     for k in 0..30 {
         history.push(step(k));
         assert!(history.bytes() <= undo::UNDO_BYTES, "{} bytes after {k}", history.bytes());

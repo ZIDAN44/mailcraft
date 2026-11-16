@@ -161,6 +161,8 @@ pub struct UiState {
     /// the cursor (its message, its place).
     pub(crate) quote_editors: reading::QuoteEditors,
     pub(crate) quote_focus: Option<(u64, usize)>,
+    /// The message whose text and quoted original are all selected (Ctrl+A in either).
+    pub(crate) all_selected: Option<u64>,
     /// Signatures written as HTML code, laid out for the messages being written (issue #90).
     pub(crate) signature_cards: reading::SignatureCards,
     /// The recipient box showing suggestions, the highlighted one, and the text for which Escape

@@ -149,6 +149,7 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     let focus_to = fresh && c.to.trim().is_empty();
     let focus_body = fresh && !focus_to;
     shortcuts(ui, c, &f, s.prefs.ctrl_enter, acts);
+    super::quote::select_all(st, ui, c, &mut ed, &mut quote_eds);
     egui::Frame::new().inner_margin(Margin { left: 16, right: 16, top: 8, bottom: 12 }).show(ui, |ui| {
         // From the right in a right-to-left interface, its rows too (the message's own text goes
         // the way it's written).
