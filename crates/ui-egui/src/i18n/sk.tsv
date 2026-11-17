@@ -733,7 +733,7 @@
 	Send right away	Odoslať hneď
 	Sends {when}	Odošle sa {when}
 	Set	Nastaviť
-	Where replies go instead of to you	Kam majú ísť odpovede namiesto k vám
+	Where replies go instead of to you	Odpovede presmerovať na adresu
 	In 1 hour	O 1 hodinu
 	Tomorrow morning	Zajtra ráno
 	Monday morning	V pondelok ráno
@@ -1805,7 +1805,7 @@ count	occurrences	opakovaní
 	Checking for new mail…	Kontroluje sa nová pošta…
 	{account}: sending	{account}: odosielanie
 	{account}: receiving	{account}: prijímanie
-	Waiting	Čaká
+	Waiting	Čaká sa
 	Failed	Zlyhalo
 	Stopped	Zastavené
 	{done} of {total}	{done} z {total}
