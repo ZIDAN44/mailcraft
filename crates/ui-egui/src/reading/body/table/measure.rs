@@ -369,16 +369,14 @@ impl Measure<'_> {
     }
 
     /// A cell with its room inside (its own, or its table's `padding`); a width of pixels it sets
-    /// is its own, unless its content can't be that narrow.
+    /// is what it takes where there's room, unless its content can't be that narrow, and it can be
+    /// as narrow as its content where there isn't, as a browser shrinks it (#152).
     fn cell(&mut self, c: &Cell, padding: f32, depth: usize) -> Option<Fit> {
         let pad = c.padding.map_or([padding; 4], |p| p.map(f32::from));
         let inner = self.blocks(&c.blocks, depth)?;
         let fit = Fit { min: inner.min + pad[1] + pad[3], max: inner.max + pad[1] + pad[3] };
         match c.width {
-            Some(Width::Px(px)) => {
-                let w = fit.min.max(px as f32);
-                Some(Fit { min: w, max: w })
-            }
+            Some(Width::Px(px)) => Some(Fit { min: fit.min, max: fit.min.max(px as f32) }),
             Some(Width::Percent(_)) => None,
             None => Some(fit),
         }

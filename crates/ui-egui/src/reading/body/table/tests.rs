@@ -195,8 +195,10 @@ fn a_huge_table_is_left_unmeasured() {
     assert!(m.whole.is_none() && m.columns.first().is_some_and(Option::is_none), "{m:?}");
 }
 
-/// A table of values whose columns set their widths reads exactly as before: what's measured
-/// changes nothing where the cells ask.
+/// A table of values whose columns set their widths has them, shared in proportion when there's
+/// a little less room: what's measured changes nothing where the cells ask, but that a column a
+/// little narrower than it asks stays beside the others while it holds its widest word (#152:
+/// this one, 600 wide, went one cell to a line in 596).
 #[test]
 fn a_table_of_values_with_widths_is_unchanged() {
     for html in [
@@ -208,7 +210,9 @@ fn a_table_of_values_with_widths_is_unchanged() {
         let m = with_ui(|ui| measured(ui, &key(), t));
         let columns = column_widths(&t.rows);
         for row in &t.rows {
-            assert_eq!(cell_widths(row, &columns, &m.columns, 596.0, 2.0), cell_widths(row, &columns, &[], 596.0, 2.0), "{html}");
+            let (measured, stack) = cell_widths(row, &columns, &m.columns, 596.0, 2.0);
+            assert_eq!(measured, cell_widths(row, &columns, &[], 596.0, 2.0).0, "{html}");
+            assert!(!stack, "{html}");
         }
     }
 }
@@ -331,7 +335,63 @@ fn a_signature_in_columns_stays_in_columns_in_a_pane_of_the_usual_width() {
         let (w, stack) = widths(room);
         assert!(!stack && close(&w, &[180.0, 220.0, room - 400.0]), "{room}: {w:?} {stack}");
     }
-    assert!(widths(400.0 + address.min - 20.0).1, "no room for its widest word: one under the other");
+    // Too narrow for the address's widest word beside the others as wide as they ask: the name's
+    // column, 220 wide, gives up what its name doesn't need, as in a browser.
+    let (w, stack) = widths(400.0 + address.min - 20.0);
+    assert!(!stack && w.iter().zip(&m.columns).all(|(w, f)| f.is_some_and(|f| *w + 0.5 >= f.min)), "{w:?}");
+    let least: f32 = m.columns.iter().flatten().map(|f| f.min).sum();
+    assert!(widths(least - 20.0).1, "no room for their widest words: one under the other");
+}
+
+/// Tables as Outlook writes them (Word's HTML: `MsoTableGrid`, widths in points beside their
+/// pixels, `<o:p>`) and as Excel pastes them, in a reading pane narrower than they ask: their
+/// columns stay side by side, each narrower but no narrower than its widest word. They went one
+/// cell to a line in any pane narrower than they are (#152). Too narrow even for those words,
+/// they're drawn that wide, scrolled sideways, not one cell to a line.
+#[test]
+fn tables_from_outlook_and_excel_keep_their_columns_in_a_narrow_pane() {
+    let cell = |w: u32, pt: &str, text: &str| {
+        format!(
+            "<td width={w} valign=top style='width:{pt}pt;border:solid windowtext 1.0pt;mso-border-alt:solid windowtext .5pt;padding:0in 5.4pt 0in 5.4pt'><p class=MsoNormal>{text}<o:p></o:p></p></td>"
+        )
+    };
+    let row =
+        |w: u32, pt: &str, texts: &[&str]| format!("<tr style='mso-yfti-irow:0'>{}</tr>", texts.iter().map(|t| cell(w, pt, t)).collect::<String>());
+    let word = format!(
+        "<div class=WordSection1><table class=MsoTableGrid border=1 cellspacing=0 cellpadding=0 style='border-collapse:collapse;border:none;mso-yfti-tbllook:1184'>{}{}</table><p class=MsoNormal><o:p>&nbsp;</o:p></p></div>",
+        row(124, "93.5", &["Name", "Department", "Start date", "Hours", "Status"]),
+        row(124, "93.5", &["Riley Moreno", "Accounts", "2026-03-01", "37.5", "Open"])
+    );
+    let excel = format!(
+        "<table class=MsoNormalTable border=0 cellspacing=0 cellpadding=0 width=448 style='width:336.0pt;border-collapse:collapse'>{}{}</table>",
+        row(64, "48.0", &["Region", "Q1", "Q2", "Q3", "Q4", "Total", "Change"]),
+        row(64, "48.0", &["North", "1,204", "1,310", "998", "1,450", "4,962", "+4.1%"])
+    );
+    for (html, rooms) in [(word, [600.0, 500.0, 420.0]), (excel, [440.0, 420.0, 400.0])] {
+        let blocks = html_layout(&html);
+        let t = all_tables(&blocks).first().copied().expect("a table");
+        let m = with_ui(|ui| measured(ui, &key(), t));
+        let columns = column_widths(&t.rows);
+        for room in rooms {
+            for row in &t.rows {
+                let (w, stack) = cell_widths(row, &columns, &m.columns, room, 0.0);
+                assert!(!stack, "{room}: {w:?} {html}");
+                assert!((w.iter().sum::<f32>() - room).abs() < 0.5, "all the room: {room} {w:?}");
+                assert!(w.iter().zip(&m.columns).all(|(w, f)| f.is_some_and(|f| *w + 0.5 >= f.min)), "{room}: {w:?} {:?}", m.columns);
+            }
+            assert_eq!(sideways(t, m.whole, room), None, "it fits in {room}");
+        }
+        // Narrower than its widest words: as wide as those, scrolled, and side by side there.
+        let least = m.whole.map(|f| f.min).expect("measured");
+        assert_eq!(sideways(t, m.whole, least - 30.0), Some(least));
+        assert!(t.rows.iter().all(|row| !cell_widths(row, &columns, &m.columns, least, 0.0).1));
+    }
+    // A page's columns, a row of one cell over them, aren't a grid: they go one under the other.
+    let page =
+        html_layout(r#"<table width="600"><tr><td colspan="2">Header</td></tr><tr><td width="300">Left</td><td width="300">Right</td></tr></table>"#);
+    let t = all_tables(&page).first().copied().expect("a table");
+    let m = with_ui(|ui| measured(ui, &key(), t));
+    assert_eq!(sideways(t, m.whole, 10.0), None);
 }
 
 /// Every table in `blocks`, those inside others too (in their cells and the boxes over them).

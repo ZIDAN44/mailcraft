@@ -454,6 +454,10 @@ impl Body<'_> {
                         None => width,
                     }
                     .max(1.0);
+                    // Only one in no other table is scrolled sideways: a newsletter's columns,
+                    // inside its page's table, still go one under the other in a narrow pane.
+                    let too_wide = if depth == 0 && outer { table::sideways(table, measures.whole, width) } else { None };
+                    let tw = too_wide.unwrap_or(tw);
                     // In a centred or right-aligned cell (`<td align="center">`), a table is
                     // too, as browsers do.
                     let at = table::table_place(table.align, align);
@@ -466,34 +470,46 @@ impl Body<'_> {
                     let tbg = theme::box_color(table.background, page, &st.tokens);
                     let page = tbg.unwrap_or(page);
                     let behind = table.background_image.as_deref().and_then(|src| self.background(st, ui.ctx(), src));
-                    ui.horizontal_top(|ui| {
-                        ui.add_space(indent);
-                        ui.allocate_ui_with_layout(vec2(tw, 0.0), egui::Layout::top_down(Align::Min), |ui| {
-                            ui.set_width(tw);
-                            let fill = tbg.map_or(Color32::TRANSPARENT, |c| Color32::from_rgb(c[0], c[1], c[2]));
-                            // The table's own room between and around its cells (`cellspacing`;
-                            // none for a box of CSS), and inside them (`cellpadding`).
-                            let spacing = f32::from(table.spacing.unwrap_or(0));
-                            let room = Room { spacing, padding: f32::from(table.padding.unwrap_or(0)) };
-                            let framed = egui::Frame::new().inner_margin(room_margin([spacing; 4])).show(ui, |ui| {
-                                // Its place in the drawing (its colour and picture): under the content.
-                                let slot = ui.painter().add(egui::Shape::Noop);
-                                ui.spacing_mut().item_spacing = vec2(spacing, spacing);
-                                let columns = column_widths(&table.rows);
-                                let width = (tw - 2.0 * spacing).max(1.0);
-                                let rows = Rows { columns: &columns, content: &measures.columns, width, page, room, depth };
-                                for row in &table.rows {
-                                    self.row(st, ui, row, rows);
+                    let mut draw = |ui: &mut Ui| {
+                        ui.horizontal_top(|ui| {
+                            ui.add_space(indent);
+                            ui.allocate_ui_with_layout(vec2(tw, 0.0), egui::Layout::top_down(Align::Min), |ui| {
+                                ui.set_width(tw);
+                                let fill = tbg.map_or(Color32::TRANSPARENT, |c| Color32::from_rgb(c[0], c[1], c[2]));
+                                // The table's own room between and around its cells (`cellspacing`;
+                                // none for a box of CSS), and inside them (`cellpadding`).
+                                let spacing = f32::from(table.spacing.unwrap_or(0));
+                                let room = Room { spacing, padding: f32::from(table.padding.unwrap_or(0)) };
+                                let framed = egui::Frame::new().inner_margin(room_margin([spacing; 4])).show(ui, |ui| {
+                                    // Its place in the drawing (its colour and picture): under the content.
+                                    let slot = ui.painter().add(egui::Shape::Noop);
+                                    ui.spacing_mut().item_spacing = vec2(spacing, spacing);
+                                    let columns = column_widths(&table.rows);
+                                    let width = (tw - 2.0 * spacing).max(1.0);
+                                    let rows = Rows { columns: &columns, content: &measures.columns, width, page, room, depth };
+                                    for row in &table.rows {
+                                        self.row(st, ui, row, rows);
+                                    }
+                                    slot
+                                });
+                                ui.painter().set(framed.inner, table::backdrop(framed.response.rect, table.radius, fill, behind.as_ref()));
+                                if let Some(l) = table.border {
+                                    let stroke = egui::Stroke::new(f32::from(l.width), table::line_color(l, page, &st.tokens));
+                                    ui.painter().rect_stroke(framed.response.rect, 0.0, stroke, egui::StrokeKind::Inside);
                                 }
-                                slot
                             });
-                            ui.painter().set(framed.inner, table::backdrop(framed.response.rect, table.radius, fill, behind.as_ref()));
-                            if let Some(l) = table.border {
-                                let stroke = egui::Stroke::new(f32::from(l.width), table::line_color(l, page, &st.tokens));
-                                ui.painter().rect_stroke(framed.response.rect, 0.0, stroke, egui::StrokeKind::Inside);
-                            }
                         });
-                    });
+                    };
+                    if too_wide.is_some() {
+                        let id = ui.next_auto_id().with("wide-table");
+                        // Its bar under it, not over its last row (a floating one hid its numbers).
+                        ui.scope(|ui| {
+                            ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
+                            egui::ScrollArea::horizontal().id_salt(id).show(ui, |ui| draw(ui));
+                        });
+                    } else {
+                        draw(ui);
+                    }
                     if outer {
                         self.held = None;
                     }

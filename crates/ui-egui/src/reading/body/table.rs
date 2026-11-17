@@ -155,6 +155,15 @@ pub(super) fn table_place(own: mime::layout::Align, content: mime::layout::Align
     if own == mime::layout::Align::Left { content } else { own }
 }
 
+/// How wide a table too wide for `width` is drawn, scrolled sideways: a grid (rows of two cells
+/// or more, one under another) whose columns, each as narrow as its widest word (`whole`,
+/// measured), don't fit. As a browser shows it, not one cell to a line, its columns lost (#152).
+/// `None`: it fits, or isn't a grid (a page's columns, which go one under the other).
+pub(crate) fn sideways(table: &mime::layout::Table, whole: Option<Fit>, width: f32) -> Option<f32> {
+    let grid = table.rows.len() > 1 && table.rows.iter().all(|r| r.len() > 1);
+    whole.map(|f| f.min).filter(|least| grid && *least > width + 0.5)
+}
+
 /// Wider than this unwrapped, what a cell holds is a paragraph: squeezed into a column narrower
 /// than [`MIN_COLUMN`] it reads badly, and the row's cells go one under the other. Shorter (a
 /// line of an address), it wraps once at most in a column that holds its widest word.
@@ -237,7 +246,20 @@ pub(crate) fn cell_widths(
         // Asked for more than there is: shared out in proportion (by what those that ask for
         // nothing can't do without, measured).
         let total: f32 = asked.iter().zip(&fits).map(|(a, f)| base(a, f)).sum::<f32>().max(1.0);
-        asked.iter().zip(&fits).map(|(a, f)| base(a, f) / total * width).collect()
+        let even: Vec<f32> = asked.iter().zip(&fits).map(|(a, f)| base(a, f) / total * width).collect();
+        // One left narrower than its widest word while others have more than theirs: each its
+        // widest word, and the rest in proportion to how much more it asks, as CSS shares a row
+        // too narrow for what it asks (§17.5.2.2).
+        let mins: Option<Vec<f32>> = fits.iter().map(|f| f.map(|f| f.min)).collect();
+        match mins {
+            Some(mins) if even.iter().zip(&mins).any(|(w, m)| w + 0.5 < *m) && mins.iter().sum::<f32>() <= width => {
+                let more: Vec<f32> =
+                    asked.iter().zip(&fits).zip(&mins).map(|((a, f), m)| (a.or(f.map(|f| f.max)).unwrap_or(*m) - m).max(0.0)).collect();
+                let (spread, left) = (more.iter().sum::<f32>(), width - mins.iter().sum::<f32>());
+                mins.iter().zip(&more).map(|(m, x)| m + if spread > 0.0 { left * x / spread } else { left / row.len().max(1) as f32 }).collect()
+            }
+            _ => even,
+        }
     } else if auto {
         let (most, least_sum) = unasked().fold((0.0f32, 0.0f32), |(m, l), f| (m + f.max, l + f.min));
         let spread = most - least_sum;
@@ -283,14 +305,17 @@ pub(crate) fn cell_widths(
     // wide they are (columns their writer set out), that's only for a paragraph, which would
     // take much more: short lines (an address beside a name and a logo, issue #90) wrap a
     // little and stay. A signature in three columns went one under the other in a pane of the
-    // usual width, its dividing line with it, where a browser keeps the columns.
+    // usual width, its dividing line with it, where a browser keeps the columns. A cell that
+    // says how wide it is, narrower than that, is squeezed only when it can't hold its widest
+    // word, measured: a table written in Outlook or pasted from Excel (its columns 124 pixels
+    // each, five in all) went one cell to a line in any pane narrower than it (#152).
     let even = if free > 0 { room / free as f32 } else { f32::INFINITY };
     let squeezed = |w: f32, asked: Option<f32>, fit: Option<Fit>, share: bool| {
         w < MIN_COLUMN
             && match (asked, fit) {
                 // A share is as much of the row as it can have: too little only for what it holds.
                 (Some(_), f) if share => f.is_some_and(|f| w + 0.5 < f.min),
-                (Some(a), _) => w + 0.5 < a,
+                (Some(a), f) => f.map_or(w + 0.5 < a, |f| w + 0.5 < f.min),
                 (None, Some(f)) if auto => w + 0.5 < f.min || (even < MIN_COLUMN && w + 0.5 < f.max && (f.max > PARAGRAPH || fixed <= 0.0)),
                 (None, _) => true,
             }
