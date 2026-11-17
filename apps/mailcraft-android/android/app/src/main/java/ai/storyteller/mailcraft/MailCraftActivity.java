@@ -11,6 +11,10 @@ import android.provider.OpenableColumns;
 import android.view.Window;
 import android.view.WindowInsetsController;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 /** Keeps the running NativeActivity alive while a second instance stages an incoming Android intent. */
 public final class MailCraftActivity extends NativeActivity {
     private static final String RELAY_MARKER = "mailcraft.handoff-relay";
@@ -18,11 +22,13 @@ public final class MailCraftActivity extends NativeActivity {
     private static final int DOCUMENT_REQUEST = 4108;
     private volatile boolean notificationPermissionPending;
     private int activeDocumentRequest;
+    private boolean activeDocumentAllowsMultiple;
     private Object systemBackCallback;
 
     private static native void nativeSystemBack();
     private static native void nativeDocumentResult(int requestId, int resultCode, String uri, String name,
             String mime, long size, String error);
+    private static native void nativeDocumentBatchResult(int requestId, int resultCode, String documents, String error);
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,7 +64,7 @@ public final class MailCraftActivity extends NativeActivity {
     }
 
     /** Open Android's document provider and return the chosen URI to Rust. */
-    public void startMailCraftOpenDocument(int requestId, String mime) {
+    public void startMailCraftOpenDocument(int requestId, String mime, boolean allowMultiple) {
         runOnUiThread(() -> {
             if (activeDocumentRequest != 0) {
                 nativeDocumentResult(requestId, RESULT_CANCELED, null, null, null, -1,
@@ -66,14 +72,17 @@ public final class MailCraftActivity extends NativeActivity {
                 return;
             }
             activeDocumentRequest = requestId;
+            activeDocumentAllowsMultiple = allowMultiple;
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             intent.addCategory(Intent.CATEGORY_OPENABLE);
             intent.setType(mime == null || mime.isEmpty() ? "*/*" : mime);
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, allowMultiple);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
             try {
                 startActivityForResult(intent, DOCUMENT_REQUEST);
             } catch (RuntimeException error) {
                 activeDocumentRequest = 0;
+                activeDocumentAllowsMultiple = false;
                 nativeDocumentResult(requestId, RESULT_CANCELED, null, null, null, -1,
                         "Android could not open the document picker");
             }
@@ -111,10 +120,37 @@ public final class MailCraftActivity extends NativeActivity {
             return;
         }
         int requestId = activeDocumentRequest;
+        boolean allowMultiple = activeDocumentAllowsMultiple;
         activeDocumentRequest = 0;
+        activeDocumentAllowsMultiple = false;
         if (requestId == 0 || resultCode != RESULT_OK || data == null) {
             if (requestId != 0) {
                 nativeDocumentResult(requestId, resultCode, null, null, null, -1, null);
+            }
+            return;
+        }
+        if (allowMultiple) {
+            JSONArray documents = new JSONArray();
+            android.content.ClipData clips = data.getClipData();
+            int count = clips == null ? 0 : clips.getItemCount();
+            if (count == 0 && data.getData() != null) {
+                count = 1;
+            }
+            if (count == 0 || count > 50) {
+                nativeDocumentBatchResult(requestId, resultCode, null, "Choose between one and 50 files");
+                return;
+            }
+            try {
+                for (int index = 0; index < count; index++) {
+                    Uri selected = clips == null ? data.getData() : clips.getItemAt(index).getUri();
+                    if (selected == null) {
+                        throw new JSONException("The selection contains an empty document");
+                    }
+                    documents.put(documentDetails(selected));
+                }
+                nativeDocumentBatchResult(requestId, resultCode, documents.toString(), null);
+            } catch (JSONException error) {
+                nativeDocumentBatchResult(requestId, resultCode, null, "Android could not read the document selection");
             }
             return;
         }
@@ -158,6 +194,46 @@ public final class MailCraftActivity extends NativeActivity {
             mime = mime.substring(0, 256);
         }
         nativeDocumentResult(requestId, resultCode, uriText, name, mime, size, null);
+    }
+
+    private JSONObject documentDetails(Uri uri) throws JSONException {
+        String name = null;
+        String mime = null;
+        long size = -1;
+        try {
+            mime = getContentResolver().getType(uri);
+            try (Cursor cursor = getContentResolver().query(uri,
+                    new String[] { OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE }, null, null, null)) {
+                if (cursor != null && cursor.moveToFirst()) {
+                    int nameColumn = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                    int sizeColumn = cursor.getColumnIndex(OpenableColumns.SIZE);
+                    if (nameColumn >= 0 && !cursor.isNull(nameColumn)) {
+                        name = cursor.getString(nameColumn);
+                    }
+                    if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) {
+                        size = cursor.getLong(sizeColumn);
+                    }
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // Some document providers omit metadata; Rust can still read the URI with size caps.
+        }
+        String uriText = uri.toString();
+        if (uriText.length() > 8192) {
+            throw new JSONException("The selected document address is too long");
+        }
+        if (name != null && name.length() > 1024) {
+            name = name.substring(0, 1024);
+        }
+        if (mime != null && mime.length() > 256) {
+            mime = mime.substring(0, 256);
+        }
+        JSONObject document = new JSONObject();
+        document.put("uri", uriText);
+        document.put("name", name);
+        document.put("mime", mime);
+        document.put("size", size);
+        return document;
     }
 
     /** Apply system bar colors on Android's UI thread, including on the render-thread NativeActivity. */

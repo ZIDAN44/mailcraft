@@ -128,7 +128,7 @@ impl MailApp {
                     &self.picture_place(json!({"name": name, "dataBase64": binary_base64(&data), "width": width, "line": line})),
                 );
                 self.place_picture(r);
-            } else if matches!(purpose.as_str(), "attach-path" | "attach-shared-path") {
+            } else if matches!(purpose.as_str(), "attach-path" | "attach-path-batch" | "attach-shared-path") {
                 // Android stages the selected file privately, so the engine can read it directly
                 // without making a large Base64 copy on the UI thread.
                 let reopen_picker = purpose == "attach-path";

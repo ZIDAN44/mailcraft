@@ -38,6 +38,7 @@ impl AndroidServices {
     pub(crate) fn finish_user_save(&mut self, result: activity::DocumentResult) {
         let request_id = match &result {
             activity::DocumentResult::Selected { request_id, .. }
+            | activity::DocumentResult::SelectedMany { request_id, .. }
             | activity::DocumentResult::Cancelled { request_id }
             | activity::DocumentResult::Failed { request_id, .. } => *request_id,
         };
@@ -67,6 +68,11 @@ impl AndroidServices {
                     let _ = self.download_finished.send(());
                     self.repaint.request_repaint();
                 }
+            }
+            activity::DocumentResult::SelectedMany { .. } => {
+                let _ = self.errors.send(save_error());
+                let _ = self.download_finished.send(());
+                self.repaint.request_repaint();
             }
             activity::DocumentResult::Cancelled { .. } => {
                 let _ = self.download_finished.send(());

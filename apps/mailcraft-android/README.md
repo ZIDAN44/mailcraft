@@ -83,9 +83,9 @@ for review and never starts a call; numeric `;ext=` telephone-link extensions ar
 requesting location access. Tapping a contact email, calendar organizer or attendee starts a
 message to them in MailCraft. Contact details and business cards can be shared as vCards with another Android app, saved as `.vcf` files, or added to the system contacts app without contacts permissions. Event details can be shared as iCalendar text, saved as `.ics` files through Android's document picker, or a single event or recurring series with added and excluded dates can be added to a calendar app without granting MailCraft calendar access.
 The Android document picker opens files for attachments, pictures, certificates, keys, signatures
-and imports. For attachments, it opens again after each selected file; press Back or Cancel to
-return to the message with the files chosen so far. Selected attachments are staged privately and
-attached directly from that copy. Opening an attachment hands compatible apps a temporary,
+and imports. Attachment picking supports selecting up to 50 files at once, within the message's
+25 MiB total attachment limit. Selected attachments are staged privately and attached directly
+from that copy. Opening an attachment hands compatible apps a temporary,
 read-only content URI for the private copy; MailCraft does not expose its filesystem path.
 Files shared from another app can also complete a waiting action;
 attachments use their private staging copy directly. Selected and copied clipboard images can be

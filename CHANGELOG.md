@@ -11,6 +11,7 @@ on GitHub.
 ## Unreleased
 
 ### Added
+- Android's attachment picker selects up to 50 files at once, within the existing 25 MiB total limit.
 - Android opens and saves files through its Activity's Storage Access Framework, so document providers receive the live Activity context they require.
 - Android reads and decodes pasted clipboard pictures in the background, keeping large images from freezing a message or signature editor.
 - Android reads files chosen in its document picker on a worker, so slow providers and large imports do not hold up the app window.

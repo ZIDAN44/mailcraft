@@ -15,8 +15,17 @@ static NEXT_DOCUMENT_REQUEST: AtomicI32 = AtomicI32::new(1);
 #[derive(Debug)]
 pub(super) enum DocumentResult {
     Selected { request_id: i32, uri: String, name: Option<String>, mime: Option<String>, size: Option<u64> },
+    SelectedMany { request_id: i32, documents: Vec<PickedDocument> },
     Cancelled { request_id: i32 },
     Failed { request_id: i32, error: String },
+}
+
+#[derive(Debug)]
+pub(super) struct PickedDocument {
+    pub(super) uri: String,
+    pub(super) name: Option<String>,
+    pub(super) mime: Option<String>,
+    pub(super) size: Option<u64>,
 }
 
 pub(super) fn next_document_request_id() -> i32 {
@@ -122,6 +131,62 @@ pub extern "system" fn Java_ai_storyteller_mailcraft_MailCraftActivity_nativeDoc
     );
 }
 
+/// Return a bounded batch of Storage Access Framework results for attachment picking.
+#[allow(unsafe_code)]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_ai_storyteller_mailcraft_MailCraftActivity_nativeDocumentBatchResult(
+    mut env: jni::JNIEnv<'_>,
+    _activity: jni::objects::JClass<'_>,
+    request_id: jni::sys::jint,
+    result_code: jni::sys::jint,
+    documents: JString<'_>,
+    error: JString<'_>,
+) {
+    super::ensure_panic_hook();
+    super::panic_boundary::catch_or(
+        || {
+            let string = |env: &mut jni::JNIEnv<'_>, value: JString<'_>| {
+                if value.is_null() { None } else { env.get_string(&value).ok().map(|text| text.to_string_lossy().into_owned()) }
+            };
+            let error = string(&mut env, error);
+            let result = if let Some(error) = error.filter(|error| !error.is_empty()) {
+                DocumentResult::Failed { request_id, error }
+            } else if result_code != -1 {
+                DocumentResult::Cancelled { request_id }
+            } else if let Some(encoded) = string(&mut env, documents).filter(|value| value.len() <= 512 * 1024) {
+                let parsed = serde_json::from_str::<Vec<serde_json::Value>>(&encoded)
+                    .ok()
+                    .filter(|items| !items.is_empty() && items.len() <= 50)
+                    .and_then(|items| {
+                        items
+                            .into_iter()
+                            .map(|item| {
+                                let uri = item.get("uri")?.as_str()?.to_owned();
+                                let name = item.get("name").and_then(serde_json::Value::as_str).map(str::to_owned);
+                                let mime = item.get("mime").and_then(serde_json::Value::as_str).map(str::to_owned);
+                                let size = item.get("size").and_then(serde_json::Value::as_u64);
+                                (uri.len() <= 8192 && !uri.is_empty()).then_some(PickedDocument { uri, name, mime, size })
+                            })
+                            .collect::<Option<Vec<_>>>()
+                    });
+                match parsed {
+                    Some(documents) => DocumentResult::SelectedMany { request_id, documents },
+                    None => DocumentResult::Failed { request_id, error: "Android returned an invalid document selection".into() },
+                }
+            } else {
+                DocumentResult::Failed { request_id, error: "Android returned an invalid document selection".into() }
+            };
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+                send_document_result(DocumentResult::Failed { request_id, error: "Android could not read the document selection".into() });
+                return;
+            }
+            send_document_result(result);
+        },
+        (),
+    );
+}
+
 /// Register the primary NativeActivity for middleware that needs an Android `Activity`.
 pub(super) fn register_middleware_activity(app: &winit::platform::android::activity::AndroidApp) -> Result<(), String> {
     let result = robius_android_env::with_activity(|env, _application| {
@@ -159,15 +224,24 @@ pub(super) fn with_activity<R>(
     })?
 }
 
-pub(super) fn open_document_picker(app: &winit::platform::android::activity::AndroidApp, request_id: i32, mime: &str) -> Result<(), String> {
+pub(super) fn open_document_picker(
+    app: &winit::platform::android::activity::AndroidApp,
+    request_id: i32,
+    mime: &str,
+    allow_multiple: bool,
+) -> Result<(), String> {
     let result = with_activity(app, |env, activity| {
         let operation = (|| -> Result<(), jni::errors::Error> {
             let mime = env.new_string(mime)?;
             env.call_method(
                 activity,
                 "startMailCraftOpenDocument",
-                "(ILjava/lang/String;)V",
-                &[jni::objects::JValue::Int(request_id), jni::objects::JValue::Object(mime.as_ref())],
+                "(ILjava/lang/String;Z)V",
+                &[
+                    jni::objects::JValue::Int(request_id),
+                    jni::objects::JValue::Object(mime.as_ref()),
+                    jni::objects::JValue::Bool(allow_multiple.into()),
+                ],
             )?;
             Ok(())
         })();

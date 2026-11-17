@@ -8,6 +8,7 @@ impl AndroidServices {
         for result in results {
             let request_id = match &result {
                 activity::DocumentResult::Selected { request_id, .. }
+                | activity::DocumentResult::SelectedMany { request_id, .. }
                 | activity::DocumentResult::Cancelled { request_id }
                 | activity::DocumentResult::Failed { request_id, .. } => *request_id,
             };
@@ -15,49 +16,11 @@ impl AndroidServices {
                 let Some((_, purpose)) = self.active_document_picker.take() else { continue };
                 match result {
                     activity::DocumentResult::Selected { uri, name, mime, size, .. } => {
-                        let (worker_activity, worker_dir, worker_purpose) = (self.activity.clone(), self.incoming_dir.clone(), purpose.clone());
-                        let (worker_picked, worker_errors, worker_pending, worker_repaint) =
-                            (self.picked.clone(), self.errors.clone(), self.pending_picker_purpose.clone(), self.repaint.clone());
-                        let pick_image = matches!(purpose.as_str(), "picture" | "signature-picture");
-                        let worker = std::thread::Builder::new().name("android-picked-document".into()).spawn(move || {
-                            let result = read_picked_file(
-                                &worker_activity,
-                                worker_dir.as_deref(),
-                                &worker_purpose,
-                                pick_image,
-                                &uri,
-                                name.as_deref(),
-                                mime.as_deref(),
-                                size,
-                            );
-                            match result {
-                                Ok((name_or_path, data)) => {
-                                    let staged_file = matches!(worker_purpose.as_str(), "data-file" | "account-data-file" | "attach");
-                                    let purpose_for_ui = if worker_purpose == "attach" { "attach-path".to_owned() } else { worker_purpose.clone() };
-                                    match worker_picked.send((purpose_for_ui, name_or_path, data)) {
-                                        Ok(()) => clear_picker_purpose(&worker_pending, &worker_purpose),
-                                        Err(error) => {
-                                            if staged_file {
-                                                discard_staged_android_file(std::path::Path::new(&error.0.1));
-                                            }
-                                            clear_picker_purpose(&worker_pending, &worker_purpose);
-                                        }
-                                    }
-                                    worker_repaint.request_repaint();
-                                }
-                                Err(error) => {
-                                    clear_picker_purpose(&worker_pending, &worker_purpose);
-                                    let _ = worker_errors.send(error);
-                                    worker_repaint.request_repaint();
-                                }
-                            }
-                        });
-                        if let Err(error) = worker {
-                            clear_picker_purpose(&self.pending_picker_purpose, &purpose);
-                            log::warn!("Android selected-file work could not start: {error}");
-                            let _ = self.errors.send(picker_fallback());
-                            self.repaint.request_repaint();
-                        }
+                        self.stage_picked_documents(purpose, vec![activity::PickedDocument { uri, name, mime, size }], false);
+                    }
+                    activity::DocumentResult::SelectedMany { documents, .. } => {
+                        let is_batch = documents.len() > 1;
+                        self.stage_picked_documents(purpose, documents, is_batch);
                     }
                     activity::DocumentResult::Cancelled { .. } => clear_picker_purpose(&self.pending_picker_purpose, &purpose),
                     activity::DocumentResult::Failed { error, .. } => {
@@ -70,6 +33,90 @@ impl AndroidServices {
             } else {
                 self.finish_user_save(result);
             }
+        }
+    }
+
+    fn stage_picked_documents(&self, purpose: String, documents: Vec<activity::PickedDocument>, is_batch: bool) {
+        if is_batch && purpose != "attach" {
+            clear_picker_purpose(&self.pending_picker_purpose, &purpose);
+            let _ = self.errors.send(picker_fallback());
+            self.repaint.request_repaint();
+            return;
+        }
+        let (worker_activity, worker_dir, worker_purpose) = (self.activity.clone(), self.incoming_dir.clone(), purpose.clone());
+        let (worker_picked, worker_errors, worker_pending, worker_repaint) =
+            (self.picked.clone(), self.errors.clone(), self.pending_picker_purpose.clone(), self.repaint.clone());
+        let worker = std::thread::Builder::new().name("android-picked-document".into()).spawn(move || {
+            let mut staged = Vec::with_capacity(documents.len());
+            let mut total_bytes = 0_u64;
+            let result = (|| -> Result<(), String> {
+                for document in documents {
+                    let (name_or_path, data) = read_picked_file(
+                        &worker_activity,
+                        worker_dir.as_deref(),
+                        &worker_purpose,
+                        matches!(worker_purpose.as_str(), "picture" | "signature-picture"),
+                        &document.uri,
+                        document.name.as_deref(),
+                        document.mime.as_deref(),
+                        document.size,
+                    )?;
+                    if worker_purpose == "attach" {
+                        let path = std::path::Path::new(&name_or_path);
+                        let size = match std::fs::metadata(path) {
+                            Ok(metadata) => metadata.len(),
+                            Err(error) => {
+                                discard_staged_android_file(path);
+                                return Err(error.to_string());
+                            }
+                        };
+                        total_bytes = match total_bytes.checked_add(size).filter(|total| *total <= mailcraft_engine::MAX_ATTACHMENT_BYTES as u64) {
+                            Some(total) => total,
+                            None => {
+                                discard_staged_android_file(path);
+                                return Err(format!("Attachments are limited to {} MiB total", mailcraft_engine::MAX_ATTACHMENT_BYTES >> 20));
+                            }
+                        };
+                    }
+                    staged.push((name_or_path, data));
+                }
+                Ok(())
+            })();
+            if let Err(error) = result {
+                for (path, _) in staged {
+                    discard_staged_android_file(std::path::Path::new(&path));
+                }
+                clear_picker_purpose(&worker_pending, &worker_purpose);
+                let _ = worker_errors.send(error);
+                worker_repaint.request_repaint();
+                return;
+            }
+            let staged_file = matches!(worker_purpose.as_str(), "data-file" | "account-data-file" | "attach");
+            let purpose_for_ui = if worker_purpose == "attach" {
+                if is_batch { "attach-path-batch" } else { "attach-path" }.to_owned()
+            } else {
+                worker_purpose.clone()
+            };
+            let mut staged_iter = staged.into_iter();
+            while let Some((name_or_path, data)) = staged_iter.next() {
+                if worker_picked.send((purpose_for_ui.clone(), name_or_path.clone(), data)).is_err() {
+                    if staged_file {
+                        discard_staged_android_file(std::path::Path::new(&name_or_path));
+                        for (path, _) in staged_iter {
+                            discard_staged_android_file(std::path::Path::new(&path));
+                        }
+                    }
+                    break;
+                }
+            }
+            clear_picker_purpose(&worker_pending, &worker_purpose);
+            worker_repaint.request_repaint();
+        });
+        if let Err(error) = worker {
+            clear_picker_purpose(&self.pending_picker_purpose, &purpose);
+            log::warn!("Android selected-file work could not start: {error}");
+            let _ = self.errors.send(picker_fallback());
+            self.repaint.request_repaint();
         }
     }
 }
@@ -420,7 +467,9 @@ impl Services for AndroidServices {
         let pick_image = matches!(purpose.as_str(), "picture" | "signature-picture");
         let request_id = activity::next_document_request_id();
         self.active_document_picker = Some((request_id, purpose.clone()));
-        if let Err(error) = activity::open_document_picker(&self.activity, request_id, if pick_image { "image/*" } else { "*/*" }) {
+        if let Err(error) =
+            activity::open_document_picker(&self.activity, request_id, if pick_image { "image/*" } else { "*/*" }, purpose == "attach")
+        {
             self.active_document_picker = None;
             clear_picker_purpose(&self.pending_picker_purpose, &purpose);
             log::warn!("Android document picker could not start: {error}");
