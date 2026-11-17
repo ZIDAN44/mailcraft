@@ -242,7 +242,15 @@ fn hand_over(conn: &mut SmtpConnection, envelope: &Envelope, raw: &[u8], recipie
         }
         options.push(MailParameter::Body(MailBodyParameter::EightBitMime));
     }
-    conn.command(Mail::new(envelope.from().cloned(), options)).map_err(failed)?;
+    // Turned away at MAIL, it's the sender the server refuses: said, with the address. "550 Invalid
+    // Sender" alone hid an account's mistyped address (Outlook, with the right one, sent).
+    conn.command(Mail::new(envelope.from().cloned(), options)).map_err(|e| match failed(e) {
+        NetError::Smtp(msg) => match envelope.from() {
+            Some(from) => NetError::Smtp(format!("the server refused the sender, {from}: {msg}")),
+            None => NetError::Smtp(msg),
+        },
+        other => other,
+    })?;
     for to in envelope.to() {
         conn.command(Rcpt::new(to.clone(), Vec::new())).map_err(failed)?;
     }
@@ -511,6 +519,23 @@ pub(crate) mod tests {
         let message = b"Subject: refused\r\n\r\nnot delivered\r\n";
         let e = send(&server, "z@x.example", "pw", "z@x.example", &["a@y.example".into()], message).unwrap_err();
         assert!(matches!(e, NetError::Smtp(_)), "{e:?}");
+    }
+
+    /// A sender turned away is said with its address: a mistyped one shows where it's wrong
+    /// ("550 Invalid Sender" alone, as a tester's server put it, said nothing of which).
+    #[test]
+    fn a_refused_sender_is_named() {
+        let port = scripted(|command| match command.split(' ').next().unwrap_or_default() {
+            "EHLO" => "250-scripted.test\r\n250 AUTH PLAIN LOGIN\r\n",
+            "AUTH" => "235 2.7.0 welcome\r\n",
+            "MAIL" => "550 Invalid Sender  - Please Contact with your mail service provider\r\n",
+            "QUIT" => "221 2.0.0 closing\r\n",
+            _ => "250 2.0.0 fine\r\n",
+        });
+        let server = ServerConfig { security: Security::None, port, host: "127.0.0.1".into() };
+        let e = send(&server, "zoe@studio.example", "pw", "zoe@stuido.example", &["a@y.example".into()], b"Subject: s\r\n\r\nx\r\n").unwrap_err();
+        let NetError::Smtp(said) = e else { panic!("{e:?}") };
+        assert!(said.starts_with("the server refused the sender, zoe@stuido.example: ") && said.contains("Invalid Sender"), "{said}");
     }
 
     /// The server takes the whole message and the connection drops before it answers: the
