@@ -579,6 +579,22 @@ fn the_reading_pane_marks_mail_read_as_chosen() {
     assert!(!seen(&s, &unread[0]));
     s.run("message.popOut", &json!({"key": unread[0].to_id()})).unwrap();
     assert!(seen(&s, &unread[0]), "opened in its own window");
+    // The reading pane off: chosen (clicked, or passed over with the arrow keys) isn't shown, so
+    // isn't read, whatever the options say (#146); its own window still reads it.
+    s.run("view.readingOptions", &json!({"markRead": true, "when": "shown", "after": 0})).unwrap();
+    s.run("view.readingPane", &json!({"value": "off"})).unwrap();
+    s.selection = vec![unread[1].clone(), unread[3].clone()];
+    s.run("mail.markUnread", &json!({})).unwrap();
+    s.open_message(&unread[1]);
+    s.open_message(&unread[3]);
+    s.clock.now += 60;
+    s.tick();
+    assert!(!seen(&s, &unread[1]) && !seen(&s, &unread[3]), "not shown, not read");
+    s.run("message.popOut", &json!({"key": unread[1].to_id()})).unwrap();
+    assert!(seen(&s, &unread[1]), "opened in its own window");
+    s.run("view.readingPane", &json!({"value": "right"})).unwrap();
+    s.open_message(&unread[3]);
+    assert!(seen(&s, &unread[3]), "shown once the pane is back");
     assert!(s.run("view.readingOptions", &json!({"when": "sometime"})).is_err());
     let back: crate::Prefs = serde_json::from_value(json!({"markReadOnOpen": false})).unwrap();
     assert_eq!(
