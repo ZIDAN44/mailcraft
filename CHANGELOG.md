@@ -8,7 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
-## 0.40.0
+## 0.41.0
+
+*What testers met in their first days with 0.40.*
+
+## 0.40.0 - 2026-11-17
 
 *What testers met in their first days with 0.39.*
 
