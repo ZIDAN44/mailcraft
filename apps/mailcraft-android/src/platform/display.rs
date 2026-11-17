@@ -47,7 +47,10 @@ pub(crate) fn system_insets(app: &winit::platform::android::activity::AndroidApp
             }
             let system_bars = env.call_static_method("android/view/WindowInsets$Type", "systemBars", "()I", &[])?.i()?;
             let cutout = env.call_static_method("android/view/WindowInsets$Type", "displayCutout", "()I", &[])?.i()?;
-            let values = env.call_method(&insets, "getInsets", "(I)Landroid/graphics/Insets;", &[JValue::Int(system_bars | cutout)])?.l()?;
+            // Keep content clear of the status/navigation bars even while Android briefly
+            // hides them during an edge-to-edge transition. The app does not use immersive mode.
+            let values =
+                env.call_method(&insets, "getInsetsIgnoringVisibility", "(I)Landroid/graphics/Insets;", &[JValue::Int(system_bars | cutout)])?.l()?;
             if values.is_null() {
                 return Ok(None);
             }
