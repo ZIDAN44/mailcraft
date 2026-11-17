@@ -23,6 +23,10 @@ on GitHub.
 - A POP account's new mail shows in its Inbox as it downloads, a batch at a time, instead of all at once at the end: a big download's Inbox stayed empty while it came.
 - A message the outgoing server turns away for its sender says which address that was ("the server refused the sender, …"): "550 Invalid Sender" alone didn't say which.
 
+### Fixed
+
+- In the dark theme, the segment of a switch under the pointer (File › Options › Theme, Reading pane and the others) no longer looks chosen: it was lighter than the segment that was.
+
 ## 0.40.0 - 2026-11-17
 
 *What testers met in their first days with 0.39.*

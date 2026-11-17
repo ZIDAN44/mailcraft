@@ -522,9 +522,12 @@ pub fn segmented(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], selected: 
         if on {
             ui.painter().rect(r, 4.0, t.surface, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
         } else if resp.hovered() {
-            ui.painter().rect_filled(r, 4.0, t.hover);
+            // A faint look of the chosen one's, never more than it: the hover's own colour was
+            // lighter than the chosen segment's in the dark theme, so the one under the pointer
+            // looked chosen.
+            ui.painter().rect_filled(r, 4.0, t.surface.gamma_multiply(0.5));
         }
-        let color = if on { t.text } else { t.dim };
+        let color = if on || resp.hovered() { t.text } else { t.dim };
         ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, label, if on { theme::bold(13.0) } else { font.clone() }, color);
         if resp.clicked() && !on {
             clicked = Some(i);
