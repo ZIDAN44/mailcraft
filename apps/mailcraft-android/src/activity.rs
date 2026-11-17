@@ -415,11 +415,33 @@ pub extern "system" fn Java_ai_storyteller_mailcraft_MailCraftSyncWorker_runNati
     mut env: jni::JNIEnv<'_>,
     worker: jni::objects::JObject<'_>,
 ) -> jni::sys::jint {
+    run_native_sync_entry(&mut env, &worker)
+}
+
+/// Cold-start work runs in WorkManager's isolated process so it cannot collide with NativeActivity's
+/// process-global NDK context. The active UI process keeps using its existing shared pool.
+#[allow(non_snake_case)]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_ai_storyteller_mailcraft_MailCraftRemoteSyncWorker_runNativeSync(
+    mut env: jni::JNIEnv<'_>,
+    worker: jni::objects::JObject<'_>,
+) -> jni::sys::jint {
+    run_native_sync_entry(&mut env, &worker)
+}
+
+#[allow(non_snake_case)]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_ai_storyteller_mailcraft_MailCraftSyncWorker_hasActivePool(
+    _env: jni::JNIEnv<'_>,
+    _worker: jni::objects::JObject<'_>,
+) -> jni::sys::jboolean {
+    if super::active_pool().is_some() { 1 } else { 0 }
+}
+
+fn run_native_sync_entry(env: &mut jni::JNIEnv<'_>, worker: &jni::objects::JObject<'_>) -> jni::sys::jint {
     super::ensure_panic_hook();
-    let result = super::panic_boundary::catch_or(
-        || run_native_sync(&mut env, &worker),
-        Err("Android background sync stopped after an internal error".to_owned()),
-    );
+    let result =
+        super::panic_boundary::catch_or(|| run_native_sync(env, worker), Err("Android background sync stopped after an internal error".to_owned()));
     match result {
         Ok(status) => status,
         Err(error) => {
@@ -489,6 +511,20 @@ fn run_native_sync(mut env: &mut jni::JNIEnv<'_>, worker: &jni::objects::JObject
         return Ok(if completed == Some(true) { 0 } else { 1 });
     }
 
+    // A headless WorkManager process does not pass through NativeActivity's NDK setup. The
+    // keyring crate exports this initializer specifically for Java-hosted Android applications.
+    // Run it before Store::new(), whose first lookup otherwise panics and poisons the crate's
+    // process-global vault list.
+    if !reminders_only {
+        env.call_static_method(
+            "io/crates/keyring/Keyring$Companion",
+            "initializeNdkContext",
+            "(Landroid/content/Context;)V",
+            &[jni::objects::JValue::Object(&context)],
+        )
+        .map_err(|error| format!("Android Keystore context could not be initialized: {error}"))?;
+    }
+
     let cache = data_root.join("mailcraft");
     let system_language = match system_language_from_context(&mut env, &context) {
         Ok(language) => language,
@@ -509,7 +545,11 @@ fn run_native_sync(mut env: &mut jni::JNIEnv<'_>, worker: &jni::objects::JObject
     } else {
         let roots = system_trust_roots_from_env(&mut env).map_err(|error| error.to_string())?;
         if let Err(error) = mailcraft_net::stream::set_android_system_roots(roots) {
-            log::warn!("Android background sync could not load system TLS roots: {error}");
+            if error == "TLS system roots were already initialized" {
+                log::debug!("Android background sync is reusing the initialized system TLS roots");
+            } else {
+                log::warn!("Android background sync could not load system TLS roots: {error}");
+            }
         }
         let keyring = android_native_keyring_store::Store::new().map_err(|error| format!("Android Keystore is unavailable: {error}"))?;
         keyring_core::set_default_store(keyring);

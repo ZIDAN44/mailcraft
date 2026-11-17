@@ -15,6 +15,7 @@ def configuredAbis = (findProperty("mailcraftAbis") ?: "arm64-v8a,x86_64")
         .split(",")
         .collect { it.trim() }
         .findAll { !it.isEmpty() }
+def isolatedAndroidTest = (findProperty("mailcraftTestProbe") ?: "false").toBoolean()
 def rustTargets = [
         "arm64-v8a": "aarch64-linux-android",
         "x86_64": "x86_64-linux-android",
@@ -31,6 +32,7 @@ android {
         targetSdk 35
         versionCode numericVersion
         versionName appVersion
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     sourceSets {
@@ -47,7 +49,7 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix ".debug"
+            applicationIdSuffix isolatedAndroidTest ? ".debug.probe" : ".debug"
             versionNameSuffix "-debug"
         }
         release {
@@ -69,7 +71,11 @@ android {
 }
 
 dependencies {
+    implementation "androidx.concurrent:concurrent-futures:1.3.0"
     implementation "androidx.work:work-runtime:2.12.0"
+    implementation "androidx.work:work-multiprocess:2.12.0"
+    androidTestImplementation "androidx.test:runner:1.6.2"
+    androidTestImplementation "androidx.test.ext:junit:1.2.1"
 }
 
 def registerRustBuild = { String variant, boolean release ->

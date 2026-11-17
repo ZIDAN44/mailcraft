@@ -32,6 +32,8 @@ public final class MailCraftActivity extends NativeActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        MailCraftApplication.noteNativeActivityStarting();
+        MailCraftSyncWorker.cancelRemoteWork(getApplicationContext());
         super.onCreate(savedInstanceState);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             systemBackCallback = Api33Back.register(this);

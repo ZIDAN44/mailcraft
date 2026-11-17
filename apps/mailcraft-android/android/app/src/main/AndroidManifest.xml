@@ -21,6 +21,11 @@
             android:exported="false"
             android:grantUriPermissions="true" />
 
+        <service
+            android:name="androidx.work.multiprocess.RemoteWorkerService"
+            android:exported="false"
+            android:process=":mailcraft_sync" />
+
         <activity
             android:name=".MailCraftActivity"
             android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|fontScale|uiMode|locale|layoutDirection"

@@ -7,6 +7,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ComponentName;
 import android.content.pm.PackageManager;
 import android.content.SharedPreferences;
 import android.os.Build;
@@ -14,6 +15,14 @@ import android.util.Log;
 
 import androidx.work.Worker;
 import androidx.work.WorkerParameters;
+import androidx.work.Data;
+import androidx.work.ExistingWorkPolicy;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.Constraints;
+import androidx.work.NetworkType;
+import androidx.work.WorkManager;
+import androidx.work.multiprocess.RemoteListenableDelegatingWorker;
+import androidx.work.multiprocess.RemoteListenableWorker;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -27,17 +36,23 @@ public final class MailCraftSyncWorker extends Worker {
     private static final String REMINDER_PREFS = "mailcraft.reminder-notifications";
     private static final String REMINDER_PREFIX = "sent.";
     private static final Object REMINDER_LOCK = new Object();
+    static final String REMOTE_SYNC = "mailcraft.remote-sync";
+    static final String REMOTE_REMINDERS = "mailcraft.remote-reminders";
 
     public MailCraftSyncWorker(Context context, WorkerParameters parameters) {
         super(context, parameters);
     }
 
     private native int runNativeSync();
+    private native boolean hasActivePool();
 
     /** Show a privacy-safe summary from a completed headless pass, if Android permits it. */
     public void postNewMail(String title, String body, String messageKey) {
+        postNewMail(getApplicationContext(), title, body, messageKey);
+    }
+
+    public static void postNewMail(Context context, String title, String body, String messageKey) {
         try {
-            Context context = getApplicationContext();
             if (Build.VERSION.SDK_INT >= 33
                     && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 return;
@@ -82,9 +97,12 @@ public final class MailCraftSyncWorker extends Worker {
 
     /** Post a due event/task reminder once for this occurrence and snooze time. */
     public boolean postReminder(String title, String body, String account, String uid, long occurrence, long due, boolean task, String identity) {
+        return postReminder(getApplicationContext(), title, body, account, uid, occurrence, due, task, identity);
+    }
+
+    public static boolean postReminder(Context context, String title, String body, String account, String uid, long occurrence, long due, boolean task, String identity) {
         synchronized (REMINDER_LOCK) {
             try {
-                Context context = getApplicationContext();
                 if (identity == null || identity.length() > 4096 || account == null || account.length() > 256
                         || uid == null || uid.length() > 1024 || identity.isEmpty() || account.isEmpty() || uid.isEmpty()
                         || account.chars().anyMatch(Character::isISOControl) || uid.chars().anyMatch(Character::isISOControl)) {
@@ -214,6 +232,13 @@ public final class MailCraftSyncWorker extends Worker {
         }
         try {
             System.loadLibrary("mailcraft_android");
+            if (!hasActivePool()) {
+                if (MailCraftApplication.isNativeActivityStarting()) {
+                    return Result.retry();
+                }
+                enqueueRemoteWork();
+                return Result.success();
+            }
             int result = runNativeSync();
             if (isStopped()) {
                 return Result.retry();
@@ -222,6 +247,37 @@ public final class MailCraftSyncWorker extends Worker {
         } catch (LinkageError | RuntimeException error) {
             Log.w(TAG, "Background sync could not start; Android will retry", error);
             return Result.retry();
+        }
+    }
+
+    private void enqueueRemoteWork() {
+        boolean remindersOnly = getInputData().getBoolean("remindersOnly", false);
+        String workName = remindersOnly ? REMOTE_REMINDERS : REMOTE_SYNC;
+        ComponentName remoteService = new ComponentName(getApplicationContext(), androidx.work.multiprocess.RemoteWorkerService.class);
+        Data input = new Data.Builder()
+                .putBoolean("remindersOnly", remindersOnly)
+                .putString(RemoteListenableWorker.ARGUMENT_PACKAGE_NAME, remoteService.getPackageName())
+                .putString(RemoteListenableWorker.ARGUMENT_CLASS_NAME, remoteService.getClassName())
+                .putString(
+                        "androidx.work.multiprocess.RemoteListenableDelegatingWorker.ARGUMENT_REMOTE_LISTENABLE_WORKER_NAME",
+                        MailCraftRemoteSyncWorker.class.getName())
+                .build();
+        OneTimeWorkRequest.Builder requestBuilder = new OneTimeWorkRequest.Builder(RemoteListenableDelegatingWorker.class)
+                .setInputData(input);
+        if (!remindersOnly) {
+            requestBuilder.setConstraints(new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build());
+        }
+        OneTimeWorkRequest request = requestBuilder.build();
+        WorkManager.getInstance(getApplicationContext()).enqueueUniqueWork(workName, ExistingWorkPolicy.KEEP, request);
+    }
+
+    public static void cancelRemoteWork(Context context) {
+        try {
+            WorkManager manager = WorkManager.getInstance(context);
+            manager.cancelUniqueWork(REMOTE_SYNC);
+            manager.cancelUniqueWork(REMOTE_REMINDERS);
+        } catch (RuntimeException error) {
+            Log.w(TAG, "Could not stop background work before opening the cache", error);
         }
     }
 }

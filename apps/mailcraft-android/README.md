@@ -39,9 +39,13 @@ resume and recovery syncs stay pending until MailCraft is online again. They wai
 throttle when a recent sync has already run. WorkManager also queues a full pass when the NativeActivity
 pauses and repeats it periodically when Android grants time and a network is available. If the
 NativeActivity is still alive, the pass uses its shared Rust workers; after Android stops them, it
-resolves the same private cache directory as the foreground app, opens it under its exclusive lock
-and runs the same network pool headlessly. This remains true if Android storage migration had to
-keep the original directory. Both paths honor **Work offline**. Android can defer these passes. A separate periodic WorkManager check
+is delegated to WorkManager's isolated `:mailcraft_sync` process, which resolves the same private
+cache directory as the foreground app, opens it under its exclusive lock and runs the same network
+pool headlessly. Keeping this work in a separate process also isolates the Android Keystore context
+from the NativeActivity runtime. This remains true if Android storage migration had to keep the
+original directory. When the app opens, it cancels queued cold-start passes and waits briefly for
+the background process to release the cache before loading the foreground session. Both paths
+honor **Work offline**. Android can defer these passes. A separate periodic WorkManager check
 reads cached reminders without a network connection. A headless sync or reminder check posts a
 private, count-only notification for new mail and due calendar or task reminders when Android
 notification permission and the corresponding channel allow them; tapping a reminder opens its
@@ -156,6 +160,15 @@ Install to a connected device or emulator with:
 ```sh
 gradle :app:installDebug -PmailcraftAbis=arm64-v8a,x86_64
 ```
+
+Run the cold-start background-sync regression test on a connected emulator with:
+
+```sh
+gradle :app:connectedDebugAndroidTest -PmailcraftAbis=x86_64 -PmailcraftTestProbe=true
+```
+
+The test probe uses the separate `ai.storyteller.mailcraft.debug.probe` application id, so Gradle
+can remove its test installation without removing data from the regular debug app.
 
 For an arm64-only build, use `-PmailcraftAbis=arm64-v8a` and install the
 `aarch64-linux-android` Rust target. For an x86_64-only emulator build, use

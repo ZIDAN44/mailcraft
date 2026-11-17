@@ -6,3 +6,5 @@ plan/
 .DS_Store
 /.claude/
 /apps/mailcraft-android/android/.gradle/
+/apps/mailcraft-android/android/build/
+/apps/mailcraft-android/android/app/build/

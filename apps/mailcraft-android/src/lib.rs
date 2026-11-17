@@ -86,11 +86,23 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
         .and_then(|prefs| serde_json::from_value::<mailcraft_engine::Prefs>(prefs.clone()).ok())
         .is_some_and(|prefs| prefs.work_offline);
     set_work_offline(saved_work_offline);
-    let persistent_store = private_root.and_then(|root| match Store::open_alone(root.join("mailcraft")) {
-        Ok(store) => Some(store),
-        Err(error) => {
-            eprintln!("MailCraft could not open its private offline cache: {error}");
-            None
+    let persistent_store = private_root.and_then(|root| {
+        let cache_root = root.join("mailcraft");
+        let retry_until = Instant::now().checked_add(std::time::Duration::from_secs(6));
+        loop {
+            match Store::open_alone(&cache_root) {
+                Ok(store) => break Some(store),
+                Err(mailcraft_engine::store::StoreError::Io { source, .. })
+                    if source.to_string().contains("open in another copy of MailCraft")
+                        && retry_until.is_some_and(|deadline| Instant::now() < deadline) =>
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                Err(error) => {
+                    eprintln!("MailCraft could not open its private offline cache: {error}");
+                    break None;
+                }
+            }
         }
     });
     let using_memory_cache = persistent_store.is_none();

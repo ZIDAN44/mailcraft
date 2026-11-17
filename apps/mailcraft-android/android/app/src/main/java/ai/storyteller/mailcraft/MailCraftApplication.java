@@ -16,9 +16,11 @@ import androidx.work.PeriodicWorkRequest;
 import androidx.work.WorkManager;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Small Android lifecycle adapter; all synchronization remains in the shared Rust worker. */
 public final class MailCraftApplication extends Application implements Application.ActivityLifecycleCallbacks {
+    private static final AtomicBoolean NATIVE_ACTIVITY_STARTING = new AtomicBoolean();
     private static final String PERIODIC_SYNC = "mailcraft.periodic-sync";
     private static final String PERIODIC_REMINDERS = "mailcraft.periodic-reminders";
     private static final String RESUME_SYNC = "mailcraft.resume-sync";
@@ -27,6 +29,9 @@ public final class MailCraftApplication extends Application implements Applicati
     @Override
     public void onCreate() {
         super.onCreate();
+        if (!getPackageName().equals(Application.getProcessName())) {
+            return;
+        }
         registerActivityLifecycleCallbacks(this);
 
         Constraints online = new Constraints.Builder()
@@ -46,6 +51,14 @@ public final class MailCraftApplication extends Application implements Applicati
                 .build();
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
                 PERIODIC_REMINDERS, ExistingPeriodicWorkPolicy.KEEP, reminders);
+    }
+
+    public static void noteNativeActivityStarting() {
+        NATIVE_ACTIVITY_STARTING.set(true);
+    }
+
+    public static boolean isNativeActivityStarting() {
+        return NATIVE_ACTIVITY_STARTING.get();
     }
 
     private void queueResumeSync() {
@@ -81,5 +94,10 @@ public final class MailCraftApplication extends Application implements Applicati
     @Override public void onActivityResumed(Activity activity) {}
     @Override public void onActivitySaveInstanceState(Activity activity, Bundle state) {}
     @Override public void onActivityStopped(Activity activity) {}
-    @Override public void onActivityDestroyed(Activity activity) {}
+    @Override
+    public void onActivityDestroyed(Activity activity) {
+        if (activity instanceof NativeActivity) {
+            NATIVE_ACTIVITY_STARTING.set(false);
+        }
+    }
 }
