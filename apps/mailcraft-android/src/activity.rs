@@ -62,11 +62,17 @@ pub(super) fn take_system_back() -> bool {
 #[allow(unsafe_code)]
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_ai_storyteller_mailcraft_MailCraftActivity_nativeSystemBack(_env: jni::JNIEnv<'_>, _activity: jni::objects::JClass<'_>) {
-    SYSTEM_BACK_REQUESTED.store(true, Ordering::Release);
-    let context = SYSTEM_BACK_CONTEXT.get().and_then(|slot| slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone());
-    if let Some(context) = context {
-        context.request_repaint();
-    }
+    super::ensure_panic_hook();
+    super::panic_boundary::catch_or(
+        || {
+            SYSTEM_BACK_REQUESTED.store(true, Ordering::Release);
+            let context = SYSTEM_BACK_CONTEXT.get().and_then(|slot| slot.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone());
+            if let Some(context) = context {
+                context.request_repaint();
+            }
+        },
+        (),
+    );
 }
 
 /// Return one Storage Access Framework result to the Rust service waiting for it.
@@ -83,25 +89,37 @@ pub extern "system" fn Java_ai_storyteller_mailcraft_MailCraftActivity_nativeDoc
     size: jni::sys::jlong,
     error: JString<'_>,
 ) {
-    let string = |env: &mut jni::JNIEnv<'_>, value: JString<'_>| {
-        if value.is_null() { None } else { env.get_string(&value).ok().map(|text| text.to_string_lossy().into_owned()) }
-    };
-    let error = string(&mut env, error);
-    let result = if let Some(error) = error.filter(|error| !error.is_empty()) {
-        DocumentResult::Failed { request_id, error }
-    } else if result_code != -1 {
-        DocumentResult::Cancelled { request_id }
-    } else if let Some(uri) = string(&mut env, uri).filter(|uri| !uri.is_empty()) {
-        DocumentResult::Selected { request_id, uri, name: string(&mut env, name), mime: string(&mut env, mime), size: u64::try_from(size).ok() }
-    } else {
-        DocumentResult::Failed { request_id, error: "Android did not return the selected document".into() }
-    };
-    if env.exception_check().unwrap_or(false) {
-        let _ = env.exception_clear();
-        send_document_result(DocumentResult::Failed { request_id, error: "Android could not read the document selection".into() });
-        return;
-    }
-    send_document_result(result);
+    super::ensure_panic_hook();
+    super::panic_boundary::catch_or(
+        || {
+            let string = |env: &mut jni::JNIEnv<'_>, value: JString<'_>| {
+                if value.is_null() { None } else { env.get_string(&value).ok().map(|text| text.to_string_lossy().into_owned()) }
+            };
+            let error = string(&mut env, error);
+            let result = if let Some(error) = error.filter(|error| !error.is_empty()) {
+                DocumentResult::Failed { request_id, error }
+            } else if result_code != -1 {
+                DocumentResult::Cancelled { request_id }
+            } else if let Some(uri) = string(&mut env, uri).filter(|uri| !uri.is_empty()) {
+                DocumentResult::Selected {
+                    request_id,
+                    uri,
+                    name: string(&mut env, name),
+                    mime: string(&mut env, mime),
+                    size: u64::try_from(size).ok(),
+                }
+            } else {
+                DocumentResult::Failed { request_id, error: "Android did not return the selected document".into() }
+            };
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+                send_document_result(DocumentResult::Failed { request_id, error: "Android could not read the document selection".into() });
+                return;
+            }
+            send_document_result(result);
+        },
+        (),
+    );
 }
 
 /// Register the primary NativeActivity for middleware that needs an Android `Activity`.
