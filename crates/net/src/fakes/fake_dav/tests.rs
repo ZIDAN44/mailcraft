@@ -276,7 +276,8 @@ fn the_password_goes_only_to_the_accounts_own_server_while_looking() {
 
 /// Issue #7: an address given by hand, as a user copies it from the provider's help: the
 /// server's own address, the home, or one calendar in it (whose parent is the home); one with
-/// no calendars, or not https across the network, is said; a wrong password is refused.
+/// no calendars, or not https across the network, is said, with what the server answered there;
+/// a wrong password is refused.
 #[test]
 fn an_address_given_by_hand_finds_the_home() {
     let server = serve();
@@ -290,7 +291,12 @@ fn an_address_given_by_hand_finds_the_home() {
     }
     assert_eq!(dav.home_given(Kind::Contacts, &format!("{}{BOOK}", server.base)).unwrap(), book_home);
     let none = dav.home_given(Kind::Calendars, &format!("{}/nothing/here", server.base)).unwrap_err();
-    assert!(none.to_string().contains("no calendars were found"), "{none}");
+    assert!(none.to_string().contains("no calendars were found") && none.to_string().contains("HTTP 404"), "{none}");
+    // Not to be read with these credentials (another user's, #147): what the server answered
+    // is said, not "no calendars" alone.
+    server.data.lock().unwrap().unreadable.push("/dav/someone/".into());
+    let refused = dav.home_given(Kind::Calendars, &format!("{}/dav/someone/", server.base)).unwrap_err().to_string();
+    assert!(refused.contains("no calendars were found") && refused.contains("HTTP 403"), "{refused}");
     assert!(matches!(Dav::new(USER, "nope").home_given(Kind::Calendars, &cal_home), Err(crate::NetError::Auth(_))));
     assert!(dav.home_given(Kind::Calendars, "http://calendar.example/dav/").unwrap_err().to_string().contains("https"));
     assert!(dav.home_given(Kind::Calendars, "").is_err());

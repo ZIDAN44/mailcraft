@@ -293,19 +293,35 @@ impl Dav {
         }
         // A server that answers but has nothing there says `No`; anything else (no connection, a
         // timeout, a certificate refused) is said as it is, and tried again at the next sync.
+        // What it answered at the address itself (a 403 or 404 where it didn't let these
+        // credentials look) is said with the `No`: "no calendars were found" alone didn't say
+        // why (#147).
         let mut failed = None;
+        let mut answered: Option<String> = None;
         for t in &tries {
             match self.home_from(kind, t) {
                 Ok(Some(h)) => return Ok(h),
                 Err(e @ NetError::Auth(_)) => return Err(e),
-                Ok(None) | Err(NetError::No(_)) => {}
+                Ok(None) => {}
+                Err(NetError::No(e)) => {
+                    log::info!("no principal at {t}: {e}");
+                    if t == &start {
+                        answered.get_or_insert(e);
+                    }
+                }
                 Err(e) => failed = Some(e),
             }
         }
         // The address is a home, or a collection in one.
         let mut holds = |url: &str| match self.collections(kind, url) {
             Ok(c) => !c.is_empty(),
-            Err(NetError::No(_)) => false,
+            Err(NetError::No(e)) => {
+                log::info!("no collections at {url}: {e}");
+                if url == start {
+                    answered.get_or_insert(e);
+                }
+                false
+            }
             Err(e) => {
                 failed.get_or_insert(e);
                 false
@@ -323,7 +339,10 @@ impl Dav {
             return Err(e);
         }
         let what = if kind == Kind::Calendars { "calendars" } else { "address books" };
-        Err(NetError::No(format!("no {what} were found at {start}")))
+        Err(NetError::No(match answered {
+            Some(a) => format!("no {what} were found at {start} ({a})"),
+            None => format!("no {what} were found at {start}"),
+        }))
     }
 
     /// From a starting address: the principal, then its home.
