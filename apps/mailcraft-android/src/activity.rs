@@ -323,6 +323,7 @@ pub extern "system" fn Java_ai_storyteller_mailcraft_MailCraftSyncWorker_runNati
     mut env: jni::JNIEnv<'_>,
     worker: jni::objects::JObject<'_>,
 ) -> jni::sys::jint {
+    super::ensure_panic_hook();
     let result = super::panic_boundary::catch_or(
         || run_native_sync(&mut env, &worker),
         Err("Android background sync stopped after an internal error".to_owned()),
@@ -343,6 +344,22 @@ fn run_native_sync(mut env: &mut jni::JNIEnv<'_>, worker: &jni::objects::JObject
     use std::sync::Arc;
 
     const SYNC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8 * 60);
+
+    // WorkManager can start the process without launching NativeActivity. Set up the same
+    // per-install log before doing work, including paths that return early below.
+    let context = env
+        .call_method(&worker, "getApplicationContext", "()Landroid/content/Context;", &[])
+        .map_err(|error| error.to_string())?
+        .l()
+        .map_err(|error| error.to_string())?;
+    if context.is_null() {
+        return Err("Android did not provide its application context".into());
+    }
+    let original_dir = context_directory_path(&mut env, &context, "getFilesDir")?;
+    let no_backup_dir = context_directory_path(&mut env, &context, "getNoBackupFilesDir")?;
+    let data_root = super::app_data_root_from_paths(original_dir, no_backup_dir)
+        .ok_or_else(|| "Android did not provide MailCraft's private data directory".to_string())?;
+    super::initialize_logging(Some(&data_root.join("mailcraft")));
 
     let input = env
         .call_method(&worker, "getInputData", "()Landroidx/work/Data;", &[])
@@ -380,18 +397,6 @@ fn run_native_sync(mut env: &mut jni::JNIEnv<'_>, worker: &jni::objects::JObject
         return Ok(if completed == Some(true) { 0 } else { 1 });
     }
 
-    let context = env
-        .call_method(&worker, "getApplicationContext", "()Landroid/content/Context;", &[])
-        .map_err(|error| error.to_string())?
-        .l()
-        .map_err(|error| error.to_string())?;
-    if context.is_null() {
-        return Err("Android did not provide its application context".into());
-    }
-    let original_dir = context_directory_path(&mut env, &context, "getFilesDir")?;
-    let no_backup_dir = context_directory_path(&mut env, &context, "getNoBackupFilesDir")?;
-    let data_root = super::app_data_root_from_paths(original_dir, no_backup_dir)
-        .ok_or_else(|| "Android did not provide MailCraft's private data directory".to_string())?;
     let cache = data_root.join("mailcraft");
     let system_language = match system_language_from_context(&mut env, &context) {
         Ok(language) => language,

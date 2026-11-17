@@ -49,10 +49,7 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
     let data_root = app_data_root(&app);
     let private_root = data_root.clone();
     let log_dir = data_root.as_ref().map(|root| root.join("mailcraft"));
-    if let Some(path) = logfile::start(log_dir.as_deref(), cfg!(debug_assertions)) {
-        log::info!("MailCraft for Android started; log at {}", path.display());
-    }
-    logfile::log_panics();
+    initialize_logging(log_dir.as_deref());
     match activity::system_trust_roots(&app) {
         Ok(certs) => {
             if let Err(error) = mailcraft_net::stream::set_android_system_roots(certs) {
@@ -192,6 +189,25 @@ type SharedPool = Arc<Mutex<Pool>>;
 static ACTIVE_POOL: OnceLock<Mutex<Option<SharedPool>>> = OnceLock::new();
 #[cfg(target_os = "android")]
 static WORK_OFFLINE: AtomicBool = AtomicBool::new(false);
+#[cfg(target_os = "android")]
+static ANDROID_LOGGING: OnceLock<()> = OnceLock::new();
+#[cfg(target_os = "android")]
+static ANDROID_PANIC_HOOK: OnceLock<()> = OnceLock::new();
+
+#[cfg(target_os = "android")]
+fn ensure_panic_hook() {
+    ANDROID_PANIC_HOOK.get_or_init(logfile::log_panics);
+}
+
+#[cfg(target_os = "android")]
+fn initialize_logging(log_dir: Option<&std::path::Path>) {
+    ANDROID_LOGGING.get_or_init(|| {
+        if let Some(path) = logfile::start(log_dir, cfg!(debug_assertions)) {
+            log::info!("MailCraft for Android started; log at {}", path.display());
+        }
+        ensure_panic_hook();
+    });
+}
 
 #[cfg(target_os = "android")]
 fn set_work_offline(offline: bool) {
