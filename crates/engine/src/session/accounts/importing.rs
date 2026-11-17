@@ -11,6 +11,7 @@ use super::*;
 
 mod beside;
 mod follow_up;
+mod in_place;
 mod note;
 mod stopping;
 
@@ -414,7 +415,8 @@ impl Session {
     }
 
     /// Bring an existing data file's mail into a new account before it first connects (Outlook's
-    /// "use an existing data file" for POP accounts).
+    /// "use an existing data file" for POP accounts): MailCraft's own is used where it is
+    /// (`in_place.rs`), an Outlook one imported.
     pub fn attach_data_file(&mut self, account: &str, path: &str) -> CmdResult {
         let path = data_file_path(path)?;
         if self.account(account).is_none() {
@@ -424,6 +426,16 @@ impl Session {
             return Err(CmdError::Failed("a data file is being imported into this account already".into()));
         }
         self.compaction_holds_import(account)?;
+        // MailCraft's own file is the account's where it is; copied in only when it can't be.
+        if in_place::is_own(path) {
+            match self.use_in_place(account, path) {
+                Ok(used) => return Ok(used),
+                Err(why) => {
+                    let file = file_name(path);
+                    self.notice(format!("{file} can't be used where it is, so it's copied into MailCraft's data files: {why}"), false);
+                }
+            }
+        }
         // Connecting waits for the file, so the two don't write the Inbox at once.
         self.hold_start(account);
         self.queue_import(account, path, false);

@@ -141,7 +141,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("account.removeAddress", "Remove an address", "File › Info › Account settings", remove_address)
             .params(r#"{"account": string, "address": string}"#),
         CommandSpec::new("account.update", "Account settings", "File › Info › Account settings", update_account).params(
-            r#"{"account": string, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "smtpUsername"?: string|null (the outgoing server's own sign-in; null: the incoming server's), "smtpPassword"?: string, "signIn"?: "automatic"|"password"|"ntlm", "smtpSignIn"?: "automatic"|"password"|"ntlm"|"none", "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool, "onlineOnly"?: bool, "ews"?: string, "userAgent"?: string (Exchange: the User-Agent its requests name; "" for MailCraft's)}"#,
+            r#"{"account": string, "name"?: string, "email"?: string (the address its mail goes from; IMAP and POP accounts), "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "smtpUsername"?: string|null (the outgoing server's own sign-in; null: the incoming server's), "smtpPassword"?: string, "signIn"?: "automatic"|"password"|"ntlm", "smtpSignIn"?: "automatic"|"password"|"ntlm"|"none", "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool, "onlineOnly"?: bool, "ews"?: string, "userAgent"?: string (Exchange: the User-Agent its requests name; "" for MailCraft's)}"#,
         ),
         CommandSpec::new("account.mailbox", "Mailbox settings", "File › Info › Mailbox settings", |s, v| {
             let id = account_param(s, v)?;
@@ -383,6 +383,22 @@ pub(super) fn update_account(s: &mut Session, v: &Value) -> CmdResult {
             return Err(CmdError::Params("the user name has a line break or another invisible character in it".into()));
         }
         c.username = u.to_string();
+    }
+    // `email`: the address its mail goes from, corrected (Outlook's Email Address, in an account's
+    // settings). Mistyped as the account was added, the server turned every message away ("550
+    // Invalid Sender") and only removing the account changed it. An IMAP or POP account's alone:
+    // the others' is the one they sign in as.
+    if let Some(e) = p::str(v, "email").map(str::trim).filter(|e| !e.eq_ignore_ascii_case(&c.email)) {
+        if c.oauth.is_some() || c.is_api() || c.is_calendar_only() {
+            return Err(CmdError::Params("this account's address is the one it signs in as: it can't be changed".into()));
+        }
+        if !mailcraft_model::addr::is_valid_email(e) {
+            return Err(CmdError::Params(format!("`{e}` is not an email address")));
+        }
+        if s.accounts.iter().any(|a| a.config.id != c.id && a.config.email.eq_ignore_ascii_case(e)) {
+            return Err(CmdError::Params(format!("{e} is already added")));
+        }
+        c.email = e.to_string();
     }
     match v.get("jmap") {
         Some(Value::String(u)) if !u.trim().is_empty() => c.jmap = Some(u.trim().to_string()),

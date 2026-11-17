@@ -165,15 +165,21 @@ impl MailApp {
         let mut again: Option<String> = None;
         let mut restart = false;
         let mut details = self.ui.import_details.clone();
+        let mut send_receive = std::mem::take(&mut self.ui.send_receive);
         let mut acts = Vec::new();
         ui.with_layout(bidi::row_from_start(Align::Center), |ui| {
             item_counts(ui, s, people_items, t);
             // A test build's next version: how far it's downloaded, then restart into it.
             restart = self.update_status(ui);
             background_segment(ui, s, &self.ui.compact, t, &mut details, &mut acts);
-            ui.with_layout(bidi::row_from_end(Align::Center), |ui| accounts_status(ui, s, t, &mut again));
+            ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
+                // Send / Receive under way is said where the accounts' status is, in its place.
+                let busy = super::send_receive::status_segment(ui, s, &t, &mut send_receive);
+                accounts_status(ui, s, t, &mut again, busy);
+            });
         });
         self.ui.import_details = details;
+        self.ui.send_receive = send_receive;
         for a in acts {
             self.act(a);
         }
@@ -292,10 +298,11 @@ fn dot(ui: &mut Ui, color: egui::Color32) {
 
 /// The accounts, at the bar's end. One account: its own status. Several: one status for them
 /// all (a line per account didn't fit), with each on hover; only those that need you stand
-/// out. `again`: the account whose link was clicked, to sign in again.
-fn accounts_status(ui: &mut Ui, s: &Session, t: Tokens, again: &mut Option<String>) {
+/// out. `again`: the account whose link was clicked, to sign in again. `busy`: Send / Receive
+/// is said in their status's place, so only those that need you are.
+fn accounts_status(ui: &mut Ui, s: &Session, t: Tokens, again: &mut Option<String>, busy: bool) {
     if s.accounts.len() <= 1 {
-        for a in &s.accounts {
+        for a in s.accounts.iter().filter(|a| !busy || needs_you(a)) {
             let (color, text) = account_status(s, &t, a);
             // "Password needed" is a link: click it to enter the password again.
             if needs_you(a) {
@@ -312,7 +319,9 @@ fn accounts_status(ui: &mut Ui, s: &Session, t: Tokens, again: &mut Option<Strin
     // Each account's line, made once for the hover of them all and for those waiting.
     let lines: Vec<String> =
         s.accounts.iter().map(|a| tf!("{account}: {status}", account = a.config.email, status = account_status(s, &t, a).1)).collect();
-    all_accounts(ui, s, t, &lines);
+    if !busy {
+        all_accounts(ui, s, t, &lines);
+    }
     waiting_accounts(ui, s, t, &lines, again);
 }
 

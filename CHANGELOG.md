@@ -8,7 +8,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 version is a milestone, named in italics under its heading. Numbers like (#11) are tester issues
 on GitHub.
 
-## 0.40.0
+## 0.41.0
+
+*What testers met in their first days with 0.40.*
+
+### Added
+
+- Send / Receive shows how it goes, as Outlook does for POP and IMAP accounts: at its end, in place of the accounts' "Updating…", the status bar says which message is downloading and how much is left ("Downloading: 10 of 158 (27.6 MB of 210 MB)", "Sending: 1 of 3", an IMAP account's folders one by one), and clicking it, or **Send / Receive › Show progress**, opens a small window you can move anywhere: a line for each account's sending and receiving, how far each has come (what's left on hover), and why any failed. **Cancel all**, or a task's own stop button, stops between two messages, keeping what came; the next Send / Receive goes on from there. With **Open this window when Send / Receive starts** (off, as in Outlook), F9 opens it too, and it closes once all is done well, or stays open when something failed. Exchange, Microsoft 365 and JMAP accounts, which sync on their own all the time, aren't in it.
+- An IMAP or POP account's email address can be corrected in **Server settings**, as Outlook lets it be: one mistyped as the account was added was the sender of every message, which the server turned away, and only removing the account changed it.
+
+### Changed
+
+- A POP account set up with an existing `.mailcraft` data file keeps its mail in that file, where it is, as Outlook uses an existing `.pst`: it's no longer copied whole into Documents › MailCraft Files first (a big one sat at "Counting items…" for as long as that took), and removing the account leaves the file there. A file that can't be used where it is (open in another program or not closed properly, read-only, or still an account in another MailCraft data folder) is copied in as before, and MailCraft says why.
+- A POP account's new mail shows in its Inbox as it downloads, a batch at a time, instead of all at once at the end: a big download's Inbox stayed empty while it came.
+- A message the outgoing server turns away for its sender says which address that was ("the server refused the sender, …"): "550 Invalid Sender" alone didn't say which.
+
+### Fixed
+
+- In the dark theme, the segment of a switch under the pointer (File › Options › Theme, Reading pane and the others) no longer looks chosen: it was lighter than the segment that was.
+
+## 0.40.0 - 2026-11-17
 
 *What testers met in their first days with 0.39.*
 

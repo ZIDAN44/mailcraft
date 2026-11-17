@@ -123,9 +123,9 @@ pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Ac
     widgets::group(ui, &t, "Find", true);
 }
 
-/// Send / Receive: every folder, this one, the Outbox, and working offline (`has_files`: not
-/// in the browser).
-pub(super) fn ribbon_send_receive(ui: &mut Ui, s: &Session, t: Tokens, has_files: bool, acts: &mut Vec<Action>) {
+/// Send / Receive: every folder, this one, the Outbox, its progress (`progress`: its window
+/// open) and stopping it, and working offline (`has_files`: not in the browser).
+pub(super) fn ribbon_send_receive(ui: &mut Ui, s: &Session, t: Tokens, has_files: bool, progress: &mut bool, acts: &mut Vec<Action>) {
     if widgets::tool_button(ui, Icon::Sync, "Send / Receive all folders", &t, enabled(s, "mail.sync")).on_hover_text("F9").clicked() {
         acts.push(Action::Run("mail.sync", json!({})));
     }
@@ -137,6 +137,16 @@ pub(super) fn ribbon_send_receive(ui: &mut Ui, s: &Session, t: Tokens, has_files
         .clicked()
     {
         acts.push(Action::Run("outbox.send", json!({})));
+    }
+    if widgets::tool_button(ui, Icon::ListBullet, "Show progress", &t, true)
+        .on_hover_text(tl!("How each account's sending and receiving goes"))
+        .clicked()
+    {
+        *progress = true;
+    }
+    let going = s.send_receive.open().next().is_some();
+    if widgets::tool_button(ui, Icon::Close, "Cancel all", &t, going).on_hover_text(tl!("Stop sending and receiving")).clicked() {
+        acts.push(Action::Run("mail.cancelSync", json!({})));
     }
     widgets::group(ui, &t, "Send & Receive", !has_files);
     // Working offline: no connections; mail you send waits in the Outbox.

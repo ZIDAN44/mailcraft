@@ -345,6 +345,7 @@ impl Session {
         self.search_folders_changed(id);
         self.importing.running.remove(id);
         self.importing.keeping.remove(id);
+        self.forget_transfers_of(id);
         if leaves != Leaves::ForImport && self.importing.sources.remove(id).is_some() {
             self.save_imports();
         }
@@ -685,6 +686,7 @@ impl Session {
         for id in &ids {
             self.jobs.push(Job::SyncAll { account: id.clone() });
         }
+        self.transfers_asked(&ids);
         ids.len()
     }
 }

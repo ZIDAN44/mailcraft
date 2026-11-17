@@ -6,9 +6,17 @@ use super::*;
 pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(480.0);
     title(ui, t, "Server settings");
-    ui.label(RichText::new(&f.email).color(t.dim));
-    ui.add_space(8.0);
     let w = ui.available_width();
+    if f.address_editable() {
+        // Outlook's Email Address: mistyped, every message was turned away by the server.
+        ui.add_space(4.0);
+        field_label(ui, "Email address");
+        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.email).hint_text("you@example.com"));
+        ui.add_space(6.0);
+    } else {
+        ui.label(RichText::new(&f.email).color(t.dim));
+        ui.add_space(8.0);
+    }
     field_label(ui, "Your name");
     ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
     ui.add_space(6.0);

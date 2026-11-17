@@ -27,6 +27,7 @@ impl Session {
             | Event::PgpKeys { .. }
             | Event::PgpDecrypted { .. }) => self.apply_smime(e),
             Event::Status { account, status } => self.status_changed(account, status),
+            Event::Transfer { account, transfer } => self.transfer_went(&account, transfer),
             Event::Folders { account, folders } => self.folders_listed(account, folders),
             Event::FolderChanged { account, folder } => match self.echo_of(&account, &folder) {
                 // The echo of a flag or category changed here: the folder in memory has it already.
@@ -232,6 +233,8 @@ impl Session {
         if matches!(status, SyncStatus::Online { .. }) {
             self.mark_role(&account, FolderRole::Inbox);
         }
+        // What it had under way for Send / Receive stops with it.
+        self.transfers_stopped(&account, &status);
         if let Some(a) = self.account_mut(&account) {
             a.status = status;
         }

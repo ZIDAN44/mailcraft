@@ -125,7 +125,7 @@ impl MailApp {
                 widgets::start_group(ui);
                 match ust.tab {
                     RibbonTab::Home => mail_tabs::ribbon_home(ui, s, t, acts),
-                    RibbonTab::SendReceive => mail_tabs::ribbon_send_receive(ui, s, t, ust.has_files, acts),
+                    RibbonTab::SendReceive => mail_tabs::ribbon_send_receive(ui, s, t, ust.has_files, &mut ust.send_receive.open, acts),
                     RibbonTab::Search => mail_tabs::ribbon_search(ui, s, ust, t, acts),
                     RibbonTab::View => mail_tabs::ribbon_view(ui, s, t, ust.dark, acts),
                 }

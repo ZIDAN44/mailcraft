@@ -13,6 +13,7 @@ mod pop_filed;
 mod read_errors;
 mod removed;
 mod search_index;
+mod transfers;
 mod unstarted;
 
 /// An account `id` on an IMAP server of the tests' own at `port` on this computer, signing in as

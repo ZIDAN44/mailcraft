@@ -8,3 +8,4 @@ pub(super) mod bars;
 pub(crate) mod caption;
 pub(super) mod ribbon;
 pub(super) mod search_box;
+pub(crate) mod send_receive;

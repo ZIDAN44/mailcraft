@@ -13,6 +13,7 @@ mod compaction;
 mod folders;
 mod full;
 mod health;
+mod in_place;
 mod kept;
 mod long;
 mod measure;

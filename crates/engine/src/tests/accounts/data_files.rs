@@ -381,3 +381,57 @@ fn a_discarded_imports_end_never_reaches_the_next_account_with_its_id() {
     assert!(s.notices.last().is_some_and(|n| n.text.contains("3 messages imported")));
     assert_eq!(s.account(&b).unwrap().status, SyncStatus::Offline);
 }
+
+/// A POP account set up with an existing MailCraft data file uses it where it is, as Outlook uses
+/// an existing `.pst`: nothing is imported or copied, and it connects at once. A file that can't
+/// be used there is copied in, as before, and the user told why.
+#[test]
+fn a_pop_account_uses_its_mailcraft_file_where_it_is() {
+    let dir = scratch("pop-in-place");
+    // A removed account's data file, left in a folder of the user's.
+    let file = {
+        let old = Store::open_packed(dir.join("old"), dir.join("Backup")).unwrap();
+        let inbox =
+            mailcraft_model::Folder { account: "o1".into(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+        old.save_folders("o1", &[inbox]).unwrap();
+        let key = mailcraft_model::MessageKey { account: "o1".into(), folder: "INBOX".into(), validity: 1, uid: 1 };
+        old.write_body(&key, b"Subject: kept\r\n\r\nhello").unwrap();
+        let mut st = old.load_folder("o1", "INBOX").unwrap();
+        st.validity = 1;
+        st.messages.push(mailcraft_model::Summary { key, subject: "kept".into(), ..Default::default() }.into());
+        old.save_folder("o1", "INBOX", &st).unwrap();
+        old.remove_account("o1").unwrap().unwrap()
+    };
+    let store = Store::open_packed(dir.join("app"), dir.join("MailCraft Files")).unwrap();
+    let mut s = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    let path = file.to_string_lossy().into_owned();
+    let added = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw", "pop": true, "pst": path})).unwrap();
+    let id = added["account"].as_str().unwrap().to_string();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { account, .. }] if account.id == id), "no import: it connects at once");
+    assert_eq!(store.data_file(&id).as_deref(), Some(file.as_path()), "its mail is kept in the file where it is");
+    assert!(s.import_state(&id).is_none() && s.data_source(&id).is_none());
+    let a = s.account(&id).unwrap();
+    assert_eq!(a.folders.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["INBOX"]);
+    assert_eq!(store.load_folder(&id, "INBOX").unwrap().messages[0].key.account, id, "its mail is this account's");
+    // Its Inbox opens, the file's mail in the list.
+    assert!(matches!(&s.view, View::Folder { account, folder } if *account == id && folder == "INBOX"), "{:?}", s.view);
+    assert_eq!(s.list.iter().map(|m| m.subject.as_str()).collect::<Vec<_>>(), ["kept"]);
+    assert!(std::fs::read_dir(dir.join("MailCraft Files")).unwrap().flatten().all(|e| e.path().extension().is_none_or(|x| x != "mailcraft")));
+    // Removed: the file stays where it is.
+    let removed = s.run("account.remove", &json!({"account": id})).unwrap();
+    assert_eq!(removed["dataFile"].as_str(), Some(path.as_str()));
+    assert!(file.is_file());
+    s.take_jobs();
+
+    // Junk, or a file open elsewhere: copied in as before (the copy says why it can't be).
+    let junk = dir.join("junk.mailcraft");
+    std::fs::write(&junk, b"not a data file").unwrap();
+    let junk = junk.to_string_lossy().into_owned();
+    let id = s.run("account.add", &json!({"email": "ana@example.org", "password": "pw", "pop": true, "pst": junk})).unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::ImportPst { path, .. }] if *path == junk), "held until the file is in");
+    assert_eq!(store.data_file(&id), None);
+    assert!(s.notices.last().is_some_and(|n| n.text.contains("can't be used where it is") && n.text.contains("wasn't closed properly")));
+}

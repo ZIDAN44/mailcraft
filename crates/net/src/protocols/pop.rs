@@ -328,6 +328,28 @@ impl<S: Read + Write> Client<S> {
         }
     }
 
+    /// Message numbers and their sizes in bytes (`LIST`), as the server reckons them: for showing
+    /// how much is to come. Read as [`Client::uidl`] reads its list.
+    pub fn list(&mut self) -> Result<Vec<(u32, u64)>> {
+        self.ok("LIST")?;
+        let mut out = Vec::new();
+        loop {
+            let line = match self.piece(MAX_LINE)? {
+                Piece::End => return Ok(out),
+                Piece::TooLong => return Err(proto("a LIST line too long")),
+                Piece::Line(line) => line,
+            };
+            if out.len() >= MAX_MESSAGES {
+                return Err(proto(format!("the server lists more than {MAX_MESSAGES} messages")));
+            }
+            let line = String::from_utf8_lossy(&line);
+            let mut words = line.split_whitespace();
+            if let (Some(Ok(n)), Some(Ok(size))) = (words.next().map(str::parse), words.next().map(str::parse)) {
+                out.push((n, size));
+            }
+        }
+    }
+
     pub fn retr(&mut self, n: u32) -> Result<Vec<u8>> {
         self.ok(&format!("RETR {n}"))?;
         self.multi(MAX_MESSAGE)
@@ -386,13 +408,28 @@ pub fn folders(store: &Store, account: &str) -> Result<Vec<Folder>> {
 /// [`fetch_new_as`] for an account as it is now (the tests').
 #[cfg(test)]
 pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &str, inbox: &str, keep: &Keep, now: i64) -> Result<SyncReport> {
-    fetch_new_as(c, store, account, inbox, keep, now, store.removals(account))
+    fetch_new_as(c, store, account, inbox, keep, now, store.removals(account), &mut |_| true)
+}
+
+/// How a download is going, as Send / Receive shows it: messages and their bytes done of those
+/// new on the server (bytes as the server's `LIST` reckons them; none when it didn't say), and
+/// how many are in the Inbox's list already (saved a batch at a time: the window shows them).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Fetching {
+    pub done: u32,
+    pub total: u32,
+    pub bytes_done: u64,
+    pub bytes_total: u64,
+    pub saved: u32,
 }
 
 /// Download what's new into the Inbox, and remove from the server what the account says should go
 /// (`keep`): at once, so many days after downloading, or once deleted here for good. For a worker
 /// that started when its account had been removed `seen` times: a removal since has it write
-/// nothing of the account again, nor remove anything from the server.
+/// nothing of the account again, nor remove anything from the server. `watch` is told how it's
+/// going before each new message and at the end; answering `false`, the download stops there
+/// (Cancel), what came before saved, as at the end.
+#[expect(clippy::too_many_arguments, reason = "the download's account, place, rules and watcher, each its own")]
 pub fn fetch_new_as<S: Read + Write>(
     c: &mut Client<S>,
     store: &Store,
@@ -401,6 +438,7 @@ pub fn fetch_new_as<S: Read + Write>(
     keep: &Keep,
     now: i64,
     seen: u64,
+    watch: &mut dyn FnMut(&Fetching) -> bool,
 ) -> Result<SyncReport> {
     let mut state = load_state(store, account, now)?;
     let listed = c.uidl()?;
@@ -413,6 +451,11 @@ pub fn fetch_new_as<S: Read + Write>(
     // The numbers the new mail takes are set aside first, the list saved so: a message recorded
     // but not yet listed (stopped part-way) keeps its number from any other filed here meanwhile.
     let mut new: HashSet<&str> = listed.iter().map(|(_, id)| id.as_str()).filter(|id| !state.contains_key(*id)).collect();
+    // What's to come, and its size: the server's sizes asked for only when something is new (a
+    // server that won't say is downloaded all the same, its size not shown).
+    let sizes: HashMap<u32, u64> = if new.is_empty() { HashMap::new() } else { c.list().unwrap_or_default().into_iter().collect() };
+    let mut going = Fetching { total: u32::try_from(new.len()).unwrap_or(u32::MAX), ..Fetching::default() };
+    going.bytes_total = listed.iter().filter(|(_, id)| new.contains(id.as_str())).filter_map(|(n, _)| sizes.get(n)).sum();
     let next = fs.free_uid(account, inbox)?;
     if !new.is_empty() {
         let mut end = next;
@@ -423,7 +466,8 @@ pub fn fetch_new_as<S: Read + Write>(
         if_kept(store, account, seen, || store.save_folder(account, inbox, &fs))?;
     }
     let mut d = Download { store, account, inbox, seen, now, state, fs, next, came: Vec::new(), bytes: 0, since: Instant::now(), saved: 0 };
-    if let Err(e) = d.fetch(c, &listed, &mut new, keep) {
+    let mut told = Told { going, sizes: &sizes, watch };
+    if let Err(e) = d.fetch(c, &listed, &mut new, keep, &mut told) {
         // What came before the failure is kept; the failure is what's told.
         let _ = d.save();
         return Err(e);
@@ -438,6 +482,8 @@ pub fn fetch_new_as<S: Read + Write>(
     let on_server: HashSet<&str> = listed.iter().map(|(_, id)| id.as_str()).collect();
     d.state.retain(|id, _| on_server.contains(id.as_str()));
     if_kept(store, account, seen, || store.save_account_doc(account, STATE_DOC, &d.state))?;
+    told.going.saved = u32::try_from(d.saved).unwrap_or(u32::MAX);
+    (told.watch)(&told.going);
     Ok(SyncReport { new: d.saved, total: u32::try_from(d.fs.messages.len()).unwrap_or(u32::MAX), unread: d.fs.unread(), ..Default::default() })
 }
 
@@ -468,6 +514,13 @@ fn settle(store: &Store, account: &str, inbox: &str, seen: u64, state: &mut Stat
     Ok(())
 }
 
+/// The watcher of a download ([`fetch_new_as`]), and what it's told.
+struct Told<'a> {
+    going: Fetching,
+    sizes: &'a HashMap<u32, u64>,
+    watch: &'a mut dyn FnMut(&Fetching) -> bool,
+}
+
 /// A message downloaded and not yet saved.
 struct Came {
     /// Its number on the server, this session.
@@ -496,8 +549,15 @@ struct Download<'a> {
 
 impl Download<'_> {
     /// Download what `new` names (each once), saving as it goes, and remove from the server what
-    /// the account says should go.
-    fn fetch<S: Read + Write>(&mut self, c: &mut Client<S>, listed: &[(u32, String)], new: &mut HashSet<&str>, keep: &Keep) -> Result<()> {
+    /// the account says should go; stopped before a message when `told`'s watcher says so.
+    fn fetch<S: Read + Write>(
+        &mut self,
+        c: &mut Client<S>,
+        listed: &[(u32, String)],
+        new: &mut HashSet<&str>,
+        keep: &Keep,
+        told: &mut Told<'_>,
+    ) -> Result<()> {
         for (n, id) in listed {
             if !new.remove(id.as_str()) {
                 if let Some(k) = self.state.get(id)
@@ -507,7 +567,15 @@ impl Download<'_> {
                 }
                 continue;
             }
+            told.going.saved = u32::try_from(self.saved).unwrap_or(u32::MAX);
+            if !(told.watch)(&told.going) {
+                return Ok(());
+            }
             let raw = c.retr(*n)?;
+            told.going.done = told.going.done.saturating_add(1);
+            // As the server reckoned it, so it adds up to what was said was to come.
+            let said = told.sizes.get(n).copied().unwrap_or(raw.len() as u64);
+            told.going.bytes_done = told.going.bytes_done.saturating_add(said);
             let uid = FolderState::take_uid(&mut self.next, self.account, self.inbox)?;
             let key = MessageKey { account: self.account.to_string(), folder: self.inbox.to_string(), validity: self.fs.validity, uid };
             let size = u32::try_from(raw.len()).unwrap_or(u32::MAX);

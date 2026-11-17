@@ -595,6 +595,7 @@ impl MailApp {
             super::caption::resize_zones(ui);
         }
         self.toasts(&ctx);
+        self.send_receive_window(&ctx);
         // Calendar reminders: the window, and the desktop told of each as it comes. A message's
         // own page leaves them to the main window's (each page would tell of them again).
         if self.ui.page_message.is_none() {

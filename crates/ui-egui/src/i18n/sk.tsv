@@ -1797,3 +1797,29 @@ count	occurrences	opakovaní
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Autorita, ktorú prevádzkuje vaša organizácia, alebo vlastný certifikát vášho poštového servera (.pem, .crt, .cer)
 	Trust a certificate file…	Dôverovať súboru certifikátu…
 	The certificate is trusted for this account	Certifikát je pre toto konto dôveryhodný
+	Send / Receive failed	Odoslanie a prijatie zlyhalo
+	Sending: {n} of {total}	Odosiela sa: {n} z {total}
+	Downloading: {n} of {total} ({done} of {all})	Sťahuje sa: {n} z {total} ({done} z {all})
+	Downloading: {n} of {total}	Sťahuje sa: {n} z {total}
+	Updating {folder} ({n} of {total})	Aktualizuje sa {folder} ({n} z {total})
+	Checking for new mail…	Hľadá sa nová pošta…
+	{account}: sending	{account}: odosielanie
+	{account}: receiving	{account}: prijímanie
+	Waiting	Čaká sa
+	Failed	Zlyhalo
+	Stopped	Zastavené
+	{done} of {total}	{done} z {total}
+	Under way	Prebieha
+	Messages: {n} ({size})	Správy: {n} ({size})
+	Folders: {n}	Priečinky: {n}
+	Send / Receive progress	Priebeh odosielania a prijímania
+	Nothing has been sent or received yet	Zatiaľ sa nič neodoslalo ani neprijalo
+	{done} of {all} done	Hotovo: {done} z {all}
+	Cancel all	Zrušiť všetko
+	Open this window when Send / Receive starts	Otvoriť toto okno pri spustení odosielania a prijímania
+	{task} failed: {error}	{task} zlyhalo: {error}
+	Show progress	Zobraziť priebeh
+	How each account's sending and receiving goes	Ako prebieha odosielanie a prijímanie jednotlivých účtov
+	Stop sending and receiving	Zastaviť odosielanie a prijímanie
+	Sending	Odosielanie
+	Receiving	Prijímanie

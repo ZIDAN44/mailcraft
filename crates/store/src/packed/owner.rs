@@ -97,10 +97,15 @@ pub(super) fn account_named(path: &Path, root: &Path, me: Option<&str>) -> Optio
 }
 
 /// Whether a data folder's list of data files (`datafiles.json`'s bytes) names the copy whose
-/// key is `copy` ([`beside::same_key`]); `None` when it isn't a list.
-fn names_copy(bytes: &[u8], copy: &str) -> Option<bool> {
+/// key is `copy` ([`beside::same_key`]) by its whole path, or by `name` alone when that's given;
+/// `None` when it isn't a list.
+fn names_copy(bytes: &[u8], copy: &str, name: Option<&str>) -> Option<bool> {
     let names: BTreeMap<String, String> = serde_json::from_slice(bytes).ok()?;
-    Some(names.values().any(|n| Path::new(n).is_absolute() && beside::same_key(Path::new(n)) == copy))
+    Some(
+        names.values().any(|n| {
+            if Path::new(n).is_absolute() { beside::same_key(Path::new(n)) == copy } else { name.is_some_and(|m| n.eq_ignore_ascii_case(m)) }
+        }),
+    )
 }
 
 /// For the fuzz target (`fuzz/fuzz_targets/store/data_folder.rs`): `input` read as a data
@@ -117,7 +122,7 @@ pub fn fuzz_data_folder(input: &[u8]) -> bool {
         let shared = [r"\\", "//", r"\/", r"/\"].iter().any(|s| p.starts_with(s));
         p.len() <= PATH_MAX && !p.contains('\0') && !shared && p.as_ref() == path
     });
-    let _ = names_copy(input, &beside::same_key(Path::new("C:/Mail/Archive.mailcraft")));
+    let _ = names_copy(input, &beside::same_key(Path::new("C:/Mail/Archive.mailcraft")), Some("Archive.mailcraft"));
     let account_ok = account_from(input).is_none_or(|a| !a.is_empty() && a.len() <= OWNER_MAX);
     id_ok && owner_ok && path_ok && account_ok
 }
@@ -206,6 +211,20 @@ pub(super) fn local_root(path: &str) -> Option<&Path> {
 /// share), and a read from a share could hand the user's sign-in to its server, so it isn't
 /// looked at. The user can still take the copy over.
 pub(crate) fn still_has(path: &str, id: &str, copy: &Path) -> bool {
+    still_lists(path, id, &beside::same_key(copy), None)
+}
+
+/// [`still_has`] for a data file that may be one of that folder's own, in its data files' folder
+/// (named in its list by its name alone, the folder it's in kept apart): a name listed there that
+/// is this file's counts as it, as what can't be told does.
+pub(crate) fn still_has_own(path: &str, id: &str, file: &Path) -> bool {
+    let name = file.file_name().and_then(|n| n.to_str());
+    still_lists(path, id, &beside::same_key(file), name)
+}
+
+/// [`still_has`]: the list names the file whose key is `copy` by its whole path, or by its name
+/// alone when `name` is given.
+fn still_lists(path: &str, id: &str, copy: &str, name: Option<&str>) -> bool {
     let Some(root) = local_root(path) else { return true };
     match fs::metadata(root) {
         Ok(m) if !m.is_dir() => return false,
@@ -226,7 +245,7 @@ pub(crate) fn still_has(path: &str, id: &str, copy: &Path) -> bool {
         Err(e) => Err(e),
     };
     match bytes {
-        Ok(b) => names_copy(&b, &beside::same_key(copy)).unwrap_or(true),
+        Ok(b) => names_copy(&b, copy, name).unwrap_or(true),
         // No data files named at all.
         Err(e) if e.kind() == io::ErrorKind::NotFound => false,
         Err(_) => true,

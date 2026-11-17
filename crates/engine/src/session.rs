@@ -29,6 +29,7 @@ mod organize;
 mod prefs;
 mod searching;
 mod security;
+mod send_receive;
 mod writing;
 #[cfg(test)]
 pub(crate) use accounts::REMOVE_BACKSTOP;
@@ -47,6 +48,7 @@ pub use security::{
     CardSearch, KeySource, KnownCert, KnownKey, Lock, PGP_DOC, PgpSettings, Reach, RevocationCheck, SMIME_DOC, Scheme, Seal, Security, SignedBy,
     SmimeSettings,
 };
+pub use send_receive::{SendReceive, TransferRow};
 pub use writing::{Compose, Drafted, Quote, Reactions, SendBlock, SendCheck, signature_parts};
 // The message list's arrangement and rows, named here as before.
 #[cfg(test)]
@@ -467,6 +469,8 @@ pub struct Session {
     /// Data files imported into accounts: running, waiting on the user, or done (`imports.json`).
     /// While one is read, its account's folders' search words wait for the end.
     importing: Imports,
+    /// Send / Receive: each POP or IMAP account's sending and receiving, as it last went.
+    pub send_receive: SendReceive,
     /// The search indexes kept up in the background.
     indexing: searching::Indexing,
     /// Data files made smaller: how each is doing, and the compactions running.
@@ -595,6 +599,7 @@ impl Session {
             shown: 0,
             body: Default::default(),
             importing: Imports::default(),
+            send_receive: SendReceive::default(),
             indexing: Default::default(),
             compaction: Compaction::default(),
             read_due: None,

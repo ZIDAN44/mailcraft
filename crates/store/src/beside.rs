@@ -14,6 +14,10 @@ use crate::*;
 
 pub(super) mod merging;
 
+/// Among an account's files: its data file is the user's own, taken on where it is
+/// ([`Store::use_in_place`]), and never removed by MailCraft.
+pub(crate) const IN_PLACE: &str = "in-place.json";
+
 /// Where MailCraft's copy of an Outlook data file goes, or is already ([`Store::copy_beside`]).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Beside {
@@ -113,6 +117,49 @@ impl Store {
         }
         let _ = (source, take, fresh);
         None
+    }
+
+    /// `account`'s data file is the MailCraft data file at `source`, where it is (a POP account set
+    /// up with one, as Outlook takes an existing `.pst`): checked, and named as the account's;
+    /// nothing of it is written until [`Store::take_on_in_place`]. MailCraft never removes it
+    /// (`packed/in_place.rs`). Why not, in plain words, when it can't be: it's then copied in.
+    pub fn use_in_place(&self, account: &str, source: &Path) -> std::result::Result<PathBuf, String> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some(x) = self.data_files() {
+            if self.data_file(account).is_some() {
+                return Err("the account has a data file already".into());
+            }
+            return x.take_in_place(&safe_segment(account), source);
+        }
+        let _ = (account, source);
+        Err("MailCraft keeps no data files here".into())
+    }
+
+    /// The data file named by [`Store::use_in_place`] opened as `account`'s: this data folder's,
+    /// noted as the user's own, and its folders and messages this account's. The old account's
+    /// changes still to make on its server, and the note of an import into it, go: they were
+    /// another account's. Its unsent mail stays, this account's to send, as Outlook sends what an
+    /// existing `.pst`'s Outbox has. Returns how many messages it has.
+    pub fn take_on_in_place(&self, account: &str) -> Result<usize> {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some((x, a)) = self.in_data_file(account) {
+            x.set_owner(&a, true).map_err(|source| StoreError::Io { path: a, source })?;
+        }
+        self.save_account_doc(account, IN_PLACE, &true)?;
+        for doc in ["ops.json", "import.json"] {
+            self.remove_account_doc(account, doc)?;
+        }
+        self.claim_folders(account)
+    }
+
+    /// `account` lets go of the data file it was to use where it is, which stays there as it was
+    /// (one that couldn't be opened: the account starts a file of its own).
+    pub fn let_go_in_place(&self, account: &str) {
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Some((x, a)) = self.in_data_file(account) {
+            x.let_go(&a);
+        }
+        let _ = account;
     }
 
     /// This data folder's own id, made the first time it's asked for (`datafolder.json` in its

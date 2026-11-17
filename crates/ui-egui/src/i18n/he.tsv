@@ -1792,3 +1792,29 @@ count	occurrences	פעמים
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	רשות שהארגון שלך מפעיל, או האישור של שרת הדואר שלך עצמו (.pem, .crt, .cer)
 	Trust a certificate file…	לתת אמון בקובץ אישור…
 	The certificate is trusted for this account	לאישור ניתן אמון עבור החשבון הזה
+	Send / Receive failed	השליחה והקבלה נכשלו
+	Sending: {n} of {total}	שולח: {n} מתוך {total}
+	Downloading: {n} of {total} ({done} of {all})	מוריד: {n} מתוך {total} ({done} מתוך {all})
+	Downloading: {n} of {total}	מוריד: {n} מתוך {total}
+	Updating {folder} ({n} of {total})	מעדכן את {folder} ({n} מתוך {total})
+	Checking for new mail…	בודק אם יש דואר חדש…
+	{account}: sending	{account}: שליחה
+	{account}: receiving	{account}: קבלה
+	Waiting	ממתין
+	Failed	נכשל
+	Stopped	נעצר
+	{done} of {total}	{done} מתוך {total}
+	Under way	בתהליך
+	Messages: {n} ({size})	הודעות: {n} ({size})
+	Folders: {n}	תיקיות: {n}
+	Send / Receive progress	התקדמות שליחה וקבלה
+	Nothing has been sent or received yet	עדיין לא נשלח או התקבל דבר
+	{done} of {all} done	הושלמו {done} מתוך {all}
+	Cancel all	בטל הכול
+	Open this window when Send / Receive starts	פתח חלון זה כששליחה וקבלה מתחילות
+	{task} failed: {error}	{task} נכשל: {error}
+	Show progress	הצג התקדמות
+	How each account's sending and receiving goes	כיצד מתקדמות השליחה והקבלה בכל חשבון
+	Stop sending and receiving	עצור שליחה וקבלה
+	Sending	שליחה
+	Receiving	קבלה

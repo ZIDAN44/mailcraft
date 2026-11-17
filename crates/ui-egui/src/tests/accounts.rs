@@ -7,6 +7,7 @@ mod forms;
 mod held_keys;
 pub(super) mod importing;
 mod offers;
+mod send_receive;
 
 pub(super) fn jmap_form() -> Dialog {
     let mut d = Dialog::add_account_with("zoe@fastmail.example", true);

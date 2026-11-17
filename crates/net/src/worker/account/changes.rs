@@ -122,6 +122,8 @@ impl Worker {
             Job::FileMessages { folder, paths, .. } => self.file_messages(folder, paths),
             Job::FileCopies { folder, mail, moved, .. } => self.file_copies(folder, mail, moved),
             Job::FlushOutbox { .. } => self.flush_outbox(),
+            // The pool raises the account's flag itself, whatever its thread is doing.
+            Job::CancelTransfers { .. } => {}
             Job::SyncDav { .. } => self.sync_dav(),
             Job::SearchDirectory { query, .. } => self.search_directory(query),
             // Only a JMAP server keeps the addresses its mail is sent from where a mail

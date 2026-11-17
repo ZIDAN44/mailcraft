@@ -258,4 +258,6 @@ pub struct UiState {
     pub(crate) can_drag_out: bool,
     /// The account whose import's details are shown, beside the status bar.
     pub(crate) import_details: Option<String>,
+    /// Send / Receive's progress window.
+    pub(crate) send_receive: super::chrome::send_receive::SendReceiveUi,
 }

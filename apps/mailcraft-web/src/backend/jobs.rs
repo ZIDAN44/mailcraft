@@ -74,8 +74,9 @@ pub(super) async fn job(sh: &Rcs, id: &str, j: Job) {
         }
         Job::GetVacation { .. } => vacation(sh, id, None).await,
         Job::SetVacation { vacation: v, .. } => vacation(sh, id, Some(v)).await,
-        // Nothing to do in the browser: no Outbox (sending needs the server), no CalDAV.
-        Job::FlushOutbox { .. } | Job::SyncDav { .. } => {}
+        // Nothing to do in the browser: no Outbox (sending needs the server), no CalDAV, and no
+        // Send / Receive to stop (its JMAP accounts sync on their own).
+        Job::FlushOutbox { .. } | Job::SyncDav { .. } | Job::CancelTransfers { .. } => {}
         // The browser's accounts are JMAP ones, with no organisation directory (issue #9).
         Job::SearchDirectory { query, .. } => {
             emit(sh, Event::Directory { account: id.to_string(), query, people: Vec::new(), error: Some(NO_DIRECTORY.into()), consent: false })

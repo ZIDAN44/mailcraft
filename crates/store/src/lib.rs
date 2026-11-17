@@ -435,6 +435,8 @@ pub fn clear_scratch() {
 pub use accounts::Recompressed;
 use atomic::private_dir;
 pub use atomic::write_atomic;
+#[cfg(not(target_arch = "wasm32"))]
+use beside::IN_PLACE;
 use beside::merging;
 pub use beside::{Beside, Found, stamp as file_stamp};
 use bodies::OUTBOX_REFUSED;

@@ -57,6 +57,8 @@ struct Handle {
     no_password: Arc<AtomicBool>,
     /// The main connection is at work: a message opened meanwhile goes to the second one.
     busy: Arc<AtomicBool>,
+    /// Its Send / Receive asked to stop (Cancel All, Cancel Task), shared by both connections.
+    cancel: Arc<AtomicBool>,
     /// The main connection's way to the second one, emptied when the account stops: otherwise
     /// each would keep the other's queue open, and neither thread would end.
     quick_link: QuickLink,
@@ -74,7 +76,8 @@ impl Handle {
     fn of(w: &Worker, tx: Sender<Job>) -> Handle {
         let quick_link = w.quick.clone();
         let quick = quick_link.lock().ok().and_then(|q| q.clone());
-        Handle { tx, quick, no_password: w.no_password.clone(), busy: w.busy.clone(), quick_link, stop: w.stop.clone(), waits: w.waits.clone() }
+        let (no_password, busy, cancel) = (w.no_password.clone(), w.busy.clone(), w.cancel.clone());
+        Handle { tx, quick, no_password, busy, cancel, quick_link, stop: w.stop.clone(), waits: w.waits.clone() }
     }
 }
 
@@ -449,6 +452,9 @@ struct Worker {
     whole_only: Arc<std::sync::Mutex<std::collections::HashSet<mailcraft_model::MessageKey>>>,
     /// Set while the main connection works rather than waits ([`Worker::working`]).
     busy: Arc<AtomicBool>,
+    /// Its Send / Receive asked to stop, shared with the pool and the other connection
+    /// (`account/transfers.rs`): cleared once the main one waits again, or asked to begin anew.
+    cancel: Arc<AtomicBool>,
     /// How many waits to connect again after a connection failed it began, shared with the
     /// pool: counted, not timed (the tests ask).
     waits: Arc<AtomicUsize>,
@@ -541,6 +547,7 @@ impl Worker {
         q.main = Some(main);
         q.given_back = self.given_back.clone();
         q.whole_only = self.whole_only.clone();
+        q.cancel = self.cancel.clone();
         q
     }
 
@@ -593,6 +600,7 @@ impl Worker {
             removals,
             whole_only: Arc::default(),
             busy: Arc::default(),
+            cancel: Arc::default(),
             waits: Arc::default(),
             backoff: FIRST_BACKOFF,
             next_attempt: Instant::now(),

@@ -1797,3 +1797,29 @@ count	occurrences	kez
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Kuruluşunuzun yetkilisi ya da posta sunucunuzun kendi sertifikası (.pem, .crt, .cer)
 	Trust a certificate file…	Bir sertifika dosyasına güven…
 	The certificate is trusted for this account	Bu hesap için sertifikaya güveniliyor
+	Send / Receive failed	Gönderme/alma başarısız
+	Sending: {n} of {total}	Gönderiliyor: {n} / {total}
+	Downloading: {n} of {total} ({done} of {all})	İndiriliyor: {n} / {total} ({done} / {all})
+	Downloading: {n} of {total}	İndiriliyor: {n} / {total}
+	Updating {folder} ({n} of {total})	{folder} güncelleniyor ({n} / {total})
+	Checking for new mail…	Yeni posta denetleniyor…
+	{account}: sending	{account}: gönderme
+	{account}: receiving	{account}: alma
+	Waiting	Bekliyor
+	Failed	Başarısız
+	Stopped	Durduruldu
+	{done} of {total}	{done} / {total}
+	Under way	Sürüyor
+	Messages: {n} ({size})	İleti: {n} ({size})
+	Folders: {n}	Klasör: {n}
+	Send / Receive progress	Gönderme/alma ilerlemesi
+	Nothing has been sent or received yet	Henüz hiçbir şey gönderilmedi veya alınmadı
+	{done} of {all} done	{done} / {all} bitti
+	Cancel all	Tümünü iptal et
+	Open this window when Send / Receive starts	Gönderme/alma başladığında bu pencereyi aç
+	{task} failed: {error}	{task} başarısız: {error}
+	Show progress	İlerlemeyi göster
+	How each account's sending and receiving goes	Her hesabın gönderme ve alma durumu
+	Stop sending and receiving	Göndermeyi ve almayı durdur
+	Sending	Gönderme
+	Receiving	Alma

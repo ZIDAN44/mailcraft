@@ -66,6 +66,7 @@ impl Pool {
             Job::ExportPst { account, path, name, follow_up } => self.export_pst(account, path, name, follow_up),
             Job::SetSync { messages, offline } => self.set_sync(messages, offline),
             Job::WorkOffline { on } => self.work_offline(on),
+            Job::CancelTransfers { account } => self.cancel_transfers(&account),
             Job::Start { account, password } if self.offline => self.start_when_online(account, password),
             // Looking only when asked (issue #104): not signed in until something is (one set so
             // while it ran stops looking now).
@@ -104,10 +105,27 @@ impl Pool {
                 self.edits.send(&self.store, &self.sink, account, op, wake);
             }
             other => {
+                // Asked to send or receive anew: a stop asked before isn't this one's.
+                if matches!(other, Job::SyncAll { .. } | Job::FlushOutbox { .. } | Job::Send { .. })
+                    && let Some(h) = self.workers.get(other.account())
+                {
+                    h.cancel.store(false, Ordering::Relaxed);
+                }
                 self.start_when_asked(&other);
                 if let Some(job) = self.offline_answer(other) {
                     self.route_to_worker(job);
                 }
+            }
+        }
+    }
+
+    /// Stop `account`'s Send / Receive (empty: every account's) where it can be stopped: its
+    /// threads see the flag between two messages or two folders. Only one at work: a flag raised
+    /// on a thread that waits would stop the next look it makes by itself.
+    fn cancel_transfers(&mut self, account: &str) {
+        for (id, h) in &self.workers {
+            if (account.is_empty() || id == account) && h.busy.load(Ordering::Relaxed) {
+                h.cancel.store(true, Ordering::Relaxed);
             }
         }
     }
