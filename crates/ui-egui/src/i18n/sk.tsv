@@ -128,7 +128,7 @@
 	Link	Odkaz
 	Link (Ctrl+K)	Odkaz (Ctrl+K)
 	Links like {link} aren't opened	Odkazy ako {link} sa neotvárajú
-	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Najprv lokálne: pošta sa ukladá na tomto počítači pre rýchle vyhľadávanie aj offline. Heslá zostávajú v systémovej kľúčenke.
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Pošta je u vás: ukladá sa na tomto počítači, takže sa v nej rýchlo hľadá aj offline. Heslá zostávajú v systémovej kľúčenke.
 	Looking up the server settings…	Zisťujú sa nastavenia servera…
 	Mail from {sender}	Pošta od odosielateľa {sender}
 	MailCraft	MailCraft
@@ -398,7 +398,7 @@
 	Free and open source · MIT OR Apache-2.0	Bezplatný a open source · MIT OR Apache-2.0
 	Automatic replies	Automatické odpovede
 	Back	Späť
-	Built in the open from the email standards: no code, icons or assets from other mail apps.	Vytvorený otvorene podľa e-mailových štandardov: žiadny kód, ikony ani prvky z iných poštových aplikácií.
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	Vyvíjaný verejne, len podľa e-mailových štandardov: nepoužíva kód, ikony ani iné prvky z iných poštových aplikácií.
 	Change this account's name, servers and sign-in, or its signature.	Zmena názvu tohto konta, serverov a prihlásenia alebo jeho podpisu.
 	Checking with the server…	Overuje sa na serveri…
 	Compact list	Kompaktný zoznam
