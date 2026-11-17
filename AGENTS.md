@@ -192,7 +192,9 @@ No measurement logs or step-by-step history in the docs: that belongs in commit 
   task of its own, once a shared workflow runs it.
   Their jobs are hardened as the shared ones are: Harden-Runner (audit) first, checkouts that
   keep no credentials, and StepSecurity's copies of third-party actions unless theirs is older
-  than the version pinned (`install-action` and `freebsd-vm` stay the originals).
+  than the version pinned (`install-action` and `freebsd-vm` stay the originals). Its
+  `rust-cache` stays at 2.9.1, as the shared actions' does: 2.9.2 saves no cache on Windows
+  (storytold/craft-common-actions#249).
 
 ## Running and looking at the app
 - `cargo run -p mailcraft -- --sample` (local sample mailbox). Script it at start-up:

@@ -83,5 +83,9 @@ updates:
           - "*"
     ignore:
       - dependency-name: "storytold/craft-common-actions"
+      # 2.9.2 matches none of a Windows job's paths and saves no cache there
+      # (storytold/craft-common-actions#249); the shared actions are back on 2.9.1 too.
+      - dependency-name: "step-security/rust-cache"
+        versions: ["2.9.2"]
     commit-message:
       prefix: "Workflows"
