@@ -14,6 +14,7 @@ mod calendars;
 mod directory;
 mod elsewhere;
 mod large_folder;
+mod older;
 mod pim;
 
 /// Gap #7: searching Exchange through EWS (`QueryString`, and a `Restriction` for the read

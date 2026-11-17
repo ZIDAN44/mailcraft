@@ -145,6 +145,12 @@ pub struct Data {
     pub lower_case_schemes: bool,
     /// Its reminders (issue #40).
     pub reminders: reminders::Reminders,
+    /// Exchange 2010's schema (#149): a request naming a distinguished folder it doesn't know
+    /// (`archive`, `conversationhistory`, `syncissues`: 2013 brought them) fails validation as a
+    /// whole (HTTP 500).
+    pub exchange_2010: bool,
+    /// Requests refused so ([`Data::exchange_2010`]).
+    pub schema_refusals: usize,
     /// What came to it and went out, for a test's wait to tell where it stopped
     /// ([`Data::where_it_stopped`]).
     traffic: serving::Traffic,
@@ -192,6 +198,8 @@ impl Default for Data {
             open: false,
             lower_case_schemes: false,
             reminders: Default::default(),
+            exchange_2010: false,
+            schema_refusals: 0,
             traffic: Default::default(),
             next: 0,
         };

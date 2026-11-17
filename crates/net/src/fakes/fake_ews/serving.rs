@@ -284,6 +284,17 @@ fn operation(shared: &Arc<Mutex<Data>>, doc: &El, routed: String, anchor: String
                      <faultstring>The specified server version is invalid.</faultstring></soap:Fault></soap:Body></soap:Envelope>";
         return (500, fault.into());
     }
+    if let Some(id) = newer_id(&op).filter(|_| d.exchange_2010) {
+        d.schema_refusals += 1;
+        drop(d);
+        let fault = format!(
+            "<soap:Envelope><soap:Body><soap:Fault><faultcode>a:ErrorSchemaValidation</faultcode>\
+             <faultstring>The request failed schema validation: The 'Id' attribute is invalid - The value '{id}' is invalid \
+             according to its datatype 'http://schemas.microsoft.com/exchange/services/2006/types:DistinguishedFolderIdNameType' \
+             - The Enumeration constraint failed.</faultstring></soap:Fault></soap:Body></soap:Envelope>"
+        );
+        return (500, fault);
+    }
     d.routed = routed;
     if !anchor.is_empty() && d.anchors.len() < 1000 {
         d.anchors.push(anchor);
@@ -291,6 +302,13 @@ fn operation(shared: &Arc<Mutex<Data>>, doc: &El, routed: String, anchor: String
     let (name, parts) = d.route(&op);
     drop(d);
     (200, envelope(&name, &parts))
+}
+
+/// The first distinguished folder an operation names that Exchange 2010 doesn't know.
+fn newer_id(op: &El) -> Option<String> {
+    let mut ids = Vec::new();
+    op.all("DistinguishedFolderId", &mut ids);
+    ids.iter().filter_map(|f| f.attr("Id")).find(|id| ["archive", "conversationhistory", "syncissues"].contains(id)).map(str::to_string)
 }
 
 /// An operation's response element in its envelope: its response messages (each named for the

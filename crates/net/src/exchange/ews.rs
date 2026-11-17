@@ -161,6 +161,8 @@ pub struct Client {
     /// The User-Agent every request names, instead of MailCraft's (issue #9: a server that lets
     /// in only the clients it knows).
     user_agent: Option<String>,
+    /// Those of [`NEWER`] the server refused (an older Exchange's schema): not asked again.
+    unknown_ids: RefCell<Vec<&'static str>>,
 }
 
 /// Another mailbox the account opens (Outlook's shared mailboxes): its address and name.
@@ -173,15 +175,21 @@ pub struct SharedMailbox {
 /// Most shared mailboxes an account opens.
 const MAX_SHARED: usize = 20;
 
-/// A mailbox's special folders: their distinguished ids and roles.
-const SPECIAL: [(&str, FolderRole); 6] = [
+/// A mailbox's special folders: their distinguished ids and roles. Its Archive folder is asked
+/// for apart, as one of [`NEWER`].
+const SPECIAL: [(&str, FolderRole); 5] = [
     ("inbox", FolderRole::Inbox),
     ("drafts", FolderRole::Drafts),
     ("sentitems", FolderRole::Sent),
     ("deleteditems", FolderRole::Trash),
     ("junkemail", FolderRole::Junk),
-    ("archive", FolderRole::Archive),
 ];
+
+/// Distinguished folders that Exchange 2013 and later brought: the Archive folder, and two kept
+/// out of the folder list as Outlook keeps them. Exchange 2010's schema doesn't know them, and
+/// refused a request naming any of them as a whole, the first sync with it (#149); so they're
+/// asked for apart ([`Client::newer_ids`]).
+const NEWER: [&str; 3] = ["archive", "conversationhistory", "syncissues"];
 
 /// A public folder in the tree.
 pub(crate) struct PublicFolder {
@@ -385,6 +393,7 @@ impl Client {
             pf_listed: RefCell::new(None),
             shared_listed: RefCell::new(None),
             user_agent: None,
+            unknown_ids: RefCell::new(Vec::new()),
         })
     }
 

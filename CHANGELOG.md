@@ -25,6 +25,7 @@ on GitHub.
 
 ### Fixed
 
+- An Exchange 2010 account syncs (#149): its first sync failed with "The request failed schema validation", MailCraft asking for its folders together with three that Exchange 2013 brought (Archive, Conversation History and Sync Issues), which Exchange 2010 doesn't know. On a later Exchange they're found as before.
 - In the dark theme, the segment of a switch under the pointer (File › Options › Theme, Reading pane and the others) no longer looks chosen: it was lighter than the segment that was.
 
 ## 0.40.0 - 2026-11-17

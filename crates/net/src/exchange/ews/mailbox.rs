@@ -6,16 +6,23 @@ impl Client {
     /// The account's mail folders, with their roles and counts.
     pub fn mailboxes(&self) -> Result<Vec<Mailbox>> {
         let roles = SPECIAL;
-        let hidden = ["msgfolderroot", "outbox", "conversationhistory", "syncissues"];
+        let hidden = ["msgfolderroot", "outbox"];
         let ids: String = roles.iter().map(|(n, _)| *n).chain(hidden).map(|n| format!("<t:DistinguishedFolderId Id=\"{n}\"/>")).collect();
         let doc = self.call(&format!(
             "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape><m:FolderIds>{ids}</m:FolderIds></m:GetFolder>"
         ))?;
         // One answer per asked-for folder, in order; missing ones are errors.
         let found = folder_ids(&doc);
-        let role_of: HashMap<String, FolderRole> = roles.iter().zip(&found).filter_map(|((_, r), id)| Some((id.clone()?, *r))).collect();
+        let mut role_of: HashMap<String, FolderRole> = roles.iter().zip(&found).filter_map(|((_, r), id)| Some((id.clone()?, *r))).collect();
         let root = found.get(roles.len()).cloned().flatten();
-        let skip: Vec<String> = found.iter().skip(roles.len() + 1).flatten().cloned().collect();
+        let mut skip: Vec<String> = found.iter().skip(roles.len() + 1).flatten().cloned().collect();
+        for (name, id) in self.newer_ids("") {
+            if name == "archive" {
+                role_of.entry(id).or_insert(FolderRole::Archive);
+            } else {
+                skip.push(id);
+            }
+        }
 
         let mut out = self.mail_folders("<t:DistinguishedFolderId Id=\"msgfolderroot\"/>", &skip, MAX_FOLDERS)?;
         for m in &mut out {
@@ -54,6 +61,41 @@ impl Client {
         }
         *self.shared_open.borrow_mut() = open;
         Ok(out)
+    }
+
+    /// The ids of [`NEWER`]'s folders in the account's mailbox, or in another's (`mb`, the
+    /// `Mailbox` element naming it), by name: asked for together, and one by one when the server
+    /// refuses that, as Exchange 2010's schema does (#149). One the server refuses alone isn't
+    /// asked again on this connection; one it hasn't (no Archive folder made yet) is left out.
+    pub(super) fn newer_ids(&self, mb: &str) -> Vec<(&'static str, String)> {
+        let ask = |names: &[&'static str]| -> Result<Vec<(&'static str, String)>> {
+            let ids: String = names.iter().map(|n| format!("<t:DistinguishedFolderId Id=\"{n}\">{mb}</t:DistinguishedFolderId>")).collect();
+            let doc = self.call(&format!(
+                "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape><m:FolderIds>{ids}</m:FolderIds></m:GetFolder>"
+            ))?;
+            Ok(names.iter().zip(folder_ids(&doc)).filter_map(|(n, id)| Some((*n, id?))).collect())
+        };
+        let names: Vec<&'static str> = NEWER.into_iter().filter(|n| !self.unknown_ids.borrow().contains(n)).collect();
+        if names.is_empty() {
+            return Vec::new();
+        }
+        match ask(&names) {
+            Ok(found) => return found,
+            Err(e) => log::info!("the folders Exchange 2013 brought, asked one by one: {e}"),
+        }
+        let mut found = Vec::new();
+        for n in names {
+            match ask(&[n]) {
+                Ok(f) => found.extend(f),
+                // Refused by what it is: not asked again. A connection lost isn't that.
+                Err(e @ (NetError::Protocol(_) | NetError::No(_) | NetError::Bad(_))) => {
+                    log::info!("the server doesn't know the {n} folder: {e}");
+                    self.unknown_ids.borrow_mut().push(n);
+                }
+                Err(e) => log::info!("the {n} folder: {e}"),
+            }
+        }
+        found
     }
 
     /// The mail folders anywhere under a mailbox's root (`root`, the folder id element naming

@@ -127,7 +127,7 @@ impl Client {
             let Some(root_id) = root.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string) else { return Ok(Vec::new()) };
             // Its special folders, and its Outbox and the like, which stay out as the account's
             // own do; one it hasn't is an error in its place.
-            let hidden = ["outbox", "conversationhistory", "syncissues"];
+            let hidden = ["outbox"];
             let ids: String = SPECIAL
                 .iter()
                 .map(|(n, _)| *n)
@@ -138,7 +138,7 @@ impl Client {
                 "<m:GetFolder><m:FolderShape><t:BaseShape>IdOnly</t:BaseShape></m:FolderShape><m:FolderIds>{ids}</m:FolderIds></m:GetFolder>"
             ))?;
             let found = folder_ids(&doc);
-            let skip: Vec<String> = found.iter().skip(SPECIAL.len()).flatten().cloned().collect();
+            let mut skip: Vec<String> = found.iter().skip(SPECIAL.len()).flatten().cloned().collect();
             {
                 let mut roles = self.shared_roles.borrow_mut();
                 roles.insert(root_id.clone(), (sm.address.clone(), FolderRole::Other));
@@ -146,6 +146,13 @@ impl Client {
                     if let Some(id) = id {
                         roles.insert(id.clone(), (sm.address.clone(), *role));
                     }
+                }
+            }
+            for (name, id) in self.newer_ids(&mb) {
+                if name == "archive" {
+                    self.shared_roles.borrow_mut().entry(id).or_insert_with(|| (sm.address.clone(), FolderRole::Archive));
+                } else {
+                    skip.push(id);
                 }
             }
             // Its folders, after the one named for it: as many in all as the account's own.
