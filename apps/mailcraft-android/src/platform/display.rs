@@ -54,13 +54,32 @@ pub(crate) fn system_insets(app: &winit::platform::android::activity::AndroidApp
             if values.is_null() {
                 return Ok(None);
             }
+            // Some edge-to-edge window configurations report a smaller stable top inset than
+            // the visible status bar. Respect Android's configured height as the minimum.
+            let resources = env.call_method(activity, "getResources", "()Landroid/content/res/Resources;", &[])?.l()?;
+            let status_bar_name = env.new_string("status_bar_height")?;
+            let dimension_type = env.new_string("dimen")?;
+            let android_package = env.new_string("android")?;
+            let status_bar_resource = env
+                .call_method(
+                    &resources,
+                    "getIdentifier",
+                    "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)I",
+                    &[JValue::Object(status_bar_name.as_ref()), JValue::Object(dimension_type.as_ref()), JValue::Object(android_package.as_ref())],
+                )?
+                .i()?;
+            let status_bar_height = if status_bar_resource > 0 {
+                env.call_method(&resources, "getDimensionPixelSize", "(I)I", &[JValue::Int(status_bar_resource)])?.i()?.max(0)
+            } else {
+                0
+            };
             let ime = env.call_static_method("android/view/WindowInsets$Type", "ime", "()I", &[])?.i()?;
             let keyboard = env.call_method(&insets, "getInsets", "(I)Landroid/graphics/Insets;", &[JValue::Int(ime)])?.l()?;
             let system_bottom = env.get_field(&values, "bottom", "I")?.i()?;
             let keyboard_bottom = if keyboard.is_null() { 0 } else { env.get_field(&keyboard, "bottom", "I")?.i()? };
             Ok(Some(SystemInsets {
                 left: env.get_field(&values, "left", "I")?.i()?,
-                top: env.get_field(&values, "top", "I")?.i()?,
+                top: env.get_field(&values, "top", "I")?.i()?.max(status_bar_height),
                 right: env.get_field(&values, "right", "I")?.i()?,
                 // Android resizes this Activity for the IME (`adjustResize`). The egui layout
                 // should reserve only the navigation bar here; reserving the keyboard as well

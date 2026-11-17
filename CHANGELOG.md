@@ -211,7 +211,7 @@ on GitHub.
 - Android keeps its local cache, preferences, logs and staged imports in the system's no-backup private directory, migrating existing data on first launch.
 
 ### Fixed
-- Android keeps the app content below the status bar while system bars are animating.
+- Android applies system bar safe areas to dialogs as well as the main content, keeping tall forms clear of status and navigation bars.
 - Android catches panics in background synchronization at its JNI boundary, so a failed pass can retry without terminating the app process.
 - Android avoids copying clipboard text again when the system has already supplied it.
 - Android displays the translated save error if a background download cannot start.

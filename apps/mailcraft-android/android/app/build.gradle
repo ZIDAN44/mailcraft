@@ -76,6 +76,12 @@ def registerRustBuild = { String variant, boolean release ->
     def outputDirectory = layout.buildDirectory.dir("generated/rustJniLibs/${variant}")
     def nativeBuild = tasks.register("buildMailCraftRust${variant.capitalize()}") {
         outputs.dir(outputDirectory)
+        inputs.files(fileTree(cargoRoot) {
+            include "Cargo.toml", "Cargo.lock", ".cargo/**", "apps/**", "crates/**"
+            exclude "apps/mailcraft-android/android/**", "**/target/**", "**/build/**"
+        })
+        inputs.property("rustTargetAbis", configuredAbis)
+        inputs.property("releaseBuild", release)
         doLast {
             delete(outputDirectory)
             configuredAbis.each { abi ->

@@ -386,6 +386,17 @@ impl AndroidApp {
 
 #[cfg(target_os = "android")]
 impl eframe::App for AndroidApp {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, input: &mut egui::RawInput) {
+        let Some(insets) = self.system_insets else { return };
+        let scale = ctx.pixels_per_point().max(1.0);
+        input.safe_area_insets = Some(egui::SafeAreaInsets(egui::epaint::MarginF32 {
+            left: insets.left.max(0) as f32 / scale,
+            right: insets.right.max(0) as f32 / scale,
+            top: insets.top.max(0) as f32 / scale,
+            bottom: insets.bottom.max(0) as f32 / scale,
+        }));
+    }
+
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if ctx.input(|input| !input.events.is_empty()) {
             self.last_input_at = Instant::now();
