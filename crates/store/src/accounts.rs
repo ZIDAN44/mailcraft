@@ -200,8 +200,9 @@ impl Store {
             let mut bytes = 0usize;
             for (k, v) in batch {
                 // Nor the note an import into it kept of how far it got: this account's import
-                // is a copy, not that one going on.
-                if k == "ops.json" || k == "import.json" || k.starts_with("outbox/") {
+                // is a copy, not that one going on. Nor that the file was the user's own, taken
+                // on where it was: the copy is MailCraft's.
+                if k == "ops.json" || k == "import.json" || k == crate::IN_PLACE || k.starts_with("outbox/") {
                     continue;
                 }
                 let Some(rel) = inner_path(&k) else { continue };

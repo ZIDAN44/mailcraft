@@ -33,6 +33,7 @@ mod compact;
 mod filling;
 mod handles;
 mod health;
+mod in_place;
 mod kept;
 mod names;
 mod open;
@@ -480,9 +481,14 @@ impl Packs {
 
     pub(crate) fn remove_dir_all(&self, p: &Path) -> io::Result<()> {
         match self.place(p) {
-            // The account goes: its data file with it.
+            // The account goes: its data file with it, unless it's the user's own taken on where
+            // it is (`in_place.rs`), which is let go of and stays.
             Place::Account(a) => {
+                let kept = self.kept_in_place(&a);
                 let (had, name) = self.forget_account(&a);
+                if kept {
+                    return Ok(());
+                }
                 let legacy = fs::remove_dir_all(p).is_ok();
                 match name.map(|n| fs::remove_file(self.dir.join(n))) {
                     Some(r) => r.or(Ok(())),
