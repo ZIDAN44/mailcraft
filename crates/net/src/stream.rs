@@ -244,11 +244,33 @@ fn handshake(sock: TcpStream, host: &str, trusted: Option<Trusted<'_>>) -> Resul
         if let Err(e) = s.conn.complete_io(&mut s.sock) {
             return Err(match local.as_ref().and_then(|l| l.refused()) {
                 Some(shown) => NetError::Untrusted(Box::new(shown)),
-                None => NetError::Tls(e.to_string()),
+                None => NetError::Tls(handshake_failed(host, &e)),
             });
         }
     }
     Ok(Stream::Tls(Box::new(s)))
+}
+
+/// What a handshake that failed says. A server that hangs up on MailCraft's hello, or answers
+/// that they have no encryption in common, most likely offers only what's older than MailCraft
+/// uses (TLS 1.0 or 1.1, or TLS 1.2 with CBC ciphers alone): said so, with the server's name.
+/// An Exchange 2013 server reset the connection, and all that was said was the system's "an
+/// existing connection was forcibly closed", in its language (#153).
+fn handshake_failed(host: &str, e: &io::Error) -> String {
+    use rustls::{AlertDescription as A, Error as E};
+    let hung_up = matches!(e.kind(), io::ErrorKind::ConnectionReset | io::ErrorKind::ConnectionAborted | io::ErrorKind::UnexpectedEof);
+    let refused = e
+        .get_ref()
+        .and_then(|inner| inner.downcast_ref::<E>())
+        .is_some_and(|r| matches!(r, E::AlertReceived(A::HandshakeFailure | A::ProtocolVersion | A::InsufficientSecurity) | E::PeerIncompatible(_)));
+    if !(hung_up || refused) {
+        return e.to_string();
+    }
+    log::warn!("{host}: the secure connection failed as it began: {e}");
+    format!(
+        "{host} ended the connection as it was being secured ({e}): it may offer only older encryption than MailCraft \
+         uses (TLS 1.0 or 1.1, or TLS 1.2 without an ECDHE cipher with AES-GCM or ChaCha20), which the server's administrator can turn on"
+    )
 }
 
 #[cfg(test)]
@@ -297,6 +319,25 @@ mod tests {
         let by_name = why("localhost");
         assert!(by_name.contains("only addresses on the internet"), "a name resolving to it too: {by_name}");
         assert!(super::tcp("127.0.0.1", port).is_ok(), "the account's own servers may be anywhere");
+    }
+
+    /// A server that hangs up on the hello (as Exchange 2013 on an older Windows Server did,
+    /// #153) is said by name, with what's likely wrong; not only as the system's words for a
+    /// connection closed.
+    #[test]
+    fn a_server_that_hangs_up_on_the_hello_says_why_it_may_have() {
+        let server = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
+        let port = server.local_addr().unwrap().port();
+        let hangs_up = std::thread::spawn(move || {
+            let (mut c, _) = server.accept().unwrap();
+            // Some of the hello read, the rest left unread: closing then resets the connection.
+            let mut first = [0u8; 5];
+            let _ = std::io::Read::read_exact(&mut c, &mut first);
+        });
+        let sock = super::tcp("127.0.0.1", port).unwrap();
+        let e = super::tls(sock, "mail.example.com").err().map(|e| e.to_string()).unwrap_or_default();
+        hangs_up.join().unwrap();
+        assert!(e.contains("mail.example.com ended the connection as it was being secured") && e.contains("TLS 1.0"), "{e}");
     }
 
     #[test]
