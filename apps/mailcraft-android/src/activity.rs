@@ -323,175 +323,10 @@ pub extern "system" fn Java_ai_storyteller_mailcraft_MailCraftSyncWorker_runNati
     mut env: jni::JNIEnv<'_>,
     worker: jni::objects::JObject<'_>,
 ) -> jni::sys::jint {
-    let result = (|| -> Result<jni::sys::jint, String> {
-        use std::sync::Arc;
-
-        const SYNC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8 * 60);
-
-        let input = env
-            .call_method(&worker, "getInputData", "()Landroidx/work/Data;", &[])
-            .map_err(|error| error.to_string())?
-            .l()
-            .map_err(|error| error.to_string())?;
-        let reminders_only_key = env.new_string("remindersOnly").map_err(|error| error.to_string())?;
-        let reminders_only = env
-            .call_method(
-                &input,
-                "getBoolean",
-                "(Ljava/lang/String;Z)Z",
-                &[jni::objects::JValue::Object(reminders_only_key.as_ref()), jni::objects::JValue::Bool(0)],
-            )
-            .map_err(|error| error.to_string())?
-            .z()
-            .map_err(|error| error.to_string())?;
-        if !reminders_only && super::is_work_offline() {
-            return Ok(0);
-        }
-        static NEXT_REQUEST_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
-        if !reminders_only && let Some(pool) = super::active_pool() {
-            let request_id = NEXT_REQUEST_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed).max(1);
-            let waiter = pool.lock().unwrap_or_else(std::sync::PoisonError::into_inner).request_full_sync(request_id);
-            let completed =
-                waiter.wait_while(request_id, SYNC_TIMEOUT, || match env.call_method(&worker, "isStopped", "()Z", &[]).and_then(|value| value.z()) {
-                    Ok(stopped) => stopped,
-                    Err(_) => {
-                        if env.exception_check().unwrap_or(false) {
-                            let _ = env.exception_clear();
-                        }
-                        true
-                    }
-                });
-            return Ok(if completed == Some(true) { 0 } else { 1 });
-        }
-
-        let context = env
-            .call_method(&worker, "getApplicationContext", "()Landroid/content/Context;", &[])
-            .map_err(|error| error.to_string())?
-            .l()
-            .map_err(|error| error.to_string())?;
-        if context.is_null() {
-            return Err("Android did not provide its application context".into());
-        }
-        let original_dir = context_directory_path(&mut env, &context, "getFilesDir")?;
-        let no_backup_dir = context_directory_path(&mut env, &context, "getNoBackupFilesDir")?;
-        let data_root = super::app_data_root_from_paths(original_dir, no_backup_dir)
-            .ok_or_else(|| "Android did not provide MailCraft's private data directory".to_string())?;
-        let cache = data_root.join("mailcraft");
-        let system_language = match system_language_from_context(&mut env, &context) {
-            Ok(language) => language,
-            Err(error) => {
-                log::warn!("Android background work could not read the app language: {error}");
-                None
-            }
-        };
-        let timezone = match system_timezone_from_env(&mut env) {
-            Ok(timezone) => timezone,
-            Err(error) => {
-                log::warn!("Android background work could not read the system time zone: {error}");
-                None
-            }
-        };
-        let outcome = if reminders_only {
-            super::background::reminders(cache, timezone.as_deref(), system_language.as_deref())
-        } else {
-            let roots = system_trust_roots_from_env(&mut env).map_err(|error| error.to_string())?;
-            if let Err(error) = mailcraft_net::stream::set_android_system_roots(roots) {
-                log::warn!("Android background sync could not load system TLS roots: {error}");
-            }
-            let keyring = android_native_keyring_store::Store::new().map_err(|error| format!("Android Keystore is unavailable: {error}"))?;
-            keyring_core::set_default_store(keyring);
-            let credentials: Arc<dyn mailcraft_net::worker::Credentials> = Arc::new(super::AndroidCredentials);
-            super::background::sync(cache, credentials, SYNC_TIMEOUT, timezone.as_deref(), system_language.as_deref(), || {
-                match env.call_method(&worker, "isStopped", "()Z", &[]).and_then(|value| value.z()) {
-                    Ok(stopped) => stopped,
-                    Err(_) => {
-                        if env.exception_check().unwrap_or(false) {
-                            let _ = env.exception_clear();
-                        }
-                        true
-                    }
-                }
-            })
-        };
-        let (status, new_mail, new_mail_key, reminders) = match outcome {
-            super::background::SyncOutcome::Finished { new_mail, new_mail_key, reminders } => (0, new_mail, new_mail_key, reminders),
-            super::background::SyncOutcome::Retry { new_mail, new_mail_key, reminders } => (1, new_mail, new_mail_key, reminders),
-            super::background::SyncOutcome::CacheInUse => (1, 0, None, Vec::new()),
-        };
-        let should_notify = match env.call_method(&worker, "isStopped", "()Z", &[]).and_then(|value| value.z()) {
-            Ok(stopped) => !stopped,
-            Err(_) => {
-                if env.exception_check().unwrap_or(false) {
-                    let _ = env.exception_clear();
-                }
-                false
-            }
-        };
-        if new_mail > 0 && should_notify {
-            let title = env.new_string(mailcraft_ui_egui::i18n::t("New mail")).map_err(|error| error.to_string())?;
-            let count = new_mail.to_string();
-            let body = env.new_string(mailcraft_ui_egui::i18n::tfmt("{n} new messages", &[("n", &count)])).map_err(|error| error.to_string())?;
-            let key = new_mail_key.filter(|key| key.len() <= 1024 && !key.chars().any(char::is_control)).unwrap_or_default();
-            let key = env.new_string(key).map_err(|error| error.to_string())?;
-            env.call_method(
-                &worker,
-                "postNewMail",
-                "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-                &[
-                    jni::objects::JValue::Object(title.as_ref()),
-                    jni::objects::JValue::Object(body.as_ref()),
-                    jni::objects::JValue::Object(key.as_ref()),
-                ],
-            )
-            .map_err(|error| error.to_string())?;
-        }
-        if should_notify {
-            for reminder in reminders {
-                if reminder.account.len() > 256
-                    || reminder.uid.len() > 1024
-                    || reminder.account.chars().any(char::is_control)
-                    || reminder.uid.chars().any(char::is_control)
-                {
-                    continue;
-                }
-                let title = mailcraft_ui_egui::i18n::t(if reminder.task { "Tasks" } else { "Calendar" });
-                let body = super::notifications::bounded_text(&reminder.summary);
-                let account = env.new_string(&reminder.account).map_err(|error| error.to_string())?;
-                let uid = env.new_string(&reminder.uid).map_err(|error| error.to_string())?;
-                let title = env.new_string(title).map_err(|error| error.to_string())?;
-                let body = env.new_string(body).map_err(|error| error.to_string())?;
-                let identity = env
-                    .new_string(super::notifications::reminder_identity(
-                        &reminder.account,
-                        &reminder.uid,
-                        reminder.occurrence,
-                        reminder.due,
-                        reminder.task,
-                    ))
-                    .map_err(|error| error.to_string())?;
-                let _ = env
-                    .call_method(
-                        &worker,
-                        "postReminder",
-                        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JJZLjava/lang/String;)Z",
-                        &[
-                            jni::objects::JValue::Object(title.as_ref()),
-                            jni::objects::JValue::Object(body.as_ref()),
-                            jni::objects::JValue::Object(account.as_ref()),
-                            jni::objects::JValue::Object(uid.as_ref()),
-                            jni::objects::JValue::Long(reminder.occurrence),
-                            jni::objects::JValue::Long(reminder.due),
-                            jni::objects::JValue::Bool(reminder.task as u8),
-                            jni::objects::JValue::Object(identity.as_ref()),
-                        ],
-                    )
-                    .map_err(|error| error.to_string())?
-                    .z()
-                    .map_err(|error| error.to_string())?;
-            }
-        }
-        Ok(status)
-    })();
+    let result = super::panic_boundary::catch_or(
+        || run_native_sync(&mut env, &worker),
+        Err("Android background sync stopped after an internal error".to_owned()),
+    );
     match result {
         Ok(status) => status,
         Err(error) => {
@@ -502,6 +337,172 @@ pub extern "system" fn Java_ai_storyteller_mailcraft_MailCraftSyncWorker_runNati
             1
         }
     }
+}
+
+fn run_native_sync(mut env: &mut jni::JNIEnv<'_>, worker: &jni::objects::JObject<'_>) -> Result<jni::sys::jint, String> {
+    use std::sync::Arc;
+
+    const SYNC_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8 * 60);
+
+    let input = env
+        .call_method(&worker, "getInputData", "()Landroidx/work/Data;", &[])
+        .map_err(|error| error.to_string())?
+        .l()
+        .map_err(|error| error.to_string())?;
+    let reminders_only_key = env.new_string("remindersOnly").map_err(|error| error.to_string())?;
+    let reminders_only = env
+        .call_method(
+            &input,
+            "getBoolean",
+            "(Ljava/lang/String;Z)Z",
+            &[jni::objects::JValue::Object(reminders_only_key.as_ref()), jni::objects::JValue::Bool(0)],
+        )
+        .map_err(|error| error.to_string())?
+        .z()
+        .map_err(|error| error.to_string())?;
+    if !reminders_only && super::is_work_offline() {
+        return Ok(0);
+    }
+    static NEXT_REQUEST_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    if !reminders_only && let Some(pool) = super::active_pool() {
+        let request_id = NEXT_REQUEST_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed).max(1);
+        let waiter = pool.lock().unwrap_or_else(std::sync::PoisonError::into_inner).request_full_sync(request_id);
+        let completed =
+            waiter.wait_while(request_id, SYNC_TIMEOUT, || match env.call_method(&worker, "isStopped", "()Z", &[]).and_then(|value| value.z()) {
+                Ok(stopped) => stopped,
+                Err(_) => {
+                    if env.exception_check().unwrap_or(false) {
+                        let _ = env.exception_clear();
+                    }
+                    true
+                }
+            });
+        return Ok(if completed == Some(true) { 0 } else { 1 });
+    }
+
+    let context = env
+        .call_method(&worker, "getApplicationContext", "()Landroid/content/Context;", &[])
+        .map_err(|error| error.to_string())?
+        .l()
+        .map_err(|error| error.to_string())?;
+    if context.is_null() {
+        return Err("Android did not provide its application context".into());
+    }
+    let original_dir = context_directory_path(&mut env, &context, "getFilesDir")?;
+    let no_backup_dir = context_directory_path(&mut env, &context, "getNoBackupFilesDir")?;
+    let data_root = super::app_data_root_from_paths(original_dir, no_backup_dir)
+        .ok_or_else(|| "Android did not provide MailCraft's private data directory".to_string())?;
+    let cache = data_root.join("mailcraft");
+    let system_language = match system_language_from_context(&mut env, &context) {
+        Ok(language) => language,
+        Err(error) => {
+            log::warn!("Android background work could not read the app language: {error}");
+            None
+        }
+    };
+    let timezone = match system_timezone_from_env(&mut env) {
+        Ok(timezone) => timezone,
+        Err(error) => {
+            log::warn!("Android background work could not read the system time zone: {error}");
+            None
+        }
+    };
+    let outcome = if reminders_only {
+        super::background::reminders(cache, timezone.as_deref(), system_language.as_deref())
+    } else {
+        let roots = system_trust_roots_from_env(&mut env).map_err(|error| error.to_string())?;
+        if let Err(error) = mailcraft_net::stream::set_android_system_roots(roots) {
+            log::warn!("Android background sync could not load system TLS roots: {error}");
+        }
+        let keyring = android_native_keyring_store::Store::new().map_err(|error| format!("Android Keystore is unavailable: {error}"))?;
+        keyring_core::set_default_store(keyring);
+        let credentials: Arc<dyn mailcraft_net::worker::Credentials> = Arc::new(super::AndroidCredentials);
+        super::background::sync(cache, credentials, SYNC_TIMEOUT, timezone.as_deref(), system_language.as_deref(), || {
+            match env.call_method(&worker, "isStopped", "()Z", &[]).and_then(|value| value.z()) {
+                Ok(stopped) => stopped,
+                Err(_) => {
+                    if env.exception_check().unwrap_or(false) {
+                        let _ = env.exception_clear();
+                    }
+                    true
+                }
+            }
+        })
+    };
+    let (status, new_mail, new_mail_key, reminders) = match outcome {
+        super::background::SyncOutcome::Finished { new_mail, new_mail_key, reminders } => (0, new_mail, new_mail_key, reminders),
+        super::background::SyncOutcome::Retry { new_mail, new_mail_key, reminders } => (1, new_mail, new_mail_key, reminders),
+        super::background::SyncOutcome::CacheInUse => (1, 0, None, Vec::new()),
+    };
+    let should_notify = match env.call_method(&worker, "isStopped", "()Z", &[]).and_then(|value| value.z()) {
+        Ok(stopped) => !stopped,
+        Err(_) => {
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_clear();
+            }
+            false
+        }
+    };
+    if new_mail > 0 && should_notify {
+        let title = env.new_string(mailcraft_ui_egui::i18n::t("New mail")).map_err(|error| error.to_string())?;
+        let count = new_mail.to_string();
+        let body = env.new_string(mailcraft_ui_egui::i18n::tfmt("{n} new messages", &[("n", &count)])).map_err(|error| error.to_string())?;
+        let key = new_mail_key.filter(|key| key.len() <= 1024 && !key.chars().any(char::is_control)).unwrap_or_default();
+        let key = env.new_string(key).map_err(|error| error.to_string())?;
+        env.call_method(
+            &worker,
+            "postNewMail",
+            "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+            &[jni::objects::JValue::Object(title.as_ref()), jni::objects::JValue::Object(body.as_ref()), jni::objects::JValue::Object(key.as_ref())],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    if should_notify {
+        for reminder in reminders {
+            if reminder.account.len() > 256
+                || reminder.uid.len() > 1024
+                || reminder.account.chars().any(char::is_control)
+                || reminder.uid.chars().any(char::is_control)
+            {
+                continue;
+            }
+            let title = mailcraft_ui_egui::i18n::t(if reminder.task { "Tasks" } else { "Calendar" });
+            let body = super::notifications::bounded_text(&reminder.summary);
+            let account = env.new_string(&reminder.account).map_err(|error| error.to_string())?;
+            let uid = env.new_string(&reminder.uid).map_err(|error| error.to_string())?;
+            let title = env.new_string(title).map_err(|error| error.to_string())?;
+            let body = env.new_string(body).map_err(|error| error.to_string())?;
+            let identity = env
+                .new_string(super::notifications::reminder_identity(
+                    &reminder.account,
+                    &reminder.uid,
+                    reminder.occurrence,
+                    reminder.due,
+                    reminder.task,
+                ))
+                .map_err(|error| error.to_string())?;
+            let _ = env
+                .call_method(
+                    &worker,
+                    "postReminder",
+                    "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JJZLjava/lang/String;)Z",
+                    &[
+                        jni::objects::JValue::Object(title.as_ref()),
+                        jni::objects::JValue::Object(body.as_ref()),
+                        jni::objects::JValue::Object(account.as_ref()),
+                        jni::objects::JValue::Object(uid.as_ref()),
+                        jni::objects::JValue::Long(reminder.occurrence),
+                        jni::objects::JValue::Long(reminder.due),
+                        jni::objects::JValue::Bool(reminder.task as u8),
+                        jni::objects::JValue::Object(identity.as_ref()),
+                    ],
+                )
+                .map_err(|error| error.to_string())?
+                .z()
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    Ok(status)
 }
 
 fn context_directory_path(

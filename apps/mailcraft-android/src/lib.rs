@@ -1,6 +1,8 @@
 //! Android entry point for MailCraft's shared egui front end.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod panic_boundary;
+
 #[cfg(target_os = "android")]
 use mailcraft_engine::model::{Event, Job};
 #[cfg(target_os = "android")]
