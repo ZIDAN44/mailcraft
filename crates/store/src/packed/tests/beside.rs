@@ -356,9 +356,12 @@ fn no_note_of_what_came_in_refuses_a_read_again() {
 
 /// A copy says which data folder it's an account of: another data folder finding it with the
 /// first one closed is told it's held there, and takes it on only when asked (it's then its
-/// own); held no longer once the first one is gone, no longer names it, or let it go.
+/// own); a folder that no longer names it releases it, but a missing old owner path keeps it
+/// claimed because the data folder may have moved.
 #[test]
 fn a_copy_is_its_data_folders_and_another_is_told() {
+    use std::collections::BTreeMap;
+
     let t = temp("beside-owner");
     let docs = t.join("Documents");
     std::fs::create_dir_all(&docs).unwrap();
@@ -421,10 +424,21 @@ fn a_copy_is_its_data_folders_and_another_is_told() {
     // Another data folder there now: not held.
     std::fs::write(two.join("datafolder.json"), format!("{{\"id\":\"{}\"}}", "0".repeat(32))).unwrap();
     assert!(!s3.copy_beside(&pst).unwrap().found.unwrap().held);
-    // The second gone: not held.
-    std::fs::remove_dir_all(&two).unwrap();
+    // Restore the owner identity and move its data folder. The stale recorded path cannot prove
+    // that the claim was released, and the moved data folder still has its original identity.
+    std::fs::write(two.join("datafolder.json"), format!("{{\"id\":\"{id2}\"}}")).unwrap();
+    std::fs::write(two.join("datafiles.json"), serde_json::to_vec(&BTreeMap::from([("b2", copy.to_string_lossy().into_owned())])).unwrap()).unwrap();
+    let moved = t.join("two moved");
+    std::fs::rename(&two, &moved).unwrap();
     let f = s3.copy_beside(&pst).unwrap().found.unwrap();
-    assert_eq!((f.owner.as_str(), f.held), (id2.as_str(), false));
+    assert_eq!((f.owner.as_str(), f.held), (id2.as_str(), true));
+    let relocated = Store::open_packed(&moved, t.join("Files 2 moved")).unwrap();
+    assert_eq!(relocated.data_folder_id(), Some(id2.clone()));
+    drop(relocated);
+    // If the original owner is later unavailable for good, an explicit takeover remains the
+    // safe way to reuse the copy.
+    std::fs::remove_dir_all(&moved).unwrap();
+    assert!(s3.copy_beside(&pst).unwrap().found.unwrap().held);
     drop(s3);
     let _ = std::fs::remove_dir_all(&t);
 }

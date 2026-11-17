@@ -353,8 +353,9 @@ fn a_copy_with_no_owner_opens_anywhere() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// The data folder that had the copy is gone (or no longer names it): the copy opens elsewhere
-/// without asking. A damaged id file is set aside on the way, never fatal.
+/// A data folder that no longer names the copy releases it. If the owner folder itself goes
+/// missing, the claim stays until explicitly taken over because the owner may have moved. A
+/// damaged id file is set aside on the way, never fatal.
 #[test]
 fn a_copy_whose_data_folder_is_gone_opens_elsewhere() {
     let (mut s, dir, pst) = with_file("owner-gone");
@@ -374,7 +375,7 @@ fn a_copy_whose_data_folder_is_gone_opens_elsewhere() {
     let taken = opened["account"].as_str().unwrap().to_string();
     other.run("account.remove", &json!({"account": taken})).unwrap();
     drop(other);
-    // The other one's again, and closed; that folder removed: a third opens it as well.
+    // The other one's again, and closed; that folder removed: a third must explicitly take over.
     let mut other = on_folder(&dir, "other");
     closed(&other, &pst);
     other.run("account.importPst", &json!({"path": pst})).unwrap();
@@ -384,7 +385,9 @@ fn a_copy_whose_data_folder_is_gone_opens_elsewhere() {
     let refused = third.run("account.importPst", &json!({"path": pst})).unwrap_err();
     assert!(refused_for(&refused, &dir.join("other")), "the other one has it: {refused}");
     std::fs::remove_dir_all(dir.join("other")).unwrap();
-    let opened = third.run("account.importPst", &json!({"path": pst})).unwrap();
+    let refused = third.run("account.importPst", &json!({"path": pst})).unwrap_err();
+    assert!(refused_for(&refused, &dir.join("other")), "a missing owner path stays claimed: {refused}");
+    let opened = third.run("account.importPst", &json!({"path": pst, "takeOver": true})).unwrap();
     assert_eq!(opened["reopened"].as_bool(), Some(true), "{opened}");
     drop(third);
     let _ = std::fs::remove_dir_all(&dir);

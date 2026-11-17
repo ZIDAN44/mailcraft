@@ -211,6 +211,7 @@ on GitHub.
 - Android keeps its local cache, preferences, logs and staged imports in the system's no-backup private directory, migrating existing data on first launch.
 
 ### Fixed
+- A `.mailcraft` copy beside a PST stays claimed when its owning data folder moves or is unavailable; reuse now requires an explicit takeover.
 - Android applies system bar safe areas to dialogs as well as the main content, keeping tall forms clear of status and navigation bars.
 - Android catches panics in background synchronization at its JNI boundary, so a failed pass can retry without terminating the app process.
 - Android avoids copying clipboard text again when the system has already supplied it.

@@ -4,7 +4,9 @@
 //! an Outlook file found by another data folder (the CLI's, a `--data` run) is then told apart
 //! from one no account has: it's that folder's while the folder is there and still names it as
 //! an account's data file (`datafiles.json`, the only thing of it read), and taken on only when
-//! the user says so. A copy from before this has no owner, and is anyone's, as it was. Taken over,
+//! the user says so. A copy from before this has no owner, and is anyone's, as it was. If the
+//! recorded owner folder has moved or is unavailable, its copy stays claimed until explicitly
+//! taken over: a missing old path can't prove the owner released it. Taken over,
 //! a copy is never opened again by the folder that had it ([`Packs::held_elsewhere`]), and the
 //! folder a record names is looked at only on this computer's own drives ([`local_root`]).
 
@@ -177,9 +179,10 @@ pub(super) fn local_root(path: &str) -> Option<&Path> {
 }
 
 /// Whether the data folder at `path` whose id is `id` still has the copy at `copy` as one of its
-/// accounts' data files: it does unless the folder is gone, is another data folder now, or its
-/// list of data files (read only, and nothing else of it) doesn't name the copy. Anything that
-/// can't be told says it does, and so does a folder that isn't on this computer's own drives
+/// accounts' data files: it does unless another data folder is there now, or its list of data
+/// files (read only, and nothing else of it) doesn't name the copy. A missing path keeps the
+/// claim: the owner may have moved, and its absence can't prove it released the copy. Anything
+/// that can't be told says it does, and so does a folder that isn't on this computer's own drives
 /// ([`local_root`]): the path comes from a file found beside another (from a zip, a USB stick, a
 /// share), and a read from a share could hand the user's sign-in to its server, so it isn't
 /// looked at. The user can still take the copy over.
@@ -188,7 +191,7 @@ pub(crate) fn still_has(path: &str, id: &str, copy: &Path) -> bool {
     match fs::metadata(root) {
         Ok(m) if !m.is_dir() => return false,
         Ok(_) => {}
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return false,
+        Err(e) if e.kind() == io::ErrorKind::NotFound => return true,
         Err(_) => return true,
     }
     // Another data folder there now (this one was moved, or removed and made again).

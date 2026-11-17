@@ -134,7 +134,9 @@ How it works:
   state stay in the app folder (`%APPDATA%\MailCraft` on Windows). The sample mailbox uses plain
   files, and the browser keeps everything in memory.
 - **An opened `.pst` file is never written.** It gets its own `.mailcraft` data file beside it,
-  listed in `datafiles.json` (`beside.rs`). MailCraft writes `.pst` files only when it exports one.
+  listed in `datafiles.json` (`beside.rs`). A copy remains claimed if its owning data folder's
+  recorded path goes missing, since that folder may have moved; reusing it requires an explicit
+  takeover. MailCraft writes `.pst` files only when it exports one.
 - **Old folder layouts** are brought into data files when the store opens. This needs the store to
   itself, so it holds `<root>/.locks/folders.lock`.
 - **Moving the data folder** (`location.rs`): a requested move runs at the next start, before
