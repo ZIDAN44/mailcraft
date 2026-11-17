@@ -629,8 +629,8 @@
 	Remove it from the server once it's deleted from Deleted Items	Odstrániť ju zo servera po odstránení z priečinka Odstránené položky
 	A copy on the server	Kópia na serveri
 	None: mail is removed from the server once downloaded	Žiadna: pošta sa po stiahnutí odstráni zo servera
-	Kept for {n} days	Ponecháva sa {n} dní
-	Kept for {n} days, or until deleted from Deleted Items	Ponecháva sa {n} dní alebo do odstránenia z priečinka Odstránené položky
+	Kept for {n} days	Ponecháva sa {n} d.
+	Kept for {n} days, or until deleted from Deleted Items	Ponecháva sa {n} d. alebo do odstránenia z priečinka Odstránené položky
 	Kept until deleted from Deleted Items	Ponecháva sa do odstránenia z priečinka Odstránené položky
 	Kept for good	Ponecháva sa natrvalo
 	Arrange by: {field}	Usporiadať podľa: {field}
@@ -1008,7 +1008,7 @@ month	May	máj
 	Close anyway	Napriek tomu zavrieť
 	Edit notes	Upraviť poznámky
 	Getting them from the server…	Získavajú sa zo servera…
-	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	Správy sa stiahnu až pri otvorení a držia sa len v pamäti: nič sa nezapisuje na tento počítač. Zmeny urobené offline, pošta čakajúca na odoslanie a kalendáre, kontakty a poznámky uchovávané len v MailCrafte sa po jeho zatvorení stratia (najprv sa vás spýta).
+	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	Správy sa stiahnu až pri otvorení a držia sa len v pamäti: nič sa nezapisuje na tento počítač. Zmeny urobené offline, pošta čakajúca na odoslanie a kalendáre, kontakty a poznámky uchovávané len v MailCrafte sa po jeho zatvorení stratia (najprv sa vás opýta).
 	Mail older than what's kept here is only on the server.	Pošta staršia ako tá, ktorá je uložená tu, je len na serveri.
 	Search the server	Hľadať na serveri
 	Searching the server…	Hľadá sa na serveri…
