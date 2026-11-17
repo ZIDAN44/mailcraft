@@ -125,3 +125,40 @@ fn measure_folder_pane() {
         println!("MEASURE folder pane, 3300 folders, {case}: {each:.3} ms a frame; drawn {} texts, {:016x}", drawn.len(), h.finish());
     }
 }
+
+/// Scrolled up past the top of the folder pane with a Mac's trackpad, or a mouse that scrolls
+/// smoothly as one does, the pointer left resting on the pane: the folders stay at its top. They
+/// were pulled a third of the pane down, and stayed there with blank space above them (#150).
+#[test]
+fn scrolling_past_the_top_of_a_pane_leaves_no_room_above() {
+    let (mut a, _) = app("overscroll");
+    // More folders than the pane holds, so that it scrolls.
+    big_tree(&mut a, 60, 0);
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1280.0, 800.0);
+    let inbox = |texts: Vec<Drawn>| texts.into_iter().find(|d| d.text == "Inbox" && d.rect.min.x < 300.0).map(|d| d.rect.min);
+    let _ = drawn_with(&ctx, &mut a, size, vec![]);
+    let top = inbox(drawn_with(&ctx, &mut a, size, vec![])).expect("the Inbox in the folder pane");
+    let over = top + egui::vec2(10.0, 5.0);
+    // Where it is with the pointer on it, before any scrolling.
+    for _ in 0..3 {
+        let _ = drawn_with(&ctx, &mut a, size, vec![Event::PointerMoved(over)]);
+    }
+    let top = inbox(drawn_with(&ctx, &mut a, size, vec![Event::PointerMoved(over)])).expect("the Inbox, pointed at");
+    let wheel = |phase| Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: egui::vec2(0.0, 60.0),
+        modifiers: Modifiers::NONE,
+        phase,
+        source: egui::MouseWheelSource::Trackpad,
+    };
+    let _ = drawn_with(&ctx, &mut a, size, vec![Event::PointerMoved(over), wheel(egui::TouchPhase::Start)]);
+    for _ in 0..40 {
+        let _ = drawn_with(&ctx, &mut a, size, vec![Event::PointerMoved(over), wheel(egui::TouchPhase::Move)]);
+    }
+    for _ in 0..30 {
+        let _ = drawn_with(&ctx, &mut a, size, vec![Event::PointerMoved(over)]);
+    }
+    let after = inbox(drawn_with(&ctx, &mut a, size, vec![])).expect("the Inbox still drawn");
+    assert!((after.y - top.y).abs() < 1.0, "pulled from {top:?} to {after:?}");
+}

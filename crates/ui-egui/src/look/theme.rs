@@ -271,6 +271,10 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
         s.spacing.button_padding = egui::vec2(8.0, 4.0);
         s.spacing.interact_size.y = 26.0;
         s.spacing.menu_margin = egui::Margin::same(6);
+        // Scrolling stops at the first and last line, as in Outlook: no stretching past them. On a
+        // Mac a mouse that scrolls smoothly counts as a trackpad, and what it pulled past the top
+        // or end of a pane stayed there, a third of the pane blank, while the pointer rested (#150).
+        s.spacing.scroll.kinetic.rubber_band = false;
         s.text_styles.insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
         s.text_styles.insert(egui::TextStyle::Button, egui::FontId::proportional(13.5));
         s.text_styles.insert(egui::TextStyle::Small, egui::FontId::proportional(12.0));
