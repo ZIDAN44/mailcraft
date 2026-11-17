@@ -12,6 +12,10 @@ on GitHub.
 
 *What testers met in their first days with 0.40.*
 
+### Added
+
+- An IMAP or POP account's email address can be corrected in **Server settings**, as Outlook lets it be: one mistyped as the account was added was the sender of every message, which the server turned away, and only removing the account changed it.
+
 ### Changed
 
 - A POP account set up with an existing `.mailcraft` data file keeps its mail in that file, where it is, as Outlook uses an existing `.pst`: it's no longer copied whole into Documents › MailCraft Files first (a big one sat at "Counting items…" for as long as that took), and removing the account leaves the file there. A file that can't be used where it is (open in another program or not closed properly, read-only, or still an account in another MailCraft data folder) is copied in as before, and MailCraft says why.

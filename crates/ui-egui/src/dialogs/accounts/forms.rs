@@ -371,8 +371,17 @@ pub struct EditForm {
 }
 
 impl EditForm {
+    /// Whether the account's address can be changed here: an IMAP or POP account's, signing in
+    /// with a password (the others' is the one they sign in as).
+    pub(crate) fn address_editable(&self) -> bool {
+        self.ews.is_none() && !self.jmap && !self.oauth
+    }
+
     pub(crate) fn params(&self) -> serde_json::Value {
         let mut p = self.server_params();
+        if self.address_editable() {
+            p["email"] = json!(self.email.trim());
+        }
         if self.pop.is_none() {
             p["onlineOnly"] = json!(self.online_only);
         }

@@ -575,7 +575,7 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
         submitted("edit imap"),
         (
             "account.update".into(),
-            json!({"account": "zoe", "name": "Zoe Park", "username": "zoe", "jmap": null,
+            json!({"account": "zoe", "email": "zoe@example.org", "name": "Zoe Park", "username": "zoe", "jmap": null,
                 "imapHost": "mail.example.org", "imapPort": 993, "imapSecurity": "none",
                 "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "tls", "smtpUsername": "out", "signIn": "ntlm", "smtpSignIn": "none", "onlineOnly": true})
         )
@@ -583,6 +583,8 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
     assert_eq!(get("edit imap, switched to jmap").params["jmap"], json!(""));
     let google = submitted("edit imap signed in with google").1;
     assert!(google.get("signIn").is_none() && google.get("smtpSignIn").is_none(), "{google}");
+    // Its address is the one it signs in as: not changed here, nor a JMAP or Exchange one's.
+    assert!(google.get("email").is_none(), "{google}");
     assert_eq!(
         submitted("edit jmap"),
         (
@@ -595,7 +597,7 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
         submitted("edit pop"),
         (
             "account.update".into(),
-            json!({"account": "zoe", "name": "Zoe Park", "username": "zoe",
+            json!({"account": "zoe", "email": "zoe@example.org", "name": "Zoe Park", "username": "zoe",
                 "popHost": "pop.example.org", "popPort": 995, "popSecurity": "tls",
                 "smtpHost": "mail.example.org", "smtpPort": 465, "smtpSecurity": "tls",
                 "popDelete": false, "popKeepDays": 7, "popDeleteWithTrash": false, "smtpUsername": "out", "signIn": "automatic", "smtpSignIn": "automatic"})
