@@ -1,5 +1,6 @@
 //! Which servers' certificates are trusted: the bundled Mozilla roots and the system's own (an
 //! internal CA that IT installed for an on-premises server), less what the system distrusts.
+//! Android uses only the roots exposed by its platform trust manager.
 
 use std::collections::HashSet;
 use std::sync::{Arc, OnceLock};
@@ -12,20 +13,42 @@ use rustls::{CertificateError, ClientConfig, DigitallySignedStruct, RootCertStor
 /// Certificates this computer explicitly distrusts (DER).
 pub(crate) type Distrusted = HashSet<Vec<u8>>;
 
+static ROOTS: OnceLock<Vec<CertificateDer<'static>>> = OnceLock::new();
+
+/// Install Android's system trust store before starting network workers. Android keeps roots in
+/// its Java trust manager, which `rustls-native-certs` cannot read from the Unix CA bundle paths.
+#[cfg(target_os = "android")]
+pub fn set_android_system_roots(certs: Vec<Vec<u8>>) -> Result<(), String> {
+    let usable = usable_roots(certs.into_iter().map(CertificateDer::from).collect(), distrusted());
+    if usable.is_empty() {
+        return Err("Android returned no usable system root certificates".into());
+    }
+    ROOTS.set(usable).map_err(|_| "TLS system roots were already initialized".into())
+}
+
 /// The root certificates this computer trusts for servers, read once: the Windows certificate
-/// store, the macOS Keychain, the Linux and BSD bundle (or `SSL_CERT_FILE` / `SSL_CERT_DIR`).
-/// An internal CA that IT installed for an on-premises server (Exchange, a company IMAP server)
-/// is then trusted next to the bundled Mozilla roots. For SMTP too ([`crate::protocols::smtp`]).
+/// store, the macOS Keychain, the Linux and BSD bundle (or `SSL_CERT_FILE` / `SSL_CERT_DIR`), or
+/// Android's trust manager supplied by the app at startup.
+/// On desktop systems, an internal CA that IT installed for an on-premises server (Exchange, a
+/// company IMAP server) is then trusted next to the bundled Mozilla roots. Android supplies its
+/// roots from the platform trust manager. For SMTP too ([`crate::protocols::smtp`]).
 pub(crate) fn system_roots() -> &'static [CertificateDer<'static>] {
-    static ROOTS: OnceLock<Vec<CertificateDer<'static>>> = OnceLock::new();
     ROOTS.get_or_init(|| {
-        let found = rustls_native_certs::load_native_certs();
-        for e in found.errors.iter().take(3) {
-            log::info!("system roots: {e}");
+        #[cfg(target_os = "android")]
+        {
+            log::warn!("Android TLS roots were not initialized; refusing to use a non-platform CA bundle");
+            return Vec::new();
         }
-        let usable = usable_roots(found.certs, distrusted());
-        log::info!("TLS: {} system root certificates, {} distrusted certificates", usable.len(), distrusted().len());
-        usable
+        #[cfg(not(target_os = "android"))]
+        {
+            let found = rustls_native_certs::load_native_certs();
+            for e in found.errors.iter().take(3) {
+                log::info!("system roots: {e}");
+            }
+            let usable = usable_roots(found.certs, distrusted());
+            log::info!("TLS: {} system root certificates, {} distrusted certificates", usable.len(), distrusted().len());
+            usable
+        }
     })
 }
 
@@ -67,9 +90,11 @@ pub(crate) fn usable_roots(certs: Vec<CertificateDer<'static>>, distrusted: &Dis
     certs.into_iter().filter(|c| !distrusted.contains(&c[..]) && RootCertStore::empty().add(c.clone()).is_ok()).collect()
 }
 
-/// The bundled Mozilla roots and `extra` (the system's), without any root the system distrusts.
+/// The bundled Mozilla roots, where available, and `extra` (the system's), without any root the
+/// system distrusts. Android deliberately relies only on `extra` from its platform trust manager.
 pub(super) fn root_store(extra: &[CertificateDer<'static>], distrusted: &Distrusted) -> RootCertStore {
     let mut roots = RootCertStore::empty();
+    #[cfg(not(target_os = "android"))]
     roots.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     roots.add_parsable_certificates(extra.iter().cloned());
     let mut bad = RootCertStore::empty();

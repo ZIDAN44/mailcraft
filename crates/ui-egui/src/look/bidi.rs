@@ -161,6 +161,63 @@ pub fn column() -> egui::Layout {
     egui::Layout::top_down(if crate::i18n::current().rtl() { egui::Align::Max } else { egui::Align::Min })
 }
 
+/// The contents of a popup menu, against the side where this language starts reading.
+pub fn menu_layout() -> egui::Layout {
+    let align = if crate::i18n::current().rtl() { egui::Align::Max } else { egui::Align::Min };
+    egui::Layout::top_down_justified(align)
+}
+
+/// A popup menu whose items start on the side where this language reads from.
+pub fn popup_menu(response: &egui::Response) -> egui::Popup<'_> {
+    let touch = response.ctx.input(|input| input.has_touch_screen());
+    egui::Popup::menu(response).layout(menu_layout()).style(move |style: &mut egui::Style| {
+        egui::containers::menu::menu_style(style);
+        if touch {
+            style.spacing.interact_size.y = 44.0;
+        }
+    })
+}
+
+/// Run menu contents with rows aligned to the language's reading edge.
+pub fn menu_contents(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui)) {
+    ui.with_layout(menu_layout(), |ui| {
+        if ui.ctx().input(|input| input.has_touch_screen()) {
+            ui.spacing_mut().interact_size.y = 44.0;
+        }
+        add(ui);
+    });
+}
+
+/// A nested menu whose rows follow the language's reading direction.
+pub fn menu_button<'a, R>(
+    ui: &mut egui::Ui,
+    atoms: impl egui::IntoAtoms<'a>,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> egui::InnerResponse<Option<R>> {
+    let response = ui.menu_button(atoms, |ui| {
+        let mut inner = None;
+        menu_contents(ui, |ui| inner = Some(add(ui)));
+        inner
+    });
+    egui::InnerResponse::new(response.inner.flatten(), response.response)
+}
+
+/// A combo box whose choices align to the reading direction, without changing its selection API.
+pub trait ComboBoxExt {
+    fn show_ui_rtl<R>(self, ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<Option<R>>;
+}
+
+impl ComboBoxExt for egui::ComboBox<'_> {
+    fn show_ui_rtl<R>(self, ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<Option<R>> {
+        let response = self.show_ui(ui, |ui| {
+            let mut inner = None;
+            menu_contents(ui, |ui| inner = Some(add(ui)));
+            inner
+        });
+        egui::InnerResponse::new(response.inner.flatten(), response.response)
+    }
+}
+
 /// `ui.vertical` in the interface's direction (egui's own is always against the left, and its
 /// rows run from there).
 pub fn vertical<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
@@ -220,5 +277,15 @@ mod tests {
         want.sort_unstable();
         assert_eq!(seen, want);
         assert!(lefts.last().is_some_and(|l| *l > 20.0), "the last line starts away from the left: {lefts:?}");
+    }
+
+    #[test]
+    fn menus_align_from_the_start_of_the_reading_direction() {
+        let previous = crate::i18n::current();
+        crate::i18n::set_current(crate::i18n::Lang::EN);
+        assert_eq!(menu_layout().cross_align, egui::Align::Min);
+        crate::i18n::set_current(crate::i18n::Lang::from_code("ar").unwrap_or(crate::i18n::Lang::EN));
+        assert_eq!(menu_layout().cross_align, egui::Align::Max);
+        crate::i18n::set_current(previous);
     }
 }

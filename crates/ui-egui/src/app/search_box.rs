@@ -133,7 +133,7 @@ impl MailApp {
         let t = self.ui.tokens;
         let scope = self.session.search.as_ref().map_or(self.session.prefs.search_scope, |(_, s)| *s);
         // Where to look, as Outlook's menu at the box's left.
-        let menu = ui.menu_button(RichText::new(format!("{} ▾", scope_label(scope))).small().color(t.dim), |ui| {
+        let menu = crate::bidi::menu_button(ui, RichText::new(format!("{} ▾", scope_label(scope))).small().color(t.dim), |ui| {
             for s in SearchScope::ALL {
                 if ui.selectable_label(s == scope, scope_label(s)).clicked() {
                     acts.push(Action::Run("search.run", json!({"query": self.ui.search_text, "scope": s.code()})));

@@ -2,17 +2,47 @@
 
 use crate::*;
 
+mod alt_code;
+pub use alt_code::{alt_code_pages, alt_codes};
+
 impl MailApp {
     pub(crate) fn shortcuts(&mut self, ctx: &egui::Context) {
+        let back_key = self.services.back_key();
+        let system_back = back_key.is_some_and(|key| ctx.input(|input| input.key_pressed(key)));
         // A message's text had the keyboard last frame (it says so again while it keeps it).
         let text_keys = std::mem::take(&mut self.ui.text_selection.keys);
+        // Android's Back should unwind the topmost layer before leaving the screen: a context
+        // menu or selector is lighter than the folder drawer, a dialog or the app itself.
+        if system_back && ctx.any_popup_open() {
+            egui::Popup::close_all(ctx);
+            return;
+        }
+        if system_back && self.ui.mobile_folder_open {
+            self.ui.mobile_folder_open = false;
+            return;
+        }
+        if system_back && let Some(Dialog::DiscardForm(form)) = self.ui.dialog.as_ref() {
+            self.ui.dialog = Some((**form).clone());
+            return;
+        }
+        if system_back
+            && self.ui.phone_mode
+            && self.ui.dialog.as_ref().is_some_and(|dialog| {
+                matches!(dialog, Dialog::Event(form) if !form.read_only) || matches!(dialog, Dialog::Task(_) | Dialog::Contact(_))
+            })
+            && let Some(form) = self.ui.dialog.take()
+        {
+            self.ui.dialog = Some(Dialog::DiscardForm(Box::new(form)));
+            return;
+        }
+        let escape = ctx.input(|input| input.key_pressed(Key::Escape)) || system_back;
         if self.ui.backstage.is_none() {
             self.ui.backstage_typing = false;
         }
         if let Some(d) = &self.ui.dialog {
             // Not the part of a compaction that has a data file to itself: it can't be put away.
             let stays = matches!(d, Dialog::Compacting { account, .. } if self.session.compaction.exclusive(account));
-            if !stays && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            if !stays && escape {
                 self.ui.dialog = None;
             }
             return;
@@ -20,12 +50,53 @@ impl MailApp {
         if self.ui.backstage.is_some() {
             // Esc in one of its fields leaves the field; from outside one, the page (as
             // GridCraft's File page).
-            if ctx.input(|i| i.key_pressed(Key::Escape)) && !std::mem::take(&mut self.ui.backstage_typing) {
+            if escape && !std::mem::take(&mut self.ui.backstage_typing) {
                 self.ui.backstage = None;
             }
             return;
         }
         let typing = ctx.text_edit_focused();
+        // Android routes Back to the app only after its input method has handled Back itself.
+        // A text field can stay focused after the keyboard is dismissed, so don't let that stale
+        // focus prevent the user's next Back from leaving the current screen.
+        if system_back {
+            if self.ui.phone_mode && self.session.compose.is_some() {
+                let sending = self.session.compose.as_ref().is_some_and(|c| c.sending);
+                if !sending {
+                    if self.session.compose_written() {
+                        self.ui.dialog = Some(Dialog::SaveChanges);
+                        self.ui.dialog_for = self.session.compose.as_ref().map(|c| c.id);
+                    } else {
+                        self.run("compose.close", json!({"save": false}));
+                    }
+                }
+            } else if self.ui.attachment_view.is_some() {
+                reading::close_attachment_view(&mut self.ui);
+            } else if self.ui.phone_mode && self.ui.phone_reader_open {
+                self.ui.phone_reader_open = false;
+            } else if self.ui.phone_mode && self.session.module == Module::People && self.ui.person.is_some() {
+                self.ui.person = None;
+            } else if self.ui.phone_mode && self.session.module == Module::Tasks && self.ui.task.is_some() {
+                self.ui.task = None;
+            } else if self.ui.phone_mode && self.session.module == Module::Notes && self.ui.note_edit.is_some() {
+                self.checkpoint_note_edit();
+            } else if self.ui.attachment_selected.as_ref().is_some_and(|(_, selected)| !selected.is_empty()) {
+                self.ui.attachment_selected = None;
+                self.ui.attachment_selection_mode = false;
+                self.ui.attachments_active = false;
+            } else if self.clear_module_search() {
+                // Back clears the active module's filter before it leaves the screen.
+            } else if self.ui.search_focused || !self.ui.search_text.is_empty() || self.session.search.is_some() {
+                self.ui.search_text.clear();
+                self.ui.search_focused = false;
+                if self.session.search.is_some() {
+                    self.run("search.clear", json!({}));
+                }
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            return;
+        }
         // A press anywhere but on an attachment hands the keyboard back from the attachments and
         // clears their selection; not one in a menu over them (Save Selected… is one).
         if ctx.input(|i| i.pointer.primary_pressed()) && !self.ui.attachment_hovered {
@@ -34,6 +105,7 @@ impl MailApp {
             if !in_menu {
                 self.ui.attachments_active = false;
                 self.ui.attachment_selected = None;
+                self.ui.attachment_selection_mode = false;
             }
         }
         self.ui.attachment_hovered = false;
@@ -46,13 +118,14 @@ impl MailApp {
                     // The digit row by where it is: with Shift, or on a layout whose top row types
                     // other characters (AZERTY), Ctrl+Shift+1 is still 1, not `!` or `&`.
                     egui::Event::Key { key, physical_key, pressed: true, modifiers, .. } => {
+                        let key = if Some(*key) == back_key { Key::Escape } else { *key };
                         let digit = physical_key.filter(|p| {
                             matches!(
                                 p,
                                 Key::Num0 | Key::Num1 | Key::Num2 | Key::Num3 | Key::Num4 | Key::Num5 | Key::Num6 | Key::Num7 | Key::Num8 | Key::Num9
                             )
                         });
-                        Some((digit.unwrap_or(*key), *modifiers))
+                        Some((digit.unwrap_or(key), *modifiers))
                     }
                     _ => None,
                 })
@@ -99,6 +172,7 @@ impl MailApp {
                 // Escape lets go of selected attachments first.
                 if self.ui.attachment_selected.as_ref().is_some_and(|(_, v)| !v.is_empty()) {
                     self.ui.attachment_selected = None;
+                    self.ui.attachment_selection_mode = false;
                     self.ui.attachments_active = false;
                     continue;
                 }
@@ -161,6 +235,22 @@ impl MailApp {
         if ctx.input(|i| i.modifiers.command && i.key_pressed(Key::Enter)) && self.session.compose.is_some() {
             self.run("compose.send", json!({}));
         }
+    }
+
+    /// Clear the current non-mail module's search before Android Back leaves its screen.
+    fn clear_module_search(&mut self) -> bool {
+        let query = match self.session.module {
+            Module::Calendar => &mut self.ui.cal_search.query,
+            Module::People => &mut self.ui.people_query,
+            Module::Tasks => &mut self.ui.tasks_query,
+            Module::Notes => &mut self.ui.notes_query,
+            Module::Mail => return false,
+        };
+        if query.is_empty() {
+            return false;
+        }
+        query.clear();
+        true
     }
 
     /// Deleting from Deleted Items is permanent: ask first.

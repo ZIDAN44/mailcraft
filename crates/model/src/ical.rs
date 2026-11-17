@@ -142,6 +142,16 @@ fn is_zero(n: &i64) -> bool {
 }
 
 impl CalEvent {
+    /// Whether this is part of a repeated event, including a changed occurrence.
+    pub fn is_recurring(&self) -> bool {
+        self.rrule.is_some() || !self.rdates.is_empty() || self.recurrence_id.is_some()
+    }
+
+    /// Whether this event is the master of a repeated series (including an RDATE-only series).
+    pub fn is_series(&self) -> bool {
+        self.recurrence_id.is_none() && (self.rrule.is_some() || !self.rdates.is_empty())
+    }
+
     /// The address that joins it online: the server's own, a `CONFERENCE` link, else the first
     /// meeting link in its location or notes (as Outlook's Join finds a Teams or Zoom meeting).
     /// [`CalEvent::join_link_in`] counts the user's own meeting hosts too.

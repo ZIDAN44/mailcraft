@@ -156,6 +156,55 @@ impl Session {
         kept + self.keep_held()
     }
 
+    /// Keep changed messages being written when the app is suspended, and mark each successful
+    /// checkpoint as the made version so another suspend doesn't queue the same draft again.
+    pub fn checkpoint_drafts(&mut self) -> usize {
+        let written: Vec<Compose> = self.all_composes().filter(|c| self.written(c) && !c.sending).cloned().collect();
+        let mut kept = 0;
+        for draft in written {
+            let (raw, folder, mid) = match self.draft_bytes(&draft) {
+                Ok(bytes) => bytes,
+                Err(error) => {
+                    self.notice(error.to_string(), true);
+                    continue;
+                }
+            };
+            if self.account(&draft.account).is_none_or(AccountState::is_local) {
+                let replaces = self.saved_copy(&draft);
+                match self.file_locally(&draft.account, &folder, &raw, false) {
+                    Ok(key) => {
+                        if let Some(old) = replaces {
+                            self.apply_op(&draft.account.clone(), Op::Expunge { keys: vec![old] });
+                        }
+                        if let Some(open) = self.compose.iter_mut().chain(self.composes.iter_mut()).find(|open| open.id == draft.id) {
+                            open.draft = Some(key);
+                            open.draft_id = mid;
+                            open.mark_made();
+                        }
+                        kept += 1;
+                    }
+                    Err(error) => self.notice(error.to_string(), true),
+                }
+            } else {
+                // A save already on its way owns the replacement target. Reuse it so a
+                // background checkpoint and that save remain one evolving draft on the server.
+                let replaces = draft.on_its_way.as_ref().and_then(|(_, _, replaces)| replaces.clone()).or_else(|| self.saved_copy(&draft));
+                let job = self.draft_job(&draft, raw.clone(), folder.clone(), replaces.clone(), true);
+                self.jobs.push(job);
+                if let Some(open) = self.compose.iter_mut().chain(self.composes.iter_mut()).find(|open| open.id == draft.id) {
+                    open.draft = None;
+                    open.draft_id = mid;
+                    open.on_its_way = Some((raw, folder, replaces));
+                    open.saves = open.saves.saturating_add(1);
+                    open.saved_as = Some(open.as_now());
+                    open.mark_made();
+                }
+                kept += 1;
+            }
+        }
+        kept
+    }
+
     /// The messages held while their drafts are on the way to the server ([`Session::saving`]),
     /// kept as drafts as MailCraft closes, however it closes (they were chosen to be kept): the
     /// save may never finish. How many.

@@ -1,7 +1,7 @@
 //! The calendar's side pane: the months to jump around in, then each account's calendars, which
 //! to show, which new events go to, and moving those kept on this computer to the server.
 
-use egui::{RichText, Sense, Ui, pos2, vec2};
+use egui::{Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::pim::is_server_calendar;
 use mailcraft_engine::{LocalEvents, Session};
 use serde_json::json;
@@ -76,7 +76,9 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                         ui.add_space(10.0);
                     }
                     // Ticked: shown (in its colour); click to leave it out, as Outlook's boxes.
-                    let (r, resp) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::click());
+                    let target = if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { 14.0 };
+                    let (hit, resp) = ui.allocate_exact_size(vec2(target, target), Sense::click());
+                    let r = Rect::from_center_size(hit.center(), vec2(14.0, 14.0));
                     let c32 = color(Session::calendar_color(a, c), &t);
                     if shown {
                         ui.painter().rect_filled(r, 3.0, c32);

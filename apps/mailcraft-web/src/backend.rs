@@ -413,7 +413,7 @@ fn pgp(sh: &Rcs, id: &str, work: mailcraft_engine::model::PgpWork) {
 async fn job(sh: &Rcs, id: &str, j: Job) {
     let store = store(sh);
     match j {
-        Job::SyncAll { .. } => {
+        Job::SyncAll { .. } | Job::SyncAllTracked { .. } => {
             if client(sh, id).is_some() {
                 sync_all(sh, id).await;
             } else {

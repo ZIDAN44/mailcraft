@@ -92,6 +92,8 @@ pub enum Job {
     Remove { account: String },
     /// Refresh the folder list and every folder.
     SyncAll { account: String },
+    /// Refresh an account and report the pass's completion token to a waiting platform worker.
+    SyncAllTracked { account: String, request_id: u64 },
     /// Refresh one folder (new mail, flag changes, deletions).
     SyncFolder { account: String, folder: String },
     /// Keep `more` of a folder's older messages than it keeps now, fetched from the server
@@ -297,6 +299,7 @@ impl Job {
             Job::FetchBody { key } => &key.account,
             Job::Remove { account }
             | Job::SyncAll { account }
+            | Job::SyncAllTracked { account, .. }
             | Job::SyncFolder { account, .. }
             | Job::MoreMail { account, .. }
             | Job::SearchServer { account, .. }
@@ -384,6 +387,13 @@ pub enum Event {
     Status {
         account: String,
         status: SyncStatus,
+    },
+    /// A full mail, calendar and contacts sync pass finished (or stopped after losing its connection).
+    SyncFinished {
+        account: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        request_id: Option<u64>,
+        success: bool,
     },
     /// The folder list (with counts) changed.
     Folders {

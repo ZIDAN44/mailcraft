@@ -60,6 +60,7 @@
 	Delete “{folder}”?	حذف «{folder}»؟
 	Deleted Items	العناصر المحذوفة
 	Discard	تجاهل
+	Discard these changes?	تجاهل هذه التغييرات؟
 	Disconnected: {error}	انقطع الاتصال: {error}
 	Document	مستند
 	Don't run later rules on mail this one matches	لا تشغّل القواعد التالية على البريد الذي تطابقه هذه القاعدة
@@ -385,6 +386,11 @@
 	Google (IMAP)	Google (IMAP)
 	I'm away until…	أنا غائب حتى…
 	Inbox and notifications	علبة الوارد والإشعارات
+	Android notifications are off. Turn them on in Settings for new mail and calendar reminders.	إشعارات Android متوقفة. فعّلها في الإعدادات لتلقي تنبيهات البريد الجديد والتقويم.
+	Settings	الإعدادات
+	Android's encrypted credential store is unavailable. MailCraft will keep credentials in memory until it closes.	مخزن بيانات الاعتماد المشفر في Android غير متاح. سيحتفظ MailCraft ببيانات الاعتماد في الذاكرة حتى إغلاقه.
+	The Android file picker couldn't open. In Files, choose Share → MailCraft to use the file.	تعذّر فتح منتقي ملفات Android. من تطبيق الملفات، اختر مشاركة ثم MailCraft لاستخدام الملف.
+	MailCraft couldn't save the file. Try again.	تعذّر على MailCraft حفظ الملف. حاول مرة أخرى.
 	Info	معلومات
 	Kept on this computer: {size}	محفوظ على هذا الكمبيوتر: {size}
 	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	لا يتصل MailCraft إلا بخوادم بريدك، عبر اتصالات مشفّرة. لا تُحمّل الصور من الويب إلا عندما تطلب.
@@ -765,6 +771,8 @@ month	May	مايو
 	Mail from an old .pst or .mailcraft file comes in first	يُستورد بريد ملف ‎.pst أو ‎.mailcraft قديم أولاً
 	Open a data file	فتح ملف بيانات
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	استورد ملف بيانات Outlook ‏(.pst) أو ملف MailCraft ‏(.mailcraft). يُفتح كصندوق بريد مستقل بمجلداته، محفوظ على هذا الكمبيوتر.
+	You can also open a message (.eml or .msg), calendar (.ics) or contacts (.vcf) file.	يمكنك أيضًا فتح ملف رسالة (.eml أو .msg) أو تقويم (.ics) أو جهات اتصال (.vcf).
+	The file {name} could run a program, so it isn't opened from here; save it and check it first.	قد يشغّل الملف {name} برنامجًا، لذلك لا يُفتح من هنا. احفظه وافحصه أولاً.
 	Move up	نقل لأعلى
 	Move down	نقل لأسفل
 	Updating…	جارٍ التحديث…
@@ -877,6 +885,27 @@ month	May	مايو
 	 and {n} more	 و{n} آخرون
 	Add to contacts…	إضافة إلى جهات الاتصال…
 	Copy address	نسخ العنوان
+	Copy phone number	نسخ رقم الهاتف
+	Share contact	مشاركة جهة الاتصال
+	Share attachment	مشاركة المرفق
+	Share message	مشاركة الرسالة
+	Share selected attachments	مشاركة المرفقات المحددة
+	The selected attachments are too large to share	المرفقات المحددة كبيرة جدًا للمشاركة
+	You can share up to {n} attachments at once	يمكنك مشاركة ما يصل إلى {n} مرفقًا في المرة الواحدة
+	This attachment is too large to share	هذا المرفق كبير جدًا لمشاركته
+	This message is too large to share	هذه الرسالة كبيرة جدًا لمشاركتها
+	No Android app can share files	لا يوجد تطبيق Android لمشاركة الملفات
+	Save contact	حفظ جهة الاتصال
+	Share event	مشاركة الحدث
+	Add to Android calendar	إضافة إلى تقويم Android
+	This event is too large to add to Android calendar	هذا الحدث كبير جدًا لإضافته إلى تقويم Android
+	This event has an invalid date for Android calendar	تاريخ هذا الحدث غير صالح لتقويم Android
+	No Android calendar app can add events	لا يوجد تطبيق تقويم Android يمكنه إضافة الأحداث
+	Save event	حفظ الحدث
+	This event is too large to share	هذا الحدث كبير جدًا لمشاركته
+	No Android app can share calendar events	لا يوجد تطبيق Android لمشاركة أحداث التقويم
+	This contact is too large to share	جهة الاتصال كبيرة جدًا لمشاركتها
+	No Android app can share contacts	لا يوجد تطبيق Android لمشاركة جهات الاتصال
 	Edit contact…	تحرير جهة الاتصال…
 	Send email	إرسال بريد إلكتروني
 	Add	إضافة
@@ -1621,3 +1650,34 @@ month	May	مايو
 	it can't be decrypted with your OpenPGP key	لا يمكن فك تشفيرها بمفتاح OpenPGP الخاص بك
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	يستخدم تطبيق MailCraft لسطح المكتب مفاتيح OpenPGP الخاصة بك، لا المتصفح
 	Not sent yet: this is a draft.	لم تُرسل بعد: هذه مسودة.
+	The selected text is too large for Android's clipboard	النص المحدد كبير جدًا لنسخه إلى حافظة Android
+	MailCraft couldn't copy text to Android's clipboard.	تعذر على MailCraft نسخ النص إلى حافظة Android.
+	The Android clipboard text is too large to paste.	نص حافظة Android كبير جدًا للصقه.
+	Add to Android contacts	إضافة إلى جهات اتصال Android
+	This contact is too large to add to Android contacts	جهة الاتصال كبيرة جدًا لإضافتها إلى جهات اتصال Android
+	No Android contacts app can add contacts	لا يوجد تطبيق جهات اتصال Android يمكنه إضافة جهات اتصال
+	This link has no address scheme	لا يحتوي هذا الرابط على مخطط عنوان
+	This link is too long to open	هذا الرابط طويل جدًا لفتحه
+	MailCraft can open web links and mail links on Android	يمكن لـ MailCraft فتح روابط الويب والبريد على Android
+	No Android app can open this link	لا يوجد تطبيق Android يمكنه فتح هذا الرابط
+	This phone number is too long to open	رقم الهاتف طويل جدًا لفتحه
+	This phone number contains characters Android cannot dial	يحتوي رقم الهاتف على أحرف لا يستطيع Android الاتصال بها
+	This contact has no dialable phone number	ليس لدى جهة الاتصال رقم هاتف صالح للاتصال
+	No Android dialer app can open this number	لا يوجد تطبيق اتصال في Android يمكنه فتح هذا الرقم
+	This contact has no address to open	ليس لدى جهة الاتصال عنوان لفتحه
+	This address is too long to open	العنوان طويل جدًا لفتحه
+	No Android map app can open this address	لا يوجد تطبيق خرائط في Android يمكنه فتح هذا العنوان
+	MailCraft can open shared .eml, .msg, .ics, .vcf, .pst and .mailcraft files	يمكن لـ MailCraft فتح الملفات المشتركة بامتدادات .eml و.msg و.ics و.vcf و.pst و.mailcraft
+	No Android app can open this file	لا يوجد تطبيق Android يمكنه فتح هذا الملف
+	MailCraft's save queue is full. Wait for current saves to finish before saving more files.	قائمة حفظ MailCraft ممتلئة. انتظر حتى تنتهي عمليات الحفظ الحالية قبل حفظ ملفات أخرى.
+	Share a single .pst or .mailcraft data file at a time	شارك ملف بيانات واحدًا فقط بامتداد .pst أو .mailcraft في كل مرة
+	Choose a .pst or .mailcraft data file for this account	اختر ملف بيانات بامتداد .pst أو .mailcraft لهذا الحساب
+	Android did not return a document URI for the selected file	لم يُرجع Android عنوان المستند للملف المحدد
+	The selected document address is too long	عنوان المستند المحدد طويل جدًا
+	The selected file is larger than {size} MiB	الملف المحدد أكبر من {size} ميبيبايت
+
+	Move and delete	نقل وحذف
+	Attendees:	الحضور
+	Couldn't open notification settings: {error}	تعذر فتح إعدادات الإشعارات: {error}
+	Name and email address	الاسم وعنوان البريد الإلكتروني
+	Organizer:	المنظّم:

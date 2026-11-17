@@ -14,6 +14,11 @@ use crate::theme;
 use crate::widgets;
 use crate::{Action, Dialog, UiState};
 
+mod context;
+mod row;
+#[cfg(test)]
+mod tests;
+
 /// The tops of the list's rows (date headings and messages), worked out again only when the
 /// engine builds its rows again ([`Session::nav_structure`]: the list changed, the day turned) or
 /// the row height changes. The rows themselves are the engine's, borrowed each frame: a big
@@ -29,8 +34,29 @@ pub struct DragKeys(pub Vec<MessageKey>);
 
 const HEADER_H: f32 = 30.0;
 
-fn row_height(s: &Session) -> f32 {
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum TouchSwipeAction {
+    Archive,
+    MarkRead,
+    MarkUnread,
+}
+
+fn touch_swipe_action(delta: egui::Vec2, was_read: bool) -> Option<TouchSwipeAction> {
+    if delta.x.abs() < 88.0 || delta.x.abs() <= delta.y.abs() * 1.35 {
+        return None;
+    }
+    Some(if delta.x < 0.0 {
+        TouchSwipeAction::Archive
+    } else if was_read {
+        TouchSwipeAction::MarkUnread
+    } else {
+        TouchSwipeAction::MarkRead
+    })
+}
+
+fn row_height(s: &Session, touch: bool) -> f32 {
     match (s.prefs.compact, s.prefs.show_preview) {
+        (true, _) if touch => 56.0,
         (true, _) => 46.0,
         (false, true) => 76.0,
         (false, false) => 58.0,
@@ -48,17 +74,21 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
 
 /// The list's name, its Focused and Other tabs, its filters and how it's arranged.
 fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
     ui.horizontal(|ui| {
         ui.label(RichText::new(crate::view_title(s)).font(theme::bold(18.0)).color(t.text));
     });
     ui.add_space(4.0);
     if s.focus_split() {
-        ui.horizontal(|ui| {
+        ui.with_layout(crate::bidi::row_from_start(egui::Align::Center), |ui| {
+            let gap = ui.spacing().item_spacing.x;
+            let width = ((ui.available_width() - gap) / 2.0).max(44.0);
             for (other, label) in [(false, "Focused"), (true, "Other")] {
                 let on = s.focus_other == other;
                 let text =
                     RichText::new(tl!(label)).color(if on { t.text } else { t.dim }).font(if on { theme::bold(14.0) } else { theme::regular(14.0) });
-                let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
+                let button = egui::Button::new(text).frame_when_inactive(false);
+                let r = if touch { ui.add_sized(vec2(width, 44.0), button) } else { ui.add(button) };
                 if on {
                     ui.painter().line_segment(
                         [pos2(r.rect.left() + 2.0, r.rect.bottom() + 1.0), pos2(r.rect.right() - 2.0, r.rect.bottom() + 1.0)],
@@ -76,31 +106,41 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
         // How the list is arranged, kept at the right (as Outlook's "By Date" above its list):
         // the tabs wrap in what's left, so long words (Dutch, German…) never run into it.
         let arrange = tf!("By {field} ⏷", field = tl!(s.prefs.arrange.label()));
-        let right = if s.search.is_none() {
-            ui.painter().layout_no_wrap(arrange.clone(), egui::TextStyle::Small.resolve(ui.style()), t.dim).size().x + 54.0
-        } else {
-            0.0
-        };
+        let arrange_text_width = ui.painter().layout_no_wrap(arrange.clone(), egui::TextStyle::Small.resolve(ui.style()), t.dim).size().x;
+        let touch_sort_width = (arrange_text_width + ui.spacing().button_padding.x * 2.0).max(44.0);
+        let gap = ui.spacing().item_spacing.x;
+        let right = if s.search.is_none() { if touch { touch_sort_width + 44.0 + gap * 2.0 } else { arrange_text_width + 54.0 } } else { 0.0 };
         let left_w = (ui.available_width() - right).max(120.0);
+        let filter_height = if touch { 44.0 } else { 22.0 };
+        let more_width = if touch { 44.0 } else { MORE_W };
         // The tabs, and a filter chosen from the Home tab's Filter menu when it's another. They
         // stay on one line: those that don't fit go into a "⋯" menu after the rest (the chosen
         // one always shows), so the head keeps its height however narrow the pane.
         let shown: Vec<ListFilter> = ListFilter::ALL.into_iter().chain((!ListFilter::ALL.contains(&s.filter)).then_some(s.filter)).collect();
         let font = |on: bool| if on { theme::bold(12.5) } else { theme::regular(12.5) };
         let pad = ui.spacing().button_padding.x * 2.0;
-        let gap = ui.spacing().item_spacing.x;
-        let width = |f: ListFilter| ui.painter().layout_no_wrap(tl!(f.label()).to_string(), font(s.filter == f), t.dim).size().x + pad;
+        let widths: Vec<(ListFilter, f32)> = shown
+            .iter()
+            .copied()
+            .map(|f| {
+                let measured = ui.painter().layout_no_wrap(tl!(f.label()).to_string(), font(s.filter == f), t.dim).size().x + pad;
+                (f, measured.max(if touch { 44.0 } else { 0.0 }))
+            })
+            .collect();
+        let width = |f: ListFilter| widths.iter().find_map(|(filter, width)| (*filter == f).then_some(*width)).unwrap_or(44.0);
         let scope = s.search.as_ref().filter(|_| s.open_search_folder_name().is_none());
-        let scope_w = scope.map_or(0.0, |(_, current)| {
+        let scope_button_width = scope.map_or(0.0, |(_, current)| {
             let label = format!("{} ▾", crate::scope_label(*current));
-            ui.painter().layout_no_wrap(label, egui::TextStyle::Small.resolve(ui.style()), t.dim).size().x + pad + 8.0 + gap
+            (ui.painter().layout_no_wrap(label, egui::TextStyle::Small.resolve(ui.style()), t.dim).size().x + pad).max(if touch { 44.0 } else { 0.0 })
         });
-        let (kept, hidden) = fit_tabs(&shown, s.filter, width, left_w - scope_w, gap);
-        ui.allocate_ui_with_layout(vec2(left_w, 22.0), crate::bidi::row_from_start(egui::Align::Center), |ui| {
+        let scope_w = if scope.is_some() { scope_button_width + 8.0 + gap } else { 0.0 };
+        let (kept, hidden) = fit_tabs_sized(&shown, s.filter, width, left_w - scope_w, gap, more_width);
+        ui.allocate_ui_with_layout(vec2(left_w, filter_height), crate::bidi::row_from_start(egui::Align::Center), |ui| {
             for f in kept {
                 let on = s.filter == f;
                 let text = RichText::new(tl!(f.label())).color(if on { t.accent } else { t.dim }).font(font(on));
-                let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
+                let button = egui::Button::new(text).frame_when_inactive(false);
+                let r = ui.add_sized(vec2(width(f), filter_height), button);
                 if on {
                     ui.painter().line_segment(
                         [pos2(r.rect.left() + 4.0, r.rect.bottom()), pos2(r.rect.right() - 4.0, r.rect.bottom())],
@@ -112,8 +152,8 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
                 }
             }
             if !hidden.is_empty() {
-                let r = more_tabs(ui, t);
-                egui::Popup::menu(&r).show(|ui| {
+                let r = more_tabs(ui, t, more_width, filter_height);
+                crate::bidi::popup_menu(&r).show(|ui| {
                     for f in &hidden {
                         if ui.selectable_label(false, tl!(f.label())).clicked() {
                             acts.push(Action::Run("list.filter", json!({"value": f.code()})));
@@ -125,30 +165,33 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
             // A Search Folder always looks everywhere: no scope to pick.
             if let Some((q, current)) = scope {
                 ui.add_space(8.0);
-                ui.menu_button(RichText::new(format!("{} ▾", crate::scope_label(*current))).small(), |ui| {
+                let label = format!("{} ▾", crate::scope_label(*current));
+                let button = egui::Button::new(RichText::new(&label).small()).frame_when_inactive(false);
+                let response = if touch { ui.add_sized(vec2(scope_button_width, filter_height), button) } else { ui.add(button) };
+                widgets::named(ui, &response, &format!("{}: {}", tl!("Look in"), crate::scope_label(*current)), true, None);
+                crate::bidi::popup_menu(&response).show(|ui| {
                     for scope in SearchScope::ALL {
                         if ui.selectable_label(scope == *current, crate::scope_label(scope)).clicked() {
                             acts.push(Action::Run("search.run", json!({"query": q, "scope": scope.code()})));
                             ui.close();
                         }
                     }
-                })
-                .response
-                .on_hover_text(tl!("Look in"));
+                });
+                response.on_hover_text(tl!("Look in"));
             }
         });
         if s.search.is_none() {
             ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
                 let rev = s.prefs.reverse_sort;
-                if ui
-                    .add(egui::Button::new(RichText::new(if rev { "↓" } else { "↑" }).color(t.dim)).frame_when_inactive(false))
-                    .on_hover_text(tl!("Reverse sort"))
-                    .clicked()
-                {
+                let reverse = egui::Button::new(RichText::new(if rev { "↓" } else { "↑" }).color(t.dim)).frame_when_inactive(false);
+                let reverse = if touch { ui.add_sized(vec2(44.0, 44.0), reverse) } else { ui.add(reverse) };
+                widgets::named(ui, &reverse, tl!("Reverse sort"), true, Some(rev));
+                if reverse.on_hover_text(tl!("Reverse sort")).clicked() {
                     acts.push(Action::Run("view.reverseSort", json!({})));
                 }
-                let r = ui.add(egui::Button::new(RichText::new(arrange).color(t.dim).small()).frame_when_inactive(false));
-                egui::Popup::menu(&r).show(|ui| arrange_menu(ui, s, acts));
+                let arrange_button = egui::Button::new(RichText::new(arrange).color(t.dim).small()).frame_when_inactive(false);
+                let r = if touch { ui.add_sized(vec2(touch_sort_width, 44.0), arrange_button) } else { ui.add(arrange_button) };
+                crate::bidi::popup_menu(&r).show(|ui| arrange_menu(ui, s, acts));
             });
         }
     });
@@ -157,12 +200,24 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
 
 /// The filter tabs that fit in `room` (each `width` wide, `gap` apart) and those that go into
 /// the "⋯" menu: in order, the chosen one (`on`) always kept, room left for the menu's button.
+#[cfg(test)]
 fn fit_tabs(shown: &[ListFilter], on: ListFilter, width: impl Fn(ListFilter) -> f32, room: f32, gap: f32) -> (Vec<ListFilter>, Vec<ListFilter>) {
+    fit_tabs_sized(shown, on, width, room, gap, MORE_W)
+}
+
+fn fit_tabs_sized(
+    shown: &[ListFilter],
+    on: ListFilter,
+    width: impl Fn(ListFilter) -> f32,
+    room: f32,
+    gap: f32,
+    more_width: f32,
+) -> (Vec<ListFilter>, Vec<ListFilter>) {
     let all: f32 = shown.iter().map(|f| width(*f) + gap).sum();
     if all - gap <= room {
         return (shown.to_vec(), Vec::new());
     }
-    let mut left = room - MORE_W - width(on) - gap;
+    let mut left = room - more_width - width(on) - gap;
     let (mut kept, mut hidden) = (Vec::new(), Vec::new());
     for f in shown.iter().copied() {
         if f == on {
@@ -181,8 +236,8 @@ fn fit_tabs(shown: &[ListFilter], on: ListFilter, width: impl Fn(ListFilter) -> 
 const MORE_W: f32 = 24.0;
 
 /// The "⋯" button of the filters that don't fit, as quiet as the tabs.
-fn more_tabs(ui: &mut Ui, t: &theme::Tokens) -> egui::Response {
-    let (rect, r) = ui.allocate_exact_size(vec2(MORE_W, 22.0), egui::Sense::click());
+fn more_tabs(ui: &mut Ui, t: &theme::Tokens, width: f32, height: f32) -> egui::Response {
+    let (rect, r) = ui.allocate_exact_size(vec2(width, height), egui::Sense::click());
     if r.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover);
     }
@@ -240,7 +295,8 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
     let sep = ui.available_rect_before_wrap();
     ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
 
-    let mh = row_height(s);
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
+    let mh = row_height(s, touch);
     let rows = s.rows();
     let key = (s.nav_structure(), mh.to_bits());
     if st.list_rows.as_ref().is_none_or(|c| c.key != key || c.tops.len() != rows.len()) {
@@ -292,7 +348,7 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
     let has_footer = s.more_on_server().is_some() || s.search.is_some();
     // A page (Page Up, Page Down): the rows shown at once, less one kept in view.
     st.list_page = ((ui.available_height() / mh.max(1.0)).floor() as u64).saturating_sub(1).max(1);
-    egui::ScrollArea::vertical().auto_shrink(false).id_salt("list").show_viewport(ui, |ui, viewport| {
+    let scroll = egui::ScrollArea::vertical().auto_shrink(false).id_salt("list").show_viewport(ui, |ui, viewport| {
         ui.set_height(total + if has_footer { FOOTER_H } else { 0.0 });
         let origin = ui.min_rect().min;
         let width = ui.available_width();
@@ -340,7 +396,7 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                     let Some(m) = s.list.get(*index) else { continue };
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, mh));
                     let drafting = drafted.marks(m);
-                    message_row(s, &t, ui, r, m, *count, *unread, sent_view, drafting, acts);
+                    row::show(s, &t, ui, r, m, *count, *unread, sent_view, drafting, acts);
                 }
             }
         }
@@ -351,6 +407,43 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
             });
         }
     });
+    if touch && st.phone_mode {
+        const PULL_TO_REFRESH: f32 = -72.0;
+        let id = scroll.id.with("pull-to-refresh");
+        let overscroll = scroll.state.overscroll().y;
+        let can_sync = !s.prefs.work_offline
+            && s.accounts.iter().any(|account| !account.is_local() && !account.is_data_file())
+            && s.registry().get("mail.sync").is_some_and(|command| (command.enabled)(s).is_none());
+        if overscroll < -18.0 && can_sync {
+            let (label, _) = crate::bidi::shown(tl!("Send / Receive all folders"));
+            let galley = ui.painter().layout_no_wrap(label.to_string(), theme::regular(12.5), t.dim);
+            let group_width = galley.size().x + 30.0;
+            let left = scroll.inner_rect.center().x - group_width / 2.0;
+            let y = scroll.inner_rect.top() + (-overscroll).min(72.0) / 2.0;
+            let mirror = crate::bidi::Mirror::new(Rect::from_min_size(pos2(left, y - 24.0), vec2(group_width, 48.0)));
+            let icon_rect = mirror.rect(Rect::from_center_size(pos2(left + 10.0, y), vec2(16.0, 16.0)));
+            icons::paint(ui.painter(), icon_rect, Icon::Sync, t.dim);
+            ui.painter().galley(pos2(mirror.start(left + 22.0, galley.size().x), y - galley.size().y / 2.0), galley, t.dim);
+        }
+        let (pointer_down, pointer_released) = ui.ctx().input(|input| (input.pointer.any_down(), input.pointer.any_released()));
+        let mut armed = ui.ctx().data(|data| data.get_temp::<bool>(id).unwrap_or(false));
+        if pointer_down {
+            if overscroll <= PULL_TO_REFRESH {
+                armed = true;
+            } else if overscroll > -12.0 {
+                armed = false;
+            }
+        } else if pointer_released {
+            let pulled_far_enough = overscroll <= PULL_TO_REFRESH;
+            if (armed || pulled_far_enough) && can_sync {
+                acts.push(Action::Run("mail.sync", json!({})));
+            }
+            armed = false;
+        } else if overscroll > -12.0 {
+            armed = false;
+        }
+        ui.ctx().data_mut(|data| data.insert_temp(id, armed));
+    }
     st.list_rows = Some(cached);
 }
 
@@ -410,374 +503,5 @@ pub(crate) fn arrange_menu(ui: &mut Ui, s: &Session, acts: &mut Vec<Action>) {
     if ui.selectable_label(s.prefs.reverse_sort, tl!("Reverse sort")).clicked() {
         acts.push(Action::Run("view.reverseSort", json!({})));
         ui.close();
-    }
-}
-
-#[allow(clippy::too_many_arguments)]
-fn message_row(
-    s: &Session,
-    t: &theme::Tokens,
-    ui: &mut Ui,
-    r: Rect,
-    m: &Summary,
-    count: usize,
-    unread_in_thread: usize,
-    sent_view: bool,
-    drafting: bool,
-    acts: &mut Vec<Action>,
-) {
-    let id = ui.make_persistent_id(("row", &m.key));
-    let resp = ui.interact(r, id, Sense::click_and_drag());
-    // The pointer anywhere on the row, its own buttons included (egui hovers only the button
-    // under the pointer, and the buttons must stay while they're pointed at).
-    let hovered = ui.rect_contains_pointer(r) && !ui.ctx().is_being_dragged(id) || resp.hovered();
-    let selected = s.selection.contains(&m.key);
-    let unread = if count > 1 { unread_in_thread > 0 } else { !m.flags.seen };
-    // Who the sender is (issue #29): their address beside their name, a warning, External.
-    let marks = if sent_view { mailcraft_engine::SenderMarks::default() } else { s.sender_marks(m) };
-    // To a screen reader a row is one item of the list: who, the subject, when, and what its
-    // markers show (unread, flagged, attachments).
-    resp.widget_info(|| {
-        let mut who = if sent_view { m.to.first().map(|a| a.display().to_string()).unwrap_or_default() } else { m.from.display().to_string() };
-        if marks.address {
-            who = format!("{who} <{}>", m.from.email.trim());
-        }
-        let subject = if m.subject.is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
-        let mut spoken = vec![who, subject.to_string(), crate::i18n::date(&dates::list_time(m.when(), &s.clock))];
-        if drafting {
-            spoken.insert(0, tl!("[Draft]").to_string());
-        }
-        for (on, word) in [
-            (marks.warning, "Check who sent it"),
-            (marks.external, "External"),
-            (unread, "Unread"),
-            (m.flags.flagged, "Flagged"),
-            (m.flags.follow_up_complete(), "Completed"),
-            (m.has_attachments, "Has attachments"),
-        ] {
-            if on {
-                spoken.push(tl!(word).to_string());
-            }
-        }
-        egui::WidgetInfo::selected(egui::Role::ListItem, true, selected, spoken.join(", "))
-    });
-    let p = ui.painter_at(r);
-    let sel = crate::motion::toward(ui.ctx(), id.with("selected"), selected, crate::motion::NORMAL);
-    let hover = crate::motion::toward(ui.ctx(), id.with("hover"), hovered, crate::motion::FAST);
-    let fill = crate::motion::mix(t.hover_row.gamma_multiply(hover), t.accent_soft, sel);
-    p.rect_filled(r.shrink2(vec2(4.0, 1.0)), 6.0, fill);
-    // Laid out left to right, mirrored for a right-to-left interface: the avatar on the right,
-    // the time and markers on the left.
-    let mr = crate::bidi::Mirror::new(r);
-    if unread {
-        p.rect_filled(mr.rect(Rect::from_min_size(r.min + vec2(4.0, 8.0), vec2(3.0, r.height() - 16.0))), 2.0, t.accent);
-    }
-    let rule = [mr.pos(r.left_bottom() + vec2(14.0, 0.0)), mr.pos(r.right_bottom() - vec2(8.0, 0.0))];
-    p.line_segment(rule, egui::Stroke::new(1.0, t.border.gamma_multiply(0.6)));
-
-    let compact = s.prefs.compact;
-    let mut x = r.min.x + 14.0;
-    let who_addr = if sent_view { m.to.first().cloned().unwrap_or_default() } else { m.from.clone() };
-    if !compact {
-        let c = mr.pos(egui::pos2(x + 17.0, r.min.y + 26.0));
-        widgets::avatar(ui, c, 17.0, &who_addr.initials(), theme::avatar_color(&who_addr.email, t.dark));
-        x += 44.0;
-    }
-    let right = r.max.x - 14.0;
-    let line1 = r.min.y + if compact { 6.0 } else { 9.0 };
-    // Sender (or recipients in Sent) and time.
-    let time = crate::i18n::date(&dates::list_time(m.when(), &s.clock));
-    let time_g = p.layout_no_wrap(time, if unread { theme::bold(12.0) } else { theme::regular(12.0) }, if unread { t.accent } else { t.dim });
-    let mut tw = time_g.size().x;
-    p.galley(egui::pos2(mr.start(right - tw, tw), line1 + 1.0), time_g, t.dim);
-    // A search over several folders: each result says where it is, before its time.
-    let several =
-        s.search.as_ref().is_some_and(|(_, scope)| *scope != SearchScope::Current) || matches!(s.view, mailcraft_engine::View::Unified { .. });
-    if let Some(f) = s.folder(&m.key.account, &m.key.folder).filter(|_| several) {
-        let name: String = crate::i18n::folder(f).chars().take(24).collect();
-        let fg = p.layout_no_wrap(name, theme::regular(11.5), t.faint);
-        let fw = fg.size().x;
-        p.galley(egui::pos2(mr.start(right - tw - 10.0 - fw, fw), line1 + 2.0), fg, t.faint);
-        tw += fw + 10.0;
-    }
-    // From outside the organisation: a small tag before the time.
-    if marks.external {
-        let eg = p.layout_no_wrap(tl!("External").to_string(), theme::regular(11.0), t.dim);
-        let ew = eg.size().x + 10.0;
-        let er = mr.rect(Rect::from_min_size(egui::pos2(right - tw - 10.0 - ew, line1), vec2(ew, 17.0)));
-        p.rect_stroke(er, 4.0, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-        p.galley(er.center() - eg.size() / 2.0, eg, t.dim);
-        tw += ew + 10.0;
-    }
-    let mut who_x = x;
-    // Something about the sender doesn't add up: a warning sign before the name (the reading
-    // pane says what).
-    if marks.warning {
-        let ir = mr.rect(Rect::from_min_size(egui::pos2(who_x, line1 + 1.0), vec2(15.0, 15.0)));
-        icons::paint(&p, ir, Icon::Warning, t.danger);
-        who_x += 19.0;
-    }
-    // A reply begun and left in Drafts: [Draft] before the name, in red, as Outlook writes it.
-    if drafting {
-        let dg = p.layout_no_wrap(tl!("[Draft]").to_string(), if unread { theme::bold(14.0) } else { theme::regular(14.0) }, t.danger);
-        let dw = dg.size().x;
-        p.galley(egui::pos2(mr.start(who_x, dw), line1), dg, t.danger);
-        who_x += dw + 6.0;
-    }
-    let who = if sent_view { tf!("To: {names}", names = addr::display_list(&m.to)) } else { m.from.display().to_string() };
-    let who = if count > 1 && !marks.address { format!("{who}  ({count})") } else { who };
-    let (who, who_rtl) = crate::bidi::shown(&who);
-    let who_right = right - tw - 10.0;
-    let who_font = if unread { theme::bold(14.0) } else { theme::regular(14.0) };
-    // A line between `from` and `to`, at its start: right-to-left text starts at the right, as
-    // everything does in a right-to-left interface. What doesn't fit is cut from its end.
-    let place = |rtl: bool, from: f32, to: f32, w: f32| mr.start(if rtl && !mr.on() { to - w } else { from }, w);
-    if marks.address {
-        // The name, then the address it really came from, dimmer. The address is what tells, so
-        // it's laid out first (cut to its domain if it must be: `<…@example.com>`), but the name
-        // keeps up to nine twentieths of the room, so a narrow row still says who.
-        let room = (who_right - who_x).max(1.0);
-        let email = m.from.email.trim();
-        let more = if count > 1 { format!("  ({count})") } else { String::new() };
-        let font = theme::regular(12.5);
-        let name_w = p.layout_no_wrap(who.to_string(), who_font.clone(), t.text).size().x;
-        let cap = (room - name_w.min(room * 0.45) - 6.0).clamp(1.0, room * 0.7);
-        let full = format!("<{email}>{more}");
-        let fits = p.layout_no_wrap(full.clone(), font.clone(), t.dim).size().x <= cap;
-        let address = match email.rsplit_once('@') {
-            Some((_, domain)) if !fits => format!("<…@{domain}>{more}"),
-            _ => full,
-        };
-        let ag = widgets::one_line(ui, &address, font, t.dim, cap);
-        let aw = ag.size().x;
-        let who_g = widgets::one_line(ui, &who, who_font, t.text, (room - aw - 6.0).max(1.0));
-        let nw = who_g.size().x;
-        p.galley(egui::pos2(mr.start(who_x, nw), line1), who_g, t.text);
-        p.galley(egui::pos2(mr.start(who_x + nw + 6.0, aw), line1 + 1.5), ag, t.dim);
-    } else {
-        let who_g = widgets::one_line(ui, &who, who_font, t.text, who_right - who_x);
-        p.galley(egui::pos2(place(who_rtl, who_x, who_right, who_g.size().x), line1), who_g, t.text);
-    }
-
-    // Subject with markers.
-    let line2 = line1 + 19.0;
-    let mut icons_w = 0.0;
-    let marker = |ic: Icon, color: Color32, w: &mut f32| {
-        *w += 18.0;
-        let ir = mr.rect(Rect::from_min_size(egui::pos2(right - *w + 3.0, line2 + 1.0), vec2(14.0, 14.0)));
-        icons::paint(&p, ir, ic, color);
-    };
-    if !hovered {
-        if m.flags.pinned() {
-            marker(Icon::Pin, t.accent, &mut icons_w);
-        }
-        if m.flags.flagged {
-            marker(Icon::Flag, t.flag, &mut icons_w);
-        } else if m.flags.follow_up_complete() {
-            marker(Icon::Done, t.dim, &mut icons_w);
-        }
-        if m.has_attachments {
-            marker(Icon::Attach, t.dim, &mut icons_w);
-        }
-        // S/MIME, as the header says (checked once it's opened).
-        match m.smime {
-            mailcraft_engine::model::Smime::Encrypted => marker(Icon::Lock, t.dim, &mut icons_w),
-            mailcraft_engine::model::Smime::Signed => marker(Icon::Seal, t.dim, &mut icons_w),
-            mailcraft_engine::model::Smime::None => {}
-        }
-        // Importance the sender set: a red ! for high, a ↓ for low.
-        if m.importance != 0 {
-            icons_w += 12.0;
-            let (mark, color) = if m.importance > 0 { ("!", t.danger) } else { ("↓", t.accent) };
-            p.text(mr.pos(egui::pos2(right - icons_w + 6.0, line2 + 8.0)), egui::Align2::CENTER_CENTER, mark, theme::bold(13.0), color);
-        }
-        if m.flags.answered {
-            marker(Icon::Reply, t.faint, &mut icons_w);
-        } else if m.flags.forwarded {
-            marker(Icon::Forward, t.faint, &mut icons_w);
-        }
-    }
-    // Categories: a coloured dot each, before the markers.
-    if !hovered {
-        for c in s.categories_of(m).into_iter().rev().take(4) {
-            icons_w += 13.0;
-            p.circle_filled(mr.pos(egui::pos2(right - icons_w + 7.0, line2 + 8.0)), 5.0, theme::category_color(c.color, t.dark));
-        }
-    }
-    let subject = if m.subject.is_empty() { tl!("(no subject)").to_string() } else { m.subject.clone() };
-    let subj_color = if unread { t.accent } else { t.text };
-    let (subject, subj_rtl) = crate::bidi::shown(&subject);
-    let subj_right = right - icons_w.max(if hovered { 70.0 } else { 0.0 }) - 4.0;
-    let subj_g = widgets::one_line(ui, &subject, if unread { theme::bold(13.0) } else { theme::regular(13.0) }, subj_color, subj_right - x);
-    p.galley(egui::pos2(place(subj_rtl, x, subj_right, subj_g.size().x), line2), subj_g, subj_color);
-    if s.prefs.show_preview && !compact && !m.preview.is_empty() {
-        let (preview, pv_rtl) = crate::bidi::shown(&m.preview);
-        let pv = widgets::one_line(ui, &preview, theme::regular(12.5), t.dim, right - x);
-        p.galley(egui::pos2(place(pv_rtl, x, right, pv.size().x), line2 + 19.0), pv, t.dim);
-    }
-
-    // Hover actions.
-    let mut clicked_action = false;
-    if hovered {
-        let mut bx = right - 22.0;
-        let actions: [(Icon, &str, &'static str, serde_json::Value); 3] = [
-            (Icon::Delete, tl!("Delete"), "mail.delete", json!({})),
-            (Icon::Flag, tl!(if m.flags.flagged { "Unflag" } else { "Flag" }), "mail.flag", json!({})),
-            (
-                if m.flags.seen { Icon::Unread } else { Icon::Read },
-                tl!(if m.flags.seen { "Mark unread" } else { "Mark read" }),
-                "mail.toggleRead",
-                json!({}),
-            ),
-        ];
-        for (ic, tip, cmd, params) in actions {
-            let br = mr.rect(Rect::from_min_size(egui::pos2(bx, line2 - 3.0), vec2(22.0, 22.0)));
-            let bresp = ui.interact(br, id.with(cmd), Sense::click()).on_hover_text(tip);
-            crate::widgets::named(ui, &bresp, tip, true, None);
-            if bresp.hovered() {
-                ui.painter().rect_filled(br, 4.0, t.border);
-            }
-            let color = if cmd == "mail.flag" && m.flags.flagged { t.flag } else { t.dim };
-            icons::paint(ui.painter(), icons::centered(br, 14.0), ic, color);
-            if bresp.clicked() {
-                clicked_action = true;
-                if !selected {
-                    acts.push(Action::Run("list.select", json!({"key": m.key.to_id()})));
-                }
-                acts.push(Action::Run(cmd, params));
-            }
-            bx -= 24.0;
-        }
-    }
-
-    if resp.clicked() && !clicked_action {
-        let mods = ui.input(|i| i.modifiers);
-        // Shift: from the anchor to here (with Ctrl, added to what's selected); Ctrl: this one in
-        // or out (issue #26).
-        if mods.shift {
-            acts.push(Action::Run("list.selectRange", json!({"key": m.key.to_id(), "add": mods.command || mods.ctrl})));
-        } else if mods.command || mods.ctrl {
-            acts.push(Action::Run("list.select", json!({"key": m.key.to_id(), "add": true})));
-        } else {
-            acts.push(Action::Open(m.key.clone()));
-        }
-    }
-    if resp.double_clicked() {
-        // Drafts carry on being written; other mail opens in a window of its own.
-        if s.view_role() == Some(FolderRole::Drafts) || m.flags.draft {
-            acts.push(Action::Run("draft.edit", json!({"key": m.key.to_id()})));
-        } else {
-            acts.push(Action::Run("message.popOut", json!({"key": m.key.to_id()})));
-        }
-    }
-    if resp.drag_started() {
-        if !selected {
-            acts.push(Action::Run("list.select", json!({"key": m.key.to_id()})));
-        }
-        let keys = if selected { s.selection.clone() } else { vec![m.key.clone()] };
-        resp.dnd_set_drag_payload(DragKeys(keys));
-    }
-    if resp.dragged() {
-        let n = if selected { s.selection.len() } else { 1 };
-        egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), id.with("drag"), egui::PopupAnchor::Pointer).show(|ui| {
-            ui.label(if n == 1 { tl!("Move 1 message").to_string() } else { tf!("Move {n} messages", n = n) });
-        });
-    }
-    let key = m.key.clone();
-    let flags = m.flags.clone();
-    let (subject, sender) = (m.subject.clone(), m.from.email.clone());
-    resp.context_menu(|ui| {
-        if !s.selection.contains(&key) {
-            acts.push(Action::Run("list.select", json!({"key": key.to_id()})));
-        }
-        let item = |ui: &mut Ui, acts: &mut Vec<Action>, label: &str, act: Action| {
-            if ui.button(label).clicked() {
-                acts.push(act);
-                ui.close();
-            }
-        };
-        item(ui, acts, tl!("Open in new window"), Action::Run("message.popOut", json!({"key": key.to_id()})));
-        ui.separator();
-        // One of several selected: answering and printing are for one message (they failed, or
-        // asked where to save a PDF and then said nothing is open).
-        let several = selected && s.selection.len() > 1;
-        for (label, act) in [
-            (tl!("Reply"), Action::Run("mail.reply", json!({}))),
-            (tl!("Reply all"), Action::Run("mail.replyAll", json!({}))),
-            (tl!("Forward"), Action::Run("mail.forward", json!({}))),
-            (tl!("Quick print"), Action::Print),
-        ] {
-            if ui.add_enabled(!several, egui::Button::new(label)).clicked() {
-                acts.push(act);
-                ui.close();
-            }
-        }
-        ui.separator();
-        item(
-            ui,
-            acts,
-            tl!(if flags.seen { "Mark as unread" } else { "Mark as read" }),
-            Action::Run(if flags.seen { "mail.markUnread" } else { "mail.markRead" }, json!({})),
-        );
-        ui.menu_button(tl!("Follow up"), |ui| crate::organize::follow_up_menu(ui, s, t, acts));
-        ui.separator();
-        item(ui, acts, tl!("Move to…"), Action::Dialog(Dialog::move_to()));
-        item(ui, acts, tl!("Archive"), Action::Run("mail.archive", json!({})));
-        item(ui, acts, tl!("Report junk"), Action::Run("mail.junk", json!({})));
-        ui.menu_button(tl!("Junk"), |ui| crate::junk_menu(ui, s, acts));
-        item(ui, acts, tl!("Ignore"), Action::Run("mail.ignore", json!({})));
-        item(ui, acts, tl!("Delete"), Action::Run("mail.delete", json!({})));
-        ui.separator();
-        // Find related, as Outlook's: the conversation, or everything from the sender.
-        ui.menu_button(tl!("Find related"), |ui| {
-            let topic = mailcraft_engine::model::thread::base_subject(&subject);
-            let searches = [
-                ("Messages in this conversation", format!("subject:\"{}\"", topic.replace('"', ""))),
-                ("Messages from sender", format!("from:{sender}")),
-            ];
-            for (label, query) in searches {
-                if ui.button(tl!(label)).clicked() {
-                    acts.push(Action::Search(query));
-                    ui.close();
-                }
-            }
-        });
-        crate::organize::context_items(ui, s, t, acts, flags.pinned());
-        ui.separator();
-        item(ui, acts, tl!("View message source"), Action::Run("message.source", json!({"key": key.to_id()})));
-    });
-    // Reply actions need the message open; not one of several selected, which the menu acts on
-    // all of (opening it selected it alone: Delete took only that one).
-    let one_of_several = selected && s.selection.len() > 1;
-    if resp.secondary_clicked() && !one_of_several && !s.reading.as_ref().is_some_and(|r| r.key == m.key) {
-        acts.push(Action::Open(m.key.clone()));
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// The owner's report: in a narrow list "Has files", then "Flagged", wrapped onto a second
-    /// line. Those that don't fit go into the "⋯" menu instead, in order; the chosen one stays.
-    #[test]
-    fn filter_tabs_that_dont_fit_go_into_a_menu() {
-        let all = ListFilter::ALL.to_vec();
-        let width = |_: ListFilter| 60.0;
-        assert_eq!(fit_tabs(&all, ListFilter::All, width, 1000.0, 4.0), (all.clone(), Vec::new()));
-        let (kept, hidden) = fit_tabs(&all, ListFilter::All, width, 160.0, 4.0);
-        assert_eq!(kept.len() + hidden.len(), all.len());
-        assert!(kept.first() == Some(&ListFilter::All) && !hidden.is_empty());
-        let used: f32 = kept.iter().map(|_| 64.0).sum::<f32>() + MORE_W;
-        assert!(used <= 160.0 + 4.0, "{kept:?}");
-        // The chosen one, last in order, stays out of the menu; the others keep their order.
-        let last = *all.last().unwrap();
-        let (kept, hidden) = fit_tabs(&all, last, width, 160.0, 4.0);
-        assert!(kept.contains(&last) && !hidden.contains(&last), "{kept:?} {hidden:?}");
-        let order: Vec<ListFilter> = all.iter().copied().filter(|f| hidden.contains(f)).collect();
-        assert_eq!(hidden, order);
-        // No room at all: the chosen one and the menu.
-        let (kept, hidden) = fit_tabs(&all, ListFilter::All, width, 10.0, 4.0);
-        assert_eq!((kept, hidden.len()), (vec![ListFilter::All], all.len() - 1));
     }
 }

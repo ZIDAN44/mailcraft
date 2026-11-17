@@ -60,6 +60,7 @@
 	Delete “{folder}”?	“{folder}” silinsin mi?
 	Deleted Items	Silinmiş Öğeler
 	Discard	At
+	Discard these changes?	Bu değişiklikler atılsın mı?
 	Disconnected: {error}	Bağlantı kesildi: {error}
 	Document	Belge
 	Don't run later rules on mail this one matches	Bu kuralın eşleştiği postalarda sonraki kuralları çalıştırma
@@ -386,6 +387,11 @@
 	Google (IMAP)	Google (IMAP)
 	I'm away until…	Şu tarihe kadar uzaktayım…
 	Inbox and notifications	Gelen Kutusu ve bildirimler
+	Android notifications are off. Turn them on in Settings for new mail and calendar reminders.	Android bildirimleri kapalı. Yeni e-posta ve takvim hatırlatmalarını almak için Ayarlar'dan açın.
+	Settings	Ayarlar
+	Android's encrypted credential store is unavailable. MailCraft will keep credentials in memory until it closes.	Android'ın şifreli kimlik bilgisi deposu kullanılamıyor. MailCraft, kapanana kadar kimlik bilgilerini bellekte tutacak.
+	The Android file picker couldn't open. In Files, choose Share → MailCraft to use the file.	Android dosya seçici açılamadı. Dosyalar'da Paylaş → MailCraft'ı seçerek dosyayı kullanın.
+	MailCraft couldn't save the file. Try again.	MailCraft dosyayı kaydedemedi. Yeniden deneyin.
 	Info	Bilgi
 	Kept on this computer: {size}	Bu bilgisayarda tutulan: {size}
 	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft yalnızca kendi posta sunucularınızla, şifreli bağlantılar üzerinden konuşur. Web'den gelen resimler yalnızca siz istediğinizde yüklenir.
@@ -764,6 +770,8 @@
 	Mail from an old .pst or .mailcraft file comes in first	Önce eski bir .pst veya .mailcraft dosyasındaki postalar alınır
 	Open a data file	Bir veri dosyası aç
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Bir Outlook veri dosyası (.pst) veya MailCraft veri dosyası (.mailcraft) getirin. Klasörleriyle birlikte kendi posta kutusu olarak açılır ve bu bilgisayarda tutulur.
+	You can also open a message (.eml or .msg), calendar (.ics) or contacts (.vcf) file.	Ayrıca ileti (.eml veya .msg), takvim (.ics) ya da kişi (.vcf) dosyası açabilirsiniz.
+	The file {name} could run a program, so it isn't opened from here; save it and check it first.	{name} dosyası bir program çalıştırabilir; bu yüzden buradan açılmaz. Önce kaydedip denetleyin.
 	Move up	Yukarı taşı
 	Move down	Aşağı taşı
 	Updating…	Güncelleniyor…
@@ -876,6 +884,27 @@
 	 and {n} more	 ve {n} tane daha
 	Add to contacts…	Kişilere ekle…
 	Copy address	Adresi kopyala
+	Copy phone number	Telefon numarasını kopyala
+	Share contact	Kişiyi paylaş
+	Share attachment	Eki paylaş
+	Share message	İletiyi paylaş
+	Share selected attachments	Seçili ekleri paylaş
+	The selected attachments are too large to share	Seçili ekler paylaşılamayacak kadar büyük
+	You can share up to {n} attachments at once	Bir seferde en fazla {n} eki paylaşabilirsiniz
+	This attachment is too large to share	Bu ek paylaşılamayacak kadar büyük
+	This message is too large to share	Bu ileti paylaşılamayacak kadar büyük
+	No Android app can share files	Dosya paylaşabilecek bir Android uygulaması yok
+	Save contact	Kişiyi kaydet
+	Share event	Etkinliği paylaş
+	Add to Android calendar	Android takvimine ekle
+	This event is too large to add to Android calendar	Bu etkinlik Android takvimine eklenemeyecek kadar büyük
+	This event has an invalid date for Android calendar	Bu etkinliğin tarihi Android takvimi için geçersiz
+	No Android calendar app can add events	Etkinlik ekleyebilen bir Android takvim uygulaması yok
+	Save event	Etkinliği kaydet
+	This event is too large to share	Bu etkinlik paylaşmak için çok büyük
+	No Android app can share calendar events	Takvim etkinliklerini paylaşabilen bir Android uygulaması yok
+	This contact is too large to share	Bu kişi paylaşmak için çok büyük
+	No Android app can share contacts	Kişileri paylaşabilen bir Android uygulaması yok
 	Edit contact…	Kişiyi düzenle…
 	Send email	E-posta gönder
 	Add	Ekle
@@ -1626,3 +1655,34 @@ month	May	Mayıs
 	it can't be decrypted with your OpenPGP key	OpenPGP anahtarınızla şifresi çözülemiyor
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	OpenPGP anahtarlarınızı tarayıcı değil, MailCraft masaüstü uygulaması kullanır
 	Not sent yet: this is a draft.	Henüz gönderilmedi: bu bir taslak.
+	The selected text is too large for Android's clipboard	Seçilen metin Android panosu için çok büyük.
+	MailCraft couldn't copy text to Android's clipboard.	MailCraft metni Android panosuna kopyalayamadı.
+	The Android clipboard text is too large to paste.	Android panosundaki metin yapıştırılamayacak kadar büyük.
+	Add to Android contacts	Android kişilerine ekle
+	This contact is too large to add to Android contacts	Bu kişi Android kişilerine eklenemeyecek kadar büyük
+	No Android contacts app can add contacts	Kişi ekleyebilen bir Android kişiler uygulaması yok
+	This link has no address scheme	Bu bağlantıda adres şeması yok
+	This link is too long to open	Bu bağlantı açılamayacak kadar uzun
+	MailCraft can open web links and mail links on Android	MailCraft, Android’de web ve e-posta bağlantılarını açabilir
+	No Android app can open this link	Bu bağlantıyı açabilecek bir Android uygulaması yok
+	This phone number is too long to open	Bu telefon numarası açılamayacak kadar uzun
+	This phone number contains characters Android cannot dial	Bu telefon numarasında Android’in arayamayacağı karakterler var
+	This contact has no dialable phone number	Bu kişide aranabilir bir telefon numarası yok
+	No Android dialer app can open this number	Bu numarayı açabilecek bir Android telefon uygulaması yok
+	This contact has no address to open	Bu kişide açılacak bir adres yok
+	This address is too long to open	Bu adres açılamayacak kadar uzun
+	No Android map app can open this address	Bu adresi açabilecek bir Android harita uygulaması yok
+	MailCraft can open shared .eml, .msg, .ics, .vcf, .pst and .mailcraft files	MailCraft, paylaşılan .eml, .msg, .ics, .vcf, .pst ve .mailcraft dosyalarını açabilir
+	No Android app can open this file	Bu dosyayı açabilecek bir Android uygulaması yok
+	MailCraft's save queue is full. Wait for current saves to finish before saving more files.	MailCraft kaydetme kuyruğu dolu. Daha fazla dosya kaydetmeden önce mevcut kayıtların bitmesini bekleyin.
+	Share a single .pst or .mailcraft data file at a time	Her seferinde yalnızca bir .pst veya .mailcraft veri dosyası paylaşın
+	Choose a .pst or .mailcraft data file for this account	Bu hesap için bir .pst veya .mailcraft veri dosyası seçin
+	Android did not return a document URI for the selected file	Android seçilen dosya için belge URI’si döndürmedi
+	The selected document address is too long	Seçilen belge adresi çok uzun
+	The selected file is larger than {size} MiB	Seçilen dosya {size} MiB boyutundan büyük
+
+	Move and delete	Taşı ve sil
+	Attendees:	Katılımcılar
+	Couldn't open notification settings: {error}	Bildirim ayarları açılamadı: {error}
+	Name and email address	Ad ve e-posta adresi
+	Organizer:	Düzenleyen:

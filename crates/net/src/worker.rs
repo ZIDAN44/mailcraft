@@ -23,11 +23,15 @@ use crate::stream::Stream;
 use crate::sync::{SyncOptions, fetch_body, sync_folder_as};
 use crate::{NetError, Result, smtp};
 
+use sync::SyncCompletion;
+pub use sync::SyncWaiter;
+
 /// Sends events and wakes the UI.
 #[derive(Clone)]
 struct Sink {
     tx: Sender<Event>,
     wake: Arc<Mutex<Option<Arc<dyn Fn() + Send + Sync>>>>,
+    sync_completion: SyncCompletion,
 }
 
 impl Sink {
@@ -100,7 +104,7 @@ fn quick_job(j: &Job, acc: &AccountConfig) -> bool {
 
 /// Jobs a full sync handles between two folders rather than at its end.
 fn between_folders(j: &Job) -> bool {
-    matches!(j, Job::FetchBody { .. } | Job::Apply { .. } | Job::SearchDirectory { .. })
+    matches!(j, Job::FetchBody { .. } | Job::Apply { .. } | Job::SearchDirectory { .. } | Job::SyncAllTracked { .. })
 }
 
 /// Runs jobs for every account.
@@ -135,6 +139,7 @@ pub struct Pool {
     order: changes::Order,
     /// The drafts being filed on the server, shared with every worker (`changes/filing.rs`).
     filing: Arc<changes::Filing>,
+    sync_completion: SyncCompletion,
 }
 
 use changes::{DraftOrder, keep_draft};
@@ -162,10 +167,11 @@ pub(crate) fn now() -> i64 {
 impl Pool {
     pub fn new(store: Store, creds: Arc<dyn Credentials>) -> Pool {
         let (tx, rx) = mpsc::channel();
+        let sync_completion = SyncCompletion::default();
         Pool {
             store,
             creds,
-            sink: Sink { tx, wake: Arc::new(Mutex::new(None)) },
+            sink: Sink { tx, wake: Arc::new(Mutex::new(None)), sync_completion: sync_completion.clone() },
             rx,
             workers: HashMap::new(),
             configs: HashMap::new(),
@@ -180,6 +186,7 @@ impl Pool {
             compacts: compact::Compacts::default(),
             order: changes::Order::default(),
             filing: Arc::default(),
+            sync_completion,
         }
     }
 
@@ -372,9 +379,9 @@ impl Pool {
             // Closing with a message written: on disk before the app goes (the worker may be busy
             // or about to stop); filed on the server at the next connection, as offline drafts.
             Job::KeepDraft { account, raw, folder, replaces } => {
-                if let Err(e) = keep_draft(&self.store, &account, &folder, replaces, raw, true, &self.order) {
-                    log::warn!("{account}: the draft couldn't be kept: {e}");
-                }
+                let message_id = mailcraft_model::thread::written_message_id(&raw);
+                let error = keep_draft(&self.store, &account, &folder, replaces, raw, true, &self.order).err().map(|e| e.to_string());
+                self.sink.emit(Event::DraftSaved { account, message_id, error });
             }
             Job::SaveDraft { account, raw, folder, replaces } if !self.workers.contains_key(&account) => {
                 let message_id = mailcraft_model::thread::written_message_id(&raw);
@@ -426,14 +433,21 @@ impl Pool {
                             },
                             None => other,
                         };
-                        if h.tx.send(other).is_err() {
-                            self.sink.emit(Event::Notice {
-                                account: id,
-                                message: "the account's connection stopped; restart it from the account menu".into(),
-                            });
+                        if let Err(mpsc::SendError(job)) = h.tx.send(other) {
+                            if let Job::SyncAllTracked { request_id, .. } = job {
+                                self.sync_completion.finish(request_id, false);
+                            } else {
+                                self.sink.emit(Event::Notice {
+                                    account: id,
+                                    message: "the account's connection stopped; restart it from the account menu".into(),
+                                });
+                            }
                         }
                     }
-                    None => self.sink.emit(Event::Notice { account: id, message: "the account is not connected".into() }),
+                    None => match &other {
+                        Job::SyncAllTracked { request_id, .. } => self.sync_completion.finish(*request_id, false),
+                        _ => self.sink.emit(Event::Notice { account: id, message: "the account is not connected".into() }),
+                    },
                 }
             }
         }
@@ -666,6 +680,8 @@ struct Worker {
     /// Folders asked to keep more than the setting (Show more on the server, issue #4): how
     /// many of each (`windows.json` with the account).
     windows: HashMap<String, usize>,
+    /// Requests made by the platform scheduler, completed after the next full pass.
+    pending_sync_requests: Vec<u64>,
     /// The server search still wanted (the pool's).
     search: Arc<AtomicU64>,
 }
@@ -695,6 +711,7 @@ impl Worker {
             jstate,
             folders,
             windows,
+            pending_sync_requests: Vec::new(),
             queue: VecDeque::new(),
             rest: VecDeque::new(),
             quick: Arc::default(),
@@ -755,63 +772,6 @@ impl Worker {
                     return;
                 }
             }
-        }
-    }
-
-    fn run(mut self, rx: Receiver<Job>) {
-        self.status(SyncStatus::Connecting);
-        while !self.closed {
-            self.working(true);
-            self.drain(&rx);
-            if self.closed {
-                break;
-            }
-            self.fresh_token();
-            // Connected by the last job itself: the drafts kept here go first.
-            if self.file_next_kept() {
-                continue;
-            }
-            if let Some(job) = self.queue.pop_front() {
-                self.handle(job);
-                continue;
-            }
-            if let Some(key) = self.rest.pop_front() {
-                self.fetch_whole(key);
-                continue;
-            }
-            if self.conn.is_none() {
-                if self.auth_failed {
-                    self.working(false);
-                    match rx.recv() {
-                        Ok(j) => push_job(&mut self.queue, j),
-                        Err(_) => break,
-                    }
-                    continue;
-                }
-                let wait = self.next_attempt.saturating_duration_since(Instant::now());
-                if !wait.is_zero() {
-                    #[cfg(test)]
-                    connect::waits::began(&self.store, &self.acc.id);
-                    self.working(false);
-                    match rx.recv_timeout(wait) {
-                        Ok(j) => push_job(&mut self.queue, j),
-                        Err(RecvTimeoutError::Timeout) => {}
-                        Err(RecvTimeoutError::Disconnected) => break,
-                    }
-                    continue;
-                }
-                self.connect_and_sync();
-                continue;
-            }
-            if self.last_full.is_none_or(|t| t.elapsed() >= FULL_SYNC_EVERY) {
-                self.sync_all(&rx);
-                continue;
-            }
-            self.wait_for_mail(&rx);
-        }
-        self.keep_unsaved_drafts(&rx);
-        if let Some(Conn::Imap(c)) = self.conn.as_mut() {
-            c.logout();
         }
     }
 }

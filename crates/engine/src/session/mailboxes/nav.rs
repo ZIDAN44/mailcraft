@@ -301,7 +301,8 @@ impl Session {
 
     /// The conversation a message is in, shown above it in the reading pane: only while the list
     /// is grouped by conversation (as Outlook's reading pane shows one message otherwise).
-    pub(crate) fn thread_of(&self, key: &MessageKey) -> Vec<MessageKey> {
+    /// The messages grouped with `key` in the current list, or none when conversations are off.
+    pub fn thread_of(&self, key: &MessageKey) -> Vec<MessageKey> {
         if !self.prefs.conversations {
             return Vec::new();
         }

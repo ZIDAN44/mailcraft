@@ -60,6 +60,7 @@
 	Delete “{folder}”?	למחוק את „{folder}”?
 	Deleted Items	פריטים שנמחקו
 	Discard	בטל
+	Discard these changes?	להשליך את השינויים האלה?
 	Disconnected: {error}	החיבור נותק: {error}
 	Document	מסמך
 	Don't run later rules on mail this one matches	אל תפעיל כללים נוספים על דואר שהכלל הזה תואם
@@ -385,6 +386,11 @@
 	Google (IMAP)	Google (IMAP)
 	I'm away until…	אני לא זמין עד…
 	Inbox and notifications	דואר נכנס והתראות
+	Android notifications are off. Turn them on in Settings for new mail and calendar reminders.	ההתראות של Android כבויות. יש להפעיל אותן בהגדרות כדי לקבל התראות על הודעות חדשות ותזכורות מהיומן.
+	Settings	הגדרות
+	Android's encrypted credential store is unavailable. MailCraft will keep credentials in memory until it closes.	אחסון פרטי ההתחברות המוצפן של Android אינו זמין. MailCraft תשמור את פרטי ההתחברות בזיכרון עד לסגירתה.
+	The Android file picker couldn't open. In Files, choose Share → MailCraft to use the file.	לא ניתן לפתוח את בורר הקבצים של Android. באפליקציית הקבצים, בחרו בשיתוף → MailCraft כדי להשתמש בקובץ.
+	MailCraft couldn't save the file. Try again.	MailCraft לא הצליח לשמור את הקובץ. נסו שוב.
 	Info	מידע
 	Kept on this computer: {size}	שמור במחשב הזה: {size}
 	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft מתחבר רק לשרתי הדואר שלך, בחיבורים מוצפנים. תמונות מהאינטרנט נטענות רק כשאתה מבקש.
@@ -765,6 +771,8 @@ month	May	מאי
 	Mail from an old .pst or .mailcraft file comes in first	הדואר מקובץ ‎.pst או ‎.mailcraft ישן נכנס קודם
 	Open a data file	פתח קובץ נתונים
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	ייבא קובץ נתונים של Outlook ‏(.pst) או של MailCraft ‏(.mailcraft). הוא נפתח כתיבת דואר נפרדת עם התיקיות שלה, ונשמר במחשב זה.
+	You can also open a message (.eml or .msg), calendar (.ics) or contacts (.vcf) file.	אפשר גם לפתוח קובץ הודעה (.eml או .msg), לוח שנה (.ics) או אנשי קשר (.vcf).
+	The file {name} could run a program, so it isn't opened from here; save it and check it first.	הקובץ {name} עלול להפעיל תוכנית, לכן הוא לא נפתח מכאן. שמרו אותו ובדקו אותו תחילה.
 	Move up	העבר למעלה
 	Move down	העבר למטה
 	Updating…	מעדכן…
@@ -877,6 +885,27 @@ month	May	מאי
 	 and {n} more	 ועוד {n}
 	Add to contacts…	הוספה לאנשי הקשר…
 	Copy address	העתקת הכתובת
+	Copy phone number	העתקת מספר הטלפון
+	Share contact	שיתוף איש קשר
+	Share attachment	שיתוף קובץ מצורף
+	Share message	שיתוף ההודעה
+	Share selected attachments	שיתוף הקבצים המצורפים שנבחרו
+	The selected attachments are too large to share	הקבצים המצורפים שנבחרו גדולים מדי לשיתוף
+	You can share up to {n} attachments at once	אפשר לשתף עד {n} קבצים מצורפים בכל פעם
+	This attachment is too large to share	הקובץ המצורף גדול מדי לשיתוף
+	This message is too large to share	ההודעה גדולה מדי לשיתוף
+	No Android app can share files	אין אפליקציית Android שיכולה לשתף קבצים
+	Save contact	שמירת איש קשר
+	Share event	שיתוף אירוע
+	Add to Android calendar	הוספה ליומן Android
+	This event is too large to add to Android calendar	האירוע גדול מדי להוספה ליומן Android
+	This event has an invalid date for Android calendar	התאריך של האירוע אינו תקין ליומן Android
+	No Android calendar app can add events	אין אפליקציית יומן Android שיכולה להוסיף אירועים
+	Save event	שמירת אירוע
+	This event is too large to share	האירוע גדול מדי לשיתוף
+	No Android app can share calendar events	אין אפליקציית Android שיכולה לשתף אירועי יומן
+	This contact is too large to share	איש הקשר גדול מדי לשיתוף
+	No Android app can share contacts	אין אפליקציית Android שיכולה לשתף אנשי קשר
 	Edit contact…	עריכת איש הקשר…
 	Send email	שליחת דואר
 	Add	הוספה
@@ -1621,3 +1650,34 @@ month	May	מאי
 	it can't be decrypted with your OpenPGP key	אי אפשר לפענח אותה במפתח OpenPGP שלך
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	מפתחות OpenPGP שלך משמשים באפליקציה של MailCraft לשולחן העבודה, לא בדפדפן
 	Not sent yet: this is a draft.	עדיין לא נשלח: זוהי טיוטה.
+	The selected text is too large for Android's clipboard	הטקסט שנבחר גדול מדי להעתקה ללוח הגזירים של Android.
+	MailCraft couldn't copy text to Android's clipboard.	MailCraft לא הצליחה להעתיק את הטקסט ללוח הגזירים של Android.
+	The Android clipboard text is too large to paste.	הטקסט בלוח הגזירים של Android גדול מדי להדבקה.
+	Add to Android contacts	הוספה לאנשי הקשר של Android
+	This contact is too large to add to Android contacts	איש הקשר גדול מדי להוספה לאנשי הקשר של Android
+	No Android contacts app can add contacts	אין אפליקציית אנשי קשר של Android שיכולה להוסיף אנשי קשר
+	This link has no address scheme	בקישור הזה חסרה סכמת כתובת
+	This link is too long to open	הקישור ארוך מדי לפתיחה
+	MailCraft can open web links and mail links on Android	MailCraft יכולה לפתוח קישורי אינטרנט וקישורי דואר ב-Android
+	No Android app can open this link	אין אפליקציית Android שיכולה לפתוח את הקישור הזה
+	This phone number is too long to open	מספר הטלפון ארוך מדי לפתיחה
+	This phone number contains characters Android cannot dial	מספר הטלפון מכיל תווים ש-Android לא יכול לחייג
+	This contact has no dialable phone number	לאיש הקשר אין מספר טלפון שניתן לחייג אליו
+	No Android dialer app can open this number	אין אפליקציית חיוג ב-Android שיכולה לפתוח את המספר הזה
+	This contact has no address to open	לאיש הקשר אין כתובת לפתיחה
+	This address is too long to open	הכתובת ארוכה מדי לפתיחה
+	No Android map app can open this address	אין אפליקציית מפות ב-Android שיכולה לפתוח את הכתובת הזו
+	MailCraft can open shared .eml, .msg, .ics, .vcf, .pst and .mailcraft files	MailCraft יכולה לפתוח קבצים משותפים מסוג .eml, .msg, .ics, .vcf, .pst ו-.mailcraft
+	No Android app can open this file	אין אפליקציית Android שיכולה לפתוח את הקובץ הזה
+	MailCraft's save queue is full. Wait for current saves to finish before saving more files.	תור השמירה של MailCraft מלא. יש להמתין לסיום השמירות הנוכחיות לפני שמירת קבצים נוספים.
+	Share a single .pst or .mailcraft data file at a time	יש לשתף בכל פעם קובץ נתונים יחיד מסוג .pst או .mailcraft
+	Choose a .pst or .mailcraft data file for this account	יש לבחור קובץ נתונים מסוג .pst או .mailcraft עבור החשבון הזה
+	Android did not return a document URI for the selected file	Android לא החזיר כתובת URI של המסמך עבור הקובץ שנבחר
+	The selected document address is too long	כתובת המסמך שנבחר ארוכה מדי
+	The selected file is larger than {size} MiB	הקובץ שנבחר גדול מ-{size} MiB
+
+	Move and delete	העברה ומחיקה
+	Attendees:	משתתפים
+	Couldn't open notification settings: {error}	לא ניתן לפתוח את הגדרות ההתראות: {error}
+	Name and email address	שם וכתובת דוא״ל
+	Organizer:	מארגן:

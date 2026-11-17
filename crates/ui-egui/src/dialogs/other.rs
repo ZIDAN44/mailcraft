@@ -2,10 +2,33 @@
 
 use super::*;
 
-pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pictures, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub(super) fn draw(
+    ui: &mut Ui,
+    d: &mut Dialog,
+    s: &Session,
+    pics: &mut crate::reading::Pictures,
+    t: &Tokens,
+    can_open_map: bool,
+    can_share_calendar_events: bool,
+    can_export_calendar_events: bool,
+    can_add_to_system_calendar: bool,
+    acts: &mut Vec<Action>,
+) -> bool {
     match d {
+        Dialog::DiscardForm(form) => {
+            set_dialog_width(ui, 380.0);
+            title(ui, t, "Discard these changes?");
+            let (discard, cancel) = buttons(ui, t, "Discard", true);
+            if discard {
+                return false;
+            }
+            if cancel {
+                *d = (**form).clone();
+            }
+            true
+        }
         Dialog::ConfirmDeleteContact { uid, name } => {
-            ui.set_width(380.0);
+            set_dialog_width(ui, 380.0);
             if name.trim().is_empty() {
                 title(ui, t, "Delete this contact?");
             } else {
@@ -22,6 +45,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
         Dialog::PicturePreview { key, index, name } => {
             let w = (ui.ctx().content_rect().width() * 0.75).clamp(360.0, 1200.0);
             let h = (ui.ctx().content_rect().height() * 0.7).max(240.0);
+            let w = dialog_width(ui, w);
             ui.set_width(w);
             title(ui, t, name);
             match pics.get(key, *index, crate::reading::Want::Big) {
@@ -48,6 +72,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
         }
         Dialog::Preview { title: name, header, text, warning } => {
             let w = (ui.ctx().content_rect().width() * 0.7).clamp(360.0, 900.0);
+            let w = dialog_width(ui, w);
             ui.set_width(w);
             title(ui, t, name);
             if let Some(warning) = warning {
@@ -71,7 +96,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             close_row(ui)
         }
         Dialog::Certificate { account, path, data, password } => {
-            ui.set_width(420.0);
+            set_dialog_width(ui, 420.0);
             let unlock = path.is_empty() && data.is_none();
             title(ui, t, if unlock { "Unlock certificate" } else { "Import certificate" });
             let file = path.rsplit(['/', '\\']).next().unwrap_or(path.as_str()).to_string();
@@ -111,7 +136,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             let (ok, cancel) = buttons(ui, t, if unlock { "Unlock" } else { "Import" }, true);
             if ok || enter {
                 let params = match data {
-                    Some(d) => json!({"account": account, "data": d, "password": password}),
+                    Some(d) => json!({"account": account, "dataBase64": crate::binary_base64(d), "password": password}),
                     None if unlock => json!({"account": account, "kept": true, "password": password}),
                     None => json!({"account": account, "path": path, "password": password}),
                 };
@@ -120,8 +145,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             }
             !cancel
         }
-        Dialog::PgpKey { account, path, passphrase } => {
-            ui.set_width(420.0);
+        Dialog::PgpKey { account, path, data, passphrase } => {
+            set_dialog_width(ui, 420.0);
             title(ui, t, "Import OpenPGP key");
             let file = path.rsplit(['/', '\\']).next().unwrap_or(path.as_str()).to_string();
             let ask = tf!("The passphrase {file} is locked with (none, if it has none):", file = file);
@@ -143,14 +168,18 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             );
             let (ok, cancel) = buttons(ui, t, "Import", true);
             if ok || enter {
-                acts.push(Action::Run("pgp.import", json!({"account": account, "path": path, "passphrase": passphrase})));
+                let params = match data {
+                    Some(data) => json!({"account": account, "dataBase64": crate::binary_base64(data), "passphrase": passphrase}),
+                    None => json!({"account": account, "path": path, "passphrase": passphrase}),
+                };
+                acts.push(Action::Run("pgp.import", params));
                 return false;
             }
             !cancel
         }
         Dialog::SmartCard { account, module, pin, system } => smart_card(ui, s, t, acts, account, module, pin, *system),
         Dialog::OpenSharedCalendar { email, error } => {
-            ui.set_width(420.0);
+            set_dialog_width(ui, 420.0);
             title(ui, t, "Open a shared calendar");
             ui.add(
                 egui::Label::new(
@@ -177,7 +206,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             !cancel
         }
         Dialog::SubscribeCalendar { url, name, error } => {
-            ui.set_width(440.0);
+            set_dialog_width(ui, 440.0);
             title(ui, t, "Subscribe to a calendar");
             ui.add(
                 egui::Label::new(
@@ -209,7 +238,9 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             }
             !cancel
         }
-        Dialog::Event(f) => crate::pim_dialogs::event(ui, f, t, acts),
+        Dialog::Event(f) => {
+            crate::pim_dialogs::event(ui, f, t, can_open_map, can_share_calendar_events, can_export_calendar_events, can_add_to_system_calendar, acts)
+        }
         Dialog::Task(f) => crate::pim_dialogs::task(ui, f, t, acts),
         Dialog::Contact(f) => crate::pim_dialogs::contact(ui, f, t, acts),
         // Every other kind is shown by its own group (`body`).
@@ -228,7 +259,7 @@ fn smart_card(
     pin: &mut String,
     system: bool,
 ) -> bool {
-    ui.set_width(460.0);
+    set_dialog_width(ui, 460.0);
     if system {
         title(ui, t, if cfg!(windows) { "Use a certificate from Windows" } else { "Use a certificate from the Keychain" });
         ui.add(
@@ -292,7 +323,7 @@ fn held_keys(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, accou
                     ui.label(RichText::new(format!("{who} · {} · {}", info.issuer, info.key)).color(t.faint).small());
                 }
             });
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
                 if ui.button(tl!("Use")).clicked() {
                     acts.push(Action::Run("security.useKey", json!({"account": account, "index": i})));
                     chosen = true;

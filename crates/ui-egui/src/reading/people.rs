@@ -29,7 +29,7 @@ pub(super) fn person_menus(s: &Session, t: &Tokens, r: &egui::Response, a: &Emai
         return;
     }
     let known = known_contact(s, &a.email);
-    egui::Popup::menu(r).id(r.id.with("card")).show(|ui| contact_card(ui, t, a, known, acts));
+    crate::bidi::popup_menu(r).id(r.id.with("card")).show(|ui| contact_card(ui, t, a, known, acts));
     r.context_menu(|ui| {
         if ui.button(tl!("Send email")).clicked() {
             acts.push(Action::Run("mail.new", json!({"to": a.to_string()})));

@@ -19,121 +19,130 @@ pub fn dot(ui: &mut Ui, color: u8, dark: bool) {
 /// keywords that aren't in the list (another program's tags) too, by their keyword; make a new
 /// one, or see them all (Outlook's All Categories).
 pub fn categorize_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
-    let first = s.first_selected();
-    for c in &s.prefs.categories {
-        let on = first.as_ref().is_some_and(|m| m.flags.has(&c.keyword));
-        let clicked = ui
-            .horizontal(|ui| {
-                dot(ui, c.color, t.dark);
-                ui.selectable_label(on, tl!(&c.name)).clicked()
-            })
-            .inner;
-        if clicked {
-            acts.push(Action::Run("mail.categorize", json!({"category": c.name, "on": !on})));
+    crate::bidi::menu_contents(ui, |ui| {
+        let first = s.first_selected();
+        for c in &s.prefs.categories {
+            let on = first.as_ref().is_some_and(|m| m.flags.has(&c.keyword));
+            let clicked = ui
+                .with_layout(crate::bidi::row_from_start(egui::Align::Center), |ui| {
+                    dot(ui, c.color, t.dark);
+                    ui.selectable_label(on, tl!(&c.name)).clicked()
+                })
+                .inner;
+            if clicked {
+                acts.push(Action::Run("mail.categorize", json!({"category": c.name, "on": !on})));
+                ui.close();
+            }
+        }
+        let unlisted: Vec<_> = first
+            .as_ref()
+            .map(|m| s.categories_of(m))
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|c| s.category_with_keyword(&c.keyword).is_none())
+            .collect();
+        for c in unlisted {
+            let clicked = ui
+                .with_layout(crate::bidi::row_from_start(egui::Align::Center), |ui| {
+                    dot(ui, c.color, t.dark);
+                    ui.selectable_label(true, c.name.as_str()).on_hover_text(tl!("Not in the category list")).clicked()
+                })
+                .inner;
+            if clicked {
+                acts.push(Action::Run("mail.categorize", json!({"keyword": c.keyword, "on": false})));
+                ui.close();
+            }
+        }
+        ui.separator();
+        if ui.button(tl!("New category…")).clicked() {
+            acts.push(Action::Dialog(Dialog::new_category(s)));
             ui.close();
         }
-    }
-    let unlisted: Vec<_> = first
-        .as_ref()
-        .map(|m| s.categories_of(m))
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|c| s.category_with_keyword(&c.keyword).is_none())
-        .collect();
-    for c in unlisted {
-        let clicked = ui
-            .horizontal(|ui| {
-                dot(ui, c.color, t.dark);
-                ui.selectable_label(true, c.name.as_str()).on_hover_text(tl!("Not in the category list")).clicked()
-            })
-            .inner;
-        if clicked {
-            acts.push(Action::Run("mail.categorize", json!({"keyword": c.keyword, "on": false})));
+        if ui.button(tl!("All categories…")).clicked() {
+            acts.push(Action::Dialog(Dialog::Categories));
             ui.close();
         }
-    }
-    ui.separator();
-    if ui.button(tl!("New category…")).clicked() {
-        acts.push(Action::Dialog(Dialog::new_category(s)));
-        ui.close();
-    }
-    if ui.button(tl!("All categories…")).clicked() {
-        acts.push(Action::Dialog(Dialog::Categories));
-        ui.close();
-    }
+    });
 }
 
 /// The Snooze menu: the usual times, shown in local time.
 pub fn snooze_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
-    for p in SnoozeUntil::ALL {
-        let at = p.at(&s.clock);
-        let when = dates::full_time(at, &s.clock);
-        let clicked = ui
-            .horizontal(|ui| {
-                let r = ui.selectable_label(false, tl!(p.label()));
-                ui.label(RichText::new(crate::i18n::date(&when)).color(t.faint).small());
-                r.clicked()
-            })
-            .inner;
-        if clicked {
-            acts.push(Action::Run("mail.snooze", json!({"preset": p.code()})));
-            ui.close();
+    crate::bidi::menu_contents(ui, |ui| {
+        for p in SnoozeUntil::ALL {
+            let at = p.at(&s.clock);
+            let when = dates::full_time(at, &s.clock);
+            let clicked = ui
+                .with_layout(crate::bidi::row_from_start(egui::Align::Center), |ui| {
+                    let r = ui.selectable_label(false, tl!(p.label()));
+                    ui.label(RichText::new(crate::i18n::date(&when)).color(t.faint).small());
+                    r.clicked()
+                })
+                .inner;
+            if clicked {
+                acts.push(Action::Run("mail.snooze", json!({"preset": p.code()})));
+                ui.close();
+            }
         }
-    }
+    });
 }
 
 /// The Follow Up menu, as Outlook's: flag for today, tomorrow, this week, next week or no day
 /// (each with its date), Mark complete, Clear flag.
 pub fn follow_up_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
-    for f in dates::FollowUp::ALL {
-        let label = crate::i18n::date(&dates::day_text(f.due(&s.clock), &s.clock));
-        let clicked = ui
-            .horizontal(|ui| {
-                let r = ui.selectable_label(false, tl!(f.label()));
-                ui.label(RichText::new(label).color(t.faint).small());
-                r.clicked()
-            })
-            .inner;
-        if clicked {
-            acts.push(Action::Run("mail.flag", json!({"due": f.code()})));
+    crate::bidi::menu_contents(ui, |ui| {
+        for f in dates::FollowUp::ALL {
+            let label = crate::i18n::date(&dates::day_text(f.due(&s.clock), &s.clock));
+            let clicked = ui
+                .horizontal(|ui| {
+                    let r = ui.selectable_label(false, tl!(f.label()));
+                    ui.label(RichText::new(label).color(t.faint).small());
+                    r.clicked()
+                })
+                .inner;
+            if clicked {
+                acts.push(Action::Run("mail.flag", json!({"due": f.code()})));
+                ui.close();
+            }
+        }
+        if ui.selectable_label(false, tl!("No date")).clicked() {
+            acts.push(Action::Run("mail.flag", json!({"due": "none"})));
             ui.close();
         }
-    }
-    if ui.selectable_label(false, tl!("No date")).clicked() {
-        acts.push(Action::Run("mail.flag", json!({"due": "none"})));
-        ui.close();
-    }
-    ui.separator();
-    let flagged = s.selected_iter().any(|m| m.flags.flagged);
-    if ui.add_enabled(flagged, egui::Button::new(tl!("Mark complete"))).clicked() {
-        acts.push(Action::Run("mail.flag", json!({"complete": true})));
-        ui.close();
-    }
-    if ui.add_enabled(flagged, egui::Button::new(tl!("Clear flag"))).clicked() {
-        acts.push(Action::Run("mail.flag", json!({"on": false})));
-        ui.close();
-    }
+        ui.separator();
+        let flagged = s.selected_iter().any(|m| m.flags.flagged);
+        if ui.add_enabled(flagged, egui::Button::new(tl!("Mark complete"))).clicked() {
+            acts.push(Action::Run("mail.flag", json!({"complete": true})));
+            ui.close();
+        }
+        if ui.add_enabled(flagged, egui::Button::new(tl!("Clear flag"))).clicked() {
+            acts.push(Action::Run("mail.flag", json!({"on": false})));
+            ui.close();
+        }
+    });
 }
 
 /// Every organising item of the message context menu.
 pub fn context_items(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, pinned: bool) {
-    ui.menu_button(tl!("Categorize"), |ui| categorize_menu(ui, s, t, acts));
-    if ui.button(tl!(if pinned { "Unpin" } else { "Pin" })).clicked() {
-        acts.push(Action::Run("mail.pin", json!({"on": !pinned})));
-        ui.close();
-    }
-    ui.menu_button(tl!("Snooze"), |ui| snooze_menu(ui, s, t, acts));
-    if s.focus_split() {
-        let (id, label) = if s.focus_other { ("mail.moveToFocused", "Always move to Focused") } else { ("mail.moveToOther", "Always move to Other") };
-        if ui.button(tl!(label)).clicked() {
-            acts.push(Action::Run(id, json!({})));
+    crate::bidi::menu_contents(ui, |ui| {
+        crate::bidi::menu_button(ui, tl!("Categorize"), |ui| categorize_menu(ui, s, t, acts));
+        if ui.button(tl!(if pinned { "Unpin" } else { "Pin" })).clicked() {
+            acts.push(Action::Run("mail.pin", json!({"on": !pinned})));
             ui.close();
         }
-    }
-    if let Some(m) = s.first_selected()
-        && ui.button(tl!("Create rule…")).clicked()
-    {
-        acts.push(Action::Dialog(Dialog::rule_from(&m.from.email, &m.subject)));
-        ui.close();
-    }
+        crate::bidi::menu_button(ui, tl!("Snooze"), |ui| snooze_menu(ui, s, t, acts));
+        if s.focus_split() {
+            let (id, label) =
+                if s.focus_other { ("mail.moveToFocused", "Always move to Focused") } else { ("mail.moveToOther", "Always move to Other") };
+            if ui.button(tl!(label)).clicked() {
+                acts.push(Action::Run(id, json!({})));
+                ui.close();
+            }
+        }
+        if let Some(m) = s.first_selected()
+            && ui.button(tl!("Create rule…")).clicked()
+        {
+            acts.push(Action::Dialog(Dialog::rule_from(&m.from.email, &m.subject)));
+            ui.close();
+        }
+    });
 }

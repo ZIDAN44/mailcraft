@@ -19,6 +19,15 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
+/// Maximum size of an individual attachment or the attachments in one message.
+pub const MAX_ATTACHMENT_BYTES: usize = 25 << 20;
+/// Maximum size of a message file opened by the app.
+pub const MAX_MAIL_FILE_BYTES: u64 = 64 << 20;
+/// Maximum size of a calendar or contacts file opened by the app.
+pub const MAX_PIM_FILE_BYTES: u64 = 16 << 20;
+/// Maximum size of an account data archive imported by the app.
+pub const MAX_DATA_ARCHIVE_BYTES: u64 = 4 << 30;
+
 pub use mailcraft_mime as mime;
 pub use mailcraft_model as model;
 pub use mailcraft_pgp as pgp;
@@ -134,6 +143,7 @@ impl Registry {
 
 /// Parameter helpers.
 pub mod p {
+    use base64::Engine as _;
     use serde_json::Value;
 
     use crate::CmdError;
@@ -152,6 +162,37 @@ pub mod p {
     }
     pub fn i64(v: &Value, k: &str) -> Option<i64> {
         v.get(k).and_then(|x| x.as_i64().or_else(|| x.as_f64().filter(|f| f.is_finite() && f.abs() < 9.0e15).map(|f| f as i64)))
+    }
+
+    /// Read bounded binary command data from compact base64 or the older byte-array form.
+    pub fn bytes(v: &Value, k: &str, max: usize) -> Result<Option<Vec<u8>>, CmdError> {
+        let encoded_key = format!("{k}Base64");
+        if let Some(value) = v.get(&encoded_key) {
+            let encoded = value.as_str().ok_or_else(|| CmdError::Params(format!("`{encoded_key}` must be a base64 string")))?;
+            let max_encoded = (max.saturating_add(2) / 3).saturating_mul(4);
+            if encoded.len() > max_encoded {
+                return Err(CmdError::Failed("the supplied file is too large".into()));
+            }
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(encoded)
+                .map_err(|_| CmdError::Params(format!("`{encoded_key}` must be valid base64")))?;
+            if bytes.len() > max {
+                return Err(CmdError::Failed("the supplied file is too large".into()));
+            }
+            return Ok(Some(bytes));
+        }
+        let Some(value) = v.get(k) else { return Ok(None) };
+        let Some(array) = value.as_array() else {
+            return Err(CmdError::Params(format!("`{k}` must be a byte array or `{encoded_key}` must be base64")));
+        };
+        if array.len() > max {
+            return Err(CmdError::Failed("the supplied file is too large".into()));
+        }
+        let bytes = array
+            .iter()
+            .map(|value| value.as_u64().and_then(|byte| u8::try_from(byte).ok()).ok_or_else(|| CmdError::Params(format!("`{k}` must be bytes"))))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(Some(bytes))
     }
 }
 

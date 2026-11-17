@@ -10,13 +10,13 @@ fn show(i: &mailcraft_pgp::KeyInfo) -> Value {
     })
 }
 
-/// A file's bytes given as `data` (the browser's picker), else read from `path`.
-fn file(v: &Value, max: u64) -> Result<Vec<u8>, CmdError> {
-    if let Some(data) = v.get("data").filter(|d| d.is_array()) {
-        return serde_json::from_value(data.clone()).map_err(|_| CmdError::Params("`data`: the file's bytes".into()));
+/// A file's bytes given by the UI, else read from `path`.
+fn file(v: &Value, max: usize) -> Result<Vec<u8>, CmdError> {
+    if let Some(data) = p::bytes(v, "data", max)? {
+        return Ok(data);
     }
     let path = p::req_str(v, "path")?.trim().to_string();
-    read_capped(&path, max)
+    read_capped(&path, max as u64)
 }
 
 pub(super) fn commands() -> Vec<CommandSpec> {
@@ -27,7 +27,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let data = file(v, 1 << 20)?;
             s.import_pgp_key_data(&account, data, &passphrase)
         })
-        .params(r#"{"path": string (a secret key file: .asc, .gpg, .key), "data"?: [bytes] (the file itself, in place of path), "passphrase"?: string, "account"?: string}"#),
+        .params(r#"{"path": string (a secret key file: .asc, .gpg, .key), "data"?: [bytes] | "dataBase64"?: string (the file itself, in place of path), "passphrase"?: string, "account"?: string}"#),
         CommandSpec::new("pgp.keys", "OpenPGP keys", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             let settings = s.pgp_settings(&account);
@@ -59,7 +59,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let data = file(v, 8 << 20)?;
             s.import_public_keys_data(&account, &data)
         })
-        .params(r#"{"path": string (a public key file, armored or binary, one key or many), "data"?: [bytes], "account"?: string}"#),
+        .params(r#"{"path": string (a public key file, armored or binary, one key or many), "data"?: [bytes] | "dataBase64"?: string, "account"?: string}"#),
         CommandSpec::new("pgp.importAttached", "Import key", "Reading pane › Attachments", |s, v| {
             let index = p::u64(v, "index").ok_or_else(|| CmdError::Params("`index`: which attachment".into()))?;
             let data = s.attachment_bytes(usize::try_from(index).unwrap_or(usize::MAX))?;

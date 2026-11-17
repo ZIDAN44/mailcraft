@@ -22,12 +22,16 @@ macro_rules! tf {
 }
 
 mod a11y;
+mod actions;
 mod app;
 mod dialogs;
+mod file_types;
 pub mod i18n;
 mod keytips;
 mod look;
+mod mailto;
 mod panes;
+mod persisted;
 mod reading;
 mod rich_edit;
 mod services;
@@ -48,14 +52,21 @@ use mailcraft_engine::model::{MessageKey, SyncStatus};
 use mailcraft_engine::{CalMode, Module, ReadingPane, SearchScope, Session};
 use serde_json::{Value, json};
 
+pub use actions::{Action, RibbonTab};
 pub use app::caption::take_zooming;
 pub use app::{BootCard, ClipboardRead, WindowPlace, after_open, alt_code_pages, alt_codes, clipboard_keys};
 pub(crate) use app::{SearchDrop, junk_menu, scope_label};
 pub use dialogs::Dialog;
+pub(crate) use file_types::{is_message_or_pim_file, is_outlook_data_file, is_outlook_message_file};
 
 /// MailCraft's id: the Linux app id (its `.desktop` file and icon are named so), the macOS bundle
 /// id and the Windows notifications' app id.
 pub const APP_ID: &str = "ai.storyteller.mailcraft";
+
+pub(crate) fn binary_base64(data: &[u8]) -> String {
+    use base64::Engine as _;
+    base64::engine::general_purpose::STANDARD.encode(data)
+}
 
 /// A window of MailCraft's own beyond the main one (a message being written, one popped out, a
 /// message's source), carrying [`APP_ID`]: without it a Wayland dock shows no icon for it and a
@@ -64,7 +75,7 @@ pub(crate) fn os_window() -> egui::ViewportBuilder {
     egui::ViewportBuilder::default().with_app_id(APP_ID)
 }
 use icons::Icon;
-pub use services::{Backend, InstallAsks, Lane, NullBackend, NullServices, Services, UpdateState, Work};
+pub use services::{Backend, InstallAsks, Lane, NotificationTarget, NullBackend, NullServices, Services, UpdateState, Work};
 use theme::Tokens;
 
 /// Whether the message being written shows in the reading pane: when it isn't popped out, or
@@ -109,145 +120,6 @@ pub(crate) fn use_editor(st: &mut UiState, id: u64) {
     st.editor = st.editors.remove(&id);
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RibbonTab {
-    Home,
-    SendReceive,
-    View,
-    /// While searching, as Outlook's Search tab: the scope, terms to narrow it, Close Search.
-    Search,
-}
-
-/// Something a pane asks for; run after drawing so panes only borrow what they read.
-pub enum Action {
-    Run(&'static str, Value),
-    /// Close MailCraft though online-only accounts hold unsent mail or changes (issue #4).
-    CloseAnyway,
-    /// Close, install the downloaded version, and open it.
-    RestartToUpdate,
-    /// Closing, with the update asked about: installed as MailCraft closes (true), or kept for
-    /// later (false).
-    UpdateOnClose(bool),
-    /// Closing, with a data file to compact: that account's compacted first, MailCraft closing
-    /// once it's done (`Some`), or closed now (`None`). The account rides in the action: the
-    /// dialog that asked is gone by the time it runs.
-    CompactOnClose(Option<String>),
-    Open(MessageKey),
-    Dialog(Dialog),
-    /// An action from one message's window: done to that message (several can be written at
-    /// once, each in a window of its own).
-    ForCompose(u64, Box<Action>),
-    OpenAttachment(usize),
-    SaveAttachment(usize),
-    AttachFiles,
-    FocusSearch,
-    /// Make a note and write on it.
-    NewNote,
-    /// A note's file (by its place among the note's files): opened in another app, or saved
-    /// where asked.
-    NoteFile {
-        uid: String,
-        index: usize,
-        open: bool,
-    },
-    /// Search every folder for this (shown in the box, with the Search tab).
-    Search(String),
-    SetDark(Option<bool>),
-    /// Print the open message (as a PDF opened in the system's viewer).
-    Print,
-    /// Save the open message as a PDF, or as its `.eml` source.
-    ExportPdf,
-    SaveMessage,
-    /// Open an attachment in a Craft app (its command name).
-    OpenInCraft(usize, &'static str),
-    /// Save every attachment of the open message into a folder.
-    SaveAll,
-    /// Save some attachments of the open message (by index) into a folder.
-    SaveAttachments(Vec<usize>),
-    /// The rules to a file, or rules from one (Outlook's Export and Import Rules).
-    ExportRules,
-    ImportRules,
-    /// The category list to a file, or categories from one.
-    ExportCategories,
-    ImportCategories,
-    /// Pick a `.p12` / `.pfx` file for an account's certificate, then ask its password.
-    ImportCertificate(String),
-    /// The browser: open the account's certificate it keeps, with its password, for this page.
-    UnlockCertificate(String),
-    /// Pick an OpenPGP secret key file for an account, then ask its passphrase.
-    ImportPgpKey(String),
-    /// Pick a file of correspondents' OpenPGP keys for an account, and keep them.
-    ImportPublicKey(String),
-    /// Choose a certificate on a smart card (or in the system's keychain) for an account.
-    UseSmartCard(String),
-    /// Choose one of the system's own certificates (Windows' store, the macOS Keychain).
-    UseSystemCertificate(String),
-    /// Sign an account in again: the browser for OAuth accounts, else the password dialog.
-    SignInAgain(String),
-    /// Insert a picture at the cursor of the message being written (from a file).
-    InsertPicture,
-    /// A signature of the account (by name; `None`: the one in it, else its own for this kind
-    /// of message) into the message being written: in place of the one there, else at the cursor.
-    InsertSignature(Option<String>),
-    /// Paste a picture from the clipboard, if there is one.
-    PastePicture,
-    /// A picture into the signature being edited: from a file, or (`paste`) the clipboard's.
-    SignaturePicture {
-        paste: bool,
-    },
-    /// A signature saved as a web page (an Outlook `.htm` signature) as the one being edited's
-    /// HTML code, with the pictures beside it.
-    SignatureFile,
-    /// The text's right-click Paste: files on the clipboard are attached.
-    PasteFiles,
-    /// Choose the interface language (`auto` or a code).
-    SetLanguage(String),
-    /// Open the signature editor for an account (`insert`: from a message, putting it in).
-    EditSignature {
-        account: String,
-        insert: bool,
-    },
-    /// A link in a message was clicked (web pages open in the browser; `mailto:` starts a message).
-    OpenUrl(String),
-    /// Run a command for the open dialog: it closes on success and shows the error otherwise.
-    Submit(&'static str, Value),
-    /// Bring the main window to the front (after acting from a message window).
-    FocusMain,
-    /// Open the File page at a page.
-    Backstage(backstage::Page),
-    /// An attachment is being dragged out of the window: hand it to the system as a file.
-    DragOut(usize),
-    /// Choose an Outlook data file and look at it before it's imported.
-    OpenDataFile,
-    /// Import the data file at `path` (`again`: though it's open as another account already;
-    /// `changes`: what becomes of a file changed since MailCraft's copy of it was read, "read"
-    /// or "keep"; `take_over`: its copy is an account in another MailCraft data folder, and
-    /// becomes this one's).
-    ImportDataFile {
-        path: String,
-        again: bool,
-        changes: Option<&'static str>,
-        take_over: bool,
-    },
-    /// Show how an account's import is going, beside the status bar.
-    ImportDetails(String),
-    /// Choose an existing data file for the account being added (its mail comes in first).
-    PickAccountDataFile,
-    /// An action from a message's own window, on that message (its attachments, Save As, Print).
-    InWindow(MessageKey, Box<Action>),
-    /// Choose where to write an account's mail as an Outlook data file.
-    ExportDataFile(String),
-    /// Show a folder in the system's file manager.
-    OpenFolder(PathBuf),
-    /// Choose a folder to move MailCraft's data into (at the next start).
-    MoveDataFolder,
-    /// Show one message formatted (true) or as plain text, whatever the setting for all mail
-    /// says (that stays as it is).
-    ShowFormatted(MessageKey, bool),
-    /// Forget a move asked for.
-    CancelDataMove,
-}
-
 /// UI-only state.
 pub struct UiState {
     /// Where the main window, the last message window and the last compose window were.
@@ -275,6 +147,14 @@ pub struct UiState {
     pub(crate) close_asked: bool,
     /// Data files compacted: when the user last did anything, and compacting as MailCraft closes.
     pub(crate) compact: app::compacting::CompactUi,
+    /// The folder pane temporarily opened from the narrow-window navigation strip.
+    pub mobile_folder_open: bool,
+    /// The phone layout shows one mail surface at a time: list or open message.
+    pub(crate) phone_reader_open: bool,
+    /// Whether the compact phone action row has expanded the full ribbon.
+    pub(crate) phone_actions_open: bool,
+    /// Responsive layout, refreshed at the start of each frame.
+    pub(crate) phone_mode: bool,
     /// Calendar reminders come due ([`reminders`]).
     pub reminders: reminders::State,
     pub tokens: Tokens,
@@ -282,6 +162,8 @@ pub struct UiState {
     pub has_files: bool,
     /// Where the data is kept and whether it can be moved; where it moves at the next start.
     pub data_folder: Option<(PathBuf, bool)>,
+    /// The platform can open a local path in its system file browser.
+    pub can_open_path: bool,
     pub pending_move: Option<PathBuf>,
     /// `None` follows the system.
     pub dark: Option<bool>,
@@ -313,9 +195,11 @@ pub struct UiState {
     /// is out, as a double-click only opens the file (a click's preview showed behind it).
     pub attachment_click: Option<(MessageKey, usize, f64)>,
     /// The attachments selected in a message's strip (a click picks one, Ctrl+click adds or
-    /// removes one, Ctrl+A takes them all), and whether the strip has the keyboard: it was the
-    /// last thing clicked, so Ctrl+A selects attachments rather than mail.
+    /// removes one, a touch long-press starts multi-select, Ctrl+A takes them all), and whether
+    /// the strip has the keyboard: it was the last thing clicked, so Ctrl+A selects attachments.
     pub attachment_selected: Option<(MessageKey, Vec<usize>)>,
+    /// Multi-select mode entered by long-press or Select All; ordinary taps otherwise preview one attachment.
+    pub attachment_selection_mode: bool,
     pub attachments_active: bool,
     /// The pointer was over an attachment chip in the last frame drawn.
     pub attachment_hovered: bool,
@@ -382,7 +266,7 @@ pub struct UiState {
     /// The fonts installed, kept to add a CJK fallback later (and for PDF thumbnails).
     pub(crate) fonts: thumbs::Fonts,
     /// A fallback font for Arabic and Hebrew (when the main font hasn't them).
-    rtl_font: Option<Vec<u8>>,
+    rtl_fonts: Vec<Vec<u8>>,
     /// The language whose CJK font is loaded.
     cjk_loaded: Option<&'static str>,
     /// Shown text has Chinese characters none of the fonts has (`reading::han_missing`).
@@ -443,8 +327,18 @@ pub struct UiState {
     drag_out: Option<PathBuf>,
     /// The platform can drag files out.
     pub(crate) can_drag_out: bool,
+    /// The platform can hand attachment files to another app.
+    pub(crate) can_share_files: bool,
     /// The account whose import's details are shown, beside the status bar.
     pub(crate) import_details: Option<String>,
+    /// Remaining attachment downloads, read one at a time to keep mobile memory use bounded.
+    pub(crate) attachment_downloads: std::collections::VecDeque<(MessageKey, usize, String, String)>,
+}
+
+#[derive(Clone)]
+pub(crate) enum PendingClipboardPicture {
+    Compose { compose_id: u64, params: serde_json::Value },
+    Signature { account: String, editing: Option<String>, name: String },
 }
 
 pub struct MailApp {
@@ -452,13 +346,16 @@ pub struct MailApp {
     pub backend: Box<dyn Backend>,
     pub services: Box<dyn Services>,
     pub ui: UiState,
+    pub(crate) pending_clipboard_picture: Option<PendingClipboardPicture>,
 }
 
 impl MailApp {
     pub fn new(session: Session, backend: Box<dyn Backend>, mut services: Box<dyn Services>) -> MailApp {
         let seen = session.notices.len();
-        let has_files = !services.downloads();
+        let has_files = services.has_files();
         let (data_folder, pending_move) = (services.data_folder(), services.pending_data_move());
+        let can_open_path = services.can_open_path();
+        let can_share_files = services.can_share_files();
         let mut session = session;
         session.set_zone(services.zone().as_deref());
         // The window's network side keeps each account's search index up, and the window steps
@@ -480,6 +377,7 @@ impl MailApp {
             session,
             backend,
             services,
+            pending_clipboard_picture: None,
             ui: UiState {
                 tokens: Tokens::light(),
                 closing_anyway: false,
@@ -493,9 +391,14 @@ impl MailApp {
                 restart_wanted: false,
                 close_asked: false,
                 compact: Default::default(),
+                mobile_folder_open: false,
+                phone_reader_open: false,
+                phone_actions_open: false,
+                phone_mode: false,
                 reminders: reminders::State::default(),
                 has_files,
                 data_folder,
+                can_open_path,
                 pending_move,
                 dark: None,
                 tab: RibbonTab::Home,
@@ -513,6 +416,7 @@ impl MailApp {
                 shown_as: Default::default(),
                 attachment_click: None,
                 attachment_selected: None,
+                attachment_selection_mode: false,
                 attachments_active: false,
                 attachment_hovered: false,
                 ribbon_rect: None,
@@ -544,7 +448,7 @@ impl MailApp {
                 craft_apps: Vec::new(),
                 language: i18n::AUTO.into(),
                 fonts: (None, None),
-                rtl_font: None,
+                rtl_fonts: Vec::new(),
                 cjk_loaded: None,
                 han_missing: false,
                 long_text: HashMap::new(),
@@ -577,12 +481,58 @@ impl MailApp {
                 invite: None,
                 drag_out: None,
                 can_drag_out: false,
+                can_share_files,
                 import_details: None,
+                attachment_downloads: std::collections::VecDeque::new(),
             },
         };
         app.ui.craft_apps = craft_apps;
         app.ui.can_drag_out = app.services.can_drag_out();
         app
+    }
+
+    /// Stop background work and seal the offline data files before the app process exits.
+    pub fn shutdown(&mut self) -> Result<(), String> {
+        self.backend.shutdown();
+        if let Some(store) = &self.session.store {
+            store.seal_all().map_err(|error| error.to_string())?;
+        }
+        Ok(())
+    }
+
+    /// Wait briefly for queued offline mail changes to reach the cache before mobile suspension.
+    pub fn flush_changes(&mut self, timeout: std::time::Duration) -> bool {
+        self.backend.flush_changes(timeout)
+    }
+
+    /// Save changed messages being written before a mobile app is suspended.
+    pub fn checkpoint_drafts(&mut self) -> usize {
+        let saved = self.session.checkpoint_drafts();
+        self.flush_jobs();
+        saved
+    }
+
+    /// Persist a note being edited before the app is suspended or closes.
+    pub fn checkpoint_note_edit(&mut self) -> bool {
+        let Some((uid, text)) = self.ui.note_edit.take() else { return false };
+        match self.session.run("note.update", &json!({"uid": uid, "text": text})) {
+            Ok(_) => {
+                self.flush_jobs();
+                true
+            }
+            Err(error) => {
+                self.ui.note_edit = Some((uid, text));
+                self.session.notice(error.to_string(), true);
+                false
+            }
+        }
+    }
+
+    /// Queue a full sync when a mobile app opens or returns to the foreground.
+    pub fn sync_now(&mut self) -> usize {
+        let accounts = self.session.sync_all();
+        self.flush_jobs();
+        accounts
     }
 
     /// A file the user started dragging out of the window, for the app to hand to the system's
@@ -596,9 +546,9 @@ impl MailApp {
         self.ui.fonts = (regular.clone().map(std::sync::Arc::new), bold.clone().map(std::sync::Arc::new));
         bidi::set_coverage(regular.as_deref());
         if !bidi::covers_rtl() {
-            self.ui.rtl_font = self.services.rtl_font();
+            self.ui.rtl_fonts = self.services.rtl_fonts();
         }
-        theme::install_fonts_with(ctx, regular, bold, Vec::new(), self.ui.rtl_font.clone());
+        theme::install_fonts_with_rtl(ctx, regular, bold, Vec::new(), self.ui.rtl_fonts.clone());
         self.ui.fonts_ready = true;
         // Every path into the window comes here first, with its context: from now on a screen
         // reader's update always carries its focus (`a11y`; added once, however often called).
@@ -609,8 +559,13 @@ impl MailApp {
     /// fallbacks (the language menu names them in their own script, and mail may be in them),
     /// the chosen language's own first: they draw shared characters differently.
     fn apply_language(&mut self, ctx: &egui::Context) {
-        let lang = i18n::Lang::from_pref(&self.ui.language);
+        let lang = if self.ui.language == i18n::AUTO {
+            self.services.system_language().and_then(i18n::lang_from_tag).unwrap_or_else(i18n::system_lang)
+        } else {
+            i18n::Lang::from_pref(&self.ui.language)
+        };
         i18n::set_current(lang);
+        self.services.language_changed();
         // egui's own parts mirrored for Arabic and Hebrew (the Craft apps' egui): submenus open
         // to the left, scroll bars on the left, closed arrows pointing left.
         if ctx.global_style().right_to_left != lang.rtl() {
@@ -640,7 +595,7 @@ impl MailApp {
             }
             if !cjk.is_empty() {
                 let (r, b) = (self.ui.fonts.0.as_ref().map(|f| f.to_vec()), self.ui.fonts.1.as_ref().map(|f| f.to_vec()));
-                theme::install_fonts_with(ctx, r, b, cjk, self.ui.rtl_font.clone());
+                theme::install_fonts_with_rtl(ctx, r, b, cjk, self.ui.rtl_fonts.clone());
                 ctx.request_repaint();
             } else if self.services.font_pending() {
                 // Asked again once it has come.
@@ -678,6 +633,54 @@ impl MailApp {
             }
             Err(CmdError::Params(m) | CmdError::Failed(m)) => self.session.notice(m, true),
             Err(e) => self.session.notice(e.to_string(), true),
+        }
+    }
+
+    /// Return to the mail or calendar item that produced a notification.
+    pub fn open_notification_target(&mut self, target: NotificationTarget) -> bool {
+        match target {
+            NotificationTarget::Inbox => {
+                self.run("view.module", serde_json::json!({"name": "mail"}));
+                true
+            }
+            NotificationTarget::Message { key } => {
+                let Some(key) = mailcraft_engine::model::MessageKey::from_id(&key) else {
+                    self.run("view.module", serde_json::json!({"name": "mail"}));
+                    self.run("folder.unified", serde_json::json!({"role": "inbox"}));
+                    return false;
+                };
+                self.run("folder.open", serde_json::json!({"account": key.account, "folder": key.folder}));
+                if self.session.summary(&key).is_none() {
+                    self.run("view.module", serde_json::json!({"name": "mail"}));
+                    self.run("folder.unified", serde_json::json!({"role": "inbox"}));
+                    return false;
+                }
+                self.run("list.open", serde_json::json!({"key": key.to_id()}));
+                true
+            }
+            NotificationTarget::Reminder { account, uid, occurrence, due: _, task } => {
+                let dialog = if task {
+                    Dialog::open_task_in_account(&self.session, &account, &uid)
+                } else {
+                    Dialog::open_event_in_account(&self.session, &account, &uid, occurrence)
+                };
+                if let Some(dialog) = dialog {
+                    self.ui.dialog = Some(dialog);
+                    true
+                } else {
+                    let module = if task { "tasks" } else { "calendar" };
+                    self.run("view.module", serde_json::json!({"name": module}));
+                    false
+                }
+            }
+            NotificationTarget::Calendar => {
+                self.run("view.module", serde_json::json!({"name": "calendar"}));
+                true
+            }
+            NotificationTarget::Tasks => {
+                self.run("view.module", serde_json::json!({"name": "tasks"}));
+                true
+            }
         }
     }
 
@@ -724,81 +727,73 @@ impl MailApp {
         }
     }
 
-    fn pump(&mut self) {
-        let (now, offset) = self.services.clock();
-        let before = self.session.clock.offset;
-        self.session.set_clock(now, offset);
-        // The offset changed (summer time, or the system's zone did): which zone it is, again.
-        if offset != before {
-            self.session.set_zone(self.services.zone().as_deref());
+    /// A mail, PIM or data file staged from a platform file picker or share sheet. Message files
+    /// stay until the network worker finishes reading them; data files stay for resumable imports.
+    pub fn open_handed_from_picker(&mut self, what: &str) {
+        let path = std::path::Path::new(what);
+        if is_outlook_data_file(path) {
+            self.services.track_picked_file(path);
+            let path = path.to_string_lossy().trim().to_string();
+            match self.session.run("account.inspectDataFile", &json!({"path": path, "again": true})) {
+                Ok(_) => {
+                    self.ui.backstage = None;
+                    self.ui.dialog = Some(Dialog::OpenDataFile { path });
+                }
+                Err(error) => self.session.notice(tf!("Couldn't open {file}: {error}", file = path, error = error.to_string()), true),
+            }
+        } else {
+            self.open_handed(what);
         }
-        for e in self.backend.poll() {
-            self.session.apply(e);
+        if !is_outlook_message_file(path) && !is_outlook_data_file(path) {
+            self.services.discard_picked_file(path);
         }
-        self.files_filed();
-        // Sign-in pages go to the browser.
-        for url in std::mem::take(&mut self.session.open_urls) {
-            if let Err(e) = self.services.open_url(&url) {
-                self.session.notice(tf!("The sign-in page couldn't be opened: {error}", error = e), true);
+    }
+
+    /// Route a document shared from another app to an action whose native picker could not open.
+    /// Returns `false` when there is no pending picker action, so the normal share handling can run.
+    pub fn receive_shared_picker_file(&mut self, path: &std::path::Path, last_in_batch: bool) -> Result<bool, String> {
+        self.services.receive_shared_picker_file(path, last_in_batch)
+    }
+
+    /// A document shared from another app as a new message attachment. The engine reads it
+    /// synchronously, so the private staging copy can be removed as soon as the command returns.
+    pub fn open_shared_attachment_from_picker(&mut self, path: &str) {
+        let file = std::path::Path::new(path);
+        if self.session.compose.is_none() {
+            self.run("mail.new", json!({}));
+        }
+        if self.session.compose.is_none() {
+            self.session.notice(tl!("Add an account first: a new message needs an account to send from.").to_string(), true);
+        } else {
+            match self.session.run("compose.attach", &json!({"path": path})) {
+                Ok(_) => self.ui.backstage = None,
+                Err(error) => self.session.notice(error.to_string(), true),
             }
         }
-        // Files chosen in the browser's picker.
-        for (purpose, name, data) in self.services.take_picked() {
-            if let Some(account) = purpose.strip_prefix("certificate:") {
-                self.ui.dialog = Some(Dialog::Certificate { account: account.to_string(), path: name, data: Some(data), password: String::new() });
-            } else if purpose == "picture" {
-                let size = rich_edit::own_size(&data);
-                let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
-                let r =
-                    self.session.run("compose.insertPicture", &self.picture_place(json!({"name": name, "data": data, "width": width, "line": line})));
-                self.place_picture(r);
+        self.services.discard_picked_file(file);
+    }
+
+    /// A text or link shared to MailCraft by the system: make it the body of a new message.
+    pub fn open_shared_text(&mut self, subject: &str, body: &str, to: &str, cc: &str, bcc: &str) {
+        let subject: String = subject.chars().map(|c| if c.is_control() { ' ' } else { c }).take(998).collect();
+        let body: String = body.chars().take(1 << 20).collect();
+        let show_cc = !cc.is_empty() || !bcc.is_empty();
+        self.run("mail.new", json!({}));
+        if self.session.compose.is_some() {
+            if let Err(error) = self.session.run("compose.update", &json!({"subject": subject, "body": body, "to": to, "cc": cc, "bcc": bcc})) {
+                self.session.notice(error.to_string(), true);
             } else {
-                self.run("compose.attach", json!({"name": name, "data": data}));
+                if let Some(compose) = self.session.compose.as_mut() {
+                    compose.show_cc = show_cc;
+                }
+                self.ui.backstage = None;
             }
         }
-        // Snoozed mail that is due comes back.
-        self.session.tick();
     }
 
     fn flush_jobs(&mut self) {
         for j in self.session.take_jobs() {
             self.backend.submit(j);
-        }
-    }
-
-    /// Preferences and theme for the app to save.
-    pub fn saved_state(&self) -> Value {
-        json!({ "prefs": self.session.prefs, "dark": self.ui.dark, "language": self.ui.language, "windows": self.ui.places, "peopleView": self.ui.people_view, "peopleList": self.ui.people_list })
-    }
-
-    pub fn restore_state(&mut self, v: &Value) {
-        if let Some(p) = v.get("prefs").and_then(|p| serde_json::from_value::<mailcraft_engine::Prefs>(p.clone()).ok()) {
-            let offline = p.work_offline;
-            let keep = (p.keep_messages, p.keep_offline);
-            self.session.prefs = p;
-            self.session.refresh_list();
-            // How much mail to keep, before any account connects (when it isn't the default).
-            let d = mailcraft_engine::Prefs::default();
-            if keep != (d.keep_messages, d.keep_offline) {
-                self.session.apply_sync_prefs();
-            }
-            // Still working offline from last time: before any account connects.
-            if offline {
-                self.session.set_work_offline(true);
-            }
-        }
-        self.ui.dark = v.get("dark").and_then(Value::as_bool);
-        if let Some(pv) = v.get("peopleView").and_then(|w| serde_json::from_value(w.clone()).ok()) {
-            self.ui.people_view = pv;
-        }
-        if let Some(pl) = v.get("peopleList").and_then(|w| serde_json::from_value(w.clone()).ok()) {
-            self.ui.people_list = pl;
-        }
-        if let Some(w) = v.get("windows").and_then(|w| serde_json::from_value(w.clone()).ok()) {
-            self.ui.places = w;
-        }
-        if let Some(l) = v.get("language").and_then(Value::as_str).filter(|l| *l == i18n::AUTO || i18n::Lang::from_code(l).is_some()) {
-            self.ui.language = l.to_string();
         }
     }
 }

@@ -3,6 +3,7 @@
 //! and time, subject, place and calendar's colour; upcoming ones first, then past ones, or only
 //! either. Clicking one goes to its day and opens it.
 
+use crate::bidi::ComboBoxExt as _;
 use egui::{Align2, Margin, Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::ical::Privacy;
 use mailcraft_engine::{EventHit, EventWhen, Session};
@@ -84,7 +85,7 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
                 Some((a, c)) => all.iter().find(|(x, y, _)| x == a && y == c).map_or_else(|| tl!("All calendars").to_string(), |x| x.2.clone()),
                 None => tl!("All calendars").to_string(),
             };
-            egui::ComboBox::from_id_salt("calendar-search-scope").selected_text(shown).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("calendar-search-scope").selected_text(shown).show_ui_rtl(ui, |ui| {
                 if ui.selectable_label(st.cal_search.scope.is_none(), tl!("All calendars")).clicked() {
                     st.cal_search.scope = None;
                 }

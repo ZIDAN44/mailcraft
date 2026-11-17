@@ -9,17 +9,7 @@ fixed moves to the changelog.
 
 ## Open
 
-### 1. Right-to-left in dialogs, menus and the editor
-
-- **Impact:** In Arabic and Hebrew, the mail window and its panes mirror, but dialogs, Calendar,
-  People and Notes don't. Menu items stay on the left. In the editor, a line that mixes
-  right-to-left and left-to-right words shows them in the wrong order.
-- **Workaround:** None yet.
-- **Cause:** The menus need a one-line change, `top_down_justified(Align::Min)`, in
-  storytold/egui's `containers/menu.rs`. The editor shows mixed lines in the order egui lays them
-  out.
-
-### 2. `.pst` files: a moved data folder
+### 1. `.pst` files: a moved data folder
 
 MailCraft imports and exports every item kind in `.pst` files (Outlook data files).
 
@@ -31,7 +21,7 @@ MailCraft imports and exports every item kind in `.pst` files (Outlook data file
 
 Some things are left out on purpose; they are listed under [Not planned](#not-planned).
 
-### 3. Dragging attachments out on a Wayland-only desktop
+### 2. Dragging attachments out on a Wayland-only desktop
 
 - **Impact:** You can't drag an attachment out of MailCraft on a Wayland-only desktop, or when
   `MAILCRAFT_WAYLAND=1` is set. Dragging works on Windows, macOS and X11.
@@ -40,7 +30,7 @@ Some things are left out on purpose; they are listed under [Not planned](#not-pl
   `ActiveEventLoop::start_drag` (rust-windowing/winit#4571), once egui and the Craft forks move
   to it.
 
-### 4. Signed updates and releases
+### 3. Signed updates and releases
 
 Test builds update themselves ([how test builds update](updates.md)). These parts are missing:
 
@@ -54,7 +44,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** An Ed25519 signature on updates and releases needs a signing key that only the
   owner can create.
 
-### 5. OpenPGP: what isn't done yet
+### 4. OpenPGP: what isn't done yet
 
 - **Impact:** Your own OpenPGP key works in the desktop app only: in the browser, OpenPGP mail
   sent to you stays locked and can't be signed or encrypted with OpenPGP. Inline PGP is read only
@@ -67,7 +57,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** The browser keeps no secret keys yet (its S/MIME certificates' way, a file locked
   with its password, would need an unlock dialog of its own). The rest is left for later.
 
-### 6. Drafts: an older copy marked deleted on a server without UIDPLUS
+### 5. Drafts: an older copy marked deleted on a server without UIDPLUS
 
 - **Impact:** On an IMAP server without UIDPLUS, the copy of a draft that a newer save replaces
   is marked deleted rather than removed. MailCraft doesn't show it, but another program may show
@@ -77,7 +67,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   `EXPUNGE`, which removes whatever else is marked deleted in the folder, other programs' mail
   too; moving each copy to Deleted Items instead would fill it with every version saved.
 
-### 7. Newsletters nested past what's read
+### 6. Newsletters nested past what's read
 
 - **Impact:** A newsletter whose copy for Outlook has more than 200,000 elements, nests them more
   than 256 deep, or nests more than two dozen tables one in another (real newsletters nest about

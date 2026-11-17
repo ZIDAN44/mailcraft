@@ -1,6 +1,7 @@
 //! The reading pane: how a message was protected (S/MIME), said above it in MailCraft's own
 //! colours, outside anything the message itself draws, so a message can't pass for signed.
 
+use crate::bidi::ComboBoxExt as _;
 use mailcraft_engine::{Lock, Reach, RevocationCheck, Scheme, Seal, Security, smime};
 
 use super::*;
@@ -98,7 +99,7 @@ pub(super) fn scheme_menu(ui: &mut Ui, c: &mut mailcraft_engine::Compose) {
     egui::ComboBox::from_id_salt(("compose-scheme", c.id))
         .selected_text(RichText::new(name(c.scheme)).small())
         .width(96.0)
-        .show_ui(ui, |ui| {
+        .show_ui_rtl(ui, |ui| {
             for s in [None, Some(Scheme::Smime), Some(Scheme::Pgp)] {
                 ui.selectable_value(&mut c.scheme, s, name(s));
             }

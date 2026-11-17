@@ -273,7 +273,7 @@ impl Session {
                         calendar: cal.id.clone(),
                         uid: e.uid.clone(),
                         occurrence: e.recurrence_id.unwrap_or(o.start),
-                        recurring: e.rrule.is_some() || e.recurrence_id.is_some(),
+                        recurring: e.is_recurring(),
                         summary: e.summary.clone(),
                         location: e.location.clone(),
                         start,
@@ -379,7 +379,7 @@ impl Session {
         }
         let mut remote = false;
         match occurrence {
-            Some(at) if p.events.iter().any(|e| e.event.uid == uid && e.event.rrule.is_some()) => {
+            Some(at) if p.events.iter().any(|e| e.event.uid == uid && e.event.is_series()) => {
                 // One occurrence: an exception on the rule, and any changed instance goes.
                 p.events.retain(|e| !(e.event.uid == uid && e.event.recurrence_id == Some(at)));
                 if let Some(m) = p.events.iter_mut().find(|e| e.event.uid == uid && e.event.recurrence_id.is_none()) {

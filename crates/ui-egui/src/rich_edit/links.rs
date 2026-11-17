@@ -9,7 +9,10 @@ pub(super) struct LinkForm {
     pub(super) text: String,
     pub(super) address: String,
     pub(super) to: String,
+    pub(super) cc: String,
+    pub(super) bcc: String,
     pub(super) subject: String,
+    pub(super) body: String,
     /// The text the link goes on (the selection when the dialog opened).
     pub(super) sel: Range<usize>,
     /// A link was there already (Remove link is offered).
@@ -26,12 +29,15 @@ impl LinkForm {
         let multi = chosen.contains('\n');
         let mut f = LinkForm { text: if multi { String::new() } else { chosen }, sel, editing: existing.is_some(), multi, ..Default::default() };
         match existing {
-            Some(url) if url.to_ascii_lowercase().starts_with("mailto:") => {
+            Some(url) if mailcraft_engine::model::mailto::is_mailto(&url) => {
                 f.email = true;
-                let rest = url.get(7..).unwrap_or_default();
-                let (to, query) = rest.split_once('?').unwrap_or((rest, ""));
-                f.to = percent_decode(to);
-                f.subject = query.split('&').find_map(|kv| kv.strip_prefix("subject=")).map(percent_decode).unwrap_or_default();
+                if let Some(mailto) = mailcraft_engine::model::mailto::parse(&url) {
+                    f.to = mailto.to;
+                    f.cc = mailto.cc;
+                    f.bcc = mailto.bcc;
+                    f.subject = mailto.subject;
+                    f.body = mailto.body;
+                }
             }
             Some(url) => f.address = url,
             None => {}
@@ -48,8 +54,14 @@ impl LinkForm {
                 return None;
             }
             let to = to.strip_prefix("mailto:").unwrap_or(to);
-            let subject = self.subject.trim();
-            return Some(if subject.is_empty() { format!("mailto:{to}") } else { format!("mailto:{to}?subject={}", percent_encode(subject)) });
+            let mut fields = Vec::new();
+            for (key, value) in [("cc", self.cc.trim()), ("bcc", self.bcc.trim()), ("subject", self.subject.trim()), ("body", self.body.as_str())] {
+                if !value.is_empty() {
+                    fields.push(format!("{key}={}", percent_encode(value)));
+                }
+            }
+            let query = if fields.is_empty() { String::new() } else { format!("?{}", fields.join("&")) };
+            return Some(format!("mailto:{to}{query}"));
         }
         let a = self.address.trim();
         if a.is_empty() || a == "https://" || a == "http://" {
@@ -66,27 +78,6 @@ impl LinkForm {
             format!("https://{a}")
         })
     }
-}
-
-/// `%XX` escapes in a mailto address or subject, as text.
-pub(super) fn percent_decode(s: &str) -> String {
-    let b = s.as_bytes();
-    let mut out = Vec::with_capacity(b.len());
-    let mut i = 0;
-    while let Some(&c) = b.get(i) {
-        let hex = |k: usize| b.get(k).and_then(|h| (*h as char).to_digit(16));
-        match (c, hex(i + 1), hex(i + 2)) {
-            (b'%', Some(h), Some(l)) => {
-                out.push(u8::try_from(h * 16 + l).unwrap_or(b'?'));
-                i += 3;
-            }
-            _ => {
-                out.push(c);
-                i += 1;
-            }
-        }
-    }
-    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// A subject as a mailto may carry it (RFC 6068): everything but letters, digits and `-._~`
@@ -110,41 +101,85 @@ pub(crate) fn link_dialog(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Comp
     let mut close = false;
     let mut done: Option<Option<String>> = None;
     let modal = egui::Modal::new(egui::Id::unique(("link-dialog", c.id))).frame(crate::dialogs::dialog_frame(t)).show(ui.ctx(), |ui| {
-        ui.set_width(440.0);
+        crate::dialogs::set_dialog_width(ui, 440.0);
+        let compact = ui.available_width() < 480.0;
         ui.label(RichText::new(tl!(if f.editing { "Edit link" } else { "Insert link" })).font(theme::bold(18.0)).color(t.text));
         ui.add_space(10.0);
-        ui.horizontal(|ui| {
+        ui.horizontal_wrapped(|ui| {
             ui.label(RichText::new(tl!("Link to")).color(t.dim));
             ui.selectable_value(&mut f.email, false, tl!("Web page or file"));
             ui.selectable_value(&mut f.email, true, tl!("Email address"));
         });
         ui.add_space(8.0);
-        let first = egui::Grid::new(("link-grid", c.id)).num_columns(2).spacing(vec2(12.0, 8.0)).show(ui, |ui| {
-            let w = 300.0;
+        let w = if compact { ui.available_width() } else { 300.0 };
+        let first = if compact {
             ui.label(RichText::new(tl!("Text to display")).color(t.dim));
             if f.multi {
                 ui.label(RichText::new(tl!("The selected text")).color(t.faint).italics());
             } else {
                 ui.add(egui::TextEdit::singleline(&mut f.text).hint_text(tl!("The address itself")).desired_width(w));
             }
-            ui.end_row();
             if f.email {
+                ui.add_space(6.0);
                 ui.label(RichText::new(tl!("Email address")).color(t.dim));
                 let r = ui.add(egui::TextEdit::singleline(&mut f.to).hint_text("name@example.com").desired_width(w));
-                ui.end_row();
+                ui.add_space(6.0);
+                ui.label(RichText::new(tl!("Cc")).color(t.dim));
+                ui.add(egui::TextEdit::singleline(&mut f.cc).desired_width(w));
+                ui.add_space(6.0);
+                ui.label(RichText::new(tl!("Bcc")).color(t.dim));
+                ui.add(egui::TextEdit::singleline(&mut f.bcc).desired_width(w));
+                ui.add_space(6.0);
                 ui.label(RichText::new(tl!("Subject")).color(t.dim));
                 ui.add(egui::TextEdit::singleline(&mut f.subject).desired_width(w));
-                ui.end_row();
+                ui.add_space(6.0);
+                ui.label(RichText::new(tl!("Message")).color(t.dim));
+                ui.add(egui::TextEdit::multiline(&mut f.body).desired_width(w).desired_rows(3));
                 r
             } else {
                 ui.label(RichText::new(tl!("Address")).color(t.dim));
-                let r = ui.add(egui::TextEdit::singleline(&mut f.address).hint_text("https://").desired_width(w));
-                ui.end_row();
-                r
+                ui.add(egui::TextEdit::singleline(&mut f.address).hint_text("https://").desired_width(w))
             }
-        });
+        } else {
+            egui::Grid::new(("link-grid", c.id))
+                .num_columns(2)
+                .spacing(vec2(12.0, 8.0))
+                .show(ui, |ui| {
+                    ui.label(RichText::new(tl!("Text to display")).color(t.dim));
+                    if f.multi {
+                        ui.label(RichText::new(tl!("The selected text")).color(t.faint).italics());
+                    } else {
+                        ui.add(egui::TextEdit::singleline(&mut f.text).hint_text(tl!("The address itself")).desired_width(w));
+                    }
+                    ui.end_row();
+                    if f.email {
+                        ui.label(RichText::new(tl!("Email address")).color(t.dim));
+                        let r = ui.add(egui::TextEdit::singleline(&mut f.to).hint_text("name@example.com").desired_width(w));
+                        ui.end_row();
+                        ui.label(RichText::new(tl!("Cc")).color(t.dim));
+                        ui.add(egui::TextEdit::singleline(&mut f.cc).desired_width(w));
+                        ui.end_row();
+                        ui.label(RichText::new(tl!("Bcc")).color(t.dim));
+                        ui.add(egui::TextEdit::singleline(&mut f.bcc).desired_width(w));
+                        ui.end_row();
+                        ui.label(RichText::new(tl!("Subject")).color(t.dim));
+                        ui.add(egui::TextEdit::singleline(&mut f.subject).desired_width(w));
+                        ui.end_row();
+                        ui.label(RichText::new(tl!("Message")).color(t.dim));
+                        ui.add(egui::TextEdit::multiline(&mut f.body).desired_width(w).desired_rows(3));
+                        ui.end_row();
+                        r
+                    } else {
+                        ui.label(RichText::new(tl!("Address")).color(t.dim));
+                        let r = ui.add(egui::TextEdit::singleline(&mut f.address).hint_text("https://").desired_width(w));
+                        ui.end_row();
+                        r
+                    }
+                })
+                .inner
+        };
         if ui.memory(|m| m.focused().is_none()) {
-            first.inner.request_focus();
+            first.request_focus();
         }
         ui.add_space(12.0);
         let url = f.url();

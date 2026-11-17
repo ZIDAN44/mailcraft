@@ -1,11 +1,15 @@
 //! Dialogs: accounts (adding one, its settings, its password, removing it), and closing MailCraft.
 
 use super::*;
+use crate::bidi::ComboBoxExt as _;
 
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::AddAccount(f) => {
-            ui.set_width(440.0);
+            let width = dialog_width(ui, 440.0);
+            let compact = width < 440.0;
+            let field_h = account_field_height(ui, 26.0);
+            ui.set_width(width);
             title(ui, t, "Add an email account");
             if s.jmap_only {
                 // The browser: JMAP only, and its address is needed.
@@ -18,69 +22,10 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     .small(),
                 );
             } else {
-                ui.label(RichText::new(tl!("Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.")).color(t.dim).small());
+                ui.add(egui::Label::new(RichText::new(tl!("Works with any provider: IMAP or POP with SMTP, JMAP, or Exchange. Your password is kept in this computer's keychain and only ever sent to your mail server.")).color(t.dim).small()).wrap());
             }
             ui.add_space(10.0);
-            egui::Grid::new("acct").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
-                ui.label(tl!("Email address"));
-                let r = ui
-                    .add(egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")).min_size(vec2(300.0, 26.0)).desired_width(300.0));
-                if r.changed() && !f.servers_edited {
-                    f.guess();
-                    f.found_for = None;
-                    f.found_source = None;
-                }
-                // Look the settings up once the address is typed (when the box is left).
-                let email = f.email.trim().to_ascii_lowercase();
-                if !s.jmap_only
-                    && (r.lost_focus() || f.advanced)
-                    && mailcraft_engine::model::addr::is_valid_email(&email)
-                    && !s.discovered.contains_key(&email)
-                {
-                    acts.push(Action::Run("account.discover", json!({"email": email})));
-                }
-                if !f.servers_edited
-                    && f.found_for.as_deref() != Some(email.as_str())
-                    && let Some(Some((Some(c), source))) = s.discovered.get(&email)
-                {
-                    f.imap_host = c.imap.host.clone();
-                    f.imap_port = c.imap.port.to_string();
-                    f.imap_security = c.imap.security;
-                    f.smtp_host = c.smtp.host.clone();
-                    f.smtp_port = c.smtp.port.to_string();
-                    f.smtp_security = c.smtp.security;
-                    // The provider's POP server when it named one, else one named after the IMAP server.
-                    match &c.pop {
-                        Some(p) => {
-                            f.pop_host = p.host.clone();
-                            f.pop_port = p.port.to_string();
-                            f.pop_security = p.security;
-                        }
-                        None => f.guess_pop(),
-                    }
-                    f.username = if c.username.eq_ignore_ascii_case(&email) { String::new() } else { c.username.clone() };
-                    f.found_for = Some(email.clone());
-                    f.found_source = Some(source.clone());
-                }
-                ui.end_row();
-                ui.label(tl!("Your name"));
-                ui.add(
-                    egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")).min_size(vec2(300.0, 26.0)).desired_width(300.0),
-                );
-                ui.end_row();
-                // Exchange signs in with Microsoft in the browser; so do Outlook.com, Hotmail and
-                // Live, which take no passwords from mail apps (when this copy can sign in there).
-                let browser_only = f.graph
-                    || (!f.jmap
-                        && !f.ews
-                        && mailcraft_engine::model::microsoft_consumer(&f.email)
-                        && s.oauth_available.iter().any(|p| p == "microsoft"));
-                if !browser_only {
-                    ui.label(tl!("Password"));
-                    ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(vec2(300.0, 26.0)).desired_width(300.0));
-                    ui.end_row();
-                }
-            });
+            account_fields(ui, f, s, acts, width, compact);
             ui.add_space(6.0);
             if !s.jmap_only {
                 ui.checkbox(&mut f.advanced, tl!("Server settings"));
@@ -89,8 +34,6 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 egui::Frame::new().fill(t.chrome).corner_radius(8).inner_margin(Margin::same(10)).show(ui, |ui| {
                     let mut edited = false;
                     let w = ui.available_width();
-                    // Fixed sizes: text boxes inside a Grid can't grow past last frame's column width.
-                    let host_w = (w - 196.0).max(140.0);
                     let label = |ui: &mut Ui, s: &str| {
                         ui.label(RichText::new(tl!(s)).strong().small());
                     };
@@ -136,65 +79,37 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                             .small(),
                         );
                         label(ui, "Exchange server");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.ews_url).hint_text(tl!("Found automatically when left empty")));
+                        ui.add_sized([w, field_h], egui::TextEdit::singleline(&mut f.ews_url).hint_text(tl!("Found automatically when left empty")));
                         ui.add_space(4.0);
                         label(ui, "User name");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("DOMAIN\\user, or the email address")));
+                        ui.add_sized([w, field_h], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("DOMAIN\\user, or the email address")));
                         user_agent_field(ui, t, w, &mut f.user_agent);
                         return;
                     }
                     if f.jmap {
                         label(ui, "JMAP session address");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+                        ui.add_sized([w, field_h], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
                         ui.add_space(4.0);
                         label(ui, "User name");
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+                        ui.add_sized([w, field_h], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
                         return;
                     }
                     if f.pop {
                         label(ui, "Incoming mail (POP)");
-                        ui.horizontal(|ui| {
-                            edited |=
-                                ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.pop_host).hint_text("pop.example.com")).changed();
-                            edited |= ui
-                                .add_sized(
-                                    [56.0, 26.0],
-                                    egui::TextEdit::singleline(&mut f.pop_port).hint_text("995").align(egui::Align2::CENTER_TOP),
-                                )
-                                .changed();
-                            security_combo(ui, "popsec", &mut f.pop_security);
-                        });
+                        edited |= server_endpoint(ui, "popsec", &mut f.pop_host, &mut f.pop_port, &mut f.pop_security, "pop.example.com", "995");
                         f.pop_keep.ui(ui);
                     } else {
                         label(ui, "Incoming mail (IMAP)");
-                        ui.horizontal(|ui| {
-                            edited |=
-                                ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.imap_host).hint_text("imap.example.com")).changed();
-                            edited |= ui
-                                .add_sized(
-                                    [56.0, 26.0],
-                                    egui::TextEdit::singleline(&mut f.imap_port).hint_text("993").align(egui::Align2::CENTER_TOP),
-                                )
-                                .changed();
-                            security_combo(ui, "imapsec", &mut f.imap_security);
-                        });
+                        edited |=
+                            server_endpoint(ui, "imapsec", &mut f.imap_host, &mut f.imap_port, &mut f.imap_security, "imap.example.com", "993");
                     }
                     ui.add_space(4.0);
                     label(ui, "Outgoing mail (SMTP)");
-                    ui.horizontal(|ui| {
-                        edited |= ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.smtp_host).hint_text("smtp.example.com")).changed();
-                        edited |= ui
-                            .add_sized(
-                                [56.0, 26.0],
-                                egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").align(egui::Align2::CENTER_TOP),
-                            )
-                            .changed();
-                        security_combo(ui, "smtpsec", &mut f.smtp_security);
-                    });
+                    edited |= server_endpoint(ui, "smtpsec", &mut f.smtp_host, &mut f.smtp_port, &mut f.smtp_security, "smtp.example.com", "465");
                     ui.add_space(4.0);
                     label(ui, "User name");
                     edited |=
-                        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
+                        ui.add_sized([w, field_h], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
                     f.smtp_sign_in.ui(ui, w);
                     f.servers_edited |= edited;
                     if f.pop {
@@ -203,7 +118,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         label(ui, "Existing data file (optional)");
                         ui.horizontal(|ui| {
                             ui.add_sized(
-                                [w - 90.0, 26.0],
+                                [w - 90.0, field_h],
                                 egui::TextEdit::singleline(&mut f.pst).hint_text(tl!("Mail from an old .pst or .mailcraft file comes in first")),
                             );
                             if ui.button(tl!("Browse…")).clicked() {
@@ -342,7 +257,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::Password { account, email, password } => {
-            ui.set_width(380.0);
+            let width = dialog_width(ui, 380.0);
+            ui.set_width(width);
             title(ui, t, "Sign in again");
             ui.label(RichText::new(tf!("Enter the password for {email}.", email = email)).color(t.dim));
             ui.add_space(8.0);
@@ -361,7 +277,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::RemoveAccount { account, email } => {
-            ui.set_width(380.0);
+            let width = dialog_width(ui, 380.0);
+            ui.set_width(width);
             title(ui, t, "Remove account?");
             // As Outlook removes one: its data file stays, to open again from Open & Export.
             let file = s.store.as_ref().and_then(|st| st.data_file(account)).filter(|f| f.exists());
@@ -390,7 +307,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::MailboxClosed { account, email, error } => {
-            ui.set_width(440.0);
+            let width = dialog_width(ui, 440.0);
+            ui.set_width(width);
             title(ui, t, "The mailbox won't open");
             ui.label(RichText::new(email.as_str()).strong());
             ui.add_space(4.0);
@@ -420,7 +338,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         }
         Dialog::EditAccount(f) => edit_account(ui, f, t, acts),
         Dialog::AddSharedMailbox { account, address, error } => {
-            ui.set_width(420.0);
+            let width = dialog_width(ui, 420.0);
+            ui.set_width(width);
             title(ui, t, "Add a shared mailbox");
             ui.add(
                 egui::Label::new(
@@ -449,6 +368,92 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         }
         // Every other kind is shown by its own group (`body`).
         _ => true,
+    }
+}
+
+fn account_fields(ui: &mut Ui, f: &mut AccountForm, s: &Session, acts: &mut Vec<Action>, width: f32, compact: bool) {
+    let field_h = account_field_height(ui, if compact { 30.0 } else { 26.0 });
+    if compact {
+        let field_width = ui.available_width().min(width).max(120.0);
+        ui.label(tl!("Email address"));
+        let response = ui.add_sized([field_width, field_h], egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")));
+        update_discovered_servers(f, s, acts, &response);
+        ui.add_space(4.0);
+        ui.label(tl!("Your name"));
+        ui.add_sized([field_width, field_h], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
+        if !browser_only_password(f, s) {
+            ui.add_space(4.0);
+            ui.label(tl!("Password"));
+            ui.add_sized([field_width, field_h], egui::TextEdit::singleline(&mut f.password).password(true));
+        }
+    } else {
+        egui::Grid::new("acct").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
+            ui.label(tl!("Email address"));
+            let response = ui
+                .add(egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")).min_size(vec2(300.0, field_h)).desired_width(300.0));
+            update_discovered_servers(f, s, acts, &response);
+            ui.end_row();
+            ui.label(tl!("Your name"));
+            ui.add(
+                egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")).min_size(vec2(300.0, field_h)).desired_width(300.0),
+            );
+            ui.end_row();
+            if !browser_only_password(f, s) {
+                ui.label(tl!("Password"));
+                ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(vec2(300.0, field_h)).desired_width(300.0));
+                ui.end_row();
+            }
+        });
+    }
+}
+
+fn account_field_height(ui: &Ui, desktop: f32) -> f32 {
+    if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { desktop }
+}
+
+fn browser_only_password(f: &AccountForm, s: &Session) -> bool {
+    // Exchange signs in with Microsoft in the browser; so do Outlook.com, Hotmail and Live,
+    // which take no passwords from mail apps (when this copy can sign in there).
+    f.graph || (!f.jmap && !f.ews && mailcraft_engine::model::microsoft_consumer(&f.email) && s.oauth_available.iter().any(|p| p == "microsoft"))
+}
+
+fn update_discovered_servers(f: &mut AccountForm, s: &Session, acts: &mut Vec<Action>, response: &egui::Response) {
+    if response.changed() && !f.servers_edited {
+        f.guess();
+        f.found_for = None;
+        f.found_source = None;
+    }
+    // Look the settings up once the address is typed (when the box is left).
+    let email = f.email.trim().to_ascii_lowercase();
+    if !s.jmap_only
+        && (response.lost_focus() || f.advanced)
+        && mailcraft_engine::model::addr::is_valid_email(&email)
+        && !s.discovered.contains_key(&email)
+    {
+        acts.push(Action::Run("account.discover", json!({"email": email})));
+    }
+    if !f.servers_edited
+        && f.found_for.as_deref() != Some(email.as_str())
+        && let Some(Some((Some(c), source))) = s.discovered.get(&email)
+    {
+        f.imap_host = c.imap.host.clone();
+        f.imap_port = c.imap.port.to_string();
+        f.imap_security = c.imap.security;
+        f.smtp_host = c.smtp.host.clone();
+        f.smtp_port = c.smtp.port.to_string();
+        f.smtp_security = c.smtp.security;
+        // The provider's POP server when it named one, else one named after the IMAP server.
+        match &c.pop {
+            Some(p) => {
+                f.pop_host = p.host.clone();
+                f.pop_port = p.port.to_string();
+                f.pop_security = p.security;
+            }
+            None => f.guess_pop(),
+        }
+        f.username = if c.username.eq_ignore_ascii_case(&email) { String::new() } else { c.username.clone() };
+        f.found_for = Some(email.clone());
+        f.found_source = Some(source.clone());
     }
 }
 
@@ -533,12 +538,13 @@ impl SmtpSignIn {
     pub(super) fn ui(&mut self, ui: &mut Ui, w: f32) {
         ui.checkbox(&mut self.own, tl!("The outgoing server has its own user name and password"));
         if self.own {
+            let field_h = account_field_height(ui, 26.0);
             ui.horizontal(|ui| {
                 let half = ((w - 30.0) / 2.0).max(100.0);
                 ui.add_space(22.0);
-                ui.add_sized([half, 26.0], egui::TextEdit::singleline(&mut self.username).hint_text(tl!("Its user name")));
+                ui.add_sized([half, field_h], egui::TextEdit::singleline(&mut self.username).hint_text(tl!("Its user name")));
                 let hint = if self.kept { tl!("Password (unchanged when empty)") } else { tl!("Its password") };
-                ui.add_sized([half, 26.0], egui::TextEdit::singleline(&mut self.password).password(true).hint_text(hint));
+                ui.add_sized([half, field_h], egui::TextEdit::singleline(&mut self.password).password(true).hint_text(hint));
             });
         }
     }
@@ -777,41 +783,56 @@ impl EditForm {
     }
 }
 
+fn server_endpoint(ui: &mut Ui, id: &str, host: &mut String, port: &mut String, security: &mut Security, host_hint: &str, port_hint: &str) -> bool {
+    let width = ui.available_width().max(0.0);
+    let field_h = account_field_height(ui, 30.0);
+    if width < 420.0 {
+        let mut changed = ui.add_sized([width, field_h], egui::TextEdit::singleline(host).hint_text(host_hint)).changed();
+        ui.horizontal_wrapped(|ui| {
+            changed |= ui.add_sized([72.0, field_h], egui::TextEdit::singleline(port).hint_text(port_hint).align(egui::Align2::CENTER_TOP)).changed();
+            changed |= security_combo(ui, id, security).changed();
+        });
+        changed
+    } else {
+        let host_width = (width - 196.0).max(140.0);
+        let mut changed = false;
+        ui.horizontal(|ui| {
+            changed |= ui.add_sized([host_width, field_h], egui::TextEdit::singleline(host).hint_text(host_hint)).changed();
+            changed |= ui.add_sized([72.0, field_h], egui::TextEdit::singleline(port).hint_text(port_hint).align(egui::Align2::CENTER_TOP)).changed();
+            changed |= security_combo(ui, id, security).changed();
+        });
+        changed
+    }
+}
+
 pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(480.0);
+    let width = dialog_width(ui, 480.0);
+    let field_h = account_field_height(ui, 26.0);
+    ui.set_width(width);
     title(ui, t, "Server settings");
     ui.label(RichText::new(&f.email).color(t.dim));
     ui.add_space(8.0);
     let w = ui.available_width();
-    let host_w = (w - 196.0).max(140.0);
     let label = |ui: &mut Ui, s: &str| {
         ui.label(RichText::new(tl!(s)).strong().small());
     };
     label(ui, "Your name");
-    ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
+    ui.add_sized([w, field_h], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
     ui.add_space(4.0);
     label(ui, "User name");
-    ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+    ui.add_sized([w, field_h], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
     ui.add_space(6.0);
     if let Some(url) = f.ews.as_mut() {
         label(ui, "Exchange server");
-        ui.add_sized([w, 26.0], egui::TextEdit::singleline(url).hint_text("mail.example.com"));
+        ui.add_sized([w, field_h], egui::TextEdit::singleline(url).hint_text("mail.example.com"));
         user_agent_field(ui, t, w, &mut f.user_agent);
     } else if let Some((host, port, security)) = f.pop.as_mut() {
         label(ui, "Incoming mail (POP)");
-        ui.horizontal(|ui| {
-            ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(host).hint_text("pop.example.com"));
-            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(port).hint_text("995").align(egui::Align2::CENTER_TOP));
-            security_combo(ui, "edit-popsec", security);
-        });
+        server_endpoint(ui, "edit-popsec", host, port, security, "pop.example.com", "995");
         f.pop_keep.ui(ui);
         ui.add_space(4.0);
         label(ui, "Outgoing mail (SMTP)");
-        ui.horizontal(|ui| {
-            ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.smtp_host).hint_text("smtp.example.com"));
-            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").align(egui::Align2::CENTER_TOP));
-            security_combo(ui, "edit-smtpsec", &mut f.smtp_security);
-        });
+        server_endpoint(ui, "edit-smtpsec", &mut f.smtp_host, &mut f.smtp_port, &mut f.smtp_security, "smtp.example.com", "465");
         f.smtp_sign_in.ui(ui, w);
     } else {
         ui.horizontal(|ui| {
@@ -823,21 +844,13 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut
     // (An Exchange server's address is all EWS needs.)
     if f.jmap && f.ews.is_none() {
         label(ui, "JMAP session address");
-        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+        ui.add_sized([w, field_h], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
     } else if f.ews.is_none() && f.pop.is_none() {
         label(ui, "Incoming mail (IMAP)");
-        ui.horizontal(|ui| {
-            ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.imap_host).hint_text("imap.example.com"));
-            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.imap_port).hint_text("993").align(egui::Align2::CENTER_TOP));
-            security_combo(ui, "edit-imapsec", &mut f.imap_security);
-        });
+        server_endpoint(ui, "edit-imapsec", &mut f.imap_host, &mut f.imap_port, &mut f.imap_security, "imap.example.com", "993");
         ui.add_space(4.0);
         label(ui, "Outgoing mail (SMTP)");
-        ui.horizontal(|ui| {
-            ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(&mut f.smtp_host).hint_text("smtp.example.com"));
-            ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(&mut f.smtp_port).hint_text("465").align(egui::Align2::CENTER_TOP));
-            security_combo(ui, "edit-smtpsec", &mut f.smtp_security);
-        });
+        server_endpoint(ui, "edit-smtpsec", &mut f.smtp_host, &mut f.smtp_port, &mut f.smtp_security, "smtp.example.com", "465");
         f.smtp_sign_in.ui(ui, w);
         if f.imap_security == Security::None || f.smtp_security == Security::None {
             ui.label(
@@ -865,7 +878,8 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, t: &Tokens, acts: &mut
 pub(super) fn user_agent_field(ui: &mut Ui, t: &Tokens, w: f32, agent: &mut String) {
     ui.add_space(4.0);
     ui.label(RichText::new(tl!("User-Agent (optional)")).strong().small());
-    ui.add_sized([w, 26.0], egui::TextEdit::singleline(agent).hint_text(tl!("Left empty: MailCraft's own")).char_limit(300));
+    let field_h = account_field_height(ui, 26.0);
+    ui.add_sized([w, field_h], egui::TextEdit::singleline(agent).hint_text(tl!("Left empty: MailCraft's own")).char_limit(300));
     let note = if !agent.trim().is_empty() && mailcraft_engine::model::user_agent(agent).is_none() {
         RichText::new(tl!("Only letters, digits, spaces and punctuation, up to 256 characters.")).color(t.danger)
     } else {
@@ -890,16 +904,17 @@ pub(crate) fn online_only_about() -> &'static str {
     )
 }
 
-pub(super) fn security_combo(ui: &mut Ui, id: &str, v: &mut Security) {
+pub(super) fn security_combo(ui: &mut Ui, id: &str, v: &mut Security) -> egui::Response {
     egui::ComboBox::from_id_salt(id)
         .selected_text(match v {
             Security::Tls => "SSL/TLS",
             Security::StartTls => "STARTTLS",
             Security::None => tl!("None (unsafe)"),
         })
-        .show_ui(ui, |ui| {
+        .show_ui_rtl(ui, |ui| {
             ui.selectable_value(v, Security::Tls, "SSL/TLS");
             ui.selectable_value(v, Security::StartTls, "STARTTLS");
             ui.selectable_value(v, Security::None, tl!("None (unsafe)"));
-        });
+        })
+        .response
 }

@@ -10,6 +10,7 @@ description = "MailCraft egui front end (folders, message list, reading pane, co
 workspace = true
 
 [dependencies]
+base64 = { workspace = true }
 mailcraft-engine = { workspace = true }
 # egui's emoji and symbol fonts, as egui had them by default before 0.37: emoji in subjects and
 # text, and symbols such as ▾, otherwise draw as empty boxes.

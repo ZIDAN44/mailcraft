@@ -97,7 +97,14 @@ fn blocked_words(b: &Blocked) -> String {
 
 /// The status bar's segment for the import shown, and its details while they're open
 /// (`details`: whose). Whether an import was shown (the search index's build then isn't).
-pub(crate) fn status_segment(ui: &mut Ui, s: &Session, t: &Tokens, details: &mut Option<String>, acts: &mut Vec<Action>) -> bool {
+pub(crate) fn status_segment(
+    ui: &mut Ui,
+    s: &Session,
+    t: &Tokens,
+    can_open_path: bool,
+    details: &mut Option<String>,
+    acts: &mut Vec<Action>,
+) -> bool {
     let Some((account, st)) = shown(s) else {
         *details = None;
         return false;
@@ -120,7 +127,7 @@ pub(crate) fn status_segment(ui: &mut Ui, s: &Session, t: &Tokens, details: &mut
         .open_bool(&mut open)
         .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
         .align(egui::RectAlign::TOP_START)
-        .show(|ui| details_ui(ui, s, t, &whose, st, acts));
+        .show(|ui| details_ui(ui, s, t, can_open_path, &whose, st, acts));
     // Closed, or something in it asked for (a question, the account removed): put away.
     if !open || acts.len() > before {
         *details = None;
@@ -130,8 +137,8 @@ pub(crate) fn status_segment(ui: &mut Ui, s: &Session, t: &Tokens, details: &mut
 
 /// The details of `account`'s import: how far in messages, data and folders, the time so far
 /// and left, what it couldn't bring in, where its copy is; and what can be done with it.
-fn details_ui(ui: &mut Ui, s: &Session, t: &Tokens, account: &str, st: &ImportState, acts: &mut Vec<Action>) {
-    ui.set_width(340.0);
+fn details_ui(ui: &mut Ui, s: &Session, t: &Tokens, can_open_path: bool, account: &str, st: &ImportState, acts: &mut Vec<Action>) {
+    crate::dialogs::set_dialog_width(ui, 340.0);
     let p = &st.progress;
     let (text, permille, _) = status_words(s, account, st);
     ui.label(RichText::new(text).strong().color(t.text));
@@ -182,7 +189,7 @@ fn details_ui(ui: &mut Ui, s: &Session, t: &Tokens, account: &str, st: &ImportSt
     }
     if let Some(file) = s.store.as_ref().and_then(|store| store.data_file(account)) {
         line(ui, tf!("Saved in: {path}", path = file.display()));
-        if file.exists() && ui.link(RichText::new(tl!("Open file location")).small()).clicked() {
+        if can_open_path && file.exists() && ui.link(RichText::new(tl!("Open file location")).small()).clicked() {
             let dir = file.parent().map_or_else(|| file.clone(), std::path::Path::to_path_buf);
             acts.push(Action::OpenFolder(dir));
         }

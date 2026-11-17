@@ -60,6 +60,7 @@
 	Delete “{folder}”?	Удалить «{folder}»?
 	Deleted Items	Удалённые
 	Discard	Отменить
+	Discard these changes?	Отменить эти изменения?
 	Disconnected: {error}	Нет связи: {error}
 	Document	Документ
 	Don't run later rules on mail this one matches	Не применять следующие правила к письмам, подходящим под это
@@ -385,6 +386,11 @@
 	Google (IMAP)	Google (IMAP)
 	I'm away until…	Меня не будет до…
 	Inbox and notifications	Входящие и уведомления
+	Android notifications are off. Turn them on in Settings for new mail and calendar reminders.	Уведомления Android отключены. Включите их в настройках, чтобы получать уведомления о новых письмах и событиях календаря.
+	Settings	Настройки
+	Android's encrypted credential store is unavailable. MailCraft will keep credentials in memory until it closes.	Зашифрованное хранилище учётных данных Android недоступно. MailCraft будет хранить учётные данные в памяти до закрытия приложения.
+	The Android file picker couldn't open. In Files, choose Share → MailCraft to use the file.	Не удалось открыть выбор файлов Android. В приложении «Файлы» выберите «Поделиться» → MailCraft, чтобы использовать файл.
+	MailCraft couldn't save the file. Try again.	MailCraft не удалось сохранить файл. Повторите попытку.
 	Info	Сведения
 	Kept on this computer: {size}	На этом компьютере: {size}
 	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft связывается только с вашими почтовыми серверами по зашифрованным соединениям. Изображения из интернета загружаются только по вашей просьбе.
@@ -763,6 +769,8 @@
 	Mail from an old .pst or .mailcraft file comes in first	Сначала загружается почта из старого файла .pst или .mailcraft
 	Open a data file	Открыть файл данных
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Загрузите файл данных Outlook (.pst) или MailCraft (.mailcraft). Он откроется как отдельный почтовый ящик со своими папками и будет храниться на этом компьютере.
+	You can also open a message (.eml or .msg), calendar (.ics) or contacts (.vcf) file.	Также можно открыть файл сообщения (.eml или .msg), календаря (.ics) или контактов (.vcf).
+	The file {name} could run a program, so it isn't opened from here; save it and check it first.	Файл {name} может запустить программу, поэтому его нельзя открыть отсюда. Сначала сохраните и проверьте его.
 	Move up	Переместить вверх
 	Move down	Переместить вниз
 	Updating…	Обновление…
@@ -875,6 +883,27 @@
 	 and {n} more	 и ещё {n}
 	Add to contacts…	Добавить в контакты…
 	Copy address	Копировать адрес
+	Copy phone number	Копировать номер телефона
+	Share contact	Поделиться контактом
+	Share attachment	Поделиться вложением
+	Share message	Поделиться сообщением
+	Share selected attachments	Поделиться выбранными вложениями
+	The selected attachments are too large to share	Выбранные вложения слишком велики для отправки
+	You can share up to {n} attachments at once	Можно отправить не более {n} вложений за раз
+	This attachment is too large to share	Это вложение слишком велико для отправки
+	This message is too large to share	Это сообщение слишком велико для отправки
+	No Android app can share files	Нет приложения Android для отправки файлов
+	Save contact	Сохранить контакт
+	Share event	Поделиться событием
+	Add to Android calendar	Добавить в календарь Android
+	This event is too large to add to Android calendar	Это событие слишком велико для календаря Android
+	This event has an invalid date for Android calendar	Дата этого события недопустима для календаря Android
+	No Android calendar app can add events	Нет приложения календаря Android для добавления событий
+	Save event	Сохранить событие
+	This event is too large to share	Это событие слишком велико для отправки
+	No Android app can share calendar events	Нет приложения Android для отправки событий календаря
+	This contact is too large to share	Этот контакт слишком велик для отправки
+	No Android app can share contacts	Нет приложения Android для отправки контактов
 	Edit contact…	Изменить контакт…
 	Send email	Отправить письмо
 	Add	Добавить
@@ -1625,3 +1654,34 @@ month	May	Май
 	it can't be decrypted with your OpenPGP key	его нельзя расшифровать вашим ключом OpenPGP
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	ваши ключи OpenPGP используются настольным приложением MailCraft, а не в браузере
 	Not sent yet: this is a draft.	Ещё не отправлено: это черновик.
+	The selected text is too large for Android's clipboard	Выбранный текст слишком велик для буфера обмена Android.
+	MailCraft couldn't copy text to Android's clipboard.	MailCraft не удалось скопировать текст в буфер обмена Android.
+	The Android clipboard text is too large to paste.	Текст в буфере обмена Android слишком велик для вставки.
+	Add to Android contacts	Добавить в контакты Android
+	This contact is too large to add to Android contacts	Этот контакт слишком велик для контактов Android
+	No Android contacts app can add contacts	Нет приложения контактов Android для добавления контактов
+	This link has no address scheme	В ссылке не указана схема адреса
+	This link is too long to open	Ссылка слишком длинная, чтобы её открыть
+	MailCraft can open web links and mail links on Android	MailCraft может открывать веб-ссылки и ссылки на почту в Android
+	No Android app can open this link	Нет приложения Android, которое может открыть эту ссылку
+	This phone number is too long to open	Номер телефона слишком длинный, чтобы его открыть
+	This phone number contains characters Android cannot dial	В номере есть символы, которые Android не может набрать
+	This contact has no dialable phone number	У контакта нет номера, на который можно позвонить
+	No Android dialer app can open this number	Нет приложения Android для набора этого номера
+	This contact has no address to open	У контакта нет адреса для открытия
+	This address is too long to open	Адрес слишком длинный, чтобы его открыть
+	No Android map app can open this address	Нет картографического приложения Android, которое может открыть этот адрес
+	MailCraft can open shared .eml, .msg, .ics, .vcf, .pst and .mailcraft files	MailCraft может открывать полученные файлы .eml, .msg, .ics, .vcf, .pst и .mailcraft
+	No Android app can open this file	Нет приложения Android, которое может открыть этот файл
+	MailCraft's save queue is full. Wait for current saves to finish before saving more files.	Очередь сохранения MailCraft заполнена. Дождитесь завершения текущего сохранения, прежде чем сохранять другие файлы.
+	Share a single .pst or .mailcraft data file at a time	Отправляйте только один файл данных .pst или .mailcraft за раз
+	Choose a .pst or .mailcraft data file for this account	Выберите файл данных .pst или .mailcraft для этой учётной записи
+	Android did not return a document URI for the selected file	Android не вернул URI документа для выбранного файла
+	The selected document address is too long	Адрес выбранного документа слишком длинный
+	The selected file is larger than {size} MiB	Размер выбранного файла превышает {size} МиБ
+
+	Move and delete	Переместить и удалить
+	Attendees:	Участники
+	Couldn't open notification settings: {error}	Не удалось открыть настройки уведомлений: {error}
+	Name and email address	Имя и адрес электронной почты
+	Organizer:	Организатор:

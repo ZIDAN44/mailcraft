@@ -34,9 +34,16 @@ impl Dialog {
 
 /// A colour dot, as a button when `pick` (the one chosen ringed).
 fn swatch(ui: &mut Ui, t: &Tokens, c: u8, chosen: bool) -> bool {
-    let (rect, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
+    let size = if touch { 44.0 } else { 22.0 };
+    let (rect, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
+    widgets::named(ui, &resp, &format!("{} {}", tl!("Color"), c + 1), true, Some(chosen));
     if resp.hovered() {
-        ui.painter().circle_filled(rect.center(), 11.0, t.hover);
+        if touch {
+            ui.painter().rect_filled(rect, 6.0, t.hover);
+        } else {
+            ui.painter().circle_filled(rect.center(), 11.0, t.hover);
+        }
     }
     ui.painter().circle_filled(rect.center(), 8.0, theme::category_color(c, t.dark));
     if chosen {
@@ -48,21 +55,22 @@ fn swatch(ui: &mut Ui, t: &Tokens, c: u8, chosen: bool) -> bool {
 /// One line of the list: a dot, the name, the keyword dim beside it; the buttons the caller
 /// puts on the right.
 fn row(ui: &mut Ui, t: &Tokens, c: &Category, odd: bool, extra: &str, buttons: impl FnOnce(&mut Ui)) {
-    let (rect, hover) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
+    let height = if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { 30.0 };
+    let (rect, hover) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
     if hover.hovered() {
         ui.painter().rect_filled(rect, 0.0, t.hover_row);
     } else if odd {
         ui.painter().rect_filled(rect, 0.0, t.chrome);
     }
     let mut inner =
-        ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink2(vec2(8.0, 0.0))).layout(egui::Layout::left_to_right(egui::Align::Center)));
+        ui.new_child(egui::UiBuilder::new().max_rect(rect.shrink2(vec2(8.0, 0.0))).layout(crate::bidi::row_from_start(egui::Align::Center)));
     let ui = &mut inner;
     crate::panes::organize::dot(ui, c.color, t.dark);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
         buttons(ui);
         ui.add_space(6.0);
-        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        ui.with_layout(crate::bidi::row_from_start(egui::Align::Center), |ui| {
             let mut job = egui::text::LayoutJob::default();
             job.append(&c.name, 0.0, egui::TextFormat { font_id: theme::bold(13.0), color: t.text, ..Default::default() });
             job.append(&c.keyword, 10.0, egui::TextFormat { font_id: egui::FontId::monospace(12.0), color: t.dim, ..Default::default() });
@@ -78,13 +86,16 @@ fn row(ui: &mut Ui, t: &Tokens, c: &Category, odd: bool, extra: &str, buttons: i
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::NewCategory { name, color, keyword, editing, error } => {
-            ui.set_width(380.0);
+            set_dialog_width(ui, 380.0);
             title(ui, t, if editing.is_some() { "Edit category" } else { "New category" });
             let r = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Name")).desired_width(f32::INFINITY));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
             }
-            ui.horizontal(|ui| {
+            ui.horizontal_wrapped(|ui| {
+                if ui.ctx().input(|input| input.has_touch_screen()) {
+                    ui.spacing_mut().item_spacing = vec2(2.0, 2.0);
+                }
                 for c in 0..8u8 {
                     if swatch(ui, t, c, *color == c) {
                         *color = c;
@@ -148,7 +159,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::Categories => {
-            ui.set_width(480.0);
+            set_dialog_width(ui, 480.0);
             title(ui, t, "Categories");
             ui.label(
                 RichText::new(tl!("Each category is kept with the mail on the server as a keyword, which other mail programs see too."))
@@ -202,7 +213,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     acts.push(Action::Dialog(Dialog::new_category(s)));
                 }
                 // The list to a file and back, for a team to use the same keywords.
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
                     if ui.add_enabled(!s.prefs.categories.is_empty(), egui::Button::new(tl!("Export…"))).clicked() {
                         acts.push(Action::ExportCategories);
                     }

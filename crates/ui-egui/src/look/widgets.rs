@@ -139,15 +139,25 @@ pub(crate) fn named(ui: &Ui, resp: &Response, label: &str, enabled: bool, on: Op
     });
 }
 
+fn touch(ui: &Ui) -> bool {
+    ui.ctx().input(|input| input.has_touch_screen())
+}
+
+fn touch_height(ui: &Ui, desktop: f32) -> f32 {
+    if touch(ui) { 44.0 } else { desktop }
+}
+
 fn icon_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, on: bool) -> Response {
-    let (rect, resp) = ui.allocate_exact_size(vec2(32.0, 30.0), if enabled { Sense::click() } else { Sense::hover() });
+    let size = touch_height(ui, 30.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(size, size), if enabled { Sense::click() } else { Sense::hover() });
     reached(ui, rect);
     if on {
         ui.painter().rect(rect, 6.0, t.accent_soft, Stroke::new(1.0, t.accent.gamma_multiply(0.5)), egui::StrokeKind::Inside);
     } else {
         hover_fill(ui, &resp, rect, t, enabled);
     }
-    let ir = egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0));
+    let icon_size = if touch(ui) { 18.0 } else { 16.0 };
+    let ir = egui::Rect::from_center_size(rect.center(), vec2(icon_size, icon_size));
     icons::paint(ui.painter(), ir, icon, if enabled { t.accent } else { t.faint });
     resp.on_hover_text(label)
 }
@@ -176,16 +186,17 @@ fn tool_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: 
         named(ui, &resp, label, enabled, None);
         return resp;
     }
-    let size = vec2(galley.size().x + 36.0, 30.0);
+    let height = touch_height(ui, 30.0);
+    let size = vec2(galley.size().x + 36.0, height);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     named(ui, &resp, label, enabled, None);
     reached(ui, rect);
     let color = command_label(t, enabled);
     hover_fill(ui, &resp, rect, t, enabled);
     let m = crate::bidi::Mirror::new(rect);
-    let ir = m.rect(egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0)));
+    let ir = m.rect(egui::Rect::from_center_size(egui::pos2(rect.min.x + 16.0, rect.center().y), vec2(16.0, 16.0)));
     icons::paint(ui.painter(), ir, icon, if enabled { t.accent } else { t.faint });
-    let at = egui::pos2(m.start(rect.min.x + 30.0, galley.size().x), rect.min.y + (30.0 - galley.size().y) / 2.0);
+    let at = egui::pos2(m.start(rect.min.x + 30.0, galley.size().x), rect.center().y - galley.size().y / 2.0);
     ui.painter().galley_with_override_text_color(at, galley, color);
     resp
 }
@@ -214,7 +225,8 @@ fn tool_toggle_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool)
         named(ui, &resp, label, true, Some(on));
         return resp;
     }
-    let (rect, resp) = ui.allocate_exact_size(vec2(galley.size().x + 36.0, 30.0), Sense::click());
+    let height = touch_height(ui, 30.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(galley.size().x + 36.0, height), Sense::click());
     named(ui, &resp, label, true, Some(on));
     reached(ui, rect);
     // Lit or not, easing between the two.
@@ -232,15 +244,22 @@ fn tool_toggle_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool)
         hover_fill(ui, &resp, rect, t, true);
     }
     let m = crate::bidi::Mirror::new(rect);
-    icons::paint(ui.painter(), m.rect(egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0))), icon, t.accent);
-    let at = egui::pos2(m.start(rect.min.x + 30.0, galley.size().x), rect.min.y + (30.0 - galley.size().y) / 2.0);
+    icons::paint(
+        ui.painter(),
+        m.rect(egui::Rect::from_center_size(egui::pos2(rect.min.x + 16.0, rect.center().y), vec2(16.0, 16.0))),
+        icon,
+        t.accent,
+    );
+    let at = egui::pos2(m.start(rect.min.x + 30.0, galley.size().x), rect.center().y - galley.size().y / 2.0);
     ui.painter().galley_with_override_text_color(at, galley, t.text);
     resp
 }
 
 /// A "⋯" button in the style of [`pill_button`], for a menu of more actions.
 pub fn more_pill(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
-    let (rect, resp) = ui.allocate_exact_size(vec2(34.0, 28.0), Sense::click());
+    let width = if touch(ui) { 44.0 } else { 34.0 };
+    let height = touch_height(ui, 28.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(width, height), Sense::click());
     named(ui, &resp, tl!(tip), true, None);
     let fill = if resp.hovered() { t.hover } else { t.surface };
     ui.painter().rect(rect, 6.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
@@ -267,7 +286,8 @@ fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled
     }
     let font = theme::bold(13.0);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.on_accent);
-    let size = vec2(galley.size().x + 40.0, 30.0);
+    let height = touch_height(ui, 30.0);
+    let size = vec2(galley.size().x + 40.0, height);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     named(ui, &resp, label, enabled, None);
     let fill = if !enabled {
@@ -279,9 +299,9 @@ fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled
     };
     ui.painter().rect_filled(rect, 6.0, fill);
     let m = crate::bidi::Mirror::new(rect);
-    let ir = m.rect(egui::Rect::from_min_size(rect.min + vec2(10.0, 7.0), vec2(16.0, 16.0)));
+    let ir = m.rect(egui::Rect::from_center_size(egui::pos2(rect.min.x + 18.0, rect.center().y), vec2(16.0, 16.0)));
     icons::paint(ui.painter(), ir, icon, t.on_accent);
-    let at = egui::pos2(m.start(rect.min.x + 32.0, galley.size().x), rect.min.y + (30.0 - galley.size().y) / 2.0);
+    let at = egui::pos2(m.start(rect.min.x + 32.0, galley.size().x), rect.center().y - galley.size().y / 2.0);
     ui.painter().galley_with_override_text_color(at, galley, t.on_accent);
     resp
 }
@@ -290,7 +310,7 @@ fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled
 pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Response {
     let label = tl!(label);
     let galley = ui.painter().layout_no_wrap(label.to_string(), theme::bold(13.0), t.on_accent);
-    let size = vec2((galley.size().x + 28.0).max(76.0), 30.0);
+    let size = vec2((galley.size().x + 28.0).max(76.0), touch_height(ui, 30.0));
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     named(ui, &resp, label, enabled, None);
     let fill = if !enabled {
@@ -312,12 +332,13 @@ pub fn bar_wash(t: &Tokens) -> Color32 {
 }
 
 pub fn bar_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Response {
-    let (rect, resp) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
+    let size = touch_height(ui, 30.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
     named(ui, &resp, tl!(tip), true, None);
     if resp.hovered() {
         ui.painter().rect_filled(rect, 6.0, bar_wash(t));
     }
-    icons::paint(ui.painter(), icons::centered(rect, 17.0), icon, t.on_bar);
+    icons::paint(ui.painter(), icons::centered(rect, if touch(ui) { 20.0 } else { 17.0 }), icon, t.on_bar);
     resp.on_hover_text(tl!(tip))
 }
 
@@ -333,12 +354,13 @@ pub fn tiny_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Respo
         icons::paint(ui.painter(), ir, icon, if resp.hovered() { t.text } else { t.dim });
         return resp.on_hover_text(tl!(tip));
     }
-    let (rect, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+    let size = touch_height(ui, 22.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
     named(ui, &resp, tl!(tip), true, None);
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover);
     }
-    icons::paint(ui.painter(), icons::centered(rect, 13.0), icon, if resp.hovered() { t.text } else { t.dim });
+    icons::paint(ui.painter(), icons::centered(rect, if touch(ui) { 17.0 } else { 13.0 }), icon, if resp.hovered() { t.text } else { t.dim });
     resp.on_hover_text(tl!(tip))
 }
 
@@ -392,14 +414,20 @@ pub fn one_line(ui: &Ui, text: &str, font: egui::FontId, color: Color32, width: 
 pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens) -> Response {
     let label = tl!(label);
     let galley = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text);
-    let size = vec2(galley.size().x + 34.0, 28.0);
+    let height = touch_height(ui, 28.0);
+    let size = vec2(galley.size().x + 34.0, height);
     let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
     named(ui, &resp, label, true, None);
     let fill = if resp.hovered() { t.hover } else { t.surface };
     ui.painter().rect(rect, 6.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     let m = crate::bidi::Mirror::new(rect);
-    icons::paint(ui.painter(), m.rect(egui::Rect::from_min_size(rect.min + vec2(9.0, 6.0), vec2(16.0, 16.0))), icon, t.accent);
-    let at = egui::pos2(m.start(rect.min.x + 29.0, galley.size().x), rect.min.y + (28.0 - galley.size().y) / 2.0);
+    icons::paint(
+        ui.painter(),
+        m.rect(egui::Rect::from_center_size(egui::pos2(rect.min.x + 17.0, rect.center().y), vec2(16.0, 16.0))),
+        icon,
+        t.accent,
+    );
+    let at = egui::pos2(m.start(rect.min.x + 29.0, galley.size().x), rect.center().y - galley.size().y / 2.0);
     ui.painter().galley_with_override_text_color(at, galley, t.text);
     resp
 }
@@ -407,7 +435,8 @@ pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens) -> Response
 /// An on/off switch (a setting that applies at once). `label` (translated) is for screen readers
 /// only; the row shows its own. Clicking it flips `on`; the response says it changed.
 pub fn switch(ui: &mut Ui, t: &Tokens, on: &mut bool, label: &str) -> Response {
-    let (rect, mut resp) = ui.allocate_exact_size(vec2(36.0, 20.0), Sense::click());
+    let target = if touch(ui) { 44.0 } else { 36.0 };
+    let (hit_rect, mut resp) = ui.allocate_exact_size(vec2(target, target), Sense::click());
     if resp.clicked() {
         *on = !*on;
         resp.mark_changed();
@@ -425,12 +454,13 @@ pub fn switch(ui: &mut Ui, t: &Tokens, on: &mut bool, label: &str) -> Response {
     };
     let track = if enabled { track } else { track.gamma_multiply(0.5) };
     let edge = if *on { t.accent } else { t.dim };
+    let rect = egui::Rect::from_center_size(hit_rect.center(), vec2(36.0, 20.0));
     ui.painter().rect(rect, 10.0, track, Stroke::new(1.0, if enabled { edge } else { t.border }), egui::StrokeKind::Inside);
     let x = egui::lerp(rect.left() + 10.0..=rect.right() - 10.0, k);
     let knob = if *on { t.on_accent } else { t.dim };
     ui.painter().circle_filled(egui::pos2(x, rect.center().y), if resp.hovered() && enabled { 6.5 } else { 6.0 }, knob);
     if resp.has_focus() {
-        ui.painter().rect_stroke(rect.expand(2.0), 12.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Outside);
+        ui.painter().rect_stroke(hit_rect.expand(2.0), 12.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Outside);
     }
     resp
 }
@@ -442,12 +472,13 @@ pub fn segmented(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], selected: 
     let labels: Vec<String> = options.iter().map(|o| o.to_string()).collect();
     let widths: Vec<f32> = labels.iter().map(|l| ui.painter().layout_no_wrap(l.clone(), font.clone(), t.text).size().x + 24.0).collect();
     let total: f32 = widths.iter().sum::<f32>() + 4.0;
-    let (rect, _) = ui.allocate_exact_size(vec2(total, 28.0), Sense::hover());
+    let height = touch_height(ui, 28.0);
+    let (rect, _) = ui.allocate_exact_size(vec2(total, height), Sense::hover());
     ui.painter().rect(rect, 6.0, t.bg, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     let mut x = rect.left() + 2.0;
     let mut clicked = None;
     for (i, (label, w)) in labels.iter().zip(&widths).enumerate() {
-        let r = egui::Rect::from_min_size(egui::pos2(x, rect.top() + 2.0), vec2(*w, 24.0));
+        let r = egui::Rect::from_min_size(egui::pos2(x, rect.top() + 2.0), vec2(*w, height - 4.0));
         let resp = ui.interact(r, ui.scope_id().with(("segment", id, i)), Sense::click());
         let on = i == selected;
         resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, ui.is_enabled(), on, label));
@@ -589,7 +620,13 @@ pub fn welcome(ui: &mut Ui, t: &Tokens, jmap_only: bool, acts: &mut Vec<Action>)
                 // Or begin from what Outlook kept: there are no data files in the browser.
                 if !jmap_only {
                     ui.add_space(6.0);
-                    if ui.button(tl!("Open an Outlook data file…")).clicked() {
+                    let button = egui::Button::new(tl!("Open an Outlook data file…"));
+                    let response = if ui.ctx().input(|input| input.has_touch_screen()) {
+                        ui.add_sized(vec2(ui.available_width(), 44.0), button)
+                    } else {
+                        ui.add(button)
+                    };
+                    if response.clicked() {
                         acts.push(Action::OpenDataFile);
                     }
                 }

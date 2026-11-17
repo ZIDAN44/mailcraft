@@ -268,7 +268,9 @@ impl eframe::App for App {
         }
         // An import running pauses: what it read is written before the data files are sealed
         // below (waited for 10 seconds at most; an import stuck longer is let go).
-        self.app.backend.shutdown();
+        if let Err(e) = self.app.shutdown() {
+            log::warn!("closing: {e}");
+        }
         // Issue #4: attachments handed to other apps, and pictures made of them, go with
         // MailCraft when it's portable or keeps an account online only (one still open in an
         // app stays until that app lets it go).
@@ -276,14 +278,8 @@ impl eframe::App for App {
         if s.portable || s.accounts.iter().any(|a| a.config.keeps_online()) {
             mailcraft_engine::store::clear_scratch();
         }
-        // The data files sealed, so quitting just after a write (a message marked read) or
-        // during an import doesn't cost a full check of the file at the next start. Closing them
-        // would, but the accounts' threads hold the store too and are let go, not waited for.
-        if let Some(store) = &s.store
-            && let Err(e) = store.seal_all()
-        {
-            log::warn!("closing: {e}");
-        }
+        // `MailApp::shutdown` sealed the data files, so quitting just after a write (a message
+        // marked read) or during an import doesn't cost a full check at the next start.
         // The lines logged are written on the log's thread: written before MailCraft ends.
         log::logger().flush();
         // macOS: end here, before eframe tears the window down. AccessKit's macOS adapter

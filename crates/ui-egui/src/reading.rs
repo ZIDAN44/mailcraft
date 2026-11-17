@@ -24,6 +24,7 @@ mod reactions;
 mod security;
 pub(crate) mod text_selection;
 mod videos;
+pub(crate) use attachments::close_attachment_view;
 pub(crate) use attachments::decode;
 #[cfg(test)]
 pub(crate) use attachments::previewed_text;
@@ -116,8 +117,10 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
         close_attachment_view(st);
     }
     let viewing = viewing.filter(|_| st.attachment_view.is_some());
+    let inset = if st.phone_mode { 12 } else { 24 };
+    let vertical_inset = if st.phone_mode { 12 } else { 18 };
     egui::ScrollArea::vertical().auto_shrink(false).id_salt(("reading", in_window, r.key.to_id(), viewing)).show(ui, |ui| {
-        egui::Frame::new().inner_margin(Margin { left: 24, right: 24, top: 18, bottom: 24 }).show(ui, |ui| {
+        egui::Frame::new().inner_margin(Margin { left: inset, right: inset, top: vertical_inset, bottom: inset }).show(ui, |ui| {
             let Some(p) = &r.parsed else {
                 if !getting_ready {
                     ui.add_space(30.0);
@@ -392,7 +395,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                                 acts.push(Action::Print);
                             }
                             let more = widgets::pill_button(ui, Icon::File, "Save", &t);
-                            egui::Popup::menu(&more).show(|ui| {
+                            crate::bidi::popup_menu(&more).show(|ui| {
                                 if ui.button(tl!("Save as PDF…")).clicked() {
                                     acts.push(Action::ExportPdf);
                                     ui.close();
@@ -401,10 +404,14 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                                     acts.push(Action::SaveMessage);
                                     ui.close();
                                 }
+                                if st.can_share_files && ui.button(tl!("Share message")).clicked() {
+                                    acts.push(Action::ShareMessage);
+                                    ui.close();
+                                }
                             });
                             // More, as Outlook's ⋯ beside Forward.
                             let more = widgets::more_pill(ui, "More actions", &t);
-                            egui::Popup::menu(&more).show(|ui| {
+                            crate::bidi::popup_menu(&more).show(|ui| {
                                 if ui.button(tl!("Reply with meeting")).clicked() {
                                     acts.push(Action::Dialog(crate::Dialog::meeting_from(s, p)));
                                     ui.close();
@@ -461,8 +468,15 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                     if r.text_first {
                         ui.add(egui::Spinner::new().size(11.0));
                         ui.label(RichText::new(tl!("Downloading the attachments…")).color(t.dim).small());
-                    } else if files.len() > 1 && ui.link(RichText::new(tl!("Save all…")).small()).clicked() {
-                        acts.push(Action::SaveAll);
+                    } else if files.len() > 1 {
+                        let clicked = if ui.ctx().input(|input| input.has_touch_screen()) {
+                            widgets::pill_button(ui, Icon::File, "Save all…", &t).clicked()
+                        } else {
+                            ui.link(RichText::new(tl!("Save all…")).small()).clicked()
+                        };
+                        if clicked {
+                            acts.push(Action::SaveAll);
+                        }
                     }
                 });
                 // Wrapped into rows, scrolling past three, as Outlook's are.
@@ -626,8 +640,15 @@ fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, act
                             acts.push(Action::Run("invite.respond", json!({"answer": code})));
                         }
                     }
-                    if inv.in_calendar && ui.link(tl!("Show in calendar")).clicked() {
-                        show_day(e.start, s, acts);
+                    if inv.in_calendar {
+                        let clicked = if ui.ctx().input(|input| input.has_touch_screen()) {
+                            widgets::pill_button(ui, Icon::Calendar, "Show in calendar", &t).clicked()
+                        } else {
+                            ui.link(tl!("Show in calendar")).clicked()
+                        };
+                        if clicked {
+                            show_day(e.start, s, acts);
+                        }
                     }
                 });
             }
@@ -687,30 +708,40 @@ fn thread_list(s: &Session, t: &Tokens, ui: &mut Ui, thread: &[MessageKey], open
         ui,
         |ui| {
             ui.label(RichText::new(tf!("{n} messages in this conversation", n = thread.len())).color(t.dim).small());
+            let touch = ui.ctx().input(|input| input.has_touch_screen());
             for k in thread {
                 let Some(m) = s.summary(k) else { continue };
                 let current = k == open;
-                let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click());
+                let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), if touch { 54.0 } else { 24.0 }), Sense::click());
                 if current || resp.hovered() {
                     ui.painter().rect_filled(rect, 4.0, if current { t.accent_soft } else { t.hover_row });
                 }
                 let font = if !m.flags.seen { theme::bold(13.0) } else { theme::regular(13.0) };
+                let sender = m.from.display();
+                let date = crate::i18n::date(&dates::list_time(m.when(), &s.clock));
+                let spoken = format!("{sender}, {}, {date}", widgets::shorten(&m.preview, 120));
+                resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::ListItem, ui.is_enabled(), current, &spoken));
                 let p = ui.painter_at(rect);
-                p.text(rect.left_center() + vec2(8.0, 0.0), egui::Align2::LEFT_CENTER, m.from.display(), font, t.text);
-                p.text(
-                    rect.left_center() + vec2(170.0, 0.0),
-                    egui::Align2::LEFT_CENTER,
-                    widgets::shorten(&m.preview, 70),
-                    theme::regular(12.5),
-                    t.dim,
-                );
-                p.text(
-                    rect.right_center() - vec2(8.0, 0.0),
-                    egui::Align2::RIGHT_CENTER,
-                    crate::i18n::date(&dates::list_time(m.when(), &s.clock)),
-                    theme::regular(12.0),
-                    t.dim,
-                );
+                if touch {
+                    let mirror = crate::bidi::Mirror::new(rect);
+                    let date_galley = p.layout_no_wrap(date, theme::regular(12.0), t.dim);
+                    let sender_width = (rect.width() - date_galley.size().x - 24.0).max(0.0);
+                    let sender_galley = widgets::one_line(ui, sender, font, t.text, sender_width);
+                    p.galley(egui::pos2(mirror.start(rect.left() + 8.0, sender_galley.size().x), rect.min.y + 7.0), sender_galley, t.text);
+                    p.galley(egui::pos2(mirror.start(rect.right() - 8.0, date_galley.size().x), rect.min.y + 8.5), date_galley, t.dim);
+                    let preview = widgets::one_line(ui, &m.preview, theme::regular(12.5), t.dim, (rect.width() - 16.0).max(0.0));
+                    p.galley(egui::pos2(mirror.start(rect.left() + 8.0, preview.size().x), rect.min.y + 31.0), preview, t.dim);
+                } else {
+                    p.text(rect.left_center() + vec2(8.0, 0.0), egui::Align2::LEFT_CENTER, sender, font, t.text);
+                    p.text(
+                        rect.left_center() + vec2(170.0, 0.0),
+                        egui::Align2::LEFT_CENTER,
+                        widgets::shorten(&m.preview, 70),
+                        theme::regular(12.5),
+                        t.dim,
+                    );
+                    p.text(rect.right_center() - vec2(8.0, 0.0), egui::Align2::RIGHT_CENTER, date, theme::regular(12.0), t.dim);
+                }
                 if resp.clicked() && !current {
                     acts.push(Action::Open(k.clone()));
                 }

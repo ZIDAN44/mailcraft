@@ -60,6 +60,7 @@
 	Delete “{folder}”?	要刪除「{folder}」嗎?
 	Deleted Items	刪除的郵件
 	Discard	捨棄
+	Discard these changes?	要捨棄這些變更嗎？
 	Disconnected: {error}	已中斷連線: {error}
 	Document	文件
 	Don't run later rules on mail this one matches	符合此規則的郵件不再套用後續規則
@@ -385,6 +386,11 @@
 	Google (IMAP)	Google (IMAP)
 	I'm away until…	我將離開到…
 	Inbox and notifications	收件匣和通知
+	Android notifications are off. Turn them on in Settings for new mail and calendar reminders.	Android 通知已關閉。請在設定中開啟，以接收新郵件和行事曆提醒。
+	Settings	設定
+	Android's encrypted credential store is unavailable. MailCraft will keep credentials in memory until it closes.	Android 的加密憑證儲存空間無法使用。MailCraft 會將憑證保存在記憶體中，直到應用程式關閉。
+	The Android file picker couldn't open. In Files, choose Share → MailCraft to use the file.	無法開啟 Android 檔案選擇器。在「檔案」中選擇「分享」→ MailCraft 即可使用該檔案。
+	MailCraft couldn't save the file. Try again.	MailCraft 無法儲存檔案。請再試一次。
 	Info	資訊
 	Kept on this computer: {size}	保存在這台電腦上: {size}
 	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft 只透過加密連線與您自己的郵件伺服器通訊。來自網路的圖片只在您要求時載入。
@@ -763,6 +769,8 @@
 	Mail from an old .pst or .mailcraft file comes in first	先匯入舊 .pst 或 .mailcraft 檔案中的郵件
 	Open a data file	開啟資料檔
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	匯入 Outlook 資料檔 (.pst) 或 MailCraft 檔案 (.mailcraft)。它會連同資料夾以獨立信箱的形式開啟,儲存在此電腦上。
+	You can also open a message (.eml or .msg), calendar (.ics) or contacts (.vcf) file.	也可以開啟郵件 (.eml 或 .msg)、行事曆 (.ics) 或聯絡人 (.vcf) 檔案。
+	The file {name} could run a program, so it isn't opened from here; save it and check it first.	檔案 {name} 可能會執行程式，因此無法在此處開啟；請先儲存並檢查。
 	Move up	上移
 	Move down	下移
 	Updating…	正在更新…
@@ -875,6 +883,27 @@
 	 and {n} more	 等另外 {n} 人
 	Add to contacts…	新增至連絡人…
 	Copy address	複製地址
+	Copy phone number	複製電話號碼
+	Share contact	分享聯絡人
+	Share attachment	分享附件
+	Share message	分享郵件
+	Share selected attachments	分享所選附件
+	The selected attachments are too large to share	所選附件過大，無法分享
+	You can share up to {n} attachments at once	一次最多可分享 {n} 個附件
+	This attachment is too large to share	此附件過大，無法分享
+	This message is too large to share	此郵件過大，無法分享
+	No Android app can share files	沒有可分享檔案的 Android 應用
+	Save contact	儲存聯絡人
+	Share event	分享行事曆事件
+	Add to Android calendar	新增至 Android 行事曆
+	This event is too large to add to Android calendar	此行事曆事件過大，無法新增至 Android 行事曆
+	This event has an invalid date for Android calendar	此行事曆事件的日期對 Android 行事曆無效
+	No Android calendar app can add events	沒有可新增行事曆事件的 Android 應用程式
+	Save event	儲存行事曆事件
+	This event is too large to share	此行事曆事件過大，無法分享
+	No Android app can share calendar events	沒有可分享行事曆事件的 Android 應用程式
+	This contact is too large to share	此聯絡人過大，無法分享
+	No Android app can share contacts	沒有可分享聯絡人的 Android 應用程式
 	Edit contact…	編輯連絡人…
 	Send email	傳送電子郵件
 	Add	新增
@@ -1625,3 +1654,34 @@ month	May	5月
 	it can't be decrypted with your OpenPGP key	無法用你的 OpenPGP 金鑰解密
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	你的 OpenPGP 金鑰由 MailCraft 桌面應用程式使用，而不在瀏覽器中使用
 	Not sent yet: this is a draft.	尚未傳送：這是草稿。
+	The selected text is too large for Android's clipboard	選取的文字太大，無法複製到 Android 剪貼簿。
+	MailCraft couldn't copy text to Android's clipboard.	MailCraft 無法將文字複製到 Android 剪貼簿。
+	The Android clipboard text is too large to paste.	Android 剪貼簿中的文字太大，無法貼上。
+	Add to Android contacts	新增至 Android 聯絡人
+	This contact is too large to add to Android contacts	此聯絡人過大，無法新增至 Android 聯絡人
+	No Android contacts app can add contacts	沒有可新增聯絡人的 Android 應用程式
+	This link has no address scheme	此連結沒有位址配置
+	This link is too long to open	此連結過長，無法開啟
+	MailCraft can open web links and mail links on Android	MailCraft 可以在 Android 上開啟網頁連結和郵件連結
+	No Android app can open this link	沒有可開啟此連結的 Android 應用程式
+	This phone number is too long to open	此電話號碼過長，無法開啟
+	This phone number contains characters Android cannot dial	此電話號碼包含 Android 無法撥打的字元
+	This contact has no dialable phone number	此聯絡人沒有可撥打的電話號碼
+	No Android dialer app can open this number	沒有可開啟此號碼的 Android 撥號應用程式
+	This contact has no address to open	此聯絡人沒有可開啟的地址
+	This address is too long to open	此地址過長，無法開啟
+	No Android map app can open this address	沒有可開啟此地址的 Android 地圖應用程式
+	MailCraft can open shared .eml, .msg, .ics, .vcf, .pst and .mailcraft files	MailCraft 可以開啟分享的 .eml、.msg、.ics、.vcf、.pst 和 .mailcraft 檔案
+	No Android app can open this file	沒有可開啟此檔案的 Android 應用程式
+	MailCraft's save queue is full. Wait for current saves to finish before saving more files.	MailCraft 的儲存佇列已滿。請等候目前的儲存完成後再儲存其他檔案。
+	Share a single .pst or .mailcraft data file at a time	一次只能分享一個 .pst 或 .mailcraft 資料檔案
+	Choose a .pst or .mailcraft data file for this account	請為此帳戶選擇 .pst 或 .mailcraft 資料檔案
+	Android did not return a document URI for the selected file	Android 未傳回所選檔案的文件 URI
+	The selected document address is too long	所選文件的位址太長
+	The selected file is larger than {size} MiB	所選檔案大於 {size} MiB
+
+	Move and delete	移動和刪除
+	Attendees:	與會者
+	Couldn't open notification settings: {error}	無法開啟通知設定：{error}
+	Name and email address	姓名和電子郵件地址
+	Organizer:	召集人：

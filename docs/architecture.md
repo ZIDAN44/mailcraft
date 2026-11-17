@@ -19,6 +19,16 @@ like this:
 
 The app itself supplies the keychain, file dialogs, the system font and the clock.
 
+`apps/mailcraft-android` opens the same `Session` over the production `mailcraft-net::Pool` and
+`mailcraft-ui-egui::MailApp`. Its `Services` implementation owns Android-specific work: Keystore
+credentials, document pickers and URI streams, notifications, clipboard access, the system time
+zone, locale and appearance. JNI stays in the Android app; the shared engine and UI do not depend on it.
+The cache and staged imports live in the app's private storage, so the same store and import code
+works offline without exposing filesystem paths to Android document providers. Android cannot open
+raw private paths in other apps; when opening an attachment, a non-exported content provider grants
+temporary read access to that one file. The UI only offers data-folder location links on platforms
+that can open them.
+
 In the browser (`apps/mailcraft-web`), the same `ui-egui` and engine run over JMAP. See
 [The browser](#the-browser-appsmailcraft-web).
 

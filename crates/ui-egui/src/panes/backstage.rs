@@ -3,6 +3,7 @@
 //! automatic replies, the space it uses and its rules), Open & Export (Outlook data files),
 //! Options and About.
 
+use crate::bidi::ComboBoxExt as _;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
@@ -81,64 +82,141 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     let t = st.tokens;
     let Some(mut b) = st.backstage.take() else { return };
     let mut close = false;
-    egui::Panel::left("backstage-rail").exact_size(200.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(0, 10))).show(
-        ui,
-        |ui| {
-            ui.spacing_mut().item_spacing.y = 2.0;
-            let r = rail_item(ui, &t, Icon::Back, "Back", false);
-            if r.clicked() {
-                close = true;
-            }
-            ui.add_space(8.0);
-            for (page, icon, label) in [(Page::Info, Icon::Info, "Info"), (Page::Open, Icon::Folder, "Open & Export")] {
-                if rail_item(ui, &t, icon, label, b.page == page).clicked() {
-                    b.page = page;
-                }
-            }
-            // The open message, as Outlook's File › Save As, Save Attachments and Print.
-            ui.add_space(8.0);
-            let open = s.reading.as_ref().and_then(|r| r.parsed.as_ref());
-            let attachments = open.is_some_and(|p| !p.attachments.is_empty());
-            for (icon, label, on, action) in [
-                (Icon::File, "Save As", open.is_some(), Action::SaveMessage),
-                (Icon::Attach, "Save Attachments", attachments, Action::SaveAll),
-                (Icon::Print, "Print", open.is_some(), Action::Print),
-            ] {
-                let r = ui.add_enabled_ui(on, |ui| rail_item(ui, &t, icon, label, false)).inner;
-                if on && r.clicked() {
-                    acts.push(action);
-                    close = true;
-                }
-            }
-            ui.add_space(8.0);
-            for (page, icon, label) in [(Page::Options, Icon::Gear, "Options"), (Page::About, Icon::Star, "About")] {
-                if rail_item(ui, &t, icon, label, b.page == page).clicked() {
-                    b.page = page;
-                }
-            }
-            // Close MailCraft (the desktop app; a browser tab is closed by the browser).
-            if st.has_files && rail_item(ui, &t, Icon::Close, "Exit", false).clicked() {
-                ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
-            }
-        },
-    );
-    egui::CentralPanel::default().frame(egui::Frame::new().fill(t.bg)).show(ui, |ui| {
-        egui::ScrollArea::vertical().auto_shrink(false).id_salt("backstage").show(ui, |ui| {
-            egui::Frame::new().inner_margin(Margin { left: 36, right: 36, top: 24, bottom: 32 }).show(ui, |ui| {
-                // At most this wide, and never wider than the window (`set_max_width` alone widens
-                // the page past a narrow window's edge, where it was cut off rather than wrapped).
-                ui.set_max_width(ui.available_width().min(820.0));
-                match b.page {
-                    Page::Info => info(s, &t, st.has_files, ui, &mut b, acts),
-                    Page::Open => open(s, &t, ui, &mut b, acts),
-                    Page::Options => options(s, st, ui, acts),
-                    Page::About => about(s, &t, &st.update, ui, acts),
-                }
+    if st.phone_mode {
+        egui::CentralPanel::default().frame(egui::Frame::new().fill(t.bg)).show(ui, |ui| {
+            egui::ScrollArea::vertical().auto_shrink(false).id_salt("backstage-phone").show(ui, |ui| {
+                egui::Frame::new().inner_margin(Margin { left: 14, right: 14, top: 12, bottom: 24 }).show(ui, |ui| {
+                    ui.set_max_width(ui.available_width().min(820.0));
+                    egui::ScrollArea::horizontal().id_salt("backstage-phone-pages").show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            for (page, label) in [
+                                (None, "Back"),
+                                (Some(Page::Info), "Info"),
+                                (Some(Page::Open), "Open & Export"),
+                                (Some(Page::Options), "Options"),
+                                (Some(Page::About), "About"),
+                            ] {
+                                let selected = page == Some(b.page);
+                                let response = ui.add(
+                                    egui::Button::new(if selected { RichText::new(tl!(label)).strong() } else { RichText::new(tl!(label)) })
+                                        .min_size(vec2(64.0, 44.0))
+                                        .selected(selected),
+                                );
+                                widgets::named(ui, &response, tl!(label), true, Some(selected));
+                                if response.clicked() {
+                                    if let Some(page) = page {
+                                        b.page = page;
+                                    } else {
+                                        close = true;
+                                    }
+                                }
+                            }
+                        });
+                    });
+                    let open = s.reading.as_ref().and_then(|r| r.parsed.as_ref());
+                    let attachments = open.is_some_and(|p| !p.attachments.is_empty());
+                    let mut message_actions = vec![
+                        ("Save As", open.is_some(), Action::SaveMessage),
+                        ("Save Attachments", attachments, Action::SaveAll),
+                        ("Print", open.is_some(), Action::Print),
+                    ];
+                    if st.can_share_files {
+                        message_actions.insert(1, ("Share message", open.is_some(), Action::ShareMessage));
+                    }
+                    if message_actions.iter().any(|(_, enabled, _)| *enabled) {
+                        egui::ScrollArea::horizontal().id_salt("backstage-phone-actions").show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                for (label, enabled, action) in message_actions {
+                                    let response = ui.add_enabled(enabled, egui::Button::new(tl!(label)).min_size(vec2(0.0, 44.0)));
+                                    widgets::named(ui, &response, tl!(label), true, None);
+                                    if enabled && response.clicked() {
+                                        acts.push(action);
+                                        close = true;
+                                    }
+                                }
+                            });
+                        });
+                    }
+                    if st.has_files {
+                        let exit = ui.add_sized(vec2(ui.available_width(), 44.0), egui::Button::new(tl!("Exit")));
+                        widgets::named(ui, &exit, tl!("Exit"), true, None);
+                        if exit.clicked() {
+                            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                        }
+                    }
+                    ui.add_space(12.0);
+                    show_page(s, st, ui, &mut b, acts);
+                });
             });
         });
-    });
+    } else {
+        egui::Panel::left("backstage-rail").exact_size(200.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(0, 10))).show(
+            ui,
+            |ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                let r = rail_item(ui, &t, Icon::Back, "Back", false);
+                if r.clicked() {
+                    close = true;
+                }
+                ui.add_space(8.0);
+                for (page, icon, label) in [(Page::Info, Icon::Info, "Info"), (Page::Open, Icon::Folder, "Open & Export")] {
+                    if rail_item(ui, &t, icon, label, b.page == page).clicked() {
+                        b.page = page;
+                    }
+                }
+                // The open message, as Outlook's File › Save As, Save Attachments and Print.
+                ui.add_space(8.0);
+                let open = s.reading.as_ref().and_then(|r| r.parsed.as_ref());
+                let attachments = open.is_some_and(|p| !p.attachments.is_empty());
+                let mut message_actions = vec![
+                    (Icon::File, "Save As", open.is_some(), Action::SaveMessage),
+                    (Icon::Attach, "Save Attachments", attachments, Action::SaveAll),
+                    (Icon::Print, "Print", open.is_some(), Action::Print),
+                ];
+                if st.can_share_files {
+                    message_actions.insert(1, (Icon::Send, "Share message", open.is_some(), Action::ShareMessage));
+                }
+                for (icon, label, on, action) in message_actions {
+                    let r = ui.add_enabled_ui(on, |ui| rail_item(ui, &t, icon, label, false)).inner;
+                    if on && r.clicked() {
+                        acts.push(action);
+                        close = true;
+                    }
+                }
+                ui.add_space(8.0);
+                for (page, icon, label) in [(Page::Options, Icon::Gear, "Options"), (Page::About, Icon::Star, "About")] {
+                    if rail_item(ui, &t, icon, label, b.page == page).clicked() {
+                        b.page = page;
+                    }
+                }
+                // Close MailCraft (the desktop app; a browser tab is closed by the browser).
+                if st.has_files && rail_item(ui, &t, Icon::Close, "Exit", false).clicked() {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            },
+        );
+        egui::CentralPanel::default().frame(egui::Frame::new().fill(t.bg)).show(ui, |ui| {
+            egui::ScrollArea::vertical().auto_shrink(false).id_salt("backstage").show(ui, |ui| {
+                egui::Frame::new().inner_margin(Margin { left: 36, right: 36, top: 24, bottom: 32 }).show(ui, |ui| {
+                    // At most this wide, and never wider than the window (`set_max_width` alone widens
+                    // the page past a narrow window's edge, where it was cut off rather than wrapped).
+                    ui.set_max_width(ui.available_width().min(820.0));
+                    show_page(s, st, ui, &mut b, acts);
+                });
+            });
+        });
+    }
     if !close {
         st.backstage = Some(b);
+    }
+}
+
+fn show_page(s: &Session, st: &UiState, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
+    match b.page {
+        Page::Info => info(s, &st.tokens, st.has_files, st.phone_mode, st.can_open_path, ui, b, acts),
+        Page::Open => open(s, &st.tokens, ui, b, acts),
+        Page::Options => options(s, st, ui, acts),
+        Page::About => about(s, &st.tokens, &st.update, ui, acts),
     }
 }
 
@@ -297,7 +375,7 @@ fn note(t: &Tokens, s: &str) -> RichText {
     RichText::new(s).color(t.faint).size(12.0)
 }
 
-fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
+fn info(s: &Session, t: &Tokens, has_files: bool, phone: bool, can_open_path: bool, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
     heading(ui, t, "Account information");
     ui.set_max_width(ui.available_width().min(760.0));
     let Some(a) = b.account.as_deref().and_then(|id| s.account(id)).or_else(|| s.accounts.first()) else {
@@ -309,19 +387,33 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
     };
     let id = a.config.id.clone();
     // The account picker.
-    ui.horizontal(|ui| {
+    if phone {
         let current = format!("{}   ·   {}", a.config.email, tl!(kind(a)));
-        egui::ComboBox::from_id_salt("backstage-account").width(420.0).selected_text(current).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("backstage-account").width(ui.available_width()).selected_text(current).show_ui_rtl(ui, |ui| {
             for x in &s.accounts {
                 if ui.selectable_label(x.config.id == id, format!("{}   ·   {}", x.config.email, tl!(kind(x)))).clicked() {
                     b.account = Some(x.config.id.clone());
                 }
             }
         });
-        if widgets::pill_button(ui, Icon::Plus, "Add account…", t).clicked() {
+        if ui.add_sized(vec2(ui.available_width(), 44.0), egui::Button::new(tl!("Add account…"))).clicked() {
             acts.push(Action::Dialog(Dialog::add_account()));
         }
-    });
+    } else {
+        ui.horizontal(|ui| {
+            let current = format!("{}   ·   {}", a.config.email, tl!(kind(a)));
+            egui::ComboBox::from_id_salt("backstage-account").width(420.0).selected_text(current).show_ui_rtl(ui, |ui| {
+                for x in &s.accounts {
+                    if ui.selectable_label(x.config.id == id, format!("{}   ·   {}", x.config.email, tl!(kind(x)))).clicked() {
+                        b.account = Some(x.config.id.clone());
+                    }
+                }
+            });
+            if widgets::pill_button(ui, Icon::Plus, "Add account…", t).clicked() {
+                acts.push(Action::Dialog(Dialog::add_account()));
+            }
+        });
+    }
     ui.add_space(16.0);
     if !a.is_local() && b.asked.insert(id.clone()) {
         acts.push(Action::Run("account.vacation", json!({"account": id})));
@@ -372,7 +464,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
                     acts.push(Action::Dialog(Dialog::AddSharedMailbox { account: id.clone(), address: String::new(), error: None }));
                 }
                 if !added.is_empty() {
-                    ui.menu_button(tl!("Remove"), |ui| {
+                    crate::bidi::menu_button(ui, tl!("Remove"), |ui| {
                         for m in added {
                             if ui.button(m).clicked() {
                                 acts.push(Action::Run("account.removeSharedMailbox", json!({"account": id, "address": m})));
@@ -464,7 +556,7 @@ fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage
         },
     );
 
-    data_file::mailbox(s, t, has_files, ui, a, b, acts);
+    data_file::mailbox(s, t, has_files, can_open_path, ui, a, b, acts);
 
     // Rules.
     let n = s.rules.len();
@@ -526,7 +618,7 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
                     if ui.button(tl!("Export…")).clicked() {
                         acts.push(Action::ExportDataFile(id.clone()));
                     }
-                    egui::ComboBox::from_id_salt("export-account").width(300.0).selected_text(label).show_ui(ui, |ui| {
+                    egui::ComboBox::from_id_salt("export-account").width(300.0).selected_text(label).show_ui_rtl(ui, |ui| {
                         for a in &s.accounts {
                             if ui.selectable_label(&a.config.id == id, format!("{}   ·   {}", a.config.email, tl!(kind(a)))).clicked() {
                                 b.export = Some(a.config.id.clone());

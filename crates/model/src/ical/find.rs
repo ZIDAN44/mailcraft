@@ -229,7 +229,7 @@ fn field_text(f: EventField, e: &CalEvent) -> String {
 fn term_matches(t: &EventTerm, e: &CalEvent) -> bool {
     match t {
         EventTerm::Private => privacy(e) != Privacy::Public,
-        EventTerm::Recurring => e.rrule.is_some() || e.recurrence_id.is_some(),
+        EventTerm::Recurring => e.is_recurring(),
         EventTerm::Text(f, list) => {
             let text = field_text(*f, e);
             let lower = text.to_lowercase();

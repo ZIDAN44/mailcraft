@@ -1,5 +1,11 @@
 //! People: the address books, searchable, with a card for the person picked.
 
+mod books;
+mod cards;
+mod list;
+mod system_contact;
+use system_contact::add_contact_action;
+
 use egui::{Margin, RichText, Sense, Ui, vec2};
 use mailcraft_engine::Session;
 use serde_json::json;
@@ -201,74 +207,13 @@ pub(crate) fn shown<'a>(s: &'a Session, st: &UiState) -> Vec<mailcraft_engine::P
     people
 }
 
-/// Each account's address books, as Outlook lists contact folders (its Contacts, an
-/// organisation's shared ones in public folders): a click shows that one alone.
-fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
-    let t = st.tokens;
-    let all: Vec<(String, mailcraft_engine::model::pim::BookInfo, String)> = s
-        .accounts
-        .iter()
-        .filter_map(|a| s.pim.get(&a.config.id).map(|p| (a, p)))
-        .flat_map(|(a, p)| p.books.iter().map(move |b| (a.config.id.clone(), b.clone(), a.config.email.clone())))
-        .collect();
-    if all.len() < 2 {
-        if st.people_book.is_some() {
-            st.people_book = None;
-        }
-        return;
-    }
-    // A book gone (an account removed): everyone again.
-    if st.people_book.as_ref().is_some_and(|(a, b)| !all.iter().any(|(x, y, _)| x == a && y.id == *b)) {
-        st.people_book = None;
-    }
-    let accounts = all.iter().map(|(a, _, _)| a).collect::<std::collections::BTreeSet<_>>().len();
-    let row = |ui: &mut Ui, on: bool, label: &str, tip: Option<String>, shared: bool| {
-        let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::click());
-        if on || resp.hovered() {
-            ui.painter().rect_filled(r, 5.0, if on { t.accent_soft } else { t.hover_row });
-        }
-        let icon = egui::Rect::from_center_size(r.left_center() + vec2(14.0, 0.0), vec2(14.0, 14.0));
-        icons::paint(ui.painter(), icon, if shared { Icon::People } else { Icon::Person }, if on { t.accent } else { t.dim });
-        ui.painter().with_clip_rect(r.shrink2(vec2(4.0, 0.0))).text(
-            r.left_center() + vec2(28.0, 0.0),
-            egui::Align2::LEFT_CENTER,
-            label,
-            theme::regular(13.0),
-            t.text,
-        );
-        match tip {
-            Some(tip) => resp.on_hover_text(tip).clicked(),
-            None => resp.clicked(),
-        }
-    };
-    ui.label(RichText::new(tl!("Address books")).font(theme::bold(12.0)).color(t.dim));
-    if row(ui, st.people_book.is_none(), tl!("All contacts"), None, false) {
-        st.people_book = None;
-    }
-    for (account, b, email) in &all {
-        let on = st.people_book.as_ref().is_some_and(|(a, x)| a == account && *x == b.id);
-        let name = if b.id == mailcraft_engine::model::pim::LOCAL || b.name.is_empty() || b.name == "Contacts" {
-            tl!("Contacts").to_string()
-        } else {
-            b.name.clone()
-        };
-        let label = if accounts > 1 && !b.read_only { format!("{name} ({email})") } else { name };
-        let tip = if b.read_only { tf!("Shared with you through {account}: read-only", account = email) } else { email.clone() };
-        if row(ui, on, &label, Some(tip), b.read_only) {
-            st.people_book = Some((account.clone(), b.id.clone()));
-        }
-    }
-    ui.add_space(6.0);
-    ui.separator();
-}
-
 pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    if widgets::accent_button(ui, Icon::Plus, "New contact", &t, !s.accounts.is_empty()).clicked() {
+    if !st.phone_mode && widgets::accent_button(ui, Icon::Plus, "New contact", &t, !s.accounts.is_empty()).clicked() {
         acts.push(Action::Dialog(Dialog::new_contact()));
     }
     ui.add_space(8.0);
-    books(s, st, ui);
+    books::show(s, st, ui);
     let people = shown(s, st);
     if people.is_empty() {
         ui.label(RichText::new(tl!(if st.people_query.trim().is_empty() { "No contacts yet." } else { "No one matches." })).color(t.faint));
@@ -285,11 +230,20 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     };
     let jump_id = egui::Id::unique("people-jump");
     let jump: Option<char> = ui.ctx().data_mut(|d| d.remove_temp(jump_id));
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
     ui.horizontal_top(|ui| {
         // The list leaves room for the index and the gap before it exactly: a few pixels more and
         // the pane (shared by every module) grew a little each frame, up to its widest.
-        let list_w = (ui.available_width() - INDEX_W - ui.spacing().item_spacing.x).max(80.0);
-        ui.allocate_ui_with_layout(vec2(list_w, ui.available_height()), egui::Layout::top_down(egui::Align::Min), |ui| {
+        let index_w = if letters.is_empty() {
+            0.0
+        } else if touch {
+            44.0
+        } else {
+            INDEX_W
+        };
+        let index_gap = if letters.is_empty() { 0.0 } else { ui.spacing().item_spacing.x };
+        let list_w = (ui.available_width() - index_w - index_gap).max(80.0);
+        ui.allocate_ui_with_layout(vec2(list_w, ui.available_height()), crate::bidi::column(), |ui| {
             egui::ScrollArea::vertical().auto_shrink(false).id_salt("people").show(ui, |ui| {
                 let mut letter: Option<char> = None;
                 for p in &people {
@@ -304,23 +258,26 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                         }
                     }
                     let selected = st.person.as_deref() == Some(p.card.uid.as_str());
-                    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::click());
+                    let row_height = if touch { 48.0 } else { 40.0 };
+                    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), row_height), Sense::click());
+                    let sub = p.card.emails.first().map(|e| e.value.clone()).unwrap_or_else(|| p.card.org.clone());
+                    widgets::named(ui, &resp, &format!("{name}, {sub}"), true, Some(selected));
                     if selected || resp.hovered() {
                         ui.painter().rect_filled(r, 6.0, if selected { t.accent_soft } else { t.hover_row });
                     }
+                    let mirror = crate::bidi::Mirror::new(r);
                     let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
-                    widgets::avatar(ui, r.left_center() + vec2(20.0, 0.0), 14.0, &initials, theme::avatar_color(&name, t.dark));
+                    widgets::avatar(ui, mirror.pos(r.left_center() + vec2(20.0, 0.0)), 14.0, &initials, theme::avatar_color(&name, t.dark));
                     ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).text(
-                        r.left_center() + vec2(42.0, -7.0),
-                        egui::Align2::LEFT_CENTER,
+                        mirror.pos(r.left_center() + vec2(42.0, -7.0)),
+                        mirror.align(egui::Align2::LEFT_CENTER),
                         &name,
                         theme::regular(13.5),
                         t.text,
                     );
-                    let sub = p.card.emails.first().map(|e| e.value.clone()).unwrap_or_else(|| p.card.org.clone());
                     ui.painter().with_clip_rect(r.shrink2(vec2(2.0, 0.0))).text(
-                        r.left_center() + vec2(42.0, 8.0),
-                        egui::Align2::LEFT_CENTER,
+                        mirror.pos(r.left_center() + vec2(42.0, 8.0)),
+                        mirror.align(egui::Align2::LEFT_CENTER),
                         sub,
                         theme::regular(11.5),
                         t.dim,
@@ -334,36 +291,81 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                 }
             });
         });
-        ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = 0.0;
-            for c in 'A'..='Z' {
-                let has = letters.contains(&c);
-                let (r, resp) = ui.allocate_exact_size(vec2(INDEX_W, 16.0), if has { Sense::click() } else { Sense::hover() });
-                if resp.hovered() && has {
-                    ui.painter().rect_filled(r, 3.0, t.hover_row);
-                }
-                ui.painter().text(
-                    r.center(),
-                    egui::Align2::CENTER_CENTER,
-                    c.to_lowercase().to_string(),
-                    theme::regular(11.0),
-                    if has { t.accent } else { t.faint },
-                );
-                if resp.clicked() {
-                    ui.ctx().data_mut(|d| d.insert_temp(jump_id, c));
-                }
+        if touch {
+            if !letters.is_empty() {
+                let index = ui.add_sized(vec2(index_w, 44.0), egui::Button::new("A–Z"));
+                widgets::named(ui, &index, "A–Z", true, None);
+                crate::bidi::popup_menu(&index).show(|ui| {
+                    ui.set_max_width(220.0);
+                    ui.horizontal_wrapped(|ui| {
+                        for c in &letters {
+                            let letter = c.to_string();
+                            let choice = ui.add_sized(vec2(44.0, 44.0), egui::Button::new(c.to_lowercase().to_string()));
+                            widgets::named(ui, &choice, &letter, true, None);
+                            if choice.clicked() {
+                                ui.ctx().data_mut(|d| d.insert_temp(jump_id, *c));
+                                ui.close();
+                            }
+                        }
+                    });
+                });
             }
-        });
+        } else if !letters.is_empty() {
+            crate::bidi::vertical(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 0.0;
+                for c in 'A'..='Z' {
+                    let has = letters.contains(&c);
+                    let (r, resp) = ui.allocate_exact_size(vec2(index_w, 16.0), if has { Sense::click() } else { Sense::hover() });
+                    let letter = c.to_string();
+                    widgets::named(ui, &resp, &letter, has, None);
+                    if resp.hovered() && has {
+                        ui.painter().rect_filled(r, 3.0, t.hover_row);
+                    }
+                    ui.painter().text(
+                        r.center(),
+                        egui::Align2::CENTER_CENTER,
+                        c.to_lowercase().to_string(),
+                        theme::regular(11.0),
+                        if has { t.accent } else { t.faint },
+                    );
+                    if resp.clicked() {
+                        ui.ctx().data_mut(|d| d.insert_temp(jump_id, c));
+                    }
+                }
+            });
+        }
     });
 }
 
 /// The main pane: the person picked, or everyone as cards or a phone list.
-pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
+pub fn show(
+    s: &Session,
+    st: &mut UiState,
+    ui: &mut Ui,
+    acts: &mut Vec<Action>,
+    can_dial_phone: bool,
+    can_open_map: bool,
+    can_share_contacts: bool,
+    can_export_contacts: bool,
+    can_add_to_system_contacts: bool,
+) {
     let t = st.tokens;
-    match st.people_view {
-        PeopleView::Cards => return cards(s, st, ui, acts),
-        PeopleView::Phone => return phone_list(s, st, ui, acts),
-        PeopleView::People => {}
+    if st.phone_mode && st.person.is_none() {
+        match st.people_view {
+            PeopleView::Cards => return cards::show(s, st, ui, acts, can_share_contacts, can_export_contacts, can_add_to_system_contacts),
+            PeopleView::Phone => return list::show(s, st, ui, acts, can_dial_phone, can_open_map),
+            PeopleView::People => {
+                nav(s, st, ui, acts);
+                return;
+            }
+        }
+    }
+    if !st.phone_mode {
+        match st.people_view {
+            PeopleView::Cards => return cards::show(s, st, ui, acts, can_share_contacts, can_export_contacts, can_add_to_system_contacts),
+            PeopleView::Phone => return list::show(s, st, ui, acts, can_dial_phone, can_open_map),
+            PeopleView::People => {}
+        }
     }
     let Some(p) = st.person.as_deref().and_then(|u| s.find_person(u)) else {
         ui.centered_and_justified(|ui| {
@@ -379,27 +381,40 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     };
     let c = &p.card;
     let name = c.display();
+    let inset = if st.phone_mode { 16 } else { 28 };
     egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-        egui::Frame::new().inner_margin(Margin { left: 28, right: 28, top: 24, bottom: 24 }).show(ui, |ui| {
+        egui::Frame::new().inner_margin(Margin { left: inset, right: inset, top: inset, bottom: inset }).show(ui, |ui| {
             ui.horizontal(|ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(72.0, 72.0), Sense::hover());
                 let initials: String = name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
                 widgets::avatar(ui, r.center(), 34.0, &initials, theme::avatar_color(&name, t.dark));
                 ui.add_space(10.0);
-                ui.vertical(|ui| {
+                crate::bidi::vertical(ui, |ui| {
                     ui.label(RichText::new(&name).font(theme::bold(22.0)).color(t.text));
                     let role = [c.title.as_str(), c.org.as_str()].iter().filter(|x| !x.is_empty()).copied().collect::<Vec<_>>().join(" · ");
                     if !role.is_empty() {
                         ui.label(RichText::new(role).color(t.dim));
                     }
                     ui.add_space(6.0);
-                    ui.horizontal(|ui| {
+                    ui.horizontal_wrapped(|ui| {
                         if let Some(e) = c.emails.first()
                             && widgets::pill_button(ui, Icon::NewMail, "Email", &t).clicked()
                         {
                             acts.push(Action::Run("mail.new", json!({})));
                             acts.push(Action::Run("compose.update", json!({"to": format!("{name} <{}>", e.value)})));
                             acts.push(Action::Run("view.module", json!({"name": "mail"})));
+                        }
+                        if can_share_contacts && contact_action_button(ui, "Share contact").clicked() {
+                            acts.push(Action::ShareContact {
+                                title: tl!("Share contact").to_owned(),
+                                vcard: mailcraft_engine::model::vcard::write(c),
+                            });
+                        }
+                        if can_export_contacts && contact_action_button(ui, "Save contact").clicked() {
+                            acts.push(Action::ExportContact { name: name.clone(), vcard: mailcraft_engine::model::vcard::write(c) });
+                        }
+                        if can_add_to_system_contacts && contact_action_button(ui, "Add to Android contacts").clicked() {
+                            acts.push(add_contact_action(c));
                         }
                         // Someone in a shared address book (an organisation's) is only read.
                         if s.person_read_only(&c.uid) {
@@ -426,14 +441,58 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     }
                 });
             };
-            for e in &c.emails {
-                field(ui, &t, Icon::Unread, &e.value, &e.kind);
+            for (index, e) in c.emails.iter().enumerate() {
+                let action = crate::mailto::link(&e.value).map(Action::OpenUrl);
+                contact_detail_row(
+                    ui,
+                    18.0,
+                    &e.value,
+                    ("contact-email", &c.uid, index),
+                    action,
+                    Some(tl!("Copy address")),
+                    Some(&e.value),
+                    &t,
+                    acts,
+                    |ui| {
+                        let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+                        icons::paint(ui.painter(), r, Icon::Unread, t.accent);
+                        if crate::mailto::link(&e.value).is_some() {
+                            ui.label(RichText::new(&e.value).color(t.accent).underline());
+                        } else {
+                            ui.label(RichText::new(&e.value).color(t.text));
+                        }
+                        if !e.kind.is_empty() {
+                            ui.label(RichText::new(&e.kind).color(t.faint).small());
+                        }
+                    },
+                );
             }
             // Each number with what it is (Outlook's Business, Home, Mobile…).
-            for ph in &c.phones {
-                field(ui, &t, Icon::Phone, &ph.value, phone_kind(&ph.kind));
+            for (index, ph) in c.phones.iter().enumerate() {
+                let action = can_dial_phone.then(|| Action::DialPhone(ph.value.clone()));
+                contact_detail_row(
+                    ui,
+                    18.0,
+                    &ph.value,
+                    ("contact-phone", &c.uid, index),
+                    action,
+                    Some(tl!("Copy phone number")),
+                    Some(&ph.value),
+                    &t,
+                    acts,
+                    |ui| {
+                        let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+                        icons::paint(ui.painter(), r, Icon::Phone, t.accent);
+                        if can_dial_phone {
+                            ui.label(RichText::new(&ph.value).color(t.accent).underline());
+                        } else {
+                            ui.label(RichText::new(&ph.value).color(t.text));
+                        }
+                        ui.label(RichText::new(phone_kind(&ph.kind)).color(t.faint).small());
+                    },
+                );
             }
-            for a in c.addresses.iter().filter(|a| !a.is_empty()) {
+            for (index, a) in c.addresses.iter().enumerate().filter(|(_, a)| !a.is_empty()) {
                 let kind = match a.kind.as_str() {
                     "work" => tl!("Business"),
                     "home" => tl!("Home"),
@@ -445,7 +504,31 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                         .filter(|x| !x.trim().is_empty())
                         .collect::<Vec<_>>()
                         .join("\n");
-                field(ui, &t, Icon::Location, &lines, kind);
+                let text_height = lines.lines().count().max(1) as f32 * 18.0;
+                let action = can_open_map.then(|| Action::OpenMap(lines.clone()));
+                contact_detail_row(
+                    ui,
+                    text_height,
+                    &lines,
+                    ("contact-address", &c.uid, index),
+                    action,
+                    Some(tl!("Copy address")),
+                    Some(&lines),
+                    &t,
+                    acts,
+                    |ui| {
+                        let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+                        icons::paint(ui.painter(), r, Icon::Location, t.accent);
+                        if can_open_map {
+                            ui.label(RichText::new(&lines).color(t.accent).underline());
+                        } else {
+                            ui.label(RichText::new(&lines).color(t.text));
+                        }
+                        if !kind.is_empty() {
+                            ui.label(RichText::new(kind).color(t.faint).small());
+                        }
+                    },
+                );
             }
             if !c.birthday.is_empty() {
                 field(ui, &t, Icon::Calendar, &birthday_shown(&c.birthday), tl!("Birthday"));
@@ -464,6 +547,65 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
 }
 
 /// What a number is, as Outlook names it.
+/// Lay out a contact's detail row, with its whole height as the action target.
+fn contact_detail_row(
+    ui: &mut Ui,
+    content_height: f32,
+    label: &str,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    action: Option<Action>,
+    copy_label: Option<&str>,
+    copy_text: Option<&str>,
+    t: &Tokens,
+    acts: &mut Vec<Action>,
+    add: impl FnOnce(&mut Ui),
+) {
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
+    let height = if touch { content_height.max(44.0) } else { content_height.max(26.0) };
+    let copy_width = 44.0;
+    let mut copy_clicked = false;
+    let mut content_rect = egui::Rect::NOTHING;
+    ui.allocate_ui_with_layout(vec2(ui.available_width(), height), crate::bidi::row_from_start(egui::Align::Center), |row_ui| {
+        let show_copy = touch && copy_label.is_some() && copy_text.is_some();
+        let reserved_width = if show_copy { copy_width + row_ui.spacing().item_spacing.x } else { 0.0 };
+        let content_width = (row_ui.available_width() - reserved_width).max(0.0);
+        let content = row_ui.allocate_ui_with_layout(vec2(content_width, height), crate::bidi::row_from_start(egui::Align::Center), add);
+        content_rect = content.response.rect;
+        if show_copy && let (Some(copy_label), Some(copy_text)) = (copy_label, copy_text) {
+            let response = widgets::tiny_icon_button(row_ui, Icon::Copy, copy_label, t);
+            if response.clicked() {
+                row_ui.ctx().copy_text(copy_text.to_owned());
+                copy_clicked = true;
+            }
+        }
+    });
+    if action.is_some() || copy_text.is_some() {
+        let response = ui.interact(content_rect, ui.scope_id().with(id), Sense::click());
+        let response = if action.is_some() { response.on_hover_cursor(egui::CursorIcon::PointingHand) } else { response };
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Link, ui.is_enabled(), label));
+        if !copy_clicked
+            && let Some(action) = action
+            && response.clicked()
+        {
+            acts.push(action);
+        }
+        if let (Some(copy_label), Some(copy_text)) = (copy_label, copy_text) {
+            response.context_menu(|ui| {
+                if ui.button(copy_label).clicked() {
+                    ui.ctx().copy_text(copy_text.to_owned());
+                    ui.close();
+                }
+            });
+        }
+    }
+}
+
+/// A detail action, tall enough to tap on a phone, with the ordinary desktop sizing elsewhere.
+fn contact_action_button(ui: &mut Ui, label: &str) -> egui::Response {
+    let button = egui::Button::new(tl!(label));
+    if ui.ctx().input(|input| input.has_touch_screen()) { ui.add(button.min_size(vec2(0.0, 44.0))) } else { ui.add(button) }
+}
+
 fn phone_kind(kind: &str) -> &'static str {
     match kind {
         "work" | "voice" => tl!("Business"),
@@ -473,170 +615,4 @@ fn phone_kind(kind: &str) -> &'static str {
         "pager" => tl!("Pager"),
         _ => tl!("Other"),
     }
-}
-
-/// Everyone as business cards, side by side (Outlook's Business Card view): a click picks one,
-/// a double-click edits it.
-fn cards(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
-    let t = st.tokens;
-    let people = shown(s, st);
-    egui::ScrollArea::vertical().auto_shrink(false).id_salt("people-cards").show(ui, |ui| {
-        egui::Frame::new().inner_margin(Margin::same(18)).show(ui, |ui| {
-            if people.is_empty() {
-                ui.label(RichText::new(tl!("No contacts yet.")).color(t.faint));
-                return;
-            }
-            let card_w = 280.0;
-            let card_h = 132.0;
-            let gap = 12.0;
-            let cols = (((ui.available_width() + gap) / (card_w + gap)).floor() as usize).max(1);
-            for row in people.chunks(cols) {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = gap;
-                    for p in row {
-                        let c = &p.card;
-                        let name = c.display();
-                        let selected = st.person.as_deref() == Some(c.uid.as_str());
-                        let (r, resp) = ui.allocate_exact_size(vec2(card_w, card_h), Sense::click());
-                        let fill = if selected {
-                            t.accent_soft
-                        } else if resp.hovered() {
-                            t.hover_row
-                        } else {
-                            t.surface
-                        };
-                        ui.painter().rect(r, 8.0, fill, egui::Stroke::new(1.0, if selected { t.accent } else { t.border }), egui::StrokeKind::Inside);
-                        // A band in the person's colour down the left, with their initials.
-                        let band = egui::Rect::from_min_size(r.min, vec2(74.0, card_h));
-                        let color = theme::avatar_color(&name, t.dark);
-                        ui.painter().rect_filled(band.shrink(1.0), egui::CornerRadius { nw: 7, sw: 7, ne: 0, se: 0 }, color.gamma_multiply(0.18));
-                        widgets::avatar(ui, band.center(), 24.0, &initials(&name), color);
-                        let x = band.right() + 12.0;
-                        let w = r.right() - x - 10.0;
-                        let mut y = r.top() + 12.0;
-                        let mut line = |text: &str, font: egui::FontId, color: egui::Color32| {
-                            if text.is_empty() {
-                                return;
-                            }
-                            let g = widgets::one_line(ui, text, font, color, w);
-                            let h = g.size().y;
-                            ui.painter().galley(egui::pos2(x, y), g, color);
-                            y += h + 3.0;
-                        };
-                        line(&name, theme::bold(14.5), t.text);
-                        line(&c.title, theme::regular(12.0), t.dim);
-                        line(&c.org, theme::regular(12.0), t.dim);
-                        for e in c.emails.iter().take(2) {
-                            line(&e.value, theme::regular(12.0), t.accent);
-                        }
-                        for ph in c.phones.iter().take(1) {
-                            line(&ph.value, theme::regular(12.0), t.text);
-                        }
-                        if resp.clicked() {
-                            st.person = Some(c.uid.clone());
-                        }
-                        if resp.double_clicked() && !s.person_read_only(&c.uid) {
-                            acts.push(Action::Dialog(Dialog::edit_contact(c)));
-                        }
-                    }
-                });
-                ui.add_space(gap);
-            }
-        });
-    });
-}
-
-/// Everyone in a table (Outlook's List view): the name and the columns chosen (right-click the
-/// header), sorted by the column clicked.
-fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
-    let t = st.tokens;
-    let mut people = shown(s, st);
-    let list = st.people_list.clone();
-    if let Some(col) = list.sort {
-        people.sort_by_cached_key(|p| (col.text(s, p).to_lowercase(), p.card.display().to_lowercase()));
-    }
-    if list.descending {
-        people.reverse();
-    }
-    egui::Frame::new().inner_margin(Margin::same(14)).show(ui, |ui| {
-        let w = ui.available_width();
-        // Column widths: the name a share and a half, the others by their weight.
-        let cols: Vec<Option<Column>> = std::iter::once(None).chain(list.columns.iter().copied().map(Some)).collect();
-        let weight = |c: &Option<Column>| c.map_or(1.5, Column::weight);
-        let total: f32 = cols.iter().map(weight).sum::<f32>().max(1.0);
-        let widths: Vec<f32> = cols.iter().map(|c| w * weight(c) / total).collect();
-        let row = |ui: &mut Ui, cells: &[String], header: bool, fill: Option<egui::Color32>| -> (egui::Response, Vec<egui::Rect>) {
-            let (r, resp) = ui.allocate_exact_size(vec2(w, 30.0), Sense::click());
-            if let Some(f) = fill {
-                ui.painter().rect_filled(r, 4.0, f);
-            }
-            let mut x = r.left() + 8.0;
-            let mut rects = Vec::new();
-            for (cw, text) in widths.iter().zip(cells) {
-                let font = if header { theme::bold(12.5) } else { theme::regular(13.0) };
-                let g = widgets::one_line(ui, text, font, if header { t.dim } else { t.text }, cw - 12.0);
-                ui.painter().galley(egui::pos2(x, r.center().y - g.size().y / 2.0), g, t.text);
-                rects.push(egui::Rect::from_min_size(egui::pos2(x - 8.0, r.top()), vec2(*cw, r.height())));
-                x += cw;
-            }
-            (resp, rects)
-        };
-        // The header: click a column to sort by it (again: the other way); right-click to choose.
-        let arrow = if list.descending { " ↓" } else { " ↑" };
-        let heads: Vec<String> = cols
-            .iter()
-            .map(|c| {
-                let name = c.map_or_else(|| tl!("Full name").to_string(), |c| tl!(c.label()).to_string());
-                if *c == list.sort { format!("{name}{arrow}") } else { name }
-            })
-            .collect();
-        let (head, rects) = row(ui, &heads, true, None);
-        if head.clicked()
-            && let Some(p) = head.interact_pointer_pos()
-            && let Some(i) = rects.iter().position(|r| r.contains(p))
-            && let Some(c) = cols.get(i)
-        {
-            if *c == st.people_list.sort {
-                st.people_list.descending = !st.people_list.descending;
-            } else {
-                st.people_list.sort = *c;
-                st.people_list.descending = false;
-            }
-        }
-        head.on_hover_text(tl!("Click a column to sort by it; right-click to choose the columns"))
-            .context_menu(|ui| column_menu(ui, &mut st.people_list));
-        let line = ui.available_rect_before_wrap();
-        ui.painter().line_segment([line.left_top(), line.right_top()], egui::Stroke::new(1.0, t.border));
-        ui.add_space(2.0);
-        if people.is_empty() {
-            ui.add_space(8.0);
-            ui.label(RichText::new(tl!("No contacts yet.")).color(t.faint));
-        }
-        egui::ScrollArea::vertical().auto_shrink(false).id_salt("people-phone").show(ui, |ui| {
-            ui.spacing_mut().item_spacing.y = 0.0;
-            for (i, p) in people.iter().enumerate() {
-                let c = &p.card;
-                let cells: Vec<String> = cols.iter().map(|col| col.map_or_else(|| c.display(), |col| col.text(s, p))).collect();
-                let selected = st.person.as_deref() == Some(c.uid.as_str());
-                let id = ui.scope_id().with(("phone-row", i));
-                let hovered = ui.ctx().read_response(id).is_some_and(|r| r.hovered());
-                let fill = if selected {
-                    Some(t.accent_soft)
-                } else if hovered {
-                    Some(t.hover_row)
-                } else if i % 2 == 1 {
-                    Some(t.chrome)
-                } else {
-                    None
-                };
-                let resp = ui.push_id(id, |ui| row(ui, &cells, false, fill).0).inner;
-                if resp.clicked() {
-                    st.person = Some(c.uid.clone());
-                }
-                if resp.double_clicked() && !s.person_read_only(&c.uid) {
-                    acts.push(Action::Dialog(Dialog::edit_contact(c)));
-                }
-            }
-        });
-    });
 }

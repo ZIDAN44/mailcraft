@@ -15,6 +15,14 @@ impl MailApp {
     /// The message written in the main window, if any, made the one acted on (another's window
     /// may have taken over last frame); editors of messages gone are dropped.
     pub(crate) fn settle_composes(&mut self, ctx: &egui::Context) {
+        if self.ui.phone_mode {
+            if let Some(c) = self.session.compose.as_mut() {
+                c.window = false;
+            }
+            for c in &mut self.session.composes {
+                c.window = false;
+            }
+        }
         let live: std::collections::HashSet<u64> = self.session.all_composes().map(|c| c.id).collect();
         self.ui.editors.retain(|id, _| live.contains(id));
         self.ui.compose_shown.retain(|id| live.contains(id));
@@ -64,6 +72,10 @@ impl MailApp {
             Some(p) if opening(ctx, id) => WindowPlace { x: p.x + step, y: p.y + step, ..*p }.apply(builder),
             _ => builder,
         };
+        let can_open_map = self.services.can_open_map();
+        let can_share_calendar_events = self.services.can_share_calendar_events();
+        let can_export_calendar_events = self.services.can_export_calendar_events();
+        let can_add_to_system_calendar = self.services.can_add_to_system_calendar();
         let (session, st, services) = (&mut self.session, &mut self.ui, &mut self.services);
         let close = ctx.show_viewport_immediate(id, builder, |ui, _| {
             let mut place = st.places.get("compose").copied();
@@ -91,7 +103,18 @@ impl MailApp {
             let here = st.dialog_for.is_none_or(|f| f == mine);
             if let Some(mut d) = st.dialog.take() {
                 if d.for_compose() && here {
-                    let keep = dialogs::show(ui.ctx(), &mut d, session, &mut st.pictures, &t, &mut mine_acts);
+                    let keep = dialogs::show(
+                        ui.ctx(),
+                        &mut d,
+                        session,
+                        &mut st.pictures,
+                        &t,
+                        can_open_map,
+                        can_share_calendar_events,
+                        can_export_calendar_events,
+                        can_add_to_system_calendar,
+                        &mut mine_acts,
+                    );
                     if keep && st.dialog.is_none() {
                         st.dialog = Some(d);
                     }
@@ -196,12 +219,15 @@ impl MailApp {
                 acts.extend(mine.into_iter().map(|a| match a {
                     Action::OpenAttachment(_)
                     | Action::SaveAttachment(_)
+                    | Action::ShareAttachment(_)
+                    | Action::ShareAttachments(_)
                     | Action::OpenInCraft(..)
                     | Action::DragOut(_)
                     | Action::SaveAll
                     | Action::Print
                     | Action::ExportPdf
                     | Action::SaveMessage
+                    | Action::ShareMessage
                     | Action::Run("attachment.preview", _) => Action::InWindow(key.clone(), Box::new(a)),
                     a => a,
                 }));
@@ -416,7 +442,7 @@ pub(crate) fn window_toolbar(ui: &mut Ui, s: &Session, st: &UiState, key: &Messa
         }
         // More, as the reading pane's ⋯: what's done to this message alone, staying open.
         let more = widgets::more_pill(ui, "More actions", t);
-        egui::Popup::menu(&more).show(|ui| {
+        crate::bidi::popup_menu(&more).show(|ui| {
             if ui.button(tl!("View message source")).clicked() {
                 acts.push(Action::Run("message.source", json!({"key": key.to_id()})));
                 ui.close();

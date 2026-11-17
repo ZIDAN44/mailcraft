@@ -60,6 +60,7 @@
 	Delete “{folder}”?	Excluir “{folder}”?
 	Deleted Items	Itens excluídos
 	Discard	Descartar
+	Discard these changes?	Descartar estas alterações?
 	Disconnected: {error}	Desconectado: {error}
 	Document	Documento
 	Don't run later rules on mail this one matches	Não aplicar as regras seguintes ao email que corresponder a esta
@@ -386,6 +387,11 @@
 	Google (IMAP)	Google (IMAP)
 	I'm away until…	Estou fora até…
 	Inbox and notifications	Caixa de entrada e notificações
+	Android notifications are off. Turn them on in Settings for new mail and calendar reminders.	As notificações do Android estão desativadas. Ative-as nas configurações para receber avisos de novos e-mails e da agenda.
+	Settings	Configurações
+	Android's encrypted credential store is unavailable. MailCraft will keep credentials in memory until it closes.	O armazenamento criptografado de credenciais do Android está indisponível. O MailCraft manterá as credenciais na memória até ser fechado.
+	The Android file picker couldn't open. In Files, choose Share → MailCraft to use the file.	Não foi possível abrir o seletor de arquivos do Android. No app Arquivos, escolha Compartilhar → MailCraft para usar o arquivo.
+	MailCraft couldn't save the file. Try again.	O MailCraft não conseguiu salvar o arquivo. Tente novamente.
 	Info	Informações
 	Kept on this computer: {size}	Guardado neste computador: {size}
 	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	O MailCraft só se comunica com seus próprios servidores de email, por conexões criptografadas. As imagens da web só são carregadas quando você pede.
@@ -764,6 +770,8 @@
 	Mail from an old .pst or .mailcraft file comes in first	Os e-mails de um arquivo .pst ou .mailcraft antigo entram primeiro
 	Open a data file	Abrir um arquivo de dados
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Traga um arquivo de dados do Outlook (.pst) ou do MailCraft (.mailcraft). Ele abre como uma caixa de correio própria, com suas pastas, guardada neste computador.
+	You can also open a message (.eml or .msg), calendar (.ics) or contacts (.vcf) file.	Você também pode abrir um arquivo de mensagem (.eml ou .msg), calendário (.ics) ou contatos (.vcf).
+	The file {name} could run a program, so it isn't opened from here; save it and check it first.	O arquivo {name} pode executar um programa e, por isso, não será aberto aqui. Salve-o e verifique-o primeiro.
 	Move up	Mover para cima
 	Move down	Mover para baixo
 	Updating…	Atualizando…
@@ -876,6 +884,27 @@
 	 and {n} more	 e mais {n}
 	Add to contacts…	Adicionar aos contatos…
 	Copy address	Copiar endereço
+	Copy phone number	Copiar número de telefone
+	Share contact	Compartilhar contato
+	Share attachment	Compartilhar anexo
+	Share message	Compartilhar mensagem
+	Share selected attachments	Compartilhar anexos selecionados
+	The selected attachments are too large to share	Os anexos selecionados são grandes demais para compartilhar
+	You can share up to {n} attachments at once	Você pode compartilhar até {n} anexos de uma vez
+	This attachment is too large to share	Este anexo é grande demais para compartilhar
+	This message is too large to share	Esta mensagem é grande demais para compartilhar
+	No Android app can share files	Não há app Android que possa compartilhar arquivos
+	Save contact	Salvar contato
+	Share event	Compartilhar evento
+	Add to Android calendar	Adicionar à agenda do Android
+	This event is too large to add to Android calendar	Este evento é grande demais para adicionar à agenda do Android
+	This event has an invalid date for Android calendar	A data deste evento é inválida para a agenda do Android
+	No Android calendar app can add events	Nenhum app de agenda do Android pode adicionar eventos
+	Save event	Salvar evento
+	This event is too large to share	Este evento é grande demais para compartilhar
+	No Android app can share calendar events	Nenhum app Android pode compartilhar eventos da agenda
+	This contact is too large to share	Este contato é grande demais para compartilhar
+	No Android app can share contacts	Nenhum app Android pode compartilhar contatos
 	Edit contact…	Editar contato…
 	Send email	Enviar email
 	Add	Adicionar
@@ -1626,3 +1655,34 @@ month	May	maio
 	it can't be decrypted with your OpenPGP key	não é possível descriptografá-la com sua chave OpenPGP
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	suas chaves OpenPGP são usadas pelo aplicativo para desktop do MailCraft, não no navegador
 	Not sent yet: this is a draft.	Ainda não enviado: este é um rascunho.
+	The selected text is too large for Android's clipboard	O texto selecionado é grande demais para a área de transferência do Android.
+	MailCraft couldn't copy text to Android's clipboard.	O MailCraft não conseguiu copiar o texto para a área de transferência do Android.
+	The Android clipboard text is too large to paste.	O texto da área de transferência do Android é grande demais para colar.
+	Add to Android contacts	Adicionar aos contatos do Android
+	This contact is too large to add to Android contacts	Este contato é grande demais para os contatos do Android
+	No Android contacts app can add contacts	Nenhum app de contatos do Android pode adicionar contatos
+	This link has no address scheme	Este link não tem um esquema de endereço
+	This link is too long to open	Este link é longo demais para abrir
+	MailCraft can open web links and mail links on Android	O MailCraft pode abrir links da Web e de e-mail no Android
+	No Android app can open this link	Nenhum app Android pode abrir este link
+	This phone number is too long to open	Este número de telefone é longo demais para abrir
+	This phone number contains characters Android cannot dial	Este número contém caracteres que o Android não consegue discar
+	This contact has no dialable phone number	Este contato não tem um número de telefone discável
+	No Android dialer app can open this number	Nenhum app de telefone do Android pode abrir este número
+	This contact has no address to open	Este contato não tem um endereço para abrir
+	This address is too long to open	Este endereço é longo demais para abrir
+	No Android map app can open this address	Nenhum app de mapas do Android pode abrir este endereço
+	MailCraft can open shared .eml, .msg, .ics, .vcf, .pst and .mailcraft files	O MailCraft pode abrir arquivos compartilhados .eml, .msg, .ics, .vcf, .pst e .mailcraft
+	No Android app can open this file	Nenhum app Android pode abrir este arquivo
+	MailCraft's save queue is full. Wait for current saves to finish before saving more files.	A fila de salvamento do MailCraft está cheia. Aguarde os salvamentos atuais terminarem antes de salvar mais arquivos.
+	Share a single .pst or .mailcraft data file at a time	Compartilhe apenas um arquivo de dados .pst ou .mailcraft por vez
+	Choose a .pst or .mailcraft data file for this account	Escolha um arquivo de dados .pst ou .mailcraft para esta conta
+	Android did not return a document URI for the selected file	O Android não retornou o URI do documento para o arquivo selecionado
+	The selected document address is too long	O endereço do documento selecionado é longo demais
+	The selected file is larger than {size} MiB	O arquivo selecionado é maior que {size} MiB
+
+	Move and delete	Mover e excluir
+	Attendees:	Participantes
+	Couldn't open notification settings: {error}	Não foi possível abrir as configurações de notificações: {error}
+	Name and email address	Nome e endereço de e-mail
+	Organizer:	Organizador:

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name="ai.storyteller.mailcraft.MailCraftApplication"
+        android:extractNativeLibs="true"
+        android:hasCode="true"
+        android:icon="@drawable/mailcraft"
+        android:label="MailCraft"
+        android:usesCleartextTraffic="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
+
+        <provider
+            android:name="ai.storyteller.mailcraft.MailCraftFileProvider"
+            android:authorities="${applicationId}.files"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+        <activity
+            android:name=".MailCraftActivity"
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|fontScale|uiMode|locale|layoutDirection"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:label="MailCraft"
+            android:enableOnBackInvokedCallback="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="mailcraft_android" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="message/rfc822" />
+                <data android:mimeType="application/vnd.ms-outlook" />
+                <data android:mimeType="text/calendar" />
+                <data android:mimeType="text/vcalendar" />
+                <data android:mimeType="text/x-vcalendar" />
+                <data android:mimeType="text/vcard" />
+                <data android:mimeType="text/x-vcard" />
+                <data android:mimeType="application/ics" />
+                <data android:mimeType="application/vnd.storytold.mailcraft" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:host="*" android:mimeType="*/*" android:pathPattern=".*\.eml" />
+                <data android:scheme="file" android:host="*" android:mimeType="*/*" android:pathPattern=".*\.eml" />
+                <data android:pathPattern=".*\.msg" />
+                <data android:pathPattern=".*\.ics" />
+                <data android:pathPattern=".*\.ical" />
+                <data android:pathPattern=".*\.vcf" />
+                <data android:pathPattern=".*\.vcard" />
+                <data android:pathPattern=".*\.pst" />
+                <data android:pathPattern=".*\.mailcraft" />
+                <data android:pathPattern=".*\.EML" />
+                <data android:pathPattern=".*\.MSG" />
+                <data android:pathPattern=".*\.ICS" />
+                <data android:pathPattern=".*\.ICAL" />
+                <data android:pathPattern=".*\.VCF" />
+                <data android:pathPattern=".*\.VCARD" />
+                <data android:pathPattern=".*\.PST" />
+                <data android:pathPattern=".*\.MAILCRAFT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="message/rfc822" />
+                <data android:mimeType="application/vnd.ms-outlook" />
+                <data android:mimeType="text/calendar" />
+                <data android:mimeType="text/vcalendar" />
+                <data android:mimeType="text/x-vcalendar" />
+                <data android:mimeType="text/vcard" />
+                <data android:mimeType="text/x-vcard" />
+                <data android:mimeType="application/ics" />
+                <data android:mimeType="application/vnd.storytold.mailcraft" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SENDTO" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="mailto" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

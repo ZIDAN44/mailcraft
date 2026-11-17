@@ -1,5 +1,7 @@
 //! What the window was asked to do (`Action`), done; new mail announced.
 
+mod files;
+
 use crate::*;
 
 impl MailApp {
@@ -43,7 +45,8 @@ impl MailApp {
             };
             // Only the system notification and the title's unread count announce mail. No
             // RequestUserAttention: Windows keeps that highlight on the taskbar until focus returns.
-            self.services.notify(&title, &body);
+            let target = news.first().map_or(NotificationTarget::Inbox, |message| NotificationTarget::Message { key: message.key.to_id() });
+            self.services.notify_for(&title, &body, target);
         }
         let unread = self.session.inbox_unread();
         let view = match self.session.module {
@@ -121,16 +124,40 @@ impl MailApp {
                 Err(e) => self.session.notice(e.to_string(), true),
             },
             Action::Run(id, p) => {
+                // Module navigation can happen inside the mobile folder drawer. Close it as
+                // soon as the destination changes so the new module is immediately usable.
+                if id == "view.module" {
+                    self.ui.mobile_folder_open = false;
+                }
+                if self.ui.phone_mode {
+                    if id == "list.open" {
+                        self.ui.phone_reader_open = true;
+                    } else if id == "view.module" {
+                        self.ui.phone_reader_open = false;
+                    }
+                }
+                if id == "mail.delete" && p.get("permanent").and_then(Value::as_bool) != Some(true) && self.needs_delete_confirm() {
+                    self.ui.dialog = Some(Dialog::ConfirmDelete { count: self.session.selection.len() });
+                    return;
+                }
+                let staged_attachment =
+                    if id == "compose.attach" { p.get("path").and_then(Value::as_str).map(std::path::PathBuf::from) } else { None };
                 // A Search Folder isn't a search typed in: the box is left empty.
                 if matches!(id, "search.clear" | "searchFolder.open") {
                     self.ui.search_text.clear();
                 }
                 self.run(id, p);
+                if let Some(path) = staged_attachment {
+                    self.services.discard_picked_file(&path);
+                }
                 if super::keys::moves_focus(id) {
                     self.ui.scroll_to_focus = true;
                 }
             }
             Action::Open(k) => {
+                if self.ui.phone_mode {
+                    self.ui.phone_reader_open = true;
+                }
                 self.run("list.open", json!({"key": k.to_id()}));
             }
             Action::Dialog(d) => self.ui.dialog = Some(d),
@@ -162,6 +189,7 @@ impl MailApp {
                     self.session.reading = main;
                 }
             }
+            Action::PickAccountDataFile if self.services.pick_later("account-data-file") => {}
             Action::PickAccountDataFile => {
                 if let Some(path) = self.services.pick_data_file()
                     && let Some(dialogs::Dialog::AddAccount(f)) = self.ui.dialog.as_mut()
@@ -171,8 +199,13 @@ impl MailApp {
             }
             // What the file holds, and where its copy goes, are shown before it's imported. Looked
             // at afresh each time it's picked: the room freed, or the file changed, since.
+            Action::OpenDataFile if self.services.pick_later("data-file") => {}
             Action::OpenDataFile => {
                 if let Some(path) = self.services.pick_data_file() {
+                    if crate::is_message_or_pim_file(&path) {
+                        self.open_handed(path.to_string_lossy().trim());
+                        return;
+                    }
                     let path = path.to_string_lossy().trim().to_string();
                     match self.session.run("account.inspectDataFile", &json!({"path": path, "again": true})) {
                         Ok(_) => {
@@ -186,7 +219,10 @@ impl MailApp {
             // The status bar and the folder pane show how it goes from here.
             Action::ImportDataFile { path, again, changes, take_over } => {
                 match self.session.run("account.importPst", &json!({"path": path, "again": again, "changes": changes, "takeOver": take_over})) {
-                    Ok(_) => self.ui.backstage = None,
+                    Ok(_) => {
+                        self.services.retain_picked_file(std::path::Path::new(&path));
+                        self.ui.backstage = None;
+                    }
                     // Its copy found held by another data folder since the file was looked at:
                     // the dialog again, saying so and offering to take it over.
                     Err(_) if !take_over && !again && self.session.data_file_facts(&path).is_some_and(|f| !f.copy_held_by.is_empty()) => {
@@ -196,6 +232,43 @@ impl MailApp {
                 }
             }
             Action::ImportDetails(account) => self.ui.import_details = Some(account),
+            Action::ExportDataFile(account) if self.services.downloads_files() => {
+                let account_name = self
+                    .session
+                    .account(&account)
+                    .map(|a| if a.config.email.trim().is_empty() { a.config.name.clone() } else { a.config.email.clone() })
+                    .unwrap_or_default();
+                let name = mailcraft_engine::mime::sanitize_filename(if account_name.trim().is_empty() { "Mail" } else { account_name.trim() });
+                let Some(base) = mailcraft_engine::store::scratch_dir("pst-exports") else {
+                    self.session.notice(tf!("Couldn't open {file}: {error}", file = "PST export", error = "temporary storage is unavailable"), true);
+                    return;
+                };
+                static NEXT_EXPORT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+                let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |duration| duration.as_nanos());
+                let export_dir = base.join(format!("{now}-{}", NEXT_EXPORT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+                if let Err(error) = std::fs::create_dir(&export_dir) {
+                    self.session.notice(error.to_string(), true);
+                    return;
+                }
+                let path = export_dir.join("export.pst");
+                match self.session.run("account.exportPst", &json!({"account": account, "path": path.to_string_lossy()})) {
+                    Ok(_) => {
+                        self.ui.backstage = None;
+                        if let Err(error) = self.services.export_file(&account, &format!("{name}.pst"), path) {
+                            let _ = std::fs::remove_file(export_dir.join("export.pst"));
+                            let _ = std::fs::remove_dir(&export_dir);
+                            self.session.notice(error, true);
+                        } else {
+                            self.session.notice(tf!("Exporting to {file}…", file = format!("{name}.pst")), false);
+                        }
+                    }
+                    Err(error) => {
+                        let _ = std::fs::remove_file(export_dir.join("export.pst"));
+                        let _ = std::fs::remove_dir(&export_dir);
+                        self.session.notice(error.to_string(), true);
+                    }
+                }
+            }
             Action::ExportDataFile(account) => {
                 // Named after the account's address, as Outlook names a data file.
                 let name = self
@@ -214,6 +287,10 @@ impl MailApp {
                     }
                 }
             }
+            Action::ExportRules if self.services.downloads() => match self.session.rules_file() {
+                Ok(bytes) => self.services.save_as_owned("MailCraft rules.json", "application/json", bytes),
+                Err(error) => self.session.notice(error.to_string(), true),
+            },
             Action::ExportRules => {
                 if let Some(path) = self.services.save_path("MailCraft rules.json") {
                     match self.session.run("rules.export", &json!({"path": path.to_string_lossy()})) {
@@ -237,11 +314,14 @@ impl MailApp {
             Action::UnlockCertificate(account) => {
                 self.ui.dialog = Some(Dialog::Certificate { account, path: String::new(), data: None, password: String::new() });
             }
+            Action::ImportPgpKey(account) if self.services.pick_later(&format!("pgp-secret:{account}")) => {}
             Action::ImportPgpKey(account) => {
                 if let Some(path) = self.services.pick_pgp_key() {
-                    self.ui.dialog = Some(Dialog::PgpKey { account, path: path.to_string_lossy().into_owned(), passphrase: String::new() });
+                    self.ui.dialog =
+                        Some(Dialog::PgpKey { account, path: path.to_string_lossy().into_owned(), data: None, passphrase: String::new() });
                 }
             }
+            Action::ImportPublicKey(account) if self.services.pick_later(&format!("pgp-public:{account}")) => {}
             Action::ImportPublicKey(account) => {
                 if let Some(path) = self.services.pick_pgp_key() {
                     // The session says what it kept.
@@ -258,6 +338,7 @@ impl MailApp {
                 self.run("security.findKeys", json!({"keychain": true}));
                 self.ui.dialog = Some(Dialog::SmartCard { account, module: String::new(), pin: String::new(), system: true });
             }
+            Action::ImportRules if self.services.pick_later("rules") => {}
             Action::ImportRules => {
                 if let Some(path) = self.services.pick_rules_file() {
                     match self.session.run("rules.import", &json!({"path": path.to_string_lossy()})) {
@@ -275,6 +356,11 @@ impl MailApp {
                     }
                 }
             }
+            Action::ImportCategories if self.services.pick_later("categories") => {}
+            Action::ExportCategories if self.services.downloads() => match self.session.categories_file() {
+                Ok(bytes) => self.services.save_as_owned("MailCraft categories.json", "application/json", bytes),
+                Err(error) => self.session.notice(error.to_string(), true),
+            },
             Action::ExportCategories => {
                 if let Some(path) = self.services.save_path("MailCraft categories.json") {
                     match self.session.run("category.export", &json!({"path": path.to_string_lossy()})) {
@@ -342,6 +428,11 @@ impl MailApp {
             }
             Action::Submit(id, p) => match self.session.run(id, &p) {
                 Ok(v) => {
+                    if id == "account.add"
+                        && let Some(path) = p.get("pst").and_then(Value::as_str)
+                    {
+                        self.services.retain_picked_file(std::path::Path::new(path));
+                    }
                     if id == "contact.create" {
                         self.ui.person = v.get("uid").and_then(Value::as_str).map(str::to_string);
                     }
@@ -365,6 +456,56 @@ impl MailApp {
             Action::ShowFormatted(key, on) => self.ui.shown_as.set(&key, on, self.session.prefs.show_html),
             Action::SetLanguage(l) => self.ui.language = l,
             Action::OpenUrl(url) => self.open_link(&url),
+            Action::DialPhone(number) => {
+                if let Err(error) = self.services.dial_phone(&number) {
+                    self.session.notice(tf!("The link couldn't be opened: {error}", error = error), true);
+                }
+            }
+            Action::OpenMap(address) => {
+                if let Err(error) = self.services.open_map(&address) {
+                    self.session.notice(tf!("The link couldn't be opened: {error}", error = error), true);
+                }
+            }
+            Action::ShareContact { title, vcard } => {
+                if let Err(error) = self.services.share_contact(&title, &vcard) {
+                    self.session.notice(error, true);
+                }
+            }
+            Action::ExportContact { name, vcard } => {
+                let name = format!("{}.vcf", mailcraft_engine::mime::sanitize_filename(&name));
+                self.services.save_as_owned(&name, "text/vcard", vcard.into_bytes());
+            }
+            Action::AddToSystemContacts { contact } => {
+                if let Err(error) = self.services.add_to_system_contacts(&contact) {
+                    self.session.notice(error, true);
+                }
+            }
+            Action::ShareCalendarEvent { title, ical } => {
+                if let Err(error) = self.services.share_calendar_event(&title, &ical) {
+                    self.session.notice(error, true);
+                }
+            }
+            Action::ExportCalendarEvent { name, ical } => {
+                let name = format!("{}.ics", mailcraft_engine::mime::sanitize_filename(&name));
+                self.services.save_as_owned(&name, "text/calendar", ical.into_bytes());
+            }
+            Action::AddToSystemCalendar { title, location, description, start, end, all_day, timezone, rrule, rdates, exdates, attendees } => {
+                if let Err(error) = self.services.add_to_system_calendar(
+                    &title,
+                    &location,
+                    &description,
+                    start,
+                    end,
+                    all_day,
+                    timezone.as_deref(),
+                    rrule.as_deref(),
+                    &rdates,
+                    &exdates,
+                    &attendees,
+                ) {
+                    self.session.notice(error, true);
+                }
+            }
             Action::SignInAgain(id) => self.sign_in_again(&id),
             Action::OpenInCraft(i, cmd) => {
                 let Some(app) = self.ui.craft_apps.iter().find(|(c, _)| *c == cmd).map(|(_, p)| p.clone()) else { return };
@@ -374,48 +515,145 @@ impl MailApp {
                     self.session.notice(tf!("{app} couldn't open it: {error}", app = app.display(), error = e), true);
                 }
             }
-            Action::Print | Action::ExportPdf if self.services.downloads() => {
+            Action::Print if self.services.downloads() => {
                 let name = format!("{}.pdf", self.message_file_name());
                 match self.session.message_pdf() {
-                    Ok(b) => self.services.download(&name, &b),
-                    Err(e) => self.session.notice(e.to_string(), true),
+                    Ok(bytes) => self.services.open_file_owned_with_mime(&name, "application/pdf", bytes),
+                    Err(error) => self.session.notice(error.to_string(), true),
+                }
+            }
+            Action::ExportPdf if self.services.downloads() => {
+                let name = format!("{}.pdf", self.message_file_name());
+                match self.session.message_pdf() {
+                    Ok(bytes) => self.services.save_as_owned(&name, "application/pdf", bytes),
+                    Err(error) => self.session.notice(error.to_string(), true),
                 }
             }
             Action::SaveMessage if self.services.downloads() => {
                 let name = format!("{}.eml", self.message_file_name());
                 match self.session.message_source() {
-                    Ok(b) => self.services.download(&name, &b),
+                    Ok(b) => self.services.save_as_owned(&name, "message/rfc822", b),
                     Err(e) => self.session.notice(e.to_string(), true),
                 }
             }
-            Action::NoteFile { uid, index, .. } if self.services.downloads() => match self.session.note_file(&uid, index) {
-                Ok((name, b)) => self.services.download(&name, &b),
-                Err(e) => self.session.notice(e.to_string(), true),
+            Action::ShareMessage if self.services.can_share_files() => {
+                let name = format!("{}.eml", self.message_file_name());
+                match self.session.message_source() {
+                    Ok(bytes) => {
+                        if let Err(error) = self.services.share_message(&name, "message/rfc822", &bytes) {
+                            self.session.notice(error, true);
+                        }
+                    }
+                    Err(error) => self.session.notice(error.to_string(), true),
+                }
+            }
+            Action::ShareMessage => {}
+            Action::NoteFile { uid, index, open } if self.services.downloads() => match self.session.note_file(&uid, index) {
+                Ok((name, _bytes)) if open && self.services.opens_files_after_saving() && mailcraft_engine::mime::runs_code(&name) => self
+                    .session
+                    .notice(tf!("The file {name} could run a program, so it isn't opened from here; save it and check it first.", name = name), true),
+                Ok((name, bytes)) if open => self.services.open_file_owned(&name, bytes),
+                Ok((name, bytes)) => self.services.save_as_owned(&name, "application/octet-stream", bytes),
+                Err(error) => self.session.notice(error.to_string(), true),
             },
             Action::NoteFile { uid, index, open } => self.note_file(&uid, index, open),
             Action::SaveAttachment(i) | Action::OpenAttachment(i) if self.services.downloads() => {
                 let name = mailcraft_engine::mime::sanitize_filename(&self.attachment_name(i));
+                let mime = self.attachment_mime(i);
+                let open = matches!(&a, Action::OpenAttachment(_));
+                if open && self.services.opens_files_after_saving() && mailcraft_engine::mime::runs_code(&name) {
+                    self.session.notice(
+                        tf!("The file {name} could run a program, so it isn't opened from here; save it and check it first.", name = name),
+                        true,
+                    );
+                    return;
+                }
                 match self.session.attachment_bytes(i) {
-                    Ok(b) => self.services.download(&name, &b),
+                    Ok(bytes) if open => self.services.open_file_owned_with_mime(&name, &mime, bytes),
+                    Ok(bytes) => self.services.save_as_owned(&name, &mime, bytes),
                     Err(e) => self.session.notice(e.to_string(), true),
                 }
             }
+            Action::ShareAttachment(i) if self.services.can_share_files() => {
+                let name = mailcraft_engine::mime::sanitize_filename(&self.attachment_name(i));
+                let mime = self.attachment_mime(i);
+                match self.session.attachment_bytes(i) {
+                    Ok(bytes) => {
+                        if let Err(error) = self.services.share_file(&name, &mime, &bytes) {
+                            self.session.notice(error, true);
+                        }
+                    }
+                    Err(error) => self.session.notice(error.to_string(), true),
+                }
+            }
+            Action::ShareAttachments(indices) if self.services.can_share_files() => {
+                const MAX_FILES: usize = 50;
+                const MAX_BYTES: usize = 25 << 20;
+                if indices.len() > MAX_FILES {
+                    self.session.notice(tf!("You can share up to {n} attachments at once", n = MAX_FILES), true);
+                    return;
+                }
+                let mut files = Vec::with_capacity(indices.len());
+                let mut total = 0usize;
+                for index in indices {
+                    let name = mailcraft_engine::mime::sanitize_filename(&self.attachment_name(index));
+                    let mime = self.attachment_mime(index);
+                    match self.session.attachment_bytes(index) {
+                        Ok(bytes) => {
+                            total = total.saturating_add(bytes.len());
+                            if total > MAX_BYTES {
+                                self.session.notice(tl!("The selected attachments are too large to share").to_string(), true);
+                                return;
+                            }
+                            files.push((name, mime, bytes));
+                        }
+                        Err(error) => {
+                            self.session.notice(error.to_string(), true);
+                            return;
+                        }
+                    }
+                }
+                let refs: Vec<_> = files.iter().map(|(name, mime, bytes)| (name.as_str(), mime.as_str(), bytes.as_slice())).collect();
+                if let Err(error) = self.services.share_files(&refs) {
+                    self.session.notice(error, true);
+                }
+            }
+            Action::ShareAttachment(_) | Action::ShareAttachments(_) => {}
+            Action::SaveAttachments(indices) if self.services.downloads() => {
+                if self.services.downloads_files() {
+                    let files: Vec<_> = indices.into_iter().map(|index| (index, self.attachment_name(index), self.attachment_mime(index))).collect();
+                    self.queue_attachment_downloads(files);
+                    return;
+                }
+                for index in indices {
+                    let name = mailcraft_engine::mime::sanitize_filename(&self.attachment_name(index));
+                    let mime = self.attachment_mime(index);
+                    match self.session.attachment_bytes(index) {
+                        Ok(bytes) => self.services.download_owned_with_mime(&name, &mime, bytes),
+                        Err(error) => self.session.notice(error.to_string(), true),
+                    }
+                }
+            }
             Action::SaveAll if self.services.downloads() => {
-                let files: Vec<(usize, String)> = self
+                let files: Vec<(usize, String, String)> = self
                     .session
                     .reading
                     .as_ref()
                     .and_then(|r| r.parsed.as_ref())
-                    .map(|p| p.attachments.iter().filter(|a| !a.inline).map(|a| (a.index, a.name.clone())).collect())
+                    .map(|p| p.attachments.iter().filter(|a| !a.inline).map(|a| (a.index, a.name.clone(), a.mime.clone())).collect())
                     .unwrap_or_default();
-                for (i, name) in files {
-                    if let Ok(b) = self.session.attachment_bytes(i) {
-                        self.services.download(&mailcraft_engine::mime::sanitize_filename(&name), &b);
+                if self.services.downloads_files() {
+                    self.queue_attachment_downloads(files);
+                    return;
+                }
+                for (i, name, mime) in files {
+                    match self.session.attachment_bytes(i) {
+                        Ok(bytes) => self.services.download_owned_with_mime(&mailcraft_engine::mime::sanitize_filename(&name), &mime, bytes),
+                        Err(error) => self.session.notice(error.to_string(), true),
                     }
                 }
             }
             Action::InsertPicture if self.services.pick_later("picture") => {}
-            Action::AttachFiles if self.services.pick_later("attach") => {}
             Action::Print => {
                 // The message as a PDF, saved where asked, then opened to print from the viewer.
                 let Some(path) = self.services.save_path(&format!("{}.pdf", self.message_file_name())) else { return };
@@ -487,18 +725,25 @@ impl MailApp {
                 // Formatted text that came with a picture (from Word or a web page) was pasted
                 // as text.
                 let text = clipboard_html().is_some_and(|h| !mailcraft_engine::mime::pasted_html(&h).0.trim().is_empty());
-                if !text && let Some(png) = self.services.clipboard_picture() {
-                    let size = rich_edit::own_size(&png);
-                    let (width, line) = (rich_edit::fitted_width(size), rich_edit::own_line(size));
-                    let r = self
-                        .session
-                        .run("compose.insertPicture", &self.picture_place(json!({"name": "pasted.png", "data": png, "width": width, "line": line})));
-                    self.place_picture(r);
+                if !text && let Some(compose_id) = self.session.compose.as_ref().map(|compose| compose.id) {
+                    let target = crate::PendingClipboardPicture::Compose { compose_id, params: self.picture_place(json!({"name": "pasted.png"})) };
+                    if self.clipboard_picture_later(target.clone()) {
+                        return;
+                    }
+                    if let Some(png) = self.services.clipboard_picture() {
+                        self.pending_clipboard_picture = Some(target);
+                        self.finish_clipboard_picture(png);
+                    }
                 }
             }
+            Action::SignaturePicture { paste: false }
+                if matches!(&self.ui.dialog, Some(Dialog::Signature(_))) && self.services.pick_later("signature-picture") => {}
             Action::SignaturePicture { paste } => self.signature_picture(paste),
+            Action::SignatureFile if matches!(&self.ui.dialog, Some(Dialog::Signature(_))) && self.services.pick_later("signature") => {}
             Action::SignatureFile => self.signature_file(),
             Action::PasteFiles => self.paste_files(),
+            Action::AttachClipboardFiles(files) => self.attach_clipboard_files(files),
+            Action::AttachFiles if self.services.pick_later("attach") => {}
             Action::AttachFiles => {
                 for p in self.services.pick_files() {
                     self.run("compose.attach", json!({"path": p.to_string_lossy()}));
@@ -539,247 +784,4 @@ impl MailApp {
             self.ui.dialog = Some(Dialog::password(&config));
         }
     }
-
-    /// Put a picture's mark at the body's cursor.
-    /// Where a picture goes: at the cursor in the message.
-    pub(crate) fn picture_at(&self) -> usize {
-        let n = self.session.compose.as_ref().map_or(0, |c| c.body.chars().count());
-        self.ui.editor.as_ref().filter(|e| self.session.compose.as_ref().is_some_and(|c| c.id == e.id)).map_or(n, |e| e.sel.start.min(n))
-    }
-
-    /// Where a picture goes, put into `params`: the text's cursor, or that of the block of the
-    /// quoted original being changed (`quoteCell`).
-    pub(crate) fn picture_place(&self, mut params: serde_json::Value) -> serde_json::Value {
-        match self.quote_cell() {
-            Some((n, at)) => {
-                params["at"] = json!(at);
-                params["quoteCell"] = json!(n);
-            }
-            None => params["at"] = json!(self.picture_at()),
-        }
-        params
-    }
-
-    /// The block of the quoted original with the cursor, and where in it the cursor is.
-    fn quote_cell(&self) -> Option<(usize, usize)> {
-        let c = self.session.compose.as_ref().filter(|c| c.quote.is_some())?;
-        let (id, n) = self.ui.quote_focus.filter(|(id, _)| *id == c.id)?;
-        Some((n, self.ui.quote_editors.get(&(id, n)).map_or(0, |e| e.sel.start)))
-    }
-
-    /// A picture into the signature being edited, at its cursor: pasted, or chosen from files.
-    pub(crate) fn signature_picture(&mut self, paste: bool) {
-        use mailcraft_engine::mime::{InlinePicture, SIGNATURE_PICTURE_MAX, SIGNATURE_PICTURE_TYPES, SIGNATURE_PICTURES, mime_from_name};
-        if !matches!(self.ui.dialog, Some(Dialog::Signature(_))) {
-            return;
-        }
-        let pictures: Vec<(String, Vec<u8>)> = if paste {
-            self.services.clipboard_picture().map(|png| ("pasted.png".to_string(), png)).into_iter().collect()
-        } else {
-            let read = |p: &std::path::PathBuf| {
-                let f = std::fs::File::open(p).ok()?;
-                let mut v = Vec::new();
-                std::io::Read::read_to_end(&mut std::io::Read::take(f, SIGNATURE_PICTURE_MAX as u64 + 1), &mut v).ok()?;
-                Some((p.file_name()?.to_string_lossy().to_string(), v))
-            };
-            self.services.pick_pictures().iter().filter_map(read).collect()
-        };
-        let Some(Dialog::Signature(f)) = self.ui.dialog.as_mut() else { return };
-        for (name, data) in pictures {
-            let mime = mime_from_name(&name);
-            let size = rich_edit::own_size(&data);
-            if data.len() > SIGNATURE_PICTURE_MAX
-                || f.compose.inline.len() >= SIGNATURE_PICTURES
-                || size.is_none()
-                || !SIGNATURE_PICTURE_TYPES.contains(&mime)
-            {
-                self.session
-                    .notice(tf!("{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)", name = name), true);
-                continue;
-            }
-            let cid = (1..).map(|n| format!("signature{n}@mailcraft")).find(|c| !f.compose.inline.iter().any(|p| &p.cid == c)).unwrap_or_default();
-            f.compose.inline.push(InlinePicture { cid: cid.clone(), name, mime: mime.to_string(), data });
-            let n = f.compose.body.chars().count();
-            let at = f.editor.0.sel.start.min(n);
-            let width = rich_edit::fitted_width(size).and_then(|w| u16::try_from(w).ok());
-            mailcraft_engine::cmd::insert_picture_at(&mut f.compose, at, &cid, width);
-            f.editor.0.sel = at + 1..at + 1;
-            f.editor.0.refocus = Some(at + 1..at + 1);
-        }
-    }
-
-    /// A signature saved as a web page, as the one being edited's HTML code (issue #11): an
-    /// Outlook `.htm` signature, its pictures read from the folder beside it (that folder only,
-    /// pictures only, each 1 MB at most).
-    pub(crate) fn signature_file(&mut self) {
-        use mailcraft_engine::mime;
-        if !matches!(self.ui.dialog, Some(Dialog::Signature(_))) {
-            return;
-        }
-        let Some(path) = self.services.pick_files().into_iter().next() else { return };
-        let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-        let read = std::fs::File::open(&path).and_then(|f| {
-            let mut v = Vec::new();
-            std::io::Read::read_to_end(&mut std::io::Read::take(f, mime::SIGNATURE_CODE_MAX as u64 + 1), &mut v).map(|_| v)
-        });
-        let bytes = match read {
-            Ok(b) if b.len() <= mime::SIGNATURE_CODE_MAX => b,
-            _ => {
-                self.session.notice(tf!("{name} can't be read as a signature", name = name), true);
-                return;
-            }
-        };
-        let folder = path.parent().and_then(|p| p.canonicalize().ok());
-        let html = mime::local_pictures(&mime::pictures_beside(&mime::signature_file(&bytes)), |src| {
-            let folder = folder.as_ref()?;
-            let rel = percent_decoded(src.trim().get(5..)?);
-            let file = folder.join(rel.trim_start_matches(['/', '\\'])).canonicalize().ok()?;
-            let meta = std::fs::metadata(&file).ok()?;
-            if !file.starts_with(folder) || !meta.is_file() || meta.len() > mime::SIGNATURE_PICTURE_MAX as u64 {
-                return None;
-            }
-            let kind = mime::mime_from_name(&file.file_name()?.to_string_lossy()).to_string();
-            mime::SIGNATURE_PICTURE_TYPES.contains(&kind.as_str()).then_some(())?;
-            Some((kind, std::fs::read(&file).ok()?))
-        });
-        if let Some(Dialog::Signature(f)) = self.ui.dialog.as_mut() {
-            f.take_code(&html);
-        }
-    }
-
-    pub(crate) fn place_picture(&mut self, r: mailcraft_engine::CmdResult) {
-        match r {
-            // In place: the cursor goes after it.
-            Ok(v) => {
-                let cell = self.quote_cell().and_then(|(n, _)| self.session.compose.as_ref().map(|c| (c.id, n)));
-                let ed = match cell {
-                    Some(k) => self.ui.quote_editors.get_mut(&k),
-                    None => self.ui.editor.as_mut(),
-                };
-                if let Some(e) = ed {
-                    let end = v.get("end").and_then(serde_json::Value::as_u64).and_then(|e| usize::try_from(e).ok()).unwrap_or(e.sel.start + 1);
-                    e.sel = end..end;
-                }
-            }
-            Err(e) => self.session.notice(e.to_string(), true),
-        }
-    }
-
-    /// Follow a link from a message: only web pages and mail addresses, never local files or
-    /// other schemes.
-    pub(crate) fn open_link(&mut self, url: &str) {
-        // Where it really goes, without what says who clicked (File › Options › Safety).
-        let cleaned = if self.session.prefs.clean_links { mailcraft_engine::mime::clean_link(url) } else { url.to_string() };
-        let u = cleaned.trim();
-        let lower = u.to_ascii_lowercase();
-        if let Some(rest) = u.get(7..).filter(|_| lower.starts_with("mailto:")) {
-            let to = rest.split('?').next().unwrap_or("").replace("%40", "@");
-            self.run("mail.new", json!({}));
-            self.run("compose.update", json!({"to": to}));
-        } else if lower.starts_with("https://") || lower.starts_with("http://") {
-            if let Err(e) = self.services.open_url(u) {
-                self.session.notice(tf!("The link couldn't be opened: {error}", error = e), true);
-            }
-        } else {
-            self.session.notice(tf!("Links like {link} aren't opened", link = widgets::shorten(u, 40)), true);
-        }
-    }
-
-    /// A file name for the open message (its subject, made safe).
-    pub(crate) fn message_file_name(&self) -> String {
-        let subject = self.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.subject.clone()).unwrap_or_default();
-        let name = mailcraft_engine::mime::sanitize_filename(if subject.trim().is_empty() { "message" } else { &subject });
-        name.chars().take(80).collect()
-    }
-
-    /// Write an attachment to a temporary file to hand to another app: dragged out (a copy, as
-    /// saving), or to be opened (never a program, script or shortcut: the engine refuses).
-    pub(crate) fn attachment_to_temp(&mut self, i: usize, open: bool) -> Option<PathBuf> {
-        if !self.ui.has_files {
-            return None;
-        }
-        let name = self.attachment_name(i);
-        let Some(dir) = mailcraft_engine::store::scratch_dir("open") else {
-            self.session.notice(tl!("There's no folder to put the attachment in for another app"), true);
-            return None;
-        };
-        let path = dir.join(mailcraft_engine::mime::sanitize_filename(&name));
-        match self.session.run("attachment.save", &json!({"index": i, "path": path.to_string_lossy(), "open": open})) {
-            Ok(_) => Some(path),
-            Err(e) => {
-                self.session.notice(e.to_string(), true);
-                None
-            }
-        }
-    }
-
-    /// A note's file `index`, opened in another app (saved for it first, never when it could run
-    /// a program) or saved where asked.
-    fn note_file(&mut self, uid: &str, index: usize, open: bool) {
-        let name = self
-            .session
-            .notes("")
-            .iter()
-            .find(|n| n.note.uid == uid)
-            .and_then(|n| n.note.kept_files().get(index).map(|f| mailcraft_engine::mime::sanitize_filename(f.file_name())))
-            .unwrap_or_else(|| "attachment".into());
-        let path = if open {
-            let Some(dir) = mailcraft_engine::store::scratch_dir("open") else {
-                self.session.notice(tl!("There's no folder to put the attachment in for another app"), true);
-                return;
-            };
-            dir.join(&name)
-        } else {
-            let Some(path) = self.services.save_path(&name) else { return };
-            path
-        };
-        match self.session.run("note.saveFile", &json!({"uid": uid, "index": index, "path": path.to_string_lossy(), "open": open})) {
-            Ok(_) if open => {
-                if let Err(e) = self.services.open_path(&path) {
-                    self.session.notice(tf!("{name} could not be opened: {error}", name = name, error = e), true);
-                }
-            }
-            Ok(_) => self.session.notice(tf!("Saved {path}", path = path.display()), false),
-            Err(e) => self.session.notice(e.to_string(), true),
-        }
-    }
-
-    pub(crate) fn attachment_name(&self, i: usize) -> String {
-        self.session
-            .reading
-            .as_ref()
-            .and_then(|r| r.parsed.as_ref())
-            .and_then(|p| p.attachments.iter().find(|a| a.index == i))
-            .map(|a| a.name.clone())
-            .unwrap_or_else(|| "attachment".into())
-    }
-
-    /// Every attachment of the message being read, selected (Ctrl+A in its attachments).
-    pub(crate) fn select_all_attachments(&mut self) {
-        let Some(r) = self.session.reading.as_ref() else { return };
-        let all: Vec<usize> = r.parsed.as_ref().map(|p| p.attachments.iter().filter(|a| !a.inline).map(|a| a.index).collect()).unwrap_or_default();
-        self.ui.attachment_selected = Some((r.key.clone(), all));
-    }
-}
-
-/// `%20` and the like decoded (an address in a saved web page), as UTF-8, else in Windows'
-/// Western characters, which Outlook writes a name with an accent in (`Andr%E9_files`).
-fn percent_decoded(s: &str) -> String {
-    let raw = s.as_bytes();
-    let mut out = Vec::with_capacity(raw.len());
-    let mut i = 0;
-    while let Some(&b) = raw.get(i) {
-        let hex = |k: usize| raw.get(k).and_then(|h| char::from(*h).to_digit(16));
-        match (b, hex(i + 1), hex(i + 2)) {
-            (b'%', Some(a), Some(c)) => {
-                out.push(u8::try_from(a * 16 + c).unwrap_or(b'%'));
-                i += 3;
-            }
-            _ => {
-                out.push(b);
-                i += 1;
-            }
-        }
-    }
-    mailcraft_engine::mime::signature_file(&out)
 }

@@ -32,6 +32,7 @@ craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "38740b4
 craft-docpath = { git = "https://github.com/storytold/craft-libs", rev = "38740b43a901022bf8cf0ede19e59ea606dc11a9" }
 
 # foundation
+base64 = "0.22"
 thiserror = "2"
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
@@ -82,6 +83,8 @@ lto = "thin"
 # same revisions as GridCraft, WordCraft, PdfCraft, DeckCraft and PhotoCraft. Each fix in them is
 # listed in the fork's PATCHES.md; bump these with the other apps.
 [patch.crates-io]
+# NativeActivity exposes its real Activity to middleware that otherwise sees Application.
+robius-android-env = { git = "https://github.com/xe7485/robius-android-env.git", rev = "f6682f0f703f222a62cea798dc89388ae512db3f" }
 ecolor = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
 emath = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }
 epaint = { git = "https://github.com/storytold/egui.git", rev = "6d518fc799681571963842f95b55a6b68431b15a" }

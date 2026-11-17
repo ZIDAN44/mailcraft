@@ -83,6 +83,12 @@ pub(crate) fn pasted_files(ctx: &egui::Context, services: &mut dyn Services, s: 
     if !focused || !ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Paste(_) | egui::Event::PasteImage(_)))) {
         return Vec::new();
     }
+    if let Some(has_files) = services.clipboard_files_later() {
+        if has_files {
+            ctx.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Paste(_) | egui::Event::PasteImage(_))));
+        }
+        return Vec::new();
+    }
     let files: Vec<PathBuf> = services.clipboard_files().into_iter().filter(|p| p.is_absolute() && p.is_file()).take(MAX_FILES).collect();
     if !files.is_empty() {
         ctx.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Paste(_) | egui::Event::PasteImage(_))));
@@ -103,8 +109,9 @@ impl MailApp {
     pub(crate) fn files_from_desktop(&mut self, ctx: &egui::Context, acts: &mut Vec<Action>) {
         let inline = self.session.module == Module::Mail && self.session.compose.as_ref().is_some_and(|c| compose_inline(c, ctx));
         if inline {
-            for p in pasted_files(ctx, self.services.as_mut(), &self.session) {
-                acts.push(Action::Run("compose.attach", json!({"path": p.to_string_lossy()})));
+            let files = pasted_files(ctx, self.services.as_mut(), &self.session);
+            if !files.is_empty() {
+                acts.push(Action::AttachClipboardFiles(files));
             }
             return;
         }
@@ -183,6 +190,12 @@ impl MailApp {
     /// The text's right-click Paste in a message: files copied in a file manager are attached
     /// (the text paste that follows is called off), as Outlook attaches them.
     pub(crate) fn paste_files(&mut self) {
+        if let Some(has_files) = self.services.clipboard_files_later() {
+            if has_files && let Some(ed) = self.ui.editor.as_mut() {
+                ed.paste = false;
+            }
+            return;
+        }
         let files: Vec<PathBuf> = self.services.clipboard_files().into_iter().filter(|p| p.is_absolute() && p.is_file()).take(MAX_FILES).collect();
         if files.is_empty() {
             return;
@@ -190,8 +203,14 @@ impl MailApp {
         if let Some(ed) = self.ui.editor.as_mut() {
             ed.paste = false;
         }
+        self.attach_clipboard_files(files);
+    }
+
+    /// Attach clipboard files after their paths have been used, then remove any Android staging copies.
+    pub(crate) fn attach_clipboard_files(&mut self, files: Vec<PathBuf>) {
         for p in files {
             self.run("compose.attach", json!({"path": p.to_string_lossy()}));
+            self.services.discard_picked_file(&p);
         }
     }
 }

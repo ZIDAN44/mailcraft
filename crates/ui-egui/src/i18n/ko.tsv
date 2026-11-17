@@ -60,6 +60,7 @@
 	Delete “{folder}”?	"{folder}"을(를) 삭제할까요?
 	Deleted Items	지운 편지함
 	Discard	버리기
+	Discard these changes?	변경 사항을 버리시겠습니까?
 	Disconnected: {error}	연결 끊김: {error}
 	Document	문서
 	Don't run later rules on mail this one matches	이 규칙에 해당하는 메일에는 다음 규칙을 적용하지 않음
@@ -385,6 +386,11 @@
 	Google (IMAP)	Google (IMAP)
 	I'm away until…	다음 날짜까지 부재 중입니다…
 	Inbox and notifications	받은 편지함 및 알림
+	Android notifications are off. Turn them on in Settings for new mail and calendar reminders.	Android 알림이 꺼져 있습니다. 새 메일과 캘린더 알림을 받으려면 설정에서 켜세요.
+	Settings	설정
+	Android's encrypted credential store is unavailable. MailCraft will keep credentials in memory until it closes.	Android 암호화 자격 증명 저장소를 사용할 수 없습니다. MailCraft를 닫을 때까지 자격 증명은 메모리에 보관됩니다.
+	The Android file picker couldn't open. In Files, choose Share → MailCraft to use the file.	Android 파일 선택기를 열 수 없습니다. Files에서 공유 → MailCraft를 선택해 파일을 사용하세요.
+	MailCraft couldn't save the file. Try again.	MailCraft에서 파일을 저장하지 못했습니다. 다시 시도하세요.
 	Info	정보
 	Kept on this computer: {size}	이 컴퓨터에 보관: {size}
 	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft는 암호화된 연결로 내 메일 서버하고만 통신합니다. 웹의 그림은 요청할 때만 불러옵니다.
@@ -763,6 +769,8 @@
 	Mail from an old .pst or .mailcraft file comes in first	이전 .pst 또는 .mailcraft 파일의 메일을 먼저 가져옵니다
 	Open a data file	데이터 파일 열기
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Outlook 데이터 파일(.pst) 또는 MailCraft 파일(.mailcraft)을 가져옵니다. 폴더와 함께 별도의 사서함으로 열리며 이 컴퓨터에 보관됩니다.
+	You can also open a message (.eml or .msg), calendar (.ics) or contacts (.vcf) file.	메시지(.eml 또는 .msg), 일정(.ics), 연락처(.vcf) 파일도 열 수 있습니다.
+	The file {name} could run a program, so it isn't opened from here; save it and check it first.	{name} 파일은 프로그램을 실행할 수 있어 여기서 열지 않습니다. 먼저 저장한 뒤 확인하세요.
 	Move up	위로 이동
 	Move down	아래로 이동
 	Updating…	업데이트하는 중…
@@ -875,6 +883,27 @@
 	 and {n} more	 외 {n}명
 	Add to contacts…	연락처에 추가…
 	Copy address	주소 복사
+	Copy phone number	전화번호 복사
+	Share contact	연락처 공유
+	Share attachment	첨부 파일 공유
+	Share message	메시지 공유
+	Share selected attachments	선택한 첨부 파일 공유
+	The selected attachments are too large to share	선택한 첨부 파일은 공유하기에 너무 큽니다
+	You can share up to {n} attachments at once	한 번에 최대 {n}개의 첨부 파일을 공유할 수 있습니다
+	This attachment is too large to share	이 첨부 파일은 공유하기에 너무 큽니다
+	This message is too large to share	이 메시지는 공유하기에 너무 큽니다
+	No Android app can share files	파일을 공유할 수 있는 Android 앱이 없습니다
+	Save contact	연락처 저장
+	Share event	일정 공유
+	Add to Android calendar	Android 캘린더에 추가
+	This event is too large to add to Android calendar	이 일정은 Android 캘린더에 추가하기에 너무 큽니다
+	This event has an invalid date for Android calendar	이 일정의 날짜는 Android 캘린더에서 유효하지 않습니다
+	No Android calendar app can add events	일정을 추가할 수 있는 Android 캘린더 앱이 없습니다
+	Save event	일정 저장
+	This event is too large to share	이 일정은 공유하기에 너무 큽니다
+	No Android app can share calendar events	캘린더 일정을 공유할 수 있는 Android 앱이 없습니다
+	This contact is too large to share	이 연락처는 공유하기에 너무 큽니다
+	No Android app can share contacts	연락처를 공유할 수 있는 Android 앱이 없습니다
 	Edit contact…	연락처 편집…
 	Send email	메일 보내기
 	Add	추가
@@ -1625,3 +1654,34 @@ month	May	5월
 	it can't be decrypted with your OpenPGP key	내 OpenPGP 키로 해독할 수 없습니다
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	OpenPGP 키는 브라우저가 아니라 MailCraft 데스크톱 앱에서 사용됩니다
 	Not sent yet: this is a draft.	아직 보내지 않음: 임시 보관 메시지입니다.
+	The selected text is too large for Android's clipboard	선택한 텍스트가 Android 클립보드에 복사하기에 너무 큽니다.
+	MailCraft couldn't copy text to Android's clipboard.	MailCraft에서 Android 클립보드로 텍스트를 복사하지 못했습니다.
+	The Android clipboard text is too large to paste.	Android 클립보드의 텍스트가 너무 커서 붙여넣을 수 없습니다.
+	Add to Android contacts	Android 연락처에 추가
+	This contact is too large to add to Android contacts	이 연락처는 Android 연락처에 추가하기에 너무 큽니다
+	No Android contacts app can add contacts	연락처를 추가할 수 있는 Android 앱이 없습니다
+	This link has no address scheme	이 링크에 주소 스킴이 없습니다
+	This link is too long to open	이 링크는 너무 길어서 열 수 없습니다
+	MailCraft can open web links and mail links on Android	MailCraft는 Android에서 웹 링크와 메일 링크를 열 수 있습니다
+	No Android app can open this link	이 링크를 열 수 있는 Android 앱이 없습니다
+	This phone number is too long to open	이 전화번호는 너무 길어서 열 수 없습니다
+	This phone number contains characters Android cannot dial	이 전화번호에는 Android에서 걸 수 없는 문자가 포함되어 있습니다
+	This contact has no dialable phone number	이 연락처에 걸 수 있는 전화번호가 없습니다
+	No Android dialer app can open this number	이 번호를 열 수 있는 Android 전화 앱이 없습니다
+	This contact has no address to open	이 연락처에 열 주소가 없습니다
+	This address is too long to open	이 주소는 너무 길어서 열 수 없습니다
+	No Android map app can open this address	이 주소를 열 수 있는 Android 지도 앱이 없습니다
+	MailCraft can open shared .eml, .msg, .ics, .vcf, .pst and .mailcraft files	MailCraft는 공유된 .eml, .msg, .ics, .vcf, .pst 및 .mailcraft 파일을 열 수 있습니다
+	No Android app can open this file	이 파일을 열 수 있는 Android 앱이 없습니다
+	MailCraft's save queue is full. Wait for current saves to finish before saving more files.	MailCraft 저장 대기열이 가득 찼습니다. 현재 저장이 끝난 뒤 파일을 더 저장하세요.
+	Share a single .pst or .mailcraft data file at a time	.pst 또는 .mailcraft 데이터 파일은 한 번에 하나씩 공유하세요
+	Choose a .pst or .mailcraft data file for this account	이 계정의 .pst 또는 .mailcraft 데이터 파일을 선택하세요
+	Android did not return a document URI for the selected file	Android가 선택한 파일의 문서 URI를 반환하지 않았습니다
+	The selected document address is too long	선택한 문서 주소가 너무 깁니다
+	The selected file is larger than {size} MiB	선택한 파일이 {size}MiB보다 큽니다
+
+	Move and delete	이동 및 삭제
+	Attendees:	참석자
+	Couldn't open notification settings: {error}	알림 설정을 열 수 없습니다: {error}
+	Name and email address	이름 및 이메일 주소
+	Organizer:	주최자:

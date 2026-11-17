@@ -4,6 +4,8 @@ use crate::*;
 
 use super::ribbon::{RIBBON_H, RIBBON_H_CLASSIC, module_switch, module_switch_vertical};
 
+mod phone;
+
 /// The top bar's height: the ribbon's tabs and the search box, one row (issue #22).
 pub(crate) const TOP_BAR_H: f32 = 40.0;
 /// The top bar's margins, across and down.
@@ -146,6 +148,10 @@ impl MailApp {
     /// The whole window.
     pub fn ui(&mut self, ui: &mut Ui) {
         let ctx = ui.ctx().clone();
+        let content_rect = ui.available_rect_before_wrap();
+        let screen = content_rect.size();
+        let android_phone = self.services.phone_form_factor().unwrap_or(cfg!(target_os = "android") && screen.y < 600.0);
+        self.ui.phone_mode = screen.x < 600.0 || android_phone;
         // The window draws its own title bar (Windows): kept borderless each frame (winit puts the
         // system's frame back when the window is maximized or restored).
         let own_title_bar = self.services.own_title_bar();
@@ -211,10 +217,24 @@ impl MailApp {
         }
         self.files_from_desktop(&ctx, &mut acts);
         let t = self.ui.tokens;
+        let narrow = ui.available_width() < 700.0;
+        let phone_mode = self.ui.phone_mode;
+        let mobile_folder_ui = narrow || phone_mode;
         if let Some(key) = self.ui.page_message.clone() {
             self.message_page(ui, &key, &mut acts);
             if let Some(mut d) = self.ui.dialog.take() {
-                let keep = dialogs::show(&ctx, &mut d, &self.session, &mut self.ui.pictures, &t, &mut acts);
+                let keep = dialogs::show(
+                    &ctx,
+                    &mut d,
+                    &self.session,
+                    &mut self.ui.pictures,
+                    &t,
+                    self.services.can_open_map(),
+                    self.services.can_share_calendar_events(),
+                    self.services.can_export_calendar_events(),
+                    self.services.can_add_to_system_calendar(),
+                    &mut acts,
+                );
                 if keep && self.ui.dialog.is_none() {
                     self.ui.dialog = Some(d);
                 }
@@ -231,53 +251,126 @@ impl MailApp {
         }
         // The File page has the window to itself, under the window's own title bar (as Outlook's).
         if self.ui.backstage.is_none() {
-            let height = if self.ui.bar_two_rows { TOP_BAR_H + super::bars::BAR_ROW_H + 6.0 } else { TOP_BAR_H };
+            let height = if phone_mode {
+                let row = if ctx.input(|input| input.has_touch_screen()) { 44.0 } else { super::bars::BAR_ROW_H };
+                2.0 * row + 16.0
+            } else if self.ui.bar_two_rows {
+                TOP_BAR_H + super::bars::BAR_ROW_H + 6.0
+            } else {
+                TOP_BAR_H
+            };
             let bar = egui::Panel::top("topbar")
                 .exact_size(height)
                 .frame(egui::Frame::new().fill(t.bar).inner_margin(Margin::symmetric(TOP_BAR_MARGIN.0, TOP_BAR_MARGIN.1)))
                 .show(ui, |ui| {
                     self.top_bar(ui, &mut acts);
                 });
-            self.ui.top_bar_rect = Some(bar.response.rect);
-            egui::Panel::top("ribbon")
-                .frame(
-                    egui::Frame::new()
-                        .fill(t.chrome)
-                        .inner_margin(Margin { left: 8, right: 8, top: 4, bottom: 6 })
-                        .stroke(egui::Stroke::new(1.0, t.border)),
-                )
-                .show(ui, |ui| {
-                    // Too wide for the window: its last buttons lose their labels, as few as it
-                    // takes (worked out from this frame for the next).
-                    // One height on every tab: switching tabs doesn't nudge the window below.
-                    let classic = self.session.prefs.classic_ribbon;
-                    ui.set_min_height(if classic { RIBBON_H_CLASSIC } else { RIBBON_H });
-                    let id = widgets::ribbon_fit_id();
-                    let start = widgets::RibbonFit {
-                        active: true,
-                        classic,
-                        icons_from: self.ui.ribbon_icons_from,
-                        right: ui.max_rect().left(),
-                        left: ui.max_rect().right(),
-                        ..Default::default()
-                    };
-                    ui.ctx().data_mut(|d| d.insert_temp(id, start));
-                    // Right to left: its rows from the right (egui runs a row in a layout aligned
-                    // right from the right), File first.
-                    let rtl = i18n::current().rtl();
-                    let room = ui.max_rect();
-                    ui.with_layout(Layout::top_down(if rtl { Align::Max } else { Align::Min }), |ui| {
-                        crate::keytips::on_ribbon(ui, |ui| self.ribbon(ui, &mut acts))
+            self.ui.top_bar_rect = Some(bar.response.rect.intersect(content_rect));
+            if !phone_mode || self.ui.phone_actions_open {
+                egui::Panel::top("ribbon")
+                    .frame(
+                        egui::Frame::new()
+                            .fill(t.chrome)
+                            .inner_margin(Margin { left: 8, right: 8, top: 4, bottom: 6 })
+                            .stroke(egui::Stroke::new(1.0, t.border)),
+                    )
+                    .show(ui, |ui| {
+                        // Too wide for the window: its last buttons lose their labels, as few as it
+                        // takes (worked out from this frame for the next).
+                        // One height on every tab: switching tabs doesn't nudge the window below.
+                        let classic = self.session.prefs.classic_ribbon;
+                        ui.set_min_height(if classic { RIBBON_H_CLASSIC } else { RIBBON_H });
+                        let id = widgets::ribbon_fit_id();
+                        let start = widgets::RibbonFit {
+                            active: true,
+                            classic,
+                            icons_from: self.ui.ribbon_icons_from,
+                            right: ui.max_rect().left(),
+                            left: ui.max_rect().right(),
+                            ..Default::default()
+                        };
+                        ui.ctx().data_mut(|d| d.insert_temp(id, start));
+                        // Right to left: its rows from the right (egui runs a row in a layout aligned
+                        // right from the right), File first.
+                        let rtl = i18n::current().rtl();
+                        let room = ui.max_rect();
+                        ui.with_layout(Layout::top_down(if rtl { Align::Max } else { Align::Min }), |ui| {
+                            crate::keytips::on_ribbon(ui, |ui| self.ribbon(ui, &mut acts))
+                        });
+                        super::ribbon::card_under_ribbon(ui, &t, room);
+                        let fit = ui.ctx().data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<widgets::RibbonFit>(id)));
+                        self.ui.ribbon_rect = Some(ui.min_rect());
+                        let from = fit.fit(room, rtl);
+                        if from != self.ui.ribbon_icons_from.min(fit.count) {
+                            self.ui.ribbon_icons_from = from;
+                            ui.ctx().request_repaint();
+                        }
                     });
-                    super::ribbon::card_under_ribbon(ui, &t, room);
-                    let fit = ui.ctx().data_mut(|d| std::mem::take(d.get_temp_mut_or_default::<widgets::RibbonFit>(id)));
-                    self.ui.ribbon_rect = Some(ui.min_rect());
-                    let from = fit.fit(room, rtl);
-                    if from != self.ui.ribbon_icons_from.min(fit.count) {
-                        self.ui.ribbon_icons_from = from;
-                        ui.ctx().request_repaint();
-                    }
+            }
+            if phone_mode && !self.session.accounts.is_empty() {
+                let action_bar_height = if ctx.input(|input| input.has_touch_screen()) { 48.0 } else { 40.0 };
+                egui::Panel::top("phone-actions")
+                    .exact_size(action_bar_height)
+                    .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(8, 3)).stroke(egui::Stroke::new(1.0, t.border)))
+                    .show(ui, |ui| self.phone_action_bar(ui, &t, &mut acts));
+            }
+            if phone_mode {
+                let is_server = |account: &mailcraft_engine::AccountState| !account.is_local() && !account.is_data_file();
+                let server_account_exists = self.session.accounts.iter().any(&is_server);
+                let sign_in_needed = self.session.accounts.iter().find(|account| is_server(account) && super::bars::needs_you(account));
+                let disconnected =
+                    self.session.accounts.iter().filter(|account| is_server(account) && matches!(account.status, SyncStatus::Error { .. })).count();
+                let any_server_active = self.session.accounts.iter().any(|account| {
+                    is_server(account) && matches!(account.status, SyncStatus::Connecting | SyncStatus::Syncing { .. } | SyncStatus::Online { .. })
                 });
+                let server_offline = server_account_exists && !any_server_active && disconnected == 0 && sign_in_needed.is_none();
+                let show_sync_status = self.session.prefs.work_offline
+                    || !self.session.outbox.is_empty()
+                    || (server_account_exists && (sign_in_needed.is_some() || disconnected > 0 || server_offline));
+                if show_sync_status {
+                    egui::Panel::top("phone-sync-status")
+                        .frame(egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).inner_margin(Margin::symmetric(10, 3)))
+                        .show(ui, |ui| {
+                            ui.horizontal_wrapped(|ui| {
+                                ui.spacing_mut().interact_size.y = 44.0;
+                                if self.session.prefs.work_offline {
+                                    let mut work_offline = true;
+                                    if ui.checkbox(&mut work_offline, tl!("Work offline")).changed() {
+                                        acts.push(Action::Run("mail.workOffline", json!({"on": work_offline})));
+                                    }
+                                }
+                                if let Some(account) = sign_in_needed {
+                                    let label = super::bars::account_status(&self.session, &t, account).1;
+                                    if ui.button(label).clicked() {
+                                        acts.push(Action::SignInAgain(account.config.id.clone()));
+                                    }
+                                } else if disconnected > 0 {
+                                    let label = tf!("{n} accounts disconnected", n = disconnected);
+                                    if ui.button(label).clicked() {
+                                        acts.push(Action::Run("mail.sync", json!({})));
+                                    }
+                                } else if server_offline && !self.session.prefs.work_offline {
+                                    ui.label(RichText::new(tl!("Offline")).color(t.warn));
+                                }
+                                if !self.session.outbox.is_empty() {
+                                    let count = u32::try_from(self.session.outbox.len()).unwrap_or(u32::MAX);
+                                    if ui.button(tf!("Outbox: {n}", n = count)).clicked() {
+                                        acts.push(Action::Run("folder.outbox", json!({})));
+                                    }
+                                    let can_send = !self.session.prefs.work_offline
+                                        && self
+                                            .session
+                                            .registry()
+                                            .get("outbox.send")
+                                            .is_some_and(|command| (command.enabled)(&self.session).is_none());
+                                    if can_send && ui.button(tl!("Send all")).clicked() {
+                                        acts.push(Action::Run("outbox.send", json!({})));
+                                    }
+                                }
+                            });
+                        });
+                }
+            }
             // A newer MailCraft ready to install (or a copy left from before): a bar of its own.
             if self.update_bar_wanted() {
                 egui::Panel::top("update-bar")
@@ -309,12 +402,17 @@ impl MailApp {
                     });
             }
         }
-        egui::Panel::bottom("status")
-            .exact_size(26.0)
-            .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(10, 3)).stroke(egui::Stroke::new(1.0, t.border)))
-            .show(ui, |ui| {
-                self.status_bar(ui);
-            });
+        if phone_mode && !self.session.accounts.is_empty() && self.ui.backstage.is_none() {
+            egui::Panel::bottom("phone-navigation")
+                .exact_size(58.0)
+                .frame(egui::Frame::new().fill(t.chrome).stroke(egui::Stroke::new(1.0, t.border)))
+                .show(ui, |ui| self.phone_module_navigation(ui, &t, &mut acts));
+        } else if !phone_mode {
+            egui::Panel::bottom("status")
+                .exact_size(26.0)
+                .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(10, 3)).stroke(egui::Stroke::new(1.0, t.border)))
+                .show(ui, |ui| self.status_bar(ui));
+        }
 
         if self.ui.backstage.is_some() {
             backstage::show(&self.session, &mut self.ui, ui, &mut acts);
@@ -331,7 +429,7 @@ impl MailApp {
             let start = |id: &'static str| if rtl { egui::Panel::right(id) } else { egui::Panel::left(id) };
             // Minimized: a narrow strip with the way back and the modules, as Outlook's. Between
             // the two, the pane slides (or changes at once, with animations off).
-            let mut expanded = !self.session.prefs.folder_pane_minimized;
+            let mut expanded = !narrow && !self.session.prefs.folder_pane_minimized;
             let strip =
                 start("nav-min").resizable(false).exact_size(52.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(4, 8)));
             let full = start("nav")
@@ -339,41 +437,57 @@ impl MailApp {
                 .default_size(if module == Module::Mail { 230.0 } else { 260.0 })
                 .size_range(170.0..=380.0)
                 .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(6, 8)));
-            egui::Panel::show_switched(ui, &mut expanded, strip, full, |ui, wide| {
-                if !wide {
-                    ui.vertical_centered(|ui| {
-                        let chevron = if rtl { Icon::ChevronLeft } else { Icon::ChevronRight };
-                        if widgets::tiny_icon_button(ui, chevron, "Show the folder pane", &t).clicked() {
-                            acts.push(Action::Run("view.folderPane", json!({"minimized": false})));
-                        }
-                        ui.add_space(10.0);
-                        module_switch_vertical(ui, &t, module, &mut acts);
+            if !phone_mode {
+                egui::Panel::show_switched(ui, &mut expanded, strip, full, |ui, wide| {
+                    if !wide {
+                        ui.vertical_centered(|ui| {
+                            let chevron = if rtl { Icon::ChevronLeft } else { Icon::ChevronRight };
+                            if widgets::tiny_icon_button(ui, chevron, "Show the folder pane", &t).clicked() {
+                                if narrow {
+                                    self.ui.mobile_folder_open = true;
+                                } else {
+                                    acts.push(Action::Run("view.folderPane", json!({"minimized": false})));
+                                }
+                            }
+                            ui.add_space(10.0);
+                            module_switch_vertical(ui, &t, module, &mut acts);
+                        });
+                        return;
+                    }
+                    egui::Panel::bottom("modules").frame(egui::Frame::new().inner_margin(Margin::symmetric(0, 4))).show(ui, |ui| {
+                        module_switch(ui, &t, module, &mut acts);
                     });
-                    return;
-                }
-                egui::Panel::bottom("modules").frame(egui::Frame::new().inner_margin(Margin::symmetric(0, 4))).show(ui, |ui| {
-                    module_switch(ui, &t, module, &mut acts);
-                });
-                // Minimize, as Outlook's ‹ at the top of its folder pane.
-                ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
-                    let chevron = if rtl { Icon::ChevronRight } else { Icon::ChevronLeft };
-                    if widgets::tiny_icon_button(ui, chevron, "Minimize the folder pane", &t).clicked() {
-                        acts.push(Action::Run("view.folderPane", json!({"minimized": true})));
+                    // Minimize, as Outlook's ‹ at the top of its folder pane.
+                    ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+                        let chevron = if rtl { Icon::ChevronRight } else { Icon::ChevronLeft };
+                        if widgets::tiny_icon_button(ui, chevron, "Minimize the folder pane", &t).clicked() {
+                            if narrow {
+                                self.ui.mobile_folder_open = false;
+                            } else {
+                                acts.push(Action::Run("view.folderPane", json!({"minimized": true})));
+                            }
+                        }
+                    });
+                    match module {
+                        Module::Mail => nav::show(&self.session, &t, self.ui.can_open_path, ui, &mut acts),
+                        Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, &mut acts),
+                        Module::People => people::nav(&self.session, &mut self.ui, ui, &mut acts),
+                        Module::Tasks => tasks::nav(&self.session, &mut self.ui, ui, &mut acts),
+                        Module::Notes => notes::nav(&self.session, &mut self.ui, ui, &mut acts),
                     }
                 });
-                match module {
-                    Module::Mail => nav::show(&self.session, &t, ui, &mut acts),
-                    Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, &mut acts),
-                    Module::People => people::nav(&self.session, &mut self.ui, ui, &mut acts),
-                    Module::Tasks => tasks::nav(&self.session, &mut self.ui, ui, &mut acts),
-                    Module::Notes => notes::nav(&self.session, &mut self.ui, ui, &mut acts),
+                // Dragged narrower than it goes: minimized, as the button does.
+                if !narrow && expanded == self.session.prefs.folder_pane_minimized {
+                    acts.push(Action::Run("view.folderPane", json!({"minimized": !expanded})));
                 }
-            });
-            // Dragged narrower than it goes: minimized, as the button does.
-            if expanded == self.session.prefs.folder_pane_minimized {
-                acts.push(Action::Run("view.folderPane", json!({"minimized": !expanded})));
             }
-            let pane = self.session.prefs.reading_pane;
+            let pane = if phone_mode && module == Module::Mail {
+                ReadingPane::Off
+            } else if narrow && module == Module::Mail {
+                ReadingPane::Bottom
+            } else {
+                self.session.prefs.reading_pane
+            };
             let list_frame = egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border));
             match (module, pane) {
                 (Module::Calendar, _) => {
@@ -383,7 +497,17 @@ impl MailApp {
                 }
                 (Module::People, _) => {
                     egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
-                        people::show(&self.session, &mut self.ui, ui, &mut acts);
+                        people::show(
+                            &self.session,
+                            &mut self.ui,
+                            ui,
+                            &mut acts,
+                            self.services.can_dial_phone(),
+                            self.services.can_open_map(),
+                            self.services.can_share_contacts(),
+                            self.services.can_export_contacts(),
+                            self.services.can_add_to_system_contacts(),
+                        );
                     });
                 }
                 (Module::Tasks, _) => {
@@ -422,7 +546,7 @@ impl MailApp {
                     }
                     ReadingPane::Off => {
                         egui::CentralPanel::default().frame(list_frame).show(ui, |ui| {
-                            if self.session.compose.is_some() {
+                            if self.session.compose.is_some() || (phone_mode && self.ui.phone_reader_open && self.session.reading.is_some()) {
                                 reading::show(&mut self.session, &mut self.ui, ui, &mut acts);
                             } else {
                                 list::show(&self.session, &mut self.ui, ui, &mut acts);
@@ -466,11 +590,25 @@ impl MailApp {
             if in_window && d.for_compose() {
                 self.ui.dialog = Some(d);
             } else {
-                let keep = dialogs::show(&ctx, &mut d, &self.session, &mut self.ui.pictures, &t, &mut acts);
+                let keep = dialogs::show(
+                    &ctx,
+                    &mut d,
+                    &self.session,
+                    &mut self.ui.pictures,
+                    &t,
+                    self.services.can_open_map(),
+                    self.services.can_share_calendar_events(),
+                    self.services.can_export_calendar_events(),
+                    self.services.can_add_to_system_calendar(),
+                    &mut acts,
+                );
                 if keep && self.ui.dialog.is_none() {
                     self.ui.dialog = Some(d);
                 }
             }
+        }
+        if mobile_folder_ui {
+            self.mobile_folder_drawer(&ctx, content_rect, &t, i18n::current().rtl(), &mut acts);
         }
         // The window's resize edges, over everything, when it has no system frame to resize by;
         // its title bar over a dialog holding the window.
@@ -482,7 +620,11 @@ impl MailApp {
         // Calendar reminders: the window, and the desktop told of each as it comes.
         for r in reminders::refresh(&mut self.ui.reminders, &self.session, false) {
             let when = if r.all_day { String::new() } else { crate::calendar::hm(r.start, &self.session) };
-            self.services.notify(&r.summary, &if r.location.is_empty() { when } else { format!("{when} · {}", r.location) });
+            self.services.notify_for(
+                &r.summary,
+                &if r.location.is_empty() { when } else { format!("{when} · {}", r.location) },
+                NotificationTarget::Reminder { account: r.account, uid: r.uid, occurrence: r.occurrence, due: r.due, task: r.task },
+            );
         }
         reminders::show(&ctx, &mut self.ui.reminders, &self.session, &t, &mut acts);
         if reminders::showing(&self.ui.reminders) {
@@ -500,7 +642,15 @@ impl MailApp {
         let mut searched = false;
         for a in acts {
             searched |= matches!(a, Action::Run(id, _) if id.starts_with("search")) || matches!(a, Action::Search(_));
+            let closes_mobile_drawer = matches!(
+                &a,
+                Action::Run(id, _) if matches!(*id, "folder.open" | "folder.unified" | "folder.outbox" | "view.module")
+            );
+            let (previous_view, previous_module) = (self.session.view.clone(), self.session.module);
             self.act(a);
+            if mobile_folder_ui && (closes_mobile_drawer || self.session.view != previous_view || self.session.module != previous_module) {
+                self.ui.mobile_folder_open = false;
+            }
         }
         if searched || self.session.search_progress().is_some_and(|p| !p.done) {
             ctx.request_repaint();

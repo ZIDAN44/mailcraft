@@ -112,10 +112,11 @@ pub fn row(ui: &mut Ui, form: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>
         return;
     }
     add_for_all(form);
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         if let Some(url) = form.meeting.current.clone() {
             ui.label(RichText::new(tl!("Online meeting")).color(t.dim));
-            if ui.link(crate::widgets::shorten(url.split_once("://").map_or(url.as_str(), |(_, r)| r), 48)).on_hover_text(&url).clicked() {
+            let link_length = if ui.available_width() < 420.0 { 28 } else { 48 };
+            if ui.link(crate::widgets::shorten(url.split_once("://").map_or(url.as_str(), |(_, r)| r), link_length)).on_hover_text(&url).clicked() {
                 acts.push(Action::OpenUrl(url.clone()));
             }
             if ui.button(tl!("Remove online meeting")).clicked() {
@@ -141,7 +142,7 @@ pub fn row(ui: &mut Ui, form: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>
         if form.meeting.rooms.len() > 1 {
             let rooms = form.meeting.rooms.clone();
             let r = crate::widgets::tiny_icon_button(ui, crate::icons::Icon::ChevronDown, "Choose a room", t);
-            egui::Popup::menu(&r).show(|ui| {
+            crate::bidi::popup_menu(&r).show(|ui| {
                 for room in &rooms {
                     if ui.button(&room.name).on_hover_text(&room.url).clicked() {
                         add(form, room);

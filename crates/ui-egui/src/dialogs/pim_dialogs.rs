@@ -1,5 +1,7 @@
 //! The event, task and contact forms.
 
+use crate::bidi::ComboBoxExt as _;
+use crate::dialogs::set_dialog_width;
 use egui::{Color32, Margin, RichText, Sense, Ui, vec2};
 use mailcraft_engine::Session;
 use mailcraft_engine::model::dates;
@@ -9,9 +11,15 @@ use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, widgets};
 
+mod attendees;
+mod event;
+mod event_location;
 mod online_meeting;
 mod showing;
 mod task;
+pub use event::ContactForm;
+pub use event::event;
+use event::{ADDRESSES, PHONES};
 pub use online_meeting::MeetingState;
 #[cfg(test)]
 pub(crate) use online_meeting::{add as online_meeting_add, remove as online_meeting_remove};
@@ -20,6 +28,8 @@ pub use task::{TaskForm, status_label, task};
 
 /// A new event's reminder (Outlook's default for appointments).
 pub const DEFAULT_REMINDER: i64 = 15;
+/// The form has no editor for explicit recurrence dates; this sentinel keeps them on save.
+const RDATE_ONLY_REPEAT: &str = "<rdate-only>";
 /// The reminders offered, in minutes before the start (Outlook's list).
 pub const REMINDER_CHOICES: [i64; 18] = [0, 5, 10, 15, 30, 60, 120, 180, 240, 480, 720, 1080, 1440, 2880, 4320, 5760, 10080, 20160];
 
@@ -66,6 +76,10 @@ pub struct EventForm {
     /// The occurrence opened (its start), for deleting just that one.
     pub occurrence: Option<i64>,
     pub recurring: bool,
+    /// The original event exported for Android's system share sheet; new events have none.
+    pub share_ical: Option<(String, String)>,
+    /// A simple event or recurring series that can be prefilled in the Android Calendar app.
+    pub system_calendar_event: Option<mailcraft_engine::model::ical::CalEvent>,
     /// The calendars that can take it: (account, calendar id, name).
     pub calendars: Vec<(String, String, String)>,
     pub calendar: usize,
@@ -80,7 +94,7 @@ pub struct EventForm {
     pub all_day: bool,
     /// Its times are shown on a 12-hour clock (File › Options).
     pub hours12: bool,
-    /// `""` (never), `daily`, `weekly`, `monthly`, `yearly`, or a rule kept as it was.
+    /// `""` (never), `daily`, `weekly`, `monthly`, `yearly`, a kept rule, or an RDATE-only marker.
     pub repeat: String,
     /// Its reminder, in minutes before it starts (`None`: none).
     pub reminder: Option<i64>,
@@ -88,8 +102,9 @@ pub struct EventForm {
     pub privacy: mailcraft_engine::model::ical::Privacy,
     pub show_as: mailcraft_engine::model::ical::ShowAs,
     pub organizer: Option<String>,
-    /// (who, their answer).
-    pub attendees: Vec<(String, String)>,
+    pub organizer_email: Option<String>,
+    /// (name, email address, their answer).
+    pub attendees: Vec<(String, String, String)>,
     /// The guests, as typed (`Name <address>, …`): editable on the user's own events.
     pub guests: String,
     /// The user can change the guests (a new event, or one they organize).
@@ -181,7 +196,13 @@ impl EventForm {
 
     /// An existing event, opened at one of its occurrences.
     pub fn open(s: &Session, uid: &str, occurrence: i64) -> Option<EventForm> {
-        let (account, stored) = s.find_event(uid)?;
+        let account = s.find_event(uid)?.0.to_string();
+        Self::open_in_account(s, &account, uid, occurrence)
+    }
+
+    /// An existing event, opened from a notification for this account.
+    pub fn open_in_account(s: &Session, account: &str, uid: &str, occurrence: i64) -> Option<EventForm> {
+        let stored = s.pim.get(account)?.events.iter().find(|stored| stored.event.uid == uid && stored.event.recurrence_id.is_none())?;
         let e = &stored.event;
         let calendars = writable_calendars(s);
         let read_only = s.pim.get(account).is_some_and(|p| p.calendars.iter().any(|c| c.id == stored.calendar && c.read_only));
@@ -191,7 +212,15 @@ impl EventForm {
         Some(EventForm {
             uid: Some(uid.to_string()),
             occurrence: Some(occurrence),
-            recurring: e.rrule.is_some(),
+            recurring: e.is_recurring(),
+            share_ical: Some((
+                if e.summary.trim().is_empty() { tl!("Event").to_string() } else { e.summary.clone() },
+                mailcraft_engine::model::ical::write(std::slice::from_ref(e), None, s.clock.now),
+            )),
+            system_calendar_event: (e.recurrence_id.is_none()
+                && e.rdates.len().saturating_add(e.exdates.len()) <= 512
+                && e.rrule.as_ref().is_none_or(|rule| !rule.trim().is_empty() && !rule.bytes().any(|byte| byte.is_ascii_control())))
+            .then(|| e.clone()),
             calendar: calendars.iter().position(|c| c.0 == account && c.1 == stored.calendar).unwrap_or(0),
             calendars,
             summary: e.summary.clone(),
@@ -206,18 +235,23 @@ impl EventForm {
             reminder: mailcraft_engine::model::ical::reminder_minutes(e),
             privacy: mailcraft_engine::model::ical::privacy(e),
             show_as: mailcraft_engine::model::ical::show_as(e),
-            repeat: match e.rrule.as_deref() {
-                None => String::new(),
-                Some(r) => match r.to_ascii_uppercase().as_str() {
-                    "FREQ=DAILY" => "daily".into(),
-                    "FREQ=WEEKLY" => "weekly".into(),
-                    "FREQ=MONTHLY" => "monthly".into(),
-                    "FREQ=YEARLY" => "yearly".into(),
-                    _ => r.to_string(),
-                },
+            repeat: if e.rrule.is_none() && !e.rdates.is_empty() {
+                RDATE_ONLY_REPEAT.into()
+            } else {
+                match e.rrule.as_deref() {
+                    None => String::new(),
+                    Some(r) => match r.to_ascii_uppercase().as_str() {
+                        "FREQ=DAILY" => "daily".into(),
+                        "FREQ=WEEKLY" => "weekly".into(),
+                        "FREQ=MONTHLY" => "monthly".into(),
+                        "FREQ=YEARLY" => "yearly".into(),
+                        _ => r.to_string(),
+                    },
+                }
             },
             organizer: e.organizer.as_ref().map(|o| if o.name.is_empty() { o.email.clone() } else { format!("{} <{}>", o.name, o.email) }),
-            attendees: e.attendees.iter().map(|a| (if a.name.is_empty() { a.email.clone() } else { a.name.clone() }, a.partstat.clone())).collect(),
+            organizer_email: e.organizer.as_ref().map(|o| o.email.clone()),
+            attendees: attendees::from_event(&e.attendees),
             needs_reply: e.attendees.iter().any(|a| mine.contains(&a.email.to_ascii_lowercase()) && a.partstat == "NEEDS-ACTION"),
             guests: e
                 .attendees
@@ -250,12 +284,14 @@ impl EventForm {
             "start": start,
             "end": end,
             "allDay": self.all_day,
-            "repeat": if self.repeat.is_empty() { "none" } else { self.repeat.as_str() },
             "reminder": self.reminder.map_or_else(|| json!("none"), |m| json!(m)),
             "categories": self.categories,
             "privacy": self.privacy.code(),
             "showAs": self.show_as.code(),
         });
+        if self.repeat != RDATE_ONLY_REPEAT {
+            p["repeat"] = json!(if self.repeat.is_empty() { "none" } else { self.repeat.as_str() });
+        }
         if self.can_invite {
             p["attendees"] = json!(self.guests.trim());
         }
@@ -299,6 +335,10 @@ const LABEL_W: f32 = 104.0;
 /// Height of a one-line field.
 const FIELD_H: f32 = 30.0;
 
+pub(super) fn field_height(ui: &Ui) -> f32 {
+    if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { FIELD_H }
+}
+
 /// A form's heading: a round badge (an icon, or a person's initials) and the title.
 fn form_header(ui: &mut Ui, t: &Tokens, badge: Result<Icon, String>, title: &str) {
     ui.horizontal(|ui| {
@@ -320,38 +360,59 @@ fn form_header(ui: &mut Ui, t: &Tokens, badge: Result<Icon, String>, title: &str
 /// field (or fields) after, lined up with the field's first line.
 /// `icons_used`: the form puts icons before labels, so a row without one is indented to match.
 fn form_row(ui: &mut Ui, t: &Tokens, icons_used: bool, icon: Option<Icon>, label: &str, add: impl FnOnce(&mut Ui)) {
-    ui.horizontal_top(|ui| {
-        let (r, _) = ui.allocate_exact_size(vec2(LABEL_W, FIELD_H), Sense::hover());
-        let mut x = r.left();
-        if let Some(icon) = icon {
-            icons::paint(ui.painter(), egui::Rect::from_center_size(egui::pos2(x + 8.0, r.center().y), vec2(16.0, 16.0)), icon, t.dim);
-        }
-        if icons_used {
-            x += 24.0;
-        }
-        ui.painter().text(egui::pos2(x, r.center().y), egui::Align2::LEFT_CENTER, tl!(label), theme::regular(13.0), t.dim);
-        add(ui);
-    });
+    if ui.available_width() < 480.0 {
+        ui.horizontal(|ui| {
+            if let Some(icon) = icon {
+                let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+                icons::paint(ui.painter(), icons::centered(r, 16.0), icon, t.dim);
+            } else if icons_used {
+                ui.add_space(18.0);
+            }
+            ui.label(RichText::new(tl!(label)).small().color(t.dim));
+        });
+        ui.horizontal_wrapped(|ui| add(ui));
+    } else {
+        ui.horizontal_top(|ui| {
+            let height = field_height(ui);
+            let (r, _) = ui.allocate_exact_size(vec2(LABEL_W, height), Sense::hover());
+            let rtl = crate::i18n::current().rtl();
+            let mut x = if rtl { r.right() } else { r.left() };
+            if let Some(icon) = icon {
+                let offset = if rtl { -8.0 } else { 8.0 };
+                icons::paint(ui.painter(), egui::Rect::from_center_size(egui::pos2(x + offset, r.center().y), vec2(16.0, 16.0)), icon, t.dim);
+            }
+            if icons_used {
+                x += if rtl { -24.0 } else { 24.0 };
+            }
+            let align = if rtl { egui::Align2::RIGHT_CENTER } else { egui::Align2::LEFT_CENTER };
+            ui.painter().text(egui::pos2(x, r.center().y), align, tl!(label), theme::regular(13.0), t.dim);
+            add(ui);
+        });
+    }
     ui.add_space(8.0);
+}
+
+fn field_is_rtl(value: &str) -> bool {
+    if value.is_empty() { crate::i18n::current().rtl() } else { crate::bidi::paragraph_rtl(value) }
+}
+
+fn field_alignment(value: &str) -> egui::Align2 {
+    if field_is_rtl(value) { egui::Align2::RIGHT_CENTER } else { egui::Align2::LEFT_CENTER }
 }
 
 /// A one-line field of a form, `width` wide (the rest of the row when infinite).
 fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32) -> egui::Response {
     let w = if width.is_finite() { width } else { ui.available_width() };
-    ui.add(
-        egui::TextEdit::singleline(value)
-            .hint_text(hint)
-            .desired_width(w)
-            .min_size(vec2(w, FIELD_H))
-            .margin(Margin::symmetric(8, 6))
-            .align(egui::Align2::LEFT_CENTER),
-    )
+    let align = field_alignment(value);
+    let height = field_height(ui);
+    ui.add(egui::TextEdit::singleline(value).hint_text(hint).desired_width(w).min_size(vec2(w, height)).margin(Margin::symmetric(8, 6)).align(align))
 }
 
 /// A field of several lines, the rest of the row wide.
 fn area(ui: &mut Ui, value: &mut String, hint: &str, rows: usize) -> egui::Response {
     let w = ui.available_width();
-    ui.add(egui::TextEdit::multiline(value).hint_text(hint).desired_width(w).desired_rows(rows).margin(Margin::symmetric(8, 6)))
+    let align = if field_is_rtl(value) { egui::Align2::RIGHT_TOP } else { egui::Align2::LEFT_TOP };
+    ui.add(egui::TextEdit::multiline(value).hint_text(hint).desired_width(w).desired_rows(rows).margin(Margin::symmetric(8, 6)).align(align))
 }
 
 /// The line above a form's buttons.
@@ -403,226 +464,6 @@ fn footer_rule(ui: &mut Ui, t: &Tokens) {
     let r = ui.available_rect_before_wrap();
     ui.painter().line_segment([r.left_top(), r.right_top()], egui::Stroke::new(1.0, t.border));
     ui.add_space(10.0);
-}
-
-pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(540.0);
-    form_header(ui, t, Ok(Icon::Calendar), if f.uid.is_some() { "Event" } else { "New event" });
-    // An online meeting (Teams, Zoom…): Join, as Outlook has it, read-only calendar or not.
-    if let Some(url) = f.join.clone() {
-        if ui.add(egui::Button::new(RichText::new(tl!("Join meeting")).color(t.on_accent).strong()).fill(t.accent)).on_hover_text(&url).clicked() {
-            acts.push(Action::OpenUrl(url));
-        }
-        ui.add_space(8.0);
-    }
-    online_meeting::row(ui, f, t, acts);
-    ui.add_enabled_ui(!f.read_only, |ui| {
-        let w = ui.available_width();
-        ui.add(
-            egui::TextEdit::singleline(&mut f.summary)
-                .hint_text(tl!("Add a title"))
-                .font(theme::bold(16.0))
-                .desired_width(w)
-                .min_size(vec2(w, 36.0))
-                .margin(Margin::symmetric(10, 8))
-                .align(egui::Align2::LEFT_CENTER),
-        );
-        ui.add_space(12.0);
-        form_row(ui, t, true, Some(Icon::Clock), "Starts", |ui| {
-            field(ui, &mut f.date, "YYYY-MM-DD", 120.0);
-            if !f.all_day {
-                time_field(ui, &mut f.start, 9, f.hours12);
-            }
-        });
-        form_row(ui, t, true, None, "Ends", |ui| {
-            field(ui, &mut f.end_date, "YYYY-MM-DD", 120.0);
-            if !f.all_day {
-                time_field(ui, &mut f.end, 10, f.hours12);
-            }
-            ui.add_space(6.0);
-            ui.allocate_ui_with_layout(vec2(ui.available_width(), FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                ui.checkbox(&mut f.all_day, tl!("All day"));
-            });
-        });
-        let custom = !matches!(f.repeat.as_str(), "" | "daily" | "weekly" | "monthly" | "yearly");
-        let label = |r: &str| -> String {
-            match r {
-                "" => tl!("Never").to_string(),
-                "daily" => tl!("Every day").to_string(),
-                "weekly" => tl!("Every week").to_string(),
-                "monthly" => tl!("Every month").to_string(),
-                "yearly" => tl!("Every year").to_string(),
-                _ => tl!("Custom").to_string(),
-            }
-        };
-        form_row(ui, t, true, Some(Icon::Sync), "Repeat", |ui| {
-            ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                egui::ComboBox::from_id_salt("event-repeat").width(194.0).selected_text(label(&f.repeat)).show_ui(ui, |ui| {
-                    for r in ["", "daily", "weekly", "monthly", "yearly"] {
-                        ui.selectable_value(&mut f.repeat, r.to_string(), label(r));
-                    }
-                    if custom {
-                        let keep = f.repeat.clone();
-                        ui.selectable_value(&mut f.repeat, keep, tl!("Custom"));
-                    }
-                });
-            });
-        });
-        form_row(ui, t, true, Some(Icon::Clock), "Reminder", |ui| {
-            ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                let mut choices: Vec<Option<i64>> = std::iter::once(None).chain(REMINDER_CHOICES.iter().map(|m| Some(*m))).collect();
-                // One set elsewhere (another app, a server) stays offered as it is.
-                if !choices.contains(&f.reminder) {
-                    choices.push(f.reminder);
-                }
-                egui::ComboBox::from_id_salt("event-reminder").width(194.0).selected_text(reminder_label(f.reminder)).show_ui(ui, |ui| {
-                    for c in choices {
-                        ui.selectable_value(&mut f.reminder, c, reminder_label(c));
-                    }
-                });
-            });
-        });
-        showing::show_as_row(ui, t, f);
-        form_row(ui, t, true, Some(Icon::Location), "Location", |ui| {
-            field(ui, &mut f.location, tl!("Add a place"), f32::INFINITY);
-        });
-        // Categories colour it in the calendar (Outlook's Categorize on an appointment).
-        if !f.all_categories.is_empty() {
-            form_row(ui, t, true, Some(Icon::Tag), "Categories", |ui| {
-                category_chips(ui, t, &f.all_categories, &mut f.categories);
-            });
-        }
-        if f.can_invite {
-            form_row(ui, t, true, Some(Icon::People), "Invite", |ui| {
-                field(ui, &mut f.guests, tl!("Names <addresses>, separated by ; or ,"), f32::INFINITY);
-            });
-        }
-        if f.uid.is_none() && f.calendars.len() > 1 {
-            let name = f.calendars.get(f.calendar).map(|c| c.2.clone()).unwrap_or_default();
-            form_row(ui, t, true, Some(Icon::Calendar), "Calendar", |ui| {
-                ui.allocate_ui_with_layout(vec2(260.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    egui::ComboBox::from_id_salt("event-calendar").width(254.0).selected_text(name).show_ui(ui, |ui| {
-                        for (i, c) in f.calendars.iter().enumerate() {
-                            ui.selectable_value(&mut f.calendar, i, &c.2);
-                        }
-                    });
-                });
-            });
-        }
-        if !f.reading_notes {
-            // Tall notes scroll in their box: the dialog keeps its buttons on screen.
-            egui::ScrollArea::vertical().id_salt("event-notes").max_height(NOTES_MAX_H).show(ui, |ui| {
-                area(ui, &mut f.description, tl!("Notes"), 4);
-            });
-        }
-    });
-    if f.reading_notes {
-        ui.add_space(4.0);
-        notes(ui, t, &f.description, acts);
-        if !f.read_only && ui.small_button(tl!("Edit notes")).clicked() {
-            f.reading_notes = false;
-        }
-    }
-    // The notes' links, to open (the box above only edits them): a Teams invitation's "Join the
-    // meeting now", a document, a dial-in page.
-    if !f.links.is_empty() && !f.reading_notes {
-        ui.add_space(4.0);
-        ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new(tl!("Links:")).color(t.dim).small());
-            for url in &f.links {
-                let shown = url.split_once("://").map_or(url.as_str(), |(_, r)| r);
-                if ui.link(RichText::new(crate::widgets::shorten(shown, 48)).small()).on_hover_text(url).clicked() {
-                    acts.push(Action::OpenUrl(url.clone()));
-                }
-            }
-        });
-    }
-    if f.recurring {
-        ui.add_space(4.0);
-        ui.label(RichText::new(tl!("Changes apply to every occurrence.")).color(t.faint).small());
-    }
-    if let Some(o) = &f.organizer {
-        ui.add_space(4.0);
-        ui.label(RichText::new(tf!("Organizer: {name}", name = o)).color(t.dim).small());
-    }
-    if !f.attendees.is_empty() {
-        let list: Vec<String> = f.attendees.iter().map(|(who, p)| format!("{who} ({})", tl!(partstat_label(p)))).collect();
-        ui.label(RichText::new(tf!("Attendees: {names}", names = list.join(", "))).color(t.dim).small());
-    }
-    if f.needs_reply
-        && let Some(uid) = &f.uid
-    {
-        ui.add_space(6.0);
-        ui.horizontal(|ui| {
-            ui.label(RichText::new(tl!("Your answer:")).color(t.text));
-            for (label, code) in [("Accept", "accepted"), ("Tentative", "tentative"), ("Decline", "declined")] {
-                if ui.button(tl!(label)).clicked() {
-                    acts.push(Action::Submit("event.respond", json!({"uid": uid, "answer": code})));
-                }
-            }
-        });
-    }
-    if let Some(e) = &f.error {
-        ui.add_space(6.0);
-        ui.label(RichText::new(e).color(t.danger));
-    }
-    footer_rule(ui, t);
-    let mut keep = true;
-    ui.horizontal(|ui| {
-        if let Some(uid) = f.uid.clone().filter(|_| !f.read_only) {
-            if f.recurring {
-                if ui.button(tl!("Delete this occurrence")).clicked() {
-                    acts.push(Action::Submit("event.delete", json!({"uid": uid, "occurrence": f.occurrence})));
-                }
-                if ui.button(tl!("Delete the series")).clicked() {
-                    acts.push(Action::Submit("event.delete", json!({"uid": uid})));
-                }
-            } else if ui.button(tl!("Delete")).clicked() {
-                acts.push(Action::Submit("event.delete", json!({"uid": uid})));
-            }
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if !f.read_only && widgets::accent_button(ui, crate::icons::Icon::Calendar, "Save", t, !f.summary.trim().is_empty()).clicked() {
-                f.error = None;
-                acts.push(Action::Submit(if f.uid.is_some() { "event.update" } else { "event.create" }, f.params()));
-            }
-            if ui.button(tl!(if f.read_only { "Close" } else { "Cancel" })).clicked() {
-                keep = false;
-            }
-        });
-    });
-    keep
-}
-
-/// Outlook's phone fields, and the kind each keeps.
-const PHONES: [(&str, &str); 5] = [("Business", "work"), ("Home", "home"), ("Mobile", "cell"), ("Fax", "fax"), ("Other", "")];
-/// Outlook's addresses, and the kind each keeps.
-const ADDRESSES: [(&str, &str); 3] = [("Business", "work"), ("Home", "home"), ("Other", "")];
-
-/// A person being added or edited: Outlook's contact form (its emails, phones by kind, business,
-/// home and other address, birthday).
-#[derive(Clone, Debug, Default)]
-pub struct ContactForm {
-    pub uid: Option<String>,
-    pub name: String,
-    /// Email, Email 2 and Email 3.
-    pub emails: [String; 3],
-    /// More than three, kept as they were.
-    pub more_emails: Vec<String>,
-    /// Business, home, mobile, fax and other (as [`PHONES`]).
-    pub phones: [String; 5],
-    /// Numbers beyond one of each kind, kept as they were.
-    pub more_phones: Vec<mailcraft_engine::model::vcard::Typed>,
-    /// Business, home and other (as [`ADDRESSES`]).
-    pub addresses: [mailcraft_engine::model::vcard::PostalAddress; 3],
-    /// The address shown in the form.
-    pub address_shown: usize,
-    /// `YYYY-MM-DD`.
-    pub birthday: String,
-    pub org: String,
-    pub title: String,
-    pub note: String,
-    pub error: Option<String>,
 }
 
 impl ContactForm {
@@ -707,7 +548,7 @@ impl ContactForm {
 }
 
 pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(560.0);
+    set_dialog_width(ui, 560.0);
     // The person's initials once a name is typed, as the people list shows them.
     let initials: String = f.name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
     let badge = if initials.is_empty() { Ok(Icon::Person) } else { Err(initials) };
@@ -754,7 +595,7 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
                 1 => tl!("Home"),
                 _ => tl!("Other"),
             };
-            egui::ComboBox::from_id_salt("contact-address").selected_text(name(shown)).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("contact-address").selected_text(name(shown)).show_ui_rtl(ui, |ui| {
                 for i in 0..3 {
                     let filled = f.addresses.get(i).is_some_and(|a| !a.is_empty());
                     let label = if filled { format!("{} ✓", name(i)) } else { name(i).to_string() };
@@ -794,7 +635,7 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
     footer_rule(ui, t);
     let mut keep = true;
     let any_email = f.emails.iter().any(|e| !e.trim().is_empty());
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
         if widgets::accent_button(ui, crate::icons::Icon::Person, "Save", t, !f.name.trim().is_empty() || any_email).clicked() {
             f.error = None;
             acts.push(Action::Submit(if f.uid.is_some() { "contact.update" } else { "contact.create" }, f.params()));

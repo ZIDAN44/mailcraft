@@ -48,6 +48,9 @@ mailcraft-pgp.path = "../crates/pgp" # OpenPGP
 rand_core = { version = "0.6", features = ["getrandom"] } # the decrypting generator
 mailcraft-store.path = "../crates/store" # the in-memory cache syncs write to, the search index
 
+[patch.crates-io]
+robius-android-env = { git = "https://github.com/xe7485/robius-android-env.git", rev = "f6682f0f703f222a62cea798dc89388ae512db3f" }
+
 # `cargo fuzz ... -O` builds with this profile, debug assertions and overflow checks on.
 [profile.release]
 debug = 1

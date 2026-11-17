@@ -54,7 +54,10 @@ impl VacationForm {
 }
 
 pub(super) fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(520.0);
+    set_dialog_width(ui, 520.0);
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
+    let narrow_phone = touch && ui.available_width() < 420.0;
+    let field_height = if touch { 44.0 } else { 26.0 };
     title(ui, t, "Automatic replies");
     ui.label(
         RichText::new(tl!(
@@ -70,15 +73,24 @@ pub(super) fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut
         ui.add_space(4.0);
         ui.checkbox(&mut f.dated, tl!("Only between these days"));
         if f.dated {
-            ui.horizontal(|ui| {
-                ui.label(tl!("From"));
-                ui.add_sized([110.0, 26.0], egui::TextEdit::singleline(&mut f.from).hint_text("YYYY-MM-DD"));
-                ui.label(tl!("Until"));
-                ui.add_sized([110.0, 26.0], egui::TextEdit::singleline(&mut f.until).hint_text("YYYY-MM-DD"));
-            });
+            if narrow_phone {
+                for (label, date) in [("From", &mut f.from), ("Until", &mut f.until)] {
+                    ui.horizontal(|ui| {
+                        ui.label(tl!(label));
+                        ui.add_sized([ui.available_width(), field_height], egui::TextEdit::singleline(date).hint_text("YYYY-MM-DD"));
+                    });
+                }
+            } else {
+                ui.horizontal(|ui| {
+                    ui.label(tl!("From"));
+                    ui.add_sized([110.0, field_height], egui::TextEdit::singleline(&mut f.from).hint_text("YYYY-MM-DD"));
+                    ui.label(tl!("Until"));
+                    ui.add_sized([110.0, field_height], egui::TextEdit::singleline(&mut f.until).hint_text("YYYY-MM-DD"));
+                });
+            }
         }
         ui.add_space(4.0);
-        ui.add_sized([ui.available_width(), 26.0], egui::TextEdit::singleline(&mut f.subject).hint_text(tl!("Subject (optional)")));
+        ui.add_sized([ui.available_width(), field_height], egui::TextEdit::singleline(&mut f.subject).hint_text(tl!("Subject (optional)")));
         ui.add_space(4.0);
         let rows = if f.exchange { 4 } else { 6 };
         if f.exchange {

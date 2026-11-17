@@ -117,7 +117,7 @@ impl MailApp {
                     // How they're listed, and whether the done ones are.
                     widgets::group_sep(ui, &t);
                     let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
-                    egui::Popup::menu(&r).show(|ui| {
+                    crate::bidi::popup_menu(&r).show(|ui| {
                         use mailcraft_engine::TasksOrder as O;
                         for (order, label) in
                             [(O::Due, "Due date"), (O::Priority, "Priority"), (O::Title, "Title (A to Z)"), (O::Modified, "Last changed")]
@@ -145,7 +145,7 @@ impl MailApp {
                     }
                     // The note's colour, as Outlook's Categorize on a note.
                     let r = widgets::tool_button(ui, Icon::Tag, "Color", &t, editing.is_some());
-                    egui::Popup::menu(&r).show(|ui| {
+                    crate::bidi::popup_menu(&r).show(|ui| {
                         for (i, name) in notes::NAMES.iter().enumerate() {
                             if ui.button(tl!(name)).clicked()
                                 && let Some(uid) = &editing
@@ -158,7 +158,7 @@ impl MailApp {
                     // How they're listed: the last changed first, A to Z, or by colour.
                     widgets::group_sep(ui, &t);
                     let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
-                    egui::Popup::menu(&r).show(|ui| {
+                    crate::bidi::popup_menu(&r).show(|ui| {
                         use mailcraft_engine::NotesOrder as O;
                         for (order, label, code) in
                             [(O::Modified, "Last changed", "modified"), (O::Title, "Title (A to Z)", "title"), (O::Color, "Color", "color")]
@@ -197,7 +197,7 @@ impl MailApp {
                     // The list's columns (also from its header's right-click).
                     if self.ui.people_view == people::PeopleView::Phone {
                         let r = widgets::tool_button(ui, Icon::Layout, "Columns", &t, true);
-                        egui::Popup::menu(&r)
+                        crate::bidi::popup_menu(&r)
                             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                             .show(|ui| people::column_menu(ui, &mut self.ui.people_list));
                     }
@@ -226,7 +226,7 @@ impl MailApp {
                         }
                         // New items of other kinds, as Outlook's New Email drop-down.
                         let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "New items", &t);
-                        egui::Popup::menu(&r).show(|ui| {
+                        crate::bidi::popup_menu(&r).show(|ui| {
                             if ui.button(tl!("Email message")).clicked() {
                                 acts.push(Action::Run("mail.new", json!({})));
                                 ui.close();
@@ -250,7 +250,7 @@ impl MailApp {
                         }
                         // Ignore the conversation, as Outlook's Delete drop-down.
                         let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "More delete options", &t);
-                        egui::Popup::menu(&r).show(|ui| {
+                        crate::bidi::popup_menu(&r).show(|ui| {
                             let ignoring = !s.selection.is_empty() && s.selected_iter().all(|m| s.is_ignored(m));
                             let label = if ignoring { "Stop ignoring the conversation" } else { "Ignore the conversation" };
                             if ui
@@ -286,7 +286,7 @@ impl MailApp {
                         }
                         // The Junk drop-down: the sender's lists, as Outlook's.
                         let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "Junk options", &t);
-                        egui::Popup::menu(&r).show(|ui| junk_menu(ui, s, acts));
+                        crate::bidi::popup_menu(&r).show(|ui| junk_menu(ui, s, acts));
                         widgets::group(ui, &t, "Delete", false);
                         if widgets::tool_button(ui, Icon::Move, "Move to", &t, enabled("mail.move"))
                             .on_hover_text(tl!("Move to a folder (Ctrl+Shift+V)"))
@@ -296,7 +296,7 @@ impl MailApp {
                         }
                         // Quick Steps: each done to the selection in one click (Ctrl+Shift+1…9).
                         let r = widgets::tool_button(ui, Icon::Steps, "Quick steps", &t, true);
-                        egui::Popup::menu(&r).show(|ui| quick_steps_menu(ui, s, acts));
+                        crate::bidi::popup_menu(&r).show(|ui| quick_steps_menu(ui, s, acts));
                         widgets::group(ui, &t, "Move", false);
                         for (id, icon, label, tip) in [
                             ("mail.reply", Icon::Reply, "Reply", "Reply (Ctrl+R)"),
@@ -325,20 +325,20 @@ impl MailApp {
                         }
                         // Follow Up: when it's due, as Outlook's flag drop-down.
                         let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "Follow up", &t);
-                        egui::Popup::menu(&r).show(|ui| organize::follow_up_menu(ui, s, &t, acts));
+                        crate::bidi::popup_menu(&r).show(|ui| organize::follow_up_menu(ui, s, &t, acts));
                         let sel = !s.selection.is_empty();
                         let r = widgets::tool_button(ui, Icon::Tag, "Categorize", &t, sel);
-                        egui::Popup::menu(&r).show(|ui| organize::categorize_menu(ui, s, &t, acts));
+                        crate::bidi::popup_menu(&r).show(|ui| organize::categorize_menu(ui, s, &t, acts));
                         let pinned = first.is_some_and(|m| m.flags.pinned());
                         if widgets::tool_button(ui, Icon::Pin, if pinned { "Unpin" } else { "Pin" }, &t, sel).clicked() {
                             acts.push(Action::Run("mail.pin", json!({"on": !pinned})));
                         }
                         let r = widgets::tool_button(ui, Icon::Clock, "Snooze", &t, sel);
-                        egui::Popup::menu(&r).show(|ui| organize::snooze_menu(ui, s, &t, acts));
+                        crate::bidi::popup_menu(&r).show(|ui| organize::snooze_menu(ui, s, &t, acts));
                         widgets::group(ui, &t, "Tags", false);
                         // Show only some mail, as Outlook's Filter Email.
                         let r = widgets::tool_button(ui, Icon::Funnel, "Filter", &t, true);
-                        egui::Popup::menu(&r).show(|ui| {
+                        crate::bidi::popup_menu(&r).show(|ui| {
                             for f in mailcraft_engine::ListFilter::EVERY {
                                 if ui.selectable_label(s.filter == f, tl!(f.label())).clicked() {
                                     acts.push(Action::Run("list.filter", json!({"value": f.code()})));
@@ -440,7 +440,7 @@ impl MailApp {
                         // window (labels go from the end) instead of scrolling: the reading pane's
                         // place and the theme in a menu each, the rest turned on or off.
                         let r = widgets::tool_button(ui, Icon::Layout, "Reading pane", &t, true);
-                        egui::Popup::menu(&r).show(|ui| {
+                        crate::bidi::popup_menu(&r).show(|ui| {
                             for (v, label) in [(ReadingPane::Right, "Right"), (ReadingPane::Bottom, "Bottom"), (ReadingPane::Off, "Off")] {
                                 if ui.selectable_label(s.prefs.reading_pane == v, tl!(label)).clicked() {
                                     acts.push(Action::Run("view.readingPane", json!({"value": label.to_lowercase()})));
@@ -467,7 +467,7 @@ impl MailApp {
                         let arrange = tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label()));
                         let mut r = widgets::tool_button(ui, Icon::ListBullet, &arrange, &t, true);
                         crate::keytips::apply(ui, "Arrange by", &mut r, true, &t);
-                        egui::Popup::menu(&r).show(|ui| list::arrange_menu(ui, s, acts));
+                        crate::bidi::popup_menu(&r).show(|ui| list::arrange_menu(ui, s, acts));
                         if widgets::tool_toggle(ui, Icon::Sort, "Reverse sort", &t, s.prefs.reverse_sort).clicked() {
                             acts.push(Action::Run("view.reverseSort", json!({})));
                         }
@@ -490,7 +490,7 @@ impl MailApp {
                         widgets::group(ui, &t, "Message", false);
                         let theme_icon = if ust.dark == Some(true) { Icon::Moon } else { Icon::Sun };
                         let r = widgets::tool_button(ui, theme_icon, "Theme", &t, true);
-                        egui::Popup::menu(&r).show(|ui| {
+                        crate::bidi::popup_menu(&r).show(|ui| {
                             for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
                                 if ui.selectable_label(ust.dark == v, tl!(label)).clicked() {
                                     acts.push(Action::SetDark(v));
@@ -633,7 +633,7 @@ pub(crate) fn quick_steps_menu(ui: &mut egui::Ui, s: &Session, acts: &mut Vec<Ac
         ui.close();
     }
     if !s.prefs.quick_steps.is_empty() {
-        ui.menu_button(tl!("Edit a Quick Step"), |ui| {
+        crate::bidi::menu_button(ui, tl!("Edit a Quick Step"), |ui| {
             for q in &s.prefs.quick_steps {
                 if ui.button(q.name.as_str()).clicked() {
                     acts.push(Action::Dialog(Dialog::QuickStep(Box::new(crate::dialogs::QuickStepForm::edit(s, q)))));

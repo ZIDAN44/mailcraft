@@ -142,7 +142,7 @@ impl Session {
                 href: stored.href.clone(),
                 uid: uid.to_string(),
                 occurrence,
-                series: stored.event.rrule.is_some() && stored.event.recurrence_id.is_none(),
+                series: stored.event.is_series(),
                 snooze_until,
             });
         } else if snooze_until.is_none() {

@@ -28,28 +28,105 @@ mailcraft-ui-egui = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "android-native-activity"] }
 egui = { workspace = true }
+log = { workspace = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 serde_json = { workspace = true }
 winit = { version = "0.30", default-features = false, features = ["android-native-activity"] }
 android-native-keyring-store = "1"
 keyring-core = "1"
+jni = "0.21.1"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp", "bmp"] }
+mime_guess = "2.0.5"
+robius-open = "0.3.1"
+robius-android-env = "0.2.0"
 
 [package.metadata.android]
 package = "ai.storyteller.mailcraft"
+resources = "resources"
 
 [package.metadata.android.sdk]
-min_sdk_version = 26
+min_sdk_version = 31
 target_sdk_version = 35
 
 [package.metadata.android.application]
 label = "MailCraft"
+icon = "@drawable/mailcraft"
+uses_cleartext_traffic = false
+extract_native_libs = true
 
 [package.metadata.android.application.activity]
-config_changes = "orientation|keyboardHidden|screenSize|screenLayout"
+name = "ai.storyteller.mailcraft.MailCraftActivity"
+launch_mode = "singleTop"
+config_changes = "orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout|fontScale|uiMode|locale|layoutDirection"
+
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.VIEW"]
+categories = ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
+data = [
+    { mime_type = "message/rfc822" },
+    { mime_type = "application/vnd.ms-outlook" },
+    { mime_type = "text/calendar" },
+    { mime_type = "text/vcalendar" },
+    { mime_type = "text/x-vcalendar" },
+    { mime_type = "text/vcard" },
+    { mime_type = "text/x-vcard" },
+    { mime_type = "application/ics" },
+    { mime_type = "application/vnd.storytold.mailcraft" },
+]
+
+# Some document providers report application/octet-stream or text/plain for known mail and data
+# files. Keep those extensions openable without claiming every generic document.
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.VIEW"]
+categories = ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
+data = [
+    { scheme = "content", host = "*", mime_type = "*/*", path_pattern = ".*\\.eml" },
+    { scheme = "file", host = "*", mime_type = "*/*", path_pattern = ".*\\.eml" },
+    { path_pattern = ".*\\.msg" },
+    { path_pattern = ".*\\.ics" },
+    { path_pattern = ".*\\.ical" },
+    { path_pattern = ".*\\.vcf" },
+    { path_pattern = ".*\\.vcard" },
+    { path_pattern = ".*\\.pst" },
+    { path_pattern = ".*\\.mailcraft" },
+    { path_pattern = ".*\\.EML" },
+    { path_pattern = ".*\\.MSG" },
+    { path_pattern = ".*\\.ICS" },
+    { path_pattern = ".*\\.ICAL" },
+    { path_pattern = ".*\\.VCF" },
+    { path_pattern = ".*\\.VCARD" },
+    { path_pattern = ".*\\.PST" },
+    { path_pattern = ".*\\.MAILCRAFT" },
+]
+
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.SEND", "android.intent.action.SEND_MULTIPLE"]
+categories = ["android.intent.category.DEFAULT"]
+data = [
+    { mime_type = "message/rfc822" },
+    { mime_type = "application/vnd.ms-outlook" },
+    { mime_type = "text/calendar" },
+    { mime_type = "text/vcalendar" },
+    { mime_type = "text/x-vcalendar" },
+    { mime_type = "text/vcard" },
+    { mime_type = "text/x-vcard" },
+    { mime_type = "application/ics" },
+    { mime_type = "application/vnd.storytold.mailcraft" },
+    { mime_type = "text/plain" },
+    { mime_type = "*/*" },
+]
+
+[[package.metadata.android.application.activity.intent_filter]]
+actions = ["android.intent.action.SENDTO"]
+categories = ["android.intent.category.DEFAULT", "android.intent.category.BROWSABLE"]
+data = [{ scheme = "mailto" }]
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.INTERNET"
 
 [[package.metadata.android.uses_permission]]
 name = "android.permission.ACCESS_NETWORK_STATE"
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.POST_NOTIFICATIONS"

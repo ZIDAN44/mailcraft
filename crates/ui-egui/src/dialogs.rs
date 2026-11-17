@@ -10,6 +10,16 @@ use serde_json::json;
 use crate::theme::{self, Tokens};
 use crate::{Action, Icon, widgets};
 
+pub(super) fn dialog_width(ui: &Ui, wanted: f32) -> f32 {
+    let screen = ui.ctx().content_rect().width();
+    if screen > 0.0 { wanted.min((screen - 32.0).max(160.0)) } else { wanted }
+}
+
+pub(super) fn set_dialog_width(ui: &mut Ui, wanted: f32) {
+    let width = dialog_width(ui, wanted);
+    ui.set_width(width);
+}
+
 mod accounts;
 mod categories;
 mod closing;
@@ -38,6 +48,8 @@ pub enum Dialog {
     SelectNames(Box<NamesForm>),
     /// Closing a message window with something written in it.
     SaveChanges,
+    /// Going back from a changed person, event or task form.
+    DiscardForm(Box<Dialog>),
     Password {
         account: String,
         email: String,
@@ -154,10 +166,11 @@ pub enum Dialog {
         data: Option<Vec<u8>>,
         password: String,
     },
-    /// The passphrase of an OpenPGP secret key file being imported, from `path`.
+    /// The passphrase of an OpenPGP secret key file being imported, from `path` or picker bytes.
     PgpKey {
         account: String,
         path: String,
+        data: Option<Vec<u8>>,
         passphrase: String,
     },
     /// A certificate on a smart card (its PKCS #11 module and PIN), or (`system`) in the system's
@@ -270,6 +283,7 @@ impl Dialog {
                     | Dialog::MailboxClosed { .. }
                     | Dialog::EmptySubject
                     | Dialog::SaveChanges
+                    | Dialog::DiscardForm(_)
                     | Dialog::SendCheck(_)
             )
     }
@@ -354,6 +368,11 @@ impl Dialog {
         crate::pim_dialogs::EventForm::open(s, uid, occurrence).map(|f| Dialog::Event(Box::new(f)))
     }
 
+    /// An event from a notification, looked up in the account that received it.
+    pub fn open_event_in_account(s: &Session, account: &str, uid: &str, occurrence: i64) -> Option<Dialog> {
+        crate::pim_dialogs::EventForm::open_in_account(s, account, uid, occurrence).map(|f| Dialog::Event(Box::new(f)))
+    }
+
     /// The signature editor for the first account (`--cmd ui.signature`).
     pub fn signature(s: &Session) -> Option<Dialog> {
         let account = s.accounts.first()?.config.id.clone();
@@ -368,6 +387,11 @@ impl Dialog {
     /// A task, to edit.
     pub fn open_task(s: &Session, uid: &str) -> Option<Dialog> {
         crate::pim_dialogs::TaskForm::open(s, uid).map(|f| Dialog::Task(Box::new(f)))
+    }
+
+    /// A task from a notification, looked up in the account that received it.
+    pub fn open_task_in_account(s: &Session, account: &str, uid: &str) -> Option<Dialog> {
+        crate::pim_dialogs::TaskForm::open_in_account(s, account, uid).map(|f| Dialog::Task(Box::new(f)))
     }
 
     pub fn new_contact() -> Dialog {
@@ -523,7 +547,7 @@ fn title_id() -> egui::Id {
 /// A dialog's bottom row, right-aligned and one row tall: a layout given all the room left made
 /// every dialog as tall as the last one shown, with its buttons floating halfway down.
 fn button_row<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
-    ui.allocate_ui_with_layout(vec2(ui.available_width(), 30.0), egui::Layout::right_to_left(egui::Align::Center), add).inner
+    ui.allocate_ui_with_layout(vec2(ui.available_width(), 30.0), crate::bidi::row_from_end(egui::Align::Center), add).inner
 }
 
 /// A Close button on its own row; whether the dialog stays open.
@@ -552,6 +576,10 @@ pub(crate) fn show(
     s: &Session,
     pics: &mut crate::reading::Pictures,
     t: &Tokens,
+    can_open_map: bool,
+    can_share_calendar_events: bool,
+    can_export_calendar_events: bool,
+    can_add_to_system_calendar: bool,
     acts: &mut Vec<Action>,
 ) -> bool {
     let frame = dialog_frame(t);
@@ -571,7 +599,12 @@ pub(crate) fn show(
                 .id_salt("dialog-body")
                 .max_height(max)
                 .min_scrolled_height(max)
-                .show(ui, |ui| body(ui, d, s, pics, t, acts))
+                .show(ui, |ui| {
+                    crate::bidi::vertical(ui, |ui| {
+                        body(ui, d, s, pics, t, can_open_map, can_share_calendar_events, can_export_calendar_events, can_add_to_system_calendar, acts)
+                    })
+                    .inner
+                })
                 .inner;
             (keep, ui.unique_id())
         })
@@ -592,7 +625,18 @@ pub(crate) fn show(
     keep && (stays || !modal.should_close())
 }
 
-fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pictures, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+fn body(
+    ui: &mut Ui,
+    d: &mut Dialog,
+    s: &Session,
+    pics: &mut crate::reading::Pictures,
+    t: &Tokens,
+    can_open_map: bool,
+    can_share_calendar_events: bool,
+    can_export_calendar_events: bool,
+    can_add_to_system_calendar: bool,
+    acts: &mut Vec<Action>,
+) -> bool {
     // Each kind is drawn by its group; listing them all here keeps the match exhaustive.
     match d {
         Dialog::LostOnClose { .. }
@@ -625,6 +669,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
             writing::draw(ui, d, s, t, acts)
         }
         Dialog::ConfirmDeleteContact { .. }
+        | Dialog::DiscardForm(..)
         | Dialog::PicturePreview { .. }
         | Dialog::Preview { .. }
         | Dialog::OpenSharedCalendar { .. }
@@ -634,7 +679,9 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::SmartCard { .. }
         | Dialog::Event(..)
         | Dialog::Task(..)
-        | Dialog::Contact(..) => other::draw(ui, d, s, pics, t, acts),
+        | Dialog::Contact(..) => {
+            other::draw(ui, d, s, pics, t, can_open_map, can_share_calendar_events, can_export_calendar_events, can_add_to_system_calendar, acts)
+        }
     }
 }
 

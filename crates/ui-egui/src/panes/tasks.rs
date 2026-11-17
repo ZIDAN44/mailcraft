@@ -64,6 +64,16 @@ pub(crate) fn due_label(day: i64, s: &Session) -> String {
     }
 }
 
+/// What a task card or row says to a screen reader, including fields shown only as columns.
+fn accessible_task_label(title: &str, due: &str, status: &str, priority: TaskPriority) -> String {
+    let priority = tl!(match priority {
+        TaskPriority::Low => "Low",
+        TaskPriority::Normal => "Normal",
+        TaskPriority::High => "High",
+    });
+    format!("{title}, {}: {due}, {}: {status}, {}: {priority}", tl!("Due date"), tl!("Status"), tl!("Priority"))
+}
+
 /// The main pane: the columns' headings, then the tasks.
 pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
@@ -81,6 +91,16 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
         });
         return;
     }
+    if st.phone_mode {
+        egui::ScrollArea::vertical().auto_shrink(false).id_salt("tasks-phone").show(ui, |ui| {
+            egui::Frame::new().inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
+                for task in &list {
+                    phone_row(s, st, ui, task, acts);
+                }
+            });
+        });
+        return;
+    }
     egui::Frame::new().inner_margin(Margin::symmetric(14, 8)).show(ui, |ui| {
         headings(s, &t, ui, acts);
     });
@@ -92,6 +112,57 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             ui.add_space(10.0);
         });
     });
+}
+
+/// A touch-sized task card: the check completes it, and tapping the rest opens its details.
+fn phone_row(s: &Session, st: &mut UiState, ui: &mut Ui, listed: &ListedTask<'_>, acts: &mut Vec<Action>) {
+    let task = listed.task;
+    let t = st.tokens;
+    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 76.0), Sense::click());
+    let picked = st.task.as_deref() == Some(task.uid.as_str());
+    ui.painter().rect_filled(rect, 8.0, if picked { t.accent_soft } else { t.surface });
+    ui.painter().rect_stroke(rect, 8.0, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    let mirror = crate::bidi::Mirror::new(rect);
+    let center = mirror.pos(egui::pos2(rect.left() + 25.0, rect.center().y));
+    let check = egui::Rect::from_center_size(center, vec2(40.0, 48.0));
+    let check_response = ui.interact(check, ui.scope_id().with(("task-phone-check", &task.uid)), Sense::click());
+    let done = task.is_done();
+    if done {
+        ui.painter().circle_filled(center, 10.0, t.accent);
+        ui.painter().line(vec![center + vec2(-4.0, 0.0), center + vec2(-1.0, 3.0), center + vec2(4.5, -3.0)], egui::Stroke::new(1.6, t.on_accent));
+    } else {
+        ui.painter().circle_stroke(center, 10.0, egui::Stroke::new(1.5, if check_response.hovered() { t.accent } else { t.dim }));
+    }
+    let check_label = if done { tl!("Mark not complete") } else { tl!("Mark complete") };
+    widgets::named(ui, &check_response, &format!("{check_label}: {}", task.title), true, Some(done));
+    let check_clicked = check_response.clicked();
+    if check_response.on_hover_text(check_label).clicked() {
+        acts.push(Action::Run("task.complete", json!({"uid": task.uid, "done": !done})));
+    }
+    let title = if task.title.trim().is_empty() { tl!("(no title)").to_string() } else { task.title.clone() };
+    let due = task.due.map_or_else(|| tl!("None").to_string(), |day| due_label(day, s));
+    let status = tl!(crate::pim_dialogs::status_label(task.status));
+    let meta = format!("{due} · {status}");
+    let logical_text_rect = egui::Rect::from_min_max(egui::pos2(rect.left() + 52.0, rect.top() + 5.0), rect.right_bottom() - vec2(8.0, 5.0));
+    let text_rect = mirror.rect(logical_text_rect);
+    let painter = ui.painter().with_clip_rect(text_rect);
+    let color = if done { t.faint } else { t.text };
+    painter.text(mirror.pos(logical_text_rect.left_top()), mirror.align(egui::Align2::LEFT_TOP), title.clone(), theme::bold(14.0), color);
+    painter.text(
+        mirror.pos(logical_text_rect.left_bottom()),
+        mirror.align(egui::Align2::LEFT_BOTTOM),
+        meta,
+        theme::regular(11.5),
+        if task.overdue(dates::today(&s.clock)) { t.danger } else { t.dim },
+    );
+    widgets::named(ui, &response, &accessible_task_label(&title, &due, status, task.priority), true, Some(picked));
+    if response.clicked() && !check_clicked {
+        st.task = Some(task.uid.clone());
+        if let Some(dialog) = Dialog::open_task(s, &task.uid) {
+            acts.push(Action::Dialog(dialog));
+        }
+    }
+    ui.add_space(6.0);
 }
 
 /// Where the columns start, from the row's left (as laid out left to right).
@@ -145,7 +216,9 @@ fn headings(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
 /// status and priority.
 fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_>, acts: &mut Vec<Action>) {
     let task = r.task;
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), ROW), Sense::click());
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
+    let row_height = if touch { ROW.max(56.0) } else { ROW };
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), row_height), Sense::click());
     let picked = st.task.as_deref() == Some(task.uid.as_str());
     if picked {
         ui.painter().rect_filled(rect, 4.0, t.accent_soft);
@@ -158,7 +231,7 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     let late = task.overdue(dates::today(&s.clock));
     // The done box: a circle, ticked when done.
     let boxr = mr.rect(Rect::from_center_size(pos2(rect.min.x + 14.0, rect.center().y), vec2(18.0, 18.0)));
-    let tick = ui.interact(boxr.expand(4.0), ui.scope_id().with(("task-done", &task.uid)), Sense::click());
+    let tick = ui.interact(boxr.expand(if touch { 12.0 } else { 4.0 }), ui.scope_id().with(("task-done", &task.uid)), Sense::click());
     let ring = if tick.hovered() || done { t.accent } else { t.dim };
     if done {
         ui.painter().circle_filled(boxr.center(), 9.0, t.accent);
@@ -223,7 +296,7 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
         other => tl!(crate::pim_dialogs::status_label(other)).to_string(),
     };
     let status_clip = mr.rect(Rect::from_min_size(pos2(rect.min.x + x_status, rect.min.y), vec2(STATUS_W - 8.0, ROW)));
-    p.with_clip_rect(status_clip).text(mr.pos(pos2(rect.min.x + x_status, rect.center().y)), start, status, theme::regular(12.5), t.dim);
+    p.with_clip_rect(status_clip).text(mr.pos(pos2(rect.min.x + x_status, rect.center().y)), start, status.clone(), theme::regular(12.5), t.dim);
     if task.priority != TaskPriority::Normal {
         let high = task.priority == TaskPriority::High;
         let text = if high { "!" } else { "↓" };
@@ -231,7 +304,8 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
         p.text(mr.pos(pos2(rect.min.x + x_priority + 6.0, rect.center().y)), start, text, theme::bold(15.0), color);
     }
     ui.painter().line_segment([rect.left_bottom(), rect.right_bottom()], egui::Stroke::new(1.0, t.border));
-    widgets::named(ui, &resp, &title, true, Some(picked));
+    let due_accessible = task.due.map_or_else(|| tl!("None").to_string(), |day| due_label(day, s));
+    widgets::named(ui, &resp, &accessible_task_label(&title, &due_accessible, &status, task.priority), true, Some(picked));
     if resp.clicked() {
         st.task = Some(task.uid.clone());
     }

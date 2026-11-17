@@ -1,6 +1,7 @@
 //! The task form: a task's title, its start and due days, status, how far along, priority,
 //! reminder, how it repeats, categories and notes, as Outlook's task window has them.
 
+use crate::dialogs::set_dialog_width;
 use mailcraft_engine::model::pim::{Task, TaskPriority, TaskStatus};
 
 use super::*;
@@ -95,7 +96,13 @@ impl TaskForm {
 
     /// An existing task.
     pub fn open(s: &Session, uid: &str) -> Option<TaskForm> {
-        let r = s.find_task(uid)?;
+        let account = s.find_task(uid)?.account;
+        Self::open_in_account(s, &account, uid)
+    }
+
+    /// An existing task, opened from a notification for this account.
+    pub fn open_in_account(s: &Session, account: &str, uid: &str) -> Option<TaskForm> {
+        let r = s.pim.get(account)?.tasks.iter().find(|stored| stored.task.uid == uid)?;
         let t: &Task = &r.task;
         let (reminder_date, reminder_time) = match t.reminder {
             Some(at) => (local_date(at, s), local_time(at, s)),
@@ -175,8 +182,9 @@ pub(super) fn category_chips(ui: &mut Ui, t: &Tokens, all: &[(String, u8)], chos
 
 /// A drop-down of a form, `width` wide.
 fn choice<T: PartialEq + Copy>(ui: &mut Ui, id: &str, width: f32, value: &mut T, options: &[T], label: impl Fn(T) -> &'static str) {
-    ui.allocate_ui_with_layout(vec2(width, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-        egui::ComboBox::from_id_salt(id).width(width - 6.0).selected_text(tl!(label(*value))).show_ui(ui, |ui| {
+    let height = field_height(ui);
+    ui.allocate_ui_with_layout(vec2(width, height), crate::bidi::row_from_start(egui::Align::Center), |ui| {
+        egui::ComboBox::from_id_salt(id).width(width - 6.0).selected_text(tl!(label(*value))).show_ui_rtl(ui, |ui| {
             for o in options {
                 ui.selectable_value(value, *o, tl!(label(*o)));
             }
@@ -185,17 +193,19 @@ fn choice<T: PartialEq + Copy>(ui: &mut Ui, id: &str, width: f32, value: &mut T,
 }
 
 pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(540.0);
+    set_dialog_width(ui, 540.0);
     form_header(ui, t, Ok(Icon::Task), if f.uid.is_some() { "Task" } else { "New task" });
     let w = ui.available_width();
+    let title_alignment = super::field_alignment(&f.title);
+    let title_height = field_height(ui);
     ui.add(
         egui::TextEdit::singleline(&mut f.title)
             .hint_text(tl!("Add a title"))
             .font(theme::bold(16.0))
             .desired_width(w)
-            .min_size(vec2(w, 36.0))
+            .min_size(vec2(w, title_height))
             .margin(Margin::symmetric(10, 8))
-            .align(egui::Align2::LEFT_CENTER),
+            .align(title_alignment),
     );
     ui.add_space(12.0);
     form_row(ui, t, true, Some(Icon::Calendar), "Start date", |ui| {
@@ -208,7 +218,8 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
     form_row(ui, t, true, Some(Icon::Task), "Status", |ui| {
         choice(ui, "task-status", 220.0, &mut f.status, &TaskStatus::ALL, status_label);
         ui.add_space(6.0);
-        ui.allocate_ui_with_layout(vec2(ui.available_width(), FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        let height = field_height(ui);
+        ui.allocate_ui_with_layout(vec2(ui.available_width(), height), crate::bidi::row_from_start(egui::Align::Center), |ui| {
             ui.add(egui::DragValue::new(&mut f.percent).range(0..=100).suffix("%"));
             ui.label(RichText::new(tl!("complete")).color(t.dim));
         });
@@ -226,7 +237,8 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
         choice(ui, "task-priority", 140.0, &mut f.priority, &[TaskPriority::Low, TaskPriority::Normal, TaskPriority::High], priority_label);
     });
     form_row(ui, t, true, Some(Icon::Clock), "Reminder", |ui| {
-        ui.allocate_ui_with_layout(vec2(90.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        let height = field_height(ui);
+        ui.allocate_ui_with_layout(vec2(90.0, height), crate::bidi::row_from_start(egui::Align::Center), |ui| {
             ui.checkbox(&mut f.remind, tl!("Remind me"));
         });
         if f.remind {
@@ -249,8 +261,9 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
         }
     };
     form_row(ui, t, true, Some(Icon::Sync), "Repeat", |ui| {
-        ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            egui::ComboBox::from_id_salt("task-repeat").width(194.0).selected_text(label(&f.repeat)).show_ui(ui, |ui| {
+        let height = field_height(ui);
+        ui.allocate_ui_with_layout(vec2(200.0, height), crate::bidi::row_from_start(egui::Align::Center), |ui| {
+            egui::ComboBox::from_id_salt("task-repeat").width(194.0).selected_text(label(&f.repeat)).show_ui_rtl(ui, |ui| {
                 for r in ["", "daily", "weekly", "monthly", "yearly"] {
                     ui.selectable_value(&mut f.repeat, r.to_string(), label(r));
                 }
@@ -269,8 +282,9 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
     if f.uid.is_none() && f.accounts.len() > 1 {
         let name = f.accounts.get(f.account).map(|a| a.1.clone()).unwrap_or_default();
         form_row(ui, t, true, Some(Icon::Person), "Account", |ui| {
-            ui.allocate_ui_with_layout(vec2(260.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                egui::ComboBox::from_id_salt("task-account").width(254.0).selected_text(name).show_ui(ui, |ui| {
+            let height = field_height(ui);
+            ui.allocate_ui_with_layout(vec2(260.0, height), crate::bidi::row_from_start(egui::Align::Center), |ui| {
+                egui::ComboBox::from_id_salt("task-account").width(254.0).selected_text(name).show_ui_rtl(ui, |ui| {
                     for (i, a) in f.accounts.iter().enumerate() {
                         ui.selectable_value(&mut f.account, i, &a.1);
                     }
@@ -291,7 +305,7 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
     }
     footer_rule(ui, t);
     let mut keep = true;
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         if let Some(uid) = f.uid.clone() {
             if ui.button(tl!("Delete")).clicked() {
                 acts.push(Action::Submit("task.delete", json!({"uid": uid})));
@@ -301,7 +315,7 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
                 acts.push(Action::Submit("task.complete", json!({"uid": uid, "done": !f.done})));
             }
         }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
             if widgets::accent_button(ui, crate::icons::Icon::Task, "Save", t, !f.title.trim().is_empty()).clicked() {
                 f.error = None;
                 acts.push(Action::Submit(if f.uid.is_some() { "task.update" } else { "task.create" }, f.params()));

@@ -156,6 +156,17 @@ pub(super) fn attachment_card(
             acts.push(Action::OpenAttachment(a.index));
             ui.close();
         }
+        if st.can_share_files {
+            if let Some(indices) = &several {
+                if ui.button(tl!("Share selected attachments")).clicked() {
+                    acts.push(Action::ShareAttachments(indices.clone()));
+                    ui.close();
+                }
+            } else if ui.button(tl!("Share attachment")).clicked() {
+                acts.push(Action::ShareAttachment(a.index));
+                ui.close();
+            }
+        }
         if let Some((cmd, name)) = craft
             && ui.button(tf!("Open in {app}", app = name)).clicked()
         {
@@ -195,30 +206,53 @@ pub(super) fn attachment_card(
     if resp.contains_pointer() || more.contains_pointer() {
         st.attachment_hovered = true;
     }
-    // The selection: a click picks this one, Ctrl+click adds or removes it; a right-click or
-    // the ▾ on one not selected picks it alone. Any of them gives the strip the keyboard.
+    // The selection: a click picks this one, Ctrl+click adds or removes it; touch starts selection
+    // with a long press, then taps add or remove. A right-click or the ▾ picks one alone.
     let mut picked: Vec<usize> = st.attachment_selected.as_ref().filter(|(k, _)| k == key).map(|(_, v)| v.clone()).unwrap_or_default();
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
+    let already_selecting =
+        touch && st.attachment_selection_mode && st.attachment_selected.as_ref().is_some_and(|(selected_key, _)| selected_key == key);
+    let long_touch = touch && !on_more && resp.long_touched();
+    let was_selecting = already_selecting || long_touch;
     let ctrl = ui.input(|i| i.modifiers.command);
-    if resp.clicked() && !on_more && ctrl {
+    if long_touch && !on_more {
+        if already_selecting {
+            if !picked.contains(&a.index) {
+                picked.push(a.index);
+            }
+        } else {
+            picked.clear();
+            picked.push(a.index);
+        }
+        st.attachment_selection_mode = true;
+    } else if resp.clicked() && !on_more && (ctrl || already_selecting) {
         if let Some(at) = picked.iter().position(|i| *i == a.index) {
             picked.remove(at);
         } else {
             picked.push(a.index);
         }
+        st.attachment_selection_mode = touch && !picked.is_empty();
     } else if (resp.clicked() && !on_more) || ((resp.secondary_clicked() || more.clicked()) && !picked.contains(&a.index)) {
         picked = vec![a.index];
+        st.attachment_selection_mode = false;
     }
-    if resp.clicked() || resp.secondary_clicked() || more.clicked() {
-        st.attachment_selected = Some((key.clone(), picked.clone()));
-        st.attachments_active = true;
+    if long_touch || resp.clicked() || resp.secondary_clicked() || more.clicked() {
+        if picked.is_empty() {
+            st.attachment_selected = None;
+            st.attachment_selection_mode = false;
+            st.attachments_active = false;
+        } else {
+            st.attachment_selected = Some((key.clone(), picked.clone()));
+            st.attachments_active = true;
+        }
         // Another click lets go of a preview still waiting.
         st.attachment_click = None;
     }
     // A plain click shows it in place of the message's text, as Outlook previews attachments,
     // once the double-click time is out ([`settle_attachment_click`]): a double-click only opens
     // the file, and its first click left the preview showing behind the app it opened in.
-    let opened = resp.double_clicked() || resp.triple_clicked();
-    if resp.clicked() && !on_more && !ctrl && !opened {
+    let opened = (resp.double_clicked() || resp.triple_clicked()) && !was_selecting;
+    if resp.clicked() && !on_more && !ctrl && !was_selecting && !opened {
         let (now, wait) = (ui.input(|i| i.time), ui.ctx().options(|o| o.input_options.max_double_click_delay));
         st.attachment_click = Some((key.clone(), a.index, now + wait));
     }
@@ -263,11 +297,13 @@ pub(super) fn attachment_card(
         p.galley(egui::pos2(text_x, rect.center().y - name.size().y - 1.0), name, t.text);
         p.galley(egui::pos2(text_x, rect.center().y + 1.0), size, t.dim);
     }
-    egui::Popup::menu(&more).id(more.id.with("menu")).show(|ui| menu(ui, acts));
+    crate::bidi::popup_menu(&more).id(more.id.with("menu")).show(|ui| menu(ui, acts));
     if resp.double_clicked() && !on_more {
         acts.push(Action::OpenAttachment(a.index));
     }
-    resp.context_menu(|ui| menu(ui, acts));
+    if !long_touch {
+        resp.context_menu(|ui| menu(ui, acts));
+    }
     // Drag it onto the desktop or another app to copy the file there.
     if st.can_drag_out && resp.drag_started() && !on_more {
         acts.push(Action::DragOut(a.index));
@@ -295,10 +331,11 @@ pub(super) fn settle_attachment_click(st: &mut UiState, ui: &Ui) {
 
 /// Back to the message from a previewed attachment: the chip clicked to show it isn't left
 /// selected either.
-pub(super) fn close_attachment_view(st: &mut UiState) {
+pub(crate) fn close_attachment_view(st: &mut UiState) {
     st.attachment_view = None;
     st.attachment_click = None;
     st.attachment_selected = None;
+    st.attachment_selection_mode = false;
     st.attachments_active = false;
 }
 

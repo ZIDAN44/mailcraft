@@ -4,6 +4,8 @@
 
 use super::*;
 
+mod run;
+
 impl Pool {
     /// Browser sign-in for an OAuth account, on its own thread: the page opens through the UI
     /// (`Event::OpenUrl`), the refresh token goes to the keychain, then the account starts.
@@ -138,9 +140,10 @@ impl Pool {
     /// Export to a data file on a thread of its own.
     pub(super) fn export_pst(&mut self, account: String, path: String, name: String, follow_up: mailcraft_model::organize::FollowUpDays) {
         // With the changes made just before it.
-        self.edits.flush();
+        let _ = self.edits.flush(super::edits::FLUSH_WAIT);
         let sink = self.sink.clone();
         let store = self.store.clone();
+        let failed_account = account.clone();
         let spawned = std::thread::Builder::new().name("mail-export".into()).spawn(move || {
             let mut progress = |messages| {
                 sink.emit(Event::Exported {
@@ -170,7 +173,16 @@ impl Pool {
             sink.emit(event);
         });
         if let Err(e) = spawned {
-            self.sink.emit(Event::Notice { account: String::new(), message: format!("export: {e}") });
+            self.sink.emit(Event::Exported {
+                account: failed_account,
+                messages: 0,
+                skipped: 0,
+                already: 0,
+                occurrences: 0,
+                replaced: 0,
+                done: true,
+                error: Some(format!("couldn't start the export: {e}")),
+            });
         }
     }
 }

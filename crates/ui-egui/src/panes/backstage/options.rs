@@ -51,13 +51,16 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         let style = s.prefs.date_style;
         setting(ui, false, tl!("Dates"), Some(tl!("In the message list, the reading pane and the header of a reply")), &mut |ui| {
             let (y, m, d) = mailcraft_engine::model::dates::civil_from_days(mailcraft_engine::model::dates::today(&s.clock));
-            egui::ComboBox::from_id_salt("date-order").width(160.0).selected_text(style.order.day(y, m, d)).show_ui(ui, |ui| {
-                for o in mailcraft_engine::model::dates::DateOrder::ALL {
-                    if ui.selectable_label(style.order == o, o.day(y, m, d)).clicked() {
-                        acts.push(Action::Run("view.dateFormat", json!({"order": o.code()})));
+            egui::ComboBox::from_id_salt("date-order").width(ui.available_width().min(160.0)).selected_text(style.order.day(y, m, d)).show_ui_rtl(
+                ui,
+                |ui| {
+                    for o in mailcraft_engine::model::dates::DateOrder::ALL {
+                        if ui.selectable_label(style.order == o, o.day(y, m, d)).clicked() {
+                            acts.push(Action::Run("view.dateFormat", json!({"order": o.code()})));
+                        }
                     }
-                }
-            });
+                },
+            );
         });
         setting(ui, false, tl!("Time"), None, &mut |ui| {
             let options = [tl!("24-hour"), tl!("12-hour")];
@@ -74,7 +77,7 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         setting(ui, false, tl!("Language"), None, &mut |ui| {
             let language = st.language.as_str();
             let current = crate::i18n::Lang::from_code(language).map_or_else(|| tl!("Same as the system").to_string(), |l| l.name().to_string());
-            egui::ComboBox::from_id_salt("language").width(200.0).selected_text(current).show_ui(ui, |ui| {
+            egui::ComboBox::from_id_salt("language").width(ui.available_width().min(200.0)).selected_text(current).show_ui_rtl(ui, |ui| {
                 if ui.selectable_label(language == crate::i18n::AUTO, tl!("Same as the system")).clicked() {
                     acts.push(Action::SetLanguage(crate::i18n::AUTO.into()));
                 }
@@ -101,13 +104,15 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                     if *movable && ui.button(tl!("Move…")).clicked() {
                         acts.push(Action::MoveDataFolder);
                     }
-                    if ui.button(tl!("Open folder")).clicked() {
+                    if st.can_open_path && ui.button(tl!("Open folder")).clicked() {
                         acts.push(Action::OpenFolder(dir.clone()));
                     }
                 });
                 // The account list, settings and log are in the app folder, not with the data
                 // files (issue #4 looked for them in Documents).
-                if let Some(app) = s.store.as_ref().map(|st| st.root().to_path_buf()).filter(|r| r != dir) {
+                if st.can_open_path
+                    && let Some(app) = s.store.as_ref().map(|st| st.root().to_path_buf()).filter(|r| r != dir)
+                {
                     let path = app.display().to_string();
                     setting(ui, false, tl!("Accounts and settings"), Some(&path), &mut |ui| {
                         if ui
@@ -327,7 +332,7 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                     let current = chosen
                         .and_then(|c| a.folders.iter().find(|f| &f.path == c))
                         .map_or_else(|| tl!("Choose a folder").to_string(), crate::i18n::folder);
-                    egui::ComboBox::from_id_salt(("answered-folder", &a.config.id)).selected_text(current).show_ui(ui, |ui| {
+                    egui::ComboBox::from_id_salt(("answered-folder", &a.config.id)).selected_text(current).show_ui_rtl(ui, |ui| {
                         for f in a.folders.iter().filter(fits) {
                             if ui.selectable_label(chosen == Some(&f.path), crate::i18n::folder(f)).clicked() {
                                 acts.push(Action::Run("options.answeredInvites", json!({"account": a.config.id, "folder": f.path})));
@@ -518,8 +523,12 @@ fn accent_choice(ui: &mut Ui, t: &Tokens, current: &str, acts: &mut Vec<Action>)
     // The row is laid out from its end: the swatches go in the other way round, so teal reads
     // first (and the picker last).
     let from_end = ui.layout().prefer_right_to_left() != crate::i18n::current().rtl();
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 4.0;
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
+    ui.horizontal_wrapped(|ui| {
+        ui.spacing_mut().item_spacing.x = if touch { 2.0 } else { 4.0 };
+        if touch {
+            ui.spacing_mut().item_spacing.y = 4.0;
+        }
         let picker = |ui: &mut Ui, acts: &mut Vec<Action>| {
             // Any colour: what's chosen now, or the accent in use, to start from.
             let mut rgb = mailcraft_engine::accent_rgb(current).unwrap_or([0x0E, 0x7C, 0x86]);
@@ -539,7 +548,8 @@ fn accent_choice(ui: &mut Ui, t: &Tokens, current: &str, acts: &mut Vec<Action>)
         for (code, label) in ordered {
             let rgb = mailcraft_engine::accent_rgb(code).unwrap_or([0x0E, 0x7C, 0x86]);
             let on = current == code || (code == "teal" && current.is_empty());
-            let (rect, resp) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::click());
+            let size = if touch { 44.0 } else { 24.0 };
+            let (rect, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
             widgets::named(ui, &resp, label, true, Some(on));
             let fill = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
             if on {

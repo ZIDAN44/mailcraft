@@ -1,13 +1,14 @@
 //! Dialogs: while writing (Address Book, saving changes, no subject, word count).
 
 use super::*;
+use crate::bidi::ComboBoxExt as _;
 use crate::icons::Icon;
 
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::SelectNames(f) => select_names(ui, f, t, acts),
         Dialog::SaveChanges => {
-            ui.set_width(380.0);
+            set_dialog_width(ui, 380.0);
             title(ui, t, "Want to save your changes?");
             ui.label(RichText::new(tl!("The message is kept in Drafts if you save it.")).color(t.dim));
             ui.add_space(10.0);
@@ -28,7 +29,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
             keep
         }
         Dialog::EmptySubject => {
-            ui.set_width(360.0);
+            set_dialog_width(ui, 360.0);
             title(ui, t, "Send without a subject?");
             ui.label(RichText::new(tl!("Messages without a subject are easy to overlook.")).color(t.dim));
             let (ok, cancel) = buttons(ui, t, "Send anyway", true);
@@ -40,7 +41,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
         }
         Dialog::SendCheck(found) => {
             use mailcraft_engine::SendCheck;
-            ui.set_width(440.0);
+            set_dialog_width(ui, 440.0);
             title(ui, t, "Check before sending");
             let mut exposed = false;
             for f in found.iter() {
@@ -79,7 +80,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, _s: &Session, t: &Tokens, acts: 
             !cancel
         }
         Dialog::WordCount(n, selection) => {
-            ui.set_width(320.0);
+            set_dialog_width(ui, 320.0);
             title(ui, t, "Word count");
             if *selection {
                 ui.label(RichText::new(tl!("The selected text")).color(t.dim).small());
@@ -147,9 +148,11 @@ pub(super) fn add_to(field: &mut String, a: &mailcraft_engine::model::EmailAddre
 }
 
 pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(620.0);
+    set_dialog_width(ui, 620.0);
+    let compact = ui.available_width() < 500.0;
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
     title(ui, t, "Select Names");
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         ui.label(RichText::new(tl!("Search")).strong());
         let w = if f.directory { 186.0 } else { 240.0 };
         let r = ui.add(egui::TextEdit::singleline(&mut f.query).desired_width(w).hint_text(tl!("Name or address")));
@@ -199,7 +202,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             }
         }
         let shown = choices.iter().find(|(s, _, _)| *s == f.source).map_or_else(|| tl!("All addresses").to_string(), |(_, l, _)| l.clone());
-        egui::ComboBox::from_id_salt("address-book").width(220.0).selected_text(shown).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("address-book").width(220.0).selected_text(shown).show_ui_rtl(ui, |ui| {
             for (source, label, tip) in &choices {
                 let mut r = ui.selectable_label(f.source == *source, label);
                 if !tip.is_empty() {
@@ -227,10 +230,14 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
     let mut add: Option<&'static str> = None;
     egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(4).show(ui, |ui| {
         ui.set_min_size(vec2(ui.available_width(), 230.0));
-        egui::Grid::new("names-head").num_columns(2).min_col_width(250.0).show(ui, |ui| {
-            ui.label(RichText::new(tl!("Name")).color(t.dim).small());
-            ui.label(RichText::new(tl!("Email Address")).color(t.dim).small());
-        });
+        if compact {
+            ui.label(RichText::new(tl!("Name and email address")).color(t.dim).small());
+        } else {
+            egui::Grid::new("names-head").num_columns(2).min_col_width(250.0).show(ui, |ui| {
+                ui.label(RichText::new(tl!("Name")).color(t.dim).small());
+                ui.label(RichText::new(tl!("Email Address")).color(t.dim).small());
+            });
+        }
         ui.separator();
         egui::ScrollArea::vertical().max_height(210.0).auto_shrink([false, false]).show(ui, |ui| {
             if f.list.is_empty() && !f.stale && !f.searching {
@@ -246,12 +253,12 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
                 // A row: name and address, left-aligned as in Outlook's list.
                 let r = ui.horizontal(|ui| {
                     let name = if a.name.is_empty() { a.email.clone() } else { a.name.clone() };
-                    let (rect, r) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), egui::Sense::click());
+                    let (rect, r) = ui.allocate_exact_size(vec2(ui.available_width(), if compact { 44.0 } else { 22.0 }), egui::Sense::click());
                     if on || r.hovered() {
                         ui.painter().rect_filled(rect, 3.0, if on { t.accent_soft } else { t.hover_row });
                     }
                     // Each in its column, a long one cut short with "…" (the whole of it on hover).
-                    let cell = |ui: &Ui, text: &str, x: f32, w: f32, c: egui::Color32| {
+                    let cell = |ui: &Ui, text: &str, x: f32, w: f32, y: f32, c: egui::Color32| {
                         let mut job = egui::text::LayoutJob::simple_singleline(text.to_string(), theme::regular(13.5), c);
                         job.wrap.max_width = w;
                         job.wrap.max_rows = 1;
@@ -259,16 +266,22 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
                         job.wrap.overflow_character = Some('…');
                         let g = ui.fonts_mut(|f| f.layout_job(job));
                         let cut = g.rows.first().is_some_and(|row| row.glyphs.len() < text.chars().count());
-                        let pos = egui::pos2(rect.min.x + x, rect.center().y - g.size().y / 2.0);
+                        let pos = egui::pos2(rect.min.x + x, rect.center().y + y - g.size().y / 2.0);
                         ui.painter()
                             .with_clip_rect(Rect::from_min_size(egui::pos2(rect.min.x + x, rect.min.y), vec2(w + 2.0, rect.height())))
                             .galley(pos, g, c);
                         cut
                     };
-                    let name_w = 244.0;
-                    let cut_name = cell(ui, &name, 6.0, name_w, t.text);
-                    let cut_email = cell(ui, &a.email, 256.0, (rect.width() - 262.0).max(40.0), t.dim);
-                    if cut_name || cut_email { r.on_hover_text(format!("{name} <{}>", a.email)) } else { r }
+                    let (cut_name, cut_email) = if compact {
+                        let w = (rect.width() - 12.0).max(40.0);
+                        (cell(ui, &name, 6.0, w, -8.0, t.text), cell(ui, &a.email, 6.0, w, 8.0, t.dim))
+                    } else {
+                        let name_w = 244.0;
+                        (cell(ui, &name, 6.0, name_w, 0.0, t.text), cell(ui, &a.email, 256.0, (rect.width() - 262.0).max(40.0), 0.0, t.dim))
+                    };
+                    let r = if cut_name || cut_email { r.on_hover_text(format!("{name} <{}>", a.email)) } else { r };
+                    widgets::named(ui, &r, &format!("{name}, {}", a.email), true, Some(on));
+                    r
                 });
                 if r.inner.clicked() {
                     f.selected = Some(i);
@@ -302,7 +315,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
     ui.add_space(8.0);
     for (name, label) in [("to", "To ->"), ("cc", "Cc ->"), ("bcc", "Bcc ->")] {
         ui.horizontal(|ui| {
-            if ui.add_sized(vec2(72.0, 24.0), egui::Button::new(tl!(label))).clicked() {
+            if ui.add_sized(vec2(72.0, if touch { 44.0 } else { 24.0 }), egui::Button::new(tl!(label))).clicked() {
                 add = Some(name);
             }
             let field = match name {

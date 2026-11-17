@@ -11,6 +11,8 @@ impl Session {
         // An account's data file had to itself by a compaction: what it sends waits for it.
         let Some(e) = self.defer_for_compaction(e) else { return };
         match e {
+            // A pass-completion marker is for platform schedulers waiting on background work.
+            Event::SyncFinished { .. } => {}
             e @ (Event::Identity { .. }
             | Event::Protected { .. }
             | Event::Decrypted { .. }

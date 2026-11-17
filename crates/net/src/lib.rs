@@ -100,12 +100,8 @@ pub fn card_modules() -> Vec<String> {
 
 /// The root certificates this computer trusts (DER): what a signed message's chain must reach
 /// to be trusted (S/MIME). The system's own store, as the user and their organisation keep it:
-/// Windows' and macOS' stores, Linux's and the BSDs' bundle. None found, none: signatures still
-/// hold, they just don't reach a trusted root.
+/// Windows' and macOS' stores, Linux's and the BSDs' bundle, or Android's platform trust manager.
+/// None found, none: signatures still hold, they just don't reach a trusted root.
 pub fn trust_roots() -> Vec<Vec<u8>> {
-    let found = rustls_native_certs::load_native_certs();
-    for e in found.errors.iter().take(3) {
-        log::info!("S/MIME roots: {e}");
-    }
-    found.certs.into_iter().map(|c| c.as_ref().to_vec()).collect()
+    stream::system_roots().iter().map(|cert| cert.as_ref().to_vec()).collect()
 }

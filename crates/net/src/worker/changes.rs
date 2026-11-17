@@ -24,6 +24,23 @@ impl Worker {
                 }
                 self.last_full = None;
             }
+            Job::SyncAllTracked { request_id, .. } => {
+                // Keep the scheduler's token with this worker so a sync already under way
+                // cannot complete it before the requested pass starts.
+                self.pending_sync_requests.push(request_id);
+                self.kept.retry_now();
+                if self.conn.is_none() {
+                    self.auth_failed = false;
+                    self.token_retried = false;
+                    self.next_attempt = Instant::now();
+                    self.connect_and_sync();
+                }
+                if self.conn.is_none() {
+                    self.pending_sync_requests.retain(|pending| *pending != request_id);
+                    self.tracked_sync_finished(request_id, false);
+                }
+                self.last_full = None;
+            }
             Job::SyncFolder { folder, .. } => {
                 if self.conn.is_none() {
                     self.next_attempt = Instant::now();
@@ -107,9 +124,10 @@ impl Worker {
             Job::Send { id, raw, from, recipients, sent_folder, .. } => self.send(id, &raw, &from, &recipients, sent_folder),
             // The pool keeps these itself; one reaching a worker is kept the same way.
             Job::KeepDraft { raw, folder, replaces, .. } => {
-                if let Err(e) = keep_draft(&self.store, &self.acc.id, &folder, replaces, raw, true, &self.order) {
-                    log::warn!("{}: the draft couldn't be kept: {e}", self.acc.id);
-                }
+                let account = self.acc.id.clone();
+                let message_id = mailcraft_model::thread::written_message_id(&raw);
+                let error = keep_draft(&self.store, &account, &folder, replaces, raw, true, &self.order).err().map(|e| e.to_string());
+                self.sink.emit(Event::DraftSaved { account, message_id, error });
             }
             Job::SaveDraft { raw, folder, replaces, .. } => self.save_draft(raw, folder, replaces),
             Job::FileMessages { folder, paths, .. } => self.file_messages(folder, paths),

@@ -60,6 +60,7 @@
 	Delete “{folder}”?	「{folder}」を削除しますか?
 	Deleted Items	削除済みアイテム
 	Discard	破棄
+	Discard these changes?	これらの変更を破棄しますか？
 	Disconnected: {error}	切断されました: {error}
 	Document	ドキュメント
 	Don't run later rules on mail this one matches	このルールに一致したメールには以降のルールを適用しない
@@ -385,6 +386,11 @@
 	Google (IMAP)	Google (IMAP)
 	I'm away until…	不在にしています…
 	Inbox and notifications	受信トレイと通知
+	Android notifications are off. Turn them on in Settings for new mail and calendar reminders.	Android の通知はオフです。新着メールやカレンダーのリマインダーを受け取るには、設定でオンにしてください。
+	Settings	設定
+	Android's encrypted credential store is unavailable. MailCraft will keep credentials in memory until it closes.	Android の暗号化された認証情報ストアを利用できません。MailCraft を閉じるまで認証情報はメモリに保持されます。
+	The Android file picker couldn't open. In Files, choose Share → MailCraft to use the file.	Android のファイル選択画面を開けませんでした。Files で共有 → MailCraft を選ぶとファイルを利用できます。
+	MailCraft couldn't save the file. Try again.	MailCraft でファイルを保存できませんでした。もう一度お試しください。
 	Info	情報
 	Kept on this computer: {size}	このコンピューターに保存: {size}
 	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft は暗号化された接続であなたのメール サーバーとだけ通信します。Web 上の画像は指示したときだけ読み込まれます。
@@ -766,6 +772,8 @@ month	May	5月
 	Mail from an old .pst or .mailcraft file comes in first	古い .pst または .mailcraft ファイルのメールを最初に取り込みます
 	Open a data file	データ ファイルを開く
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Outlook のデータ ファイル (.pst) または MailCraft のファイル (.mailcraft) を取り込みます。フォルダーごと独立したメールボックスとして開き、このコンピューターに保存されます。
+	You can also open a message (.eml or .msg), calendar (.ics) or contacts (.vcf) file.	メッセージ (.eml または .msg)、カレンダー (.ics)、連絡先 (.vcf) のファイルも開けます。
+	The file {name} could run a program, so it isn't opened from here; save it and check it first.	{name} はプログラムを実行する可能性があるため、ここからは開けません。保存してから確認してください。
 	Move up	上へ移動
 	Move down	下へ移動
 	Updating…	更新しています…
@@ -878,6 +886,27 @@ month	May	5月
 	 and {n} more	 ほか {n} 名
 	Add to contacts…	連絡先に追加…
 	Copy address	アドレスをコピー
+	Copy phone number	電話番号をコピー
+	Share contact	連絡先を共有
+	Share attachment	添付ファイルを共有
+	Share message	メッセージを共有
+	Share selected attachments	選択した添付ファイルを共有
+	The selected attachments are too large to share	選択した添付ファイルは大きすぎて共有できません
+	You can share up to {n} attachments at once	一度に共有できる添付ファイルは最大 {n} 個です
+	This attachment is too large to share	この添付ファイルは大きすぎて共有できません
+	This message is too large to share	このメッセージは大きすぎて共有できません
+	No Android app can share files	ファイルを共有できる Android アプリがありません
+	Save contact	連絡先を保存
+	Share event	予定を共有
+	Add to Android calendar	Android カレンダーに追加
+	This event is too large to add to Android calendar	この予定は Android カレンダーに追加するには大きすぎます
+	This event has an invalid date for Android calendar	この予定の日付は Android カレンダーで無効です
+	No Android calendar app can add events	予定を追加できる Android カレンダーアプリがありません
+	Save event	予定を保存
+	This event is too large to share	この予定は大きすぎて共有できません
+	No Android app can share calendar events	カレンダーの予定を共有できる Android アプリがありません
+	This contact is too large to share	この連絡先は大きすぎて共有できません
+	No Android app can share contacts	連絡先を共有できる Android アプリがありません
 	Edit contact…	連絡先を編集…
 	Send email	メールを送信
 	Add	追加
@@ -1622,3 +1651,34 @@ month	May	5月
 	it can't be decrypted with your OpenPGP key	あなたの OpenPGP 鍵では復号できません
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	OpenPGP 鍵はブラウザーではなく、MailCraft のデスクトップ版で使われます
 	Not sent yet: this is a draft.	まだ送信されていません。これは下書きです。
+	The selected text is too large for Android's clipboard	選択したテキストが大きすぎて Android のクリップボードにコピーできません。
+	MailCraft couldn't copy text to Android's clipboard.	MailCraft はテキストを Android のクリップボードにコピーできませんでした。
+	The Android clipboard text is too large to paste.	Android のクリップボードのテキストが大きすぎて貼り付けられません。
+	Add to Android contacts	Android の連絡先に追加
+	This contact is too large to add to Android contacts	この連絡先は Android の連絡先に追加するには大きすぎます
+	No Android contacts app can add contacts	連絡先を追加できる Android アプリがありません
+	This link has no address scheme	このリンクにはアドレスのスキームがありません
+	This link is too long to open	このリンクは長すぎて開けません
+	MailCraft can open web links and mail links on Android	MailCraft は Android でウェブリンクとメールリンクを開けます
+	No Android app can open this link	このリンクを開ける Android アプリがありません
+	This phone number is too long to open	この電話番号は長すぎて開けません
+	This phone number contains characters Android cannot dial	この電話番号には Android で発信できない文字が含まれています
+	This contact has no dialable phone number	この連絡先には発信可能な電話番号がありません
+	No Android dialer app can open this number	この番号を開ける Android の電話アプリがありません
+	This contact has no address to open	この連絡先には開ける住所がありません
+	This address is too long to open	この住所は長すぎて開けません
+	No Android map app can open this address	この住所を開ける Android の地図アプリがありません
+	MailCraft can open shared .eml, .msg, .ics, .vcf, .pst and .mailcraft files	MailCraft は共有された .eml、.msg、.ics、.vcf、.pst、.mailcraft ファイルを開けます
+	No Android app can open this file	このファイルを開ける Android アプリがありません
+	MailCraft's save queue is full. Wait for current saves to finish before saving more files.	MailCraft の保存キューがいっぱいです。現在の保存が完了してから、次のファイルを保存してください。
+	Share a single .pst or .mailcraft data file at a time	.pst または .mailcraft データファイルは一度に 1 つだけ共有してください
+	Choose a .pst or .mailcraft data file for this account	このアカウント用の .pst または .mailcraft データファイルを選択してください
+	Android did not return a document URI for the selected file	選択したファイルのドキュメント URI が Android から返されませんでした
+	The selected document address is too long	選択したドキュメントのアドレスが長すぎます
+	The selected file is larger than {size} MiB	選択したファイルは {size} MiB を超えています
+
+	Move and delete	移動と削除
+	Attendees:	参加者
+	Couldn't open notification settings: {error}	通知設定を開けませんでした: {error}
+	Name and email address	名前とメールアドレス
+	Organizer:	主催者:

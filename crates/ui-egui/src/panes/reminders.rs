@@ -1,6 +1,7 @@
 //! The Reminders window: calendar reminders that have come due (Outlook's own window lists them
 //! the same way), each to dismiss, snooze or open; and a desktop notification when one comes.
 
+use crate::bidi::ComboBoxExt as _;
 use egui::{RichText, Ui, vec2};
 use mailcraft_engine::model::dates;
 use mailcraft_engine::{DueReminder, Session};
@@ -166,7 +167,7 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
             ui.add_space(4.0);
             ui.label(RichText::new(tl!("Click Snooze to be reminded again in:")).color(t.dim).small());
             ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("reminder-snooze").width(200.0).selected_text(snooze_label(st.snooze)).show_ui(ui, |ui| {
+                egui::ComboBox::from_id_salt("reminder-snooze").width(200.0).selected_text(snooze_label(st.snooze)).show_ui_rtl(ui, |ui| {
                     for m in SNOOZES {
                         let m = if m == 0 { BEFORE } else { m };
                         ui.selectable_value(&mut st.snooze, m, snooze_label(m));

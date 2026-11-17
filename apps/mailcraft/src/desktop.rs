@@ -22,6 +22,9 @@ impl Backend for PoolBackend {
     fn shutdown(&mut self) {
         self.0.shutdown();
     }
+    fn flush_changes(&mut self, timeout: std::time::Duration) -> bool {
+        self.0.flush_changes(timeout)
+    }
 }
 
 #[derive(Default)]
@@ -321,7 +324,7 @@ impl Services for Desktop {
             d = d.set_directory(dir);
         }
         d.set_title("Open data file")
-            .add_filter("Data files", &["pst", "mailcraft"])
+            .add_filter("Data and mail files", &["pst", "mailcraft", "eml", "msg", "ics", "ical", "vcf", "vcard"])
             .add_filter("Outlook data files", &["pst"])
             .add_filter("MailCraft data files", &["mailcraft"])
             .pick_file()

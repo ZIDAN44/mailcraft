@@ -531,7 +531,7 @@ pub fn separate_shared_uids(events: &mut [StoredEvent]) {
     let mut taken: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
     for e in events.iter_mut() {
         let shared = seen.get(&(e.calendar.clone(), e.event.uid.clone())).is_some_and(|n| *n > 1);
-        if !shared || e.event.recurrence_id.is_some() || e.event.rrule.is_some() {
+        if !shared || e.event.is_recurring() {
             continue;
         }
         let mut uid = format!("{}/{}", e.event.uid, e.event.start);

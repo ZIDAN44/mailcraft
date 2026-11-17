@@ -94,7 +94,7 @@ fn folder_names_stay_on_one_line() {
         let t = crate::theme::Tokens::light();
         let mut acts = Vec::new();
         let mut out = ctx.run_ui(RawInput::default(), |ui| {
-            ui.allocate_ui(egui::vec2(158.0, 800.0), |ui| crate::nav::show(&a.session, &t, ui, &mut acts));
+            ui.allocate_ui(egui::vec2(158.0, 800.0), |ui| crate::nav::show(&a.session, &t, a.ui.can_open_path, ui, &mut acts));
         });
         out.textures_delta.clear();
         for s in &out.shapes {

@@ -34,7 +34,7 @@ of your mail on your computer, so it works offline.
 - **Search:** works offline, with `from:`, `subject:`, `has:attachment`, `is:unread` and more.
 - **Calendar and people:** day, week and month views, meeting invitations, an address book, and CalDAV/CardDAV.
 - **Private and secure:** MailCraft talks only to your servers, always over TLS. Passwords stay in the system keychain. Remote pictures load only when you ask. S/MIME and OpenPGP sign and encrypt, and the message you're writing says whether everyone in it can receive it encrypted.
-- **Everywhere:** Windows, macOS, Linux and the browser (JMAP accounts only), in 15 interface languages.
+- **Everywhere:** Windows, macOS, Linux, Android 12+ (source build) and the browser (JMAP accounts only), in 15 interface languages.
 - **Scriptable:** every action is a command with an id. The ribbon, shortcuts, the CLI and `--cmd` all run the same commands.
 
 ## Install
@@ -56,6 +56,16 @@ cargo run -p mailcraft-cli -- commands         # CLI: add, sync, list, read, sea
 cd apps/mailcraft-web && trunk serve           # browser: http://127.0.0.1:8774/?sample
 ```
 
+For an Android x86_64 emulator, install `cargo-apk` and the target, then run:
+
+```bash
+rustup target add x86_64-linux-android
+cargo install cargo-apk
+cargo apk run -p mailcraft-android --target x86_64-linux-android
+```
+
+The Android build needs the Android SDK and NDK. See the [Android app instructions](apps/mailcraft-android/README.md) for device targets and setup.
+
 - The CLI reads your password from `MAILCRAFT_PASSWORD`, or asks for it. It never stores it.
 - MailCraft keeps its data in `%APPDATA%\MailCraft` (Windows), `~/Library/Application Support/MailCraft` (macOS) or `~/.local/share/mailcraft` (Linux). To use another folder, pass `--data DIR` or set `MAILCRAFT_DATA`.
 - To put the web build on your own site, see [hosting the web build](packaging/web/README.md).
@@ -67,7 +77,7 @@ cd apps/mailcraft-web && trunk serve           # browser: http://127.0.0.1:8774/
 - [What's still missing](docs/gaps.md)
 - [How MailCraft is built](docs/architecture.md)
 - [How sync works](docs/sync.md)
-- [Android app bootstrap](apps/mailcraft-android/README.md)
+- [Android app](apps/mailcraft-android/README.md)
 - [How test builds update themselves](docs/updates.md)
 - [Microsoft and Google sign-in](docs/oauth.md)
 - [Hosting the web build](packaging/web/README.md)

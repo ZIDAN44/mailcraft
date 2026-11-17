@@ -6,9 +6,9 @@ use mailcraft_model::Job;
 use super::*;
 
 /// Largest message file read (`.eml`).
-const MAX_MESSAGE: u64 = 64 << 20;
+const MAX_MESSAGE: u64 = crate::MAX_MAIL_FILE_BYTES;
 /// Largest calendar or contacts file read (`.ics`, `.vcf`).
-const MAX_PIM: u64 = 16 << 20;
+const MAX_PIM: u64 = crate::MAX_PIM_FILE_BYTES;
 
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![

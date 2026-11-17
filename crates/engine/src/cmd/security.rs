@@ -10,15 +10,14 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             if p::bool(v, "kept") == Some(true) {
                 return s.import_identity_data(&account, Vec::new(), &password);
             }
-            if let Some(data) = v.get("data").filter(|d| d.is_array()) {
-                let data: Vec<u8> = serde_json::from_value(data.clone()).map_err(|_| CmdError::Params("`data`: the file's bytes".into()))?;
+            if let Some(data) = p::bytes(v, "data", 1 << 20)? {
                 return s.import_identity_data(&account, data, &password);
             }
             let path = p::req_str(v, "path")?.trim().to_string();
             s.import_identity(&account, &path, &password)
         })
         .params(
-            r#"{"path": string (a .p12 or .pfx file), "data"?: [bytes] (the file itself, in place of path), "kept"?: bool (the one the browser keeps, unlocked), "password"?: string, "account"?: string}"#,
+            r#"{"path": string (a .p12 or .pfx file), "data"?: [bytes] | "dataBase64"?: string (the file itself, in place of path), "kept"?: bool (the one the browser keeps, unlocked), "password"?: string, "account"?: string}"#,
         ),
         CommandSpec::new("security.findKeys", "Use a smart card", "File › Info › Security", |s, v| {
             let module = if p::bool(v, "keychain") == Some(true) { None } else { Some(p::req_str(v, "module")?.to_string()) };

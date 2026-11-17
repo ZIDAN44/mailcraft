@@ -2,6 +2,10 @@
 
 use super::*;
 
+mod wait;
+pub(crate) use wait::SyncCompletion;
+pub use wait::SyncWaiter;
+
 /// How often a full sync says the counts of the folders it has synced, at most.
 const COUNTS_EVERY: Duration = Duration::from_secs(1);
 
@@ -237,10 +241,11 @@ impl Worker {
         }
     }
 
-    pub(super) fn sync_all(&mut self, rx: &Receiver<Job>) {
+    pub(super) fn sync_all(&mut self, rx: &Receiver<Job>) -> bool {
         let began = Instant::now();
         if !self.relist() {
-            return;
+            self.sync_finished(false);
+            return false;
         }
         let paths: Vec<String> = self.folders.iter().filter(|f| f.selectable).map(|f| f.path.clone()).collect();
         // Counts are said as folders are synced, once a second at most: each time writes them
@@ -273,7 +278,8 @@ impl Worker {
         }
         self.say_counts();
         if self.closed {
-            return;
+            self.sync_finished(false);
+            return false;
         }
         // Report Online after mail; CalDAV/EWS calendars and contacts can take far longer and
         // shouldn't hold the status bar on the last folder name.
@@ -291,6 +297,23 @@ impl Worker {
             self.sync_dav();
             log::info!("{}: PIM pass took {:?}", self.acc.id, began.elapsed());
         }
+        let success = self.conn.is_some();
+        self.sync_finished(success);
+        success
+    }
+
+    fn sync_finished(&mut self, success: bool) {
+        let account = self.id();
+        self.sink.emit(Event::SyncFinished { account: account.clone(), request_id: None, success });
+        let pending = std::mem::take(&mut self.pending_sync_requests);
+        for request_id in pending {
+            self.tracked_sync_finished(request_id, success);
+        }
+    }
+
+    pub(super) fn tracked_sync_finished(&self, request_id: u64, success: bool) {
+        self.sink.sync_completion.finish(request_id, success);
+        self.sink.emit(Event::SyncFinished { account: self.id(), request_id: Some(request_id), success });
     }
 
     /// Between two folders of a full sync: body fetches and local edits served, ahead of the rest,

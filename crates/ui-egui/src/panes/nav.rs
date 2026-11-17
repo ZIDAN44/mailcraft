@@ -51,7 +51,8 @@ fn ancestors(f: &Folder) -> Vec<String> {
 /// A section's heading that collapses it (Favorites), with its arrow; whether it was clicked.
 fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -> bool {
     ui.add_space(2.0);
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
+    let height = if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { 22.0 };
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
     crate::widgets::named(ui, &resp, tl!(label), true, Some(open));
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover_row);
@@ -90,7 +91,7 @@ fn row(
     drop_ok: bool,
     draggable: bool,
 ) -> egui::Response {
-    let h = 30.0;
+    let h = if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { 30.0 };
     let unread = if let Count::Unread(n) = count { n } else { 0 };
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), if draggable { Sense::click_and_drag() } else { Sense::click() });
     // To a screen reader, a folder is one choice among the folders: its name, and its unread count.
@@ -136,7 +137,7 @@ fn row(
     resp
 }
 
-pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+pub fn show(s: &Session, t: &Tokens, can_open_path: bool, ui: &mut Ui, acts: &mut Vec<Action>) {
     egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 1.0;
         // Hidden altogether (View › Favorites), or collapsed to its heading.
@@ -183,7 +184,8 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             let key = format!("account:{}", a.config.id);
             let open = !s.prefs.collapsed.contains(&key);
             // Dragged onto another mailbox, it takes its place (above or below it).
-            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click_and_drag());
+            let height = if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { 30.0 };
+            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click_and_drag());
             if resp.hovered() || resp.dragged() {
                 ui.painter().rect_filled(rect, 6.0, t.hover_row);
             }
@@ -219,7 +221,8 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     ui.close();
                 }
                 // The account's data file, as Outlook's Open File Location; its settings.
-                if let Some(file) = s.store.as_ref().map(|store| store.account_path(&config.id)).filter(|p| p.exists())
+                if can_open_path
+                    && let Some(file) = s.store.as_ref().map(|store| store.account_path(&config.id)).filter(|p| p.exists())
                     && ui.button(tl!("Open file location")).clicked()
                 {
                     let dir = if file.is_dir() { file.clone() } else { file.parent().map_or_else(|| file.clone(), std::path::Path::to_path_buf) };
@@ -298,7 +301,8 @@ fn search_folders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) 
             ui.close();
         }
     };
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
+    let height = if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { 22.0 };
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click());
     crate::widgets::named(ui, &resp, tl!("Search Folders"), true, Some(open));
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover_row);
@@ -439,7 +443,8 @@ fn shared_header(
     sections: &[mailcraft_engine::PaneSection],
     at: usize,
 ) -> bool {
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click_and_drag());
+    let height = if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { 30.0 };
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::click_and_drag());
     section_drag(ui, t, &resp, rect, sections, at, acts);
     let dropping = resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some();
     if resp.hovered() || dropping {

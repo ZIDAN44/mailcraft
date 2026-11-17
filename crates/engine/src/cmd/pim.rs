@@ -171,10 +171,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 && organized_by_me(s, &e)
             {
                 // One occurrence off: the guests are told of that one.
-                if let Some(at) = occurrence.filter(|_| e.rrule.is_some()) {
+                if let Some(at) = occurrence.filter(|_| e.is_series()) {
                     let len = e.end - e.start;
                     e.recurrence_id = Some(at);
                     e.rrule = None;
+                    e.rdates.clear();
+                    e.exdates.clear();
                     e.start = at;
                     e.end = at + len;
                 }
@@ -414,7 +416,11 @@ pub(super) fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::C
     }
     match p::str(v, "repeat").map(str::trim) {
         // No repeat: none of a file's added dates either.
-        Some("" | "none" | "never") => (e.rrule, e.rdates) = (None, Vec::new()),
+        Some("" | "none" | "never") => {
+            e.rrule = None;
+            e.rdates.clear();
+            e.exdates.clear();
+        }
         Some(r @ ("daily" | "weekly" | "monthly" | "yearly")) => e.rrule = Some(format!("FREQ={}", r.to_ascii_uppercase())),
         Some(r) if r.to_ascii_uppercase().starts_with("FREQ=") && r.len() < 500 => e.rrule = Some(r.to_string()),
         Some(r) => return Err(CmdError::Params(format!("`{r}` is not a repeat"))),

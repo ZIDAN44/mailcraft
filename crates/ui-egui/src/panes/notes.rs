@@ -4,7 +4,7 @@
 //! A note from an Outlook data file may carry files: a paperclip at its foot lists them, each to
 //! open or save.
 
-use egui::{Color32, Margin, RichText, Sense, Ui, vec2};
+use egui::{Color32, Margin, RichText, Sense, Ui, Vec2, vec2};
 use mailcraft_engine::Session;
 use mailcraft_engine::model::dates;
 use serde_json::json;
@@ -73,10 +73,11 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     }
     let mut clicked_off = ui.input(|i| i.pointer.primary_pressed()) && ui.rect_contains_pointer(ui.max_rect());
     egui::ScrollArea::vertical().auto_shrink(false).id_salt("notes").show(ui, |ui| {
-        egui::Frame::new().inner_margin(Margin::same(18)).show(ui, |ui| {
-            let size = 210.0;
-            let gap = 14.0;
-            let cols = (((ui.available_width() + gap) / (size + gap)).floor() as usize).max(1);
+        egui::Frame::new().inner_margin(Margin::same(if st.phone_mode { 10 } else { 18 })).show(ui, |ui| {
+            let phone = st.phone_mode;
+            let size = if phone { vec2(ui.available_width().min(520.0), 240.0) } else { vec2(210.0, 210.0) };
+            let gap = if phone { 10.0 } else { 14.0 };
+            let cols = if phone { 1 } else { (((ui.available_width() + gap) / (size.x + gap)).floor() as usize).max(1) };
             for row in notes.chunks(cols) {
                 ui.horizontal_top(|ui| {
                     ui.spacing_mut().item_spacing.x = gap;
@@ -105,11 +106,11 @@ pub(crate) fn save_edit(st: &mut UiState, acts: &mut Vec<Action>) {
 
 /// One note: its paper, its text (or the text box, while written on), when it last changed.
 /// True when the pointer pressed on it.
-fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_engine::NoteRef, size: f32, acts: &mut Vec<Action>) -> bool {
+fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_engine::NoteRef, size: Vec2, acts: &mut Vec<Action>) -> bool {
     let uid = &n.note.uid;
     let editing = st.note_edit.as_ref().is_some_and(|(u, _)| u == uid);
     let id = ui.scope_id().with(("note", uid));
-    let (rect, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
     let hovered = resp.hovered() || editing;
     let fill = paper(n.note.color, t.dark);
     // A shadow, the paper, its folded corner.
@@ -122,16 +123,28 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
         egui::StrokeKind::Inside,
     );
     let fold = 18.0;
-    let corner = [rect.right_bottom() - vec2(0.0, fold), rect.right_bottom() - vec2(fold, 0.0), rect.right_bottom() - vec2(fold, fold)];
+    let mirror = crate::bidi::Mirror::new(rect);
+    let corner = [
+        mirror.pos(rect.right_bottom() - vec2(0.0, fold)),
+        mirror.pos(rect.right_bottom() - vec2(fold, 0.0)),
+        mirror.pos(rect.right_bottom() - vec2(fold, fold)),
+    ];
     ui.painter().add(egui::Shape::convex_polygon(corner.to_vec(), fill.gamma_multiply(0.8), egui::Stroke::NONE));
     let inner = rect.shrink2(vec2(12.0, 10.0));
     let when = crate::i18n::date(&dates::list_time(n.note.modified, &s.clock));
-    ui.painter().text(egui::pos2(inner.left(), inner.bottom()), egui::Align2::LEFT_BOTTOM, when, theme::regular(11.0), INK.gamma_multiply(0.55));
+    ui.painter().text(
+        mirror.pos(egui::pos2(inner.left(), inner.bottom())),
+        mirror.align(egui::Align2::LEFT_BOTTOM),
+        when,
+        theme::regular(11.0),
+        INK.gamma_multiply(0.55),
+    );
     let on_files = files(ui, n, inner, id, acts);
     let text_rect = egui::Rect::from_min_max(inner.min, egui::pos2(inner.right(), inner.bottom() - 18.0));
     let mut pressed = resp.is_pointer_button_down_on() || resp.clicked() || on_files;
     if editing {
         let mut text = st.note_edit.as_ref().map(|(_, x)| x.clone()).unwrap_or_default();
+        let text_rtl = if crate::bidi::has_rtl(&text) { crate::bidi::paragraph_rtl(&text) } else { crate::i18n::current().rtl() };
         // In a child of its own over the paper, so the row of notes doesn't move.
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(text_rect));
         let edit = child.add(
@@ -141,6 +154,7 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
                 .text_color(INK)
                 .font(theme::regular(14.0))
                 .hint_text(RichText::new(tl!("Write your note…")).color(INK.gamma_multiply(0.45)))
+                .align(if text_rtl { egui::Align2::RIGHT_TOP } else { egui::Align2::LEFT_TOP })
                 .desired_width(text_rect.width())
                 .min_size(text_rect.size()),
         );
@@ -167,8 +181,11 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
                 egui::TextFormat { font_id: theme::regular(13.0), color: INK.gamma_multiply(0.85), ..Default::default() },
             );
         }
+        let text_rtl = crate::bidi::has_rtl(&job.text) && crate::bidi::paragraph_rtl(&job.text);
+        job.halign = if text_rtl { egui::Align::Max } else { egui::Align::Min };
         let galley = ui.painter().layout_job(job);
-        ui.painter().with_clip_rect(text_rect).galley(text_rect.min, galley, INK);
+        let pos = if text_rtl { egui::pos2(text_rect.right() - galley.size().x, text_rect.top()) } else { text_rect.min };
+        ui.painter().with_clip_rect(text_rect).galley(pos, galley, INK);
         if resp.clicked() {
             save_edit(st, acts);
             st.note_edit = Some((uid.clone(), n.note.text.clone()));
@@ -211,14 +228,22 @@ fn files(ui: &mut Ui, n: &mailcraft_engine::NoteRef<'_>, inner: egui::Rect, id: 
         return false;
     }
     let count = files.len().to_string();
-    let chip = egui::Rect::from_min_size(egui::pos2(inner.right() - 52.0, inner.bottom() - 16.0), vec2(40.0, 16.0));
+    let mirror = crate::bidi::Mirror::new(inner);
+    let chip = egui::Rect::from_min_size(egui::pos2(mirror.start(inner.right() - 52.0, 40.0), inner.bottom() - 16.0), vec2(40.0, 16.0));
     let resp = ui.interact(chip, id.with("files"), Sense::click()).on_hover_text(tf!("{n} attachments", n = files.len()));
     let ink = if resp.hovered() { INK } else { INK.gamma_multiply(0.7) };
-    let icon = egui::Rect::from_min_size(chip.min + vec2(4.0, 1.0), vec2(14.0, 14.0));
+    let chip_mirror = crate::bidi::Mirror::new(chip);
+    let icon = chip_mirror.rect(egui::Rect::from_min_size(chip.min + vec2(4.0, 1.0), vec2(14.0, 14.0)));
     icons::paint(ui.painter(), icon, Icon::Attach, ink);
-    ui.painter().text(egui::pos2(icon.right() + 3.0, chip.center().y), egui::Align2::LEFT_CENTER, count, theme::regular(11.0), ink);
+    ui.painter().text(
+        chip_mirror.pos(egui::pos2(chip.min.x + 21.0, chip.center().y)),
+        chip_mirror.align(egui::Align2::LEFT_CENTER),
+        count,
+        theme::regular(11.0),
+        ink,
+    );
     let uid = &n.note.uid;
-    egui::Popup::menu(&resp).show(|ui| {
+    crate::bidi::popup_menu(&resp).show(|ui| {
         for (index, f) in files.iter().enumerate() {
             ui.label(format!("{} ({})", f.file_name(), widgets::human_size(f.size())));
             ui.horizontal(|ui| {

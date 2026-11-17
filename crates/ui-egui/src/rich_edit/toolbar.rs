@@ -1,16 +1,18 @@
 //! The message editor's ribbon: formatting, colours, links, pictures, signature, date and time, word count.
 
 use super::*;
+use crate::bidi::ComboBoxExt as _;
 
 /// A ribbon button: an icon or a letter, lit when its format is on.
 pub(super) fn fmt_button(ui: &mut Ui, t: &Tokens, face: Face<'_>, on: bool, tip: &str) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::click());
+    let size = if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { 28.0 };
+    let (rect, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
     crate::widgets::named(ui, &resp, tl!(tip), true, Some(on));
     if on || resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, if on { t.accent_soft } else { t.hover });
     }
     match face {
-        Face::Icon(ic) => icons::paint(ui.painter(), icons::centered(rect, 16.0), ic, t.text),
+        Face::Icon(ic) => icons::paint(ui.painter(), icons::centered(rect, if size > 28.0 { 18.0 } else { 16.0 }), ic, t.text),
         Face::Letter(s, f) => {
             let galley = ui.painter().layout_job(LayoutJob::single_section(s.to_string(), f));
             ui.painter().galley(rect.center() - galley.size() / 2.0, galley, t.text);
@@ -34,7 +36,9 @@ pub(super) fn color_button(
     none: &str,
     tip: &str,
 ) -> Option<Option<[u8; 3]>> {
-    let (rect, resp) = ui.allocate_exact_size(vec2(34.0, 28.0), Sense::click());
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
+    let height = if touch { 44.0 } else { 28.0 };
+    let (rect, resp) = ui.allocate_exact_size(vec2(34.0 + if touch { 8.0 } else { 0.0 }, height), Sense::click());
     crate::widgets::named(ui, &resp, tl!(tip), true, None);
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover);
@@ -46,11 +50,12 @@ pub(super) fn color_button(
     icons::paint(ui.painter(), Rect::from_min_size(egui::pos2(rect.max.x - 11.0, rect.center().y - 4.0), vec2(8.0, 8.0)), Icon::ChevronDown, t.dim);
     let resp = resp.on_hover_text(tl!(tip));
     let mut picked = None;
-    egui::Popup::menu(&resp).show(|ui| {
+    crate::bidi::popup_menu(&resp).show(|ui| {
         ui.horizontal_wrapped(|ui| {
-            ui.set_max_width(6.0 * 26.0);
+            let swatch_size = if touch { 44.0 } else { 22.0 };
+            ui.set_max_width(6.0 * (swatch_size + 4.0));
             for c in swatches {
-                let (r, s) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+                let (r, s) = ui.allocate_exact_size(vec2(swatch_size, swatch_size), Sense::click());
                 // A stronger edge under the pointer.
                 let edge = if s.hovered() { Stroke::new(2.0, t.text) } else { Stroke::new(1.0, t.border) };
                 ui.painter().rect(r, 3.0, Color32::from_rgb(c[0], c[1], c[2]), edge, egui::StrokeKind::Inside);
@@ -96,7 +101,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
         // The account's signatures, one picked replacing the one in the message, or making and
         // changing them, from the message (Outlook's Signature menu on the Message ribbon).
         let r = crate::widgets::tool_button(ui, Icon::Drafts, "Signature", t, !c.sending);
-        egui::Popup::menu(&r).show(|ui| {
+        crate::bidi::popup_menu(&r).show(|ui| {
             for name in signatures {
                 let on = c.signature_name.eq_ignore_ascii_case(name) && c.signature_at().is_some();
                 if ui.add(egui::Button::selectable(on, name.as_str())).clicked() {
@@ -115,7 +120,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
         });
         // Today's date or the time at the cursor, in one of a few ways (Outlook's Date & Time).
         let r = crate::widgets::tool_button(ui, Icon::Calendar, "Date & time", t, !c.sending);
-        egui::Popup::menu(&r).show(|ui| {
+        crate::bidi::popup_menu(&r).show(|ui| {
             for text in date_choices(clock) {
                 if ui.button(text.as_str()).clicked() {
                     ops.push(Op::Insert(text));
@@ -144,7 +149,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
 /// clear formatting: the formatting the Message ribbon and the signature editor share.
 fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich::Para, ops: &mut Vec<Op>) {
     ui.add_enabled_ui(!c.plain, |ui| {
-        egui::ComboBox::from_id_salt(("font-size", c.id)).width(48.0).selected_text(cur.size().to_string()).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt(("font-size", c.id)).width(48.0).selected_text(cur.size().to_string()).show_ui_rtl(ui, |ui| {
             for z in rich::SIZES {
                 if ui.selectable_label(cur.size() == z, z.to_string()).clicked() {
                     ops.push(Op::Size(z));

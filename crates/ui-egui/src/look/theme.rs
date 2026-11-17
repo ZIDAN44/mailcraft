@@ -222,6 +222,7 @@ pub fn category_color(i: u8, dark: bool) -> Color32 {
 
 /// Apply the tokens to egui's style.
 pub fn apply(ctx: &egui::Context, t: &Tokens) {
+    let touch = ctx.input(|input| input.has_touch_screen());
     let mut v = if t.dark { Visuals::dark() } else { Visuals::light() };
     v.panel_fill = t.surface;
     v.window_fill = t.surface;
@@ -260,10 +261,10 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
     v.widgets.open.weak_bg_fill = t.accent_soft;
     ctx.set_visuals(v);
     ctx.global_style_mut(|s| {
-        s.spacing.item_spacing = egui::vec2(8.0, 6.0);
-        s.spacing.button_padding = egui::vec2(8.0, 4.0);
-        s.spacing.interact_size.y = 26.0;
-        s.spacing.menu_margin = egui::Margin::same(6);
+        s.spacing.item_spacing = if touch { egui::vec2(10.0, 8.0) } else { egui::vec2(8.0, 6.0) };
+        s.spacing.button_padding = if touch { egui::vec2(12.0, 9.0) } else { egui::vec2(8.0, 4.0) };
+        s.spacing.interact_size = if touch { egui::vec2(44.0, 44.0) } else { egui::vec2(40.0, 26.0) };
+        s.spacing.menu_margin = egui::Margin::same(if touch { 10 } else { 6 });
         s.text_styles.insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
         s.text_styles.insert(egui::TextStyle::Button, egui::FontId::proportional(13.5));
         s.text_styles.insert(egui::TextStyle::Small, egui::FontId::proportional(12.0));
@@ -365,13 +366,20 @@ pub fn install_fonts(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option
 /// (font files and their index in a collection, first preferred), and for Arabic and Hebrew
 /// when the main font hasn't them.
 pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Vec<(Vec<u8>, u32)>, rtl: Option<Vec<u8>>) {
+    install_fonts_with_rtl(ctx, regular, bold, cjk, rtl.into_iter().collect());
+}
+
+/// Installs several script-specific right-to-left fallback fonts when the platform has no single
+/// font covering both Arabic and Hebrew.
+pub fn install_fonts_with_rtl(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Vec<(Vec<u8>, u32)>, rtl: Vec<Vec<u8>>) {
     crate::bidi::set_coverage(regular.as_deref());
     let mut fonts = FontDefinitions::default();
-    if let Some(bytes) = rtl {
-        fonts.font_data.insert("rtl".into(), Arc::new(FontData::from_owned(bytes)));
+    for (i, bytes) in rtl.into_iter().enumerate() {
+        let name = format!("rtl-{i}");
+        fonts.font_data.insert(name.clone(), Arc::new(FontData::from_owned(bytes)));
         for family in [FontFamily::Proportional, FontFamily::Monospace] {
             if let Some(f) = fonts.families.get_mut(&family) {
-                f.push("rtl".into());
+                f.push(name.clone());
             }
         }
     }

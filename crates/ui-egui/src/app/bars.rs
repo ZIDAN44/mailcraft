@@ -1,6 +1,7 @@
 //! The top bar (the ribbon's tabs, search, sync, settings), the status bar, and notices.
 
 use crate::*;
+use egui::Label;
 
 /// A row of the top bar: its tabs, its buttons, the search box.
 pub(crate) const BAR_ROW_H: f32 = 30.0;
@@ -48,6 +49,9 @@ impl MailApp {
     /// The top bar's tabs, search box and controls, in `full`; where they are (what isn't the
     /// bar's free space).
     fn top_bar_rows(&mut self, ui: &mut Ui, full: egui::Rect, own: bool, acts: &mut Vec<Action>) -> Vec<egui::Rect> {
+        if self.ui.phone_mode {
+            return self.phone_top_bar_rows(ui, full, acts);
+        }
         let row = vec2(full.width(), BAR_ROW_H);
         let mut boxed = 0.0;
         let mut controls = Vec::new();
@@ -83,6 +87,111 @@ impl MailApp {
                 controls.push(self.top_search(ui, boxed - 16.0, acts));
             });
         }
+        controls
+    }
+
+    /// Two short rows on a phone: navigation and global controls, then the search field.
+    fn phone_top_bar_rows(&mut self, ui: &mut Ui, full: egui::Rect, acts: &mut Vec<Action>) -> Vec<egui::Rect> {
+        self.ui.bar_two_rows = true;
+        let row_height = if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { BAR_ROW_H };
+        let row = vec2(full.width(), row_height);
+        let mut controls = Vec::new();
+        ui.allocate_ui_with_layout(row, bidi::row_from_start(Align::Center), |ui| {
+            let composing = self.session.compose.is_some();
+            let detail_open = composing
+                || (self.ui.phone_reader_open && self.session.module == Module::Mail)
+                || (self.session.module == Module::People && self.ui.person.is_some())
+                || (self.session.module == Module::Tasks && self.ui.task.is_some())
+                || (self.session.module == Module::Notes && self.ui.note_edit.is_some());
+            let (icon, label) = if detail_open { (Icon::Back, "Back") } else { (Icon::Folder, "Show the folder pane") };
+            if widgets::bar_icon_button(ui, icon, label, &self.ui.tokens).clicked() {
+                if composing {
+                    if !self.session.compose.as_ref().is_some_and(|compose| compose.sending) {
+                        if self.session.compose_written() {
+                            self.ui.dialog = Some(Dialog::SaveChanges);
+                            self.ui.dialog_for = self.session.compose.as_ref().map(|compose| compose.id);
+                        } else {
+                            acts.push(Action::Run("compose.close", json!({"save": false})));
+                        }
+                    }
+                } else if self.ui.phone_reader_open && self.session.module == Module::Mail {
+                    self.ui.phone_reader_open = false;
+                } else if self.session.module == Module::People && self.ui.person.is_some() {
+                    self.ui.person = None;
+                } else if self.session.module == Module::Tasks && self.ui.task.is_some() {
+                    self.ui.task = None;
+                } else if self.session.module == Module::Notes && self.ui.note_edit.is_some() {
+                    self.checkpoint_note_edit();
+                } else {
+                    self.ui.phone_reader_open = false;
+                    self.ui.mobile_folder_open = true;
+                }
+            }
+            let title = self.session.compose.as_ref().map_or_else(
+                || {
+                    if self.ui.phone_reader_open && self.session.module == Module::Mail {
+                        self.session
+                            .reading
+                            .as_ref()
+                            .and_then(|reading| reading.parsed.as_ref())
+                            .map(|message| message.subject.trim())
+                            .filter(|subject| !subject.is_empty())
+                            .map(str::to_owned)
+                            .unwrap_or_else(|| tl!("Message").to_string())
+                    } else {
+                        match self.session.module {
+                            Module::Mail => {
+                                let title = crate::view_title(&self.session);
+                                if self.session.search.is_none()
+                                    && let mailcraft_engine::View::Folder { account, .. } = &self.session.view
+                                    && let Some(account) = self.session.account(account)
+                                    && !account.config.email.is_empty()
+                                {
+                                    format!("{title} · {}", account.config.email)
+                                } else {
+                                    title
+                                }
+                            }
+                            Module::Calendar => tl!("Calendar").to_string(),
+                            Module::People => self
+                                .ui
+                                .person
+                                .as_deref()
+                                .and_then(|uid| self.session.find_person(uid))
+                                .map(|person| person.card.display())
+                                .filter(|name| !name.is_empty())
+                                .unwrap_or_else(|| tl!("People").to_string()),
+                            Module::Tasks => self
+                                .ui
+                                .task
+                                .as_deref()
+                                .and_then(|uid| self.session.find_task(uid))
+                                .map(|task| task.task.title.trim().to_owned())
+                                .filter(|title| !title.is_empty())
+                                .unwrap_or_else(|| tl!("Tasks").to_string()),
+                            Module::Notes => self
+                                .ui
+                                .note_edit
+                                .as_ref()
+                                .and_then(|(_, text)| text.lines().map(str::trim).find(|line| !line.is_empty()))
+                                .map(str::to_owned)
+                                .unwrap_or_else(|| tl!("New note").to_string()),
+                        }
+                    }
+                },
+                |compose| {
+                    let subject = compose.subject.trim();
+                    if subject.is_empty() { tl!("New mail").to_string() } else { subject.to_owned() }
+                },
+            );
+            ui.add(Label::new(RichText::new(title).strong().color(self.ui.tokens.text)).truncate());
+            ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
+                controls.push(self.bar_end(ui, acts));
+            });
+        });
+        ui.allocate_ui_with_layout(row, Layout::top_down(Align::Center), |ui| {
+            controls.push(self.top_search(ui, (full.width() - 16.0).max(64.0), acts));
+        });
         controls
     }
 
@@ -191,7 +300,7 @@ impl MailApp {
             // The most important background work: a data file's import, then its compaction,
             // then the search index.
             let now = ui.input(|i| i.time);
-            if !super::importing::status_segment(ui, s, &t, &mut details, &mut acts)
+            if !super::importing::status_segment(ui, s, &t, self.ui.can_open_path, &mut details, &mut acts)
                 && let Some((text, permille, hover)) = background_work(s, &self.ui.compact, now)
             {
                 ui.add_space(6.0);
@@ -304,6 +413,9 @@ impl MailApp {
         }
         self.ui.seen_notices = self.session.notices.len();
         let Some((text, error, at)) = self.ui.toast.clone() else { return };
+        let notification_settings_notice =
+            text == i18n::t("Android notifications are off. Turn them on in Settings for new mail and calendar reminders.");
+        let show_notification_settings = notification_settings_notice && self.services.can_open_notification_settings();
         let ttl = if error { 7.0 } else { 3.5 };
         if now - at > ttl {
             self.ui.toast = None;
@@ -339,7 +451,16 @@ impl MailApp {
                     .show(ui, |ui| {
                         ui.set_max_width(420.0);
                         // Notices from the engine are English; the ones with a fixed text have a translation.
-                        ui.label(RichText::new(tl!(&text)).color(if error { Color32::WHITE } else { t.surface }));
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(RichText::new(tl!(&text)).color(if error { Color32::WHITE } else { t.surface }));
+                            let settings_button = egui::Button::new(tl!("Settings")).min_size(vec2(0.0, 44.0));
+                            if show_notification_settings
+                                && ui.add(settings_button).clicked()
+                                && let Err(error) = self.services.open_notification_settings()
+                            {
+                                self.session.notice(tf!("Couldn't open notification settings: {error}", error = error), true);
+                            }
+                        });
                     });
             });
     }

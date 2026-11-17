@@ -2,6 +2,7 @@
 //! signatures to pick, make, rename and delete, each formatted here or HTML code made elsewhere,
 //! and which goes into new messages and which into replies and forwards ("(none)" for none).
 
+use crate::bidi::ComboBoxExt as _;
 use mailcraft_engine::model::signature::FIRST_SIGNATURE;
 use serde_json::Value;
 
@@ -221,7 +222,7 @@ fn default_picker(ui: &mut Ui, id: &str, label: String, names: &[String], value:
     ui.horizontal(|ui| {
         ui.add_sized([150.0, 22.0], egui::Label::new(label));
         let none = tl!("(none)").to_string();
-        egui::ComboBox::from_id_salt(id).width(240.0).selected_text(value.clone().unwrap_or_else(|| none.clone())).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt(id).width(240.0).selected_text(value.clone().unwrap_or_else(|| none.clone())).show_ui_rtl(ui, |ui| {
             ui.selectable_value(value, None, none.as_str());
             for n in names {
                 ui.selectable_value(value, Some(n.clone()), n.as_str());
@@ -232,14 +233,14 @@ fn default_picker(ui: &mut Ui, id: &str, label: String, names: &[String], value:
 }
 
 pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(520.0);
+    set_dialog_width(ui, 520.0);
     title(ui, t, "Signatures");
     // Which one: picked from the account's (the one being edited saved first), a new one, or
     // this one deleted.
     let mut pick: Option<Option<String>> = None;
     ui.horizontal(|ui| {
         let shown = if f.editing.is_some() { f.name.clone() } else { tl!("New signature").to_string() };
-        egui::ComboBox::from_id_salt("signature-pick").width(220.0).selected_text(shown).show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("signature-pick").width(220.0).selected_text(shown).show_ui_rtl(ui, |ui| {
             for n in &f.names {
                 let on = f.editing.as_deref().is_some_and(|e| e.eq_ignore_ascii_case(n));
                 if ui.selectable_label(on, n.as_str()).clicked() && !on {

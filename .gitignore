@@ -5,3 +5,4 @@ plan/
 *.tmp*
 .DS_Store
 /.claude/
+/apps/mailcraft-android/android/.gradle/

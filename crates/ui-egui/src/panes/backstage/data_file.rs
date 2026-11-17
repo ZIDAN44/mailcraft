@@ -45,7 +45,16 @@ pub(crate) fn report_line(r: &CompactReport) -> Option<String> {
 }
 
 /// The Mailbox settings card for account `a`.
-pub(super) fn mailbox(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, a: &AccountState, b: &mut Backstage, acts: &mut Vec<Action>) {
+pub(super) fn mailbox(
+    s: &Session,
+    t: &Tokens,
+    has_files: bool,
+    can_open_path: bool,
+    ui: &mut Ui,
+    a: &AccountState,
+    b: &mut Backstage,
+    acts: &mut Vec<Action>,
+) {
     let id = a.config.id.clone();
     // Mailbox: space used on the server and here, where the data file is, emptying.
     let now = stamp(s, &id);
@@ -118,7 +127,7 @@ pub(super) fn mailbox(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, a: 
         if let Some(file) = &file {
             // Where, as Outlook shows a data file's place, with its folder a click away.
             setting_row(ui, t, false, name(t, tl!("Location")), Some(note(t, &file.display().to_string())), |ui| {
-                if ui.button(tl!("Open folder")).clicked() {
+                if can_open_path && ui.button(tl!("Open folder")).clicked() {
                     // The folder the data file is in (or the account's own folder).
                     let dir = if file.is_dir() { file.clone() } else { file.parent().map_or_else(|| file.clone(), Path::to_path_buf) };
                     acts.push(Action::OpenFolder(dir));

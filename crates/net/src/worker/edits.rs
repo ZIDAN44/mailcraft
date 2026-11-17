@@ -14,7 +14,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use super::*;
 
 /// How long [`Edits::flush`] waits for the changes before it to be on disk.
-const FLUSH_WAIT: Duration = Duration::from_secs(10);
+pub(super) const FLUSH_WAIT: Duration = Duration::from_secs(10);
 
 /// The thread each change was made on, by account (tests).
 #[cfg(test)]
@@ -121,12 +121,18 @@ impl Edits {
 
     /// Wait (a while at most) until the changes made so far are on disk: before what reads the
     /// cache as a whole (an export).
-    pub(super) fn flush(&self) {
-        let Some(tx) = self.tx.as_ref() else { return };
+    pub(super) fn flush(&self, timeout: Duration) -> bool {
+        let Some(tx) = self.tx.as_ref() else { return true };
         let (done, wait) = mpsc::channel();
-        if tx.send(Edit::Flush(done)).is_ok() && wait.recv_timeout(FLUSH_WAIT).is_err() {
-            log::warn!("changes to mail: still being saved after {} s", FLUSH_WAIT.as_secs());
+        if tx.send(Edit::Flush(done)).is_err() {
+            log::warn!("changes to mail: the writer thread stopped before it could flush");
+            return false;
         }
+        if wait.recv_timeout(timeout).is_err() {
+            log::warn!("changes to mail: still being saved after {} s", timeout.as_secs());
+            return false;
+        }
+        true
     }
 
     /// Every change made on disk before the app goes: the thread ends with its queue.

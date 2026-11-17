@@ -138,11 +138,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"path": string}"#),
         CommandSpec::new("category.import", "Import categories", "Home › Tags › Categorize › All Categories", |s, v| {
-            let path = p::req_str(v, "path")?;
-            let bytes = read_capped(path, 1 << 20)?;
+            let bytes = match p::bytes(v, "data", 1 << 20)? {
+                Some(bytes) => bytes,
+                None => read_capped(p::req_str(v, "path")?, 1 << 20)?,
+            };
             s.import_categories(&bytes)
         })
-        .params(r#"{"path": string}"#),
+        .params(r#"{"path": string, "data"?: [bytes] | "dataBase64"?: string (the file itself, in place of path)}"#),
         // Rules
         CommandSpec::new("rules.list", "Rules", "Home › Rules", |s, _| Ok(json!(s.rules))),
         CommandSpec::new("rules.set", "Replace rules", "Home › Rules", |s, v| {
@@ -179,11 +181,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"path": string}"#),
         CommandSpec::new("rules.import", "Import rules", "Home › Rules › Options", |s, v| {
-            let path = p::req_str(v, "path")?;
-            let bytes = read_capped(path, 4 << 20)?;
+            let bytes = match p::bytes(v, "data", 4 << 20)? {
+                Some(bytes) => bytes,
+                None => read_capped(p::req_str(v, "path")?, 4 << 20)?,
+            };
             s.import_rules(&bytes, p::bool(v, "replace").unwrap_or(false))
         })
-        .params(r#"{"path": string, "replace"?: bool (in place of the rules here; else added after them)}"#),
+        .params(r#"{"path": string, "data"?: [bytes] | "dataBase64"?: string (the file itself, in place of path), "replace"?: bool (in place of the rules here; else added after them)}"#),
         CommandSpec::new("rules.run", "Run rules now", "Home › Rules", |s, v| {
             s.run_rules_now(p::u64(v, "index").and_then(|i| usize::try_from(i).ok()), p::bool(v, "inbox").unwrap_or(false))
         })

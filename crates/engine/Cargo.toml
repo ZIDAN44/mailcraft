@@ -10,6 +10,7 @@ description = "MailCraft engine: the session, its command registry and the sans-
 workspace = true
 
 [dependencies]
+base64 = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-mime = { workspace = true }
 mailcraft-smime = { workspace = true }

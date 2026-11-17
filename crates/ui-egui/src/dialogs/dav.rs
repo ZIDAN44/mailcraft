@@ -50,7 +50,7 @@ impl DavForm {
 }
 
 pub(super) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(480.0);
+    set_dialog_width(ui, 480.0);
     title(ui, t, "Calendars and contacts");
     let about = tl!(
         "MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it."

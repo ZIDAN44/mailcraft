@@ -60,6 +60,7 @@
 	Delete “{folder}”?	“{folder}” verwijderen?
 	Deleted Items	Verwijderde items
 	Discard	Verwerpen
+	Discard these changes?	Deze wijzigingen verwerpen?
 	Disconnected: {error}	Verbinding verbroken: {error}
 	Document	Document
 	Don't run later rules on mail this one matches	Geen latere regels uitvoeren op mail waarop deze van toepassing is
@@ -385,6 +386,11 @@
 	Google (IMAP)	Google (IMAP)
 	I'm away until…	Ik ben weg tot…
 	Inbox and notifications	Postvak IN en meldingen
+	Android notifications are off. Turn them on in Settings for new mail and calendar reminders.	Android-meldingen staan uit. Schakel ze in Instellingen in voor nieuwe e-mail en agenda-herinneringen.
+	Settings	Instellingen
+	Android's encrypted credential store is unavailable. MailCraft will keep credentials in memory until it closes.	De versleutelde aanmeldgegevensopslag van Android is niet beschikbaar. MailCraft bewaart aanmeldgegevens in het geheugen totdat het wordt afgesloten.
+	The Android file picker couldn't open. In Files, choose Share → MailCraft to use the file.	De Android-bestandskiezer kon niet worden geopend. Kies in Bestanden Delen → MailCraft om het bestand te gebruiken.
+	MailCraft couldn't save the file. Try again.	MailCraft kan het bestand niet opslaan. Probeer het opnieuw.
 	Info	Info
 	Kept on this computer: {size}	Op deze computer bewaard: {size}
 	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft praat alleen met je eigen mailservers, via versleutelde verbindingen. Afbeeldingen van het web worden alleen geladen als je erom vraagt.
@@ -765,6 +771,8 @@ month	May	mei
 	Mail from an old .pst or .mailcraft file comes in first	E-mail uit een oud .pst- of .mailcraft-bestand komt eerst binnen
 	Open a data file	Een gegevensbestand openen
 	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Haal een Outlook-gegevensbestand (.pst) of een MailCraft-bestand (.mailcraft) binnen. Het opent als een eigen postvak, met zijn mappen, bewaard op deze computer.
+	You can also open a message (.eml or .msg), calendar (.ics) or contacts (.vcf) file.	U kunt ook een berichtbestand (.eml of .msg), agenda (.ics) of contactbestand (.vcf) openen.
+	The file {name} could run a program, so it isn't opened from here; save it and check it first.	Het bestand {name} kan een programma uitvoeren en wordt daarom hier niet geopend. Sla het op en controleer het eerst.
 	Move up	Omhoog
 	Move down	Omlaag
 	Updating…	Bijwerken…
@@ -877,6 +885,27 @@ month	May	mei
 	 and {n} more	 en nog {n}
 	Add to contacts…	Toevoegen aan contactpersonen…
 	Copy address	Adres kopiëren
+	Copy phone number	Telefoonnummer kopiëren
+	Share contact	Contact delen
+	Share attachment	Bijlage delen
+	Share message	Bericht delen
+	Share selected attachments	Geselecteerde bijlagen delen
+	The selected attachments are too large to share	De geselecteerde bijlagen zijn te groot om te delen
+	You can share up to {n} attachments at once	Je kunt maximaal {n} bijlagen tegelijk delen
+	This attachment is too large to share	Deze bijlage is te groot om te delen
+	This message is too large to share	Dit bericht is te groot om te delen
+	No Android app can share files	Geen Android-app kan bestanden delen
+	Save contact	Contact opslaan
+	Share event	Agenda-item delen
+	Add to Android calendar	Toevoegen aan Android-agenda
+	This event is too large to add to Android calendar	Dit agenda-item is te groot voor de Android-agenda
+	This event has an invalid date for Android calendar	Dit agenda-item heeft een ongeldige datum voor de Android-agenda
+	No Android calendar app can add events	Geen Android-agenda-app kan items toevoegen
+	Save event	Agenda-item opslaan
+	This event is too large to share	Dit agenda-item is te groot om te delen
+	No Android app can share calendar events	Geen Android-app kan agenda-items delen
+	This contact is too large to share	Dit contact is te groot om te delen
+	No Android app can share contacts	Geen Android-app kan contacten delen
 	Edit contact…	Contactpersoon bewerken…
 	Send email	E-mail verzenden
 	Add	Toevoegen
@@ -1621,3 +1650,34 @@ month	May	mei
 	it can't be decrypted with your OpenPGP key	het kan niet worden ontsleuteld met uw OpenPGP-sleutel
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	uw OpenPGP-sleutels worden gebruikt door de desktop-app van MailCraft, niet in de browser
 	Not sent yet: this is a draft.	Nog niet verzonden: dit is een concept.
+	The selected text is too large for Android's clipboard	De geselecteerde tekst is te groot voor het Android-klembord.
+	MailCraft couldn't copy text to Android's clipboard.	MailCraft kon de tekst niet naar het Android-klembord kopiëren.
+	The Android clipboard text is too large to paste.	De tekst op het Android-klembord is te groot om te plakken.
+	Add to Android contacts	Toevoegen aan Android-contacten
+	This contact is too large to add to Android contacts	Dit contact is te groot voor Android-contacten
+	No Android contacts app can add contacts	Geen Android-contacten-app kan contacten toevoegen
+	This link has no address scheme	Deze link heeft geen adresprotocol
+	This link is too long to open	Deze link is te lang om te openen
+	MailCraft can open web links and mail links on Android	MailCraft kan web- en e-maillinks openen op Android
+	No Android app can open this link	Geen Android-app kan deze link openen
+	This phone number is too long to open	Dit telefoonnummer is te lang om te openen
+	This phone number contains characters Android cannot dial	Dit telefoonnummer bevat tekens die Android niet kan kiezen
+	This contact has no dialable phone number	Dit contact heeft geen telefoonnummer dat kan worden gekozen
+	No Android dialer app can open this number	Geen Android-telefoonapp kan dit nummer openen
+	This contact has no address to open	Dit contact heeft geen adres om te openen
+	This address is too long to open	Dit adres is te lang om te openen
+	No Android map app can open this address	Geen Android-kaartenapp kan dit adres openen
+	MailCraft can open shared .eml, .msg, .ics, .vcf, .pst and .mailcraft files	MailCraft kan gedeelde .eml-, .msg-, .ics-, .vcf-, .pst- en .mailcraft-bestanden openen
+	No Android app can open this file	Geen Android-app kan dit bestand openen
+	MailCraft's save queue is full. Wait for current saves to finish before saving more files.	De opslagwachtrij van MailCraft is vol. Wacht tot de huidige bestanden zijn opgeslagen voordat je meer bestanden opslaat.
+	Share a single .pst or .mailcraft data file at a time	Deel één .pst- of .mailcraft-gegevensbestand tegelijk
+	Choose a .pst or .mailcraft data file for this account	Kies een .pst- of .mailcraft-gegevensbestand voor dit account
+	Android did not return a document URI for the selected file	Android heeft geen document-URI voor het geselecteerde bestand teruggegeven
+	The selected document address is too long	Het adres van het geselecteerde document is te lang
+	The selected file is larger than {size} MiB	Het geselecteerde bestand is groter dan {size} MiB
+
+	Move and delete	Verplaatsen en verwijderen
+	Attendees:	Deelnemers
+	Couldn't open notification settings: {error}	Kan de meldingsinstellingen niet openen: {error}
+	Name and email address	Naam en e-mailadres
+	Organizer:	Organisator:

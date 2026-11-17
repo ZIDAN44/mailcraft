@@ -51,6 +51,9 @@ Each account's worker repeats these stages:
      (RFC 6154) or from the usual folder names;
   3. syncs every folder, Inbox first, and downloads messages the user opens between folders;
   4. syncs calendars and contacts.
+  A `SyncFinished` event follows each full pass after its calendar/contact attempt. It lets a
+  platform scheduler wait for completed work; `success` is false if the connection was lost or the
+  worker stopped during the pass.
 - **Wait for new mail.** IDLE (RFC 2177) keeps a connection open so the server can announce new
   mail at once. The worker IDLEs on the Inbox and renews it every 10 minutes. On servers without
   IDLE it checks every 2 minutes. Every 15 minutes it runs a full sync.

@@ -13,11 +13,13 @@ use crate::{Action, widgets};
 /// The React button, beside Forward: a menu of the six reactions.
 pub(crate) fn react_button(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
     let b = widgets::pill_button(ui, Icon::Smile, "React", t).on_hover_text(tl!("Send a reaction to everyone it went to"));
-    egui::Popup::menu(&b).show(|ui| {
+    crate::bidi::popup_menu(&b).show(|ui| {
+        let touch = ui.ctx().input(|input| input.has_touch_screen());
+        let size = if touch { 44.0 } else { 32.0 };
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 2.0;
             for emoji in mailcraft_engine::mime::REACTIONS {
-                let (rect, resp) = ui.allocate_exact_size(vec2(32.0, 32.0), Sense::click());
+                let (rect, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
                 if resp.hovered() {
                     ui.painter().rect_filled(rect, 6.0, t.hover);
                 }
@@ -42,6 +44,7 @@ pub(crate) fn reactions_row(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageK
     if all.is_empty() {
         return;
     }
+    let touch = ui.ctx().input(|input| input.has_touch_screen());
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
         for r in all.iter().take(12) {
@@ -50,7 +53,9 @@ pub(crate) fn reactions_row(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageK
             let text = if drawn { r.people.len().to_string() } else { format!("{} {}", r.emoji, r.people.len()) };
             let galley = ui.painter().layout_no_wrap(text, crate::theme::regular(14.0), t.text);
             let art = if drawn { 18.0 } else { 0.0 };
-            let (rect, resp) = ui.allocate_exact_size(galley.size() + vec2(16.0 + art, 8.0), Sense::click());
+            let chip_width = (galley.size().x + 16.0 + art).max(if touch { 44.0 } else { 0.0 });
+            let chip_height = (galley.size().y + if touch { 20.0 } else { 8.0 }).max(if touch { 44.0 } else { 0.0 });
+            let (rect, resp) = ui.allocate_exact_size(vec2(chip_width, chip_height), Sense::click());
             let fill = if r.mine {
                 t.accent.gamma_multiply(0.18)
             } else if resp.hovered() {

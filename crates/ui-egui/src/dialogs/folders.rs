@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::ConfirmDelete { count } => {
-            ui.set_width(360.0);
+            set_dialog_width(ui, 360.0);
             title(ui, t, "Delete permanently?");
             let what = if *count == 1 {
                 tl!("This message will be deleted for good. This can't be undone.").to_string()
@@ -21,7 +21,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::MoveTo { filter } => {
-            ui.set_width(340.0);
+            set_dialog_width(ui, 340.0);
             title(ui, t, "Move to folder");
             let r = ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
             r.request_focus();
@@ -61,7 +61,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !buttons(ui, t, "Move", false).1
         }
         Dialog::FolderName { account, parent, rename, name, error } => {
-            ui.set_width(360.0);
+            set_dialog_width(ui, 360.0);
             title(ui, t, if rename.is_some() { "Rename folder" } else { "New folder" });
             if rename.is_none() {
                 let place = parent.as_deref().and_then(|p| s.folder(account, p)).map(Folder::display_name);
@@ -94,7 +94,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::MoveFolder { account, folder, filter, error } => {
-            ui.set_width(340.0);
+            set_dialog_width(ui, 340.0);
             let name = s.folder(account, folder).map(Folder::display_name).unwrap_or_default();
             title(ui, t, &tf!("Move “{folder}” to", folder = name));
             let r = ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
@@ -129,7 +129,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !buttons(ui, t, "Move", false).1
         }
         Dialog::DeleteFolder { account, folder, name, permanent, error } => {
-            ui.set_width(380.0);
+            set_dialog_width(ui, 380.0);
             title(ui, t, &tf!("Delete “{folder}”?", folder = name));
             let text = if *permanent {
                 tl!("The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.")
@@ -148,7 +148,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::FolderProperties { name, account, location, total, unread, size } => {
-            ui.set_width(380.0);
+            set_dialog_width(ui, 380.0);
             title(ui, t, &tf!("{folder} Properties", folder = name));
             egui::Grid::new("folder-props").num_columns(2).spacing(vec2(16.0, 6.0)).show(ui, |ui| {
                 let rows = [
@@ -168,7 +168,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             close_row(ui)
         }
         Dialog::ConfirmEmpty { account, folder, name, for_good } => {
-            ui.set_width(400.0);
+            set_dialog_width(ui, 400.0);
             if *for_good {
                 title(ui, t, &tf!("Empty “{folder}”?", folder = name));
                 ui.label(

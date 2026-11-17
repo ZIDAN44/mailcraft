@@ -132,7 +132,7 @@ impl Session {
                             all_day: e.all_day,
                             summary: e.summary.clone(),
                             location: e.location.clone(),
-                            recurring: e.rrule.is_some() || e.recurrence_id.is_some(),
+                            recurring: e.is_recurring(),
                             upcoming: end > now,
                             categories: e.categories.clone(),
                             color: Session::calendar_color(a, cal),

@@ -21,9 +21,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("compose.update", "Edit message", "Message", compose_update)
             .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "marks"?: bool (the body uses **bold**, *italic*, - lists…), "account"?: string, "importance"?: "high"|"normal"|"low", "readReceipt"?: bool, "replyTo"?: string (where replies go), "sendAfter"?: number (Unix seconds: held in the Outbox until then; 0 sends at once)}"#)
             .when(has_compose),
-        CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "data": [bytes]}"#).when(has_compose),
+        CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach)
+            .params(r#"{"path": string} | {"name": string, "data": [bytes] | "dataBase64": string}"#)
+            .when(has_compose),
         CommandSpec::new("compose.insertPicture", "Insert picture", "Message › Insert", insert_picture)
-            .params(r#"{"path": string} | {"name": string, "data": [bytes]}, "insert"?: bool (default true), "at"?: number (character; default the end), "width"?: number (CSS pixels it's shown and sent at; default its own width), "line"?: bool (on a line of its own), "quoteCell"?: number (into that block of text of the quoted original, `at` counted in it)"#)
+            .params(r#"{"path": string} | {"name": string, "data": [bytes] | "dataBase64": string}, "insert"?: bool (default true), "at"?: number (character; default the end), "width"?: number (CSS pixels it's shown and sent at; default its own width), "line"?: bool (on a line of its own), "quoteCell"?: number (into that block of text of the quoted original, `at` counted in it)"#)
             .when(has_compose),
         CommandSpec::new("compose.resizePicture", "Picture size", "Message › Picture", resize_picture)
             .params(r#"{"cid": string, "width"?: number (CSS pixels; 0 or none: its own width)}"#)
@@ -139,7 +141,7 @@ pub(super) fn compose_update(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// Largest attachment accepted (most servers refuse messages over 25–35 MB).
-pub(super) const ATTACH_MAX: usize = 25 << 20;
+pub(super) const ATTACH_MAX: usize = crate::MAX_ATTACHMENT_BYTES;
 
 /// A file from `path`, or `name` and `data` (bytes), at most 25 MB.
 pub(super) fn file_param(v: &Value) -> Result<(String, Vec<u8>), CmdError> {
@@ -152,14 +154,7 @@ pub(super) fn file_param(v: &Value) -> Result<(String, Vec<u8>), CmdError> {
         (pb.file_name().and_then(|n| n.to_str()).unwrap_or("attachment").to_string(), data)
     } else {
         let name = p::req_str(v, "name")?.to_string();
-        let data: Vec<u8> = v
-            .get("data")
-            .and_then(Value::as_array)
-            .ok_or_else(|| CmdError::Params("`path`, or `name` and `data`, are required".into()))?
-            .iter()
-            .take(ATTACH_MAX + 1)
-            .map(|b| b.as_u64().and_then(|x| u8::try_from(x).ok()).ok_or_else(|| CmdError::Params("`data` must be bytes".into())))
-            .collect::<Result<_, _>>()?;
+        let data = p::bytes(v, "data", ATTACH_MAX)?.ok_or_else(|| CmdError::Params("`path`, or `name` and `data`, are required".into()))?;
         (name, data)
     };
     if data.len() > ATTACH_MAX {
@@ -330,8 +325,13 @@ impl Session {
         if r.text_first {
             return Err(CmdError::Failed(crate::session::STILL_COMING.into()));
         }
+        self.attachment_bytes_for(&r.key, index)
+    }
+
+    /// An attachment from a downloaded message, whether or not it is the one open now.
+    pub fn attachment_bytes_for(&self, key: &mailcraft_model::MessageKey, index: usize) -> Result<Vec<u8>, CmdError> {
         // A signed or encrypted message's attachments are the ones inside it.
-        let raw = self.readable_raw(&r.key).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
+        let raw = self.readable_raw(key).ok_or_else(|| CmdError::Failed("the message isn't downloaded".into()))?;
         mailcraft_mime::attachment_data(&raw, index).ok_or_else(|| CmdError::Params(format!("no attachment {index}")))
     }
 

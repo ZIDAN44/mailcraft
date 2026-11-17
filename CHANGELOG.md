@@ -11,10 +11,265 @@ on GitHub.
 ## Unreleased
 
 ### Added
+- Android opens and saves files through its Activity's Storage Access Framework, so document providers receive the live Activity context they require.
+- Android reads and decodes pasted clipboard pictures in the background, keeping large images from freezing a message or signature editor.
+- Android reads files chosen in its document picker on a worker, so slow providers and large imports do not hold up the app window.
+- Android copies files pasted from the system clipboard in the background, keeping large attachments and slow document providers from freezing the compose window.
+- The phone contact list opens a touch-sized A–Z picker for jumping to a name.
+- Android fills the recipient, copy and blind-copy fields when another app shares a composed email with MailCraft.
+- Android resizes the app window for the on-screen keyboard without reserving the keyboard height twice.
+- Android 13 and later route system Back through MailCraft's navigation, including save prompts for edited messages.
+- Android's status and navigation bars match MailCraft's surfaces and keep their icons readable in both themes.
+- Android excludes Keystore-encrypted credentials from cloud backups and device transfers, so restoring a backup cannot restore ciphertext without its key.
+- Phone touch controls across navigation, mail lists, settings, formatting, contacts and calendar use a 44-point minimum target where they were previously 42 points.
+- Phone compose uses 48-point touch targets for recipient suggestions, address and subject fields, and the full-width Send button.
+- Screen readers announce each task's title, due date, status and priority in both phone cards and the full task list.
+- On touch screens, long-press an attachment to select several; tap attachments to add or remove them, then share or save the selection.
+- Touch screens use 48-point attachment rows with a 44-point remove button while composing.
+- The phone contact list keeps its columns readable, scrolls sideways when they do not fit the screen, and gives each row a 48-point touch target.
+- Screen readers announce calendar dates and appointments by their visible date, title and time.
+- Screen readers announce contacts, address books and the available alphabetical shortcuts.
+- Dropdown menus across the app use 44-point touch targets on touch screens.
+- The phone navigation bar opens Mail, Calendar, People, Tasks and Notes directly.
+- Android opens attachments in compatible apps through a temporary, read-only content URI for MailCraft's private attachment cache.
+- Android schedules full mail and calendar/contact sync passes through WorkManager after the app backgrounds and when Android grants background time, while honoring **Work offline**.
+- Android background sync and reminder checks use the same cache directory as the foreground app, including when storage migration falls back.
+- Android posts a private, count-only notification when a background sync finds new mail; tapping it opens a message directly, or the Inbox if no message key is available.
+- On phones, the top-bar Back button closes a message editor with a save prompt and saves an edited note before returning to its list.
+- The phone top bar shows the subject of the open draft, or **New mail** before it has one.
+- On phones, the mail top bar shows the current folder or search results, and an open message's subject.
+- On phones, contact and task details show the selected person's name or task title in the top bar.
+- On phones, the top bar identifies the note being edited, or shows **New note** before it has a title.
+- On phones, a folder's account address appears beside its name so multiple mailboxes are easy to tell apart.
+- Android checks cached calendar and task reminders without a network connection and opens the matching event or task when a reminder is tapped.
+- Android follows the Activity's configured language and updates it when the device locale changes while MailCraft is open.
+- Android follows the system text-size setting across the interface, including touch controls and scrollable layouts.
+- Android reopens the last cached message when MailCraft was closed from the mail view.
+- Android reopens the active draft after an interruption, retrying after sync and finding a server-saved copy by its message ID when needed.
+- Android restores the last mail search from its offline cache after a restart.
+- Android restores the last mail filter and Focused/Other tab with the mail view.
+- Android reopens the last calendar event detail when the event is still in the offline cache.
+- On phones, Back returns from task details and saves an edited note.
+- On phones, Back asks before discarding an edited event, task or contact form.
+- Android Back clears calendar, contact, task or note search before leaving that module.
+- Android restores the calendar, contacts, tasks and notes search when reopening that module.
+- Android restores an unfinished task form after an interruption, checking its account and categories against current data.
+- Android restores a calendar event form after an interruption when its event and writable calendar are still available.
+- Android restores a contact form after an interruption when an edited contact is still in the offline cache.
+- Android checkpoints an edited note after a short pause, when it goes to the background, and before it closes.
+- Android returns to the last open contact when MailCraft was closed from its address book.
+- Android returns to the last selected task when MailCraft was closed from Tasks.
+- Android refreshes phone/tablet layout and text-size settings when display configuration changes without an app restart.
+- Phone offline, reconnect and Outbox controls have full-height touch targets.
+- All choices in the phone's **More actions** menu have full-height touch targets in every module.
+- The phone's **More options** menu has touch-sized entries for Tasks and Notes.
+- The phone's **More actions** menu can switch **Work offline** without opening the full ribbon.
+- The phone mail bar offers a direct, touch-sized **Send / Receive** button beside **New mail** when a server account is available and **Work offline** is off; it shows progress while accounts connect or sync.
+- On phones, pulling the mail list past its top edge shows a **Send / Receive** cue; releasing starts sync when online syncing is available.
+- Phone users can select every message in the current list from **More actions**.
+- Android notification settings separate new mail, calendar reminders and task reminders; disabling one category leaves the others active.
+- The Android notice for disabled notifications opens MailCraft's system notification settings directly.
+- Android creates all notification categories at startup and updates their names as soon as the app language changes.
+- Android requests notification permission on the UI thread and keeps notifications queued until the prompt is answered.
+- Phone-sized File settings now use full-width pages with touch-sized navigation and message actions instead of a fixed desktop sidebar.
+- Android uses the device's smallest-screen classification to keep phone layout in landscape without switching tablets when the keyboard resizes their window.
+- The phone folder drawer opens in landscape too and closes after you choose a folder.
+- The phone folder drawer closes immediately when you switch to another module from its navigation.
+- Android preserves the open MailCraft window while a notification, shared document or mail link is handed to it.
+- Phone-sized windows now use compact message margins, full-width compose attachments, and a header and quick-action bar sized for touch controls, one mail screen at a time, visible message action menus, and bottom navigation with an unread count; the full ribbon remains available on demand and wider layouts keep their split panes.
+- The first-run Outlook data-file option fills the card width and has a touch-sized target on phones.
+- Contact detail actions for sharing, saving and adding to the system address book have touch-sized targets.
+- Phone contact details show a dedicated Copy button beside each email address, phone number and postal address.
+- Phone-sized windows keep new messages, replies and drafts in the main screen, provide touch-sized switches between open messages, and use Back to close the editor with a save prompt when needed.
+- Phone message composition uses a full-width Send action above the address fields, leaving the entire phone width for recipient entry.
+- Phone mail lists support long-press multi-selection and tap-to-toggle; tapping a draft opens its editor directly, its left-swipe deletes it, and its action menu groups **Edit**, Move, Delete and source actions. Other mail archives on a left-swipe; a right-swipe changes read status. In conversation view, both gestures apply to every message in the conversation and use its aggregate unread state. Focused/Other and filter tabs have full touch targets, and the action bar shows the count, Archive and Delete, with a direct read-status button when it fits and Flag, read status, Move and clear controls in **More actions**.
+- Phone message action menus and their nested choices have full-height touch targets.
+- Phone mail lists give the sort field, reverse-order and search-scope controls full touch targets, with the filter tabs laid out around them.
+- Touch screens use 44-pixel targets for message reactions in both the picker and the message.
+- Category rows and color choices in category and appearance settings use touch-sized controls on phones.
+- Folder-navigation section headings, including Search Folders, have full touch targets on phones.
+- Conversation message lists use touch-sized, two-line rows on phones, keeping sender, preview and date readable.
+- Address-book search results show names and email addresses in touch-sized rows on phones.
+- Screen readers announce a recipient suggestion's name and email address while composing.
+- The To, Cc and Bcc buttons in the contact picker have full touch-sized targets.
+- Automatic-reply dates and subject fields use touch-sized inputs and fit narrow phone screens.
+- On touch screens, swipe a message left to archive it or right to mark it read or unread; desktop drag-to-move remains unchanged.
+- Android declares printed messages as `application/pdf` when handing them to the system PDF app.
+- Dropdown menus, nested submenus, selection lists and message action menus now align their contents to the reading direction, including organize actions.
+- Phone-sized calendars use a compact view selector, contacts open from a full-screen list into a contact card, tasks use touch-sized cards, and notes expand into a single-column layout.
+- Phone calendars give the Today and view-selector controls touch-sized targets; week views show an agenda grouped by day, and tapping a date opens its hourly timeline.
+- On short phone screens, the month calendar fits all six weeks with touch-sized days and compact event-count markers.
+- Calendar navigation follows the reading direction, including previous and next arrows in Arabic and Hebrew.
+- Phone screens show when MailCraft is working offline, disconnected or needs a new sign-in, and when messages are waiting in the Outbox, with direct controls to reconnect, open those messages or send them when online.
+- Android's document picker now names the operation it was opened for, including attachment, import and signature selections.
+- Android attaches files picked or shared into a waiting action directly from private staging, without an extra Base64 copy.
+- MailCraft restores the last open module, mail view, and calendar date and mode after it is reopened.
+- Android lets you add several attachments in one pass: the file picker reopens after each selection; Back or Cancel returns to the message with the files chosen so far.
+- Android can share up to 50 selected attachments, 25 MiB combined, with other apps through the system share sheet.
+- Android can share the open message as an `.eml` file up to 64 MiB with another app.
+- Android accepts clipboard text up to 4 MiB when pasting, matching its copy limit.
+- Android's native library uses 16 KB ELF segment alignment for devices using 16 KB memory pages.
+- Android copies selected message text and contact email addresses to the system clipboard and pastes text from other apps into MailCraft.
+- Contact email addresses, phone numbers and physical addresses can be copied from contact details, business cards and the phone list.
+- Mail links opened from a message now fill the new message's recipients, subject and body.
+- The link editor can now set the Cc, Bcc and message body of a `mailto:` link.
+- Android uses its platform trust store to validate mail server connections and S/MIME signatures.
+- Android contact phone numbers open the system dialer without placing a call.
+- Android telephone links in messages open the system dialer without placing a call.
+- Android opens telephone links that include a numeric `;ext=` extension in the system dialer.
+- Android contact addresses open the system map app without requesting location access.
+- Android calendar event locations open the system map app without requesting location access.
+- Calendar event locations can be copied from their details.
+- Calendar event organizers and attendees can now be contacted from the event details.
+- Contact email addresses open a new message to that person.
+- Android can share a contact as a vCard with another app.
+- Android can save a contact as a `.vcf` file through the system save picker.
+- Android can add a contact's name, nickname, all email addresses, phone numbers, postal addresses, websites, full-date birthday, anniversary and notes to the system contacts app without contacts permissions.
+- Android shows translated explanations when links, file handoffs or document picking cannot continue.
+- Android can share a calendar event as iCalendar text with another app.
+- Android can save a calendar event as an `.ics` file through the system save picker.
+- Android can add calendar series with recurrence rules, added dates and excluded dates without calendar permissions.
+- Calendar events repeated with added dates are now recognized as recurring in the agenda, search and occurrence-deletion flows.
+- Editing an event that repeats only on added dates now preserves those dates unless the repeat setting is cleared.
+- Clearing an event's repeat setting now removes both added and excluded recurrence dates.
+- Contact email, phone and address links have larger touch targets on phones and tablets.
+- Calendar organizer and attendee links have larger touch targets on phones and tablets.
+- Calendar event availability and privacy controls use touch-sized rows on phones.
+- Calendar invitation response choices wrap into view on narrow screens.
+- Online meeting links and controls wrap to fit narrow event forms.
+- Calendar organizer and attendee email addresses can be copied from their context menus.
+- Android preloads installed PKCS #11 modules in the S/MIME smart-card picker.
+- Narrow windows show the mail list and reading pane vertically and use a folder drawer that overlays the content.
+- Android's system Back key closes an open menu first, then the folder drawer or current dialog; it returns from an attachment preview to its message and uses the regular close flow at the app's root.
+- Touch screens use larger toolbar buttons, switches and message actions, account setup and message fields, recipient suggestions, list filters, attachment and invitation actions, message/contact/task rows and forms, folder rows, calendar days and calendar toggles for easier tapping.
+- Touch message rows expose the full message action menu in compact groups, including replies, forwarding, printing, follow-up, junk controls, related-message search and source viewing.
+- In the month calendar, tapping a day opens its day view; double-clicking with a mouse starts a new event.
 - A native Android app with the shared MailCraft UI, private offline cache, production sync worker, and Keystore-backed credentials.
+- Android writes diagnostic logs to its private data directory and records panic locations without panic messages.
+- Android installs with MailCraft's own launcher icon.
+- Android notifications use the MailCraft icon, with a system icon fallback if the resource is unavailable.
+- Android explains when notification permission is off and where to turn it on.
+- Android can ask for notification permission again after a previous request was denied.
+- Tapping a MailCraft notification now opens a new message or the calendar item that caused it.
+- Tapping a MailCraft notification while the app is already open now routes its target to the existing window.
+- Android keeps mail sync available in memory if the device Keystore cannot start, and warns that credentials will need entering again.
+- Android now stops background sync and seals its offline cache when the app closes.
+- Android checkpoints changed drafts when the app loses focus, keeping a local copy and queueing server sync.
+- Android checkpoints changed drafts after two seconds without input, no more than once every five seconds while the app stays open.
+- Android flushes the latest UI preferences to private storage before the app is suspended.
+- Android gives queued offline mail changes time to reach its cache when the app loses focus.
+- Android queues a sync for each server account when the app returns to the foreground.
+- Android keeps every file in a multi-file share attached to the pending action.
+- Android applies the message's total attachment size limit to files shared into a waiting attach action.
+- Android refreshes the system time zone and light or dark appearance when the app returns to the foreground.
+- Android queues a sync for each server account when the app first opens.
+- Android keeps resume and network-recovery syncs pending until the 30-second throttle allows them.
+- Android remembers MailCraft preferences, language, theme, and People view across launches.
+- Android prepares messages and decodes pictures on worker threads so the window can keep responding.
+- Android previews video attachments with the device's media decoder.
+- Android reads the device's named time zone for calendar dates and recurring events.
+- Android keeps the UI clear of the current status bar, navigation bar and display cutouts.
+- Android keeps focused text fields clear of the software keyboard while typing.
+- Android follows the device's light or dark appearance when MailCraft uses the system theme.
+- Android uses installed system fonts for Chinese, Japanese and Korean text and right-to-left scripts.
+- Android can paste a copied clipboard image into a message or signature.
+- Android can attach empty files copied to the clipboard.
+- Android keeps a shared subject when creating a message with no shared body text.
+- Android can attach copied clipboard files when the source app exposes them as document URIs.
+- Android removes temporary shared-attachment copies left behind if the process is interrupted.
+- Android saves downloads and exports to `Downloads/MailCraft` through MediaStore and opens saved attachments from there.
+- Android can use a file shared from Files as the fallback result when its system picker cannot open.
+- Android keeps downloaded filenames within device filesystem byte limits while preserving common extensions.
+- Android ignores a shared file if the picker action it was meant to complete has been waiting too long.
+- Android can choose an image from the system picker to add to an HTML signature.
+- Android recognizes picked image types from their file contents when a document provider omits or mislabels the extension.
+- Android reads clipboard attachment names from the document provider, even when its URI contains only an opaque id.
+- If Android's private cache cannot be opened, MailCraft now keeps network sync available with a temporary in-memory cache and warns that it won't persist.
+- Android offers Google and Microsoft browser sign-in when the corresponding OAuth client registration is configured for the build.
+- Android can notify about new mail and calendar reminders, with lock-screen content hidden; Android 13 and later ask before sending the first notification.
+- Web and calendar links open in Android's default app; `mailto:` links start a draft in MailCraft.
+- Android's system document picker can add an attachment or picture; import and export rules and categories; import certificates, OpenPGP keys, signatures or data files; save or open attachments in other apps; and open printed messages as PDFs in a document app. Large data files are staged on disk for the importer.
+- Android opens the system save picker for individual attachments, messages, PDFs, notes, rules and categories. **Save all** keeps its bounded queue, and account PST exports stream to Downloads.
+- Android limits queued Downloads to 64 files and 64 MiB of buffered data, with one larger file allowed when no save is active.
+- Android transfers owned message, PDF, attachment and export buffers straight to its save queue, avoiding another full-size copy while a document is saved or opened.
+- Android removes staged data archives when their account or import dialog is cancelled, and keeps submitted sources for imports that may resume later.
+- Android opens saved attachments using their filename's MIME type when the document provider reports only a generic type.
+- Android preserves an attachment's declared MIME type when saving or opening it, even when its file name suggests a different type.
+- Android opens shared `.eml`, `.msg`, `.ics` and `.vcf` files (up to 50 at a time), `mailto:` links, and shared plain text as a new message.
+- Android can open supported mail, calendar, contact and data files with **Open with** when a provider reports a generic MIME type but retains the filename in its URI.
+- Android opens a shared `.pst` or `.mailcraft` archive in the data-file import flow, up to 4 GiB per archive.
+- Android routes shared files, text and mail links from a second launch into the already running MailCraft window.
+- Android can receive shared files from other apps as new message attachments, up to 25 MiB total.
+- Android includes accompanying plain text from the share intent or its `ClipData` when creating a message for shared attachments.
+- Android converts HTML-only shares to plain text before adding them to a message.
+- Android caps shared mail and PIM batches at 128 MiB total and streams picked files into private storage with format-specific limits.
+- The Open & Export page can open `.eml` and `.msg` messages, `.ics` calendars and `.vcf` contacts as well as `.pst` and `.mailcraft` data files.
+
+### Changed
+- The Android app now requires Android 12 (API 31) or later.
+- Binary attachments and imported files now cross the UI command boundary as compact base64, avoiding the much larger JSON byte arrays.
+- Android keeps its local cache, preferences, logs and staged imports in the system's no-backup private directory, migrating existing data on first launch.
 
 ### Fixed
+- Android avoids copying clipboard text again when the system has already supplied it.
+- Android displays the translated save error if a background download cannot start.
+- A failed Android file handoff now releases the waiting picker so another selection can start.
+- Android's headless background sync honors saved cache-retention and **Work offline** preferences before connecting.
+- Android's foreground and headless calendar handling follows named and fixed-offset device time zones.
+- Android's background notifications follow the app's system language when **Same as the system** is selected.
+- A background new-mail notification opens the newest message found across the sync, rather than an older message from its batch.
+- Android updates the background sync gate in the same UI frame as a change to **Work offline**.
+- Android restores **Work offline** before an automatic sync can be queued at launch.
+- Android now exposes **Work offline**, uses local video previews and reports native file support independently from its Downloads workflow.
+- Android no longer shows file-location buttons for private app folders that its system file browser cannot open.
+- Android keeps resume and network-recovery syncs pending while **Work offline** is enabled, then relies on the account workers' reconnect sync when it is turned off.
+- Android preserves the active file-picker action if a second picker request arrives before it completes.
+- The shared file-attachment action now asks a platform's asynchronous picker only once.
+- Android removes temporary clipboard-file copies after attaching them to a message.
+- Android now ends a rejected multi-file handoff immediately when it contains a data archive, instead of waiting for file results that will never arrive.
+- Arabic and Hebrew dialogs now align their contents and action buttons with the reading direction.
+- Calendar, People and Notes now mirror their rows, calendar grids and hand-painted text for Arabic and Hebrew; note text follows the direction of its content.
+- Android rejects calendar events whose end time is before their start instead of silently changing them to zero duration.
+- Android's file association patterns now match document extensions as Android simple globs expect.
+- Android notification taps now reach the existing window instead of being lost when NativeActivity is already running.
+- Permanent-delete confirmation now applies to quick actions and context menus as well as shortcuts and the ribbon.
+- Android's generic-MIME file associations now apply their extension patterns to content URIs.
+- Android retries saving UI preferences after a temporary storage failure, including at the next flush and on close.
+- Opening a stale Android mail notification now returns to the inbox instead of trying to open a message that is no longer cached.
+- Android removes control characters, line breaks and directional formatting marks from notification text.
+- Editing an existing `mailto:` link now reads and preserves its subject, CC, BCC and body fields with the RFC 6068 parser.
+- Android detects the software keyboard on older supported versions so it no longer covers focused text fields.
+- Android warns when notifications or their MailCraft channel are disabled in system settings.
+- Android recognizes copied document URIs labeled `text/uri-list` and ignores web links in that list.
+- Android keeps a duplicate share activity open until it finishes staging files, preserving temporary access to shared document URIs.
+- Android keeps saves and exports on its MediaStore path when platform version detection fails instead of invoking the incompatible picker fallback.
+- Android keeps a file queued for **Save as** when another system picker is open, then retries when it can.
+- Android checkpoints changed drafts and flushes queued offline writes before normal shutdown.
+- Android retries sync when a local-only network returns, even if Android does not mark it as internet-capable.
+- Android keeps text accompanying shared files even when Android labels the files with a generic MIME type.
+- The month calendar recognizes a mouse double-click on touch-enabled devices after touch input has been used.
+- Android opens shared mail and calendar files with the extension that matches their reported type.
+- Android skips video previews when frame dimensions are missing and bounds full-frame decoding on older Android versions.
+- Android removes only its own unfinished Downloads entries if the system stopped MailCraft during a save.
+- Android keeps saved preferences within the same size limit used when restoring them.
+- Android routes **Attach Files** through its asynchronous picker path instead of returning no files.
+- Android clears a failed or unreadable file-picker request, so a later shared file cannot complete an old action.
+- Android waits for captive portal sign-in before treating the network as restored, then retries synchronization.
+- A failed background draft checkpoint now reports its error and leaves the message marked unsaved.
+- Android removes a staged import file if the app closes before its file picker result reaches the UI.
+- Android bounds shared text, URIs, clipboard MIME types and document names before copying platform strings into Rust.
+- Android ends a shared-file batch cleanly when a document fails, instead of waiting forever for files it will not process.
 - The first-run welcome card now fits narrow windows without clipping its explanation.
+- Account, address-book, contact, calendar, task and message dialogs now fit narrow screens; their form fields and action rows wrap or stack when needed.
+- Android now starts with the device's local clock and UTC offset, so dates are not initialized as UTC.
+- Android avoids queueing a second full sync as soon as startup's account sync begins.
+- Android stops a shared-file import if its document provider stops returning bytes, instead of hanging.
+- Android removes unreferenced picker staging files older than a day after an interrupted process, while preserving data files used by imports.
+- Android opens supported files handed off with a `file://` URI as well as `content://`.
+- Android drops queued notifications after permission is denied instead of retrying old alerts.
+- Android removes pending temporary PST exports if the app closes before the save picker handles them.
+- Android hides local file-location actions for data it keeps in private app storage.
+- Android stops oversized picked files while streaming them, before they can fill private storage.
 
 ## 0.34.0
 

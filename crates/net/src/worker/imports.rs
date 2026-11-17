@@ -280,10 +280,16 @@ impl Pool {
         }
     }
 
+    /// Wait until local mail edits queued so far have reached the cache, up to `timeout`.
+    pub fn flush_changes(&self, timeout: Duration) -> bool {
+        self.edits.flush(timeout)
+    }
+
     /// Stop every account's threads, and pause the imports, waiting a few seconds at most for
     /// them to write what they hold (MailCraft closing). The changes to mail made so far are on
     /// disk first (a message marked read just before closing stays read).
     pub fn shutdown(&mut self) {
+        self.sync_completion.cancel_all();
         self.cancel_compacts();
         self.edits.finish();
         self.indexer.shutdown();
@@ -301,6 +307,7 @@ impl Pool {
 /// they hold). Waits for the changes to mail made so far to be on disk (`edits.rs`).
 impl Drop for Pool {
     fn drop(&mut self) {
+        self.sync_completion.cancel_all();
         self.edits.finish();
         self.stop_all();
         self.pause_imports(None);

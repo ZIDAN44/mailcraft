@@ -2,8 +2,94 @@
 
 use super::*;
 
+struct SaveAndOpenFiles {
+    opened: std::rc::Rc<std::cell::RefCell<Option<(String, String, Vec<u8>)>>>,
+    saved: std::rc::Rc<std::cell::RefCell<Vec<(String, String, Vec<u8>)>>>,
+    path_api_called: std::rc::Rc<std::cell::Cell<bool>>,
+}
+
+impl crate::Services for SaveAndOpenFiles {
+    fn clock(&self) -> (i64, i32) {
+        (NOW, 0)
+    }
+
+    fn pick_files(&mut self) -> Vec<std::path::PathBuf> {
+        Vec::new()
+    }
+
+    fn save_path(&mut self, _: &str) -> Option<std::path::PathBuf> {
+        self.path_api_called.set(true);
+        None
+    }
+
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        self.path_api_called.set(true);
+        Ok(())
+    }
+
+    fn downloads(&self) -> bool {
+        true
+    }
+
+    fn opens_files_after_saving(&self) -> bool {
+        true
+    }
+
+    fn save_as_owned(&mut self, name: &str, mime: &str, bytes: Vec<u8>) {
+        self.saved.borrow_mut().push((name.into(), mime.into(), bytes));
+    }
+
+    fn open_file_owned_with_mime(&mut self, name: &str, mime: &str, bytes: Vec<u8>) {
+        *self.opened.borrow_mut() = Some((name.into(), mime.into(), bytes));
+    }
+}
+
+#[test]
+fn message_saves_and_print_use_the_platform_file_flow_when_available() {
+    let (mut a, dir) = app("print-open");
+    let key = a.session.list.first().map(|message| message.key.clone()).unwrap();
+    a.session.open_message(&key);
+    let (opened, saved, path_api_called) = (
+        std::rc::Rc::new(std::cell::RefCell::new(None)),
+        std::rc::Rc::new(std::cell::RefCell::new(Vec::new())),
+        std::rc::Rc::new(std::cell::Cell::new(false)),
+    );
+    a.services = Box::new(SaveAndOpenFiles { opened: opened.clone(), saved: saved.clone(), path_api_called: path_api_called.clone() });
+
+    a.act(crate::Action::ExportPdf);
+    a.act(crate::Action::SaveMessage);
+    a.act(crate::Action::Print);
+
+    let saved = saved.borrow();
+    assert_eq!(saved.len(), 2);
+    assert!(saved.iter().any(|(name, mime, bytes)| name.ends_with(".pdf") && mime == "application/pdf" && bytes.starts_with(b"%PDF")));
+    assert!(saved.iter().any(|(name, mime, bytes)| name.ends_with(".eml") && mime == "message/rfc822" && !bytes.is_empty()));
+    let saved = opened.borrow();
+    assert!(saved.as_ref().is_some_and(|(name, mime, bytes)| name.ends_with(".pdf") && mime == "application/pdf" && bytes.starts_with(b"%PDF")));
+    assert!(!path_api_called.get(), "the native path picker isn't available on this platform");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 mod quote;
 mod sending;
+
+#[test]
+fn shared_email_opens_with_recipients_and_shows_copy_lines() {
+    let (mut a, dir) = app("shared-email");
+    a.open_shared_text("Shared subject", "Shared body", "to@studio.example", "cc@studio.example", "bcc@studio.example");
+    let compose = a.session.compose.as_ref().expect("sharing an email should open a draft");
+    assert_eq!(compose.subject, "Shared subject");
+    assert_eq!(compose.body, "Shared body");
+    assert_eq!(compose.to, "to@studio.example");
+    assert_eq!(compose.cc, "cc@studio.example");
+    assert_eq!(compose.bcc, "bcc@studio.example");
+    assert!(compose.show_cc, "the Cc and Bcc rows should be visible");
+
+    a.run("compose.discard", json!({}));
+    a.open_shared_text("To only", "Body", "to@studio.example", "", "");
+    assert!(a.session.compose.as_ref().is_some_and(|compose| !compose.show_cc), "empty Cc and Bcc should stay hidden");
+    let _ = std::fs::remove_dir_all(dir);
+}
 
 #[test]
 fn recipient_boxes_suggest_people() {
