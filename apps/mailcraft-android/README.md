@@ -145,6 +145,12 @@ emulator ABI with:
 gradle :app:assembleDebug -PmailcraftAbis=arm64-v8a,x86_64
 ```
 
+To include Google or Microsoft sign-in, provide the registration values from
+[`docs/oauth.md`](../../docs/oauth.md) as Gradle properties (`mailcraftMicrosoftClientId`,
+`mailcraftGoogleClientId` and `mailcraftGoogleClientSecret`) or matching `MAILCRAFT_*` environment
+variables. The Gradle properties work with an already-running Gradle daemon. The Android build
+tracks these values and rebuilds the Rust library when they change.
+
 Install to a connected device or emulator with:
 
 ```sh

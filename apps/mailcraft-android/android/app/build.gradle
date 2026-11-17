@@ -73,9 +73,20 @@ dependencies {
 }
 
 def registerRustBuild = { String variant, boolean release ->
+    def oauthRegistrations = [
+        MAILCRAFT_MICROSOFT_CLIENT_ID  : "mailcraftMicrosoftClientId",
+        MAILCRAFT_GOOGLE_CLIENT_ID     : "mailcraftGoogleClientId",
+        MAILCRAFT_GOOGLE_CLIENT_SECRET : "mailcraftGoogleClientSecret",
+    ]
+    def oauthValue = { String name ->
+        providers.gradleProperty(oauthRegistrations[name]).orElse(providers.environmentVariable(name)).orElse("")
+    }
     def outputDirectory = layout.buildDirectory.dir("generated/rustJniLibs/${variant}")
     def nativeBuild = tasks.register("buildMailCraftRust${variant.capitalize()}") {
         outputs.dir(outputDirectory)
+        oauthRegistrations.keySet().each { name ->
+            inputs.property("oauthRegistration_${name}", oauthValue(name))
+        }
         inputs.files(fileTree(cargoRoot) {
             include "Cargo.toml", "Cargo.lock", ".cargo/**", "apps/**", "crates/**"
             exclude "apps/mailcraft-android/android/**", "**/target/**", "**/build/**"
@@ -95,6 +106,7 @@ def registerRustBuild = { String variant, boolean release ->
                 }
                 exec {
                     workingDir cargoRoot
+                    environment oauthRegistrations.keySet().collectEntries { name -> [(name): oauthValue(name).get()] }
                     commandLine(["cargo"] + cargoArguments)
                 }
                 copy {
