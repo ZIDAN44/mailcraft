@@ -49,12 +49,19 @@ impl Worker {
         self.tell_transfer(last.clone());
         let secret = self.secret();
         let mut pace = Pace::default();
+        let mut listed = 0;
         let got = (|| {
             let mut c = crate::pop::open(&self.acc, &secret?)?;
             let mut watch = |f: &crate::pop::Fetching| {
                 last = receiving(f);
                 if pace.due() {
                     self.tell_transfer(last.clone());
+                }
+                // A batch saved: the Inbox shows it now, not at the end (a big download's Inbox
+                // stayed empty while the status bar counted its messages coming).
+                if f.saved > listed && !self.stopped() {
+                    listed = f.saved;
+                    self.sink.emit(Event::FolderChanged { account: self.id(), folder: path.to_string() });
                 }
                 !self.cancel_asked()
             };

@@ -32,11 +32,11 @@ fn a_download_says_how_it_goes_and_stops_when_asked() {
     let all: u64 = sizes.iter().sum();
     assert_eq!(
         heard.first(),
-        Some(&Fetching { done: 0, total: 5, bytes_done: 0, bytes_total: all }),
+        Some(&Fetching { done: 0, total: 5, bytes_done: 0, bytes_total: all, saved: 0 }),
         "told before the first, with all that's to come"
     );
     let three: u64 = sizes.iter().take(3).sum();
-    assert_eq!(heard.last(), Some(&Fetching { done: 3, total: 5, bytes_done: three, bytes_total: all }), "and as it stopped");
+    assert_eq!(heard.last(), Some(&Fetching { done: 3, total: 5, bytes_done: three, bytes_total: all, saved: 3 }), "and as it stopped");
     assert!(heard.windows(2).all(|w| w[0].done <= w[1].done && w[0].bytes_done <= w[1].bytes_done), "only ever further on");
     assert_eq!(store.load_folder("p1", "INBOX").unwrap().messages.len(), 3);
 
@@ -54,7 +54,7 @@ fn a_download_says_how_it_goes_and_stops_when_asked() {
     );
     c.quit().unwrap();
     let two: u64 = sizes.iter().skip(3).sum();
-    assert_eq!(heard.last(), Some(&Fetching { done: 2, total: 2, bytes_done: two, bytes_total: two }));
+    assert_eq!(heard.last(), Some(&Fetching { done: 2, total: 2, bytes_done: two, bytes_total: two, saved: 2 }));
     assert_eq!(store.load_folder("p1", "INBOX").unwrap().messages.len(), 5, "none twice");
 
     // Nothing new: told once, at the end, with nothing to come.
@@ -67,5 +67,35 @@ fn a_download_says_how_it_goes_and_stops_when_asked() {
     .unwrap();
     c.quit().unwrap();
     assert_eq!(heard, [Fetching::default()]);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// A big download is in the Inbox's list a batch at a time, and says so as each is saved: the
+/// window shows them as they come (a 210 MB download's Inbox stayed empty until its end).
+#[test]
+fn a_big_download_says_each_batch_it_saves() {
+    // Two of these pass a batch's size ([`SAVE_BYTES`]).
+    let big = SAVE_BYTES / 2 + 1;
+    let drop: Vec<(String, Vec<u8>)> = (0..3).map(|i| (format!("u{i}"), mail(&format!("B{i}"), &"y".repeat(big)))).collect();
+    let server = fake::serve(drop);
+    let dir = std::env::temp_dir().join(format!("mailcraft-pop-batches-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let store = Store::open(&dir).unwrap();
+    let acc = account(server.port);
+    folders(&store, "p1").unwrap();
+    let mut heard: Vec<Fetching> = Vec::new();
+    let mut c = open(&acc, "pw").unwrap();
+    let mut listed = Vec::new();
+    fetch_new_as(&mut c, &store, "p1", "INBOX", &Keep::default(), 1_000, 0, &mut |f| {
+        // What the Inbox's list has as it's told.
+        listed.push(store.load_folder("p1", "INBOX").unwrap().messages.len());
+        heard.push(*f);
+        true
+    })
+    .unwrap();
+    c.quit().unwrap();
+    let saved: Vec<u32> = heard.iter().map(|f| f.saved).collect();
+    assert_eq!(saved, [0, 0, 2, 3], "the first two saved before the third came, the third at the end");
+    assert_eq!(listed, [0, 0, 2, 3], "said once they're in the list");
     let _ = std::fs::remove_dir_all(dir);
 }

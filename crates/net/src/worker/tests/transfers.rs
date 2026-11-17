@@ -92,3 +92,23 @@ fn an_imap_accounts_send_receive_says_its_folders() {
     assert_eq!(last.total, 0, "counted in folders, not messages");
     pool.submit(Job::Remove { account: "i1".into() });
 }
+
+/// A big download's Inbox is said to have changed as each batch is saved, not only at its end:
+/// the window lists its mail as it comes.
+#[test]
+fn a_big_pop_download_shows_its_mail_as_it_comes() {
+    let big = "y".repeat((16 << 20) / 2 + 1);
+    let drop: Vec<(String, Vec<u8>)> =
+        (0..3).map(|i| (format!("u{i}"), format!("Subject: B{i}\r\nMessage-ID: <b{i}@x>\r\n\r\n{big}\r\n").into_bytes())).collect();
+    let server = crate::pop::fake::serve(drop);
+    let store = crate::fake::store("transfers-batches");
+    crate::fakes::fake_dav::looked_for_today(&store, "p1");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    let account = AccountConfig { smtp: no_smtp(), ..pop_account(server.port) };
+    pool.submit(Job::Start { account, password: Some(Secret("pw".into())) });
+    let seen = until(&pool, "the download's end", |e| ended(e, TransferKind::Receiving));
+    let inbox_changed = seen.iter().position(|e| matches!(e, Event::FolderChanged { folder, .. } if folder == "INBOX"));
+    let all_in = seen.iter().position(|e| transfer(e, TransferKind::Receiving).is_some_and(|t| t.done == 3));
+    assert!(inbox_changed.is_some() && inbox_changed < all_in, "the first two listed before the third came: {inbox_changed:?} {all_in:?}");
+    pool.submit(Job::Remove { account: "p1".into() });
+}

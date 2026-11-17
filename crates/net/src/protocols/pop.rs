@@ -412,13 +412,15 @@ pub fn fetch_new<S: Read + Write>(c: &mut Client<S>, store: &Store, account: &st
 }
 
 /// How a download is going, as Send / Receive shows it: messages and their bytes done of those
-/// new on the server (bytes as the server's `LIST` reckons them; none when it didn't say).
+/// new on the server (bytes as the server's `LIST` reckons them; none when it didn't say), and
+/// how many are in the Inbox's list already (saved a batch at a time: the window shows them).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Fetching {
     pub done: u32,
     pub total: u32,
     pub bytes_done: u64,
     pub bytes_total: u64,
+    pub saved: u32,
 }
 
 /// Download what's new into the Inbox, and remove from the server what the account says should go
@@ -480,6 +482,7 @@ pub fn fetch_new_as<S: Read + Write>(
     let on_server: HashSet<&str> = listed.iter().map(|(_, id)| id.as_str()).collect();
     d.state.retain(|id, _| on_server.contains(id.as_str()));
     if_kept(store, account, seen, || store.save_account_doc(account, STATE_DOC, &d.state))?;
+    told.going.saved = u32::try_from(d.saved).unwrap_or(u32::MAX);
     (told.watch)(&told.going);
     Ok(SyncReport { new: d.saved, total: u32::try_from(d.fs.messages.len()).unwrap_or(u32::MAX), unread: d.fs.unread(), ..Default::default() })
 }
@@ -564,6 +567,7 @@ impl Download<'_> {
                 }
                 continue;
             }
+            told.going.saved = u32::try_from(self.saved).unwrap_or(u32::MAX);
             if !(told.watch)(&told.going) {
                 return Ok(());
             }
