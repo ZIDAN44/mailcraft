@@ -19,7 +19,6 @@ pub(crate) fn cleanup_pending_downloads(app: &winit::platform::android::activity
             let owner_package = env.call_method(activity, "getPackageName", "()Ljava/lang/String;", &[])?.l()?;
             env.set_object_array_element(&selection_args, 0, &relative_path)?;
             env.set_object_array_element(&selection_args, 1, &owner_package)?;
-            let null = JObject::null();
             env.call_method(
                 &resolver,
                 "delete",

@@ -1,5 +1,3 @@
-use super::*;
-
 pub(crate) fn picker_fallback() -> String {
     mailcraft_ui_egui::i18n::t("The Android file picker couldn't open. In Files, choose Share → MailCraft to use the file.").to_owned()
 }

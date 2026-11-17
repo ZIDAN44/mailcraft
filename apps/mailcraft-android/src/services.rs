@@ -42,9 +42,8 @@ mod picking;
 mod save_as;
 mod video;
 pub(super) use downloads::cleanup_stale_open_files;
-pub(super) use handoff::discard_staged_android_file;
 pub(super) use handoff::{
-    AndroidHandoff, AndroidOpen, CachedDark, CachedZone, HandoffRoute, cleanup_interrupted_picker_staging, cleanup_shared_attachment_staging,
+    AndroidOpen, CachedDark, CachedZone, HandoffRoute, cleanup_interrupted_picker_staging, cleanup_shared_attachment_staging,
     incoming_android_intent, register_handoff_route, route_android_handoff,
 };
 use picking::{picker_fallback, picker_file_limit, read_picked_file};

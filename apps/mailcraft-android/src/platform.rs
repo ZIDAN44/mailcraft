@@ -228,7 +228,7 @@ pub(super) fn video_frame(app: &winit::platform::android::activity::AndroidApp, 
 }
 
 fn video_dimension(env: &mut jni::JNIEnv<'_>, retriever: &jni::objects::JObject<'_>, key: i32) -> Option<u32> {
-    use jni::objects::{JObject, JString, JValue};
+    use jni::objects::{JString, JValue};
 
     let value = match env.call_method(retriever, "extractMetadata", "(I)Ljava/lang/String;", &[JValue::Int(key)]).and_then(|value| value.l()) {
         Ok(value) => value,

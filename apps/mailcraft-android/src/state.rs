@@ -200,7 +200,7 @@ impl AndroidStateWriter {
                         }
                         StateMessage::Stop => {
                             if let Some(bytes) = retry.take() {
-                                last_write_succeeded = write_saved_state(&path, &bytes);
+                                let _ = write_saved_state(&path, &bytes);
                             }
                             break;
                         }

@@ -86,7 +86,7 @@ pub(crate) fn add_to_system_contacts(
     if text_bytes > MAX_SYSTEM_CONTACT_TEXT_BYTES || data_rows > MAX_SYSTEM_CONTACT_ROWS {
         return Err(mailcraft_ui_egui::i18n::t("This contact is too large to add to Android contacts").to_owned());
     }
-    use jni::objects::{JObject, JValue};
+    use jni::objects::JValue;
 
     let result = activity::with_activity(app, |env, activity| {
         let operation = (|| -> robius_android_env::Result<()> {
