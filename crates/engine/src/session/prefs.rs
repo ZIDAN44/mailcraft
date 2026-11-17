@@ -97,6 +97,9 @@ pub struct Prefs {
     /// The ribbon's buttons hidden, its tabs kept on the top bar: one clicked shows its buttons
     /// until a click elsewhere.
     pub ribbon_hidden: bool,
+    /// Send / Receive asked for (F9) opens its progress window. Off unless asked for, as
+    /// Outlook's: the status bar says how it goes, and opens the window when clicked.
+    pub open_send_receive: bool,
     /// The accent colour (issue #8): empty for MailCraft's teal, a named one ([`ACCENTS`]), or
     /// any colour as `#rrggbb`. The window adjusts it to read well in light and dark.
     pub accent: String,
@@ -318,6 +321,7 @@ impl Default for Prefs {
             single_line: false,
             classic_ribbon: false,
             ribbon_hidden: false,
+            open_send_receive: false,
             accent: String::new(),
             plain_top_bar: false,
             light_messages: false,

@@ -1792,3 +1792,29 @@ count	occurrences	keer
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Een certificeringsinstantie van uw organisatie, of het eigen certificaat van uw mailserver (.pem, .crt, .cer)
 	Trust a certificate file…	Een certificaatbestand vertrouwen…
 	The certificate is trusted for this account	Het certificaat wordt voor dit account vertrouwd
+	Send / Receive failed	Verzenden/ontvangen mislukt
+	Sending: {n} of {total}	Verzenden: {n} van {total}
+	Downloading: {n} of {total} ({done} of {all})	Downloaden: {n} van {total} ({done} van {all})
+	Downloading: {n} of {total}	Downloaden: {n} van {total}
+	Updating {folder} ({n} of {total})	{folder} bijwerken ({n} van {total})
+	Checking for new mail…	Nieuwe e-mail ophalen…
+	{account}: sending	{account}: verzenden
+	{account}: receiving	{account}: ontvangen
+	Waiting	Wachten
+	Failed	Mislukt
+	Stopped	Gestopt
+	{done} of {total}	{done} van {total}
+	Under way	Bezig
+	Messages: {n} ({size})	Berichten: {n} ({size})
+	Folders: {n}	Mappen: {n}
+	Send / Receive progress	Voortgang verzenden/ontvangen
+	Nothing has been sent or received yet	Er is nog niets verzonden of ontvangen
+	{done} of {all} done	{done} van {all} gereed
+	Cancel all	Alles annuleren
+	Open this window when Send / Receive starts	Dit venster openen wanneer verzenden/ontvangen begint
+	{task} failed: {error}	{task} mislukt: {error}
+	Show progress	Voortgang weergeven
+	How each account's sending and receiving goes	Hoe het verzenden en ontvangen per account verloopt
+	Stop sending and receiving	Verzenden en ontvangen stoppen
+	Sending	Verzenden
+	Receiving	Ontvangen

@@ -3,6 +3,7 @@
 use super::*;
 
 mod measure;
+mod progress;
 mod stopped;
 
 fn mail(subject: &str, extra: &str) -> Vec<u8> {

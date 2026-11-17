@@ -1792,3 +1792,29 @@ count	occurrences	مرات
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	جهة إصدار تديرها مؤسستك، أو الشهادة الخاصة بخادم بريدك (.pem، .crt، .cer)
 	Trust a certificate file…	الوثوق بملف شهادة…
 	The certificate is trusted for this account	الشهادة موثوقة لهذا الحساب
+	Send / Receive failed	فشل الإرسال/التلقي
+	Sending: {n} of {total}	جارٍ الإرسال: {n} من {total}
+	Downloading: {n} of {total} ({done} of {all})	جارٍ التنزيل: {n} من {total} ({done} من {all})
+	Downloading: {n} of {total}	جارٍ التنزيل: {n} من {total}
+	Updating {folder} ({n} of {total})	جارٍ تحديث {folder} ({n} من {total})
+	Checking for new mail…	جارٍ البحث عن بريد جديد…
+	{account}: sending	{account}: الإرسال
+	{account}: receiving	{account}: التلقي
+	Waiting	في الانتظار
+	Failed	فشل
+	Stopped	متوقف
+	{done} of {total}	{done} من {total}
+	Under way	قيد التنفيذ
+	Messages: {n} ({size})	الرسائل: {n} ({size})
+	Folders: {n}	المجلدات: {n}
+	Send / Receive progress	تقدّم الإرسال/التلقي
+	Nothing has been sent or received yet	لم يُرسَل أو يُتلقَّ شيء بعد
+	{done} of {all} done	تم {done} من {all}
+	Cancel all	إلغاء الكل
+	Open this window when Send / Receive starts	فتح هذه النافذة عند بدء الإرسال/التلقي
+	{task} failed: {error}	فشل {task}: {error}
+	Show progress	إظهار التقدم
+	How each account's sending and receiving goes	سير الإرسال والتلقي لكل حساب
+	Stop sending and receiving	إيقاف الإرسال والتلقي
+	Sending	الإرسال
+	Receiving	التلقي

@@ -1,4 +1,4 @@
-//! A POP3 server on localhost for tests: one maildrop, `USER`/`PASS`, `UIDL`, `RETR`, `DELE`.
+//! A POP3 server on localhost for tests: one maildrop, `USER`/`PASS`, `UIDL`, `LIST`, `RETR`, `DELE`.
 
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Write};
@@ -62,6 +62,13 @@ pub fn serve(messages: Vec<(String, Vec<u8>)>) -> Server {
                             let mut o = "+OK\r\n".to_string();
                             for (i, (id, _)) in d.iter().enumerate().filter(|(i, _)| !deleted.contains(i)) {
                                 o.push_str(&format!("{} {id}\r\n", i + 1));
+                            }
+                            o + ".\r\n"
+                        }
+                        "LIST" => {
+                            let mut o = "+OK\r\n".to_string();
+                            for (i, (_, m)) in d.iter().enumerate().filter(|(i, _)| !deleted.contains(i)) {
+                                o.push_str(&format!("{} {}\r\n", i + 1, m.len()));
                             }
                             o + ".\r\n"
                         }

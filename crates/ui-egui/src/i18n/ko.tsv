@@ -1796,3 +1796,29 @@ count	occurrences	회
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	조직이 운영하는 인증 기관 또는 메일 서버 자체의 인증서 (.pem, .crt, .cer)
 	Trust a certificate file…	인증서 파일 신뢰…
 	The certificate is trusted for this account	이 계정에서 인증서를 신뢰합니다
+	Send / Receive failed	보내기/받기 실패
+	Sending: {n} of {total}	보내는 중: {n}/{total}
+	Downloading: {n} of {total} ({done} of {all})	다운로드 중: {n}/{total} ({done}/{all})
+	Downloading: {n} of {total}	다운로드 중: {n}/{total}
+	Updating {folder} ({n} of {total})	{folder} 업데이트 중 ({n}/{total})
+	Checking for new mail…	새 메일 확인 중…
+	{account}: sending	{account}: 보내기
+	{account}: receiving	{account}: 받기
+	Waiting	대기 중
+	Failed	실패
+	Stopped	중지됨
+	{done} of {total}	{done}/{total}
+	Under way	진행 중
+	Messages: {n} ({size})	메시지: {n} ({size})
+	Folders: {n}	폴더: {n}
+	Send / Receive progress	보내기/받기 진행 상황
+	Nothing has been sent or received yet	아직 보내거나 받은 것이 없습니다
+	{done} of {all} done	{all}개 중 {done}개 완료
+	Cancel all	모두 취소
+	Open this window when Send / Receive starts	보내기/받기를 시작할 때 이 창 열기
+	{task} failed: {error}	{task} 실패: {error}
+	Show progress	진행 상황 보기
+	How each account's sending and receiving goes	계정별 보내기/받기 진행 상황
+	Stop sending and receiving	보내기/받기 중지
+	Sending	보내기
+	Receiving	받기

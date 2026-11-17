@@ -16,6 +16,7 @@ mod keys;
 mod op;
 pub mod progress;
 mod status;
+mod transfer;
 mod vacation;
 pub mod work;
 pub use compact::*;
@@ -25,6 +26,7 @@ pub use keys::{HeldKey, Revocation};
 pub use op::Op;
 pub use progress::Work;
 pub use status::{FailureKind, LOCAL_CERTIFICATE, REMOTE_CERTIFICATE, SyncStatus, UntrustedCertificate};
+pub use transfer::{Transfer, TransferKind, TransferState};
 pub use vacation::{Vacation, is_day};
 
 /// A password in transit. Its `Debug` form is redacted so it never reaches a log.
@@ -127,6 +129,10 @@ pub enum Job {
     KeepDraft { account: String, raw: Vec<u8>, folder: String, replaces: Option<MessageKey> },
     /// Try to send what waits in the Outbox now.
     FlushOutbox { account: String },
+    /// Stop the account's Send / Receive where it can be stopped (between two messages, or two
+    /// folders): what came before stays. Empty: every account's (Cancel All). Answered by
+    /// [`Event::Transfer`]s that say so.
+    CancelTransfers { account: String },
     /// Download a picture a message links to (only after the user asked to see pictures).
     FetchUrl { url: String },
     /// Read a calendar subscribed to by its link (issue #7), unless it's unchanged since the
@@ -328,6 +334,7 @@ impl Job {
             | Job::SaveDraft { account, .. }
             | Job::KeepDraft { account, .. }
             | Job::FlushOutbox { account }
+            | Job::CancelTransfers { account }
             | Job::GetVacation { account }
             | Job::SetVacation { account, .. }
             | Job::SyncDav { account }
@@ -627,6 +634,12 @@ pub enum Event {
         folders_skipped: usize,
         done: bool,
         error: Option<String>,
+    },
+    /// How an account's sending or receiving is going, as Send / Receive shows it (the newest of
+    /// its kind replaces the ones before).
+    Transfer {
+        account: String,
+        transfer: Transfer,
     },
     /// Something the user should see in the status bar.
     Notice {

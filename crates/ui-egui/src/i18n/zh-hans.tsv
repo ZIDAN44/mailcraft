@@ -1793,3 +1793,29 @@ count	occurrences	次
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	你所在组织运营的颁发机构，或你的邮件服务器自己的证书 (.pem、.crt、.cer)
 	Trust a certificate file…	信任证书文件…
 	The certificate is trusted for this account	此帐户已信任该证书
+	Send / Receive failed	发送/接收失败
+	Sending: {n} of {total}	正在发送：{n}/{total}
+	Downloading: {n} of {total} ({done} of {all})	正在下载：{n}/{total}（{done}/{all}）
+	Downloading: {n} of {total}	正在下载：{n}/{total}
+	Updating {folder} ({n} of {total})	正在更新 {folder}（{n}/{total}）
+	Checking for new mail…	正在检查新邮件…
+	{account}: sending	{account}：发送
+	{account}: receiving	{account}：接收
+	Waiting	等待中
+	Failed	失败
+	Stopped	已停止
+	{done} of {total}	{done}/{total}
+	Under way	进行中
+	Messages: {n} ({size})	邮件：{n}（{size}）
+	Folders: {n}	文件夹：{n}
+	Send / Receive progress	发送/接收进度
+	Nothing has been sent or received yet	尚未发送或接收任何内容
+	{done} of {all} done	已完成 {done}/{all}
+	Cancel all	全部取消
+	Open this window when Send / Receive starts	开始发送/接收时打开此窗口
+	{task} failed: {error}	{task}失败：{error}
+	Show progress	显示进度
+	How each account's sending and receiving goes	各帐户的发送和接收进度
+	Stop sending and receiving	停止发送和接收
+	Sending	发送
+	Receiving	接收

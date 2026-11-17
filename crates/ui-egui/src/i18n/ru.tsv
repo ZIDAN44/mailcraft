@@ -1796,3 +1796,29 @@ count	occurrences	повторений
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Центр сертификации вашей организации или собственный сертификат вашего почтового сервера (.pem, .crt, .cer)
 	Trust a certificate file…	Доверять файлу сертификата…
 	The certificate is trusted for this account	Сертификату доверяют для этой учётной записи
+	Send / Receive failed	Ошибка отправки и получения
+	Sending: {n} of {total}	Отправка: {n} из {total}
+	Downloading: {n} of {total} ({done} of {all})	Загрузка: {n} из {total} ({done} из {all})
+	Downloading: {n} of {total}	Загрузка: {n} из {total}
+	Updating {folder} ({n} of {total})	Обновление «{folder}» ({n} из {total})
+	Checking for new mail…	Проверка новой почты…
+	{account}: sending	{account}: отправка
+	{account}: receiving	{account}: получение
+	Waiting	Ожидание
+	Failed	Ошибка
+	Stopped	Остановлено
+	{done} of {total}	{done} из {total}
+	Under way	Выполняется
+	Messages: {n} ({size})	Сообщений: {n} ({size})
+	Folders: {n}	Папок: {n}
+	Send / Receive progress	Ход отправки и получения
+	Nothing has been sent or received yet	Пока ничего не отправлено и не получено
+	{done} of {all} done	Готово: {done} из {all}
+	Cancel all	Отменить все
+	Open this window when Send / Receive starts	Открывать это окно при отправке и получении
+	{task} failed: {error}	{task}: ошибка — {error}
+	Show progress	Показать ход
+	How each account's sending and receiving goes	Как идёт отправка и получение для каждой учётной записи
+	Stop sending and receiving	Остановить отправку и получение
+	Sending	Отправка
+	Receiving	Получение

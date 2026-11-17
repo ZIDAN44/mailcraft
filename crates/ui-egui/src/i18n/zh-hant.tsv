@@ -1796,3 +1796,29 @@ count	occurrences	次
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	你的組織營運的憑證授權單位，或你的郵件伺服器本身的憑證 (.pem、.crt、.cer)
 	Trust a certificate file…	信任憑證檔案…
 	The certificate is trusted for this account	此帳戶已信任該憑證
+	Send / Receive failed	傳送/接收失敗
+	Sending: {n} of {total}	正在傳送：{n}/{total}
+	Downloading: {n} of {total} ({done} of {all})	正在下載：{n}/{total}（{done}/{all}）
+	Downloading: {n} of {total}	正在下載：{n}/{total}
+	Updating {folder} ({n} of {total})	正在更新 {folder}（{n}/{total}）
+	Checking for new mail…	正在檢查新郵件…
+	{account}: sending	{account}：傳送
+	{account}: receiving	{account}：接收
+	Waiting	等待中
+	Failed	失敗
+	Stopped	已停止
+	{done} of {total}	{done}/{total}
+	Under way	進行中
+	Messages: {n} ({size})	郵件：{n}（{size}）
+	Folders: {n}	資料夾：{n}
+	Send / Receive progress	傳送/接收進度
+	Nothing has been sent or received yet	尚未傳送或接收任何內容
+	{done} of {all} done	已完成 {done}/{all}
+	Cancel all	全部取消
+	Open this window when Send / Receive starts	開始傳送/接收時開啟此視窗
+	{task} failed: {error}	{task}失敗：{error}
+	Show progress	顯示進度
+	How each account's sending and receiving goes	各帳戶的傳送和接收進度
+	Stop sending and receiving	停止傳送和接收
+	Sending	傳送
+	Receiving	接收

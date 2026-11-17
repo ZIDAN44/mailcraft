@@ -1797,3 +1797,29 @@ count	occurrences	Terminen
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Eine Zertifizierungsstelle Ihrer Organisation oder das eigene Zertifikat Ihres Mailservers (.pem, .crt, .cer)
 	Trust a certificate file…	Einer Zertifikatsdatei vertrauen…
 	The certificate is trusted for this account	Dem Zertifikat wird für dieses Konto vertraut
+	Send / Receive failed	Senden/Empfangen fehlgeschlagen
+	Sending: {n} of {total}	Senden: {n} von {total}
+	Downloading: {n} of {total} ({done} of {all})	Herunterladen: {n} von {total} ({done} von {all})
+	Downloading: {n} of {total}	Herunterladen: {n} von {total}
+	Updating {folder} ({n} of {total})	{folder} wird aktualisiert ({n} von {total})
+	Checking for new mail…	Neue E-Mails werden abgerufen…
+	{account}: sending	{account}: Senden
+	{account}: receiving	{account}: Empfangen
+	Waiting	Wartet
+	Failed	Fehlgeschlagen
+	Stopped	Angehalten
+	{done} of {total}	{done} von {total}
+	Under way	Läuft
+	Messages: {n} ({size})	Nachrichten: {n} ({size})
+	Folders: {n}	Ordner: {n}
+	Send / Receive progress	Fortschritt beim Senden/Empfangen
+	Nothing has been sent or received yet	Noch nichts gesendet oder empfangen
+	{done} of {all} done	{done} von {all} erledigt
+	Cancel all	Alle abbrechen
+	Open this window when Send / Receive starts	Dieses Fenster beim Senden/Empfangen öffnen
+	{task} failed: {error}	{task} fehlgeschlagen: {error}
+	Show progress	Fortschritt anzeigen
+	How each account's sending and receiving goes	Wie das Senden und Empfangen jedes Kontos vorangeht
+	Stop sending and receiving	Senden und Empfangen anhalten
+	Sending	Senden
+	Receiving	Empfangen

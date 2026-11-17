@@ -29,6 +29,8 @@ impl Worker {
     /// Wait for new mail: IDLE on the Inbox when the server supports it, else poll.
     pub(crate) fn wait_for_mail(&mut self, rx: &Receiver<Job>) {
         self.working(false);
+        // Whatever was asked to stop has stopped.
+        self.cancel.store(false, Ordering::Relaxed);
         // Looking only when asked (issue #104): once it's been quiet a while, signed out until
         // it's asked again, not kept awake for good.
         if self.acc.check_by_hand {
@@ -383,7 +385,18 @@ impl Worker {
         // mail, as ever.
         let mut calendars_due = self.last_full.is_none() && !self.calendars_read_before();
         let mut calendars_read = false;
+        // An IMAP account's Send / Receive: its folders, one by one (a POP account says its
+        // download as it goes, `transfers.rs`).
+        let imap = matches!(self.conn, Some(Conn::Imap(_)));
+        let mut going = Transfer { folders_total: u32::try_from(paths.len()).unwrap_or(u32::MAX), ..Transfer::working(TransferKind::Receiving) };
+        let mut pace = transfers::Pace::default();
         for path in paths {
+            if self.cancel_asked() {
+                break;
+            }
+            if imap && pace.due() {
+                self.tell_transfer(Transfer { folder: path.clone(), ..going.clone() });
+            }
             if !self.counts_unsaid.is_empty() && said.elapsed() >= COUNTS_EVERY {
                 self.say_counts();
                 said = Instant::now();
@@ -398,9 +411,11 @@ impl Worker {
             if !self.folders.iter().any(|f| f.path == path) {
                 continue;
             }
+            going.folder.clone_from(&path);
             if self.sync_counted(&path) {
                 self.counts_unsaid.push(path);
             }
+            going.folders_done = going.folders_done.saturating_add(1);
             if std::mem::take(&mut calendars_due) && !self.closed && self.conn.is_some() {
                 self.say_counts();
                 said = Instant::now();
@@ -415,6 +430,11 @@ impl Worker {
             self.serve_between_folders(rx);
         }
         self.say_counts();
+        if imap && !self.closed {
+            // Its connection lost on the way: failed, the account's status saying why.
+            let lost = self.conn.is_none().then(String::new);
+            self.transfer_ended(Transfer { folder: String::new(), ..going }, lost);
+        }
         if self.closed {
             return;
         }
@@ -661,15 +681,7 @@ impl Worker {
                 r
             }
             // POP: the Inbox is downloaded; every other folder is here only.
-            Some(Conn::Pop) if self.folders.iter().any(|f| f.path == path && f.role == FolderRole::Inbox) => {
-                let secret = self.secret();
-                (|| {
-                    let mut c = crate::pop::open(&self.acc, &secret?)?;
-                    let r = crate::pop::fetch_new_as(&mut c, &store, &id, path, &crate::pop::Keep::of(&self.acc), now(), seen)?;
-                    let _ = c.quit();
-                    Ok(r)
-                })()
-            }
+            Some(Conn::Pop) if self.folders.iter().any(|f| f.path == path && f.role == FolderRole::Inbox) => self.receive_pop(&store, path, seen),
             Some(Conn::Pop) => crate::pop::local_counts(&store, &id, path),
             None => Err(NetError::Closed("not connected".into())),
         };

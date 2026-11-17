@@ -76,8 +76,10 @@ impl Worker {
     /// main connection, which keeps it in the Outbox; refused: said.
     pub(crate) fn send_quick(&mut self, job: Job) {
         let Job::Send { id, raw, from, recipients, sent_folder, .. } = &job else { return };
+        let going = self.sending_one();
         match self.deliver(raw, from, recipients, sent_folder.as_deref()) {
             Ok(()) => {
+                self.transfer_ended(Transfer { done: 1, ..going }, None);
                 log::info!("{}: message {id} sent to {} recipient(s)", self.acc.id, recipients.len());
                 self.sink.emit(Event::Sent { account: self.id(), id: *id });
                 self.file_sent_quick(*id, raw, sent_folder.clone());
@@ -95,6 +97,7 @@ impl Worker {
                 if e.is_fatal() {
                     self.conn = None;
                 }
+                self.transfer_ended(going, Some(e.to_string()));
                 self.sink.emit(Event::SendFailed { account: self.id(), id: *id, error: e.to_string() });
             }
         }
@@ -321,7 +324,10 @@ impl Worker {
     }
 
     pub(crate) fn send(&mut self, id: u64, raw: &[u8], from: &str, recipients: &[String], sent_folder: Option<String>) {
+        let going = self.sending_one();
         let sent = self.deliver(raw, from, recipients, sent_folder.as_deref());
+        // Kept in the Outbox to go later, or refused: either way it didn't go now.
+        self.transfer_ended(Transfer { done: u32::from(sent.is_ok()), ..going }, sent.as_ref().err().map(ToString::to_string));
         if let Err(e) = sent {
             if e.is_retryable() {
                 // Offline or asked to wait: keep it in the Outbox and send it on reconnect.
@@ -354,21 +360,32 @@ impl Worker {
     /// up later (still offline); a message refused for good stays, marked with the error.
     pub(crate) fn flush_outbox(&mut self) {
         self.store.outbox_sweep(&self.acc.id);
-        for mut item in self.store.outbox(&self.acc.id) {
-            // Sent, or refused for good, already: the Outbox couldn't be told.
-            if self.outbox_done.contains(&item.id) {
+        let items = self.store.outbox(&self.acc.id);
+        // Sent, or refused for good, already (the Outbox couldn't be told); refused for good:
+        // waits for the user to edit or delete it; held back (Delay Delivery) until its time,
+        // then dated when it goes.
+        let due = |done: &std::collections::HashSet<u64>, item: &OutboxItem| !done.contains(&item.id) && !item.refused && item.not_before <= now();
+        let total = u32::try_from(items.iter().filter(|i| due(&self.outbox_done, i)).count()).unwrap_or(u32::MAX);
+        let mut going = Transfer { total, ..Transfer::working(TransferKind::Sending) };
+        self.tell_transfer(going.clone());
+        let mut pace = transfers::Pace::default();
+        let mut refused = None;
+        for mut item in items {
+            if !due(&self.outbox_done, &item) {
                 continue;
             }
-            // Refused for good: waits for the user to edit or delete it. Held back (Delay
-            // Delivery) until its time; then dated when it goes.
-            if item.refused || item.not_before > now() {
-                continue;
+            if self.cancel_asked() {
+                break;
+            }
+            if pace.due() {
+                self.tell_transfer(going.clone());
             }
             let Some(raw) = self.store.outbox_raw(&self.acc.id, item.id) else { continue };
             let raw = if item.not_before > 0 { mailcraft_mime::with_date(&raw, now()) } else { raw };
             let sent = self.deliver(&raw, &item.from, &item.recipients, item.sent_folder.as_deref());
             match sent {
                 Ok(()) => {
+                    going.done = going.done.saturating_add(1);
                     // Left in the Outbox, it would go again.
                     let kept = self.store.outbox_remove(&self.acc.id, item.id).err();
                     if kept.is_some() {
@@ -397,13 +414,16 @@ impl Worker {
                         }
                     }
                     if retry {
+                        self.transfer_ended(going, Some(e.to_string()));
                         self.sink.emit(Event::Queued { account: self.id(), id: item.id, error: e.to_string(), kind: e.failure() });
                         return;
                     }
+                    refused = Some(e.to_string());
                     self.sink.emit(Event::SendFailed { account: self.id(), id: item.id, error: e.to_string() });
                 }
             }
         }
+        self.transfer_ended(going, refused);
     }
 
     /// A message went out: tell the engine and file a copy in Sent.

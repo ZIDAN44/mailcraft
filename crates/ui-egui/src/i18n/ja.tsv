@@ -1793,3 +1793,29 @@ count	occurrences	回
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	組織が運用する認証局、またはメールサーバー自身の証明書 (.pem、.crt、.cer)
 	Trust a certificate file…	証明書ファイルを信頼…
 	The certificate is trusted for this account	このアカウントでこの証明書を信頼しました
+	Send / Receive failed	送受信に失敗しました
+	Sending: {n} of {total}	送信中: {n}/{total}
+	Downloading: {n} of {total} ({done} of {all})	ダウンロード中: {n}/{total} ({done}/{all})
+	Downloading: {n} of {total}	ダウンロード中: {n}/{total}
+	Updating {folder} ({n} of {total})	{folder} を更新しています ({n}/{total})
+	Checking for new mail…	新着メールを確認しています…
+	{account}: sending	{account}: 送信
+	{account}: receiving	{account}: 受信
+	Waiting	待機中
+	Failed	失敗
+	Stopped	停止
+	{done} of {total}	{done}/{total}
+	Under way	処理中
+	Messages: {n} ({size})	メッセージ: {n} ({size})
+	Folders: {n}	フォルダー: {n}
+	Send / Receive progress	送受信の進行状況
+	Nothing has been sent or received yet	まだ何も送受信していません
+	{done} of {all} done	{all} 件中 {done} 件完了
+	Cancel all	すべてキャンセル
+	Open this window when Send / Receive starts	送受信の開始時にこのウィンドウを開く
+	{task} failed: {error}	{task} が失敗しました: {error}
+	Show progress	進行状況を表示
+	How each account's sending and receiving goes	各アカウントの送受信の進み具合
+	Stop sending and receiving	送受信を停止
+	Sending	送信
+	Receiving	受信
