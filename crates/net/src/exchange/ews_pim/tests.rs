@@ -87,6 +87,33 @@ fn categories_both_ways() {
     assert!(event_fields(&plain).iter().all(|(n, _)| *n != "Categories"));
 }
 
+/// Issue #144: a meeting's answer is the mailbox owner's, as the appointment's `MyResponseType`
+/// says it, not the one their place among the guests kept from the invitation (an accepted
+/// weekly meeting showed as tentative); the other guests' answers stay as they are, and one
+/// with no answer of the owner's (not answered yet, or the organizer's own) is left as it is.
+#[test]
+fn a_meetings_answer_is_the_owners_own() {
+    let item = |mine: &str| {
+        let xml = format!(
+            "<t:CalendarItem><t:ItemId Id=\"E1\"/><t:Subject>Weekly review</t:Subject>\
+             <t:Start>2026-10-16T10:00:00Z</t:Start><t:End>2026-10-16T11:00:00Z</t:End>\
+             <t:CalendarItemType>RecurringMaster</t:CalendarItemType><t:MyResponseType>{mine}</t:MyResponseType>\
+             <t:RequiredAttendees>\
+             <t:Attendee><t:Mailbox><t:Name>Riley</t:Name><t:EmailAddress>Riley@Contoso.example</t:EmailAddress></t:Mailbox><t:ResponseType>Tentative</t:ResponseType></t:Attendee>\
+             <t:Attendee><t:Mailbox><t:Name>Ana</t:Name><t:EmailAddress>ana@contoso.example</t:EmailAddress></t:Mailbox><t:ResponseType>Decline</t:ResponseType></t:Attendee>\
+             </t:RequiredAttendees></t:CalendarItem>"
+        );
+        let e = stored_events(vec![parse(&xml).find("CalendarItem").unwrap().clone()], "cal", "riley@contoso.example").next().unwrap().event;
+        e.attendees.iter().map(|a| a.partstat.clone()).collect::<Vec<_>>()
+    };
+    assert_eq!(item("Accept"), ["ACCEPTED", "DECLINED"]);
+    assert_eq!(item("Decline"), ["DECLINED", "DECLINED"]);
+    assert_eq!(item("Tentative"), ["TENTATIVE", "DECLINED"]);
+    for none in ["NoResponseReceived", "Unknown", "Organizer"] {
+        assert_eq!(item(none), ["TENTATIVE", "DECLINED"], "{none}");
+    }
+}
+
 /// Issue #32: Private and Show as come in as Exchange keeps them (Sensitivity, and the
 /// LegacyFreeBusyStatus Outlook's Show As sets), and go out in the schema's order: Sensitivity
 /// after the subject, the status between the all-day flag and the location.

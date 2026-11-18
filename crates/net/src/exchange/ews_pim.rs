@@ -118,6 +118,25 @@ fn person(m: &El) -> Option<Attendee> {
     email.contains('@').then(|| Attendee { email, name: text(mb, "Name"), partstat: String::new(), rsvp: false })
 }
 
+/// The answer the mailbox's owner (`me`) gave a meeting, from the appointment's own
+/// `MyResponseType`, put on their place among its guests, as Outlook shows it. That place keeps
+/// the answer the invitation came with ("Unknown", or tentative) and isn't changed when the owner
+/// answers: some accepted series showed as tentative or not answered (#144).
+fn own_answer(event: &mut CalEvent, it: &El, me: &str) {
+    let partstat = match it.text_of("MyResponseType") {
+        Some("Accept") => "ACCEPTED",
+        Some("Tentative") => "TENTATIVE",
+        Some("Decline") => "DECLINED",
+        _ => return,
+    };
+    if me.is_empty() {
+        return;
+    }
+    if let Some(a) = event.attendees.iter_mut().find(|a| a.email.eq_ignore_ascii_case(me)) {
+        a.partstat = partstat.to_string();
+    }
+}
+
 /// An appointment as an event (occurrences and changed instances are left to their series).
 pub fn event_of(it: &El) -> Option<CalEvent> {
     if matches!(it.text_of("CalendarItemType"), Some("Occurrence" | "Exception")) {
@@ -476,10 +495,12 @@ fn id_and_key(id: Option<&El>) -> (String, String) {
     (attr("Id"), attr("ChangeKey"))
 }
 
-/// The events among a calendar's items, as kept in `calendar`.
-fn stored_events(items: Vec<El>, calendar: &str) -> impl Iterator<Item = StoredEvent> + '_ {
+/// The events among a calendar's items, as kept in `calendar`; `me`, the address of the mailbox
+/// it's in (empty for a public folder's), whose answers to meetings the items say.
+fn stored_events<'a>(items: Vec<El>, calendar: &'a str, me: &'a str) -> impl Iterator<Item = StoredEvent> + 'a {
     items.into_iter().filter_map(move |it| {
-        let event = event_of(&it)?;
+        let mut event = event_of(&it)?;
+        own_answer(&mut event, &it, me);
         let (href, etag) = id_and_key(it.child("ItemId"));
         Some(StoredEvent { calendar: calendar.to_string(), href, etag, event, dirty: false })
     })

@@ -397,6 +397,11 @@ impl Client {
         })
     }
 
+    /// The account's own address.
+    pub(crate) fn email(&self) -> &str {
+        &self.email
+    }
+
     /// The same session naming itself `agent` to the server (`None`, or nothing usable: as
     /// MailCraft).
     #[must_use]
