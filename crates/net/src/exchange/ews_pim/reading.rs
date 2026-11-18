@@ -54,7 +54,12 @@ pub(super) fn read_shared_calendars(c: &Client, pim: &Pim, out: &mut DavSync, ca
                 out.synced_calendars.push(id.clone());
             }
             // One asked for by hand says why it's missing; a shared mailbox whose calendar
-            // isn't shared with the account just has none here.
+            // isn't shared with the account just has none here. Exchange says it isn't found when
+            // it's shared for free/busy time alone, as a company's usually are: said so, not as
+            // "not on the server any more" (issue #138).
+            Err(e) if asked && crate::ews::gone(&e) => out.errors.push(format!(
+                "{email}'s calendar couldn't be opened: it may be shared for free/busy time alone, which MailCraft doesn't show yet ({e})"
+            )),
             Err(e) if asked => out.errors.push(format!("{email}'s calendar: {e}")),
             Err(e) => {
                 log::info!("shared mailbox {email}: no calendar ({e})");

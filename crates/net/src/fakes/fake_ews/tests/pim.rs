@@ -133,8 +133,14 @@ fn someone_elses_calendar_opens_read_only() {
     assert!(cals.iter().any(|x| x.id == id && x.read_only && x.name == "ana@contoso.example"));
     assert!(sync.events.iter().any(|e| e.calendar == id && e.event.summary == "Budget review"));
     assert!(sync.synced_calendars.contains(&id));
-    // One that can't be read says so, and the rest still syncs.
-    assert!(sync.errors.iter().any(|e| e.starts_with("nobody@contoso.example's calendar")), "{:?}", sync.errors);
+    // One that can't be read says so, and the rest still syncs. Not found, as Exchange answers
+    // for one shared for free/busy time alone: said so (issue #138: "not on the server any
+    // more" alone misled).
+    assert!(
+        sync.errors.iter().any(|e| e.starts_with("nobody@contoso.example's calendar couldn't be opened: it may be shared for free/busy time alone")),
+        "{:?}",
+        sync.errors
+    );
     assert!(!sync.synced_calendars.contains(&shared_calendar_id("nobody@contoso.example")));
 }
 
