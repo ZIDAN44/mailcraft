@@ -9,11 +9,13 @@ use serde_json::json;
 
 mod days;
 mod found;
+mod schedule;
 mod showing;
 use days::days;
 #[cfg(test)]
 pub(crate) use found::open_hit;
 pub(crate) use found::{CalSearch, found};
+use schedule::schedule;
 pub use showing::*;
 
 use crate::icons::{self, Icon};
@@ -88,7 +90,7 @@ pub fn title(s: &Session) -> String {
                 tf!("{from} {month_from} – {to} {month} {year}", from = a, month_from = month_name(m0), to = b, month = month_name(m1), year = y1)
             }
         }
-        CalMode::Day => long_date(d0),
+        CalMode::Day | CalMode::Schedule => long_date(d0),
     }
 }
 
@@ -289,6 +291,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 (CalMode::Week, "Week", "week"),
                 (CalMode::WorkWeek, "Work week", "workWeek"),
                 (CalMode::Day, "Day", "day"),
+                (CalMode::Schedule, "Schedule", "schedule"),
             ];
             let pad = ui.spacing().button_padding.x * 2.0 + ui.spacing().item_spacing.x;
             let buttons: f32 = modes
@@ -319,6 +322,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     match s.cal_mode {
         CalMode::Month => month(s, &t, ui, &items, d0, acts),
         CalMode::Day | CalMode::WorkWeek | CalMode::Week => days(s, st, ui, &items, d0, d1, acts),
+        CalMode::Schedule => schedule(s, st, ui, &items, d0, acts),
     }
 }
 

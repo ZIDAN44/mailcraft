@@ -1836,3 +1836,6 @@ count	occurrences	回
 	Asking for its free/busy time…	空き時間情報を取得しています…
 	Shared for its free/busy time alone	空き時間情報のみ共有されています
 	Its free/busy time couldn't be had: {error}	空き時間情報を取得できませんでした: {error}
+	Schedule	スケジュール
+	All together	全員
+	Tick a calendar to show it here	ここに表示する予定表にチェックを付けてください

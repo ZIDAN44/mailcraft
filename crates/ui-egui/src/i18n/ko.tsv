@@ -1839,3 +1839,6 @@ count	occurrences	회
 	Asking for its free/busy time…	약속 있음/없음 정보를 요청하는 중…
 	Shared for its free/busy time alone	약속 있음/없음 정보만 공유됨
 	Its free/busy time couldn't be had: {error}	약속 있음/없음 정보를 가져올 수 없음: {error}
+	Schedule	일정
+	All together	모두 함께
+	Tick a calendar to show it here	여기에 표시할 일정을 선택하세요

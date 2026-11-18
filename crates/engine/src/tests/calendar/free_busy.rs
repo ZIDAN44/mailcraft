@@ -196,3 +196,23 @@ fn only_calendars_shared_for_their_times_are_asked_about() {
     answer(&mut s, &account, (0, 1), vec![busy("2026-11-03T09:00:00Z", "2026-11-03T10:00:00Z", ShowAs::Busy, "x")], None);
     assert!(ana_items(&s).is_empty());
 }
+
+/// Issue #141: the Schedule view shows a day (moving a day at a time), and asks for the times of
+/// the colleagues shown on it as the other views do.
+#[test]
+fn the_schedule_view_shows_a_day_and_its_peoples_times() {
+    let (mut s, account, _) = with_ana("free-busy-schedule");
+    s.module = Module::Calendar;
+    let r = s.run("calendar.view", &json!({"mode": "schedule"})).unwrap();
+    assert_eq!(r["mode"], "schedule");
+    assert_eq!(s.cal_days(), (day("2026-11-04"), day("2026-11-05")));
+    s.run("calendar.goto", &json!({"step": 1})).unwrap();
+    assert_eq!(s.cal_days(), (day("2026-11-05"), day("2026-11-06")));
+    s.tick();
+    let jobs = asked(&mut s);
+    assert_eq!(jobs.len(), 1);
+    let (acc, _, from, to) = jobs[0].clone();
+    assert_eq!(acc, account);
+    assert!(from <= at("2026-11-05T00:00:00Z") && to >= at("2026-11-06T00:00:00Z"));
+    assert!(s.run("calendar.view", &json!({"mode": "timeline"})).is_err());
+}

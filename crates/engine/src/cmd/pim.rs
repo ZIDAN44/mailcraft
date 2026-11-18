@@ -31,11 +31,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 "workWeek" | "workweek" => crate::CalMode::WorkWeek,
                 "week" => crate::CalMode::Week,
                 "month" => crate::CalMode::Month,
+                "schedule" => crate::CalMode::Schedule,
                 other => return Err(CmdError::Params(format!("unknown view `{other}`"))),
             };
             s.cal_goto(None, 0)
         })
-        .params(r#"{"mode": "day"|"workWeek"|"week"|"month"}"#),
+        .params(r#"{"mode": "day"|"workWeek"|"week"|"month"|"schedule"}"#),
         CommandSpec::new("calendar.goto", "Go to a date", "Calendar › Go to", |s, v| s.cal_goto(p::str(v, "date"), p::i64(v, "step").unwrap_or(0)))
             .params(r#"{"date"?: "YYYY-MM-DD"|"today", "step"?: number (days, weeks or months, as on screen)}"#),
         CommandSpec::new("calendar.events", "Events", "Calendar", |s, v| {

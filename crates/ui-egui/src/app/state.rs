@@ -218,8 +218,9 @@ pub struct UiState {
     /// The month the calendar's small month shows (`year * 12 + month - 1`; `None`: the day on
     /// screen's).
     pub(crate) mini_month: Option<i64>,
-    /// The day and week views have been scrolled to the working day once (each has its own scroll).
-    pub(crate) cal_scrolled: [bool; 2],
+    /// The day and week views, and the Schedule view, have been scrolled to the working day once
+    /// (each has its own scroll).
+    pub(crate) cal_scrolled: [bool; 3],
     pub(crate) people_query: String,
     /// The address book People shows (account, book id); `None`: all of them.
     pub(crate) people_book: Option<(String, String)>,

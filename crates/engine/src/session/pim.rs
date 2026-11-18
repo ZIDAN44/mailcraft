@@ -53,6 +53,9 @@ pub enum CalMode {
     #[default]
     Week,
     Month,
+    /// A day's hours across, a row for each calendar shown (Outlook's Schedule view, issue
+    /// #141): when several people are free together.
+    Schedule,
 }
 
 /// A reminder whose time has come (File › Reminders, as Outlook's Reminders window lists them).
@@ -183,13 +186,13 @@ impl Session {
         self.cal_day.unwrap_or_else(|| mailcraft_model::dates::today(&self.clock))
     }
 
-    /// The local days on screen: a day, the work week (Monday to Friday), the week (Monday first)
-    /// or the weeks of the month.
+    /// The local days on screen: a day (the Schedule view's too), the work week (Monday to
+    /// Friday), the week (Monday first) or the weeks of the month.
     pub fn cal_days(&self) -> (i64, i64) {
         let d = self.cal_day();
         let monday = |x: i64| x - i64::from(weekday_index(x));
         match self.cal_mode {
-            CalMode::Day => (d, d + 1),
+            CalMode::Day | CalMode::Schedule => (d, d + 1),
             CalMode::WorkWeek => (monday(d), monday(d) + 5),
             CalMode::Week => (monday(d), monday(d) + 7),
             CalMode::Month => {
@@ -219,7 +222,7 @@ impl Session {
         }
         let step = step.clamp(-1200, 1200);
         d = match self.cal_mode {
-            CalMode::Day => d + step,
+            CalMode::Day | CalMode::Schedule => d + step,
             CalMode::WorkWeek | CalMode::Week => d + 7 * step,
             CalMode::Month => {
                 let (y, m, day) = civil_from_days(d);

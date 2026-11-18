@@ -639,7 +639,7 @@ pub(crate) fn pim_tour(a: &mut MailApp, ctx: &egui::Context) {
     }
     a.run("view.todoBar", json!({"off": true}));
     a.run("view.module", json!({"name": "calendar"}));
-    for mode in ["day", "week", "month"] {
+    for mode in ["schedule", "day", "week", "month"] {
         a.run("calendar.view", json!({"mode": mode}));
         frame(ctx, a, vec![]);
     }

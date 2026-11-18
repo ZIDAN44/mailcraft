@@ -10,6 +10,7 @@ mod pim;
 mod reminders;
 mod repeat;
 mod ribbon;
+mod schedule;
 mod search;
 mod subscribed;
 mod tasks;

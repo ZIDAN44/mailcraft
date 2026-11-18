@@ -192,6 +192,26 @@ impl EventForm {
         }
     }
 
+    /// A new event from `from` to `to` with `guests` invited, in `calendar` (account, id) when
+    /// it can take one, else in that account's default: the Schedule view's (issue #141), for a
+    /// time chosen across people's calendars.
+    pub fn between(s: &Session, (from, to): (i64, i64), calendar: Option<(&str, &str)>, guests: &[String]) -> EventForm {
+        let mut f = EventForm::new(s, Some(from));
+        let to = to.max(from.saturating_add(60));
+        f.end_date = local_date(to, s);
+        f.end = local_time(to, s);
+        if let Some((account, id)) = calendar {
+            let default = s.pim.get(account).and_then(|p| p.default_calendar()).map(|c| c.id.clone());
+            let at = |want: &str| f.calendars.iter().position(|(a, c, _)| a == account && c == want);
+            if let Some(i) = at(id).or_else(|| default.as_deref().and_then(at)) {
+                f.calendar = i;
+            }
+        }
+        let guests: Vec<mailcraft_engine::model::EmailAddress> = guests.iter().map(|e| mailcraft_engine::model::EmailAddress::new("", e)).collect();
+        f.guests = mailcraft_engine::model::addr::format_list(&guests);
+        f
+    }
+
     /// An existing event, opened at one of its occurrences.
     pub fn open(s: &Session, uid: &str, occurrence: i64) -> Option<EventForm> {
         let (account, stored) = s.find_event(uid)?;

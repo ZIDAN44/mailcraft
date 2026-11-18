@@ -1836,3 +1836,6 @@ count	occurrences	次
 	Asking for its free/busy time…	正在获取忙闲信息…
 	Shared for its free/busy time alone	仅共享忙闲信息
 	Its free/busy time couldn't be had: {error}	无法获取忙闲信息：{error}
+	Schedule	日程安排
+	All together	全部合并
+	Tick a calendar to show it here	勾选一个日历以在此显示

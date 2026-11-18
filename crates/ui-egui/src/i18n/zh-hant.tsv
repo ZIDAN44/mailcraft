@@ -1839,3 +1839,6 @@ count	occurrences	次
 	Asking for its free/busy time…	正在取得空閒/忙碌資訊…
 	Shared for its free/busy time alone	僅共用空閒/忙碌資訊
 	Its free/busy time couldn't be had: {error}	無法取得空閒/忙碌資訊：{error}
+	Schedule	排程
+	All together	全部合併
+	Tick a calendar to show it here	勾選一個行事曆以在此顯示

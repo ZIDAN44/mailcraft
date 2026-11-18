@@ -123,13 +123,14 @@ impl MailApp {
     }
 }
 
-/// The calendar's views (Day, Work week, Week, Month), and its calendars side by side.
+/// The calendar's views (Day, Work week, Week, Month, Schedule), and its calendars side by side.
 fn calendar_views(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
     for (mode, label, code) in [
         (CalMode::Day, "Day", "day"),
         (CalMode::WorkWeek, "Work week", "workWeek"),
         (CalMode::Week, "Week", "week"),
         (CalMode::Month, "Month", "month"),
+        (CalMode::Schedule, "Schedule", "schedule"),
     ] {
         let r = widgets::tool_button(ui, Icon::Layout, label, &t, s.cal_mode != mode);
         if r.clicked() {

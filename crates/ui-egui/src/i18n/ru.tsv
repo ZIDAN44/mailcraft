@@ -1839,3 +1839,6 @@ count	occurrences	повторений
 	Asking for its free/busy time…	Запрос сведений о занятости…
 	Shared for its free/busy time alone	Открыт только для сведений о занятости
 	Its free/busy time couldn't be had: {error}	Не удалось получить сведения о занятости: {error}
+	Schedule	Расписание
+	All together	Все вместе
+	Tick a calendar to show it here	Отметьте календарь, чтобы увидеть его здесь

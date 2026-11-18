@@ -1,0 +1,122 @@
+//! Issue #141: the Schedule view, a day's hours across with a row for each calendar shown, and
+//! a time chosen there making a meeting with the people whose row it is.
+
+use mailcraft_engine::model::Event as NetEvent;
+use mailcraft_engine::model::ical::ShowAs;
+use mailcraft_engine::model::pim::free_busy::{Busy, FreeBusyAnswer};
+use mailcraft_engine::model::pim::{CalendarInfo, shared_calendar_id};
+
+use super::*;
+
+const ANA: &str = "ana@contoso.example";
+
+fn texts(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) -> Vec<Drawn> {
+    drawn_with(ctx, a, windows::layout::SIZE.with(std::cell::Cell::get), events)
+}
+
+fn at(drawn: &[Drawn], what: &str) -> egui::Rect {
+    drawn.iter().find(|d| d.text == what && d.seen()).map(|d| d.rect).unwrap_or_else(|| {
+        panic!("{what} drawn: {:?}", drawn.iter().map(|d| d.text.as_str()).collect::<Vec<_>>());
+    })
+}
+
+/// Where a row's name is drawn: in the Schedule, right of the side pane (which names the
+/// calendars too).
+fn row(drawn: &[Drawn], name: &str) -> egui::Rect {
+    let found = drawn.iter().filter(|d| d.text == name && d.seen()).max_by(|a, b| a.rect.min.x.total_cmp(&b.rect.min.x)).map(|d| d.rect);
+    found.unwrap_or_else(|| panic!("{name}'s row"))
+}
+
+/// The Schedule view on the sample's day, with Ana's calendar (shared for its times alone)
+/// beside the sample's own, her morning taken.
+fn with_ana(name: &str) -> (MailApp, egui::Context, Vec<Drawn>) {
+    let (mut a, _) = app(name);
+    let ctx = egui::Context::default();
+    let account = a.session.accounts[0].config.id.clone();
+    a.session.pim_mut(&account).calendars.push(CalendarInfo {
+        id: shared_calendar_id(ANA),
+        name: ANA.into(),
+        read_only: true,
+        free_busy: true,
+        ..Default::default()
+    });
+    a.run("view.calendar", json!({}));
+    a.run("calendar.view", json!({"mode": "schedule"}));
+    let day = a.session.local_midnight(a.session.cal_days().0);
+    let busy =
+        vec![Busy { start: day + 8 * 3600, end: day + 9 * 3600, show_as: ShowAs::Busy, subject: "Budget review".into(), ..Default::default() }];
+    let answers = vec![FreeBusyAnswer { email: ANA.into(), busy, error: None }];
+    a.session.apply(NetEvent::FreeBusy { account, from: day - 86_400, to: day + 2 * 86_400, answers });
+    for _ in 0..2 {
+        texts(&ctx, &mut a, vec![]);
+    }
+    let drawn = texts(&ctx, &mut a, vec![]);
+    (a, ctx, drawn)
+}
+
+/// A drag with the primary button from `from` to `to`, a frame at each step.
+fn drag(ctx: &egui::Context, a: &mut MailApp, from: egui::Pos2, to: egui::Pos2) {
+    let press = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    texts(ctx, a, vec![Event::PointerMoved(from)]);
+    texts(ctx, a, vec![press(from, true)]);
+    for k in 1..=4 {
+        let p = from + (to - from) * (k as f32 / 4.0);
+        texts(ctx, a, vec![Event::PointerMoved(p)]);
+    }
+    texts(ctx, a, vec![press(to, false)]);
+    texts(ctx, a, vec![]);
+}
+
+#[test]
+fn each_calendar_shown_has_a_row_on_one_days_hours() {
+    let (a, _, drawn) = with_ana("schedule-rows");
+    let strings: Vec<&str> = drawn.iter().map(|d| d.text.as_str()).collect();
+    // A row for all together, then each calendar's, Ana's among them, on the hours.
+    for row in ["All together", ANA, "Budget review", "09:00", "10:00"] {
+        at(&drawn, row);
+    }
+    assert!(strings.contains(&"Schedule"), "the view's button: {strings:?}");
+    let (d0, d1) = a.session.cal_days();
+    assert_eq!(d1 - d0, 1, "one day");
+    // The rows one under another, all together on top.
+    assert!(at(&drawn, "All together").center().y < row(&drawn, ANA).center().y);
+    // Her time taken on her row, at its hour.
+    let (review, nine) = (at(&drawn, "Budget review"), at(&drawn, "09:00"));
+    assert!((review.center().y - row(&drawn, ANA).center().y).abs() < 20.0, "{review:?} {:?}", row(&drawn, ANA));
+    assert!(review.max.x <= nine.min.x + 2.0, "08:00 – 09:00: {review:?} {nine:?}");
+}
+
+/// Dragged across free time on Ana's row: a meeting then, with her invited, in the account's
+/// own calendar. On the row of all together: with everyone shown (Ana, the user's own calendars
+/// inviting no one).
+#[test]
+fn a_time_dragged_across_makes_a_meeting_with_those_people() {
+    let (mut a, ctx, drawn) = with_ana("schedule-meeting");
+    // The hours' names stand just right of their line.
+    let x = |h: &str| at(&drawn, h).min.x - 4.0;
+    let y = row(&drawn, ANA).center().y;
+    drag(&ctx, &mut a, egui::pos2(x("10:00") + 5.0, y), egui::pos2(x("11:00") - 5.0, y));
+    let Some(Dialog::Event(f)) = &a.ui.dialog else { panic!("a meeting: {:?}", a.ui.dialog.as_ref().map(std::mem::discriminant)) };
+    assert_eq!((f.start.as_str(), f.end.as_str()), ("10:00", "11:00"));
+    assert_eq!(f.guests, ANA);
+    let (account, calendar, _) = &f.calendars[f.calendar];
+    assert_eq!(account, &a.session.accounts[0].config.id);
+    assert_ne!(calendar, &shared_calendar_id(ANA), "her calendar is hers");
+
+    a.ui.dialog = None;
+    texts(&ctx, &mut a, vec![]);
+    let drawn = texts(&ctx, &mut a, vec![]);
+    let together = at(&drawn, "All together").center().y;
+    click(&ctx, &mut a, egui::pos2(x("13:00") + 40.0, together));
+    let Some(Dialog::Event(f)) = &a.ui.dialog else { panic!("a meeting") };
+    assert_eq!((f.start.as_str(), f.end.as_str(), f.guests.as_str()), ("13:30", "14:00", ANA), "a click: its half hour");
+}
+
+/// The Schedule view moves a day at a time.
+#[test]
+fn the_schedule_moves_a_day_at_a_time() {
+    let (mut a, _, _) = with_ana("schedule-days");
+    let (d0, _) = a.session.cal_days();
+    a.run("calendar.goto", json!({"step": 1}));
+    assert_eq!(a.session.cal_days(), (d0 + 1, d0 + 2));
+}

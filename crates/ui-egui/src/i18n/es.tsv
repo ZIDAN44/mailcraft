@@ -1840,3 +1840,6 @@ count	occurrences	repeticiones
 	Asking for its free/busy time…	Pidiendo su disponibilidad…
 	Shared for its free/busy time alone	Compartido solo con su disponibilidad
 	Its free/busy time couldn't be had: {error}	No se pudo obtener su disponibilidad: {error}
+	Schedule	Programación
+	All together	Todos juntos
+	Tick a calendar to show it here	Marque un calendario para verlo aquí
