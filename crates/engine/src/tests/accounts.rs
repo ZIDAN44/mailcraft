@@ -66,9 +66,25 @@ fn server_settings_are_looked_up_once() {
     assert!(s.take_jobs().is_empty(), "asked once");
     let mut c = mailcraft_model::AccountConfig::guess("zoe@example.org");
     c.imap.host = "imap.example.org".into();
-    s.apply(Event::Discovered { email: "zoe@example.org".into(), config: Some(Box::new(c)), source: "example.org".into() });
+    s.apply(Event::Discovered { email: "zoe@example.org".into(), config: Some(Box::new(c)), source: "example.org".into(), error: None });
     let r = s.run("account.discover", &json!({"email": "zoe@example.org"})).unwrap();
     assert_eq!((r["found"].as_bool(), r["imap"]["host"].as_str()), (Some(true), Some("imap.example.org")));
+
+    s.apply(Event::Discovered {
+        email: "riley@example.org".into(),
+        config: None,
+        source: String::new(),
+        error: Some("the lookup worker could not start".into()),
+    });
+    let failed = s.run("account.discover", &json!({"email": "riley@example.org"})).unwrap();
+    assert_eq!(failed["error"].as_str(), Some("the lookup worker could not start"));
+    assert!(s.take_jobs().is_empty(), "a failed lookup is not retried until the user asks");
+    assert_eq!(s.run("account.discover", &json!({"email": "riley@example.org", "retry": true})).unwrap()["pending"], true);
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Discover { email }] if email == "riley@example.org"));
+    assert_eq!(s.run("account.discover", &json!({"email": "riley@example.org"})).unwrap()["pending"], true);
+    assert!(s.take_jobs().is_empty(), "a retry already in progress is not queued twice");
+    s.apply(Event::Discovered { email: "riley@example.org".into(), config: None, source: String::new(), error: None });
+    assert_eq!(s.run("account.discover", &json!({"email": "riley@example.org"})).unwrap()["found"], false);
 }
 
 #[test]

@@ -336,7 +336,7 @@
 	Work	工作
 	Write your message…	撰写邮件…
 	Yesterday	昨天
-	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	你的邮件，就在你的电脑上。添加任意 IMAP 帐户: 邮件保存在此设备上，搜索快速，离线也能阅读。你的密码保存在系统钥匙串中。
+	Your mail, on this device. Add an IMAP account: messages stay here for fast search and offline reading. Your password is kept in secure storage.	你的邮件，就在此设备上。添加一个 IMAP 帐户，邮件会保存在这里，便于快速搜索和离线阅读。你的密码会安全保存。
 	Your name	你的姓名
 	categorize {category}	归类为 {category}
 	folder	文件夹
@@ -1682,3 +1682,4 @@ month	May	5月
 	Couldn't open notification settings: {error}	无法打开通知设置：{error}
 	Name and email address	姓名和电子邮件地址
 	Organizer:	组织者：
+	Server settings couldn't be looked up: {error}	无法查询服务器设置：{error}

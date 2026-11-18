@@ -336,7 +336,7 @@
 	Work	עבודה
 	Write your message…	כתוב את ההודעה שלך…
 	Yesterday	אתמול
-	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	הדואר שלך, במחשב שלך. הוסף כל חשבון IMAP: ההודעות נשמרות במכשיר הזה, כך שקל לחפש בהן ולקרוא אותן גם ללא חיבור. הסיסמה נשארת במחזיק המפתחות של המערכת.
+	Your mail, on this device. Add an IMAP account: messages stay here for fast search and offline reading. Your password is kept in secure storage.	הדואר שלך, במכשיר הזה. הוסף חשבון IMAP: ההודעות נשמרות כאן כדי שיהיה קל לחפש בהן ולקרוא אותן גם ללא חיבור. הסיסמה נשמרת באחסון מאובטח.
 	Your name	השם שלך
 	categorize {category}	סווג {category}
 	folder	תיקייה
@@ -1681,3 +1681,4 @@ month	May	מאי
 	Couldn't open notification settings: {error}	לא ניתן לפתוח את הגדרות ההתראות: {error}
 	Name and email address	שם וכתובת דוא״ל
 	Organizer:	מארגן:
+	Server settings couldn't be looked up: {error}	לא ניתן היה לחפש את הגדרות השרת: {error}

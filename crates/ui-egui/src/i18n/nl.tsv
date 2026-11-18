@@ -336,7 +336,7 @@
 	Work	Werk
 	Write your message…	Schrijf je bericht…
 	Yesterday	Gisteren
-	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Je mail, op je eigen computer. Voeg een IMAP-account toe: berichten worden op dit apparaat bewaard, zodat ze snel doorzoekbaar en offline leesbaar zijn. Je wachtwoord blijft in de sleutelhanger van het systeem.
+	Your mail, on this device. Add an IMAP account: messages stay here for fast search and offline reading. Your password is kept in secure storage.	Je mail, op dit apparaat. Voeg een IMAP-account toe: berichten blijven hier bewaard zodat je ze snel kunt doorzoeken en offline kunt lezen. Je wachtwoord wordt veilig bewaard.
 	Your name	Je naam
 	categorize {category}	categoriseren als {category}
 	folder	map
@@ -1681,3 +1681,4 @@ month	May	mei
 	Couldn't open notification settings: {error}	Kan de meldingsinstellingen niet openen: {error}
 	Name and email address	Naam en e-mailadres
 	Organizer:	Organisator:
+	Server settings couldn't be looked up: {error}	Serverinstellingen konden niet worden opgehaald: {error}

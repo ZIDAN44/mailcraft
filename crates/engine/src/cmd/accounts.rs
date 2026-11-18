@@ -33,11 +33,19 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             if !mailcraft_model::addr::is_valid_email(&email) {
                 return Err(CmdError::Params(format!("`{email}` is not an email address")));
             }
-            match s.discovered.get(&email) {
-                Some(Some((Some(c), source))) => {
+            match s.discovered.get(&email).cloned() {
+                Some(Some((Some(c), source, _))) => {
                     Ok(json!({"found": true, "source": source, "imap": c.imap, "smtp": c.smtp, "pop": c.pop, "username": c.username}))
                 }
-                Some(Some((None, _))) => Ok(json!({"found": false})),
+                Some(Some((None, _, Some(error)))) if v.get("retry").and_then(Value::as_bool) != Some(true) => {
+                    Ok(json!({"found": false, "error": error}))
+                }
+                Some(Some((None, _, Some(_)))) => {
+                    s.discovered.insert(email.clone(), None);
+                    s.push_job(mailcraft_model::Job::Discover { email });
+                    Ok(json!({"pending": true}))
+                }
+                Some(Some((None, _, None))) => Ok(json!({"found": false})),
                 Some(None) => Ok(json!({"pending": true})),
                 None => {
                     s.discovered.insert(email.clone(), None);
@@ -46,7 +54,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 }
             }
         })
-        .params(r#"{"email": string} (asks once; call again for the answer)"#),
+        .params(r#"{"email": string, "retry"?: true (retry after a worker-start error)} (asks once; call again for the answer)"#),
         CommandSpec::new("account.move", "Move account", "Folder pane › account menu", |s, v| {
             let id = p::req_str(v, "account")?.to_string();
             let by = p::i64(v, "by").ok_or_else(|| CmdError::Params("`by` is required: -1 (up) or 1 (down)".into()))?;

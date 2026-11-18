@@ -336,7 +336,7 @@
 	Work	Arbeit
 	Write your message…	Nachricht schreiben…
 	Yesterday	Gestern
-	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Ihre E-Mails, auf Ihrem Computer. Fügen Sie ein beliebiges IMAP-Konto hinzu: Nachrichten werden auf diesem Gerät gespeichert, damit sie schnell durchsucht und offline gelesen werden können. Ihr Kennwort bleibt im Schlüsselbund des Systems.
+	Your mail, on this device. Add an IMAP account: messages stay here for fast search and offline reading. Your password is kept in secure storage.	Ihre E-Mails auf diesem Gerät. Fügen Sie ein IMAP-Konto hinzu: Nachrichten bleiben für eine schnelle Suche und zum Lesen ohne Internet hier. Ihr Kennwort wird sicher aufbewahrt.
 	Your name	Ihr Name
 	categorize {category}	als {category} kategorisieren
 	folder	Ordner
@@ -1686,3 +1686,4 @@ month	May	Mai
 	Couldn't open notification settings: {error}	Benachrichtigungseinstellungen konnten nicht geöffnet werden: {error}
 	Name and email address	Name und E-Mail-Adresse
 	Organizer:	Organisator:
+	Server settings couldn't be looked up: {error}	Servereinstellungen konnten nicht abgerufen werden: {error}

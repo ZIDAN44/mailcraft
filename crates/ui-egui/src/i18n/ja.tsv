@@ -336,7 +336,7 @@
 	Work	仕事
 	Write your message…	メッセージを入力…
 	Yesterday	昨日
-	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	あなたのメールを、あなたのコンピューターに。IMAP アカウントを追加すると、メッセージはこのデバイスに保存され、すばやく検索でき、オフラインでも読めます。パスワードはシステムのキーチェーンに保管されます。
+	Your mail, on this device. Add an IMAP account: messages stay here for fast search and offline reading. Your password is kept in secure storage.	メールはこのデバイスに。IMAP アカウントを追加すると、メッセージはここに保存され、すばやく検索でき、オフラインでも読めます。パスワードは安全に保管されます。
 	Your name	名前
 	categorize {category}	{category} に分類する
 	folder	フォルダー
@@ -1682,3 +1682,4 @@ month	May	5月
 	Couldn't open notification settings: {error}	通知設定を開けませんでした: {error}
 	Name and email address	名前とメールアドレス
 	Organizer:	主催者:
+	Server settings couldn't be looked up: {error}	サーバー設定を検索できませんでした: {error}

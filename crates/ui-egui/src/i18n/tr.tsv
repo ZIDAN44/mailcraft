@@ -336,7 +336,7 @@
 	Work	İş
 	Write your message…	İletinizi yazın…
 	Yesterday	Dün
-	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Postanız, bilgisayarınızda. Herhangi bir IMAP hesabı ekleyin: iletiler bu cihazda tutulur, böylece hızlı aranır ve çevrimdışı okunabilir. Parolanız sistem anahtarlığında kalır.
+	Your mail, on this device. Add an IMAP account: messages stay here for fast search and offline reading. Your password is kept in secure storage.	Postanız bu cihazda. Bir IMAP hesabı ekleyin: iletiler hızlı arama ve çevrimdışı okuma için burada tutulur. Parolanız güvenli depolamada saklanır.
 	Your name	Adınız
 	categorize {category}	{category} kategorisini ata
 	folder	klasör
@@ -1686,3 +1686,4 @@ month	May	Mayıs
 	Couldn't open notification settings: {error}	Bildirim ayarları açılamadı: {error}
 	Name and email address	Ad ve e-posta adresi
 	Organizer:	Düzenleyen:
+	Server settings couldn't be looked up: {error}	Sunucu ayarları aranamadı: {error}

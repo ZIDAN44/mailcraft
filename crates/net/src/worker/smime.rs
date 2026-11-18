@@ -13,6 +13,15 @@ use smime::revocation::{self as rev, Status};
 use super::*;
 
 mod kept;
+
+enum SpawnFailure {
+    Identity(String),
+    Protected { account: String, id: u64 },
+    Decrypted(mailcraft_model::MessageKey),
+    HeldKeys,
+    Revocation(Vec<u8>),
+    Ignored,
+}
 // The Windows store's test only.
 #[cfg(all(test, windows))]
 use kept::SECRET;
@@ -172,6 +181,21 @@ impl Pool {
     pub(super) fn smime(&mut self, job: Job) {
         let creds = self.creds.clone();
         let sink = self.sink.clone();
+        let (failure_sink, failure_job) = (
+            sink.clone(),
+            match &job {
+                Job::ImportIdentity { account, .. }
+                | Job::ForgetIdentity { account }
+                | Job::ForgetOlderIdentity { account, .. }
+                | Job::UseOlderIdentity { account, .. }
+                | Job::UseHeldKey { account, .. } => SpawnFailure::Identity(account.id.clone()),
+                Job::Protect { account, id, .. } => SpawnFailure::Protected { account: account.id.clone(), id: *id },
+                Job::Decrypt { key, .. } => SpawnFailure::Decrypted(key.clone()),
+                Job::FindHeldKeys { .. } => SpawnFailure::HeldKeys,
+                Job::CheckRevocation { chain } => SpawnFailure::Revocation(chain.first().cloned().unwrap_or_default()),
+                _ => SpawnFailure::Ignored,
+            },
+        );
         let spawned = std::thread::Builder::new().name("mail-smime".into()).spawn(move || match job {
             Job::ImportIdentity { account, data, password } => {
                 let done = smime::read_p12(&data, &password.0)
@@ -231,7 +255,19 @@ impl Pool {
             _ => {}
         });
         if let Err(e) = spawned {
-            log::warn!("S/MIME: {e}");
+            log::warn!("S/MIME worker could not start: {e}");
+            let error = format!("S/MIME work could not start: {e}");
+            let event = match failure_job {
+                SpawnFailure::Identity(account) => Some(identity(account, Err(error))),
+                SpawnFailure::Protected { account, id } => Some(Event::Protected { account, id, raw: None, error: Some(error) }),
+                SpawnFailure::Decrypted(key) => Some(Event::Decrypted { key, content: None, authenticated: false, error: Some(error) }),
+                SpawnFailure::HeldKeys => Some(Event::HeldKeys { keys: Vec::new(), error: Some(error) }),
+                SpawnFailure::Revocation(cert) => Some(Event::Revocation { cert, status: Revocation::Unknown { why: error } }),
+                SpawnFailure::Ignored => None,
+            };
+            if let Some(event) = event {
+                failure_sink.emit(event);
+            }
         }
     }
 }

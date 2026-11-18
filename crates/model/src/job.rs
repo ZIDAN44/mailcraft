@@ -471,11 +471,14 @@ pub enum Event {
         unchanged: bool,
         error: Option<String>,
     },
-    /// Server settings found for an address (`None`: nothing published; guess instead).
+    /// Server settings found for an address, or why lookup couldn't start (`None` config: no
+    /// settings were published; guess instead).
     Discovered {
         email: String,
         config: Option<Box<AccountConfig>>,
         source: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
     },
     /// Show this page in the browser (an OAuth sign-in page).
     OpenUrl {

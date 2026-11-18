@@ -253,7 +253,7 @@ impl MailApp {
         if self.ui.backstage.is_none() {
             let height = if phone_mode {
                 let row = if ctx.input(|input| input.has_touch_screen()) { 44.0 } else { super::bars::BAR_ROW_H };
-                2.0 * row + 16.0
+                (if self.session.accounts.is_empty() { row } else { 2.0 * row }) + 16.0
             } else if self.ui.bar_two_rows {
                 TOP_BAR_H + super::bars::BAR_ROW_H + 6.0
             } else {

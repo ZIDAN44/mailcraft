@@ -24,6 +24,8 @@ use super::*;
 /// How long an account's asks must stop coming before its pass starts: a sync's run of
 /// folders, or messages downloaded one by one, become one pass.
 const QUIET: Duration = Duration::from_millis(1500);
+/// How often an account waiting for an indexer thread retries after thread creation fails.
+const START_RETRY: Duration = Duration::from_secs(5);
 /// How long before an index held elsewhere (by another writer), or an account being imported
 /// into, is looked at again.
 const RETRY: Duration = Duration::from_secs(5);
@@ -109,8 +111,10 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 /// The pool's side of the indexer: its thread started at the first ask.
 #[derive(Default)]
 pub(super) struct Indexer {
-    tx: Option<Sender<Ask>>,
+    tx: Mutex<Option<Sender<Ask>>>,
     shared: Arc<Shared>,
+    deferred: Mutex<Pending>,
+    retry_at: Mutex<Option<Instant>>,
 }
 
 /// An account being imported into: no pass runs for it until this is dropped.
@@ -127,43 +131,92 @@ impl Drop for Importing {
 
 impl Indexer {
     /// Bring `account`'s index up to its mail in `folders` (none: all), once its asks go quiet.
-    pub(super) fn ask(&mut self, store: &Store, sink: &Sink, account: String, folders: Vec<String>) {
-        let mut ask = Ask::Index { account, folders };
-        // A thread that has gone (it never should) is started again, once.
-        for _ in 0..2 {
-            let tx = match &self.tx {
-                Some(tx) => tx.clone(),
-                None => {
-                    let (tx, rx) = mpsc::channel();
-                    let (store, sink, shared) = (store.clone(), sink.clone(), self.shared.clone());
-                    if let Err(e) = std::thread::Builder::new().name("mail-index".into()).spawn(move || run(&rx, &store, &sink, &shared)) {
-                        log::warn!("the search index won't be kept up: {e}");
-                        return;
-                    }
-                    self.tx = Some(tx.clone());
-                    tx
-                }
-            };
+    pub(super) fn ask(&self, store: &Store, sink: &Sink, account: String, folders: Vec<String>) {
+        let ask = Ask::Index { account, folders };
+        let tx = { lock(&self.tx).as_ref().cloned() };
+        if let Some(tx) = tx {
             match tx.send(ask) {
                 Ok(()) => return,
-                Err(mpsc::SendError(a)) => {
-                    ask = a;
-                    self.tx = None;
+                Err(mpsc::SendError(ask)) => {
+                    *lock(&self.tx) = None;
+                    self.defer(ask);
                 }
+            }
+        } else {
+            self.defer(ask);
+        }
+        self.start(store, sink);
+    }
+
+    fn defer(&self, ask: Ask) {
+        match ask {
+            Ask::Index { account, folders } => want(&mut lock(&self.deferred), account, folders, Instant::now()),
+            Ask::Stop { account } => {
+                lock(&self.deferred).remove(&account);
             }
         }
     }
 
+    fn start(&self, store: &Store, sink: &Sink) {
+        let mut tx_slot = lock(&self.tx);
+        if tx_slot.is_some() || lock(&self.deferred).is_empty() {
+            return;
+        }
+        let mut retry_at = lock(&self.retry_at);
+        let now = Instant::now();
+        if retry_at.is_some_and(|at| at > now) {
+            return;
+        }
+        let deferred = lock(&self.deferred).clone();
+        let (tx, rx) = mpsc::channel();
+        let (store, sink, shared) = (store.clone(), sink.clone(), self.shared.clone());
+        if let Err(error) = std::thread::Builder::new().name("mail-index".into()).spawn(move || run(&rx, &store, &sink, &shared)) {
+            log::warn!("the search index will retry after its worker couldn't start: {error}");
+            *retry_at = now.checked_add(START_RETRY);
+            return;
+        }
+        // Keep the deferred asks until every send succeeds. A worker that exits during this
+        // handoff may see some twice on the next attempt, which is safe: asks coalesce by account.
+        for (account, (folders, _)) in &deferred {
+            let account = account.clone();
+            let ask = Ask::Index { account, folders: folders.as_ref().map(|folders| folders.iter().cloned().collect()).unwrap_or_default() };
+            if tx.send(ask).is_err() {
+                log::warn!("the search index worker stopped while queued asks were being restored");
+                *retry_at = now.checked_add(START_RETRY);
+                return;
+            }
+        }
+        lock(&self.deferred).clear();
+        *tx_slot = Some(tx);
+        *retry_at = None;
+    }
+
+    /// Retry deferred asks without blocking the UI or the account workers.
+    pub(super) fn retry(&self, store: &Store, sink: &Sink) {
+        self.start(store, sink);
+    }
+
     /// Stop `account`'s pass if one is running, and forget what was asked of it.
-    pub(super) fn stop(&self, account: &str) {
+    pub(super) fn stop(&mut self, account: &str) {
+        let deferred_empty = {
+            let mut deferred = lock(&self.deferred);
+            deferred.remove(account);
+            deferred.is_empty()
+        };
+        if deferred_empty {
+            *lock(&self.retry_at) = None;
+        }
         let _choosing = lock(&self.shared.importing);
         if let Some((a, stop)) = lock(&self.shared.running).as_ref()
             && a == account
         {
             stop.store(true, Ordering::Relaxed);
         }
-        if let Some(tx) = &self.tx {
-            let _ = tx.send(Ask::Stop { account: account.to_string() });
+        let mut tx_slot = lock(&self.tx);
+        if let Some(tx) = tx_slot.as_ref()
+            && tx.send(Ask::Stop { account: account.to_string() }).is_err()
+        {
+            *tx_slot = None;
         }
     }
 
@@ -196,7 +249,9 @@ impl Indexer {
         if let Some((_, stop)) = lock(&self.shared.running).as_ref() {
             stop.store(true, Ordering::Relaxed);
         }
-        self.tx = None;
+        *lock(&self.tx) = None;
+        lock(&self.deferred).clear();
+        *lock(&self.retry_at) = None;
     }
 }
 
@@ -369,6 +424,7 @@ pub(super) fn pass(
     let mut failed = None;
     std::thread::scope(|s| {
         let (tx, rx) = mpsc::sync_channel::<Read>(IN_FLIGHT);
+        let mut spawned_readers = 0usize;
         for n in 0..readers.max(1) {
             let (tx, adds, next, quit, room, times) = (tx.clone(), &adds, &next, &quit, &room, &times);
             let read = move || {
@@ -394,19 +450,19 @@ pub(super) fn pass(
                     }
                 }
             };
-            if let Err(e) = std::thread::Builder::new().name(format!("mail-index-{n}")).spawn_scoped(s, read) {
-                log::warn!("{account}: a thread to read mail for search: {e}");
+            match std::thread::Builder::new().name(format!("mail-index-{n}")).spawn_scoped(s, read) {
+                Ok(_) => spawned_readers = spawned_readers.saturating_add(1),
+                Err(e) => log::warn!("{account}: a thread to read mail for search: {e}"),
             }
         }
         drop(tx);
         let (mut told, mut settled) = (Instant::now(), Instant::now());
         let mut waited = Instant::now();
-        for (i, doc, kept) in rx {
-            if stop.load(Ordering::Relaxed) {
-                break;
-            }
+        let mut consume = |i: usize, doc: std::thread::Result<Option<IndexDoc>>, kept: u64, waiting_since: Option<Instant>| {
             let began = Instant::now();
-            times.waiting(began.saturating_duration_since(waited));
+            if let Some(waiting_since) = waiting_since {
+                times.waiting(waiting_since.saturating_duration_since(waited));
+            }
             let added = match doc {
                 Ok(doc) => p.add(store, i, doc.as_ref()),
                 Err(_) => {
@@ -429,6 +485,30 @@ pub(super) fn pass(
                 Ok(_) => {}
                 Err(e) => {
                     failed = Some(e);
+                    return false;
+                }
+            }
+            true
+        };
+        if spawned_readers == 0 {
+            // If resource pressure prevented every reader from starting, use this pass's thread
+            // to read one source at a time so the rest of the account's index isn't lost.
+            for (i, message) in adds.iter().enumerate() {
+                if stop.load(Ordering::Relaxed) {
+                    break;
+                }
+                let began = Instant::now();
+                let raw = catch_unwind(AssertUnwindSafe(|| store.read_body(&message.key)));
+                let read = began.elapsed();
+                let doc = raw.and_then(|raw| catch_unwind(AssertUnwindSafe(|| raw.map(|raw| extract(&raw)))));
+                times.add(read, began.elapsed().saturating_sub(read));
+                if !consume(i, doc, 0, None) {
+                    break;
+                }
+            }
+        } else {
+            for (i, doc, kept) in rx {
+                if stop.load(Ordering::Relaxed) || !consume(i, doc, kept, Some(Instant::now())) {
                     break;
                 }
             }

@@ -336,7 +336,7 @@
 	Work	العمل
 	Write your message…	اكتب رسالتك…
 	Yesterday	أمس
-	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	بريدك على جهازك. أضف أي حساب IMAP: تُحفظ الرسائل على هذا الجهاز فيسهل البحث فيها وقراءتها دون اتصال. تبقى كلمة المرور في سلسلة مفاتيح النظام.
+	Your mail, on this device. Add an IMAP account: messages stay here for fast search and offline reading. Your password is kept in secure storage.	بريدك على هذا الجهاز. أضف حساب IMAP لتبقى الرسائل هنا ويسهل البحث فيها وقراءتها دون اتصال. تُحفظ كلمة المرور في مساحة تخزين آمنة.
 	Your name	اسمك
 	categorize {category}	صنّفه {category}
 	folder	مجلد
@@ -1681,3 +1681,4 @@ month	May	مايو
 	Couldn't open notification settings: {error}	تعذر فتح إعدادات الإشعارات: {error}
 	Name and email address	الاسم وعنوان البريد الإلكتروني
 	Organizer:	المنظّم:
+	Server settings couldn't be looked up: {error}	تعذّر البحث عن إعدادات الخادم: {error}

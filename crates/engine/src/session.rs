@@ -384,8 +384,9 @@ pub struct Session {
     pub pictures: HashMap<String, Picture>,
     /// Messages whose pictures the user asked to see this time.
     pictures_for: BTreeSet<MessageKey>,
-    /// Server settings looked up per address (lower case): `None` while looking.
-    pub discovered: HashMap<String, Option<(Option<AccountConfig>, String)>>,
+    /// Server settings looked up per address (lower case): `None` while looking; an error means
+    /// the lookup worker couldn't start.
+    pub discovered: HashMap<String, Option<(Option<AccountConfig>, String, Option<String>)>>,
     /// Accounts waiting for a data file to come in before they connect (their start).
     held: HashMap<String, Job>,
     /// OAuth providers this copy can sign in with (set by the app).

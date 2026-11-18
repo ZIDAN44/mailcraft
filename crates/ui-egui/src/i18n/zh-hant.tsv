@@ -336,7 +336,7 @@
 	Work	工作
 	Write your message…	撰寫郵件…
 	Yesterday	昨天
-	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	您的郵件，就在您的電腦上。新增任何 IMAP 帳戶: 郵件保存在此裝置上，搜尋快速，離線也能閱讀。您的密碼保存在系統鑰匙圈中。
+	Your mail, on this device. Add an IMAP account: messages stay here for fast search and offline reading. Your password is kept in secure storage.	您的郵件，就在此裝置上。新增 IMAP 帳戶後，郵件會保存在這裡，方便快速搜尋及離線閱讀。您的密碼會安全保存。
 	Your name	您的姓名
 	categorize {category}	歸類為 {category}
 	folder	資料夾
@@ -1685,3 +1685,4 @@ month	May	5月
 	Couldn't open notification settings: {error}	無法開啟通知設定：{error}
 	Name and email address	姓名和電子郵件地址
 	Organizer:	召集人：
+	Server settings couldn't be looked up: {error}	無法查詢伺服器設定：{error}

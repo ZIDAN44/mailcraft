@@ -68,8 +68,9 @@ save an edited note before returning to its list or leaving the app. Sign-in
 credentials are stored in encrypted SharedPreferences backed by Android Keystore.
 If Android Keystore is temporarily unavailable, MailCraft keeps credentials in memory for the
 current run and asks for them again after the app closes.
-Android excludes these encrypted preferences from cloud backups and device transfers because the
-Keystore key does not transfer with them; after restoring a device, sign in to the accounts again.
+Only the encrypted keyring preferences are excluded from cloud backups and device transfers because
+the Keystore key does not transfer with them; other shared preferences remain eligible for backup.
+After restoring a device, sign in to the accounts again.
 S/MIME and OpenPGP use MailCraft's shared Rust crypto code. Import a `.p12` or `.pfx` certificate,
 or an OpenPGP secret key, from **File › Info › Security**. Their secret key material is kept in
 Android's Keystore-backed encrypted credential store; an OpenPGP passphrase is used only for the
@@ -140,14 +141,16 @@ available for work that may need to resume later.
 
 ## Build and run
 
-Install Android SDK Build Tools 35, the Android NDK, JDK 17, Gradle 8.13, `cargo-apk`, and the Rust
-targets for the ABIs you plan to build. The Gradle project packages the Rust library with the small
-WorkManager adapter. From `apps/mailcraft-android/android`, build arm64 plus the common x86_64
-emulator ABI with:
+Install Android SDK Build Tools 35, the Android NDK, JDK 17, `cargo-apk`, and the Rust targets for
+the ABIs you plan to build. The checked-in Gradle wrapper downloads Gradle 8.13 and verifies its
+SHA-256 checksum. The Gradle project packages the Rust library with the small WorkManager adapter.
+From `apps/mailcraft-android/android`, build arm64 plus the common x86_64 emulator ABI with:
 
 ```sh
-gradle :app:assembleDebug -PmailcraftAbis=arm64-v8a,x86_64
+./gradlew :app:assembleDebug -PmailcraftAbis=arm64-v8a,x86_64
 ```
+
+On Windows, run `gradlew.bat` with the same arguments.
 
 To include Google or Microsoft sign-in, provide the registration values from
 [`docs/oauth.md`](../../docs/oauth.md) as Gradle properties (`mailcraftMicrosoftClientId`,
@@ -158,13 +161,13 @@ tracks these values and rebuilds the Rust library when they change.
 Install to a connected device or emulator with:
 
 ```sh
-gradle :app:installDebug -PmailcraftAbis=arm64-v8a,x86_64
+./gradlew :app:installDebug -PmailcraftAbis=arm64-v8a,x86_64
 ```
 
 Run the cold-start background-sync regression test on a connected emulator with:
 
 ```sh
-gradle :app:connectedDebugAndroidTest -PmailcraftAbis=x86_64 -PmailcraftTestProbe=true
+./gradlew :app:connectedDebugAndroidTest -PmailcraftAbis=x86_64 -PmailcraftTestProbe=true
 ```
 
 The test probe uses the separate `ai.storyteller.mailcraft.debug.probe` application id, so Gradle

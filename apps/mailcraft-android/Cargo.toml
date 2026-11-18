@@ -32,6 +32,7 @@ log = { workspace = true }
 
 [target.'cfg(target_os = "android")'.dependencies]
 serde_json = { workspace = true }
+pollster = "0.4"
 winit = { version = "0.30", default-features = false, features = ["android-native-activity"] }
 android-native-keyring-store = "1"
 keyring-core = "1"

@@ -610,7 +610,7 @@ pub fn welcome(ui: &mut Ui, t: &Tokens, jmap_only: bool, acts: &mut Vec<Action>)
                 let about = if jmap_only {
                     "Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only."
                 } else {
-                    "Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain."
+                    "Your mail, on this device. Add an IMAP account: messages stay here for fast search and offline reading. Your password is kept in secure storage."
                 };
                 ui.label(RichText::new(tl!(about)).color(t.dim));
                 ui.add_space(18.0);

@@ -226,16 +226,18 @@ impl Pool {
             Job::AllowDirectory { account } => self.allow_directory(account),
             Job::Discover { email } => {
                 let sink = self.sink.clone();
+                let failed_email = email.clone();
                 let spawned = std::thread::Builder::new().name("mail-discover".into()).spawn(move || {
                     let found = crate::autoconfig::discover(&email);
                     let (config, source) = match found {
                         Some(f) => (Some(Box::new(f.config)), f.source),
                         None => (None, String::new()),
                     };
-                    sink.emit(Event::Discovered { email, config, source });
+                    sink.emit(Event::Discovered { email, config, source, error: None });
                 });
                 if let Err(e) = spawned {
-                    log::warn!("autoconfiguration: {e}");
+                    log::warn!("autoconfiguration worker could not start: {e}");
+                    self.sink.emit(Event::Discovered { email: failed_email, config: None, source: String::new(), error: Some(e.to_string()) });
                 }
             }
             Job::ImportPst { account, path, resume } => self.import_pst(account, path, resume),
@@ -467,6 +469,7 @@ impl Pool {
     /// newest for each account). Jobs held while a compaction had a data file to itself go on.
     pub fn poll(&mut self) -> Vec<Event> {
         self.release_compacted();
+        self.indexer.retry(&self.store, &self.sink);
         let mut events: Vec<Event> = self.rx.try_iter().collect();
         events.extend(self.indexer.latest());
         events
@@ -476,6 +479,7 @@ impl Pool {
     pub fn wait(&self, timeout: Duration) -> Option<Event> {
         let end = Instant::now() + timeout;
         loop {
+            self.indexer.retry(&self.store, &self.sink);
             if let Some(e) = self.indexer.next_latest() {
                 return Some(e);
             }
@@ -547,9 +551,12 @@ impl Pool {
             // The thread notices the closed channel within half a second (IDLE slices); don't
             // block the UI waiting for a slow network call to finish.
             for t in [h.thread.take(), h.quick_thread.take()].into_iter().flatten() {
-                std::thread::spawn(move || {
+                let joined = std::thread::Builder::new().name("mail-worker-join".into()).spawn(move || {
                     let _ = t.join();
                 });
+                if let Err(error) = joined {
+                    log::debug!("the stopped account worker was detached because its joiner couldn't start: {error}");
+                }
             }
         }
     }

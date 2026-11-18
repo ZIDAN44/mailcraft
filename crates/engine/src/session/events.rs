@@ -291,8 +291,8 @@ impl Session {
                     }
                 }
             }
-            Event::Discovered { email, config, source } => {
-                self.discovered.insert(email.trim().to_ascii_lowercase(), Some((config.map(|c| *c), source)));
+            Event::Discovered { email, config, source, error } => {
+                self.discovered.insert(email.trim().to_ascii_lowercase(), Some((config.map(|c| *c), source, error)));
             }
             Event::Releases { releases, error } => {
                 self.update = match error {

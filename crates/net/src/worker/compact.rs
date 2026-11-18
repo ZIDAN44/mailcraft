@@ -71,6 +71,7 @@ impl Pool {
     /// Measure an account's data file, on a thread of its own (a cold one takes a moment).
     pub(super) fn data_file_health(&mut self, account: String) {
         let (store, sink) = (self.store.clone(), self.sink.clone());
+        let failure_account = account.clone();
         let spawned = std::thread::Builder::new().name("mail-health".into()).spawn(move || {
             let measured = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| store.data_file_health(&account)));
             let (health, error) = match measured {
@@ -82,6 +83,11 @@ impl Pool {
         });
         if let Err(e) = spawned {
             log::warn!("data file health: {e}");
+            self.sink.emit(Event::DataFileHealth {
+                account: failure_account,
+                health: None,
+                error: Some(format!("the data file couldn't be measured: {e}")),
+            });
         }
     }
 

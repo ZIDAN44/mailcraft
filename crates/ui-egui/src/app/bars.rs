@@ -90,13 +90,21 @@ impl MailApp {
         controls
     }
 
-    /// Two short rows on a phone: navigation and global controls, then the search field.
+    /// One setup row before accounts exist; otherwise navigation and global controls above search.
     fn phone_top_bar_rows(&mut self, ui: &mut Ui, full: egui::Rect, acts: &mut Vec<Action>) -> Vec<egui::Rect> {
-        self.ui.bar_two_rows = true;
+        let has_accounts = !self.session.accounts.is_empty();
+        self.ui.bar_two_rows = has_accounts;
         let row_height = if ui.ctx().input(|input| input.has_touch_screen()) { 44.0 } else { BAR_ROW_H };
         let row = vec2(full.width(), row_height);
         let mut controls = Vec::new();
         ui.allocate_ui_with_layout(row, bidi::row_from_start(Align::Center), |ui| {
+            if !has_accounts {
+                ui.add(Label::new(RichText::new("MailCraft").strong().color(self.ui.tokens.text)));
+                ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
+                    controls.push(self.bar_end(ui, acts));
+                });
+                return;
+            }
             let composing = self.session.compose.is_some();
             let detail_open = composing
                 || (self.ui.phone_reader_open && self.session.module == Module::Mail)
@@ -189,9 +197,11 @@ impl MailApp {
                 controls.push(self.bar_end(ui, acts));
             });
         });
-        ui.allocate_ui_with_layout(row, Layout::top_down(Align::Center), |ui| {
-            controls.push(self.top_search(ui, (full.width() - 16.0).max(64.0), acts));
-        });
+        if has_accounts {
+            ui.allocate_ui_with_layout(row, Layout::top_down(Align::Center), |ui| {
+                controls.push(self.top_search(ui, (full.width() - 16.0).max(64.0), acts));
+            });
+        }
         controls
     }
 

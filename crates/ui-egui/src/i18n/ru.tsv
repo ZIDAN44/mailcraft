@@ -336,7 +336,7 @@
 	Work	Работа
 	Write your message…	Напишите письмо…
 	Yesterday	Вчера
-	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	Ваша почта — на вашем компьютере. Добавьте любую учётную запись IMAP: письма хранятся на этом устройстве, поэтому поиск быстрый, а читать можно без сети. Пароль остаётся в системной связке ключей.
+	Your mail, on this device. Add an IMAP account: messages stay here for fast search and offline reading. Your password is kept in secure storage.	Ваша почта — на этом устройстве. Добавьте учётную запись IMAP: письма хранятся здесь для быстрого поиска и чтения без сети. Пароль хранится в защищённом хранилище.
 	Your name	Ваше имя
 	categorize {category}	отнести к категории {category}
 	folder	папка
@@ -1685,3 +1685,4 @@ month	May	Май
 	Couldn't open notification settings: {error}	Не удалось открыть настройки уведомлений: {error}
 	Name and email address	Имя и адрес электронной почты
 	Organizer:	Организатор:
+	Server settings couldn't be looked up: {error}	Не удалось найти настройки сервера: {error}

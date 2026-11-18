@@ -4015,6 +4015,7 @@ dependencies = [
  "mailcraft-net",
  "mailcraft-ui-egui",
  "mime_guess",
+ "pollster 0.4.0",
  "robius-android-env",
  "robius-open",
  "serde_json",

@@ -177,7 +177,15 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         ui.label(RichText::new(tl!("Looking up the server settings…")).color(t.faint).small());
                     });
                 }
-                (_, Some(Some((None, _)))) => {
+                (_, Some(Some((None, _, Some(error))))) => {
+                    ui.horizontal(|ui| {
+                        ui.label(RichText::new(tf!("Server settings couldn't be looked up: {error}", error = error)).color(t.danger).small());
+                        if ui.small_button(tl!("Try again")).clicked() {
+                            acts.push(Action::Run("account.discover", json!({"email": email, "retry": true})));
+                        }
+                    });
+                }
+                (_, Some(Some((None, _, None)))) => {
                     ui.label(
                         RichText::new(tl!("No published settings: the usual server names are filled in. Check them under Server settings."))
                             .color(t.faint)
@@ -434,7 +442,7 @@ fn update_discovered_servers(f: &mut AccountForm, s: &Session, acts: &mut Vec<Ac
     }
     if !f.servers_edited
         && f.found_for.as_deref() != Some(email.as_str())
-        && let Some(Some((Some(c), source))) = s.discovered.get(&email)
+        && let Some(Some((Some(c), source, _))) = s.discovered.get(&email)
     {
         f.imap_host = c.imap.host.clone();
         f.imap_port = c.imap.port.to_string();

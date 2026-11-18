@@ -15,6 +15,7 @@ impl Pool {
             return self.sink.emit(Event::Status { account: account.id, status: SyncStatus::NeedsPassword { error } });
         };
         let (sink, creds) = (self.sink.clone(), self.creds.clone());
+        let (failure_sink, failure_account) = (sink.clone(), account.id.clone());
         let spawned = std::thread::Builder::new().name("mail-sign-in".into()).spawn(move || {
             let mut open = |url: &str| -> std::result::Result<(), String> {
                 sink.emit(Event::OpenUrl { url: url.to_string() });
@@ -38,7 +39,11 @@ impl Pool {
             }
         });
         if let Err(e) = spawned {
-            log::warn!("sign-in: {e}");
+            log::warn!("sign-in worker could not start: {e}");
+            failure_sink.emit(Event::Status {
+                account: failure_account,
+                status: SyncStatus::NeedsPassword { error: format!("the sign-in could not start: {e}") },
+            });
         }
     }
 
@@ -51,6 +56,7 @@ impl Pool {
             return self.sink.emit(Event::DirectoryAllowed { account: account.id, error: Some(error) });
         };
         let (sink, creds) = (self.sink.clone(), self.creds.clone());
+        let (failure_sink, failure_account) = (sink.clone(), account.id.clone());
         let spawned = std::thread::Builder::new().name("mail-directory-consent".into()).spawn(move || {
             let mut open = |url: &str| -> std::result::Result<(), String> {
                 sink.emit(Event::OpenUrl { url: url.to_string() });
@@ -69,7 +75,9 @@ impl Pool {
             sink.emit(Event::DirectoryAllowed { account: account.id, error });
         });
         if let Err(e) = spawned {
-            log::warn!("directory consent: {e}");
+            log::warn!("directory consent worker could not start: {e}");
+            failure_sink
+                .emit(Event::DirectoryAllowed { account: failure_account, error: Some(format!("the permission request could not start: {e}")) });
         }
     }
 

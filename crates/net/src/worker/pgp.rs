@@ -14,6 +14,13 @@ const LIST: &str = "pgp";
 /// The most keys kept for an account.
 pub(super) const KEYS_MAX: usize = 16;
 
+enum SpawnFailure {
+    Keys,
+    Decrypt(mailcraft_model::MessageKey),
+    Protect(u64),
+    Ignored,
+}
+
 /// Held while the entries change (each job runs on a thread of its own).
 static CHANGING: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
@@ -199,6 +206,13 @@ impl Pool {
         }
         let creds = self.creds.clone();
         let sink = self.sink.clone();
+        let (failure_sink, failure_account, failure_creds) = (sink.clone(), account.clone(), creds.clone());
+        let failure = match &work {
+            PgpWork::Import { .. } | PgpWork::Use { .. } | PgpWork::Forget { .. } => SpawnFailure::Keys,
+            PgpWork::Decrypt { key, .. } => SpawnFailure::Decrypt(key.clone()),
+            PgpWork::Protect { id, .. } => SpawnFailure::Protect(*id),
+            PgpWork::SealDraft { .. } => SpawnFailure::Ignored,
+        };
         let spawned = std::thread::Builder::new().name("mail-pgp".into()).spawn(move || {
             let creds = creds.as_ref();
             let event = match work {
@@ -235,7 +249,20 @@ impl Pool {
             sink.emit(event);
         });
         if let Err(e) = spawned {
-            log::warn!("OpenPGP: {e}");
+            log::warn!("OpenPGP worker could not start: {e}");
+            let error = format!("OpenPGP work could not start: {e}");
+            match failure {
+                SpawnFailure::Keys => {
+                    failure_sink.emit(keys_now(failure_creds.as_ref(), &failure_account, None, Err(error)));
+                }
+                SpawnFailure::Decrypt(key) => {
+                    failure_sink.emit(Event::PgpDecrypted { key, content: None, signature: None, error: Some(error) });
+                }
+                SpawnFailure::Protect(id) => {
+                    failure_sink.emit(Event::Protected { account: failure_account.id, id, raw: None, error: Some(error) });
+                }
+                SpawnFailure::Ignored => {}
+            }
         }
     }
 }

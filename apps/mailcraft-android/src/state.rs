@@ -473,7 +473,7 @@ impl eframe::App for AndroidApp {
             self.last_resume_sync = Some(Instant::now());
         }
         let sync_for_network = self.network_sync_pending && self.network_available == Some(true);
-        if (self.resume_sync_pending || sync_for_network) && sync_due && !work_offline {
+        if (self.resume_sync_pending || sync_for_network) && sync_due && !work_offline && self.network_available != Some(false) {
             let accounts = self.mail.sync_now();
             self.last_resume_sync = Some(Instant::now());
             self.resume_sync_pending = false;

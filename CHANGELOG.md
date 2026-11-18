@@ -21,7 +21,8 @@ on GitHub.
 - Android resizes the app window for the on-screen keyboard without reserving the keyboard height twice.
 - Android 13 and later route system Back through MailCraft's navigation, including save prompts for edited messages.
 - Android's status and navigation bars match MailCraft's surfaces and keep their icons readable in both themes.
-- Android excludes Keystore-encrypted credentials from cloud backups and device transfers, so restoring a backup cannot restore ciphertext without its key.
+- Android excludes only its Keystore-encrypted credential preferences from cloud backups and device transfers, preserving other shared preferences.
+- Android uses Vulkan when its buffer limits are usable and falls back to OpenGL ES on drivers with incomplete limits.
 - Phone touch controls across navigation, mail lists, settings, formatting, contacts and calendar use a 44-point minimum target where they were previously 42 points.
 - Phone compose uses 48-point touch targets for recipient suggestions, address and subject fields, and the full-width Send button.
 - Screen readers announce each task's title, due date, status and priority in both phone cards and the full task list.
@@ -207,11 +208,17 @@ on GitHub.
 - The Open & Export page can open `.eml` and `.msg` messages, `.ics` calendars and `.vcf` contacts as well as `.pst` and `.mailcraft` data files.
 
 ### Changed
+- The first-run message describes local mail and secure password storage accurately on phones and computers.
+- Phone first-run setup keeps the empty folder controls and mail search out of the way until an account is added.
 - The Android app now requires Android 12 (API 31) or later.
 - Binary attachments and imported files now cross the UI command boundary as compact base64, avoiding the much larger JSON byte arrays.
 - Android keeps its local cache, preferences, logs and staged imports in the system's no-backup private directory, migrating existing data on first launch.
 
 ### Fixed
+- Failed OAuth, OpenPGP, S/MIME, and data-file health worker launches now report an error instead of leaving work pending.
+- A failed server-settings lookup worker now explains why automatic discovery could not run and offers a retry.
+- Stopping an account no longer panics if the system cannot start a background thread to reap it.
+- Search indexing retries queued work after a worker launch failure and reads messages serially if all readers fail to start.
 - Android runs cold-start WorkManager sync in an isolated process and waits briefly for its cache lock when reopening the foreground app, avoiding NDK context conflicts and a missing-cache session during handoff.
 - A `.mailcraft` copy beside a PST stays claimed when its owning data folder moves or is unavailable; reuse now requires an explicit takeover.
 - Android applies system bar safe areas to dialogs as well as the main content, keeping tall forms clear of status and navigation bars.
@@ -220,6 +227,7 @@ on GitHub.
 - Android displays the translated save error if a background download cannot start.
 - A failed Android file handoff now releases the waiting picker so another selection can start.
 - Android's headless background sync honors saved cache-retention and **Work offline** preferences before connecting.
+- Android keeps a foreground catch-up sync pending while its system reports no network, then starts it when connectivity returns.
 - Android's foreground and headless calendar handling follows named and fixed-offset device time zones.
 - Android's background notifications follow the app's system language when **Same as the system** is selected.
 - A background new-mail notification opens the newest message found across the sync, rather than an older message from its batch.

@@ -21,6 +21,8 @@ mod activity;
 #[cfg(target_os = "android")]
 mod background;
 #[cfg(target_os = "android")]
+mod graphics;
+#[cfg(target_os = "android")]
 mod lanes;
 #[cfg(target_os = "android")]
 mod notifications;
@@ -136,7 +138,8 @@ fn android_main(app: winit::platform::android::activity::AndroidApp) {
     set_active_pool(pool.clone());
     let active_pool_on_exit = pool.clone();
 
-    let options = eframe::NativeOptions { android_app: Some(app.clone()), ..Default::default() };
+    let mut options = eframe::NativeOptions { android_app: Some(app.clone()), ..Default::default() };
+    graphics::configure(&mut options);
     let app_handoff_route = handoff_route.clone();
     let create_app = Box::new(move |cc: &eframe::CreationContext<'_>| -> Result<Box<dyn eframe::App>, Box<dyn std::error::Error + Send + Sync>> {
         let pool = pool;
