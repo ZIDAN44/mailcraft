@@ -423,7 +423,15 @@ impl Data {
             x.push_str(&format!("<t:CcRecipients>{}</t:CcRecipients>", p.cc.iter().map(mb).collect::<String>()));
         }
         x.push_str(&format!("<t:From>{}</t:From>", mb(&p.from)));
-        x.push_str(&format!("<t:InternetMessageId>&lt;{}&gt;</t:InternetMessageId><t:IsRead>{}</t:IsRead></t:Message>", esc(&p.message_id), it.read));
+        x.push_str(&format!("<t:InternetMessageId>&lt;{}&gt;</t:InternetMessageId>", esc(&p.message_id)));
+        if !p.in_reply_to.is_empty() {
+            x.push_str(&format!("<t:InReplyTo>&lt;{}&gt;</t:InReplyTo>", esc(&p.in_reply_to)));
+        }
+        if !p.references.is_empty() {
+            let refs: Vec<String> = p.references.iter().map(|r| format!("&lt;{}&gt;", esc(r))).collect();
+            x.push_str(&format!("<t:References>{}</t:References>", refs.join(" ")));
+        }
+        x.push_str(&format!("<t:IsRead>{}</t:IsRead></t:Message>", it.read));
         x
     }
 

@@ -39,6 +39,7 @@ on GitHub.
 - An Exchange meeting you accepted shows as accepted, a recurring one too (#144): the calendar took your answer from the meeting's list of guests, which keeps the one the invitation came with, where Exchange keeps yours apart; some accepted series showed as tentative or not answered.
 - An attachment dragged out of a message opened in its own window keeps its name and extension (#120): it was dropped as a file called "attachment", and Save Attachment there suggested that name too.
 - In Calendar, People, Tasks and Notes, the ribbon's **Send / Receive** and **View** tabs show their own buttons (#142): Send / Receive as in Mail, View how the module shows what it holds (the calendar's Day to Month, how tasks and notes are arranged, people's views) and the folder pane; both showed Home's. **Update folder** (Shift+F9) there reads the calendars, contacts, tasks and notes again, where it read the mail folder behind them.
+- An Exchange account's mail says what it answers (#148): a reply joins its conversation even when only its headers are here, where it stood alone.
 - In the dark theme, the segment of a switch under the pointer (File › Options › Theme, Reading pane and the others) no longer looks chosen: it was lighter than the segment that was.
 
 ## 0.40.0 - 2026-11-17

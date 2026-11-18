@@ -455,6 +455,7 @@ const HEADER_FIELDS: &str = "<t:FieldURI FieldURI=\"item:Subject\"/><t:FieldURI 
 <t:FieldURI FieldURI=\"message:ToRecipients\"/><t:FieldURI FieldURI=\"message:CcRecipients\"/>\
 <t:FieldURI FieldURI=\"message:ReplyTo\"/><t:FieldURI FieldURI=\"item:DateTimeReceived\"/>\
 <t:FieldURI FieldURI=\"item:DateTimeSent\"/><t:FieldURI FieldURI=\"message:InternetMessageId\"/>\
+<t:FieldURI FieldURI=\"message:InReplyTo\"/><t:FieldURI FieldURI=\"message:References\"/>\
 <t:FieldURI FieldURI=\"item:HasAttachments\"/><t:FieldURI FieldURI=\"item:Size\"/>";
 
 /// An extended property's value.
@@ -509,6 +510,14 @@ fn header_block(it: &El) -> Vec<u8> {
     }
     if let Some(id) = it.text_of("InternetMessageId") {
         h.push_str(&format!("Message-ID: {}\r\n", clean(id)));
+    }
+    // What it answers: a reply joins its conversation by these. They weren't asked for, and an
+    // Exchange account's replies threaded by nothing, its own from Sent Items not at all (#148).
+    for (field, name) in [("InReplyTo", "In-Reply-To"), ("References", "References")] {
+        if let Some(v) = it.text_of(field).filter(|v| !v.trim().is_empty()) {
+            let v: String = clean(v).chars().take(16 * 1024).collect();
+            h.push_str(&format!("{name}: {v}\r\n"));
+        }
     }
     h.push_str("\r\n");
     h.into_bytes()
