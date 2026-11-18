@@ -629,3 +629,30 @@ fn an_event_at_the_end_of_time_is_drawn_without_overflow() {
     let _ = s.agenda(i64::MAX - 100, i64::MAX);
     let _ = s.agenda(i64::MIN, i64::MIN + 100);
 }
+
+/// Issue #142: Update Folder (Shift+F9) in Calendar, People, Tasks or Notes reads the accounts'
+/// calendars, contacts, tasks and notes again, as Outlook's does there; in Mail, the folder shown.
+/// It read the mail folder chosen behind them, and the calendar wasn't read again.
+#[test]
+fn update_folder_outside_mail_reads_the_calendars_again() {
+    let mut s = Session::open(Some(temp("update-folder-pim")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s
+        .run("account.add", &json!({"email": "zoe@studio.example", "password": "pw", "imapHost": "imap.example", "smtpHost": "smtp.example"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).ok();
+    for module in ["calendar", "people", "tasks", "notes"] {
+        s.run("view.module", &json!({"name": module})).unwrap();
+        s.take_jobs();
+        s.run("folder.sync", &json!({})).unwrap();
+        let jobs = s.take_jobs();
+        assert!(jobs.iter().any(|j| matches!(j, Job::SyncDav { account } if *account == id)), "{module}: {jobs:?}");
+        assert!(!jobs.iter().any(|j| matches!(j, Job::SyncFolder { .. })), "{module}: {jobs:?}");
+    }
+    s.run("view.module", &json!({"name": "mail"})).unwrap();
+    s.take_jobs();
+    s.run("folder.sync", &json!({})).unwrap();
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { .. })), "in Mail, the folder");
+}

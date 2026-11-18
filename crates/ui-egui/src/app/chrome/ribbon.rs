@@ -90,8 +90,10 @@ impl MailApp {
         }
     }
 
-    /// The ribbon's buttons: those of the module shown (`ribbon/modules.rs`), or in Mail the tab
-    /// chosen's (`ribbon/mail_tabs.rs`).
+    /// The ribbon's buttons: the tab chosen's, Mail's (`ribbon/mail_tabs.rs`) or the module's
+    /// shown (`ribbon/modules.rs`). Send / Receive is the same in every module; Home and View
+    /// are each module's own, as Outlook's (issue #142: in Calendar, People, Tasks and Notes the
+    /// tabs changed nothing, Home's buttons always shown).
     pub(crate) fn ribbon(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
         // The buttons sit on a card with an edge, as Outlook's (issue #8): its place is kept here
@@ -100,13 +102,14 @@ impl MailApp {
         let top = ui.cursor().top();
         ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(RIBBON_CARD), Some((slot, top))));
         ui.add_space(3.0);
-        if self.session.module != Module::Mail {
+        if self.session.module != Module::Mail && self.ui.tab != RibbonTab::SendReceive {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
-                match self.session.module {
-                    Module::Calendar => self.ribbon_calendar(ui, acts),
-                    Module::Tasks => self.ribbon_tasks(ui, acts),
-                    Module::Notes => self.ribbon_notes(ui, acts),
+                match (self.session.module, self.ui.tab == RibbonTab::View) {
+                    (_, true) => self.ribbon_module_view(ui, acts),
+                    (Module::Calendar, _) => self.ribbon_calendar(ui, acts),
+                    (Module::Tasks, _) => self.ribbon_tasks(ui, acts),
+                    (Module::Notes, _) => self.ribbon_notes(ui, acts),
                     _ => self.ribbon_people(ui, acts),
                 }
             });

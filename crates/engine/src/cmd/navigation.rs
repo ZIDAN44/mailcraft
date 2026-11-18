@@ -243,6 +243,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
 }
 
 pub(super) fn sync_folder(s: &mut Session, _: &Value) -> CmdResult {
+    // In Calendar, People, Tasks or Notes, what they show is read again, as Outlook's Update
+    // Folder does there (issue #142): the mail folder still chosen behind them was.
+    if s.module != crate::Module::Mail {
+        let accounts: Vec<String> = s.accounts.iter().filter(|a| a.config.has_server()).map(|a| a.config.id.clone()).collect();
+        for account in &accounts {
+            let job = mailcraft_model::Job::SyncDav { account: account.clone() };
+            if !s.jobs.contains(&job) {
+                s.push_job(job);
+            }
+        }
+        return Ok(json!({"accounts": accounts.len()}));
+    }
     let mut n = 0;
     let folders: Vec<(String, String)> = match &s.view {
         View::Folder { account, folder } => vec![(account.clone(), folder.clone())],

@@ -8,6 +8,7 @@ mod meetings;
 mod pim;
 mod reminders;
 mod repeat;
+mod ribbon;
 mod search;
 mod subscribed;
 mod tasks;

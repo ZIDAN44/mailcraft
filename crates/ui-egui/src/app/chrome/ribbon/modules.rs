@@ -1,4 +1,5 @@
-//! The ribbon of Calendar, Tasks, Notes and People: one row of their buttons.
+//! The ribbon of Calendar, Tasks, Notes and People: one row of their buttons, Home's and View's
+//! (how the module shows what it holds, which Home has too, as Outlook's).
 
 use crate::*;
 
@@ -15,23 +16,22 @@ impl MailApp {
             acts.push(Action::Run("calendar.goto", json!({"date": "today"})));
         }
         widgets::group_sep(ui, &t);
-        for (mode, label, code) in [
-            (CalMode::Day, "Day", "day"),
-            (CalMode::WorkWeek, "Work week", "workWeek"),
-            (CalMode::Week, "Week", "week"),
-            (CalMode::Month, "Month", "month"),
-        ] {
-            let r = widgets::tool_button(ui, Icon::Layout, label, &t, s.cal_mode != mode);
-            if r.clicked() {
-                acts.push(Action::Run("calendar.view", json!({"mode": code})));
-            }
+        calendar_views(ui, s, t, acts);
+    }
+
+    /// The View tab of the module shown: how it shows what it holds, and the folder pane.
+    pub(super) fn ribbon_module_view(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
+        let t = self.ui.tokens;
+        let s = &self.session;
+        match s.module {
+            Module::Calendar => calendar_views(ui, s, t, acts),
+            Module::Tasks => tasks_arrangement(ui, s, t, acts),
+            Module::Notes => notes_arrangement(ui, s, t, acts),
+            _ => people_views(ui, &mut self.ui, t),
         }
-        // Each calendar in a column of its own (Outlook's side by side), or together.
-        if s.pim.values().map(|p| p.calendars.len()).sum::<usize>() > 1 {
-            widgets::group_sep(ui, &t);
-            if widgets::tool_toggle(ui, Icon::Calendar, "Side by side", &t, s.prefs.calendars_side_by_side).clicked() {
-                acts.push(Action::Run("calendar.sideBySide", json!({})));
-            }
+        widgets::group_sep(ui, &t);
+        if widgets::tool_toggle(ui, Icon::Folder, "Folder pane", &t, !s.prefs.folder_pane_minimized).clicked() {
+            acts.push(Action::Run("view.folderPane", json!({})));
         }
     }
 
@@ -62,21 +62,8 @@ impl MailApp {
         {
             acts.push(Action::Run("task.delete", json!({"uid": r.task.uid})));
         }
-        // How they're listed, and whether the done ones are.
         widgets::group_sep(ui, &t);
-        let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
-        egui::Popup::menu(&r).show(|ui| {
-            use mailcraft_engine::TasksOrder as O;
-            for (order, label) in [(O::Due, "Due date"), (O::Priority, "Priority"), (O::Title, "Title (A to Z)"), (O::Modified, "Last changed")] {
-                if ui.radio(s.prefs.tasks_order == order, tl!(label)).clicked() {
-                    acts.push(Action::Run("task.arrange", json!({"by": order.code()})));
-                    ui.close();
-                }
-            }
-        });
-        if widgets::tool_toggle(ui, Icon::Funnel, "Hide completed", &t, s.prefs.tasks_hide_done).clicked() {
-            acts.push(Action::Run("task.hideDone", json!({})));
-        }
+        tasks_arrangement(ui, s, t, acts);
     }
 
     /// Notes': New note, the one being written deleted or coloured, and how they're listed.
@@ -106,20 +93,8 @@ impl MailApp {
                 }
             }
         });
-        // How they're listed: the last changed first, A to Z, or by colour.
         widgets::group_sep(ui, &t);
-        let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
-        egui::Popup::menu(&r).show(|ui| {
-            use mailcraft_engine::NotesOrder as O;
-            for (order, label, code) in
-                [(O::Modified, "Last changed", "modified"), (O::Title, "Title (A to Z)", "title"), (O::Color, "Color", "color")]
-            {
-                if ui.radio(s.prefs.notes_order == order, tl!(label)).clicked() {
-                    acts.push(Action::Run("note.arrange", json!({"by": code})));
-                    ui.close();
-                }
-            }
-        });
+        notes_arrangement(ui, s, t, acts);
     }
 
     /// People's: New contact, the one picked edited or deleted, and how they're shown.
@@ -143,19 +118,74 @@ impl MailApp {
         {
             acts.push(Action::Dialog(Dialog::ConfirmDeleteContact { uid: p.card.uid.clone(), name: p.card.display() }));
         }
-        // Outlook's Change View: the list with a card, business cards, a phone list.
         widgets::group_sep(ui, &t);
-        for v in people::PeopleView::ALL {
-            if widgets::tool_toggle(ui, v.icon(), v.label(), &t, self.ui.people_view == v).clicked() {
-                self.ui.people_view = v;
+        people_views(ui, &mut self.ui, t);
+    }
+}
+
+/// The calendar's views (Day, Work week, Week, Month), and its calendars side by side.
+fn calendar_views(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
+    for (mode, label, code) in [
+        (CalMode::Day, "Day", "day"),
+        (CalMode::WorkWeek, "Work week", "workWeek"),
+        (CalMode::Week, "Week", "week"),
+        (CalMode::Month, "Month", "month"),
+    ] {
+        let r = widgets::tool_button(ui, Icon::Layout, label, &t, s.cal_mode != mode);
+        if r.clicked() {
+            acts.push(Action::Run("calendar.view", json!({"mode": code})));
+        }
+    }
+    // Each calendar in a column of its own (Outlook's side by side), or together.
+    if s.pim.values().map(|p| p.calendars.len()).sum::<usize>() > 1 {
+        widgets::group_sep(ui, &t);
+        if widgets::tool_toggle(ui, Icon::Calendar, "Side by side", &t, s.prefs.calendars_side_by_side).clicked() {
+            acts.push(Action::Run("calendar.sideBySide", json!({})));
+        }
+    }
+}
+
+/// How tasks are listed, and whether the done ones are.
+fn tasks_arrangement(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
+    let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
+    egui::Popup::menu(&r).show(|ui| {
+        use mailcraft_engine::TasksOrder as O;
+        for (order, label) in [(O::Due, "Due date"), (O::Priority, "Priority"), (O::Title, "Title (A to Z)"), (O::Modified, "Last changed")] {
+            if ui.radio(s.prefs.tasks_order == order, tl!(label)).clicked() {
+                acts.push(Action::Run("task.arrange", json!({"by": order.code()})));
+                ui.close();
             }
         }
-        // The list's columns (also from its header's right-click).
-        if self.ui.people_view == people::PeopleView::Phone {
-            let r = widgets::tool_button(ui, Icon::Layout, "Columns", &t, true);
-            egui::Popup::menu(&r)
-                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                .show(|ui| people::column_menu(ui, &mut self.ui.people_list));
+    });
+    if widgets::tool_toggle(ui, Icon::Funnel, "Hide completed", &t, s.prefs.tasks_hide_done).clicked() {
+        acts.push(Action::Run("task.hideDone", json!({})));
+    }
+}
+
+/// How notes are listed: the last changed first, A to Z, or by colour.
+fn notes_arrangement(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
+    let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
+    egui::Popup::menu(&r).show(|ui| {
+        use mailcraft_engine::NotesOrder as O;
+        for (order, label, code) in [(O::Modified, "Last changed", "modified"), (O::Title, "Title (A to Z)", "title"), (O::Color, "Color", "color")] {
+            if ui.radio(s.prefs.notes_order == order, tl!(label)).clicked() {
+                acts.push(Action::Run("note.arrange", json!({"by": code})));
+                ui.close();
+            }
         }
+    });
+}
+
+/// Outlook's Change View for people: the list with a card, business cards, a phone list; and the
+/// phone list's columns (also from its header's right-click).
+fn people_views(ui: &mut Ui, st: &mut UiState, t: Tokens) {
+    for v in people::PeopleView::ALL {
+        if widgets::tool_toggle(ui, v.icon(), v.label(), &t, st.people_view == v).clicked() {
+            st.people_view = v;
+        }
+    }
+    if st.people_view == people::PeopleView::Phone {
+        let r = widgets::tool_button(ui, Icon::Layout, "Columns", &t, true);
+        egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| people::column_menu(ui, &mut st.people_list));
     }
 }
