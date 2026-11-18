@@ -188,6 +188,13 @@ impl Pool {
             Job::GetServerRules { account } | Job::SetServerRules { account, .. } if mail_offline => {
                 self.sink.emit(Event::ServerRules { account, rules: None, error: Some(OFFLINE.into()) });
             }
+            Job::FreeBusy { account, people, from, to } if mail_offline => {
+                let answers = people
+                    .into_iter()
+                    .map(|email| mailcraft_model::pim::free_busy::FreeBusyAnswer { email, busy: Vec::new(), error: Some(OFFLINE.into()) })
+                    .collect();
+                self.sink.emit(Event::FreeBusy { account, from, to, answers });
+            }
             job => return Some(job),
         }
         None
@@ -315,7 +322,7 @@ impl Pool {
         let needs_server = match job {
             Job::SyncAll { .. } | Job::SyncFolder { .. } | Job::Send { .. } | Job::FlushOutbox { .. } | Job::MoreMail { .. } => true,
             Job::SearchServer { .. } | Job::SearchDirectory { .. } | Job::GetVacation { .. } | Job::SetVacation { .. } => true,
-            Job::GetServerRules { .. } | Job::SetServerRules { .. } => true,
+            Job::GetServerRules { .. } | Job::SetServerRules { .. } | Job::FreeBusy { .. } => true,
             Job::FindIdentities { .. } => true,
             Job::FetchBody { key } => self.store.read_body(key).is_none(),
             _ => false,

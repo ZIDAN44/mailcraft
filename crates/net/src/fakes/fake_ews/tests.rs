@@ -13,6 +13,7 @@ use crate::waiting::{events_until, eventually, until};
 mod calendars;
 mod directory;
 mod elsewhere;
+mod free_busy;
 mod large_folder;
 mod older;
 mod pim;
@@ -563,6 +564,15 @@ fn serve_ews_for_the_app() {
     {
         d.directory.push((n.into(), a.into()));
     }
+    // Issue #140: Bob shares his calendar for its free/busy time alone (Open shared calendar
+    // bob@contoso.example): this week, a meeting he shares the subject of on Tuesday morning, a
+    // tentative hour on Wednesday, Thursday away.
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
+    let monday = now.div_euclid(86_400) - i64::from(mailcraft_model::dates::weekday_index(now.div_euclid(86_400)));
+    let when = |day: i64, hour: i64| mailcraft_model::dates::utc_date_time((monday + day) * 86_400 + hour * 3600);
+    d.busy("bob@contoso.example", &when(1, 9), &when(1, 11), "Busy", Some("Budget review"));
+    d.busy("bob@contoso.example", &when(2, 14), &when(2, 15), "Tentative", None);
+    d.busy("bob@contoso.example", &when(3, 0), &when(4, 0), "OOF", None);
     let server = serve_at(d, "127.0.0.1:8085");
     std::thread::sleep(std::time::Duration::from_secs(45));
     server.data.lock().unwrap().directory.push(("Dana Whitfield".into(), "dana@contoso.example".into()));

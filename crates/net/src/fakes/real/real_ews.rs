@@ -175,3 +175,25 @@ fn real_ews_inbox_rules() {
     assert_eq!(error, None);
     assert_eq!(after.unwrap().rules.len(), before.rules.len(), "gone again");
 }
+
+/// Free/busy times (issue #140) from a real availability service: an answer for each person
+/// asked about, in order, whatever the server makes of them (what it can't give is said per
+/// person, never a failure of the whole). Printed for a look.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_free_busy() {
+    let Some((url, user, password)) = server() else {
+        eprintln!("MAILCRAFT_REAL_EWS not set: skipped");
+        return;
+    };
+    let c = crate::ews::Client::connect(&url, &user, &password, &user).unwrap();
+    let domain = user.split('@').nth(1).unwrap_or("ews.test");
+    let people = vec![user.clone(), format!("ana@{domain}"), format!("nobody-here@{domain}")];
+    let now = 1_793_000_000;
+    let answers = c.availability(&people, now - 7 * 86_400, now + 60 * 86_400).unwrap();
+    for a in &answers {
+        eprintln!("{}: {} busy, {:?}", a.email, a.busy.len(), a.error);
+    }
+    assert_eq!(answers.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), people.iter().map(String::as_str).collect::<Vec<_>>());
+    assert!(answers[2].error.is_some(), "nobody is there: {:?}", answers[2]);
+}

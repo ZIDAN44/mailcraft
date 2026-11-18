@@ -92,7 +92,7 @@ fn appointments(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     let coming: Vec<AgendaItem> = s
         .agenda(s.local_midnight(today), s.local_midnight(today + DAYS_AHEAD))
         .into_iter()
-        .filter(|it| !it.task && it.end > now && it.status != "CANCELLED")
+        .filter(|it| !it.task && !it.busy_only && it.end > now && it.status != "CANCELLED")
         .collect();
     if coming.is_empty() {
         ui.label(RichText::new(tl!("Nothing in the next 7 days")).color(t.faint).small());

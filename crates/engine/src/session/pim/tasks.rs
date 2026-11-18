@@ -355,6 +355,7 @@ impl Session {
                     privacy: ical::Privacy::Public,
                     show_as: ical::ShowAs::Busy,
                     task: true,
+                    busy_only: false,
                 });
             }
         }

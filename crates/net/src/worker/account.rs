@@ -9,6 +9,7 @@ use super::*;
 pub(super) mod changes;
 pub(super) mod connect;
 mod directory;
+mod free_busy;
 mod opening;
 pub(super) mod remote;
 mod send;

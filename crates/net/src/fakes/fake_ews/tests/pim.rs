@@ -133,15 +133,14 @@ fn someone_elses_calendar_opens_read_only() {
     assert!(cals.iter().any(|x| x.id == id && x.read_only && x.name == "ana@contoso.example"));
     assert!(sync.events.iter().any(|e| e.calendar == id && e.event.summary == "Budget review"));
     assert!(sync.synced_calendars.contains(&id));
-    // One that can't be read says so, and the rest still syncs. Not found, as Exchange answers
-    // for one shared for free/busy time alone: said so (issue #138: "not on the server any
-    // more" alone misled).
-    assert!(
-        sync.errors.iter().any(|e| e.starts_with("nobody@contoso.example's calendar couldn't be opened: it may be shared for free/busy time alone")),
-        "{:?}",
-        sync.errors
-    );
-    assert!(!sync.synced_calendars.contains(&shared_calendar_id("nobody@contoso.example")));
+    // One whose folder isn't found, as Exchange answers for one shared for free/busy time alone
+    // (issue #138: "not on the server any more" misled), is listed as that, read-only and with
+    // no events of its own: its times are asked for apart (#140). The rest still syncs.
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let nobody = shared_calendar_id("nobody@contoso.example");
+    assert!(cals.iter().any(|x| x.id == nobody && x.free_busy && x.read_only), "{cals:?}");
+    assert!(!cals.iter().any(|x| x.id == id && x.free_busy));
+    assert!(!sync.events.iter().any(|e| e.calendar == nobody));
 }
 
 /// Three plain appointments carrying one UID: the sync hands the engine three distinct

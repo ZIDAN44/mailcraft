@@ -15,6 +15,8 @@ pub mod directory;
 pub use directory::Directory;
 mod find;
 pub use find::{EVENT_HITS_MAX, EventHit, EventWhen};
+mod free_busy;
+pub use free_busy::{FreeBusyKept, FreeBusyState};
 pub mod invite;
 mod local;
 pub use local::LocalEvents;
@@ -100,6 +102,9 @@ pub struct AgendaItem {
     pub show_as: ical::ShowAs,
     /// A task due that day ([`Session::task_items`]), not an event: `uid` is the task's.
     pub task: bool,
+    /// A time a colleague's calendar shared for its free/busy time alone has taken (issue
+    /// #140): its subject only when they share that, and nothing to open.
+    pub busy_only: bool,
 }
 
 /// A person in an address book, borrowed from it: a card can carry its picture and files
@@ -295,10 +300,12 @@ impl Session {
                         privacy,
                         show_as,
                         task: false,
+                        busy_only: false,
                     });
                 }
             }
         }
+        self.free_busy_items(from, to, &mut out);
         out.sort_by(|a, b| (b.all_day, a.start, &a.summary).cmp(&(a.all_day, b.start, &b.summary)));
         out
     }

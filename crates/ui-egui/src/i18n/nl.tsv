@@ -1831,3 +1831,7 @@ count	occurrences	keer
 	Sending · {n} s	Verzenden · {n} s
 	Sending {count} messages · {n} s	{count} berichten verzenden · {n} s
 	Undo	Ongedaan maken
+	free/busy	beschikbaarheid
+	Asking for its free/busy time…	Beschikbaarheid opvragen…
+	Shared for its free/busy time alone	Alleen gedeeld voor beschikbaarheid
+	Its free/busy time couldn't be had: {error}	De beschikbaarheid kon niet worden opgehaald: {error}

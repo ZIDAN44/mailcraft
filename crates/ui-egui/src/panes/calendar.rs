@@ -166,7 +166,8 @@ fn grid_start(month: i64) -> i64 {
 /// The days from `from` up to `to` that have an event on them (Outlook's bold days).
 pub(crate) fn busy_days(s: &Session, from: i64, to: i64) -> std::collections::BTreeSet<i64> {
     let mut days = std::collections::BTreeSet::new();
-    for it in s.agenda(s.local_midnight(from), s.local_midnight(to)).iter().filter(|it| !it.task) {
+    // Colleagues' times taken aren't the user's, and are only had around the days shown.
+    for it in s.agenda(s.local_midnight(from), s.local_midnight(to)).iter().filter(|it| !it.task && !it.busy_only) {
         // Only the days asked about: an event years long is no longer to walk than these.
         let last = day_of(it.end.saturating_sub(1).max(it.start), s).min(to - 1);
         days.extend(day_of(it.start, s).max(from)..=last);
@@ -325,8 +326,11 @@ fn title_of(it: &AgendaItem) -> String {
     event_title(&it.summary, it.privacy, it.show_as)
 }
 
-/// Open an item (its event, or its task).
+/// Open an item (its event, or its task). A colleague's time taken has nothing to open.
 fn open(s: &Session, item: &AgendaItem) -> Option<Action> {
+    if item.busy_only {
+        return None;
+    }
     if item.task {
         return Dialog::open_task(s, &item.uid).map(Action::Dialog);
     }

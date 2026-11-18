@@ -778,6 +778,8 @@ pub fn send(c: &Client, raw: &[u8], recipients: &[String]) -> Result<()> {
     }
 }
 
+mod availability;
+pub use availability::{WINDOW_MAX as AVAILABILITY_WINDOW_MAX, answers_in as availability_answers};
 mod directory;
 mod discover;
 pub use directory::DIRECTORY_MAX;

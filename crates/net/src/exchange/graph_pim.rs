@@ -429,6 +429,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
                 read_only: !v.get("canEdit").and_then(Value::as_bool).unwrap_or(true),
                 ctag: String::new(),
                 foreign: false,
+                free_busy: false,
             })
         })
         .collect();
@@ -501,6 +502,7 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
         let id = mailcraft_model::pim::shared_calendar_id(email);
         let n = calendars.len();
         let can_edit = c.get(&format!("/users/{}/calendar?$select=canEdit", seg(email))).ok().and_then(|v| v.get("canEdit").and_then(Value::as_bool));
+        let mut free_busy = false;
         match c.all(&format!("/users/{}/calendar/events?$top=100&$select={EVENT_FIELDS}", seg(email)), MAX_ITEMS) {
             Ok(list) => {
                 for v in &list {
@@ -510,15 +512,24 @@ pub fn sync(c: &Client, pim: &Pim, now: i64) -> Result<DavSync> {
                 }
                 out.synced_calendars.push(id.clone());
             }
+            // Not found, or refused: shared for its free/busy time alone, as a company's calendars
+            // usually are. Shown by those times, asked for apart, which say why if there are
+            // none (issue #140).
+            Err(NetError::No(e)) if e.starts_with(crate::ews::GONE) || e.starts_with("HTTP 403") => {
+                log::info!("{email}'s calendar: free/busy time alone ({e})");
+                free_busy = true;
+                out.synced_calendars.push(id.clone());
+            }
             Err(e) => out.errors.push(format!("{email}'s calendar: {e}")),
         }
         calendars.push(CalendarInfo {
             id,
             name: email.clone(),
             color: u8::try_from(n % 8).unwrap_or(0),
-            read_only: can_edit != Some(true),
+            read_only: can_edit != Some(true) || free_busy,
             ctag: String::new(),
             foreign: false,
+            free_busy,
         });
     }
     out.calendars = Some(calendars);

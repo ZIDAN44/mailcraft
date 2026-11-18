@@ -1836,3 +1836,7 @@ count	occurrences	Terminen
 	Sending · {n} s	Wird gesendet · {n} s
 	Sending {count} messages · {n} s	{count} Nachrichten werden gesendet · {n} s
 	Undo	Rückgängig
+	free/busy	Frei/Gebucht
+	Asking for its free/busy time…	Frei/Gebucht-Zeiten werden abgefragt…
+	Shared for its free/busy time alone	Nur mit Frei/Gebucht-Zeiten freigegeben
+	Its free/busy time couldn't be had: {error}	Die Frei/Gebucht-Zeiten konnten nicht abgerufen werden: {error}

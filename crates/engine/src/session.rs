@@ -419,6 +419,8 @@ pub struct Session {
     pub(crate) pim_unread: HashSet<String>,
     /// The flagged mail of every folder, for the To-Do Bar's task list.
     pub(crate) todo: pim::TodoMail,
+    /// Colleagues' free/busy times, asked for while the calendar shows them (issue #140).
+    pub(crate) free_busy: pim::FreeBusyKept,
     /// The documents (`rules.json`, `snoozes.json`, `pending-marks.json`) that couldn't be read
     /// at start: never saved over with what's shown or kept in their place.
     pub(crate) docs_unread: HashSet<&'static str>,
@@ -560,6 +562,7 @@ impl Session {
             pim: HashMap::new(),
             pim_unread: HashSet::new(),
             todo: pim::TodoMail::default(),
+            free_busy: Default::default(),
             docs_unread: HashSet::new(),
             module: pim::Module::Mail,
             cal_mode: pim::CalMode::Week,

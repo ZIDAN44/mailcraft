@@ -1,6 +1,8 @@
 //! Exchange Web Services answers: the input is an answer to `GetInboxRules` (issue #139), read as
 //! MailCraft reads an Exchange mailbox's rules on its server. Each rule MailCraft can say as its
-//! own is written back as it would be sent, and that reads as the same rule again.
+//! own is written back as it would be sent, and that reads as the same rule again. The same input
+//! is read as an answer to `GetUserAvailability` too (issue #140): an answer for each person asked
+//! about, in order, each time taken ending no sooner than it starts.
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
@@ -19,6 +21,18 @@ fn doing(r: &mailcraft_model::organize::Rule) -> (Vec<String>, Vec<String>, bool
 
 fuzz_target!(|data: &[u8]| {
     let Ok(xml) = std::str::from_utf8(data) else { return };
+    let people = ["a@x.example".to_string(), "b@x.example".to_string(), "c@x.example".to_string()];
+    let answers = ews::availability_answers(&ews::parse(xml), &people);
+    assert_eq!(answers.len(), people.len());
+    for (a, p) in answers.iter().zip(&people) {
+        assert_eq!(&a.email, p);
+        assert!(a.busy.is_empty() || a.error.is_none());
+        assert!(a.busy.len() <= 5000);
+        for b in &a.busy {
+            assert!(b.end >= b.start);
+            assert!(b.subject.chars().count() <= 256 && b.location.chars().count() <= 256);
+        }
+    }
     let Ok(rules) = ews::read_rules_answer(xml) else { return };
     for r in &rules.rules {
         let Some(rule) = &r.rule else { continue };

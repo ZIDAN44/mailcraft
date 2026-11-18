@@ -160,6 +160,12 @@ pub struct Data {
     pub outlook_rules: bool,
     /// Changes to the rules taken.
     pub rule_updates: usize,
+    /// People's times taken, as the availability service gives them (issue #140).
+    pub free_busy: Vec<availability::FakeBusy>,
+    /// People who don't share their free/busy times with the account.
+    pub free_busy_refused: Vec<String>,
+    /// The free/busy times asked for, in order.
+    pub availability_asks: Vec<availability::AvailabilityAsk>,
     /// What came to it and went out, for a test's wait to tell where it stopped
     /// ([`Data::where_it_stopped`]).
     traffic: serving::Traffic,
@@ -213,6 +219,9 @@ impl Default for Data {
             rules: Vec::new(),
             outlook_rules: false,
             rule_updates: 0,
+            free_busy: Vec::new(),
+            free_busy_refused: Vec::new(),
+            availability_asks: Vec::new(),
             traffic: Default::default(),
             next: 0,
         };
@@ -485,6 +494,7 @@ impl Data {
             "EmptyFolder" => self.empty_folder(op),
             "GetUserOofSettingsRequest" => return ("GetUserOofSettingsResponse".into(), vec![self.oof_answer()]),
             "SetUserOofSettingsRequest" => return ("SetUserOofSettingsResponse".into(), vec![self.set_oof(op)]),
+            "GetUserAvailabilityRequest" => return ("GetUserAvailabilityResponse".into(), vec![self.availability(op)]),
             other => vec![err(&format!("ErrorInvalidOperation:{other}"))],
         };
         (format!("{}Response", op.name), out)
@@ -524,6 +534,7 @@ fn xml(e: &El) -> String {
     format!("<t:{0}{attrs}>{1}{inner}</t:{0}>", e.name, esc(&e.text))
 }
 
+mod availability;
 mod directory;
 mod folders;
 mod items;

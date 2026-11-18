@@ -1832,3 +1832,7 @@ count	occurrences	次
 	Sending · {n} s	正在发送 · {n} 秒
 	Sending {count} messages · {n} s	正在发送 {count} 封邮件 · {n} 秒
 	Undo	撤消
+	free/busy	忙闲
+	Asking for its free/busy time…	正在获取忙闲信息…
+	Shared for its free/busy time alone	仅共享忙闲信息
+	Its free/busy time couldn't be had: {error}	无法获取忙闲信息：{error}

@@ -1835,3 +1835,7 @@ count	occurrences	ripetizioni
 	Sending · {n} s	Invio · {n} s
 	Sending {count} messages · {n} s	Invio di {count} messaggi · {n} s
 	Undo	Annulla
+	free/busy	disponibilità
+	Asking for its free/busy time…	Richiesta della disponibilità…
+	Shared for its free/busy time alone	Condiviso solo per la disponibilità
+	Its free/busy time couldn't be had: {error}	Impossibile ottenere la disponibilità: {error}

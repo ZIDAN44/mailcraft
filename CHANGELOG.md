@@ -20,6 +20,7 @@ on GitHub.
 - An Exchange account's own rules on its server show in **Rules**, under MailCraft's (#139): turned on or off, moved up or down, deleted, and changed where MailCraft can say what they do (a word in the sender, recipients or subject, attachments; moving, deleting, marking read, a category), and new ones made there, which the server runs even while MailCraft is closed. A rule made in another program that does more is kept as it is; Outlook's own copy of the rules is removed only when asked.
 - **Undo Send** (#135): in **File › Options › Mail**, a message you send can wait 5 to 30 seconds in the Outbox before it goes, and a bar at the bottom of the window counts down with **Undo**, which opens it again as you wrote it. Off as it starts; closing MailCraft lets a waiting message go at once.
 - A conversation shows your own replies from Sent Items (#148), as Outlook's do: in its list in the reading pane, by date with the others, dimmed and with Sent Items' name, a click opening one in its own window. Deleting or moving the conversation in the Inbox leaves them where they are.
+- An Exchange or Microsoft 365 colleague's calendar shared for its free/busy time alone, as a company's usually are, opens with **Open shared calendar** (#138, #140): it shows when they're busy, tentative, away or working elsewhere beside your own, with what and where when they share that much, read again every few minutes while the calendar is open. When their times can't be had (they don't share them, or aren't found), it says so beside the calendar's name. It said "not on the server any more".
 
 ### Changed
 
@@ -29,7 +30,6 @@ on GitHub.
 - A message the outgoing server turns away for its sender says which address that was ("the server refused the sender, …"): "550 Invalid Sender" alone didn't say which.
 - A calendar or contacts address given by hand that holds none now says what the server answered there (#147), as "PROPFIND answered HTTP 403" where it didn't let these credentials look (a provider whose calendar user name isn't the email address, set under **The calendar server has its own user name and password**): it said only that none were found.
 - A server that ends the connection as it's being secured is now named, with what's most likely wrong (#153): it may offer only older encryption than MailCraft uses, TLS 1.0 or 1.1 or TLS 1.2 without its newer ciphers, which its administrator can turn on. An Exchange 2013 server that did said only the system's "an existing connection was forcibly closed".
-- An Exchange colleague's calendar opened with **Open shared calendar** that the server won't open says it may be shared for free/busy time alone, which MailCraft doesn't show yet (#138): it said "not on the server any more".
 
 ### Fixed
 

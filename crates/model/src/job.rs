@@ -164,6 +164,9 @@ pub enum Job {
     /// Look people up in the account's organisation directory (Exchange's Global Address List,
     /// issue #9), asked of the server each time; answered by [`Event::Directory`].
     SearchDirectory { account: String, query: String },
+    /// Ask the server when these people's calendars are taken, between `from` and `to` (issue
+    /// #140, Exchange's availability service); answered by [`Event::FreeBusy`].
+    FreeBusy { account: String, people: Vec<String>, from: i64, to: i64 },
     /// Ask the user, in the browser, to let an Exchange Online account search its organisation's
     /// directory (issue #9: a sign-in of its own, for the directory's permissions alone); answered
     /// by [`Event::DirectoryAllowed`].
@@ -347,6 +350,7 @@ impl Job {
             | Job::SetServerRules { account, .. }
             | Job::SyncDav { account }
             | Job::SearchDirectory { account, .. }
+            | Job::FreeBusy { account, .. }
             | Job::FetchCalendar { account, .. }
             | Job::ImportPst { account, .. }
             | Job::FileMessages { account, .. }
@@ -518,6 +522,13 @@ pub enum Event {
         account: String,
         vacation: Option<Vacation>,
         error: Option<String>,
+    },
+    /// People's free/busy times between `from` and `to`, each with why when it has none.
+    FreeBusy {
+        account: String,
+        from: i64,
+        to: i64,
+        answers: Vec<crate::pim::free_busy::FreeBusyAnswer>,
     },
     /// A CalDAV / CardDAV sync's result, to merge.
     DavSynced {

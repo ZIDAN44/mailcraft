@@ -1835,3 +1835,7 @@ count	occurrences	회
 	Sending · {n} s	보내는 중 · {n}초
 	Sending {count} messages · {n} s	메시지 {count}개 보내는 중 · {n}초
 	Undo	취소
+	free/busy	약속 있음/없음
+	Asking for its free/busy time…	약속 있음/없음 정보를 요청하는 중…
+	Shared for its free/busy time alone	약속 있음/없음 정보만 공유됨
+	Its free/busy time couldn't be had: {error}	약속 있음/없음 정보를 가져올 수 없음: {error}

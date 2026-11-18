@@ -96,6 +96,39 @@ impl Data {
         }
     }
 
+    /// `getSchedule` (issue #140): each person's times taken over the window asked, in UTC, or
+    /// why there are none. Refused whole past 62 days or with no one asked, as Graph does.
+    pub(super) fn schedule(&mut self, input: &Value) -> Answer {
+        self.schedule_asks.push(input.clone());
+        let at = |k: &str| input.get(k).and_then(|t| t.get("dateTime")).and_then(Value::as_str).unwrap_or("").to_string();
+        let (start, end) = (at("startTime"), at("endTime"));
+        let utc = ["startTime", "endTime"].iter().all(|k| input[*k]["timeZone"] == "UTC");
+        let people: Vec<String> =
+            input["schedules"].as_array().map(|l| l.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
+        let span = mailcraft_jmap::utc_date(&end).zip(mailcraft_jmap::utc_date(&start)).map(|(e, s)| e - s);
+        if !utc || people.is_empty() || span.is_none_or(|s| s <= 0 || s > 62 * 86_400) {
+            return error(400, "ErrorInvalidParameter", "the fake refuses the window or the schedules");
+        }
+        let list: Vec<Value> = people
+            .iter()
+            .map(|who| {
+                let is = |a: &str| a.eq_ignore_ascii_case(who);
+                let known = self.schedules.iter().any(|(a, _)| is(a)) || self.others.iter().any(|(a, _)| is(a)) || self.directory.iter().any(|(_, a)| is(a));
+                if !known {
+                    return json!({"scheduleId": who, "error": {"message": "The recipient wasn't found.", "responseCode": "ErrorMailRecipientNotFound"}});
+                }
+                let items: Vec<Value> = self
+                    .schedules
+                    .iter()
+                    .filter(|(a, it)| is(a) && it["start"]["dateTime"].as_str().unwrap_or("") < end.as_str() && it["end"]["dateTime"].as_str().unwrap_or("") > start.as_str())
+                    .map(|(_, it)| it.clone())
+                    .collect();
+                json!({"scheduleId": who, "availabilityView": "", "scheduleItems": items})
+            })
+            .collect();
+        ok(json!({ "value": list }))
+    }
+
     /// An event made in calendar `cal` from what was posted, given its id, iCalendar uid and
     /// first change key: 201 with it.
     fn new_event(&mut self, input: &Value, cal: &str) -> Answer {

@@ -25,6 +25,7 @@ impl Run<'_> {
                 read_only: c.writable == Some(false),
                 ctag: ctag.clone(),
                 foreign: c.foreign,
+                free_busy: false,
             };
             let pushed_here = out.pushed_events.iter().any(|e| e.calendar == c.href) || refetch.iter().any(|h| h.starts_with(&c.href));
             if !ctag.is_empty() && known.is_some_and(|k| k.ctag == ctag) && !pushed_here {

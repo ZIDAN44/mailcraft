@@ -45,7 +45,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!(s.agenda(from, to).iter().map(|i| json!({
                 "uid": i.uid, "summary": i.summary, "location": i.location, "start": i.start, "end": i.end, "allDay": i.all_day,
                 "occurrence": i.occurrence, "recurring": i.recurring, "account": i.account, "calendar": i.calendar,
-                "needsReply": i.needs_reply, "status": i.status, "privacy": i.privacy, "showAs": i.show_as,
+                "needsReply": i.needs_reply, "status": i.status, "privacy": i.privacy, "showAs": i.show_as, "busyOnly": i.busy_only,
             })).collect::<Vec<_>>()))
         })
         .params(r#"{"from"?: date or date-time, "to"?: …} (default: what the calendar shows)"#),

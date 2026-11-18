@@ -1831,3 +1831,7 @@ count	occurrences	مرات
 	Sending · {n} s	جارٍ الإرسال · {n} ث
 	Sending {count} messages · {n} s	جارٍ إرسال {count} رسائل · {n} ث
 	Undo	تراجع
+	free/busy	متاح/مشغول
+	Asking for its free/busy time…	جارٍ طلب أوقات الإتاحة والانشغال…
+	Shared for its free/busy time alone	مشارَك بأوقات الإتاحة والانشغال فقط
+	Its free/busy time couldn't be had: {error}	تعذّر الحصول على أوقات الإتاحة والانشغال: {error}

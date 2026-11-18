@@ -686,6 +686,7 @@ pub fn send(c: &Client, raw: &[u8], recipients: &[String]) -> Result<()> {
     }
 }
 
+mod availability;
 mod directory;
 mod sync;
 pub use sync::{sync_folder, sync_folder_as};

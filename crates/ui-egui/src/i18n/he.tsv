@@ -1831,3 +1831,7 @@ count	occurrences	פעמים
 	Sending · {n} s	שולח · {n} ש׳
 	Sending {count} messages · {n} s	שולח {count} הודעות · {n} ש׳
 	Undo	ביטול
+	free/busy	פנוי/עסוק
+	Asking for its free/busy time…	מבקש את זמני הפנוי/עסוק…
+	Shared for its free/busy time alone	משותף לזמני פנוי/עסוק בלבד
+	Its free/busy time couldn't be had: {error}	לא ניתן היה לקבל את זמני הפנוי/עסוק: {error}

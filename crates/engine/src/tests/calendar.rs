@@ -4,6 +4,7 @@
 use super::*;
 
 mod calendar_find;
+mod free_busy;
 mod invites;
 mod meetings;
 mod notes;

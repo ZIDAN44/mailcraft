@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::ical::CalEvent;
 use crate::vcard::Card;
 
+pub mod free_busy;
 pub mod ical;
 pub mod vcard;
 
@@ -39,6 +40,10 @@ pub struct CalendarInfo {
     /// (issue #30). New events and invitations don't go there by themselves.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub foreign: bool,
+    /// A colleague's who shares only their free/busy time (issue #140): what it holds is their
+    /// busy times, asked of the server as they're shown, never kept here nor changed.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub free_busy: bool,
 }
 
 impl CalendarInfo {

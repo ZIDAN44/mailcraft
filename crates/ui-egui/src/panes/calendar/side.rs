@@ -3,7 +3,7 @@
 
 use egui::{RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::pim::{CalendarInfo, is_server_calendar};
-use mailcraft_engine::{LocalEvents, Session};
+use mailcraft_engine::{FreeBusyState, LocalEvents, Session};
 use serde_json::json;
 
 use super::*;
@@ -141,6 +141,8 @@ fn calendar_row(s: &Session, t: &Tokens, ui: &mut Ui, rows: &Rows<'_>, c: &Calen
             acts.push(Action::Run("calendar.show", json!({"account": a.config.id, "calendar": c.id, "shown": !shown})));
         }
         let name = calendar_name(&c.id, &c.name);
+        // Shared for its free/busy time alone (issue #140): how asking for those went.
+        let free_busy = s.free_busy_state(&a.config.id, &c.id);
         let tip = if let Some(owner) = shared.as_ref().filter(|_| !opened) {
             tf!("Shared mailbox {address}, opened by {email}", address = owner, email = a.config.email)
         } else if shared.is_some() {
@@ -155,9 +157,22 @@ fn calendar_row(s: &Session, t: &Tokens, ui: &mut Ui, rows: &Rows<'_>, c: &Calen
         } else {
             a.config.email.clone()
         };
+        let tip = match free_busy {
+            None => tip,
+            Some(state) => {
+                let how = match state {
+                    FreeBusyState::Asking => tl!("Asking for its free/busy time…").to_string(),
+                    FreeBusyState::Shown => tl!("Shared for its free/busy time alone").to_string(),
+                    FreeBusyState::Failed(e) => tf!("Its free/busy time couldn't be had: {error}", error = e),
+                };
+                format!("{tip}\n{how}")
+            }
+        };
         ui.add(egui::Label::new(RichText::new(name).color(t.text)).selectable(false)).on_hover_text(tip);
-        if web.is_some_and(|w| w.error.is_some()) {
+        if web.is_some_and(|w| w.error.is_some()) || matches!(free_busy, Some(FreeBusyState::Failed(_))) {
             ui.add(egui::Label::new(RichText::new(tl!("couldn't be read")).color(t.danger).small()).selectable(false));
+        } else if free_busy.is_some() {
+            ui.add(egui::Label::new(RichText::new(tl!("free/busy")).color(t.faint).small()).selectable(false));
         } else if c.read_only {
             ui.add(egui::Label::new(RichText::new(tl!("read-only")).color(t.faint).small()).selectable(false));
         } else if default.as_deref() == Some(c.id.as_str()) && choices > 1 {

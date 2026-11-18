@@ -43,6 +43,7 @@ pub(super) fn read_shared_calendars(c: &Client, pim: &Pim, out: &mut DavSync, ca
         // another mailbox's folder) when its events do, as Outlook finds by trying.
         let folder_rights = c.in_mailbox(&email, || may_edit(c, &parent));
         let mut can_edit = *folder_rights.as_ref().unwrap_or(&false);
+        let mut free_busy = false;
         match c.in_mailbox(&email, || items_in(c, &parent, RECURRENCE)) {
             Ok(read) => {
                 read.say(out, &name);
@@ -55,11 +56,13 @@ pub(super) fn read_shared_calendars(c: &Client, pim: &Pim, out: &mut DavSync, ca
             }
             // One asked for by hand says why it's missing; a shared mailbox whose calendar
             // isn't shared with the account just has none here. Exchange says it isn't found when
-            // it's shared for free/busy time alone, as a company's usually are: said so, not as
-            // "not on the server any more" (issue #138).
-            Err(e) if asked && crate::ews::gone(&e) => out.errors.push(format!(
-                "{email}'s calendar couldn't be opened: it may be shared for free/busy time alone, which MailCraft doesn't show yet ({e})"
-            )),
+            // it's shared for free/busy time alone, as a company's usually are (issue #138): it's
+            // shown by those times, asked for apart, and says why if there are none (#140).
+            Err(e) if asked && crate::ews::gone(&e) => {
+                log::info!("{email}'s calendar: free/busy time alone ({e})");
+                free_busy = true;
+                out.synced_calendars.push(id.clone());
+            }
             Err(e) if asked => out.errors.push(format!("{email}'s calendar: {e}")),
             Err(e) => {
                 log::info!("shared mailbox {email}: no calendar ({e})");
@@ -70,8 +73,9 @@ pub(super) fn read_shared_calendars(c: &Client, pim: &Pim, out: &mut DavSync, ca
             id,
             name,
             color: u8::try_from((n + 1) % 8).unwrap_or(0),
-            read_only: !can_edit,
+            read_only: !can_edit || free_busy,
             ctag: String::new(),
+            free_busy,
             ..Default::default()
         });
     }
@@ -148,6 +152,7 @@ pub(super) fn read_public(c: &Client, out: &mut DavSync, calendars: &mut Vec<Cal
                 read_only: true,
                 ctag: String::new(),
                 foreign: false,
+                free_busy: false,
             });
             out.synced_calendars.push(key);
         }

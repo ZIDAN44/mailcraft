@@ -323,7 +323,7 @@ fn envelope(name: &str, parts: &[String]) -> String {
     } else {
         " ResponseClass=\"Error\"".to_string()
     };
-    let inner = if name.starts_with("GetUserOof") || name.starts_with("SetUserOof") || reminders {
+    let inner = if name.starts_with("GetUserOof") || name.starts_with("SetUserOof") || name.starts_with("GetUserAvailability") || reminders {
         parts.concat()
     } else {
         let tag = name.trim_end_matches("Response").to_string() + "ResponseMessage";

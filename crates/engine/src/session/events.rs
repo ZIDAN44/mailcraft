@@ -108,6 +108,7 @@ impl Session {
             }
             Event::Vacation { account, vacation, error } => self.vacation_read(&account, vacation, error),
             Event::ServerRules { account, rules, error } => self.server_rules_read(&account, rules, error),
+            Event::FreeBusy { account, from, to, answers } => self.free_busy_answered(&account, from, to, answers),
             // Its text first (issue #24): shown, and nothing else until the whole message comes.
             Event::Body { key, raw } if mime::is_text_first(&raw) => self.show_body(&key, &raw),
             Event::Body { key, raw } => {

@@ -1835,3 +1835,7 @@ count	occurrences	повторений
 	Sending · {n} s	Отправка · {n} с
 	Sending {count} messages · {n} s	Отправка писем: {count} · {n} с
 	Undo	Отменить
+	free/busy	занятость
+	Asking for its free/busy time…	Запрос сведений о занятости…
+	Shared for its free/busy time alone	Открыт только для сведений о занятости
+	Its free/busy time couldn't be had: {error}	Не удалось получить сведения о занятости: {error}

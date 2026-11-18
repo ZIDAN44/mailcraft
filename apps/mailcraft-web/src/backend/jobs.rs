@@ -87,6 +87,16 @@ pub(super) async fn job(sh: &Rcs, id: &str, j: Job) {
             sh,
             Event::ServerRules { account: id.to_string(), rules: None, error: Some("only an Exchange account keeps rules on its server".into()) },
         ),
+        // Colleagues' free/busy times are Exchange's (issue #140), as their calendars shared for
+        // those alone: answered, each person's why.
+        Job::FreeBusy { people, from, to, .. } => {
+            let why = "only an Exchange account can show its colleagues' free/busy time";
+            let answers = people
+                .into_iter()
+                .map(|email| mailcraft_engine::model::pim::free_busy::FreeBusyAnswer { email, busy: Vec::new(), error: Some(why.into()) })
+                .collect();
+            emit(sh, Event::FreeBusy { account: id.to_string(), from, to, answers })
+        }
         // Mail past what's kept (issue #4).
         Job::SearchServer { folders, query, search, .. } => search_server(sh, id, &folders, query, search).await,
         Job::MoreMail { folder, more, .. } => {

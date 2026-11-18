@@ -60,6 +60,12 @@ pub struct Data {
     pub others: Vec<(String, bool)>,
     /// Messages whose source can't be had (the server fails on it).
     pub unreadable: Vec<String>,
+    /// People's free/busy times (issue #140): (address, a `scheduleItem` as Graph gives it, in
+    /// UTC). Anyone asked about who has none here and isn't in [`Data::others`] or the
+    /// directory isn't found.
+    pub schedules: Vec<(String, Value)>,
+    /// The bodies of the `getSchedule` requests, in order.
+    pub schedule_asks: Vec<Value>,
     /// Per-batch concurrency cap: entries past this index get a 429 with Retry-After.
     pub at_once: Option<usize>,
     /// Number of upcoming top-level requests to refuse with 429.
@@ -194,6 +200,7 @@ impl Data {
             ("POST", ["me", "sendMail"]) => self.send_mail(body),
             (_, ["me", "mailboxSettings", ..]) => self.on_mailbox_settings(method, &parts, &input),
             ("GET" | "POST" | "PATCH" | "DELETE", ["users", who, ..]) => self.on_others(method, who, &parts, &input),
+            ("POST", ["me", "calendar", "getSchedule"]) => self.schedule(&input),
             (_, ["me", "calendars" | "events" | "contacts", ..]) => self.on_pim(method, &parts, &input, query),
             _ => not_found(),
         }
