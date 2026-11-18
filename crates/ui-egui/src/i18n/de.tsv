@@ -1831,3 +1831,8 @@ count	occurrences	Terminen
 	New rule on the server…	Neue Regel auf dem Server…
 	Made in another program: it can be turned on or off, moved or deleted here	In einem anderen Programm erstellt: Sie kann hier ein- oder ausgeschaltet, verschoben oder gelöscht werden
 	The server can't run this rule as it is	Der Server kann diese Regel so nicht ausführen
+	Undo Send	Senden rückgängig machen
+	A message you send waits this long in the Outbox, with Undo, before it goes.	Eine gesendete Nachricht wartet so lange im Postausgang, mit „Rückgängig“, bevor sie verschickt wird.
+	Sending · {n} s	Wird gesendet · {n} s
+	Sending {count} messages · {n} s	{count} Nachrichten werden gesendet · {n} s
+	Undo	Rückgängig

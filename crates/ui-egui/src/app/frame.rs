@@ -199,7 +199,9 @@ impl MailApp {
                 // graphics lost): the messages held while their drafts were on the way to the
                 // server were chosen to be kept, and the save may never finish (#53). On this
                 // computer now, with the pool, as a minimized window draws no frame to send them.
-                if self.session.keep_held() > 0 {
+                // Messages waiting to be undone go now, rather than at the next start.
+                let released = self.session.release_undo_holds();
+                if self.session.keep_held() > 0 || released {
                     self.flush_jobs();
                 }
             }
@@ -595,6 +597,7 @@ impl MailApp {
             super::caption::resize_zones(ui);
         }
         self.toasts(&ctx);
+        self.undo_bar(&ctx);
         self.send_receive_window(&ctx);
         // Calendar reminders: the window, and the desktop told of each as it comes. A message's
         // own page leaves them to the main window's (each page would tell of them again).

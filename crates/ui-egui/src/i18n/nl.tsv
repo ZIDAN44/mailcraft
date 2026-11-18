@@ -1826,3 +1826,8 @@ count	occurrences	keer
 	New rule on the server…	Nieuwe regel op de server…
 	Made in another program: it can be turned on or off, moved or deleted here	Gemaakt in een ander programma: hier kan deze aan- of uitgezet, verplaatst of verwijderd worden
 	The server can't run this rule as it is	De server kan deze regel zo niet uitvoeren
+	Undo Send	Verzenden ongedaan maken
+	A message you send waits this long in the Outbox, with Undo, before it goes.	Een verzonden bericht wacht zo lang in Postvak UIT, met Ongedaan maken, voordat het vertrekt.
+	Sending · {n} s	Verzenden · {n} s
+	Sending {count} messages · {n} s	{count} berichten verzenden · {n} s
+	Undo	Ongedaan maken

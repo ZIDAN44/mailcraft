@@ -1827,3 +1827,8 @@ count	occurrences	次
 	New rule on the server…	在服务器上新建规则…
 	Made in another program: it can be turned on or off, moved or deleted here	在其他程序中创建：此处可以将其打开或关闭、移动或删除
 	The server can't run this rule as it is	服务器无法按原样运行此规则
+	Undo Send	撤消发送
+	A message you send waits this long in the Outbox, with Undo, before it goes.	发送的邮件会先在发件箱中等待这段时间，期间可以撤消，然后再发出。
+	Sending · {n} s	正在发送 · {n} 秒
+	Sending {count} messages · {n} s	正在发送 {count} 封邮件 · {n} 秒
+	Undo	撤消

@@ -43,6 +43,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"key"?: string (one message, even one held back to be sent later; else all that are due)}"#)
         .when(|s| if s.outbox.is_empty() { Some("the Outbox is empty") } else { None }),
+        // Undo Send (issue #135): a message sent, still waiting, back into the form.
+        CommandSpec::new("outbox.undoSend", "Undo Send", "Outbox", |s, v| s.undo_send(p::u64(v, "id")))
+            .params(r#"{"id"?: number (a message held to be undone; else the newest)}"#),
+        CommandSpec::new("options.undoSend", "Wait before sending, to undo Send", "File › Options › Mail", |s, v| {
+            if let Some(n) = v.get("seconds") {
+                let n = n.as_u64().filter(|n| *n <= u64::from(crate::session::UNDO_SEND_MAX));
+                let n = n.ok_or_else(|| CmdError::Params(format!("`seconds`: 0 to {}", crate::session::UNDO_SEND_MAX)))?;
+                s.prefs.undo_send_secs = u32::try_from(n).unwrap_or(0);
+            }
+            Ok(json!({"seconds": s.prefs.undo_send_secs}))
+        })
+        .params(r#"{"seconds"?: 0-60 (0: sent at once)}"#),
         CommandSpec::new("outbox.edit", "Edit queued message", "Outbox", |s, v| {
             let k = parse_key(v).or_else(|| s.reading.as_ref().map(|r| r.key.clone())).ok_or_else(|| CmdError::Params("`key` is required".into()))?;
             s.edit_outbox(&k)

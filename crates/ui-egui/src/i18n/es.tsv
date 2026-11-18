@@ -1831,3 +1831,8 @@ count	occurrences	repeticiones
 	New rule on the server…	Nueva regla en el servidor…
 	Made in another program: it can be turned on or off, moved or deleted here	Creada en otro programa: aquí se puede activar o desactivar, mover o eliminar
 	The server can't run this rule as it is	El servidor no puede ejecutar esta regla tal como está
+	Undo Send	Deshacer envío
+	A message you send waits this long in the Outbox, with Undo, before it goes.	Un mensaje que envía espera este tiempo en la Bandeja de salida, con Deshacer, antes de salir.
+	Sending · {n} s	Enviando · {n} s
+	Sending {count} messages · {n} s	Enviando {count} mensajes · {n} s
+	Undo	Deshacer

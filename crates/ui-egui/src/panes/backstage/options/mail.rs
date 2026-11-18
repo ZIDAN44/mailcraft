@@ -85,6 +85,18 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
                 acts.push(Action::Run("options.ctrlEnter", json!({"does": w})));
             }
         });
+        // Issue #135: a message sent waits this long in the Outbox, so it can be taken back.
+        setting(ui, t, false, tl!("Undo Send"), Some(tl!("A message you send waits this long in the Outbox, with Undo, before it goes.")), |ui| {
+            const WAITS: [u32; 5] = [0, 5, 10, 20, 30];
+            let labels: Vec<String> = WAITS.iter().map(|n| if *n == 0 { tl!("Off").to_string() } else { tf!("{n} s", n = n) }).collect();
+            let shown: Vec<&str> = labels.iter().map(String::as_str).collect();
+            let now = WAITS.iter().position(|n| *n == s.prefs.undo_send_secs).unwrap_or(0);
+            if let Some(i) = widgets::segmented(ui, t, "undo-send", &shown, now)
+                && let Some(n) = WAITS.get(i)
+            {
+                acts.push(Action::Run("options.undoSend", json!({"seconds": n})));
+            }
+        });
         // Every message as plain text, as Outlook's own setting for all mail: here, out of the
         // way, and View › Plain text; one message's More actions (⋯) and Show formatted switch
         // that message alone.

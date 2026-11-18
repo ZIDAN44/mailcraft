@@ -1826,3 +1826,8 @@ count	occurrences	פעמים
 	New rule on the server…	כלל חדש בשרת…
 	Made in another program: it can be turned on or off, moved or deleted here	נוצר בתוכנה אחרת: כאן אפשר להפעיל או לכבות, להזיז או למחוק אותו
 	The server can't run this rule as it is	השרת לא יכול להפעיל את הכלל הזה כפי שהוא
+	Undo Send	ביטול שליחה
+	A message you send waits this long in the Outbox, with Undo, before it goes.	הודעה שנשלחה ממתינה זמן זה בתיבת הדואר היוצא, עם אפשרות ביטול, לפני שהיא יוצאת.
+	Sending · {n} s	שולח · {n} ש׳
+	Sending {count} messages · {n} s	שולח {count} הודעות · {n} ש׳
+	Undo	ביטול

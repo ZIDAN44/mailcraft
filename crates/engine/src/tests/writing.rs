@@ -11,6 +11,7 @@ mod reactions;
 mod sending;
 mod signature_code;
 mod signatures;
+mod undo_send;
 
 #[test]
 fn compose_reply_and_send_locally() {

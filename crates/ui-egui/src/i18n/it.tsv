@@ -1830,3 +1830,8 @@ count	occurrences	ripetizioni
 	New rule on the server…	Nuova regola sul server…
 	Made in another program: it can be turned on or off, moved or deleted here	Creata in un altro programma: qui si può attivare o disattivare, spostare o eliminare
 	The server can't run this rule as it is	Il server non può eseguire questa regola così com'è
+	Undo Send	Annulla invio
+	A message you send waits this long in the Outbox, with Undo, before it goes.	Un messaggio inviato attende questo tempo nella Posta in uscita, con Annulla, prima di partire.
+	Sending · {n} s	Invio · {n} s
+	Sending {count} messages · {n} s	Invio di {count} messaggi · {n} s
+	Undo	Annulla

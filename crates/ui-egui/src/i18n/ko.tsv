@@ -1830,3 +1830,8 @@ count	occurrences	회
 	New rule on the server…	서버에 새 규칙…
 	Made in another program: it can be turned on or off, moved or deleted here	다른 프로그램에서 만듦: 여기서는 켜거나 끄고, 옮기거나 삭제할 수 있습니다
 	The server can't run this rule as it is	서버가 이 규칙을 이대로 실행할 수 없습니다
+	Undo Send	보내기 취소
+	A message you send waits this long in the Outbox, with Undo, before it goes.	보낸 메시지는 나가기 전에 이 시간 동안 보낼 편지함에서 기다리며, 취소할 수 있습니다.
+	Sending · {n} s	보내는 중 · {n}초
+	Sending {count} messages · {n} s	메시지 {count}개 보내는 중 · {n}초
+	Undo	취소

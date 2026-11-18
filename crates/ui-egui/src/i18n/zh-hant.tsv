@@ -1830,3 +1830,8 @@ count	occurrences	次
 	New rule on the server…	在伺服器上新增規則…
 	Made in another program: it can be turned on or off, moved or deleted here	在其他程式中建立：此處可以將其開啟或關閉、移動或刪除
 	The server can't run this rule as it is	伺服器無法依原樣執行此規則
+	Undo Send	復原傳送
+	A message you send waits this long in the Outbox, with Undo, before it goes.	傳送的郵件會先在寄件匣中等待這段時間，期間可以復原，然後再寄出。
+	Sending · {n} s	正在傳送 · {n} 秒
+	Sending {count} messages · {n} s	正在傳送 {count} 封郵件 · {n} 秒
+	Undo	復原

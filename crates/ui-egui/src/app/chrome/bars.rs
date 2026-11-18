@@ -191,6 +191,42 @@ impl MailApp {
         }
     }
 
+    /// While a message sent waits in the Outbox to be undone (issue #135): how long it has, and
+    /// Undo, at the bottom of the window; several at once, how many, the newest undone.
+    pub(crate) fn undo_bar(&mut self, ctx: &egui::Context) {
+        let now = self.session.clock.now;
+        let holds: Vec<(u64, i64)> = self.session.undo_holds().map(|h| (h.id, h.until)).collect();
+        let Some(&(newest, until)) = holds.last() else { return };
+        // Each second, as it counts down, and as it goes.
+        ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        let t = self.ui.tokens;
+        let left = until.saturating_sub(now).max(1);
+        let text =
+            if holds.len() > 1 { tf!("Sending {count} messages · {n} s", count = holds.len(), n = left) } else { tf!("Sending · {n} s", n = left) };
+        let mut undo = false;
+        egui::Area::new(egui::Id::unique("undo-send")).anchor(egui::Align2::CENTER_BOTTOM, vec2(0.0, -40.0)).order(egui::Order::Foreground).show(
+            ctx,
+            |ui| {
+                egui::Frame::new()
+                    .fill(t.surface)
+                    .stroke(egui::Stroke::new(1.0, t.border))
+                    .corner_radius(8)
+                    .shadow(ui.visuals().popup_shadow)
+                    .inner_margin(egui::Margin::symmetric(14, 8))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new(text).color(t.text));
+                            ui.add_space(12.0);
+                            undo = ui.button(RichText::new(tl!("Undo")).strong().color(t.accent)).clicked();
+                        });
+                    });
+            },
+        );
+        if undo {
+            self.act(Action::Run("outbox.undoSend", json!({"id": newest})));
+        }
+    }
+
     pub(crate) fn toasts(&mut self, ctx: &egui::Context) {
         let now = ctx.input(|i| i.time);
         if self.session.notices.len() < self.ui.seen_notices {

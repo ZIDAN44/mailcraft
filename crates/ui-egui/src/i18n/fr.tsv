@@ -1831,3 +1831,8 @@ count	occurrences	occurrences
 	New rule on the server…	Nouvelle règle sur le serveur…
 	Made in another program: it can be turned on or off, moved or deleted here	Créée dans un autre programme : on peut l’activer ou la désactiver, la déplacer ou la supprimer ici
 	The server can't run this rule as it is	Le serveur ne peut pas exécuter cette règle telle quelle
+	Undo Send	Annuler l’envoi
+	A message you send waits this long in the Outbox, with Undo, before it goes.	Un message envoyé attend ce temps dans la boîte d’envoi, avec Annuler, avant de partir.
+	Sending · {n} s	Envoi · {n} s
+	Sending {count} messages · {n} s	Messages en cours d’envoi : {count} · {n} s
+	Undo	Annuler

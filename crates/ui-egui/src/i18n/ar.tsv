@@ -1826,3 +1826,8 @@ count	occurrences	مرات
 	New rule on the server…	قاعدة جديدة على الخادم…
 	Made in another program: it can be turned on or off, moved or deleted here	أُنشئت في برنامج آخر: يمكن هنا تشغيلها أو إيقافها أو نقلها أو حذفها
 	The server can't run this rule as it is	لا يستطيع الخادم تشغيل هذه القاعدة كما هي
+	Undo Send	التراجع عن الإرسال
+	A message you send waits this long in the Outbox, with Undo, before it goes.	تنتظر الرسالة التي ترسلها هذه المدة في صندوق الصادر، مع زر التراجع، قبل أن تُرسل.
+	Sending · {n} s	جارٍ الإرسال · {n} ث
+	Sending {count} messages · {n} s	جارٍ إرسال {count} رسائل · {n} ث
+	Undo	تراجع

@@ -51,7 +51,7 @@ pub use security::{
 };
 pub use send_receive::{SendReceive, TransferRow};
 pub use updates::{UpdateCheck, newer_release};
-pub use writing::{Compose, Drafted, Quote, Reactions, SendBlock, SendCheck, signature_parts};
+pub use writing::{Compose, Drafted, Quote, Reactions, SendBlock, SendCheck, UNDO_SEND_MAX, UndoHold, signature_parts};
 // The message list's arrangement and rows, named here as before.
 #[cfg(test)]
 pub(crate) use mailboxes::arrange_list;
@@ -305,6 +305,8 @@ pub struct Session {
     pub outbox: Vec<(String, OutboxItem)>,
     /// Held-back Outbox messages already asked to be sent when their time came.
     flushed: BTreeSet<u64>,
+    /// Messages sent that wait in the Outbox to be undone (Undo Send), as they were written.
+    pub(crate) undo_holds: Vec<writing::UndoHold>,
     pub(crate) jobs: Vec<Job>,
     pub(crate) cache: HashMap<(String, String), FolderState>,
     /// The cached folders, the least recently used first.
@@ -498,6 +500,7 @@ impl Session {
             pim_revision: 0,
             outbox: Vec::new(),
             flushed: BTreeSet::new(),
+            undo_holds: Vec::new(),
             jobs: Vec::new(),
             cache: HashMap::new(),
             cache_order: Vec::new(),

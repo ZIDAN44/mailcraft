@@ -1831,3 +1831,8 @@ count	occurrences	ocorrências
 	New rule on the server…	Nova regra no servidor…
 	Made in another program: it can be turned on or off, moved or deleted here	Criada em outro programa: aqui ela pode ser ativada ou desativada, movida ou excluída
 	The server can't run this rule as it is	O servidor não consegue executar esta regra como está
+	Undo Send	Desfazer envio
+	A message you send waits this long in the Outbox, with Undo, before it goes.	Uma mensagem enviada espera este tempo na Caixa de saída, com Desfazer, antes de sair.
+	Sending · {n} s	Enviando · {n} s
+	Sending {count} messages · {n} s	Enviando {count} mensagens · {n} s
+	Undo	Desfazer

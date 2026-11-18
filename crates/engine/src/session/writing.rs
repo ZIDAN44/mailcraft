@@ -12,12 +12,14 @@ mod reactions;
 mod reopen;
 mod sending;
 mod signatures;
+mod undo_send;
 pub use drafts::Drafted;
 pub(crate) use drafts::DraftedMemo;
 pub use quote::Quote;
 pub use reactions::Reactions;
 pub use sending::SendBlock;
 pub use signatures::signature_parts;
+pub use undo_send::{UNDO_SEND_MAX, UndoHold};
 
 /// From this many people (counted as [`SendCheck::Exposed`] says), sending to all of them in To
 /// and Cc asks first.
@@ -701,8 +703,10 @@ impl Session {
         self.can_send(&c.account)?;
         let local = self.account(&c.account).is_some_and(AccountState::is_local);
         let sent_folder = self.account(&c.account).and_then(|a| a.folder(FolderRole::Sent)).map(|f| f.path.clone());
-        // Delay Delivery: into the Outbox, sent once it's time (the app has to be running then).
-        if let Some(at) = c.send_after.filter(|at| *at > self.clock.now && !local) {
+        // Delay Delivery, or Undo Send's wait: into the Outbox, sent once it's time (the app has
+        // to be running then).
+        let undo = self.undo_hold_until(c, local);
+        if let Some(at) = c.send_after.filter(|at| *at > self.clock.now && !local).or(undo) {
             let item = OutboxItem {
                 id: c.id,
                 from,
@@ -717,6 +721,12 @@ impl Session {
             let store = self.store.as_ref().ok_or_else(|| CmdError::Failed("there is nowhere to keep it".into()))?;
             store.outbox_add(&c.account, &item, &raw).map_err(|e| CmdError::Failed(format!("the Outbox couldn't keep it: {e}")))?;
             self.after_outbox_change();
+            if undo.is_some() {
+                // Said by the window's Undo bar while it waits, not as a notice.
+                self.hold_for_undo(c, at);
+                self.finish_sent(c, false, String::new());
+                return Ok(serde_json::json!({ "queued": c.id, "sendAfter": at, "undo": true }));
+            }
             self.finish_sent(c, false, format!("It will be sent {}", mailcraft_model::dates::full_time(at, &self.clock)));
             return Ok(serde_json::json!({ "queued": c.id, "sendAfter": at }));
         }
@@ -766,6 +776,8 @@ impl Session {
         }
         self.composes.retain(|x| x.id != c.id);
         self.sent_away.retain(|x| x.id != c.id);
-        self.notice(said, false);
+        if !said.is_empty() {
+            self.notice(said, false);
+        }
     }
 }

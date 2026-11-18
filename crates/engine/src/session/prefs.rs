@@ -155,6 +155,8 @@ pub struct Prefs {
     pub reply_window: bool,
     /// What Ctrl+Enter does in a message being written.
     pub ctrl_enter: CtrlEnter,
+    /// Seconds a message sent waits in the Outbox, to be undone (issue #135); 0: none.
+    pub undo_send_secs: u32,
     /// The folder pane shows Favorites at its top (issue #11: it could only be collapsed).
     pub show_favorites: bool,
     /// Meeting invitations go into the calendar as tentative when they arrive, before they're
@@ -329,6 +331,7 @@ impl Default for Prefs {
             date_style: mailcraft_model::dates::DateStyle::default(),
             confirm_permanent_delete: true,
             ctrl_enter: CtrlEnter::Ask,
+            undo_send_secs: 0,
             favorites: None,
             notify: true,
             close_to_tray: false,

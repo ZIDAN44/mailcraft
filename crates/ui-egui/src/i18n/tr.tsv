@@ -1831,3 +1831,8 @@ count	occurrences	kez
 	New rule on the server…	Sunucuda yeni kural…
 	Made in another program: it can be turned on or off, moved or deleted here	Başka bir programda oluşturuldu: burada açılıp kapatılabilir, taşınabilir ya da silinebilir
 	The server can't run this rule as it is	Sunucu bu kuralı bu hâliyle çalıştıramıyor
+	Undo Send	Göndermeyi geri al
+	A message you send waits this long in the Outbox, with Undo, before it goes.	Gönderdiğiniz ileti, gitmeden önce bu süre boyunca Giden Kutusu'nda Geri al ile bekler.
+	Sending · {n} s	Gönderiliyor · {n} sn
+	Sending {count} messages · {n} s	{count} ileti gönderiliyor · {n} sn
+	Undo	Geri al

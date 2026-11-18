@@ -10,6 +10,7 @@ mod quote;
 mod sending;
 mod signatures;
 mod suggest;
+mod undo_send;
 
 #[test]
 fn recipient_boxes_suggest_people() {

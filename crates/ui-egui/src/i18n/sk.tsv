@@ -1831,3 +1831,8 @@ count	occurrences	opakovaní
 	New rule on the server…	Nové pravidlo na serveri…
 	Made in another program: it can be turned on or off, moved or deleted here	Vytvorené v inom programe: tu ho možno zapnúť alebo vypnúť, presunúť alebo odstrániť
 	The server can't run this rule as it is	Server nemôže toto pravidlo spustiť v tejto podobe
+	Undo Send	Zrušiť odoslanie
+	A message you send waits this long in the Outbox, with Undo, before it goes.	Odoslaná správa čaká takto dlho v priečinku Pošta na odoslanie, s možnosťou Zrušiť, kým odíde.
+	Sending · {n} s	Odosiela sa · {n} s
+	Sending {count} messages · {n} s	Odosielajú sa správy ({count}) · {n} s
+	Undo	Zrušiť

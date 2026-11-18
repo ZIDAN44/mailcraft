@@ -1827,3 +1827,8 @@ count	occurrences	回
 	New rule on the server…	サーバーに新しいルール…
 	Made in another program: it can be turned on or off, moved or deleted here	別のプログラムで作成: ここではオン／オフ、移動、削除ができます
 	The server can't run this rule as it is	サーバーはこのルールをこのままでは実行できません
+	Undo Send	送信の取り消し
+	A message you send waits this long in the Outbox, with Undo, before it goes.	送信したメッセージは、送信されるまでこの時間だけ送信トレイで待機し、取り消すことができます。
+	Sending · {n} s	送信中 · {n} 秒
+	Sending {count} messages · {n} s	{count} 件のメッセージを送信中 · {n} 秒
+	Undo	取り消す

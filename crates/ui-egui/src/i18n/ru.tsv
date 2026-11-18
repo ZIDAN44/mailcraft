@@ -1830,3 +1830,8 @@ count	occurrences	повторений
 	New rule on the server…	Новое правило на сервере…
 	Made in another program: it can be turned on or off, moved or deleted here	Создано в другой программе: здесь его можно включить или выключить, переместить или удалить
 	The server can't run this rule as it is	Сервер не может выполнить это правило в таком виде
+	Undo Send	Отмена отправки
+	A message you send waits this long in the Outbox, with Undo, before it goes.	Отправленное письмо ждёт столько в папке «Исходящие», с кнопкой «Отменить», прежде чем уйти.
+	Sending · {n} s	Отправка · {n} с
+	Sending {count} messages · {n} s	Отправка писем: {count} · {n} с
+	Undo	Отменить

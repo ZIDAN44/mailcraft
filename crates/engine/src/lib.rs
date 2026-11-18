@@ -31,7 +31,7 @@ pub use session::{
     PANICS_CAUGHT, PGP_DOC, PaneSection, PgpSettings, Picture, Prefs, PreparedBody, Quote, Reach, Reactions, ReadInPane, Reading, ReadingPane,
     RevocationCheck, Row, SMIME_DOC, SOURCE_SHOWN, Scheme, Seal, SearchProgress, SearchScope, SearchStats, SearchWork, Security, SendBlock,
     SendCheck, SendReceive, SenderAddresses, SenderMarks, ServerSearch, Session, SignedBy, SmimeSettings, SourceView, TransferRow,
-    TrustedCertificate, UpdateCheck, VacationState, View, accent_code, accent_rgb,
+    TrustedCertificate, UNDO_SEND_MAX, UndoHold, UpdateCheck, VacationState, View, accent_code, accent_rgb,
     invite::{AnsweredInvites, Invite, InviteProblem, Route},
     junk::{JunkList, junk_entry},
     newer_release, parse_key,
