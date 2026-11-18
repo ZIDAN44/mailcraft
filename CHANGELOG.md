@@ -46,6 +46,7 @@ on GitHub.
 - In Calendar, People, Tasks and Notes, the ribbon's **Send / Receive** and **View** tabs show their own buttons (#142): Send / Receive as in Mail, View how the module shows what it holds (the calendar's Day to Month, how tasks and notes are arranged, people's views) and the folder pane; both showed Home's. **Update folder** (Shift+F9) there reads the calendars, contacts, tasks and notes again, where it read the mail folder behind them.
 - An Exchange account's mail says what it answers (#148): a reply joins its conversation even when only its headers are here, where it stood alone.
 - In the dark theme, the segment of a switch under the pointer (File › Options › Theme, Reading pane and the others) no longer looks chosen: it was lighter than the segment that was.
+- MailCraft's log no longer fills with the HTML reader's "foster parenting not implemented" (#156): written for each table in a message whose text sits outside its cells, it took most of a tester's log while mail was being indexed, hiding the lines that matter. The HTML readers' warnings, about a message's markup and not MailCraft, are left out; their errors still go in.
 
 ## 0.40.0 - 2026-11-17
 

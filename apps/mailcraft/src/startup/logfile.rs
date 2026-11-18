@@ -178,9 +178,21 @@ impl log::Log for FileLog {
     }
 }
 
-/// Whether a line is kept: MailCraft's from Info up, everyone else's warnings.
+/// Crates whose warnings are about what they read, not about MailCraft: the HTML parsers warn
+/// of a mail's markup (html5ever's "foster parenting not implemented", for text in a table but
+/// out of its cells, filled most of a tester's log, issue #156), and handle it all the same.
+const ERRORS_ONLY: [&str; 3] = ["html5ever", "markup5ever", "xml5ever"];
+
+/// Whether a line is kept: MailCraft's from Info up, everyone else's warnings (the
+/// [`ERRORS_ONLY`] crates' errors).
 fn enabled(target: &str, level: Level) -> bool {
-    if target.starts_with("mailcraft") { level <= Level::Info } else { level <= Level::Warn }
+    if target.starts_with("mailcraft") {
+        level <= Level::Info
+    } else if ERRORS_ONLY.iter().any(|c| target == *c || target.strip_prefix(c).is_some_and(|rest| rest.starts_with("::"))) {
+        level <= Level::Error
+    } else {
+        level <= Level::Warn
+    }
 }
 
 /// One line as written: when (UTC), how serious, where from, what (a message over several lines
@@ -307,6 +319,11 @@ mod tests {
         assert!(!enabled("mailcraft_net::worker", Level::Debug));
         assert!(!enabled("rustls::client", Level::Info));
         assert!(enabled("rustls::client", Level::Warn));
+        // The HTML parsers' warnings are about the mail's markup, not MailCraft: one message's
+        // tables filled most of a tester's log with "foster parenting not implemented" (#156).
+        for parser in ["html5ever::tree_builder", "markup5ever::interface", "xml5ever::tokenizer"] {
+            assert!(!enabled(parser, Level::Warn) && enabled(parser, Level::Error), "{parser}");
+        }
         assert_eq!(line("2026-10-19 14:03:07", Level::Warn, "x", "a\r\nb\n"), "2026-10-19 14:03:07 WARN  x: a\n    b\n");
         // A server's text can't forge a line, move the terminal's cursor or clear its screen.
         let forged = line("2026-10-19 14:03:07", Level::Warn, "x", "no\r2026-10-19 14:03:08 INFO  y: fine\x1b[2J\u{7}\tend");
