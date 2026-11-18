@@ -272,10 +272,23 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.create_card(account.as_deref(), card)
         })
         .when(has_reading),
-        CommandSpec::new("calendar.openShared", "Open shared calendar", "Calendar", |s, v| s.open_shared_calendar(p::str(v, "account"), p::req_str(v, "email")?))
-            .params(r#"{"email": string (whose calendar), "account"?: string (an Exchange account; else the first)}"#),
+        CommandSpec::new("calendar.openShared", "Open shared calendar", "Calendar", |s, v| s.open_shared_calendars(p::str(v, "account"), p::req_str(v, "email")?))
+            .params(r#"{"email": string (whose calendar; several as in a recipient box), "account"?: string (an Exchange account; else the first)}"#),
         CommandSpec::new("calendar.closeShared", "Close shared calendar", "Calendar", |s, v| s.close_shared_calendar(p::req_str(v, "email")?))
             .params(r#"{"email": string}"#),
+        // Calendar groups (issue #140), as Outlook's.
+        CommandSpec::new("calendar.groupCreate", "New calendar group", "Calendar › Calendar groups", |s, v| {
+            s.calendar_group_create(p::str(v, "account"), p::req_str(v, "name")?, p::req_str(v, "members")?)
+        })
+        .params(r#"{"name": string, "members": string (addresses, as in a recipient box; added to a group of that name), "account"?: string}"#),
+        CommandSpec::new("calendar.groupDelete", "Delete calendar group", "Calendar › Calendar groups", |s, v| {
+            s.calendar_group_delete(p::str(v, "account"), p::req_str(v, "name")?)
+        })
+        .params(r#"{"name": string, "account"?: string}"#),
+        CommandSpec::new("calendar.groupShow", "Show or hide a calendar group", "Calendar › Calendar groups", |s, v| {
+            s.calendar_group_show(p::str(v, "account"), p::req_str(v, "name")?, p::bool(v, "shown").unwrap_or(true))
+        })
+        .params(r#"{"name": string, "shown"?: bool (default true), "account"?: string}"#),
         CommandSpec::new("calendar.subscribe", "Subscribe to a calendar", "Calendar", |s, v| {
             s.subscribe_calendar(p::str(v, "account"), p::req_str(v, "url")?, p::str(v, "name"))
         })

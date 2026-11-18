@@ -16,6 +16,7 @@ pub use directory::Directory;
 mod find;
 pub use find::{EVENT_HITS_MAX, EventHit, EventWhen};
 mod free_busy;
+mod groups;
 pub use free_busy::{FreeBusyKept, FreeBusyState};
 pub mod invite;
 mod local;
@@ -560,18 +561,7 @@ impl Session {
     /// Open someone else's calendar from an Exchange account (Outlook's Open Calendar › From
     /// Address Book): read with the account's own, read-only, once the server shows it.
     pub fn open_shared_calendar(&mut self, account: Option<&str>, email: &str) -> CmdResult {
-        let account = match account {
-            Some(a) => self.account_or_shown(Some(a))?,
-            None => self
-                .accounts
-                .iter()
-                .find(|a| a.config.graph.is_some() || a.config.ews.is_some())
-                .map(|a| a.config.id.clone())
-                .ok_or_else(|| CmdError::Disabled("other people's calendars open from an Exchange account".into()))?,
-        };
-        if !self.account(&account).is_some_and(|a| a.config.graph.is_some() || a.config.ews.is_some()) {
-            return Err(CmdError::Params("other people's calendars open from an Exchange account".into()));
-        }
+        let account = self.exchange_account(account)?;
         let email = email.trim().to_ascii_lowercase();
         let ok =
             mailcraft_model::addr::parse_list(&email).is_ok_and(|l| l.len() == 1 && l.first().is_some_and(|a| a.email.eq_ignore_ascii_case(&email)));
@@ -601,6 +591,11 @@ impl Session {
         let Some(account) = account else { return Err(CmdError::Params(format!("no calendar of {email} is open"))) };
         let p = self.pim_mut(&account);
         p.shared.retain(|e| *e != email);
+        // Out of its groups too (issue #140); a group left with no one goes.
+        for g in &mut p.groups {
+            g.members.retain(|e| *e != email);
+        }
+        p.groups.retain(|g| !g.members.is_empty());
         p.calendars.retain(|c| c.id != id);
         p.events.retain(|e| e.calendar != id);
         self.after_pim_change(&account, false);

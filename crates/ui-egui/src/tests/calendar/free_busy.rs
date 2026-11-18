@@ -1,5 +1,6 @@
 //! Issue #140: a colleague's calendar shared for its free/busy time alone, in the Calendar: its
-//! times drawn among the events (opening nothing), and its state beside its name.
+//! times drawn among the events (opening nothing), and its state beside its name; colleagues'
+//! calendars picked from the address book, and calendar groups.
 
 use mailcraft_engine::model::Event as NetEvent;
 use mailcraft_engine::model::ical::ShowAs;
@@ -81,4 +82,73 @@ fn times_that_cant_be_had_are_said_beside_the_calendar() {
     let strings: Vec<String> = texts(&ctx, &mut a).into_iter().map(|d| d.text).collect();
     assert!(has(&strings, "couldn't be read") && !has(&strings, "free/busy"), "{strings:?}");
     assert!(!strings.iter().any(|t| t.starts_with("Budget review")));
+}
+
+/// Calendar groups (issue #140): the group's people under its name in the side pane (not with
+/// the account's own calendars too), shown and hidden together by its box; a new one is made
+/// from the address book.
+#[test]
+fn a_calendar_group_lists_its_people_and_hides_them_together() {
+    let (mut a, _) = app("calendar-group");
+    let ctx = egui::Context::default();
+    a.run("account.add", json!({"email": "zoe@contoso.example", "password": "pw", "ews": "https://mail.contoso.example/EWS/Exchange.asmx"}));
+    let id = a.session.accounts.iter().find(|x| x.config.ews.is_some()).map(|x| x.config.id.clone()).expect("the Exchange account");
+    a.run("calendar.groupCreate", json!({"account": id, "name": "Design team", "members": "ana@contoso.example; ben@contoso.example"}));
+    // Their calendars, as the server lists them once read.
+    for who in ["ana@contoso.example", "ben@contoso.example"] {
+        a.session.pim_mut(&id).calendars.push(CalendarInfo { id: shared_calendar_id(who), name: who.into(), read_only: true, ..Default::default() });
+    }
+    a.run("view.calendar", json!({}));
+    for _ in 0..2 {
+        texts(&ctx, &mut a);
+    }
+    let drawn = texts(&ctx, &mut a);
+    let heading = drawn.iter().find(|d| d.text == "Design team" && d.seen()).map(|d| d.rect).expect("the group's name");
+    for who in ["ana@contoso.example", "ben@contoso.example"] {
+        let rows: Vec<egui::Rect> = drawn.iter().filter(|d| d.text == who && d.seen()).map(|d| d.rect).collect();
+        assert_eq!(rows.len(), 1, "{who} listed once");
+        assert!(rows[0].min.y > heading.max.y, "{who} under the group");
+    }
+    // Its box, before its name: both hidden at a click, shown at the next.
+    click(&ctx, &mut a, egui::pos2(heading.min.x - 12.0, heading.center().y));
+    for who in ["ana@contoso.example", "ben@contoso.example"] {
+        assert!(!a.session.calendar_shown(&id, &shared_calendar_id(who)), "{who} hidden");
+    }
+    texts(&ctx, &mut a);
+    click(&ctx, &mut a, egui::pos2(heading.min.x - 12.0, heading.center().y));
+    assert!(a.session.calendar_shown(&id, &shared_calendar_id("ana@contoso.example")));
+
+    // New calendar group… (at the pane's end): the address book, in which to name the group and
+    // pick its people.
+    let tall = egui::vec2(1280.0, 1800.0);
+    drawn_with(&ctx, &mut a, tall, vec![]);
+    assert!(drawn_with(&ctx, &mut a, tall, vec![]).iter().any(|d| d.text == "New calendar group…" && d.seen()));
+    a.ui.dialog = Some(crate::Dialog::names_for(crate::dialogs::NamesFor::Group, ""));
+    texts(&ctx, &mut a);
+    let shown: Vec<String> = texts(&ctx, &mut a).into_iter().map(|d| d.text).collect();
+    for what in ["New calendar group", "Group name", "Add ->"] {
+        assert!(shown.iter().any(|s| s == what), "{what}: {shown:?}");
+    }
+    assert!(!shown.iter().any(|s| s == "Cc ->"), "a message's fields aren't there");
+}
+
+/// Open shared calendar: picked from the address book too (Outlook's From Address Book), what was
+/// typed carried over (issue #140).
+#[test]
+fn a_shared_calendar_is_picked_from_the_address_book() {
+    let (mut a, _) = app("calendar-from-book");
+    let ctx = egui::Context::default();
+    a.run("view.calendar", json!({}));
+    a.ui.dialog = Some(crate::Dialog::OpenSharedCalendar { email: "ana@contoso.example".into(), error: None });
+    for _ in 0..3 {
+        texts(&ctx, &mut a);
+    }
+    let drawn = texts(&ctx, &mut a);
+    let link = drawn.iter().find(|d| d.text == "Pick from the address book…" && d.seen()).map(|d| d.rect);
+    let link = link.unwrap_or_else(|| panic!("the link: {:?}", drawn.iter().map(|d| d.text.as_str()).collect::<Vec<_>>()));
+    click(&ctx, &mut a, link.center());
+    let Some(crate::Dialog::SelectNames(f)) = &a.ui.dialog else {
+        panic!("the address book: {:?}", a.ui.dialog.as_ref().map(std::mem::discriminant))
+    };
+    assert_eq!((f.purpose, f.to.as_str()), (crate::dialogs::NamesFor::Calendars, "ana@contoso.example"));
 }

@@ -169,6 +169,24 @@ pub struct NamesForm {
     pub to: String,
     pub cc: String,
     pub bcc: String,
+    /// What the names are picked for: a message (To, Cc, Bcc), or calendars (issue #140).
+    pub purpose: NamesFor,
+    /// A calendar group's name, as typed ([`NamesFor::Group`]).
+    pub group: String,
+    /// Why what was picked couldn't be done (a calendar's or group's command refused it).
+    pub error: Option<String>,
+}
+
+/// What the address book's names are picked for.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NamesFor {
+    /// The message being written: its To, Cc and Bcc.
+    #[default]
+    Message,
+    /// People whose calendars open (Outlook's Open Calendar › From Address Book).
+    Calendars,
+    /// A new calendar group of them, or people added to one.
+    Group,
 }
 
 /// A message's recipient fields.
@@ -213,7 +231,22 @@ pub(super) fn add_to(field: &mut String, a: &mailcraft_engine::model::EmailAddre
 
 pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(620.0);
-    title(ui, t, "Select Names");
+    title(
+        ui,
+        t,
+        match f.purpose {
+            NamesFor::Message => "Select Names",
+            NamesFor::Calendars => "Open a shared calendar",
+            NamesFor::Group => "New calendar group",
+        },
+    );
+    if f.purpose == NamesFor::Group {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(tl!("Group name")).strong());
+            ui.add(egui::TextEdit::singleline(&mut f.group).desired_width(240.0).hint_text(tl!("Design team")));
+        });
+        ui.add_space(4.0);
+    }
     ui.horizontal(|ui| {
         ui.label(RichText::new(tl!("Search")).strong());
         let w = if f.directory { 186.0 } else { 240.0 };
@@ -373,10 +406,15 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         ui.add(egui::Label::new(RichText::new(tf!("The directory couldn't be searched: {error}", error = e)).color(t.warn).small()).wrap());
     }
     ui.add_space(8.0);
-    for (field, label) in [(Recipients::To, "To ->"), (Recipients::Cc, "Cc ->"), (Recipients::Bcc, "Bcc ->")] {
+    // A message's three fields; the people whose calendars open, or who are in the group.
+    let fields: &[(Recipients, &str)] = match f.purpose {
+        NamesFor::Message => &[(Recipients::To, "To ->"), (Recipients::Cc, "Cc ->"), (Recipients::Bcc, "Bcc ->")],
+        NamesFor::Calendars | NamesFor::Group => &[(Recipients::To, "Add ->")],
+    };
+    for (field, label) in fields {
         ui.horizontal(|ui| {
             if ui.add_sized(vec2(72.0, 24.0), egui::Button::new(tl!(label))).clicked() {
-                add = Some(field);
+                add = Some(*field);
             }
             ui.add(egui::TextEdit::singleline(field.of(&mut f.to, &mut f.cc, &mut f.bcc)).desired_width(f32::INFINITY));
         });
@@ -384,9 +422,21 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
     if let (Some(target), Some(a)) = (add, f.selected.and_then(|i| f.list.get(i)).cloned()) {
         add_to(target.of(&mut f.to, &mut f.cc, &mut f.bcc), &a);
     }
-    let (ok, cancel) = buttons(ui, t, "OK", true);
+    if let Some(e) = &f.error {
+        ui.label(RichText::new(e.as_str()).color(t.danger).small());
+    }
+    let ready = match f.purpose {
+        NamesFor::Message => true,
+        NamesFor::Calendars => f.to.contains('@'),
+        NamesFor::Group => f.to.contains('@') && !f.group.trim().is_empty(),
+    };
+    let (ok, cancel) = buttons(ui, t, "OK", ready);
     if ok {
-        acts.push(Action::Submit("compose.update", json!({"to": f.to.trim(), "cc": f.cc.trim(), "bcc": f.bcc.trim()})));
+        match f.purpose {
+            NamesFor::Message => acts.push(Action::Submit("compose.update", json!({"to": f.to.trim(), "cc": f.cc.trim(), "bcc": f.bcc.trim()}))),
+            NamesFor::Calendars => acts.push(Action::Submit("calendar.openShared", json!({"email": f.to.trim()}))),
+            NamesFor::Group => acts.push(Action::Submit("calendar.groupCreate", json!({"name": f.group.trim(), "members": f.to.trim()}))),
+        }
         return true;
     }
     !cancel

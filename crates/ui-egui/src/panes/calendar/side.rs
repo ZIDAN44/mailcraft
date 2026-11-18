@@ -45,6 +45,26 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                 local_events(ui, &t, &a.config.id, &offer, acts);
             }
         }
+        // Calendar groups (issue #140), under the accounts' calendars.
+        for a in &s.accounts {
+            let Some(p) = s.pim.get(&a.config.id) else { continue };
+            let rows = Rows {
+                a,
+                p,
+                grouped: true,
+                default: p.default_calendar().map(|c| c.id.clone()),
+                choices: p.calendars.iter().filter(|c| !c.read_only && is_server_calendar(&c.id)).count(),
+            };
+            for (g, shown) in s.calendar_groups(&a.config.id) {
+                calendar_group_heading(&t, ui, &a.config.id, &g.name, shown, acts);
+                for e in &g.members {
+                    let id = mailcraft_engine::model::pim::shared_calendar_id(e);
+                    if let Some(c) = p.calendars.iter().find(|c| c.id == id) {
+                        calendar_row(s, &t, ui, &rows, c, acts);
+                    }
+                }
+            }
+        }
         more(s, ui, several, acts);
     });
 }
@@ -63,8 +83,13 @@ fn groups(s: &Session) -> Vec<Group<'_>> {
             let a = s.account(&sec.account)?;
             let p = s.pim.get(&a.config.id)?;
             let mailbox = sec.key.split_once('|').map(|(_, m)| m.to_string());
+            // A calendar group's people are listed under the group (issue #140).
+            let in_group = |o: &str| p.groups.iter().any(|g| g.members.iter().any(|m| m == o));
             let in_section = |c: &&CalendarInfo| {
                 let owner = c.id.strip_prefix("shared:").map(str::to_ascii_lowercase);
+                if owner.as_deref().is_some_and(in_group) {
+                    return false;
+                }
                 match &mailbox {
                     Some(m) => owner.as_deref() == Some(m.as_str()),
                     None => owner.is_none_or(|o| !sections.iter().any(|x| x.key == format!("{}|{o}", a.config.id))),
@@ -93,6 +118,37 @@ fn group_heading(ui: &mut Ui, t: &Tokens, a: &mailcraft_engine::AccountState, ma
         }
         let name = mailbox.map_or_else(|| a.config.email.clone(), str::to_string);
         ui.add(egui::Label::new(RichText::new(name).font(theme::bold(12.0)).color(t.dim)).truncate());
+    });
+}
+
+/// A calendar group's heading: ticked when all its calendars are shown (a click shows or hides
+/// them together), its name; right-click to delete it.
+fn calendar_group_heading(t: &Tokens, ui: &mut Ui, account: &str, name: &str, shown: bool, acts: &mut Vec<Action>) {
+    ui.add_space(4.0);
+    let row = ui.horizontal(|ui| {
+        ui.set_min_width(ui.available_width());
+        let (r, resp) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::click());
+        if shown {
+            ui.painter().rect_filled(r, 3.0, t.accent);
+            let p = |x: f32, y: f32| pos2(r.min.x + r.width() * x, r.min.y + r.height() * y);
+            ui.painter().line_segment([p(0.22, 0.52), p(0.42, 0.72)], egui::Stroke::new(1.8, egui::Color32::WHITE));
+            ui.painter().line_segment([p(0.42, 0.72), p(0.78, 0.3)], egui::Stroke::new(1.8, egui::Color32::WHITE));
+        } else {
+            ui.painter().rect_stroke(r.shrink(0.5), 3.0, egui::Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+        }
+        let tip = if shown { tl!("Shown: click to hide them") } else { tl!("Hidden: click to show them") };
+        crate::widgets::named(ui, &resp, &format!("{name}: {tip}"), true, Some(shown));
+        if resp.on_hover_text(tip).clicked() {
+            acts.push(Action::Run("calendar.groupShow", json!({"account": account, "name": name, "shown": !shown})));
+        }
+        ui.add(egui::Label::new(RichText::new(name).font(theme::bold(12.0)).color(t.dim)).selectable(false).truncate());
+    });
+    let (account, name) = (account.to_string(), name.to_string());
+    row.response.interact(Sense::click()).context_menu(|ui| {
+        if ui.button(tl!("Delete calendar group")).clicked() {
+            acts.push(Action::Run("calendar.groupDelete", json!({"account": account, "name": name})));
+            ui.close();
+        }
     });
 }
 
@@ -226,11 +282,16 @@ fn more(s: &Session, ui: &mut Ui, several: bool, acts: &mut Vec<Action>) {
             acts.push(Action::Run("calendar.sideBySide", json!({"on": on})));
         }
     }
-    // Outlook's Open Calendar: someone's calendar shared with an Exchange account.
+    // Outlook's Open Calendar: someone's calendar shared with an Exchange account; and its
+    // calendar groups (issue #140).
     if s.accounts.iter().any(|a| a.config.graph.is_some() || a.config.ews.is_some()) {
         ui.add_space(6.0);
         if ui.link(RichText::new(tl!("Open shared calendar…")).small()).clicked() {
             acts.push(Action::Dialog(Dialog::OpenSharedCalendar { email: String::new(), error: None }));
+        }
+        ui.add_space(4.0);
+        if ui.link(RichText::new(tl!("New calendar group…")).small()).clicked() {
+            acts.push(Action::Dialog(Dialog::names_for(crate::dialogs::NamesFor::Group, "")));
         }
     }
     // Outlook's Add Calendar › From Internet (issue #7).

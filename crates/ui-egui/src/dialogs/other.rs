@@ -173,6 +173,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
                 ui.add_space(4.0);
                 ui.label(RichText::new(e.as_str()).color(t.danger).small());
             }
+            // Outlook's From Address Book: picked from the address book, the organisation's
+            // directory among them (issue #140).
+            if ui.link(RichText::new(tl!("Pick from the address book…")).small()).clicked() {
+                acts.push(Action::Dialog(Dialog::names_for(NamesFor::Calendars, email)));
+            }
             let ready = email.contains('@');
             let (ok, cancel) = buttons(ui, t, "Open", ready);
             if (ok || enter) && ready {

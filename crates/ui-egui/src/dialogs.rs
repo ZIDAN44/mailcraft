@@ -280,6 +280,12 @@ impl Dialog {
         }))
     }
 
+    /// The address book for calendars (issue #140): people whose calendars open (`what` typed so
+    /// far), or a new calendar group of them.
+    pub fn names_for(purpose: NamesFor, what: &str) -> Dialog {
+        Dialog::SelectNames(Box::new(NamesForm { purpose, to: what.trim().to_string(), stale: true, ..Default::default() }))
+    }
+
     /// A question that must be answered before going on, or a warning: read as an alert.
     pub fn is_alert(&self) -> bool {
         self.about_closing()
@@ -494,6 +500,7 @@ impl Dialog {
             Dialog::Vacation(f) => f.error = Some(e),
             Dialog::Dav(f) => f.error = Some(e),
             Dialog::Address(f) => f.error = Some(e),
+            Dialog::SelectNames(f) if f.purpose != NamesFor::Message => f.error = Some(e),
             Dialog::OpenSharedCalendar { error, .. } | Dialog::SubscribeCalendar { error, .. } | Dialog::AddSharedMailbox { error, .. } => {
                 *error = Some(e)
             }

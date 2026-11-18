@@ -113,6 +113,14 @@ pub fn shared_calendar_owner(id: &str) -> Option<&str> {
     id.strip_prefix(SHARED).filter(|e| !e.is_empty())
 }
 
+/// A calendar group: its name, and the people in it by their addresses (lower-case), in the order
+/// added.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CalendarGroup {
+    pub name: String,
+    pub members: Vec<String>,
+}
+
 /// A calendar subscribed to by its link (an iCal or `webcal://` address, issue #7), as Outlook's
 /// Add Calendar › From Internet: read-only, read again from the link now and then.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -256,6 +264,10 @@ pub struct Pim {
     /// Outlook's Open Calendar › From Address Book: read from Exchange with the rest.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub shared: Vec<String>,
+    /// Calendar groups (issue #140), as Outlook's: people whose calendars (in `shared`) are shown
+    /// and hidden together, under the group's name.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub groups: Vec<CalendarGroup>,
     /// Calendars subscribed to by their links (issue #7), each with its entry in `calendars`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub subscribed: Vec<WebCalendar>,
