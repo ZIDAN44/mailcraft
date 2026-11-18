@@ -201,8 +201,10 @@ fn an_item_bigger_than_the_file_says_is_charged_for_what_it_is() {
     let done = within_a_minute(move || run(&path, &s, "u1", &opts));
     assert_eq!((done.messages, done.skipped), (36, 0));
     // Charged 3.5 times its 900 KB once read, no two fit in the 4 MB together: a lane waits for
-    // room while the one before is made and written. Charged for the byte the file says, none
-    // would wait. (The writer's peak shows nothing: it holds one item at a time either way.)
+    // room while the one before is made and written (the first held until one does, or on a busy
+    // machine the lanes ran one after another and none did: `hold_first_more`). Charged for the
+    // byte the file says, none would wait. (The writer's peak shows nothing: it holds one item at
+    // a time either way.)
     // Counted, not timed: a wait may be shorter than the millisecond the time is told in.
     assert!(done.stats.budget_waits > 0, "the megabyte items waited for room: {:?}", done.stats);
     assert_eq!(everything(&store, "u1"), everything(&plain, "u1"));

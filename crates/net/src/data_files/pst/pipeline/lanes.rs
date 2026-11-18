@@ -342,6 +342,8 @@ fn one(ctx: &Ctx<'_>, job: &Job, read: &ReadItem<'_>, charge: &mut u64) -> Outco
             return Outcome::Stopped;
         }
         *charge = need;
+        #[cfg(test)]
+        tests::hold_first_more(ctx);
     }
     if pim {
         return Outcome::Pim(Box::new(it));
@@ -547,7 +549,8 @@ pub(crate) mod tests {
         /// The import is cut off once the writer has applied this many items, as if the
         /// process ended there: nothing more is written, not even what an end writes.
         CutOffAfter(u64),
-        /// The file says every item is a byte.
+        /// The file says every item is a byte. The first item read bigger is held, as it holds
+        /// its room, until another lane waits for room ([`hold_first_more`]).
         Understate,
         /// Each item takes this many milliseconds longer to read (an import slow enough to be
         /// stopped part-way).
@@ -594,6 +597,34 @@ pub(crate) mod tests {
     pub(crate) fn touch_items(path: &Path, touch: Touch) {
         if let Ok(mut t) = TOUCH.lock() {
             t.push((path.to_path_buf(), touch));
+        }
+    }
+
+    /// The data files whose import has held its first item read bigger than the file said
+    /// ([`Fault::Understate`]), by their paths.
+    static HELD_MORE: std::sync::Mutex<Vec<std::path::PathBuf>> = std::sync::Mutex::new(Vec::new());
+
+    /// At [`Fault::Understate`], the first lane that took more room for its item (in an import of
+    /// its file) keeps it until another lane waits for room, which one must: no item after this
+    /// one is the writer's next while it's held, and the next one read bigger doesn't fit beside
+    /// it. Without this, whether two lanes held their items' room at once was left to how the
+    /// threads ran: on a busy machine, one after another, none waited (1 run in 25 at 128 at once
+    /// on 32 cores).
+    pub(super) fn hold_first_more(ctx: &Ctx<'_>) {
+        if !matches!(ctx.opts.fault, Some(Fault::Understate)) {
+            return;
+        }
+        {
+            let Ok(mut held) = HELD_MORE.lock() else { return };
+            if held.iter().any(|p| p == ctx.path) {
+                return;
+            }
+            held.push(ctx.path.to_path_buf());
+        }
+        // A guard against hanging: a test whose lane never waits fails on its own.
+        let end = std::time::Instant::now() + Duration::from_secs(60);
+        while !ctx.budget.waiting() && !ctx.stopped() && std::time::Instant::now() < end {
+            std::thread::sleep(Duration::from_millis(1));
         }
     }
 
