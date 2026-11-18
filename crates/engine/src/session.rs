@@ -191,6 +191,9 @@ pub struct Reading {
     pub error: Option<String>,
     /// The other messages of its conversation in this list, oldest first.
     pub thread: Vec<MessageKey>,
+    /// The user's own messages of its conversation in Sent Items (issue #148), not in this list:
+    /// shown in its conversation, oldest first, and opened in a window of their own.
+    pub aside: Vec<SharedSummary>,
     /// Who it says it's from doesn't add up: a lookalike of a domain the user deals with, or
     /// another address shown in the sender's name.
     pub warning: Option<mailcraft_model::lookalike::SenderWarning>,
@@ -305,6 +308,8 @@ pub struct Session {
     pub outbox: Vec<(String, OutboxItem)>,
     /// Held-back Outbox messages already asked to be sent when their time came.
     flushed: BTreeSet<u64>,
+    /// Each account's Sent folder by Message-ID, for its replies in conversations.
+    pub(crate) sent_indexes: HashMap<String, mailboxes::SentIndex>,
     /// Messages sent that wait in the Outbox to be undone (Undo Send), as they were written.
     pub(crate) undo_holds: Vec<writing::UndoHold>,
     pub(crate) jobs: Vec<Job>,
@@ -500,6 +505,7 @@ impl Session {
             pim_revision: 0,
             outbox: Vec::new(),
             flushed: BTreeSet::new(),
+            sent_indexes: HashMap::new(),
             undo_holds: Vec::new(),
             jobs: Vec::new(),
             cache: HashMap::new(),

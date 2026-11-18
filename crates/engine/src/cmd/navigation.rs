@@ -128,6 +128,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("message.read", "Read message", "Reading pane", read_message).params(r#"{"key"?: string}"#),
         CommandSpec::new("message.popOut", "Open in new window", "Message list › Open", |s, v| {
             let k = match parse_key(v) {
+                // One of the user's own replies the open conversation shows from Sent Items (#148).
+                Some(k) if s.reading.as_ref().is_some_and(|r| r.aside.iter().any(|m| m.key == k)) => k,
                 Some(_) => key_param(s, v)?,
                 None => s
                     .focus

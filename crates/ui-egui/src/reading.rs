@@ -553,24 +553,44 @@ fn empty(ui: &mut Ui, t: &Tokens, msg: &str) {
     widgets::empty_state(ui, t, Icon::Read, msg);
 }
 
-fn thread_list(s: &Session, t: &Tokens, ui: &mut Ui, thread: &[MessageKey], open: &MessageKey, acts: &mut Vec<Action>) {
+/// The messages of the open one's conversation, the oldest first: those in this list, and the
+/// user's own from Sent Items (`aside`, issue #148), dimmed with their folder's name and opened
+/// in a window of their own, as Outlook shows a conversation's messages from other folders.
+fn thread_list(
+    s: &Session,
+    t: &Tokens,
+    ui: &mut Ui,
+    thread: &[MessageKey],
+    aside: &[mailcraft_engine::model::SharedSummary],
+    open: &MessageKey,
+    acts: &mut Vec<Action>,
+) {
+    let here: Vec<&Summary> =
+        if thread.is_empty() { s.summary(open).into_iter().collect() } else { thread.iter().filter_map(|k| s.summary(k)).collect() };
+    let mut rows: Vec<(&Summary, bool)> = here.into_iter().map(|m| (m, false)).chain(aside.iter().map(|m| (&**m, true))).collect();
+    rows.sort_by_key(|(m, _)| m.when());
     egui::Frame::new().fill(t.chrome).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(8).inner_margin(Margin::symmetric(10, 8)).show(
         ui,
         |ui| {
-            ui.label(RichText::new(tf!("{n} messages in this conversation", n = thread.len())).color(t.dim).small());
-            for k in thread {
-                let Some(m) = s.summary(k) else { continue };
+            ui.label(RichText::new(tf!("{n} messages in this conversation", n = rows.len())).color(t.dim).small());
+            for (m, sent) in rows {
+                let k = &m.key;
                 let current = k == open;
                 let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click());
                 if current || resp.hovered() {
                     ui.painter().rect_filled(rect, 4.0, if current { t.accent_soft } else { t.hover_row });
                 }
-                let font = if !m.flags.seen { theme::bold(13.0) } else { theme::regular(13.0) };
+                let font = if !m.flags.seen && !sent { theme::bold(13.0) } else { theme::regular(13.0) };
                 let p = ui.painter_at(rect);
                 // Who, the first words and when, each in its own room: the words ran on under
-                // the time in a narrow pane, and a long name under the words.
-                let when = p.layout_no_wrap(crate::i18n::date(&dates::list_time(m.when(), &s.clock)), theme::regular(12.0), t.dim);
-                let who = widgets::one_line(ui, m.from.display(), font, t.text, 154.0);
+                // the time in a narrow pane, and a long name under the words. One from Sent
+                // Items says so before its time.
+                let folder = sent
+                    .then(|| s.account(&k.account).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Sent)).map(crate::i18n::folder))
+                    .flatten();
+                let date = crate::i18n::date(&dates::list_time(m.when(), &s.clock));
+                let when = p.layout_no_wrap(folder.map_or(date.clone(), |f| format!("{f} · {date}")), theme::regular(12.0), t.dim);
+                let who = widgets::one_line(ui, m.from.display(), font, if sent { t.dim } else { t.text }, 154.0);
                 let mid = |g: &egui::Galley| rect.center().y - g.size().y / 2.0;
                 let room = rect.width() - 170.0 - when.size().x - 20.0;
                 p.galley(egui::pos2(rect.left() + 8.0, mid(&who)), who, t.text);
@@ -579,7 +599,9 @@ fn thread_list(s: &Session, t: &Tokens, ui: &mut Ui, thread: &[MessageKey], open
                     p.galley(egui::pos2(rect.left() + 170.0, mid(&words)), words, t.dim);
                 }
                 p.galley(egui::pos2(rect.right() - 8.0 - when.size().x, mid(&when)), when, t.dim);
-                if resp.clicked() && !current {
+                if resp.clicked() && sent {
+                    acts.push(Action::Run("message.popOut", json!({"key": k.to_id()})));
+                } else if resp.clicked() && !current {
                     acts.push(Action::Open(k.clone()));
                 }
             }

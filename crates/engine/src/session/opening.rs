@@ -107,7 +107,8 @@ impl Session {
         self.focus = Some(key.clone());
         self.anchor = Some(key.clone());
         let thread = self.thread_of(key);
-        self.reading = Some(Reading { key: key.clone(), parsed: None, error: None, thread, warning: None, security: None, text_first: false });
+        let aside = self.sent_aside(key, &thread);
+        self.reading = Some(Reading { key: key.clone(), parsed: None, error: None, thread, aside, warning: None, security: None, text_first: false });
         if self.body.defer {
             // Read and parsed on another thread: the pane waits for it.
             self.defer_read(key);
@@ -146,7 +147,16 @@ impl Session {
                 self.windows.remove(0);
             }
             let cached = self.body_raw(key);
-            let mut w = Reading { key: key.clone(), parsed: None, error: None, thread: Vec::new(), warning: None, security: None, text_first: false };
+            let mut w = Reading {
+                key: key.clone(),
+                parsed: None,
+                error: None,
+                thread: Vec::new(),
+                aside: Vec::new(),
+                warning: None,
+                security: None,
+                text_first: false,
+            };
             match cached {
                 Some(raw) => {
                     let (shown, security) = self.unwrap(key, &raw);

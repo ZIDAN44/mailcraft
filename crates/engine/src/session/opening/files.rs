@@ -31,7 +31,7 @@ impl Session {
         if self.windows.len() >= MAX_WINDOWS {
             self.windows.remove(0);
         }
-        self.windows.push(Reading { key: key.clone(), parsed, error, thread: Vec::new(), warning, security, text_first: false });
+        self.windows.push(Reading { key: key.clone(), parsed, error, thread: Vec::new(), aside: Vec::new(), warning, security, text_first: false });
         self.opened_files.push(OpenedFile { key: key.clone(), name: name.to_string(), raw: Arc::from(raw) });
         self.forget_closed_files();
         if let Some(a) = answer.as_object_mut() {

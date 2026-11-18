@@ -19,6 +19,7 @@ on GitHub.
 - An Exchange account's **File › Mailbox settings** shows how much space the mailbox takes and its limit, as Outlook does (#143): it said the server doesn't report how much space is used. With no limit set, it shows the space used.
 - An Exchange account's own rules on its server show in **Rules**, under MailCraft's (#139): turned on or off, moved up or down, deleted, and changed where MailCraft can say what they do (a word in the sender, recipients or subject, attachments; moving, deleting, marking read, a category), and new ones made there, which the server runs even while MailCraft is closed. A rule made in another program that does more is kept as it is; Outlook's own copy of the rules is removed only when asked.
 - **Undo Send** (#135): in **File › Options › Mail**, a message you send can wait 5 to 30 seconds in the Outbox before it goes, and a bar at the bottom of the window counts down with **Undo**, which opens it again as you wrote it. Off as it starts; closing MailCraft lets a waiting message go at once.
+- A conversation shows your own replies from Sent Items (#148), as Outlook's do: in its list in the reading pane, by date with the others, dimmed and with Sent Items' name, a click opening one in its own window. Deleting or moving the conversation in the Inbox leaves them where they are.
 
 ### Changed
 

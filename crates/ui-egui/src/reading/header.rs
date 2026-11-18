@@ -21,8 +21,8 @@ pub(super) fn header(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, p
     let t = st.tokens;
     let r = o.r;
     let conversation = |ui: &mut Ui, acts: &mut Vec<Action>| {
-        if r.thread.len() > 1 && !o.in_window {
-            thread_list(s, &t, ui, &r.thread, &r.key, acts);
+        if r.thread.len().max(1) + r.aside.len() > 1 && !o.in_window {
+            thread_list(s, &t, ui, &r.thread, &r.aside, &r.key, acts);
             ui.add_space(10.0);
         }
     };

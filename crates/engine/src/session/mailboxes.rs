@@ -8,10 +8,12 @@ mod echo;
 mod nav;
 mod patch;
 mod rows;
+mod sent_aside;
 pub(crate) use across::Transfer;
 pub(crate) use echo::{Echo, Echoes};
 pub(crate) use nav::{ListNav, NO_ROW, folder_hash, key_hash, key_hash_in};
 pub use rows::{ARRANGE_HEADINGS, Arrange, Row, arrange_list};
+pub(crate) use sent_aside::SentIndex;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -648,8 +650,10 @@ impl Session {
     pub(crate) fn rethread_reading(&mut self) {
         let Some(key) = self.reading.as_ref().map(|r| r.key.clone()) else { return };
         let thread = self.thread_of(&key);
+        let aside = self.sent_aside(&key, &thread);
         if let Some(r) = self.reading.as_mut() {
             r.thread = thread;
+            r.aside = aside;
         }
     }
 }
