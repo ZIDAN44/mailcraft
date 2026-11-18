@@ -52,6 +52,12 @@ ignore = [
     # rPGP ignores the crypto-bigint notice for the same reason.
     { id = "RUSTSEC-2023-0071", reason = "rsa: local signing, decrypting and Kerberos sign-in only, no oracle" },
     { id = "RUSTSEC-2026-0387", reason = "crypto-bigint 0.5 under p256/p384, pgp and cx448: local use only" },
+    # chrono and chrono-tz are unmaintained (no vulnerability; every version, no release to move
+    # to). The Craft apps' Rust house rules have time go through chrono, as PdfCraft does: a
+    # successor is chosen in craft-contrib's standards/house-rules-rust.md first (storytold/pdfcraft#7647).
+    # MailCraft uses them for the IANA zones (`model::dates::zone`) and the clock's local offset.
+    { id = "RUSTSEC-2026-0543", reason = "chrono unmaintained; required by the Craft apps' Rust house rules" },
+    { id = "RUSTSEC-2026-0555", reason = "chrono-tz unmaintained; goes with chrono until the house rules name a successor" },
 ]
 
 # Licences (see CLAUDE.md, clean room): only the permissive ones below pass. Copyleft licences
