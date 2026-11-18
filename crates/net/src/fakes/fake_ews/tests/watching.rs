@@ -71,6 +71,27 @@ fn mail_a_rule_filed_comes_with_the_next_look() {
     assert!(m.data.lock().unwrap().get_events_asked > 0);
 }
 
+/// Mail marked read or unread in another program, in a folder a rule files into, changes here
+/// with the next look too (the reporter's: it waited for the full sync, as new mail did).
+#[test]
+fn a_mark_made_elsewhere_comes_with_the_next_look() {
+    let m = mailbox("watch-mark", &[], |d| {
+        let projects = d.by_name("Projects").unwrap().id.clone();
+        d.deliver(&projects, &mail("Read elsewhere"), false, "2026-11-18T08:00:00Z");
+    });
+    until(&m.pool, "the calendars read", |e| matches!(e, Event::DavSynced { .. }));
+    let seen = |store: &Store| -> Option<bool> {
+        let f = store.load_folder("watch-mark", "Projects").ok()?;
+        f.messages.iter().find(|s| s.subject == "Read elsewhere").map(|s| s.flags.seen)
+    };
+    assert_eq!(seen(&m.store), Some(false));
+    let full_syncs = listings(&m.data);
+    // Read in another program.
+    m.data.lock().unwrap().items.iter_mut().filter(|i| i.folder == m.projects).for_each(|i| i.read = true);
+    eventually("read here too", || seen(&m.store) == Some(true));
+    assert_eq!(listings(&m.data), full_syncs, "by a look, not a full sync");
+}
+
 /// A subscription gone (it lapsed while the computer slept, the server restarted) is made again,
 /// and what comes after it is told as before.
 #[test]
