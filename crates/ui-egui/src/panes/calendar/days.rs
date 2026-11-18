@@ -256,19 +256,8 @@ fn timed_events(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], cols
             .filter(|it| !it.all_day && it.end - it.start < 86_400 && it.start < day1 && it.end.max(it.start + 1) > day0 && cols.col_of(it) == j)
             .collect();
         todays.sort_by_key(|it| (it.start, -(it.end - it.start)));
-        let mut lane_end: Vec<i64> = Vec::new();
-        let mut lanes: Vec<usize> = Vec::new();
-        for it in &todays {
-            let lane = lane_end.iter().position(|e| *e <= it.start).unwrap_or(lane_end.len());
-            if lane == lane_end.len() {
-                lane_end.push(it.end);
-            } else if let Some(e) = lane_end.get_mut(lane) {
-                *e = it.end;
-            }
-            lanes.push(lane);
-        }
-        let width = (cw - 6.0) / lane_end.len().max(1) as f32;
-        for (it, lane) in todays.iter().zip(lanes) {
+        for (it, lane, lanes) in side_by_side(&todays) {
+            let width = (cw - 6.0) / lanes.max(1) as f32;
             let top = ((it.start.max(day0) - day0) as f32 / 3600.0) * HOUR;
             let bottom = ((it.end.min(day1) - day0) as f32 / 3600.0) * HOUR;
             let r = Rect::from_min_size(
@@ -291,6 +280,41 @@ fn timed_events(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], cols
             }
         }
     }
+}
+
+/// The day's events (in order of start), each with its lane and how many lanes its group has: a
+/// group is the events that overlap one another, directly or through others, and shares the
+/// column among itself alone, as Outlook draws them (issue #155: every event of a day took the
+/// width of the most that overlapped anywhere in it, a morning meeting a third of the column for
+/// three in the afternoon). An event is taken as long as it's drawn (a short one is drawn taller).
+fn side_by_side<'a>(todays: &[&'a AgendaItem]) -> Vec<(&'a AgendaItem, usize, usize)> {
+    let least = (18.0 / HOUR * 3600.0) as i64;
+    let mut out: Vec<(&AgendaItem, usize, usize)> = Vec::with_capacity(todays.len());
+    // The group being laid out: where it starts in `out`, each lane's end, and its own end.
+    let (mut first, mut lane_end, mut group_end): (usize, Vec<i64>, i64) = (0, Vec::new(), i64::MIN);
+    let close = |out: &mut Vec<(&AgendaItem, usize, usize)>, first: usize, lanes: usize| {
+        for o in out.iter_mut().skip(first) {
+            o.2 = lanes;
+        }
+    };
+    for it in todays {
+        if !lane_end.is_empty() && it.start >= group_end {
+            close(&mut out, first, lane_end.len());
+            first = out.len();
+            lane_end.clear();
+            group_end = i64::MIN;
+        }
+        let end = it.end.max(it.start.saturating_add(least));
+        let lane = lane_end.iter().position(|e| *e <= it.start).unwrap_or(lane_end.len());
+        match lane_end.get_mut(lane) {
+            Some(e) => *e = end,
+            None => lane_end.push(end),
+        }
+        group_end = group_end.max(end);
+        out.push((*it, lane, 0));
+    }
+    close(&mut out, first, lane_end.len());
+    out
 }
 
 /// Now, in every pane: a line across today's column.

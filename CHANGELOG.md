@@ -48,6 +48,7 @@ on GitHub.
 - In the dark theme, the segment of a switch under the pointer (File › Options › Theme, Reading pane and the others) no longer looks chosen: it was lighter than the segment that was.
 - MailCraft's log no longer fills with the HTML reader's "foster parenting not implemented" (#156): written for each table in a message whose text sits outside its cells, it took most of a tester's log while mail was being indexed, hiding the lines that matter. The HTML readers' warnings, about a message's markup and not MailCraft, are left out; their errors still go in.
 - The Search tab stays while the search box is being typed in (#158), and goes with a click elsewhere: clicking into the box took its focus away again as the tab appeared, so the tab went as soon as the pointer left the box, before its buttons could be reached.
+- In the calendar's day and week views, overlapping events share the column only among themselves (#155), as in Outlook: every event of a day was as narrow as the most that overlapped anywhere in it, a morning meeting a third of the column for three in the afternoon.
 
 ## 0.40.0 - 2026-11-17
 

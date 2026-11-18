@@ -3,6 +3,7 @@
 use super::*;
 
 mod dates;
+mod day_view;
 mod free_busy;
 mod lists;
 mod meetings;
