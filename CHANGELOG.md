@@ -20,6 +20,7 @@ on GitHub.
 
 ### Changed
 
+- The reading pane's header (the subject, who it's from and to, its buttons and attachments) stays at the top while the message's text scrolls under it, as in Outlook, in its own window too (#151); in a pane too short for that, all of it scrolls as before.
 - A POP account set up with an existing `.mailcraft` data file keeps its mail in that file, where it is, as Outlook uses an existing `.pst`: it's no longer copied whole into Documents › MailCraft Files first (a big one sat at "Counting items…" for as long as that took), and removing the account leaves the file there. A file that can't be used where it is (open in another program or not closed properly, read-only, or still an account in another MailCraft data folder) is copied in as before, and MailCraft says why.
 - A POP account's new mail shows in its Inbox as it downloads, a batch at a time, instead of all at once at the end: a big download's Inbox stayed empty while it came.
 - A message the outgoing server turns away for its sender says which address that was ("the server refused the sender, …"): "550 Invalid Sender" alone didn't say which.

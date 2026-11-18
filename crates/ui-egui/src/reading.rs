@@ -119,6 +119,9 @@ pub(crate) fn plain_text_check(s: &Session, st: &UiState, ui: &mut Ui, key: &Mes
     }
 }
 
+/// The least height of a pane whose message header stays at its top while the text scrolls.
+const PINNED_PANE: f32 = 360.0;
+
 /// The open message, its parts in hand, as the pieces of the reading pane take it.
 struct Open<'a> {
     r: &'a mailcraft_engine::Reading,
@@ -147,13 +150,38 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
         close_attachment_view(st);
     }
     let viewing = viewing.filter(|_| st.attachment_view.is_some());
+    let locked = r.security.as_ref().is_some_and(security::still_locked);
+    // The header stays at the top while the text scrolls, as Outlook's (issue #151), in a pane
+    // with room for it: half of it at most, as it was last drawn; else all of it scrolls.
+    let head_id = egui::Id::unique(("reading-head", in_window, r.key.to_id()));
+    let head_was: f32 = ui.ctx().data(|d| d.get_temp(head_id)).unwrap_or(0.0);
+    let room = ui.available_height();
+    let pinned = r.parsed.as_ref().filter(|_| viewing.is_none() && !locked && room >= PINNED_PANE && head_was <= room / 2.0);
+    if let Some(p) = pinned {
+        let o = Open { r: &r, p, summary: summary.as_ref(), in_window };
+        let top = ui.cursor().top();
+        egui::Frame::new().inner_margin(Margin { left: 24, right: 24, top: 18, bottom: 0 }).show(ui, |ui| {
+            header::header(s, st, ui, &o, header::Part::Pinned, acts);
+            attachments_strip(s, st, ui, &o, shown_formatted(s, st, &r.key, p), acts);
+        });
+        let edge = ui.cursor().top();
+        ui.ctx().data_mut(|d| d.insert_temp(head_id, edge - top));
+        let line = ui.available_rect_before_wrap();
+        ui.painter().line_segment([egui::pos2(line.left() + 24.0, edge), egui::pos2(line.right() - 24.0, edge)], egui::Stroke::new(1.0, t.border));
+    }
     egui::ScrollArea::vertical().auto_shrink(false).id_salt(("reading", in_window, r.key.to_id(), viewing)).show(ui, |ui| {
-        egui::Frame::new().inner_margin(Margin { left: 24, right: 24, top: 18, bottom: 24 }).show(ui, |ui| {
+        let top = if pinned.is_some() { 12 } else { 18 };
+        egui::Frame::new().inner_margin(Margin { left: 24, right: 24, top, bottom: 24 }).show(ui, |ui| {
             let Some(p) = &r.parsed else {
                 not_ready(ui, &t, &r, summary.as_ref(), getting_ready, acts);
                 return;
             };
             let o = Open { r: &r, p, summary: summary.as_ref(), in_window };
+            if pinned.is_some() {
+                header::header(s, st, ui, &o, header::Part::Scrolled, acts);
+                message_text(s, st, ui, &o, shown_formatted(s, st, &r.key, p), acts);
+                return;
+            }
             // Previewing an attachment: back to the message, and what can be done with the file.
             if let Some(index) = viewing
                 && let Some(a) = p.attachments.iter().find(|a| a.index == index)
@@ -164,7 +192,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 }
             }
             if viewing.is_none() {
-                header::header(s, st, ui, &o, acts);
+                header::header(s, st, ui, &o, header::Part::All, acts);
             }
 
             // An encrypted message not decrypted: nothing of it (its smime.p7m) is shown.

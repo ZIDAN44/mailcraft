@@ -5,6 +5,7 @@ use super::*;
 mod attachments;
 mod links;
 mod people;
+mod pinned_header;
 mod plain_text;
 mod reactions;
 

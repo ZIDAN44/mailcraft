@@ -4,38 +4,57 @@
 
 use super::*;
 
+/// Which of the header is drawn: all of it, scrolling with the text; or, as Outlook keeps it at
+/// the top of the pane while the text scrolls (issue #151), the part that stays (the subject,
+/// who it's from and to, the bars about it, what can be done with it) or the part that scrolls
+/// (the conversation, reactions, an invitation's card: each can be tall).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Part {
+    All,
+    Pinned,
+    Scrolled,
+}
+
 /// The header, against the right in a right-to-left interface, its rows from there (the message
 /// itself goes the way its own text does).
-pub(super) fn header(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut Vec<Action>) {
+pub(super) fn header(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, part: Part, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let r = o.r;
-    ui.with_layout(crate::bidi::column(), |ui| {
-        subject_line(s, &t, ui, o, acts);
-        ui.add_space(10.0);
-
-        // Conversation.
+    let conversation = |ui: &mut Ui, acts: &mut Vec<Action>| {
         if r.thread.len() > 1 && !o.in_window {
             thread_list(s, &t, ui, &r.thread, &r.key, acts);
             ui.add_space(10.0);
         }
-
-        sender_card(s, &t, ui, o, acts);
-        ui.add_space(8.0);
-        follow_up_line(s, &t, ui, o.summary);
-        if let Some(w) = &r.warning {
-            sender_warning(&t, ui, w);
+    };
+    ui.with_layout(crate::bidi::column(), |ui| {
+        if part == Part::Scrolled {
+            conversation(ui, acts);
+        } else {
+            subject_line(s, &t, ui, o, acts);
+            ui.add_space(10.0);
+            if part == Part::All {
+                conversation(ui, acts);
+            }
+            sender_card(s, &t, ui, o, acts);
+            ui.add_space(8.0);
+            follow_up_line(s, &t, ui, o.summary);
+            if let Some(w) = &r.warning {
+                sender_warning(&t, ui, w);
+            }
+            if let Some(sec) = &r.security {
+                security::security_bar(s, &t, ui, sec);
+            }
+            if let Some(name) = s.opened_file_name(&r.key) {
+                opened_file_bar(&t, ui, name);
+            }
+            action_bar(s, st, ui, o, acts);
+            ui.add_space(12.0);
         }
-        if let Some(sec) = &r.security {
-            security::security_bar(s, &t, ui, sec);
-        }
-        if let Some(name) = s.opened_file_name(&r.key) {
-            opened_file_bar(&t, ui, name);
-        }
-        action_bar(s, st, ui, o, acts);
-        ui.add_space(12.0);
-        reactions::reactions_row(s, &t, ui, &r.key, acts);
-        if !o.in_window {
-            invite_card(s, st, ui, &r.key, acts);
+        if part != Part::Pinned {
+            reactions::reactions_row(s, &t, ui, &r.key, acts);
+            if !o.in_window {
+                invite_card(s, st, ui, &r.key, acts);
+            }
         }
     });
 }
