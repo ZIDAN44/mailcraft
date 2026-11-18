@@ -34,6 +34,7 @@ on GitHub.
 - An Exchange account's look for new mail every two minutes reads every folder the server says changed, not only the Inbox (#145): mail an Inbox rule files into a folder of its own comes within minutes, and mail marked read or unread in another program there changes here as soon, where both waited for the full sync a quarter of an hour on.
 - An Exchange account's calendars and contacts no longer hold up its mail while they're read, which takes minutes with colleagues' calendars (#145): new mail is looked at meanwhile, and **Send / Receive** reads the mail before they're done, the status bar saying so, where it waited for them to finish and showed nothing.
 - The times in MailCraft's log end in `Z`, saying they're UTC (#145): read beside a clock, they were taken for local.
+- A day clicked in the To-Do Bar's month lists that day's events under it, in **Appointments**, and the mail stays on screen (#154): it opened the Calendar, losing your place. Clicking the day again, or today, brings back what's coming up; a double-click opens the Calendar on that day.
 
 ### Fixed
 

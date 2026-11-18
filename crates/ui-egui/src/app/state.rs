@@ -244,6 +244,9 @@ pub struct UiState {
     /// The month the To-Do Bar's date navigator shows (months since year 0), moved by its
     /// arrows; `None`: this month.
     pub(crate) todo_month: Option<i64>,
+    /// The day picked in the To-Do Bar's month, its events listed under it (issue #154); `None`:
+    /// what's coming up.
+    pub(crate) todo_day: Option<i64>,
     /// What's typed in the To-Do Bar's "Type a new task" box.
     pub(crate) todo_new: String,
     pub(crate) task: Option<String>,

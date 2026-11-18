@@ -148,7 +148,8 @@ fn months(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
 }
 
 /// The To-Do Bar's month beside the mail: this month until its arrows move it, the days with
-/// something on them in bold; a day clicked opens the calendar on it.
+/// something on them in bold; a day clicked lists its events under it (clicked again, or today:
+/// what's coming up), a day double-clicked opens the calendar on it (issue #154).
 pub(crate) fn bar_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let shown = st.todo_month.unwrap_or_else(|| {
         let (y, m, _) = civil_from_days(today(s));
@@ -235,7 +236,8 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 let d = start + week * 7 + i;
                 let (r, resp) = ui.allocate_exact_size(vec2(w, 22.0), Sense::click());
                 let (_, dm, dd) = civil_from_days(d);
-                if !bar && d >= sel0 && d < sel1 && s.cal_mode != CalMode::Month {
+                let picked = if bar { st.todo_day == Some(d) } else { d >= sel0 && d < sel1 && s.cal_mode != CalMode::Month };
+                if picked {
                     ui.painter().rect_filled(r.shrink(1.0), 4.0, t.accent_soft);
                 }
                 if d == now {
@@ -252,10 +254,16 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 };
                 let font = if busy.contains(&d) { theme::bold(12.0) } else { theme::regular(12.0) };
                 ui.painter().text(r.center(), Align2::CENTER_CENTER, dd.to_string(), font, c);
-                if resp.clicked() {
+                // The To-Do Bar's: a look at the day under it, the mail kept on screen (issue #154:
+                // the calendar opening at every click lost one's place); the calendar on it at a
+                // double click, as it was at a click (#79).
+                if bar && resp.double_clicked() {
+                    show_day(d, acts);
+                    st.todo_month = None;
+                    st.todo_day = None;
+                } else if resp.clicked() {
                     if bar {
-                        show_day(d, acts);
-                        st.todo_month = None;
+                        st.todo_day = if st.todo_day == Some(d) || d == now { None } else { Some(d) };
                     } else {
                         acts.push(goto(d));
                         st.mini_month = None;

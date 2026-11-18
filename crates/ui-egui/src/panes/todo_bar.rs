@@ -62,7 +62,7 @@ fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             let most = if bar.tasks { (ui.available_height() / 2.0).max(ROW * 2.0) } else { ui.available_height() };
             egui::ScrollArea::vertical().id_salt("todo-bar-appointments").max_height(most).show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
-                appointments(s, &t, ui, acts);
+                appointments(s, &t, st.todo_day, ui, acts);
             });
             ui.add_space(6.0);
         }
@@ -85,20 +85,25 @@ fn head(ui: &mut Ui, t: &Tokens, name: &str, part: &str, acts: &mut Vec<Action>)
     });
 }
 
-/// What's coming up: the next week's events not yet over, under their days.
-fn appointments(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
-    let today = dates::today(&s.clock);
-    let now = s.clock.now;
+/// What's coming up: the next week's events not yet over, under their days; or the events of the
+/// day picked in the bar's month (`picked`, issue #154), all of them, over or not.
+fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts: &mut Vec<Action>) {
+    let today = picked.unwrap_or_else(|| dates::today(&s.clock));
+    let (days, now) = if picked.is_some() { (1, i64::MIN) } else { (DAYS_AHEAD, s.clock.now) };
     let coming: Vec<AgendaItem> = s
-        .agenda(s.local_midnight(today), s.local_midnight(today + DAYS_AHEAD))
+        .agenda(s.local_midnight(today), s.local_midnight(today + days))
         .into_iter()
         .filter(|it| !it.task && !it.busy_only && it.end > now && it.status != "CANCELLED")
         .collect();
     if coming.is_empty() {
-        ui.label(RichText::new(tl!("Nothing in the next 7 days")).color(t.faint).small());
+        let none = if picked.is_some() { tl!("Nothing on this day") } else { tl!("Nothing in the next 7 days") };
+        if let Some(day) = picked {
+            ui.label(RichText::new(super::tasks::relative_day(day, s)).font(theme::bold(11.5)).color(t.accent));
+        }
+        ui.label(RichText::new(none).color(t.faint).small());
         return;
     }
-    // By the day each is on from here: one begun earlier is on today.
+    // By the day each is on from here: one begun earlier is on the first day shown.
     let day_of = |it: &AgendaItem| s.clock.local(it.start).div_euclid(86_400).max(today);
     let mut by_day: Vec<&AgendaItem> = coming.iter().collect();
     by_day.sort_by_key(|it| (day_of(it), !it.all_day, it.start));

@@ -83,8 +83,9 @@ fn the_bar_is_beside_the_mail() {
     in_bar(&ctx, &mut a, "Type a new task", edge - 1.0);
 }
 
-/// A day clicked in the bar's month opens the calendar on that day; a task typed in its box is
-/// made, due today; a flagged message clicked opens in a window, and its flag marks it complete.
+/// A day clicked in the bar's month lists its events under it, double-clicked opens the calendar
+/// on it (issue #154); a task typed in its box is made, due today; a flagged message clicked
+/// opens in a window, and its flag marks it complete.
 #[test]
 fn clicks_in_the_bar_go_where_outlooks_do() {
     let (mut a, _) = app("todo-bar-clicks");
@@ -124,8 +125,19 @@ fn clicks_in_the_bar_go_where_outlooks_do() {
     assert!(!shown.iter().any(|s| s == "Shot list v2"), "marked complete, it's off the list");
     assert!(shown.iter().any(|s| s == "Storyboard review on Thursday"));
 
-    // The 15th of the month shown: the calendar, on that day.
+    // The 15th of the month shown: its events under it, the mail kept on screen (issue #154).
     let day = in_bar(&ctx, &mut a, "15", edge);
+    click(&ctx, &mut a, day.center());
+    settle(&ctx, &mut a);
+    assert_eq!(a.session.module, mailcraft_engine::Module::Mail);
+    let picked = a.ui.todo_day.expect("the day picked");
+    assert_eq!(mailcraft_engine::model::dates::civil_from_days(picked).2, 15);
+    // Clicked again: what's coming up, as before.
+    click(&ctx, &mut a, day.center());
+    settle(&ctx, &mut a);
+    assert_eq!(a.ui.todo_day, None);
+    // Double-clicked: the calendar, on that day (#79).
+    click(&ctx, &mut a, day.center());
     click(&ctx, &mut a, day.center());
     assert_eq!(a.session.module, mailcraft_engine::Module::Calendar);
     assert_eq!(a.session.cal_mode, mailcraft_engine::CalMode::Day);
@@ -210,4 +222,44 @@ fn the_view_tab_turns_its_parts_on_and_off() {
     let off = find(&ctx, &mut a, "Off", under);
     click(&ctx, &mut a, off.center());
     assert!(!a.session.prefs.todo_bar.shown());
+}
+
+/// A day picked in the bar's month: its events in Appointments, those already over too, under
+/// the day's name; a day with none says so; today brings back what's coming up (issue #154).
+#[test]
+fn a_day_picked_shows_its_events() {
+    let (mut a, _) = app("todo-bar-day");
+    let ctx = egui::Context::default();
+    a.run("view.todoBar", json!({"part": "calendar", "on": true}));
+    a.run("view.todoBar", json!({"part": "appointments", "on": true}));
+    settle(&ctx, &mut a);
+    let today = mailcraft_engine::model::dates::today(&a.session.clock);
+    // A day this month with an event of the sample's, past or to come, and one with none.
+    let events = |a: &MailApp, d: i64| -> Vec<String> {
+        let all = a.session.agenda(a.session.local_midnight(d), a.session.local_midnight(d + 1));
+        all.into_iter().filter(|i| !i.task && i.status != "CANCELLED").map(|i| i.summary).collect()
+    };
+    let (_, _, dd) = mailcraft_engine::model::dates::civil_from_days(today);
+    let first = today - i64::from(dd) + 1;
+    let busy = (first..first + 28).find(|d| *d != today && !events(&a, *d).is_empty()).expect("a day with an event");
+    let free = (first..first + 28).find(|d| *d != today && events(&a, *d).is_empty()).expect("a day with none");
+    a.ui.todo_day = Some(busy);
+    settle(&ctx, &mut a);
+    let shown: Vec<String> = drawn(&ctx, &mut a, SIZE).into_iter().map(|(s, _)| s).collect();
+    for e in events(&a, busy) {
+        // Its title, or as much of it as fits ("…" after it).
+        let listed = shown.iter().any(|s| *s == e || s.strip_suffix('…').is_some_and(|cut| !cut.is_empty() && e.starts_with(cut)));
+        assert!(listed, "{e} listed: {shown:?}");
+    }
+    a.ui.todo_day = Some(free);
+    settle(&ctx, &mut a);
+    let shown: Vec<String> = drawn(&ctx, &mut a, SIZE).into_iter().map(|(s, _)| s).collect();
+    assert!(shown.iter().any(|s| s == "Nothing on this day"), "{shown:?}");
+    // Today clicked: what's coming up again.
+    let edge = SIZE.x - f32::from(a.session.prefs.todo_bar.width);
+    let (_, _, td) = mailcraft_engine::model::dates::civil_from_days(today);
+    let day = in_bar(&ctx, &mut a, &td.to_string(), edge);
+    click(&ctx, &mut a, day.center());
+    settle(&ctx, &mut a);
+    assert_eq!(a.ui.todo_day, None);
 }
