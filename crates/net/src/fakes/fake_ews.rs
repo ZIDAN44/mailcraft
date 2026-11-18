@@ -154,6 +154,12 @@ pub struct Data {
     /// The mailbox's limits, in KB (where it can't send, can't receive, and is warned), said on
     /// its root folder, with every folder's size; `None`: neither said (issue #143).
     pub quota_kb: Option<[i64; 3]>,
+    /// The mailbox's Inbox rules (each a `Rule` element as the server keeps it; issue #139).
+    pub rules: Vec<El>,
+    /// Outlook's own copy of the rules is beside them: they're not changed until it's removed.
+    pub outlook_rules: bool,
+    /// Changes to the rules taken.
+    pub rule_updates: usize,
     /// What came to it and went out, for a test's wait to tell where it stopped
     /// ([`Data::where_it_stopped`]).
     traffic: serving::Traffic,
@@ -204,6 +210,9 @@ impl Default for Data {
             exchange_2010: false,
             schema_refusals: 0,
             quota_kb: None,
+            rules: Vec::new(),
+            outlook_rules: false,
+            rule_updates: 0,
             traffic: Default::default(),
             next: 0,
         };
@@ -448,6 +457,8 @@ impl Data {
         let out = match op.name.as_str() {
             "GetFolder" => self.get_folder(op),
             "GetReminders" | "PerformReminderAction" => vec![self.reminders_answer(op)],
+            "GetInboxRules" => vec![self.inbox_rules_answer()],
+            "UpdateInboxRules" => vec![self.update_inbox_rules(op)],
             // The directory: every name or address with a word starting with the search, up to
             // 100, as Exchange's ambiguous name resolution; several are a warning.
             "ResolveNames" if op.attr("SearchScope") == Some("ActiveDirectory") => vec![self.directory_answer(op)],
@@ -511,6 +522,7 @@ mod items;
 mod oof;
 mod refusing;
 mod reminders;
+mod rules;
 mod serving;
 #[cfg(test)]
 mod tests;

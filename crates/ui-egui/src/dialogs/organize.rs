@@ -3,7 +3,9 @@
 use super::*;
 
 mod search_folders;
+mod server_rules;
 pub use search_folders::{PresetKind, SEARCH_PRESETS, SearchFolderForm};
+pub use server_rules::ServerTarget;
 
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
@@ -125,6 +127,9 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     }
                 });
             });
+            if !s.server_rule_accounts().is_empty() {
+                egui::ScrollArea::vertical().id_salt("server-rules").max_height(320.0).show(ui, |ui| server_rules::sections(ui, s, t, acts));
+            }
             ui.add_space(6.0);
             close_row(ui)
         }
@@ -140,7 +145,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     .width(300.0)
                     .selected_text(f.test.label())
                     .show_ui(ui, |ui| {
-                        for x in RuleTest::ALL {
+                        for x in RuleTest::ALL.into_iter().filter(|x| f.server.is_none() || x.on_server()) {
                             ui.selectable_value(&mut f.test, x, x.label());
                         }
                     })
@@ -157,7 +162,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     .width(300.0)
                     .selected_text(f.action.label())
                     .show_ui(ui, |ui| {
-                        for x in RuleDo::ALL {
+                        for x in RuleDo::ALL.into_iter().filter(|x| f.server.is_none() || x.on_server()) {
                             if ui.selectable_value(&mut f.action, x, x.label()).changed() {
                                 f.target.clear();
                             }
@@ -181,7 +186,9 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                             .width(300.0)
                             .selected_text(shown)
                             .show_ui(ui, |ui| {
-                                for a in &s.accounts {
+                                // A rule on a server moves mail to that mailbox's folders alone.
+                                let server = f.server.as_ref().map(|x| x.account.clone());
+                                for a in s.accounts.iter().filter(|a| server.as_ref().is_none_or(|x| *x == a.config.id)) {
                                     ui.label(RichText::new(&a.config.email).small().color(t.faint));
                                     for x in a.folders.iter().filter(|x| x.selectable) {
                                         let on = f.account.as_deref() == Some(a.config.id.as_str()) && f.target == x.path;
@@ -215,14 +222,22 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 }
             });
             ui.checkbox(&mut f.stop, tl!("Don't run later rules on mail this one matches"));
-            ui.checkbox(&mut f.run_now, tl!("Run it now on the mail already in the Inbox"));
+            if f.server.is_none() {
+                ui.checkbox(&mut f.run_now, tl!("Run it now on the mail already in the Inbox"));
+            }
             if let Some(e) = &f.error {
                 ui.label(RichText::new(e.as_str()).color(t.danger).small());
             }
             let (ok, cancel) = buttons(ui, t, "Save", true);
             if ok {
-                match f.to_rule() {
-                    Ok(rule) => {
+                match (f.to_rule(), &f.server) {
+                    // A rule on the server: saved there (it's shown as the server has it).
+                    (Ok(rule), Some(x)) => {
+                        f.error = None;
+                        let p = json!({"account": x.account, "id": x.id, "rule": rule, "dropOutlookList": x.drop_outlook_list});
+                        acts.push(Action::Submit("rules.serverSave", p));
+                    }
+                    (Ok(rule), None) => {
                         let mut rules = s.rules.clone();
                         let at = match f.index.filter(|i| *i < rules.len()) {
                             Some(i) => {
@@ -244,7 +259,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         let run = if f.run_now { json!(at) } else { serde_json::Value::Null };
                         acts.push(Action::Submit("rules.set", json!({"rules": rules, "runNow": run})));
                     }
-                    Err(e) => f.error = Some(e),
+                    (Err(e), _) => f.error = Some(e),
                 }
             }
             !cancel
@@ -409,6 +424,10 @@ impl RuleTest {
     pub(super) fn needs_text(self) -> bool {
         !matches!(self, RuleTest::HasAttachment | RuleTest::Bulk)
     }
+    /// Whether a rule on an Exchange server can look at it (issue #139).
+    pub(super) fn on_server(self) -> bool {
+        !matches!(self, RuleTest::AnyText | RuleTest::Bulk)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -423,6 +442,10 @@ pub enum RuleDo {
 }
 
 impl RuleDo {
+    /// Whether a rule on an Exchange server can do it (issue #139).
+    pub(super) fn on_server(self) -> bool {
+        !matches!(self, RuleDo::Flag | RuleDo::Pin)
+    }
     pub(super) const ALL: [RuleDo; 7] =
         [RuleDo::MoveTo, RuleDo::Archive, RuleDo::Delete, RuleDo::Categorize, RuleDo::MarkRead, RuleDo::Flag, RuleDo::Pin];
     pub(super) fn label(self) -> &'static str {
@@ -556,6 +579,8 @@ pub struct RuleForm {
     /// actions, "any" of them, the account it's for) is kept, and of what it shows only what was
     /// changed goes in.
     pub original: Option<Rule>,
+    /// A rule on an Exchange account's server (issue #139); `None`: MailCraft's own.
+    pub server: Option<ServerTarget>,
 }
 
 /// What the editor shows of a rule: its first condition and its first action.
@@ -661,6 +686,30 @@ impl RuleForm {
             run_now: false,
             error: None,
             original: Some(r.clone()),
+            server: None,
+        }
+    }
+
+    /// A rule on an account's server: a new one (moving to one of its folders, the first
+    /// offered), or `existing` as MailCraft can say it.
+    pub(crate) fn for_server(target: ServerTarget, existing: Option<&mailcraft_engine::model::organize::ServerRule>) -> RuleForm {
+        let account = Some(target.account.clone());
+        match existing.and_then(|r| r.rule.as_ref()) {
+            Some(rule) => RuleForm { server: Some(target), ..RuleForm::from_rule(0, rule) },
+            None => RuleForm {
+                index: None,
+                name: String::new(),
+                test: RuleTest::Subject,
+                text: String::new(),
+                action: RuleDo::MoveTo,
+                target: String::new(),
+                account,
+                stop: false,
+                run_now: false,
+                error: None,
+                original: None,
+                server: Some(target),
+            },
         }
     }
 }

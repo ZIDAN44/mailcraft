@@ -1819,3 +1819,11 @@ count	occurrences	回
 	Stop sending and receiving	送受信を停止
 	Sending	送信
 	Receiving	受信
+	On the server: {account}	サーバー上: {account}
+	The server runs these on new mail, even while MailCraft is closed.	MailCraft を閉じていても、サーバーが新着メールに適用します。
+	Reading the rules on the server…	サーバーのルールを読み込んでいます…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	Outlook はこのルールの独自のコピーを保持しています。ここで変更するとそのコピーは削除され、オフになっているルールやそのコンピューターでのみ実行されるルールも削除されます。
+	Change them here anyway	それでもここで変更する
+	New rule on the server…	サーバーに新しいルール…
+	Made in another program: it can be turned on or off, moved or deleted here	別のプログラムで作成: ここではオン／オフ、移動、削除ができます
+	The server can't run this rule as it is	サーバーはこのルールをこのままでは実行できません

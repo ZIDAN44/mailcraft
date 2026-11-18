@@ -102,3 +102,76 @@ fn real_ews_calendar_comes_with_the_inbox() {
     assert!(after <= 1, "the calendar waited for {after} folders");
     assert!(at < online, "the calendar came at {at:?}, the mail was done at {online:?}");
 }
+
+/// Issue #139 on a real server: a rule made here (its folder by its path, Junk Email) is on the
+/// server and read back as made, its folder told by its path; turned off and renamed, then
+/// deleted. Any rules already there are left as they are.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_inbox_rules() {
+    use mailcraft_model::organize::{Condition, Rule, RuleAction, ServerRule, ServerRuleOp, ServerRules};
+    let Some((url, user, password)) = server() else {
+        eprintln!("MAILCRAFT_REAL_EWS not set: skipped");
+        return;
+    };
+    let store = crate::fake::store("real-ews-rules");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    let account = AccountConfig { id: "x1".into(), email: user.clone(), username: user, ews: Some(url), ..Default::default() };
+    pool.submit(Job::Start { account, password: Some(Secret(password)) });
+    let wait = |pool: &mut Pool, what: &str, f: &dyn Fn(&Event) -> bool| -> Event {
+        let end = Instant::now() + Duration::from_secs(300);
+        while Instant::now() < end {
+            if let Some(e) = pool.wait(Duration::from_millis(100))
+                && f(&e)
+            {
+                return e;
+            }
+        }
+        panic!("no {what}");
+    };
+    wait(&mut pool, "online", &|e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let junk = store.load_folders("x1").unwrap().into_iter().find(|f| f.role == mailcraft_model::FolderRole::Junk).expect("Junk Email").path;
+    let rules = |pool: &mut Pool, job: Job| -> (Option<ServerRules>, Option<String>) {
+        pool.submit(job);
+        match wait(pool, "the rules", &|e| matches!(e, Event::ServerRules { .. })) {
+            Event::ServerRules { rules, error, .. } => (rules, error),
+            other => panic!("{other:?}"),
+        }
+    };
+    let (before, error) = rules(&mut pool, Job::GetServerRules { account: "x1".into() });
+    eprintln!("before: {before:?} {error:?}");
+    let before = before.expect("the server's rules");
+    let new = Rule {
+        name: "MailCraft test".into(),
+        enabled: true,
+        account: None,
+        conditions: vec![Condition::Subject("mailcraft-rule-test".into())],
+        match_all: true,
+        actions: vec![RuleAction::MoveTo(junk.clone())],
+        stop: true,
+    };
+    let now = ServerRule {
+        name: "MailCraft test".into(),
+        priority: before.rules.len() as u32 + 1,
+        enabled: true,
+        rule: Some(new.clone()),
+        ..Default::default()
+    };
+    let ops = vec![ServerRuleOp::Create { now }];
+    let (after, error) = rules(&mut pool, Job::SetServerRules { account: "x1".into(), ops, drop_outlook_list: before.outlook_list });
+    eprintln!("made: {after:?} {error:?}");
+    assert_eq!(error, None);
+    let made = after.unwrap().rules.into_iter().find(|r| r.name == "MailCraft test").expect("on the server");
+    let back = made.rule.clone().expect("read back as MailCraft's own");
+    assert_eq!((back.conditions, back.actions, back.stop), (new.conditions, new.actions, true), "its folder by its path");
+    let now = ServerRule { name: "MailCraft test (off)".into(), enabled: false, ..made.clone() };
+    let (after, error) =
+        rules(&mut pool, Job::SetServerRules { account: "x1".into(), ops: vec![ServerRuleOp::Set { was: made, now }], drop_outlook_list: false });
+    assert_eq!(error, None);
+    let off = after.unwrap().rules.into_iter().find(|r| r.name == "MailCraft test (off)").expect("renamed");
+    assert!(!off.enabled);
+    let (after, error) =
+        rules(&mut pool, Job::SetServerRules { account: "x1".into(), ops: vec![ServerRuleOp::Delete { was: off }], drop_outlook_list: false });
+    assert_eq!(error, None);
+    assert_eq!(after.unwrap().rules.len(), before.rules.len(), "gone again");
+}

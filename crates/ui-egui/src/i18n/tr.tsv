@@ -1823,3 +1823,11 @@ count	occurrences	kez
 	Stop sending and receiving	Göndermeyi ve almayı durdur
 	Sending	Gönderme
 	Receiving	Alma
+	On the server: {account}	Sunucuda: {account}
+	The server runs these on new mail, even while MailCraft is closed.	Sunucu bunları, MailCraft kapalıyken bile yeni postalara uygular.
+	Reading the rules on the server…	Sunucudaki kurallar okunuyor…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	Outlook bu kuralların kendi kopyasını tutar. Bunları burada değiştirmek bu kopyayı, kapalı olan ya da yalnızca onun bilgisayarında çalışan Outlook kurallarıyla birlikte kaldırır.
+	Change them here anyway	Yine de burada değiştir
+	New rule on the server…	Sunucuda yeni kural…
+	Made in another program: it can be turned on or off, moved or deleted here	Başka bir programda oluşturuldu: burada açılıp kapatılabilir, taşınabilir ya da silinebilir
+	The server can't run this rule as it is	Sunucu bu kuralı bu hâliyle çalıştıramıyor

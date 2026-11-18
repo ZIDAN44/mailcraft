@@ -82,6 +82,11 @@ pub(super) async fn job(sh: &Rcs, id: &str, j: Job) {
             emit(sh, Event::Directory { account: id.to_string(), query, people: Vec::new(), error: Some(NO_DIRECTORY.into()), consent: false })
         }
         Job::AllowDirectory { account } => emit(sh, Event::DirectoryAllowed { account: account.id, error: Some(NO_DIRECTORY.into()) }),
+        // Rules on a server are an Exchange mailbox's (issue #139): the browser's accounts are JMAP.
+        Job::GetServerRules { .. } | Job::SetServerRules { .. } => emit(
+            sh,
+            Event::ServerRules { account: id.to_string(), rules: None, error: Some("only an Exchange account keeps rules on its server".into()) },
+        ),
         // Mail past what's kept (issue #4).
         Job::SearchServer { folders, query, search, .. } => search_server(sh, id, &folders, query, search).await,
         Job::MoreMail { folder, more, .. } => {

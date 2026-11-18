@@ -4,6 +4,7 @@ use super::*;
 
 mod categories;
 mod folder_pane;
+mod server_rules;
 
 #[test]
 fn organising_renders_and_rules_save() {

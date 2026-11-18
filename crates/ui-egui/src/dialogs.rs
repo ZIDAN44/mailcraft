@@ -516,6 +516,7 @@ impl Dialog {
             run_now: true,
             error: None,
             original: None,
+            server: None,
         }))
     }
 

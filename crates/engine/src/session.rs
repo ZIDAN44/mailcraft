@@ -56,7 +56,7 @@ pub(crate) use mailboxes::arrange_list;
 pub use mailboxes::{ARRANGE_HEADINGS, Arrange, ListFilter, Row};
 // Organizing mail's own parts, named here as before.
 pub use opening::SenderMarks;
-pub use organize::{junk, quick_steps, search_folders};
+pub use organize::{junk, quick_steps, search_folders, server_rules};
 pub use prefs::{ACCENTS, CtrlEnter, NotesOrder, Prefs, ReadInPane, ReadingPane, SenderAddresses, accent_code, accent_rgb};
 pub mod pim;
 pub use pim::invite;
@@ -71,6 +71,8 @@ pub struct AccountState {
     pub quota: Option<(u64, u64)>,
     /// The automatic replies as last read from the server.
     pub vacation: VacationState,
+    /// Its Inbox rules on the server (Exchange's), as last read.
+    pub server_rules: server_rules::ServerRulesState,
 }
 
 /// What is known of an account's automatic replies.

@@ -185,6 +185,9 @@ impl Pool {
             Job::GetVacation { account } | Job::SetVacation { account, .. } if mail_offline => {
                 self.sink.emit(Event::Vacation { account, vacation: None, error: Some(OFFLINE.into()) });
             }
+            Job::GetServerRules { account } | Job::SetServerRules { account, .. } if mail_offline => {
+                self.sink.emit(Event::ServerRules { account, rules: None, error: Some(OFFLINE.into()) });
+            }
             job => return Some(job),
         }
         None
@@ -312,6 +315,7 @@ impl Pool {
         let needs_server = match job {
             Job::SyncAll { .. } | Job::SyncFolder { .. } | Job::Send { .. } | Job::FlushOutbox { .. } | Job::MoreMail { .. } => true,
             Job::SearchServer { .. } | Job::SearchDirectory { .. } | Job::GetVacation { .. } | Job::SetVacation { .. } => true,
+            Job::GetServerRules { .. } | Job::SetServerRules { .. } => true,
             Job::FindIdentities { .. } => true,
             Job::FetchBody { key } => self.store.read_body(key).is_none(),
             _ => false,

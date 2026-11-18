@@ -7,6 +7,9 @@ use crate::dates::Clock;
 use crate::{FolderRole, Summary, keyword_for};
 
 pub mod keywords;
+pub mod server_rules;
+
+pub use server_rules::{ServerRule, ServerRuleOp, ServerRules};
 
 /// A category: a name and colour shown on messages, stored on the server as a keyword so other
 /// clients (and other computers) see it too.

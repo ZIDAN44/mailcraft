@@ -1822,3 +1822,11 @@ count	occurrences	회
 	Stop sending and receiving	보내기/받기 중지
 	Sending	보내기
 	Receiving	받기
+	On the server: {account}	서버: {account}
+	The server runs these on new mail, even while MailCraft is closed.	MailCraft가 닫혀 있어도 서버가 새 메일에 적용합니다.
+	Reading the rules on the server…	서버의 규칙을 읽는 중…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	Outlook은 이 규칙의 자체 사본을 보관합니다. 여기서 변경하면 그 사본이 꺼져 있거나 해당 컴퓨터에서만 실행되는 Outlook 규칙과 함께 제거됩니다.
+	Change them here anyway	그래도 여기서 변경
+	New rule on the server…	서버에 새 규칙…
+	Made in another program: it can be turned on or off, moved or deleted here	다른 프로그램에서 만듦: 여기서는 켜거나 끄고, 옮기거나 삭제할 수 있습니다
+	The server can't run this rule as it is	서버가 이 규칙을 이대로 실행할 수 없습니다

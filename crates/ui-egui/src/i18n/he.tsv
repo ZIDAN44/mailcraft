@@ -1818,3 +1818,11 @@ count	occurrences	פעמים
 	Stop sending and receiving	עצור שליחה וקבלה
 	Sending	שליחה
 	Receiving	קבלה
+	On the server: {account}	בשרת: {account}
+	The server runs these on new mail, even while MailCraft is closed.	השרת מפעיל אותם על דואר חדש, גם כש-MailCraft סגור.
+	Reading the rules on the server…	קורא את הכללים מהשרת…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	Outlook שומר עותק משלו של הכללים האלה. שינוי שלהם כאן מסיר אותו, יחד עם כללי Outlook שכבויים או שפועלים רק במחשב שלו.
+	Change them here anyway	לשנות כאן בכל זאת
+	New rule on the server…	כלל חדש בשרת…
+	Made in another program: it can be turned on or off, moved or deleted here	נוצר בתוכנה אחרת: כאן אפשר להפעיל או לכבות, להזיז או למחוק אותו
+	The server can't run this rule as it is	השרת לא יכול להפעיל את הכלל הזה כפי שהוא

@@ -9,6 +9,7 @@ pub mod categories;
 pub mod junk;
 pub mod quick_steps;
 pub mod search_folders;
+pub mod server_rules;
 
 /// The folder snoozed mail waits in.
 const SNOOZED: &str = "Snoozed";

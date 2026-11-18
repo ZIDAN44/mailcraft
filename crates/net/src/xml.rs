@@ -48,6 +48,34 @@ impl El {
     pub fn text_of(&self, name: &str) -> Option<&str> {
         self.child(name).map(|c| c.text.as_str())
     }
+
+    /// The element written back as XML, every element under `prefix` (EWS's `t`): what an answer
+    /// gave, to send it back as it came (an Exchange rule's conditions MailCraft can't edit,
+    /// issue #139). Text between child elements isn't kept by [`parse`], nor written.
+    pub fn write(&self, prefix: &str) -> String {
+        let mut out = String::new();
+        self.write_into(prefix, &mut out, 0);
+        out
+    }
+
+    fn write_into(&self, prefix: &str, out: &mut String, depth: usize) {
+        if depth > MAX_DEPTH {
+            return;
+        }
+        out.push('<');
+        out.push_str(prefix);
+        out.push(':');
+        out.push_str(&self.name);
+        for (k, v) in &self.attrs {
+            out.push_str(&format!(" {k}=\"{}\"", esc(v)));
+        }
+        out.push('>');
+        out.push_str(&esc(&self.text));
+        for k in &self.kids {
+            k.write_into(prefix, out, depth + 1);
+        }
+        out.push_str(&format!("</{prefix}:{}>", self.name));
+    }
 }
 
 /// An element's or attribute's name without its namespace prefix (`t:Folder` → `Folder`).
@@ -82,9 +110,15 @@ pub fn parse(xml: &str) -> El {
                 count += 1;
                 let el = El {
                     name: local(e.name().as_ref()).to_string(),
+                    // Namespace declarations aren't the element's attributes (namespaces are
+                    // dropped): left out, so one written back ([`El::write`]) doesn't carry them.
                     attrs: e
                         .attributes()
                         .flatten()
+                        .filter(|a| {
+                            let k: &str = a.key.as_ref();
+                            k != "xmlns" && !k.starts_with("xmlns:")
+                        })
                         .map(|a| (local(a.key.as_ref()).to_string(), mailcraft_mime::decode_xml_refs(&a.value).into_owned()))
                         .collect(),
                     ..Default::default()
@@ -140,6 +174,21 @@ pub fn esc(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An element written back reads as the one that came (names, attributes, text, children),
+    /// its namespace declarations aside (an `xmlns:t` came back as an attribute called `t`).
+    #[test]
+    fn an_element_written_back_reads_the_same() {
+        let came = "<t:Actions xmlns:t=\"urn:x\" xmlns=\"urn:y\"><t:MoveToFolder><t:FolderId Id=\"a&amp;b\" ChangeKey=\"k\"/></t:MoveToFolder><t:Note>x &lt; y</t:Note></t:Actions>";
+        let el = parse(came).kids.into_iter().next().unwrap();
+        let written = el.write("t");
+        assert_eq!(
+            written,
+            "<t:Actions><t:MoveToFolder><t:FolderId Id=\"a&amp;b\" ChangeKey=\"k\"></t:FolderId></t:MoveToFolder><t:Note>x &lt; y</t:Note></t:Actions>"
+        );
+        let again = parse(&written).kids.into_iter().next().unwrap();
+        assert_eq!(again.write("t"), written);
+    }
 
     /// An element past the depth cap is left out with what it holds; its end doesn't close the
     /// element it's in, so what comes after stays where it was.

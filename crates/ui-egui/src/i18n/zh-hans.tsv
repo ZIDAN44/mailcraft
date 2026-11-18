@@ -1819,3 +1819,11 @@ count	occurrences	次
 	Stop sending and receiving	停止发送和接收
 	Sending	发送
 	Receiving	接收
+	On the server: {account}	服务器上：{account}
+	The server runs these on new mail, even while MailCraft is closed.	即使 MailCraft 已关闭，服务器也会对新邮件运行这些规则。
+	Reading the rules on the server…	正在读取服务器上的规则…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	Outlook 保存着这些规则的自有副本。在此更改会删除该副本，以及已关闭或仅在其计算机上运行的 Outlook 规则。
+	Change them here anyway	仍在此更改
+	New rule on the server…	在服务器上新建规则…
+	Made in another program: it can be turned on or off, moved or deleted here	在其他程序中创建：此处可以将其打开或关闭、移动或删除
+	The server can't run this rule as it is	服务器无法按原样运行此规则

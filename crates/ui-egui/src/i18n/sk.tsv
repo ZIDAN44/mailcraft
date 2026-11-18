@@ -1823,3 +1823,11 @@ count	occurrences	opakovaní
 	Stop sending and receiving	Zastaviť odosielanie a prijímanie
 	Sending	Odosielanie
 	Receiving	Prijímanie
+	On the server: {account}	Na serveri: {account}
+	The server runs these on new mail, even while MailCraft is closed.	Server ich používa na novú poštu, aj keď je MailCraft zatvorený.
+	Reading the rules on the server…	Čítajú sa pravidlá na serveri…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	Outlook si uchováva vlastnú kópiu týchto pravidiel. Ak ich zmeníte tu, táto kópia sa odstráni spolu s pravidlami Outlooku, ktoré sú vypnuté alebo bežia len na jeho počítači.
+	Change them here anyway	Napriek tomu zmeniť tu
+	New rule on the server…	Nové pravidlo na serveri…
+	Made in another program: it can be turned on or off, moved or deleted here	Vytvorené v inom programe: tu ho možno zapnúť alebo vypnúť, presunúť alebo odstrániť
+	The server can't run this rule as it is	Server nemôže toto pravidlo spustiť v tejto podobe

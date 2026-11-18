@@ -12,5 +12,6 @@ mod directory;
 mod opening;
 pub(super) mod remote;
 mod send;
+mod server_rules;
 pub(super) mod sync;
 pub(super) mod transfers;

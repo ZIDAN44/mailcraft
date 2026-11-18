@@ -1818,3 +1818,11 @@ count	occurrences	keer
 	Stop sending and receiving	Verzenden en ontvangen stoppen
 	Sending	Verzenden
 	Receiving	Ontvangen
+	On the server: {account}	Op de server: {account}
+	The server runs these on new mail, even while MailCraft is closed.	De server past deze toe op nieuwe e-mail, ook als MailCraft gesloten is.
+	Reading the rules on the server…	Regels op de server lezen…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	Outlook bewaart een eigen kopie van deze regels. Als u ze hier wijzigt, wordt die kopie verwijderd, met de Outlook-regels die uitgeschakeld zijn of alleen op die computer worden uitgevoerd.
+	Change them here anyway	Toch hier wijzigen
+	New rule on the server…	Nieuwe regel op de server…
+	Made in another program: it can be turned on or off, moved or deleted here	Gemaakt in een ander programma: hier kan deze aan- of uitgezet, verplaatst of verwijderd worden
+	The server can't run this rule as it is	De server kan deze regel zo niet uitvoeren

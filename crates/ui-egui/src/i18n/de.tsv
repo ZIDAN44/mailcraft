@@ -1823,3 +1823,11 @@ count	occurrences	Terminen
 	Stop sending and receiving	Senden und Empfangen anhalten
 	Sending	Senden
 	Receiving	Empfangen
+	On the server: {account}	Auf dem Server: {account}
+	The server runs these on new mail, even while MailCraft is closed.	Der Server wendet sie auf neue E-Mails an, auch wenn MailCraft geschlossen ist.
+	Reading the rules on the server…	Regeln werden vom Server gelesen…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	Outlook hat eine eigene Kopie dieser Regeln. Wenn Sie sie hier ändern, wird diese Kopie entfernt, mit den Outlook-Regeln, die ausgeschaltet sind oder nur auf dessen Computer laufen.
+	Change them here anyway	Trotzdem hier ändern
+	New rule on the server…	Neue Regel auf dem Server…
+	Made in another program: it can be turned on or off, moved or deleted here	In einem anderen Programm erstellt: Sie kann hier ein- oder ausgeschaltet, verschoben oder gelöscht werden
+	The server can't run this rule as it is	Der Server kann diese Regel so nicht ausführen

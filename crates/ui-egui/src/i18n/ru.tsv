@@ -1822,3 +1822,11 @@ count	occurrences	повторений
 	Stop sending and receiving	Остановить отправку и получение
 	Sending	Отправка
 	Receiving	Получение
+	On the server: {account}	На сервере: {account}
+	The server runs these on new mail, even while MailCraft is closed.	Сервер применяет их к новой почте, даже когда MailCraft закрыт.
+	Reading the rules on the server…	Чтение правил с сервера…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	Outlook хранит собственную копию этих правил. Если изменить их здесь, эта копия будет удалена вместе с правилами Outlook, которые выключены или работают только на его компьютере.
+	Change them here anyway	Всё равно изменить здесь
+	New rule on the server…	Новое правило на сервере…
+	Made in another program: it can be turned on or off, moved or deleted here	Создано в другой программе: здесь его можно включить или выключить, переместить или удалить
+	The server can't run this rule as it is	Сервер не может выполнить это правило в таком виде

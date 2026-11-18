@@ -190,6 +190,29 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.import_rules(&bytes, p::bool(v, "replace").unwrap_or(false))
         })
         .params(r#"{"path": string, "replace"?: bool (in place of the rules here; else added after them)}"#),
+        // The rules an Exchange mailbox keeps on its server (issue #139).
+        CommandSpec::new("rules.server", "Rules on the server", "Home › Rules", |s, v| s.load_server_rules(p::req_str(v, "account")?))
+            .params(r#"{"account": string (an Exchange account)}"#),
+        CommandSpec::new("rules.serverSave", "Save a rule on the server", "Home › Rules", |s, v| {
+            let rule = v.get("rule").cloned().ok_or_else(|| CmdError::Params("`rule` is required".into()))?;
+            let rule = serde_json::from_value(rule).map_err(|e| CmdError::Params(format!("rule: {e}")))?;
+            s.save_server_rule(p::req_str(v, "account")?, p::str(v, "id"), rule, p::bool(v, "dropOutlookList").unwrap_or(false))
+        })
+        .params(r#"{"account": string, "rule": Rule (see rules.add), "id"?: string (the server's rule to change; else a new one), "dropOutlookList"?: bool}"#),
+        CommandSpec::new("rules.serverSwitch", "Turn a rule on the server on or off", "Home › Rules", |s, v| {
+            let on = p::bool(v, "on").ok_or_else(|| CmdError::Params("`on` is required".into()))?;
+            s.switch_server_rule(p::req_str(v, "account")?, p::req_str(v, "id")?, on, p::bool(v, "dropOutlookList").unwrap_or(false))
+        })
+        .params(r#"{"account": string, "id": string, "on": bool, "dropOutlookList"?: bool}"#),
+        CommandSpec::new("rules.serverMove", "Move a rule on the server", "Home › Rules", |s, v| {
+            let up = p::bool(v, "up").ok_or_else(|| CmdError::Params("`up` is required".into()))?;
+            s.move_server_rule(p::req_str(v, "account")?, p::req_str(v, "id")?, up, p::bool(v, "dropOutlookList").unwrap_or(false))
+        })
+        .params(r#"{"account": string, "id": string, "up": bool (else down), "dropOutlookList"?: bool}"#),
+        CommandSpec::new("rules.serverDelete", "Delete a rule on the server", "Home › Rules", |s, v| {
+            s.delete_server_rule(p::req_str(v, "account")?, p::req_str(v, "id")?, p::bool(v, "dropOutlookList").unwrap_or(false))
+        })
+        .params(r#"{"account": string, "id": string, "dropOutlookList"?: bool}"#),
         CommandSpec::new("rules.run", "Run rules now", "Home › Rules", |s, v| {
             s.run_rules_now(p::u64(v, "index").and_then(|i| usize::try_from(i).ok()), p::bool(v, "inbox").unwrap_or(false))
         })

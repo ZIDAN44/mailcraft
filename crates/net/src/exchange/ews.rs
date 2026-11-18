@@ -777,6 +777,7 @@ pub(crate) use directory::directory_name;
 mod mailbox;
 mod quota;
 mod requests;
+mod rules;
 #[cfg(test)]
 use discover::autodiscover_answer;
 pub use discover::{autodiscover, autodiscover_as};
@@ -784,6 +785,7 @@ use discover::{autodiscover_request, autodiscover_urls};
 pub(crate) use requests::into_messages;
 #[cfg(test)]
 use requests::scheme_token;
+pub use rules::{CHANGED_ELSEWHERE, RuleFolder, read_rules_answer, rule_written};
 mod shared;
 mod sync;
 pub use sync::{sync_folder, sync_folder_as};

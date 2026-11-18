@@ -126,6 +126,8 @@ impl Worker {
             Job::CancelTransfers { .. } => {}
             Job::SyncDav { .. } => self.sync_dav(),
             Job::SearchDirectory { query, .. } => self.search_directory(query),
+            Job::GetServerRules { .. } => self.server_rules(None),
+            Job::SetServerRules { ops, drop_outlook_list, .. } => self.server_rules(Some((ops, drop_outlook_list))),
             // Only a JMAP server keeps the addresses its mail is sent from where a mail
             // program can ask for them.
             Job::FindIdentities { .. } => {

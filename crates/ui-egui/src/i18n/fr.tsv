@@ -1823,3 +1823,11 @@ count	occurrences	occurrences
 	Stop sending and receiving	Arrêter l'envoi et la réception
 	Sending	Envoi
 	Receiving	Réception
+	On the server: {account}	Sur le serveur : {account}
+	The server runs these on new mail, even while MailCraft is closed.	Le serveur les applique aux nouveaux messages, même quand MailCraft est fermé.
+	Reading the rules on the server…	Lecture des règles sur le serveur…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	Outlook garde sa propre copie de ces règles. Les modifier ici la supprime, avec les règles d’Outlook désactivées ou qui ne s’exécutent que sur son ordinateur.
+	Change them here anyway	Les modifier ici quand même
+	New rule on the server…	Nouvelle règle sur le serveur…
+	Made in another program: it can be turned on or off, moved or deleted here	Créée dans un autre programme : on peut l’activer ou la désactiver, la déplacer ou la supprimer ici
+	The server can't run this rule as it is	Le serveur ne peut pas exécuter cette règle telle quelle

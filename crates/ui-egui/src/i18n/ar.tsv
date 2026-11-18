@@ -1818,3 +1818,11 @@ count	occurrences	مرات
 	Stop sending and receiving	إيقاف الإرسال والتلقي
 	Sending	الإرسال
 	Receiving	التلقي
+	On the server: {account}	على الخادم: {account}
+	The server runs these on new mail, even while MailCraft is closed.	يطبّقها الخادم على البريد الجديد، حتى عندما يكون MailCraft مغلقًا.
+	Reading the rules on the server…	جارٍ قراءة القواعد على الخادم…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	يحتفظ Outlook بنسخته الخاصة من هذه القواعد. تغييرها هنا يزيل تلك النسخة، مع قواعد Outlook المعطّلة أو التي تعمل على حاسوبه فقط.
+	Change them here anyway	غيّرها هنا على أي حال
+	New rule on the server…	قاعدة جديدة على الخادم…
+	Made in another program: it can be turned on or off, moved or deleted here	أُنشئت في برنامج آخر: يمكن هنا تشغيلها أو إيقافها أو نقلها أو حذفها
+	The server can't run this rule as it is	لا يستطيع الخادم تشغيل هذه القاعدة كما هي

@@ -410,6 +410,7 @@ impl Session {
             status: SyncStatus::Syncing { folder: String::new() },
             quota: None,
             vacation: VacationState::Unknown,
+            server_rules: Default::default(),
         });
         self.save_accounts();
     }

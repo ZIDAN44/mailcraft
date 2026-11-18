@@ -70,7 +70,14 @@ impl Session {
                     }
                 }
                 sort_folders(&mut folders);
-                self.accounts.push(AccountState { config, folders, status: SyncStatus::Offline, quota: None, vacation: VacationState::Unknown });
+                self.accounts.push(AccountState {
+                    config,
+                    folders,
+                    status: SyncStatus::Offline,
+                    quota: None,
+                    vacation: VacationState::Unknown,
+                    server_rules: Default::default(),
+                });
             }
         }
         let mut local = Vec::new();
@@ -140,6 +147,7 @@ impl Session {
             status: SyncStatus::Connecting,
             quota: None,
             vacation: VacationState::Unknown,
+            server_rules: Default::default(),
         });
         self.save_accounts();
         self.move_to_sending_account();

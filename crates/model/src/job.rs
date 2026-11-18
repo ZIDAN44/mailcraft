@@ -152,6 +152,12 @@ pub enum Job {
     GetVacation { account: String },
     /// Change them.
     SetVacation { account: String, vacation: Vacation },
+    /// Read the mailbox's Inbox rules on its server (Exchange's, issue #139); answered by
+    /// [`Event::ServerRules`].
+    GetServerRules { account: String },
+    /// Change them, then read them again; `drop_outlook_list`: remove Outlook's own copy of the
+    /// rules, which the server won't change them beside.
+    SetServerRules { account: String, ops: Vec<crate::organize::ServerRuleOp>, drop_outlook_list: bool },
     /// Sync the account's calendars and address books with its CalDAV / CardDAV server (changes
     /// made here first).
     SyncDav { account: String },
@@ -337,6 +343,8 @@ impl Job {
             | Job::CancelTransfers { account }
             | Job::GetVacation { account }
             | Job::SetVacation { account, .. }
+            | Job::GetServerRules { account }
+            | Job::SetServerRules { account, .. }
             | Job::SyncDav { account }
             | Job::SearchDirectory { account, .. }
             | Job::FetchCalendar { account, .. }
@@ -495,6 +503,14 @@ pub enum Event {
         account: String,
         used: u64,
         limit: u64,
+    },
+    /// The mailbox's Inbox rules as its server has them; `None` with an error when it has none
+    /// to give (or they couldn't be read); with both when a change failed and they were read
+    /// again.
+    ServerRules {
+        account: String,
+        rules: Option<crate::organize::ServerRules>,
+        error: Option<String>,
     },
     /// The account's automatic replies as the server has them; `None` with an error when it
     /// offers none (or they couldn't be read or changed).

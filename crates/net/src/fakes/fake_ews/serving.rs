@@ -314,7 +314,8 @@ fn newer_id(op: &El) -> Option<String> {
 /// An operation's response element in its envelope: its response messages (each named for the
 /// operation), or, for automatic replies and reminders, its parts as they are.
 fn envelope(name: &str, parts: &[String]) -> String {
-    let reminders = name.starts_with("GetReminders") || name.starts_with("PerformReminderAction");
+    // Answers whose result and response code are on the answer itself, not in response messages.
+    let reminders = ["GetReminders", "PerformReminderAction", "GetInboxRules", "UpdateInboxRules"].iter().any(|n| name.starts_with(n));
     let class = if !reminders {
         String::new()
     } else if parts.concat().contains(">NoError<") {

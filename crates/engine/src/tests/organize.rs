@@ -6,6 +6,7 @@ mod categories;
 mod focused;
 mod junk;
 mod many;
+mod server_rules;
 
 #[test]
 fn every_command_survives_junk_params() {
