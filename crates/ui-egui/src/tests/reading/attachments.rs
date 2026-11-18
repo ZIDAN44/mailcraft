@@ -248,6 +248,30 @@ fn previews_of_many_attachments_are_not_all_kept() {
     assert_eq!(a.session.store.as_ref().map_or(0, |s| s.reads()), reads, "read again while shown");
 }
 
+/// Issue #120: an attachment dragged out of a message's own window was dropped as a file called
+/// "attachment": the window's message, opened in the main window as the drag began, was still
+/// being read there, on another thread, and the name was looked for in that. It keeps its name.
+#[test]
+fn an_attachment_dragged_out_of_a_message_window_keeps_its_name() {
+    let (mut a, _) = app("attach-drag-window");
+    a.services = Box::new(Recorder(Default::default()));
+    a.ui.can_drag_out = true;
+    let with = a.session.list.iter().find(|m| m.subject.starts_with("Your proof")).map(|m| m.key.clone()).unwrap();
+    a.run("message.popOut", json!({"key": with.to_id()}));
+    let w = a.session.windows.iter().find(|w| w.key == with).cloned().expect("the window");
+    let pdf = w.parsed.as_ref().and_then(|p| p.attachments.get(1)).cloned().expect("its second attachment");
+    // As the window's drag goes: its message opened in the main window, read on another thread,
+    // then the drag.
+    a.session.defer_bodies(true);
+    a.act(crate::Action::Open(with.clone()));
+    assert!(a.session.reading.as_ref().is_some_and(|r| r.key == with && r.parsed.is_none()), "still being read");
+    a.act(crate::Action::InWindow(with.clone(), Box::new(crate::Action::DragOut(vec![pdf.index]))));
+    let files = a.take_drag_out();
+    let names: Vec<String> = files.iter().filter_map(|p| p.file_name()).map(|n| n.to_string_lossy().to_string()).collect();
+    assert_eq!(names, std::slice::from_ref(&pdf.name));
+    assert!(files.iter().all(|p| p.is_file()), "{files:?}");
+}
+
 /// Issue #120: attachments selected together drag out together, as Save Selected saves them (only
 /// the one under the pointer went); a drag on one not selected takes it alone. Two of the same
 /// name both go, under that name, neither written over the other.

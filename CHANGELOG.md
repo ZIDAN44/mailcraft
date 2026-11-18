@@ -33,6 +33,7 @@ on GitHub.
 - Tables written in Outlook or pasted from Excel keep their rows and columns in a reading pane narrower than they are (#152): their columns narrow, down to their widest words, where every cell went on a line of its own. A table of figures too wide even for that scrolls sideways.
 - On a Mac, scrolling stops at the top and end of the folder pane, the message list and the reading pane (#150): a smooth-scrolling mouse or a trackpad pulled them a third of the pane further, leaving it blank, and they stayed there.
 - An Exchange meeting you accepted shows as accepted, a recurring one too (#144): the calendar took your answer from the meeting's list of guests, which keeps the one the invitation came with, where Exchange keeps yours apart; some accepted series showed as tentative or not answered.
+- An attachment dragged out of a message opened in its own window keeps its name and extension (#120): it was dropped as a file called "attachment", and Save Attachment there suggested that name too.
 - In the dark theme, the segment of a switch under the pointer (File › Options › Theme, Reading pane and the others) no longer looks chosen: it was lighter than the segment that was.
 
 ## 0.40.0 - 2026-11-17

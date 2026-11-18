@@ -248,8 +248,11 @@ impl MailApp {
                 }
             }
             Action::InWindow(key, inner) => {
-                // The window's message stands in as the open one while the action runs.
-                if self.session.reading.as_ref().is_some_and(|r| r.key == key) {
+                // The window's message stands in as the open one while the action runs. The
+                // main window's copy only once it's read: the window's message is opened there as
+                // its action begins, and read on another thread, and an attachment dragged out
+                // of the window was named "attachment", not found in it yet (issue #120).
+                if self.session.reading.as_ref().is_some_and(|r| r.key == key && r.parsed.is_some()) {
                     self.act(*inner);
                 } else if let Some(w) = self.session.windows.iter().find(|w| w.key == key).cloned() {
                     let main = self.session.reading.replace(w);
