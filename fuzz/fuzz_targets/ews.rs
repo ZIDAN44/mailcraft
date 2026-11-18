@@ -2,7 +2,8 @@
 //! MailCraft reads an Exchange mailbox's rules on its server. Each rule MailCraft can say as its
 //! own is written back as it would be sent, and that reads as the same rule again. The same input
 //! is read as an answer to `GetUserAvailability` too (issue #140): an answer for each person asked
-//! about, in order, each time taken ending no sooner than it starts.
+//! about, in order, each time taken ending no sooner than it starts; and as an answer to
+//! `GetEvents` (issue #145): the folders it names, each once, never empty, no more than are kept.
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
@@ -31,6 +32,12 @@ fuzz_target!(|data: &[u8]| {
         for b in &a.busy {
             assert!(b.end >= b.start);
             assert!(b.subject.chars().count() <= 256 && b.location.chars().count() <= 256);
+        }
+    }
+    if let Ok(got) = ews::watch_events(&ews::parse(xml)) {
+        assert!(got.folders.len() <= ews::WATCH_CHANGED_MAX);
+        for (i, f) in got.folders.iter().enumerate() {
+            assert!(!f.is_empty() && f.len() <= 1024 && !got.folders[..i].contains(f), "{f:?}");
         }
     }
     let Ok(rules) = ews::read_rules_answer(xml) else { return };

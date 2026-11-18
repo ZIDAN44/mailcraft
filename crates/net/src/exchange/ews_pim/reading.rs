@@ -23,62 +23,69 @@ pub(super) fn read_calendar(c: &Client, out: &mut DavSync) -> Result<CalendarInf
     Ok(CalendarInfo { id: CALENDAR.into(), name: own, color: 0, read_only: false, ctag: String::new(), ..Default::default() })
 }
 
+/// A calendar of someone else's to read: their address, its name, and whether it was opened by
+/// hand (Open shared calendar) rather than with their shared mailbox.
+pub(super) type SharedCalendar = (String, String, bool);
+
 /// Other people's calendars opened here (Open shared calendar), then the calendars of the
 /// shared mailboxes the account opens (Outlook lists a shared mailbox's calendar with its
-/// mail): each their mailbox's calendar folder, the delegate permissions they gave deciding
-/// whether it can be read, and whether changed. The shared mailboxes are those the folder
-/// listing before found (it's asked again when there was none).
-pub(super) fn read_shared_calendars(c: &Client, pim: &Pim, out: &mut DavSync, calendars: &mut Vec<CalendarInfo>) {
-    let opened: Vec<(String, String, bool)> = pim.shared.iter().map(|e| (e.clone(), e.clone(), true)).collect();
-    let mailboxes: Vec<(String, String, bool)> = c
+/// mail). The shared mailboxes are those the folder listing before found (it's asked again
+/// when there was none).
+pub(super) fn shared_calendars(c: &Client, pim: &Pim) -> Vec<SharedCalendar> {
+    let opened: Vec<SharedCalendar> = pim.shared.iter().map(|e| (e.clone(), e.clone(), true)).collect();
+    let mailboxes: Vec<SharedCalendar> = c
         .listed_shared_mailboxes()
         .into_iter()
         .filter(|m| !pim.shared.iter().any(|e| e.eq_ignore_ascii_case(&m.address)))
         .map(|m| (m.address, m.name, false))
         .collect();
-    for (n, (email, name, asked)) in opened.into_iter().chain(mailboxes).enumerate() {
-        let id = mailcraft_model::pim::shared_calendar_id(&email);
-        let parent = calendar_folder(Some(&email));
-        // Editable when the folder's rights say so, or (some servers say nothing useful about
-        // another mailbox's folder) when its events do, as Outlook finds by trying.
-        let folder_rights = c.in_mailbox(&email, || may_edit(c, &parent));
-        let mut can_edit = *folder_rights.as_ref().unwrap_or(&false);
-        let mut free_busy = false;
-        match c.in_mailbox(&email, || items_in(c, &parent, RECURRENCE)) {
-            Ok(read) => {
-                read.say(out, &name);
-                can_edit |= read.items.iter().any(item_may_change);
-                if !can_edit && let Err(e) = &folder_rights {
-                    log::info!("{email}'s calendar rights: {e}");
-                }
-                out.events.extend(stored_events(read.items, &id, &email));
-                out.synced_calendars.push(id.clone());
+    opened.into_iter().chain(mailboxes).collect()
+}
+
+/// One of [`shared_calendars`] (the `n`th: its colour), read: their mailbox's calendar folder,
+/// the delegate permissions they gave deciding whether it can be read, and whether changed.
+pub(super) fn read_shared_calendar(c: &Client, (email, name, asked): SharedCalendar, n: usize, out: &mut DavSync, calendars: &mut Vec<CalendarInfo>) {
+    let id = mailcraft_model::pim::shared_calendar_id(&email);
+    let parent = calendar_folder(Some(&email));
+    // Editable when the folder's rights say so, or (some servers say nothing useful about
+    // another mailbox's folder) when its events do, as Outlook finds by trying.
+    let folder_rights = c.in_mailbox(&email, || may_edit(c, &parent));
+    let mut can_edit = *folder_rights.as_ref().unwrap_or(&false);
+    let mut free_busy = false;
+    match c.in_mailbox(&email, || items_in(c, &parent, RECURRENCE)) {
+        Ok(read) => {
+            read.say(out, &name);
+            can_edit |= read.items.iter().any(item_may_change);
+            if !can_edit && let Err(e) = &folder_rights {
+                log::info!("{email}'s calendar rights: {e}");
             }
-            // One asked for by hand says why it's missing; a shared mailbox whose calendar
-            // isn't shared with the account just has none here. Exchange says it isn't found when
-            // it's shared for free/busy time alone, as a company's usually are (issue #138): it's
-            // shown by those times, asked for apart, and says why if there are none (#140).
-            Err(e) if asked && crate::ews::gone(&e) => {
-                log::info!("{email}'s calendar: free/busy time alone ({e})");
-                free_busy = true;
-                out.synced_calendars.push(id.clone());
-            }
-            Err(e) if asked => out.errors.push(format!("{email}'s calendar: {e}")),
-            Err(e) => {
-                log::info!("shared mailbox {email}: no calendar ({e})");
-                continue;
-            }
+            out.events.extend(stored_events(read.items, &id, &email));
+            out.synced_calendars.push(id.clone());
         }
-        calendars.push(CalendarInfo {
-            id,
-            name,
-            color: u8::try_from((n + 1) % 8).unwrap_or(0),
-            read_only: !can_edit || free_busy,
-            ctag: String::new(),
-            free_busy,
-            ..Default::default()
-        });
+        // One asked for by hand says why it's missing; a shared mailbox whose calendar
+        // isn't shared with the account just has none here. Exchange says it isn't found when
+        // it's shared for free/busy time alone, as a company's usually are (issue #138): it's
+        // shown by those times, asked for apart, and says why if there are none (#140).
+        Err(e) if asked && crate::ews::gone(&e) => {
+            log::info!("{email}'s calendar: free/busy time alone ({e})");
+            free_busy = true;
+            out.synced_calendars.push(id.clone());
+        }
+        Err(e) if asked => out.errors.push(format!("{email}'s calendar: {e}")),
+        Err(e) => {
+            log::info!("shared mailbox {email}: no calendar ({e})");
+            return;
+        }
     }
+    calendars.push(CalendarInfo {
+        id,
+        name,
+        color: u8::try_from((n + 1) % 8).unwrap_or(0),
+        read_only: !can_edit || free_busy,
+        ctag: String::new(),
+        free_busy,
+        ..Default::default()
+    });
 }
 
 /// The account's contacts, read again: its people, and how the folder's named.

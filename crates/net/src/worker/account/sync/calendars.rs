@@ -10,8 +10,9 @@ const MOST_BACKOFF: Duration = Duration::from_secs(300);
 
 impl Worker {
     /// Sync calendars and address books with the account's CalDAV / CardDAV server (password
-    /// accounts: OAuth tokens are for mail only).
-    pub(in crate::worker) fn sync_dav(&mut self) {
+    /// accounts: OAuth tokens are for mail only). An Exchange account's are read a step at a
+    /// time, its mail looked at between ([`Worker::between_pim_steps`]; jobs too, from `rx`).
+    pub(in crate::worker) fn sync_dav(&mut self, rx: Option<&Receiver<Job>>) {
         // Exchange Online: its calendars and contacts through Graph.
         if let Some(Conn::Graph(c)) = &self.conn {
             let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
@@ -20,9 +21,25 @@ impl Worker {
             return;
         }
         // On-premises Exchange: its calendar and contacts through EWS.
-        if let Some(Conn::Ews(c)) = &self.conn {
+        if matches!(self.conn, Some(Conn::Ews(_))) {
             let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-            let read = crate::ews_pim::sync(c, &pim, now());
+            let mut pass = crate::ews_pim::Pass::new(now());
+            self.in_pim = true;
+            let read = loop {
+                let step = match &self.conn {
+                    Some(Conn::Ews(c)) => pass.step(c, &pim),
+                    _ => Err(NetError::Closed("the connection was lost".into())),
+                };
+                match step {
+                    Ok(Some(done)) => break Ok(done),
+                    Ok(None) => self.between_pim_steps(rx),
+                    Err(e) => break Err(e),
+                }
+                if self.closed {
+                    break Err(NetError::Closed("the account was closed".into()));
+                }
+            };
+            self.in_pim = false;
             self.exchange_read(read);
             return;
         }

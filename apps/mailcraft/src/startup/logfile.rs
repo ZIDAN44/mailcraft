@@ -201,13 +201,14 @@ fn line(stamp: &str, level: Level, target: &str, msg: &str) -> String {
     out
 }
 
-/// Now, as `2026-10-19 14:03:07` (UTC).
+/// Now, as `2026-10-19 14:03:07Z`: in UTC, which the `Z` says (issue #145: read beside a clock, a
+/// time with nothing after it was taken for local).
 fn stamp() -> String {
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let secs = i64::try_from(secs).unwrap_or(0);
     let (y, m, d) = mailcraft_engine::model::dates::civil_from_days(secs.div_euclid(86_400));
     let t = secs.rem_euclid(86_400);
-    format!("{y:04}-{m:02}-{d:02} {:02}:{:02}:{:02}", t / 3600, t % 3600 / 60, t % 60)
+    format!("{y:04}-{m:02}-{d:02} {:02}:{:02}:{:02}Z", t / 3600, t % 3600 / 60, t % 60)
 }
 
 /// Start logging into `dir` (the previous run's log kept as the old one). Without a folder, or
@@ -311,8 +312,10 @@ mod tests {
         let forged = line("2026-10-19 14:03:07", Level::Warn, "x", "no\r2026-10-19 14:03:08 INFO  y: fine\x1b[2J\u{7}\tend");
         assert_eq!(forged, "2026-10-19 14:03:07 WARN  x: no\\r2026-10-19 14:03:08 INFO  y: fine\\u{1b}[2J\\u{7}\tend\n");
         assert_eq!(forged.lines().count(), 1);
+        // In UTC, and saying so: read beside a clock, a time with nothing after it was taken for
+        // local (issue #145).
         let s = stamp();
-        assert_eq!((s.len(), s.as_bytes()[4], s.as_bytes()[13]), (19, b'-', b':'));
+        assert_eq!((s.len(), s.as_bytes()[4], s.as_bytes()[13], s.as_bytes()[19]), (20, b'-', b':', b'Z'));
     }
 
     #[test]

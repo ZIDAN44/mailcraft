@@ -801,6 +801,8 @@ mod shared;
 mod sync;
 pub use sync::{sync_folder, sync_folder_as};
 mod text_first;
+mod watch;
+pub use watch::{CHANGED_MAX as WATCH_CHANGED_MAX, Events as WatchEvents, Watch, events_in as watch_events};
 
 #[cfg(test)]
 mod tests;

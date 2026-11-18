@@ -5,6 +5,7 @@ use super::*;
 
 mod calendars;
 mod searching;
+mod watching;
 
 // Run once, on this thread, as [`Worker::publish_folders`] is about to write the folder list: a
 // test's way to come between deciding to write it and writing it.
@@ -59,17 +60,14 @@ impl Worker {
         let idle = matches!(&self.conn, Some(Conn::Imap(c)) if c.has("IDLE"));
         if !idle || inbox.is_none() {
             let next_soon = self.soon.iter().map(|(at, _)| *at).min();
-            let wait = next_soon.map_or(POLL_EVERY, |at| at.saturating_duration_since(Instant::now()).min(POLL_EVERY));
+            let poll = poll_every(&self.acc.id);
+            let wait = next_soon.map_or(poll, |at| at.saturating_duration_since(Instant::now()).min(poll));
             let Some(got) = self.recv_unless_set_aside(rx, wait) else { return };
             match got {
                 Ok(j) => push_job(&mut self.queue, j),
                 Err(RecvTimeoutError::Disconnected) => self.closed = true,
                 Err(RecvTimeoutError::Timeout) if next_soon.is_some_and(|at| at <= Instant::now()) => self.sync_soon_folders(),
-                Err(RecvTimeoutError::Timeout) => {
-                    if let Some(f) = inbox {
-                        self.sync_one(&f);
-                    }
-                }
+                Err(RecvTimeoutError::Timeout) => self.look_for_mail(),
             }
             return;
         }
@@ -171,10 +169,7 @@ impl Worker {
                 if self.dropped_while_quiet(Instant::now()) {
                     return;
                 }
-                if let Some(f) = self.inbox() {
-                    self.sync_one(&f);
-                }
-                self.looked = Some(Instant::now());
+                self.look_for_mail();
             }
         }
     }
@@ -374,6 +369,9 @@ impl Worker {
         if !self.relist() {
             return;
         }
+        // Exchange: told from now on which folders change, for the looks between full syncs (a
+        // change during this one is read again at the next look, which costs little).
+        self.watch_from_now();
         let paths: Vec<String> = self.folders.iter().filter(|f| f.selectable).map(|f| f.path.clone()).collect();
         // Counts are said as folders are synced, once a second at most: each time writes them
         // into the account's folder list, and says all of it.
@@ -416,10 +414,10 @@ impl Worker {
                 self.counts_unsaid.push(path);
             }
             going.folders_done = going.folders_done.saturating_add(1);
-            if std::mem::take(&mut calendars_due) && !self.closed && self.conn.is_some() {
+            if std::mem::take(&mut calendars_due) && !self.closed && self.conn.is_some() && !self.in_pim {
                 self.say_counts();
                 said = Instant::now();
-                self.calendars_and_contacts();
+                self.calendars_and_contacts(rx);
                 calendars_read = true;
             }
         }
@@ -452,15 +450,16 @@ impl Worker {
             log::info!("{}: synced {} folders in {:.1} s", self.acc.id, self.folders.len(), began.elapsed().as_secs_f32());
             self.status(SyncStatus::Online { at: now() });
         }
-        if self.conn.is_some() && !calendars_read {
-            self.calendars_and_contacts();
+        // Not while they're being read already: this is a Send / Receive between two of their steps.
+        if self.conn.is_some() && !calendars_read && !self.in_pim {
+            self.calendars_and_contacts(rx);
         }
     }
 
     /// The account's calendars and contacts, synced with their server now.
-    fn calendars_and_contacts(&mut self) {
+    fn calendars_and_contacts(&mut self, rx: &Receiver<Job>) {
         let began = Instant::now();
-        self.sync_dav();
+        self.sync_dav(Some(rx));
         log::info!("{}: PIM pass took {:?}", self.acc.id, began.elapsed());
     }
 

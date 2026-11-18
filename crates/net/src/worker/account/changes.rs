@@ -124,7 +124,7 @@ impl Worker {
             Job::FlushOutbox { .. } => self.flush_outbox(),
             // The pool raises the account's flag itself, whatever its thread is doing.
             Job::CancelTransfers { .. } => {}
-            Job::SyncDav { .. } => self.sync_dav(),
+            Job::SyncDav { .. } => self.sync_dav(None),
             Job::SearchDirectory { query, .. } => self.search_directory(query),
             Job::GetServerRules { .. } => self.server_rules(None),
             Job::SetServerRules { ops, drop_outlook_list, .. } => self.server_rules(Some((ops, drop_outlook_list))),

@@ -275,6 +275,14 @@ fn operation(shared: &Arc<Mutex<Data>>, doc: &El, routed: String, anchor: String
         }
         shared.lock().unwrap().held -= 1;
     }
+    // A big calendar: listing it takes a while (the server not held meanwhile).
+    let slow = {
+        let d = shared.lock().unwrap();
+        d.pim_slow.filter(|_| op.name == "FindItem" && d.pim_folder(op.child("ParentFolderIds").and_then(|p| p.kids.first())))
+    };
+    if let Some(wait) = slow {
+        std::thread::sleep(wait);
+    }
     let mut d = shared.lock().unwrap();
     d.calls.push(op.name.clone());
     let version = doc.find("RequestServerVersion").and_then(|v| v.attr("Version")).unwrap_or_default().to_string();

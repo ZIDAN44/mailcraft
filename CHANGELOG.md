@@ -31,6 +31,9 @@ on GitHub.
 - A message the outgoing server turns away for its sender says which address that was ("the server refused the sender, …"): "550 Invalid Sender" alone didn't say which.
 - A calendar or contacts address given by hand that holds none now says what the server answered there (#147), as "PROPFIND answered HTTP 403" where it didn't let these credentials look (a provider whose calendar user name isn't the email address, set under **The calendar server has its own user name and password**): it said only that none were found.
 - A server that ends the connection as it's being secured is now named, with what's most likely wrong (#153): it may offer only older encryption than MailCraft uses, TLS 1.0 or 1.1 or TLS 1.2 without its newer ciphers, which its administrator can turn on. An Exchange 2013 server that did said only the system's "an existing connection was forcibly closed".
+- An Exchange account's look for new mail every two minutes reads every folder the server says changed, not only the Inbox (#145): mail an Inbox rule files into a folder of its own comes within minutes, where it waited for the full sync a quarter of an hour on.
+- An Exchange account's calendars and contacts no longer hold up its mail while they're read, which takes minutes with colleagues' calendars (#145): new mail is looked at meanwhile, and **Send / Receive** reads the mail before they're done, the status bar saying so, where it waited for them to finish and showed nothing.
+- The times in MailCraft's log end in `Z`, saying they're UTC (#145): read beside a clock, they were taken for local.
 
 ### Fixed
 

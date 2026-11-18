@@ -197,3 +197,73 @@ fn real_ews_free_busy() {
     assert_eq!(answers.iter().map(|a| a.email.as_str()).collect::<Vec<_>>(), people.iter().map(String::as_str).collect::<Vec<_>>());
     assert!(answers[2].error.is_some(), "nobody is there: {:?}", answers[2]);
 }
+
+/// New mail in a folder other than the Inbox (issue #145: an Inbox rule filed it there) comes
+/// with the next look for mail, the server's subscription saying where, not a quarter of an hour
+/// on with the full sync. The message is made in the Inbox's subfolder `Filed` (made when there
+/// is none), then deleted again.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_new_mail_in_any_folder() {
+    let Some((url, user, password)) = server() else {
+        eprintln!("MAILCRAFT_REAL_EWS not set: skipped");
+        return;
+    };
+    let c = crate::ews::Client::connect(&url, &user, &password, &user).unwrap();
+    let id_of = |doc: &crate::ews::El| doc.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string);
+    let found = c
+        .call(
+            "<m:FindFolder Traversal=\"Shallow\"><m:FolderShape><t:BaseShape>Default</t:BaseShape></m:FolderShape>\
+             <m:Restriction><t:IsEqualTo><t:FieldURI FieldURI=\"folder:DisplayName\"/><t:FieldURIOrConstant><t:Constant Value=\"Filed\"/>\
+             </t:FieldURIOrConstant></t:IsEqualTo></m:Restriction><m:ParentFolderIds><t:DistinguishedFolderId Id=\"inbox\"/></m:ParentFolderIds></m:FindFolder>",
+        )
+        .ok()
+        .and_then(|d| id_of(&d));
+    let filed = found.unwrap_or_else(|| {
+        let made = c
+            .call(
+                "<m:CreateFolder><m:ParentFolderId><t:DistinguishedFolderId Id=\"inbox\"/></m:ParentFolderId><m:Folders><t:Folder>\
+                 <t:DisplayName>Filed</t:DisplayName></t:Folder></m:Folders></m:CreateFolder>",
+            )
+            .unwrap();
+        id_of(&made).expect("a folder made")
+    });
+    crate::worker::POLL_FOR.lock().unwrap().push(("x2".into(), Duration::from_secs(2)));
+    let store = crate::fake::store("real-ews-watch");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    let account = AccountConfig { id: "x2".into(), email: user.clone(), username: user, ews: Some(url), ..Default::default() };
+    pool.submit(Job::Start { account, password: Some(Secret(password)) });
+    // Its mail and its calendars read (the first sync reads the calendars after the Inbox,
+    // before the rest).
+    let (mut online, mut calendars) = (false, false);
+    let end = Instant::now() + Duration::from_secs(300);
+    while !(online && calendars) {
+        assert!(Instant::now() < end, "online {online}, calendars read {calendars}");
+        match pool.wait(Duration::from_millis(100)) {
+            Some(Event::Status { status: SyncStatus::Online { .. }, .. }) => online = true,
+            Some(Event::DavSynced { .. }) => calendars = true,
+            _ => {}
+        }
+    }
+    let path = store.load_folders("x2").unwrap().into_iter().find(|f| f.path.ends_with("Filed")).expect("Filed listed").path;
+    let made = c
+        .call(&format!(
+            "<m:CreateItem MessageDisposition=\"SaveOnly\"><m:SavedItemFolderId><t:FolderId Id=\"{}\"/></m:SavedItemFolderId><m:Items>\
+             <t:Message><t:Subject>Filed by a rule</t:Subject><t:Body BodyType=\"Text\">x</t:Body></t:Message></m:Items></m:CreateItem>",
+            crate::ews::esc(&filed)
+        ))
+        .unwrap();
+    let item = made.find("ItemId").and_then(|i| i.attr("Id")).map(str::to_string).expect("made");
+    let came = Instant::now();
+    let in_filed = || store.load_folder("x2", &path).map(|f| f.messages.iter().any(|m| m.subject == "Filed by a rule")).unwrap_or(false);
+    let end = Instant::now() + Duration::from_secs(60);
+    while !in_filed() && Instant::now() < end {
+        let _ = pool.wait(Duration::from_millis(200));
+    }
+    let _ = c.call(&format!(
+        "<m:DeleteItem DeleteType=\"HardDelete\"><m:ItemIds><t:ItemId Id=\"{}\"/></m:ItemIds></m:DeleteItem>",
+        crate::ews::esc(&item)
+    ));
+    assert!(in_filed(), "the message in {path} within a minute");
+    eprintln!("came in {:.1} s", came.elapsed().as_secs_f32());
+}

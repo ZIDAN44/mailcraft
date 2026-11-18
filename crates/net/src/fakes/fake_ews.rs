@@ -166,6 +166,17 @@ pub struct Data {
     pub free_busy_refused: Vec<String>,
     /// The free/busy times asked for, in order.
     pub availability_asks: Vec<availability::AvailabilityAsk>,
+    /// Pull subscriptions to the mailbox's folders (issue #145).
+    pub subscriptions: Vec<watching::FakeSub>,
+    /// A subscription to every folder at once is refused (Exchange 2010 before its first
+    /// service pack): one naming the folders is taken.
+    pub subscribe_all_refused: bool,
+    /// The folders a `GetEvents` answer says at most, the rest said as more (`None`: all).
+    pub events_per_answer: Option<usize>,
+    /// `GetEvents` asked.
+    pub get_events_asked: usize,
+    /// Listing a calendar's or address book's items takes this long (a big shared calendar).
+    pub pim_slow: Option<std::time::Duration>,
     /// What came to it and went out, for a test's wait to tell where it stopped
     /// ([`Data::where_it_stopped`]).
     traffic: serving::Traffic,
@@ -222,6 +233,11 @@ impl Default for Data {
             free_busy: Vec::new(),
             free_busy_refused: Vec::new(),
             availability_asks: Vec::new(),
+            subscriptions: Vec::new(),
+            subscribe_all_refused: false,
+            events_per_answer: None,
+            get_events_asked: 0,
+            pim_slow: None,
             traffic: Default::default(),
             next: 0,
         };
@@ -476,6 +492,8 @@ impl Data {
             "GetReminders" | "PerformReminderAction" => vec![self.reminders_answer(op)],
             "GetInboxRules" => vec![self.inbox_rules_answer()],
             "UpdateInboxRules" => vec![self.update_inbox_rules(op)],
+            "Subscribe" => vec![self.subscribe(op)],
+            "GetEvents" => vec![self.get_events(op)],
             // The directory: every name or address with a word starting with the search, up to
             // 100, as Exchange's ambiguous name resolution; several are a warning.
             "ResolveNames" if op.attr("SearchScope") == Some("ActiveDirectory") => vec![self.directory_answer(op)],
@@ -545,3 +563,4 @@ mod rules;
 mod serving;
 #[cfg(test)]
 mod tests;
+mod watching;

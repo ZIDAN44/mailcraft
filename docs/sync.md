@@ -113,7 +113,11 @@ messages with strings get stable numbers in their place, used as UIDs under UIDV
 - **EWS** (`crates/net/src/exchange/ews.rs`), Exchange Web Services, serves on-premises Exchange
   2010 SP2 and later.
   - It signs in with NTLMv2 (Windows sign-in) or Basic, and finds the server with Autodiscover.
-  - Calendars and contacts are in `ews_pim.rs`.
+  - Calendars and contacts are in `ews_pim.rs`, read a step at a time (`ews_pim/pass.rs`): the
+    mail is looked at between steps, and Send / Receive reads it then.
+  - A pull subscription to the mailbox's folders (`ews/watch.rs`) says which changed: the look
+    every 2 minutes reads those with the Inbox, so mail an Inbox rule files elsewhere doesn't
+    wait for the full sync. A subscription that lapsed is made again.
   - A moved message shows as a new one.
 - **POP** (`crates/net/src/protocols/pop.rs`) gives an Inbox plus local folders. MailCraft
   downloads each message whose `UIDL` it hasn't seen. With `popDelete` set, it then deletes them
