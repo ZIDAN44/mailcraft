@@ -143,6 +143,34 @@ fn someone_elses_calendar_opens_read_only() {
     assert!(!sync.events.iter().any(|e| e.calendar == nobody));
 }
 
+/// A colleague's calendar shared for its subject and place, not its items: Exchange refuses
+/// reading it (access denied, where one shared for free/busy time alone isn't found). It's
+/// listed as shared for its times alone, as that one is, not as an error (issue #140).
+#[test]
+fn a_calendar_shared_for_subject_and_place_is_listed_for_its_times() {
+    use mailcraft_model::pim::{Pim, shared_calendar_id};
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+    d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+    d.unreadable.push("mailbox:dana@contoso.example".into());
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let pim = Pim { shared: vec!["dana@contoso.example".into()], ..Default::default() };
+    let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let dana = shared_calendar_id("dana@contoso.example");
+    let cals = sync.calendars.unwrap();
+    assert!(cals.iter().any(|x| x.id == dana && x.free_busy && x.read_only), "{cals:?}");
+    // As a real Exchange says it: its words, the code kept for telling it apart.
+    let refusal = parse(
+        "<R ResponseClass=\"Error\"><MessageText>Access is denied. Check credentials and try again., Cannot query rows in a table.</MessageText>\
+         <ResponseCode>ErrorAccessDenied</ResponseCode></R>",
+    );
+    let e = crate::ews::check_message(&refusal.kids[0]).unwrap_err();
+    assert!(crate::ews::denied(&e) && e.to_string().contains("Access is denied."), "{e}");
+}
+
 /// Three plain appointments carrying one UID: the sync hands the engine three distinct
 /// identities, not one.
 #[test]

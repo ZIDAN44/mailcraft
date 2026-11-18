@@ -317,6 +317,15 @@ pub(crate) fn gone(e: &NetError) -> bool {
     matches!(e, NetError::No(m) if m.starts_with(GONE))
 }
 
+/// The code of a refusal for want of rights, kept in what it says ([`check_message`]).
+pub(crate) const DENIED: &str = "ErrorAccessDenied";
+
+/// Whether a refusal was for want of rights ([`DENIED`]): a colleague's calendar shared for its
+/// subject and place, not its items, is refused so (issue #140).
+pub(crate) fn denied(e: &NetError) -> bool {
+    matches!(e, NetError::No(m) if m.contains(DENIED))
+}
+
 /// How a refusal begins for an id the server can't read as one (EWS's and Graph's): malformed,
 /// or the other transport's. It names nothing there, and never will.
 pub(crate) const NO_SUCH_ID: &str = "not an id of this server's";
@@ -340,7 +349,9 @@ pub(crate) fn check_message(m: &El) -> Result<()> {
             Err(match code {
                 "ErrorItemNotFound" | "ErrorFolderNotFound" => NetError::No(format!("{GONE} ({text})")),
                 _ if code.starts_with(INVALID_ID) => NetError::No(format!("{NO_SUCH_ID} ({text})")),
-                // Any other (access denied, the server busy) is refused as it says.
+                // Refused for want of rights: said as the server says it, its code kept ([`denied`]).
+                DENIED if !text.contains(DENIED) => NetError::No(format!("{text} ({DENIED})")),
+                // Any other (the server busy) is refused as it says.
                 _ => NetError::No(text.to_string()),
             })
         }

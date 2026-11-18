@@ -16,10 +16,13 @@ pub const WINDOW_MAX: i64 = 42 * 86_400 - 3600;
 
 /// The time zone a request is read in: UTC, with no change of clocks. Times then go and come
 /// back in UTC (the service gives them without an offset, in the zone asked in, and the old
-/// format of a zone holds one rule for its changes, wrong across years that changed it).
-const UTC: &str = "<t:TimeZone><t:Bias>0</t:Bias><t:StandardTime><t:Bias>0</t:Bias><t:Time>00:00:00</t:Time><t:DayOrder>1</t:DayOrder>\
-<t:Month>1</t:Month><t:DayOfWeek>Sunday</t:DayOfWeek></t:StandardTime><t:DaylightTime><t:Bias>0</t:Bias><t:Time>00:00:00</t:Time>\
-<t:DayOrder>1</t:DayOrder><t:Month>1</t:Month><t:DayOfWeek>Sunday</t:DayOfWeek></t:DaylightTime></t:TimeZone>";
+/// format of a zone holds one rule for its changes, wrong across years that changed it). Its two
+/// changes, which shift nothing, fall in March and October: Exchange refuses a zone whose two
+/// changes are on the same day ("The specified time zone isn't valid", HTTP 500; issue #140), as
+/// both on January's first Sunday were.
+const UTC: &str = "<t:TimeZone><t:Bias>0</t:Bias><t:StandardTime><t:Bias>0</t:Bias><t:Time>02:00:00</t:Time><t:DayOrder>1</t:DayOrder>\
+<t:Month>3</t:Month><t:DayOfWeek>Sunday</t:DayOfWeek></t:StandardTime><t:DaylightTime><t:Bias>0</t:Bias><t:Time>02:00:00</t:Time>\
+<t:DayOrder>1</t:DayOrder><t:Month>10</t:Month><t:DayOfWeek>Sunday</t:DayOfWeek></t:DaylightTime></t:TimeZone>";
 
 impl Client {
     /// When `people`'s calendars are taken between `from` and `to` (Unix seconds; the window is

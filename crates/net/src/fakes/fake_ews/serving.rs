@@ -261,6 +261,12 @@ fn operation(shared: &Arc<Mutex<Data>>, doc: &El, routed: String, anchor: String
             "<soap:Envelope><soap:Body><soap:Fault><faultstring>no operation</faultstring></soap:Fault></soap:Body></soap:Envelope>".into(),
         );
     };
+    // As Exchange: a time zone whose two changes fall on the same day is refused whole (issue #140).
+    if op.name == "GetUserAvailabilityRequest" && super::availability::zone_refused(&op) {
+        let fault = "<soap:Envelope><soap:Body><soap:Fault><faultcode>a:ErrorTimeZone</faultcode>\
+                     <faultstring>The specified time zone isn't valid.</faultstring></soap:Fault></soap:Body></soap:Envelope>";
+        return (500, fault.into());
+    }
     // A slow server: listing a mail folder waits while the test holds it (without holding up
     // the others); a minute at most, so a test that never lets go fails rather than hangs.
     let hold = {

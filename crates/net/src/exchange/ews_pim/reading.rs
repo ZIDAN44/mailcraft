@@ -64,9 +64,10 @@ pub(super) fn read_shared_calendar(c: &Client, (email, name, asked): SharedCalen
         }
         // One asked for by hand says why it's missing; a shared mailbox whose calendar
         // isn't shared with the account just has none here. Exchange says it isn't found when
-        // it's shared for free/busy time alone, as a company's usually are (issue #138): it's
-        // shown by those times, asked for apart, and says why if there are none (#140).
-        Err(e) if asked && crate::ews::gone(&e) => {
+        // it's shared for free/busy time alone, as a company's usually are (issue #138), and
+        // refuses it when it's shared for subject and place too (#140): it's shown by those
+        // times, asked for apart, and says why if there are none.
+        Err(e) if asked && (crate::ews::gone(&e) || crate::ews::denied(&e)) => {
             log::info!("{email}'s calendar: free/busy time alone ({e})");
             free_busy = true;
             out.synced_calendars.push(id.clone());

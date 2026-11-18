@@ -103,6 +103,14 @@ impl Data {
     }
 }
 
+/// Whether a `GetUserAvailability` request's time zone is one Exchange refuses: its two changes
+/// on the same day (the same month, week and weekday).
+pub(super) fn zone_refused(op: &El) -> bool {
+    let Some(zone) = op.child("TimeZone") else { return false };
+    let when = |name: &str| zone.child(name).map(|t| ["Month", "DayOrder", "DayOfWeek"].map(|f| t.text_of(f).unwrap_or("").trim().to_string()));
+    matches!((when("StandardTime"), when("DaylightTime")), (Some(a), Some(b)) if a == b)
+}
+
 fn fail(code: &str, text: &str) -> String {
     format!("<ResponseMessage ResponseClass=\"Error\"><MessageText>{text}</MessageText><ResponseCode>{code}</ResponseCode></ResponseMessage>")
 }
