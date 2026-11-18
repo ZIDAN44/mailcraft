@@ -157,7 +157,11 @@ impl MailApp {
         // The words get what's left: the box keeps one width whatever the menu says, and room for
         // its two buttons (Clear's kept when it isn't shown).
         let button = 22.0 + ui.spacing().item_spacing.x;
+        // An id of its own: one counted from its place on the bar changed as the Search tab came
+        // before it, and the box lost the focus it had just been given, the tab going as the
+        // pointer left (issue #158).
         let te = egui::TextEdit::singleline(&mut self.ui.search_text)
+            .id(egui::Id::unique("mailcraft-mail-search"))
             .hint_text(tl!("Search mail (from:, subject:, has:attachment…)"))
             .frame(egui::Frame::NONE)
             .align(if i18n::current().rtl() { egui::Align2::RIGHT_CENTER } else { egui::Align2::LEFT_CENTER })

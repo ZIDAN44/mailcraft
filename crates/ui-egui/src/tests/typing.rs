@@ -5,6 +5,7 @@ use super::*;
 mod rtl;
 mod search_big;
 mod search_frames;
+mod search_tab;
 
 /// A frame whose input goes through the Alt codes first, as the app's windows' does.
 fn alt_frame(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) {
