@@ -16,6 +16,7 @@ on GitHub.
 
 - Send / Receive shows how it goes, as Outlook does for POP and IMAP accounts: at its end, in place of the accounts' "Updating…", the status bar says which message is downloading and how much is left ("Downloading: 10 of 158 (27.6 MB of 210 MB)", "Sending: 1 of 3", an IMAP account's folders one by one), and clicking it, or **Send / Receive › Show progress**, opens a small window you can move anywhere: a line for each account's sending and receiving, how far each has come (what's left on hover), and why any failed. **Cancel all**, or a task's own stop button, stops between two messages, keeping what came; the next Send / Receive goes on from there. With **Open this window when Send / Receive starts** (off, as in Outlook), F9 opens it too, and it closes once all is done well, or stays open when something failed. Exchange, Microsoft 365 and JMAP accounts, which sync on their own all the time, aren't in it.
 - An IMAP or POP account's email address can be corrected in **Server settings**, as Outlook lets it be: one mistyped as the account was added was the sender of every message, which the server turned away, and only removing the account changed it.
+- An Exchange account's **File › Mailbox settings** shows how much space the mailbox takes and its limit, as Outlook does (#143): it said the server doesn't report how much space is used. With no limit set, it shows the space used.
 
 ### Changed
 

@@ -151,6 +151,9 @@ pub struct Data {
     pub exchange_2010: bool,
     /// Requests refused so ([`Data::exchange_2010`]).
     pub schema_refusals: usize,
+    /// The mailbox's limits, in KB (where it can't send, can't receive, and is warned), said on
+    /// its root folder, with every folder's size; `None`: neither said (issue #143).
+    pub quota_kb: Option<[i64; 3]>,
     /// What came to it and went out, for a test's wait to tell where it stopped
     /// ([`Data::where_it_stopped`]).
     traffic: serving::Traffic,
@@ -200,6 +203,7 @@ impl Default for Data {
             reminders: Default::default(),
             exchange_2010: false,
             schema_refusals: 0,
+            quota_kb: None,
             traffic: Default::default(),
             next: 0,
         };
@@ -329,6 +333,20 @@ impl Data {
                 "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x6698\" PropertyType=\"Binary\"/><t:Value>{}</t:Value></t:ExtendedProperty>",
                 mailcraft_model::base64::encode(format!("{PF_GUID}\0").as_bytes())
             ));
+        }
+        // Its size, and the mailbox's limits on its root, as Exchange says them when asked.
+        if let Some(limits) = self.quota_kb {
+            let size: usize = self.items.iter().filter(|i| i.folder == f.id).map(|i| i.raw.len()).sum();
+            extended.push_str(&format!(
+                "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0xe08\" PropertyType=\"Long\"/><t:Value>{size}</t:Value></t:ExtendedProperty>"
+            ));
+            if f.known.as_deref() == Some("msgfolderroot") {
+                for (tag, kb) in ["0x666e", "0x666a", "0x3ff5"].into_iter().zip(limits) {
+                    extended.push_str(&format!(
+                        "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"{tag}\" PropertyType=\"Integer\"/><t:Value>{kb}</t:Value></t:ExtendedProperty>"
+                    ));
+                }
+            }
         }
         if self.flagged_hidden.contains(&f.id) {
             extended.push_str(

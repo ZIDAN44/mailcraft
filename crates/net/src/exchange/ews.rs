@@ -245,12 +245,16 @@ fn replica_list() -> String {
 /// Whether a property tag as an answer writes it (`0x6698`, or `26264` in decimal) is
 /// `PR_REPLICA_LIST`'s.
 fn is_replica_tag(tag: &str) -> bool {
+    tag_number(tag) == Some(REPLICA_TAG)
+}
+
+/// A property tag as an answer writes it: `0x6698`, or `26264` in decimal.
+fn tag_number(tag: &str) -> Option<u32> {
     let tag = tag.trim();
-    let n = match tag.get(..2).filter(|p| p.eq_ignore_ascii_case("0x")) {
+    match tag.get(..2).filter(|p| p.eq_ignore_ascii_case("0x")) {
         Some(_) => tag.get(2..).and_then(|h| u32::from_str_radix(h, 16).ok()),
         None => tag.parse::<u32>().ok(),
-    };
-    n == Some(REPLICA_TAG)
+    }
 }
 
 /// The mailbox GUID in a `PR_REPLICA_LIST` value (base64 of the GUID as ASCII, NUL-ended).
@@ -771,6 +775,7 @@ pub use directory::DIRECTORY_MAX;
 #[cfg(test)]
 pub(crate) use directory::directory_name;
 mod mailbox;
+mod quota;
 mod requests;
 #[cfg(test)]
 use discover::autodiscover_answer;

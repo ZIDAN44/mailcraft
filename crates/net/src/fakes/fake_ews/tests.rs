@@ -16,6 +16,7 @@ mod elsewhere;
 mod large_folder;
 mod older;
 mod pim;
+mod quota;
 
 /// Gap #7: searching Exchange through EWS (`QueryString`, and a `Restriction` for the read
 /// state) for mail past the window.
