@@ -172,6 +172,12 @@ impl Session {
         self.pim.iter().find_map(|(a, p)| p.tasks.iter().find(|t| t.task.uid == uid).map(|t| TaskRef { account: a.clone(), task: t.task.clone() }))
     }
 
+    /// Tasks go to the server only where it keeps them: an on-premises Exchange account's Tasks
+    /// folder (issue #161), as its notes go to its Notes folder.
+    fn tasks_sync(&self, account: &str) -> bool {
+        self.notes_sync(account)
+    }
+
     fn task_account(&self, uid: &str) -> Result<String, CmdError> {
         self.find_task(uid).map(|r| r.account).ok_or_else(|| CmdError::Params(format!("no task `{uid}`")))
     }
@@ -210,15 +216,19 @@ impl Session {
             t.modified = now;
         }
         let uid = t.uid.clone();
+        let remote = self.tasks_sync(&account);
         let p = self.pim_mut(&account);
-        if replaces {
+        // One it takes the place of keeps its item on the server: changed there, not made twice.
+        let mut kept = StoredTask::default();
+        if replaces && let Some(at) = p.tasks.iter().position(|x| x.task.uid == uid) {
+            kept = p.tasks.remove(at);
             p.tasks.retain(|x| x.task.uid != uid);
         }
         if p.tasks.len() >= MAX_TASKS {
             return Err(CmdError::Params(format!("an account keeps at most {MAX_TASKS} tasks")));
         }
-        p.tasks.push(StoredTask { task: t });
-        self.after_pim_change(&account, false);
+        p.tasks.push(StoredTask { task: t, href: kept.href, etag: kept.etag, dirty: remote });
+        self.after_pim_change(&account, remote);
         Ok(serde_json::json!({"uid": uid, "account": account}))
     }
 
@@ -226,6 +236,7 @@ impl Session {
     pub fn update_task(&mut self, uid: &str, change: impl FnOnce(&mut Task)) -> CmdResult {
         let account = self.task_account(uid)?;
         let now = self.clock.now;
+        let remote = self.tasks_sync(&account);
         let p = self.pim_mut(&account);
         let Some(stored) = p.tasks.iter_mut().find(|t| t.task.uid == uid) else { return Err(CmdError::Params(format!("no task `{uid}`"))) };
         let before = stored.task.clone();
@@ -239,7 +250,8 @@ impl Session {
         }
         t.modified = now;
         stored.task = t;
-        self.after_pim_change(&account, false);
+        stored.dirty |= remote;
+        self.after_pim_change(&account, remote);
         Ok(serde_json::json!({"uid": uid}))
     }
 
@@ -277,8 +289,15 @@ impl Session {
 
     pub fn delete_task(&mut self, uid: &str) -> CmdResult {
         let account = self.task_account(uid)?;
-        self.pim_mut(&account).tasks.retain(|t| t.task.uid != uid);
-        self.after_pim_change(&account, false);
+        let p = self.pim_mut(&account);
+        // One on the server is deleted there too.
+        let mut remote = false;
+        for t in p.tasks.iter().filter(|t| t.task.uid == uid && !t.href.is_empty()) {
+            remote = true;
+            p.deleted.push(mailcraft_model::pim::Tombstone { href: t.href.clone(), etag: t.etag.clone(), ..Default::default() });
+        }
+        p.tasks.retain(|t| t.task.uid != uid);
+        self.after_pim_change(&account, remote);
         Ok(serde_json::json!({"deleted": uid}))
     }
 

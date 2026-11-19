@@ -151,7 +151,7 @@ fn a_tasks_reminder_stays_here_and_an_event_with_its_uid_is_told() {
     let (mut s, id) = account_with("reminder-task-uid", vec![with_reminder("same", "/cal/same.ics", false)], false);
     let reminds = NOW + 600;
     let task = mailcraft_model::pim::Task { uid: "same".into(), title: "Call back".into(), reminder: Some(reminds), ..Default::default() };
-    s.pim_mut(&id).tasks.push(mailcraft_model::pim::StoredTask { task });
+    s.pim_mut(&id).tasks.push(mailcraft_model::pim::StoredTask { task, ..Default::default() });
     s.clock.now = NOW + 3600 - 10 * 60;
     let keys: Vec<String> = s.due_reminders(s.clock.now).into_iter().map(|r| r.key).collect();
     let (of_task, of_event) = (format!("{id}|same|{reminds}"), format!("{id}|same|{}", NOW + 3600));

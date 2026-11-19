@@ -184,7 +184,7 @@ fn a_repeating_task_with_a_count_ends() {
 fn an_untitled_task_can_be_done_and_changed() {
     let mut s = sample_session("tasks-untitled");
     let task = mailcraft_model::pim::Task { uid: "imp-1".into(), due: Some(day(2026, 11, 5)), ..Default::default() };
-    s.pim.values_mut().next().unwrap().tasks.push(mailcraft_model::pim::StoredTask { task });
+    s.pim.values_mut().next().unwrap().tasks.push(mailcraft_model::pim::StoredTask { task, ..Default::default() });
     s.run("task.update", &json!({"uid": "imp-1", "percent": 50})).unwrap();
     assert_eq!(s.find_task("imp-1").unwrap().task.percent, 50);
     s.run("task.complete", &json!({"uid": "imp-1"})).unwrap();
@@ -266,7 +266,7 @@ fn measure_tasks_frame() {
             due: (i % 3 == 0).then_some(NOW + i * 3600),
             ..Default::default()
         };
-        p.tasks.push(mailcraft_model::pim::StoredTask { task });
+        p.tasks.push(mailcraft_model::pim::StoredTask { task, ..Default::default() });
     }
     let frame = |s: &Session| s.task_counts("", 0).0 + s.tasks("").len() + s.todo_items().len();
     let n = frame(&s);
@@ -275,4 +275,61 @@ fn measure_tasks_frame() {
         assert_eq!(frame(&s), n);
     }
     println!("MEASURE the Tasks view of 10000, a frame: {:.2} ms", t.elapsed().as_secs_f64() * 1000.0 / 20.0);
+}
+
+/// Issue #161: an Exchange account's tasks go to its Tasks folder. One made, changed or done here
+/// is to send (and the account syncs); one deleted that's there is deleted there. What the
+/// server read takes the place of the rest, those changed here staying; those made before the
+/// server kept tasks go up then. A task of an account with no such server stays here alone.
+#[test]
+fn an_exchange_accounts_tasks_go_to_its_tasks_folder() {
+    use mailcraft_model::pim::{DavSync, StoredTask, Task};
+    let mut s = Session::open(Some(temp("tasks-ews")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s
+        .run("account.add", &json!({"email": "zoe@contoso.example", "password": "pw", "ews": "https://mail.contoso.example/EWS/Exchange.asmx"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    // One kept here before the server kept tasks.
+    let old = Task { uid: "t-old".into(), title: "Old one".into(), ..Default::default() };
+    s.pim_mut(&id).tasks.push(StoredTask { task: old, ..Default::default() });
+    s.take_jobs();
+    let synced = |s: &mut Session| s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { account } if *account == id));
+    let uid = s.run("task.create", &json!({"title": "Book the sound stage", "account": id})).unwrap()["uid"].as_str().unwrap().to_string();
+    let stored = |s: &Session, uid: &str| s.pim[&id].tasks.iter().find(|t| t.task.uid == uid).cloned();
+    assert!(stored(&s, &uid).unwrap().dirty && synced(&mut s), "made: to send");
+
+    // Stored there, and the folder read: the server's ones in, the old one to send now.
+    let mut pushed = stored(&s, &uid).unwrap();
+    (pushed.href, pushed.etag, pushed.dirty) = ("task:A1".into(), "ck".into(), false);
+    let outlook = StoredTask {
+        task: Task { uid: "task:B2".into(), title: "From Outlook".into(), ..Default::default() },
+        href: "task:B2".into(),
+        ..Default::default()
+    };
+    let sync = DavSync {
+        pushed_tasks: vec![pushed.clone()],
+        tasks: Some(vec![StoredTask { task: Task { uid: "task:A1".into(), ..pushed.task.clone() }, ..pushed.clone() }, outlook]),
+        ..Default::default()
+    };
+    s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(sync) });
+    let titles: Vec<String> = s.pim[&id].tasks.iter().map(|t| t.task.title.clone()).collect();
+    assert_eq!(titles.len(), 3, "{titles:?}");
+    assert!(titles.contains(&"From Outlook".to_string()) && titles.contains(&"Book the sound stage".to_string()));
+    assert!(stored(&s, "t-old").unwrap().dirty && synced(&mut s), "made before: sent now");
+
+    // Changed here: to send. Deleted here: deleted there.
+    s.run("task.complete", &json!({"uid": "task:B2"})).unwrap();
+    assert!(stored(&s, "task:B2").unwrap().dirty && synced(&mut s));
+    s.run("task.delete", &json!({"uid": "task:B2"})).unwrap();
+    assert!(s.pim[&id].deleted.iter().any(|t| t.href == "task:B2") && synced(&mut s));
+    // One kept here alone (never sent) leaves nothing to delete there.
+    s.run("task.delete", &json!({"uid": "t-old"})).unwrap();
+    assert_eq!(s.pim[&id].deleted.len(), 1);
+
+    // An account without such a server: its tasks stay here.
+    let mut sample = sample_session("tasks-local");
+    let local = sample.run("task.create", &json!({"title": "Water the plants"})).unwrap()["uid"].as_str().unwrap().to_string();
+    assert!(sample.pim.values().flat_map(|p| &p.tasks).any(|t| t.task.uid == local && !t.dirty));
 }

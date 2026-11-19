@@ -71,6 +71,9 @@ impl Pass {
                 // read again.
                 push_notes(c, pim, out);
                 read_notes(c, out);
+                // Tasks (issue #161), the same way.
+                push_tasks(c, pim, out);
+                read_tasks(c, out);
                 Step::Done
             }
             Step::Done => Step::Done,

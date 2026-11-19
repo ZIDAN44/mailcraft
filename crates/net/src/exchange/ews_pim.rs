@@ -564,8 +564,10 @@ pub use pass::sync;
 mod pushing;
 mod reading;
 mod reminders;
+mod tasks;
 use pushing::{push_cards, push_deletions, push_events, push_notes};
 use reading::{read_calendar, read_contacts, read_notes, read_public, read_shared_calendar};
+use tasks::{TASK_FIELDS, push_tasks, read_tasks};
 
 #[cfg(test)]
 mod tests;

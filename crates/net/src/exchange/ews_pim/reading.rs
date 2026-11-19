@@ -204,6 +204,7 @@ pub(super) fn items(c: &Client, folder: &str) -> Result<Read> {
     let extra = match folder {
         "calendar" => RECURRENCE,
         "notes" => NOTE_COLOR,
+        "tasks" => TASK_FIELDS,
         _ => "",
     };
     items_in(c, &format!("<t:DistinguishedFolderId Id=\"{folder}\"/>"), extra)

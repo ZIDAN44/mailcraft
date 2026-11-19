@@ -267,3 +267,62 @@ fn real_ews_new_mail_in_any_folder() {
     assert!(in_filed(), "the message in {path} within a minute");
     eprintln!("came in {:.1} s", came.elapsed().as_secs_f32());
 }
+
+/// Issue #161: a task made here is made in the mailbox's Tasks folder and read back with its
+/// days, status, priority, reminder, categories and notes; changed (done, its start and
+/// reminder taken off) it's changed in place; deleted, it's gone. What it leaves is its own.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_tasks() {
+    use mailcraft_model::pim::{StoredTask, Task, TaskPriority, TaskStatus, Tombstone};
+    let Some((url, user, password)) = server() else {
+        eprintln!("MAILCRAFT_REAL_EWS not set: skipped");
+        return;
+    };
+    let day = |d: u32| mailcraft_model::dates::days_from_civil(2026, 11, d) * 86_400;
+    let c = crate::ews::Client::connect(&url, &user, &password, &user).unwrap();
+    let title = format!("MailCraft task {}", std::process::id());
+    let task = Task {
+        uid: "t-real".into(),
+        title: title.clone(),
+        notes: "Reels 2 and 3\nwarmer".into(),
+        start: Some(day(18)),
+        due: Some(day(20)),
+        status: TaskStatus::InProgress,
+        percent: 50,
+        priority: TaskPriority::High,
+        categories: vec!["Clients".into()],
+        reminder: Some(day(20) + 8 * 3600),
+        modified: 5,
+        ..Default::default()
+    };
+    let pim = Pim { tasks: vec![StoredTask { task, dirty: true, ..Default::default() }], ..Default::default() };
+    let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_000).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let [pushed] = sync.pushed_tasks.as_slice() else { panic!("{:?}", sync.pushed_tasks) };
+    let read = sync.tasks.clone().expect("the Tasks folder");
+    let mine = read.iter().find(|t| t.href == pushed.href).unwrap_or_else(|| panic!("{title} not read back: {read:?}"));
+    eprintln!("read back: {:?}", mine.task);
+    let t = &mine.task;
+    assert_eq!((t.title.as_str(), t.notes.as_str()), (title.as_str(), "Reels 2 and 3\nwarmer"));
+    assert_eq!((t.start, t.due), (Some(day(18)), Some(day(20))));
+    assert_eq!((t.status, t.percent, t.priority), (TaskStatus::InProgress, 50, TaskPriority::High));
+    assert_eq!((t.categories.clone(), t.reminder), (vec!["Clients".to_string()], Some(day(20) + 8 * 3600)));
+
+    // Done, its start and reminder taken off: changed in place.
+    let mut done = mine.clone();
+    done.task.set_done(true, day(19));
+    (done.task.start, done.task.reminder, done.dirty) = (None, None, true);
+    let sync = crate::ews_pim::sync(&c, &Pim { tasks: vec![done], ..Default::default() }, 1_792_000_100).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let after = sync.tasks.unwrap().into_iter().find(|x| x.href == mine.href).expect("the same item");
+    eprintln!("after: {:?}", after.task);
+    assert!(after.task.is_done() && after.task.percent == 100);
+    assert_eq!((after.task.start, after.task.reminder, after.task.due), (None, None, Some(day(20))));
+
+    // Deleted: gone.
+    let pim = Pim { deleted: vec![Tombstone { href: mine.href.clone(), ..Default::default() }], ..Default::default() };
+    let sync = crate::ews_pim::sync(&c, &pim, 1_792_000_200).unwrap();
+    assert_eq!(sync.deleted, std::slice::from_ref(&mine.href));
+    assert!(sync.tasks.unwrap().iter().all(|x| x.href != mine.href));
+}

@@ -112,7 +112,8 @@ How it works:
 - **The open message** can be parsed on the reading lane (`session/opening/prepare.rs`). A command
   that acts on it finishes parsing the body first. The CLI and the tests always parse straight
   away.
-- **Tasks** live in each account's `pim.json`, on this computer only.
+- **Tasks** live in each account's `pim.json`; an on-premises Exchange account's also in its
+  mailbox's Tasks folder, synced as its notes are (`net/src/exchange/ews_pim/tasks.rs`).
 - **Sending:** `Session::send_block` says why an account can't send. `Session::deliver`, which
   every way of sending goes through, refuses to send from such an account.
 

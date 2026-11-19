@@ -116,7 +116,7 @@ impl Data {
         out
     }
 
-    /// `CreateItem`: a calendar, contacts or notes item kept as made; a message from its MIME
+    /// `CreateItem`: a calendar, contacts, notes or tasks item kept as made; a message from its MIME
     /// source, saved (a draft) or sent and saved.
     pub(super) fn create_item(&mut self, op: &El) -> Vec<String> {
         let send = op.attr("MessageDisposition") == Some("SendAndSaveCopy");
@@ -128,7 +128,7 @@ impl Data {
                 out.push(err(if self.unrouted(&folder) { "ErrorFolderNotFound" } else { "ErrorAccessDenied" }));
                 continue;
             }
-            if m.name == "CalendarItem" || m.name == "Contact" || sticky {
+            if m.name == "CalendarItem" || m.name == "Contact" || m.name == "Task" || sticky {
                 let id = self.id("P");
                 out.push(ok(format!("<m:Items><t:{0}><t:ItemId Id=\"{id}\" ChangeKey=\"ck\"/></t:{0}></m:Items>", m.name)));
                 self.pim.push(PimItem { id, folder: folder.clone(), el: m });

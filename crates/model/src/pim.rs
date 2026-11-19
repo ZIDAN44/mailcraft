@@ -274,7 +274,7 @@ pub struct Pim {
     /// Notes (Outlook's Notes): the server's (Exchange) and those kept here.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<StoredNote>,
-    /// Tasks (Outlook's Tasks), kept on this computer.
+    /// Tasks (Outlook's Tasks): the server's (Exchange) and those kept here.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tasks: Vec<StoredTask>,
     /// Where the server keeps the user's calendars and address books (found once); empty when
@@ -413,6 +413,12 @@ pub struct DavSync {
     pub notes: Option<Vec<StoredNote>>,
     #[serde(default)]
     pub pushed_notes: Vec<StoredNote>,
+    /// The server's tasks (Exchange's Tasks folder, issue #161), read in full (`None`: it keeps
+    /// none, so tasks stay on this computer), and the tasks stored there this time.
+    #[serde(default)]
+    pub tasks: Option<Vec<StoredTask>>,
+    #[serde(default)]
+    pub pushed_tasks: Vec<StoredTask>,
     /// Deletions done (by href).
     pub deleted: Vec<String>,
     /// What couldn't be stored or deleted (tried again next time).

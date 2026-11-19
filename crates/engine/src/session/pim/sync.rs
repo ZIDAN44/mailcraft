@@ -64,6 +64,31 @@ impl Session {
                 }
             }
         }
+        // Tasks (issue #161), as the notes: those stored on the server have their item there and
+        // are no longer to send; the server's read again take the place of the rest, those
+        // changed here (and those never sent) staying.
+        for x in &sync.pushed_tasks {
+            for t in p.tasks.iter_mut().filter(|t| t.task.uid == x.task.uid) {
+                t.href = x.href.clone();
+                t.etag = x.etag.clone();
+                t.dirty &= t.task != x.task;
+            }
+        }
+        let mut unsent = false;
+        if let Some(server) = &sync.tasks {
+            p.tasks.retain(|t| t.dirty || t.href.is_empty());
+            // Made here before the server kept them (or while it couldn't be reached): sent now.
+            for t in p.tasks.iter_mut().filter(|t| t.href.is_empty() && !t.dirty) {
+                t.dirty = true;
+                unsent = true;
+            }
+            let mut here: HashSet<String> = p.tasks.iter().filter(|t| !t.href.is_empty()).map(|t| t.href.clone()).collect();
+            for x in server {
+                if x.href.is_empty() || here.insert(x.href.clone()) {
+                    p.tasks.push(x.clone());
+                }
+            }
+        }
         for x in &sync.pushed_cards {
             for c in p.cards.iter_mut().filter(|c| c.card.uid == x.card.uid) {
                 c.href = x.href.clone();
@@ -160,6 +185,10 @@ impl Session {
             self.notice(format!("calendars and contacts: {e}"), true);
         }
         self.save_pim(account);
+        // Tasks made before the server kept them go there now, not at the next pass.
+        if unsent {
+            self.after_pim_change(account, true);
+        }
         // Meeting messages waiting for the server (see `invite::notices`), and answered
         // invitations waiting to go out of the way.
         self.after_dav_sync(account);

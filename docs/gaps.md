@@ -100,7 +100,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   and contacts server on this computer. In MailCraft, add an account and, under its form, click
   **Add a CalDAV and CardDAV account**: the address `http://localhost:37358/`, the EteSync user
   name, and the password the bridge shows (not the EteSync password). Calendars and
-  contacts sync both ways. Lists of tasks don't (MailCraft keeps its tasks on this computer), and
+  contacts sync both ways. Lists of tasks don't (MailCraft syncs tasks with Exchange only), and
   the bridge doesn't offer notes.
 - **Cause:** It needs an Etebase client of MailCraft's own: the Rust library EteSync publishes
   brings C libraries with it (OpenSSL and libsodium), which MailCraft doesn't build with.

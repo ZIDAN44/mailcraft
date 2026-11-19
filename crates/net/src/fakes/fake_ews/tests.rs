@@ -19,6 +19,7 @@ mod older;
 mod pim;
 mod quota;
 mod rules;
+mod tasks;
 mod threading;
 mod watching;
 

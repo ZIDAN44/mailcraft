@@ -18,7 +18,8 @@ fn delete(c: &Client, id: &str) -> Result<()> {
 /// again, as it may be taken later.
 pub(super) fn push_deletions(c: &Client, pim: &Pim, out: &mut DavSync) {
     for t in &pim.deleted {
-        match in_calendar(c, &t.calendar, || delete(c, t.href.trim_start_matches("contact:").trim_start_matches("note:"))) {
+        match in_calendar(c, &t.calendar, || delete(c, t.href.trim_start_matches("contact:").trim_start_matches("note:").trim_start_matches("task:")))
+        {
             Ok(()) => out.deleted.push(t.href.clone()),
             Err(e) if crate::ews::gone(&e) => out.deleted.push(t.href.clone()),
             Err(e) => {
