@@ -14,6 +14,12 @@ const CHALLENGE: [u8; 8] = [1, 2, 3, 4, 5, 6, 7, 8];
 /// A server that names `auth` on its `EHLO` (none when empty) and plays NTLM, PLAIN and the
 /// message through; each line it was sent is kept.
 fn server(auth: &'static str, ntlm_verdict: &'static str) -> (u16, Arc<Mutex<Vec<String>>>) {
+    server_as(auth, ntlm_verdict, false)
+}
+
+/// [`server`]; `one_hello`: a second `EHLO` in the session refused ("503 Bad sequence of
+/// commands"), as IONOS's servers do (issue #165).
+fn server_as(auth: &'static str, ntlm_verdict: &'static str, one_hello: bool) -> (u16, Arc<Mutex<Vec<String>>>) {
     let socket = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).unwrap();
     let port = socket.local_addr().unwrap().port();
     let lines = Arc::new(Mutex::new(Vec::new()));
@@ -22,13 +28,16 @@ fn server(auth: &'static str, ntlm_verdict: &'static str) -> (u16, Arc<Mutex<Vec
         let Ok((sock, _)) = socket.accept() else { return };
         let mut out = sock.try_clone().unwrap();
         let _ = out.write_all(b"220 scripted.test ready\r\n");
-        let mut in_data = false;
+        let (mut in_data, mut hellos) = (false, 0);
         for line in BufReader::new(sock).lines().map_while(std::result::Result::ok) {
             kept.lock().unwrap().push(line.clone());
             let answer = if in_data {
                 in_data = line != ".";
                 if in_data { String::new() } else { "250 2.0.0 queued\r\n".into() }
+            } else if line.starts_with("EHLO") && one_hello && hellos > 0 {
+                "503 Bad sequence of commands\r\n".into()
             } else if line.starts_with("EHLO") {
+                hellos += 1;
                 if auth.is_empty() { "250-scripted.test\r\n250 8BITMIME\r\n".into() } else { format!("250-scripted.test\r\n250 AUTH {auth}\r\n") }
             } else if line == "AUTH NTLM" {
                 "334 \r\n".into()
@@ -137,4 +146,25 @@ fn methods_mailcraft_doesnt_speak_are_named() {
     let e = send_with(port, SignInMethod::Automatic).unwrap_err();
     assert!(matches!(&e, NetError::Auth(m) if m.contains("CRAM-MD5, GSSAPI")), "{e:?}");
     assert!(!sent(&lines).iter().any(|l| l.starts_with("MAIL")), "nothing sent");
+}
+
+/// A server that refuses a second `EHLO` in its session (IONOS's, issue #165: "503 Bad sequence
+/// of commands", every message refused): the password goes by what the first one named, with no
+/// second asked; one that names nothing MailCraft's mail library knows is asked again, and a
+/// refusal of that is taken as nothing more named.
+#[test]
+fn a_server_that_says_hello_once_is_signed_in_to() {
+    for method in [SignInMethod::Automatic, SignInMethod::Password] {
+        let (port, lines) = server_as("PLAIN LOGIN", "", true);
+        send_with(port, method).unwrap_or_else(|e| panic!("{method:?}: {e}"));
+        let lines = sent(&lines);
+        assert_eq!(lines.iter().filter(|l| l.starts_with("EHLO")).count(), 1, "{method:?}: {lines:?}");
+        assert!(lines.iter().any(|l| l.starts_with("AUTH PLAIN") || l.starts_with("AUTH LOGIN")), "{lines:?}");
+        assert!(lines.iter().any(|l| l.starts_with("MAIL FROM")), "sent: {lines:?}");
+    }
+    // NTLM is only seen by asking again: asked, refused, nothing more known; left to MailCraft
+    // (no sign-in it knows of), sent as a server taking mail without one.
+    let (port, lines) = server_as("NTLM", "", true);
+    send_with(port, SignInMethod::Automatic).unwrap();
+    assert!(sent(&lines).iter().any(|l| l.starts_with("MAIL FROM")));
 }

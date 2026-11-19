@@ -144,7 +144,27 @@ fn sign_in_to(conn: &mut SmtpConnection, hello: &ClientId, sign_in: &SignIn<'_>,
     if sign_in.oauth {
         return conn.auth(&[Mechanism::Xoauth2], &credentials).map(drop).map_err(failed);
     }
-    let offered = offered_sign_ins(conn, hello).map_err(failed)?;
+    // What the connection's `EHLO` named that lettre speaks. Asked again only for what it doesn't
+    // (NTLM): IONOS's servers refuse a second `EHLO` in a session ("503 Bad sequence of
+    // commands", issue #165), and every message was refused. One refused counts as no more.
+    let info = conn.server_info();
+    let known: Vec<String> = [(Mechanism::Plain, "PLAIN"), (Mechanism::Login, "LOGIN"), (Mechanism::Xoauth2, "XOAUTH2")]
+        .into_iter()
+        .filter(|(m, _)| info.supports_auth_mechanism(*m))
+        .map(|(_, name)| name.to_string())
+        .collect();
+    let password_known = known.iter().any(|m| m == "PLAIN" || m == "LOGIN");
+    let offered = if password_known && sign_in.method != SignInMethod::Ntlm {
+        known
+    } else {
+        match offered_sign_ins(conn, hello) {
+            Ok(all) => all,
+            Err(e) => {
+                log::info!("the outgoing server refused EHLO asked again ({e}): what it named first is used");
+                known
+            }
+        }
+    };
     let has = |m: &str| offered.iter().any(|o| o == m);
     let password = has("PLAIN") || has("LOGIN");
     let names = || if offered.is_empty() { "none".to_string() } else { offered.join(", ") };
