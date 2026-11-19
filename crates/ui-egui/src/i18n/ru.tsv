@@ -1856,3 +1856,7 @@ count	occurrences	повторений
 	With 2-Step Verification on, Google takes an app password here, not your Google password.	Если включена двухэтапная аутентификация, здесь Google принимает пароль приложения, а не пароль от аккаунта Google.
 	Make an app password	Создать пароль приложения
 	Custom…	Настраиваемый…
+	Start in	Открывать при запуске
+	What opens when MailCraft starts	Что открывается при запуске MailCraft
+	The first account's Inbox	Входящие первой учётной записи
+	The folder open last	Последняя открытая папка

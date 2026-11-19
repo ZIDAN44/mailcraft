@@ -16,6 +16,7 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
                 acts.push(Action::Run("view.readingPane", json!({"value": code})));
             }
         });
+        start_in(s, t, ui, acts);
         let switches = [
             (tl!("Group messages by conversation"), None, s.prefs.conversations, "view.conversations"),
             (tl!("Show a line of each message in the list"), None, s.prefs.show_preview, "view.preview"),
@@ -198,5 +199,53 @@ pub(super) fn checking(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
                     .accessible_name(c.email.as_str());
             });
         }
+    });
+}
+
+/// What opens at the start (issue #172), as Outlook's "Start Outlook in this folder": the first
+/// account's Inbox, All Inboxes, the folder open last, or any account's folder.
+fn start_in(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    use mailcraft_engine::StartIn;
+    let folder_name = |account: &str, folder: &str| -> Option<String> {
+        let a = s.account(account)?;
+        let f = a.folders.iter().find(|f| f.path == folder)?;
+        let who = if a.config.email.is_empty() { a.config.name.as_str() } else { a.config.email.as_str() };
+        Some(format!("{who} › {}", crate::i18n::folder(f)))
+    };
+    let shown = match &s.prefs.start_in {
+        StartIn::FirstInbox => tl!("The first account's Inbox").to_string(),
+        StartIn::AllInboxes => tl!("All Inboxes").to_string(),
+        StartIn::Last => tl!("The folder open last").to_string(),
+        StartIn::Folder { account, folder } => folder_name(account, folder).unwrap_or_else(|| tl!("The first account's Inbox").to_string()),
+    };
+    setting(ui, t, false, tl!("Start in"), Some(tl!("What opens when MailCraft starts")), |ui| {
+        egui::ComboBox::from_id_salt("start-in")
+            .width(260.0)
+            .height(400.0)
+            .selected_text(shown)
+            .show_ui(ui, |ui| {
+                for (open, label) in [("firstInbox", "The first account's Inbox"), ("allInboxes", "All Inboxes"), ("last", "The folder open last")] {
+                    let on = matches!(
+                        (&s.prefs.start_in, open),
+                        (StartIn::FirstInbox, "firstInbox") | (StartIn::AllInboxes, "allInboxes") | (StartIn::Last, "last")
+                    );
+                    if ui.selectable_label(on, tl!(label)).clicked() {
+                        acts.push(Action::Run("options.startIn", json!({"open": open})));
+                    }
+                }
+                for a in s.accounts.iter().filter(|a| !a.folders.is_empty()) {
+                    ui.separator();
+                    for f in &a.folders {
+                        let on = matches!(&s.prefs.start_in, StartIn::Folder { account, folder } if *account == a.config.id && *folder == f.path);
+                        let Some(name) = folder_name(&a.config.id, &f.path) else { continue };
+                        if ui.selectable_label(on, name).clicked() {
+                            acts.push(Action::Run("options.startIn", json!({"open": "folder", "account": a.config.id, "folder": f.path})));
+                        }
+                    }
+                }
+            })
+            .response
+            // The setting's name is beside it in the row, which doesn't hand it on.
+            .accessible_name(tl!("Start in"));
     });
 }

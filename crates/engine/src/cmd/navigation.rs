@@ -55,6 +55,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"seconds": s.prefs.undo_send_secs}))
         })
         .params(r#"{"seconds"?: 0-60 (0: sent at once)}"#),
+        CommandSpec::new("options.startIn", "Start in", "File › Options › Mail", start_in).params(
+            r#"{"open"?: "firstInbox"|"allInboxes"|"last"|"folder" (what opens at the start), "account"?: string, "folder"?: string (the folder, for "folder")}"#,
+        ),
         CommandSpec::new("outbox.edit", "Edit queued message", "Outbox", |s, v| {
             let k = parse_key(v).or_else(|| s.reading.as_ref().map(|r| r.key.clone())).ok_or_else(|| CmdError::Params("`key` is required".into()))?;
             s.edit_outbox(&k)
@@ -292,6 +295,28 @@ pub(super) fn open_folder(s: &mut Session, v: &Value) -> CmdResult {
     }
     s.open_view(View::Folder { account, folder });
     Ok(json!({"messages": s.list.len()}))
+}
+
+/// What opens at the start (issue #172): set when `open` is given, and said.
+fn start_in(s: &mut Session, v: &Value) -> CmdResult {
+    use crate::session::StartIn;
+    if let Some(open) = p::str(v, "open") {
+        s.prefs.start_in = match open {
+            "firstInbox" => StartIn::FirstInbox,
+            "allInboxes" => StartIn::AllInboxes,
+            "last" => StartIn::Last,
+            "folder" => {
+                let account = p::req_str(v, "account")?.to_string();
+                let folder = p::req_str(v, "folder")?.to_string();
+                if s.folder(&account, &folder).is_none() {
+                    return Err(CmdError::Params(format!("no folder `{folder}` in account `{account}`")));
+                }
+                StartIn::Folder { account, folder }
+            }
+            other => return Err(CmdError::Params(format!("`open`: firstInbox, allInboxes, last or folder, not `{other}`"))),
+        };
+    }
+    serde_json::to_value(&s.prefs.start_in).map_err(|e| CmdError::Failed(e.to_string()))
 }
 
 pub(super) fn unified(s: &mut Session, v: &Value) -> CmdResult {

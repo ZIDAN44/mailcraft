@@ -30,7 +30,7 @@ pub use session::{
     FolderRef, IDLE_AFTER_S, ImportState, Imports, IndexPass, KeySource, KnownCert, KnownKey, ListFilter, Lock, MoveTarget, NotesOrder, Notice,
     PANICS_CAUGHT, PGP_DOC, PaneSection, PgpSettings, Picture, Prefs, PreparedBody, Quote, Reach, Reactions, ReadInPane, Reading, ReadingPane,
     RevocationCheck, Row, SMIME_DOC, SOURCE_SHOWN, Scheme, Seal, SearchProgress, SearchScope, SearchStats, SearchWork, Security, SendBlock,
-    SendCheck, SendReceive, SenderAddresses, SenderMarks, ServerSearch, Session, SignedBy, SmimeSettings, SourceView, TransferRow,
+    SendCheck, SendReceive, SenderAddresses, SenderMarks, ServerSearch, Session, SignedBy, SmimeSettings, SourceView, StartIn, TransferRow,
     TrustedCertificate, UNDO_SEND_MAX, UndoHold, UpdateCheck, VacationState, View, accent_code, accent_rgb,
     invite::{AnsweredInvites, Invite, InviteProblem, Route},
     junk::{JunkList, junk_entry},

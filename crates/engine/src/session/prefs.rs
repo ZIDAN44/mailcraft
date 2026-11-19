@@ -49,6 +49,22 @@ pub enum CtrlEnter {
     Nothing,
 }
 
+/// What opens at the start (issue #172): the first account's Inbox (Outlook's first mailbox), All
+/// Inboxes, the folder open when MailCraft last closed, or a folder chosen.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "open")]
+pub enum StartIn {
+    #[default]
+    FirstInbox,
+    AllInboxes,
+    Last,
+    #[serde(rename_all = "camelCase")]
+    Folder {
+        account: String,
+        folder: String,
+    },
+}
+
 /// Settings the user changes from the View tab (saved by the app).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -157,6 +173,11 @@ pub struct Prefs {
     pub ctrl_enter: CtrlEnter,
     /// Seconds a message sent waits in the Outbox, to be undone (issue #135); 0: none.
     pub undo_send_secs: u32,
+    /// What opens at the start (issue #172).
+    pub start_in: StartIn,
+    /// The folder open last (All Inboxes or an account's), for [`StartIn::Last`].
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_open: Option<StartIn>,
     /// The folder pane shows Favorites at its top (issue #11: it could only be collapsed).
     pub show_favorites: bool,
     /// Meeting invitations go into the calendar as tentative when they arrive, before they're
@@ -332,6 +353,8 @@ impl Default for Prefs {
             confirm_permanent_delete: true,
             ctrl_enter: CtrlEnter::Ask,
             undo_send_secs: 0,
+            start_in: StartIn::FirstInbox,
+            last_open: None,
             favorites: None,
             notify: true,
             close_to_tray: false,

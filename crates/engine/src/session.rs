@@ -59,7 +59,7 @@ pub use mailboxes::{ARRANGE_HEADINGS, Arrange, ListFilter, Row};
 // Organizing mail's own parts, named here as before.
 pub use opening::SenderMarks;
 pub use organize::{junk, quick_steps, search_folders, server_rules};
-pub use prefs::{ACCENTS, CtrlEnter, NotesOrder, Prefs, ReadInPane, ReadingPane, SenderAddresses, accent_code, accent_rgb};
+pub use prefs::{ACCENTS, CtrlEnter, NotesOrder, Prefs, ReadInPane, ReadingPane, SenderAddresses, StartIn, accent_code, accent_rgb};
 pub mod pim;
 pub use pim::invite;
 

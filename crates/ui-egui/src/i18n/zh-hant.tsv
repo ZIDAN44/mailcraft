@@ -1856,3 +1856,7 @@ count	occurrences	次
 	With 2-Step Verification on, Google takes an app password here, not your Google password.	開啟兩步驟驗證後，這裡需要輸入應用程式密碼，而不是你的 Google 密碼。
 	Make an app password	建立應用程式密碼
 	Custom…	自訂…
+	Start in	啟動時開啟
+	What opens when MailCraft starts	MailCraft 啟動時開啟的位置
+	The first account's Inbox	第一個帳戶的收件匣
+	The folder open last	上次開啟的資料夾

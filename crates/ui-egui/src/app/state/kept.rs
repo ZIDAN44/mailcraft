@@ -47,7 +47,9 @@ impl MailApp {
         let offline = p.work_offline;
         let keep = (p.keep_messages, p.keep_offline);
         self.session.prefs = p;
-        self.session.refresh_list();
+        // What File › Options › Start in says opens (issue #172: always the first Inbox).
+        let start = self.session.start_view();
+        self.session.open_view(start);
         // How much mail to keep, before any account connects (when it isn't the default).
         let d = mailcraft_engine::Prefs::default();
         if keep != (d.keep_messages, d.keep_offline) {

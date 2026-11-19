@@ -32,12 +32,35 @@ impl Session {
         });
     }
 
+    /// What opens at the start, as File › Options › Start in says (issue #172), when it's still
+    /// there: the first account's Inbox otherwise (a folder since deleted, an account removed).
+    pub fn start_view(&self) -> View {
+        let place = match &self.prefs.start_in {
+            StartIn::Last => self.prefs.last_open.as_ref(),
+            other => Some(other),
+        };
+        let view = match place {
+            Some(StartIn::AllInboxes) if !self.accounts.is_empty() => Some(View::Unified { role: FolderRole::Inbox }),
+            Some(StartIn::Folder { account, folder }) if self.folder(account, folder).is_some() => {
+                Some(View::Folder { account: account.clone(), folder: folder.clone() })
+            }
+            _ => None,
+        };
+        view.unwrap_or_else(|| self.default_view())
+    }
+
     /// What drops of message files on folders did, since last asked.
     pub fn take_filed(&mut self) -> Vec<Filed> {
         std::mem::take(&mut self.filed)
     }
 
     pub fn open_view(&mut self, view: View) {
+        // Kept for File › Options › Start in › The folder open last (issue #172).
+        match &view {
+            View::Folder { account, folder } => self.prefs.last_open = Some(StartIn::Folder { account: account.clone(), folder: folder.clone() }),
+            View::Unified { role: FolderRole::Inbox } => self.prefs.last_open = Some(StartIn::AllInboxes),
+            _ => {}
+        }
         self.view = view;
         self.search = None;
         self.drop_search();

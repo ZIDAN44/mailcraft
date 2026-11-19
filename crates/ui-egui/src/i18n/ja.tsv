@@ -1853,3 +1853,7 @@ count	occurrences	回
 	With 2-Step Verification on, Google takes an app password here, not your Google password.	2 段階認証プロセスがオンの場合、ここには Google のパスワードではなくアプリ パスワードを入力します。
 	Make an app password	アプリ パスワードを作成
 	Custom…	ユーザー設定…
+	Start in	起動時に開く場所
+	What opens when MailCraft starts	MailCraft の起動時に開く場所
+	The first account's Inbox	最初のアカウントの受信トレイ
+	The folder open last	最後に開いたフォルダー

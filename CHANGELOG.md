@@ -24,6 +24,7 @@ on GitHub.
 - **Calendar groups** for an Exchange or Microsoft 365 account (#140), as Outlook's: **New calendar group…** in the calendar's side pane names a group and picks its people from the address book, your organisation's directory among them. Their calendars are listed under the group's name, shown and hidden together by its box; right-click deletes the group. **Open shared calendar** picks from the address book too, several people at once.
 - The calendar's **Schedule** view (#141), beside Day, Week and Month: a day's hours across, a row for each calendar shown and one for all of them together on top, to see when several people are free at once. Clicking or dragging across free time on a colleague's row starts a meeting with them invited; on the row of all together, with everyone shown; on your own calendar, an event in it.
 - A right-click on a row of the To-Do Bar's task list opens its menu, as Outlook's (#160): **Open**, **Follow up** › Today to Next week, **No date** or **Custom…** (a day picked from a month), **Mark complete**, and **Clear flag** for flagged mail in any folder; a task's **Categorize** and **Delete**.
+- **Start in**, in **File › Options › Mail** (#172): MailCraft can start in **All Inboxes**, the folder open when it last closed, or any account's folder, as Outlook's "Start Outlook in this folder"; it always opened the first account's Inbox, which stays the default.
 
 ### Changed
 

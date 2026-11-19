@@ -382,3 +382,37 @@ proptest! {
         }
     }
 }
+
+/// Issue #172: what opens at the start is chosen (File › Options › Start in): the first account's
+/// Inbox as before, All Inboxes, the folder open last, or a folder; one no longer there opens
+/// the first Inbox. Kept with the settings.
+#[test]
+fn what_opens_at_the_start_is_chosen() {
+    use crate::session::StartIn;
+    let mut s = sample_session("start-in");
+    let inbox = View::Folder { account: "sample".into(), folder: "INBOX".into() };
+    assert_eq!(s.start_view(), inbox, "the first Inbox, as before");
+    s.run("options.startIn", &json!({"open": "allInboxes"})).unwrap();
+    assert_eq!(s.start_view(), View::Unified { role: FolderRole::Inbox });
+    let sent = s.account("sample").and_then(|a| a.folder(FolderRole::Sent)).map(|f| f.path.clone()).unwrap();
+    s.run("options.startIn", &json!({"open": "folder", "account": "sample", "folder": sent})).unwrap();
+    assert_eq!(s.start_view(), View::Folder { account: "sample".into(), folder: sent.clone() });
+    // The folder open last: what was opened, wherever.
+    s.run("options.startIn", &json!({"open": "last"})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    assert_eq!(s.start_view(), View::Folder { account: "sample".into(), folder: "Projects".into() });
+    s.run("folder.unified", &json!({})).unwrap();
+    assert_eq!(s.start_view(), View::Unified { role: FolderRole::Inbox });
+    // Kept with the settings, and read back.
+    let kept: crate::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
+    assert_eq!((kept.start_in, kept.last_open), (StartIn::Last, Some(StartIn::AllInboxes)));
+    // A folder that isn't there (deleted since, an account removed): the first Inbox.
+    s.prefs.start_in = StartIn::Folder { account: "sample".into(), folder: "Gone".into() };
+    assert_eq!(s.start_view(), inbox);
+    s.prefs.start_in = StartIn::Folder { account: "nobody".into(), folder: "INBOX".into() };
+    assert_eq!(s.start_view(), inbox);
+    for bad in [json!({"open": "folder", "account": "sample", "folder": "Gone"}), json!({"open": "folder"}), json!({"open": "sideways"})] {
+        assert!(s.run("options.startIn", &bad).is_err(), "{bad}");
+    }
+    assert_eq!(s.run("options.startIn", &json!({})).unwrap(), json!({"open": "folder", "account": "nobody", "folder": "INBOX"}));
+}

@@ -640,3 +640,34 @@ fn the_panes_keep_their_sizes_between_starts() {
     c.restore_state(&json!({"panes": {"list": -5.0, "folders": 1e30}}));
     assert_eq!((c.ui.pane_sizes.list, c.ui.pane_sizes.folders), (None, None));
 }
+
+/// Issue #172: MailCraft starts in what File › Options › Start in says: All Inboxes, or the
+/// folder open when it last closed; the first Inbox when nothing is said, as before.
+#[test]
+fn it_starts_in_the_folder_chosen() {
+    use mailcraft_engine::View;
+    let (mut a, _) = app("start-in");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    let tall = egui::vec2(1280.0, 2400.0);
+    drawn_text(&ctx, &mut a, tall);
+    let shown = drawn_strings(&ctx, &mut a, tall);
+    assert!(shown.iter().any(|s| s == "Start in") && shown.iter().any(|s| s == "The first account's Inbox"), "{shown:?}");
+    a.ui.backstage = None;
+    a.run("options.startIn", json!({"open": "allInboxes"}));
+    let (mut b, _) = app("start-in-again");
+    b.restore_state(&a.saved_state());
+    assert_eq!(b.session.view, View::Unified { role: mailcraft_engine::model::FolderRole::Inbox });
+    // The folder open last.
+    a.run("options.startIn", json!({"open": "last"}));
+    a.run("folder.open", json!({"account": "sample", "folder": "Projects"}));
+    let (mut b, _) = app("start-in-last");
+    b.restore_state(&a.saved_state());
+    assert_eq!(b.session.view, View::Folder { account: "sample".into(), folder: "Projects".into() });
+    assert!(b.session.list.iter().all(|m| m.key.folder == "Projects"), "its mail listed");
+    // Nothing said (settings from before): the first Inbox.
+    let (mut c, _) = app("start-in-before");
+    c.restore_state(&json!({"prefs": {"compact": true}}));
+    assert_eq!(c.session.view, View::Folder { account: "sample".into(), folder: "INBOX".into() });
+}
