@@ -450,12 +450,13 @@ impl MailApp {
             // keeps a width it can be read in (it was a strip a word wide).
             let mail_beside = module == Module::Mail && self.session.prefs.reading_pane == ReadingPane::Right;
             let most_nav = if mail_beside { (ui.available_width() - LIST_LEAST - READING_LEAST).clamp(170.0, 380.0) } else { 380.0 };
+            // At the size it was last dragged to (issue #171), else as it starts for everyone.
             let full = start("nav")
                 .resizable(true)
-                .default_size(if module == Module::Mail { 230.0 } else { 260.0 })
+                .default_size(self.ui.pane_sizes.folders.unwrap_or(if module == Module::Mail { 230.0 } else { 260.0 }))
                 .size_range(170.0..=most_nav)
                 .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(6, 8)));
-            egui::Panel::show_switched(ui, &mut expanded, strip, full, |ui, wide| {
+            let nav = egui::Panel::show_switched(ui, &mut expanded, strip, full, |ui, wide| {
                 if !wide {
                     ui.vertical_centered(|ui| {
                         let chevron = if rtl { Icon::ChevronLeft } else { Icon::ChevronRight };
@@ -485,6 +486,10 @@ impl MailApp {
                     Module::Notes => notes::nav(&self.session, &mut self.ui, ui, acts),
                 }
             });
+            // Its width kept while it's open (a slide to or from the strip settles on it).
+            if expanded && !self.session.prefs.folder_pane_minimized && nav.response.rect.width() >= 170.0 {
+                self.ui.pane_sizes.folders = PaneSizes::kept(nav.response.rect.width()).or(self.ui.pane_sizes.folders);
+            }
             // Dragged narrower than it goes: minimized, as the button does.
             if expanded == self.session.prefs.folder_pane_minimized {
                 acts.push(Action::Run("view.folderPane", json!({"minimized": !expanded})));
@@ -513,9 +518,15 @@ impl MailApp {
                 (None, pane) => match pane {
                     ReadingPane::Right => {
                         let most = (ui.available_width() - READING_LEAST).clamp(LIST_LEAST, 720.0);
-                        start("list").resizable(true).default_size(390.0).size_range(LIST_LEAST..=most).frame(list_frame).show(ui, |ui| {
-                            list::show(&self.session, &mut self.ui, ui, acts);
-                        });
+                        let list = start("list")
+                            .resizable(true)
+                            .default_size(self.ui.pane_sizes.list.unwrap_or(390.0))
+                            .size_range(LIST_LEAST..=most)
+                            .frame(list_frame)
+                            .show(ui, |ui| {
+                                list::show(&self.session, &mut self.ui, ui, acts);
+                            });
+                        self.ui.pane_sizes.list = PaneSizes::kept(list.response.rect.width()).or(self.ui.pane_sizes.list);
                         egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                             reading::show(&mut self.session, &mut self.ui, ui, acts);
                         });
@@ -525,12 +536,15 @@ impl MailApp {
                         // pane had saved, the whole height, and the pane had no room (issue #17).
                         // The pane always keeps some.
                         let most = (ui.available_height() - 160.0).max(140.0);
-                        egui::Panel::top("list-above").resizable(true).default_size(300.0).size_range(140.0..=most).frame(list_frame).show(
-                            ui,
-                            |ui| {
+                        let above = egui::Panel::top("list-above")
+                            .resizable(true)
+                            .default_size(self.ui.pane_sizes.list_above.unwrap_or(300.0))
+                            .size_range(140.0..=most)
+                            .frame(list_frame)
+                            .show(ui, |ui| {
                                 list::show(&self.session, &mut self.ui, ui, acts);
-                            },
-                        );
+                            });
+                        self.ui.pane_sizes.list_above = PaneSizes::kept(above.response.rect.height()).or(self.ui.pane_sizes.list_above);
                         egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                             reading::show(&mut self.session, &mut self.ui, ui, acts);
                         });

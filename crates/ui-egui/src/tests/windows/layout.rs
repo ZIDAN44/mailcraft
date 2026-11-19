@@ -599,3 +599,44 @@ fn the_single_line_list_has_a_message_on_one_line() {
     let (who, what) = places(&ctx, &mut a);
     assert!(what.top() > who.bottom() - 4.0, "the subject under the sender again: {who:?} {what:?}");
 }
+
+/// Issue #171: the message list's width, as dragged, is there at the next start (it went back to
+/// its first width every time), as is the folder pane's; a damaged size isn't taken.
+#[test]
+fn the_panes_keep_their_sizes_between_starts() {
+    let (mut a, _) = app("pane-sizes");
+    let ctx = egui::Context::default();
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let first = a.ui.pane_sizes;
+    let (folders, list) = (first.folders.expect("the folder pane's width"), first.list.expect("the list's width"));
+    // The edge between the list and the reading pane, dragged 100 points to the right.
+    let edge = egui::pos2(folders + list + 1.0, 400.0);
+    let press = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(&ctx, &mut a, vec![Event::PointerMoved(edge)]);
+    frame(&ctx, &mut a, vec![press(edge, true)]);
+    for dx in [25.0, 50.0, 75.0, 100.0] {
+        frame(&ctx, &mut a, vec![Event::PointerMoved(edge + egui::vec2(dx, 0.0))]);
+    }
+    frame(&ctx, &mut a, vec![press(edge + egui::vec2(100.0, 0.0), false)]);
+    frame(&ctx, &mut a, vec![]);
+    let wider = a.ui.pane_sizes.list.unwrap();
+    assert!((wider - list - 100.0).abs() <= 2.0, "dragged from {list} to {wider}");
+
+    // Started again with the settings kept: as dragged.
+    let saved = a.saved_state();
+    let (mut b, _) = app("pane-sizes-again");
+    b.restore_state(&saved);
+    let ctx = egui::Context::default();
+    for _ in 0..3 {
+        frame(&ctx, &mut b, vec![]);
+    }
+    assert_eq!(b.ui.pane_sizes.list, Some(wider));
+    assert_eq!(b.ui.pane_sizes.folders, Some(folders));
+
+    // A size no pane has (a damaged settings file): not taken.
+    let (mut c, _) = app("pane-sizes-damaged");
+    c.restore_state(&json!({"panes": {"list": -5.0, "folders": 1e30}}));
+    assert_eq!((c.ui.pane_sizes.list, c.ui.pane_sizes.folders), (None, None));
+}

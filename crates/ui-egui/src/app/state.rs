@@ -18,6 +18,29 @@ pub(crate) fn use_editor(st: &mut UiState, id: u64) {
 
 /// UI-only state. Its `Default` is a blank one: [`MailApp::new`] starts it with what the
 /// platform says and the few values that aren't their type's default.
+/// The sizes the panes were dragged to, in points (issue #171: the message list went back to its
+/// first width at every start, as did the folder pane). `None`: never dragged.
+#[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaneSizes {
+    /// The folder pane's width.
+    #[serde(default)]
+    pub folders: Option<f32>,
+    /// The message list's width beside the reading pane, and its height above it.
+    #[serde(default)]
+    pub list: Option<f32>,
+    #[serde(default)]
+    pub list_above: Option<f32>,
+}
+
+impl PaneSizes {
+    /// A size as kept: whole points (a size that wavers by a fraction doesn't write the settings
+    /// again), and only one that makes sense (a damaged file's isn't taken).
+    pub fn kept(size: f32) -> Option<f32> {
+        (size.is_finite() && (40.0..=10_000.0).contains(&size)).then(|| size.round())
+    }
+}
+
 #[derive(Default)]
 pub struct UiState {
     /// Where the main window, the last message window and the last compose window were.
@@ -230,6 +253,8 @@ pub struct UiState {
     pub people_view: people::PeopleView,
     /// The People list's columns and sort.
     pub people_list: people::ListSettings,
+    /// The folder pane's and the message list's sizes as last dragged, kept between runs.
+    pub pane_sizes: PaneSizes,
     /// The calendar's search (issue #33): what's typed, the switches, what it found.
     pub(crate) cal_search: calendar::CalSearch,
     /// How far the calendar's month grip has been dragged since it last added or took a month.

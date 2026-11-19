@@ -32,8 +32,8 @@ pub use frame::FramePart;
 pub use ribbon::RibbonTab;
 pub(crate) use ribbon::junk_menu;
 pub(crate) use search_box::{SearchDrop, SearchTimes, scope_label};
-pub use state::UiState;
 pub(crate) use state::use_editor;
+pub use state::{PaneSizes, UiState};
 pub use windows::{Monitors, WindowPlace, after_open, set_monitors};
 
 pub struct MailApp {

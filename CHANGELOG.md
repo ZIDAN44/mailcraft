@@ -52,6 +52,7 @@ on GitHub.
 - The Search tab stays while the search box is being typed in (#158), and goes with a click elsewhere: clicking into the box took its focus away again as the tab appeared, so the tab went as soon as the pointer left the box, before its buttons could be reached.
 - In the calendar's day and week views, overlapping events share the column only among themselves (#155), as in Outlook: every event of a day was as narrow as the most that overlapped anywhere in it, a morning meeting a third of the column for three in the afternoon.
 - Mail sends through IONOS's outgoing servers (#165): every message was refused with "503 Bad sequence of commands", the server refusing the second greeting MailCraft sent to see which sign-ins it takes. It's sent only when the first didn't name a password sign-in, and a refusal of it no longer stops the message.
+- The message list keeps the width it was dragged to, and the folder pane its own, when MailCraft starts again (#171): both went back to their first sizes. The list above the reading pane keeps its height too.
 
 ## 0.40.0 - 2026-11-17
 
