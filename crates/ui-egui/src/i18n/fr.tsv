@@ -1876,3 +1876,5 @@ count	occurrences	occurrences
 	Underline off	Souligné désactivé
 	{name}: on	{name} : activé
 	{name}: off	{name} : désactivé
+	Font	Police
+	Default font	Police par défaut

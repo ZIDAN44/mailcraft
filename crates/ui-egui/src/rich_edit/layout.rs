@@ -2,10 +2,15 @@
 
 use super::*;
 
-/// A look as text formatting (the person's colours adjusted to stay readable on the page).
+/// A look as text formatting (the person's colours adjusted to stay readable on the page). A
+/// typeface of the computer's is drawn in it where the computer's fonts are offered (issue
+/// #166: it was sent with the message, and shown in the editor's own font).
 pub(super) fn format(s: &Style, t: &Tokens) -> TextFormat {
     let px = f32::from(s.size()) * PX;
-    let font = if s.mono {
+    let typeface = s.font.as_deref().filter(|_| !s.mono).and_then(|f| crate::mail_fonts::family(f, s.bold));
+    let font = if let Some(family) = typeface {
+        FontId::new(px, family)
+    } else if s.mono {
         FontId::monospace(px * 0.92)
     } else if s.bold {
         theme::bold(px)

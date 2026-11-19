@@ -474,6 +474,8 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
             }
             let (regular, bold) = system_fonts();
             mailcraft_ui_egui::theme::install_fonts(&cc.egui_ctx, regular.clone(), bold.clone());
+            // The computer's fonts, to write in (issue #166).
+            mailcraft_ui_egui::mail_fonts::install(&cc.egui_ctx, std::sync::Arc::new(desktop::fonts::CatalogFonts::start()));
             let gpu = cc.wgpu_render_state.as_ref().map(|rs| rs.device.clone());
             if let Some(server) = &instance {
                 server.connect(&cc.egui_ctx);

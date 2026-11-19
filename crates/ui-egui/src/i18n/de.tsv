@@ -1876,3 +1876,5 @@ count	occurrences	Terminen
 	Underline off	Unterstrichen aus
 	{name}: on	{name}: ein
 	{name}: off	{name}: aus
+	Font	Schriftart
+	Default font	Standardschriftart

@@ -1871,3 +1871,5 @@ count	occurrences	keer
 	Underline off	Onderstrepen uit
 	{name}: on	{name}: aan
 	{name}: off	{name}: uit
+	Font	Lettertype
+	Default font	Standaardlettertype

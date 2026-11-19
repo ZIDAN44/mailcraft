@@ -1872,3 +1872,5 @@ count	occurrences	回
 	Underline off	下線 オフ
 	{name}: on	{name}: オン
 	{name}: off	{name}: オフ
+	Font	フォント
+	Default font	既定のフォント

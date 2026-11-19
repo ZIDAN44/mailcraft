@@ -1876,3 +1876,5 @@ count	occurrences	repeticiones
 	Underline off	Subrayado desactivado
 	{name}: on	{name}: activado
 	{name}: off	{name}: desactivado
+	Font	Fuente
+	Default font	Fuente predeterminada

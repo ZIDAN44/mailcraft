@@ -1875,3 +1875,5 @@ count	occurrences	ripetizioni
 	Underline off	Sottolineato disattivato
 	{name}: on	{name}: attivato
 	{name}: off	{name}: disattivato
+	Font	Carattere
+	Default font	Carattere predefinito

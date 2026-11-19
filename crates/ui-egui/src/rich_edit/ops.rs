@@ -11,6 +11,8 @@ pub(crate) enum Op {
     Underline,
     Strike,
     Size(u8),
+    /// A typeface installed on the computer (issue #166); `None`: the message's own.
+    Font(Option<String>),
     Grow,
     Shrink,
     Color(Option<[u8; 3]>),
@@ -67,6 +69,7 @@ pub(crate) fn apply(ed: &mut Editor, c: &mut Compose, op: Op) {
             Some(Box::new(move |s| Style { strike: on, ..s.clone() }))
         }
         Op::Size(z) => Some(Box::new(move |s| Style { size: (z != rich::DEFAULT_SIZE).then_some(z), ..s.clone() })),
+        Op::Font(f) => Some(Box::new(move |s| Style { font: f.clone(), ..s.clone() })),
         Op::Grow | Op::Shrink => {
             let up = op == Op::Grow;
             Some(Box::new(move |s| {

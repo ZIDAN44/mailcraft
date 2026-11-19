@@ -1871,3 +1871,5 @@ count	occurrences	פעמים
 	Underline off	קו תחתון כבוי
 	{name}: on	{name}: פעיל
 	{name}: off	{name}: כבוי
+	Font	גופן
+	Default font	גופן ברירת מחדל

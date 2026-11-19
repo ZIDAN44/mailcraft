@@ -1875,3 +1875,5 @@ count	occurrences	회
 	Underline off	밑줄 꺼짐
 	{name}: on	{name}: 켜짐
 	{name}: off	{name}: 꺼짐
+	Font	글꼴
+	Default font	기본 글꼴

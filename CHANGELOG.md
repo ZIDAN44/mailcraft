@@ -35,6 +35,7 @@ Thanks to Peter Páleník for reviewing the Slovak translation (#133, #137).
 - **F6** and **Shift+F6** go from pane to pane (#175), as in Outlook: the folders, the message list (on its message), the reading pane, the To-Do Bar and the ribbon, each in turn, so the keyboard and a screen reader get to each pane without going through every control on the way with Tab.
 - A screen reader is told what was done where the keyboard isn't (#175): each notice as it comes (a failure at once), a setting switched with its key (**Ctrl+F1**: "Hide the ribbon: on"), and **Ctrl+B**, **Ctrl+I** and **Ctrl+U** while writing ("Bold on", "Bold off").
 - With a screen reader, the open message is one text to read by line, word and letter, as Outlook's reading pane is (#175): Tab or **F6** gives it the keyboard, and the arrows, **Home** and **End** (**Ctrl** too) move through it, **Shift** selecting, while the reader reads the line, word or letter reached. It was read a block at a time.
+- A **Font** box beside the font size while writing (#166), as Outlook's: any font installed on the computer, for the text selected or typed next, shown in it as you write and sent with the message. Text pasted in another program's font (Calibri, Tahoma) now shows in it too, when the computer has it. Not in the browser, which reaches no fonts of the computer's.
 
 ### Changed
 

@@ -186,12 +186,50 @@ fn keyed(ui: &Ui) {
     ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(KEYED), true));
 }
 
-/// Font size, bold / italic / underline / strikethrough, colours, lists, alignment, indent and
-/// clear formatting: the formatting the Message ribbon and the signature editor share.
+/// The font box (issue #166), as Outlook's: the message's own font, then every family installed
+/// on the computer, each choice the selection's (or what's typed next). Not where the computer's
+/// fonts aren't offered (the browser).
+fn font_box(ui: &mut Ui, c: &Compose, cur: &Style, ops: &mut Vec<Op>) {
+    let families = crate::mail_fonts::families();
+    if families.is_empty() {
+        return;
+    }
+    let shown = cur.font.clone().unwrap_or_else(|| tl!("Default font").to_string());
+    let r = egui::ComboBox::from_id_salt(("font-name", c.id))
+        .width(140.0)
+        .height(360.0)
+        .selected_text(shown)
+        .truncate()
+        .show_ui(ui, |ui| {
+            if ui.selectable_label(cur.font.is_none(), tl!("Default font")).clicked() {
+                ops.push(Op::Font(None));
+            }
+            for f in families.iter() {
+                let on = cur.font.as_deref().is_some_and(|now| now.eq_ignore_ascii_case(f));
+                if ui.selectable_label(on, f.as_str()).clicked() {
+                    ops.push(Op::Font(Some(f.clone())));
+                }
+            }
+        })
+        .response
+        .accessible_name(tl!("Font"));
+    let choices: Vec<Option<String>> = std::iter::once(None).chain(families.iter().cloned().map(Some)).collect();
+    let mut font = cur.font.clone();
+    crate::drop_down::keys(ui, &r, &mut font, &choices);
+    if font != cur.font {
+        ops.push(Op::Font(font));
+        keyed(ui);
+    }
+    ui.add_space(4.0);
+}
+
+/// The font, its size, bold / italic / underline / strikethrough, colours, lists, alignment,
+/// indent and clear formatting: the formatting the Message ribbon and the signature editor share.
 fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich::Para, ops: &mut Vec<Op>) {
     ui.add_enabled_ui(!c.plain, |ui| {
         // In the middle of the row's height, as the buttons' faces are.
         ui.allocate_ui_with_layout(vec2(0.0, ROW_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            font_box(ui, c, cur, ops);
             let r = egui::ComboBox::from_id_salt(("font-size", c.id))
                 .width(48.0)
                 .selected_text(cur.size().to_string())

@@ -30,6 +30,7 @@ mailcraft-ui-egui = { path = "crates/ui-egui" }
 # so their fixes reach MailCraft with a bump of this pin.
 craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "600fc71614b316d8c2c7bd793c62f228a5b2e5b6" }
 craft-docpath = { git = "https://github.com/storytold/craft-libs", rev = "600fc71614b316d8c2c7bd793c62f228a5b2e5b6" }
+craft-font-catalog = { git = "https://github.com/storytold/craft-libs", rev = "600fc71614b316d8c2c7bd793c62f228a5b2e5b6", default-features = false }
 craft-proof = { git = "https://github.com/storytold/craft-libs", rev = "600fc71614b316d8c2c7bd793c62f228a5b2e5b6" }
 
 # foundation

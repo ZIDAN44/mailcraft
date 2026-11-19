@@ -1875,3 +1875,5 @@ count	occurrences	次
 	Underline off	底線 關
 	{name}: on	{name}：開
 	{name}: off	{name}：關
+	Font	字型
+	Default font	預設字型

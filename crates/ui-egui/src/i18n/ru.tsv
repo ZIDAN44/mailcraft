@@ -1875,3 +1875,5 @@ count	occurrences	повторений
 	Underline off	Подчёркивание выключено
 	{name}: on	{name}: вкл.
 	{name}: off	{name}: выкл.
+	Font	Шрифт
+	Default font	Шрифт по умолчанию

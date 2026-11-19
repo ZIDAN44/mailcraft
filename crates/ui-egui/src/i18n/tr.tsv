@@ -1876,3 +1876,5 @@ count	occurrences	kez
 	Underline off	Altı çizili kapalı
 	{name}: on	{name}: açık
 	{name}: off	{name}: kapalı
+	Font	Yazı tipi
+	Default font	Varsayılan yazı tipi

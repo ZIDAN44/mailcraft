@@ -1876,3 +1876,5 @@ count	occurrences	opakovaní
 	Underline off	Podčiarknutie vypnuté
 	{name}: on	{name}: zapnuté
 	{name}: off	{name}: vypnuté
+	Font	Písmo
+	Default font	Predvolené písmo
