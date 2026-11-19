@@ -142,6 +142,9 @@ fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count, depth: us
         _ => label.to_string(),
     };
     resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::TreeItem, ui.is_enabled(), selected, &spoken));
+    if selected {
+        ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(CURRENT_ROW), resp.id));
+    }
     let hovering_drop = drop_ok && (resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some());
     let ctx = ui.ctx().clone();
     let sel = crate::motion::toward(&ctx, resp.id.with("selected"), selected, crate::motion::NORMAL);
@@ -184,7 +187,20 @@ fn several_mailboxes(s: &Session) -> bool {
     s.accounts.iter().filter(|a| !a.config.is_calendar_only()).count() > 1
 }
 
+/// Where the folder pane keeps its current folder's row for the frame (F6 puts the keyboard there).
+const CURRENT_ROW: &str = "folder pane's current row";
+
+/// The row of the folder shown, drawn last frame: where F6 puts the keyboard in the folder pane,
+/// as in Outlook (issue #175).
+pub(crate) fn current_row(ctx: &egui::Context) -> Option<egui::Id> {
+    ctx.data(|d| d.get_temp(egui::Id::unique(CURRENT_ROW)))
+}
+
 pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    let ctx = ui.ctx().clone();
+    // The keyboard on the folder shown, last frame.
+    let was = current_row(&ctx).filter(|id| ctx.memory(|m| m.focused()) == Some(*id));
+    ctx.data_mut(|d| d.remove::<egui::Id>(egui::Id::unique(CURRENT_ROW)));
     egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 1.0;
         // Hidden altogether (View › Favorites), or collapsed to its heading.
@@ -333,6 +349,13 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         }
         search_folders(s, t, ui, acts);
     });
+    // Its row made again under another id (the window laid out anew: Ctrl+F1 hiding the
+    // ribbon), the keyboard stays on it; it went nowhere, and a screen reader with it.
+    if was.is_some()
+        && let Some(now) = current_row(&ctx).filter(|now| Some(*now) != was)
+    {
+        ctx.memory_mut(|m| m.request_focus(now));
+    }
 }
 
 /// Search Folders, after the mailboxes: each a saved search, opened with a click; New Search

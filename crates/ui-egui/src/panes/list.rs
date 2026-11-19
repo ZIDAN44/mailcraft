@@ -391,6 +391,7 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
         let tab_stop = s.focus.as_ref().filter(|k| s.row_index_of(k).is_some()).or_else(|| s.list.first().map(|m| &m.key));
         // The row with the keyboard, and whether it's still here.
         let keyboard = st.row_keyboard.filter(|id| ui.memory(|m| m.focused()) == Some(*id));
+        st.list_stop = None;
         let mut keyboard_drawn = false;
         let first = tops.partition_point(|&top| top + mh < viewport.min.y);
         for (i, row) in rows.iter().enumerate().skip(first) {
@@ -431,6 +432,9 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                         tab_stop: tab_stop == Some(&m.key),
                     };
                     let resp = message_row(s, &t, ui, of, acts);
+                    if tab_stop == Some(&m.key) {
+                        st.list_stop = Some(resp.id);
+                    }
                     row_keyboard(s, st, ui, &m.key, &resp);
                     keyboard_drawn |= keyboard == Some(resp.id);
                 }

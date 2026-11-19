@@ -124,8 +124,8 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 
 - **Impact:** A message's text is read a block at a time when it gets the keyboard (a plain-text
   message all at once): a screen reader can't go through it by line, word or character, or hear
-  its headings, lists and tables as such. There's no F6 to go from pane to pane, and what a
-  command does (a message moved, a setting turned on) isn't announced.
+  its headings, lists and tables as such. What a command does (a message moved, a setting
+  turned on) isn't announced.
 - **Workaround:** Tab from the message list to the message's text; Up and Down there go on to the
   next block. A drop-down's choice is changed with Up and Down without opening it.
 - **Cause:** egui hands a screen reader text it can go through by line and character only in its

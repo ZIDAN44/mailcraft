@@ -172,6 +172,11 @@ pub struct UiState {
     /// The message row that had the keyboard last: the list's arrows are its, while another
     /// control's are that control's.
     pub(crate) row_keyboard: Option<egui::Id>,
+    /// Where the main window's panes were drawn last, for F6 (the top bar and the ribbon are
+    /// `top_bar_rect` and `ribbon_rect`); and the list's one stop for Tab, its message's row,
+    /// where F6 puts the keyboard in the list.
+    pub(crate) panes: Vec<(Pane, egui::Rect)>,
+    pub(crate) list_stop: Option<egui::Id>,
     /// A text field on the File page had the keyboard at the end of the last frame: Esc leaves it
     /// rather than the page (egui takes the focus away on Esc before the shortcuts see it).
     pub(crate) backstage_typing: bool,

@@ -453,6 +453,7 @@ impl MailApp {
     /// folders, list and reading pane (and the To-Do Bar beside the mail).
     fn panes(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
+        self.ui.panes.clear();
         if self.ui.backstage.is_some() {
             backstage::show(&self.session, &mut self.ui, ui, acts);
             self.ui.backstage_typing = ui.ctx().text_edit_focused();
@@ -511,6 +512,7 @@ impl MailApp {
                     Module::Notes => notes::nav(&self.session, &mut self.ui, ui, acts),
                 }
             });
+            self.ui.panes.push((Pane::Folders, nav.response.rect));
             // Its width kept while it's open (a slide to or from the strip settles on it).
             if expanded && !self.session.prefs.folder_pane_minimized && nav.response.rect.width() >= 170.0 {
                 self.ui.pane_sizes.folders = PaneSizes::kept(nav.response.rect.width()).or(self.ui.pane_sizes.folders);
@@ -536,9 +538,10 @@ impl MailApp {
             };
             match (other, pane) {
                 (Some(show), _) => {
-                    egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+                    let main = egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                         show(&self.session, &mut self.ui, ui, acts);
                     });
+                    self.ui.panes.push((Pane::Reading, main.response.rect));
                 }
                 (None, pane) => match pane {
                     ReadingPane::Right => {
@@ -552,9 +555,10 @@ impl MailApp {
                                 list::show(&self.session, &mut self.ui, ui, acts);
                             });
                         self.ui.pane_sizes.list = PaneSizes::kept(list.response.rect.width()).or(self.ui.pane_sizes.list);
-                        egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+                        let reading = egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                             reading::show(&mut self.session, &mut self.ui, ui, acts);
                         });
+                        self.ui.panes.extend([(Pane::List, list.response.rect), (Pane::Reading, reading.response.rect)]);
                     }
                     ReadingPane::Bottom => {
                         // A name of its own: under "list" it took the size the list beside the
@@ -570,18 +574,21 @@ impl MailApp {
                                 list::show(&self.session, &mut self.ui, ui, acts);
                             });
                         self.ui.pane_sizes.list_above = PaneSizes::kept(above.response.rect.height()).or(self.ui.pane_sizes.list_above);
-                        egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
+                        let reading = egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface)).show(ui, |ui| {
                             reading::show(&mut self.session, &mut self.ui, ui, acts);
                         });
+                        self.ui.panes.extend([(Pane::List, above.response.rect), (Pane::Reading, reading.response.rect)]);
                     }
                     ReadingPane::Off => {
-                        egui::CentralPanel::default().frame(list_frame).show(ui, |ui| {
-                            if self.session.compose.is_some() {
+                        let writing = self.session.compose.is_some();
+                        let main = egui::CentralPanel::default().frame(list_frame).show(ui, |ui| {
+                            if writing {
                                 reading::show(&mut self.session, &mut self.ui, ui, acts);
                             } else {
                                 list::show(&self.session, &mut self.ui, ui, acts);
                             }
                         });
+                        self.ui.panes.push((if writing { Pane::Reading } else { Pane::List }, main.response.rect));
                     }
                 },
             }

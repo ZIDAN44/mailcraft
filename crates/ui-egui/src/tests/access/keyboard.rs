@@ -194,3 +194,83 @@ fn a_screen_reader_reads_the_open_message() {
     let (role, _, value) = focused(&out);
     assert!(role != Role::Window && !value.contains("The proof for order 4471"), "Up goes back up the message: {role:?} {value:?}");
 }
+
+/// F6 goes from pane to pane, as in Outlook: from the message list to the reading pane, the
+/// To-Do Bar when it's shown, the ribbon, the folders and back to the list's message; Shift+F6
+/// the other way. Each pane's control has the keyboard in turn, so a screen reader reads it.
+#[test]
+fn f6_goes_from_pane_to_pane() {
+    for todo_bar in [false, true] {
+        f6_round(todo_bar);
+    }
+}
+
+fn f6_round(todo_bar: bool) {
+    let (mut a, _) = app(if todo_bar { "access-f6-todo" } else { "access-f6" });
+    if todo_bar {
+        a.run("view.todoBar", json!({"part": "tasks", "on": true}));
+    }
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let out = settled(&ctx, &mut a, vec![]);
+    let first = a.session.list.first().cloned().expect("the sample has mail");
+    let row = named_in(&out)
+        .into_iter()
+        .find(|n| n.role == Role::ListItem && n.label.as_deref().is_some_and(|l| l.contains(first.subject.as_str())))
+        .and_then(|n| n.centre())
+        .expect("the first message's row");
+    click(&ctx, &mut a, row);
+    settled(&ctx, &mut a, vec![]);
+    // Which pane the keyboard is in, by where its control is.
+    let pane_of = |a: &MailApp, out: &egui::FullOutput| {
+        let u = out.platform_output.accesskit_update.as_ref().expect("AccessKit is on");
+        let b = u.nodes.iter().find(|(id, _)| *id == u.focus).and_then(|(_, n)| n.bounds())?;
+        let at = egui::pos2(((b.x0 + b.x1) / 2.0) as f32, ((b.y0 + b.y1) / 2.0) as f32);
+        let bars = a.ui.top_bar_rect.map(|r| a.ui.ribbon_rect.map_or(r, |x| r.union(x)));
+        if bars.is_some_and(|r| r.contains(at)) {
+            return Some(crate::Pane::Bars);
+        }
+        a.ui.panes.iter().find(|(_, r)| r.contains(at)).map(|(p, _)| *p)
+    };
+    let shown: Vec<crate::Pane> = a.ui.panes.iter().map(|(p, _)| *p).collect();
+    assert_eq!(shown.contains(&crate::Pane::TodoBar), todo_bar, "the To-Do Bar is shown: {shown:?}");
+    let mut want = vec![crate::Pane::Reading];
+    if shown.contains(&crate::Pane::TodoBar) {
+        want.push(crate::Pane::TodoBar);
+    }
+    want.extend([crate::Pane::Bars, crate::Pane::Folders, crate::Pane::List]);
+    let mut went = Vec::new();
+    let mut last = None;
+    for _ in 0..want.len() {
+        let out = settled(&ctx, &mut a, vec![key(Key::F6, Modifiers::NONE)]);
+        let pane = pane_of(&a, &out);
+        if pane == Some(crate::Pane::Folders) {
+            // The folder shown, not the pane's first button.
+            let (role, label, _) = focused(&out);
+            assert!(role == Role::TreeItem && label.starts_with("Inbox"), "F6 in the folders is on the folder shown: {role:?} {label:?}");
+        }
+        went.push(pane);
+        last = Some(out);
+    }
+    assert_eq!(went, want.iter().map(|p| Some(*p)).collect::<Vec<_>>(), "F6 goes through every pane in turn");
+    let (role, label, _) = focused(&last.expect("F6 was pressed"));
+    assert!(role == Role::ListItem && label.contains(first.subject.as_str()), "back in the list, on its message: {role:?} {label:?}");
+    // Shift+F6: the other way round.
+    let mut back = Vec::new();
+    for _ in 0..want.len() {
+        let out = settled(&ctx, &mut a, vec![key(Key::F6, Modifiers::SHIFT)]);
+        back.push(pane_of(&a, &out));
+    }
+    let mut want_back: Vec<Option<crate::Pane>> = want.iter().rev().skip(1).map(|p| Some(*p)).collect();
+    want_back.push(Some(crate::Pane::List));
+    assert_eq!(back, want_back, "Shift+F6 goes back through them");
+    assert_eq!(a.session.focus.as_ref(), Some(&first.key), "the list stayed on its message all the way round");
+    // On the folder shown, the window laid out anew (Ctrl+F1 hiding the ribbon) makes its row
+    // again under another id: the keyboard stays on it (it went nowhere).
+    settled(&ctx, &mut a, vec![key(Key::F6, Modifiers::SHIFT)]);
+    for _ in 0..2 {
+        let out = settled(&ctx, &mut a, vec![key(Key::F1, Modifiers::COMMAND)]);
+        let (role, label, _) = focused(&out);
+        assert!(role == Role::TreeItem && label.starts_with("Inbox"), "Ctrl+F1 kept the keyboard on the folder: {role:?} {label:?}");
+    }
+}

@@ -2,6 +2,9 @@
 
 use crate::*;
 
+mod panes;
+pub(crate) use panes::Pane;
+
 /// Where the keyboard was this frame, for the keys the window's parts keep for themselves.
 #[derive(Clone, Copy)]
 struct Keyboard {
@@ -96,6 +99,11 @@ impl MailApp {
     /// the attachments, a message's text) or done here (Ctrl+E, Esc): not a command's then.
     fn key_taken(&mut self, ctx: &egui::Context, key: Key, m: egui::Modifiers, combo: &str, keyboard: Keyboard) -> bool {
         let Keyboard { typing, text_selected, text_keys } = keyboard;
+        // From pane to pane, wherever the keyboard is (a text box too, as in Outlook).
+        if matches!(combo, "F6" | "Shift+F6") {
+            self.next_pane(ctx, combo == "Shift+F6");
+            return true;
+        }
         let plain = !(m.command || m.ctrl || m.alt);
         // Single keys type text when a text box has focus.
         if typing && plain && !matches!(key, Key::F9 | Key::Escape) {

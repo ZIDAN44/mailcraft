@@ -29,6 +29,7 @@ pub use boot::BootCard;
 pub use control_click::control_click;
 pub use dropped::{ClipboardRead, clipboard_keys};
 pub use frame::FramePart;
+pub(crate) use keys::Pane;
 pub use ribbon::RibbonTab;
 pub(crate) use ribbon::junk_menu;
 pub(crate) use search_box::{SearchDrop, SearchTimes, scope_label};

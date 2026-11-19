@@ -36,6 +36,7 @@ pub fn panel(s: &mut Session, st: &mut UiState, ui: &mut Ui, least: f32, acts: &
         .size_range(narrowest..=widest.min(room))
         .frame(egui::Frame::new().fill(t.chrome))
         .show(ui, |ui| show(s, st, ui, acts));
+    st.panes.push((crate::Pane::TodoBar, shown.response.rect));
     // Its width as dragged, kept once the button is up.
     let width = shown.response.rect.width().round().clamp(narrowest, widest);
     if (width - f32::from(bar.width)).abs() >= 1.0 && width < room && !ui.input(|i| i.pointer.any_down()) {

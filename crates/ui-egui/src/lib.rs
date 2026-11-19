@@ -53,7 +53,7 @@ pub use app::{
     Action, BootCard, ClipboardRead, FramePart, MailApp, Monitors, PaneSizes, RibbonTab, UiState, WindowPlace, after_open, alt_code_pages, alt_codes,
     clipboard_keys, control_click, set_monitors,
 };
-pub(crate) use app::{SearchDrop, junk_menu, scope_label, use_editor};
+pub(crate) use app::{Pane, SearchDrop, junk_menu, scope_label, use_editor};
 pub use dialogs::{AccountKind, Dialog};
 
 /// MailCraft's id: the Linux app id (its `.desktop` file and icon are named so), the macOS bundle
