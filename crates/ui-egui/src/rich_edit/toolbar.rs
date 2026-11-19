@@ -148,7 +148,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
         }
     });
     link_dialog(ui, t, ed, c);
-    apply_ops(ed, c, ops);
+    apply_ops(ui.ctx(), ed, c, ops);
 }
 
 /// What a ribbon shows the buttons for: the selection (inside the text), the look there (what
@@ -163,15 +163,27 @@ fn ribbon_state(ed: &Editor, c: &mut Compose) -> (Range<usize>, Style, rich::Par
     (sel, cur, para)
 }
 
-/// Apply what a ribbon's buttons asked for; the text gets the keyboard back when there was any.
-fn apply_ops(ed: &mut Editor, c: &mut Compose, ops: Vec<Op>) {
+/// Apply what a ribbon's buttons asked for; the text gets the keyboard back when there was any,
+/// but not from a drop-down chosen in with its arrows ([`keyed`]).
+fn apply_ops(ctx: &egui::Context, ed: &mut Editor, c: &mut Compose, ops: Vec<Op>) {
     let changed = !ops.is_empty();
     for op in ops {
         apply(ed, c, op);
     }
-    if changed {
+    let keyed = ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique(KEYED))).unwrap_or(false);
+    if changed && !keyed {
         ed.refocus = Some(ed.sel.clone());
     }
+}
+
+/// Where [`keyed`] is kept for the frame.
+const KEYED: &str = "a toolbar drop-down chosen in with its arrows";
+
+/// A drop-down's choice made with its arrows (issue #175): the keyboard stays on the drop-down,
+/// as on Windows, until it's left. The text took it back after each, so the next arrow moved the
+/// caret instead of choosing again.
+fn keyed(ui: &Ui) {
+    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(KEYED), true));
 }
 
 /// Font size, bold / italic / underline / strikethrough, colours, lists, alignment, indent and
@@ -196,6 +208,7 @@ fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich:
             crate::drop_down::keys(ui, &r, &mut size, &rich::SIZES);
             if size != cur.size() {
                 ops.push(Op::Size(size));
+                keyed(ui);
             }
         });
         ui.add_space(4.0);
@@ -261,7 +274,7 @@ pub(crate) fn signature_bar(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Co
             acts.push(Action::SignaturePicture { paste: false });
         }
     });
-    apply_ops(ed, c, ops);
+    apply_ops(ui.ctx(), ed, c, ops);
 }
 
 /// The ways today's date and the time can go in: written out, as numbers, with the time, the

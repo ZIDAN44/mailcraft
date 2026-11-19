@@ -92,6 +92,34 @@ fn the_list_arrows_take_the_screen_reader_from_message_to_message() {
     assert!(role == Role::ListItem && label.contains(subject.as_str()), "after Delete the screen reader reads {label:?}, not {subject}");
 }
 
+/// The message toolbar's drop-downs keep the keyboard while their arrows choose: Font size goes
+/// up a size a press (the text took the keyboard back after the first, and the second moved the
+/// caret instead).
+#[test]
+fn a_toolbar_drop_down_keeps_the_keyboard_while_its_arrows_choose() {
+    let (mut a, _) = app("access-toolbar-keys");
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    settled(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"to": "ann@x.example", "subject": "Plan", "body": "Hello"}));
+    let out = settled(&ctx, &mut a, vec![]);
+    let size =
+        nodes(&out).into_iter().find(|(_, n)| n.role() == Role::ComboBox && n.label() == Some("Font size")).map(|(id, _)| id).expect("Font size");
+    settled(&ctx, &mut a, vec![focus_request(size)]);
+    let typed = |a: &MailApp| a.session.compose.as_ref().map(|c| c.styles.style(0).size()).unwrap_or_default();
+    let before = typed(&a);
+    let sizes = mailcraft_engine::mime::rich::SIZES;
+    let at = sizes.iter().position(|z| *z == before).expect("a size the box offers");
+    for step in 1..=2 {
+        let out = settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+        let (role, label, value) = focused(&out);
+        assert_eq!((role, label.as_str()), (Role::ComboBox, "Font size"), "press {step}: the keyboard stays on the box");
+        assert_eq!(value, sizes.get(at + step).map(u8::to_string).unwrap_or_default(), "press {step}: a size up");
+    }
+}
+
 /// A drop-down's arrows choose, as a list box's do on Windows: Down on the account form's Mail
 /// server picks the next kind of server and the keyboard stays on it (it went to the field
 /// below, so the list could only be opened by trying keys). Up goes back; Alt+Down opens the
