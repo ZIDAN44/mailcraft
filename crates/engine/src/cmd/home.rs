@@ -303,18 +303,43 @@ pub(super) fn flag(s: &mut Session, v: &Value) -> CmdResult {
     }
     match p::str(v, "due") {
         None => s.flag_selection(Flag::Flagged, p::bool(v, "on")),
-        Some(d) if d.eq_ignore_ascii_case("none") => s.follow_up_selection(None, false),
         Some(d) => {
-            let day = match mailcraft_model::dates::FollowUp::from_code(d) {
-                Some(f) => f.due(&s.clock),
-                None if mailcraft_model::job::is_day(d) => {
-                    let num = |a: usize, z: usize| d.get(a..z).and_then(|x| x.parse::<u32>().ok()).unwrap_or(1);
-                    mailcraft_model::dates::days_from_civil(i64::from(num(0, 4)), num(5, 7), num(8, 10))
-                }
-                None => return Err(CmdError::Params(format!("`due`: not today, tomorrow, thisWeek, nextWeek, none or a date: `{d}`"))),
-            };
-            s.follow_up_selection(Some(day), false)
+            let day = follow_up_day(s, d)?;
+            s.follow_up_selection(day, false)
         }
+    }
+}
+
+/// A follow-up's `due` as `mail.flag` takes it: a Follow Up choice's day, a date, or `none`.
+fn follow_up_day(s: &Session, d: &str) -> Result<Option<i64>, CmdError> {
+    if d.eq_ignore_ascii_case("none") {
+        return Ok(None);
+    }
+    match mailcraft_model::dates::FollowUp::from_code(d) {
+        Some(f) => Ok(Some(f.due(&s.clock))),
+        None if mailcraft_model::job::is_day(d) => {
+            let num = |a: usize, z: usize| d.get(a..z).and_then(|x| x.parse::<u32>().ok()).unwrap_or(1);
+            Ok(Some(mailcraft_model::dates::days_from_civil(i64::from(num(0, 4)), num(5, 7), num(8, 10))))
+        }
+        None => Err(CmdError::Params(format!("`due`: not today, tomorrow, thisWeek, nextWeek, none or a date: `{d}`"))),
+    }
+}
+
+/// `todo.flag`: `mail.flag` for a flagged message of the To-Do Bar's task list, in whatever
+/// folder it is (issue #160: its menu gives it another day, completes it or clears its flag).
+pub(super) fn todo_flag(s: &mut Session, v: &Value) -> CmdResult {
+    let key = p::req_str(v, "key")?;
+    let key = mailcraft_model::MessageKey::from_id(key).ok_or_else(|| CmdError::Params(format!("`{key}` isn't a message")))?;
+    let m = s.todo_shared(&key).cloned().ok_or_else(|| CmdError::Params(format!("`{}` isn't flagged", key.to_id())))?;
+    if p::bool(v, "complete") == Some(true) {
+        return s.complete_messages(vec![m]);
+    }
+    match p::str(v, "due") {
+        Some(d) => {
+            let day = follow_up_day(s, d)?;
+            s.follow_up_messages(&[m], day)
+        }
+        None => s.flag_messages(&[m], p::bool(v, "on").unwrap_or(false)),
     }
 }
 

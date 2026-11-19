@@ -1856,3 +1856,4 @@ count	occurrences	Terminen
 	Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.	Google lässt Mail-Apps nicht mit Ihrem Google-Passwort anmelden, solange die Bestätigung in zwei Schritten aktiviert ist. Erstellen Sie unter https://myaccount.google.com/apppasswords ein App-Passwort und geben Sie es stattdessen hier ein.
 	With 2-Step Verification on, Google takes an app password here, not your Google password.	Mit aktivierter Bestätigung in zwei Schritten nimmt Google hier ein App-Passwort an, nicht Ihr Google-Passwort.
 	Make an app password	App-Passwort erstellen
+	Custom…	Benutzerdefiniert…

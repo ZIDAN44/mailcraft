@@ -11,6 +11,7 @@ use crate::{Action, widgets};
 
 mod contact;
 mod date_pick;
+mod follow_up;
 mod online_meeting;
 mod pattern;
 #[cfg(test)]
@@ -19,6 +20,7 @@ mod repeat;
 mod showing;
 mod task;
 pub use contact::{ContactForm, contact};
+pub use follow_up::{FollowUpForm, follow_up};
 pub use online_meeting::MeetingState;
 #[cfg(test)]
 pub(crate) use online_meeting::{add as online_meeting_add, remove as online_meeting_remove};

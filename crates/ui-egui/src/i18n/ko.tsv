@@ -1855,3 +1855,4 @@ count	occurrences	회
 	Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.	2단계 인증이 켜져 있으면 Google은 메일 앱이 Google 비밀번호로 로그인하도록 허용하지 않습니다. https://myaccount.google.com/apppasswords 에서 앱 비밀번호를 만들어 대신 여기에 입력하세요.
 	With 2-Step Verification on, Google takes an app password here, not your Google password.	2단계 인증이 켜져 있으면 여기에는 Google 비밀번호가 아니라 앱 비밀번호를 입력합니다.
 	Make an app password	앱 비밀번호 만들기
+	Custom…	사용자 지정…

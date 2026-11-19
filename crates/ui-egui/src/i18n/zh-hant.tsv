@@ -1855,3 +1855,4 @@ count	occurrences	次
 	Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.	開啟兩步驟驗證後，Google 不允許郵件應用程式使用你的 Google 密碼登入。請在 https://myaccount.google.com/apppasswords 建立應用程式密碼，並在這裡改為輸入該密碼。
 	With 2-Step Verification on, Google takes an app password here, not your Google password.	開啟兩步驟驗證後，這裡需要輸入應用程式密碼，而不是你的 Google 密碼。
 	Make an app password	建立應用程式密碼
+	Custom…	自訂…

@@ -637,6 +637,17 @@ pub(crate) fn pim_tour(a: &mut MailApp, ctx: &egui::Context) {
     for _ in 0..30 {
         frame(ctx, a, vec![]);
     }
+    // Follow Up › Custom… on its flagged mail (issue #160).
+    let flagged = a.session.todo_items().into_iter().find_map(|i| match i.what {
+        mailcraft_engine::TodoWhat::Mail { key } => Some(key),
+        mailcraft_engine::TodoWhat::Task { .. } => None,
+    });
+    if let Some(key) = flagged {
+        a.ui.dialog = crate::pim_dialogs::FollowUpForm::new(&a.session, &key).map(|f| Dialog::FollowUp(Box::new(f)));
+        frame(ctx, a, vec![]);
+        frame(ctx, a, vec![]);
+        a.ui.dialog = None;
+    }
     a.run("view.todoBar", json!({"off": true}));
     a.run("view.module", json!({"name": "calendar"}));
     for mode in ["schedule", "day", "week", "month"] {

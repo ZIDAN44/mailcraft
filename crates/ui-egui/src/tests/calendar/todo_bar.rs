@@ -1,6 +1,8 @@
 //! The To-Do Bar beside the mail (issue #79): where it shows, what's in it, and what a click in
 //! it does.
 
+use mailcraft_engine::TodoGroup;
+
 use super::*;
 
 const SIZE: egui::Vec2 = egui::vec2(1280.0, 800.0);
@@ -284,4 +286,68 @@ fn the_whole_week_is_listed() {
     let shown: Vec<String> = drawn(&ctx, &mut a, tall).into_iter().map(|(s, _)| s).collect();
     let listed = (0..12).filter(|n| shown.iter().any(|s| *s == format!("Planning {n:02}"))).count();
     assert_eq!(listed, 12, "{shown:?}");
+}
+
+/// Issue #160: a right-click on a row of the task list opens its menu, as Outlook's: flagged mail
+/// in a folder that isn't on screen followed up by another day from it (nothing selected), its
+/// flag cleared; a task given a day, and deleted. Custom… asks for the day.
+#[test]
+fn a_rows_menu_follows_it_up() {
+    let (mut a, _) = app("todo-bar-row-menu");
+    let ctx = egui::Context::default();
+    a.run("view.todoBar", json!({}));
+    a.run("view.todoBar", json!({"part": "appointments", "on": false}));
+    settle(&ctx, &mut a);
+    let edge = SIZE.x - f32::from(a.session.prefs.todo_bar.width);
+    let shot = |a: &MailApp| a.session.todo_items().into_iter().find(|i| i.title == "Shot list v2").map(|i| i.group);
+    assert_eq!(shot(&a), Some(TodoGroup::NoDate));
+    let open_menu = |ctx: &egui::Context, a: &mut MailApp, row: &str| {
+        let at = in_bar(ctx, a, row, edge).center();
+        click_at(ctx, a, at, egui::PointerButton::Secondary, Modifiers::NONE);
+        frame(ctx, a, vec![]);
+    };
+    let pick = |ctx: &egui::Context, a: &mut MailApp, what: &str| {
+        // The menu's, drawn over the rest last (the ribbon has a Delete too).
+        let at = drawn(ctx, a, SIZE).into_iter().rev().find(|(s, _)| s == what).map(|(_, r)| r.center()).unwrap_or_else(|| panic!("no {what:?}"));
+        click(ctx, a, at);
+        frame(ctx, a, vec![]);
+    };
+
+    open_menu(&ctx, &mut a, "Shot list v2");
+    let shown: Vec<String> = drawn(&ctx, &mut a, SIZE).into_iter().map(|(s, _)| s).collect();
+    for what in ["Open", "Follow up", "Mark complete", "Clear flag"] {
+        assert!(shown.iter().any(|s| s == what), "{what}: {shown:?}");
+    }
+    pick(&ctx, &mut a, "Follow up");
+    pick(&ctx, &mut a, "Tomorrow");
+    settle(&ctx, &mut a);
+    assert_eq!(shot(&a), Some(TodoGroup::Tomorrow));
+    assert!(a.session.selection.iter().all(|k| a.session.todo_message(k).is_none()), "the selection isn't what changed");
+
+    // Custom…: the day asked for, in its own form.
+    open_menu(&ctx, &mut a, "Shot list v2");
+    pick(&ctx, &mut a, "Follow up");
+    pick(&ctx, &mut a, "Custom…");
+    assert!(matches!(&a.ui.dialog, Some(Dialog::FollowUp(f)) if f.subject == "Shot list v2"), "the Custom form");
+    a.ui.dialog = None;
+
+    // Clear Flag: off the list.
+    open_menu(&ctx, &mut a, "Shot list v2");
+    pick(&ctx, &mut a, "Clear flag");
+    settle(&ctx, &mut a);
+    assert_eq!(shot(&a), None);
+
+    // A task: given a day, then deleted.
+    let title = "Renew the font licences";
+    let task = |a: &MailApp| a.session.tasks("font licences").into_iter().next().map(|r| r.task.clone());
+    open_menu(&ctx, &mut a, title);
+    pick(&ctx, &mut a, "Follow up");
+    pick(&ctx, &mut a, "Next week");
+    settle(&ctx, &mut a);
+    let next_week = mailcraft_engine::model::dates::FollowUp::NextWeek.due(&a.session.clock);
+    assert_eq!(task(&a).and_then(|t| t.due).map(|d| d.div_euclid(86_400)), Some(next_week));
+    open_menu(&ctx, &mut a, title);
+    pick(&ctx, &mut a, "Delete");
+    settle(&ctx, &mut a);
+    assert!(task(&a).is_none(), "deleted");
 }

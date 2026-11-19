@@ -213,3 +213,38 @@ fn flagged_replies_are_listed_without_their_prefix() {
     }
     assert!(!titles.iter().any(|t| t.starts_with("RE:") || t.starts_with("FW:")), "{titles:?}");
 }
+
+/// Issue #160: the To-Do Bar's menu on flagged mail in a folder that isn't on screen (nothing
+/// selected): Follow Up by another day, a day of its own, no date, Mark Complete and Clear Flag,
+/// each undone by Undo; what isn't on the bar, refused.
+#[test]
+fn flagged_mail_is_followed_up_from_the_bar_wherever_it_is() {
+    let mut s = sample_session("todo-flag");
+    read_all(&mut s);
+    let elsewhere = mail(&s.todo_items()).into_iter().find(|(_, _, k)| !k.ends_with(":INBOX")).map(|(.., k)| k).expect("flagged elsewhere");
+    s.selection.clear();
+    let group = |s: &Session| mail(&s.todo_items()).into_iter().find(|(.., k)| *k == elsewhere).map(|(_, g, _)| g);
+    for (due, want) in [("tomorrow", TodoGroup::Tomorrow), ("nextWeek", TodoGroup::NextWeek), ("none", TodoGroup::NoDate)] {
+        s.run("todo.flag", &json!({"key": elsewhere, "due": due})).unwrap();
+        assert_eq!(group(&s), Some(want), "{due}");
+    }
+    // A day of its own (Custom…).
+    let later = mailcraft_model::dates::today(&s.clock) + 40;
+    s.run("todo.flag", &json!({"key": elsewhere, "due": mailcraft_model::dates::day_string(later)})).unwrap();
+    let item = s.todo_items().into_iter().find(|i| matches!(&i.what, TodoWhat::Mail { key } if key.to_id() == elsewhere)).unwrap();
+    assert_eq!((item.due, item.group), (Some(later), TodoGroup::Later));
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(group(&s), Some(TodoGroup::NoDate), "Undo: no date again");
+    // Mark Complete, and Clear Flag: off the bar; Undo puts it back.
+    for p in [json!({"key": elsewhere, "complete": true}), json!({"key": elsewhere})] {
+        s.run("todo.flag", &p).unwrap();
+        assert_eq!(group(&s), None, "{p}");
+        s.run("edit.undo", &json!({})).unwrap();
+        read_all(&mut s);
+        assert_eq!(group(&s), Some(TodoGroup::NoDate), "{p}: back");
+    }
+    assert!(s.selection.is_empty(), "the selection left as it was");
+    for (key, due) in [("", "today"), ("sample:1:999999:INBOX", "today"), (elsewhere.as_str(), "someday")] {
+        assert!(s.run("todo.flag", &json!({"key": key, "due": due})).is_err(), "{key} {due}");
+    }
+}

@@ -1855,3 +1855,4 @@ count	occurrences	повторений
 	Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.	Google не позволяет почтовым приложениям входить с паролем от аккаунта Google, пока включена двухэтапная аутентификация. Создайте пароль приложения на https://myaccount.google.com/apppasswords и введите здесь его.
 	With 2-Step Verification on, Google takes an app password here, not your Google password.	Если включена двухэтапная аутентификация, здесь Google принимает пароль приложения, а не пароль от аккаунта Google.
 	Make an app password	Создать пароль приложения
+	Custom…	Настраиваемый…

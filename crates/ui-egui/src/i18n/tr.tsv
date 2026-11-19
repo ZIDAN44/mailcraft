@@ -1856,3 +1856,4 @@ count	occurrences	kez
 	Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.	2 Adımlı Doğrulama açıkken Google, e-posta uygulamalarının Google şifrenizle oturum açmasına izin vermez. https://myaccount.google.com/apppasswords adresinde bir uygulama şifresi oluşturun ve onun yerine buraya girin.
 	With 2-Step Verification on, Google takes an app password here, not your Google password.	2 Adımlı Doğrulama açıkken Google burada Google şifrenizi değil, bir uygulama şifresini kabul eder.
 	Make an app password	Uygulama şifresi oluştur
+	Custom…	Özel…

@@ -206,6 +206,8 @@ pub enum Dialog {
     },
     Event(Box<crate::pim_dialogs::EventForm>),
     Task(Box<crate::pim_dialogs::TaskForm>),
+    /// Follow Up › Custom… on a flagged message of the To-Do Bar (issue #160).
+    FollowUp(Box<crate::pim_dialogs::FollowUpForm>),
     Contact(Box<crate::pim_dialogs::ContactForm>),
     /// New folder (in `parent`), or rename `rename`.
     FolderName {
@@ -713,6 +715,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::SmartCard { .. }
         | Dialog::Event(..)
         | Dialog::Task(..)
+        | Dialog::FollowUp(..)
         | Dialog::Contact(..) => other::draw(ui, d, s, pics, t, acts),
     }
 }

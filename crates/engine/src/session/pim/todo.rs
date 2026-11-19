@@ -197,7 +197,12 @@ impl Session {
 
     /// The flagged message of the task list with this key.
     pub fn todo_message(&self, key: &MessageKey) -> Option<&Summary> {
-        self.todo.read.get(&(key.account.clone(), key.folder.clone()))?.iter().find(|m| &m.key == key).map(|m| &**m)
+        self.todo_shared(key).map(|m| &**m)
+    }
+
+    /// [`Session::todo_message`], shared.
+    pub(crate) fn todo_shared(&self, key: &MessageKey) -> Option<&SharedSummary> {
+        self.todo.read.get(&(key.account.clone(), key.folder.clone()))?.iter().find(|m| &m.key == key)
     }
 
     /// The To-Do Bar's task list: tasks not done and flagged mail, the soonest due first (those

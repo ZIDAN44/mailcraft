@@ -228,13 +228,116 @@ fn row(s: &Session, t: &Tokens, ui: &mut Ui, it: &TodoItem, acts: &mut Vec<Actio
     ui.painter().with_clip_rect(rect).galley(at, galley, t.text);
     widgets::named(ui, &resp, &title, true, None);
     if resp.clicked() {
-        match &it.what {
-            TodoWhat::Task { uid } => {
-                if let Some(d) = Dialog::open_task(s, uid) {
-                    acts.push(Action::Dialog(d));
-                }
+        open(s, it, acts);
+    }
+    resp.context_menu(|ui| menu(s, t, ui, it, acts));
+}
+
+/// Open a row's task (its form) or message (a window of its own).
+fn open(s: &Session, it: &TodoItem, acts: &mut Vec<Action>) {
+    match &it.what {
+        TodoWhat::Task { uid } => {
+            if let Some(d) = Dialog::open_task(s, uid) {
+                acts.push(Action::Dialog(d));
             }
-            TodoWhat::Mail { key } => acts.push(Action::Run("todo.open", json!({"key": key.to_id()}))),
         }
+        TodoWhat::Mail { key } => acts.push(Action::Run("todo.open", json!({"key": key.to_id()}))),
+    }
+}
+
+/// A row's menu, as Outlook's To-Do Bar has it (issue #160): Open; Follow Up by a day, none or
+/// one picked (a task's form, for a task); Mark Complete; and Clear Flag for mail, or a task's
+/// categories and Delete.
+fn menu(s: &Session, t: &Tokens, ui: &mut Ui, it: &TodoItem, acts: &mut Vec<Action>) {
+    if ui.button(tl!("Open")).clicked() {
+        open(s, it, acts);
+        ui.close();
+    }
+    ui.menu_button(tl!("Follow up"), |ui| {
+        for f in dates::FollowUp::ALL {
+            let day = f.due(&s.clock);
+            let when = crate::i18n::date(&dates::day_text(day, &s.clock));
+            let clicked = ui
+                .horizontal(|ui| {
+                    let r = ui.selectable_label(it.due == Some(day), tl!(f.label()));
+                    ui.label(RichText::new(when).color(t.faint).small());
+                    r.clicked()
+                })
+                .inner;
+            if clicked {
+                acts.push(follow_up(it, Some(day)));
+                ui.close();
+            }
+        }
+        if ui.selectable_label(it.due.is_none(), tl!("No date")).clicked() {
+            acts.push(follow_up(it, None));
+            ui.close();
+        }
+        if ui.selectable_label(false, tl!("Custom…")).clicked() {
+            match &it.what {
+                TodoWhat::Mail { key } => {
+                    if let Some(f) = crate::pim_dialogs::FollowUpForm::new(s, key) {
+                        acts.push(Action::Dialog(Dialog::FollowUp(Box::new(f))));
+                    }
+                }
+                TodoWhat::Task { .. } => open(s, it, acts),
+            }
+            ui.close();
+        }
+    });
+    ui.separator();
+    if ui.button(tl!("Mark complete")).clicked() {
+        acts.push(match &it.what {
+            TodoWhat::Task { uid } => Action::Run("task.complete", json!({"uid": uid})),
+            TodoWhat::Mail { key } => Action::Run("todo.flag", json!({"key": key.to_id(), "complete": true})),
+        });
+        ui.close();
+    }
+    match &it.what {
+        TodoWhat::Mail { key } => {
+            if ui.button(tl!("Clear flag")).clicked() {
+                acts.push(Action::Run("todo.flag", json!({"key": key.to_id()})));
+                ui.close();
+            }
+        }
+        TodoWhat::Task { uid } => {
+            let chosen = s.find_task(uid).map(|r| r.task.categories).unwrap_or_default();
+            if !s.prefs.categories.is_empty() {
+                ui.menu_button(tl!("Categorize"), |ui| {
+                    for c in &s.prefs.categories {
+                        let on = chosen.iter().any(|x| x.eq_ignore_ascii_case(&c.name));
+                        let clicked = ui
+                            .horizontal(|ui| {
+                                crate::panes::organize::dot(ui, c.color, t.dark);
+                                ui.selectable_label(on, tl!(&c.name)).clicked()
+                            })
+                            .inner;
+                        if clicked {
+                            let mut now: Vec<String> = chosen.iter().filter(|x| !x.eq_ignore_ascii_case(&c.name)).cloned().collect();
+                            if !on {
+                                now.push(c.name.clone());
+                            }
+                            acts.push(Action::Run("task.update", json!({"uid": uid, "categories": now})));
+                            ui.close();
+                        }
+                    }
+                });
+            }
+            ui.separator();
+            if ui.button(tl!("Delete")).clicked() {
+                acts.push(Action::Run("task.delete", json!({"uid": uid})));
+                ui.close();
+            }
+        }
+    }
+}
+
+/// Following a row up by `day` (`None`: no date): a message's flag, a task's due day.
+fn follow_up(it: &TodoItem, day: Option<i64>) -> Action {
+    match &it.what {
+        TodoWhat::Mail { key } => {
+            Action::Run("todo.flag", json!({"key": key.to_id(), "due": day.map_or_else(|| "none".to_string(), dates::day_string)}))
+        }
+        TodoWhat::Task { uid } => Action::Run("task.update", json!({"uid": uid, "due": day.map(dates::day_string).unwrap_or_default()})),
     }
 }

@@ -404,10 +404,7 @@ impl Session {
         let current = flag.get(&first.flags);
         let on = on.unwrap_or(!current);
         if flag == Flag::Flagged {
-            let was = self.follow_up_days_of(&sel);
-            let undo = self.set_flagged(&sel, on);
-            self.remember_follow_up(undo, was);
-            return Ok(serde_json::json!({ "on": on, "count": sel.len() }));
+            return self.flag_messages(&sel, on);
         }
         self.mark_selection(&sel, on, |m| flag.get(&m.flags), |keys, on| Op::SetFlag { keys, flag, on });
         Ok(serde_json::json!({ "on": on, "count": sel.len() }))
@@ -495,12 +492,30 @@ impl Session {
             return self.complete_selection();
         }
         let sel = self.selected_shared();
+        self.follow_up_messages(&sel, due)
+    }
+
+    /// Flag these messages, or clear their flags, wherever they are (the To-Do Bar's are in any
+    /// folder, issue #160), as [`Session::flag_selection`] does the selection's.
+    pub(crate) fn flag_messages(&mut self, sel: &[SharedSummary], on: bool) -> CmdResult {
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }
-        let was = self.follow_up_days_of(&sel);
-        let undo = self.set_flagged(&sel, true);
-        for m in &sel {
+        let was = self.follow_up_days_of(sel);
+        let undo = self.set_flagged(sel, on);
+        self.remember_follow_up(undo, was);
+        Ok(serde_json::json!({ "on": on, "count": sel.len() }))
+    }
+
+    /// Flag these messages for follow-up by a day (`None`: no date), wherever they are, as
+    /// [`Session::follow_up_selection`] does the selection.
+    pub(crate) fn follow_up_messages(&mut self, sel: &[SharedSummary], due: Option<i64>) -> CmdResult {
+        if sel.is_empty() {
+            return Err(CmdError::Disabled("no message selected".into()));
+        }
+        let was = self.follow_up_days_of(sel);
+        let undo = self.set_flagged(sel, true);
+        for m in sel {
             let id = m.follow_up_id();
             match due {
                 Some(d) if self.prefs.follow_up.len() < MAX_FOLLOW_UP || self.prefs.follow_up.contains_key(&id) => {

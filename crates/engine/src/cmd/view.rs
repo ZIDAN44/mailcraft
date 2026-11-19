@@ -175,6 +175,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.todo_complete(&key)
         })
         .params(r#"{"key": string (a flagged message of the To-Do Bar's task list)}"#),
+        CommandSpec::new("todo.flag", "Follow up", "To-Do Bar", super::home::todo_flag).params(
+            r#"{"key": string (a flagged message of the To-Do Bar's task list, in any folder), "due"?: "today"|"tomorrow"|"thisWeek"|"nextWeek"|"none"|"YYYY-MM-DD" (Follow Up by that day), "complete"?: true (Mark Complete), "on"?: bool (neither given: Clear Flag)}"#,
+        ),
         CommandSpec::new("todo.open", "Open", "To-Do Bar", |s, v| {
             let key = p::req_str(v, "key")?;
             let key = mailcraft_model::MessageKey::from_id(key).ok_or_else(|| CmdError::Params(format!("`{key}` isn't a message")))?;

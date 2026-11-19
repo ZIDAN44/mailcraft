@@ -105,6 +105,16 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** It needs an Etebase client of MailCraft's own: the Rust library EteSync publishes
   brings C libraries with it (OpenSSL and libsodium), which MailCraft doesn't build with.
 
+### 9. Follow-up days on Exchange and Microsoft 365
+
+- **Impact:** A flag's due day given in MailCraft stays in MailCraft: Outlook shows the message
+  flagged with no date. A due day or reminder given in Outlook doesn't come over: the message is
+  under **No date** in the To-Do Bar.
+- **Workaround:** Give the day in the app you follow mail up in.
+- **Cause:** MailCraft keeps a flag's due day in its own settings and reads and writes only the
+  flag's status on the server. Exchange keeps the days on the message (EWS `item:Flag`, Graph's
+  `flag`), which MailCraft doesn't read or write yet.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.
