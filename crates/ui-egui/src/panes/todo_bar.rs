@@ -11,9 +11,11 @@ use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog, UiState, widgets};
 
-/// How far ahead the appointments look, and how many are listed.
+/// How far ahead the appointments look.
 const DAYS_AHEAD: i64 = 7;
-const APPOINTMENTS: usize = 8;
+/// Appointments listed at most: every one of the week's (issue #163: they stopped at 8, today's
+/// and tomorrow's on a busy calendar), the part scrolling; a bound all the same.
+const APPOINTMENTS: usize = 500;
 const ROW: f32 = 26.0;
 
 /// The bar as a pane at the window's end (its left in a right-to-left interface), when a part of

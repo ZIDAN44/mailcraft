@@ -195,3 +195,21 @@ fn flagging_a_big_folder_for_the_bar_takes() {
     took.sort();
     println!("MEASURE the bar told of 20,000 flagged: median {:?}, best {:?}", took[2], took[0]);
 }
+
+/// Issue #163: flagged mail is listed without its reply or forward prefix, as Outlook's task list
+/// shows it, its `[tag]` kept; a subject that's all prefix stays as it is.
+#[test]
+fn flagged_replies_are_listed_without_their_prefix() {
+    let mut s = sample_session("todo-prefixes");
+    for subject in ["RE: [Ticket#4] Printer jam", "FW: Fwd: Budget", "Re:"] {
+        let key = next_key(&s, "sample", "INBOX");
+        let flags = mailcraft_model::Flags { flagged: true, ..Default::default() };
+        file_in(&mut s, mailcraft_model::Summary { key, subject: subject.into(), flags, ..Default::default() }, None);
+    }
+    read_all(&mut s);
+    let titles: Vec<String> = mail(&s.todo_items()).into_iter().map(|(t, ..)| t).collect();
+    for want in ["[Ticket#4] Printer jam", "Budget", "Re:"] {
+        assert!(titles.iter().any(|t| t == want), "{want}: {titles:?}");
+    }
+    assert!(!titles.iter().any(|t| t.starts_with("RE:") || t.starts_with("FW:")), "{titles:?}");
+}

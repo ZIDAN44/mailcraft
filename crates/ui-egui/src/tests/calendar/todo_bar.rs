@@ -263,3 +263,25 @@ fn a_day_picked_shows_its_events() {
     settle(&ctx, &mut a);
     assert_eq!(a.ui.todo_day, None);
 }
+
+/// Issue #163: every appointment of the coming week is listed, not the first 8 of them (a busy
+/// calendar showed only today and tomorrow).
+#[test]
+fn the_whole_week_is_listed() {
+    let (mut a, _) = app("todo-bar-week");
+    let ctx = egui::Context::default();
+    a.run("view.todoBar", json!({"part": "appointments", "on": true}));
+    let today = mailcraft_engine::model::dates::today(&a.session.clock);
+    // Twelve, two a day for six days from tomorrow.
+    for n in 0..12 {
+        let at = a.session.local_midnight(today + 1 + n / 2) + 9 * 3600 + (n % 2) * 3 * 3600;
+        a.act(crate::Action::Submit("event.create", json!({"summary": format!("Planning {n:02}"), "start": at, "end": at + 1800})));
+    }
+    let tall = egui::vec2(1280.0, 3000.0);
+    for _ in 0..3 {
+        drawn(&ctx, &mut a, tall);
+    }
+    let shown: Vec<String> = drawn(&ctx, &mut a, tall).into_iter().map(|(s, _)| s).collect();
+    let listed = (0..12).filter(|n| shown.iter().any(|s| *s == format!("Planning {n:02}"))).count();
+    assert_eq!(listed, 12, "{shown:?}");
+}

@@ -220,7 +220,11 @@ impl Session {
             }
             for m in list {
                 let due = self.follow_up_due(m);
-                out.push(TodoItem { what: TodoWhat::Mail { key: m.key.clone() }, title: m.subject.clone(), due, group: TodoGroup::of(due, today) });
+                // Without its `RE:` / `FW:`, as Outlook's task list shows a reply or forward
+                // flagged (issue #163); its `[tags]` kept. One that's all prefix stays as it is.
+                let bare = mailcraft_model::thread::without_prefixes(&m.subject);
+                let title = if bare.trim().is_empty() { m.subject.clone() } else { bare };
+                out.push(TodoItem { what: TodoWhat::Mail { key: m.key.clone() }, title, due, group: TodoGroup::of(due, today) });
             }
         }
         out.sort_by_cached_key(|i| (i.group, i.due, i.title.to_lowercase()));
