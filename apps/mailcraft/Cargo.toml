@@ -24,7 +24,7 @@ egui = { workspace = true }
 # platform font services (it reads the font folders, and Windows' registry, itself).
 craft-font-catalog = { workspace = true }
 # A face is handed to egui only once it reads, as egui reads it (one that doesn't stops egui).
-skrifa = { version = "0.47", default-features = false, features = ["std"] }
+skrifa = { version = "0.49", default-features = false, features = ["std"] }
 serde_json = { workspace = true }
 log = { workspace = true }
 # The local UTC offset for message times.
