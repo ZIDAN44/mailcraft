@@ -87,6 +87,7 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             Switch { label: tl!("Check spelling as you type"), about: Some(about), on: s.prefs.spelling, cmd: "options.spelling" },
             acts,
         );
+        compose_font(s, t, ui, acts);
         // Issue #115: Ctrl+Enter sends at once only when that's chosen.
         setting(ui, t, false, tl!("Ctrl+Enter in a message"), None, |ui| {
             use mailcraft_engine::CtrlEnter;
@@ -286,6 +287,44 @@ fn start_in(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             && let Ok(p) = serde_json::to_value(&at)
         {
             acts.push(Action::Run("options.startIn", p));
+        }
+    });
+}
+
+/// The font new messages are written in (issue #166), as Outlook's "New mail messages" font:
+/// MailCraft's own, or any installed on the computer (none offered in the browser, nor the row).
+fn compose_font(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    let families = crate::mail_fonts::families();
+    if families.is_empty() {
+        return;
+    }
+    let about = tl!("New messages, replies and forwards are written in it. Text you set a font on keeps its own.");
+    setting(ui, t, false, tl!("Font for new messages"), Some(about), |ui| {
+        let now = s.prefs.compose_font.clone();
+        let r = egui::ComboBox::from_id_salt("compose-font")
+            .width(220.0)
+            .height(360.0)
+            .selected_text(now.clone().unwrap_or_else(|| tl!("Default font").to_string()))
+            .truncate()
+            .show_ui(ui, |ui| {
+                if ui.selectable_label(now.is_none(), tl!("Default font")).clicked() {
+                    acts.push(Action::Run("options.composeFont", json!({"font": null})));
+                }
+                for f in families.iter() {
+                    let on = now.as_deref().is_some_and(|n| n.eq_ignore_ascii_case(f));
+                    if ui.selectable_label(on, f.as_str()).clicked() {
+                        acts.push(Action::Run("options.composeFont", json!({"font": f})));
+                    }
+                }
+            })
+            .response
+            // The setting's name is beside it in the row, which doesn't hand it on.
+            .accessible_name(tl!("Font for new messages"));
+        let choices: Vec<Option<String>> = std::iter::once(None).chain(families.iter().cloned().map(Some)).collect();
+        let mut at = now.clone();
+        crate::drop_down::keys(ui, &r, &mut at, &choices);
+        if at != now {
+            acts.push(Action::Run("options.composeFont", json!({"font": at})));
         }
     });
 }

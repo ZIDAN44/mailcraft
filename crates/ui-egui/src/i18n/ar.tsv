@@ -1873,3 +1873,5 @@ count	occurrences	مرات
 	{name}: off	{name}: متوقف
 	Font	الخط
 	Default font	الخط الافتراضي
+	Font for new messages	خط الرسائل الجديدة
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	تُكتب به الرسائل الجديدة والردود وإعادة التوجيه. النص الذي تحدد له خطًا يحتفظ بخطه.

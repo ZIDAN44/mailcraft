@@ -1878,3 +1878,5 @@ count	occurrences	repeticiones
 	{name}: off	{name}: desactivado
 	Font	Fuente
 	Default font	Fuente predeterminada
+	Font for new messages	Fuente para mensajes nuevos
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Los mensajes nuevos, las respuestas y los reenvíos se escriben con ella. El texto al que le pongas una fuente conserva la suya.

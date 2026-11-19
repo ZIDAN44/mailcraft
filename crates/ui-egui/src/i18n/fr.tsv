@@ -1878,3 +1878,5 @@ count	occurrences	occurrences
 	{name}: off	{name} : désactivé
 	Font	Police
 	Default font	Police par défaut
+	Font for new messages	Police des nouveaux messages
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Les nouveaux messages, les réponses et les transferts sont écrits dans cette police. Le texte auquel vous donnez une police garde la sienne.

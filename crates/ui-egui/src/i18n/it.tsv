@@ -1877,3 +1877,5 @@ count	occurrences	ripetizioni
 	{name}: off	{name}: disattivato
 	Font	Carattere
 	Default font	Carattere predefinito
+	Font for new messages	Carattere per i nuovi messaggi
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	I nuovi messaggi, le risposte e gli inoltri vengono scritti con questo carattere. Il testo a cui assegni un carattere mantiene il proprio.

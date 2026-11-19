@@ -1878,3 +1878,5 @@ count	occurrences	opakovaní
 	{name}: off	{name}: vypnuté
 	Font	Písmo
 	Default font	Predvolené písmo
+	Font for new messages	Písmo nových správ
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Nové správy, odpovede a preposlané správy sa píšu týmto písmom. Text, ktorému nastavíte písmo, si ponechá svoje.

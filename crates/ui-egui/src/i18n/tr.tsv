@@ -1878,3 +1878,5 @@ count	occurrences	kez
 	{name}: off	{name}: kapalı
 	Font	Yazı tipi
 	Default font	Varsayılan yazı tipi
+	Font for new messages	Yeni iletilerin yazı tipi
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Yeni iletiler, yanıtlar ve iletmeler bu yazı tipiyle yazılır. Yazı tipi belirlediğiniz metin kendi yazı tipini korur.

@@ -1874,3 +1874,5 @@ count	occurrences	回
 	{name}: off	{name}: オフ
 	Font	フォント
 	Default font	既定のフォント
+	Font for new messages	新しいメッセージのフォント
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	新しいメッセージ、返信、転送はこのフォントで書かれます。フォントを指定した文字はそのフォントのままです。

@@ -1877,3 +1877,5 @@ count	occurrences	次
 	{name}: off	{name}：關
 	Font	字型
 	Default font	預設字型
+	Font for new messages	新郵件的字型
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	新郵件、回覆和轉寄都使用此字型書寫。你設定了字型的文字保留其自己的字型。

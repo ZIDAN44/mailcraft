@@ -92,6 +92,10 @@ pub struct Compose {
     /// Send as plain text only (lists written out, the rest of the formatting dropped).
     #[serde(default)]
     pub plain: bool,
+    /// The typeface its text is in where none is set on it (issue #166): the font chosen for new
+    /// messages when it was begun. Sent as HTML for it, even with nothing else formatted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub font: Option<String>,
     /// The pictures placed in the text (each where a [`mime::rich::PICTURE`] stands).
     #[serde(default)]
     pub inline: Vec<mime::InlinePicture>,
@@ -212,10 +216,10 @@ impl Compose {
         let used = mime::rich::pictures(&self.body, &styles);
         let pictures: Vec<mime::InlinePicture> = self.inline.iter().filter(|p| used.contains(&p.cid)).cloned().collect();
         let text = mime::rich::to_text(&self.body, &styles);
-        if self.plain || (styles.is_plain() && pictures.is_empty()) {
+        if self.plain || (styles.is_plain() && pictures.is_empty() && self.font.is_none()) {
             (text, None, Vec::new())
         } else {
-            (text, Some(mime::rich::to_html(&self.body, &styles)), pictures)
+            (text, Some(mime::rich::to_html_in(&self.body, &styles, self.font.as_deref())), pictures)
         }
     }
 
@@ -241,11 +245,11 @@ impl Compose {
         let (before, before_styles) = mime::rich::slice(&self.body, &styles, 0..start + "-- ".len());
         let (after, after_styles) = mime::rich::slice(&self.body, &styles, end..self.body.chars().count());
         let (code_html, code_pictures) = mime::signature_code_parts(code, &self.signature_code_tag());
-        let mut out = mime::rich::to_html(&before, &before_styles);
+        let mut out = mime::rich::to_html_in(&before, &before_styles, self.font.as_deref());
         // Marked, so a saved draft opened again has the code back as it was.
         out.push_str(&format!("<div class=\"{}\">{code_html}</div>", mime::SIGNATURE_CLASS));
         if !after.trim().is_empty() {
-            out.push_str(&mime::rich::to_html(&after, &after_styles));
+            out.push_str(&mime::rich::to_html_in(&after, &after_styles, self.font.as_deref()));
         }
         let mut used = mime::rich::pictures(&before, &before_styles);
         used.extend(mime::rich::pictures(&after, &after_styles));
@@ -380,7 +384,8 @@ impl Session {
         let sig = self.signature_for(&account, &from, false);
         let id = self.fresh_id();
         let window = self.prefs.new_mail_window;
-        self.open_compose(Compose { id, account, from, window, ..Default::default() });
+        let font = self.prefs.compose_font.clone();
+        self.open_compose(Compose { id, account, from, window, font, ..Default::default() });
         self.put_signature(sig.as_ref(), None)?;
         self.compose.as_mut().ok_or_else(|| CmdError::Failed("compose".into()))
     }
@@ -477,6 +482,7 @@ impl Session {
             scheme,
             window: self.prefs.reply_window,
             quote,
+            font: self.prefs.compose_font.clone(),
             ..Default::default()
         });
         self.style_signature(signature.as_ref());
@@ -525,6 +531,7 @@ impl Session {
             encrypt: encrypted,
             scheme,
             window: self.prefs.reply_window,
+            font: self.prefs.compose_font.clone(),
             ..Default::default()
         };
         c.set_text(String::new());

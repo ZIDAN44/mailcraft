@@ -155,8 +155,8 @@ pub(crate) const SIGNATURE_ID: u64 = u64::MAX;
 
 /// A look as the editor draws it (tests).
 #[cfg(test)]
-pub(crate) fn text_format(s: &Style, t: &Tokens) -> TextFormat {
-    layout::format(s, t)
+pub(crate) fn text_format(s: &Style, base: Option<&str>, t: &Tokens) -> TextFormat {
+    layout::format(s, base, t)
 }
 
 /// The message text box's id.
@@ -423,6 +423,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     // with the frame's first ones, all that followed the change was a letter off for a frame: a
     // picture after it was laid out as a letter, and the text under it jumped (issue #114).
     let was = c.body.clone();
+    let font = c.font.clone();
     let (typing, at) = (ed.typing.clone(), ed.sel.start);
     let mut moved: Option<(String, Styles, Option<Card>)> = None;
     let mut text = Tracked::new(&mut c.body);
@@ -431,7 +432,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| {
         let now = buf.as_str();
         if now == was {
-            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: card.as_ref() });
+            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: card.as_ref(), font: font.as_deref() });
         }
         if moved.as_ref().is_none_or(|(laid_for, ..)| laid_for != now) {
             let mut st = styles.clone();
@@ -440,9 +441,9 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
             moved = Some((now.to_string(), st, card.as_ref().and_then(|card| card.moved(&was, now))));
         }
         let Some((_, st, card)) = moved.as_ref() else {
-            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: None });
+            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: None, font: font.as_deref() });
         };
-        layout_kept(laid, ui, now, Lay { st, plain, t: &tokens, wrap, own: &own, card: card.as_ref() })
+        layout_kept(laid, ui, now, Lay { st, plain, t: &tokens, wrap, own: &own, card: card.as_ref(), font: font.as_deref() })
     };
     // As tall as the pane, or, above the original of a reply shown as it came, as its text.
     let height = ed.min_height.unwrap_or_else(|| if c.quote.is_some() { 96.0 } else { ui.available_height().max(220.0) });

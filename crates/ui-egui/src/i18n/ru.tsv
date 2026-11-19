@@ -1877,3 +1877,5 @@ count	occurrences	повторений
 	{name}: off	{name}: выкл.
 	Font	Шрифт
 	Default font	Шрифт по умолчанию
+	Font for new messages	Шрифт новых сообщений
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Новые сообщения, ответы и пересылки пишутся этим шрифтом. Текст, которому вы задали шрифт, сохраняет свой.

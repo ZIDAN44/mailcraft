@@ -130,7 +130,7 @@ impl Compose {
         let mut out = html.unwrap_or_else(|| {
             let mut styles = self.styles.clone();
             styles.fit(&self.body);
-            rich::to_html(&self.body, &styles)
+            rich::to_html_in(&self.body, &styles, self.font.as_deref())
         });
         let quoted = q.html();
         // Marked, so a message taken back to change (from the Outbox) has it as it was.

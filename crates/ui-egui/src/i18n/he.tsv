@@ -1873,3 +1873,5 @@ count	occurrences	פעמים
 	{name}: off	{name}: כבוי
 	Font	גופן
 	Default font	גופן ברירת מחדל
+	Font for new messages	גופן להודעות חדשות
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	הודעות חדשות, תשובות והעברות נכתבות בו. טקסט שקבעת לו גופן שומר על הגופן שלו.

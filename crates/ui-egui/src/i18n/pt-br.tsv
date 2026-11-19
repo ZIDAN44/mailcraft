@@ -1878,3 +1878,5 @@ count	occurrences	ocorrências
 	{name}: off	{name}: desativado
 	Font	Fonte
 	Default font	Fonte padrão
+	Font for new messages	Fonte para novas mensagens
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Novas mensagens, respostas e encaminhamentos são escritos nela. O texto em que você define uma fonte mantém a dele.

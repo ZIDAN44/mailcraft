@@ -78,7 +78,7 @@ fn a_font_of_the_computers_is_picked_drawn_and_sent() {
     // Drawn in it: the text's run asks for that font's family, which the computer's font fills.
     let style = c.styles.style(0);
     let family = crate::mail_fonts::family("Testface", style.bold).expect("offered here");
-    let fmt = crate::rich_edit::text_format(&style, &a.ui.tokens);
+    let fmt = crate::rich_edit::text_format(&style, None, &a.ui.tokens);
     assert_eq!(fmt.font_id.family, family);
     let drawn: Vec<String> = drawn_strings(&ctx, &mut a, SIZE);
     assert!(drawn.iter().any(|t| t.contains("Hello")), "the text is drawn, not left blank: {drawn:?}");
@@ -99,10 +99,14 @@ fn without_the_computers_fonts_text_in_one_is_drawn_in_the_editors() {
     let (mut a, ctx, _) = writing("fonts-none", None);
     assert!(font_box(&ctx, &mut a).is_none(), "no font box");
     let style = mailcraft_engine::mime::rich::Style { font: Some("Tahoma".into()), ..Default::default() };
-    assert_eq!(crate::rich_edit::text_format(&style, &a.ui.tokens).font_id.family, egui::FontFamily::Proportional);
+    assert_eq!(crate::rich_edit::text_format(&style, None, &a.ui.tokens).font_id.family, egui::FontFamily::Proportional);
     let (mut b, ctx_b, _) = writing("fonts-not-here", Some(Arc::new(OneFont)));
     assert!(font_box(&ctx_b, &mut b).is_some());
-    assert_eq!(crate::rich_edit::text_format(&style, &b.ui.tokens).font_id.family, egui::FontFamily::Proportional, "Tahoma isn't on this computer");
+    assert_eq!(
+        crate::rich_edit::text_format(&style, None, &b.ui.tokens).font_id.family,
+        egui::FontFamily::Proportional,
+        "Tahoma isn't on this computer"
+    );
 }
 
 /// A screen reader's "focus this" for `id`.
@@ -113,4 +117,45 @@ fn focus(id: egui::accesskit::NodeId) -> Event {
         target_tree: egui::accesskit::TreeId::ROOT,
         data: None,
     })
+}
+
+/// File › Options › Mail's "Font for new messages" (issue #166) sets the font a new message is
+/// written in: the font box shows it, and the editor draws the message's text in it.
+#[test]
+fn the_font_for_new_messages_is_set_in_options_and_written_in() {
+    let (mut a, _) = app("fonts-new-messages");
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    crate::mail_fonts::install(&ctx, Arc::new(OneFont));
+    a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    let tall = egui::vec2(1280.0, 2400.0);
+    for _ in 0..3 {
+        sized_frame(&ctx, &mut a, tall, vec![]);
+    }
+    let out = sized_frame(&ctx, &mut a, tall, vec![]);
+    let nodes = out.platform_output.accesskit_update.expect("AccessKit is on").nodes;
+    let row = nodes
+        .iter()
+        .find(|(_, n)| n.role() == Role::ComboBox && n.label() == Some("Font for new messages"))
+        .map(|(id, n)| (*id, n.value().unwrap_or_default().to_string()))
+        .expect("the row, with the computer's fonts offered");
+    assert_eq!(row.1, "Default font");
+    // Down picks the computer's first font.
+    sized_frame(&ctx, &mut a, tall, vec![focus(row.0)]);
+    sized_frame(&ctx, &mut a, tall, vec![]);
+    sized_frame(&ctx, &mut a, tall, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    sized_frame(&ctx, &mut a, tall, vec![]);
+    assert_eq!(a.session.prefs.compose_font.as_deref(), Some("Testface"));
+    a.ui.backstage = None;
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"to": "ann@x.example", "subject": "Plan", "body": "Hello"}));
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().expect("a message is written");
+    assert_eq!(c.font.as_deref(), Some("Testface"));
+    assert_eq!(font_box(&ctx, &mut a).map(|(_, s)| s).as_deref(), Some("Testface"), "the font box shows the message's font");
+    let plain = mailcraft_engine::mime::rich::Style::default();
+    let family = crate::mail_fonts::family("Testface", false).expect("offered here");
+    assert_eq!(crate::rich_edit::text_format(&plain, c.font.as_deref(), &a.ui.tokens).font_id.family, family, "drawn in it");
 }

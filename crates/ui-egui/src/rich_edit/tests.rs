@@ -54,7 +54,7 @@ English stays left.
     for plain in [false, true] {
         let mut rows = Vec::new();
         let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-            let g = layout::layout(ui, text, Lay { st: &Styles::plain(text), plain, t: &t, wrap, own: &HashMap::new(), card: None });
+            let g = layout::layout(ui, text, Lay { st: &Styles::plain(text), plain, t: &t, wrap, own: &HashMap::new(), card: None, font: None });
             rows = g
                 .rows
                 .iter()
@@ -104,7 +104,7 @@ fn a_picture_sits_where_it_is_in_the_text() {
             }
         }
         let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-            let g = layout::layout(ui, body, Lay { st: &st, plain: false, t: &t, wrap, own: &own, card: None });
+            let g = layout::layout(ui, body, Lay { st: &st, plain: false, t: &t, wrap, own: &own, card: None, font: None });
             let (a, b) = (g.pos_from_cursor(CCursor::new(at)), g.pos_from_cursor(CCursor::new(at + 1)));
             let last = body.chars().nth(at + 1).is_none_or(|c| c == '\n');
             let place = pictures::Place::of(&g, egui::Pos2::ZERO, at, last);
@@ -379,7 +379,7 @@ fn a_selection_is_drawn_where_it_was() {
         let n = text.chars().count();
         for wrap in [250.0, 700.0] {
             let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-                let g = layout::layout(ui, text, Lay { st: &st, plain: false, t: &t, wrap, own: &own, card: None });
+                let g = layout::layout(ui, text, Lay { st: &st, plain: false, t: &t, wrap, own: &own, card: None, font: None });
                 let mut carets = carets::Carets::new(&g);
                 for i in 0..n + 3 {
                     assert_eq!(carets.at(i), g.pos_from_cursor(CCursor::new(i)), "{wrap}: cursor {i} of {n}");
@@ -505,7 +505,7 @@ fn measure_editor_frame_pieces() {
                 black_box(c.body.chars().take(n).collect::<String>());
             });
             let fresh = median(|| {
-                black_box(layout::layout(ui, &c.body, Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, card: None }));
+                black_box(layout::layout(ui, &c.body, Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, card: None, font: None }));
             });
             let mut laid = layout::Laid::default();
             let kept = median(|| {
@@ -513,10 +513,10 @@ fn measure_editor_frame_pieces() {
                     &mut laid,
                     ui,
                     &c.body,
-                    Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, card: None },
+                    Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, card: None, font: None },
                 ));
             });
-            let g = layout::layout(ui, &c.body, Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, card: None });
+            let g = layout::layout(ui, &c.body, Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, card: None, font: None });
             let lines_was = median(|| {
                 for &i in &starts {
                     black_box(g.pos_from_cursor(CCursor::new(i)));
@@ -654,10 +654,12 @@ fn the_text_laid_out_is_kept_only_while_the_same() {
     let mut laid = layout::Laid::default();
     let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
         let own = HashMap::new();
-        let fresh =
-            |st: &Styles, plain: bool, wrap: f32| format!("{:?}", layout::layout(ui, &c.body, Lay { st, plain, t: &t, wrap, own: &own, card: None }));
-        let mut kept =
-            |st: &Styles, plain: bool, wrap: f32| layout::layout_kept(&mut laid, ui, &c.body, Lay { st, plain, t: &t, wrap, own: &own, card: None });
+        let fresh = |st: &Styles, plain: bool, wrap: f32| {
+            format!("{:?}", layout::layout(ui, &c.body, Lay { st, plain, t: &t, wrap, own: &own, card: None, font: None }))
+        };
+        let mut kept = |st: &Styles, plain: bool, wrap: f32| {
+            layout::layout_kept(&mut laid, ui, &c.body, Lay { st, plain, t: &t, wrap, own: &own, card: None, font: None })
+        };
         let a = kept(&c.styles, false, 900.4);
         let b = kept(&c.styles, false, 900.4);
         assert!(Arc::ptr_eq(&a, &b), "given again");

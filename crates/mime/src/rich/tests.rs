@@ -125,3 +125,19 @@ fn rich_cost() {
     );
     assert!(toggled && html.len() > n && plain.len() >= n);
 }
+
+/// A message's own typeface (issue #166) is first in its font list, before MailCraft's; a name
+/// can't end the quotes or the attribute, and one with nothing left of it leaves MailCraft's.
+#[test]
+fn a_message_in_a_typeface_of_its_own() {
+    let s = Styles::plain("Hi");
+    assert!(to_html_in("Hi", &s, Some("Georgia")).starts_with("<div style=\"font-family: 'Georgia', Aptos, Calibri"));
+    assert_eq!(to_html_in("Hi", &s, None), to_html("Hi", &s));
+    let evil = to_html_in("Hi", &s, Some("x'; color: red\"><script>alert(1)</script>"));
+    assert!(!evil.contains("<script>") && !evil.contains("color: red\""), "{evil}");
+    assert!(evil.starts_with("<div style=\"font-family: 'x color red"), "{evil}");
+    assert_eq!(to_html_in("Hi", &s, Some("'\";<>")), to_html("Hi", &s));
+    let long = "A".repeat(500);
+    assert_eq!(font_name(&long).map(|f| f.chars().count()), Some(FONT_NAME_MAX));
+    assert_eq!(font_name("  Segoe UI  ").as_deref(), Some("Segoe UI"));
+}

@@ -1878,3 +1878,5 @@ count	occurrences	Terminen
 	{name}: off	{name}: aus
 	Font	Schriftart
 	Default font	Standardschriftart
+	Font for new messages	Schriftart für neue Nachrichten
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Neue Nachrichten, Antworten und Weiterleitungen werden darin geschrieben. Text, für den Sie eine Schriftart festlegen, behält seine eigene.

@@ -1877,3 +1877,5 @@ count	occurrences	회
 	{name}: off	{name}: 꺼짐
 	Font	글꼴
 	Default font	기본 글꼴
+	Font for new messages	새 메시지 글꼴
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	새 메시지, 회신, 전달이 이 글꼴로 작성됩니다. 글꼴을 지정한 텍스트는 그 글꼴을 유지합니다.

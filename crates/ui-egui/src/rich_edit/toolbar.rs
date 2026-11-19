@@ -194,7 +194,8 @@ fn font_box(ui: &mut Ui, c: &Compose, cur: &Style, ops: &mut Vec<Op>) {
     if families.is_empty() {
         return;
     }
-    let shown = cur.font.clone().unwrap_or_else(|| tl!("Default font").to_string());
+    // With none set on the text, the message's own: the font chosen for new messages, if any.
+    let shown = cur.font.clone().or_else(|| c.font.clone()).unwrap_or_else(|| tl!("Default font").to_string());
     let r = egui::ComboBox::from_id_salt(("font-name", c.id))
         .width(140.0)
         .height(360.0)

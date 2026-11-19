@@ -142,6 +142,10 @@ pub struct Prefs {
     /// language.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty", deserialize_with = "checked_words")]
     pub dictionary: BTreeSet<String>,
+    /// The typeface new messages, replies and forwards are written in (issue #166), as Outlook's
+    /// "New mail messages" font; `None`: MailCraft's own.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "checked_font")]
+    pub compose_font: Option<String>,
     /// Closing the window leaves MailCraft running in the notification area, where the app
     /// has one (issue #67): mail is still checked and announced.
     pub close_to_tray: bool,
@@ -371,6 +375,7 @@ impl Default for Prefs {
             notify: true,
             spelling: true,
             dictionary: BTreeSet::new(),
+            compose_font: None,
             close_to_tray: false,
             start_in_tray: false,
             tray_unread: true,
@@ -486,6 +491,13 @@ pub fn dictionary_word(w: &str) -> Option<String> {
     let w = w.trim();
     let ok = !w.is_empty() && w.chars().count() <= DICTIONARY_WORD_MAX && !w.chars().any(|c| c.is_whitespace() || c.is_control());
     ok.then(|| w.to_string())
+}
+
+/// The font for new messages read from disk: only a name a style can carry
+/// ([`mime::rich::font_name`]).
+fn checked_font<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    let read = <Option<String> as serde::Deserialize>::deserialize(d)?;
+    Ok(read.as_deref().and_then(mailcraft_mime::rich::font_name))
 }
 
 /// The dictionary's words read from disk: only what are words, up to [`DICTIONARY_MAX`].

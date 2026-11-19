@@ -108,6 +108,17 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         toggle!("view.confirmDelete", "Ask before deleting for good", "File › Options › Mail", confirm_permanent_delete),
         toggle!("view.notifications", "Desktop notifications", "File › Options › Mail", notify),
         toggle!("options.spelling", "Check spelling as you type", "File › Options › Mail", spelling),
+        CommandSpec::new("options.composeFont", "Font for new messages", "File › Options › Mail", |s, v| {
+            s.prefs.compose_font = match v.get("font") {
+                Some(serde_json::Value::String(name)) => {
+                    Some(mailcraft_mime::rich::font_name(name).ok_or_else(|| CmdError::Params(format!("`{name}` isn't a font's name")))?)
+                }
+                Some(serde_json::Value::Null) | None => None,
+                Some(_) => return Err(CmdError::Params("`font` is a font's name or null".into())),
+            };
+            Ok(json!({ "font": s.prefs.compose_font }))
+        })
+        .params(r#"{"font"?: string (an installed typeface: new messages, replies and forwards are written in it) | null (MailCraft's own)}"#),
         CommandSpec::new("spelling.addWord", "Add to dictionary", "Message editor › Spelling", |s, v| {
             let word = p::req_str(v, "word")?;
             let w = crate::session::dictionary_word(word).ok_or_else(|| CmdError::Params(format!("`{word}` isn't a word")))?;
