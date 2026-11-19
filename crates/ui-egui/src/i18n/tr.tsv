@@ -1862,3 +1862,9 @@ count	occurrences	kez
 	The first account's Inbox	İlk hesabın Gelen Kutusu
 	The folder open last	En son açılan klasör
 	Add reminder…	Anımsatıcı ekle…
+	No suggestions	Öneri yok
+	Ignore all	Tümünü yoksay
+	Add to dictionary	Sözlüğe ekle
+	Check spelling as you type	Yazarken yazımı denetle
+	Misspelled words are underlined in red. Right-click one for suggestions.	Yanlış yazılan sözcüklerin altı kırmızıyla çizilir. Öneriler için birine sağ tıklayın.
+	There's no spelling dictionary for {language} on this computer.	Bu bilgisayarda {language} için yazım sözlüğü yok.

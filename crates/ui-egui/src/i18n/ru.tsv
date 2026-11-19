@@ -1861,3 +1861,9 @@ count	occurrences	повторений
 	The first account's Inbox	Входящие первой учётной записи
 	The folder open last	Последняя открытая папка
 	Add reminder…	Добавить напоминание…
+	No suggestions	Нет вариантов
+	Ignore all	Пропустить все
+	Add to dictionary	Добавить в словарь
+	Check spelling as you type	Проверять орфографию при вводе
+	Misspelled words are underlined in red. Right-click one for suggestions.	Слова с ошибками подчёркиваются красной линией. Щёлкните слово правой кнопкой мыши, чтобы увидеть варианты.
+	There's no spelling dictionary for {language} on this computer.	На этом компьютере нет орфографического словаря для языка {language}.

@@ -315,6 +315,8 @@ impl MailApp {
         }
         // Snoozed mail that is due comes back.
         self.session.tick();
+        // Spelling as you type, and the words added to the dictionary (issue #174).
+        rich_edit::spelling::follow(self.session.prefs.spelling, &self.session.prefs.dictionary);
     }
 
     pub(super) fn flush_jobs(&mut self) {

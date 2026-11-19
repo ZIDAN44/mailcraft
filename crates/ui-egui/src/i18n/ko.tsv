@@ -1861,3 +1861,9 @@ count	occurrences	회
 	The first account's Inbox	첫 번째 계정의 받은 편지함
 	The folder open last	마지막으로 연 폴더
 	Add reminder…	미리 알림 추가…
+	No suggestions	제안 없음
+	Ignore all	모두 무시
+	Add to dictionary	사전에 추가
+	Check spelling as you type	입력할 때 맞춤법 검사
+	Misspelled words are underlined in red. Right-click one for suggestions.	맞춤법이 틀린 단어에는 빨간 밑줄이 표시됩니다. 단어를 마우스 오른쪽 단추로 클릭하면 제안이 표시됩니다.
+	There's no spelling dictionary for {language} on this computer.	이 컴퓨터에는 {language} 맞춤법 사전이 없습니다.

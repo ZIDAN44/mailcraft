@@ -1857,3 +1857,9 @@ count	occurrences	פעמים
 	The first account's Inbox	תיבת הדואר הנכנס של החשבון הראשון
 	The folder open last	התיקייה שנפתחה לאחרונה
 	Add reminder…	הוספת תזכורת…
+	No suggestions	אין הצעות
+	Ignore all	התעלם מהכול
+	Add to dictionary	הוסף למילון
+	Check spelling as you type	בדוק איות בזמן ההקלדה
+	Misspelled words are underlined in red. Right-click one for suggestions.	מילים עם שגיאות כתיב מסומנות בקו תחתון אדום. לחץ לחיצה ימנית על אחת מהן לקבלת הצעות.
+	There's no spelling dictionary for {language} on this computer.	אין במחשב זה מילון איות עבור {language}.

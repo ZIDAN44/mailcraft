@@ -75,6 +75,18 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
         for (label, on, cmd) in windows {
             switch_row(ui, t, false, Switch { label, about: None, on, cmd }, acts);
         }
+        // Issue #174: in the interface's language, which says when it has no dictionary here.
+        let lang = crate::rich_edit::spelling::language();
+        let missing = (!crate::rich_edit::spelling::has_dictionary(lang))
+            .then(|| tf!("There's no spelling dictionary for {language} on this computer.", language = crate::i18n::current().name()));
+        let about = missing.as_deref().unwrap_or(tl!("Misspelled words are underlined in red. Right-click one for suggestions."));
+        switch_row(
+            ui,
+            t,
+            false,
+            Switch { label: tl!("Check spelling as you type"), about: Some(about), on: s.prefs.spelling, cmd: "options.spelling" },
+            acts,
+        );
         // Issue #115: Ctrl+Enter sends at once only when that's chosen.
         setting(ui, t, false, tl!("Ctrl+Enter in a message"), None, |ui| {
             use mailcraft_engine::CtrlEnter;

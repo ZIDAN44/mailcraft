@@ -107,6 +107,19 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"value": "focused"|"other"}"#),
         toggle!("view.confirmDelete", "Ask before deleting for good", "File › Options › Mail", confirm_permanent_delete),
         toggle!("view.notifications", "Desktop notifications", "File › Options › Mail", notify),
+        toggle!("options.spelling", "Check spelling as you type", "File › Options › Mail", spelling),
+        CommandSpec::new("spelling.addWord", "Add to dictionary", "Message editor › Spelling", |s, v| {
+            let word = p::req_str(v, "word")?;
+            let w = crate::session::dictionary_word(word).ok_or_else(|| CmdError::Params(format!("`{word}` isn't a word")))?;
+            if p::bool(v, "remove") == Some(true) {
+                return Ok(json!({ "removed": s.prefs.dictionary.remove(&w) }));
+            }
+            if s.prefs.dictionary.len() >= crate::session::DICTIONARY_MAX && !s.prefs.dictionary.contains(&w) {
+                return Err(CmdError::Failed("the dictionary is full".into()));
+            }
+            Ok(json!({ "added": s.prefs.dictionary.insert(w) }))
+        })
+        .params(r#"{"word": string (taken as spelled right in every language), "remove"?: true (taken out of the dictionary)}"#),
         toggle!("view.closeToTray", "Keep MailCraft running when its window is closed", "File › Options › General", close_to_tray),
         toggle!("view.startInTray", "Start MailCraft with its window put away", "File › Options › General", start_in_tray),
         toggle!("view.trayUnread", "The unread count on the notification area's icon", "File › Options › General", tray_unread),

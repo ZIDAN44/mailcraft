@@ -24,6 +24,7 @@ mod carets;
 mod layout;
 mod links;
 mod pictures;
+pub(crate) mod spelling;
 mod toolbar;
 mod tracked;
 mod undo;
@@ -105,6 +106,8 @@ pub(crate) struct Editor {
     pub(crate) card_rect: Option<Rect>,
     /// The text as laid out last.
     laid: Laid,
+    /// The misspelled words, and the one right-clicked (issue #174).
+    spelling: spelling::Marks,
 }
 
 impl Editor {
@@ -127,6 +130,7 @@ impl Editor {
             card: None,
             card_rect: None,
             laid: Laid::default(),
+            spelling: spelling::Marks::default(),
         }
     }
 
@@ -635,6 +639,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     if !c.plain {
         decorate(ui, t, ed, c, &out.galley, out.galley_pos);
     }
+    spelling::marked(ui, t, ed, c, &out, right_press);
     if !out.response.has_focus() && !ed.sel.is_empty() {
         let color = ui.visuals().selection.bg_fill.gamma_multiply(0.45);
         let shapes: Vec<egui::Shape> = carets::selection_rects(&out.galley, ed.sel.clone())
@@ -646,8 +651,9 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     text_menu(&out.response, ed, c, acts);
 }
 
-/// The right-click menu on the text, as Outlook's: Cut, Copy, Paste and Select all; the link
-/// (insert, edit, open, remove); and clearing the formatting.
+/// The right-click menu on the text, as Outlook's: a misspelled word's suggestions, Ignore all
+/// and Add to dictionary; Cut, Copy, Paste and Select all; the link (insert, edit, open,
+/// remove); and clearing the formatting.
 fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
     let n = c.body.chars().count();
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
@@ -665,6 +671,9 @@ fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut
             clicked
         };
         let some = !sel.is_empty();
+        if let Some(offer) = ed.spelling.offer.clone() {
+            spelling::menu_items(ui, ed, c, &offer, acts);
+        }
         if item(ui, "Cut", "Ctrl+X", some && !c.sending) {
             ui.ctx().copy_text(chosen(&c.body));
             let style = typing_style(&c.body, &c.styles, sel.start);

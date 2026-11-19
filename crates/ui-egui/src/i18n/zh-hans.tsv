@@ -1858,3 +1858,9 @@ count	occurrences	次
 	The first account's Inbox	第一个帐户的收件箱
 	The folder open last	上次打开的文件夹
 	Add reminder…	添加提醒…
+	No suggestions	无建议
+	Ignore all	全部忽略
+	Add to dictionary	添加到词典
+	Check spelling as you type	键入时检查拼写
+	Misspelled words are underlined in red. Right-click one for suggestions.	拼写错误的单词会以红色下划线标出。右键单击单词可查看建议。
+	There's no spelling dictionary for {language} on this computer.	此计算机上没有 {language} 的拼写词典。

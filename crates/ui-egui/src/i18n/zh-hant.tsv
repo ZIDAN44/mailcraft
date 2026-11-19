@@ -1861,3 +1861,9 @@ count	occurrences	次
 	The first account's Inbox	第一個帳戶的收件匣
 	The folder open last	上次開啟的資料夾
 	Add reminder…	新增提醒…
+	No suggestions	沒有建議
+	Ignore all	全部略過
+	Add to dictionary	新增至字典
+	Check spelling as you type	輸入時檢查拼字
+	Misspelled words are underlined in red. Right-click one for suggestions.	拼字錯誤的字會以紅色底線標示。以滑鼠右鍵按一下字詞即可查看建議。
+	There's no spelling dictionary for {language} on this computer.	此電腦上沒有 {language} 的拼字字典。

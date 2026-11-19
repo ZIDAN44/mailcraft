@@ -1858,3 +1858,9 @@ count	occurrences	回
 	The first account's Inbox	最初のアカウントの受信トレイ
 	The folder open last	最後に開いたフォルダー
 	Add reminder…	アラームを追加…
+	No suggestions	候補はありません
+	Ignore all	すべて無視
+	Add to dictionary	辞書に追加
+	Check spelling as you type	入力時にスペルチェックを行う
+	Misspelled words are underlined in red. Right-click one for suggestions.	スペルが間違っている単語には赤い波線が引かれます。右クリックすると候補が表示されます。
+	There's no spelling dictionary for {language} on this computer.	このコンピューターには {language} のスペル辞書がありません。

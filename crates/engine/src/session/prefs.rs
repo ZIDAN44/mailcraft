@@ -135,6 +135,13 @@ pub struct Prefs {
     pub confirm_permanent_delete: bool,
     /// Desktop notifications for new mail in an Inbox.
     pub notify: bool,
+    /// Check spelling as you type (issue #174): misspelled words underlined in the message
+    /// editor, as Outlook does (on unless turned off).
+    pub spelling: bool,
+    /// The words added to the dictionary (Add to dictionary), taken as spelled right in every
+    /// language.
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty", deserialize_with = "checked_words")]
+    pub dictionary: BTreeSet<String>,
     /// Closing the window leaves MailCraft running in the notification area, where the app
     /// has one (issue #67): mail is still checked and announced.
     pub close_to_tray: bool,
@@ -362,6 +369,8 @@ impl Default for Prefs {
             last_open: None,
             favorites: None,
             notify: true,
+            spelling: true,
+            dictionary: BTreeSet::new(),
             close_to_tray: false,
             start_in_tray: false,
             tray_unread: true,
@@ -465,6 +474,24 @@ fn checked_reminders<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeMap<
     let mut kept = BTreeMap::new();
     mailcraft_model::organize::merge_reminders(&mut kept, read);
     Ok(kept)
+}
+
+/// The most words the dictionary keeps, and the longest word.
+pub const DICTIONARY_MAX: usize = 10_000;
+pub const DICTIONARY_WORD_MAX: usize = 100;
+
+/// A word as the dictionary keeps it, when it's one: trimmed, one word (no space or control
+/// character), at most [`DICTIONARY_WORD_MAX`] characters.
+pub fn dictionary_word(w: &str) -> Option<String> {
+    let w = w.trim();
+    let ok = !w.is_empty() && w.chars().count() <= DICTIONARY_WORD_MAX && !w.chars().any(|c| c.is_whitespace() || c.is_control());
+    ok.then(|| w.to_string())
+}
+
+/// The dictionary's words read from disk: only what are words, up to [`DICTIONARY_MAX`].
+fn checked_words<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeSet<String>, D::Error> {
+    let read = <Vec<String> as serde::Deserialize>::deserialize(d)?;
+    Ok(read.iter().filter_map(|w| dictionary_word(w)).take(DICTIONARY_MAX).collect())
 }
 
 /// An accent as it's kept: a name from [`ACCENTS`] or `#rrggbb` (lower case); `""` for

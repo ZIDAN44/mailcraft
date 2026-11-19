@@ -105,6 +105,21 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** It needs an Etebase client of MailCraft's own: the Rust library EteSync publishes
   brings C libraries with it (OpenSSL and libsodium), which MailCraft doesn't build with.
 
+### 9. Spelling: what isn't checked yet
+
+- **Impact:** Spelling is checked as you type in the interface's language only, and in the
+  message's text only (not its subject). There's no Spelling window to go through a message's
+  mistakes one by one (Outlook's F7), and no check before sending. English uses the Craft apps'
+  built-in word list, which takes a few common misspellings (`thier`, `untill`, `occured`) as
+  words. In the browser, only English is checked.
+- **Workaround:** Install a Hunspell dictionary for your language (Linux: the `hunspell-xx`
+  package; macOS: `.aff` and `.dic` files in `~/Library/Spelling`; any system: LibreOffice and its
+  language's dictionary). An English Hunspell dictionary installed there is used instead of the
+  built-in list.
+- **Cause:** The checker is the Craft apps' shared `craft-proof`. Its better English (SCOWL) and
+  its other languages' data come from storytold's `craft-i18n` at build time, which MailCraft's
+  builds don't include yet; it brings no dictionaries of its own for other languages.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.
