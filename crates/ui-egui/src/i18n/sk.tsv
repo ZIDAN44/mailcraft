@@ -16,19 +16,19 @@
 	Add an email account	Pridať e-mailové konto
 	Added to new messages, replies and forwards.	Pridá sa do nových správ, odpovedí a preposlaní.
 	All	Všetko
-	All Inboxes	Všetky doručené
-	All Sent	Všetky odoslané
+	All Inboxes	Všetka doručená pošta
+	All Sent	Všetka odoslaná pošta
 	All caught up: nothing in this folder.	Všetko vybavené: v tomto priečinku nič nie je.
 	All folders	Všetky priečinky
 	Always show from {sender}	Vždy zobrazovať od odosielateľa {sender}
-	Apr	Apr
+	Apr	apr
 	Archive	Archivovať
 	Archive (Backspace)	Archivovať (Backspace)
 	Ask before deleting for good	Pred trvalým odstránením sa opýtať
 	At the top of {account}	Na začiatok konta {account}
 	Attach file	Priložiť súbor
 	Audio	Zvuk
-	Aug	Aug
+	Aug	aug
 	B	T
 	Bcc	Skrytá kópia
 	Bold (Ctrl+B)	Tučné (Ctrl+B)
@@ -53,7 +53,7 @@
 	Create rule…	Vytvoriť pravidlo…
 	Dark	Tmavý
 	Date	Dátum
-	Dec	Dec
+	Dec	dec
 	Delete	Odstrániť
 	Delete (Del)	Odstrániť (Del)
 	Delete folder…	Odstrániť priečinok…
@@ -73,9 +73,9 @@
 	Edit rule	Upraviť pravidlo
 	Email address	E-mailová adresa
 	Enter the password for {email}.	Zadajte heslo pre {email}.
-	Enter the password for {email}, which signs in as {user}.	Zadajte heslo pre {email}, ktoré sa prihlasuje ako {user}.
+	Enter the password for {email}, which signs in as {user}.	Zadajte heslo pre {email} (prihlasuje sa ako {user}).
 	Favorites	Obľúbené
-	Feb	Feb
+	Feb	feb
 	File	Súbor
 	Flag	Označiť príznakom
 	Flag / Unflag (Insert)	Označiť / zrušiť príznak (Insert)
@@ -87,7 +87,7 @@
 	Folder name	Názov priečinka
 	Forward	Preposlať
 	Forward (Ctrl+F)	Preposlať (Ctrl+F)
-	Fri	Pi
+	Fri	pi
 	Friday	piatok
 	From	Od
 	From contains	Odosielateľ obsahuje
@@ -108,9 +108,9 @@
 	Is a newsletter or list mail	Je bulletin alebo pošta z mailing listu
 	Italic (Ctrl+I)	Kurzíva (Ctrl+I)
 	Items: {n}	Položky: {n}
-	Jan	Jan
-	Jul	Júl
-	Jun	Jún
+	Jan	jan
+	Jul	júl
+	Jun	jún
 	Junk Email	Nevyžiadaná pošta
 	Language	Jazyk
 	Dates	Dátumy
@@ -128,24 +128,24 @@
 	Link	Odkaz
 	Link (Ctrl+K)	Odkaz (Ctrl+K)
 	Links like {link} aren't opened	Odkazy ako {link} sa neotvárajú
-	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Najprv lokálne: pošta sa ukladá na tomto počítači pre rýchle vyhľadávanie aj offline. Heslá zostávajú v systémovej kľúčenke.
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Pošta je u vás: ukladá sa na tomto počítači, takže sa v nej rýchlo hľadá aj offline. Heslá zostávajú v systémovej kľúčenke.
 	Looking up the server settings…	Zisťujú sa nastavenia servera…
 	Mail from {sender}	Pošta od odosielateľa {sender}
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · aplikácia ArtCraft · MIT OR Apache-2.0
 	Mailing list: unsubscribe at {address}	Mailing list: odhlásenie na adrese {address}
-	Mar	Mar
+	Mar	mar
 	Mark all as read	Označiť všetko ako prečítané
 	Mark as read	Označiť ako prečítané
 	Mark as unread	Označiť ako neprečítané
 	Mark read	Prečítané
 	Mark unread	Neprečítané
-	May	Máj
+	May	máj
 	Message preview	Ukážka správy
 	Message sent	Správa bola odoslaná
 	Messages waiting to be sent	Správy čakajúce na odoslanie
 	Messages without a subject are easy to overlook.	Správy bez predmetu sa ľahko prehliadnu.
-	Mon	Po
+	Mon	po
 	Monday	pondelok
 	{time} AM	{time} AM
 	{time} PM	{time} PM
@@ -183,9 +183,9 @@
 	Not junk	Nie je nevyžiadaná
 	Not sent: {error}	Neodoslané: {error}
 	Nothing matches this filter.	Tomuto filtru nič nezodpovedá.
-	Nov	Nov
+	Nov	nov
 	Numbered list	Číslovaný zoznam
-	Oct	Okt
+	Oct	okt
 	Off	Vypnuté
 	Offline	Offline
 	Older	Staršie
@@ -239,7 +239,7 @@
 	Same as the system	Podľa systému
 	Sample mailbox (offline)	Ukážková schránka (offline)
 	Sample mailbox, kept on this computer only	Ukážková schránka, uložená len na tomto počítači
-	Sat	So
+	Sat	so
 	Saturday	sobota
 	Save	Uložiť
 	Save all…	Uložiť všetko…
@@ -277,7 +277,7 @@
 	Sender, recipients or subject contain	Odosielateľ, príjemcovia alebo predmet obsahujú
 	Sending…	Odosiela sa…
 	Sent Items	Odoslaná pošta
-	Sep	Sep
+	Sep	sep
 	Server settings	Nastavenia servera
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Servery: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
 	Settings found: {source}	Nájdené nastavenia: {source}
@@ -308,7 +308,7 @@
 	Strikethrough	Prečiarknuté
 	Subject	Predmet
 	Subject contains	Predmet obsahuje
-	Sun	Ne
+	Sun	ne
 	Sunday	nedeľa
 	Switch to dark mode	Prepnúť na tmavý režim
 	Switch to light mode	Prepnúť na svetlý režim
@@ -328,7 +328,7 @@
 	This message will be deleted for good. This can't be undone.	Táto správa sa natrvalo odstráni. Túto akciu nemožno vrátiť späť.
 	This weekend	Tento víkend
 	Three weeks ago	Pred tromi týždňami
-	Thu	Št
+	Thu	št
 	Thursday	štvrtok
 	To	Komu
 	To do	Úlohy
@@ -337,7 +337,7 @@
 	Today	Dnes
 	Tomorrow	Zajtra
 	Try again	Skúsiť znova
-	Tue	Ut
+	Tue	ut
 	Tuesday	utorok
 	Two weeks ago	Pred dvomi týždňami
 	Unflag	Zrušiť príznak
@@ -354,7 +354,7 @@
 	View	Zobraziť
 	Waiting in the Outbox. Last try: {error}	Čaká v priečinku Pošta na odoslanie. Posledný pokus: {error}
 	Waiting in the Outbox: it will be sent when you're back online.	Čaká v priečinku Pošta na odoslanie: odošle sa, keď budete znova online.
-	Wed	St
+	Wed	st
 	Wednesday	streda
 	Welcome to MailCraft	Vitajte v MailCrafte
 	When mail	Keď pošta
@@ -398,7 +398,7 @@
 	Free and open source · MIT OR Apache-2.0	Bezplatný a open source · MIT OR Apache-2.0
 	Automatic replies	Automatické odpovede
 	Back	Späť
-	Built in the open from the email standards: no code, icons or assets from other mail apps.	Vytvorený otvorene podľa e-mailových štandardov: žiadny kód, ikony ani prvky z iných poštových aplikácií.
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	Vyvíjaný verejne, len podľa e-mailových štandardov: nepoužíva kód, ikony ani iné prvky z iných poštových aplikácií.
 	Change this account's name, servers and sign-in, or its signature.	Zmena názvu tohto konta, serverov a prihlásenia alebo jeho podpisu.
 	Checking with the server…	Overuje sa na serveri…
 	Compact list	Kompaktný zoznam
@@ -629,8 +629,8 @@
 	Remove it from the server once it's deleted from Deleted Items	Odstrániť ju zo servera po odstránení z priečinka Odstránené položky
 	A copy on the server	Kópia na serveri
 	None: mail is removed from the server once downloaded	Žiadna: pošta sa po stiahnutí odstráni zo servera
-	Kept for {n} days	Ponecháva sa {n} dní
-	Kept for {n} days, or until deleted from Deleted Items	Ponecháva sa {n} dní alebo do odstránenia z priečinka Odstránené položky
+	Kept for {n} days	Ponecháva sa {n} d.
+	Kept for {n} days, or until deleted from Deleted Items	Ponecháva sa {n} d. alebo do odstránenia z priečinka Odstránené položky
 	Kept until deleted from Deleted Items	Ponecháva sa do odstránenia z priečinka Odstránené položky
 	Kept for good	Ponecháva sa natrvalo
 	Arrange by: {field}	Usporiadať podľa: {field}
@@ -733,7 +733,7 @@
 	Send right away	Odoslať hneď
 	Sends {when}	Odošle sa {when}
 	Set	Nastaviť
-	Where replies go instead of to you	Kam idú odpovede namiesto vás
+	Where replies go instead of to you	Odpovede presmerovať na adresu
 	In 1 hour	O 1 hodinu
 	Tomorrow morning	Zajtra ráno
 	Monday morning	V pondelok ráno
@@ -845,7 +845,7 @@
 	Mail kept on this computer	Pošta uložená na tomto počítači
 	Of each folder, keep	Z každého priečinka uchovať
 	Download in full for reading offline	Stiahnuť celé na čítanie offline
-	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Nová pošta príde vždy. Staršia pošta nad tento rozsah zostáva na serveri; zvyšok každej správy sa stiahne pri jej otvorení.
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Nová pošta príde vždy. Staršia pošta mimo tohto rozsahu zostáva na serveri; zvyšok každej správy sa stiahne pri jej otvorení.
 	the newest 1,000	najnovších 1 000
 	the newest 40	najnovších 40
 	all	všetko
@@ -1008,7 +1008,7 @@ month	May	máj
 	Close anyway	Napriek tomu zavrieť
 	Edit notes	Upraviť poznámky
 	Getting them from the server…	Získavajú sa zo servera…
-	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	Správy sa stiahnu až pri otvorení a držia sa len v pamäti: nič sa nezapisuje na tento počítač. Zmeny urobené offline, pošta čakajúca na odoslanie a kalendáre, kontakty a poznámky uchovávané len v MailCrafte sa po jeho zatvorení stratia (najprv sa vás spýta).
+	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	Správy sa stiahnu až pri otvorení a držia sa len v pamäti: nič sa nezapisuje na tento počítač. Zmeny urobené offline, pošta čakajúca na odoslanie a kalendáre, kontakty a poznámky uchovávané len v MailCrafte sa po jeho zatvorení stratia (najprv sa vás opýta).
 	Mail older than what's kept here is only on the server.	Pošta staršia ako tá, ktorá je uložená tu, je len na serveri.
 	Search the server	Hľadať na serveri
 	Searching the server…	Hľadá sa na serveri…
@@ -1029,7 +1029,7 @@ month	May	máj
 	1 hour	1 hodina
 	{n} hours	{n} h
 	1 day	1 deň
-	{n} days	{n} d
+	{n} days	{n} d.
 	1 week	1 týždeň
 	{n} weeks	{n} týž.
 	0 minutes before start	0 minút pred začiatkom
@@ -1043,7 +1043,7 @@ month	May	máj
 	Now	Teraz
 	In {n} minutes	O {n} min
 	In {n} hours	O {n} h
-	In {n} days	O {n} d
+	In {n} days	O {n} d.
 	Junk	Nevyžiadaná
 	Junk options	Možnosti nevyžiadanej pošty
 	Junk Email options…	Možnosti nevyžiadanej pošty…
@@ -1249,7 +1249,7 @@ month	May	máj
 	A certificate this computer already has, its key staying where it is	Certifikát, ktorý už tento počítač má; jeho kľúč zostáva tam, kde je
 	Look in Windows	Hľadať vo Windows
 	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	Certifikáty pre e-mail vo vašej Kľúčenke. Kľúč tam zostáva; macOS sa môže pred jeho použitím opýtať.
-	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	Certifikáty pre e-mail v úložisku certifikátov Windows (Osobné). Kľúč zostáva vo Windows; pred jeho použitím sa môžu opýtať.
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	Certifikáty pre e-mail v úložisku certifikátov Windows (Osobné). Kľúč zostáva vo Windows; pred jeho použitím sa môže opýtať.
 	Use a certificate from Windows	Použiť certifikát z Windows
 	Use a certificate from the Keychain	Použiť certifikát z Kľúčenky
 	Use one from Windows…	Použiť certifikát z Windows…
@@ -1730,7 +1730,7 @@ month	May	máj
 	Checking for new mail	Kontrola novej pošty
 	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Automaticky prijíma novú poštu hneď, ako server oznámi, že nejaká je, ak to server dokáže; inak sa pozrie každé dve minúty. Pri nastavenom čase sa konto pozrie len vtedy. Odosielaná pošta odchádza okamžite a Odoslať / prijať sa pozrie hneď.
 	Automatically	Automaticky
-	Every {n} minutes	Každých {n} min
+	Every {n} minutes	Raz za {n} min
 	Only calendars and contacts, with no email?	Len kalendáre a kontakty, bez e-mailu?
 	Add a CalDAV and CardDAV account	Pridať konto CalDAV a CardDAV
 	Calendar and contacts server	Server kalendára a kontaktov
@@ -1797,12 +1797,12 @@ count	occurrences	opakovaní
 	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	Autorita, ktorú prevádzkuje vaša organizácia, alebo vlastný certifikát vášho poštového servera (.pem, .crt, .cer)
 	Trust a certificate file…	Dôverovať súboru certifikátu…
 	The certificate is trusted for this account	Certifikát je pre toto konto dôveryhodný
-	Send / Receive failed	Odoslanie a prijatie zlyhalo
+	Send / Receive failed	Odosielanie a prijímanie zlyhalo
 	Sending: {n} of {total}	Odosiela sa: {n} z {total}
 	Downloading: {n} of {total} ({done} of {all})	Sťahuje sa: {n} z {total} ({done} z {all})
 	Downloading: {n} of {total}	Sťahuje sa: {n} z {total}
 	Updating {folder} ({n} of {total})	Aktualizuje sa {folder} ({n} z {total})
-	Checking for new mail…	Hľadá sa nová pošta…
+	Checking for new mail…	Kontroluje sa nová pošta…
 	{account}: sending	{account}: odosielanie
 	{account}: receiving	{account}: prijímanie
 	Waiting	Čaká sa
@@ -1819,7 +1819,7 @@ count	occurrences	opakovaní
 	Open this window when Send / Receive starts	Otvoriť toto okno pri spustení odosielania a prijímania
 	{task} failed: {error}	{task} zlyhalo: {error}
 	Show progress	Zobraziť priebeh
-	How each account's sending and receiving goes	Ako prebieha odosielanie a prijímanie jednotlivých účtov
+	How each account's sending and receiving goes	Ako prebieha odosielanie a prijímanie v jednotlivých kontách
 	Stop sending and receiving	Zastaviť odosielanie a prijímanie
 	Sending	Odosielanie
 	Receiving	Prijímanie
