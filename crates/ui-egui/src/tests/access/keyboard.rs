@@ -1,0 +1,196 @@
+//! What a screen reader hears as the keyboard moves (issue #175): the message list's arrows, a
+//! drop-down's keys and the open message's text. A screen reader reads the focused control, so
+//! each of these has to move the focus itself, not only what the window shows.
+
+use egui::accesskit::{self, Role};
+
+use super::*;
+
+const SIZE: egui::Vec2 = egui::vec2(1280.0, 800.0);
+
+/// The node a frame's update says has the keyboard: its role, its name and its value.
+fn focused(out: &egui::FullOutput) -> (Role, String, String) {
+    let u = out.platform_output.accesskit_update.as_ref().expect("AccessKit is on");
+    let n = u.nodes.iter().find(|(id, _)| *id == u.focus).map(|(_, n)| n.clone()).expect("the focus is among the nodes");
+    (n.role(), n.label().unwrap_or_default().to_string(), n.value().unwrap_or_default().to_string())
+}
+
+/// Frames for what `events` do to settle (a focus asked for lands in the next one), the last
+/// one's output.
+fn settled(ctx: &egui::Context, a: &mut MailApp, events: Vec<Event>) -> egui::FullOutput {
+    sized_frame(ctx, a, SIZE, events);
+    sized_frame(ctx, a, SIZE, vec![]);
+    sized_frame(ctx, a, SIZE, vec![])
+}
+
+/// A screen reader's "focus this" for the node `id`.
+fn focus_request(id: accesskit::NodeId) -> Event {
+    Event::AccessKitActionRequest(accesskit::ActionRequest {
+        action: accesskit::Action::Focus,
+        target_node: id,
+        target_tree: accesskit::TreeId::ROOT,
+        data: None,
+    })
+}
+
+/// The nodes of a frame's update, with their ids.
+fn nodes(out: &egui::FullOutput) -> Vec<(accesskit::NodeId, accesskit::Node)> {
+    out.platform_output.accesskit_update.as_ref().expect("AccessKit is on").nodes.clone()
+}
+
+/// Down and Up in the message list take the keyboard to the next and the previous row, so a
+/// screen reader reads each message as it's reached; the keyboard stayed on the window, and NVDA
+/// read nothing. A click on a row gives it the keyboard too. Each press moves one row, not two
+/// (egui's own arrow keys would also move to the row below). A message deleted, the next one's
+/// row has the keyboard.
+#[test]
+fn the_list_arrows_take_the_screen_reader_from_message_to_message() {
+    let (mut a, _) = app("access-list-arrows");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    // Down with nothing chosen: the first message, read.
+    settled(&ctx, &mut a, vec![]);
+    let out = settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    let reached = a.session.focus.clone().and_then(|k| a.session.summary(&k).map(|m| m.subject.clone())).expect("Down chose a message");
+    let (role, label, _) = focused(&out);
+    assert!(role == Role::ListItem && label.contains(reached.as_str()), "the first Down reads {label:?}, not {reached}");
+    let first = a.session.list.first().cloned().expect("the sample has mail");
+    let row = named_in(&out)
+        .into_iter()
+        .find(|n| n.role == Role::ListItem && n.label.as_deref().is_some_and(|l| l.contains(first.subject.as_str())))
+        .and_then(|n| n.centre())
+        .expect("the first message's row");
+    click(&ctx, &mut a, row);
+    let out = settled(&ctx, &mut a, vec![]);
+    let (role, label, _) = focused(&out);
+    assert_eq!(role, Role::ListItem, "a clicked row has the keyboard");
+    assert!(label.contains(first.subject.as_str()), "{label}");
+    // Which message a row is, counting messages only (not the date headings between them).
+    let nth = |a: &MailApp, k: &MessageKey| {
+        let row = a.session.row_index_of(k).expect("its row");
+        a.session.rows().get(..row).unwrap_or_default().iter().filter(|r| matches!(r, mailcraft_engine::Row::Message { .. })).count()
+    };
+    let mut at = nth(&a, a.session.focus.as_ref().expect("a message has the list's focus"));
+    for (k, step) in [(Key::ArrowDown, 1_isize), (Key::ArrowDown, 1), (Key::ArrowDown, 1), (Key::ArrowUp, -1)] {
+        let out = settled(&ctx, &mut a, vec![key(k, Modifiers::NONE)]);
+        let now = a.session.focus.clone().expect("a message has the list's focus");
+        let index = nth(&a, &now);
+        assert_eq!(index as isize, at as isize + step, "{k:?} moves one row");
+        at = index;
+        let subject = a.session.summary(&now).map(|m| m.subject.clone()).unwrap_or_default();
+        let (role, label, _) = focused(&out);
+        assert_eq!(role, Role::ListItem, "{k:?}: the row has the keyboard, not {label:?}");
+        assert!(label.contains(subject.as_str()), "{k:?}: the screen reader reads {label:?}, not the message reached ({subject})");
+    }
+    // Deleted, its row goes: the message the list goes on to has the keyboard (it was nowhere).
+    let gone = a.session.focus.clone();
+    let out = settled(&ctx, &mut a, vec![key(Key::Delete, Modifiers::NONE)]);
+    let now = a.session.focus.clone().expect("the list goes on to another message");
+    assert_ne!(Some(&now), gone.as_ref(), "Delete took the message away");
+    let subject = a.session.summary(&now).map(|m| m.subject.clone()).unwrap_or_default();
+    let (role, label, _) = focused(&out);
+    assert!(role == Role::ListItem && label.contains(subject.as_str()), "after Delete the screen reader reads {label:?}, not {subject}");
+}
+
+/// A drop-down's arrows choose, as a list box's do on Windows: Down on the account form's Mail
+/// server picks the next kind of server and the keyboard stays on it (it went to the field
+/// below, so the list could only be opened by trying keys). Up goes back; Alt+Down opens the
+/// list on the choice made (not on its first), whose arrows go through its choices and whose
+/// Enter picks one, leaving the keyboard on the drop-down again.
+#[test]
+fn a_drop_downs_arrows_choose_and_keep_the_keyboard() {
+    let (mut a, _) = app("access-drop-down-keys");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.ui.dialog = Some(Dialog::add_account_with("ana@example.org", true));
+    let kind = |a: &MailApp| match &a.ui.dialog {
+        Some(Dialog::AddAccount(f)) => f.kind,
+        _ => panic!("the account form is open"),
+    };
+    let out = settled(&ctx, &mut a, vec![]);
+    let combo = nodes(&out)
+        .into_iter()
+        .find(|(_, n)| n.role() == Role::ComboBox && n.value() == Some("IMAP and SMTP"))
+        .map(|(id, _)| id)
+        .expect("Mail server, showing IMAP");
+    let out = settled(&ctx, &mut a, vec![focus_request(combo)]);
+    assert_eq!(focused(&out).0, Role::ComboBox);
+    let out = settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    assert_eq!(kind(&a), crate::dialogs::AccountKind::Pop, "Down picks the next");
+    let (role, _, value) = focused(&out);
+    assert_eq!((role, value.as_str()), (Role::ComboBox, "POP and SMTP"), "the keyboard stays on the drop-down, which reads its new value");
+    settled(&ctx, &mut a, vec![key(Key::ArrowUp, Modifiers::NONE)]);
+    assert_eq!(kind(&a), crate::dialogs::AccountKind::Imap, "Up goes back");
+    // The list: opened on the choice made, and on to the next, which is picked.
+    let out = settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::ALT)]);
+    assert_eq!(focused(&out).1, "IMAP and SMTP", "the open list has the keyboard on the choice made");
+    let out = settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    let picked = focused(&out).1;
+    assert_eq!(picked, "POP and SMTP", "and through its choices");
+    let out = settled(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
+    assert_eq!(kind(&a), crate::dialogs::AccountKind::Pop, "Enter picks it");
+    let (role, _, value) = focused(&out);
+    assert!(!egui::Popup::is_any_open(&ctx), "the list is closed");
+    assert_eq!(role, Role::ComboBox, "the keyboard is back on the drop-down");
+    assert_eq!(value, picked);
+    // A list opened on a later choice starts there, not at its first (JMAP is the third).
+    settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    assert_eq!(kind(&a), crate::dialogs::AccountKind::Jmap);
+    let out = settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::ALT)]);
+    assert_eq!(focused(&out).1, "JMAP", "the list opens on the choice made");
+    let out = settled(&ctx, &mut a, vec![key(Key::ArrowUp, Modifiers::NONE)]);
+    assert_eq!(focused(&out).1, "POP and SMTP", "Up in it goes to the one before");
+    settled(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    assert_eq!(kind(&a), crate::dialogs::AccountKind::Jmap, "Esc leaves the choice as it was");
+    // Esc in the open list closes the list, not the form with what was typed in it, and the
+    // keyboard is back on the drop-down.
+    settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::ALT)]);
+    settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    let out = settled(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    assert!(matches!(a.ui.dialog, Some(Dialog::AddAccount(_))), "the form stays");
+    assert!(!egui::Popup::is_any_open(&ctx), "the list is closed");
+    assert_eq!(focused(&out).0, Role::ComboBox, "the keyboard is back on the drop-down");
+}
+
+/// The open message's text can be reached and read with the keyboard while a screen reader is
+/// there: Tab goes from the message's row, past the reading pane's buttons and attachments, each
+/// named, into its text, which is read as it gets the keyboard (it was out of the keyboard's
+/// reach, and NVDA read nothing of a message). Down there doesn't move the list on to the next message under the one being read;
+/// Up goes back up the message.
+#[test]
+fn a_screen_reader_reads_the_open_message() {
+    let (mut a, _) = app("access-reading");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let out = settled(&ctx, &mut a, vec![]);
+    let subject = "Your proof for the festival poster is ready";
+    let row = named_in(&out)
+        .into_iter()
+        .find(|n| n.role == Role::ListItem && n.label.as_deref().is_some_and(|l| l.contains(subject)))
+        .and_then(|n| n.centre())
+        .expect("the proof's row");
+    click(&ctx, &mut a, row);
+    let opened = a.session.focus.clone().expect("the row clicked is the list's focus");
+    let mut reached = None;
+    for _ in 0..40 {
+        let out = settled(&ctx, &mut a, vec![key(Key::Tab, Modifiers::NONE)]);
+        let (role, label, value) = focused(&out);
+        if role == Role::Label && value.contains("The proof for order 4471") {
+            reached = Some(value);
+            break;
+        }
+        assert_ne!(role, Role::Window, "Tab lost the keyboard");
+        // Each stop on the way says what it is: the attachments were "custom", and a stop under
+        // the text said nothing at all.
+        assert!(role != Role::Unknown && !(label.is_empty() && value.is_empty()), "a stop a screen reader can't name: {role:?} {label:?} {value:?}");
+    }
+    let said = reached.expect("Tab reaches the message's text");
+    assert!(said.starts_with("Hello,") && said.ends_with("Print Shop"), "the whole text is read: {said:?}");
+    let out = settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    assert_eq!(a.session.focus.as_ref(), Some(&opened), "the list stays on the message being read");
+    assert_ne!(focused(&out).0, Role::ListItem, "Down stays in the reading pane");
+    let out = settled(&ctx, &mut a, vec![key(Key::ArrowUp, Modifiers::NONE)]);
+    assert_eq!(a.session.focus.as_ref(), Some(&opened));
+    let (role, _, value) = focused(&out);
+    assert!(role != Role::Window && !value.contains("The proof for order 4471"), "Up goes back up the message: {role:?} {value:?}");
+}

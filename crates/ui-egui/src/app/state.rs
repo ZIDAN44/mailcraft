@@ -165,6 +165,13 @@ pub struct UiState {
     pub toast: Option<(String, bool, f64)>,
     pub(crate) seen_notices: usize,
     pub(crate) scroll_to_focus: bool,
+    /// When the list's focus last moved by the keyboard: the row it's on takes the keyboard once
+    /// it's drawn (it may be scrolled into view first), so a screen reader reads the message
+    /// reached (issue #175).
+    pub(crate) focus_row_at: Option<f64>,
+    /// The message row that had the keyboard last: the list's arrows are its, while another
+    /// control's are that control's.
+    pub(crate) row_keyboard: Option<egui::Id>,
     /// A text field on the File page had the keyboard at the end of the last frame: Esc leaves it
     /// rather than the page (egui takes the focus away on Esc before the shortcuts see it).
     pub(crate) backstage_typing: bool,

@@ -237,6 +237,11 @@ pub(super) fn attachment_card(
     }
     let previewed = st.attachment_view.as_ref().is_some_and(|(k, i)| k == key && *i == a.index);
     let selected = previewed || picked.contains(&a.index);
+    // To a screen reader, a file to open: its name and size, and whether it's selected (it had
+    // no role, read as "custom", issue #175).
+    resp.widget_info(|| {
+        egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), selected, format!("{}, {}", a.name, widgets::human_size(a.size)))
+    });
     if ui.is_rect_visible(rect) {
         let p = ui.painter();
         p.rect(

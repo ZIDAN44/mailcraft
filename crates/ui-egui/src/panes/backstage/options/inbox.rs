@@ -69,7 +69,7 @@ fn answered_invites(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>
                 let current = chosen
                     .and_then(|c| a.folders.iter().find(|f| &f.path == c))
                     .map_or_else(|| tl!("Choose a folder").to_string(), crate::i18n::folder);
-                egui::ComboBox::from_id_salt(("answered-folder", &a.config.id))
+                let r = egui::ComboBox::from_id_salt(("answered-folder", &a.config.id))
                     .selected_text(current)
                     .show_ui(ui, |ui| {
                         for f in a.folders.iter().filter(fits) {
@@ -80,6 +80,14 @@ fn answered_invites(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>
                     })
                     .response
                     .accessible_name(label.as_str());
+                let paths: Vec<Option<&String>> = a.folders.iter().filter(fits).map(|f| Some(&f.path)).collect();
+                let mut at = chosen;
+                crate::drop_down::keys(ui, &r, &mut at, &paths);
+                if at != chosen
+                    && let Some(folder) = at
+                {
+                    acts.push(Action::Run("options.answeredInvites", json!({"account": a.config.id, "folder": folder})));
+                }
             });
         }
     }

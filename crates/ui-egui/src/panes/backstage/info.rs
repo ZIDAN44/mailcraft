@@ -40,7 +40,7 @@ fn account_picker(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, b: &mu
     ui.horizontal_wrapped(|ui| {
         let current = account_label(a);
         let width = (ui.available_width() - 2.0 * ui.spacing().button_padding.x).min(420.0);
-        egui::ComboBox::from_id_salt("backstage-account")
+        let r = egui::ComboBox::from_id_salt("backstage-account")
             .width(width)
             .selected_text(current)
             .truncate()
@@ -53,6 +53,12 @@ fn account_picker(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, b: &mu
             })
             .response
             .accessible_name(tl!("Account"));
+        let ids: Vec<&String> = s.accounts.iter().map(|x| &x.config.id).collect();
+        let mut at = id;
+        crate::drop_down::keys(ui, &r, &mut at, &ids);
+        if at != id {
+            b.account = Some(at.clone());
+        }
         if widgets::pill_button(ui, Icon::Plus, "Add account…", t).clicked() {
             acts.push(Action::Dialog(Dialog::add_account()));
         }

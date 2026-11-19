@@ -391,7 +391,7 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
                         if ui.button(tl!("Export…")).clicked() {
                             acts.push(Action::ExportDataFile(id.clone()));
                         }
-                        egui::ComboBox::from_id_salt("export-account")
+                        let r = egui::ComboBox::from_id_salt("export-account")
                             .width(300.0)
                             .selected_text(label)
                             .show_ui(ui, |ui| {
@@ -403,6 +403,12 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
                             })
                             .response
                             .accessible_name(tl!("Account"));
+                        let ids: Vec<&String> = s.accounts.iter().map(|a| &a.config.id).collect();
+                        let mut at = id;
+                        crate::drop_down::keys(ui, &r, &mut at, &ids);
+                        if at != id {
+                            b.export = Some(at.clone());
+                        }
                     },
                 );
             },

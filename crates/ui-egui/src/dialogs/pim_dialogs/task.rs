@@ -162,7 +162,7 @@ pub(super) fn category_chips(ui: &mut Ui, t: &Tokens, all: &[(String, u8)], chos
 /// A drop-down of a form, `width` wide, `name`d for a screen reader (its row's name is painted).
 fn choice<T: PartialEq + Copy>(ui: &mut Ui, id: &str, name: &str, width: f32, value: &mut T, options: &[T], label: impl Fn(T) -> &'static str) {
     ui.allocate_ui_with_layout(vec2(width, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-        egui::ComboBox::from_id_salt(id)
+        let r = egui::ComboBox::from_id_salt(id)
             .width(width - 6.0)
             .selected_text(tl!(label(*value)))
             .show_ui(ui, |ui| {
@@ -172,6 +172,7 @@ fn choice<T: PartialEq + Copy>(ui: &mut Ui, id: &str, name: &str, width: f32, va
             })
             .response
             .accessible_name(name);
+        crate::drop_down::keys(ui, &r, value, options);
     });
 }
 
@@ -236,7 +237,7 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
         let name = f.accounts.get(f.account).map(|a| a.1.clone()).unwrap_or_default();
         form_row(ui, t, true, Some(Icon::Person), "Account", |ui| {
             ui.allocate_ui_with_layout(vec2(260.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                egui::ComboBox::from_id_salt("task-account")
+                let r = egui::ComboBox::from_id_salt("task-account")
                     .width(254.0)
                     .selected_text(name)
                     .show_ui(ui, |ui| {
@@ -246,6 +247,8 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
                     })
                     .response
                     .accessible_name(tl!("Account"));
+                let all: Vec<usize> = (0..f.accounts.len()).collect();
+                crate::drop_down::keys(ui, &r, &mut f.account, &all);
             });
         });
     }

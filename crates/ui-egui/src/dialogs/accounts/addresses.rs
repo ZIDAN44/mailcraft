@@ -80,7 +80,7 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut AddressForm, s: &Session, t: &Tokens, ac
         let l = ui.label(tl!("Signature"));
         let own = tl!("(the account's own)").to_string();
         let names: Vec<String> = config.map(|c| c.signatures.iter().map(|g| g.name.clone()).collect()).unwrap_or_default();
-        egui::ComboBox::from_id_salt("account-address-signature")
+        let r = egui::ComboBox::from_id_salt("account-address-signature")
             .width(size.x)
             .selected_text(f.signature.clone().unwrap_or_else(|| own.clone()))
             .show_ui(ui, |ui| {
@@ -91,6 +91,8 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut AddressForm, s: &Session, t: &Tokens, ac
             })
             .response
             .labelled_by(l.id);
+        let choices: Vec<Option<String>> = std::iter::once(None).chain(names.iter().cloned().map(Some)).collect();
+        crate::drop_down::keys(ui, &r, &mut f.signature, &choices);
         ui.end_row();
     });
     ui.add_space(6.0);

@@ -7,6 +7,12 @@
 //! that frame. The guard points such an update's focus at the root, so the reader starts from the
 //! top of the window instead of MailCraft closing (WordCraft #2726 found it).
 
+/// Whether a screen reader (or another assistive technology) is reading the window this frame:
+/// egui builds the tree it reads only once one has asked for it.
+pub(crate) fn screen_reader(ctx: &egui::Context) -> bool {
+    ctx.has_accesskit_node(egui::accesskit_root_id())
+}
+
 /// The guard, as an egui plugin: it sees each frame's output before the adapter does.
 pub(crate) struct FocusGuard;
 

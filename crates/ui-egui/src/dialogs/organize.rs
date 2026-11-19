@@ -143,16 +143,18 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(300.0));
                 ui.end_row();
                 let l = ui.label(tl!("When mail"));
-                egui::ComboBox::from_id_salt("rule-test")
+                let tests: Vec<RuleTest> = RuleTest::ALL.into_iter().filter(|x| f.server.is_none() || x.on_server()).collect();
+                let r = egui::ComboBox::from_id_salt("rule-test")
                     .width(300.0)
                     .selected_text(f.test.label())
                     .show_ui(ui, |ui| {
-                        for x in RuleTest::ALL.into_iter().filter(|x| f.server.is_none() || x.on_server()) {
+                        for x in tests.iter().copied() {
                             ui.selectable_value(&mut f.test, x, x.label());
                         }
                     })
                     .response
                     .labelled_by(l.id);
+                crate::drop_down::keys(ui, &r, &mut f.test, &tests);
                 ui.end_row();
                 if f.test.needs_text() {
                     ui.label("");
@@ -160,11 +162,12 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     ui.end_row();
                 }
                 let l = ui.label(tl!("Then"));
-                egui::ComboBox::from_id_salt("rule-do")
+                let actions: Vec<RuleDo> = RuleDo::ALL.into_iter().filter(|x| f.server.is_none() || x.on_server()).collect();
+                let r = egui::ComboBox::from_id_salt("rule-do")
                     .width(300.0)
                     .selected_text(f.action.label())
                     .show_ui(ui, |ui| {
-                        for x in RuleDo::ALL.into_iter().filter(|x| f.server.is_none() || x.on_server()) {
+                        for x in actions.iter().copied() {
                             if ui.selectable_value(&mut f.action, x, x.label()).changed() {
                                 f.target.clear();
                             }
@@ -172,6 +175,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     })
                     .response
                     .labelled_by(l.id);
+                let was = f.action;
+                crate::drop_down::keys(ui, &r, &mut f.action, &actions);
+                if f.action != was {
+                    f.target.clear();
+                }
                 ui.end_row();
                 match f.action {
                     RuleDo::MoveTo => {
@@ -184,13 +192,14 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                                 format!("{} ({})", crate::i18n::folder(x), s.account(&x.account).map(|a| a.config.email.as_str()).unwrap_or_default())
                             })
                             .unwrap_or_else(|| tl!("Choose…").into());
-                        egui::ComboBox::from_id_salt("rule-folder")
+                        // A rule on a server moves mail to that mailbox's folders alone.
+                        let server = f.server.as_ref().map(|x| x.account.clone());
+                        let accounts: Vec<_> = s.accounts.iter().filter(|a| server.as_ref().is_none_or(|x| *x == a.config.id)).collect();
+                        let r = egui::ComboBox::from_id_salt("rule-folder")
                             .width(300.0)
                             .selected_text(shown)
                             .show_ui(ui, |ui| {
-                                // A rule on a server moves mail to that mailbox's folders alone.
-                                let server = f.server.as_ref().map(|x| x.account.clone());
-                                for a in s.accounts.iter().filter(|a| server.as_ref().is_none_or(|x| *x == a.config.id)) {
+                                for a in &accounts {
                                     ui.label(RichText::new(&a.config.email).small().color(t.faint));
                                     for x in a.folders.iter().filter(|x| x.selectable) {
                                         let on = f.account.as_deref() == Some(a.config.id.as_str()) && f.target == x.path;
@@ -203,12 +212,19 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                             })
                             .response
                             .labelled_by(l.id);
+                        let folders: Vec<(Option<String>, String)> = accounts
+                            .iter()
+                            .flat_map(|a| a.folders.iter().filter(|x| x.selectable).map(|x| (Some(a.config.id.clone()), x.path.clone())))
+                            .collect();
+                        let mut at = (f.account.clone(), f.target.clone());
+                        crate::drop_down::keys(ui, &r, &mut at, &folders);
+                        (f.account, f.target) = at;
                         ui.end_row();
                     }
                     RuleDo::Categorize => {
                         let l = ui.label(tl!("Category"));
                         let shown = if f.target.is_empty() { tl!("Choose…").to_string() } else { tl!(&f.target).to_string() };
-                        egui::ComboBox::from_id_salt("rule-cat")
+                        let r = egui::ComboBox::from_id_salt("rule-cat")
                             .width(300.0)
                             .selected_text(shown)
                             .show_ui(ui, |ui| {
@@ -218,6 +234,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                             })
                             .response
                             .labelled_by(l.id);
+                        let names: Vec<String> = s.prefs.categories.iter().map(|c| c.name.clone()).collect();
+                        crate::drop_down::keys(ui, &r, &mut f.target, &names);
                         ui.end_row();
                     }
                     _ => {}
@@ -276,7 +294,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(8.0);
             let l = ui.label(RichText::new(tl!("Show")).color(t.dim).small());
             let before = f.preset;
-            egui::ComboBox::from_id_salt("search-folder-preset")
+            let r = egui::ComboBox::from_id_salt("search-folder-preset")
                 .width(ui.available_width())
                 .selected_text(tl!(f.preset.label()))
                 .show_ui(ui, |ui| {
@@ -286,6 +304,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 })
                 .response
                 .labelled_by(l.id);
+            let kinds: Vec<PresetKind> = SEARCH_PRESETS.iter().map(|(_, kind)| *kind).collect();
+            crate::drop_down::keys(ui, &r, &mut f.preset, &kinds);
             if f.preset != before {
                 f.apply_preset(before);
             }
@@ -340,7 +360,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.horizontal(|ui| {
                 let l = ui.label(tl!("Categorize"));
                 let shown = if f.category.is_empty() { tl!("None").to_string() } else { f.category.clone() };
-                egui::ComboBox::from_id_salt("quick-step-category")
+                let r = egui::ComboBox::from_id_salt("quick-step-category")
                     .width(220.0)
                     .selected_text(shown)
                     .show_ui(ui, |ui| {
@@ -351,27 +371,26 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     })
                     .response
                     .labelled_by(l.id);
+                let names: Vec<String> = std::iter::once(String::new()).chain(s.prefs.categories.iter().map(|c| c.name.clone())).collect();
+                crate::drop_down::keys(ui, &r, &mut f.category, &names);
             });
             ui.horizontal(|ui| {
                 let l = ui.label(tl!("Then move to"));
-                egui::ComboBox::from_id_salt("quick-step-move")
+                let mut choices =
+                    vec![StepMove::Stay, StepMove::Role(FolderRole::Archive), StepMove::Role(FolderRole::Trash), StepMove::Role(FolderRole::Junk)];
+                choices.extend(f.folders.iter().map(|p| StepMove::Folder(p.clone())));
+                let r = egui::ComboBox::from_id_salt("quick-step-move")
                     .width(220.0)
                     .selected_text(QuickStepForm::move_label(&f.move_to))
                     .show_ui(ui, |ui| {
-                        let mut choices = vec![
-                            StepMove::Stay,
-                            StepMove::Role(FolderRole::Archive),
-                            StepMove::Role(FolderRole::Trash),
-                            StepMove::Role(FolderRole::Junk),
-                        ];
-                        choices.extend(f.folders.iter().map(|p| StepMove::Folder(p.clone())));
-                        for c in choices {
-                            let label = QuickStepForm::move_label(&c);
-                            ui.selectable_value(&mut f.move_to, c, label);
+                        for c in &choices {
+                            let label = QuickStepForm::move_label(c);
+                            ui.selectable_value(&mut f.move_to, c.clone(), label);
                         }
                     })
                     .response
                     .labelled_by(l.id);
+                crate::drop_down::keys(ui, &r, &mut f.move_to, &choices);
             });
             if let Some(e) = &f.error {
                 ui.add_space(4.0);

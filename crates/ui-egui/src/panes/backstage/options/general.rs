@@ -65,7 +65,7 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
             Some(tl!("In the message list, the reading pane, the header of a reply, and the event and task forms")),
             |ui| {
                 let (y, m, d) = mailcraft_engine::model::dates::civil_from_days(mailcraft_engine::model::dates::today(&s.clock));
-                egui::ComboBox::from_id_salt("date-order")
+                let r = egui::ComboBox::from_id_salt("date-order")
                     .width(160.0)
                     .selected_text(style.order.day(y, m, d))
                     .show_ui(ui, |ui| {
@@ -78,6 +78,11 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                     .response
                     // The setting's name is beside it in the row, which doesn't hand it on.
                     .accessible_name(tl!("Dates"));
+                let mut order = style.order;
+                crate::drop_down::keys(ui, &r, &mut order, &mailcraft_engine::model::dates::DateOrder::ALL);
+                if order != style.order {
+                    acts.push(Action::Run("view.dateFormat", json!({"order": order.code()})));
+                }
             },
         );
         setting(ui, &t, false, tl!("Time"), None, |ui| {
@@ -135,7 +140,7 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         setting(ui, &t, false, tl!("Language"), None, |ui| {
             let language = st.language.as_str();
             let current = crate::i18n::Lang::from_code(language).map_or_else(|| tl!("Same as the system").to_string(), |l| l.name().to_string());
-            egui::ComboBox::from_id_salt("language")
+            let r = egui::ComboBox::from_id_salt("language")
                 .width(200.0)
                 .selected_text(current)
                 .show_ui(ui, |ui| {
@@ -150,6 +155,12 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 })
                 .response
                 .accessible_name(tl!("Language"));
+            let codes: Vec<&str> = std::iter::once(crate::i18n::AUTO).chain(crate::i18n::Lang::for_picker().into_iter().map(|l| l.code())).collect();
+            let mut at = language;
+            crate::drop_down::keys(ui, &r, &mut at, &codes);
+            if at != language {
+                acts.push(Action::SetLanguage(at.into()));
+            }
         });
     });
 }

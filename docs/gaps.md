@@ -120,6 +120,18 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   its other languages' data come from storytold's `craft-i18n` at build time, which MailCraft's
   builds don't include yet; it brings no dictionaries of its own for other languages.
 
+### 10. Screen readers: what isn't read yet
+
+- **Impact:** A message's text is read a block at a time when it gets the keyboard (a plain-text
+  message all at once): a screen reader can't go through it by line, word or character, or hear
+  its headings, lists and tables as such. There's no F6 to go from pane to pane, and what a
+  command does (a message moved, a setting turned on) isn't announced.
+- **Workaround:** Tab from the message list to the message's text; Up and Down there go on to the
+  next block. A drop-down's choice is changed with Up and Down without opening it.
+- **Cause:** egui hands a screen reader text it can go through by line and character only in its
+  text boxes; a message's text is laid out as labels, and describing it as a document, as
+  WordCraft does its page, is work of its own.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

@@ -387,6 +387,11 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
         // A search over several folders, or the unified Inbox: each row says where it is.
         let several_folders =
             s.search.as_ref().is_some_and(|(_, scope)| *scope != SearchScope::Current) || matches!(s.view, mailcraft_engine::View::Unified { .. });
+        // Tab stops on one row: the list's focus, else the first message.
+        let tab_stop = s.focus.as_ref().filter(|k| s.row_index_of(k).is_some()).or_else(|| s.list.first().map(|m| &m.key));
+        // The row with the keyboard, and whether it's still here.
+        let keyboard = st.row_keyboard.filter(|id| ui.memory(|m| m.focused()) == Some(*id));
+        let mut keyboard_drawn = false;
         let first = tops.partition_point(|&top| top + mh < viewport.min.y);
         for (i, row) in rows.iter().enumerate().skip(first) {
             let top = tops.get(i).copied().unwrap_or(0.0);
@@ -415,10 +420,26 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                     let Some(m) = s.list.get(*index) else { continue };
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, mh));
                     let drafting = drafted.marks(m);
-                    let of = RowOf { m, r, count: *count, unread_in_thread: *unread, sent_view, drafting, several_folders };
-                    message_row(s, &t, ui, of, acts);
+                    let of = RowOf {
+                        m,
+                        r,
+                        count: *count,
+                        unread_in_thread: *unread,
+                        sent_view,
+                        drafting,
+                        several_folders,
+                        tab_stop: tab_stop == Some(&m.key),
+                    };
+                    let resp = message_row(s, &t, ui, of, acts);
+                    row_keyboard(s, st, ui, &m.key, &resp);
+                    keyboard_drawn |= keyboard == Some(resp.id);
                 }
             }
+        }
+        // The row with the keyboard gone (its message deleted, moved, archived): the message the
+        // list's focus went on to takes it, read as the next is in Outlook, not the window.
+        if keyboard.is_some() && !keyboard_drawn {
+            st.focus_row_at = Some(ui.input(|i| i.time));
         }
         if has_footer && total < viewport.max.y {
             let r = Rect::from_min_size(origin + vec2(0.0, total), vec2(width, FOOTER_H));
@@ -432,6 +453,32 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
 
 /// The list's footer's height.
 const FOOTER_H: f32 = 76.0;
+
+/// How long after the list's focus moved by the keyboard its row may still take the keyboard
+/// (it's drawn once it's scrolled into view).
+const FOCUS_ROW_SECS: f64 = 1.0;
+
+/// The keyboard on a message row (issue #175). The row the list's focus moved to by the keyboard
+/// takes it, as a clicked row does, so a screen reader reads the message reached: the keyboard
+/// stayed on the window, and nothing was read. The row keeps its arrows, which move the list's
+/// focus (egui's own would also take the keyboard to the row below: two rows a press).
+fn row_keyboard(s: &Session, st: &mut UiState, ui: &Ui, key: &mailcraft_engine::model::MessageKey, resp: &egui::Response) {
+    let now = ui.input(|i| i.time);
+    let moved = st.focus_row_at.is_some_and(|at| now - at < FOCUS_ROW_SECS) && s.focus.as_ref() == Some(key);
+    if moved || resp.clicked() {
+        resp.request_focus();
+        // Not egui's own move for the same press as well: at the frame's end it takes the
+        // keyboard on from the row to the control below (the row keeps its arrows from the next
+        // frame on).
+        ui.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
+        st.focus_row_at = None;
+    }
+    if resp.has_focus() {
+        let arrows = egui::EventFilter { vertical_arrows: true, horizontal_arrows: true, ..Default::default() };
+        ui.memory_mut(|m| m.set_focus_lock_filter(resp.id, arrows));
+        st.row_keyboard = Some(resp.id);
+    }
+}
 
 /// What's past the list (issue #4): a folder's older mail on its server, to show more of; a
 /// search's, to ask the servers for.

@@ -49,16 +49,20 @@ impl MailApp {
             self.run(id, params);
             if moves_focus(id) {
                 self.ui.scroll_to_focus = true;
+                self.ui.focus_row_at = Some(ctx.input(|i| i.time));
             }
         }
     }
 
     /// A dialog or the File page has the keys: Esc puts it away. Whether one had them.
     fn modal_keys(&mut self, ctx: &egui::Context) -> bool {
+        // Esc with a list open (a drop-down's) closes the list alone, as egui does: not the
+        // dialog or page it's on as well, with what was typed there (issue #175).
+        let escape = ctx.input(|i| i.key_pressed(Key::Escape)) && !egui::Popup::is_any_open(ctx);
         if let Some(d) = &self.ui.dialog {
             // Not the part of a compaction that has a data file to itself: it can't be put away.
             let stays = matches!(d, Dialog::Compacting { account, .. } if self.session.compaction.exclusive(account));
-            if !stays && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            if !stays && escape {
                 self.ui.dialog = None;
             }
             return true;
@@ -66,7 +70,7 @@ impl MailApp {
         if self.ui.backstage.is_some() {
             // Esc in one of its fields leaves the field; from outside one, the page (as
             // GridCraft's File page).
-            if ctx.input(|i| i.key_pressed(Key::Escape)) && !std::mem::take(&mut self.ui.backstage_typing) {
+            if escape && !std::mem::take(&mut self.ui.backstage_typing) {
                 self.ui.backstage = None;
             }
             return true;
@@ -178,6 +182,13 @@ impl MailApp {
         // Calendar, People or Notes the list isn't there, and End read its last message,
         // Delete or Backspace took mail away unseen (found testing issue #26).
         if self.session.module != Module::Mail && list_key(id) {
+            return true;
+        }
+        // The list's arrows, Home, End and pages, while another control has the keyboard, are
+        // that control's (issue #175): egui's arrows go from control to control, a drop-down's
+        // choose, and with a screen reader they read a message's text. The list moved too, to
+        // another message under the one being read. A message row's are the list's.
+        if moves_focus(id) && ctx.memory(|m| m.focused()).is_some_and(|f| Some(f) != self.ui.row_keyboard) {
             return true;
         }
         if id == "mail.delete" && self.ask_before_deleting() {

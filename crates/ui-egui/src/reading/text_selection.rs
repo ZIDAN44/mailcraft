@@ -440,9 +440,10 @@ pub(crate) fn begin(st: &mut UiState, ui: &mut Ui, id: egui::Id, window: bool) {
     d.top = ui.cursor().top();
     // Under the text (its runs are on top): a press or drag between lines is the text's, not a
     // drag of the scroll area. Not on a touch screen, where a finger's drag scrolls (as over
-    // egui's labels there).
+    // egui's labels there). The pointer's alone: it was a stop for Tab with nothing to say, read
+    // by a screen reader as a nameless "custom" before the text (issue #175).
     let touch = ui.input(|i| i.has_touch_screen());
-    d.under = d.rect.filter(|_| !touch).map(|r| ui.interact(r, id.with("text-under"), Sense::drag()));
+    d.under = d.rect.filter(|_| !touch).map(|r| ui.interact(r, id.with("text-under"), Sense::DRAG));
     ts.cur = Some((id, d));
 }
 
@@ -484,6 +485,11 @@ pub(crate) fn run(st: &mut UiState, ui: &mut Ui, text: impl Into<egui::WidgetTex
     let mut label = egui::Label::new(text).selectable(true);
     if link.is_some() {
         label = label.sense(Sense::click());
+    } else if st.text_selection.cur.is_some() && crate::a11y::screen_reader(ui.ctx()) {
+        // With a screen reader there, a message's text takes the keyboard a run at a time (Tab,
+        // the arrows, the reader's own moves), read as it gets it: it was out of the keyboard's
+        // reach, and NVDA read nothing of a message (issue #175).
+        label = label.sense(Sense::focusable_noninteractive());
     }
     let (pos, galley, response) = label.layout_in_ui(ui);
     let role = if link.is_some() { egui::Role::Link } else { egui::Role::Label };

@@ -95,7 +95,7 @@ pub(super) fn scheme_menu(ui: &mut Ui, c: &mut mailcraft_engine::Compose) {
         Some(Scheme::Smime) => tl!("S/MIME"),
         Some(Scheme::Pgp) => tl!("OpenPGP"),
     };
-    egui::ComboBox::from_id_salt(("compose-scheme", c.id))
+    let r = egui::ComboBox::from_id_salt(("compose-scheme", c.id))
         .selected_text(RichText::new(name(c.scheme)).small())
         .width(96.0)
         .show_ui(ui, |ui| {
@@ -106,6 +106,7 @@ pub(super) fn scheme_menu(ui: &mut Ui, c: &mut mailcraft_engine::Compose) {
         .response
         .accessible_name(tl!("Signing and encryption"))
         .on_hover_text(tl!("Sign and encrypt with S/MIME or OpenPGP; Automatic takes the one every recipient can receive"));
+    crate::drop_down::keys(ui, &r, &mut c.scheme, &[None, Some(Scheme::Smime), Some(Scheme::Pgp)]);
 }
 
 /// The bars for an encrypted and/or signed message.

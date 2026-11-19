@@ -161,7 +161,7 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
             ui.add_space(4.0);
             let again = ui.label(RichText::new(tl!("Click Snooze to be reminded again in:")).color(t.dim).small());
             ui.horizontal(|ui| {
-                egui::ComboBox::from_id_salt("reminder-snooze")
+                let r = egui::ComboBox::from_id_salt("reminder-snooze")
                     .width(200.0)
                     .selected_text(snooze_label(snooze))
                     .show_ui(ui, |ui| {
@@ -171,6 +171,7 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
                     })
                     .response
                     .labelled_by(again.id);
+                crate::drop_down::keys(ui, &r, &mut st.snooze, &SNOOZES.map(Some));
                 if let Some(r) = &picked
                     && ui.button(tl!("Snooze")).clicked()
                 {

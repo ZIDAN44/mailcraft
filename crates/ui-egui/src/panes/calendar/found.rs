@@ -86,7 +86,7 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
                 Some((a, c)) => all.iter().find(|(x, y, _)| x == a && y == c).map_or_else(|| tl!("All calendars").to_string(), |x| x.2.clone()),
                 None => tl!("All calendars").to_string(),
             };
-            egui::ComboBox::from_id_salt("calendar-search-scope")
+            let r = egui::ComboBox::from_id_salt("calendar-search-scope")
                 .selected_text(shown)
                 .show_ui(ui, |ui| {
                     if ui.selectable_label(st.cal_search.scope.is_none(), tl!("All calendars")).clicked() {
@@ -101,6 +101,9 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
                 })
                 .response
                 .accessible_name(tl!("Look in"));
+            let scopes: Vec<Option<(String, String)>> =
+                std::iter::once(None).chain(all.iter().map(|(a, c, _)| Some((a.clone(), c.clone())))).collect();
+            crate::drop_down::keys(ui, &r, &mut st.cal_search.scope, &scopes);
         });
     });
     let hits = st.cal_search.results(s);

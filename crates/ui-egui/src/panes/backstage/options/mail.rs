@@ -188,7 +188,7 @@ pub(super) fn checking(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
                 let word = |m: u32| if m == 0 { tl!("Automatically").to_string() } else { tf!("Every {n} minutes", n = m) };
                 // Only when asked (issue #104): Send / Receive on the account.
                 let shown = if c.check_by_hand { tl!("Only when I ask").to_string() } else { word(now) };
-                egui::ComboBox::from_id_salt(("check-every", c.id.as_str()))
+                let r = egui::ComboBox::from_id_salt(("check-every", c.id.as_str()))
                     .width(170.0)
                     .selected_text(shown)
                     .show_ui(ui, |ui| {
@@ -209,6 +209,18 @@ pub(super) fn checking(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
                     .response
                     // The row's name, the account's address, under the card's Checking for new mail.
                     .accessible_name(c.email.as_str());
+                // Minutes, then by hand (None).
+                let choices = [Some(0u32), Some(5), Some(10), Some(15), Some(30), Some(60), None];
+                let was = if c.check_by_hand { None } else { Some(now) };
+                let mut at = was;
+                crate::drop_down::keys(ui, &r, &mut at, &choices);
+                if at != was {
+                    let p = match at {
+                        Some(m) => json!({"account": c.id, "minutes": m}),
+                        None => json!({"account": c.id, "byHand": true}),
+                    };
+                    acts.push(Action::Run("account.checkEvery", p));
+                }
             });
         }
     });
@@ -231,7 +243,7 @@ fn start_in(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         StartIn::Folder { account, folder } => folder_name(account, folder).unwrap_or_else(|| tl!("The first account's Inbox").to_string()),
     };
     setting(ui, t, false, tl!("Start in"), Some(tl!("What opens when MailCraft starts")), |ui| {
-        egui::ComboBox::from_id_salt("start-in")
+        let r = egui::ComboBox::from_id_salt("start-in")
             .width(260.0)
             .height(400.0)
             .selected_text(shown)
@@ -259,5 +271,21 @@ fn start_in(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             .response
             // The setting's name is beside it in the row, which doesn't hand it on.
             .accessible_name(tl!("Start in"));
+        let mut choices = vec![StartIn::FirstInbox, StartIn::AllInboxes, StartIn::Last];
+        for a in s.accounts.iter().filter(|a| !a.folders.is_empty()) {
+            choices.extend(
+                a.folders
+                    .iter()
+                    .filter(|f| folder_name(&a.config.id, &f.path).is_some())
+                    .map(|f| StartIn::Folder { account: a.config.id.clone(), folder: f.path.clone() }),
+            );
+        }
+        let mut at = s.prefs.start_in.clone();
+        crate::drop_down::keys(ui, &r, &mut at, &choices);
+        if at != s.prefs.start_in
+            && let Ok(p) = serde_json::to_value(&at)
+        {
+            acts.push(Action::Run("options.startIn", p));
+        }
     });
 }

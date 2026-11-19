@@ -36,7 +36,7 @@ mod services;
 use dialogs::pim_dialogs;
 pub use look::thumbs::VideoFrame;
 pub use look::{bidi, craft_fonts, faces, icons, motion, theme};
-use look::{progress, thumbs, widgets};
+use look::{drop_down, progress, thumbs, widgets};
 pub use panes::backstage;
 use panes::{calendar, list, nav, notes, organize, people, reminders, shown, tasks, todo_bar};
 

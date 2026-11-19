@@ -250,7 +250,7 @@ fn default_picker(ui: &mut Ui, id: &str, label: String, names: &[String], value:
     ui.horizontal(|ui| {
         let l = ui.add_sized([150.0, 22.0], egui::Label::new(label));
         let none = tl!("(none)").to_string();
-        egui::ComboBox::from_id_salt(id)
+        let r = egui::ComboBox::from_id_salt(id)
             .width(240.0)
             .selected_text(value.clone().unwrap_or_else(|| none.clone()))
             .show_ui(ui, |ui| {
@@ -261,6 +261,8 @@ fn default_picker(ui: &mut Ui, id: &str, label: String, names: &[String], value:
             })
             .response
             .labelled_by(l.id);
+        let choices: Vec<Option<String>> = std::iter::once(None).chain(names.iter().cloned().map(Some)).collect();
+        crate::drop_down::keys(ui, &r, value, &choices);
     });
     *value != before
 }
@@ -273,7 +275,7 @@ pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, 
     let mut pick: Option<Option<String>> = None;
     ui.horizontal(|ui| {
         let shown = if f.editing.is_some() { f.name.clone() } else { tl!("New signature").to_string() };
-        egui::ComboBox::from_id_salt("signature-pick")
+        let r = egui::ComboBox::from_id_salt("signature-pick")
             .width(220.0)
             .selected_text(shown)
             .show_ui(ui, |ui| {
@@ -287,6 +289,15 @@ pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, 
             .response
             // Which signature is being edited: no label sits beside it.
             .accessible_name(tl!("Signature"));
+        let was = f.editing.as_deref().and_then(|e| f.names.iter().position(|n| e.eq_ignore_ascii_case(n)));
+        let mut at = was;
+        let all: Vec<Option<usize>> = (0..f.names.len()).map(Some).collect();
+        crate::drop_down::keys(ui, &r, &mut at, &all);
+        if at != was
+            && let Some(n) = at.and_then(|i| f.names.get(i))
+        {
+            pick = Some(Some(n.clone()));
+        }
         if ui.button(tl!("New")).clicked() {
             pick = Some(None);
         }
