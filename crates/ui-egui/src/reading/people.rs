@@ -108,9 +108,14 @@ pub(super) fn contact_card(ui: &mut Ui, t: &Tokens, a: &EmailAddress, known: Opt
 
 /// The subject over a message: at most a few lines of it, "…" after them and all of it under
 /// the pointer (a subject of two thousand characters filled the pane, the message far below).
-pub(super) fn subject_heading(ui: &mut Ui, subject: &str, t: &Tokens) -> egui::Response {
+pub(super) fn subject_heading(ui: &mut Ui, subject: &str, t: &Tokens, marks: &[std::ops::Range<usize>]) -> egui::Response {
     const LINES: usize = 4;
     let mut job = egui::text::LayoutJob::simple(subject.to_string(), theme::bold(21.0), t.text, ui.available_width());
+    // What a search found in it, marked (issue #173).
+    if !marks.is_empty() {
+        job = marked_job(subject, marks, theme::bold(21.0), t.text);
+        job.wrap.max_width = ui.available_width();
+    }
     job.wrap.max_rows = LINES;
     job.wrap.overflow_character = Some('…');
     let resp = crate::bidi::add_label(ui, job);

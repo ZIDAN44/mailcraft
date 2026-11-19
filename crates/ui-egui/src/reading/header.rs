@@ -64,7 +64,7 @@ fn subject_line(s: &Session, t: &Tokens, ui: &mut Ui, o: &Open<'_>, acts: &mut V
     // Subject.
     ui.horizontal_wrapped(|ui| {
         let subject = if o.p.subject.is_empty() { tl!("(no subject)") } else { o.p.subject.as_str() };
-        subject_heading(ui, subject, t);
+        subject_heading(ui, subject, t, &subject_marks(s, subject));
         if o.summary.is_some_and(|m| m.flags.flagged) {
             let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
             icons::paint(ui.painter(), ir, Icon::Flag, t.flag);

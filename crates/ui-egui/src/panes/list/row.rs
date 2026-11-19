@@ -324,11 +324,13 @@ impl MessageRow<'_> {
         let subj_rtl = crate::bidi::reads_rtl(&subject);
         let subj_right = end - icons_w.max(if self.hovered { 70.0 } else { 0.0 }) - 4.0;
         let subj_font = if unread { theme::bold(13.0) } else { theme::regular(13.0) };
-        let subj_g = widgets::one_line(ui, &subject, subj_font, subj_color, subj_right - subject_x);
+        let marks = crate::reading::subject_marks(self.s, &subject);
+        let subj_g = marked_line(ui, &subject, &marks, subj_font, subj_color, subj_right - subject_x);
         p.galley(egui::pos2(self.place(subj_rtl, subject_x, subj_right, subj_g.size().x), line2), subj_g, subj_color);
         if self.s.prefs.show_preview && !self.s.prefs.compact && !self.single && !m.preview.is_empty() {
             let pv_rtl = crate::bidi::reads_rtl(&m.preview);
-            let pv = widgets::one_line(ui, &m.preview, theme::regular(12.5), t.dim, right - x);
+            let marks = crate::reading::text_marks(self.s, &m.preview);
+            let pv = marked_line(ui, &m.preview, &marks, theme::regular(12.5), t.dim, right - x);
             p.galley(egui::pos2(self.place(pv_rtl, x, right, pv.size().x), line2 + 19.0), pv, t.dim);
         }
     }
@@ -477,4 +479,21 @@ impl MessageRow<'_> {
             item(ui, acts, tl!("View message source"), Action::Run("message.source", json!({"key": key.to_id()})));
         });
     }
+}
+
+/// A line of a row ([`widgets::one_line`]), what the search on found in it marked (issue #173).
+fn marked_line(
+    ui: &Ui,
+    text: &str,
+    marks: &[std::ops::Range<usize>],
+    font: egui::FontId,
+    color: egui::Color32,
+    width: f32,
+) -> std::sync::Arc<egui::Galley> {
+    if marks.is_empty() {
+        return widgets::one_line(ui, text, font, color, width);
+    }
+    let mut job = crate::reading::marked_job(text, marks, font, color);
+    job.wrap = egui::text::TextWrapping { max_width: width.max(1.0), max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+    ui.painter().layout_job(job)
 }

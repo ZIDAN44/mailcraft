@@ -41,6 +41,7 @@ pub(crate) use body::WEB_PICTURES;
 #[cfg(test)]
 pub(crate) use body::picture_menu_for_tests;
 use body::*;
+pub(crate) use body::{Marked, marked_job, subject_marks, text_marks};
 pub use compose::compose_window;
 #[cfg(test)]
 pub(crate) use compose::parse_local;
@@ -236,7 +237,7 @@ fn not_ready(ui: &mut Ui, t: &Tokens, r: &mailcraft_engine::Reading, summary: Op
         None if getting_ready => {
             if let Some(m) = summary {
                 let subject = if m.subject.is_empty() { tl!("(no subject)") } else { m.subject.as_str() };
-                subject_heading(ui, subject, t);
+                subject_heading(ui, subject, t, &[]);
                 ui.add_space(8.0);
             }
             ui.spinner();
@@ -354,6 +355,12 @@ fn message_body(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, format
     let (r, p) = (o.r, o.p);
     // The text is selected as one, whatever it's drawn as (`text_selection`).
     text_selection::begin(st, ui, ui.scope_id().with(("message-text", r.key.to_id())), o.in_window);
+    // A search on: what it found marked (issue #173), the text drawn as formatted lines.
+    if let Some(m) = marked(s, st, &r.key, p, formatted) {
+        rich_body(s, st, ui, &r.key, &m, acts);
+        text_selection::finish(st, ui, long_text::many_lines(&m).then_some(p.text.as_str()));
+        return;
+    }
     if formatted {
         rich_body(s, st, ui, &r.key, p, acts);
     } else if p.text.len() > long_text::LONG {

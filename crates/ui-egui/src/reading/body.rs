@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod marked;
+pub(crate) use marked::{Marked, marked, marked_job, subject_marks, text_marks};
 mod picture_menu;
 #[cfg(test)]
 pub(crate) use picture_menu::attach as picture_menu_for_tests;

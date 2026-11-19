@@ -216,6 +216,8 @@ pub struct UiState {
     pub(crate) han_missing: bool,
     /// Long message texts laid out by what's in view: their parts' heights, and their selection.
     pub(crate) long_text: HashMap<egui::Id, reading::LongText>,
+    /// The open message with what the search on found marked (issue #173).
+    pub(crate) marked: reading::Marked,
     /// What's selected of the message texts shown, and whether one has the keyboard.
     pub(crate) text_selection: reading::TextSelection,
     /// The app's name in the window title (`MailCraft`, or `MailCraft – Sample mailbox`).

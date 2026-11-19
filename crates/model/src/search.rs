@@ -21,6 +21,7 @@ mod advanced;
 pub mod dates;
 pub mod fold;
 mod fold_table;
+mod hits;
 mod matching;
 mod parse;
 #[cfg(test)]
@@ -29,6 +30,7 @@ mod tests;
 pub use advanced::Advanced;
 pub use dates::{DateBound, DatePoint, DateSpec, Edge, Relative};
 pub use fold::{MAX_TOKEN_CHARS, Placed, TOKENIZER_VERSION, fold_all, fold_word, folded_has_phrase, parts, placed_tokens, tokens};
+pub use hits::{MAX_HITS, hits};
 pub use matching::{Doc, DocText, SummaryText, TextField, TextSource, Tri, WholeText, indexed};
 use parse::split_tokens;
 pub(crate) use parse::split_tokens_with;

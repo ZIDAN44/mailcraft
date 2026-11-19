@@ -25,6 +25,7 @@ on GitHub.
 - The calendar's **Schedule** view (#141), beside Day, Week and Month: a day's hours across, a row for each calendar shown and one for all of them together on top, to see when several people are free at once. Clicking or dragging across free time on a colleague's row starts a meeting with them invited; on the row of all together, with everyone shown; on your own calendar, an event in it.
 - A right-click on a row of the To-Do Bar's task list opens its menu, as Outlook's (#160): **Open**, **Follow up** › Today to Next week, **No date** or **Custom…** (a day picked from a month), **Mark complete**, and **Clear flag** for flagged mail in any folder; a task's **Categorize** and **Delete**.
 - **Start in**, in **File › Options › Mail** (#172): MailCraft can start in **All Inboxes**, the folder open when it last closed, or any account's folder, as Outlook's "Start Outlook in this folder"; it always opened the first account's Inbox, which stays the default.
+- What a search found is marked in the open message (#173), as Outlook marks it: in its text, formatted or plain, and its subject, and in the list's subjects and lines of text. A word is marked where the search found it, inside a longer one too (`J006965361` in `201124-J006965361-S/N000164396`).
 
 ### Changed
 
