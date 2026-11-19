@@ -89,6 +89,8 @@ pub struct EventForm {
     pub all_day: bool,
     /// Its times are shown on a 12-hour clock (File › Options).
     pub hours12: bool,
+    /// Its days are shown and typed in this order (File › Options › Dates, issue #162).
+    pub dates: dates::DateOrder,
     pub repeat: Repeat,
     /// How it repeats, when the form can show the rule (issue #103): sent in place of `repeat`.
     pub pattern: Option<mailcraft_engine::model::ical::Pattern>,
@@ -183,6 +185,7 @@ impl EventForm {
             end_date: local_date(start + 3600, s),
             end: local_time(start + 3600, s),
             hours12: s.clock.style.hours12,
+            dates: s.clock.style.order,
             can_invite: true,
             all_categories: all_categories(s, &[]),
             // As Outlook sets a new appointment's reminder.
@@ -245,6 +248,7 @@ impl EventForm {
             end: local_time(end, s),
             all_day: e.all_day,
             hours12: s.clock.style.hours12,
+            dates: s.clock.style.order,
             reminder: mailcraft_engine::model::ical::reminder_minutes(e),
             privacy: mailcraft_engine::model::ical::privacy(e),
             show_as: mailcraft_engine::model::ical::show_as(e),
@@ -503,14 +507,14 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
         title_field(ui, &mut f.summary);
         let start_before = typed_moment(&f.date, &f.start, f.all_day);
         form_row(ui, t, true, Some(Icon::Clock), "Starts", |ui| {
-            date_pick::date_field(ui, t, "event-start", &mut f.date);
+            date_pick::date_field(ui, t, "event-start", &mut f.date, f.dates, None);
             if !f.all_day {
                 time_field(ui, &mut f.start, 9, f.hours12);
             }
         });
         end_follows_start(f, start_before);
         form_row(ui, t, true, None, "Ends", |ui| {
-            date_pick::date_field(ui, t, "event-end", &mut f.end_date);
+            date_pick::date_field(ui, t, "event-end", &mut f.end_date, f.dates, None);
             if !f.all_day {
                 time_field(ui, &mut f.end, 10, f.hours12);
             }

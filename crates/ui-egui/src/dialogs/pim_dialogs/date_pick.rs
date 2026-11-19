@@ -1,5 +1,5 @@
-//! A date field with a month to pick a day from beside it (issue #103): typed as before
-//! (`YYYY-MM-DD`), or picked.
+//! A date field with a month to pick a day from beside it (issue #103): typed, in the order
+//! File › Options writes dates in or as `YYYY-MM-DD` (issue #162), or picked.
 
 use super::pattern::form_day;
 use super::*;
@@ -12,9 +12,22 @@ fn grid_start(month: i64) -> i64 {
 }
 
 /// A date box and its month: true when the date changed (typed or picked). `id` tells this
-/// form's boxes apart.
-pub(super) fn date_field(ui: &mut Ui, t: &Tokens, id: &str, text: &mut String) -> bool {
-    let typed = field(ui, text, "YYYY-MM-DD", 120.0).changed();
+/// form's boxes apart. `text` is the form's (`YYYY-MM-DD` when it's a day, else what was typed,
+/// which the form refuses as it did); the box shows and reads it in `order` (issue #162: always
+/// `YYYY-MM-DD`, whatever Dates was set to). `hint`: what an empty box says, its pattern when
+/// `None`.
+pub(super) fn date_field(ui: &mut Ui, t: &Tokens, id: &str, text: &mut String, order: dates::DateOrder, hint: Option<&str>) -> bool {
+    // What the box shows, kept with the form's text it was made from: made again when that
+    // changes otherwise (picked, or filled in by the form), as it's typed meanwhile.
+    let box_id = egui::Id::unique(("date-pick-box", id));
+    let (from, mut shown): (String, String) = ui.ctx().data(|d| d.get_temp(box_id)).unwrap_or_default();
+    if from != *text || (shown.is_empty() && !text.is_empty()) {
+        shown = form_day(text).map_or_else(|| text.clone(), |d| dates::typed_day(d, order));
+    }
+    let typed = field(ui, &mut shown, hint.unwrap_or(pattern(order)), 120.0).changed();
+    if typed {
+        *text = dates::read_day(&shown, order).map_or_else(|| shown.clone(), dates::day_string);
+    }
     let button = widgets::tiny_icon_button(ui, Icon::Calendar, "Pick a date", t);
     let shown_id = egui::Id::unique(("date-pick-month", id));
     if button.clicked() {
@@ -81,7 +94,7 @@ pub(super) fn date_field(ui: &mut Ui, t: &Tokens, id: &str, text: &mut String) -
                         t.faint
                     };
                     ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, dd.to_string(), theme::regular(12.0), c);
-                    let resp = resp.on_hover_text(dates::day_string(d));
+                    let resp = resp.on_hover_text(dates::typed_day(d, order));
                     if resp.clicked() {
                         picked = Some(d);
                         ui.close();
@@ -92,7 +105,18 @@ pub(super) fn date_field(ui: &mut Ui, t: &Tokens, id: &str, text: &mut String) -
     });
     if let Some(d) = picked {
         *text = dates::day_string(d);
-        return true;
+        shown = dates::typed_day(d, order);
     }
-    typed
+    ui.ctx().data_mut(|d| d.insert_temp(box_id, (text.clone(), shown)));
+    typed || picked.is_some()
+}
+
+/// How a day is written in `order`, for an empty box.
+fn pattern(order: dates::DateOrder) -> &'static str {
+    match order {
+        dates::DateOrder::Iso => "YYYY-MM-DD",
+        dates::DateOrder::DayMonthYear => "DD/MM/YYYY",
+        dates::DateOrder::MonthDayYear => "MM/DD/YYYY",
+        dates::DateOrder::DayMonthYearDots => "DD.MM.YYYY",
+    }
 }

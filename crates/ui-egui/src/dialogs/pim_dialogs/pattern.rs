@@ -54,7 +54,7 @@ pub(super) fn follow_choice(f: &mut EventForm) {
 /// The pattern's rows, under Repeat.
 pub(super) fn rows(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
     let Some(day) = form_day(&f.date) else { return };
-    let until_text = &mut f.until_text;
+    let (until_text, order) = (&mut f.until_text, f.dates);
     let Some(p) = f.pattern.as_mut() else { return };
     let unit = match p.freq {
         PatternFreq::Daily => "days",
@@ -172,7 +172,7 @@ pub(super) fn rows(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
                     ui.label(crate::i18n::tc("count", "occurrences"));
                 }
                 PatternEnd::Until(_) => {
-                    if date_pick::date_field(ui, t, "event-repeat-until", until_text)
+                    if date_pick::date_field(ui, t, "event-repeat-until", until_text, order, None)
                         && let Some(d) = form_day(until_text)
                     {
                         p.end = PatternEnd::Until(d);

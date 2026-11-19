@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 pub mod typing;
 pub mod zone;
 
-pub use typing::{DayHalves, read_time};
+pub use typing::{DayHalves, read_day, read_time, typed_day};
 
 use zone::Zone;
 

@@ -144,3 +144,45 @@ fn days_are_named_from_the_viewers_today_as_the_dates_option_writes_them() {
         assert!(!crate::panes::tasks::relative_day(far, &s).is_empty());
     }
 }
+
+/// Issue #162: the task form's days are shown and typed in the order File › Options › Dates
+/// writes dates in, each with the month to pick a day from beside it, as the event form's;
+/// `YYYY-MM-DD` is still read, and the task is given the same days either way.
+#[test]
+fn a_tasks_days_are_written_as_options_says_and_picked() {
+    let (mut a, _) = app("task-days");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    a.run("view.dateFormat", json!({"order": "dmy."}));
+    let due = mailcraft_engine::model::dates::days_from_civil(2026, 11, 18);
+    a.ui.dialog = Some(Dialog::new_task(&a.session, Some(due * 86_400)));
+    drawn_text(&ctx, &mut a, size);
+    drawn_text(&ctx, &mut a, size);
+    let drawn = drawn_text(&ctx, &mut a, size);
+    let strings: Vec<&str> = drawn.iter().map(|d| d.text.as_str()).collect();
+    assert!(strings.contains(&"18.11.2026") && !strings.contains(&"2026-11-18"), "{strings:?}");
+    let pickers = named(&ctx, &mut a, size).iter().filter(|n| n.name() == Some("Pick a date")).count();
+    assert_eq!(pickers, 2, "Start date and Due date");
+
+    // Typed as Options writes it, into the empty Start date.
+    let start = drawn.iter().find(|d| d.text == "None" && d.seen()).map(|d| d.rect.center()).expect("the empty Start date");
+    click(&ctx, &mut a, start);
+    frame(&ctx, &mut a, vec![Event::Text("20.11.2026".into())]);
+    let Some(Dialog::Task(f)) = &a.ui.dialog else { panic!("the form") };
+    assert_eq!(f.start, "2026-11-20");
+    // And as MailCraft's own, into Due date.
+    let due_box = drawn.iter().find(|d| d.text == "18.11.2026" && d.seen()).map(|d| d.rect.center()).unwrap();
+    click(&ctx, &mut a, due_box);
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![Event::Text("2026-12-01".into())]);
+    let Some(Dialog::Task(f)) = &a.ui.dialog else { panic!("the form") };
+    assert_eq!((f.start.as_str(), f.due.as_str()), ("2026-11-20", "2026-12-01"));
+    let p = f.params();
+    assert_eq!((p["start"].as_str(), p["due"].as_str()), (Some("2026-11-20"), Some("2026-12-01")));
+    // Something that isn't a day is kept as typed, and refused on saving as before.
+    frame(&ctx, &mut a, vec![key(Key::A, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![Event::Text("31.02.2026".into())]);
+    let Some(Dialog::Task(f)) = &a.ui.dialog else { panic!("the form") };
+    assert_eq!(f.due, "31.02.2026");
+}

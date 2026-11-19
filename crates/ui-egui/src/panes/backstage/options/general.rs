@@ -57,22 +57,29 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         // Issue #46: dates as the user writes them (each choice shown as today's date), and the
         // clock, as Windows' region settings offer them to Outlook.
         let style = s.prefs.date_style;
-        setting(ui, &t, false, tl!("Dates"), Some(tl!("In the message list, the reading pane and the header of a reply")), |ui| {
-            let (y, m, d) = mailcraft_engine::model::dates::civil_from_days(mailcraft_engine::model::dates::today(&s.clock));
-            egui::ComboBox::from_id_salt("date-order")
-                .width(160.0)
-                .selected_text(style.order.day(y, m, d))
-                .show_ui(ui, |ui| {
-                    for o in mailcraft_engine::model::dates::DateOrder::ALL {
-                        if ui.selectable_label(style.order == o, o.day(y, m, d)).clicked() {
-                            acts.push(Action::Run("view.dateFormat", json!({"order": o.code()})));
+        setting(
+            ui,
+            &t,
+            false,
+            tl!("Dates"),
+            Some(tl!("In the message list, the reading pane, the header of a reply, and the event and task forms")),
+            |ui| {
+                let (y, m, d) = mailcraft_engine::model::dates::civil_from_days(mailcraft_engine::model::dates::today(&s.clock));
+                egui::ComboBox::from_id_salt("date-order")
+                    .width(160.0)
+                    .selected_text(style.order.day(y, m, d))
+                    .show_ui(ui, |ui| {
+                        for o in mailcraft_engine::model::dates::DateOrder::ALL {
+                            if ui.selectable_label(style.order == o, o.day(y, m, d)).clicked() {
+                                acts.push(Action::Run("view.dateFormat", json!({"order": o.code()})));
+                            }
                         }
-                    }
-                })
-                .response
-                // The setting's name is beside it in the row, which doesn't hand it on.
-                .accessible_name(tl!("Dates"));
-        });
+                    })
+                    .response
+                    // The setting's name is beside it in the row, which doesn't hand it on.
+                    .accessible_name(tl!("Dates"));
+            },
+        );
         setting(ui, &t, false, tl!("Time"), None, |ui| {
             let options = [tl!("24-hour"), tl!("12-hour")];
             if let Some(i) = widgets::segmented(ui, &t, "clock", &options, usize::from(style.hours12)) {

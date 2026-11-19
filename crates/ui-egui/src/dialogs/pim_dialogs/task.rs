@@ -28,6 +28,8 @@ pub struct TaskForm {
     pub reminder_time: String,
     /// Times are shown on a 12-hour clock (File › Options).
     pub hours12: bool,
+    /// Days are shown and typed in this order (File › Options › Dates, issue #162).
+    pub dates: dates::DateOrder,
     pub repeat: Repeat,
     pub categories: Vec<String>,
     pub all_categories: Vec<(String, u8)>,
@@ -70,6 +72,7 @@ impl TaskForm {
             accounts,
             due: day_text(due),
             hours12: s.clock.style.hours12,
+            dates: s.clock.style.order,
             all_categories: all_categories(s, &[]),
             ..Default::default()
         }
@@ -96,6 +99,7 @@ impl TaskForm {
             reminder_date,
             reminder_time,
             hours12: s.clock.style.hours12,
+            dates: s.clock.style.order,
             repeat: Repeat::from_rrule(t.rrule.as_deref()),
             categories: t.categories.clone(),
             all_categories: all_categories(s, &t.categories),
@@ -176,10 +180,10 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
     form_header(ui, t, Ok(Icon::Task), if f.uid.is_some() { "Task" } else { "New task" });
     title_field(ui, &mut f.title);
     form_row(ui, t, true, Some(Icon::Calendar), "Start date", |ui| {
-        field(ui, &mut f.start, tl!("None"), 120.0);
+        date_pick::date_field(ui, t, "task-start", &mut f.start, f.dates, Some(tl!("None")));
     });
     form_row(ui, t, true, Some(Icon::Flag), "Due date", |ui| {
-        field(ui, &mut f.due, tl!("None"), 120.0);
+        date_pick::date_field(ui, t, "task-due", &mut f.due, f.dates, Some(tl!("None")));
     });
     let before = f.status;
     form_row(ui, t, true, Some(Icon::Task), "Status", |ui| {
@@ -218,7 +222,7 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
             if f.reminder_date.trim().is_empty() {
                 f.reminder_date = f.due.trim().to_string();
             }
-            field(ui, &mut f.reminder_date, "YYYY-MM-DD", 120.0);
+            date_pick::date_field(ui, t, "task-reminder", &mut f.reminder_date, f.dates, None);
             time_field(ui, &mut f.reminder_time, 9, f.hours12);
         }
     });

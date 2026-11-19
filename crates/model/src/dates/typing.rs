@@ -1,6 +1,9 @@
 //! A time of day as people type it into a box: `13:30` on a 24-hour clock, or on a 12-hour one
 //! `1:30 PM`, `1:30pm`, `1:30 p.m.`, `1 PM`, and each language's own way (`午後1:30`,
-//! `1:30 a. m.`), whichever clock File › Options shows times on.
+//! `1:30 a. m.`), whichever clock File › Options shows times on. And a day, in the order File ›
+//! Options writes dates in.
+
+use super::{DateOrder, civil_from_days, days_from_civil};
 
 /// Longer than any time typed: refused before it's looked at.
 const MAX_TYPED: usize = 64;
@@ -97,6 +100,45 @@ fn ascii(c: char) -> char {
 /// A word as [`DayHalves`] compares it: lower case, without dots, spaces, quote marks (Hebrew
 /// writes its abbreviations with gershayim, typed as `"` as often) or the invisible marks that
 /// order right-to-left text.
+/// A day typed in `order` (`28.10.2026`, `28/10/2026`, `10/28/2026`; a one-digit day or month,
+/// and `.`, `/` or `-` between the parts, as long as it's the same one), or in MailCraft's own
+/// `2026-10-28` whatever the order (issue #162): days since the epoch. A year of four digits;
+/// what isn't a day (31 February, a 13th month) is refused. Digits typed full-width or in
+/// Arabic-Indic figures count as their ASCII selves.
+pub fn read_day(text: &str, order: DateOrder) -> Option<i64> {
+    if text.len() > MAX_TYPED {
+        return None;
+    }
+    let typed: String = text.trim().chars().map(ascii).collect();
+    let sep = typed.chars().find(|c| matches!(c, '-' | '/' | '.'))?;
+    let parts: Vec<&str> = typed.split(sep).collect();
+    let [a, b, c] = parts.as_slice() else { return None };
+    let num = |x: &str, digits: std::ops::RangeInclusive<usize>| -> Option<u32> {
+        (digits.contains(&x.len()) && x.bytes().all(|d| d.is_ascii_digit())).then(|| x.parse().ok()).flatten()
+    };
+    let (y, m, d) = if a.len() == 4 {
+        (num(a, 4..=4)?, num(b, 1..=2)?, num(c, 1..=2)?)
+    } else {
+        match order {
+            DateOrder::Iso => return None,
+            DateOrder::DayMonthYear | DateOrder::DayMonthYearDots => (num(c, 4..=4)?, num(b, 1..=2)?, num(a, 1..=2)?),
+            DateOrder::MonthDayYear => (num(c, 4..=4)?, num(a, 1..=2)?, num(b, 1..=2)?),
+        }
+    };
+    if !(1..=12).contains(&m) || !(1..=31).contains(&d) {
+        return None;
+    }
+    let day = days_from_civil(i64::from(y), m, d);
+    // Not 31 February: the day read back is the one typed.
+    (civil_from_days(day) == (i64::from(y), m, d)).then_some(day)
+}
+
+/// A day as it's shown in a box to type in, in `order`: [`read_day`] reads it back.
+pub fn typed_day(day: i64, order: DateOrder) -> String {
+    let (y, m, d) = civil_from_days(day);
+    order.day(y, m, d)
+}
+
 fn fold(s: &str) -> String {
     s.chars()
         .filter(|c| {

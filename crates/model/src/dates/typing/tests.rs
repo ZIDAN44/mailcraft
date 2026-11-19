@@ -154,3 +154,54 @@ proptest::proptest! {
         }
     }
 }
+
+/// Issue #162: a day typed in the order File › Options writes dates in, or in MailCraft's own
+/// `YYYY-MM-DD` whatever the order; what isn't a day, refused.
+#[test]
+fn a_day_is_read_in_the_order_chosen() {
+    use crate::dates::{DateOrder, days_from_civil, read_day};
+    let oct28 = Some(days_from_civil(2026, 10, 28));
+    let mar4 = Some(days_from_civil(2026, 3, 4));
+    for (order, typed, want) in [
+        (DateOrder::Iso, "2026-10-28", oct28),
+        (DateOrder::Iso, " 2026-10-28 ", oct28),
+        (DateOrder::Iso, "28/10/2026", None),
+        (DateOrder::DayMonthYear, "28/10/2026", oct28),
+        (DateOrder::DayMonthYear, "4/3/2026", mar4),
+        (DateOrder::DayMonthYear, "2026-10-28", oct28),
+        (DateOrder::DayMonthYear, "04.03.2026", mar4),
+        (DateOrder::DayMonthYearDots, "28.10.2026", oct28),
+        (DateOrder::DayMonthYearDots, "４.３.２０２６", mar4),
+        (DateOrder::MonthDayYear, "10/28/2026", oct28),
+        (DateOrder::MonthDayYear, "3/4/2026", mar4),
+        (DateOrder::MonthDayYear, "28/10/2026", None),
+        (DateOrder::DayMonthYear, "31/02/2026", None),
+        (DateOrder::DayMonthYear, "28/13/2026", None),
+        (DateOrder::DayMonthYear, "28/10/26", None),
+        (DateOrder::DayMonthYear, "28/10.2026", None),
+        (DateOrder::DayMonthYear, "28//2026", None),
+        (DateOrder::DayMonthYear, "28/10/2026/1", None),
+        (DateOrder::DayMonthYear, "+8/10/2026", None),
+        (DateOrder::DayMonthYear, "", None),
+        (DateOrder::Iso, "tomorrow", None),
+    ] {
+        assert_eq!(read_day(typed, order), want, "{order:?} {typed:?}");
+    }
+    assert_eq!(read_day(&"1".repeat(100_000), DateOrder::DayMonthYear), None);
+}
+
+proptest::proptest! {
+    /// Any day from year 1 to 9999, shown in any order, reads back as itself in that order.
+    #[test]
+    fn a_day_shown_reads_back_as_itself(day in -719_162i64..2_932_896, order in 0..4usize) {
+        let order = crate::dates::DateOrder::ALL[order];
+        let shown = crate::dates::typed_day(day, order);
+        proptest::prop_assert_eq!(crate::dates::read_day(&shown, order), Some(day), "{}", shown);
+    }
+
+    /// Nothing typed makes it panic.
+    #[test]
+    fn any_text_is_read_or_refused(text in "\\PC{0,24}", order in 0..4usize) {
+        let _ = crate::dates::read_day(&text, crate::dates::DateOrder::ALL[order]);
+    }
+}
