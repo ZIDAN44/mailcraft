@@ -25,6 +25,7 @@ impl MailApp {
         // In a pass that draws, `ui` then leaves it be (egui gives `logic` alone the last pass's
         // input time, so a minimized window's close is always decided).
         self.ui.close_checked = Some(ctx.input(|i| i.time));
+        self.follow_minimized(ctx);
         self.decide_close(ctx);
         // What the mail servers sent is taken in and new mail announced here too: a minimized
         // window draws no frame, and mail that came meanwhile was neither shown in the title
@@ -34,9 +35,28 @@ impl MailApp {
         self.flush_jobs();
     }
 
+    /// A window MailCraft minimized itself, brought back by the user (the Dock, the taskbar): egui
+    /// is told it isn't minimized any more. egui notes a window minimized when it's told to
+    /// minimize it, and on a Mac never asks again (asking can deadlock there, egui #3494): the
+    /// window came back keeping its last frame and taking no input, as no pass drew it (issue
+    /// #169). It's back when it has the focus again, having lost it as it went.
+    fn follow_minimized(&mut self, ctx: &egui::Context) {
+        let Some(lost) = self.ui.minimized_away else { return };
+        match ctx.input(|i| i.viewport().focused) {
+            Some(false) => self.ui.minimized_away = Some(true),
+            Some(true) if lost => {
+                self.ui.minimized_away = None;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                ctx.request_repaint();
+            }
+            _ => {}
+        }
+    }
+
     /// The window back from the notification area (its icon clicked, MailCraft started again).
     pub fn show_window(&mut self, ctx: &egui::Context) {
         self.ui.in_tray = false;
+        self.ui.minimized_away = None;
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
@@ -63,6 +83,7 @@ impl MailApp {
     /// area, or minimized where a hidden window couldn't be brought back.
     pub fn started_away(&mut self, hidden: bool) {
         self.ui.in_tray = hidden;
+        self.ui.minimized_away = (!hidden).then_some(false);
     }
 
     /// Whether the window is hidden, its icon in the notification area the way back to it.
@@ -74,6 +95,7 @@ impl MailApp {
     /// back (the notification area wouldn't take one), it would be out of reach.
     pub fn back_minimized(&mut self, ctx: &egui::Context) {
         self.ui.in_tray = false;
+        self.ui.minimized_away = Some(false);
         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
     }
@@ -145,7 +167,10 @@ impl MailApp {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
                         self.ui.in_tray = true;
                     }
-                    KeptOnClose::Minimized => ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true)),
+                    KeptOnClose::Minimized => {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                        self.ui.minimized_away = Some(false);
+                    }
                 }
                 return;
             }

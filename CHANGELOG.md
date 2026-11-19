@@ -61,6 +61,7 @@ on GitHub.
 - With messages grouped by conversation, **Delete** on a conversation deletes all of it in the folder (#170), as Outlook does: it deleted the newest message alone, one press for each. A message picked inside the conversation, in the reading pane, is still deleted by itself, and one **Undo** brings the whole conversation back.
 - A Gmail account refused because Google wants an app password (2-Step Verification on) is told so plainly, in your language, with a link to make one (#164): MailCraft passed on Google's English "Application-specific password required" and asked for the same password again. Sending refused the same way says so too, and adding a Gmail account, or one on Google's mail servers, says beforehand that an app password goes in the password box.
 - The task form's **Start date**, **Due date** and reminder day have the month to pick a day from beside them, as the event form's dates have (#162), and the date boxes of both forms show and read dates in the order chosen in **File › Options › Dates**: they were always `YYYY-MM-DD`, which is still read.
+- On a Mac, a window closed to the Dock (**Keep MailCraft running when its window is closed**) answers again when it's brought back (#169): it came back showing its last picture and took no clicks or keys until MailCraft was quit. A Mac started with its window put away was the same.
 
 ## 0.40.0 - 2026-11-17
 

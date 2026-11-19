@@ -315,3 +315,44 @@ fn the_tray_icon_counts_unread_mail_and_mailcraft_can_start_there() {
     a.run("view.startInTray", json!({"on": true}));
     assert!(a.session.prefs.start_in_tray);
 }
+
+/// Issue #169: a window MailCraft minimized itself (closed to the Dock, or started put away) is
+/// told it isn't minimized once the user brings it back, that is once it has the focus again
+/// after losing it. egui notes a window minimized when told to minimize it, and on a Mac never
+/// asks again: the window came back keeping its last frame and taking no input, as no pass drew
+/// it. One minimized by the user (the yellow button) is left to egui, as it was.
+#[test]
+fn a_window_put_away_minimized_is_drawn_again_when_brought_back() {
+    let (mut a, _) = app("minimized-back");
+    let asked = updating(&mut a);
+    asked.borrow_mut().tray = Some(crate::KeptOnClose::Minimized);
+    a.run("view.closeToTray", json!({"on": true}));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    // A pass of `logic` alone (the window counted as minimized), its focus as given.
+    let mut t = 100.0;
+    let mut logic = |a: &mut MailApp, focused: bool| -> Vec<egui::ViewportCommand> {
+        t += 1.0;
+        let mut input = RawInput { time: Some(t), ..Default::default() };
+        let v = input.viewports.entry(egui::ViewportId::ROOT).or_default();
+        (v.minimized, v.focused) = (Some(true), Some(focused));
+        ctx.run_logic(&input, |ctx| a.logic(ctx)).viewport_commands.remove(&egui::ViewportId::ROOT).unwrap_or_default()
+    };
+    let unminimized = |commands: &[egui::ViewportCommand]| commands.contains(&egui::ViewportCommand::Minimized(false));
+    for start in [false, true] {
+        if start {
+            a.started_away(false);
+        } else {
+            let commands = close(&ctx, &mut a).viewport_output.remove(&egui::ViewportId::ROOT).map(|v| v.commands).unwrap_or_default();
+            assert!(commands.contains(&egui::ViewportCommand::Minimized(true)), "closed: minimized, {commands:?}");
+        }
+        // Still with the focus as it goes, then without it: left as it is.
+        assert!(!unminimized(&logic(&mut a, true)), "start {start}: it hasn't gone yet");
+        assert!(!unminimized(&logic(&mut a, false)));
+        // Brought back (the Dock): it has the focus again, and is told it isn't minimized.
+        assert!(unminimized(&logic(&mut a, true)), "start {start}: brought back");
+        assert!(!unminimized(&logic(&mut a, true)), "once");
+    }
+    // Minimized by the user: egui's to follow, nothing said.
+    assert!(!unminimized(&logic(&mut a, false)) && !unminimized(&logic(&mut a, true)));
+}

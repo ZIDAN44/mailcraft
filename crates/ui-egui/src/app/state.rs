@@ -83,6 +83,9 @@ pub struct UiState {
     pub keeps_running: Option<KeptOnClose>,
     /// The window was closed to the notification area and is hidden.
     pub(crate) in_tray: bool,
+    /// MailCraft minimized the window itself (closed to the Dock or the taskbar, or started put
+    /// away), and whether it has lost the focus since (issue #169, [`MailApp::logic`]).
+    pub(crate) minimized_away: Option<bool>,
     /// Exit was chosen (the File page's, the tray icon's): the window's close ends MailCraft
     /// rather than hiding it.
     pub(crate) quit_wanted: bool,
