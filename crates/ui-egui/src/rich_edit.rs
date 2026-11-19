@@ -25,6 +25,7 @@ mod layout;
 mod links;
 mod pictures;
 pub(crate) mod spelling;
+mod spoken;
 mod toolbar;
 mod tracked;
 mod undo;
@@ -445,9 +446,7 @@ fn keys(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
             ops.push(Op::Indent);
         }
     });
-    for op in ops {
-        apply(ed, c, op);
-    }
+    spoken::apply_keyed(ui.ctx(), ed, c, ops);
     if undo_k || redo_k {
         undo(ed, c, &ctx, redo_k);
     }

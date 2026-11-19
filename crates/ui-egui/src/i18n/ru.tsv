@@ -1867,3 +1867,11 @@ count	occurrences	повторений
 	Check spelling as you type	Проверять орфографию при вводе
 	Misspelled words are underlined in red. Right-click one for suggestions.	Слова с ошибками подчёркиваются красной линией. Щёлкните слово правой кнопкой мыши, чтобы увидеть варианты.
 	There's no spelling dictionary for {language} on this computer.	На этом компьютере нет орфографического словаря для языка {language}.
+	Bold on	Полужирный включён
+	Bold off	Полужирный выключен
+	Italic on	Курсив включён
+	Italic off	Курсив выключен
+	Underline on	Подчёркивание включено
+	Underline off	Подчёркивание выключено
+	{name}: on	{name}: вкл.
+	{name}: off	{name}: выкл.

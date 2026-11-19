@@ -1867,3 +1867,11 @@ count	occurrences	次
 	Check spelling as you type	輸入時檢查拼字
 	Misspelled words are underlined in red. Right-click one for suggestions.	拼字錯誤的字會以紅色底線標示。以滑鼠右鍵按一下字詞即可查看建議。
 	There's no spelling dictionary for {language} on this computer.	此電腦上沒有 {language} 的拼字字典。
+	Bold on	粗體 開
+	Bold off	粗體 關
+	Italic on	斜體 開
+	Italic off	斜體 關
+	Underline on	底線 開
+	Underline off	底線 關
+	{name}: on	{name}：開
+	{name}: off	{name}：關

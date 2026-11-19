@@ -1868,3 +1868,11 @@ count	occurrences	opakovaní
 	Check spelling as you type	Kontrolovať pravopis počas písania
 	Misspelled words are underlined in red. Right-click one for suggestions.	Nesprávne napísané slová sú podčiarknuté červenou. Kliknutím pravým tlačidlom na slovo zobrazíte návrhy.
 	There's no spelling dictionary for {language} on this computer.	V tomto počítači nie je pravopisný slovník pre jazyk {language}.
+	Bold on	Tučné zapnuté
+	Bold off	Tučné vypnuté
+	Italic on	Kurzíva zapnutá
+	Italic off	Kurzíva vypnutá
+	Underline on	Podčiarknutie zapnuté
+	Underline off	Podčiarknutie vypnuté
+	{name}: on	{name}: zapnuté
+	{name}: off	{name}: vypnuté

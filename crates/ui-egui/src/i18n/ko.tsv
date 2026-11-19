@@ -1867,3 +1867,11 @@ count	occurrences	회
 	Check spelling as you type	입력할 때 맞춤법 검사
 	Misspelled words are underlined in red. Right-click one for suggestions.	맞춤법이 틀린 단어에는 빨간 밑줄이 표시됩니다. 단어를 마우스 오른쪽 단추로 클릭하면 제안이 표시됩니다.
 	There's no spelling dictionary for {language} on this computer.	이 컴퓨터에는 {language} 맞춤법 사전이 없습니다.
+	Bold on	굵게 켜짐
+	Bold off	굵게 꺼짐
+	Italic on	기울임꼴 켜짐
+	Italic off	기울임꼴 꺼짐
+	Underline on	밑줄 켜짐
+	Underline off	밑줄 꺼짐
+	{name}: on	{name}: 켜짐
+	{name}: off	{name}: 꺼짐

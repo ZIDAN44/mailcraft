@@ -1868,3 +1868,11 @@ count	occurrences	Terminen
 	Check spelling as you type	Rechtschreibung während der Eingabe prüfen
 	Misspelled words are underlined in red. Right-click one for suggestions.	Falsch geschriebene Wörter werden rot unterstrichen. Mit einem Rechtsklick darauf erhalten Sie Vorschläge.
 	There's no spelling dictionary for {language} on this computer.	Auf diesem Computer gibt es kein Rechtschreibwörterbuch für {language}.
+	Bold on	Fett ein
+	Bold off	Fett aus
+	Italic on	Kursiv ein
+	Italic off	Kursiv aus
+	Underline on	Unterstrichen ein
+	Underline off	Unterstrichen aus
+	{name}: on	{name}: ein
+	{name}: off	{name}: aus

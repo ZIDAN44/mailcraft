@@ -1868,3 +1868,11 @@ count	occurrences	kez
 	Check spelling as you type	Yazarken yazımı denetle
 	Misspelled words are underlined in red. Right-click one for suggestions.	Yanlış yazılan sözcüklerin altı kırmızıyla çizilir. Öneriler için birine sağ tıklayın.
 	There's no spelling dictionary for {language} on this computer.	Bu bilgisayarda {language} için yazım sözlüğü yok.
+	Bold on	Kalın açık
+	Bold off	Kalın kapalı
+	Italic on	İtalik açık
+	Italic off	İtalik kapalı
+	Underline on	Altı çizili açık
+	Underline off	Altı çizili kapalı
+	{name}: on	{name}: açık
+	{name}: off	{name}: kapalı

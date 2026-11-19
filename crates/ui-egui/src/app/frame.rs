@@ -643,6 +643,7 @@ impl MailApp {
             super::caption::resize_zones(ui);
         }
         self.toasts(&ctx);
+        crate::a11y::said(&ctx);
         self.undo_bar(&ctx);
         self.send_receive_window(&ctx);
         // Calendar reminders: the window, and the desktop told of each as it comes. A message's

@@ -1863,3 +1863,11 @@ count	occurrences	keer
 	Check spelling as you type	Spelling controleren tijdens het typen
 	Misspelled words are underlined in red. Right-click one for suggestions.	Verkeerd gespelde woorden worden rood onderstreept. Klik er met de rechtermuisknop op voor suggesties.
 	There's no spelling dictionary for {language} on this computer.	Er is op deze computer geen spellingwoordenlijst voor {language}.
+	Bold on	Vet aan
+	Bold off	Vet uit
+	Italic on	Cursief aan
+	Italic off	Cursief uit
+	Underline on	Onderstrepen aan
+	Underline off	Onderstrepen uit
+	{name}: on	{name}: aan
+	{name}: off	{name}: uit

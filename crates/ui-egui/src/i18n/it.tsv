@@ -1867,3 +1867,11 @@ count	occurrences	ripetizioni
 	Check spelling as you type	Controlla l’ortografia durante la digitazione
 	Misspelled words are underlined in red. Right-click one for suggestions.	Le parole scritte in modo errato sono sottolineate in rosso. Fai clic con il pulsante destro su una per vedere i suggerimenti.
 	There's no spelling dictionary for {language} on this computer.	Su questo computer non c’è un dizionario ortografico per {language}.
+	Bold on	Grassetto attivato
+	Bold off	Grassetto disattivato
+	Italic on	Corsivo attivato
+	Italic off	Corsivo disattivato
+	Underline on	Sottolineato attivato
+	Underline off	Sottolineato disattivato
+	{name}: on	{name}: attivato
+	{name}: off	{name}: disattivato

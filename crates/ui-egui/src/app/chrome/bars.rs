@@ -236,6 +236,9 @@ impl MailApp {
         }
         if let Some(n) = self.session.notices.get(self.ui.seen_notices..).and_then(|v| v.last()) {
             self.ui.toast = Some((n.text.clone(), n.error, now));
+            // Said to a screen reader too, as it comes (issue #175): the notice is in a corner
+            // the keyboard never goes to. A failure is said at once.
+            crate::a11y::announce(ctx, i18n::notice(&n.text), n.error);
         }
         self.ui.seen_notices = self.session.notices.len();
         let Some((text, error, at)) = self.ui.toast.clone() else { return };

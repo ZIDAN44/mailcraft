@@ -1868,3 +1868,11 @@ count	occurrences	ocorrências
 	Check spelling as you type	Verificar a ortografia ao digitar
 	Misspelled words are underlined in red. Right-click one for suggestions.	Palavras com erro de ortografia são sublinhadas em vermelho. Clique com o botão direito em uma para ver sugestões.
 	There's no spelling dictionary for {language} on this computer.	Não há dicionário ortográfico de {language} neste computador.
+	Bold on	Negrito ativado
+	Bold off	Negrito desativado
+	Italic on	Itálico ativado
+	Italic off	Itálico desativado
+	Underline on	Sublinhado ativado
+	Underline off	Sublinhado desativado
+	{name}: on	{name}: ativado
+	{name}: off	{name}: desativado

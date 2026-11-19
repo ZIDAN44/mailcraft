@@ -1863,3 +1863,11 @@ count	occurrences	مرات
 	Check spelling as you type	التدقيق الإملائي أثناء الكتابة
 	Misspelled words are underlined in red. Right-click one for suggestions.	تُسطَّر الكلمات المكتوبة بشكل خاطئ بالأحمر. انقر بزر الماوس الأيمن على إحداها لرؤية الاقتراحات.
 	There's no spelling dictionary for {language} on this computer.	لا يوجد قاموس إملائي للغة {language} على هذا الكمبيوتر.
+	Bold on	الخط العريض مفعّل
+	Bold off	الخط العريض متوقف
+	Italic on	الخط المائل مفعّل
+	Italic off	الخط المائل متوقف
+	Underline on	التسطير مفعّل
+	Underline off	التسطير متوقف
+	{name}: on	{name}: مفعّل
+	{name}: off	{name}: متوقف

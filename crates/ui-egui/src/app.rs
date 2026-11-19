@@ -156,8 +156,15 @@ impl MailApp {
 
     /// Run a command, reporting failures in a toast.
     pub fn run(&mut self, id: &str, params: Value) {
+        self.answer(id, params);
+    }
+
+    /// Run a command as [`MailApp::run`] does: its answer, when it worked.
+    pub(crate) fn answer(&mut self, id: &str, params: Value) -> Option<Value> {
         use mailcraft_engine::CmdError;
-        match self.session.run(id, &params) {
+        let ran = self.session.run(id, &params);
+        let answer = ran.as_ref().ok().cloned();
+        match ran {
             // Held to be looked at first: said in the message's window when it has one.
             Ok(v) if id == "compose.send" && v.get("check").is_some() => {
                 // One that can't be read (none ever should) still holds the message, the dialog
@@ -193,6 +200,7 @@ impl MailApp {
             Err(CmdError::Params(m) | CmdError::Failed(m)) => self.session.notice(m, true),
             Err(e) => self.session.notice(e.to_string(), true),
         }
+        answer
     }
 
     /// A `mailto:` link or a mail file the system handed MailCraft (as its mail app, or through

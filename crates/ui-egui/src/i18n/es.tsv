@@ -1868,3 +1868,11 @@ count	occurrences	repeticiones
 	Check spelling as you type	Revisar la ortografía mientras escribe
 	Misspelled words are underlined in red. Right-click one for suggestions.	Las palabras mal escritas se subrayan en rojo. Haga clic con el botón derecho en una para ver sugerencias.
 	There's no spelling dictionary for {language} on this computer.	No hay ningún diccionario ortográfico de {language} en este equipo.
+	Bold on	Negrita activada
+	Bold off	Negrita desactivada
+	Italic on	Cursiva activada
+	Italic off	Cursiva desactivada
+	Underline on	Subrayado activado
+	Underline off	Subrayado desactivado
+	{name}: on	{name}: activado
+	{name}: off	{name}: desactivado

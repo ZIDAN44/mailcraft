@@ -1864,3 +1864,11 @@ count	occurrences	回
 	Check spelling as you type	入力時にスペルチェックを行う
 	Misspelled words are underlined in red. Right-click one for suggestions.	スペルが間違っている単語には赤い波線が引かれます。右クリックすると候補が表示されます。
 	There's no spelling dictionary for {language} on this computer.	このコンピューターには {language} のスペル辞書がありません。
+	Bold on	太字 オン
+	Bold off	太字 オフ
+	Italic on	斜体 オン
+	Italic off	斜体 オフ
+	Underline on	下線 オン
+	Underline off	下線 オフ
+	{name}: on	{name}: オン
+	{name}: off	{name}: オフ

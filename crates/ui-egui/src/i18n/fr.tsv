@@ -1868,3 +1868,11 @@ count	occurrences	occurrences
 	Check spelling as you type	Vérifier l’orthographe pendant la frappe
 	Misspelled words are underlined in red. Right-click one for suggestions.	Les mots mal orthographiés sont soulignés en rouge. Cliquez sur l’un d’eux avec le bouton droit pour voir des suggestions.
 	There's no spelling dictionary for {language} on this computer.	Aucun dictionnaire orthographique pour {language} n’est installé sur cet ordinateur.
+	Bold on	Gras activé
+	Bold off	Gras désactivé
+	Italic on	Italique activé
+	Italic off	Italique désactivé
+	Underline on	Souligné activé
+	Underline off	Souligné désactivé
+	{name}: on	{name} : activé
+	{name}: off	{name} : désactivé
