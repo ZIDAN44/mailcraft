@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use super::*;
 
 mod folder_edits;
+mod follow_up;
 pub(crate) use folder_edits::keys_by_account;
 
 /// The most moves into an Inbox or Junk remembered ([`MovedIn`]) before the oldest are
