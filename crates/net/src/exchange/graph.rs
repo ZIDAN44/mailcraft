@@ -420,7 +420,18 @@ fn flags(m: &Value) -> Flags {
         Some("complete") => names.push(mailcraft_model::FOLLOW_UP_COMPLETE),
         _ => {}
     }
-    Flags::from_imap(names)
+    let mut f = Flags::from_imap(names);
+    // The day it's due (gap 9): an instant in the zone it names, read as the nearest midnight
+    // (Outlook keeps the user's local midnight; Graph says it in UTC unless asked otherwise).
+    f.follow_up_due = m
+        .get("flag")
+        .and_then(|f| f.get("dueDateTime"))
+        .filter(|d| d.get("timeZone").and_then(Value::as_str).is_none_or(|z| z.eq_ignore_ascii_case("UTC")))
+        .and_then(|d| d.get("dateTime"))
+        .and_then(Value::as_str)
+        .and_then(|t| mailcraft_jmap::utc_date(&format!("{}Z", t.get(..19).unwrap_or(t))))
+        .map(|t| mailcraft_model::pim::task_day(t).div_euclid(86_400));
+    f
 }
 
 /// The change a flag or follow-up op makes to a message on the server (`None`: nothing Graph
@@ -432,6 +443,13 @@ fn flag_patch(op: &Op) -> Option<Value> {
         Op::SetFlag { flag: Flag::Flagged, on, .. } => Some(json!({"flag": {"flagStatus": if *on { "flagged" } else { "notFlagged" }}})),
         Op::SetKeyword { keyword, on, .. } if keyword.eq_ignore_ascii_case(mailcraft_model::FOLLOW_UP_COMPLETE) => {
             Some(json!({"flag": {"flagStatus": if *on { "complete" } else { "notFlagged" }}}))
+        }
+        // A flagged message's days (gap 9), as the instants they start where the user is: sent
+        // only for a flagged one (Graph flags one given days).
+        Op::SetFollowUp { due, .. } => {
+            let at = |d: &mailcraft_model::FollowUpDay| json!({"dateTime": mailcraft_model::dates::utc_date_time(d.at), "timeZone": "UTC"});
+            let day = due.as_ref().map(at).unwrap_or(Value::Null);
+            Some(json!({"flag": {"flagStatus": "flagged", "startDateTime": day, "dueDateTime": day}}))
         }
         _ => None,
     }
@@ -627,7 +645,7 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
         c.batch_ok(&reqs)
     };
     match op {
-        Op::SetFlag { keys, .. } | Op::SetKeyword { keys, .. } => match flag_patch(op) {
+        Op::SetFlag { keys, .. } | Op::SetFollowUp { keys, .. } | Op::SetKeyword { keys, .. } => match flag_patch(op) {
             Some(patch) => patch_all(keys, patch),
             // Answered and forwarded are Exchange's to set; categories stay on this computer.
             None => Ok(()),
@@ -734,7 +752,32 @@ mod tests {
         // Its Undo, or flagged again: the keyword off, then the flag on.
         assert_eq!([status(complete(false)), status(flag(true))], [Some("notFlagged".into()), Some("flagged".into())]);
         assert_eq!(flag_patch(&Op::SetKeyword { keys: keys.clone(), keyword: "work".into(), on: true }), None);
-        assert_eq!(flag_patch(&Op::SetFlag { keys, flag: Flag::Seen, on: true }), Some(json!({"isRead": true})));
+        assert_eq!(flag_patch(&Op::SetFlag { keys: keys.clone(), flag: Flag::Seen, on: true }), Some(json!({"isRead": true})));
+        // A day (gap 9): the instants it starts where the user is, in UTC; none, taken off.
+        let day = mailcraft_model::dates::days_from_civil(2026, 11, 25);
+        let due = mailcraft_model::FollowUpDay { day, at: day * 86_400 - 3600 };
+        let at = json!({"dateTime": "2026-11-24T23:00:00", "timeZone": "UTC"});
+        assert_eq!(
+            flag_patch(&Op::SetFollowUp { keys: keys.clone(), due: Some(due) }),
+            Some(json!({"flag": {"flagStatus": "flagged", "startDateTime": at, "dueDateTime": at}}))
+        );
+        assert_eq!(
+            flag_patch(&Op::SetFollowUp { keys, due: None }),
+            Some(json!({"flag": {"flagStatus": "flagged", "startDateTime": null, "dueDateTime": null}}))
+        );
+    }
+
+    /// Gap 9: a flag's due day, as Graph gives it (the instant the day starts where it was set,
+    /// in UTC), is that day; one in another zone isn't guessed at.
+    #[test]
+    fn a_flags_due_day_is_read() {
+        let due = |d: Value| flags(&json!({"flag": {"flagStatus": "flagged", "dueDateTime": d}})).follow_up_due;
+        let day = mailcraft_model::dates::days_from_civil(2026, 11, 20);
+        assert_eq!(due(json!({"dateTime": "2026-11-19T18:00:00.0000000", "timeZone": "UTC"})), Some(day), "set six hours east");
+        assert_eq!(due(json!({"dateTime": "2026-11-20T05:00:00.0000000", "timeZone": "UTC"})), Some(day), "five hours west");
+        assert_eq!(due(json!({"dateTime": "2026-11-20T00:00:00", "timeZone": "Pacific Standard Time"})), None);
+        assert_eq!(due(json!("nonsense")), None);
+        assert_eq!(flags(&json!({"flag": {"flagStatus": "flagged"}})).follow_up_due, None);
     }
 
     #[test]

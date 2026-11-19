@@ -13,6 +13,7 @@ use crate::waiting::{events_until, eventually, until};
 mod calendars;
 mod directory;
 mod elsewhere;
+mod follow_up;
 mod free_busy;
 mod large_folder;
 mod older;

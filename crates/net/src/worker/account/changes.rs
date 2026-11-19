@@ -332,7 +332,7 @@ impl Worker {
                         }
                         Op::CreateFolder { .. } | Op::DeleteFolder { .. } => relist = true,
                         Op::EmptyFolder { path } => destinations.push(path.clone()),
-                        Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Expunge { .. } => {}
+                        Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. } | Op::Expunge { .. } => {}
                     }
                     if let Err(e) = self.store.op_made(&self.acc.id, &mut waiting) {
                         self.notice(e.to_string());

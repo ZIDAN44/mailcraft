@@ -30,10 +30,10 @@ impl Window for Client {
         self.still_in(id, ids)
     }
 
-    /// Graph says whether it's read, flagged (and done) or a draft; it has no answered flag or
-    /// categories here, which stay as they are.
+    /// Graph says whether it's read, flagged (and done) or a draft, and a flag's day; it has no
+    /// answered flag or categories here, which stay as they are.
     fn merged(&self, kept: &Flags, server: &Flags) -> Flags {
-        let mut next = Flags { seen: server.seen, flagged: server.flagged, draft: server.draft, ..kept.clone() };
+        let mut next = Flags { seen: server.seen, flagged: server.flagged, draft: server.draft, follow_up_due: server.follow_up_due, ..kept.clone() };
         next.set_keyword(mailcraft_model::FOLLOW_UP_COMPLETE, server.follow_up_complete());
         next
     }

@@ -37,8 +37,8 @@ pub use dates::zone;
 pub use encoding::path;
 pub use encoding::{base64, utf7};
 pub use job::{
-    Event, FailureKind, HeldKey, Job, LOCAL_CERTIFICATE, Op, PgpSignature, PgpWork, Private, REMOTE_CERTIFICATE, Revocation, Secret, SyncStatus,
-    UntrustedCertificate,
+    Event, FailureKind, FollowUpDay, HeldKey, Job, LOCAL_CERTIFICATE, Op, PgpSignature, PgpWork, Private, REMOTE_CERTIFICATE, Revocation, Secret,
+    SyncStatus, UntrustedCertificate,
 };
 pub use path::file_name;
 pub use signature::Signature;

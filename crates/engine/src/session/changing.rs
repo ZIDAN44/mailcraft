@@ -80,6 +80,7 @@ impl Session {
         let op = match op {
             Op::SetFlag { keys, flag, on } => Op::SetFlag { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), flag, on },
             Op::SetKeyword { keys, keyword, on } => Op::SetKeyword { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), keyword, on },
+            Op::SetFollowUp { keys, due } => Op::SetFollowUp { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), due },
             Op::Move { keys, to } => Op::Move { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), to },
             Op::Expunge { keys } => Op::Expunge { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect() },
             other => other,
@@ -150,7 +151,12 @@ impl Session {
                 }
             }
             Op::EmptyFolder { path } => self.search_folder_changed(account, path),
-            Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } => {}
+            Op::SetFlag { .. }
+            | Op::SetFollowUp { .. }
+            | Op::SetKeyword { .. }
+            | Op::CreateFolder { .. }
+            | Op::RenameFolder { .. }
+            | Op::DeleteFolder { .. } => {}
         }
         if op.is_folder_op() {
             self.apply_folder_op_memory(account, op);
@@ -198,6 +204,12 @@ impl Session {
                         SharedSummary::make_mut(m).flags.set_keyword(keyword, *on);
                     }
                 }
+                Op::SetFollowUp { due, .. } => {
+                    let day = due.map(|d| d.day);
+                    for m in st.messages.iter_mut().filter(|m| mine.contains(&m.key.uid) && m.flags.follow_up_due != day) {
+                        SharedSummary::make_mut(m).flags.follow_up_due = day;
+                    }
+                }
                 Op::Move { to, .. } if to == f => {}
                 Op::Move { .. } | Op::Expunge { .. } => {
                     let unread = st.messages.iter().filter(|m| mine.contains(&m.key.uid) && !m.flags.seen).count();
@@ -240,7 +252,7 @@ impl Session {
         // flags they have now are handed to the store's thread for marks with the folders'
         // counts, written there in one commit (`store/src/marking.rs`): not in the window's frame.
         // One not in memory is changed on disk.
-        if matches!(op, Op::SetFlag { .. } | Op::SetKeyword { .. })
+        if matches!(op, Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. })
             && touched.iter().all(|f| self.cache.contains_key(&(account.to_string(), f.clone())))
         {
             let counts = self.count_local(account, Some(&touched));
@@ -315,7 +327,7 @@ impl Session {
         // flag or category changes nothing it keeps.
         if op.is_folder_op() {
             self.want_index(account, None);
-        } else if !matches!(op, Op::SetFlag { .. } | Op::SetKeyword { .. }) {
+        } else if !matches!(op, Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. }) {
             for f in &touched {
                 self.want_index(account, Some(f));
             }
@@ -391,7 +403,12 @@ impl Session {
                     }
                 }
                 Op::DeleteFolder { path } => a.folders.retain(|f| !mailcraft_model::is_within(&f.path, path, f.delimiter.or(delimiter))),
-                Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => {}
+                Op::SetFlag { .. }
+                | Op::SetFollowUp { .. }
+                | Op::SetKeyword { .. }
+                | Op::Move { .. }
+                | Op::Expunge { .. }
+                | Op::EmptyFolder { .. } => {}
             }
             sort_folders(&mut a.folders);
         }
@@ -427,7 +444,7 @@ impl Session {
                     self.focus = None;
                 }
             }
-            Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => {}
+            Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => {}
         }
         self.search_folders_changed(account);
     }

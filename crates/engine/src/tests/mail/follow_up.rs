@@ -127,3 +127,77 @@ fn the_preferences_days_read_from_disk_are_days() {
     assert_eq!(p.follow_up, std::collections::BTreeMap::from([("due@x".to_string(), 20_400)]));
     assert_eq!(p.follow_up_done, std::collections::BTreeMap::from([("done@x".to_string(), 20_390)]));
 }
+
+/// Gap 9: an Exchange account's follow-up days are the server's, as Outlook keeps them on the
+/// message. One Outlook gave a day shows it; one given a day here sends it (the day, and its
+/// local midnight); Undo sends back the one it had; Clear Flag takes the day off while it's still
+/// flagged. An IMAP account's stay on this computer, and nothing is sent for them.
+#[test]
+fn an_exchange_accounts_follow_up_days_are_the_servers() {
+    use mailcraft_model::{Flags, FollowUpDay, MessageKey, Summary};
+    // An hour east of UTC: a day's local midnight isn't its UTC one.
+    let mut s = Session::open(Some(temp("follow-up-ews")), mailcraft_model::dates::Clock::new(NOW, 3600));
+    let id = s
+        .run("account.add", &json!({"email": "zoe@contoso.example", "password": "pw", "ews": "https://mail.contoso.example/EWS/Exchange.asmx"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let inbox =
+        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    let today = mailcraft_model::dates::today(&s.clock);
+    let key = MessageKey { account: id.clone(), folder: "INBOX".into(), validity: 1, uid: 1 };
+    let flags = Flags { flagged: true, follow_up_due: Some(today + 3), ..Default::default() };
+    file_in(
+        &mut s,
+        Summary { key: key.clone(), message_id: "budget@contoso.example".into(), subject: "Budget".into(), date: NOW, flags, ..Default::default() },
+        None,
+    );
+    s.run("folder.open", &json!({"account": id, "folder": "INBOX"})).unwrap();
+    let due = |s: &Session| s.summary(&key).and_then(|m| s.follow_up_due(m));
+    assert_eq!(due(&s), Some(today + 3), "as Outlook set it");
+    s.take_jobs();
+    let sent = |s: &mut Session| -> Vec<Op> {
+        s.take_jobs().into_iter().filter_map(|j| if let Job::Apply { op, .. } = j { Some(op) } else { None }).collect()
+    };
+    let day = |s: &Session, d: i64| Some(FollowUpDay { day: d, at: s.clock.midnight(d) });
+
+    // Tomorrow: sent, with its local midnight; shown at once.
+    s.selection = vec![key.clone()];
+    s.run("mail.flag", &json!({"due": "tomorrow"})).unwrap();
+    let ops = sent(&mut s);
+    assert!(ops.contains(&Op::SetFollowUp { keys: vec![key.clone()], due: day(&s, today + 1) }), "{ops:?}");
+    assert_eq!(day(&s, today + 1).map(|d| d.at), Some((today + 1) * 86_400 - 3600), "the local midnight");
+    assert_eq!(due(&s), Some(today + 1));
+    // Undo: the day it had, sent back.
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(sent(&mut s).contains(&Op::SetFollowUp { keys: vec![key.clone()], due: day(&s, today + 3) }));
+    assert_eq!(due(&s), Some(today + 3));
+    // Marked complete (its day kept, as Outlook keeps it), then followed up by that same day:
+    // the fresh flag's days taken off, then the day sent again.
+    s.run("mail.flag", &json!({"complete": true})).unwrap();
+    sent(&mut s);
+    s.run("mail.flag", &json!({"due": mailcraft_model::dates::day_string(today + 3)})).unwrap();
+    let ops = sent(&mut s);
+    let none = ops.iter().position(|o| *o == Op::SetFollowUp { keys: vec![key.clone()], due: None });
+    let again = ops.iter().position(|o| *o == Op::SetFollowUp { keys: vec![key.clone()], due: day(&s, today + 3) });
+    assert!(none.is_some() && again > none, "{ops:?}");
+    assert_eq!(due(&s), Some(today + 3));
+    // Clear Flag: the day taken off, before the flag goes.
+    s.run("mail.flag", &json!({"on": false})).unwrap();
+    let ops = sent(&mut s);
+    let at = |want: &Op| ops.iter().position(|o| o == want);
+    let off = at(&Op::SetFollowUp { keys: vec![key.clone()], due: None });
+    let unflag = at(&Op::SetFlag { keys: vec![key.clone()], flag: mailcraft_model::Flag::Flagged, on: false });
+    assert!(off.is_some() && off < unflag, "{ops:?}");
+
+    // An IMAP account: kept here, nothing sent.
+    let mut sample = sample_session("follow-up-imap");
+    let k = sample.list.first().map(|m| m.key.clone()).unwrap();
+    sample.selection = vec![k.clone()];
+    sample.take_jobs();
+    sample.run("mail.flag", &json!({"due": "tomorrow"})).unwrap();
+    assert!(!sent(&mut sample).iter().any(|o| matches!(o, Op::SetFollowUp { .. })));
+    assert_eq!(sample.summary(&k).and_then(|m| sample.follow_up_due(m)), Some(today + 1));
+}

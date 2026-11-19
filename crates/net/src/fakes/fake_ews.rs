@@ -58,6 +58,10 @@ pub struct It {
     pub raw: Vec<u8>,
     pub read: bool,
     pub flagged: bool,
+    /// Its follow-up marked complete (`PidTagFlagStatus` 1).
+    pub complete: bool,
+    /// The day its follow-up is due (`PidLidTaskDueDate`), as written.
+    pub due: Option<String>,
     pub draft: bool,
     pub received: String,
 }
@@ -326,6 +330,8 @@ impl Data {
             flagged: false,
             draft: false,
             received: received.into(),
+            complete: false,
+            due: None,
         });
         id
     }
@@ -439,9 +445,7 @@ impl Data {
             it.received,
             it.raw.len()
         ));
-        if it.flagged {
-            x.push_str(&ext("0x1090", 2));
-        }
+        x.push_str(&follow_up_xml(it));
         x.push_str(&ext("0x0E07", if it.draft { 8 } else { 1 }));
         x.push_str(&format!("<t:ToRecipients>{}</t:ToRecipients>", p.to.iter().map(mb).collect::<String>()));
         if !p.cc.is_empty() {
@@ -564,3 +568,27 @@ mod serving;
 #[cfg(test)]
 mod tests;
 mod watching;
+
+/// A message's flag status and the day its follow-up is due, as Exchange gives them.
+fn follow_up_xml(it: &It) -> String {
+    let status = if it.flagged {
+        Some(2)
+    } else if it.complete {
+        Some(1)
+    } else {
+        None
+    };
+    let mut x = status
+        .map(|v| {
+            format!(
+                "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x1090\" PropertyType=\"Integer\"/><t:Value>{v}</t:Value></t:ExtendedProperty>"
+            )
+        })
+        .unwrap_or_default();
+    if let Some(d) = &it.due {
+        x.push_str(&format!(
+            "<t:ExtendedProperty><t:ExtendedFieldURI DistinguishedPropertySetId=\"Task\" PropertyId=\"33029\" PropertyType=\"SystemTime\"/><t:Value>{d}</t:Value></t:ExtendedProperty>"
+        ));
+    }
+    x
+}

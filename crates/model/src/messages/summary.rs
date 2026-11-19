@@ -78,6 +78,11 @@ pub struct Flags {
     /// Other keywords (RFC 3501 §2.3.2): categories (`$label1`, `work`…), `$Pinned`, `$Junk`…
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub keywords: Vec<String>,
+    /// The day its follow-up is due (days since the epoch), as a server that keeps it says:
+    /// Exchange and Microsoft 365 keep it on the message, as Outlook sets it. An IMAP server
+    /// keeps none (MailCraft keeps those days itself).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub follow_up_due: Option<i64>,
 }
 
 /// The keyword that pins a message to the top of its folder.

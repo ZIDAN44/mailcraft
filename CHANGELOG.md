@@ -27,6 +27,7 @@ on GitHub.
 - **Start in**, in **File › Options › Mail** (#172): MailCraft can start in **All Inboxes**, the folder open when it last closed, or any account's folder, as Outlook's "Start Outlook in this folder"; it always opened the first account's Inbox, which stays the default.
 - What a search found is marked in the open message (#173), as Outlook marks it: in its text, formatted or plain, and its subject, and in the list's subjects and lines of text. A word is marked where the search found it, inside a longer one too (`J006965361` in `201124-J006965361-S/N000164396`).
 - An on-premises Exchange account's tasks sync both ways with its mailbox's Tasks folder (#161), as Outlook keeps them: those made in Outlook show in **Tasks** and the To-Do Bar, and one made, changed, marked complete or deleted here is so in Outlook too, with its days, status, how far along, priority, reminder, categories and notes. Tasks made here before go up at the next sync.
+- An Exchange or Microsoft 365 account's follow-up days are kept on the message, as Outlook keeps them: a day given to a flag in Outlook shows in MailCraft (in the To-Do Bar, under its day), and one given here, changed or taken off shows in Outlook. **Mark complete** is complete in Outlook too on an on-premises Exchange account, and one completed in Outlook shows complete here: it was only unflagged there. They stayed on this computer before.
 
 ### Changed
 

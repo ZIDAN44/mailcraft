@@ -418,6 +418,7 @@ async fn send(sh: &Rcs, id: &str, c: &Client<Fetch>, op: &Op, refresh: bool) -> 
         | Op::RenameFolder { .. }
         | Op::DeleteFolder { .. }
         | Op::SetFlag { .. }
+        | Op::SetFollowUp { .. }
         | Op::SetKeyword { .. }
         | Op::Expunge { .. } => {}
     }

@@ -23,7 +23,7 @@ pub use compact::*;
 pub use eta::Eta;
 pub use import::*;
 pub use keys::{HeldKey, Revocation};
-pub use op::Op;
+pub use op::{FollowUpDay, Op};
 pub use progress::Work;
 pub use status::{FailureKind, LOCAL_CERTIFICATE, REMOTE_CERTIFICATE, SyncStatus, UntrustedCertificate};
 pub use transfer::{Transfer, TransferKind, TransferState};

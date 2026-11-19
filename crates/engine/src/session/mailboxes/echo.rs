@@ -83,7 +83,7 @@ impl Session {
             self.echoes.0.remove(&k);
             return Echo::None;
         };
-        if !matches!(op, Op::SetFlag { .. } | Op::SetKeyword { .. }) {
+        if !matches!(op, Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. }) {
             if q.is_empty() {
                 self.echoes.0.remove(&k);
             }
@@ -102,6 +102,7 @@ impl Session {
         let has = |f: &Flags| match &op {
             Op::SetFlag { flag, on, .. } => flag.get(f) == *on,
             Op::SetKeyword { keyword, on, .. } => f.has(keyword) == *on,
+            Op::SetFollowUp { due, .. } => f.follow_up_due == due.map(|d| d.day),
             _ => true,
         };
         if st.messages.iter().filter(|m| uids.contains(&m.key.uid)).all(|m| has(&m.flags)) {
@@ -111,6 +112,7 @@ impl Session {
             match &op {
                 Op::SetFlag { flag, on, .. } => flag.set(&mut SharedSummary::make_mut(m).flags, *on),
                 Op::SetKeyword { keyword, on, .. } => SharedSummary::make_mut(m).flags.set_keyword(keyword, *on),
+                Op::SetFollowUp { due, .. } => SharedSummary::make_mut(m).flags.follow_up_due = due.map(|d| d.day),
                 _ => {}
             }
         }

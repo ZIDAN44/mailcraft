@@ -58,11 +58,7 @@ impl Data {
                     "<t:Message><t:ItemId Id=\"{}\" ChangeKey=\"ck\"/><t:IsRead>{}</t:IsRead>{}</t:Message>",
                     i.id,
                     i.read,
-                    if i.flagged {
-                        "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x1090\" PropertyType=\"Integer\"/><t:Value>2</t:Value></t:ExtendedProperty>"
-                    } else {
-                        ""
-                    }
+                    super::follow_up_xml(i)
                 )
             })
             .collect();
@@ -152,6 +148,8 @@ impl Data {
                 flagged: false,
                 draft,
                 received: "2026-10-15T12:00:00Z".into(),
+                complete: false,
+                due: None,
             });
             out.push(ok(if send { String::new() } else { format!("<m:Items><t:Message><t:ItemId Id=\"{id}\"/></t:Message></m:Items>") }));
         }
@@ -189,8 +187,17 @@ impl Data {
                 if let Some(r) = u.find("IsRead") {
                     it.read = r.text == "true";
                 }
-                if u.find("ExtendedFieldURI").and_then(|e| e.attr("PropertyTag")) == Some("0x1090") {
-                    it.flagged = u.name == "SetItemField";
+                let uri = u.find("ExtendedFieldURI");
+                if uri.and_then(|e| e.attr("PropertyTag")) == Some("0x1090") {
+                    // 2 flagged, 1 complete; taken off, neither.
+                    let value = u.find("Value").map(|v| v.text.trim().to_string());
+                    let set = u.name == "SetItemField";
+                    it.flagged = set && value.as_deref() != Some("1");
+                    it.complete = set && value.as_deref() == Some("1");
+                }
+                // A follow-up's due day (`PidLidTaskDueDate`).
+                if uri.and_then(|e| e.attr("PropertyId")) == Some("33029") {
+                    it.due = if u.name == "SetItemField" { u.find("Value").map(|v| v.text.trim().to_string()) } else { None };
                 }
             }
             out.push(ok(String::new()));

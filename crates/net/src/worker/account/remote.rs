@@ -299,7 +299,8 @@ pub fn apply_remote_with<S: std::io::Read + std::io::Write>(c: &mut Client<S>, o
             }
             c.uid_store(set, *on, keyword)
         }),
-        Op::SetKeyword { .. } => Ok(()),
+        // IMAP keeps no follow-up days (MailCraft keeps them).
+        Op::SetKeyword { .. } | Op::SetFollowUp { .. } => Ok(()),
         Op::Move { keys, to } => by_folder(c, keys, |c, folder, set| if folder == to { Ok(()) } else { c.uid_move(set, to) }),
         Op::Expunge { keys } => expunge_keys(c, keys, trash),
         Op::CreateFolder { path } => c.create(path),

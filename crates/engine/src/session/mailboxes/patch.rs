@@ -41,6 +41,8 @@ impl Session {
                 keyword.eq_ignore_ascii_case(PINNED),
                 false,
             ),
+            // A follow-up's day: arranged by flag, the list is arranged again.
+            Op::SetFollowUp { keys, .. } => (keys, false, self.prefs.arrange == Arrange::Flag, false, false),
             _ => return false,
         };
         if self.view == View::Outbox || !self.nav_fresh() || (self.search.is_some() && !self.search_patched(keys)) {

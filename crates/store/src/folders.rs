@@ -526,6 +526,13 @@ impl Store {
                     }
                     flags_of = Some(uids);
                 }
+                Op::SetFollowUp { keys, due } => {
+                    let uids: HashSet<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
+                    for m in st.messages.iter_mut().filter(|m| uids.contains(&m.key.uid)) {
+                        SharedSummary::make_mut(m).flags.follow_up_due = due.map(|d| d.day);
+                    }
+                    flags_of = Some(uids);
+                }
                 Op::Move { keys, to } => {
                     if to == folder {
                         continue;
@@ -603,7 +610,9 @@ impl Store {
                 list.retain(|f| !gone.contains(&f.path));
                 Vec::new()
             }
-            Op::SetFlag { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => Vec::new(),
+            Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => {
+                Vec::new()
+            }
         };
         mailcraft_model::sort_folders(&mut list);
         self.write_folders(account, &list)?;

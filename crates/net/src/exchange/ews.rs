@@ -458,10 +458,12 @@ fn count_of(f: &El, name: &str) -> u32 {
     f.text_of(name).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0)
 }
 
-/// The read, flag and draft state, asked for with every item.
+/// The read, flag and draft state, asked for with every item, and the day a flag is due
+/// (`PidLidTaskDueDate`, [`follow_up`]).
 const FLAG_FIELDS: &str = "<t:FieldURI FieldURI=\"message:IsRead\"/>\
 <t:ExtendedFieldURI PropertyTag=\"0x1090\" PropertyType=\"Integer\"/>\
-<t:ExtendedFieldURI PropertyTag=\"0x0E07\" PropertyType=\"Integer\"/>";
+<t:ExtendedFieldURI PropertyTag=\"0x0E07\" PropertyType=\"Integer\"/>\
+<t:ExtendedFieldURI PropertySetId=\"00062003-0000-0000-C000-000000000046\" PropertyId=\"33029\" PropertyType=\"SystemTime\"/>";
 const HEADER_FIELDS: &str = "<t:FieldURI FieldURI=\"item:Subject\"/><t:FieldURI FieldURI=\"message:From\"/>\
 <t:FieldURI FieldURI=\"message:ToRecipients\"/><t:FieldURI FieldURI=\"message:CcRecipients\"/>\
 <t:FieldURI FieldURI=\"message:ReplyTo\"/><t:FieldURI FieldURI=\"item:DateTimeReceived\"/>\
@@ -478,10 +480,14 @@ fn extended(it: &El, tag: &str) -> Option<i64> {
 }
 
 fn flags(it: &El) -> Flags {
+    let status = extended(it, "0x1090");
     Flags {
         seen: it.text_of("IsRead").is_some_and(|v| v == "true"),
-        flagged: extended(it, "0x1090") == Some(2),
+        flagged: status == Some(2),
         draft: extended(it, "0x0E07").is_some_and(|f| f & 8 != 0),
+        // Marked complete in Outlook: done, not flagged.
+        keywords: if status == Some(1) { vec![mailcraft_model::FOLLOW_UP_COMPLETE.to_string()] } else { Vec::new() },
+        follow_up_due: follow_up::due_day(it),
         ..Default::default()
     }
 }
@@ -698,8 +704,12 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
         Op::SetFlag { keys, flag: Flag::Flagged, on: false } => {
             update(keys, "<t:DeleteItemField><t:ExtendedFieldURI PropertyTag=\"0x1090\" PropertyType=\"Integer\"/></t:DeleteItemField>")
         }
+        // A follow-up's days, or marked complete (gap 9: they stayed on this computer).
+        Op::SetFollowUp { keys, .. } | Op::SetKeyword { keys, .. } if follow_up::updates(op).is_some() => {
+            update(keys, &follow_up::updates(op).unwrap_or_default())
+        }
         // Answered and forwarded are Exchange's to set; categories stay on this computer.
-        Op::SetFlag { .. } | Op::SetKeyword { .. } => Ok(()),
+        Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. } => Ok(()),
         Op::Move { keys, to } => {
             let dest = st.mailbox(to)?.to_string();
             each_folder(keys, Some(to), &|chunk| {
@@ -793,6 +803,7 @@ mod availability;
 pub use availability::{WINDOW_MAX as AVAILABILITY_WINDOW_MAX, answers_in as availability_answers};
 mod directory;
 mod discover;
+mod follow_up;
 pub use directory::DIRECTORY_MAX;
 #[cfg(test)]
 pub(crate) use directory::directory_name;

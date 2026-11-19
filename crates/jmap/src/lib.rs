@@ -295,7 +295,8 @@ pub async fn apply_remote<H: Http>(c: &Client<H>, st: &State, op: &Op) -> Result
         Op::SetKeyword { keys, keyword, on } if mailcraft_model::is_keyword(keyword) => {
             c.set_emails(patch_all(keys, &format!("keywords/{}", keyword.to_ascii_lowercase()), *on), Vec::new()).await
         }
-        Op::SetKeyword { .. } => Ok(()),
+        // JMAP keeps no follow-up days (MailCraft keeps them).
+        Op::SetKeyword { .. } | Op::SetFollowUp { .. } => Ok(()),
         Op::Move { keys, to } => {
             let to_box = st.mailbox(to)?.to_string();
             let mut update = Map::new();
