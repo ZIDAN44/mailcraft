@@ -122,14 +122,18 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 
 ### 10. Screen readers: what isn't read yet
 
-- **Impact:** A message's text is read a block at a time when it gets the keyboard (a plain-text
-  message all at once): a screen reader can't go through it by line, word or character, or hear
-  its headings, lists and tables as such.
-- **Workaround:** Tab from the message list to the message's text; Up and Down there go on to the
-  next block. A drop-down's choice is changed with Up and Down without opening it.
-- **Cause:** egui hands a screen reader text it can go through by line and character only in its
-  text boxes; a message's text is laid out as labels, and describing it as a document, as
-  WordCraft does its page, is work of its own.
+- **Impact:** A window of its own (a new message, which opens in one unless turned off, and a
+  message opened with Enter or a double-click) shows a screen reader nothing at all. In the main
+  window, a message's text is read as one text, by line, word and letter, but not what it's made
+  of: a heading, a list's items, a table's cells and a link are read as lines of text, with
+  nothing saying what they are, and a screen reader can't go from heading to heading.
+- **Workaround:** Turn off **New messages in their own window** in **File › Options › Mail**
+  (replies stay in the main window as they start), and read messages in the reading pane rather
+  than opening them. Tab goes to each link in a message, read as a link.
+- **Cause:** egui's eframe gives only the main window an adapter for screen readers; a fix for
+  the others is in review upstream (emilk/egui#8810). A message's text is drawn in runs laid out
+  from it, which don't keep its headings, lists and tables as such; a screen reader needs them
+  told, as WordCraft tells its page's.
 
 ## Not planned
 

@@ -177,6 +177,8 @@ pub struct UiState {
     /// where F6 puts the keyboard in the list.
     pub(crate) panes: Vec<(Pane, egui::Rect)>,
     pub(crate) list_stop: Option<egui::Id>,
+    /// The reading pane's: the open message's text, while a screen reader reads it as a document.
+    pub(crate) reading_stop: Option<egui::Id>,
     /// A text field on the File page had the keyboard at the end of the last frame: Esc leaves it
     /// rather than the page (egui takes the focus away on Esc before the shortcuts see it).
     pub(crate) backstage_typing: bool,

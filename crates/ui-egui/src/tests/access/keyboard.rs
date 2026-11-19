@@ -152,11 +152,12 @@ fn a_drop_downs_arrows_choose_and_keep_the_keyboard() {
     assert_eq!(focused(&out).0, Role::ComboBox, "the keyboard is back on the drop-down");
 }
 
-/// The open message's text can be reached and read with the keyboard while a screen reader is
-/// there: Tab goes from the message's row, past the reading pane's buttons and attachments, each
-/// named, into its text, which is read as it gets the keyboard (it was out of the keyboard's
-/// reach, and NVDA read nothing of a message). Down there doesn't move the list on to the next message under the one being read;
-/// Up goes back up the message.
+/// The open message's text is one document a screen reader can go through by line, word and
+/// letter, as Outlook's reading pane is: Tab goes from the message's row, past the reading pane's
+/// buttons and attachments, each named, to the document (it was out of the keyboard's reach,
+/// and NVDA read nothing of a message, then a block at a time). The whole text is its text; Down
+/// and Up move its caret a line on and back, Right a letter, Shift+Down selects, and none of them
+/// moves the list on to the next message under the one being read.
 #[test]
 fn a_screen_reader_reads_the_open_message() {
     let (mut a, _) = app("access-reading");
@@ -171,12 +172,13 @@ fn a_screen_reader_reads_the_open_message() {
         .expect("the proof's row");
     click(&ctx, &mut a, row);
     let opened = a.session.focus.clone().expect("the row clicked is the list's focus");
-    let mut reached = None;
+    let mut reached = false;
     for _ in 0..40 {
         let out = settled(&ctx, &mut a, vec![key(Key::Tab, Modifiers::NONE)]);
         let (role, label, value) = focused(&out);
-        if role == Role::Label && value.contains("The proof for order 4471") {
-            reached = Some(value);
+        if role == Role::Document {
+            assert_eq!(label, "Message text");
+            reached = true;
             break;
         }
         assert_ne!(role, Role::Window, "Tab lost the keyboard");
@@ -184,15 +186,79 @@ fn a_screen_reader_reads_the_open_message() {
         // the text said nothing at all.
         assert!(role != Role::Unknown && !(label.is_empty() && value.is_empty()), "a stop a screen reader can't name: {role:?} {label:?} {value:?}");
     }
-    let said = reached.expect("Tab reaches the message's text");
-    assert!(said.starts_with("Hello,") && said.ends_with("Print Shop"), "the whole text is read: {said:?}");
-    let out = settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+    assert!(reached, "Tab reaches the message's text");
+    // What a reader gets of it: the document's text, and where its caret is (a line, and a
+    // letter in the whole text).
+    let read = |out: &egui::FullOutput| {
+        let update = out.platform_output.accesskit_update.clone().expect("AccessKit is on");
+        let tree = accesskit_consumer::Tree::new(update, true);
+        let state = tree.state();
+        let doc = state.focus().expect("the document has the keyboard");
+        assert_eq!(doc.role(), Role::Document);
+        assert!(doc.supports_text_ranges(), "read as text, by line, word and letter");
+        let text = doc.document_range().text();
+        let caret = doc.text_selection_focus().map(|p| (p.to_line_index(), p.to_global_usv_index()));
+        let selected = doc.text_selection().is_some_and(|r| !r.is_degenerate());
+        (text, caret, selected)
+    };
+    let (text, _, _) = read(&settled(&ctx, &mut a, vec![]));
+    assert!(
+        text.starts_with("Hello,") && text.contains("The proof for order 4471") && text.trim_end().ends_with("Print Shop"),
+        "the whole text: {text:?}"
+    );
+    let (_, start, _) = read(&settled(&ctx, &mut a, vec![key(Key::ArrowRight, Modifiers::NONE)]));
+    let (line0, at0) = start.expect("the caret is told");
+    let (_, next, _) = read(&settled(&ctx, &mut a, vec![key(Key::ArrowRight, Modifiers::NONE)]));
+    let (line1, at1) = next.expect("the caret is told");
+    assert_eq!((line1, at1), (line0, at0 + 1), "Right moves it a letter");
+    let (_, down, _) = read(&settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]));
+    let (line2, _) = down.expect("the caret is told");
+    assert!(line2 > line1, "Down moves it on a line: {line1} to {line2}");
     assert_eq!(a.session.focus.as_ref(), Some(&opened), "the list stays on the message being read");
-    assert_ne!(focused(&out).0, Role::ListItem, "Down stays in the reading pane");
-    let out = settled(&ctx, &mut a, vec![key(Key::ArrowUp, Modifiers::NONE)]);
+    let (_, up, _) = read(&settled(&ctx, &mut a, vec![key(Key::ArrowUp, Modifiers::NONE)]));
+    assert_eq!(up.map(|c| c.0), Some(line1), "Up moves it back");
+    let (_, _, selected) = read(&settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::SHIFT)]));
+    assert!(selected, "Shift+Down selects from the caret");
+    let (_, _, selected) = read(&settled(&ctx, &mut a, vec![key(Key::ArrowDown, Modifiers::NONE)]));
+    assert!(!selected, "Down alone lets the selection go");
     assert_eq!(a.session.focus.as_ref(), Some(&opened));
-    let (role, _, value) = focused(&out);
-    assert!(role != Role::Window && !value.contains("The proof for order 4471"), "Up goes back up the message: {role:?} {value:?}");
+}
+
+/// A formatted message is read as one text too, in its reading order: its heading, its
+/// paragraphs whose bold and italic words are runs of their own, its list and its link.
+#[test]
+fn a_formatted_message_reads_as_one_text() {
+    let (mut a, _) = app("access-reading-html");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    settled(&ctx, &mut a, vec![]);
+    let key = a.session.list.iter().find(|m| m.subject == "Open call: winter group show").map(|m| m.key.clone()).expect("the sample's newsletter");
+    a.run("list.open", json!({"key": key.to_id()}));
+    for _ in 0..4 {
+        sized_frame(&ctx, &mut a, SIZE, vec![]);
+    }
+    let out = settled(&ctx, &mut a, vec![]);
+    let doc = nodes(&out).into_iter().find(|(_, n)| n.role() == Role::Document).map(|(id, _)| id).expect("the message's text is a document");
+    let out = settled(&ctx, &mut a, vec![focus_request(doc)]);
+    let tree = accesskit_consumer::Tree::new(out.platform_output.accesskit_update.clone().expect("AccessKit is on"), true);
+    let state = tree.state();
+    let focus = state.focus().expect("the document has the keyboard");
+    assert_eq!(focus.role(), Role::Document);
+    let text = focus.document_range().text();
+    let order = [
+        "Winter group show: open call",
+        "Dear artists,",
+        "Our winter group show is open for submissions until the end of the month",
+        "three works",
+        "Deadline: 30 November",
+        "full guidelines on our website",
+        "See you at the opening!",
+    ];
+    let mut from = 0;
+    for part in order {
+        let at = text.get(from..).and_then(|t| t.find(part)).unwrap_or_else(|| panic!("{part:?} after the one before it in {text:?}"));
+        from += at + part.len();
+    }
 }
 
 /// F6 goes from pane to pane, as in Outlook: from the message list to the reading pane, the

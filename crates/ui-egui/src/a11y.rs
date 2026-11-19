@@ -64,9 +64,50 @@ impl egui::plugin::Plugin for FocusGuard {
         "a11y focus guard"
     }
 
-    fn output_hook(&mut self, _ctx: &egui::Context, output: &mut egui::FullOutput) {
+    fn output_hook(&mut self, ctx: &egui::Context, output: &mut egui::FullOutput) {
+        let id = documents_id(ctx);
+        let documents = ctx.data_mut(|d| d.remove_temp::<Documents>(id)).unwrap_or_default();
         if let Some(update) = &mut output.platform_output.accesskit_update {
+            adopt(update, &documents);
             guard_update(update);
+        }
+    }
+}
+
+/// The documents of a frame and the labels to put under each ([`put_under`]).
+type Documents = Vec<(egui::accesskit::NodeId, Vec<egui::accesskit::NodeId>)>;
+
+/// Where a window's [`Documents`] are kept for the frame.
+fn documents_id(ctx: &egui::Context) -> egui::Id {
+    egui::Id::unique("a11y documents").with(ctx.viewport_id())
+}
+
+/// Have `labels` put under the document `doc` in this frame's tree, in this order ([`adopt`]):
+/// a message's text drawn in runs, read as one text.
+pub(crate) fn put_under(ctx: &egui::Context, doc: egui::accesskit::NodeId, labels: Vec<egui::accesskit::NodeId>) {
+    let id = documents_id(ctx);
+    ctx.data_mut(|data| data.get_temp_mut_or_default::<Documents>(id).push((doc, labels)));
+}
+
+/// Put each document's labels under it (in the order given), out from under the nodes egui hung
+/// them from: a screen reader reads a document's text as that of the text runs under it, and
+/// egui makes a widget the child of the part of the window it's drawn in. A label the update
+/// doesn't hold stays out; a node keeps one parent.
+pub(crate) fn adopt(update: &mut egui::accesskit::TreeUpdate, documents: &[(egui::accesskit::NodeId, Vec<egui::accesskit::NodeId>)]) {
+    for (doc, labels) in documents {
+        let held: std::collections::HashSet<egui::accesskit::NodeId> = update.nodes.iter().map(|(id, _)| *id).collect();
+        if !held.contains(doc) {
+            continue;
+        }
+        let labels: Vec<egui::accesskit::NodeId> = labels.iter().filter(|l| held.contains(*l) && *l != doc).copied().collect();
+        let moved: std::collections::HashSet<egui::accesskit::NodeId> = labels.iter().copied().collect();
+        for (id, node) in &mut update.nodes {
+            if id == doc {
+                node.set_children(labels.clone());
+            } else if node.children().iter().any(|c| moved.contains(c)) {
+                let kept: Vec<egui::accesskit::NodeId> = node.children().iter().filter(|c| !moved.contains(*c)).copied().collect();
+                node.set_children(kept);
+            }
         }
     }
 }

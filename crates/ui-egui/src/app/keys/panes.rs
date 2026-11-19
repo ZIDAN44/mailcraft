@@ -46,13 +46,14 @@ impl MailApp {
     }
 
     /// The control a pane gives the keyboard to: the folder shown, the list's message (its one stop
-    /// for Tab), else the pane's first control wholly in it (not the handle between two panes
-    /// that resizes them).
+    /// for Tab), the message's text when a screen reader reads it, else the pane's first control
+    /// wholly in it (not the handle between two panes that resizes them).
     fn pane_stop(&self, ctx: &egui::Context, pane: Pane, rect: egui::Rect) -> Option<egui::Id> {
         let drawn = |id: egui::Id| ctx.viewport(|v| v.prev_pass.widgets.contains(id)).then_some(id);
         let own = match pane {
             Pane::Folders => crate::nav::current_row(ctx).and_then(drawn),
             Pane::List => self.ui.list_stop.and_then(drawn),
+            Pane::Reading => self.ui.reading_stop.and_then(drawn),
             _ => None,
         };
         own.or_else(|| {
