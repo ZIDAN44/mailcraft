@@ -157,6 +157,12 @@ impl Named {
         [self.id(PSETID_TASK, 0x8105), self.id(PSETID_TASK, 0x8104)]
     }
 
+    /// The properties holding a flag's reminder (gap 9): set (PidLidReminderSet), and when it
+    /// reminds (PidLidReminderSignalTime, a snooze moves it), else its time (PidLidReminderTime).
+    pub(crate) fn flag_reminder(&self) -> (Option<u16>, [Option<u16>; 2]) {
+        (self.id(PSETID_COMMON, 0x8503), [self.id(PSETID_COMMON, 0x8560), self.id(PSETID_COMMON, 0x8502)])
+    }
+
     /// The property holding the day a follow-up was marked complete (PidLidTaskDateCompleted).
     pub(crate) fn flag_done(&self) -> Option<u16> {
         self.id(PSETID_TASK, 0x810F)

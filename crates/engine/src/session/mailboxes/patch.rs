@@ -43,6 +43,8 @@ impl Session {
             ),
             // A follow-up's day: arranged by flag, the list is arranged again.
             Op::SetFollowUp { keys, .. } => (keys, false, self.prefs.arrange == Arrange::Flag, false, false),
+            // A flag's reminder: nothing the list shows or is arranged by.
+            Op::SetReminder { keys, .. } => (keys, false, false, false, false),
             _ => return false,
         };
         if self.view == View::Outbox || !self.nav_fresh() || (self.search.is_some() && !self.search_patched(keys)) {

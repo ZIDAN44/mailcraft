@@ -328,7 +328,16 @@ fn a_rows_menu_follows_it_up() {
     open_menu(&ctx, &mut a, "Shot list v2");
     pick(&ctx, &mut a, "Follow up");
     pick(&ctx, &mut a, "Custom…");
-    assert!(matches!(&a.ui.dialog, Some(Dialog::FollowUp(f)) if f.subject == "Shot list v2"), "the Custom form");
+    assert!(matches!(&a.ui.dialog, Some(Dialog::FollowUp(f)) if f.subject == "Shot list v2" && !f.remind), "the Custom form");
+    a.ui.dialog = None;
+    // Add reminder…: that form, its reminder on (gap 9).
+    open_menu(&ctx, &mut a, "Shot list v2");
+    pick(&ctx, &mut a, "Follow up");
+    pick(&ctx, &mut a, "Add reminder…");
+    assert!(
+        matches!(&a.ui.dialog, Some(Dialog::FollowUp(f)) if f.remind && matches!(&f.target, crate::pim_dialogs::follow_up::FollowUpTarget::Todo(_))),
+        "the form, to remind"
+    );
     a.ui.dialog = None;
 
     // Clear Flag: off the list.

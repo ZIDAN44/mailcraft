@@ -82,6 +82,7 @@ impl Session {
             Op::SetFlag { keys, flag, on } => Op::SetFlag { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), flag, on },
             Op::SetKeyword { keys, keyword, on } => Op::SetKeyword { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), keyword, on },
             Op::SetFollowUp { keys, due } => Op::SetFollowUp { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), due },
+            Op::SetReminder { keys, at } => Op::SetReminder { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), at },
             Op::Move { keys, to } => Op::Move { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect(), to },
             Op::Expunge { keys } => Op::Expunge { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect() },
             other => other,
@@ -154,6 +155,7 @@ impl Session {
             Op::EmptyFolder { path } => self.search_folder_changed(account, path),
             Op::SetFlag { .. }
             | Op::SetFollowUp { .. }
+            | Op::SetReminder { .. }
             | Op::SetKeyword { .. }
             | Op::CreateFolder { .. }
             | Op::RenameFolder { .. }
@@ -211,6 +213,11 @@ impl Session {
                         SharedSummary::make_mut(m).flags.follow_up_due = day;
                     }
                 }
+                Op::SetReminder { at, .. } => {
+                    for m in st.messages.iter_mut().filter(|m| mine.contains(&m.key.uid) && m.flags.reminder != *at) {
+                        SharedSummary::make_mut(m).flags.reminder = *at;
+                    }
+                }
                 Op::Move { to, .. } if to == f => {}
                 Op::Move { .. } | Op::Expunge { .. } => {
                     let unread = st.messages.iter().filter(|m| mine.contains(&m.key.uid) && !m.flags.seen).count();
@@ -253,7 +260,7 @@ impl Session {
         // flags they have now are handed to the store's thread for marks with the folders'
         // counts, written there in one commit (`store/src/marking.rs`): not in the window's frame.
         // One not in memory is changed on disk.
-        if matches!(op, Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. })
+        if matches!(op, Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetReminder { .. } | Op::SetKeyword { .. })
             && touched.iter().all(|f| self.cache.contains_key(&(account.to_string(), f.clone())))
         {
             let counts = self.count_local(account, Some(&touched));
@@ -328,7 +335,7 @@ impl Session {
         // flag or category changes nothing it keeps.
         if op.is_folder_op() {
             self.want_index(account, None);
-        } else if !matches!(op, Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. }) {
+        } else if !matches!(op, Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetReminder { .. } | Op::SetKeyword { .. }) {
             for f in &touched {
                 self.want_index(account, Some(f));
             }
@@ -406,6 +413,7 @@ impl Session {
                 Op::DeleteFolder { path } => a.folders.retain(|f| !mailcraft_model::is_within(&f.path, path, f.delimiter.or(delimiter))),
                 Op::SetFlag { .. }
                 | Op::SetFollowUp { .. }
+                | Op::SetReminder { .. }
                 | Op::SetKeyword { .. }
                 | Op::Move { .. }
                 | Op::Expunge { .. }
@@ -445,7 +453,13 @@ impl Session {
                     self.focus = None;
                 }
             }
-            Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. } | Op::Move { .. } | Op::Expunge { .. } | Op::EmptyFolder { .. } => {}
+            Op::SetFlag { .. }
+            | Op::SetFollowUp { .. }
+            | Op::SetReminder { .. }
+            | Op::SetKeyword { .. }
+            | Op::Move { .. }
+            | Op::Expunge { .. }
+            | Op::EmptyFolder { .. } => {}
         }
         self.search_folders_changed(account);
     }

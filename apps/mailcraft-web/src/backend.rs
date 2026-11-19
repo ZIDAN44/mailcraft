@@ -419,6 +419,7 @@ async fn send(sh: &Rcs, id: &str, c: &Client<Fetch>, op: &Op, refresh: bool) -> 
         | Op::DeleteFolder { .. }
         | Op::SetFlag { .. }
         | Op::SetFollowUp { .. }
+        | Op::SetReminder { .. }
         | Op::SetKeyword { .. }
         | Op::Expunge { .. } => {}
     }

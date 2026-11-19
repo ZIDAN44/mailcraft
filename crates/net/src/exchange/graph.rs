@@ -275,7 +275,11 @@ impl Client {
     fn newest(&self, folder: &str, window: usize) -> Result<(Vec<Value>, (u32, u32))> {
         let page = window.clamp(1, 1000);
         let mut entries = self.all(
-            &format!("/me/mailFolders/{}/messages?$top={page}&$orderby=receivedDateTime%20desc&$select={LIST_FIELDS}", seg(folder)),
+            &format!(
+                "/me/mailFolders/{}/messages?$top={page}&$orderby=receivedDateTime%20desc&$select={LIST_FIELDS}&{}",
+                seg(folder),
+                reminder_expand()
+            ),
             window.min(100_000),
         )?;
         entries.retain(|m| m["id"].is_string());
@@ -286,8 +290,10 @@ impl Client {
 
     /// Of these messages, those still in a folder, with their flags (through `$batch`).
     fn still_in(&self, folder: &str, ids: &[String]) -> Result<Vec<(String, Flags)>> {
-        let reqs: Vec<(&str, String, Option<Value>)> =
-            ids.iter().map(|id| ("GET", format!("/me/messages/{}?$select=id,isRead,isDraft,flag,parentFolderId", seg(id)), None)).collect();
+        let reqs: Vec<(&str, String, Option<Value>)> = ids
+            .iter()
+            .map(|id| ("GET", format!("/me/messages/{}?$select=id,isRead,isDraft,flag,parentFolderId&{}", seg(id), reminder_expand()), None))
+            .collect();
         Ok(self
             .batch(&reqs)?
             .into_iter()
@@ -299,7 +305,7 @@ impl Client {
     /// Messages' details, for the list.
     fn headers(&self, ids: &[String]) -> Result<Vec<Value>> {
         let reqs: Vec<(&str, String, Option<Value>)> =
-            ids.iter().map(|id| ("GET", format!("/me/messages/{}?$select={HEADER_FIELDS}", seg(id)), None)).collect();
+            ids.iter().map(|id| ("GET", format!("/me/messages/{}?$select={HEADER_FIELDS}&{}", seg(id), reminder_expand()), None)).collect();
         Ok(self.batch(&reqs)?.into_iter().filter(|(s, _)| *s == 200).map(|(_, b)| b).collect())
     }
 
@@ -595,11 +601,13 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
         c.batch_ok(&reqs)
     };
     match op {
-        Op::SetFlag { keys, .. } | Op::SetFollowUp { keys, .. } | Op::SetKeyword { keys, .. } => match flag_patch(op) {
-            Some(patch) => patch_all(keys, patch),
-            // Answered and forwarded are Exchange's to set; categories stay on this computer.
-            None => Ok(()),
-        },
+        Op::SetFlag { keys, .. } | Op::SetFollowUp { keys, .. } | Op::SetReminder { keys, .. } | Op::SetKeyword { keys, .. } => {
+            match flag_patch(op) {
+                Some(patch) => patch_all(keys, patch),
+                // Answered and forwarded are Exchange's to set; categories stay on this computer.
+                None => Ok(()),
+            }
+        }
         Op::Move { keys, to } => {
             let dest = st.mailbox(to)?.to_string();
             let reqs: Vec<(&str, String, Option<Value>)> = ids(keys)
@@ -657,7 +665,7 @@ pub fn send(c: &Client, raw: &[u8], recipients: &[String]) -> Result<()> {
 mod availability;
 mod directory;
 mod flags;
-use flags::{flag_patch, flags};
+use flags::{flag_patch, flags, reminder_expand};
 mod sync;
 pub use sync::{sync_folder, sync_folder_as};
 mod text_first;

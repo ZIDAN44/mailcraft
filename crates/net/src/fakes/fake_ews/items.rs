@@ -150,6 +150,9 @@ impl Data {
                 received: "2026-10-15T12:00:00Z".into(),
                 complete: false,
                 due: None,
+                reminder_set: false,
+                reminder_signal: None,
+                reminder_time: None,
             });
             out.push(ok(if send { String::new() } else { format!("<m:Items><t:Message><t:ItemId Id=\"{id}\"/></t:Message></m:Items>") }));
         }
@@ -195,9 +198,14 @@ impl Data {
                     it.flagged = set && value.as_deref() != Some("1");
                     it.complete = set && value.as_deref() == Some("1");
                 }
-                // A follow-up's due day (`PidLidTaskDueDate`).
-                if uri.and_then(|e| e.attr("PropertyId")) == Some("33029") {
-                    it.due = if u.name == "SetItemField" { u.find("Value").map(|v| v.text.trim().to_string()) } else { None };
+                // A follow-up's due day (`PidLidTaskDueDate`), and its reminder's properties.
+                let value = if u.name == "SetItemField" { u.find("Value").map(|v| v.text.trim().to_string()) } else { None };
+                match uri.and_then(|e| e.attr("PropertyId")) {
+                    Some("33029") => it.due = value,
+                    Some("34051") => it.reminder_set = value.as_deref() == Some("true"),
+                    Some("34144") => it.reminder_signal = value,
+                    Some("34050") => it.reminder_time = value,
+                    _ => {}
                 }
             }
             out.push(ok(String::new()));

@@ -105,15 +105,6 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** It needs an Etebase client of MailCraft's own: the Rust library EteSync publishes
   brings C libraries with it (OpenSSL and libsodium), which MailCraft doesn't build with.
 
-### 9. Reminders on flagged mail
-
-- **Impact:** A flagged message has no reminder in MailCraft: **Follow up** gives it a day, but
-  nothing reminds you of it, and a reminder Outlook set on a flagged message doesn't show in
-  MailCraft's reminders. Events and tasks remind as they should.
-- **Workaround:** Make a task for it with a reminder, or give it a day and look at the To-Do Bar.
-- **Cause:** MailCraft's reminders are its events' and tasks'; a message has none of its own yet
-  (Exchange keeps one on the message, `PidLidReminderSet` and `PidLidReminderSignalTime`).
-
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

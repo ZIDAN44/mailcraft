@@ -94,6 +94,8 @@ pub(super) struct State {
     pub(super) due: Option<i64>,
     /// When a completed one was marked complete, the same way.
     pub(super) done: Option<i64>,
+    /// When a flagged one reminds (100 ns since 1601), when it does.
+    pub(super) reminder: Option<i64>,
     /// Its categories, by name.
     pub(super) categories: Vec<String>,
     /// Pinned to the top of its folder (`$Pinned`): Outlook's files have no pin, so it goes in
@@ -102,7 +104,8 @@ pub(super) struct State {
 }
 
 /// What the store keeps of `s`, a message in a folder of role `role`; `days`: when flagged ones
-/// are due and completed ones were done (local days, by [`Summary::follow_up_id`]).
+/// are due and completed ones were done (local days, by [`Summary::follow_up_id`]), and when
+/// flagged ones remind.
 pub(super) fn state(s: &mailcraft_model::Summary, role: FolderRole, days: &FollowUpDays) -> State {
     let f = &s.flags;
     let categories = f
@@ -119,6 +122,7 @@ pub(super) fn state(s: &mailcraft_model::Summary, role: FolderRole, days: &Follo
     let id = (f.flagged || complete).then(|| s.follow_up_id());
     let due = id.as_ref().and_then(|id| days.due.get(id)).map(midnight);
     let done = id.as_ref().filter(|_| complete).and_then(|id| days.done.get(id)).map(midnight);
+    let reminder = id.as_ref().filter(|_| f.flagged).and_then(|id| days.reminder.get(id)).map(|at| filetime(*at));
     State {
         read: f.seen,
         draft: f.draft || role == FolderRole::Drafts,
@@ -128,6 +132,7 @@ pub(super) fn state(s: &mailcraft_model::Summary, role: FolderRole, days: &Follo
         forwarded: f.forwarded,
         due,
         done,
+        reminder,
         categories,
         pinned: f.pinned(),
     }
@@ -253,6 +258,12 @@ pub(super) fn properties<'a>(m: &'a Owned, categories: &'a [&'a str]) -> Vec<New
         ]);
         if st.flagged {
             out.push(int(0x1095, RED_FLAG));
+            // Its reminder (gap 9): set, at its time and when it reminds (PidLidReminderSet,
+            // PidLidReminderTime, PidLidReminderSignalTime), as Outlook keeps a flag's.
+            if let Some(at) = st.reminder {
+                let common = |lid, value| NewProperty::named(PSETID_COMMON, Name::Id(lid), value);
+                out.extend([common(0x8503, NewValue::Boolean(true)), common(0x8502, NewValue::Time(at)), common(0x8560, NewValue::Time(at))]);
+            }
         } else {
             // Done (MS-OXOFLAG, MS-OXOTASK): PidLidTaskStatus, PidLidPercentComplete and
             // PidLidTaskComplete say so, with when (PidTagFlagCompleteTime,
@@ -382,6 +393,7 @@ mod tests {
         let mut s = mailcraft_model::Summary { message_id: "m1@example.com".into(), ..Default::default() };
         s.flags.keywords = vec![mailcraft_model::FOLLOW_UP_COMPLETE.into()];
         let days = FollowUpDays {
+            reminder: BTreeMap::new(),
             due: BTreeMap::from([("m1@example.com".to_string(), 3)]),
             done: BTreeMap::from([("m1@example.com".to_string(), 2), ("other@example.com".to_string(), 9)]),
         };

@@ -480,3 +480,42 @@ fn changes_are_read_as_sent() {
         assert_eq!(crate::Changes::parse(Some(c.code())).unwrap(), Some(c));
     }
 }
+
+/// Gap 9: when an import's flagged messages remind (as Outlook set them in the file) comes into
+/// the preferences as it ends, the same way as their days: one set here stays, junk is left out,
+/// and the note goes at the next start once the preferences holding them were saved.
+#[test]
+fn an_import_s_flag_reminders_come_in_under_the_user_s() {
+    use mailcraft_model::organize::FOLLOW_UP_REMINDER_DOC;
+    use std::collections::BTreeMap;
+    let (mut s, _, pst) = with_file("reminders");
+    let id = s.run("account.importPst", &json!({"path": pst})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    let store = s.store.clone().unwrap();
+    let (at, mine) = (NOW + 3600, NOW + 7200);
+    s.prefs.mail_reminders.insert("mine@x".into(), mine);
+    let note = BTreeMap::from([("kept@x".to_string(), at), ("mine@x".to_string(), at), ("junk@x".to_string(), i64::MAX)]);
+    store.save_account_doc(&id, FOLLOW_UP_REMINDER_DOC, &note).unwrap();
+    let revision = s.pim_revision;
+    imported(&mut s, &id, &pst);
+    let flagged = |message_id: &str| mailcraft_model::Summary {
+        message_id: message_id.into(),
+        flags: mailcraft_model::Flags { flagged: true, ..Default::default() },
+        ..Default::default()
+    };
+    assert_eq!(s.message_reminder(&flagged("kept@x")), Some(at));
+    assert_eq!(s.message_reminder(&flagged("mine@x")), Some(mine), "the user's stays");
+    assert_eq!(s.message_reminder(&flagged("junk@x")), None);
+    assert_ne!(s.pim_revision, revision, "the Reminders window looks again");
+    let saved: crate::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
+    drop(s);
+
+    // Saved: at the next start the note goes, its reminders kept.
+    let mut next = Session::open(Some(store.clone()), mailcraft_model::dates::Clock::new(NOW, 0));
+    next.prefs = saved;
+    next.tick();
+    let left: BTreeMap<String, i64> = store.load_account_doc(&id, FOLLOW_UP_REMINDER_DOC).unwrap();
+    assert!(left.is_empty(), "taken: {left:?}");
+    assert_eq!(next.message_reminder(&flagged("kept@x")), Some(at));
+    drop(next);
+}

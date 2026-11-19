@@ -150,10 +150,20 @@ pub enum Undo {
     Move { moves: Vec<(String, String, Vec<(String, String)>)> },
     /// Flags or keywords changed: the changes that put them back, by account.
     Ops { ops: Vec<(String, Vec<Op>)> },
-    /// Follow-ups changed (flagged, cleared, marked complete): the flag and keyword changes that
-    /// put them back, by account, and each message's due and done days as they were, by its
-    /// follow-up id.
-    FollowUp { ops: Vec<(String, Vec<Op>)>, days: Vec<(String, Option<i64>, Option<i64>)> },
+    /// Follow-ups changed (flagged, cleared, marked complete, a reminder given): the flag,
+    /// keyword and reminder changes that put them back, by account, and each message's due and
+    /// done days and reminder as MailCraft kept them.
+    FollowUp { ops: Vec<(String, Vec<Op>)>, days: Vec<FollowUpWas> },
+}
+
+/// A message's follow-up as MailCraft kept it, for Undo: by its follow-up id, its due and done
+/// days and when it reminded.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FollowUpWas {
+    pub id: String,
+    pub due: Option<i64>,
+    pub done: Option<i64>,
+    pub reminder: Option<i64>,
 }
 
 /// Changes Undo remembers.

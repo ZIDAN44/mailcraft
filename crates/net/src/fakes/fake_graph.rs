@@ -34,6 +34,12 @@ pub struct Msg {
     pub raw: Vec<u8>,
     pub read: bool,
     pub flagged: bool,
+    /// Its follow-up marked complete (`flagStatus` `complete`).
+    pub complete: bool,
+    /// When its flag is due (`flag.dueDateTime`, in UTC), as written.
+    pub due: Option<String>,
+    /// Its single-value extended properties (a flag's reminder), by id as written.
+    pub props: Vec<(String, String)>,
     pub draft: bool,
     pub received: String,
 }
@@ -99,6 +105,8 @@ pub struct Data {
     /// without `IdType="ImmutableId"` message ids are returned in the other (prefixed) form.
     /// Only a batch entry gets them so: any other request for mail without it is refused.
     asked_immutable: bool,
+    /// Set per request: it asked for the messages' single-value extended properties.
+    asked_props: bool,
     late: Vec<(std::time::Instant, Vec<u8>)>,
     next: u32,
 }
@@ -123,6 +131,9 @@ impl Data {
             raw: raw.to_vec(),
             read,
             flagged: false,
+            complete: false,
+            due: None,
+            props: Vec::new(),
             draft: false,
             received: received.into(),
         });
@@ -152,11 +163,24 @@ impl Data {
     }
 
     fn message_json(&self, m: &Msg) -> Value {
+        let mut v = self.message_fields(m);
+        // Named back as Graph does: its own case.
+        if self.asked_props && !m.props.is_empty() {
+            v["singleValueExtendedProperties"] =
+                json!(m.props.iter().map(|(id, value)| json!({"id": id.to_lowercase(), "value": value})).collect::<Vec<_>>());
+        }
+        v
+    }
+
+    fn message_fields(&self, m: &Msg) -> Value {
         let p = mailcraft_mime::parse(&m.raw);
         let addr = |a: &mailcraft_model::EmailAddress| json!({"emailAddress": {"name": a.name, "address": a.email}});
         json!({
             "id": if self.asked_immutable { m.id.clone() } else { format!("{REGULAR}{}", m.id) }, "parentFolderId": m.folder, "isRead": m.read, "isDraft": m.draft,
-            "flag": {"flagStatus": if m.flagged { "flagged" } else { "notFlagged" }},
+            "flag": {
+                "flagStatus": if m.flagged { "flagged" } else if m.complete { "complete" } else { "notFlagged" },
+                "dueDateTime": m.due.as_ref().map(|d| json!({"dateTime": d, "timeZone": "UTC"})),
+            },
             "subject": p.as_ref().map(|p| p.subject.clone()),
             "from": p.as_ref().map(|p| addr(&p.from)),
             "toRecipients": p.as_ref().map(|p| p.to.iter().map(addr).collect::<Vec<_>>()),
@@ -179,6 +203,9 @@ impl Data {
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
         let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
         let input: Value = serde_json::from_slice(body).unwrap_or(Value::Null);
+        // Extended properties come only when asked for, by their ids (as Graph has them).
+        let expand = crate::oauth::unpct(query);
+        self.asked_props = expand.contains("$expand=singleValueExtendedProperties($filter=id eq '");
         // As Graph answers a Microsoft account with no mailbox (one made with a Gmail address).
         if self.no_mailbox && matches!(parts.as_slice(), ["me", "mailFolders" | "messages" | "sendMail" | "mailboxSettings", ..]) {
             return error(404, "MailboxNotEnabledForRESTAPI", "The mailbox is either inactive, soft-deleted, or is hosted on-premise.");

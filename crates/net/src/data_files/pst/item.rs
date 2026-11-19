@@ -36,6 +36,8 @@ pub(super) struct Item {
     pub(super) due: Option<i64>,
     /// The day its follow-up was marked complete, when it was and the file says when.
     pub(super) done: Option<i64>,
+    /// When its flag reminds (Unix seconds), when it's flagged with a reminder set.
+    pub(super) reminder: Option<i64>,
     pub(super) files: Vec<File>,
     /// A contact's picture: its type and bytes.
     pub(super) photo: Option<(String, Vec<u8>)>,
@@ -280,6 +282,16 @@ fn flags_into<'a>(it: &mut Item, p: &dyn Fn(u16) -> Option<Val<'a>>, named: &cra
     // PidTagFlagCompleteTime (a moment: its day in UTC).
     if complete {
         it.done = named.flag_done().and_then(p).and_then(|v| due_day(&v)).or_else(|| p(0x1091).and_then(|v| moment_day(&v)));
+    }
+    // When it reminds, when it's flagged with a reminder set (gap 9), on a day a follow-up may
+    // have.
+    let (set, times) = named.flag_reminder();
+    if follow_up && matches!(set.and_then(p), Some(Val::Bool(true))) {
+        it.reminder = times
+            .into_iter()
+            .flatten()
+            .find_map(|id| p(id).and_then(|v| v.time()))
+            .filter(|at| mailcraft_model::organize::FOLLOW_UP_DAYS.contains(&at.div_euclid(86_400)));
     }
     // Pinned in MailCraft before it went into the file (`pst_pim::PINNED`): Outlook keeps no pin.
     if matches!(named.pinned().and_then(p), Some(Val::Bool(true))) {

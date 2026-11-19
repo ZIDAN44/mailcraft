@@ -83,6 +83,11 @@ pub struct Flags {
     /// keeps none (MailCraft keeps those days itself).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub follow_up_due: Option<i64>,
+    /// When its flag reminds (Unix seconds), as a server that keeps it says (gap 9): Exchange and
+    /// Microsoft 365 keep a flag's reminder on the message (`PidLidReminderSet`, its signal
+    /// time), as Outlook sets it. An IMAP server keeps none (MailCraft keeps those itself).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reminder: Option<i64>,
 }
 
 /// The keyword that pins a message to the top of its folder.

@@ -11,6 +11,7 @@ use crate::waiting::{eventually, until};
 
 mod checks;
 mod directory;
+mod follow_up;
 mod free_busy;
 mod large_folder;
 mod renewal;

@@ -20,6 +20,13 @@ pub enum Op {
         keys: Vec<MessageKey>,
         due: Option<FollowUpDay>,
     },
+    /// A flag's reminder (Unix seconds), on a server that keeps it on the message (Exchange,
+    /// Microsoft 365), as Outlook sets it; `None`: none (dismissed). Other servers keep none,
+    /// and leave it be.
+    SetReminder {
+        keys: Vec<MessageKey>,
+        at: Option<i64>,
+    },
     /// Add or remove a keyword (a category, `$Pinned`).
     SetKeyword {
         keys: Vec<MessageKey>,
@@ -68,9 +75,12 @@ impl Op {
     /// The messages a change touches (none for folder changes).
     pub fn keys(&self) -> &[MessageKey] {
         match self {
-            Op::SetFlag { keys, .. } | Op::SetFollowUp { keys, .. } | Op::SetKeyword { keys, .. } | Op::Move { keys, .. } | Op::Expunge { keys } => {
-                keys
-            }
+            Op::SetFlag { keys, .. }
+            | Op::SetFollowUp { keys, .. }
+            | Op::SetReminder { keys, .. }
+            | Op::SetKeyword { keys, .. }
+            | Op::Move { keys, .. }
+            | Op::Expunge { keys } => keys,
             Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => &[],
         }
     }

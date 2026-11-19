@@ -92,3 +92,55 @@ fn follow_up_days_and_completion_go_both_ways() {
     });
     drop(pool);
 }
+
+/// Gap 9: a flag's reminder, as Outlook keeps it on the message: one Outlook set (and snoozed)
+/// comes over at its signal time; one set here goes there at both times; dismissed here, it's no
+/// longer set there; dismissed in Outlook, the next sync has none.
+#[test]
+fn a_flags_reminder_goes_both_ways() {
+    let mut d = Data::default();
+    let inbox = d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let call = d.deliver(&inbox, &super::mail("Call Ben", "m1"), false, "2026-11-18T09:00:00Z");
+    for it in d.items.iter_mut().filter(|i| i.id == call) {
+        it.flagged = true;
+        it.reminder_set = true;
+        it.reminder_time = Some("2026-11-20T08:00:00Z".into());
+        it.reminder_signal = Some("2026-11-20T08:30:00Z".into());
+    }
+    let server = serve(d);
+    let data = server.data.clone();
+    let store = Store::open(crate::data_files::scratch::scratch("ews-flag-reminder")).unwrap();
+    let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
+    let account = AccountConfig { name: "Riley".into(), ..super::account("a1", &server.url) };
+    pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let kept = || store.load_folder("a1", "INBOX").unwrap().messages.iter().find(|m| m.subject == "Call Ben").map(|m| (**m).clone()).unwrap();
+    let at = |h: i64, m: i64| day(2026, 11, 20) * 86_400 + h * 3600 + m * 60;
+    let c = kept();
+    assert_eq!(c.flags.reminder, Some(at(8, 30)), "snoozed in Outlook: when it reminds next");
+
+    let on_server = |id: &str| data.lock().unwrap().items.iter().find(|i| i.id == id).cloned().unwrap();
+    pool.submit(Job::Apply { account: "a1".into(), op: Op::SetReminder { keys: vec![c.key.clone()], at: Some(at(16, 0)) } });
+    eventually("the reminder on the server", || {
+        let i = on_server(&call);
+        i.reminder_set && i.reminder_signal.as_deref() == Some("2026-11-20T16:00:00Z") && i.reminder_time.as_deref() == Some("2026-11-20T16:00:00Z")
+    });
+    pool.submit(Job::Apply { account: "a1".into(), op: Op::SetReminder { keys: vec![c.key.clone()], at: None } });
+    eventually("dismissed on the server", || {
+        let i = on_server(&call);
+        !i.reminder_set && i.reminder_signal.is_none() && i.flagged
+    });
+
+    // Set again there and read; then dismissed in Outlook: read as none.
+    for it in data.lock().unwrap().items.iter_mut().filter(|i| i.id == call) {
+        (it.reminder_set, it.reminder_signal) = (true, Some("2026-11-21T07:00:00Z".into()));
+    }
+    pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
+    eventually("set in Outlook", || kept().flags.reminder == Some(day(2026, 11, 21) * 86_400 + 7 * 3600));
+    for it in data.lock().unwrap().items.iter_mut().filter(|i| i.id == call) {
+        it.reminder_set = false;
+    }
+    pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
+    eventually("dismissed in Outlook", || kept().flags.reminder.is_none());
+    drop(pool);
+}

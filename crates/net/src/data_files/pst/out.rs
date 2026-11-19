@@ -393,12 +393,25 @@ impl Out<'_> {
             self.budget.release(charge);
             return;
         };
-        let Built { mut summary, prepared, doc, raw_len, charset_unsupported, body_not_converted, without_address, left_out, due, done, .. } = b;
+        let Built {
+            mut summary,
+            prepared,
+            doc,
+            raw_len,
+            charset_unsupported,
+            body_not_converted,
+            without_address,
+            left_out,
+            due,
+            done,
+            reminder,
+            ..
+        } = b;
         let uid = st.uid_next;
         st.uid_next = uid.saturating_add(1);
         let key = MessageKey { account: self.account.to_string(), folder: path.to_string(), validity: 1, uid };
         summary.key = key.clone();
-        self.due.note(&summary, due, done);
+        self.due.note(&summary, due, done, reminder);
         let size = summary.size;
         let msgid = mailcraft_store::search::msgid_hash(&summary.message_id);
         st.waiting.push(summary);

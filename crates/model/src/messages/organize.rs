@@ -214,6 +214,9 @@ pub const FOLLOW_UP_DOC: &str = "follow-up.json";
 /// Beside it, the days its messages marked complete were completed on (`PidTagFlagCompleteTime`),
 /// taken into the preferences' own (`Prefs::follow_up_done`) the same way.
 pub const FOLLOW_UP_DONE_DOC: &str = "follow-up-done.json";
+/// Beside them, when its flagged messages remind (Unix seconds: `PidLidReminderSignalTime`, as
+/// Outlook set them), taken into the preferences' own (`Prefs::mail_reminders`) the same way.
+pub const FOLLOW_UP_REMINDER_DOC: &str = "follow-up-reminders.json";
 /// The most due days kept, in the preferences and in an import's [`FOLLOW_UP_DOC`]; and the most
 /// days completed, in each of theirs.
 pub const MAX_FOLLOW_UP: usize = 10_000;
@@ -222,6 +225,26 @@ pub const MAX_FOLLOW_UP_ID: usize = 998;
 /// The days a follow-up can be due on: 1900-01-01 to 4500-12-31 (Outlook's 4501-01-01 is its
 /// "no date").
 pub const FOLLOW_UP_DAYS: std::ops::RangeInclusive<i64> = -25_567..=924_428;
+
+/// `from`'s flag reminders put in `into` where it has none for that message (one set here stays),
+/// up to [`MAX_FOLLOW_UP`] in all; keys too long, or times not on a day a follow-up may have
+/// ([`FOLLOW_UP_DAYS`]), are left out. How many were added.
+pub fn merge_reminders(into: &mut std::collections::BTreeMap<String, i64>, from: std::collections::BTreeMap<String, i64>) -> usize {
+    let days: std::collections::BTreeMap<String, i64> = from.iter().map(|(id, at)| (id.clone(), at.div_euclid(86_400))).collect();
+    let mut kept = std::collections::BTreeMap::new();
+    merge_follow_up(&mut kept, days);
+    let mut added = 0;
+    for (id, at) in from.into_iter().filter(|(id, _)| kept.contains_key(id)) {
+        if into.len() >= MAX_FOLLOW_UP {
+            break;
+        }
+        if let std::collections::btree_map::Entry::Vacant(e) = into.entry(id) {
+            e.insert(at);
+            added += 1;
+        }
+    }
+    added
+}
 
 /// `from`'s due days put in `into` where it has none for that message (a day set here stays),
 /// up to [`MAX_FOLLOW_UP`] in all; keys too long or days out of [`FOLLOW_UP_DAYS`] are left
@@ -243,13 +266,15 @@ pub fn merge_follow_up(into: &mut std::collections::BTreeMap<String, i64>, from:
 
 /// The days of an account's follow-ups, as an export writes them (local days, by
 /// [`Summary::follow_up_id`]): when flagged messages are due, and when the ones marked complete
-/// were completed.
+/// were completed; and when flagged ones remind (Unix seconds).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FollowUpDays {
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub due: std::collections::BTreeMap<String, i64>,
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub done: std::collections::BTreeMap<String, i64>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub reminder: std::collections::BTreeMap<String, i64>,
 }
 
 #[cfg(test)]

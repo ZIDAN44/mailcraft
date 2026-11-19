@@ -62,6 +62,11 @@ pub struct It {
     pub complete: bool,
     /// The day its follow-up is due (`PidLidTaskDueDate`), as written.
     pub due: Option<String>,
+    /// Its flag's reminder: set (`PidLidReminderSet`), and its signal time and time
+    /// (`PidLidReminderSignalTime`, `PidLidReminderTime`), as written.
+    pub reminder_set: bool,
+    pub reminder_signal: Option<String>,
+    pub reminder_time: Option<String>,
     pub draft: bool,
     pub received: String,
 }
@@ -332,6 +337,9 @@ impl Data {
             received: received.into(),
             complete: false,
             due: None,
+            reminder_set: false,
+            reminder_signal: None,
+            reminder_time: None,
         });
         id
     }
@@ -569,7 +577,8 @@ mod serving;
 mod tests;
 mod watching;
 
-/// A message's flag status and the day its follow-up is due, as Exchange gives them.
+/// A message's flag status, the day its follow-up is due and its reminder, as Exchange gives
+/// them (naming the property sets it knows).
 fn follow_up_xml(it: &It) -> String {
     let status = if it.flagged {
         Some(2)
@@ -589,6 +598,19 @@ fn follow_up_xml(it: &It) -> String {
         x.push_str(&format!(
             "<t:ExtendedProperty><t:ExtendedFieldURI DistinguishedPropertySetId=\"Task\" PropertyId=\"33029\" PropertyType=\"SystemTime\"/><t:Value>{d}</t:Value></t:ExtendedProperty>"
         ));
+    }
+    let common = |id: &str, kind: &str, v: &str| {
+        format!(
+            "<t:ExtendedProperty><t:ExtendedFieldURI DistinguishedPropertySetId=\"Common\" PropertyId=\"{id}\" PropertyType=\"{kind}\"/><t:Value>{v}</t:Value></t:ExtendedProperty>"
+        )
+    };
+    if it.reminder_set || it.reminder_signal.is_some() || it.reminder_time.is_some() {
+        x.push_str(&common("34051", "Boolean", if it.reminder_set { "true" } else { "false" }));
+    }
+    for (id, v) in [("34144", &it.reminder_signal), ("34050", &it.reminder_time)] {
+        if let Some(v) = v {
+            x.push_str(&common(id, "SystemTime", v));
+        }
     }
     x
 }

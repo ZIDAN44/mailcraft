@@ -83,7 +83,7 @@ impl Session {
             self.echoes.0.remove(&k);
             return Echo::None;
         };
-        if !matches!(op, Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. }) {
+        if !matches!(op, Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetReminder { .. } | Op::SetKeyword { .. }) {
             if q.is_empty() {
                 self.echoes.0.remove(&k);
             }
@@ -103,6 +103,7 @@ impl Session {
             Op::SetFlag { flag, on, .. } => flag.get(f) == *on,
             Op::SetKeyword { keyword, on, .. } => f.has(keyword) == *on,
             Op::SetFollowUp { due, .. } => f.follow_up_due == due.map(|d| d.day),
+            Op::SetReminder { at, .. } => f.reminder == *at,
             _ => true,
         };
         if st.messages.iter().filter(|m| uids.contains(&m.key.uid)).all(|m| has(&m.flags)) {
@@ -113,6 +114,7 @@ impl Session {
                 Op::SetFlag { flag, on, .. } => flag.set(&mut SharedSummary::make_mut(m).flags, *on),
                 Op::SetKeyword { keyword, on, .. } => SharedSummary::make_mut(m).flags.set_keyword(keyword, *on),
                 Op::SetFollowUp { due, .. } => SharedSummary::make_mut(m).flags.follow_up_due = due.map(|d| d.day),
+                Op::SetReminder { at, .. } => SharedSummary::make_mut(m).flags.reminder = *at,
                 _ => {}
             }
         }
@@ -141,6 +143,7 @@ fn same_change(a: &Op, b: &Op) -> bool {
     match (a, b) {
         (Op::SetFlag { flag: x, .. }, Op::SetFlag { flag: y, .. }) => x == y,
         (Op::SetKeyword { keyword: x, .. }, Op::SetKeyword { keyword: y, .. }) => x.eq_ignore_ascii_case(y),
+        (Op::SetFollowUp { .. }, Op::SetFollowUp { .. }) | (Op::SetReminder { .. }, Op::SetReminder { .. }) => true,
         _ => false,
     }
 }

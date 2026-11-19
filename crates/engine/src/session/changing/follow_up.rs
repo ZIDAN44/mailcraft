@@ -1,5 +1,5 @@
 //! The session: flagging mail for follow-up (Follow Up › a day, Mark Complete, Clear Flag),
-//! with the days kept on the server that keeps them or here.
+//! with the days and the reminder kept on the server that keeps them or here.
 
 use mailcraft_model::FOLLOW_UP_COMPLETE;
 use mailcraft_model::organize::MAX_FOLLOW_UP;
@@ -31,6 +31,8 @@ impl Session {
         let fresh: Vec<SharedSummary> =
             sel.iter().filter(|m| on && m.flags.follow_up_complete() && m.flags.follow_up_due.is_some()).cloned().collect();
         let restore_fresh = self.send_follow_up(&fresh, None);
+        // A flag cleared takes its reminder with it, as Outlook's Clear Flag does (gap 9).
+        let restore_reminders = if on { Vec::new() } else { self.set_reminders(sel, None) };
         for m in sel {
             let id = m.follow_up_id();
             // Unflagged: no longer due. Flagged again once complete: a fresh flag, not the one
@@ -48,8 +50,8 @@ impl Session {
             undo.entry(a).or_default().push(Op::SetKeyword { keys, keyword: FOLLOW_UP_COMPLETE.into(), on: true });
         }
         // The days back: those a clear took off once flagged again, those a fresh flag took off
-        // while it's still flagged.
-        then(then(restore_fresh, undo.into_iter().collect()), restore_cleared)
+        // while it's still flagged; and the reminders.
+        then(then(then(restore_fresh, undo.into_iter().collect()), restore_cleared), restore_reminders)
     }
 
     /// Whether `account`'s server keeps a flag's days on the message (gap 9), as Outlook sets
@@ -76,25 +78,74 @@ impl Session {
         back.into_iter().map(|((a, was), keys)| (a, vec![Op::SetFollowUp { keys, due: day(was) }])).collect()
     }
 
-    /// Each of `sel`'s due and done days as they are, for Undo to put back.
-    fn follow_up_days_of<S: std::borrow::Borrow<Summary>>(&self, sel: &[S]) -> Vec<(String, Option<i64>, Option<i64>)> {
+    /// Give `sel` a reminder at `at` (Unix seconds; `None`: none): on the server that keeps a
+    /// flag's reminder on the message, those that haven't it already, else here (gap 9). The
+    /// changes that put back the server's, by account.
+    fn set_reminders<S: std::borrow::Borrow<Summary>>(&mut self, sel: &[S], at: Option<i64>) -> Vec<(String, Vec<Op>)> {
+        let mut send: BTreeMap<String, Vec<MessageKey>> = BTreeMap::new();
+        let mut back: BTreeMap<(String, Option<i64>), Vec<MessageKey>> = BTreeMap::new();
+        let mut changed = false;
+        for m in sel.iter().map(std::borrow::Borrow::borrow) {
+            if self.server_keeps_follow_up(&m.key.account) {
+                if m.flags.reminder != at {
+                    send.entry(m.key.account.clone()).or_default().push(m.key.clone());
+                    back.entry((m.key.account.clone(), m.flags.reminder)).or_default().push(m.key.clone());
+                }
+                continue;
+            }
+            let id = m.follow_up_id();
+            let was = self.prefs.mail_reminders.get(&id).copied();
+            put_day(&mut self.prefs.mail_reminders, id, at);
+            changed |= was != at;
+        }
+        changed |= !send.is_empty();
+        for (a, keys) in send {
+            self.apply_op(&a, Op::SetReminder { keys, at });
+        }
+        // The Reminders window works its list out again at once.
+        if changed {
+            self.pim_revision = self.pim_revision.wrapping_add(1);
+        }
+        back.into_iter().map(|((a, was), keys)| (a, vec![Op::SetReminder { keys, at: was }])).collect()
+    }
+
+    /// Each of `sel`'s due and done days and reminder as MailCraft keeps them, for Undo to put
+    /// back.
+    fn follow_up_days_of<S: std::borrow::Borrow<Summary>>(&self, sel: &[S]) -> Vec<FollowUpWas> {
         sel.iter()
             .map(|m| {
                 let id = m.borrow().follow_up_id();
-                let (due, done) = (self.prefs.follow_up.get(&id).copied(), self.prefs.follow_up_done.get(&id).copied());
-                (id, due, done)
+                FollowUpWas {
+                    due: self.prefs.follow_up.get(&id).copied(),
+                    done: self.prefs.follow_up_done.get(&id).copied(),
+                    reminder: self.prefs.mail_reminders.get(&id).copied(),
+                    id,
+                }
             })
             .collect()
     }
 
     /// Remember a change to follow-ups for Undo, when it changed anything: `ops` put the flags
-    /// back, `was` the days.
-    fn remember_follow_up(&mut self, ops: Vec<(String, Vec<Op>)>, was: Vec<(String, Option<i64>, Option<i64>)>) {
-        let days_changed =
-            was.iter().any(|(id, due, done)| self.prefs.follow_up.get(id).copied() != *due || self.prefs.follow_up_done.get(id).copied() != *done);
+    /// back, `was` the days and reminders.
+    fn remember_follow_up(&mut self, ops: Vec<(String, Vec<Op>)>, was: Vec<FollowUpWas>) {
+        let days_changed = was.iter().any(|w| {
+            self.prefs.follow_up.get(&w.id).copied() != w.due
+                || self.prefs.follow_up_done.get(&w.id).copied() != w.done
+                || self.prefs.mail_reminders.get(&w.id).copied() != w.reminder
+        });
         if ops.iter().any(|(_, o)| !o.is_empty()) || days_changed {
             self.remember(Undo::FollowUp { ops, days: was });
         }
+    }
+
+    /// Undo: the days and reminders MailCraft keeps put back as they were.
+    pub(super) fn follow_up_back(&mut self, days: Vec<FollowUpWas>) {
+        for w in days {
+            put_day(&mut self.prefs.follow_up, w.id.clone(), w.due);
+            put_day(&mut self.prefs.follow_up_done, w.id.clone(), w.done);
+            put_day(&mut self.prefs.mail_reminders, w.id, w.reminder);
+        }
+        self.pim_revision = self.pim_revision.wrapping_add(1);
     }
 
     /// Flag the selection for follow-up by a day (`None`: no date), or (`complete`) mark it
@@ -122,11 +173,45 @@ impl Session {
     /// Flag these messages for follow-up by a day (`None`: no date), wherever they are, as
     /// [`Session::follow_up_selection`] does the selection.
     pub(crate) fn follow_up_messages(&mut self, sel: &[SharedSummary], due: Option<i64>) -> CmdResult {
+        self.follow_up_with(sel, Some(due), None)
+    }
+
+    /// Flag the selection for follow-up, as Follow Up › Custom… and Add Reminder… do
+    /// ([`Session::follow_up_with`]).
+    pub fn follow_up_selection_with(&mut self, due: Option<Option<i64>>, reminder: Option<Option<i64>>) -> CmdResult {
+        let sel = self.selected_shared();
+        self.follow_up_with(&sel, due, reminder)
+    }
+
+    /// Flag these messages for follow-up, wherever they are: by a day (`due`: `Some(None)` no
+    /// date; `None` each keeps its own), with a reminder at that time (`reminder`, Unix seconds:
+    /// `Some(None)` none; `None` each keeps its own). One Undo puts it all back.
+    pub(crate) fn follow_up_with(&mut self, sel: &[SharedSummary], due: Option<Option<i64>>, reminder: Option<Option<i64>>) -> CmdResult {
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }
         let was = self.follow_up_days_of(sel);
-        let flag_back = self.set_flagged(sel, true);
+        let mut undo = self.set_flagged(sel, true);
+        if let Some(due) = due {
+            undo = then(self.send_due_day(sel, due), undo);
+        }
+        if let Some(at) = reminder {
+            undo = then(self.set_reminders(sel, at), undo);
+        }
+        self.remember_follow_up(undo, was);
+        let mut out = serde_json::json!({ "flagged": true, "count": sel.len() });
+        if let Some(due) = due {
+            out["due"] = serde_json::json!(due.map(mailcraft_model::dates::day_string));
+        }
+        if let Some(at) = reminder {
+            out["reminder"] = serde_json::json!(at);
+        }
+        Ok(out)
+    }
+
+    /// Give flagged messages a due day (`None`: none), on the server that keeps it and here. The
+    /// changes that put back the server's, by account.
+    fn send_due_day(&mut self, sel: &[SharedSummary], due: Option<i64>) -> Vec<(String, Vec<Op>)> {
         // The day on the server that keeps it (gap 9); put back before the flag goes, while
         // it's still flagged. A completed one flagged again has none now (`set_flagged` took
         // them off): given its day again, it's sent.
@@ -142,7 +227,7 @@ impl Session {
                 }
             })
             .collect();
-        let undo = then(self.send_follow_up(&now, due), flag_back);
+        let back = self.send_follow_up(&now, due);
         for m in sel {
             let id = m.follow_up_id();
             match due {
@@ -154,13 +239,13 @@ impl Session {
                 }
             }
         }
-        self.remember_follow_up(undo, was);
-        Ok(serde_json::json!({ "flagged": true, "due": due.map(mailcraft_model::dates::day_string), "count": sel.len() }))
+        back
     }
 
     /// Mark the selection's follow-up complete (Mark Complete): unflagged, with the
     /// [`FOLLOW_UP_COMPLETE`] keyword, and the day it was done kept (as Outlook keeps it). Its
-    /// due day stays; Undo puts the flag and both days back as they were, in one step.
+    /// due day stays, its reminder goes; Undo puts the flag, both days and the reminder back as
+    /// they were, in one step.
     pub fn complete_selection(&mut self) -> CmdResult {
         let sel = self.selected_shared();
         self.complete_messages(sel)
@@ -200,7 +285,9 @@ impl Session {
         for (a, keys) in marked {
             self.apply_op(&a, Op::SetKeyword { keys, keyword: FOLLOW_UP_COMPLETE.into(), on: true });
         }
-        self.remember_follow_up(undo.into_iter().collect(), was);
+        // Done, it reminds no more (as Outlook's Mark Complete).
+        let reminders_back = self.set_reminders(&sel, None);
+        self.remember_follow_up(then(undo.into_iter().collect(), reminders_back), was);
         Ok(serde_json::json!({ "flagged": false, "complete": true, "count": sel.len() }))
     }
 
@@ -216,6 +303,18 @@ impl Session {
         self.prefs.follow_up.get(&m.follow_up_id()).copied()
     }
 
+    /// When a flagged message reminds (Unix seconds), if it does: as the server that keeps it has
+    /// it (gap 9: as Outlook set it, or as it was set here), else as kept here.
+    pub fn message_reminder(&self, m: &Summary) -> Option<i64> {
+        if !m.flags.flagged {
+            return None;
+        }
+        if self.server_keeps_follow_up(&m.key.account) {
+            return m.flags.reminder;
+        }
+        self.prefs.mail_reminders.get(&m.follow_up_id()).copied()
+    }
+
     /// When a message's follow-up was marked complete, if it was and the day is known.
     pub fn follow_up_done(&self, m: &Summary) -> Option<i64> {
         if !m.flags.follow_up_complete() {
@@ -225,7 +324,7 @@ impl Session {
     }
 }
 
-/// A day put back as it was (`None`: none), within [`MAX_FOLLOW_UP`].
+/// A day (or a reminder's time) put back as it was (`None`: none), within [`MAX_FOLLOW_UP`].
 pub(super) fn put_day(days: &mut BTreeMap<String, i64>, id: String, day: Option<i64>) {
     match day {
         Some(d) if days.len() < MAX_FOLLOW_UP || days.contains_key(&id) => {

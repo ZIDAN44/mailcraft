@@ -1,7 +1,8 @@
 //! The session: the days an import's flagged messages are due, and its completed ones were done,
-//! which the network side leaves in the account's [`FOLLOW_UP_DOC`] and [`FOLLOW_UP_DONE_DOC`]
-//! as it reads them from the data file, taken into the preferences' own (`Prefs::follow_up`,
-//! `Prefs::follow_up_done`) as the import, or a read of its file again, ends. A day set here
+//! and when its flagged ones remind, which the network side leaves in the account's
+//! [`FOLLOW_UP_DOC`], [`FOLLOW_UP_DONE_DOC`] and [`FOLLOW_UP_REMINDER_DOC`] as it reads them from
+//! the data file, taken into the preferences' own (`Prefs::follow_up`, `Prefs::follow_up_done`,
+//! `Prefs::mail_reminders`) as the import, or a read of its file again, ends. A day set here
 //! stays, and one cleared here isn't brought back.
 //!
 //! The preferences reach the disk only when the app next saves them, so the notes stay until
@@ -9,17 +10,21 @@
 //! and at the next start notes whose fingerprint the saved preferences hold are emptied, while
 //! ones they don't (MailCraft ended before they were saved) are taken again.
 
-use mailcraft_model::organize::{FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC, FollowUpDays, merge_follow_up};
+use mailcraft_model::organize::{FOLLOW_UP_DOC, FOLLOW_UP_DONE_DOC, FOLLOW_UP_REMINDER_DOC, FollowUpDays, merge_follow_up, merge_reminders};
 
 use super::*;
 
 /// The notes' fingerprint (FNV-1a over their JSON, the same from one build to the next): the due
-/// note's, and then the done note's when it has any (so a due note alone keeps the fingerprint
-/// it had before there were done notes).
+/// note's, and then the done note's and the reminders' when they have any (so notes without them
+/// keep the fingerprint they had before there were such notes).
 fn fingerprint(days: &FollowUpDays) -> u64 {
     let mut bytes = serde_json::to_vec(&days.due).unwrap_or_default();
     if !days.done.is_empty() {
         bytes.extend(serde_json::to_vec(&days.done).unwrap_or_default());
+    }
+    if !days.reminder.is_empty() {
+        bytes.extend(b"reminders");
+        bytes.extend(serde_json::to_vec(&days.reminder).unwrap_or_default());
     }
     mailcraft_model::hash::fnv1a(&bytes)
 }
@@ -30,7 +35,7 @@ fn not_taken(days: &BTreeMap<String, i64>, taken: Option<&BTreeMap<String, i64>>
 }
 
 impl Session {
-    /// `account`'s notes of imported due and done days, when they have any.
+    /// `account`'s notes of imported due and done days and reminders, when they have any.
     fn imported_follow_up(&self, account: &str) -> Option<FollowUpDays> {
         let store = self.store.as_ref()?;
         let read = |doc: &str| match store.load_account_doc::<BTreeMap<String, i64>>(account, doc) {
@@ -40,8 +45,8 @@ impl Session {
                 BTreeMap::new()
             }
         };
-        let days = FollowUpDays { due: read(FOLLOW_UP_DOC), done: read(FOLLOW_UP_DONE_DOC) };
-        (!days.due.is_empty() || !days.done.is_empty()).then_some(days)
+        let days = FollowUpDays { due: read(FOLLOW_UP_DOC), done: read(FOLLOW_UP_DONE_DOC), reminder: read(FOLLOW_UP_REMINDER_DOC) };
+        (!days.due.is_empty() || !days.done.is_empty() || !days.reminder.is_empty()).then_some(days)
     }
 
     /// `account`'s imported due and done days, taken into the preferences: those not taken
@@ -55,8 +60,12 @@ impl Session {
         let taken = self.importing.follow_up_taken.get(account);
         let due = not_taken(&days.due, taken.map(|t| &t.due));
         let done = not_taken(&days.done, taken.map(|t| &t.done));
+        let reminder = not_taken(&days.reminder, taken.map(|t| &t.reminder));
         merge_follow_up(&mut self.prefs.follow_up, due);
         merge_follow_up(&mut self.prefs.follow_up_done, done);
+        if merge_reminders(&mut self.prefs.mail_reminders, reminder) > 0 {
+            self.pim_revision = self.pim_revision.wrapping_add(1);
+        }
         self.prefs.follow_up_taken.insert(account.to_string(), fingerprint(&days));
         self.importing.follow_up_taken.insert(account.to_string(), days);
     }
@@ -83,7 +92,7 @@ impl Session {
                 // Its import may still write the notes: they stay, as taken.
                 self.importing.follow_up_taken.insert(account, days);
             } else {
-                let emptied = [(FOLLOW_UP_DOC, &days.due), (FOLLOW_UP_DONE_DOC, &days.done)]
+                let emptied = [(FOLLOW_UP_DOC, &days.due), (FOLLOW_UP_DONE_DOC, &days.done), (FOLLOW_UP_REMINDER_DOC, &days.reminder)]
                     .into_iter()
                     .filter(|(_, d)| !d.is_empty())
                     .map(|(doc, _)| store.save_account_doc(&account, doc, &BTreeMap::<String, i64>::new()))

@@ -3,6 +3,10 @@
 //! no time zone, as MailCraft keeps days) and as the instant the day starts where the user is
 //! (`PidLidCommonEnd`); the start day the same way. EWS's own `item:Flag` would say the same,
 //! but only Exchange 2013 and later know it: these properties every Exchange (and Gromox) keeps.
+//!
+//! A flag's reminder is kept on the message too, as Outlook keeps it: `PidLidReminderSet`, and
+//! when it reminds, `PidLidReminderSignalTime` (`PidLidReminderTime` with it, which Outlook
+//! shows). Dismissed, it's no longer set.
 
 use mailcraft_model::dates::utc_stamp;
 use mailcraft_model::{FOLLOW_UP_COMPLETE, FollowUpDay, Op};
@@ -31,20 +35,43 @@ fn common_start() -> String {
 fn common_end() -> String {
     named(COMMON, 0x8517, "SystemTime")
 }
+/// `PidLidReminderSet`, `PidLidReminderTime` and `PidLidReminderSignalTime`.
+fn reminder_set() -> String {
+    named(COMMON, 0x8503, "Boolean")
+}
+fn reminder_time() -> String {
+    named(COMMON, 0x8502, "SystemTime")
+}
+fn reminder_signal() -> String {
+    named(COMMON, 0x8560, "SystemTime")
+}
+
+/// The value of a named property `id` of the property set `set` (its GUID), asked for by it;
+/// the server may name a set it knows (`distinguished`: Gromox and Exchange answer so).
+fn named_value<'a>(it: &'a El, set: &str, distinguished: &str, id: u32) -> Option<&'a str> {
+    let id = id.to_string();
+    let in_set =
+        |u: &El| u.attr("PropertySetId").is_some_and(|s| s.eq_ignore_ascii_case(set)) || u.attr("DistinguishedPropertySetId") == Some(distinguished);
+    it.children("ExtendedProperty")
+        .find(|p| p.child("ExtendedFieldURI").is_some_and(|u| u.attr("PropertyId") == Some(id.as_str()) && in_set(u)))
+        .and_then(|p| p.text_of("Value"))
+}
+
+/// When a message's flag reminds (Unix seconds), when it's set to: its signal time (a snooze
+/// moves it), else its reminder time.
+pub(super) fn reminder(it: &El) -> Option<i64> {
+    if !named_value(it, COMMON, "Common", 0x8503).is_some_and(|v| v.trim().eq_ignore_ascii_case("true")) {
+        return None;
+    }
+    let time = |id| named_value(it, COMMON, "Common", id).and_then(mailcraft_jmap::utc_date);
+    time(0x8560).or_else(|| time(0x8502))
+}
 
 /// The day a message's follow-up is due (days since the epoch), when it has one. Kept as its
 /// midnight with no time zone; one kept as a local midnight in UTC (as some clients write it) is
 /// read as the nearest midnight.
 pub(super) fn due_day(it: &El) -> Option<i64> {
-    let id = (0x8105u32).to_string();
-    // The set as asked for (its GUID), or as the server names a set it knows (`Task`: Gromox
-    // and Exchange answer so).
-    let task = |u: &El| u.attr("PropertySetId").is_some_and(|s| s.eq_ignore_ascii_case(TASK)) || u.attr("DistinguishedPropertySetId") == Some("Task");
-    it.children("ExtendedProperty")
-        .find(|p| p.child("ExtendedFieldURI").is_some_and(|u| u.attr("PropertyId") == Some(id.as_str()) && task(u)))
-        .and_then(|p| p.text_of("Value"))
-        .and_then(mailcraft_jmap::utc_date)
-        .map(|t| mailcraft_model::pim::task_day(t).div_euclid(86_400))
+    named_value(it, TASK, "Task", 0x8105).and_then(mailcraft_jmap::utc_date).map(|t| mailcraft_model::pim::task_day(t).div_euclid(86_400))
 }
 
 /// The flag status `PidTagFlagStatus` (`0x1090`): 2 flagged, 1 complete.
@@ -82,12 +109,25 @@ fn days(due: Option<FollowUpDay>) -> String {
     }
 }
 
-/// The changes an op makes to a message's follow-up on Exchange: its days, or marked complete
-/// (`FOLLOW_UP_COMPLETE` on: status 1; off: the status taken off, the flag set again after it
+/// A flag's reminder set to remind at `at` (both times: Outlook shows the one, reminds at the
+/// other), or no longer set (dismissed).
+fn reminds(at: Option<i64>) -> String {
+    match at {
+        Some(at) => {
+            let at = utc_stamp(at);
+            [set(&reminder_set(), "true"), set(&reminder_time(), &at), set(&reminder_signal(), &at)].concat()
+        }
+        None => [set(&reminder_set(), "false"), delete(&reminder_signal())].concat(),
+    }
+}
+
+/// The changes an op makes to a message's follow-up on Exchange: its days, its reminder, or
+/// marked complete/// (`FOLLOW_UP_COMPLETE` on: status 1; off: the status taken off, the flag set again after it
 /// when it's flagged again). `None`: not a follow-up's.
 pub(super) fn updates(op: &Op) -> Option<String> {
     match op {
         Op::SetFollowUp { due, .. } => Some(days(*due)),
+        Op::SetReminder { at, .. } => Some(reminds(*at)),
         Op::SetKeyword { keyword, on: true, .. } if keyword.eq_ignore_ascii_case(FOLLOW_UP_COMPLETE) => Some(status(1)),
         Op::SetKeyword { keyword, on: false, .. } if keyword.eq_ignore_ascii_case(FOLLOW_UP_COMPLETE) => {
             Some(delete("<t:ExtendedFieldURI PropertyTag=\"0x1090\" PropertyType=\"Integer\"/>"))
@@ -155,5 +195,15 @@ fn real_ews_follow_up() {
     change(&format!("{}{}", status(2), days(None)));
     let f = read();
     assert!(f.flagged && !f.has(FOLLOW_UP_COMPLETE) && f.follow_up_due.is_none(), "{f:?}");
+    // A reminder at nine on the 25th; snoozed to half past (its signal time alone, as Outlook
+    // snoozes); dismissed.
+    let at = day * 86_400 + 9 * 3600;
+    change(&reminds(Some(at)));
+    assert_eq!(read().reminder, Some(at));
+    change(&set(&reminder_signal(), &utc_stamp(at + 1800)));
+    assert_eq!(read().reminder, Some(at + 1800));
+    change(&reminds(None));
+    let f = read();
+    assert!(f.flagged && f.reminder.is_none(), "{f:?}");
     c.call_one(&format!("<m:DeleteItem DeleteType=\"HardDelete\"><m:ItemIds><t:ItemId Id=\"{id}\"/></m:ItemIds></m:DeleteItem>")).unwrap();
 }

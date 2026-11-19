@@ -225,6 +225,11 @@ pub struct Prefs {
     /// keyword; the day goes into an Outlook data file with it.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "checked_days")]
     pub follow_up_done: BTreeMap<String, i64>,
+    /// When flagged messages remind (Follow Up › Add Reminder…): Message-ID → Unix seconds. IMAP
+    /// has nowhere for it, so it's kept here as the days are; Exchange and Microsoft 365 keep it
+    /// on the message.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty", deserialize_with = "checked_reminders")]
+    pub mail_reminders: BTreeMap<String, i64>,
     /// The imports' due-day notes taken into `follow_up`, by account: each note's fingerprint
     /// ([`Session::imported_follow_up_at_start`]). Saved with `follow_up`, it says at the next
     /// start that the note's days are kept here, so the note can go.
@@ -380,6 +385,7 @@ impl Default for Prefs {
             ignored: IgnoredIds::default(),
             follow_up: BTreeMap::new(),
             follow_up_done: BTreeMap::new(),
+            mail_reminders: BTreeMap::new(),
             follow_up_taken: BTreeMap::new(),
             reminders: BTreeMap::new(),
             search_folders: Vec::new(),
@@ -449,6 +455,15 @@ fn checked_days<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeMap<Strin
     let read = <BTreeMap<String, i64> as serde::Deserialize>::deserialize(d)?;
     let mut kept = BTreeMap::new();
     mailcraft_model::organize::merge_follow_up(&mut kept, read);
+    Ok(kept)
+}
+
+/// Flags' reminders read from disk: only times on the days a follow-up may have, by a key that
+/// may be a follow-up's ([`merge_reminders`](mailcraft_model::organize::merge_reminders)).
+fn checked_reminders<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeMap<String, i64>, D::Error> {
+    let read = <BTreeMap<String, i64> as serde::Deserialize>::deserialize(d)?;
+    let mut kept = BTreeMap::new();
+    mailcraft_model::organize::merge_reminders(&mut kept, read);
     Ok(kept)
 }
 

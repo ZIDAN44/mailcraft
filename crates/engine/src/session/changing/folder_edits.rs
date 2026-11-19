@@ -451,10 +451,7 @@ impl Session {
                         self.apply_op(&account, op);
                     }
                 }
-                for (id, due, done) in days {
-                    super::follow_up::put_day(&mut self.prefs.follow_up, id.clone(), due);
-                    super::follow_up::put_day(&mut self.prefs.follow_up_done, id, done);
-                }
+                self.follow_up_back(days);
                 Ok(serde_json::json!({ "undone": "changes" }))
             }
             Undo::Move { moves } => {

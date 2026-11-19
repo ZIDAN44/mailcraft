@@ -458,12 +458,16 @@ fn count_of(f: &El, name: &str) -> u32 {
     f.text_of(name).and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0)
 }
 
-/// The read, flag and draft state, asked for with every item, and the day a flag is due
-/// (`PidLidTaskDueDate`, [`follow_up`]).
+/// The read, flag and draft state, asked for with every item, the day a flag is due
+/// (`PidLidTaskDueDate`) and its reminder (`PidLidReminderSet`, `PidLidReminderSignalTime`,
+/// `PidLidReminderTime`): [`follow_up`].
 const FLAG_FIELDS: &str = "<t:FieldURI FieldURI=\"message:IsRead\"/>\
 <t:ExtendedFieldURI PropertyTag=\"0x1090\" PropertyType=\"Integer\"/>\
 <t:ExtendedFieldURI PropertyTag=\"0x0E07\" PropertyType=\"Integer\"/>\
-<t:ExtendedFieldURI PropertySetId=\"00062003-0000-0000-C000-000000000046\" PropertyId=\"33029\" PropertyType=\"SystemTime\"/>";
+<t:ExtendedFieldURI PropertySetId=\"00062003-0000-0000-C000-000000000046\" PropertyId=\"33029\" PropertyType=\"SystemTime\"/>\
+<t:ExtendedFieldURI PropertySetId=\"00062008-0000-0000-C000-000000000046\" PropertyId=\"34051\" PropertyType=\"Boolean\"/>\
+<t:ExtendedFieldURI PropertySetId=\"00062008-0000-0000-C000-000000000046\" PropertyId=\"34144\" PropertyType=\"SystemTime\"/>\
+<t:ExtendedFieldURI PropertySetId=\"00062008-0000-0000-C000-000000000046\" PropertyId=\"34050\" PropertyType=\"SystemTime\"/>";
 const HEADER_FIELDS: &str = "<t:FieldURI FieldURI=\"item:Subject\"/><t:FieldURI FieldURI=\"message:From\"/>\
 <t:FieldURI FieldURI=\"message:ToRecipients\"/><t:FieldURI FieldURI=\"message:CcRecipients\"/>\
 <t:FieldURI FieldURI=\"message:ReplyTo\"/><t:FieldURI FieldURI=\"item:DateTimeReceived\"/>\
@@ -488,6 +492,7 @@ fn flags(it: &El) -> Flags {
         // Marked complete in Outlook: done, not flagged.
         keywords: if status == Some(1) { vec![mailcraft_model::FOLLOW_UP_COMPLETE.to_string()] } else { Vec::new() },
         follow_up_due: follow_up::due_day(it),
+        reminder: follow_up::reminder(it),
         ..Default::default()
     }
 }
@@ -704,12 +709,12 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
         Op::SetFlag { keys, flag: Flag::Flagged, on: false } => {
             update(keys, "<t:DeleteItemField><t:ExtendedFieldURI PropertyTag=\"0x1090\" PropertyType=\"Integer\"/></t:DeleteItemField>")
         }
-        // A follow-up's days, or marked complete (gap 9: they stayed on this computer).
-        Op::SetFollowUp { keys, .. } | Op::SetKeyword { keys, .. } if follow_up::updates(op).is_some() => {
+        // A follow-up's days and reminder, or marked complete (gap 9: they stayed on this computer).
+        Op::SetFollowUp { keys, .. } | Op::SetReminder { keys, .. } | Op::SetKeyword { keys, .. } if follow_up::updates(op).is_some() => {
             update(keys, &follow_up::updates(op).unwrap_or_default())
         }
         // Answered and forwarded are Exchange's to set; categories stay on this computer.
-        Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetKeyword { .. } => Ok(()),
+        Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetReminder { .. } | Op::SetKeyword { .. } => Ok(()),
         Op::Move { keys, to } => {
             let dest = st.mailbox(to)?.to_string();
             each_folder(keys, Some(to), &|chunk| {

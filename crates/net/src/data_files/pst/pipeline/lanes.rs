@@ -71,9 +71,11 @@ pub(crate) struct Built {
     /// given as a sent item, for the writer to note.
     pub(crate) reply: Option<(u64, String)>,
     pub(crate) given: Option<Given>,
-    /// The local day it's flagged to be followed up by, and the day it was done.
+    /// The local day it's flagged to be followed up by, and the day it was done; when its flag
+    /// reminds.
     pub(crate) due: Option<i64>,
     pub(crate) done: Option<i64>,
+    pub(crate) reminder: Option<i64>,
 }
 
 /// What an import's threads share.
@@ -396,7 +398,7 @@ fn weight(it: &Item) -> u64 {
 pub(crate) fn build(mut it: Item, fallback: &str, packs: bool, index: bool, tally: &Tally) -> Outcome {
     // What the report counts, read before the item goes into its message.
     let (charset_unsupported, body_not_converted, without_address) = (it.charset_unsupported, it.body_not_converted, it.recipients_without_address);
-    let (due, done) = (it.due, it.done);
+    let (due, done, reminder) = (it.due, it.done, it.reminder);
     let left_out = std::mem::take(&mut it.left_out);
     let (raw, glance) = match tally.time(Phase::Build, || message(it, fallback)) {
         Ok(r) => r,
@@ -425,6 +427,7 @@ pub(crate) fn build(mut it: Item, fallback: &str, packs: bool, index: bool, tall
         given: None,
         due,
         done,
+        reminder,
     }))
 }
 

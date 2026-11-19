@@ -1,5 +1,6 @@
-//! The Reminders window: calendar reminders that have come due (Outlook's own window lists them
-//! the same way), each to dismiss, snooze or open; and a desktop notification when one comes.
+//! The Reminders window: calendar, task and flagged mail reminders that have come due (Outlook's
+//! own window lists them the same way), each to dismiss, snooze or open; and a desktop
+//! notification when one comes.
 
 use egui::{RichText, Ui, vec2};
 use mailcraft_engine::model::dates;
@@ -146,10 +147,13 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
                         if widgets::accent_button(ui, crate::icons::Icon::Close, "Dismiss", t, true).clicked() {
                             acts.push(Action::Run("reminders.dismiss", json!({ "key": r.key })));
                         }
-                        if ui.button(tl!("Open Item")).clicked()
-                            && let Some(d) = if r.task { Dialog::open_task(s, &r.uid) } else { Dialog::open_event(s, &r.uid, r.occurrence) }
-                        {
-                            acts.push(Action::Dialog(d));
+                        if ui.button(tl!("Open Item")).clicked() {
+                            if let Some(key) = &r.message {
+                                // A flagged message, in a window of its own.
+                                acts.push(Action::Run("todo.open", json!({ "key": key.to_id() })));
+                            } else if let Some(d) = if r.task { Dialog::open_task(s, &r.uid) } else { Dialog::open_event(s, &r.uid, r.occurrence) } {
+                                acts.push(Action::Dialog(d));
+                            }
                         }
                     }
                 });

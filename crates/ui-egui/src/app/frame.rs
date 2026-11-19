@@ -641,6 +641,11 @@ impl MailApp {
         // Calendar reminders: the window, and the desktop told of each as it comes. A message's
         // own page leaves them to the main window's (each page would tell of them again).
         if self.ui.page_message.is_none() {
+            // Flagged mail's (gap 9) are found in every folder's flagged mail, read a folder a
+            // frame as the To-Do Bar reads it, when there may be some.
+            if self.session.mail_reminders_wanted() && self.session.todo_step() {
+                ctx.request_repaint();
+            }
             for r in reminders::refresh(&mut self.ui.reminders, &self.session, false) {
                 let when = if r.all_day { String::new() } else { crate::calendar::hm(r.start, &self.session) };
                 self.services.notify(&r.summary, &if r.location.is_empty() { when } else { format!("{when} · {}", r.location) });

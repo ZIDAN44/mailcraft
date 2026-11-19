@@ -337,6 +337,7 @@ impl Session {
                     all_day: t.due.is_some(),
                     due,
                     task: true,
+                    message: None,
                 });
             }
         }

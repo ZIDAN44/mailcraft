@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 
 use super::*;
 
+mod flag_reminders;
+
 /// Flagged messages kept of one folder, at most (the newest).
 const FLAGGED_PER_FOLDER: usize = 500;
 /// The bar's width, at least and at most.
@@ -127,6 +129,7 @@ impl Session {
         if !self.todo.begun {
             return;
         }
+        self.todo_follow_up_op(op);
         let gone: &[MessageKey] = match op {
             Op::SetFlag { keys, flag: Flag::Flagged, on: false } | Op::Move { keys, .. } | Op::Expunge { keys } => keys,
             Op::SetFlag { keys, flag: Flag::Flagged, on: true } => {
@@ -181,12 +184,19 @@ impl Session {
             }
         }
         let Some(next) = self.todo.stale.pop_first() else { return false };
+        // A folder's flagged mail with a reminder in it, read or gone (gap 9): the Reminders
+        // window works its list out again at once, not at its next look.
+        let reminds = |s: &Session, list: &[SharedSummary]| list.iter().any(|m| s.message_reminder(m).is_some());
+        let had = self.todo.read.get(&next).is_some_and(|l| reminds(self, l));
         let known = self.account(&next.0).is_some_and(|a| a.folders.iter().any(|f| f.path == next.1));
         let flagged: Vec<SharedSummary> = match self.store.as_ref().filter(|_| known).map(|s| s.load_folder(&next.0, &next.1)) {
             Some(Ok(st)) => st.messages.into_iter().filter(|m| m.flags.flagged).take(FLAGGED_PER_FOLDER).collect(),
             // A folder with nothing kept, or gone: nothing flagged in it.
             _ => Vec::new(),
         };
+        if had || reminds(self, &flagged) {
+            self.pim_revision = self.pim_revision.wrapping_add(1);
+        }
         if flagged.is_empty() {
             self.todo.read.remove(&next);
         } else {

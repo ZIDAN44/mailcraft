@@ -284,6 +284,16 @@ fn menu(s: &Session, t: &Tokens, ui: &mut Ui, it: &TodoItem, acts: &mut Vec<Acti
             }
             ui.close();
         }
+        // A flag's reminder (gap 9); a task's is in its form.
+        if let TodoWhat::Mail { key } = &it.what
+            && ui.selectable_label(false, tl!("Add reminder…")).clicked()
+        {
+            if let Some(mut f) = crate::pim_dialogs::FollowUpForm::new(s, key) {
+                f.remind = true;
+                acts.push(Action::Dialog(Dialog::FollowUp(Box::new(f))));
+            }
+            ui.close();
+        }
     });
     ui.separator();
     if ui.button(tl!("Mark complete")).clicked() {

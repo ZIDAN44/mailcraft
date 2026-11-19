@@ -76,6 +76,9 @@ pub struct DueReminder {
     pub due: i64,
     /// A task's reminder ([`Session::task_reminders`]): `uid` is the task's.
     pub task: bool,
+    /// A flagged message's reminder (gap 9): the message (one of its copies), its follow-up id
+    /// the `uid`.
+    pub message: Option<MessageKey>,
 }
 
 /// One occurrence of an event, ready to draw. Times are Unix seconds; all-day events start at

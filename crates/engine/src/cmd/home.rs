@@ -98,7 +98,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("mail.toggleRead", "Read / Unread", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, None)).when(has_selection),
         CommandSpec::new("mail.flag", "Flag / Unflag", "Home › Tags", flag)
             .key("Insert")
-            .params(r#"{"on"?: bool, "due"?: "today"|"tomorrow"|"thisWeek"|"nextWeek"|"none"|"YYYY-MM-DD" (Follow Up: flag, due then), "complete"?: true (Mark Complete: unflag, mark it done today; flagging again or "on": false clears that)}"#)
+            .params(r#"{"on"?: bool, "due"?: "today"|"tomorrow"|"thisWeek"|"nextWeek"|"none"|"YYYY-MM-DD" (Follow Up: flag, due then), "reminder"?: "YYYY-MM-DDTHH:MM"|"none" (Add Reminder: flag, remind then; a day alone at 09:00), "complete"?: true (Mark Complete: unflag, mark it done today; flagging again or "on": false clears that)}"#)
             .when(has_selection),
         CommandSpec::new("mail.markAllRead", "Mark all as read", "Folder", mark_all_read).when(has_account),
         CommandSpec::new("mail.categorize", "Categorize", "Home › Tags", |s, v| s.categorize_selection(p::str(v, "category"), p::str(v, "keyword"), p::bool(v, "on")))
@@ -296,17 +296,34 @@ pub(super) fn snooze(s: &mut Session, v: &Value) -> CmdResult {
     s.snooze_selection(until)
 }
 
-/// Flag or unflag; or Follow Up by a day, or Mark Complete.
+/// Flag or unflag; or Follow Up by a day, with a reminder, or Mark Complete.
 pub(super) fn flag(s: &mut Session, v: &Value) -> CmdResult {
     if p::bool(v, "complete") == Some(true) {
         return s.follow_up_selection(None, true);
     }
-    match p::str(v, "due") {
-        None => s.flag_selection(Flag::Flagged, p::bool(v, "on")),
-        Some(d) => {
-            let day = follow_up_day(s, d)?;
-            s.follow_up_selection(day, false)
+    let reminder = follow_up_reminder(s, v)?;
+    match (p::str(v, "due"), reminder) {
+        (None, None) => s.flag_selection(Flag::Flagged, p::bool(v, "on")),
+        (due, reminder) => {
+            let day = due.map(|d| follow_up_day(s, d)).transpose()?;
+            s.follow_up_selection_with(day, reminder)
         }
+    }
+}
+
+/// A follow-up's `reminder` as `mail.flag` takes it (gap 9): a local date and time, a day alone
+/// (at nine in its morning, as a task's), or `none`; not given, `None`.
+fn follow_up_reminder(s: &Session, v: &Value) -> Result<Option<Option<i64>>, CmdError> {
+    match v.get("reminder") {
+        None => Ok(None),
+        Some(Value::Null) => Ok(Some(None)),
+        Some(Value::String(x)) if matches!(x.trim(), "" | "none") => Ok(Some(None)),
+        Some(Value::String(x)) => match crate::session::pim::parse_local(x.trim(), &s.clock) {
+            Some((day, true)) => Ok(Some(Some(s.clock.utc(day.saturating_add(9 * 3600))))),
+            Some((at, false)) => Ok(Some(Some(at))),
+            None => Err(CmdError::Params(format!("`reminder`: not a date and time (YYYY-MM-DDTHH:MM) or none: `{x}`"))),
+        },
+        Some(_) => Err(CmdError::Params("`reminder` is a date and time (YYYY-MM-DDTHH:MM) or none".into())),
     }
 }
 
@@ -334,12 +351,13 @@ pub(super) fn todo_flag(s: &mut Session, v: &Value) -> CmdResult {
     if p::bool(v, "complete") == Some(true) {
         return s.complete_messages(vec![m]);
     }
-    match p::str(v, "due") {
-        Some(d) => {
-            let day = follow_up_day(s, d)?;
-            s.follow_up_messages(&[m], day)
+    let reminder = follow_up_reminder(s, v)?;
+    match (p::str(v, "due"), reminder) {
+        (None, None) => s.flag_messages(&[m], p::bool(v, "on").unwrap_or(false)),
+        (due, reminder) => {
+            let day = due.map(|d| follow_up_day(s, d)).transpose()?;
+            s.follow_up_with(&[m], day, reminder)
         }
-        None => s.flag_messages(&[m], p::bool(v, "on").unwrap_or(false)),
     }
 }
 

@@ -211,7 +211,11 @@ impl Session {
         let name = if a.config.name.trim().is_empty() { a.config.email.clone() } else { a.config.name.clone() };
         // When flagged messages are due, and when completed ones were done, which only this
         // computer keeps, go into the file too.
-        let follow_up = mailcraft_model::organize::FollowUpDays { due: self.prefs.follow_up.clone(), done: self.prefs.follow_up_done.clone() };
+        let follow_up = mailcraft_model::organize::FollowUpDays {
+            due: self.prefs.follow_up.clone(),
+            done: self.prefs.follow_up_done.clone(),
+            reminder: self.prefs.mail_reminders.clone(),
+        };
         self.jobs.push(Job::ExportPst { account: account.to_string(), path: path.to_string(), name, follow_up });
         Ok(serde_json::json!({ "account": account, "exporting": true }))
     }

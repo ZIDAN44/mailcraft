@@ -6,6 +6,7 @@ use mailcraft_model::pim::{CalendarInfo, DavSync, ReminderAnswer, StoredEvent};
 
 use super::*;
 
+mod flagged;
 mod kept;
 
 const CAL: &str = "cal-1";

@@ -1,5 +1,6 @@
-//! Reminders (File › Reminders, as Outlook's Reminders window lists them): events' and tasks'
-//! due now, and the answers given to them (dismissed, snoozed), kept with the preferences.
+//! Reminders (File › Reminders, as Outlook's Reminders window lists them): events', tasks' and
+//! flagged mail's due now, and the answers given to them (dismissed, snoozed), kept with the
+//! preferences (a flag's change the flag itself: `todo/flag_reminders.rs`).
 
 use super::*;
 
@@ -38,7 +39,8 @@ impl std::fmt::Display for ReminderKey<'_> {
 impl Session {
     /// The reminders due at `now`, soonest event first: occurrences of the user's own calendars
     /// (shown or hidden; not others' shared with them) whose reminder time has passed, that
-    /// haven't ended a day ago, weren't dismissed, and aren't snoozed past `now`; and tasks'.
+    /// haven't ended a day ago, weren't dismissed, and aren't snoozed past `now`; tasks'; and
+    /// flagged mail's.
     pub fn due_reminders(&self, now: i64) -> Vec<DueReminder> {
         let ahead = ical::REMINDER_MAX_MINUTES * 60;
         let mine = self.my_addresses();
@@ -98,11 +100,13 @@ impl Session {
                         all_day: e.all_day,
                         due,
                         task: false,
+                        message: None,
                     });
                 }
             }
         }
         out.extend(self.task_reminders(now));
+        out.extend(self.mail_reminders(now));
         out.sort_by(|a, b| (a.start, &a.summary, &a.key).cmp(&(b.start, &b.summary, &b.key)));
         out.dedup_by(|a, b| a.key == b.key);
         out.truncate(REMINDERS_MAX);
@@ -116,6 +120,9 @@ impl Session {
             None => self.due_reminders(now).into_iter().map(|r| r.key).collect(),
         };
         for k in &keys {
+            if self.answer_mail_reminder(k, None) {
+                continue;
+            }
             self.prefs.reminders.insert(k.clone(), 0);
             self.tell_server_reminder(k, None, now);
         }
@@ -127,6 +134,10 @@ impl Session {
     /// Snooze a reminder until `until` (Unix seconds).
     pub fn snooze_reminder(&mut self, key: &str, until: i64) {
         let now = self.clock.now;
+        if self.answer_mail_reminder(key, Some(until.max(1))) {
+            self.pim_revision = self.pim_revision.wrapping_add(1);
+            return;
+        }
         self.prefs.reminders.insert(key.to_string(), until.max(1));
         self.tell_server_reminder(key, Some(until.max(1)), now);
         self.forget_old_reminders(now);

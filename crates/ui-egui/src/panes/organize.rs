@@ -83,7 +83,8 @@ pub fn snooze_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>)
 }
 
 /// The Follow Up menu, as Outlook's: flag for today, tomorrow, this week, next week or no day
-/// (each with its date), Mark complete, Clear flag.
+/// (each with its date), a day and reminder of its own (Custom…, Add reminder…), Mark complete,
+/// Clear flag.
 pub fn follow_up_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
     for f in dates::FollowUp::ALL {
         let label = crate::i18n::date(&dates::day_text(f.due(&s.clock), &s.clock));
@@ -101,6 +102,14 @@ pub fn follow_up_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Actio
     }
     if ui.selectable_label(false, tl!("No date")).clicked() {
         acts.push(Action::Run("mail.flag", json!({"due": "none"})));
+        ui.close();
+    }
+    let custom = ui.selectable_label(false, tl!("Custom…")).clicked();
+    let reminder = ui.selectable_label(false, tl!("Add reminder…")).clicked();
+    if custom || reminder {
+        if let Some(f) = crate::pim_dialogs::FollowUpForm::for_selection(s, reminder) {
+            acts.push(Action::Dialog(crate::Dialog::FollowUp(Box::new(f))));
+        }
         ui.close();
     }
     ui.separator();

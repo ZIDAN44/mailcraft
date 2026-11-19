@@ -1,5 +1,5 @@
 //! UI tests: the Reminders window over a large calendar: a change shows on the next frame, and
-//! what a frame costs.
+//! what a frame costs; flagged mail reminding in it.
 
 use super::*;
 
@@ -136,4 +136,76 @@ fn measure_reminders() {
         a.ui.reminders.due.len(),
         h.finish()
     );
+}
+
+/// Gap 9: a flagged message given a reminder by Follow Up › Add reminder… reminds in the window
+/// when its time comes; Open Item opens it in a window of its own; Dismiss takes the reminder
+/// off, the message still flagged.
+#[test]
+fn flagged_mail_reminds_in_the_window() {
+    let (mut a, _) = app("reminder-flagged");
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1280.0, 800.0);
+    frame(&ctx, &mut a, vec![]);
+    let key = a.session.list.iter().find(|m| m.subject == "Character turnarounds").map(|m| m.key.clone()).unwrap();
+    a.session.selection = vec![key.clone()];
+    let f = crate::pim_dialogs::FollowUpForm::for_selection(&a.session, true).unwrap();
+    assert!(f.remind && f.target == crate::pim_dialogs::follow_up::FollowUpTarget::Selection(1), "{f:?}");
+    a.ui.dialog = Some(Dialog::FollowUp(Box::new(f)));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let last = |a: &mut MailApp, what: &str| {
+        drawn_text(&ctx, a, size).into_iter().rev().find(|d| d.text == what).map(|d| d.rect.center()).unwrap_or_else(|| panic!("no {what:?}"))
+    };
+    let ok = last(&mut a, "OK");
+    click(&ctx, &mut a, ok);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none(), "the form closed");
+    let m = a.session.summary(&key).cloned().unwrap();
+    assert!(m.flags.flagged, "flagged with it");
+    let at = a.session.message_reminder(&m).expect("a reminder set");
+    assert!(a.ui.reminders.due.iter().all(|r| r.message.is_none()), "not yet");
+
+    // Its time comes: in the window, once every folder's flagged mail is read.
+    a.services = Box::new(crate::NullServices(at + 60));
+    for _ in 0..60 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let r = a.ui.reminders.due.iter().find(|r| r.message.as_ref() == Some(&key)).cloned().expect("listed");
+    let row = drawn_text(&ctx, &mut a, size).into_iter().find(|d| d.text.starts_with(&format!("{}  ·", r.summary))).map(|d| d.rect.center());
+    click(&ctx, &mut a, row.expect("drawn in the window"));
+    let open = last(&mut a, "Open Item");
+    click(&ctx, &mut a, open);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.windows.iter().any(|w| w.key == key), "opened in a window of its own");
+    let dismiss = last(&mut a, "Dismiss");
+    click(&ctx, &mut a, dismiss);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.reminders.due.iter().all(|r| r.message.is_none()), "dismissed");
+    let m = a.session.summary(&key).cloned().unwrap();
+    assert!(m.flags.flagged && a.session.message_reminder(&m).is_none());
+}
+
+/// The ribbon's Follow Up menu offers a day and a reminder of the selection's own (Custom…, Add
+/// reminder…), each in the form, its reminder on for the second.
+#[test]
+fn the_ribbons_follow_up_menu_gives_a_reminder() {
+    let (mut a, _) = app("reminder-ribbon");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = egui::vec2(1280.0, 800.0);
+    frame(&ctx, &mut a, vec![]);
+    let key = a.session.list.iter().find(|m| m.subject == "Character turnarounds").map(|m| m.key.clone()).unwrap();
+    for (item, remind) in [("Custom…", false), ("Add reminder…", true)] {
+        a.session.selection = vec![key.clone()];
+        frame(&ctx, &mut a, vec![]);
+        click_named(&ctx, &mut a, "Follow up");
+        frame(&ctx, &mut a, vec![]);
+        let at = drawn_text(&ctx, &mut a, size).into_iter().rev().find(|d| d.text == item).map(|d| d.rect.center());
+        click(&ctx, &mut a, at.unwrap_or_else(|| panic!("no {item:?} in the menu")));
+        frame(&ctx, &mut a, vec![]);
+        assert!(matches!(&a.ui.dialog, Some(Dialog::FollowUp(f)) if f.remind == remind && f.subject == "Character turnarounds"), "{item}: the form");
+        a.ui.dialog = None;
+    }
 }

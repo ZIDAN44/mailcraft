@@ -11,7 +11,7 @@ use crate::{Action, widgets};
 
 mod contact;
 mod date_pick;
-mod follow_up;
+pub(crate) mod follow_up;
 mod online_meeting;
 mod pattern;
 #[cfg(test)]
