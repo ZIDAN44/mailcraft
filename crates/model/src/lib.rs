@@ -19,9 +19,10 @@ mod account;
 mod folder;
 
 pub use account::{
-    AccountConfig, DavSettings, EWS_AUTODISCOVER, GRAPH_URL, MAX_AUTHORITY_BYTES, MAX_CHECK_MINUTES, MAX_TRUSTED_AUTHORITIES,
-    MAX_TRUSTED_CERTIFICATES, MAX_USER_AGENT, MICROSOFT_IMAP_CLOSED, MICROSOFT_NO_PASSWORDS, Security, ServerConfig, SignInMethod,
-    files_sent_mail_itself, is_certificate_fingerprint, microsoft_consumer, microsoft_password_account, oauth_provider_for, user_agent,
+    AccountConfig, DavSettings, EWS_AUTODISCOVER, GOOGLE_APP_PASSWORD_NEEDED, GOOGLE_APP_PASSWORDS, GRAPH_URL, MAX_AUTHORITY_BYTES,
+    MAX_CHECK_MINUTES, MAX_TRUSTED_AUTHORITIES, MAX_TRUSTED_CERTIFICATES, MAX_USER_AGENT, MICROSOFT_IMAP_CLOSED, MICROSOFT_NO_PASSWORDS, Security,
+    ServerConfig, SignInMethod, files_sent_mail_itself, google_mail, google_wants_app_password, is_certificate_fingerprint, microsoft_consumer,
+    microsoft_password_account, oauth_provider_for, user_agent,
 };
 pub use folder::{Folder, FolderRole, child_path, is_within, rebase_path, sort_folders};
 

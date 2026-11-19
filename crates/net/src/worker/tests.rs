@@ -277,3 +277,32 @@ fn fill(s: &Store, n: u32) {
         s.write_body(&key, format!("Subject: m\r\nMessage-ID: <m{uid}@x>\r\n\r\nword{uid} common\r\n").as_bytes()).unwrap();
     }
 }
+
+/// Google refusing an account's own password where it wants an app password (2-Step
+/// Verification on, issue #164): the password is asked for with MailCraft's own words, which are
+/// translated, not Google's English and its help page.
+#[test]
+fn googles_app_password_refusal_is_said_plainly() {
+    let st = crate::fake::State::new();
+    st.lock().unwrap().refuse_passwords =
+        Some("[ALERT] Application-specific password required: https://support.google.com/accounts/answer/185833 (Failure)".into());
+    let port = crate::fake::serve_tcp(&st);
+    let store = crate::fake::store("google-app-password");
+    let mut p = Pool::new(store, Arc::new(MemoryCredentials::default()));
+    p.submit(Job::Start { account: imap_account("g1", port), password: Some(Secret("my google password".into())) });
+    let seen = until(&p, "the password asked for", |e| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. }, .. }));
+    let said = seen.iter().find_map(|e| match e {
+        Event::Status { status: SyncStatus::NeedsPassword { error }, .. } => Some(error.clone()),
+        _ => None,
+    });
+    assert_eq!(said.as_deref(), Some(mailcraft_model::GOOGLE_APP_PASSWORD_NEEDED));
+    // Any other refusal is passed on as the server put it.
+    st.lock().unwrap().refuse_passwords = Some("[AUTHENTICATIONFAILED] Invalid credentials (Failure)".into());
+    p.submit(Job::Start { account: imap_account("g1", port), password: Some(Secret("typo".into())) });
+    let seen = until(&p, "asked again", |e| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { .. }, .. }));
+    assert!(
+        seen.iter().any(|e| matches!(e, Event::Status { status: SyncStatus::NeedsPassword { error }, .. } if error.contains("Invalid credentials"))),
+        "{seen:?}"
+    );
+    p.submit(Job::Remove { account: "g1".into() });
+}

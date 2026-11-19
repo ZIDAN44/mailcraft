@@ -224,7 +224,9 @@ fn follow_up_line(s: &Session, t: &Tokens, ui: &mut Ui, summary: Option<&Summary
 /// isn't waiting: it isn't tried again as it is (it read as one whose last try failed).
 fn outbox_says(item: &mailcraft_engine::store::OutboxItem, s: &Session) -> String {
     match item.error.as_deref() {
-        Some(e) if item.refused => tf!("Not sent: {error}", error = widgets::shorten(e, 140)),
+        // MailCraft's own reason whole (it ends in where to go), a server's words shortened.
+        Some(e) if item.refused => tf!("Not sent: {error}", error = crate::i18n::fixed_reason(e).unwrap_or_else(|| widgets::shorten(e, 140))),
+        Some(e) if crate::i18n::fixed_reason(e).is_some() => tf!("Waiting in the Outbox. Last try: {error}", error = crate::i18n::error(e)),
         Some(e) if e != "offline" => tf!("Waiting in the Outbox. Last try: {error}", error = widgets::shorten(e, 140)),
         _ if item.not_before > s.clock.now => {
             tf!("Held in the Outbox: it will be sent {when}.", when = crate::i18n::date(&dates::full_time(item.not_before, &s.clock)))

@@ -225,7 +225,13 @@ impl Session {
             let why = if error.is_empty() { String::new() } else { format!(": {error}") };
             // An account that signs in in the browser has no password to ask for.
             let what = if browser { "needs you to sign in again" } else { "needs its password" };
-            self.notice(format!("{who} {what}{why}"), true);
+            // Google asking for an app password: its fixed words alone, which are translated
+            // (issue #164); the password asked for next names the account.
+            if error == mailcraft_model::GOOGLE_APP_PASSWORD_NEEDED {
+                self.notice(error.clone(), true);
+            } else {
+                self.notice(format!("{who} {what}{why}"), true);
+            }
             if !browser && self.asked_password.insert(account.clone()) {
                 self.ask_password.push(account.clone());
             }

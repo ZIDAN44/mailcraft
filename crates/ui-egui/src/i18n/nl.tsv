@@ -1848,3 +1848,6 @@ count	occurrences	keer
 	Delete calendar group	Agendagroep verwijderen
 	New calendar group…	Nieuwe agendagroep…
 	Pick from the address book…	Kiezen uit het adresboek…
+	Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.	Google laat e-mailapps niet inloggen met je Google-wachtwoord zolang verificatie in twee stappen aan staat. Maak een app-wachtwoord op https://myaccount.google.com/apppasswords en voer dat hier in.
+	With 2-Step Verification on, Google takes an app password here, not your Google password.	Met verificatie in twee stappen aan neemt Google hier een app-wachtwoord aan, niet je Google-wachtwoord.
+	Make an app password	Een app-wachtwoord maken

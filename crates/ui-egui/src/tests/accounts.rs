@@ -405,6 +405,44 @@ fn an_account_s_trouble_is_said_and_offers_what_helps() {
     }
 }
 
+/// Issue #164: Google asking for an app password is said in the interface's language, Google's
+/// English text gone: as the notice, in the password asked for next (with the page that makes
+/// one a click away), and when a message isn't sent for it.
+#[test]
+fn googles_app_password_is_asked_for_in_your_language() {
+    use mailcraft_engine::model::GOOGLE_APP_PASSWORD_NEEDED;
+    let (mut a, _) = app("google-app-password");
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1280.0, 900.0);
+    a.act(crate::Action::Submit("account.add", json!({"email": "zoe@gmail.com", "password": "pw"})));
+    let id = a.session.accounts.iter().find(|x| x.config.email == "zoe@gmail.com").map(|x| x.config.id.clone()).unwrap();
+    a.ui.dialog = None;
+    a.ui.language = "de".into();
+    crate::i18n::set_current(crate::i18n::Lang::from_code("de").unwrap());
+    let german = crate::i18n::t(GOOGLE_APP_PASSWORD_NEEDED).to_string();
+    let link = crate::i18n::t("Make an app password").to_string();
+    assert_ne!(german, GOOGLE_APP_PASSWORD_NEEDED, "translated");
+    a.session.apply(MailEvent::Status { account: id.clone(), status: SyncStatus::NeedsPassword { error: GOOGLE_APP_PASSWORD_NEEDED.into() } });
+    drawn_text(&ctx, &mut a, size);
+    drawn_text(&ctx, &mut a, size);
+    let texts = drawn_strings(&ctx, &mut a, size);
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+    assert!(matches!(&a.ui.dialog, Some(Dialog::Password { account, .. }) if *account == id), "the password asked for");
+    assert_eq!(texts.iter().filter(|t| **t == german).count(), 2, "the notice and the prompt: {texts:?}");
+    assert!(texts.contains(&link), "{texts:?}");
+    assert!(!texts.iter().any(|t| t.contains("Application-specific") || t.contains("needs its password")), "{texts:?}");
+
+    // Not sent for it (Gmail's outgoing server refusing the same way).
+    a.ui.dialog = None;
+    crate::i18n::set_current(crate::i18n::Lang::from_code("de").unwrap());
+    a.session.apply(MailEvent::SendFailed { account: id, id: 7, error: format!("sign-in failed: {GOOGLE_APP_PASSWORD_NEEDED}") });
+    drawn_text(&ctx, &mut a, size);
+    let texts = drawn_strings(&ctx, &mut a, size);
+    let not_sent = crate::i18n::tfmt("Not sent: {error}", &[("error", &german)]);
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+    assert!(texts.contains(&not_sent), "{not_sent}: {texts:?}");
+}
+
 /// Issue #58: File › Options gives each account with a server a time of its own to look for mail.
 #[test]
 fn options_gives_each_account_its_time_to_look_for_mail() {

@@ -1849,3 +1849,6 @@ count	occurrences	回
 	Delete calendar group	予定表グループを削除
 	New calendar group…	新しい予定表グループ…
 	Pick from the address book…	アドレス帳から選択…
+	Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.	2 段階認証プロセスがオンの間、Google はメールアプリが Google のパスワードでログインすることを許可しません。https://myaccount.google.com/apppasswords でアプリ パスワードを作成し、代わりにここに入力してください。
+	With 2-Step Verification on, Google takes an app password here, not your Google password.	2 段階認証プロセスがオンの場合、ここには Google のパスワードではなくアプリ パスワードを入力します。
+	Make an app password	アプリ パスワードを作成

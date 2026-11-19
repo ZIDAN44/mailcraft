@@ -278,7 +278,7 @@ impl MailApp {
                     .show(ui, |ui| {
                         ui.set_max_width(420.0);
                         // Notices from the engine are English; the ones with a fixed text have a translation.
-                        ui.label(RichText::new(tl!(&text)).color(if error { Color32::WHITE } else { t.surface }));
+                        ui.label(RichText::new(i18n::notice(&text)).color(if error { Color32::WHITE } else { t.surface }));
                     });
             });
     }
@@ -451,7 +451,7 @@ pub(crate) fn background_work(s: &Session, compact: &super::compacting::CompactU
 pub(crate) fn why(a: &mailcraft_engine::AccountState) -> String {
     match &a.status {
         SyncStatus::Error { error, .. } | SyncStatus::NeedsPassword { error } if !error.is_empty() => {
-            format!("{}\n{}", a.config.email, tl!(error))
+            format!("{}\n{}", a.config.email, i18n::error(error))
         }
         _ => a.config.email.clone(),
     }

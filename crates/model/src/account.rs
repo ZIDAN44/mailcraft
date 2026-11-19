@@ -355,6 +355,27 @@ pub const MICROSOFT_NO_PASSWORDS: &str = "Microsoft doesn't accept passwords fro
 /// helps (signing in again, or Microsoft Graph).
 pub const MICROSOFT_IMAP_CLOSED: &str = "Microsoft signed you in, but its mail server won't open this mailbox over IMAP";
 
+/// Where Google's mail servers' app passwords are made.
+pub const GOOGLE_APP_PASSWORDS: &str = "https://myaccount.google.com/apppasswords";
+
+/// Why a Google account's password was refused when Google asks for an app password (issue
+/// #164): the account's own password isn't taken from mail apps while 2-Step Verification is on.
+/// Said in place of Google's English text, so it can be translated.
+pub const GOOGLE_APP_PASSWORD_NEEDED: &str = "Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.";
+
+/// Google's refusal of an account's own password where an app password is needed: IMAP's
+/// `[ALERT] Application-specific password required: https://support.google.com/…`, SMTP's
+/// `534-5.7.9 Application-specific password required.`
+pub fn google_wants_app_password(server_said: &str) -> bool {
+    server_said.to_ascii_lowercase().contains("application-specific password required")
+}
+
+/// An address at Gmail, or one whose mail servers are Google's (Google Workspace): its sign-in
+/// takes an app password when 2-Step Verification is on.
+pub fn google_mail(email: &str, imap_host: &str) -> bool {
+    matches!(lookalike::domain_of(email).as_str(), "gmail.com" | "googlemail.com") || oauth_provider_for(imap_host) == Some("google")
+}
+
 /// An account that signs in to Microsoft's servers with a password rather than Microsoft
 /// sign-in, which those servers refuse.
 pub fn microsoft_password_account(a: &AccountConfig) -> bool {

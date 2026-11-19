@@ -173,7 +173,7 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
             if let Some(e) = &c.error {
                 ui.add_space(4.0);
                 egui::Frame::new().fill(t.danger.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
-                    ui.label(RichText::new(tf!("Not sent: {error}", error = e)).color(t.danger));
+                    ui.label(RichText::new(tf!("Not sent: {error}", error = crate::i18n::error(e))).color(t.danger));
                 });
             }
             ui.add_space(6.0);

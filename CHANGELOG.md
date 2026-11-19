@@ -55,6 +55,7 @@ on GitHub.
 - Mail sends through IONOS's outgoing servers (#165): every message was refused with "503 Bad sequence of commands", the server refusing the second greeting MailCraft sent to see which sign-ins it takes. It's sent only when the first didn't name a password sign-in, and a refusal of it no longer stops the message.
 - The message list keeps the width it was dragged to, and the folder pane its own, when MailCraft starts again (#171): both went back to their first sizes. The list above the reading pane keeps its height too.
 - With messages grouped by conversation, **Delete** on a conversation deletes all of it in the folder (#170), as Outlook does: it deleted the newest message alone, one press for each. A message picked inside the conversation, in the reading pane, is still deleted by itself, and one **Undo** brings the whole conversation back.
+- A Gmail account refused because Google wants an app password (2-Step Verification on) is told so plainly, in your language, with a link to make one (#164): MailCraft passed on Google's English "Application-specific password required" and asked for the same password again. Sending refused the same way says so too, and adding a Gmail account, or one on Google's mail servers, says beforehand that an app password goes in the password box.
 
 ## 0.40.0 - 2026-11-17
 

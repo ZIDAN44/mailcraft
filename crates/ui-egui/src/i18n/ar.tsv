@@ -1848,3 +1848,6 @@ count	occurrences	مرات
 	Delete calendar group	حذف مجموعة التقويم
 	New calendar group…	مجموعة تقويم جديدة…
 	Pick from the address book…	اختر من دفتر العناوين…
+	Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.	لا تسمح Google لتطبيقات البريد بتسجيل الدخول بكلمة مرور Google عندما يكون التحقق بخطوتين مفعّلًا. أنشئ كلمة مرور للتطبيق على https://myaccount.google.com/apppasswords وأدخلها هنا بدلًا منها.
+	With 2-Step Verification on, Google takes an app password here, not your Google password.	عندما يكون التحقق بخطوتين مفعّلًا، تقبل Google هنا كلمة مرور للتطبيق، لا كلمة مرور Google.
+	Make an app password	إنشاء كلمة مرور للتطبيق

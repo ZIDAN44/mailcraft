@@ -194,6 +194,14 @@ impl Worker {
                     Err(e) => self.failed(e),
                 }
             }
+            // Google wants an app password (2-Step Verification on): said plainly, so it can be
+            // translated, where Google's English text with a help page was passed on (issue
+            // #164). Google's own words are in the log above.
+            NetError::Auth(m) if mailcraft_model::google_wants_app_password(&m) => {
+                self.conn = None;
+                self.auth_failed = true;
+                self.status(SyncStatus::NeedsPassword { error: mailcraft_model::GOOGLE_APP_PASSWORD_NEEDED.into() });
+            }
             NetError::Auth(m) => {
                 self.conn = None;
                 self.auth_failed = true;

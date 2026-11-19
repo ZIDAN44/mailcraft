@@ -38,6 +38,10 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
     if let Some(p) = browser_note(ui, f, t, consumer, provider) {
         submit_signed_in(f, p, acts);
     }
+    // A Google address signing in with a password: an app password, before it's refused.
+    if f.kind.imap_or_pop() && mailcraft_engine::model::google_mail(&f.email, &f.imap_host) {
+        super::google_app_password(ui, t, acts, false);
+    }
     ui.add_space(8.0);
     if !s.jmap_only {
         let summary = servers_named(f);

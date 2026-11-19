@@ -356,6 +356,11 @@ fn refusal(code: u16, msg: &str, recipients: &[String]) -> NetError {
     let says = |status: &str| msg.split(|c: char| c.is_whitespace() || ":()".contains(c)).any(|token| token == status);
     let sign_in_code = matches!(code, 530 | 534 | 535 | 538);
     if sign_in_code || says("5.7.8") || says("5.7.9") {
+        // Gmail's "534-5.7.9 Application-specific password required": said plainly (issue #164).
+        if mailcraft_model::google_wants_app_password(msg) {
+            log::info!("the outgoing server refused the sign-in: {msg}");
+            return NetError::Auth(mailcraft_model::GOOGLE_APP_PASSWORD_NEEDED.into());
+        }
         return NetError::Auth(msg.to_string());
     }
     let lower = msg.to_ascii_lowercase();
@@ -483,6 +488,12 @@ pub(crate) mod tests {
             assert!(matches!(e, NetError::Auth(_)), "{code} {text}: {e:?}");
             assert!(e.is_retryable(), "{code}: kept in the Outbox");
         }
+        // Gmail asking for an app password (issue #164): said plainly, not in Google's words.
+        let e = class(
+            534,
+            "5.7.9 Application-specific password required. For more information, go to 5.7.9 https://support.google.com/mail/?p=InvalidSecondFactor",
+        );
+        assert!(matches!(&e, NetError::Auth(m) if m == mailcraft_model::GOOGLE_APP_PASSWORD_NEEDED), "{e:?}");
         // The message refused for good.
         for (code, text) in [
             (553, "5.7.1 sender not owned by authenticated user"),

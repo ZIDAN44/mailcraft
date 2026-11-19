@@ -30,6 +30,10 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 tf!("Enter the password for {email}, which signs in as {user}.", email = email, user = user)
             };
             ui.add(egui::Label::new(RichText::new(about).color(t.dim)).wrap());
+            if let Some(a) = s.account(account).filter(|a| mailcraft_engine::model::google_mail(&a.config.email, &a.config.imap.host)) {
+                let refused = matches!(&a.status, mailcraft_engine::model::SyncStatus::NeedsPassword { error } if error == mailcraft_engine::model::GOOGLE_APP_PASSWORD_NEEDED);
+                google_app_password(ui, t, acts, refused);
+            }
             ui.add_space(8.0);
             let r = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
             // Before the focus request below, which would hide the Enter that ended input.
@@ -273,4 +277,20 @@ pub(super) fn security_combo(ui: &mut Ui, id: &str, v: &mut Security) {
         .response
         // Nothing beside it says what it is: the server row's name sits above the host.
         .accessible_name(tl!("Security"));
+}
+
+/// Google takes an app password from mail apps while 2-Step Verification is on (issue #164):
+/// said where a Google account's password is typed, as Google's refusal (`refused`) or before it,
+/// with the page that makes one a click away.
+pub(super) fn google_app_password(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>, refused: bool) {
+    ui.add_space(6.0);
+    let (text, colour) = if refused {
+        (tl!(mailcraft_engine::model::GOOGLE_APP_PASSWORD_NEEDED), t.danger)
+    } else {
+        (tl!("With 2-Step Verification on, Google takes an app password here, not your Google password."), t.faint)
+    };
+    ui.add(egui::Label::new(RichText::new(text).color(colour).small()).wrap());
+    if ui.link(RichText::new(tl!("Make an app password")).color(t.accent).small()).clicked() {
+        acts.push(Action::OpenUrl(mailcraft_engine::model::GOOGLE_APP_PASSWORDS.into()));
+    }
 }

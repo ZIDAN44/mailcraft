@@ -1852,3 +1852,6 @@ count	occurrences	ripetizioni
 	Delete calendar group	Elimina gruppo di calendari
 	New calendar group…	Nuovo gruppo di calendari…
 	Pick from the address book…	Scegli dalla rubrica…
+	Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.	Google non consente alle app di posta di accedere con la tua password di Google mentre la verifica in due passaggi è attiva. Crea una password per le app su https://myaccount.google.com/apppasswords e inseriscila qui al suo posto.
+	With 2-Step Verification on, Google takes an app password here, not your Google password.	Con la verifica in due passaggi attiva, qui Google accetta una password per le app, non la tua password di Google.
+	Make an app password	Crea una password per le app

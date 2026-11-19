@@ -302,6 +302,28 @@ pub fn tfmt(template: &str, args: &[(&str, &str)]) -> String {
     fmt(tr(current(), template), args)
 }
 
+/// MailCraft's own words for a refusal, found in an error (Google asking for an app password,
+/// issue #164: after "sign-in failed: " where the server's refusal of a message passes it
+/// on), translated; `None` for a server's own words, which aren't.
+pub fn fixed_reason(error: &str) -> Option<String> {
+    [mailcraft_engine::model::GOOGLE_APP_PASSWORD_NEEDED].into_iter().find(|r| error.contains(r)).map(|r| t(r).to_string())
+}
+
+/// An error as shown: [`fixed_reason`] alone where it holds one, else as it is.
+pub fn error(e: &str) -> String {
+    fixed_reason(e).unwrap_or_else(|| t(e).to_string())
+}
+
+/// A notice as shown: translated where its text is fixed, or "Not sent: " and a
+/// [`fixed_reason`].
+pub fn notice(text: &str) -> String {
+    match (fixed_reason(text), text.starts_with("Not sent: ")) {
+        (Some(r), true) => tfmt("Not sent: {error}", &[("error", &r)]),
+        (Some(r), false) => r,
+        (None, _) => t(text).to_string(),
+    }
+}
+
 /// Separates a context from the English in catalog keys.
 const CTX: char = '\u{4}';
 

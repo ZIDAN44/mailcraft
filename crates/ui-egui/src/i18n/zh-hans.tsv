@@ -1849,3 +1849,6 @@ count	occurrences	次
 	Delete calendar group	删除日历组
 	New calendar group…	新建日历组…
 	Pick from the address book…	从通讯簿中选择…
+	Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.	开启两步验证后，Google 不允许邮件应用使用你的 Google 密码登录。请在 https://myaccount.google.com/apppasswords 创建应用专用密码，并在此处输入该密码。
+	With 2-Step Verification on, Google takes an app password here, not your Google password.	开启两步验证后，此处需要输入应用专用密码，而不是你的 Google 密码。
+	Make an app password	创建应用专用密码

@@ -40,6 +40,7 @@ fn act_text(a: &Action) -> String {
         Action::Run(id, v) => format!("run {id} {v}"),
         Action::Submit(id, v) => format!("submit {id} {v}"),
         Action::PickAccountDataFile => "pick a data file".into(),
+        Action::OpenUrl(u) => format!("open {u}"),
         _ => "another action".into(),
     }
 }
@@ -611,4 +612,27 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
                 "ews": "https://mail.contoso.example/EWS/Exchange.asmx", "userAgent": "Outlook/16.0", "onlineOnly": false})
         )
     );
+}
+
+/// Issue #164: a Gmail address, or one on Google's mail servers, is told before its first try
+/// that Google takes an app password while 2-Step Verification is on, the page that makes one a
+/// click away; another address isn't.
+#[test]
+fn a_google_address_is_told_of_app_passwords() {
+    let s = session();
+    let hint = "With 2-Step Verification on, Google takes an app password here, not your Google password.";
+    for (email, imap, said) in
+        [("zoe@gmail.com", None, true), ("zoe@studio.example", Some("imap.gmail.com"), true), ("zoe@studio.example", None, false)]
+    {
+        let mut d = add(email, imap.is_some(), |f| {
+            if let Some(h) = imap {
+                f.imap_host = h.into();
+            }
+        });
+        let l = look(&s, &mut d, None);
+        assert_eq!(l.has(hint), said, "{email} {imap:?}:\n{}", l.dump());
+    }
+    let mut d = add("zoe@gmail.com", false, |_| {});
+    let l = look(&s, &mut d, Some("Make an app password"));
+    assert!(l.acts.iter().any(|a| a == "open https://myaccount.google.com/apppasswords"), "{}", l.dump());
 }
