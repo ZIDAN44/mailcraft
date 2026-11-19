@@ -12,6 +12,8 @@ on GitHub.
 
 *What testers met in their first days with 0.40.*
 
+Thanks to Peter Páleník for reviewing the Slovak translation (#133, #137).
+
 ### Added
 
 - Send / Receive shows how it goes, as Outlook does for POP and IMAP accounts: at its end, in place of the accounts' "Updating…", the status bar says which message is downloading and how much is left ("Downloading: 10 of 158 (27.6 MB of 210 MB)", "Sending: 1 of 3", an IMAP account's folders one by one), and clicking it, or **Send / Receive › Show progress**, opens a small window you can move anywhere: a line for each account's sending and receiving, how far each has come (what's left on hover), and why any failed. **Cancel all**, or a task's own stop button, stops between two messages, keeping what came; the next Send / Receive goes on from there. With **Open this window when Send / Receive starts** (off, as in Outlook), F9 opens it too, and it closes once all is done well, or stays open when something failed. Exchange, Microsoft 365 and JMAP accounts, which sync on their own all the time, aren't in it.
@@ -32,6 +34,7 @@ on GitHub.
 
 ### Changed
 
+- The Slovak translation reviewed by a native speaker (#137): the strings added in 0.40 and 0.41 translated or corrected, short day and month names in lowercase as Slovak writes them, and a few sentences reworded.
 - The reading pane's header (the subject, who it's from and to, its buttons and attachments) stays at the top while the message's text scrolls under it, as in Outlook, in its own window too (#151); in a pane too short for that, all of it scrolls as before.
 - A POP account set up with an existing `.mailcraft` data file keeps its mail in that file, where it is, as Outlook uses an existing `.pst`: it's no longer copied whole into Documents › MailCraft Files first (a big one sat at "Counting items…" for as long as that took), and removing the account leaves the file there. A file that can't be used where it is (open in another program or not closed properly, read-only, or still an account in another MailCraft data folder) is copied in as before, and MailCraft says why.
 - A POP account's new mail shows in its Inbox as it downloads, a batch at a time, instead of all at once at the end: a big download's Inbox stayed empty while it came.
