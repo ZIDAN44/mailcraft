@@ -54,6 +54,7 @@ on GitHub.
 - In the calendar's day and week views, overlapping events share the column only among themselves (#155), as in Outlook: every event of a day was as narrow as the most that overlapped anywhere in it, a morning meeting a third of the column for three in the afternoon.
 - Mail sends through IONOS's outgoing servers (#165): every message was refused with "503 Bad sequence of commands", the server refusing the second greeting MailCraft sent to see which sign-ins it takes. It's sent only when the first didn't name a password sign-in, and a refusal of it no longer stops the message.
 - The message list keeps the width it was dragged to, and the folder pane its own, when MailCraft starts again (#171): both went back to their first sizes. The list above the reading pane keeps its height too.
+- With messages grouped by conversation, **Delete** on a conversation deletes all of it in the folder (#170), as Outlook does: it deleted the newest message alone, one press for each. A message picked inside the conversation, in the reading pane, is still deleted by itself, and one **Undo** brings the whole conversation back.
 
 ## 0.40.0 - 2026-11-17
 

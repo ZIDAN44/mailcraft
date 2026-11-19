@@ -238,6 +238,18 @@ pub(super) fn delete(s: &mut Session, v: &Value) -> CmdResult {
     if s.view == View::Outbox && s.search.is_none() {
         return s.delete_outbox_selection();
     }
+    // A conversation's row stands for the whole conversation (issue #170); put back as it was
+    // if nothing is deleted, so what's done next isn't done to the rest of it too.
+    let picked = s.selection.clone();
+    s.selection = s.with_conversations(&picked);
+    let done = delete_selection(s, v);
+    if done.is_err() {
+        s.selection = picked;
+    }
+    done
+}
+
+fn delete_selection(s: &mut Session, v: &Value) -> CmdResult {
     let in_trash = s.view_role() == Some(FolderRole::Trash) && s.search.is_none();
     let all_in_trash = s
         .selected_shared()

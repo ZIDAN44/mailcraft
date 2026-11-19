@@ -197,7 +197,7 @@ impl MailApp {
         if !self.needs_delete_confirm() {
             return false;
         }
-        self.ui.dialog = Some(Dialog::ConfirmDelete { count: self.session.selection.len() });
+        self.ui.dialog = Some(Dialog::ConfirmDelete { count: self.session.with_conversations(&self.session.selection).len() });
         true
     }
 

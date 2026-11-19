@@ -324,6 +324,28 @@ impl Session {
         self.nav.threaded();
         threads(&self.list).iter().find(|t| t.messages.contains(&i)).map(members).unwrap_or_default()
     }
+
+    /// `keys` with each conversation whose row is among them, whole (issue #170: Delete on a
+    /// conversation's row took its newest message alone). A message picked in the reading pane's
+    /// conversation, with no row of its own, stays itself, as Outlook deletes one message picked
+    /// inside a conversation.
+    pub fn with_conversations(&self, keys: &[MessageKey]) -> Vec<MessageKey> {
+        if !self.prefs.conversations {
+            return keys.to_vec();
+        }
+        let mut seen: HashSet<MessageKey> = HashSet::with_capacity(keys.len());
+        let mut out = Vec::with_capacity(keys.len());
+        for k in keys {
+            let own_row = self.msg_row_of(k).and_then(|p| self.row_key(p)) == Some(k);
+            let whole = if own_row { self.thread_of(k) } else { Vec::new() };
+            for m in if whole.is_empty() { std::slice::from_ref(k) } else { whole.as_slice() } {
+                if seen.insert(m.clone()) {
+                    out.push(m.clone());
+                }
+            }
+        }
+        out
+    }
 }
 
 impl Session {
