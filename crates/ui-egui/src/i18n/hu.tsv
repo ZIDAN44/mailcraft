@@ -1,0 +1,1864 @@
+# MailCraft interface strings: German (Deutsch).
+# context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
+# Written for MailCraft (clean room): no wording is taken from other mail clients.
+
+	  Loading folders…	  Mappák betöltése…
+	(Top level)	(Legfelső szint)
+	(no subject)	(nincs tárgy)
+	1 attachment	1 melléklet
+	1. List	1. Lista
+	</>	</>
+	Accounts	Fiókok
+	Accounts and settings	Fiókok és beállítások
+	Add a subject	Tárgy megadása
+	Add account…	Fiók hozzáadása…
+	Add an account	Fiók hozzáadása
+	Add an email account	E-mail-fiók hozzáadása
+	Added to new messages, replies and forwards.	Az új üzenetekhez, válaszokhoz és továbbított üzenetekhez adja hozzá.
+	All	Összes
+	All Inboxes	Összes beérkezett üzenet
+	All Sent	Összes elküldött üzenet
+	All caught up: nothing in this folder.	Nincs több teendő: ez a mappa üres.
+	All folders	Összes mappa
+	Always show from {sender}	Mindig jelenjen meg ettől a feladótól: {sender}
+	Apr	ápr.
+	Archive	Archiválás
+	Archive (Backspace)	Archiválás (Backspace)
+	Ask before deleting for good	Megerősítés kérése végleges törlés előtt
+	At the top of {account}	A(z) {account} fiók legfelső szintjén
+	Attach file	Fájl csatolása
+	Audio	Hang
+	Aug	aug.
+	B	F
+	Bcc	Titkos másolat
+	Bold (Ctrl+B)	Félkövér (Ctrl+B)
+	Bottom	Alul
+	Bulleted list	Felsorolás
+	Cancel	Mégse
+	Categorize	Kategorizálás
+	Category	Kategória
+	Cc	Másolat
+	Cc / Bcc	Másolat / Titkos másolat
+	Cc: {names}	Másolat: {names}
+	Choose…	Választás…
+	Clear search	Keresés törlése
+	Close	Bezárás
+	Code	Kód
+	Compact	Kompakt
+	Single line	Egysoros
+	Connect	Csatlakozás
+	Connecting…	Csatlakozás…
+	Conversations	Beszélgetések
+	Create	Létrehozás
+	Create rule…	Szabály létrehozása…
+	Dark	Sötét
+	Date	Dátum
+	Dec	dec.
+	Delete	Törlés
+	Delete (Del)	Törlés (Del)
+	Delete folder…	Mappa törlése…
+	Delete permanently?	Végleg törlöd?
+	Delete “{folder}”?	Törlöd ezt a mappát: „{folder}”?
+	Deleted Items	Törölt elemek
+	Discard	Elvetés
+	Disconnected: {error}	Kapcsolat megszakadt: {error}
+	Document	Dokumentum
+	Don't run later rules on mail this one matches	Ne alkalmazza a további szabályokat az ennek a szabálynak megfelelő üzenetekre
+	Downloading the message…	Üzenet letöltése…
+	Downloading the attachments…	Mellékletek letöltése…
+	Draft saved	Piszkozat mentve
+	[Draft]	[Piszkozat]
+	Drafts	Piszkozatok
+	Edit	Szerkesztés
+	Edit rule	Szabály szerkesztése
+	Email address	E-mail-cím
+	Enter the password for {email}.	Add meg a(z) {email} e-mail-címhez tartozó jelszót.
+	Enter the password for {email}, which signs in as {user}.	Add meg a(z) {email} e-mail-cím jelszavát. A bejelentkezési név: {user}.
+	Favorites	Kedvencek
+	Feb	febr.
+	File	Fájl
+	Flag	Megjelölés
+	Flag / Unflag (Insert)	Megjelölés / jelölés törlése (Insert)
+	Flagged	Megjelölt
+	Focused	Fontos
+	Focused Inbox	Fontos üzenetek
+	Focused Inbox: put newsletters and automatic mail in Other	Fontos üzenetek: a hírlevelek és az automatikus üzenetek az Egyéb lapra kerüljenek
+	Folder	Mappa
+	Folder name	Mappanév
+	Forward	Továbbítás
+	Forward (Ctrl+F)	Továbbítás (Ctrl+F)
+	Fri	P
+	Friday	Péntek
+	From	Feladó
+	From contains	A feladó mező tartalmazza
+	From {names}	Feladó: {names}
+	Group messages by conversation	Üzenetek csoportosítása beszélgetés szerint
+	Has attachments	Van melléklete
+	Has files	Tartalmaz fájlokat
+	Heading	Címsor
+	Hidden from the other recipients	A többi címzett nem látja
+	Home	Kezdőlap
+	I	D
+	If it {condition}: {action}	Ha teljesül a feltétel ({condition}): {action}
+	Important	Fontos
+	Inbox	Beérkezett üzenetek
+	Incoming mail (IMAP)	Bejövő levelek (IMAP)
+	Insert a picture (or paste one)	Kép beszúrása vagy beillesztése
+	Inside {folder} ({account})	Ebben a mappában: {folder} ({account})
+	Is a newsletter or list mail	Hírlevél vagy levelezőlistás üzenet
+	Italic (Ctrl+I)	Dőlt (Ctrl+I)
+	Items: {n}	Elemek: {n}
+	Jan	jan.
+	Jul	júl.
+	Jun	jún.
+	Junk Email	Levélszemét
+	Language	Nyelv
+	Dates	Dátumok
+	In the message list, the reading pane, the header of a reply, and the event and task forms	Az üzenetlistában, az olvasópanelen, a válasz fejlécében, valamint az események és feladatok űrlapjain
+	Time	Idő
+	24-hour	24 órás
+	12-hour	12 órás
+	Whole date and time in the list	Teljes dátum és idő a listában
+	Earlier this month	Korábban ebben a hónapban
+	Last month	Múlt hónapban
+	Last week	Múlt héten
+	Later	Később
+	Later today	Ma később
+	Light	Világos
+	Link	Hivatkozás
+	Link (Ctrl+K)	Hivatkozás (Ctrl+K)
+	Links like {link} aren't opened	Az ilyen hivatkozások nem nyithatók meg: {link}
+	Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.	Helyi tárolás: a levelek gyorsítótára ezen a számítógépen van, így internetkapcsolat nélkül is gyorsan kereshetsz. A jelszavak a rendszer jelszótárolójában maradnak.
+	Looking up the server settings…	Kiszolgálóbeállítások keresése…
+	Mail from {sender}	Üzenet ettől a feladótól: {sender}
+	MailCraft	MailCraft
+	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · az ArtCraft alkalmazása · MIT OR Apache-2.0
+	Mailing list: unsubscribe at {address}	Levelezőlista: leiratkozás ezen a címen: {address}
+	Mar	márc.
+	Mark all as read	Összes megjelölése olvasottként
+	Mark as read	Megjelölés olvasottként
+	Mark as unread	Megjelölés olvasatlanként
+	Mark read	Megjelölés olvasottként
+	Mark unread	Megjelölés olvasatlanként
+	May	máj.
+	Message preview	Üzenet előnézete
+	Message sent	Üzenet elküldve
+	Messages waiting to be sent	Küldésre váró üzenetek
+	Messages without a subject are easy to overlook.	A tárgy nélküli üzenetek könnyen elkerülhetik a figyelmet.
+	Mon	H
+	Monday	Hétfő
+	{time} AM	de. {time}
+	{time} PM	du. {time}
+	{hour} AM	de. {hour}
+	{hour} PM	du. {hour}
+	Move	Áthelyezés
+	Move 1 message	1 üzenet áthelyezése
+	Move folder…	Mappa áthelyezése…
+	Move to	Áthelyezés ide
+	Move to a folder (Ctrl+Shift+V)	Áthelyezés mappába (Ctrl+Shift+V)
+	Move to folder	Áthelyezés mappába
+	Move to…	Áthelyezés ide…
+	Move {n} messages	{n} üzenet áthelyezése
+	Copy to folder	Másolás mappába
+	Copy to…	Másolás ide…
+	Copy 1 message	1 üzenet másolása
+	Copy {n} messages	{n} üzenet másolása
+	Move “{folder}” to	A(z) „{folder}” mappa áthelyezése ide
+	Name	Név
+	Names <addresses>, separated by ; or ,	Nevek <címek>, pontosvesszővel (;) vagy vesszővel (,) elválasztva
+	New category	Új kategória
+	New category…	Új kategória…
+	New folder	Új mappa
+	New folder…	Új mappa…
+	New mail	Új levél
+	New mail (Ctrl+N)	Új levél (Ctrl+N)
+	New rule	Új szabály
+	New rule…	Új szabály…
+	Next week	Jövő héten
+	No published settings: the usual server names are filled in. Check them under Server settings.	Nincsenek közzétett beállítások, ezért a szokásos kiszolgálóneveket adtuk meg. Ellenőrizd őket a Kiszolgálóbeállítások alatt.
+	No results. Try fewer words, or search all folders.	Nincs találat. Próbálkozz kevesebb szóval, vagy keress az összes mappában.
+	No rules yet.	Még nincsenek szabályok.
+	None (unsafe)	Nincs (nem biztonságos)
+	Not an email address: {address}	Ez nem e-mail-cím: {address}
+	Not junk	Nem levélszemét
+	Not sent: {error}	Nem sikerült elküldeni: {error}
+	Nothing matches this filter.	Egyetlen elem sem felel meg a szűrőnek.
+	Nov	nov.
+	Numbered list	Számozott lista
+	Oct	okt.
+	Off	Ki
+	Offline	Kapcsolat nélkül
+	Older	Régebbi
+	On / off	Be / ki
+	Open	Megnyitás
+	Open as a PDF to print	Megnyitás PDF-ként nyomtatáshoz
+	Open in {app}	Megnyitás ebben az alkalmazásban: {app}
+	Open it in the Craft app for this kind of file	Megnyitás az ehhez a fájltípushoz tartozó Craft alkalmazásban
+	Open with the system's app	Megnyitás a rendszer alapértelmezett alkalmazásával
+	Opened as a PDF: print it from the viewer	PDF-ként megnyitva: a PDF-megjelenítőből nyomtathatod ki
+	Options	Beállítások
+	Other	Egyéb
+	Outbox	Kimenő üzenetek
+	Outbox: {n}	Kimenő üzenetek: {n}
+	Outgoing mail (SMTP)	Kimenő levelek (SMTP)
+	Password	Jelszó
+	Password needed	Jelszó szükséges
+	Password…	Jelszó…
+	Personal	Személyes
+	Picture	Kép
+	Pictures from the web are hidden to protect your privacy.	Az adatvédelem érdekében a webes képek nem jelennek meg.
+	Picture…	Kép…
+	Pin	Rögzítés
+	Plain text	Egyszerű szöveg
+	Preview	Előnézet
+	Print	Nyomtatás
+	Put newsletters and automatic mail in Other	A hírlevelek és az automatikus üzenetek az Egyéb lapra kerüljenek
+	Quote	Idézet
+	Reading pane	Olvasópanel
+	Remove	Eltávolítás
+	Remove account?	Eltávolítod a fiókot?
+	Remove account…	Fiók eltávolítása…
+	Remove from Favorites	Eltávolítás a Kedvencekből
+	Remove…	Eltávolítás…
+	Rename	Átnevezés
+	Rename folder	Mappa átnevezése
+	Rename folder…	Mappa átnevezése…
+	Reply	Válasz
+	Reply (Ctrl+R)	Válasz (Ctrl+R)
+	Reply all	Válasz mindenkinek
+	Reply all (Ctrl+Shift+R)	Válasz mindenkinek (Ctrl+Shift+R)
+	Report junk	Levélszemét bejelentése
+	Results for “{query}”	Találatok erre: „{query}”
+	Right	Jobbra
+	Rules	Szabályok
+	Rules run on new mail as it arrives in an Inbox, in this order.	A szabályok ebben a sorrendben futnak le, amikor új üzenet érkezik valamelyik beérkezettüzenet-mappába.
+	Rules…	Szabályok…
+	Run now	Futtatás most
+	Run on the folder on screen	Futtatás a megnyitott mappán
+	S	Á
+	Same as the system	Rendszerbeállítás szerint
+	Sample mailbox (offline)	Mintapostafiók (kapcsolat nélkül)
+	Sample mailbox, kept on this computer only	Mintapostafiók, csak ezen a számítógépen tárolva
+	Sat	Szo
+	Saturday	Szombat
+	Save	Mentés
+	Save all…	Összes mentése…
+	Save as PDF…	Mentés PDF-ként…
+	Save as email (.eml)…	Mentés e-mailként (.eml)…
+	Save as…	Mentés másként…
+	Save draft	Piszkozat mentése
+	Save draft (Ctrl+S)	Piszkozat mentése (Ctrl+S)
+	Saved in the Outbox: it will be sent when you're back online	A kimenő üzenetek közé mentve. Az üzenet akkor megy el, amikor újra van kapcsolat.
+	Saved {n} attachments in {folder}	{n} melléklet mentve ide: {folder}
+	Saved {path}	Mentve: {path}
+	Search folders	Keresés a mappákban
+	(the rest isn't shown: open the file to see it all)	(a többi nem látható; a teljes tartalomhoz nyisd meg a fájlt)
+	Pick a category	Válassz kategóriát
+	Pick a folder	Válassz mappát
+	Say what to look for	Add meg, mit keressen a szabály
+	Give the rule a name	Adj nevet a szabálynak
+	Search mail (from:, subject:, has:attachment…)	Keresés a levelekben (from:, subject:, has:attachment…)
+	Select a message first.	Előbb válassz ki egy üzenetet.
+	Send	Küldés
+	Send (Ctrl+Enter)	Küldés (Ctrl+Enter)
+	Send this message?	Elküldöd ezt az üzenetet?
+	Ctrl+Enter sends the message you're writing.	A Ctrl+Enter elküldi az éppen szerkesztett üzenetet.
+	Don't ask again	Ne kérdezze újra
+	Don't send	Ne küldje el
+	Ctrl+Enter in a message	Ctrl+Enter üzenetírás közben
+	Ask first	Előbb kérdezzen rá
+	Do nothing	Ne tegyen semmit
+	Send / Receive	Küldés / fogadás
+	Send / Receive all folders (F9)	Küldés / fogadás az összes mappában (F9)
+	Send anyway	Küldés ennek ellenére
+	Send now	Küldés most
+	Send without a subject?	Elküldöd tárgy nélkül?
+	Send without formatting	Küldés formázás nélkül
+	Sender, recipients or subject contain	A feladó, a címzettek vagy a tárgy tartalmazza
+	Sending…	Küldés…
+	Sent Items	Elküldött elemek
+	Sep	szept.
+	Server settings	Kiszolgálóbeállítások
+	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Kiszolgálók: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
+	Settings found: {source}	Beállítások forrása: {source}
+	Show a desktop notification when new mail arrives	Asztali értesítés új üzenet érkezésekor
+	Keep MailCraft running when its window is closed	A MailCraft fusson tovább az ablak bezárása után is
+	Start MailCraft in the notification area	A MailCraft indítása az értesítési területen
+	Start MailCraft minimized	A MailCraft indítása kis méretben
+	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	A MailCraft rejtett ablakkal is ellenőrzi a leveleket, és értesít az új üzenetekről, akárcsak az ablak bezárása után. Ha hivatkozás vagy fájl megnyitásával indul, megjelenik az ablaka.
+	Show the unread mail on its icon	Az olvasatlan üzenetek számának megjelenítése az ikonon
+	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Az értesítési területen lévő MailCraft ikon sarkában a beérkezett olvasatlan üzenetek száma látható.
+	It stays in the notification area, checks for mail and announces it. Exit on the File page, or in its icon's menu, closes it.	A MailCraft az értesítési területen marad, ellenőrzi a leveleket, és értesít az új üzenetekről. A Fájl lapon vagy az ikon menüjében a Kilépés paranccsal zárható be.
+	Its window is minimized, and MailCraft goes on checking for mail and announcing it. Exit on the File page closes it.	Az ablak kis méretre vált, de a MailCraft továbbra is ellenőrzi a leveleket, és értesít az új üzenetekről. A Fájl lapon a Kilépés paranccsal zárható be.
+	Open MailCraft	MailCraft megnyitása
+	Show as plain text	Megjelenítés egyszerű szövegként
+	Show formatted	Megjelenítés formázva
+	Show in Favorites	Megjelenítés a Kedvencekben
+	Show pictures	Képek megjelenítése
+	Shown as text.	Szövegként jelenik meg.
+	Shown on mail you send	Az elküldött üzenetekben jelenik meg
+	Sign in	Bejelentkezés
+	Sign in again	Újbóli bejelentkezés
+	Sign in again…	Újbóli bejelentkezés…
+	Sign in with {provider}	Bejelentkezés ezzel: {provider}
+	Signature	Aláírás
+	Signature…	Aláírás…
+	Snooze	Halasztás
+	Stop showing pictures from this sender	Ne jelenjenek meg többé a feladó képei
+	Strikethrough	Áthúzás
+	Subject	Tárgy
+	Subject contains	A tárgy tartalmazza
+	Sun	V
+	Sunday	Vasárnap
+	Switch to dark mode	Váltás sötét módra
+	Switch to light mode	Váltás világos módra
+	System	Rendszer
+	Text	Szöveg
+	Text or address	Szöveg vagy cím
+	The PDF couldn't be opened: {error}	Nem sikerült megnyitni a PDF-et: {error}
+	The folder and everything in it will be moved to Deleted Items.	A mappa a teljes tartalmával együtt a Törölt elemek közé kerül.
+	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	A mappa, az almappái és a bennük lévő összes üzenet végleg törlődik. Ez nem vonható vissza.
+	The link couldn't be opened: {error}	Nem sikerült megnyitni a hivatkozást: {error}
+	The sign-in page couldn't be opened: {error}	Nem sikerült megnyitni a bejelentkezési oldalt: {error}
+	Theme	Téma
+	Then	Akkor
+	These {n} messages will be deleted for good. This can't be undone.	Ez a(z) {n} üzenet végleg törlődik. Ez nem vonható vissza.
+	This folder	Ez a mappa
+	This message couldn't be downloaded: {error}	Nem sikerült letölteni az üzenetet: {error}
+	This message will be deleted for good. This can't be undone.	Ez az üzenet végleg törlődik. Ez nem vonható vissza.
+	This weekend	Ezen a hétvégén
+	Three weeks ago	Három hete
+	Thu	Cs
+	Thursday	Csütörtök
+	To	Címzett
+	To do	Teendők
+	To or Cc contains	A Címzett vagy a Másolat mező tartalmazza
+	To: {names}	Címzett: {names}
+	Today	Ma
+	Tomorrow	Holnap
+	Try again	Újrapróbálkozás
+	Tue	K
+	Tuesday	Kedd
+	Two weeks ago	Két hete
+	Unflag	Jelölés törlése
+	Unpin	Rögzítés feloldása
+	Unread	Olvasatlan
+	Unread: {n}	Olvasatlan: {n}
+	Upcoming	Közelgő
+	Update folder	Mappa frissítése
+	Updated {time}	Frissítve: {time}
+	Updating {folder}…	A(z) {folder} mappa frissítése…
+	User name	Felhasználónév
+	Usually the email address	Általában az e-mail-cím
+	Video	Videó
+	View	Nézet
+	Waiting in the Outbox. Last try: {error}	Küldésre vár a kimenő üzenetek között. Az utolsó próbálkozás hibája: {error}
+	Waiting in the Outbox: it will be sent when you're back online.	A kimenő üzenetek között várakozik. Akkor megy el, amikor újra van kapcsolat.
+	Wed	Sze
+	Wednesday	Szerda
+	Welcome to MailCraft	Üdvözöl a MailCraft!
+	When mail	Ha az üzenet
+	Without encryption your password travels in the clear. Use only for local test servers.	Titkosítás nélkül a jelszó olvasható formában halad át a hálózaton. Csak helyi tesztkiszolgálókhoz használd.
+	Work	Munka
+	Write your message…	Írd ide az üzeneted…
+	Yesterday	Tegnap
+	Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain.	A leveleid a saját számítógépeden. Bármelyik IMAP-fiókodat hozzáadhatod: az üzenetek ezen az eszközön maradnak, így gyorsan kereshetők és kapcsolat nélkül is olvashatók. A jelszavad a rendszer jelszótárolójában marad.
+	Your name	Neved
+	categorize {category}	kategória hozzárendelése: {category}
+	folder	mappa
+	from “{text}”	feladója „{text}”
+	in your browser: no password stored	a böngésződben: az alkalmazás nem tárol jelszót
+	mentions “{text}”	tartalmazza ezt: „{text}”
+	move to {folder}	áthelyezés ide: {folder}
+	subject has “{text}”	a tárgya tartalmazza ezt: „{text}”
+	you@example.com	nev@example.com
+	{app} couldn't open it: {error}	A(z) {app} nem tudta megnyitni: {error}
+	{a} and {b}	{a} és {b}
+	{a}, {b} and others	{a}, {b} és mások
+	{email} (sample)	{email} (minta)
+	{name} could not be opened: {error}	Nem sikerült megnyitni: {name}. Hiba: {error}
+	{n} attachments	{n} melléklet
+	{n} messages in this conversation	{n} üzenet ebben a beszélgetésben
+	{n} new messages	{n} új üzenet
+	• List	• Lista
+	Select a message to read it	Válassz ki egy üzenetet az olvasáshoz
+	MailCraft – Sample mailbox	MailCraft – Mintapostafiók
+
+	Mail server	Levelezőkiszolgáló
+	IMAP and SMTP	IMAP és SMTP
+	JMAP	JMAP
+	JMAP session address	JMAP-munkamenet címe
+	Server: {url} (JMAP)	Kiszolgáló: {url} (JMAP)
+	Open in new window	Megnyitás új ablakban
+	{subject} – Message	{subject} – Üzenet
+	About	Névjegy
+	About MailCraft	A MailCraft névjegye
+	Account information	Fiókadatok
+	Account settings	Fiókbeállítások
+	Free and open source · MIT OR Apache-2.0	Ingyenes és nyílt forráskódú · MIT OR Apache-2.0
+	Automatic replies	Automatikus válaszok
+	Back	Vissza
+	Built in the open from the email standards: no code, icons or assets from other mail apps.	Nyílt fejlesztés az e-mail-szabványok alapján, más levelezőalkalmazások kódja, ikonjai és egyéb erőforrásai nélkül.
+	Change this account's name, servers and sign-in, or its signature.	A fiók nevének, kiszolgálóinak, bejelentkezési beállításainak vagy aláírásának módosítása.
+	Checking with the server…	Ellenőrzés a kiszolgálón…
+	Compact list	Kompakt lista
+	Single-line list	Egysoros lista
+	One line a message: the sender, the subject and the time	Üzenetenként egy sor: feladó, tárgy és időpont
+	Don't send automatic replies	Ne küldjön automatikus válaszokat
+	Each sender gets one reply a day while they're on. They're kept on your mail server, so they work while this computer is off.	Amíg a funkció be van kapcsolva, minden feladó naponta egy választ kap. A válaszokat a levelezőkiszolgáló kezeli, így kikapcsolt számítógép mellett is működnek.
+	Empty	Ürítés
+	Empty Deleted Items…	Törölt elemek ürítése…
+	Empty Junk Email…	Levélszemét ürítése…
+	Empty “{folder}”?	Kiüríted ezt a mappát: „{folder}”?
+	Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone.	A mappa teljes tartalma végleg törlődik, beleértve az erre a számítógépre le nem töltött üzeneteket is. Ez nem vonható vissza.
+	General	Általános
+	Google (IMAP)	Google (IMAP)
+	I'm away until…	Távol vagyok eddig…
+	Inbox and notifications	Beérkezett üzenetek és értesítések
+	Info	Információ
+	Kept on this computer: {size}	Ezen a számítógépen tárolva: {size}
+	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	A MailCraft csak a saját levelezőkiszolgálóiddal kommunikál, titkosított kapcsolaton. A webes képeket csak kérésre tölti be.
+	MailCraft {version}	MailCraft {version}
+	Mailbox	Postafiók
+	Mailbox settings	Postafiók-beállítások
+	Manage rules	Szabályok kezelése
+	Mark messages as read when opened	Üzenetek megjelölése olvasottként megnyitáskor
+	Microsoft 365 (IMAP)	Microsoft 365 (IMAP)
+	No senders yet.	Még nincsenek feladók.
+	Not available: this mailbox has no server.	Nem érhető el: ehhez a postafiókhoz nem tartozik kiszolgáló.
+	Not available: {error}	Nem érhető el: {error}
+	On	Be
+	On from {from}	Bekapcsolva ettől: {from}
+	On from {from} until {until}	Bekapcsolva: {from} – {until}
+	On until {until}	Bekapcsolva eddig: {until}
+	Only between these days	Csak a megadott napok között
+	Pictures from the web load only when you ask. These senders' pictures always load:	A webes képek csak kérésre töltődnek be. A következő feladók képei mindig betöltődnek:
+	Privacy	Adatvédelem
+	Reading	Olvasás
+	Rules: {n}	Szabályok: {n}
+	Sample mailbox	Mintapostafiók
+	See how much space your mail takes, and empty Deleted Items and Junk Email.	Megnézheted, mennyi helyet foglalnak a leveleid, és kiürítheted a Törölt elemek és a Levélszemét mappát.
+	Send automatic replies	Automatikus válaszok küldése
+	Server settings…	Kiszolgálóbeállítások…
+	Read all mail as plain text	Minden levél olvasása egyszerű szövegként
+	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	A formázás, a színek és a képek nem jelennek meg. Az üzenet feletti Megjelenítés formázva paranccsal az adott üzenetet az eredeti formájában láthatod.
+	Show mail without its formatting	Levelek megjelenítése formázás nélkül
+	Show a line of each message in the list	Egysoros előnézet megjelenítése az üzenetlistában
+	Sort new mail as it arrives: move it, flag it, categorize it.	Rendezd az új üzeneteket érkezéskor: áthelyezheted, megjelölheted vagy kategorizálhatod őket.
+	Source code and issues	Forráskód és hibajegyek
+	Subject (optional)	Tárgy (nem kötelező)
+	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Értesítsd a feladókat a távollétedről: amíg a funkció be van kapcsolva, minden feladó kap egy választ, akkor is, ha ez a számítógép ki van kapcsolva.
+	The server doesn't say how much space is used.	A kiszolgáló nem közli a foglalt tárhely méretét.
+	Until	Eddig
+	{free} free of {total}	Szabad: {free} / {total}
+	{used} used on the server	A kiszolgálón foglalt hely: {used}
+	this server doesn't offer automatic replies	ez a kiszolgáló nem támogatja az automatikus válaszokat
+	this server doesn't offer automatic replies (no ManageSieve)	ez a kiszolgáló nem támogatja az automatikus válaszokat (nincs ManageSieve)
+	the account is offline	a fiók nincs kapcsolatban
+	Drag it to a folder or another app to copy it	A másoláshoz húzd egy mappába vagy egy másik alkalmazásba
+	Accept	Elfogadás
+	Accepted	Elfogadva
+	Add a title	Cím megadása
+	All day	Egész napos
+	April	április
+	Attendees: {names}	Résztvevők: {names}
+	August	augusztus
+	Calendar	Naptár
+	Calendars	Naptárak
+	Changes apply to every occurrence.	A módosítások minden előfordulásra érvényesek.
+	Company	Cég
+	Custom	Egyéni
+	Day	Nap
+	December	december
+	Decline	Elutasítás
+	Declined	Elutasítva
+	Delete the series	Sorozat törlése
+	Delete this occurrence	Ennek az előfordulásnak a törlése
+	Edit contact	Névjegy szerkesztése
+	Email	E-mail
+	Ends	Befejezés
+	Event	Esemény
+	Every day	Naponta
+	Every month	Havonta
+	Every week	Hetente
+	Every year	Évente
+	February	február
+	In the address book of {account}	A(z) {account} fiók címjegyzékében
+	January	január
+	Job title	Beosztás
+	July	július
+	June	június
+	Location	Helyszín
+	Mail	Levelezés
+	March	március
+	Month	Hónap
+	Never	Soha
+	New contact	Új névjegy
+	New event	Új esemény
+	Next	Következő
+	Next month	Következő hónap
+	No answer yet	Még nincs válasz
+	No contacts yet.	Még nincsenek névjegyek.
+	No one matches.	Nincs egyező névjegy.
+	Notes	Jegyzetek
+	November	november
+	October	október
+	One address per line	Soronként egy cím
+	Organizer: {name}	Szervező: {name}
+	People	Személyek
+	Phone	Telefon
+	Pick someone to see their details	Válassz ki valakit az adatainak megtekintéséhez
+	Previous	Előző
+	Previous month	Előző hónap
+	Repeat	Ismétlődés
+	Search people	Személyek keresése
+	September	szeptember
+	Starts	Kezdés
+	Tentative	Feltételes
+	Week	Hét
+	Your answer:	Válaszod:
+	{from} {month_from} – {to} {month} {year}	{year}. {month_from} {from}. – {month} {to}.
+	{from} – {to} {month} {year}	{year}. {month} {from}–{to}.
+	{month} {year}	{year}. {month}
+	{n} more	További {n}
+	{weekday}, {day} {month} {year}	{year}. {month} {day}., {weekday}
+	Add to contacts	Hozzáadás a névjegyekhez
+	Invite	Meghívás
+	Record the answer	Válasz rögzítése
+	Remove from calendar	Eltávolítás a naptárból
+	Show in calendar	Megjelenítés a naptárban
+	This event was cancelled.	Ezt az eseményt lemondták.
+	{name} accepted.	{name} elfogadta a meghívást.
+	{name} answered.	{name} válaszolt.
+	{name} declined.	{name} elutasította a meghívást.
+	{name} said maybe.	{name} feltételesen fogadta el a meghívást.
+	You accepted.	Elfogadtad a meghívást.
+	You said maybe.	Feltételesen fogadtad el a meghívást.
+	You declined.	Elutasítottad a meghívást.
+	Open & Export	Megnyitás és exportálás
+	Open data file	Adatfájl megnyitása
+	Open Outlook data file	Outlook-adatfájl megnyitása
+	Bring in the mail of an Outlook data file (.pst). It opens as a mailbox of its own, with its folders, kept on this computer.	Levelek betöltése Outlook-adatfájlból (.pst). A fájl a mappáival együtt külön postafiókként nyílik meg, és ezen a számítógépen marad.
+	Open now: {files}	Jelenleg megnyitva: {files}
+	Outlook data file	Outlook-adatfájl
+	Opened from an Outlook data file, kept on this computer only	Outlook-adatfájlból megnyitva, csak ezen a számítógépen tárolva
+	Not available: a data file has no server.	Nem érhető el: az adatfájlhoz nem tartozik kiszolgáló.
+	Exchange (Microsoft 365)	Exchange (Microsoft 365)
+	Exchange (Microsoft Graph)	Exchange (Microsoft Graph)
+	Server: {url} (Microsoft Graph)	Kiszolgáló: {url} (Microsoft Graph)
+	Signing in with Microsoft isn't set up in this copy of MailCraft.	A Microsoft-bejelentkezés nincs beállítva a MailCraft ezen példányában.
+	Syncs through Microsoft Graph, for work and school accounts where IMAP is switched off. You sign in with Microsoft in the browser: no password is stored.	Microsoft Graphon keresztül szinkronizál, olyan munkahelyi és iskolai fiókokhoz, amelyekben az IMAP ki van kapcsolva. A Microsoft-fiókba a böngészőben jelentkezhetsz be; az alkalmazás nem tárol jelszót.
+	In the browser, MailCraft works with JMAP providers. Your password stays in this tab only and is only ever sent to your mail server.	A böngészőben a MailCraft JMAP-szolgáltatókkal működik. A jelszavad csak ezen a lapon marad, és kizárólag a levelezőkiszolgálód kapja meg.
+	Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only.	Leveleid a böngészőben. Adj hozzá egy JMAP-fiókot (például Fastmail-fiókot): a MailCraft közvetlenül a levelezőkiszolgálóddal kommunikál, és a jelszavad csak ezen a lapon marad.
+	Pop out	Megnyitás külön ablakban
+	Pop in	Vissza a főablakba
+	Back to the reading pane	Vissza az olvasópanelre
+	Write it in a window of its own	Szerkesztés külön ablakban
+	Hide Bcc	Titkos másolat elrejtése
+	Untitled	Névtelen
+	Write new messages in a window of their own	Új üzenetek írása külön ablakban
+	Saved in Drafts	Mentve a Piszkozatok közé
+	Underline (Ctrl+U)	Aláhúzás (Ctrl+U)
+	Text highlight color	Szövegkiemelés színe
+	Font color	Betűszín
+	No color	Nincs szín
+	Automatic	Automatikus
+	Bullets (Ctrl+Shift+L)	Felsorolás (Ctrl+Shift+L)
+	Numbering	Számozás
+	Decrease indent (Ctrl+Shift+T)	Behúzás csökkentése (Ctrl+Shift+T)
+	Increase indent (Ctrl+T)	Behúzás növelése (Ctrl+T)
+	Align left (Ctrl+L)	Balra igazítás (Ctrl+L)
+	Center (Ctrl+E)	Középre igazítás (Ctrl+E)
+	Align right (Ctrl+R)	Jobbra igazítás (Ctrl+R)
+	Clear all formatting (Ctrl+Space)	Minden formázás törlése (Ctrl+Space)
+	Address Book	Címjegyzék
+	Ctrl+Shift+B	Ctrl+Shift+B
+	Attach File	Fájl csatolása
+	Ctrl+K	Ctrl+K
+	Pictures	Képek
+	Address	Cím
+	Insert	Beszúrás
+	Remove link	Hivatkozás eltávolítása
+	Select Names	Nevek kiválasztása
+	Search	Keresés
+	Name or address	Név vagy cím
+	All addresses	Összes cím
+	Contacts	Névjegyek
+	Email Address	E-mail-cím
+	No one found.	Nincs találat.
+	To ->	Címzett ->
+	Cc ->	Másolat ->
+	Bcc ->	Titkos másolat ->
+	OK	OK
+	Want to save your changes?	Mented a módosításokat?
+	The message is kept in Drafts if you save it.	Mentéskor az üzenet a Piszkozatok közé kerül.
+	Yes	Igen
+	No	Nem
+	Exporting to {file}…	Exportálás ide: {file}…
+	Export	Exportálás
+	Export to Outlook data file	Exportálás Outlook-adatfájlba
+	Write an account's mail, with its folders, to an Outlook data file (.pst) that Outlook and other mail apps can open.	A fiók leveleinek és mappáinak mentése olyan Outlook-adatfájlba (.pst), amelyet az Outlook és más levelezőalkalmazások is meg tudnak nyitni.
+	Exchange server (EWS)	Exchange-kiszolgáló (EWS)
+	Exchange server	Exchange-kiszolgáló
+	Server: {url} (EWS)	Kiszolgáló: {url} (EWS)
+	DOMAIN\\user, or the email address	TARTOMÁNY\\felhasználó vagy az e-mail-cím
+	For Exchange servers run by your organisation, through Exchange Web Services. Signs in with your network user name and password.	A szervezeted által üzemeltetett Exchange-kiszolgálókhoz, az Exchange Web Services használatával. A bejelentkezéshez a hálózati felhasználóneved és jelszavad szükséges.
+	Found automatically when left empty	Ha üresen hagyod, a MailCraft automatikusan megkeresi
+	Its contacts, calendar, notes and tasks go inside it too.	A névjegyei, a naptára, a jegyzetei és a feladatai is belekerülnek.
+	You can close this window.	Bezárhatod ezt az ablakot.
+	Browse…	Tallózás…
+	Existing Outlook data file (optional)	Meglévő Outlook-adatfájl (nem kötelező)
+	Incoming mail (POP)	Bejövő levelek (POP)
+	Mail from an old .pst comes in first	Először a régi .pst fájl levelei töltődnek be
+	POP and SMTP	POP és SMTP
+	Servers: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})	Kiszolgálók: {pop} (POP {pop_port}), {smtp} (SMTP {smtp_port})
+	Fonts	Betűtípusok
+	Data files	Adatfájlok
+	Open folder	Mappa megnyitása
+	Move…	Áthelyezés…
+	Save as an Outlook data file…	Mentés Outlook-adatfájlként…
+	Moves to {folder} the next time MailCraft starts.	A MailCraft következő indításakor ide kerül: {folder}.
+	Chosen when MailCraft was started (--data or MAILCRAFT_DATA), so it can't be moved here.	A helyet a MailCraft indításakor adtad meg (--data vagy MAILCRAFT_DATA), ezért itt nem módosítható.
+	Your mail couldn't be moved, so it stays where it was: {error}	A leveleket nem sikerült áthelyezni, így az eredeti helyükön maradtak. Hiba: {error}
+	Your mail is now kept in {folder}	A levelek új tárolási helye: {folder}
+	Your mail moves there the next time MailCraft starts.	A levelek a MailCraft következő indításakor kerülnek oda.
+	Each account's mail, contacts and calendar are kept in a MailCraft data file (.mailcraft) in this folder, as Outlook keeps each account in a .pst in Outlook Files. An Outlook data file you open gets a .mailcraft file of its own here; Outlook's file is left as it was. To have a copy as a .pst, use Save as an Outlook data file under Info.	A MailCraft minden fiók leveleit, névjegyeit és naptárát külön MailCraft-adatfájlban (.mailcraft) tárolja ebben a mappában, ahogy az Outlook is fiókonként külön .pst fájlt használ az Outlook-fájlok mappában. Megnyitáskor az Outlook-adatfájl külön .mailcraft fájlt kap itt; az eredeti Outlook-fájl változatlan marad. Ha .pst másolatot szeretnél, az Információ lapon válaszd a Mentés Outlook-adatfájlként parancsot.
+	Keep a copy of downloaded mail on the server	A letöltött levelek másolatának megőrzése a kiszolgálón
+	Remove it from the server after	Törlés a kiszolgálóról ennyi idő után:
+	days	nap
+	Remove it from the server once it's deleted from Deleted Items	Törlés a kiszolgálóról a Törölt elemekből való törlés után
+	A copy on the server	Másolat a kiszolgálón
+	None: mail is removed from the server once downloaded	Nincs másolat: a levél letöltés után törlődik a kiszolgálóról
+	Kept for {n} days	Megőrzés {n} napig
+	Kept for {n} days, or until deleted from Deleted Items	Megőrzés {n} napig vagy a Törölt elemekből való törlésig
+	Kept until deleted from Deleted Items	Megőrzés a Törölt elemekből való törlésig
+	Kept for good	Megőrzés határozatlan ideig
+	Arrange by: {field}	Rendezés eszerint: {field}
+	By {field} ⏷	{field} szerint ⏷
+	Reverse sort	Rendezési sorrend megfordítása
+	Show in groups	Megjelenítés csoportokban
+	Size	Méret
+	Flag status	Jelölés állapota
+	Attachments	Mellékletek
+	Under 10 KB	10 KB alatt
+	10 to 25 KB	10–25 KB
+	25 to 100 KB	25–100 KB
+	100 to 500 KB	100–500 KB
+	500 KB to 1 MB	500 KB – 1 MB
+	1 to 5 MB	1–5 MB
+	Over 5 MB	5 MB felett
+	Not flagged	Nincs megjelölve
+	With attachments	Melléklettel
+	Without attachments	Melléklet nélkül
+	(nobody)	(senki)
+	Send / Receive all folders	Küldés / fogadás az összes mappában
+	Send all	Összes küldése
+	Send what's waiting in the Outbox	A küldésre váró kimenő üzenetek elküldése
+	Work offline	Munka kapcsolat nélkül
+	Working offline	Munka kapcsolat nélkül folyamatban
+	Close every connection: changes, mail you send and drafts wait on this computer	Minden kapcsolat bontása: a módosítások, a küldésre váró levelek és a piszkozatok ezen a számítógépen maradnak
+	Undo (Ctrl+Z)	Visszavonás (Ctrl+Z)
+	Filter	Szűrő
+	Categorized	Kategorizált
+	To or Cc me	Nekem címezve vagy másolatban
+	New items	Új elemek
+	Email message	E-mail-üzenet
+	Contact	Névjegy
+	More delete options	További törlési lehetőségek
+	Ignore the conversation	Beszélgetés mellőzése
+	Stop ignoring the conversation	Beszélgetés mellőzésének megszüntetése
+	Its messages, and replies that arrive later, go to Deleted Items	A beszélgetés üzenetei és a később érkező válaszok a Törölt elemek közé kerülnek
+	Folder pane	Mappapanel
+	Minimize the folder pane	Mappapanel összecsukása
+	Show the folder pane	Mappapanel megjelenítése
+	Save As	Mentés másként
+	Save Attachments	Mellékletek mentése
+	Exit	Kilépés
+	High importance	Kiemelt fontosság
+	Low importance	Alacsony fontosság
+	Read receipt	Olvasási visszaigazolás
+	Ask the recipients to confirm they've read it (their mail app may not, or may ask them)	Visszaigazolás kérése a címzettektől az olvasásról (a levelezőalkalmazásuk megtagadhatja a küldést, vagy rákérdezhet)
+	Works with IMAP, POP, JMAP and Exchange. Your password is kept in this computer's keychain and sent only to your mail server.	IMAP, POP, JMAP és Exchange fiókokkal működik. A jelszavad a számítógép jelszótárolójában marad, és csak a levelezőkiszolgálód kapja meg.
+	Mail stays on the server and looks the same on every device.	A levelek a kiszolgálón maradnak, és minden eszközön ugyanúgy jelennek meg.
+	Mail is downloaded to this computer. The server can keep a copy for a while.	A levelek letöltődnek erre a számítógépre. A kiszolgáló egy ideig megőrizheti a másolatukat.
+	A newer way to reach your mail, offered by some providers such as Fastmail.	Újabb mód a levelek elérésére; egyes szolgáltatók, például a Fastmail, ezt is támogatják.
+	Run it now on the mail already in the Inbox	Futtatás most a már beérkezett üzeneteken
+	Run on the mail already in the Inbox	Futtatás a már beérkezett üzeneteken
+	More options	További beállítások
+	Save As…	Mentés másként…
+	Save All Attachments…	Összes melléklet mentése…
+	This picture can't be shown.	Ez a kép nem jeleníthető meg.
+	Close Search	Keresés bezárása
+	Look in	Keresés helye
+	Account	Fiók
+	Account settings…	Fiókbeállítások…
+	Delete all…	Összes törlése…
+	Delete all	Összes törlése
+	Delete everything in “{folder}”?	Törlöd a(z) „{folder}” mappa teljes tartalmát?
+	Every message in it will be moved to Deleted Items.	A mappa összes üzenete a Törölt elemek közé kerül.
+	Find related	Kapcsolódó üzenetek keresése
+	Messages in this conversation	A beszélgetés üzenetei
+	Messages from sender	A feladó üzenetei
+	Forward as attachment	Továbbítás mellékletként
+	Reply with meeting	Válasz értekezlet-meghívóval
+	More actions	További műveletek
+	Ignore	Mellőzés
+	Messages	Üzenetek
+	Open file location	Fájl helyének megnyitása
+	Properties…	Tulajdonságok…
+	{folder} Properties	A(z) {folder} mappa tulajdonságai
+	Size on this computer	Méret ezen a számítógépen
+	Quick print	Gyorsnyomtatás
+	Always move to Focused	Mindig kerüljön a Fontos lapra
+	Always move to Other	Mindig kerüljön az Egyéb lapra
+	Follow up	Megjelölés követésre
+	No date	Nincs dátum
+	Mark complete	Megjelölés elvégzettként
+	Clear flag	Jelölés törlése
+	This week	Ezen a héten
+	Follow up.	Követésre megjelölve.
+	Follow up. Due today.	Követésre megjelölve. Határidő: ma.
+	Follow up. Due {date}.	Követésre megjelölve. Határidő: {date}.
+	Follow up. Overdue: it was due {date}.	Követésre megjelölve. Lejárt határidő: {date}.
+	Completed.	Elvégezve.
+	Completed on {date}.	Elvégezve ekkor: {date}.
+	This message was sent with high importance.	Az üzenet kiemelt fontossággal érkezett.
+	This message was sent with low importance.	Az üzenet alacsony fontossággal érkezett.
+	Delay delivery	Küldés késleltetése
+	Don't send before	Ne küldje el ennél korábban:
+	Have replies sent to another address	Válaszok másik címre irányítása
+	Held in the Outbox: it will be sent {when}.	A kimenő üzenetek között várakozik. Küldés időpontja: {when}.
+	Keep it in the Outbox and send it later (MailCraft has to be running then)	Maradjon a kimenő üzenetek között, és menjen el később (a MailCraftnak akkor futnia kell)
+	Replies to	Válaszcím
+	Send right away	Azonnali küldés
+	Sends {when}	Küldés időpontja: {when}
+	Set	Beállítás
+	Where replies go instead of to you	A cím, ahová a válaszok a saját címed helyett érkeznek
+	In 1 hour	1 óra múlva
+	Tomorrow morning	Holnap reggel
+	Monday morning	Hétfő reggel
+	and	és
+	or	vagy
+	delete	törlés
+	flag	megjelölés
+	has attachments	van melléklete
+	is list mail	levelezőlistás üzenet
+	mark read	megjelölés olvasottként
+	pin	rögzítés
+	to “{text}”	címzettje „{text}”
+	Add a place	Hely megadása
+	Add at least one name in To, Cc or Bcc before sending.	Küldés előtt adj meg legalább egy címzettet a Címzett, a Másolat vagy a Titkos másolat mezőben.
+	Edit link	Hivatkozás szerkesztése
+	Edit link…	Hivatkozás szerkesztése…
+	First and last name	Vezeték- és keresztnév
+	Link to	Hivatkozás célja
+	One number per line	Soronként egy szám
+	Text to display	Megjelenítendő szöveg
+	The address itself	Maga a cím
+	Web page or file	Weboldal vagy fájl
+	Cut	Kivágás
+	Copy	Másolás
+	Paste	Beillesztés
+	Select all	Összes kijelölése
+	Link…	Hivatkozás…
+	Open link	Hivatkozás megnyitása
+	Clear formatting	Formázás törlése
+	Insert link	Hivatkozás beszúrása
+	The selected text	A kijelölt szöveg
+	Outlook.com, Hotmail and Live addresses only connect with Sign in with Microsoft: Microsoft no longer accepts passwords from mail apps. This copy of MailCraft wasn't built with Microsoft sign-in, so it can't add this account.	Az Outlook.com-, Hotmail- és Live-címekhez csak Microsoft-bejelentkezéssel lehet csatlakozni: a Microsoft már nem fogad el jelszót a levelezőalkalmazásoktól. A MailCraft ezen kiadása nem támogatja a Microsoft-bejelentkezést, ezért ezt a fiókot nem lehet hozzáadni.
+	Back to message	Vissza az üzenethez
+	Esc	Esc
+	Open it in its app, or save it.	Nyisd meg a hozzá tartozó alkalmazásban, vagy mentsd el.
+	Page {n}	{n}. oldal
+	Slide {n}	{n}. dia
+	The document is empty.	A dokumentum üres.
+	The first {shown} of {total} pages: open it to read the rest.	A(z) {total} oldalból az első {shown} látható. A többi oldal elolvasásához nyisd meg a fájlt.
+	The sheet is empty.	A munkalap üres.
+	There's no preview for this file.	Ehhez a fájlhoz nincs előnézet.
+	{n} people	{n} személy
+	Cards	Kártyák
+	Phone list	Telefonlista
+	Full name	Teljes név
+	Search notes	Keresés a jegyzetekben
+	{n} notes	{n} jegyzet
+	No notes yet: New note starts one.	Még nincsenek jegyzetek. Az Új jegyzet paranccsal létrehozhatsz egyet.
+	No note matches.	Nincs egyező jegyzet.
+	Write your note…	Írd ide a jegyzeted…
+	Blue	Kék
+	Green	Zöld
+	Pink	Rózsaszín
+	Yellow	Sárga
+	White	Fehér
+	Color	Szín
+	New note	Új jegyzet
+	Open a shared calendar	Megosztott naptár megnyitása
+	Open shared calendar…	Megosztott naptár megnyitása…
+	Remove this calendar	Naptár eltávolítása
+	Shared with you, opened from {account}	Veled megosztva, megnyitva ebből a fiókból: {account}
+	Whose calendar? It opens read-only beside yours, when they've shared it with you in Exchange.	Kinek a naptárát nyitod meg? Ha az illető megosztotta veled az Exchange-ben, a saját naptárad mellett jelenik meg, csak olvasható módban.
+	read-only	csak olvasható
+	Public Folders	Nyilvános mappák
+	Copy the whole message	A teljes üzenet másolása
+	Existing data file (optional)	Meglévő adatfájl (nem kötelező)
+	Mail from an old .pst or .mailcraft file comes in first	Először a régi .pst vagy .mailcraft fájl levelei töltődnek be
+	Open a data file	Adatfájl megnyitása
+	Bring in an Outlook data file (.pst) or a MailCraft one (.mailcraft). It opens as a mailbox of its own, with its folders, kept on this computer.	Outlook-adatfájl (.pst) vagy MailCraft-adatfájl (.mailcraft) betöltése. A fájl a mappáival együtt külön postafiókként nyílik meg, és ezen a számítógépen marad.
+	Move up	Mozgatás felfelé
+	Move down	Mozgatás lefelé
+	Updating…	Frissítés…
+	All folders are up to date	Minden mappa naprakész
+	1 account disconnected	1 fióknál megszakadt a kapcsolat
+	{n} accounts disconnected	{n} fióknál megszakadt a kapcsolat
+	{account}: {status}	{account}: {status}
+	Sign in with Microsoft	Bejelentkezés Microsoft-fiókkal
+	Sign in with Microsoft…	Bejelentkezés Microsoft-fiókkal…
+	Mailbox won't open	A postafiók nem nyitható meg
+	Trust this computer's mail server?	Megbízol az ezen a számítógépen futó levelezőkiszolgálóban?
+	{host} is on this computer and shows a certificate it made itself, which no authority vouches for. A program that connects a mail service to mail apps does this. Trust it only if you set that program up.	A(z) {host} ezen a számítógépen fut, és saját maga által kiállított tanúsítványt mutat be, amelyet hitelesítésszolgáltató nem igazol. Ez előfordulhat, ha egy program kapcsolja össze a levelezőszolgáltatást a levelezőalkalmazásokkal. Csak akkor bízz meg benne, ha te állítottad be azt a programot.
+	Certificate fingerprint (SHA-256)	Tanúsítvány ujjlenyomata (SHA-256)
+	MailCraft asks again if the server shows another certificate.	A MailCraft újra rákérdez, ha a kiszolgáló másik tanúsítványt mutat be.
+	Trust this certificate	Megbízom ebben a tanúsítványban
+	Certificate not trusted yet	A tanúsítvány még nincs megbízhatónak jelölve
+	The mailbox won't open	A postafiók nem nyitható meg
+	Microsoft Graph reaches the mailbox without IMAP, and brings its calendar and contacts too. The account starts again through it: its mail comes down from the server.	A Microsoft Graph IMAP nélkül éri el a postafiókot, és a naptárat meg a névjegyeket is szinkronizálja. A fiók újra beáll ezen a kapcsolaton keresztül, és a levelek letöltődnek a kiszolgálóról.
+	Turned IMAP on, or picked another account in the browser? Sign in again	Bekapcsoltad az IMAP-ot, vagy másik fiókot választottál a böngészőben? Jelentkezz be újra.
+	Use Microsoft Graph	Microsoft Graph használata
+	A message opened in its own window (double-click) is always marked as read.	A külön ablakban (dupla kattintással) megnyitott üzenet mindig olvasottnak lesz jelölve.
+	Mark messages as read in the reading pane	Üzenetek megjelölése olvasottként az olvasópanelen
+	When I choose another message	Amikor másik üzenetet választok
+	When it's shown, after	A megjelenítés után ennyi idővel:
+	seconds	másodperc
+	Arrange by	Rendezés szempontja
+	Last changed	Utolsó módosítás
+	Title (A to Z)	Cím (A–Z)
+	Insert signature	Aláírás beszúrása
+	Save and insert	Mentés és beszúrás
+	Signatures…	Aláírások…
+	Categories	Kategóriák
+	1 month	1 hónap
+	{n} months	{n} hónap
+	Day and week show each calendar in a column of its own	A napi és heti nézetben minden naptár külön oszlopban jelenik meg
+	Drag down to show more months	Húzd lefelé több hónap megjelenítéséhez
+	Hidden: click to show it	Rejtve: kattints a megjelenítéshez
+	Shown: click to hide it	Látható: kattints az elrejtéshez
+	Side by side	Egymás mellett
+	Mail kept on this computer	Ezen a számítógépen tárolt levelek
+	Of each folder, keep	Megőrzés mappánként:
+	Download in full for reading offline	Teljes letöltés a kapcsolat nélküli olvasáshoz
+	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Az új levelek mindig megérkeznek. Az ezen a határon túli régebbi levelek a kiszolgálón maradnak; az üzenet többi része megnyitáskor töltődik le.
+	the newest 1,000	a legújabb 1000 üzenet
+	the newest 40	a legújabb 40 üzenet
+	all	az összes üzenet
+	A different reply for them	Külön válasz nekik
+	Inside my organization	A szervezetemen belül
+	Outside my organization	A szervezetemen kívül
+	Anyone	Bárki
+	My contacts only	Csak a névjegyeimben szereplők
+	No one	Senki
+	In a shared address book: read-only	Megosztott címjegyzékben: csak olvasható
+	Click a column to sort by it; right-click to choose the columns	A rendezéshez kattints egy oszlopra; az oszlopok kiválasztásához kattints jobb gombbal
+	Columns	Oszlopok
+	List	Lista
+	Business phone	Munkahelyi telefon
+	Mobile phone	Mobiltelefon
+	Home phone	Otthoni telefon
+	Address book	Címjegyzék
+	Paste one from Outlook or Word and it keeps its look; Ctrl+B, Ctrl+I and Ctrl+U format it.	Az Outlookból vagy a Wordből beillesztett aláírás megőrzi a formázását. A Ctrl+B, Ctrl+I és Ctrl+U billentyűparancsokkal formázhatod.
+	Formatted	Formázott
+	HTML code	HTML-kód
+	From a file…	Fájlból…
+	Paste the HTML of a signature made elsewhere, or open one saved as a web page (Outlook's .htm). It's sent as written, and shown so while you write.	Illeszd be egy máshol készített aláírás HTML-kódját, vagy nyiss meg egy weboldalként mentett aláírást (például egy Outlook .htm fájlt). Írás közben ugyanúgy jelenik meg, ahogy elküldéskor fog.
+	Your signature as it will be sent. To change it, pick Signature above the message.	Az aláírásod így jelenik meg az elküldött üzenetben. A módosításhoz válaszd az üzenet feletti Aláírás parancsot.
+	{name} can't be read as a signature	A(z) {name} nem olvasható be aláírásként
+	All contacts	Összes névjegy
+	Always open with this address book	Megnyitáskor mindig ez a címjegyzék jelenjen meg
+	Day and week show each calendar in a pane of its own	A napi és heti nézetben minden naptár külön panelen jelenik meg
+	Every contact, in every address book	Minden névjegy az összes címjegyzékből
+	Everyone you've written to or heard from, and your contacts	Mindenki, akinek írtál vagy akitől levelet kaptál, valamint a névjegyeid
+	Hide {calendar}	A(z) {calendar} elrejtése
+	Write your signature, or paste it…	Írd be vagy illeszd be az aláírásod…
+	Address books	Címjegyzékek
+	Birthday	Születésnap
+	Business	Munkahelyi
+	City	Város
+	Fax	Fax
+	Mobile	Mobil
+	Pager	Személyhívó
+	Shared with you through {account}: read-only	Veled megosztva ezen a fiókon keresztül: {account}. Csak olvasható.
+	YYYY-MM-DD	ÉÉÉÉ-HH-NN
+	Email 2	2. e-mail-cím
+	Email 3	3. e-mail-cím
+	Business fax	Munkahelyi fax
+	Other phone	Egyéb telefon
+	Street	Utca
+	Postal code	Irányítószám
+	State/Province	Állam vagy tartomány
+	Country/Region	Ország vagy régió
+	Business address	Munkahelyi cím
+	Home address	Otthoni cím
+	Delete “{name}”?	Törlöd ezt a névjegyet: „{name}”?
+	Delete this contact?	Törlöd ezt a névjegyet?
+	This contact will be deleted, along with everything kept about them. This can't be undone.	A névjegy az összes hozzá tartozó adattal együtt törlődik. Ez nem vonható vissza.
+	Export…	Exportálás…
+	{file} isn't a MailCraft backup.	A(z) {file} nem MailCraft biztonsági mentés.
+	A backup is brought in where MailCraft runs in the browser.	A biztonsági mentés a MailCraft böngészős változatában állítható vissza.
+	Backup saved as {file}	Biztonsági mentés elmentve: {file}
+	Restore…	Visszaállítás…
+	Bring a backup file in. It takes the place of what's kept here now.	Válassz egy biztonsági mentési fájlt. A mentés felülírja az itt tárolt adatokat.
+	Back up…	Biztonsági mentés készítése…
+	Save what's kept here to a file, with a password if you like.	Az itt tárolt adatok mentése fájlba, igény szerint jelszóval védve.
+	MailCraft keeps your accounts, settings and mail in this browser only. Clearing the browser's data for this site removes them: a backup file brings them back, here or in another browser.	A MailCraft csak ebben a böngészőben tárolja a fiókjaidat, beállításaidat és leveleidet. Ha törlöd az oldal böngészőadatait, ezek is törlődnek. Egy biztonsági mentésből itt vagy másik böngészőben is visszaállíthatod őket.
+	Backup	Biztonsági mentés
+	The backup's password	A biztonsági mentés jelszava
+	This takes the place of everything MailCraft keeps in this browser now: its accounts, their settings and their mail. Each account's password is asked for again.	Ez felülír minden adatot, amelyet a MailCraft jelenleg ebben a böngészőben tárol: a fiókokat, azok beállításait és leveleit. Minden fiók jelszavát újra meg kell adnod.
+	Restore from a backup…	Visszaállítás biztonsági mentésből…
+	Restore from backup	Visszaállítás biztonsági mentésből
+	The two passwords aren't the same.	A két jelszó nem egyezik.
+	Save backup	Biztonsági mentés mentése
+	The file can't be opened without this password: MailCraft can't recover it.	A fájl e jelszó nélkül nem nyitható meg. A MailCraft nem tudja visszaállítani a jelszót.
+	Without a password, anyone who has the file can read what's in it.	Jelszó nélkül bárki elolvashatja a fájl tartalmát, aki hozzáfér a fájlhoz.
+	The password again	Jelszó ismét
+	Password for the file (optional)	A fájl jelszava (nem kötelező)
+	Include the mail downloaded to this browser	Az ebbe a böngészőbe letöltött levelek mentése is
+	Your accounts and their settings, rules, signatures, calendars and contacts go into one file. Passwords are never in it.	A fiókok és beállításaik, a szabályok, az aláírások, a naptárak és a névjegyek egyetlen fájlba kerülnek. A fájl soha nem tartalmaz jelszavakat.
+	Back up	Biztonsági mentés készítése
+	Add the rules from a file saved by MailCraft. A rule for an account this computer doesn't have comes in turned off.	Szabályok hozzáadása a MailCrafttal mentett fájlból. Ha egy szabály olyan fiókhoz tartozik, amely nincs ezen a számítógépen, a szabály kikapcsolva kerül be.
+	Change…	Módosítás…
+	Clean up	Tisztítás
+	Export rules	Szabályok exportálása
+	Import rules	Szabályok importálása
+	Rules imported: {n}	Importált szabályok: {n}
+	Rules imported: {n} ({off} turned off, as their account isn't on this computer)	Importált szabályok: {n} ({off} kikapcsolva, mert a hozzájuk tartozó fiók nincs ezen a számítógépen)
+	Import…	Importálás…
+	No data file is open.	Nincs megnyitva adatfájl.
+	On the server	A kiszolgálón
+	On this computer	Ezen a számítógépen
+	Open…	Megnyitás…
+	Remove account	Fiók eltávolítása
+	Save your rules in a file, to keep them or to use them on another computer.	Mentsd fájlba a szabályaidat, hogy megőrizhesd vagy másik számítógépen is használhasd őket.
+	Rules saved in {file}: {n}	Mentett szabályok száma a(z) {file} fájlban: {n}
+	Save {n} Selected…	{n} kijelölt elem mentése…
+	Run all	Összes futtatása
+	Run every rule that's on, on the mail already in the Inbox	Minden bekapcsolt szabály futtatása a már beérkezett üzeneteken
+	Find a rule	Szabály keresése
+	No rule matches.	Nincs egyező szabály.
+	 and {n} more	 és még {n}
+	Add to contacts…	Hozzáadás a névjegyekhez…
+	Copy address	Cím másolása
+	Edit contact…	Névjegy szerkesztése…
+	Send email	E-mail küldése
+	Add	Hozzáadás
+	Add a shared mailbox	Megosztott postafiók hozzáadása
+	Other addresses	További címek
+	Key {key}: signs mail from {addresses}	A(z) {key} kulcs ezekről a címekről küldött leveleket írja alá: {addresses}
+	Valid until {date}: signs mail from {addresses}	Érvényes eddig: {date}. Ezekről a címekről küldött leveleket írja alá: {addresses}
+	Find on the server	Keresés a kiszolgálón
+	Addresses of this same mailbox that you also send from.	A postafiók további címei, amelyekről szintén küldhetsz levelet.
+	Add an address	Cím hozzáadása
+	Change an address	Cím módosítása
+	Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it.	Ugyanennek a postafióknak egy másik címe, például egy alias, amelyről levelet küldhetsz. Üzenetíráskor a Feladó mezőben választhatod ki. A levelezőkiszolgálónak engedélyeznie kell a küldést erről a címről.
+	Name on mail from it	Feladóként megjelenő név
+	Replies go to	Válaszcím
+	(the account's own)	(a fiók saját címe)
+	Write new mail from this address	Új levelek írása erről a címről
+	A new message starts from this address, not from {email}. Pick another in From as ever.	Új üzenet írásakor ez lesz a feladó címe a(z) {email} helyett. A Feladó mezőben továbbra is választhatsz másik címet.
+	{address} (new mail)	{address} (új levél)
+	Add…	Hozzáadás…
+	Its folders show under this account. You need access to it on the Exchange server; the ones you have full access to open by themselves.	A postafiók mappái ez alatt a fiók alatt jelennek meg. Az Exchange-kiszolgálón hozzáféréssel kell rendelkezned. A teljes hozzáférésű postafiókok automatikusan megnyílnak.
+	Mailboxes you have full access to open by themselves.	A teljes hozzáférésű postafiókok automatikusan megnyílnak.
+	Shared mailboxes	Megosztott postafiókok
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again. Nothing is deleted on the server.	A(z) {email} fiók eltávolításra kerül a MailCraftból. Adatfájlja ({file}) a MailCraft Files mappában marad. A levelek újbóli megtekintéséhez nyisd meg a Fájl › Megnyitás és exportálás menüből. A kiszolgálóról semmi sem törlődik.
+	{email} will be removed from MailCraft. Nothing is deleted on the server.	A(z) {email} fiók eltávolításra kerül a MailCraftból. A kiszolgálóról semmi sem törlődik.
+	{email} will be removed from MailCraft. Its data file, {file}, stays in your MailCraft Files folder: open it from File › Open & Export to see its mail again.	A(z) {email} fiók eltávolításra kerül a MailCraftból. Adatfájlja ({file}) a MailCraft Files mappában marad. A levelek újbóli megtekintéséhez nyisd meg a Fájl › Megnyitás és exportálás menüből.
+	{email} will be removed from MailCraft.	A(z) {email} fiók eltávolításra kerül a MailCraftból.
+
+# The Archive folder, where the plain entry is the command.
+folder	Archive	Archívum
+
+# A month's full name, where it differs from its short form.
+month	May	május
+	Add shared mailbox…	Megosztott postafiók hozzáadása…
+	Remove shared mailbox	Megosztott postafiók eltávolítása
+	Opened by the server for your access to it	A kiszolgáló automatikusan megnyitotta a hozzáférésed alapján
+	Shared mailbox {address}, opened by {email}	Megosztott postafiók: {address}, megnyitva ebből a fiókból: {email}
+	The outgoing server has its own user name and password	A kimenő levelek kiszolgálója külön felhasználónevet és jelszót használ
+	Sign in with	Bejelentkezési mód
+	NTLM (Secure Password Authentication)	NTLM (biztonságos jelszó-hitelesítés)
+	No sign-in	Nincs bejelentkezés
+	Its user name	A kiszolgálóhoz tartozó felhasználónév
+	Its password	A kiszolgálóhoz tartozó jelszó
+	Password (unchanged when empty)	Jelszó (ha üres, nem változik)
+	There's no folder to put the attachment in for another app	Nincs mappa, ahová a melléklet menthető lenne a másik alkalmazás számára
+	Check for updates	Frissítések keresése
+	Checking…	Ellenőrzés…
+	Couldn't check for updates: {error}	Nem sikerült ellenőrizni a frissítéseket: {error}
+	Download	Letöltés
+	Join meeting	Csatlakozás az értekezlethez
+	Links:	Hivatkozások:
+	MailCraft {version} is available.	Elérhető a MailCraft {version} verziója.
+	What's new	Újdonságok
+	You have the newest version.	A legújabb verziót használod.
+	Online only: keep none of this account's mail on this computer	Csak online: a fiók levelei ne legyenek ezen a számítógépen tárolva
+	Online only: none of this account's mail is kept on this computer.	Csak online: a fiók levelei nincsenek ezen a számítógépen tárolva.
+	Online only: {email}	Csak online: {email}
+	New message	Új üzenet
+	Open MailCraft to read it.	Az olvasáshoz nyisd meg a MailCraftot.
+	Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.	Hordozható mód: minden adat a MailCraft melletti MailCraftData mappába kerül. A jelszavakat a program csak a bezárásáig jegyzi meg.
+	Close MailCraft?	Bezárod a MailCraftot?
+	Close anyway	Bezárás ennek ellenére
+	Edit notes	Jegyzetek szerkesztése
+	Getting them from the server…	Letöltés a kiszolgálóról…
+	Messages download when you open them and are held in memory only: nothing is written to this computer. Changes made while offline, mail still waiting to be sent, and calendars, contacts and notes kept only in MailCraft are lost when it closes (you're asked first).	Az üzenetek megnyitáskor töltődnek le, és csak a memóriában maradnak: a számítógép nem menti őket lemezre. Bezáráskor elvesznek a kapcsolat nélkül végzett módosítások, a küldésre váró levelek, valamint a csak a MailCraftban tárolt naptárak, névjegyek és jegyzetek. A program előtte megerősítést kér.
+	Mail older than what's kept here is only on the server.	Az itt tároltaknál régebbi levelek csak a kiszolgálón érhetők el.
+	Search the server	Keresés a kiszolgálón
+	Searching the server…	Keresés a kiszolgálón…
+	Show more	Továbbiak megjelenítése
+	The account list (no passwords), the window's settings and the log	A fióklista (jelszavak nélkül), az ablak beállításai és a napló
+	The server found {n}	Találatok a kiszolgálón: {n}
+	These are held in memory only, as their accounts are online only, and are lost if MailCraft closes now: {what}. Connect and send them first (Send / Receive), or close anyway.	A következők csak a memóriában vannak, mert a hozzájuk tartozó fiókok csak online működnek. Ha most bezárod a MailCraftot, elvesznek: {what}. Előbb csatlakozz, és küldd el őket a Küldés / fogadás paranccsal, vagy zárd be a programot ennek ellenére.
+	{n} more on the server	További {n} a kiszolgálón
+	Changes not yet on the server: {n}	A kiszolgálóra még nem mentett módosítások: {n}
+	Messages waiting to be sent: {n}	Küldésre váró üzenetek: {n}
+	{day} {month}	{month} {day}.
+	Restart to update	Újraindítás a frissítéshez
+	MailCraft {version} is downloaded. It installs when you close MailCraft.	A MailCraft {version} verziója letöltve. A telepítés a MailCraft bezárásakor indul.
+	Reminder	Emlékeztető
+	None	Nincs
+	1 minute	1 perc
+	{n} minutes	{n} perc
+	1 hour	1 óra
+	{n} hours	{n} óra
+	1 day	1 nap
+	{n} days	{n} nap
+	1 week	1 hét
+	{n} weeks	{n} hét
+	0 minutes before start	A kezdés időpontjában
+	1 Reminder	1 emlékeztető
+	{n} Reminders	{n} emlékeztető
+	Click Snooze to be reminded again in:	A Halasztás gombbal ennyi idő múlva kapsz újabb emlékeztetőt:
+	Dismiss	Elvetés
+	Dismiss All	Összes elvetése
+	Open Item	Elem megnyitása
+	Overdue	Lejárt
+	Now	Most
+	In {n} minutes	{n} perc múlva
+	In {n} hours	{n} óra múlva
+	In {n} days	{n} nap múlva
+	Junk	Levélszemét
+	Junk options	Levélszemét beállításai
+	Junk Email options…	Levélszemét beállításai…
+	Block sender	Feladó letiltása
+	Never block sender	A feladó soha ne legyen letiltva
+	Never block sender's domain	A feladó tartománya soha ne legyen letiltva
+	Their mail goes to Junk Email from now on	A feladó levelei ezentúl a Levélszemét mappába kerülnek
+	Their mail is never treated as junk	A feladó levelei soha nem kerülnek a levélszemétbe
+	Mail from anyone at their domain is never treated as junk	A feladó tartományából érkező levelek soha nem kerülnek a levélszemétbe
+	Blocked senders	Letiltott feladók
+	Safe senders	Megbízható feladók
+	Mail from these addresses and domains goes to Junk Email as it arrives.	Az ezekről a címekről és tartományokból érkező levelek azonnal a Levélszemét mappába kerülnek.
+	Mail from these addresses and domains is never treated as junk, and its pictures load.	Az ezekről a címekről és tartományokból érkező levelek soha nem kerülnek a levélszemétbe, és a képeik betöltődnek.
+	name@example.com or @example.com	nev@example.com vagy @example.com
+	And {n} more	És még {n}
+	Clean up conversation	Beszélgetés tisztítása
+	Clean up folder	Mappa tisztítása
+	Messages quoted in full by a later reply go to Deleted Items	Azok az üzenetek, amelyeket egy későbbi válasz teljes egészében idéz, a Törölt elemek közé kerülnek
+	Work week	Munkahét
+	No conversations to clean up	Nincs tisztítandó beszélgetés
+	Nothing to clean up: no message is quoted in full by a later reply	Nincs mit tisztítani: egyetlen üzenetet sem idéz teljes egészében későbbi válasz
+	Search Folders	Keresési mappák
+	New Search Folder…	Új keresési mappa…
+	New Search Folder	Új keresési mappa
+	Edit Search Folder	Keresési mappa szerkesztése
+	Customize this Search Folder…	Keresési mappa testreszabása…
+	Delete Search Folder	Keresési mappa törlése
+	Shows the mail it finds in every folder, except Deleted Items and Junk Email.	Megjeleníti az összes mappában talált leveleket, kivéve a Törölt elemek és a Levélszemét mappát.
+	Show	Megjelenítés
+	From these people (addresses or names, separated by commas)	A következő feladóktól (címek vagy nevek, vesszővel elválasztva)
+	Search for	Keresés erre
+	Unread mail	Olvasatlan levelek
+	Mail flagged for follow up	Követésre megjelölt levelek
+	Important mail	Fontos levelek
+	Categorized mail	Kategorizált levelek
+	Mail with attachments	Melléklettel rendelkező levelek
+	Large mail (over 100 KB)	Nagy méretű levelek (100 KB felett)
+	Pinned mail	Rögzített levelek
+	Mail from specific people	Adott feladóktól érkezett levelek
+	Quick steps	Gyorsműveletek
+	No Quick Steps yet.	Még nincsenek gyorsműveletek.
+	New Quick Step…	Új gyorsművelet…
+	New Quick Step	Új gyorsművelet
+	Edit a Quick Step	Gyorsművelet szerkesztése
+	Edit Quick Step	Gyorsművelet szerkesztése
+	Done to the selected mail in one click; the first nine also with Ctrl+Shift+1 to 9.	Egy kattintással alkalmazható a kijelölt levelekre. Az első kilenc a Ctrl+Shift+1–9 billentyűparancsokkal is futtatható.
+	Done	Kész
+	Then move to	Ezután áthelyezés ide
+	Don't move	Ne helyezze át
+	Delete this Quick Step	Gyorsművelet törlése
+	Date & time	Dátum és idő
+	Word count	Szószámlálás
+	Words	Szavak
+	Characters (no spaces)	Karakterek (szóközök nélkül)
+	Characters (with spaces)	Karakterek (szóközökkel)
+	Paragraphs	Bekezdések
+	Lines	Sorok
+	Save the message you're writing?	Mented az éppen szerkesztett üzenetet?
+	Save the messages you're writing?	Mented az éppen szerkesztett üzeneteket?
+	It's kept in Drafts if you save it.	Mentéskor az üzenet a Piszkozatok közé kerül.
+	{n} messages are being written. They're kept in Drafts if you save them.	Jelenleg {n} üzenetet szerkesztesz. Mentéskor a Piszkozatok közé kerülnek.
+	Don't save	Ne mentse
+	Also being written:	További szerkesztés alatt álló üzenetek:
+	Play animations	Animációk lejátszása
+	Hovers, selections and panes ease into place; off, everything changes at once	Az egérmutató ráhúzásakor, kijelöléskor és a panelek változásakor animáció jelenik meg. Kikapcsolva minden azonnal változik.
+	Current Folder	Jelenlegi mappa
+	Subfolders	Almappák
+	Current Mailbox	Jelenlegi postafiók
+	All Mailboxes	Összes postafiók
+	Recent searches	Legutóbbi keresések
+	Clear recent searches	Legutóbbi keresések törlése
+	Advanced search	Speciális keresés
+	Message text	Üzenet szövege
+	Other terms	Egyéb keresőkifejezések
+	Clear	Törlés
+	No results. Try fewer words.	Nincs találat. Próbálkozz kevesebb szóval.
+	This update wasn't sent by the meeting's organizer, so it can't change your calendar.	Ezt a frissítést nem az értekezlet szervezője küldte, ezért nem módosíthatja a naptáradat.
+	This answer wasn't sent by the guest it's from, so it can't be recorded.	A választ nem az a meghívott küldte, akinek a nevében érkezett, ezért nem rögzíthető.
+	This invitation is out of date: your calendar has a newer version.	Ez a meghívó elavult: a naptáradban újabb verzió van.
+	Left out because they couldn't be read: {n}	Kihagyva, mert nem voltak beolvashatók: {n}
+	Added to your calendar from {file}: {n}	A naptáradhoz hozzáadott elemek a(z) {file} fájlból: {n}
+	Added to your contacts from {file}: {n}	A névjegyeidhez hozzáadott elemek a(z) {file} fájlból: {n}
+	Add an account first: a new message needs an account to send from.	Előbb adj hozzá egy fiókot: az új üzenet küldéséhez szükség van egy feladói fiókra.
+	{folder} isn't attached: it's a folder	A(z) {folder} nem lett csatolva, mert mappa
+	Add an account first: events and people are kept with an account.	Előbb adj hozzá egy fiókot: az események és névjegyek fiókhoz tartoznak.
+	Couldn't open {file}: {error}	Nem sikerült megnyitni: {file}. Hiba: {error}
+	Safety	Biztonságos levelezés
+	Send where photos were taken	A fényképek készítési helyének elküldése
+	Off, the place a phone writes into a photo is taken out of JPEG and PNG files as they're sent	Kikapcsolva a MailCraft küldéskor eltávolítja a JPEG- és PNG-fájlokból a telefon által rögzített helyadatokat
+	These photos say where they were taken, and go that way (File › Options › Safety)	A fényképek tartalmazzák a készítés helyét, és azzal együtt mennek el (Fájl › Beállítások › Biztonságos levelezés)
+	Where these photos were taken is left out as they're sent	A MailCraft küldéskor eltávolítja a fényképek készítési helyét
+	Careful: this comes from {domain}, which looks like {like} but isn't it.	Vigyázat: az üzenet a(z) {domain} tartományból érkezett. Ez hasonlít a(z) {like} tartományra, de nem azonos vele.
+	Careful: the sender's name shows {shown}, but this comes from {real}.	Vigyázat: a feladó megjelenített neve {shown}, de az üzenet innen érkezett: {real}.
+	Don't open its links or attachments, or answer it, unless you're sure who sent it.	Csak akkor nyisd meg az üzenet hivatkozásait vagy mellékleteit, és csak akkor válaszolj, ha biztos vagy benne, ki küldte.
+	Check before sending	Ellenőrzés küldés előtt
+	{address} looks like an address at {like}, but isn't one. Is it the right one?	A(z) {address} úgy néz ki, mintha a(z) {like} tartományhoz tartozna, de nem oda tartozik. Biztosan ez a helyes cím?
+	{n} people who may not know each other will all see each other's addresses.	Mind a(z) {n} címzett látni fogja a többiek címét, pedig lehet, hogy nem ismerik egymást.
+	Something about the recipients was found to look at, but it can't be shown. Look them over before sending.	A MailCraft észrevett valamit a címzetteknél, amit érdemes ellenőrizni, de nem tudja megjeleníteni. Küldés előtt nézd át a címzetteket.
+	Put everyone in Bcc	Mindenki áthelyezése a Titkos másolat mezőbe
+	Each of them gets the message without seeing who else did; you're in To	Mindannyian megkapják az üzenetet anélkül, hogy látnák, ki kapta még meg. A Címzett mezőbe a saját címed kerül.
+	Open links without their tracking	Hivatkozások megnyitása követés nélkül
+	A link opens where it really goes: out of redirects that carry the real address, without the tags that say who clicked	A hivatkozás közvetlenül a tényleges célcímre nyílik meg, ha az átirányítás tartalmazza ezt a címet. A kattintó azonosítására szolgáló paraméterek kimaradnak.
+	Links open as they are (File › Options › Safety)	A hivatkozások változatlanul nyílnak meg (Fájl › Beállítások › Biztonságos levelezés)
+	Links open without their tracking tags, and out of redirects that carry the real address	A hivatkozások a követési paraméterek nélkül nyílnak meg, az átirányítás megkerülésével, ha abban szerepel a tényleges célcím
+	Links that report clicks: {links}	Kattintásokat jelentő hivatkozások: {links}
+	Tracking pictures, never loaded: {pictures}	Követőképek (soha nem töltődnek be): {pictures}
+	Tracking pictures, never loaded: {pictures} · Links that report clicks: {links}	Követőképek (soha nem töltődnek be): {pictures} · Kattintásokat jelentő hivatkozások: {links}
+	This message hides text from you ({n} words).	Az üzenet rejtett szöveget tartalmaz ({n} szó).
+	Hidden text is a way to slip past spam filters, or to give instructions to tools and assistants that read mail for you.	A rejtett szöveggel megkerülhetik a levélszemétszűrőket, vagy utasításokat adhatnak a leveleidet olvasó eszközöknek és asszisztenseknek.
+	Show the hidden text	Rejtett szöveg megjelenítése
+	Hide it again	Újbóli elrejtés
+	Sent mail waiting for a reply	Válaszra váró elküldött levelek
+	Awaiting reply	Válaszra vár
+	its certificate isn't from an authority this computer trusts	nem olyan hitelesítésszolgáltató állította ki a tanúsítványát, amelyben ez a számítógép megbízik
+	its certificate ran out on {date}	a tanúsítványa lejárt ekkor: {date}
+	its certificate isn't valid until {date}	a tanúsítványa csak ettől az időponttól érvényes: {date}
+	its certificate is for {addresses}, not for the sender	a tanúsítványa nem a feladóhoz, hanem ezekhez a címekhez tartozik: {addresses}
+	its certificate isn't for signing email	a tanúsítványa nem használható e-mailek aláírására
+	Encrypted. Decrypting it…	Titkosítva. Visszafejtés…
+	This message is encrypted, and it couldn't be decrypted: {error}	Az üzenet titkosított, és nem sikerült visszafejteni: {error}
+	It isn't signed, so it could have been changed on the way: be careful with what it asks.	Az üzenet nincs aláírva, ezért útközben módosíthatták. Kezeld óvatosan a benne szereplő kéréseket.
+	Encrypted: only you and its other recipients can read it.	Titkosítva: csak te és az üzenet többi címzettje olvashatja.
+	Issued by {issuer}, valid until {date}	Kibocsátó: {issuer}. Érvényes eddig: {date}
+	Signed {date}	Aláírás időpontja: {date}
+	Signed with SHA-1, which no longer proves much.	Az üzenetet SHA-1 használatával írták alá, ami ma már nem nyújt kellő bizonyosságot.
+	Signed by {signer}: the signature holds (certificate from {issuer}).	Aláíró: {signer}. Az aláírás érvényes (a tanúsítvány kibocsátója: {issuer}).
+	Signed by {signer}, but {why}.	Aláíró: {signer}, de {why}.
+	The signature doesn't hold: {why}.	Az aláírás érvénytelen: {why}.
+	Sign your messages so people can tell they're from you, and read and send encrypted mail, with a certificate (S/MIME).	Tanúsítvánnyal (S/MIME) aláírhatod az üzeneteidet, hogy a címzettek ellenőrizhessék, tőled származnak-e. Titkosított leveleket is olvashatsz és küldhetsz.
+	Security	Tanúsítványok és titkosítás
+	No certificate	Nincs tanúsítvány
+	Import the .p12 or .pfx file your certificate came in.	Importáld a tanúsítványt tartalmazó .p12 vagy .pfx fájlt.
+	Import certificate…	Tanúsítvány importálása…
+	It ran out on {date}: messages can't be signed with it any more.	A tanúsítvány ekkor lejárt: {date}. Már nem használható üzenetek aláírására.
+	Forget this certificate: its key goes from the keychain too	Tanúsítvány eltávolítása: a kulcsa is törlődik a rendszer jelszótárolójából
+	Replace…	Csere…
+	Sign new messages	Új üzenetek aláírása
+	Encrypt new messages	Új üzenetek titkosítása
+	Each recipient needs to have sent you a signed message first; replies to encrypted mail are always encrypted.	Előbb minden címzettől aláírt üzenetet kell kapnod. A titkosított levelekre adott válaszok mindig titkosítottak.
+	Certificates from signed mail: {n}	Aláírt levelekből származó tanúsítványok: {n}
+	Import certificate	Tanúsítvány importálása
+	The password {file} was saved with:	A(z) {file} fájl mentésekor megadott jelszó:
+	Its private key is kept in the system's keychain, not in MailCraft's files.	A privát kulcsot a rendszer jelszótárolója őrzi, nem a MailCraft saját fájljai.
+	Import	Importálás
+	Sign	Aláírás
+	Encrypt	Titkosítás
+	Signed with your certificate: the recipients can tell it's from you and unchanged	A tanúsítványoddal aláírva: a címzettek ellenőrizhetik, hogy tőled származik-e az üzenet, és hogy nem módosították-e
+	Only the recipients can read it: each needs to have sent you a signed message	Csak a címzettek olvashatják. Ehhez előzőleg mindegyiküktől aláírt üzenetet kell kapnod
+	the message was changed after it was signed, or the signature isn't the sender's	az üzenetet az aláírás után módosították, vagy az aláírás nem a feladóé
+	this account has no certificate to decrypt it with (File › Info › Security)	ehhez a fiókhoz nincs a visszafejtéshez használható tanúsítvány (Fájl › Információ › Tanúsítványok és titkosítás)
+	it can't be decrypted with your certificate	a tanúsítványoddal nem fejthető vissza
+	its account is gone	a hozzá tartozó fiók már nincs meg
+	Hide the subject of encrypted mail	Titkosított levelek tárgyának elrejtése
+	On the way it reads [...]; the real one is inside, for its recipients (header protection).	Továbbításkor a tárgy helyén [...] jelenik meg. A valódi tárgyat csak a címzettek olvashatják a titkosított üzenetben (fejlécvédelem).
+	Its subject and addresses were protected inside it too.	Az üzenet tárgya és címei is a titkosított részben voltak.
+	Check whether certificates were withdrawn	Tanúsítványok visszavonásának ellenőrzése
+	As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading	Aláírt levél megjelenítésekor a MailCraft megkérdezi a tanúsítvány kibocsátóját, visszavonták-e a tanúsítványt. A kibocsátó így megtudja, kinek a levelét olvasod
+	Asking its authority whether the certificate was withdrawn…	A tanúsítvány visszavonási állapotának lekérdezése a kibocsátótól…
+	Its authority says the certificate wasn't withdrawn.	A kibocsátó szerint a tanúsítványt nem vonták vissza.
+	Whether the certificate was withdrawn couldn't be checked: {why}.	Nem sikerült ellenőrizni a tanúsítvány visszavonási állapotát: {why}.
+	its authority withdrew its certificate on {date}	a kibocsátó ekkor vonta vissza a tanúsítványt: {date}
+	its certificate doesn't say where to ask	a tanúsítvány nem adja meg, hol ellenőrizhető a visszavonási állapota
+	its authority's responder didn't answer	a kibocsátó állapotlekérdező szolgáltatása nem válaszolt
+	its authority's list of withdrawn certificates couldn't be had	nem sikerült lekérni a kibocsátó tanúsítvány-visszavonási listáját
+	the certificate's authority isn't known	a tanúsítvány kibocsátója ismeretlen
+	the list of withdrawn certificates can't be read	a tanúsítvány-visszavonási lista nem olvasható
+	the list isn't from the certificate's authority	a lista nem a tanúsítvány kibocsátójától származik
+	the list's signature doesn't hold	a lista aláírása érvénytelen
+	the list is from the future	a lista keltezése jövőbeli
+	the list is out of date	a lista elavult
+	a certificate can't be read	egy tanúsítvány nem olvasható
+	the OCSP answer can't be read	az OCSP-válasz nem olvasható
+	the OCSP responder didn't answer	az OCSP-válaszadó nem válaszolt
+	the OCSP answer is of another kind	az OCSP-válasz típusa eltér a várttól
+	the OCSP answer isn't signed by the certificate's authority	az OCSP-választ nem a tanúsítvány kibocsátója írta alá
+	the OCSP answer is about another certificate	az OCSP-válasz másik tanúsítványra vonatkozik
+	the OCSP answer is from the future	az OCSP-válasz keltezése jövőbeli
+	the OCSP answer is out of date	az OCSP-válasz elavult
+	the OCSP responder doesn't know the certificate	az OCSP-válaszadó nem ismeri a tanúsítványt
+	Use a smart card	Intelligens kártya használata
+	Use a smart card…	Intelligens kártya használata…
+	Find certificates	Tanúsítványok keresése
+	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Importáld a tanúsítványt tartalmazó .p12 vagy .pfx fájlt, vagy használj intelligens kártyán tárolt tanúsítványt.
+	Look in the Keychain	Keresés a Kulcskarikában
+	Looking…	Keresés…
+	The card's PIN	A kártya PIN-kódja
+	The key stays on the card; its PIN is kept in the system's keychain.	A kulcs a kártyán marad, a PIN-kódot pedig a rendszer jelszótárolója őrzi.
+	The module your card came with (OpenSC's reads most cards):	A kártyához tartozó modul (az OpenSC modulja a legtöbb kártyát kezeli):
+	Use	Használat
+	no certificate with its key was found	nem található olyan tanúsítvány, amelyhez a kulcs is elérhető
+	the PIN is wrong, or the card is locked	hibás a PIN-kód, vagy zárolva van a kártya
+	this system's keychain can't sign for MailCraft: use a smart card's module, or import a .p12 file	a rendszer jelszótárolója nem tud aláírni a MailCraft számára: használd az intelligens kártya modulját, vagy importálj egy .p12 fájlt
+	Unlock	Feloldás
+	Unlock…	Feloldás…
+	Unlock certificate	Tanúsítvány feloldása
+	Your certificate's password, to use it in this browser until the page is closed:	Add meg a tanúsítvány jelszavát, hogy az oldal bezárásáig használhasd ebben a böngészőben:
+	The browser keeps the file, locked with its password; the password itself isn't kept.	A böngésző megőrzi a jelszóval védett fájlt, de magát a jelszót nem tárolja.
+	Give its password again to sign and decrypt in this page (it opens every certificate it's the password of)	Add meg újra a jelszót az aláíráshoz és a visszafejtéshez ezen az oldalon. Ezzel az összes olyan tanúsítvány feloldódik, amelyhez ez a jelszó tartozik.
+	your certificate is locked in this browser: unlock it with its password (File › Info › Security)	a tanúsítványod zárolva van ebben a böngészőben: oldd fel a jelszavával (Fájl › Információ › Tanúsítványok és titkosítás)
+	there's no certificate kept in this browser: import its .p12 file	ebben a böngészőben nincs tárolt tanúsítvány: importáld a hozzá tartozó .p12 fájlt
+	smart cards and the system's keychain are used by the MailCraft desktop app, not in the browser	az intelligens kártyát és a rendszer jelszótárolóját a MailCraft asztali alkalmazása tudja használni, a böngészős változat nem
+	the browser can't ask a certificate's authority	a böngésző nem tudja lekérdezni a tanúsítvány kibocsátóját
+	A certificate this computer already has, its key staying where it is	Már ezen a számítógépen lévő tanúsítvány, a kulcs áthelyezése nélkül
+	Look in Windows	Keresés a Windows tanúsítványtárában
+	The certificates for email in your Keychain. The key stays there; macOS may ask before it's used.	A Kulcskarikában lévő e-mail-tanúsítványok. A kulcs ott marad; a macOS a használat előtt engedélyt kérhet.
+	The certificates for email in your Windows certificate store (Personal). The key stays in Windows; it may ask before it's used.	A Windows Személyes tanúsítványtárában lévő e-mail-tanúsítványok. A kulcs a Windowsban marad; a rendszer a használat előtt engedélyt kérhet.
+	Use a certificate from Windows	Tanúsítvány használata a Windows tanúsítványtárából
+	Use a certificate from the Keychain	Tanúsítvány használata a Kulcskarikából
+	Use one from Windows…	Használat a Windows tanúsítványtárából…
+	Use one from the Keychain…	Használat a Kulcskarikából…
+	the certificate is in another computer's certificate store	a tanúsítvány egy másik számítógép tanúsítványtárában van
+	Or use one this computer has	Vagy használj ezen a számítógépen már elérhető tanúsítványt
+	On a smart card, or kept by the system: the key stays where it is.	Intelligens kártyán vagy a rendszerben tárolt tanúsítvány: a kulcs a helyén marad.
+	Windows can't agree a key with this EC key (its provider may keep it for signing only)	a Windows nem tud ezzel az EC-kulccsal kulcsegyeztetést végezni (lehet, hogy a kulcsszolgáltató csak aláírásra engedi használni)
+	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	már csak kevés PIN-próbálkozás maradt, ezért a MailCraft nem próbálkozik: add meg újra a PIN-kódot (Fájl › Információ › Tanúsítványok és titkosítás › Intelligens kártya használata…)
+	the list holds only what changed since another one	a lista csak egy másik listához képest történt változásokat tartalmazza
+	the list covers only some certificates or reasons	a lista csak bizonyos tanúsítványokra vagy visszavonási okokra vonatkozik
+	the list is for other certificates	a lista más tanúsítványokra vonatkozik
+	the list has a part MailCraft can't read	a lista egy részét a MailCraft nem tudja beolvasni
+	the list's entry for the certificate can't be read	a listában a tanúsítványhoz tartozó bejegyzés nem olvasható
+	the certificate has no password, so the browser uses it until the page is closed and doesn't keep it	a tanúsítványnak nincs jelszava, ezért a böngésző csak az oldal bezárásáig használja, és nem tárolja
+	the card needs its PIN (give it in File › Info › Security › Use a smart card…)	a kártyához PIN-kód szükséges (add meg itt: Fájl › Információ › Tanúsítványok és titkosítás › Intelligens kártya használata…)
+	the card refused its PIN, so MailCraft forgot it: the card would lock if it were tried again (give it again in File › Info › Security › Use a smart card…)	a kártya elutasította a PIN-kódot, ezért a MailCraft törölte a mentett kódot: újabb próbálkozás zárolná a kártyát (add meg újra itt: Fájl › Információ › Tanúsítványok és titkosítás › Intelligens kártya használata…)
+	Close without updating	Bezárás frissítés nélkül
+	Downloading MailCraft {version}…	A MailCraft {version} letöltése…
+	Downloading MailCraft {version}… {percent}%	A MailCraft {version} letöltése… {percent}%
+	If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft.	Ha most bezárod a MailCraftot, a letöltés szünetel. A következő indításkor onnan folytatódik, ahol abbamaradt.
+	Install MailCraft {version} as it closes?	Telepíted a MailCraft {version} verzióját bezáráskor?
+	It installs the next time you close MailCraft.	A telepítés a MailCraft következő bezárásakor indul.
+	It installs when you close MailCraft.	A telepítés a MailCraft bezárásakor indul.
+	Keep MailCraft open	A MailCraft maradjon nyitva
+	MailCraft {version} is downloading.	A MailCraft {version} letöltése folyamatban van.
+	MailCraft {version} is ready	A MailCraft {version} telepítésre kész
+	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	A MailCraft {version} telepítésre kész. Indítsd újra most a telepítéshez, vagy a frissítés a MailCraft bezárásakor települ.
+	Restart MailCraft to install it now, or it installs when you close MailCraft.	Indítsd újra a MailCraftot az azonnali telepítéshez, vagy a frissítés a MailCraft bezárásakor települ.
+	Restart now	Újraindítás most
+	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	A frissítés letöltve és ellenőrizve. A telepítés a MailCraft bezárásakor indul, és rövid ideig tart. Ha kész, nyisd meg újra a MailCraftot.
+	Update and close	Frissítés és bezárás
+	Windows asks for an administrator's permission.	A Windows rendszergazdai engedélyt kér.
+	The system asks for your password to install it.	A rendszer jelszót kér a telepítéshez.
+	Your software installer opens to install it.	A telepítéshez megnyílik a rendszer szoftvertelepítője.
+	An update is still downloading	Még folyamatban van egy frissítés letöltése
+	MailCraft {version} is downloading ({done} of {total}).	A MailCraft {version} letöltése folyamatban van ({done} / {total}).
+	Add another…	Újabb hozzáadása…
+	A renewed certificate takes over signing and encrypting; an older one is kept to read old mail	A megújított tanúsítvány veszi át az aláírást és a titkosítást. A régebbi megmarad a korábbi levelek olvasásához.
+	Older certificate, valid until {date}: kept to read mail encrypted to it	Régebbi tanúsítvány (érvényes eddig: {date}): az ezzel titkosított levelek olvasásához megőrizve
+	Use for sending	Használat küldéshez
+	Sign and encrypt with this one again; the one in use is kept for reading	Újra ez a tanúsítvány szolgál aláírásra és titkosításra. Az eddig használt tanúsítvány megmarad az olvasáshoz.
+	Forget this certificate: mail encrypted to it can't be read any more	Tanúsítvány eltávolítása: a hozzá tartozó kulccsal visszafejthető levelek többé nem lesznek olvashatók
+	Calendars and contacts	Naptárak és névjegyek
+	Calendar server…	Naptárkiszolgáló…
+	Calendar server (CalDAV)	Naptárkiszolgáló (CalDAV)
+	Contacts server (CardDAV)	Névjegykiszolgáló (CardDAV)
+	Calendars at {url}	Naptárak itt: {url}
+	Calendars come from a server of their own: give its address and sign-in	A naptárak külön kiszolgálóról érkeznek: add meg a címét és a bejelentkezési adatokat
+	Looked for when the account syncs	Keresés a fiók szinkronizálásakor
+	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	A MailCraft a levelezőszolgáltatód kiszolgálóján keresi a naptáraidat és a névjegyeidet. Ha nem találja őket, add meg a szolgáltató súgójában szereplő címeket. Hagyd üresen azt a mezőt, amelyhez továbbra is automatikus keresést szeretnél.
+	No calendars were found at the address given: check it, and its sign-in	A megadott címen nem található naptár. Ellenőrizd a címet és a bejelentkezési adatokat.
+	Password (kept: type to change it)	Jelszó (mentve; a módosításhoz írj be újat)
+	Some providers want an app password for calendars: make one in your account's settings there.	Egyes szolgáltatók alkalmazásjelszót kérnek a naptárakhoz. A szolgáltatónál, a fiókbeállításokban hozhatsz létre ilyet.
+	The calendar server has its own user name and password	A naptárkiszolgáló külön felhasználónevet és jelszót használ
+	Your provider's calendar server wasn't found: give its address	Nem található a szolgáltatód naptárkiszolgálója. Add meg a címét.
+	Classic ribbon	Klasszikus menüszalag
+	Big buttons with their names under them, in named groups	Nagy gombok névvel ellátott csoportokban, a gombnevek alattuk jelennek meg
+	Hide the ribbon	Menüszalag elrejtése
+	Its tabs stay on the top bar: click one for its buttons, twice to keep them	A lapfülek a felső sávon maradnak. Egy kattintással megjelenítheted a gombokat, dupla kattintással pedig nyitva tarthatod a menüszalagot.
+	New	Új
+	Respond	Válaszadás
+	Tags	Címkék
+	Find	Keresés
+	Send & Receive	Küldés / fogadás
+	Preferences	Beállítások
+	Scope	Keresés hatóköre
+	Refine	Szűkítés
+	Layout	Elrendezés
+	Arrangement	Rendezés
+	Appearance	Megjelenés
+	Expand	Kibontás
+	Collapse	Összecsukás
+	Sent To	Címzett
+	Has Attachments	Van melléklete
+	To:	Címzett:
+	Cc:	Másolat:
+	Accent colour	Kiemelőszín
+	Any colour	Bármilyen szín
+	Buttons, links, the selection and the top bar	A gombok, a hivatkozások, a kijelölés és a felső sáv színe
+	Everyone in your organisation's directory, asked of the server	A szervezeti címtár összes bejegyzése a kiszolgálóról lekérve
+	Global Address List	Globális címlista
+	Indigo	Indigó
+	Left empty: MailCraft's own	Üresen hagyva a MailCraft saját azonosítóját használja
+	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Csak akkor töltsd ki, ha a szervezeted kiszolgálója elutasítja a MailCraftot. Olyan levelezőprogram nevét add meg, amelyet a kiszolgáló elfogad.
+	Only letters, digits, spaces and punctuation, up to 256 characters.	Csak betűk, számjegyek, szóközök és írásjelek használhatók, legfeljebb 256 karakterig.
+	Orange	Narancssárga
+	Plain top bar	Egyszínű felső sáv
+	Minimize	Kis méret
+	Maximize	Teljes méret
+	Restore	Előző méret
+	Use the system title bar	A rendszer címsorának használata
+	Applies when MailCraft starts again	A MailCraft következő indításakor lép érvénybe
+	Red	Piros
+	Refresh: search the directory again and read the address books from the server	Frissítés: új keresés a címtárban és a címjegyzékek újbóli beolvasása a kiszolgálóról
+	Rose	Rózsaszín
+	Search the directory now	Keresés a címtárban most
+	Searching your organisation's directory…	Keresés a szervezeted címtárában…
+	Teal	Türkiz
+	The directory couldn't be searched: {error}	Nem sikerült keresni a címtárban: {error}
+	The top bar in the panes' colours instead of the accent colour	A felső sáv a kiemelőszín helyett a panelek színét használja
+	Type a name to search your organisation's directory.	Írj be egy nevet a szervezeted címtárában való kereséshez.
+	User-Agent (optional)	User-Agent (nem kötelező)
+	Violet	Ibolya
+	Allow searching the directory…	Címtárkeresés engedélyezése…
+	Microsoft asks in your browser; your mail's sign-in stays as it is	A Microsoft a böngészőben kér engedélyt. A levelezéshez használt bejelentkezés nem változik.
+	Your organisation's directory needs your permission to be searched from MailCraft.	Engedélyt kell adnod, hogy a MailCraft kereshessen a szervezeted címtárában.
+	Keep unlocked in this browser	Maradjon feloldva ebben a böngészőben
+	The password is kept sealed with a key this browser makes and never lets out: anyone using this browser profile can sign and read your encrypted mail, nobody can take the key elsewhere.	A jelszót a böngésző egy saját, nála maradó kulccsal titkosítva tárolja. Bárki, aki ezt a böngészőprofilt használja, aláírhat üzeneteket és elolvashatja a titkosított leveleidet, de a kulcsot nem viheti át máshová.
+	The browser keeps the file, locked with its password, and the password sealed with a key that never leaves this browser.	A böngésző megőrzi a jelszóval védett fájlt. A jelszót olyan kulccsal titkosítva tárolja, amely nem hagyja el ezt a böngészőt.
+	Your certificate's password, to keep it unlocked in this browser:	Add meg a tanúsítvány jelszavát, hogy feloldva maradjon ebben a böngészőben:
+	Subscribe to a calendar	Feliratkozás naptárra
+	Subscribe to a calendar…	Feliratkozás naptárra…
+	Paste the calendar's link (iCal or webcal://). It shows beside yours, read-only, and is read again every few hours.	Illeszd be a naptár hivatkozását (iCal vagy webcal://). A naptárad mellett, csak olvasható módban jelenik meg, és néhány óránként frissül.
+	Name (optional)	Név (nem kötelező)
+	Subscribe	Feliratkozás
+	Couldn't be read: {error}	Nem sikerült beolvasni: {error}
+	Reading it…	Beolvasás…
+	Read {time}	Beolvasva: {time}
+	couldn't be read	nem sikerült beolvasni
+	Refresh	Frissítés
+	Drop to attach them to a new message	Ejtéssel csatolhatod őket egy új üzenethez
+	{name} can't go in a signature: pictures of up to 1 MB, 10 at most (PNG, JPEG, GIF, WebP)	A(z) {name} nem illeszthető be az aláírásba: legfeljebb 10 kép használható (PNG, JPEG, GIF, WebP), egyenként legfeljebb 1 MB méretben
+	Original size	Eredeti méret
+	Write replies and forwards in a window of their own	Válaszok és továbbított üzenetek írása külön ablakban
+	Show Favorites at the top of the folder pane	A Kedvencek megjelenítése a mappapanel tetején
+	Messages still being sent: {n}. They may not go if MailCraft closes now: wait a moment, or close anyway.	Még {n} üzenet küldése van folyamatban. Ha most bezárod a MailCraftot, lehet, hogy nem mennek el. Várj egy kicsit, vagy zárd be ennek ellenére.
+	Add meeting invitations to the calendar as tentative when they arrive	Értekezlet-meghívók felvétele a naptárba érkezéskor, feltételes állapottal
+	Before they're answered; nothing is sent until you answer	Már a válaszadás előtt bekerülnek. A MailCraft nem küld semmit, amíg nem válaszolsz.
+	View message source	Üzenet forrásának megtekintése
+	{n} messages selected	{n} üzenet kijelölve
+	Message source	Üzenet forrása
+	View the message as it came, headers and all	Az üzenet megtekintése az eredeti formájában, a fejlécekkel együtt
+	Message	Üzenet
+	{subject} – Message source	{subject} – Üzenet forrása
+	Whole message	Teljes üzenet
+	Header only	Csak a fejléc
+	Copy all	Összes másolása
+	Only the first {shown} of {size} are shown. Save as email (.eml) keeps all of it.	A teljes {size} méretből csak az első {shown} látható. A Mentés e-mailként (.eml) parancs a teljes üzenetet menti.
+	The source couldn't be downloaded: {error}	Nem sikerült letölteni az üzenet forrását: {error}
+	Always	Mindig
+	External	Külső
+	Check who sent it	Ellenőrizd a feladót
+	Careful: you know {name} as {known}, but this comes from {real}.	Vigyázat: {name} ismert címe {known}, de ez az üzenet innen érkezett: {real}.
+	This sender is outside your organisation.	Ez a feladó a szervezeteden kívülről küldött üzenetet.
+	Sender addresses in the message list	Feladói címek az üzenetlistában
+	The address a message comes from, after the sender's name: a familiar name can come from anyone's address	A feladó neve után az a cím jelenik meg, amelyről az üzenet érkezett. Ismerős név bármilyen cím mellett szerepelhet.
+	People you don't know	Ismeretlen feladók
+	Tag mail from outside your organisation	Szervezeten kívülről érkező levelek címkézése
+	Messages from other domains are tagged External, in the list and above the message	A más tartományból érkező üzenetek Külső címkét kapnak a listában és az üzenet felett
+	Your organisation's domains	A szervezeted tartományai
+	Separated by commas. Left empty, the domains of your accounts, mail services such as Gmail left out	Vesszővel elválasztva add meg őket. Ha üresen hagyod, a MailCraft a fiókjaid tartományait használja, az olyan levelezőszolgáltatókét kihagyva, mint a Gmail.
+	None: nothing is tagged	Nincs: egy levél sem kap címkét
+	Signatures	Aláírások
+	(none)	(nincs)
+	A signature needs a name, on one line.	Az aláírásnak egysoros nevet kell adni.
+	Default signatures for {email}	Alapértelmezett aláírások ehhez a fiókhoz: {email}
+	New signature	Új aláírás
+	No signatures yet	Még nincsenek aláírások
+	New messages:	Új üzenetek:
+	Replies/forwards:	Válaszok és továbbítások:
+	Another signature has that name.	Már van ilyen nevű aláírás.
+	Add to the list	Hozzáadás a listához
+	All categories…	Összes kategória…
+	Categories imported: {n} new, {changed} changed	Kategóriák importálva: {n} új, {changed} módosított
+	Categories imported: {n} new, {changed} changed, {skipped} left out (their keyword is another category's here)	Kategóriák importálva: {n} új, {changed} módosított, {skipped} kihagyva (a kulcsszavuk itt már másik kategóriához tartozik)
+	Categories saved in {file}: {n}	Mentett kategóriák száma a(z) {file} fájlban: {n}
+	Each category is kept with the mail on the server as a keyword, which other mail programs see too.	A kiszolgáló a levelekhez kulcsszóként tárolja a kategóriákat, így más levelezőprogramok is látják őket.
+	Edit category	Kategória szerkesztése
+	Keyword on the server	Kulcsszó a kiszolgálón
+	Mail that has the old keyword keeps it, shown as a category not in the list.	A régi kulcsszó megmarad az érintett leveleken, és listán kívüli kategóriaként jelenik meg.
+	No categories yet.	Még nincsenek kategóriák.
+	Not in the category list	Nem szerepel a kategórialistában
+	Not in the category list: click to name it and choose its colour	Nem szerepel a kategórialistában: kattints a név és a szín megadásához
+	On mail here, not in the list	Az itteni leveleken szerepel, de a listán nem
+	Other mail programs that set the same keyword show the same category.	Ha egy másik levelezőprogram ugyanazt a kulcsszót állítja be, ugyanaz a kategória jelenik meg.
+	That keyword has another use.	A kulcsszó már más célra van használatban.
+	Up to 50 letters, digits and symbols, without spaces, quotes, backslashes or ( ) { } ] % *	Legfeljebb 50 betű, számjegy vagy jel. Nem lehet benne szóköz, idézőjel, fordított perjel, illetve a következő jelek egyike: ( ) { } ] % *
+	{name} has that keyword already.	A(z) {name} már ezt a kulcsszót használja.
+	Messages: {n}	Üzenetek: {n}
+	All calendars	Összes naptár
+	Busy	Foglalt
+	Free	Szabad
+	No events match.	Nincs egyező esemény.
+	Out of office	Házon kívül
+	Past	Korábbi
+	Private	Magánjellegű
+	Private appointment	Magánjellegű találkozó
+	Search calendar (location:, organizer:, after:…)	Keresés a naptárban (location:, organizer:, after:…)
+	Show as	Megjelenítés mint
+	Show time only	Csak az időpont megjelenítése
+	Working elsewhere	Máshol dolgozik
+	After answering a meeting invitation	Értekezlet-meghívó megválaszolása után
+	Answered in the message or in the calendar, the invitation and its earlier versions leave the Inbox; a cancellation too, once it's taken in	Akár az üzenetben, akár a naptárban válaszolsz, a meghívó és korábbi változatai kikerülnek a Beérkezett üzenetek mappából. A lemondás is kikerül, amint a MailCraft feldolgozta.
+	Leave it	Maradjon a helyén
+	A folder	Egy mappa
+	Folder for {email}	A(z) {email} fiók mappája
+	Choose a folder	Válassz mappát
+	Guests' answers to my meetings go the same way, once recorded	A meghívottak válaszait a MailCraft rögzítés után ugyanígy kezeli
+	default	alapértelmezett
+	New events and invitations go to this calendar	Az új események és meghívók ebbe a naptárba kerülnek
+	Use as default calendar	Használat alapértelmezett naptárként
+	Events kept on this computer only: {count}	Csak ezen a számítógépen tárolt események: {count}
+	Move them to {calendar}	Áthelyezés ebbe a naptárba: {calendar}
+	Keep them here	Maradjanak itt
+	Online meeting	Online értekezlet
+	Online meetings	Online értekezletek
+	Join:	Csatlakozás:
+	Access code:	Hozzáférési kód:
+	Access code	Hozzáférési kód
+	Remove online meeting	Online értekezlet eltávolítása
+	Add online meeting	Online értekezlet hozzáadása
+	Adds {room}: its link as the place, and how to join in the notes	A(z) {room} szoba hozzáadása: a hivatkozás a helyszínhez, a csatlakozási útmutató a jegyzetekbe kerül
+	Add your meeting rooms under File › Options › Online meetings	Értekezleti szobákat itt adhatsz hozzá: Fájl › Beállítások › Online értekezletek
+	Choose a room	Válassz szobát
+	Your own meeting rooms (a BigBlueButton, Jitsi or other room's link, and its access code). Add online meeting in an event adds one: its link as the place, and how to join in the notes.	Saját értekezleti szobáid: BigBlueButton-, Jitsi- vagy más szoba hivatkozása és hozzáférési kódja. Az eseménynél az Online értekezlet hozzáadása paranccsal választhatsz szobát. A hivatkozás a helyszínhez, a csatlakozási útmutató a jegyzetekbe kerül.
+	Add an online meeting to all meetings with guests	Online értekezlet hozzáadása minden olyan értekezlethez, amelyre másokat is meghívtál
+	The first room's, as the meeting is made	Az értekezlet létrehozásakor az első szoba kerül hozzáadásra
+	access code {code}	hozzáférési kód: {code}
+	Make default	Beállítás alapértelmezettként
+	Add online meeting adds this room unless another is chosen	Az Online értekezlet hozzáadása ezt a szobát használja, ha nem választasz másikat
+	Add room	Szoba hozzáadása
+	Meeting hosts	Értekezlet-kiszolgálók
+	Links to these servers join a meeting (Teams, Zoom, Google Meet, Webex, BigBlueButton rooms and your rooms' servers already do)	Az itt felsorolt kiszolgálók hivatkozásai értekezlethez csatlakoztatnak. Ez már működik a Teams, a Zoom, a Google Meet, a Webex és a BigBlueButton, valamint a saját szobáid kiszolgálóinál.
+	Dial-in numbers and other lines for the invitation (optional)	Telefonos betárcsázási számok és egyéb adatok a meghívóhoz (nem kötelező)
+	Calendar and contacts couldn't be read: changes to them won't be saved	Nem sikerült beolvasni a naptárat és a névjegyeket. A rajtuk végzett módosítások nem lesznek mentve.
+	Your rules couldn't be read: changes to them won't be saved	Nem sikerült beolvasni a szabályaidat. A rajtuk végzett módosítások nem lesznek mentve.
+	Snoozed mail couldn't be read: changes to it won't be saved	Nem sikerült beolvasni a halasztott leveleket. A rajtuk végzett módosítások nem lesznek mentve.
+	What replies waiting in the Outbox answer couldn't be read: that mail may not be marked as answered	Nem sikerült beolvasni, hogy a kimenő válaszok mely levelekhez tartoznak. Előfordulhat, hogy ezek a levelek nem kapnak megválaszolt jelölést.
+	Checking your data file	Adatfájl ellenőrzése
+	Opening your mail…	Levelek megnyitása…
+	{file} wasn't closed properly last time. MailCraft is checking it; a large file can take a minute or two.	A(z) {file} fájl legutóbb nem zárult le megfelelően. A MailCraft ellenőrzi a fájlt; nagy fájlnál ez egy-két percig is eltarthat.
+	{percent}% checked	Ellenőrizve: {percent}%
+	{done} of {total} data files	Adatfájlok: {done} / {total}
+	Some of your mail couldn't be opened	Néhány levelet nem sikerült megnyitni
+	MailCraft opens without them; each account says what's wrong when you use it.	A MailCraft ezek nélkül indul el. Az érintett fiókok használatakor megjelenik a hiba oka.
+	Continue	Folytatás
+	MailCraft couldn't open its data files, so it runs without its mail cache this time.	A MailCraft nem tudta megnyitni az adatfájljait, ezért ezúttal a levelek gyorsítótára nélkül fut.
+	Indexing {percent}%	Indexelés: {percent}%
+	Indexing…	Indexelés…
+	Making your mail searchable: {done} of {total} messages	Levelek előkészítése a kereséshez: {done} / {total} üzenet
+	Searching…	Keresés…
+	Some results may be missing: still indexing ({percent}%)	Néhány találat hiányozhat: az indexelés még tart ({percent}%)
+	Some results may be missing: still indexing	Néhány találat hiányozhat: az indexelés még tart
+	Some long messages were searched only in part	Néhány hosszú üzenetnek csak egy részében futott le a keresés
+	Couldn't read the date “{value}”	Nem sikerült értelmezni a következő dátumot: „{value}”
+	Couldn't read “{value}”	Nem sikerült értelmezni: „{value}”
+	Part of a long search was left out	A túl hosszú keresőkifejezés egy része kimaradt
+	Received after	Érkezett ennél később
+	Received before	Érkezett ennél korábban
+	About {h} h {m} min left	Körülbelül {h} óra {m} perc van hátra
+	About {n} min left	Körülbelül {n} perc van hátra
+	Another program is using the data file.	Az adatfájlt egy másik program használja.
+	Calendar items: {n}	Naptárelemek: {n}
+	Close MailCraft	MailCraft bezárása
+	Contacts: {n}	Névjegyek: {n}
+	Continue importing	Importálás folytatása
+	Counting items…	Elemek számlálása…
+	Data: {done} of {total}	Adatok: {done} / {total}
+	Folder: {folder} ({n} of {total})	Mappa: {folder} ({n} / {total})
+	Free there: {free}	Szabad hely ott: {free}
+	Go to Inbox	Ugrás a Beérkezett üzenetekhez
+	Go to it	Megnyitás
+	Import another copy	Újabb másolat importálása
+	Import paused	Importálás szünetel
+	Import paused: {done} of {total}	Importálás szünetel: {done} / {total}
+	Import paused: {file}	Importálás szünetel: {file}
+	Import report…	Importálási jelentés…
+	Import stopped	Importálás leállítva
+	Import stopped: {done} of {total}	Importálás leállítva: {done} / {total}
+	Import stopped: {file}	Importálás leállítva: {file}
+	Imported {file}	Importálva: {file}
+	Importing {file}…	Importálás: {file}…
+	Importing {file}… {percent}%	Importálás: {file}… {percent}%
+	Importing {folder}…	Mappa importálása: {folder}…
+	Importing {folder}… {percent}%	Mappa importálása: {folder}… {percent}%
+	Importing {percent}%	Importálás: {percent}%
+	Importing…	Importálás…
+	Keep importing	Importálás folytatása
+	Keep what's imported	Az importált adatok megtartása
+	Not imported yet	Még nincs importálva
+	Less than a minute left	Kevesebb mint egy perc van hátra
+	MailCraft is importing {file} ({percent}%). If you close it now, the import goes on the next time you open MailCraft.	A MailCraft a(z) {file} fájlt importálja ({percent}%). Ha most bezárod, az importálás a MailCraft következő megnyitásakor folytatódik.
+	MailCraft is importing {file}. If you close it now, the import goes on the next time you open MailCraft.	A MailCraft a(z) {file} fájlt importálja. Ha most bezárod, az importálás a MailCraft következő megnyitásakor folytatódik.
+	MailCraft makes its own copy, about {size}, in {folder}.	A MailCraft körülbelül {size} méretű másolatot készít ebben a mappában: {folder}.
+	Messages: {done} of {total}	Üzenetek: {done} / {total}
+	Not brought in	Kimaradt
+	Not brought in so far: {n}	Eddig kimaradt: {n}
+	Notes: {n}	Jegyzetek: {n}
+	Open an Outlook data file…	Outlook-adatfájl megnyitása…
+	Removing…	Eltávolítás…
+	Saved in: {path}	Mentés helye: {path}
+	Show how the import is going	Importálás állapotának megjelenítése
+	Start again	Újrakezdés
+	Stop	Leállítás
+	Stop importing and remove {file}?	Leállítod az importálást és eltávolítod ezt: {file}?
+	Stop importing {file}?	Leállítod a(z) {file} fájl importálását?
+	Stop importing…	Importálás leállítása…
+	Stopping the import of {file}…	A(z) {file} importálásának leállítása…
+	Stopping…	Leállítás…
+	The data file changed after the import began.	Az adatfájl az importálás kezdete óta megváltozott.
+	The data file isn't where it was.	Az adatfájl már nincs az eredeti helyén.
+	The file is damaged: reading stopped early ({n})	A fájl sérült: a beolvasás idő előtt leállt ({n})
+	The part imported so far is deleted. The data file itself isn't changed.	Az eddig importált rész törlődik. Az eredeti adatfájl változatlan marad.
+	There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).	Nincs elég hely a másolathoz. Szabadíts fel tárhelyet, vagy helyezd át a MailCraft adatmappáját (Fájl › Beállítások).
+	There's too little room left on the drive ({free} free).	Túl kevés a hely a meghajtón (szabad: {free}).
+	This data file is already open as {name}.	Ez az adatfájl már meg van nyitva ezen a néven: {name}.
+	This file couldn't be looked at: {error}	Nem sikerült megvizsgálni a fájlt: {error}
+	What came in goes, and the data file is read from its start.	Az eddig importált adatok törlődnek, és az adatfájl beolvasása elölről indul.
+	What's imported so far is kept. You can continue later.	Az eddig importált adatok megmaradnak. Később folytathatod.
+	{h} h {m} min	{h} óra {m} perc
+	{items} items in {folders} folders	{items} elem {folders} mappában
+	{messages} messages in {folders} folders ({time})	{messages} üzenet {folders} mappában ({time})
+	{n} attached messages couldn't be read	{n} csatolt üzenetet nem sikerült beolvasni
+	{n} attached messages lost some of their files	{n} csatolt üzenetből néhány fájl elveszett
+	{n} attachments couldn't be read	{n} mellékletet nem sikerült beolvasni
+	{n} attachments were only links to files elsewhere	{n} melléklet csak máshol tárolt fájlra mutató hivatkozás volt
+	{n} attachments were too big to bring in	{n} melléklet túl nagy volt az importáláshoz
+	{n} contacts, calendar items, tasks or notes couldn't be read	{n} névjegyet, naptárelemet, feladatot vagy jegyzetet nem sikerült beolvasni
+	{n} folders couldn't be read	{n} mappát nem sikerült beolvasni
+	{n} folders of a kind MailCraft has no place for	{n} mappa típusa nem támogatott a MailCraftban
+	{n} folders were nested too deep	{n} mappa túl mélyen volt beágyazva
+	{n} folders' lists couldn't be saved (their mail is kept, unlisted)	{n} mappa listáját nem sikerült menteni (a leveleik megmaradtak, de nem szerepelnek a listában)
+	{n} items couldn't be used (such as an empty note)	{n} elem nem volt használható (például üres jegyzet)
+	{n} items for other reasons	{n} elem egyéb okból maradt ki
+	{n} items in those folders	{n} elem ezekben a mappákban
+	{n} message texts couldn't be converted	{n} üzenet szövegét nem sikerült átalakítani
+	{n} message texts were in a character set MailCraft can't read	{n} üzenet szövege a MailCraft által nem támogatott karakterkészletet használ
+	{n} messages couldn't be put back together	{n} üzenetet nem sikerült újra összeállítani
+	{n} messages couldn't be read	{n} üzenetet nem sikerült beolvasni
+	{n} messages couldn't be saved	{n} üzenetet nem sikerült menteni
+	{n} messages were attached too deep inside others	{n} üzenet túl mélyen volt más üzenetekbe ágyazva
+	{n} min	{n} perc
+	{n} recipients had no address	{n} címzetthez nem tartozott cím
+	{n} s	{n} mp
+	{time} so far	Eddig eltelt idő: {time}
+	A data file with room to give back is made smaller as MailCraft closes, when that takes half a minute at most. Otherwise it's done while MailCraft is left alone, or with Compact now under Info.	A MailCraft bezáráskor tömöríti a felszabadítható helyet tartalmazó adatfájlt, ha ez legfeljebb fél percig tart. Egyébként a tömörítés tétlen állapotban fut le, vagy az Információ lapon a Tömörítés most paranccsal indítható.
+	Being compacted…	Tömörítés folyamatban…
+	Close now	Bezárás most
+	Close without compacting	Bezárás tömörítés nélkül
+	Compact data files on close	Adatfájlok tömörítése bezáráskor
+	Compact now	Tömörítés most
+	Compact {file} before closing?	Tömöríted ezt a fájlt bezárás előtt: {file}?
+	Compact, then close	Tömörítés, majd bezárás
+	Compacted: {before} → {after} ({saved} reclaimed) in {time}	Tömörítve: {before} → {after} (felszabadítva: {saved}), ennyi idő alatt: {time}
+	Compacting was stopped; what was done is kept.	A tömörítés leállt. Az eddigi eredmény megmarad.
+	Compacting {file} before closing…	A(z) {file} tömörítése bezárás előtt…
+	Compacting {file}…	Tömörítés: {file}…
+	Compacting {file}… {percent}%	Tömörítés: {file}… {percent}%
+	Compressing mail again	Levelek újbóli tömörítése
+	Copying it into a smaller file	Másolás kisebb fájlba
+	Finishing: about {n} s	Befejezés: körülbelül {n} mp
+	Finishing…	Befejezés…
+	Gives the room deleted mail took back to the drive. Your mail stays as it is.	Felszabadítja a törölt levelek által elfoglalt helyet a meghajtón. A meglévő levelek nem változnak.
+	Hide	Elrejtés
+	It goes on in the background if you hide this. Your mail stays as it is: only the room it takes changes.	Ha elrejted ezt az ablakot, a tömörítés a háttérben folytatódik. A levelek nem változnak, csak a helyigényük csökken.
+	It has about {size} to give back, but that takes {time}, longer than MailCraft waits as it closes. Meanwhile nothing of this account can be opened.	Körülbelül {size} hely szabadítható fel, de ez {time} ideig tart, ami több, mint amennyit a MailCraft bezáráskor vár. Addig a fiók egyetlen eleme sem nyitható meg.
+	It has about {size} to give back. That's done by copying it into a new file, which can take many minutes for a large file; MailCraft closes when it's done.	Körülbelül {size} szabadítható fel. A MailCraft ehhez új fájlba másolja az adatokat. Nagy fájlnál ez több percig is eltarthat; a program utána bezárul.
+	Left as it was: compacting it takes about {time}. Compact now does it however long it takes.	A fájl változatlan maradt: a tömörítés körülbelül {time} ideig tartana. A Tömörítés most paranccsal időkorlát nélkül elindíthatod.
+	MailCraft has the data file to itself for this part, so it can't be stopped. Nothing is lost if the computer goes off meanwhile: the file is checked the next time MailCraft opens.	Ebben a szakaszban a MailCraft kizárólagosan használja az adatfájlt, ezért a művelet nem állítható le. Ha közben kikapcsol a számítógép, nem vész el adat: a MailCraft a következő indításkor ellenőrzi a fájlt.
+	Making the data file smaller: the room deleted mail took goes back to the drive.	Adatfájl méretének csökkentése: felszabadul a törölt levelek által elfoglalt hely.
+	Measuring the data file…	Adatfájl méretének ellenőrzése…
+	Not compacted: {error}	Nem sikerült tömöríteni: {error}
+	Nothing is lost if you close now: what's done is kept, and the rest is done another time.	Ha most bezárod, nem vész el semmi: az eddigi eredmény megmarad, a többi később készül el.
+	Nothing to give back.	Nincs felszabadítható hely.
+	Stop compacting	Tömörítés leállítása
+	Too big to compact here, and the drive has no room for a copy: importing the file again makes it as small.	A fájl túl nagy a helyben történő tömörítéshez, és a meghajtón nincs hely a másolatnak. Az újbóli importálással ugyanilyen kis méretű fájlt kapsz.
+	You can also compact it later from File › Info, or turn this off in File › Options.	Később is tömörítheted a Fájl › Információ lapon, vagy kikapcsolhatod ezt a funkciót a Fájl › Beállítások alatt.
+	about {n} min	körülbelül {n} perc
+	about {n} s	körülbelül {n} mp
+	{size} can be reclaimed	Felszabadítható hely: {size}
+	Add an account to send mail.	Levélküldéshez adj hozzá egy fiókot.
+	Mail can't be sent from an Outlook data file. Add an account to send mail.	Outlook-adatfájlból nem küldhető levél. Levélküldéshez adj hozzá egy fiókot.
+	Mail can't be sent from a mailbox kept only on this computer. Add an account to send mail.	Csak ezen a számítógépen tárolt postafiókból nem küldhető levél. Levélküldéshez adj hozzá egy fiókot.
+	This account has no outgoing (SMTP) server. Add one in its account settings to send mail.	Ehhez a fiókhoz nincs beállítva kimenő (SMTP) kiszolgáló. Levélküldéshez add meg a fiókbeállításokban.
+	Tasks	Feladatok
+	Search tasks	Keresés a feladatokban
+	New task	Új feladat
+	Task	Feladat
+	All tasks	Összes feladat
+	Active tasks	Aktív feladatok
+	{n} tasks	{n} feladat
+	{n} overdue	{n} lejárt
+	No tasks yet: New task adds one.	Még nincsenek feladatok. Az Új feladat paranccsal létrehozhatsz egyet.
+	No task matches.	Nincs egyező feladat.
+	Task subject	Feladat tárgya
+	Due date	Határidő
+	Status	Állapot
+	Priority	Prioritás
+	Mark not complete	Visszaállítás el nem végzettre
+	(no title)	(nincs cím)
+	Repeats	Ismétlődik
+	Start date	Kezdési dátum
+	complete	elvégezve
+	Remind me	Emlékeztető kérése
+	Marked complete, it comes back on its next due date.	Ha elvégzettnek jelölöd, a feladat a következő esedékességkor újra megjelenik.
+	Not started	Nincs elkezdve
+	In progress	Folyamatban
+	Completed	Elvégezve
+	Waiting on someone else	Másra vár
+	Deferred	Elhalasztva
+	Low	Alacsony
+	Normal	Normál
+	High	Magas
+	Hide completed	Elvégzett feladatok elrejtése
+	Tasks: {n}	Feladatok: {n}
+	MailCraft's copy of this file is beside it, with what was changed in MailCraft: {file}	A MailCraft másolata az eredeti fájl mellett van, a MailCraftban végzett módosításokkal együtt: {file}
+	The file has changed since MailCraft read it.	A fájl a legutóbbi beolvasás óta megváltozott.
+	MailCraft has no note of what came in from this file before, so its changes can't be read in.	A MailCraft nem tartja nyilván, mit importált korábban ebből a fájlból, ezért nem tudja beolvasni a változásokat.
+	This file's folder can't be written: MailCraft's copy, about {size}, goes in {folder}.	A fájl mappája nem írható. A MailCraft körülbelül {size} méretű másolata ide kerül: {folder}.
+	MailCraft keeps its own copy beside the file, about {size}, in {folder}. The file itself is never changed.	A MailCraft az eredeti fájl mellett, ebben a mappában tárolja a körülbelül {size} méretű másolatát: {folder}. Az eredeti fájl nem változik.
+	There isn't room for the copy beside the file. Free up space on that drive.	Nincs elég hely a másolathoz az eredeti fájl mellett. Szabadíts fel helyet azon a meghajtón.
+	Read the changes in	Változások beolvasása
+	Open as it was	Megnyitás a korábbi állapotban
+	It's an account in another MailCraft data folder: {folder}	Ez a fiók egy másik MailCraft-adatmappához tartozik: {folder}
+	Open it there, or take it over here: it's then this data folder's, and its account there should be removed.	Nyisd meg az eredeti helyén, vagy vedd át ide. Átvétel után ehhez az adatmappához tartozik, és a régi helyén lévő fiókot el kell távolítani.
+	Take it over and read the changes in	Átvétel és a változások beolvasása
+	Take it over	Átvétel
+	Drop to add them to {folder}	Ejtsd ide az elemeket a(z) {folder} mappához adáshoz
+	Added to {folder}: {n}	A(z) {folder} mappához hozzáadva: {n}
+	Couldn't add {file} to {folder}: {error}	A(z) {file} nem adható hozzá ehhez a mappához: {folder}. Hiba: {error}
+	React	Reakció küldése
+	Send a reaction to everyone it went to	Reakció küldése az üzenet összes címzettjének
+	Reacted with {emoji}: {people}	Reakció: {emoji} – {people}
+	its key ran out on {date}	a kulcsa lejárt ekkor: {date}
+	its key isn't valid until {date}	a kulcsa csak ettől az időponttól érvényes: {date}
+	its key is for {addresses}, not for the sender	a kulcsa nem a feladóhoz, hanem ezekhez a címekhez tartozik: {addresses}
+	its owner withdrew the key on {date}	a tulajdonos ekkor vonta vissza a kulcsot: {date}
+	OpenPGP key {fingerprint}	OpenPGP-kulcs: {fingerprint}
+	Signed by {signer}: the signature holds (OpenPGP key {key}).	Aláíró: {signer}. Az aláírás érvényes (OpenPGP-kulcs: {key}).
+	Signed with the OpenPGP key {key}, which MailCraft doesn't have, so the signature can't be checked.	Az üzenetet a(z) {key} OpenPGP-kulccsal írták alá. A MailCraft nem rendelkezik ezzel a kulccsal, ezért az aláírás nem ellenőrizhető.
+	Their key comes with their mail (Autocrypt), or can be imported in File › Info › Security.	A kulcs az illető levelével érkezik (Autocrypt), vagy importálható itt: Fájl › Információ › Tanúsítványok és titkosítás.
+	Encryption available: every recipient can receive it (S/MIME)	A titkosítás használható: minden címzett tud fogadni titkosított üzenetet (S/MIME)
+	Encryption available: every recipient can receive it (OpenPGP)	A titkosítás használható: minden címzett tud fogadni titkosított üzenetet (OpenPGP)
+	Encryption not available for {names}: there's no certificate or OpenPGP key for them	A következő címzetteknek nem küldhető titkosított levél, mert nincs hozzájuk tanúsítvány vagy OpenPGP-kulcs: {names}
+	S/MIME	S/MIME
+	OpenPGP	OpenPGP
+	Sign and encrypt with S/MIME or OpenPGP; Automatic takes the one every recipient can receive	Aláírás és titkosítás S/MIME vagy OpenPGP használatával. Az Automatikus beállítás azt a módot választja, amelyet minden címzett támogat
+	Signed with your certificate or OpenPGP key: the recipients can tell it's from you and unchanged	A tanúsítványoddal vagy az OpenPGP-kulcsoddal aláírva: a címzettek ellenőrizhetik, hogy tőled származik-e az üzenet, és hogy nem módosították-e
+	Only the recipients can read it: each needs a certificate or OpenPGP key MailCraft has	Csak a címzettek olvashatják. Mindegyikükhöz kell egy tanúsítvány vagy OpenPGP-kulcs a MailCraftban
+	Signing and encryption	Aláírás és titkosítás
+	Encrypt when every recipient can receive it	Titkosítás, ha minden címzett tud titkosított üzenetet fogadni
+	A new message is encrypted by itself while MailCraft has a certificate or OpenPGP key for everyone in it.	Az új üzenet automatikusan titkosítva lesz, ha a MailCraft minden címzetthez rendelkezik tanúsítvánnyal vagy OpenPGP-kulccsal.
+	Withdrawn on {date}	Visszavonva: {date}
+	It ran out on {date}	Lejárt: {date}
+	Valid until {date}	Érvényes eddig: {date}
+	No end date	Nincs lejárati dátum
+	Sign and encrypt with OpenPGP, the way many people and mail programs do: with your own key, and the keys of the people you write to.	Az OpenPGP-aláíráshoz és -titkosításhoz a saját kulcsodat és a levelezőpartnereid kulcsait használhatod, ahogy sok más felhasználó és levelezőprogram is teszi.
+	OpenPGP keys work in the desktop app	Az OpenPGP-kulcsok az asztali alkalmazásban használhatók
+	No OpenPGP key	Nincs OpenPGP-kulcs
+	Import your secret key file (.asc or .gpg), with its passphrase.	Importáld a titkos kulcs fájlját (.asc vagy .gpg), és add meg a jelszavát.
+	Import key…	Kulcs importálása…
+	Forget this key: its secret part goes from the keychain too	Kulcs eltávolítása: a titkos része is törlődik a rendszer jelszótárolójából
+	A new key takes over signing and decrypting; the one in use is kept to decrypt old mail	Az új kulcs veszi át az aláírást és a visszafejtést. Az eddig használt kulcs megmarad a régi levelek visszafejtéséhez
+	Older key {key}: kept to decrypt mail sent to it	Régebbi kulcs: {key}. A hozzá tartozó titkosított levelek visszafejtéséhez megőrizve
+	Forget this key: mail encrypted to it can't be read any more	Kulcs eltávolítása: a hozzá tartozó titkosított levelek többé nem lesznek olvashatók
+	Sign and decrypt with this key again; the one in use is kept to decrypt	Újra ez a kulcs szolgál aláírásra és visszafejtésre. Az eddig használt kulcs megmarad a visszafejtéshez
+	Send your public key with your mail	Nyilvános kulcs küldése a levelekkel együtt
+	Their mail programs can then encrypt their answers (Autocrypt).	Így a címzettek levelezőprogramjai titkosíthatják a válaszaikat (Autocrypt).
+	Keys of the people you write to: {n}	Levelezőpartnereid kulcsai: {n}
+	They come with their mail, or from a key file they gave you.	A kulcsok a leveleikkel érkeznek, vagy az általuk átadott kulcsfájlból importálhatók.
+	Import someone's key…	Más személy kulcsának importálása…
+	Import OpenPGP key	OpenPGP-kulcs importálása
+	The passphrase {file} is locked with (none, if it has none):	A(z) {file} jelszava (ha nincs jelszava, hagyd üresen):
+	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	A titkos részt a rendszer jelszótárolója őrzi, nem a MailCraft saját fájljai. A jelszót a program nem tárolja.
+	this account has no OpenPGP key to decrypt it with (File › Info › Security)	ehhez a fiókhoz nincs a visszafejtéshez használható OpenPGP-kulcs (Fájl › Információ › Tanúsítványok és titkosítás)
+	it can't be decrypted with your OpenPGP key	az OpenPGP-kulcsoddal nem fejthető vissza
+	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	az OpenPGP-kulcsaidat a MailCraft asztali alkalmazása tudja használni, a böngészős változat nem
+	Not sent yet: this is a draft.	Még nincs elküldve: ez egy piszkozat.
+	Show web pictures unless a message looks suspicious	Webes képek megjelenítése, ha az üzenet nem gyanús
+	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	A képek megnyitáskor betöltődnek, ha a levelezőkiszolgáló ellenőrizte a feladót, és az üzenet nincs a Levélszemét mappában. A képet kiszolgáló szerver láthatja az IP-címedet és a megnyitás időpontját. A követőképek továbbra is blokkolva maradnak.
+	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Az üzenet gyanúsnak tűnik, vagy a feladót nem sikerült ellenőrizni, ezért a képek rejtve maradnak.
+	These senders' pictures always load, even when a message looks suspicious:	A következő feladók képei akkor is betöltődnek, ha az üzenet gyanúsnak tűnik:
+	Open a mail file	Üzenetfájl megnyitása
+	See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs.	Mentett üzenet (.eml vagy Outlook .msg) megtekintése külön ablakban anélkül, hogy mappához adnád. A webes képek csak kérésre töltődnek be, és az üzenetben semmi sem fut le.
+	Nothing is kept: closing it leaves no trace in your mail.	A MailCraft nem ment semmit: bezárás után nem marad nyoma a leveleid között.
+	and {n} more	és még {n}
+	Checking for new mail	Új levelek keresése
+	Automatically gets new mail as soon as the server says there's some, where a server can, and otherwise looks every two minutes. With a set time, an account looks only then. Mail you send goes at once, and Send / Receive looks right away.	Ha a kiszolgáló támogatja az értesítést, a MailCraft azonnal letölti az új leveleket, amint a kiszolgáló jelzi őket. Egyébként kétpercenként ellenőrzi, érkezett-e új levél. Ha külön időközt állítasz be egy fiókhoz, csak akkor ellenőrzi. A kimenő levelek azonnal elmennek, a Küldés / fogadás parancs pedig azonnal ellenőrzi a bejövő leveleket.
+	Automatically	Automatikusan
+	Every {n} minutes	{n} percenként
+	Only calendars and contacts, with no email?	Csak naptárak és névjegyek, levelezés nélkül?
+	Add a CalDAV and CardDAV account	CalDAV- és CardDAV-fiók hozzáadása
+	Calendar and contacts server	Naptár- és névjegykiszolgáló
+	Add calendars and contacts	Naptárak és névjegyek hozzáadása
+	For a CalDAV and CardDAV server with no email, such as Nextcloud, Baïkal, SOGo or Radicale. Your password is kept in this computer's keychain and sent only to that server.	Levelezés nélküli CalDAV- és CardDAV-kiszolgálókhoz, például Nextcloudhoz, Baïkalhoz, SOGo-hoz vagy Radicale-hoz. A jelszavad a számítógép jelszótárolójában marad, és csak ez a kiszolgáló kapja meg.
+	Add an email account instead	Inkább e-mail-fiók hozzáadása
+	Server: {url} (CalDAV and CardDAV)	Kiszolgáló: {url} (CalDAV és CardDAV)
+	Not available: this account has no mail server.	Nem érhető el: ehhez a fiókhoz nem tartozik levelezőkiszolgáló.
+	Your mail came over from MailCraft's earlier Flatpak, which is still installed. To remove it, run: flatpak uninstall --delete-data {id}	A leveleid a MailCraft korábbi Flatpak-telepítéséből kerültek át, amely még telepítve van. Az eltávolításához futtasd: flatpak uninstall --delete-data {id}
+	Opened from {file}. It isn't in any folder, its pictures from the web are loaded only if you ask, and closing it leaves no trace.	Megnyitva ebből a fájlból: {file}. Az üzenet nincs egyik mappában sem, webes képei csak kérésre töltődnek be, és bezárás után nem marad nyoma a leveleid között.
+	To-Do Bar	Teendősáv
+	Appointments	Találkozók
+	Type a new task	Írj be egy új feladatot
+	Nothing to do	Nincs teendő
+	Nothing in the next 7 days	Nincs esemény a következő 7 napban
+	Show the calendar, what's coming up and your tasks beside the mail	A naptár, a közelgő események és a feladatok megjelenítése a levelek mellett
+	Read / Unread (Ctrl+Q / Ctrl+U)	Olvasott / olvasatlan (Ctrl+Q / Ctrl+U)
+	{name} couldn't be downloaded: {error}	Nem sikerült letölteni: {name}. Hiba: {error}
+	Something went wrong in the window, and what it was doing was stopped. MailCraft goes on; the log says where it happened.	Hiba történt az ablakban, ezért az ott futó művelet leállt. A MailCraft tovább működik; a hiba helye a naplóban látható.
+	Font size	Betűméret
+	Repeats every	Ismétlődés gyakorisága
+	On these days	Ezeken a napokon
+	Which day	Melyik napon
+	Series ends	A sorozat vége
+	After	Ennyi után:
+	Pick a date	Válassz dátumot
+	On day {day}	A hónap {day}. napján
+	On {month} {day}	{month} {day}. napján
+	On the {nth} {weekday}	A(z) {nth} {weekday} napon
+	On the {nth} {weekday} of {month}	{month} hónap {nth} {weekday} napján
+interval	days	nap
+interval	weeks	hét
+interval	months	hónap
+interval	years	év
+nth	first	első
+nth	second	második
+nth	third	harmadik
+nth	fourth	negyedik
+nth	last	utolsó
+count	occurrences	előfordulás
+	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	A webes képek itt nem jelennek meg. Ha itt nem módosítasz semmit, és visszaváltasz a HTML-kódra, megmaradnak.
+	Messages on a light background	Üzenetek világos háttéren
+	In the dark theme, messages keep the light page and colours they were written in	Sötét téma esetén az üzenetek megtartják eredeti világos hátterüket és színeiket
+	Show messages on a light background	Üzenetek megjelenítése világos háttéren
+	Show messages on the dark background	Üzenetek megjelenítése sötét háttéren
+	Copy picture	Kép másolása
+	Save picture as…	Kép mentése másként…
+	The picture couldn't be copied	Nem sikerült másolni a képet
+	The picture couldn't be saved	Nem sikerült menteni a képet
+	Only when I ask	Csak kérésre
+	Send / Receive on the account looks; Send / Receive for all leaves it out	A fiókon indított Küldés / fogadás ellenőrzi az új leveleket. Az összes fiókra indított Küldés / fogadás ezt a fiókot kihagyja
+	There's no folder to put the PDF in for the viewer	Nincs mappa, ahová a PDF menthető lenne a megjelenítő számára
+	Trust this mail server's certificate?	Megbízol a levelezőkiszolgáló tanúsítványában?
+	No authority this computer trusts vouches for the certificate {host} shows. A company's or a home mail server may make its own, but someone between you and the server could show one too. Trust it only if whoever runs the server confirms this fingerprint.	A(z) {host} által bemutatott tanúsítványt nem igazolja olyan hitelesítésszolgáltató, amelyben ez a számítógép megbízik. Céges vagy otthoni levelezőkiszolgáló használhat saját tanúsítványt, de a kapcsolatot elfogó fél is bemutathat ilyet. Csak akkor bízz meg benne, ha a kiszolgáló üzemeltetője megerősíti az ujjlenyomatot.
+	Issued to	Tulajdonos
+	Issued by	Kibocsátó
+	Valid	Érvényesség
+	{from} to {until}	{from} – {until}
+	Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…	Az üzemeltető fájlként is átadhatja a tanúsítványt: Kiszolgálóbeállítások › Megbízható tanúsítványfájl hozzáadása…
+	Certificates	Tanúsítványok
+	Issued by {issuer}	Kibocsátó: {issuer}
+	Trusted when asked	Kéréskor megbízhatónak jelölve
+	Stop trusting	Megbízhatóság visszavonása
+	An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)	A szervezeted hitelesítésszolgáltatójának tanúsítványa vagy a levelezőkiszolgálód saját tanúsítványa (.pem, .crt, .cer)
+	Trust a certificate file…	Megbízható tanúsítványfájl hozzáadása…
+	The certificate is trusted for this account	A tanúsítvány megbízható ehhez a fiókhoz
+	Send / Receive failed	A küldés / fogadás sikertelen
+	Sending: {n} of {total}	Küldés: {n} / {total}
+	Downloading: {n} of {total} ({done} of {all})	Letöltés: {n} / {total} ({done} / {all})
+	Downloading: {n} of {total}	Letöltés: {n} / {total}
+	Updating {folder} ({n} of {total})	A(z) {folder} mappa frissítése ({n} / {total})
+	Checking for new mail…	Új levelek keresése…
+	{account}: sending	{account}: küldés
+	{account}: receiving	{account}: fogadás
+	Waiting	Várakozás
+	Failed	Sikertelen
+	Stopped	Leállítva
+	{done} of {total}	{done} / {total}
+	Under way	Folyamatban
+	Messages: {n} ({size})	Üzenetek: {n} ({size})
+	Folders: {n}	Mappák: {n}
+	Send / Receive progress	Küldés / fogadás állapota
+	Nothing has been sent or received yet	Még nem történt küldés vagy fogadás
+	{done} of {all} done	Elkészült: {done} / {all}
+	Cancel all	Összes megszakítása
+	Open this window when Send / Receive starts	Az ablak megnyitása a küldés / fogadás indításakor
+	{task} failed: {error}	A művelet sikertelen ({task}): {error}
+	Show progress	Állapot megjelenítése
+	How each account's sending and receiving goes	A küldés és fogadás állapota fiókonként
+	Stop sending and receiving	Küldés és fogadás leállítása
+	Sending	Küldés
+	Receiving	Fogadás
+	On the server: {account}	A kiszolgálón: {account}
+	The server runs these on new mail, even while MailCraft is closed.	A kiszolgáló akkor is alkalmazza ezeket a szabályokat az új levelekre, ha a MailCraft nincs megnyitva.
+	Reading the rules on the server…	Szabályok beolvasása a kiszolgálóról…
+	Outlook keeps its own copy of these rules. Changing them here removes it, with Outlook's rules that are turned off or run only on its computer.	Az Outlook saját másolatot tárol ezekről a szabályokról. Ha itt módosítod őket, ez a másolat törlődik, az Outlook kikapcsolt vagy csak helyben futó szabályaival együtt.
+	Change them here anyway	Módosítás itt ennek ellenére
+	New rule on the server…	Új szabály a kiszolgálón…
+	Made in another program: it can be turned on or off, moved or deleted here	Másik programban készült. Itt be- és kikapcsolható, áthelyezhető vagy törölhető.
+	The server can't run this rule as it is	A kiszolgáló ebben a formában nem tudja futtatni a szabályt
+	Undo Send	Küldés visszavonása
+	A message you send waits this long in the Outbox, with Undo, before it goes.	A Küldés gomb megnyomása után az üzenet ennyi ideig vár a kimenő üzenetek között. Ezalatt visszavonhatod a küldést.
+	Sending · {n} s	Küldés · {n} mp
+	Sending {count} messages · {n} s	{count} üzenet küldése · {n} mp
+	Undo	Visszavonás
+	free/busy	szabad/foglalt
+	Asking for its free/busy time…	Szabad és foglalt időpontok lekérdezése…
+	Shared for its free/busy time alone	Csak a szabad és foglalt időpontok vannak megosztva
+	Its free/busy time couldn't be had: {error}	Nem sikerült lekérni a szabad és foglalt időpontokat: {error}
+	Schedule	Ütemezés
+	All together	Mind együtt
+	Tick a calendar to show it here	Jelölj be egy naptárat, hogy itt megjelenjen
+	Nothing on this day	Ezen a napon nincs esemény
+	Group name	Csoport neve
+	Design team	Tervezőcsapat
+	New calendar group	Új naptárcsoport
+	Add ->	Hozzáadás ->
+	Shown: click to hide them	Láthatók: kattints az elrejtéshez
+	Hidden: click to show them	Rejtve: kattints a megjelenítéshez
+	Delete calendar group	Naptárcsoport törlése
+	New calendar group…	Új naptárcsoport…
+	Pick from the address book…	Választás a címjegyzékből…
+	Google doesn't let mail apps sign in with your Google password while 2-Step Verification is on. Make an app password at https://myaccount.google.com/apppasswords and enter it here instead.	Ha be van kapcsolva a kétlépcsős azonosítás, a Google nem engedi, hogy a levelezőalkalmazások a Google-fiókod jelszavával jelentkezzenek be. Hozz létre egy alkalmazásjelszót a https://myaccount.google.com/apppasswords oldalon, és azt add meg itt.
+	With 2-Step Verification on, Google takes an app password here, not your Google password.	Ha be van kapcsolva a kétlépcsős azonosítás, a Google itt alkalmazásjelszót fogad el, nem a Google-fiókod jelszavát.
+	Make an app password	Alkalmazásjelszó létrehozása
+	Custom…	Egyéni…
+	Start in	Induláskor megnyitandó mappa
+	What opens when MailCraft starts	Melyik mappa nyíljon meg a MailCraft indításakor
+	The first account's Inbox	Az első fiók Beérkezett üzenetek mappája
+	The folder open last	A legutóbb megnyitott mappa
+	Add reminder…	Emlékeztető hozzáadása…

@@ -37,11 +37,12 @@ pub struct LangInfo {
     catalog: OnceLock<Catalog>,
 }
 
-pub static LANGUAGES: [LangInfo; 16] = [
+pub static LANGUAGES: [LangInfo; 17] = [
     LangInfo { code: "en", name: "English", source: "", cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "es", name: "Español", source: include_str!("i18n/es.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "fr", name: "Français", source: include_str!("i18n/fr.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "de", name: "Deutsch", source: include_str!("i18n/de.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "hu", name: "Magyar", source: include_str!("i18n/hu.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "nl", name: "Nederlands", source: include_str!("i18n/nl.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "pt-br", name: "Português (Brasil)", source: include_str!("i18n/pt-br.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "it", name: "Italiano", source: include_str!("i18n/it.tsv"), cjk: false, rtl: false, catalog: OnceLock::new() },
