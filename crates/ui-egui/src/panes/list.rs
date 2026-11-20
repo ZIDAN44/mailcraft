@@ -310,6 +310,62 @@ fn search_status(s: &Session, t: &theme::Tokens, ui: &mut Ui) {
     });
 }
 
+/// A heading of the list as drawn: its text shown, its text as the list names it (English for a
+/// fixed one), and when folded, how much mail it hides (and how much of that is unread).
+struct Heading<'a> {
+    shown: &'a str,
+    heading: &'a str,
+    folded: Option<(usize, usize)>,
+}
+
+/// A heading of the list (a date, a sender…), as Outlook's groups (issue #189): an arrow at its
+/// start, down while its mail shows; a click folds it away, the arrow then pointing along the
+/// text and the heading saying how much it hides; clicked again, it shows. Its menu folds or
+/// shows every heading.
+fn group_heading(t: &crate::theme::Tokens, ui: &mut Ui, r: Rect, h: Heading<'_>, acts: &mut Vec<Action>) {
+    let Heading { shown, heading, folded } = h;
+    let resp = ui.interact(r, ui.scope_id().with(("list-heading", heading)), Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_filled(r, 0.0, t.hover_row);
+    }
+    let m = crate::bidi::Mirror::new(r);
+    let arrow = Rect::from_center_size(m.pos(r.left_bottom() + vec2(19.0, -14.0)), vec2(10.0, 10.0));
+    icons::paint(ui.painter(), arrow, if folded.is_some() { m.closed() } else { Icon::ChevronDown }, t.dim);
+    let text = ui.painter().text(m.pos(r.left_bottom() + vec2(30.0, -8.0)), m.align(egui::Align2::LEFT_BOTTOM), shown, theme::bold(12.5), t.dim);
+    let name = match folded {
+        Some((count, unread)) => {
+            // How much it hides, in the accent when some of it is unread.
+            let at = if m.on() { text.min.x - 6.0 } else { text.max.x + 6.0 };
+            let colour = if unread > 0 { t.accent } else { t.faint };
+            ui.painter().text(pos2(at, text.max.y), m.align(egui::Align2::LEFT_BOTTOM), format!("({count})"), theme::regular(12.0), colour);
+            tf!("{heading} ({count}), folded", heading = shown, count = count)
+        }
+        None => shown.to_string(),
+    };
+    crate::widgets::named(ui, &resp, &name, true, None);
+    let fold = |acts: &mut Vec<Action>, folded: bool| acts.push(Action::Run("list.foldGroup", json!({"heading": heading, "folded": folded})));
+    resp.context_menu(|ui| {
+        let (label, to) = if folded.is_some() { ("Expand this group", false) } else { ("Collapse this group", true) };
+        if ui.button(tl!(label)).clicked() {
+            fold(acts, to);
+            ui.close();
+        }
+        ui.separator();
+        if ui.button(tl!("Collapse all groups")).clicked() {
+            acts.push(Action::Run("list.collapseAll", json!({})));
+            ui.close();
+        }
+        if ui.button(tl!("Expand all groups")).clicked() {
+            acts.push(Action::Run("list.expandAll", json!({})));
+            ui.close();
+        }
+    });
+    let tip = if folded.is_some() { tl!("Show this group's mail") } else { tl!("Hide this group's mail") };
+    if resp.on_hover_text(tip).clicked() {
+        fold(acts, folded.is_none());
+    }
+}
+
 /// The list's rows, under its head.
 fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
@@ -326,7 +382,12 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
         let mut y = 0.0;
         for r in rows {
             tops.push(y);
-            y += if matches!(r, Row::Header(_) | Row::Group(_)) { header_h } else { mh };
+            y += match r {
+                Row::Header(_) | Row::Group(_) => header_h,
+                // A folded heading's mail (issue #189): counted on the heading, taking no room.
+                Row::Folded { .. } => 0.0,
+                Row::Message { .. } => mh,
+            };
         }
         st.list_rows = Some(ListRows { key, tops, total: y });
     }
@@ -387,6 +448,18 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
         // A search over several folders, or the unified Inbox: each row says where it is.
         let several_folders =
             s.search.as_ref().is_some_and(|(_, scope)| *scope != SearchScope::Current) || matches!(s.view, mailcraft_engine::View::Unified { .. });
+        // Tab stops on one row: the list's focus, else the first message.
+        let tab_stop = s.focus.as_ref().filter(|k| s.row_index_of(k).is_some()).or_else(|| {
+            // The first message shown (the list's first may be under a folded heading).
+            rows.iter().find_map(|r| match r {
+                Row::Message { index, .. } => s.list.get(*index).map(|m| &m.key),
+                _ => None,
+            })
+        });
+        // The row with the keyboard, and whether it's still here.
+        let keyboard = st.row_keyboard.filter(|id| ui.memory(|m| m.focused()) == Some(*id));
+        st.list_stop = None;
+        let mut keyboard_drawn = false;
         let first = tops.partition_point(|&top| top + mh < viewport.min.y);
         for (i, row) in rows.iter().enumerate().skip(first) {
             let top = tops.get(i).copied().unwrap_or(0.0);
@@ -394,31 +467,48 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                 break;
             }
             match row {
-                Row::Header(_) | Row::Group(_) if !s.prefs.groups => {}
-                Row::Header(label) => {
+                Row::Header(_) | Row::Group(_) | Row::Folded { .. } if !s.prefs.groups => {}
+                Row::Folded { .. } => {}
+                Row::Header(_) | Row::Group(_) => {
+                    let (shown, heading) = match row {
+                        Row::Header(label) => (tl!(label).to_string(), label.to_string()),
+                        Row::Group(name) => (name.clone(), name.clone()),
+                        _ => continue,
+                    };
+                    let folded = match rows.get(i + 1) {
+                        Some(Row::Folded { count, unread }) => Some((*count, *unread)),
+                        _ => None,
+                    };
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
-                    let m = crate::bidi::Mirror::new(r);
-                    ui.painter().text(
-                        m.pos(r.left_bottom() + vec2(14.0, -8.0)),
-                        m.align(egui::Align2::LEFT_BOTTOM),
-                        tl!(label),
-                        theme::bold(12.5),
-                        t.dim,
-                    );
-                }
-                Row::Group(name) => {
-                    let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
-                    let m = crate::bidi::Mirror::new(r);
-                    ui.painter().text(m.pos(r.left_bottom() + vec2(14.0, -8.0)), m.align(egui::Align2::LEFT_BOTTOM), name, theme::bold(12.5), t.dim);
+                    group_heading(&t, ui, r, Heading { shown: &shown, heading: &heading, folded }, acts);
                 }
                 Row::Message { index, count, unread } => {
                     let Some(m) = s.list.get(*index) else { continue };
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, mh));
                     let drafting = drafted.marks(m);
-                    let of = RowOf { m, r, count: *count, unread_in_thread: *unread, sent_view, drafting, several_folders };
-                    message_row(s, &t, ui, of, acts);
+                    let of = RowOf {
+                        m,
+                        r,
+                        count: *count,
+                        unread_in_thread: *unread,
+                        sent_view,
+                        drafting,
+                        several_folders,
+                        tab_stop: tab_stop == Some(&m.key),
+                    };
+                    let resp = message_row(s, &t, ui, of, acts);
+                    if tab_stop == Some(&m.key) {
+                        st.list_stop = Some(resp.id);
+                    }
+                    row_keyboard(s, st, ui, &m.key, &resp);
+                    keyboard_drawn |= keyboard == Some(resp.id);
                 }
             }
+        }
+        // The row with the keyboard gone (its message deleted, moved, archived): the message the
+        // list's focus went on to takes it, read as the next is in Outlook, not the window.
+        if keyboard.is_some() && !keyboard_drawn {
+            st.focus_row_at = Some(ui.input(|i| i.time));
         }
         if has_footer && total < viewport.max.y {
             let r = Rect::from_min_size(origin + vec2(0.0, total), vec2(width, FOOTER_H));
@@ -432,6 +522,32 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
 
 /// The list's footer's height.
 const FOOTER_H: f32 = 76.0;
+
+/// How long after the list's focus moved by the keyboard its row may still take the keyboard
+/// (it's drawn once it's scrolled into view).
+const FOCUS_ROW_SECS: f64 = 1.0;
+
+/// The keyboard on a message row (issue #175). The row the list's focus moved to by the keyboard
+/// takes it, as a clicked row does, so a screen reader reads the message reached: the keyboard
+/// stayed on the window, and nothing was read. The row keeps its arrows, which move the list's
+/// focus (egui's own would also take the keyboard to the row below: two rows a press).
+fn row_keyboard(s: &Session, st: &mut UiState, ui: &Ui, key: &mailcraft_engine::model::MessageKey, resp: &egui::Response) {
+    let now = ui.input(|i| i.time);
+    let moved = st.focus_row_at.is_some_and(|at| now - at < FOCUS_ROW_SECS) && s.focus.as_ref() == Some(key);
+    if moved || resp.clicked() {
+        resp.request_focus();
+        // Not egui's own move for the same press as well: at the frame's end it takes the
+        // keyboard on from the row to the control below (the row keeps its arrows from the next
+        // frame on).
+        ui.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
+        st.focus_row_at = None;
+    }
+    if resp.has_focus() {
+        let arrows = egui::EventFilter { vertical_arrows: true, horizontal_arrows: true, ..Default::default() };
+        ui.memory_mut(|m| m.set_focus_lock_filter(resp.id, arrows));
+        st.row_keyboard = Some(resp.id);
+    }
+}
 
 /// What's past the list (issue #4): a folder's older mail on its server, to show more of; a
 /// search's, to ask the servers for.
@@ -490,6 +606,14 @@ pub(crate) fn arrange_menu(ui: &mut Ui, s: &Session, acts: &mut Vec<Action>) {
     if ui.selectable_label(s.prefs.groups, tl!("Show in groups")).clicked() {
         acts.push(Action::Run("view.groups", json!({})));
         ui.close();
+    }
+    // Every heading folded away, or shown (issue #189): a folder's list in groups.
+    let foldable = s.prefs.groups && s.search.is_none();
+    for (label, cmd) in [("Collapse all groups", "list.collapseAll"), ("Expand all groups", "list.expandAll")] {
+        if ui.add_enabled(foldable, egui::Button::new(tl!(label)).frame(false)).clicked() {
+            acts.push(Action::Run(cmd, json!({})));
+            ui.close();
+        }
     }
 }
 

@@ -105,6 +105,92 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** It needs an Etebase client of MailCraft's own: the Rust library EteSync publishes
   brings C libraries with it (OpenSSL and libsodium), which MailCraft doesn't build with.
 
+### 9. Spelling: what isn't checked yet
+
+- **Impact:** Spelling is checked as you type in the interface's language only, and in the
+  message's text only (not its subject). There's no Spelling window to go through a message's
+  mistakes one by one (Outlook's F7), and no check before sending. English uses the Craft apps'
+  built-in word list, which takes a few common misspellings (`thier`, `untill`, `occured`) as
+  words. In the browser, only English is checked.
+- **Workaround:** Install a Hunspell dictionary for your language (Linux: the `hunspell-xx`
+  package; macOS: `.aff` and `.dic` files in `~/Library/Spelling`; any system: LibreOffice and its
+  language's dictionary). An English Hunspell dictionary installed there is used instead of the
+  built-in list.
+- **Cause:** The checker is the Craft apps' shared `craft-proof`. Its better English (SCOWL) and
+  its other languages' data come from storytold's `craft-i18n` at build time, which MailCraft's
+  builds don't include yet; it brings no dictionaries of its own for other languages.
+
+### 10. Screen readers: what isn't read yet
+
+- **Impact:** A window of its own (a new message, which opens in one unless turned off, and a
+  message opened with Enter or a double-click) shows a screen reader nothing at all. In the main
+  window, a message's text is read as one text, by line, word and letter, but not what it's made
+  of: a heading, a list's items, a table's cells and a link are read as lines of text, with
+  nothing saying what they are, and a screen reader can't go from heading to heading.
+- **Workaround:** Turn off **New messages in their own window** in **File › Options › Mail**
+  (replies stay in the main window as they start), and read messages in the reading pane rather
+  than opening them. Tab goes to each link in a message, read as a link.
+- **Cause:** egui's eframe gives only the main window an adapter for screen readers; a fix for
+  the others is in review upstream (emilk/egui#8810). A message's text is drawn in runs laid out
+  from it, which don't keep its headings, lists and tables as such; a screen reader needs them
+  told, as WordCraft tells its page's.
+
+### 11. Archiving: what isn't done yet
+
+- **Impact:** **Clean up old items** and AutoArchive take mail only: old calendar items and
+  completed tasks stay where they are, where Outlook archives them too. A message can't be kept
+  out of AutoArchive on its own (Outlook's "Do not AutoArchive" on an item), and AutoArchive
+  doesn't delete expired items.
+- **Workaround:** Give a folder that holds what must stay **Don't archive this folder** in its
+  **Properties**, or move that mail to such a folder.
+- **Cause:** The archive writes a folder's mail as an export does, without the calendar, contacts
+  and tasks, which an export writes whole. No server keeps a message's own AutoArchive setting
+  for MailCraft to read, nor does MailCraft keep settings of its own for single messages, and it
+  keeps no expiry for mail.
+
+### 12. Work time: what isn't done yet
+
+- **Impact:** A week always starts on Monday, in the calendar and its months: Outlook's **First
+  day of week** isn't there. Your work time is kept on this computer alone: one set in Outlook
+  for an Exchange or Microsoft 365 mailbox isn't read, and colleagues see the one Outlook set,
+  not MailCraft's. The work hours are the same each day worked.
+- **Workaround:** Set the same work time in **File › Options › Calendar** as in Outlook.
+- **Cause:** The calendar's views, months and dates are laid out from Monday in each place that
+  draws them, not from a setting. MailCraft doesn't read or write a mailbox's own settings
+  (Exchange's `GetUserConfiguration`, Microsoft Graph's `mailboxSettings`) yet.
+
+### 13. Finding a time: what isn't done yet
+
+- **Impact:** A meeting's own form has no Scheduling Assistant: its guests' times and AutoPick
+  are in the calendar alone (**Next free time**, over the calendars shown). Everyone shown counts
+  as required, and rooms aren't looked at. Exchange's own suggested times aren't asked for.
+- **Workaround:** Show the guests' calendars (**Open shared calendar**), find the time with
+  **Next free time**, and click it for the meeting; leave an optional guest's calendar unticked.
+- **Cause:** The event form edits one event and reads no one's times; the search goes over the
+  times the calendar has, which works for every kind of account, where the servers' own
+  suggestions (Exchange's `SuggestionsViewOptions`, Microsoft Graph's `findMeetingTimes`) come
+  from those servers alone.
+
+### 14. Message list groups: what isn't done yet
+
+- **Impact:** A heading folded stays folded as it was left: Outlook's **Expand/collapse
+  defaults** (all expanded or all collapsed each time a folder opens) isn't there, and Left and
+  Right don't fold or show a heading from the keyboard as Outlook's do.
+- **Workaround:** **Expand all groups** in the list's **By Date ⏷** menu shows everything again.
+- **Cause:** What's folded is kept as the folder was last shown, the one way there is; the
+  arrow keys move between messages, never stopping on a heading.
+
+### 15. Moving an event: what isn't done yet
+
+- **Impact:** An event that repeats isn't dragged to another time (Outlook moves the occurrence
+  dragged, on its own), nor is an event's length changed by dragging its edge. A meeting someone
+  else organized isn't dragged either.
+- **Workaround:** Open the event and change its start and end in its form: a repeating one
+  moves as a whole there.
+- **Cause:** Nothing changes one occurrence of a series on its own yet: the form and the
+  calendar change the whole series, and the series moved for one occurrence went wrong on its
+  days (Monday's moved to Tuesday, the rule still said Mondays).
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

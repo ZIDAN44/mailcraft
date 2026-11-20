@@ -421,6 +421,21 @@ impl<H: Http> Client<H> {
         }
         Err(Error::No("the folder didn't empty".into()))
     }
+
+    /// Mark every message in a mailbox read, a page at a time (issue #197).
+    pub(super) async fn mark_read(&self, mailbox: &str) -> Result<()> {
+        let filter = json!({"operator": "AND", "conditions": [{"inMailbox": mailbox}, {"notKeyword": "$seen"}]});
+        for _ in 0..1000 {
+            let r = self.mail(vec![("Email/query", json!({"accountId": self.account, "filter": filter, "limit": self.max_get.min(500)}))]).await?;
+            let ids: Vec<String> = list(r.first(), "ids").iter().filter_map(|v| v.as_str().map(str::to_string)).collect();
+            if ids.is_empty() {
+                return Ok(());
+            }
+            let update: Map<String, Value> = ids.into_iter().map(|id| (id, json!({"keywords/$seen": true}))).collect();
+            self.set_emails(update, Vec::new()).await?;
+        }
+        Err(Error::No("the folder's mail didn't all get marked read".into()))
+    }
 }
 
 /// A download or upload template resolved against the session URL, braces intact.

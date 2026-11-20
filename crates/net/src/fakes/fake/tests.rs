@@ -427,6 +427,10 @@ fn mailbox_settings_over_imap_and_managesieve() {
     until(&pool, "replies on", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if *v == away));
     assert_eq!(sieve.lock().unwrap().active.as_deref(), Some(crate::sieve::SCRIPT));
 
+    // Marking a folder read marks what isn't downloaded too (issue #197).
+    st.lock().unwrap().add("Archive", "Unread old", &[]);
+    pool.submit(Job::Apply { account: "a1".into(), op: Op::MarkFolderRead { path: "Archive".into() } });
+    eventually("the Archive read", || st.lock().unwrap().mailbox("Archive").unwrap().msgs.iter().all(|m| m.flags.iter().any(|f| f == "\\Seen")));
     // Emptying a folder removes what isn't downloaded too.
     pool.submit(Job::Apply { account: "a1".into(), op: Op::EmptyFolder { path: "Archive".into() } });
     eventually("the Archive emptied", || st.lock().unwrap().mailbox("Archive").unwrap().msgs.is_empty());

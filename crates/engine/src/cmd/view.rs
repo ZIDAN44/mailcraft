@@ -15,7 +15,20 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"on"?: bool}"#),
         toggle!("view.preview", "Message preview", "View › Messages", show_preview),
         toggle!("view.compact", "Compact list", "View › Layout", compact),
-        toggle!("view.groups", "Show in groups", "View › Arrangement", groups),
+        CommandSpec::new("view.folderDensity", "Folder density", "View › Layout", |s, v| {
+            let code = p::req_str(v, "value")?;
+            s.prefs.folder_density = crate::FolderDensity::from_code(code)
+                .ok_or_else(|| CmdError::Params(format!("`value` is \"spacious\", \"medium\" or \"compact\", not `{code}`")))?;
+            Ok(json!({"value": code}))
+        })
+        .params(r#"{"value": "spacious"|"medium"|"compact"} (the folder pane's text size, row height and indent)"#),
+        CommandSpec::new("view.groups", "Show in groups", "View › Arrangement", |s, v| {
+            s.prefs.groups = p::bool(v, "on").unwrap_or(!s.prefs.groups);
+            // Headings folded away (issue #189) fold only while they're shown.
+            s.rebuild_rows();
+            Ok(json!({"on": s.prefs.groups}))
+        })
+        .params(r#"{"on"?: bool}"#),
         toggle!("view.singleLine", "Single-line list", "View › Layout", single_line),
         toggle!("view.classicRibbon", "Classic ribbon", "View › Layout", classic_ribbon),
         toggle!("view.hideRibbon", "Hide the ribbon", "View › Layout", ribbon_hidden).key("Mod+F1"),
@@ -107,6 +120,31 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"value": "focused"|"other"}"#),
         toggle!("view.confirmDelete", "Ask before deleting for good", "File › Options › Mail", confirm_permanent_delete),
         toggle!("view.notifications", "Desktop notifications", "File › Options › Mail", notify),
+        toggle!("view.notifyOther", "Notify of mail in Other too", "File › Options › Mail", notify_other),
+        toggle!("options.spelling", "Check spelling as you type", "File › Options › Mail", spelling),
+        CommandSpec::new("options.composeFont", "Font for new messages", "File › Options › Mail", |s, v| {
+            s.prefs.compose_font = match v.get("font") {
+                Some(serde_json::Value::String(name)) => {
+                    Some(mailcraft_mime::rich::font_name(name).ok_or_else(|| CmdError::Params(format!("`{name}` isn't a font's name")))?)
+                }
+                Some(serde_json::Value::Null) | None => None,
+                Some(_) => return Err(CmdError::Params("`font` is a font's name or null".into())),
+            };
+            Ok(json!({ "font": s.prefs.compose_font }))
+        })
+        .params(r#"{"font"?: string (an installed typeface: new messages, replies and forwards are written in it) | null (MailCraft's own)}"#),
+        CommandSpec::new("spelling.addWord", "Add to dictionary", "Message editor › Spelling", |s, v| {
+            let word = p::req_str(v, "word")?;
+            let w = crate::session::dictionary_word(word).ok_or_else(|| CmdError::Params(format!("`{word}` isn't a word")))?;
+            if p::bool(v, "remove") == Some(true) {
+                return Ok(json!({ "removed": s.prefs.dictionary.remove(&w) }));
+            }
+            if s.prefs.dictionary.len() >= crate::session::DICTIONARY_MAX && !s.prefs.dictionary.contains(&w) {
+                return Err(CmdError::Failed("the dictionary is full".into()));
+            }
+            Ok(json!({ "added": s.prefs.dictionary.insert(w) }))
+        })
+        .params(r#"{"word": string (taken as spelled right in every language), "remove"?: true (taken out of the dictionary)}"#),
         toggle!("view.closeToTray", "Keep MailCraft running when its window is closed", "File › Options › General", close_to_tray),
         toggle!("view.startInTray", "Start MailCraft with its window put away", "File › Options › General", start_in_tray),
         toggle!("view.trayUnread", "The unread count on the notification area's icon", "File › Options › General", tray_unread),
@@ -156,18 +194,23 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("view.todoBar", "To-Do Bar", "View › Layout", |s, v| {
             if p::bool(v, "off") == Some(true) {
                 s.todo_bar_part(None, Some(false))?;
-            } else if v.get("part").is_some() || v.get("on").is_some() || v.get("width").is_none() {
+            } else if v.get("part").is_some() || v.get("on").is_some() || (v.get("width").is_none() && v.get("split").is_none()) {
                 s.todo_bar_part(p::str(v, "part"), p::bool(v, "on"))?;
             }
             if let Some(w) = p::u64(v, "width") {
                 let (least, most) = (*crate::TODO_BAR_WIDTH.start(), *crate::TODO_BAR_WIDTH.end());
                 s.prefs.todo_bar.width = u16::try_from(w).unwrap_or(most).clamp(least, most);
             }
+            // Where the line between the appointments and the tasks is (issue #196).
+            if let Some(split) = p::u64(v, "split") {
+                let (least, most) = (*crate::TODO_BAR_SPLIT.start(), *crate::TODO_BAR_SPLIT.end());
+                s.prefs.todo_bar.split = u8::try_from(split).unwrap_or(most).clamp(least, most);
+            }
             let bar = s.prefs.todo_bar;
-            Ok(json!({"calendar": bar.calendar, "appointments": bar.appointments, "tasks": bar.tasks, "width": bar.width}))
+            Ok(json!({"calendar": bar.calendar, "appointments": bar.appointments, "tasks": bar.tasks, "width": bar.width, "split": bar.split}))
         })
         .params(
-            r#"{"part"?: "calendar"|"appointments"|"tasks" (that part; none: all of them), "on"?: bool (shown or hidden; not given: the other way), "off"?: true (all hidden), "width"?: number}"#,
+            r#"{"part"?: "calendar"|"appointments"|"tasks" (that part; none: all of them), "on"?: bool (shown or hidden; not given: the other way), "off"?: true (all hidden), "width"?: number, "split"?: 15…85 (the appointments' share of the height, in percent, when the tasks are under them)}"#,
         ),
         CommandSpec::new("todo.complete", "Mark complete", "To-Do Bar", |s, v| {
             let key = p::req_str(v, "key")?;
@@ -213,6 +256,31 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"count": s.prefs.calendar_months}))
         })
         .params(r#"{"count": number (1 to 6)}"#),
+        CommandSpec::new("calendar.workTime", "Work time", "File › Options › Calendar", |s, v| {
+            let days: Option<Vec<u32>> = match v.get("days") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(d) => Some(
+                    d.as_array()
+                        .ok_or_else(|| CmdError::Params("`days` is a list of days, 0 (Monday) to 6 (Sunday)".into()))?
+                        .iter()
+                        .map(|x| x.as_u64().and_then(|x| u32::try_from(x).ok()).unwrap_or(u32::MAX))
+                        .collect(),
+                ),
+            };
+            let time = |key: &str| -> Result<Option<u16>, CmdError> {
+                let Some(t) = p::str(v, key) else { return Ok(None) };
+                let minutes = t
+                    .trim()
+                    .split_once(':')
+                    .and_then(|(h, m)| Some((h.parse::<u16>().ok()?, m.parse::<u16>().ok()?)))
+                    .filter(|(h, m)| (*h < 24 && *m < 60) || (*h == 24 && *m == 0))
+                    .map(|(h, m)| h * 60 + m);
+                minutes.map(Some).ok_or_else(|| CmdError::Params(format!("`{key}` is a time of day (HH:MM), not `{t}`")))
+            };
+            let (start, end) = (time("start")?, time("end")?);
+            s.set_work_time(days.as_deref(), start, end)
+        })
+        .params(r#"{"days"?: [number] (0 Monday … 6 Sunday), "start"?: "HH:MM", "end"?: "HH:MM"}"#),
         CommandSpec::new("account.keepMail", "Mail kept on this computer", "File › Options › Mail", |s, v| {
             if let Some(n) = p::u64(v, "messages") {
                 s.prefs.keep_messages = u32::try_from(n.min(1_000_000)).unwrap_or(0);

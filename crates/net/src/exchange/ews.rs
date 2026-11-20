@@ -163,6 +163,9 @@ pub struct Client {
     user_agent: Option<String>,
     /// Those of [`NEWER`] the server refused (an older Exchange's schema): not asked again.
     unknown_ids: RefCell<Vec<&'static str>>,
+    /// The server refused a message's text first (issue #191): not asked again here, each
+    /// message coming whole.
+    text_first_refused: RefCell<bool>,
 }
 
 /// Another mailbox the account opens (Outlook's shared mailboxes): its address and name.
@@ -409,6 +412,7 @@ impl Client {
             shared_listed: RefCell::new(None),
             user_agent: None,
             unknown_ids: RefCell::new(Vec::new()),
+            text_first_refused: RefCell::new(false),
         })
     }
 
@@ -472,7 +476,7 @@ const HEADER_FIELDS: &str = "<t:FieldURI FieldURI=\"item:Subject\"/><t:FieldURI 
 <t:FieldURI FieldURI=\"message:ToRecipients\"/><t:FieldURI FieldURI=\"message:CcRecipients\"/>\
 <t:FieldURI FieldURI=\"message:ReplyTo\"/><t:FieldURI FieldURI=\"item:DateTimeReceived\"/>\
 <t:FieldURI FieldURI=\"item:DateTimeSent\"/><t:FieldURI FieldURI=\"message:InternetMessageId\"/>\
-<t:FieldURI FieldURI=\"message:InReplyTo\"/><t:FieldURI FieldURI=\"message:References\"/>\
+<t:FieldURI FieldURI=\"item:InReplyTo\"/><t:FieldURI FieldURI=\"message:References\"/>\
 <t:FieldURI FieldURI=\"item:HasAttachments\"/><t:FieldURI FieldURI=\"item:Size\"/>";
 
 /// An extended property's value.
@@ -610,7 +614,8 @@ pub fn find_on_server(
     crate::exchange::window::found(st, store, (account, seen), folder, fs, &numbers, new)
 }
 
-/// A `Restriction` for a search's read, flag and attachment conditions.
+/// A `Restriction` for a search's read, flag and attachment conditions, and when the mail came
+/// (issue #179).
 fn restriction(q: &WordQuery) -> String {
     let equal = |field: &str, value: &str| {
         format!("<t:IsEqualTo>{field}<t:FieldURIOrConstant><t:Constant Value=\"{value}\"/></t:FieldURIOrConstant></t:IsEqualTo>")
@@ -626,6 +631,14 @@ fn restriction(q: &WordQuery) -> String {
     if let Some(a) = q.attachment {
         parts.push(equal("<t:FieldURI FieldURI=\"item:HasAttachments\"/>", if a { "true" } else { "false" }));
     }
+    let received = |op: &str, t: i64| {
+        let at = mailcraft_model::dates::utc_stamp(t);
+        format!(
+            "<t:{op}><t:FieldURI FieldURI=\"item:DateTimeReceived\"/><t:FieldURIOrConstant><t:Constant Value=\"{at}\"/></t:FieldURIOrConstant></t:{op}>"
+        )
+    };
+    parts.extend(q.after.map(|t| received("IsGreaterThanOrEqualTo", t)));
+    parts.extend(q.before.map(|t| received("IsLessThan", t)));
     match parts.len() {
         0 => String::new(),
         1 => format!("<m:Restriction>{}</m:Restriction>", parts.concat()),
@@ -786,6 +799,10 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
                 ))
             })
             .map(drop)
+        }
+        Op::MarkFolderRead { path } => {
+            let id = st.mailbox(path)?.to_string();
+            c.in_folder(&id, || c.mark_read(&id))
         }
     }
 }

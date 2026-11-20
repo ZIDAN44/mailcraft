@@ -182,6 +182,9 @@ fn the_search_box_drops_down_recent_and_advanced_search() {
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.session.prefs.recent_searches = vec!["budget".into(), "storyboard".into()];
+    // In the box, as typing is: words outside it with no search behind them go (issue #187).
+    a.ui.focus_search = true;
+    frame(&ctx, &mut a, vec![]);
     a.ui.search_drop = crate::SearchDrop::Recent;
     frame(&ctx, &mut a, vec![]);
     assert_eq!(a.ui.search_drop, crate::SearchDrop::Recent);
@@ -203,6 +206,32 @@ fn the_search_box_drops_down_recent_and_advanced_search() {
     for scope in mailcraft_engine::SearchScope::ALL {
         assert!(!crate::scope_label(scope).is_empty());
     }
+}
+
+/// Issue #187: a search ended by opening a folder, or by going to another module, takes its
+/// words out of the box; they're among the recent searches. They stayed, as if it were still on.
+#[test]
+fn a_search_left_empties_the_box() {
+    let (mut a, _) = app("search-left");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("search.run", json!({"query": "storyboard", "remember": true}));
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.search_text, "storyboard", "the search's words in the box");
+    a.run("folder.open", json!({"account": "sample", "folder": "Projects"}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.search.is_none() && a.ui.search_text.is_empty(), "{:?}", a.ui.search_text);
+    assert!(a.session.recent_searches().iter().any(|r| r == "storyboard"), "kept among the recent searches");
+    // Searched again, then to the Calendar: the search ends with the box.
+    a.run("search.run", json!({"query": "budget"}));
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.search_text, "budget");
+    a.run("view.calendar", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.search.is_none() && a.ui.search_text.is_empty(), "{:?}", a.ui.search_text);
+    a.run("view.mail", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.search_text.is_empty(), "nothing back in the box on the way back");
 }
 
 /// Issue #11: Favorites can be hidden from the top of the folder pane (View › Favorites), not
@@ -401,12 +430,46 @@ fn folder_search_finds_the_name_shown() {
         assert_eq!(rows(&mut a, Dialog::MoveTo { filter: typed.into(), copy: false }, typed), ["Posteingang"], "Move to, {typed:?}");
     }
     assert_eq!(rows(&mut a, Dialog::MoveTo { filter: "entw".into(), copy: false }, "entw"), ["Entwürfe"]);
-    let moving = |filter: &str| Dialog::MoveFolder { account: "sample".into(), folder: "Projects".into(), filter: filter.into(), error: None };
+    let moving =
+        |filter: &str| Dialog::MoveFolder { account: "sample".into(), folder: "Projects".into(), filter: filter.into(), chosen: None, error: None };
     for typed in ["posteingang", "inbox"] {
         assert_eq!(rows(&mut a, moving(typed), typed), ["Posteingang"], "Move folder, {typed:?}");
     }
     assert_eq!(rows(&mut a, moving("gel"), "gel"), ["Gelöschte Elemente"]);
     crate::i18n::set_current(crate::i18n::Lang::EN);
+}
+
+/// Issue #182: in Move folder a click picks where the folder goes, Move turns on and moves it
+/// there. A click moved it at once, and Move never turned on.
+#[test]
+fn move_folder_picks_then_moves() {
+    let (mut a, _) = app("move-folder-pick");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let projects = a.session.folder("sample", "Projects/Short film").cloned().unwrap();
+    a.ui.dialog = Some(Dialog::move_folder(&projects));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    let move_button = |ctx: &egui::Context, a: &mut MailApp| {
+        named(ctx, a, egui::vec2(1280.0, 800.0)).into_iter().find(|n| n.label.as_deref() == Some("Move")).map(|n| n.disabled)
+    };
+    assert_eq!(move_button(&ctx, &mut a), Some(true), "nothing picked yet");
+    // Each row across the list, a short name's as a long one's.
+    let width = |ctx: &egui::Context, a: &mut MailApp, name: &str| {
+        let all = named(ctx, a, egui::vec2(1280.0, 800.0));
+        all.into_iter().find(|n| n.label.as_deref() == Some(name)).and_then(|n| n.rect).map(|r| r.width()).unwrap()
+    };
+    let (inbox, top) = (width(&ctx, &mut a, "Inbox"), width(&ctx, &mut a, "(Top level)"));
+    assert!(inbox > 200.0 && (inbox - top).abs() < 1.0, "rows as wide as the list: {inbox} {top}");
+    click_named(&ctx, &mut a, "Inbox");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.folder("sample", "Projects/Short film").is_some(), "a click only picks");
+    assert!(matches!(&a.ui.dialog, Some(Dialog::MoveFolder { chosen: Some(Some(p)), .. }) if p == "INBOX"), "{:?}", a.ui.dialog);
+    assert_eq!(move_button(&ctx, &mut a), Some(false), "Move turns on");
+    click_named(&ctx, &mut a, "Move");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.folder("sample", "INBOX/Short film").is_some(), "moved there");
+    assert!(a.ui.dialog.is_none());
 }
 
 /// `n` rules, the fourth moving mail to "Projects/Short film", the others flagging it.
@@ -533,4 +596,27 @@ fn measure_rules_dialog() {
             h.finish()
         );
     }
+}
+
+/// Issue #199: File › Options says new mail in Other isn't announced while the Focused Inbox is
+/// on, with a switch to have it announced: shown with the Focused Inbox and notifications both
+/// on, gone with either off.
+#[test]
+fn options_offer_notifications_for_other_with_the_focused_inbox() {
+    let _tall = crate::tests::windows::layout::Dressed::new(egui::vec2(1280.0, 2400.0), "");
+    let (mut a, _) = app("notify-other");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let shown = |ctx: &egui::Context, a: &mut MailApp| {
+        frame(ctx, a, vec![]);
+        drawn_text(ctx, a, egui::vec2(1280.0, 2400.0)).iter().any(|d| d.text == "Notify of mail in Other too")
+    };
+    a.ui.backstage = Some(crate::backstage::Backstage::new(crate::backstage::Page::Options));
+    assert!(!shown(&ctx, &mut a), "the Focused Inbox off: nothing to say");
+    a.run("view.focused", json!({"on": true}));
+    assert!(shown(&ctx, &mut a), "with the Focused Inbox on");
+    click_named(&ctx, &mut a, "Notify of mail in Other too");
+    assert!(a.session.prefs.notify_other, "turned on");
+    a.run("view.notifications", json!({"on": false}));
+    assert!(!shown(&ctx, &mut a), "no notifications: nothing to say");
 }

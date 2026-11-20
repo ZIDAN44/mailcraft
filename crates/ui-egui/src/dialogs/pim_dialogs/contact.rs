@@ -183,7 +183,7 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
                 1 => tl!("Home"),
                 _ => tl!("Other"),
             };
-            egui::ComboBox::from_id_salt("contact-address")
+            let r = egui::ComboBox::from_id_salt("contact-address")
                 .selected_text(name(shown))
                 .show_ui(ui, |ui| {
                     for i in 0..3 {
@@ -197,6 +197,11 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
                 .response
                 // The row's name is painted, not a widget: the box carries it.
                 .accessible_name(tl!("Address"));
+            let mut at = shown;
+            crate::drop_down::keys(ui, &r, &mut at, &[0, 1, 2]);
+            if at != shown {
+                f.address_shown = at;
+            }
         });
         let shown = f.address_shown.min(2);
         if let Some(a) = f.addresses.get_mut(shown) {

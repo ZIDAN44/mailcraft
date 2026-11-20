@@ -23,14 +23,19 @@ use crate::{Action, Dialog};
 mod carets;
 mod layout;
 mod links;
+mod ops;
 mod pictures;
+pub(crate) mod spelling;
+mod spoken;
 mod toolbar;
 mod tracked;
 mod undo;
+
 pub(crate) use layout::Card;
 use layout::*;
 pub(crate) use links::link_dialog;
 use links::*;
+pub(crate) use ops::{Op, apply};
 #[cfg(test)]
 pub(crate) use pictures::FIT_WIDTH;
 pub(crate) use pictures::{fitted_width, own_line, own_size, web_loaded};
@@ -105,6 +110,8 @@ pub(crate) struct Editor {
     pub(crate) card_rect: Option<Rect>,
     /// The text as laid out last.
     laid: Laid,
+    /// The misspelled words, and the one right-clicked (issue #174).
+    spelling: spelling::Marks,
 }
 
 impl Editor {
@@ -127,6 +134,7 @@ impl Editor {
             card: None,
             card_rect: None,
             laid: Laid::default(),
+            spelling: spelling::Marks::default(),
         }
     }
 
@@ -144,6 +152,12 @@ impl Editor {
 
 /// The id of the signature being edited (the signature editor is a message editor of its own).
 pub(crate) const SIGNATURE_ID: u64 = u64::MAX;
+
+/// A look as the editor draws it (tests).
+#[cfg(test)]
+pub(crate) fn text_format(s: &Style, base: Option<&str>, t: &Tokens) -> TextFormat {
+    layout::format(s, base, t)
+}
 
 /// The message text box's id.
 pub(crate) fn body_id(c: &Compose) -> egui::Id {
@@ -225,111 +239,6 @@ fn line_at(text: &str, at: usize) -> (usize, usize, bool) {
     }
     // Empty: nothing between its start and `at`, and a break or the end after.
     (line, start, start == i && chars.next().is_none_or(|ch| ch == '\n'))
-}
-
-/// A change the ribbon or a shortcut asks for.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum Op {
-    Bold,
-    Italic,
-    Underline,
-    Strike,
-    Size(u8),
-    Grow,
-    Shrink,
-    Color(Option<[u8; 3]>),
-    Highlight(Option<[u8; 3]>),
-    Bullets,
-    Numbers,
-    Align(Align),
-    Indent,
-    Outdent,
-    Clear,
-    Link(String),
-    Unlink,
-    /// Text put in at the cursor (in place of the selection), as typing would.
-    Insert(String),
-}
-
-/// Apply `op` to the selection (or to what's typed next, when nothing is selected).
-pub(crate) fn apply(ed: &mut Editor, c: &mut Compose, op: Op) {
-    c.styles.fit(&c.body);
-    let n = c.body.chars().count();
-    let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
-    // Typed in, it takes the style typing would; a plain text message stays plain.
-    if let Op::Insert(text) = &op {
-        let style = ed.typing.clone().unwrap_or_else(|| typing_style(&c.body, &c.styles, sel.start));
-        replace(ed, c, sel, text, style);
-        return;
-    }
-    let collapsed = sel.is_empty();
-    // With nothing selected, a character's look is only how what's typed next looks: the text
-    // is as it was, so it's no undo step (one made the next Undo seem to do nothing, and took
-    // Redo away). A paragraph's look changes the text's.
-    let paragraph = matches!(op, Op::Bullets | Op::Numbers | Op::Align(_) | Op::Indent | Op::Outdent | Op::Clear);
-    if !collapsed || paragraph {
-        ed.remember(c, sel.end);
-    }
-    let base = ed.typing.clone().unwrap_or_else(|| typing_style(&c.body, &c.styles, sel.start));
-    let toggled = |get: fn(&Style) -> bool| -> bool { if collapsed { !get(&base) } else { !rich::all(&c.body, &c.styles, sel.clone(), get) } };
-    type F = Box<dyn Fn(&Style) -> Style>;
-    let char_op: Option<F> = match op.clone() {
-        Op::Bold => {
-            let on = toggled(|s| s.bold);
-            Some(Box::new(move |s| Style { bold: on, ..s.clone() }))
-        }
-        Op::Italic => {
-            let on = toggled(|s| s.italic);
-            Some(Box::new(move |s| Style { italic: on, ..s.clone() }))
-        }
-        Op::Underline => {
-            let on = toggled(|s| s.underline);
-            Some(Box::new(move |s| Style { underline: on, ..s.clone() }))
-        }
-        Op::Strike => {
-            let on = toggled(|s| s.strike);
-            Some(Box::new(move |s| Style { strike: on, ..s.clone() }))
-        }
-        Op::Size(z) => Some(Box::new(move |s| Style { size: (z != rich::DEFAULT_SIZE).then_some(z), ..s.clone() })),
-        Op::Grow | Op::Shrink => {
-            let up = op == Op::Grow;
-            Some(Box::new(move |s| {
-                let z = rich::step_size(s.size(), up);
-                Style { size: (z != rich::DEFAULT_SIZE).then_some(z), ..s.clone() }
-            }))
-        }
-        Op::Color(col) => Some(Box::new(move |s| Style { color: col, ..s.clone() })),
-        Op::Highlight(col) => Some(Box::new(move |s| Style { highlight: col, ..s.clone() })),
-        Op::Clear => Some(Box::new(|s| Style { picture: s.picture.clone(), picture_width: s.picture_width, ..Style::default() })),
-        Op::Link(url) => {
-            let url = url.trim().to_string();
-            Some(Box::new(move |s| Style { link: Some(url.clone()), ..s.clone() }))
-        }
-        Op::Unlink => Some(Box::new(|s| Style { link: None, ..s.clone() })),
-        _ => None,
-    };
-    if let Some(f) = char_op {
-        if collapsed {
-            ed.typing = Some(f(&base));
-        } else {
-            c.styles.restyle(&c.body, sel.clone(), f);
-        }
-    }
-    let (first, last) = rich::lines_of(&c.body, sel.clone());
-    let all_list = |kind: List| (first..=last).all(|l| c.styles.para(l).list == kind);
-    match op {
-        Op::Bullets | Op::Numbers => {
-            let kind = if op == Op::Bullets { List::Bullet } else { List::Number };
-            let to = if all_list(kind) { List::None } else { kind };
-            c.styles.relayout(&c.body, sel, |p| p.list = to);
-        }
-        Op::Align(a) => c.styles.relayout(&c.body, sel, |p| p.align = a),
-        Op::Indent => c.styles.relayout(&c.body, sel, |p| p.indent = p.indent.saturating_add(1)),
-        Op::Outdent => c.styles.relayout(&c.body, sel, |p| p.indent = p.indent.saturating_sub(1)),
-        Op::Clear => c.styles.relayout(&c.body, sel, |p| *p = rich::Para { rule: p.rule, ..Default::default() }),
-        _ => {}
-    }
-    c.plain = false;
 }
 
 /// Put `text` in place of the characters in `range`, with style `style`.
@@ -441,9 +350,7 @@ fn keys(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
             ops.push(Op::Indent);
         }
     });
-    for op in ops {
-        apply(ed, c, op);
-    }
+    spoken::apply_keyed(ui.ctx(), ed, c, ops);
     if undo_k || redo_k {
         undo(ed, c, &ctx, redo_k);
     }
@@ -516,6 +423,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     // with the frame's first ones, all that followed the change was a letter off for a frame: a
     // picture after it was laid out as a letter, and the text under it jumped (issue #114).
     let was = c.body.clone();
+    let font = c.font.clone();
     let (typing, at) = (ed.typing.clone(), ed.sel.start);
     let mut moved: Option<(String, Styles, Option<Card>)> = None;
     let mut text = Tracked::new(&mut c.body);
@@ -524,7 +432,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| {
         let now = buf.as_str();
         if now == was {
-            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: card.as_ref() });
+            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: card.as_ref(), font: font.as_deref() });
         }
         if moved.as_ref().is_none_or(|(laid_for, ..)| laid_for != now) {
             let mut st = styles.clone();
@@ -533,9 +441,9 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
             moved = Some((now.to_string(), st, card.as_ref().and_then(|card| card.moved(&was, now))));
         }
         let Some((_, st, card)) = moved.as_ref() else {
-            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: None });
+            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: None, font: font.as_deref() });
         };
-        layout_kept(laid, ui, now, Lay { st, plain, t: &tokens, wrap, own: &own, card: card.as_ref() })
+        layout_kept(laid, ui, now, Lay { st, plain, t: &tokens, wrap, own: &own, card: card.as_ref(), font: font.as_deref() })
     };
     // As tall as the pane, or, above the original of a reply shown as it came, as its text.
     let height = ed.min_height.unwrap_or_else(|| if c.quote.is_some() { 96.0 } else { ui.available_height().max(220.0) });
@@ -635,6 +543,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     if !c.plain {
         decorate(ui, t, ed, c, &out.galley, out.galley_pos);
     }
+    spelling::marked(ui, t, ed, c, &out, right_press);
     if !out.response.has_focus() && !ed.sel.is_empty() {
         let color = ui.visuals().selection.bg_fill.gamma_multiply(0.45);
         let shapes: Vec<egui::Shape> = carets::selection_rects(&out.galley, ed.sel.clone())
@@ -646,8 +555,9 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     text_menu(&out.response, ed, c, acts);
 }
 
-/// The right-click menu on the text, as Outlook's: Cut, Copy, Paste and Select all; the link
-/// (insert, edit, open, remove); and clearing the formatting.
+/// The right-click menu on the text, as Outlook's: a misspelled word's suggestions, Ignore all
+/// and Add to dictionary; Cut, Copy, Paste and Select all; the link (insert, edit, open,
+/// remove); and clearing the formatting.
 fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
     let n = c.body.chars().count();
     let sel = ed.sel.start.min(n)..ed.sel.end.min(n);
@@ -665,6 +575,9 @@ fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut
             clicked
         };
         let some = !sel.is_empty();
+        if let Some(offer) = ed.spelling.offer.clone() {
+            spelling::menu_items(ui, ed, c, &offer, acts);
+        }
         if item(ui, "Cut", "Ctrl+X", some && !c.sending) {
             ui.ctx().copy_text(chosen(&c.body));
             let style = typing_style(&c.body, &c.styles, sel.start);

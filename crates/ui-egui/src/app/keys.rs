@@ -2,6 +2,9 @@
 
 use crate::*;
 
+mod panes;
+pub(crate) use panes::Pane;
+
 /// Where the keyboard was this frame, for the keys the window's parts keep for themselves.
 #[derive(Clone, Copy)]
 struct Keyboard {
@@ -46,19 +49,29 @@ impl MailApp {
             } else {
                 json!({})
             };
-            self.run(id, params);
+            let answer = self.answer(id, params);
+            // A setting switched from the keyboard says how it's left (issue #175): nothing
+            // where the keyboard is may show it (Ctrl+F1 hides the ribbon it's in).
+            if let Some(on) = answer.as_ref().and_then(|v| v.get("on")).and_then(Value::as_bool) {
+                let name = tl!(spec.label);
+                crate::a11y::announce(ctx, if on { tf!("{name}: on", name = name) } else { tf!("{name}: off", name = name) }, false);
+            }
             if moves_focus(id) {
                 self.ui.scroll_to_focus = true;
+                self.ui.focus_row_at = Some(ctx.input(|i| i.time));
             }
         }
     }
 
     /// A dialog or the File page has the keys: Esc puts it away. Whether one had them.
     fn modal_keys(&mut self, ctx: &egui::Context) -> bool {
+        // Esc with a list open (a drop-down's) closes the list alone, as egui does: not the
+        // dialog or page it's on as well, with what was typed there (issue #175).
+        let escape = ctx.input(|i| i.key_pressed(Key::Escape)) && !egui::Popup::is_any_open(ctx);
         if let Some(d) = &self.ui.dialog {
             // Not the part of a compaction that has a data file to itself: it can't be put away.
             let stays = matches!(d, Dialog::Compacting { account, .. } if self.session.compaction.exclusive(account));
-            if !stays && ctx.input(|i| i.key_pressed(Key::Escape)) {
+            if !stays && escape {
                 self.ui.dialog = None;
             }
             return true;
@@ -66,7 +79,7 @@ impl MailApp {
         if self.ui.backstage.is_some() {
             // Esc in one of its fields leaves the field; from outside one, the page (as
             // GridCraft's File page).
-            if ctx.input(|i| i.key_pressed(Key::Escape)) && !std::mem::take(&mut self.ui.backstage_typing) {
+            if escape && !std::mem::take(&mut self.ui.backstage_typing) {
                 self.ui.backstage = None;
             }
             return true;
@@ -92,6 +105,11 @@ impl MailApp {
     /// the attachments, a message's text) or done here (Ctrl+E, Esc): not a command's then.
     fn key_taken(&mut self, ctx: &egui::Context, key: Key, m: egui::Modifiers, combo: &str, keyboard: Keyboard) -> bool {
         let Keyboard { typing, text_selected, text_keys } = keyboard;
+        // From pane to pane, wherever the keyboard is (a text box too, as in Outlook).
+        if matches!(combo, "F6" | "Shift+F6") {
+            self.next_pane(ctx, combo == "Shift+F6");
+            return true;
+        }
         let plain = !(m.command || m.ctrl || m.alt);
         // Single keys type text when a text box has focus.
         if typing && plain && !matches!(key, Key::F9 | Key::Escape) {
@@ -178,6 +196,13 @@ impl MailApp {
         // Calendar, People or Notes the list isn't there, and End read its last message,
         // Delete or Backspace took mail away unseen (found testing issue #26).
         if self.session.module != Module::Mail && list_key(id) {
+            return true;
+        }
+        // The list's arrows, Home, End and pages, while another control has the keyboard, are
+        // that control's (issue #175): egui's arrows go from control to control, a drop-down's
+        // choose, and with a screen reader they read a message's text. The list moved too, to
+        // another message under the one being read. A message row's are the list's.
+        if moves_focus(id) && ctx.memory(|m| m.focused()).is_some_and(|f| Some(f) != self.ui.row_keyboard) {
             return true;
         }
         if id == "mail.delete" && self.ask_before_deleting() {

@@ -118,16 +118,17 @@ pub(super) fn rows(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
             }
             form_row(ui, t, true, None, "Which day", |ui| {
                 ui.allocate_ui_with_layout(vec2(300.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    egui::ComboBox::from_id_salt("event-repeat-day")
+                    let r = egui::ComboBox::from_id_salt("event-repeat-day")
                         .width(294.0)
                         .selected_text(label(p.nth))
                         .show_ui(ui, |ui| {
-                            for c in choices {
+                            for c in choices.iter().copied() {
                                 ui.selectable_value(&mut p.nth, c, label(c));
                             }
                         })
                         .response
                         .accessible_name(tl!("Which day"));
+                    crate::drop_down::keys(ui, &r, &mut p.nth, &choices);
                 });
             });
         }
@@ -150,7 +151,7 @@ pub(super) fn rows(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
                 PatternEnd::Until(_) => tl!("Until"),
             };
             let choices = [PatternEnd::Never, PatternEnd::Count(count), PatternEnd::Until(form_day(until_text).unwrap_or(day))];
-            egui::ComboBox::from_id_salt("event-repeat-end")
+            let r = egui::ComboBox::from_id_salt("event-repeat-end")
                 .width(110.0)
                 .selected_text(label(&p.end))
                 .show_ui(ui, |ui| {
@@ -163,6 +164,15 @@ pub(super) fn rows(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
                 })
                 .response
                 .accessible_name(tl!("Series ends"));
+            // Chosen by kind: the count or the day is the field's beside it.
+            let kind = |e: &PatternEnd| choices.iter().position(|c| std::mem::discriminant(c) == std::mem::discriminant(e));
+            if let Some(was) = kind(&p.end) {
+                let mut at = was;
+                crate::drop_down::keys(ui, &r, &mut at, &[0, 1, 2]);
+                if let Some(c) = choices.get(at).filter(|_| at != was) {
+                    p.end = *c;
+                }
+            }
             match p.end {
                 PatternEnd::Never => {}
                 PatternEnd::Count(mut n) => {

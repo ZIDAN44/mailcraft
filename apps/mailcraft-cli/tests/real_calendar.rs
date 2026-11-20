@@ -143,3 +143,93 @@ fn real_event_with_a_huge_component() {
     assert_eq!(mailcraft_engine::model::ical::reminder_minutes(e), Some(15));
     http("DELETE", &format!("{calendar}{uid}.ics"), &[("Authorization", &auth)], b"");
 }
+
+/// Issue #192: an event dragged to another day and time, and an all-day one to another day,
+/// moved on the server, all of each, as long as it was.
+#[test]
+#[ignore = "needs real IMAP and CalDAV servers in MAILCRAFT_REAL_CALENDAR"]
+fn real_events_moved() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_CALENDAR") else {
+        eprintln!("MAILCRAFT_REAL_CALENDAR isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [imap, calendar] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALENDAR: imap calendar") };
+    let home = calendar.trim_end_matches('/').rsplit_once('/').unwrap().0.to_string() + "/";
+    let tag = std::process::id();
+    let (timed, all_day) = (format!("grade-{tag}@test.example"), format!("festival-{tag}@test.example"));
+    let auth = basic(&format!("{USER}:pw"));
+    let one = |uid: &str, when: &str| {
+        format!(
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Test//EN\r\nBEGIN:VEVENT\r\nUID:{uid}\r\nDTSTAMP:20261101T090000Z\r\n{when}SUMMARY:Moved {tag}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+    };
+    for (uid, when) in [
+        (&timed, "DTSTART:20261103T100000Z\r\nDTEND:20261103T113000Z\r\n"),
+        (&all_day, "DTSTART;VALUE=DATE:20261105\r\nDTEND;VALUE=DATE:20261107\r\n"),
+    ] {
+        let put =
+            http("PUT", &format!("{calendar}{uid}.ics"), &[("Authorization", &auth), ("Content-Type", "text/calendar")], one(uid, when).as_bytes());
+        assert!(put.status < 300, "PUT {}: {}", put.status, put.text());
+    }
+    let mut app = App::open("calendar-move", "pw");
+    app.watch = watch;
+    let id = app.add_plain(imap, "127.0.0.1:1", json!({"email": USER, "password": "pw"}));
+    app.s.run("account.dav", &json!({"account": id, "caldav": home})).unwrap();
+    app.sync_dav(&id);
+    // A day and a quarter of an hour later; the festival a day earlier.
+    app.s.run("event.move", &json!({"uid": timed, "by": 86_400 + 900})).unwrap();
+    app.s.run("event.move", &json!({"uid": all_day, "by": -86_400})).unwrap();
+    app.sync_dav(&id);
+    let (status, ics) = item(calendar, &timed);
+    eprintln!("{ics}");
+    assert!(status == 200 && ics.contains("DTSTART:20261104T101500Z") && ics.contains("DTEND:20261104T114500Z"), "{status}: {ics}");
+    let (status, ics) = item(calendar, &all_day);
+    eprintln!("{ics}");
+    assert!(status == 200 && ics.contains("DTSTART;VALUE=DATE:20261104") && ics.contains("DTEND;VALUE=DATE:20261106"), "{status}: {ics}");
+    // Read back as moved, and nothing left to send.
+    app.sync_dav(&id);
+    let start = |uid: &str| app.s.pim[&id].events.iter().find(|e| e.event.uid == uid).map(|e| (e.event.start, e.dirty));
+    assert_eq!(start(&timed), Some((mailcraft_engine::model::dates::days_from_civil(2026, 11, 4) * 86_400 + 10 * 3600 + 900, false)));
+    for uid in [&timed, &all_day] {
+        http("DELETE", &format!("{calendar}{uid}.ics"), &[("Authorization", &auth)], b"");
+    }
+}
+
+/// Issue #192 over Exchange Web Services (grommunio in Docker, never a real account), run by
+/// hand with `MAILCRAFT_REAL_EWS="<EWS address> <user> <password>"`: an event made here and
+/// dragged an hour and a quarter later and a day on is moved on the server, as a fresh MailCraft
+/// reads it.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_event_moved() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_EWS") else {
+        eprintln!("MAILCRAFT_REAL_EWS isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_EWS: url user password") };
+    let open = |tag: &str| {
+        let mut app = App::open(tag, password);
+        app.watch = watch;
+        let id = app.add(json!({"email": user, "username": user, "password": password, "ews": url}));
+        app.sync_dav(&id);
+        (app, id)
+    };
+    let (mut app, id) = open("ews-move");
+    let summary = format!("Moved {}", std::process::id());
+    app.s.run("event.create", &json!({"summary": summary, "start": "2026-11-24T10:00", "end": "2026-11-24T11:00", "account": id})).unwrap();
+    app.sync_dav(&id);
+    // Read back from the server, by the server's own UID.
+    let (uid, start, end) =
+        app.s.pim[&id].events.iter().find(|e| e.event.summary == summary).map(|e| (e.event.uid.clone(), e.event.start, e.event.end)).unwrap();
+    app.s.run("event.move", &json!({"uid": uid, "by": 86_400 + 4500})).unwrap();
+    app.sync_dav(&id);
+    let (fresh, fid) = open("ews-move-read");
+    let found = fresh.s.pim[&fid].events.iter().find(|e| e.event.summary == summary).map(|e| (e.event.start, e.event.end));
+    eprintln!("made {start}..{end}, read back {found:?}");
+    let delete = app.s.run("event.delete", &json!({"uid": uid}));
+    app.sync_dav(&id);
+    delete.unwrap();
+    assert_eq!(found, Some((start + 86_400 + 4500, end + 86_400 + 4500)), "moved on the server");
+}

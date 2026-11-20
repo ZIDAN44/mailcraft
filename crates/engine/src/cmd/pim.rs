@@ -43,13 +43,28 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let (d0, d1) = s.cal_days();
             let from = p::str(v, "from").and_then(|x| parse_local(x, &s.clock)).map_or(s.local_midnight(d0), |(t, all_day)| if all_day { s.clock.utc(t) } else { t });
             let to = p::str(v, "to").and_then(|x| parse_local(x, &s.clock)).map_or(s.local_midnight(d1), |(t, all_day)| if all_day { s.clock.utc(t.saturating_add(86_400)) } else { t });
-            Ok(json!(s.agenda(from, to).iter().map(|i| json!({
+            let mut items = s.agenda(from, to);
+            // What's shown: the work week's days alone, when it skips some (issue #185).
+            if p::str(v, "from").is_none() && p::str(v, "to").is_none() {
+                let days: Vec<(i64, i64)> = s.cal_day_list().into_iter().map(|d| (s.local_midnight(d), s.local_midnight(d + 1))).collect();
+                items.retain(|i| days.iter().any(|(a, b)| i.start < *b && i.end.max(i.start + 1) > *a));
+            }
+            Ok(json!(items.iter().map(|i| json!({
                 "uid": i.uid, "summary": i.summary, "location": i.location, "start": i.start, "end": i.end, "allDay": i.all_day,
                 "occurrence": i.occurrence, "recurring": i.recurring, "account": i.account, "calendar": i.calendar,
                 "needsReply": i.needs_reply, "status": i.status, "privacy": i.privacy, "showAs": i.show_as, "busyOnly": i.busy_only,
             })).collect::<Vec<_>>()))
         })
         .params(r#"{"from"?: date or date-time, "to"?: …} (default: what the calendar shows)"#),
+        // Issue #186: the next (or previous) time everyone shown is free, as Outlook's AutoPick.
+        CommandSpec::new("calendar.findFree", "Next free time", "Calendar › Home", |s, v| s.find_free_time(p::u64(v, "minutes"), p::bool(v, "back").unwrap_or(false)))
+            .params(r#"{"minutes"?: number (15 to 1440; the last length otherwise), "back"?: bool (the one before)}"#),
+        CommandSpec::new("calendar.freeLength", "Meeting length", "Calendar › Home", |s, v| {
+            let m = p::u64(v, "minutes").filter(|m| (15..=1440).contains(m)).ok_or_else(|| CmdError::Params("`minutes` is 15 to 1440".into()))?;
+            s.prefs.free_time_minutes = u16::try_from(m).unwrap_or(30);
+            Ok(json!({"minutes": m}))
+        })
+        .params(r#"{"minutes": number (15 to 1440: how long a time free for everyone is looked for)}"#),
         // Issue #33: find events in every calendar shown, offline, as the mail search box reads.
         CommandSpec::new("calendar.search", "Search the calendar", "Calendar › Search", |s, v| {
             let when = match p::str(v, "when") {
@@ -133,18 +148,20 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let before = current.sequence;
             let e = event_from(s, v, current)?;
             let r = s.update_event(&uid, |x| *x = e)?;
-            // The user's own meeting: the guests hear of a change that's theirs to know, a new
-            // version of it (not one saved unchanged, or of the user's own reminder, issue #102).
-            if let Some((account, stored)) = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone()))
-                && stored.sequence != before
-                && organized_by_me(s, &stored)
-            {
-                let route = s.meeting_route(&account, &uid);
-                s.tell_guests(&account, &stored, "REQUEST", route, "")?;
-            }
+            tell_of_change(s, &uid, before)?;
             Ok(r)
         })
         .params(r#"{"uid": string, … the fields of event.create to change}"#),
+        // Dragged to another time or day in the calendar (issue #192).
+        CommandSpec::new("event.move", "Move event", "Calendar › Event", |s, v| {
+            let uid = p::req_str(v, "uid")?.to_string();
+            let by = p::i64(v, "by").ok_or_else(|| CmdError::Params("`by` is how many seconds later (or earlier, below 0) it goes".into()))?;
+            let before = s.find_event(&uid).map(|(_, e)| e.event.sequence).ok_or_else(|| CmdError::Params(format!("no event `{uid}`")))?;
+            let r = s.move_event(&uid, by)?;
+            tell_of_change(s, &uid, before)?;
+            Ok(r)
+        })
+        .params(r#"{"uid": string, "by": seconds later (below 0: earlier; an all-day event by whole days)} (not one that repeats, nor a meeting someone else organized)"#),
         CommandSpec::new("event.delete", "Delete event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             let before = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone(), e.href.clone()));
@@ -535,10 +552,21 @@ pub(super) fn card_from(v: &Value, mut c: mailcraft_model::vcard::Card) -> Resul
 
 /// The user organizes this event and it has guests to tell.
 pub(super) fn organized_by_me(s: &Session, e: &mailcraft_model::ical::CalEvent) -> bool {
-    !e.attendees.is_empty()
-        && e.organizer.as_ref().is_some_and(|o| {
-            s.accounts.iter().any(|a| a.config.email.eq_ignore_ascii_case(&o.email) || a.config.username.eq_ignore_ascii_case(&o.email))
-        })
+    !e.attendees.is_empty() && s.organizes(e)
+}
+
+/// The user's own meeting `uid`, changed: the guests hear of a change that's theirs to know, a
+/// new version of it (`before`: the version it was; not one saved unchanged, or of the user's
+/// own reminder, issue #102).
+fn tell_of_change(s: &mut Session, uid: &str, before: u32) -> Result<(), CmdError> {
+    if let Some((account, stored)) = s.find_event(uid).map(|(a, e)| (a.to_string(), e.event.clone()))
+        && stored.sequence != before
+        && organized_by_me(s, &stored)
+    {
+        let route = s.meeting_route(&account, uid);
+        s.tell_guests(&account, &stored, "REQUEST", route, "")?;
+    }
+    Ok(())
 }
 
 /// Save a note's file where asked, as an attachment is saved: one to be opened by another app is

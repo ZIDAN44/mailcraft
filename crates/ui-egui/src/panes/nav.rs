@@ -15,6 +15,13 @@ use crate::list::DragKeys;
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog};
 
+mod folder_rows;
+mod mailboxes;
+mod rows;
+use folder_rows::{dropped_mail, folder_row};
+use mailboxes::{move_items, section_drag, shared_section};
+use rows::{CORNER, Count, RowIs, corner_inset, corner_row, corner_top, row, section_header};
+
 fn role_icon(role: FolderRole) -> Icon {
     match role {
         FolderRole::Inbox => Icon::Inbox,
@@ -35,6 +42,13 @@ pub struct DragFolder {
 
 /// What a dragged account carries (its id).
 pub struct DragAccount(pub String);
+
+/// What of kind `P` was dropped on `resp` this frame. egui takes what's carried before it looks
+/// at its kind (`DragAndDrop::take_payload`), so asking for another kind first threw a dropped
+/// folder away (issue #181): it's taken only when it's this kind.
+fn dropped<P: std::any::Any + Send + Sync>(resp: &egui::Response) -> Option<std::sync::Arc<P>> {
+    if egui::DragAndDrop::has_payload_of_type::<P>(&resp.ctx) { resp.dnd_release_payload::<P>() } else { None }
+}
 
 /// The key a folder is collapsed under (see `Prefs::collapsed`).
 fn folder_key(account: &str, path: &str) -> String {
@@ -85,108 +99,39 @@ pub(crate) fn folder_of(file: &std::path::Path) -> std::path::PathBuf {
     if file.is_dir() { file.to_path_buf() } else { file.parent().unwrap_or(file).to_path_buf() }
 }
 
-/// A section's heading that collapses it (Favorites, Search Folders), with its arrow.
-fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -> egui::Response {
-    ui.add_space(2.0);
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
-    crate::widgets::named(ui, &resp, tl!(label), true, Some(open));
-    if resp.hovered() {
-        ui.painter().rect_filled(rect, 4.0, t.hover_row);
-    }
-    let m = crate::bidi::Mirror::new(rect);
-    let chev = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 2.0, rect.center().y - 6.0), vec2(12.0, 12.0)));
-    icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.faint);
-    ui.painter().text(
-        m.pos(egui::pos2(rect.min.x + 18.0, rect.center().y)),
-        m.align(egui::Align2::LEFT_CENTER),
-        tl!(label),
-        theme::bold(12.0),
-        t.faint,
-    );
-    resp
-}
-
-/// What a folder row counts: its unread mail, bold in the accent colour, or (Drafts) the items
-/// it holds, in brackets so they don't read as unread, as Outlook shows Drafts (issue #52).
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Count {
-    Unread(u32),
-    Items(u32),
-}
-
-/// What a row is and takes: the one shown, one mail and folders are dropped on, one dragged.
-#[derive(Clone, Copy, Default)]
-struct RowIs {
-    selected: bool,
-    drop_ok: bool,
-    draggable: bool,
-}
-
-impl RowIs {
-    /// A row nothing is dropped on or dragged from, shown or not.
-    fn selected(selected: bool) -> RowIs {
-        RowIs { selected, ..RowIs::default() }
-    }
-}
-
-/// One row (its label as shown, translated); returns its response.
-fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count, depth: usize, is: RowIs) -> egui::Response {
-    let RowIs { selected, drop_ok, draggable } = is;
-    let h = 30.0;
-    let unread = if let Count::Unread(n) = count { n } else { 0 };
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), if draggable { Sense::click_and_drag() } else { Sense::click() });
-    // To a screen reader, a folder is one choice among the folders: its name, and its unread count.
-    let spoken = match count {
-        Count::Unread(n) if n > 0 => format!("{label}, {}", tf!("Unread: {n}", n = n)),
-        Count::Items(n) if n > 0 => format!("{label}, {}", tf!("Items: {n}", n = n)),
-        _ => label.to_string(),
-    };
-    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::TreeItem, ui.is_enabled(), selected, &spoken));
-    let hovering_drop = drop_ok && (resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some());
-    let ctx = ui.ctx().clone();
-    let sel = crate::motion::toward(&ctx, resp.id.with("selected"), selected, crate::motion::NORMAL);
-    let hover = crate::motion::toward(&ctx, resp.id.with("hover"), resp.hovered(), crate::motion::FAST);
-    let fill = if hovering_drop { t.accent.gamma_multiply(0.3) } else { crate::motion::mix(t.hover_row.gamma_multiply(hover), t.accent_soft, sel) };
-    ui.painter().rect_filled(rect, 6.0, fill);
-    // Right to left: the icon on the right, the count on the left.
-    let m = crate::bidi::Mirror::new(rect);
-    if sel > 0.0 {
-        let full = h - 14.0;
-        let bar = egui::Rect::from_center_size(m.pos(egui::pos2(rect.min.x + 1.5, rect.center().y)), vec2(3.0, full * sel));
-        ui.painter().rect_filled(bar, 2.0, t.accent);
-    }
-    let x = rect.min.x + 10.0 + depth as f32 * 14.0;
-    let ir = m.rect(egui::Rect::from_min_size(egui::pos2(x, rect.center().y - 8.0), vec2(16.0, 16.0)));
-    icons::paint(ui.painter(), ir, icon, if selected { t.accent } else { t.dim });
-    let font = if unread > 0 || selected { theme::bold(13.5) } else { theme::regular(13.5) };
-    let counted = matches!(count, Count::Unread(n) | Count::Items(n) if n > 0);
-    let text_right = rect.max.x - if counted { 40.0 } else { 8.0 };
-    // One line, cut to "…" in a narrow pane (it wrapped, two or three lines in a row of one), the
-    // whole name on hover.
-    let galley = crate::widgets::one_line(ui, label, font, t.text, text_right - x - 24.0);
-    let resp = if galley.elided { resp.on_hover_text(label) } else { resp };
-    let gy = rect.center().y - galley.size().y / 2.0;
-    ui.painter().galley(egui::pos2(m.start(x + 24.0, galley.size().x), gy), galley, t.text);
-    let shown = match count {
-        Count::Unread(n) if n > 0 => Some((n.to_string(), theme::bold(12.5), t.accent)),
-        Count::Items(n) if n > 0 => Some((format!("[{n}]"), theme::regular(12.5), t.dim)),
-        _ => None,
-    };
-    if let Some((text, font, color)) = shown {
-        ui.painter().text(m.pos(egui::pos2(rect.max.x - 10.0, rect.center().y)), m.align(egui::Align2::RIGHT_CENTER), text, font, color);
-    }
-    resp
-}
-
 /// Whether more than one account has mail: one with calendars and contacts only has none to
 /// gather with another's, nor a folder to tell from another's (issue #86).
 fn several_mailboxes(s: &Session) -> bool {
     s.accounts.iter().filter(|a| !a.config.is_calendar_only()).count() > 1
 }
 
-pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+/// Where the folder pane keeps its current folder's row for the frame (F6 puts the keyboard there).
+const CURRENT_ROW: &str = "folder pane's current row";
+
+/// The row of the folder shown, drawn last frame: where F6 puts the keyboard in the folder pane,
+/// as in Outlook (issue #175).
+pub(crate) fn current_row(ctx: &egui::Context) -> Option<egui::Id> {
+    ctx.data(|d| d.get_temp(egui::Id::unique(CURRENT_ROW)))
+}
+
+/// The folder pane; `minimize`, with Minimize at the end of its first row.
+pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, minimize: bool, acts: &mut Vec<Action>) {
+    let ctx = ui.ctx().clone();
+    // The keyboard on the folder shown, last frame.
+    let was = current_row(&ctx).filter(|id| ctx.memory(|m| m.focused()) == Some(*id));
+    ctx.data_mut(|d| d.remove::<egui::Id>(egui::Id::unique(CURRENT_ROW)));
     egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 1.0;
+        rows::set_density(ui, s.prefs.folder_density);
+        let top = ui.cursor().min.y;
+        ui.data_mut(|d| {
+            d.remove::<egui::Rect>(corner_row());
+            if minimize {
+                d.insert_temp(corner_top(), top);
+            } else {
+                d.remove::<f32>(corner_top());
+            }
+        });
         // Hidden altogether (View › Favorites), or collapsed to its heading.
         let favorites_open = s.prefs.show_favorites && !s.prefs.collapsed.contains("favorites");
         if s.prefs.show_favorites && section_header(ui, t, "Favorites", favorites_open).clicked() {
@@ -218,7 +163,11 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 acts.push(Action::Run("folder.outbox", json!({})));
             }
         }
-        ui.add_space(8.0);
+        // Apart from what's above, when there's anything (issue #188: room above the first
+        // account too).
+        if ui.cursor().min.y > top {
+            ui.add_space(8.0);
+        }
         // Accounts, and the shared mailboxes they open, each a mailbox of its own in the order
         // the user put them (issue #1).
         // (An account with calendars and contacts only has no mailbox to show, issue #86.)
@@ -242,20 +191,22 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             let key = format!("account:{}", a.config.id);
             let open = !s.prefs.collapsed.contains(&key);
             // Dragged onto another mailbox, it takes its place (above or below it).
-            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click_and_drag());
+            let size = rows::sizes(ui);
+            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), size.row), Sense::click_and_drag());
+            let inset = corner_inset(ui, rect);
             if resp.hovered() || resp.dragged() {
                 ui.painter().rect_filled(rect, 6.0, t.hover_row);
             }
             section_drag(ui, t, &resp, rect, &sections, at, acts);
             let m = crate::bidi::Mirror::new(rect);
-            let chev = m.rect(egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0)));
+            let chev = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 6.0, rect.center().y - 6.0), vec2(12.0, 12.0)));
             icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.dim);
-            ui.painter().circle_filled(m.pos(rect.min + vec2(26.0, 15.0)), 4.0, theme::account_color(a.config.color));
+            ui.painter().circle_filled(m.pos(egui::pos2(rect.min.x + 26.0, rect.center().y)), 4.0, theme::account_color(a.config.color));
             let label = if a.is_local() && !a.is_data_file() { tf!("{email} (sample)", email = a.config.email) } else { a.config.email.clone() };
             crate::widgets::named(ui, &resp, &label, true, Some(open));
-            let g = crate::widgets::one_line(ui, &label, theme::bold(13.0), t.text, rect.width() - 44.0);
+            let g = crate::widgets::one_line(ui, &label, theme::bold(size.heading), t.text, rect.width() - 44.0 - inset);
             let resp = if g.elided { resp.on_hover_text(&label) } else { resp };
-            ui.painter().galley(egui::pos2(m.start(rect.min.x + 36.0, g.size().x), rect.min.y + 15.0 - g.size().y / 2.0), g, t.text);
+            ui.painter().galley(egui::pos2(m.start(rect.min.x + 36.0, g.size().x), rect.center().y - g.size().y / 2.0), g, t.text);
             if resp.clicked() {
                 acts.push(Action::Run("view.collapse", json!({"key": key})));
             }
@@ -302,6 +253,12 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                     acts.push(Action::Dialog(Dialog::new_folder(&config.id, here)));
                     ui.close();
                 }
+                // Its folders back in A to Z order (issue #183), as Outlook's Show All Folders A
+                // to Z, once they're in an order of the user's own.
+                if ui.add_enabled(s.folders_ordered(&config.id), egui::Button::new(tl!("Sort folders A to Z"))).clicked() {
+                    acts.push(Action::Run("folder.sortAZ", json!({"account": config.id})));
+                    ui.close();
+                }
                 // Its data file's import: stop it, go on with it, or what it came to.
                 crate::app::importing::menu(ui, s, &config.id, acts);
                 // Its place among the mailboxes, as Outlook moves a mailbox up or down.
@@ -320,7 +277,8 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 if a.folders.is_empty() && !importing {
                     ui.label(RichText::new(tl!("  Loading folders…")).color(t.faint).small());
                 }
-                for f in a.folders.iter().filter(|f| f.mailbox.is_none()) {
+                // In the user's order, when they put them in one (issue #183).
+                for f in s.pane_folders(a).into_iter().filter(|f| f.mailbox.is_none()) {
                     if tree.hidden(f) {
                         continue;
                     }
@@ -332,7 +290,32 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             }
         }
         search_folders(s, t, ui, acts);
+        // Minimize at the end of the first row, drawn last so it takes the click over it; at
+        // the top when nothing is there.
+        if minimize {
+            let first = ui.data_mut(|d| {
+                d.remove::<f32>(corner_top());
+                let r = d.get_temp::<egui::Rect>(corner_row());
+                d.remove::<egui::Rect>(corner_row());
+                r
+            });
+            let row = first.unwrap_or_else(|| egui::Rect::from_min_size(egui::pos2(ui.min_rect().left(), top), vec2(ui.available_width(), 26.0)));
+            let m = crate::bidi::Mirror::new(row);
+            let at = m.rect(egui::Rect::from_min_size(egui::pos2(row.max.x - CORNER + 2.0, row.center().y - 11.0), vec2(22.0, 22.0)));
+            let mut corner = ui.new_child(egui::UiBuilder::new().max_rect(at).layout(egui::Layout::left_to_right(egui::Align::Center)));
+            let chevron = if crate::i18n::current().rtl() { Icon::ChevronRight } else { Icon::ChevronLeft };
+            if crate::widgets::tiny_icon_button(&mut corner, chevron, "Minimize the folder pane", t).clicked() {
+                acts.push(Action::Run("view.folderPane", json!({"minimized": true})));
+            }
+        }
     });
+    // Its row made again under another id (the window laid out anew: Ctrl+F1 hiding the
+    // ribbon), the keyboard stays on it; it went nowhere, and a screen reader with it.
+    if was.is_some()
+        && let Some(now) = current_row(&ctx).filter(|now| Some(*now) != was)
+    {
+        ctx.memory_mut(|m| m.request_focus(now));
+    }
 }
 
 /// Search Folders, after the mailboxes: each a saved search, opened with a click; New Search
@@ -384,282 +367,4 @@ fn search_folders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) 
             }
         });
     }
-}
-
-/// A shared mailbox an account opens, as a mailbox of its own (issue #1): its top folder `top`
-/// is its heading, its folders are under it as an account's are, and it moves among the
-/// mailboxes as an account does.
-fn shared_section(
-    s: &Session,
-    t: &Tokens,
-    ui: &mut Ui,
-    acts: &mut Vec<Action>,
-    a: &mailcraft_engine::AccountState,
-    top: &Folder,
-    sections: &[mailcraft_engine::PaneSection],
-    at: usize,
-) {
-    let key = folder_key(&a.config.id, &top.path);
-    let open = !s.prefs.collapsed.contains(&key);
-    if shared_header(t, ui, acts, a, top, open, sections, at) {
-        acts.push(Action::Run("view.collapse", json!({"key": key})));
-    }
-    if !open {
-        return;
-    }
-    let tree = Tree::new(s, a);
-    for f in a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.depth() > 0) {
-        if tree.hidden(f) {
-            continue;
-        }
-        folder_row(s, t, ui, acts, f, f.depth(), false, tree.collapse(f));
-    }
-    ui.add_space(6.0);
-}
-
-/// A mailbox's heading dragged onto another's: it takes its place (above or below it).
-fn section_drag(
-    ui: &Ui,
-    t: &Tokens,
-    resp: &egui::Response,
-    rect: egui::Rect,
-    sections: &[mailcraft_engine::PaneSection],
-    at: usize,
-    acts: &mut Vec<Action>,
-) {
-    let Some(me) = sections.get(at) else { return };
-    if resp.drag_started() {
-        resp.dnd_set_drag_payload(DragAccount(me.key.clone()));
-    }
-    let below = ui.ctx().pointer_interact_pos().is_some_and(|p| p.y > rect.center().y);
-    if resp.dnd_hover_payload::<DragAccount>().is_some_and(|d| d.0 != me.key) {
-        let y = if below { rect.bottom() } else { rect.top() };
-        ui.painter().line_segment([egui::pos2(rect.left() + 4.0, y), egui::pos2(rect.right() - 4.0, y)], egui::Stroke::new(2.0, t.accent));
-    }
-    if let Some(dragged) = resp.dnd_release_payload::<DragAccount>()
-        && let Some(from) = sections.iter().position(|x| x.key == dragged.0)
-        && dragged.0 != me.key
-    {
-        let before = if below { at + 1 } else { at };
-        let to = if from < before { before - 1 } else { before };
-        if to != from {
-            acts.push(Action::Run("folderPane.move", json!({"key": dragged.0, "by": to as i64 - from as i64})));
-        }
-    }
-}
-
-/// Move up and Move down in a mailbox's menu.
-fn move_items(ui: &mut Ui, sections: &[mailcraft_engine::PaneSection], at: usize, acts: &mut Vec<Action>) {
-    let Some(me) = sections.get(at) else { return };
-    if sections.len() < 2 {
-        return;
-    }
-    ui.separator();
-    if ui.add_enabled(at > 0, egui::Button::new(tl!("Move up"))).clicked() {
-        acts.push(Action::Run("folderPane.move", json!({"key": me.key, "by": -1})));
-        ui.close();
-    }
-    if ui.add_enabled(at + 1 < sections.len(), egui::Button::new(tl!("Move down"))).clicked() {
-        acts.push(Action::Run("folderPane.move", json!({"key": me.key, "by": 1})));
-        ui.close();
-    }
-}
-
-/// A shared mailbox's heading (its top folder `top`): its name, an arrow that collapses it, and
-/// a menu. Whether it was clicked.
-fn shared_header(
-    t: &Tokens,
-    ui: &mut Ui,
-    acts: &mut Vec<Action>,
-    a: &mailcraft_engine::AccountState,
-    top: &Folder,
-    open: bool,
-    sections: &[mailcraft_engine::PaneSection],
-    at: usize,
-) -> bool {
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click_and_drag());
-    section_drag(ui, t, &resp, rect, sections, at, acts);
-    let dropping = resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some();
-    if resp.hovered() || dropping {
-        ui.painter().rect_filled(rect, 6.0, if dropping { t.accent.gamma_multiply(0.3) } else { t.hover_row });
-    }
-    let m = crate::bidi::Mirror::new(rect);
-    let chev = m.rect(egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0)));
-    icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.dim);
-    let ir = m.rect(egui::Rect::from_min_size(rect.min + vec2(20.0, 8.0), vec2(14.0, 14.0)));
-    icons::paint(ui.painter(), ir, Icon::People, t.dim);
-    let name = crate::i18n::folder(top);
-    crate::widgets::named(ui, &resp, &name, true, Some(open));
-    // Its unread mail, as Outlook shows a collapsed mailbox's Inbox.
-    let unread: u32 =
-        if open { 0 } else { a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.mailbox_role == FolderRole::Inbox).map(|f| f.unread).sum() };
-    let right = rect.max.x - if unread > 0 { 40.0 } else { 8.0 };
-    let g = crate::widgets::one_line(ui, &name, theme::bold(13.0), t.text, right - rect.min.x - 40.0);
-    ui.painter().galley(egui::pos2(m.start(rect.min.x + 40.0, g.size().x), rect.min.y + 15.0 - g.size().y / 2.0), g, t.text);
-    if unread > 0 {
-        ui.painter().text(
-            m.pos(egui::pos2(rect.max.x - 10.0, rect.center().y)),
-            m.align(egui::Align2::RIGHT_CENTER),
-            unread.to_string(),
-            theme::bold(12.5),
-            t.accent,
-        );
-    }
-    let address = top.mailbox.clone().unwrap_or_default();
-    let resp = resp.on_hover_text(tf!("Shared mailbox {address}, opened by {email}", address = address, email = a.config.email));
-    // Dropped messages or folders go into its top folder, as onto a folder.
-    if resp.dnd_release_payload::<DragKeys>().is_some() {
-        acts.push(dropped_mail(ui, &top.account, &top.path));
-    }
-    if let Some(p) = resp.dnd_release_payload::<DragFolder>()
-        && p.account == top.account
-    {
-        acts.push(Action::Run("folder.move", json!({"account": top.account, "folder": p.path, "parent": top.path})));
-    }
-    let added = a.config.shared_mailboxes.iter().any(|m| m.eq_ignore_ascii_case(&address));
-    let account = a.config.id.clone();
-    let path = top.path.clone();
-    resp.context_menu(|ui| {
-        if ui.button(tl!("Send / Receive")).clicked() {
-            acts.push(Action::Run("mail.sync", json!({})));
-            ui.close();
-        }
-        if ui.button(tl!("New folder…")).clicked() {
-            acts.push(Action::Dialog(Dialog::new_folder(&account, Some(&path))));
-            ui.close();
-        }
-        ui.separator();
-        // One added by hand is removed here; one the server opens is the server's to stop.
-        if added {
-            if ui.button(RichText::new(tl!("Remove shared mailbox")).color(t.danger)).clicked() {
-                acts.push(Action::Run("account.removeSharedMailbox", json!({"account": account, "address": address})));
-                ui.close();
-            }
-        } else {
-            ui.add_enabled(false, egui::Button::new(tl!("Opened by the server for your access to it")));
-        }
-        if ui.button(tl!("Add shared mailbox…")).clicked() {
-            acts.push(Action::Dialog(Dialog::AddSharedMailbox { account: account.clone(), address: String::new(), error: None }));
-            ui.close();
-        }
-        move_items(ui, sections, at, acts);
-    });
-    resp.clicked()
-}
-
-/// The selection dropped on a folder: moved there, or copied with Ctrl held (issue #82). The
-/// folder may be another account's (a drop there did nothing, and said nothing).
-fn dropped_mail(ui: &Ui, account: &str, folder: &str) -> Action {
-    let copy = ui.input(|i| i.modifiers.command);
-    Action::Run(if copy { "mail.copy" } else { "mail.move" }, json!({"folder": folder, "account": account}))
-}
-
-/// A folder's row; `collapse` is whether it's collapsed, for one with folders in it (it gets
-/// an arrow).
-fn folder_row(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>, f: &Folder, depth: usize, favorite: bool, collapse: Option<bool>) {
-    let selected = s.search.is_none() && matches!(&s.view, View::Folder { account, folder } if *account == f.account && *folder == f.path);
-    // In Favorites, a shared mailbox's folder says whose it is (its Inbox isn't the account's).
-    let shared_top = f.mailbox.as_ref().and_then(|_| {
-        let top = f.delimiter.and_then(|d| f.path.split(d).next()).unwrap_or(&f.path);
-        s.folder(&f.account, top).map(crate::i18n::folder)
-    });
-    let name = match s.account(&f.account) {
-        _ if favorite && let Some(top) = shared_top => format!("{} · {top}", crate::i18n::folder(f)),
-        Some(a) if favorite && several_mailboxes(s) => {
-            format!("{} · {}", crate::i18n::folder(f), a.config.email.split('@').next().unwrap_or_default())
-        }
-        _ => crate::i18n::folder(f),
-    };
-    // Unread counts matter for mail you receive, not for Sent or Drafts.
-    let unread = if matches!(f.look(), FolderRole::Sent | FolderRole::Drafts | FolderRole::Trash | FolderRole::Archive) { 0 } else { f.unread };
-    let user_folder = !f.is_fixed();
-    // Drafts says how many it holds, as Outlook's (a saved draft is never unread).
-    let count = if f.look() == FolderRole::Drafts { Count::Items(f.total) } else { Count::Unread(unread) };
-    let resp = row(ui, t, role_icon(f.look()), &name, count, depth, RowIs { selected, drop_ok: f.selectable, draggable: user_folder && !favorite });
-    if let Some(collapsed) = collapse {
-        let x = resp.rect.min.x + 10.0 + depth as f32 * 14.0 - 14.0;
-        let m = crate::bidi::Mirror::new(resp.rect);
-        let chev = m.rect(egui::Rect::from_min_size(egui::pos2(x, resp.rect.center().y - 6.0), vec2(12.0, 12.0)));
-        let c = ui.interact(chev.expand(4.0), resp.id.with("collapse"), Sense::click());
-        crate::widgets::named(ui, &c, &format!("{name}: {}", tl!(if collapsed { "Expand" } else { "Collapse" })), true, None);
-        icons::paint(ui.painter(), chev, if collapsed { m.closed() } else { Icon::ChevronDown }, if c.hovered() { t.text } else { t.dim });
-        if c.clicked() {
-            acts.push(Action::Run("view.collapse", json!({"key": folder_key(&f.account, &f.path)})));
-        }
-    }
-    if f.selectable && resp.clicked() {
-        acts.push(Action::Run("folder.open", json!({"account": f.account, "folder": f.path})));
-    }
-    if f.selectable && resp.dnd_release_payload::<DragKeys>().is_some() {
-        acts.push(dropped_mail(ui, &f.account, &f.path));
-    }
-    if let Some(p) = resp.dnd_release_payload::<DragFolder>()
-        && p.account == f.account
-        && p.path != f.path
-    {
-        acts.push(Action::Run("folder.move", json!({"account": f.account, "folder": p.path, "parent": f.path})));
-    }
-    if user_folder && !favorite && resp.drag_started() {
-        resp.dnd_set_drag_payload(DragFolder { account: f.account.clone(), path: f.path.clone() });
-    }
-    // The menu borrows the folder: nothing is copied or looked up unless it's open.
-    let (account, path) = (&f.account, &f.path);
-    resp.context_menu(|ui| {
-        if ui.button(tl!("Open")).clicked() {
-            acts.push(Action::Run("folder.open", json!({"account": account, "folder": path})));
-            ui.close();
-        }
-        if ui.button(tl!("Update folder")).clicked() {
-            acts.push(Action::Run("folder.open", json!({"account": account, "folder": path})));
-            acts.push(Action::Run("folder.sync", json!({})));
-            ui.close();
-        }
-        if ui.button(tl!("Mark all as read")).clicked() {
-            acts.push(Action::Run("folder.open", json!({"account": account, "folder": path})));
-            acts.push(Action::Run("mail.markAllRead", json!({})));
-            ui.close();
-        }
-        // Delete All, as Outlook's: Deleted Items and Junk are emptied for good, any other
-        // folder's mail goes to Deleted Items.
-        if f.selectable && ui.button(tl!("Delete all…")).clicked() {
-            acts.push(Action::Dialog(Dialog::ConfirmEmpty {
-                account: account.clone(),
-                folder: path.clone(),
-                name: crate::i18n::folder(f),
-                for_good: matches!(f.look(), FolderRole::Trash | FolderRole::Junk),
-            }));
-            ui.close();
-        }
-        ui.separator();
-        if ui.button(tl!("New folder…")).clicked() {
-            acts.push(Action::Dialog(Dialog::new_folder(account, Some(path))));
-            ui.close();
-        }
-        if user_folder {
-            if ui.button(tl!("Rename folder…")).clicked() {
-                acts.push(Action::Dialog(Dialog::rename_folder(f)));
-                ui.close();
-            }
-            if ui.button(tl!("Move folder…")).clicked() {
-                acts.push(Action::Dialog(Dialog::move_folder(f)));
-                ui.close();
-            }
-            if ui.button(RichText::new(tl!("Delete folder…")).color(t.danger)).clicked() {
-                acts.push(Action::Dialog(Dialog::delete_folder(s, f)));
-                ui.close();
-            }
-        }
-        ui.separator();
-        let is_favorite = s.favorites().iter().any(|r| r.account == *account && r.folder == *path);
-        let label = tl!(if is_favorite { "Remove from Favorites" } else { "Show in Favorites" });
-        if ui.button(label).clicked() {
-            acts.push(Action::Run("folder.favorite", json!({"account": account, "folder": path, "on": !is_favorite})));
-            ui.close();
-        }
-        ui.separator();
-        if ui.button(tl!("Properties…")).clicked() {
-            acts.push(Action::Dialog(Dialog::folder_properties(s, f)));
-            ui.close();
-        }
-    });
 }

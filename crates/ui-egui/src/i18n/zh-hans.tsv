@@ -1858,3 +1858,95 @@ count	occurrences	次
 	The first account's Inbox	第一个帐户的收件箱
 	The folder open last	上次打开的文件夹
 	Add reminder…	添加提醒…
+	No suggestions	无建议
+	Ignore all	全部忽略
+	Add to dictionary	添加到词典
+	Check spelling as you type	键入时检查拼写
+	Misspelled words are underlined in red. Right-click one for suggestions.	拼写错误的单词会以红色下划线标出。右键单击单词可查看建议。
+	There's no spelling dictionary for {language} on this computer.	此计算机上没有 {language} 的拼写词典。
+	Bold on	粗体 开
+	Bold off	粗体 关
+	Italic on	斜体 开
+	Italic off	斜体 关
+	Underline on	下划线 开
+	Underline off	下划线 关
+	{name}: on	{name}：开
+	{name}: off	{name}：关
+	Font	字体
+	Default font	默认字体
+	Font for new messages	新邮件的字体
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	新邮件、回复和转发都使用此字体书写。你设置了字体的文字保留其自己的字体。
+	Clean up old items	清理旧项目
+	Clean up old items…	清理旧项目…
+	Move old mail to an archive file on this computer, out of the mailbox.	将旧邮件从邮箱移到这台电脑上的存档文件中。
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	旧邮件会移到这台电脑上 Outlook 数据文件中同名的文件夹里，然后从邮箱中删除，邮箱因此腾出空间。该文件会显示在文件夹列表中，可在其中阅读、搜索邮件，或将邮件移回。
+	Archive this folder and the folders in it	存档此文件夹及其中的文件夹
+	Archive mail received before	存档在此日期之前收到的邮件
+	Archive file	存档文件
+	That's not a date.	这不是日期。
+	Archive mail older than	存档早于以下时间的邮件
+	Move old mail to this file	将旧邮件移到此文件
+	Delete old mail for good	永久删除旧邮件
+	AutoArchive	自动存档
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	每隔几天，各文件夹的旧邮件会按文件夹自己的设置（在其属性中）或这些设置，存档到这台电脑上的数据文件中，或被删除。
+	Run AutoArchive every	自动存档的运行间隔
+	Ask before AutoArchive runs	自动存档运行前询问
+	Show the archive file in the folder list	在文件夹列表中显示存档文件
+	For folders without settings of their own	用于没有自己设置的文件夹
+	Apply these settings to all folders now	立即将这些设置应用到所有文件夹
+	Folders with settings of their own follow these instead.	有自己设置的文件夹也将改用这些设置。
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	已经过了 {days} 天：要按自动存档的设置立即存档旧邮件吗？
+	Archive now	立即存档
+	Off: old mail stays where it is until you clean it up.	关闭：旧邮件会留在原处，直到你自己清理。
+	Every {days} days, old mail is archived by each folder's settings.	每 {days} 天，按各文件夹的设置存档旧邮件。
+	AutoArchive settings…	自动存档设置…
+	Don't archive this folder	不存档此文件夹
+	Archive it by the default settings	按默认设置存档
+	Archive it by these settings	按这些设置存档
+	weeks	周
+	months	个月
+	Folder density	文件夹密度
+	How tightly the folder pane's folders sit	文件夹窗格中文件夹排列的疏密
+	Spacious	宽松
+	Medium	中等
+	Sort folders A to Z	按名称排列文件夹
+	Work days	工作日
+	The work week shows these days	工作周显示这些天
+	Work hours	工作时间
+	The calendar shades the hours outside them	日历以阴影显示工作时间以外的时段
+	Start time	开始时间
+	End time	结束时间
+	Meeting length	会议时长
+	How long a time free for everyone is looked for	要查找的所有人都空闲的时间长度
+	Previous free time	上一个空闲时间
+	Next free time	下一个空闲时间
+	The time before when everyone shown is free, within work hours	显示的所有人在工作时间内都空闲的上一个时间
+	The next time when everyone shown is free, within work hours	显示的所有人在工作时间内都空闲的下一个时间
+	Free for everyone	所有人都空闲
+	Free for everyone: click to make a meeting with them	所有人都空闲：单击以与他们创建会议
+	No time when everyone is free in the next six weeks	接下来六周内没有所有人都空闲的时间
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	在他们的忙闲信息所及范围内没有所有人都空闲的时间：信息到达后，“下一个”会继续往后找
+	No earlier time when everyone is free	没有更早的所有人都空闲的时间
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	在他们的忙闲信息所及范围内没有更早的所有人都空闲的时间：信息到达后，“上一个”会继续往前找
+	Their free/busy times haven't come yet: try again in a moment	他们的忙闲信息尚未到达：请稍后再试
+	Some people's free/busy times can't be had: they count as free	无法获取部分人员的忙闲信息：将其视为空闲
+	Collapse this group	折叠此组
+	Expand this group	展开此组
+	Collapse all groups	折叠所有组
+	Expand all groups	展开所有组
+	Show this group's mail	显示此组的邮件
+	Hide this group's mail	隐藏此组的邮件
+	{heading} ({count}), folded	{heading}（{count}），已折叠
+	Clashes with {event} on your calendar	与日历中的 {event} 冲突
+	Clashes with {n} events on your calendar	与日历中的 {n} 个活动冲突
+	In {n} min	{n} 分钟后
+	Line between the appointments and the tasks	约会与任务之间的分隔线
+	Mark all in {folder} as read	将 {folder} 中的全部标记为已读
+	Mark all shown as read	将显示的全部标记为已读
+	More ways to mark mail read	将邮件标记为已读的更多方式
+	Nothing else on your calendar then	那时日历中没有其他安排
+	Right after {event} on your calendar	紧接在日历中的 {event} 之后
+	Right before {event} on your calendar	紧接在日历中的 {event} 之前
+	{h} h	{h} 小时
+	Notify of mail in Other too	“其他”中的邮件也通知
+	Off, only mail that goes to Focused is announced	关闭时，只通知进入“重点”的邮件

@@ -4,6 +4,7 @@
 use super::*;
 
 mod files;
+mod fonts;
 mod form;
 mod names;
 mod quote;

@@ -18,6 +18,8 @@ pub(super) struct RowOf<'a> {
     /// The list holds several folders' mail (a search over more than this one, or the unified
     /// Inbox): each row says where it is.
     pub(super) several_folders: bool,
+    /// Tab stops here: the list is one stop, on the message it's on (issue #175).
+    pub(super) tab_stop: bool,
 }
 
 /// What a row's pieces share, worked out once.
@@ -50,10 +52,14 @@ struct MessageRow<'a> {
 /// The single-line list: the least room the subject keeps before a tag is left out.
 const SUBJECT_LEAST: f32 = 120.0;
 
-pub(super) fn message_row(s: &Session, t: &theme::Tokens, ui: &mut Ui, of: RowOf<'_>, acts: &mut Vec<Action>) {
-    let RowOf { m, r, count, unread_in_thread, sent_view, drafting, several_folders } = of;
+pub(super) fn message_row(s: &Session, t: &theme::Tokens, ui: &mut Ui, of: RowOf<'_>, acts: &mut Vec<Action>) -> egui::Response {
+    let RowOf { m, r, count, unread_in_thread, sent_view, drafting, several_folders, tab_stop } = of;
     let id = ui.make_persistent_id(("row", &m.key));
-    let resp = ui.interact(r, id, Sense::click_and_drag());
+    let mut sense = Sense::click_and_drag();
+    if !tab_stop {
+        sense -= Sense::FOCUSABLE;
+    }
+    let resp = ui.interact(r, id, sense);
     // The pointer anywhere on the row, its own buttons included (egui hovers only the button
     // under the pointer, and the buttons must stay while they're pointed at).
     let hovered = ui.rect_contains_pointer(r) && !ui.ctx().is_being_dragged(id) || resp.hovered();
@@ -103,6 +109,7 @@ pub(super) fn message_row(s: &Session, t: &theme::Tokens, ui: &mut Ui, of: RowOf
     if resp.secondary_clicked() && !one_of_several && !s.reading.as_ref().is_some_and(|r| r.key == m.key) {
         acts.push(Action::Open(m.key.clone()));
     }
+    resp
 }
 
 impl MessageRow<'_> {

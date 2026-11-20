@@ -8,57 +8,81 @@ fn a_query_becomes_imap_search_keys() {
     use crate::sync::{SearchArg, imap_criteria};
     let a = |s: &str| SearchArg::Atom(s.into());
     let st = |s: &str| SearchArg::Str(s.into());
-    assert_eq!(imap_criteria("quarterly"), Some(vec![a("TEXT"), st("quarterly")]));
+    assert_eq!(imap_criteria("quarterly", None), Some(vec![a("TEXT"), st("quarterly")]));
     assert_eq!(
-        imap_criteria("from:ana subject:\"the plan\" -draft is:unread"),
+        imap_criteria("from:ana subject:\"the plan\" -draft is:unread", None),
         Some(vec![a("FROM"), st("ana"), a("SUBJECT"), st("the plan"), a("NOT"), a("TEXT"), st("draft"), a("UNSEEN")])
     );
-    assert_eq!(imap_criteria("is:flagged -is:unread"), Some(vec![a("FLAGGED"), a("SEEN")]));
-    assert_eq!(imap_criteria("has:attachment"), None, "nothing IMAP can ask");
-    assert_eq!(imap_criteria(""), None);
-    assert_eq!(imap_criteria("Grüße"), Some(vec![a("TEXT"), st("grüße")]));
+    assert_eq!(imap_criteria("is:flagged -is:unread", None), Some(vec![a("FLAGGED"), a("SEEN")]));
+    assert_eq!(imap_criteria("has:attachment", None), None, "nothing IMAP can ask");
+    assert_eq!(imap_criteria("", None), None);
+    assert_eq!(imap_criteria("Grüße", None), Some(vec![a("TEXT"), st("grüße")]));
     // Sizes; a list as nested ORs (left to the list when one name is several words).
-    assert_eq!(imap_criteria("larger:1KB -smaller:10"), Some(vec![a("LARGER"), a("1024"), a("NOT"), a("SMALLER"), a("10")]));
+    assert_eq!(imap_criteria("larger:1KB -smaller:10", None), Some(vec![a("LARGER"), a("1024"), a("NOT"), a("SMALLER"), a("10")]));
     assert_eq!(
-        imap_criteria("from:ana,jun,\"zoe park\""),
+        imap_criteria("from:ana,jun,\"zoe park\"", None),
         Some(vec![a("OR"), a("FROM"), st("ana"), a("OR"), a("FROM"), st("jun"), a("FROM"), st("zoe park")])
     );
-    assert_eq!(imap_criteria("-to:ana,jun"), Some(vec![a("NOT"), a("OR"), a("TO"), st("ana"), a("TO"), st("jun")]));
+    assert_eq!(imap_criteria("-to:ana,jun", None), Some(vec![a("NOT"), a("OR"), a("TO"), st("ana"), a("TO"), st("jun")]));
     assert_eq!(
-        imap_criteria("from:ana,jun lee"),
+        imap_criteria("from:ana,jun lee", None),
         Some(vec![a("TEXT"), st("lee")]).map(|v| [vec![a("OR"), a("FROM"), st("ana"), a("FROM"), st("jun")], v].concat())
     );
     // Issue #28: Thunderbird's keywords are asked as they are (they were left out); what isn't an
     // atom can't be.
     assert_eq!(
-        imap_criteria("keyword:to=20do -keyword:&x-moz-ab12"),
+        imap_criteria("keyword:to=20do -keyword:&x-moz-ab12", None),
         Some(vec![a("KEYWORD"), a("to=20do"), a("NOT"), a("KEYWORD"), a("&x-moz-ab12")])
     );
-    assert_eq!(imap_criteria("keyword:a]b"), None);
+    assert_eq!(imap_criteria("keyword:a]b", None), None);
     // A follow-up marked complete: the keyword on mail not flagged again; negated, left to the
     // list (NOT of both would need an OR).
-    assert_eq!(imap_criteria("is:complete"), Some(vec![a("KEYWORD"), a("$FollowUpComplete"), a("UNFLAGGED")]));
-    assert_eq!(imap_criteria("-is:complete"), None);
+    assert_eq!(imap_criteria("is:complete", None), Some(vec![a("KEYWORD"), a("$FollowUpComplete"), a("UNFLAGGED")]));
+    assert_eq!(imap_criteria("-is:complete", None), None);
     assert_eq!(
-        mailcraft_jmap::search_filter("is:complete"),
+        mailcraft_jmap::search_filter("is:complete", None),
         Some(serde_json::json!({"operator": "AND", "conditions": [{"hasKeyword": "$FollowUpComplete"}, {"notKeyword": "$flagged"}]}))
     );
-    assert_eq!(mailcraft_jmap::search_filter("-is:complete"), None);
+    assert_eq!(mailcraft_jmap::search_filter("-is:complete", None), None);
     // Files' names are asked of the whole text, which finds more: so only when they're wanted,
     // never negated (NOT TEXT would leave out mail that only mentions the name).
-    assert_eq!(imap_criteria("attachment:plan"), Some(vec![a("TEXT"), st("plan")]));
-    assert_eq!(imap_criteria("budget -attachment:plan"), Some(vec![a("TEXT"), st("budget")]));
-    assert_eq!(imap_criteria("-attachment:plan,draft"), None);
-    assert_eq!(imap_criteria("-attachment:plan,draft budget"), Some(vec![a("TEXT"), st("budget")]));
+    assert_eq!(imap_criteria("attachment:plan", None), Some(vec![a("TEXT"), st("plan")]));
+    assert_eq!(imap_criteria("budget -attachment:plan", None), Some(vec![a("TEXT"), st("budget")]));
+    assert_eq!(imap_criteria("-attachment:plan,draft", None), None);
+    assert_eq!(imap_criteria("-attachment:plan,draft budget", None), Some(vec![a("TEXT"), st("budget")]));
     assert_eq!(
-        mailcraft_jmap::search_filter("budget -attachment:plan -attachment:\"q3 plan\""),
+        mailcraft_jmap::search_filter("budget -attachment:plan -attachment:\"q3 plan\"", None),
         Some(serde_json::json!({"operator": "AND", "conditions": [{"text": "budget"}]}))
     );
-    assert_eq!(mailcraft_jmap::search_filter("-attachment:plan"), None);
+    assert_eq!(mailcraft_jmap::search_filter("-attachment:plan", None), None);
     assert_eq!(
-        mailcraft_jmap::search_filter("keyword:r=c3=bcckfrage"),
+        mailcraft_jmap::search_filter("keyword:r=c3=bcckfrage", None),
         Some(serde_json::json!({"operator": "AND", "conditions": [{"hasKeyword": "r=c3=bcckfrage"}]}))
     );
+}
+
+/// Issue #179: a date asked of every kind of server, as its period: IMAP's days by the Date:
+/// (the day the period ends on left out), JMAP's and Exchange's times; and a date alone is
+/// something to ask.
+#[test]
+fn a_date_is_asked_of_the_server() {
+    use crate::sync::{SearchArg, imap_criteria, word_query};
+    use serde_json::json;
+    let a = |s: &str| SearchArg::Atom(s.into());
+    let (from, to) = (1_604_275_200, 1_704_067_200); // 2020-11-02, 2024-01-01 (UTC midnights)
+    assert_eq!(imap_criteria("before:2024-01-01", Some((None, Some(to)))), Some(vec![a("SENTBEFORE"), a("1-Jan-2024")]));
+    assert_eq!(
+        imap_criteria("from:ana", Some((Some(from), Some(to + 3600)))),
+        Some(vec![a("SENTSINCE"), a("2-Nov-2020"), a("SENTBEFORE"), a("2-Jan-2024"), a("FROM"), SearchArg::Str("ana".into())]),
+        "a period ending part-way through a day takes that day in"
+    );
+    assert_eq!(imap_criteria("is:important", Some((None, None))), None, "nothing to ask");
+    assert_eq!(
+        mailcraft_jmap::search_filter("before:2024-01-01", Some((Some(from), Some(to)))),
+        Some(json!({"operator": "AND", "conditions": [{"after": "2020-11-02T00:00:00Z"}, {"before": "2024-01-01T00:00:00Z"}]}))
+    );
+    let words = word_query("before:2024-01-01", Some((None, Some(to)))).unwrap();
+    assert_eq!((words.text.as_str(), words.after, words.before), ("", None, Some(to)));
 }
 
 /// Gap #7: the query as Exchange's KQL/AQS words with the read, flag and attachment
@@ -69,32 +93,32 @@ fn a_query_becomes_exchange_words_and_a_jmap_filter() {
     use crate::sync::{WordQuery, word_query};
     use serde_json::json;
     let w = |text: &str| WordQuery { text: text.into(), ..Default::default() };
-    assert_eq!(word_query("quarterly"), Some(w("quarterly")));
+    assert_eq!(word_query("quarterly", None), Some(w("quarterly")));
     assert_eq!(
-        word_query("from:ana subject:\"the plan\" -draft is:unread"),
+        word_query("from:ana subject:\"the plan\" -draft is:unread", None),
         Some(WordQuery { text: "from:ana subject:\"the plan\" NOT draft".into(), unread: Some(true), ..Default::default() })
     );
     assert_eq!(
-        word_query("is:flagged -is:unread has:attachment"),
+        word_query("is:flagged -is:unread has:attachment", None),
         Some(WordQuery { unread: Some(false), flagged: Some(true), attachment: Some(true), ..Default::default() })
     );
-    assert_eq!(word_query(""), None);
-    assert_eq!(word_query("is:important"), None, "nothing Exchange's searches ask");
-    assert_eq!(word_query("OR NOT"), Some(w("or not")), "words, lowercased by the parser: not operators");
-    assert_eq!(word_query("a(b) ana@x.example").map(|q| q.text), Some("a b ana x.example".into()), "the parser's own words");
+    assert_eq!(word_query("", None), None);
+    assert_eq!(word_query("is:important", None), None, "nothing Exchange's searches ask");
+    assert_eq!(word_query("OR NOT", None), Some(w("or not")), "words, lowercased by the parser: not operators");
+    assert_eq!(word_query("a(b) ana@x.example", None).map(|q| q.text), Some("a b ana x.example".into()), "the parser's own words");
     for hostile in ["subject:\"a\\\" OR from:x\" a(b)", "\"\"", "\\\"", "from:\"", "x\" OR \"y", "\u{0}\"\r\n", "-\"-\""] {
-        let Some(q) = word_query(hostile) else { continue };
+        let Some(q) = word_query(hostile, None) else { continue };
         assert_eq!(q.text.matches('"').count() % 2, 0, "{hostile:?} → {:?}", q.text);
         assert!(!q.text.contains('\\') && !q.text.contains("\"\"") && !q.text.chars().any(char::is_control), "{hostile:?} → {:?}", q.text);
     }
     let long = "x".repeat(5000);
-    assert!(word_query(&long).unwrap().text.len() <= 202);
+    assert!(word_query(&long, None).unwrap().text.len() <= 202);
     let read = WordQuery { unread: Some(true), ..Default::default() };
     assert!(read.admits(&mailcraft_model::Flags::default(), false));
     assert!(!read.admits(&mailcraft_model::Flags { seen: true, ..Default::default() }, false));
 
     assert_eq!(
-        mailcraft_jmap::search_filter("from:ana -draft is:unread is:flagged"),
+        mailcraft_jmap::search_filter("from:ana -draft is:unread is:flagged", None),
         Some(json!({"operator": "AND", "conditions": [
             {"from": "ana"},
             {"operator": "NOT", "conditions": [{"text": "draft"}]},
@@ -103,14 +127,14 @@ fn a_query_becomes_exchange_words_and_a_jmap_filter() {
         ]}))
     );
     assert_eq!(
-        mailcraft_jmap::search_filter("-is:unread has:attachment"),
+        mailcraft_jmap::search_filter("-is:unread has:attachment", None),
         Some(json!({"operator": "AND", "conditions": [{"hasKeyword": "$seen"}, {"hasAttachment": true}]}))
     );
-    assert_eq!(mailcraft_jmap::search_filter("is:important"), None);
-    assert_eq!(mailcraft_jmap::search_filter(""), None);
+    assert_eq!(mailcraft_jmap::search_filter("is:important", None), None);
+    assert_eq!(mailcraft_jmap::search_filter("", None), None);
     // Sizes (minSize is at least, so one more byte), and a list as OR.
     assert_eq!(
-        mailcraft_jmap::search_filter("larger:1KB smaller:2KB from:ana,\"zoe park\""),
+        mailcraft_jmap::search_filter("larger:1KB smaller:2KB from:ana,\"zoe park\"", None),
         Some(json!({"operator": "AND", "conditions": [
             {"minSize": 1025},
             {"maxSize": 2048},
@@ -148,7 +172,7 @@ fn mail_past_whats_kept_is_found_and_shown_more() {
         .unwrap();
         (keys, new)
     };
-    let criteria = crate::sync::imap_criteria("needle-three").unwrap();
+    let criteria = crate::sync::imap_criteria("needle-three", None).unwrap();
     let (keys, new) = find(&mut c, &criteria);
     assert_eq!((keys.iter().map(|k| k.uid).collect::<Vec<_>>(), new), (vec![3], 1));
     let kept = store.load_folder("a1", "INBOX").unwrap();
@@ -156,11 +180,11 @@ fn mail_past_whats_kept_is_found_and_shown_more() {
     // Found again: nothing new to bring in.
     assert_eq!(find(&mut c, &criteria), (keys.clone(), 0));
     // A word in UTF-8: sent as a literal with CHARSET UTF-8.
-    let (keys, _) = find(&mut c, &crate::sync::imap_criteria("Grüße").unwrap());
+    let (keys, _) = find(&mut c, &crate::sync::imap_criteria("Grüße", None).unwrap());
     assert_eq!(keys.iter().map(|k| k.uid).collect::<Vec<_>>(), [3]);
     assert!(st.lock().unwrap().log.iter().any(|l| l.ends_with("UID SEARCH CHARSET UTF-8 1:30 TEXT ")), "a literal follows");
     // Nothing found: nothing changes.
-    assert_eq!(find(&mut c, &crate::sync::imap_criteria("absent").unwrap()), (vec![], 0));
+    assert_eq!(find(&mut c, &crate::sync::imap_criteria("absent", None).unwrap()), (vec![], 0));
 
     // Show more: 10 more, the newest of what isn't kept (20 down to 11), the found one kept.
     sync_folder(&mut c, &store, "a1", "INBOX", &SyncOptions { window: 20, prefetch: 0, ..Default::default() }).unwrap();
@@ -188,7 +212,7 @@ fn a_large_folder_is_searched_a_range_at_a_time_and_can_stop() {
     let store = store("search-ranges");
     let mut c = login(&st);
     sync_folder(&mut c, &store, "a1", "INBOX", &SyncOptions { window: 10, prefetch: 0, ..Default::default() }).unwrap();
-    let criteria = crate::sync::imap_criteria("needle").unwrap();
+    let criteria = crate::sync::imap_criteria("needle", None).unwrap();
     let searches = |st: &Arc<Mutex<State>>| -> Vec<String> {
         st.lock().unwrap().log.iter().filter(|l| l.contains("UID SEARCH") && l.contains("TEXT")).cloned().collect()
     };
@@ -265,6 +289,39 @@ fn a_server_search_stops_when_its_no_longer_wanted() {
     st.lock().unwrap().search_delay = Duration::ZERO;
     pool.submit(Job::SyncFolder { account: "a1".into(), folder: "INBOX".into() });
     until(&pool, "synced", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    pool.submit(Job::Remove { account: "a1".into() });
+}
+
+/// Issue #179: a search asked right after a change is the server's after that change. Mail
+/// deleted, then searched for at once, isn't found again (the change went the long way round,
+/// through the pool's thread for changes, and the search overtook it).
+#[test]
+fn a_search_comes_after_the_changes_before_it() {
+    let st = State::new();
+    {
+        let mut s = st.lock().unwrap();
+        for n in 1..=20 {
+            s.add_raw("INBOX", format!("Subject: Old {n}\r\nMessage-ID: <o{n}@x>\r\n\r\nbody needle\r\n").into_bytes());
+        }
+    }
+    let port = serve_tcp(&st);
+    let store = store("search-after-change");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
+    let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+    pool.submit(Job::SetSync { messages: 50, offline: 0 });
+    pool.submit(Job::Start { account: imap_account(port, 1), password: Some(Secret("pw".into())) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let keys: Vec<MessageKey> = store.load_folder("a1", "INBOX").unwrap().messages.iter().map(|m| m.key.clone()).collect();
+    assert_eq!(keys.len(), 20);
+    for round in 1..=5u64 {
+        let gone: Vec<MessageKey> = keys.iter().filter(|k| k.uid % 5 == (round % 5) as u32).cloned().collect();
+        pool.submit(Job::Apply { account: "a1".into(), op: Op::Expunge { keys: gone.clone() } });
+        pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: "needle".into(), search: round });
+        let seen = until(&pool, "searched", |e| matches!(e, Event::ServerSearched { done: true, .. }));
+        let found: Vec<&MessageKey> =
+            seen.iter().flat_map(|e| if let Event::ServerSearched { keys, .. } = e { keys.iter().collect() } else { Vec::new() }).collect();
+        assert!(!found.iter().any(|k| gone.contains(k)), "round {round}: found again {found:?}");
+    }
     pool.submit(Job::Remove { account: "a1".into() });
 }
 
@@ -355,7 +412,7 @@ fn a_search_or_a_download_writes_nothing_for_an_account_removed_meanwhile() {
     let seen = store.removals("a1");
 
     // Removed once the first range's finds are in: the next ones are written nowhere.
-    let criteria = crate::sync::imap_criteria("needle").unwrap();
+    let criteria = crate::sync::imap_criteria("needle", None).unwrap();
     let mut ranges = 0;
     let searched = crate::sync::find_on_server(&mut c, &store, ("a1", seen), "INBOX", &criteria, 500, &mut |_, _| {
         ranges += 1;

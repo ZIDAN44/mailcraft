@@ -123,7 +123,12 @@ impl Data {
                     .filter(|(a, it)| is(a) && it["start"]["dateTime"].as_str().unwrap_or("") < end.as_str() && it["end"]["dateTime"].as_str().unwrap_or("") > start.as_str())
                     .map(|(_, it)| it.clone())
                     .collect();
-                json!({"scheduleId": who, "availabilityView": "", "scheduleItems": items})
+                let mut v = json!({"scheduleId": who, "availabilityView": "", "scheduleItems": items});
+                // When they work, as Graph writes it (issue #185).
+                if let Some((_, hours)) = self.working_hours.iter().find(|(a, _)| is(a)) {
+                    v["workingHours"] = hours.clone();
+                }
+                v
             })
             .collect();
         ok(json!({ "value": list }))

@@ -1862,3 +1862,95 @@ count	occurrences	opakovaní
 	The first account's Inbox	Doručená pošta prvého konta
 	The folder open last	Naposledy otvorený priečinok
 	Add reminder…	Pridať pripomienku…
+	No suggestions	Žiadne návrhy
+	Ignore all	Ignorovať všetko
+	Add to dictionary	Pridať do slovníka
+	Check spelling as you type	Kontrolovať pravopis počas písania
+	Misspelled words are underlined in red. Right-click one for suggestions.	Nesprávne napísané slová sú podčiarknuté červenou. Kliknutím pravým tlačidlom na slovo zobrazíte návrhy.
+	There's no spelling dictionary for {language} on this computer.	V tomto počítači nie je pravopisný slovník pre jazyk {language}.
+	Bold on	Tučné zapnuté
+	Bold off	Tučné vypnuté
+	Italic on	Kurzíva zapnutá
+	Italic off	Kurzíva vypnutá
+	Underline on	Podčiarknutie zapnuté
+	Underline off	Podčiarknutie vypnuté
+	{name}: on	{name}: zapnuté
+	{name}: off	{name}: vypnuté
+	Font	Písmo
+	Default font	Predvolené písmo
+	Font for new messages	Písmo nových správ
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Nové správy, odpovede a preposlané správy sa píšu týmto písmom. Text, ktorému nastavíte písmo, si ponechá svoje.
+	Clean up old items	Vyčistiť staré položky
+	Clean up old items…	Vyčistiť staré položky…
+	Move old mail to an archive file on this computer, out of the mailbox.	Presunúť starú poštu z poštovej schránky do archívneho súboru na tomto počítači.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	Stará pošta sa presunie do údajového súboru Outlooku na tomto počítači, do priečinkov s rovnakými názvami, a potom sa odstráni z poštovej schránky, ktorá tak získa späť miesto. Súbor sa zobrazí v zozname priečinkov, kde sa jeho pošta dá čítať, prehľadávať a presúvať späť.
+	Archive this folder and the folders in it	Archivovať tento priečinok a priečinky v ňom
+	Archive mail received before	Archivovať poštu prijatú pred
+	Archive file	Archívny súbor
+	That's not a date.	To nie je dátum.
+	Archive mail older than	Archivovať poštu staršiu ako
+	Move old mail to this file	Presunúť starú poštu do tohto súboru
+	Delete old mail for good	Natrvalo odstrániť starú poštu
+	AutoArchive	Automatická archivácia
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	Každých niekoľko dní sa stará pošta každého priečinka archivuje do údajového súboru na tomto počítači alebo sa odstráni, podľa vlastných nastavení priečinka (v jeho vlastnostiach) alebo podľa týchto.
+	Run AutoArchive every	Spúšťať automatickú archiváciu každých
+	Ask before AutoArchive runs	Pred automatickou archiváciou sa opýtať
+	Show the archive file in the folder list	Zobraziť archívny súbor v zozname priečinkov
+	For folders without settings of their own	Pre priečinky bez vlastných nastavení
+	Apply these settings to all folders now	Použiť tieto nastavenia na všetky priečinky teraz
+	Folders with settings of their own follow these instead.	Priečinky s vlastnými nastaveniami sa namiesto nich budú riadiť týmito.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	Uplynulo {days} dní: archivovať starú poštu teraz, ako je nastavená automatická archivácia?
+	Archive now	Archivovať teraz
+	Off: old mail stays where it is until you clean it up.	Vypnuté: stará pošta zostane, kde je, kým ju neupracete.
+	Every {days} days, old mail is archived by each folder's settings.	Každých {days} dní sa stará pošta archivuje podľa nastavení každého priečinka.
+	AutoArchive settings…	Nastavenia automatickej archivácie…
+	Don't archive this folder	Tento priečinok nearchivovať
+	Archive it by the default settings	Archivovať podľa predvolených nastavení
+	Archive it by these settings	Archivovať podľa týchto nastavení
+	weeks	(týždne)
+	months	(mesiace)
+	Folder density	Hustota priečinkov
+	How tightly the folder pane's folders sit	Ako tesne sú priečinky na table priečinkov
+	Spacious	Voľne
+	Medium	Stredne
+	Sort folders A to Z	Zoradiť priečinky od A po Z
+	Work days	Pracovné dni
+	The work week shows these days	Pracovný týždeň zobrazuje tieto dni
+	Work hours	Pracovný čas
+	The calendar shades the hours outside them	Kalendár vytieňuje hodiny mimo neho
+	Start time	Čas začiatku
+	End time	Čas konca
+	Meeting length	Dĺžka schôdze
+	How long a time free for everyone is looked for	Ako dlho má trvať čas, keď majú všetci voľno
+	Previous free time	Predchádzajúci voľný čas
+	Next free time	Ďalší voľný čas
+	The time before when everyone shown is free, within work hours	Predchádzajúci čas, keď majú všetci zobrazení voľno, v pracovnom čase
+	The next time when everyone shown is free, within work hours	Ďalší čas, keď majú všetci zobrazení voľno, v pracovnom čase
+	Free for everyone	Všetci majú voľno
+	Free for everyone: click to make a meeting with them	Všetci majú voľno: kliknutím vytvoríte schôdzu s nimi
+	No time when everyone is free in the next six weeks	V nasledujúcich šiestich týždňoch nie je čas, keď majú všetci voľno
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	Kam siahajú ich údaje o dostupnosti, nie je čas, keď majú všetci voľno: Ďalší bude hľadať ďalej, keď prídu
+	No earlier time when everyone is free	Nie je skorší čas, keď majú všetci voľno
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Kam siahajú ich údaje o dostupnosti, nie je skorší čas, keď majú všetci voľno: Predchádzajúci bude hľadať ďalej, keď prídu
+	Their free/busy times haven't come yet: try again in a moment	Ich údaje o dostupnosti ešte neprišli: skúste to o chvíľu znova
+	Some people's free/busy times can't be had: they count as free	Údaje o dostupnosti niektorých ľudí nie je možné získať: počítajú sa ako voľní
+	Collapse this group	Zbaliť túto skupinu
+	Expand this group	Rozbaliť túto skupinu
+	Collapse all groups	Zbaliť všetky skupiny
+	Expand all groups	Rozbaliť všetky skupiny
+	Show this group's mail	Zobraziť poštu tejto skupiny
+	Hide this group's mail	Skryť poštu tejto skupiny
+	{heading} ({count}), folded	{heading} ({count}), zbalená
+	Clashes with {event} on your calendar	Prekrýva sa s {event} vo vašom kalendári
+	Clashes with {n} events on your calendar	Prekrýva sa s udalosťami vo vašom kalendári: {n}
+	In {n} min	O {n} min
+	Line between the appointments and the tasks	Čiara medzi stretnutiami a úlohami
+	Mark all in {folder} as read	Označiť všetko v priečinku {folder} ako prečítané
+	Mark all shown as read	Označiť všetko zobrazené ako prečítané
+	More ways to mark mail read	Ďalšie spôsoby, ako označiť poštu ako prečítanú
+	Nothing else on your calendar then	V tom čase nič iné vo vašom kalendári nie je
+	Right after {event} on your calendar	Hneď po {event} vo vašom kalendári
+	Right before {event} on your calendar	Hneď pred {event} vo vašom kalendári
+	{h} h	{h} h
+	Notify of mail in Other too	Upozorňovať aj na poštu v priečinku Ostatné
+	Off, only mail that goes to Focused is announced	Ak je vypnuté, upozorňuje sa len na poštu, ktorá ide do Prioritné

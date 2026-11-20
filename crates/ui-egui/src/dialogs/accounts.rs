@@ -263,7 +263,7 @@ pub(crate) fn online_only_about() -> &'static str {
 }
 
 pub(super) fn security_combo(ui: &mut Ui, id: &str, v: &mut Security) {
-    egui::ComboBox::from_id_salt(id)
+    let r = egui::ComboBox::from_id_salt(id)
         .selected_text(match v {
             Security::Tls => "SSL/TLS",
             Security::StartTls => "STARTTLS",
@@ -277,6 +277,7 @@ pub(super) fn security_combo(ui: &mut Ui, id: &str, v: &mut Security) {
         .response
         // Nothing beside it says what it is: the server row's name sits above the host.
         .accessible_name(tl!("Security"));
+    crate::drop_down::keys(ui, &r, v, &[Security::Tls, Security::StartTls, Security::None]);
 }
 
 /// Google takes an app password from mail apps while 2-Step Verification is on (issue #164):

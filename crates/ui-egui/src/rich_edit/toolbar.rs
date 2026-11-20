@@ -148,7 +148,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
         }
     });
     link_dialog(ui, t, ed, c);
-    apply_ops(ed, c, ops);
+    apply_ops(ui.ctx(), ed, c, ops);
 }
 
 /// What a ribbon shows the buttons for: the selection (inside the text), the look there (what
@@ -163,24 +163,75 @@ fn ribbon_state(ed: &Editor, c: &mut Compose) -> (Range<usize>, Style, rich::Par
     (sel, cur, para)
 }
 
-/// Apply what a ribbon's buttons asked for; the text gets the keyboard back when there was any.
-fn apply_ops(ed: &mut Editor, c: &mut Compose, ops: Vec<Op>) {
+/// Apply what a ribbon's buttons asked for; the text gets the keyboard back when there was any,
+/// but not from a drop-down chosen in with its arrows ([`keyed`]).
+fn apply_ops(ctx: &egui::Context, ed: &mut Editor, c: &mut Compose, ops: Vec<Op>) {
     let changed = !ops.is_empty();
     for op in ops {
         apply(ed, c, op);
     }
-    if changed {
+    let keyed = ctx.data_mut(|d| d.remove_temp::<bool>(egui::Id::unique(KEYED))).unwrap_or(false);
+    if changed && !keyed {
         ed.refocus = Some(ed.sel.clone());
     }
 }
 
-/// Font size, bold / italic / underline / strikethrough, colours, lists, alignment, indent and
-/// clear formatting: the formatting the Message ribbon and the signature editor share.
+/// Where [`keyed`] is kept for the frame.
+const KEYED: &str = "a toolbar drop-down chosen in with its arrows";
+
+/// A drop-down's choice made with its arrows (issue #175): the keyboard stays on the drop-down,
+/// as on Windows, until it's left. The text took it back after each, so the next arrow moved the
+/// caret instead of choosing again.
+fn keyed(ui: &Ui) {
+    ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(KEYED), true));
+}
+
+/// The font box (issue #166), as Outlook's: the message's own font, then every family installed
+/// on the computer, each choice the selection's (or what's typed next). Not where the computer's
+/// fonts aren't offered (the browser).
+fn font_box(ui: &mut Ui, c: &Compose, cur: &Style, ops: &mut Vec<Op>) {
+    let families = crate::mail_fonts::families();
+    if families.is_empty() {
+        return;
+    }
+    // With none set on the text, the message's own: the font chosen for new messages, if any.
+    let shown = cur.font.clone().or_else(|| c.font.clone()).unwrap_or_else(|| tl!("Default font").to_string());
+    let r = egui::ComboBox::from_id_salt(("font-name", c.id))
+        .width(140.0)
+        .height(360.0)
+        .selected_text(shown)
+        .truncate()
+        .show_ui(ui, |ui| {
+            if ui.selectable_label(cur.font.is_none(), tl!("Default font")).clicked() {
+                ops.push(Op::Font(None));
+            }
+            for f in families.iter() {
+                let on = cur.font.as_deref().is_some_and(|now| now.eq_ignore_ascii_case(f));
+                if ui.selectable_label(on, f.as_str()).clicked() {
+                    ops.push(Op::Font(Some(f.clone())));
+                }
+            }
+        })
+        .response
+        .accessible_name(tl!("Font"));
+    let choices: Vec<Option<String>> = std::iter::once(None).chain(families.iter().cloned().map(Some)).collect();
+    let mut font = cur.font.clone();
+    crate::drop_down::keys(ui, &r, &mut font, &choices);
+    if font != cur.font {
+        ops.push(Op::Font(font));
+        keyed(ui);
+    }
+    ui.add_space(4.0);
+}
+
+/// The font, its size, bold / italic / underline / strikethrough, colours, lists, alignment,
+/// indent and clear formatting: the formatting the Message ribbon and the signature editor share.
 fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich::Para, ops: &mut Vec<Op>) {
     ui.add_enabled_ui(!c.plain, |ui| {
         // In the middle of the row's height, as the buttons' faces are.
         ui.allocate_ui_with_layout(vec2(0.0, ROW_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            egui::ComboBox::from_id_salt(("font-size", c.id))
+            font_box(ui, c, cur, ops);
+            let r = egui::ComboBox::from_id_salt(("font-size", c.id))
                 .width(48.0)
                 .selected_text(cur.size().to_string())
                 .show_ui(ui, |ui| {
@@ -192,6 +243,12 @@ fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich:
                 })
                 .response
                 .accessible_name(tl!("Font size"));
+            let mut size = cur.size();
+            crate::drop_down::keys(ui, &r, &mut size, &rich::SIZES);
+            if size != cur.size() {
+                ops.push(Op::Size(size));
+                keyed(ui);
+            }
         });
         ui.add_space(4.0);
         let letter = |bold: bool, italic: bool, under: bool, strike: bool| {
@@ -256,7 +313,7 @@ pub(crate) fn signature_bar(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Co
             acts.push(Action::SignaturePicture { paste: false });
         }
     });
-    apply_ops(ed, c, ops);
+    apply_ops(ui.ctx(), ed, c, ops);
 }
 
 /// The ways today's date and the time can go in: written out, as numbers, with the time, the

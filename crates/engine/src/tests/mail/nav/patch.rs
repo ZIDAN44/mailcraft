@@ -10,6 +10,8 @@ enum Step {
     Flag(Vec<u32>, Flag, bool),
     Keyword(Vec<u32>, &'static str, bool),
     Open(u32),
+    /// A heading folded away or shown again, by its place among the headings (issue #189).
+    Fold(u8),
 }
 
 fn step(n: u32) -> impl Strategy<Value = Step> {
@@ -20,6 +22,7 @@ fn step(n: u32) -> impl Strategy<Value = Step> {
         3 => (uids.clone(), flag, any::<bool>()).prop_map(|(u, f, on)| Step::Flag(u, f, on)),
         2 => (uids, keyword, any::<bool>()).prop_map(|(u, k, on)| Step::Keyword(u, k, on)),
         3 => (0..n.max(1)).prop_map(Step::Open),
+        1 => any::<u8>().prop_map(Step::Fold),
     ]
 }
 
@@ -65,7 +68,7 @@ proptest! {
 
     /// Each change, opened message and step taken into the list as it stands leaves it as
     /// building it again would: the messages, their rows, the selection, the focus and the
-    /// message read; filtered, arranged and grouped every way.
+    /// message read; filtered, arranged and grouped every way, with headings folded.
     #[test]
     fn patched_list_equals_refresh(
         bits in prop::collection::vec(any::<(u8, u8)>(), 1..300),
@@ -93,6 +96,16 @@ proptest! {
                     let k = key_in_inbox(u % n);
                     if s.index_of(&k).is_some() {
                         s.open_message(&k);
+                    }
+                }
+                Step::Fold(h) => {
+                    let headings: Vec<String> = s.rows().iter().filter_map(|r| match r {
+                        Row::Header(h) => Some(h.to_string()),
+                        Row::Group(g) => Some(g.clone()),
+                        _ => None,
+                    }).collect();
+                    if let Some(h) = headings.get(usize::from(*h) % headings.len().max(1)) {
+                        s.run("list.foldGroup", &json!({"heading": h})).unwrap();
                     }
                 }
             }

@@ -326,3 +326,154 @@ fn real_ews_tasks() {
     assert_eq!(sync.deleted, std::slice::from_ref(&mine.href));
     assert!(sync.tasks.unwrap().iter().all(|x| x.href != mine.href));
 }
+
+/// Issue #191: what the list and a big message's text first ask for is all in the schema
+/// (`message:InReplyTo` isn't, and on-premises Exchange refused it): a reply with a 1.5 MB file is
+/// listed with what it answers, and opened its text comes first, then all of it, with no failure
+/// said in its place. The message is made in the Inbox from its source, then deleted again.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_big_reply_comes_as_its_text_first() {
+    let Some((url, user, password)) = server() else {
+        eprintln!("MAILCRAFT_REAL_EWS not set: skipped");
+        return;
+    };
+    let c = crate::ews::Client::connect(&url, &user, &password, &user).unwrap();
+    let tag = std::process::id();
+    // 1.5 MB as Exchange counts it (the file's bytes, not their base64).
+    let file = "QUJD".repeat(500_000);
+    let raw = format!(
+        "From: Sam <sam@ews.test>\r\nTo: {user}\r\nSubject: Rushes {tag}\r\nMessage-ID: <rushes{tag}@ews.test>\r\n\
+         In-Reply-To: <asked{tag}@ews.test>\r\nReferences: <asked{tag}@ews.test>\r\nDate: Mon, 16 Nov 2026 09:00:00 +0000\r\n\
+         MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"B\"\r\n\r\n\
+         --B\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nThe notes for the rushes.\r\n\
+         --B\r\nContent-Type: video/quicktime; name=\"reel.mov\"\r\nContent-Disposition: attachment; filename=\"reel.mov\"\r\n\
+         Content-Transfer-Encoding: base64\r\n\r\n{file}\r\n--B--\r\n"
+    );
+    let made = c
+        .call(&format!(
+            "<m:CreateItem MessageDisposition=\"SaveOnly\"><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"inbox\"/></m:SavedItemFolderId>\
+             <m:Items><t:Message><t:MimeContent>{}</t:MimeContent>\
+             <t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x0E07\" PropertyType=\"Integer\"/><t:Value>1</t:Value></t:ExtendedProperty>\
+             </t:Message></m:Items></m:CreateItem>",
+            mailcraft_model::base64::encode(raw.as_bytes())
+        ))
+        .unwrap();
+    let item = made.find("ItemId").and_then(|i| i.attr("Id")).map(str::to_string).expect("made");
+    let store = crate::fake::store("real-ews-text-first");
+    crate::fakes::fake_dav::looked_for_today(&store, "x3");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    pool.opts.prefetch = 0;
+    let account = AccountConfig { id: "x3".into(), email: user.clone(), username: user, ews: Some(url), ..Default::default() };
+    pool.submit(Job::Start { account, password: Some(Secret(password)) });
+    let subject = format!("Rushes {tag}");
+    let listed = || store.load_folder("x3", "INBOX").ok().and_then(|f| f.messages.into_iter().find(|m| m.subject == subject));
+    let end = Instant::now() + Duration::from_secs(300);
+    while listed().is_none() {
+        assert!(Instant::now() < end, "listed within five minutes");
+        if let Some(Event::Status { status: SyncStatus::Error { error, .. }, .. }) = pool.wait(Duration::from_millis(100)) {
+            panic!("the account failed: {error}");
+        }
+    }
+    let m = listed().unwrap();
+    eprintln!("listed: {} bytes, files {}, answers {:?}, references {:?}", m.size, m.has_attachments, m.in_reply_to, m.references);
+    pool.submit(Job::FetchBody { key: m.key.clone() });
+    let (mut bodies, mut failed) = (Vec::new(), Vec::new());
+    let end = Instant::now() + Duration::from_secs(120);
+    while !bodies.last().is_some_and(|b: &Vec<u8>| !mailcraft_mime::is_text_first(b)) && failed.is_empty() {
+        assert!(Instant::now() < end, "opened within two minutes");
+        match pool.wait(Duration::from_millis(100)) {
+            Some(Event::Body { key, raw }) if key == m.key => bodies.push(raw),
+            Some(Event::BodyFailed { key, error }) if key == m.key => failed.push(error),
+            _ => {}
+        }
+    }
+    let _ = c.call(&format!(
+        "<m:DeleteItem DeleteType=\"HardDelete\"><m:ItemIds><t:ItemId Id=\"{}\"/></m:ItemIds></m:DeleteItem>",
+        crate::ews::esc(&item)
+    ));
+    assert!(failed.is_empty(), "{failed:?}");
+    eprintln!("came as {:?}", bodies.iter().map(|b| (b.len(), mailcraft_mime::is_text_first(b))).collect::<Vec<_>>());
+    assert!(m.has_attachments && m.size > 1 << 20, "{} bytes", m.size);
+    assert_eq!(bodies.len(), 2, "its text, then all of it");
+    assert!(mailcraft_mime::is_text_first(&bodies[0]));
+    let first = mailcraft_mime::parse(&bodies[0]).unwrap();
+    assert!(first.text.contains("The notes for the rushes."), "{}", first.text);
+    assert_eq!(m.in_reply_to, format!("asked{tag}@ews.test"), "what it answers, listed");
+}
+
+/// Issue #197: a folder marked read on the server, mail never synced here too. Three unread
+/// messages made in a folder of their own (`Unread`, made when there's none), marked read with
+/// one change, then deleted again.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_folder_marked_read() {
+    let Some((url, user, password)) = server() else {
+        eprintln!("MAILCRAFT_REAL_EWS not set: skipped");
+        return;
+    };
+    let c = crate::ews::Client::connect(&url, &user, &password, &user).unwrap();
+    let id_of = |doc: &crate::ews::El| doc.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string);
+    let made = c
+        .call(
+            "<m:CreateFolder><m:ParentFolderId><t:DistinguishedFolderId Id=\"inbox\"/></m:ParentFolderId><m:Folders><t:Folder>\
+             <t:DisplayName>Unread</t:DisplayName></t:Folder></m:Folders></m:CreateFolder>",
+        )
+        .ok()
+        .and_then(|d| id_of(&d));
+    let folder = made.unwrap_or_else(|| {
+        let found = c
+            .call(
+                "<m:FindFolder Traversal=\"Shallow\"><m:FolderShape><t:BaseShape>Default</t:BaseShape></m:FolderShape>\
+                 <m:Restriction><t:IsEqualTo><t:FieldURI FieldURI=\"folder:DisplayName\"/><t:FieldURIOrConstant><t:Constant Value=\"Unread\"/>\
+                 </t:FieldURIOrConstant></t:IsEqualTo></m:Restriction><m:ParentFolderIds><t:DistinguishedFolderId Id=\"inbox\"/></m:ParentFolderIds></m:FindFolder>",
+            )
+            .unwrap();
+        id_of(&found).expect("the Unread folder")
+    });
+    let unread = |c: &crate::ews::Client| -> usize {
+        let doc = c
+            .call(&format!(
+                "<m:FindItem Traversal=\"Shallow\"><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape></m:ItemShape>\
+                 <m:Restriction><t:IsEqualTo><t:FieldURI FieldURI=\"message:IsRead\"/><t:FieldURIOrConstant><t:Constant Value=\"false\"/>\
+                 </t:FieldURIOrConstant></t:IsEqualTo></m:Restriction><m:ParentFolderIds><t:FolderId Id=\"{}\"/></m:ParentFolderIds></m:FindItem>",
+                crate::ews::esc(&folder)
+            ))
+            .unwrap();
+        let mut all = Vec::new();
+        doc.all("Message", &mut all);
+        all.len()
+    };
+    for n in 0..3 {
+        c.call(&format!(
+            "<m:CreateItem MessageDisposition=\"SaveOnly\"><m:SavedItemFolderId><t:FolderId Id=\"{}\"/></m:SavedItemFolderId><m:Items>\
+             <t:Message><t:Subject>Unread {n}</t:Subject><t:Body BodyType=\"Text\">x</t:Body><t:IsRead>false</t:IsRead></t:Message></m:Items></m:CreateItem>",
+            crate::ews::esc(&folder)
+        ))
+        .unwrap();
+    }
+    assert_eq!(unread(&c), 3, "made unread");
+    let store = crate::fake::store("real-ews-read");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    let account = AccountConfig { id: "x5".into(), email: user.clone(), username: user, ews: Some(url), ..Default::default() };
+    pool.submit(Job::Start { account, password: Some(Secret(password)) });
+    let end = Instant::now() + Duration::from_secs(300);
+    let path = loop {
+        assert!(Instant::now() < end, "the folder listed");
+        let _ = pool.wait(Duration::from_millis(200));
+        if let Some(f) = store.load_folders("x5").ok().and_then(|l| l.into_iter().find(|f| f.path.ends_with("Unread"))) {
+            break f.path;
+        }
+    };
+    pool.submit(Job::Apply { account: "x5".into(), op: mailcraft_model::Op::MarkFolderRead { path } });
+    let end = Instant::now() + Duration::from_secs(60);
+    while unread(&c) > 0 && Instant::now() < end {
+        let _ = pool.wait(Duration::from_millis(200));
+    }
+    let left = unread(&c);
+    let _ = c.call(&format!(
+        "<m:DeleteFolder DeleteType=\"HardDelete\"><m:FolderIds><t:FolderId Id=\"{}\"/></m:FolderIds></m:DeleteFolder>",
+        crate::ews::esc(&folder)
+    ));
+    assert_eq!(left, 0, "all read on the server");
+}

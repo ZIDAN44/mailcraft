@@ -51,22 +51,26 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 .filter(|f| f.selectable && folder_matches(f, &needle))
                 .collect();
             let mut chosen = None;
-            egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
-                let mut of = own.as_str();
-                for f in &folders {
-                    if f.account != of {
-                        of = f.account.as_str();
-                        // By its address, as the folder list names it: the name on its mail
-                        // is the user's own, the same for each of their accounts.
-                        let name = s.account(of).map(|a| a.config.email.clone()).unwrap_or_default();
-                        ui.add_space(4.0);
-                        ui.label(RichText::new(name).color(t.dim).small());
+            // As wide as the dialog, its scroll bar at the edge, each row across it (issue #182).
+            let rows = egui::Layout::top_down_justified(egui::Align::Min);
+            egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
+                ui.with_layout(rows, |ui| {
+                    let mut of = own.as_str();
+                    for f in &folders {
+                        if f.account != of {
+                            of = f.account.as_str();
+                            // By its address, as the folder list names it: the name on its mail
+                            // is the user's own, the same for each of their accounts.
+                            let name = s.account(of).map(|a| a.config.email.clone()).unwrap_or_default();
+                            ui.add_space(4.0);
+                            ui.label(RichText::new(name).color(t.dim).small());
+                        }
+                        let indent = "    ".repeat(f.depth());
+                        if ui.selectable_label(false, format!("{indent}{}", crate::i18n::folder(f))).clicked() {
+                            chosen = Some((f.account.clone(), f.path.clone()));
+                        }
                     }
-                    let indent = "    ".repeat(f.depth());
-                    if ui.selectable_label(false, format!("{indent}{}", crate::i18n::folder(f))).clicked() {
-                        chosen = Some((f.account.clone(), f.path.clone()));
-                    }
-                }
+                })
             });
             let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
             if enter && folders.len() == 1 {
@@ -111,7 +115,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
-        Dialog::MoveFolder { account, folder, filter, error } => {
+        Dialog::MoveFolder { account, folder, filter, chosen, error } => {
             ui.set_width(340.0);
             let name = s.folder(account, folder).map(Folder::display_name).unwrap_or_default();
             title(ui, t, &tf!("Move “{folder}” to", folder = name));
@@ -122,26 +126,42 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             let needle = filter.to_lowercase();
             let Some(acc) = s.account(account) else { return false };
             let d = acc.folders.iter().find_map(|f| f.delimiter);
-            let mut chosen: Option<Option<String>> = None;
-            egui::ScrollArea::vertical().max_height(300.0).show(ui, |ui| {
-                if needle.is_empty() && ui.selectable_label(false, RichText::new(tl!("(Top level)")).italics()).clicked() {
-                    chosen = Some(None);
-                }
-                for f in acc.folders.iter().filter(|f| !mailcraft_engine::model::is_within(&f.path, folder, d) && folder_matches(f, &needle)) {
-                    let indent = "    ".repeat(f.depth());
-                    if ui.selectable_label(false, format!("{indent}{}", crate::i18n::folder(f))).clicked() {
-                        chosen = Some(Some(f.path.clone()));
+            // A click picks where it goes, and Move moves it there, as Outlook's Move Folder
+            // (issue #182): a click moved it at once, and Move never turned on. A double click
+            // still moves it at once.
+            let mut now = false;
+            // As wide as the dialog, its scroll bar at the edge, each row across it (issue #182).
+            let rows = egui::Layout::top_down_justified(egui::Align::Min);
+            egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
+                ui.with_layout(rows, |ui| {
+                    if needle.is_empty() {
+                        let top = ui.selectable_label(*chosen == Some(None), RichText::new(tl!("(Top level)")).italics());
+                        if top.clicked() {
+                            *chosen = Some(None);
+                        }
+                        now |= top.double_clicked();
                     }
-                }
+                    for f in acc.folders.iter().filter(|f| !mailcraft_engine::model::is_within(&f.path, folder, d) && folder_matches(f, &needle)) {
+                        let indent = "    ".repeat(f.depth());
+                        let picked = chosen.as_ref().is_some_and(|c| c.as_deref() == Some(f.path.as_str()));
+                        let row = ui.selectable_label(picked, format!("{indent}{}", crate::i18n::folder(f)));
+                        if row.clicked() {
+                            *chosen = Some(Some(f.path.clone()));
+                        }
+                        now |= row.double_clicked();
+                    }
+                })
             });
             if let Some(e) = error {
                 ui.label(RichText::new(e.as_str()).color(t.danger).small());
             }
-            if let Some(parent) = chosen {
+            let (ok, cancel) = buttons(ui, t, "Move", chosen.is_some());
+            let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if let Some(parent) = chosen.clone().filter(|_| ok || now || enter) {
                 *error = None;
                 acts.push(Action::Submit("folder.move", json!({"account": account, "folder": folder, "parent": parent})));
             }
-            !buttons(ui, t, "Move", false).1
+            !cancel
         }
         Dialog::DeleteFolder { account, folder, name, permanent, error } => {
             ui.set_width(380.0);
@@ -162,8 +182,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
-        Dialog::FolderProperties { name, account, location, total, unread, size } => {
-            ui.set_width(380.0);
+        Dialog::FolderProperties { name, account, location, total, unread, size, archive } => {
+            ui.set_width(if archive.is_some() { 460.0 } else { 380.0 });
             title(ui, t, &tf!("{folder} Properties", folder = name));
             egui::Grid::new("folder-props").num_columns(2).spacing(vec2(16.0, 6.0)).show(ui, |ui| {
                 let rows = [
@@ -180,7 +200,22 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 }
             });
             ui.add_space(8.0);
-            close_row(ui)
+            // Its AutoArchive setting (issue #180), as Outlook's AutoArchive tab.
+            let Some(a) = archive else { return close_row(ui) };
+            ui.separator();
+            ui.label(RichText::new(tl!("AutoArchive")).strong());
+            ui.radio_value(&mut a.mode, super::FolderMode::Off, tl!("Don't archive this folder"));
+            ui.radio_value(&mut a.mode, super::FolderMode::Default, tl!("Archive it by the default settings"));
+            ui.radio_value(&mut a.mode, super::FolderMode::Own, tl!("Archive it by these settings"));
+            if a.mode == super::FolderMode::Own {
+                ui.indent("folder-archive", |ui| super::archiving::rule_fields(ui, &mut a.rule, "folder", acts));
+            }
+            let ready = a.mode != super::FolderMode::Own || a.rule.delete || !a.rule.path.trim().is_empty();
+            let (ok, cancel) = buttons(ui, t, "Save", ready);
+            if ok {
+                acts.push(Action::Submit("autoArchive.folder", a.params()));
+            }
+            !cancel
         }
         Dialog::ConfirmEmpty { account, folder, name, for_good } => {
             ui.set_width(400.0);

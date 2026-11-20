@@ -165,6 +165,20 @@ pub struct UiState {
     pub toast: Option<(String, bool, f64)>,
     pub(crate) seen_notices: usize,
     pub(crate) scroll_to_focus: bool,
+    /// When the list's focus last moved by the keyboard: the row it's on takes the keyboard once
+    /// it's drawn (it may be scrolled into view first), so a screen reader reads the message
+    /// reached (issue #175).
+    pub(crate) focus_row_at: Option<f64>,
+    /// The message row that had the keyboard last: the list's arrows are its, while another
+    /// control's are that control's.
+    pub(crate) row_keyboard: Option<egui::Id>,
+    /// Where the main window's panes were drawn last, for F6 (the top bar and the ribbon are
+    /// `top_bar_rect` and `ribbon_rect`); and the list's one stop for Tab, its message's row,
+    /// where F6 puts the keyboard in the list.
+    pub(crate) panes: Vec<(Pane, egui::Rect)>,
+    pub(crate) list_stop: Option<egui::Id>,
+    /// The reading pane's: the open message's text, while a screen reader reads it as a document.
+    pub(crate) reading_stop: Option<egui::Id>,
     /// A text field on the File page had the keyboard at the end of the last frame: Esc leaves it
     /// rather than the page (egui takes the focus away on Esc before the shortcuts see it).
     pub(crate) backstage_typing: bool,
@@ -279,13 +293,17 @@ pub struct UiState {
     pub(crate) todo_day: Option<i64>,
     /// What's typed in the To-Do Bar's "Type a new task" box.
     pub(crate) todo_new: String,
+    /// The line between the To-Do Bar's appointments and tasks while it's dragged: the
+    /// appointments' share of the height (issue #196); kept once it's let go.
+    pub(crate) todo_split: Option<f32>,
     pub(crate) task: Option<String>,
     /// The person whose card is shown (uid).
     pub(crate) person: Option<String>,
     /// What People, Tasks and Notes list, as last made (see `shown`).
     pub(crate) shown: shown::Shown,
-    /// The invitation in the open message, worked out once per message and calendar change.
-    pub(crate) invite: Option<(MessageKey, u64, Option<mailcraft_engine::Invite>)>,
+    /// The invitation in the open message, worked out once per message and calendar change, with
+    /// how it fits the user's calendar (issue #194).
+    pub(crate) invite: Option<(MessageKey, u64, Option<mailcraft_engine::Invite>, Option<mailcraft_engine::InviteDay>)>,
     /// Files to drag out of the window (the app starts the system drag).
     pub(crate) drag_out: Vec<PathBuf>,
     /// The platform can drag files out.

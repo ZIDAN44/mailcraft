@@ -75,6 +75,8 @@ pub enum Action {
         mail: bool,
     },
     PickBackup,
+    /// The archive file for Clean up old items, picked (issue #179).
+    PickArchiveFile,
     Restore {
         data: std::sync::Arc<Vec<u8>>,
         password: String,
@@ -178,6 +180,10 @@ impl MailApp {
         if self.ui.dialog.is_none() && self.ui.backstage.is_none() && !self.session.ask_certificate.is_empty() {
             let (account, shown) = self.session.ask_certificate.remove(0);
             self.ui.dialog = Some(Dialog::TrustCertificate { account, shown: Box::new(shown) });
+        }
+        // AutoArchive is due and asks first (issue #180), when nothing else is open.
+        if self.ui.dialog.is_none() && self.ui.backstage.is_none() && self.session.take_auto_archive_ask() {
+            self.ui.dialog = Some(Dialog::AutoArchiveDue);
         }
         let news = self.session.take_new_mail();
         if !news.is_empty() {
@@ -298,6 +304,7 @@ impl MailApp {
             // The browser's picker answers later (with the file's bytes).
             Action::Backup { password, mail } => self.save_backup(&password, mail),
             Action::PickBackup => self.pick_backup(),
+            Action::PickArchiveFile => self.pick_archive_file(),
             Action::Restore { data, password } => self.restore_backup(&data, &password),
             // An account's keys (`actions/security.rs`).
             Action::ImportCertificate(account) => self.import_certificate(account),

@@ -1,14 +1,16 @@
 //! The Calendar: a month to pick days from and the calendars in the side pane; a day, a week
 //! or a month in the main one. Click an empty hour to add an event there, an event to open it.
 
-use egui::{Align2, Color32, Margin, Rect, RichText, Sense, Ui, pos2, vec2};
+use egui::{Align2, Color32, Margin, Pos2, Rect, RichText, Sense, Ui, Vec2, pos2, vec2};
 use mailcraft_engine::model::dates::{self, civil_from_days, days_from_civil};
 use mailcraft_engine::model::ical::{Privacy, ShowAs};
+use mailcraft_engine::model::pim::work_hours::{outside, overlap};
 use mailcraft_engine::{AgendaItem, CalMode, Session};
 use serde_json::json;
 
 mod days;
 mod found;
+mod moving;
 mod schedule;
 mod showing;
 use days::days;
@@ -57,6 +59,23 @@ pub fn color(i: u8, t: &Tokens) -> Color32 {
     } else {
         theme::category_color(i.saturating_sub(1), t.dark)
     }
+}
+
+/// The time found free for everyone (issue #186), at `r`: outlined in the accent; clicked, a
+/// meeting then with everyone whose calendar is shown.
+fn marked_slot(s: &Session, t: &Tokens, ui: &mut Ui, r: Rect, id: (&str, i64, usize)) -> Option<Action> {
+    let slot = s.free_slot()?;
+    let resp = ui.interact(r, ui.scope_id().with(id), Sense::click());
+    let fill = t.accent.gamma_multiply(if resp.hovered() { 0.3 } else { 0.15 });
+    ui.painter().rect(r, 3.0, fill, egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
+    crate::widgets::named(ui, &resp, tl!("Free for everyone"), true, None);
+    let clicked = resp.on_hover_text(tl!("Free for everyone: click to make a meeting with them")).clicked();
+    clicked.then(|| schedule::new_meeting(s, slot, &None, &s.shown_calendars()))
+}
+
+/// The shade over the hours not worked (issue #185).
+fn off_hours(t: &Tokens) -> egui::Color32 {
+    if t.dark { egui::Color32::from_black_alpha(70) } else { egui::Color32::from_black_alpha(13) }
 }
 
 fn today(s: &Session) -> i64 {
@@ -329,7 +348,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     items.extend(s.task_items(from, to));
     match s.cal_mode {
         CalMode::Month => month(s, &t, ui, &items, d0, acts),
-        CalMode::Day | CalMode::WorkWeek | CalMode::Week => days(s, st, ui, &items, d0, d1, acts),
+        CalMode::Day | CalMode::WorkWeek | CalMode::Week => days(s, st, ui, &items, s.cal_day_list(), acts),
         CalMode::Schedule => schedule(s, st, ui, &items, d0, acts),
     }
 }
@@ -349,11 +368,14 @@ fn open(s: &Session, item: &AgendaItem) -> Option<Action> {
     Dialog::open_event(s, &item.uid, item.occurrence).map(Action::Dialog)
 }
 
-fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str) -> egui::Response {
+/// An event's (or a task's) box: clicked, it opens; `movable`, it's dragged to another time or
+/// day (issue #192).
+fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str, movable: bool) -> egui::Response {
     // The same meeting can be in two calendars (two accounts', or an account's and a shared
     // mailbox's) at the same time: told apart by whose it is, or the click went to neither and
     // started a new event behind them.
-    let resp = ui.interact(rect, ui.scope_id().with(("chip", &item.account, &item.calendar, &item.uid, item.start)), Sense::click());
+    let sense = if movable { Sense::click_and_drag() } else { Sense::click() };
+    let resp = ui.interact(rect, ui.scope_id().with(("chip", &item.account, &item.calendar, &item.uid, item.start)), sense);
     // A category's colour, as Outlook draws a categorized appointment; else its calendar's.
     let c = item.category.map_or_else(|| color(item.color, t), |i| theme::category_color(i, t.dark));
     let tentative = item.needs_reply || item.status == "TENTATIVE" || matches!(item.show_as, ShowAs::Tentative | ShowAs::Free);
@@ -459,10 +481,28 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
             for (k, it) in todays.iter().take(shown).enumerate() {
                 let cr = Rect::from_min_size(r.min + vec2(3.0, 24.0 + 19.0 * k as f32), vec2(cw - 6.0, 17.0));
                 let text = if it.all_day { title_of(it) } else { format!("{} {}", hm(it.start, s), title_of(it)) };
-                if chip(ui, t, cr, it, &text).clicked()
+                let resp = chip(ui, t, cr, it, &text, s.movable(it));
+                if resp.clicked()
                     && let Some(a) = open(s, it)
                 {
                     acts.push(a);
+                }
+                // Dragged to another day (issue #192): the day under the pointer, its time of
+                // day kept.
+                if let Some(drag) = moving::dragged(ui, &resp, cr) {
+                    let col = ((drag.pointer.x - area.min.x) / cw).floor().clamp(0.0, 6.0) as i64;
+                    let row = ((drag.pointer.y - area.min.y - head) / rh).floor().clamp(0.0, 5.0) as i64;
+                    let to = d0 + row * 7 + col;
+                    let first = day_of(it.start, s);
+                    let by = if it.all_day { (to - d) * 86_400 } else { s.local_midnight(first + to - d) - s.local_midnight(first) };
+                    let cell = Rect::from_min_size(pos2(area.min.x + cw * col as f32, area.min.y + head + rh * row as f32), vec2(cw, rh));
+                    let day = crate::i18n::date(&dates::day_short(first + to - d, &s.clock));
+                    moving::ghost(ui, t, cell.shrink(2.0), &format!("{}\n{day}", title_of(it)));
+                    if drag.done
+                        && let Some(a) = moving::moved(it, by)
+                    {
+                        acts.push(a);
+                    }
                 }
             }
             if todays.len() > shown {

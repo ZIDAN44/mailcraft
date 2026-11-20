@@ -14,7 +14,7 @@ use crate::theme::Tokens;
 pub(super) fn show_as_row(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
     form_row(ui, t, true, Some(Icon::Clock), "Show as", |ui| {
         ui.allocate_ui_with_layout(vec2(170.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            egui::ComboBox::from_id_salt("event-show-as")
+            let r = egui::ComboBox::from_id_salt("event-show-as")
                 .width(164.0)
                 .selected_text(show_as_label(f.show_as))
                 .show_ui(ui, |ui| {
@@ -25,6 +25,7 @@ pub(super) fn show_as_row(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
                 })
                 .response
                 .accessible_name(tl!("Show as"));
+            crate::drop_down::keys(ui, &r, &mut f.show_as, &ShowAs::ALL);
         });
         ui.add_space(6.0);
         // Wrapped under it when a language's words don't fit beside it.

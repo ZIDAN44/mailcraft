@@ -47,7 +47,12 @@ fn answer(a: &mut MailApp, account: &str, error: Option<&str>) {
         subject: "Budget review".into(),
         ..Default::default()
     }];
-    let answers = vec![FreeBusyAnswer { email: ANA.into(), busy: if error.is_some() { Vec::new() } else { busy }, error: error.map(str::to_string) }];
+    let answers = vec![FreeBusyAnswer {
+        email: ANA.into(),
+        busy: if error.is_some() { Vec::new() } else { busy },
+        error: error.map(str::to_string),
+        work: None,
+    }];
     a.session.apply(NetEvent::FreeBusy { account: account.into(), from, to, answers });
 }
 

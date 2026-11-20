@@ -200,7 +200,7 @@ impl Session {
 
     /// The account already holding the data file at `path` (by its record key, when known), but
     /// not `except`.
-    fn duplicate_of(&self, path: &str, record_key: &str, except: Option<&str>) -> Option<String> {
+    pub(super) fn duplicate_of(&self, path: &str, record_key: &str, except: Option<&str>) -> Option<String> {
         self.importing
             .sources
             .iter()

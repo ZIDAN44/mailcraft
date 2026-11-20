@@ -409,6 +409,24 @@ impl Client {
         }
         Err(NetError::No("the folder didn't empty".into()))
     }
+
+    /// Mark every message in a folder read, a page of the unread ones at a time (issue #197:
+    /// Graph has nothing for a whole folder).
+    fn mark_read(&self, folder: &str) -> Result<()> {
+        for _ in 0..1000 {
+            let ids = self.all(&format!("/me/mailFolders/{}/messages?$filter=isRead%20eq%20false&$top=100&$select=id", seg(folder)), 100)?;
+            let reqs: Vec<(&str, String, Option<Value>)> = ids
+                .iter()
+                .filter_map(|m| m.get("id").and_then(Value::as_str))
+                .map(|id| ("PATCH", format!("/me/messages/{}", seg(id)), Some(json!({"isRead": true}))))
+                .collect();
+            if reqs.is_empty() {
+                return Ok(());
+            }
+            self.batch_ok(&reqs)?;
+        }
+        Err(NetError::No("the folder's mail didn't all get marked read".into()))
+    }
 }
 
 /// `{"emailAddress": {"name", "address"}}` as a header value.
@@ -565,6 +583,13 @@ pub fn find_on_server(
         if let Some(a) = query.attachment {
             f.push(format!("hasAttachments eq {a}"));
         }
+        // When it came, as the list has it (issue #179).
+        if let Some(t) = query.after {
+            f.push(format!("receivedDateTime ge {}", mailcraft_model::dates::utc_stamp(t)));
+        }
+        if let Some(t) = query.before {
+            f.push(format!("receivedDateTime lt {}", mailcraft_model::dates::utc_stamp(t)));
+        }
         format!("$filter={}", http::pct(&f.join(" and ")))
     } else {
         format!("$search={}", http::pct(&format!("\"{}\"", query.text.replace('"', "\\\""))))
@@ -645,6 +670,7 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
             c.send_raw("DELETE", &format!("/me/mailFolders/{}", seg(&id)), "application/json", Vec::new()).map(|_| ())
         }
         Op::EmptyFolder { path } => c.empty(st.mailbox(path)?),
+        Op::MarkFolderRead { path } => c.mark_read(st.mailbox(path)?),
     }
 }
 

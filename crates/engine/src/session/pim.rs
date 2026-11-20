@@ -16,19 +16,25 @@ pub use directory::Directory;
 mod find;
 pub use find::{EVENT_HITS_MAX, EventHit, EventWhen};
 mod free_busy;
+mod free_time;
+pub use free_time::FREE_LENGTHS;
+#[cfg(test)]
+pub(crate) use free_time::{NONE_YET, UNKNOWN_FREE};
 mod groups;
 pub use free_busy::{FreeBusyKept, FreeBusyState};
 pub mod invite;
 mod local;
 pub use local::LocalEvents;
+mod moving;
 mod reminders;
 mod series;
 mod sync;
 mod tasks;
 pub use tasks::{ListedTask, TASKS_CALENDAR, TaskRef, TasksOrder};
 mod todo;
-pub use todo::{TODO_BAR_WIDTH, TodoBar, TodoGroup, TodoItem, TodoMail, TodoWhat};
+pub use todo::{TODO_BAR_SPLIT, TODO_BAR_WIDTH, TodoBar, TodoGroup, TodoItem, TodoMail, TodoWhat};
 pub mod web;
+mod work_time;
 
 /// The part of the app on screen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -190,14 +196,19 @@ impl Session {
         self.cal_day.unwrap_or_else(|| mailcraft_model::dates::today(&self.clock))
     }
 
-    /// The local days on screen: a day (the Schedule view's too), the work week (Monday to
-    /// Friday), the week (Monday first) or the weeks of the month.
+    /// The local days on screen: a day (the Schedule view's too), the work week (from its first
+    /// worked day to its last, issue #185: `cal_day_list` has those alone), the week (Monday
+    /// first) or the weeks of the month.
     pub fn cal_days(&self) -> (i64, i64) {
         let d = self.cal_day();
         let monday = |x: i64| x - i64::from(weekday_index(x));
         match self.cal_mode {
             CalMode::Day | CalMode::Schedule => (d, d + 1),
-            CalMode::WorkWeek => (monday(d), monday(d) + 5),
+            CalMode::WorkWeek => match self.work_week_days()[..] {
+                [first, .., last] => (first, last + 1),
+                [only] => (only, only + 1),
+                [] => (monday(d), monday(d) + 5),
+            },
             CalMode::Week => (monday(d), monday(d) + 7),
             CalMode::Month => {
                 let (y, m, _) = civil_from_days(d);
@@ -225,6 +236,11 @@ impl Session {
             None => {}
         }
         let step = step.clamp(-1200, 1200);
+        // Moved by hand (not the view changed): a time found free is looked for from the days
+        // shown again.
+        if date.is_some() || step != 0 {
+            self.free_slot = None;
+        }
         d = match self.cal_mode {
             CalMode::Day | CalMode::Schedule => d + step,
             CalMode::WorkWeek | CalMode::Week => d + 7 * step,
@@ -270,13 +286,22 @@ impl Session {
     /// The occurrences overlapping `[from, to)`, by start, from every calendar that's shown.
     /// (Each with its calendar's colour: [`Session::calendar_color`].)
     pub fn agenda(&self, from: i64, to: i64) -> Vec<AgendaItem> {
+        let mut out = self.agenda_where(from, to, |account, cal| self.calendar_shown(account, &cal.id));
+        self.free_busy_items(from, to, &mut out);
+        out.sort_by(|a, b| (b.all_day, a.start, &a.summary).cmp(&(a.all_day, b.start, &b.summary)));
+        out
+    }
+
+    /// The events between `from` and `to` of the calendars `keep` takes (an account's id, the
+    /// calendar), unsorted.
+    pub(super) fn agenda_where(&self, from: i64, to: i64, keep: impl Fn(&str, &mailcraft_model::pim::CalendarInfo) -> bool) -> Vec<AgendaItem> {
         // Every address of the accounts' (their others too: an invitation to one needs its
         // answer like any).
         let mine = self.my_addresses();
         let mut out = Vec::new();
         for (account, p) in &self.pim {
             let Some(acc) = self.account(account) else { continue };
-            for cal in p.calendars.iter().filter(|c| self.calendar_shown(account, &c.id)) {
+            for cal in p.calendars.iter().filter(|c| keep(account, c)) {
                 // Borrowed, not copied: this runs each frame the calendar is drawn, and an
                 // imported event can carry files.
                 let events: Vec<&CalEvent> = p.events.iter().filter(|e| e.calendar == cal.id).map(|e| &e.event).collect();
@@ -312,8 +337,6 @@ impl Session {
                 }
             }
         }
-        self.free_busy_items(from, to, &mut out);
-        out.sort_by(|a, b| (b.all_day, a.start, &a.summary).cmp(&(a.all_day, b.start, &b.summary)));
         out
     }
 

@@ -110,8 +110,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - `fuzz/Cargo.lock` keeps the versions `Cargo.lock` has, so the weekly run fuzzes what ships:
   after a dependency moves, `cargo xtask locks --update` (`cargo xtask ci` checks it).
 - **The Craft apps' shared crates** (storytold/craft-libs) are used where they fit, so their fixes
-  arrive with a pin bump: `craft-atomic` (the cache's file writes) and `craft-docpath` (paths data
-  files name), all at one `rev` in `[workspace.dependencies]`. A gap one has is fixed there (a PR
+  arrive with a pin bump: `craft-atomic` (the cache's file writes), `craft-docpath` (paths data
+  files name) and `craft-proof` (spelling), all at one `rev` in `[workspace.dependencies]`. A gap one has is fixed there (a PR
   to craft-libs), not copied here. Which crates were weighed and why the rest aren't used:
   `docs/architecture.md`.
 
@@ -192,9 +192,9 @@ No measurement logs or step-by-step history in the docs: that belongs in commit 
   task of its own, once a shared workflow runs it.
   Their jobs are hardened as the shared ones are: Harden-Runner (audit) first, checkouts that
   keep no credentials, and StepSecurity's copies of third-party actions unless theirs is older
-  than the version pinned (`install-action` and `freebsd-vm` stay the originals). Its
-  `rust-cache` stays at 2.9.1, as the shared actions' does: 2.9.2 saves no cache on Windows
-  (storytold/craft-common-actions#249).
+  than the version pinned (`install-action` and `freebsd-vm` stay the originals, and
+  `rust-cache` while StepSecurity's stops at 2.9.2). `rust-cache` is the commit the shared
+  actions pin (2.9.3); 2.9.2 saves no cache on Windows (storytold/craft-common-actions#249).
 
 ## Running and looking at the app
 - `cargo run -p mailcraft -- --sample` (local sample mailbox). Script it at start-up:

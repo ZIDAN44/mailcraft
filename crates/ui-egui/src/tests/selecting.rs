@@ -1,6 +1,7 @@
 //! UI tests: selecting several messages from the keyboard and with the mouse (issue #26).
 
 use egui::accesskit::Role;
+use mailcraft_engine::Row;
 
 use super::*;
 
@@ -314,4 +315,49 @@ fn enter_opens_the_selected_message() {
     assert!(!a.session.selection.is_empty(), "the draft is in Drafts");
     frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
     assert_eq!(a.session.all_composes().count(), 1, "the draft is being written");
+}
+
+/// Issue #189: a click on a heading of the list folds its mail away, the heading counting it; a
+/// click again shows it. Its menu folds and shows every heading; what's folded is kept for the
+/// next start.
+#[test]
+fn a_heading_clicked_folds_its_mail_away() {
+    let (mut a, _) = app("fold-heading");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let heading = a.session.rows().iter().find_map(|r| if let Row::Header(h) = r { Some(h.to_string()) } else { None }).unwrap();
+    let (rows, shown) = (a.session.rows().len(), list_rows(&ctx, &mut a).len());
+    click_named(&ctx, &mut a, &heading);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.heading_folded(0), "folded: {:?}", &a.session.rows()[..2]);
+    let Some(Row::Folded { count, .. }) = a.session.rows().get(1).cloned() else { panic!("counted") };
+    assert_eq!(list_rows(&ctx, &mut a).len(), shown - count, "its rows gone");
+    assert!(says(&ctx, &mut a, &format!("{heading} ({count}), folded")), "the heading says how many it hides");
+    // Kept for the next start.
+    let saved = a.saved_state();
+    let (mut b, _) = app("fold-heading-again");
+    b.restore_state(&saved);
+    assert!(b.session.heading_folded(0), "folded after a restart");
+    // Clicked again: shown.
+    click_named(&ctx, &mut a, &format!("{heading} ({count}), folded"));
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.rows().len(), rows);
+    // Its menu: every heading folded, then shown.
+    let at = named(&ctx, &mut a, egui::vec2(1280.0, 800.0))
+        .into_iter()
+        .find(|n| n.label.as_deref() == Some(heading.as_str()))
+        .and_then(|n| n.centre())
+        .unwrap();
+    click_at(&ctx, &mut a, at, egui::PointerButton::Secondary, Modifiers::NONE);
+    click_named(&ctx, &mut a, "Collapse all groups");
+    assert_eq!(list_rows(&ctx, &mut a).len(), 0, "every message folded away");
+    assert!(a.session.rows().iter().all(|r| !matches!(r, Row::Message { .. })));
+    // The list's arrangement menu shows them all again.
+    click_named(&ctx, &mut a, "By Date ⏷");
+    click_named(&ctx, &mut a, "Expand all groups");
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.rows().len(), rows);
 }

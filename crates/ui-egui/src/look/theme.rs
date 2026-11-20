@@ -377,7 +377,9 @@ pub fn install_fonts(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option
 /// when the main font hasn't them.
 pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Vec<(Vec<u8>, u32)>, rtl: Option<Vec<u8>>) {
     crate::bidi::set_coverage(regular.as_deref());
-    ctx.set_fonts(font_definitions(regular, bold, cjk, rtl));
+    let fonts = font_definitions(regular, bold, cjk, rtl);
+    crate::mail_fonts::follow(&fonts);
+    ctx.set_fonts(fonts);
 }
 
 /// The fonts [`install_fonts_with`] installs.

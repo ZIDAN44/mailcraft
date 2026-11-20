@@ -215,6 +215,61 @@ impl Pool {
         }
     }
 
+    /// Archive old mail to a data file on a thread of its own.
+    pub(super) fn archive_pst(
+        &mut self,
+        account: String,
+        path: String,
+        pick: crate::pst_export::Pick,
+        follow_up: mailcraft_model::organize::FollowUpDays,
+    ) {
+        // With the changes made just before it.
+        self.edits.flush();
+        let (sink, store) = (self.sink.clone(), self.store.clone());
+        let failed = |account: String, path: String, error: String| Event::Archived {
+            account,
+            path,
+            messages: 0,
+            archived: Vec::new(),
+            skipped: 0,
+            folders_skipped: 0,
+            done: true,
+            error: Some(error),
+        };
+        let (id, file) = (account.clone(), path.clone());
+        let spawned = spawn("mail-archive", move || {
+            let mut progress = |messages| {
+                sink.emit(Event::Archived {
+                    account: account.clone(),
+                    path: path.clone(),
+                    messages,
+                    archived: Vec::new(),
+                    skipped: 0,
+                    folders_skipped: 0,
+                    done: false,
+                    error: None,
+                })
+            };
+            let event = match crate::pst_export::archive(&store, &account, "Archive", std::path::Path::new(&path), &pick, &follow_up, &mut progress) {
+                Ok(done) => Event::Archived {
+                    account,
+                    path,
+                    messages: done.messages,
+                    archived: done.archived,
+                    skipped: done.skipped,
+                    folders_skipped: done.folders_skipped,
+                    done: true,
+                    error: None,
+                },
+                Err(e) => failed(account, path, e),
+            };
+            sink.emit(event);
+        });
+        if let Err(e) = spawned {
+            self.sink.emit(failed(id, file, format!("archive: {e}")));
+        }
+    }
+
     /// The releases MailCraft could update to, read on a thread of its own.
     pub(super) fn check_updates(&self) {
         let sink = self.sink.clone();

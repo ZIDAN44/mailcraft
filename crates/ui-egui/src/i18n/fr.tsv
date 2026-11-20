@@ -1862,3 +1862,95 @@ count	occurrences	occurrences
 	The first account's Inbox	Boîte de réception du premier compte
 	The folder open last	Le dernier dossier ouvert
 	Add reminder…	Ajouter un rappel…
+	No suggestions	Aucune suggestion
+	Ignore all	Tout ignorer
+	Add to dictionary	Ajouter au dictionnaire
+	Check spelling as you type	Vérifier l’orthographe pendant la frappe
+	Misspelled words are underlined in red. Right-click one for suggestions.	Les mots mal orthographiés sont soulignés en rouge. Cliquez sur l’un d’eux avec le bouton droit pour voir des suggestions.
+	There's no spelling dictionary for {language} on this computer.	Aucun dictionnaire orthographique pour {language} n’est installé sur cet ordinateur.
+	Bold on	Gras activé
+	Bold off	Gras désactivé
+	Italic on	Italique activé
+	Italic off	Italique désactivé
+	Underline on	Souligné activé
+	Underline off	Souligné désactivé
+	{name}: on	{name} : activé
+	{name}: off	{name} : désactivé
+	Font	Police
+	Default font	Police par défaut
+	Font for new messages	Police des nouveaux messages
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Les nouveaux messages, les réponses et les transferts sont écrits dans cette police. Le texte auquel vous donnez une police garde la sienne.
+	Clean up old items	Nettoyer les anciens éléments
+	Clean up old items…	Nettoyer les anciens éléments…
+	Move old mail to an archive file on this computer, out of the mailbox.	Déplacer les anciens messages de la boîte aux lettres vers un fichier d'archive sur cet ordinateur.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	Les anciens messages vont dans un fichier de données Outlook sur cet ordinateur, dans des dossiers de mêmes noms, puis sont supprimés de la boîte aux lettres, qui récupère leur place. Le fichier apparaît dans la liste des dossiers, où ses messages peuvent être lus, recherchés et remis en place.
+	Archive this folder and the folders in it	Archiver ce dossier et les dossiers qu'il contient
+	Archive mail received before	Archiver les messages reçus avant le
+	Archive file	Fichier d'archive
+	That's not a date.	Ce n'est pas une date.
+	Archive mail older than	Archiver les messages de plus de
+	Move old mail to this file	Déplacer les anciens messages vers ce fichier
+	Delete old mail for good	Supprimer définitivement les anciens messages
+	AutoArchive	Archivage automatique
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	Tous les quelques jours, les anciens messages de chaque dossier sont archivés dans un fichier de données sur cet ordinateur, ou supprimés, selon les paramètres propres au dossier (dans ses Propriétés) ou ceux-ci.
+	Run AutoArchive every	Lancer l'archivage automatique tous les
+	Ask before AutoArchive runs	Demander avant de lancer l'archivage automatique
+	Show the archive file in the folder list	Afficher le fichier d'archive dans la liste des dossiers
+	For folders without settings of their own	Pour les dossiers sans paramètres propres
+	Apply these settings to all folders now	Appliquer ces paramètres à tous les dossiers maintenant
+	Folders with settings of their own follow these instead.	Les dossiers qui ont leurs propres paramètres suivent ceux-ci à la place.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} jours ont passé : archiver maintenant les anciens messages, comme l'archivage automatique est réglé ?
+	Archive now	Archiver maintenant
+	Off: old mail stays where it is until you clean it up.	Désactivé : les anciens messages restent où ils sont jusqu'à ce que vous fassiez le ménage.
+	Every {days} days, old mail is archived by each folder's settings.	Tous les {days} jours, les anciens messages sont archivés selon les paramètres de chaque dossier.
+	AutoArchive settings…	Paramètres d'archivage automatique…
+	Don't archive this folder	Ne pas archiver ce dossier
+	Archive it by the default settings	L'archiver selon les paramètres par défaut
+	Archive it by these settings	L'archiver selon ces paramètres
+	weeks	semaines
+	months	mois
+	Folder density	Densité des dossiers
+	How tightly the folder pane's folders sit	À quel point les dossiers sont serrés dans le volet des dossiers
+	Spacious	Aéré
+	Medium	Moyen
+	Sort folders A to Z	Trier les dossiers de A à Z
+	Work days	Jours de travail
+	The work week shows these days	La semaine de travail affiche ces jours
+	Work hours	Heures de travail
+	The calendar shades the hours outside them	Le calendrier grise les heures en dehors
+	Start time	Heure de début
+	End time	Heure de fin
+	Meeting length	Durée de la réunion
+	How long a time free for everyone is looked for	Durée du créneau libre pour tous à rechercher
+	Previous free time	Créneau libre précédent
+	Next free time	Créneau libre suivant
+	The time before when everyone shown is free, within work hours	Le créneau précédent où toutes les personnes affichées sont libres, pendant les heures de travail
+	The next time when everyone shown is free, within work hours	Le créneau suivant où toutes les personnes affichées sont libres, pendant les heures de travail
+	Free for everyone	Libre pour tous
+	Free for everyone: click to make a meeting with them	Libre pour tous : cliquez pour créer une réunion avec eux
+	No time when everyone is free in the next six weeks	Aucun créneau où tout le monde est libre dans les six prochaines semaines
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	Aucun créneau où tout le monde est libre jusqu’où vont leurs disponibilités : Suivant cherchera plus loin dès qu’elles arrivent
+	No earlier time when everyone is free	Aucun créneau antérieur où tout le monde est libre
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Aucun créneau antérieur où tout le monde est libre jusqu’où vont leurs disponibilités : Précédent cherchera plus loin dès qu’elles arrivent
+	Their free/busy times haven't come yet: try again in a moment	Leurs disponibilités ne sont pas encore arrivées : réessayez dans un instant
+	Some people's free/busy times can't be had: they count as free	Les disponibilités de certaines personnes sont introuvables : elles comptent comme libres
+	Collapse this group	Réduire ce groupe
+	Expand this group	Développer ce groupe
+	Collapse all groups	Réduire tous les groupes
+	Expand all groups	Développer tous les groupes
+	Show this group's mail	Afficher les messages de ce groupe
+	Hide this group's mail	Masquer les messages de ce groupe
+	{heading} ({count}), folded	{heading} ({count}), réduit
+	Clashes with {event} on your calendar	En conflit avec {event} dans votre calendrier
+	Clashes with {n} events on your calendar	En conflit avec {n} événements dans votre calendrier
+	In {n} min	Dans {n} min
+	Line between the appointments and the tasks	Ligne entre les rendez-vous et les tâches
+	Mark all in {folder} as read	Marquer tout {folder} comme lu
+	Mark all shown as read	Marquer tout ce qui est affiché comme lu
+	More ways to mark mail read	Autres façons de marquer le courrier comme lu
+	Nothing else on your calendar then	Rien d’autre dans votre calendrier à ce moment-là
+	Right after {event} on your calendar	Juste après {event} dans votre calendrier
+	Right before {event} on your calendar	Juste avant {event} dans votre calendrier
+	{h} h	{h} h
+	Notify of mail in Other too	Notifier aussi le courrier dans Autres
+	Off, only mail that goes to Focused is announced	Désactivé, seul le courrier qui va dans Prioritaire est annoncé

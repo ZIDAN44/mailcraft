@@ -221,6 +221,20 @@ pub enum Job {
         #[serde(default)]
         follow_up: crate::organize::FollowUpDays,
     },
+    /// Write the account's mail received before `before` (Unix seconds), in `folders` and the
+    /// folders under them (all of them when empty; `only`, those alone, issue #180), to the data
+    /// file at `path`, in folders of the same names. Answered by [`Event::Archived`], naming the
+    /// messages the file has now.
+    ArchivePst {
+        account: String,
+        path: String,
+        folders: Vec<String>,
+        #[serde(default)]
+        only: bool,
+        before: i64,
+        #[serde(default)]
+        follow_up: crate::organize::FollowUpDays,
+    },
     /// Measure how the account's data file is doing (quick: nothing of the mail is read).
     /// Answered by [`Event::DataFileHealth`].
     DataFileHealth { account: String },
@@ -362,6 +376,7 @@ impl Job {
             | Job::Index { account, .. }
             | Job::StopIndex { account }
             | Job::ExportPst { account, .. }
+            | Job::ArchivePst { account, .. }
             | Job::DataFileHealth { account }
             | Job::CompactDataFile { account, .. }
             | Job::CancelCompact { account } => account,
@@ -657,6 +672,22 @@ pub enum Event {
         #[serde(default)]
         replaced: usize,
         /// Folders whose list couldn't be read: their mail isn't in the file.
+        #[serde(default)]
+        folders_skipped: usize,
+        done: bool,
+        error: Option<String>,
+    },
+    /// How archiving to a data file is going ([`Job::ArchivePst`]). Done, `archived` are the
+    /// messages the file has now (written, or there already in the same folder), which may leave
+    /// the mailbox; `skipped`, old ones not on this computer, which stay.
+    Archived {
+        account: String,
+        path: String,
+        messages: usize,
+        #[serde(default)]
+        archived: Vec<MessageKey>,
+        #[serde(default)]
+        skipped: usize,
         #[serde(default)]
         folders_skipped: usize,
         done: bool,

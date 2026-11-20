@@ -4,6 +4,9 @@ use egui::accesskit::{Action, Node, Role};
 
 use super::*;
 
+mod keyboard;
+mod said;
+
 /// The controls a screen reader would read as nameless or as "unknown", in a frame drawn with
 /// AccessKit on: `role: name` for each, nameless ones as `role: ?`.
 fn unnamed(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
@@ -120,11 +123,17 @@ fn every_drop_down_says_what_it_is_for() {
     }
     a.ui.dialog = Some(Dialog::new_event(&a.session, None));
     check(&mut a, "event", wide);
+    // The account form, its server settings open (issue #175: the kind of server and the
+    // sign-in methods were read by their value alone).
+    a.ui.dialog = Some(Dialog::add_account_with("ana@example.org", true));
+    check(&mut a, "account form", wide);
     a.ui.dialog = None;
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
     check(&mut a, "File › Options", egui::vec2(1280.0, 2400.0));
     assert!(nameless.is_empty(), "{} drop-downs a screen reader can't name:\n{}", nameless.len(), nameless.join("\n"));
-    for want in ["Font size", "When mail", "Then", "Folder", "Category", "Repeat", "Reminder", "Show as", "Dates", "Language"] {
+    for want in
+        ["Font size", "When mail", "Then", "Folder", "Category", "Repeat", "Reminder", "Show as", "Dates", "Language", "Mail server", "Sign in with"]
+    {
         assert!(names.contains(want), "no drop-down named {want}: {names:?}");
     }
 }
@@ -231,7 +240,7 @@ fn esc_leaves_a_file_page_field_before_the_page() {
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
-    let tall = egui::vec2(1280.0, 2800.0);
+    let tall = egui::vec2(1280.0, 3200.0);
     let _tall = windows::layout::Dressed::new(tall, "");
     let mut field = None;
     for _ in 0..4 {

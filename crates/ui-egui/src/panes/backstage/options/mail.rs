@@ -75,6 +75,19 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
         for (label, on, cmd) in windows {
             switch_row(ui, t, false, Switch { label, about: None, on, cmd }, acts);
         }
+        // Issue #174: in the interface's language, which says when it has no dictionary here.
+        let lang = crate::rich_edit::spelling::language();
+        let missing = (!crate::rich_edit::spelling::has_dictionary(lang))
+            .then(|| tf!("There's no spelling dictionary for {language} on this computer.", language = crate::i18n::current().name()));
+        let about = missing.as_deref().unwrap_or(tl!("Misspelled words are underlined in red. Right-click one for suggestions."));
+        switch_row(
+            ui,
+            t,
+            false,
+            Switch { label: tl!("Check spelling as you type"), about: Some(about), on: s.prefs.spelling, cmd: "options.spelling" },
+            acts,
+        );
+        compose_font(s, t, ui, acts);
         // Issue #115: Ctrl+Enter sends at once only when that's chosen.
         setting(ui, t, false, tl!("Ctrl+Enter in a message"), None, |ui| {
             use mailcraft_engine::CtrlEnter;
@@ -176,7 +189,7 @@ pub(super) fn checking(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
                 let word = |m: u32| if m == 0 { tl!("Automatically").to_string() } else { tf!("Every {n} minutes", n = m) };
                 // Only when asked (issue #104): Send / Receive on the account.
                 let shown = if c.check_by_hand { tl!("Only when I ask").to_string() } else { word(now) };
-                egui::ComboBox::from_id_salt(("check-every", c.id.as_str()))
+                let r = egui::ComboBox::from_id_salt(("check-every", c.id.as_str()))
                     .width(170.0)
                     .selected_text(shown)
                     .show_ui(ui, |ui| {
@@ -197,6 +210,18 @@ pub(super) fn checking(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
                     .response
                     // The row's name, the account's address, under the card's Checking for new mail.
                     .accessible_name(c.email.as_str());
+                // Minutes, then by hand (None).
+                let choices = [Some(0u32), Some(5), Some(10), Some(15), Some(30), Some(60), None];
+                let was = if c.check_by_hand { None } else { Some(now) };
+                let mut at = was;
+                crate::drop_down::keys(ui, &r, &mut at, &choices);
+                if at != was {
+                    let p = match at {
+                        Some(m) => json!({"account": c.id, "minutes": m}),
+                        None => json!({"account": c.id, "byHand": true}),
+                    };
+                    acts.push(Action::Run("account.checkEvery", p));
+                }
             });
         }
     });
@@ -219,7 +244,7 @@ fn start_in(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         StartIn::Folder { account, folder } => folder_name(account, folder).unwrap_or_else(|| tl!("The first account's Inbox").to_string()),
     };
     setting(ui, t, false, tl!("Start in"), Some(tl!("What opens when MailCraft starts")), |ui| {
-        egui::ComboBox::from_id_salt("start-in")
+        let r = egui::ComboBox::from_id_salt("start-in")
             .width(260.0)
             .height(400.0)
             .selected_text(shown)
@@ -247,5 +272,59 @@ fn start_in(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             .response
             // The setting's name is beside it in the row, which doesn't hand it on.
             .accessible_name(tl!("Start in"));
+        let mut choices = vec![StartIn::FirstInbox, StartIn::AllInboxes, StartIn::Last];
+        for a in s.accounts.iter().filter(|a| !a.folders.is_empty()) {
+            choices.extend(
+                a.folders
+                    .iter()
+                    .filter(|f| folder_name(&a.config.id, &f.path).is_some())
+                    .map(|f| StartIn::Folder { account: a.config.id.clone(), folder: f.path.clone() }),
+            );
+        }
+        let mut at = s.prefs.start_in.clone();
+        crate::drop_down::keys(ui, &r, &mut at, &choices);
+        if at != s.prefs.start_in
+            && let Ok(p) = serde_json::to_value(&at)
+        {
+            acts.push(Action::Run("options.startIn", p));
+        }
+    });
+}
+
+/// The font new messages are written in (issue #166), as Outlook's "New mail messages" font:
+/// MailCraft's own, or any installed on the computer (none offered in the browser, nor the row).
+fn compose_font(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    let families = crate::mail_fonts::families();
+    if families.is_empty() {
+        return;
+    }
+    let about = tl!("New messages, replies and forwards are written in it. Text you set a font on keeps its own.");
+    setting(ui, t, false, tl!("Font for new messages"), Some(about), |ui| {
+        let now = s.prefs.compose_font.clone();
+        let r = egui::ComboBox::from_id_salt("compose-font")
+            .width(220.0)
+            .height(360.0)
+            .selected_text(now.clone().unwrap_or_else(|| tl!("Default font").to_string()))
+            .truncate()
+            .show_ui(ui, |ui| {
+                if ui.selectable_label(now.is_none(), tl!("Default font")).clicked() {
+                    acts.push(Action::Run("options.composeFont", json!({"font": null})));
+                }
+                for f in families.iter() {
+                    let on = now.as_deref().is_some_and(|n| n.eq_ignore_ascii_case(f));
+                    if ui.selectable_label(on, f.as_str()).clicked() {
+                        acts.push(Action::Run("options.composeFont", json!({"font": f})));
+                    }
+                }
+            })
+            .response
+            // The setting's name is beside it in the row, which doesn't hand it on.
+            .accessible_name(tl!("Font for new messages"));
+        let choices: Vec<Option<String>> = std::iter::once(None).chain(families.iter().cloned().map(Some)).collect();
+        let mut at = now.clone();
+        crate::drop_down::keys(ui, &r, &mut at, &choices);
+        if at != now {
+            acts.push(Action::Run("options.composeFont", json!({"font": at})));
+        }
     });
 }

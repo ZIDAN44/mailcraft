@@ -93,7 +93,7 @@ pub(super) async fn job(sh: &Rcs, id: &str, j: Job) {
             let why = "only an Exchange account can show its colleagues' free/busy time";
             let answers = people
                 .into_iter()
-                .map(|email| mailcraft_engine::model::pim::free_busy::FreeBusyAnswer { email, busy: Vec::new(), error: Some(why.into()) })
+                .map(|email| mailcraft_engine::model::pim::free_busy::FreeBusyAnswer { email, error: Some(why.into()), ..Default::default() })
                 .collect();
             emit(sh, Event::FreeBusy { account: id.to_string(), from, to, answers })
         }
@@ -153,6 +153,7 @@ pub(super) async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::StopImport { .. }
         | Job::KeepImport { .. }
         | Job::ExportPst { .. }
+        | Job::ArchivePst { .. }
         | Job::DataFileHealth { .. }
         | Job::CompactDataFile { .. }
         | Job::CancelCompact { .. }

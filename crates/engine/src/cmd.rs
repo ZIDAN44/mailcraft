@@ -84,6 +84,11 @@ macro_rules! quick_step {
 
 /// Show one of Mail, Calendar, People, Tasks and Notes.
 fn set_module(s: &mut Session, module: crate::Module) -> CmdResult {
+    // Leaving Mail ends a search of mail, as Outlook's does (issue #187): it went on behind the
+    // calendar, its words still in the box on the way back. A Search Folder's isn't one typed.
+    if module != crate::Module::Mail && s.search.is_some() && s.open_search_folder_name().is_none() {
+        s.run_search("", crate::SearchScope::All);
+    }
     s.module = module;
     Ok(json!({"module": s.module}))
 }

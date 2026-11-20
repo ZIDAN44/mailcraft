@@ -34,9 +34,10 @@ mod updates;
 mod writing;
 #[cfg(test)]
 pub(crate) use accounts::REMOVE_BACKSTOP;
+pub(crate) use accounts::RuleChange;
 pub(crate) use accounts::data_file_path;
+pub use accounts::{AgeUnit, ArchiveRule, AutoArchive, Compacting, Compaction, FolderArchive, IDLE_AFTER_S};
 pub use accounts::{Changes, ImportState, Imports, TrustedCertificate};
-pub use accounts::{Compacting, Compaction, IDLE_AFTER_S};
 use changing::Batch;
 use changing::keys_by_account;
 #[cfg(test)]
@@ -59,7 +60,10 @@ pub use mailboxes::{ARRANGE_HEADINGS, Arrange, ListFilter, Row};
 // Organizing mail's own parts, named here as before.
 pub use opening::SenderMarks;
 pub use organize::{junk, quick_steps, search_folders, server_rules};
-pub use prefs::{ACCENTS, CtrlEnter, NotesOrder, Prefs, ReadInPane, ReadingPane, SenderAddresses, StartIn, accent_code, accent_rgb};
+pub use prefs::{
+    ACCENTS, CtrlEnter, DICTIONARY_MAX, FolderDensity, NotesOrder, Prefs, ReadInPane, ReadingPane, SenderAddresses, StartIn, accent_code, accent_rgb,
+    dictionary_word,
+};
 pub mod pim;
 pub use pim::invite;
 
@@ -385,6 +389,10 @@ pub struct Session {
     pub(crate) moved_at: i64,
     /// Mail moved or copied into a folder on this computer, waiting for its source (issue #82).
     pub(crate) transfers: Vec<mailboxes::Transfer>,
+    /// Old mail being archived to a data file (issue #179), one at a time.
+    pub(crate) archiving: Option<accounts::Archiving>,
+    /// AutoArchive's groups still to archive, and its question (issue #180).
+    pub(crate) auto_archiving: accounts::AutoArchiving,
     /// Mail that arrived and may hold an invitation, waiting for its body (issue #20).
     pub(crate) arrived_invites: Vec<MessageKey>,
     /// Answered invitations to put out of the way once the server has the answer (issue #101).
@@ -439,6 +447,8 @@ pub struct Session {
     pub cal_mode: pim::CalMode,
     /// The local day the calendar shows (`None`: today).
     pub cal_day: Option<i64>,
+    /// The time last found free for everyone shown (issue #186), marked in the calendar.
+    pub(crate) free_slot: Option<(i64, i64)>,
     /// Search: the one running (or done and shown), and what it keeps between searches.
     search_state: searching::SearchState,
     /// How many times a message was shown in the reading pane ([`Session::messages_shown`]).
@@ -549,6 +559,8 @@ impl Session {
             moved_in: changing::MovedIn::default(),
             moved_at: 0,
             transfers: Vec::new(),
+            archiving: None,
+            auto_archiving: Default::default(),
             arrived_invites: Vec::new(),
             tidy_waiting: Vec::new(),
             new_mail: Vec::new(),
@@ -577,6 +589,7 @@ impl Session {
             module: pim::Module::Mail,
             cal_mode: pim::CalMode::Week,
             cal_day: None,
+            free_slot: None,
             search_state: Default::default(),
             shown: 0,
             body: Default::default(),

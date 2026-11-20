@@ -51,7 +51,10 @@ fn each_persons_times_come_with_what_they_share() {
     assert_eq!(ben.busy.len(), 1);
     assert_eq!((ben.busy[0].show_as, ben.busy[0].subject.as_str()), (ShowAs::Tentative, ""));
     // Cleo and someone unknown: why, and nothing taken.
-    assert_eq!(answers[2], FreeBusyAnswer { email: people[2].clone(), busy: Vec::new(), error: Some("doesn't share their free/busy time".into()) });
+    assert_eq!(
+        answers[2],
+        FreeBusyAnswer { email: people[2].clone(), error: Some("doesn't share their free/busy time".into()), ..Default::default() }
+    );
     assert_eq!(answers[3].error.as_deref(), Some("not found in the organisation"));
 
     // Asked in UTC, its window as given.
@@ -119,4 +122,50 @@ fn a_broken_answer_is_read_safely() {
             assert!(b.end >= b.start);
         }
     }
+}
+
+/// Issue #185: a colleague's work hours come with their times, in their zone as the service
+/// writes it (Central Europe: an hour east, two in summer), each period's days and minutes.
+#[test]
+fn a_colleagues_work_hours_come_with_their_times() {
+    let mut d = colleagues();
+    d.working_hours.push((
+        "ana@contoso.example".into(),
+        "<t:WorkingHours><t:TimeZone><t:Bias>-60</t:Bias>\
+         <t:StandardTime><t:Bias>0</t:Bias><t:Time>03:00:00</t:Time><t:DayOrder>5</t:DayOrder><t:Month>10</t:Month><t:DayOfWeek>Sunday</t:DayOfWeek></t:StandardTime>\
+         <t:DaylightTime><t:Bias>-60</t:Bias><t:Time>02:00:00</t:Time><t:DayOrder>5</t:DayOrder><t:Month>3</t:Month><t:DayOfWeek>Sunday</t:DayOfWeek></t:DaylightTime>\
+         </t:TimeZone><t:WorkingPeriodArray>\
+         <t:WorkingPeriod><t:DayOfWeek>Monday Tuesday Wednesday Thursday</t:DayOfWeek><t:StartTimeInMinutes>480</t:StartTimeInMinutes><t:EndTimeInMinutes>1020</t:EndTimeInMinutes></t:WorkingPeriod>\
+         <t:WorkingPeriod><t:DayOfWeek>Friday</t:DayOfWeek><t:StartTimeInMinutes>480</t:StartTimeInMinutes><t:EndTimeInMinutes>720</t:EndTimeInMinutes></t:WorkingPeriod>\
+         </t:WorkingPeriodArray></t:WorkingHours>"
+            .into(),
+    ));
+    // Ben's: the schema's word for Monday to Friday, and a clock change at an hour past any.
+    d.working_hours.push((
+        "ben@contoso.example".into(),
+        "<t:WorkingHours><t:TimeZone><t:Bias>0</t:Bias>\
+         <t:StandardTime><t:Bias>0</t:Bias><t:Time>4294967295:99:00</t:Time><t:DayOrder>1</t:DayOrder><t:Month>10</t:Month><t:DayOfWeek>Sunday</t:DayOfWeek></t:StandardTime>\
+         <t:DaylightTime><t:Bias>-60</t:Bias><t:Time>02:00:00</t:Time><t:DayOrder>1</t:DayOrder><t:Month>3</t:Month><t:DayOfWeek>Sunday</t:DayOfWeek></t:DaylightTime>\
+         </t:TimeZone><t:WorkingPeriodArray>\
+         <t:WorkingPeriod><t:DayOfWeek>Weekday</t:DayOfWeek><t:StartTimeInMinutes>540</t:StartTimeInMinutes><t:EndTimeInMinutes>1020</t:EndTimeInMinutes></t:WorkingPeriod>\
+         </t:WorkingPeriodArray></t:WorkingHours>"
+            .into(),
+    ));
+    let server = serve(d);
+    let people: Vec<String> = ["ana@contoso.example", "ben@contoso.example", "cleo@contoso.example"].map(String::from).into();
+    let (from, to) = (at("2026-11-02T00:00:00Z"), at("2026-11-09T00:00:00Z"));
+    let answers = client(&server).availability(&people, from, to).unwrap();
+    let work = answers[0].work.as_ref().expect("Ana's work hours");
+    assert_eq!(work.periods.len(), 2);
+    assert_eq!((work.periods[0].days, work.periods[0].start, work.periods[0].end), (0b1111, 480, 1020));
+    assert_eq!((work.periods[1].days, work.periods[1].end), (0b1_0000, 720), "Friday mornings");
+    // Tuesday 3 November: 08:00 to 17:00 there is 07:00 to 16:00 UTC; Friday ends at 11:00.
+    let spans = work.spans(from, to);
+    assert!(spans.contains(&(at("2026-11-03T07:00:00Z"), at("2026-11-03T16:00:00Z"))), "{spans:?}");
+    assert!(spans.contains(&(at("2026-11-06T07:00:00Z"), at("2026-11-06T11:00:00Z"))), "{spans:?}");
+    assert_eq!(spans.len(), 5, "no weekend: {spans:?}");
+    let ben = answers[1].work.as_ref().expect("Ben's work hours");
+    assert_eq!((ben.periods[0].days, ben.periods[0].start), (0b1_1111, 540), "Weekday: Monday to Friday");
+    assert_eq!(ben.spans(from, to).len(), 5);
+    assert_eq!(answers[2].work, None, "Cleo's server says none");
 }

@@ -20,6 +20,14 @@ mailcraft-ui-egui = { workspace = true }
 # a feature of its own; leaving it out leaves the app without a clipboard).
 eframe = { workspace = true, features = ["clipboard", "default_fonts", "system_fonts", "wgpu", "accesskit", "wayland", "x11"] }
 egui = { workspace = true }
+# The computer's fonts, to write in (issue #166): the Craft apps' font catalog, without the
+# platform font services (it reads the font folders, and Windows' registry, itself).
+craft-font-catalog = { workspace = true }
+# A face is handed to egui only once it reads, as egui reads it (one that doesn't stops egui):
+# with egui's own skrifa, the version epaint takes (the egui fork holds it at 0.44 for glifo).
+# A newer one reads files egui's doesn't, so this one moves only with the fork's; a test in
+# `desktop/fonts.rs` fails when the two differ.
+skrifa = { version = "0.44", default-features = false, features = ["std"] }
 serde_json = { workspace = true }
 log = { workspace = true }
 # The local UTC offset for message times.

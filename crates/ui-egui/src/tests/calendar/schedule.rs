@@ -45,7 +45,7 @@ fn with_ana(name: &str) -> (MailApp, egui::Context, Vec<Drawn>) {
     let day = a.session.local_midnight(a.session.cal_days().0);
     let busy =
         vec![Busy { start: day + 8 * 3600, end: day + 9 * 3600, show_as: ShowAs::Busy, subject: "Budget review".into(), ..Default::default() }];
-    let answers = vec![FreeBusyAnswer { email: ANA.into(), busy, error: None }];
+    let answers = vec![FreeBusyAnswer { email: ANA.into(), busy, error: None, work: None }];
     a.session.apply(NetEvent::FreeBusy { account, from: day - 86_400, to: day + 2 * 86_400, answers });
     for _ in 0..2 {
         texts(&ctx, &mut a, vec![]);
@@ -119,4 +119,80 @@ fn the_schedule_moves_a_day_at_a_time() {
     let (d0, _) = a.session.cal_days();
     a.run("calendar.goto", json!({"step": 1}));
     assert_eq!(a.session.cal_days(), (d0 + 1, d0 + 2));
+}
+
+/// Issue #185: each row shades the hours its owner doesn't work: the user's own, 08:00 to 17:00;
+/// Ana's as her server gave them (09:00 to 17:00 an hour east, 08:00 to 16:00 here); all
+/// together's where not everyone works.
+#[test]
+fn each_row_shades_the_hours_not_worked() {
+    use mailcraft_engine::model::pim::work_hours::{WorkHours, WorkPeriod, WorkZone};
+    let (mut a, ctx, _) = with_ana("schedule-work-hours");
+    // A Wednesday.
+    a.run("calendar.goto", json!({"date": "2026-11-04"}));
+    let account = a.session.accounts[0].config.id.clone();
+    let day = a.session.local_midnight(a.session.cal_days().0);
+    let work = WorkHours { periods: vec![WorkPeriod { start: 9 * 60, ..Default::default() }], zone: WorkZone { bias: -60, ..Default::default() } };
+    let answers = vec![FreeBusyAnswer { email: ANA.into(), busy: Vec::new(), error: None, work: Some(work) }];
+    a.session.apply(NetEvent::FreeBusy { account, from: day - 86_400, to: day + 2 * 86_400, answers });
+    texts(&ctx, &mut a, vec![]);
+    let out = sized_frame(&ctx, &mut a, windows::layout::SIZE.with(std::cell::Cell::get), vec![]);
+    let drawn = texts_in(&out.shapes);
+    // The hours' places, from their names (just right of their line).
+    let name = |h: &str| drawn.iter().find(|d| d.text == h).map(|d| d.rect.min.x - 4.0).unwrap();
+    let w = name("10:00") - name("09:00");
+    let hour = |x: f32| ((x - name("09:00")) / w + 9.0).round() as i64;
+    let shade = if a.ui.tokens.dark { egui::Color32::from_black_alpha(70) } else { egui::Color32::from_black_alpha(13) };
+    let shaded = |y: f32| {
+        let mut hours: Vec<(i64, i64)> = out
+            .shapes
+            .iter()
+            .filter_map(|s| match &s.shape {
+                egui::Shape::Rect(r) if r.fill == shade && r.rect.min.y <= y && r.rect.max.y >= y => Some((hour(r.rect.min.x), hour(r.rect.max.x))),
+                _ => None,
+            })
+            .collect();
+        hours.sort_unstable();
+        hours
+    };
+    let own = a.session.pim[&a.session.accounts[0].config.id].calendars.iter().find(|c| !c.free_busy).map(|c| c.name.clone()).unwrap();
+    let own = if own.is_empty() || own == mailcraft_engine::model::pim::LOCAL { "Calendar".to_string() } else { own };
+    assert_eq!(shaded(row(&drawn, &own).center().y), [(0, 8), (17, 24)], "the user's own");
+    assert_eq!(shaded(row(&drawn, ANA).center().y), [(0, 8), (16, 24)], "Ana's");
+    assert_eq!(shaded(at(&drawn, "All together").center().y), [(0, 8), (16, 24)], "when not everyone works");
+}
+
+/// Issue #186: Next free time finds when everyone shown is free and marks it; clicked, it's a
+/// meeting then with them.
+#[test]
+fn the_next_free_time_is_marked_and_makes_the_meeting() {
+    let (mut a, ctx, _) = with_ana("schedule-free-time");
+    ctx.enable_accesskit();
+    texts(&ctx, &mut a, vec![]);
+    click_named(&ctx, &mut a, "Next free time");
+    let (from, to) = a.session.free_slot().unwrap_or_else(|| panic!("found: {:?}", a.session.notices));
+    assert_eq!(to - from, 1800, "half an hour, as it starts");
+    assert!(from >= a.session.clock.now);
+    // In the day view, tall enough for every hour: marked, and clicked, the meeting.
+    a.run("calendar.view", json!({"mode": "day"}));
+    let size = egui::vec2(1200.0, 1600.0);
+    for _ in 0..3 {
+        sized_frame(&ctx, &mut a, size, vec![]);
+    }
+    let all = named(&ctx, &mut a, size);
+    let at = all.iter().filter(|n| n.label.as_deref() == Some("Free for everyone")).find_map(Named::centre);
+    let at = at.unwrap_or_else(|| panic!("marked: {:?}", all.iter().filter_map(Named::name).collect::<Vec<_>>()));
+    let press = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    for events in [vec![Event::PointerMoved(at)], vec![press(true)], vec![press(false)], vec![]] {
+        sized_frame(&ctx, &mut a, size, events);
+    }
+    let Some(Dialog::Event(f)) = &a.ui.dialog else { panic!("a meeting: {:?}", a.ui.dialog.as_ref().map(std::mem::discriminant)) };
+    assert_eq!(
+        (f.start.as_str(), f.end.as_str(), f.guests.as_str()),
+        (crate::calendar::hm(from, &a.session).as_str(), crate::calendar::hm(to, &a.session).as_str(), ANA)
+    );
+    // Moved by hand, it's gone.
+    a.ui.dialog = None;
+    a.run("calendar.goto", json!({"step": 1}));
+    assert_eq!(a.session.free_slot(), None);
 }

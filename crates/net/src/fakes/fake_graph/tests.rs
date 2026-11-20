@@ -101,7 +101,7 @@ fn a_search_or_a_download_writes_nothing_for_an_account_removed_meanwhile() {
     let seen = store.removals("a1");
     crate::graph::sync_folder(&c, &mut st, &store, "a1", "INBOX", &crate::sync::SyncOptions { window: 2, prefetch: 0, ..Default::default() })
         .unwrap();
-    let unread = crate::sync::word_query("is:unread").unwrap();
+    let unread = crate::sync::word_query("is:unread", None).unwrap();
     assert_eq!(crate::graph::find_on_server(&c, &mut st, &store, ("a1", seen), "INBOX", &unread, 500).unwrap().1, 3);
     assert!(crate::graph::fetch_body(&c, &st, &store, &key, seen).is_ok() && store.has_body(&key));
 }

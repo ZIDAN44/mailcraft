@@ -14,7 +14,7 @@ mod date_pick;
 pub(crate) mod follow_up;
 mod online_meeting;
 mod pattern;
-#[cfg(test)]
+pub(crate) use date_pick::date_field;
 pub(crate) use pattern::form_day as pattern_day;
 mod repeat;
 mod showing;
@@ -535,16 +535,17 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
                 if !choices.contains(&f.reminder) {
                     choices.push(f.reminder);
                 }
-                egui::ComboBox::from_id_salt("event-reminder")
+                let r = egui::ComboBox::from_id_salt("event-reminder")
                     .width(194.0)
                     .selected_text(reminder_label(f.reminder))
                     .show_ui(ui, |ui| {
-                        for c in choices {
+                        for c in choices.iter().copied() {
                             ui.selectable_value(&mut f.reminder, c, reminder_label(c));
                         }
                     })
                     .response
                     .accessible_name(tl!("Reminder"));
+                crate::drop_down::keys(ui, &r, &mut f.reminder, &choices);
             });
         });
         showing::show_as_row(ui, t, f);
@@ -566,7 +567,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
             let name = f.calendars.get(f.calendar).map(|c| c.2.clone()).unwrap_or_default();
             form_row(ui, t, true, Some(Icon::Calendar), "Calendar", |ui| {
                 ui.allocate_ui_with_layout(vec2(260.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    egui::ComboBox::from_id_salt("event-calendar")
+                    let r = egui::ComboBox::from_id_salt("event-calendar")
                         .width(254.0)
                         .selected_text(name)
                         .show_ui(ui, |ui| {
@@ -576,6 +577,8 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
                         })
                         .response
                         .accessible_name(tl!("Calendar"));
+                    let all: Vec<usize> = (0..f.calendars.len()).collect();
+                    crate::drop_down::keys(ui, &r, &mut f.calendar, &all);
                 });
             });
         }

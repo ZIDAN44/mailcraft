@@ -297,7 +297,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             }
         }
         let shown = choices.iter().find(|(s, _, _)| *s == f.source).map_or_else(|| tl!("All addresses").to_string(), |(_, l, _)| l.clone());
-        egui::ComboBox::from_id_salt("address-book")
+        let r = egui::ComboBox::from_id_salt("address-book")
             .width(220.0)
             .selected_text(shown)
             .show_ui(ui, |ui| {
@@ -315,6 +315,14 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             })
             .response
             .labelled_by(book.id);
+        let sources: Vec<String> = choices.iter().map(|(source, _, _)| source.clone()).collect();
+        let mut at = f.source.clone();
+        crate::drop_down::keys(ui, &r, &mut at, &sources);
+        if at != f.source {
+            f.source = at;
+            f.stale = true;
+            f.selected = None;
+        }
     });
     // Outlook's "Show this address list first".
     if !f.source.is_empty() && f.source != f.default_source {

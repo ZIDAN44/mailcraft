@@ -54,6 +54,7 @@ impl Session {
             }
             Event::DirectoryAllowed { account, error } => self.directory_allowed(&account, error),
             Event::ServerSearched { account, query, keys, error, done } => {
+                self.archive_searched(&account, &query, &keys, error.as_deref(), done);
                 if let Some(ss) = self.server_search.as_mut().filter(|ss| ss.sent == query) {
                     // What's found so far shows at once; the account is done at its last answer.
                     if done {
@@ -101,6 +102,10 @@ impl Session {
                 let left = accounts::ExportLeft { skipped, already, occurrences, replaced, folders: folders_skipped };
                 self.exported(&account, messages, left, done, error)
             }
+            Event::Archived { account, path, messages, archived, skipped, folders_skipped, done, error } => {
+                let report = accounts::ArchiveReport { messages, archived, skipped, folders: folders_skipped };
+                self.archived(&account, &path, report, done, error)
+            }
             Event::Quota { account, used, limit } => {
                 if let Some(a) = self.account_mut(&account) {
                     a.quota = Some((used, limit));
@@ -114,6 +119,7 @@ impl Session {
             Event::Body { key, raw } => {
                 self.source_arrived(&key, &raw);
                 self.transfer_arrived(&key, &raw);
+                self.archive_source(&key, false);
                 // The open message's: parsed on another thread, where the window has one.
                 if !self.defer_arrived(&key, &raw) {
                     self.show_body(&key, &raw);
@@ -129,6 +135,7 @@ impl Session {
             Event::BodyFailed { key, error } => {
                 self.source_failed(&key, &error);
                 self.transfer_failed(&key, &error);
+                self.archive_source(&key, true);
                 for w in self.windows.iter_mut().filter(|w| w.key == key && w.parsed.is_none()) {
                     w.error = Some(error.clone());
                 }

@@ -155,4 +155,16 @@ impl Data {
         }
         out
     }
+
+    /// `MarkAllItemsAsRead` (Exchange 2013 and later): every message in the folders read, or
+    /// unread with `ReadFlag` false.
+    pub(super) fn mark_all_read(&mut self, op: &El) -> Vec<String> {
+        let read = op.find("ReadFlag").is_none_or(|r| r.text.trim() != "false");
+        let mut out = Vec::new();
+        for id in ids(op.child("FolderIds")) {
+            self.items.iter_mut().filter(|i| i.folder == id).for_each(|i| i.read = read);
+            out.push(ok(String::new()));
+        }
+        out
+    }
 }

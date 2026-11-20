@@ -219,12 +219,26 @@ pub enum SearchArg {
 
 /// The search box's query as IMAP `SEARCH` keys (RFC 3501 §6.4.4), for mail past what's kept
 /// (issue #4): words anywhere are `TEXT`, `from:` `FROM` and so on, `is:unread` `UNSEEN`, a
-/// leading `-` `NOT`. What IMAP can't ask (attachments, importance) is left to the list; `None`
-/// when nothing is left to ask.
-pub fn imap_criteria(query: &str) -> Option<Vec<SearchArg>> {
+/// leading `-` `NOT`; and the days of `period` ([`Query::server_period`]) as `SENTSINCE` and
+/// `SENTBEFORE`, by the Date: the list dates IMAP mail by (issue #179). What IMAP can't ask
+/// (attachments, importance) is left to the list; `None` when nothing is left to ask.
+///
+/// [`Query::server_period`]: mailcraft_model::search::Query::server_period
+pub fn imap_criteria(query: &str, period: Option<(Option<i64>, Option<i64>)>) -> Option<Vec<SearchArg>> {
     use mailcraft_model::search::{Field, Query, Term};
     let q = Query::parse(query);
     let mut out = Vec::new();
+    // A day as a SEARCH date (`2-Nov-2026`); none outside the years a server takes.
+    let day = |t: i64| crate::imap::internal_date(t).and_then(|d| d.split(' ').next().map(|d| d.trim_start_matches('0').to_string()));
+    if let Some((from, to)) = period {
+        if let Some(d) = from.and_then(day) {
+            out.extend([SearchArg::Atom("SENTSINCE".into()), SearchArg::Atom(d)]);
+        }
+        // Before the day after the last one asked: SENTBEFORE leaves its own day out.
+        if let Some(d) = to.and_then(|t| day(t.saturating_add(86_399))) {
+            out.extend([SearchArg::Atom("SENTBEFORE".into()), SearchArg::Atom(d)]);
+        }
+    }
     let atom = |s: &str| SearchArg::Atom(s.to_string());
     // `-attachment:x` as NOT TEXT x would also leave out mail that only mentions x.
     for c in q.clauses.iter().filter(|c| !(c.negated && c.term.asks_names())).take(16) {
@@ -306,6 +320,10 @@ pub struct WordQuery {
     pub unread: Option<bool>,
     pub flagged: Option<bool>,
     pub attachment: Option<bool>,
+    /// Received from (on) and before these times, Unix seconds (issue #179): asked as a filter
+    /// with the conditions above.
+    pub after: Option<i64>,
+    pub before: Option<i64>,
 }
 
 impl WordQuery {
@@ -317,11 +335,15 @@ impl WordQuery {
     }
 }
 
-/// [`WordQuery`] for a search box query; `None` when nothing is left to ask.
-pub fn word_query(query: &str) -> Option<WordQuery> {
+/// [`WordQuery`] for a search box query, with `period` ([`imap_criteria`]'s); `None` when
+/// nothing is left to ask.
+pub fn word_query(query: &str, period: Option<(Option<i64>, Option<i64>)>) -> Option<WordQuery> {
     use mailcraft_model::search::{Field, Query, Term};
     let q = Query::parse(query);
     let mut out = WordQuery::default();
+    if let Some((after, before)) = period {
+        (out.after, out.before) = (after, before);
+    }
     let mut parts: Vec<String> = Vec::new();
     let prefix = |f: &Field| match f {
         Field::Any => "",
@@ -360,7 +382,8 @@ pub fn word_query(query: &str) -> Option<WordQuery> {
     // Words that were nothing but quotes.
     parts.retain(|p| !p.ends_with("\"\"") && !p.ends_with(':') && !p.trim_start_matches("NOT ").is_empty());
     out.text = parts.join(" ");
-    (!out.text.is_empty() || out.unread.is_some() || out.flagged.is_some() || out.attachment.is_some()).then_some(out)
+    let asks = out.unread.is_some() || out.flagged.is_some() || out.attachment.is_some() || out.after.is_some() || out.before.is_some();
+    (!out.text.is_empty() || asks).then_some(out)
 }
 
 /// How many messages one `SEARCH` of a folder covers at first; it grows while the server answers

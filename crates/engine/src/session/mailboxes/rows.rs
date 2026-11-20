@@ -145,6 +145,30 @@ pub enum Row {
     /// A message (index into [`Session::list`]); with conversations on, the newest message of a
     /// conversation and how many messages (and unread ones) it holds.
     Message { index: usize, count: usize, unread: usize },
+    /// Under a heading folded away (issue #189): how many messages it hides, and how many of
+    /// them are unread. It takes no room; the heading above it says so.
+    Folded { count: usize, unread: usize },
+}
+
+/// The heading a message goes under as the list is arranged (`date_heading` for a date's).
+pub(super) fn heading_of(arrange: Arrange, m: Option<&Summary>, date_heading: impl FnOnce() -> &'static str) -> Row {
+    let heading = match arrange {
+        Arrange::Date => Row::Header(date_heading()),
+        Arrange::From => Row::Group(m.map(|m| person(Some(&m.from))).unwrap_or_default()),
+        Arrange::To => Row::Group(m.map(|m| person(m.to.first())).unwrap_or_default()),
+        Arrange::Subject => Row::Group(m.map(|m| m.base_subject()).unwrap_or_default()),
+        Arrange::Size => Row::Header(size_group(m.map_or(0, |m| m.size))),
+        Arrange::Flag => Row::Header(match m.map(flag_rank) {
+            Some(2) => "Flagged",
+            Some(1) => "Completed",
+            _ => "Not flagged",
+        }),
+        Arrange::Attachments => Row::Header(if m.is_some_and(|m| m.has_attachments) { "With attachments" } else { "Without attachments" }),
+    };
+    match heading {
+        Row::Group(g) if g.trim().is_empty() => Row::Header(if arrange == Arrange::Subject { "(no subject)" } else { "(nobody)" }),
+        h => h,
+    }
 }
 
 /// What a message row stands for: one message of the list, or a conversation (an index into
@@ -178,31 +202,28 @@ impl Session {
                 }
             }
         };
+        // The headings folded away here (issue #189): their messages are counted, not shown.
+        let folded = self.folded_here();
+        let is_folded = |h: &Row| folded.is_some_and(|set| self.heading_key(h).is_some_and(|k| set.contains(&k)));
+        let mut folded_at: Option<usize> = None;
+        // A message's row under its heading; false when its heading is folded away.
         let mut push = |out: &mut Vec<Row>, index: usize, count: usize, unread: usize, date: i64| {
-            // The heading this message goes under, as the list is arranged.
-            let m = self.list.get(index);
-            let heading = match arrange {
-                Arrange::Date => Row::Header(date_heading(date)),
-                Arrange::From => Row::Group(m.map(|m| person(Some(&m.from))).unwrap_or_default()),
-                Arrange::To => Row::Group(m.map(|m| person(m.to.first())).unwrap_or_default()),
-                Arrange::Subject => Row::Group(m.map(|m| m.base_subject()).unwrap_or_default()),
-                Arrange::Size => Row::Header(size_group(m.map_or(0, |m| m.size))),
-                Arrange::Flag => Row::Header(match m.map(|m| flag_rank(m)) {
-                    Some(2) => "Flagged",
-                    Some(1) => "Completed",
-                    _ => "Not flagged",
-                }),
-                Arrange::Attachments => Row::Header(if m.is_some_and(|m| m.has_attachments) { "With attachments" } else { "Without attachments" }),
-            };
-            let heading = match heading {
-                Row::Group(g) if g.trim().is_empty() => Row::Header(if arrange == Arrange::Subject { "(no subject)" } else { "(nobody)" }),
-                h => h,
-            };
+            let heading = heading_of(arrange, self.list.get(index).map(|m| &**m), || date_heading(date));
             if last.as_ref() != Some(&heading) {
+                folded_at = is_folded(&heading).then_some(out.len() + 1);
                 out.push(heading.clone());
+                if folded_at.is_some() {
+                    out.push(Row::Folded { count: 0, unread: 0 });
+                }
                 last = Some(heading);
             }
+            if let Some(Row::Folded { count: c, unread: u }) = folded_at.and_then(|at| out.get_mut(at)) {
+                *c = c.saturating_add(count);
+                *u = u.saturating_add(unread);
+                return false;
+            }
             out.push(Row::Message { index, count, unread });
+            true
         };
         // Pinned mail first, under its own heading (searches keep plain date order).
         let pins = self.search.is_none();
@@ -215,8 +236,7 @@ impl Session {
                 if t.messages.iter().any(|&i| pinned(i)) {
                     pinned_rows.push(Row::Message { index: newest, count: t.messages.len(), unread });
                     pinned_of.push(Stands::Thread(ti));
-                } else {
-                    push(&mut out, newest, t.messages.len(), unread, t.latest);
+                } else if push(&mut out, newest, t.messages.len(), unread, t.latest) {
                     out_of.push(Stands::Thread(ti));
                 }
             }
@@ -225,14 +245,22 @@ impl Session {
                 if pinned(i) {
                     pinned_rows.push(Row::Message { index: i, count: 1, unread: usize::from(!m.flags.seen) });
                     pinned_of.push(Stands::One(i));
-                } else {
-                    push(&mut out, i, 1, usize::from(!m.flags.seen), m.when());
+                } else if push(&mut out, i, 1, usize::from(!m.flags.seen), m.when()) {
                     out_of.push(Stands::One(i));
                 }
             }
         }
         let rows = if pinned_rows.is_empty() {
             out
+        } else if is_folded(&Row::Header("Pinned")) {
+            // Pinned mail folded away too: its heading and how much it hides.
+            let (count, unread) = pinned_rows.iter().fold((0usize, 0usize), |(c, u), r| match r {
+                Row::Message { count, unread, .. } => (c.saturating_add(*count), u.saturating_add(*unread)),
+                _ => (c, u),
+            });
+            let mut rows = vec![Row::Header("Pinned"), Row::Folded { count, unread }];
+            rows.extend(out);
+            rows
         } else {
             pinned_rows.insert(0, Row::Header("Pinned"));
             pinned_rows.extend(out);

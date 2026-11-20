@@ -35,8 +35,8 @@ mod services;
 // Each part by its own name, wherever its file sits (`crate::list`, `mailcraft_ui_egui::theme`).
 use dialogs::pim_dialogs;
 pub use look::thumbs::VideoFrame;
-pub use look::{bidi, craft_fonts, faces, icons, motion, theme};
-use look::{progress, thumbs, widgets};
+pub use look::{bidi, craft_fonts, faces, icons, mail_fonts, motion, theme};
+use look::{drop_down, progress, thumbs, widgets};
 pub use panes::backstage;
 use panes::{calendar, list, nav, notes, organize, people, reminders, shown, tasks, todo_bar};
 
@@ -53,7 +53,7 @@ pub use app::{
     Action, BootCard, ClipboardRead, FramePart, MailApp, Monitors, PaneSizes, RibbonTab, UiState, WindowPlace, after_open, alt_code_pages, alt_codes,
     clipboard_keys, control_click, set_monitors,
 };
-pub(crate) use app::{SearchDrop, junk_menu, scope_label, use_editor};
+pub(crate) use app::{Pane, SearchDrop, junk_menu, scope_label, use_editor};
 pub use dialogs::{AccountKind, Dialog};
 
 /// MailCraft's id: the Linux app id (its `.desktop` file and icon are named so), the macOS bundle

@@ -1862,3 +1862,95 @@ count	occurrences	kez
 	The first account's Inbox	İlk hesabın Gelen Kutusu
 	The folder open last	En son açılan klasör
 	Add reminder…	Anımsatıcı ekle…
+	No suggestions	Öneri yok
+	Ignore all	Tümünü yoksay
+	Add to dictionary	Sözlüğe ekle
+	Check spelling as you type	Yazarken yazımı denetle
+	Misspelled words are underlined in red. Right-click one for suggestions.	Yanlış yazılan sözcüklerin altı kırmızıyla çizilir. Öneriler için birine sağ tıklayın.
+	There's no spelling dictionary for {language} on this computer.	Bu bilgisayarda {language} için yazım sözlüğü yok.
+	Bold on	Kalın açık
+	Bold off	Kalın kapalı
+	Italic on	İtalik açık
+	Italic off	İtalik kapalı
+	Underline on	Altı çizili açık
+	Underline off	Altı çizili kapalı
+	{name}: on	{name}: açık
+	{name}: off	{name}: kapalı
+	Font	Yazı tipi
+	Default font	Varsayılan yazı tipi
+	Font for new messages	Yeni iletilerin yazı tipi
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Yeni iletiler, yanıtlar ve iletmeler bu yazı tipiyle yazılır. Yazı tipi belirlediğiniz metin kendi yazı tipini korur.
+	Clean up old items	Eski öğeleri temizle
+	Clean up old items…	Eski öğeleri temizle…
+	Move old mail to an archive file on this computer, out of the mailbox.	Eski postaları posta kutusundan bu bilgisayardaki bir arşiv dosyasına taşı.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	Eski postalar bu bilgisayardaki bir Outlook veri dosyasına, aynı adlı klasörlere taşınır ve ardından posta kutusundan silinir; böylece posta kutusunda yer açılır. Dosya klasör listesinde görünür; postaları orada okunabilir, aranabilir ve geri taşınabilir.
+	Archive this folder and the folders in it	Bu klasörü ve içindeki klasörleri arşivle
+	Archive mail received before	Şu tarihten önce alınan postaları arşivle
+	Archive file	Arşiv dosyası
+	That's not a date.	Bu bir tarih değil.
+	Archive mail older than	Şundan eski postaları arşivle:
+	Move old mail to this file	Eski postaları bu dosyaya taşı
+	Delete old mail for good	Eski postaları kalıcı olarak sil
+	AutoArchive	Otomatik Arşivleme
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	Birkaç günde bir, her klasörün eski postaları klasörün kendi ayarlarına (Özellikler'de) ya da bu ayarlara göre bu bilgisayardaki bir veri dosyasına arşivlenir veya silinir.
+	Run AutoArchive every	Otomatik Arşivlemeyi şu aralıkla çalıştır:
+	Ask before AutoArchive runs	Otomatik Arşivleme çalışmadan önce sor
+	Show the archive file in the folder list	Arşiv dosyasını klasör listesinde göster
+	For folders without settings of their own	Kendi ayarları olmayan klasörler için
+	Apply these settings to all folders now	Bu ayarları şimdi tüm klasörlere uygula
+	Folders with settings of their own follow these instead.	Kendi ayarları olan klasörler de bunun yerine bu ayarları izler.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} gün geçti: Otomatik Arşivleme ayarlandığı gibi eski postalar şimdi arşivlensin mi?
+	Archive now	Şimdi arşivle
+	Off: old mail stays where it is until you clean it up.	Kapalı: eski postalar siz temizleyene kadar yerinde kalır.
+	Every {days} days, old mail is archived by each folder's settings.	Her {days} günde bir, eski postalar her klasörün ayarlarına göre arşivlenir.
+	AutoArchive settings…	Otomatik Arşivleme ayarları…
+	Don't archive this folder	Bu klasörü arşivleme
+	Archive it by the default settings	Varsayılan ayarlarla arşivle
+	Archive it by these settings	Bu ayarlarla arşivle
+	weeks	hafta
+	months	ay
+	Folder density	Klasör yoğunluğu
+	How tightly the folder pane's folders sit	Klasör bölmesinde klasörlerin ne kadar sık durduğu
+	Spacious	Geniş
+	Medium	Orta
+	Sort folders A to Z	Klasörleri A'dan Z'ye sırala
+	Work days	Çalışma günleri
+	The work week shows these days	Çalışma haftası bu günleri gösterir
+	Work hours	Çalışma saatleri
+	The calendar shades the hours outside them	Takvim bunların dışındaki saatleri gölgeler
+	Start time	Başlangıç saati
+	End time	Bitiş saati
+	Meeting length	Toplantı süresi
+	How long a time free for everyone is looked for	Herkesin boş olduğu ne kadar uzun bir zaman aranacağı
+	Previous free time	Önceki boş zaman
+	Next free time	Sonraki boş zaman
+	The time before when everyone shown is free, within work hours	Gösterilen herkesin çalışma saatleri içinde boş olduğu önceki zaman
+	The next time when everyone shown is free, within work hours	Gösterilen herkesin çalışma saatleri içinde boş olduğu sonraki zaman
+	Free for everyone	Herkes boş
+	Free for everyone: click to make a meeting with them	Herkes boş: onlarla toplantı oluşturmak için tıklayın
+	No time when everyone is free in the next six weeks	Önümüzdeki altı haftada herkesin boş olduğu bir zaman yok
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	Uygunluk bilgilerinin ulaştığı yere kadar herkesin boş olduğu bir zaman yok: bilgiler gelince Sonraki daha ileriye bakar
+	No earlier time when everyone is free	Herkesin boş olduğu daha erken bir zaman yok
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Uygunluk bilgilerinin ulaştığı yere kadar herkesin boş olduğu daha erken bir zaman yok: bilgiler gelince Önceki daha geriye bakar
+	Their free/busy times haven't come yet: try again in a moment	Uygunluk bilgileri henüz gelmedi: biraz sonra yeniden deneyin
+	Some people's free/busy times can't be had: they count as free	Bazı kişilerin uygunluk bilgileri alınamıyor: boş sayılırlar
+	Collapse this group	Bu grubu daralt
+	Expand this group	Bu grubu genişlet
+	Collapse all groups	Tüm grupları daralt
+	Expand all groups	Tüm grupları genişlet
+	Show this group's mail	Bu grubun postalarını göster
+	Hide this group's mail	Bu grubun postalarını gizle
+	{heading} ({count}), folded	{heading} ({count}), daraltılmış
+	Clashes with {event} on your calendar	Takviminizdeki {event} ile çakışıyor
+	Clashes with {n} events on your calendar	Takviminizdeki {n} etkinlikle çakışıyor
+	In {n} min	{n} dk içinde
+	Line between the appointments and the tasks	Randevular ile görevler arasındaki çizgi
+	Mark all in {folder} as read	{folder} içindeki her şeyi okundu olarak işaretle
+	Mark all shown as read	Gösterilen her şeyi okundu olarak işaretle
+	More ways to mark mail read	Postayı okundu olarak işaretlemenin diğer yolları
+	Nothing else on your calendar then	O saatte takviminizde başka bir şey yok
+	Right after {event} on your calendar	Takviminizdeki {event} etkinliğinin hemen ardından
+	Right before {event} on your calendar	Takviminizdeki {event} etkinliğinden hemen önce
+	{h} h	{h} sa
+	Notify of mail in Other too	Diğer'deki postalar için de bildir
+	Off, only mail that goes to Focused is announced	Kapalıyken yalnızca Odaklanmış'a giden postalar bildirilir

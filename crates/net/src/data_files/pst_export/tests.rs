@@ -553,6 +553,7 @@ fn a_completed_follow_up_round_trips() {
 }
 
 mod ansi;
+mod archive;
 mod big;
 mod calendar;
 mod kinds;

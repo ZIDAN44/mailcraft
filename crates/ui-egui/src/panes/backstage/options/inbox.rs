@@ -20,6 +20,11 @@ pub(super) fn inbox(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>
         ];
         for (i, (label, about, on, cmd)) in switches.into_iter().enumerate() {
             switch_row(ui, t, i == 0, Switch { label, about, on, cmd }, acts);
+            // With both on, Other's mail is announced only when asked (issue #199).
+            if cmd == "view.focused" && s.prefs.focused_inbox && s.prefs.notify {
+                let (label, about) = (tl!("Notify of mail in Other too"), Some(tl!("Off, only mail that goes to Focused is announced")));
+                switch_row(ui, t, false, Switch { label, about, on: s.prefs.notify_other, cmd: "view.notifyOther" }, acts);
+            }
         }
         answered_invites(s, t, ui, acts);
         let switches = [
@@ -69,7 +74,7 @@ fn answered_invites(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>
                 let current = chosen
                     .and_then(|c| a.folders.iter().find(|f| &f.path == c))
                     .map_or_else(|| tl!("Choose a folder").to_string(), crate::i18n::folder);
-                egui::ComboBox::from_id_salt(("answered-folder", &a.config.id))
+                let r = egui::ComboBox::from_id_salt(("answered-folder", &a.config.id))
                     .selected_text(current)
                     .show_ui(ui, |ui| {
                         for f in a.folders.iter().filter(fits) {
@@ -80,6 +85,14 @@ fn answered_invites(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>
                     })
                     .response
                     .accessible_name(label.as_str());
+                let paths: Vec<Option<&String>> = a.folders.iter().filter(fits).map(|f| Some(&f.path)).collect();
+                let mut at = chosen;
+                crate::drop_down::keys(ui, &r, &mut at, &paths);
+                if at != chosen
+                    && let Some(folder) = at
+                {
+                    acts.push(Action::Run("options.answeredInvites", json!({"account": a.config.id, "folder": folder})));
+                }
             });
         }
     }

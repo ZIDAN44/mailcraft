@@ -26,6 +26,11 @@ impl Pool {
         let Some(job) = self.held_for_compaction(job) else { return };
         if let Job::SearchServer { search, .. } = &job {
             self.search.store(*search, Ordering::Relaxed);
+            // After the changes made before it, as the server has them: those reach the account's
+            // thread through the pool's thread for changes, and a search sent straight there went
+            // first (issue #179: an archive's next round found again the mail just archived,
+            // not yet deleted on the server).
+            self.edits.flush();
         }
         match job {
             Job::FetchUrl { url } => self.fetch_url(url),
@@ -64,6 +69,9 @@ impl Pool {
                 self.submit(if keep { Job::KeepDraft { account, raw, folder, replaces } } else { Job::SaveDraft { account, raw, folder, replaces } });
             }
             Job::ExportPst { account, path, name, follow_up } => self.export_pst(account, path, name, follow_up),
+            Job::ArchivePst { account, path, folders, only, before, follow_up } => {
+                self.archive_pst(account, path, crate::pst_export::Pick { folders, only, before }, follow_up)
+            }
             Job::SetSync { messages, offline } => self.set_sync(messages, offline),
             Job::WorkOffline { on } => self.work_offline(on),
             Job::CancelTransfers { account } => self.cancel_transfers(&account),
@@ -191,7 +199,7 @@ impl Pool {
             Job::FreeBusy { account, people, from, to } if mail_offline => {
                 let answers = people
                     .into_iter()
-                    .map(|email| mailcraft_model::pim::free_busy::FreeBusyAnswer { email, busy: Vec::new(), error: Some(OFFLINE.into()) })
+                    .map(|email| mailcraft_model::pim::free_busy::FreeBusyAnswer { email, error: Some(OFFLINE.into()), ..Default::default() })
                     .collect();
                 self.sink.emit(Event::FreeBusy { account, from, to, answers });
             }

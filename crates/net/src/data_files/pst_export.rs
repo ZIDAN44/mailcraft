@@ -21,21 +21,25 @@
 //! make or in Outlook 97–2002's ANSI one ([`format`]: its strings 8-bit, in Windows-1252 or, for a
 //! message whose text it can't hold, UTF-8), encoded as Outlook encodes them or not. The file is
 //! written as a copy that replaces it at the end, so a failed export leaves it as it was.
+//!
+//! An archive ([`archive()`]) is written the same way, of a folder's old mail only, and names
+//! the messages the file has now, so they can leave the mailbox.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io;
 use std::path::Path;
 use std::rc::Rc;
 
 use mailcraft_mime as mime;
 use mailcraft_model::organize::FollowUpDays;
-use mailcraft_model::{Folder, FolderRole, utf7};
+use mailcraft_model::{Folder, FolderRole, MessageKey, utf7};
 use mailcraft_pst::{
     Format, NodeId,
     write::{self, BatchMessage, NewAttachment, NewMessage, NewProperty, NewRecipient, PropertyKey, RecipientType},
 };
 use mailcraft_store::Store;
 
+mod archive;
 mod calendar;
 mod contact;
 mod files;
@@ -51,6 +55,7 @@ mod task;
 mod tests;
 mod writing;
 
+pub use archive::{Archived, Pick, archive};
 use format::{format_of, store_of};
 use item::Owned;
 use writing::{append, write};
@@ -94,37 +99,43 @@ pub struct Exported {
 
 /// The `Message-ID`s in an existing data file's folders (a file the writer can add to: the Unicode
 /// format or Outlook 97–2002's ANSI one, encoded or not, not Outlook's offline copy of a server
-/// account).
-fn ids_in(path: &Path) -> Result<HashSet<String>, String> {
+/// account), each with the folders it's in: their names from the top of the file, in ASCII lower
+/// case, as the writer finds a folder by its name.
+fn ids_in(path: &Path) -> Result<HashMap<String, Vec<Vec<String>>>, String> {
     let mut head = [0u8; 12];
     std::fs::File::open(path).and_then(|mut f| io::Read::read_exact(&mut f, &mut head)).map_err(|e| e.to_string())?;
     if !head.starts_with(b"!BDN") || head.get(8..10) != Some(b"SM") {
         return Err("it isn't an Outlook data file: choose another name to make a new one".into());
     }
-    let read = || -> io::Result<HashSet<String>> {
+    let read = || -> io::Result<HashMap<String, Vec<Vec<String>>>> {
         let any = store_of(path)?;
-        let mut ids = HashSet::new();
+        let mut ids: HashMap<String, Vec<Vec<String>>> = HashMap::new();
         // Each folder once, as the import reads them: a damaged or crafted file's folder listed
         // under itself twice was gone down 2^64 ways.
         let mut guard = super::pst::Guard::to_depth(MAX_DEPTH + 1);
         let top = any.ipm_subtree()?;
         let _ = guard.admit(top, 0);
-        let mut stack = vec![(any.open_folder(top)?, 0usize)];
-        while let Some((folder, depth)) = stack.pop() {
+        let mut stack = vec![(any.open_folder(top)?, Vec::new())];
+        while let Some((folder, names)) = stack.pop() {
             if let Some(contents) = folder.contents_table() {
                 for row in contents.rows_matrix().take(super::pst::MAX_ROWS) {
                     let Ok(props) = any.message_properties(row.id(), &[0x1035]) else { continue };
                     if let Some(id) = props.get(0x1035).and_then(crate::pst::text_of) {
-                        ids.insert(mailcraft_model::thread::norm_id(&id));
+                        let places = ids.entry(mailcraft_model::thread::norm_id(&id)).or_default();
+                        if !places.contains(&names) {
+                            places.push(names.clone());
+                        }
                     }
                 }
             }
             if let Some(table) = folder.hierarchy_table() {
                 for row in table.rows_matrix() {
-                    if guard.admit(row.id(), depth + 1).is_ok()
+                    if guard.admit(row.id(), names.len() + 1).is_ok()
                         && let Ok(sub) = any.open_folder(row.id())
                     {
-                        stack.push((sub, depth + 1));
+                        let mut inner = names.clone();
+                        inner.push(sub.properties().display_name().unwrap_or_default().to_ascii_lowercase());
+                        stack.push((sub, inner));
                     }
                 }
             }
@@ -152,6 +163,22 @@ pub fn export(
     follow_up: &FollowUpDays,
     progress: &mut dyn FnMut(usize),
 ) -> Result<Exported, String> {
+    write_file(store, account, name, path, follow_up, None, progress).map(|(done, _)| done)
+}
+
+/// [`export`], or with `pick` an archive: only that mail; a message the file has already taken
+/// as there only when it's in the folder it would go to; nothing of the calendar, contacts, notes
+/// or tasks; and the file left as it was when nothing is written. Also the messages of `pick` the
+/// file has now.
+fn write_file(
+    store: &Store,
+    account: &str,
+    name: &str,
+    path: &Path,
+    follow_up: &FollowUpDays,
+    pick: Option<&Pick>,
+    progress: &mut dyn FnMut(usize),
+) -> Result<(Exported, Vec<MessageKey>), String> {
     let folders = store.load_folders(account).map_err(|e| e.to_string())?;
     let mut done = Exported::default();
     let temp = path.with_extension("pst.part");
@@ -159,7 +186,7 @@ pub fn export(
     let spill = files::Spill::new(path.with_extension("pst.part-files"));
     // Added to: a copy of it, with the messages it has already left out.
     let existing = path.is_file();
-    let had = if existing { ids_in(path)? } else { HashSet::new() };
+    let had = if existing { ids_in(path)? } else { HashMap::new() };
     if existing {
         std::fs::copy(path, &temp).map_err(|e| e.to_string())?;
     }
@@ -174,11 +201,13 @@ pub fn export(
     // Where the mail went, so the contacts, notes and tasks of a new file don't go there.
     let mut taken: Vec<Vec<String>> = Vec::new();
     let mut inside = pim::Written::default();
+    // The messages of `pick` the file has, each once its batch is written.
+    let mut archived: Vec<MessageKey> = Vec::new();
     // Where each folder goes; in an ANSI file, folders whose names it would write alike apart.
     let placed: Vec<Vec<String>> = folders.iter().map(|f| place::place(f, &folders, &targets)).collect();
     let placed = if format == Format::Ansi { place::apart(&placed, &targets) } else { placed };
     let mut write_all = || -> Result<(), String> {
-        for (f, folder) in folders.iter().zip(&placed).filter(|(f, _)| f.selectable) {
+        for (f, folder) in folders.iter().zip(&placed).filter(|(f, _)| f.selectable && pick.is_none_or(|p| p.takes(f))) {
             let st = match store.load_folder(account, &f.path) {
                 Ok(st) => st,
                 Err(e) => {
@@ -189,17 +218,28 @@ pub fn export(
             };
             let folder = folder.clone();
             taken.push(folder.clone());
+            // An archive takes one as there already only in the folder it would go to.
+            let lower: Option<Vec<String>> = pick.map(|_| folder.iter().map(|n| n.to_ascii_lowercase()).collect());
             let folder: Vec<&str> = folder.iter().map(String::as_str).collect();
             let mut batch = Vec::new();
+            let mut keys: Vec<MessageKey> = Vec::new();
             let mut bytes = 0usize;
-            let mut messages = st.messages.iter().peekable();
+            let mut messages = st.messages.iter().filter(|s| pick.is_none_or(|p| p.old(s))).peekable();
             while let Some(s) = messages.next() {
                 let state = item::state(s, f.role, follow_up);
                 match store.read_body(&s.key).and_then(|raw| item::owned(&raw, s.received, state, &owner, Some(&spill))) {
-                    Some(m) if !m.message_id.is_empty() && had.contains(&mailcraft_model::thread::norm_id(&m.message_id)) => done.already += 1,
+                    Some(m) if there_already(&had, &m.message_id, lower.as_deref()) => {
+                        done.already += 1;
+                        if pick.is_some() {
+                            archived.push(s.key.clone());
+                        }
+                    }
                     Some(m) => {
                         bytes = bytes.saturating_add(m.held());
                         batch.push(m);
+                        if pick.is_some() {
+                            keys.push(s.key.clone());
+                        }
                     }
                     None => done.skipped += 1,
                 }
@@ -208,6 +248,7 @@ pub fn export(
                 if full || (messages.peek().is_none() && !batch.is_empty()) {
                     let n = batch.len();
                     write(&temp, &folder, &std::mem::take(&mut batch), &mut created)?;
+                    archived.append(&mut keys);
                     spill.clear();
                     bytes = 0;
                     done.messages += n;
@@ -216,21 +257,29 @@ pub fn export(
             }
         }
         record_special(&temp, &folders, &targets, created);
-        inside = pim::write(&temp, &pim, &taken, existing, &mut created, now, &owner, account)?;
+        if pick.is_none() {
+            inside = pim::write(&temp, &pim, &taken, existing, &mut created, now, &owner, account)?;
+        }
         Ok(())
     };
     // Stored mail is parsed and calendars built in there: whatever fails, the export ends and says so.
     let written = std::panic::catch_unwind(std::panic::AssertUnwindSafe(&mut write_all));
     let result = match written {
+        // An archive with nothing to write leaves the file as it was, or makes none.
+        Ok(Ok(())) if pick.is_some() && done.messages == 0 => Ok(false),
         Ok(Ok(())) if !created => Err("there is no mail on this computer to export".to_string()),
         // A file added to keeps its own name.
-        Ok(Ok(())) if existing => Ok(()),
-        Ok(Ok(())) => write::set_store_display_name(&temp, name).map_err(|e| e.to_string()),
+        Ok(Ok(())) if existing => Ok(true),
+        Ok(Ok(())) => write::set_store_display_name(&temp, name).map(|()| true).map_err(|e| e.to_string()),
         Ok(Err(e)) => Err(e),
         Err(_) => Err("the data file could not be written".into()),
     };
     match result {
-        Ok(()) => {
+        Ok(false) => {
+            let _ = std::fs::remove_file(&temp);
+            Ok((done, archived))
+        }
+        Ok(true) => {
             // `rename` replaces a file already there (MoveFileExW with MOVEFILE_REPLACE_EXISTING on
             // Windows), so the old file stays until the new one takes its place; if it can't, the
             // mail is still in the `.pst.part` file, and the error says so.
@@ -240,7 +289,7 @@ pub fn export(
             if inside.occurrences > 0 {
                 log::info!("{} occurrences of series whose rule Outlook can't keep went in one by one", inside.occurrences);
             }
-            Ok(Exported {
+            let done = Exported {
                 events: inside.events,
                 occurrences: inside.occurrences,
                 tasks: inside.tasks,
@@ -249,12 +298,26 @@ pub fn export(
                 pim_already: inside.already,
                 pim_replaced: inside.replaced,
                 ..done
-            })
+            };
+            Ok((done, archived))
         }
         Err(e) => {
             let _ = std::fs::remove_file(&temp);
             Err(e)
         }
+    }
+}
+
+/// Whether the file has the message with `id` already: anywhere, or, with `folder` (its names in
+/// ASCII lower case), in that folder. A message without one is never taken as there.
+fn there_already(had: &HashMap<String, Vec<Vec<String>>>, id: &str, folder: Option<&[String]>) -> bool {
+    if id.trim().is_empty() {
+        return false;
+    }
+    match (had.get(&mailcraft_model::thread::norm_id(id)), folder) {
+        (Some(places), Some(folder)) => places.iter().any(|p| p.as_slice() == folder),
+        (Some(_), None) => true,
+        (None, _) => false,
     }
 }
 

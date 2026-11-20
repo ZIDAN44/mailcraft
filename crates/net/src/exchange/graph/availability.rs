@@ -37,7 +37,7 @@ pub fn answers_in(answer: &Value, people: &[String]) -> Vec<FreeBusyAnswer> {
         .map(|(i, email)| {
             let named = given.iter().find(|v| v.get("scheduleId").and_then(Value::as_str).is_some_and(|s| s.eq_ignore_ascii_case(email)));
             let Some(v) = named.or_else(|| given.get(i).filter(|v| v.get("scheduleId").is_none())) else {
-                return FreeBusyAnswer { email: email.clone(), busy: Vec::new(), error: Some("the server gave no free/busy times".into()) };
+                return FreeBusyAnswer { email: email.clone(), error: Some("the server gave no free/busy times".into()), ..Default::default() };
             };
             if let Some(e) = v.get("error").filter(|e| !e.is_null()) {
                 let text = |k: &str| e.get(k).and_then(Value::as_str).unwrap_or("");
@@ -46,11 +46,37 @@ pub fn answers_in(answer: &Value, people: &[String]) -> Vec<FreeBusyAnswer> {
                     "ErrorNoFreeBusyAccess" => "doesn't share their free/busy time".to_string(),
                     code => (if text("message").is_empty() { code } else { text("message") }).chars().take(300).collect(),
                 };
-                return FreeBusyAnswer { email: email.clone(), busy: Vec::new(), error: Some(why) };
+                return FreeBusyAnswer { email: email.clone(), error: Some(why), ..Default::default() };
             }
-            FreeBusyAnswer { email: email.clone(), busy: busy_in(v), error: None }
+            FreeBusyAnswer { email: email.clone(), busy: busy_in(v), error: None, work: work_in(v) }
         })
         .collect()
+}
+
+/// When one person works, in a `scheduleInformation`'s `workingHours` (issue #185): their days,
+/// hours (`08:00:00.0000000`) and zone, by its name.
+fn work_in(v: &Value) -> Option<mailcraft_model::pim::work_hours::WorkHours> {
+    use mailcraft_model::pim::work_hours::{WorkHours, WorkPeriod, WorkZone};
+    let w = v.get("workingHours")?;
+    const DAYS: [&str; 7] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+    let days = w
+        .get("daysOfWeek")?
+        .as_array()?
+        .iter()
+        .filter_map(Value::as_str)
+        .filter_map(|d| DAYS.iter().position(|x| x.eq_ignore_ascii_case(d)))
+        .fold(0u8, |m, i| m | (1 << i));
+    let minutes = |k: &str| -> Option<u16> {
+        let t = w.get(k)?.as_str()?;
+        let mut parts = t.split(':');
+        let (h, m) = (parts.next()?.parse::<u16>().ok()?, parts.next()?.parse::<u16>().ok()?);
+        (h <= 24 && m < 60).then_some(h * 60 + m)
+    };
+    let name = w.get("timeZone").and_then(|z| z.get("name")).and_then(Value::as_str).map(|n| n.chars().take(100).collect());
+    Some(WorkHours {
+        periods: vec![WorkPeriod { days, start: minutes("startTime")?, end: minutes("endTime")? }],
+        zone: WorkZone { name, ..Default::default() },
+    })
 }
 
 /// The times one person's calendar is taken, in a `scheduleInformation`.

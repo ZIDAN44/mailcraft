@@ -4,7 +4,8 @@
 use crate::*;
 
 impl MailApp {
-    /// Calendar's: New event, Today, the views, and its calendars side by side.
+    /// Calendar's: New event, Today, a time free for everyone, the views, and its calendars side
+    /// by side.
     pub(super) fn ribbon_calendar(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
         let s = &self.session;
@@ -15,6 +16,8 @@ impl MailApp {
         if widgets::tool_button(ui, Icon::Clock, "Today", &t, true).clicked() {
             acts.push(Action::Run("calendar.goto", json!({"date": "today"})));
         }
+        widgets::group_sep(ui, &t);
+        free_time(ui, s, t, acts);
         widgets::group_sep(ui, &t);
         calendar_views(ui, s, t, acts);
     }
@@ -120,6 +123,32 @@ impl MailApp {
         }
         widgets::group_sep(ui, &t);
         people_views(ui, &mut self.ui, t);
+    }
+}
+
+/// A time when everyone shown is free (issue #186), as Outlook's AutoPick finds one: how long,
+/// and the one before or next.
+fn free_time(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
+    let label = |m: u16| crate::pim_dialogs::reminder_label(Some(i64::from(m)));
+    let length = label(s.prefs.free_time_minutes);
+    let r = widgets::tool_button(ui, Icon::Clock, widgets::Label::shown("Meeting length", &length), &t, true)
+        .on_hover_text(tl!("How long a time free for everyone is looked for"));
+    egui::Popup::menu(&r).show(|ui| {
+        for m in mailcraft_engine::FREE_LENGTHS {
+            if ui.selectable_label(s.prefs.free_time_minutes == m, label(m)).clicked() {
+                acts.push(Action::Run("calendar.freeLength", json!({"minutes": m})));
+                ui.close();
+            }
+        }
+    });
+    let any = !s.shown_calendars().is_empty();
+    let r = widgets::tool_button(ui, Icon::ChevronLeft, "Previous free time", &t, any);
+    if r.on_hover_text(tl!("The time before when everyone shown is free, within work hours")).clicked() {
+        acts.push(Action::Run("calendar.findFree", json!({"back": true})));
+    }
+    let r = widgets::tool_button(ui, Icon::ChevronRight, "Next free time", &t, any);
+    if r.on_hover_text(tl!("The next time when everyone shown is free, within work hours")).clicked() {
+        acts.push(Action::Run("calendar.findFree", json!({})));
     }
 }
 

@@ -139,6 +139,21 @@ pub(super) fn mailbox(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, a: 
                 },
             );
         }
+        // Old mail into a data file of its own (issue #179): only mail kept on this computer goes.
+        if has_files && !online {
+            setting_row(
+                ui,
+                t,
+                false,
+                name(t, tl!("Clean up old items")),
+                Some(note(t, tl!("Move old mail to an archive file on this computer, out of the mailbox."))),
+                |ui| {
+                    if ui.button(tl!("Clean up old items…")).clicked() {
+                        acts.push(Action::Dialog(Dialog::Archive(Box::new(crate::dialogs::ArchiveForm::new(s, &id)))));
+                    }
+                },
+            );
+        }
         setting_row(ui, t, false, name(t, tl!("Clean up")), None, |ui| {
             for (role, label) in [
                 (mailcraft_engine::model::FolderRole::Junk, "Empty Junk Email…"),

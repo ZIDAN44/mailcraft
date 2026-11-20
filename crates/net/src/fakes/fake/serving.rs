@@ -94,6 +94,9 @@ pub(crate) fn search_the_server_past_the_window(name: &str, account: mailcraft_m
     // A field and a word.
     assert_eq!(search(&mut pool, "subject:message tag7"), 1);
     assert!(has("Message 7"));
+    // A date alone (issue #179): before the 4th, a day wider, is the first four days' mail.
+    assert_eq!(search(&mut pool, "before:2024-05-04"), 4);
+    assert!(has("Message 1") && has("Message 4"), "{:?}", subjects());
 
     // Show more: five more than kept (ten and the one found).
     pool.submit(Job::MoreMail { account: "a1".into(), folder: "INBOX".into(), more: 5 });

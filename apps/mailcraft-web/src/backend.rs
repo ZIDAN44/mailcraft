@@ -327,7 +327,9 @@ async fn search_server(sh: &Rcs, id: &str, folders: &[String], query: String, se
         emit(sh, answer(Vec::new(), Some("the account isn't connected".into()), true));
         return;
     };
-    let Some(filter) = mailcraft_jmap::search_filter(&query) else {
+    // Its dates as days around now, a day wider each side (issue #179), as the desktop asks.
+    let period = mailcraft_engine::model::search::Query::parse(&query).server_period(&mailcraft_engine::model::dates::Clock::new(now(), 0));
+    let Some(filter) = mailcraft_jmap::search_filter(&query, period) else {
         emit(sh, answer(Vec::new(), None, true));
         return;
     };
@@ -413,7 +415,7 @@ async fn send(sh: &Rcs, id: &str, c: &Client<Fetch>, op: &Op, refresh: bool) -> 
     let mut touched: Vec<String> = op.keys().iter().map(|k| k.folder.clone()).collect();
     match op {
         Op::Move { to, .. } => touched.push(to.clone()),
-        Op::EmptyFolder { path } => touched.push(path.clone()),
+        Op::EmptyFolder { path } | Op::MarkFolderRead { path } => touched.push(path.clone()),
         Op::CreateFolder { .. }
         | Op::RenameFolder { .. }
         | Op::DeleteFolder { .. }
@@ -621,6 +623,19 @@ impl Backend for WebBackend {
                     already: 0,
                     occurrences: 0,
                     replaced: 0,
+                    folders_skipped: 0,
+                    done: true,
+                    error: Some("writing Outlook data files needs the desktop app".into()),
+                },
+            ),
+            Job::ArchivePst { account, path, .. } => emit(
+                sh,
+                Event::Archived {
+                    account,
+                    path,
+                    messages: 0,
+                    archived: Vec::new(),
+                    skipped: 0,
                     folders_skipped: 0,
                     done: true,
                     error: Some("writing Outlook data files needs the desktop app".into()),

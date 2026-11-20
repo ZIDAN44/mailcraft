@@ -31,8 +31,16 @@ pub(crate) struct ServerQuery {
 }
 
 impl ServerQuery {
+    /// `query` asked now: its dates (`before:`, `received:today`) as days around this moment,
+    /// in UTC, which the period a day wider each side takes in whatever the zone.
     pub(crate) fn new(query: &str) -> ServerQuery {
-        ServerQuery { imap: crate::sync::imap_criteria(query), filter: mailcraft_jmap::search_filter(query), words: crate::sync::word_query(query) }
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(0));
+        let period = mailcraft_model::search::Query::parse(query).server_period(&mailcraft_model::dates::Clock::new(now, 0));
+        ServerQuery {
+            imap: crate::sync::imap_criteria(query, period),
+            filter: mailcraft_jmap::search_filter(query, period),
+            words: crate::sync::word_query(query, period),
+        }
     }
 }
 
@@ -307,5 +315,6 @@ pub fn apply_remote_with<S: std::io::Read + std::io::Write>(c: &mut Client<S>, o
         Op::RenameFolder { from, to } => c.rename(from, to),
         Op::DeleteFolder { path } => c.delete(path),
         Op::EmptyFolder { path } => c.empty(path),
+        Op::MarkFolderRead { path } => c.mark_read(path),
     }
 }

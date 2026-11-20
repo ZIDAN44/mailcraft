@@ -175,6 +175,7 @@ impl Worker {
             | Job::Index { .. }
             | Job::StopIndex { .. }
             | Job::ExportPst { .. }
+            | Job::ArchivePst { .. }
             | Job::DataFileHealth { .. }
             | Job::CompactDataFile { .. }
             | Job::CancelCompact { .. }
@@ -288,7 +289,7 @@ impl Worker {
         });
         for op in waiting {
             let touches = match &op {
-                Op::EmptyFolder { path: p } => p == path,
+                o if o.whole_folder().is_some() => o.whole_folder() == Some(path),
                 o if o.is_folder_op() => false,
                 o => o.keys().iter().any(|k| k.folder == path),
             };
@@ -331,7 +332,7 @@ impl Worker {
                             destinations.push(to.clone());
                         }
                         Op::CreateFolder { .. } | Op::DeleteFolder { .. } => relist = true,
-                        Op::EmptyFolder { path } => destinations.push(path.clone()),
+                        Op::EmptyFolder { path } | Op::MarkFolderRead { path } => destinations.push(path.clone()),
                         Op::SetFlag { .. } | Op::SetFollowUp { .. } | Op::SetReminder { .. } | Op::SetKeyword { .. } | Op::Expunge { .. } => {}
                     }
                     if let Err(e) = self.store.op_made(&self.acc.id, &mut waiting) {
@@ -403,5 +404,5 @@ impl Worker {
 
 /// Whether a change names a folder by its path (one a listing may not know yet).
 fn op_names_folder(op: &Op) -> bool {
-    op.is_folder_op() || matches!(op, Op::Move { .. } | Op::EmptyFolder { .. })
+    op.is_folder_op() || matches!(op, Op::Move { .. } | Op::EmptyFolder { .. } | Op::MarkFolderRead { .. })
 }

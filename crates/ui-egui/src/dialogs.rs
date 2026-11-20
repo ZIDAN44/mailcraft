@@ -11,6 +11,7 @@ use crate::theme::{self, Tokens};
 use crate::{Action, Icon, widgets};
 
 mod accounts;
+mod archiving;
 mod backup;
 mod categories;
 mod closing;
@@ -28,6 +29,7 @@ mod writing;
 pub use accounts::*;
 use accounts::{addresses, dav, trust};
 pub use addresses::AddressForm;
+pub use archiving::{ArchiveForm, AutoArchiveForm, FolderArchiveForm, FolderMode};
 pub use backup::RestoreForm;
 pub use dav::DavForm;
 pub(crate) use importing::skip_line;
@@ -203,12 +205,21 @@ pub enum Dialog {
         total: usize,
         unread: usize,
         size: u64,
+        /// Its AutoArchive setting (issue #180); none where AutoArchive doesn't take the
+        /// account's mail.
+        archive: Option<Box<FolderArchiveForm>>,
     },
     Event(Box<crate::pim_dialogs::EventForm>),
     Task(Box<crate::pim_dialogs::TaskForm>),
     /// Follow Up › Custom… on a flagged message of the To-Do Bar (issue #160).
     FollowUp(Box<crate::pim_dialogs::FollowUpForm>),
     Contact(Box<crate::pim_dialogs::ContactForm>),
+    /// File › Info › Clean up old items: old mail archived to a data file (issue #179).
+    Archive(Box<ArchiveForm>),
+    /// File › Options › Data files › AutoArchive settings (issue #180).
+    AutoArchive(Box<AutoArchiveForm>),
+    /// AutoArchive is due, and asks first.
+    AutoArchiveDue,
     /// New folder (in `parent`), or rename `rename`.
     FolderName {
         account: String,
@@ -221,6 +232,8 @@ pub enum Dialog {
         account: String,
         folder: String,
         filter: String,
+        /// Where it's to go, picked in the list (issue #182): `Some(None)`, the top level.
+        chosen: Option<Option<String>>,
         error: Option<String>,
     },
     DeleteFolder {
@@ -392,6 +405,7 @@ impl Dialog {
             total,
             unread,
             size: kept.messages.iter().map(|m| u64::from(m.size)).sum(),
+            archive: FolderArchiveForm::new(s, &f.account, &f.path, &s.prefs.auto_archive.rule.path).map(Box::new),
         }
     }
 
@@ -500,6 +514,8 @@ impl Dialog {
             Dialog::Task(f) => f.error = Some(e),
             Dialog::Contact(f) => f.error = Some(e),
             Dialog::Vacation(f) => f.error = Some(e),
+            Dialog::Archive(f) => f.error = Some(e),
+            Dialog::AutoArchive(f) => f.error = Some(e),
             Dialog::Dav(f) => f.error = Some(e),
             Dialog::Address(f) => f.error = Some(e),
             Dialog::SelectNames(f) if f.purpose != NamesFor::Message => f.error = Some(e),
@@ -573,7 +589,7 @@ impl Dialog {
     }
 
     pub fn move_folder(f: &Folder) -> Dialog {
-        Dialog::MoveFolder { account: f.account.clone(), folder: f.path.clone(), filter: String::new(), error: None }
+        Dialog::MoveFolder { account: f.account.clone(), folder: f.path.clone(), filter: String::new(), chosen: None, error: None }
     }
 
     /// Delete a folder: into Deleted Items, or for good when it's already there.
@@ -690,6 +706,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         Dialog::Dav(f) => dav::draw(ui, f, t, acts),
         Dialog::Address(f) => addresses::draw(ui, f, s, t, acts),
         Dialog::Backup(..) | Dialog::Restore(..) => backup::draw(ui, d, t, acts),
+        Dialog::Archive(..) | Dialog::AutoArchive(..) | Dialog::AutoArchiveDue => archiving::draw(ui, d, s, t, acts),
         Dialog::ConfirmDelete { .. }
         | Dialog::MoveTo { .. }
         | Dialog::FolderName { .. }

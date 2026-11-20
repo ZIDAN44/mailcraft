@@ -21,7 +21,7 @@ impl Worker {
         let answers = r.unwrap_or_else(|e| {
             log::info!("{}: free/busy times: {e}", self.acc.id);
             let why = e.to_string();
-            people.into_iter().map(|email| FreeBusyAnswer { email, busy: Vec::new(), error: Some(why.clone()) }).collect()
+            people.into_iter().map(|email| FreeBusyAnswer { email, error: Some(why.clone()), ..Default::default() }).collect()
         });
         self.sink.emit(Event::FreeBusy { account: self.id(), from, to, answers });
     }

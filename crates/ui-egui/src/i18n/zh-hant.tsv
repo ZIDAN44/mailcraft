@@ -1861,3 +1861,95 @@ count	occurrences	次
 	The first account's Inbox	第一個帳戶的收件匣
 	The folder open last	上次開啟的資料夾
 	Add reminder…	新增提醒…
+	No suggestions	沒有建議
+	Ignore all	全部略過
+	Add to dictionary	新增至字典
+	Check spelling as you type	輸入時檢查拼字
+	Misspelled words are underlined in red. Right-click one for suggestions.	拼字錯誤的字會以紅色底線標示。以滑鼠右鍵按一下字詞即可查看建議。
+	There's no spelling dictionary for {language} on this computer.	此電腦上沒有 {language} 的拼字字典。
+	Bold on	粗體 開
+	Bold off	粗體 關
+	Italic on	斜體 開
+	Italic off	斜體 關
+	Underline on	底線 開
+	Underline off	底線 關
+	{name}: on	{name}：開
+	{name}: off	{name}：關
+	Font	字型
+	Default font	預設字型
+	Font for new messages	新郵件的字型
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	新郵件、回覆和轉寄都使用此字型書寫。你設定了字型的文字保留其自己的字型。
+	Clean up old items	清理舊項目
+	Clean up old items…	清理舊項目…
+	Move old mail to an archive file on this computer, out of the mailbox.	將舊郵件從信箱移到這台電腦上的封存檔案中。
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	舊郵件會移到這台電腦上 Outlook 資料檔中同名的資料夾裡，然後從信箱中刪除，信箱因此空出空間。該檔案會顯示在資料夾清單中，可在其中閱讀、搜尋郵件，或將郵件移回。
+	Archive this folder and the folders in it	封存此資料夾及其中的資料夾
+	Archive mail received before	封存在此日期之前收到的郵件
+	Archive file	封存檔案
+	That's not a date.	這不是日期。
+	Archive mail older than	封存早於以下時間的郵件
+	Move old mail to this file	將舊郵件移到此檔案
+	Delete old mail for good	永久刪除舊郵件
+	AutoArchive	自動封存
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	每隔幾天，各資料夾的舊郵件會依資料夾本身的設定（在其內容中）或這些設定，封存到這台電腦上的資料檔中，或被刪除。
+	Run AutoArchive every	自動封存的執行間隔
+	Ask before AutoArchive runs	自動封存執行前詢問
+	Show the archive file in the folder list	在資料夾清單中顯示封存檔案
+	For folders without settings of their own	用於沒有自己設定的資料夾
+	Apply these settings to all folders now	立即將這些設定套用到所有資料夾
+	Folders with settings of their own follow these instead.	有自己設定的資料夾也將改用這些設定。
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	已經過了 {days} 天：要依自動封存的設定立即封存舊郵件嗎？
+	Archive now	立即封存
+	Off: old mail stays where it is until you clean it up.	關閉：舊郵件會留在原處，直到你自己清理。
+	Every {days} days, old mail is archived by each folder's settings.	每 {days} 天，依各資料夾的設定封存舊郵件。
+	AutoArchive settings…	自動封存設定…
+	Don't archive this folder	不封存此資料夾
+	Archive it by the default settings	依預設設定封存
+	Archive it by these settings	依這些設定封存
+	weeks	週
+	months	個月
+	Folder density	資料夾密度
+	How tightly the folder pane's folders sit	資料夾窗格中資料夾排列的疏密
+	Spacious	寬鬆
+	Medium	中等
+	Sort folders A to Z	依名稱排列資料夾
+	Work days	工作日
+	The work week shows these days	工作週顯示這些天
+	Work hours	工作時間
+	The calendar shades the hours outside them	行事曆以陰影顯示工作時間以外的時段
+	Start time	開始時間
+	End time	結束時間
+	Meeting length	會議時間長度
+	How long a time free for everyone is looked for	要尋找的所有人都有空的時間長度
+	Previous free time	上一個空閒時間
+	Next free time	下一個空閒時間
+	The time before when everyone shown is free, within work hours	顯示的所有人在工作時間內都有空的上一個時間
+	The next time when everyone shown is free, within work hours	顯示的所有人在工作時間內都有空的下一個時間
+	Free for everyone	所有人都有空
+	Free for everyone: click to make a meeting with them	所有人都有空：按一下以與他們建立會議
+	No time when everyone is free in the next six weeks	接下來六週內沒有所有人都有空的時間
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	在他們的空閒/忙碌資訊所及範圍內沒有所有人都有空的時間：資訊到達後，「下一個」會繼續往後找
+	No earlier time when everyone is free	沒有更早的所有人都有空的時間
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	在他們的空閒/忙碌資訊所及範圍內沒有更早的所有人都有空的時間：資訊到達後，「上一個」會繼續往前找
+	Their free/busy times haven't come yet: try again in a moment	他們的空閒/忙碌資訊尚未到達：請稍後再試
+	Some people's free/busy times can't be had: they count as free	無法取得部分人員的空閒/忙碌資訊：將其視為有空
+	Collapse this group	摺疊此群組
+	Expand this group	展開此群組
+	Collapse all groups	摺疊所有群組
+	Expand all groups	展開所有群組
+	Show this group's mail	顯示此群組的郵件
+	Hide this group's mail	隱藏此群組的郵件
+	{heading} ({count}), folded	{heading}（{count}），已摺疊
+	Clashes with {event} on your calendar	與行事曆中的 {event} 衝突
+	Clashes with {n} events on your calendar	與行事曆中的 {n} 個活動衝突
+	In {n} min	{n} 分鐘後
+	Line between the appointments and the tasks	約會與工作之間的分隔線
+	Mark all in {folder} as read	將 {folder} 中的全部標示為已讀
+	Mark all shown as read	將顯示的全部標示為已讀
+	More ways to mark mail read	將郵件標示為已讀的更多方式
+	Nothing else on your calendar then	那時行事曆中沒有其他安排
+	Right after {event} on your calendar	緊接在行事曆中的 {event} 之後
+	Right before {event} on your calendar	緊接在行事曆中的 {event} 之前
+	{h} h	{h} 小時
+	Notify of mail in Other too	「其他」中的郵件也通知
+	Off, only mail that goes to Focused is announced	關閉時，只通知進入「焦點」的郵件

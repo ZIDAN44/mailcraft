@@ -1857,3 +1857,95 @@ count	occurrences	keer
 	The first account's Inbox	Postvak IN van het eerste account
 	The folder open last	De laatst geopende map
 	Add reminder…	Herinnering toevoegen…
+	No suggestions	Geen suggesties
+	Ignore all	Alles negeren
+	Add to dictionary	Toevoegen aan woordenlijst
+	Check spelling as you type	Spelling controleren tijdens het typen
+	Misspelled words are underlined in red. Right-click one for suggestions.	Verkeerd gespelde woorden worden rood onderstreept. Klik er met de rechtermuisknop op voor suggesties.
+	There's no spelling dictionary for {language} on this computer.	Er is op deze computer geen spellingwoordenlijst voor {language}.
+	Bold on	Vet aan
+	Bold off	Vet uit
+	Italic on	Cursief aan
+	Italic off	Cursief uit
+	Underline on	Onderstrepen aan
+	Underline off	Onderstrepen uit
+	{name}: on	{name}: aan
+	{name}: off	{name}: uit
+	Font	Lettertype
+	Default font	Standaardlettertype
+	Font for new messages	Lettertype voor nieuwe berichten
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Nieuwe berichten, antwoorden en doorgestuurde berichten worden erin geschreven. Tekst waarvoor u een lettertype instelt, houdt zijn eigen lettertype.
+	Clean up old items	Oude items opruimen
+	Clean up old items…	Oude items opruimen…
+	Move old mail to an archive file on this computer, out of the mailbox.	Oude mail uit het postvak naar een archiefbestand op deze computer verplaatsen.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	Oude mail gaat naar een Outlook-gegevensbestand op deze computer, in mappen met dezelfde namen, en wordt daarna uit het postvak verwijderd, dat zo weer ruimte krijgt. Het bestand staat in de mappenlijst, waar de mail gelezen, doorzocht en teruggezet kan worden.
+	Archive this folder and the folders in it	Deze map en de mappen erin archiveren
+	Archive mail received before	Mail archiveren die is ontvangen vóór
+	Archive file	Archiefbestand
+	That's not a date.	Dat is geen datum.
+	Archive mail older than	Mail archiveren die ouder is dan
+	Move old mail to this file	Oude mail naar dit bestand verplaatsen
+	Delete old mail for good	Oude mail definitief verwijderen
+	AutoArchive	AutoArchiveren
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	Om de zoveel dagen wordt de oude mail van elke map gearchiveerd in een gegevensbestand op deze computer, of verwijderd, volgens de eigen instellingen van de map (in de eigenschappen) of deze.
+	Run AutoArchive every	AutoArchiveren uitvoeren elke
+	Ask before AutoArchive runs	Vragen voordat AutoArchiveren wordt uitgevoerd
+	Show the archive file in the folder list	Het archiefbestand in de mappenlijst tonen
+	For folders without settings of their own	Voor mappen zonder eigen instellingen
+	Apply these settings to all folders now	Deze instellingen nu op alle mappen toepassen
+	Folders with settings of their own follow these instead.	Mappen met eigen instellingen volgen dan deze.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	Er zijn {days} dagen voorbij: oude mail nu archiveren, zoals AutoArchiveren is ingesteld?
+	Archive now	Nu archiveren
+	Off: old mail stays where it is until you clean it up.	Uit: oude mail blijft waar die is tot u opruimt.
+	Every {days} days, old mail is archived by each folder's settings.	Elke {days} dagen wordt oude mail gearchiveerd volgens de instellingen van elke map.
+	AutoArchive settings…	Instellingen voor AutoArchiveren…
+	Don't archive this folder	Deze map niet archiveren
+	Archive it by the default settings	Archiveren volgens de standaardinstellingen
+	Archive it by these settings	Archiveren volgens deze instellingen
+	weeks	weken
+	months	maanden
+	Folder density	Mapdichtheid
+	How tightly the folder pane's folders sit	Hoe dicht de mappen in het mappenvenster op elkaar staan
+	Spacious	Ruim
+	Medium	Gemiddeld
+	Sort folders A to Z	Mappen sorteren van A tot Z
+	Work days	Werkdagen
+	The work week shows these days	De werkweek toont deze dagen
+	Work hours	Werktijden
+	The calendar shades the hours outside them	De agenda kleurt de uren daarbuiten grijs
+	Start time	Begintijd
+	End time	Eindtijd
+	Meeting length	Duur van de vergadering
+	How long a time free for everyone is looked for	Hoe lang een tijd moet zijn waarop iedereen vrij is
+	Previous free time	Vorige vrije tijd
+	Next free time	Volgende vrije tijd
+	The time before when everyone shown is free, within work hours	De vorige tijd waarop iedereen die getoond wordt vrij is, binnen werktijden
+	The next time when everyone shown is free, within work hours	De volgende tijd waarop iedereen die getoond wordt vrij is, binnen werktijden
+	Free for everyone	Iedereen vrij
+	Free for everyone: click to make a meeting with them	Iedereen vrij: klik om een vergadering met hen te maken
+	No time when everyone is free in the next six weeks	Geen tijd waarop iedereen vrij is in de komende zes weken
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	Geen tijd waarop iedereen vrij is zover hun beschikbaarheid reikt: Volgende zoekt verder zodra die er is
+	No earlier time when everyone is free	Geen eerdere tijd waarop iedereen vrij is
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Geen eerdere tijd waarop iedereen vrij is zover hun beschikbaarheid reikt: Vorige zoekt verder zodra die er is
+	Their free/busy times haven't come yet: try again in a moment	Hun beschikbaarheid is er nog niet: probeer het zo nog eens
+	Some people's free/busy times can't be had: they count as free	De beschikbaarheid van sommige mensen is niet op te halen: zij tellen als vrij
+	Collapse this group	Deze groep samenvouwen
+	Expand this group	Deze groep uitvouwen
+	Collapse all groups	Alle groepen samenvouwen
+	Expand all groups	Alle groepen uitvouwen
+	Show this group's mail	De e-mail van deze groep tonen
+	Hide this group's mail	De e-mail van deze groep verbergen
+	{heading} ({count}), folded	{heading} ({count}), samengevouwen
+	Clashes with {event} on your calendar	Overlapt met {event} in je agenda
+	Clashes with {n} events on your calendar	Overlapt met {n} afspraken in je agenda
+	In {n} min	Over {n} min
+	Line between the appointments and the tasks	Lijn tussen de afspraken en de taken
+	Mark all in {folder} as read	Alles in {folder} als gelezen markeren
+	Mark all shown as read	Alles wat getoond wordt als gelezen markeren
+	More ways to mark mail read	Meer manieren om e-mail als gelezen te markeren
+	Nothing else on your calendar then	Verder niets in je agenda op dat moment
+	Right after {event} on your calendar	Direct na {event} in je agenda
+	Right before {event} on your calendar	Direct voor {event} in je agenda
+	{h} h	{h} u
+	Notify of mail in Other too	Ook melden bij e-mail in Overige
+	Off, only mail that goes to Focused is announced	Uit: alleen e-mail die naar Prioriteit gaat, wordt gemeld

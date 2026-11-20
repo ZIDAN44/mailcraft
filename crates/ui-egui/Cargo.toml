@@ -27,6 +27,9 @@ unicode-bidi = "0.3"
 skrifa = "0.49"
 # The system's interface language.
 sys-locale = "0.3"
+# Spelling as you type (issue #174): the Craft apps' own checker, its suggestions and the user's
+# words.
+craft-proof = { workspace = true }
 # PDF attachment thumbnails: a pure-Rust rasterizer (no unsafe code).
 hayro = { version = "0.9", default-features = false }
 # A search's time each frame: std's clock panics in the browser (the version egui's winit uses).

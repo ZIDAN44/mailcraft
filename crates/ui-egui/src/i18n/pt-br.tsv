@@ -1862,3 +1862,95 @@ count	occurrences	ocorrências
 	The first account's Inbox	Caixa de Entrada da primeira conta
 	The folder open last	A última pasta aberta
 	Add reminder…	Adicionar lembrete…
+	No suggestions	Nenhuma sugestão
+	Ignore all	Ignorar tudo
+	Add to dictionary	Adicionar ao dicionário
+	Check spelling as you type	Verificar a ortografia ao digitar
+	Misspelled words are underlined in red. Right-click one for suggestions.	Palavras com erro de ortografia são sublinhadas em vermelho. Clique com o botão direito em uma para ver sugestões.
+	There's no spelling dictionary for {language} on this computer.	Não há dicionário ortográfico de {language} neste computador.
+	Bold on	Negrito ativado
+	Bold off	Negrito desativado
+	Italic on	Itálico ativado
+	Italic off	Itálico desativado
+	Underline on	Sublinhado ativado
+	Underline off	Sublinhado desativado
+	{name}: on	{name}: ativado
+	{name}: off	{name}: desativado
+	Font	Fonte
+	Default font	Fonte padrão
+	Font for new messages	Fonte para novas mensagens
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Novas mensagens, respostas e encaminhamentos são escritos nela. O texto em que você define uma fonte mantém a dele.
+	Clean up old items	Limpar itens antigos
+	Clean up old items…	Limpar itens antigos…
+	Move old mail to an archive file on this computer, out of the mailbox.	Mover e-mails antigos da caixa de correio para um arquivo morto neste computador.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	Os e-mails antigos vão para um arquivo de dados do Outlook neste computador, em pastas com os mesmos nomes, e depois são excluídos da caixa de correio, que recupera o espaço. O arquivo aparece na lista de pastas, onde seus e-mails podem ser lidos, pesquisados e movidos de volta.
+	Archive this folder and the folders in it	Arquivar esta pasta e as pastas dentro dela
+	Archive mail received before	Arquivar e-mails recebidos antes de
+	Archive file	Arquivo morto
+	That's not a date.	Isso não é uma data.
+	Archive mail older than	Arquivar e-mails com mais de
+	Move old mail to this file	Mover e-mails antigos para este arquivo
+	Delete old mail for good	Excluir e-mails antigos para sempre
+	AutoArchive	AutoArquivar
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	A cada tantos dias, os e-mails antigos de cada pasta são arquivados em um arquivo de dados neste computador, ou excluídos, conforme as configurações da própria pasta (em suas Propriedades) ou estas.
+	Run AutoArchive every	Executar o AutoArquivar a cada
+	Ask before AutoArchive runs	Perguntar antes de executar o AutoArquivar
+	Show the archive file in the folder list	Mostrar o arquivo morto na lista de pastas
+	For folders without settings of their own	Para pastas sem configurações próprias
+	Apply these settings to all folders now	Aplicar estas configurações a todas as pastas agora
+	Folders with settings of their own follow these instead.	As pastas com configurações próprias passam a seguir estas.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	Já se passaram {days} dias: arquivar agora os e-mails antigos, como o AutoArquivar está configurado?
+	Archive now	Arquivar agora
+	Off: old mail stays where it is until you clean it up.	Desativado: os e-mails antigos ficam onde estão até você limpá-los.
+	Every {days} days, old mail is archived by each folder's settings.	A cada {days} dias, os e-mails antigos são arquivados conforme as configurações de cada pasta.
+	AutoArchive settings…	Configurações do AutoArquivar…
+	Don't archive this folder	Não arquivar esta pasta
+	Archive it by the default settings	Arquivar pelas configurações padrão
+	Archive it by these settings	Arquivar por estas configurações
+	weeks	semanas
+	months	meses
+	Folder density	Densidade das pastas
+	How tightly the folder pane's folders sit	O quanto as pastas ficam juntas no painel de pastas
+	Spacious	Espaçoso
+	Medium	Médio
+	Sort folders A to Z	Classificar pastas de A a Z
+	Work days	Dias de trabalho
+	The work week shows these days	A semana de trabalho mostra estes dias
+	Work hours	Horário de trabalho
+	The calendar shades the hours outside them	O calendário sombreia as horas fora dele
+	Start time	Hora de início
+	End time	Hora de término
+	Meeting length	Duração da reunião
+	How long a time free for everyone is looked for	Quanto tempo livre para todos procurar
+	Previous free time	Horário livre anterior
+	Next free time	Próximo horário livre
+	The time before when everyone shown is free, within work hours	O horário anterior em que todos os mostrados estão livres, dentro do horário de trabalho
+	The next time when everyone shown is free, within work hours	O próximo horário em que todos os mostrados estão livres, dentro do horário de trabalho
+	Free for everyone	Livre para todos
+	Free for everyone: click to make a meeting with them	Livre para todos: clique para criar uma reunião com eles
+	No time when everyone is free in the next six weeks	Nenhum horário em que todos estejam livres nas próximas seis semanas
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	Nenhum horário em que todos estejam livres até onde vão as disponibilidades deles: Próximo procura adiante quando chegarem
+	No earlier time when everyone is free	Nenhum horário anterior em que todos estejam livres
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Nenhum horário anterior em que todos estejam livres até onde vão as disponibilidades deles: Anterior procura adiante quando chegarem
+	Their free/busy times haven't come yet: try again in a moment	As disponibilidades deles ainda não chegaram: tente de novo em instantes
+	Some people's free/busy times can't be had: they count as free	Não é possível obter a disponibilidade de algumas pessoas: elas contam como livres
+	Collapse this group	Recolher este grupo
+	Expand this group	Expandir este grupo
+	Collapse all groups	Recolher todos os grupos
+	Expand all groups	Expandir todos os grupos
+	Show this group's mail	Mostrar os emails deste grupo
+	Hide this group's mail	Ocultar os emails deste grupo
+	{heading} ({count}), folded	{heading} ({count}), recolhido
+	Clashes with {event} on your calendar	Conflita com {event} na sua agenda
+	Clashes with {n} events on your calendar	Conflita com {n} eventos na sua agenda
+	In {n} min	Em {n} min
+	Line between the appointments and the tasks	Linha entre os compromissos e as tarefas
+	Mark all in {folder} as read	Marcar tudo em {folder} como lido
+	Mark all shown as read	Marcar tudo o que está sendo mostrado como lido
+	More ways to mark mail read	Mais formas de marcar e-mails como lidos
+	Nothing else on your calendar then	Nada mais na sua agenda nesse horário
+	Right after {event} on your calendar	Logo depois de {event} na sua agenda
+	Right before {event} on your calendar	Logo antes de {event} na sua agenda
+	{h} h	{h} h
+	Notify of mail in Other too	Notificar também os e-mails em Outros
+	Off, only mail that goes to Focused is announced	Desativado, só os e-mails que vão para Prioritários são avisados

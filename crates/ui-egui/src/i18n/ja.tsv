@@ -1858,3 +1858,95 @@ count	occurrences	回
 	The first account's Inbox	最初のアカウントの受信トレイ
 	The folder open last	最後に開いたフォルダー
 	Add reminder…	アラームを追加…
+	No suggestions	候補はありません
+	Ignore all	すべて無視
+	Add to dictionary	辞書に追加
+	Check spelling as you type	入力時にスペルチェックを行う
+	Misspelled words are underlined in red. Right-click one for suggestions.	スペルが間違っている単語には赤い波線が引かれます。右クリックすると候補が表示されます。
+	There's no spelling dictionary for {language} on this computer.	このコンピューターには {language} のスペル辞書がありません。
+	Bold on	太字 オン
+	Bold off	太字 オフ
+	Italic on	斜体 オン
+	Italic off	斜体 オフ
+	Underline on	下線 オン
+	Underline off	下線 オフ
+	{name}: on	{name}: オン
+	{name}: off	{name}: オフ
+	Font	フォント
+	Default font	既定のフォント
+	Font for new messages	新しいメッセージのフォント
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	新しいメッセージ、返信、転送はこのフォントで書かれます。フォントを指定した文字はそのフォントのままです。
+	Clean up old items	古いアイテムの整理
+	Clean up old items…	古いアイテムの整理…
+	Move old mail to an archive file on this computer, out of the mailbox.	古いメールをメールボックスから、このコンピューター上のアーカイブ ファイルに移動します。
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	古いメールは、このコンピューター上の Outlook データ ファイルの同じ名前のフォルダーに移動され、その後メールボックスから削除されて、その分の容量が空きます。ファイルはフォルダー一覧に表示され、そこでメールの閲覧、検索、元の場所への移動ができます。
+	Archive this folder and the folders in it	このフォルダーとその中のフォルダーをアーカイブ
+	Archive mail received before	次の日付より前に受信したメールをアーカイブ
+	Archive file	アーカイブ ファイル
+	That's not a date.	日付ではありません。
+	Archive mail older than	次より古いメールをアーカイブ
+	Move old mail to this file	古いメールをこのファイルに移動
+	Delete old mail for good	古いメールを完全に削除
+	AutoArchive	自動アーカイブ
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	数日ごとに、各フォルダーの古いメールを、フォルダー独自の設定 (プロパティ) またはこの設定に従って、このコンピューター上のデータ ファイルにアーカイブするか、削除します。
+	Run AutoArchive every	自動アーカイブを実行する間隔
+	Ask before AutoArchive runs	自動アーカイブの前に確認する
+	Show the archive file in the folder list	アーカイブ ファイルをフォルダー一覧に表示
+	For folders without settings of their own	独自の設定がないフォルダー
+	Apply these settings to all folders now	これらの設定を今すぐすべてのフォルダーに適用
+	Folders with settings of their own follow these instead.	独自の設定があるフォルダーも、代わりにこれらの設定に従います。
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} 日経過しました: 自動アーカイブの設定どおり、古いメールを今すぐアーカイブしますか?
+	Archive now	今すぐアーカイブ
+	Off: old mail stays where it is until you clean it up.	オフ: 古いメールは整理するまでそのままです。
+	Every {days} days, old mail is archived by each folder's settings.	{days} 日ごとに、各フォルダーの設定に従って古いメールをアーカイブします。
+	AutoArchive settings…	自動アーカイブの設定…
+	Don't archive this folder	このフォルダーはアーカイブしない
+	Archive it by the default settings	既定の設定でアーカイブ
+	Archive it by these settings	次の設定でアーカイブ
+	weeks	週ごと
+	months	か月ごと
+	Folder density	フォルダーの表示密度
+	How tightly the folder pane's folders sit	フォルダー ウィンドウでのフォルダーの詰め具合
+	Spacious	ゆったり
+	Medium	標準
+	Sort folders A to Z	フォルダーを名前順に並べる
+	Work days	勤務日
+	The work week shows these days	稼働日にはこれらの曜日が表示されます
+	Work hours	勤務時間
+	The calendar shades the hours outside them	勤務時間外はカレンダーで網掛け表示されます
+	Start time	開始時刻
+	End time	終了時刻
+	Meeting length	会議の長さ
+	How long a time free for everyone is looked for	全員が空いている時間をどれだけの長さで探すか
+	Previous free time	前の空き時間
+	Next free time	次の空き時間
+	The time before when everyone shown is free, within work hours	表示中の全員が勤務時間内に空いている前の時間
+	The next time when everyone shown is free, within work hours	表示中の全員が勤務時間内に空いている次の時間
+	Free for everyone	全員が空いています
+	Free for everyone: click to make a meeting with them	全員が空いています: クリックすると全員との会議を作成します
+	No time when everyone is free in the next six weeks	今後 6 週間に全員が空いている時間はありません
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	空き時間情報のある範囲では全員が空いている時間はありません: 情報が届くと「次へ」がその先を探します
+	No earlier time when everyone is free	これより前に全員が空いている時間はありません
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	空き時間情報のある範囲ではこれより前に全員が空いている時間はありません: 情報が届くと「前へ」がその先を探します
+	Their free/busy times haven't come yet: try again in a moment	空き時間情報がまだ届いていません: 少し待ってからもう一度お試しください
+	Some people's free/busy times can't be had: they count as free	一部の人の空き時間情報を取得できません: 空いているものとして扱います
+	Collapse this group	このグループを折りたたむ
+	Expand this group	このグループを展開する
+	Collapse all groups	すべてのグループを折りたたむ
+	Expand all groups	すべてのグループを展開する
+	Show this group's mail	このグループのメールを表示
+	Hide this group's mail	このグループのメールを非表示
+	{heading} ({count}), folded	{heading} ({count})、折りたたみ
+	Clashes with {event} on your calendar	カレンダーの {event} と重なっています
+	Clashes with {n} events on your calendar	カレンダーの {n} 件の予定と重なっています
+	In {n} min	{n} 分後
+	Line between the appointments and the tasks	予定とタスクの境界線
+	Mark all in {folder} as read	{folder} をすべて既読にする
+	Mark all shown as read	表示中のものをすべて既読にする
+	More ways to mark mail read	メールを既読にするその他の方法
+	Nothing else on your calendar then	その時間、カレンダーにほかの予定はありません
+	Right after {event} on your calendar	カレンダーの {event} の直後です
+	Right before {event} on your calendar	カレンダーの {event} の直前です
+	{h} h	{h} 時間
+	Notify of mail in Other too	[その他] のメールも通知する
+	Off, only mail that goes to Focused is announced	オフの場合、[優先] に入るメールだけを通知します

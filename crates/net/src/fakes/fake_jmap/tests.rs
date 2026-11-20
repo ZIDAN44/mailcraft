@@ -225,6 +225,12 @@ fn a_jmap_account_syncs_changes_and_sends() {
     for i in 0..3 {
         data.lock().unwrap().deliver(&trash, &mail(&format!("Old {i}"), &format!("t{i}")), &[], "2024-01-01T00:00:00Z");
     }
+    // Marked read first, all of it (issue #197).
+    pool.submit(Job::Apply { account: "a1".into(), op: Op::MarkFolderRead { path: "Trash".into() } });
+    eventually("Trash read", || {
+        let d = data.lock().unwrap();
+        d.emails.iter().filter(|e| e.mailboxes.contains(&trash)).all(|e| e.keywords.contains("$seen"))
+    });
     pool.submit(Job::Apply { account: "a1".into(), op: Op::EmptyFolder { path: "Trash".into() } });
     eventually("Trash emptied", || !data.lock().unwrap().emails.iter().any(|e| e.mailboxes.contains(&trash)));
 

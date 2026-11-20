@@ -26,6 +26,8 @@ use egui::{Color32, Key, Modifiers, Pos2, Rect, Response, Sense, Stroke, Ui, pos
 
 use crate::UiState;
 
+mod reader;
+
 /// Within this distance of the view's top or bottom (its last pixels), or past it, a selection
 /// drag scrolls; not on the text before it, which would run away under a still pointer.
 const EDGE: f32 = 2.0;
@@ -123,6 +125,8 @@ pub(crate) struct Doc {
     runs: Vec<Run>,
     /// What's under the runs, between and beside them.
     under: Option<Response>,
+    /// With a screen reader there, the document it reads the text as (its keyboard moves a caret).
+    document: Option<Response>,
 }
 
 /// The selections of the texts shown, and the one being drawn.
@@ -440,9 +444,11 @@ pub(crate) fn begin(st: &mut UiState, ui: &mut Ui, id: egui::Id, window: bool) {
     d.top = ui.cursor().top();
     // Under the text (its runs are on top): a press or drag between lines is the text's, not a
     // drag of the scroll area. Not on a touch screen, where a finger's drag scrolls (as over
-    // egui's labels there).
+    // egui's labels there). The pointer's alone: it was a stop for Tab with nothing to say, read
+    // by a screen reader as a nameless "custom" before the text (issue #175).
     let touch = ui.input(|i| i.has_touch_screen());
-    d.under = d.rect.filter(|_| !touch).map(|r| ui.interact(r, id.with("text-under"), Sense::drag()));
+    d.under = d.rect.filter(|_| !touch).map(|r| ui.interact(r, id.with("text-under"), Sense::DRAG));
+    d.document = d.rect.filter(|_| crate::a11y::screen_reader(ui.ctx())).map(|r| reader::document(ui, id, r));
     ts.cur = Some((id, d));
 }
 
@@ -608,11 +614,17 @@ pub(crate) fn finish(st: &mut UiState, ui: &mut Ui, whole: Option<&str>) {
     if d.window && ctx.viewport_id() != egui::ViewportId::ROOT {
         d.active = true;
     }
+    // The document a screen reader reads it as, with the keyboard: the text has the keys, and
+    // the arrows move a caret.
+    let caret = d.document.as_ref().is_some_and(Response::has_focus);
+    if caret {
+        d.active = true;
+    }
     if ctx.text_edit_focused() {
         d.active = false;
     }
     if d.active {
-        keys(&mut d, ui, rect, whole);
+        keys(&mut d, ui, rect, whole, caret);
         if ctx.viewport_id() == egui::ViewportId::ROOT {
             st.text_selection.keys = true;
         }
@@ -621,6 +633,13 @@ pub(crate) fn finish(st: &mut UiState, ui: &mut Ui, whole: Option<&str>) {
         ctx.set_cursor_icon(egui::CursorIcon::Text);
     }
     paint(&d, ui);
+    if let Some(doc) = d.document.clone() {
+        reader::tell(&d, ui, &doc);
+        // F6 in the reading pane puts the keyboard here (the main window's).
+        if !d.window {
+            st.reading_stop = Some(doc.id);
+        }
+    }
     let ts = &mut st.text_selection;
     if ts.docs.len() >= KEPT {
         ts.docs.retain(|_, v| v.active);
@@ -629,8 +648,10 @@ pub(crate) fn finish(st: &mut UiState, ui: &mut Ui, whole: Option<&str>) {
     ts.docs.insert(id, d);
 }
 
-/// The text's keys: Ctrl+A, Shift with the arrows, Home and End, Escape, and a copy.
-fn keys(d: &mut Doc, ui: &mut Ui, rect: Rect, whole: Option<&str>) {
+/// The text's keys: Ctrl+A, Shift with the arrows, Home and End, Escape, and a copy. With a
+/// `caret` (a screen reader's document has the keyboard), the arrows, Home and End without Shift
+/// move it, the selection's two ends together.
+fn keys(d: &mut Doc, ui: &mut Ui, rect: Rect, whole: Option<&str>, caret: bool) {
     let os = ui.ctx().os();
     let events = ui.input(|i| i.events.clone());
     let mut used = false;
@@ -643,9 +664,13 @@ fn keys(d: &mut Doc, ui: &mut Ui, rect: Rect, whole: Option<&str>) {
                 used = true;
             }
             egui::Event::Key { key, pressed: true, modifiers, .. }
-                if modifiers.shift && matches!(key, Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End) =>
+                if (modifiers.shift || caret)
+                    && matches!(key, Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End) =>
             {
                 show = d.step(os, *key, *modifiers, rect).or(show);
+                if !modifiers.shift {
+                    d.anchor = d.head;
+                }
                 used = true;
             }
             egui::Event::Key { key: Key::Escape, pressed: true, .. } => {
@@ -664,7 +689,8 @@ fn keys(d: &mut Doc, ui: &mut Ui, rect: Rect, whole: Option<&str>) {
             i.events.retain(|e| match e {
                 egui::Event::Key { key: Key::A, modifiers, .. } => !modifiers.command,
                 egui::Event::Key { key, modifiers, .. } => {
-                    !(modifiers.shift && matches!(key, Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End))
+                    !((modifiers.shift || caret)
+                        && matches!(key, Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End))
                 }
                 egui::Event::Copy | egui::Event::Cut => false,
                 _ => true,

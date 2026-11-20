@@ -16,7 +16,7 @@ fn grid_start(month: i64) -> i64 {
 /// which the form refuses as it did); the box shows and reads it in `order` (issue #162: always
 /// `YYYY-MM-DD`, whatever Dates was set to). `hint`: what an empty box says, its pattern when
 /// `None`.
-pub(super) fn date_field(ui: &mut Ui, t: &Tokens, id: &str, text: &mut String, order: dates::DateOrder, hint: Option<&str>) -> bool {
+pub(crate) fn date_field(ui: &mut Ui, t: &Tokens, id: &str, text: &mut String, order: dates::DateOrder, hint: Option<&str>) -> bool {
     // What the box shows, kept with the form's text it was made from: made again when that
     // changes otherwise (picked, or filled in by the form), as it's typed meanwhile.
     let box_id = egui::Id::unique(("date-pick-box", id));

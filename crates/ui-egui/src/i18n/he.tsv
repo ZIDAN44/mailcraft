@@ -1857,3 +1857,95 @@ count	occurrences	פעמים
 	The first account's Inbox	תיבת הדואר הנכנס של החשבון הראשון
 	The folder open last	התיקייה שנפתחה לאחרונה
 	Add reminder…	הוספת תזכורת…
+	No suggestions	אין הצעות
+	Ignore all	התעלם מהכול
+	Add to dictionary	הוסף למילון
+	Check spelling as you type	בדוק איות בזמן ההקלדה
+	Misspelled words are underlined in red. Right-click one for suggestions.	מילים עם שגיאות כתיב מסומנות בקו תחתון אדום. לחץ לחיצה ימנית על אחת מהן לקבלת הצעות.
+	There's no spelling dictionary for {language} on this computer.	אין במחשב זה מילון איות עבור {language}.
+	Bold on	מודגש פעיל
+	Bold off	מודגש כבוי
+	Italic on	נטוי פעיל
+	Italic off	נטוי כבוי
+	Underline on	קו תחתון פעיל
+	Underline off	קו תחתון כבוי
+	{name}: on	{name}: פעיל
+	{name}: off	{name}: כבוי
+	Font	גופן
+	Default font	גופן ברירת מחדל
+	Font for new messages	גופן להודעות חדשות
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	הודעות חדשות, תשובות והעברות נכתבות בו. טקסט שקבעת לו גופן שומר על הגופן שלו.
+	Clean up old items	ניקוי פריטים ישנים
+	Clean up old items…	ניקוי פריטים ישנים…
+	Move old mail to an archive file on this computer, out of the mailbox.	העברת דואר ישן מתיבת הדואר לקובץ ארכיון במחשב הזה.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	דואר ישן עובר לקובץ נתונים של Outlook במחשב הזה, לתיקיות באותם שמות, ואז נמחק מתיבת הדואר, שמקבלת בחזרה את המקום. הקובץ מופיע ברשימת התיקיות, ושם אפשר לקרוא את הדואר שבו, לחפש בו ולהחזיר אותו.
+	Archive this folder and the folders in it	העברה לארכיון של התיקייה הזו והתיקיות שבתוכה
+	Archive mail received before	העברה לארכיון של דואר שהתקבל לפני
+	Archive file	קובץ ארכיון
+	That's not a date.	זה לא תאריך.
+	Archive mail older than	העברה לארכיון של דואר ישן מ
+	Move old mail to this file	העברת דואר ישן לקובץ הזה
+	Delete old mail for good	מחיקת דואר ישן לצמיתות
+	AutoArchive	העברה אוטומטית לארכיון
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	כל כמה ימים, הדואר הישן של כל תיקייה עובר לקובץ נתונים במחשב הזה, או נמחק, לפי ההגדרות של התיקייה עצמה (במאפיינים שלה) או לפי ההגדרות האלה.
+	Run AutoArchive every	הפעלת העברה אוטומטית לארכיון כל
+	Ask before AutoArchive runs	לשאול לפני העברה אוטומטית לארכיון
+	Show the archive file in the folder list	הצגת קובץ הארכיון ברשימת התיקיות
+	For folders without settings of their own	לתיקיות בלי הגדרות משלהן
+	Apply these settings to all folders now	החלת ההגדרות האלה על כל התיקיות עכשיו
+	Folders with settings of their own follow these instead.	תיקיות עם הגדרות משלהן יפעלו לפי ההגדרות האלה במקומן.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	עברו {days} ימים: להעביר עכשיו לארכיון את הדואר הישן, כפי שהעברה אוטומטית לארכיון מוגדרת?
+	Archive now	העברה לארכיון עכשיו
+	Off: old mail stays where it is until you clean it up.	כבוי: הדואר הישן נשאר במקומו עד שתנקו אותו.
+	Every {days} days, old mail is archived by each folder's settings.	כל {days} ימים, דואר ישן עובר לארכיון לפי ההגדרות של כל תיקייה.
+	AutoArchive settings…	הגדרות העברה אוטומטית לארכיון…
+	Don't archive this folder	לא להעביר את התיקייה הזו לארכיון
+	Archive it by the default settings	להעביר לארכיון לפי הגדרות ברירת המחדל
+	Archive it by these settings	להעביר לארכיון לפי ההגדרות האלה
+	weeks	שבועות
+	months	חודשים
+	Folder density	צפיפות תיקיות
+	How tightly the folder pane's folders sit	עד כמה התיקיות צפופות בחלונית התיקיות
+	Spacious	מרווח
+	Medium	בינוני
+	Sort folders A to Z	מיון התיקיות מא' עד ת'
+	Work days	ימי עבודה
+	The work week shows these days	שבוע העבודה מציג את הימים האלה
+	Work hours	שעות עבודה
+	The calendar shades the hours outside them	לוח השנה מצליל את השעות שמחוץ להן
+	Start time	שעת התחלה
+	End time	שעת סיום
+	Meeting length	משך הפגישה
+	How long a time free for everyone is looked for	כמה זמן פנוי לכולם מחפשים
+	Previous free time	הזמן הפנוי הקודם
+	Next free time	הזמן הפנוי הבא
+	The time before when everyone shown is free, within work hours	הזמן הקודם שבו כל המוצגים פנויים, בשעות העבודה
+	The next time when everyone shown is free, within work hours	הזמן הבא שבו כל המוצגים פנויים, בשעות העבודה
+	Free for everyone	כולם פנויים
+	Free for everyone: click to make a meeting with them	כולם פנויים: לחצו כדי לקבוע איתם פגישה
+	No time when everyone is free in the next six weeks	אין זמן שבו כולם פנויים בשישה השבועות הבאים
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	אין זמן שבו כולם פנויים עד היכן שזמני הזמינות שלהם מגיעים: 'הבא' יחפש הלאה כשיגיעו
+	No earlier time when everyone is free	אין זמן מוקדם יותר שבו כולם פנויים
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	אין זמן מוקדם יותר שבו כולם פנויים עד היכן שזמני הזמינות שלהם מגיעים: 'הקודם' יחפש הלאה כשיגיעו
+	Their free/busy times haven't come yet: try again in a moment	זמני הזמינות שלהם עוד לא הגיעו: נסו שוב בעוד רגע
+	Some people's free/busy times can't be had: they count as free	לא ניתן לקבל את זמני הזמינות של חלק מהאנשים: הם נחשבים פנויים
+	Collapse this group	כיווץ הקבוצה הזו
+	Expand this group	הרחבת הקבוצה הזו
+	Collapse all groups	כיווץ כל הקבוצות
+	Expand all groups	הרחבת כל הקבוצות
+	Show this group's mail	הצגת הדואר של הקבוצה הזו
+	Hide this group's mail	הסתרת הדואר של הקבוצה הזו
+	{heading} ({count}), folded	{heading} ({count}), מכווצת
+	Clashes with {event} on your calendar	מתנגש עם {event} ביומן שלך
+	Clashes with {n} events on your calendar	מתנגש עם {n} אירועים ביומן שלך
+	In {n} min	בעוד {n} דק׳
+	Line between the appointments and the tasks	הקו בין הפגישות למשימות
+	Mark all in {folder} as read	סימון כל מה שב{folder} כנקרא
+	Mark all shown as read	סימון כל המוצג כנקרא
+	More ways to mark mail read	דרכים נוספות לסמן דואר כנקרא
+	Nothing else on your calendar then	אין שום דבר אחר ביומן שלך באותה שעה
+	Right after {event} on your calendar	מיד אחרי {event} ביומן שלך
+	Right before {event} on your calendar	מיד לפני {event} ביומן שלך
+	{h} h	{h} שע׳
+	Notify of mail in Other too	להודיע גם על דואר ב'אחר'
+	Off, only mail that goes to Focused is announced	כשכבוי, מודיעים רק על דואר שעובר ל'ממוקד'

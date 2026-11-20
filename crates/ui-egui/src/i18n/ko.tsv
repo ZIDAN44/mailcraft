@@ -1861,3 +1861,95 @@ count	occurrences	회
 	The first account's Inbox	첫 번째 계정의 받은 편지함
 	The folder open last	마지막으로 연 폴더
 	Add reminder…	미리 알림 추가…
+	No suggestions	제안 없음
+	Ignore all	모두 무시
+	Add to dictionary	사전에 추가
+	Check spelling as you type	입력할 때 맞춤법 검사
+	Misspelled words are underlined in red. Right-click one for suggestions.	맞춤법이 틀린 단어에는 빨간 밑줄이 표시됩니다. 단어를 마우스 오른쪽 단추로 클릭하면 제안이 표시됩니다.
+	There's no spelling dictionary for {language} on this computer.	이 컴퓨터에는 {language} 맞춤법 사전이 없습니다.
+	Bold on	굵게 켜짐
+	Bold off	굵게 꺼짐
+	Italic on	기울임꼴 켜짐
+	Italic off	기울임꼴 꺼짐
+	Underline on	밑줄 켜짐
+	Underline off	밑줄 꺼짐
+	{name}: on	{name}: 켜짐
+	{name}: off	{name}: 꺼짐
+	Font	글꼴
+	Default font	기본 글꼴
+	Font for new messages	새 메시지 글꼴
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	새 메시지, 회신, 전달이 이 글꼴로 작성됩니다. 글꼴을 지정한 텍스트는 그 글꼴을 유지합니다.
+	Clean up old items	오래된 항목 정리
+	Clean up old items…	오래된 항목 정리…
+	Move old mail to an archive file on this computer, out of the mailbox.	오래된 메일을 사서함에서 이 컴퓨터의 보관 파일로 옮깁니다.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	오래된 메일은 이 컴퓨터에 있는 Outlook 데이터 파일의 같은 이름 폴더로 옮겨진 뒤 사서함에서 삭제되어 공간이 확보됩니다. 이 파일은 폴더 목록에 표시되며, 그곳에서 메일을 읽고 검색하고 다시 옮길 수 있습니다.
+	Archive this folder and the folders in it	이 폴더와 그 안의 폴더 보관
+	Archive mail received before	다음 날짜 이전에 받은 메일 보관
+	Archive file	보관 파일
+	That's not a date.	날짜가 아닙니다.
+	Archive mail older than	다음보다 오래된 메일 보관
+	Move old mail to this file	오래된 메일을 이 파일로 이동
+	Delete old mail for good	오래된 메일을 영구 삭제
+	AutoArchive	자동 보관
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	며칠마다 각 폴더의 오래된 메일을 폴더 자체 설정(속성) 또는 이 설정에 따라 이 컴퓨터의 데이터 파일에 보관하거나 삭제합니다.
+	Run AutoArchive every	자동 보관 실행 간격
+	Ask before AutoArchive runs	자동 보관 전에 묻기
+	Show the archive file in the folder list	폴더 목록에 보관 파일 표시
+	For folders without settings of their own	자체 설정이 없는 폴더
+	Apply these settings to all folders now	지금 모든 폴더에 이 설정 적용
+	Folders with settings of their own follow these instead.	자체 설정이 있는 폴더도 대신 이 설정을 따릅니다.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days}일이 지났습니다. 자동 보관 설정대로 지금 오래된 메일을 보관할까요?
+	Archive now	지금 보관
+	Off: old mail stays where it is until you clean it up.	꺼짐: 정리할 때까지 오래된 메일은 그대로 있습니다.
+	Every {days} days, old mail is archived by each folder's settings.	{days}일마다 각 폴더의 설정에 따라 오래된 메일을 보관합니다.
+	AutoArchive settings…	자동 보관 설정…
+	Don't archive this folder	이 폴더 보관 안 함
+	Archive it by the default settings	기본 설정으로 보관
+	Archive it by these settings	이 설정으로 보관
+	weeks	주마다
+	months	개월마다
+	Folder density	폴더 밀도
+	How tightly the folder pane's folders sit	폴더 창에서 폴더가 얼마나 촘촘히 표시되는지
+	Spacious	넓게
+	Medium	보통
+	Sort folders A to Z	폴더를 이름순으로 정렬
+	Work days	근무일
+	The work week shows these days	근무 주에 이 요일이 표시됩니다
+	Work hours	근무 시간
+	The calendar shades the hours outside them	근무 시간 외는 일정에서 음영으로 표시됩니다
+	Start time	시작 시간
+	End time	종료 시간
+	Meeting length	회의 길이
+	How long a time free for everyone is looked for	모두가 한가한 시간을 얼마 동안 찾을지
+	Previous free time	이전 빈 시간
+	Next free time	다음 빈 시간
+	The time before when everyone shown is free, within work hours	표시된 모든 사람이 근무 시간 중 한가한 이전 시간
+	The next time when everyone shown is free, within work hours	표시된 모든 사람이 근무 시간 중 한가한 다음 시간
+	Free for everyone	모두 한가함
+	Free for everyone: click to make a meeting with them	모두 한가함: 클릭하면 이들과 회의를 만듭니다
+	No time when everyone is free in the next six weeks	앞으로 6주 동안 모두가 한가한 시간이 없습니다
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	가용성 정보가 있는 범위에서는 모두가 한가한 시간이 없습니다: 정보가 오면 '다음'이 더 찾아봅니다
+	No earlier time when everyone is free	이보다 이전에 모두가 한가한 시간이 없습니다
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	가용성 정보가 있는 범위에서는 이보다 이전에 모두가 한가한 시간이 없습니다: 정보가 오면 '이전'이 더 찾아봅니다
+	Their free/busy times haven't come yet: try again in a moment	가용성 정보가 아직 오지 않았습니다: 잠시 후 다시 시도하세요
+	Some people's free/busy times can't be had: they count as free	일부 사람의 가용성 정보를 가져올 수 없습니다: 한가한 것으로 간주합니다
+	Collapse this group	이 그룹 접기
+	Expand this group	이 그룹 펼치기
+	Collapse all groups	모든 그룹 접기
+	Expand all groups	모든 그룹 펼치기
+	Show this group's mail	이 그룹의 메일 표시
+	Hide this group's mail	이 그룹의 메일 숨기기
+	{heading} ({count}), folded	{heading} ({count}), 접힘
+	Clashes with {event} on your calendar	캘린더의 {event}와(과) 겹칩니다
+	Clashes with {n} events on your calendar	캘린더의 일정 {n}개와 겹칩니다
+	In {n} min	{n}분 후
+	Line between the appointments and the tasks	약속과 작업 사이의 선
+	Mark all in {folder} as read	{folder}의 모든 메일을 읽음으로 표시
+	Mark all shown as read	표시된 모든 메일을 읽음으로 표시
+	More ways to mark mail read	메일을 읽음으로 표시하는 다른 방법
+	Nothing else on your calendar then	그 시간에 캘린더에 다른 일정이 없습니다
+	Right after {event} on your calendar	캘린더의 {event} 바로 다음입니다
+	Right before {event} on your calendar	캘린더의 {event} 바로 앞입니다
+	{h} h	{h}시간
+	Notify of mail in Other too	기타의 메일도 알림
+	Off, only mail that goes to Focused is announced	끄면 집중으로 가는 메일만 알립니다

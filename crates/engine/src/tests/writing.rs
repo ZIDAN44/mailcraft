@@ -4,6 +4,7 @@ use super::*;
 
 mod drafts;
 mod files;
+mod fonts;
 mod identities;
 mod pictures;
 mod quote;
@@ -11,6 +12,7 @@ mod reactions;
 mod sending;
 mod signature_code;
 mod signatures;
+mod spelling;
 mod undo_send;
 
 #[test]

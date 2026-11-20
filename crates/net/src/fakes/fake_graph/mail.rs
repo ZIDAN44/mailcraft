@@ -108,6 +108,15 @@ impl Data {
                     "flag/flagStatus eq 'flagged'" => list.retain(|m| m.flagged),
                     "flag/flagStatus ne 'flagged'" => list.retain(|m| !m.flagged),
                     "hasAttachments eq true" => list.clear(),
+                    // When it came (issue #179): its time as Graph writes it compares as text.
+                    c if c.starts_with("receivedDateTime ge ") => {
+                        let at = c.trim_start_matches("receivedDateTime ge ");
+                        list.retain(|m| m.received.as_str() >= at);
+                    }
+                    c if c.starts_with("receivedDateTime lt ") => {
+                        let at = c.trim_start_matches("receivedDateTime lt ");
+                        list.retain(|m| m.received.as_str() < at);
+                    }
                     _ => {}
                 }
             }

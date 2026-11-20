@@ -417,6 +417,18 @@ fn para_html(line: &str, start: usize, styles: &Styles) -> String {
     out
 }
 
+/// A typeface's name as it goes in a style: letters, digits, spaces, `-` and `_` (nothing that
+/// could end the quotes or the attribute), at most [`FONT_NAME_MAX`] characters; `None` if
+/// nothing's left.
+pub fn font_name(name: &str) -> Option<String> {
+    let clean: String = name.chars().filter(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_')).take(FONT_NAME_MAX).collect();
+    let clean = clean.trim();
+    (!clean.is_empty()).then(|| clean.to_string())
+}
+
+/// The longest typeface name kept.
+pub const FONT_NAME_MAX: usize = 64;
+
 fn para_css(p: &Para) -> String {
     let mut css = Vec::new();
     if p.indent > 0 {
@@ -433,9 +445,16 @@ fn para_css(p: &Para) -> String {
 /// The message as HTML: a `<div>` per paragraph (as Outlook writes them), lists grouped, rules
 /// as `<hr>`, pictures by `cid:`.
 pub fn to_html(text: &str, styles: &Styles) -> String {
+    to_html_in(text, styles, None)
+}
+
+/// [`to_html`], its text in typeface `font` where none is set on it (issue #166: the font chosen
+/// for new messages), else in MailCraft's own.
+pub fn to_html_in(text: &str, styles: &Styles, font: Option<&str>) -> String {
     let mut st = styles.clone();
     st.fit(text);
-    let mut out = format!("<div style=\"font-family: Aptos, Calibri, 'Segoe UI', Arial, sans-serif; font-size: {DEFAULT_SIZE}pt\">\n");
+    let first = font.and_then(font_name).map(|f| format!("'{f}', ")).unwrap_or_default();
+    let mut out = format!("<div style=\"font-family: {first}Aptos, Calibri, 'Segoe UI', Arial, sans-serif; font-size: {DEFAULT_SIZE}pt\">\n");
     let mut open: Option<(List, u8)> = None;
     for (n, (line, start)) in paragraphs(text).into_iter().enumerate() {
         let p = st.para(n);

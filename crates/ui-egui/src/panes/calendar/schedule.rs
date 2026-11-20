@@ -1,5 +1,6 @@
 //! The Schedule view (Outlook's, issue #141): a day's hours across, a row for each calendar
-//! shown under all of them together, to see when several people are free at once. A time
+//! shown under all of them together, to see when several people are free at once, each row's
+//! hours not worked shaded (issue #185; on all together's, when not everyone works). A time
 //! chosen on a colleague's row (clicked, or dragged across) makes a meeting with them; on the
 //! row of all together, with everyone shown; on one's own calendar, an event in it.
 
@@ -53,6 +54,7 @@ pub(super) fn schedule(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[Agen
             scroll.show(ui, |ui| {
                 let (grid, _) = ui.allocate_exact_size(vec2(HOUR_W * hours, height), Sense::hover());
                 let day = Day { day0, day1, grid };
+                off_hours_rows(s, &t, ui, &day, &rows);
                 hour_lines(s, &t, ui, &day, rows.len());
                 for (k, row) in rows.iter().enumerate() {
                     let r = Rect::from_min_size(pos2(grid.min.x, grid.min.y + HEAD + ROW_H * k as f32), vec2(grid.width(), ROW_H));
@@ -63,6 +65,13 @@ pub(super) fn schedule(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[Agen
                             let mine: Vec<&AgendaItem> = items.iter().copied().filter(|it| it.account == *account && it.calendar == *id).collect();
                             row_items(s, &t, ui, &day, r, &mine, acts);
                         }
+                    }
+                }
+                // The time found free for everyone (issue #186), across every row.
+                if let Some((from, to)) = s.free_slot().filter(|(a, b)| *a < day.day1 && *b > day.day0) {
+                    let r = Rect::from_min_max(pos2(day.x(from), grid.min.y + HEAD), pos2(day.x(to), grid.max.y)).shrink2(vec2(1.0, 2.0));
+                    if let Some(slot) = marked_slot(s, &t, ui, r, ("free-slot", 0, 0)) {
+                        acts.push(slot);
                     }
                 }
                 now_line(s, &t, ui, &day);
@@ -112,6 +121,23 @@ fn row_names(s: &Session, t: &Tokens, ui: &mut Ui, names: Rect, rows: &[Row]) {
         let text = r.with_min_x(r.min.x + 20.0).with_max_x(r.max.x - 6.0);
         let font = if row.is_none() { theme::bold(12.0) } else { theme::regular(12.0) };
         ui.painter().with_clip_rect(text).text(pos2(text.min.x, text.center().y), Align2::LEFT_CENTER, label, font, t.text);
+    }
+}
+
+/// Each row's hours not worked, shaded: a calendar's owner's (a colleague's as their server gave
+/// them, else the user's own); all together's, where not everyone works.
+fn off_hours_rows(s: &Session, t: &Tokens, ui: &mut Ui, day: &Day, rows: &[Row]) {
+    let of = |(account, id, ..): &Cal| s.calendar_work_spans(account, id, day.day0, day.day1);
+    let everyone = rows.iter().flatten().map(of).reduce(|a, b| overlap(&a, &b)).unwrap_or_default();
+    for (k, row) in rows.iter().enumerate() {
+        let work = match row {
+            Some(cal) => of(cal),
+            None => everyone.clone(),
+        };
+        let y = day.grid.min.y + HEAD + ROW_H * k as f32;
+        for (a, b) in outside(&work, day.day0, day.day1) {
+            ui.painter().rect_filled(Rect::from_min_max(pos2(day.x(a), y), pos2(day.x(b), y + ROW_H)), 0.0, off_hours(t));
+        }
     }
 }
 
@@ -173,7 +199,7 @@ fn choose_time(s: &Session, t: &Tokens, ui: &mut Ui, day: &Day, r: Rect, row: &R
 /// A new event over `when` from a row: on a colleague's row, a meeting with them; on the row of
 /// all together, with everyone whose calendar is shown; on the user's own calendar, an event
 /// in it.
-fn new_meeting(s: &Session, when: (i64, i64), row: &Row, cals: &[Cal]) -> Action {
+pub(super) fn new_meeting(s: &Session, when: (i64, i64), row: &Row, cals: &[Cal]) -> Action {
     let mine: Vec<String> = s.accounts.iter().map(|a| a.config.email.to_ascii_lowercase()).collect();
     let people = |list: &mut dyn Iterator<Item = &Cal>| -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
@@ -241,7 +267,8 @@ fn row_items(s: &Session, t: &Tokens, ui: &mut Ui, day: &Day, r: Rect, items: &[
     for (it, lane) in sorted.into_iter().zip(lanes) {
         let (x0, x1) = (day.x(it.start), day.x(it.end.max(it.start + 60)));
         let cr = Rect::from_min_size(pos2(x0 + 1.0, r.min.y + 2.0 + h * lane as f32), vec2((x1 - x0 - 2.0).max(6.0), h - 1.0));
-        let resp = chip(ui, t, cr, it, &title_of(it));
+        // Opened, not dragged: a row's time is the person's, the day's across the hours.
+        let resp = chip(ui, t, cr, it, &title_of(it), false);
         let when = if it.all_day { tl!("All day").to_string() } else { format!("{} – {}", hm(it.start, s), hm(it.end, s)) };
         let tip = if it.location.is_empty() { format!("{}\n{when}", title_of(it)) } else { format!("{}\n{when} · {}", title_of(it), it.location) };
         if resp.on_hover_text(tip).clicked()

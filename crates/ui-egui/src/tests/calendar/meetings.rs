@@ -241,3 +241,53 @@ fn a_meeting_saved_unchanged_sends_no_update() {
     assert_eq!(save(&mut a, &|f| f.location = "Room 4".into()), e.sequence + 1, "a new place is a new version");
     assert_eq!(sent_updates(&a, "Planning"), 2, "and the guests hear of it");
 }
+
+/// Issue #194: an invitation's card says how it fits the calendar: what it clashes with, by name
+/// and time, and draws the hours around it with the user's events and the invitation among
+/// them; a click on one of those opens it. Right after another, it says that.
+#[test]
+fn an_invitation_says_what_it_clashes_with() {
+    let (mut a, _) = app("invite-clash");
+    let ctx = egui::Context::default();
+    let s = &a.session;
+    let tomorrow = mailcraft_engine::model::dates::day_string(mailcraft_engine::model::dates::today(&s.clock) + 1);
+    // The sample's render farm maintenance takes that morning: out of the way, for one clash.
+    a.session.run("event.delete", &json!({"uid": "render@sample.mailcraft"})).unwrap();
+    a.session
+        .run("event.create", &json!({"summary": "Grade check", "start": format!("{tomorrow}T11:30"), "end": format!("{tomorrow}T12:30")}))
+        .unwrap();
+    let open = |a: &mut MailApp| {
+        let k = a.session.list.iter().find(|m| m.subject == "Sound mix, version 3").map(|m| m.key.clone()).unwrap();
+        a.run("list.open", json!({"key": k.to_id()}));
+    };
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    open(&mut a);
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts: Vec<Drawn> = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    let find = |what: &str| texts.iter().find(|d| d.text == what && d.seen()).map(|d| d.rect);
+    find("Clashes with Grade check (11:30 – 12:30) on your calendar").expect("the clash said");
+    let strip = find("Grade check").expect("in the hours around it");
+    let invite = find("Sound mix playback").expect("the invitation among them");
+    assert!(strip.min.x > invite.min.x, "half an hour after it starts: {strip:?} {invite:?}");
+    // Its own copy, already in the calendar, isn't a clash with itself.
+    assert!(!texts.iter().any(|d| d.text.contains("Clashes with Sound mix")));
+    // A click on the event opens it.
+    click(&ctx, &mut a, strip.center());
+    assert!(matches!(&a.ui.dialog, Some(Dialog::Event(f)) if f.summary == "Grade check"), "opened");
+    a.ui.dialog = None;
+
+    // Moved to start as the meeting ends: right after it, not a clash.
+    let uid = a.session.agenda(0, i64::MAX / 2).into_iter().find(|it| it.summary == "Grade check").unwrap().uid;
+    a.session.run("event.move", &json!({"uid": uid, "by": -5400})).unwrap();
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts: Vec<Drawn> = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(
+        texts.iter().any(|d| d.text == "Right after Grade check (10:00 – 11:00) on your calendar"),
+        "{:?}",
+        texts.iter().filter(|d| d.text.contains("calendar")).map(|d| &d.text).collect::<Vec<_>>()
+    );
+}

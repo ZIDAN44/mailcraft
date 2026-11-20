@@ -160,11 +160,19 @@ fn server_settings(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tokens, ac
         // Five kinds: a list to pick from, on one row, rather than a block of choices.
         ui.horizontal(|ui| {
             field_label(ui, "Mail server");
-            egui::ComboBox::from_id_salt("account-kind").width(220.0).selected_text(kind_name(f.kind)).show_ui(ui, |ui| {
-                for k in [AccountKind::Imap, AccountKind::Pop, AccountKind::Jmap, AccountKind::Graph, AccountKind::Ews] {
-                    ui.selectable_value(&mut f.kind, k, kind_name(k));
-                }
-            });
+            let kinds = [AccountKind::Imap, AccountKind::Pop, AccountKind::Jmap, AccountKind::Graph, AccountKind::Ews];
+            let r = egui::ComboBox::from_id_salt("account-kind")
+                .width(220.0)
+                .selected_text(kind_name(f.kind))
+                .show_ui(ui, |ui| {
+                    for k in kinds {
+                        ui.selectable_value(&mut f.kind, k, kind_name(k));
+                    }
+                })
+                .response
+                // Its name beside it is painted small, not handed on.
+                .accessible_name(tl!("Mail server"));
+            crate::drop_down::keys(ui, &r, &mut f.kind, &kinds);
         });
         // POP just chosen: its server named after the IMAP one, unless one is in.
         if f.kind == AccountKind::Pop && was != AccountKind::Pop && f.pop_host.is_empty() {

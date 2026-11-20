@@ -162,6 +162,8 @@ impl Session {
         self.read_when_due();
         self.web_calendars_due();
         self.free_busy_due();
+        self.archive_waits_due();
+        self.auto_archive_due();
         // The sender check follows contacts saved, accounts and the directory (cheap when not).
         self.keep_senders_when(false);
         self.held_invitations_due();
