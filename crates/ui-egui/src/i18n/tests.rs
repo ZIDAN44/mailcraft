@@ -586,7 +586,7 @@ fn a_tour_in_the_pseudo_language_only_draws_known_strings() {
 fn the_language_list_reads_in_order() {
     let names: Vec<&str> = Lang::for_picker().iter().map(|l| l.name()).collect();
     assert_eq!(names.len(), LANGUAGES.len());
-    let latin = ["English", "Deutsch", "Español", "Français", "Italiano", "Nederlands", "Português (Brasil)", "Slovenčina", "Türkçe"];
+    let latin = ["English", "Deutsch", "Español", "Français", "Italiano", "Magyar", "Nederlands", "Português (Brasil)", "Slovenčina", "Türkçe"];
     assert_eq!(names.get(..latin.len()), Some(&latin[..]), "{names:?}");
     assert!(names.iter().skip(latin.len()).all(|n| !n.is_ascii()), "{names:?}");
 }
