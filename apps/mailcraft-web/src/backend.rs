@@ -628,6 +628,19 @@ impl Backend for WebBackend {
                     error: Some("writing Outlook data files needs the desktop app".into()),
                 },
             ),
+            Job::ArchivePst { account, path, .. } => emit(
+                sh,
+                Event::Archived {
+                    account,
+                    path,
+                    messages: 0,
+                    archived: Vec::new(),
+                    skipped: 0,
+                    folders_skipped: 0,
+                    done: true,
+                    error: Some("writing Outlook data files needs the desktop app".into()),
+                },
+            ),
             Job::Start { account, password } => {
                 let id = account.id.clone();
                 let generation = {

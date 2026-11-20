@@ -417,6 +417,7 @@ impl Session {
             && ss.pending > 0
         {
             self.jobs.push(Job::StopSearch);
+            self.archive_search_cut();
         }
     }
 

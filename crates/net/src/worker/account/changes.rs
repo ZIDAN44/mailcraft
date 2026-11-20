@@ -175,6 +175,7 @@ impl Worker {
             | Job::Index { .. }
             | Job::StopIndex { .. }
             | Job::ExportPst { .. }
+            | Job::ArchivePst { .. }
             | Job::DataFileHealth { .. }
             | Job::CompactDataFile { .. }
             | Job::CancelCompact { .. }

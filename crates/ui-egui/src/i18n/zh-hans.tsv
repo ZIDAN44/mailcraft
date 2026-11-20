@@ -1876,3 +1876,11 @@ count	occurrences	次
 	Default font	默认字体
 	Font for new messages	新邮件的字体
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	新邮件、回复和转发都使用此字体书写。你设置了字体的文字保留其自己的字体。
+	Clean up old items	清理旧项目
+	Clean up old items…	清理旧项目…
+	Move old mail to an archive file on this computer, out of the mailbox.	将旧邮件从邮箱移到这台电脑上的存档文件中。
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	旧邮件会移到这台电脑上 Outlook 数据文件中同名的文件夹里，然后从邮箱中删除，邮箱因此腾出空间。该文件会显示在文件夹列表中，可在其中阅读、搜索邮件，或将邮件移回。
+	Archive this folder and the folders in it	存档此文件夹及其中的文件夹
+	Archive mail received before	存档在此日期之前收到的邮件
+	Archive file	存档文件
+	That's not a date.	这不是日期。

@@ -48,6 +48,19 @@ impl MailApp {
         }
     }
 
+    /// The file Clean up old items archives to, picked and put in its dialog.
+    pub(super) fn pick_archive_file(&mut self) {
+        let suggested = match &self.ui.dialog {
+            Some(Dialog::Archive(f)) if !f.path.trim().is_empty() => mailcraft_engine::model::file_name(f.path.trim()).to_string(),
+            _ => "archive.pst".to_string(),
+        };
+        if let Some(path) = self.services.save_path(&suggested)
+            && let Some(Dialog::Archive(f)) = self.ui.dialog.as_mut()
+        {
+            f.path = path.to_string_lossy().into_owned();
+        }
+    }
+
     pub(super) fn export_data_file(&mut self, account: &str) {
         // Named after the account's address, as Outlook names a data file.
         let name = self

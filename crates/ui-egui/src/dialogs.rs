@@ -11,6 +11,7 @@ use crate::theme::{self, Tokens};
 use crate::{Action, Icon, widgets};
 
 mod accounts;
+mod archiving;
 mod backup;
 mod categories;
 mod closing;
@@ -28,6 +29,7 @@ mod writing;
 pub use accounts::*;
 use accounts::{addresses, dav, trust};
 pub use addresses::AddressForm;
+pub use archiving::ArchiveForm;
 pub use backup::RestoreForm;
 pub use dav::DavForm;
 pub(crate) use importing::skip_line;
@@ -209,6 +211,8 @@ pub enum Dialog {
     /// Follow Up › Custom… on a flagged message of the To-Do Bar (issue #160).
     FollowUp(Box<crate::pim_dialogs::FollowUpForm>),
     Contact(Box<crate::pim_dialogs::ContactForm>),
+    /// File › Info › Clean up old items: old mail archived to a data file (issue #179).
+    Archive(Box<ArchiveForm>),
     /// New folder (in `parent`), or rename `rename`.
     FolderName {
         account: String,
@@ -500,6 +504,7 @@ impl Dialog {
             Dialog::Task(f) => f.error = Some(e),
             Dialog::Contact(f) => f.error = Some(e),
             Dialog::Vacation(f) => f.error = Some(e),
+            Dialog::Archive(f) => f.error = Some(e),
             Dialog::Dav(f) => f.error = Some(e),
             Dialog::Address(f) => f.error = Some(e),
             Dialog::SelectNames(f) if f.purpose != NamesFor::Message => f.error = Some(e),
@@ -690,6 +695,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         Dialog::Dav(f) => dav::draw(ui, f, t, acts),
         Dialog::Address(f) => addresses::draw(ui, f, s, t, acts),
         Dialog::Backup(..) | Dialog::Restore(..) => backup::draw(ui, d, t, acts),
+        Dialog::Archive(..) => archiving::draw(ui, d, s, t, acts),
         Dialog::ConfirmDelete { .. }
         | Dialog::MoveTo { .. }
         | Dialog::FolderName { .. }

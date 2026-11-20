@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod archiving;
 mod beside;
 mod calendar_only;
 mod compacting;

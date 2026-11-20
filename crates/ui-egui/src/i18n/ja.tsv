@@ -1876,3 +1876,11 @@ count	occurrences	回
 	Default font	既定のフォント
 	Font for new messages	新しいメッセージのフォント
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	新しいメッセージ、返信、転送はこのフォントで書かれます。フォントを指定した文字はそのフォントのままです。
+	Clean up old items	古いアイテムの整理
+	Clean up old items…	古いアイテムの整理…
+	Move old mail to an archive file on this computer, out of the mailbox.	古いメールをメールボックスから、このコンピューター上のアーカイブ ファイルに移動します。
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	古いメールは、このコンピューター上の Outlook データ ファイルの同じ名前のフォルダーに移動され、その後メールボックスから削除されて、その分の容量が空きます。ファイルはフォルダー一覧に表示され、そこでメールの閲覧、検索、元の場所への移動ができます。
+	Archive this folder and the folders in it	このフォルダーとその中のフォルダーをアーカイブ
+	Archive mail received before	次の日付より前に受信したメールをアーカイブ
+	Archive file	アーカイブ ファイル
+	That's not a date.	日付ではありません。

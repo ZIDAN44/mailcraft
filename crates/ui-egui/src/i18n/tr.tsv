@@ -1880,3 +1880,11 @@ count	occurrences	kez
 	Default font	Varsayılan yazı tipi
 	Font for new messages	Yeni iletilerin yazı tipi
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Yeni iletiler, yanıtlar ve iletmeler bu yazı tipiyle yazılır. Yazı tipi belirlediğiniz metin kendi yazı tipini korur.
+	Clean up old items	Eski öğeleri temizle
+	Clean up old items…	Eski öğeleri temizle…
+	Move old mail to an archive file on this computer, out of the mailbox.	Eski postaları posta kutusundan bu bilgisayardaki bir arşiv dosyasına taşı.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	Eski postalar bu bilgisayardaki bir Outlook veri dosyasına, aynı adlı klasörlere taşınır ve ardından posta kutusundan silinir; böylece posta kutusunda yer açılır. Dosya klasör listesinde görünür; postaları orada okunabilir, aranabilir ve geri taşınabilir.
+	Archive this folder and the folders in it	Bu klasörü ve içindeki klasörleri arşivle
+	Archive mail received before	Şu tarihten önce alınan postaları arşivle
+	Archive file	Arşiv dosyası
+	That's not a date.	Bu bir tarih değil.

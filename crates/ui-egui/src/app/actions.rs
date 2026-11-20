@@ -75,6 +75,8 @@ pub enum Action {
         mail: bool,
     },
     PickBackup,
+    /// The archive file for Clean up old items, picked (issue #179).
+    PickArchiveFile,
     Restore {
         data: std::sync::Arc<Vec<u8>>,
         password: String,
@@ -298,6 +300,7 @@ impl MailApp {
             // The browser's picker answers later (with the file's bytes).
             Action::Backup { password, mail } => self.save_backup(&password, mail),
             Action::PickBackup => self.pick_backup(),
+            Action::PickArchiveFile => self.pick_archive_file(),
             Action::Restore { data, password } => self.restore_backup(&data, &password),
             // An account's keys (`actions/security.rs`).
             Action::ImportCertificate(account) => self.import_certificate(account),

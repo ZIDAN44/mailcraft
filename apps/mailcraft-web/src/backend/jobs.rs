@@ -153,6 +153,7 @@ pub(super) async fn job(sh: &Rcs, id: &str, j: Job) {
         | Job::StopImport { .. }
         | Job::KeepImport { .. }
         | Job::ExportPst { .. }
+        | Job::ArchivePst { .. }
         | Job::DataFileHealth { .. }
         | Job::CompactDataFile { .. }
         | Job::CancelCompact { .. }

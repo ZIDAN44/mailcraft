@@ -2,9 +2,12 @@
 
 use super::*;
 
+mod archiving;
 mod importing;
 mod mailbox_settings;
 mod trusting;
+pub(in crate::session) use archiving::ArchiveReport;
+pub(crate) use archiving::Archiving;
 #[cfg(test)]
 pub(crate) use importing::REMOVE_BACKSTOP;
 pub(crate) use importing::data_file_path;
@@ -349,6 +352,7 @@ impl Session {
         };
         self.accounts.retain(|a| a.config.id != id);
         self.forget_transfers(id);
+        self.forget_archiving(id);
         self.cache.retain(|(a, _), _| a != id);
         // Its messages held for their drafts go with it: kept as MailCraft closes, they'd be
         // written into a removed account's folder, and sent up by a later one of the same id.
@@ -529,6 +533,8 @@ impl Session {
         if by_account.is_empty() {
             return Err(CmdError::Disabled("no account here has its mail on a server".into()));
         }
+        // The servers search one thing at a time: an archive's search stops for this one.
+        self.archive_search_cut();
         self.searches = self.searches.wrapping_add(1).max(1);
         let id = self.searches;
         let sent = self.server_query(&q);

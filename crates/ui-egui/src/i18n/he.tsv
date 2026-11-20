@@ -1875,3 +1875,11 @@ count	occurrences	פעמים
 	Default font	גופן ברירת מחדל
 	Font for new messages	גופן להודעות חדשות
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	הודעות חדשות, תשובות והעברות נכתבות בו. טקסט שקבעת לו גופן שומר על הגופן שלו.
+	Clean up old items	ניקוי פריטים ישנים
+	Clean up old items…	ניקוי פריטים ישנים…
+	Move old mail to an archive file on this computer, out of the mailbox.	העברת דואר ישן מתיבת הדואר לקובץ ארכיון במחשב הזה.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	דואר ישן עובר לקובץ נתונים של Outlook במחשב הזה, לתיקיות באותם שמות, ואז נמחק מתיבת הדואר, שמקבלת בחזרה את המקום. הקובץ מופיע ברשימת התיקיות, ושם אפשר לקרוא את הדואר שבו, לחפש בו ולהחזיר אותו.
+	Archive this folder and the folders in it	העברה לארכיון של התיקייה הזו והתיקיות שבתוכה
+	Archive mail received before	העברה לארכיון של דואר שהתקבל לפני
+	Archive file	קובץ ארכיון
+	That's not a date.	זה לא תאריך.

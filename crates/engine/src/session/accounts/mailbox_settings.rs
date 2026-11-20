@@ -148,6 +148,7 @@ fn event_account(e: &Event) -> Option<&str> {
         | Event::Indexed { account, .. }
         | Event::AttachmentsKnown { account, .. }
         | Event::Exported { account, .. }
+        | Event::Archived { account, .. }
         | Event::ServerSearched { account, .. }
         | Event::CalendarFetched { account, .. } => Some(account),
         _ => None,

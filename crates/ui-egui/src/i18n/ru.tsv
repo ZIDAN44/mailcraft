@@ -1879,3 +1879,11 @@ count	occurrences	повторений
 	Default font	Шрифт по умолчанию
 	Font for new messages	Шрифт новых сообщений
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Новые сообщения, ответы и пересылки пишутся этим шрифтом. Текст, которому вы задали шрифт, сохраняет свой.
+	Clean up old items	Очистить старые элементы
+	Clean up old items…	Очистить старые элементы…
+	Move old mail to an archive file on this computer, out of the mailbox.	Перенести старую почту из почтового ящика в файл архива на этом компьютере.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	Старая почта переносится в файл данных Outlook на этом компьютере, в папки с теми же именами, а затем удаляется из почтового ящика, где освобождается место. Файл появляется в списке папок: там его почту можно читать, искать и переносить обратно.
+	Archive this folder and the folders in it	Архивировать эту папку и вложенные в неё папки
+	Archive mail received before	Архивировать почту, полученную до
+	Archive file	Файл архива
+	That's not a date.	Это не дата.

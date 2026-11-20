@@ -388,6 +388,8 @@ pub struct Session {
     pub(crate) moved_at: i64,
     /// Mail moved or copied into a folder on this computer, waiting for its source (issue #82).
     pub(crate) transfers: Vec<mailboxes::Transfer>,
+    /// Old mail being archived to a data file (issue #179), one at a time.
+    pub(crate) archiving: Option<accounts::Archiving>,
     /// Mail that arrived and may hold an invitation, waiting for its body (issue #20).
     pub(crate) arrived_invites: Vec<MessageKey>,
     /// Answered invitations to put out of the way once the server has the answer (issue #101).
@@ -552,6 +554,7 @@ impl Session {
             moved_in: changing::MovedIn::default(),
             moved_at: 0,
             transfers: Vec::new(),
+            archiving: None,
             arrived_invites: Vec::new(),
             tidy_waiting: Vec::new(),
             new_mail: Vec::new(),

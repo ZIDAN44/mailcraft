@@ -1879,3 +1879,11 @@ count	occurrences	ripetizioni
 	Default font	Carattere predefinito
 	Font for new messages	Carattere per i nuovi messaggi
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	I nuovi messaggi, le risposte e gli inoltri vengono scritti con questo carattere. Il testo a cui assegni un carattere mantiene il proprio.
+	Clean up old items	Pulisci elementi vecchi
+	Clean up old items…	Pulisci elementi vecchi…
+	Move old mail to an archive file on this computer, out of the mailbox.	Sposta la posta vecchia dalla casella a un file di archivio su questo computer.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	La posta vecchia va in un file di dati di Outlook su questo computer, in cartelle con gli stessi nomi, e viene poi eliminata dalla casella, che recupera il suo spazio. Il file compare nell'elenco delle cartelle, dove la sua posta si può leggere, cercare e spostare indietro.
+	Archive this folder and the folders in it	Archivia questa cartella e le cartelle al suo interno
+	Archive mail received before	Archivia la posta ricevuta prima del
+	Archive file	File di archivio
+	That's not a date.	Questa non è una data.

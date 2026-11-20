@@ -1880,3 +1880,11 @@ count	occurrences	Terminen
 	Default font	Standardschriftart
 	Font for new messages	Schriftart für neue Nachrichten
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Neue Nachrichten, Antworten und Weiterleitungen werden darin geschrieben. Text, für den Sie eine Schriftart festlegen, behält seine eigene.
+	Clean up old items	Alte Elemente aufräumen
+	Clean up old items…	Alte Elemente aufräumen…
+	Move old mail to an archive file on this computer, out of the mailbox.	Alte E-Mails aus dem Postfach in eine Archivdatei auf diesem Computer verschieben.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	Alte E-Mails kommen in eine Outlook-Datendatei auf diesem Computer, in Ordner mit denselben Namen, und werden dann aus dem Postfach gelöscht, das so wieder Platz bekommt. Die Datei erscheint in der Ordnerliste, wo ihre E-Mails gelesen, durchsucht und zurückverschoben werden können.
+	Archive this folder and the folders in it	Diesen Ordner und die Ordner darin archivieren
+	Archive mail received before	E-Mails archivieren, die empfangen wurden vor dem
+	Archive file	Archivdatei
+	That's not a date.	Das ist kein Datum.

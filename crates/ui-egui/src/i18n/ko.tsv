@@ -1879,3 +1879,11 @@ count	occurrences	회
 	Default font	기본 글꼴
 	Font for new messages	새 메시지 글꼴
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	새 메시지, 회신, 전달이 이 글꼴로 작성됩니다. 글꼴을 지정한 텍스트는 그 글꼴을 유지합니다.
+	Clean up old items	오래된 항목 정리
+	Clean up old items…	오래된 항목 정리…
+	Move old mail to an archive file on this computer, out of the mailbox.	오래된 메일을 사서함에서 이 컴퓨터의 보관 파일로 옮깁니다.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	오래된 메일은 이 컴퓨터에 있는 Outlook 데이터 파일의 같은 이름 폴더로 옮겨진 뒤 사서함에서 삭제되어 공간이 확보됩니다. 이 파일은 폴더 목록에 표시되며, 그곳에서 메일을 읽고 검색하고 다시 옮길 수 있습니다.
+	Archive this folder and the folders in it	이 폴더와 그 안의 폴더 보관
+	Archive mail received before	다음 날짜 이전에 받은 메일 보관
+	Archive file	보관 파일
+	That's not a date.	날짜가 아닙니다.

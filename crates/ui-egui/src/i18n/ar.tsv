@@ -1875,3 +1875,11 @@ count	occurrences	مرات
 	Default font	الخط الافتراضي
 	Font for new messages	خط الرسائل الجديدة
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	تُكتب به الرسائل الجديدة والردود وإعادة التوجيه. النص الذي تحدد له خطًا يحتفظ بخطه.
+	Clean up old items	تنظيف العناصر القديمة
+	Clean up old items…	تنظيف العناصر القديمة…
+	Move old mail to an archive file on this computer, out of the mailbox.	نقل البريد القديم من صندوق البريد إلى ملف أرشيف على هذا الكمبيوتر.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	ينتقل البريد القديم إلى ملف بيانات Outlook على هذا الكمبيوتر، في مجلدات بالأسماء نفسها، ثم يُحذف من صندوق البريد فيستعيد مساحته. يظهر الملف في قائمة المجلدات، حيث يمكن قراءة بريده والبحث فيه ونقله مرة أخرى.
+	Archive this folder and the folders in it	أرشفة هذا المجلد والمجلدات التي بداخله
+	Archive mail received before	أرشفة البريد المستلم قبل
+	Archive file	ملف الأرشيف
+	That's not a date.	هذا ليس تاريخًا.

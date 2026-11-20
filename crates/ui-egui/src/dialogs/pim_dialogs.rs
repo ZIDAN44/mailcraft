@@ -14,7 +14,7 @@ mod date_pick;
 pub(crate) mod follow_up;
 mod online_meeting;
 mod pattern;
-#[cfg(test)]
+pub(crate) use date_pick::date_field;
 pub(crate) use pattern::form_day as pattern_day;
 mod repeat;
 mod showing;

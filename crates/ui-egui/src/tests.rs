@@ -498,6 +498,13 @@ pub(crate) fn tour() {
             Dialog::Certificate { account: "sample".into(), path: "riley.p12".into(), data: None, password: String::new() },
             Dialog::Certificate { account: "sample".into(), path: String::new(), data: None, password: String::new() },
             Dialog::Backup(Default::default()),
+            Dialog::Archive(Box::new(crate::dialogs::ArchiveForm::new(&a.session, "sample"))),
+            Dialog::Archive(Box::new(crate::dialogs::ArchiveForm {
+                folder: Some("Projects".into()),
+                path: r"C:\Users\riley\Documents\archive.pst".into(),
+                error: Some("Old mail is being archived already: wait until that's done.".into()),
+                ..crate::dialogs::ArchiveForm::new(&a.session, "sample")
+            })),
             Dialog::Restore(crate::dialogs::RestoreForm { name: "MailCraft backup 2026-11-13.mailcraft-backup".into(), ..Default::default() }),
             Dialog::PgpKey { account: "sample".into(), path: "ana-secret.asc".into(), passphrase: String::new() },
             Dialog::SmartCard { account: "sample".into(), module: "/usr/lib/opensc-pkcs11.so".into(), pin: "1234".into(), system: false },

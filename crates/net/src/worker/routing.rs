@@ -69,6 +69,9 @@ impl Pool {
                 self.submit(if keep { Job::KeepDraft { account, raw, folder, replaces } } else { Job::SaveDraft { account, raw, folder, replaces } });
             }
             Job::ExportPst { account, path, name, follow_up } => self.export_pst(account, path, name, follow_up),
+            Job::ArchivePst { account, path, folders, before, follow_up } => {
+                self.archive_pst(account, path, crate::pst_export::Pick { folders, before }, follow_up)
+            }
             Job::SetSync { messages, offline } => self.set_sync(messages, offline),
             Job::WorkOffline { on } => self.work_offline(on),
             Job::CancelTransfers { account } => self.cancel_transfers(&account),

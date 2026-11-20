@@ -14,6 +14,10 @@ fn importing(s: &Session) -> Option<&'static str> {
     if s.import_running() { None } else { Some("nothing is being imported") }
 }
 
+fn archiving(s: &Session) -> Option<&'static str> {
+    if s.archiving.is_some() { Some("old mail is being archived already") } else { None }
+}
+
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.inspectDataFile", "Look at a data file", "File › Open & Export", |s, v| {
@@ -58,6 +62,15 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"account"?: string} (a stopped import won't go on)"#),
         CommandSpec::new("account.importStatus", "Import status", "Status bar", |s, v| s.import_status(p::str(v, "account")))
             .params(r#"{"account"?: string} (every import running or waiting, or that account's, with its report)"#),
+        CommandSpec::new("dataFile.archive", "Clean up old items", "File › Info › Tools", |s, v| {
+            let account = account_param(s, v)?;
+            let path = p::req_str(v, "path")?.to_string();
+            let before = p::i64(v, "before").ok_or_else(|| CmdError::Params("`before` (Unix seconds) is required".into()))?;
+            s.archive_old(&account, p::str(v, "folder"), before, &path)
+        })
+        .leaves_body()
+        .params(r#"{"path": string (the .pst file to archive to: made when it isn't there, added to when it is), "before": number (Unix seconds: mail received before then is archived), "account"?: string (default: the current one), "folder"?: string (that folder and those under it; default: all the account's folders)} (each old message goes into the folder of the same name in the file, and leaves the mailbox once it's there; the file then shows in the folder list)"#)
+        .when(archiving),
         CommandSpec::new("dataFile.health", "Data file health", "File › Info › Mailbox settings", |s, v| {
             let account = account_param(s, v)?;
             s.data_file_health(&account)

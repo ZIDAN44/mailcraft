@@ -1880,3 +1880,11 @@ count	occurrences	occurrences
 	Default font	Police par défaut
 	Font for new messages	Police des nouveaux messages
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Les nouveaux messages, les réponses et les transferts sont écrits dans cette police. Le texte auquel vous donnez une police garde la sienne.
+	Clean up old items	Nettoyer les anciens éléments
+	Clean up old items…	Nettoyer les anciens éléments…
+	Move old mail to an archive file on this computer, out of the mailbox.	Déplacer les anciens messages de la boîte aux lettres vers un fichier d'archive sur cet ordinateur.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	Les anciens messages vont dans un fichier de données Outlook sur cet ordinateur, dans des dossiers de mêmes noms, puis sont supprimés de la boîte aux lettres, qui récupère leur place. Le fichier apparaît dans la liste des dossiers, où ses messages peuvent être lus, recherchés et remis en place.
+	Archive this folder and the folders in it	Archiver ce dossier et les dossiers qu'il contient
+	Archive mail received before	Archiver les messages reçus avant le
+	Archive file	Fichier d'archive
+	That's not a date.	Ce n'est pas une date.

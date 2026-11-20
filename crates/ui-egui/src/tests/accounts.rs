@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod archiving;
 pub(super) mod compacting;
 mod forms;
 mod held_keys;

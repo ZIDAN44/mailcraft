@@ -1875,3 +1875,11 @@ count	occurrences	keer
 	Default font	Standaardlettertype
 	Font for new messages	Lettertype voor nieuwe berichten
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Nieuwe berichten, antwoorden en doorgestuurde berichten worden erin geschreven. Tekst waarvoor u een lettertype instelt, houdt zijn eigen lettertype.
+	Clean up old items	Oude items opruimen
+	Clean up old items…	Oude items opruimen…
+	Move old mail to an archive file on this computer, out of the mailbox.	Oude mail uit het postvak naar een archiefbestand op deze computer verplaatsen.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	Oude mail gaat naar een Outlook-gegevensbestand op deze computer, in mappen met dezelfde namen, en wordt daarna uit het postvak verwijderd, dat zo weer ruimte krijgt. Het bestand staat in de mappenlijst, waar de mail gelezen, doorzocht en teruggezet kan worden.
+	Archive this folder and the folders in it	Deze map en de mappen erin archiveren
+	Archive mail received before	Mail archiveren die is ontvangen vóór
+	Archive file	Archiefbestand
+	That's not a date.	Dat is geen datum.

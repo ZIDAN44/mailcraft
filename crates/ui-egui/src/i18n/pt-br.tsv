@@ -1880,3 +1880,11 @@ count	occurrences	ocorrências
 	Default font	Fonte padrão
 	Font for new messages	Fonte para novas mensagens
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Novas mensagens, respostas e encaminhamentos são escritos nela. O texto em que você define uma fonte mantém a dele.
+	Clean up old items	Limpar itens antigos
+	Clean up old items…	Limpar itens antigos…
+	Move old mail to an archive file on this computer, out of the mailbox.	Mover e-mails antigos da caixa de correio para um arquivo morto neste computador.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	Os e-mails antigos vão para um arquivo de dados do Outlook neste computador, em pastas com os mesmos nomes, e depois são excluídos da caixa de correio, que recupera o espaço. O arquivo aparece na lista de pastas, onde seus e-mails podem ser lidos, pesquisados e movidos de volta.
+	Archive this folder and the folders in it	Arquivar esta pasta e as pastas dentro dela
+	Archive mail received before	Arquivar e-mails recebidos antes de
+	Archive file	Arquivo morto
+	That's not a date.	Isso não é uma data.
