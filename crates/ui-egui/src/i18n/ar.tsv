@@ -1915,3 +1915,17 @@ count	occurrences	مرات
 	The calendar shades the hours outside them	يظلل التقويم الساعات خارجها
 	Start time	وقت البدء
 	End time	وقت الانتهاء
+	Meeting length	مدة الاجتماع
+	How long a time free for everyone is looked for	طول الوقت الذي يُبحث عنه ليكون الجميع متفرغين فيه
+	Previous free time	وقت الفراغ السابق
+	Next free time	وقت الفراغ التالي
+	The time before when everyone shown is free, within work hours	الوقت السابق الذي يكون فيه كل المعروضين متفرغين، ضمن ساعات العمل
+	The next time when everyone shown is free, within work hours	الوقت التالي الذي يكون فيه كل المعروضين متفرغين، ضمن ساعات العمل
+	Free for everyone	الجميع متفرغون
+	Free for everyone: click to make a meeting with them	الجميع متفرغون: انقر لإنشاء اجتماع معهم
+	No time when everyone is free in the next six weeks	لا يوجد وقت يكون فيه الجميع متفرغين في الأسابيع الستة القادمة
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	لا يوجد وقت يكون فيه الجميع متفرغين ضمن ما وصلت إليه أوقات تفرغهم: يبحث «التالي» أبعد حين تصل
+	No earlier time when everyone is free	لا يوجد وقت أبكر يكون فيه الجميع متفرغين
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	لا يوجد وقت أبكر يكون فيه الجميع متفرغين ضمن ما وصلت إليه أوقات تفرغهم: يبحث «السابق» أبعد حين تصل
+	Their free/busy times haven't come yet: try again in a moment	لم تصل أوقات تفرغهم بعد: حاول مجددًا بعد لحظة
+	Some people's free/busy times can't be had: they count as free	تعذّر الحصول على أوقات تفرغ بعض الأشخاص: يُعَدّون متفرغين

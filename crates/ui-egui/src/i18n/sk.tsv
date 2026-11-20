@@ -1920,3 +1920,17 @@ count	occurrences	opakovaní
 	The calendar shades the hours outside them	Kalendár vytieňuje hodiny mimo neho
 	Start time	Čas začiatku
 	End time	Čas konca
+	Meeting length	Dĺžka schôdze
+	How long a time free for everyone is looked for	Ako dlho má trvať čas, keď majú všetci voľno
+	Previous free time	Predchádzajúci voľný čas
+	Next free time	Ďalší voľný čas
+	The time before when everyone shown is free, within work hours	Predchádzajúci čas, keď majú všetci zobrazení voľno, v pracovnom čase
+	The next time when everyone shown is free, within work hours	Ďalší čas, keď majú všetci zobrazení voľno, v pracovnom čase
+	Free for everyone	Všetci majú voľno
+	Free for everyone: click to make a meeting with them	Všetci majú voľno: kliknutím vytvoríte schôdzu s nimi
+	No time when everyone is free in the next six weeks	V nasledujúcich šiestich týždňoch nie je čas, keď majú všetci voľno
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	Kam siahajú ich údaje o dostupnosti, nie je čas, keď majú všetci voľno: Ďalší bude hľadať ďalej, keď prídu
+	No earlier time when everyone is free	Nie je skorší čas, keď majú všetci voľno
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Kam siahajú ich údaje o dostupnosti, nie je skorší čas, keď majú všetci voľno: Predchádzajúci bude hľadať ďalej, keď prídu
+	Their free/busy times haven't come yet: try again in a moment	Ich údaje o dostupnosti ešte neprišli: skúste to o chvíľu znova
+	Some people's free/busy times can't be had: they count as free	Údaje o dostupnosti niektorých ľudí nie je možné získať: počítajú sa ako voľní

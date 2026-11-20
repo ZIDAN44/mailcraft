@@ -42,6 +42,18 @@ pub struct FreeBusyKept {
     known: HashMap<(String, String), Known>,
 }
 
+/// What's known of the times of a calendar shared for its free/busy time alone, to find a time
+/// free for everyone (issue #186).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Covered {
+    /// Their times from one instant to another.
+    Window(i64, i64),
+    /// They can't be had (not shared, not found): no times to go by.
+    Unknown,
+    /// Not come yet.
+    Asking,
+}
+
 /// What a calendar shared for its free/busy time alone shows now.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FreeBusyState<'a> {
@@ -143,6 +155,21 @@ impl Session {
         let free_busy = self.pim.get(account)?.calendars.iter().any(|c| c.id == calendar && c.free_busy);
         let email = shared_calendar_owner(calendar).filter(|_| free_busy)?;
         self.free_busy.known.get(&(account.to_string(), email.to_string()))?.work.as_ref()
+    }
+
+    /// What's known of a calendar shared for its free/busy time alone, whose owner it is: `None`
+    /// for any other calendar.
+    pub(crate) fn free_busy_covered(&self, account: &str, calendar: &str) -> Option<(String, Covered)> {
+        let free_busy = self.pim.get(account)?.calendars.iter().any(|c| c.id == calendar && c.free_busy);
+        let email = shared_calendar_owner(calendar).filter(|_| free_busy)?.to_string();
+        let covered = match self.free_busy.known.get(&(account.to_string(), email.clone())) {
+            // Asked for again (further on, or as they're refreshed): what comes is waited for.
+            Some(k) if k.waiting.is_some() => Covered::Asking,
+            Some(k) if k.answered.is_some() && k.error.is_some() => Covered::Unknown,
+            Some(k) if k.answered.is_some() => Covered::Window(k.from, k.to),
+            _ => Covered::Asking,
+        };
+        Some((email, covered))
     }
 
     /// What a calendar shared for its free/busy time alone shows: `None` for any other.

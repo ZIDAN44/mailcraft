@@ -94,6 +94,7 @@ pub(super) fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaIt
         hour_lines(s, &t, ui, &cols, grid);
         new_event_slots(s, &t, ui, &cols, grid, acts);
         timed_events(s, &t, ui, items, &cols, grid, acts);
+        free_slot(s, &t, ui, &cols, grid, acts);
         now_line(s, &t, ui, &cols, grid);
     });
 }
@@ -343,6 +344,25 @@ fn side_by_side<'a>(todays: &[&'a AgendaItem]) -> Vec<(&'a AgendaItem, usize, us
     }
     close(&mut out, first, lane_end.len());
     out
+}
+
+/// The time found free for everyone (issue #186), outlined in each pane; clicked, a meeting
+/// then with everyone shown.
+fn free_slot(s: &Session, t: &Tokens, ui: &mut Ui, cols: &Columns, grid: Rect, acts: &mut Vec<Action>) {
+    let Some((from, to)) = s.free_slot() else { return };
+    for (i, j) in (0..cols.n).flat_map(|i| (0..cols.k).map(move |j| (i, j))) {
+        let d = cols.day(i);
+        let (day0, day1) = (s.local_midnight(d), s.local_midnight(d + 1));
+        if from >= day1 || to <= day0 {
+            continue;
+        }
+        let y = |at: i64| grid.min.y + ((at.clamp(day0, day1) - day0) as f32 / 3600.0) * HOUR;
+        let x0 = grid.min.x + cols.day_x(i, j);
+        let r = Rect::from_min_max(pos2(x0 + 2.0, y(from)), pos2(x0 + cols.cw - 2.0, y(to)));
+        if let Some(slot) = marked_slot(s, t, ui, r, ("free-slot", i, j)) {
+            acts.push(slot);
+        }
+    }
 }
 
 /// Now, in every pane: a line across today's column.

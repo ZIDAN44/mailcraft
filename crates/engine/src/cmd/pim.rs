@@ -56,6 +56,15 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             })).collect::<Vec<_>>()))
         })
         .params(r#"{"from"?: date or date-time, "to"?: …} (default: what the calendar shows)"#),
+        // Issue #186: the next (or previous) time everyone shown is free, as Outlook's AutoPick.
+        CommandSpec::new("calendar.findFree", "Next free time", "Calendar › Home", |s, v| s.find_free_time(p::u64(v, "minutes"), p::bool(v, "back").unwrap_or(false)))
+            .params(r#"{"minutes"?: number (15 to 1440; the last length otherwise), "back"?: bool (the one before)}"#),
+        CommandSpec::new("calendar.freeLength", "Meeting length", "Calendar › Home", |s, v| {
+            let m = p::u64(v, "minutes").filter(|m| (15..=1440).contains(m)).ok_or_else(|| CmdError::Params("`minutes` is 15 to 1440".into()))?;
+            s.prefs.free_time_minutes = u16::try_from(m).unwrap_or(30);
+            Ok(json!({"minutes": m}))
+        })
+        .params(r#"{"minutes": number (15 to 1440: how long a time free for everyone is looked for)}"#),
         // Issue #33: find events in every calendar shown, offline, as the mail search box reads.
         CommandSpec::new("calendar.search", "Search the calendar", "Calendar › Search", |s, v| {
             let when = match p::str(v, "when") {

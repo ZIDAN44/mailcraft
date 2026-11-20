@@ -1920,3 +1920,17 @@ count	occurrences	Terminen
 	The calendar shades the hours outside them	Der Kalender hinterlegt die Stunden außerhalb grau
 	Start time	Beginn
 	End time	Ende
+	Meeting length	Besprechungsdauer
+	How long a time free for everyone is looked for	Wie lange eine Zeit gesucht wird, in der alle frei sind
+	Previous free time	Vorherige freie Zeit
+	Next free time	Nächste freie Zeit
+	The time before when everyone shown is free, within work hours	Die vorherige Zeit, in der alle Angezeigten frei sind, innerhalb der Arbeitszeit
+	The next time when everyone shown is free, within work hours	Die nächste Zeit, in der alle Angezeigten frei sind, innerhalb der Arbeitszeit
+	Free for everyone	Alle frei
+	Free for everyone: click to make a meeting with them	Alle frei: klicken, um eine Besprechung mit ihnen anzulegen
+	No time when everyone is free in the next six weeks	In den nächsten sechs Wochen ist keine Zeit, in der alle frei sind
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	Keine Zeit, in der alle frei sind, soweit ihre Frei/Gebucht-Zeiten reichen: „Weiter“ sucht weiter, sobald sie da sind
+	No earlier time when everyone is free	Keine frühere Zeit, in der alle frei sind
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Keine frühere Zeit, in der alle frei sind, soweit ihre Frei/Gebucht-Zeiten reichen: „Zurück“ sucht weiter, sobald sie da sind
+	Their free/busy times haven't come yet: try again in a moment	Ihre Frei/Gebucht-Zeiten sind noch nicht da: gleich noch einmal versuchen
+	Some people's free/busy times can't be had: they count as free	Die Frei/Gebucht-Zeiten einiger Personen sind nicht zu bekommen: sie gelten als frei

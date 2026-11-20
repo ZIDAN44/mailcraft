@@ -1919,3 +1919,17 @@ count	occurrences	次
 	The calendar shades the hours outside them	行事曆以陰影顯示工作時間以外的時段
 	Start time	開始時間
 	End time	結束時間
+	Meeting length	會議時間長度
+	How long a time free for everyone is looked for	要尋找的所有人都有空的時間長度
+	Previous free time	上一個空閒時間
+	Next free time	下一個空閒時間
+	The time before when everyone shown is free, within work hours	顯示的所有人在工作時間內都有空的上一個時間
+	The next time when everyone shown is free, within work hours	顯示的所有人在工作時間內都有空的下一個時間
+	Free for everyone	所有人都有空
+	Free for everyone: click to make a meeting with them	所有人都有空：按一下以與他們建立會議
+	No time when everyone is free in the next six weeks	接下來六週內沒有所有人都有空的時間
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	在他們的空閒/忙碌資訊所及範圍內沒有所有人都有空的時間：資訊到達後，「下一個」會繼續往後找
+	No earlier time when everyone is free	沒有更早的所有人都有空的時間
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	在他們的空閒/忙碌資訊所及範圍內沒有更早的所有人都有空的時間：資訊到達後，「上一個」會繼續往前找
+	Their free/busy times haven't come yet: try again in a moment	他們的空閒/忙碌資訊尚未到達：請稍後再試
+	Some people's free/busy times can't be had: they count as free	無法取得部分人員的空閒/忙碌資訊：將其視為有空

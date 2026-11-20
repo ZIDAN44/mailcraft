@@ -120,6 +120,8 @@ pub struct Prefs {
     /// The days and hours worked (issue #185): the work week shows those days, and the day and
     /// week views shade the hours outside.
     pub work_time: mailcraft_model::pim::work_hours::WorkPeriod,
+    /// How long a time free for everyone is looked for (issue #186), in minutes.
+    pub free_time_minutes: u16,
     /// The address book Select Names opens with (Outlook's "Show this address list first"):
     /// `all` (everyone written to or heard from, and contacts), `people` (every contact), or
     /// one address book (`book:<account>:<book id>`).
@@ -392,6 +394,7 @@ impl Default for Prefs {
             calendars_side_by_side: false,
             calendar_months: 1,
             work_time: mailcraft_model::pim::work_hours::WorkPeriod::default(),
+            free_time_minutes: 30,
             address_book: "all".into(),
             keep_messages: 1000,
             keep_offline: 40,

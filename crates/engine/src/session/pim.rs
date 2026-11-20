@@ -16,6 +16,10 @@ pub use directory::Directory;
 mod find;
 pub use find::{EVENT_HITS_MAX, EventHit, EventWhen};
 mod free_busy;
+mod free_time;
+pub use free_time::FREE_LENGTHS;
+#[cfg(test)]
+pub(crate) use free_time::{NONE_YET, UNKNOWN_FREE};
 mod groups;
 pub use free_busy::{FreeBusyKept, FreeBusyState};
 pub mod invite;
@@ -231,6 +235,11 @@ impl Session {
             None => {}
         }
         let step = step.clamp(-1200, 1200);
+        // Moved by hand (not the view changed): a time found free is looked for from the days
+        // shown again.
+        if date.is_some() || step != 0 {
+            self.free_slot = None;
+        }
         d = match self.cal_mode {
             CalMode::Day | CalMode::Schedule => d + step,
             CalMode::WorkWeek | CalMode::Week => d + 7 * step,

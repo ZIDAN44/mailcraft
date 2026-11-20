@@ -447,6 +447,8 @@ pub struct Session {
     pub cal_mode: pim::CalMode,
     /// The local day the calendar shows (`None`: today).
     pub cal_day: Option<i64>,
+    /// The time last found free for everyone shown (issue #186), marked in the calendar.
+    pub(crate) free_slot: Option<(i64, i64)>,
     /// Search: the one running (or done and shown), and what it keeps between searches.
     search_state: searching::SearchState,
     /// How many times a message was shown in the reading pane ([`Session::messages_shown`]).
@@ -587,6 +589,7 @@ impl Session {
             module: pim::Module::Mail,
             cal_mode: pim::CalMode::Week,
             cal_day: None,
+            free_slot: None,
             search_state: Default::default(),
             shown: 0,
             body: Default::default(),

@@ -1915,3 +1915,17 @@ count	occurrences	keer
 	The calendar shades the hours outside them	De agenda kleurt de uren daarbuiten grijs
 	Start time	Begintijd
 	End time	Eindtijd
+	Meeting length	Duur van de vergadering
+	How long a time free for everyone is looked for	Hoe lang een tijd moet zijn waarop iedereen vrij is
+	Previous free time	Vorige vrije tijd
+	Next free time	Volgende vrije tijd
+	The time before when everyone shown is free, within work hours	De vorige tijd waarop iedereen die getoond wordt vrij is, binnen werktijden
+	The next time when everyone shown is free, within work hours	De volgende tijd waarop iedereen die getoond wordt vrij is, binnen werktijden
+	Free for everyone	Iedereen vrij
+	Free for everyone: click to make a meeting with them	Iedereen vrij: klik om een vergadering met hen te maken
+	No time when everyone is free in the next six weeks	Geen tijd waarop iedereen vrij is in de komende zes weken
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	Geen tijd waarop iedereen vrij is zover hun beschikbaarheid reikt: Volgende zoekt verder zodra die er is
+	No earlier time when everyone is free	Geen eerdere tijd waarop iedereen vrij is
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Geen eerdere tijd waarop iedereen vrij is zover hun beschikbaarheid reikt: Vorige zoekt verder zodra die er is
+	Their free/busy times haven't come yet: try again in a moment	Hun beschikbaarheid is er nog niet: probeer het zo nog eens
+	Some people's free/busy times can't be had: they count as free	De beschikbaarheid van sommige mensen is niet op te halen: zij tellen als vrij

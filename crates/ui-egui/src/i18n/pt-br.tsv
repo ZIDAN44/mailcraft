@@ -1920,3 +1920,17 @@ count	occurrences	ocorrências
 	The calendar shades the hours outside them	O calendário sombreia as horas fora dele
 	Start time	Hora de início
 	End time	Hora de término
+	Meeting length	Duração da reunião
+	How long a time free for everyone is looked for	Quanto tempo livre para todos procurar
+	Previous free time	Horário livre anterior
+	Next free time	Próximo horário livre
+	The time before when everyone shown is free, within work hours	O horário anterior em que todos os mostrados estão livres, dentro do horário de trabalho
+	The next time when everyone shown is free, within work hours	O próximo horário em que todos os mostrados estão livres, dentro do horário de trabalho
+	Free for everyone	Livre para todos
+	Free for everyone: click to make a meeting with them	Livre para todos: clique para criar uma reunião com eles
+	No time when everyone is free in the next six weeks	Nenhum horário em que todos estejam livres nas próximas seis semanas
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	Nenhum horário em que todos estejam livres até onde vão as disponibilidades deles: Próximo procura adiante quando chegarem
+	No earlier time when everyone is free	Nenhum horário anterior em que todos estejam livres
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Nenhum horário anterior em que todos estejam livres até onde vão as disponibilidades deles: Anterior procura adiante quando chegarem
+	Their free/busy times haven't come yet: try again in a moment	As disponibilidades deles ainda não chegaram: tente de novo em instantes
+	Some people's free/busy times can't be had: they count as free	Não é possível obter a disponibilidade de algumas pessoas: elas contam como livres

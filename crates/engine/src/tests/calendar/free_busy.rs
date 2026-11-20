@@ -8,11 +8,11 @@ use mailcraft_model::pim::{CalendarInfo, shared_calendar_id};
 use super::*;
 use crate::{AgendaItem, FreeBusyState, Module};
 
-const ANA: &str = "ana@contoso.example";
+pub(super) const ANA: &str = "ana@contoso.example";
 
 /// The sample session with Ana's calendar shared for its times alone, on the week of
 /// 2026-11-02 (a Monday), the calendar not on screen yet.
-fn with_ana(name: &str) -> (Session, String, String) {
+pub(super) fn with_ana(name: &str) -> (Session, String, String) {
     let mut s = sample_session(name);
     let account = s.accounts[0].config.id.clone();
     let id = shared_calendar_id(ANA);
@@ -23,12 +23,12 @@ fn with_ana(name: &str) -> (Session, String, String) {
     (s, account, id)
 }
 
-fn day(d: &str) -> i64 {
+pub(super) fn day(d: &str) -> i64 {
     at(&format!("{d}T00:00:00Z")) / 86_400
 }
 
 /// `2026-11-03T09:00:00Z` in Unix seconds.
-fn at(t: &str) -> i64 {
+pub(super) fn at(t: &str) -> i64 {
     let n = |a: usize, b: usize| t[a..b].parse::<u32>().unwrap();
     mailcraft_model::dates::days_from_civil(i64::from(n(0, 4)), n(5, 7), n(8, 10)) * 86_400 + i64::from(n(11, 13) * 3600 + n(14, 16) * 60)
 }
@@ -44,7 +44,7 @@ fn asked(s: &mut Session) -> Vec<(String, Vec<String>, i64, i64)> {
         .collect()
 }
 
-fn busy(start: &str, end: &str, show_as: ShowAs, subject: &str) -> Busy {
+pub(super) fn busy(start: &str, end: &str, show_as: ShowAs, subject: &str) -> Busy {
     Busy { start: at(start), end: at(end), show_as, subject: subject.into(), ..Default::default() }
 }
 

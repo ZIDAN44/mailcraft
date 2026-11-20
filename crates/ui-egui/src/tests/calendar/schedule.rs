@@ -161,3 +161,38 @@ fn each_row_shades_the_hours_not_worked() {
     assert_eq!(shaded(row(&drawn, ANA).center().y), [(0, 8), (16, 24)], "Ana's");
     assert_eq!(shaded(at(&drawn, "All together").center().y), [(0, 8), (16, 24)], "when not everyone works");
 }
+
+/// Issue #186: Next free time finds when everyone shown is free and marks it; clicked, it's a
+/// meeting then with them.
+#[test]
+fn the_next_free_time_is_marked_and_makes_the_meeting() {
+    let (mut a, ctx, _) = with_ana("schedule-free-time");
+    ctx.enable_accesskit();
+    texts(&ctx, &mut a, vec![]);
+    click_named(&ctx, &mut a, "Next free time");
+    let (from, to) = a.session.free_slot().unwrap_or_else(|| panic!("found: {:?}", a.session.notices));
+    assert_eq!(to - from, 1800, "half an hour, as it starts");
+    assert!(from >= a.session.clock.now);
+    // In the day view, tall enough for every hour: marked, and clicked, the meeting.
+    a.run("calendar.view", json!({"mode": "day"}));
+    let size = egui::vec2(1200.0, 1600.0);
+    for _ in 0..3 {
+        sized_frame(&ctx, &mut a, size, vec![]);
+    }
+    let all = named(&ctx, &mut a, size);
+    let at = all.iter().filter(|n| n.label.as_deref() == Some("Free for everyone")).find_map(Named::centre);
+    let at = at.unwrap_or_else(|| panic!("marked: {:?}", all.iter().filter_map(Named::name).collect::<Vec<_>>()));
+    let press = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    for events in [vec![Event::PointerMoved(at)], vec![press(true)], vec![press(false)], vec![]] {
+        sized_frame(&ctx, &mut a, size, events);
+    }
+    let Some(Dialog::Event(f)) = &a.ui.dialog else { panic!("a meeting: {:?}", a.ui.dialog.as_ref().map(std::mem::discriminant)) };
+    assert_eq!(
+        (f.start.as_str(), f.end.as_str(), f.guests.as_str()),
+        (crate::calendar::hm(from, &a.session).as_str(), crate::calendar::hm(to, &a.session).as_str(), ANA)
+    );
+    // Moved by hand, it's gone.
+    a.ui.dialog = None;
+    a.run("calendar.goto", json!({"step": 1}));
+    assert_eq!(a.session.free_slot(), None);
+}

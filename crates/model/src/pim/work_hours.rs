@@ -85,6 +85,20 @@ pub fn overlap(a: &[(i64, i64)], b: &[(i64, i64)]) -> Vec<(i64, i64)> {
     out
 }
 
+/// Spans in order, those that overlap or touch made one: when anyone is busy.
+pub fn merged(mut spans: Vec<(i64, i64)>) -> Vec<(i64, i64)> {
+    spans.retain(|(a, b)| a < b);
+    spans.sort_unstable();
+    let mut out: Vec<(i64, i64)> = Vec::with_capacity(spans.len());
+    for (a, b) in spans {
+        match out.last_mut() {
+            Some(last) if a <= last.1 => last.1 = last.1.max(b),
+            _ => out.push((a, b)),
+        }
+    }
+    out
+}
+
 /// What of `from` to `to` lies outside the spans (in order, apart): the hours not worked.
 pub fn outside(spans: &[(i64, i64)], from: i64, to: i64) -> Vec<(i64, i64)> {
     let mut out = Vec::new();
@@ -219,6 +233,7 @@ mod tests {
         assert_eq!(outside(&a, 0, 40), [(10, 20), (30, 40)]);
         assert_eq!(outside(&a, 5, 25), [(10, 20)]);
         assert_eq!(outside(&[], 5, 25), [(5, 25)]);
+        assert_eq!(merged(vec![(20, 30), (0, 10), (5, 12), (12, 14), (40, 40)]), [(0, 14), (20, 30)]);
     }
 
     #[test]

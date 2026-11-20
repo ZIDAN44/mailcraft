@@ -67,6 +67,13 @@ pub(super) fn schedule(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[Agen
                         }
                     }
                 }
+                // The time found free for everyone (issue #186), across every row.
+                if let Some((from, to)) = s.free_slot().filter(|(a, b)| *a < day.day1 && *b > day.day0) {
+                    let r = Rect::from_min_max(pos2(day.x(from), grid.min.y + HEAD), pos2(day.x(to), grid.max.y)).shrink2(vec2(1.0, 2.0));
+                    if let Some(slot) = marked_slot(s, &t, ui, r, ("free-slot", 0, 0)) {
+                        acts.push(slot);
+                    }
+                }
                 now_line(s, &t, ui, &day);
             });
         });
@@ -192,7 +199,7 @@ fn choose_time(s: &Session, t: &Tokens, ui: &mut Ui, day: &Day, r: Rect, row: &R
 /// A new event over `when` from a row: on a colleague's row, a meeting with them; on the row of
 /// all together, with everyone whose calendar is shown; on the user's own calendar, an event
 /// in it.
-fn new_meeting(s: &Session, when: (i64, i64), row: &Row, cals: &[Cal]) -> Action {
+pub(super) fn new_meeting(s: &Session, when: (i64, i64), row: &Row, cals: &[Cal]) -> Action {
     let mine: Vec<String> = s.accounts.iter().map(|a| a.config.email.to_ascii_lowercase()).collect();
     let people = |list: &mut dyn Iterator<Item = &Cal>| -> Vec<String> {
         let mut out: Vec<String> = Vec::new();

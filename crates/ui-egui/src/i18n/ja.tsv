@@ -1916,3 +1916,17 @@ count	occurrences	回
 	The calendar shades the hours outside them	勤務時間外はカレンダーで網掛け表示されます
 	Start time	開始時刻
 	End time	終了時刻
+	Meeting length	会議の長さ
+	How long a time free for everyone is looked for	全員が空いている時間をどれだけの長さで探すか
+	Previous free time	前の空き時間
+	Next free time	次の空き時間
+	The time before when everyone shown is free, within work hours	表示中の全員が勤務時間内に空いている前の時間
+	The next time when everyone shown is free, within work hours	表示中の全員が勤務時間内に空いている次の時間
+	Free for everyone	全員が空いています
+	Free for everyone: click to make a meeting with them	全員が空いています: クリックすると全員との会議を作成します
+	No time when everyone is free in the next six weeks	今後 6 週間に全員が空いている時間はありません
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	空き時間情報のある範囲では全員が空いている時間はありません: 情報が届くと「次へ」がその先を探します
+	No earlier time when everyone is free	これより前に全員が空いている時間はありません
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	空き時間情報のある範囲ではこれより前に全員が空いている時間はありません: 情報が届くと「前へ」がその先を探します
+	Their free/busy times haven't come yet: try again in a moment	空き時間情報がまだ届いていません: 少し待ってからもう一度お試しください
+	Some people's free/busy times can't be had: they count as free	一部の人の空き時間情報を取得できません: 空いているものとして扱います

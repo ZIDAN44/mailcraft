@@ -60,6 +60,18 @@ pub fn color(i: u8, t: &Tokens) -> Color32 {
     }
 }
 
+/// The time found free for everyone (issue #186), at `r`: outlined in the accent; clicked, a
+/// meeting then with everyone whose calendar is shown.
+fn marked_slot(s: &Session, t: &Tokens, ui: &mut Ui, r: Rect, id: (&str, i64, usize)) -> Option<Action> {
+    let slot = s.free_slot()?;
+    let resp = ui.interact(r, ui.scope_id().with(id), Sense::click());
+    let fill = t.accent.gamma_multiply(if resp.hovered() { 0.3 } else { 0.15 });
+    ui.painter().rect(r, 3.0, fill, egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
+    crate::widgets::named(ui, &resp, tl!("Free for everyone"), true, None);
+    let clicked = resp.on_hover_text(tl!("Free for everyone: click to make a meeting with them")).clicked();
+    clicked.then(|| schedule::new_meeting(s, slot, &None, &s.shown_calendars()))
+}
+
 /// The shade over the hours not worked (issue #185).
 fn off_hours(t: &Tokens) -> egui::Color32 {
     if t.dark { egui::Color32::from_black_alpha(70) } else { egui::Color32::from_black_alpha(13) }

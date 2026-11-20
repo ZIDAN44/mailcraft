@@ -1915,3 +1915,17 @@ count	occurrences	פעמים
 	The calendar shades the hours outside them	לוח השנה מצליל את השעות שמחוץ להן
 	Start time	שעת התחלה
 	End time	שעת סיום
+	Meeting length	משך הפגישה
+	How long a time free for everyone is looked for	כמה זמן פנוי לכולם מחפשים
+	Previous free time	הזמן הפנוי הקודם
+	Next free time	הזמן הפנוי הבא
+	The time before when everyone shown is free, within work hours	הזמן הקודם שבו כל המוצגים פנויים, בשעות העבודה
+	The next time when everyone shown is free, within work hours	הזמן הבא שבו כל המוצגים פנויים, בשעות העבודה
+	Free for everyone	כולם פנויים
+	Free for everyone: click to make a meeting with them	כולם פנויים: לחצו כדי לקבוע איתם פגישה
+	No time when everyone is free in the next six weeks	אין זמן שבו כולם פנויים בשישה השבועות הבאים
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	אין זמן שבו כולם פנויים עד היכן שזמני הזמינות שלהם מגיעים: 'הבא' יחפש הלאה כשיגיעו
+	No earlier time when everyone is free	אין זמן מוקדם יותר שבו כולם פנויים
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	אין זמן מוקדם יותר שבו כולם פנויים עד היכן שזמני הזמינות שלהם מגיעים: 'הקודם' יחפש הלאה כשיגיעו
+	Their free/busy times haven't come yet: try again in a moment	זמני הזמינות שלהם עוד לא הגיעו: נסו שוב בעוד רגע
+	Some people's free/busy times can't be had: they count as free	לא ניתן לקבל את זמני הזמינות של חלק מהאנשים: הם נחשבים פנויים

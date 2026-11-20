@@ -1916,3 +1916,17 @@ count	occurrences	次
 	The calendar shades the hours outside them	日历以阴影显示工作时间以外的时段
 	Start time	开始时间
 	End time	结束时间
+	Meeting length	会议时长
+	How long a time free for everyone is looked for	要查找的所有人都空闲的时间长度
+	Previous free time	上一个空闲时间
+	Next free time	下一个空闲时间
+	The time before when everyone shown is free, within work hours	显示的所有人在工作时间内都空闲的上一个时间
+	The next time when everyone shown is free, within work hours	显示的所有人在工作时间内都空闲的下一个时间
+	Free for everyone	所有人都空闲
+	Free for everyone: click to make a meeting with them	所有人都空闲：单击以与他们创建会议
+	No time when everyone is free in the next six weeks	接下来六周内没有所有人都空闲的时间
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	在他们的忙闲信息所及范围内没有所有人都空闲的时间：信息到达后，“下一个”会继续往后找
+	No earlier time when everyone is free	没有更早的所有人都空闲的时间
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	在他们的忙闲信息所及范围内没有更早的所有人都空闲的时间：信息到达后，“上一个”会继续往前找
+	Their free/busy times haven't come yet: try again in a moment	他们的忙闲信息尚未到达：请稍后再试
+	Some people's free/busy times can't be had: they count as free	无法获取部分人员的忙闲信息：将其视为空闲

@@ -1919,3 +1919,17 @@ count	occurrences	повторений
 	The calendar shades the hours outside them	Календарь затеняет часы вне их
 	Start time	Время начала
 	End time	Время окончания
+	Meeting length	Длительность собрания
+	How long a time free for everyone is looked for	Сколько должно длиться время, когда все свободны
+	Previous free time	Предыдущее свободное время
+	Next free time	Следующее свободное время
+	The time before when everyone shown is free, within work hours	Предыдущее время, когда все показанные свободны, в рабочие часы
+	The next time when everyone shown is free, within work hours	Следующее время, когда все показанные свободны, в рабочие часы
+	Free for everyone	Все свободны
+	Free for everyone: click to make a meeting with them	Все свободны: нажмите, чтобы создать с ними собрание
+	No time when everyone is free in the next six weeks	В ближайшие шесть недель нет времени, когда все свободны
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	Нет времени, когда все свободны, в пределах их сведений о занятости: «Далее» поищет дальше, когда они придут
+	No earlier time when everyone is free	Нет более раннего времени, когда все свободны
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Нет более раннего времени, когда все свободны, в пределах их сведений о занятости: «Назад» поищет дальше, когда они придут
+	Their free/busy times haven't come yet: try again in a moment	Сведения об их занятости ещё не пришли: попробуйте снова через минуту
+	Some people's free/busy times can't be had: they count as free	Сведения о занятости некоторых людей недоступны: они считаются свободными

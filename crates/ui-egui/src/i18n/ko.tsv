@@ -1919,3 +1919,17 @@ count	occurrences	회
 	The calendar shades the hours outside them	근무 시간 외는 일정에서 음영으로 표시됩니다
 	Start time	시작 시간
 	End time	종료 시간
+	Meeting length	회의 길이
+	How long a time free for everyone is looked for	모두가 한가한 시간을 얼마 동안 찾을지
+	Previous free time	이전 빈 시간
+	Next free time	다음 빈 시간
+	The time before when everyone shown is free, within work hours	표시된 모든 사람이 근무 시간 중 한가한 이전 시간
+	The next time when everyone shown is free, within work hours	표시된 모든 사람이 근무 시간 중 한가한 다음 시간
+	Free for everyone	모두 한가함
+	Free for everyone: click to make a meeting with them	모두 한가함: 클릭하면 이들과 회의를 만듭니다
+	No time when everyone is free in the next six weeks	앞으로 6주 동안 모두가 한가한 시간이 없습니다
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	가용성 정보가 있는 범위에서는 모두가 한가한 시간이 없습니다: 정보가 오면 '다음'이 더 찾아봅니다
+	No earlier time when everyone is free	이보다 이전에 모두가 한가한 시간이 없습니다
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	가용성 정보가 있는 범위에서는 이보다 이전에 모두가 한가한 시간이 없습니다: 정보가 오면 '이전'이 더 찾아봅니다
+	Their free/busy times haven't come yet: try again in a moment	가용성 정보가 아직 오지 않았습니다: 잠시 후 다시 시도하세요
+	Some people's free/busy times can't be had: they count as free	일부 사람의 가용성 정보를 가져올 수 없습니다: 한가한 것으로 간주합니다

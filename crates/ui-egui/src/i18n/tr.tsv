@@ -1920,3 +1920,17 @@ count	occurrences	kez
 	The calendar shades the hours outside them	Takvim bunların dışındaki saatleri gölgeler
 	Start time	Başlangıç saati
 	End time	Bitiş saati
+	Meeting length	Toplantı süresi
+	How long a time free for everyone is looked for	Herkesin boş olduğu ne kadar uzun bir zaman aranacağı
+	Previous free time	Önceki boş zaman
+	Next free time	Sonraki boş zaman
+	The time before when everyone shown is free, within work hours	Gösterilen herkesin çalışma saatleri içinde boş olduğu önceki zaman
+	The next time when everyone shown is free, within work hours	Gösterilen herkesin çalışma saatleri içinde boş olduğu sonraki zaman
+	Free for everyone	Herkes boş
+	Free for everyone: click to make a meeting with them	Herkes boş: onlarla toplantı oluşturmak için tıklayın
+	No time when everyone is free in the next six weeks	Önümüzdeki altı haftada herkesin boş olduğu bir zaman yok
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	Uygunluk bilgilerinin ulaştığı yere kadar herkesin boş olduğu bir zaman yok: bilgiler gelince Sonraki daha ileriye bakar
+	No earlier time when everyone is free	Herkesin boş olduğu daha erken bir zaman yok
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Uygunluk bilgilerinin ulaştığı yere kadar herkesin boş olduğu daha erken bir zaman yok: bilgiler gelince Önceki daha geriye bakar
+	Their free/busy times haven't come yet: try again in a moment	Uygunluk bilgileri henüz gelmedi: biraz sonra yeniden deneyin
+	Some people's free/busy times can't be had: they count as free	Bazı kişilerin uygunluk bilgileri alınamıyor: boş sayılırlar
