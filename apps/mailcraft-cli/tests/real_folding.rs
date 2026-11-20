@@ -1,6 +1,6 @@
-//! A folder's mail in the message list through a real IMAP server on this computer (never a real
-//! account): a heading folded away (issue #189), and the folder marked read (issue #197). Run by
-//! hand:
+//! An Inbox's mail through a real IMAP server on this computer (never a real account): a heading
+//! of the list folded away (issue #189), the folder marked read (issue #197), and what's
+//! announced of new mail with the Focused Inbox on (issue #199). Run by hand:
 //!
 //! ```text
 //! MAILCRAFT_REAL_FOLDING="127.0.0.1:31143" \
@@ -10,7 +10,8 @@
 //! Dovecot (any user, password `pw`, cleartext allowed; `servers.md` in the issues skill has the
 //! line). Today's mail folded away stays hidden and counted as more arrives on the server, read
 //! or unread; the older mail stays shown; the arrows step over it; shown again, it's all there.
-//! A folder marked read is read on the server, mail not kept here too.
+//! A folder marked read is read on the server, mail not kept here too. With the Focused Inbox
+//! on, a newsletter arriving isn't announced and a person's message is.
 
 #[path = "support/servers.rs"]
 mod servers;
@@ -161,4 +162,56 @@ fn real_a_folder_marked_read_past_what_is_kept() {
     app.pool.submit(mailcraft_engine::model::Job::SyncFolder { account: a.clone(), folder: "INBOX".into() });
     app.settle(3);
     assert_eq!(app.s.folder(&a, "INBOX").map(|f| f.unread), Some(0), "after a sync");
+}
+
+/// Issue #199: with the Focused Inbox on, a newsletter (List-Unsubscribe, Precedence: bulk) and
+/// a person's message arriving on the server: only the person's is announced; asked to, the
+/// next newsletter is too.
+#[test]
+#[ignore = "needs a real IMAP server in MAILCRAFT_REAL_FOLDING"]
+fn real_only_focused_mail_is_announced() {
+    let Ok(imap) = std::env::var("MAILCRAFT_REAL_FOLDING") else {
+        eprintln!("MAILCRAFT_REAL_FOLDING isn't set: skipped");
+        return;
+    };
+    let imap = imap.trim();
+    // A mailbox of its own.
+    let user = format!("fay{}", std::process::id());
+    let mut server = Imap::connect(imap, &user, "pw");
+    let mail = |subject: &str, bulk: bool| {
+        let (from, extra) = if bulk {
+            ("Shop <news@shop.example>", "List-Unsubscribe: <mailto:leave@shop.example>\r\nPrecedence: bulk\r\n")
+        } else {
+            ("Ana <ana@x.example>", "")
+        };
+        format!(
+            "From: {from}\r\nTo: fay@test.example\r\nSubject: {subject}\r\n{extra}Date: {}\r\nMessage-ID: <{}.{}@x.example>\r\n\r\n{subject}.\r\n",
+            date(servers::now()),
+            subject.replace(' ', "-"),
+            std::process::id()
+        )
+        .into_bytes()
+    };
+    server.append("INBOX", "", &mail("Before", false));
+    let mut app = App::open("focused-notify", "pw");
+    let smtp = format!("{}:1", imap.rsplit_once(':').unwrap().0);
+    let a = app.add_plain(imap, &smtp, json!({"email": format!("{user}@test.example"), "username": user, "password": "pw"}));
+    app.wait_for_mail(&a, "Before");
+    app.s.run("view.focused", &json!({"on": true})).unwrap();
+    app.s.take_new_mail();
+    let arrive = |app: &mut App, server: &mut Imap, msgs: &[(&str, bool)]| -> Vec<String> {
+        for (subject, bulk) in msgs {
+            server.append("INBOX", "", &mail(subject, *bulk));
+        }
+        for (subject, _) in msgs {
+            app.wait_for_mail(&a, subject);
+        }
+        app.settle(2);
+        app.s.take_new_mail().into_iter().map(|m| m.subject).collect()
+    };
+    let said = arrive(&mut app, &mut server, &[("Spring sale", true), ("Lunch on Friday", false)]);
+    assert_eq!(said, ["Lunch on Friday"], "the newsletter isn't announced");
+    app.s.run("view.notifyOther", &json!({"on": true})).unwrap();
+    let said = arrive(&mut app, &mut server, &[("Summer sale", true)]);
+    assert_eq!(said, ["Summer sale"], "asked to, Other's too");
 }

@@ -1948,3 +1948,5 @@ count	occurrences	次
 	Right after {event} on your calendar	紧接在日历中的 {event} 之后
 	Right before {event} on your calendar	紧接在日历中的 {event} 之前
 	{h} h	{h} 小时
+	Notify of mail in Other too	“其他”中的邮件也通知
+	Off, only mail that goes to Focused is announced	关闭时，只通知进入“重点”的邮件

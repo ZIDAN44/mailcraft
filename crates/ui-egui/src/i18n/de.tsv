@@ -1952,3 +1952,5 @@ count	occurrences	Terminen
 	Right after {event} on your calendar	Direkt nach {event} in Ihrem Kalender
 	Right before {event} on your calendar	Direkt vor {event} in Ihrem Kalender
 	{h} h	{h} Std.
+	Notify of mail in Other too	Auch bei E-Mails in „Sonstige“ benachrichtigen
+	Off, only mail that goes to Focused is announced	Aus: Nur E-Mails, die in „Relevant“ landen, werden gemeldet

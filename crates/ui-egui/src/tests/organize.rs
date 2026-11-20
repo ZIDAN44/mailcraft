@@ -597,3 +597,26 @@ fn measure_rules_dialog() {
         );
     }
 }
+
+/// Issue #199: File › Options says new mail in Other isn't announced while the Focused Inbox is
+/// on, with a switch to have it announced: shown with the Focused Inbox and notifications both
+/// on, gone with either off.
+#[test]
+fn options_offer_notifications_for_other_with_the_focused_inbox() {
+    let _tall = crate::tests::windows::layout::Dressed::new(egui::vec2(1280.0, 2400.0), "");
+    let (mut a, _) = app("notify-other");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let shown = |ctx: &egui::Context, a: &mut MailApp| {
+        frame(ctx, a, vec![]);
+        drawn_text(ctx, a, egui::vec2(1280.0, 2400.0)).iter().any(|d| d.text == "Notify of mail in Other too")
+    };
+    a.ui.backstage = Some(crate::backstage::Backstage::new(crate::backstage::Page::Options));
+    assert!(!shown(&ctx, &mut a), "the Focused Inbox off: nothing to say");
+    a.run("view.focused", json!({"on": true}));
+    assert!(shown(&ctx, &mut a), "with the Focused Inbox on");
+    click_named(&ctx, &mut a, "Notify of mail in Other too");
+    assert!(a.session.prefs.notify_other, "turned on");
+    a.run("view.notifications", json!({"on": false}));
+    assert!(!shown(&ctx, &mut a), "no notifications: nothing to say");
+}

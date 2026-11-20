@@ -1948,3 +1948,5 @@ count	occurrences	回
 	Right after {event} on your calendar	カレンダーの {event} の直後です
 	Right before {event} on your calendar	カレンダーの {event} の直前です
 	{h} h	{h} 時間
+	Notify of mail in Other too	[その他] のメールも通知する
+	Off, only mail that goes to Focused is announced	オフの場合、[優先] に入るメールだけを通知します

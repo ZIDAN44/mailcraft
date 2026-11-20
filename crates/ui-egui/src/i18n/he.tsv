@@ -1947,3 +1947,5 @@ count	occurrences	פעמים
 	Right after {event} on your calendar	מיד אחרי {event} ביומן שלך
 	Right before {event} on your calendar	מיד לפני {event} ביומן שלך
 	{h} h	{h} שע׳
+	Notify of mail in Other too	להודיע גם על דואר ב'אחר'
+	Off, only mail that goes to Focused is announced	כשכבוי, מודיעים רק על דואר שעובר ל'ממוקד'

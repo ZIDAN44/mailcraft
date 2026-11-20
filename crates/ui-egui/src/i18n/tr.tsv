@@ -1952,3 +1952,5 @@ count	occurrences	kez
 	Right after {event} on your calendar	Takviminizdeki {event} etkinliğinin hemen ardından
 	Right before {event} on your calendar	Takviminizdeki {event} etkinliğinden hemen önce
 	{h} h	{h} sa
+	Notify of mail in Other too	Diğer'deki postalar için de bildir
+	Off, only mail that goes to Focused is announced	Kapalıyken yalnızca Odaklanmış'a giden postalar bildirilir

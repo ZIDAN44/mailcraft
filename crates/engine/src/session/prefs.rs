@@ -180,6 +180,9 @@ pub struct Prefs {
     pub confirm_permanent_delete: bool,
     /// Desktop notifications for new mail in an Inbox.
     pub notify: bool,
+    /// With the Focused Inbox on, new mail in Other is announced too (issue #199): off, only
+    /// Focused mail is, as Outlook does.
+    pub notify_other: bool,
     /// Check spelling as you type (issue #174): misspelled words underlined in the message
     /// editor, as Outlook does (on unless turned off).
     pub spelling: bool,
@@ -425,6 +428,7 @@ impl Default for Prefs {
             last_open: None,
             favorites: None,
             notify: true,
+            notify_other: false,
             spelling: true,
             dictionary: BTreeSet::new(),
             compose_font: None,

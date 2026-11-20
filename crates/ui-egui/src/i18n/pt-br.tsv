@@ -1952,3 +1952,5 @@ count	occurrences	ocorrências
 	Right after {event} on your calendar	Logo depois de {event} na sua agenda
 	Right before {event} on your calendar	Logo antes de {event} na sua agenda
 	{h} h	{h} h
+	Notify of mail in Other too	Notificar também os e-mails em Outros
+	Off, only mail that goes to Focused is announced	Desativado, só os e-mails que vão para Prioritários são avisados

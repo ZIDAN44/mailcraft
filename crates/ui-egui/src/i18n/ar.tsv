@@ -1947,3 +1947,5 @@ count	occurrences	مرات
 	Right after {event} on your calendar	مباشرة بعد {event} في تقويمك
 	Right before {event} on your calendar	مباشرة قبل {event} في تقويمك
 	{h} h	{h} س
+	Notify of mail in Other too	الإشعار بالبريد في «أخرى» أيضًا
+	Off, only mail that goes to Focused is announced	عند الإيقاف، يُعلَن فقط عن البريد الذي يذهب إلى «المهم»

@@ -1952,3 +1952,5 @@ count	occurrences	opakovaní
 	Right after {event} on your calendar	Hneď po {event} vo vašom kalendári
 	Right before {event} on your calendar	Hneď pred {event} vo vašom kalendári
 	{h} h	{h} h
+	Notify of mail in Other too	Upozorňovať aj na poštu v priečinku Ostatné
+	Off, only mail that goes to Focused is announced	Ak je vypnuté, upozorňuje sa len na poštu, ktorá ide do Prioritné

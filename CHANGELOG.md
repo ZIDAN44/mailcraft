@@ -49,6 +49,7 @@ Thanks to Peter Páleník for reviewing the Slovak translation (#133, #137).
 - The line between the To-Do Bar's **Appointments** and **Tasks** is dragged up or down to give either more room (#196), and stays where it's left, a restart too: the appointments had half, always. With the keyboard on it, Up and Down move it.
 - The To-Do Bar's appointments say how long each is under its time, **30 min** or **1 h 30 min**, and one starting within the hour how soon, **In 20 min**, counting down (#195), as Outlook for Mac's day list.
 - A meeting invitation says how it fits your calendar (#194), as Outlook does on a meeting request: what it clashes with, by name and time, or what it's right before or after, under its time, with a strip of the hours around it showing your events and the invitation outlined among them; a click on one of yours opens it. Your own calendars count, shown or not, not a colleague's; events shown as free don't clash.
+- With the **Focused Inbox** on, only new mail that goes to **Focused** is announced (#199), as in Outlook: newsletters and automatic mail coming into **Other** arrive quietly. **File › Options › Inbox and notifications** has **Notify of mail in Other too** to have them announced as well.
 
 ### Changed
 

@@ -1951,3 +1951,5 @@ count	occurrences	회
 	Right after {event} on your calendar	캘린더의 {event} 바로 다음입니다
 	Right before {event} on your calendar	캘린더의 {event} 바로 앞입니다
 	{h} h	{h}시간
+	Notify of mail in Other too	기타의 메일도 알림
+	Off, only mail that goes to Focused is announced	끄면 집중으로 가는 메일만 알립니다

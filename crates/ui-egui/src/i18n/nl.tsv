@@ -1947,3 +1947,5 @@ count	occurrences	keer
 	Right after {event} on your calendar	Direct na {event} in je agenda
 	Right before {event} on your calendar	Direct voor {event} in je agenda
 	{h} h	{h} u
+	Notify of mail in Other too	Ook melden bij e-mail in Overige
+	Off, only mail that goes to Focused is announced	Uit: alleen e-mail die naar Prioriteit gaat, wordt gemeld
