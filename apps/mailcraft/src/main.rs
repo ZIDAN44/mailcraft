@@ -304,6 +304,9 @@ fn main() -> eframe::Result {
     };
     let files = launch.files();
     start_logging(&launch);
+    // Notifications under MailCraft's name, before any is sent (issue #193).
+    #[cfg(target_os = "macos")]
+    platform::notifications::claim();
 
     let (now, offset) = Desktop::default().clock();
     let store = launch.open_store(files.as_deref(), &mut moved);

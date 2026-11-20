@@ -92,6 +92,7 @@ Thanks to Peter Páleník for reviewing the Slovak translation (#133, #137).
 - A search ended by opening a folder, or by going to the Calendar, People, Tasks or Notes, leaves the search box empty (#187), as in Outlook: its words stayed, as if the search were still on, and going to another module didn't end it. They're among the recent searches in the box's list.
 - The folder pane starts right under the ribbon (#188): its **‹** (Minimize the folder pane) sits at the end of the first row, the Favorites heading or with Favorites hidden the first account, as in Outlook. It had a row of its own, leaving an empty strip above the folders.
 - A big message with attachments on an on-premises Exchange server opens at once (#191): its text, asked for ahead of its files with a field Exchange doesn't know, was refused with "The request is invalid.", and that showed in the reading pane in place of the message until it was opened again. Its text comes first again, and from a server that refuses that, the whole message comes instead, never an error.
+- On a Mac, a reminder or a new message no longer opens a "Where is use_default?" window to cancel, one for each notification at once (#193): MailCraft told macOS no application to send them as, and the notification library asked the user to find one by that name. They go out as MailCraft's, from its app.
 
 ## 0.40.0 - 2026-11-17
 
