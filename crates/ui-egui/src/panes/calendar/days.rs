@@ -46,6 +46,15 @@ impl Columns {
         self.pane_x(j) + self.cw * i as f32
     }
 
+    /// The day's column at `x` (from the left edge), in whichever calendar's pane it is: the
+    /// first or last past the ends. An event dragged into another calendar's pane goes to that
+    /// day there, still in its own calendar.
+    fn column_at(&self, x: f32) -> i64 {
+        let pane = (((x - self.gutter) / (self.pane + PANE_GAP).max(1.0)).floor() as i64).clamp(0, self.k.saturating_sub(1) as i64);
+        let j = usize::try_from(pane).unwrap_or(0);
+        (((x - self.pane_x(j)) / self.cw.max(1.0)).floor() as i64).clamp(0, (self.n - 1).max(0))
+    }
+
     /// The pane an event goes in.
     fn col_of(&self, it: &AgendaItem) -> usize {
         if self.k > 1 { self.cals.iter().position(|(a, c, _, _)| *a == it.account && *c == it.calendar).unwrap_or(0) } else { 0 }
@@ -182,14 +191,30 @@ fn all_day_strip(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], col
     let (strip, _) = ui.allocate_exact_size(vec2(width, 20.0 * lanes.len().min(4) as f32 + 6.0), Sense::hover());
     ui.painter().text(pos2(strip.min.x + cols.gutter - 6.0, strip.min.y + 10.0), Align2::RIGHT_CENTER, tl!("All day"), theme::regular(11.0), t.faint);
     for (lane, it, (a, b)) in placed.into_iter().filter(|(l, ..)| *l < 4) {
+        let j = cols.col_of(it);
         let r = Rect::from_min_size(
-            pos2(strip.min.x + cols.day_x(a, cols.col_of(it)) + 2.0, strip.min.y + 3.0 + 20.0 * lane as f32),
+            pos2(strip.min.x + cols.day_x(a, j) + 2.0, strip.min.y + 3.0 + 20.0 * lane as f32),
             vec2(cols.cw * (b - a + 1) as f32 - 4.0, 18.0),
         );
-        if chip(ui, t, r, it, &title_of(it)).clicked()
+        let resp = chip(ui, t, r, it, &title_of(it), s.movable(it));
+        if resp.clicked()
             && let Some(act) = open(s, it)
         {
             acts.push(act);
+        }
+        // Dragged along the days (issue #192): by as many days as its first column went.
+        if let Some(drag) = moving::dragged(ui, &resp, r) {
+            let to = cols.column_at(drag.top_left.x + cols.cw / 2.0 - strip.min.x);
+            let by_days = cols.day(to) - cols.day(a);
+            let by = if it.all_day { by_days * 86_400 } else { s.local_midnight(cols.day(to)) - s.local_midnight(cols.day(a)) };
+            let ghost = r.translate(vec2(cols.cw * (to - a) as f32, 0.0));
+            let day = crate::i18n::date(&dates::day_short(day_of(it.start, s) + by_days, &s.clock));
+            moving::ghost(ui, t, ghost, &format!("{} · {day}", title_of(it)));
+            if drag.done
+                && let Some(act) = moving::moved(it, by)
+            {
+                acts.push(act);
+            }
         }
     }
 }
@@ -302,10 +327,26 @@ fn timed_events(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], cols
                 text.push_str(if w <= r.width() - 8.0 { " · " } else { "\n" });
                 text.push_str(&it.location);
             }
-            if chip(ui, t, r, it, &text).clicked()
+            let resp = chip(ui, t, r, it, &text, s.movable(it));
+            if resp.clicked()
                 && let Some(a) = open(s, it)
             {
                 acts.push(a);
+            }
+            // Dragged to another time, or day (issue #192): the day under the pointer (shown in
+            // its own calendar's pane), its time as far as its top went, in quarter hours.
+            if let Some(drag) = moving::dragged(ui, &resp, r) {
+                let to = cols.column_at(drag.pointer.x - grid.min.x);
+                let later = moving::quarters((drag.top_left.y - r.min.y) / HOUR * 3600.0);
+                let by = s.local_midnight(cols.day(to)) - day0 + later;
+                let x = grid.min.x + cols.day_x(to, j) + 3.0;
+                let ghost = Rect::from_min_size(pos2(x, r.min.y + later as f32 / 3600.0 * HOUR), vec2(cw - 6.0, r.height()));
+                moving::ghost(ui, t, ghost, &format!("{}\n{} – {}", title_of(it), hm(it.start + by, s), hm(it.end + by, s)));
+                if drag.done
+                    && let Some(a) = moving::moved(it, by)
+                {
+                    acts.push(a);
+                }
             }
         }
     }

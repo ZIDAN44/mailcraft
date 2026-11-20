@@ -9,6 +9,7 @@ mod free_time;
 mod groups;
 mod invites;
 mod meetings;
+mod moving;
 mod notes;
 mod pim;
 mod read_only_books;

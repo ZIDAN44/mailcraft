@@ -148,18 +148,20 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let before = current.sequence;
             let e = event_from(s, v, current)?;
             let r = s.update_event(&uid, |x| *x = e)?;
-            // The user's own meeting: the guests hear of a change that's theirs to know, a new
-            // version of it (not one saved unchanged, or of the user's own reminder, issue #102).
-            if let Some((account, stored)) = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone()))
-                && stored.sequence != before
-                && organized_by_me(s, &stored)
-            {
-                let route = s.meeting_route(&account, &uid);
-                s.tell_guests(&account, &stored, "REQUEST", route, "")?;
-            }
+            tell_of_change(s, &uid, before)?;
             Ok(r)
         })
         .params(r#"{"uid": string, … the fields of event.create to change}"#),
+        // Dragged to another time or day in the calendar (issue #192).
+        CommandSpec::new("event.move", "Move event", "Calendar › Event", |s, v| {
+            let uid = p::req_str(v, "uid")?.to_string();
+            let by = p::i64(v, "by").ok_or_else(|| CmdError::Params("`by` is how many seconds later (or earlier, below 0) it goes".into()))?;
+            let before = s.find_event(&uid).map(|(_, e)| e.event.sequence).ok_or_else(|| CmdError::Params(format!("no event `{uid}`")))?;
+            let r = s.move_event(&uid, by)?;
+            tell_of_change(s, &uid, before)?;
+            Ok(r)
+        })
+        .params(r#"{"uid": string, "by": seconds later (below 0: earlier; an all-day event by whole days)} (not one that repeats, nor a meeting someone else organized)"#),
         CommandSpec::new("event.delete", "Delete event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             let before = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone(), e.href.clone()));
@@ -550,10 +552,21 @@ pub(super) fn card_from(v: &Value, mut c: mailcraft_model::vcard::Card) -> Resul
 
 /// The user organizes this event and it has guests to tell.
 pub(super) fn organized_by_me(s: &Session, e: &mailcraft_model::ical::CalEvent) -> bool {
-    !e.attendees.is_empty()
-        && e.organizer.as_ref().is_some_and(|o| {
-            s.accounts.iter().any(|a| a.config.email.eq_ignore_ascii_case(&o.email) || a.config.username.eq_ignore_ascii_case(&o.email))
-        })
+    !e.attendees.is_empty() && s.organizes(e)
+}
+
+/// The user's own meeting `uid`, changed: the guests hear of a change that's theirs to know, a
+/// new version of it (`before`: the version it was; not one saved unchanged, or of the user's
+/// own reminder, issue #102).
+fn tell_of_change(s: &mut Session, uid: &str, before: u32) -> Result<(), CmdError> {
+    if let Some((account, stored)) = s.find_event(uid).map(|(a, e)| (a.to_string(), e.event.clone()))
+        && stored.sequence != before
+        && organized_by_me(s, &stored)
+    {
+        let route = s.meeting_route(&account, uid);
+        s.tell_guests(&account, &stored, "REQUEST", route, "")?;
+    }
+    Ok(())
 }
 
 /// Save a note's file where asked, as an attachment is saved: one to be opened by another app is

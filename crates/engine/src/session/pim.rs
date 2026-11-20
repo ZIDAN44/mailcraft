@@ -25,6 +25,7 @@ pub use free_busy::{FreeBusyKept, FreeBusyState};
 pub mod invite;
 mod local;
 pub use local::LocalEvents;
+mod moving;
 mod reminders;
 mod series;
 mod sync;

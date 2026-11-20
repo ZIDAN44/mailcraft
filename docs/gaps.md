@@ -180,6 +180,17 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** What's folded is kept as the folder was last shown, the one way there is; the
   arrow keys move between messages, never stopping on a heading.
 
+### 15. Moving an event: what isn't done yet
+
+- **Impact:** An event that repeats isn't dragged to another time (Outlook moves the occurrence
+  dragged, on its own), nor is an event's length changed by dragging its edge. A meeting someone
+  else organized isn't dragged either.
+- **Workaround:** Open the event and change its start and end in its form: a repeating one
+  moves as a whole there.
+- **Cause:** Nothing changes one occurrence of a series on its own yet: the form and the
+  calendar change the whole series, and the series moved for one occurrence went wrong on its
+  days (Monday's moved to Tuesday, the rule still said Mondays).
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

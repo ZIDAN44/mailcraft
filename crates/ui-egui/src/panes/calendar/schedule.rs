@@ -267,7 +267,8 @@ fn row_items(s: &Session, t: &Tokens, ui: &mut Ui, day: &Day, r: Rect, items: &[
     for (it, lane) in sorted.into_iter().zip(lanes) {
         let (x0, x1) = (day.x(it.start), day.x(it.end.max(it.start + 60)));
         let cr = Rect::from_min_size(pos2(x0 + 1.0, r.min.y + 2.0 + h * lane as f32), vec2((x1 - x0 - 2.0).max(6.0), h - 1.0));
-        let resp = chip(ui, t, cr, it, &title_of(it));
+        // Opened, not dragged: a row's time is the person's, the day's across the hours.
+        let resp = chip(ui, t, cr, it, &title_of(it), false);
         let when = if it.all_day { tl!("All day").to_string() } else { format!("{} – {}", hm(it.start, s), hm(it.end, s)) };
         let tip = if it.location.is_empty() { format!("{}\n{when}", title_of(it)) } else { format!("{}\n{when} · {}", title_of(it), it.location) };
         if resp.on_hover_text(tip).clicked()
