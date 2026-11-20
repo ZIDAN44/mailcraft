@@ -25,6 +25,9 @@ updates:
     #   once both are stable.
     # - zbus: AccessKit, notify-rust and the keychain's Secret Service store use zbus 5; a 6 for
     #   the theme watcher alone would build D-Bus twice.
+    # - skrifa: the app checks a font with egui's own (0.44, held there by the egui fork), as a
+    #   newer one reads files egui's doesn't and egui stops on; it moves with the fork, by hand.
+    #   Dependabot can't hold one crate's skrifa alone, so ui-egui's and print's move by hand too.
     ignore:
       - dependency-name: "aes"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
@@ -57,6 +60,8 @@ updates:
       - dependency-name: "sha2"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "signature"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "skrifa"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "spki"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]

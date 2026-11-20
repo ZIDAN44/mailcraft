@@ -4012,7 +4012,7 @@ dependencies = [
  "raw-window-handle",
  "rfd",
  "serde_json",
- "skrifa 0.47.0",
+ "skrifa 0.44.0",
  "tray-icon",
  "uds_windows",
  "windows-registry 0.100.0",
