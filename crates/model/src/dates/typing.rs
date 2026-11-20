@@ -121,7 +121,7 @@ pub fn read_day(text: &str, order: DateOrder) -> Option<i64> {
     } else {
         match order {
             DateOrder::Iso => return None,
-            DateOrder::DayMonthYear | DateOrder::DayMonthYearDots => (num(c, 4..=4)?, num(b, 1..=2)?, num(a, 1..=2)?),
+            DateOrder::DayMonthYear | DateOrder::DayMonthYearDots | DateOrder::YearMonthDayDots => (num(c, 4..=4)?, num(b, 1..=2)?, num(a, 1..=2)?),
             DateOrder::MonthDayYear => (num(c, 4..=4)?, num(a, 1..=2)?, num(b, 1..=2)?),
         }
     };

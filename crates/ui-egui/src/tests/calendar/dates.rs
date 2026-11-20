@@ -71,6 +71,7 @@ fn an_invitation_says_its_day() {
                             DateOrder::DayMonthYear => format!("{d:02}/{m:02}/{y:04}"),
                             DateOrder::MonthDayYear => format!("{m:02}/{d:02}/{y:04}"),
                             DateOrder::DayMonthYearDots => format!("{d:02}.{m:02}.{y:04}"),
+                            DateOrder::YearMonthDayDots => format!("{y:04}.{m:02}.{d:02}"),
                         };
                         // 1 January 1970 was a Thursday.
                         let weekday = crate::i18n::t(WEEKDAYS[(day + 3).rem_euclid(7) as usize]);
