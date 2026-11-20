@@ -26,7 +26,7 @@ fn pane(ctx: &egui::Context, a: &mut MailApp, height: f32, events: Vec<Event>) -
     let mut acts = Vec::new();
     let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(220.0, height))), events, ..Default::default() };
     let mut out = ctx.run_ui(input, |ui| {
-        ui.allocate_ui(egui::vec2(220.0, height), |ui| crate::nav::show(&a.session, &t, ui, &mut acts));
+        ui.allocate_ui(egui::vec2(220.0, height), |ui| crate::nav::show(&a.session, &t, ui, false, &mut acts));
     });
     out.textures_delta.clear();
     for act in acts {
@@ -184,4 +184,33 @@ fn a_folder_dropped_on_a_folder_goes_inside_it() {
     let paths: Vec<String> = a.session.accounts[0].folders.iter().map(|f| f.path.clone()).collect();
     assert!(paths.iter().any(|p| p == "Projects/Clients"), "moved into Projects: {paths:?}");
     assert!(!paths.iter().any(|p| p == "Clients"));
+}
+
+/// Issue #188: Minimize sits at the end of the folder pane's first row (the Favorites heading,
+/// or with Favorites hidden the first account), so the folders start right under the ribbon. It
+/// had a row of its own, an empty strip above the first account; and the account's name keeps
+/// clear of it.
+#[test]
+fn minimize_sits_on_the_first_row() {
+    let (mut a, _) = app("pane-corner");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = egui::vec2(1280.0, 800.0);
+    let find = |all: &[Named], label: &str| all.iter().find(|n| n.label.as_deref() == Some(label)).and_then(|n| n.rect);
+    for favorites in [true, false] {
+        a.session.prefs.show_favorites = favorites;
+        frame(&ctx, &mut a, vec![]);
+        frame(&ctx, &mut a, vec![]);
+        let all = named(&ctx, &mut a, size);
+        let minimize = find(&all, "Minimize the folder pane").expect("Minimize drawn");
+        let first = if favorites { "Favorites" } else { "riley@studio.example (sample)" };
+        let row = find(&all, first).unwrap_or_else(|| panic!("{first} drawn"));
+        assert!(row.y_range().contains(minimize.center().y), "{first} {row:?}, Minimize {minimize:?}");
+        assert!(minimize.right() <= row.right() + 1.0 && minimize.left() > row.center().x, "at its end: {row:?} {minimize:?}");
+        // Nothing above it but the ribbon's bar under the window's top.
+        assert!(row.top() < 135.0, "{first} starts at {}", row.top());
+    }
+    click_named(&ctx, &mut a, "Minimize the folder pane");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.prefs.folder_pane_minimized);
 }

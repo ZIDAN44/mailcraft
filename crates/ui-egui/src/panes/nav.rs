@@ -92,10 +92,40 @@ pub(crate) fn folder_of(file: &std::path::Path) -> std::path::PathBuf {
     if file.is_dir() { file.to_path_buf() } else { file.parent().unwrap_or(file).to_path_buf() }
 }
 
+/// Room kept at the end of the pane's first row for Minimize (issue #188), as Outlook keeps its
+/// ‹ at the right of the Favorites heading: it had a row of its own above the folders.
+const CORNER: f32 = 26.0;
+
+/// Where the pane's first row starts (its top), while Minimize goes at its end.
+fn corner_top() -> egui::Id {
+    egui::Id::unique("nav-corner-top")
+}
+
+/// The pane's first row, as drawn: Minimize goes at its end.
+fn corner_row() -> egui::Id {
+    egui::Id::unique("nav-corner-row")
+}
+
+/// The room a row at `rect` keeps for Minimize: [`CORNER`] when it's the pane's first, else none.
+/// The first is noted, for Minimize to be drawn at its end.
+fn corner_inset(ui: &Ui, rect: egui::Rect) -> f32 {
+    let top: Option<f32> = ui.data(|d| d.get_temp(corner_top()));
+    if top.is_some_and(|y| (rect.min.y - y).abs() < 3.0) {
+        ui.data_mut(|d| {
+            d.remove::<f32>(corner_top());
+            d.insert_temp(corner_row(), rect);
+        });
+        CORNER
+    } else {
+        0.0
+    }
+}
+
 /// A section's heading that collapses it (Favorites, Search Folders), with its arrow.
 fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -> egui::Response {
     ui.add_space(2.0);
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 22.0), Sense::click());
+    corner_inset(ui, rect);
     crate::widgets::named(ui, &resp, tl!(label), true, Some(open));
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover_row);
@@ -170,7 +200,8 @@ fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count, depth: us
     icons::paint(ui.painter(), ir, icon, if selected { t.accent } else { t.dim });
     let font = if unread > 0 || selected { theme::bold(13.5) } else { theme::regular(13.5) };
     let counted = matches!(count, Count::Unread(n) | Count::Items(n) if n > 0);
-    let text_right = rect.max.x - if counted { 40.0 } else { 8.0 };
+    let inset = corner_inset(ui, rect);
+    let text_right = rect.max.x - inset - if counted { 40.0 } else { 8.0 };
     // One line, cut to "…" in a narrow pane (it wrapped, two or three lines in a row of one), the
     // whole name on hover.
     let galley = crate::widgets::one_line(ui, label, font, t.text, text_right - x - 24.0);
@@ -183,7 +214,7 @@ fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count, depth: us
         _ => None,
     };
     if let Some((text, font, color)) = shown {
-        ui.painter().text(m.pos(egui::pos2(rect.max.x - 10.0, rect.center().y)), m.align(egui::Align2::RIGHT_CENTER), text, font, color);
+        ui.painter().text(m.pos(egui::pos2(rect.max.x - 10.0 - inset, rect.center().y)), m.align(egui::Align2::RIGHT_CENTER), text, font, color);
     }
     resp
 }
@@ -203,13 +234,23 @@ pub(crate) fn current_row(ctx: &egui::Context) -> Option<egui::Id> {
     ctx.data(|d| d.get_temp(egui::Id::unique(CURRENT_ROW)))
 }
 
-pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+/// The folder pane; `minimize`, with Minimize at the end of its first row.
+pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, minimize: bool, acts: &mut Vec<Action>) {
     let ctx = ui.ctx().clone();
     // The keyboard on the folder shown, last frame.
     let was = current_row(&ctx).filter(|id| ctx.memory(|m| m.focused()) == Some(*id));
     ctx.data_mut(|d| d.remove::<egui::Id>(egui::Id::unique(CURRENT_ROW)));
     egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 1.0;
+        let top = ui.cursor().min.y;
+        ui.data_mut(|d| {
+            d.remove::<egui::Rect>(corner_row());
+            if minimize {
+                d.insert_temp(corner_top(), top);
+            } else {
+                d.remove::<f32>(corner_top());
+            }
+        });
         // Hidden altogether (View › Favorites), or collapsed to its heading.
         let favorites_open = s.prefs.show_favorites && !s.prefs.collapsed.contains("favorites");
         if s.prefs.show_favorites && section_header(ui, t, "Favorites", favorites_open).clicked() {
@@ -241,7 +282,11 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 acts.push(Action::Run("folder.outbox", json!({})));
             }
         }
-        ui.add_space(8.0);
+        // Apart from what's above, when there's anything (issue #188: room above the first
+        // account too).
+        if ui.cursor().min.y > top {
+            ui.add_space(8.0);
+        }
         // Accounts, and the shared mailboxes they open, each a mailbox of its own in the order
         // the user put them (issue #1).
         // (An account with calendars and contacts only has no mailbox to show, issue #86.)
@@ -266,6 +311,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             let open = !s.prefs.collapsed.contains(&key);
             // Dragged onto another mailbox, it takes its place (above or below it).
             let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click_and_drag());
+            let inset = corner_inset(ui, rect);
             if resp.hovered() || resp.dragged() {
                 ui.painter().rect_filled(rect, 6.0, t.hover_row);
             }
@@ -276,7 +322,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             ui.painter().circle_filled(m.pos(rect.min + vec2(26.0, 15.0)), 4.0, theme::account_color(a.config.color));
             let label = if a.is_local() && !a.is_data_file() { tf!("{email} (sample)", email = a.config.email) } else { a.config.email.clone() };
             crate::widgets::named(ui, &resp, &label, true, Some(open));
-            let g = crate::widgets::one_line(ui, &label, theme::bold(13.0), t.text, rect.width() - 44.0);
+            let g = crate::widgets::one_line(ui, &label, theme::bold(13.0), t.text, rect.width() - 44.0 - inset);
             let resp = if g.elided { resp.on_hover_text(&label) } else { resp };
             ui.painter().galley(egui::pos2(m.start(rect.min.x + 36.0, g.size().x), rect.min.y + 15.0 - g.size().y / 2.0), g, t.text);
             if resp.clicked() {
@@ -355,6 +401,24 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             }
         }
         search_folders(s, t, ui, acts);
+        // Minimize at the end of the first row, drawn last so it takes the click over it; at
+        // the top when nothing is there.
+        if minimize {
+            let first = ui.data_mut(|d| {
+                d.remove::<f32>(corner_top());
+                let r = d.get_temp::<egui::Rect>(corner_row());
+                d.remove::<egui::Rect>(corner_row());
+                r
+            });
+            let row = first.unwrap_or_else(|| egui::Rect::from_min_size(egui::pos2(ui.min_rect().left(), top), vec2(ui.available_width(), 26.0)));
+            let m = crate::bidi::Mirror::new(row);
+            let at = m.rect(egui::Rect::from_min_size(egui::pos2(row.max.x - CORNER + 2.0, row.center().y - 11.0), vec2(22.0, 22.0)));
+            let mut corner = ui.new_child(egui::UiBuilder::new().max_rect(at).layout(egui::Layout::left_to_right(egui::Align::Center)));
+            let chevron = if crate::i18n::current().rtl() { Icon::ChevronRight } else { Icon::ChevronLeft };
+            if crate::widgets::tiny_icon_button(&mut corner, chevron, "Minimize the folder pane", t).clicked() {
+                acts.push(Action::Run("view.folderPane", json!({"minimized": true})));
+            }
+        }
     });
     // Its row made again under another id (the window laid out anew: Ctrl+F1 hiding the
     // ribbon), the keyboard stays on it; it went nowhere, and a screen reader with it.
@@ -508,6 +572,7 @@ fn shared_header(
     at: usize,
 ) -> bool {
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click_and_drag());
+    let inset = corner_inset(ui, rect);
     section_drag(ui, t, &resp, rect, sections, at, acts);
     let dropping = resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some();
     if resp.hovered() || dropping {
@@ -523,12 +588,12 @@ fn shared_header(
     // Its unread mail, as Outlook shows a collapsed mailbox's Inbox.
     let unread: u32 =
         if open { 0 } else { a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.mailbox_role == FolderRole::Inbox).map(|f| f.unread).sum() };
-    let right = rect.max.x - if unread > 0 { 40.0 } else { 8.0 };
+    let right = rect.max.x - inset - if unread > 0 { 40.0 } else { 8.0 };
     let g = crate::widgets::one_line(ui, &name, theme::bold(13.0), t.text, right - rect.min.x - 40.0);
     ui.painter().galley(egui::pos2(m.start(rect.min.x + 40.0, g.size().x), rect.min.y + 15.0 - g.size().y / 2.0), g, t.text);
     if unread > 0 {
         ui.painter().text(
-            m.pos(egui::pos2(rect.max.x - 10.0, rect.center().y)),
+            m.pos(egui::pos2(rect.max.x - 10.0 - inset, rect.center().y)),
             m.align(egui::Align2::RIGHT_CENTER),
             unread.to_string(),
             theme::bold(12.5),

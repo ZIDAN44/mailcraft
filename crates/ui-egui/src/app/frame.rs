@@ -504,15 +504,19 @@ impl MailApp {
                 egui::Panel::bottom("modules").frame(egui::Frame::new().inner_margin(Margin::symmetric(0, 4))).show(ui, |ui| {
                     module_switch(ui, &t, module, acts);
                 });
-                // Minimize, as Outlook's ‹ at the top of its folder pane.
-                ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
-                    let chevron = if rtl { Icon::ChevronRight } else { Icon::ChevronLeft };
-                    if widgets::tiny_icon_button(ui, chevron, "Minimize the folder pane", &t).clicked() {
-                        acts.push(Action::Run("view.folderPane", json!({"minimized": true})));
-                    }
-                });
+                // Minimize, as Outlook's ‹ at the top of its folder pane: in Mail at the end of
+                // the folders' first row (issue #188: a row of its own left a strip above them),
+                // elsewhere above the pane.
+                if module != Module::Mail {
+                    ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+                        let chevron = if rtl { Icon::ChevronRight } else { Icon::ChevronLeft };
+                        if widgets::tiny_icon_button(ui, chevron, "Minimize the folder pane", &t).clicked() {
+                            acts.push(Action::Run("view.folderPane", json!({"minimized": true})));
+                        }
+                    });
+                }
                 match module {
-                    Module::Mail => nav::show(&self.session, &t, ui, acts),
+                    Module::Mail => nav::show(&self.session, &t, ui, true, acts),
                     Module::Calendar => calendar::nav(&self.session, &mut self.ui, ui, acts),
                     Module::People => people::nav(&self.session, &mut self.ui, ui, acts),
                     Module::Tasks => tasks::nav(&self.session, &mut self.ui, ui, acts),
