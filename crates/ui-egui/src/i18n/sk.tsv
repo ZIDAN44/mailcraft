@@ -1934,3 +1934,10 @@ count	occurrences	opakovaní
 	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Kam siahajú ich údaje o dostupnosti, nie je skorší čas, keď majú všetci voľno: Predchádzajúci bude hľadať ďalej, keď prídu
 	Their free/busy times haven't come yet: try again in a moment	Ich údaje o dostupnosti ešte neprišli: skúste to o chvíľu znova
 	Some people's free/busy times can't be had: they count as free	Údaje o dostupnosti niektorých ľudí nie je možné získať: počítajú sa ako voľní
+	Collapse this group	Zbaliť túto skupinu
+	Expand this group	Rozbaliť túto skupinu
+	Collapse all groups	Zbaliť všetky skupiny
+	Expand all groups	Rozbaliť všetky skupiny
+	Show this group's mail	Zobraziť poštu tejto skupiny
+	Hide this group's mail	Skryť poštu tejto skupiny
+	{heading} ({count}), folded	{heading} ({count}), zbalená

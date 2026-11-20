@@ -1934,3 +1934,10 @@ count	occurrences	kez
 	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Uygunluk bilgilerinin ulaştığı yere kadar herkesin boş olduğu daha erken bir zaman yok: bilgiler gelince Önceki daha geriye bakar
 	Their free/busy times haven't come yet: try again in a moment	Uygunluk bilgileri henüz gelmedi: biraz sonra yeniden deneyin
 	Some people's free/busy times can't be had: they count as free	Bazı kişilerin uygunluk bilgileri alınamıyor: boş sayılırlar
+	Collapse this group	Bu grubu daralt
+	Expand this group	Bu grubu genişlet
+	Collapse all groups	Tüm grupları daralt
+	Expand all groups	Tüm grupları genişlet
+	Show this group's mail	Bu grubun postalarını göster
+	Hide this group's mail	Bu grubun postalarını gizle
+	{heading} ({count}), folded	{heading} ({count}), daraltılmış

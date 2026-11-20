@@ -1934,3 +1934,10 @@ count	occurrences	Terminen
 	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Keine frühere Zeit, in der alle frei sind, soweit ihre Frei/Gebucht-Zeiten reichen: „Zurück“ sucht weiter, sobald sie da sind
 	Their free/busy times haven't come yet: try again in a moment	Ihre Frei/Gebucht-Zeiten sind noch nicht da: gleich noch einmal versuchen
 	Some people's free/busy times can't be had: they count as free	Die Frei/Gebucht-Zeiten einiger Personen sind nicht zu bekommen: sie gelten als frei
+	Collapse this group	Diese Gruppe reduzieren
+	Expand this group	Diese Gruppe erweitern
+	Collapse all groups	Alle Gruppen reduzieren
+	Expand all groups	Alle Gruppen erweitern
+	Show this group's mail	E-Mails dieser Gruppe anzeigen
+	Hide this group's mail	E-Mails dieser Gruppe ausblenden
+	{heading} ({count}), folded	{heading} ({count}), reduziert

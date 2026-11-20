@@ -28,6 +28,16 @@ impl Session {
     fn row_toward(&self, toward: Toward) -> Option<usize> {
         let last = self.row_count().checked_sub(1)?;
         let cur = self.focus.as_ref().and_then(|k| self.msg_row_of(k));
+        // The focus on a message whose heading was folded away (issue #189): a step from there
+        // goes to the rows around its heading.
+        if let (Toward::Steps(n) | Toward::By(n), None) = (toward, cur)
+            && let Some(spot) = self.focus.as_ref().and_then(|k| self.folded_spot(k))
+        {
+            let spot = i64::try_from(spot).unwrap_or(i64::MAX);
+            let to = if n > 0 { spot.saturating_add(n - 1) } else { spot.saturating_add(n) };
+            let to = usize::try_from(to.max(0)).unwrap_or(0);
+            return (to <= last).then_some(to);
+        }
         Some(match (toward, cur) {
             (Toward::First, _) | (Toward::By(_), None) => 0,
             (Toward::Last, _) => last,

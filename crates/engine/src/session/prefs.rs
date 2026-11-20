@@ -143,6 +143,10 @@ pub struct Prefs {
     /// #183). An account without one has them A to Z.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub folder_order: BTreeMap<String, Vec<String>>,
+    /// The message list's headings folded away (issue #189), by the folder they're in: each
+    /// folder's, by arrangement and heading.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub folded_groups: BTreeMap<String, BTreeSet<String>>,
     /// The list under headings, as it's arranged (Today, Yesterday…; a sender's name): off, its
     /// messages follow one another with nothing between.
     pub groups: bool,
@@ -403,6 +407,7 @@ impl Default for Prefs {
             compact: false,
             folder_density: FolderDensity::Spacious,
             folder_order: BTreeMap::new(),
+            folded_groups: BTreeMap::new(),
             groups: true,
             single_line: false,
             classic_ribbon: false,

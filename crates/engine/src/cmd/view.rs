@@ -22,7 +22,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"value": code}))
         })
         .params(r#"{"value": "spacious"|"medium"|"compact"} (the folder pane's text size, row height and indent)"#),
-        toggle!("view.groups", "Show in groups", "View › Arrangement", groups),
+        CommandSpec::new("view.groups", "Show in groups", "View › Arrangement", |s, v| {
+            s.prefs.groups = p::bool(v, "on").unwrap_or(!s.prefs.groups);
+            // Headings folded away (issue #189) fold only while they're shown.
+            s.rebuild_rows();
+            Ok(json!({"on": s.prefs.groups}))
+        })
+        .params(r#"{"on"?: bool}"#),
         toggle!("view.singleLine", "Single-line list", "View › Layout", single_line),
         toggle!("view.classicRibbon", "Classic ribbon", "View › Layout", classic_ribbon),
         toggle!("view.hideRibbon", "Hide the ribbon", "View › Layout", ribbon_hidden).key("Mod+F1"),

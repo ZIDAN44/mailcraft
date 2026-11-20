@@ -1933,3 +1933,10 @@ count	occurrences	회
 	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	가용성 정보가 있는 범위에서는 이보다 이전에 모두가 한가한 시간이 없습니다: 정보가 오면 '이전'이 더 찾아봅니다
 	Their free/busy times haven't come yet: try again in a moment	가용성 정보가 아직 오지 않았습니다: 잠시 후 다시 시도하세요
 	Some people's free/busy times can't be had: they count as free	일부 사람의 가용성 정보를 가져올 수 없습니다: 한가한 것으로 간주합니다
+	Collapse this group	이 그룹 접기
+	Expand this group	이 그룹 펼치기
+	Collapse all groups	모든 그룹 접기
+	Expand all groups	모든 그룹 펼치기
+	Show this group's mail	이 그룹의 메일 표시
+	Hide this group's mail	이 그룹의 메일 숨기기
+	{heading} ({count}), folded	{heading} ({count}), 접힘

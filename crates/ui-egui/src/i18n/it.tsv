@@ -1933,3 +1933,10 @@ count	occurrences	ripetizioni
 	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Nessun momento precedente in cui tutti sono liberi fin dove arrivano i loro orari di disponibilità: Precedente cerca oltre quando arrivano
 	Their free/busy times haven't come yet: try again in a moment	I loro orari di disponibilità non sono ancora arrivati: riprova tra un attimo
 	Some people's free/busy times can't be had: they count as free	Non è possibile avere gli orari di disponibilità di alcune persone: contano come liberi
+	Collapse this group	Comprimi questo gruppo
+	Expand this group	Espandi questo gruppo
+	Collapse all groups	Comprimi tutti i gruppi
+	Expand all groups	Espandi tutti i gruppi
+	Show this group's mail	Mostra la posta di questo gruppo
+	Hide this group's mail	Nascondi la posta di questo gruppo
+	{heading} ({count}), folded	{heading} ({count}), compresso

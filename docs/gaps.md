@@ -171,6 +171,15 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   suggestions (Exchange's `SuggestionsViewOptions`, Microsoft Graph's `findMeetingTimes`) come
   from those servers alone.
 
+### 14. Message list groups: what isn't done yet
+
+- **Impact:** A heading folded stays folded as it was left: Outlook's **Expand/collapse
+  defaults** (all expanded or all collapsed each time a folder opens) isn't there, and Left and
+  Right don't fold or show a heading from the keyboard as Outlook's do.
+- **Workaround:** **Expand all groups** in the list's **By Date ⏷** menu shows everything again.
+- **Cause:** What's folded is kept as the folder was last shown, the one way there is; the
+  arrow keys move between messages, never stopping on a heading.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

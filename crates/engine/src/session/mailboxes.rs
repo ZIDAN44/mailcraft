@@ -6,6 +6,7 @@ use super::*;
 mod across;
 mod echo;
 mod folder_order;
+mod folding;
 mod nav;
 mod patch;
 mod rows;

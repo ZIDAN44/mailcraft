@@ -126,6 +126,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("list.open", "Open message", "Message list", open_message).leaves_body().params(r#"{"key": "account:validity:uid:folder"}"#),
         CommandSpec::new("list.select", "Select", "Message list", select).leaves_body().params(r#"{"key": string, "add"?: bool}"#),
         CommandSpec::new("list.selectAll", "Select all", "Message list", select_all).leaves_body().key("Mod+A"),
+        // Issue #189: a heading folded away, or its mail shown again, as Outlook's groups.
+        CommandSpec::new("list.foldGroup", "Collapse this group", "Message list (a heading)", |s, v| s.fold_group(p::req_str(v, "heading")?, p::bool(v, "folded")))
+            .params(r#"{"heading": string (as the list shows it: "Today", a sender's name…), "folded"?: bool (default: the other way)}"#),
+        CommandSpec::new("list.collapseAll", "Collapse all groups", "Message list (a heading)", |s, _| s.fold_all(true)),
+        CommandSpec::new("list.expandAll", "Expand all groups", "Message list (a heading)", |s, _| s.fold_all(false)),
         CommandSpec::new("list.selectRange", "Select to here", "Message list (Shift+click)", |s, v| {
             let k = key_param(s, v)?;
             s.select_range(&k, p::bool(v, "add").unwrap_or(false))

@@ -1933,3 +1933,10 @@ count	occurrences	повторений
 	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Нет более раннего времени, когда все свободны, в пределах их сведений о занятости: «Назад» поищет дальше, когда они придут
 	Their free/busy times haven't come yet: try again in a moment	Сведения об их занятости ещё не пришли: попробуйте снова через минуту
 	Some people's free/busy times can't be had: they count as free	Сведения о занятости некоторых людей недоступны: они считаются свободными
+	Collapse this group	Свернуть эту группу
+	Expand this group	Развернуть эту группу
+	Collapse all groups	Свернуть все группы
+	Expand all groups	Развернуть все группы
+	Show this group's mail	Показать почту этой группы
+	Hide this group's mail	Скрыть почту этой группы
+	{heading} ({count}), folded	{heading} ({count}), свёрнута

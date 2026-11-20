@@ -310,6 +310,62 @@ fn search_status(s: &Session, t: &theme::Tokens, ui: &mut Ui) {
     });
 }
 
+/// A heading of the list as drawn: its text shown, its text as the list names it (English for a
+/// fixed one), and when folded, how much mail it hides (and how much of that is unread).
+struct Heading<'a> {
+    shown: &'a str,
+    heading: &'a str,
+    folded: Option<(usize, usize)>,
+}
+
+/// A heading of the list (a date, a sender…), as Outlook's groups (issue #189): an arrow at its
+/// start, down while its mail shows; a click folds it away, the arrow then pointing along the
+/// text and the heading saying how much it hides; clicked again, it shows. Its menu folds or
+/// shows every heading.
+fn group_heading(t: &crate::theme::Tokens, ui: &mut Ui, r: Rect, h: Heading<'_>, acts: &mut Vec<Action>) {
+    let Heading { shown, heading, folded } = h;
+    let resp = ui.interact(r, ui.scope_id().with(("list-heading", heading)), Sense::click());
+    if resp.hovered() {
+        ui.painter().rect_filled(r, 0.0, t.hover_row);
+    }
+    let m = crate::bidi::Mirror::new(r);
+    let arrow = Rect::from_center_size(m.pos(r.left_bottom() + vec2(19.0, -14.0)), vec2(10.0, 10.0));
+    icons::paint(ui.painter(), arrow, if folded.is_some() { m.closed() } else { Icon::ChevronDown }, t.dim);
+    let text = ui.painter().text(m.pos(r.left_bottom() + vec2(30.0, -8.0)), m.align(egui::Align2::LEFT_BOTTOM), shown, theme::bold(12.5), t.dim);
+    let name = match folded {
+        Some((count, unread)) => {
+            // How much it hides, in the accent when some of it is unread.
+            let at = if m.on() { text.min.x - 6.0 } else { text.max.x + 6.0 };
+            let colour = if unread > 0 { t.accent } else { t.faint };
+            ui.painter().text(pos2(at, text.max.y), m.align(egui::Align2::LEFT_BOTTOM), format!("({count})"), theme::regular(12.0), colour);
+            tf!("{heading} ({count}), folded", heading = shown, count = count)
+        }
+        None => shown.to_string(),
+    };
+    crate::widgets::named(ui, &resp, &name, true, None);
+    let fold = |acts: &mut Vec<Action>, folded: bool| acts.push(Action::Run("list.foldGroup", json!({"heading": heading, "folded": folded})));
+    resp.context_menu(|ui| {
+        let (label, to) = if folded.is_some() { ("Expand this group", false) } else { ("Collapse this group", true) };
+        if ui.button(tl!(label)).clicked() {
+            fold(acts, to);
+            ui.close();
+        }
+        ui.separator();
+        if ui.button(tl!("Collapse all groups")).clicked() {
+            acts.push(Action::Run("list.collapseAll", json!({})));
+            ui.close();
+        }
+        if ui.button(tl!("Expand all groups")).clicked() {
+            acts.push(Action::Run("list.expandAll", json!({})));
+            ui.close();
+        }
+    });
+    let tip = if folded.is_some() { tl!("Show this group's mail") } else { tl!("Hide this group's mail") };
+    if resp.on_hover_text(tip).clicked() {
+        fold(acts, folded.is_none());
+    }
+}
+
 /// The list's rows, under its head.
 fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
@@ -326,7 +382,12 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
         let mut y = 0.0;
         for r in rows {
             tops.push(y);
-            y += if matches!(r, Row::Header(_) | Row::Group(_)) { header_h } else { mh };
+            y += match r {
+                Row::Header(_) | Row::Group(_) => header_h,
+                // A folded heading's mail (issue #189): counted on the heading, taking no room.
+                Row::Folded { .. } => 0.0,
+                Row::Message { .. } => mh,
+            };
         }
         st.list_rows = Some(ListRows { key, tops, total: y });
     }
@@ -388,7 +449,13 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
         let several_folders =
             s.search.as_ref().is_some_and(|(_, scope)| *scope != SearchScope::Current) || matches!(s.view, mailcraft_engine::View::Unified { .. });
         // Tab stops on one row: the list's focus, else the first message.
-        let tab_stop = s.focus.as_ref().filter(|k| s.row_index_of(k).is_some()).or_else(|| s.list.first().map(|m| &m.key));
+        let tab_stop = s.focus.as_ref().filter(|k| s.row_index_of(k).is_some()).or_else(|| {
+            // The first message shown (the list's first may be under a folded heading).
+            rows.iter().find_map(|r| match r {
+                Row::Message { index, .. } => s.list.get(*index).map(|m| &m.key),
+                _ => None,
+            })
+        });
         // The row with the keyboard, and whether it's still here.
         let keyboard = st.row_keyboard.filter(|id| ui.memory(|m| m.focused()) == Some(*id));
         st.list_stop = None;
@@ -400,22 +467,20 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                 break;
             }
             match row {
-                Row::Header(_) | Row::Group(_) if !s.prefs.groups => {}
-                Row::Header(label) => {
+                Row::Header(_) | Row::Group(_) | Row::Folded { .. } if !s.prefs.groups => {}
+                Row::Folded { .. } => {}
+                Row::Header(_) | Row::Group(_) => {
+                    let (shown, heading) = match row {
+                        Row::Header(label) => (tl!(label).to_string(), label.to_string()),
+                        Row::Group(name) => (name.clone(), name.clone()),
+                        _ => continue,
+                    };
+                    let folded = match rows.get(i + 1) {
+                        Some(Row::Folded { count, unread }) => Some((*count, *unread)),
+                        _ => None,
+                    };
                     let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
-                    let m = crate::bidi::Mirror::new(r);
-                    ui.painter().text(
-                        m.pos(r.left_bottom() + vec2(14.0, -8.0)),
-                        m.align(egui::Align2::LEFT_BOTTOM),
-                        tl!(label),
-                        theme::bold(12.5),
-                        t.dim,
-                    );
-                }
-                Row::Group(name) => {
-                    let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
-                    let m = crate::bidi::Mirror::new(r);
-                    ui.painter().text(m.pos(r.left_bottom() + vec2(14.0, -8.0)), m.align(egui::Align2::LEFT_BOTTOM), name, theme::bold(12.5), t.dim);
+                    group_heading(&t, ui, r, Heading { shown: &shown, heading: &heading, folded }, acts);
                 }
                 Row::Message { index, count, unread } => {
                     let Some(m) = s.list.get(*index) else { continue };
@@ -541,6 +606,14 @@ pub(crate) fn arrange_menu(ui: &mut Ui, s: &Session, acts: &mut Vec<Action>) {
     if ui.selectable_label(s.prefs.groups, tl!("Show in groups")).clicked() {
         acts.push(Action::Run("view.groups", json!({})));
         ui.close();
+    }
+    // Every heading folded away, or shown (issue #189): a folder's list in groups.
+    let foldable = s.prefs.groups && s.search.is_none();
+    for (label, cmd) in [("Collapse all groups", "list.collapseAll"), ("Expand all groups", "list.expandAll")] {
+        if ui.add_enabled(foldable, egui::Button::new(tl!(label)).frame(false)).clicked() {
+            acts.push(Action::Run(cmd, json!({})));
+            ui.close();
+        }
     }
 }
 

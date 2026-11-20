@@ -1929,3 +1929,10 @@ count	occurrences	keer
 	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	Geen eerdere tijd waarop iedereen vrij is zover hun beschikbaarheid reikt: Vorige zoekt verder zodra die er is
 	Their free/busy times haven't come yet: try again in a moment	Hun beschikbaarheid is er nog niet: probeer het zo nog eens
 	Some people's free/busy times can't be had: they count as free	De beschikbaarheid van sommige mensen is niet op te halen: zij tellen als vrij
+	Collapse this group	Deze groep samenvouwen
+	Expand this group	Deze groep uitvouwen
+	Collapse all groups	Alle groepen samenvouwen
+	Expand all groups	Alle groepen uitvouwen
+	Show this group's mail	De e-mail van deze groep tonen
+	Hide this group's mail	De e-mail van deze groep verbergen
+	{heading} ({count}), folded	{heading} ({count}), samengevouwen

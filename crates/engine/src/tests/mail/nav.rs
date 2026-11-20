@@ -7,6 +7,7 @@ use super::*;
 use crate::model::{EmailAddress, MessageKey, Summary};
 use crate::session::{Arrange, arrange_list};
 
+mod folding;
 mod patch;
 
 /// A session over nothing, its list `list` indexed as `refresh_list` indexes it.

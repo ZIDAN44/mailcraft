@@ -1933,3 +1933,10 @@ count	occurrences	次
 	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	在他們的空閒/忙碌資訊所及範圍內沒有更早的所有人都有空的時間：資訊到達後，「上一個」會繼續往前找
 	Their free/busy times haven't come yet: try again in a moment	他們的空閒/忙碌資訊尚未到達：請稍後再試
 	Some people's free/busy times can't be had: they count as free	無法取得部分人員的空閒/忙碌資訊：將其視為有空
+	Collapse this group	摺疊此群組
+	Expand this group	展開此群組
+	Collapse all groups	摺疊所有群組
+	Expand all groups	展開所有群組
+	Show this group's mail	顯示此群組的郵件
+	Hide this group's mail	隱藏此群組的郵件
+	{heading} ({count}), folded	{heading}（{count}），已摺疊

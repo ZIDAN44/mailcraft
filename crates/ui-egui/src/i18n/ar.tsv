@@ -1929,3 +1929,10 @@ count	occurrences	مرات
 	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	لا يوجد وقت أبكر يكون فيه الجميع متفرغين ضمن ما وصلت إليه أوقات تفرغهم: يبحث «السابق» أبعد حين تصل
 	Their free/busy times haven't come yet: try again in a moment	لم تصل أوقات تفرغهم بعد: حاول مجددًا بعد لحظة
 	Some people's free/busy times can't be had: they count as free	تعذّر الحصول على أوقات تفرغ بعض الأشخاص: يُعَدّون متفرغين
+	Collapse this group	طي هذه المجموعة
+	Expand this group	توسيع هذه المجموعة
+	Collapse all groups	طي كل المجموعات
+	Expand all groups	توسيع كل المجموعات
+	Show this group's mail	إظهار بريد هذه المجموعة
+	Hide this group's mail	إخفاء بريد هذه المجموعة
+	{heading} ({count}), folded	{heading} ({count})، مطوية

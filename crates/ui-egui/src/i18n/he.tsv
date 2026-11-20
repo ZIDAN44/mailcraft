@@ -1929,3 +1929,10 @@ count	occurrences	פעמים
 	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	אין זמן מוקדם יותר שבו כולם פנויים עד היכן שזמני הזמינות שלהם מגיעים: 'הקודם' יחפש הלאה כשיגיעו
 	Their free/busy times haven't come yet: try again in a moment	זמני הזמינות שלהם עוד לא הגיעו: נסו שוב בעוד רגע
 	Some people's free/busy times can't be had: they count as free	לא ניתן לקבל את זמני הזמינות של חלק מהאנשים: הם נחשבים פנויים
+	Collapse this group	כיווץ הקבוצה הזו
+	Expand this group	הרחבת הקבוצה הזו
+	Collapse all groups	כיווץ כל הקבוצות
+	Expand all groups	הרחבת כל הקבוצות
+	Show this group's mail	הצגת הדואר של הקבוצה הזו
+	Hide this group's mail	הסתרת הדואר של הקבוצה הזו
+	{heading} ({count}), folded	{heading} ({count}), מכווצת
