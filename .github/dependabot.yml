@@ -20,11 +20,13 @@ updates:
         patterns:
           - "*"
     # Held back on purpose (patch releases still come):
-    # - S/MIME's RustCrypto crates move as one family, and rsa 0.10 and cms 0.3, which the next
-    #   one needs, are still release candidates (pgp and x509-ocsp use this one too). Drop these
-    #   once both are stable.
-    # - zbus: AccessKit, notify-rust and the keychain's Secret Service store use zbus 5; a 6 for
-    #   the theme watcher alone would build D-Bus twice.
+    # - S/MIME's RustCrypto crates move as one family. rsa 0.10 is out, but cms 0.3, x509-ocsp
+    #   0.3 and pkcs12 0.2, which the next one needs (p12-keystore's newer releases take cms
+    #   0.3), are still release candidates; rPGP is on this one too until rpgp/rpgp#573. Drop
+    #   these once those are stable.
+    # - zbus: notify-rust is on 6, but AccessKit (and its AT-SPI), the tray's ksni and the
+    #   keychain's Secret Service store are on 5, so both are built either way; the theme
+    #   watcher stays on 5 and moves with them.
     # - skrifa: the app checks a font with egui's own (0.44, held there by the egui fork), as a
     #   newer one reads files egui's doesn't and egui stops on; it moves with the fork, by hand.
     #   Dependabot can't hold one crate's skrifa alone, so ui-egui's and print's move by hand too.
