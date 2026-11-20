@@ -173,6 +173,15 @@ impl<S: Read + Write> Client<S> {
         self.cmd(&[Part::Text("EXPUNGE")]).map(|_| ())
     }
 
+    /// Mark every message in a folder read, those not downloaded too (issue #197).
+    pub fn mark_read(&mut self, folder: &str) -> Result<()> {
+        let info = self.select(folder, false)?;
+        if info.exists == 0 {
+            return Ok(());
+        }
+        self.uid_store("1:*", true, "\\Seen")
+    }
+
     /// Create a folder and subscribe to it (some clients only show subscribed folders). A folder
     /// that already exists counts as created.
     pub fn create(&mut self, folder: &str) -> Result<()> {

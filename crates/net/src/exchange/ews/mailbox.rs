@@ -213,6 +213,52 @@ impl Client {
             .collect())
     }
 
+    /// Mark every message in the folder `folder` read (issue #197): at once with
+    /// `MarkAllItemsAsRead`, which Exchange 2013 brought; on a server without it (Exchange
+    /// 2010), its unread ones found and marked a page at a time, as a message is marked. At once,
+    /// no read receipts are sent, as Outlook sends none for a folder marked read.
+    pub(super) fn mark_read(&self, folder: &str) -> Result<()> {
+        let all = self.call_2013(&format!(
+            "<m:MarkAllItemsAsRead><m:ReadFlag>true</m:ReadFlag><m:SuppressReadReceipts>true</m:SuppressReadReceipts>\
+             <m:FolderIds><t:FolderId Id=\"{}\"/></m:FolderIds></m:MarkAllItemsAsRead>",
+            esc(folder)
+        ));
+        match all.and_then(|doc| messages(&doc).into_iter().try_for_each(check_message)) {
+            Ok(()) => return Ok(()),
+            // Refused for what it is: asked the older way. A connection lost isn't that.
+            Err(e @ (NetError::Protocol(_) | NetError::No(_) | NetError::Bad(_))) => {
+                log::info!("the folder marked read a page at a time: {e}");
+            }
+            Err(e) => return Err(e),
+        }
+        let unread = WordQuery { unread: Some(true), ..WordQuery::default() };
+        for _ in 0..1000 {
+            let ids = self.find(folder, &unread, 500)?;
+            if ids.is_empty() {
+                return Ok(());
+            }
+            for chunk in ids.chunks(BATCH) {
+                let changes: String = chunk
+                    .iter()
+                    .map(|id| {
+                        format!(
+                            "<t:ItemChange><t:ItemId Id=\"{}\"/><t:Updates><t:SetItemField><t:FieldURI FieldURI=\"message:IsRead\"/>\
+                             <t:Message><t:IsRead>true</t:IsRead></t:Message></t:SetItemField></t:Updates></t:ItemChange>",
+                            esc(id)
+                        )
+                    })
+                    .collect();
+                self.call_all(&format!(
+                    // Without `SuppressReadReceipts`: Exchange 2013 brought that too, and 2010's
+                    // schema refuses it.
+                    "<m:UpdateItem MessageDisposition=\"SaveOnly\" ConflictResolution=\"AlwaysOverwrite\">\
+                     <m:ItemChanges>{changes}</m:ItemChanges></m:UpdateItem>"
+                ))?;
+            }
+        }
+        Err(NetError::No("the folder's mail didn't all get marked read".into()))
+    }
+
     /// Of these messages, those still in a folder, with their flags.
     pub(super) fn still_in(&self, folder: &str, ids: &[String]) -> Result<Vec<(String, Flags)>> {
         let mut out = Vec::new();

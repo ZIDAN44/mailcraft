@@ -208,6 +208,13 @@ pub(super) fn an_exchange_account_end_to_end<S: Exchange>(
     assert!(store.load_folder("a1", "Drafts").unwrap().messages.iter().any(|m| m.flags.draft));
     pool.submit(Job::SaveDraft { account: "a1".into(), raw: mail("Draft two", "d2"), folder: "Drafts".into(), replaces: Some(draft) });
     eventually("one draft left", || server.drafts() == 1);
+
+    // A folder marked read, mail not synced here too (issue #197).
+    let unread: Vec<String> = (0..3)
+        .map(|i| server.deliver(&inbox, &mail(&format!("Unread {i}"), &format!("u{i}")), false, &format!("2020-01-0{}T00:00:00Z", i + 1)))
+        .collect();
+    pool.submit(Job::Apply { account: "a1".into(), op: Op::MarkFolderRead { path: "INBOX".into() } });
+    eventually("all read on the server", || unread.iter().all(|id| server.message(id).is_some_and(|m| m.read)));
     server.at_the_end();
     pool.submit(Job::Remove { account: "a1".into() });
 }

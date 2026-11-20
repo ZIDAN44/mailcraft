@@ -1,5 +1,6 @@
-//! A heading of the message list folded away (issue #189), through a real IMAP server on this
-//! computer (never a real account), run by hand:
+//! A folder's mail in the message list through a real IMAP server on this computer (never a real
+//! account): a heading folded away (issue #189), and the folder marked read (issue #197). Run by
+//! hand:
 //!
 //! ```text
 //! MAILCRAFT_REAL_FOLDING="127.0.0.1:31143" \
@@ -9,6 +10,7 @@
 //! Dovecot (any user, password `pw`, cleartext allowed; `servers.md` in the issues skill has the
 //! line). Today's mail folded away stays hidden and counted as more arrives on the server, read
 //! or unread; the older mail stays shown; the arrows step over it; shown again, it's all there.
+//! A folder marked read is read on the server, mail not kept here too.
 
 #[path = "support/servers.rs"]
 mod servers;
@@ -107,4 +109,56 @@ fn real_todays_mail_folded_away_stays_so_as_more_comes() {
     app.s.run("list.foldGroup", &json!({"heading": "Today"})).unwrap();
     assert_eq!(shown(&app.s), ["Morning three", "Morning two", "Morning one", "Old note"]);
     assert_eq!(folded(&app.s), None);
+}
+
+/// Note `n`, for marking read.
+fn note(n: u32) -> Vec<u8> {
+    format!(
+        "From: Ana <ana@x.example>\r\nTo: kim@test.example\r\nSubject: Note {n}\r\nDate: Mon, {n} Nov 2026 10:00:00 +0000\r\n\
+         Message-ID: <note{n}.{}@x.example>\r\n\r\nNote {n}.\r\n",
+        std::process::id()
+    )
+    .into_bytes()
+}
+
+/// Issue #197: Mark All as Read on a folder of six unread messages, two of them kept here: all
+/// six are read on the server, the folder's count with them, and none comes back unread at the
+/// next sync.
+#[test]
+#[ignore = "needs a real IMAP server in MAILCRAFT_REAL_FOLDING"]
+fn real_a_folder_marked_read_past_what_is_kept() {
+    let Ok(imap) = std::env::var("MAILCRAFT_REAL_FOLDING") else {
+        eprintln!("MAILCRAFT_REAL_FOLDING isn't set: skipped");
+        return;
+    };
+    let imap = imap.trim();
+    // A mailbox of its own: the folding test above has its own in this run.
+    let user = format!("lee{}", std::process::id());
+    let mut server = Imap::connect(imap, &user, "pw");
+    for n in 1..=6 {
+        server.append("INBOX", "", &note(n));
+    }
+    let mut app = App::open("mark-all", "pw");
+    // The newest two of each folder kept here.
+    app.s.run("account.keepMail", &json!({"messages": 2})).unwrap();
+    let smtp = format!("{}:1", imap.rsplit_once(':').unwrap().0);
+    let a = app.add_plain(imap, &smtp, json!({"email": format!("{user}@test.example"), "username": user, "password": "pw"}));
+    app.wait_for_mail(&a, "Note 6");
+    app.s.run("folder.open", &json!({"account": a, "folder": "INBOX"})).unwrap();
+    let kept = app.s.list.len();
+    let counted = app.s.folder(&a, "INBOX").map(|f| f.unread);
+    eprintln!("kept {kept}, the server's count {counted:?}");
+    assert!(kept < 6, "not all kept: {kept}");
+    assert_eq!(counted, Some(6));
+
+    let r = app.s.run("mail.markAllRead", &json!({})).unwrap();
+    assert_eq!(r["count"], 6);
+    assert_eq!(app.s.folder(&a, "INBOX").map(|f| f.unread), Some(0), "at once");
+    app.settle(3);
+    let unread: Vec<String> = (1..=6).map(|n| format!("Note {n}")).filter(|s| !server.flags("INBOX", s).iter().any(|f| f == "\\Seen")).collect();
+    assert!(unread.is_empty(), "still unread on the server: {unread:?}");
+    // Synced again: still none.
+    app.pool.submit(mailcraft_engine::model::Job::SyncFolder { account: a.clone(), folder: "INBOX".into() });
+    app.settle(3);
+    assert_eq!(app.s.folder(&a, "INBOX").map(|f| f.unread), Some(0), "after a sync");
 }

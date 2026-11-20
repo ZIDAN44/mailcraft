@@ -110,9 +110,9 @@ pub(super) fn folder_row(
             acts.push(Action::Run("folder.sync", json!({})));
             ui.close();
         }
+        // That folder, all of it, where it is: it isn't opened (issue #197).
         if ui.button(tl!("Mark all as read")).clicked() {
-            acts.push(Action::Run("folder.open", json!({"account": account, "folder": path})));
-            acts.push(Action::Run("mail.markAllRead", json!({})));
+            acts.push(Action::Run("mail.markAllRead", json!({"account": account, "folder": path})));
             ui.close();
         }
         // Delete All, as Outlook's: Deleted Items and Junk are emptied for good, any other

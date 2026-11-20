@@ -534,6 +534,7 @@ impl Data {
             "UpdateFolder" => self.update_folder(op),
             "DeleteFolder" => self.delete_folder(op),
             "EmptyFolder" => self.empty_folder(op),
+            "MarkAllItemsAsRead" => self.mark_all_read(op),
             "GetUserOofSettingsRequest" => return ("GetUserOofSettingsResponse".into(), vec![self.oof_answer()]),
             "SetUserOofSettingsRequest" => return ("SetUserOofSettingsResponse".into(), vec![self.set_oof(op)]),
             "GetUserAvailabilityRequest" => return ("GetUserAvailabilityResponse".into(), vec![self.availability(op)]),

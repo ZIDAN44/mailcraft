@@ -87,7 +87,7 @@ impl Session {
             Op::Expunge { keys } => Op::Expunge { keys: keys.into_iter().filter(|k| k.folder != OUTBOX).collect() },
             other => other,
         };
-        if !op.is_folder_op() && !matches!(op, Op::EmptyFolder { .. }) && op.keys().is_empty() {
+        if !op.is_folder_op() && op.whole_folder().is_none() && op.keys().is_empty() {
             return Ok(());
         }
         let local = self.account(account).is_none_or(AccountState::is_local);
@@ -153,7 +153,8 @@ impl Session {
                 }
             }
             Op::EmptyFolder { path } => self.search_folder_changed(account, path),
-            Op::SetFlag { .. }
+            Op::MarkFolderRead { .. }
+            | Op::SetFlag { .. }
             | Op::SetFollowUp { .. }
             | Op::SetReminder { .. }
             | Op::SetKeyword { .. }
@@ -176,6 +177,20 @@ impl Session {
             self.selection.retain(|k| !(k.account == account && &k.folder == path));
             if self.reading.as_ref().is_some_and(|r| r.key.account == account && &r.key.folder == path) {
                 self.reading = None;
+            }
+            return;
+        }
+        // The folder's mail kept here is marked with `SetFlag`; this is the rest, on the server
+        // (issue #197): its count goes, and anything kept still unread is read.
+        if let Op::MarkFolderRead { path } = op {
+            self.mail_changed();
+            if let Some(st) = self.cache.get_mut(&(account.to_string(), path.clone())) {
+                for m in st.messages.iter_mut().filter(|m| !m.flags.seen) {
+                    SharedSummary::make_mut(m).flags.seen = true;
+                }
+            }
+            if let Some(f) = self.account_mut(account).and_then(|a| a.folders.iter_mut().find(|f| &f.path == path)) {
+                f.unread = 0;
             }
             return;
         }
@@ -226,7 +241,7 @@ impl Session {
                     st.messages.retain(|m| !mine.contains(&m.key.uid));
                     *gone.entry(f.clone()).or_default() += u32::try_from(before - st.messages.len()).unwrap_or(u32::MAX);
                 }
-                Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => {}
+                Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } | Op::MarkFolderRead { .. } => {}
             }
         }
         if let Some(a) = self.account_mut(account) {
@@ -251,7 +266,7 @@ impl Session {
         let mut touched: Vec<String> = op.keys().iter().map(|k| k.folder.clone()).collect();
         match op {
             Op::Move { to, .. } => touched.push(to.clone()),
-            Op::EmptyFolder { path } => touched.push(path.clone()),
+            Op::EmptyFolder { path } | Op::MarkFolderRead { path } => touched.push(path.clone()),
             _ => {}
         }
         touched.sort();
@@ -417,7 +432,8 @@ impl Session {
                 | Op::SetKeyword { .. }
                 | Op::Move { .. }
                 | Op::Expunge { .. }
-                | Op::EmptyFolder { .. } => {}
+                | Op::EmptyFolder { .. }
+                | Op::MarkFolderRead { .. } => {}
             }
             sort_folders(&mut a.folders);
         }
@@ -471,7 +487,8 @@ impl Session {
             | Op::SetKeyword { .. }
             | Op::Move { .. }
             | Op::Expunge { .. }
-            | Op::EmptyFolder { .. } => {}
+            | Op::EmptyFolder { .. }
+            | Op::MarkFolderRead { .. } => {}
         }
         self.search_folders_changed(account);
     }

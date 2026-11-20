@@ -800,6 +800,10 @@ pub fn apply_remote(c: &Client, st: &State, op: &Op) -> Result<()> {
             })
             .map(drop)
         }
+        Op::MarkFolderRead { path } => {
+            let id = st.mailbox(path)?.to_string();
+            c.in_folder(&id, || c.mark_read(&id))
+        }
     }
 }
 

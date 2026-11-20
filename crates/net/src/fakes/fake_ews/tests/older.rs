@@ -60,3 +60,29 @@ fn exchange_2010_lists_its_folders_without_the_ids_2013_brought() {
     c.mailboxes().unwrap();
     assert_eq!(server.data.lock().unwrap().schema_refusals, refused, "not asked again");
 }
+
+/// Issue #197: Exchange 2010 hasn't `MarkAllItemsAsRead` (2013 brought it): a folder marked read
+/// has its unread mail found and marked a page at a time, all of it, mail never synced too.
+#[test]
+fn exchange_2010_marks_a_folder_read_without_mark_all() {
+    let mut d = mailbox(false);
+    d.exchange_2010 = true;
+    let inbox = d.by_name("Inbox").unwrap().id.clone();
+    let server = serve(d);
+    let store = crate::fake::store("ews-2010-read");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
+    let mut pool = crate::worker::Pool::new(store, Arc::new(crate::worker::MemoryCredentials::default()));
+    pool.submit(Job::Start { account: account("a1", &server.url), password: Some(Secret(PASSWORD.into())) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let ids: Vec<String> = {
+        let mut d = server.data.lock().unwrap();
+        (0..3).map(|i| d.deliver(&inbox, &mail(&format!("Unread {i}"), &format!("u{i}")), false, "2020-01-01T00:00:00Z")).collect()
+    };
+    pool.submit(Job::Apply { account: "a1".into(), op: Op::MarkFolderRead { path: "INBOX".into() } });
+    eventually("all read", || {
+        let d = server.data.lock().unwrap();
+        ids.iter().all(|id| d.items.iter().any(|i| &i.id == id && i.read))
+    });
+    let calls = server.data.lock().unwrap().calls.clone();
+    assert!(calls.iter().any(|c| c == "MarkAllItemsAsRead"), "asked at once first: {calls:?}");
+}

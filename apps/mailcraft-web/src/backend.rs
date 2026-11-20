@@ -415,7 +415,7 @@ async fn send(sh: &Rcs, id: &str, c: &Client<Fetch>, op: &Op, refresh: bool) -> 
     let mut touched: Vec<String> = op.keys().iter().map(|k| k.folder.clone()).collect();
     match op {
         Op::Move { to, .. } => touched.push(to.clone()),
-        Op::EmptyFolder { path } => touched.push(path.clone()),
+        Op::EmptyFolder { path } | Op::MarkFolderRead { path } => touched.push(path.clone()),
         Op::CreateFolder { .. }
         | Op::RenameFolder { .. }
         | Op::DeleteFolder { .. }

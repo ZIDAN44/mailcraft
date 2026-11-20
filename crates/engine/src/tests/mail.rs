@@ -8,6 +8,7 @@ mod conversations;
 mod deferred;
 mod echo;
 mod follow_up;
+mod mark_all;
 mod marks;
 mod moving;
 mod nav;

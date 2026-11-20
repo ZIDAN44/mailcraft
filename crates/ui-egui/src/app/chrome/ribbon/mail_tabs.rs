@@ -94,6 +94,21 @@ pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Ac
     if widgets::tool_button(ui, ricon, rlabel, &t, enabled(s, "mail.toggleRead")).on_hover_text(tl!("Read / Unread (Ctrl+Q / Ctrl+U)")).clicked() {
         acts.push(Action::Run("mail.toggleRead", json!({})));
     }
+    // Mark All as Read for the folder on view (issue #197), as Outlook's Folder tab has it.
+    let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "More ways to mark mail read", &t);
+    egui::Popup::menu(&r).show(|ui| {
+        let all = match &s.view {
+            mailcraft_engine::View::Folder { account, folder } => {
+                let name = s.folder(account, folder).map_or_else(|| folder.clone(), crate::i18n::folder);
+                tf!("Mark all in {folder} as read", folder = name)
+            }
+            _ => tl!("Mark all shown as read").to_string(),
+        };
+        if ui.add_enabled(enabled(s, "mail.markAllRead"), egui::Button::new(all)).clicked() {
+            acts.push(Action::Run("mail.markAllRead", json!({})));
+            ui.close();
+        }
+    });
     if widgets::tool_button(ui, Icon::Flag, "Flag", &t, enabled(s, "mail.flag")).on_hover_text(tl!("Flag / Unflag (Insert)")).clicked() {
         acts.push(Action::Run("mail.flag", json!({})));
     }

@@ -401,3 +401,79 @@ fn real_ews_big_reply_comes_as_its_text_first() {
     assert!(first.text.contains("The notes for the rushes."), "{}", first.text);
     assert_eq!(m.in_reply_to, format!("asked{tag}@ews.test"), "what it answers, listed");
 }
+
+/// Issue #197: a folder marked read on the server, mail never synced here too. Three unread
+/// messages made in a folder of their own (`Unread`, made when there's none), marked read with
+/// one change, then deleted again.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_folder_marked_read() {
+    let Some((url, user, password)) = server() else {
+        eprintln!("MAILCRAFT_REAL_EWS not set: skipped");
+        return;
+    };
+    let c = crate::ews::Client::connect(&url, &user, &password, &user).unwrap();
+    let id_of = |doc: &crate::ews::El| doc.find("FolderId").and_then(|f| f.attr("Id")).map(str::to_string);
+    let made = c
+        .call(
+            "<m:CreateFolder><m:ParentFolderId><t:DistinguishedFolderId Id=\"inbox\"/></m:ParentFolderId><m:Folders><t:Folder>\
+             <t:DisplayName>Unread</t:DisplayName></t:Folder></m:Folders></m:CreateFolder>",
+        )
+        .ok()
+        .and_then(|d| id_of(&d));
+    let folder = made.unwrap_or_else(|| {
+        let found = c
+            .call(
+                "<m:FindFolder Traversal=\"Shallow\"><m:FolderShape><t:BaseShape>Default</t:BaseShape></m:FolderShape>\
+                 <m:Restriction><t:IsEqualTo><t:FieldURI FieldURI=\"folder:DisplayName\"/><t:FieldURIOrConstant><t:Constant Value=\"Unread\"/>\
+                 </t:FieldURIOrConstant></t:IsEqualTo></m:Restriction><m:ParentFolderIds><t:DistinguishedFolderId Id=\"inbox\"/></m:ParentFolderIds></m:FindFolder>",
+            )
+            .unwrap();
+        id_of(&found).expect("the Unread folder")
+    });
+    let unread = |c: &crate::ews::Client| -> usize {
+        let doc = c
+            .call(&format!(
+                "<m:FindItem Traversal=\"Shallow\"><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape></m:ItemShape>\
+                 <m:Restriction><t:IsEqualTo><t:FieldURI FieldURI=\"message:IsRead\"/><t:FieldURIOrConstant><t:Constant Value=\"false\"/>\
+                 </t:FieldURIOrConstant></t:IsEqualTo></m:Restriction><m:ParentFolderIds><t:FolderId Id=\"{}\"/></m:ParentFolderIds></m:FindItem>",
+                crate::ews::esc(&folder)
+            ))
+            .unwrap();
+        let mut all = Vec::new();
+        doc.all("Message", &mut all);
+        all.len()
+    };
+    for n in 0..3 {
+        c.call(&format!(
+            "<m:CreateItem MessageDisposition=\"SaveOnly\"><m:SavedItemFolderId><t:FolderId Id=\"{}\"/></m:SavedItemFolderId><m:Items>\
+             <t:Message><t:Subject>Unread {n}</t:Subject><t:Body BodyType=\"Text\">x</t:Body><t:IsRead>false</t:IsRead></t:Message></m:Items></m:CreateItem>",
+            crate::ews::esc(&folder)
+        ))
+        .unwrap();
+    }
+    assert_eq!(unread(&c), 3, "made unread");
+    let store = crate::fake::store("real-ews-read");
+    let mut pool = Pool::new(store.clone(), std::sync::Arc::new(MemoryCredentials::default()));
+    let account = AccountConfig { id: "x5".into(), email: user.clone(), username: user, ews: Some(url), ..Default::default() };
+    pool.submit(Job::Start { account, password: Some(Secret(password)) });
+    let end = Instant::now() + Duration::from_secs(300);
+    let path = loop {
+        assert!(Instant::now() < end, "the folder listed");
+        let _ = pool.wait(Duration::from_millis(200));
+        if let Some(f) = store.load_folders("x5").ok().and_then(|l| l.into_iter().find(|f| f.path.ends_with("Unread"))) {
+            break f.path;
+        }
+    };
+    pool.submit(Job::Apply { account: "x5".into(), op: mailcraft_model::Op::MarkFolderRead { path } });
+    let end = Instant::now() + Duration::from_secs(60);
+    while unread(&c) > 0 && Instant::now() < end {
+        let _ = pool.wait(Duration::from_millis(200));
+    }
+    let left = unread(&c);
+    let _ = c.call(&format!(
+        "<m:DeleteFolder DeleteType=\"HardDelete\"><m:FolderIds><t:FolderId Id=\"{}\"/></m:FolderIds></m:DeleteFolder>",
+        crate::ews::esc(&folder)
+    ));
+    assert_eq!(left, 0, "all read on the server");
+}

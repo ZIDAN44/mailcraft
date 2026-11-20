@@ -1940,3 +1940,6 @@ count	occurrences	次
 	Show this group's mail	顯示此群組的郵件
 	Hide this group's mail	隱藏此群組的郵件
 	{heading} ({count}), folded	{heading}（{count}），已摺疊
+	Mark all in {folder} as read	將 {folder} 中的全部標示為已讀
+	Mark all shown as read	將顯示的全部標示為已讀
+	More ways to mark mail read	將郵件標示為已讀的更多方式

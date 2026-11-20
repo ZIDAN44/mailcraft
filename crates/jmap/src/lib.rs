@@ -328,6 +328,7 @@ pub async fn apply_remote<H: Http>(c: &Client<H>, st: &State, op: &Op) -> Result
             c.set_mailboxes(json!({"destroy": [id], "onDestroyRemoveEmails": true})).await.map(|_| ())
         }
         Op::EmptyFolder { path } => c.empty(st.mailbox(path)?).await,
+        Op::MarkFolderRead { path } => c.mark_read(st.mailbox(path)?).await,
     }
 }
 

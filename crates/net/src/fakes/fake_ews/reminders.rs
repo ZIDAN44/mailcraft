@@ -27,7 +27,9 @@ pub struct Reminders {
 impl Data {
     /// Whether an operation must be refused for the version the request asked for.
     pub(super) fn refuses_version(&self, op: &str, version: &str) -> bool {
-        matches!(op, "GetReminders" | "PerformReminderAction") && (self.reminders.before_2013 || !version.starts_with("Exchange2013"))
+        // What Exchange 2013 brought: reminders, and marking a folder read at once (issue #197).
+        matches!(op, "GetReminders" | "PerformReminderAction" | "MarkAllItemsAsRead")
+            && (self.reminders.before_2013 || self.exchange_2010 || !version.starts_with("Exchange2013"))
     }
 
     /// The answer to one of the reminders' operations, its response code inside.

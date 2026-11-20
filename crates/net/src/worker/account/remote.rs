@@ -315,5 +315,6 @@ pub fn apply_remote_with<S: std::io::Read + std::io::Write>(c: &mut Client<S>, o
         Op::RenameFolder { from, to } => c.rename(from, to),
         Op::DeleteFolder { path } => c.delete(path),
         Op::EmptyFolder { path } => c.empty(path),
+        Op::MarkFolderRead { path } => c.mark_read(path),
     }
 }

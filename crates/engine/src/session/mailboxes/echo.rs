@@ -49,7 +49,7 @@ impl Session {
             return;
         }
         let folders: BTreeSet<&str> = match op {
-            Op::EmptyFolder { path } => BTreeSet::from([path.as_str()]),
+            Op::EmptyFolder { path } | Op::MarkFolderRead { path } => BTreeSet::from([path.as_str()]),
             _ => op.keys().iter().filter(|k| k.account == account).map(|k| k.folder.as_str()).collect(),
         };
         let now = self.clock.now;

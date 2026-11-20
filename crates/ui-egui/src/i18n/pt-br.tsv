@@ -1941,3 +1941,6 @@ count	occurrences	ocorrências
 	Show this group's mail	Mostrar os emails deste grupo
 	Hide this group's mail	Ocultar os emails deste grupo
 	{heading} ({count}), folded	{heading} ({count}), recolhido
+	Mark all in {folder} as read	Marcar tudo em {folder} como lido
+	Mark all shown as read	Marcar tudo o que está sendo mostrado como lido
+	More ways to mark mail read	Mais formas de marcar e-mails como lidos

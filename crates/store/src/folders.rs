@@ -500,6 +500,29 @@ impl Store {
             self.save_folders(account, &list)?;
             return Ok(vec![path.clone()]);
         }
+        // Every message kept read, and the folder's count with them (the server's mail past what's
+        // kept is marked there, issue #197).
+        if let Op::MarkFolderRead { path } = op {
+            let mut st = self.load_folder(account, path)?;
+            let mut changed = HashSet::new();
+            for m in st.messages.iter_mut().filter(|m| !m.flags.seen) {
+                changed.insert(m.key.uid);
+                SharedSummary::make_mut(m).flags.seen = true;
+            }
+            if !changed.is_empty() {
+                self.save_folder_changed(account, path, &st, &changed)?;
+            }
+            let mut list = self.load_folders(account)?;
+            let mut counted = false;
+            for f in list.iter_mut().filter(|f| &f.path == path && f.unread != 0) {
+                f.unread = 0;
+                counted = true;
+            }
+            if counted {
+                self.save_folders(account, &list)?;
+            }
+            return Ok(if changed.is_empty() && !counted { Vec::new() } else { vec![path.clone()] });
+        }
         let mut folders: Vec<String> = op.keys().iter().filter(|k| k.account == account).map(|k| k.folder.clone()).collect();
         folders.sort();
         folders.dedup();
@@ -553,7 +576,7 @@ impl Store {
                     let uids: HashSet<u32> = sources_gone.iter().map(|k| k.uid).collect();
                     st.messages.retain(|m| !uids.contains(&m.key.uid));
                 }
-                Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => {}
+                Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } | Op::MarkFolderRead { .. } => {}
             }
             match &flags_of {
                 Some(changed) => self.save_folder_changed(account, folder, &st, changed)?,
@@ -623,7 +646,8 @@ impl Store {
             | Op::SetKeyword { .. }
             | Op::Move { .. }
             | Op::Expunge { .. }
-            | Op::EmptyFolder { .. } => Vec::new(),
+            | Op::EmptyFolder { .. }
+            | Op::MarkFolderRead { .. } => Vec::new(),
         };
         mailcraft_model::sort_folders(&mut list);
         self.write_folders(account, &list)?;

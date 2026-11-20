@@ -1936,3 +1936,6 @@ count	occurrences	keer
 	Show this group's mail	De e-mail van deze groep tonen
 	Hide this group's mail	De e-mail van deze groep verbergen
 	{heading} ({count}), folded	{heading} ({count}), samengevouwen
+	Mark all in {folder} as read	Alles in {folder} als gelezen markeren
+	Mark all shown as read	Alles wat getoond wordt als gelezen markeren
+	More ways to mark mail read	Meer manieren om e-mail als gelezen te markeren

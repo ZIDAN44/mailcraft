@@ -1941,3 +1941,6 @@ count	occurrences	Terminen
 	Show this group's mail	E-Mails dieser Gruppe anzeigen
 	Hide this group's mail	E-Mails dieser Gruppe ausblenden
 	{heading} ({count}), folded	{heading} ({count}), reduziert
+	Mark all in {folder} as read	Alles in {folder} als gelesen markieren
+	Mark all shown as read	Alles Angezeigte als gelesen markieren
+	More ways to mark mail read	Weitere Möglichkeiten, E-Mails als gelesen zu markieren

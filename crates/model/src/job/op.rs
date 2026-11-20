@@ -60,6 +60,11 @@ pub enum Op {
     EmptyFolder {
         path: String,
     },
+    /// Mark every message in a folder read, including those not downloaded (issue #197: the
+    /// unread mail on the server past what's kept here stayed unread).
+    MarkFolderRead {
+        path: String,
+    },
 }
 
 /// A follow-up's due day: the day (days since the epoch) and when it starts where the user is
@@ -81,7 +86,16 @@ impl Op {
             | Op::SetKeyword { keys, .. }
             | Op::Move { keys, .. }
             | Op::Expunge { keys } => keys,
-            Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } => &[],
+            Op::CreateFolder { .. } | Op::RenameFolder { .. } | Op::DeleteFolder { .. } | Op::EmptyFolder { .. } | Op::MarkFolderRead { .. } => &[],
+        }
+    }
+
+    /// The folder a change makes to all of its mail ([`Op::EmptyFolder`], [`Op::MarkFolderRead`]),
+    /// when it's one of those.
+    pub fn whole_folder(&self) -> Option<&str> {
+        match self {
+            Op::EmptyFolder { path } | Op::MarkFolderRead { path } => Some(path),
+            _ => None,
         }
     }
 

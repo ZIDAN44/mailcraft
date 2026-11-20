@@ -1937,3 +1937,6 @@ count	occurrences	次
 	Show this group's mail	显示此组的邮件
 	Hide this group's mail	隐藏此组的邮件
 	{heading} ({count}), folded	{heading}（{count}），已折叠
+	Mark all in {folder} as read	将 {folder} 中的全部标记为已读
+	Mark all shown as read	将显示的全部标记为已读
+	More ways to mark mail read	将邮件标记为已读的更多方式

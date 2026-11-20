@@ -100,7 +100,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .key("Insert")
             .params(r#"{"on"?: bool, "due"?: "today"|"tomorrow"|"thisWeek"|"nextWeek"|"none"|"YYYY-MM-DD" (Follow Up: flag, due then), "reminder"?: "YYYY-MM-DDTHH:MM"|"none" (Add Reminder: flag, remind then; a day alone at 09:00), "complete"?: true (Mark Complete: unflag, mark it done today; flagging again or "on": false clears that)}"#)
             .when(has_selection),
-        CommandSpec::new("mail.markAllRead", "Mark all as read", "Folder", mark_all_read).when(has_account),
+        CommandSpec::new("mail.markAllRead", "Mark all as read", "Folder", mark_all_read)
+            .params(r#"{"account"?: string, "folder"?: string} (that folder, all of it; none: the folder on view, or the mail another view lists)"#)
+            .when(has_account),
         CommandSpec::new("mail.categorize", "Categorize", "Home › Tags", |s, v| s.categorize_selection(p::str(v, "category"), p::str(v, "keyword"), p::bool(v, "on")))
             .params(r#"{"category": string, "on"?: bool} | {"keyword": string (one not in the list, e.g. "$label6"), "on"?: bool}"#)
             .when(has_selection),
@@ -361,7 +363,24 @@ pub(super) fn todo_flag(s: &mut Session, v: &Value) -> CmdResult {
     }
 }
 
-pub(super) fn mark_all_read(s: &mut Session, _: &Value) -> CmdResult {
+/// Mark All as Read, as Outlook's: the folder named, or the one on view, all of it (issue #197:
+/// a search's results or one tab of Focused / Other alone, and none of the mail on the server
+/// past what's kept here); another view (all Inboxes, a search folder), the mail it lists.
+pub(super) fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
+    let named = match (p::str(v, "account"), p::str(v, "folder")) {
+        (Some(a), Some(f)) => {
+            s.folder(a, f).ok_or_else(|| CmdError::Params(format!("no folder `{f}` in `{a}`")))?;
+            Some((a.to_string(), f.to_string()))
+        }
+        (None, None) => match &s.view {
+            crate::View::Folder { account, folder } => Some((account.clone(), folder.clone())),
+            _ => None,
+        },
+        _ => return Err(CmdError::Params("`account` and `folder` name a folder together".into())),
+    };
+    if let Some((account, folder)) = named {
+        return mark_folder_read(s, &account, &folder);
+    }
     let keys: Vec<_> = s.list.iter().filter(|m| !m.flags.seen).map(|m| m.key.clone()).collect();
     let n = keys.len();
     let mut by_account: std::collections::BTreeMap<String, Vec<_>> = Default::default();
@@ -372,6 +391,22 @@ pub(super) fn mark_all_read(s: &mut Session, _: &Value) -> CmdResult {
         s.apply_op(&a, mailcraft_model::Op::SetFlag { keys, flag: Flag::Seen, on: true });
     }
     Ok(json!({"count": n}))
+}
+
+/// Every message of a folder read: those kept here as any marked read, and on a server holding
+/// unread mail past them (its count says more than are kept), the rest there at once.
+fn mark_folder_read(s: &mut Session, account: &str, folder: &str) -> CmdResult {
+    let keys: Vec<_> = s.folder_state(account, folder).messages.iter().filter(|m| !m.flags.seen).map(|m| m.key.clone()).collect();
+    let on_server = s.folder(account, folder).map_or(0, |f| f.unread as usize);
+    let remote = s.account(account).is_some_and(|a| !a.is_local() && a.config.pop.is_none());
+    let n = keys.len().max(if remote { on_server } else { 0 });
+    if !keys.is_empty() {
+        s.apply_op(account, mailcraft_model::Op::SetFlag { keys: keys.clone(), flag: Flag::Seen, on: true });
+    }
+    if remote && on_server > keys.len() {
+        s.apply_op(account, mailcraft_model::Op::MarkFolderRead { path: folder.to_string() });
+    }
+    Ok(json!({"count": n, "account": account, "folder": folder}))
 }
 
 /// A category colour from the params (an index into the palette).
