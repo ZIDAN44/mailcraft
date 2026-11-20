@@ -26,6 +26,11 @@ impl Pool {
         let Some(job) = self.held_for_compaction(job) else { return };
         if let Job::SearchServer { search, .. } = &job {
             self.search.store(*search, Ordering::Relaxed);
+            // After the changes made before it, as the server has them: those reach the account's
+            // thread through the pool's thread for changes, and a search sent straight there went
+            // first (issue #179: an archive's next round found again the mail just archived,
+            // not yet deleted on the server).
+            self.edits.flush();
         }
         match job {
             Job::FetchUrl { url } => self.fetch_url(url),

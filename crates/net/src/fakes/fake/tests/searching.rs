@@ -292,6 +292,39 @@ fn a_server_search_stops_when_its_no_longer_wanted() {
     pool.submit(Job::Remove { account: "a1".into() });
 }
 
+/// Issue #179: a search asked right after a change is the server's after that change. Mail
+/// deleted, then searched for at once, isn't found again (the change went the long way round,
+/// through the pool's thread for changes, and the search overtook it).
+#[test]
+fn a_search_comes_after_the_changes_before_it() {
+    let st = State::new();
+    {
+        let mut s = st.lock().unwrap();
+        for n in 1..=20 {
+            s.add_raw("INBOX", format!("Subject: Old {n}\r\nMessage-ID: <o{n}@x>\r\n\r\nbody needle\r\n").into_bytes());
+        }
+    }
+    let port = serve_tcp(&st);
+    let store = store("search-after-change");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
+    let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+    pool.submit(Job::SetSync { messages: 50, offline: 0 });
+    pool.submit(Job::Start { account: imap_account(port, 1), password: Some(Secret("pw".into())) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let keys: Vec<MessageKey> = store.load_folder("a1", "INBOX").unwrap().messages.iter().map(|m| m.key.clone()).collect();
+    assert_eq!(keys.len(), 20);
+    for round in 1..=5u64 {
+        let gone: Vec<MessageKey> = keys.iter().filter(|k| k.uid % 5 == (round % 5) as u32).cloned().collect();
+        pool.submit(Job::Apply { account: "a1".into(), op: Op::Expunge { keys: gone.clone() } });
+        pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: "needle".into(), search: round });
+        let seen = until(&pool, "searched", |e| matches!(e, Event::ServerSearched { done: true, .. }));
+        let found: Vec<&MessageKey> =
+            seen.iter().flat_map(|e| if let Event::ServerSearched { keys, .. } = e { keys.iter().collect() } else { Vec::new() }).collect();
+        assert!(!found.iter().any(|k| gone.contains(k)), "round {round}: found again {found:?}");
+    }
+    pool.submit(Job::Remove { account: "a1".into() });
+}
+
 /// Issue #4 through the worker: Show more keeps the folder's larger window across syncs
 /// (windows.json), and a server search answers with what it found, in the list.
 #[test]
