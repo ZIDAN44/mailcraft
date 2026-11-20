@@ -273,6 +273,20 @@ pub(super) fn ribbon_view(ui: &mut Ui, s: &Session, t: Tokens, dark: Option<bool
             ui.close();
         }
     });
+    // The folder pane's text size, row height and indent (issue #184).
+    let r = widgets::tool_button(ui, Icon::Compact, "Folder density", &t, true).on_hover_text(tl!("How tightly the folder pane's folders sit"));
+    egui::Popup::menu(&r).show(|ui| {
+        for (d, label) in [
+            (mailcraft_engine::FolderDensity::Spacious, "Spacious"),
+            (mailcraft_engine::FolderDensity::Medium, "Medium"),
+            (mailcraft_engine::FolderDensity::Compact, "Compact"),
+        ] {
+            if ui.selectable_label(s.prefs.folder_density == d, tl!(label)).clicked() {
+                acts.push(Action::Run("view.folderDensity", json!({"value": d.code()})));
+                ui.close();
+            }
+        }
+    });
     widgets::group(ui, &t, "Layout", false);
     let arrange = tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label()));
     let r = widgets::tool_button(ui, Icon::ListBullet, widgets::Label::shown("Arrange by", &arrange), &t, true);

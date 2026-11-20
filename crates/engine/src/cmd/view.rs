@@ -15,6 +15,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"on"?: bool}"#),
         toggle!("view.preview", "Message preview", "View › Messages", show_preview),
         toggle!("view.compact", "Compact list", "View › Layout", compact),
+        CommandSpec::new("view.folderDensity", "Folder density", "View › Layout", |s, v| {
+            let code = p::req_str(v, "value")?;
+            s.prefs.folder_density = crate::FolderDensity::from_code(code)
+                .ok_or_else(|| CmdError::Params(format!("`value` is \"spacious\", \"medium\" or \"compact\", not `{code}`")))?;
+            Ok(json!({"value": code}))
+        })
+        .params(r#"{"value": "spacious"|"medium"|"compact"} (the folder pane's text size, row height and indent)"#),
         toggle!("view.groups", "Show in groups", "View › Arrangement", groups),
         toggle!("view.singleLine", "Single-line list", "View › Layout", single_line),
         toggle!("view.classicRibbon", "Classic ribbon", "View › Layout", classic_ribbon),

@@ -1,7 +1,39 @@
-//! The folder pane's rows: how a folder's, a section heading's look, and the room the first
-//! keeps for Minimize.
+//! The folder pane's rows: how a folder's, a section heading's look, how tightly they sit (the
+//! density), and the room the first keeps for Minimize.
+
+use mailcraft_engine::FolderDensity;
 
 use super::*;
+
+/// The sizes a density gives the pane's rows (issue #184): a folder's row and a mailbox's
+/// heading, the folder's name and a mailbox's, and each level's indent.
+#[derive(Clone, Copy)]
+pub(super) struct Sizes {
+    pub(super) row: f32,
+    pub(super) text: f32,
+    pub(super) heading: f32,
+    pub(super) indent: f32,
+}
+
+/// The density the pane is drawn in, noted as it starts.
+fn density_id() -> egui::Id {
+    egui::Id::unique("nav-density")
+}
+
+/// Draw the pane in `density`.
+pub(super) fn set_density(ui: &Ui, density: FolderDensity) {
+    ui.data_mut(|d| d.insert_temp(density_id(), density));
+}
+
+/// The sizes of the density the pane is drawn in. Spacious is as the pane always was; Compact
+/// fits about as many folders as Outlook for Mac in the same height.
+pub(super) fn sizes(ui: &Ui) -> Sizes {
+    match ui.data(|d| d.get_temp::<FolderDensity>(density_id())).unwrap_or_default() {
+        FolderDensity::Spacious => Sizes { row: 30.0, text: 13.5, heading: 13.0, indent: 14.0 },
+        FolderDensity::Medium => Sizes { row: 25.0, text: 13.0, heading: 12.5, indent: 11.0 },
+        FolderDensity::Compact => Sizes { row: 21.0, text: 12.5, heading: 12.0, indent: 8.0 },
+    }
+}
 
 /// Room kept at the end of the pane's first row for Minimize (issue #188), as Outlook keeps its
 /// ‹ at the right of the Favorites heading: it had a row of its own above the folders.
@@ -80,7 +112,8 @@ impl RowIs {
 /// One row (its label as shown, translated); returns its response.
 pub(super) fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count, depth: usize, is: RowIs) -> egui::Response {
     let RowIs { selected, drop_ok, draggable } = is;
-    let h = 30.0;
+    let size = sizes(ui);
+    let h = size.row;
     let unread = if let Count::Unread(n) = count { n } else { 0 };
     let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), if draggable { Sense::click_and_drag() } else { Sense::click() });
     // To a screen reader, a folder is one choice among the folders: its name, and its unread count.
@@ -102,14 +135,14 @@ pub(super) fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count
     // Right to left: the icon on the right, the count on the left.
     let m = crate::bidi::Mirror::new(rect);
     if sel > 0.0 {
-        let full = h - 14.0;
+        let full = (h - 14.0).max(8.0);
         let bar = egui::Rect::from_center_size(m.pos(egui::pos2(rect.min.x + 1.5, rect.center().y)), vec2(3.0, full * sel));
         ui.painter().rect_filled(bar, 2.0, t.accent);
     }
-    let x = rect.min.x + 10.0 + depth as f32 * 14.0;
+    let x = rect.min.x + 10.0 + depth as f32 * size.indent;
     let ir = m.rect(egui::Rect::from_min_size(egui::pos2(x, rect.center().y - 8.0), vec2(16.0, 16.0)));
     icons::paint(ui.painter(), ir, icon, if selected { t.accent } else { t.dim });
-    let font = if unread > 0 || selected { theme::bold(13.5) } else { theme::regular(13.5) };
+    let font = if unread > 0 || selected { theme::bold(size.text) } else { theme::regular(size.text) };
     let counted = matches!(count, Count::Unread(n) | Count::Items(n) if n > 0);
     let inset = corner_inset(ui, rect);
     let text_right = rect.max.x - inset - if counted { 40.0 } else { 8.0 };

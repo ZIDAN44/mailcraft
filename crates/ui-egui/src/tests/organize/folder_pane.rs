@@ -214,3 +214,27 @@ fn minimize_sits_on_the_first_row() {
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.prefs.folder_pane_minimized);
 }
+
+/// Issue #184: the folder pane's density (View › Folder density) sets its rows' height, text
+/// size and indent: Compact fits about one and a half times the folders Spacious does in the
+/// same height, a level indented less. There was no setting.
+#[test]
+fn the_folder_density_fits_more_folders() {
+    let (mut a, _) = app("folder-density");
+    let ctx = egui::Context::default();
+    big_tree(&mut a, 10, 4);
+    let mut seen = Vec::new();
+    for value in ["spacious", "medium", "compact"] {
+        a.run("view.folderDensity", json!({"value": value}));
+        let texts = pane(&ctx, &mut a, 600.0, vec![]);
+        let folders = texts.iter().filter(|(t, _)| (t.starts_with('p') || t.starts_with('c')) && t.len() <= 3).count();
+        let x = |name: &str| texts.iter().find(|(t, _)| t == name).map(|(_, p)| p.x).unwrap_or_else(|| panic!("{name} drawn: {texts:?}"));
+        seen.push((folders, x("c0") - x("p0")));
+    }
+    let [(spacious, indent_s), (medium, _), (compact, indent_c)] = seen[..] else { panic!("{seen:?}") };
+    assert!(spacious < medium && medium < compact, "{seen:?}");
+    assert!(compact as f32 >= spacious as f32 * 1.35, "{seen:?}");
+    assert!(indent_c < indent_s, "less indent a level: {seen:?}");
+    assert!(a.session.run("view.folderDensity", &json!({"value": "tiny"})).is_err());
+    assert_eq!(a.session.prefs.folder_density, mailcraft_engine::FolderDensity::Compact, "left as it was");
+}

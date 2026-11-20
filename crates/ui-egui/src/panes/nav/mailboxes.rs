@@ -94,7 +94,8 @@ pub(super) fn shared_header(
     sections: &[mailcraft_engine::PaneSection],
     at: usize,
 ) -> bool {
-    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click_and_drag());
+    let size = super::rows::sizes(ui);
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), size.row), Sense::click_and_drag());
     let inset = corner_inset(ui, rect);
     section_drag(ui, t, &resp, rect, sections, at, acts);
     let dropping = resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some();
@@ -102,9 +103,9 @@ pub(super) fn shared_header(
         ui.painter().rect_filled(rect, 6.0, if dropping { t.accent.gamma_multiply(0.3) } else { t.hover_row });
     }
     let m = crate::bidi::Mirror::new(rect);
-    let chev = m.rect(egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0)));
+    let chev = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 6.0, rect.center().y - 6.0), vec2(12.0, 12.0)));
     icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.dim);
-    let ir = m.rect(egui::Rect::from_min_size(rect.min + vec2(20.0, 8.0), vec2(14.0, 14.0)));
+    let ir = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 20.0, rect.center().y - 7.0), vec2(14.0, 14.0)));
     icons::paint(ui.painter(), ir, Icon::People, t.dim);
     let name = crate::i18n::folder(top);
     crate::widgets::named(ui, &resp, &name, true, Some(open));
@@ -112,8 +113,8 @@ pub(super) fn shared_header(
     let unread: u32 =
         if open { 0 } else { a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.mailbox_role == FolderRole::Inbox).map(|f| f.unread).sum() };
     let right = rect.max.x - inset - if unread > 0 { 40.0 } else { 8.0 };
-    let g = crate::widgets::one_line(ui, &name, theme::bold(13.0), t.text, right - rect.min.x - 40.0);
-    ui.painter().galley(egui::pos2(m.start(rect.min.x + 40.0, g.size().x), rect.min.y + 15.0 - g.size().y / 2.0), g, t.text);
+    let g = crate::widgets::one_line(ui, &name, theme::bold(size.heading), t.text, right - rect.min.x - 40.0);
+    ui.painter().galley(egui::pos2(m.start(rect.min.x + 40.0, g.size().x), rect.center().y - g.size().y / 2.0), g, t.text);
     if unread > 0 {
         ui.painter().text(
             m.pos(egui::pos2(rect.max.x - 10.0 - inset, rect.center().y)),

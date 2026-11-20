@@ -65,6 +65,36 @@ pub enum StartIn {
     },
 }
 
+/// How tightly the folder pane's rows sit (View › Folder density, issue #184): each step a
+/// smaller text, a shorter row and less indent a level.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FolderDensity {
+    /// As it always was: room to read.
+    #[default]
+    Spacious,
+    Medium,
+    /// About as many folders as Outlook for Mac shows in the same height.
+    Compact,
+}
+
+impl FolderDensity {
+    pub const ALL: [FolderDensity; 3] = [FolderDensity::Spacious, FolderDensity::Medium, FolderDensity::Compact];
+
+    /// As `view.folderDensity` takes it.
+    pub fn code(self) -> &'static str {
+        match self {
+            FolderDensity::Spacious => "spacious",
+            FolderDensity::Medium => "medium",
+            FolderDensity::Compact => "compact",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<FolderDensity> {
+        FolderDensity::ALL.into_iter().find(|d| d.code() == code)
+    }
+}
+
 /// Settings the user changes from the View tab (saved by the app).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -102,6 +132,8 @@ pub struct Prefs {
     pub show_preview: bool,
     /// Tighter rows.
     pub compact: bool,
+    /// How tightly the folder pane's rows sit (issue #184).
+    pub folder_density: FolderDensity,
     /// The list under headings, as it's arranged (Today, Yesterday…; a sender's name): off, its
     /// messages follow one another with nothing between.
     pub groups: bool,
@@ -358,6 +390,7 @@ impl Default for Prefs {
             read_after_secs: 0,
             show_preview: true,
             compact: false,
+            folder_density: FolderDensity::Spacious,
             groups: true,
             single_line: false,
             classic_ribbon: false,

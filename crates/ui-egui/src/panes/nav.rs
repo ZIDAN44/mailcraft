@@ -122,6 +122,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, minimize: bool, acts: &mut Vec
     ctx.data_mut(|d| d.remove::<egui::Id>(egui::Id::unique(CURRENT_ROW)));
     egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 1.0;
+        rows::set_density(ui, s.prefs.folder_density);
         let top = ui.cursor().min.y;
         ui.data_mut(|d| {
             d.remove::<egui::Rect>(corner_row());
@@ -190,21 +191,22 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, minimize: bool, acts: &mut Vec
             let key = format!("account:{}", a.config.id);
             let open = !s.prefs.collapsed.contains(&key);
             // Dragged onto another mailbox, it takes its place (above or below it).
-            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click_and_drag());
+            let size = rows::sizes(ui);
+            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), size.row), Sense::click_and_drag());
             let inset = corner_inset(ui, rect);
             if resp.hovered() || resp.dragged() {
                 ui.painter().rect_filled(rect, 6.0, t.hover_row);
             }
             section_drag(ui, t, &resp, rect, &sections, at, acts);
             let m = crate::bidi::Mirror::new(rect);
-            let chev = m.rect(egui::Rect::from_min_size(rect.min + vec2(6.0, 9.0), vec2(12.0, 12.0)));
+            let chev = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 6.0, rect.center().y - 6.0), vec2(12.0, 12.0)));
             icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.dim);
-            ui.painter().circle_filled(m.pos(rect.min + vec2(26.0, 15.0)), 4.0, theme::account_color(a.config.color));
+            ui.painter().circle_filled(m.pos(egui::pos2(rect.min.x + 26.0, rect.center().y)), 4.0, theme::account_color(a.config.color));
             let label = if a.is_local() && !a.is_data_file() { tf!("{email} (sample)", email = a.config.email) } else { a.config.email.clone() };
             crate::widgets::named(ui, &resp, &label, true, Some(open));
-            let g = crate::widgets::one_line(ui, &label, theme::bold(13.0), t.text, rect.width() - 44.0 - inset);
+            let g = crate::widgets::one_line(ui, &label, theme::bold(size.heading), t.text, rect.width() - 44.0 - inset);
             let resp = if g.elided { resp.on_hover_text(&label) } else { resp };
-            ui.painter().galley(egui::pos2(m.start(rect.min.x + 36.0, g.size().x), rect.min.y + 15.0 - g.size().y / 2.0), g, t.text);
+            ui.painter().galley(egui::pos2(m.start(rect.min.x + 36.0, g.size().x), rect.center().y - g.size().y / 2.0), g, t.text);
             if resp.clicked() {
                 acts.push(Action::Run("view.collapse", json!({"key": key})));
             }

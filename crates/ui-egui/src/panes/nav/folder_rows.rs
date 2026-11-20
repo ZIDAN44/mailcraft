@@ -41,7 +41,8 @@ pub(super) fn folder_row(
     let count = if f.look() == FolderRole::Drafts { Count::Items(f.total) } else { Count::Unread(unread) };
     let resp = row(ui, t, role_icon(f.look()), &name, count, depth, RowIs { selected, drop_ok: f.selectable, draggable: user_folder && !favorite });
     if let Some(collapsed) = collapse {
-        let x = resp.rect.min.x + 10.0 + depth as f32 * 14.0 - 14.0;
+        let indent = super::rows::sizes(ui).indent;
+        let x = resp.rect.min.x + 10.0 + depth as f32 * indent - 14.0;
         let m = crate::bidi::Mirror::new(resp.rect);
         let chev = m.rect(egui::Rect::from_min_size(egui::pos2(x, resp.rect.center().y - 6.0), vec2(12.0, 12.0)));
         let c = ui.interact(chev.expand(4.0), resp.id.with("collapse"), Sense::click());
