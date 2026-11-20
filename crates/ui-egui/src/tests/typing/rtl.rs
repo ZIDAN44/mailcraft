@@ -124,7 +124,9 @@ fn top_search_query_follows_interface_direction() {
                 a.run("view.module", json!({"name": "people"}));
                 a.ui.people_query = QUERY.into();
             } else {
-                a.ui.search_text = QUERY.into();
+                // Searched for, as typing it does: words in the box with no search behind them
+                // go (issue #187).
+                a.run("search.run", json!({"query": QUERY}));
             }
             let ctx = egui::Context::default();
             let size = egui::vec2(1280.0, 800.0);

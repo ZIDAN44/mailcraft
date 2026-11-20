@@ -322,6 +322,13 @@ impl MailApp {
         {
             self.ui.search_text = q.clone();
         }
+        // A search ended some other way (a folder opened, another module, a command) takes its
+        // words out of the box (issue #187): they stayed, as if it were still on. Not while
+        // they're typed, nor before a search they're about to start; the recent searches keep
+        // them.
+        if self.session.search.is_none() && !self.ui.search_text.is_empty() && !self.ui.search_focused && self.ui.search_due.is_none() {
+            self.ui.search_text.clear();
+        }
         let dark = self.ui.dark.unwrap_or_else(|| match ctx.system_theme() {
             Some(theme) => theme == egui::Theme::Dark,
             None => self.services.system_dark().unwrap_or(false),

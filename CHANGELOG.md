@@ -83,6 +83,7 @@ Thanks to Peter Páleník for reviewing the Slovak translation (#133, #137).
 - Searching the server right after deleting or moving mail no longer finds that mail again: the search could reach the server before the change did.
 - A folder dragged onto another folder in the folder pane goes into it (#181): the drop was lost, though the folder under the pointer lit up. A folder dropped on a shared mailbox's top row goes into it too.
 - **Move folder** (#182): a click picks where the folder goes and **Move** moves it there, as in Outlook; it moved at once, and **Move** never turned on. A double click still moves it at once. Its list, and **Move to folder**'s, are as wide as the dialog, their scroll bar at the edge rather than in the middle.
+- A search ended by opening a folder, or by going to the Calendar, People, Tasks or Notes, leaves the search box empty (#187), as in Outlook: its words stayed, as if the search were still on, and going to another module didn't end it. They're among the recent searches in the box's list.
 
 ## 0.40.0 - 2026-11-17
 

@@ -182,6 +182,9 @@ fn the_search_box_drops_down_recent_and_advanced_search() {
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.session.prefs.recent_searches = vec!["budget".into(), "storyboard".into()];
+    // In the box, as typing is: words outside it with no search behind them go (issue #187).
+    a.ui.focus_search = true;
+    frame(&ctx, &mut a, vec![]);
     a.ui.search_drop = crate::SearchDrop::Recent;
     frame(&ctx, &mut a, vec![]);
     assert_eq!(a.ui.search_drop, crate::SearchDrop::Recent);
@@ -203,6 +206,32 @@ fn the_search_box_drops_down_recent_and_advanced_search() {
     for scope in mailcraft_engine::SearchScope::ALL {
         assert!(!crate::scope_label(scope).is_empty());
     }
+}
+
+/// Issue #187: a search ended by opening a folder, or by going to another module, takes its
+/// words out of the box; they're among the recent searches. They stayed, as if it were still on.
+#[test]
+fn a_search_left_empties_the_box() {
+    let (mut a, _) = app("search-left");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("search.run", json!({"query": "storyboard", "remember": true}));
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.search_text, "storyboard", "the search's words in the box");
+    a.run("folder.open", json!({"account": "sample", "folder": "Projects"}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.search.is_none() && a.ui.search_text.is_empty(), "{:?}", a.ui.search_text);
+    assert!(a.session.recent_searches().iter().any(|r| r == "storyboard"), "kept among the recent searches");
+    // Searched again, then to the Calendar: the search ends with the box.
+    a.run("search.run", json!({"query": "budget"}));
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.ui.search_text, "budget");
+    a.run("view.calendar", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.search.is_none() && a.ui.search_text.is_empty(), "{:?}", a.ui.search_text);
+    a.run("view.mail", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.search_text.is_empty(), "nothing back in the box on the way back");
 }
 
 /// Issue #11: Favorites can be hidden from the top of the folder pane (View › Favorites), not
