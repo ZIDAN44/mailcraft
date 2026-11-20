@@ -3,6 +3,7 @@
 use super::*;
 
 mod archiving;
+mod auto_archive;
 mod beside;
 mod calendar_only;
 mod compacting;

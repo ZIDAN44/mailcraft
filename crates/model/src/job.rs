@@ -222,12 +222,15 @@ pub enum Job {
         follow_up: crate::organize::FollowUpDays,
     },
     /// Write the account's mail received before `before` (Unix seconds), in `folders` and the
-    /// folders under them (all of them when empty), to the data file at `path`, in folders of the
-    /// same names. Answered by [`Event::Archived`], naming the messages the file has now.
+    /// folders under them (all of them when empty; `only`, those alone, issue #180), to the data
+    /// file at `path`, in folders of the same names. Answered by [`Event::Archived`], naming the
+    /// messages the file has now.
     ArchivePst {
         account: String,
         path: String,
         folders: Vec<String>,
+        #[serde(default)]
+        only: bool,
         before: i64,
         #[serde(default)]
         follow_up: crate::organize::FollowUpDays,

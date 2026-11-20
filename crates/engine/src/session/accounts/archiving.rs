@@ -2,6 +2,8 @@
 //! day, in a folder and the folders under it, goes into an Outlook data file on this computer, in
 //! folders of the same names, and then leaves the mailbox (on Exchange for good, so the mailbox
 //! shrinks). The file then opens in the folder list, or, open already, has what's new read in.
+//! AutoArchive (issue #180, `auto_archive.rs`) archives the same way, folder by folder, or
+//! deletes the old mail for good where a folder is set to.
 //!
 //! An account on a server keeps only its newest mail here, so each round first searches the
 //! server for the old mail (which brings it into the folders' lists) and downloads what of it
@@ -28,16 +30,34 @@ fn whole_path(path: &str) -> bool {
     path.starts_with('/') || path.starts_with("\\\\") || matches!(path.as_bytes(), [d, b':', b'\\' | b'/', ..] if d.is_ascii_alphabetic())
 }
 
+/// What's to be archived: an account's mail received before `before`, in `folders` (and those
+/// under them, unless `only`; every folder when there are none), into the data file at `path`,
+/// or (`delete`) deleted for good.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(in crate::session) struct ArchiveTask {
+    pub(in crate::session) account: String,
+    pub(in crate::session) folders: Vec<String>,
+    pub(in crate::session) only: bool,
+    pub(in crate::session) before: i64,
+    pub(in crate::session) path: String,
+    pub(in crate::session) delete: bool,
+    /// The file shown in the folder list once it's written.
+    pub(in crate::session) show: bool,
+}
+
 /// Old mail being archived. One at a time: two writing one file would leave one's mail out.
 #[derive(Clone, Debug)]
 pub(crate) struct Archiving {
     pub(crate) account: String,
     pub(crate) path: String,
-    /// The folder asked for, as [`Job::ArchivePst`] takes it (none: every folder).
+    /// The folders asked for, as [`Job::ArchivePst`] takes them (none: every folder).
     roots: Vec<String>,
-    /// That folder and those under it.
+    only: bool,
+    /// Those folders (and those under them, unless `only`).
     folders: Vec<String>,
     before: i64,
+    delete: bool,
+    show: bool,
     stage: Stage,
     round: u32,
     /// What this round's search found, by folder.
@@ -47,7 +67,7 @@ pub(crate) struct Archiving {
     cut: bool,
     /// Why the server couldn't search, when it couldn't.
     search_error: Option<String>,
-    /// The messages archived, over every round.
+    /// The messages archived (or deleted), over every round.
     gone: HashSet<MessageKey>,
     /// Messages written to the file, over every round.
     written: usize,
@@ -79,7 +99,7 @@ pub(in crate::session) struct ArchiveReport {
 }
 
 impl Session {
-    /// The account whose old mail is being archived, and the file it goes to.
+    /// The account whose old mail is being archived, and the file it goes to (empty: deleted).
     pub fn archiving_now(&self) -> Option<(&str, &str)> {
         self.archiving.as_ref().map(|a| (a.account.as_str(), a.path.as_str()))
     }
@@ -87,16 +107,40 @@ impl Session {
     /// Archive `account`'s mail received before `before` (Unix seconds), in `folder` and those
     /// under it (all its folders when none), into the data file at `path`.
     pub fn archive_old(&mut self, account: &str, folder: Option<&str>, before: i64, path: &str) -> CmdResult {
-        let path = path.trim();
-        if path.is_empty() {
-            return Err(CmdError::Params("`path` is required".into()));
+        if let Some(f) = folder
+            && self.account(account).is_some()
+            && self.folder(account, f).is_none()
+        {
+            return Err(CmdError::Params(format!("no folder `{f}`")));
         }
-        if !path.to_ascii_lowercase().ends_with(".pst") {
-            return Err(CmdError::Params("the archive is an Outlook data file: its name ends in .pst".into()));
-        }
-        // A name alone would be written wherever MailCraft happened to start.
-        if !whole_path(path) {
-            return Err(CmdError::Params("give the archive file's whole path, or pick it with Browse".into()));
+        let task = ArchiveTask {
+            account: account.to_string(),
+            folders: folder.map(|f| vec![f.to_string()]).unwrap_or_default(),
+            only: false,
+            before,
+            path: path.trim().to_string(),
+            delete: false,
+            show: true,
+        };
+        self.start_archive(task)?;
+        Ok(serde_json::json!({ "account": account, "archiving": true }))
+    }
+
+    /// Start archiving `task`, when nothing is being archived and it can be.
+    pub(in crate::session) fn start_archive(&mut self, task: ArchiveTask) -> Result<(), CmdError> {
+        let ArchiveTask { account, folders: roots, only, before, path, delete, show } = task;
+        let account = account.as_str();
+        if !delete {
+            if path.is_empty() {
+                return Err(CmdError::Params("`path` is required".into()));
+            }
+            if !path.to_ascii_lowercase().ends_with(".pst") {
+                return Err(CmdError::Params("the archive is an Outlook data file: its name ends in .pst".into()));
+            }
+            // A name alone would be written wherever MailCraft happened to start.
+            if !whole_path(&path) {
+                return Err(CmdError::Params("give the archive file's whole path, or pick it with Browse".into()));
+            }
         }
         if before <= 0 {
             return Err(CmdError::Params("`before` is a time (Unix seconds)".into()));
@@ -107,11 +151,6 @@ impl Session {
             return Err(CmdError::Params("this account keeps none of its mail on this computer, so it can't be archived here".into()));
         }
         let on_server = !a.is_local() && a.config.pop.is_none();
-        if let Some(f) = folder
-            && self.folder(account, f).is_none()
-        {
-            return Err(CmdError::Params(format!("no folder `{f}`")));
-        }
         if self.archiving.is_some() {
             return Err(CmdError::Failed("Old mail is being archived already: wait until that's done.".into()));
         }
@@ -120,24 +159,29 @@ impl Session {
         self.import_holds(account)?;
         // The file, when it's open here: not the one this account's mail is in, nor one being
         // read in.
-        if let Some(open) = self.duplicate_of(path, "", None) {
+        if !delete && let Some(open) = self.duplicate_of(&path, "", None) {
             if open == account {
                 return Err(CmdError::Params("this is the data file the mail is in: choose another file to archive it to".into()));
             }
             self.import_holds(&open)?;
         }
-        let under =
-            |p: &str, d: Option<char>| folder.is_none_or(|f| p == f || d.is_some_and(|d| p.strip_prefix(f).is_some_and(|r| r.starts_with(d))));
+        let under = |p: &str, d: Option<char>| {
+            roots.is_empty()
+                || roots.iter().any(|f| p == f || (!only && d.is_some_and(|d| p.strip_prefix(f.as_str()).is_some_and(|r| r.starts_with(d)))))
+        };
         let folders = self
             .account(account)
             .map(|a| a.folders.iter().filter(|f| f.selectable && f.path != OUTBOX && under(&f.path, f.delimiter)).map(|f| f.path.clone()).collect())
             .unwrap_or_default();
         self.archiving = Some(Archiving {
             account: account.to_string(),
-            path: path.to_string(),
-            roots: folder.map(|f| vec![f.to_string()]).unwrap_or_default(),
+            path,
+            roots,
+            only,
             folders,
             before,
+            delete,
+            show,
             stage: Stage::Writing,
             round: 1,
             found: HashMap::new(),
@@ -147,13 +191,15 @@ impl Session {
             written: 0,
             moved: self.clock.now,
         });
-        // All its mail is here: written at once. On a server: looked for first.
+        // All its mail is here: written (or deleted) at once. On a server: looked for first.
         if on_server {
-            self.archive_search()
+            self.archive_search();
+        } else if delete {
+            self.archive_delete();
         } else {
-            self.archive_write()
+            self.archive_write();
         }
-        Ok(serde_json::json!({ "account": account, "archiving": true }))
+        Ok(())
     }
 
     /// A round's search of the server, for the folders' mail from before the day (a day more:
@@ -174,7 +220,7 @@ impl Session {
     }
 
     /// The server's search answered ([`Event::ServerSearched`]): what it found counted, and once
-    /// it's done, what of the old mail isn't here is downloaded.
+    /// it's done, what of the old mail isn't here is downloaded (or the old mail deleted).
     pub(in crate::session) fn archive_searched(&mut self, account: &str, query: &str, keys: &[MessageKey], error: Option<&str>, done: bool) {
         let Some(a) = self.archiving.as_mut().filter(|a| a.account == account && matches!(&a.stage, Stage::Searching(q) if q == query)) else {
             return;
@@ -186,24 +232,30 @@ impl Session {
             a.search_error = Some(e.to_string());
         }
         a.moved = self.clock.now;
-        if done {
+        if done && a.delete {
+            self.archive_delete();
+        } else if done {
             self.archive_download();
         }
+    }
+
+    /// The folders' old mail as their lists here have it, but what's gone already.
+    fn archive_old_here(&self) -> Vec<Summary> {
+        let (Some(a), Some(store)) = (self.archiving.as_ref(), self.store.as_ref()) else { return Vec::new() };
+        let mut old = Vec::new();
+        for f in &a.folders {
+            let Ok(st) = store.load_folder(&a.account, f) else { continue };
+            old.extend(st.messages.iter().filter(|m| (1..a.before).contains(&m.when()) && !a.gone.contains(&m.key)).map(|m| Summary::clone(m)));
+        }
+        old
     }
 
     /// The old mail of the folders that isn't here, asked for; the file is written once it's
     /// all come (or at once, when it's all here).
     fn archive_download(&mut self) {
-        let Some(a) = self.archiving.as_ref() else { return };
-        let (account, before) = (a.account.clone(), a.before);
-        let mut waiting = HashSet::new();
-        if let Some(store) = self.store.clone() {
-            for f in &a.folders {
-                let Ok(st) = store.load_folder(&account, f) else { continue };
-                let old = st.messages.iter().filter(|m| (1..before).contains(&m.when()) && !a.gone.contains(&m.key));
-                waiting.extend(old.filter(|m| !store.has_body(&m.key)).map(|m| m.key.clone()));
-            }
-        }
+        let store = self.store.clone();
+        let waiting: HashSet<MessageKey> =
+            self.archive_old_here().into_iter().filter(|m| store.as_ref().is_some_and(|s| !s.has_body(&m.key))).map(|m| m.key).collect();
         if waiting.is_empty() {
             return self.archive_write();
         }
@@ -260,6 +312,7 @@ impl Session {
             account: a.account.clone(),
             path: a.path.clone(),
             folders: a.roots.clone(),
+            only: a.only,
             before: a.before,
             follow_up: mailcraft_model::organize::FollowUpDays {
                 due: self.prefs.follow_up.clone(),
@@ -270,6 +323,45 @@ impl Session {
         self.jobs.push(job);
     }
 
+    /// The folders' old mail deleted for good (a folder AutoArchive deletes from), and another
+    /// round, or the end.
+    fn archive_delete(&mut self) {
+        let old: Vec<MessageKey> = self.archive_old_here().into_iter().map(|m| m.key).collect();
+        let on_server = self.archiving.as_ref().and_then(|a| self.account(&a.account)).is_some_and(|x| !x.is_local() && x.config.pop.is_none());
+        let Some(a) = self.archiving.as_mut() else { return };
+        a.gone.extend(old.iter().cloned());
+        let more = on_server && a.found.values().any(|n| *n >= FOUND_PER_FOLDER) && !old.is_empty() && a.round < ROUNDS_MAX && !a.cut;
+        let account = a.account.clone();
+        if !old.is_empty()
+            && let Err(e) = self.remove_archived(&account, old)
+        {
+            self.archiving = None;
+            self.notice(format!("Old mail couldn't be deleted: {e}"), true);
+            return self.next_auto_archive();
+        }
+        if more {
+            if let Some(a) = self.archiving.as_mut() {
+                a.round += 1;
+            }
+            return self.archive_search();
+        }
+        if let Some(a) = self.archiving.take() {
+            self.archive_end(a, 0, 0);
+        }
+    }
+
+    /// Delete what the file has (or what's deleted for good) from the mailbox, the open message
+    /// giving way to the next.
+    fn remove_archived(&mut self, account: &str, keys: Vec<MessageKey>) -> Result<(), String> {
+        let next = self.successor(&keys);
+        let open = self.selection.iter().any(|k| keys.contains(k));
+        self.apply_op_checked(account, Op::Expunge { keys })?;
+        if open {
+            self.after_removal(next);
+        }
+        Ok(())
+    }
+
     /// The server's search was stopped by another search, or by the search box cleared, while
     /// the archive's ran: what it hadn't looked through yet isn't archived this time.
     pub(in crate::session) fn archive_search_cut(&mut self) {
@@ -278,10 +370,12 @@ impl Session {
         }
     }
 
-    /// An account gone: its archive with it.
+    /// An account gone: its archive with it, and AutoArchive's for it.
     pub(in crate::session) fn forget_archiving(&mut self, account: &str) {
+        self.auto_archive_forget(account);
         if self.archiving.as_ref().is_some_and(|a| a.account == account) {
             self.archiving = None;
+            self.next_auto_archive();
         }
     }
 
@@ -301,25 +395,19 @@ impl Session {
         if let Some(e) = error {
             self.archiving = None;
             self.notice(format!("Old mail couldn't be archived, so it stays where it was: {e}"), true);
-            return;
+            return self.next_auto_archive();
         }
         a.written = a.written.saturating_add(messages);
         // Only this account's, and each once (a round may name again what's still going).
         let new: Vec<MessageKey> = archived.into_iter().filter(|k| k.account == account && !a.gone.contains(k)).collect();
         a.gone.extend(new.iter().cloned());
         let more = on_server && a.found.values().any(|n| *n >= FOUND_PER_FOLDER) && !new.is_empty() && a.round < ROUNDS_MAX && !a.cut;
-        let missed = skipped;
-        if !new.is_empty() {
-            let next = self.successor(&new);
-            let open = self.selection.iter().any(|k| new.contains(k));
-            if let Err(e) = self.apply_op_checked(account, Op::Expunge { keys: new }) {
-                self.archiving = None;
-                self.notice(format!("The old mail is in {file}, but couldn't be deleted from the mailbox: {e}"), true);
-                return;
-            }
-            if open {
-                self.after_removal(next);
-            }
+        if !new.is_empty()
+            && let Err(e) = self.remove_archived(account, new)
+        {
+            self.archiving = None;
+            self.notice(format!("The old mail is in {file}, but couldn't be deleted from the mailbox: {e}"), true);
+            return self.next_auto_archive();
         }
         if more {
             if let Some(a) = self.archiving.as_mut() {
@@ -329,16 +417,26 @@ impl Session {
             }
             return self.archive_search();
         }
-        let Some(a) = self.archiving.take() else { return };
+        if let Some(a) = self.archiving.take() {
+            self.archive_end(a, skipped, folders);
+        }
+    }
+
+    /// An archive done: said, the file shown in the folder list, and AutoArchive's next one.
+    fn archive_end(&mut self, a: Archiving, missed: usize, folders: usize) {
         let count = a.gone.len();
-        self.notice(
-            match count {
-                0 => format!("No mail old enough to archive was found, so nothing went to {file}."),
-                1 => format!("1 message archived to {file}"),
-                n => format!("{n} messages archived to {file}"),
-            },
-            false,
-        );
+        let file = mailcraft_model::file_name(&a.path).to_string();
+        let said = match (a.delete, count) {
+            (true, 0) => None,
+            (true, 1) => Some("1 old message deleted".to_string()),
+            (true, n) => Some(format!("{n} old messages deleted")),
+            (false, 0) => Some(format!("No mail old enough to archive was found, so nothing went to {file}.")),
+            (false, 1) => Some(format!("1 message archived to {file}")),
+            (false, n) => Some(format!("{n} messages archived to {file}")),
+        };
+        if let Some(said) = said {
+            self.notice(said, false);
+        }
         if missed > 0 {
             let (n, why) = if missed == 1 {
                 ("1 old message".to_string(), "it couldn't be downloaded")
@@ -357,10 +455,13 @@ impl Session {
             self.notice("Another search stopped the one for old mail: archive again to take the rest.".to_string(), true);
         }
         // The file in the folder list: opened, or what's new read into it when it's open already.
-        if (a.written > 0 || count > 0)
-            && let Err(e) = self.import_pst(path, false, Some(Changes::Read), false)
+        if !a.delete
+            && a.show
+            && (a.written > 0 || count > 0)
+            && let Err(e) = self.import_pst(&a.path, false, Some(Changes::Read), false)
         {
             self.notice(format!("{file} couldn't be opened: {e}"), true);
         }
+        self.next_auto_archive();
     }
 }

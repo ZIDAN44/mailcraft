@@ -135,6 +135,19 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   from it, which don't keep its headings, lists and tables as such; a screen reader needs them
   told, as WordCraft tells its page's.
 
+### 11. Archiving: what isn't done yet
+
+- **Impact:** **Clean up old items** and AutoArchive take mail only: old calendar items and
+  completed tasks stay where they are, where Outlook archives them too. A message can't be kept
+  out of AutoArchive on its own (Outlook's "Do not AutoArchive" on an item), and AutoArchive
+  doesn't delete expired items.
+- **Workaround:** Give a folder that holds what must stay **Don't archive this folder** in its
+  **Properties**, or move that mail to such a folder.
+- **Cause:** The archive writes a folder's mail as an export does, without the calendar, contacts
+  and tasks, which an export writes whole. No server keeps a message's own AutoArchive setting
+  for MailCraft to read, nor does MailCraft keep settings of its own for single messages, and it
+  keeps no expiry for mail.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

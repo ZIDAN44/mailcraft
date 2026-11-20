@@ -75,7 +75,7 @@ fn a_folder_s_old_mail_is_archived_into_folders_of_the_same_names() {
     let dir = scratch("pst-archive");
     let (store, [one, _new, plan, note]) = account(&dir);
     let file = dir.join("archive.pst");
-    let inbox = Pick { folders: vec!["INBOX".into()], before: BEFORE };
+    let inbox = Pick { folders: vec!["INBOX".into()], only: false, before: BEFORE };
 
     // Nothing old enough: no file is made.
     let none = archive(&store, "a1", "Archive", &file, &Pick { before: OLD, ..inbox.clone() }, NONE, &mut |_| {}).unwrap();
@@ -102,7 +102,8 @@ fn a_folder_s_old_mail_is_archived_into_folders_of_the_same_names() {
 
     // A message whose Message-ID the file has in another folder isn't taken as archived: it's
     // written where it goes.
-    let notes = archive(&store, "a1", "Archive", &file, &Pick { folders: vec!["Notes".into()], before: BEFORE }, NONE, &mut |_| {}).unwrap();
+    let notes =
+        archive(&store, "a1", "Archive", &file, &Pick { folders: vec!["Notes".into()], only: false, before: BEFORE }, NONE, &mut |_| {}).unwrap();
     assert_eq!((notes.messages, notes.already), (1, 0));
     assert_eq!(notes.archived, [note]);
     assert_eq!(subjects(&file, &["Notes"]), ["Old note"]);
@@ -112,11 +113,14 @@ fn a_folder_s_old_mail_is_archived_into_folders_of_the_same_names() {
 #[test]
 fn a_pick_takes_a_folder_and_those_under_it_and_old_mail() {
     let folder = |path: &str| mailcraft_model::Folder { path: path.into(), delimiter: Some('/'), selectable: true, ..Default::default() };
-    let pick = Pick { folders: vec!["INBOX".into()], before: BEFORE };
+    let pick = Pick { folders: vec!["INBOX".into()], only: false, before: BEFORE };
     assert!(pick.takes(&folder("INBOX")) && pick.takes(&folder("INBOX/Projects")) && pick.takes(&folder("INBOX/Projects/2020")));
     assert!(!pick.takes(&folder("INBOX2")) && !pick.takes(&folder("Sent")), "a name that only starts the same isn't under it");
-    let all = Pick { folders: Vec::new(), before: BEFORE };
+    let all = Pick { folders: Vec::new(), only: false, before: BEFORE };
     assert!(all.takes(&folder("Sent")) && !all.takes(&folder("\u{0}outbox")), "every folder, never the Outbox");
+    // AutoArchive's (issue #180): the folders named alone, each by its own settings.
+    let only = Pick { only: true, ..pick.clone() };
+    assert!(only.takes(&folder("INBOX")) && !only.takes(&folder("INBOX/Projects")));
     let at = |date, received| mailcraft_model::Summary { date, received, ..Default::default() };
     assert!(pick.old(&at(OLD, 0)) && !pick.old(&at(NEW, 0)));
     assert!(!pick.old(&at(OLD, NEW)), "by when it was received, when that's known");

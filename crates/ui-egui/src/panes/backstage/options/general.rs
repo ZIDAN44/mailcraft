@@ -200,6 +200,20 @@ pub(super) fn data_files(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<
                     }
                 });
             }
+            // AutoArchive (issue #180), as Outlook's AutoArchive Settings; its file suggested
+            // beside the data files, as Outlook's archive.pst is in Outlook Files.
+            let every = s.prefs.auto_archive.every_days;
+            let about = if every == 0 {
+                tl!("Off: old mail stays where it is until you clean it up.").to_string()
+            } else {
+                tf!("Every {days} days, old mail is archived by each folder's settings.", days = every)
+            };
+            setting(ui, &t, false, tl!("AutoArchive"), Some(&about), |ui| {
+                if ui.button(tl!("AutoArchive settings…")).clicked() {
+                    let suggested = dir.join("archive.pst").display().to_string();
+                    acts.push(Action::Dialog(Dialog::AutoArchive(Box::new(crate::dialogs::AutoArchiveForm::new(s, &suggested)))));
+                }
+            });
             // Compacted as MailCraft closes: off unless chosen (it's done when MailCraft is
             // left alone, or by hand, either way).
             let compact = Switch {

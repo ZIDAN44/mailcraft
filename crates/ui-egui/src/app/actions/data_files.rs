@@ -48,16 +48,24 @@ impl MailApp {
         }
     }
 
-    /// The file Clean up old items archives to, picked and put in its dialog.
+    /// The file old mail is archived to, picked and put in the dialog asking for it: Clean up
+    /// old items, AutoArchive's settings, a folder's own.
     pub(super) fn pick_archive_file(&mut self) {
-        let suggested = match &self.ui.dialog {
-            Some(Dialog::Archive(f)) if !f.path.trim().is_empty() => mailcraft_engine::model::file_name(f.path.trim()).to_string(),
-            _ => "archive.pst".to_string(),
+        let shown = match &self.ui.dialog {
+            Some(Dialog::Archive(f)) => f.path.clone(),
+            Some(Dialog::AutoArchive(f)) => f.rule.path.clone(),
+            Some(Dialog::FolderProperties { archive: Some(a), .. }) => a.rule.path.clone(),
+            _ => return,
         };
-        if let Some(path) = self.services.save_path(&suggested)
-            && let Some(Dialog::Archive(f)) = self.ui.dialog.as_mut()
-        {
-            f.path = path.to_string_lossy().into_owned();
+        let suggested =
+            if shown.trim().is_empty() { "archive.pst".to_string() } else { mailcraft_engine::model::file_name(shown.trim()).to_string() };
+        let Some(path) = self.services.save_path(&suggested) else { return };
+        let path = path.to_string_lossy().into_owned();
+        match self.ui.dialog.as_mut() {
+            Some(Dialog::Archive(f)) => f.path = path,
+            Some(Dialog::AutoArchive(f)) => f.rule.path = path,
+            Some(Dialog::FolderProperties { archive: Some(a), .. }) => a.rule.path = path,
+            _ => {}
         }
     }
 

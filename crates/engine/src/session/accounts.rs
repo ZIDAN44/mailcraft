@@ -3,11 +3,14 @@
 use super::*;
 
 mod archiving;
+mod auto_archive;
 mod importing;
 mod mailbox_settings;
 mod trusting;
 pub(in crate::session) use archiving::ArchiveReport;
 pub(crate) use archiving::Archiving;
+pub(crate) use auto_archive::RuleChange;
+pub use auto_archive::{AgeUnit, ArchiveRule, AutoArchive, AutoArchiving, FolderArchive};
 #[cfg(test)]
 pub(crate) use importing::REMOVE_BACKSTOP;
 pub(crate) use importing::data_file_path;

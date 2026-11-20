@@ -1883,3 +1883,24 @@ count	occurrences	פעמים
 	Archive mail received before	העברה לארכיון של דואר שהתקבל לפני
 	Archive file	קובץ ארכיון
 	That's not a date.	זה לא תאריך.
+	Archive mail older than	העברה לארכיון של דואר ישן מ
+	Move old mail to this file	העברת דואר ישן לקובץ הזה
+	Delete old mail for good	מחיקת דואר ישן לצמיתות
+	AutoArchive	העברה אוטומטית לארכיון
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	כל כמה ימים, הדואר הישן של כל תיקייה עובר לקובץ נתונים במחשב הזה, או נמחק, לפי ההגדרות של התיקייה עצמה (במאפיינים שלה) או לפי ההגדרות האלה.
+	Run AutoArchive every	הפעלת העברה אוטומטית לארכיון כל
+	Ask before AutoArchive runs	לשאול לפני העברה אוטומטית לארכיון
+	Show the archive file in the folder list	הצגת קובץ הארכיון ברשימת התיקיות
+	For folders without settings of their own	לתיקיות בלי הגדרות משלהן
+	Apply these settings to all folders now	החלת ההגדרות האלה על כל התיקיות עכשיו
+	Folders with settings of their own follow these instead.	תיקיות עם הגדרות משלהן יפעלו לפי ההגדרות האלה במקומן.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	עברו {days} ימים: להעביר עכשיו לארכיון את הדואר הישן, כפי שהעברה אוטומטית לארכיון מוגדרת?
+	Archive now	העברה לארכיון עכשיו
+	Off: old mail stays where it is until you clean it up.	כבוי: הדואר הישן נשאר במקומו עד שתנקו אותו.
+	Every {days} days, old mail is archived by each folder's settings.	כל {days} ימים, דואר ישן עובר לארכיון לפי ההגדרות של כל תיקייה.
+	AutoArchive settings…	הגדרות העברה אוטומטית לארכיון…
+	Don't archive this folder	לא להעביר את התיקייה הזו לארכיון
+	Archive it by the default settings	להעביר לארכיון לפי הגדרות ברירת המחדל
+	Archive it by these settings	להעביר לארכיון לפי ההגדרות האלה
+	weeks	שבועות
+	months	חודשים

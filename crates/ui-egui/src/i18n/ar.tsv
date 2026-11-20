@@ -1883,3 +1883,24 @@ count	occurrences	مرات
 	Archive mail received before	أرشفة البريد المستلم قبل
 	Archive file	ملف الأرشيف
 	That's not a date.	هذا ليس تاريخًا.
+	Archive mail older than	أرشفة البريد الأقدم من
+	Move old mail to this file	نقل البريد القديم إلى هذا الملف
+	Delete old mail for good	حذف البريد القديم نهائيًا
+	AutoArchive	الأرشفة التلقائية
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	كل عدد من الأيام، يُؤرشف البريد القديم في كل مجلد إلى ملف بيانات على هذا الكمبيوتر، أو يُحذف، حسب إعدادات المجلد نفسه (في خصائصه) أو هذه الإعدادات.
+	Run AutoArchive every	تشغيل الأرشفة التلقائية كل
+	Ask before AutoArchive runs	السؤال قبل تشغيل الأرشفة التلقائية
+	Show the archive file in the folder list	إظهار ملف الأرشيف في قائمة المجلدات
+	For folders without settings of their own	للمجلدات التي ليست لها إعدادات خاصة
+	Apply these settings to all folders now	تطبيق هذه الإعدادات على كل المجلدات الآن
+	Folders with settings of their own follow these instead.	تتبع المجلدات ذات الإعدادات الخاصة هذه الإعدادات بدلًا منها.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	مرّ {days} يومًا: هل تريد أرشفة البريد القديم الآن كما ضُبطت الأرشفة التلقائية؟
+	Archive now	أرشفة الآن
+	Off: old mail stays where it is until you clean it up.	متوقفة: يبقى البريد القديم مكانه حتى تنظفه بنفسك.
+	Every {days} days, old mail is archived by each folder's settings.	كل {days} يومًا، يُؤرشف البريد القديم حسب إعدادات كل مجلد.
+	AutoArchive settings…	إعدادات الأرشفة التلقائية…
+	Don't archive this folder	عدم أرشفة هذا المجلد
+	Archive it by the default settings	أرشفته حسب الإعدادات الافتراضية
+	Archive it by these settings	أرشفته حسب هذه الإعدادات
+	weeks	أسابيع
+	months	أشهر

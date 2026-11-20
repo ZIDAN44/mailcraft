@@ -1888,3 +1888,24 @@ count	occurrences	ocorrências
 	Archive mail received before	Arquivar e-mails recebidos antes de
 	Archive file	Arquivo morto
 	That's not a date.	Isso não é uma data.
+	Archive mail older than	Arquivar e-mails com mais de
+	Move old mail to this file	Mover e-mails antigos para este arquivo
+	Delete old mail for good	Excluir e-mails antigos para sempre
+	AutoArchive	AutoArquivar
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	A cada tantos dias, os e-mails antigos de cada pasta são arquivados em um arquivo de dados neste computador, ou excluídos, conforme as configurações da própria pasta (em suas Propriedades) ou estas.
+	Run AutoArchive every	Executar o AutoArquivar a cada
+	Ask before AutoArchive runs	Perguntar antes de executar o AutoArquivar
+	Show the archive file in the folder list	Mostrar o arquivo morto na lista de pastas
+	For folders without settings of their own	Para pastas sem configurações próprias
+	Apply these settings to all folders now	Aplicar estas configurações a todas as pastas agora
+	Folders with settings of their own follow these instead.	As pastas com configurações próprias passam a seguir estas.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	Já se passaram {days} dias: arquivar agora os e-mails antigos, como o AutoArquivar está configurado?
+	Archive now	Arquivar agora
+	Off: old mail stays where it is until you clean it up.	Desativado: os e-mails antigos ficam onde estão até você limpá-los.
+	Every {days} days, old mail is archived by each folder's settings.	A cada {days} dias, os e-mails antigos são arquivados conforme as configurações de cada pasta.
+	AutoArchive settings…	Configurações do AutoArquivar…
+	Don't archive this folder	Não arquivar esta pasta
+	Archive it by the default settings	Arquivar pelas configurações padrão
+	Archive it by these settings	Arquivar por estas configurações
+	weeks	semanas
+	months	meses

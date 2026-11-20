@@ -11,7 +11,8 @@
 //! as a big mailbox would: the old mail is found on the server and downloaded. The Inbox's old
 //! mail and its folder's go into the file, in folders of the same names; they're deleted on the
 //! server only then; the new mail stays; and the file opens in the folder list. Archived again
-//! into the file open by then, what's new is read into it.
+//! into the file open by then, what's new is read into it. AutoArchive (issue #180) archives each
+//! folder by its own settings: one to the file, one deleted for good, one left alone.
 
 #[path = "support/servers.rs"]
 mod servers;
@@ -144,4 +145,43 @@ fn real_a_big_folder_is_archived_in_rounds() {
     let mut there = subjects_here(&mut app.s, &archive);
     there.dedup();
     assert_eq!(there.len(), 520, "each once");
+}
+
+/// AutoArchive run: the Inbox by the default settings (into the file), Projects by its own
+/// (deleted for good), Kept never archived.
+#[test]
+#[ignore = "needs a real IMAP server in MAILCRAFT_REAL_ARCHIVE"]
+fn real_autoarchive_goes_by_each_folder_s_settings() {
+    let Ok(imap) = std::env::var("MAILCRAFT_REAL_ARCHIVE") else {
+        eprintln!("MAILCRAFT_REAL_ARCHIVE isn't set: skipped");
+        return;
+    };
+    let imap = imap.trim();
+    let user = format!("auto{}", std::process::id());
+    let mut server = Imap::connect(imap, &user, "pw");
+    server.create("Projects");
+    server.create("Kept");
+    server.append("INBOX", "", &message("Auto old", "Mon, 2 Nov 2020 10:00:00 +0000"));
+    server.append("INBOX", "", &message("Auto new", "Mon, 2 Nov 2026 10:00:00 +0000"));
+    server.append("Projects", "", &message("Auto plan", "Mon, 2 Nov 2020 10:00:00 +0000"));
+    server.append("Kept", "", &message("Auto kept", "Mon, 2 Nov 2020 10:00:00 +0000"));
+
+    let mut app = App::open("autoarchive", "pw");
+    app.s.run("account.keepMail", &json!({"messages": 1, "offline": 0})).unwrap();
+    let smtp = format!("{}:1", imap.rsplit_once(':').unwrap().0);
+    let a = app.add_plain(imap, &smtp, json!({"email": format!("{user}@test.example"), "username": user, "password": "pw"}));
+    app.pump(120, "the folders", |s, _| s.account(&a).is_some_and(|x| x.folders.iter().any(|f| f.path == "Kept")));
+    app.settle(3);
+    let file = app.dir.join("auto.pst").to_string_lossy().to_string();
+    app.s.run("autoArchive.set", &json!({"everyDays": 14, "path": file})).unwrap();
+    app.s.run("autoArchive.folder", &json!({"account": a, "folder": "Projects", "archive": "own", "delete": true})).unwrap();
+    app.s.run("autoArchive.folder", &json!({"account": a, "folder": "Kept", "archive": "off"})).unwrap();
+    app.s.run("autoArchive.run", &json!({})).unwrap();
+    app.pump(300, "AutoArchive done", |s, _| !s.auto_archive_running() && s.archiving_now().is_none());
+    app.settle(8);
+    assert_eq!(server.subjects("INBOX"), ["Auto new"]);
+    assert!(server.subjects("Projects").is_empty(), "deleted for good");
+    assert_eq!(server.subjects("Kept"), ["Auto kept"], "never archived");
+    let archive = app.s.accounts.iter().find(|x| x.config.name == "auto").map(|x| x.config.id.clone()).expect("the file in the folder list");
+    assert_eq!(subjects_here(&mut app.s, &archive), ["Auto old"], "only what was archived, not what was deleted");
 }

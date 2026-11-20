@@ -181,6 +181,10 @@ impl MailApp {
             let (account, shown) = self.session.ask_certificate.remove(0);
             self.ui.dialog = Some(Dialog::TrustCertificate { account, shown: Box::new(shown) });
         }
+        // AutoArchive is due and asks first (issue #180), when nothing else is open.
+        if self.ui.dialog.is_none() && self.ui.backstage.is_none() && self.session.take_auto_archive_ask() {
+            self.ui.dialog = Some(Dialog::AutoArchiveDue);
+        }
         let news = self.session.take_new_mail();
         if !news.is_empty() {
             // Issue #4: the system keeps its notifications (Windows, in its history): one for an

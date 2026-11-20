@@ -256,6 +256,8 @@ pub struct Prefs {
     /// no longer than closing waits for (File › Options › Data files; off unless chosen: it's
     /// done when MailCraft is left alone, or by hand, either way).
     pub compact_on_close: bool,
+    /// AutoArchive (issue #180): when it runs, and what it does with each folder's old mail.
+    pub auto_archive: AutoArchive,
     /// Search Folders: saved searches shown as folders ([`search_folders`]).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub search_folders: Vec<search_folders::SearchFolder>,
@@ -405,6 +407,7 @@ impl Default for Prefs {
             search_folders: Vec::new(),
             animations: true,
             compact_on_close: false,
+            auto_archive: AutoArchive::default(),
             search_scope: SearchScope::Mailbox,
             recent_searches: Vec::new(),
             keep_photo_location: false,

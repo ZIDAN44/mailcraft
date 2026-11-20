@@ -439,12 +439,19 @@ impl Session {
                     }
                 }
                 self.organizing_follows_folder(account, from, to, delimiter);
+                // A folder's own AutoArchive setting goes with it (issue #180).
+                for f in self.prefs.auto_archive.folders.iter_mut().filter(|f| f.account == account) {
+                    if let Some(new) = mailcraft_model::rebase_path(&f.folder, from, to, delimiter) {
+                        f.folder = new;
+                    }
+                }
             }
             Op::DeleteFolder { path } => {
                 self.cache.retain(|(acc, f), _| acc != account || !mailcraft_model::is_within(f, path, delimiter));
                 if let Some(favs) = self.prefs.favorites.as_mut() {
                     favs.retain(|f| f.account != account || !mailcraft_model::is_within(&f.folder, path, delimiter));
                 }
+                self.prefs.auto_archive.folders.retain(|f| f.account != account || !mailcraft_model::is_within(&f.folder, path, delimiter));
                 if matches!(&self.view, View::Folder { account: va, folder } if va == account && mailcraft_model::is_within(folder, path, delimiter))
                 {
                     self.view = self.default_view();

@@ -279,7 +279,8 @@ fn list_and_view_commands_leave_the_body_waiting() {
 }
 
 /// Which commands leave the body waiting is said where each is declared (`.leaves_body()`); these
-/// are the ones a list of ids kept apart named (any `list.extend…` and `dataFile.…` among them).
+/// are the ones a list of ids kept apart named (any `list.extend…`, `dataFile.…` and
+/// `autoArchive.…` among them).
 #[test]
 fn the_commands_that_leave_the_body_waiting_are_these() {
     let s = sample_session("deferred-which");
@@ -311,7 +312,13 @@ fn the_commands_that_leave_the_body_waiting_are_these() {
         "view.folderPane",
         "compose.update",
     ];
-    listed.extend(s.registry().all().iter().map(|c| c.id).filter(|id| id.starts_with("list.extend") || id.starts_with("dataFile.")));
+    listed.extend(
+        s.registry()
+            .all()
+            .iter()
+            .map(|c| c.id)
+            .filter(|id| id.starts_with("list.extend") || id.starts_with("dataFile.") || id.starts_with("autoArchive.")),
+    );
     listed.sort_unstable();
     assert_eq!(leaving, listed);
 }

@@ -1888,3 +1888,24 @@ count	occurrences	kez
 	Archive mail received before	Şu tarihten önce alınan postaları arşivle
 	Archive file	Arşiv dosyası
 	That's not a date.	Bu bir tarih değil.
+	Archive mail older than	Şundan eski postaları arşivle:
+	Move old mail to this file	Eski postaları bu dosyaya taşı
+	Delete old mail for good	Eski postaları kalıcı olarak sil
+	AutoArchive	Otomatik Arşivleme
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	Birkaç günde bir, her klasörün eski postaları klasörün kendi ayarlarına (Özellikler'de) ya da bu ayarlara göre bu bilgisayardaki bir veri dosyasına arşivlenir veya silinir.
+	Run AutoArchive every	Otomatik Arşivlemeyi şu aralıkla çalıştır:
+	Ask before AutoArchive runs	Otomatik Arşivleme çalışmadan önce sor
+	Show the archive file in the folder list	Arşiv dosyasını klasör listesinde göster
+	For folders without settings of their own	Kendi ayarları olmayan klasörler için
+	Apply these settings to all folders now	Bu ayarları şimdi tüm klasörlere uygula
+	Folders with settings of their own follow these instead.	Kendi ayarları olan klasörler de bunun yerine bu ayarları izler.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} gün geçti: Otomatik Arşivleme ayarlandığı gibi eski postalar şimdi arşivlensin mi?
+	Archive now	Şimdi arşivle
+	Off: old mail stays where it is until you clean it up.	Kapalı: eski postalar siz temizleyene kadar yerinde kalır.
+	Every {days} days, old mail is archived by each folder's settings.	Her {days} günde bir, eski postalar her klasörün ayarlarına göre arşivlenir.
+	AutoArchive settings…	Otomatik Arşivleme ayarları…
+	Don't archive this folder	Bu klasörü arşivleme
+	Archive it by the default settings	Varsayılan ayarlarla arşivle
+	Archive it by these settings	Bu ayarlarla arşivle
+	weeks	hafta
+	months	ay

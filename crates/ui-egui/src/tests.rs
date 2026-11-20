@@ -443,6 +443,18 @@ pub(crate) fn tour() {
                 total: 7,
                 unread: 3,
                 size: 20_480,
+                archive: None,
+            },
+            // A folder's own AutoArchive setting (issue #180), deleting its old mail.
+            Dialog::FolderProperties {
+                name: "Projects".into(),
+                account: "riley@studio.example".into(),
+                location: "Projects".into(),
+                total: 2,
+                unread: 0,
+                size: 4_096,
+                archive: crate::dialogs::FolderArchiveForm::new(&a.session, "sample", "Projects", "")
+                    .map(|f| Box::new(crate::dialogs::FolderArchiveForm { mode: crate::dialogs::FolderMode::Own, ..f })),
             },
             Dialog::OpenSharedCalendar { email: "ana@contoso.example".into(), error: Some("no access".into()) },
             Dialog::SubscribeCalendar { url: "webcal://holidays.example/de.ics".into(), name: String::new(), error: Some("HTTP 404".into()) },
@@ -505,6 +517,8 @@ pub(crate) fn tour() {
                 error: Some("Old mail is being archived already: wait until that's done.".into()),
                 ..crate::dialogs::ArchiveForm::new(&a.session, "sample")
             })),
+            Dialog::AutoArchive(Box::new(crate::dialogs::AutoArchiveForm::new(&a.session, r"C:\Users\riley\Documents\MailCraft Files\archive.pst"))),
+            Dialog::AutoArchiveDue,
             Dialog::Restore(crate::dialogs::RestoreForm { name: "MailCraft backup 2026-11-13.mailcraft-backup".into(), ..Default::default() }),
             Dialog::PgpKey { account: "sample".into(), path: "ana-secret.asc".into(), passphrase: String::new() },
             Dialog::SmartCard { account: "sample".into(), module: "/usr/lib/opensc-pkcs11.so".into(), pin: "1234".into(), system: false },

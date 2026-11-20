@@ -162,8 +162,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
-        Dialog::FolderProperties { name, account, location, total, unread, size } => {
-            ui.set_width(380.0);
+        Dialog::FolderProperties { name, account, location, total, unread, size, archive } => {
+            ui.set_width(if archive.is_some() { 460.0 } else { 380.0 });
             title(ui, t, &tf!("{folder} Properties", folder = name));
             egui::Grid::new("folder-props").num_columns(2).spacing(vec2(16.0, 6.0)).show(ui, |ui| {
                 let rows = [
@@ -180,7 +180,22 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 }
             });
             ui.add_space(8.0);
-            close_row(ui)
+            // Its AutoArchive setting (issue #180), as Outlook's AutoArchive tab.
+            let Some(a) = archive else { return close_row(ui) };
+            ui.separator();
+            ui.label(RichText::new(tl!("AutoArchive")).strong());
+            ui.radio_value(&mut a.mode, super::FolderMode::Off, tl!("Don't archive this folder"));
+            ui.radio_value(&mut a.mode, super::FolderMode::Default, tl!("Archive it by the default settings"));
+            ui.radio_value(&mut a.mode, super::FolderMode::Own, tl!("Archive it by these settings"));
+            if a.mode == super::FolderMode::Own {
+                ui.indent("folder-archive", |ui| super::archiving::rule_fields(ui, &mut a.rule, "folder", acts));
+            }
+            let ready = a.mode != super::FolderMode::Own || a.rule.delete || !a.rule.path.trim().is_empty();
+            let (ok, cancel) = buttons(ui, t, "Save", ready);
+            if ok {
+                acts.push(Action::Submit("autoArchive.folder", a.params()));
+            }
+            !cancel
         }
         Dialog::ConfirmEmpty { account, folder, name, for_good } => {
             ui.set_width(400.0);

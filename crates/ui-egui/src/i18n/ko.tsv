@@ -1887,3 +1887,24 @@ count	occurrences	회
 	Archive mail received before	다음 날짜 이전에 받은 메일 보관
 	Archive file	보관 파일
 	That's not a date.	날짜가 아닙니다.
+	Archive mail older than	다음보다 오래된 메일 보관
+	Move old mail to this file	오래된 메일을 이 파일로 이동
+	Delete old mail for good	오래된 메일을 영구 삭제
+	AutoArchive	자동 보관
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	며칠마다 각 폴더의 오래된 메일을 폴더 자체 설정(속성) 또는 이 설정에 따라 이 컴퓨터의 데이터 파일에 보관하거나 삭제합니다.
+	Run AutoArchive every	자동 보관 실행 간격
+	Ask before AutoArchive runs	자동 보관 전에 묻기
+	Show the archive file in the folder list	폴더 목록에 보관 파일 표시
+	For folders without settings of their own	자체 설정이 없는 폴더
+	Apply these settings to all folders now	지금 모든 폴더에 이 설정 적용
+	Folders with settings of their own follow these instead.	자체 설정이 있는 폴더도 대신 이 설정을 따릅니다.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days}일이 지났습니다. 자동 보관 설정대로 지금 오래된 메일을 보관할까요?
+	Archive now	지금 보관
+	Off: old mail stays where it is until you clean it up.	꺼짐: 정리할 때까지 오래된 메일은 그대로 있습니다.
+	Every {days} days, old mail is archived by each folder's settings.	{days}일마다 각 폴더의 설정에 따라 오래된 메일을 보관합니다.
+	AutoArchive settings…	자동 보관 설정…
+	Don't archive this folder	이 폴더 보관 안 함
+	Archive it by the default settings	기본 설정으로 보관
+	Archive it by these settings	이 설정으로 보관
+	weeks	주마다
+	months	개월마다

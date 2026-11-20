@@ -1884,3 +1884,24 @@ count	occurrences	次
 	Archive mail received before	存档在此日期之前收到的邮件
 	Archive file	存档文件
 	That's not a date.	这不是日期。
+	Archive mail older than	存档早于以下时间的邮件
+	Move old mail to this file	将旧邮件移到此文件
+	Delete old mail for good	永久删除旧邮件
+	AutoArchive	自动存档
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	每隔几天，各文件夹的旧邮件会按文件夹自己的设置（在其属性中）或这些设置，存档到这台电脑上的数据文件中，或被删除。
+	Run AutoArchive every	自动存档的运行间隔
+	Ask before AutoArchive runs	自动存档运行前询问
+	Show the archive file in the folder list	在文件夹列表中显示存档文件
+	For folders without settings of their own	用于没有自己设置的文件夹
+	Apply these settings to all folders now	立即将这些设置应用到所有文件夹
+	Folders with settings of their own follow these instead.	有自己设置的文件夹也将改用这些设置。
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	已经过了 {days} 天：要按自动存档的设置立即存档旧邮件吗？
+	Archive now	立即存档
+	Off: old mail stays where it is until you clean it up.	关闭：旧邮件会留在原处，直到你自己清理。
+	Every {days} days, old mail is archived by each folder's settings.	每 {days} 天，按各文件夹的设置存档旧邮件。
+	AutoArchive settings…	自动存档设置…
+	Don't archive this folder	不存档此文件夹
+	Archive it by the default settings	按默认设置存档
+	Archive it by these settings	按这些设置存档
+	weeks	周
+	months	个月

@@ -1883,3 +1883,24 @@ count	occurrences	keer
 	Archive mail received before	Mail archiveren die is ontvangen vóór
 	Archive file	Archiefbestand
 	That's not a date.	Dat is geen datum.
+	Archive mail older than	Mail archiveren die ouder is dan
+	Move old mail to this file	Oude mail naar dit bestand verplaatsen
+	Delete old mail for good	Oude mail definitief verwijderen
+	AutoArchive	AutoArchiveren
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	Om de zoveel dagen wordt de oude mail van elke map gearchiveerd in een gegevensbestand op deze computer, of verwijderd, volgens de eigen instellingen van de map (in de eigenschappen) of deze.
+	Run AutoArchive every	AutoArchiveren uitvoeren elke
+	Ask before AutoArchive runs	Vragen voordat AutoArchiveren wordt uitgevoerd
+	Show the archive file in the folder list	Het archiefbestand in de mappenlijst tonen
+	For folders without settings of their own	Voor mappen zonder eigen instellingen
+	Apply these settings to all folders now	Deze instellingen nu op alle mappen toepassen
+	Folders with settings of their own follow these instead.	Mappen met eigen instellingen volgen dan deze.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	Er zijn {days} dagen voorbij: oude mail nu archiveren, zoals AutoArchiveren is ingesteld?
+	Archive now	Nu archiveren
+	Off: old mail stays where it is until you clean it up.	Uit: oude mail blijft waar die is tot u opruimt.
+	Every {days} days, old mail is archived by each folder's settings.	Elke {days} dagen wordt oude mail gearchiveerd volgens de instellingen van elke map.
+	AutoArchive settings…	Instellingen voor AutoArchiveren…
+	Don't archive this folder	Deze map niet archiveren
+	Archive it by the default settings	Archiveren volgens de standaardinstellingen
+	Archive it by these settings	Archiveren volgens deze instellingen
+	weeks	weken
+	months	maanden

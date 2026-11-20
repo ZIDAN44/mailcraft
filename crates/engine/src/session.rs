@@ -34,9 +34,10 @@ mod updates;
 mod writing;
 #[cfg(test)]
 pub(crate) use accounts::REMOVE_BACKSTOP;
+pub(crate) use accounts::RuleChange;
 pub(crate) use accounts::data_file_path;
+pub use accounts::{AgeUnit, ArchiveRule, AutoArchive, Compacting, Compaction, FolderArchive, IDLE_AFTER_S};
 pub use accounts::{Changes, ImportState, Imports, TrustedCertificate};
-pub use accounts::{Compacting, Compaction, IDLE_AFTER_S};
 use changing::Batch;
 use changing::keys_by_account;
 #[cfg(test)]
@@ -390,6 +391,8 @@ pub struct Session {
     pub(crate) transfers: Vec<mailboxes::Transfer>,
     /// Old mail being archived to a data file (issue #179), one at a time.
     pub(crate) archiving: Option<accounts::Archiving>,
+    /// AutoArchive's groups still to archive, and its question (issue #180).
+    pub(crate) auto_archiving: accounts::AutoArchiving,
     /// Mail that arrived and may hold an invitation, waiting for its body (issue #20).
     pub(crate) arrived_invites: Vec<MessageKey>,
     /// Answered invitations to put out of the way once the server has the answer (issue #101).
@@ -555,6 +558,7 @@ impl Session {
             moved_at: 0,
             transfers: Vec::new(),
             archiving: None,
+            auto_archiving: Default::default(),
             arrived_invites: Vec::new(),
             tidy_waiting: Vec::new(),
             new_mail: Vec::new(),

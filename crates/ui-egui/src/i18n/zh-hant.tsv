@@ -1887,3 +1887,24 @@ count	occurrences	次
 	Archive mail received before	封存在此日期之前收到的郵件
 	Archive file	封存檔案
 	That's not a date.	這不是日期。
+	Archive mail older than	封存早於以下時間的郵件
+	Move old mail to this file	將舊郵件移到此檔案
+	Delete old mail for good	永久刪除舊郵件
+	AutoArchive	自動封存
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	每隔幾天，各資料夾的舊郵件會依資料夾本身的設定（在其內容中）或這些設定，封存到這台電腦上的資料檔中，或被刪除。
+	Run AutoArchive every	自動封存的執行間隔
+	Ask before AutoArchive runs	自動封存執行前詢問
+	Show the archive file in the folder list	在資料夾清單中顯示封存檔案
+	For folders without settings of their own	用於沒有自己設定的資料夾
+	Apply these settings to all folders now	立即將這些設定套用到所有資料夾
+	Folders with settings of their own follow these instead.	有自己設定的資料夾也將改用這些設定。
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	已經過了 {days} 天：要依自動封存的設定立即封存舊郵件嗎？
+	Archive now	立即封存
+	Off: old mail stays where it is until you clean it up.	關閉：舊郵件會留在原處，直到你自己清理。
+	Every {days} days, old mail is archived by each folder's settings.	每 {days} 天，依各資料夾的設定封存舊郵件。
+	AutoArchive settings…	自動封存設定…
+	Don't archive this folder	不封存此資料夾
+	Archive it by the default settings	依預設設定封存
+	Archive it by these settings	依這些設定封存
+	weeks	週
+	months	個月

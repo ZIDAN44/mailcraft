@@ -1887,3 +1887,24 @@ count	occurrences	повторений
 	Archive mail received before	Архивировать почту, полученную до
 	Archive file	Файл архива
 	That's not a date.	Это не дата.
+	Archive mail older than	Архивировать почту старше
+	Move old mail to this file	Перенести старую почту в этот файл
+	Delete old mail for good	Удалить старую почту навсегда
+	AutoArchive	Автоархивация
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	Раз в несколько дней старая почта каждой папки архивируется в файл данных на этом компьютере или удаляется — по собственным параметрам папки (в её свойствах) или по этим.
+	Run AutoArchive every	Запускать автоархивацию каждые
+	Ask before AutoArchive runs	Спрашивать перед автоархивацией
+	Show the archive file in the folder list	Показывать файл архива в списке папок
+	For folders without settings of their own	Для папок без собственных параметров
+	Apply these settings to all folders now	Применить эти параметры ко всем папкам сейчас
+	Folders with settings of their own follow these instead.	Папки с собственными параметрами будут следовать этим.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	Прошло {days} дн.: заархивировать старую почту сейчас, как настроена автоархивация?
+	Archive now	Архивировать сейчас
+	Off: old mail stays where it is until you clean it up.	Выключено: старая почта остаётся на месте, пока вы её не уберёте.
+	Every {days} days, old mail is archived by each folder's settings.	Каждые {days} дн. старая почта архивируется по параметрам каждой папки.
+	AutoArchive settings…	Параметры автоархивации…
+	Don't archive this folder	Не архивировать эту папку
+	Archive it by the default settings	Архивировать по параметрам по умолчанию
+	Archive it by these settings	Архивировать по этим параметрам
+	weeks	нед.
+	months	мес.

@@ -1888,3 +1888,24 @@ count	occurrences	occurrences
 	Archive mail received before	Archiver les messages reçus avant le
 	Archive file	Fichier d'archive
 	That's not a date.	Ce n'est pas une date.
+	Archive mail older than	Archiver les messages de plus de
+	Move old mail to this file	Déplacer les anciens messages vers ce fichier
+	Delete old mail for good	Supprimer définitivement les anciens messages
+	AutoArchive	Archivage automatique
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	Tous les quelques jours, les anciens messages de chaque dossier sont archivés dans un fichier de données sur cet ordinateur, ou supprimés, selon les paramètres propres au dossier (dans ses Propriétés) ou ceux-ci.
+	Run AutoArchive every	Lancer l'archivage automatique tous les
+	Ask before AutoArchive runs	Demander avant de lancer l'archivage automatique
+	Show the archive file in the folder list	Afficher le fichier d'archive dans la liste des dossiers
+	For folders without settings of their own	Pour les dossiers sans paramètres propres
+	Apply these settings to all folders now	Appliquer ces paramètres à tous les dossiers maintenant
+	Folders with settings of their own follow these instead.	Les dossiers qui ont leurs propres paramètres suivent ceux-ci à la place.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} jours ont passé : archiver maintenant les anciens messages, comme l'archivage automatique est réglé ?
+	Archive now	Archiver maintenant
+	Off: old mail stays where it is until you clean it up.	Désactivé : les anciens messages restent où ils sont jusqu'à ce que vous fassiez le ménage.
+	Every {days} days, old mail is archived by each folder's settings.	Tous les {days} jours, les anciens messages sont archivés selon les paramètres de chaque dossier.
+	AutoArchive settings…	Paramètres d'archivage automatique…
+	Don't archive this folder	Ne pas archiver ce dossier
+	Archive it by the default settings	L'archiver selon les paramètres par défaut
+	Archive it by these settings	L'archiver selon ces paramètres
+	weeks	semaines
+	months	mois

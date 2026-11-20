@@ -1888,3 +1888,24 @@ count	occurrences	repeticiones
 	Archive mail received before	Archivar el correo recibido antes del
 	Archive file	Archivo donde archivar
 	That's not a date.	Eso no es una fecha.
+	Archive mail older than	Archivar el correo de más de
+	Move old mail to this file	Mover el correo antiguo a este archivo
+	Delete old mail for good	Eliminar el correo antiguo para siempre
+	AutoArchive	Autoarchivar
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	Cada cierto número de días, el correo antiguo de cada carpeta se archiva en un archivo de datos de este equipo, o se elimina, según la configuración propia de la carpeta (en sus Propiedades) o esta.
+	Run AutoArchive every	Ejecutar Autoarchivar cada
+	Ask before AutoArchive runs	Preguntar antes de ejecutar Autoarchivar
+	Show the archive file in the folder list	Mostrar el archivo en la lista de carpetas
+	For folders without settings of their own	Para las carpetas sin configuración propia
+	Apply these settings to all folders now	Aplicar esta configuración a todas las carpetas ahora
+	Folders with settings of their own follow these instead.	Las carpetas con configuración propia siguen esta en su lugar.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	Han pasado {days} días: ¿archivar ahora el correo antiguo, como está configurado Autoarchivar?
+	Archive now	Archivar ahora
+	Off: old mail stays where it is until you clean it up.	Desactivado: el correo antiguo se queda donde está hasta que lo limpie.
+	Every {days} days, old mail is archived by each folder's settings.	Cada {days} días, el correo antiguo se archiva según la configuración de cada carpeta.
+	AutoArchive settings…	Configuración de Autoarchivar…
+	Don't archive this folder	No archivar esta carpeta
+	Archive it by the default settings	Archivarla según la configuración predeterminada
+	Archive it by these settings	Archivarla según esta configuración
+	weeks	semanas
+	months	meses

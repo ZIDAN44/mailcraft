@@ -11,6 +11,8 @@ use mailcraft_model::Summary;
 pub struct Pick {
     /// These folders' paths and the folders under each; every folder when empty.
     pub folders: Vec<String>,
+    /// Those folders alone, not the folders under them (AutoArchive's, each by its own settings).
+    pub only: bool,
     /// Received before this (Unix seconds).
     pub before: i64,
 }
@@ -21,6 +23,9 @@ impl Pick {
     pub(super) fn takes(&self, f: &Folder) -> bool {
         if f.path.starts_with('\0') {
             return false;
+        }
+        if self.only {
+            return self.folders.contains(&f.path);
         }
         self.folders.is_empty()
             || self

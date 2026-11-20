@@ -1888,3 +1888,24 @@ count	occurrences	Terminen
 	Archive mail received before	E-Mails archivieren, die empfangen wurden vor dem
 	Archive file	Archivdatei
 	That's not a date.	Das ist kein Datum.
+	Archive mail older than	E-Mails archivieren, die älter sind als
+	Move old mail to this file	Alte E-Mails in diese Datei verschieben
+	Delete old mail for good	Alte E-Mails endgültig löschen
+	AutoArchive	AutoArchivierung
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	Alle paar Tage werden die alten E-Mails jedes Ordners in eine Datendatei auf diesem Computer archiviert oder gelöscht, nach den eigenen Einstellungen des Ordners (in seinen Eigenschaften) oder nach diesen.
+	Run AutoArchive every	AutoArchivierung ausführen alle
+	Ask before AutoArchive runs	Vor der AutoArchivierung fragen
+	Show the archive file in the folder list	Die Archivdatei in der Ordnerliste anzeigen
+	For folders without settings of their own	Für Ordner ohne eigene Einstellungen
+	Apply these settings to all folders now	Diese Einstellungen jetzt auf alle Ordner anwenden
+	Folders with settings of their own follow these instead.	Ordner mit eigenen Einstellungen folgen stattdessen diesen.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} Tage sind vergangen: alte E-Mails jetzt archivieren, wie die AutoArchivierung eingestellt ist?
+	Archive now	Jetzt archivieren
+	Off: old mail stays where it is until you clean it up.	Aus: Alte E-Mails bleiben, wo sie sind, bis Sie aufräumen.
+	Every {days} days, old mail is archived by each folder's settings.	Alle {days} Tage werden alte E-Mails nach den Einstellungen jedes Ordners archiviert.
+	AutoArchive settings…	Einstellungen für AutoArchivierung…
+	Don't archive this folder	Diesen Ordner nicht archivieren
+	Archive it by the default settings	Nach den Standardeinstellungen archivieren
+	Archive it by these settings	Nach diesen Einstellungen archivieren
+	weeks	Wochen
+	months	Monate

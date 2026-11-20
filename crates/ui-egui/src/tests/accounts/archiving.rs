@@ -1,5 +1,6 @@
 //! UI tests: File › Info › Clean up old items (issue #179): the dialog it opens, what it asks the
-//! engine for, and a second asked for while one runs.
+//! engine for, and a second asked for while one runs. AutoArchive's settings, a folder's own and
+//! its question (issue #180).
 
 use mailcraft_engine::model::{Job, dates};
 
@@ -54,4 +55,51 @@ fn old_mail_is_archived_from_the_file_page() {
         a.ui.dialog
     );
     assert!(jobs.take().is_empty());
+}
+
+/// AutoArchive (issue #180): its settings from File › Options › Data files, its file suggested
+/// beside the data files; a folder's own in its Properties; and its question, which opens by
+/// itself once it's due, and puts it off when it's not now.
+#[test]
+fn autoarchive_is_set_and_asks() {
+    let _tall = crate::tests::windows::layout::Dressed::new(egui::vec2(1280.0, 2400.0), "");
+    let (mut a, dir) = app("auto-archive-page");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.ui.data_folder = Some((dir.join("MailCraft Files"), true));
+    a.ui.backstage = Some(Backstage::new(Page::Options));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    click_named(&ctx, &mut a, "AutoArchive settings…");
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::AutoArchive(f)) = a.ui.dialog.clone() else { panic!("no AutoArchive settings: {:?}", a.ui.dialog) };
+    let suggested = dir.join("MailCraft Files").join("archive.pst").display().to_string();
+    assert!(!f.on && f.prompt && f.every == 14 && f.rule.path == suggested, "{f:?}");
+    let f = crate::dialogs::AutoArchiveForm { on: true, ..*f };
+    a.ui.dialog = Some(Dialog::AutoArchive(Box::new(f.clone())));
+    a.act(Action::Submit("autoArchive.set", f.params()));
+    assert!(a.ui.dialog.is_none());
+    let set = &a.session.prefs.auto_archive;
+    assert_eq!((set.every_days, set.rule.path.as_str(), set.rule.older_than), (14, suggested.as_str(), 6));
+
+    // A folder's own: never archived.
+    let projects = a.session.folder("sample", "Projects").cloned().unwrap();
+    let Dialog::FolderProperties { archive: Some(form), .. } = Dialog::folder_properties(&a.session, &projects) else {
+        panic!("no AutoArchive in its Properties")
+    };
+    assert_eq!(form.mode, crate::dialogs::FolderMode::Default);
+    let form = crate::dialogs::FolderArchiveForm { mode: crate::dialogs::FolderMode::Off, ..*form };
+    a.act(Action::Submit("autoArchive.folder", form.params()));
+    assert_eq!(a.session.prefs.auto_archive.folder("sample", "Projects"), Some(None));
+
+    // Due: it asks, once nothing else is open; Not now puts it off.
+    a.ui.backstage = None;
+    a.session.prefs.auto_archive.last_run = NOW - 15 * 86_400;
+    a.session.tick();
+    frame(&ctx, &mut a, vec![]);
+    assert!(matches!(a.ui.dialog, Some(Dialog::AutoArchiveDue)), "{:?}", a.ui.dialog);
+    click_named(&ctx, &mut a, "Cancel");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none());
+    assert_eq!(a.session.prefs.auto_archive.last_run, a.session.clock.now, "put off from now");
 }
