@@ -73,7 +73,7 @@ impl DateOrder {
             DateOrder::DayMonthYear => "dmy",
             DateOrder::MonthDayYear => "mdy",
             DateOrder::DayMonthYearDots => "dmy.",
-            DateOrder::YearMonthDayDots => "ymd",
+            DateOrder::YearMonthDayDots => "ymd.",
         }
     }
 
