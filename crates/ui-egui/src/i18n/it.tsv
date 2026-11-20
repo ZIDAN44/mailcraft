@@ -1940,7 +1940,9 @@ count	occurrences	ripetizioni
 	Show this group's mail	Mostra la posta di questo gruppo
 	Hide this group's mail	Nascondi la posta di questo gruppo
 	{heading} ({count}), folded	{heading} ({count}), compresso
+	In {n} min	Tra {n} min
 	Line between the appointments and the tasks	Linea tra appuntamenti e attività
 	Mark all in {folder} as read	Segna tutto in {folder} come letto
 	Mark all shown as read	Segna tutto ciò che è mostrato come letto
 	More ways to mark mail read	Altri modi per segnare la posta come letta
+	{h} h	{h} h

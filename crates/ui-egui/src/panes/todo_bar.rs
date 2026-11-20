@@ -17,6 +17,9 @@ const DAYS_AHEAD: i64 = 7;
 /// and tomorrow's on a busy calendar), the part scrolling; a bound all the same.
 const APPOINTMENTS: usize = 500;
 const ROW: f32 = 26.0;
+/// How soon an appointment starts for its countdown to show (issue #195): within the hour, as
+/// Outlook for Mac's.
+const SOON: i64 = 3600;
 
 /// The bar as a pane at the window's end (its left in a right-to-left interface), when a part of
 /// it is on and the window has room for it beside the `least` the mail needs. Dragged wider or
@@ -174,7 +177,15 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
             ui.label(RichText::new(super::tasks::relative_day(day, s)).font(theme::bold(11.5)).color(t.accent));
         }
         let when = if it.all_day { tl!("All day").to_string() } else { super::calendar::hm(it.start, s) };
-        let h = if it.location.trim().is_empty() { ROW } else { ROW + 14.0 };
+        // How long it is under its time, and how soon it starts when that's within the hour
+        // (issue #195), as Outlook for Mac's day list.
+        let length = (!it.all_day).then(|| length_text(it.end - it.start));
+        let soon = starts_soon(it, s.clock.now);
+        if soon.is_some() {
+            // Counted down a minute at a time.
+            ui.ctx().request_repaint_after(std::time::Duration::from_secs(u64::try_from(60 - s.clock.now.rem_euclid(60)).unwrap_or(60)));
+        }
+        let h = if it.location.trim().is_empty() && length.is_none() { ROW } else { ROW + 14.0 };
         let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), Sense::click());
         if resp.hovered() {
             ui.painter().rect_filled(rect, 4.0, t.hover_row);
@@ -185,10 +196,23 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
         ui.painter().rect_filled(stripe, 1.5, it.category.map_or_else(|| super::calendar::color(it.color, t), |i| theme::category_color(i, t.dark)));
         let p = ui.painter().with_clip_rect(rect);
         let time = widgets::one_line(ui, &when, theme::regular(11.5), t.dim, 70.0);
-        let time_w = time.size().x;
+        let laid = length.as_ref().map(|l| widgets::one_line(ui, l, theme::regular(11.0), t.faint, 70.0));
+        // The time's column as wide as the wider of its time and its length (`15 min` ran into
+        // the place beside it).
+        let time_w = time.size().x.max(laid.as_ref().map_or(0.0, |l| l.size().x));
         let top = rect.min.y + 5.0;
-        p.galley(pos2(mr.start(rect.min.x + 10.0, time_w), top + 1.0), time, t.dim);
-        let room = (rect.width() - 22.0 - time_w).max(10.0);
+        p.galley(pos2(mr.start(rect.min.x + 10.0, time.size().x), top + 1.0), time, t.dim);
+        if let Some(l) = laid {
+            p.galley(pos2(mr.start(rect.min.x + 10.0, l.size().x), top + 18.0), l, t.faint);
+        }
+        let mut room = (rect.width() - 22.0 - time_w).max(10.0);
+        // The countdown at the row's end, in the accent.
+        if let Some(soon) = &soon {
+            let badge = widgets::one_line(ui, soon, theme::bold(11.0), t.accent, 90.0);
+            let w = badge.size().x;
+            p.galley(pos2(mr.start(rect.max.x - 6.0 - w, w), top + 2.0), badge, t.accent);
+            room = (room - w - 8.0).max(10.0);
+        }
         let title = if it.summary.trim().is_empty() { tl!("(no title)").to_string() } else { it.summary.clone() };
         let title = widgets::one_line(ui, &title, theme::regular(13.0), t.text, room);
         p.galley(pos2(mr.start(rect.min.x + 18.0 + time_w, title.size().x), top), title, t.text);
@@ -196,12 +220,30 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
             let place = widgets::one_line(ui, it.location.trim(), theme::regular(11.5), t.faint, room);
             p.galley(pos2(mr.start(rect.min.x + 18.0 + time_w, place.size().x), top + 17.0), place, t.faint);
         }
-        widgets::named(ui, &resp, &format!("{when} {}", it.summary), true, None);
+        // Read as it's shown: its time, how long and how soon, then what it is.
+        let heard = [Some(when.clone()), length.clone(), soon.clone(), Some(it.summary.clone())].into_iter().flatten().collect::<Vec<_>>().join(", ");
+        widgets::named(ui, &resp, &heard, true, None);
         if resp.clicked()
             && let Some(d) = Dialog::open_event(s, &it.uid, it.occurrence)
         {
             acts.push(Action::Dialog(d));
         }
+    }
+}
+
+/// How soon an event starts, when it does within [`SOON`] of `now`: `In 5 min`.
+fn starts_soon(it: &AgendaItem, now: i64) -> Option<String> {
+    let ahead = it.start - now;
+    (!it.all_day && ahead > 0 && ahead <= SOON).then(|| tf!("In {n} min", n = (ahead + 59) / 60))
+}
+
+/// An event's length as the day list shows it: `30 min`, `1 h`, `1 h 30 min` (to the minute).
+fn length_text(secs: i64) -> String {
+    let minutes = (secs.max(0) + 30) / 60;
+    match (minutes / 60, minutes % 60) {
+        (0, m) => tf!("{n} min", n = m),
+        (h, 0) => tf!("{h} h", h = h),
+        (h, m) => tf!("{h} h {m} min", h = h, m = m),
     }
 }
 

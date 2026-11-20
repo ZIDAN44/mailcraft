@@ -1936,7 +1936,9 @@ count	occurrences	פעמים
 	Show this group's mail	הצגת הדואר של הקבוצה הזו
 	Hide this group's mail	הסתרת הדואר של הקבוצה הזו
 	{heading} ({count}), folded	{heading} ({count}), מכווצת
+	In {n} min	בעוד {n} דק׳
 	Line between the appointments and the tasks	הקו בין הפגישות למשימות
 	Mark all in {folder} as read	סימון כל מה שב{folder} כנקרא
 	Mark all shown as read	סימון כל המוצג כנקרא
 	More ways to mark mail read	דרכים נוספות לסמן דואר כנקרא
+	{h} h	{h} שע׳

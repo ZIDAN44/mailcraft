@@ -1936,7 +1936,9 @@ count	occurrences	مرات
 	Show this group's mail	إظهار بريد هذه المجموعة
 	Hide this group's mail	إخفاء بريد هذه المجموعة
 	{heading} ({count}), folded	{heading} ({count})، مطوية
+	In {n} min	بعد {n} د
 	Line between the appointments and the tasks	الخط بين المواعيد والمهام
 	Mark all in {folder} as read	وضع علامة مقروء على كل ما في {folder}
 	Mark all shown as read	وضع علامة مقروء على كل المعروض
 	More ways to mark mail read	طرق أخرى لوضع علامة مقروء
+	{h} h	{h} س

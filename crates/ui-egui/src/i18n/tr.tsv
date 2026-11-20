@@ -1941,7 +1941,9 @@ count	occurrences	kez
 	Show this group's mail	Bu grubun postalarını göster
 	Hide this group's mail	Bu grubun postalarını gizle
 	{heading} ({count}), folded	{heading} ({count}), daraltılmış
+	In {n} min	{n} dk içinde
 	Line between the appointments and the tasks	Randevular ile görevler arasındaki çizgi
 	Mark all in {folder} as read	{folder} içindeki her şeyi okundu olarak işaretle
 	Mark all shown as read	Gösterilen her şeyi okundu olarak işaretle
 	More ways to mark mail read	Postayı okundu olarak işaretlemenin diğer yolları
+	{h} h	{h} sa

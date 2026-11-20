@@ -404,3 +404,36 @@ fn the_line_between_appointments_and_tasks_is_dragged() {
     assert!(a.session.prefs.todo_bar.appointments && a.session.prefs.todo_bar.tasks, "a split alone leaves the parts as they are");
 }
 
+/// Issue #195: each appointment says how long it is under its time, and one starting within the
+/// hour how soon (`In 20 min`), as Outlook for Mac's day list; one further off has no countdown.
+#[test]
+fn appointments_say_how_long_and_how_soon() {
+    let (mut a, _) = app("todo-bar-soon");
+    let ctx = egui::Context::default();
+    a.run("view.todoBar", json!({"width": 360}));
+    a.run("view.todoBar", json!({"part": "appointments", "on": true}));
+    let at = |a: &MailApp, ahead: i64| {
+        let local = a.session.clock.local(a.session.clock.now + ahead);
+        let (day, secs) = (local.div_euclid(86_400), local.rem_euclid(86_400));
+        format!("{}T{:02}:{:02}", mailcraft_engine::model::dates::day_string(day), secs / 3600, secs % 3600 / 60)
+    };
+    let (soon, later) = (at(&a, 20 * 60), at(&a, 2 * 3600));
+    let end = at(&a, 20 * 60 + 90 * 60);
+    a.session.run("event.create", &json!({"summary": "Colour review", "start": soon, "end": end, "location": "Grading suite"})).unwrap();
+    let later_end = at(&a, 2 * 3600 + 30 * 60);
+    a.session.run("event.create", &json!({"summary": "Sound check", "start": later, "end": later_end})).unwrap();
+    settle(&ctx, &mut a);
+    let edge = SIZE.x - 360.0;
+    let shown: Vec<(String, egui::Rect)> = drawn(&ctx, &mut a, SIZE).into_iter().filter(|(_, r)| r.left() >= edge).collect();
+    let find = |what: &str| shown.iter().find(|(s, _)| s == what).map(|(_, r)| *r);
+    let review = find("Colour review").expect("listed");
+    let (long, badge) = (find("1 h 30 min").expect("its length"), find("In 20 min").expect("how soon"));
+    assert!((long.center().y - review.center().y).abs() < 30.0 && long.min.y > review.min.y, "under its time: {long:?} {review:?}");
+    assert!((badge.center().y - review.center().y).abs() < 12.0 && badge.min.x > review.max.x, "at its row's end: {badge:?}");
+    // The length, wider than its time, doesn't run into the place beside it.
+    let place = find("Grading suite").expect("its place");
+    assert!(long.max.x <= place.min.x, "{long:?} runs into {place:?}");
+    let check = find("Sound check").expect("listed");
+    assert!(find("30 min").is_some_and(|r| (r.center().y - check.center().y).abs() < 30.0), "its length");
+    assert!(!shown.iter().any(|(s, r)| s.starts_with("In ") && (r.center().y - check.center().y).abs() < 12.0), "two hours off: no countdown");
+}

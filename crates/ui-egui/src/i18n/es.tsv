@@ -1941,7 +1941,9 @@ count	occurrences	repeticiones
 	Show this group's mail	Mostrar el correo de este grupo
 	Hide this group's mail	Ocultar el correo de este grupo
 	{heading} ({count}), folded	{heading} ({count}), contraído
+	In {n} min	En {n} min
 	Line between the appointments and the tasks	Línea entre las citas y las tareas
 	Mark all in {folder} as read	Marcar todo en {folder} como leído
 	Mark all shown as read	Marcar todo lo mostrado como leído
 	More ways to mark mail read	Más formas de marcar el correo como leído
+	{h} h	{h} h

@@ -47,6 +47,7 @@ Thanks to Peter Páleník for reviewing the Slovak translation (#133, #137).
 - An event dragged in the calendar moves (#192), as in Outlook: in **Day**, **Work week** and **Week** to another time, in quarter hours, and to another day, and in **Month** and along the all-day row to another day, all of it and as long as it was. Where it would go is outlined with its new times while it's dragged, and **Esc** leaves it where it was. A meeting you organize sends its guests the change, as when it's saved in its form. One that repeats, or a meeting someone else organized, is changed in its form as before.
 - **Mark all as read** on the Home tab (#197), in the menu beside **Mark read**, as Outlook has it on its Folder tab: the folder open, all of it, whatever a search or the **Focused** and **Other** tabs show of it. On a server holding more of the folder than is kept here, its unread mail there is marked too (on Exchange 2010 and grommunio a page at a time), and the folder's count goes. A folder's own right-click **Mark all as read** marks it where it is, without opening it.
 - The line between the To-Do Bar's **Appointments** and **Tasks** is dragged up or down to give either more room (#196), and stays where it's left, a restart too: the appointments had half, always. With the keyboard on it, Up and Down move it.
+- The To-Do Bar's appointments say how long each is under its time, **30 min** or **1 h 30 min**, and one starting within the hour how soon, **In 20 min**, counting down (#195), as Outlook for Mac's day list.
 
 ### Changed
 

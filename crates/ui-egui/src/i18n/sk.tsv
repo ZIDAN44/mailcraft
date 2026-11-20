@@ -1941,7 +1941,9 @@ count	occurrences	opakovaní
 	Show this group's mail	Zobraziť poštu tejto skupiny
 	Hide this group's mail	Skryť poštu tejto skupiny
 	{heading} ({count}), folded	{heading} ({count}), zbalená
+	In {n} min	O {n} min
 	Line between the appointments and the tasks	Čiara medzi stretnutiami a úlohami
 	Mark all in {folder} as read	Označiť všetko v priečinku {folder} ako prečítané
 	Mark all shown as read	Označiť všetko zobrazené ako prečítané
 	More ways to mark mail read	Ďalšie spôsoby, ako označiť poštu ako prečítanú
+	{h} h	{h} h
