@@ -232,6 +232,8 @@ pub enum Dialog {
         account: String,
         folder: String,
         filter: String,
+        /// Where it's to go, picked in the list (issue #182): `Some(None)`, the top level.
+        chosen: Option<Option<String>>,
         error: Option<String>,
     },
     DeleteFolder {
@@ -587,7 +589,7 @@ impl Dialog {
     }
 
     pub fn move_folder(f: &Folder) -> Dialog {
-        Dialog::MoveFolder { account: f.account.clone(), folder: f.path.clone(), filter: String::new(), error: None }
+        Dialog::MoveFolder { account: f.account.clone(), folder: f.path.clone(), filter: String::new(), chosen: None, error: None }
     }
 
     /// Delete a folder: into Deleted Items, or for good when it's already there.

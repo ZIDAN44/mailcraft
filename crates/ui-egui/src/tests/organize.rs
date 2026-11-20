@@ -401,12 +401,46 @@ fn folder_search_finds_the_name_shown() {
         assert_eq!(rows(&mut a, Dialog::MoveTo { filter: typed.into(), copy: false }, typed), ["Posteingang"], "Move to, {typed:?}");
     }
     assert_eq!(rows(&mut a, Dialog::MoveTo { filter: "entw".into(), copy: false }, "entw"), ["Entwürfe"]);
-    let moving = |filter: &str| Dialog::MoveFolder { account: "sample".into(), folder: "Projects".into(), filter: filter.into(), error: None };
+    let moving =
+        |filter: &str| Dialog::MoveFolder { account: "sample".into(), folder: "Projects".into(), filter: filter.into(), chosen: None, error: None };
     for typed in ["posteingang", "inbox"] {
         assert_eq!(rows(&mut a, moving(typed), typed), ["Posteingang"], "Move folder, {typed:?}");
     }
     assert_eq!(rows(&mut a, moving("gel"), "gel"), ["Gelöschte Elemente"]);
     crate::i18n::set_current(crate::i18n::Lang::EN);
+}
+
+/// Issue #182: in Move folder a click picks where the folder goes, Move turns on and moves it
+/// there. A click moved it at once, and Move never turned on.
+#[test]
+fn move_folder_picks_then_moves() {
+    let (mut a, _) = app("move-folder-pick");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let projects = a.session.folder("sample", "Projects/Short film").cloned().unwrap();
+    a.ui.dialog = Some(Dialog::move_folder(&projects));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    let move_button = |ctx: &egui::Context, a: &mut MailApp| {
+        named(ctx, a, egui::vec2(1280.0, 800.0)).into_iter().find(|n| n.label.as_deref() == Some("Move")).map(|n| n.disabled)
+    };
+    assert_eq!(move_button(&ctx, &mut a), Some(true), "nothing picked yet");
+    // Each row across the list, a short name's as a long one's.
+    let width = |ctx: &egui::Context, a: &mut MailApp, name: &str| {
+        let all = named(ctx, a, egui::vec2(1280.0, 800.0));
+        all.into_iter().find(|n| n.label.as_deref() == Some(name)).and_then(|n| n.rect).map(|r| r.width()).unwrap()
+    };
+    let (inbox, top) = (width(&ctx, &mut a, "Inbox"), width(&ctx, &mut a, "(Top level)"));
+    assert!(inbox > 200.0 && (inbox - top).abs() < 1.0, "rows as wide as the list: {inbox} {top}");
+    click_named(&ctx, &mut a, "Inbox");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.folder("sample", "Projects/Short film").is_some(), "a click only picks");
+    assert!(matches!(&a.ui.dialog, Some(Dialog::MoveFolder { chosen: Some(Some(p)), .. }) if p == "INBOX"), "{:?}", a.ui.dialog);
+    assert_eq!(move_button(&ctx, &mut a), Some(false), "Move turns on");
+    click_named(&ctx, &mut a, "Move");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.folder("sample", "INBOX/Short film").is_some(), "moved there");
+    assert!(a.ui.dialog.is_none());
 }
 
 /// `n` rules, the fourth moving mail to "Projects/Short film", the others flagging it.

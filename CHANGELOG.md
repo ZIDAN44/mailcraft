@@ -82,6 +82,7 @@ Thanks to Peter Páleník for reviewing the Slovak translation (#133, #137).
 - Searching the server for a date alone (`before:2024-01-01`, `after:`, `received:2023`) finds the mail of those days that isn't kept on this computer, on IMAP, Exchange, Microsoft 365 and JMAP accounts: the server was asked without the date, which left nothing to ask. With words too, IMAP and JMAP servers are asked for the days as well.
 - Searching the server right after deleting or moving mail no longer finds that mail again: the search could reach the server before the change did.
 - A folder dragged onto another folder in the folder pane goes into it (#181): the drop was lost, though the folder under the pointer lit up. A folder dropped on a shared mailbox's top row goes into it too.
+- **Move folder** (#182): a click picks where the folder goes and **Move** moves it there, as in Outlook; it moved at once, and **Move** never turned on. A double click still moves it at once. Its list, and **Move to folder**'s, are as wide as the dialog, their scroll bar at the edge rather than in the middle.
 
 ## 0.40.0 - 2026-11-17
 
