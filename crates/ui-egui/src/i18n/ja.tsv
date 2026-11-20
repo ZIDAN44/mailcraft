@@ -1937,9 +1937,14 @@ count	occurrences	回
 	Show this group's mail	このグループのメールを表示
 	Hide this group's mail	このグループのメールを非表示
 	{heading} ({count}), folded	{heading} ({count})、折りたたみ
+	Clashes with {event} on your calendar	カレンダーの {event} と重なっています
+	Clashes with {n} events on your calendar	カレンダーの {n} 件の予定と重なっています
 	In {n} min	{n} 分後
 	Line between the appointments and the tasks	予定とタスクの境界線
 	Mark all in {folder} as read	{folder} をすべて既読にする
 	Mark all shown as read	表示中のものをすべて既読にする
 	More ways to mark mail read	メールを既読にするその他の方法
+	Nothing else on your calendar then	その時間、カレンダーにほかの予定はありません
+	Right after {event} on your calendar	カレンダーの {event} の直後です
+	Right before {event} on your calendar	カレンダーの {event} の直前です
 	{h} h	{h} 時間

@@ -301,8 +301,9 @@ pub struct UiState {
     pub(crate) person: Option<String>,
     /// What People, Tasks and Notes list, as last made (see `shown`).
     pub(crate) shown: shown::Shown,
-    /// The invitation in the open message, worked out once per message and calendar change.
-    pub(crate) invite: Option<(MessageKey, u64, Option<mailcraft_engine::Invite>)>,
+    /// The invitation in the open message, worked out once per message and calendar change, with
+    /// how it fits the user's calendar (issue #194).
+    pub(crate) invite: Option<(MessageKey, u64, Option<mailcraft_engine::Invite>, Option<mailcraft_engine::InviteDay>)>,
     /// Files to drag out of the window (the app starts the system drag).
     pub(crate) drag_out: Vec<PathBuf>,
     /// The platform can drag files out.

@@ -1936,9 +1936,14 @@ count	occurrences	مرات
 	Show this group's mail	إظهار بريد هذه المجموعة
 	Hide this group's mail	إخفاء بريد هذه المجموعة
 	{heading} ({count}), folded	{heading} ({count})، مطوية
+	Clashes with {event} on your calendar	يتعارض مع {event} في تقويمك
+	Clashes with {n} events on your calendar	يتعارض مع {n} من الأحداث في تقويمك
 	In {n} min	بعد {n} د
 	Line between the appointments and the tasks	الخط بين المواعيد والمهام
 	Mark all in {folder} as read	وضع علامة مقروء على كل ما في {folder}
 	Mark all shown as read	وضع علامة مقروء على كل المعروض
 	More ways to mark mail read	طرق أخرى لوضع علامة مقروء
+	Nothing else on your calendar then	لا شيء آخر في تقويمك في ذلك الوقت
+	Right after {event} on your calendar	مباشرة بعد {event} في تقويمك
+	Right before {event} on your calendar	مباشرة قبل {event} في تقويمك
 	{h} h	{h} س

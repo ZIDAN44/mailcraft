@@ -1940,9 +1940,14 @@ count	occurrences	ripetizioni
 	Show this group's mail	Mostra la posta di questo gruppo
 	Hide this group's mail	Nascondi la posta di questo gruppo
 	{heading} ({count}), folded	{heading} ({count}), compresso
+	Clashes with {event} on your calendar	Si sovrappone a {event} nel tuo calendario
+	Clashes with {n} events on your calendar	Si sovrappone a {n} eventi nel tuo calendario
 	In {n} min	Tra {n} min
 	Line between the appointments and the tasks	Linea tra appuntamenti e attività
 	Mark all in {folder} as read	Segna tutto in {folder} come letto
 	Mark all shown as read	Segna tutto ciò che è mostrato come letto
 	More ways to mark mail read	Altri modi per segnare la posta come letta
+	Nothing else on your calendar then	Nient’altro nel tuo calendario a quell’ora
+	Right after {event} on your calendar	Subito dopo {event} nel tuo calendario
+	Right before {event} on your calendar	Subito prima di {event} nel tuo calendario
 	{h} h	{h} h

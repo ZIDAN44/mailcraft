@@ -8,6 +8,7 @@ use super::*;
 use crate::InviteProblem;
 
 mod answered_invites;
+mod fit;
 mod invite_placing;
 mod scheduling;
 mod sogo;

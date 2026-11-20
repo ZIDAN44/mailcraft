@@ -1941,9 +1941,14 @@ count	occurrences	opakovaní
 	Show this group's mail	Zobraziť poštu tejto skupiny
 	Hide this group's mail	Skryť poštu tejto skupiny
 	{heading} ({count}), folded	{heading} ({count}), zbalená
+	Clashes with {event} on your calendar	Prekrýva sa s {event} vo vašom kalendári
+	Clashes with {n} events on your calendar	Prekrýva sa s udalosťami vo vašom kalendári: {n}
 	In {n} min	O {n} min
 	Line between the appointments and the tasks	Čiara medzi stretnutiami a úlohami
 	Mark all in {folder} as read	Označiť všetko v priečinku {folder} ako prečítané
 	Mark all shown as read	Označiť všetko zobrazené ako prečítané
 	More ways to mark mail read	Ďalšie spôsoby, ako označiť poštu ako prečítanú
+	Nothing else on your calendar then	V tom čase nič iné vo vašom kalendári nie je
+	Right after {event} on your calendar	Hneď po {event} vo vašom kalendári
+	Right before {event} on your calendar	Hneď pred {event} vo vašom kalendári
 	{h} h	{h} h

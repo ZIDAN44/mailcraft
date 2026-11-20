@@ -18,6 +18,7 @@ pub(crate) mod body;
 mod compose;
 mod frame_lru;
 mod header;
+mod invite_day;
 mod long_text;
 mod people;
 mod pictures;
@@ -261,7 +262,7 @@ fn attachments_strip(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, f
     let shown: Vec<usize> = if formatted { p.images.iter().filter_map(|i| mime::picture_attachment(p, i)).collect() } else { Vec::new() };
     let in_place = |a: &mime::AttachmentInfo| shown.contains(&a.index);
     // An invitation is shown as its card above, not as a file.
-    let invitation = st.invite.as_ref().is_some_and(|(k, _, i)| k == &r.key && i.is_some()) && !o.in_window;
+    let invitation = st.invite.as_ref().is_some_and(|(k, _, i, _)| k == &r.key && i.is_some()) && !o.in_window;
     let is_invite_file = |a: &mime::AttachmentInfo| {
         invitation && (a.mime.to_ascii_lowercase().starts_with("text/calendar") || a.name.to_ascii_lowercase().ends_with(".ics"))
     };
@@ -465,11 +466,15 @@ fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, act
     if s.reading.as_ref().is_some_and(|r| &r.key == key && r.text_first) {
         return;
     }
-    let fresh = st.invite.as_ref().is_some_and(|(k, rev, _)| k == key && *rev == s.pim_revision);
+    let fresh = st.invite.as_ref().is_some_and(|(k, rev, _, _)| k == key && *rev == s.pim_revision);
     if !fresh {
-        st.invite = Some((key.clone(), s.pim_revision, s.invite()));
+        let inv = s.invite();
+        // How a request fits the calendar: worked out with it, not each frame.
+        let day = inv.as_ref().filter(|i| i.method == "REQUEST" && i.problem.is_none()).and_then(|i| s.invite_day(&i.event));
+        st.invite = Some((key.clone(), s.pim_revision, inv, day));
     }
-    let Some(inv) = st.invite.as_ref().and_then(|(_, _, i)| i.clone()) else { return };
+    let Some(inv) = st.invite.as_ref().and_then(|(_, _, i, _)| i.clone()) else { return };
+    let day = st.invite.as_ref().and_then(|(_, _, _, d)| d.clone());
     let t = st.tokens;
     let e = &inv.event;
     egui::Frame::new().fill(t.accent_soft).corner_radius(8).inner_margin(Margin::same(12)).show(ui, |ui| {
@@ -498,6 +503,11 @@ fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, act
         }
         match inv.method.as_str() {
             "REQUEST" => {
+                // How it fits the calendar, and the hours around it (issue #194).
+                if let Some(day) = &day {
+                    invite_day::show(s, &t, ui, e, day, acts);
+                    ui.add_space(6.0);
+                }
                 ui.horizontal_wrapped(|ui| {
                     let current = match inv.answer.as_str() {
                         "ACCEPTED" => Some("You accepted."),

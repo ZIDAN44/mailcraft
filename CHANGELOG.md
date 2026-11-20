@@ -48,6 +48,7 @@ Thanks to Peter Páleník for reviewing the Slovak translation (#133, #137).
 - **Mark all as read** on the Home tab (#197), in the menu beside **Mark read**, as Outlook has it on its Folder tab: the folder open, all of it, whatever a search or the **Focused** and **Other** tabs show of it. On a server holding more of the folder than is kept here, its unread mail there is marked too (on Exchange 2010 and grommunio a page at a time), and the folder's count goes. A folder's own right-click **Mark all as read** marks it where it is, without opening it.
 - The line between the To-Do Bar's **Appointments** and **Tasks** is dragged up or down to give either more room (#196), and stays where it's left, a restart too: the appointments had half, always. With the keyboard on it, Up and Down move it.
 - The To-Do Bar's appointments say how long each is under its time, **30 min** or **1 h 30 min**, and one starting within the hour how soon, **In 20 min**, counting down (#195), as Outlook for Mac's day list.
+- A meeting invitation says how it fits your calendar (#194), as Outlook does on a meeting request: what it clashes with, by name and time, or what it's right before or after, under its time, with a strip of the hours around it showing your events and the invitation outlined among them; a click on one of yours opens it. Your own calendars count, shown or not, not a colleague's; events shown as free don't clash.
 
 ### Changed
 

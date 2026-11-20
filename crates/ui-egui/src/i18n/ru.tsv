@@ -1940,9 +1940,14 @@ count	occurrences	повторений
 	Show this group's mail	Показать почту этой группы
 	Hide this group's mail	Скрыть почту этой группы
 	{heading} ({count}), folded	{heading} ({count}), свёрнута
+	Clashes with {event} on your calendar	Пересекается с «{event}» в вашем календаре
+	Clashes with {n} events on your calendar	Пересекается с событиями в вашем календаре: {n}
 	In {n} min	Через {n} мин
 	Line between the appointments and the tasks	Линия между встречами и задачами
 	Mark all in {folder} as read	Отметить всё в папке «{folder}» как прочитанное
 	Mark all shown as read	Отметить всё показанное как прочитанное
 	More ways to mark mail read	Другие способы отметить почту как прочитанную
+	Nothing else on your calendar then	В это время в вашем календаре больше ничего нет
+	Right after {event} on your calendar	Сразу после «{event}» в вашем календаре
+	Right before {event} on your calendar	Сразу перед «{event}» в вашем календаре
 	{h} h	{h} ч

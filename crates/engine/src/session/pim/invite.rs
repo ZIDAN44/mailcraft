@@ -13,12 +13,14 @@ use mailcraft_model::pim::{LOCAL, Pim, StoredEvent, Tombstone};
 use super::*;
 
 mod arrival;
+mod fit;
 mod notices;
 mod tidy;
 
 #[cfg(test)]
 pub(crate) use arrival::HOLD_SECS;
 pub(crate) use arrival::drop_empty_local;
+pub use fit::{Fit, InviteDay};
 pub use notices::Route;
 pub use tidy::AnsweredInvites;
 pub(crate) use tidy::WaitingTidy;

@@ -1940,9 +1940,14 @@ count	occurrences	회
 	Show this group's mail	이 그룹의 메일 표시
 	Hide this group's mail	이 그룹의 메일 숨기기
 	{heading} ({count}), folded	{heading} ({count}), 접힘
+	Clashes with {event} on your calendar	캘린더의 {event}와(과) 겹칩니다
+	Clashes with {n} events on your calendar	캘린더의 일정 {n}개와 겹칩니다
 	In {n} min	{n}분 후
 	Line between the appointments and the tasks	약속과 작업 사이의 선
 	Mark all in {folder} as read	{folder}의 모든 메일을 읽음으로 표시
 	Mark all shown as read	표시된 모든 메일을 읽음으로 표시
 	More ways to mark mail read	메일을 읽음으로 표시하는 다른 방법
+	Nothing else on your calendar then	그 시간에 캘린더에 다른 일정이 없습니다
+	Right after {event} on your calendar	캘린더의 {event} 바로 다음입니다
+	Right before {event} on your calendar	캘린더의 {event} 바로 앞입니다
 	{h} h	{h}시간

@@ -1941,9 +1941,14 @@ count	occurrences	Terminen
 	Show this group's mail	E-Mails dieser Gruppe anzeigen
 	Hide this group's mail	E-Mails dieser Gruppe ausblenden
 	{heading} ({count}), folded	{heading} ({count}), reduziert
+	Clashes with {event} on your calendar	Überschneidet sich mit {event} in Ihrem Kalender
+	Clashes with {n} events on your calendar	Überschneidet sich mit {n} Terminen in Ihrem Kalender
 	In {n} min	In {n} Min.
 	Line between the appointments and the tasks	Linie zwischen Terminen und Aufgaben
 	Mark all in {folder} as read	Alles in {folder} als gelesen markieren
 	Mark all shown as read	Alles Angezeigte als gelesen markieren
 	More ways to mark mail read	Weitere Möglichkeiten, E-Mails als gelesen zu markieren
+	Nothing else on your calendar then	Sonst nichts in Ihrem Kalender zu dieser Zeit
+	Right after {event} on your calendar	Direkt nach {event} in Ihrem Kalender
+	Right before {event} on your calendar	Direkt vor {event} in Ihrem Kalender
 	{h} h	{h} Std.

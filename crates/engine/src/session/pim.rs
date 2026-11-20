@@ -286,13 +286,22 @@ impl Session {
     /// The occurrences overlapping `[from, to)`, by start, from every calendar that's shown.
     /// (Each with its calendar's colour: [`Session::calendar_color`].)
     pub fn agenda(&self, from: i64, to: i64) -> Vec<AgendaItem> {
+        let mut out = self.agenda_where(from, to, |account, cal| self.calendar_shown(account, &cal.id));
+        self.free_busy_items(from, to, &mut out);
+        out.sort_by(|a, b| (b.all_day, a.start, &a.summary).cmp(&(a.all_day, b.start, &b.summary)));
+        out
+    }
+
+    /// The events between `from` and `to` of the calendars `keep` takes (an account's id, the
+    /// calendar), unsorted.
+    pub(super) fn agenda_where(&self, from: i64, to: i64, keep: impl Fn(&str, &mailcraft_model::pim::CalendarInfo) -> bool) -> Vec<AgendaItem> {
         // Every address of the accounts' (their others too: an invitation to one needs its
         // answer like any).
         let mine = self.my_addresses();
         let mut out = Vec::new();
         for (account, p) in &self.pim {
             let Some(acc) = self.account(account) else { continue };
-            for cal in p.calendars.iter().filter(|c| self.calendar_shown(account, &c.id)) {
+            for cal in p.calendars.iter().filter(|c| keep(account, c)) {
                 // Borrowed, not copied: this runs each frame the calendar is drawn, and an
                 // imported event can carry files.
                 let events: Vec<&CalEvent> = p.events.iter().filter(|e| e.calendar == cal.id).map(|e| &e.event).collect();
@@ -328,8 +337,6 @@ impl Session {
                 }
             }
         }
-        self.free_busy_items(from, to, &mut out);
-        out.sort_by(|a, b| (b.all_day, a.start, &a.summary).cmp(&(a.all_day, b.start, &b.summary)));
         out
     }
 

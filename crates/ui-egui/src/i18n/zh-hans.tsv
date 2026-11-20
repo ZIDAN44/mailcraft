@@ -1937,9 +1937,14 @@ count	occurrences	次
 	Show this group's mail	显示此组的邮件
 	Hide this group's mail	隐藏此组的邮件
 	{heading} ({count}), folded	{heading}（{count}），已折叠
+	Clashes with {event} on your calendar	与日历中的 {event} 冲突
+	Clashes with {n} events on your calendar	与日历中的 {n} 个活动冲突
 	In {n} min	{n} 分钟后
 	Line between the appointments and the tasks	约会与任务之间的分隔线
 	Mark all in {folder} as read	将 {folder} 中的全部标记为已读
 	Mark all shown as read	将显示的全部标记为已读
 	More ways to mark mail read	将邮件标记为已读的更多方式
+	Nothing else on your calendar then	那时日历中没有其他安排
+	Right after {event} on your calendar	紧接在日历中的 {event} 之后
+	Right before {event} on your calendar	紧接在日历中的 {event} 之前
 	{h} h	{h} 小时
