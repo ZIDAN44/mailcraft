@@ -173,6 +173,8 @@ pub struct Data {
     pub free_busy: Vec<availability::FakeBusy>,
     /// People who don't share their free/busy times with the account.
     pub free_busy_refused: Vec<String>,
+    /// Someone's `WorkingHours`, as the service writes it beside their times (issue #185).
+    pub working_hours: Vec<(String, String)>,
     /// The free/busy times asked for, in order.
     pub availability_asks: Vec<availability::AvailabilityAsk>,
     /// Pull subscriptions to the mailbox's folders (issue #145).
@@ -241,6 +243,7 @@ impl Default for Data {
             rule_updates: 0,
             free_busy: Vec::new(),
             free_busy_refused: Vec::new(),
+            working_hours: Vec::new(),
             availability_asks: Vec::new(),
             subscriptions: Vec::new(),
             subscribe_all_refused: false,

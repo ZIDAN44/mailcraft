@@ -74,3 +74,23 @@ fn a_calendar_shared_for_its_times_alone_is_listed_as_that() {
     let cleo = find("cleo@contoso.example");
     assert!(cleo.free_busy && cleo.read_only, "{cleo:?}");
 }
+
+/// Issue #185: a colleague's work hours come with their schedule, their zone by its Windows name.
+#[test]
+fn a_schedules_work_hours_come_with_it() {
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"));
+    d.schedules.push(("ana@contoso.example".into(), item("busy", "2026-11-03T09:00:00", "2026-11-03T10:30:00", None)));
+    d.working_hours.push((
+        "ana@contoso.example".into(),
+        json!({"daysOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday"], "startTime": "08:30:00.0000000",
+               "endTime": "17:00:00.0000000", "timeZone": {"name": "W. Europe Standard Time"}}),
+    ));
+    let server = serve(d);
+    let c = crate::graph::Client::connect(&server.base, TOKEN).unwrap();
+    let from = at("2026-11-02T00:00:00Z");
+    let answers = c.availability(&["ana@contoso.example".to_string()], from, from + 7 * 86_400).unwrap();
+    let work = answers[0].work.as_ref().expect("her work hours");
+    assert_eq!((work.periods[0].days, work.periods[0].start, work.periods[0].end), (0b1_1111, 510, 1020));
+    assert!(work.spans(from, from + 86_400).contains(&(at("2026-11-02T07:30:00Z"), at("2026-11-02T16:00:00Z"))), "an hour east in November");
+}

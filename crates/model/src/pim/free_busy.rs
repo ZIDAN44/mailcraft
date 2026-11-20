@@ -31,4 +31,7 @@ pub struct FreeBusyAnswer {
     pub email: String,
     pub busy: Vec<Busy>,
     pub error: Option<String>,
+    /// When they work, when the server says (issue #185).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub work: Option<super::work_hours::WorkHours>,
 }

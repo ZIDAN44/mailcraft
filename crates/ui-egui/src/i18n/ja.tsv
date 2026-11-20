@@ -1910,3 +1910,9 @@ count	occurrences	回
 	Spacious	ゆったり
 	Medium	標準
 	Sort folders A to Z	フォルダーを名前順に並べる
+	Work days	勤務日
+	The work week shows these days	稼働日にはこれらの曜日が表示されます
+	Work hours	勤務時間
+	The calendar shades the hours outside them	勤務時間外はカレンダーで網掛け表示されます
+	Start time	開始時刻
+	End time	終了時刻

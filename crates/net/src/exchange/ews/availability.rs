@@ -67,7 +67,7 @@ pub fn answers_in(doc: &El, people: &[String]) -> Vec<FreeBusyAnswer> {
         .enumerate()
         .map(|(i, email)| {
             let Some(r) = given.get(i) else {
-                return FreeBusyAnswer { email: email.clone(), busy: Vec::new(), error: Some("the server gave no free/busy times".into()) };
+                return FreeBusyAnswer { email: email.clone(), error: Some("the server gave no free/busy times".into()), ..Default::default() };
             };
             let error = r.child("ResponseMessage").filter(|m| m.attr("ResponseClass") == Some("Error")).map(|m| {
                 let code = m.text_of("ResponseCode").unwrap_or("");
@@ -78,9 +78,57 @@ pub fn answers_in(doc: &El, people: &[String]) -> Vec<FreeBusyAnswer> {
                 }
             });
             let busy = if error.is_some() { Vec::new() } else { busy_in(r) };
-            FreeBusyAnswer { email: email.clone(), busy, error }
+            let work = if error.is_some() { None } else { work_in(r) };
+            FreeBusyAnswer { email: email.clone(), busy, error, work }
         })
         .collect()
+}
+
+/// When one person works, in a `FreeBusyResponse`'s `WorkingHours` (issue #185): their zone, as
+/// the service writes one, and each period's days and minutes there.
+fn work_in(r: &El) -> Option<mailcraft_model::pim::work_hours::WorkHours> {
+    use mailcraft_model::pim::work_hours::{ClockChange, PERIODS_MAX, WorkHours, WorkPeriod, WorkZone};
+    const DAYS: [&str; 7] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    let w = r.find("WorkingHours")?;
+    let int = |e: &El, name: &str| e.text_of(name).and_then(|v| v.trim().parse::<i32>().ok());
+    let change = |e: &El| -> Option<ClockChange> {
+        let time = e.text_of("Time")?;
+        let mut hm = time.split(':');
+        let minute = hm.next()?.parse::<u32>().ok()?.min(24) * 60 + hm.next()?.parse::<u32>().ok()?.min(59);
+        let weekday = DAYS.iter().position(|d| Some(*d) == e.text_of("DayOfWeek"))?;
+        Some(ClockChange {
+            bias: int(e, "Bias").unwrap_or(0).clamp(-1440, 1440),
+            month: u32::try_from(int(e, "Month")?).ok()?,
+            order: u32::try_from(int(e, "DayOrder")?).ok()?,
+            weekday: u32::try_from(weekday).ok()?,
+            minute,
+        })
+    };
+    let zone = w.find("TimeZone").map_or_else(WorkZone::default, |z| WorkZone {
+        bias: int(z, "Bias").unwrap_or(0).clamp(-1440, 1440),
+        standard: z.child("StandardTime").and_then(change),
+        daylight: z.child("DaylightTime").and_then(change),
+        name: None,
+    });
+    let periods: Vec<WorkPeriod> = w
+        .find("WorkingPeriodArray")?
+        .children("WorkingPeriod")
+        .filter_map(|p| {
+            // A day's name, or one of the schema's for several (`Weekday`: Monday to Friday).
+            let days = p.text_of("DayOfWeek")?.split_whitespace().fold(0u8, |m, d| {
+                m | match d {
+                    "Day" => 0b111_1111,
+                    "Weekday" => 0b001_1111,
+                    "WeekendDay" => 0b110_0000,
+                    d => DAYS.iter().position(|x| *x == d).map_or(0, |i| 1 << i),
+                }
+            });
+            let minutes = |name: &str| int(p, name).and_then(|m| u16::try_from(m.clamp(0, 1440)).ok());
+            Some(WorkPeriod { days, start: minutes("StartTimeInMinutes")?, end: minutes("EndTimeInMinutes")? })
+        })
+        .take(PERIODS_MAX)
+        .collect();
+    (!periods.is_empty()).then_some(WorkHours { periods, zone })
 }
 
 /// The times one person's calendar is taken, in a `FreeBusyResponse`.

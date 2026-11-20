@@ -9,6 +9,7 @@ use crate::vcard::Card;
 pub mod free_busy;
 pub mod ical;
 pub mod vcard;
+pub mod work_hours;
 
 mod kept_file;
 mod task;

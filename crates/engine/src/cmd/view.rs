@@ -244,6 +244,31 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"count": s.prefs.calendar_months}))
         })
         .params(r#"{"count": number (1 to 6)}"#),
+        CommandSpec::new("calendar.workTime", "Work time", "File › Options › Calendar", |s, v| {
+            let days: Option<Vec<u32>> = match v.get("days") {
+                None | Some(serde_json::Value::Null) => None,
+                Some(d) => Some(
+                    d.as_array()
+                        .ok_or_else(|| CmdError::Params("`days` is a list of days, 0 (Monday) to 6 (Sunday)".into()))?
+                        .iter()
+                        .map(|x| x.as_u64().and_then(|x| u32::try_from(x).ok()).unwrap_or(u32::MAX))
+                        .collect(),
+                ),
+            };
+            let time = |key: &str| -> Result<Option<u16>, CmdError> {
+                let Some(t) = p::str(v, key) else { return Ok(None) };
+                let minutes = t
+                    .trim()
+                    .split_once(':')
+                    .and_then(|(h, m)| Some((h.parse::<u16>().ok()?, m.parse::<u16>().ok()?)))
+                    .filter(|(h, m)| (*h < 24 && *m < 60) || (*h == 24 && *m == 0))
+                    .map(|(h, m)| h * 60 + m);
+                minutes.map(Some).ok_or_else(|| CmdError::Params(format!("`{key}` is a time of day (HH:MM), not `{t}`")))
+            };
+            let (start, end) = (time("start")?, time("end")?);
+            s.set_work_time(days.as_deref(), start, end)
+        })
+        .params(r#"{"days"?: [number] (0 Monday … 6 Sunday), "start"?: "HH:MM", "end"?: "HH:MM"}"#),
         CommandSpec::new("account.keepMail", "Mail kept on this computer", "File › Options › Mail", |s, v| {
             if let Some(n) = p::u64(v, "messages") {
                 s.prefs.keep_messages = u32::try_from(n.min(1_000_000)).unwrap_or(0);

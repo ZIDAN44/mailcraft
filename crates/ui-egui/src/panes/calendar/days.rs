@@ -1,5 +1,6 @@
 //! The day and week views: the calendars' headings when they're side by side, the days'
-//! headings, the all-day strip, and the hours with their events and the line at now.
+//! headings, the all-day strip, and the hours with their events and the line at now; the hours
+//! not worked shaded (issue #185).
 
 use super::*;
 
@@ -9,9 +10,8 @@ const PANE_GAP: f32 = 10.0;
 /// How the day and week views are laid out across: the hours' gutter, then a pane per calendar
 /// shown side by side (one otherwise), a column per day in each.
 struct Columns {
-    /// The first day and the day after the last.
-    d0: i64,
-    d1: i64,
+    /// The days, in order: the work week's may skip some (issue #185).
+    days: Vec<i64>,
     /// Days, and panes.
     n: i64,
     k: usize,
@@ -24,6 +24,18 @@ struct Columns {
 }
 
 impl Columns {
+    /// Column `i`'s day.
+    fn day(&self, i: i64) -> i64 {
+        usize::try_from(i).ok().and_then(|i| self.days.get(i)).copied().unwrap_or_default()
+    }
+
+    /// The columns from the first on or after day `a` to the last on or before day `b`.
+    fn columns(&self, a: i64, b: i64) -> Option<(i64, i64)> {
+        let first = self.days.iter().position(|d| *d >= a)?;
+        let last = self.days.iter().rposition(|d| *d <= b)?;
+        (first <= last).then(|| (i64::try_from(first).unwrap_or_default(), i64::try_from(last).unwrap_or_default()))
+    }
+
     /// Where calendar `j`'s pane starts (from the left edge).
     fn pane_x(&self, j: usize) -> f32 {
         self.gutter + (self.pane + PANE_GAP) * j as f32
@@ -45,9 +57,9 @@ impl Columns {
     }
 }
 
-pub(super) fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], d0: i64, d1: i64, acts: &mut Vec<Action>) {
+pub(super) fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaItem], days: Vec<i64>, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    let n = (d1 - d0).max(1);
+    let n = i64::try_from(days.len()).unwrap_or(1).max(1);
     // Wide enough for "All day" in the language shown ("Toute la journée" ran out of it, under
     // the folder pane's edge).
     let all_day = ui.painter().layout_no_wrap(tl!("All day").to_string(), theme::regular(11.0), t.faint).size().x;
@@ -61,7 +73,7 @@ pub(super) fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaIt
     let gaps = PANE_GAP * (k - 1) as f32;
     let pane = ((full.width() - gutter - 16.0 - gaps) / k as f32).max(40.0 * n as f32);
     let cw = pane / n as f32;
-    let cols = Columns { d0, d1, n, k, gutter, pane, cw, cals };
+    let cols = Columns { days, n, k, gutter, pane, cw, cals };
     if k > 1 {
         calendar_headings(s, &t, ui, &cols, full.width(), acts);
     }
@@ -124,7 +136,7 @@ fn day_headings(t: &Tokens, ui: &mut Ui, cols: &Columns, width: f32, now: i64) {
     let (head, _) = ui.allocate_exact_size(vec2(width, 40.0), Sense::hover());
     for j in 0..cols.k {
         for i in 0..cols.n {
-            let d = cols.d0 + i;
+            let d = cols.day(i);
             let x = head.min.x + cols.day_x(i, j);
             let (_, _, dd) = civil_from_days(d);
             let wd = dates::weekday_short(d);
@@ -146,15 +158,16 @@ fn day_headings(t: &Tokens, ui: &mut Ui, cols: &Columns, width: f32, now: i64) {
 
 /// All-day events, across their days (in their calendar's pane), four lanes at most.
 fn all_day_strip(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], cols: &Columns, width: f32, acts: &mut Vec<Action>) {
-    let (d0, d1) = (cols.d0, cols.d1);
-    let all_day: Vec<&AgendaItem> = items.iter().filter(|i| i.all_day || i.end - i.start >= 86_400).collect();
+    // Each across the columns of its days (none when they're all days the work week skips).
+    let spread = |it: &AgendaItem| cols.columns(day_of(it.start, s), day_of(it.end.max(it.start + 1) - 1, s));
+    let all_day: Vec<(&AgendaItem, (i64, i64))> =
+        items.iter().filter(|i| i.all_day || i.end - i.start >= 86_400).filter_map(|i| Some((i, spread(i)?))).collect();
     if all_day.is_empty() {
         return;
     }
     let mut lanes: Vec<Vec<(usize, i64, i64)>> = Vec::new();
-    let mut placed: Vec<(usize, &AgendaItem)> = Vec::new();
-    for it in &all_day {
-        let (a, b) = (day_of(it.start, s).max(d0), day_of(it.end.max(it.start + 1) - 1, s).min(d1 - 1));
+    let mut placed: Vec<(usize, &AgendaItem, (i64, i64))> = Vec::new();
+    for (it, (a, b)) in all_day {
         let j = cols.col_of(it);
         let lane = lanes.iter().position(|l| l.iter().all(|(pj, x, y)| *pj != j || b < *x || a > *y)).unwrap_or(lanes.len());
         if lane == lanes.len() {
@@ -163,14 +176,13 @@ fn all_day_strip(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], col
         if let Some(l) = lanes.get_mut(lane) {
             l.push((j, a, b));
         }
-        placed.push((lane, it));
+        placed.push((lane, it, (a, b)));
     }
     let (strip, _) = ui.allocate_exact_size(vec2(width, 20.0 * lanes.len().min(4) as f32 + 6.0), Sense::hover());
     ui.painter().text(pos2(strip.min.x + cols.gutter - 6.0, strip.min.y + 10.0), Align2::RIGHT_CENTER, tl!("All day"), theme::regular(11.0), t.faint);
-    for (lane, it) in placed.into_iter().filter(|(l, _)| *l < 4) {
-        let (a, b) = (day_of(it.start, s).max(d0), day_of(it.end.max(it.start + 1) - 1, s).min(d1 - 1));
+    for (lane, it, (a, b)) in placed.into_iter().filter(|(l, ..)| *l < 4) {
         let r = Rect::from_min_size(
-            pos2(strip.min.x + cols.day_x(a - d0, cols.col_of(it)) + 2.0, strip.min.y + 3.0 + 20.0 * lane as f32),
+            pos2(strip.min.x + cols.day_x(a, cols.col_of(it)) + 2.0, strip.min.y + 3.0 + 20.0 * lane as f32),
             vec2(cols.cw * (b - a + 1) as f32 - 4.0, 18.0),
         );
         if chip(ui, t, r, it, &title_of(it)).clicked()
@@ -181,7 +193,8 @@ fn all_day_strip(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], col
     }
 }
 
-/// Each calendar's pane faintly in its colour, the hours' lines and names, the days' lines.
+/// Each calendar's pane faintly in its colour, the hours not worked shaded, the hours' lines and
+/// names, the days' lines.
 fn hour_lines(s: &Session, t: &Tokens, ui: &mut Ui, cols: &Columns, grid: Rect) {
     let k = cols.k;
     // Each calendar's pane faintly in its colour.
@@ -189,6 +202,21 @@ fn hour_lines(s: &Session, t: &Tokens, ui: &mut Ui, cols: &Columns, grid: Rect) 
         if let Some(c) = cols.tint(j, t).filter(|_| k > 1) {
             let r = Rect::from_min_size(pos2(grid.min.x + cols.pane_x(j), grid.min.y), vec2(cols.pane, grid.height()));
             ui.painter().rect_filled(r, 0.0, c.gamma_multiply(if t.dark { 0.1 } else { 0.07 }));
+        }
+    }
+    // The hours not worked (issue #185): the user's own, or in a colleague's pane theirs, as
+    // their server gave them.
+    for (i, j) in (0..cols.n).flat_map(|i| (0..k).map(move |j| (i, j))) {
+        let d = cols.day(i);
+        let (day0, day1) = (s.local_midnight(d), s.local_midnight(d + 1));
+        let work = match cols.cals.get(j).filter(|_| k > 1) {
+            Some((account, id, ..)) => s.calendar_work_spans(account, id, day0, day1),
+            None => s.work_spans(day0, day1),
+        };
+        let x0 = grid.min.x + cols.day_x(i, j);
+        let y = |at: i64| grid.min.y + ((at - day0) as f32 / 3600.0) * HOUR;
+        for (a, b) in outside(&work, day0, day1) {
+            ui.painter().rect_filled(Rect::from_min_max(pos2(x0, y(a)), pos2(x0 + cols.cw, y(b))), 0.0, off_hours(t));
         }
     }
     for h in 0..24 {
@@ -217,7 +245,7 @@ fn new_event_slots(s: &Session, t: &Tokens, ui: &mut Ui, cols: &Columns, grid: R
     for j in 0..k {
         for i in 0..cols.n {
             let col = Rect::from_min_size(pos2(grid.min.x + cols.day_x(i, j), grid.min.y), vec2(cw, grid.height()));
-            let r = ui.interact(col, ui.scope_id().with(("hours", cols.d0 + i, j)), Sense::click());
+            let r = ui.interact(col, ui.scope_id().with(("hours", cols.day(i), j)), Sense::click());
             // The half hour under the pointer lights up: a click adds an event there.
             if let Some(p) = r.hover_pos() {
                 let half = ((p.y - grid.min.y) / (HOUR / 2.0)).floor().clamp(0.0, 47.0);
@@ -228,7 +256,7 @@ fn new_event_slots(s: &Session, t: &Tokens, ui: &mut Ui, cols: &Columns, grid: R
                 && let Some(p) = r.interact_pointer_pos()
             {
                 let half = ((p.y - grid.min.y) / (HOUR / 2.0)).floor().clamp(0.0, 47.0) as i64;
-                acts.push(new_event_in(s, s.local_midnight(cols.d0 + i) + half * 1800, cols.cals.get(j).filter(|_| k > 1)));
+                acts.push(new_event_in(s, s.local_midnight(cols.day(i)) + half * 1800, cols.cals.get(j).filter(|_| k > 1)));
             }
         }
     }
@@ -249,7 +277,7 @@ fn new_event_in(s: &Session, at: i64, cal: Option<&(String, String, String, u8)>
 fn timed_events(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], cols: &Columns, grid: Rect, acts: &mut Vec<Action>) {
     let cw = cols.cw;
     for (i, j) in (0..cols.n).flat_map(|i| (0..cols.k).map(move |j| (i, j))) {
-        let d = cols.d0 + i;
+        let d = cols.day(i);
         let (day0, day1) = (s.local_midnight(d), s.local_midnight(d + 1));
         let mut todays: Vec<&AgendaItem> = items
             .iter()
@@ -320,10 +348,10 @@ fn side_by_side<'a>(todays: &[&'a AgendaItem]) -> Vec<(&'a AgendaItem, usize, us
 /// Now, in every pane: a line across today's column.
 fn now_line(s: &Session, t: &Tokens, ui: &mut Ui, cols: &Columns, grid: Rect) {
     let n_day = today(s);
-    if n_day >= cols.d0 && n_day < cols.d1 {
+    if let Some((i, _)) = cols.columns(n_day, n_day) {
         let y = grid.min.y + ((s.clock.now - s.local_midnight(n_day)) as f32 / 3600.0) * HOUR;
         for j in 0..cols.k {
-            let x0 = grid.min.x + cols.day_x(n_day - cols.d0, j);
+            let x0 = grid.min.x + cols.day_x(i, j);
             ui.painter().line_segment([pos2(x0, y), pos2(x0 + cols.cw, y)], egui::Stroke::new(2.0, t.danger));
             ui.painter().circle_filled(pos2(x0, y), 4.0, t.danger);
         }

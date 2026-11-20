@@ -30,6 +30,8 @@ struct Known {
     answered: Option<i64>,
     busy: Vec<Busy>,
     error: Option<String>,
+    /// When they work, when their server said (issue #185).
+    work: Option<mailcraft_model::pim::work_hours::WorkHours>,
     /// Asked for and not answered yet: the window asked, and when.
     waiting: Option<(i64, i64, i64)>,
 }
@@ -131,8 +133,16 @@ impl Session {
             if k.waiting.is_some() && k.answered.is_some() {
                 continue;
             }
-            *k = Known { from, to, answered: Some(now), busy: a.busy, error: a.error, waiting: k.waiting };
+            *k = Known { from, to, answered: Some(now), busy: a.busy, error: a.error, work: a.work, waiting: k.waiting };
         }
+    }
+
+    /// When the owner of a calendar shared for its free/busy time alone works, when their server
+    /// said (issue #185): `None` for any other calendar, or when it didn't.
+    pub fn calendar_work(&self, account: &str, calendar: &str) -> Option<&mailcraft_model::pim::work_hours::WorkHours> {
+        let free_busy = self.pim.get(account)?.calendars.iter().any(|c| c.id == calendar && c.free_busy);
+        let email = shared_calendar_owner(calendar).filter(|_| free_busy)?;
+        self.free_busy.known.get(&(account.to_string(), email.to_string()))?.work.as_ref()
     }
 
     /// What a calendar shared for its free/busy time alone shows: `None` for any other.

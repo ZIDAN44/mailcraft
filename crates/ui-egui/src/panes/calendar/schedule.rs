@@ -1,5 +1,6 @@
 //! The Schedule view (Outlook's, issue #141): a day's hours across, a row for each calendar
-//! shown under all of them together, to see when several people are free at once. A time
+//! shown under all of them together, to see when several people are free at once, each row's
+//! hours not worked shaded (issue #185; on all together's, when not everyone works). A time
 //! chosen on a colleague's row (clicked, or dragged across) makes a meeting with them; on the
 //! row of all together, with everyone shown; on one's own calendar, an event in it.
 
@@ -53,6 +54,7 @@ pub(super) fn schedule(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[Agen
             scroll.show(ui, |ui| {
                 let (grid, _) = ui.allocate_exact_size(vec2(HOUR_W * hours, height), Sense::hover());
                 let day = Day { day0, day1, grid };
+                off_hours_rows(s, &t, ui, &day, &rows);
                 hour_lines(s, &t, ui, &day, rows.len());
                 for (k, row) in rows.iter().enumerate() {
                     let r = Rect::from_min_size(pos2(grid.min.x, grid.min.y + HEAD + ROW_H * k as f32), vec2(grid.width(), ROW_H));
@@ -112,6 +114,23 @@ fn row_names(s: &Session, t: &Tokens, ui: &mut Ui, names: Rect, rows: &[Row]) {
         let text = r.with_min_x(r.min.x + 20.0).with_max_x(r.max.x - 6.0);
         let font = if row.is_none() { theme::bold(12.0) } else { theme::regular(12.0) };
         ui.painter().with_clip_rect(text).text(pos2(text.min.x, text.center().y), Align2::LEFT_CENTER, label, font, t.text);
+    }
+}
+
+/// Each row's hours not worked, shaded: a calendar's owner's (a colleague's as their server gave
+/// them, else the user's own); all together's, where not everyone works.
+fn off_hours_rows(s: &Session, t: &Tokens, ui: &mut Ui, day: &Day, rows: &[Row]) {
+    let of = |(account, id, ..): &Cal| s.calendar_work_spans(account, id, day.day0, day.day1);
+    let everyone = rows.iter().flatten().map(of).reduce(|a, b| overlap(&a, &b)).unwrap_or_default();
+    for (k, row) in rows.iter().enumerate() {
+        let work = match row {
+            Some(cal) => of(cal),
+            None => everyone.clone(),
+        };
+        let y = day.grid.min.y + HEAD + ROW_H * k as f32;
+        for (a, b) in outside(&work, day.day0, day.day1) {
+            ui.painter().rect_filled(Rect::from_min_max(pos2(day.x(a), y), pos2(day.x(b), y + ROW_H)), 0.0, off_hours(t));
+        }
     }
 }
 

@@ -29,6 +29,7 @@ pub use tasks::{ListedTask, TASKS_CALENDAR, TaskRef, TasksOrder};
 mod todo;
 pub use todo::{TODO_BAR_WIDTH, TodoBar, TodoGroup, TodoItem, TodoMail, TodoWhat};
 pub mod web;
+mod work_time;
 
 /// The part of the app on screen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -190,14 +191,19 @@ impl Session {
         self.cal_day.unwrap_or_else(|| mailcraft_model::dates::today(&self.clock))
     }
 
-    /// The local days on screen: a day (the Schedule view's too), the work week (Monday to
-    /// Friday), the week (Monday first) or the weeks of the month.
+    /// The local days on screen: a day (the Schedule view's too), the work week (from its first
+    /// worked day to its last, issue #185: `cal_day_list` has those alone), the week (Monday
+    /// first) or the weeks of the month.
     pub fn cal_days(&self) -> (i64, i64) {
         let d = self.cal_day();
         let monday = |x: i64| x - i64::from(weekday_index(x));
         match self.cal_mode {
             CalMode::Day | CalMode::Schedule => (d, d + 1),
-            CalMode::WorkWeek => (monday(d), monday(d) + 5),
+            CalMode::WorkWeek => match self.work_week_days()[..] {
+                [first, .., last] => (first, last + 1),
+                [only] => (only, only + 1),
+                [] => (monday(d), monday(d) + 5),
+            },
             CalMode::Week => (monday(d), monday(d) + 7),
             CalMode::Month => {
                 let (y, m, _) = civil_from_days(d);

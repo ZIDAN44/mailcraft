@@ -4,6 +4,7 @@
 use egui::{Align2, Color32, Margin, Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::dates::{self, civil_from_days, days_from_civil};
 use mailcraft_engine::model::ical::{Privacy, ShowAs};
+use mailcraft_engine::model::pim::work_hours::{outside, overlap};
 use mailcraft_engine::{AgendaItem, CalMode, Session};
 use serde_json::json;
 
@@ -57,6 +58,11 @@ pub fn color(i: u8, t: &Tokens) -> Color32 {
     } else {
         theme::category_color(i.saturating_sub(1), t.dark)
     }
+}
+
+/// The shade over the hours not worked (issue #185).
+fn off_hours(t: &Tokens) -> egui::Color32 {
+    if t.dark { egui::Color32::from_black_alpha(70) } else { egui::Color32::from_black_alpha(13) }
 }
 
 fn today(s: &Session) -> i64 {
@@ -329,7 +335,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     items.extend(s.task_items(from, to));
     match s.cal_mode {
         CalMode::Month => month(s, &t, ui, &items, d0, acts),
-        CalMode::Day | CalMode::WorkWeek | CalMode::Week => days(s, st, ui, &items, d0, d1, acts),
+        CalMode::Day | CalMode::WorkWeek | CalMode::Week => days(s, st, ui, &items, s.cal_day_list(), acts),
         CalMode::Schedule => schedule(s, st, ui, &items, d0, acts),
     }
 }

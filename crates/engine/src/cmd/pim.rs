@@ -43,7 +43,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let (d0, d1) = s.cal_days();
             let from = p::str(v, "from").and_then(|x| parse_local(x, &s.clock)).map_or(s.local_midnight(d0), |(t, all_day)| if all_day { s.clock.utc(t) } else { t });
             let to = p::str(v, "to").and_then(|x| parse_local(x, &s.clock)).map_or(s.local_midnight(d1), |(t, all_day)| if all_day { s.clock.utc(t.saturating_add(86_400)) } else { t });
-            Ok(json!(s.agenda(from, to).iter().map(|i| json!({
+            let mut items = s.agenda(from, to);
+            // What's shown: the work week's days alone, when it skips some (issue #185).
+            if p::str(v, "from").is_none() && p::str(v, "to").is_none() {
+                let days: Vec<(i64, i64)> = s.cal_day_list().into_iter().map(|d| (s.local_midnight(d), s.local_midnight(d + 1))).collect();
+                items.retain(|i| days.iter().any(|(a, b)| i.start < *b && i.end.max(i.start + 1) > *a));
+            }
+            Ok(json!(items.iter().map(|i| json!({
                 "uid": i.uid, "summary": i.summary, "location": i.location, "start": i.start, "end": i.end, "allDay": i.all_day,
                 "occurrence": i.occurrence, "recurring": i.recurring, "account": i.account, "calendar": i.calendar,
                 "needsReply": i.needs_reply, "status": i.status, "privacy": i.privacy, "showAs": i.show_as, "busyOnly": i.busy_only,

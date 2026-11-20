@@ -70,6 +70,8 @@ pub struct Data {
     /// UTC). Anyone asked about who has none here and isn't in [`Data::others`] or the
     /// directory isn't found.
     pub schedules: Vec<(String, Value)>,
+    /// Someone's `workingHours`, as `getSchedule` gives it (issue #185).
+    pub working_hours: Vec<(String, Value)>,
     /// The bodies of the `getSchedule` requests, in order.
     pub schedule_asks: Vec<Value>,
     /// Per-batch concurrency cap: entries past this index get a 429 with Retry-After.

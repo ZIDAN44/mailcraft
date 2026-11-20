@@ -199,7 +199,7 @@ impl Pool {
             Job::FreeBusy { account, people, from, to } if mail_offline => {
                 let answers = people
                     .into_iter()
-                    .map(|email| mailcraft_model::pim::free_busy::FreeBusyAnswer { email, busy: Vec::new(), error: Some(OFFLINE.into()) })
+                    .map(|email| mailcraft_model::pim::free_busy::FreeBusyAnswer { email, error: Some(OFFLINE.into()), ..Default::default() })
                     .collect();
                 self.sink.emit(Event::FreeBusy { account, from, to, answers });
             }

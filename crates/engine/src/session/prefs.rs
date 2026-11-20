@@ -117,6 +117,9 @@ pub struct Prefs {
     pub calendars_side_by_side: bool,
     /// Months shown one under another in the calendar's side pane (1 to 6).
     pub calendar_months: u8,
+    /// The days and hours worked (issue #185): the work week shows those days, and the day and
+    /// week views shade the hours outside.
+    pub work_time: mailcraft_model::pim::work_hours::WorkPeriod,
     /// The address book Select Names opens with (Outlook's "Show this address list first"):
     /// `all` (everyone written to or heard from, and contacts), `people` (every contact), or
     /// one address book (`book:<account>:<book id>`).
@@ -388,6 +391,7 @@ impl Default for Prefs {
             hidden_calendars: BTreeSet::new(),
             calendars_side_by_side: false,
             calendar_months: 1,
+            work_time: mailcraft_model::pim::work_hours::WorkPeriod::default(),
             address_book: "all".into(),
             keep_messages: 1000,
             keep_offline: 40,

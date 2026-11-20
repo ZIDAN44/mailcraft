@@ -5,6 +5,7 @@ use super::*;
 /// MailCraft's own colour, the accent when none is chosen ([`theme::APP_COLOR`]).
 const APP_RGB: [u8; 3] = [theme::APP_COLOR.r(), theme::APP_COLOR.g(), theme::APP_COLOR.b()];
 
+mod calendar;
 mod general;
 mod inbox;
 mod mail;
@@ -20,6 +21,7 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
     mail::kept(s, &t, ui, acts);
     mail::checking(s, &t, ui, acts);
     inbox::inbox(s, &t, ui, acts);
+    calendar::calendar(s, &t, ui, acts);
     super::meetings::meetings(s, st, ui, acts);
     safety::senders(s, &t, ui, acts);
     safety::safety(s, &t, ui, acts);

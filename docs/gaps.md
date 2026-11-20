@@ -148,6 +148,17 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   for MailCraft to read, nor does MailCraft keep settings of its own for single messages, and it
   keeps no expiry for mail.
 
+### 12. Work time: what isn't done yet
+
+- **Impact:** A week always starts on Monday, in the calendar and its months: Outlook's **First
+  day of week** isn't there. Your work time is kept on this computer alone: one set in Outlook
+  for an Exchange or Microsoft 365 mailbox isn't read, and colleagues see the one Outlook set,
+  not MailCraft's. The work hours are the same each day worked.
+- **Workaround:** Set the same work time in **File › Options › Calendar** as in Outlook.
+- **Cause:** The calendar's views, months and dates are laid out from Monday in each place that
+  draws them, not from a setting. MailCraft doesn't read or write a mailbox's own settings
+  (Exchange's `GetUserConfiguration`, Microsoft Graph's `mailboxSettings`) yet.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

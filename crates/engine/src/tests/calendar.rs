@@ -15,3 +15,4 @@ mod reminders;
 mod tasks;
 mod todo;
 mod web_calendars;
+mod work_time;

@@ -49,7 +49,7 @@ fn busy(start: &str, end: &str, show_as: ShowAs, subject: &str) -> Busy {
 }
 
 fn answer(s: &mut Session, account: &str, (from, to): (i64, i64), busy: Vec<Busy>, error: Option<&str>) {
-    let answers = vec![FreeBusyAnswer { email: ANA.into(), busy, error: error.map(str::to_string) }];
+    let answers = vec![FreeBusyAnswer { email: ANA.into(), busy, error: error.map(str::to_string), work: None }];
     s.apply(Event::FreeBusy { account: account.into(), from, to, answers });
 }
 
@@ -215,4 +215,23 @@ fn the_schedule_view_shows_a_day_and_its_peoples_times() {
     assert_eq!(acc, account);
     assert!(from <= at("2026-11-05T00:00:00Z") && to >= at("2026-11-06T00:00:00Z"));
     assert!(s.run("calendar.view", &json!({"mode": "timeline"})).is_err());
+}
+
+/// Issue #185: a colleague's work hours, as their server gave them with their times, shade
+/// their calendar's; without them, the user's own do.
+#[test]
+fn a_colleagues_work_hours_come_with_their_times() {
+    use mailcraft_model::pim::work_hours::{WorkHours, WorkPeriod, WorkZone};
+    let (mut s, account, id) = with_ana("free-busy-work-hours");
+    let wednesday = (at("2026-11-04T00:00:00Z"), at("2026-11-05T00:00:00Z"));
+    // Not answered yet: the user's own, 08:00 to 17:00 here (UTC).
+    assert_eq!(s.calendar_work_spans(&account, &id, wednesday.0, wednesday.1), [(at("2026-11-04T08:00:00Z"), at("2026-11-04T17:00:00Z"))]);
+    // Ana works 09:00 to 17:00 an hour east of UTC.
+    let work = WorkHours { periods: vec![WorkPeriod { start: 9 * 60, ..Default::default() }], zone: WorkZone { bias: -60, ..Default::default() } };
+    let answers = vec![FreeBusyAnswer { email: ANA.into(), busy: Vec::new(), error: None, work: Some(work) }];
+    s.apply(Event::FreeBusy { account: account.clone(), from: at("2026-10-26T00:00:00Z"), to: at("2026-11-16T00:00:00Z"), answers });
+    assert_eq!(s.calendar_work_spans(&account, &id, wednesday.0, wednesday.1), [(at("2026-11-04T08:00:00Z"), at("2026-11-04T16:00:00Z"))]);
+    // The user's own calendar keeps the user's.
+    let own = s.pim[&account].calendars.iter().find(|c| !c.free_busy).map(|c| c.id.clone()).unwrap();
+    assert_eq!(s.calendar_work_spans(&account, &own, wednesday.0, wednesday.1), [(at("2026-11-04T08:00:00Z"), at("2026-11-04T17:00:00Z"))]);
 }

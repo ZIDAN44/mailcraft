@@ -94,7 +94,11 @@ impl Data {
                     }
                     out.push_str("</t:CalendarEvent>");
                 }
-                out.push_str("</t:CalendarEventArray></FreeBusyView>");
+                out.push_str("</t:CalendarEventArray>");
+                if let Some((_, hours)) = self.working_hours.iter().find(|(e, _)| e.eq_ignore_ascii_case(email)) {
+                    out.push_str(hours);
+                }
+                out.push_str("</FreeBusyView>");
             }
             out.push_str("</FreeBusyResponse>");
         }
