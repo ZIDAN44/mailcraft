@@ -162,3 +162,26 @@ fn scrolling_past_the_top_of_a_pane_leaves_no_room_above() {
     let after = inbox(drawn_with(&ctx, &mut a, size, vec![])).expect("the Inbox still drawn");
     assert!((after.y - top.y).abs() < 1.0, "pulled from {top:?} to {after:?}");
 }
+
+/// Issue #181: a folder dragged onto another goes inside it. The drop asked first for dragged
+/// mail, which took the dragged folder away as the wrong kind, and nothing happened.
+#[test]
+fn a_folder_dropped_on_a_folder_goes_inside_it() {
+    let (mut a, _) = app("folder-drop");
+    let ctx = egui::Context::default();
+    a.run("folder.create", json!({"account": "sample", "name": "Clients"}));
+    let at = |texts: &[(String, egui::Pos2)], name: &str| texts.iter().filter(|(t, _)| t == name).map(|(_, p)| *p + egui::vec2(4.0, 6.0)).next_back();
+    let texts = pane(&ctx, &mut a, 2000.0, vec![]);
+    let (Some(from), Some(to)) = (at(&texts, "Clients"), at(&texts, "Projects")) else { panic!("Clients and Projects drawn: {texts:?}") };
+    let press = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    pane(&ctx, &mut a, 2000.0, vec![Event::PointerMoved(from)]);
+    pane(&ctx, &mut a, 2000.0, vec![press(from, true)]);
+    for k in 1..=4 {
+        pane(&ctx, &mut a, 2000.0, vec![Event::PointerMoved(from + (to - from) * (k as f32 / 4.0))]);
+    }
+    pane(&ctx, &mut a, 2000.0, vec![press(to, false)]);
+    pane(&ctx, &mut a, 2000.0, vec![]);
+    let paths: Vec<String> = a.session.accounts[0].folders.iter().map(|f| f.path.clone()).collect();
+    assert!(paths.iter().any(|p| p == "Projects/Clients"), "moved into Projects: {paths:?}");
+    assert!(!paths.iter().any(|p| p == "Clients"));
+}

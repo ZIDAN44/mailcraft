@@ -81,6 +81,7 @@ Thanks to Peter Páleník for reviewing the Slovak translation (#133, #137).
 - OpenPGP: a signed message put together from someone's public key is no longer shown as signed by them (rPGP 0.21.1, GHSA-h834-358q-rx97). Every copy of a public key carries its owner's signature on their name and address, and that signature, lifted out with what it covers as the "message", read as a good signature from them on mail.
 - Searching the server for a date alone (`before:2024-01-01`, `after:`, `received:2023`) finds the mail of those days that isn't kept on this computer, on IMAP, Exchange, Microsoft 365 and JMAP accounts: the server was asked without the date, which left nothing to ask. With words too, IMAP and JMAP servers are asked for the days as well.
 - Searching the server right after deleting or moving mail no longer finds that mail again: the search could reach the server before the change did.
+- A folder dragged onto another folder in the folder pane goes into it (#181): the drop was lost, though the folder under the pointer lit up. A folder dropped on a shared mailbox's top row goes into it too.
 
 ## 0.40.0 - 2026-11-17
 
