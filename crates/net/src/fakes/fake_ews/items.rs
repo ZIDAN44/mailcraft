@@ -114,7 +114,13 @@ impl Data {
             match self.items.iter().find(|i| i.id == id) {
                 Some(i) if self.unrouted(&i.folder) => out.push(err("ErrorItemNotFound")),
                 Some(i) if mime && self.unreadable.contains(&i.id) => out.push(err("ErrorInternalServerError")),
-                Some(i) => out.push(ok(format!("<m:Items>{}</m:Items>", self.item_xml(i, mime)))),
+                Some(i) => {
+                    let mut x = self.item_xml(i, mime);
+                    if asks_for(op, "item:Body") {
+                        x = x.replace("</t:Message>", &format!("{}</t:Message>", body_and_files(&i.raw)));
+                    }
+                    out.push(ok(format!("<m:Items>{x}</m:Items>")));
+                }
                 None => out.push(err("ErrorItemNotFound")),
             }
         }
@@ -263,4 +269,33 @@ impl Data {
         }
         out
     }
+}
+
+/// Whether an operation asks for the field `uri`.
+fn asks_for(op: &El, uri: &str) -> bool {
+    let mut fields = Vec::new();
+    op.all("FieldURI", &mut fields);
+    fields.iter().any(|f| f.attr("FieldURI") == Some(uri))
+}
+
+/// A message's body and the list of its files, without their bytes, as Exchange gives them when
+/// asked for (`item:Body`, `item:Attachments`): what its text first is made of (issue #24).
+fn body_and_files(raw: &[u8]) -> String {
+    let Some(p) = mailcraft_mime::parse(raw) else { return String::new() };
+    let mut x = format!("<t:Body BodyType=\"Text\">{}</t:Body>", esc(&p.text));
+    if !p.attachments.is_empty() {
+        x.push_str("<t:Attachments>");
+        for a in &p.attachments {
+            let id = a.content_id.as_deref().map(|c| format!("<t:ContentId>{}</t:ContentId>", esc(c))).unwrap_or_default();
+            x.push_str(&format!(
+                "<t:FileAttachment><t:Name>{}</t:Name><t:ContentType>{}</t:ContentType>{id}<t:Size>{}</t:Size><t:IsInline>{}</t:IsInline></t:FileAttachment>",
+                esc(&a.name),
+                esc(&a.mime),
+                a.size,
+                a.inline
+            ));
+        }
+        x.push_str("</t:Attachments>");
+    }
+    x
 }

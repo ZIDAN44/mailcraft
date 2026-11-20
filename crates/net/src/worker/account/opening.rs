@@ -100,8 +100,15 @@ impl Worker {
                         return Ok(None);
                     }
                     Ok(None) => {}
-                    Err(e) if e.is_fatal() || matches!(e, NetError::Auth(_) | NetError::Closed(_) | NetError::Io(_)) => return Err(e),
-                    Err(e) => log::info!("{}: the text first: {e}", self.acc.id),
+                    Err(e @ NetError::Auth(_)) => return Err(e),
+                    // Never the message's failure (issue #191: it showed in the reading pane in
+                    // place of the message): it comes whole, connected again if need be.
+                    Err(e) => {
+                        log::info!("{}: the text first: {e}", self.acc.id);
+                        if e.is_fatal() {
+                            self.conn = None;
+                        }
+                    }
                 }
             }
             self.download(&store, &key).map(Some)

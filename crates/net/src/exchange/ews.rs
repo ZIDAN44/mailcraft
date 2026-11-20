@@ -163,6 +163,9 @@ pub struct Client {
     user_agent: Option<String>,
     /// Those of [`NEWER`] the server refused (an older Exchange's schema): not asked again.
     unknown_ids: RefCell<Vec<&'static str>>,
+    /// The server refused a message's text first (issue #191): not asked again here, each
+    /// message coming whole.
+    text_first_refused: RefCell<bool>,
 }
 
 /// Another mailbox the account opens (Outlook's shared mailboxes): its address and name.
@@ -409,6 +412,7 @@ impl Client {
             shared_listed: RefCell::new(None),
             user_agent: None,
             unknown_ids: RefCell::new(Vec::new()),
+            text_first_refused: RefCell::new(false),
         })
     }
 
@@ -472,7 +476,7 @@ const HEADER_FIELDS: &str = "<t:FieldURI FieldURI=\"item:Subject\"/><t:FieldURI 
 <t:FieldURI FieldURI=\"message:ToRecipients\"/><t:FieldURI FieldURI=\"message:CcRecipients\"/>\
 <t:FieldURI FieldURI=\"message:ReplyTo\"/><t:FieldURI FieldURI=\"item:DateTimeReceived\"/>\
 <t:FieldURI FieldURI=\"item:DateTimeSent\"/><t:FieldURI FieldURI=\"message:InternetMessageId\"/>\
-<t:FieldURI FieldURI=\"message:InReplyTo\"/><t:FieldURI FieldURI=\"message:References\"/>\
+<t:FieldURI FieldURI=\"item:InReplyTo\"/><t:FieldURI FieldURI=\"message:References\"/>\
 <t:FieldURI FieldURI=\"item:HasAttachments\"/><t:FieldURI FieldURI=\"item:Size\"/>";
 
 /// An extended property's value.

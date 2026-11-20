@@ -90,6 +90,7 @@ Thanks to Peter Páleník for reviewing the Slovak translation (#133, #137).
 - **Move folder** (#182): a click picks where the folder goes and **Move** moves it there, as in Outlook; it moved at once, and **Move** never turned on. A double click still moves it at once. Its list, and **Move to folder**'s, are as wide as the dialog, their scroll bar at the edge rather than in the middle.
 - A search ended by opening a folder, or by going to the Calendar, People, Tasks or Notes, leaves the search box empty (#187), as in Outlook: its words stayed, as if the search were still on, and going to another module didn't end it. They're among the recent searches in the box's list.
 - The folder pane starts right under the ribbon (#188): its **‹** (Minimize the folder pane) sits at the end of the first row, the Favorites heading or with Favorites hidden the first account, as in Outlook. It had a row of its own, leaving an empty strip above the folders.
+- A big message with attachments on an on-premises Exchange server opens at once (#191): its text, asked for ahead of its files with a field Exchange doesn't know, was refused with "The request is invalid.", and that showed in the reading pane in place of the message until it was opened again. Its text comes first again, and from a server that refuses that, the whole message comes instead, never an error.
 
 ## 0.40.0 - 2026-11-17
 

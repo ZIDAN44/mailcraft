@@ -298,6 +298,16 @@ fn operation(shared: &Arc<Mutex<Data>>, doc: &El, routed: String, anchor: String
                      <faultstring>The specified server version is invalid.</faultstring></soap:Fault></soap:Body></soap:Envelope>";
         return (500, fault.into());
     }
+    // As Exchange: a field its schema doesn't know refuses the request whole (issue #191).
+    if let Some(field) = super::schema::unknown_field(&op, &d.refused_fields) {
+        if d.field_refusals.len() < 1000 {
+            d.field_refusals.push(field);
+        }
+        drop(d);
+        let fault = "<soap:Envelope><soap:Body><soap:Fault><faultcode>a:ErrorInvalidRequest</faultcode>\
+                     <faultstring>The request is invalid.</faultstring></soap:Fault></soap:Body></soap:Envelope>";
+        return (500, fault.into());
+    }
     if let Some(id) = newer_id(&op).filter(|_| d.exchange_2010) {
         d.schema_refusals += 1;
         drop(d);

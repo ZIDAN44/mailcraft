@@ -17,6 +17,7 @@ mod follow_up;
 mod free_busy;
 mod large_folder;
 mod older;
+mod opening;
 mod pim;
 mod quota;
 mod rules;

@@ -20,7 +20,9 @@ const FIELDS: [&str; 12] = [
     "message:ReplyTo",
     "item:DateTimeSent",
     "message:InternetMessageId",
-    "message:InReplyTo",
+    // An item's, not a message's (issue #191: `message:InReplyTo` isn't in the schema, and
+    // Exchange refused the whole request).
+    "item:InReplyTo",
     "item:Importance",
     "item:HasAttachments",
 ];
@@ -39,15 +41,32 @@ impl Client {
     /// Message `id`'s text first, as MIME (`mailcraft_mime::text_first`): `None` when the server
     /// gave no body, or the message has no files (then the whole message is as quick).
     pub fn download_text(&self, id: &str) -> Result<Option<Vec<u8>>> {
+        if *self.text_first_refused.borrow() {
+            return Ok(None);
+        }
         let fields: String = FIELDS.iter().map(|f| format!("<t:FieldURI FieldURI=\"{f}\"/>")).collect();
         // No `BodyType` and no headers asked for: some servers (grommunio) send the whole source
         // with either.
-        let m = self.call_one(&format!(
+        let asked = self.call_one(&format!(
             "<m:GetItem><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape><t:AdditionalProperties>{fields}</t:AdditionalProperties></m:ItemShape>\
              <m:ItemIds><t:ItemId Id=\"{}\"/></m:ItemIds></m:GetItem>",
             esc(id)
-        ))?;
-        Ok(text_first(&m))
+        ));
+        match asked {
+            Ok(m) => Ok(text_first(&m)),
+            // Refused, the request as a whole (a fault) or this item's: the message comes whole,
+            // as it did before its text came first, and the refusal is never the message's
+            // (issue #191: it showed in the reading pane in place of the message). Not asked
+            // again here once the request was refused.
+            Err(e @ (NetError::Protocol(_) | NetError::No(_) | NetError::Bad(_))) => {
+                log::info!("the text first, refused: the whole message instead: {e}");
+                if matches!(e, NetError::Protocol(_)) {
+                    *self.text_first_refused.borrow_mut() = true;
+                }
+                Ok(None)
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 

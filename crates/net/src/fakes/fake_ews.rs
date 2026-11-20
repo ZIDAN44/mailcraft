@@ -160,6 +160,11 @@ pub struct Data {
     pub exchange_2010: bool,
     /// Requests refused so ([`Data::exchange_2010`]).
     pub schema_refusals: usize,
+    /// Fields its schema doesn't know besides those none does (`schema.rs`): a request naming
+    /// one is refused whole, as one naming a field no Exchange knows is (issue #191).
+    pub refused_fields: Vec<String>,
+    /// Requests refused for a field (`schema.rs`), by the field.
+    pub field_refusals: Vec<String>,
     /// The mailbox's limits, in KB (where it can't send, can't receive, and is warned), said on
     /// its root folder, with every folder's size; `None`: neither said (issue #143).
     pub quota_kb: Option<[i64; 3]>,
@@ -237,6 +242,8 @@ impl Default for Data {
             reminders: Default::default(),
             exchange_2010: false,
             schema_refusals: 0,
+            refused_fields: Vec::new(),
+            field_refusals: Vec::new(),
             quota_kb: None,
             rules: Vec::new(),
             outlook_rules: false,
@@ -451,10 +458,12 @@ impl Data {
             x.push_str(&format!("<t:MimeContent CharacterSet=\"UTF-8\">{}</t:MimeContent>", mailcraft_model::base64::encode(&it.raw)));
         }
         x.push_str(&format!(
-            "<t:Subject>{}</t:Subject><t:DateTimeReceived>{}</t:DateTimeReceived><t:Size>{}</t:Size><t:HasAttachments>false</t:HasAttachments>",
+            "<t:Subject>{}</t:Subject><t:DateTimeReceived>{}</t:DateTimeReceived><t:Size>{}</t:Size><t:HasAttachments>{}</t:HasAttachments>",
             esc(&p.subject),
             it.received,
-            it.raw.len()
+            it.raw.len(),
+            // As Exchange: files shown in the text don't count.
+            p.attachments.iter().any(|a| !a.inline)
         ));
         x.push_str(&follow_up_xml(it));
         x.push_str(&ext("0x0E07", if it.draft { 8 } else { 1 }));
@@ -575,6 +584,7 @@ mod oof;
 mod refusing;
 mod reminders;
 mod rules;
+mod schema;
 mod serving;
 #[cfg(test)]
 mod tests;
