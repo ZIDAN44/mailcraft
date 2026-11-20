@@ -82,6 +82,35 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"folder": string, "parent"?: string (empty or absent: top level), "account"?: string}"#)
         .when(has_account),
+        CommandSpec::new("folder.order", "Put folder in place", "Folder pane (dragged)", |s, v| {
+            let account = account_param(s, v)?;
+            let folder = p::req_str(v, "folder")?.to_string();
+            match (p::str(v, "before"), p::str(v, "after")) {
+                (Some(t), _) => s.order_folder(&account, &folder, t, false),
+                (None, Some(t)) => s.order_folder(&account, &folder, t, true),
+                (None, None) => Err(CmdError::Params("`before` or `after` (a folder) is required".into())),
+            }
+        })
+        .params(r#"{"folder": string, "before"?: string, "after"?: string (a folder: it goes beside it, moved into its folder first when it's in another), "account"?: string} (the folder pane's order, the user's own from then on)"#)
+        .when(has_account),
+        CommandSpec::new("folder.moveUp", "Move up", "Folder pane › folder menu", |s, v| {
+            let account = account_param(s, v)?;
+            s.reorder_folder(&account, p::req_str(v, "folder")?, -1)
+        })
+        .params(r#"{"folder": string, "account"?: string}"#)
+        .when(has_account),
+        CommandSpec::new("folder.moveDown", "Move down", "Folder pane › folder menu", |s, v| {
+            let account = account_param(s, v)?;
+            s.reorder_folder(&account, p::req_str(v, "folder")?, 1)
+        })
+        .params(r#"{"folder": string, "account"?: string}"#)
+        .when(has_account),
+        CommandSpec::new("folder.sortAZ", "Sort folders A to Z", "Folder pane › account menu", |s, v| {
+            let account = account_param(s, v)?;
+            s.folders_a_to_z(&account)
+        })
+        .params(r#"{"account"?: string} (its folders back in A to Z order)"#)
+        .when(has_account),
         CommandSpec::new("folder.delete", "Delete folder", "Folder › Actions", |s, v| {
             let account = account_param(s, v)?;
             s.delete_folder(&account, p::req_str(v, "folder")?, p::bool(v, "permanent").unwrap_or(false))

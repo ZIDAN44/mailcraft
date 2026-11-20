@@ -24,7 +24,7 @@ pub use account::{
     ServerConfig, SignInMethod, files_sent_mail_itself, google_mail, google_wants_app_password, is_certificate_fingerprint, microsoft_consumer,
     microsoft_password_account, oauth_provider_for, user_agent,
 };
-pub use folder::{Folder, FolderRole, child_path, is_within, rebase_path, sort_folders};
+pub use folder::{Folder, FolderRole, child_path, is_orderable, is_within, pane_order, rebase_path, sort_folders};
 
 pub use account::signature;
 pub use addresses::{addr, contacts, lookalike};

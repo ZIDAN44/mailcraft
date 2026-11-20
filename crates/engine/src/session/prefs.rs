@@ -134,6 +134,10 @@ pub struct Prefs {
     pub compact: bool,
     /// How tightly the folder pane's rows sit (issue #184).
     pub folder_density: FolderDensity,
+    /// Folders in an order of the user's own, by account: their paths in that order (issue
+    /// #183). An account without one has them A to Z.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub folder_order: BTreeMap<String, Vec<String>>,
     /// The list under headings, as it's arranged (Today, Yesterday…; a sender's name): off, its
     /// messages follow one another with nothing between.
     pub groups: bool,
@@ -391,6 +395,7 @@ impl Default for Prefs {
             show_preview: true,
             compact: false,
             folder_density: FolderDensity::Spacious,
+            folder_order: BTreeMap::new(),
             groups: true,
             single_line: false,
             classic_ribbon: false,

@@ -238,3 +238,35 @@ fn the_folder_density_fits_more_folders() {
     assert!(a.session.run("view.folderDensity", &json!({"value": "tiny"})).is_err());
     assert_eq!(a.session.prefs.folder_density, mailcraft_engine::FolderDensity::Compact, "left as it was");
 }
+
+/// Issue #183: a folder dragged to another's top edge goes before it, in the folder pane's own
+/// order; the menu's Move down moves it back after; the account's Sort folders A to Z undoes it.
+/// The pane kept folders A to Z, whatever was done.
+#[test]
+fn a_folder_dropped_at_an_edge_goes_beside_it() {
+    let (mut a, _) = app("folder-order-drag");
+    let ctx = egui::Context::default();
+    a.run("folder.create", json!({"account": "sample", "name": "Clients"}));
+    a.run("folder.create", json!({"account": "sample", "name": "Zeta"}));
+    let order = |ctx: &egui::Context, a: &mut MailApp| -> Vec<String> {
+        pane(ctx, a, 2000.0, vec![]).into_iter().map(|(t, _)| t).filter(|t| ["Clients", "Projects", "Zeta"].contains(&t.as_str())).collect()
+    };
+    assert_eq!(order(&ctx, &mut a), ["Clients", "Projects", "Zeta"]);
+    let texts = pane(&ctx, &mut a, 2000.0, vec![]);
+    let at = |name: &str| texts.iter().filter(|(t, _)| t == name).map(|(_, p)| *p).next_back().unwrap_or_else(|| panic!("{name} drawn"));
+    // From Zeta's middle to the top edge of Clients' row (its text's top is 8 above the middle).
+    let (from, to) = (at("Zeta") + egui::vec2(4.0, 6.0), at("Clients") + egui::vec2(4.0, -4.0));
+    let press = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    pane(&ctx, &mut a, 2000.0, vec![Event::PointerMoved(from)]);
+    pane(&ctx, &mut a, 2000.0, vec![press(from, true)]);
+    for k in 1..=4 {
+        pane(&ctx, &mut a, 2000.0, vec![Event::PointerMoved(from + (to - from) * (k as f32 / 4.0))]);
+    }
+    pane(&ctx, &mut a, 2000.0, vec![press(to, false)]);
+    assert_eq!(order(&ctx, &mut a), ["Zeta", "Clients", "Projects"], "before Clients, not inside it");
+    assert!(a.session.folder("sample", "Zeta").is_some());
+    a.run("folder.moveDown", json!({"account": "sample", "folder": "Zeta"}));
+    assert_eq!(order(&ctx, &mut a), ["Clients", "Zeta", "Projects"]);
+    a.run("folder.sortAZ", json!({"account": "sample"}));
+    assert_eq!(order(&ctx, &mut a), ["Clients", "Projects", "Zeta"]);
+}

@@ -253,6 +253,12 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, minimize: bool, acts: &mut Vec
                     acts.push(Action::Dialog(Dialog::new_folder(&config.id, here)));
                     ui.close();
                 }
+                // Its folders back in A to Z order (issue #183), as Outlook's Show All Folders A
+                // to Z, once they're in an order of the user's own.
+                if ui.add_enabled(s.folders_ordered(&config.id), egui::Button::new(tl!("Sort folders A to Z"))).clicked() {
+                    acts.push(Action::Run("folder.sortAZ", json!({"account": config.id})));
+                    ui.close();
+                }
                 // Its data file's import: stop it, go on with it, or what it came to.
                 crate::app::importing::menu(ui, s, &config.id, acts);
                 // Its place among the mailboxes, as Outlook moves a mailbox up or down.
@@ -271,7 +277,8 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, minimize: bool, acts: &mut Vec
                 if a.folders.is_empty() && !importing {
                     ui.label(RichText::new(tl!("  Loading folders…")).color(t.faint).small());
                 }
-                for f in a.folders.iter().filter(|f| f.mailbox.is_none()) {
+                // In the user's order, when they put them in one (issue #183).
+                for f in s.pane_folders(a).into_iter().filter(|f| f.mailbox.is_none()) {
                     if tree.hidden(f) {
                         continue;
                     }

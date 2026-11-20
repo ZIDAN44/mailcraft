@@ -439,6 +439,8 @@ impl Session {
                     }
                 }
                 self.organizing_follows_folder(account, from, to, delimiter);
+                // Its place in the user's order too (issue #183).
+                self.order_follows_folder(account, from, Some(to), delimiter);
                 // A folder's own AutoArchive setting goes with it (issue #180).
                 for f in self.prefs.auto_archive.folders.iter_mut().filter(|f| f.account == account) {
                     if let Some(new) = mailcraft_model::rebase_path(&f.folder, from, to, delimiter) {
@@ -452,6 +454,7 @@ impl Session {
                     favs.retain(|f| f.account != account || !mailcraft_model::is_within(&f.folder, path, delimiter));
                 }
                 self.prefs.auto_archive.folders.retain(|f| f.account != account || !mailcraft_model::is_within(&f.folder, path, delimiter));
+                self.order_follows_folder(account, path, None, delimiter);
                 if matches!(&self.view, View::Folder { account: va, folder } if va == account && mailcraft_model::is_within(folder, path, delimiter))
                 {
                     self.view = self.default_view();

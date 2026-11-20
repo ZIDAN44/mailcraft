@@ -270,9 +270,84 @@ pub fn sort_folders(folders: &mut [Folder]) {
     });
 }
 
+/// Whether a folder can be put in an order of the user's own among its siblings (issue #183): one
+/// of theirs, in their own mailbox. Special folders keep their places, as a shared mailbox's do.
+pub fn is_orderable(f: &Folder) -> bool {
+    f.role == FolderRole::Other && f.mailbox.is_none() && !f.path.starts_with('\0')
+}
+
+/// The folders' places in the folder pane with `order` (paths, the user's own order; issue #183):
+/// indices into `folders`, which are as [`sort_folders`] leaves them. Each folder's folders follow
+/// it; among siblings, those [not orderable](is_orderable) keep their places first, then the
+/// others in `order`'s, those it doesn't name after them as they were (A to Z).
+pub fn pane_order(folders: &[Folder], order: &[String]) -> Vec<usize> {
+    let at: std::collections::HashMap<&str, usize> = order.iter().enumerate().map(|(i, p)| (p.as_str(), i)).collect();
+    let index: std::collections::HashMap<&str, usize> = folders.iter().enumerate().map(|(i, f)| (f.path.as_str(), i)).collect();
+    // Each folder's parent among them: its path less its last name.
+    let parent = |f: &Folder| -> Option<usize> { f.delimiter.and_then(|d| f.path.rsplit_once(d)).and_then(|(up, _)| index.get(up).copied()) };
+    let mut children: Vec<Vec<usize>> = vec![Vec::new(); folders.len()];
+    let mut roots = Vec::new();
+    for (i, f) in folders.iter().enumerate() {
+        match parent(f) {
+            Some(p) if p != i => children.get_mut(p).into_iter().for_each(|c| c.push(i)),
+            _ => roots.push(i),
+        }
+    }
+    let key = |&i: &usize| match folders.get(i) {
+        Some(f) if is_orderable(f) => (1, at.get(f.path.as_str()).copied().unwrap_or(usize::MAX), i),
+        _ => (0, 0, i),
+    };
+    roots.sort_by_key(key);
+    for c in &mut children {
+        c.sort_by_key(key);
+    }
+    // Depth first, a stack rather than recursion (a folder list is the server's).
+    let mut out = Vec::with_capacity(folders.len());
+    let mut seen = vec![false; folders.len()];
+    let mut stack: Vec<usize> = roots.into_iter().rev().collect();
+    while let Some(i) = stack.pop() {
+        if std::mem::replace(seen.get_mut(i).unwrap_or(&mut true), true) {
+            continue;
+        }
+        out.push(i);
+        stack.extend(children.get(i).into_iter().flatten().rev().copied());
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Issue #183: the user's order among siblings, folders inside following theirs, special
+    /// folders in their places; A to Z for what the order doesn't name.
+    #[test]
+    fn folders_go_in_the_users_order() {
+        let f = |path: &str, role| Folder { path: path.into(), delimiter: Some('/'), role, selectable: true, ..Default::default() };
+        let mut folders = vec![
+            f("INBOX", FolderRole::Inbox),
+            f("INBOX/Alpha", FolderRole::Other),
+            f("INBOX/Beta", FolderRole::Other),
+            f("Sent", FolderRole::Sent),
+            f("Clients", FolderRole::Other),
+            f("Clients/Acme", FolderRole::Other),
+            f("Projects", FolderRole::Other),
+            f("Zeta", FolderRole::Other),
+        ];
+        sort_folders(&mut folders);
+        let paths = |order: &[&str]| -> Vec<String> {
+            let order: Vec<String> = order.iter().map(|s| s.to_string()).collect();
+            pane_order(&folders, &order).into_iter().map(|i| folders[i].path.clone()).collect()
+        };
+        let az = paths(&[]);
+        assert_eq!(az, ["INBOX", "INBOX/Alpha", "INBOX/Beta", "Sent", "Clients", "Clients/Acme", "Projects", "Zeta"], "no order: A to Z");
+        assert_eq!(
+            paths(&["Zeta", "Clients", "INBOX/Beta"]),
+            ["INBOX", "INBOX/Beta", "INBOX/Alpha", "Sent", "Zeta", "Clients", "Clients/Acme", "Projects"],
+            "named first, Acme with Clients, the rest A to Z after; Inbox and Sent where they were"
+        );
+        assert_eq!(paths(&["Sent", "Gone"]), az, "a special folder, and one that's gone, change nothing");
+    }
 
     #[test]
     fn a_folder_made_in_another_follows_it() {

@@ -2,6 +2,21 @@
 
 use super::*;
 
+/// Where a folder dragged over a row of one of the user's folders lands (issue #183): over the
+/// row's top quarter, before it (`false`); its bottom quarter, after it (`true`); its middle,
+/// inside it (none, issue #181).
+fn place(ui: &Ui, rect: egui::Rect) -> Option<bool> {
+    let y = ui.ctx().pointer_interact_pos()?.y;
+    let edge = rect.height() / 4.0;
+    if y < rect.top() + edge {
+        Some(false)
+    } else if y > rect.bottom() - edge {
+        Some(true)
+    } else {
+        None
+    }
+}
+
 /// The selection dropped on a folder: moved there, or copied with Ctrl held (issue #82). The
 /// folder may be another account's (a drop there did nothing, and said nothing).
 pub(super) fn dropped_mail(ui: &Ui, account: &str, folder: &str) -> Action {
@@ -58,11 +73,27 @@ pub(super) fn folder_row(
     if f.selectable && dropped::<DragKeys>(&resp).is_some() {
         acts.push(dropped_mail(ui, &f.account, &f.path));
     }
+    // A folder over one of the user's: at its edges, put beside it (a line says where); over
+    // the middle, inside it.
+    let orderable = mailcraft_engine::model::is_orderable(f) && !favorite;
+    let beside = if orderable { place(ui, resp.rect) } else { None };
+    if let Some(after) = beside
+        && resp.dnd_hover_payload::<DragFolder>().is_some_and(|p| p.account == f.account && p.path != f.path)
+    {
+        let y = if after { resp.rect.bottom() } else { resp.rect.top() };
+        ui.painter().line_segment([egui::pos2(resp.rect.left() + 4.0, y), egui::pos2(resp.rect.right() - 4.0, y)], egui::Stroke::new(2.0, t.accent));
+    }
     if let Some(p) = dropped::<DragFolder>(&resp)
         && p.account == f.account
         && p.path != f.path
     {
-        acts.push(Action::Run("folder.move", json!({"account": f.account, "folder": p.path, "parent": f.path})));
+        acts.push(match beside {
+            Some(after) => {
+                let side = if after { "after" } else { "before" };
+                Action::Run("folder.order", json!({"account": f.account, "folder": p.path, side: f.path}))
+            }
+            None => Action::Run("folder.move", json!({"account": f.account, "folder": p.path, "parent": f.path})),
+        });
     }
     if user_folder && !favorite && resp.drag_started() {
         resp.dnd_set_drag_payload(DragFolder { account: f.account.clone(), path: f.path.clone() });
@@ -108,6 +139,15 @@ pub(super) fn folder_row(
             if ui.button(tl!("Move folder…")).clicked() {
                 acts.push(Action::Dialog(Dialog::move_folder(f)));
                 ui.close();
+            }
+            // Its place among those beside it (issue #183), as Outlook's Move up and Move down.
+            if orderable {
+                for (by, label, id) in [(-1, "Move up", "folder.moveUp"), (1, "Move down", "folder.moveDown")] {
+                    if ui.add_enabled(s.can_reorder_folder(account, path, by), egui::Button::new(tl!(label))).clicked() {
+                        acts.push(Action::Run(id, json!({"account": account, "folder": path})));
+                        ui.close();
+                    }
+                }
             }
             if ui.button(RichText::new(tl!("Delete folder…")).color(t.danger)).clicked() {
                 acts.push(Action::Dialog(Dialog::delete_folder(s, f)));
