@@ -1940,6 +1940,7 @@ count	occurrences	회
 	Show this group's mail	이 그룹의 메일 표시
 	Hide this group's mail	이 그룹의 메일 숨기기
 	{heading} ({count}), folded	{heading} ({count}), 접힘
+	Line between the appointments and the tasks	약속과 작업 사이의 선
 	Mark all in {folder} as read	{folder}의 모든 메일을 읽음으로 표시
 	Mark all shown as read	표시된 모든 메일을 읽음으로 표시
 	More ways to mark mail read	메일을 읽음으로 표시하는 다른 방법

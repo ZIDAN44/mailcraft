@@ -1941,6 +1941,7 @@ count	occurrences	occurrences
 	Show this group's mail	Afficher les messages de ce groupe
 	Hide this group's mail	Masquer les messages de ce groupe
 	{heading} ({count}), folded	{heading} ({count}), réduit
+	Line between the appointments and the tasks	Ligne entre les rendez-vous et les tâches
 	Mark all in {folder} as read	Marquer tout {folder} comme lu
 	Mark all shown as read	Marquer tout ce qui est affiché comme lu
 	More ways to mark mail read	Autres façons de marquer le courrier comme lu

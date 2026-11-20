@@ -29,7 +29,7 @@ fn the_bars_parts_and_width_are_kept() {
     let mut s = sample_session("todo-bar");
     assert!(!s.prefs.todo_bar.shown(), "off until asked for");
     let r = s.run("view.todoBar", &json!({})).unwrap();
-    assert_eq!(r, json!({"calendar": true, "appointments": true, "tasks": true, "width": 260}));
+    assert_eq!(r, json!({"calendar": true, "appointments": true, "tasks": true, "width": 260, "split": 50}));
     // A part closed on its own (its ✕), another turned the other way.
     s.run("view.todoBar", &json!({"part": "appointments", "on": false})).unwrap();
     s.run("view.todoBar", &json!({"part": "tasks"})).unwrap();
@@ -42,6 +42,12 @@ fn the_bars_parts_and_width_are_kept() {
     let bar = s.prefs.todo_bar;
     assert_eq!((bar.calendar, bar.appointments, bar.tasks), (true, false, false));
     assert!(s.run("view.todoBar", &json!({"part": "sideways"})).is_err());
+    // Where the line between the appointments and the tasks is (issue #196), within what it
+    // can be; the parts stay as they are.
+    assert_eq!(s.run("view.todoBar", &json!({"split": 70})).unwrap()["split"], 70);
+    assert_eq!(s.run("view.todoBar", &json!({"split": 2})).unwrap()["split"], 15);
+    let bar = s.prefs.todo_bar;
+    assert_eq!((bar.calendar, bar.appointments, bar.tasks, bar.split), (true, false, false, 15));
     // Kept from one start to the next; settings from before it have it off.
     let kept: Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
     assert_eq!(kept.todo_bar, s.prefs.todo_bar);

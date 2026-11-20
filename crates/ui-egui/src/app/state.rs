@@ -293,6 +293,9 @@ pub struct UiState {
     pub(crate) todo_day: Option<i64>,
     /// What's typed in the To-Do Bar's "Type a new task" box.
     pub(crate) todo_new: String,
+    /// The line between the To-Do Bar's appointments and tasks while it's dragged: the
+    /// appointments' share of the height (issue #196); kept once it's let go.
+    pub(crate) todo_split: Option<f32>,
     pub(crate) task: Option<String>,
     /// The person whose card is shown (uid).
     pub(crate) person: Option<String>,

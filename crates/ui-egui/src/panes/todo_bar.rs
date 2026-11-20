@@ -60,20 +60,76 @@ fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
         }
         if bar.appointments {
             head(ui, &t, "Appointments", "appointments", acts);
-            // Half of what's left when the tasks are under it (they keep the other half), with a
-            // scroll bar of its own when there's more coming up than fits.
-            let most = if bar.tasks { (ui.available_height() / 2.0).max(ROW * 2.0) } else { ui.available_height() };
-            egui::ScrollArea::vertical().id_salt("todo-bar-appointments").max_height(most).show(ui, |ui| {
-                ui.set_min_width(ui.available_width());
-                appointments(s, &t, st.todo_day, ui, acts);
-            });
-            ui.add_space(6.0);
+            if bar.tasks {
+                // Its share of what's left, the tasks under the line having the rest, each with a
+                // scroll bar of its own; the line is dragged to share it otherwise (issue #196: it
+                // was half, always).
+                let (top, room) = (ui.cursor().top(), (ui.available_height() - TASKS_HEAD - SPLIT_LINE).max(ROW * 4.0));
+                let share = st.todo_split.unwrap_or(f32::from(bar.split) / 100.0);
+                let h = (room * share).max(ROW * 2.0);
+                egui::ScrollArea::vertical().id_salt("todo-bar-appointments").auto_shrink(false).max_height(h).show(ui, |ui| {
+                    appointments(s, &t, st.todo_day, ui, acts);
+                });
+                split_line(ui, &t, (top, room), bar.split, st, acts);
+            } else {
+                egui::ScrollArea::vertical().id_salt("todo-bar-appointments").max_height(ui.available_height()).show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    appointments(s, &t, st.todo_day, ui, acts);
+                });
+                ui.add_space(6.0);
+            }
         }
         if bar.tasks {
             head(ui, &t, "Tasks", "tasks", acts);
             tasks(s, st, ui, acts);
         }
     });
+}
+
+/// The tasks' heading's height, under the line.
+const TASKS_HEAD: f32 = 22.0;
+/// The line between the appointments and the tasks, and the room round it that takes the pointer.
+const SPLIT_LINE: f32 = 10.0;
+
+/// The line between the appointments and the tasks (issue #196), as Outlook's: dragged up or
+/// down, it gives either more room, and stays where it's let go (`view.todoBar`'s `split`, `kept`
+/// now); with the keyboard, Up and Down move it. `top` is where the appointments start, `room`
+/// the height the two share.
+fn split_line(ui: &mut Ui, t: &Tokens, (top, room): (f32, f32), kept: u8, st: &mut UiState, acts: &mut Vec<Action>) {
+    let (least, most) = (f32::from(*mailcraft_engine::TODO_BAR_SPLIT.start()) / 100.0, f32::from(*mailcraft_engine::TODO_BAR_SPLIT.end()) / 100.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), SPLIT_LINE), Sense::click_and_drag());
+    widgets::named(ui, &resp, tl!("Line between the appointments and the tasks"), true, None);
+    // A click puts the keyboard on it, for Up and Down.
+    if resp.clicked() || resp.drag_started() {
+        resp.request_focus();
+    }
+    let active = resp.hovered() || resp.dragged() || resp.has_focus();
+    if active {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::ResizeVertical);
+    }
+    let y = rect.center().y;
+    let stroke = egui::Stroke::new(if active { 2.0 } else { 1.0 }, if active { t.accent } else { t.border });
+    ui.painter().line_segment([pos2(rect.min.x, y), pos2(rect.max.x, y)], stroke);
+    let kept = f32::from(kept) / 100.0;
+    let moved = if resp.dragged()
+        && let Some(p) = resp.interact_pointer_pos()
+    {
+        Some(((p.y - top) / room.max(1.0)).clamp(least, most))
+    } else if resp.has_focus() {
+        let step = ui.input(|i| i32::from(i.key_pressed(egui::Key::ArrowDown)) - i32::from(i.key_pressed(egui::Key::ArrowUp)));
+        (step != 0).then(|| (st.todo_split.unwrap_or(kept) + 0.05 * step as f32).clamp(least, most))
+    } else {
+        None
+    };
+    if let Some(share) = moved {
+        st.todo_split = Some(share);
+    }
+    // Kept once let go, or at once from the keyboard.
+    if (resp.drag_stopped() || (moved.is_some() && !resp.dragged()))
+        && let Some(share) = st.todo_split.take()
+    {
+        acts.push(Action::Run("view.todoBar", json!({"split": (share * 100.0).round() as u64})));
+    }
 }
 
 /// A part's name, and the ✕ that closes it.

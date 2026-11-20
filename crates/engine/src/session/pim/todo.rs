@@ -19,8 +19,12 @@ mod flag_reminders;
 const FLAGGED_PER_FOLDER: usize = 500;
 /// The bar's width, at least and at most.
 pub const TODO_BAR_WIDTH: std::ops::RangeInclusive<u16> = 200..=480;
+/// The appointments' share of the height under the month when the tasks are under them, in
+/// percent, at least and at most (issue #196): each part keeps a few rows.
+pub const TODO_BAR_SPLIT: std::ops::RangeInclusive<u8> = 15..=85;
 
-/// The To-Do Bar's settings: its parts, each shown or not, and its width.
+/// The To-Do Bar's settings: its parts, each shown or not, its width, and where the line between
+/// the appointments and the tasks is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct TodoBar {
@@ -31,11 +35,14 @@ pub struct TodoBar {
     /// Tasks and flagged mail, by when they're due.
     pub tasks: bool,
     pub width: u16,
+    /// The appointments' share of the room under the month, in percent ([`TODO_BAR_SPLIT`]),
+    /// when the tasks are under them; the tasks have the rest (issue #196).
+    pub split: u8,
 }
 
 impl Default for TodoBar {
     fn default() -> Self {
-        TodoBar { calendar: false, appointments: false, tasks: false, width: 260 }
+        TodoBar { calendar: false, appointments: false, tasks: false, width: 260, split: 50 }
     }
 }
 

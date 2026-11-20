@@ -193,18 +193,23 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("view.todoBar", "To-Do Bar", "View › Layout", |s, v| {
             if p::bool(v, "off") == Some(true) {
                 s.todo_bar_part(None, Some(false))?;
-            } else if v.get("part").is_some() || v.get("on").is_some() || v.get("width").is_none() {
+            } else if v.get("part").is_some() || v.get("on").is_some() || (v.get("width").is_none() && v.get("split").is_none()) {
                 s.todo_bar_part(p::str(v, "part"), p::bool(v, "on"))?;
             }
             if let Some(w) = p::u64(v, "width") {
                 let (least, most) = (*crate::TODO_BAR_WIDTH.start(), *crate::TODO_BAR_WIDTH.end());
                 s.prefs.todo_bar.width = u16::try_from(w).unwrap_or(most).clamp(least, most);
             }
+            // Where the line between the appointments and the tasks is (issue #196).
+            if let Some(split) = p::u64(v, "split") {
+                let (least, most) = (*crate::TODO_BAR_SPLIT.start(), *crate::TODO_BAR_SPLIT.end());
+                s.prefs.todo_bar.split = u8::try_from(split).unwrap_or(most).clamp(least, most);
+            }
             let bar = s.prefs.todo_bar;
-            Ok(json!({"calendar": bar.calendar, "appointments": bar.appointments, "tasks": bar.tasks, "width": bar.width}))
+            Ok(json!({"calendar": bar.calendar, "appointments": bar.appointments, "tasks": bar.tasks, "width": bar.width, "split": bar.split}))
         })
         .params(
-            r#"{"part"?: "calendar"|"appointments"|"tasks" (that part; none: all of them), "on"?: bool (shown or hidden; not given: the other way), "off"?: true (all hidden), "width"?: number}"#,
+            r#"{"part"?: "calendar"|"appointments"|"tasks" (that part; none: all of them), "on"?: bool (shown or hidden; not given: the other way), "off"?: true (all hidden), "width"?: number, "split"?: 15…85 (the appointments' share of the height, in percent, when the tasks are under them)}"#,
         ),
         CommandSpec::new("todo.complete", "Mark complete", "To-Do Bar", |s, v| {
             let key = p::req_str(v, "key")?;

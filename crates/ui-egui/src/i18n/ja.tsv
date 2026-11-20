@@ -1937,6 +1937,7 @@ count	occurrences	回
 	Show this group's mail	このグループのメールを表示
 	Hide this group's mail	このグループのメールを非表示
 	{heading} ({count}), folded	{heading} ({count})、折りたたみ
+	Line between the appointments and the tasks	予定とタスクの境界線
 	Mark all in {folder} as read	{folder} をすべて既読にする
 	Mark all shown as read	表示中のものをすべて既読にする
 	More ways to mark mail read	メールを既読にするその他の方法

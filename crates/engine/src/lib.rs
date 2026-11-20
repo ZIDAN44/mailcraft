@@ -38,7 +38,8 @@ pub use session::{
     newer_release, parse_key,
     pim::{
         ACCOUNT_COLOR, AgendaItem, CalMode, DueReminder, EVENT_HITS_MAX, EventHit, EventWhen, FREE_LENGTHS, FreeBusyState, ListedTask, LocalEvents,
-        Module, NoteRef, Person, TASKS_CALENDAR, TODO_BAR_WIDTH, TaskRef, TasksOrder, TodoBar, TodoGroup, TodoItem, TodoWhat, parse_local,
+        Module, NoteRef, Person, TASKS_CALENDAR, TODO_BAR_SPLIT, TODO_BAR_WIDTH, TaskRef, TasksOrder, TodoBar, TodoGroup, TodoItem, TodoWhat,
+        parse_local,
     },
     quick_steps::QuickStep,
     search_folders::SearchFolder,
