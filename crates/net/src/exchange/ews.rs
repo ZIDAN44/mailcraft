@@ -610,7 +610,8 @@ pub fn find_on_server(
     crate::exchange::window::found(st, store, (account, seen), folder, fs, &numbers, new)
 }
 
-/// A `Restriction` for a search's read, flag and attachment conditions.
+/// A `Restriction` for a search's read, flag and attachment conditions, and when the mail came
+/// (issue #179).
 fn restriction(q: &WordQuery) -> String {
     let equal = |field: &str, value: &str| {
         format!("<t:IsEqualTo>{field}<t:FieldURIOrConstant><t:Constant Value=\"{value}\"/></t:FieldURIOrConstant></t:IsEqualTo>")
@@ -626,6 +627,14 @@ fn restriction(q: &WordQuery) -> String {
     if let Some(a) = q.attachment {
         parts.push(equal("<t:FieldURI FieldURI=\"item:HasAttachments\"/>", if a { "true" } else { "false" }));
     }
+    let received = |op: &str, t: i64| {
+        let at = mailcraft_model::dates::utc_stamp(t);
+        format!(
+            "<t:{op}><t:FieldURI FieldURI=\"item:DateTimeReceived\"/><t:FieldURIOrConstant><t:Constant Value=\"{at}\"/></t:FieldURIOrConstant></t:{op}>"
+        )
+    };
+    parts.extend(q.after.map(|t| received("IsGreaterThanOrEqualTo", t)));
+    parts.extend(q.before.map(|t| received("IsLessThan", t)));
     match parts.len() {
         0 => String::new(),
         1 => format!("<m:Restriction>{}</m:Restriction>", parts.concat()),

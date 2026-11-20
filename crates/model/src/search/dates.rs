@@ -267,4 +267,26 @@ impl Query {
             term(&mut c.term, clock);
         }
     }
+
+    /// The period a server is asked for (issue #179): from (on) and to (before) in Unix seconds,
+    /// either open, where every date the query names (not left out with `-`) holds; `None` when
+    /// it names none. A day wider each side than the clock's zone gives: a server reads days in
+    /// its own zone, and what it finds is checked here as any search is.
+    pub fn server_period(&self, clock: &Clock) -> Option<(Option<i64>, Option<i64>)> {
+        let mut found = None;
+        for c in self.clauses.iter().filter(|c| !c.negated) {
+            let Term::Date(spec) = &c.term else { continue };
+            let mut spec = spec.clone();
+            spec.resolve(clock);
+            let Some((from, to)) = spec.range else { continue };
+            let (f, t): &mut (Option<i64>, Option<i64>) = found.get_or_insert((None, None));
+            if from != i64::MIN {
+                *f = Some(f.map_or(from, |x| x.max(from)));
+            }
+            if to != i64::MAX {
+                *t = Some(t.map_or(to, |x| x.min(to)));
+            }
+        }
+        found.map(|(f, t)| (f.map(|f| f.saturating_sub(DAY)), t.map(|t| t.saturating_add(DAY))))
+    }
 }

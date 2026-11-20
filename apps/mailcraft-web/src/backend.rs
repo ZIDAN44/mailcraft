@@ -327,7 +327,9 @@ async fn search_server(sh: &Rcs, id: &str, folders: &[String], query: String, se
         emit(sh, answer(Vec::new(), Some("the account isn't connected".into()), true));
         return;
     };
-    let Some(filter) = mailcraft_jmap::search_filter(&query) else {
+    // Its dates as days around now, a day wider each side (issue #179), as the desktop asks.
+    let period = mailcraft_engine::model::search::Query::parse(&query).server_period(&mailcraft_engine::model::dates::Clock::new(now(), 0));
+    let Some(filter) = mailcraft_jmap::search_filter(&query, period) else {
         emit(sh, answer(Vec::new(), None, true));
         return;
     };

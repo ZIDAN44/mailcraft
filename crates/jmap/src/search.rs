@@ -4,9 +4,10 @@ use super::*;
 
 /// The search box's query as a JMAP `Email/query` filter (RFC 8621 §4.4.1), for mail past what's
 /// kept (issue #4): words anywhere are `text`, `from:` `from` and so on, `is:unread` no `$seen`,
-/// a leading `-` `NOT`. What JMAP can't ask (importance, categories) is left to the list; `None`
-/// when nothing is left to ask.
-pub fn search_filter(query: &str) -> Option<Value> {
+/// a leading `-` `NOT`; and `period`, from (on) and before these times in Unix seconds, as
+/// `after` and `before` (issue #179). What JMAP can't ask (importance, categories) is left to
+/// the list; `None` when nothing is left to ask.
+pub fn search_filter(query: &str, period: Option<(Option<i64>, Option<i64>)>) -> Option<Value> {
     use mailcraft_model::search::{Field, Query, Term};
     let q = Query::parse(query);
     let mut conds = Vec::new();
@@ -59,6 +60,10 @@ pub fn search_filter(query: &str) -> Option<Value> {
             }
             _ => {}
         }
+    }
+    if let Some((after, before)) = period {
+        conds.extend(after.map(|t| json!({"after": mailcraft_model::dates::utc_stamp(t)})));
+        conds.extend(before.map(|t| json!({"before": mailcraft_model::dates::utc_stamp(t)})));
     }
     (!conds.is_empty()).then(|| json!({"operator": "AND", "conditions": conds}))
 }

@@ -565,6 +565,13 @@ pub fn find_on_server(
         if let Some(a) = query.attachment {
             f.push(format!("hasAttachments eq {a}"));
         }
+        // When it came, as the list has it (issue #179).
+        if let Some(t) = query.after {
+            f.push(format!("receivedDateTime ge {}", mailcraft_model::dates::utc_stamp(t)));
+        }
+        if let Some(t) = query.before {
+            f.push(format!("receivedDateTime lt {}", mailcraft_model::dates::utc_stamp(t)));
+        }
         format!("$filter={}", http::pct(&f.join(" and ")))
     } else {
         format!("$search={}", http::pct(&format!("\"{}\"", query.text.replace('"', "\\\""))))

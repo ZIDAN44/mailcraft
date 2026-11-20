@@ -118,7 +118,10 @@ impl Data {
         let word = |k: &str| f.get(k).and_then(Value::as_str);
         let listed = word("inMailbox").is_none_or(|m| e.mailboxes.contains(m))
             && word("hasKeyword").is_none_or(|k| e.keywords.contains(k))
-            && word("notKeyword").is_none_or(|k| !e.keywords.contains(k));
+            && word("notKeyword").is_none_or(|k| !e.keywords.contains(k))
+            // When it came (issue #179): UTCDates compare as text.
+            && word("after").is_none_or(|t| e.received.as_str() >= t)
+            && word("before").is_none_or(|t| e.received.as_str() < t);
         // The message's words read only when a condition asks for some.
         if !listed || ["text", "from", "to", "subject", "body"].iter().all(|k| word(k).is_none()) {
             return listed;

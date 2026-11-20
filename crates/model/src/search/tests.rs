@@ -402,6 +402,20 @@ fn local(y: i64, m: u32, d: u32, clock: &Clock) -> i64 {
     clock.midnight(crate::dates::days_from_civil(y, m, d))
 }
 
+/// What a server is asked for (issue #179): where every date named holds, a day wider each side;
+/// nothing when no date is named, or only one left out.
+#[test]
+fn a_server_is_asked_for_the_period_a_day_wider() {
+    const DAY: i64 = 86_400;
+    let c = berlin(1_718_000_000);
+    let asked = |s: &str| Query::parse(s).server_period(&c);
+    assert_eq!(asked("before:2024-03-01"), Some((None, Some(local(2024, 3, 1, &c) + DAY))));
+    assert_eq!(asked("after:2024-03-01 budget"), Some((Some(local(2024, 3, 1, &c) - DAY), None)));
+    assert_eq!(asked("received:2024 before:2024-03-01"), Some((Some(local(2024, 1, 1, &c) - DAY), Some(local(2024, 3, 1, &c) + DAY))), "both hold");
+    assert_eq!(asked("budget"), None);
+    assert_eq!(asked("-before:2024-03-01"), None, "left out: not asked");
+}
+
 /// `received:2024` is the year in the user's zone: from its first local midnight to the next
 /// year's.
 #[test]

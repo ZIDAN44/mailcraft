@@ -35,6 +35,15 @@ impl Data {
             list.retain(|i| crate::fake_graph::words_match(&q.text, &i.raw));
         }
         if let Some(r) = op.child("Restriction") {
+            // When it came (issue #179): its time as Exchange writes it compares as text.
+            for (kind, keep) in [("IsGreaterThanOrEqualTo", true), ("IsLessThan", false)] {
+                let mut those = Vec::new();
+                r.all(kind, &mut those);
+                for cond in those {
+                    let at = cond.find("Constant").and_then(|c| c.attr("Value")).unwrap_or("").to_string();
+                    list.retain(|i| (i.received.as_str() >= at.as_str()) == keep);
+                }
+            }
             let mut all = Vec::new();
             r.all("IsEqualTo", &mut all);
             for cond in all {
