@@ -332,7 +332,7 @@ fn partstat_label(p: &str) -> &'static str {
 }
 
 /// Width of the forms' label column.
-const LABEL_W: f32 = 104.0;
+const LABEL_W: f32 = 136.0;
 /// Height of a one-line field.
 const FIELD_H: f32 = 30.0;
 
