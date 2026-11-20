@@ -1,5 +1,6 @@
 //! Trying to break it: what decompresses to too much, packets nested without end, a user ID
-//! someone else certified, and keys by the hundred.
+//! someone else certified, a key's own certification passed off as a signature on mail, and keys
+//! by the hundred.
 
 use pgp::types::CompressionAlgorithm;
 
@@ -73,6 +74,35 @@ fn a_user_id_someone_else_certified_doesnt_count() {
     let i = info(&forged).unwrap();
     assert_eq!(i.emails, ["ana@posteo.example"]);
     assert!(!i.is_for("eve@posteo.example"));
+}
+
+/// Every copy of Ana's public key carries her signature on her user ID. Lifted from it, with
+/// what it signed (her key and user ID, RFC 9580 §5.2.4) as the "message", it's never Ana's
+/// signature on mail: only a signature over a document (binary or text) is one
+/// (GHSA-h834-358q-rx97, fixed in rPGP 0.21.1).
+#[test]
+fn a_key_s_own_certification_isn_t_a_signature_on_mail() {
+    let ana = unlocked("Ana <ana@posteo.example>");
+    let key: pgp::composed::SignedPublicKey = pgp::composed::Deserializable::from_bytes(&ana.public[..]).unwrap();
+    let user = &key.details.users[0];
+    let cert = &user.signatures[0];
+    assert_eq!(cert.typ(), Some(pgp::packet::SignatureType::CertPositive));
+    let (body, uid) = (key.primary_key.to_bytes().unwrap(), user.id.to_bytes().unwrap());
+    let mut signed = vec![0x99];
+    signed.extend_from_slice(&u16::try_from(body.len()).unwrap().to_be_bytes());
+    signed.extend_from_slice(&body);
+    signed.push(0xB4);
+    signed.extend_from_slice(&u32::try_from(uid.len()).unwrap().to_be_bytes());
+    signed.extend_from_slice(&uid);
+    let sig = packet(2, &cert.to_bytes().unwrap());
+
+    // As a detached signature (PGP/MIME's multipart/signed) over that "message".
+    assert_eq!(verify(&signed, &sig, &[&ana.public]).unwrap(), Check::Bad);
+    // As a signed message: the signature, then the "message" as its literal data.
+    let mut message = sig.clone();
+    message.extend_from_slice(&literal(&signed));
+    let opened = open(&message, &[&ana.public]).unwrap();
+    assert_eq!((opened.data, opened.check), (signed, Some(Check::Bad)));
 }
 
 #[test]
