@@ -1862,3 +1862,95 @@ count	occurrences	előfordulás
 	The first account's Inbox	Az első fiók Beérkezett üzenetek mappája
 	The folder open last	A legutóbb megnyitott mappa
 	Add reminder…	Emlékeztető hozzáadása…
+	No suggestions	Nincsenek javaslatok
+	Ignore all	Mindegyik mellőzése
+	Add to dictionary	Hozzáadás a szótárhoz
+	Check spelling as you type	Helyesírás ellenőrzése gépelés közben
+	Misspelled words are underlined in red. Right-click one for suggestions.	A hibásan írt szavakat piros aláhúzás jelzi. A javaslatokért kattintson a szóra a jobb gombbal.
+	There's no spelling dictionary for {language} on this computer.	Ezen a számítógépen nincs helyesírási szótár ehhez a nyelvhez: {language}.
+	Bold on	Félkövér: be
+	Bold off	Félkövér: ki
+	Italic on	Dőlt: be
+	Italic off	Dőlt: ki
+	Underline on	Aláhúzás: be
+	Underline off	Aláhúzás: ki
+	{name}: on	{name}: be
+	{name}: off	{name}: ki
+	Font	Betűtípus
+	Default font	Alapértelmezett betűtípus
+	Font for new messages	Új üzenetek betűtípusa
+	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Az új üzenetek, válaszok és továbbított üzenetek ezt a betűtípust használják. A külön beállított betűtípusú szöveg változatlan marad.
+	Clean up old items	Régi elemek karbantartása
+	Clean up old items…	Régi elemek karbantartása…
+	Move old mail to an archive file on this computer, out of the mailbox.	Régi e-mailek áthelyezése a postaládából egy archiválási fájlba ezen a számítógépen.
+	Old mail goes into an Outlook data file on this computer, into folders of the same names, and is then deleted from the mailbox, which gets its space back. The file shows in the folder list, where its mail can be read, searched and moved back.	A régi e-mailek a számítógépen tárolt Outlook-adatfájl azonos nevű mappáiba kerülnek, majd törlődnek a postaládából, így hely szabadul fel. Az adatfájl megjelenik a mappalistában: az e-mailek olvashatók, kereshetők és visszahelyezhetők.
+	Archive this folder and the folders in it	A mappa és almappáinak archiválása
+	Archive mail received before	Az ennél korábban érkezett e-mailek archiválása
+	Archive file	Archiválási fájl
+	That's not a date.	Ez nem érvényes dátum.
+	Archive mail older than	Az ennél régebbi e-mailek archiválása
+	Move old mail to this file	Régi e-mailek áthelyezése ebbe a fájlba
+	Delete old mail for good	Régi e-mailek végleges törlése
+	AutoArchive	Automatikus archiválás
+	Every so many days, each folder's old mail is archived to a data file on this computer, or deleted, by the folder's own settings (in its Properties) or these.	A megadott időközönként az egyes mappák régi e-mailjei a számítógép egy adatfájljába kerülnek vagy törlődnek. A mappa saját beállításai (a tulajdonságainál) elsőbbséget élveznek az itt megadottakkal szemben.
+	Run AutoArchive every	Az automatikus archiválás gyakorisága
+	Ask before AutoArchive runs	Megerősítés kérése az automatikus archiválás előtt
+	Show the archive file in the folder list	Az archiválási fájl megjelenítése a mappalistában
+	For folders without settings of their own	Saját beállítások nélküli mappákhoz
+	Apply these settings to all folders now	Beállítások alkalmazása most az összes mappára
+	Folders with settings of their own follow these instead.	A saját beállításokkal rendelkező mappák ehelyett az itt megadott beállításokat fogják használni.
+	It's been {days} days: archive old mail now, as AutoArchive is set to?	Eltelt {days} nap. Archiválja most a régi e-maileket az automatikus archiválás beállításai szerint?
+	Archive now	Archiválás most
+	Off: old mail stays where it is until you clean it up.	Ki: A régi e-mailek a helyükön maradnak, amíg kézzel nem rendezi őket.
+	Every {days} days, old mail is archived by each folder's settings.	A régi e-mailek archiválása {days} naponta történik, az egyes mappák beállításai szerint.
+	AutoArchive settings…	Automatikus archiválás beállításai…
+	Don't archive this folder	Ne archiválja ezt a mappát
+	Archive it by the default settings	Archiválás az alapértelmezett beállítások szerint
+	Archive it by these settings	Archiválás az itt megadott beállítások szerint
+	weeks	hét
+	months	hónap
+	Folder density	Mappalista sűrűsége
+	How tightly the folder pane's folders sit	A mappák közötti térköz a mappalistában
+	Spacious	Tágas
+	Medium	Közepes
+	Sort folders A to Z	Mappák rendezése ábécésorrendben
+	Work days	Munkanapok
+	The work week shows these days	A munkahét nézet ezeket a napokat mutatja
+	Work hours	Munkaidő
+	The calendar shades the hours outside them	A naptár szürkével jelöli a munkaidőn kívüli órákat
+	Start time	Kezdés
+	End time	Befejezés
+	Meeting length	Értekezlet időtartama
+	How long a time free for everyone is looked for	Ilyen hosszú időszakot keres, amikor mindenki ráér
+	Previous free time	Előző szabad időpont
+	Next free time	Következő szabad időpont
+	The time before when everyone shown is free, within work hours	Az előző munkaidőn belüli időpont, amikor a listán mindenki ráér
+	The next time when everyone shown is free, within work hours	A következő munkaidőn belüli időpont, amikor a listán mindenki ráér
+	Free for everyone	Mindenki ráér
+	Free for everyone: click to make a meeting with them	Mindenki ráér: kattintson az értekezlet létrehozásához ezekkel a résztvevőkkel
+	No time when everyone is free in the next six weeks	A következő hat hétben nincs olyan időpont, amikor mindenki ráér
+	No time when everyone is free as far as their free/busy times reach: Next looks further once they come	A rendelkezésre álló elfoglaltsági adatok alapján nincs olyan időpont, amikor mindenki ráér. A „Következő szabad időpont” gombbal folytathatja a keresést, amint újabb adatok érkeznek.
+	No earlier time when everyone is free	Nincs korábbi időpont, amikor mindenki ráér
+	No earlier time when everyone is free as far as their free/busy times reach: Previous looks further once they come	A rendelkezésre álló elfoglaltsági adatok alapján nincs korábbi időpont, amikor mindenki ráér. Az „Előző szabad időpont” gombbal folytathatja a keresést, amint újabb adatok érkeznek.
+	Their free/busy times haven't come yet: try again in a moment	Az elfoglaltsági adatok még nem érkeztek meg. Próbálkozzon újra egy kis idő múlva.
+	Some people's free/busy times can't be had: they count as free	Egyes résztvevők elfoglaltsági adatai nem érhetők el. A keresés úgy számol, mintha ők ráérnének.
+	Collapse this group	Csoport összecsukása
+	Expand this group	Csoport kibontása
+	Collapse all groups	Összes csoport összecsukása
+	Expand all groups	Összes csoport kibontása
+	Show this group's mail	A csoport e-mailjeinek megjelenítése
+	Hide this group's mail	A csoport e-mailjeinek elrejtése
+	{heading} ({count}), folded	{heading} ({count}), összecsukva
+	Clashes with {event} on your calendar	Ütközik ezzel a naptáreseménnyel: {event}
+	Clashes with {n} events on your calendar	Ütközik {n} naptáreseménnyel
+	In {n} min	{n} perc múlva
+	Line between the appointments and the tasks	Elválasztó vonal a találkozók és a feladatok között
+	Mark all in {folder} as read	Minden e-mail megjelölése olvasottként ebben a mappában: {folder}
+	Mark all shown as read	Minden megjelenített e-mail megjelölése olvasottként
+	More ways to mark mail read	További lehetőségek az e-mailek olvasottként való megjelölésére
+	Nothing else on your calendar then	Akkor nincs más esemény a naptárában
+	Right after {event} on your calendar	Közvetlenül a következő naptáresemény után: {event}
+	Right before {event} on your calendar	Közvetlenül a következő naptáresemény előtt: {event}
+	{h} h	{h} óra
+	Notify of mail in Other too	Értesítés az Egyéb lapra érkező e-mailekről is
+	Off, only mail that goes to Focused is announced	Ki: Csak a Fontos lapra érkező e-mailekről kap értesítést.
