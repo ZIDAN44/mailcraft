@@ -24,6 +24,7 @@ on GitHub.
 - A search's heading above the message list is cut short where it's too long, the whole of it on hover (#200): a long query widened the list as far as it goes, and the heading still ran past its edge.
 - In Rules, a rule made in another program is cut short before its row's buttons (#214): its note ran under ↑, ↓ and Delete, and past the dialog's edge. The local rules and Categories were the same.
 - The read, flag and delete buttons on a message's row act on that message alone (#216): they selected it too, and what was selected and open before was lost.
+- The subject above a message can be selected and copied, as its text can (#217).
 
 ## 0.41.0 - 2026-11-20
 

@@ -118,6 +118,7 @@ pub(super) fn subject_heading(ui: &mut Ui, subject: &str, t: &Tokens, marks: &[s
     }
     job.wrap.max_rows = LINES;
     job.wrap.overflow_character = Some('…');
-    let resp = crate::bidi::add_label(ui, job);
+    // Selectable, to copy it as the text can be (issue #217).
+    let resp = crate::bidi::add_selectable_label(ui, job);
     if subject.chars().count() > 160 { resp.on_hover_text(subject.chars().take(1200).collect::<String>()) } else { resp }
 }
