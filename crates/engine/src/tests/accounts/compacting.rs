@@ -19,9 +19,10 @@ fn with_data_file(name: &str) -> (Session, String) {
     (s, id)
 }
 
-/// A health that needs compacting at idle: 2 GiB of a 4 GiB file to give back.
+/// A health that needs compacting at idle: 1 GiB of a 5 GiB file to give back, compacted in
+/// place (it keeps 4 GiB: a smaller one is copied, issue #221).
 fn bloated() -> DataFileHealth {
-    DataFileHealth { file_bytes: 4 << 30, live_bytes: 2 << 30, reclaimable: 2 << 30, recompressed: true, ..DataFileHealth::default() }
+    DataFileHealth { file_bytes: 5 << 30, live_bytes: 4 << 30, reclaimable: 1 << 30, recompressed: true, ..DataFileHealth::default() }
 }
 
 fn idle(s: &mut Session, seconds: u64) -> Vec<String> {

@@ -340,12 +340,14 @@ impl Packs {
         let took = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
         let moved = before.saturating_sub(fs::metadata(&path)?.len());
         let live = walk(&db.begin_read().map_err(disk)?, false)?.live;
-        let overhead = overhead_ppm(live, fs::metadata(&path)?.len());
         let pace = next_pace(pace, took, compact_ms(before, moved, PACE_ONE));
         // The compaction records nowhere what's free: sealed, a crash after it reopens at once.
-        seal_with(db, &self.seals, account, |tx| {
-            write_meta(tx, &[(OVERHEAD, overhead.to_le_bytes().as_slice()), (PACE, pace.to_le_bytes().as_slice())])
-        })?;
+        seal_with(db, &self.seals, account, |tx| write_meta(tx, &[(PACE, pace.to_le_bytes().as_slice())]))?;
+        // What the file has over what it keeps, measured once that's written: the database fills
+        // out its last region again for it (+1.17 GB on a 16 GB file). Measured before, the card
+        // went on to offer that room, which no compaction gives back (issue #221).
+        let overhead = overhead_ppm(live, fs::metadata(&path)?.len());
+        seal_with(db, &self.seals, account, |tx| write_meta(tx, &[(OVERHEAD, overhead.to_le_bytes().as_slice())]))?;
         let after = fs::metadata(&path)?.len();
         taken.give_back();
         Ok(Some(Shrunk { before, after, elapsed_ms: took, ..Shrunk::default() }))

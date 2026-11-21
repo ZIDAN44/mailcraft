@@ -61,9 +61,10 @@ fn drawn(ctx: &egui::Context, a: &mut MailApp) -> Vec<String> {
     drawn_strings(ctx, a, TALL)
 }
 
-/// 2 GiB of a 4 GiB file to give back: worth compacting, quickly.
+/// 1 GiB of a 5 GiB file to give back: worth compacting, quickly, in place (it keeps 4 GiB: a
+/// smaller one is copied, issue #221).
 fn bloated() -> DataFileHealth {
-    DataFileHealth { file_bytes: 4 << 30, live_bytes: 2 << 30, reclaimable: 2 << 30, recompressed: true, ..DataFileHealth::default() }
+    DataFileHealth { file_bytes: 5 << 30, live_bytes: 4 << 30, reclaimable: 1 << 30, recompressed: true, ..DataFileHealth::default() }
 }
 
 /// 10 GiB of a 40 GiB file: longer than closing waits.
@@ -166,7 +167,7 @@ fn the_file_page_offers_compacting_and_says_what_it_came_to() {
     // Room to give back: said, and offered.
     measured(&mut a, &id, bloated());
     let texts = drawn(&ctx, &mut a);
-    assert!(has(&texts, "2.0 GB can be reclaimed") && has(&texts, "Compact now"), "{texts:?}");
+    assert!(has(&texts, "1.0 GB can be reclaimed") && has(&texts, "Compact now"), "{texts:?}");
 
     // Compact now: asked by hand, its dialog over the page, each part in its words.
     a.act(Action::Run("dataFile.compact", json!({ "account": id })));

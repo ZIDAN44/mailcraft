@@ -10,11 +10,28 @@
 //! how it was asked ([`CompactMode::limit_s`]). A data file that is both bloated (kept raw by an
 //! earlier build) and too big for that is copied into a new file instead, in the background,
 //! when the drive has room for the copy; when it hasn't, importing it again is suggested.
+//!
+//! A data file under [`DOUBLES_BELOW`] is always copied (issue #221): its database doubles it
+//! whenever it needs more room, so compacted in place it was trimmed to what it keeps and doubled
+//! at its next write, bigger than before (measured: 1,485 MB with a third deleted, 1,834 MB after
+//! Compact now). A copy grows the same way as it's written and lands on the next power of two over
+//! what it keeps, where it stays until that fills (1,078 MB).
 
 use serde::{Deserialize, Serialize};
 
 /// A GiB.
 const GIB: u64 = 1 << 30;
+/// A data file under this size (one of its database's regions, redb's) is doubled whenever it
+/// grows; past it, it grows by filling out a region: compacted in place, what it gives back stays
+/// given back (but for what its last region is filled out with again).
+pub const DOUBLES_BELOW: u64 = 4 * GIB;
+
+/// Whether a data file keeping `live` bytes is compacted by copying it: what it keeps, with its
+/// tree's 2%, is under [`DOUBLES_BELOW`], so in place it would be doubled at its next write.
+pub fn compacts_by_copy(live: u64) -> bool {
+    live.saturating_add(live / 50) < DOUBLES_BELOW
+}
+
 /// What compacting in place costs, measured cold (`store/src/packed/tests/compaction.rs`): this
 /// many ms for each GiB of the file (it's read whole however little moves), and for each GiB moved.
 const MS_PER_GIB_LOOKED: u64 = 1_800;
@@ -30,8 +47,10 @@ pub struct DataFileHealth {
     pub file_bytes: u64,
     /// What what it keeps takes in it, pages and all.
     pub live_bytes: u64,
-    /// What compacting it would give back: its size over what it keeps, less what the file has
-    /// over that just after a compaction (2% until one has measured it).
+    /// What compacting it would give back for good: its size over the size it stays at once
+    /// compacted (`store`'s `settled`: copied, the next power of two over what it keeps; in place,
+    /// what it keeps and what the file had over that after its last compaction, 2% until one has
+    /// measured it, to the end of its last region).
     pub reclaimable: u64,
     /// How many files (messages, lists, documents) it keeps, and their bytes as kept.
     pub files: u64,
@@ -203,10 +222,12 @@ pub enum CompactPlan {
     Reimport,
 }
 
-/// How compacting a data file goes, by [`CompactPlan`]: in place when that has the file to itself
-/// no longer than `mode` allows; a file kept raw by an earlier build that's too big for that,
-/// copied when its drive has room for it (on close, never: it takes minutes), else imported
-/// again; any other, left until asked for (when it may take as long as it takes).
+/// How compacting a data file goes, by [`CompactPlan`]: one [`compacts_by_copy`] copied when
+/// its drive has room for it (in place, it would grow), never on close; a bigger one in place when
+/// that has the file to itself no longer than `mode` allows; one kept raw by an earlier build
+/// that's too big for that, copied when its drive has room for it (on close, never: it takes
+/// minutes), else imported again; any other, left until asked for (when it may take as long as
+/// it takes).
 pub fn plan(health: &DataFileHealth, mode: CompactMode, free: Option<u64>) -> CompactPlan {
     let wanted = match mode {
         CompactMode::Manual => health.can_compact(),
@@ -214,6 +235,10 @@ pub fn plan(health: &DataFileHealth, mode: CompactMode, free: Option<u64>) -> Co
     };
     if !wanted {
         return CompactPlan::Nothing;
+    }
+    if compacts_by_copy(health.live_bytes) {
+        let room = free.is_some_and(|f| f >= health.copy_need());
+        return if mode != CompactMode::Close && room { CompactPlan::Copy } else { CompactPlan::Nothing };
     }
     let recompress = health.wants_recompress();
     let ms = health.exclusive_ms(recompress);
@@ -294,11 +319,17 @@ mod tests {
 
     #[test]
     fn plans_follow_the_limits_and_the_room() {
-        // A small file with deleted mail: quick in place, whichever way.
+        // A small file with deleted mail (under 4 GiB kept): copied, as in place its database
+        // doubles it again at its next write (issue #221); never on close, nor without room.
         let small = health(3, 1, 0);
-        for mode in [CompactMode::Idle, CompactMode::Close, CompactMode::Manual] {
-            assert_eq!(plan(&small, mode, None), CompactPlan::InPlace { recompress: false }, "{mode:?}");
+        for mode in [CompactMode::Idle, CompactMode::Manual] {
+            assert_eq!(plan(&small, mode, Some(small.copy_need())), CompactPlan::Copy, "{mode:?}");
+            assert_eq!(plan(&small, mode, Some(small.copy_need() - 1)), CompactPlan::Nothing, "{mode:?}: no room");
+            assert_eq!(plan(&small, mode, None), CompactPlan::Nothing, "{mode:?}: room unknown");
         }
+        assert_eq!(plan(&small, CompactMode::Close, Some(u64::MAX)), CompactPlan::Nothing, "never a copy on close");
+        // One keeping 4 GiB grows by regions: in place.
+        assert!(!compacts_by_copy(4 * GIB) && compacts_by_copy(3 * GIB) && !compacts_by_copy(u64::MAX));
         // A big one with deleted mail: only when asked; too long at idle and on close.
         let big = health(40, 10, 0);
         assert!(matches!(plan(&big, CompactMode::Idle, Some(u64::MAX)), CompactPlan::TooLong { seconds } if seconds > 100));
@@ -314,13 +345,15 @@ mod tests {
             assert_eq!(plan(&bloated, mode, None), CompactPlan::Reimport, "room unknown: none counted on");
         }
         assert!(matches!(plan(&bloated, CompactMode::Close, Some(u64::MAX)), CompactPlan::TooLong { .. }), "never a copy on close");
-        // A small one kept raw: compressed again, then compacted, in place.
+        // One of 4 GiB kept raw: compressed again, then compacted, in place.
         assert_eq!(plan(&health(4, 0, 1), CompactMode::Idle, None), CompactPlan::InPlace { recompress: true });
-        // Nothing to give back: nothing done; a recompress stopped part way goes on.
+        // Nothing to give back: nothing done; a recompress stopped part way goes on (a small
+        // file's by a copy, which compresses what it copies).
         assert_eq!(plan(&health(40, 0, 0), CompactMode::Manual, None), CompactPlan::Nothing);
-        let stopped = DataFileHealth { recompress_stopped: true, ..health(2, 0, 0) };
-        let stopped = DataFileHealth { recompressed: false, ..stopped };
+        let stopped = DataFileHealth { recompress_stopped: true, recompressed: false, ..health(5, 0, 0) };
         assert_eq!(plan(&stopped, CompactMode::Idle, None), CompactPlan::InPlace { recompress: true });
+        let stopped = DataFileHealth { recompress_stopped: true, recompressed: false, ..health(2, 0, 0) };
+        assert_eq!(plan(&stopped, CompactMode::Idle, Some(u64::MAX)), CompactPlan::Copy);
     }
 
     #[test]

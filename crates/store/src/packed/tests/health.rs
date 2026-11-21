@@ -14,6 +14,28 @@ fn allocated(s: &Store) -> u64 {
     stats.allocated_pages() * stats.page_size() as u64
 }
 
+/// What compacting the data file gives back, as Compact now does it for a file this size (a copy
+/// into a new file): the file's size before, less after.
+fn given_back(s: &Store) -> u64 {
+    let r = s.copy_data_file("a1", &mut |_| true, &mut || true).unwrap().unwrap();
+    r.before.saturating_sub(r.after)
+}
+
+/// What the card says can be given back is what compacting gives back, to 2% of the file (issue
+/// #221: it said what the database had free, which a file this size gets back at its next write).
+fn as_promised(s: &Store) {
+    let promised = s.data_file_health("a1").unwrap().unwrap();
+    let given = given_back(s);
+    eprintln!("promised {} of {}; a copy gave back {given}", promised.reclaimable, promised.file_bytes);
+    assert!(
+        promised.reclaimable.abs_diff(given) as f64 <= 0.02 * promised.file_bytes as f64,
+        "{} promised, {given} given back",
+        promised.reclaimable
+    );
+    let after = s.data_file_health("a1").unwrap().unwrap();
+    assert!(!after.can_compact(), "nothing more offered: {after:?}");
+}
+
 /// What the pieces of a file take is counted as cutting it would cut it, without cutting it.
 #[test]
 fn what_pieces_take_is_counted_without_cutting() {
@@ -34,7 +56,8 @@ fn what_pieces_take_is_counted_without_cutting() {
 
 /// On a data file written over many commits, with files of every size written over and removed
 /// at random, the walk's count of what is kept comes within 2% of the pages the database has in
-/// use (by its own walk of every page), and what it says can be given back follows.
+/// use (by its own walk of every page), and what it says can be given back is what compacting
+/// gives back.
 #[test]
 fn the_walk_comes_within_two_percent_of_the_database() {
     let t = temp("health-walk");
@@ -78,22 +101,20 @@ fn the_walk_comes_within_two_percent_of_the_database() {
     assert_eq!(health.files, packs(&s).keys("a1", "").unwrap().len() as u64);
     assert!(health.recompressed, "a file this build made");
 
-    // Half of it removed: the space shows as there to give back, as the database counts it.
+    // Half of it removed: what's said to be there to give back is what compacting gives back.
     for uid in kept.iter().step_by(2) {
         s.remove_body(&inbox(*uid));
     }
     let after = s.data_file_health("a1").unwrap().unwrap();
-    let free = after.file_bytes.saturating_sub(allocated(&s));
-    eprintln!("reclaimable {} of {}; the database has {free} free", after.reclaimable, after.file_bytes);
-    assert!(after.reclaimable > 0 && after.live_bytes < health.live_bytes);
-    assert!(after.reclaimable.abs_diff(free) as f64 <= 0.02 * after.file_bytes as f64, "{} against {free}", after.reclaimable);
+    assert!(after.live_bytes < health.live_bytes);
+    as_promised(&s);
     drop(s);
 }
 
 /// A data file of small messages only (each kept whole, in the pages of the list of files): a
 /// value over half a page has a page to itself, and the pages are as full as they were left. The
 /// walk counts those pages as the database does, so it comes within 2% of it there too, and what
-/// it says can be given back after messages are removed at random is what the database has free.
+/// it says can be given back after messages are removed at random is what compacting gives back.
 #[test]
 fn the_walk_counts_small_messages_as_the_pages_they_take() {
     let t = temp("health-small");
@@ -122,11 +143,10 @@ fn the_walk_counts_small_messages_as_the_pages_they_take() {
     }
     let after = s.data_file_health("a1").unwrap().unwrap();
     let used = allocated(&s);
-    let free = after.file_bytes.saturating_sub(used);
     let off = after.live_bytes.abs_diff(used) as f64 / used as f64;
-    eprintln!("walk {} against {used} ({:.2}% off); reclaimable {}, the database has {free} free", after.live_bytes, off * 100.0, after.reclaimable);
+    eprintln!("walk {} against {used} ({:.2}% off)", after.live_bytes, off * 100.0);
     assert!(off <= 0.02, "the walk is {:.2}% off the database's count", off * 100.0);
-    assert!(after.reclaimable.abs_diff(free) as f64 <= 0.02 * after.file_bytes as f64, "{} against {free}", after.reclaimable);
+    as_promised(&s);
     drop(s);
 }
 
@@ -310,7 +330,7 @@ fn meta_is_read_value_by_value() {
 }
 
 /// What a compacted file has over what it keeps is the least it can have: just after, nothing
-/// shows as there to give back, and what's removed after shows in full.
+/// shows as there to give back, and what's removed after shows as much as compacting gives back.
 #[test]
 fn a_compaction_sets_the_baseline() {
     let t = temp("health-compacted");
@@ -335,14 +355,24 @@ fn a_compaction_sets_the_baseline() {
     let after = s.data_file_health("a1").unwrap().unwrap();
     eprintln!("compacted: {before:?} then {after:?}");
     assert!(after.reclaimable * 100 <= after.file_bytes, "{} to give back just after compacting", after.reclaimable);
-    // A quarter of what's left removed: about that much shows.
-    let gone: u64 = (1..200u64).step_by(4).map(|uid| 30_000 + (uid % 20) * 7_000).sum();
+    // A quarter of what's left removed: what shows is what compacting gives back.
     for uid in (1..200).step_by(4) {
         s.remove_body(&inbox(uid));
     }
-    let later = s.data_file_health("a1").unwrap().unwrap();
-    eprintln!("removed {gone}: {later:?}");
-    assert!(later.reclaimable as f64 >= gone as f64 * 0.8, "{} of {gone}", later.reclaimable);
+    as_promised(&s);
+    // What a file is counted against: copied (under 4 GiB kept), the next power of two over what
+    // it keeps and its tree's 2%; compacted in place, what it keeps and what the last compaction
+    // measured it had over that (2% until one has), to the end of its region.
+    let settled = crate::packed::health::settled;
+    assert_eq!(settled(915_000_000, Some(500_000)), 1 << 30, "a copy: what it had is no matter");
+    assert_eq!(settled(3 << 30, None), 4 << 30);
+    // In place, to the end of the region (4 GiB) it ends in: 6 GiB and 5% in two regions, 7.9
+    // GiB and 2% in three.
+    let big: u64 = 6 << 30;
+    assert_eq!(settled(big, Some(50_000)), 8 << 30);
+    assert_eq!(settled(8 << 30, Some(0)), 8 << 30, "a region's end is its own");
+    assert_eq!(settled((79 << 30) / 10, None), 12 << 30);
+    assert_eq!(settled(u64::MAX, Some(1_000_000)), u64::MAX, "saturated, not wrapped");
     // Thresholds.
     let h = |reclaimable: u64, file: u64| crate::DataFileHealth { reclaimable, file_bytes: file, recompressed: true, ..Default::default() };
     assert!(!h(63 << 20, 1 << 30).can_compact() && h(64 << 20, 1 << 30).can_compact());

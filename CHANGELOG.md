@@ -24,6 +24,7 @@ on GitHub.
 
 ### Fixed
 
+- Compact now gives back what File › Info says can be reclaimed, and the room stays given back (#221): a data file under 4 GB is copied into a new file (compacted in place, its database doubled it again at its next write, so it grew: 1.5 GB became 1.8 GB), and what the card offers is only what compacting gives back for good (it offered room the database fills again at once, then said "Nothing to give back").
 - Mail moved to another folder no longer leaves a copy of itself behind in the data file (#221): each move kept the moved messages' old copies for good, in no folder, so the file only grew (2,453 messages moved to Deleted Items and emptied kept their 2 GB). Any account, Exchange, IMAP or a data file kept here.
 - A message written in Calibri, or another font with built-in pictures of its letters for some sizes, shows every letter (#166): most of Calibri's letters were drawn in white, whatever the text's colour, and didn't show on the page.
 - On Exchange, a repeating meeting you accepted shows as accepted when it was sent to another of your addresses (#144): Exchange's answer was put only on your account's own address, so a meeting sent to an address you added to the account, or to the name you sign in with, kept waiting for your answer and was drawn as one.

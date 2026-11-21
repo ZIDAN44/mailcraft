@@ -81,12 +81,14 @@ fn asked_for_a_data_file_is_compacted_on_its_thread() {
     let (_, report) = until_compacted(&mut p);
     assert!(!report.compacted && report.error.is_none() && report.before == report.after, "{report:?}");
 
-    // Asked for, it is: in place, the file had to itself for a moment, said as it begins.
+    // Asked for, it is: a file this small is copied into a new file, said as it goes (in place,
+    // its database doubled it again at its next write, issue #221).
     p.submit(Job::CompactDataFile { account: "c1".into(), mode: CompactMode::Manual });
     let (seen, report) = until_compacted(&mut p);
-    assert!(report.compacted && report.error.is_none() && report.mode == CompactMode::Manual, "{report:?}");
+    assert!(report.copied && report.error.is_none() && report.mode == CompactMode::Manual, "{report:?}");
     assert!(report.before == before && report.after < before, "{report:?}");
-    assert!(seen.iter().any(|e| matches!(e, Event::Compacting { phase: CompactPhase::Exclusive, exclusive_s: Some(_), .. })), "{seen:?}");
+    assert_eq!(std::fs::metadata(store.data_file("c1").unwrap()).unwrap().len(), report.after);
+    assert!(seen.iter().any(|e| matches!(e, Event::Compacting { phase: CompactPhase::Copy, .. })), "{seen:?}");
     assert_eq!(store.read_body(&key(3)).unwrap(), noise(SIZE, 3), "every message reads back");
     p.shutdown();
     drop(p);

@@ -12,7 +12,7 @@
 //! files of a 37 GB data file, in 34 MB. What it can't see (the pieces' own tree) is allowed for
 //! with what the file had over it when it was last compacted.
 
-use mailcraft_model::job::PACE_ONE;
+use mailcraft_model::job::{DOUBLES_BELOW, PACE_ONE, compacts_by_copy};
 use redb::ReadableTableMetadata;
 
 use super::*;
@@ -220,7 +220,6 @@ impl Packs {
         let tx = db.begin_read().map_err(other)?;
         let meta = read_meta(&tx)?;
         let walk = walk(&tx, meta.deflate < DEFLATE_NOW)?;
-        let overhead = u64::try_from(u128::from(walk.live) * u128::from(meta.overhead.unwrap_or(OVERHEAD_DEFAULT)) / 1_000_000).unwrap_or(u64::MAX);
         let scale = |part: u64| {
             if walk.sampled == 0 {
                 0
@@ -231,7 +230,7 @@ impl Packs {
         Ok(Some(crate::DataFileHealth {
             file_bytes,
             live_bytes: walk.live,
-            reclaimable: file_bytes.saturating_sub(walk.live.saturating_add(overhead)),
+            reclaimable: file_bytes.saturating_sub(settled(walk.live, meta.overhead)),
             files: walk.files,
             kept_bytes: walk.kept,
             raw_fraction: if walk.sampled == 0 { 0.0 } else { (walk.raw as f64 / walk.sampled as f64) as f32 },
@@ -250,6 +249,23 @@ impl Packs {
         let live = walk(&db.begin_read().map_err(other)?, false)?.live;
         let ppm = overhead_ppm(live, fs::metadata(&path)?.len());
         seal_with(&db, &self.seals, account, |tx| write_meta(tx, &[(OVERHEAD, ppm.to_le_bytes().as_slice())]))
+    }
+}
+
+/// The size a data file keeping `live` bytes (the walk's count) stays at once compacted, which
+/// what it can give back is counted against (issue #221: the card counted what its database
+/// adds back at once). One that [`compacts_by_copy`] lands on the next power of two
+/// over that and its tree's 2% (its database doubles it as it's written: measured, 915 MB kept
+/// made a file of 1,078 MB). Past it, compacted in place: that and what the file had over it
+/// after its last compaction (`overhead`, millionths of it; 2% until one has measured it), to
+/// the end of the region it ends in, which the database fills out again at once (measured:
+/// 11.2 GB kept, 17.2 GB compacted to 12.88 GB, three regions).
+pub(super) fn settled(live: u64, overhead: Option<u64>) -> u64 {
+    let with = |ppm: u64| live.saturating_add(u64::try_from(u128::from(live) * u128::from(ppm) / 1_000_000).unwrap_or(u64::MAX));
+    if compacts_by_copy(live) {
+        with(OVERHEAD_DEFAULT).checked_next_power_of_two().unwrap_or(u64::MAX)
+    } else {
+        with(overhead.unwrap_or(OVERHEAD_DEFAULT)).checked_next_multiple_of(DOUBLES_BELOW).unwrap_or(u64::MAX)
     }
 }
 
