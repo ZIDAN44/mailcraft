@@ -237,3 +237,35 @@ fn small_forms_are_as_tall_as_their_fields() {
     let contact = gap(&mut a, Dialog::Contact(Box::default()), "Notes");
     assert!(contact < 400.0, "Cancel {contact} below the notes");
 }
+
+/// Issue #239: an online meeting's reminder has Join meeting beside Open Item, which opens its
+/// link at once; a meeting with no link, a task or flagged mail has none.
+#[test]
+fn a_meetings_reminder_joins_it() {
+    let (mut a, _) = app("reminder-join");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let day = mailcraft_engine::model::dates::day_string(NOW.div_euclid(86_400));
+    let at = |s: i64| format!("{day}T{:02}:{:02}", s.div_euclid(3600).rem_euclid(24), s.div_euclid(60).rem_euclid(60));
+    let link = "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0";
+    a.run("event.create", json!({"summary": "Stand-up", "start": at(NOW + 600), "reminder": 15, "location": link}));
+    a.run("event.create", json!({"summary": "Lunch", "start": at(NOW + 660), "reminder": 15}));
+    let size = egui::vec2(1280.0, 800.0);
+    let joins = |a: &mut MailApp, summary: &str| {
+        frame(&ctx, a, vec![]);
+        let key = a.ui.reminders.due.iter().find(|r| r.summary == summary).map(|r| r.key.clone()).expect("due");
+        a.ui.reminders.selected = Some(key);
+        let mut shown = Vec::new();
+        for _ in 0..3 {
+            shown = drawn_text(&ctx, a, size);
+        }
+        shown.iter().find(|d| d.text == "Join meeting").map(|d| d.rect.center())
+    };
+    assert!(joins(&mut a, "Lunch").is_none(), "no link, no Join");
+    let at = joins(&mut a, "Stand-up").expect("Join meeting");
+    a.session.notices.clear();
+    click(&ctx, &mut a, at);
+    frame(&ctx, &mut a, vec![]);
+    // The test's services open nothing: that they were asked to is the notice they give.
+    assert!(a.session.notices.iter().any(|n| n.text.contains("The link couldn't be opened")), "{:?}", a.session.notices);
+}

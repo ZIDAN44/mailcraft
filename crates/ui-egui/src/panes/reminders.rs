@@ -155,6 +155,14 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
                                 acts.push(Action::Dialog(d));
                             }
                         }
+                        // An online meeting (Teams, Zoom, the user's own rooms…): joined from here
+                        // (issue #239), as the event's form does, not opened first.
+                        let join = if r.task || r.message.is_some() { None } else { s.find_event(&r.uid).and_then(|(_, e)| s.join_link(&e.event)) };
+                        if let Some(url) = join
+                            && ui.button(tl!("Join meeting")).on_hover_text(&url).clicked()
+                        {
+                            acts.push(Action::OpenUrl(url));
+                        }
                     }
                 });
             });
