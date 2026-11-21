@@ -173,6 +173,9 @@ pub struct NamesForm {
     pub purpose: NamesFor,
     /// A calendar group's name, as typed ([`NamesFor::Group`]).
     pub group: String,
+    /// People are being added to the group already there, of that name (issue #209: its menu
+    /// had only Delete): said so, its name not to be changed here.
+    pub adding: bool,
     /// Why what was picked couldn't be done (a calendar's or group's command refused it).
     pub error: Option<String>,
 }
@@ -237,13 +240,18 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         match f.purpose {
             NamesFor::Message => "Select Names",
             NamesFor::Calendars => "Open a shared calendar",
+            NamesFor::Group if f.adding => "Add people to the group",
             NamesFor::Group => "New calendar group",
         },
     );
     if f.purpose == NamesFor::Group {
         ui.horizontal(|ui| {
             ui.label(RichText::new(tl!("Group name")).strong());
-            ui.add(egui::TextEdit::singleline(&mut f.group).desired_width(240.0).hint_text(tl!("Design team")));
+            if f.adding {
+                ui.label(RichText::new(&f.group).color(t.text));
+            } else {
+                ui.add(egui::TextEdit::singleline(&mut f.group).desired_width(240.0).hint_text(tl!("Design team")));
+            }
         });
         ui.add_space(4.0);
     }
@@ -424,7 +432,11 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             if ui.add_sized(vec2(72.0, 24.0), egui::Button::new(tl!(label))).clicked() {
                 add = Some(*field);
             }
-            ui.add(egui::TextEdit::singleline(field.of(&mut f.to, &mut f.cc, &mut f.bcc)).desired_width(f32::INFINITY));
+            if f.purpose == NamesFor::Message {
+                ui.add(egui::TextEdit::singleline(field.of(&mut f.to, &mut f.cc, &mut f.bcc)).desired_width(f32::INFINITY));
+            } else {
+                crate::bidi::vertical(ui, |ui| people_field(ui, t, &mut f.to));
+            }
         });
     }
     if let (Some(target), Some(a)) = (add, f.selected.and_then(|i| f.list.get(i)).cloned()) {
@@ -448,6 +460,63 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         return true;
     }
     !cancel
+}
+
+/// The people picked to open the calendars of or put in a group (issue #210): each a chip with
+/// their name (their address on hover, × takes them out), in rows that wrap and scroll past four,
+/// and the box under them for who's still being typed (after the last `;`). The box kept one
+/// size, so not everyone added could be seen, each as name and address.
+fn people_field(ui: &mut Ui, t: &Tokens, to: &mut String) {
+    let (done, typing) = match to.rfind(';') {
+        Some(i) => (to.get(..i).unwrap_or(""), to.get(i + 1..).unwrap_or("")),
+        None => ("", to.as_str()),
+    };
+    let mut people: Vec<mailcraft_engine::model::EmailAddress> = Vec::new();
+    let mut unread: Vec<String> = Vec::new();
+    // Read whole first: a name in quotes may hold a `;` of its own.
+    let whole = mailcraft_engine::model::addr::parse_list(done).ok().filter(|l| l.iter().all(|a| a.email.contains('@')));
+    let parts: Vec<&str> = if whole.is_some() { Vec::new() } else { done.split(';').map(str::trim).filter(|p| !p.is_empty()).collect() };
+    people.extend(whole.into_iter().flatten());
+    for part in parts {
+        match mailcraft_engine::model::addr::parse_list(part) {
+            Ok(list) if !list.is_empty() && list.iter().all(|a| a.email.contains('@')) => people.extend(list),
+            _ => unread.push(part.to_string()),
+        }
+    }
+    let mut typing = [unread.join("; "), typing.trim().to_string()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join("; ");
+    let mut remove = None;
+    widgets::chip_grid(ui, ui.scope_id().with("people"), people.len(), 150.0, 240.0, 26.0, 4, |ui, i, w| {
+        let Some(a) = people.get(i) else { return };
+        let (rect, resp) = ui.allocate_exact_size(vec2(w, 26.0), Sense::hover());
+        let x_rect = Rect::from_center_size(egui::pos2(rect.right() - 13.0, rect.center().y), vec2(20.0, 20.0));
+        let x = ui.interact(x_rect, resp.id.with("remove"), Sense::click()).on_hover_text(tl!("Remove"));
+        let name = if a.name.trim().is_empty() { a.email.as_str() } else { a.name.trim() };
+        widgets::named(ui, &x, &format!("{}: {name}", tl!("Remove")), true, None);
+        let p = ui.painter();
+        p.rect(
+            rect,
+            4.0,
+            if resp.hovered() { t.hover_row } else { t.surface },
+            egui::Stroke::new(1.0, t.faint.gamma_multiply(0.55)),
+            egui::StrokeKind::Inside,
+        );
+        if x.hovered() {
+            p.rect_filled(x_rect, 3.0, t.hover);
+        }
+        crate::icons::paint(p, crate::icons::centered(x_rect, 10.0), crate::icons::Icon::Close, if x.hovered() { t.text } else { t.dim });
+        let g = widgets::one_line(ui, name, theme::regular(12.5), t.text, x_rect.left() - 4.0 - (rect.left() + 8.0));
+        p.galley(egui::pos2(rect.left() + 8.0, rect.center().y - g.size().y / 2.0), g, t.text);
+        resp.on_hover_text(a.email.clone());
+        if x.clicked() {
+            remove = Some(i);
+        }
+    });
+    ui.add(egui::TextEdit::singleline(&mut typing).desired_width(f32::INFINITY));
+    if let Some(i) = remove.filter(|i| *i < people.len()) {
+        people.remove(i);
+    }
+    let picked: String = people.iter().map(|a| format!("{a}; ")).collect();
+    *to = format!("{picked}{}", typing.trim_start());
 }
 
 /// Select Names adds someone whose address is part of another's, or of a name, in the field;

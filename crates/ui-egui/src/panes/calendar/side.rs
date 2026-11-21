@@ -145,6 +145,16 @@ fn calendar_group_heading(t: &Tokens, ui: &mut Ui, account: &str, name: &str, sh
     });
     let (account, name) = (account.to_string(), name.to_string());
     row.response.interact(Sense::click()).context_menu(|ui| {
+        // More people put in it (issue #209), picked as a new group's are.
+        if ui.button(tl!("Add people…")).clicked() {
+            let mut d = Dialog::names_for(crate::dialogs::NamesFor::Group, "");
+            if let Dialog::SelectNames(f) = &mut d {
+                f.group.clone_from(&name);
+                f.adding = true;
+            }
+            acts.push(Action::Dialog(d));
+            ui.close();
+        }
         if ui.button(tl!("Delete calendar group")).clicked() {
             acts.push(Action::Run("calendar.groupDelete", json!({"account": account, "name": name})));
             ui.close();

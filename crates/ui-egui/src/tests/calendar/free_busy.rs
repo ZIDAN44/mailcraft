@@ -157,3 +157,47 @@ fn a_shared_calendar_is_picked_from_the_address_book() {
     };
     assert_eq!((f.purpose, f.to.as_str()), (crate::dialogs::NamesFor::Calendars, "ana@contoso.example"));
 }
+
+/// Issues #209 and #210: a group's menu has Add people…, the address book for that group; the
+/// people picked show as chips by name (rows that scroll past four, the address on hover), one's
+/// × takes them out, and OK puts the rest in the group.
+#[test]
+fn people_are_added_to_a_group_shown_by_name() {
+    let (mut a, _) = app("calendar-group-add");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.run("account.add", json!({"email": "zoe@contoso.example", "password": "pw", "ews": "https://mail.contoso.example/EWS/Exchange.asmx"}));
+    let id = a.session.accounts.iter().find(|x| x.config.ews.is_some()).map(|x| x.config.id.clone()).expect("the Exchange account");
+    a.run("calendar.groupCreate", json!({"account": id, "name": "Design team", "members": "ana@contoso.example"}));
+    a.run("view.calendar", json!({}));
+    for _ in 0..2 {
+        texts(&ctx, &mut a);
+    }
+    let heading = texts(&ctx, &mut a).into_iter().find(|d| d.text == "Design team" && d.seen()).map(|d| d.rect).expect("the group");
+    click_at(&ctx, &mut a, heading.center(), egui::PointerButton::Secondary, Modifiers::NONE);
+    let item = texts(&ctx, &mut a).into_iter().rev().find(|d| d.text == "Add people…").map(|d| d.rect).expect("on its menu");
+    click(&ctx, &mut a, item.center());
+    assert!(matches!(&a.ui.dialog, Some(crate::Dialog::SelectNames(f)) if f.group == "Design team" && f.adding), "the address book, for it");
+    let people = ["Cleo Diaz", "Dev Rao", "Eli Moss", "Fay Kim", "Gus Lund", "Hana Oki"];
+    if let Some(crate::Dialog::SelectNames(f)) = &mut a.ui.dialog {
+        f.to = people.iter().map(|n| format!("{n} <{}@contoso.example>; ", n.split(' ').next().unwrap_or("x").to_lowercase())).collect();
+    }
+    texts(&ctx, &mut a);
+    let shown: Vec<String> = texts(&ctx, &mut a).into_iter().filter(|d| d.seen()).map(|d| d.text).collect();
+    assert!(shown.iter().any(|s| s == "Add people to the group"), "{shown:?}");
+    assert!(shown.iter().any(|s| s == "Cleo Diaz") && shown.iter().any(|s| s == "Dev Rao"), "by name: {shown:?}");
+    assert!(!shown.iter().any(|s| s.contains("cleo@contoso.example")), "not their addresses: {shown:?}");
+    // Cleo taken out by her ×.
+    let x =
+        named(&ctx, &mut a, egui::vec2(1280.0, 800.0)).into_iter().find(|n| n.label.as_deref() == Some("Remove: Cleo Diaz")).and_then(|n| n.centre());
+    click(&ctx, &mut a, x.expect("her ×"));
+    let Some(crate::Dialog::SelectNames(f)) = &a.ui.dialog else { panic!("still open") };
+    assert!(!f.to.contains("cleo@") && f.to.contains("dev@contoso.example"), "{}", f.to);
+    let ok = texts(&ctx, &mut a).into_iter().rev().find(|d| d.text == "OK" && d.seen()).map(|d| d.rect).expect("OK");
+    click(&ctx, &mut a, ok.center());
+    let members = a.session.pim[&id].groups.first().map(|g| g.members.clone()).unwrap_or_default();
+    assert_eq!(
+        members,
+        ["ana@contoso.example", "dev@contoso.example", "eli@contoso.example", "fay@contoso.example", "gus@contoso.example", "hana@contoso.example"]
+    );
+}

@@ -15,6 +15,8 @@ on GitHub.
 ### Added
 
 - A reminder of an online meeting (Teams, Zoom, Webex, your own rooms…) has Join meeting beside Open Item (#239).
+- A calendar group's menu has Add people…, to put more people in it (#209): it had only Delete.
+- Picking people for a calendar group or a shared calendar shows them as names, in rows that grow and then scroll, each with its × (#210): the box kept one size and showed names and addresses.
 
 ### Fixed
 
