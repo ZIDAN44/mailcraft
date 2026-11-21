@@ -1,4 +1,6 @@
-//! Dialogs: while writing (Address Book, saving changes, no subject, word count).
+//! Dialogs: while writing (Address Book, Check Names, saving changes, no subject, word count).
+
+use serde_json::Value;
 
 use super::*;
 use crate::icons::Icon;
@@ -6,6 +8,7 @@ use crate::icons::Icon;
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::SelectNames(f) => select_names(ui, f, t, acts),
+        Dialog::CheckNames(f) => check_names(ui, f, t, acts),
         Dialog::SaveChanges => {
             ui.set_width(380.0);
             title(ui, t, "Want to save your changes?");
@@ -138,6 +141,76 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         // Every other kind is shown by its own group (`body`).
         _ => true,
     }
+}
+
+/// Check Names' question (issue #211): a name typed that could be several people, and who.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct NameChoice {
+    /// The box it's in (`to`, `cc`, `bcc`), as typed, and the people it could be (name, address).
+    pub field: String,
+    pub typed: String,
+    pub people: Vec<(String, String)>,
+}
+
+impl NameChoice {
+    /// One of `compose.checkNames`' `several`.
+    pub fn from_json(v: &Value) -> Option<NameChoice> {
+        let s = |v: &Value, k: &str| v.get(k).and_then(Value::as_str).map(str::to_string);
+        let people = v.get("people")?.as_array()?.iter().filter_map(|p| Some((s(p, "name").unwrap_or_default(), s(p, "email")?))).collect();
+        Some(NameChoice { field: s(v, "field")?, typed: s(v, "typed")?, people })
+    }
+}
+
+/// The names Check Names asks about, the first shown; which of its people is picked.
+#[derive(Clone, Debug, Default)]
+pub struct CheckNamesForm {
+    pub asks: Vec<NameChoice>,
+    pub picked: Option<usize>,
+}
+
+/// Check Names: the people a name typed could be, one picked (a double-click picks and goes on);
+/// then the next name. Cancel leaves the rest as typed.
+fn check_names(ui: &mut Ui, f: &mut CheckNamesForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+    let Some(ask) = f.asks.first() else { return false };
+    ui.set_width(440.0);
+    title(ui, t, "Check Names");
+    ui.add(
+        egui::Label::new(RichText::new(tf!("More than one person could be “{typed}”. Pick the one you meant:", typed = ask.typed)).color(t.text))
+            .wrap(),
+    );
+    ui.add_space(6.0);
+    let mut go = false;
+    egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(4.0).inner_margin(Margin::same(4)).show(ui, |ui| {
+        egui::ScrollArea::vertical().max_height(240.0).auto_shrink([false, true]).show(ui, |ui| {
+            // Rows the list's width, read from the start as the address book's are.
+            ui.with_layout(egui::Layout::top_down_justified(egui::Align::Min), |ui| {
+                for (i, (name, email)) in ask.people.iter().enumerate() {
+                    let label = if name.trim().is_empty() { email.clone() } else { format!("{name}  <{email}>") };
+                    let r = ui.add(egui::Button::selectable(f.picked == Some(i), label).min_size(vec2(0.0, 24.0)));
+                    if r.clicked() {
+                        f.picked = Some(i);
+                    }
+                    if r.double_clicked() {
+                        f.picked = Some(i);
+                        go = true;
+                    }
+                }
+            });
+        });
+    });
+    let (ok, cancel) = buttons(ui, t, "OK", f.picked.is_some());
+    if cancel {
+        return false;
+    }
+    if (ok || go)
+        && let Some((name, email)) = f.picked.and_then(|i| ask.people.get(i))
+    {
+        acts.push(Action::Run("compose.pickName", json!({"field": ask.field, "typed": ask.typed, "email": email, "name": name})));
+        f.asks.remove(0);
+        f.picked = None;
+        return !f.asks.is_empty();
+    }
+    true
 }
 
 /// The address book being looked at.

@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod check_names;
 mod drafts;
 mod files;
 mod fonts;

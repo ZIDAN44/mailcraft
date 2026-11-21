@@ -28,9 +28,14 @@ pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engi
                     continue;
                 }
                 let value = field.of(&mut c.to, &mut c.cc, &mut c.bcc);
-                if recipient_field(ui, st, field, label, value, hint, field == Recipients::To && focus_to, &f.suggestions) {
+                let (book, check) = recipient_field(ui, st, field, label, value, hint, field == Recipients::To && focus_to, &f.suggestions);
+                if book {
                     let d = crate::Dialog::select_names(c, field);
                     acts.push(Action::Dialog(d));
+                }
+                // Ctrl+K checks the names typed, as Outlook's does in these boxes (issue #211).
+                if check {
+                    acts.push(Action::Run("compose.checkNames", json!({})));
                 }
             }
         });
@@ -203,7 +208,8 @@ fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, c
 }
 
 /// A recipient box (To, Cc, Bcc) that suggests people from mail already seen: ↑/↓ choose,
-/// Enter or Tab takes the highlighted one, a click takes any.
+/// Enter or Tab takes the highlighted one, a click takes any. Whether its button was pressed
+/// (the address book), and whether Ctrl+K was (Check Names).
 fn recipient_field(
     ui: &mut Ui,
     st: &mut UiState,
@@ -213,7 +219,7 @@ fn recipient_field(
     hint: &str,
     focus: bool,
     suggestions: &[Contact],
-) -> bool {
+) -> (bool, bool) {
     let t = st.tokens;
     let showing = st.suggest_field == Some(field) && !suggestions.is_empty();
     let mut take: Option<usize> = None;
@@ -249,6 +255,7 @@ fn recipient_field(
         state.store(ui.ctx(), edit_id);
         st.suggest_dismissed = Some(value.clone());
     }
+    let check = ui.memory(|m| m.has_focus(edit_id)) && ui.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::K));
     let (pressed, r) = ui
         .horizontal(|ui| {
             // The field's button opens the address book (the caller's to show).
@@ -335,7 +342,7 @@ fn recipient_field(
     }
     // Half-typed addresses are fine while typing; check once the box is left.
     address_check(ui, &t, value, !r.has_focus() && st.suggest_refocus != Some(field));
-    pressed
+    (pressed, check)
 }
 
 fn address_check(ui: &mut Ui, t: &Tokens, value: &str, check_addresses: bool) {

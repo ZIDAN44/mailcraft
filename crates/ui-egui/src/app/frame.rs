@@ -612,6 +612,7 @@ impl MailApp {
     fn end_frame(&mut self, ui: &mut Ui, mut acts: Vec<Action>) {
         let ctx = ui.ctx().clone();
         let t = self.ui.tokens;
+        self.recheck_names(&mut acts);
         // The address book reads the session's people.
         if let Some(Dialog::SelectNames(f)) = self.ui.dialog.as_mut()
             && (f.stale || f.directory_rev != self.session.directory.rev)

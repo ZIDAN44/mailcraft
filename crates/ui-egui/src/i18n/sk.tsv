@@ -1978,3 +1978,8 @@ count	occurrences	opakovaní
 	Recorded in your calendar.	Zaznamenané v kalendári.
 	Record guests' answers to your meetings as they arrive	Zaznamenávať odpovede hostí na vaše schôdze pri príchode
 	One from someone not on the guest list, or to an earlier version, waits for Record the answer	Odpoveď od niekoho, kto nie je v zozname hostí, alebo na staršiu verziu čaká na „Zaznamenať odpoveď“
+	Check Names	Skontrolovať mená
+	Ctrl+K in To, Cc or Bcc	Ctrl+K v poli Komu, Kópia alebo Skrytá kópia
+	No one found for {names}	Pre {names} sa nikto nenašiel
+	Still looking up {names} in the directory	{names} sa ešte hľadá v adresári
+	More than one person could be “{typed}”. Pick the one you meant:	„{typed}“ môže byť viac ako jedna osoba. Vyberte tú, ktorú ste mysleli:

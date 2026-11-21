@@ -169,9 +169,10 @@ fn a_small_window_keeps_room_to_read_and_write() {
     let over: Vec<_> = found.iter().filter(|f| f.starts_with("over")).collect();
     assert!(over.is_empty(), "{over:?}");
     let top = |name: &str| drawn.iter().find(|p| p.text == crate::i18n::t(name)).map(|p| p.ink.min.y);
-    let (book, link) = (top("Address Book"), top("Link"));
-    assert!(book.is_some() && link.is_some(), "the ribbon's buttons are drawn");
-    let apart = link.unwrap_or(0.0) - book.unwrap_or(0.0);
+    // Two buttons side by side in the ribbon: on one row, or the second at the start of the next.
+    let (book, next) = (top("Address Book"), top("Check Names"));
+    assert!(book.is_some() && next.is_some(), "the ribbon's buttons are drawn");
+    let apart = next.unwrap_or(0.0) - book.unwrap_or(0.0);
     assert!((0.0..=40.0).contains(&apart), "rows {apart} apart");
 }
 

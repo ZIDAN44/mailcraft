@@ -1977,3 +1977,8 @@ count	occurrences	повторений
 	Recorded in your calendar.	Записано в календарь.
 	Record guests' answers to your meetings as they arrive	Записывать ответы гостей на ваши встречи при получении
 	One from someone not on the guest list, or to an earlier version, waits for Record the answer	Ответ от того, кого нет в списке гостей, или на прежнюю версию ждёт кнопки «Записать ответ»
+	Check Names	Проверить имена
+	Ctrl+K in To, Cc or Bcc	Ctrl+K в полях «Кому», «Копия» или «Скрытая копия»
+	No one found for {names}	Никто не найден для {names}
+	Still looking up {names} in the directory	{names} ещё ищется в каталоге
+	More than one person could be “{typed}”. Pick the one you meant:	«{typed}» может означать несколько человек. Выберите нужного:

@@ -4,6 +4,7 @@ use mailcraft_model::lookalike;
 
 use super::*;
 
+mod check_names;
 mod drafts;
 mod keeping;
 mod outbox;

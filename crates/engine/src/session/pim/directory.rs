@@ -62,8 +62,14 @@ impl Session {
     /// Ask the directories for `query` where their last answer isn't fresh; `force` asks again
     /// whatever they answered, and asks for a search under [`MIN_QUERY`] letters too.
     pub fn look_up_directory(&mut self, query: &str, force: bool) {
+        self.ask_directory(query, force, force);
+    }
+
+    /// Ask the directories for `query`: `short`, under [`MIN_QUERY`] letters too (a name Check
+    /// Names is given, issue #211); `again`, whatever they answered last.
+    pub(crate) fn ask_directory(&mut self, query: &str, short: bool, again: bool) {
         let q = key(query);
-        if q.is_empty() || (!force && q.chars().count() < MIN_QUERY) {
+        if q.is_empty() || (!short && q.chars().count() < MIN_QUERY) {
             return;
         }
         let now = self.clock.now;
@@ -71,7 +77,7 @@ impl Session {
             let k = (account.clone(), q.clone());
             let fresh = self.directory.answers.get(&k).is_some_and(|a| match a.at {
                 None => true,
-                Some(_) if force => false,
+                Some(_) if again => false,
                 // A failure keeps who was found before, but isn't their answer.
                 Some(at) => now - at < if a.error.is_some() || a.people.is_empty() { NONE_FOR } else { FOUND_FOR },
             });

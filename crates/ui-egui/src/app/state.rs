@@ -198,6 +198,9 @@ pub struct UiState {
     pub(crate) editors: HashMap<u64, rich_edit::Editor>,
     /// The message whose window a dialog for messages belongs to (Save changes, Address Book).
     pub(crate) dialog_for: Option<u64>,
+    /// Check Names waits on a directory for the names of this message: checked again once the
+    /// directory answers are no longer these (its `rev`).
+    pub(crate) names_pending: Option<(u64, u64)>,
     /// The message editor's state (selection, undo, what's typed next).
     pub(crate) editor: Option<rich_edit::Editor>,
     /// The editors of the blocks of text of the quoted originals being changed, and the one with

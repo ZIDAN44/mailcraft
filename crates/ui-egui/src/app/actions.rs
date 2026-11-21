@@ -4,6 +4,7 @@
 
 mod data_files;
 mod inserting;
+mod names;
 mod saving;
 mod security;
 
@@ -28,6 +29,8 @@ pub enum Action {
     /// An action from one message's window: done to that message (several can be written at
     /// once, each in a window of its own).
     ForCompose(u64, Box<Action>),
+    /// Check Names again, a directory it waited on having answered (issue #211).
+    RecheckNames,
     OpenAttachment(usize),
     SaveAttachment(usize),
     /// Something to tell the user, as the app's notices do (already in their language).
@@ -273,6 +276,7 @@ impl MailApp {
             Action::UpdateOnClose(install) => self.update_on_close(install),
             // Commands, and what the window does itself.
             Action::Run(id, p) => self.act_run(id, p),
+            Action::RecheckNames => self.check_names(true),
             Action::Submit(id, p) => self.submit(id, p),
             Action::Open(k) => self.run("list.open", json!({"key": k.to_id()})),
             Action::Dialog(d) => self.ui.dialog = Some(d),
@@ -354,6 +358,8 @@ impl MailApp {
                 Ok(v) => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),
                 Err(e) => self.session.notice(e.to_string(), true),
             },
+            // Check Names: who's several people asked about, who's no one said (issue #211).
+            "compose.checkNames" => self.check_names(false),
             // A message's source in its window, brought to the front (asked for again while open).
             "message.source" => match self.session.run(id, &p) {
                 Ok(v) => self.ui.raise_source = v.get("key").and_then(Value::as_str).and_then(MessageKey::from_id),

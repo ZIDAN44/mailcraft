@@ -1963,3 +1963,8 @@ count	occurrences	次
 	Recorded in your calendar.	已記錄到行事曆。
 	Record guests' answers to your meetings as they arrive	收到時記錄來賓對你的會議的回覆
 	One from someone not on the guest list, or to an earlier version, waits for Record the answer	來自來賓名單以外的人或針對先前版本的回覆，等待「記錄回覆」
+	Check Names	檢查姓名
+	Ctrl+K in To, Cc or Bcc	在收件者、副本或密件副本中按 Ctrl+K
+	No one found for {names}	找不到 {names}
+	Still looking up {names} in the directory	仍在目錄中尋找 {names}
+	More than one person could be “{typed}”. Pick the one you meant:	「{typed}」可能是多個人。請選擇你要的那位：

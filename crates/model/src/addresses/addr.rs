@@ -4,6 +4,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
+pub mod check_names;
 pub mod identity;
 
 /// A display name and an address (`Zoe Park <zoe@example.org>`).

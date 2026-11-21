@@ -101,6 +101,10 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
         if crate::widgets::tool_button(ui, Icon::AddressBook, "Address Book", t, !c.sending).on_hover_text(tl!("Ctrl+Shift+B")).clicked() {
             acts.push(Action::Dialog(Dialog::select_names(c, crate::dialogs::Recipients::To)));
         }
+        // The names typed in To, Cc and Bcc looked up (issue #211); Ctrl+K in those boxes.
+        if crate::widgets::tool_button(ui, Icon::Person, "Check Names", t, !c.sending).on_hover_text(tl!("Ctrl+K in To, Cc or Bcc")).clicked() {
+            acts.push(Action::Run("compose.checkNames", serde_json::json!({})));
+        }
         if crate::widgets::tool_button(ui, Icon::Attach, "Attach File", t, !c.sending).clicked() {
             acts.push(Action::AttachFiles);
         }

@@ -43,6 +43,8 @@ pub enum Dialog {
     AddAccount(Box<AccountForm>),
     /// Outlook's Select Names: the address book, to add people to To, Cc and Bcc.
     SelectNames(Box<NamesForm>),
+    /// Check Names' question: who a name typed is, of the people it could be (issue #211).
+    CheckNames(Box<CheckNamesForm>),
     /// Closing a message window with something written in it.
     SaveChanges,
     Password {
@@ -339,6 +341,7 @@ impl Dialog {
         matches!(
             self,
             Dialog::SelectNames(_)
+                | Dialog::CheckNames(_)
                 | Dialog::SaveChanges
                 | Dialog::EmptySubject
                 | Dialog::CtrlEnter { .. }
@@ -717,6 +720,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         Dialog::NewCategory { .. } | Dialog::Categories => categories::draw(ui, d, s, t, acts),
         Dialog::Rules | Dialog::EditRule(..) | Dialog::SearchFolder(..) | Dialog::QuickStep(..) => organize::draw(ui, d, s, t, acts),
         Dialog::SelectNames(..)
+        | Dialog::CheckNames(..)
         | Dialog::SaveChanges
         | Dialog::EmptySubject
         | Dialog::CtrlEnter { .. }

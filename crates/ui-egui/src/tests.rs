@@ -410,6 +410,14 @@ pub(crate) fn tour() {
                 mailcraft_engine::SendCheck::Lookalike { address: "orders@printsh0p.example".into(), like: "printshop.example".into() },
                 mailcraft_engine::SendCheck::Exposed { count: 12 },
             ]),
+            Dialog::CheckNames(Box::new(crate::dialogs::CheckNamesForm {
+                asks: vec![crate::dialogs::NameChoice {
+                    field: "to".into(),
+                    typed: "ana".into(),
+                    people: vec![("Ana Lima".into(), "ana@soundlab.example".into()), (String::new(), "ana.r@studio.example".into())],
+                }],
+                picked: Some(1),
+            })),
             Dialog::edit_account(&a.session.accounts[0].config),
             Dialog::vacation(
                 "sample",

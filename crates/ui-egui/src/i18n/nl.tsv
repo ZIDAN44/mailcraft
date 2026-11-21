@@ -1959,3 +1959,8 @@ count	occurrences	keer
 	Recorded in your calendar.	Vastgelegd in uw agenda.
 	Record guests' answers to your meetings as they arrive	Antwoorden van genodigden op uw vergaderingen bij aankomst vastleggen
 	One from someone not on the guest list, or to an earlier version, waits for Record the answer	Een antwoord van iemand die niet op de gastenlijst staat, of op een eerdere versie, wacht op ‘Het antwoord vastleggen’
+	Check Names	Namen controleren
+	Ctrl+K in To, Cc or Bcc	Ctrl+K in Aan, CC of BCC
+	No one found for {names}	Niemand gevonden voor {names}
+	Still looking up {names} in the directory	{names} wordt nog in de adreslijst gezocht
+	More than one person could be “{typed}”. Pick the one you meant:	‘{typed}’ kan meer dan één persoon zijn. Kies wie u bedoelde:

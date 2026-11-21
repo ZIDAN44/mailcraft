@@ -1964,3 +1964,8 @@ count	occurrences	kez
 	Recorded in your calendar.	Takviminize kaydedildi.
 	Record guests' answers to your meetings as they arrive	Toplantılarınıza konukların yanıtlarını geldiklerinde kaydet
 	One from someone not on the guest list, or to an earlier version, waits for Record the answer	Konuk listesinde olmayan birinden ya da önceki bir sürüme gelen yanıt «Yanıtı kaydet»i bekler
+	Check Names	Adları Denetle
+	Ctrl+K in To, Cc or Bcc	Kime, Bilgi veya Gizli alanında Ctrl+K
+	No one found for {names}	{names} için kimse bulunamadı
+	Still looking up {names} in the directory	{names} dizinde hâlâ aranıyor
+	More than one person could be “{typed}”. Pick the one you meant:	“{typed}” birden fazla kişi olabilir. Kastettiğiniz kişiyi seçin:

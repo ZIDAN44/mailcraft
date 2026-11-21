@@ -1964,3 +1964,8 @@ count	occurrences	occurrences
 	Recorded in your calendar.	Enregistrée dans votre calendrier.
 	Record guests' answers to your meetings as they arrive	Enregistrer les réponses des invités à vos réunions dès leur arrivée
 	One from someone not on the guest list, or to an earlier version, waits for Record the answer	Celle d'une personne absente de la liste des invités, ou à une version antérieure, attend « Enregistrer la réponse »
+	Check Names	Vérifier les noms
+	Ctrl+K in To, Cc or Bcc	Ctrl+K dans À, Cc ou Cci
+	No one found for {names}	Personne trouvé pour {names}
+	Still looking up {names} in the directory	Toujours recherché dans l’annuaire : {names}
+	More than one person could be “{typed}”. Pick the one you meant:	« {typed} » peut désigner plusieurs personnes. Choisissez celle que vous vouliez :

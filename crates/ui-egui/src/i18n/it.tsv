@@ -1963,3 +1963,8 @@ count	occurrences	ripetizioni
 	Recorded in your calendar.	Registrata nel calendario.
 	Record guests' answers to your meetings as they arrive	Registra le risposte degli invitati alle tue riunioni all'arrivo
 	One from someone not on the guest list, or to an earlier version, waits for Record the answer	Quella di chi non è tra gli invitati, o a una versione precedente, attende «Registra la risposta»
+	Check Names	Controlla nomi
+	Ctrl+K in To, Cc or Bcc	Ctrl+K in A, Cc o Ccn
+	No one found for {names}	Nessuno trovato per {names}
+	Still looking up {names} in the directory	Ricerca di {names} nella rubrica dell’organizzazione in corso
+	More than one person could be “{typed}”. Pick the one you meant:	«{typed}» potrebbe essere più di una persona. Scegli quella che intendevi:

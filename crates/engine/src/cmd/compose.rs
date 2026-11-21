@@ -21,6 +21,17 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("compose.update", "Edit message", "Message", compose_update).leaves_body()
             .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "marks"?: bool (the body uses **bold**, *italic*, - lists…), "account"?: string, "from"?: string (one of the account's addresses; "" for its own), "importance"?: "high"|"normal"|"low", "readReceipt"?: bool, "replyTo"?: string (where replies go), "sendAfter"?: number (Unix seconds: held in the Outbox until then; 0 sends at once)}"#)
             .when(has_compose),
+        CommandSpec::new("compose.checkNames", "Check Names", "Message", |s, _| s.check_names())
+            .params(r#"{} (the names typed in To, Cc and Bcc that aren't addresses, looked up: one person is put in; answers {"resolved": n, "several": [{"field", "typed", "people": [{"name", "email"}]}] to pick from with compose.pickName, "none": [{"field", "typed"}], "pending": [{"field", "typed"}] (a directory still asked)})"#)
+            .when(has_compose),
+        CommandSpec::new("compose.pickName", "Pick a name", "Message › Check Names", |s, v| {
+            let field = p::req_str(v, "field")?;
+            let typed = p::req_str(v, "typed")?;
+            let person = mailcraft_model::EmailAddress { name: p::str(v, "name").unwrap_or_default().to_string(), email: p::req_str(v, "email")?.to_string() };
+            s.pick_name(field, typed, &person)
+        })
+        .params(r#"{"field": "to"|"cc"|"bcc", "typed": string (as Check Names said it), "email": string, "name"?: string}"#)
+        .when(has_compose),
         CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "handed": number (a file handed over: Session::hand)} | {"name": string, "data": [bytes]}"#).when(has_compose),
         CommandSpec::new("compose.insertPicture", "Insert picture", "Message › Insert", insert_picture)
             .params(r#"{"path": string} | {"name": string, "handed": number (a file handed over: Session::hand)} | {"name": string, "data": [bytes]}, "insert"?: bool (default true), "at"?: number (character; default the end), "width"?: number (CSS pixels it's shown and sent at; default its own width), "line"?: bool (on a line of its own), "quoteCell"?: number (into that block of text of the quoted original, `at` counted in it)"#)
