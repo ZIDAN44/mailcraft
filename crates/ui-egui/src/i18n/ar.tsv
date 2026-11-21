@@ -1969,3 +1969,11 @@ count	occurrences	مرات
 	Run it now on the mail already in Sent	تشغيلها الآن على البريد الموجود في «المرسلة»
 	If mail you send {condition}: {action}	إذا كان البريد الذي ترسله {condition}: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	يشغّل كل قاعدة مفعّلة على البريد الموجود في «البريد الوارد» (وفي «المرسلة» للبريد الذي ترسله)
+	Accept proposal	قبول الاقتراح
+	Decline proposal	رفض الاقتراح
+	Propose new time	اقتراح وقت جديد
+	Send proposal	إرسال الاقتراح
+	Start	البدء
+	The organizer declined your proposed time: the meeting stays as it was.	رفض المنظِّم الوقت الذي اقترحته: يبقى الاجتماع كما كان.
+	Your answer	إجابتك
+	{name} proposes a new time: {when}	يقترح {name} وقتًا جديدًا: {when}

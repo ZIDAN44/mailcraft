@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 
+- Propose new time, on a meeting invitation (#238), as Outlook's: the time you'd rather have goes to the organizer, with Tentative or Decline beside it if you like. As organizer, a proposal shows who proposes what, with Accept proposal (the meeting moves, and every guest is sent it) and Decline proposal (the guest is told). An organizer who takes no proposals isn't offered one.
 - People's photos show where their initials were (#223): a contact's own photo, as the card in your address book has it, and on on-premises Exchange the photo your organisation has for them, in the message list, above the message, on the contact card and in People. A photo kept at a web address isn't fetched.
 - Rules can be for mail you send (#202), as Outlook's can: Applies to › Mail you send in the rule editor. As each message's copy reaches Sent, the rule files it in a folder, archives, categorizes, flags or deletes it; Run now runs it on what's in Sent already. Mail you move into Sent yourself is left alone.
 - Check Names, as Outlook's (#211): Ctrl+K in To, Cc or Bcc, or Check Names beside Address Book, puts in the one person a name typed is, from the people you know and the organisation's directory (Exchange, Microsoft 365); a name that could be several people offers them to pick from, and one found nowhere is said. A name the directory is still being asked about is checked again once it answers.

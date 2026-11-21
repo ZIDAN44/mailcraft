@@ -10,6 +10,7 @@ use crate::InviteProblem;
 mod answered_invites;
 mod fit;
 mod invite_placing;
+mod proposals;
 mod recorded;
 mod scheduling;
 mod sogo;

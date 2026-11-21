@@ -1974,3 +1974,11 @@ count	occurrences	kez
 	Run it now on the mail already in Sent	Şimdi Gönderilmiş Öğeler'deki postalara uygula
 	If mail you send {condition}: {action}	Gönderdiğiniz posta {condition}: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Açık olan her kuralı Gelen Kutusu'ndaki postalara (gönderdiğiniz postalar için Gönderilmiş Öğeler'dekilere) uygular
+	Accept proposal	Öneriyi kabul et
+	Decline proposal	Öneriyi reddet
+	Propose new time	Yeni zaman öner
+	Send proposal	Öneriyi gönder
+	Start	Başlangıç
+	The organizer declined your proposed time: the meeting stays as it was.	Düzenleyici önerdiğiniz zamanı reddetti: toplantı olduğu gibi kalıyor.
+	Your answer	Yanıtınız
+	{name} proposes a new time: {when}	{name} yeni bir zaman öneriyor: {when}

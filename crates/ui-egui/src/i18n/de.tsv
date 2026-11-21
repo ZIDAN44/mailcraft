@@ -1974,3 +1974,11 @@ count	occurrences	Terminen
 	Run it now on the mail already in Sent	Jetzt auf die E-Mails in „Gesendete Elemente“ anwenden
 	If mail you send {condition}: {action}	Wenn eine gesendete E-Mail {condition}: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Führt alle eingeschalteten Regeln für die E-Mails aus, die schon im Posteingang sind (und für gesendete E-Mails in „Gesendete Elemente“)
+	Accept proposal	Vorschlag annehmen
+	Decline proposal	Vorschlag ablehnen
+	Propose new time	Neue Zeit vorschlagen
+	Send proposal	Vorschlag senden
+	Start	Beginn
+	The organizer declined your proposed time: the meeting stays as it was.	Der Organisator hat Ihre vorgeschlagene Zeit abgelehnt: Die Besprechung bleibt, wie sie war.
+	Your answer	Ihre Antwort
+	{name} proposes a new time: {when}	{name} schlägt eine neue Zeit vor: {when}

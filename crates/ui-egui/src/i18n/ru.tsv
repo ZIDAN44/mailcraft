@@ -1987,3 +1987,11 @@ count	occurrences	повторений
 	Run it now on the mail already in Sent	Применить сейчас к почте в «Отправленных»
 	If mail you send {condition}: {action}	Если отправляемое письмо {condition}: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Выполняет все включённые правила для писем, которые уже во «Входящих» (и в «Отправленных» — для отправляемой почты)
+	Accept proposal	Принять предложение
+	Decline proposal	Отклонить предложение
+	Propose new time	Предложить новое время
+	Send proposal	Отправить предложение
+	Start	Начало
+	The organizer declined your proposed time: the meeting stays as it was.	Организатор отклонил предложенное вами время: встреча остаётся как была.
+	Your answer	Ваш ответ
+	{name} proposes a new time: {when}	{name} предлагает новое время: {when}

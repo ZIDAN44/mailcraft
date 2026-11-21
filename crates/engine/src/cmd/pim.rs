@@ -199,6 +199,27 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("invite.apply", "Update the calendar", "Reading pane › Invitation", |s, _| s.apply_invite())
             .params("(an answer from a guest, or a cancellation)")
             .when(has_reading),
+        // A new time proposed for a meeting (issue #238): by a guest, taken or turned down by its
+        // organizer.
+        CommandSpec::new("invite.propose", "Propose new time", "Reading pane › Invitation", |s, v| {
+            let uid = match p::str(v, "uid") {
+                Some(u) => u.to_string(),
+                None => s.invite().map(|i| i.event.uid).ok_or_else(|| CmdError::Disabled("open the invitation first".into()))?,
+            };
+            let current = s.meeting_to_propose_for(&uid).map(|(_, e, _)| e).ok_or_else(|| CmdError::Params(format!("no meeting `{uid}`")))?;
+            if v.get("start").is_none() {
+                return Err(CmdError::Params("`start` is required".into()));
+            }
+            let proposal = event_from(s, v, current)?;
+            s.propose_time(&uid, &proposal, p::str(v, "answer"))
+        })
+        .params(r#"{"start": string|number, "end"?: string|number (else as long as the meeting), "uid"?: string (a meeting in the calendar; else the open invitation's), "answer"?: "tentative"|"declined"}"#),
+        CommandSpec::new("invite.acceptProposal", "Accept proposal", "Reading pane › Invitation", |s, _| s.accept_proposal())
+            .params("(a guest's proposal of a new time, in the open message: the meeting moves, and every guest is told)")
+            .when(has_reading),
+        CommandSpec::new("invite.declineProposal", "Decline proposal", "Reading pane › Invitation", |s, _| s.decline_proposal())
+            .params("(a guest's proposal of a new time, in the open message: they're told)")
+            .when(has_reading),
         CommandSpec::new("event.respond", "Answer an invitation", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             s.respond_to_event(&uid, p::req_str(v, "answer")?)

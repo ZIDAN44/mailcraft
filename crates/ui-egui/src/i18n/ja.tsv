@@ -1970,3 +1970,11 @@ count	occurrences	回
 	Run it now on the mail already in Sent	送信済みアイテムにあるメールに今すぐ実行する
 	If mail you send {condition}: {action}	送信するメールが{condition}場合: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	オンになっているすべてのルールを、受信トレイに既にあるメール (送信するメール用のルールは送信済みアイテム) に対して実行します
+	Accept proposal	提案を承諾
+	Decline proposal	提案を辞退
+	Propose new time	新しい日時を提案
+	Send proposal	提案を送信
+	Start	開始
+	The organizer declined your proposed time: the meeting stays as it was.	主催者があなたの提案した日時を辞退しました。会議は元のままです。
+	Your answer	あなたの返答
+	{name} proposes a new time: {when}	{name} が新しい日時を提案しています: {when}

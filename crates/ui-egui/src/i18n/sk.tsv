@@ -1988,3 +1988,11 @@ count	occurrences	opakovaní
 	Run it now on the mail already in Sent	Spustiť teraz na poštu, ktorá už je v Odoslanej pošte
 	If mail you send {condition}: {action}	Ak pošta, ktorú odosielate, {condition}: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Spustí každé zapnuté pravidlo na poštu, ktorá už je v Doručenej pošte (a v Odoslanej pošte pre poštu, ktorú odosielate)
+	Accept proposal	Prijať návrh
+	Decline proposal	Odmietnuť návrh
+	Propose new time	Navrhnúť nový čas
+	Send proposal	Odoslať návrh
+	Start	Začiatok
+	The organizer declined your proposed time: the meeting stays as it was.	Organizátor odmietol vami navrhnutý čas: schôdza zostáva tak, ako bola.
+	Your answer	Vaša odpoveď
+	{name} proposes a new time: {when}	{name} navrhuje nový čas: {when}

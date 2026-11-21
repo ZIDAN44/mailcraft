@@ -280,3 +280,94 @@ fn real_series_moved_keeps_its_day_taken_out() {
         let _ = std::fs::remove_dir_all(st.root());
     }
 }
+
+/// Issue #238: Zoe proposes a later time for Riley's meeting; Riley takes it, and the calendar
+/// server has the meeting at that time. Proposed again, Riley turns it down, and Zoe is told.
+#[test]
+#[ignore = "needs real mail and calendar servers in MAILCRAFT_REAL_MEETING"]
+fn real_new_time_proposed_taken_and_declined() {
+    let Some(sv) = servers() else {
+        eprintln!("MAILCRAFT_REAL_MEETING isn't set: skipped");
+        return;
+    };
+    let (mut s, mut pool, store) = open("riley-propose", RILEY, &sv);
+    let calendar = s.pim.values().flat_map(|p| p.calendars.iter()).find(|c| c.id.starts_with("http")).map(|c| c.id.clone()).unwrap();
+    let tag = std::process::id();
+    let start = (chrono::Utc::now().timestamp() / 3600 + 30) * 3600;
+    let summary = format!("Grade review {tag}");
+    let p = json!({"summary": summary, "start": start, "end": start + 3600, "attendees": format!("Zoe Park <{ZOE}>"), "calendar": calendar});
+    let uid = s.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string();
+    send(&mut s, &mut pool);
+
+    // Zoe proposes two hours later, saying maybe: the answer and the proposal go.
+    let (mut z, mut zpool, zstore) = open("zoe-propose", ZOE, &sv);
+    newest(&mut z, &mut zpool, &format!("Invitation: {summary}"), 1);
+    z.run("invite.propose", &json!({"start": start + 7200, "answer": "tentative"})).unwrap();
+    sent(&mut z, &mut zpool, 2);
+    assert_imip(&source_of(&sv, RILEY, &format!("New time proposed: {summary}")), "COUNTER");
+
+    // Riley takes it: the meeting moves, on the calendar server too, and Zoe is sent it.
+    let riley = s.accounts.first().map(|a| a.config.id.clone()).unwrap();
+    pool.submit(Job::SyncAll { account: riley.clone() });
+    newest(&mut s, &mut pool, &format!("New time proposed: {summary}"), 1);
+    let inv = s.invite().expect("the proposal");
+    assert_eq!((inv.method.as_str(), inv.problem, inv.event.start), ("COUNTER", None, start + 7200), "{inv:?}");
+    s.run("invite.acceptProposal", &json!({})).unwrap();
+    send(&mut s, &mut pool);
+    let back = from_server(&sv, &uid);
+    assert_eq!((back.start, back.end), (start + 7200, start + 10_800), "moved on the calendar server");
+
+    // Proposed again from the update, turned down: Zoe is told, the meeting stays.
+    let (mut z2, mut zpool2, zstore2) = open("zoe-propose-2", ZOE, &sv);
+    newest(&mut z2, &mut zpool2, &format!("Invitation: {summary}"), 2);
+    assert_eq!(z2.invite().map(|i| i.event.start), Some(start + 7200), "the update, at the new time");
+    z2.run("invite.propose", &json!({"start": start + 86_400})).unwrap();
+    sent(&mut z2, &mut zpool2, 1);
+    pool.submit(Job::SyncAll { account: riley });
+    newest(&mut s, &mut pool, &format!("New time proposed: {summary}"), 2);
+    s.run("invite.declineProposal", &json!({})).unwrap();
+    sent(&mut s, &mut pool, 1);
+    assert_imip(&source_of(&sv, ZOE, &format!("New time declined: {summary}")), "DECLINECOUNTER");
+    assert_eq!(from_server(&sv, &uid).start, start + 7200, "the meeting stays");
+    drop((z, zpool, z2, zpool2));
+    for st in [store, zstore, zstore2] {
+        let _ = std::fs::remove_dir_all(st.root());
+    }
+}
+
+/// Each message sent, `n` of them (an answer goes with a proposal).
+fn sent(c: &mut Session, pool: &mut Pool, n: usize) {
+    let mut went = 0;
+    drive(c, pool, Duration::from_secs(60), |e| match e {
+        Event::Sent { .. } => {
+            went += 1;
+            (went >= n).then_some(Ok(()))
+        }
+        Event::SendFailed { error, .. } => Some(Err(error.clone())),
+        _ => None,
+    })
+    .unwrap();
+}
+
+/// The newest message of `subject` in the Inbox opened, once there are `count` of them (a sync
+/// may still be on), with its calendar read.
+fn newest(c: &mut Session, pool: &mut Pool, subject: &str, count: usize) {
+    let account = c.accounts.first().map(|a| a.config.id.clone()).unwrap_or_default();
+    let inbox = c.accounts.first().and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Inbox)).map(|f| f.path.clone()).unwrap_or_default();
+    let mut key = None;
+    for _ in 0..30 {
+        c.run("folder.open", &json!({"account": account, "folder": inbox})).unwrap();
+        let found: Vec<_> = c.list.iter().filter(|m| m.subject == subject).map(|m| m.key.clone()).collect();
+        if found.len() >= count {
+            key = found.into_iter().max_by_key(|k| k.uid);
+            break;
+        }
+        let _ = drive(c, pool, Duration::from_secs(2), |_| None::<Result<(), String>>);
+    }
+    let key = key.unwrap_or_else(|| panic!("{subject} wasn't delivered ({count})"));
+    if c.message_calendar(&key).is_none() {
+        pool.submit(Job::FetchBody { key: key.clone() });
+        drive(c, pool, Duration::from_secs(30), |e| matches!(e, Event::Body { .. }).then_some(Ok(()))).unwrap();
+    }
+    c.run("list.open", &json!({"key": key.to_id()})).unwrap();
+}

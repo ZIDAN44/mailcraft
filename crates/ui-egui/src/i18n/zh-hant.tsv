@@ -1973,3 +1973,11 @@ count	occurrences	次
 	Run it now on the mail already in Sent	立即對「寄件備份」中的郵件執行
 	If mail you send {condition}: {action}	如果你寄出的郵件{condition}: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	對收件匣中已有的郵件執行每條已開啟的規則（對你寄出的郵件，則在「寄件備份」中）
+	Accept proposal	接受提議
+	Decline proposal	拒絕提議
+	Propose new time	提議新時間
+	Send proposal	傳送提議
+	Start	開始
+	The organizer declined your proposed time: the meeting stays as it was.	召集人拒絕了你提議的時間：會議維持不變。
+	Your answer	你的回覆
+	{name} proposes a new time: {when}	{name} 提議了新時間：{when}

@@ -1974,3 +1974,11 @@ count	occurrences	ocorrências
 	Run it now on the mail already in Sent	Executá-la agora no email que já está em Itens Enviados
 	If mail you send {condition}: {action}	Se o email que você envia {condition}: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Executa todas as regras ativadas no email que já está na Caixa de Entrada (e em Itens Enviados, para o email que você envia)
+	Accept proposal	Aceitar proposta
+	Decline proposal	Recusar proposta
+	Propose new time	Propor novo horário
+	Send proposal	Enviar proposta
+	Start	Início
+	The organizer declined your proposed time: the meeting stays as it was.	O organizador recusou o horário que você propôs: a reunião continua como estava.
+	Your answer	Sua resposta
+	{name} proposes a new time: {when}	{name} propõe um novo horário: {when}

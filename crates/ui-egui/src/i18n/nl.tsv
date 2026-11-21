@@ -1969,3 +1969,11 @@ count	occurrences	keer
 	Run it now on the mail already in Sent	Nu uitvoeren op de e-mail die al in Verzonden items staat
 	If mail you send {condition}: {action}	Als e-mail die u verstuurt {condition}: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Voert elke ingeschakelde regel uit op de e-mail die al in het Postvak IN staat (en in Verzonden items, voor e-mail die u verstuurt)
+	Accept proposal	Voorstel accepteren
+	Decline proposal	Voorstel afwijzen
+	Propose new time	Nieuwe tijd voorstellen
+	Send proposal	Voorstel versturen
+	Start	Begin
+	The organizer declined your proposed time: the meeting stays as it was.	De organisator heeft uw voorgestelde tijd afgewezen: de vergadering blijft zoals ze was.
+	Your answer	Uw antwoord
+	{name} proposes a new time: {when}	{name} stelt een nieuwe tijd voor: {when}

@@ -215,6 +215,8 @@ pub enum Dialog {
     Task(Box<crate::pim_dialogs::TaskForm>),
     /// Follow Up › Custom… on a flagged message of the To-Do Bar (issue #160).
     FollowUp(Box<crate::pim_dialogs::FollowUpForm>),
+    /// Propose new time, for a meeting the user is invited to (issue #238).
+    Propose(Box<crate::pim_dialogs::ProposeForm>),
     Contact(Box<crate::pim_dialogs::ContactForm>),
     /// File › Info › Clean up old items: old mail archived to a data file (issue #179).
     Archive(Box<ArchiveForm>),
@@ -738,6 +740,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::Event(..)
         | Dialog::Task(..)
         | Dialog::FollowUp(..)
+        | Dialog::Propose(..)
         | Dialog::Contact(..) => other::draw(ui, d, s, pics, t, acts),
     }
 }

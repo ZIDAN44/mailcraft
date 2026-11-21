@@ -1970,3 +1970,11 @@ count	occurrences	次
 	Run it now on the mail already in Sent	立即对“已发送邮件”中的邮件运行
 	If mail you send {condition}: {action}	如果你发送的邮件{condition}: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	对收件箱中已有的邮件运行每条已开启的规则（对你发送的邮件，则在“已发送邮件”中）
+	Accept proposal	接受提议
+	Decline proposal	拒绝提议
+	Propose new time	提议新时间
+	Send proposal	发送提议
+	Start	开始
+	The organizer declined your proposed time: the meeting stays as it was.	组织者拒绝了你提议的时间：会议保持不变。
+	Your answer	你的答复
+	{name} proposes a new time: {when}	{name} 提议了新时间：{when}

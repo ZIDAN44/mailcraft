@@ -86,10 +86,31 @@ pub(super) fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Mess
                             acts.push(Action::Run("invite.respond", json!({"answer": code})));
                         }
                     }
+                    // A new time, where the organizer takes proposals (issue #238).
+                    if mailcraft_engine::proposals_allowed(e) && widgets::pill_button(ui, Icon::Clock, "Propose new time", &t).clicked() {
+                        acts.push(Action::Dialog(crate::Dialog::Propose(Box::new(crate::pim_dialogs::ProposeForm::new(s, e)))));
+                    }
                     if inv.in_calendar && ui.link(tl!("Show in calendar")).clicked() {
                         show_day(e.start, s, acts);
                     }
                 });
+            }
+            // A guest's proposal of a new time for the user's meeting, and the organizer's no to
+            // the user's (issue #238).
+            "COUNTER" => {
+                let name = inv.replier.as_ref().map(|w| if w.name.is_empty() { w.email.clone() } else { w.name.clone() }).unwrap_or_default();
+                ui.label(RichText::new(tf!("{name} proposes a new time: {when}", name = name, when = invite_when(e, s))).color(t.text));
+                ui.horizontal_wrapped(|ui| {
+                    if widgets::pill_button(ui, Icon::Read, "Accept proposal", &t).clicked() {
+                        acts.push(Action::Run("invite.acceptProposal", json!({})));
+                    }
+                    if widgets::pill_button(ui, Icon::Close, "Decline proposal", &t).clicked() {
+                        acts.push(Action::Run("invite.declineProposal", json!({})));
+                    }
+                });
+            }
+            "DECLINECOUNTER" => {
+                ui.label(RichText::new(tl!("The organizer declined your proposed time: the meeting stays as it was.")).color(t.text));
             }
             "CANCEL" => {
                 ui.horizontal_wrapped(|ui| {

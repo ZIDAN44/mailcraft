@@ -1969,3 +1969,11 @@ count	occurrences	פעמים
 	Run it now on the mail already in Sent	להפעיל אותו עכשיו על הדואר שכבר נמצא בפריטים שנשלחו
 	If mail you send {condition}: {action}	אם דואר שאתם שולחים {condition}: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	מפעיל כל כלל פעיל על הדואר שכבר נמצא בתיבת הדואר הנכנס (ובפריטים שנשלחו, עבור דואר שאתם שולחים)
+	Accept proposal	קבלת ההצעה
+	Decline proposal	דחיית ההצעה
+	Propose new time	הצעת מועד חדש
+	Send proposal	שליחת ההצעה
+	Start	התחלה
+	The organizer declined your proposed time: the meeting stays as it was.	המארגן דחה את המועד שהצעתם: הפגישה נשארת כפי שהייתה.
+	Your answer	התשובה שלכם
+	{name} proposes a new time: {when}	{name} מציע/ה מועד חדש: {when}

@@ -1973,3 +1973,11 @@ count	occurrences	회
 	Run it now on the mail already in Sent	보낸 편지함에 이미 있는 메일에 지금 실행
 	If mail you send {condition}: {action}	보내는 메일이 {condition}: {action}
 	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	켜져 있는 모든 규칙을 받은 편지함에 이미 있는 메일에 실행합니다(보내는 메일 규칙은 보낸 편지함에)
+	Accept proposal	제안 수락
+	Decline proposal	제안 거절
+	Propose new time	새 시간 제안
+	Send proposal	제안 보내기
+	Start	시작
+	The organizer declined your proposed time: the meeting stays as it was.	주최자가 제안한 시간을 거절했습니다. 모임은 그대로입니다.
+	Your answer	내 응답
+	{name} proposes a new time: {when}	{name}님이 새 시간을 제안합니다: {when}

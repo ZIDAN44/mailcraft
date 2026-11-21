@@ -341,3 +341,58 @@ fn a_guests_answer_says_it_was_recorded() {
     assert!(has(&texts, "Zoe Park accepted.") && has(&texts, "Recorded in your calendar."), "{texts:?}");
     assert!(!has(&texts, "Record the answer"), "nothing left to do");
 }
+
+/// Issue #238: a guest's proposal of a new time shows who proposes what, and Accept proposal
+/// moves the meeting; an invitation offers Propose new time, whose form sends the proposal.
+#[test]
+fn a_new_time_is_proposed_and_taken() {
+    let (mut a, _) = app("propose-time");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let p = json!({"summary": "Mix", "start": NOW + 86_400, "end": NOW + 90_000, "attendees": "Zoe Park <zoe@studio.example>"});
+    let uid = a.session.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string();
+    let mut proposal = a.session.find_event(&uid).unwrap().1.event.clone();
+    proposal.start += 86_400;
+    proposal.end += 86_400;
+    proposal.attendees.retain(|x| x.email == "zoe@studio.example");
+    let ics = mailcraft_engine::model::ical::write(&[proposal.clone()], Some("COUNTER"), NOW);
+    let raw = format!(
+        "From: Zoe Park <zoe@studio.example>\r\nTo: riley@studio.example\r\nSubject: New time proposed: Mix\r\nMessage-ID: <counter-238@x>\r\n\
+         Date: Mon, 16 Nov 2026 09:00:00 +0000\r\nMIME-Version: 1.0\r\nContent-Type: text/calendar; method=COUNTER; charset=utf-8\r\n\r\n{ics}"
+    );
+    let key = arrive(&mut a, 9238, raw.as_bytes());
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    a.run("list.open", json!({"key": key.to_id()}));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(texts.iter().any(|t| t.starts_with("Zoe Park proposes a new time: ")), "{texts:?}");
+    click_named(&ctx, &mut a, "Accept proposal");
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.find_event(&uid).unwrap().1.event.start, proposal.start, "moved");
+
+    // Invited: Propose new time opens its form, which sends the proposal.
+    let k = a.session.list.iter().find(|m| m.subject == "Sound mix, version 3").map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Propose new time");
+    let Some(Dialog::Propose(f)) = a.ui.dialog.as_mut() else { panic!("the form: {:?}", a.ui.dialog) };
+    let day = crate::pim_dialogs::pattern_day(&f.date).unwrap();
+    f.date = mailcraft_engine::model::dates::day_string(day + 1);
+    f.end_date = f.date.clone();
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Send proposal");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none(), "sent: {:?}", a.ui.dialog);
+    let sent = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
+    assert!(
+        sent.messages.iter().any(|m| m.subject.starts_with("New time proposed: ")),
+        "{:?}",
+        sent.messages.iter().map(|m| &m.subject).collect::<Vec<_>>()
+    );
+}

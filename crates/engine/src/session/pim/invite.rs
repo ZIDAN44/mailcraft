@@ -14,6 +14,7 @@ use super::*;
 
 mod answers;
 mod arrival;
+mod counter;
 mod fit;
 mod notices;
 mod tidy;
@@ -21,6 +22,7 @@ mod tidy;
 #[cfg(test)]
 pub(crate) use arrival::HOLD_SECS;
 pub(crate) use arrival::drop_empty_local;
+pub use counter::proposals_allowed;
 pub use fit::{Fit, InviteDay};
 pub use notices::Route;
 pub use tidy::AnsweredInvites;
@@ -32,14 +34,15 @@ const MAX_EXDATES: usize = 1000;
 /// An invitation (or an answer to one, or a cancellation) in the open message.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Invite {
-    /// `REQUEST`, `REPLY` or `CANCEL`.
+    /// `REQUEST`, `REPLY`, `CANCEL`, or a guest's proposal of a new time (`COUNTER`) and the
+    /// organizer's no to one (`DECLINECOUNTER`, issue #238).
     pub method: String,
     pub event: CalEvent,
     /// The user's answer so far (`NEEDS-ACTION`, `ACCEPTED`…), from their calendar when it's there.
     pub answer: String,
     /// The event is in one of the user's calendars.
     pub in_calendar: bool,
-    /// For a reply: who answered, and how.
+    /// For a reply or a proposal: who answered, and how.
     pub replier: Option<Attendee>,
     /// For a reply: the calendar has that answer already (recorded as it arrived, issue #236).
     pub recorded: bool,
@@ -217,6 +220,24 @@ impl Session {
         let msg: Vec<&CalEvent> = cal.events.iter().filter(|e| e.uid == uid).collect();
         match cal.method.as_deref() {
             Some("REPLY") => (!msg.iter().any(|e| e.attendees.iter().any(|a| same_address(&a.email, sender)))).then_some(InviteProblem::NotFromGuest),
+            // A proposal of a new time (issue #238): for the user's own meeting, from one of its
+            // guests (one not on the list proposes nothing), for the meeting as it is now.
+            Some("COUNTER") => {
+                let (_, parts) = self.stored_parts(uid)?;
+                let master = parts.iter().find(|e| e.event.recurrence_id.is_none()).or_else(|| parts.first())?;
+                let guest = master.event.attendees.iter().any(|a| same_address(&a.email, sender))
+                    && msg.iter().any(|e| e.attendees.iter().any(|a| same_address(&a.email, sender)));
+                if !guest {
+                    return Some(InviteProblem::NotFromGuest);
+                }
+                msg.iter().any(|m| m.sequence < master.event.sequence).then_some(InviteProblem::OutOfDate)
+            }
+            // The organizer turning down the user's proposal: from them only.
+            Some("DECLINECOUNTER") => {
+                let (_, parts) = self.stored_parts(uid)?;
+                let master = parts.iter().find(|e| e.event.recurrence_id.is_none()).or_else(|| parts.first())?;
+                (!master.event.organizer.as_ref().is_some_and(|o| same_address(&o.email, sender))).then_some(InviteProblem::NotFromOrganizer)
+            }
             Some("REQUEST" | "CANCEL") => {
                 // A new invitation can come from anyone; what's in the calendar changes only
                 // from its organizer, and only for something newer.
@@ -277,7 +298,7 @@ impl Session {
         let r = self.reading.as_ref().filter(|r| !r.text_first)?;
         let (cal, sender) = self.message_invitation(&r.key)?;
         let method = cal.method.clone().unwrap_or_else(|| "PUBLISH".into());
-        if !matches!(method.as_str(), "REQUEST" | "REPLY" | "CANCEL") {
+        if !matches!(method.as_str(), "REQUEST" | "REPLY" | "CANCEL" | "COUNTER" | "DECLINECOUNTER") {
             return None;
         }
         let event = cal.events.iter().find(|e| e.recurrence_id.is_none()).or_else(|| cal.events.first())?.clone();
@@ -299,8 +320,9 @@ impl Session {
         // The guest the answer is from: the one its sender is, in the event that's taken in.
         // (The first guest named stood in when the sender wasn't one of them: an answer that
         // named the sender only in another part of the meeting set someone else's.)
-        let replier = (method == "REPLY").then(|| event.attendees.iter().find(|a| same_address(&a.email, &sender)).cloned()).flatten();
-        let problem = self.invite_problem(&cal, &sender).or_else(|| (method == "REPLY" && replier.is_none()).then_some(InviteProblem::NotFromGuest));
+        let answers = matches!(method.as_str(), "REPLY" | "COUNTER");
+        let replier = answers.then(|| event.attendees.iter().find(|a| same_address(&a.email, &sender)).cloned()).flatten();
+        let problem = self.invite_problem(&cal, &sender).or_else(|| (answers && replier.is_none()).then_some(InviteProblem::NotFromGuest));
         let recorded = replier.as_ref().is_some_and(|who| {
             stored.as_ref().is_some_and(|s| s.attendees.iter().any(|a| same_address(&a.email, &who.email) && a.partstat == who.partstat))
         });

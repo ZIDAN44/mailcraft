@@ -221,6 +221,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
         Dialog::Event(f) => crate::pim_dialogs::event(ui, f, t, acts),
         Dialog::Task(f) => crate::pim_dialogs::task(ui, f, t, acts),
         Dialog::FollowUp(f) => crate::pim_dialogs::follow_up(ui, f, t, acts),
+        Dialog::Propose(f) => crate::pim_dialogs::propose(ui, f, t, acts),
         Dialog::Contact(f) => crate::pim_dialogs::contact(ui, f, t, acts),
         // Every other kind is shown by its own group (`body`).
         _ => true,
