@@ -17,6 +17,27 @@ impl Store {
         Ok(load.finish())
     }
 
+    /// Visit a stored folder in page order, keeping just one decoded page at a time.
+    /// Consumers must allow for an error after some pages have already been visited.
+    pub fn visit_folder_pages(&self, account: &str, folder: &str, mut visit: impl FnMut(&[SharedSummary]) -> Result<()>) -> Result<()> {
+        let mut load = self.folder_load(account, folder)?;
+        let marks: HashMap<u32, Flags> = std::mem::take(&mut load.marks).into_iter().collect();
+        loop {
+            let mut page = std::mem::take(&mut load.st.messages);
+            for message in &mut page {
+                load.apply_list_metadata(SharedSummary::make_mut(message), &marks);
+            }
+            if !page.is_empty() {
+                visit(&page)?;
+            }
+            drop(page);
+            if load.done() {
+                return Ok(());
+            }
+            load.step(self)?;
+        }
+    }
+
     /// Start reading a folder's list a page at a time ([`FolderLoad`]): its head is read now,
     /// once the read marks handed over before are on disk ([`Store::mark_later`]).
     #[track_caller]
@@ -164,28 +185,28 @@ impl FolderLoad {
 
     /// The list as read: newest first, its keys its own.
     pub fn finish(self) -> FolderState {
-        let mut st = self.st;
+        let mut load = self;
+        let mut messages = std::mem::take(&mut load.st.messages);
         // A big folder's list in pages (by number): put together, newest first again.
-        if self.pages > 0 {
-            sort_newest_first(&mut st.messages);
+        if load.pages > 0 {
+            sort_newest_first(&mut messages);
         }
-        if !self.marks.is_empty() {
-            let marks: HashMap<u32, Flags> = self.marks.into_iter().collect();
-            for m in &mut st.messages {
-                if let Some(f) = marks.get(&m.key.uid) {
-                    SharedSummary::make_mut(m).flags.clone_from(f);
-                }
-            }
+        let marks: HashMap<u32, Flags> = std::mem::take(&mut load.marks).into_iter().collect();
+        for message in &mut messages {
+            load.apply_list_metadata(SharedSummary::make_mut(message), &marks);
+        }
+        load.st.messages = messages;
+        load.st
+    }
+
+    fn apply_list_metadata(&self, message: &mut Summary, marks: &HashMap<u32, Flags>) {
+        if let Some(flags) = marks.get(&message.key.uid) {
+            message.flags.clone_from(flags);
         }
         // Keys are rebuilt rather than trusted: a renamed or copied cache stays consistent.
-        for m in &mut st.messages {
-            // Just read: each its own, nothing copied.
-            let m = SharedSummary::make_mut(m);
-            m.key.account.clone_from(&self.account);
-            m.key.folder.clone_from(&self.folder);
-            m.key.validity = st.validity;
-        }
-        st
+        message.key.account.clone_from(&self.account);
+        message.key.folder.clone_from(&self.folder);
+        message.key.validity = self.st.validity;
     }
 }
 

@@ -45,6 +45,15 @@ fn a_big_folder_list_is_kept_in_pages() {
         let changed: std::collections::HashSet<u32> = [8000].into_iter().collect();
         assert_eq!(s.save_folder_counted("a1", "INBOX", &st, Some(&changed)).unwrap(), 1, "the marks alone");
         assert_eq!(s.load_folder("a1", "INBOX").unwrap(), st);
+        let mut visited = Vec::new();
+        s.visit_folder_pages("a1", "INBOX", |page| {
+            assert!(page.len() <= PAGE_MESSAGES);
+            visited.extend_from_slice(page);
+            Ok(())
+        })
+        .unwrap();
+        sort_newest_first(&mut visited);
+        assert_eq!(visited, st.messages, "page visits apply the same flags and keys as a full read");
         // New mail: the last page, and the page the mark was kept beside (the marks emptied).
         st.messages.insert(0, msg(n + 1).into());
         st.uid_next = n + 2;

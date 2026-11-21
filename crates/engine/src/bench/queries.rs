@@ -241,3 +241,80 @@ fn made(before: SearchStats, after: SearchStats) -> String {
         after.summary_texts_aside.saturating_sub(before.summary_texts_aside)
     )
 }
+
+/// Compare a body-prefix query through the normal session and a paged scan of an indexed Inbox.
+/// Run twice, with `MC_STUDY_MODE=session` and `MC_STUDY_MODE=paged`, on a local copy of
+/// the same `MC_DATA` or `MC_CACHE`. Use `MC_STUDY_PREFIX` for one lowercase ASCII word.
+/// If `MC_STUDY_RESULTS` is set, the bench creates that file with one UID per line.
+#[test]
+#[ignore = "a measurement: requires an indexed Inbox"]
+fn study_paged_search() {
+    use std::io::{BufWriter, Write};
+
+    use crate::store::search::{Field, Reader};
+
+    let (store, account) = super::bench_store().expect("MC_DATA or MC_CACHE: indexed benchmark Inbox");
+    let prefix = std::env::var("MC_STUDY_PREFIX").unwrap();
+    assert!(!prefix.is_empty() && prefix.bytes().all(|b| b.is_ascii_lowercase()), "expected one lowercase ASCII word");
+    let mode = std::env::var("MC_STUDY_MODE").unwrap();
+    let mut output: Box<dyn Write> = match std::env::var_os("MC_STUDY_RESULTS") {
+        Some(path) => Box::new(BufWriter::new(std::fs::OpenOptions::new().write(true).create_new(true).open(path).unwrap())),
+        None => Box::new(std::io::sink()),
+    };
+    let started = Instant::now();
+    let mut count = 0;
+    let mut unknown = 0;
+    let mut max_page = 0;
+    let mut visited = 0;
+    if mode == "paged" {
+        let mut reader = Reader::open(&store, &account).unwrap().expect("prebuilt index");
+        let hits = reader.word(&store, Field::Body, &prefix).unwrap();
+        store
+            .visit_folder_pages(&account, "INBOX", |page| {
+                max_page = max_page.max(page.len());
+                visited += page.len();
+                for message in page.iter().filter(|m| !m.flags.deleted) {
+                    match reader.doc(&message.key) {
+                        Some(doc) if hits.get(doc) => {
+                            writeln!(output, "{}", message.key.uid).unwrap();
+                            count += 1;
+                        }
+                        Some(doc) if reader.info(doc).is_some_and(|info| !info.truncated && !info.no_source) => {}
+                        _ => unknown += 1,
+                    }
+                }
+                Ok(())
+            })
+            .unwrap();
+    } else {
+        assert_eq!(mode, "session");
+        let mut session = Session::open(Some(store), Clock::new(1_800_000_000, 0));
+        session.take_jobs();
+        session.run("folder.open", &json!({"account": account, "folder": "INBOX"})).unwrap();
+        visited = session.folder_state(&account, "INBOX").messages.len();
+        session.set_background_search(true);
+        session.set_search_first_units(0);
+        session.run("search.run", &json!({"query": format!("body:{prefix}"), "scope": "current"})).unwrap();
+        loop {
+            let step = Instant::now();
+            session.tick();
+            if session.search_step_within(4096, Duration::from_millis(6), &mut || step.elapsed(), &mut |_| {}).done {
+                break;
+            }
+        }
+        for message in &session.list {
+            writeln!(output, "{}", message.key.uid).unwrap();
+        }
+        count = session.list.len();
+    }
+    output.flush().unwrap();
+    let elapsed_ms = started.elapsed().as_secs_f64() * 1000.0;
+    let peak_kib = std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|status| status.lines().find_map(|line| line.strip_prefix("VmHWM:"))?.split_whitespace().next()?.parse::<u64>().ok());
+    println!(
+        "PAGED {}",
+        json!({"mode": mode, "count": count, "unknown": unknown, "max_page": max_page,
+        "visited": visited, "elapsed_ms": elapsed_ms, "peak_kib": peak_kib})
+    );
+}
