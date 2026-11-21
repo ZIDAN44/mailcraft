@@ -361,3 +361,37 @@ fn a_heading_clicked_folds_its_mail_away() {
     frame(&ctx, &mut a, vec![]);
     assert_eq!(a.session.rows().len(), rows);
 }
+
+/// Issue #216: a row's own buttons (Mark read, Flag, Delete) act on that message alone; what's
+/// selected and open stays as it was (the row was selected first, and the user's selection lost).
+#[test]
+fn a_rows_buttons_leave_the_selection_alone() {
+    let (mut a, _) = app("row-buttons");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::NONE)]);
+    let (selected, open) = (a.session.selection.clone(), a.session.reading.as_ref().map(|r| r.key.clone()));
+    assert!(open.is_some());
+    let target = a.session.row_keys()[2].clone();
+    let press = |a: &mut MailApp, label: &str| {
+        let third = list_rows(&ctx, a)[2].1;
+        frame(&ctx, a, vec![Event::PointerMoved(third.center())]);
+        let nodes = named(&ctx, a, egui::vec2(1280.0, 800.0));
+        let at = nodes.iter().filter(|n| n.label.as_deref() == Some(label)).filter_map(Named::centre).find(|c| third.contains(*c));
+        click(&ctx, a, at.unwrap_or_else(|| panic!("no {label} on the third row")));
+        frame(&ctx, a, vec![]);
+    };
+    let seen = a.session.summary(&target).unwrap().flags.seen;
+    press(&mut a, if seen { "Mark unread" } else { "Mark read" });
+    assert_eq!(a.session.summary(&target).unwrap().flags.seen, !seen, "that message marked");
+    assert_eq!(a.session.selection, selected, "the selection stays");
+    let flagged = a.session.summary(&target).unwrap().flags.flagged;
+    press(&mut a, if flagged { "Unflag" } else { "Flag" });
+    assert_eq!(a.session.summary(&target).unwrap().flags.flagged, !flagged, "that message flagged");
+    assert_eq!(a.session.selection, selected);
+    press(&mut a, "Delete");
+    assert!(a.session.summary(&target).is_none(), "that message deleted");
+    assert_eq!(a.session.selection, selected, "the selection stays");
+    assert_eq!(a.session.reading.as_ref().map(|r| r.key.clone()), open, "so does the message open");
+}

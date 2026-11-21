@@ -349,12 +349,17 @@ impl MessageRow<'_> {
         let line2 = self.line2();
         let mut clicked_action = false;
         let mut bx = end - 22.0;
-        let actions: [(Icon, &str, &'static str); 3] = [
-            (Icon::Delete, tl!("Delete"), "mail.delete"),
-            (Icon::Flag, tl!(if m.flags.flagged { "Unflag" } else { "Flag" }), "mail.flag"),
-            (if m.flags.seen { Icon::Unread } else { Icon::Read }, tl!(if m.flags.seen { "Mark unread" } else { "Mark read" }), "mail.toggleRead"),
+        let actions: [(Icon, &str, &'static str, &str); 3] = [
+            (Icon::Delete, tl!("Delete"), "mail.delete", "delete"),
+            (Icon::Flag, tl!(if m.flags.flagged { "Unflag" } else { "Flag" }), "mail.flag", "flag"),
+            (
+                if m.flags.seen { Icon::Unread } else { Icon::Read },
+                tl!(if m.flags.seen { "Mark unread" } else { "Mark read" }),
+                "mail.toggleRead",
+                "read",
+            ),
         ];
-        for (ic, tip, cmd) in actions {
+        for (ic, tip, cmd, action) in actions {
             let br = mr.rect(Rect::from_min_size(egui::pos2(bx, line2 - 3.0), vec2(22.0, 22.0)));
             let bresp = ui.interact(br, id.with(cmd), Sense::click()).on_hover_text(tip);
             crate::widgets::named(ui, &bresp, tip, true, None);
@@ -365,10 +370,13 @@ impl MessageRow<'_> {
             icons::paint(ui.painter(), icons::centered(br, 14.0), ic, color);
             if bresp.clicked() {
                 clicked_action = true;
-                if !self.selected {
-                    acts.push(Action::Run("list.select", json!({"key": m.key.to_id()})));
+                // A row selected: what's selected, as the ribbon's. Another: that message alone,
+                // the selection kept (issue #216: it was selected first, and the user's was lost).
+                if self.selected {
+                    acts.push(Action::Run(cmd, json!({})));
+                } else {
+                    acts.push(Action::Run("list.rowAction", json!({"key": m.key.to_id(), "action": action})));
                 }
-                acts.push(Action::Run(cmd, json!({})));
             }
             bx -= 24.0;
         }
