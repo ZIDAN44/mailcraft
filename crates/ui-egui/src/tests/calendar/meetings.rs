@@ -271,6 +271,9 @@ fn an_invitation_says_what_it_clashes_with() {
     let strip = find("Grade check").expect("in the hours around it");
     let invite = find("Sound mix playback").expect("the invitation among them");
     assert!(strip.min.x > invite.min.x, "half an hour after it starts: {strip:?} {invite:?}");
+    // In a lane of its own above the events, its name clear of theirs (its comment on #194: they
+    // were written over each other).
+    assert!(invite.max.y <= strip.min.y + 1.0, "above the clashing event: {invite:?} {strip:?}");
     // Its own copy, already in the calendar, isn't a clash with itself.
     assert!(!texts.iter().any(|d| d.text.contains("Clashes with Sound mix")));
     // A click on the event opens it.
@@ -290,4 +293,18 @@ fn an_invitation_says_what_it_clashes_with() {
         "{:?}",
         texts.iter().filter(|d| d.text.contains("calendar")).map(|d| &d.text).collect::<Vec<_>>()
     );
+}
+
+/// Issue #194 (its comment): an invitation that repeats says so on its card, how often when it's
+/// once a day, week, month or year (on whichever days, until whenever), as Outlook's says it.
+#[test]
+fn an_invitation_says_it_repeats() {
+    let words = crate::reading::invite_repeats_for_tests;
+    assert_eq!(words("FREQ=WEEKLY;BYDAY=WE;INTERVAL=1;UNTIL=20270630T000000Z"), "Repeats · Every week");
+    assert_eq!(words("freq=daily;count=5"), "Repeats · Every day");
+    assert_eq!(words("FREQ=MONTHLY;BYMONTHDAY=3"), "Repeats · Every month");
+    assert_eq!(words("FREQ=YEARLY"), "Repeats · Every year");
+    assert_eq!(words("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO"), "Repeats", "every other week: said only that it repeats");
+    assert_eq!(words("FREQ=HOURLY"), "Repeats");
+    assert_eq!(words(";;=;junk"), "Repeats");
 }

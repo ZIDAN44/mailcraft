@@ -19,6 +19,8 @@ mod compose;
 mod frame_lru;
 mod header;
 mod invite_day;
+#[cfg(test)]
+pub(crate) use invite_day::repeats as invite_repeats_for_tests;
 mod long_text;
 mod people;
 mod pictures;
@@ -485,6 +487,9 @@ fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, act
             ui.vertical(|ui| {
                 ui.label(RichText::new(&e.summary).font(theme::bold(15.0)).color(t.text));
                 ui.label(RichText::new(invite_when(e, s)).color(t.dim));
+                if let Some(rule) = e.rrule.as_deref().filter(|r| !r.trim().is_empty()) {
+                    ui.label(RichText::new(invite_day::repeats(rule)).color(t.dim));
+                }
                 if !e.location.is_empty() {
                     ui.label(RichText::new(&e.location).color(t.dim));
                 }

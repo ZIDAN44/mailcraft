@@ -10,10 +10,13 @@ use mailcraft_engine::{AgendaItem, Fit, InviteDay, Session};
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog};
 
-/// The strip's height: the hours' names, then the events.
-const STRIP: f32 = 50.0;
-/// The hours' names' height, above the events.
+/// The strip's height: the hours' names, the invitation's own lane, then the events.
+const STRIP: f32 = 66.0;
+/// The hours' names' height, above the invitation.
 const HOURS: f32 = 15.0;
+/// The invitation's lane, above the user's events (its comment on issue #194: drawn over them,
+/// its title and a clashing event's were written over each other).
+const INVITE: f32 = 16.0;
 /// Lanes of events overlapping one another, at most (the rest under the last).
 const LANES: usize = 3;
 
@@ -21,6 +24,26 @@ const LANES: usize = 3;
 fn named(s: &Session, it: &AgendaItem) -> String {
     let title = crate::calendar::event_title(&it.summary, it.privacy, it.show_as);
     format!("{title} ({} – {})", crate::calendar::hm(it.start, s), crate::calendar::hm(it.end, s))
+}
+
+/// How an invitation repeats, on its card (its comment on issue #194: only the first time was
+/// said): `Repeats · Every week` for a rule of that frequency (on whichever days, until whenever),
+/// `Repeats` for one with a longer step or of another kind.
+pub(crate) fn repeats(rule: &str) -> String {
+    let parts: Vec<(String, String)> =
+        rule.split(';').filter_map(|p| p.split_once('=')).map(|(k, v)| (k.trim().to_ascii_uppercase(), v.trim().to_ascii_uppercase())).collect();
+    let get = |k: &str| parts.iter().find(|(key, _)| key == k).map(|(_, v)| v.as_str());
+    let every = match (get("FREQ"), get("INTERVAL").unwrap_or("1")) {
+        (Some("DAILY"), "1") => Some(tl!("Every day")),
+        (Some("WEEKLY"), "1") => Some(tl!("Every week")),
+        (Some("MONTHLY"), "1") => Some(tl!("Every month")),
+        (Some("YEARLY"), "1") => Some(tl!("Every year")),
+        _ => None,
+    };
+    match every {
+        Some(e) => format!("{} · {e}", tl!("Repeats")),
+        None => tl!("Repeats").to_string(),
+    }
 }
 
 /// The line and the strip, for the invitation `e` and the user's calendar around it.
@@ -46,13 +69,14 @@ fn strip(s: &Session, t: &Tokens, ui: &mut Ui, e: &CalEvent, day: &InviteDay, ac
     let x = |at: i64| rect.min.x + ((at.clamp(day.from, day.to) - day.from) as f32 / span) * rect.width();
     let p = ui.painter().with_clip_rect(rect);
     p.rect(rect, 6.0, t.surface, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-    let band = Rect::from_min_max(pos2(rect.min.x, rect.min.y + HOURS), pos2(rect.max.x, rect.max.y - 3.0));
+    let lane = Rect::from_min_max(pos2(rect.min.x, rect.min.y + HOURS), pos2(rect.max.x, rect.min.y + HOURS + INVITE));
+    let band = Rect::from_min_max(pos2(rect.min.x, lane.max.y + 1.0), pos2(rect.max.x, rect.max.y - 3.0));
     // The hours: a line each, named where there's room for it.
     let hours = (day.to - day.from) / 3600;
     let every = if rect.width() / (hours.max(1) as f32) < 40.0 { 2 } else { 1 };
     for (n, h) in (day.from..=day.to).step_by(3600).enumerate() {
         let hx = x(h);
-        p.line_segment([pos2(hx, band.min.y), pos2(hx, band.max.y)], egui::Stroke::new(1.0, t.border));
+        p.line_segment([pos2(hx, lane.min.y), pos2(hx, band.max.y)], egui::Stroke::new(1.0, t.border));
         if n % every == 0 && hx + 30.0 < rect.max.x {
             p.text(pos2(hx + 3.0, rect.min.y + 2.0), Align2::LEFT_TOP, crate::calendar::hm(h, s), theme::regular(10.5), t.faint);
         }
@@ -91,8 +115,12 @@ fn strip(s: &Session, t: &Tokens, ui: &mut Ui, e: &CalEvent, day: &InviteDay, ac
             acts.push(Action::Dialog(d));
         }
     }
-    // The invitation, over them.
-    let r = Rect::from_min_max(pos2(x(e.start), band.min.y), pos2(x(e.end).max(x(e.start) + 4.0), band.max.y));
-    p.rect(r, 3.0, t.accent.gamma_multiply(0.18), egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
-    p.with_clip_rect(r.shrink(2.0)).text(r.left_top() + vec2(5.0, 2.0), Align2::LEFT_TOP, &e.summary, theme::bold(11.0), t.text);
+    // The invitation in its own lane, named there; its hours outlined over the events under it,
+    // their names left to read.
+    let (from, to) = (x(e.start), x(e.end).max(x(e.start) + 4.0));
+    let r = Rect::from_min_max(pos2(from, lane.min.y + 1.0), pos2(to, lane.max.y - 1.0));
+    p.rect(r, 3.0, t.accent.gamma_multiply(0.35), egui::Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    p.with_clip_rect(r.shrink(2.0)).text(r.left_center() + vec2(4.0, 0.0), Align2::LEFT_CENTER, &e.summary, theme::bold(11.0), t.text);
+    let under = Rect::from_min_max(pos2(from, band.min.y), pos2(to, band.max.y));
+    p.rect(under, 3.0, egui::Color32::TRANSPARENT, egui::Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
 }

@@ -30,6 +30,7 @@ on GitHub.
 - In the dark theme, a pale highlight behind text stays (#227): Jira's pale pink and green marks of what changed were dropped with the grey boxes, and the old and new values read as one. Grey and white boxes still go.
 - An Apple Mail link card (a shared album, a web page) shows its picture and opens its link when clicked, with Open link and Copy link on its menu (#225): only an empty box was drawn. Pictures written into a message's HTML show as those sent with it do, and what a link around a box holds opens it.
 - In the To-Do Bar, an appointment's "In N min" sits above its time, and its title keeps all its room (#195): at the row's end it hid the end of the title.
+- An invitation's card says how it repeats (Repeats · Every week), and draws the invitation on a line of its own above your events, its name and theirs no longer written over each other (#194).
 
 ## 0.41.0 - 2026-11-20
 
