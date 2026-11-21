@@ -166,6 +166,9 @@ pub struct Client {
     /// The server refused a message's text first (issue #191): not asked again here, each
     /// message coming whole.
     text_first_refused: RefCell<bool>,
+    /// The names the directory gives addresses asked of it ([`Client::directory_name_of`]),
+    /// `None` for one it has none for: asked once on a connection.
+    names: RefCell<HashMap<String, Option<String>>>,
 }
 
 /// Another mailbox the account opens (Outlook's shared mailboxes): its address and name.
@@ -413,6 +416,7 @@ impl Client {
             user_agent: None,
             unknown_ids: RefCell::new(Vec::new()),
             text_first_refused: RefCell::new(false),
+            names: RefCell::new(HashMap::new()),
         })
     }
 

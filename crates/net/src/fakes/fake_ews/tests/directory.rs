@@ -274,3 +274,29 @@ fn against_grommunio() {
     println!("john: {john:?} {error:?}");
     assert_eq!(john, [("John Doe".to_string(), "john.doe@studio.test".to_string())]);
 }
+
+/// Issue #222: a colleague's calendar opened here is named as the directory names them, not by
+/// their address; one the directory doesn't know keeps the address. Each is asked once on the
+/// connection, not at every sync.
+#[test]
+fn a_colleagues_calendar_has_their_name() {
+    use mailcraft_model::pim::{Pim, shared_calendar_id};
+    let mut d = Data::default();
+    people(&mut d);
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    d.folder("Calendar", None, Some("calendar"), "IPF.Appointment");
+    d.folder("Contacts", None, Some("contacts"), "IPF.Contact");
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let pim = Pim { shared: vec!["bob@contoso.example".into(), "zed@contoso.example".into()], ..Default::default() };
+    let names = |c: &crate::ews::Client| {
+        let sync = crate::ews_pim::sync(c, &pim, 1_792_000_000).unwrap();
+        let calendars = sync.calendars.unwrap_or_default();
+        let name = |who: &str| calendars.iter().find(|x| x.id == shared_calendar_id(who)).map(|x| x.name.clone());
+        (name("bob@contoso.example"), name("zed@contoso.example"))
+    };
+    assert_eq!(names(&c), (Some("Bob Stone".into()), Some("zed@contoso.example".into())));
+    let asked = server.data.lock().unwrap().calls.iter().filter(|op| *op == "ResolveNames").count();
+    assert_eq!(names(&c), (Some("Bob Stone".into()), Some("zed@contoso.example".into())));
+    assert_eq!(server.data.lock().unwrap().calls.iter().filter(|op| *op == "ResolveNames").count(), asked, "not asked again");
+}

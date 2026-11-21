@@ -51,6 +51,30 @@ impl Client {
     }
 }
 
+/// Most names kept of the directory's answers on a connection.
+const NAMES_KEPT: usize = 500;
+
+impl Client {
+    /// The name the directory gives `email`, asked once on a connection (issue #222: a colleague's
+    /// calendar opened here was labelled with their address); `None` when it has none for that
+    /// very address, or can't be asked (that isn't asked again on the connection either).
+    pub(crate) fn directory_name_of(&self, email: &str) -> Option<String> {
+        let key = email.trim().to_ascii_lowercase();
+        if let Some(known) = self.names.borrow().get(&key) {
+            return known.clone();
+        }
+        let found = self
+            .search_directory(&key)
+            .ok()
+            .and_then(|people| people.into_iter().find(|(_, a)| a.eq_ignore_ascii_case(&key)).map(|(n, _)| n).filter(|n| !n.trim().is_empty()));
+        let mut names = self.names.borrow_mut();
+        if names.len() < NAMES_KEPT {
+            names.insert(key, found.clone());
+        }
+        found
+    }
+}
+
 /// A person's name as the directory keeps it: the contact's display name, or its given name and
 /// surname, before the mailbox's name, which some servers fill with the alias (`john.doe`, issue
 /// #9). The contact comes with the full data asked for; without one, the mailbox's name.

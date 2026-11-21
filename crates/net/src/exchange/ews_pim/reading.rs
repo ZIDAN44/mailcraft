@@ -78,6 +78,8 @@ pub(super) fn read_shared_calendar(c: &Client, (email, name, asked): SharedCalen
             return;
         }
     }
+    // One opened by hand by their address: their name, as the directory gives it (issue #222).
+    let name = if asked && name.eq_ignore_ascii_case(&email) { c.directory_name_of(&email).unwrap_or(name) } else { name };
     calendars.push(CalendarInfo {
         id,
         name,
