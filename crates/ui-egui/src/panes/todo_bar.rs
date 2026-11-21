@@ -153,7 +153,7 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
     let today = picked.unwrap_or_else(|| dates::today(&s.clock));
     let (days, now) = if picked.is_some() { (1, i64::MIN) } else { (DAYS_AHEAD, s.clock.now) };
     let coming: Vec<AgendaItem> = s
-        .agenda(s.local_midnight(today), s.local_midnight(today + days))
+        .todo_appointments(s.local_midnight(today), s.local_midnight(today + days))
         .into_iter()
         .filter(|it| !it.task && !it.busy_only && it.end > now && it.status != "CANCELLED")
         .collect();

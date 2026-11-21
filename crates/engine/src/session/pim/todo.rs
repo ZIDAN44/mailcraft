@@ -253,6 +253,19 @@ impl Session {
         out
     }
 
+    /// The To-Do Bar's appointments overlapping `[from, to)`, by start: the shown calendars' as
+    /// [`Session::agenda`] has them, of the user's own calendars only (issue #205). A colleague's
+    /// calendar opened here, or listed with the user's as someone else's, and their free/busy
+    /// time stay in the Calendar: a colleague's holiday was listed under Today as if it were the
+    /// user's own. Outlook's bar shows the user's calendar too.
+    pub fn todo_appointments(&self, from: i64, to: i64) -> Vec<AgendaItem> {
+        let mut out = self.agenda_where(from, to, |account, cal| {
+            !cal.foreign && mailcraft_model::pim::shared_calendar_owner(&cal.id).is_none() && self.calendar_shown(account, &cal.id)
+        });
+        out.sort_by(|a, b| (b.all_day, a.start, &a.summary).cmp(&(a.all_day, b.start, &b.summary)));
+        out
+    }
+
     /// Mark a flagged message of the task list complete ([`Session::complete_messages`]).
     pub fn todo_complete(&mut self, key: &MessageKey) -> CmdResult {
         let m = self.todo_message(key).cloned().ok_or_else(|| CmdError::Params(format!("`{}` isn't flagged", key.to_id())))?;

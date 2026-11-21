@@ -254,3 +254,29 @@ fn flagged_mail_is_followed_up_from_the_bar_wherever_it_is() {
         assert!(s.run("todo.flag", &json!({"key": key, "due": due})).is_err(), "{key} {due}");
     }
 }
+
+/// Issue #205: the To-Do Bar's appointments are the user's own, as Outlook's bar shows: not a
+/// colleague's calendar opened here (a holiday of theirs was listed under Today), nor one listed
+/// with the user's as someone else's. The Calendar shows them all as before.
+#[test]
+fn the_bars_appointments_are_the_users_own() {
+    use mailcraft_model::ical::CalEvent;
+    use mailcraft_model::pim::{CalendarInfo, LOCAL, StoredEvent, shared_calendar_id};
+    let mut s = sample_session("todo-own");
+    let account = s.accounts[0].config.id.clone();
+    let ana = shared_calendar_id("ana@contoso.example");
+    let p = s.pim_mut(&account);
+    p.calendars.push(CalendarInfo { id: ana.clone(), name: "Ana".into(), read_only: true, ..Default::default() });
+    p.calendars.push(CalendarInfo { id: "sam".into(), name: "Sam".into(), foreign: true, ..Default::default() });
+    for (calendar, summary) in [(LOCAL, "Mine"), (ana.as_str(), "Ana's holiday"), ("sam", "Sam's review")] {
+        let event = CalEvent { uid: summary.into(), summary: summary.into(), start: NOW + 3600, end: NOW + 7200, ..Default::default() };
+        p.events.push(StoredEvent { calendar: calendar.into(), event, ..Default::default() });
+    }
+    let names = |items: Vec<crate::AgendaItem>| {
+        let mut n: Vec<String> = items.into_iter().map(|i| i.summary).filter(|n| n.contains("Mine") || n.contains('\'')).collect();
+        n.sort();
+        n
+    };
+    assert_eq!(names(s.agenda(NOW, NOW + 86_400)), ["Ana's holiday", "Mine", "Sam's review"], "the Calendar's");
+    assert_eq!(names(s.todo_appointments(NOW, NOW + 86_400)), ["Mine"], "the bar's");
+}

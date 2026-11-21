@@ -174,7 +174,7 @@ pub(crate) fn bar_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut V
         let (y, m, _) = civil_from_days(today(s));
         y * 12 + i64::from(m) - 1
     });
-    let busy = busy_days(s, grid_start(shown), grid_start(shown) + 42);
+    let busy = bar_busy_days(s, grid_start(shown), grid_start(shown) + 42);
     mini_month(s, st, ui, acts, MiniMonth { first: shown, month: shown, arrows: true, bar: true, busy: &busy });
 }
 
@@ -187,9 +187,20 @@ fn grid_start(month: i64) -> i64 {
 
 /// The days from `from` up to `to` that have an event on them (Outlook's bold days).
 pub(crate) fn busy_days(s: &Session, from: i64, to: i64) -> std::collections::BTreeSet<i64> {
+    days_with(s, &s.agenda(s.local_midnight(from), s.local_midnight(to)), from, to)
+}
+
+/// [`busy_days`] in the To-Do Bar's month: the days of the bar's own appointments (issue #205),
+/// the user's calendars'. A colleague's holiday made a day bold whose list then had nothing.
+pub(crate) fn bar_busy_days(s: &Session, from: i64, to: i64) -> std::collections::BTreeSet<i64> {
+    days_with(s, &s.todo_appointments(s.local_midnight(from), s.local_midnight(to)), from, to)
+}
+
+/// The days from `from` up to `to` that these appointments are on.
+fn days_with(s: &Session, items: &[mailcraft_engine::AgendaItem], from: i64, to: i64) -> std::collections::BTreeSet<i64> {
     let mut days = std::collections::BTreeSet::new();
     // Colleagues' times taken aren't the user's, and are only had around the days shown.
-    for it in s.agenda(s.local_midnight(from), s.local_midnight(to)).iter().filter(|it| !it.task && !it.busy_only) {
+    for it in items.iter().filter(|it| !it.task && !it.busy_only) {
         // Only the days asked about: an event years long is no longer to walk than these.
         let last = day_of(it.end.saturating_sub(1).max(it.start), s).min(to - 1);
         days.extend(day_of(it.start, s).max(from)..=last);

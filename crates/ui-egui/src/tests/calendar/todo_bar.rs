@@ -437,3 +437,43 @@ fn appointments_say_how_long_and_how_soon() {
     assert!(find("30 min").is_some_and(|r| (r.center().y - check.center().y).abs() < 30.0), "its length");
     assert!(!shown.iter().any(|(s, r)| s.starts_with("In ") && (r.center().y - check.center().y).abs() < 12.0), "two hours off: no countdown");
 }
+
+/// Issue #205: a colleague's calendar opened here stays in the Calendar: their holiday, all day
+/// today, isn't among the bar's appointments; the user's own meeting is.
+#[test]
+fn a_colleagues_calendar_stays_out_of_the_bar() {
+    use mailcraft_engine::model::ical::CalEvent;
+    use mailcraft_engine::model::pim::{CalendarInfo, StoredEvent, shared_calendar_id};
+    let (mut a, _) = app("todo-bar-own");
+    let ctx = egui::Context::default();
+    a.run("view.todoBar", json!({"width": 360}));
+    a.run("view.todoBar", json!({"part": "appointments", "on": true}));
+    let s = &mut a.session;
+    let now = s.clock.now;
+    let today = s.local_midnight(mailcraft_engine::model::dates::today(&s.clock));
+    let account = s.accounts[0].config.id.clone();
+    let ana = shared_calendar_id("ana@contoso.example");
+    let p = s.pim_mut(&account);
+    p.calendars.push(CalendarInfo { id: ana.clone(), name: "Ana".into(), read_only: true, ..Default::default() });
+    let holiday =
+        CalEvent { uid: "h1".into(), summary: "Ana on holiday".into(), start: today, end: today + 86_400, all_day: true, ..Default::default() };
+    p.events.push(StoredEvent { calendar: ana, event: holiday, ..Default::default() });
+    let mine = CalEvent { uid: "m1".into(), summary: "Edit review".into(), start: now + 3600, end: now + 7200, ..Default::default() };
+    p.events.push(StoredEvent { calendar: mailcraft_engine::model::pim::LOCAL.into(), event: mine, ..Default::default() });
+    settle(&ctx, &mut a);
+    let edge = SIZE.x - 360.0;
+    let shown: Vec<String> = drawn(&ctx, &mut a, SIZE).into_iter().filter(|(_, r)| r.left() >= edge).map(|(s, _)| s).collect();
+    assert!(shown.iter().any(|s| s == "Edit review"), "{shown:?}");
+    assert!(!shown.iter().any(|s| s == "Ana on holiday"), "{shown:?}");
+    // Nor is the day of a holiday of hers with nothing of the user's on it bold in the bar's
+    // month, as it is in the Calendar's.
+    let s = &mut a.session;
+    let day = mailcraft_engine::model::dates::today(&s.clock) + 3;
+    let free = !crate::calendar::busy_days(s, day, day + 1).contains(&day);
+    let start = s.local_midnight(day);
+    let ana = shared_calendar_id("ana@contoso.example");
+    let away = CalEvent { uid: "h2".into(), summary: "Ana away".into(), start, end: start + 86_400, all_day: true, ..Default::default() };
+    s.pim_mut(&account).events.push(StoredEvent { calendar: ana, event: away, ..Default::default() });
+    assert!(free && crate::calendar::busy_days(s, day, day + 1).contains(&day), "the Calendar's month");
+    assert!(!crate::calendar::bar_busy_days(s, day, day + 1).contains(&day), "the bar's");
+}
