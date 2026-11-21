@@ -64,8 +64,10 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
         search_status(s, t, ui);
         return;
     }
+    // Cut short where it's too long, the whole of it on hover (issue #200): a search's heading
+    // holds its query, and a long one widened the list as far as it goes, then ran past it.
     ui.horizontal(|ui| {
-        ui.label(RichText::new(crate::view_title(s)).font(theme::bold(18.0)).color(t.text));
+        ui.add(egui::Label::new(RichText::new(crate::view_title(s)).font(theme::bold(18.0)).color(t.text)).truncate());
     });
     ui.add_space(4.0);
     if s.focus_split() {

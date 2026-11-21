@@ -671,3 +671,26 @@ fn it_starts_in_the_folder_chosen() {
     c.restore_state(&json!({"prefs": {"compact": true}}));
     assert_eq!(c.session.view, View::Folder { account: "sample".into(), folder: "INBOX".into() });
 }
+
+/// Issue #200: a search's heading, holding a long query, is cut short inside the list (the whole
+/// of it on hover), and the list keeps its width: it grew as wide as it goes, and the heading
+/// still ran past its edge.
+#[test]
+fn a_long_searchs_heading_stays_in_the_list() {
+    let (mut a, _) = app("long-search-heading");
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1280.0, 800.0);
+    for _ in 0..3 {
+        drawn_text(&ctx, &mut a, size);
+    }
+    let (folders, list) = (a.ui.pane_sizes.folders.unwrap(), a.ui.pane_sizes.list.unwrap());
+    let query = format!("subject:\"{}\"", "Re: the grading notes for reels two and three, warmer, and the sound mix ".repeat(3));
+    a.run("search.run", json!({"query": query}));
+    let mut heading = None;
+    for _ in 0..4 {
+        heading = drawn_text(&ctx, &mut a, size).into_iter().find(|d| d.text.starts_with("Results for"));
+    }
+    let heading = heading.expect("the search's heading");
+    assert_eq!(a.ui.pane_sizes.list, Some(list), "the list keeps its width");
+    assert!(heading.rect.right() <= folders + list, "{:?} runs past the list's edge at {}", heading.rect, folders + list);
+}
