@@ -36,6 +36,14 @@ pub(crate) fn month_name(m: u32) -> &'static str {
     crate::i18n::tc("month", m.checked_sub(1).and_then(|i| MONTHS.get(i as usize)).copied().unwrap_or(""))
 }
 
+/// A month's name in a date, after its day (`17 December 2026`): the form a language gives it
+/// there (Russian's and Slovak's genitive, `17 декабря 2026`, issue #215), its name alone where
+/// that's the same.
+pub(crate) fn date_month_name(m: u32) -> &'static str {
+    let english = m.checked_sub(1).and_then(|i| MONTHS.get(i as usize)).copied().unwrap_or("");
+    crate::i18n::tc_own("date", english).unwrap_or_else(|| month_name(m))
+}
+
 /// The calendar on a day (`calendar.goto`).
 pub(crate) fn goto(day: i64) -> Action {
     Action::Run("calendar.goto", json!({"date": dates::day_string(day)}))
@@ -104,9 +112,16 @@ pub fn title(s: &Session) -> String {
         CalMode::WorkWeek | CalMode::Week => {
             let ((y0, m0, a), (y1, m1, b)) = (civil_from_days(d0), civil_from_days(d1 - 1));
             if (y0, m0) == (y1, m1) {
-                tf!("{from} – {to} {month} {year}", from = a, to = b, month = month_name(m1), year = y1)
+                tf!("{from} – {to} {month} {year}", from = a, to = b, month = date_month_name(m1), year = y1)
             } else {
-                tf!("{from} {month_from} – {to} {month} {year}", from = a, month_from = month_name(m0), to = b, month = month_name(m1), year = y1)
+                tf!(
+                    "{from} {month_from} – {to} {month} {year}",
+                    from = a,
+                    month_from = date_month_name(m0),
+                    to = b,
+                    month = date_month_name(m1),
+                    year = y1
+                )
             }
         }
         CalMode::Day | CalMode::Schedule => long_date(d0),
@@ -116,7 +131,7 @@ pub fn title(s: &Session) -> String {
 /// A day written out: `Thursday, 22 October 2026`, in the interface's language.
 pub fn long_date(day: i64) -> String {
     let (y, m, d) = civil_from_days(day);
-    tf!("{weekday}, {day} {month} {year}", weekday = tl!(dates::weekday_long(day)), day = d, month = month_name(m), year = y)
+    tf!("{weekday}, {day} {month} {year}", weekday = tl!(dates::weekday_long(day)), day = d, month = date_month_name(m), year = y)
 }
 
 /// The months of the side pane, one under another (Outlook's date navigator, pulled down for

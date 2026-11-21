@@ -976,6 +976,20 @@ folder	Archive	Архив
 
 # A month's full name, where it differs from its short form.
 month	May	Май
+
+# A month's name in a date, after its day (17 December 2026), where that differs.
+date	January	января
+date	February	февраля
+date	March	марта
+date	April	апреля
+date	May	мая
+date	June	июня
+date	July	июля
+date	August	августа
+date	September	сентября
+date	October	октября
+date	November	ноября
+date	December	декабря
 	Add shared mailbox…	Добавить общий почтовый ящик…
 	Remove shared mailbox	Удалить общий почтовый ящик
 	Opened by the server for your access to it	Открыт сервером, так как у вас есть доступ

@@ -26,6 +26,7 @@ on GitHub.
 - The read, flag and delete buttons on a message's row act on that message alone (#216): they selected it too, and what was selected and open before was lost.
 - The subject above a message can be selected and copied, as its text can (#217).
 - Follow Up › Custom… is as tall as its fields, OK and Cancel at its bottom (#220): it opened as tall as the screen, its buttons halfway down. The contact form's buttons were the same.
+- In Russian, the message list's weekday headings start with a capital (Понедельник, under Сегодня and Вчера), and a month after its day number takes the form it has there (четверг, 17 декабря 2026); in Slovak too (17. decembra) (#215).
 
 ## 0.41.0 - 2026-11-20
 

@@ -337,6 +337,27 @@ pub fn tc<'a>(ctx: &str, s: &'a str) -> &'a str {
     current().0.contexted(ctx, s).unwrap_or_else(|| t(s))
 }
 
+/// `s`'s translation where its context is `ctx`, when the catalog has one of its own there (no
+/// plain one in its place).
+pub fn tc_own(ctx: &str, s: &str) -> Option<&'static str> {
+    #[cfg(test)]
+    if pseudo::on() {
+        return None;
+    }
+    current().0.contexted(ctx, s)
+}
+
+/// `s` as a heading starts it: its first letter a capital (issue #215: Russian weekdays, small
+/// inside a sentence, began the message list's date headings small, under Сегодня and Вчера).
+/// Turkish and Azerbaijani's dotted i is İ.
+pub fn heading(s: &str) -> String {
+    let mut letters = s.chars();
+    let Some(first) = letters.next().filter(|c| c.is_lowercase()) else { return s.to_string() };
+    let dotted = first == 'i' && matches!(current().code(), "tr" | "az");
+    let capital: String = if dotted { "İ".to_string() } else { first.to_uppercase().collect() };
+    capital + letters.as_str()
+}
+
 /// A folder's name as shown: the name its server gives a special folder as it is (Exchange
 /// names them in the mailbox's language, as Outlook shows them), any other translated.
 pub fn folder(f: &mailcraft_engine::model::Folder) -> String {

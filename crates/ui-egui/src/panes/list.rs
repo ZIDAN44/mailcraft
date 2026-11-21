@@ -473,7 +473,7 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                 Row::Folded { .. } => {}
                 Row::Header(_) | Row::Group(_) => {
                     let (shown, heading) = match row {
-                        Row::Header(label) => (tl!(label).to_string(), label.to_string()),
+                        Row::Header(label) => (crate::i18n::heading(tl!(label)), label.to_string()),
                         Row::Group(name) => (name.clone(), name.clone()),
                         _ => continue,
                     };

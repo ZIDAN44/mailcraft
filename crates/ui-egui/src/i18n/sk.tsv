@@ -977,6 +977,20 @@ folder	Archive	Archív
 
 # A month's full name, where it differs from its short form.
 month	May	máj
+
+# A month's name in a date, after its day (17 December 2026), where that differs.
+date	January	januára
+date	February	februára
+date	March	marca
+date	April	apríla
+date	May	mája
+date	June	júna
+date	July	júla
+date	August	augusta
+date	September	septembra
+date	October	októbra
+date	November	novembra
+date	December	decembra
 	Add shared mailbox…	Pridať zdieľanú schránku…
 	Remove shared mailbox	Odstrániť zdieľanú schránku
 	Opened by the server for your access to it	Otvorené serverom na základe vášho prístupu

@@ -142,3 +142,58 @@ fn the_month_view_shows_every_week_in_a_small_window() {
         assert!(hidden.is_empty(), "{size:?}: below the pane's edge ({:?}): {hidden:?}", head.clip);
     }
 }
+
+/// Issue #215: a month after its day takes the form a language gives it there, Russian's and
+/// Slovak's genitive (`четверг, 17 декабря 2026`), the month alone as it was (`Декабрь 2026`),
+/// the others as before; and the message list's date headings start with a capital, a weekday's
+/// too (`Понедельник`, under `Сегодня`), as a heading does.
+#[test]
+fn a_month_in_a_date_and_a_weekday_heading() {
+    let dec17 = days_from_civil(2026, 12, 17);
+    let lang = |code: &str| crate::i18n::set_current(crate::i18n::Lang::from_code(code).unwrap());
+    lang("ru");
+    assert_eq!(crate::calendar::long_date(dec17), "четверг, 17 декабря 2026");
+    assert_eq!(crate::calendar::month_name(12), "Декабрь", "alone");
+    assert_eq!((crate::calendar::date_month_name(5), crate::calendar::month_name(5)), ("мая", "Май"));
+    assert_eq!(crate::i18n::heading(tl!("Monday")), "Понедельник");
+    lang("sk");
+    assert_eq!(crate::calendar::long_date(dec17), "štvrtok 17. decembra 2026");
+    lang("tr");
+    assert_eq!(crate::i18n::heading("ikindi"), "İkindi");
+    for code in ["fr", "es", "nl", "pt-br", "it"] {
+        lang(code);
+        assert_eq!(crate::calendar::long_date(dec17), long_date_as_it_was(dec17), "{code}");
+    }
+
+    lang("ru");
+    let (mut a, _) = app("ru-headings");
+    let ctx = egui::Context::default();
+    // Mail from Monday (NOW is a Wednesday): under a weekday's heading.
+    let store = a.session.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9971 };
+    let raw = b"From: Ana <ana@studio.example>\r\nSubject: Monday's cut\r\n\r\nHi";
+    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(raw, key, Default::default(), 0, NOW - 2 * 86_400).into());
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    a.ui.language = "ru".into();
+    let headings: Vec<&'static str> =
+        a.session.rows().iter().filter_map(|r| if let mailcraft_engine::Row::Header(h) = r { Some(*h) } else { None }).collect();
+    let mut drawn = Vec::new();
+    for _ in 0..3 {
+        drawn = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    }
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+    let weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    let shown: Vec<&String> = drawn.iter().filter(|d| headings.iter().any(|h| weekdays.contains(h) && d.to_lowercase() == tl_ru(h))).collect();
+    assert!(!shown.is_empty(), "a weekday heading in the list: {headings:?}");
+    assert!(shown.iter().all(|d| d.chars().next().is_some_and(char::is_uppercase)), "{shown:?}");
+}
+
+/// A weekday as Russian writes it inside a sentence.
+fn tl_ru(day: &str) -> String {
+    let ru = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
+    let en = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    en.iter().position(|d| *d == day).and_then(|i| ru.get(i)).map(|s| s.to_string()).unwrap_or_default()
+}
