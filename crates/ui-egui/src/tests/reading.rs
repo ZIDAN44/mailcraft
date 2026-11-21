@@ -710,7 +710,7 @@ fn a_picture_is_copied_or_saved_from_its_menu() {
             egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(600.0, 400.0))), events, ..Default::default() };
         let mut out = ctx.run_ui(input, |ui| {
             let (_, resp) = ui.allocate_exact_size(egui::vec2(120.0, 120.0), egui::Sense::click());
-            crate::reading::picture_menu_for_tests(&resp, &a.session, &k, src, acts);
+            crate::reading::picture_menu_for_tests(&resp, &a.session, &k, src, None, acts);
         });
         out.textures_delta.clear();
         out

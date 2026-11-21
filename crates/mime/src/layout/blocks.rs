@@ -205,6 +205,20 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
     for k in kids {
         match k {
             Kid::El(n) if n.hidden() => {}
+            // A link around boxes (issue #225: an Apple Mail rich link card, a table with a
+            // picture in a link): read as a box, what it holds opens the link where it has none
+            // of its own. The table came out with no link at all.
+            Kid::El(n) if depth < MAX_DEPTH && n.box_link().is_some() => {
+                let Some(link) = n.box_link() else { continue };
+                flush(&mut pending, &mut out, ctx);
+                let mut inner = blocks(&[Kid::El(n.unlinked())], ctx, depth + 1);
+                super::each_span(&mut inner, &mut |s| {
+                    if s.link.is_none() {
+                        s.link = Some(link.clone());
+                    }
+                });
+                out.extend(inner);
+            }
             // A divider: a line as wide as the box says (one for each way of writing it that a
             // template gives, the one for Outlook and the one for the others).
             Kid::El(n) if n.rule().is_some() => {

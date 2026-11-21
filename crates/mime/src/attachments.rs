@@ -475,6 +475,16 @@ pub(crate) fn data_url(src: &str, max: usize) -> Option<(String, Vec<u8>)> {
     Some((if mime == "image/jpg" { "image/jpeg" } else { mime }.to_string(), data))
 }
 
+/// The most a picture written into a message's HTML may hold, decoded.
+const DATA_PICTURE_MAX: usize = 16 << 20;
+
+/// A picture written into a message's HTML as `data:image/…;base64,…`, read to show it (issue
+/// #225: an Apple Mail rich link card's picture is one): its bytes, when it's one of the kinds
+/// [`data_url`] reads and not too big.
+pub fn data_picture(src: &str) -> Option<Vec<u8>> {
+    data_url(src, DATA_PICTURE_MAX).map(|(_, data)| data)
+}
+
 /// The bytes of attachment `index`.
 pub fn attachment_data(raw: &[u8], index: usize) -> Option<Vec<u8>> {
     attachments_data(raw, &[index], usize::MAX, usize::MAX).pop().map(|(_, d)| d)

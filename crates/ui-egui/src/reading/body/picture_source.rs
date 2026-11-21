@@ -1,5 +1,7 @@
-//! A message's pictures: where each is had from (sent with the message, or on the web), the
-//! size it's shown at, and what takes its place when it can't be shown.
+//! A message's pictures: where each is had from (written into it, sent with it, or on the
+//! web), the size it's shown at, and what takes its place when it can't be shown.
+
+use std::hash::{Hash, Hasher};
 
 use super::*;
 
@@ -99,6 +101,10 @@ pub(crate) fn picture_texture(
     if let Some(own) = super::signature_card::own_picture(ctx, src) {
         return Pic::Ready(own);
     }
+    // One written into it (`data:`, issue #225).
+    if let Some(pic) = written_in(st, ctx, src) {
+        return pic;
+    }
     // One sent with the message: by `cid:`, or by the name or address it was sent under.
     if !on_the_web(src) {
         let Some(index) = mime::picture_attachment(p, src) else { return Pic::Missing };
@@ -139,4 +145,25 @@ pub(crate) fn cover(tex: &egui::TextureHandle, rect: egui::Rect, round: egui::Co
     let part = vec2((rect.width() / (sz.x * scale)).min(1.0), (rect.height() / (sz.y * scale)).min(1.0));
     let uv = egui::Rect::from_center_size(egui::pos2(0.5, 0.5), part);
     egui::Shape::Rect(egui::epaint::RectShape::filled(rect, round, Color32::WHITE).with_texture(tex.id(), uv))
+}
+
+/// The picture `src` is, when it's written into the message's HTML (`data:image/…;base64,…`,
+/// issue #225: an Apple Mail rich link card's): part of the message, so shown as those sent with
+/// it are, without asking as for one on the web; decoded once, and kept with those. `None` for
+/// any other address.
+fn written_in(st: &mut UiState, ctx: &egui::Context, src: &str) -> Option<Pic> {
+    if !src.trim_start().get(..5).is_some_and(|p| p.eq_ignore_ascii_case("data:")) {
+        return None;
+    }
+    // Kept by a digest of its address: the address is the picture, megabytes long at times.
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    src.hash(&mut h);
+    let name = format!("data-{:016x}", h.finish());
+    let now = st.pictures.frame();
+    if let Some(t) = st.web_pictures.get(&name, now) {
+        return Some(t.map_or(Pic::Missing, Pic::Ready));
+    }
+    let t = mime::data_picture(src).and_then(|bytes| decode(ctx, &name, &bytes, 1200));
+    st.web_pictures.keep_anyway(name, t.clone(), now);
+    Some(t.map_or(Pic::Missing, Pic::Ready))
 }

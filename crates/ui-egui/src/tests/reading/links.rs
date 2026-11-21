@@ -146,3 +146,60 @@ fn a_lines_width_is_as_measured() {
         out.textures_delta.clear();
     }
 }
+
+/// Issue #225: an Apple Mail rich link card (a link around a table holding a picture written into
+/// the HTML as `data:image/png;base64,…`) shows its picture, which is part of the message (no
+/// asking, as for one on the web), and the picture opens the link it's in. Only an empty box was
+/// drawn, and nothing about it could be clicked.
+#[test]
+fn a_linked_picture_written_into_the_message_shows_and_opens_its_link() {
+    use egui::{Pos2, RawInput, Rect, Shape};
+    let (mut a, _) = app("rich-link-card");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let store = a.session.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9972 };
+    let png = mailcraft_engine::model::encoding::base64::encode(&super::super::pictures::png(275, 160));
+    let html = format!(
+        "<html><body dir=\"auto\"><div dir=\"ltr\">Open my shared album:<br><div>\
+         <a style=\"border-radius:10px;display:block;width:275px;overflow:hidden;text-decoration:none;\" class=\"lp-rich-link\" rel=\"nofollow\" \
+         href=\"https://photos.example/shared/album/EXAMPLE\" dir=\"ltr\" role=\"button\" draggable=\"false\" width=\"275\">\
+         <table style=\"table-layout:fixed;border-collapse:collapse;width:275px;background-color:#E9E9EB;\" class=\"lp-rich-link-emailBaseTable\" \
+         cellpadding=\"0\" cellspacing=\"0\" border=\"0\" width=\"275\"><tbody><tr><td align=\"center\">\
+         <img src=\"data:image/png;base64,{png}\" /></td></tr></tbody></table></a></div></div></body></html>"
+    );
+    let raw = format!("From: Ana <ana@studio.example>\r\nSubject: My album\r\nContent-Type: text/html; charset=utf-8\r\n\r\n{html}").into_bytes();
+    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(&raw, key.clone(), Default::default(), 0, NOW).into());
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, &raw).unwrap();
+    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    a.run("list.open", json!({"key": key.to_id()}));
+    // Where the frame paints a picture (a rectangle filled with a texture).
+    let paint = |a: &mut MailApp, events: Vec<Event>| -> Option<Rect> {
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        out.textures_delta.clear();
+        fn walk(s: &Shape, found: &mut Option<Rect>) {
+            match s {
+                Shape::Vec(v) => v.iter().for_each(|s| walk(s, found)),
+                Shape::Rect(r) if r.fill_texture_id() != egui::TextureId::default() && r.rect.width() > 100.0 => *found = Some(r.rect),
+                _ => {}
+            }
+        }
+        let mut found = None;
+        out.shapes.iter().for_each(|c| walk(&c.shape, &mut found));
+        found
+    };
+    let mut at = None;
+    for _ in 0..30 {
+        at = at.or(paint(&mut a, vec![]));
+    }
+    let at = at.expect("the card's picture is drawn");
+    a.session.notices.clear();
+    click(&ctx, &mut a, at.center());
+    frame(&ctx, &mut a, vec![]);
+    // The test's services open nothing: that they were asked to is the notice they give.
+    assert!(a.session.notices.iter().any(|n| n.text.contains("The link couldn't be opened")), "{:?}", a.session.notices);
+}

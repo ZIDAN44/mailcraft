@@ -198,7 +198,7 @@ pub(super) fn rich_body(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Messag
             ui.add_space(8.0);
             ui.horizontal_wrapped(|ui| {
                 for src in rest {
-                    body.picture(st, ui, src, width, None);
+                    body.picture(st, ui, src, width, None, None);
                 }
             });
         }
@@ -344,7 +344,7 @@ impl Body<'_> {
         let t = st.tokens;
         if let Some(src) = &sp.image {
             self.shown.push(src.clone());
-            if !self.picture(st, ui, src, width, sp.image_size) {
+            if !self.picture(st, ui, src, width, sp.image_size, sp.link.as_deref()) {
                 let alt = held_back_words(&sp.text);
                 match held_back_box(sp.image_size, width) {
                     Some(size) => {
@@ -579,8 +579,17 @@ impl Body<'_> {
     }
 
     /// Draw one picture of the message, `width` the room it's in, at the size the message sets
-    /// (`size`); `false` when it can't be shown (yet).
-    pub(super) fn picture(&mut self, st: &mut UiState, ui: &mut Ui, src: &str, width: f32, size: Option<mime::ImageSize>) -> bool {
+    /// (`size`), opening `link` when it's in one (issue #225); `false` when it can't be shown
+    /// (yet).
+    pub(super) fn picture(
+        &mut self,
+        st: &mut UiState,
+        ui: &mut Ui,
+        src: &str,
+        width: f32,
+        size: Option<mime::ImageSize>,
+        link: Option<&str>,
+    ) -> bool {
         let tex = match picture_texture(self.s, st, ui.ctx(), self.key, self.p, src, self.allowed) {
             Pic::Ready(tex) => tex,
             Pic::Loading => {
@@ -591,7 +600,7 @@ impl Body<'_> {
         };
         if let Some(at) = shown_size(tex.size_vec2(), size, width) {
             let resp = ui.add(egui::Image::new(&tex).fit_to_exact_size(at).maintain_aspect_ratio(false).sense(Sense::click()));
-            picture_menu::attach(&resp, self.s, self.key, src, self.acts);
+            picture_menu::attach(&resp, self.s, self.key, src, link, self.acts);
         }
         true
     }

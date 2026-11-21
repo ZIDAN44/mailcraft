@@ -462,6 +462,23 @@ impl Node {
         Node { tag: "a".into(), attrs, kids: self.kids.iter().map(copy).collect(), styles: Default::default() }
     }
 
+    /// The address of a link around boxes (a table, a card: issue #225, an Apple Mail rich link
+    /// card), when it's one to follow; `None` for any other element, a link around words alone
+    /// (read with them), or one drawn as a button.
+    pub(super) fn box_link(&self) -> Option<String> {
+        if self.tag != "a" || !self.has_block_inside(0) || self.only_button(0).is_some() {
+            return None;
+        }
+        let href = self.attr("href")?.trim();
+        (crate::markup::safe_scheme(href) && !href.contains(['"', '<', '>'])).then(|| href.to_string())
+    }
+
+    /// A link around boxes as a box: what it holds, its look kept, without the link.
+    pub(super) fn unlinked(&self) -> Node {
+        let attrs = self.attrs.iter().filter(|(k, _)| k != "href").cloned().collect();
+        Node { tag: "div".into(), attrs, kids: self.kids.iter().map(copy).collect(), styles: Default::default() }
+    }
+
     /// A table's room between and around its cells (`cellspacing`; HTML's 2 when not said).
     pub(super) fn cell_spacing(&self) -> u16 {
         if self.style("border-collapse").is_some_and(|c| c == "collapse") {
