@@ -548,7 +548,14 @@ impl Session {
         let mut e = event.clone();
         let (subject, body) = if method == "CANCEL" {
             e.status = "CANCELLED".into();
-            (format!("Cancelled: {}", event.summary), format!("{} has been cancelled.", event.summary))
+            if event.recurrence_id.is_some() {
+                // One occurrence of a series (issue #235): which one, or it read as the whole
+                // series called off.
+                let when = mailcraft_model::dates::full_time(event.start, &self.clock);
+                (format!("Cancelled: {} ({when})", event.summary), format!("{} on {when} has been cancelled.", event.summary))
+            } else {
+                (format!("Cancelled: {}", event.summary), format!("{} has been cancelled.", event.summary))
+            }
         } else {
             let when = mailcraft_model::dates::full_time(event.start, &self.clock);
             let place = if event.location.is_empty() { String::new() } else { format!("\nWhere: {}", event.location) };

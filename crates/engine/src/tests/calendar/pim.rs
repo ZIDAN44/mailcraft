@@ -656,3 +656,22 @@ fn update_folder_outside_mail_reads_the_calendars_again() {
     s.run("folder.sync", &json!({})).unwrap();
     assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { .. })), "in Mail, the folder");
 }
+
+/// Issue #235: one occurrence of a meeting called off says which, in its subject and words: they
+/// read as if the whole series were cancelled. The whole one says as before.
+#[test]
+fn an_occurrence_called_off_says_which() {
+    let mut s = sample_session("meetings-occurrence-off");
+    let uid = s
+        .run("event.create", &json!({"summary": "Stand-up", "start": "2026-10-21T09:00", "repeat": "weekly", "attendees": "zoe@studio.example"}))
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let second = s.find_event(&uid).unwrap().1.event.start + 7 * 86_400;
+    s.run("event.delete", &json!({"uid": uid, "occurrence": second})).unwrap();
+    let when = mailcraft_model::dates::full_time(second, &s.clock);
+    let (method, raw) = sent_calendar(&s, "Sent", &format!("Cancelled: Stand-up ({when})"));
+    assert_eq!(method, "CANCEL");
+    assert!(raw.contains("RECURRENCE-ID") && raw.contains(&format!("Stand-up on {when} has been cancelled.")), "{raw}");
+}

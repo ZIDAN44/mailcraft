@@ -41,6 +41,7 @@ on GitHub.
 - An Apple Mail link card (a shared album, a web page) shows its picture and opens its link when clicked, with Open link and Copy link on its menu (#225): only an empty box was drawn. Pictures written into a message's HTML show as those sent with it do, and what a link around a box holds opens it.
 - In the To-Do Bar, an appointment's "In N min" sits above its time, and its title keeps all its room (#195): at the row's end it hid the end of the title.
 - An invitation's card says how it repeats (Repeats · Every week), and draws the invitation on a line of its own above your events, its name and theirs no longer written over each other (#194).
+- The guests of a repeating meeting told that one occurrence is called off are told which, by its date and time (#235): the message read as if the whole series were cancelled.
 
 ## 0.41.0 - 2026-11-20
 
