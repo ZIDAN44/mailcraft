@@ -523,7 +523,7 @@ fn server_finds_are_checked_against_the_dates() {
     use mailcraft_model::{EmailAddress, Folder, FolderRole, MessageKey, Summary};
     let mut s = sample_session("server-dates");
     let a = s
-        .run("account.add", &json!({"email": "zoe@example.org", "password": "pw", "imapHost": "mail.example.org", "smtpHost": "mail.example.org"}))
+        .run("account.add", &json!({"email": "zoe@example.org", "password": "pw", "ews": "mail.example.org", "username": "zoe" }))
         .unwrap()["account"]
         .as_str()
         .unwrap()
@@ -569,6 +569,20 @@ fn server_finds_are_checked_against_the_dates() {
         s.apply(Event::ServerSearched { account: a.clone(), query: sent, keys: keys.into_iter().map(key).collect(), error: None, done: true });
         assert_eq!(shown(&s), want, "{q}");
     }
+    let day = s.clock.local_day(now);
+    let (start, end) = (s.clock.midnight(day), s.clock.midnight(day + 1));
+    let query = "subject:ew received:today";
+    s.run("search.run", &json!({"query": query, "scope": "all"})).unwrap();
+    assert!(shown(&s).is_empty(), "the subject is only a server-side substring match");
+    s.set_clock(end + 60, s.clock.offset);
+    s.run("search.server", &json!({})).unwrap();
+    let jobs = s.take_jobs();
+    assert!(jobs.iter().any(|job| matches!(job, Job::SearchServer {
+        account, exchange_period: Some((Some(from), Some(to))), ..
+    } if account == &a && (*from, *to) == (start, end))));
+    s.set_clock(end + 120, s.clock.offset);
+    s.apply(Event::ServerSearched { account: a.clone(), query: query.into(), keys: vec![key(8)], error: None, done: true });
+    assert_eq!(shown(&s), ["New one"], "the server hit is checked against the same day that was requested");
 }
 
 /// The search index kept up in the background: asked for as mail changes, once while jobs wait

@@ -541,9 +541,14 @@ impl Session {
         self.searches = self.searches.wrapping_add(1).max(1);
         let id = self.searches;
         let sent = self.server_query(&q);
-        self.server_search = Some(ServerSearch { id, query: q.clone(), sent: sent.clone(), pending: by_account.len(), ..Default::default() });
-        let exchange_period = mailcraft_model::search::Query::parse(&q).exact_received_period(&self.clock);
+        let resolved = self.resolved_server_query(&q);
+        let exchange_period = resolved.exact_received_period(&self.clock);
+        let resolved_dates = resolved.clauses.into_iter().filter(|c| matches!(c.term, mailcraft_model::search::Term::Date(_))).collect();
+        self.server_search =
+            Some(ServerSearch { id, query: q.clone(), sent: sent.clone(), resolved_dates, pending: by_account.len(), ..Default::default() });
         for (account, folders) in by_account {
+            let is_exchange = self.account(&account).is_some_and(|a| a.config.graph.is_some() || a.config.ews.is_some());
+            let exchange_period = if is_exchange { exchange_period } else { None };
             self.jobs.push(Job::SearchServer { account, folders, query: sent.clone(), search: id, exchange_period });
         }
         Ok(serde_json::json!({ "query": q, "searching": true }))

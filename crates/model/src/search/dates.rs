@@ -290,7 +290,9 @@ impl Query {
                 continue;
             }
             let mut spec = spec.clone();
-            spec.resolve(clock);
+            if !received_only || spec.range.is_none() {
+                spec.resolve(clock);
+            }
             let Some((from, to)) = spec.range else { continue };
             let (f, t): &mut (Option<i64>, Option<i64>) = found.get_or_insert((None, None));
             if from != i64::MIN {

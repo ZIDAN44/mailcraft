@@ -66,6 +66,8 @@ pub struct ServerSearch {
     /// The query as the servers were asked it: categories by their keywords
     /// ([`Session::server_query`]); their answers name it.
     pub sent: String,
+    /// The active query as resolved when this search was requested.
+    pub resolved_dates: Vec<mailcraft_model::search::Clause>,
     /// Accounts still searching.
     pub pending: usize,
     /// What the servers found (in their folders' lists now), shown whether or not the words are
@@ -459,6 +461,11 @@ impl Session {
         recent.truncate(RECENT_SEARCHES);
     }
 
+    /// Keep relative date limits aligned with the active local results.
+    pub(super) fn resolved_server_query(&self, typed: &str) -> Query {
+        self.search_state.run.as_ref().filter(|run| run.q == typed.trim()).map_or_else(|| self.query_of(typed), |run| run.query.clone())
+    }
+
     /// What the servers found for a search, here: each checked against what its summary can
     /// tell (dates, flags, waiting for a reply), which the servers weren't all asked; its words,
     /// which they were, are taken on trust. Words wanted in the senders, recipients or subject
@@ -472,6 +479,12 @@ impl Session {
         }
         let mut query = self.query_of(q);
         query.clauses.retain(|c| c.negated || !asks_field_words(&c.term));
+        let exchange_query = self.server_search.as_ref().filter(|search| search.query == q && !search.resolved_dates.is_empty()).map(|search| {
+            let mut exchange = query.clone();
+            exchange.clauses.retain(|c| !matches!(c.term, mailcraft_model::search::Term::Date(_)));
+            exchange.clauses.extend_from_slice(&search.resolved_dates);
+            exchange
+        });
         let awaiting = match awaited {
             Some(a) => a.clone(),
             None if query.clauses.iter().any(|c| asks_awaiting(&c.term)) => self.awaiting_replies(),
@@ -484,8 +497,12 @@ impl Session {
         }
         let mut out = Vec::new();
         for ((a, f), uids) in by_folder {
+            let query = exchange_query
+                .as_ref()
+                .filter(|_| self.account(&a).is_some_and(|a| a.config.graph.is_some() || a.config.ews.is_some()))
+                .unwrap_or(&query);
             for m in self.folder_state(&a, &f).messages.iter().filter(|m| uids.contains(&m.key.uid)) {
-                let st = SummaryText::for_query(m, &query);
+                let st = SummaryText::for_query(m, query);
                 let doc = Doc { summary: m, summary_text: &st, awaiting: awaiting.contains(&m.key), files: None, text: &matching::Unindexed };
                 if query.eval(&doc) != Tri::No {
                     out.push(Summary::clone(m));
