@@ -25,6 +25,11 @@ pub fn needs_consent(e: &NetError) -> bool {
 /// Everyone in the directory at `base` whose name or address starts with `query`, by the
 /// directory's token: (name, address).
 pub fn search_directory(base: &str, token: &str, query: &str) -> Result<Vec<(String, String)>> {
+    Ok(search_directory_full(base, token, query)?.into_iter().map(|p| (p.name, p.email)).collect())
+}
+
+/// [`search_directory`] with each one's job title and department (issue #213).
+pub fn search_directory_full(base: &str, token: &str, query: &str) -> Result<Vec<mailcraft_model::DirectoryPerson>> {
     // The search goes inside quotes (OData's $search): quotes and backslashes in it are dropped,
     // and controls never sent.
     let q: String = query.trim().chars().filter(|c| !c.is_control() && !matches!(c, '"' | '\\')).take(MAX_QUERY).collect();
@@ -39,12 +44,14 @@ pub fn search_directory(base: &str, token: &str, query: &str) -> Result<Vec<(Str
     }
     let auth = format!("Bearer {token}");
     let search = http::pct(&format!("\"displayName:{q}\" OR \"mail:{q}\""));
-    let users =
-        Request::get(&format!("{base}/users?$search={search}&$count=true&$top={DIRECTORY_TOP}&$select=displayName,mail,userPrincipalName"), MAX_JSON)
-            .header("Authorization", &auth)
-            .header("Accept", "application/json")
-            // Microsoft's directory takes $search only with this header (and $count).
-            .header("ConsistencyLevel", "eventual");
+    let users = Request::get(
+        &format!("{base}/users?$search={search}&$count=true&$top={DIRECTORY_TOP}&$select=displayName,mail,userPrincipalName,jobTitle,department"),
+        MAX_JSON,
+    )
+    .header("Authorization", &auth)
+    .header("Accept", "application/json")
+    // Microsoft's directory takes $search only with this header (and $count).
+    .header("ConsistencyLevel", "eventual");
     match answer(&users) {
         Ok(v) => return Ok(people_of(&v, |p| p.get("mail").and_then(Value::as_str).map(str::to_string))),
         // Not allowed to list the directory: the relevant people, the directory's with them.
@@ -52,7 +59,10 @@ pub fn search_directory(base: &str, token: &str, query: &str) -> Result<Vec<(Str
         Err(e) => return Err(e),
     }
     let people = Request::get(
-        &format!("{base}/me/people?$search={}&$top={DIRECTORY_TOP}&$select=displayName,scoredEmailAddresses", http::pct(&format!("\"{q}\""))),
+        &format!(
+            "{base}/me/people?$search={}&$top={DIRECTORY_TOP}&$select=displayName,scoredEmailAddresses,jobTitle,department",
+            http::pct(&format!("\"{q}\""))
+        ),
         MAX_JSON,
     )
     .header("Authorization", &auth)
@@ -72,18 +82,24 @@ fn answer(r: &Request) -> Result<Value> {
 
 /// The people in an answer's `value`, each with an address that is one, once, at most
 /// [`DIRECTORY_TOP`] of them.
-fn people_of(v: &Value, address: impl Fn(&Value) -> Option<String>) -> Vec<(String, String)> {
-    let mut out: Vec<(String, String)> = Vec::new();
+fn people_of(v: &Value, address: impl Fn(&Value) -> Option<String>) -> Vec<mailcraft_model::DirectoryPerson> {
+    let mut out: Vec<mailcraft_model::DirectoryPerson> = Vec::new();
     for p in v.get("value").and_then(Value::as_array).into_iter().flatten() {
         let Some(a) = address(p).map(|a| a.trim().to_string()).filter(|a| a.contains('@') && a.len() <= 320 && !a.chars().any(char::is_control))
         else {
             continue;
         };
-        if out.iter().any(|(_, o)| o.eq_ignore_ascii_case(&a)) {
+        if out.iter().any(|o| o.email.eq_ignore_ascii_case(&a)) {
             continue;
         }
-        let name: String = p.get("displayName").and_then(Value::as_str).unwrap_or("").trim().chars().filter(|c| !c.is_control()).take(256).collect();
-        out.push((name, a));
+        let field =
+            |k: &str| -> String { p.get(k).and_then(Value::as_str).unwrap_or("").trim().chars().filter(|c| !c.is_control()).take(256).collect() };
+        out.push(mailcraft_model::DirectoryPerson {
+            name: field("displayName"),
+            email: a,
+            title: field("jobTitle"),
+            department: field("department"),
+        });
         if out.len() >= DIRECTORY_TOP {
             break;
         }

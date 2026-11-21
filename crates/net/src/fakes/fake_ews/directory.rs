@@ -25,11 +25,20 @@ impl Data {
                     format!(
                         "<t:Contact><t:DisplayName>{}</t:DisplayName><t:GivenName>{}</t:GivenName><t:Surname>{}</t:Surname>\
                          <t:EmailAddresses><t:Entry Key=\"EmailAddress1\">SMTP:{}</t:Entry></t:EmailAddresses>\
-                         <t:ContactSource>ActiveDirectory</t:ContactSource></t:Contact>",
+                         <t:ContactSource>ActiveDirectory</t:ContactSource>{}</t:Contact>",
                         esc(n),
                         esc(given),
                         esc(surname),
-                        esc(a)
+                        esc(a),
+                        self.directory_titles
+                            .iter()
+                            .find(|(who, ..)| who.eq_ignore_ascii_case(a))
+                            .map(|(_, title, department)| format!(
+                                "<t:Department>{}</t:Department><t:JobTitle>{}</t:JobTitle>",
+                                esc(department),
+                                esc(title)
+                            ))
+                            .unwrap_or_default()
                     )
                 } else {
                     String::new()

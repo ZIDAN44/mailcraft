@@ -140,6 +140,8 @@ pub struct Data {
     pub anchors: Vec<String>,
     /// The organisation's directory (Active Directory): (name, address).
     pub directory: Vec<(String, String)>,
+    /// Some of them's job titles and departments (issue #213): (address, title, department).
+    pub directory_titles: Vec<(String, String, String)>,
     /// A server whose directory answers name each mailbox by its alias (the address's user part,
     /// issue #9): the full name is only in the contact, when one is asked for.
     pub directory_aliases: bool,
@@ -238,6 +240,7 @@ impl Default for Data {
             shared: Vec::new(),
             anchors: Vec::new(),
             directory: Vec::new(),
+            directory_titles: Vec::new(),
             directory_aliases: false,
             agents: Vec::new(),
             only_agent: None,

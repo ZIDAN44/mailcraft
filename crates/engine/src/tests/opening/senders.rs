@@ -103,7 +103,11 @@ fn people_found_in_the_directory_count_as_known() {
     s.apply(Event::Directory {
         account: id,
         query: "dana".into(),
-        people: vec![("Dana Whitfield".into(), "dana.whitfield@contoso.example".into())],
+        people: vec![mailcraft_model::DirectoryPerson {
+            name: "Dana Whitfield".into(),
+            email: "dana.whitfield@contoso.example".into(),
+            ..Default::default()
+        }],
         error: None,
         consent: false,
     });

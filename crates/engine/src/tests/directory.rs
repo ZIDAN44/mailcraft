@@ -15,7 +15,8 @@ fn exchange(s: &mut Session, agent: Option<&str>) -> String {
 }
 
 fn answer(s: &mut Session, account: &str, query: &str, people: &[(&str, &str)]) {
-    let people = people.iter().map(|(n, a)| (n.to_string(), a.to_string())).collect();
+    let people =
+        people.iter().map(|(n, a)| mailcraft_model::DirectoryPerson { name: n.to_string(), email: a.to_string(), ..Default::default() }).collect();
     s.apply(Event::Directory { account: account.into(), query: query.into(), people, error: None, consent: false });
 }
 

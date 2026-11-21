@@ -130,7 +130,10 @@ fn someone_new_in_the_directory_is_found_without_a_restart() {
     assert!(found.is_empty() && error.is_none(), "{found:?} {error:?}");
     data.lock().unwrap().directory.push(("Dana Whitfield".into(), "dana@contoso.example".into()));
     let (found, _) = search(&mut pool, "dana");
-    assert_eq!(found, [("Dana Whitfield".to_string(), "dana@contoso.example".to_string())]);
+    assert_eq!(
+        found.iter().map(|p| (p.name.clone(), p.email.clone())).collect::<Vec<_>>(),
+        [("Dana Whitfield".to_string(), "dana@contoso.example".to_string())]
+    );
     assert!(data.lock().unwrap().agents.iter().all(|a| a == EVOLUTION));
 
     // The server refusing the search (its User-Agent rule changed): why, and no one.
@@ -269,10 +272,16 @@ fn against_grommunio() {
     };
     let (dana, error) = search("dana");
     println!("dana: {dana:?} {error:?}");
-    assert_eq!(dana, [("Dana Whitfield".to_string(), "dana.noname@studio.test".to_string())]);
+    assert_eq!(
+        dana.iter().map(|p| (p.name.clone(), p.email.clone())).collect::<Vec<_>>(),
+        [("Dana Whitfield".to_string(), "dana.noname@studio.test".to_string())]
+    );
     let (john, error) = search("john");
     println!("john: {john:?} {error:?}");
-    assert_eq!(john, [("John Doe".to_string(), "john.doe@studio.test".to_string())]);
+    assert_eq!(
+        john.iter().map(|p| (p.name.clone(), p.email.clone())).collect::<Vec<_>>(),
+        [("John Doe".to_string(), "john.doe@studio.test".to_string())]
+    );
 }
 
 /// Issue #222: a colleague's calendar opened here is named as the directory names them, not by
@@ -299,4 +308,20 @@ fn a_colleagues_calendar_has_their_name() {
     let asked = server.data.lock().unwrap().calls.iter().filter(|op| *op == "ResolveNames").count();
     assert_eq!(names(&c), (Some("Bob Stone".into()), Some("zed@contoso.example".into())));
     assert_eq!(server.data.lock().unwrap().calls.iter().filter(|op| *op == "ResolveNames").count(), asked, "not asked again");
+}
+
+/// Issue #213: the directory's people come with their job title and department, as the full
+/// contact data gives them; one without says none.
+#[test]
+fn the_directory_gives_titles_and_departments() {
+    let mut d = Data::default();
+    people(&mut d);
+    d.directory_titles.push(("alice.moreno@contoso.example".into(), "Colourist".into(), "Post-production".into()));
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let found = c.search_directory_full("ali").unwrap();
+    let of = |a: &str| found.iter().find(|p| p.email == a).map(|p| (p.name.as_str(), p.title.as_str(), p.department.as_str()));
+    assert_eq!(of("alice.moreno@contoso.example"), Some(("Alice Moreno", "Colourist", "Post-production")));
+    assert_eq!(of("alicia@contoso.example"), Some(("Alicia Keyes", "", "")));
 }

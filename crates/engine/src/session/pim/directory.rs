@@ -14,6 +14,8 @@ pub const NONE_FOR: i64 = 30;
 pub const MIN_QUERY: usize = 3;
 /// Searches remembered at most.
 const MAX_KEPT: usize = 200;
+/// People's job titles and departments kept at most (issue #213).
+const DETAILS_KEPT: usize = 5_000;
 
 /// What one account's directory answered for one search.
 #[derive(Clone, Debug, Default)]
@@ -33,6 +35,9 @@ pub struct Directory {
     pub rev: u64,
     /// Exchange Online accounts whose directory needs the user's permission first (issue #9).
     pub consent: BTreeSet<String>,
+    /// The job title and department the directory gave each address (lower case) it found
+    /// (issue #213), for the Address Book's columns.
+    pub details: HashMap<String, (String, String)>,
 }
 
 /// A search as it's kept and sent: trimmed, lower case.
@@ -144,7 +149,14 @@ impl Session {
     }
 
     /// What a directory answered ([`Event::Directory`]).
-    pub(crate) fn apply_directory(&mut self, account: &str, query: &str, people: &[(String, String)], error: Option<String>, consent: bool) {
+    pub(crate) fn apply_directory(
+        &mut self,
+        account: &str,
+        query: &str,
+        people: &[mailcraft_model::DirectoryPerson],
+        error: Option<String>,
+        consent: bool,
+    ) {
         if consent {
             self.directory.consent.insert(account.to_string());
         } else if error.is_none() {
@@ -154,15 +166,24 @@ impl Session {
         // Forgotten since (a refresh): a stale answer isn't kept.
         let Some(a) = self.directory.answers.get_mut(&k) else { return };
         if error.is_none() {
-            a.people = people
-                .iter()
-                .filter(|(_, e)| mailcraft_model::addr::parse_list(e).is_ok_and(|l| l.len() == 1))
-                .map(|(n, e)| EmailAddress::new(n.clone(), e.clone()))
-                .collect();
+            let fine = |p: &&mailcraft_model::DirectoryPerson| mailcraft_model::addr::parse_list(&p.email).is_ok_and(|l| l.len() == 1);
+            a.people = people.iter().filter(fine).map(|p| EmailAddress::new(p.name.clone(), p.email.clone())).collect();
+            let details = &mut self.directory.details;
+            for p in people.iter().filter(fine).filter(|p| !p.title.is_empty() || !p.department.is_empty()) {
+                if details.len() >= DETAILS_KEPT {
+                    break;
+                }
+                details.insert(p.email.to_lowercase(), (p.title.clone(), p.department.clone()));
+            }
         }
         a.error = error;
         a.at = Some(self.clock.now);
         self.directory.rev = self.directory.rev.wrapping_add(1);
+    }
+
+    /// The job title and department the directory gave `email`, when it gave either (issue #213).
+    pub fn directory_details(&self, email: &str) -> Option<(&str, &str)> {
+        self.directory.details.get(&email.trim().to_lowercase()).map(|(t, d)| (t.as_str(), d.as_str()))
     }
 
     /// Ask the user to let Exchange Online accounts search their directory (issue #9): `account`,

@@ -13,6 +13,12 @@ impl Client {
     /// ambiguous name resolution matches): (name, address). None found is an empty list, not an
     /// error.
     pub fn search_directory(&self, query: &str) -> Result<Vec<(String, String)>> {
+        Ok(self.search_directory_full(query)?.into_iter().map(|p| (p.name, p.email)).collect())
+    }
+
+    /// [`Client::search_directory`] with each one's job title and department, as the full
+    /// contact data asked for gives them (issue #213).
+    pub fn search_directory_full(&self, query: &str) -> Result<Vec<mailcraft_model::DirectoryPerson>> {
         let q: String = query.trim().chars().filter(|c| !c.is_control()).take(MAX_QUERY).collect();
         if q.is_empty() {
             return Ok(Vec::new());
@@ -31,7 +37,7 @@ impl Client {
         }
         let mut found = Vec::new();
         m.all("Resolution", &mut found);
-        let mut out: Vec<(String, String)> = Vec::new();
+        let mut out: Vec<mailcraft_model::DirectoryPerson> = Vec::new();
         for r in found {
             let Some(b) = r.child("Mailbox") else { continue };
             let address = b.text_of("EmailAddress").map(str::trim).unwrap_or("");
@@ -39,10 +45,19 @@ impl Client {
             if !address.contains('@') || address.starts_with('/') || address.len() > 320 {
                 continue;
             }
-            if out.iter().any(|(_, a)| a.eq_ignore_ascii_case(address)) {
+            if out.iter().any(|p| p.email.eq_ignore_ascii_case(address)) {
                 continue;
             }
-            out.push((directory_name(r), address.to_string()));
+            let field = |name: &str| -> String {
+                let v = r.child("Contact").and_then(|c| c.text_of(name)).map(str::trim).unwrap_or("");
+                v.chars().filter(|c| !c.is_control()).take(256).collect()
+            };
+            out.push(mailcraft_model::DirectoryPerson {
+                name: directory_name(r),
+                email: address.to_string(),
+                title: field("JobTitle"),
+                department: field("Department"),
+            });
             if out.len() >= DIRECTORY_MAX {
                 break;
             }

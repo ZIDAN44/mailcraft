@@ -718,13 +718,12 @@ pub enum Event {
         error: Option<String>,
         done: bool,
     },
-    /// Who the directory found for a [`Job::SearchDirectory`]: (name, address) each, or why it
-    /// couldn't look. `consent`: the account needs the user's permission first
-    /// ([`Job::AllowDirectory`]).
+    /// Who the directory found for a [`Job::SearchDirectory`], or why it couldn't look.
+    /// `consent`: the account needs the user's permission first ([`Job::AllowDirectory`]).
     Directory {
         account: String,
         query: String,
-        people: Vec<(String, String)>,
+        people: Vec<DirectoryPerson>,
         error: Option<String>,
         consent: bool,
     },
@@ -789,3 +788,16 @@ pub enum Event {
 
 #[cfg(test)]
 mod tests;
+
+/// Someone the organisation's directory found (Outlook's Global Address List, issue #9): their
+/// name and address, and their job title and department where it says (issue #213: namesakes
+/// couldn't be told apart).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DirectoryPerson {
+    pub name: String,
+    pub email: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub title: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub department: String,
+}

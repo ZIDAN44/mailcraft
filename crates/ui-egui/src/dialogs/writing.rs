@@ -152,6 +152,9 @@ pub struct NamesForm {
     /// Each account's address books: (source, name, the account's address).
     pub books: Vec<(String, String, String)>,
     pub list: Vec<mailcraft_engine::model::EmailAddress>,
+    /// Each one's job title and department, as the directory gave them (issue #213), in the
+    /// list's order: empty for one it didn't.
+    pub details: Vec<(String, String)>,
     /// The list must be read again (the search or the book changed).
     pub stale: bool,
     /// An account has an organisation directory to search (issue #9).
@@ -346,10 +349,19 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
     let mut add: Option<Recipients> = None;
     egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(4).show(ui, |ui| {
         ui.set_min_size(vec2(ui.available_width(), 230.0));
-        egui::Grid::new("names-head").num_columns(2).min_col_width(250.0).show(ui, |ui| {
-            ui.label(RichText::new(tl!("Name")).color(t.dim).small());
-            ui.label(RichText::new(tl!("Email Address")).color(t.dim).small());
-        });
+        // A job title and department where the directory gives any (issue #213), as Outlook's
+        // Address Book has them: namesakes are told apart.
+        let titled = f.details.iter().any(|(title, department)| !title.is_empty() || !department.is_empty());
+        let cols: &[(&str, f32)] = if titled {
+            &[("Name", 6.0), ("Job title", 176.0), ("Department", 312.0), ("Email Address", 432.0)]
+        } else {
+            &[("Name", 6.0), ("Email Address", 256.0)]
+        };
+        let head = ui.allocate_exact_size(vec2(ui.available_width(), 18.0), egui::Sense::hover()).0;
+        for (label, x) in cols {
+            let g = ui.painter().layout_no_wrap(tl!(label).to_string(), egui::TextStyle::Small.resolve(ui.style()), t.dim);
+            ui.painter().galley(egui::pos2(head.min.x + x, head.center().y - g.size().y / 2.0), g, t.dim);
+        }
         ui.separator();
         // Only the rows in view are laid out: the list holds up to 2,000 people. A row is as tall
         // as `horizontal` makes it: its 22 points, or a control's height if that's more.
@@ -387,10 +399,22 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
                             .galley(pos, g, c);
                         cut
                     };
-                    let name_w = 244.0;
-                    let cut_name = cell(ui, &name, 6.0, name_w, t.text);
-                    let cut_email = cell(ui, &a.email, 256.0, (rect.width() - 262.0).max(40.0), t.dim);
-                    if cut_name || cut_email { r.on_hover_text(format!("{name} <{}>", a.email)) } else { r }
+                    let (name_w, email_x) = if titled { (164.0, 432.0) } else { (244.0, 256.0) };
+                    let mut cut = cell(ui, &name, 6.0, name_w, t.text);
+                    let (title, department) = f.details.get(i).map(|(t, d)| (t.as_str(), d.as_str())).unwrap_or_default();
+                    if titled {
+                        cut |= cell(ui, title, 176.0, 128.0, t.dim);
+                        cut |= cell(ui, department, 312.0, 112.0, t.dim);
+                    }
+                    cut |= cell(ui, &a.email, email_x, (rect.width() - email_x - 6.0).max(40.0), t.dim);
+                    let more = [title, department].iter().filter(|s| !s.is_empty()).copied().collect::<Vec<_>>().join(", ");
+                    if !cut {
+                        r
+                    } else if more.is_empty() {
+                        r.on_hover_text(format!("{name} <{}>", a.email))
+                    } else {
+                        r.on_hover_text(format!("{name} <{}>\n{more}", a.email))
+                    }
                 });
                 if r.inner.clicked() {
                     f.selected = Some(i);

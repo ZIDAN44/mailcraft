@@ -8,11 +8,11 @@ impl Worker {
     pub(crate) fn search_directory(&mut self, query: String) {
         let mut consent = false;
         let r = match &self.conn {
-            Some(Conn::Ews(c)) => c.search_directory(&query),
+            Some(Conn::Ews(c)) => c.search_directory_full(&query),
             Some(Conn::Graph(_)) => match self.directory_token() {
                 Ok(token) => {
                     let base = self.acc.graph.clone().unwrap_or_default();
-                    let r = crate::graph::search_directory(&base, &token, &query);
+                    let r = crate::graph::search_directory_full(&base, &token, &query);
                     if r.as_ref().is_err_and(crate::graph::needs_consent) {
                         // Taken away since (an administrator, or the user in their account's
                         // settings): asked for again.

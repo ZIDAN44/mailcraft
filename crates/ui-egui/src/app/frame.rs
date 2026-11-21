@@ -627,6 +627,11 @@ impl MailApp {
             // The person selected stays selected when answers come in and the list moves.
             let picked = f.selected.and_then(|i| f.list.get(i)).map(|a| a.email.clone());
             f.list = self.session.address_book(&f.source, &f.query);
+            f.details = f
+                .list
+                .iter()
+                .map(|a| self.session.directory_details(&a.email).map(|(t, d)| (t.to_string(), d.to_string())).unwrap_or_default())
+                .collect();
             f.selected = picked.and_then(|e| f.list.iter().position(|a| a.email.eq_ignore_ascii_case(&e)));
             let asks = f.directory && (f.source == "all" || f.source == "directory");
             f.searching = asks && self.session.directory_pending(&f.query);

@@ -695,7 +695,7 @@ use flags::{flag_patch, flags, reminder_expand};
 mod sync;
 pub use sync::{sync_folder, sync_folder_as};
 mod text_first;
-pub use directory::{needs_consent, search_directory};
+pub use directory::{needs_consent, search_directory, search_directory_full};
 pub use text_first::fetch_text;
 
 #[cfg(test)]

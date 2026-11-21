@@ -537,7 +537,11 @@ fn the_directory_comes_into_select_names() {
     a.session.apply(mailcraft_engine::model::Event::Directory {
         account: id.clone(),
         query: "zoe".into(),
-        people: vec![("Zoe Park".into(), "zoe.park@contoso.example".into())],
+        people: vec![mailcraft_engine::model::DirectoryPerson {
+            name: "Zoe Park".into(),
+            email: "zoe.park@contoso.example".into(),
+            ..Default::default()
+        }],
         error: None,
         consent: false,
     });
@@ -551,7 +555,9 @@ fn the_directory_comes_into_select_names() {
     a.session.apply(mailcraft_engine::model::Event::Directory {
         account: id.clone(),
         query: "zoe".into(),
-        people: vec![("Zoe Park".into(), "zoe.park@contoso.example".into()), ("Zoe Abbott".into(), "zoe.a@contoso.example".into())],
+        people: [("Zoe Park", "zoe.park@contoso.example"), ("Zoe Abbott", "zoe.a@contoso.example")]
+            .map(|(n, e)| mailcraft_engine::model::DirectoryPerson { name: n.into(), email: e.into(), ..Default::default() })
+            .to_vec(),
         error: None,
         consent: false,
     });
@@ -663,4 +669,49 @@ fn a_mailto_link_clicked_in_a_message_fills_in_the_new_message() {
     a.act(crate::Action::OpenUrl(link.into()));
     let c = a.session.compose.as_ref().expect("a new message");
     assert_eq!((c.to.as_str(), c.subject.as_str(), c.cc.as_str()), ("first.last@studio.example", "Tickets for Friday", "zoe+shows@studio.example"));
+}
+
+/// Issue #213: the Address Book has Job title and Department columns where the directory gives
+/// them, as Outlook's has, and none where it gives neither.
+#[test]
+fn the_address_book_shows_job_titles() {
+    let (mut a, _) = app("names-titles");
+    let ctx = egui::Context::default();
+    a.session.prefs.new_mail_window = false;
+    frame(&ctx, &mut a, vec![]);
+    let id =
+        a.session.run("account.add", &json!({"email": "riley@contoso.example", "password": "pw", "ews": "mail.contoso.example"})).unwrap()["account"]
+            .as_str()
+            .unwrap()
+            .to_string();
+    a.run("mail.new", json!({}));
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().unwrap();
+    a.ui.dialog = Some(Dialog::select_names(&c, crate::dialogs::Recipients::To));
+    frame(&ctx, &mut a, vec![]);
+    let answer = |a: &mut MailApp, query: &str, people: Vec<mailcraft_engine::model::DirectoryPerson>| {
+        if let Some(Dialog::SelectNames(f)) = a.ui.dialog.as_mut() {
+            (f.source, f.query, f.stale) = ("directory".into(), query.into(), true);
+        }
+        frame(&ctx, a, vec![]);
+        a.session.apply(mailcraft_engine::model::Event::Directory { account: id.clone(), query: query.into(), people, error: None, consent: false });
+        frame(&ctx, a, vec![]);
+        drawn_strings(&ctx, a, egui::vec2(1280.0, 900.0))
+    };
+    let person = |name: &str, email: &str, title: &str, department: &str| mailcraft_engine::model::DirectoryPerson {
+        name: name.into(),
+        email: email.into(),
+        title: title.into(),
+        department: department.into(),
+    };
+    let shown = answer(
+        &mut a,
+        "zoe",
+        vec![person("Zoe Park", "zoe.park@contoso.example", "Colourist", "Post-production"), person("Zoe Abbott", "zoe.a@contoso.example", "", "")],
+    );
+    for what in ["Job title", "Department", "Colourist", "Post-production", "Zoe Abbott"] {
+        assert!(shown.iter().any(|s| s == what), "{what}: {shown:?}");
+    }
+    let shown = answer(&mut a, "sam", vec![person("Sam Lee", "sam@contoso.example", "", "")]);
+    assert!(!shown.iter().any(|s| s == "Job title" || s == "Department"), "none given, no columns: {shown:?}");
 }
