@@ -5,4 +5,5 @@ mod real_ews;
 mod real_layout;
 mod real_pgp;
 mod real_pop;
+mod real_reminders;
 mod real_servers;

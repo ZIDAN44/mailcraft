@@ -62,7 +62,7 @@ pub(super) fn delivered(c: &mut crate::imap::Client<crate::stream::Stream>, subj
 
 /// `MAILCRAFT_REAL_CALDAV` (`url user password`): the calendar's address, the user, and a
 /// client signed in as them; `None` (the test is skipped) when it isn't set.
-fn caldav_env() -> Option<(String, String, crate::dav::Dav)> {
+pub(super) fn caldav_env() -> Option<(String, String, crate::dav::Dav)> {
     let Ok(v) = std::env::var("MAILCRAFT_REAL_CALDAV") else {
         eprintln!("MAILCRAFT_REAL_CALDAV isn't set: skipped");
         return None;
@@ -73,7 +73,7 @@ fn caldav_env() -> Option<(String, String, crate::dav::Dav)> {
 }
 
 /// Where a CalDAV sync looks: the calendar at `url`, as `user`.
-fn caldav_where<'a>(url: &'a str, user: &'a str) -> crate::dav::Where<'a> {
+pub(super) fn caldav_where<'a>(url: &'a str, user: &'a str) -> crate::dav::Where<'a> {
     crate::dav::Where { email: user, username: "", others: &[], imap_host: "127.0.0.1", caldav: Some(url), carddav: None, mails: true }
 }
 

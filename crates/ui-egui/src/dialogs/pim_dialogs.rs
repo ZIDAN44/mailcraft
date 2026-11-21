@@ -14,6 +14,7 @@ mod date_pick;
 pub(crate) mod follow_up;
 mod online_meeting;
 mod pattern;
+mod reminders;
 pub(crate) use date_pick::date_field;
 pub(crate) use pattern::form_day as pattern_day;
 mod repeat;
@@ -102,6 +103,11 @@ pub struct EventForm {
     pub length: Option<i64>,
     /// Its reminder, in minutes before it starts (`None`: none).
     pub reminder: Option<i64>,
+    /// Its other reminders (issue #224: Google's calendar gives an event several), the earliest
+    /// first.
+    pub more_reminders: Vec<i64>,
+    /// The accounts whose calendars keep one reminder an event (Exchange's).
+    pub one_reminder: Vec<String>,
     /// Who sees what of it, and how it shows its time (issue #32).
     pub privacy: mailcraft_engine::model::ical::Privacy,
     pub show_as: mailcraft_engine::model::ical::ShowAs,
@@ -192,6 +198,7 @@ impl EventForm {
             all_categories: all_categories(s, &[]),
             // As Outlook sets a new appointment's reminder.
             reminder: Some(DEFAULT_REMINDER),
+            one_reminder: reminders::one_reminder(s),
             meeting: MeetingState::new(s, None),
             ..Default::default()
         }
@@ -232,6 +239,7 @@ impl EventForm {
         let written = |a: &mailcraft_engine::model::ical::Attendee| mailcraft_engine::model::EmailAddress::new(&a.name, &a.email).to_string();
         let links = e.links();
         let pattern = e.rrule.as_deref().and_then(|r| mailcraft_engine::model::ical::Pattern::read(r, s.clock.local_day(start)));
+        let reminders = mailcraft_engine::model::ical::reminders_minutes(e);
         let until_text = match pattern.as_ref().map(|p| p.end) {
             Some(mailcraft_engine::model::ical::PatternEnd::Until(d)) => dates::day_string(d),
             _ => String::new(),
@@ -252,7 +260,9 @@ impl EventForm {
             all_day: e.all_day,
             hours12: s.clock.style.hours12,
             dates: s.clock.style.order,
-            reminder: mailcraft_engine::model::ical::reminder_minutes(e),
+            reminder: reminders.first().copied(),
+            more_reminders: reminders.get(1..).unwrap_or_default().to_vec(),
+            one_reminder: reminders::one_reminder(s),
             privacy: mailcraft_engine::model::ical::privacy(e),
             show_as: mailcraft_engine::model::ical::show_as(e),
             repeat: pattern.as_ref().map_or_else(|| Repeat::from_rrule(e.rrule.as_deref()), pattern::repeat_of),
@@ -289,7 +299,7 @@ impl EventForm {
             "end": end,
             "allDay": self.all_day,
             "repeat": pattern::repeat_param(self),
-            "reminder": self.reminder.map_or_else(|| json!("none"), |m| json!(m)),
+            "reminders": self.reminder.into_iter().chain(self.more_reminders.iter().copied()).collect::<Vec<i64>>(),
             "categories": self.categories,
             "privacy": self.privacy.code(),
             "showAs": self.show_as.code(),
@@ -549,6 +559,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
                 crate::drop_down::keys(ui, &r, &mut f.reminder, &choices);
             });
         });
+        reminders::more_rows(ui, t, f);
         showing::show_as_row(ui, t, f);
         form_row(ui, t, true, Some(Icon::Location), "Location", |ui| {
             field(ui, &mut f.location, tl!("Add a place"), f32::INFINITY);

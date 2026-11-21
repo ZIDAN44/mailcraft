@@ -82,20 +82,59 @@ pub(super) fn display_alarm(trigger: String) -> [String; 5] {
 /// time (`TRIGGER;VALUE=DATE-TIME:…Z`). `None`: no reminder. A trigger after the start counts as
 /// "at the start".
 pub fn reminder_minutes(e: &CalEvent) -> Option<i64> {
-    alarm_lines(&e.extra).filter(|l| l.name == "TRIGGER").find_map(|l| {
-        let is = |p: &str, v: &str| l.param(p).is_some_and(|x| x.trim().eq_ignore_ascii_case(v));
-        if is("RELATED", "END") {
-            return None;
-        }
-        // One that can't be read is passed over for the next.
-        let before = if is("VALUE", "DATE-TIME") {
-            let (t, _, _) = date_time(&l.value)?;
-            e.start.saturating_sub(t)
-        } else {
-            duration(&l.value)?.saturating_neg()
-        };
-        Some((before / 60).clamp(0, REMINDER_MAX_MINUTES))
-    })
+    alarm_lines(&e.extra).filter(|l| l.name == "TRIGGER").find_map(|l| trigger_minutes(e, &l))
+}
+
+/// The most reminders an event's alarms give that are read (Google's calendar takes five).
+pub const REMINDERS_MAX: usize = 10;
+
+/// Every reminder an event's alarms give, in minutes before it starts, the earliest first, each
+/// once (issue #224: only the first was read, so "an hour before and 2 minutes before" reminded
+/// once). Read as [`reminder_minutes`] reads its first.
+pub fn reminders_minutes(e: &CalEvent) -> Vec<i64> {
+    let mut out: Vec<i64> = alarms(&e.extra)
+        .filter_map(|a| {
+            let lines = e.extra.get(a.lines)?;
+            lines.iter().filter_map(|raw| parse_line(raw.trim())).filter(|l| l.name == "TRIGGER").find_map(|l| trigger_minutes(e, &l))
+        })
+        .collect();
+    out.sort_unstable_by(|a, b| b.cmp(a));
+    out.dedup();
+    out.truncate(REMINDERS_MAX);
+    out
+}
+
+/// An alarm's `TRIGGER` as minutes before the event starts: relative to the start, or at a set
+/// time; `None` for one relative to the end, or one that can't be read.
+fn trigger_minutes(e: &CalEvent, l: &Line) -> Option<i64> {
+    let is = |p: &str, v: &str| l.param(p).is_some_and(|x| x.trim().eq_ignore_ascii_case(v));
+    if is("RELATED", "END") {
+        return None;
+    }
+    let before = if is("VALUE", "DATE-TIME") {
+        let (t, _, _) = date_time(&l.value)?;
+        e.start.saturating_sub(t)
+    } else {
+        duration(&l.value)?.saturating_neg()
+    };
+    Some((before / 60).clamp(0, REMINDER_MAX_MINUTES))
+}
+
+/// Give an event a display alarm for each of `minutes` before it starts (none: no reminder), in
+/// place of the alarms it had; left as it is when it reminds at those times already (written
+/// again, its alarms would move in its lines, and an event saved unchanged was a change).
+pub fn set_reminders(e: &mut CalEvent, minutes: &[i64]) {
+    let mut wanted: Vec<i64> = minutes.iter().map(|m| (*m).clamp(0, REMINDER_MAX_MINUTES)).collect();
+    wanted.sort_unstable_by(|a, b| b.cmp(a));
+    wanted.dedup();
+    wanted.truncate(REMINDERS_MAX);
+    if reminders_minutes(e) == wanted {
+        return;
+    }
+    set_reminder(e, None);
+    for m in wanted {
+        e.extra.extend(display_alarm(format!("TRIGGER:-PT{m}M")));
+    }
 }
 
 /// Give an event one display alarm `minutes` before it starts, in place of any it had, or none

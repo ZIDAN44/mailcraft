@@ -7,6 +7,7 @@ mod moving;
 mod notes;
 mod occurring;
 mod pattern;
+mod reminders;
 mod showing;
 mod tasks;
 mod zones;

@@ -68,22 +68,27 @@ impl Session {
                     p.events.iter().filter(|e| e.calendar == cal.id && with.contains(e.event.uid.as_str())).map(|e| &e.event).collect();
                 for o in ical::occurrences(&events, now - REMINDER_KEPT_AFTER_END - 86_400, now + ahead + 86_400) {
                     let Some(e) = events.get(o.event) else { continue };
-                    let Some(minutes) = ical::reminder_minutes(e) else { continue };
-                    if e.status.eq_ignore_ascii_case("CANCELLED") || super::invite::declined_occurrence(e, &mine) {
+                    let minutes = ical::reminders_minutes(e);
+                    if minutes.is_empty() || e.status.eq_ignore_ascii_case("CANCELLED") || super::invite::declined_occurrence(e, &mine) {
                         continue;
                     }
                     let (start, end) = if e.all_day { (self.clock.utc(o.start), self.clock.utc(o.end)) } else { (o.start, o.end) };
                     let occurrence = e.recurrence_id.unwrap_or(o.start);
                     let key = ReminderKey { account, uid: &e.uid, at: occurrence }.to_string();
-                    // Dismissed in another calendar program, which wrote so into the event
-                    // (RFC 9074's `ACKNOWLEDGED`).
-                    if ical::acknowledged(e).is_some_and(|at| at >= start - minutes * 60) && !self.prefs.reminders.contains_key(&key) {
-                        continue;
-                    }
-                    let due = match self.prefs.reminders.get(&key) {
+                    let due = match self.prefs.reminders.get(&key).copied() {
+                        // Dismissed before an event could remind more than once: for good.
                         Some(0) => continue,
-                        Some(until) => *until,
-                        None => start - minutes * 60,
+                        Some(until) if until > 0 => until,
+                        // Each of its reminders comes in turn (issue #224: "an hour before and 2
+                        // minutes before" reminded once): the latest passed since it was dismissed
+                        // here (when, kept negative) or in another calendar program, which wrote
+                        // so into the event (RFC 9074's `ACKNOWLEDGED`); else the next.
+                        answer => {
+                            let since = answer.map(|v| v.saturating_neg()).max(ical::acknowledged(e));
+                            let times = minutes.iter().map(|m| start.saturating_sub(m.saturating_mul(60))).filter(|t| since.is_none_or(|s| *t > s));
+                            let Some(due) = times.clone().filter(|t| *t <= now).max().or_else(|| times.min()) else { continue };
+                            due
+                        }
                     };
                     if due > now || end.max(start) < now - REMINDER_KEPT_AFTER_END {
                         continue;
@@ -123,7 +128,9 @@ impl Session {
             if self.answer_mail_reminder(k, None) {
                 continue;
             }
-            self.prefs.reminders.insert(k.clone(), 0);
+            // A task's for good; an event's with when, negative, for its reminders after it.
+            let answer = if self.is_task_reminder(k) { 0 } else { now.max(1).saturating_neg() };
+            self.prefs.reminders.insert(k.clone(), answer);
             self.tell_server_reminder(k, None, now);
         }
         self.forget_old_reminders(now);
@@ -144,15 +151,21 @@ impl Session {
         self.pim_revision = self.pim_revision.wrapping_add(1);
     }
 
+    /// Whether `key` names a task's reminder: the task with its uid that reminds at its time, not
+    /// an event that happens to have a task's uid.
+    fn is_task_reminder(&self, key: &str) -> bool {
+        let Some(ReminderKey { account, uid, at }) = ReminderKey::parse(key) else { return false };
+        self.pim.get(account).is_some_and(|p| p.tasks.iter().any(|t| t.task.uid == uid && t.task.reminder == Some(at)))
+    }
+
     /// Tell the event's server a reminder was answered here, so the user's other programs
     /// (Outlook) don't show it again (issue #40): an Exchange server through its own action at
     /// the next sync ([`ReminderAnswer`]); a CalDAV server by the event's alarm acknowledged at
     /// `now` (RFC 9074), which every client reads. A snooze stays here on a CalDAV server.
     fn tell_server_reminder(&mut self, key: &str, snooze_until: Option<i64>, now: i64) {
         let Some(ReminderKey { account, uid, at: occurrence }) = ReminderKey::parse(key) else { return };
-        // A task's reminder is answered here alone: the task with this uid that reminds at this
-        // time, not an event that happens to have a task's uid (its server was told nothing).
-        if self.pim.get(account).is_some_and(|p| p.tasks.iter().any(|t| t.task.uid == uid && t.task.reminder == Some(occurrence))) {
+        // A task's reminder is answered here alone (its server was told nothing).
+        if self.is_task_reminder(key) {
             return;
         }
         let Some(config) = self.account(account).map(|a| a.config.clone()) else { return };

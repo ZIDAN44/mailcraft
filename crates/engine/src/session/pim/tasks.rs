@@ -314,7 +314,8 @@ impl Session {
                 let Some(at) = t.reminder else { continue };
                 let key = ReminderKey { account, uid: &t.uid, at }.to_string();
                 let due = match self.prefs.reminders.get(&key) {
-                    Some(0) => continue,
+                    // Dismissed (an event's are kept negative, with when: a task's is for good).
+                    Some(v) if *v <= 0 => continue,
                     Some(until) => *until,
                     None => at,
                 };

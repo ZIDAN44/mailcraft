@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 
+- An event can have several reminders (#224): each comes in turn, so Google's "an hour before and 2 minutes before" reminds twice (only the first reminded), and the event form shows each, with Add reminder and a button to take one away. Not on an Exchange calendar, which keeps one an event, as Outlook does.
 - A reminder of an online meeting (Teams, Zoom, Webex, your own rooms…) has Join meeting beside Open Item (#239).
 - A calendar group's menu has Add people…, to put more people in it (#209): it had only Delete.
 - Picking people for a calendar group or a shared calendar shows them as names, in rows that grow and then scroll, each with its × (#210): the box kept one size and showed names and addresses.

@@ -99,7 +99,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             Ok(r)
         })
-        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "privacy"?: "public"|"private"|"confidential" (show time only), "showAs"?: "free"|"workingElsewhere"|"tentative"|"busy"|"oof", "onlineMeeting"?: a saved room's name | true (the first room) | false (take it out) | {"url": string, "name"?, "code"?, "details"?, "labels"?: {"heading"?, "join"?, "code"?}}, "account"?: string, "calendar"?: string}"#),
+        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "reminders"?: [minutes before, …] (each, at most ten; [] none: in place of "reminder"), "privacy"?: "public"|"private"|"confidential" (show time only), "showAs"?: "free"|"workingElsewhere"|"tentative"|"busy"|"oof", "onlineMeeting"?: a saved room's name | true (the first room) | false (take it out) | {"url": string, "name"?, "code"?, "details"?, "labels"?: {"heading"?, "join"?, "code"?}}, "account"?: string, "calendar"?: string}"#),
         CommandSpec::new("reminders.list", "Reminders", "File › Reminders", |s, _| {
             let now = s.clock.now;
             Ok(json!(s
@@ -427,6 +427,22 @@ pub(super) fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::C
             _ => return Err(CmdError::Params("`reminder` is minutes before it starts (0 to four weeks) or none".into())),
         },
         None => {}
+    }
+    // Its reminders, each (issue #224: Google's "an hour before and 2 minutes before"), in place
+    // of the one `reminder` sets: kept as they are when they're the ones it has.
+    if let Some(x) = v.get("reminders") {
+        let wrong = || {
+            CmdError::Params(format!(
+                "`reminders` is a list of at most {} times, minutes before it starts (0 to four weeks)",
+                mailcraft_model::ical::REMINDERS_MAX
+            ))
+        };
+        let list = x.as_array().filter(|l| l.len() <= mailcraft_model::ical::REMINDERS_MAX).ok_or_else(wrong)?;
+        let minutes = list
+            .iter()
+            .map(|m| m.as_i64().filter(|m| (0..=mailcraft_model::ical::REMINDER_MAX_MINUTES).contains(m)).ok_or_else(wrong))
+            .collect::<Result<Vec<i64>, CmdError>>()?;
+        mailcraft_model::ical::set_reminders(&mut e, &minutes);
     }
     // Private, and how it shows its time (issue #32): a classification set elsewhere stays
     // unless one is asked for.

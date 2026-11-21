@@ -269,3 +269,53 @@ fn a_meetings_reminder_joins_it() {
     // The test's services open nothing: that they were asked to is the notice they give.
     assert!(a.session.notices.iter().any(|n| n.text.contains("The link couldn't be opened")), "{:?}", a.session.notices);
 }
+
+/// Issue #224: an event's several reminders (Google's "an hour before and 2 minutes before") each
+/// have a list in its form; Add reminder gives one more and its button takes one away, and the
+/// form saves them all. A calendar that keeps one an event (Exchange's) isn't offered more.
+#[test]
+fn an_events_reminders_each_have_a_list_in_its_form() {
+    let (mut a, _) = app("several-reminders");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.run("event.create", json!({"summary": "Standup", "start": "2026-11-23T10:00", "reminders": [60, 2]}));
+    let e = a.session.pim_mut("sample").events.iter().find(|e| e.event.summary == "Standup").map(|e| e.event.clone()).expect("made");
+    let f = crate::pim_dialogs::EventForm::open(&a.session, &e.uid, e.start).expect("its form");
+    assert_eq!((f.reminder, f.more_reminders.clone()), (Some(60), vec![2]));
+    a.ui.dialog = Some(Dialog::Event(Box::new(f)));
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, size);
+    assert!(has(&texts, "1 hour") && has(&texts, "2 minutes") && has(&texts, "Add reminder"), "{texts:?}");
+    let form = |a: &MailApp| match &a.ui.dialog {
+        Some(Dialog::Event(f)) => (f.reminder, f.more_reminders.clone()),
+        other => panic!("{other:?}"),
+    };
+    let add = drawn_text(&ctx, &mut a, size).into_iter().find(|d| d.text == "Add reminder").map(|d| d.rect.center()).expect("Add reminder");
+    click(&ctx, &mut a, add);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(form(&a), (Some(60), vec![2, 15]), "one more, of Outlook's default");
+    // The topmost one's button (a screen reader's list of them isn't in the order they're drawn).
+    let first = named(&ctx, &mut a, size)
+        .iter()
+        .filter(|n| n.label.as_deref() == Some("Remove reminder"))
+        .filter_map(crate::tests::Named::centre)
+        .min_by(|x, y| x.y.total_cmp(&y.y))
+        .expect("Remove reminder");
+    click(&ctx, &mut a, first);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(form(&a), (Some(60), vec![15]), "the first after the first gone");
+    let Some(Dialog::Event(f)) = &a.ui.dialog else { panic!("no form") };
+    let p = f.params();
+    assert_eq!(p["reminders"], json!([60, 15]));
+    a.act(crate::Action::Submit("event.update", p));
+    let back = a.session.find_event(&e.uid).map(|(_, e)| mailcraft_engine::model::ical::reminders_minutes(&e.event));
+    assert_eq!(back, Some(vec![60, 15]));
+    // On a calendar that keeps one an event: none offered past it.
+    let Some(Dialog::Event(f)) = &mut a.ui.dialog else { return };
+    f.one_reminder = vec!["sample".into()];
+    let texts = drawn_strings(&ctx, &mut a, size);
+    assert!(!has(&texts, "Add reminder"), "{texts:?}");
+}
