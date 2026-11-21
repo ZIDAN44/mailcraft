@@ -43,6 +43,8 @@ pub struct State {
     pub boxes: Vec<Mailbox>,
     pub modseq: u64,
     pub caps: &'static str,
+    /// `NOTIFY SET` is refused (BAD) though `caps` says the server has it.
+    pub refuse_notify: bool,
     /// Every command received (tags stripped).
     pub log: Vec<String>,
     /// Every command received, with how long its connection had been quiet when it came: since
@@ -100,6 +102,7 @@ impl State {
             ],
             modseq: 10,
             caps: "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA",
+            refuse_notify: false,
             log: Vec::new(),
             quiet: Vec::new(),
             not_connected: Vec::new(),
@@ -193,6 +196,8 @@ pub struct Fake {
     flood: Option<Vec<u8>>,
     /// In IDLE (this tag) until `DONE`.
     idling: Option<String>,
+    /// NOTIFY is on (`notifying.rs`): each folder's next UID when last told of.
+    notifying: Option<std::collections::HashMap<String, u32>>,
     /// The next command on this connection is dropped unanswered (see [`LetGo`]).
     hang_up_next: bool,
     /// When the last command was answered, or the connection made (see `State::quiet`).
@@ -214,6 +219,7 @@ impl Fake {
             refused: false,
             flood: None,
             idling: None,
+            notifying: None,
             hang_up_next: false,
             answered: std::time::Instant::now(),
         };
@@ -331,6 +337,10 @@ impl Fake {
             st.deliver_on = None;
             st.add("INBOX", &subject, &[]);
         }
+        if upper.starts_with("NOTIFY SET") {
+            self.notify_set(&st, tag);
+            return;
+        }
         if upper == "IDLE" {
             // RFC 2177, without pushing anything: what came before IDLE isn't said again.
             self.idling = Some(tag.to_string());
@@ -422,6 +432,9 @@ impl Read for Fake {
         if !trickle.is_zero() {
             std::thread::sleep(trickle);
         }
+        if self.out.is_empty() {
+            self.tell_notified();
+        }
         if self.out.is_empty()
             && let Some(f) = &self.flood
         {
@@ -449,6 +462,7 @@ impl Write for Fake {
 mod holding;
 mod mailboxes;
 mod messages;
+mod notifying;
 mod search;
 mod serving;
 mod structure;

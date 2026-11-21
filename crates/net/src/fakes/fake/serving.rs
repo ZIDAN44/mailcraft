@@ -21,13 +21,18 @@ pub(crate) fn serve_tcp_on(listener: std::net::TcpListener, st: &Arc<Mutex<State
             std::thread::spawn(move || {
                 let mut fake = Fake::connect(&st);
                 let mut sock = sock;
+                // Woken now and then while the client says nothing, for what the server tells
+                // unasked (NOTIFY during IDLE).
+                let _ = sock.set_read_timeout(Some(std::time::Duration::from_millis(100)));
                 let mut buf = [0u8; 8192];
                 loop {
+                    fake.tell_notified();
                     let out: Vec<u8> = fake.out.drain(..).collect();
                     if !out.is_empty() && sock.write_all(&out).is_err() {
                         return;
                     }
                     match sock.read(&mut buf) {
+                        Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut) => {}
                         Ok(0) | Err(_) => return,
                         Ok(n) => {
                             if fake.hang_up_next || std::mem::take(&mut st.lock().unwrap().hang_up) {

@@ -27,7 +27,8 @@ const BY_HAND: Duration = Duration::from_secs(365 * 24 * 3600);
 const QUIET_MINUTES: u32 = 10;
 
 impl Worker {
-    /// Wait for new mail: IDLE on the Inbox when the server supports it, else poll.
+    /// Wait for new mail: IDLE on the Inbox when the server supports it, told of the other folders
+    /// too where it offers NOTIFY; else poll.
     pub(crate) fn wait_for_mail(&mut self, rx: &Receiver<Job>) {
         self.working(false);
         // Whatever was asked to stop has stopped.
@@ -74,6 +75,9 @@ impl Worker {
         let Some(inbox) = inbox else { return };
         let result = (|| -> Result<bool> {
             let Some(Conn::Imap(c)) = self.conn.as_mut() else { return Err(NetError::Closed("not connected".into())) };
+            // Told of every folder where the server can (NOTIFY, issue #232): mail its own rules
+            // filed elsewhere is read as it comes, not at the next look.
+            c.notify()?;
             // Mail that came after the Inbox was synced and before IDLE starts is never pushed
             // during IDLE: the server already said it (or will only say it to a command). Look
             // now: the Inbox grew since the sync's SELECT, or a command's answer said it did.
@@ -104,8 +108,20 @@ impl Worker {
             })
         })();
         match result {
-            Ok(true) => self.sync_one(&inbox),
-            Ok(false) => {}
+            Ok(changed) => {
+                if changed {
+                    self.sync_one(&inbox);
+                }
+                let others = match self.conn.as_mut() {
+                    Some(Conn::Imap(c)) => c.take_notified(),
+                    _ => Vec::new(),
+                };
+                let known: Vec<String> =
+                    others.into_iter().filter(|f| *f != inbox && self.folders.iter().any(|k| k.path == *f && k.selectable)).collect();
+                for f in known {
+                    self.sync_one(&f);
+                }
+            }
             Err(e) => self.failed(e),
         }
     }

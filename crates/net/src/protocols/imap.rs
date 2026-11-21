@@ -33,6 +33,9 @@ pub use text_first::TEXT_FIRST_OVER;
 
 /// Largest literal accepted (a message source).
 pub const MAX_LITERAL: usize = 64 << 20;
+/// Most folders kept as said to have changed between looks (NOTIFY): past that, the rest wait
+/// for the next full sync.
+const MAX_NOTIFIED: usize = 200;
 
 /// A piece of a command: plain text, or a literal sent after the server's `+` go-ahead.
 pub enum Part<'a> {
@@ -147,6 +150,11 @@ pub struct Client<S> {
     /// The server said the selected folder grew (an untagged `EXISTS` with a new count) during a
     /// command since it was selected: new mail no command has looked at yet.
     news: bool,
+    /// The server tells of changes in every folder of the user's (NOTIFY, RFC 5465), not only the
+    /// selected one: asked once on this connection (issue #232).
+    notifying: bool,
+    /// The folders it said changed since asked ([`Client::take_notified`]).
+    notified: Vec<String>,
 }
 
 fn caps_from(list: &[Capability<'_>]) -> HashSet<String> {
@@ -195,7 +203,17 @@ impl Client<Stream> {
 impl<S: Read + Write> Client<S> {
     /// A session on `s` that knows nothing of the server yet.
     fn new(s: S) -> Client<S> {
-        Client { conn: Conn::new(s), caps: HashSet::new(), selected: None, qresync: false, seen: Default::default(), exists: 0, news: false }
+        Client {
+            conn: Conn::new(s),
+            caps: HashSet::new(),
+            selected: None,
+            qresync: false,
+            seen: Default::default(),
+            exists: 0,
+            news: false,
+            notifying: false,
+            notified: Vec::new(),
+        }
     }
 
     /// Wrap a connected stream and read the server greeting.
@@ -241,6 +259,9 @@ impl<S: Read + Write> Client<S> {
     /// any command's answer may carry `EXISTS` for mail that just arrived).
     fn cmd(&mut self, parts: &[Part<'_>]) -> Result<Vec<Response<'static>>> {
         let rs = self.conn.run(parts)?;
+        for r in &rs {
+            self.note_notified(r);
+        }
         if self.selected.is_some() {
             for r in &rs {
                 match r {
@@ -260,6 +281,19 @@ impl<S: Read + Write> Client<S> {
             }
         }
         Ok(rs)
+    }
+
+    /// A folder the server says changed (an untagged `STATUS` once NOTIFY is on), noted.
+    pub(super) fn note_notified(&mut self, r: &Response<'_>) {
+        if !self.notifying {
+            return;
+        }
+        if let Response::MailboxData(MailboxDatum::Status { mailbox, .. }) = r
+            && self.notified.len() < MAX_NOTIFIED
+            && !self.notified.iter().any(|f| f == mailbox.as_ref())
+        {
+            self.notified.push(mailbox.to_string());
+        }
     }
 
     pub fn selected(&self) -> Option<&str> {

@@ -148,9 +148,13 @@ impl<S: Read + Write> Client<S> {
     pub fn status(&mut self, folder: &str) -> Result<(u32, u32)> {
         let cmd = format!("STATUS {} (MESSAGES UNSEEN)", mailbox_arg(folder));
         let rs = self.cmd(&[Part::Text(&cmd)])?;
+        // Asked for: not a change the server told of (NOTIFY sends others' unasked).
+        self.notified.retain(|f| f != folder);
         let (mut total, mut unseen) = (0, 0);
         for r in rs {
-            if let Response::MailboxData(MailboxDatum::Status { status, .. }) = r {
+            if let Response::MailboxData(MailboxDatum::Status { mailbox, status }) = r
+                && mailbox.as_ref() == folder
+            {
                 for s in status {
                     match s {
                         StatusAttribute::Messages(n) => total = n,
