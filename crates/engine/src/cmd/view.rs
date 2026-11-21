@@ -250,6 +250,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"account": string, "calendar": string, "shown"?: bool (default: the other way)}"#),
         toggle!("calendar.sideBySide", "Side by side", "Calendar › View", calendars_side_by_side, r#"{"on"?: bool (each calendar in a column of its own in day and week)}"#),
+        toggle!(
+            "calendar.scheduleWorkHours",
+            "Only work hours",
+            "Calendar › Schedule",
+            schedule_work_hours,
+            r#"{"on"?: bool (the Schedule view over the hours anyone shown works)}"#
+        ),
         CommandSpec::new("calendar.months", "Months in the side pane", "Calendar › Side pane", |s, v| {
             let n = p::u64(v, "count").ok_or_else(|| CmdError::Params("`count` is required (1 to 6)".into()))?;
             s.prefs.calendar_months = u8::try_from(n.clamp(1, 6)).unwrap_or(1);

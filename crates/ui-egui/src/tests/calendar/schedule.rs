@@ -196,3 +196,23 @@ fn the_next_free_time_is_marked_and_makes_the_meeting() {
     a.run("calendar.goto", json!({"step": 1}));
     assert_eq!(a.session.free_slot(), None);
 }
+
+/// Issue #206: Only work hours narrows the time line to the hours anyone shown works (here the
+/// default, eight to five), whole hours; off, it's the whole day as before. Their meetings are
+/// where they were.
+#[test]
+fn only_work_hours_narrows_the_day() {
+    let (mut a, ctx, drawn) = with_ana("schedule-only-work-hours");
+    assert!(drawn.iter().any(|d| d.text == "06:00"), "the whole day, at first");
+    let switch = at(&drawn, "Only work hours");
+    click(&ctx, &mut a, switch.center());
+    assert!(a.session.prefs.schedule_work_hours, "switched on");
+    texts(&ctx, &mut a, vec![]);
+    let drawn = texts(&ctx, &mut a, vec![]);
+    assert!(!drawn.iter().any(|d| d.text == "06:00" || d.text == "07:00"), "before work: not drawn");
+    let hours: Vec<&Drawn> = drawn.iter().filter(|d| d.seen() && d.text.len() == 5 && d.text.as_bytes().get(2) == Some(&b':')).collect();
+    let first = hours.iter().min_by(|x, y| x.rect.min.x.total_cmp(&y.rect.min.x)).map(|d| d.text.as_str());
+    assert_eq!(first, Some("08:00"), "{:?}", hours.iter().map(|d| &d.text).collect::<Vec<_>>());
+    let (review, nine) = (at(&drawn, "Budget review"), at(&drawn, "09:00"));
+    assert!(review.max.x <= nine.min.x + 2.0, "her 08:00 – 09:00 still there: {review:?} {nine:?}");
+}

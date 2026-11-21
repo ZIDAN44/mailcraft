@@ -34,7 +34,12 @@ pub(super) fn schedule(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[Agen
         rows.push(None);
     }
     rows.extend(cals.iter().cloned().map(Some));
+    let mut only = s.prefs.schedule_work_hours;
+    if ui.checkbox(&mut only, tl!("Only work hours")).changed() {
+        acts.push(Action::Run("calendar.scheduleWorkHours", json!({ "on": only })));
+    }
     let (day0, day1) = (s.local_midnight(d0), s.local_midnight(d0 + 1));
+    let (day0, day1) = if s.prefs.schedule_work_hours { work_window(s, &cals, day0, day1) } else { (day0, day1) };
     // The day's own length: a change of clocks makes it 23 or 25 hours.
     let hours = ((day1 - day0) as f32 / 3600.0).max(1.0);
     let items: Vec<&AgendaItem> = items.iter().filter(|it| !it.task && it.start < day1 && it.end.max(it.start + 1) > day0).collect();
@@ -46,8 +51,8 @@ pub(super) fn schedule(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[Agen
             let (names, _) = ui.allocate_exact_size(vec2(label_w, height), Sense::hover());
             row_names(s, &t, ui, names, &rows);
             let mut scroll = egui::ScrollArea::horizontal().id_salt("schedule-hours").auto_shrink([false, true]);
-            // Opened on the working day the first time it's shown.
-            if !st.cal_scrolled[2] {
+            // Opened on the working day the first time it's shown (the whole day's).
+            if !st.cal_scrolled[2] && !s.prefs.schedule_work_hours {
                 scroll = scroll.horizontal_scroll_offset(HOUR_W * 7.5);
                 st.cal_scrolled[2] = true;
             }
@@ -78,6 +83,16 @@ pub(super) fn schedule(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[Agen
             });
         });
     });
+}
+
+/// The hours anyone in `cals` works between `day0` and `day1` (issue #206), in whole hours: from
+/// the earliest start to the latest end; the whole day when no one works then.
+fn work_window(s: &Session, cals: &[Cal], day0: i64, day1: i64) -> (i64, i64) {
+    let spans: Vec<(i64, i64)> = cals.iter().flat_map(|(account, id, ..)| s.calendar_work_spans(account, id, day0, day1)).collect();
+    let (Some(from), Some(to)) = (spans.iter().map(|(a, _)| *a).min(), spans.iter().map(|(_, b)| *b).max()) else { return (day0, day1) };
+    let from = day0 + (from.max(day0) - day0) / 3600 * 3600;
+    let to = (day0 + (to.min(day1) - day0 + 3599) / 3600 * 3600).min(day1);
+    if to > from { (from, to) } else { (day0, day1) }
 }
 
 /// The day on screen: where it starts and ends, and the hours' area.
@@ -149,7 +164,9 @@ fn hour_lines(s: &Session, t: &Tokens, ui: &mut Ui, day: &Day, rows: usize) {
         let x = g.min.x + HOUR_W * h as f32;
         ui.painter().line_segment([pos2(x, g.min.y + HEAD), pos2(x, g.max.y)], egui::Stroke::new(1.0, t.border));
         if h < hours {
-            let at = crate::i18n::date(&mailcraft_engine::model::dates::hour_label(u32::try_from(h).unwrap_or(0), s.clock.style));
+            // The local hour the line stands at: the day may start later (Only work hours).
+            let hour = s.clock.local(day.day0.saturating_add(h.saturating_mul(3600))).rem_euclid(86_400) / 3600;
+            let at = crate::i18n::date(&mailcraft_engine::model::dates::hour_label(u32::try_from(hour).unwrap_or(0), s.clock.style));
             ui.painter().text(pos2(x + 4.0, g.min.y + HEAD / 2.0), Align2::LEFT_CENTER, at, theme::regular(11.0), t.faint);
         }
     }

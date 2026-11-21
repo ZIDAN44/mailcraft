@@ -115,6 +115,10 @@ pub struct Prefs {
     /// Day and week show each calendar in a column of its own (Outlook's side-by-side view)
     /// rather than all of them together.
     pub calendars_side_by_side: bool,
+    /// The Schedule view's time line runs over the hours anyone shown works, not the whole day
+    /// (issue #206: most of it was night and off hours, the part that matters a piece to scroll
+    /// to), as Outlook's Scheduling Assistant can show only working hours.
+    pub schedule_work_hours: bool,
     /// Months shown one under another in the calendar's side pane (1 to 6).
     pub calendar_months: u8,
     /// The days and hours worked (issue #185): the work week shows those days, and the day and
@@ -399,6 +403,7 @@ impl Default for Prefs {
             tasks_hide_done: false,
             hidden_calendars: BTreeSet::new(),
             calendars_side_by_side: false,
+            schedule_work_hours: false,
             calendar_months: 1,
             work_time: mailcraft_model::pim::work_hours::WorkPeriod::default(),
             free_time_minutes: 30,
