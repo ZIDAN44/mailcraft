@@ -174,3 +174,57 @@ fn private_and_show_as_both_ways() {
     mailcraft_model::ical::set_privacy(&mut mine, Privacy::Confidential);
     assert!(event_fields(&mine).iter().any(|(_, x)| x == "<t:Sensitivity>Confidential</t:Sensitivity>"));
 }
+
+/// Issue #204: a series' occurrences taken out come as its exceptions (`EXDATE`), and a changed
+/// one (moved, its own subject) as the occurrence its series' start names (`RECURRENCE-ID`),
+/// with no rule of its own: the series stayed at its usual time on both days, as if nothing had
+/// changed. A changed one with no start it stands for is left out, as before.
+#[test]
+fn a_series_changed_and_cancelled_occurrences() {
+    let t = |s: &str| mailcraft_jmap::utc_date(s).unwrap();
+    let master = parse(
+        "<t:CalendarItem><t:ItemId Id=\"E1\"/><t:Subject>Weekly review</t:Subject><t:UID>weekly-1</t:UID>\
+         <t:Start>2026-10-05T09:00:00Z</t:Start><t:End>2026-10-05T10:00:00Z</t:End>\
+         <t:CalendarItemType>RecurringMaster</t:CalendarItemType>\
+         <t:Recurrence><t:WeeklyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>Monday</t:DaysOfWeek></t:WeeklyRecurrence>\
+         <t:NoEndRecurrence><t:StartDate>2026-10-05Z</t:StartDate></t:NoEndRecurrence></t:Recurrence>\
+         <t:ModifiedOccurrences><t:Occurrence><t:ItemId Id=\"X1\"/><t:Start>2026-10-13T14:00:00Z</t:Start>\
+         <t:End>2026-10-13T15:00:00Z</t:End><t:OriginalStart>2026-10-12T09:00:00Z</t:OriginalStart></t:Occurrence></t:ModifiedOccurrences>\
+         <t:DeletedOccurrences><t:DeletedOccurrence><t:Start>2026-10-19T09:00:00Z</t:Start></t:DeletedOccurrence></t:DeletedOccurrences>\
+         </t:CalendarItem>",
+    );
+    let e = event_of(master.find("CalendarItem").unwrap()).unwrap();
+    assert_eq!(e.exdates, [t("2026-10-19T09:00:00Z")]);
+    assert!(e.rrule.is_some() && e.recurrence_id.is_none());
+
+    let moved = |original: &str| {
+        parse(&format!(
+            "<t:CalendarItem><t:ItemId Id=\"X1\"/><t:Subject>Weekly review (moved)</t:Subject><t:UID>weekly-1</t:UID>\
+             <t:Start>2026-10-13T14:00:00Z</t:Start><t:End>2026-10-13T15:00:00Z</t:End>\
+             <t:CalendarItemType>Exception</t:CalendarItemType>{original}\
+             <t:Recurrence><t:WeeklyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>Monday</t:DaysOfWeek></t:WeeklyRecurrence>\
+             <t:NoEndRecurrence><t:StartDate>2026-10-05Z</t:StartDate></t:NoEndRecurrence></t:Recurrence></t:CalendarItem>"
+        ))
+    };
+    let x = moved("<t:OriginalStart>2026-10-12T09:00:00Z</t:OriginalStart>");
+    let x = event_of(x.find("CalendarItem").unwrap()).unwrap();
+    assert_eq!((x.recurrence_id, x.rrule.as_deref(), x.start), (Some(t("2026-10-12T09:00:00Z")), None, t("2026-10-13T14:00:00Z")));
+    assert!(event_of(moved("").find("CalendarItem").unwrap()).is_none(), "no start it stands for");
+
+    // Drawn: the 12th's is the moved one on the 13th, the 19th's is gone, the 26th's is there.
+    let seen: Vec<i64> =
+        mailcraft_model::pim::ical::occurrences(&[e, x], t("2026-10-05T00:00:00Z"), t("2026-11-01T00:00:00Z")).iter().map(|o| o.start).collect();
+    assert_eq!(seen, [t("2026-10-05T09:00:00Z"), t("2026-10-13T14:00:00Z"), t("2026-10-26T09:00:00Z")]);
+}
+
+/// Issue #204: a changed occurrence edited here isn't asked to lose a rule it hasn't; an
+/// appointment that stopped repeating is, as before.
+#[test]
+fn a_changed_occurrence_keeps_its_series() {
+    let mut e = CalEvent { summary: "Weekly review".into(), start: 1_791_900_000, end: 1_791_903_600, ..Default::default() };
+    let rule = "DeleteItemField><t:FieldURI FieldURI=\"calendar:Recurrence\"";
+    assert!(pushing::event_updates(&e, &event_fields(&e)).contains(rule), "a single appointment");
+    e.recurrence_id = Some(1_791_795_600);
+    let updates = pushing::event_updates(&e, &event_fields(&e));
+    assert!(!updates.contains(rule) && updates.contains("calendar:Start"), "{updates}");
+}

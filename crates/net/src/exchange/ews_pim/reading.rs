@@ -257,7 +257,70 @@ pub(super) fn items_in(c: &Client, parent: &str, extra: &str) -> Result<Read> {
             }
         }
     }
+    // A calendar's: its series' changed occurrences too (issue #204).
+    if extra.contains(RECURRENCE) {
+        with_changed_occurrences(c, &mut read.items, extra)?;
+    }
     Ok(read)
+}
+
+/// The changed occurrences of the series among `items` (moved, cancelled, given a subject or an
+/// answer of their own), read and put with them, each with the start its series gave it
+/// (`OriginalStart`, from the series' `ModifiedOccurrences`), which names it. A listing gives a
+/// series alone, and the changes made to one occurrence were lost: it stayed at the series'
+/// usual time, a cancelled one too (issue #204). One the server won't give is left to its
+/// series, as it was.
+pub(super) fn with_changed_occurrences(c: &Client, items: &mut Vec<El>, extra: &str) -> Result<()> {
+    // One a server listed with its series is read once.
+    let listed: std::collections::HashSet<&str> = items.iter().filter_map(|it| it.child("ItemId")?.attr("Id")).collect();
+    let mut original: Vec<(String, String)> = Vec::new();
+    for it in items.iter().filter(|it| it.text_of("CalendarItemType") == Some("RecurringMaster")) {
+        let Some(changed) = it.child("ModifiedOccurrences") else { continue };
+        for o in changed.children("Occurrence").take(MAX_EXDATES) {
+            if let (Some(id), Some(start)) = (o.child("ItemId").and_then(|i| i.attr("Id")), o.text_of("OriginalStart"))
+                && !listed.contains(id)
+            {
+                original.push((id.to_string(), start.trim().to_string()));
+            }
+        }
+        if original.len() >= MAX_ITEMS {
+            break;
+        }
+    }
+    original.truncate(MAX_ITEMS);
+    for chunk in original.chunks(BATCH) {
+        let ids: Vec<String> = chunk.iter().map(|(id, _)| id.clone()).collect();
+        let asked = c.call(&format!(
+            "<m:GetItem><m:ItemShape><t:BaseShape>AllProperties</t:BaseShape><t:BodyType>Text</t:BodyType>\
+             <t:AdditionalProperties><t:FieldURI FieldURI=\"item:EffectiveRights\"/>{extra}</t:AdditionalProperties></m:ItemShape>\
+             <m:ItemIds>{}</m:ItemIds></m:GetItem>",
+            crate::ews::item_ids(&ids)
+        ));
+        // Refused as a whole: the series keep their usual times, as before; the calendar is
+        // read all the same. A connection lost is the calendar's failure.
+        let doc = match asked {
+            Ok(doc) => doc,
+            Err(e @ (NetError::Protocol(_) | NetError::No(_) | NetError::Bad(_))) => {
+                log::info!("changed occurrences not read: {e}");
+                return Ok(());
+            }
+            Err(e) => return Err(e),
+        };
+        for (m, (_, start)) in crate::ews::into_messages(doc).into_iter().zip(chunk) {
+            if m.attr("ResponseClass") == Some("Error") {
+                log::info!("a changed occurrence not read: {}", m.text_of("MessageText").unwrap_or("").trim());
+                continue;
+            }
+            let Some(list) = m.kids.into_iter().find(|k| k.name == "Items") else { continue };
+            for mut it in list.kids.into_iter().filter(|it| it.text_of("CalendarItemType") == Some("Exception")) {
+                if it.child("OriginalStart").is_none() {
+                    it.kids.push(El { name: "OriginalStart".into(), text: start.clone(), ..Default::default() });
+                }
+                items.push(it);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// A public folder's items. On Exchange 2013 and later its content is kept in a public folder

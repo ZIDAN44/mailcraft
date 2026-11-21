@@ -12,6 +12,10 @@ on GitHub.
 
 *What testers met in their first days with 0.41.*
 
+### Fixed
+
+- On Exchange, a single occurrence of a repeating meeting moved or cancelled shows as it is (#204): MailCraft kept the series' usual time on that day, and a cancelled occurrence stayed. A moved one is read with its own time, subject and guests, in place of the occurrence it stands for.
+
 ## 0.41.0 - 2026-11-20
 
 *What testers met in their first days with 0.40.*

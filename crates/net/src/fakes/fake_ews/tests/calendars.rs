@@ -135,3 +135,46 @@ fn appointments_the_server_fails_on_are_said() {
     assert_eq!(sync.errors, ["Calendar: 1 items couldn't be read (ErrorInternalServerError)"]);
     assert_eq!(sync.cards.iter().map(|k| k.card.display()).collect::<Vec<_>>(), ["Ana Silva"]);
 }
+
+/// Issue #204: a series' changed occurrence, which the listing doesn't give, is read by the id
+/// the series names and comes as the occurrence it stands for; one taken out is the series'
+/// exception. One gone meanwhile is left to its series, and the calendar is read all the same.
+#[test]
+fn a_series_changed_occurrences_are_read() {
+    let (mut d, cal, _) = mailbox();
+    let series = parse(
+        "<t:CalendarItem><t:Subject>Weekly review</t:Subject><t:UID>weekly-1</t:UID>\
+         <t:Start>2026-10-05T09:00:00Z</t:Start><t:End>2026-10-05T10:00:00Z</t:End>\
+         <t:CalendarItemType>RecurringMaster</t:CalendarItemType>\
+         <t:Recurrence><t:WeeklyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>Monday</t:DaysOfWeek></t:WeeklyRecurrence>\
+         <t:NoEndRecurrence><t:StartDate>2026-10-05Z</t:StartDate></t:NoEndRecurrence></t:Recurrence>\
+         <t:ModifiedOccurrences>\
+         <t:Occurrence><t:ItemId Id=\"X1\"/><t:Start>2026-10-13T14:00:00Z</t:Start><t:End>2026-10-13T15:00:00Z</t:End><t:OriginalStart>2026-10-12T09:00:00Z</t:OriginalStart></t:Occurrence>\
+         <t:Occurrence><t:ItemId Id=\"X2\"/><t:Start>2026-11-02T11:00:00Z</t:Start><t:End>2026-11-02T12:00:00Z</t:End><t:OriginalStart>2026-11-02T09:00:00Z</t:OriginalStart></t:Occurrence>\
+         </t:ModifiedOccurrences>\
+         <t:DeletedOccurrences><t:DeletedOccurrence><t:Start>2026-10-19T09:00:00Z</t:Start></t:DeletedOccurrence></t:DeletedOccurrences>\
+         </t:CalendarItem>",
+    );
+    d.pim.push(PimItem::new("S1", cal.clone(), series.kids[0].clone()));
+    let moved = parse(
+        "<t:CalendarItem><t:Subject>Weekly review, Tuesday</t:Subject><t:UID>weekly-1</t:UID>\
+         <t:Start>2026-10-13T14:00:00Z</t:Start><t:End>2026-10-13T15:00:00Z</t:End>\
+         <t:CalendarItemType>Exception</t:CalendarItemType></t:CalendarItem>",
+    );
+    d.pim.push(PimItem::new("X1", cal, moved.kids[0].clone()));
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let sync = crate::ews_pim::sync(&c, &Pim::default(), 1_792_000_000).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let t = |s: &str| mailcraft_jmap::utc_date(s).unwrap();
+    let mut weekly: Vec<_> = sync.events.iter().filter(|e| e.event.uid == "weekly-1").map(|e| &e.event).collect();
+    weekly.sort_by_key(|e| e.recurrence_id);
+    let [series, moved] = weekly[..] else { panic!("{weekly:?}") };
+    assert_eq!((series.recurrence_id, series.exdates.as_slice()), (None, [t("2026-10-19T09:00:00Z")].as_slice()));
+    assert_eq!(
+        (moved.recurrence_id, moved.start, moved.summary.as_str()),
+        (Some(t("2026-10-12T09:00:00Z")), t("2026-10-13T14:00:00Z"), "Weekly review, Tuesday")
+    );
+    assert!(moved.rrule.is_none());
+    assert!(sync.events.iter().any(|e| e.event.summary == "Review"), "the rest of the calendar");
+}

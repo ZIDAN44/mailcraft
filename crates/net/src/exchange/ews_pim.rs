@@ -22,6 +22,8 @@ pub const CALENDAR: &str = "ews:calendar";
 pub const CONTACTS: &str = "ews:contacts";
 /// Items read from a folder at most, and per `GetItem`.
 const MAX_ITEMS: usize = 5000;
+/// A series' occurrences taken out, and its changed ones, kept at most.
+const MAX_EXDATES: usize = 1000;
 const BATCH: usize = 50;
 const MONTHS: [&str; 12] = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -139,9 +141,15 @@ fn own_answer(event: &mut CalEvent, it: &El, me: &str) {
 
 /// An appointment as an event (occurrences and changed instances are left to their series).
 pub fn event_of(it: &El) -> Option<CalEvent> {
-    if matches!(it.text_of("CalendarItemType"), Some("Occurrence" | "Exception")) {
-        return None;
-    }
+    // A plain occurrence is its series'. A changed one (an exception: moved, cancelled, its own
+    // subject or answer) is the occurrence it stands for, by the start its series gave it
+    // (`OriginalStart`, which [`reading::with_changed_occurrences`] puts on it from the series'
+    // list): it was dropped, and the series kept its usual time there (issue #204).
+    let original = match it.text_of("CalendarItemType") {
+        Some("Occurrence") => return None,
+        Some("Exception") => Some(mailcraft_jmap::utc_date(&text(it, "OriginalStart"))?),
+        _ => None,
+    };
     let all_day = it.text_of("IsAllDayEvent").is_some_and(|v| v == "true");
     let start = mailcraft_jmap::utc_date(&text(it, "Start"))?;
     let end = mailcraft_jmap::utc_date(&text(it, "End")).unwrap_or(start + 3600).max(start);
@@ -187,7 +195,19 @@ pub fn event_of(it: &El) -> Option<CalEvent> {
         start,
         end,
         all_day,
-        rrule: it.child("Recurrence").and_then(recurrence_json).as_ref().and_then(rrule_of),
+        rrule: if original.is_some() { None } else { it.child("Recurrence").and_then(recurrence_json).as_ref().and_then(rrule_of) },
+        recurrence_id: original.map(|t| if all_day { day(t) } else { t }),
+        // The occurrences taken out of a series (issue #204): each by its start.
+        exdates: it
+            .child("DeletedOccurrences")
+            .map(|d| {
+                d.children("DeletedOccurrence")
+                    .filter_map(|o| mailcraft_jmap::utc_date(&text(o, "Start")))
+                    .map(|t| if all_day { day(t) } else { t })
+                    .take(MAX_EXDATES)
+                    .collect()
+            })
+            .unwrap_or_default(),
         organizer: it.child("Organizer").and_then(person),
         attendees,
         status: if it.text_of("IsCancelled") == Some("true") { "CANCELLED".into() } else { String::new() },

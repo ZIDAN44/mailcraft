@@ -48,21 +48,7 @@ pub(super) fn push_events(c: &Client, pim: &Pim, out: &mut DavSync) {
                 ))
                 .map(|m| id_and_key(m.find("ItemId")))
             } else {
-                let mut updates: String = fields
-                    .iter()
-                    .map(|(name, x)| {
-                        let uri =
-                            if matches!(*name, "Subject" | "Sensitivity" | "Body" | "Categories" | "ReminderIsSet" | "ReminderMinutesBeforeStart") {
-                                format!("item:{name}")
-                            } else {
-                                format!("calendar:{name}")
-                            };
-                        format!("<t:SetItemField><t:FieldURI FieldURI=\"{uri}\"/><t:CalendarItem>{x}</t:CalendarItem></t:SetItemField>")
-                    })
-                    .collect();
-                if e.event.rrule.is_none() {
-                    updates.push_str("<t:DeleteItemField><t:FieldURI FieldURI=\"calendar:Recurrence\"/></t:DeleteItemField>");
-                }
+                let updates = event_updates(&e.event, &fields);
                 c.call_one(&format!(
                     "<m:UpdateItem ConflictResolution=\"AlwaysOverwrite\" SendMeetingInvitationsOrCancellations=\"SendToNone\"><m:ItemChanges>\
                      <t:ItemChange><t:ItemId Id=\"{}\"/><t:Updates>{updates}</t:Updates></t:ItemChange></m:ItemChanges></m:UpdateItem>",
@@ -86,6 +72,27 @@ pub(super) fn push_events(c: &Client, pim: &Pim, out: &mut DavSync) {
             Err(x) => out.errors.push(format!("{}: {x}", e.event.summary)),
         }
     }
+}
+
+/// An appointment's changes, field by field. One that stopped repeating has its rule deleted; a
+/// changed occurrence of a series (issue #204) has none of its own to delete, and isn't asked
+/// to: the server could refuse the change for it.
+pub(super) fn event_updates(e: &CalEvent, fields: &[(&str, String)]) -> String {
+    let mut updates: String = fields
+        .iter()
+        .map(|(name, x)| {
+            let uri = if matches!(*name, "Subject" | "Sensitivity" | "Body" | "Categories" | "ReminderIsSet" | "ReminderMinutesBeforeStart") {
+                format!("item:{name}")
+            } else {
+                format!("calendar:{name}")
+            };
+            format!("<t:SetItemField><t:FieldURI FieldURI=\"{uri}\"/><t:CalendarItem>{x}</t:CalendarItem></t:SetItemField>")
+        })
+        .collect();
+    if e.rrule.is_none() && e.recurrence_id.is_none() {
+        updates.push_str("<t:DeleteItemField><t:FieldURI FieldURI=\"calendar:Recurrence\"/></t:DeleteItemField>");
+    }
+    updates
 }
 
 /// The contacts made or changed here, made again: a contact's addresses and numbers are

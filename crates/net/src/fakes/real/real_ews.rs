@@ -477,3 +477,84 @@ fn real_ews_folder_marked_read() {
     ));
     assert_eq!(left, 0, "all read on the server");
 }
+
+/// Issue #204: a weekly series of six made on the server, its second occurrence moved to the
+/// Tuesday afternoon with a subject of its own and its third deleted, read as the series with
+/// the third taken out and the moved one standing for the second; then deleted again.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_changed_occurrences() {
+    let Some((url, user, password)) = server() else {
+        eprintln!("MAILCRAFT_REAL_EWS not set: skipped");
+        return;
+    };
+    let c = crate::ews::Client::connect(&url, &user, &password, &user).unwrap();
+    let id_of = |doc: &crate::ews::El| {
+        let id = doc.find("ItemId")?;
+        Some((id.attr("Id")?.to_string(), id.attr("ChangeKey").unwrap_or("").to_string()))
+    };
+    let made = c
+        .call(
+            "<m:CreateItem SendMeetingInvitations=\"SendToNone\"><m:SavedItemFolderId><t:DistinguishedFolderId Id=\"calendar\"/>\
+             </m:SavedItemFolderId><m:Items><t:CalendarItem><t:Subject>Series 204</t:Subject>\
+             <t:Start>2026-10-05T09:00:00Z</t:Start><t:End>2026-10-05T10:00:00Z</t:End>\
+             <t:Recurrence><t:WeeklyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>Monday</t:DaysOfWeek></t:WeeklyRecurrence>\
+             <t:NumberedRecurrence><t:StartDate>2026-10-05Z</t:StartDate><t:NumberOfOccurrences>6</t:NumberOfOccurrences></t:NumberedRecurrence>\
+             </t:Recurrence></t:CalendarItem></m:Items></m:CreateItem>",
+        )
+        .unwrap();
+    let (series, _) = id_of(&made).expect("the series made");
+    let occurrence = |n: usize| {
+        let doc = c
+            .call(&format!(
+                "<m:GetItem><m:ItemShape><t:BaseShape>IdOnly</t:BaseShape></m:ItemShape><m:ItemIds>\
+                 <t:OccurrenceItemId RecurringMasterId=\"{}\" InstanceIndex=\"{n}\"/></m:ItemIds></m:GetItem>",
+                crate::ews::esc(&series)
+            ))
+            .unwrap();
+        id_of(&doc).expect("the occurrence")
+    };
+    let (second, key) = occurrence(2);
+    c.call_all(&format!(
+        "<m:UpdateItem ConflictResolution=\"AlwaysOverwrite\" SendMeetingInvitationsOrCancellations=\"SendToNone\"><m:ItemChanges>\
+         <t:ItemChange><t:ItemId Id=\"{}\" ChangeKey=\"{}\"/><t:Updates>\
+         <t:SetItemField><t:FieldURI FieldURI=\"item:Subject\"/><t:CalendarItem><t:Subject>Series 204, Tuesday</t:Subject></t:CalendarItem></t:SetItemField>\
+         <t:SetItemField><t:FieldURI FieldURI=\"calendar:Start\"/><t:CalendarItem><t:Start>2026-10-13T14:00:00Z</t:Start></t:CalendarItem></t:SetItemField>\
+         <t:SetItemField><t:FieldURI FieldURI=\"calendar:End\"/><t:CalendarItem><t:End>2026-10-13T15:00:00Z</t:End></t:CalendarItem></t:SetItemField>\
+         </t:Updates></t:ItemChange></m:ItemChanges></m:UpdateItem>",
+        crate::ews::esc(&second),
+        crate::ews::esc(&key)
+    ))
+    .unwrap();
+    let (third, _) = occurrence(3);
+    c.call_all(&format!(
+        "<m:DeleteItem DeleteType=\"HardDelete\" SendMeetingCancellations=\"SendToNone\"><m:ItemIds><t:ItemId Id=\"{}\"/></m:ItemIds></m:DeleteItem>",
+        crate::ews::esc(&third)
+    ))
+    .unwrap();
+
+    let sync = crate::ews_pim::sync(&c, &Pim::default(), 1_792_000_000);
+    let _ = c.call(&format!(
+        "<m:DeleteItem DeleteType=\"HardDelete\" SendMeetingCancellations=\"SendToNone\"><m:ItemIds><t:ItemId Id=\"{}\"/></m:ItemIds></m:DeleteItem>",
+        crate::ews::esc(&series)
+    ));
+    let sync = sync.unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    let t = |s: &str| mailcraft_jmap::utc_date(s).unwrap();
+    let ours: Vec<_> = sync.events.iter().map(|e| &e.event).filter(|e| e.summary.starts_with("Series 204")).collect();
+    for e in &ours {
+        eprintln!("{:?} start {} recurrence-id {:?} exdates {:?} rule {:?} uid {}", e.summary, e.start, e.recurrence_id, e.exdates, e.rrule, e.uid);
+    }
+    let series = ours.iter().find(|e| e.recurrence_id.is_none()).expect("the series");
+    let moved = ours.iter().find(|e| e.recurrence_id.is_some()).expect("the moved occurrence");
+    assert_eq!(ours.len(), 2);
+    assert_eq!(series.exdates, [t("2026-10-19T09:00:00Z")]);
+    assert_eq!(
+        (moved.recurrence_id, moved.start, moved.summary.as_str()),
+        (Some(t("2026-10-12T09:00:00Z")), t("2026-10-13T14:00:00Z"), "Series 204, Tuesday")
+    );
+    assert_eq!(moved.uid, series.uid, "the series' own");
+    let seen: Vec<i64> =
+        mailcraft_model::pim::ical::occurrences(&ours, t("2026-10-05T00:00:00Z"), t("2026-11-20T00:00:00Z")).iter().map(|o| o.start).collect();
+    assert_eq!(seen, ["2026-10-05T09:00:00Z", "2026-10-13T14:00:00Z", "2026-10-26T09:00:00Z", "2026-11-02T09:00:00Z", "2026-11-09T09:00:00Z"].map(t));
+}

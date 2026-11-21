@@ -12,8 +12,14 @@ impl Data {
             if self.unrouted(&folder) || self.refuses_folder(&folder) {
                 return vec![err(if self.unrouted(&folder) { "ErrorFolderNotFound" } else { "ErrorAccessDenied" })];
             }
-            let items: String =
-                self.pim.iter().filter(|p| p.folder == folder).map(|p| format!("<t:Item><t:ItemId Id=\"{}\"/></t:Item>", p.id)).collect();
+            // A series' changed occurrences aren't listed, as Exchange's listing (with no
+            // calendar view) gives the series alone: they're read by the ids it names.
+            let items: String = self
+                .pim
+                .iter()
+                .filter(|p| p.folder == folder && p.el.text_of("CalendarItemType") != Some("Exception"))
+                .map(|p| format!("<t:Item><t:ItemId Id=\"{}\"/></t:Item>", p.id))
+                .collect();
             return vec![ok(format!("<m:RootFolder IncludesLastItemInRange=\"true\"><t:Items>{items}</t:Items></m:RootFolder>"))];
         }
         // A folder the mailbox hasn't (a Notes folder, say): as Exchange answers.
