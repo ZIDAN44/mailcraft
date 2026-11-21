@@ -399,6 +399,14 @@ impl Session {
     /// `wait`: settled in full before it's shown, what isn't indexed read from its source.
     pub fn start_search(&mut self, q: &str, scope: SearchScope, wait: bool) {
         let query = self.query_of(q);
+        // A new run of the same relative query can resolve to a different day.
+        if self.server_search.as_ref().is_some_and(|search| {
+            search.query == q
+                && !search.resolved_dates.is_empty()
+                && query.clauses.iter().filter(|c| matches!(c.term, mailcraft_model::search::Term::Date(_))).ne(&search.resolved_dates)
+        }) {
+            self.stop_server_search();
+        }
         let mut folders = self.search_run_folders(scope);
         // The folders on view first: what's on screen is found first.
         let shown = self.view_folders();

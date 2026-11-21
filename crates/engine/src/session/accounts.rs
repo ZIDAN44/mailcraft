@@ -543,7 +543,12 @@ impl Session {
         let sent = self.server_query(&q);
         let resolved = self.resolved_server_query(&q);
         let exchange_period = resolved.exact_received_period(&self.clock);
-        let resolved_dates = resolved.clauses.into_iter().filter(|c| matches!(c.term, mailcraft_model::search::Term::Date(_))).collect();
+        let has_exchange = by_account.iter().any(|(id, _)| self.account(id).is_some_and(|a| a.config.graph.is_some() || a.config.ews.is_some()));
+        let resolved_dates = if exchange_period.is_some() && has_exchange {
+            resolved.clauses.into_iter().filter(|c| matches!(c.term, mailcraft_model::search::Term::Date(_))).collect()
+        } else {
+            Vec::new()
+        };
         self.server_search =
             Some(ServerSearch { id, query: q.clone(), sent: sent.clone(), resolved_dates, pending: by_account.len(), ..Default::default() });
         for (account, folders) in by_account {

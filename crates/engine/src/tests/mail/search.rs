@@ -583,6 +583,9 @@ fn server_finds_are_checked_against_the_dates() {
     s.set_clock(end + 120, s.clock.offset);
     s.apply(Event::ServerSearched { account: a.clone(), query: query.into(), keys: vec![key(8)], error: None, done: true });
     assert_eq!(shown(&s), ["New one"], "the server hit is checked against the same day that was requested");
+    s.run("search.run", &json!({"query": query, "scope": "all"})).unwrap();
+    assert!(s.server_search.is_none(), "rerunning after midnight clears the old server result set");
+    assert!(shown(&s).is_empty(), "the old hit stays out of the new day");
 }
 
 /// The search index kept up in the background: asked for as mail changes, once while jobs wait
