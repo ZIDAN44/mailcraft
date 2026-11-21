@@ -205,7 +205,8 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 
 - **Impact:** A new time for one occurrence of a series can't be proposed from its invitation,
   nor taken when a guest proposes one. Your place in a meeting can't be handed to someone else
-  (delegated), as SOGo offers.
+  (delegated), as SOGo offers. Invitations already in the Inbox aren't offered as an account is
+  added: Invitations in the Inbox… in the calendar finds them.
 - **Workaround:** Change the occurrence in the calendar: its guests are sent it.
 - **Cause:** Taking a proposal moves the meeting as a whole; an occurrence's proposal needs that
   occurrence changed on its own.

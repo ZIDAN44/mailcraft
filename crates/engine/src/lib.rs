@@ -33,7 +33,7 @@ pub use session::{
     SearchScope, SearchStats, SearchWork, Security, SendBlock, SendCheck, SendReceive, SenderAddresses, SenderMarks, ServerSearch, Session, SignedBy,
     SmimeSettings, SourceView, StartIn, TransferRow, TrustedCertificate, UNDO_SEND_MAX, UndoHold, UpdateCheck, VacationState, View, accent_code,
     accent_rgb,
-    invite::{AnsweredInvites, Fit, Invite, InviteDay, InviteProblem, Route, forwarding_allowed, proposals_allowed},
+    invite::{AnsweredInvites, Fit, Invite, InviteDay, InviteProblem, Route, WaitingInvite, forwarding_allowed, proposals_allowed},
     junk::{JunkList, junk_entry},
     newer_release, parse_key,
     pim::{

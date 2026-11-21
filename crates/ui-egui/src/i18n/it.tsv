@@ -1983,3 +1983,9 @@ count	occurrences	ripetizioni
 	{name} proposes a new time: {when}	{name} propone un nuovo orario: {when}
 	Forward meeting	Inoltra riunione
 	Forward meeting…	Inoltra riunione…
+	Invitations in the Inbox	Inviti nella Posta in arrivo
+	Invitations in the Inbox…	Inviti nella Posta in arrivo…
+	Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered.	Riunioni che aspettano la tua risposta e che il calendario non ha ancora. Quelle che spunti vengono aggiunte senza risposta.
+	None: every invitation in the Inbox is in your calendar or answered.	Nessuno: ogni invito nella Posta in arrivo è nel calendario o ha una risposta.
+	Put in calendar	Aggiungi al calendario
+	Still reading {n} messages…	Lettura di {n} messaggi in corso…

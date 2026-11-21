@@ -1980,3 +1980,9 @@ count	occurrences	次
 	{name} proposes a new time: {when}	{name} 提议了新时间：{when}
 	Forward meeting	转发会议
 	Forward meeting…	转发会议…
+	Invitations in the Inbox	收件箱中的邀请
+	Invitations in the Inbox…	收件箱中的邀请…
+	Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered.	等待你答复、日历中还没有的会议。勾选的会以未答复状态加入。
+	None: every invitation in the Inbox is in your calendar or answered.	没有：收件箱中的每个邀请都已在日历中或已答复。
+	Put in calendar	放入日历
+	Still reading {n} messages…	仍在读取 {n} 封邮件…

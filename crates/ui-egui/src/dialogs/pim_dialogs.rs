@@ -21,6 +21,7 @@ pub(crate) use pattern::form_day as pattern_day;
 mod repeat;
 mod showing;
 mod task;
+mod waiting;
 pub use contact::{ContactForm, contact};
 pub use follow_up::{FollowUpForm, follow_up};
 pub use online_meeting::MeetingState;
@@ -31,6 +32,7 @@ pub use repeat::Repeat;
 use repeat::repeat_row;
 use task::category_chips;
 pub use task::{TaskForm, status_label, task};
+pub use waiting::{WaitingForm, waiting};
 
 /// A new event's reminder (Outlook's default for appointments).
 pub const DEFAULT_REMINDER: i64 = 15;

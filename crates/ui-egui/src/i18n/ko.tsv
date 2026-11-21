@@ -1983,3 +1983,9 @@ count	occurrences	회
 	{name} proposes a new time: {when}	{name}님이 새 시간을 제안합니다: {when}
 	Forward meeting	모임 전달
 	Forward meeting…	모임 전달…
+	Invitations in the Inbox	받은 편지함의 초대
+	Invitations in the Inbox…	받은 편지함의 초대…
+	Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered.	응답을 기다리며 아직 일정에 없는 모임입니다. 선택한 항목은 응답 없이 추가됩니다.
+	None: every invitation in the Inbox is in your calendar or answered.	없음: 받은 편지함의 모든 초대가 일정에 있거나 응답되었습니다.
+	Put in calendar	일정에 추가
+	Still reading {n} messages…	아직 메시지 {n}개를 읽는 중…

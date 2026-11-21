@@ -426,3 +426,62 @@ fn real_meeting_forwarded_to_someone_else() {
         let _ = std::fs::remove_dir_all(st.root());
     }
 }
+
+/// Issue #237: invitations already in Riley's Inbox when Riley's copy of MailCraft comes (one of
+/// them called off since): the one still on is found, put in the calendar unanswered, and the
+/// calendar server has it so; nothing is sent.
+#[test]
+#[ignore = "needs real mail and calendar servers in MAILCRAFT_REAL_MEETING"]
+fn real_invitations_waiting_in_the_inbox() {
+    let Some(sv) = servers() else {
+        eprintln!("MAILCRAFT_REAL_MEETING isn't set: skipped");
+        return;
+    };
+    // Zoe invites Riley twice, and calls the second off: before Riley's copy is here.
+    let (mut z, mut zpool, zstore) = open("zoe-backlog", ZOE, &sv);
+    let tag = std::process::id();
+    let start = (chrono::Utc::now().timestamp() / 3600 + 70) * 3600;
+    let mut uids = Vec::new();
+    for (i, name) in ["Colour grade", "Board"].iter().enumerate() {
+        let at = start + i64::try_from(i).unwrap_or(0) * 86_400;
+        let p = json!({"summary": format!("{name} {tag}"), "start": at, "end": at + 3600, "attendees": format!("Riley Moreno <{RILEY}>")});
+        uids.push(z.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string());
+        sent(&mut z, &mut zpool, 1);
+    }
+    z.run("event.delete", &json!({"uid": uids[1]})).unwrap();
+    sent(&mut z, &mut zpool, 1);
+
+    let (mut s, mut pool, store) = open("riley-backlog", RILEY, &sv);
+    assert!(uids.iter().all(|u| s.find_event(u).is_none()), "nothing taken in at the first look");
+    let mut asked = std::collections::HashSet::new();
+    let account = s.accounts.first().map(|a| a.config.id.clone()).unwrap();
+    let mut found = Vec::new();
+    for _ in 0..30 {
+        let (f, reading) = s.waiting_invitations(&account, &mut asked);
+        found = f;
+        if reading == 0 {
+            break;
+        }
+        let _ = drive(&mut s, &mut pool, Duration::from_secs(2), |_| None::<Result<(), String>>);
+    }
+    let mine: Vec<&str> = found.iter().filter(|w| uids.contains(&w.uid)).map(|w| w.uid.as_str()).collect();
+    assert_eq!(mine, [uids[0].as_str()], "the one still on: {found:?}");
+    let keys: Vec<_> = found.iter().filter(|w| w.uid == uids[0]).map(|w| w.key.clone()).collect();
+    assert_eq!(s.place_waiting_invitations(&keys), 1);
+    // No answer goes: what the calendar needs is all that's asked of the servers.
+    let jobs = s.take_jobs();
+    assert!(!jobs.iter().any(|j| matches!(j, Job::Send { .. })), "nothing sent");
+    for j in jobs {
+        pool.submit(j);
+    }
+    drive(&mut s, &mut pool, Duration::from_secs(60), |e| {
+        matches!(e, Event::DavSynced { sync, .. } if !sync.pushed_events.is_empty()).then_some(Ok(()))
+    })
+    .unwrap();
+    let back = from_server(&sv, &uids[0]);
+    assert!(back.attendees.iter().any(|a| a.email == RILEY && a.partstat == "NEEDS-ACTION"), "unanswered on the server: {:?}", back.attendees);
+    drop((z, zpool));
+    for st in [store, zstore] {
+        let _ = std::fs::remove_dir_all(st.root());
+    }
+}

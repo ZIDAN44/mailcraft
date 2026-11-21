@@ -14,6 +14,7 @@ use super::*;
 
 mod answers;
 mod arrival;
+mod backlog;
 mod counter;
 mod fit;
 mod forward;
@@ -23,6 +24,7 @@ mod tidy;
 #[cfg(test)]
 pub(crate) use arrival::HOLD_SECS;
 pub(crate) use arrival::drop_empty_local;
+pub use backlog::WaitingInvite;
 pub use counter::proposals_allowed;
 pub use fit::{Fit, InviteDay};
 pub use forward::forwarding_allowed;

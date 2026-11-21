@@ -437,3 +437,54 @@ fn a_meeting_is_forwarded_from_its_card_and_its_form() {
     let f = crate::pim_dialogs::EventForm::open(&a.session, &own, NOW + 86_400).unwrap();
     assert!(!f.can_forward);
 }
+
+/// Issue #237: Invitations in the Inbox… lists a meeting waiting there that the calendar hasn't
+/// got, and Put in calendar puts it there unanswered.
+#[test]
+fn invitations_waiting_in_the_inbox_are_put_in_the_calendar() {
+    let (mut a, _) = app("waiting-invites");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    // Mail from before the account came: not taken in as it arrived.
+    a.session.prefs.tentative_invites = false;
+    let e = mailcraft_engine::model::ical::CalEvent {
+        uid: "wait-237".into(),
+        summary: "Colour grade".into(),
+        start: NOW + 2 * 86_400,
+        end: NOW + 2 * 86_400 + 3600,
+        organizer: Some(mailcraft_engine::model::ical::Attendee {
+            email: "zoe@studio.example".into(),
+            name: "Zoe Park".into(),
+            ..Default::default()
+        }),
+        attendees: vec![mailcraft_engine::model::ical::Attendee {
+            email: "riley@studio.example".into(),
+            partstat: "NEEDS-ACTION".into(),
+            rsvp: true,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let ics = mailcraft_engine::model::ical::write(&[e], Some("REQUEST"), NOW);
+    let raw = format!(
+        "From: Zoe Park <zoe@studio.example>\r\nTo: riley@studio.example\r\nSubject: Invitation: Colour grade\r\nMessage-ID: <wait-237@x>\r\n\
+         Date: Mon, 16 Nov 2026 09:00:00 +0000\r\nMIME-Version: 1.0\r\nContent-Type: text/calendar; method=REQUEST; charset=utf-8\r\n\r\n{ics}"
+    );
+    arrive(&mut a, 9237, raw.as_bytes());
+    assert!(a.session.find_event("wait-237").is_none(), "not in the calendar");
+    a.run("view.calendar", json!({}));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Invitations in the Inbox…");
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(texts.iter().any(|t| t.starts_with("Colour grade · ")), "{texts:?}");
+    click_named(&ctx, &mut a, "Put in calendar");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none(), "{:?}", a.ui.dialog);
+    let placed = a.session.find_event("wait-237").expect("in the calendar").1.event.clone();
+    assert!(placed.attendees.iter().any(|x| x.email == "riley@studio.example" && x.partstat == "NEEDS-ACTION"), "unanswered");
+}

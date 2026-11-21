@@ -1984,3 +1984,9 @@ count	occurrences	occurrences
 	{name} proposes a new time: {when}	{name} propose un nouvel horaire : {when}
 	Forward meeting	Transférer la réunion
 	Forward meeting…	Transférer la réunion…
+	Invitations in the Inbox	Invitations dans la boîte de réception
+	Invitations in the Inbox…	Invitations dans la boîte de réception…
+	Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered.	Réunions qui attendent votre réponse et que votre calendrier n’a pas encore. Celles que vous cochez y sont ajoutées sans réponse.
+	None: every invitation in the Inbox is in your calendar or answered.	Aucune : chaque invitation de la boîte de réception est dans votre calendrier ou a reçu une réponse.
+	Put in calendar	Ajouter au calendrier
+	Still reading {n} messages…	Encore {n} messages à lire…

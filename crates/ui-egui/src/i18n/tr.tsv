@@ -1984,3 +1984,9 @@ count	occurrences	kez
 	{name} proposes a new time: {when}	{name} yeni bir zaman öneriyor: {when}
 	Forward meeting	Toplantıyı ilet
 	Forward meeting…	Toplantıyı ilet…
+	Invitations in the Inbox	Gelen Kutusu'ndaki davetler
+	Invitations in the Inbox…	Gelen Kutusu'ndaki davetler…
+	Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered.	Yanıtınızı bekleyen ve takviminizde henüz olmayan toplantılar. İşaretledikleriniz yanıtsız eklenir.
+	None: every invitation in the Inbox is in your calendar or answered.	Yok: Gelen Kutusu'ndaki her davet takviminizde ya da yanıtlanmış.
+	Put in calendar	Takvime ekle
+	Still reading {n} messages…	Hâlâ {n} ileti okunuyor…

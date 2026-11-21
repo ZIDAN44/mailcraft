@@ -1980,3 +1980,9 @@ count	occurrences	回
 	{name} proposes a new time: {when}	{name} が新しい日時を提案しています: {when}
 	Forward meeting	会議を転送
 	Forward meeting…	会議を転送…
+	Invitations in the Inbox	受信トレイの招待
+	Invitations in the Inbox…	受信トレイの招待…
+	Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered.	返答待ちで、まだ予定表にない会議です。チェックしたものは未返答のまま追加されます。
+	None: every invitation in the Inbox is in your calendar or answered.	ありません。受信トレイの招待はすべて予定表にあるか、返答済みです。
+	Put in calendar	予定表に追加
+	Still reading {n} messages…	まだ {n} 件のメッセージを読み込んでいます…

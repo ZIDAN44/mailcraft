@@ -1998,3 +1998,9 @@ count	occurrences	opakovaní
 	{name} proposes a new time: {when}	{name} navrhuje nový čas: {when}
 	Forward meeting	Preposlať schôdzu
 	Forward meeting…	Preposlať schôdzu…
+	Invitations in the Inbox	Pozvánky v Doručenej pošte
+	Invitations in the Inbox…	Pozvánky v Doručenej pošte…
+	Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered.	Schôdze, ktoré čakajú na vašu odpoveď a ešte nie sú v kalendári. Označené sa pridajú bez odpovede.
+	None: every invitation in the Inbox is in your calendar or answered.	Žiadne: každá pozvánka v Doručenej pošte je v kalendári alebo zodpovedaná.
+	Put in calendar	Pridať do kalendára
+	Still reading {n} messages…	Ešte sa číta správ: {n}…

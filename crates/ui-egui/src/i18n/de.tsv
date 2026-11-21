@@ -1984,3 +1984,9 @@ count	occurrences	Terminen
 	{name} proposes a new time: {when}	{name} schlägt eine neue Zeit vor: {when}
 	Forward meeting	Besprechung weiterleiten
 	Forward meeting…	Besprechung weiterleiten…
+	Invitations in the Inbox	Einladungen im Posteingang
+	Invitations in the Inbox…	Einladungen im Posteingang…
+	Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered.	Besprechungen, die auf Ihre Antwort warten und noch nicht in Ihrem Kalender sind. Die angehakten werden unbeantwortet eingetragen.
+	None: every invitation in the Inbox is in your calendar or answered.	Keine: Jede Einladung im Posteingang ist in Ihrem Kalender oder beantwortet.
+	Put in calendar	In den Kalender
+	Still reading {n} messages…	{n} Nachrichten werden noch gelesen…

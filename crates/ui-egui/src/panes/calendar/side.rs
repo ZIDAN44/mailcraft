@@ -310,6 +310,11 @@ fn more(s: &Session, ui: &mut Ui, several: bool, acts: &mut Vec<Action>) {
         if ui.link(RichText::new(tl!("Subscribe to a calendar…")).small()).clicked() {
             acts.push(Action::Dialog(Dialog::SubscribeCalendar { url: String::new(), name: String::new(), error: None }));
         }
+        // Meetings in the Inbox from before the account came here (issue #237).
+        ui.add_space(4.0);
+        if ui.link(RichText::new(tl!("Invitations in the Inbox…")).small()).clicked() {
+            acts.push(Action::Dialog(Dialog::WaitingInvites(Box::default())));
+        }
     }
 }
 

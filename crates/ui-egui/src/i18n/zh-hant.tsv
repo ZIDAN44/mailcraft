@@ -1983,3 +1983,9 @@ count	occurrences	次
 	{name} proposes a new time: {when}	{name} 提議了新時間：{when}
 	Forward meeting	轉寄會議
 	Forward meeting…	轉寄會議…
+	Invitations in the Inbox	收件匣中的邀請
+	Invitations in the Inbox…	收件匣中的邀請…
+	Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered.	等待你回覆、行事曆中還沒有的會議。勾選的會以未回覆狀態加入。
+	None: every invitation in the Inbox is in your calendar or answered.	沒有：收件匣中的每個邀請都已在行事曆中或已回覆。
+	Put in calendar	放入行事曆
+	Still reading {n} messages…	仍在讀取 {n} 封郵件…

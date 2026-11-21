@@ -223,6 +223,27 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.forward_meeting(&uid, p::req_str(v, "to")?)
         })
         .params(r#"{"to": string (addresses, as a recipient box has them), "uid"?: string (a meeting in the calendar; else the open invitation's)}"#),
+        // Invitations already in the Inbox when the account came (issue #237).
+        CommandSpec::new("invite.findWaiting", "Invitations in the Inbox", "Calendar › Home", |s, v| {
+            let account = account_param(s, v)?;
+            let (found, reading) = s.waiting_invitations(&account, &mut Default::default());
+            let found: Vec<Value> = found
+                .iter()
+                .map(|w| json!({"key": w.key.to_id(), "uid": w.uid, "summary": w.summary, "start": w.start, "end": w.end, "organizer": w.organizer}))
+                .collect();
+            Ok(json!({"found": found, "reading": reading}))
+        })
+        .params(r#"{"account"?: string} (the meetings waiting for an answer in its Inbox and not in the calendar; "reading": messages still to be read for them)"#)
+        .when(has_account),
+        CommandSpec::new("invite.placeWaiting", "Put in the calendar", "Calendar › Home › Invitations in the Inbox", |s, v| {
+            let keys: Vec<mailcraft_model::MessageKey> =
+                v.get("keys").and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).filter_map(mailcraft_model::MessageKey::from_id).collect()).unwrap_or_default();
+            if keys.is_empty() {
+                return Err(CmdError::Params("`keys`: the invitations' messages".into()));
+            }
+            Ok(json!({"placed": s.place_waiting_invitations(&keys)}))
+        })
+        .params(r#"{"keys": [string] (the messages' keys, as invite.findWaiting gives them): their meetings into the calendar, unanswered}"#),
         CommandSpec::new("invite.acceptProposal", "Accept proposal", "Reading pane › Invitation", |s, _| s.accept_proposal())
             .params("(a guest's proposal of a new time, in the open message: the meeting moves, and every guest is told)")
             .when(has_reading),

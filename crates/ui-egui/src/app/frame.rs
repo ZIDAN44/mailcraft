@@ -618,6 +618,10 @@ impl MailApp {
         if !shown.is_empty() {
             self.session.want_photos(&shown);
         }
+        // Invitations in the Inbox: looked for in the session (issue #237).
+        if let Some(Dialog::WaitingInvites(f)) = self.ui.dialog.as_mut() {
+            f.refresh(&mut self.session, ctx.input(|i| i.time));
+        }
         // The address book reads the session's people.
         if let Some(Dialog::SelectNames(f)) = self.ui.dialog.as_mut()
             && (f.stale || f.directory_rev != self.session.directory.rev)

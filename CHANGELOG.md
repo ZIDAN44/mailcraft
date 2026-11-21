@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 
+- Invitations in the Inbox… in the calendar (#237) finds the meetings waiting for your answer there that your calendar hasn't got (mail from before the account was added here, which nothing took in): still to come, not called off since, not answered already, each in its newest version. Those you tick go into the calendar unanswered, on its server too, with no answer sent.
 - Forward on a meeting you're invited to (#234), on its invitation and in its form: the organizer's invitation goes to the people you name, with them among its guests, so their program shows it as a meeting to answer; your own answer stays. Their answer reaches the organizer, whose copy offers to add them. A meeting whose organizer doesn't allow forwarding isn't forwarded.
 - Propose new time, on a meeting invitation (#238), as Outlook's: the time you'd rather have goes to the organizer, with Tentative or Decline beside it if you like. As organizer, a proposal shows who proposes what, with Accept proposal (the meeting moves, and every guest is sent it) and Decline proposal (the guest is told). An organizer who takes no proposals isn't offered one.
 - People's photos show where their initials were (#223): a contact's own photo, as the card in your address book has it, and on on-premises Exchange the photo your organisation has for them, in the message list, above the message, on the contact card and in People. A photo kept at a web address isn't fetched.

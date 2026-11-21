@@ -217,6 +217,8 @@ pub enum Dialog {
     FollowUp(Box<crate::pim_dialogs::FollowUpForm>),
     /// Propose new time, for a meeting the user is invited to (issue #238).
     Propose(Box<crate::pim_dialogs::ProposeForm>),
+    /// Invitations in the Inbox the calendar hasn't got (issue #237).
+    WaitingInvites(Box<crate::pim_dialogs::WaitingForm>),
     /// Forward a meeting the user is invited to (issue #234): to whom.
     ForwardMeeting {
         uid: String,
@@ -748,6 +750,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::FollowUp(..)
         | Dialog::Propose(..)
         | Dialog::ForwardMeeting { .. }
+        | Dialog::WaitingInvites(..)
         | Dialog::Contact(..) => other::draw(ui, d, s, pics, t, acts),
     }
 }

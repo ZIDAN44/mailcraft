@@ -1997,3 +1997,9 @@ count	occurrences	повторений
 	{name} proposes a new time: {when}	{name} предлагает новое время: {when}
 	Forward meeting	Переслать встречу
 	Forward meeting…	Переслать встречу…
+	Invitations in the Inbox	Приглашения во «Входящих»
+	Invitations in the Inbox…	Приглашения во «Входящих»…
+	Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered.	Встречи, ждущие вашего ответа, которых ещё нет в календаре. Отмеченные добавляются без ответа.
+	None: every invitation in the Inbox is in your calendar or answered.	Нет: каждое приглашение во «Входящих» есть в календаре или на него ответили.
+	Put in calendar	Добавить в календарь
+	Still reading {n} messages…	Ещё читается сообщений: {n}…

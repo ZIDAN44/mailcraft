@@ -249,7 +249,7 @@ impl Session {
     /// calendar's view, and so of the user's time, either way). Nothing is
     /// sent: the organizer hears only the user's own answer. One the server put in the calendar
     /// already (CalDAV scheduling) isn't added twice. Whether anything changed.
-    fn take_calendar(&mut self, account: &str, ics: &str, sender: &str) -> bool {
+    pub(super) fn take_calendar(&mut self, account: &str, ics: &str, sender: &str) -> bool {
         let cal = ical::parse_in(ics, self.clock.local_zone());
         let Some(uid) = cal.events.first().map(|e| e.uid.clone()).filter(|u| !u.trim().is_empty()) else { return false };
         let mine = self.my_addresses();
