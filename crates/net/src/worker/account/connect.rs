@@ -275,7 +275,9 @@ impl Worker {
             } else {
                 url.clone()
             };
-            let c = crate::ews::Client::connect_as(&url, &user, &secret, &self.acc.email, self.acc.user_agent.as_deref())?;
+            // Its other addresses and its sign-in name: a meeting may name the user by any (#144).
+            let also = self.acc.addresses().skip(1).chain([self.acc.username.as_str()]);
+            let c = crate::ews::Client::connect_as(&url, &user, &secret, &self.acc.email, self.acc.user_agent.as_deref())?.with_addresses(also);
             c.set_shared(&self.acc.shared_mailboxes);
             self.conn = Some(Conn::Ews(Box::new(c)));
             self.signed_in();

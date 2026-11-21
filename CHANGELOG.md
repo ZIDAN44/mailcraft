@@ -24,6 +24,7 @@ on GitHub.
 
 ### Fixed
 
+- On Exchange, a repeating meeting you accepted shows as accepted when it was sent to another of your addresses (#144): Exchange's answer was put only on your account's own address, so a meeting sent to an address you added to the account, or to the name you sign in with, kept waiting for your answer and was drawn as one.
 - On Exchange, a single occurrence of a repeating meeting moved or cancelled shows as it is (#204): MailCraft kept the series' usual time on that day, and a cancelled occurrence stayed. A moved one is read with its own time, subject and guests, in place of the occurrence it stands for.
 - On Exchange, a repeating meeting with every occurrence deleted no longer brings a red notice at each start (#229): Exchange won't give such a series, and MailCraft counted it as an appointment it couldn't read. It has nothing to show, and is left out quietly.
 - On Exchange, a task deleted in MailCraft is deleted on the server too (#230): Exchange refused the deletion ("AffectedTaskOccurrences attribute is required for Task items"), the task stayed there, and the refusal came back as a red notice at each start.

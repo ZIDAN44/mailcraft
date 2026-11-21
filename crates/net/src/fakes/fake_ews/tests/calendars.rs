@@ -201,3 +201,34 @@ fn a_series_with_no_occurrences_left_is_no_error() {
     assert!(sync.errors.is_empty(), "{:?}", sync.errors);
     assert_eq!(sync.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Review"]);
 }
+
+/// Issue #144: a series the user accepted, sent to another of the account's addresses than its
+/// own, comes accepted: it came still waiting for their answer (and drawn as one), Exchange's
+/// answer being put only on the guest with the account's own address.
+#[test]
+fn an_answer_to_a_meeting_sent_to_another_address_is_the_users() {
+    let (mut d, cal, _) = mailbox();
+    let series = parse(
+        "<t:CalendarItem><t:Subject>Sprint planning</t:Subject><t:UID>sprint-1</t:UID>\
+         <t:Start>2026-10-05T13:00:00Z</t:Start><t:End>2026-10-05T14:00:00Z</t:End>\
+         <t:CalendarItemType>RecurringMaster</t:CalendarItemType><t:MyResponseType>Accept</t:MyResponseType>\
+         <t:Recurrence><t:WeeklyRecurrence><t:Interval>1</t:Interval><t:DaysOfWeek>Monday</t:DaysOfWeek></t:WeeklyRecurrence>\
+         <t:NoEndRecurrence><t:StartDate>2026-10-05Z</t:StartDate></t:NoEndRecurrence></t:Recurrence>\
+         <t:RequiredAttendees>\
+         <t:Attendee><t:Mailbox><t:EmailAddress>Riley.Lee@contoso.example</t:EmailAddress></t:Mailbox><t:ResponseType>Unknown</t:ResponseType></t:Attendee>\
+         <t:Attendee><t:Mailbox><t:EmailAddress>ana@contoso.example</t:EmailAddress></t:Mailbox><t:ResponseType>Unknown</t:ResponseType></t:Attendee>\
+         </t:RequiredAttendees></t:CalendarItem>",
+    );
+    d.pim.push(PimItem::new("S2", cal, series.kids[0].clone()));
+    let server = serve(d);
+    let store = store("answer-elsewhere");
+    let mut pool = crate::worker::Pool::new(store, Arc::new(crate::worker::MemoryCredentials::default()));
+    let mut account = account("a1", &server.url);
+    account.identities.push(mailcraft_model::Identity { email: "riley.lee@contoso.example".into(), ..Default::default() });
+    pool.submit(Job::Start { account, password: Some(Secret(PASSWORD.into())) });
+    let seen = until(&pool, "the calendar", |e| matches!(e, Event::DavSynced { .. }));
+    let Some(Event::DavSynced { sync, .. }) = seen.into_iter().next_back() else { panic!("no calendar") };
+    let sprint = sync.events.iter().find(|e| e.event.uid == "sprint-1").expect("the series");
+    let answers: Vec<(&str, &str)> = sprint.event.attendees.iter().map(|a| (a.email.as_str(), a.partstat.as_str())).collect();
+    assert_eq!(answers, [("Riley.Lee@contoso.example", "ACCEPTED"), ("ana@contoso.example", "NEEDS-ACTION")]);
+}

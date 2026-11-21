@@ -120,21 +120,20 @@ fn person(m: &El) -> Option<Attendee> {
     email.contains('@').then(|| Attendee { email, name: text(mb, "Name"), partstat: String::new(), rsvp: false })
 }
 
-/// The answer the mailbox's owner (`me`) gave a meeting, from the appointment's own
-/// `MyResponseType`, put on their place among its guests, as Outlook shows it. That place keeps
-/// the answer the invitation came with ("Unknown", or tentative) and isn't changed when the owner
-/// answers: some accepted series showed as tentative or not answered (#144).
-fn own_answer(event: &mut CalEvent, it: &El, me: &str) {
+/// The answer the mailbox's owner (`me`: their addresses) gave a meeting, from the appointment's
+/// own `MyResponseType`, put on their place among its guests, as Outlook shows it. That place
+/// keeps the answer the invitation came with ("Unknown", or tentative) and isn't changed when the
+/// owner answers: some accepted series showed as tentative or not answered (#144). The place is
+/// under whichever of their addresses the meeting was sent to, not only the account's own: under
+/// another, an accepted series still waited for an answer.
+fn own_answer(event: &mut CalEvent, it: &El, me: &[&str]) {
     let partstat = match it.text_of("MyResponseType") {
         Some("Accept") => "ACCEPTED",
         Some("Tentative") => "TENTATIVE",
         Some("Decline") => "DECLINED",
         _ => return,
     };
-    if me.is_empty() {
-        return;
-    }
-    if let Some(a) = event.attendees.iter_mut().find(|a| a.email.eq_ignore_ascii_case(me)) {
+    for a in event.attendees.iter_mut().filter(|a| me.iter().any(|m| !m.is_empty() && a.email.eq_ignore_ascii_case(m))) {
         a.partstat = partstat.to_string();
     }
 }
@@ -515,9 +514,9 @@ fn id_and_key(id: Option<&El>) -> (String, String) {
     (attr("Id"), attr("ChangeKey"))
 }
 
-/// The events among a calendar's items, as kept in `calendar`; `me`, the address of the mailbox
-/// it's in (empty for a public folder's), whose answers to meetings the items say.
-fn stored_events<'a>(items: Vec<El>, calendar: &'a str, me: &'a str) -> impl Iterator<Item = StoredEvent> + 'a {
+/// The events among a calendar's items, as kept in `calendar`; `me`, the addresses of the mailbox
+/// it's in (none for a public folder's), whose answers to meetings the items say.
+fn stored_events<'a>(items: Vec<El>, calendar: &'a str, me: &'a [&'a str]) -> impl Iterator<Item = StoredEvent> + 'a {
     items.into_iter().filter_map(move |it| {
         let mut event = event_of(&it)?;
         own_answer(&mut event, &it, me);

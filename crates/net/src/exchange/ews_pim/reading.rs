@@ -9,7 +9,7 @@ pub(super) fn read_calendar(c: &Client, out: &mut DavSync) -> Result<CalendarInf
     match items(c, "calendar") {
         Ok(read) => {
             read.say(out, "Calendar");
-            out.events.extend(stored_events(read.items, CALENDAR, c.email()));
+            out.events.extend(stored_events(read.items, CALENDAR, &c.own_addresses()));
             out.synced_calendars.push(CALENDAR.into());
         }
         // A mailbox without the folder has no calendar. One the server won't give is said, not
@@ -59,7 +59,7 @@ pub(super) fn read_shared_calendar(c: &Client, (email, name, asked): SharedCalen
             if !can_edit && let Err(e) = &folder_rights {
                 log::info!("{email}'s calendar rights: {e}");
             }
-            out.events.extend(stored_events(read.items, &id, &email));
+            out.events.extend(stored_events(read.items, &id, &[email.as_str()]));
             out.synced_calendars.push(id.clone());
         }
         // One asked for by hand says why it's missing; a shared mailbox whose calendar
@@ -154,7 +154,7 @@ pub(super) fn read_public(c: &Client, out: &mut DavSync, calendars: &mut Vec<Cal
             books.push(BookInfo { id: key.clone(), name, read_only: true, ctag: String::new() });
             out.synced_books.push(key);
         } else {
-            out.events.extend(stored_events(found, &key, "").map(|e| StoredEvent { etag: String::new(), ..e }));
+            out.events.extend(stored_events(found, &key, &[]).map(|e| StoredEvent { etag: String::new(), ..e }));
             calendars.push(CalendarInfo {
                 id: key.clone(),
                 name,

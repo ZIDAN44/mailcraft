@@ -131,6 +131,9 @@ pub struct Client {
     signed_in: RefCell<bool>,
     /// The account's own address (automatic replies are asked for by it).
     email: String,
+    /// Its other addresses, and the name it signs in by when that's one: a meeting may name its
+    /// owner by any of them (issue #144).
+    also: Vec<String>,
     /// The public folder mailbox requests are routed to (`X-AnchorMailbox` and
     /// `X-PublicFolderMailbox`), while reading a public folder's content.
     route: RefCell<Option<String>>,
@@ -180,6 +183,9 @@ pub struct SharedMailbox {
 
 /// Most shared mailboxes an account opens.
 const MAX_SHARED: usize = 20;
+/// Most other addresses of the account's a session knows (as many as an account has, and the
+/// name it signs in by).
+const MAX_ADDRESSES: usize = mailcraft_model::addr::identity::MAX_IDENTITIES + 1;
 
 /// A mailbox's special folders: their distinguished ids and roles. Its Archive folder is asked
 /// for apart, as one of [`NEWER`].
@@ -402,6 +408,7 @@ impl Client {
             scheme: RefCell::new(Scheme::Unknown),
             signed_in: RefCell::new(false),
             email: email.to_string(),
+            also: Vec::new(),
             route: RefCell::new(None),
             pf_mailboxes: RefCell::new(HashMap::new()),
             pf_hierarchy: RefCell::new(None),
@@ -423,6 +430,18 @@ impl Client {
     /// The account's own address.
     pub(crate) fn email(&self) -> &str {
         &self.email
+    }
+
+    /// Every address of the account's: its own, then those [`Client::with_addresses`] gave.
+    pub(crate) fn own_addresses(&self) -> Vec<&str> {
+        std::iter::once(self.email.as_str()).chain(self.also.iter().map(String::as_str)).collect()
+    }
+
+    /// The same session knowing the account's other `addresses` (what isn't one is left out).
+    #[must_use]
+    pub fn with_addresses<'a>(mut self, addresses: impl IntoIterator<Item = &'a str>) -> Client {
+        self.also = addresses.into_iter().map(str::trim).filter(|a| a.contains('@')).take(MAX_ADDRESSES).map(str::to_string).collect();
+        self
     }
 
     /// The same session naming itself `agent` to the server (`None`, or nothing usable: as

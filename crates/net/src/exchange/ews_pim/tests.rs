@@ -103,7 +103,7 @@ fn a_meetings_answer_is_the_owners_own() {
              <t:Attendee><t:Mailbox><t:Name>Ana</t:Name><t:EmailAddress>ana@contoso.example</t:EmailAddress></t:Mailbox><t:ResponseType>Decline</t:ResponseType></t:Attendee>\
              </t:RequiredAttendees></t:CalendarItem>"
         );
-        let e = stored_events(vec![parse(&xml).find("CalendarItem").unwrap().clone()], "cal", "riley@contoso.example").next().unwrap().event;
+        let e = stored_events(vec![parse(&xml).find("CalendarItem").unwrap().clone()], "cal", &["riley@contoso.example"]).next().unwrap().event;
         e.attendees.iter().map(|a| a.partstat.clone()).collect::<Vec<_>>()
     };
     assert_eq!(item("Accept"), ["ACCEPTED", "DECLINED"]);
