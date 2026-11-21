@@ -429,7 +429,10 @@ fn appointments_say_how_long_and_how_soon() {
     let review = find("Colour review").expect("listed");
     let (long, badge) = (find("1 h 30 min").expect("its length"), find("In 20 min").expect("how soon"));
     assert!((long.center().y - review.center().y).abs() < 30.0 && long.min.y > review.min.y, "under its time: {long:?} {review:?}");
-    assert!((badge.center().y - review.center().y).abs() < 12.0 && badge.min.x > review.max.x, "at its row's end: {badge:?}");
+    // Above its time, at the row's start, the title's room its own (its comment on #195: at the
+    // row's end it hid the end of the title).
+    assert!(badge.max.y <= review.min.y + 1.0 && review.min.y - badge.max.y < 12.0, "above it: {badge:?} {review:?}");
+    assert!(badge.min.x < review.min.x, "at the row's start: {badge:?} {review:?}");
     // The length, wider than its time, doesn't run into the place beside it.
     let place = find("Grading suite").expect("its place");
     assert!(long.max.x <= place.min.x, "{long:?} runs into {place:?}");

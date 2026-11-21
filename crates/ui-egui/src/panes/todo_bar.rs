@@ -185,7 +185,10 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
             // Counted down a minute at a time.
             ui.ctx().request_repaint_after(std::time::Duration::from_secs(u64::try_from(60 - s.clock.now.rem_euclid(60)).unwrap_or(60)));
         }
-        let h = if it.location.trim().is_empty() && length.is_none() { ROW } else { ROW + 14.0 };
+        // The countdown on a line of its own above the time, as Outlook for Mac's (its comment on
+        // issue #195): at the row's end it took the title's room, and hid the end of it.
+        let above = if soon.is_some() { 15.0 } else { 0.0 };
+        let h = above + if it.location.trim().is_empty() && length.is_none() { ROW } else { ROW + 14.0 };
         let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), Sense::click());
         if resp.hovered() {
             ui.painter().rect_filled(rect, 4.0, t.hover_row);
@@ -200,18 +203,15 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
         // The time's column as wide as the wider of its time and its length (`15 min` ran into
         // the place beside it).
         let time_w = time.size().x.max(laid.as_ref().map_or(0.0, |l| l.size().x));
-        let top = rect.min.y + 5.0;
+        let top = rect.min.y + 5.0 + above;
         p.galley(pos2(mr.start(rect.min.x + 10.0, time.size().x), top + 1.0), time, t.dim);
         if let Some(l) = laid {
             p.galley(pos2(mr.start(rect.min.x + 10.0, l.size().x), top + 18.0), l, t.faint);
         }
-        let mut room = (rect.width() - 22.0 - time_w).max(10.0);
-        // The countdown at the row's end, in the accent.
+        let room = (rect.width() - 22.0 - time_w).max(10.0);
         if let Some(soon) = &soon {
-            let badge = widgets::one_line(ui, soon, theme::bold(11.0), t.accent, 90.0);
-            let w = badge.size().x;
-            p.galley(pos2(mr.start(rect.max.x - 6.0 - w, w), top + 2.0), badge, t.accent);
-            room = (room - w - 8.0).max(10.0);
+            let badge = widgets::one_line(ui, soon, theme::bold(11.0), t.accent, rect.width() - 16.0);
+            p.galley(pos2(mr.start(rect.min.x + 10.0, badge.size().x), rect.min.y + 4.0), badge, t.accent);
         }
         let title = if it.summary.trim().is_empty() { tl!("(no title)").to_string() } else { it.summary.clone() };
         let title = widgets::one_line(ui, &title, theme::regular(13.0), t.text, room);
