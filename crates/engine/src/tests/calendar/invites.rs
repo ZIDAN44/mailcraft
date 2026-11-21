@@ -9,6 +9,7 @@ use crate::InviteProblem;
 
 mod answered_invites;
 mod fit;
+mod forwarding;
 mod invite_placing;
 mod proposals;
 mod recorded;

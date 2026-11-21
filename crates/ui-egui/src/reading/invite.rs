@@ -86,6 +86,14 @@ pub(super) fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Mess
                             acts.push(Action::Run("invite.respond", json!({"answer": code})));
                         }
                     }
+                    // Passed on to someone else, where the organizer allows it (issue #234).
+                    if mailcraft_engine::forwarding_allowed(e) && widgets::pill_button(ui, Icon::Forward, "Forward", &t).clicked() {
+                        acts.push(Action::Dialog(crate::Dialog::ForwardMeeting {
+                            uid: e.uid.clone(),
+                            summary: e.summary.clone(),
+                            to: String::new(),
+                        }));
+                    }
                     // A new time, where the organizer takes proposals (issue #238).
                     if mailcraft_engine::proposals_allowed(e) && widgets::pill_button(ui, Icon::Clock, "Propose new time", &t).clicked() {
                         acts.push(Action::Dialog(crate::Dialog::Propose(Box::new(crate::pim_dialogs::ProposeForm::new(s, e)))));

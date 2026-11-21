@@ -16,6 +16,7 @@ mod answers;
 mod arrival;
 mod counter;
 mod fit;
+mod forward;
 mod notices;
 mod tidy;
 
@@ -24,6 +25,7 @@ pub(crate) use arrival::HOLD_SECS;
 pub(crate) use arrival::drop_empty_local;
 pub use counter::proposals_allowed;
 pub use fit::{Fit, InviteDay};
+pub use forward::forwarding_allowed;
 pub use notices::Route;
 pub use tidy::AnsweredInvites;
 pub(crate) use tidy::WaitingTidy;

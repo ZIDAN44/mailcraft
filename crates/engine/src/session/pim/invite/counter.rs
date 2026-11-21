@@ -19,7 +19,7 @@ impl Session {
     /// (Outlook proposes with Tentative or Decline).
     pub fn propose_time(&mut self, uid: &str, proposal: &CalEvent, answer: Option<&str>) -> CmdResult {
         let stat = answer.map(|a| partstat(a).ok_or_else(|| CmdError::Params(format!("`{a}`: answer tentative or declined")))).transpose()?;
-        let (account, meeting, open) = self.meeting_to_propose_for(uid).ok_or_else(|| CmdError::Params(format!("no meeting `{uid}`")))?;
+        let (account, meeting, open) = self.newest_meeting(uid).ok_or_else(|| CmdError::Params(format!("no meeting `{uid}`")))?;
         let mine = self.my_addresses();
         let Some(organizer) = meeting.organizer.clone().filter(|o| addr::is_valid_email(&o.email) && !is_mine(&o.email, &mine)) else {
             return Err(CmdError::Disabled("only a meeting someone else organizes takes a proposal".into()));
@@ -63,11 +63,11 @@ impl Session {
         Ok(serde_json::json!({"proposed": proposal.start, "uid": uid}))
     }
 
-    /// The meeting `uid` as a proposal is made for: its newest version, the calendar's copy or
+    /// The meeting `uid` as a proposal or a forward is made of: its newest version, the calendar's copy or
     /// the invitation in the open message when that's newer (an update not answered yet: a
     /// proposal for the version before was out of date to the organizer). The account, the
     /// meeting, and whether it's the open invitation's.
-    pub fn meeting_to_propose_for(&self, uid: &str) -> Option<(String, CalEvent, bool)> {
+    pub fn newest_meeting(&self, uid: &str) -> Option<(String, CalEvent, bool)> {
         let stored = self.stored_parts(uid).and_then(|(a, parts)| {
             let master = parts.iter().find(|e| e.event.recurrence_id.is_none()).or_else(|| parts.first())?;
             Some((a.to_string(), master.event.clone()))

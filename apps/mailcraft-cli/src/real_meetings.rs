@@ -371,3 +371,58 @@ fn newest(c: &mut Session, pool: &mut Pool, subject: &str, count: usize) {
     }
     c.run("list.open", &json!({"key": key.to_id()})).unwrap();
 }
+
+/// Issue #234: Zoe forwards Riley's meeting to Sam; Sam's program gets it as Riley's invitation,
+/// and Sam's acceptance reaches Riley, whose copy adds Sam when asked, on the calendar server too.
+#[test]
+#[ignore = "needs real mail and calendar servers in MAILCRAFT_REAL_MEETING"]
+fn real_meeting_forwarded_to_someone_else() {
+    let Some(sv) = servers() else {
+        eprintln!("MAILCRAFT_REAL_MEETING isn't set: skipped");
+        return;
+    };
+    const SAM: &str = "sam@studio.test";
+    let (mut s, mut pool, store) = open("riley-forward", RILEY, &sv);
+    let calendar = s.pim.values().flat_map(|p| p.calendars.iter()).find(|c| c.id.starts_with("http")).map(|c| c.id.clone()).unwrap();
+    let tag = std::process::id();
+    let start = (chrono::Utc::now().timestamp() / 3600 + 50) * 3600;
+    let summary = format!("Screening {tag}");
+    let p = json!({"summary": summary, "start": start, "end": start + 3600, "attendees": format!("Zoe Park <{ZOE}>"), "calendar": calendar});
+    let uid = s.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string();
+    send(&mut s, &mut pool);
+
+    // Zoe forwards it to Sam.
+    let (mut z, mut zpool, zstore) = open("zoe-forward", ZOE, &sv);
+    newest(&mut z, &mut zpool, &format!("Invitation: {summary}"), 1);
+    z.run("invite.forward", &json!({"to": format!("Sam Okafor <{SAM}>")})).unwrap();
+    sent(&mut z, &mut zpool, 1);
+    assert_imip(&source_of(&sv, SAM, &format!("Fwd: {summary}")), "REQUEST");
+
+    // Sam's program: Riley's meeting, Sam among its guests; Sam accepts.
+    let (mut m, mut mpool, mstore) = open("sam-forward", SAM, &sv);
+    newest(&mut m, &mut mpool, &format!("Fwd: {summary}"), 1);
+    let inv = m.invite().expect("an invitation");
+    assert_eq!((inv.method.as_str(), inv.event.uid.as_str(), inv.problem), ("REQUEST", uid.as_str(), None));
+    assert_eq!(inv.event.organizer.as_ref().map(|o| o.email.as_str()), Some(RILEY), "Riley's meeting");
+    m.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    sent(&mut m, &mut mpool, 1);
+
+    // Riley's copy: Sam isn't on the list, so it waits; recorded when asked, on the server too.
+    let riley = s.accounts.first().map(|a| a.config.id.clone()).unwrap();
+    pool.submit(Job::SyncAll { account: riley });
+    newest(&mut s, &mut pool, &format!("Accepted: {summary}"), 1);
+    let answer = s.invite().expect("Sam's answer");
+    assert!(answer.replier.as_ref().is_some_and(|r| r.email == SAM) && !answer.recorded, "{answer:?}");
+    s.run("invite.apply", &json!({})).unwrap();
+    // Recorded: nothing mailed, the calendar server told.
+    drive(&mut s, &mut pool, Duration::from_secs(60), |e| {
+        matches!(e, Event::DavSynced { sync, .. } if !sync.pushed_events.is_empty()).then_some(Ok(()))
+    })
+    .unwrap();
+    let back = from_server(&sv, &uid);
+    assert!(back.attendees.iter().any(|a| a.email == SAM && a.partstat == "ACCEPTED"), "{:?}", back.attendees);
+    drop((z, zpool, m, mpool));
+    for st in [store, zstore, mstore] {
+        let _ = std::fs::remove_dir_all(st.root());
+    }
+}

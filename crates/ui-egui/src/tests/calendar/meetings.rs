@@ -396,3 +396,44 @@ fn a_new_time_is_proposed_and_taken() {
         sent.messages.iter().map(|m| &m.subject).collect::<Vec<_>>()
     );
 }
+
+/// Issue #234: Forward on an invitation asks to whom and sends the organizer's invitation there;
+/// the event form of the meeting, answered, offers Forward meeting… too.
+#[test]
+fn a_meeting_is_forwarded_from_its_card_and_its_form() {
+    let (mut a, _) = app("forward-meeting");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let k = a.session.list.iter().find(|m| m.subject == "Sound mix, version 3").map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Forward");
+    let Some(Dialog::ForwardMeeting { to, uid, .. }) = a.ui.dialog.as_mut() else { panic!("asked to whom: {:?}", a.ui.dialog) };
+    *to = "Sam Okafor <sam@studio.example>".into();
+    let uid = uid.clone();
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Forward");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none(), "sent: {:?}", a.ui.dialog);
+    let sent = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
+    assert!(sent.messages.iter().any(|m| m.subject == "Fwd: Sound mix playback" && m.to.iter().any(|t| t.email == "sam@studio.example")));
+    // The form of the meeting: Forward meeting… there too.
+    let e = a.session.find_event(&uid).unwrap().1.event.clone();
+    let f = crate::pim_dialogs::EventForm::open(&a.session, &uid, e.start).expect("its form");
+    assert!(f.can_forward);
+    a.ui.dialog = Some(Dialog::Event(Box::new(f)));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Forward meeting…");
+    assert!(matches!(&a.ui.dialog, Some(Dialog::ForwardMeeting { uid: u, .. }) if *u == uid));
+    // One's own meeting: not offered.
+    let own = a.session.run("event.create", &json!({"summary": "Mine", "start": NOW + 86_400, "attendees": "sam@studio.example"})).unwrap();
+    let own = own["uid"].as_str().unwrap().to_string();
+    let f = crate::pim_dialogs::EventForm::open(&a.session, &own, NOW + 86_400).unwrap();
+    assert!(!f.can_forward);
+}

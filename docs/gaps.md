@@ -204,8 +204,8 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 ### 17. Meetings: what isn't done yet
 
 - **Impact:** A new time for one occurrence of a series can't be proposed from its invitation,
-  nor taken when a guest proposes one. A meeting can't be forwarded to someone else, or your
-  place handed to someone (delegated).
+  nor taken when a guest proposes one. Your place in a meeting can't be handed to someone else
+  (delegated), as SOGo offers.
 - **Workaround:** Change the occurrence in the calendar: its guests are sent it.
 - **Cause:** Taking a proposal moves the meeting as a whole; an occurrence's proposal needs that
   occurrence changed on its own.

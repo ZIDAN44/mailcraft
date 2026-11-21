@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 
+- Forward on a meeting you're invited to (#234), on its invitation and in its form: the organizer's invitation goes to the people you name, with them among its guests, so their program shows it as a meeting to answer; your own answer stays. Their answer reaches the organizer, whose copy offers to add them. A meeting whose organizer doesn't allow forwarding isn't forwarded.
 - Propose new time, on a meeting invitation (#238), as Outlook's: the time you'd rather have goes to the organizer, with Tentative or Decline beside it if you like. As organizer, a proposal shows who proposes what, with Accept proposal (the meeting moves, and every guest is sent it) and Decline proposal (the guest is told). An organizer who takes no proposals isn't offered one.
 - People's photos show where their initials were (#223): a contact's own photo, as the card in your address book has it, and on on-premises Exchange the photo your organisation has for them, in the message list, above the message, on the contact card and in People. A photo kept at a web address isn't fetched.
 - Rules can be for mail you send (#202), as Outlook's can: Applies to › Mail you send in the rule editor. As each message's copy reaches Sent, the rule files it in a folder, archives, categorizes, flags or deletes it; Run now runs it on what's in Sent already. Mail you move into Sent yourself is left alone.

@@ -122,6 +122,8 @@ pub struct EventForm {
     pub can_invite: bool,
     /// The user was invited and hasn't answered.
     pub needs_reply: bool,
+    /// Someone else's meeting, which they let be forwarded (issue #234).
+    pub can_forward: bool,
     pub read_only: bool,
     /// Its categories, and every category there is (name, colour) to pick from.
     pub categories: Vec<String>,
@@ -197,6 +199,7 @@ impl EventForm {
             hours12: s.clock.style.hours12,
             dates: s.clock.style.order,
             can_invite: true,
+            can_forward: false,
             all_categories: all_categories(s, &[]),
             // As Outlook sets a new appointment's reminder.
             reminder: Some(DEFAULT_REMINDER),
@@ -276,6 +279,8 @@ impl EventForm {
             needs_reply: e.attendees.iter().any(|a| mine.contains(&a.email.to_ascii_lowercase()) && a.partstat == "NEEDS-ACTION"),
             guests: e.attendees.iter().map(written).collect::<Vec<_>>().join(", "),
             can_invite: e.organizer.as_ref().is_none_or(|o| mine.contains(&o.email.to_ascii_lowercase())),
+            can_forward: e.organizer.as_ref().is_some_and(|o| !mine.contains(&o.email.to_ascii_lowercase()))
+                && mailcraft_engine::forwarding_allowed(e),
             reading_notes: read_only || !links.is_empty(),
             links,
             join: s.join_link(e),
@@ -647,6 +652,15 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
                 }
             }
         });
+    }
+    // Someone else's meeting, passed on to another (issue #234).
+    if f.can_forward
+        && let Some(uid) = &f.uid
+    {
+        ui.add_space(4.0);
+        if ui.button(tl!("Forward meeting…")).clicked() {
+            acts.push(Action::Dialog(crate::Dialog::ForwardMeeting { uid: uid.clone(), summary: f.summary.clone(), to: String::new() }));
+        }
     }
     if let Some(e) = &f.error {
         ui.add_space(6.0);
