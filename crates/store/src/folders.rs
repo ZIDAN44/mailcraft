@@ -479,7 +479,9 @@ impl Store {
 
     /// Apply a change to the cached folders at once (optimistic update). Returns the folders that
     /// changed. Moves only remove from the source: the destination learns the new UID at its
-    /// next sync.
+    /// next sync (or, kept only here, has it filed already). A source taken out of its folder,
+    /// moved or deleted for good, goes with it: a moved one stayed in the data file for good,
+    /// in no folder (2,453 moved to Deleted Items and emptied kept their 2 GB).
     pub fn apply_op(&self, account: &str, op: &Op) -> Result<Vec<String>> {
         if op.is_folder_op() {
             return self.apply_folder_op(account, op);
@@ -568,7 +570,8 @@ impl Store {
                         continue;
                     }
                     // A set: every message of a folder may change at once (looked up in a list, that was quadratic).
-                    let uids: HashSet<u32> = keys.iter().filter(|k| in_folder(k)).map(|k| k.uid).collect();
+                    sources_gone = keys.iter().filter(|k| in_folder(k)).collect();
+                    let uids: HashSet<u32> = sources_gone.iter().map(|k| k.uid).collect();
                     st.messages.retain(|m| !uids.contains(&m.key.uid));
                 }
                 Op::Expunge { keys } => {
@@ -583,9 +586,8 @@ impl Store {
                 None => self.save_folder(account, folder, &st)?,
             }
             // Once the list no longer has them: one that can't be saved keeps their sources.
-            for k in sources_gone {
-                self.remove_body(k);
-            }
+            let gone: Vec<MessageKey> = sources_gone.into_iter().cloned().collect();
+            self.remove_bodies(account, &gone);
         }
         Ok(folders)
     }

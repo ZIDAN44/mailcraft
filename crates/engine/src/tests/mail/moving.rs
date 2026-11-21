@@ -1,7 +1,7 @@
 //! Engine tests: a long local move in a data file seals the file as it goes, so a crash part-way
 //! reopens it at once; a short one doesn't. A long copy is written in batches too.
 
-use mailcraft_model::{Flags, Summary};
+use mailcraft_model::{Flags, MessageKey, Summary};
 
 use super::*;
 
@@ -74,4 +74,52 @@ fn a_long_copy_is_written_in_batches() {
     drop(paused);
     drop(s);
     drop(store);
+}
+
+/// Mail moved in an account kept only here (the sample, a data file imported) leaves nothing of
+/// itself behind: its sources went with it, where a copy of each stayed in the data file under
+/// its old place for good (2,453 messages moved to Deleted Items and emptied kept their 2 GB).
+/// The same with the cache kept as files.
+#[test]
+fn mail_moved_here_leaves_no_copy_behind() {
+    for packed in [true, false] {
+        let root = scratch(if packed { "moved-sources-packed" } else { "moved-sources-files" });
+        let store = if packed { Store::open_packed(&root, root.join("files")).unwrap() } else { Store::open(&root).unwrap() };
+        let mut s = big_projects_with(&store, 3, Flags { seen: true, ..Default::default() }, true);
+        let old: Vec<_> = store.load_folder("sample", "Projects").unwrap().messages.iter().map(|m| m.key.clone()).collect();
+        assert_eq!(old.len(), 3);
+        assert!(old.iter().all(|k| store.read_body(k).is_some()), "each with its source");
+        s.run("list.selectAll", &json!({})).unwrap();
+        assert_eq!(s.run("mail.move", &json!({"folder": "INBOX"})).unwrap()["moved"], 3);
+        let inbox = store.load_folder("sample", "INBOX").unwrap();
+        assert_eq!(inbox.messages.iter().filter(|m| m.subject.starts_with("Report ")).filter(|m| store.read_body(&m.key).is_some()).count(), 3);
+        for k in &old {
+            assert!(store.read_body(k).is_none(), "packed {packed}: the source of {} stayed where it was", k.to_id());
+        }
+        drop(s);
+        drop(store);
+    }
+}
+
+/// A move undone brings each message back with its source: the copy it went back from, in
+/// Deleted Items, goes the same way (nothing of it left behind either).
+#[test]
+fn a_move_undone_brings_the_mail_back_with_its_source() {
+    let mut s = sample_session("moved-sources-undo");
+    let store = s.store.clone().expect("a store");
+    let moved = key_of(&s, "Storyboard review on Thursday");
+    let first = MessageKey::from_id(moved["key"].as_str().unwrap()).unwrap();
+    let source = store.read_body(&first).expect("its source");
+    s.run("list.select", &moved).unwrap();
+    s.run("mail.delete", &json!({})).unwrap();
+    assert!(store.read_body(&first).is_none(), "gone from where it was");
+    let trash: Vec<MessageKey> = store.load_folder("sample", "Deleted Items").unwrap().messages.iter().map(|m| m.key.clone()).collect();
+    s.run("edit.undo", &json!({})).unwrap();
+    let back = store.load_folder("sample", "INBOX").unwrap();
+    let again = back.messages.iter().find(|m| m.subject == "Storyboard review on Thursday").expect("back in the Inbox");
+    assert_eq!(store.read_body(&again.key), Some(source), "with its source");
+    let still: Vec<MessageKey> = store.load_folder("sample", "Deleted Items").unwrap().messages.iter().map(|m| m.key.clone()).collect();
+    for k in trash.iter().filter(|k| !still.contains(k)) {
+        assert!(store.read_body(k).is_none(), "the copy in Deleted Items of {} stayed", k.to_id());
+    }
 }

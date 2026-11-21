@@ -24,6 +24,7 @@ on GitHub.
 
 ### Fixed
 
+- Mail moved to another folder no longer leaves a copy of itself behind in the data file (#221): each move kept the moved messages' old copies for good, in no folder, so the file only grew (2,453 messages moved to Deleted Items and emptied kept their 2 GB). Any account, Exchange, IMAP or a data file kept here.
 - A message written in Calibri, or another font with built-in pictures of its letters for some sizes, shows every letter (#166): most of Calibri's letters were drawn in white, whatever the text's colour, and didn't show on the page.
 - On Exchange, a repeating meeting you accepted shows as accepted when it was sent to another of your addresses (#144): Exchange's answer was put only on your account's own address, so a meeting sent to an address you added to the account, or to the name you sign in with, kept waiting for your answer and was drawn as one.
 - On Exchange, a single occurrence of a repeating meeting moved or cancelled shows as it is (#204): MailCraft kept the series' usual time on that day, and a cancelled occurrence stayed. A moved one is read with its own time, subject and guests, in place of the occurrence it stands for.

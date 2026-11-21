@@ -80,6 +80,32 @@ fn a_move_into_a_folder_not_there_is_said_and_the_mail_stays() {
     pool.submit(Job::Remove { account: "a1".into() });
 }
 
+/// Mail moved on a server leaves nothing of itself where it was: its sources kept here went
+/// with it, where they stayed in the cache for good, in no folder (the destination gets the
+/// mail from the server under its new UID).
+#[test]
+fn mail_moved_on_the_server_leaves_no_source_behind() {
+    let st = State::new();
+    for i in 0..2 {
+        st.lock().unwrap().add("INBOX", &format!("m{i}"), &[]);
+    }
+    let port = serve_tcp(&st);
+    let store = store("replay-move-sources");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
+    let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+    pool.submit(Job::Start { account: imap_account(port, 1), password: Some(Secret("pw".into())) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    for k in keys(2) {
+        store.write_body(&k, b"Subject: m\r\n\r\nkept here").unwrap();
+    }
+    pool.submit(Job::Apply { account: "a1".into(), op: Op::Move { keys: keys(2), to: "Archive".into() } });
+    eventually("moved on the server", || st.lock().unwrap().mailbox("Archive").map(|b| b.msgs.len()) == Some(2));
+    for k in keys(2) {
+        assert!(store.read_body(&k).is_none(), "the source of {} stayed where it was", k.to_id());
+    }
+    pool.submit(Job::Remove { account: "a1".into() });
+}
+
 /// `n` changes made offline: keyword `$k0`, `$k1`… put on the Inbox's first message.
 fn keyworded(n: usize) -> Vec<Op> {
     (0..n).map(|i| Op::SetKeyword { keys: keys(1), keyword: format!("$k{i}"), on: true }).collect()

@@ -383,6 +383,18 @@ impl Store {
         let _ = self.files.remove_file(&self.body_path(key));
     }
 
+    /// The sources of `keys` (`account`'s) removed together: in a data file, one transaction not
+    /// waited for, where each was one of its own. One that isn't there is no matter.
+    pub fn remove_bodies(&self, account: &str, keys: &[MessageKey]) {
+        let paths: Vec<PathBuf> = keys.iter().filter(|k| k.account == account).map(|k| self.body_path(k)).collect();
+        if paths.is_empty() {
+            return;
+        }
+        if let Err(e) = self.files.replace(&self.account_dir(account), None, &paths, false) {
+            log::warn!("{account}: {} sources not removed: {e}", paths.len());
+        }
+    }
+
     pub fn load_ops(&self, account: &str) -> Result<Vec<Op>> {
         self.read_json(&self.account_dir(account).join("ops.json"))
     }
