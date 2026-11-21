@@ -209,3 +209,31 @@ fn the_ribbons_follow_up_menu_gives_a_reminder() {
         a.ui.dialog = None;
     }
 }
+
+/// Issue #220: Follow Up › Custom… is as tall as its fields, OK and Cancel under them at its
+/// bottom; it was as tall as the screen, the buttons halfway down. The new contact form's buttons
+/// too, on a tall window.
+#[test]
+fn small_forms_are_as_tall_as_their_fields() {
+    let (mut a, _) = app("follow-up-height");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::NONE)]);
+    let size = egui::vec2(1280.0, 2000.0);
+    let gap = |a: &mut MailApp, dialog: Dialog, last: &str| {
+        a.ui.dialog = Some(dialog);
+        let mut shown = Vec::new();
+        for _ in 0..4 {
+            shown = drawn_text(&ctx, a, size);
+        }
+        let at = |what: &str| shown.iter().find(|d| d.text == what).map(|d| d.rect).unwrap_or_else(|| panic!("no {what:?}"));
+        let (field, ok) = (at(last), at("Cancel"));
+        a.ui.dialog = None;
+        ok.top() - field.bottom()
+    };
+    let form = crate::pim_dialogs::FollowUpForm::for_selection(&a.session, false).expect("the form");
+    let custom = gap(&mut a, Dialog::FollowUp(Box::new(form)), "Remind me");
+    assert!(custom < 120.0, "Cancel {custom} below the reminder");
+    let contact = gap(&mut a, Dialog::Contact(Box::default()), "Notes");
+    assert!(contact < 400.0, "Cancel {contact} below the notes");
+}

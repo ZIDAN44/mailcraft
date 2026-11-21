@@ -115,7 +115,9 @@ pub fn follow_up(ui: &mut Ui, f: &mut FollowUpForm, t: &Tokens, acts: &mut Vec<A
     let run = f.command();
     footer_rule(ui, t);
     let mut keep = true;
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    // A row of its own height (issue #220): laid out from the end in all that's left, the
+    // buttons were centred in the screen's height, and the window grew to hold it.
+    ui.allocate_ui_with_layout(vec2(ui.available_width(), 32.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
         if widgets::accent_button(ui, Icon::Flag, "OK", t, run.is_some()).clicked()
             && let Some((id, p)) = run
         {

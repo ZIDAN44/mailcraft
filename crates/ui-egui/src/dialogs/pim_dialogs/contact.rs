@@ -233,7 +233,8 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
     footer_rule(ui, t);
     let mut keep = true;
     let any_email = f.emails.iter().any(|e| !e.trim().is_empty());
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    // A row of its own height, as Follow Up's (issue #220).
+    ui.allocate_ui_with_layout(vec2(ui.available_width(), 32.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
         if widgets::accent_button(ui, crate::icons::Icon::Person, "Save", t, !f.name.trim().is_empty() || any_email).clicked() {
             f.error = None;
             acts.push(Action::Submit(if f.uid.is_some() { "contact.update" } else { "contact.create" }, f.params()));
