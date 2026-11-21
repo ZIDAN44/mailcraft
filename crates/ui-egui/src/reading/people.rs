@@ -27,7 +27,7 @@ pub(super) fn person_menus(s: &Session, t: &Tokens, r: &egui::Response, a: &Emai
     if a.email.trim().is_empty() {
         return;
     }
-    egui::Popup::menu(r).id(r.id.with("card")).show(|ui| contact_card(ui, t, a, known_contact(s, &a.email), acts));
+    egui::Popup::menu(r).id(r.id.with("card")).show(|ui| contact_card(ui, s, t, a, known_contact(s, &a.email), acts));
     r.context_menu(|ui| {
         let known = known_contact(s, &a.email);
         if ui.button(tl!("Send email")).clicked() {
@@ -58,11 +58,18 @@ pub(super) fn person_menus(s: &Session, t: &Tokens, r: &egui::Response, a: &Emai
 
 /// A small card for someone (Outlook's contact card): who they are, their address (a click
 /// writes to them), and what can be done.
-pub(super) fn contact_card(ui: &mut Ui, t: &Tokens, a: &EmailAddress, known: Option<&mailcraft_engine::model::vcard::Card>, acts: &mut Vec<Action>) {
+pub(super) fn contact_card(
+    ui: &mut Ui,
+    s: &Session,
+    t: &Tokens,
+    a: &EmailAddress,
+    known: Option<&mailcraft_engine::model::vcard::Card>,
+    acts: &mut Vec<Action>,
+) {
     ui.set_min_width(260.0);
     ui.horizontal(|ui| {
         let (ar, _) = ui.allocate_exact_size(vec2(40.0, 40.0), Sense::hover());
-        widgets::avatar(ui, ar.center(), 19.0, &a.initials(), theme::avatar_color(&a.email, t.dark));
+        crate::photos::avatar(ui, s, ar.center(), 19.0, &a.email, &a.initials(), theme::avatar_color(&a.email, t.dark));
         ui.add_space(4.0);
         ui.vertical(|ui| {
             let name = known.map(|c| c.display()).filter(|n| !n.is_empty()).unwrap_or_else(|| a.display().to_string());

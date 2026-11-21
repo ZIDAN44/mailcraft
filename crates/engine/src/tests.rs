@@ -248,6 +248,7 @@ mod directory;
 mod mail;
 mod opening;
 mod organize;
+mod photos;
 mod safety;
 mod smime;
 mod writing;

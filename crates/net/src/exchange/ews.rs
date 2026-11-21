@@ -853,6 +853,8 @@ pub use directory::DIRECTORY_MAX;
 #[cfg(test)]
 pub(crate) use directory::directory_name;
 mod mailbox;
+mod photo;
+pub use photo::MAX_PHOTO;
 mod quota;
 mod requests;
 mod rules;

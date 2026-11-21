@@ -83,6 +83,8 @@ pub(super) async fn job(sh: &Rcs, id: &str, j: Job) {
             emit(sh, Event::Directory { account: id.to_string(), query, people: Vec::new(), error: Some(NO_DIRECTORY.into()), consent: false })
         }
         Job::AllowDirectory { account } => emit(sh, Event::DirectoryAllowed { account: account.id, error: Some(NO_DIRECTORY.into()) }),
+        // People's photos are asked of on-premises Exchange (issue #223): the browser's accounts are JMAP.
+        Job::FetchPhoto { email, .. } => emit(sh, Event::Photo { account: id.to_string(), email, photo: None, error: None }),
         // Rules on a server are an Exchange mailbox's (issue #139): the browser's accounts are JMAP.
         Job::GetServerRules { .. } | Job::SetServerRules { .. } => emit(
             sh,

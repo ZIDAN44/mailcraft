@@ -145,6 +145,8 @@ pub struct Data {
     /// A server whose directory answers name each mailbox by its alias (the address's user part,
     /// issue #9): the full name is only in the contact, when one is asked for.
     pub directory_aliases: bool,
+    /// People's photos (issue #223): (address, the picture's bytes).
+    pub photos: Vec<(String, Vec<u8>)>,
     /// The `User-Agent` of each request.
     pub agents: Vec<String>,
     /// Refuse (HTTP 403) every request naming another `User-Agent` (issue #9: a server that lets
@@ -242,6 +244,7 @@ impl Default for Data {
             directory: Vec::new(),
             directory_titles: Vec::new(),
             directory_aliases: false,
+            photos: Vec::new(),
             agents: Vec::new(),
             only_agent: None,
             open: false,

@@ -9,6 +9,7 @@ pub mod faces;
 pub mod icons;
 pub mod mail_fonts;
 pub mod motion;
+pub(crate) mod photos;
 pub(crate) mod progress;
 pub mod theme;
 pub(crate) mod thumbs;

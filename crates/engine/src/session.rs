@@ -26,6 +26,7 @@ mod events;
 mod mailboxes;
 mod opening;
 mod organize;
+mod photos;
 mod prefs;
 mod searching;
 mod security;
@@ -357,6 +358,8 @@ pub struct Session {
     contacts_kept: Option<(ContactBook, i64)>,
     /// The organisation directory's answers (issue #9).
     pub directory: pim::Directory,
+    /// People's photos (issue #223).
+    pub photos: photos::Photos,
     /// Address books counted so far (each count starts the sender check again).
     pub(crate) contacts_built: u64,
     /// The sender check ([`Session::keep_senders`]): kept a while, since the address book is
@@ -545,6 +548,7 @@ impl Session {
             contacts_at: 0,
             contacts_kept: None,
             directory: pim::Directory::default(),
+            photos: photos::Photos::default(),
             contacts_built: 0,
             senders: None,
             smime: HashMap::new(),

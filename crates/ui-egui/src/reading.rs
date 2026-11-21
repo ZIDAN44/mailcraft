@@ -36,6 +36,7 @@ pub(crate) use attachments::ShownAttachment;
 pub(crate) use attachments::VIDEO_THUMBS;
 pub(crate) use attachments::bound_video_frames;
 pub(crate) use attachments::decode;
+pub(crate) use attachments::decode_pixels;
 pub(crate) use attachments::decode_pixels as picture_pixels;
 #[cfg(test)]
 pub(crate) use attachments::previewed_text;

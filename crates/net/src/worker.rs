@@ -145,7 +145,15 @@ fn quick_job(j: &Job, acc: &AccountConfig) -> bool {
 /// between two of its steps: people just opened, and their free/busy times, come in seconds,
 /// not after a pass of minutes (issue #208).
 fn between_folders(j: &Job) -> bool {
-    matches!(j, Job::FetchBody { .. } | Job::Apply { .. } | Job::SearchDirectory { .. } | Job::ReadShared { .. } | Job::FreeBusy { .. })
+    matches!(
+        j,
+        Job::FetchBody { .. }
+            | Job::Apply { .. }
+            | Job::SearchDirectory { .. }
+            | Job::FetchPhoto { .. }
+            | Job::ReadShared { .. }
+            | Job::FreeBusy { .. }
+    )
 }
 
 /// Runs jobs for every account.

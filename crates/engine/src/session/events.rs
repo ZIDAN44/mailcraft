@@ -53,6 +53,7 @@ impl Session {
                 self.apply_web_calendar(&account, &calendar, read);
             }
             Event::DirectoryAllowed { account, error } => self.directory_allowed(&account, error),
+            Event::Photo { email, photo, error, .. } => self.photo_came(&email, photo, error),
             Event::ServerSearched { account, query, keys, error, done } => {
                 self.archive_searched(&account, &query, &keys, error.as_deref(), done);
                 if let Some(ss) = self.server_search.as_mut().filter(|ss| ss.sent == query) {

@@ -113,3 +113,45 @@ fn measure_people_above_a_message() {
     let many = timed(&mut a, "5000 contacts");
     println!("MEASURE the contacts' part of a frame: {:.3} ms", many - none);
 }
+
+/// Issue #223: a sender whose contact has a photo shows it, in the list and above the message,
+/// where their initials were; a picture that can't be read leaves the initials.
+#[test]
+fn a_contacts_photo_takes_the_place_of_their_initials() {
+    let (mut a, _) = app("people-photos");
+    let ctx = egui::Context::default();
+    // A small picture, as a contact's card has it.
+    let mut png = Vec::new();
+    image::RgbaImage::from_pixel(8, 6, image::Rgba([200, 40, 40, 255]))
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .unwrap();
+    let b64 = mailcraft_engine::model::base64::encode(&png);
+    let p = a.session.pim_mut("sample");
+    let book = p.books.first().map(|b| b.id.clone()).unwrap_or_default();
+    for (uid, email, photo) in [("zoe", "zoe@studio.example", b64.as_str()), ("sam", "sam@studio.example", "bm90IGEgcGljdHVyZQ==")] {
+        let card = Card {
+            uid: uid.into(),
+            name: uid.into(),
+            emails: vec![Typed { value: email.into(), ..Default::default() }],
+            extra: vec![format!("PHOTO;ENCODING=b;TYPE=PNG:{photo}")],
+            ..Default::default()
+        };
+        p.cards.push(StoredCard { book: book.clone(), card, ..Default::default() });
+    }
+    a.session.pim_revision += 1;
+    let named = |ctx: &egui::Context| -> Vec<String> {
+        ctx.tex_manager().read().allocated().map(|(_, m)| m.name.clone()).filter(|n| n.starts_with("photo:")).collect()
+    };
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert_eq!(named(&ctx), ["photo:zoe@studio.example"], "Zoe's drawn; Sam's isn't a picture");
+    assert_eq!(a.session.photo("zoe@studio.example").as_deref(), Some(&png[..]));
+    // Opened: above the message too, the same picture.
+    let zoe = a.session.list.iter().find(|m| m.from.email == "zoe@studio.example").map(|m| m.key.clone()).expect("mail from Zoe");
+    a.run("list.open", json!({"key": zoe.to_id()}));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert_eq!(named(&ctx), ["photo:zoe@studio.example"]);
+}

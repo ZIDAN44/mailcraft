@@ -613,6 +613,11 @@ impl MailApp {
         let ctx = ui.ctx().clone();
         let t = self.ui.tokens;
         self.recheck_names(&mut acts);
+        // The people shown: their photos asked after (issue #223).
+        let shown = crate::photos::take_shown(&ctx);
+        if !shown.is_empty() {
+            self.session.want_photos(&shown);
+        }
         // The address book reads the session's people.
         if let Some(Dialog::SelectNames(f)) = self.ui.dialog.as_mut()
             && (f.stale || f.directory_rev != self.session.directory.rev)

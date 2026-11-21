@@ -182,7 +182,7 @@ impl MessageRow<'_> {
             let nobody = mailcraft_engine::model::EmailAddress::default();
             let who_addr = if self.sent_view { m.to.first().unwrap_or(&nobody) } else { &m.from };
             let c = mr.pos(egui::pos2(r.min.x + 14.0 + 17.0, r.min.y + 26.0));
-            widgets::avatar(ui, c, 17.0, &who_addr.initials(), theme::avatar_color(&who_addr.email, t.dark));
+            crate::photos::avatar(ui, s, c, 17.0, &who_addr.email, &who_addr.initials(), theme::avatar_color(&who_addr.email, t.dark));
         }
         // Sender (or recipients in Sent) and time.
         let time = crate::i18n::date(&dates::list_time(m.when(), &s.clock));

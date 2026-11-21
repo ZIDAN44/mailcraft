@@ -168,6 +168,9 @@ pub enum Job {
     /// Look people up in the account's organisation directory (Exchange's Global Address List,
     /// issue #9), asked of the server each time; answered by [`Event::Directory`].
     SearchDirectory { account: String, query: String },
+    /// Ask the account's server for the photo the organisation has for someone (issue #223,
+    /// Exchange's `GetUserPhoto`); answered by [`Event::Photo`].
+    FetchPhoto { account: String, email: String },
     /// Ask the server when these people's calendars are taken, between `from` and `to` (issue
     /// #140, Exchange's availability service); answered by [`Event::FreeBusy`].
     FreeBusy { account: String, people: Vec<String>, from: i64, to: i64 },
@@ -369,6 +372,7 @@ impl Job {
             | Job::SyncDav { account }
             | Job::ReadShared { account, .. }
             | Job::SearchDirectory { account, .. }
+            | Job::FetchPhoto { account, .. }
             | Job::FreeBusy { account, .. }
             | Job::FetchCalendar { account, .. }
             | Job::ImportPst { account, .. }
@@ -726,6 +730,14 @@ pub enum Event {
         people: Vec<DirectoryPerson>,
         error: Option<String>,
         consent: bool,
+    },
+    /// The photo a [`Job::FetchPhoto`] found (`None`: the server has none), or why it couldn't
+    /// ask.
+    Photo {
+        account: String,
+        email: String,
+        photo: Option<Vec<u8>>,
+        error: Option<String>,
     },
     /// What [`Job::AllowDirectory`] came to: allowed, or why not.
     DirectoryAllowed {

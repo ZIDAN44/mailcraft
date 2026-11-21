@@ -109,7 +109,7 @@ fn sender_card(s: &Session, t: &Tokens, ui: &mut Ui, o: &Open<'_>, acts: &mut Ve
     let p = o.p;
     ui.horizontal_top(|ui| {
         let (ar, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
-        widgets::avatar(ui, ar.center(), 21.0, &p.from.initials(), theme::avatar_color(&p.from.email, t.dark));
+        crate::photos::avatar(ui, s, ar.center(), 21.0, &p.from.email, &p.from.initials(), theme::avatar_color(&p.from.email, t.dark));
         ui.add_space(4.0);
         // The date to the right, with room kept for it (the address ran under it in a
         // narrow pane); under the sender when the pane is too narrow for both.

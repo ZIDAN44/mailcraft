@@ -191,6 +191,16 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   calendar change the whole series, and the series moved for one occurrence went wrong on its
   days (Monday's moved to Tuesday, the rule still said Mondays).
 
+### 16. People's photos: what isn't shown yet
+
+- **Impact:** On Exchange Online (Microsoft 365) and Gmail, colleagues show their initials, not
+  the photos their organisation has. Your own photo isn't shown for your account, and a
+  contact's photo can't be added or changed in MailCraft.
+- **Workaround:** Save the photo in the person's contact elsewhere (Outlook, a phone, the
+  address book's website): it shows here once the address book syncs.
+- **Cause:** Only on-premises Exchange is asked for photos (`GetUserPhoto`); Microsoft Graph's
+  own photo request isn't made yet, and the contact form has no picture in it.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

@@ -338,6 +338,24 @@ fn operation(shared: &Arc<Mutex<Data>>, doc: &El, routed: String, anchor: String
     if !anchor.is_empty() && d.anchors.len() < 1000 {
         d.anchors.push(anchor);
     }
+    // A person's photo (issue #223): as Exchange, the answer is the response itself, and one
+    // with none is HTTP 404 (its picture empty, as Gromox's).
+    if op.name == "GetUserPhoto" {
+        let who = op.text_of("Email").unwrap_or("").trim().to_lowercase();
+        let photo = d.photos.iter().find(|(e, _)| e.eq_ignore_ascii_case(&who)).map(|(_, p)| mailcraft_model::base64::encode(p));
+        drop(d);
+        let (status, data) = match photo {
+            Some(p) => (200, p),
+            None => (404, String::new()),
+        };
+        return (
+            status,
+            format!(
+                "<soap:Envelope><soap:Body><m:GetUserPhotoResponse ResponseClass=\"Success\"><m:ResponseCode>NoError</m:ResponseCode>\
+                 <m:HasChanged>true</m:HasChanged><m:PictureData>{data}</m:PictureData></m:GetUserPhotoResponse></soap:Body></soap:Envelope>"
+            ),
+        );
+    }
     let (name, parts) = d.route(&op);
     drop(d);
     (200, envelope(&name, &parts))

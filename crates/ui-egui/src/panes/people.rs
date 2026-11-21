@@ -433,7 +433,8 @@ fn side_row(s: &Session, st: &mut UiState, ui: &mut Ui, p: &mailcraft_engine::Pe
     if selected || resp.hovered() {
         ui.painter().rect_filled(r, 6.0, if selected { t.accent_soft } else { t.hover_row });
     }
-    widgets::avatar(ui, mirror.pos(r.left_center() + vec2(20.0, 0.0)), 14.0, &initials(&name), theme::avatar_color(&name, t.dark));
+    let email = p.card.emails.first().map(|e| e.value.as_str()).unwrap_or_default();
+    crate::photos::avatar(ui, s, mirror.pos(r.left_center() + vec2(20.0, 0.0)), 14.0, email, &initials(&name), theme::avatar_color(&name, t.dark));
     // Each on one line, "…" where the pane is too narrow (they were cut mid-letter).
     let room = r.width() - 46.0;
     let line = widgets::one_line(ui, &name, theme::regular(13.5), t.text, room);
@@ -469,7 +470,8 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
         egui::Frame::new().inner_margin(Margin { left: 28, right: 28, top: 24, bottom: 24 }).show(ui, |ui| {
             ui.horizontal(|ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(72.0, 72.0), Sense::hover());
-                widgets::avatar(ui, r.center(), 34.0, &initials(&name), theme::avatar_color(&name, t.dark));
+                let email = c.emails.first().map(|e| e.value.as_str()).unwrap_or_default();
+                crate::photos::avatar(ui, s, r.center(), 34.0, email, &initials(&name), theme::avatar_color(&name, t.dark));
                 ui.add_space(10.0);
                 ui.vertical(|ui| {
                     ui.label(RichText::new(&name).font(theme::bold(22.0)).color(t.text));
@@ -616,7 +618,8 @@ fn cards(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                             let band = egui::Rect::from_min_size(r.min, vec2(74.0, card_h));
                             let color = theme::avatar_color(&name, t.dark);
                             ui.painter().rect_filled(band.shrink(1.0), egui::CornerRadius { nw: 7, sw: 7, ne: 0, se: 0 }, color.gamma_multiply(0.18));
-                            widgets::avatar(ui, band.center(), 24.0, &initials(&name), color);
+                            let email = c.emails.first().map(|e| e.value.as_str()).unwrap_or_default();
+                            crate::photos::avatar(ui, s, band.center(), 24.0, email, &initials(&name), color);
                             let x = band.right() + 12.0;
                             let w = r.right() - x - 10.0;
                             let mut y = r.top() + 12.0;

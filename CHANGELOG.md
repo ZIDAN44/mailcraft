@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 
+- People's photos show where their initials were (#223): a contact's own photo, as the card in your address book has it, and on on-premises Exchange the photo your organisation has for them, in the message list, above the message, on the contact card and in People. A photo kept at a web address isn't fetched.
 - Rules can be for mail you send (#202), as Outlook's can: Applies to › Mail you send in the rule editor. As each message's copy reaches Sent, the rule files it in a folder, archives, categorizes, flags or deletes it; Run now runs it on what's in Sent already. Mail you move into Sent yourself is left alone.
 - Check Names, as Outlook's (#211): Ctrl+K in To, Cc or Bcc, or Check Names beside Address Book, puts in the one person a name typed is, from the people you know and the organisation's directory (Exchange, Microsoft 365); a name that could be several people offers them to pick from, and one found nowhere is said. A name the directory is still being asked about is checked again once it answers.
 - On an IMAP server that offers NOTIFY (Dovecot, so Mailcow too), mail the server's own rules file into another folder shows as it arrives (#232), not at the next look: only the Inbox was watched. A server without it (Gmail, Exchange…) is looked at as before.

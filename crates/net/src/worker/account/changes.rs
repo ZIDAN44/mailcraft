@@ -127,6 +127,7 @@ impl Worker {
             Job::SyncDav { .. } => self.sync_dav(None),
             Job::ReadShared { people, .. } => self.read_shared(people),
             Job::SearchDirectory { query, .. } => self.search_directory(query),
+            Job::FetchPhoto { email, .. } => self.fetch_photo(email),
             Job::GetServerRules { .. } => self.server_rules(None),
             Job::SetServerRules { ops, drop_outlook_list, .. } => self.server_rules(Some((ops, drop_outlook_list))),
             Job::FreeBusy { people, from, to, .. } => self.free_busy(people, from, to),

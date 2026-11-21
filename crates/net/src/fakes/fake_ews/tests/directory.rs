@@ -325,3 +325,19 @@ fn the_directory_gives_titles_and_departments() {
     assert_eq!(of("alice.moreno@contoso.example"), Some(("Alice Moreno", "Colourist", "Post-production")));
     assert_eq!(of("alicia@contoso.example"), Some(("Alicia Keyes", "", "")));
 }
+
+/// Issue #223: a person's photo, as the organisation has it (`GetUserPhoto`): one with none is
+/// HTTP 404 and no photo, not a failure; what isn't an address isn't asked.
+#[test]
+fn a_persons_photo_comes_from_the_server() {
+    let photo = b"\x89PNG\r\n\x1a\nAlice".to_vec();
+    let mut d = Data::default();
+    d.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    d.photos.push(("alice.moreno@contoso.example".into(), photo.clone()));
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    assert_eq!(c.user_photo("Alice.Moreno@contoso.example").unwrap(), Some(photo.clone()));
+    assert_eq!(c.user_photo("bob@contoso.example").unwrap(), None, "none: HTTP 404");
+    assert_eq!(c.user_photo("not an address").unwrap(), None);
+    assert_eq!(server.data.lock().unwrap().calls.iter().filter(|c| *c == "GetUserPhoto").count(), 2, "an address only");
+}

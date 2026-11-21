@@ -1,5 +1,6 @@
 //! An account's worker: searching the organisation's directory (issue #9) on
-//! on-premises Exchange (EWS) and Exchange Online (Graph, with a sign-in of its own).
+//! on-premises Exchange (EWS) and Exchange Online (Graph, with a sign-in of its own), and
+//! people's photos from on-premises Exchange (issue #223).
 
 use super::*;
 
@@ -40,6 +41,24 @@ impl Worker {
         // one signed in with a token as it is just says why.
         let consent = consent && self.acc.oauth.is_some();
         self.sink.emit(Event::Directory { account: self.id(), query, people, error, consent });
+    }
+
+    /// Ask the organisation's server for `email`'s photo (issue #223), and say what came of it.
+    /// Only on-premises Exchange is asked; other accounts have none to give.
+    pub(crate) fn fetch_photo(&mut self, email: String) {
+        let r = match &self.conn {
+            Some(Conn::Ews(c)) => c.user_photo(&email),
+            Some(_) => Ok(None),
+            None => Err(NetError::Closed("not connected".into())),
+        };
+        let (photo, error) = match r {
+            Ok(p) => (p, None),
+            Err(e) => {
+                log::info!("{}: photo: {e}", self.acc.id);
+                (None, Some(e.to_string()))
+            }
+        };
+        self.sink.emit(Event::Photo { account: self.id(), email, photo, error });
     }
 
     /// The token to search an Exchange Online directory with: from the directory's own sign-in
