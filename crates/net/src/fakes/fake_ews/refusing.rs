@@ -10,6 +10,12 @@ impl Data {
         if self.unreadable.iter().any(|u| u == id) {
             return Some("ErrorInternalServerError");
         }
+        // A series of so many occurrences, every one deleted: Exchange won't give it (issue #229).
+        let count = item.find("NumberOfOccurrences").and_then(|n| n.text.trim().parse::<usize>().ok());
+        let deleted = item.child("DeletedOccurrences").map_or(0, |d| d.children("DeletedOccurrence").count());
+        if count.is_some_and(|n| deleted >= n) {
+            return Some("ErrorRecurrenceHasNoOccurrence");
+        }
         let mut fields = Vec::new();
         op.all("FieldURI", &mut fields);
         let calendar = fields.iter().any(|f| f.attr("FieldURI").is_some_and(|u| u.starts_with("calendar:")));

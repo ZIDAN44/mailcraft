@@ -242,9 +242,13 @@ pub(super) fn items_in(c: &Client, parent: &str, extra: &str) -> Result<Read> {
         ))?;
         for m in crate::ews::into_messages(doc) {
             if m.attr("ResponseClass") == Some("Error") {
-                // One deleted since the folder was listed is simply gone.
+                // One deleted since the folder was listed is simply gone; a series whose every
+                // occurrence was deleted, which Exchange won't give, has nothing to show (issue
+                // #229: it was said at every start).
                 let code = m.text_of("ResponseCode").unwrap_or("");
-                if code != "ErrorItemNotFound" {
+                if code == "ErrorRecurrenceHasNoOccurrence" {
+                    log::info!("a series with no occurrences left, not shown");
+                } else if code != "ErrorItemNotFound" {
                     if read.refused == 0 {
                         read.why = m.text_of("MessageText").unwrap_or(code).trim().chars().take(200).collect();
                     }

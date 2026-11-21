@@ -178,3 +178,26 @@ fn a_series_changed_occurrences_are_read() {
     assert!(moved.rrule.is_none());
     assert!(sync.events.iter().any(|e| e.event.summary == "Review"), "the rest of the calendar");
 }
+
+/// Issue #229: a series whose every occurrence was deleted, which Exchange won't give
+/// (`ErrorRecurrenceHasNoOccurrence`), has nothing to show and isn't said to be unreadable: it
+/// was counted as an item the server refused, in a red notice at every start.
+#[test]
+fn a_series_with_no_occurrences_left_is_no_error() {
+    let (mut d, cal, _) = mailbox();
+    let empty = parse(
+        "<t:CalendarItem><t:Subject>Old stand-up</t:Subject><t:UID>old-1</t:UID>\
+         <t:Start>2026-10-05T09:00:00Z</t:Start><t:End>2026-10-05T09:15:00Z</t:End>\
+         <t:CalendarItemType>RecurringMaster</t:CalendarItemType>\
+         <t:Recurrence><t:DailyRecurrence><t:Interval>1</t:Interval></t:DailyRecurrence>\
+         <t:NumberedRecurrence><t:StartDate>2026-10-05Z</t:StartDate><t:NumberOfOccurrences>2</t:NumberOfOccurrences></t:NumberedRecurrence></t:Recurrence>\
+         <t:DeletedOccurrences><t:DeletedOccurrence><t:Start>2026-10-05T09:00:00Z</t:Start></t:DeletedOccurrence>\
+         <t:DeletedOccurrence><t:Start>2026-10-06T09:00:00Z</t:Start></t:DeletedOccurrence></t:DeletedOccurrences></t:CalendarItem>",
+    );
+    d.pim.push(PimItem::new("S9", cal, empty.kids[0].clone()));
+    let server = serve(d);
+    let c = crate::ews::Client::connect(&server.url, &format!("{DOMAIN}\\{USER}"), PASSWORD, "riley@contoso.example").unwrap();
+    let sync = crate::ews_pim::sync(&c, &Pim::default(), 1_792_000_000).unwrap();
+    assert!(sync.errors.is_empty(), "{:?}", sync.errors);
+    assert_eq!(sync.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Review"]);
+}
