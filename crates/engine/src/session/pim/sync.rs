@@ -13,6 +13,10 @@ impl Session {
     /// Merge what a CalDAV / CardDAV sync found. Changes made here since stay (and go to the
     /// server next time); everything else follows the server.
     pub fn apply_dav(&mut self, account: &str, sync: &mailcraft_model::pim::DavSync) {
+        if sync.people_only {
+            self.apply_people(account, sync);
+            return;
+        }
         // The answers given here to invitations put on this computer, before the server's copy
         // of the same meeting (CalDAV scheduling) takes their place (issue #30).
         let answered = self.answered_here(account);
@@ -107,6 +111,10 @@ impl Session {
             }
             // Calendars subscribed to by their links aren't the server's: they stay (issue #7).
             list.extend(p.calendars.iter().filter(|c| mailcraft_model::pim::is_web_calendar(&c.id)).cloned());
+            // So do those of people opened since this sync began, read on their own (issue
+            // #208): it doesn't know of them, and they went until the next one.
+            let on_list: HashSet<String> = list.iter().map(|c| c.id.clone()).collect();
+            list.extend(p.calendars.iter().filter(|c| !on_list.contains(&c.id) && opened_by_hand(&p.shared, &c.id)).cloned());
             let listed: HashSet<String> = list.iter().map(|c| c.id.clone()).collect();
             p.events.retain(|e| e.calendar == LOCAL || listed.contains(&e.calendar) || e.dirty);
             // The user's own copy of a meeting comes before a colleague's: SOGo lists the
@@ -197,6 +205,39 @@ impl Session {
         // go in (issue #30).
         self.calendars_found(account, &answered);
     }
+}
+
+impl Session {
+    /// The calendars of people just opened, read on their own (issue #208): theirs taken in as
+    /// a whole sync takes them, everything else left as it is. One closed again meanwhile isn't
+    /// brought back; an event changed here stays.
+    fn apply_people(&mut self, account: &str, sync: &mailcraft_model::pim::DavSync) {
+        let p = self.pim_mut(account);
+        let open = p.shared.clone();
+        for c in sync.calendars.iter().flatten().filter(|c| opened_by_hand(&open, &c.id)) {
+            match p.calendars.iter_mut().find(|x| x.id == c.id) {
+                Some(x) => *x = c.clone(),
+                None => p.calendars.push(c.clone()),
+            }
+        }
+        for id in sync.synced_calendars.iter().filter(|id| opened_by_hand(&open, id)) {
+            let changed_here: HashSet<(String, Option<i64>)> =
+                p.events.iter().filter(|e| &e.calendar == id && e.dirty).map(|e| (e.event.uid.clone(), e.event.recurrence_id)).collect();
+            p.events.retain(|e| &e.calendar != id || e.dirty);
+            let theirs = sync.events.iter().filter(|e| &e.calendar == id && !changed_here.contains(&(e.event.uid.clone(), e.event.recurrence_id)));
+            p.events.extend(theirs.cloned());
+        }
+        for e in sync.errors.iter().take(3) {
+            self.notice(format!("calendars and contacts: {e}"), true);
+        }
+        self.save_pim(account);
+    }
+}
+
+/// Whether a calendar is that of someone opened here by hand (Open shared calendar, a calendar
+/// group), still open.
+fn opened_by_hand(shared: &[String], calendar: &str) -> bool {
+    mailcraft_model::pim::shared_calendar_owner(calendar).is_some_and(|e| shared.iter().any(|s| s == e))
 }
 
 /// The events a server sent, each under the uid kept here for it. A meeting's uid is kept as

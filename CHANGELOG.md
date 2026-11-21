@@ -18,6 +18,7 @@ on GitHub.
 - On Exchange, a repeating meeting with every occurrence deleted no longer brings a red notice at each start (#229): Exchange won't give such a series, and MailCraft counted it as an appointment it couldn't read. It has nothing to show, and is left out quietly.
 - On Exchange, a task deleted in MailCraft is deleted on the server too (#230): Exchange refused the deletion ("AffectedTaskOccurrences attribute is required for Task items"), the task stayed there, and the refusal came back as a red notice at each start.
 - The To-Do Bar's appointments are from your own calendars (#205): a colleague's calendar opened here put their events among yours, a holiday of theirs under Today, and made their days bold in the bar's month. They stay in the Calendar.
+- On Exchange, the people of a new calendar group, or a colleague's calendar opened, show in seconds (#208): they were read with the next whole calendar pass, minutes later on a big mailbox, after any pass under way. Their free/busy times are asked at once too, not after a pass.
 
 ## 0.41.0 - 2026-11-20
 

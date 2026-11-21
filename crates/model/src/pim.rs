@@ -436,6 +436,10 @@ pub struct DavSync {
     /// uid and occurrence.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub answered: Vec<(String, i64)>,
+    /// Only the calendars of people just opened ([`crate::Job::ReadShared`], issue #208): theirs
+    /// taken in, everything else left as it is.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub people_only: bool,
 }
 
 impl Pim {

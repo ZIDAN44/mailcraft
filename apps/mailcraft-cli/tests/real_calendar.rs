@@ -13,7 +13,7 @@
 #[path = "support/servers.rs"]
 mod servers;
 
-use mailcraft_engine::model::Event;
+use mailcraft_engine::model::{Event, Job};
 use serde_json::json;
 use servers::{App, basic, http};
 
@@ -232,4 +232,39 @@ fn real_ews_event_moved() {
     app.sync_dav(&id);
     delete.unwrap();
     assert_eq!(found, Some((start + 86_400 + 4500, end + 86_400 + 4500)), "moved on the server");
+}
+
+/// Issue #208 over Exchange Web Services (grommunio in Docker), run by hand with
+/// `MAILCRAFT_REAL_EWS` and `MAILCRAFT_REAL_EWS_PEOPLE` (two other users of the server): a
+/// calendar group made, its people's calendars are listed in seconds, read on their own, with no
+/// whole calendar pass asked for.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_group_people_come_at_once() {
+    let (Ok(v), Ok(people)) = (std::env::var("MAILCRAFT_REAL_EWS"), std::env::var("MAILCRAFT_REAL_EWS_PEOPLE")) else {
+        eprintln!("MAILCRAFT_REAL_EWS or MAILCRAFT_REAL_EWS_PEOPLE isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_EWS: url user password") };
+    let people: Vec<String> = people.split_whitespace().map(str::to_ascii_lowercase).collect();
+    let mut app = App::open("ews-group", password);
+    let id = app.add(json!({"email": user, "username": user, "password": password, "ews": url}));
+    app.sync_dav(&id);
+    let began = std::time::Instant::now();
+    app.s.run("calendar.groupCreate", &json!({"name": "Team 208", "members": people.join("; "), "account": id})).unwrap();
+    let jobs = app.s.take_jobs();
+    assert!(!jobs.iter().any(|j| matches!(j, Job::SyncDav { .. })), "no whole pass: {jobs:?}");
+    for j in jobs {
+        app.pool.submit(j);
+    }
+    let ids: Vec<String> = people.iter().map(|e| mailcraft_engine::model::pim::shared_calendar_id(e)).collect();
+    app.pump(60, "their calendars", |s, e| {
+        matches!(e, Event::DavSynced { sync, .. } if sync.people_only) && ids.iter().all(|c| s.pim[&id].calendars.iter().any(|x| &x.id == c))
+    });
+    for c in app.s.pim[&id].calendars.iter().filter(|c| ids.contains(&c.id)) {
+        eprintln!("{} free/busy alone: {} read-only: {}", c.name, c.free_busy, c.read_only);
+    }
+    eprintln!("listed after {:?}", began.elapsed());
+    let _ = app.s.run("calendar.groupDelete", &json!({"name": "Team 208", "account": id}));
 }

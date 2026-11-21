@@ -177,7 +177,7 @@ impl Pool {
                 self.queue_offline_send(account, id, raw, from, recipients, sent_folder);
             }
             // Offline: changes wait in the cache for the next sync.
-            Job::SyncDav { .. } if !running => {}
+            Job::SyncDav { .. } | Job::ReadShared { .. } if !running => {}
             Job::SearchServer { account, query, .. } if mail_offline => {
                 self.sink.emit(Event::ServerSearched { account, query, keys: Vec::new(), error: Some(OFFLINE.into()), done: true });
             }

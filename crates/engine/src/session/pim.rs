@@ -599,13 +599,14 @@ impl Session {
             return Err(CmdError::Params("that's this account's own calendar".into()));
         }
         let p = self.pim_mut(&account);
-        if !p.shared.contains(&email) {
+        let new = !p.shared.contains(&email);
+        if new {
             if p.shared.len() >= 50 {
                 return Err(CmdError::Params("at most 50 other calendars can be open".into()));
             }
             p.shared.push(email.clone());
         }
-        self.after_pim_change(&account, true);
+        self.read_people(&account, if new { vec![email.clone()] } else { Vec::new() });
         Ok(serde_json::json!({"account": account, "calendar": mailcraft_model::pim::shared_calendar_id(&email)}))
     }
 

@@ -89,6 +89,22 @@ impl Pass {
     }
 }
 
+/// The calendars of `people` just opened, read on their own (issue #208: they came with the
+/// next whole pass, minutes later on a big mailbox): each as a pass reads it, in its colour (its
+/// place among those opened), marked as theirs alone ([`DavSync::people_only`]). One no longer
+/// open is left out.
+pub fn read_people(c: &Client, pim: &Pim, people: &[String], now: i64) -> DavSync {
+    let mut out = DavSync { checked: now, people_only: true, ..Default::default() };
+    let mut calendars = Vec::new();
+    for email in people {
+        let Some(n) = pim.shared.iter().position(|e| e == email) else { continue };
+        read_shared_calendar(c, (email.clone(), email.clone(), true), n, &mut out, &mut calendars);
+    }
+    out.calendars = Some(calendars);
+    mailcraft_model::pim::separate_shared_uids(&mut out.events);
+    out
+}
+
 /// Send what changed here, then read the calendar and contacts again: a [`Pass`] whole (the
 /// tests'; the worker goes a step at a time).
 #[cfg(test)]

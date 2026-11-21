@@ -56,6 +56,20 @@ impl Worker {
         }
     }
 
+    /// The calendars of people just opened (issue #208), read on their own: an Exchange (EWS)
+    /// account's at once, between the steps of a pass under way too; another account's with the
+    /// next whole sync, as before.
+    pub(in crate::worker) fn read_shared(&mut self, people: Vec<String>) {
+        let Some(Conn::Ews(c)) = &self.conn else {
+            let account = self.id();
+            push_job(&mut self.queue, Job::SyncDav { account });
+            return;
+        };
+        let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+        let sync = crate::ews_pim::read_people(c, &pim, &people, now());
+        self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) });
+    }
+
     /// An Exchange account's calendars and contacts, read or not. What the server wouldn't give
     /// is said with why, once and not at every sync (issue #80: the calendar stayed empty and
     /// nothing said so); a server that couldn't be reached is the mail's to say.

@@ -141,9 +141,11 @@ fn quick_job(j: &Job, acc: &AccountConfig) -> bool {
     }
 }
 
-/// Jobs a full sync handles between two folders rather than at its end.
+/// Jobs a full sync handles between two folders rather than at its end, and a calendar pass
+/// between two of its steps: people just opened, and their free/busy times, come in seconds,
+/// not after a pass of minutes (issue #208).
 fn between_folders(j: &Job) -> bool {
-    matches!(j, Job::FetchBody { .. } | Job::Apply { .. } | Job::SearchDirectory { .. })
+    matches!(j, Job::FetchBody { .. } | Job::Apply { .. } | Job::SearchDirectory { .. } | Job::ReadShared { .. } | Job::FreeBusy { .. })
 }
 
 /// Runs jobs for every account.

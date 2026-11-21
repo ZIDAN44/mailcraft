@@ -199,3 +199,37 @@ fn a_broken_events_answer_is_read_safely() {
     assert!(crate::ews::watch_events(&gone).is_err());
     assert!(crate::ews::watch_events(&parse("")).is_err());
 }
+
+/// Issue #208: people opened while a long calendar pass is under way (a calendar group made) have
+/// their calendars read between its steps, and their free/busy times asked then too: they came
+/// after the pass, minutes later on a big mailbox. The pass goes on after, and its own result
+/// isn't theirs alone.
+#[test]
+fn people_just_opened_dont_wait_for_the_calendars() {
+    let mut m = mailbox("watch-people", &["ana@contoso.example", "ben@contoso.example", "cleo@contoso.example"], |d| {
+        d.pim_slow = Some(Duration::from_millis(400));
+        let item = parse(
+            "<t:CalendarItem><t:Subject>Dana's review</t:Subject><t:Start>2026-11-20T09:00:00Z</t:Start><t:UID>dana-1</t:UID></t:CalendarItem>",
+        );
+        d.pim.push(PimItem::new("D1", "mailbox:dana@contoso.example", item.kids[0].clone()));
+    });
+    until(&m.pool, "the calendars read", |e| matches!(e, Event::DavSynced { .. }));
+    m.pool.submit(Job::SyncAll { account: "watch-people".into() });
+    until(&m.pool, "online again", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    // The calendars are being read: Dana opened, as the engine opens her (kept, then asked for).
+    let mut pim: Pim = m.store.load_account_doc("watch-people", PIM_DOC).unwrap();
+    pim.shared.push("dana@contoso.example".into());
+    m.store.save_account_doc("watch-people", PIM_DOC, &pim).unwrap();
+    m.pool.submit(Job::ReadShared { account: "watch-people".into(), people: vec!["dana@contoso.example".into()] });
+    let (from, to) = (1_795_000_000, 1_795_086_400);
+    m.pool.submit(Job::FreeBusy { account: "watch-people".into(), people: vec!["ben@contoso.example".into()], from, to });
+    let seen = until(&m.pool, "the whole pass", |e| matches!(e, Event::DavSynced { sync, .. } if !sync.people_only));
+    let hers = seen.iter().position(|e| matches!(e, Event::DavSynced { sync, .. } if sync.people_only));
+    let times = seen.iter().position(|e| matches!(e, Event::FreeBusy { .. }));
+    assert!(hers.is_some() && times.is_some(), "both before the pass ended: {seen:?}");
+    let Some(Event::DavSynced { sync, .. }) = hers.and_then(|i| seen.get(i)) else { panic!("{seen:?}") };
+    let dana = mailcraft_model::pim::shared_calendar_id("dana@contoso.example");
+    assert_eq!(sync.calendars.as_ref().map(|c| c.iter().map(|c| c.id.clone()).collect::<Vec<_>>()), Some(vec![dana.clone()]), "hers alone");
+    assert_eq!(sync.synced_calendars, [dana]);
+    assert_eq!(sync.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Dana's review"]);
+}

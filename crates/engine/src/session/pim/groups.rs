@@ -29,6 +29,19 @@ impl Session {
         Ok(account)
     }
 
+    /// Ask for the calendars of `people` just opened (issue #208): read on their own, in
+    /// seconds, not with the next whole calendar pass, which took minutes on a big mailbox and
+    /// waited for one under way. With no one new, the whole sync as before.
+    pub(super) fn read_people(&mut self, account: &str, people: Vec<String>) {
+        let server = self.account(account).is_some_and(|a| a.config.has_server());
+        if people.is_empty() || !server {
+            self.after_pim_change(account, true);
+            return;
+        }
+        self.save_pim(account);
+        self.jobs.push(Job::ReadShared { account: account.to_string(), people });
+    }
+
     /// Open the calendars of everyone in `emails` (addresses as a recipient box takes them, the
     /// address book's way, issue #140): one refused says why, and the rest open all the same.
     pub fn open_shared_calendars(&mut self, account: Option<&str>, emails: &str) -> CmdResult {
@@ -76,8 +89,8 @@ impl Session {
         if had + people.iter().filter(|e| at.and_then(|i| p.groups.get(i)).is_none_or(|g| !g.members.contains(e))).count() > MEMBERS_MAX {
             return Err(CmdError::Params(format!("a calendar group holds at most {MEMBERS_MAX} people")));
         }
-        let new_ones = people.iter().filter(|e| !p.shared.contains(e)).count();
-        if p.shared.len() + new_ones > MEMBERS_MAX {
+        let new_ones: Vec<String> = people.iter().filter(|e| !p.shared.contains(e)).cloned().collect();
+        if p.shared.len() + new_ones.len() > MEMBERS_MAX {
             return Err(CmdError::Params(format!("at most {MEMBERS_MAX} other calendars can be open")));
         }
         for e in &people {
@@ -95,7 +108,7 @@ impl Session {
             }
             None => p.groups.push(CalendarGroup { name: name.clone(), members: people }),
         }
-        self.after_pim_change(&account, true);
+        self.read_people(&account, new_ones);
         Ok(serde_json::json!({"account": account, "group": name}))
     }
 

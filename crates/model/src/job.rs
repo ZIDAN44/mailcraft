@@ -161,6 +161,10 @@ pub enum Job {
     /// Sync the account's calendars and address books with its CalDAV / CardDAV server (changes
     /// made here first).
     SyncDav { account: String },
+    /// Read the calendars of these people just opened (Open shared calendar, a calendar group;
+    /// addresses, lower-case) on their own, not with the whole calendar pass (issue #208: they
+    /// came minutes later, after it); answered by [`Event::DavSynced`] with only theirs.
+    ReadShared { account: String, people: Vec<String> },
     /// Look people up in the account's organisation directory (Exchange's Global Address List,
     /// issue #9), asked of the server each time; answered by [`Event::Directory`].
     SearchDirectory { account: String, query: String },
@@ -363,6 +367,7 @@ impl Job {
             | Job::GetServerRules { account }
             | Job::SetServerRules { account, .. }
             | Job::SyncDav { account }
+            | Job::ReadShared { account, .. }
             | Job::SearchDirectory { account, .. }
             | Job::FreeBusy { account, .. }
             | Job::FetchCalendar { account, .. }

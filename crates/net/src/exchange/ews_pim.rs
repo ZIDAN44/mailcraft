@@ -578,9 +578,9 @@ fn item_may_change(it: &El) -> bool {
 }
 
 mod pass;
-pub use pass::Pass;
 #[cfg(test)]
 pub use pass::sync;
+pub use pass::{Pass, read_people};
 mod pushing;
 mod reading;
 mod reminders;
