@@ -163,6 +163,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"does"?: "ask"|"send"|"nothing"}"#),
         toggle!("calendar.tentativeInvites", "Invitations into the calendar as tentative", "File › Options › Calendar", tentative_invites),
+        toggle!("calendar.recordAnswers", "Record guests' answers as they arrive", "File › Options › Calendar", record_answers),
         CommandSpec::new("options.answeredInvites", "After answering a meeting invitation", "File › Options › Mail", |s, v| {
             if let Some(after) = p::str(v, "after") {
                 s.prefs.answered_invites = match after {

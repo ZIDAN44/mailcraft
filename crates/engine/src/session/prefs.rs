@@ -246,6 +246,10 @@ pub struct Prefs {
     /// Meeting invitations go into the calendar as tentative when they arrive, before they're
     /// answered, as Outlook shows them (issue #20).
     pub tentative_invites: bool,
+    /// Guests' answers to the user's meetings are recorded in the calendar as they arrive, as
+    /// Outlook, Exchange and SOGo do (issue #236): one that's genuine, from a guest on the list,
+    /// for the meeting as it is. Any other waits for Record the answer.
+    pub record_answers: bool,
     /// What becomes of a meeting invitation's mail (and its earlier versions in the Inbox) once
     /// it's answered, in the message or the calendar, and of a cancellation once it's taken in
     /// (issue #31), as Outlook's "Delete meeting requests and notifications from Inbox after
@@ -451,6 +455,7 @@ impl Default for Prefs {
             reply_window: false,
             show_favorites: true,
             tentative_invites: true,
+            record_answers: true,
             answered_invites: AnsweredInvites::Delete,
             answered_folders: BTreeMap::new(),
             answered_replies: false,

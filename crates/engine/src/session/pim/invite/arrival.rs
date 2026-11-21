@@ -27,10 +27,10 @@ pub(crate) const HOLD_SECS: i64 = 180;
 const MAX_PLACED: usize = 1000;
 
 impl Session {
-    /// New mail that may hold an invitation (issue #20): looked at now when its body is here,
-    /// else when it comes.
+    /// New mail that may hold an invitation (issue #20), or a guest's answer to the user's
+    /// meeting (issue #236): looked at now when its body is here, else when it comes.
     pub(crate) fn invitations_arrived(&mut self, arrived: &[Summary]) {
-        if !self.prefs.tentative_invites {
+        if !self.prefs.tentative_invites && !self.prefs.record_answers {
             return;
         }
         for m in arrived {
@@ -46,9 +46,7 @@ impl Session {
     pub(crate) fn invitation_body(&mut self, key: &MessageKey) {
         if let Some(i) = self.arrived_invites.iter().position(|k| k == key) {
             self.arrived_invites.remove(i);
-            if self.prefs.tentative_invites {
-                self.take_invitation(key);
-            }
+            self.take_invitation(key);
         }
     }
 
@@ -69,6 +67,14 @@ impl Session {
     /// server's later), so the calendar's file stays small. Whether anything changed.
     pub(crate) fn take_invitation(&mut self, key: &MessageKey) -> bool {
         let Some((ics, sender)) = self.message_ics(key, None) else { return false };
+        // A guest's answer to the user's meeting: recorded as it comes (issue #236).
+        let cal = ical::parse_in(&ics, self.clock.local_zone());
+        if cal.method.as_deref().is_some_and(|m| m.eq_ignore_ascii_case("REPLY")) {
+            return self.take_answer(key, &cal, &sender);
+        }
+        if !self.prefs.tentative_invites {
+            return false;
+        }
         let account = key.account.clone();
         let invitation = || matches!(ical::parse_in(&ics, self.clock.local_zone()).method.as_deref(), Some("REQUEST" | "CANCEL"));
         if self.calendars_pending(&account) && ics.len() <= MAX_HELD_ICS && invitation() {

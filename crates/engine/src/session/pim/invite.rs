@@ -12,6 +12,7 @@ use mailcraft_model::pim::{LOCAL, Pim, StoredEvent, Tombstone};
 
 use super::*;
 
+mod answers;
 mod arrival;
 mod fit;
 mod notices;
@@ -40,6 +41,8 @@ pub struct Invite {
     pub in_calendar: bool,
     /// For a reply: who answered, and how.
     pub replier: Option<Attendee>,
+    /// For a reply: the calendar has that answer already (recorded as it arrived, issue #236).
+    pub recorded: bool,
     /// Why it can't be taken into the calendar, when it can't.
     pub problem: Option<InviteProblem>,
 }
@@ -298,7 +301,10 @@ impl Session {
         // named the sender only in another part of the meeting set someone else's.)
         let replier = (method == "REPLY").then(|| event.attendees.iter().find(|a| same_address(&a.email, &sender)).cloned()).flatten();
         let problem = self.invite_problem(&cal, &sender).or_else(|| (method == "REPLY" && replier.is_none()).then_some(InviteProblem::NotFromGuest));
-        Some(Invite { method, event, answer, in_calendar: !parts.is_empty(), replier, problem })
+        let recorded = replier.as_ref().is_some_and(|who| {
+            stored.as_ref().is_some_and(|s| s.attendees.iter().any(|a| same_address(&a.email, &who.email) && a.partstat == who.partstat))
+        });
+        Some(Invite { method, event, answer, in_calendar: !parts.is_empty(), replier, recorded, problem })
     }
 
     /// Answer the invitation in the open message: the event goes into the calendar (or out of
@@ -464,17 +470,7 @@ impl Session {
             }
             "REPLY" => {
                 let who = inv.replier.ok_or_else(|| CmdError::Disabled("the answer names no one".into()))?;
-                let p = self.pim_mut(&account);
-                let mut remote = false;
-                for e in p.events.iter_mut().filter(|e| e.event.uid == uid && e.event.recurrence_id == inv.event.recurrence_id) {
-                    match e.event.attendees.iter_mut().find(|a| a.email.eq_ignore_ascii_case(&who.email)) {
-                        Some(a) => a.partstat = who.partstat.clone(),
-                        None => e.event.attendees.push(Attendee { rsvp: false, ..who.clone() }),
-                    }
-                    remote |= e.calendar != LOCAL;
-                    e.dirty |= e.calendar != LOCAL;
-                }
-                self.after_pim_change(&account, remote);
+                self.record_answer(&account, &uid, inv.event.recurrence_id, &who);
                 self.tidy_reply_mail(&key);
                 Ok(serde_json::json!({"recorded": who.partstat}))
             }

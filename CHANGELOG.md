@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 
+- Guests' answers to your meetings are recorded in the calendar as they arrive (#236), as Outlook records them: Record guests' answers in File › Options (on). One from someone not on the guest list, or to an earlier version, still waits for Record the answer, and an answer's card says when it's recorded (the button said nothing once clicked).
 - An event can have several reminders (#224): each comes in turn, so Google's "an hour before and 2 minutes before" reminds twice (only the first reminded), and the event form shows each, with Add reminder and a button to take one away. Not on an Exchange calendar, which keeps one an event, as Outlook does.
 - A reminder of an online meeting (Teams, Zoom, Webex, your own rooms…) has Join meeting beside Open Item (#239).
 - A calendar group's menu has Add people…, to put more people in it (#209): it had only Delete.

@@ -308,3 +308,36 @@ fn an_invitation_says_it_repeats() {
     assert_eq!(words("FREQ=HOURLY"), "Repeats");
     assert_eq!(words(";;=;junk"), "Repeats");
 }
+
+/// Issue #236: a guest's answer to the user's meeting is recorded as it arrives, and its card says
+/// so, where it offered Record the answer, which said nothing once clicked.
+#[test]
+fn a_guests_answer_says_it_was_recorded() {
+    let (mut a, _) = app("answer-recorded");
+    let ctx = egui::Context::default();
+    let p = json!({"summary": "Mix", "start": NOW + 86_400, "end": NOW + 90_000, "attendees": "Zoe Park <zoe@studio.example>"});
+    let uid = a.session.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string();
+    let mut own = a.session.find_event(&uid).unwrap().1.event.clone();
+    own.attendees = vec![mailcraft_engine::model::ical::Attendee {
+        email: "zoe@studio.example".into(),
+        name: "Zoe Park".into(),
+        partstat: "ACCEPTED".into(),
+        rsvp: false,
+    }];
+    let ics = mailcraft_engine::model::ical::write(&[own], Some("REPLY"), NOW);
+    let raw = format!(
+        "From: Zoe Park <zoe@studio.example>\r\nTo: riley@studio.example\r\nSubject: Accepted: Mix\r\nMessage-ID: <answer-236@x>\r\n\
+         Date: Mon, 16 Nov 2026 09:00:00 +0000\r\nMIME-Version: 1.0\r\nContent-Type: text/calendar; method=REPLY; charset=utf-8\r\n\r\n{ics}"
+    );
+    let key = arrive(&mut a, 9236, raw.as_bytes());
+    let zoe = a.session.find_event(&uid).unwrap().1.event.attendees.iter().find(|x| x.email == "zoe@studio.example").map(|x| x.partstat.clone());
+    assert_eq!(zoe.as_deref(), Some("ACCEPTED"), "recorded as it arrived");
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    a.run("list.open", json!({"key": key.to_id()}));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(has(&texts, "Zoe Park accepted.") && has(&texts, "Recorded in your calendar."), "{texts:?}");
+    assert!(!has(&texts, "Record the answer"), "nothing left to do");
+}

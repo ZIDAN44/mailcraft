@@ -17,6 +17,12 @@ pub(super) fn inbox(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>
                 s.prefs.tentative_invites,
                 "calendar.tentativeInvites",
             ),
+            (
+                tl!("Record guests' answers to your meetings as they arrive"),
+                Some(tl!("One from someone not on the guest list, or to an earlier version, waits for Record the answer")),
+                s.prefs.record_answers,
+                "calendar.recordAnswers",
+            ),
         ];
         for (i, (label, about, on, cmd)) in switches.into_iter().enumerate() {
             switch_row(ui, t, i == 0, Switch { label, about, on, cmd }, acts);

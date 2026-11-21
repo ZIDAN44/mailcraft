@@ -186,6 +186,21 @@ fn real_meeting_through_a_calendar_server_and_an_invitation() {
     })
     .unwrap();
     assert_imip(&source_of(&sv, RILEY, &format!("Accepted: Team meeting {tag}")), "REPLY");
+    // Recorded by Riley's copy as it arrives (issue #236), and on the calendar server.
+    let riley = s.accounts.first().map(|a| a.config.id.clone()).unwrap();
+    pool.submit(Job::SyncAll { account: riley });
+    let zoe_said = |s: &Session| s.find_event(&uid).and_then(|(_, e)| e.event.attendees.iter().find(|a| a.email == ZOE).map(|a| a.partstat.clone()));
+    let mut pushed = false;
+    drive(&mut s, &mut pool, Duration::from_secs(90), |e| {
+        if let Event::DavSynced { sync, .. } = e {
+            pushed |= sync.pushed_events.iter().any(|p| p.event.uid == uid);
+        }
+        pushed.then_some(Ok(()))
+    })
+    .unwrap();
+    assert_eq!(zoe_said(&s).as_deref(), Some("ACCEPTED"), "recorded as it arrived");
+    let back = from_server(&sv, &uid);
+    assert!(back.attendees.iter().any(|a| a.email == ZOE && a.partstat == "ACCEPTED"), "{:?}", back.attendees);
 
     // Taken out: the calendar server's copy and the guests' update lose it, the notes stay.
     s.run("event.update", &json!({"uid": uid, "onlineMeeting": false})).unwrap();

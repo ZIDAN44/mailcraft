@@ -554,7 +554,10 @@ fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &MessageKey, act
                     };
                     ui.horizontal_wrapped(|ui| {
                         ui.label(RichText::new(line).color(t.text));
-                        if inv.in_calendar && widgets::pill_button(ui, Icon::Calendar, "Record the answer", &t).clicked() {
+                        // Recorded as it came, or by the button (which said nothing, issue #236).
+                        if inv.recorded {
+                            ui.label(RichText::new(tl!("Recorded in your calendar.")).color(t.dim));
+                        } else if inv.in_calendar && widgets::pill_button(ui, Icon::Calendar, "Record the answer", &t).clicked() {
                             acts.push(Action::Run("invite.apply", json!({})));
                         }
                     });

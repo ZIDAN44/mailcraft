@@ -1957,3 +1957,6 @@ count	occurrences	回
 	Only work hours	勤務時間のみ
 	Add reminder	アラームを追加
 	Remove reminder	アラームを削除
+	Recorded in your calendar.	予定表に反映しました。
+	Record guests' answers to your meetings as they arrive	会議への出席者の回答を届いた時点で予定表に反映する
+	One from someone not on the guest list, or to an earlier version, waits for Record the answer	出席者一覧にない人からの回答や、以前の版への回答は「回答を反映」を待ちます
