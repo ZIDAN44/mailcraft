@@ -1,8 +1,9 @@
 //! An account's worker: its Send / Receive as the window shows it, Outlook's progress window and
 //! status bar ([`Event::Transfer`]): the Outbox going out and new mail coming in, how far each
 //! has come and how it ended; and stopping it when asked (Cancel All, Cancel Task), between two
-//! messages or two folders. Only a POP or IMAP account's: those that sync on their own all the
-//! time (JMAP, Microsoft Graph, Exchange) have no part in it, as in Outlook.
+//! messages or two folders. A POP, IMAP or Exchange (EWS) account's
+//! ([`AccountConfig::sends_and_receives`]): JMAP and Microsoft Graph ones sync on their own all
+//! the time, and have no part in it.
 
 use mailcraft_model::job::{Transfer, TransferKind, TransferState};
 
@@ -20,7 +21,7 @@ impl Worker {
 
     /// Whether this account has a part in Send / Receive.
     pub(crate) fn sends_and_receives(&self) -> bool {
-        !self.acc.is_api() && !self.acc.is_calendar_only()
+        self.acc.sends_and_receives()
     }
 
     /// Say how the account's sending or receiving goes.

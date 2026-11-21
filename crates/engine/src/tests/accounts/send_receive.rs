@@ -98,3 +98,21 @@ fn send_receive_follows_each_accounts_sending_and_receiving() {
     s.run("account.remove", &json!({"account": imap})).unwrap();
     assert!(s.send_receive.rows.iter().all(|r| r.account != imap));
 }
+
+/// Issue #231: an Exchange (EWS) account has its sending and receiving in the window too, as
+/// Outlook's has the Exchange account's: the window said nothing had been sent or received while
+/// the status bar said its folders were being read. A Microsoft Graph one still has none.
+#[test]
+fn an_exchange_accounts_send_receive_is_shown() {
+    let mut s = Session::open(Some(temp("send-receive-ews")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let ews = add(&mut s, json!({"email": "zoe@contoso.example", "password": "pw", "ews": "https://mail.contoso.example/EWS/Exchange.asmx"}));
+    s.take_jobs();
+    s.run("mail.sync", &json!({})).unwrap();
+    assert_eq!(task(&s, &ews, TransferKind::Sending).map(|t| t.state), Some(TransferState::Waiting));
+    assert_eq!(task(&s, &ews, TransferKind::Receiving).map(|t| t.state), Some(TransferState::Waiting));
+    let going = Transfer { folders_done: 3, folders_total: 47, folder: "Projects".into(), ..Transfer::working(TransferKind::Receiving) };
+    s.apply(Event::Transfer { account: ews.clone(), transfer: going.clone() });
+    assert_eq!(task(&s, &ews, TransferKind::Receiving), Some(going));
+    let graph = mailcraft_model::AccountConfig { graph: Some("https://graph.microsoft.com/v1.0".into()), ..Default::default() };
+    assert!(!graph.sends_and_receives());
+}

@@ -450,6 +450,14 @@ impl AccountConfig {
     pub fn is_api(&self) -> bool {
         self.jmap.is_some() || self.graph.is_some() || self.ews.is_some()
     }
+
+    /// Whether it has a part in Send / Receive as Outlook's window shows it: a POP or IMAP
+    /// account, and an Exchange (EWS) one, whose folders are read one by one as an IMAP
+    /// account's are (issue #231: the window said nothing was going on while it was). Not a
+    /// JMAP or Microsoft Graph one, nor one with calendars alone.
+    pub fn sends_and_receives(&self) -> bool {
+        !self.is_calendar_only() && (self.ews.is_some() || !self.is_api())
+    }
 }
 
 /// The longest an account can be asked to go between looking for new mail: a day.

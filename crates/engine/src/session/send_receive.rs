@@ -2,8 +2,9 @@
 //! has two tasks, its sending (the Outbox) and its receiving (new mail, its folders), each as it
 //! last went ([`Event::Transfer`]): asked for (Send / Receive marks them waiting), under way,
 //! done, failed with why, or cancelled. An account's connection failing fails its tasks under
-//! way, with the account's words for why. Accounts that sync on their own all the time (JMAP,
-//! Microsoft Graph, Exchange) have none, as Exchange accounts have none in Outlook's window.
+//! way, with the account's words for why. An Exchange (EWS) account has its two as well (issue
+//! #231), as Outlook's window has the Exchange account's; JMAP and Microsoft Graph accounts sync on
+//! their own all the time and have none.
 
 use mailcraft_model::job::{Transfer, TransferKind, TransferState};
 
@@ -45,9 +46,10 @@ impl SendReceive {
     }
 }
 
-/// Whether an account has a part in Send / Receive: POP or IMAP, with a mail server.
+/// Whether an account has a part in Send / Receive: POP, IMAP or Exchange (EWS), with a mail
+/// server.
 fn takes_part(a: &AccountState) -> bool {
-    a.config.has_server() && !a.config.is_api() && !a.config.is_calendar_only()
+    a.config.has_server() && a.config.sends_and_receives()
 }
 
 impl Session {

@@ -383,16 +383,16 @@ impl Worker {
         // mail, as ever.
         let mut calendars_due = self.last_full.is_none() && !self.calendars_read_before();
         let mut calendars_read = false;
-        // An IMAP account's Send / Receive: its folders, one by one (a POP account says its
-        // download as it goes, `transfers.rs`).
-        let imap = matches!(self.conn, Some(Conn::Imap(_)));
+        // An IMAP or Exchange (EWS, issue #231) account's Send / Receive: its folders, one by one
+        // (a POP account says its download as it goes, `transfers.rs`).
+        let told = matches!(self.conn, Some(Conn::Imap(_) | Conn::Ews(_)));
         let mut going = Transfer { folders_total: u32::try_from(paths.len()).unwrap_or(u32::MAX), ..Transfer::working(TransferKind::Receiving) };
         let mut pace = transfers::Pace::default();
         for path in paths {
             if self.cancel_asked() {
                 break;
             }
-            if imap && pace.due() {
+            if told && pace.due() {
                 self.tell_transfer(Transfer { folder: path.clone(), ..going.clone() });
             }
             if !self.counts_unsaid.is_empty() && said.elapsed() >= COUNTS_EVERY {
@@ -428,7 +428,7 @@ impl Worker {
             self.serve_between_folders(rx);
         }
         self.say_counts();
-        if imap && !self.closed {
+        if told && !self.closed {
             // Its connection lost on the way: failed, the account's status saying why.
             let lost = self.conn.is_none().then(String::new);
             self.transfer_ended(Transfer { folder: String::new(), ..going }, lost);

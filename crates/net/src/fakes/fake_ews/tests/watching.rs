@@ -252,3 +252,26 @@ fn the_subscription_keeps_to_its_server() {
     assert_eq!(listings(&m.data), full_syncs, "by looks, not a full sync");
     assert_eq!(m.data.lock().unwrap().subscriptions.len(), 1, "never lost");
 }
+
+/// Issue #231: an Exchange account's Send / Receive says its folders as they're read, n of m, and
+/// how it ended, and its Outbox's; the window said nothing was going on while they were read.
+#[test]
+fn send_receive_says_an_exchange_accounts_folders() {
+    use mailcraft_model::job::{TransferKind, TransferState};
+    let mut m = mailbox("watch-progress", &[], |_| {});
+    m.pool.submit(Job::SyncAll { account: "watch-progress".into() });
+    let ended = |e: &Event, kind: TransferKind| matches!(e, Event::Transfer { transfer, .. } if transfer.kind == kind && !transfer.state.is_open());
+    let seen = until(&m.pool, "the folders read", |e| ended(e, TransferKind::Receiving));
+    let receiving: Vec<_> = seen
+        .iter()
+        .filter_map(|e| match e {
+            Event::Transfer { transfer, .. } if transfer.kind == TransferKind::Receiving => Some(transfer.clone()),
+            _ => None,
+        })
+        .collect();
+    assert!(receiving.iter().any(|t| t.state == TransferState::Working && !t.folder.is_empty() && t.folders_total == 3), "{receiving:?}");
+    let last = receiving.last().cloned().unwrap_or_default();
+    assert_eq!((last.state, last.folders_done, last.folders_total), (TransferState::Done, 3, 3));
+    let done_sending = seen.iter().any(|e| ended(e, TransferKind::Sending));
+    assert!(done_sending || until(&m.pool, "the Outbox", |e| ended(e, TransferKind::Sending)).iter().any(|e| ended(e, TransferKind::Sending)));
+}

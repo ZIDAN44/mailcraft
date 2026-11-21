@@ -20,6 +20,7 @@ on GitHub.
 - The To-Do Bar's appointments are from your own calendars (#205): a colleague's calendar opened here put their events among yours, a holiday of theirs under Today, and made their days bold in the bar's month. They stay in the Calendar.
 - On Exchange, the people of a new calendar group, or a colleague's calendar opened, show in seconds (#208): they were read with the next whole calendar pass, minutes later on a big mailbox, after any pass under way. Their free/busy times are asked at once too, not after a pass.
 - On Exchange behind a load balancer, mail an Inbox rule files comes with the next look for new mail, every time (#145): the server's word on which folders changed was kept by one of its servers, and a look that reached another was told it wasn't found; what came meanwhile waited for the next full sync. MailCraft now asks to keep to the server that has it, as Exchange wants.
+- Send / Receive's progress shows an Exchange account too (#231): its folders as they're read (n of m) and its Outbox, as an IMAP account's. The window said nothing had been sent or received while the status bar said its folders were being updated.
 
 ## 0.41.0 - 2026-11-20
 
