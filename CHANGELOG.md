@@ -27,6 +27,7 @@ on GitHub.
 - The subject above a message can be selected and copied, as its text can (#217).
 - Follow Up › Custom… is as tall as its fields, OK and Cancel at its bottom (#220): it opened as tall as the screen, its buttons halfway down. The contact form's buttons were the same.
 - In Russian, the message list's weekday headings start with a capital (Понедельник, under Сегодня and Вчера), and a month after its day number takes the form it has there (четверг, 17 декабря 2026); in Slovak too (17. decembra) (#215).
+- In the dark theme, a pale highlight behind text stays (#227): Jira's pale pink and green marks of what changed were dropped with the grey boxes, and the old and new values read as one. Grey and white boxes still go.
 
 ## 0.41.0 - 2026-11-20
 

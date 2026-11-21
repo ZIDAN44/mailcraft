@@ -309,10 +309,12 @@ fn rgb(c: Color32) -> [u8; 3] {
     [c.r(), c.g(), c.b()]
 }
 
-/// How saturated a colour is (0 grey … 1 pure).
-fn saturation(c: [u8; 3]) -> f32 {
+/// Whether a colour is a grey (white and black among them): its channels close together. A pale
+/// tint's are apart however light it is (issue #227: measured against its lightest channel, pale
+/// pink and green scored as grey as #f4f4f4).
+fn greyish(c: [u8; 3]) -> bool {
     let (hi, lo) = (c.iter().max().copied().unwrap_or(0), c.iter().min().copied().unwrap_or(0));
-    if hi == 0 { 0.0 } else { f32::from(hi - lo) / f32::from(hi) }
+    hi - lo < 12
 }
 
 /// The colours to draw a message's text with: the sender's text colour and highlight when they
@@ -334,7 +336,7 @@ pub fn box_color(bg: Option<[u8; 3]>, page: [u8; 3], t: &Tokens) -> Option<[u8; 
     // Kept when it can be told from the page: a pale tint (a newsletter's light yellow blocks on
     // its light grey, issue #41) reads as a box though its contrast with the page is slight.
     let apart = |b: [u8; 3]| b.iter().zip(page).map(|(x, y)| x.abs_diff(y)).max().unwrap_or(0) >= 12;
-    bg.filter(|b| (contrast(*b, page) > 1.06 || apart(*b)) && !(t.dark && luminance(*b) > 0.35 && saturation(*b) < 0.25))
+    bg.filter(|b| (contrast(*b, page) > 1.06 || apart(*b)) && !(t.dark && luminance(*b) > 0.35 && greyish(*b)))
 }
 
 /// [`mail_colors`] for text on `page` (a coloured table cell's background).
@@ -482,6 +484,24 @@ mod tests {
         assert_eq!(box_color(Some(grey), grey, &t), None);
         assert_eq!(box_color(Some([0xf4, 0xf4, 0xf4]), grey, &t), None);
         assert_eq!(box_color(Some([0xff, 0xff, 0xff]), [0xff, 0xff, 0xff], &t), None);
+    }
+
+    /// Issue #227: on the dark page a pale tint behind text stays (Jira's pink and green change
+    /// marks were dropped with the grey boxes, the old and new values read as one), as a light
+    /// blue badge did; grey and white boxes still go.
+    #[test]
+    fn a_pale_tint_stays_on_the_dark_page() {
+        let t = Tokens::dark();
+        let page = surface_rgb(&t);
+        for tint in [[0xff, 0xe6, 0xe6], [0xd6, 0xfb, 0xdc], [0xaa, 0xd5, 0xff], [0xff, 0xf8, 0xcc]] {
+            assert_eq!(box_color(Some(tint), page, &t), Some(tint), "{tint:x?}");
+        }
+        for grey in [[0xff, 0xff, 0xff], [0xf4, 0xf4, 0xf4], [0xf2, 0xf2, 0xf2], [0xe8, 0xe8, 0xe8], [0xf7, 0xf7, 0xf5], [0xfa, 0xfa, 0xff]] {
+            assert_eq!(box_color(Some(grey), page, &t), None, "{grey:x?}");
+        }
+        // The text on a tint kept: dark, to read on it.
+        let (text, bg) = mail_colors(None, Some([0xff, 0xe6, 0xe6]), &t, Color32::WHITE);
+        assert_eq!((text, bg), (Color32::BLACK, Some(Color32::from_rgb(0xff, 0xe6, 0xe6))));
     }
 
     /// Every theme a user can pick (issue #8): light and dark, MailCraft's teal, each named
