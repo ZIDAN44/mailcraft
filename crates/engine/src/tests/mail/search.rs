@@ -224,7 +224,7 @@ fn more_on_the_server_and_searching_it() {
     let jobs = s.take_jobs();
     assert!(
         jobs.iter().any(
-            |j| matches!(j, Job::SearchServer { account, query, folders, search: 1 } if *account == a && query == "needle" && folders == &["INBOX".to_string()])
+            |j| matches!(j, Job::SearchServer { account, query, folders, search: 1, .. } if *account == a && query == "needle" && folders == &["INBOX".to_string()])
         ),
         "{jobs:?}"
     );

@@ -109,7 +109,7 @@ fn real_imap_server() {
 
     // Search the server: newest first, its finds as they come.
     let began = Instant::now();
-    pool.submit(Job::SearchServer { account: "r1".into(), folders: vec!["INBOX".into()], query: "needle".into(), search: 1 });
+    pool.submit(Job::SearchServer { exchange_period: None, account: "r1".into(), folders: vec!["INBOX".into()], query: "needle".into(), search: 1 });
     let seen = until(&pool, 120, "the search's end", |e| matches!(e, Event::ServerSearched { done: true, .. }));
     let batches: Vec<usize> =
         seen.iter().filter_map(|e| if let Event::ServerSearched { keys, done: false, .. } = e { Some(keys.len()) } else { None }).collect();
@@ -119,7 +119,13 @@ fn real_imap_server() {
     assert!(batches.len() > 1, "shown as found, not all at the end");
 
     // A search stopped before it starts its next range answers that it's done, with no error.
-    pool.submit(Job::SearchServer { account: "r1".into(), folders: vec!["INBOX".into()], query: "nowhere-at-all".into(), search: 2 });
+    pool.submit(Job::SearchServer {
+        exchange_period: None,
+        account: "r1".into(),
+        folders: vec!["INBOX".into()],
+        query: "nowhere-at-all".into(),
+        search: 2,
+    });
     pool.submit(Job::StopSearch);
     until(&pool, 60, "the stopped search's end", |e| matches!(e, Event::ServerSearched { done: true, error: None, .. }));
 
@@ -745,7 +751,7 @@ fn real_keywords_in_a_shared_folder() {
 
     // The server searched for a Thunderbird keyword (it was left out of the search before).
     let q = "keyword:r=c3=bcckfrage";
-    pool.submit(Job::SearchServer { account: "w".into(), folders: vec![folder.clone()], query: q.into(), search: 1 });
+    pool.submit(Job::SearchServer { exchange_period: None, account: "w".into(), folders: vec![folder.clone()], query: q.into(), search: 1 });
     let mut found = Vec::new();
     until(&pool, 60, "the search", |e| match e {
         Event::ServerSearched { query, keys, done, .. } if query == q => {

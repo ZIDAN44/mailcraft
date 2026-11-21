@@ -225,7 +225,7 @@ fn a_pop_account_works_through_the_pool() {
         "no automatic replies",
         |e| matches!(e, Event::Vacation { vacation: None, error: Some(m), .. } if m == "POP accounts have no automatic replies on the server"),
     );
-    pool.submit(Job::SearchServer { account: "p1".into(), folders: vec!["INBOX".into()], query: "invoice".into(), search: 1 });
+    pool.submit(Job::SearchServer { exchange_period: None, account: "p1".into(), folders: vec!["INBOX".into()], query: "invoice".into(), search: 1 });
     until(
         &pool,
         "no search of the server",

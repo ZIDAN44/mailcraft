@@ -273,9 +273,22 @@ impl Query {
     /// it names none. A day wider each side than the clock's zone gives: a server reads days in
     /// its own zone, and what it finds is checked here as any search is.
     pub fn server_period(&self, clock: &Clock) -> Option<(Option<i64>, Option<i64>)> {
+        self.search_period(clock, false).map(|(f, t)| (f.map(|f| f.saturating_sub(DAY)), t.map(|t| t.saturating_add(DAY))))
+    }
+
+    /// Exact UTC bounds for servers that can compare received timestamps.
+    /// Sent dates read a different field and must still be checked by the caller.
+    pub fn exact_received_period(&self, clock: &Clock) -> Option<(Option<i64>, Option<i64>)> {
+        self.search_period(clock, true)
+    }
+
+    fn search_period(&self, clock: &Clock, received_only: bool) -> Option<(Option<i64>, Option<i64>)> {
         let mut found = None;
         for c in self.clauses.iter().filter(|c| !c.negated) {
             let Term::Date(spec) = &c.term else { continue };
+            if received_only && spec.sent {
+                continue;
+            }
             let mut spec = spec.clone();
             spec.resolve(clock);
             let Some((from, to)) = spec.range else { continue };
@@ -287,6 +300,6 @@ impl Query {
                 *t = Some(t.map_or(to, |x| x.min(to)));
             }
         }
-        found.map(|(f, t)| (f.map(|f| f.saturating_sub(DAY)), t.map(|t| t.saturating_add(DAY))))
+        found
     }
 }

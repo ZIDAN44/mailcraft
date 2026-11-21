@@ -277,7 +277,7 @@ fn a_server_search_stops_when_its_no_longer_wanted() {
         s.search_delay = Duration::from_millis(1000);
         s.log.clear();
     }
-    pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: "nowhere".into(), search: 7 });
+    pool.submit(Job::SearchServer { exchange_period: None, account: "a1".into(), folders: vec!["INBOX".into()], query: "nowhere".into(), search: 7 });
     events_until(&pool, "the search on the server", |_| st.lock().unwrap().log.iter().any(|l| l.contains("TEXT")));
     pool.submit(Job::StopSearch);
     until(&pool, "done", |e| matches!(e, Event::ServerSearched { done: true, error: None, .. }));
@@ -316,7 +316,13 @@ fn a_search_comes_after_the_changes_before_it() {
     for round in 1..=5u64 {
         let gone: Vec<MessageKey> = keys.iter().filter(|k| k.uid % 5 == (round % 5) as u32).cloned().collect();
         pool.submit(Job::Apply { account: "a1".into(), op: Op::Expunge { keys: gone.clone() } });
-        pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: "needle".into(), search: round });
+        pool.submit(Job::SearchServer {
+            exchange_period: None,
+            account: "a1".into(),
+            folders: vec!["INBOX".into()],
+            query: "needle".into(),
+            search: round,
+        });
         let seen = until(&pool, "searched", |e| matches!(e, Event::ServerSearched { done: true, .. }));
         let found: Vec<&MessageKey> =
             seen.iter().flat_map(|e| if let Event::ServerSearched { keys, .. } = e { keys.iter().collect() } else { Vec::new() }).collect();
@@ -358,7 +364,13 @@ fn show_more_and_search(caps: &'static str) {
     until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
     assert_eq!(store.load_folder("a1", "INBOX").unwrap().messages.len(), 10);
 
-    pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: "needle-2".into(), search: 1 });
+    pool.submit(Job::SearchServer {
+        exchange_period: None,
+        account: "a1".into(),
+        folders: vec!["INBOX".into()],
+        query: "needle-2".into(),
+        search: 1,
+    });
     let seen = until(&pool, "searched", |e| matches!(e, Event::ServerSearched { done: true, .. }));
     let mut found: Vec<u32> = seen
         .iter()
@@ -385,7 +397,7 @@ fn show_more_and_search(caps: &'static str) {
     assert_eq!(store.load_folder("a1", "INBOX").unwrap().messages.len(), 17);
     pool.submit(Job::Remove { account: "a1".into() });
     // Offline: answered at once.
-    pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: "x".into(), search: 2 });
+    pool.submit(Job::SearchServer { exchange_period: None, account: "a1".into(), folders: vec!["INBOX".into()], query: "x".into(), search: 2 });
     until(&pool, "offline answer", |e| matches!(e, Event::ServerSearched { error: Some(_), .. }));
 }
 

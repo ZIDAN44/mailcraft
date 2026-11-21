@@ -72,7 +72,10 @@ fn an_account_offline_is_answered_by_the_pool() {
         [Event::BodyFailed { key: key.clone(), error: "not downloaded yet, and the account is offline".into() }]
     );
     assert_eq!(
-        said(&mut pool, Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: "x".into(), search: 3 }),
+        said(
+            &mut pool,
+            Job::SearchServer { exchange_period: None, account: "a1".into(), folders: vec!["INBOX".into()], query: "x".into(), search: 3 }
+        ),
         [Event::ServerSearched { account: "a1".into(), query: "x".into(), keys: Vec::new(), error: Some(offline.into()), done: true }]
     );
     assert_eq!(
