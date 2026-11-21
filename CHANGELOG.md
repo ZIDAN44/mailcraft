@@ -18,6 +18,7 @@ on GitHub.
 - A calendar group's menu has Add people…, to put more people in it (#209): it had only Delete.
 - Picking people for a calendar group or a shared calendar shows them as names, in rows that grow and then scroll, each with its × (#210): the box kept one size and showed names and addresses.
 - The Address Book shows people's job titles and departments where the organisation's directory gives them (Exchange, Microsoft 365), as Outlook's does (#213).
+- In the calendar's Day, Work week and Week, dragging over the hours makes a new event that long (#212): a click made half an hour's, and a longer one needed its end changed in the form.
 - On Exchange, a colleague's calendar opened here (on its own, or in a calendar group) is named as the directory names them, in the calendar list and the Schedule view (#222): it was labelled with their address.
 
 ### Fixed

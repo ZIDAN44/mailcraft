@@ -271,18 +271,38 @@ fn new_event_slots(s: &Session, t: &Tokens, ui: &mut Ui, cols: &Columns, grid: R
     for j in 0..k {
         for i in 0..cols.n {
             let col = Rect::from_min_size(pos2(grid.min.x + cols.day_x(i, j), grid.min.y), vec2(cw, grid.height()));
-            let r = ui.interact(col, ui.scope_id().with(("hours", cols.day(i), j)), Sense::click());
-            // The half hour under the pointer lights up: a click adds an event there.
-            if let Some(p) = r.hover_pos() {
-                let half = ((p.y - grid.min.y) / (HOUR / 2.0)).floor().clamp(0.0, 47.0);
-                let slot = Rect::from_min_size(pos2(col.min.x, grid.min.y + half * HOUR / 2.0), vec2(cw, HOUR / 2.0)).shrink(1.0);
+            let r = ui.interact(col, ui.scope_id().with(("hours", cols.day(i), j)), Sense::click_and_drag());
+            let half_at = |y: f32| ((y - grid.min.y) / (HOUR / 2.0)).floor().clamp(0.0, 47.0);
+            let cal = cols.cals.get(j).filter(|_| k > 1);
+            let day0 = s.local_midnight(cols.day(i));
+            // Dragged over (issue #212): the half hours from where it was pressed to where it is,
+            // lit up; let go, an event that long, as Outlook's selection made one. (A click made
+            // half an hour only, and a longer one needed its end changed in the form.)
+            // Where it was pressed, kept from the drag's start: the pointer forgets it once let go.
+            if r.drag_started()
+                && let Some(from) = ui.input(|inp| inp.pointer.press_origin())
+            {
+                ui.data_mut(|d| d.insert_temp(r.id.with("from"), from));
+            }
+            let from = (r.dragged() || r.drag_stopped()).then(|| ui.data(|d| d.get_temp::<egui::Pos2>(r.id.with("from")))).flatten();
+            let held = from.zip(ui.ctx().pointer_latest_pos());
+            if let Some((from, to)) = held {
+                let (a, b) = (half_at(from.y), half_at(to.y));
+                let (lo, hi) = (a.min(b), a.max(b));
+                let span = Rect::from_min_max(pos2(col.min.x, grid.min.y + lo * HOUR / 2.0), pos2(col.max.x, grid.min.y + (hi + 1.0) * HOUR / 2.0));
+                ui.painter().rect_filled(span.shrink(1.0), 2.0, t.accent_soft);
+                if r.drag_stopped() {
+                    acts.push(new_event_between(s, day0 + lo as i64 * 1800, day0 + (hi as i64 + 1) * 1800, cal));
+                }
+            } else if let Some(p) = r.hover_pos() {
+                // The half hour under the pointer lights up: a click adds an event there.
+                let slot = Rect::from_min_size(pos2(col.min.x, grid.min.y + half_at(p.y) * HOUR / 2.0), vec2(cw, HOUR / 2.0)).shrink(1.0);
                 ui.painter().rect_filled(slot, 2.0, t.hover_row);
             }
             if r.clicked()
                 && let Some(p) = r.interact_pointer_pos()
             {
-                let half = ((p.y - grid.min.y) / (HOUR / 2.0)).floor().clamp(0.0, 47.0) as i64;
-                acts.push(new_event_in(s, s.local_midnight(cols.day(i)) + half * 1800, cols.cals.get(j).filter(|_| k > 1)));
+                acts.push(new_event_in(s, day0 + half_at(p.y) as i64 * 1800, cal));
             }
         }
     }
@@ -297,6 +317,13 @@ fn new_event_in(s: &Session, at: i64, cal: Option<&(String, String, String, u8)>
         f.calendar = i;
     }
     Action::Dialog(d)
+}
+
+/// A new event from `start` to `end` (dragged over, issue #212), in calendar `cal` as
+/// [`new_event_in`].
+fn new_event_between(s: &Session, start: i64, end: i64, cal: Option<&(String, String, String, u8)>) -> Action {
+    let cal = cal.map(|(account, id, _, _)| (account.as_str(), id.as_str()));
+    Action::Dialog(Dialog::Event(Box::new(crate::pim_dialogs::EventForm::between(s, (start, end), cal, &[]))))
 }
 
 /// Events, side by side when they overlap (each calendar in its own pane, side by side).

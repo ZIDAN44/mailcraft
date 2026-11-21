@@ -199,7 +199,8 @@ impl EventForm {
 
     /// A new event from `from` to `to` with `guests` invited, in `calendar` (account, id) when
     /// it can take one, else in that account's default: the Schedule view's (issue #141), for a
-    /// time chosen across people's calendars.
+    /// time chosen across people's calendars; the calendar's, for half hours dragged over in it
+    /// (issue #212).
     pub fn between(s: &Session, (from, to): (i64, i64), calendar: Option<(&str, &str)>, guests: &[String]) -> EventForm {
         let mut f = EventForm::new(s, Some(from));
         let to = to.max(from.saturating_add(60));

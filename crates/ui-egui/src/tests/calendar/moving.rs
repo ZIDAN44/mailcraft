@@ -190,3 +190,24 @@ fn an_event_dropped_in_another_calendars_pane_goes_to_that_day() {
     assert_eq!(when(&a, &uids[0]), (start + two, end + two), "two days on");
     assert_eq!(a.session.find_event(&uids[0]).unwrap().1.calendar, calendar, "in its own calendar");
 }
+
+/// Issue #212: dragged over the hours of a day, the half hours from where it was pressed to where
+/// it was let go make a new event that long (a click made half an hour's); upward too.
+#[test]
+fn hours_dragged_over_make_an_event_that_long() {
+    let (mut a, ctx, _, _) = calendar_with("drag-new", "day", &[]);
+    let drawn = texts(&ctx, &mut a, vec![]);
+    let (three, four) = (at(&drawn, "15:00"), at(&drawn, "16:00"));
+    let hour = four.center().y - three.center().y;
+    assert!(hour > 20.0, "{hour}");
+    let x = three.max.x + 120.0;
+    let form = |a: &MailApp| match &a.ui.dialog {
+        Some(crate::Dialog::Event(f)) => Some((f.start.clone(), f.end.clone())),
+        _ => None,
+    };
+    drag(&ctx, &mut a, egui::pos2(x, three.center().y + hour * 0.25), egui::pos2(x, four.center().y + hour * 0.75), false);
+    assert_eq!(form(&a), Some(("15:00".into(), "17:00".into())), "from 15:00 to the end of the half hour let go in");
+    a.ui.dialog = None;
+    drag(&ctx, &mut a, egui::pos2(x, four.center().y + hour * 0.25), egui::pos2(x, three.center().y + hour * 0.75), false);
+    assert_eq!(form(&a), Some(("15:30".into(), "16:30".into())), "dragged upward");
+}
