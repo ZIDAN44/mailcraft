@@ -3,9 +3,12 @@
 
 use super::*;
 
+/// Delete an item (to Deleted Items). Which of a task's occurrences go is said for every item:
+/// Exchange deletes no task without it ("AffectedTaskOccurrences attribute is required for Task
+/// items", issue #230), and the others take it.
 fn delete(c: &Client, id: &str) -> Result<()> {
     c.call_one(&format!(
-        "<m:DeleteItem DeleteType=\"MoveToDeletedItems\" SendMeetingCancellations=\"SendToNone\"><m:ItemIds><t:ItemId Id=\"{}\"/></m:ItemIds></m:DeleteItem>",
+        "<m:DeleteItem DeleteType=\"MoveToDeletedItems\" SendMeetingCancellations=\"SendToNone\" AffectedTaskOccurrences=\"AllOccurrences\"><m:ItemIds><t:ItemId Id=\"{}\"/></m:ItemIds></m:DeleteItem>",
         esc(id)
     ))
     .map(drop)
@@ -26,6 +29,7 @@ pub(super) fn push_deletions(c: &Client, pim: &Pim, out: &mut DavSync) {
                 if crate::ews::no_such_id(&e) {
                     out.deleted.push(t.href.clone());
                 }
+                log::warn!("a deletion not sent: {e}");
                 out.errors.push(e.to_string());
             }
         }

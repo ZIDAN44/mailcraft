@@ -16,6 +16,7 @@ on GitHub.
 
 - On Exchange, a single occurrence of a repeating meeting moved or cancelled shows as it is (#204): MailCraft kept the series' usual time on that day, and a cancelled occurrence stayed. A moved one is read with its own time, subject and guests, in place of the occurrence it stands for.
 - On Exchange, a repeating meeting with every occurrence deleted no longer brings a red notice at each start (#229): Exchange won't give such a series, and MailCraft counted it as an appointment it couldn't read. It has nothing to show, and is left out quietly.
+- On Exchange, a task deleted in MailCraft is deleted on the server too (#230): Exchange refused the deletion ("AffectedTaskOccurrences attribute is required for Task items"), the task stayed there, and the refusal came back as a red notice at each start.
 
 ## 0.41.0 - 2026-11-20
 

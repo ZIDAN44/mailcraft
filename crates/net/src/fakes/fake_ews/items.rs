@@ -269,6 +269,12 @@ impl Data {
                 out.push(err("ErrorItemNotFound"));
                 continue;
             }
+            // A task is deleted only with `AffectedTaskOccurrences` said, as Exchange wants it
+            // (issue #230); other items take it too.
+            if op.attr("AffectedTaskOccurrences").is_none() && self.pim.iter().any(|p| p.id == id && p.el.name == "Task") {
+                out.push(err("ErrorInvalidRequest"));
+                continue;
+            }
             self.items.retain(|i| i.id != id);
             self.pim.retain(|p| p.id != id);
             out.push(ok(String::new()));
