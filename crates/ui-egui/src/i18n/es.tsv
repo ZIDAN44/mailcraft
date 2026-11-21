@@ -231,7 +231,7 @@
 	Results for “{query}”	Resultados de «{query}»
 	Right	Derecha
 	Rules	Reglas
-	Rules run on new mail as it arrives in an Inbox, in this order.	Las reglas se aplican al correo nuevo cuando llega a una Bandeja de entrada, en este orden.
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	Las reglas se aplican en este orden al correo nuevo cuando llega a una Bandeja de entrada, y al correo que envía cuando su copia llega a Enviados.
 	Rules…	Reglas…
 	Run now	Ejecutar ahora
 	Run on the folder on screen	Ejecutar en la carpeta en pantalla
@@ -444,7 +444,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	Se omiten el formato, los colores y las imágenes. «Mostrar con formato», encima de un mensaje, muestra ese mensaje tal como se envió.
 	Show mail without its formatting	Mostrar el correo sin su formato
 	Show a line of each message in the list	Mostrar una línea de cada mensaje en la lista
-	Sort new mail as it arrives: move it, flag it, categorize it.	Ordena el correo nuevo cuando llega: muévelo, márcalo o categorízalo.
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	Ordene el correo al llegar o al enviarlo: muévalo, márquelo, categorícelo.
 	Source code and issues	Código fuente e incidencias
 	Subject (optional)	Asunto (opcional)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Avisa de que estás fuera: cada remitente recibe una respuesta mientras están activadas, aunque este equipo esté apagado.
@@ -939,7 +939,6 @@
 	Rules saved in {file}: {n}	Reglas guardadas en {file}: {n}
 	Save {n} Selected…	Guardar {n} seleccionados…
 	Run all	Ejecutar todas
-	Run every rule that's on, on the mail already in the Inbox	Ejecuta todas las reglas activadas en el correo que ya está en la Bandeja de entrada
 	Find a rule	Buscar una regla
 	No rule matches.	Ninguna regla coincide.
 	 and {n} more	 y {n} más
@@ -1969,3 +1968,9 @@ count	occurrences	repeticiones
 	No one found for {names}	No se encontró a nadie para {names}
 	Still looking up {names} in the directory	Aún se busca {names} en el directorio
 	More than one person could be “{typed}”. Pick the one you meant:	«{typed}» podría ser más de una persona. Elija la que quería:
+	Applies to	Se aplica a
+	Mail that arrives	Correo que llega
+	Mail you send	Correo que envía
+	Run it now on the mail already in Sent	Ejecutarla ahora en el correo que ya está en Enviados
+	If mail you send {condition}: {action}	Si el correo que envía {condition}: {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Ejecuta todas las reglas activadas en el correo que ya está en la Bandeja de entrada (y en Enviados, para el correo que envía)

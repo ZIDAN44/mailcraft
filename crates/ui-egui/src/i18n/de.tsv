@@ -231,7 +231,7 @@
 	Results for “{query}”	Ergebnisse für „{query}“
 	Right	Rechts
 	Rules	Regeln
-	Rules run on new mail as it arrives in an Inbox, in this order.	Regeln werden in dieser Reihenfolge auf neue E-Mails angewendet, sobald sie in einem Posteingang eintreffen.
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	Regeln werden in dieser Reihenfolge angewendet: auf neue E-Mails, sobald sie in einem Posteingang eintreffen, und auf gesendete E-Mails, sobald ihre Kopie in „Gesendete Elemente“ liegt.
 	Rules…	Regeln…
 	Run now	Jetzt ausführen
 	Run on the folder on screen	Auf den angezeigten Ordner anwenden
@@ -444,7 +444,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	Formatierung, Farben und Bilder werden weggelassen. „Formatiert anzeigen“ über einer Nachricht zeigt diese so, wie sie gesendet wurde.
 	Show mail without its formatting	E-Mails ohne Formatierung anzeigen
 	Show a line of each message in the list	Eine Zeile jeder Nachricht in der Liste anzeigen
-	Sort new mail as it arrives: move it, flag it, categorize it.	Neue E-Mails beim Eintreffen sortieren: verschieben, kennzeichnen, kategorisieren.
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	E-Mails beim Eintreffen oder Senden sortieren: verschieben, kennzeichnen, kategorisieren.
 	Source code and issues	Quellcode und Fehlermeldungen
 	Subject (optional)	Betreff (optional)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Teilen Sie mit, dass Sie abwesend sind: Jeder Absender erhält eine Antwort, solange sie aktiv sind, auch wenn dieser Computer aus ist.
@@ -939,7 +939,6 @@
 	Rules saved in {file}: {n}	In {file} gespeicherte Regeln: {n}
 	Save {n} Selected…	{n} ausgewählte speichern…
 	Run all	Alle ausführen
-	Run every rule that's on, on the mail already in the Inbox	Führt alle eingeschalteten Regeln für die E-Mails aus, die schon im Posteingang sind
 	Find a rule	Regel suchen
 	No rule matches.	Keine Regel passt.
 	 and {n} more	 und {n} weitere
@@ -1969,3 +1968,9 @@ count	occurrences	Terminen
 	No one found for {names}	Niemand gefunden für {names}
 	Still looking up {names} in the directory	{names} wird noch im Verzeichnis gesucht
 	More than one person could be “{typed}”. Pick the one you meant:	„{typed}“ könnte mehr als eine Person sein. Wählen Sie die gemeinte:
+	Applies to	Gilt für
+	Mail that arrives	Eingehende E-Mails
+	Mail you send	E-Mails, die Sie senden
+	Run it now on the mail already in Sent	Jetzt auf die E-Mails in „Gesendete Elemente“ anwenden
+	If mail you send {condition}: {action}	Wenn eine gesendete E-Mail {condition}: {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Führt alle eingeschalteten Regeln für die E-Mails aus, die schon im Posteingang sind (und für gesendete E-Mails in „Gesendete Elemente“)

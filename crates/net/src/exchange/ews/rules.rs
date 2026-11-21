@@ -175,7 +175,16 @@ fn as_rule(el: &El, name: &str, folder_path: &dyn Fn(RuleFolder<'_>) -> Option<S
     if conditions.is_empty() || actions.is_empty() {
         return None;
     }
-    Some(Rule { name: name.to_string(), enabled: el.text_of("IsEnabled") == Some("true"), account: None, conditions, match_all: true, actions, stop })
+    Some(Rule {
+        name: name.to_string(),
+        enabled: el.text_of("IsEnabled") == Some("true"),
+        account: None,
+        conditions,
+        match_all: true,
+        actions,
+        stop,
+        sent: false,
+    })
 }
 
 /// A rule's XML: its id (`None` for a new one), name, order and switch from `now`; what it does

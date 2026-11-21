@@ -28,6 +28,7 @@ fn rule(name: &str, word: &str) -> Rule {
         match_all: true,
         actions: vec![RuleAction::MarkRead],
         stop: false,
+        sent: false,
     }
 }
 

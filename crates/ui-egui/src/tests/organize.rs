@@ -4,6 +4,7 @@ use super::*;
 
 mod categories;
 mod folder_pane;
+mod sent_rules;
 mod server_rules;
 
 #[test]
@@ -349,6 +350,7 @@ fn a_rule_shown_in_part_keeps_the_rest() {
         match_all: false,
         actions: vec![RuleAction::Flag, RuleAction::MoveToRole(FolderRole::Junk)],
         stop: true,
+        sent: false,
     };
     let mut f = RuleForm::from_rule(0, &rule);
     f.name = "Studio mail".into();
@@ -384,6 +386,7 @@ fn a_rule_that_no_longer_moves_is_for_every_account() {
         match_all: true,
         actions: vec![RuleAction::MoveTo("Projects".into()), RuleAction::MarkRead],
         stop: false,
+        sent: false,
     };
     let mut f = RuleForm::from_rule(0, &rule);
     (f.action, f.target) = (RuleDo::Flag, String::new());
@@ -487,6 +490,7 @@ fn many_rules(n: usize) -> Vec<mailcraft_engine::model::organize::Rule> {
                 RuleAction::Flag,
             ],
             stop: false,
+            sent: false,
         })
         .collect()
 }

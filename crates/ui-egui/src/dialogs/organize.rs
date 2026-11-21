@@ -14,7 +14,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         Dialog::Rules => {
             ui.set_width(560.0);
             title(ui, t, "Rules");
-            ui.label(RichText::new(tl!("Rules run on new mail as it arrives in an Inbox, in this order.")).color(t.dim).small());
+            ui.label(
+                RichText::new(tl!("Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent."))
+                    .color(t.dim)
+                    .small(),
+            );
             ui.add_space(6.0);
             // Many rules: a box to find one by its name or what it does.
             let find_id = egui::Id::unique("rules-find");
@@ -113,7 +117,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 let any_on = s.rules.iter().any(|r| r.enabled);
                 if ui
                     .add_enabled(any_on, egui::Button::new(tl!("Run all")))
-                    .on_hover_text(tl!("Run every rule that's on, on the mail already in the Inbox"))
+                    .on_hover_text(tl!("Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)"))
                     .clicked()
                 {
                     acts.push(Action::Run("rules.run", json!({"inbox": true})));
@@ -141,8 +145,31 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.label(tl!("Name"));
                 ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(300.0));
                 ui.end_row();
+                // Mail arriving, or mail sent (issue #202): a rule on a server is for arriving mail.
+                if f.server.is_none() {
+                    let l = ui.label(tl!("Applies to"));
+                    let kinds = [false, true];
+                    let said = |sent: bool| if sent { tl!("Mail you send") } else { tl!("Mail that arrives") };
+                    let r = egui::ComboBox::from_id_salt("rule-sent")
+                        .width(300.0)
+                        .selected_text(said(f.sent))
+                        .show_ui(ui, |ui| {
+                            for k in kinds {
+                                ui.selectable_value(&mut f.sent, k, said(k));
+                            }
+                        })
+                        .response
+                        .labelled_by(l.id);
+                    crate::drop_down::keys(ui, &r, &mut f.sent, &kinds);
+                    ui.end_row();
+                    // Mail sent isn't list mail.
+                    if f.sent && !f.test.for_sent() {
+                        f.test = RuleTest::To;
+                    }
+                }
                 let l = ui.label(tl!("When mail"));
-                let tests: Vec<RuleTest> = RuleTest::ALL.into_iter().filter(|x| f.server.is_none() || x.on_server()).collect();
+                let tests: Vec<RuleTest> =
+                    RuleTest::ALL.into_iter().filter(|x| (f.server.is_none() || x.on_server()) && (!f.sent || x.for_sent())).collect();
                 let r = egui::ComboBox::from_id_salt("rule-test")
                     .width(300.0)
                     .selected_text(f.test.label())
@@ -242,7 +269,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             });
             ui.checkbox(&mut f.stop, tl!("Don't run later rules on mail this one matches"));
             if f.server.is_none() {
-                ui.checkbox(&mut f.run_now, tl!("Run it now on the mail already in the Inbox"));
+                let now = if f.sent { tl!("Run it now on the mail already in Sent") } else { tl!("Run it now on the mail already in the Inbox") };
+                ui.checkbox(&mut f.run_now, now);
             }
             if let Some(e) = &f.error {
                 ui.label(RichText::new(e.as_str()).color(t.danger).small());
@@ -448,6 +476,10 @@ impl RuleTest {
     pub(super) fn on_server(self) -> bool {
         !matches!(self, RuleTest::AnyText | RuleTest::Bulk)
     }
+    /// Whether it says anything of mail the user sends (issue #202).
+    pub(super) fn for_sent(self) -> bool {
+        self != RuleTest::Bulk
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -494,8 +526,11 @@ pub struct RuleForm {
     /// The account whose folders `MoveTo` offers (and the only one it applies to).
     pub account: Option<String>,
     pub stop: bool,
-    /// Run it on the mail already in the Inbox once saved (Outlook's "run this rule now").
+    /// Run it on the mail already in the Inbox (or Sent) once saved (Outlook's "run this rule
+    /// now").
     pub run_now: bool,
+    /// On mail the user sends, not mail arriving (issue #202).
+    pub sent: bool,
     pub error: Option<String>,
     /// The rule as it was when opened: what the editor doesn't show of it (more conditions or
     /// actions, "any" of them, the account it's for) is kept, and of what it shows only what was
@@ -572,10 +607,11 @@ impl RuleForm {
                 match_all: true,
                 actions: vec![action],
                 stop: self.stop,
+                sent: self.sent,
             });
         };
         let (test, text, act, target) = shown(original);
-        let mut rule = Rule { name: self.name.trim().to_string(), stop: self.stop, ..original.clone() };
+        let mut rule = Rule { name: self.name.trim().to_string(), stop: self.stop, sent: self.sent, ..original.clone() };
         if self.test != test || self.text.trim() != text.trim() {
             put_first(&mut rule.conditions, condition);
         }
@@ -606,6 +642,7 @@ impl RuleForm {
             account: r.account.clone(),
             stop: r.stop,
             run_now: false,
+            sent: r.sent,
             error: None,
             original: Some(r.clone()),
             server: None,
@@ -628,6 +665,7 @@ impl RuleForm {
                 account,
                 stop: false,
                 run_now: false,
+                sent: false,
                 error: None,
                 original: None,
                 server: Some(target),
@@ -716,5 +754,9 @@ pub(super) fn describe(s: &Session, r: &Rule) -> String {
         })
         .collect::<Vec<_>>()
         .join(", ");
-    tf!("If it {condition}: {action}", condition = cond, action = act)
+    if r.sent {
+        tf!("If mail you send {condition}: {action}", condition = cond, action = act)
+    } else {
+        tf!("If it {condition}: {action}", condition = cond, action = act)
+    }
 }

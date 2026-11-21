@@ -231,7 +231,7 @@
 	Results for “{query}”	「{query}」的結果
 	Right	右側
 	Rules	規則
-	Rules run on new mail as it arrives in an Inbox, in this order.	新郵件抵達收件匣時，依此順序套用規則。
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	規則依此順序執行：新郵件送達收件匣時，以及你寄出的郵件副本送達「寄件備份」時。
 	Rules…	規則…
 	Run now	立即執行
 	Run on the folder on screen	在目前顯示的資料夾上執行
@@ -443,7 +443,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	將略去格式、色彩和圖片。郵件上方的「以格式顯示」可按原樣顯示該郵件。
 	Show mail without its formatting	顯示郵件但不帶格式
 	Show a line of each message in the list	在清單中顯示每封郵件的一行內容
-	Sort new mail as it arrives: move it, flag it, categorize it.	在新郵件抵達時整理: 移動、加上標幟、分類。
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	在郵件送達或寄出時整理：移動、標幟、分類。
 	Source code and issues	原始程式碼和問題回報
 	Subject (optional)	主旨 (選填)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	讓別人知道您不在: 開啟期間每位寄件者收到一次回覆，即使這台電腦關機也有效。
@@ -938,7 +938,6 @@
 	Rules saved in {file}: {n}	已將 {n} 條規則儲存到 {file}
 	Save {n} Selected…	儲存所選的 {n} 個…
 	Run all	全部執行
-	Run every rule that's on, on the mail already in the Inbox	對收件匣中已有的郵件執行所有已開啟的規則
 	Find a rule	尋找規則
 	No rule matches.	沒有符合的規則。
 	 and {n} more	 等另外 {n} 人
@@ -1968,3 +1967,9 @@ count	occurrences	次
 	No one found for {names}	找不到 {names}
 	Still looking up {names} in the directory	仍在目錄中尋找 {names}
 	More than one person could be “{typed}”. Pick the one you meant:	「{typed}」可能是多個人。請選擇你要的那位：
+	Applies to	套用到
+	Mail that arrives	收到的郵件
+	Mail you send	你寄出的郵件
+	Run it now on the mail already in Sent	立即對「寄件備份」中的郵件執行
+	If mail you send {condition}: {action}	如果你寄出的郵件{condition}: {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	對收件匣中已有的郵件執行每條已開啟的規則（對你寄出的郵件，則在「寄件備份」中）

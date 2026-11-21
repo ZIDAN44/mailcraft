@@ -231,7 +231,7 @@
 	Results for “{query}”	"{query}" 검색 결과
 	Right	오른쪽
 	Rules	규칙
-	Rules run on new mail as it arrives in an Inbox, in this order.	새 메일이 받은 편지함에 도착하면 이 순서대로 규칙이 적용됩니다.
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	규칙은 이 순서대로, 받은 편지함에 도착한 새 메일과 보낸 메일의 사본이 보낸 편지함에 들어갈 때 실행됩니다.
 	Rules…	규칙…
 	Run now	지금 실행
 	Run on the folder on screen	표시된 폴더에서 실행
@@ -443,7 +443,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	서식, 색, 그림은 빠집니다. 메시지 위의 [서식 있게 표시]를 누르면 그 메시지를 보낸 그대로 표시합니다.
 	Show mail without its formatting	메일을 서식 없이 표시
 	Show a line of each message in the list	목록에 각 메시지의 한 줄 표시
-	Sort new mail as it arrives: move it, flag it, categorize it.	새 메일이 도착하면 정리: 이동, 플래그, 분류.
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	메일이 도착하거나 보낼 때 정리: 이동, 플래그, 분류.
 	Source code and issues	소스 코드 및 문제 보고
 	Subject (optional)	제목 (선택 사항)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	부재 중임을 알립니다: 켜져 있는 동안 보낸 사람마다 한 번 회신하며, 이 컴퓨터가 꺼져 있어도 작동합니다.
@@ -938,7 +938,6 @@
 	Rules saved in {file}: {n}	규칙 {n}개를 {file}에 저장했습니다
 	Save {n} Selected…	선택한 {n}개 저장…
 	Run all	모두 실행
-	Run every rule that's on, on the mail already in the Inbox	켜져 있는 모든 규칙을 받은 편지함에 이미 있는 메일에 실행합니다
 	Find a rule	규칙 찾기
 	No rule matches.	일치하는 규칙이 없습니다.
 	 and {n} more	 외 {n}명
@@ -1968,3 +1967,9 @@ count	occurrences	회
 	No one found for {names}	{names}에 해당하는 사람이 없습니다
 	Still looking up {names} in the directory	디렉터리에서 {names}을(를) 아직 찾는 중입니다
 	More than one person could be “{typed}”. Pick the one you meant:	“{typed}”에 해당하는 사람이 여러 명입니다. 원하는 사람을 고르세요:
+	Applies to	적용 대상
+	Mail that arrives	받는 메일
+	Mail you send	보내는 메일
+	Run it now on the mail already in Sent	보낸 편지함에 이미 있는 메일에 지금 실행
+	If mail you send {condition}: {action}	보내는 메일이 {condition}: {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	켜져 있는 모든 규칙을 받은 편지함에 이미 있는 메일에 실행합니다(보내는 메일 규칙은 보낸 편지함에)

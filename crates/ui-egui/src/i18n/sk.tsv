@@ -231,7 +231,7 @@
 	Results for “{query}”	Výsledky pre „{query}“
 	Right	Vpravo
 	Rules	Pravidlá
-	Rules run on new mail as it arrives in an Inbox, in this order.	Pravidlá sa v tomto poradí spúšťajú na novú poštu, keď príde do priečinka Doručená pošta.
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	Pravidlá sa spúšťajú v tomto poradí na novú poštu, keď príde do Doručenej pošty, a na poštu, ktorú odosielate, keď jej kópia príde do Odoslanej pošty.
 	Rules…	Pravidlá…
 	Run now	Spustiť teraz
 	Run on the folder on screen	Spustiť na zobrazenom priečinku
@@ -444,7 +444,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	Formátovanie, farby a obrázky sa vynechajú. Príkaz Zobraziť formátované nad správou zobrazí danú správu tak, ako bola odoslaná.
 	Show mail without its formatting	Zobrazovať poštu bez formátovania
 	Show a line of each message in the list	V zozname zobrazovať riadok z každej správy
-	Sort new mail as it arrives: move it, flag it, categorize it.	Triedenie novej pošty pri príchode: presunúť, označiť príznakom, zaradiť do kategórie.
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	Triediť poštu pri doručení alebo odoslaní: presunúť, označiť príznakom, zaradiť do kategórie.
 	Source code and issues	Zdrojový kód a hlásenia chýb
 	Subject (optional)	Predmet (nepovinné)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Dajte ľuďom vedieť, že ste preč: každý odosielateľ dostane jednu odpoveď, kým sú zapnuté, aj keď je tento počítač vypnutý.
@@ -939,7 +939,6 @@
 	Rules saved in {file}: {n}	Pravidlá uložené do {file}: {n}
 	Save {n} Selected…	Uložiť vybrané ({n})…
 	Run all	Spustiť všetky
-	Run every rule that's on, on the mail already in the Inbox	Spustiť každé zapnuté pravidlo na poštu, ktorá už je v priečinku Doručená pošta
 	Find a rule	Nájsť pravidlo
 	No rule matches.	Žiadne pravidlo nezodpovedá.
 	 and {n} more	 a ďalšie ({n})
@@ -1983,3 +1982,9 @@ count	occurrences	opakovaní
 	No one found for {names}	Pre {names} sa nikto nenašiel
 	Still looking up {names} in the directory	{names} sa ešte hľadá v adresári
 	More than one person could be “{typed}”. Pick the one you meant:	„{typed}“ môže byť viac ako jedna osoba. Vyberte tú, ktorú ste mysleli:
+	Applies to	Platí pre
+	Mail that arrives	Prichádzajúcu poštu
+	Mail you send	Poštu, ktorú odosielate
+	Run it now on the mail already in Sent	Spustiť teraz na poštu, ktorá už je v Odoslanej pošte
+	If mail you send {condition}: {action}	Ak pošta, ktorú odosielate, {condition}: {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Spustí každé zapnuté pravidlo na poštu, ktorá už je v Doručenej pošte (a v Odoslanej pošte pre poštu, ktorú odosielate)

@@ -271,7 +271,7 @@ fn automatic_replies(t: &Tokens, ui: &mut Ui, a: &AccountState, acts: &mut Vec<A
 /// The rules: how many, and Manage rules.
 fn rules(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     let n = s.rules.len();
-    card(ui, t, tl!("Rules"), Some(tl!("Sort new mail as it arrives: move it, flag it, categorize it.")), |ui| {
+    card(ui, t, tl!("Rules"), Some(tl!("Sort mail as it arrives, or as you send it: move it, flag it, categorize it.")), |ui| {
         let count = if n == 0 { tl!("No rules yet.").to_string() } else { tf!("Rules: {n}", n = n) };
         setting_row(ui, t, true, name(t, &count), None, |ui| {
             if ui.button(tl!("Manage rules")).clicked() {

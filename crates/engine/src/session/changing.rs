@@ -49,7 +49,7 @@ impl MovedIn {
         self.at.remove(k).is_some()
     }
 
-    #[cfg(test)]
+    /// Each one remembered.
     pub(crate) fn iter(&self) -> impl Iterator<Item = &(String, String, String)> {
         self.at.keys()
     }
@@ -108,13 +108,14 @@ impl Session {
         done
     }
 
-    /// Mail moved into an Inbox or Junk on a server is remembered ([`Session::moved_in`]): seen
-    /// there under a new UID, it was taken for mail arriving, so a rule filed it straight back
-    /// where it was dragged from, an undone delete was announced as new, and "Not junk" on a
-    /// blocked sender's message sent it back to Junk.
+    /// Mail moved into an Inbox, Junk or Sent on a server is remembered ([`Session::moved_in`]):
+    /// seen there under a new UID, it was taken for mail arriving, so a rule filed it straight
+    /// back where it was dragged from, an undone delete was announced as new, and "Not junk" on a
+    /// blocked sender's message sent it back to Junk. (Mail put in Sent wasn't sent: the rules
+    /// for mail sent leave it alone, issue #202.)
     fn note_moved_in(&mut self, account: &str, op: &Op) {
         let Op::Move { keys, to } = op else { return };
-        if !matches!(self.folder(account, to).map(|f| f.role), Some(FolderRole::Inbox | FolderRole::Junk)) {
+        if !matches!(self.folder(account, to).map(|f| f.role), Some(FolderRole::Inbox | FolderRole::Junk | FolderRole::Sent)) {
             return;
         }
         // Each source folder looked through once (per message, 5,000 out of 50,000 took 80 ms).

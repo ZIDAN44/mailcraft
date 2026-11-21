@@ -7,6 +7,7 @@ mod focused;
 mod folder_order;
 mod junk;
 mod many;
+mod sent_rules;
 mod server_rules;
 
 #[test]

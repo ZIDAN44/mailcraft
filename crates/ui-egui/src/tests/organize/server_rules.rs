@@ -23,6 +23,7 @@ fn subject(word: &str) -> Rule {
         match_all: true,
         actions: vec![RuleAction::MarkRead],
         stop: false,
+        sent: false,
     }
 }
 

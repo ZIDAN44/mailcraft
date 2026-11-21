@@ -149,6 +149,7 @@ fn real_ews_inbox_rules() {
         match_all: true,
         actions: vec![RuleAction::MoveTo(junk.clone())],
         stop: true,
+        sent: false,
     };
     let now = ServerRule {
         name: "MailCraft test".into(),

@@ -169,7 +169,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.set_rules(rules)
         })
         .params(
-            r#"{"rule": {"name": string, "conditions": [{"if": "from"|"to"|"subject"|"anyText", "value": string} | {"if": "hasAttachment"|"bulk"}], "matchAll"?: bool, "actions": [{"do": "moveTo", "value": folder} | {"do": "moveToRole", "value": "archive"|…} | {"do": "categorize", "value": name} | {"do": "markRead"|"flag"|"pin"|"delete"}], "account"?: string, "stop"?: bool, "enabled"?: bool}}"#,
+            r#"{"rule": {"name": string, "conditions": [{"if": "from"|"to"|"subject"|"anyText", "value": string} | {"if": "hasAttachment"|"bulk"}], "matchAll"?: bool, "actions": [{"do": "moveTo", "value": folder} | {"do": "moveToRole", "value": "archive"|…} | {"do": "categorize", "value": name} | {"do": "markRead"|"flag"|"pin"|"delete"}], "account"?: string, "stop"?: bool, "enabled"?: bool, "sent"?: bool (on mail you send, as its copy reaches Sent, not mail arriving)}}"#,
         ),
         CommandSpec::new("rules.delete", "Delete rule", "Home › Rules", |s, v| {
             let i = p::u64(v, "index").and_then(|i| usize::try_from(i).ok()).ok_or_else(|| CmdError::Params("`index` is required".into()))?;
@@ -220,7 +220,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("rules.run", "Run rules now", "Home › Rules", |s, v| {
             s.run_rules_now(p::u64(v, "index").and_then(|i| usize::try_from(i).ok()), p::bool(v, "inbox").unwrap_or(false))
         })
-        .params(r#"{"index"?: number, "inbox"?: bool (the mail already in the Inbox, not the list on screen)}"#)
+        .params(r#"{"index"?: number, "inbox"?: bool (the mail already in the Inbox, and in Sent for rules for mail sent, not the list on screen)}"#)
             .when(has_account),
     ]
 }

@@ -385,6 +385,9 @@ pub struct Session {
     pub(crate) seen_uid: HashMap<(String, String), (u32, u32)>,
     /// Mail the user put in a server account's Inbox or Junk, not mail arriving there.
     pub(crate) moved_in: changing::MovedIn,
+    /// Mail sent from here whose copy in Sent the rules for mail sent wait for (issue #202), by
+    /// (account, "", Message-ID).
+    pub(crate) sent_here: changing::MovedIn,
     /// When mail was last moved (Unix seconds): its Undo waits for a server to have moved it.
     pub(crate) moved_at: i64,
     /// Mail moved or copied into a folder on this computer, waiting for its source (issue #82).
@@ -557,6 +560,7 @@ impl Session {
             pgp: Default::default(),
             seen_uid: HashMap::new(),
             moved_in: changing::MovedIn::default(),
+            sent_here: changing::MovedIn::default(),
             moved_at: 0,
             transfers: Vec::new(),
             archiving: None,

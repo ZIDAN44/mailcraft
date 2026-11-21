@@ -325,7 +325,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         "Change this account's name, servers and sign-in, or its signature.",
         "Tell people you're away: each sender gets one reply while they're on, even when this computer is off.",
         "See how much space your mail takes, and empty Deleted Items and Junk Email.",
-        "Sort new mail as it arrives: move it, flag it, categorize it.",
+        "Sort mail as it arrives, or as you send it: move it, flag it, categorize it.",
         "Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.",
         "MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.",
         "Built in the open from the email standards: no code, icons or assets from other mail apps.",

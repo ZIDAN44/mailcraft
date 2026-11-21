@@ -162,9 +162,9 @@ impl Session {
     fn send_copies(&mut self, mail: Vec<Transfer>) {
         let Some(first) = mail.first() else { return };
         let (account, folder, moved) = (first.account.clone(), first.folder.clone(), first.moved);
-        // Put into an Inbox or Junk by hand, it didn't arrive there: no rules run on it (one
-        // filed it straight out again), nothing announced, as mail moved within an account.
-        if self.folder(&account, &folder).is_some_and(|f| matches!(f.role, FolderRole::Inbox | FolderRole::Junk)) {
+        // Put into an Inbox, Junk or Sent by hand, it didn't arrive (or go) there: no rules run on
+        // it (one filed it straight out again), nothing announced, as mail moved within an account.
+        if self.folder(&account, &folder).is_some_and(|f| matches!(f.role, FolderRole::Inbox | FolderRole::Junk | FolderRole::Sent)) {
             for t in mail.iter().filter(|t| !t.message_id.is_empty()) {
                 self.moved_in.insert((account.clone(), folder.clone(), t.message_id.clone()));
             }

@@ -9,6 +9,7 @@ pub mod categories;
 pub mod junk;
 pub mod quick_steps;
 pub mod search_folders;
+mod sent_rules;
 pub mod server_rules;
 
 /// The folder snoozed mail waits in.
@@ -525,7 +526,8 @@ impl Session {
     }
 
     /// Run the rules on messages: their actions become ordinary changes. Returns the keys the
-    /// rules marked read or sent to Deleted Items or Junk (no need to announce those).
+    /// rules marked read or sent to Deleted Items or Junk (no need to announce those). A message
+    /// in Sent has the rules for mail sent, any other the rest (issue #202).
     pub(super) fn run_rules(&mut self, msgs: &[Summary]) -> Vec<MessageKey> {
         if self.rules.is_empty() {
             return Vec::new();
@@ -539,9 +541,11 @@ impl Session {
     fn apply_rules<S: std::borrow::Borrow<Summary>>(&mut self, rules: &[Rule], msgs: &[S]) -> (Vec<MessageKey>, usize) {
         let (mut quiet, mut matched) = (Vec::new(), 0usize);
         let mut changes = Batch::default();
+        let (sending, arriving): (Vec<Rule>, Vec<Rule>) = rules.iter().cloned().partition(|r| r.sent);
         for m in msgs {
             let m: &Summary = m.borrow();
-            let actions = actions_for(rules, m);
+            let sent = self.folder(&m.key.account, &m.key.folder).is_some_and(|f| f.role == FolderRole::Sent);
+            let actions = actions_for(if sent { &sending } else { &arriving }, m);
             if actions.is_empty() {
                 continue;
             }
@@ -583,7 +587,8 @@ impl Session {
     }
 
     /// Run the rules (or one) now, on the list on screen or (`inbox`) on the mail already in the
-    /// Inbox of the accounts they apply to, as Outlook's "run this rule now".
+    /// Inbox of the accounts they apply to (and in Sent, for the rules for mail sent), as
+    /// Outlook's "run this rule now".
     pub fn run_rules_now(&mut self, only: Option<usize>, inbox: bool) -> CmdResult {
         // The one asked for runs even when it's turned off; the rules kept stay as they are.
         let rules = match only {
@@ -592,11 +597,16 @@ impl Session {
         };
         let msgs: Vec<SharedSummary> = if inbox {
             let only_account = only.and(rules.first()).and_then(|r| r.account.clone());
+            let roles: Vec<FolderRole> = [(FolderRole::Inbox, false), (FolderRole::Sent, true)]
+                .into_iter()
+                .filter(|(_, sent)| rules.iter().any(|r| r.sent == *sent))
+                .map(|(role, _)| role)
+                .collect();
             let inboxes: Vec<(String, String)> = self
                 .accounts
                 .iter()
                 .filter(|a| only_account.as_ref().is_none_or(|o| *o == a.config.id))
-                .filter_map(|a| a.folder(FolderRole::Inbox).map(|f| (a.config.id.clone(), f.path.clone())))
+                .flat_map(|a| roles.iter().filter_map(|r| a.folder(*r).map(|f| (a.config.id.clone(), f.path.clone()))))
                 .collect();
             self.folders_ready(&inboxes)?;
             inboxes

@@ -231,7 +231,7 @@
 	Results for “{query}”	Результаты для «{query}»
 	Right	Справа
 	Rules	Правила
-	Rules run on new mail as it arrives in an Inbox, in this order.	Правила применяются к новой почте при поступлении во «Входящие», в этом порядке.
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	Правила применяются в этом порядке к новой почте, когда она приходит во «Входящие», и к отправляемой почте, когда её копия попадает в «Отправленные».
 	Rules…	Правила…
 	Run now	Выполнить сейчас
 	Run on the folder on screen	Выполнить для открытой папки
@@ -443,7 +443,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	Форматирование, цвета и рисунки опускаются. «Показать с форматированием» над письмом показывает это письмо таким, каким оно было отправлено.
 	Show mail without its formatting	Показывать письма без форматирования
 	Show a line of each message in the list	Показывать строку каждого письма в списке
-	Sort new mail as it arrives: move it, flag it, categorize it.	Сортируйте новую почту при поступлении: перемещайте, помечайте, распределяйте по категориям.
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	Сортировать почту при получении или отправке: перемещать, помечать флажком, назначать категорию.
 	Source code and issues	Исходный код и сообщения об ошибках
 	Subject (optional)	Тема (необязательно)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Сообщите, что вас нет: каждый отправитель получит один ответ, пока они включены, даже если этот компьютер выключен.
@@ -938,7 +938,6 @@
 	Rules saved in {file}: {n}	Правил сохранено в {file}: {n}
 	Save {n} Selected…	Сохранить выбранные ({n})…
 	Run all	Выполнить все
-	Run every rule that's on, on the mail already in the Inbox	Выполняет все включённые правила для писем, которые уже во «Входящих»
 	Find a rule	Найти правило
 	No rule matches.	Нет подходящих правил.
 	 and {n} more	 и ещё {n}
@@ -1982,3 +1981,9 @@ count	occurrences	повторений
 	No one found for {names}	Никто не найден для {names}
 	Still looking up {names} in the directory	{names} ещё ищется в каталоге
 	More than one person could be “{typed}”. Pick the one you meant:	«{typed}» может означать несколько человек. Выберите нужного:
+	Applies to	Применяется к
+	Mail that arrives	Входящей почте
+	Mail you send	Почте, которую вы отправляете
+	Run it now on the mail already in Sent	Применить сейчас к почте в «Отправленных»
+	If mail you send {condition}: {action}	Если отправляемое письмо {condition}: {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Выполняет все включённые правила для писем, которые уже во «Входящих» (и в «Отправленных» — для отправляемой почты)

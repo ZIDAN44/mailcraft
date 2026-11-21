@@ -231,7 +231,7 @@
 	Results for “{query}”	Resultaten voor “{query}”
 	Right	Rechts
 	Rules	Regels
-	Rules run on new mail as it arrives in an Inbox, in this order.	Regels worden in deze volgorde uitgevoerd op nieuwe mail die in een Postvak IN binnenkomt.
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	Regels worden in deze volgorde uitgevoerd op nieuwe e-mail zodra die in een Postvak IN binnenkomt, en op e-mail die u verstuurt zodra de kopie in Verzonden items staat.
 	Rules…	Regels…
 	Run now	Nu uitvoeren
 	Run on the folder on screen	Uitvoeren op de map op het scherm
@@ -443,7 +443,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	Opmaak, kleuren en afbeeldingen worden weggelaten. ‘Met opmaak weergeven’, boven een bericht, toont dat bericht zoals het is verzonden.
 	Show mail without its formatting	E-mail zonder opmaak weergeven
 	Show a line of each message in the list	Een regel van elk bericht in de lijst weergeven
-	Sort new mail as it arrives: move it, flag it, categorize it.	Sorteer nieuwe mail bij binnenkomst: verplaatsen, markeren, categoriseren.
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	Sorteer e-mail als die binnenkomt of als u die verstuurt: verplaatsen, markeren, categoriseren.
 	Source code and issues	Broncode en issues
 	Subject (optional)	Onderwerp (optioneel)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Laat mensen weten dat je weg bent: elke afzender krijgt één antwoord zolang ze aanstaan, ook als deze computer uit staat.
@@ -940,7 +940,6 @@ month	May	mei
 	Rules saved in {file}: {n}	Regels opgeslagen in {file}: {n}
 	Save {n} Selected…	{n} geselecteerde opslaan…
 	Run all	Alle uitvoeren
-	Run every rule that's on, on the mail already in the Inbox	Voert alle ingeschakelde regels uit op de mail die al in het Postvak IN staat
 	Find a rule	Een regel zoeken
 	No rule matches.	Geen regel komt overeen.
 	 and {n} more	 en nog {n}
@@ -1964,3 +1963,9 @@ count	occurrences	keer
 	No one found for {names}	Niemand gevonden voor {names}
 	Still looking up {names} in the directory	{names} wordt nog in de adreslijst gezocht
 	More than one person could be “{typed}”. Pick the one you meant:	‘{typed}’ kan meer dan één persoon zijn. Kies wie u bedoelde:
+	Applies to	Geldt voor
+	Mail that arrives	Binnenkomende e-mail
+	Mail you send	E-mail die u verstuurt
+	Run it now on the mail already in Sent	Nu uitvoeren op de e-mail die al in Verzonden items staat
+	If mail you send {condition}: {action}	Als e-mail die u verstuurt {condition}: {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Voert elke ingeschakelde regel uit op de e-mail die al in het Postvak IN staat (en in Verzonden items, voor e-mail die u verstuurt)

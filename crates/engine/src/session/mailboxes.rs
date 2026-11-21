@@ -273,10 +273,11 @@ impl Session {
     }
 
     /// Remember what an Inbox holds; unread mail above the last high-water mark is new. The first
-    /// look at a folder only sets the mark, so a first sync doesn't announce the backlog.
+    /// look at a folder only sets the mark, so a first sync doesn't announce the backlog. Mail
+    /// new in Sent is mail the user sent: the rules for it run (issue #202).
     pub(super) fn note_new_mail(&mut self, account: &str, folder: &str) {
         let role = self.folder(account, folder).map(|f| f.role);
-        if !matches!(role, Some(FolderRole::Inbox | FolderRole::Junk)) {
+        if !matches!(role, Some(FolderRole::Inbox | FolderRole::Junk | FolderRole::Sent)) {
             return;
         }
         let st = self.folder_state(account, folder);
@@ -306,6 +307,10 @@ impl Session {
         // What the user put here didn't arrive: no rules, nothing announced.
         let arrived: Vec<Summary> =
             arrived.into_iter().filter(|m| !self.moved_in.remove(&(account.to_string(), folder.to_string(), m.message_id.clone()))).collect();
+        // Sent: only its rules, nothing announced.
+        if role == Some(FolderRole::Sent) {
+            return self.sent_arrived(account, folder, arrived);
+        }
         // Junk from safe senders goes back to the Inbox (and is seen arriving there).
         if role == Some(FolderRole::Junk) {
             self.rescue_arrived(&arrived);

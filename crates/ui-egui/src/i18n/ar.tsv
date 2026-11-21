@@ -231,7 +231,7 @@
 	Results for “{query}”	نتائج «{query}»
 	Right	يمين
 	Rules	القواعد
-	Rules run on new mail as it arrives in an Inbox, in this order.	تُطبّق القواعد على البريد الجديد فور وصوله إلى علبة الوارد، بهذا الترتيب.
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	تعمل القواعد بهذا الترتيب على البريد الجديد عند وصوله إلى «البريد الوارد»، وعلى البريد الذي ترسله عند وصول نسخته إلى «المرسلة».
 	Rules…	القواعد…
 	Run now	تشغيل الآن
 	Run on the folder on screen	تشغيل على المجلد المعروض
@@ -443,7 +443,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	يُترك التنسيق والألوان والصور. «عرض منسّق»، فوق الرسالة، يعرض تلك الرسالة كما أُرسلت.
 	Show mail without its formatting	عرض البريد دون تنسيقه
 	Show a line of each message in the list	اعرض سطرًا من كل رسالة في القائمة
-	Sort new mail as it arrives: move it, flag it, categorize it.	رتّب البريد الجديد فور وصوله: انقله، ضع عليه علامة، صنّفه.
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	فرز البريد عند وصوله أو عند إرساله: نقله أو وضع علامة عليه أو تصنيفه.
 	Source code and issues	الشيفرة المصدرية والمشكلات
 	Subject (optional)	الموضوع (اختياري)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	أخبر الناس أنك غائب: يتلقى كل مرسل ردًا واحدًا أثناء تشغيلها، حتى عندما يكون هذا الكمبيوتر مطفأ.
@@ -940,7 +940,6 @@ month	May	مايو
 	Rules saved in {file}: {n}	تم حفظ القواعد في {file}: {n}
 	Save {n} Selected…	حفظ العناصر المحددة ({n})…
 	Run all	تشغيل الكل
-	Run every rule that's on, on the mail already in the Inbox	يشغّل كل القواعد المفعّلة على البريد الموجود في البريد الوارد
 	Find a rule	البحث عن قاعدة
 	No rule matches.	لا توجد قاعدة مطابقة.
 	 and {n} more	 و{n} آخرون
@@ -1964,3 +1963,9 @@ count	occurrences	مرات
 	No one found for {names}	لم يُعثر على أحد باسم {names}
 	Still looking up {names} in the directory	لا يزال البحث عن {names} جاريًا في الدليل
 	More than one person could be “{typed}”. Pick the one you meant:	قد يكون «{typed}» أكثر من شخص. اختر من تقصده:
+	Applies to	تنطبق على
+	Mail that arrives	البريد الوارد
+	Mail you send	البريد الذي ترسله
+	Run it now on the mail already in Sent	تشغيلها الآن على البريد الموجود في «المرسلة»
+	If mail you send {condition}: {action}	إذا كان البريد الذي ترسله {condition}: {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	يشغّل كل قاعدة مفعّلة على البريد الموجود في «البريد الوارد» (وفي «المرسلة» للبريد الذي ترسله)

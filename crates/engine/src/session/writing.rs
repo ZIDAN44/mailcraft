@@ -714,6 +714,9 @@ impl Session {
         // Delay Delivery, or Undo Send's wait: into the Outbox, sent once it's time (the app has
         // to be running then).
         let undo = self.undo_hold_until(c, local);
+        if !local {
+            self.note_sending(&c.account, &raw);
+        }
         if let Some(at) = c.send_after.filter(|at| *at > self.clock.now && !local).or(undo) {
             let item = OutboxItem {
                 id: c.id,

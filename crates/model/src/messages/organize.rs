@@ -85,8 +85,8 @@ pub enum RuleAction {
     Delete,
 }
 
-/// An inbox rule, run on mail as it arrives in an Inbox (the client applies it, like Outlook's
-/// client-side rules).
+/// A rule, run on mail as it arrives in an Inbox, or (`sent`) on mail the user sends as its copy
+/// reaches Sent (the client applies it, like Outlook's client-side rules, issue #202).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Rule {
@@ -104,6 +104,9 @@ pub struct Rule {
     /// Don't run later rules on a message this one matched.
     #[serde(default)]
     pub stop: bool,
+    /// On mail the user sends (its copy in Sent), not mail arriving, as Outlook's rules can be.
+    #[serde(default)]
+    pub sent: bool,
 }
 
 fn yes() -> bool {
@@ -304,6 +307,7 @@ mod tests {
             match_all: true,
             actions: vec![RuleAction::MoveTo("News".into()), RuleAction::MarkRead],
             stop: true,
+            sent: false,
         };
         let flag = Rule {
             name: "Boss".into(),

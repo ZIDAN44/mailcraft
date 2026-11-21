@@ -98,6 +98,7 @@ fn rules_made_and_changed_here_go_to_the_server() {
         match_all: true,
         actions: vec![RuleAction::MarkRead, RuleAction::MoveTo("Projects".into())],
         stop: false,
+        sent: false,
     };
     let now = ServerRule { name: "Receipts".into(), priority: 3, enabled: true, rule: Some(new.clone()), ..Default::default() };
     let (after, error) = set(&mut m, vec![ServerRuleOp::Create { now }], false);
@@ -186,6 +187,7 @@ fn a_rule_the_server_cant_hold_is_refused() {
         match_all: true,
         actions: vec![RuleAction::Flag],
         stop: false,
+        sent: false,
     };
     let now = ServerRule { name: "Lists".into(), priority: 3, enabled: true, rule: Some(bulk), ..Default::default() };
     let (back, error) = set(&mut m, vec![ServerRuleOp::Create { now }], false);

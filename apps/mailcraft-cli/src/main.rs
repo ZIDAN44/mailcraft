@@ -402,6 +402,9 @@ mod real_meetings;
 mod real_names;
 
 #[cfg(test)]
+mod real_sent_rules;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use mailcraft_engine::model::job::Op;

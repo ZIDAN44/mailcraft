@@ -231,7 +231,7 @@
 	Results for “{query}”	“{query}” için sonuçlar
 	Right	Sağ
 	Rules	Kurallar
-	Rules run on new mail as it arrives in an Inbox, in this order.	Kurallar, bir Gelen Kutusuna gelen yeni postalarda bu sırayla çalışır.
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	Kurallar bu sırayla, bir Gelen Kutusu'na gelen yeni postalara ve gönderdiğiniz postaların kopyası Gönderilmiş Öğeler'e ulaştığında onlara uygulanır.
 	Rules…	Kurallar…
 	Run now	Şimdi çalıştır
 	Run on the folder on screen	Ekrandaki klasörde çalıştır
@@ -444,7 +444,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	Biçimlendirme, renkler ve resimler dışarıda bırakılır. Bir iletinin üstündeki Biçimli göster, o iletiyi gönderildiği gibi gösterir.
 	Show mail without its formatting	Postayı biçimlendirmesi olmadan göster
 	Show a line of each message in the list	Listede her iletiden bir satır göster
-	Sort new mail as it arrives: move it, flag it, categorize it.	Yeni postaları geldikçe düzenleyin: taşıyın, bayraklayın, kategori atayın.
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	Postaları gelince veya gönderince sıralayın: taşıyın, bayrak koyun, kategorilere ayırın.
 	Source code and issues	Kaynak kodu ve sorunlar
 	Subject (optional)	Konu (isteğe bağlı)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	İnsanlara uzakta olduğunuzu bildirin: açık oldukları sürece her gönderici bir yanıt alır, bu bilgisayar kapalıyken bile.
@@ -939,7 +939,6 @@
 	Rules saved in {file}: {n}	{file} dosyasına kaydedilen kural: {n}
 	Save {n} Selected…	Seçili {n} Öğeyi Kaydet…
 	Run all	Tümünü çalıştır
-	Run every rule that's on, on the mail already in the Inbox	Açık olan her kuralı Gelen Kutusundaki mevcut postalarda çalıştır
 	Find a rule	Kural bul
 	No rule matches.	Eşleşen kural yok.
 	 and {n} more	 ve {n} tane daha
@@ -1969,3 +1968,9 @@ count	occurrences	kez
 	No one found for {names}	{names} için kimse bulunamadı
 	Still looking up {names} in the directory	{names} dizinde hâlâ aranıyor
 	More than one person could be “{typed}”. Pick the one you meant:	“{typed}” birden fazla kişi olabilir. Kastettiğiniz kişiyi seçin:
+	Applies to	Uygulandığı
+	Mail that arrives	Gelen postalar
+	Mail you send	Gönderdiğiniz postalar
+	Run it now on the mail already in Sent	Şimdi Gönderilmiş Öğeler'deki postalara uygula
+	If mail you send {condition}: {action}	Gönderdiğiniz posta {condition}: {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Açık olan her kuralı Gelen Kutusu'ndaki postalara (gönderdiğiniz postalar için Gönderilmiş Öğeler'dekilere) uygular

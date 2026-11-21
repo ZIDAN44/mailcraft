@@ -542,6 +542,7 @@ impl Dialog {
             account: None,
             stop: false,
             run_now: true,
+            sent: false,
             error: None,
             original: None,
             server: None,

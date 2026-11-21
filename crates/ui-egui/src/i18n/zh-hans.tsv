@@ -231,7 +231,7 @@
 	Results for “{query}”	“{query}”的结果
 	Right	右侧
 	Rules	规则
-	Rules run on new mail as it arrives in an Inbox, in this order.	新邮件到达收件箱时，按此顺序运行规则。
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	规则按此顺序运行：新邮件到达收件箱时，以及你发送的邮件副本到达“已发送邮件”时。
 	Rules…	规则…
 	Run now	立即运行
 	Run on the folder on screen	在当前显示的文件夹上运行
@@ -443,7 +443,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	将省略格式、颜色和图片。邮件上方的“显示格式”可按原样显示该邮件。
 	Show mail without its formatting	显示邮件但不带格式
 	Show a line of each message in the list	在列表中显示每封邮件的一行内容
-	Sort new mail as it arrives: move it, flag it, categorize it.	在新邮件到达时整理: 移动、标记、分类。
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	在邮件到达或发送时整理：移动、标记、分类。
 	Source code and issues	源代码和问题反馈
 	Subject (optional)	主题 (可选)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	告知他人你不在: 开启期间每位发件人收到一次答复，即使这台电脑关机也有效。
@@ -941,7 +941,6 @@ month	May	5月
 	Rules saved in {file}: {n}	已将 {n} 条规则保存到 {file}
 	Save {n} Selected…	保存所选的 {n} 个…
 	Run all	全部运行
-	Run every rule that's on, on the mail already in the Inbox	对收件箱中已有的邮件运行所有已打开的规则
 	Find a rule	查找规则
 	No rule matches.	没有匹配的规则。
 	 and {n} more	 等另外 {n} 人
@@ -1965,3 +1964,9 @@ count	occurrences	次
 	No one found for {names}	找不到 {names}
 	Still looking up {names} in the directory	仍在目录中查找 {names}
 	More than one person could be “{typed}”. Pick the one you meant:	“{typed}”可能是多个人。请选择你要的那位：
+	Applies to	适用于
+	Mail that arrives	收到的邮件
+	Mail you send	你发送的邮件
+	Run it now on the mail already in Sent	立即对“已发送邮件”中的邮件运行
+	If mail you send {condition}: {action}	如果你发送的邮件{condition}: {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	对收件箱中已有的邮件运行每条已开启的规则（对你发送的邮件，则在“已发送邮件”中）

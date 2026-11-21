@@ -231,7 +231,7 @@
 	Results for “{query}”	Résultats pour « {query} »
 	Right	À droite
 	Rules	Règles
-	Rules run on new mail as it arrives in an Inbox, in this order.	Les règles s’appliquent au nouveau courrier à son arrivée dans une boîte de réception, dans cet ordre.
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	Les règles s’appliquent dans cet ordre au nouveau courrier à son arrivée dans une boîte de réception, et au courrier que vous envoyez quand sa copie arrive dans Éléments envoyés.
 	Rules…	Règles…
 	Run now	Exécuter maintenant
 	Run on the folder on screen	Exécuter sur le dossier affiché
@@ -444,7 +444,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	La mise en forme, les couleurs et les images sont omises. « Afficher avec la mise en forme », au-dessus d’un message, affiche ce message tel qu’il a été envoyé.
 	Show mail without its formatting	Afficher le courrier sans sa mise en forme
 	Show a line of each message in the list	Afficher une ligne de chaque message dans la liste
-	Sort new mail as it arrives: move it, flag it, categorize it.	Triez le nouveau courrier à son arrivée : déplacez-le, marquez-le, classez-le.
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	Triez le courrier à son arrivée ou à son envoi : déplacez-le, marquez-le, classez-le.
 	Source code and issues	Code source et signalements
 	Subject (optional)	Objet (facultatif)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Prévenez que vous êtes absent : chaque expéditeur reçoit une réponse tant qu’elles sont activées, même si cet ordinateur est éteint.
@@ -939,7 +939,6 @@
 	Rules saved in {file}: {n}	Règles enregistrées dans {file} : {n}
 	Save {n} Selected…	Enregistrer les {n} sélectionnés…
 	Run all	Tout exécuter
-	Run every rule that's on, on the mail already in the Inbox	Exécute toutes les règles activées sur le courrier déjà dans la boîte de réception
 	Find a rule	Rechercher une règle
 	No rule matches.	Aucune règle ne correspond.
 	 and {n} more	 et {n} de plus
@@ -1969,3 +1968,9 @@ count	occurrences	occurrences
 	No one found for {names}	Personne trouvé pour {names}
 	Still looking up {names} in the directory	Toujours recherché dans l’annuaire : {names}
 	More than one person could be “{typed}”. Pick the one you meant:	« {typed} » peut désigner plusieurs personnes. Choisissez celle que vous vouliez :
+	Applies to	S’applique à
+	Mail that arrives	Courrier reçu
+	Mail you send	Courrier que vous envoyez
+	Run it now on the mail already in Sent	L’exécuter maintenant sur le courrier déjà dans Éléments envoyés
+	If mail you send {condition}: {action}	Si un message envoyé {condition} : {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Exécute toutes les règles activées sur le courrier déjà dans la boîte de réception (et dans Éléments envoyés, pour le courrier que vous envoyez)

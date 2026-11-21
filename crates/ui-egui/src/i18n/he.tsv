@@ -231,7 +231,7 @@
 	Results for “{query}”	תוצאות עבור „{query}”
 	Right	ימין
 	Rules	כללים
-	Rules run on new mail as it arrives in an Inbox, in this order.	הכללים פועלים על דואר חדש כשהוא מגיע לתיבת הדואר הנכנס, לפי הסדר הזה.
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	הכללים פועלים בסדר הזה על דואר חדש כשהוא מגיע לתיבת דואר נכנס, ועל דואר שאתם שולחים כשהעותק שלו מגיע לפריטים שנשלחו.
 	Rules…	כללים…
 	Run now	הפעל עכשיו
 	Run on the folder on screen	הפעל על התיקייה המוצגת
@@ -443,7 +443,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	העיצוב, הצבעים והתמונות מושמטים. „הצג מעוצב”, מעל הודעה, מציג אותה כפי שנשלחה.
 	Show mail without its formatting	הצג דואר ללא העיצוב שלו
 	Show a line of each message in the list	הצג שורה מכל הודעה ברשימה
-	Sort new mail as it arrives: move it, flag it, categorize it.	מיין דואר חדש כשהוא מגיע: העבר אותו, סמן אותו, סווג אותו.
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	מיון דואר כשהוא מגיע או כשאתם שולחים אותו: העברה, סימון בדגל, סיווג.
 	Source code and issues	קוד מקור ובעיות
 	Subject (optional)	נושא (לא חובה)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	ספר לאנשים שאתה לא זמין: כל שולח מקבל תשובה אחת כל עוד הן פעילות, גם כשהמחשב כבוי.
@@ -940,7 +940,6 @@ month	May	מאי
 	Rules saved in {file}: {n}	כללים נשמרו ב-{file}: {n}
 	Save {n} Selected…	שמירת {n} שנבחרו…
 	Run all	הפעלת הכול
-	Run every rule that's on, on the mail already in the Inbox	מפעיל את כל הכללים הפעילים על הדואר שכבר נמצא בתיבת הדואר הנכנס
 	Find a rule	חיפוש כלל
 	No rule matches.	אין כלל תואם.
 	 and {n} more	 ועוד {n}
@@ -1964,3 +1963,9 @@ count	occurrences	פעמים
 	No one found for {names}	לא נמצא אף אחד עבור {names}
 	Still looking up {names} in the directory	עדיין מחפשים את {names} בספרייה
 	More than one person could be “{typed}”. Pick the one you meant:	״{typed}״ יכול להיות יותר מאדם אחד. בחרו את מי שהתכוונתם אליו:
+	Applies to	חל על
+	Mail that arrives	דואר שמגיע
+	Mail you send	דואר שאתם שולחים
+	Run it now on the mail already in Sent	להפעיל אותו עכשיו על הדואר שכבר נמצא בפריטים שנשלחו
+	If mail you send {condition}: {action}	אם דואר שאתם שולחים {condition}: {action}
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	מפעיל כל כלל פעיל על הדואר שכבר נמצא בתיבת הדואר הנכנס (ובפריטים שנשלחו, עבור דואר שאתם שולחים)
