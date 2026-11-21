@@ -145,8 +145,9 @@ fn rule_row(
             let strong = egui::TextFormat { font_id: theme::bold(13.0), color: if r.enabled { t.text } else { t.faint }, ..Default::default() };
             job.append(&r.name, 0.0, strong);
             job.append(&what, 10.0, egui::TextFormat { font_id: theme::regular(12.0), color: t.dim, ..Default::default() });
-            job.wrap = egui::text::TextWrapping::truncate_at_width(ui.available_width());
-            ui.add(egui::Label::new(job).selectable(false)).on_hover_text(format!("{}\n{what}", r.name));
+            // Cut short by the label itself (issue #214): a job's own wrapping gives way to the row's,
+            // which runs on, and the note went under the row's buttons and past the dialog's edge.
+            ui.add(egui::Label::new(job).selectable(false).truncate()).on_hover_text(format!("{}\n{what}", r.name));
         });
     });
 }

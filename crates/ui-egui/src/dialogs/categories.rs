@@ -93,8 +93,7 @@ fn row(ui: &mut Ui, t: &Tokens, c: &Category, odd: bool, extra: &str, buttons: i
             if !extra.is_empty() {
                 job.append(extra, 10.0, egui::TextFormat { font_id: theme::regular(12.0), color: t.faint, ..Default::default() });
             }
-            job.wrap = egui::text::TextWrapping::truncate_at_width(ui.available_width());
-            ui.add(egui::Label::new(job).selectable(false)).on_hover_text(format!("{}\n{}", c.name, c.keyword));
+            ui.add(egui::Label::new(job).selectable(false).truncate()).on_hover_text(format!("{}\n{}", c.name, c.keyword));
         });
     });
 }

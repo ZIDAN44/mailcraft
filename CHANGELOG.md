@@ -22,6 +22,7 @@ on GitHub.
 - On Exchange behind a load balancer, mail an Inbox rule files comes with the next look for new mail, every time (#145): the server's word on which folders changed was kept by one of its servers, and a look that reached another was told it wasn't found; what came meanwhile waited for the next full sync. MailCraft now asks to keep to the server that has it, as Exchange wants.
 - Send / Receive's progress shows an Exchange account too (#231): its folders as they're read (n of m) and its Outbox, as an IMAP account's. The window said nothing had been sent or received while the status bar said its folders were being updated.
 - A search's heading above the message list is cut short where it's too long, the whole of it on hover (#200): a long query widened the list as far as it goes, and the heading still ran past its edge.
+- In Rules, a rule made in another program is cut short before its row's buttons (#214): its note ran under ↑, ↓ and Delete, and past the dialog's edge. The local rules and Categories were the same.
 
 ## 0.41.0 - 2026-11-20
 

@@ -84,8 +84,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                                 job.append(&r.name, 0.0, strong);
                                 let dim = egui::TextFormat { font_id: theme::regular(12.0), color: t.dim, ..Default::default() };
                                 job.append(what, 10.0, dim);
-                                job.wrap = egui::text::TextWrapping::truncate_at_width(ui.available_width());
-                                ui.add(egui::Label::new(job).selectable(false)).on_hover_text(format!("{}\n{}", r.name, what));
+                                ui.add(egui::Label::new(job).selectable(false).truncate()).on_hover_text(format!("{}\n{}", r.name, what));
                             });
                         });
                     }

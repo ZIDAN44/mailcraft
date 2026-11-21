@@ -81,3 +81,42 @@ fn an_exchange_accounts_rules_on_the_server_are_shown_and_changed() {
     assert_eq!(f.account.as_deref(), Some(id.as_str()));
     assert!(f.server.is_some() && f.original.is_none());
 }
+
+/// Issue #214: a rule made in another program, its note beside its name, is cut short before the
+/// row's buttons (the whole of it on hover): the note ran under ↑, ↓ and Delete, and past the
+/// dialog's edge.
+#[test]
+fn a_rules_note_stays_clear_of_its_buttons() {
+    let (mut a, _) = app("rules-note-width");
+    let ctx = egui::Context::default();
+    let id = a
+        .session
+        .run("account.add", &json!({"email": "zoe@contoso.example", "password": "pw", "ews": "https://mail.contoso.example/EWS/Exchange.asmx"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    a.session.take_jobs();
+    let rule = |n: &str, p: u32| ServerRule {
+        id: n.into(),
+        name: format!("Forward the studio's invoices {n}"),
+        priority: p,
+        enabled: true,
+        raw: "<b/>".into(),
+        ..Default::default()
+    };
+    a.session.apply(MailEvent::ServerRules {
+        account: id,
+        rules: Some(ServerRules { outlook_list: false, rules: vec![rule("R1", 1), rule("R2", 2), rule("R3", 3)] }),
+        error: None,
+    });
+    a.ui.dialog.get_or_insert(Dialog::Rules);
+    let size = egui::vec2(1280.0, 900.0);
+    let mut shown = Vec::new();
+    for _ in 0..4 {
+        shown = drawn_text(&ctx, &mut a, size);
+    }
+    let note = shown.iter().find(|d| d.text.starts_with("Forward the studio's invoices R2")).expect("the rule's row");
+    let up = shown.iter().filter(|d| d.text == "↑").map(|d| d.rect).find(|r| (r.center().y - note.rect.center().y).abs() < 10.0).expect("its ↑");
+    assert!(note.rect.right() <= up.left(), "the note {:?} runs under ↑ {:?}", note.rect, up);
+}
