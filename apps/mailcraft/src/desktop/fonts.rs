@@ -28,7 +28,10 @@ impl FontSource for CatalogFonts {
         let catalog = Catalog::global();
         let (face, _) = catalog.resolve(family, if bold { "Bold" } else { "Regular" })?;
         let data = catalog.load(&face).ok()?;
-        readable(&data.bytes, data.index).then_some((data.bytes, data.index))
+        if !readable(&data.bytes, data.index) {
+            return None;
+        }
+        Some(outlines_only(&data.bytes, data.index).unwrap_or((data.bytes, data.index)))
     }
 }
 
@@ -37,6 +40,59 @@ impl FontSource for CatalogFonts {
 /// one damaged on the disk is left out instead.
 fn readable(bytes: &[u8], index: u32) -> bool {
     skrifa::FontRef::from_index(bytes, index).is_ok()
+}
+
+/// The tables of black-and-white or grey bitmaps a face carries for some sizes (`EBDT`, `EBLC`,
+/// `EBSC`, and Apple's `bdat` and `bloc`). egui takes a glyph that has one for a colour glyph,
+/// and paints it white whatever the text's colour: most of Calibri's letters didn't show on the
+/// page (issue #166). Its outlines draw them all, in the text's colour.
+const BITMAP_TABLES: [&[u8; 4]; 5] = [b"EBDT", b"EBLC", b"EBSC", b"bdat", b"bloc"];
+
+/// Face `index` of `bytes` as a font of its own without its [`BITMAP_TABLES`], when it has some
+/// and outlines to draw instead: `None` to hand it over as it is (or when it can't be rebuilt).
+fn outlines_only(bytes: &Arc<[u8]>, index: u32) -> Option<(Arc<[u8]>, u32)> {
+    use skrifa::raw::{TableProvider, types::Tag};
+    let font = skrifa::FontRef::from_index(bytes, index).ok()?;
+    let bitmap = |tag: Tag| BITMAP_TABLES.iter().any(|t| tag == Tag::new(t));
+    let records = font.table_directory.table_records();
+    let outlines = font.glyf().is_ok() || font.cff().is_ok() || font.cff2().is_ok();
+    if !outlines || !records.iter().any(|r| bitmap(r.tag())) {
+        return None;
+    }
+    let tables: Vec<(Tag, u32, &[u8])> =
+        records.iter().filter(|r| !bitmap(r.tag())).filter_map(|r| Some((r.tag(), r.checksum(), font.table_data(r.tag())?.as_bytes()))).collect();
+    let out = sfnt(font.table_directory.sfnt_version(), &tables)?;
+    readable(&out, 0).then(|| (Arc::from(out), 0))
+}
+
+/// A font file of `tables` (tag, checksum, data), sorted by tag as the format asks, each on a
+/// four-byte boundary: `None` past the format's counts and sizes.
+fn sfnt(version: u32, tables: &[(skrifa::raw::types::Tag, u32, &[u8])]) -> Option<Vec<u8>> {
+    let mut tables = tables.to_vec();
+    tables.sort_by_key(|t| t.0);
+    let count = u16::try_from(tables.len()).ok()?;
+    // The binary search fields: the largest power of two not over the count.
+    let power = if count == 0 { 0 } else { 1u16 << (15 - count.leading_zeros()) };
+    let search = power.checked_mul(16)?;
+    let mut out = Vec::new();
+    out.extend_from_slice(&version.to_be_bytes());
+    out.extend_from_slice(&count.to_be_bytes());
+    out.extend_from_slice(&search.to_be_bytes());
+    out.extend_from_slice(&u16::try_from(power.max(1).trailing_zeros()).ok()?.to_be_bytes());
+    out.extend_from_slice(&count.checked_mul(16)?.checked_sub(search)?.to_be_bytes());
+    let mut offset = 12 + 16 * usize::from(count);
+    for (tag, checksum, data) in &tables {
+        out.extend_from_slice(&tag.to_be_bytes());
+        out.extend_from_slice(&checksum.to_be_bytes());
+        out.extend_from_slice(&u32::try_from(offset).ok()?.to_be_bytes());
+        out.extend_from_slice(&u32::try_from(data.len()).ok()?.to_be_bytes());
+        offset = offset.checked_add(data.len().next_multiple_of(4))?;
+    }
+    for (_, _, data) in &tables {
+        out.extend_from_slice(data);
+        out.resize(out.len().next_multiple_of(4), 0);
+    }
+    Some(out)
 }
 
 #[cfg(test)]
@@ -66,6 +122,72 @@ mod tests {
             assert!(readable(&data.bytes, data.index), "{family} is read");
             assert!(!readable(&data.bytes, 10_000), "no face 10000 in {family}'s file");
         }
+    }
+
+    /// egui's own sans with a black-and-white bitmap of `a`, as Calibri has one for most letters:
+    /// one 8×8 strike (`EBLC` version 2, index format 1; `EBDT` image format 1, small metrics).
+    fn with_a_bitmap() -> (Vec<u8>, skrifa::GlyphId) {
+        use skrifa::MetadataProvider;
+        use skrifa::raw::types::Tag;
+        let defs = egui::FontDefinitions::default();
+        let sans = defs.font_data.values().next().expect("egui's own fonts");
+        let bytes: &[u8] = sans.font.as_ref().as_ref();
+        let font = skrifa::FontRef::from_index(bytes, sans.index).expect("egui's font reads");
+        let a = font.charmap().map('a').expect("it has an a");
+        let g = u16::try_from(a.to_u32()).expect("a small glyph id").to_be_bytes();
+        let metrics = [8u8, 0, 8, 0, 0, 0, 0, 0, 8, 0, 0, 0];
+        let mut eblc = vec![0, 2, 0, 0, 0, 0, 0, 1];
+        eblc.extend_from_slice(&[0, 0, 0, 56, 0, 0, 0, 24, 0, 0, 0, 1, 0, 0, 0, 0]);
+        eblc.extend_from_slice(&metrics);
+        eblc.extend_from_slice(&metrics);
+        eblc.extend_from_slice(&[g[0], g[1], g[0], g[1], 16, 16, 1, 1]);
+        eblc.extend_from_slice(&[g[0], g[1], g[0], g[1], 0, 0, 0, 8]);
+        eblc.extend_from_slice(&[0, 1, 0, 1, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 13]);
+        let mut ebdt = vec![0, 2, 0, 0, 8, 8, 0, 8, 8];
+        ebdt.extend_from_slice(&[0xFF; 8]);
+        let mut tables: Vec<(Tag, u32, &[u8])> =
+            font.table_directory.table_records().iter().filter_map(|r| Some((r.tag(), r.checksum(), font.table_data(r.tag())?.as_bytes()))).collect();
+        tables.push((Tag::new(b"EBLC"), 0, &eblc));
+        tables.push((Tag::new(b"EBDT"), 0, &ebdt));
+        (sfnt(font.table_directory.sfnt_version(), &tables).expect("a font"), a)
+    }
+
+    /// Whether egui draws `a` of face `index` of `bytes` as a colour glyph (painted white).
+    fn a_in_colour(bytes: &[u8], index: u32) -> bool {
+        let mut defs = egui::FontDefinitions::empty();
+        let mut data = egui::FontData::from_owned(bytes.to_vec());
+        data.index = index;
+        defs.font_data.insert("face".into(), Arc::new(data));
+        defs.families.insert(egui::FontFamily::Proportional, vec!["face".into()]);
+        let ctx = egui::Context::default();
+        ctx.set_fonts(defs);
+        let mut out = ctx.run_ui(egui::RawInput::default(), |_| {});
+        out.textures_delta.clear();
+        let galley = ctx.fonts_mut(|f| f.layout_no_wrap("a".into(), egui::FontId::proportional(16.0), egui::Color32::BLACK));
+        galley.rows.first().and_then(|r| r.row.glyphs.first()).is_some_and(|g| g.is_color)
+    }
+
+    /// Issue #166: a face with black-and-white bitmaps (Calibri has them) is handed to egui
+    /// without them: egui drew each letter with one in white, whatever the text's colour, and
+    /// most of Calibri's didn't show on the page. Drawn from its outlines, it's in the text's
+    /// colour; a face with none is handed over as it is.
+    #[test]
+    fn a_face_s_bitmaps_are_left_out_so_its_letters_take_the_text_s_colour() {
+        let (bytes, a) = with_a_bitmap();
+        assert!(readable(&bytes, 0));
+        assert!(a_in_colour(&bytes, 0), "egui takes the bitmap for a colour glyph");
+        let bytes: Arc<[u8]> = Arc::from(bytes);
+        let (out, index) = outlines_only(&bytes, 0).expect("rebuilt without its bitmaps");
+        assert!(!a_in_colour(&out, index), "drawn from its outline");
+        use skrifa::MetadataProvider;
+        let font = skrifa::FontRef::from_index(&out, index).expect("it reads");
+        assert!(font.bitmap_strikes().glyph_for_size(skrifa::instance::Size::new(16.0), a).is_none());
+        assert_eq!(font.charmap().map('a'), Some(a), "the rest as it was");
+        let defs = egui::FontDefinitions::default();
+        let sans = defs.font_data.values().next().expect("egui's own fonts");
+        let plain: Arc<[u8]> = Arc::from(sans.font.as_ref().as_ref());
+        assert!(outlines_only(&plain, sans.index).is_none(), "nothing to leave out: as it is");
+        assert!(outlines_only(&Arc::from(&b"not a font"[..]), 0).is_none());
     }
 
     /// The skrifa the app checks a font with, as `Cargo.lock` has it: `skrifa` alone where the
