@@ -94,6 +94,9 @@ struct Request {
     /// `X-AnchorMailbox`.
     anchor: String,
     agent: String,
+    /// `X-PreferServerAffinity`, and the `Cookie` sent (issue #145).
+    affinity: String,
+    cookie: String,
     body: Vec<u8>,
 }
 
@@ -106,6 +109,8 @@ fn read_request(reader: &mut BufReader<TcpStream>) -> Option<Request> {
         routed: header("x-publicfoldermailbox"),
         anchor: header("x-anchormailbox"),
         agent: header("user-agent"),
+        affinity: header("x-preferserveraffinity"),
+        cookie: header("cookie"),
         body: r.body,
     })
 }
@@ -200,12 +205,22 @@ fn serve_connection(mut s: TcpStream, shared: &Arc<Mutex<Data>>) {
             continue;
         }
         let doc = parse(&String::from_utf8_lossy(&r.body));
+        let name = doc.find("Body").and_then(|b| b.kids.first()).map(|k| k.name.clone()).unwrap_or_default();
+        let affine = r.affinity.eq_ignore_ascii_case("true");
+        if shared.lock().unwrap().lands_elsewhere(&name, affine, &r.cookie) {
+            let answer = envelope(&name, &[super::err("ErrorSubscriptionNotFound")]);
+            respond(&mut s, 200, &[], answer.as_bytes());
+            continue;
+        }
         let (status, answer) = if doc.find("Autodiscover").is_some_and(|a| a.find("EMailAddress").is_some()) {
             (200, autodiscover(shared, &doc))
         } else {
             operation(shared, &doc, r.routed, r.anchor)
         };
-        respond(&mut s, status, &[], answer.as_bytes());
+        let balanced = shared.lock().unwrap().balanced;
+        let cookie = [("Set-Cookie", format!("{}; path=/EWS", super::watching::BACKEND))];
+        let headers: &[(&str, String)] = if balanced && affine && name == "Subscribe" { &cookie } else { &[] };
+        respond(&mut s, status, headers, answer.as_bytes());
     }
 }
 

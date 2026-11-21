@@ -226,3 +226,20 @@ fn sign_in_schemes_by_their_whole_name_in_any_case() {
         assert_eq!(scheme_token(value, scheme), None, "{value:?}");
     }
 }
+
+/// Issue #145: the mailbox server's cookie a load balancer sets is taken as it can go back in a
+/// header: among other cookies, in any case; not one with a line break, a separator or no value,
+/// nor a huge one.
+#[test]
+fn the_backend_cookie_is_taken_safely() {
+    let set = |values: &[&str]| -> Vec<(String, String)> { values.iter().map(|v| ("Set-Cookie".to_string(), v.to_string())).collect() };
+    let got = |values: &[&str]| watch::backend_cookie(&set(values));
+    assert_eq!(got(&["ClientId=AB12; path=/", "X-BackEndOverrideCookie=MBX7~1942398215; path=/EWS; secure"]).as_deref(), Some("MBX7~1942398215"));
+    assert_eq!(got(&["x-backendoverridecookie=mbx2~9"]).as_deref(), Some("mbx2~9"));
+    assert_eq!(watch::backend_cookie(&[("set-cookie".into(), "X-BackEndOverrideCookie=A".into())]).as_deref(), Some("A"));
+    for bad in ["X-BackEndOverrideCookie=", "X-BackEndOverrideCookie=a b", "X-BackEndOverrideCookie=a\r\nX-Evil: 1", "X-BackEndOverrideCookie=a\"b"] {
+        assert_eq!(got(&[bad]), None, "{bad:?}");
+    }
+    assert_eq!(got(&[&format!("X-BackEndOverrideCookie={}", "x".repeat(5000))]), None);
+    assert_eq!(watch::backend_cookie(&[("Set-Cookie2".into(), "X-BackEndOverrideCookie=A".into())]), None);
+}

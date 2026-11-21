@@ -21,7 +21,21 @@ pub struct FakeSub {
     mark: u64,
 }
 
+/// The cookie the fake's load balancer gives a subscription asked for with affinity (issue #145).
+pub(super) const BACKEND: &str = "X-BackEndOverrideCookie=MBX1~2b5e";
+
 impl Data {
+    /// Whether a request lands on the other server of a load-balanced pair ([`Data::balanced`]):
+    /// a look at a subscription without its server's cookie does, every other time, and that
+    /// server hasn't it.
+    pub(super) fn lands_elsewhere(&mut self, op: &str, affine: bool, cookie: &str) -> bool {
+        if !self.balanced || op != "GetEvents" || (affine && cookie.split(';').any(|c| c.trim() == BACKEND)) {
+            return false;
+        }
+        self.balance_turn = !self.balance_turn;
+        self.balance_turn
+    }
+
     /// What every mail folder holds now.
     fn mail_now(&self) -> BTreeMap<String, Seen> {
         let mut now: BTreeMap<String, Seen> = BTreeMap::new();

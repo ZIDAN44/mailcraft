@@ -187,6 +187,10 @@ pub struct Data {
     /// A subscription to every folder at once is refused (Exchange 2010 before its first
     /// service pack): one naming the folders is taken.
     pub subscribe_all_refused: bool,
+    /// Two mailbox servers behind a load balancer (issue #145): a subscription is kept by the one
+    /// it was made on, which a look reaches only with the cookie it gave.
+    pub balanced: bool,
+    balance_turn: bool,
     /// The folders a `GetEvents` answer says at most, the rest said as more (`None`: all).
     pub events_per_answer: Option<usize>,
     /// `GetEvents` asked.
@@ -254,6 +258,8 @@ impl Default for Data {
             availability_asks: Vec::new(),
             subscriptions: Vec::new(),
             subscribe_all_refused: false,
+            balanced: false,
+            balance_turn: false,
             events_per_answer: None,
             get_events_asked: 0,
             pim_slow: None,

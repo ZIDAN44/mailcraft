@@ -233,3 +233,22 @@ fn people_just_opened_dont_wait_for_the_calendars() {
     assert_eq!(sync.synced_calendars, [dana]);
     assert_eq!(sync.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Dana's review"]);
 }
+
+/// Issue #145: behind a load balancer, the subscription is kept by the mailbox server it was made
+/// on, and the looks go there (affinity asked for, its cookie sent back): a look that reached the
+/// other server was told it wasn't found, twice an hour, and the mail a rule filed meanwhile
+/// waited for the next full sync.
+#[test]
+fn the_subscription_keeps_to_its_server() {
+    let m = mailbox("watch-balanced", &[], |d| d.balanced = true);
+    until(&m.pool, "the calendars read", |e| matches!(e, Event::DavSynced { .. }));
+    eventually("subscribed", || !m.data.lock().unwrap().subscriptions.is_empty());
+    let full_syncs = listings(&m.data);
+    for n in 0..3 {
+        let subject = format!("Filed by a rule {n}");
+        m.data.lock().unwrap().deliver(&m.projects, &mail(&subject), false, "2026-11-18T08:30:00Z");
+        eventually("the message in Projects", || subjects(&m.store, "watch-balanced", "Projects").contains(&subject));
+    }
+    assert_eq!(listings(&m.data), full_syncs, "by looks, not a full sync");
+    assert_eq!(m.data.lock().unwrap().subscriptions.len(), 1, "never lost");
+}

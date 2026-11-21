@@ -13,6 +13,9 @@ const ROUNDS_MAX: usize = 20;
 /// Folders kept of one look at most: more than this is a look at everything, which the next full
 /// sync is.
 pub const CHANGED_MAX: usize = 500;
+/// The cookie a load balancer routes a subscription's requests by to the mailbox server that keeps
+/// it (Exchange 2013 and later, asked for with `X-PreferServerAffinity`).
+const BACKEND_COOKIE: &str = "X-BackEndOverrideCookie";
 
 /// A subscription to the mailbox's folders: its id, and where the events read so far end (some
 /// servers give no watermark: then empty, and each look gets what came since the last).
@@ -20,6 +23,9 @@ pub const CHANGED_MAX: usize = 500;
 pub struct Watch {
     pub id: String,
     pub watermark: String,
+    /// The mailbox server that keeps it, as the load balancer names it ([`BACKEND_COOKIE`]);
+    /// empty when the server gave none (one server, or an older Exchange).
+    pub cookie: String,
 }
 
 impl Client {
@@ -33,7 +39,7 @@ impl Client {
             "<m:Subscribe><m:PullSubscriptionRequest SubscribeToAllFolders=\"true\"><t:EventTypes>{events}</t:EventTypes>\
              <t:Timeout>{timeout}</t:Timeout></m:PullSubscriptionRequest></m:Subscribe>"
         );
-        match self.call_one(&all).and_then(|m| watch_in(&m)) {
+        match self.subscribe(&all) {
             Ok(w) => Ok(w),
             Err(e) if folders.is_empty() => Err(e),
             Err(e) => {
@@ -43,9 +49,37 @@ impl Client {
                     "<m:Subscribe><m:PullSubscriptionRequest><t:FolderIds>{ids}</t:FolderIds><t:EventTypes>{events}</t:EventTypes>\
                      <t:Timeout>{timeout}</t:Timeout></m:PullSubscriptionRequest></m:Subscribe>"
                 );
-                watch_in(&self.call_one(&each)?)
+                self.subscribe(&each)
             }
         }
+    }
+
+    /// Make a subscription, kept by the mailbox server that took it: asked for with affinity to it
+    /// (issue #145). Behind a load balancer, a look that reached another server was told the
+    /// subscription wasn't found, twice an hour; one was made again each time, and what had come
+    /// meanwhile (mail an Inbox rule filed) waited for the next full sync.
+    fn subscribe(&self, body: &str) -> Result<Watch> {
+        let (doc, cookie) = self.call_affine(body, "")?;
+        let m = messages(&doc).into_iter().next().ok_or_else(|| NetError::Protocol("an empty answer".into()))?;
+        check_message(m)?;
+        let mut w = watch_in(m)?;
+        w.cookie = cookie.unwrap_or_default();
+        Ok(w)
+    }
+
+    /// Run an operation on the mailbox server a subscription is kept by: affinity asked for, with
+    /// the mailbox it's for (`X-AnchorMailbox`) and the server's cookie once it gave one, as
+    /// Exchange wants for notifications; the answer, and the cookie it gives, if any.
+    fn call_affine(&self, body: &str, cookie: &str) -> Result<(El, Option<String>)> {
+        let mut extra: Vec<(&str, String)> = vec![("X-PreferServerAffinity", "true".into())];
+        if self.route.borrow().is_none() && self.anchor.borrow().is_none() {
+            extra.push(("X-AnchorMailbox", self.email().to_string()));
+        }
+        if !cookie.is_empty() {
+            extra.push(("Cookie", format!("{BACKEND_COOKIE}={cookie}")));
+        }
+        let (doc, headers) = self.call_raw_with(envelope(body), &extra)?;
+        Ok((doc, backend_cookie(&headers)))
     }
 
     /// The ids of the folders something happened in since the last look, the watermark moved on.
@@ -53,11 +87,17 @@ impl Client {
     pub fn changed(&self, w: &mut Watch) -> Result<Vec<String>> {
         let mut out: Vec<String> = Vec::new();
         for _ in 0..ROUNDS_MAX {
-            let doc = self.call(&format!(
-                "<m:GetEvents><m:SubscriptionId>{}</m:SubscriptionId><m:Watermark>{}</m:Watermark></m:GetEvents>",
-                esc(&w.id),
-                esc(&w.watermark)
-            ))?;
+            let (doc, cookie) = self.call_affine(
+                &format!(
+                    "<m:GetEvents><m:SubscriptionId>{}</m:SubscriptionId><m:Watermark>{}</m:Watermark></m:GetEvents>",
+                    esc(&w.id),
+                    esc(&w.watermark)
+                ),
+                &w.cookie,
+            )?;
+            if let Some(cookie) = cookie {
+                w.cookie = cookie;
+            }
             let got = events_in(&doc)?;
             for id in got.folders {
                 if !out.contains(&id) && out.len() < CHANGED_MAX {
@@ -75,12 +115,24 @@ impl Client {
     }
 }
 
+/// The mailbox server's cookie a load balancer set ([`BACKEND_COOKIE`]), when it's one that can go
+/// back in a header as it is: printable, no separators, not long.
+pub(super) fn backend_cookie(headers: &[(String, String)]) -> Option<String> {
+    headers.iter().filter(|(k, _)| k.eq_ignore_ascii_case("Set-Cookie")).find_map(|(_, v)| {
+        let (name, value) = v.split(';').next()?.split_once('=')?;
+        let value = value.trim();
+        let fine = |c: char| c.is_ascii_graphic() && !matches!(c, ';' | ',' | '"' | '\\');
+        (name.trim().eq_ignore_ascii_case(BACKEND_COOKIE) && !value.is_empty() && value.len() <= 1024 && value.chars().all(fine))
+            .then(|| value.to_string())
+    })
+}
+
 /// A subscription's id and first watermark, in `Subscribe`'s response message.
 fn watch_in(m: &El) -> Result<Watch> {
     let id = m.text_of("SubscriptionId").map(str::trim).filter(|s| !s.is_empty() && s.len() <= 1024);
     let id = id.ok_or_else(|| NetError::Protocol("the server gave no subscription".into()))?;
     let watermark = m.text_of("Watermark").map(str::trim).filter(|s| s.len() <= 1024).unwrap_or("");
-    Ok(Watch { id: id.to_string(), watermark: watermark.to_string() })
+    Ok(Watch { id: id.to_string(), watermark: watermark.to_string(), cookie: String::new() })
 }
 
 /// What one `GetEvents` answer says.

@@ -36,7 +36,15 @@ impl Client {
 
     /// Send a request signed in the way the server wants.
     pub(crate) fn post(&self, body: Vec<u8>) -> Result<Response> {
+        self.post_with(body, &[])
+    }
+
+    /// [`Client::post`] with these headers besides.
+    pub(super) fn post_with(&self, body: Vec<u8>, extra: &[(&str, String)]) -> Result<Response> {
         let mut base = Request::post(&self.url, "text/xml; charset=utf-8", body, MAX_ANSWER).header("Accept", "text/xml");
+        for (name, value) in extra {
+            base = base.header(name, value);
+        }
         if let Some(agent) = &self.user_agent {
             base = base.header("User-Agent", agent);
         }
@@ -138,7 +146,12 @@ impl Client {
     }
 
     fn call_raw(&self, envelope: String) -> Result<El> {
-        let resp = self.post(envelope.into_bytes())?;
+        self.call_raw_with(envelope, &[]).map(|(doc, _)| doc)
+    }
+
+    /// [`Client::call_raw`] with these headers besides: the answer's elements, and its headers.
+    pub(super) fn call_raw_with(&self, envelope: String, extra: &[(&str, String)]) -> Result<(El, Vec<(String, String)>)> {
+        let resp = self.post_with(envelope.into_bytes(), extra)?;
         let text = String::from_utf8_lossy(&resp.body);
         let doc = parse(&text);
         if let Some(fault) = doc.find("Fault") {
@@ -148,7 +161,7 @@ impl Client {
         if !resp.ok() {
             return Err(NetError::Protocol(format!("Exchange answered HTTP {}", resp.status)));
         }
-        Ok(doc)
+        Ok((doc, resp.headers))
     }
 
     /// Run an operation on one thing: its single response message, checked.
