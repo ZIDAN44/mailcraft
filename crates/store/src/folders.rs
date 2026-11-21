@@ -17,8 +17,10 @@ impl Store {
         Ok(load.finish())
     }
 
-    /// Visit a stored folder in page order, keeping just one decoded page at a time.
-    /// Consumers must allow for an error after some pages have already been visited.
+    /// Visit a stored folder in page order, keeping one decoded page at a time.
+    /// Use a quiescent store: pages are read by name and concurrent writes can change them.
+    /// Legacy folders can store a whole list in the head. Consumers must allow for an error
+    /// after some pages have been visited.
     pub fn visit_folder_pages(&self, account: &str, folder: &str, mut visit: impl FnMut(&[SharedSummary]) -> Result<()>) -> Result<()> {
         let mut load = self.folder_load(account, folder)?;
         let marks: HashMap<u32, Flags> = std::mem::take(&mut load.marks).into_iter().collect();

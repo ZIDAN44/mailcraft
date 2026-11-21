@@ -242,20 +242,59 @@ fn made(before: SearchStats, after: SearchStats) -> String {
     )
 }
 
+/// Body text as the index knows it for the benchmark's single prefix.
+struct PagedPrefix(crate::model::search::Tri);
+
+impl crate::model::search::TextSource for PagedPrefix {
+    fn word(&self, _: crate::model::search::TextField, _: &str) -> crate::model::search::Tri {
+        self.0
+    }
+
+    fn phrase(&self, _: crate::model::search::TextField, _: &[String], _: &str) -> crate::model::search::Tri {
+        crate::model::search::Tri::Unknown
+    }
+}
+
+fn paged_verdict(
+    query: &crate::model::search::Query,
+    message: &crate::model::Summary,
+    indexed: crate::model::search::Tri,
+) -> crate::model::search::Tri {
+    use crate::model::search::{Doc, SummaryText};
+    let summary_text = SummaryText::for_query(message, query);
+    query.eval(&Doc { summary: message, summary_text: &summary_text, awaiting: false, files: None, text: &PagedPrefix(indexed) })
+}
+
+#[test]
+fn a_paged_search_reads_a_saved_preview() {
+    use crate::model::search::{Query, Tri};
+    let message = crate::model::Summary { preview: "Forecast notes".into(), ..Default::default() };
+    let query = Query::parse("body:fore");
+    assert_eq!(paged_verdict(&query, &message, Tri::No), Tri::Yes);
+    assert_eq!(paged_verdict(&query, &message, Tri::Unknown), Tri::Yes);
+    assert_eq!(paged_verdict(&Query::parse("body:missing"), &message, Tri::Unknown), Tri::Unknown);
+}
+
 /// Compare a body-prefix query through the normal session and a paged scan of an indexed Inbox.
 /// Run twice, with `MC_STUDY_MODE=session` and `MC_STUDY_MODE=paged`, on a local copy of
-/// the same `MC_DATA` or `MC_CACHE`. Use `MC_STUDY_PREFIX` for one lowercase ASCII word.
+/// the same quiescent `MC_DATA` or `MC_CACHE`. Set `MC_STUDY_PREFIX` to a lowercase ASCII prefix.
 /// If `MC_STUDY_RESULTS` is set, the bench creates that file with one UID per line.
 #[test]
 #[ignore = "a measurement: requires an indexed Inbox"]
 fn study_paged_search() {
     use std::io::{BufWriter, Write};
 
+    use crate::model::search::{MAX_TOKEN_CHARS, Query, Tri};
     use crate::store::search::{Field, Reader};
 
     let (store, account) = super::bench_store().expect("MC_DATA or MC_CACHE: indexed benchmark Inbox");
     let prefix = std::env::var("MC_STUDY_PREFIX").unwrap();
-    assert!(!prefix.is_empty() && prefix.bytes().all(|b| b.is_ascii_lowercase()), "expected one lowercase ASCII word");
+    assert!(
+        (1..=MAX_TOKEN_CHARS).contains(&prefix.len()) && prefix.bytes().all(|b| b.is_ascii_lowercase()),
+        "expected one indexed lowercase ASCII word"
+    );
+    let query_text = format!("body:{prefix}");
+    let query = Query::parse(&query_text);
     let mode = std::env::var("MC_STUDY_MODE").unwrap();
     let mut output: Box<dyn Write> = match std::env::var_os("MC_STUDY_RESULTS") {
         Some(path) => Box::new(BufWriter::new(std::fs::OpenOptions::new().write(true).create_new(true).open(path).unwrap())),
@@ -274,13 +313,19 @@ fn study_paged_search() {
                 max_page = max_page.max(page.len());
                 visited += page.len();
                 for message in page.iter().filter(|m| !m.flags.deleted) {
-                    match reader.doc(&message.key) {
-                        Some(doc) if hits.get(doc) => {
+                    let indexed = match reader.doc(&message.key).and_then(|doc| reader.info(doc).map(|info| (doc, info))) {
+                        Some((_, info)) if info.no_source => Tri::No,
+                        Some((doc, _)) if hits.get(doc) => Tri::Yes,
+                        Some((_, info)) if !info.truncated => Tri::No,
+                        _ => Tri::Unknown,
+                    };
+                    match paged_verdict(&query, message, indexed) {
+                        Tri::Yes => {
                             writeln!(output, "{}", message.key.uid).unwrap();
                             count += 1;
                         }
-                        Some(doc) if reader.info(doc).is_some_and(|info| !info.truncated && !info.no_source) => {}
-                        _ => unknown += 1,
+                        Tri::No => {}
+                        Tri::Unknown => unknown += 1,
                     }
                 }
                 Ok(())
@@ -294,11 +339,13 @@ fn study_paged_search() {
         visited = session.folder_state(&account, "INBOX").messages.len();
         session.set_background_search(true);
         session.set_search_first_units(0);
-        session.run("search.run", &json!({"query": format!("body:{prefix}"), "scope": "current"})).unwrap();
+        session.run("search.run", &json!({"query": query_text, "scope": "current"})).unwrap();
         loop {
             let step = Instant::now();
             session.tick();
-            if session.search_step_within(4096, Duration::from_millis(6), &mut || step.elapsed(), &mut |_| {}).done {
+            let progress = session.search_step_within(4096, Duration::from_millis(6), &mut || step.elapsed(), &mut |_| {});
+            if progress.done {
+                unknown = progress.missing.saturating_add(progress.cut_short);
                 break;
             }
         }
