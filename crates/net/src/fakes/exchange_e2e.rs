@@ -237,3 +237,61 @@ pub(super) fn one_unreadable_message_holds_up_nothing(name: &str, server: &impl 
     let with_body: Vec<&str> = fs.messages.iter().filter(|m| store.has_body(&m.key)).map(|m| m.subject.as_str()).collect();
     assert_eq!(with_body, ["three", "one"], "the others downloaded");
 }
+
+/// Newer mail in the widened day used to consume the whole Exchange result limit.
+#[test]
+fn an_exchange_date_search_fills_its_cap_with_eligible_mail() {
+    use crate::fakes::{fake_ews, fake_graph};
+    use mailcraft_model::dates::{Clock, days_from_civil, utc_stamp};
+    use mailcraft_model::search::Query;
+
+    let cutoff = days_from_civil(2023, 11, 15) * 86_400;
+    let messages = || {
+        (1..=1_040).map(move |number| {
+            let at = utc_stamp(cutoff + i64::from(number) - 521);
+            let raw = format!("From: Zoe <zoe@example.test>\r\nSubject: Message {number}\r\n\r\nTest mail.\r\n");
+            (raw, at)
+        })
+    };
+    let mut graph_data = fake_graph::Data::default();
+    let inbox = graph_data.folder("Inbox", None, Some("inbox"));
+    for (raw, at) in messages() {
+        graph_data.deliver(&inbox, raw.as_bytes(), true, &at);
+    }
+    let graph = fake_graph::serve(graph_data);
+    let mut ews_data = fake_ews::Data::default();
+    let inbox = ews_data.folder("Inbox", None, Some("inbox"), "IPF.Note");
+    for (raw, at) in messages() {
+        ews_data.deliver(&inbox, raw.as_bytes(), true, &at);
+    }
+    let ews = fake_ews::serve(ews_data);
+
+    let query = "before:2023-11-15";
+    let exchange_period = Query::parse(query).exact_received_period(&Clock::new(cutoff, 0));
+    for (name, account, secret) in
+        [("graph", fake_graph::account("a1", &graph.base), fake_graph::TOKEN), ("ews", fake_ews::account("a1", &ews.url), fake_ews::PASSWORD)]
+    {
+        let store = crate::fake::store(&format!("exchange-date-cap-{name}"));
+        crate::fakes::fake_dav::looked_for_today(&store, &account.id);
+        let mut pool = crate::worker::Pool::new(store.clone(), Arc::new(crate::worker::MemoryCredentials::default()));
+        pool.submit(Job::SetSync { messages: 10, offline: 0 });
+        pool.submit(Job::Start { account, password: Some(Secret(secret.into())) });
+        let summaries = || store.load_folder("a1", "INBOX").unwrap().messages;
+        crate::waiting::events_until(&pool, "initial cache", |_| summaries().len() == 10);
+        pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: query.into(), search: 1, exchange_period });
+        let events = until(&pool, "exact-date search", |e| matches!(e, Event::ServerSearched { done: true, .. }));
+        let summaries: std::collections::HashMap<_, _> = summaries()
+            .iter()
+            .map(|message| (message.key.clone(), message.subject.strip_prefix("Message ").unwrap().parse::<u32>().unwrap()))
+            .collect();
+        let mut numbers = Vec::new();
+        for event in events {
+            if let Event::ServerSearched { keys, error, .. } = event {
+                assert!(error.is_none(), "{name}: {error:?}");
+                numbers.extend(keys.iter().map(|key| summaries[key]));
+            }
+        }
+        numbers.sort_unstable();
+        assert_eq!(numbers, (21..=520).collect::<Vec<_>>(), "{name}");
+    }
+}

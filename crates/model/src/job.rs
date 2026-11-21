@@ -106,7 +106,15 @@ pub enum Job {
     /// what's kept here; the messages found come into their folders' lists, answered by
     /// [`Event::ServerSearched`], as they're found. `search` names the search: every account's
     /// share of one carries the same, and a newer one (or [`Job::StopSearch`]) stops it.
-    SearchServer { account: String, folders: Vec<String>, query: String, search: u64 },
+    SearchServer {
+        account: String,
+        folders: Vec<String>,
+        query: String,
+        search: u64,
+        /// Exact received-time bounds resolved in the session's time zone, for Exchange.
+        #[serde(default)]
+        exchange_period: Option<(Option<i64>, Option<i64>)>,
+    },
     /// Stop the servers' searches (the search box cleared, issue #4): what's found so far stays.
     StopSearch,
     /// Bring the account's search index up to its mail in these folders (none: every folder),

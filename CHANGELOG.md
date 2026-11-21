@@ -68,6 +68,8 @@ Thanks to Peter Páleník for reviewing the Slovak translation (#133, #137).
 
 ### Fixed
 
+- Exchange date-only searches apply the exact received date before the server result limit, so newer mail outside the range cannot crowd out eligible results.
+
 - An Exchange 2010 account syncs (#149): its first sync failed with "The request failed schema validation", MailCraft asking for its folders together with three that Exchange 2013 brought (Archive, Conversation History and Sync Issues), which Exchange 2010 doesn't know. On a later Exchange they're found as before.
 - With the reading pane off, mail chosen in the list, clicked or passed over with the arrow keys, is no longer marked read (#146): it isn't shown, so only opening it in its own window reads it.
 - Tables written in Outlook or pasted from Excel keep their rows and columns in a reading pane narrower than they are (#152): their columns narrow, down to their widest words, where every cell went on a line of its own. A table of figures too wide even for that scrolls sideways.

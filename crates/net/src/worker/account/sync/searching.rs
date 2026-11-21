@@ -7,7 +7,7 @@ impl Worker {
     /// `$search` and EWS's `QueryString`, the messages found brought into their folders' lists
     /// and sent as they're found (an IMAP folder a range at a time, the others a folder at a
     /// time). Stops between two when a newer search is asked, or none (the search box cleared).
-    pub(crate) fn search_server(&mut self, folders: &[String], query: String, search: u64) {
+    pub(crate) fn search_server(&mut self, folders: &[String], query: String, search: u64, exchange_period: Option<(Option<i64>, Option<i64>)>) {
         let id = self.id();
         let (sink, wanted) = (self.sink.clone(), self.search.clone());
         let still = move || wanted.load(Ordering::Relaxed) == search;
@@ -21,7 +21,7 @@ impl Worker {
             self.connect_and_sync();
         }
         let store = self.store.clone();
-        let asked = ServerQuery::new(&query);
+        let asked = ServerQuery::new(&query, exchange_period);
         let asks = match self.conn.as_ref() {
             None => {
                 self.sink.emit(answer(Vec::new(), Some("the account isn't connected".into()), true));

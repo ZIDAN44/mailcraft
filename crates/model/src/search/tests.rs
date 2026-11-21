@@ -646,3 +646,13 @@ fn a_phrase_is_found_past_an_overlapping_match() {
     assert_eq!("b.aaa".phrase(TextField::Body, &words("aa"), "aa"), Tri::No);
     assert_eq!("東京.東京 東京".phrase(TextField::Body, &words("東京 東京"), "東京 東京"), Tri::Yes);
 }
+
+#[test]
+fn exchange_received_bounds_use_the_local_day_without_padding() {
+    let midnight = crate::dates::days_from_civil(2023, 11, 15) * 86_400;
+    let clock = Clock::new(midnight, -8 * 3600);
+    let query = Query::parse("before:2023-11-15");
+    assert_eq!(query.exact_received_period(&clock), Some((None, Some(midnight + 8 * 3600))));
+    assert_eq!(query.server_period(&clock), Some((None, Some(midnight + 8 * 3600 + 86_400))));
+    assert_eq!(Query::parse("sent:2023-11-15").exact_received_period(&clock), None);
+}

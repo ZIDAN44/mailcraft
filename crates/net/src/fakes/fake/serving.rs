@@ -69,7 +69,7 @@ pub(crate) fn search_the_server_past_the_window(name: &str, account: mailcraft_m
     };
     let has = |s: &str| subjects().iter().any(|x| x == s);
     let search = |pool: &mut crate::worker::Pool, q: &str| {
-        pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: q.into(), search: 1 });
+        pool.submit(Job::SearchServer { account: "a1".into(), folders: vec!["INBOX".into()], query: q.into(), search: 1, exchange_period: None });
         // What's found comes as it's found, then the end.
         let seen = until(pool, "searched", |e| matches!(e, Event::ServerSearched { done: true, .. }));
         match seen.last() {

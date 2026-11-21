@@ -216,7 +216,7 @@ impl Session {
             a.found.clear();
             a.moved = self.clock.now;
         }
-        self.jobs.push(Job::SearchServer { account, folders, query: sent, search });
+        self.jobs.push(Job::SearchServer { account, folders, query: sent, search, exchange_period: None });
     }
 
     /// The server's search answered ([`Event::ServerSearched`]): what it found counted, and once

@@ -51,7 +51,7 @@ impl Worker {
                     self.sync_one(&folder);
                 }
             }
-            Job::SearchServer { folders, query, search, .. } => self.search_server(&folders, query, search),
+            Job::SearchServer { folders, query, search, exchange_period, .. } => self.search_server(&folders, query, search, exchange_period),
             Job::FetchBody { key } => self.fetch(key),
             // Already persisted by the pool; just push the queue.
             Job::Apply { op, .. } if self.acc.pop.is_none() => {
