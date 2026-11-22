@@ -118,5 +118,6 @@ fn pattern(order: dates::DateOrder) -> &'static str {
         dates::DateOrder::DayMonthYear => "DD/MM/YYYY",
         dates::DateOrder::MonthDayYear => "MM/DD/YYYY",
         dates::DateOrder::DayMonthYearDots => "DD.MM.YYYY",
+        dates::DateOrder::YearMonthDayDots => "YYYY.MM.DD",
     }
 }

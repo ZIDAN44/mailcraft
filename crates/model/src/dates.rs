@@ -60,10 +60,13 @@ pub enum DateOrder {
     MonthDayYear,
     /// `28.10.2026`, as much of Europe writes it.
     DayMonthYearDots,
+    /// `2026.10.28`, the year first, as Hungary writes it.
+    YearMonthDayDots,
 }
 
 impl DateOrder {
-    pub const ALL: [DateOrder; 4] = [DateOrder::Iso, DateOrder::DayMonthYear, DateOrder::MonthDayYear, DateOrder::DayMonthYearDots];
+    pub const ALL: [DateOrder; 5] =
+        [DateOrder::Iso, DateOrder::DayMonthYear, DateOrder::MonthDayYear, DateOrder::DayMonthYearDots, DateOrder::YearMonthDayDots];
 
     pub fn code(self) -> &'static str {
         match self {
@@ -71,6 +74,7 @@ impl DateOrder {
             DateOrder::DayMonthYear => "dmy",
             DateOrder::MonthDayYear => "mdy",
             DateOrder::DayMonthYearDots => "dmy.",
+            DateOrder::YearMonthDayDots => "ymd.",
         }
     }
 
@@ -85,6 +89,7 @@ impl DateOrder {
             DateOrder::DayMonthYear => format!("{d:02}/{m:02}/{y:04}"),
             DateOrder::MonthDayYear => format!("{m:02}/{d:02}/{y:04}"),
             DateOrder::DayMonthYearDots => format!("{d:02}.{m:02}.{y:04}"),
+            DateOrder::YearMonthDayDots => format!("{y:04}.{m:02}.{d:02}"),
         }
     }
 

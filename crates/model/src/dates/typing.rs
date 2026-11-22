@@ -100,9 +100,11 @@ fn ascii(c: char) -> char {
 /// A word as [`DayHalves`] compares it: lower case, without dots, spaces, quote marks (Hebrew
 /// writes its abbreviations with gershayim, typed as `"` as often) or the invisible marks that
 /// order right-to-left text.
-/// A day typed in `order` (`28.10.2026`, `28/10/2026`, `10/28/2026`; a one-digit day or month,
-/// and `.`, `/` or `-` between the parts, as long as it's the same one), or in MailCraft's own
-/// `2026-10-28` whatever the order (issue #162): days since the epoch. A year of four digits;
+/// A day typed in `order` (`28.10.2026`, `28/10/2026`, `10/28/2026`, `2026.10.28`; a one-digit
+/// day or month, and `.`, `/` or `-` between the parts, as long as it's the same one), or in
+/// MailCraft's own `2026-10-28` whatever the order (issue #162): days since the epoch. In an
+/// order that starts with the year, a day typed day or month first is refused, as it is in
+/// MailCraft's own, rather than read in an order not chosen. A year of four digits;
 /// what isn't a day (31 February, a 13th month) is refused. Digits typed full-width or in
 /// Arabic-Indic figures count as their ASCII selves.
 pub fn read_day(text: &str, order: DateOrder) -> Option<i64> {
@@ -120,7 +122,7 @@ pub fn read_day(text: &str, order: DateOrder) -> Option<i64> {
         (num(a, 4..=4)?, num(b, 1..=2)?, num(c, 1..=2)?)
     } else {
         match order {
-            DateOrder::Iso => return None,
+            DateOrder::Iso | DateOrder::YearMonthDayDots => return None,
             DateOrder::DayMonthYear | DateOrder::DayMonthYearDots => (num(c, 4..=4)?, num(b, 1..=2)?, num(a, 1..=2)?),
             DateOrder::MonthDayYear => (num(c, 4..=4)?, num(a, 1..=2)?, num(b, 1..=2)?),
         }

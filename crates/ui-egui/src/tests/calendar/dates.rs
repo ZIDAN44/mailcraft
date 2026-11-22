@@ -46,7 +46,7 @@ fn month_names_and_days_written_out_as_before() {
 fn an_invitation_says_its_day() {
     const WEEKDAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
     use mailcraft_engine::model::dates::{DateOrder, DateStyle, zone::Zone};
-    let orders = [DateOrder::Iso, DateOrder::DayMonthYear, DateOrder::MonthDayYear, DateOrder::DayMonthYearDots];
+    let orders = [DateOrder::Iso, DateOrder::DayMonthYear, DateOrder::MonthDayYear, DateOrder::DayMonthYearDots, DateOrder::YearMonthDayDots];
     let zones =
         [Clock::new(NOW, 0), Clock::new(NOW, -14 * 3600), Clock::new(NOW, 14 * 3600), Clock::new(NOW, 0).in_zone(Zone::named("America/New_York"))];
     let mut checked = 0;
@@ -71,6 +71,7 @@ fn an_invitation_says_its_day() {
                             DateOrder::DayMonthYear => format!("{d:02}/{m:02}/{y:04}"),
                             DateOrder::MonthDayYear => format!("{m:02}/{d:02}/{y:04}"),
                             DateOrder::DayMonthYearDots => format!("{d:02}.{m:02}.{y:04}"),
+                            DateOrder::YearMonthDayDots => format!("{y:04}.{m:02}.{d:02}"),
                         };
                         // 1 January 1970 was a Thursday.
                         let weekday = crate::i18n::t(WEEKDAYS[(day + 3).rem_euclid(7) as usize]);

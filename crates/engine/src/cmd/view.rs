@@ -45,7 +45,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let mut style = s.prefs.date_style;
             if let Some(code) = p::str(v, "order") {
                 style.order = mailcraft_model::dates::DateOrder::from_code(code)
-                    .ok_or_else(|| CmdError::Params(format!("`{code}` isn't one of iso, dmy, mdy and dmy. (with dots)")))?;
+                    .ok_or_else(|| CmdError::Params(format!("`{code}` isn't one of iso, dmy, mdy, dmy. and ymd. (with dots)")))?;
             }
             style.hours12 = p::bool(v, "hours12").unwrap_or(style.hours12);
             style.full_in_list = p::bool(v, "fullInList").unwrap_or(style.full_in_list);
@@ -53,7 +53,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.clock = s.clock.styled(style);
             Ok(json!({"order": style.order.code(), "hours12": style.hours12, "fullInList": style.full_in_list}))
         })
-        .params(r#"{"order"?: "iso"|"dmy"|"mdy"|"dmy." (2026-10-28, 28/10/2026, 10/28/2026, 28.10.2026), "hours12"?: bool, "fullInList"?: bool}"#),
+        .params(r#"{"order"?: "iso"|"dmy"|"mdy"|"dmy."|"ymd." (2026-10-28, 28/10/2026, 10/28/2026, 28.10.2026, 2026.10.28), "hours12"?: bool, "fullInList"?: bool}"#),
         CommandSpec::new("view.systemTitleBar", "Use the system title bar", "File › Options › General", |s, v| {
             s.prefs.system_title_bar = p::bool(v, "on").unwrap_or(!s.prefs.system_title_bar);
             Ok(json!({"on": s.prefs.system_title_bar, "atNextStart": true}))

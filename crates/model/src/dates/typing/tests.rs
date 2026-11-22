@@ -172,6 +172,11 @@ fn a_day_is_read_in_the_order_chosen() {
         (DateOrder::DayMonthYear, "04.03.2026", mar4),
         (DateOrder::DayMonthYearDots, "28.10.2026", oct28),
         (DateOrder::DayMonthYearDots, "４.３.２０２６", mar4),
+        (DateOrder::YearMonthDayDots, "2026.10.28", oct28),
+        (DateOrder::YearMonthDayDots, "2026.3.4", mar4),
+        (DateOrder::YearMonthDayDots, "2026-10-28", oct28),
+        (DateOrder::YearMonthDayDots, "28.10.2026", None),
+        (DateOrder::YearMonthDayDots, "4.3.2026", None),
         (DateOrder::MonthDayYear, "10/28/2026", oct28),
         (DateOrder::MonthDayYear, "3/4/2026", mar4),
         (DateOrder::MonthDayYear, "28/10/2026", None),
@@ -193,7 +198,7 @@ fn a_day_is_read_in_the_order_chosen() {
 proptest::proptest! {
     /// Any day from year 1 to 9999, shown in any order, reads back as itself in that order.
     #[test]
-    fn a_day_shown_reads_back_as_itself(day in -719_162i64..2_932_896, order in 0..4usize) {
+    fn a_day_shown_reads_back_as_itself(day in -719_162i64..2_932_896, order in 0..crate::dates::DateOrder::ALL.len()) {
         let order = crate::dates::DateOrder::ALL[order];
         let shown = crate::dates::typed_day(day, order);
         proptest::prop_assert_eq!(crate::dates::read_day(&shown, order), Some(day), "{}", shown);
@@ -201,7 +206,7 @@ proptest::proptest! {
 
     /// Nothing typed makes it panic.
     #[test]
-    fn any_text_is_read_or_refused(text in "\\PC{0,24}", order in 0..4usize) {
+    fn any_text_is_read_or_refused(text in "\\PC{0,24}", order in 0..crate::dates::DateOrder::ALL.len()) {
         let _ = crate::dates::read_day(&text, crate::dates::DateOrder::ALL[order]);
     }
 }
