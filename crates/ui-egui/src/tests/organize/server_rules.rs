@@ -56,7 +56,7 @@ fn an_exchange_accounts_rules_on_the_server_are_shown_and_changed() {
     let theirs = ServerRule { id: "R2".into(), name: "To my phone".into(), priority: 2, enabled: true, raw: "<b/>".into(), ..Default::default() };
     a.session.apply(MailEvent::ServerRules {
         account: id.clone(),
-        rules: Some(ServerRules { outlook_list: false, rules: vec![mine.clone(), theirs] }),
+        rules: Some(ServerRules { outlook_list: false, rules: vec![mine.clone(), theirs], ..Default::default() }),
         error: None,
     });
     let texts = drawn(&ctx, &mut a);
@@ -108,7 +108,7 @@ fn a_rules_note_stays_clear_of_its_buttons() {
     };
     a.session.apply(MailEvent::ServerRules {
         account: id,
-        rules: Some(ServerRules { outlook_list: false, rules: vec![rule("R1", 1), rule("R2", 2), rule("R3", 3)] }),
+        rules: Some(ServerRules { outlook_list: false, rules: vec![rule("R1", 1), rule("R2", 2), rule("R3", 3)], ..Default::default() }),
         error: None,
     });
     a.ui.dialog.get_or_insert(Dialog::Rules);
@@ -120,4 +120,39 @@ fn a_rules_note_stays_clear_of_its_buttons() {
     let note = shown.iter().find(|d| d.text.starts_with("Forward the studio's invoices R2")).expect("the rule's row");
     let up = shown.iter().filter(|d| d.text == "↑").map(|d| d.rect).find(|r| (r.center().y - note.rect.center().y).abs() < 10.0).expect("its ↑");
     assert!(note.rect.right() <= up.left(), "the note {:?} runs under ↑ {:?}", note.rect, up);
+}
+
+/// Issue #243: an IMAP account's rules on its server (Sieve): its section, with the user's other
+/// filters named, and said when MailCraft's aren't running; none for an account whose server
+/// keeps none.
+#[test]
+fn an_imap_accounts_rules_on_the_server_are_shown() {
+    let (mut a, _) = app("rules-on-sieve");
+    let ctx = egui::Context::default();
+    let id = a.session.run("account.add", &json!({"email": "ann@st.test", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    a.session.take_jobs();
+    let texts = drawn(&ctx, &mut a);
+    assert!(texts.iter().any(|t| t == "On the server: ann@st.test"), "{texts:?}");
+    let mine = ServerRule {
+        id: "1-a".into(),
+        name: "Invoices".into(),
+        priority: 1,
+        enabled: true,
+        rule: Some(subject("invoice")),
+        raw: "{}".into(),
+        ..Default::default()
+    };
+    a.session.apply(MailEvent::ServerRules {
+        account: id.clone(),
+        rules: Some(ServerRules { rules: vec![mine], other_script: Some("roundcube".into()), not_running: true, ..Default::default() }),
+        error: None,
+    });
+    let texts = drawn(&ctx, &mut a);
+    assert!(texts.iter().any(|t| t.contains("(“roundcube”) run first")), "{texts:?}");
+    assert!(texts.iter().any(|t| t.starts_with("These rules aren't running")), "{texts:?}");
+    assert!(texts.iter().any(|t| t.starts_with("Invoices")), "{texts:?}");
+    // A server without ManageSieve: no section.
+    a.session.apply(MailEvent::ServerRules { account: id, rules: None, error: Some(mailcraft_engine::model::organize::NO_SERVER_RULES.into()) });
+    let texts = drawn(&ctx, &mut a);
+    assert!(!texts.iter().any(|t| t.starts_with("On the server")), "{texts:?}");
 }

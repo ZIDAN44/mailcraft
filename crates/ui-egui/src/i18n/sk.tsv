@@ -2013,3 +2013,5 @@ count	occurrences	opakovaní
 	Open this occurrence	Otvoriť tento výskyt
 	Open the series	Otvoriť celú sériu
 	Changes apply to this occurrence alone.	Zmeny platia len pre tento výskyt.
+	Your other filters on the server (“{name}”) run first, and are left as they are.	Vaše ďalšie filtre na serveri („{name}“) sa spúšťajú ako prvé a zostávajú tak, ako sú.
+	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Tieto pravidlá sa nespúšťajú: iný program nastavil, aby sa spúšťali jeho filtre. Uložením pravidla tu sa znova spustia, spolu s filtrami toho programu.

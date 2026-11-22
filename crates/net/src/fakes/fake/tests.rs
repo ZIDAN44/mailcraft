@@ -487,6 +487,7 @@ mod idle;
 mod replaying;
 mod searching;
 mod sent;
+mod sieve_rules;
 
 /// Issue #4: an account kept online only syncs its folders and opens its mail as any other,
 /// but none of it reaches the disk: no data file, nothing downloaded ahead of reading, and

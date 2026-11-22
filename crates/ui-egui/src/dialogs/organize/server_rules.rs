@@ -1,6 +1,7 @@
-//! The Rules dialog: an Exchange mailbox's own rules on its server (issue #139), under MailCraft's
-//! own, each account's in a section of its own: turned on or off, moved, edited when MailCraft
-//! can say what they do, deleted, and new ones made there.
+//! The Rules dialog: a mailbox's own rules on its server, under MailCraft's own, each account's in
+//! a section of its own: turned on or off, moved, edited when MailCraft can say what they do,
+//! deleted, and new ones made there. An Exchange mailbox's Inbox rules (issue #139), and on an
+//! IMAP server MailCraft's rules run through Sieve (issue #243).
 
 use mailcraft_engine::ServerRulesState;
 use mailcraft_engine::model::organize::ServerRule;
@@ -37,6 +38,8 @@ pub(super) fn sections(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Acti
                     ui.label(RichText::new(tl!("Reading the rules on the server…")).color(t.dim));
                 });
             }
+            // Filtered out above: the server keeps none.
+            ServerRulesState::NotOffered => {}
             ServerRulesState::Failed(e) => {
                 ui.label(RichText::new(e.as_str()).color(t.faint).small());
                 if ui.button(tl!("Try again")).clicked() {
@@ -59,6 +62,24 @@ pub(super) fn sections(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Acti
                     if ui.checkbox(&mut allowed, tl!("Change them here anyway")).changed() {
                         ui.ctx().data_mut(|d| d.insert_temp(allowed_id(&account), allowed));
                     }
+                }
+                // Sieve (issue #243): another program's filters, run first and left alone; and
+                // MailCraft's rules not running, that program having made its own run instead.
+                if let Some(other) = &rules.other_script {
+                    ui.label(
+                        RichText::new(tf!("Your other filters on the server (“{name}”) run first, and are left as they are.", name = other))
+                            .color(t.dim)
+                            .small(),
+                    );
+                }
+                if rules.not_running {
+                    ui.label(
+                        RichText::new(tl!(
+                            "These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's."
+                        ))
+                        .color(t.warn)
+                        .small(),
+                    );
                 }
                 let may = !rules.outlook_list || allowed;
                 let drop = rules.outlook_list && allowed;

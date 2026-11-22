@@ -62,7 +62,7 @@ fn read(m: &mut Mailbox) -> ServerRules {
 }
 
 fn set(m: &mut Mailbox, ops: Vec<ServerRuleOp>, drop_outlook_list: bool) -> (Option<ServerRules>, Option<String>) {
-    said(&mut m.pool, Job::SetServerRules { account: "a1".into(), ops, drop_outlook_list })
+    said(&mut m.pool, Job::SetServerRules { account: "a1".into(), ops, drop_outlook_list, keywords: Vec::new() })
 }
 
 /// The rules come in order, one MailCraft can say as its own (its folder by its path here), and

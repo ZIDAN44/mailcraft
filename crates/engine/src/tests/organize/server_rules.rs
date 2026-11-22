@@ -45,7 +45,7 @@ fn on_server() -> ServerRules {
     };
     let forward =
         ServerRule { id: "R2".into(), name: "Forward".into(), priority: 2, enabled: true, rule: None, raw: "<b/>".into(), ..Default::default() };
-    ServerRules { outlook_list: true, rules: vec![mine, forward] }
+    ServerRules { outlook_list: true, rules: vec![mine, forward], ..Default::default() }
 }
 
 fn ops(s: &mut Session) -> (Vec<ServerRuleOp>, bool) {
@@ -110,12 +110,40 @@ fn the_rules_on_the_server_are_asked_for_shown_and_changed() {
     // An account with no rules on its server.
     s.apply(Event::ServerRules { account: id.clone(), rules: None, error: Some("offline".into()) });
     assert_eq!(*s.server_rules(&id), ServerRulesState::Failed("offline".into()));
-    let (mut s2, _) = (Session::open(Some(temp("server-rules-imap")), mailcraft_model::dates::Clock::new(NOW, 0)), ());
-    let imap = s2
-        .run("account.add", &json!({"email": "a@b.example", "password": "pw", "imapHost": "imap.b.example", "smtpHost": "smtp.b.example"}))
-        .unwrap()["account"]
+    // An account on no mail server at all (the sample, kept here): none.
+    let mut s2 = Session::open(Some(temp("server-rules-local")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let local = s2.run("account.add", &json!({"email": "a@b.example", "local": true})).unwrap()["account"].as_str().unwrap().to_string();
+    assert!(s2.run("rules.server", &json!({"account": local})).is_err(), "no server to keep them");
+}
+
+/// Issue #243: an IMAP account's rules on its server (Sieve): asked for as Exchange's are, a new
+/// one sent with the categories' keywords; an account whose server keeps none (no ManageSieve)
+/// isn't offered any, nor one that isn't on an IMAP server.
+#[test]
+fn an_imap_servers_rules_are_offered_unless_it_keeps_none() {
+    let mut s = Session::open(Some(temp("sieve-rules")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let pop = s.run("account.add", &json!({"email": "kim@studio.example", "password": "pw", "pop": true})).unwrap()["account"]
         .as_str()
         .unwrap()
         .to_string();
-    assert!(s2.run("rules.server", &json!({"account": imap})).is_err(), "not an Exchange account");
+    s.take_jobs();
+    assert_eq!(s.server_rule_accounts(), std::slice::from_ref(&id), "not a POP account");
+    assert!(s.run("rules.server", &json!({"account": pop})).is_err());
+    s.run("rules.server", &json!({"account": id})).unwrap();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::GetServerRules { .. }]));
+    s.apply(Event::ServerRules { account: id.clone(), rules: Some(ServerRules::default()), error: None });
+    let r = Rule { actions: vec![RuleAction::Categorize("Work".into())], ..rule("Shop", "order") };
+    s.save_server_rule(&id, None, r, false).unwrap();
+    match s.take_jobs().as_slice() {
+        [Job::SetServerRules { ops, keywords, .. }] => {
+            assert!(matches!(ops.as_slice(), [ServerRuleOp::Create { .. }]));
+            assert!(keywords.iter().any(|(n, k)| n == "Work" && k == "$label2"), "{keywords:?}");
+        }
+        other => panic!("{other:?}"),
+    }
+    // A server without ManageSieve: nothing to show for it.
+    s.apply(Event::ServerRules { account: id.clone(), rules: None, error: Some(mailcraft_model::organize::NO_SERVER_RULES.into()) });
+    assert_eq!(*s.server_rules(&id), ServerRulesState::NotOffered);
+    assert!(s.server_rule_accounts().is_empty());
 }

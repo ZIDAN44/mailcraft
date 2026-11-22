@@ -2012,3 +2012,5 @@ count	occurrences	wystąpieniach
 	Open this occurrence	Otwórz to wystąpienie
 	Open the series	Otwórz serię
 	Changes apply to this occurrence alone.	Zmiany dotyczą tylko tego wystąpienia.
+	Your other filters on the server (“{name}”) run first, and are left as they are.	Twoje inne filtry na serwerze („{name}”) działają najpierw i pozostają bez zmian.
+	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Te reguły nie działają: inny program ustawił swoje filtry jako działające. Zapisanie reguły tutaj ponownie je uruchomi, razem z filtrami tamtego programu.

@@ -1999,3 +1999,5 @@ count	occurrences	repeticiones
 	Open this occurrence	Abrir esta repetición
 	Open the series	Abrir la serie
 	Changes apply to this occurrence alone.	Los cambios se aplican solo a esta repetición.
+	Your other filters on the server (“{name}”) run first, and are left as they are.	Tus otros filtros del servidor («{name}») se ejecutan primero y se quedan como están.
+	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Estas reglas no se están ejecutando: otro programa hizo que se ejecuten sus propios filtros. Si guardas una regla aquí, vuelven a ejecutarse, junto con los de ese programa.

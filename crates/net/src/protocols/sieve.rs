@@ -1,17 +1,20 @@
-//! Automatic replies on IMAP servers: a small ManageSieve client (RFC 5804) that keeps a Sieve
-//! script (RFC 5228) named `mailcraft` with a `vacation` action (RFC 5230), limited to a date
-//! range with `currentdate` (RFC 5260) when one is set.
+//! Automatic replies and rules on IMAP servers: a small ManageSieve client (RFC 5804) that keeps
+//! a Sieve script (RFC 5228) named `mailcraft` with a `vacation` action (RFC 5230), limited to a
+//! date range with `currentdate` (RFC 5260) when one is set, and MailCraft's rules run on the
+//! server (issue #243, [`rules`]).
 //!
-//! The script is MailCraft's own: the settings it was made from are kept in its first line, so
+//! The script is MailCraft's own: the settings it was made from are kept in its first lines, so
 //! reading them back never means parsing Sieve. A script the user already runs stays in charge
-//! of their other rules: ours `include`s it (RFC 6609) and becomes the active one; turning the
-//! replies off makes theirs active again.
+//! of their other rules: ours `include`s it (RFC 6609) and becomes the active one; with the
+//! replies off and no rule on, theirs is active again. A script another program keeps (a
+//! webmail's filters) is never changed.
 //!
 //! Server input is hostile: lines and literals are capped.
 
 use std::io::{BufReader, Read, Write};
 
 use mailcraft_model::job::{Vacation, is_day};
+use mailcraft_model::organize::{Rule, ServerRule, ServerRuleOp, ServerRules};
 use mailcraft_model::{Security, ServerConfig};
 
 use crate::stream::{self, Stream};
@@ -22,6 +25,18 @@ pub const PORT: u16 = 4190;
 /// Our script's name.
 pub const SCRIPT: &str = "mailcraft";
 const MARK: &str = "# mailcraft-vacation ";
+/// The line keeping MailCraft's rules on the server ([`KeptRules`]).
+const RULES: &str = "# mailcraft-rules ";
+
+mod rules;
+pub use rules::{Context as RulesContext, KeptRules};
+
+/// The scripts on the server, the one that runs, and ours as it is (`None`: none yet).
+struct Scripts {
+    names: Vec<String>,
+    active: Option<String>,
+    ours: Option<String>,
+}
 const MAX_LINE: usize = 64 << 10;
 const MAX_LITERAL: usize = 1 << 20;
 
@@ -248,6 +263,67 @@ impl<S: Read + Write> Client<S> {
         let _ = self.run("LOGOUT");
     }
 
+    /// The server's Sieve extensions.
+    pub fn extensions(&self) -> Vec<String> {
+        self.cap("SIEVE").map(|v| v.split_whitespace().map(str::to_string).collect()).unwrap_or_default()
+    }
+
+    fn scripts(&mut self) -> Result<Scripts> {
+        let (names, active) = self.list()?;
+        let ours = if names.iter().any(|n| n == SCRIPT) { Some(self.get(SCRIPT)?) } else { None };
+        Ok(Scripts { names, active, ours })
+    }
+
+    /// Write our script with these replies and rules, and make the one that should run active:
+    /// ours while the replies or a rule are on, else the user's own (or none).
+    fn write(&mut self, s: &Scripts, v: &Vacation, kept: &KeptRules) -> Result<()> {
+        // The script the user had before ours (kept when we last wrote ours).
+        let previous = s.ours.as_deref().and_then(read_previous);
+        let theirs = match s.active.as_deref() {
+            Some(a) if a != SCRIPT => Some(a.to_string()),
+            _ => previous.filter(|p| s.names.contains(p)),
+        };
+        let runs = v.enabled || kept.rules.iter().any(|r| r.enabled);
+        if theirs.is_some() && runs && !self.has_extension("include") {
+            return Err(NetError::No(
+                "another Sieve script runs your filters and this server can't combine scripts (include); turn it off first".into(),
+            ));
+        }
+        self.put(SCRIPT, &script(v, kept, theirs.as_deref()))?;
+        if runs { self.activate(SCRIPT) } else { self.activate(theirs.as_deref().unwrap_or("")) }
+    }
+
+    /// MailCraft's rules on the server (issue #243), in the order they run; and the user's other
+    /// script, which runs first, and whether ours runs at all (another program can make its own
+    /// script the one that runs).
+    pub fn server_rules(&mut self) -> Result<ServerRules> {
+        let s = self.scripts()?;
+        let kept = s.ours.as_deref().map(read_rules).unwrap_or_default();
+        let ours_runs = s.active.as_deref() == Some(SCRIPT);
+        let other = if ours_runs { s.ours.as_deref().and_then(read_previous).filter(|p| s.names.contains(p)) } else { s.active.clone() };
+        Ok(ServerRules {
+            outlook_list: false,
+            rules: listed(&kept.rules),
+            other_script: other,
+            not_running: !ours_runs && kept.rules.iter().any(|r| r.enabled),
+        })
+    }
+
+    /// Change MailCraft's rules on the server: each op as the engine made it, from the rules as
+    /// last read (one changed elsewhere meanwhile is refused); written as Sieve with `cx`, the
+    /// automatic replies kept as they are.
+    pub fn set_server_rules(&mut self, ops: &[ServerRuleOp], cx: &RulesContext) -> Result<()> {
+        let s = self.scripts()?;
+        let mut kept = s.ours.as_deref().map(read_rules).unwrap_or_default();
+        // Replies that didn't run (ours wasn't the script running) don't start with the rules.
+        let mut v = s.ours.as_deref().and_then(read_script).unwrap_or_default();
+        v.enabled &= s.active.as_deref() == Some(SCRIPT);
+        apply(&mut kept.rules, ops)?;
+        let cx = RulesContext { extensions: self.extensions(), ..cx.clone() };
+        let kept = rules::written(&kept.rules, &cx).map_err(NetError::No)?;
+        self.write(&s, &v, &kept)
+    }
+
     /// The automatic replies this script holds (the default when never set up here).
     pub fn vacation(&mut self) -> Result<Vacation> {
         let (names, active) = self.list()?;
@@ -260,34 +336,19 @@ impl<S: Read + Write> Client<S> {
         Ok(v)
     }
 
-    /// Store the automatic replies and switch them on or off.
+    /// Store the automatic replies and switch them on or off; MailCraft's rules on the server
+    /// (issue #243) are kept as they are.
     pub fn set_vacation(&mut self, v: &Vacation) -> Result<()> {
         if v.enabled && !self.has_extension("vacation") {
             return Err(NetError::No("this server's Sieve has no automatic replies (vacation)".into()));
-        }
-        let (names, active) = self.list()?;
-        // The script the user had before ours (kept when we last wrote ours).
-        let previous = if names.iter().any(|n| n == SCRIPT) { read_previous(&self.get(SCRIPT)?) } else { None };
-        let theirs = match active.as_deref() {
-            Some(a) if a != SCRIPT => Some(a.to_string()),
-            _ => previous.filter(|p| names.contains(p)),
-        };
-        if theirs.is_some() && v.enabled && !self.has_extension("include") {
-            return Err(NetError::No(
-                "another Sieve script runs your filters and this server can't combine scripts (include); turn it off first".into(),
-            ));
         }
         let dated = v.from.is_some() || v.until.is_some();
         if v.enabled && dated && !self.has_extension("date") {
             return Err(NetError::No("this server can't limit automatic replies to dates".into()));
         }
-        self.put(SCRIPT, &script(v, theirs.as_deref()))?;
-        if v.enabled {
-            self.activate(SCRIPT)
-        } else {
-            // Off: the user's own script runs again (or none).
-            self.activate(theirs.as_deref().unwrap_or(""))
-        }
+        let s = self.scripts()?;
+        let kept = s.ours.as_deref().map(read_rules).unwrap_or_default();
+        self.write(&s, v, &kept)
     }
 }
 
@@ -316,27 +377,41 @@ fn sieve_str(s: &str) -> String {
     q(&s.replace('\r', ""))
 }
 
-/// Our script for these settings. The settings themselves (and the user's own script, which it
-/// includes) are kept in the first lines.
-pub fn script(v: &Vacation, include: Option<&str>) -> String {
+/// Our script for these settings: the automatic replies and MailCraft's rules on the server
+/// (`kept`). The settings themselves (and the user's own script, which it includes) are kept in
+/// the first lines. The user's script runs first, then the replies, then the rules (a rule that
+/// stops doesn't keep a reply from going).
+pub fn script(v: &Vacation, kept: &KeptRules, include: Option<&str>) -> String {
     let settings = serde_json::to_string(v).unwrap_or_default().replace(['\r', '\n'], " ");
     let mut out = format!("{MARK}{settings}\r\n");
     if let Some(p) = include {
         out.push_str(&format!("# mailcraft-previous {}\r\n", p.replace(['\r', '\n'], " ")));
     }
+    if !kept.rules.is_empty() {
+        // JSON escapes every line end: it stays one comment line.
+        out.push_str(&format!("{RULES}{}\r\n", serde_json::to_string(kept).unwrap_or_default()));
+    }
     let from = v.from.as_deref().filter(|d| is_day(d));
     let until = v.until.as_deref().filter(|d| is_day(d));
-    let mut req = vec!["vacation"];
+    let mut req: Vec<&str> = Vec::new();
+    if v.enabled {
+        req.push("vacation");
+    }
     if include.is_some() {
         req.push("include");
     }
-    if from.is_some() || until.is_some() {
+    if v.enabled && (from.is_some() || until.is_some()) {
         req.extend(["date", "relational"]);
     }
-    if v.enabled {
+    if !kept.sieve.is_empty() {
+        for r in &kept.require {
+            if !req.contains(&r.as_str()) {
+                req.push(r);
+            }
+        }
+    }
+    if !req.is_empty() {
         out.push_str(&format!("require [{}];\r\n", req.iter().map(|r| sieve_str(r)).collect::<Vec<_>>().join(", ")));
-    } else if include.is_some() {
-        out.push_str("require [\"include\"];\r\n");
     }
     if let Some(p) = include {
         out.push_str(&format!("include :personal {};\r\n", sieve_str(p)));
@@ -357,7 +432,70 @@ pub fn script(v: &Vacation, include: Option<&str>) -> String {
             out.push_str(&format!("if allof({}) {{\r\n    {action}}}\r\n", tests.join(", ")));
         }
     }
+    out.push_str(&kept.sieve);
     out
+}
+
+/// MailCraft's rules kept in our script (none when it keeps none, or the line can't be read).
+pub fn read_rules(s: &str) -> KeptRules {
+    s.lines().take(4).find_map(|l| l.strip_prefix(RULES)).and_then(|j| serde_json::from_str(j.trim()).ok()).unwrap_or_default()
+}
+
+/// A rule as it's kept: for the server's account alone, which it doesn't name.
+fn kept_rule(r: &Rule) -> Rule {
+    Rule { account: None, ..r.clone() }
+}
+
+/// A rule's text as kept, which names it among the others.
+fn raw(r: &Rule) -> String {
+    serde_json::to_string(&kept_rule(r)).unwrap_or_default()
+}
+
+/// MailCraft's rules on the server as the Rules dialog shows them, in order.
+fn listed(rules: &[Rule]) -> Vec<ServerRule> {
+    rules
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            let raw = raw(r);
+            ServerRule {
+                id: format!("{}-{:016x}", i + 1, mailcraft_store::fnv64(&raw)),
+                name: r.name.clone(),
+                priority: u32::try_from(i + 1).unwrap_or(u32::MAX),
+                enabled: r.enabled,
+                rule: Some(kept_rule(r)),
+                raw,
+                ..Default::default()
+            }
+        })
+        .collect()
+}
+
+/// The engine's changes made to the rules as kept: each named by the rule as it was read (one
+/// changed elsewhere since isn't found, and the change is refused), then put in their order.
+fn apply(rules: &mut Vec<Rule>, ops: &[ServerRuleOp]) -> Result<()> {
+    let mut by_order: Vec<(u32, Rule)> = rules.iter().enumerate().map(|(i, r)| (u32::try_from(i + 1).unwrap_or(u32::MAX), kept_rule(r))).collect();
+    let changed = || NetError::No("the rules on the server changed meanwhile: they're shown as they are now".into());
+    for op in ops {
+        match op {
+            ServerRuleOp::Create { now } => {
+                let rule = now.rule.as_ref().ok_or_else(|| NetError::No("a new rule says what it does".into()))?;
+                by_order.push((now.priority, Rule { name: now.name.clone(), enabled: now.enabled, ..kept_rule(rule) }));
+            }
+            ServerRuleOp::Set { was, now } => {
+                let slot = by_order.iter_mut().find(|(_, r)| raw(r) == was.raw).ok_or_else(changed)?;
+                let rule = now.rule.as_ref().map_or_else(|| slot.1.clone(), kept_rule);
+                *slot = (now.priority, Rule { name: now.name.clone(), enabled: now.enabled, ..rule });
+            }
+            ServerRuleOp::Delete { was } => {
+                let at = by_order.iter().position(|(_, r)| raw(r) == was.raw).ok_or_else(changed)?;
+                by_order.remove(at);
+            }
+        }
+    }
+    by_order.sort_by_key(|(p, _)| *p);
+    *rules = by_order.into_iter().map(|(_, r)| r).collect();
+    Ok(())
 }
 
 /// The settings our script was made from.
@@ -388,7 +526,7 @@ pub(crate) mod tests {
             until: None,
             ..Default::default()
         };
-        let s = script(&v, Some("filters"));
+        let s = script(&v, &KeptRules::default(), Some("filters"));
         assert!(s.starts_with(MARK));
         assert!(s.contains(r#"require ["vacation", "include", "date", "relational"];"#), "{s}");
         assert!(s.contains("include :personal \"filters\";"));
@@ -402,12 +540,12 @@ Zoe";"#
         );
         assert_eq!(read_script(&s), Some(v.clone()));
         assert_eq!(read_previous(&s).as_deref(), Some("filters"));
-        let off = script(&Vacation { enabled: false, ..v }, None);
+        let off = script(&Vacation { enabled: false, ..v }, &KeptRules::default(), None);
         assert!(!off.contains("vacation :days"), "off: no action");
         assert_eq!(read_script("require \"vacation\";"), None);
         // Settings never break out of the comment line.
         let evil = Vacation { enabled: true, subject: "x\r\nrequire \"fileinto\";".into(), text: "t".into(), ..Default::default() };
-        assert_eq!(script(&evil, None).lines().next().unwrap().matches("require").count(), 1, "still one comment line");
+        assert_eq!(script(&evil, &KeptRules::default(), None).lines().next().unwrap().matches("require").count(), 1, "still one comment line");
     }
 
     /// A server's answers, canned; what's sent to it is dropped.

@@ -128,8 +128,8 @@ impl Worker {
             Job::ReadShared { people, .. } => self.read_shared(people),
             Job::SearchDirectory { query, .. } => self.search_directory(query),
             Job::FetchPhoto { email, .. } => self.fetch_photo(email),
-            Job::GetServerRules { .. } => self.server_rules(None),
-            Job::SetServerRules { ops, drop_outlook_list, .. } => self.server_rules(Some((ops, drop_outlook_list))),
+            Job::GetServerRules { .. } => self.server_rules(None, &[]),
+            Job::SetServerRules { ops, drop_outlook_list, keywords, .. } => self.server_rules(Some((ops, drop_outlook_list)), &keywords),
             Job::FreeBusy { people, from, to, .. } => self.free_busy(people, from, to),
             // Only a JMAP server keeps the addresses its mail is sent from where a mail
             // program can ask for them.
@@ -249,25 +249,33 @@ impl Worker {
         if let Some(r) = self.conn.as_ref().and_then(|c| c.vacation(set)) {
             return r;
         }
-        // IMAP: a Sieve script, through ManageSieve on the IMAP host.
-        let secret = self.secret()?;
-        let user = self.acc.login_name().to_string();
-        let mut s =
-            crate::sieve::Client::connect_trusting(&self.acc.imap, self.sieve_port, crate::stream::Trusted::of(&self.acc)).map_err(|e| match e {
-                NetError::Io(_) => NetError::No("this server doesn't offer automatic replies (no ManageSieve)".into()),
-                e => e,
-            })?;
-        if self.acc.oauth.is_some() {
-            s.login_xoauth2(&user, &secret)?;
-        } else {
-            s.login(&user, &secret)?;
-        }
+        // IMAP: a Sieve script, through ManageSieve on the IMAP host; the rules' changes wait.
+        let lock = self.sieve_lock.clone();
+        let _turn = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut s = self.sieve().map_err(|e| match e {
+            NetError::Io(_) => NetError::No("this server doesn't offer automatic replies (no ManageSieve)".into()),
+            e => e,
+        })?;
         if let Some(v) = set {
             s.set_vacation(v)?;
         }
         let v = s.vacation();
         s.logout();
         v
+    }
+
+    /// Signed in to the account's ManageSieve server, on the IMAP host: its automatic replies'
+    /// and rules' script (issue #243). A server that offers none fails to connect (`Io`).
+    pub(crate) fn sieve(&mut self) -> Result<crate::sieve::Client<crate::stream::Stream>> {
+        let secret = self.secret()?;
+        let user = self.acc.login_name().to_string();
+        let mut s = crate::sieve::Client::connect_trusting(&self.acc.imap, self.sieve_port, crate::stream::Trusted::of(&self.acc))?;
+        if self.acc.oauth.is_some() {
+            s.login_xoauth2(&user, &secret)?;
+        } else {
+            s.login(&user, &secret)?;
+        }
+        Ok(s)
     }
 
     pub(crate) fn report_vacation(&self, r: Result<mailcraft_model::job::Vacation>, failed: Option<String>) {

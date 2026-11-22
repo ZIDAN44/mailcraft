@@ -192,20 +192,25 @@ fn real_ews_inbox_rules() {
         ..Default::default()
     };
     let ops = vec![ServerRuleOp::Create { now }];
-    let (after, error) = rules(&mut pool, Job::SetServerRules { account: "x1".into(), ops, drop_outlook_list: before.outlook_list });
+    let (after, error) =
+        rules(&mut pool, Job::SetServerRules { account: "x1".into(), ops, drop_outlook_list: before.outlook_list, keywords: Vec::new() });
     eprintln!("made: {after:?} {error:?}");
     assert_eq!(error, None);
     let made = after.unwrap().rules.into_iter().find(|r| r.name == "MailCraft test").expect("on the server");
     let back = made.rule.clone().expect("read back as MailCraft's own");
     assert_eq!((back.conditions, back.actions, back.stop), (new.conditions, new.actions, true), "its folder by its path");
     let now = ServerRule { name: "MailCraft test (off)".into(), enabled: false, ..made.clone() };
-    let (after, error) =
-        rules(&mut pool, Job::SetServerRules { account: "x1".into(), ops: vec![ServerRuleOp::Set { was: made, now }], drop_outlook_list: false });
+    let (after, error) = rules(
+        &mut pool,
+        Job::SetServerRules { account: "x1".into(), ops: vec![ServerRuleOp::Set { was: made, now }], drop_outlook_list: false, keywords: Vec::new() },
+    );
     assert_eq!(error, None);
     let off = after.unwrap().rules.into_iter().find(|r| r.name == "MailCraft test (off)").expect("renamed");
     assert!(!off.enabled);
-    let (after, error) =
-        rules(&mut pool, Job::SetServerRules { account: "x1".into(), ops: vec![ServerRuleOp::Delete { was: off }], drop_outlook_list: false });
+    let (after, error) = rules(
+        &mut pool,
+        Job::SetServerRules { account: "x1".into(), ops: vec![ServerRuleOp::Delete { was: off }], drop_outlook_list: false, keywords: Vec::new() },
+    );
     assert_eq!(error, None);
     assert_eq!(after.unwrap().rules.len(), before.rules.len(), "gone again");
 }

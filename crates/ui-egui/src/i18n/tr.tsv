@@ -1999,3 +1999,5 @@ count	occurrences	kez
 	Open this occurrence	Bu yinelemeyi aç
 	Open the series	Seriyi aç
 	Changes apply to this occurrence alone.	Değişiklikler yalnızca bu yinelemeye uygulanır.
+	Your other filters on the server (“{name}”) run first, and are left as they are.	Sunucudaki diğer filtreleriniz (“{name}”) önce çalışır ve olduğu gibi kalır.
+	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Bu kurallar çalışmıyor: başka bir program kendi filtrelerini çalışan filtreler yaptı. Burada bir kural kaydetmek, o programınkilerle birlikte onları yeniden çalıştırır.

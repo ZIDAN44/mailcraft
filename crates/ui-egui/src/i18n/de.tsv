@@ -1999,3 +1999,5 @@ count	occurrences	Terminen
 	Open this occurrence	Diesen Termin öffnen
 	Open the series	Serie öffnen
 	Changes apply to this occurrence alone.	Änderungen gelten nur für diesen Termin.
+	Your other filters on the server (“{name}”) run first, and are left as they are.	Ihre anderen Filter auf dem Server („{name}“) laufen zuerst und bleiben, wie sie sind.
+	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Diese Regeln laufen nicht: Ein anderes Programm hat seine eigenen Filter zu denen gemacht, die laufen. Wenn Sie hier eine Regel speichern, laufen sie wieder, zusammen mit denen dieses Programms.

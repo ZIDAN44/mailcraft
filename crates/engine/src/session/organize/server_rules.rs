@@ -1,8 +1,9 @@
-//! The session: an Exchange mailbox's Inbox rules on its server (issue #139), which the server
-//! keeps and runs: asked for when the Rules dialog opens, changed by the `rules.server…`
-//! commands, and shown as the server has them once it says.
+//! The session: a mailbox's rules on its server, which the server keeps and runs: an Exchange
+//! mailbox's Inbox rules (issue #139), and an IMAP server's Sieve (issue #243), where MailCraft
+//! keeps its rules in its own script. Asked for when the Rules dialog opens, changed by the
+//! `rules.server…` commands, and shown as the server has them once it says.
 
-use mailcraft_model::organize::{Rule, ServerRule, ServerRuleOp, ServerRules};
+use mailcraft_model::organize::{NO_SERVER_RULES, Rule, ServerRule, ServerRuleOp, ServerRules};
 
 use super::*;
 
@@ -16,8 +17,11 @@ pub enum ServerRulesState {
     Loading,
     /// As the server has them; `error`: why the last change wasn't made.
     Loaded { rules: ServerRules, error: Option<String> },
-    /// The server gave none (it offers none, or reading them failed).
+    /// The server gave none (reading them failed).
     Failed(String),
+    /// The server keeps no rules MailCraft can change (an IMAP server without ManageSieve):
+    /// nothing to show for it.
+    NotOffered,
 }
 
 /// Why a change isn't made while Outlook's own copy of the rules is beside them, until it's
@@ -26,9 +30,14 @@ pub const OUTLOOK_LIST: &str =
     "Outlook keeps its own copy of these rules: changing them here removes it, with Outlook's rules that are turned off or run only on its computer";
 
 impl Session {
-    /// The accounts whose rules are on their server: Exchange's (EWS).
+    /// The accounts whose rules can be on their server: Exchange's (EWS), and IMAP accounts but
+    /// those whose server said it keeps none.
     pub fn server_rule_accounts(&self) -> Vec<String> {
-        self.accounts.iter().filter(|a| a.config.ews.is_some()).map(|a| a.config.id.clone()).collect()
+        self.accounts
+            .iter()
+            .filter(|a| a.config.ews.is_some() || (a.config.is_imap() && a.server_rules != ServerRulesState::NotOffered))
+            .map(|a| a.config.id.clone())
+            .collect()
     }
 
     /// What is known of an account's rules on its server.
@@ -40,8 +49,8 @@ impl Session {
     /// Ask an Exchange account's server for its rules.
     pub fn load_server_rules(&mut self, account: &str) -> CmdResult {
         let a = self.account_mut(account).ok_or_else(|| CmdError::Params(format!("no account `{account}`")))?;
-        if a.config.ews.is_none() {
-            return Err(CmdError::Params("only an Exchange account keeps rules on its server that MailCraft can show".into()));
+        if a.config.ews.is_none() && !a.config.is_imap() {
+            return Err(CmdError::Params("only an Exchange or IMAP account keeps rules on its server that MailCraft can show".into()));
         }
         a.server_rules = ServerRulesState::Loading;
         self.jobs.push(Job::GetServerRules { account: account.to_string() });
@@ -59,6 +68,7 @@ impl Session {
                 }
                 ServerRulesState::Loaded { rules, error }
             }
+            (None, Some(e)) if e == NO_SERVER_RULES => ServerRulesState::NotOffered,
             (None, error) => ServerRulesState::Failed(error.unwrap_or_else(|| "the server gave no rules".into())),
         };
     }
@@ -84,7 +94,9 @@ impl Session {
             a.server_rules = ServerRulesState::Loading;
         }
         let n = ops.len();
-        self.jobs.push(Job::SetServerRules { account: account.to_string(), ops, drop_outlook_list });
+        // A rule written as Sieve sets a category as its keyword (issue #243).
+        let keywords = self.prefs.categories.iter().map(|c| (c.name.clone(), c.keyword.clone())).collect();
+        self.jobs.push(Job::SetServerRules { account: account.to_string(), ops, drop_outlook_list, keywords });
         Ok(serde_json::json!({"changes": n, "pending": true}))
     }
 

@@ -1994,3 +1994,5 @@ count	occurrences	keer
 	Open this occurrence	Deze keer openen
 	Open the series	De reeks openen
 	Changes apply to this occurrence alone.	Wijzigingen gelden alleen voor deze keer.
+	Your other filters on the server (“{name}”) run first, and are left as they are.	Je andere filters op de server (‘{name}’) lopen eerst en blijven zoals ze zijn.
+	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Deze regels lopen niet: een ander programma heeft zijn eigen filters de lopende gemaakt. Een regel hier opslaan laat ze weer lopen, samen met die van dat programma.

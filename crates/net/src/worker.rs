@@ -475,6 +475,10 @@ struct Worker {
     /// Messages whose text the main connection gave first, shared with the second one: of those
     /// it brings only the whole (others it's handed were opened while the main one was busy).
     whole_only: Arc<std::sync::Mutex<std::collections::HashSet<mailcraft_model::MessageKey>>>,
+    /// Held while the account's Sieve script is read and written, shared with the second
+    /// connection: its automatic replies (changed there) and its rules (changed here, issue #243)
+    /// are one script, and two changes at once would each write it over the other's.
+    sieve_lock: Arc<std::sync::Mutex<()>>,
     /// Set while the main connection works rather than waits ([`Worker::working`]).
     busy: Arc<AtomicBool>,
     /// Its Send / Receive asked to stop, shared with the pool and the other connection
@@ -579,6 +583,7 @@ impl Worker {
         q.main = Some(main);
         q.given_back = self.given_back.clone();
         q.whole_only = self.whole_only.clone();
+        q.sieve_lock = self.sieve_lock.clone();
         q.cancel = self.cancel.clone();
         q
     }
@@ -631,6 +636,7 @@ impl Worker {
             gone_meanwhile: Vec::new(),
             removals,
             whole_only: Arc::default(),
+            sieve_lock: Arc::default(),
             busy: Arc::default(),
             cancel: Arc::default(),
             waits: Arc::default(),

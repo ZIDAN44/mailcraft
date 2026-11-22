@@ -8,3 +8,4 @@ mod real_pgp;
 mod real_pop;
 mod real_reminders;
 mod real_servers;
+mod real_sieve;

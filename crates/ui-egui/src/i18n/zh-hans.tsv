@@ -1995,3 +1995,5 @@ count	occurrences	次
 	Open this occurrence	打开这一次
 	Open the series	打开整个系列
 	Changes apply to this occurrence alone.	更改仅应用于这一次。
+	Your other filters on the server (“{name}”) run first, and are left as they are.	你在服务器上的其他筛选器（“{name}”）会先运行，并保持原样。
+	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	这些规则没有运行：另一个程序让它自己的筛选器成为运行的那组。在这里保存一条规则会让它们重新运行，并与那个程序的筛选器一起运行。

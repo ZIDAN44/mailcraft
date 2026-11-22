@@ -1998,3 +1998,5 @@ count	occurrences	회
 	Open this occurrence	이 일정만 열기
 	Open the series	반복 일정 전체 열기
 	Changes apply to this occurrence alone.	변경 내용은 이 일정에만 적용됩니다.
+	Your other filters on the server (“{name}”) run first, and are left as they are.	서버의 다른 필터(“{name}”)가 먼저 실행되며 그대로 유지됩니다.
+	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	이 규칙은 실행되지 않습니다. 다른 프로그램이 자체 필터를 실행 대상으로 바꿨습니다. 여기서 규칙을 저장하면 그 프로그램의 필터와 함께 다시 실행됩니다.

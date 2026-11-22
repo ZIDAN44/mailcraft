@@ -1998,3 +1998,5 @@ count	occurrences	次
 	Open this occurrence	開啟這一次
 	Open the series	開啟整個系列
 	Changes apply to this occurrence alone.	變更只會套用到這一次。
+	Your other filters on the server (“{name}”) run first, and are left as they are.	你在伺服器上的其他篩選器（「{name}」）會先執行，並保持原樣。
+	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	這些規則沒有執行：另一個程式讓它自己的篩選器成為執行的那組。在這裡儲存一條規則會讓它們重新執行，並與那個程式的篩選器一起執行。

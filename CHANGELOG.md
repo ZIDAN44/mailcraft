@@ -16,6 +16,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Added
 
+- Rules can run on an IMAP server (#243), as an Exchange account's do: **New rule on the server…** in Rules writes them in Sieve through ManageSieve (Dovecot, Mailcow, Cyrus, Stalwart…), so mail is sorted as it arrives even while MailCraft is closed or your phone reads it first. They're kept beside your automatic replies, and filters you keep elsewhere (a webmail's) run first and are left as they are; Rules says when that program's filters have taken over. A rule for mail you send stays in MailCraft.
 - One occurrence of a repeating event can be changed, moved or answered on its own (#241), as Outlook's "this occurrence": opening one asks **Open this occurrence** or **Open the series**, and dragging one in the calendar moves it alone. It stays part of the series (on CalDAV servers in the series' own item; on Exchange the series' own occurrence), the others as they are. The guests of your meeting are sent that occurrence alone; as a guest, your answer to it goes to the organizer, the series keeping its own.
 - Hungarian as an interface language (#198): **File › Options › General › Language › Magyar**, and a Hungarian system picks it.
 - Polish as an interface language (#226): **File › Options › General › Language › Polski**, and a Polish system picks it.

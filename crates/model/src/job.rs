@@ -152,12 +152,13 @@ pub enum Job {
     GetVacation { account: String },
     /// Change them.
     SetVacation { account: String, vacation: Vacation },
-    /// Read the mailbox's Inbox rules on its server (Exchange's, issue #139); answered by
+    /// Read the mailbox's rules on its server (Exchange's, issue #139; Sieve's, issue #243); answered by
     /// [`Event::ServerRules`].
     GetServerRules { account: String },
     /// Change them, then read them again; `drop_outlook_list`: remove Outlook's own copy of the
     /// rules, which the server won't change them beside.
-    SetServerRules { account: String, ops: Vec<crate::organize::ServerRuleOp>, drop_outlook_list: bool },
+    /// `keywords`: each category's keyword by its name, for rules written as Sieve (issue #243).
+    SetServerRules { account: String, ops: Vec<crate::organize::ServerRuleOp>, drop_outlook_list: bool, keywords: Vec<(String, String)> },
     /// Sync the account's calendars and address books with its CalDAV / CardDAV server (changes
     /// made here first).
     SyncDav { account: String },

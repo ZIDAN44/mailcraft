@@ -445,6 +445,12 @@ impl AccountConfig {
         !self.is_local() || self.is_calendar_only()
     }
 
+    /// Whether its mail is on an IMAP server (not downloaded with POP, nor reached through a web
+    /// API, nor on this computer alone): its rules may run there, through Sieve (issue #243).
+    pub fn is_imap(&self) -> bool {
+        !self.is_local() && !self.is_api() && self.pop.is_none()
+    }
+
     /// Whether the account works through a web API (JMAP, Graph or EWS) rather than IMAP and
     /// SMTP.
     pub fn is_api(&self) -> bool {

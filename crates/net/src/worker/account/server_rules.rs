@@ -1,7 +1,8 @@
-//! An account's worker: the mailbox's Inbox rules on its server (Exchange's, issue #139), read
-//! and changed; their folders told by their paths here.
+//! An account's worker: the mailbox's rules on its server, read and changed: Exchange's Inbox
+//! rules (issue #139), and on an IMAP server MailCraft's rules written as Sieve through
+//! ManageSieve (issue #243); their folders told by their paths here.
 
-use mailcraft_model::organize::{ServerRuleOp, ServerRules};
+use mailcraft_model::organize::{NO_SERVER_RULES, ServerRuleOp, ServerRules};
 
 use super::*;
 
@@ -22,13 +23,14 @@ impl Worker {
     /// Read the rules, or change them (`set`: the changes, and whether Outlook's own copy of the
     /// rules goes) and read them again; said in [`Event::ServerRules`], with why a change failed
     /// beside the rules as the server still has them.
-    pub(crate) fn server_rules(&mut self, set: Option<(Vec<ServerRuleOp>, bool)>) {
-        let r = self.connected_for_job().map_err(NetError::No).and_then(|()| self.rules_on_server(set.as_ref()));
+    /// `keywords`: each category's keyword by its name (rules written as Sieve set them).
+    pub(crate) fn server_rules(&mut self, set: Option<(Vec<ServerRuleOp>, bool)>, keywords: &[(String, String)]) {
+        let r = self.connected_for_job().map_err(NetError::No).and_then(|()| self.rules_on_server(set.as_ref(), keywords));
         let event = match r {
             Ok(rules) => Event::ServerRules { account: self.id(), rules: Some(rules), error: None },
             Err(e) if set.is_some() => {
                 log::info!("{}: changing the rules on the server: {e}", self.acc.id);
-                let back = self.rules_on_server(None).ok();
+                let back = self.rules_on_server(None, keywords).ok();
                 Event::ServerRules { account: self.id(), rules: back, error: Some(e.to_string()) }
             }
             Err(e) => {
@@ -39,7 +41,10 @@ impl Worker {
         self.sink.emit(event);
     }
 
-    fn rules_on_server(&self, set: Option<&(Vec<ServerRuleOp>, bool)>) -> Result<ServerRules> {
+    fn rules_on_server(&mut self, set: Option<&(Vec<ServerRuleOp>, bool)>, keywords: &[(String, String)]) -> Result<ServerRules> {
+        if self.acc.is_imap() {
+            return self.sieve_rules(set.map(|(ops, _)| ops.as_slice()), keywords);
+        }
         let Some(Conn::Ews(c)) = &self.conn else {
             return Err(NetError::No("only an Exchange account keeps rules on its server that MailCraft can show".into()));
         };
@@ -60,5 +65,32 @@ impl Worker {
             c.update_inbox_rules(ops, *drop_outlook_list, &path, &id)?;
         }
         c.inbox_rules(&path)
+    }
+
+    /// MailCraft's rules in its Sieve script (issue #243), changed first by `ops`: written with
+    /// the account's folders by role and its categories' keywords. A server without ManageSieve
+    /// keeps none ([`NO_SERVER_RULES`]: the account has no rules on the server to show).
+    fn sieve_rules(&mut self, ops: Option<&[ServerRuleOp]>, keywords: &[(String, String)]) -> Result<ServerRules> {
+        // The automatic replies' changes wait (one script holds both).
+        let lock = self.sieve_lock.clone();
+        let _turn = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut s = self.sieve().map_err(|e| match e {
+            NetError::Io(_) => NetError::No(NO_SERVER_RULES.into()),
+            e => e,
+        })?;
+        if let Some(ops) = ops {
+            let cx = crate::sieve::RulesContext {
+                roles: self.folders.iter().map(|f| (f.role, f.path.clone())).collect(),
+                keywords: keywords.to_vec(),
+                extensions: Vec::new(),
+            };
+            if let Err(e) = s.set_server_rules(ops, &cx) {
+                s.logout();
+                return Err(e);
+            }
+        }
+        let rules = s.server_rules();
+        s.logout();
+        rules
     }
 }

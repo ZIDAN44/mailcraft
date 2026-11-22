@@ -85,7 +85,7 @@ fn rules_in(doc: &El, folder_path: &dyn Fn(RuleFolder<'_>) -> Option<String>) ->
         .map(|l| l.children("Rule").take(MAX_RULES).filter_map(|r| read_rule(r, folder_path)).collect())
         .unwrap_or_default();
     rules.sort_by_key(|r| r.priority);
-    Ok(ServerRules { outlook_list, rules })
+    Ok(ServerRules { outlook_list, rules, ..Default::default() })
 }
 
 /// The rules in an answer to `GetInboxRules` (its XML) as MailCraft reads them, each folder

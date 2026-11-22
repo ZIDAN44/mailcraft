@@ -1994,3 +1994,5 @@ count	occurrences	مرات
 	Open this occurrence	فتح هذا التكرار
 	Open the series	فتح السلسلة
 	Changes apply to this occurrence alone.	تنطبق التغييرات على هذا التكرار وحده.
+	Your other filters on the server (“{name}”) run first, and are left as they are.	عوامل التصفية الأخرى لديك على الخادم («{name}») تعمل أولًا، وتبقى كما هي.
+	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	هذه القواعد لا تعمل: جعل برنامج آخر عوامل التصفية الخاصة به هي التي تعمل. حفظ قاعدة هنا يعيد تشغيلها، مع عوامل تصفية ذلك البرنامج.
