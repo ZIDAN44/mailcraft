@@ -2006,3 +2006,27 @@ count	occurrences	회
 	All task lists	모든 작업 목록
 	This task is in a task list that can't be changed here.	이 작업은 여기서 변경할 수 없는 작업 목록에 있습니다.
 	Occurrences of this task were changed on their own elsewhere: change it there.	이 작업의 일부 반복이 다른 곳에서 따로 변경되었습니다. 그곳에서 변경하세요.
+	Everything with them…	이 사람과의 모든 것…
+	Everything with sender…	보낸 사람과의 모든 것…
+	Everything with them	이 사람과의 모든 것
+	Search within everything with them	이 사람과의 모든 것에서 검색
+	Mail ({n})	메일 ({n})
+	Files ({n})	첨부 파일 ({n})
+	Meetings ({n})	모임 ({n})
+	Links ({n})	링크 ({n})
+	People ({n})	사람 ({n})
+	Nothing here.	여기에는 아무것도 없습니다.
+	Nothing here matches the search.	검색과 일치하는 항목이 없습니다.
+	Files and links come from the mail on this computer: {n} of these messages aren't downloaded.	첨부 파일과 링크는 이 컴퓨터에 있는 메일에서 가져옵니다: 이 중 {n}개 메시지는 다운로드되지 않았습니다.
+	Only the newest of the mail with them is shown.	이 사람과의 최신 메일만 표시됩니다.
+	In their signature	서명에 있는 정보
+	Add to their contact…	연락처에 추가…
+	Open the newest	최신 항목 열기
+	Open (they sent it)	열기 (이 사람이 보냄)
+	They organise it	이 사람이 주최함
+	They're invited	이 사람이 초대됨
+	{n} messages	메시지 {n}개
+	One message	메시지 1개
+	Overview	개요
+	Show all	모두 표시
+	Find someone by name or address	이름 또는 주소로 사람 찾기

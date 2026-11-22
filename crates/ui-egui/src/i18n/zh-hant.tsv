@@ -2006,3 +2006,27 @@ count	occurrences	次
 	All task lists	所有任務清單
 	This task is in a task list that can't be changed here.	此任務所在的任務清單無法在此處變更。
 	Occurrences of this task were changed on their own elsewhere: change it there.	此任務的某些重複已在別處個別變更：請在那裡變更。
+	Everything with them…	與此人的所有內容…
+	Everything with sender…	與寄件者的所有內容…
+	Everything with them	與此人的所有內容
+	Search within everything with them	在與此人的所有內容中搜尋
+	Mail ({n})	郵件 ({n})
+	Files ({n})	附件 ({n})
+	Meetings ({n})	會議 ({n})
+	Links ({n})	連結 ({n})
+	People ({n})	連絡人 ({n})
+	Nothing here.	這裡沒有內容。
+	Nothing here matches the search.	這裡沒有符合搜尋的內容。
+	Files and links come from the mail on this computer: {n} of these messages aren't downloaded.	附件和連結來自這台電腦上的郵件：其中 {n} 封郵件尚未下載。
+	Only the newest of the mail with them is shown.	僅顯示與此人的最新郵件。
+	In their signature	簽名中的資訊
+	Add to their contact…	新增至其連絡人…
+	Open the newest	開啟最新的
+	Open (they sent it)	開啟 (此人寄出)
+	They organise it	由此人召集
+	They're invited	此人已受邀
+	{n} messages	{n} 封郵件
+	One message	1 封郵件
+	Overview	概覽
+	Show all	全部顯示
+	Find someone by name or address	依姓名或地址尋找連絡人

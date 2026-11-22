@@ -2003,3 +2003,27 @@ count	occurrences	回
 	All task lists	すべてのタスク リスト
 	This task is in a task list that can't be changed here.	このタスクは、ここでは変更できないタスク リストにあります。
 	Occurrences of this task were changed on their own elsewhere: change it there.	このタスクの一部の回が別の場所で個別に変更されています。そちらで変更してください。
+	Everything with them…	この人とのすべて…
+	Everything with sender…	差出人とのすべて…
+	Everything with them	この人とのすべて
+	Search within everything with them	この人とのすべてを検索
+	Mail ({n})	メール ({n})
+	Files ({n})	添付ファイル ({n})
+	Meetings ({n})	会議 ({n})
+	Links ({n})	リンク ({n})
+	People ({n})	人 ({n})
+	Nothing here.	ここには何もありません。
+	Nothing here matches the search.	検索に一致するものはありません。
+	Files and links come from the mail on this computer: {n} of these messages aren't downloaded.	添付ファイルとリンクはこのコンピューター上のメールから取得しています: このうち {n} 件のメッセージはダウンロードされていません。
+	Only the newest of the mail with them is shown.	この人との最新のメールだけが表示されています。
+	In their signature	署名にある情報
+	Add to their contact…	連絡先に追加…
+	Open the newest	最新を開く
+	Open (they sent it)	開く (この人が送信)
+	They organise it	この人が主催
+	They're invited	この人は招待されています
+	{n} messages	{n} 件のメッセージ
+	One message	1 件のメッセージ
+	Overview	概要
+	Show all	すべて表示
+	Find someone by name or address	名前またはアドレスで人を検索

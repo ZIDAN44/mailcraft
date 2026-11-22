@@ -2002,3 +2002,27 @@ count	occurrences	مرات
 	All task lists	كل قوائم المهام
 	This task is in a task list that can't be changed here.	هذه المهمة في قائمة مهام لا يمكن تغييرها من هنا.
 	Occurrences of this task were changed on their own elsewhere: change it there.	غُيّرت مرّات من هذه المهمة كلٌّ على حدة في مكان آخر: غيّرها هناك.
+	Everything with them…	كل شيء مع هذا الشخص…
+	Everything with sender…	كل شيء مع المرسل…
+	Everything with them	كل شيء مع هذا الشخص
+	Search within everything with them	البحث في كل ما يخص هذا الشخص
+	Mail ({n})	البريد ({n})
+	Files ({n})	المرفقات ({n})
+	Meetings ({n})	الاجتماعات ({n})
+	Links ({n})	الروابط ({n})
+	People ({n})	الأشخاص ({n})
+	Nothing here.	لا شيء هنا.
+	Nothing here matches the search.	لا شيء هنا يطابق البحث.
+	Files and links come from the mail on this computer: {n} of these messages aren't downloaded.	تأتي المرفقات والروابط من البريد الموجود على هذا الكمبيوتر: لم يتم تنزيل {n} من هذه الرسائل.
+	Only the newest of the mail with them is shown.	يُعرض أحدث بريد فقط مع هذا الشخص.
+	In their signature	في توقيعه
+	Add to their contact…	إضافة إلى جهة اتصاله…
+	Open the newest	فتح الأحدث
+	Open (they sent it)	فتح (أرسله هذا الشخص)
+	They organise it	ينظمه هذا الشخص
+	They're invited	هذا الشخص مدعو
+	{n} messages	{n} رسائل
+	One message	رسالة واحدة
+	Overview	نظرة عامة
+	Show all	إظهار الكل
+	Find someone by name or address	البحث عن شخص بالاسم أو العنوان

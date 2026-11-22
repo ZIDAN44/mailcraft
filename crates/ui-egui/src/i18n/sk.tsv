@@ -2021,3 +2021,27 @@ count	occurrences	opakovaní
 	All task lists	Všetky zoznamy úloh
 	This task is in a task list that can't be changed here.	Táto úloha je v zozname úloh, ktorý sa tu nedá zmeniť.
 	Occurrences of this task were changed on their own elsewhere: change it there.	Jednotlivé výskyty tejto úlohy sa zmenili inde: zmeňte ju tam.
+	Everything with them…	Všetko s touto osobou…
+	Everything with sender…	Všetko s odosielateľom…
+	Everything with them	Všetko s touto osobou
+	Search within everything with them	Hľadať vo všetkom s touto osobou
+	Mail ({n})	Pošta ({n})
+	Files ({n})	Prílohy ({n})
+	Meetings ({n})	Schôdze ({n})
+	Links ({n})	Odkazy ({n})
+	People ({n})	Ľudia ({n})
+	Nothing here.	Nič tu nie je.
+	Nothing here matches the search.	Nič tu nezodpovedá hľadaniu.
+	Files and links come from the mail on this computer: {n} of these messages aren't downloaded.	Prílohy a odkazy pochádzajú z pošty v tomto počítači: nestiahnuté správy: {n}.
+	Only the newest of the mail with them is shown.	Zobrazuje sa len najnovšia pošta s touto osobou.
+	In their signature	V podpise
+	Add to their contact…	Pridať do kontaktu…
+	Open the newest	Otvoriť najnovšiu
+	Open (they sent it)	Otvoriť (poslala to táto osoba)
+	They organise it	Organizuje ju táto osoba
+	They're invited	Táto osoba je pozvaná
+	{n} messages	Správy: {n}
+	One message	Jedna správa
+	Overview	Prehľad
+	Show all	Zobraziť všetko
+	Find someone by name or address	Nájsť osobu podľa mena alebo adresy

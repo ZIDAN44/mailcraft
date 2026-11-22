@@ -2020,3 +2020,27 @@ count	occurrences	повторений
 	All task lists	Все списки задач
 	This task is in a task list that can't be changed here.	Эта задача находится в списке задач, который здесь изменить нельзя.
 	Occurrences of this task were changed on their own elsewhere: change it there.	Отдельные повторения этой задачи изменены в другом месте: измените её там.
+	Everything with them…	Всё с этим человеком…
+	Everything with sender…	Всё с отправителем…
+	Everything with them	Всё с этим человеком
+	Search within everything with them	Поиск во всём, что связано с этим человеком
+	Mail ({n})	Почта ({n})
+	Files ({n})	Вложения ({n})
+	Meetings ({n})	Встречи ({n})
+	Links ({n})	Ссылки ({n})
+	People ({n})	Люди ({n})
+	Nothing here.	Здесь ничего нет.
+	Nothing here matches the search.	Здесь ничего не соответствует поиску.
+	Files and links come from the mail on this computer: {n} of these messages aren't downloaded.	Вложения и ссылки взяты из почты на этом компьютере: не загружено сообщений: {n}.
+	Only the newest of the mail with them is shown.	Показана только самая новая почта с этим человеком.
+	In their signature	В подписи
+	Add to their contact…	Добавить в контакт…
+	Open the newest	Открыть самое новое
+	Open (they sent it)	Открыть (отправлено этим человеком)
+	They organise it	Организует этот человек
+	They're invited	Этот человек приглашён
+	{n} messages	Сообщений: {n}
+	One message	Одно сообщение
+	Overview	Обзор
+	Show all	Показать всё
+	Find someone by name or address	Найти человека по имени или адресу

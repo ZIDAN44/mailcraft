@@ -2007,3 +2007,27 @@ count	occurrences	kez
 	All task lists	Tüm görev listeleri
 	This task is in a task list that can't be changed here.	Bu görev, burada değiştirilemeyen bir görev listesinde.
 	Occurrences of this task were changed on their own elsewhere: change it there.	Bu görevin bazı yinelemeleri başka bir yerde ayrı ayrı değiştirildi: orada değiştirin.
+	Everything with them…	Bu kişiyle ilgili her şey…
+	Everything with sender…	Gönderenle ilgili her şey…
+	Everything with them	Bu kişiyle ilgili her şey
+	Search within everything with them	Bu kişiyle ilgili her şeyde ara
+	Mail ({n})	Posta ({n})
+	Files ({n})	Ekler ({n})
+	Meetings ({n})	Toplantılar ({n})
+	Links ({n})	Bağlantılar ({n})
+	People ({n})	Kişiler ({n})
+	Nothing here.	Burada bir şey yok.
+	Nothing here matches the search.	Burada aramayla eşleşen bir şey yok.
+	Files and links come from the mail on this computer: {n} of these messages aren't downloaded.	Ekler ve bağlantılar bu bilgisayardaki postadan gelir: bu iletilerin {n} tanesi indirilmedi.
+	Only the newest of the mail with them is shown.	Bu kişiyle yalnızca en yeni posta gösteriliyor.
+	In their signature	İmzasında
+	Add to their contact…	Kişi kaydına ekle…
+	Open the newest	En yenisini aç
+	Open (they sent it)	Aç (bu kişi gönderdi)
+	They organise it	Bu kişi düzenliyor
+	They're invited	Bu kişi davetli
+	{n} messages	{n} ileti
+	One message	Bir ileti
+	Overview	Genel bakış
+	Show all	Tümünü göster
+	Find someone by name or address	Ad veya adrese göre birini bul

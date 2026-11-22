@@ -70,6 +70,11 @@ pub(crate) fn commands(app: &mut MailApp, args: &[String]) {
                 app.ui.dialog = mailcraft_ui_egui::Dialog::open_task(&app.session, p.get("uid").and_then(|v| v.as_str()).unwrap_or_default());
             }
             "ui.signature" => app.ui.dialog = mailcraft_ui_egui::Dialog::signature(&app.session),
+            // Everything with a person (`{"email": …}`, issue #178).
+            "ui.person" => {
+                let email = p.get("email").and_then(|v| v.as_str()).unwrap_or_default();
+                app.ui.dialog = Some(mailcraft_ui_egui::Dialog::person(&mut app.session, email));
+            }
             "ui.categories" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::Categories),
             "ui.nameKeyword" => {
                 let k = p.get("keyword").and_then(|v| v.as_str()).unwrap_or_default();

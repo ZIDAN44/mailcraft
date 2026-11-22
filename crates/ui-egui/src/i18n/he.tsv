@@ -2002,3 +2002,27 @@ count	occurrences	פעמים
 	All task lists	כל רשימות המשימות
 	This task is in a task list that can't be changed here.	משימה זו נמצאת ברשימת משימות שאי אפשר לשנות כאן.
 	Occurrences of this task were changed on their own elsewhere: change it there.	מופעים של משימה זו שונו כל אחד בנפרד במקום אחר: יש לשנות אותה שם.
+	Everything with them…	הכול עם האדם הזה…
+	Everything with sender…	הכול עם השולח…
+	Everything with them	הכול עם האדם הזה
+	Search within everything with them	חיפוש בכל מה שקשור לאדם הזה
+	Mail ({n})	דואר ({n})
+	Files ({n})	קבצים מצורפים ({n})
+	Meetings ({n})	פגישות ({n})
+	Links ({n})	קישורים ({n})
+	People ({n})	אנשים ({n})
+	Nothing here.	אין כאן כלום.
+	Nothing here matches the search.	שום דבר כאן לא תואם לחיפוש.
+	Files and links come from the mail on this computer: {n} of these messages aren't downloaded.	הקבצים המצורפים והקישורים לקוחים מהדואר שבמחשב הזה: {n} מההודעות האלה לא הורדו.
+	Only the newest of the mail with them is shown.	מוצג רק הדואר החדש ביותר עם האדם הזה.
+	In their signature	בחתימה שלו
+	Add to their contact…	הוספה לאיש הקשר שלו…
+	Open the newest	פתיחת החדשה ביותר
+	Open (they sent it)	פתיחה (האדם הזה שלח)
+	They organise it	האדם הזה מארגן
+	They're invited	האדם הזה מוזמן
+	{n} messages	{n} הודעות
+	One message	הודעה אחת
+	Overview	סקירה
+	Show all	הצגת הכול
+	Find someone by name or address	חיפוש אדם לפי שם או כתובת

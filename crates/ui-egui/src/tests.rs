@@ -547,6 +547,8 @@ pub(crate) fn tour() {
             accounts::graph_form(),
             accounts::pop_form(),
             accounts::calendar_form(),
+            Dialog::person(&mut a.session, "zoe@studio.example"),
+            Dialog::person(&mut a.session, "nobody@nowhere.example"),
             Dialog::Preview {
                 title: "notes.txt".into(),
                 header: vec![("From".into(), "Zoe".into())],

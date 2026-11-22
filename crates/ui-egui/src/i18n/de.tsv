@@ -2007,3 +2007,27 @@ count	occurrences	Terminen
 	All task lists	Alle Aufgabenlisten
 	This task is in a task list that can't be changed here.	Diese Aufgabe steht in einer Aufgabenliste, die hier nicht geändert werden kann.
 	Occurrences of this task were changed on their own elsewhere: change it there.	Einzelne Vorkommen dieser Aufgabe wurden anderswo geändert: Ändern Sie sie dort.
+	Everything with them…	Alles mit dieser Person…
+	Everything with sender…	Alles mit dem Absender…
+	Everything with them	Alles mit dieser Person
+	Search within everything with them	In allem mit dieser Person suchen
+	Mail ({n})	E-Mail ({n})
+	Files ({n})	Anlagen ({n})
+	Meetings ({n})	Besprechungen ({n})
+	Links ({n})	Links ({n})
+	People ({n})	Personen ({n})
+	Nothing here.	Hier ist nichts.
+	Nothing here matches the search.	Hier passt nichts zur Suche.
+	Files and links come from the mail on this computer: {n} of these messages aren't downloaded.	Anlagen und Links stammen aus den E-Mails auf diesem Computer: {n} dieser Nachrichten sind nicht heruntergeladen.
+	Only the newest of the mail with them is shown.	Es werden nur die neuesten E-Mails mit dieser Person angezeigt.
+	In their signature	In der Signatur
+	Add to their contact…	Zum Kontakt hinzufügen…
+	Open the newest	Die neueste öffnen
+	Open (they sent it)	Öffnen (von dieser Person gesendet)
+	They organise it	Von dieser Person organisiert
+	They're invited	Diese Person ist eingeladen
+	{n} messages	{n} Nachrichten
+	One message	Eine Nachricht
+	Overview	Übersicht
+	Show all	Alle anzeigen
+	Find someone by name or address	Person nach Name oder Adresse suchen

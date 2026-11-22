@@ -48,6 +48,10 @@ pub(super) fn person_menus(s: &Session, t: &Tokens, r: &egui::Response, a: &Emai
                 }
             }
         }
+        if ui.button(tl!("Everything with them…")).clicked() {
+            acts.push(Action::Person(a.email.clone()));
+            ui.close();
+        }
         ui.separator();
         if ui.button(tl!("Copy address")).clicked() {
             ui.ctx().copy_text(a.email.clone());
@@ -104,6 +108,11 @@ pub(super) fn contact_card(
         };
         if widgets::pill_button(ui, Icon::Person, label, t).clicked() {
             acts.push(Action::Dialog(dialog));
+            ui.close();
+        }
+        // Everything with them (issue #178).
+        if widgets::pill_button(ui, Icon::People, "Everything with them…", t).clicked() {
+            acts.push(Action::Person(a.email.clone()));
             ui.close();
         }
         if ui.button(tl!("Copy address")).clicked() {

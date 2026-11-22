@@ -2007,3 +2007,27 @@ count	occurrences	előfordulás
 	All task lists	Összes feladatlista
 	This task is in a task list that can't be changed here.	Ez a feladat olyan feladatlistában van, amely itt nem módosítható.
 	Occurrences of this task were changed on their own elsewhere: change it there.	A feladat egyes előfordulásait máshol külön módosították: ott módosítsa.
+	Everything with them…	Minden ezzel a személlyel…
+	Everything with sender…	Minden a feladóval…
+	Everything with them	Minden ezzel a személlyel
+	Search within everything with them	Keresés mindenben, ami ehhez a személyhez tartozik
+	Mail ({n})	Levelezés ({n})
+	Files ({n})	Mellékletek ({n})
+	Meetings ({n})	Értekezletek ({n})
+	Links ({n})	Hivatkozások ({n})
+	People ({n})	Személyek ({n})
+	Nothing here.	Itt nincs semmi.
+	Nothing here matches the search.	Itt semmi sem felel meg a keresésnek.
+	Files and links come from the mail on this computer: {n} of these messages aren't downloaded.	A mellékletek és hivatkozások a számítógépen lévő levelekből származnak: {n} üzenet nincs letöltve.
+	Only the newest of the mail with them is shown.	Csak a legújabb levelek láthatók ezzel a személlyel.
+	In their signature	Az aláírásában
+	Add to their contact…	Hozzáadás a névjegyéhez…
+	Open the newest	A legújabb megnyitása
+	Open (they sent it)	Megnyitás (ez a személy küldte)
+	They organise it	Ez a személy szervezi
+	They're invited	Ez a személy meghívott
+	{n} messages	{n} üzenet
+	One message	Egy üzenet
+	Overview	Áttekintés
+	Show all	Az összes megjelenítése
+	Find someone by name or address	Személy keresése név vagy cím alapján

@@ -20,6 +20,7 @@ mod importing;
 mod mailbox;
 mod organize;
 mod other;
+mod person;
 pub(crate) mod pim_dialogs;
 mod signatures;
 #[cfg(test)]
@@ -35,6 +36,10 @@ pub use dav::DavForm;
 pub(crate) use importing::skip_line;
 pub use mailbox::*;
 pub use organize::*;
+pub(crate) use person::PEOPLE_OFFERED;
+pub use person::PersonForm;
+#[cfg(test)]
+pub(crate) use person::{PersonTab, lookup_id as person_lookup_id, search_id as person_search_id};
 pub use signatures::SignatureForm;
 pub use writing::*;
 
@@ -233,6 +238,8 @@ pub enum Dialog {
         to: String,
     },
     Contact(Box<crate::pim_dialogs::ContactForm>),
+    /// Everything with one person (issue #178).
+    Person(Box<PersonForm>),
     /// File › Info › Clean up old items: old mail archived to a data file (issue #179).
     Archive(Box<ArchiveForm>),
     /// File › Options › Data files › AutoArchive settings (issue #180).
@@ -465,6 +472,11 @@ impl Dialog {
     /// A task, to edit.
     pub fn open_task(s: &Session, uid: &str) -> Option<Dialog> {
         crate::pim_dialogs::TaskForm::open(s, uid).map(|f| Dialog::Task(Box::new(f)))
+    }
+
+    /// Everything with the person at `email` (issue #178).
+    pub fn person(s: &mut Session, email: &str) -> Dialog {
+        Dialog::Person(Box::new(PersonForm::new(s, email)))
     }
 
     pub fn new_contact() -> Dialog {
@@ -777,6 +789,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::OpenRecurring { .. }
         | Dialog::WaitingInvites(..)
         | Dialog::Contact(..) => other::draw(ui, d, s, pics, t, acts),
+        Dialog::Person(f) => person::draw(ui, f, s, t, acts),
     }
 }
 

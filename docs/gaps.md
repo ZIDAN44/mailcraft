@@ -220,6 +220,19 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   when it says it takes `VTODO`s: one that says nothing (SOGo's calendars' `.ics` and `.xml`
   views) isn't, so tasks don't go where they'd be lost.
 
+### 19. Everything with one person: what isn't done yet
+
+- **Impact:** Its files and links come from the mail with them that's on this computer, the
+  newest 300 messages; mail not downloaded yet (an account kept online only) isn't counted, and
+  it says how many. Its search finds a word of a message's text in those 300; older mail by its
+  subject, names and first lines. The web addresses in their signature are shown, not offered
+  for their contact; only the newest of their messages with a signature is read. Someone
+  writing from an address their contact doesn't have shows apart.
+- **Workaround:** Open a message to download it. Add their other addresses to their contact to
+  see them as one person.
+- **Cause:** It's made from what's on this computer, nothing asked of a server. The contact form
+  has Outlook's places for phone numbers, not yet one for a web page.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

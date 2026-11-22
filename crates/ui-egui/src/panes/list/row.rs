@@ -488,6 +488,11 @@ impl MessageRow<'_> {
                         ui.close();
                     }
                 }
+                // Everything with the sender, of every kind (issue #178).
+                if ui.button(tl!("Everything with sender…")).clicked() {
+                    acts.push(Action::Person(m.from.email.clone()));
+                    ui.close();
+                }
             });
             crate::organize::context_items(ui, s, t, acts, flags.pinned());
             ui.separator();

@@ -51,6 +51,10 @@ pub enum Action {
         index: usize,
         open: bool,
     },
+    /// Everything with the person at this address (issue #178).
+    Person(String),
+    /// Someone else looked for from that dialog, by name or address: who it finds.
+    PersonLookup(String),
     /// Search every folder for this (shown in the box, with the Search tab).
     Search(String),
     SetDark(Option<bool>),
@@ -285,6 +289,17 @@ impl MailApp {
             Action::Backstage(p) => self.ui.backstage = Some(backstage::Backstage::new(p)),
             Action::NewNote => self.new_note(),
             Action::Search(q) => self.search_everywhere(q),
+            // In the main window, brought forward: asked for from a message's own window too.
+            Action::Person(email) => {
+                self.ui.dialog = Some(Dialog::person(&mut self.session, &email));
+                self.ui.focus_main = true;
+            }
+            Action::PersonLookup(text) => {
+                if let Some(Dialog::Person(f)) = &mut self.ui.dialog {
+                    f.people_found =
+                        if text.trim().is_empty() { Vec::new() } else { self.session.suggest_contacts(&text, crate::dialogs::PEOPLE_OFFERED) };
+                }
+            }
             Action::SetDark(d) => self.ui.dark = d,
             Action::ShowFormatted(key, on) => self.ui.shown_as.set(&key, on, self.session.prefs.show_html),
             Action::SetLanguage(l) => self.ui.language = l,

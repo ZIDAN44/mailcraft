@@ -2003,3 +2003,27 @@ count	occurrences	次
 	All task lists	所有任务列表
 	This task is in a task list that can't be changed here.	此任务所在的任务列表无法在此处更改。
 	Occurrences of this task were changed on their own elsewhere: change it there.	此任务的某些重复已在别处单独更改：请在那里更改。
+	Everything with them…	与此人的所有内容…
+	Everything with sender…	与发件人的所有内容…
+	Everything with them	与此人的所有内容
+	Search within everything with them	在与此人的所有内容中搜索
+	Mail ({n})	邮件 ({n})
+	Files ({n})	附件 ({n})
+	Meetings ({n})	会议 ({n})
+	Links ({n})	链接 ({n})
+	People ({n})	联系人 ({n})
+	Nothing here.	这里没有内容。
+	Nothing here matches the search.	这里没有与搜索匹配的内容。
+	Files and links come from the mail on this computer: {n} of these messages aren't downloaded.	附件和链接来自这台电脑上的邮件：其中 {n} 封邮件尚未下载。
+	Only the newest of the mail with them is shown.	仅显示与此人的最新邮件。
+	In their signature	签名中的信息
+	Add to their contact…	添加到其联系人…
+	Open the newest	打开最新的
+	Open (they sent it)	打开 (此人发送)
+	They organise it	由此人组织
+	They're invited	此人已受邀
+	{n} messages	{n} 封邮件
+	One message	1 封邮件
+	Overview	概览
+	Show all	全部显示
+	Find someone by name or address	按姓名或地址查找联系人

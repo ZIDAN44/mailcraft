@@ -517,6 +517,12 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                         {
                             acts.extend(write_to(&name, &e.value));
                         }
+                        // Everything with them (issue #178).
+                        if let Some(e) = c.emails.first()
+                            && widgets::pill_button(ui, Icon::People, "Everything with them…", &t).clicked()
+                        {
+                            acts.push(Action::Person(e.value.clone()));
+                        }
                         // Someone in a shared address book (an organisation's) is only read.
                         if s.person_read_only(&c.uid) {
                             ui.label(RichText::new(tl!("In a shared address book: read-only")).color(t.faint).small());
