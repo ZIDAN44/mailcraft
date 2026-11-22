@@ -38,6 +38,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Fixed
 
+- On a Windows PC with two GPUs, MailCraft draws its window on the one Windows chooses for it (Settings › System › Display › Graphics: the power-saving one unless you chose otherwise), not always the dedicated one (#246). `WGPU_POWER_PREF=high` still asks for the dedicated GPU.
 - The message list's Pinned heading is in your language: it showed in English in every language (#198).
 - The labels of the event, task and contact forms no longer run into their fields (#198): the labels' column is as wide as the longest label in your language (Hungarian, German, Spanish, Polish, Russian, Slovak and Arabic had some too long for it, and English its Repeats every).
 - Compact now gives back what File › Info says can be reclaimed, and the room stays given back (#221): a data file under 4 GB is copied into a new file (compacted in place, its database doubled it again at its next write, so it grew: 1.5 GB became 1.8 GB), and what the card offers is only what compacting gives back for good (it offered room the database fills again at once, then said "Nothing to give back").

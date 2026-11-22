@@ -1,14 +1,15 @@
 //! The graphics adapter MailCraft's window is drawn with.
 //!
-//! On Windows only DirectX 12 starts, and the adapter is picked here: a real GPU first, WARP
-//! (Windows' own software renderer, which DirectX 12 lists as "Microsoft Basic Render Driver")
-//! when there is none. wgpu otherwise starts Vulkan and OpenGL too. On a PC without a GPU those
+//! On Windows only DirectX 12 starts, and the adapter is picked here: a real GPU first, the one
+//! Windows lists first (its Graphics settings' choice for MailCraft, which saves power unless the
+//! user chose otherwise), WARP (Windows' own software renderer, which DirectX 12 lists as
+//! "Microsoft Basic Render Driver") when there is none. wgpu otherwise starts Vulkan and OpenGL too. On a PC without a GPU those
 //! find only leftover or overlay drivers and Windows' OpenGL 1.1 software renderer, and the
 //! window never opened: the process stayed in the background holding the data files, so later
 //! launches were told another copy had them open. DirectX 12 works there through WARP.
 //!
 //! `WGPU_BACKEND` still chooses the backends (and then wgpu picks the adapter, as before),
-//! `WGPU_POWER_PREF=low` puts an integrated GPU before a discrete one, and
+//! `WGPU_POWER_PREF=low` puts an integrated GPU before a discrete one (`high` the other way), and
 //! `WGPU_FORCE_FALLBACK_ADAPTER=1` draws with WARP, as a PC without a GPU does. The shaders are
 //! compiled with FXC, part of Windows (`WGPU_DX12_COMPILER` chooses another): wgpu's default loads
 //! whichever `dxcompiler.dll` the DLL search path finds, and one without its `dxil.dll` loses the
@@ -27,15 +28,18 @@
 
 use eframe::wgpu::{self, DeviceType, PowerPreference};
 
-/// The order adapters are tried in (lowest first): a real GPU (the discrete one, or with
-/// `integrated_first` the integrated one), then one of unknown or virtual kind, then software.
-pub fn rank(device: DeviceType, integrated_first: bool) -> u8 {
-    match device {
-        DeviceType::DiscreteGpu => 1 + u8::from(integrated_first),
-        DeviceType::IntegratedGpu => 2 - u8::from(integrated_first),
-        DeviceType::Other => 3,
-        DeviceType::VirtualGpu => 4,
-        DeviceType::Cpu => 5,
+/// The order adapters are tried in (lowest first): a real GPU, then one of unknown or virtual
+/// kind, then software. Among real GPUs, `prefer` puts the discrete one first (high performance)
+/// or the integrated one (low power); with no preference they rank alike, so the order Windows
+/// lists them in decides: the GPU its Graphics settings give MailCraft first (issue #246: always
+/// the discrete one, it drew a mail client on a laptop's gaming GPU, against Windows' choice).
+pub fn rank(device: DeviceType, prefer: PowerPreference) -> u8 {
+    match (device, prefer) {
+        (DeviceType::DiscreteGpu, PowerPreference::LowPower) | (DeviceType::IntegratedGpu, PowerPreference::HighPerformance) => 2,
+        (DeviceType::DiscreteGpu | DeviceType::IntegratedGpu, _) => 1,
+        (DeviceType::Other, _) => 3,
+        (DeviceType::VirtualGpu, _) => 4,
+        (DeviceType::Cpu, _) => 5,
     }
 }
 
@@ -51,12 +55,12 @@ pub struct Candidate {
 /// The adapter to draw with, by its place in `found`: the best-ranked one that can draw to the
 /// window (with `software_only`, WARP alone). `Err` says what was found, for the message shown
 /// when the window can't open.
-pub fn choose(found: &[Candidate], integrated_first: bool, software_only: bool) -> Result<usize, String> {
+pub fn choose(found: &[Candidate], prefer: PowerPreference, software_only: bool) -> Result<usize, String> {
     found
         .iter()
         .enumerate()
         .filter(|(_, c)| c.draws && (!software_only || c.device == DeviceType::Cpu))
-        .min_by_key(|(at, c)| (rank(c.device, integrated_first), *at))
+        .min_by_key(|(at, c)| (rank(c.device, prefer), *at))
         .map(|(at, _)| at)
         .ok_or_else(|| {
             if found.is_empty() {
@@ -180,7 +184,8 @@ fn windows_setup(options: &mut eframe::NativeOptions, backends: Option<wgpu::Bac
         return;
     }
     setup.instance_descriptor.backends = wgpu::Backends::DX12;
-    let integrated_first = setup.power_preference == PowerPreference::LowPower;
+    // Only a preference asked for: eframe's own (high performance) would override Windows'.
+    let prefer = PowerPreference::from_env().unwrap_or(PowerPreference::None);
     setup.native_adapter_selector = Some(std::sync::Arc::new(move |adapters: &[wgpu::Adapter], surface: Option<&wgpu::Surface<'_>>| {
         let found: Vec<Candidate> = adapters
             .iter()
@@ -192,7 +197,7 @@ fn windows_setup(options: &mut eframe::NativeOptions, backends: Option<wgpu::Bac
         for c in &found {
             log::info!("graphics: DirectX 12 adapter {:?} ({:?}){}", c.name, c.device, if c.draws { "" } else { ", can't draw to the window" });
         }
-        let at = choose(&found, integrated_first, software).inspect_err(|e| log::error!("graphics: {e}"))?;
+        let at = choose(&found, prefer, software).inspect_err(|e| log::error!("graphics: {e}"))?;
         let chosen = adapters.get(at).cloned().ok_or_else(|| "the chosen graphics adapter went away".to_string())?;
         if let Some(c) = found.get(at) {
             let how = if c.device == DeviceType::Cpu { " (software: drawn by the processor)" } else { "" };
@@ -251,11 +256,11 @@ mod tests {
     #[test]
     fn without_a_gpu_the_software_renderer_draws() {
         let warp = found(&[("Microsoft Basic Render Driver", DeviceType::Cpu)]);
-        assert_eq!(choose(&warp, false, false), Ok(0));
+        assert_eq!(choose(&warp, PowerPreference::None, false), Ok(0));
     }
 
-    /// A real GPU comes before WARP, whatever the order DirectX lists them in; the discrete one
-    /// first, or the integrated one when asked to save power.
+    /// A real GPU comes before WARP, whatever the order DirectX lists them in; of two GPUs, the
+    /// one Windows lists first (its Graphics settings' choice), unless a preference is asked for.
     #[test]
     fn a_real_gpu_comes_first() {
         let three = found(&[
@@ -263,25 +268,34 @@ mod tests {
             ("AMD Radeon(TM) Graphics", DeviceType::IntegratedGpu),
             ("NVIDIA GeForce RTX 4070 Ti SUPER", DeviceType::DiscreteGpu),
         ]);
-        assert_eq!(choose(&three, false, false), Ok(2));
-        assert_eq!(choose(&three, true, false), Ok(1));
+        // Windows lists the integrated GPU first (saving power, a laptop's default): it draws
+        // (issue #246: the discrete one did, whatever Windows chose).
+        assert_eq!(choose(&three, PowerPreference::None, false), Ok(1));
+        // Windows lists the discrete one first (chosen for MailCraft, or the monitor's on it).
+        let mut discrete_first = three.clone();
+        discrete_first.swap(1, 2);
+        assert_eq!(choose(&discrete_first, PowerPreference::None, false), Ok(1));
+        assert_eq!(discrete_first[1].device, DeviceType::DiscreteGpu);
+        // WGPU_POWER_PREF asks: high takes the discrete one, low the integrated one, either way.
+        assert_eq!(choose(&three, PowerPreference::HighPerformance, false), Ok(2));
+        assert_eq!(choose(&discrete_first, PowerPreference::LowPower, false), Ok(2));
         // Asked for software (WGPU_FORCE_FALLBACK_ADAPTER), WARP even next to a GPU.
-        assert_eq!(choose(&three, false, true), Ok(0));
+        assert_eq!(choose(&three, PowerPreference::None, true), Ok(0));
         // A GPU that can't draw to the window is passed over for one that can.
         let mut weak = three.clone();
-        if let Some(n) = weak.get_mut(2) {
+        if let Some(n) = weak.get_mut(1) {
             n.draws = false;
         }
-        assert_eq!(choose(&weak, false, false), Ok(1));
+        assert_eq!(choose(&weak, PowerPreference::None, false), Ok(2));
     }
 
     /// Nothing that can draw: an error naming what was found, for the message box.
     #[test]
     fn nothing_to_draw_with_says_what_was_found() {
-        let e = choose(&[], false, false).unwrap_err();
+        let e = choose(&[], PowerPreference::None, false).unwrap_err();
         assert!(e.contains("no graphics adapter"), "{e}");
         let only_gpu = found(&[("Intel(R) UHD Graphics", DeviceType::IntegratedGpu)]);
-        let e = choose(&only_gpu, false, true).unwrap_err();
+        let e = choose(&only_gpu, PowerPreference::None, true).unwrap_err();
         assert!(e.contains("software renderer") && e.contains("Intel(R) UHD Graphics"), "{e}");
     }
 
