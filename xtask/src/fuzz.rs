@@ -11,6 +11,40 @@ fn targets(manifest: &str) -> Vec<(String, String)> {
     manifest.lines().filter(|l| l.contains("path = \"fuzz_targets/")).filter_map(|l| Some((field(l, "name")?, field(l, "path")?))).collect()
 }
 
+/// The lines (from 1) of a dictionary libFuzzer can't read, as its `ParseDictionaryFile` reads
+/// them: past spaces at either end, a line is empty, a `#` comment, or a `"…"` not empty (a name
+/// and `=` may come first) of printable ASCII, whose only escapes are `\\`, `\"` and `\xHH`.
+/// libFuzzer stops at the first it can't, before fuzzing anything: a byte written raw, or a
+/// line end in a value, which cuts it in two.
+fn unreadable(dict: &[u8]) -> Vec<usize> {
+    let entry = |line: &[u8]| -> bool {
+        let line = line.trim_ascii();
+        if line.is_empty() || line.first() == Some(&b'#') {
+            return true;
+        }
+        let Some(start) = line.iter().position(|&b| b == b'"') else { return false };
+        let Some(value) = line.get(start + 1..).and_then(|v| v.strip_suffix(b"\"")) else { return false };
+        if value.is_empty() {
+            return false;
+        }
+        let mut bytes = value.iter();
+        while let Some(&b) = bytes.next() {
+            if !((0x20..=0x7e).contains(&b) || matches!(b, b'\t' | b'\n' | 0x0b | 0x0c | b'\r')) {
+                return false;
+            }
+            if b == b'\\' {
+                match bytes.next() {
+                    Some(b'\\' | b'"') => {}
+                    Some(b'x') if bytes.next().is_some_and(u8::is_ascii_hexdigit) && bytes.next().is_some_and(u8::is_ascii_hexdigit) => {}
+                    _ => return false,
+                }
+            }
+        }
+        true
+    };
+    dict.split(|&b| b == b'\n').enumerate().filter(|(_, l)| !entry(l)).map(|(i, _)| i + 1).collect()
+}
+
 /// What each target lacks, one line each.
 fn missing(fuzz: &Path, targets: &[(String, String)]) -> Vec<String> {
     let has_file = |p: &Path| std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.len() > 0);
@@ -23,8 +57,11 @@ fn missing(fuzz: &Path, targets: &[(String, String)]) -> Vec<String> {
         if !has_seed(&fuzz.join("seeds").join(name)) {
             out.push(format!("fuzz/seeds/{name}/ (a seed)"));
         }
-        if !has_file(&fuzz.join("dicts").join(format!("{name}.dict"))) {
+        let dict = fuzz.join("dicts").join(format!("{name}.dict"));
+        if !has_file(&dict) {
             out.push(format!("fuzz/dicts/{name}.dict"));
+        } else if let Some(&line) = std::fs::read(&dict).map(|d| unreadable(&d)).unwrap_or_default().first() {
+            out.push(format!("fuzz/dicts/{name}.dict line {line} (libFuzzer can't read it)"));
         }
     }
     out
@@ -59,5 +96,15 @@ mod tests {
         let fuzz = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("fuzz");
         let missing = missing(&fuzz, &found);
         assert_eq!(missing, ["fuzz/fuzz_targets/nothing.rs", "fuzz/seeds/nothing/ (a seed)", "fuzz/dicts/nothing.dict"]);
+    }
+
+    /// The backup target's dictionary as it was: its first line's end written raw cut the entry
+    /// in two, and the weekly run stopped there, reading `"MAILCRAFT-BACKUP`; its version and
+    /// flags were raw bytes too.
+    #[test]
+    fn a_dictionary_libfuzzer_cant_read_is_found() {
+        assert_eq!(unreadable(b"# first line\r\n\"MAILCRAFT-BACKUP\r\n\"\r\n\"\x01\x00\"\r\n"), [2, 3, 4]);
+        assert_eq!(unreadable(b"  # spaces\n\n\"MAILCRAFT-BACKUP\\x0A\"\nkw=\"a\\\\b\\\"c\" \n\"\\x01\\x00\"\r\n"), [] as [usize; 0]);
+        assert_eq!(unreadable(b"no quotes\n\"\\q\"\n\"\\x1\"\n\"\"\n\"\n\"caf\xc3\xa9\""), [1, 2, 3, 4, 5, 6]);
     }
 }
