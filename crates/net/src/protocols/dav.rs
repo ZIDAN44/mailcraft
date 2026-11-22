@@ -450,7 +450,12 @@ impl Dav {
         match resp.status {
             200..=299 => Ok(Ok(resp.header("ETag").unwrap_or_default().to_string())),
             401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
-            s => Ok(Err(Refused::from_status(s))),
+            s => {
+                // Where, and on which condition: what tells a wrong address (404, issue #147's
+                // Zoho) from a copy the server says changed (412) in the log (never the item).
+                log::info!("calendars and contacts: PUT {url} ({}) answered HTTP {s}", cond.0);
+                Ok(Err(Refused::from_status(s)))
+            }
         }
     }
 
