@@ -243,6 +243,12 @@ fn caldav_task_lists_are_shown_and_picked() {
     click_named(&ctx, &mut a, "All task lists");
     assert_eq!(a.session.shown_task_list(), None);
 
+    // With a list shown alone, a new task goes in it, as Outlook's go in the folder it shows.
+    a.run("task.showList", json!({"list": cal}));
+    let Some(Dialog::Task(f)) = Some(Dialog::new_task(&a.session, None)) else { panic!("the form") };
+    assert_eq!((f.accounts.get(f.account).map(|x| x.0.as_str()), f.list.as_str()), (Some(id.as_str()), cal));
+    a.run("task.showList", json!({}));
+
     // A new task in that account: its default list, another to pick.
     let mut d = Dialog::new_task(&a.session, None);
     if let Dialog::Task(f) = &mut d {

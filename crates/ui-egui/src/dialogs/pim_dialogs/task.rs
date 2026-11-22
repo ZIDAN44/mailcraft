@@ -72,14 +72,21 @@ fn priority_label(p: TaskPriority) -> &'static str {
 }
 
 impl TaskForm {
-    /// A new task, due on `due` (a day) when given; in the account on screen.
+    /// A new task, due on `due` (a day) when given; in the account on screen, or in the task list
+    /// shown alone (issue #201), as Outlook puts a new item in the folder it shows.
     pub fn new(s: &Session, due: Option<i64>) -> TaskForm {
         let accounts: Vec<(String, String)> = s.accounts.iter().map(|a| (a.config.id.clone(), a.config.email.clone())).collect();
-        let current = s.current_account().map(|a| a.config.id.clone()).unwrap_or_default();
+        let lists = writable_lists(s);
+        let shown = s.shown_task_list().and_then(|l| lists.iter().find(|x| x.1 == l));
+        let current = match shown {
+            Some(l) => l.0.clone(),
+            None => s.current_account().map(|a| a.config.id.clone()).unwrap_or_default(),
+        };
         TaskForm {
             account: accounts.iter().position(|a| a.0 == current).unwrap_or(0),
             accounts,
-            lists: writable_lists(s),
+            list: shown.map(|l| l.1.clone()).unwrap_or_default(),
+            lists,
             due: day_text(due),
             hours12: s.clock.style.hours12,
             dates: s.clock.style.order,
