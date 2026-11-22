@@ -467,6 +467,9 @@ fn tags_templates_and_dates() {
     assert_eq!(lang_from_tag("sk").map(Lang::code), Some("sk"));
     assert_eq!(lang_from_tag("sk-SK").map(Lang::code), Some("sk"));
     assert_eq!(lang_from_tag("sk_SK.UTF-8").map(Lang::code), Some("sk"));
+    assert_eq!(lang_from_tag("pl").map(Lang::code), Some("pl"));
+    assert_eq!(lang_from_tag("pl-PL").map(Lang::code), Some("pl"));
+    assert_eq!(lang_from_tag("pl_PL.UTF-8").map(Lang::code), Some("pl"));
     assert_eq!(lang_from_tag("de-AT").map(Lang::code), Some("de"));
     assert_eq!(lang_from_tag("C"), Some(Lang::EN));
     assert_eq!(lang_from_tag("xx"), None);
@@ -586,7 +589,7 @@ fn a_tour_in_the_pseudo_language_only_draws_known_strings() {
 fn the_language_list_reads_in_order() {
     let names: Vec<&str> = Lang::for_picker().iter().map(|l| l.name()).collect();
     assert_eq!(names.len(), LANGUAGES.len());
-    let latin = ["English", "Deutsch", "Español", "Français", "Italiano", "Nederlands", "Português (Brasil)", "Slovenčina", "Türkçe"];
+    let latin = ["English", "Deutsch", "Español", "Français", "Italiano", "Nederlands", "Polski", "Português (Brasil)", "Slovenčina", "Türkçe"];
     assert_eq!(names.get(..latin.len()), Some(&latin[..]), "{names:?}");
     assert!(names.iter().skip(latin.len()).all(|n| !n.is_ascii()), "{names:?}");
 }
