@@ -1991,3 +1991,6 @@ count	occurrences	회
 	None: every invitation in the Inbox is in your calendar or answered.	없음: 받은 편지함의 모든 초대가 일정에 있거나 응답되었습니다.
 	Put in calendar	일정에 추가
 	Still reading {n} messages…	아직 메시지 {n}개를 읽는 중…
+	Sort by	정렬 기준
+	First name	이름
+	Last name	성

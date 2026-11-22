@@ -1992,3 +1992,6 @@ count	occurrences	előfordulás
 	None: every invitation in the Inbox is in your calendar or answered.	Nincs ilyen: a Beérkezett üzenetek mappa minden meghívója szerepel a naptáradban, vagy már válaszoltál rá.
 	Put in calendar	Felvétel a naptárba
 	Still reading {n} messages…	Még {n} üzenet beolvasása folyamatban…
+	Sort by	Rendezés
+	First name	Utónév
+	Last name	Vezetéknév

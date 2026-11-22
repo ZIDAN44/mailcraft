@@ -1988,3 +1988,6 @@ count	occurrences	回
 	None: every invitation in the Inbox is in your calendar or answered.	ありません。受信トレイの招待はすべて予定表にあるか、返答済みです。
 	Put in calendar	予定表に追加
 	Still reading {n} messages…	まだ {n} 件のメッセージを読み込んでいます…
+	Sort by	並べ替え
+	First name	名
+	Last name	姓

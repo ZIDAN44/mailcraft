@@ -590,3 +590,40 @@ fn form_labels_fit_their_column() {
     }
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }
+
+/// People sorted by last name (issue #244): each still shown by their name as it reads, filed
+/// under their last name's letter, and back by first name when chosen again.
+#[test]
+fn people_sort_by_last_name() {
+    let (mut a, _) = app("people-last-name");
+    for name in ["Tamsin Rook", "Ivo Marsh", "Quinn Ashby", "Lena van Ford"] {
+        a.run("contact.create", json!({ "name": name }));
+    }
+    // Ours in the order shown, each with the letter it's under.
+    let order = |a: &mut MailApp| -> Vec<(String, char)> {
+        let list = crate::panes::people::shown(&a.session, &mut a.ui);
+        let mut letter = '?';
+        let mut out = Vec::new();
+        for line in &list.lines {
+            match line {
+                crate::panes::people::Line::Letter(c) => letter = *c,
+                crate::panes::people::Line::Person(i) => {
+                    let at = &list.at[*i];
+                    if let Some(p) = crate::shown::person(&a.session, at) {
+                        let name = p.card.display();
+                        if ["Tamsin Rook", "Ivo Marsh", "Quinn Ashby", "Lena van Ford"].contains(&name.as_str()) {
+                            out.push((name, letter));
+                        }
+                    }
+                }
+            }
+        }
+        out
+    };
+    let pairs = |v: &[(&str, char)]| v.iter().map(|(n, c)| (n.to_string(), *c)).collect::<Vec<_>>();
+    assert_eq!(order(&mut a), pairs(&[("Ivo Marsh", 'I'), ("Lena van Ford", 'L'), ("Quinn Ashby", 'Q'), ("Tamsin Rook", 'T')]));
+    a.ui.people_list.by_last_name = true;
+    assert_eq!(order(&mut a), pairs(&[("Quinn Ashby", 'A'), ("Lena van Ford", 'F'), ("Ivo Marsh", 'M'), ("Tamsin Rook", 'R')]));
+    a.ui.people_list.by_last_name = false;
+    assert_eq!(order(&mut a)[0], ("Ivo Marsh".to_string(), 'I'));
+}

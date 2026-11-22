@@ -140,6 +140,29 @@ impl Card {
         self.emails.first().map(|e| e.value.clone()).unwrap_or_default()
     }
 
+    /// The name a list sorted by last name files someone under (issue #244): the family name
+    /// and then the given one, from `N`; else the name shown read as "Given Family" (its last
+    /// word first) or "Family, Given" (as it is). A company's card (its name is its company's)
+    /// and an address alone are filed as they are.
+    pub fn last_name_first(&self) -> String {
+        let family = self.family.trim();
+        if !family.is_empty() {
+            return format!("{family} {}", self.given.trim()).trim_end().to_string();
+        }
+        let shown = self.display();
+        let org = self.org.trim();
+        if (self.name.trim().is_empty() && self.given.trim().is_empty()) || (!org.is_empty() && shown.eq_ignore_ascii_case(org)) {
+            return shown;
+        }
+        if let Some((family, given)) = shown.split_once(',') {
+            return format!("{} {}", family.trim(), given.trim()).trim().to_string();
+        }
+        match shown.rsplit_once(char::is_whitespace) {
+            Some((given, family)) => format!("{} {}", family.trim(), given.trim()),
+            None => shown,
+        }
+    }
+
     /// Whether the card matches a search (name, organisation or any address, case-insensitive).
     pub fn matches(&self, q: &str) -> bool {
         self.matches_search(&CardSearch::new(q))
@@ -754,5 +777,27 @@ EMAIL;TYPE=INTERNET,WORK;PREF=1:zoe@studio.example\r\nTEL;VALUE=uri;TYPE=cell:te
         // A card made here is written as before.
         let mine = Card { name: "Ann Lee".into(), given: "Ann".into(), family: "Lee".into(), ..Default::default() };
         assert!(write(&mine).lines().any(|l| l == "N:Lee;Ann;;;"));
+    }
+
+    /// Filed by last name (issue #244): the family name from `N`, else the name shown's last word
+    /// (or what's before its comma); a company and an address alone as they are.
+    #[test]
+    fn people_are_filed_by_last_name() {
+        let card =
+            |name: &str, given: &str, family: &str| Card { name: name.into(), given: given.into(), family: family.into(), ..Default::default() };
+        assert_eq!(card("Zoe Park", "Zoe", "Park").last_name_first(), "Park Zoe");
+        // N says which word is the family name, where the name shown doesn't.
+        assert_eq!(card("Ana María García López", "Ana María", "García López").last_name_first(), "García López Ana María");
+        assert_eq!(card("", "", "Okafor").last_name_first(), "Okafor");
+        assert_eq!(card("Sam Okafor", "", "").last_name_first(), "Okafor Sam");
+        assert_eq!(card("Mira van Dijk", "", "").last_name_first(), "Dijk Mira van");
+        assert_eq!(card("Park, Zoe", "", "").last_name_first(), "Park Zoe");
+        assert_eq!(card("Cher", "", "").last_name_first(), "Cher");
+        assert_eq!(card("", "Ann", "").last_name_first(), "Ann");
+        let shop = Card { name: "Print Shop".into(), org: "Print Shop".into(), ..Default::default() };
+        assert_eq!(shop.last_name_first(), "Print Shop");
+        let address = Card { emails: vec![Typed { value: "ann@x.example".into(), ..Default::default() }], ..Default::default() };
+        assert_eq!(address.last_name_first(), "ann@x.example");
+        assert_eq!(Card::default().last_name_first(), "");
     }
 }

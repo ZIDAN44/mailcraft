@@ -117,11 +117,29 @@ pub struct ListSettings {
     /// Sorted by this column (`None`: by name).
     pub sort: Option<Column>,
     pub descending: bool,
+    /// Names sorted by the last name rather than the first, as each still shows (issue #244);
+    /// every view, and the A–Z index.
+    pub by_last_name: bool,
 }
 
 impl Default for ListSettings {
     fn default() -> Self {
-        ListSettings { columns: vec![Column::Company, Column::Title, Column::Email, Column::Business, Column::Mobile], sort: None, descending: false }
+        ListSettings {
+            columns: vec![Column::Company, Column::Title, Column::Email, Column::Business, Column::Mobile],
+            sort: None,
+            descending: false,
+            by_last_name: false,
+        }
+    }
+}
+
+/// Outlook's Sort by for people: by first name (the name as it shows) or by last name.
+pub fn sort_menu(ui: &mut Ui, list: &mut ListSettings) {
+    for (last, label) in [(false, "First name"), (true, "Last name")] {
+        if ui.radio(list.by_last_name == last, tl!(label)).clicked() {
+            list.by_last_name = last;
+            ui.close();
+        }
     }
 }
 
@@ -203,22 +221,24 @@ pub(crate) struct PeopleList {
     pub(crate) at: Vec<At>,
     /// The side list's lines: each letter's heading before the first name under it, and the
     /// people (their places in `at`).
-    lines: Vec<Line>,
+    pub(crate) lines: Vec<Line>,
     /// The letters with names under them, in order (the A–Z index).
     letters: Vec<char>,
 }
 
 /// A line of the side list.
 #[derive(Clone, Copy)]
-enum Line {
+pub(crate) enum Line {
     Letter(char),
     Person(usize),
 }
 
-/// The people shown: those matching the search, in the address book chosen, by name. Made again
-/// only on the first frame after they or what picks them changed (see `shown`).
+/// The people shown: those matching the search, in the address book chosen, by name (the first,
+/// or the last when chosen). Made again only on the first frame after they or what picks them
+/// changed (see `shown`).
 pub(crate) fn shown(s: &Session, st: &mut UiState) -> Rc<PeopleList> {
-    let fresh = |k: &PeopleKey| k.0 == s.pim_revision && k.1 == st.people_query && k.2 == st.people_book;
+    let by_last = st.people_list.by_last_name;
+    let fresh = |k: &PeopleKey| k.0 == s.pim_revision && k.1 == st.people_query && k.2 == st.people_book && k.3 == by_last;
     if let Some((k, list)) = &st.shown.people
         && fresh(k)
     {
@@ -228,9 +248,14 @@ pub(crate) fn shown(s: &Session, st: &mut UiState) -> Rc<PeopleList> {
     if let Some((account, book)) = &st.people_book {
         people.retain(|p| p.account == *account && p.book == *book);
     }
+    // The name each is filed under: as shown (the engine's order), or last name first.
+    let filed = |p: &mailcraft_engine::Person<'_>| if by_last { p.card.last_name_first() } else { p.card.display() };
+    if by_last {
+        people.sort_by_cached_key(|p| (filed(p).to_lowercase(), p.card.display().to_lowercase()));
+    }
     let (mut lines, mut letters) = (Vec::with_capacity(people.len() + 27), Vec::new());
     for (i, p) in people.iter().enumerate() {
-        let letter = index_letter(&p.card.display());
+        let letter = index_letter(&filed(p));
         if letters.last() != Some(&letter) {
             letters.push(letter);
             lines.push(Line::Letter(letter));
@@ -239,7 +264,7 @@ pub(crate) fn shown(s: &Session, st: &mut UiState) -> Rc<PeopleList> {
     }
     let at = people.iter().map(|p| (p.account.to_string(), p.at)).collect();
     let list = Rc::new(PeopleList { at, lines, letters });
-    st.shown.people = Some(((s.pim_revision, st.people_query.clone(), st.people_book.clone()), list.clone()));
+    st.shown.people = Some(((s.pim_revision, st.people_query.clone(), st.people_book.clone(), by_last), list.clone()));
     list
 }
 
@@ -250,7 +275,13 @@ fn phone_order(s: &Session, st: &mut UiState) -> Rc<[At]> {
     let lang = crate::i18n::current().code();
     let list = &st.people_list;
     let fresh = |k: &(PeopleKey, Option<Column>, bool, &str)| {
-        k.0.0 == s.pim_revision && k.0.1 == st.people_query && k.0.2 == st.people_book && k.1 == list.sort && k.2 == list.descending && k.3 == lang
+        k.0.0 == s.pim_revision
+            && k.0.1 == st.people_query
+            && k.0.2 == st.people_book
+            && k.0.3 == list.by_last_name
+            && k.1 == list.sort
+            && k.2 == list.descending
+            && k.3 == lang
     };
     if let Some((k, order)) = &st.shown.phone
         && fresh(k)
@@ -265,7 +296,7 @@ fn phone_order(s: &Session, st: &mut UiState) -> Rc<[At]> {
         ps.reverse();
     }
     let order: Rc<[At]> = ps.iter().map(|p| (p.account.to_string(), p.at)).collect();
-    let key = ((s.pim_revision, st.people_query.clone(), st.people_book.clone()), list.sort, list.descending, lang);
+    let key = ((s.pim_revision, st.people_query.clone(), st.people_book.clone(), list.by_last_name), list.sort, list.descending, lang);
     st.shown.phone = Some((key, order.clone()));
     order
 }

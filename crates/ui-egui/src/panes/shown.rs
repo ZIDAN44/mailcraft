@@ -23,7 +23,7 @@ use super::people::{Column, PeopleList};
 pub(crate) type At = (String, usize);
 
 /// What People's list was made for: the revision, the search, the address book picked.
-pub(crate) type PeopleKey = (u64, String, Option<(String, String)>);
+pub(crate) type PeopleKey = (u64, String, Option<(String, String)>, bool);
 
 /// The lists as last made, each with what it was made for.
 #[derive(Default)]

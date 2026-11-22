@@ -1988,3 +1988,6 @@ count	occurrences	次
 	None: every invitation in the Inbox is in your calendar or answered.	没有：收件箱中的每个邀请都已在日历中或已答复。
 	Put in calendar	放入日历
 	Still reading {n} messages…	仍在读取 {n} 封邮件…
+	Sort by	排序方式
+	First name	名字
+	Last name	姓氏

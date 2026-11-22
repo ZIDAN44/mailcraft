@@ -214,6 +214,9 @@ fn people_views(ui: &mut Ui, st: &mut UiState, t: Tokens) {
             st.people_view = v;
         }
     }
+    // Outlook's Sort by: first name or last name (issue #244).
+    let r = widgets::tool_button(ui, Icon::ListBullet, "Sort by", &t, true);
+    egui::Popup::menu(&r).show(|ui| people::sort_menu(ui, &mut st.people_list));
     if st.people_view == people::PeopleView::Phone {
         let r = widgets::tool_button(ui, Icon::Layout, "Columns", &t, true);
         egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| people::column_menu(ui, &mut st.people_list));
