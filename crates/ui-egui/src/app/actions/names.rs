@@ -55,4 +55,49 @@ impl MailApp {
             acts.push(Action::ForCompose(id, Box::new(Action::RecheckNames)));
         }
     }
+
+    /// Check the names typed in the meeting form's guests (issue #253), as a message's are: each
+    /// that's one person put in, several offered in the form to pick from, none said. `again`:
+    /// the check a directory's answer brought on, which doesn't say again that it's still asked.
+    pub(super) fn check_guest_names(&mut self, again: bool) {
+        let Some(Dialog::Event(f)) = self.ui.dialog.as_mut() else { return };
+        let r = match self.session.run("names.check", &json!({"text": f.guests})) {
+            Ok(r) => r,
+            Err(e) => return self.session.notice(e.to_string(), true),
+        };
+        let listed = |key: &str| r.get(key).and_then(Value::as_array).cloned().unwrap_or_default();
+        let named =
+            |v: &[Value]| v.iter().filter_map(|x| x.get("typed").and_then(Value::as_str)).map(|t| format!("“{t}”")).collect::<Vec<_>>().join(", ");
+        if let Some(text) = r.get("text").and_then(Value::as_str) {
+            f.guests = text.to_string();
+        }
+        // The suggestions out of the way of the people offered under the box.
+        f.guest_box.dismissed = Some(f.guests.clone());
+        f.name_asks = listed("several")
+            .iter()
+            .filter_map(|x| {
+                let typed = x.get("typed")?.as_str()?.to_string();
+                let people = x.get("people")?.as_array()?.iter().filter_map(|p| serde_json::from_value(p.clone()).ok()).collect();
+                Some(crate::pim_dialogs::NameAsk { typed, people })
+            })
+            .collect();
+        let (none, pending) = (listed("none"), listed("pending"));
+        f.names_pending = (!pending.is_empty()).then_some(self.session.directory.rev);
+        if !none.is_empty() {
+            self.session.notice(tf!("No one found for {names}", names = named(&none)), true);
+        }
+        if !pending.is_empty() && !again {
+            self.session.notice(tf!("Still looking up {names} in the directory", names = named(&pending)), true);
+        }
+    }
+
+    /// The address book for the meeting form's guests (issue #253): what's typed in their box is
+    /// in its list of people, and the form comes back as it closes.
+    pub(super) fn guests_from_book(&mut self) {
+        if let Some(Dialog::Event(f)) = self.ui.dialog.take() {
+            let to = f.guests.trim().to_string();
+            let form = crate::dialogs::NamesForm { purpose: crate::dialogs::NamesFor::Guests, to, stale: true, event: Some(f), ..Default::default() };
+            self.ui.dialog = Some(Dialog::SelectNames(Box::new(form)));
+        }
+    }
 }

@@ -24,27 +24,7 @@ impl Session {
             return Err(CmdError::Disabled("the message is being sent".into()));
         }
         let texts = [c.to.clone(), c.cc.clone(), c.bcc.clone()];
-        // Each name not an address yet, asked of the directories first (a short one too: it's
-        // asked for; one they answered lately isn't asked again), then looked up as the boxes'
-        // suggestions are.
-        let mut typed: Vec<String> = Vec::new();
-        for t in &texts {
-            for u in check_names::check_names(t, |_| Vec::new()).unresolved {
-                if !typed.contains(&u.typed) {
-                    typed.push(u.typed);
-                }
-            }
-        }
-        self.ensure_contacts();
-        let now = self.clock.now;
-        let mut found: HashMap<String, Vec<EmailAddress>> = HashMap::new();
-        for t in &typed {
-            self.ask_directory(t, true, false);
-            let mut people: Vec<EmailAddress> =
-                self.contacts.as_ref().map(|b| b.suggest(t, MAX_PEOPLE, now)).unwrap_or_default().into_iter().map(|c| c.address).collect();
-            people.extend(self.directory_people(t));
-            found.insert(t.clone(), people);
-        }
+        let found = self.look_up_names(&texts);
         let (mut resolved, mut several, mut none, mut pending) = (0usize, Vec::new(), Vec::new(), Vec::new());
         let mut after: Vec<Option<String>> = Vec::new();
         for (field, text) in FIELDS.iter().zip(texts.iter()) {
@@ -70,6 +50,52 @@ impl Session {
             }
         }
         Ok(json!({"resolved": resolved, "several": several, "none": none, "pending": pending}))
+    }
+
+    /// Check the names typed in a box of people elsewhere than a message (a meeting's guests,
+    /// issue #253), as [`Session::check_names`] checks a message's: the box's text with each one
+    /// found put in, and the names with several people, none, or a directory still asked.
+    pub fn check_names_in(&mut self, text: &str) -> CmdResult {
+        let found = self.look_up_names(&[text.to_string()]);
+        let checked = check_names::check_names_waiting(text, |t| found.get(t).cloned().unwrap_or_default(), |t| self.directory_pending(t));
+        let (mut several, mut none, mut pending) = (Vec::new(), Vec::new(), Vec::new());
+        for u in checked.unresolved {
+            if self.directory_pending(&u.typed) {
+                pending.push(json!({"typed": u.typed}));
+            } else if !u.people.is_empty() {
+                let people: Vec<Value> = u.people.iter().map(|p| json!({"name": p.name, "email": p.email})).collect();
+                several.push(json!({"typed": u.typed, "people": people}));
+            } else {
+                none.push(json!({"typed": u.typed}));
+            }
+        }
+        let text = if checked.resolved > 0 { checked.field } else { text.to_string() };
+        Ok(json!({"text": text, "resolved": checked.resolved, "several": several, "none": none, "pending": pending}))
+    }
+
+    /// The people each name typed in `texts` that isn't an address yet could be: asked of the
+    /// directories first (a short one too: it's asked for; one they answered lately isn't asked
+    /// again), then looked up as the boxes' suggestions are.
+    fn look_up_names(&mut self, texts: &[String]) -> HashMap<String, Vec<EmailAddress>> {
+        let mut typed: Vec<String> = Vec::new();
+        for t in texts {
+            for u in check_names::check_names(t, |_| Vec::new()).unresolved {
+                if !typed.contains(&u.typed) {
+                    typed.push(u.typed);
+                }
+            }
+        }
+        self.ensure_contacts();
+        let now = self.clock.now;
+        let mut found: HashMap<String, Vec<EmailAddress>> = HashMap::new();
+        for t in &typed {
+            self.ask_directory(t, true, false);
+            let mut people: Vec<EmailAddress> =
+                self.contacts.as_ref().map(|b| b.suggest(t, MAX_PEOPLE, now)).unwrap_or_default().into_iter().map(|c| c.address).collect();
+            people.extend(self.directory_people(t));
+            found.insert(t.clone(), people);
+        }
+        found
     }
 
     /// The person picked for a name Check Names offered several for: put in where `typed` was in

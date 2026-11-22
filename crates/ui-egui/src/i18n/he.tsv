@@ -2030,11 +2030,14 @@ count	occurrences	פעמים
 	Delegate meeting	האצלת הפגישה
 	Delegate…	האצלה…
 	Delegated	הואצל
+	Invite…	הזמנה…
 	Name <address>	שם <כתובת>
+	Pick guests from the address book	בחירת אורחים מפנקס הכתובות
 	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	מישהו אחר ילך במקומך: הוא יקבל את ההזמנה כדי להשיב עליה, והמארגן יעודכן.
 	The whole series	כל הסדרה
 	This occurrence	המופע הזה
 	Who goes instead of you	מי ילך במקומך
+	Who is “{name}”?	מי זה „{name}”?
 	You asked {name} to go in your place.	ביקשת מ-{name} ללכת במקומך.
 	{name} asked you to go in their place.	{name} ביקש/ה ממך ללכת במקומו/ה.
 	{name} asked {delegate} to go in their place.	{name} ביקש/ה מ-{delegate} ללכת במקומו/ה.

@@ -2034,11 +2034,14 @@ count	occurrences	次
 	Delegate meeting	委託他人參加會議
 	Delegate…	委託他人…
 	Delegated	已委託
+	Invite…	邀請…
 	Name <address>	姓名 <地址>
+	Pick guests from the address book	從通訊錄選取來賓
 	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	由其他人代你參加：對方會收到邀請並可回覆，召集人也會收到通知。
 	The whole series	整個系列
 	This occurrence	這一次
 	Who goes instead of you	由誰代你參加
+	Who is “{name}”?	「{name}」是誰？
 	You asked {name} to go in your place.	你已請 {name} 代你參加。
 	{name} asked you to go in their place.	{name} 請你代其參加。
 	{name} asked {delegate} to go in their place.	{name} 請 {delegate} 代其參加。

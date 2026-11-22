@@ -30,6 +30,7 @@ mod task;
 mod waiting;
 pub use contact::{ContactForm, contact};
 pub use follow_up::{FollowUpForm, follow_up};
+pub use guests::NameAsk;
 pub use online_meeting::MeetingState;
 #[cfg(test)]
 pub(crate) use online_meeting::{add as online_meeting_add, remove as online_meeting_remove};
@@ -129,6 +130,12 @@ pub struct EventForm {
     pub attendees: Vec<(String, String, String)>,
     /// The guests, as typed (`Name <address>, …`): editable on the user's own events.
     pub guests: String,
+    /// Their box: the people suggested as a name is typed (issue #253).
+    pub guest_box: crate::look::people_box::PeopleBox,
+    /// Names Check Names found several people for, to pick from; and the directory's answers it
+    /// waits for, when it waits.
+    pub name_asks: Vec<NameAsk>,
+    pub names_pending: Option<u64>,
     /// The user can change the guests (a new event, or one they organize).
     pub can_invite: bool,
     /// The user was invited and hasn't answered.
@@ -326,6 +333,7 @@ impl EventForm {
             categories: e.categories.clone(),
             all_categories: all_categories(s, &e.categories),
             error: None,
+            ..Default::default()
         })
     }
 
@@ -626,9 +634,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
             });
         }
         if f.can_invite {
-            form_row(ui, t, true, Some(Icon::People), "Invite", |ui| {
-                field(ui, &mut f.guests, tl!("Names <addresses>, separated by ; or ,"), f32::INFINITY);
-            });
+            guests::row(ui, t, f, acts);
         }
         if f.uid.is_none() && f.calendars.len() > 1 {
             let name = f.calendars.get(f.calendar).map(|c| c.2.clone()).unwrap_or_default();

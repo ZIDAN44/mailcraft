@@ -201,14 +201,16 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 
 - **Impact:** A new time for one occurrence of a series can't be proposed from its invitation,
   nor taken when a guest proposes one. An account with calendars only (no mail) can't delegate a
-  meeting. Invitations already in the Inbox aren't offered as an account is added: Invitations
-  in the Inbox… in the calendar finds them.
+  meeting. The meeting form doesn't show the guests' free/busy times beside it, as Outlook's
+  Scheduling Assistant does. Invitations already in the Inbox aren't offered as an account is
+  added: Invitations in the Inbox… in the calendar finds them.
 - **Workaround:** Change the occurrence in the calendar: its guests are sent it. Delegate from an
-  account with mail, or in the server's web calendar.
+  account with mail, or in the server's web calendar. Open the guests' calendars in the Schedule
+  view (Open shared calendar…) to find a time, and make the meeting from there.
 - **Cause:** Taking a proposal moves the meeting as a whole; an occurrence's proposal needs that
   occurrence changed on its own. A delegate is told by the account's mail: without mail, the
   server would have to tell them, and Nextcloud and Stalwart don't (Nextcloud doesn't tell the
-  organizer whom either).
+  organizer whom either). The form is a dialog of its own, apart from the calendar's views.
 
 ### 18. Tasks on CalDAV servers: what isn't done yet
 

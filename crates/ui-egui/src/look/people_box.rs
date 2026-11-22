@@ -1,8 +1,9 @@
 //! A box of people as a message's To is: the people known suggested as a name is typed (↑/↓
 //! choose, Enter or Tab takes the highlighted one, a click takes any, Escape hides them),
 //! Backspace after a whole person taking all of them, and Ctrl+K asking for Check Names. A
-//! message's boxes keep what's typed in the window's state; a dialog's (who a meeting is
-//! forwarded or delegated to, issue #254) keep it in a [`PeopleBox`] of their own.
+//! message's boxes keep what's typed in the window's state; a dialog's (a meeting's guests,
+//! issue #253; who a meeting is forwarded or delegated to, issue #254) keep it in a
+//! [`PeopleBox`] of their own.
 
 use egui::{Ui, vec2};
 use mailcraft_engine::Session;

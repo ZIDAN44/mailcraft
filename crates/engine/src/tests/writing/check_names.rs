@@ -66,6 +66,38 @@ fn a_directory_still_asked_is_said_then_found() {
     assert_eq!(to(&s), "Bo Ek <bo.ek@contoso.example>; Zoe Park <zoe@studio.example>; Zoe Park <zoe@studio.example>; ");
 }
 
+/// Issue #253: a meeting's guests are checked as a message's recipients are, and the guests of
+/// the meetings in the calendar are suggested, though no mail went to them.
+#[test]
+fn a_meetings_guests_are_checked_and_suggested() {
+    let mut s = sample_session("check-names-guests");
+    assert!(s.suggest_contacts("quinn", 5).is_empty());
+    // A meeting made elsewhere (no invitation in Sent), as a server's calendar brings it.
+    let guest = |email: &str, name: &str| mailcraft_model::ical::Attendee { email: email.into(), name: name.into(), ..Default::default() };
+    let event = mailcraft_model::ical::CalEvent {
+        uid: "kickoff@lab.example".into(),
+        summary: "Kickoff".into(),
+        start: NOW + 86_400,
+        end: NOW + 90_000,
+        organizer: Some(guest("riley@studio.example", "Riley")),
+        attendees: vec![guest("quinn@lab.example", "Quinn Avery")],
+        ..Default::default()
+    };
+    let p = s.pim_mut("sample");
+    p.events.push(mailcraft_model::pim::StoredEvent { calendar: mailcraft_model::pim::LOCAL.into(), event, ..Default::default() });
+    s.save_pim("sample");
+    let found = s.suggest_contacts("quinn", 5);
+    assert_eq!(found.iter().map(|c| c.address.to_string()).collect::<Vec<_>>(), ["Quinn Avery <quinn@lab.example>"]);
+    let r = s.run("names.check", &json!({"text": "quinn; zoe@studio.example; nobody-by-that-name"})).unwrap();
+    assert_eq!(r["text"], "Quinn Avery <quinn@lab.example>; zoe@studio.example; nobody-by-that-name; ", "{r}");
+    assert_eq!((r["resolved"].as_u64(), &r["none"]), (Some(1), &json!([{"typed": "nobody-by-that-name"}])));
+    // Several: offered, the text as it was.
+    let r = s.run("names.check", &json!({"text": "studio"})).unwrap();
+    assert_eq!((r["text"].as_str(), r["several"][0]["typed"].as_str()), (Some("studio"), Some("studio")), "{r}");
+    assert!(r["several"][0]["people"].as_array().is_some_and(|p| p.len() > 1));
+    assert!(s.run("names.check", &json!({})).is_err(), "nothing to check");
+}
+
 #[test]
 fn nothing_written_nothing_to_check() {
     let mut s = sample_session("check-names-none");

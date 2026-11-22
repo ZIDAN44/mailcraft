@@ -2035,11 +2035,14 @@ count	occurrences	ocorrências
 	Delegate meeting	Delegar reunião
 	Delegate…	Delegar…
 	Delegated	Delegada
+	Invite…	Convidar…
 	Name <address>	Nome <endereço>
+	Pick guests from the address book	Escolher convidados no catálogo de endereços
 	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Outra pessoa vai no seu lugar: ela recebe o convite para responder, e o organizador é avisado.
 	The whole series	A série inteira
 	This occurrence	Esta ocorrência
 	Who goes instead of you	Quem vai no seu lugar
+	Who is “{name}”?	Quem é “{name}”?
 	You asked {name} to go in your place.	Você pediu a {name} que fosse no seu lugar.
 	{name} asked you to go in their place.	{name} pediu que você fosse no lugar dele(a).
 	{name} asked {delegate} to go in their place.	{name} pediu a {delegate} que fosse no lugar dele(a).

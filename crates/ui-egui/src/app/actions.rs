@@ -31,6 +31,12 @@ pub enum Action {
     ForCompose(u64, Box<Action>),
     /// Check Names again, a directory it waited on having answered (issue #211).
     RecheckNames,
+    /// Check the names typed in the meeting form's guests (issue #253); `true`: again, a
+    /// directory it waited on having answered.
+    CheckGuestNames(bool),
+    /// The address book for the meeting form's guests (issue #253): the form comes back as it
+    /// closes.
+    GuestsFromBook,
     OpenAttachment(usize),
     SaveAttachment(usize),
     /// Something to tell the user, as the app's notices do (already in their language).
@@ -281,6 +287,8 @@ impl MailApp {
             // Commands, and what the window does itself.
             Action::Run(id, p) => self.act_run(id, p),
             Action::RecheckNames => self.check_names(true),
+            Action::CheckGuestNames(again) => self.check_guest_names(again),
+            Action::GuestsFromBook => self.guests_from_book(),
             Action::Submit(id, p) => self.submit(id, p),
             Action::Open(k) => self.run("list.open", json!({"key": k.to_id()})),
             Action::Dialog(d) => self.ui.dialog = Some(d),

@@ -481,6 +481,22 @@ impl Session {
                     book.add(m, &mine);
                 }
             }
+            // The guests of the meetings in the user's own calendars (issue #253), each meeting
+            // once, when it is (or now, for one to come); the first hundred of a meeting (one
+            // placed from a stranger's invitation can name hundreds).
+            let now = self.clock.now;
+            for p in self.pim.values() {
+                let theirs = p.theirs();
+                let mut seen = std::collections::HashSet::new();
+                for e in p.events.iter().filter(|e| !theirs.contains(&e.calendar) && !e.event.attendees.is_empty() && e.event.status != "CANCELLED") {
+                    if seen.insert(e.event.uid.as_str()) {
+                        let organizer = e.event.organizer.as_ref().map(|o| EmailAddress::new(o.name.clone(), o.email.clone()));
+                        let guests: Vec<EmailAddress> =
+                            e.event.attendees.iter().take(100).map(|a| EmailAddress::new(a.name.clone(), a.email.clone())).collect();
+                        book.add_meeting(organizer.as_ref(), &guests, e.event.start.min(now), &mine);
+                    }
+                }
+            }
             // People saved in an address book come first.
             for p in self.pim.values() {
                 for c in &p.cards {

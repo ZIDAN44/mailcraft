@@ -535,3 +535,61 @@ fn a_meeting_is_delegated_from_its_card_and_its_form() {
     let f = crate::pim_dialogs::EventForm::open(&a.session, own["uid"].as_str().unwrap(), NOW + 86_400).unwrap();
     assert!(!f.can_delegate);
 }
+
+/// Issue #253: a meeting's guests are typed as a message's To is: the people known suggested,
+/// Ctrl+K checking the names (several offered in the form to pick from), and Invite… opening the
+/// address book, the form coming back with who was picked there.
+#[test]
+fn a_meetings_guests_are_suggested_checked_and_picked() {
+    let (mut a, _) = app("guests-box");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.ui.dialog = Some(Dialog::new_event(&a.session, Some(NOW + 3 * 86_400)));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Invite");
+    frame(&ctx, &mut a, vec![Event::Text("zo".into())]);
+    frame(&ctx, &mut a, vec![]);
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(texts.iter().any(|t| t == "zoe@studio.example"), "suggested: {texts:?}");
+    frame(&ctx, &mut a, vec![key(Key::Enter, Modifiers::NONE)]);
+    assert!(form(&mut a.ui.dialog).guests.starts_with("Zoe Park <zoe@studio.example>"), "{}", form(&mut a.ui.dialog).guests);
+    // Ctrl+K: a name that's several people, offered to pick from.
+    form(&mut a.ui.dialog).guests = "studio".into();
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![key(Key::K, Modifiers::COMMAND)]);
+    frame(&ctx, &mut a, vec![]);
+    let asks = form(&mut a.ui.dialog).name_asks.clone();
+    let [ask] = asks.as_slice() else { panic!("{asks:?}") };
+    let pick = ask.people.get(1).expect("several").clone();
+    click_named(&ctx, &mut a, &pick.name);
+    frame(&ctx, &mut a, vec![]);
+    let f = form(&mut a.ui.dialog);
+    assert!(f.guests.contains(&pick.email) && !f.guests.contains("studio;") && f.name_asks.is_empty(), "{} {:?}", f.guests, f.name_asks);
+    // Invite…: the address book, what's typed in it; OK brings the form back with them.
+    click_named(&ctx, &mut a, "Invite…");
+    assert!(!a.ui.dialog.as_ref().is_some_and(Dialog::for_compose), "the form's, not a message window's");
+    let Some(Dialog::SelectNames(names)) = a.ui.dialog.as_mut() else { panic!("{:?}", a.ui.dialog) };
+    assert!(names.to.contains(&pick.email) && names.purpose == crate::dialogs::NamesFor::Guests);
+    names.to = format!("{}; ana@soundlab.example", names.to);
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "OK");
+    frame(&ctx, &mut a, vec![]);
+    let f = form(&mut a.ui.dialog);
+    assert!(f.guests.contains("ana@soundlab.example") && f.guests.contains(&pick.email), "{}", f.guests);
+    // Cancelled, the form comes back as it was.
+    let before = f.guests.clone();
+    click_named(&ctx, &mut a, "Invite…");
+    if let Some(Dialog::SelectNames(names)) = a.ui.dialog.as_mut() {
+        names.to = "kim@studio.example".into();
+    }
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Cancel");
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(form(&mut a.ui.dialog).guests, before);
+}

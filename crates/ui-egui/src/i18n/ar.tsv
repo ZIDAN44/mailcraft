@@ -2030,11 +2030,14 @@ count	occurrences	مرات
 	Delegate meeting	تفويض الاجتماع
 	Delegate…	تفويض…
 	Delegated	مفوَّض
+	Invite…	دعوة…
 	Name <address>	الاسم <العنوان>
+	Pick guests from the address book	اختيار الضيوف من دفتر العناوين
 	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	يحضر شخص آخر مكانك: تصله الدعوة ليرد عليها، ويُبلَّغ المنظِّم.
 	The whole series	السلسلة كلها
 	This occurrence	هذا التكرار
 	Who goes instead of you	من يحضر بدلاً منك
+	Who is “{name}”?	من هو «{name}»؟
 	You asked {name} to go in your place.	طلبت من {name} الحضور مكانك.
 	{name} asked you to go in their place.	طلب منك {name} الحضور مكانه.
 	{name} asked {delegate} to go in their place.	طلب {name} من {delegate} الحضور مكانه.

@@ -2034,11 +2034,14 @@ count	occurrences	ripetizioni
 	Delegate meeting	Delega riunione
 	Delegate…	Delega…
 	Delegated	Delegata
+	Invite…	Invita…
 	Name <address>	Nome <indirizzo>
+	Pick guests from the address book	Scegli gli invitati dalla rubrica
 	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Un’altra persona va al tuo posto: riceve l’invito a cui rispondere, e l’organizzatore viene avvisato.
 	The whole series	Tutta la serie
 	This occurrence	Questa ricorrenza
 	Who goes instead of you	Chi va al tuo posto
+	Who is “{name}”?	Chi è «{name}»?
 	You asked {name} to go in your place.	Hai chiesto a {name} di andare al tuo posto.
 	{name} asked you to go in their place.	{name} ti ha chiesto di andare al suo posto.
 	{name} asked {delegate} to go in their place.	{name} ha chiesto a {delegate} di andare al suo posto.

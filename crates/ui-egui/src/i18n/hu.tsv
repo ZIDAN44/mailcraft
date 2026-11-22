@@ -2035,11 +2035,14 @@ count	occurrences	előfordulás
 	Delegate meeting	Értekezlet delegálása
 	Delegate…	Delegálás…
 	Delegated	Delegálva
+	Invite…	Meghívás…
 	Name <address>	Név <cím>
+	Pick guests from the address book	Vendégek kiválasztása a címjegyzékből
 	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Valaki más megy Ön helyett: megkapja a meghívást, hogy válaszoljon rá, és a szervező értesítést kap.
 	The whole series	A teljes sorozat
 	This occurrence	Ez az előfordulás
 	Who goes instead of you	Ki megy Ön helyett
+	Who is “{name}”?	Ki az, hogy „{name}”?
 	You asked {name} to go in your place.	Megkérte {name} személyt, hogy menjen Ön helyett.
 	{name} asked you to go in their place.	{name} megkérte Önt, hogy menjen helyette.
 	{name} asked {delegate} to go in their place.	{name} megkérte {delegate} személyt, hogy menjen helyette.

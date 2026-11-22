@@ -213,6 +213,17 @@ fn check_names(ui: &mut Ui, f: &mut CheckNamesForm, t: &Tokens, acts: &mut Vec<A
     true
 }
 
+impl super::Dialog {
+    /// The dialog that comes back as this one closes, however it's closed: the meeting form whose
+    /// guests the address book picked (issue #253).
+    pub(crate) fn returns_to(self) -> Option<super::Dialog> {
+        match self {
+            super::Dialog::SelectNames(f) => f.event.map(super::Dialog::Event),
+            _ => None,
+        }
+    }
+}
+
 /// The address book being looked at.
 #[derive(Clone, Debug, Default)]
 pub struct NamesForm {
@@ -254,6 +265,9 @@ pub struct NamesForm {
     pub adding: bool,
     /// Why what was picked couldn't be done (a calendar's or group's command refused it).
     pub error: Option<String>,
+    /// The meeting form whose guests are picked ([`NamesFor::Guests`], issue #253): it comes back
+    /// as the address book closes, with them when OK closed it.
+    pub event: Option<Box<crate::pim_dialogs::EventForm>>,
 }
 
 /// What the address book's names are picked for.
@@ -266,6 +280,8 @@ pub enum NamesFor {
     Calendars,
     /// A new calendar group of them, or people added to one.
     Group,
+    /// A meeting's guests (its form's Invite…, issue #253).
+    Guests,
 }
 
 /// A message's recipient fields.
@@ -318,6 +334,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             NamesFor::Calendars => "Open a shared calendar",
             NamesFor::Group if f.adding => "Add people to the group",
             NamesFor::Group => "New calendar group",
+            NamesFor::Guests => "Invite",
         },
     );
     if f.purpose == NamesFor::Group {
@@ -522,7 +539,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
     // A message's three fields; the people whose calendars open, or who are in the group.
     let fields: &[(Recipients, &str)] = match f.purpose {
         NamesFor::Message => &[(Recipients::To, "To ->"), (Recipients::Cc, "Cc ->"), (Recipients::Bcc, "Bcc ->")],
-        NamesFor::Calendars | NamesFor::Group => &[(Recipients::To, "Add ->")],
+        NamesFor::Calendars | NamesFor::Group | NamesFor::Guests => &[(Recipients::To, "Add ->")],
     };
     for (field, label) in fields {
         ui.horizontal(|ui| {
@@ -543,7 +560,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         ui.label(RichText::new(e.as_str()).color(t.danger).small());
     }
     let ready = match f.purpose {
-        NamesFor::Message => true,
+        NamesFor::Message | NamesFor::Guests => true,
         NamesFor::Calendars => f.to.contains('@'),
         NamesFor::Group => f.to.contains('@') && !f.group.trim().is_empty(),
     };
@@ -553,6 +570,14 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             NamesFor::Message => acts.push(Action::Submit("compose.update", json!({"to": f.to.trim(), "cc": f.cc.trim(), "bcc": f.bcc.trim()}))),
             NamesFor::Calendars => acts.push(Action::Submit("calendar.openShared", json!({"email": f.to.trim()}))),
             NamesFor::Group => acts.push(Action::Submit("calendar.groupCreate", json!({"name": f.group.trim(), "members": f.to.trim()}))),
+            // Back in the form ([`Dialog::returns_to`]) with them: closed here, as no command
+            // closes it.
+            NamesFor::Guests => {
+                if let Some(e) = f.event.as_mut() {
+                    e.guests = f.to.trim().to_string();
+                }
+                return false;
+            }
         }
         return true;
     }

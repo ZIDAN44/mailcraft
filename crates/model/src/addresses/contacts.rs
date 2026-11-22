@@ -117,6 +117,18 @@ impl ContactBook {
         }
     }
 
+    /// Count a meeting in the user's calendar on `date` (issue #253): the guests of one the user
+    /// organizes as people they write to, the organizer and the other guests of someone else's
+    /// as people who write to them. A guest is otherwise known only by the invitation's copy in
+    /// Sent, and the guests of a meeting made elsewhere (the server sends its invitations) never.
+    pub fn add_meeting(&mut self, organizer: Option<&EmailAddress>, guests: &[EmailAddress], date: i64, mine: &[String]) {
+        let is_mine = |a: &EmailAddress| mine.iter().any(|e| e.eq_ignore_ascii_case(a.email.trim()));
+        let own = organizer.is_none_or(is_mine);
+        for a in organizer.filter(|o| !is_mine(o)).into_iter().chain(guests.iter().filter(|g| !is_mine(g))) {
+            self.note(a, date, own, 1);
+        }
+    }
+
     /// The domains of the people the user writes to (or saved in an address book): the ones a
     /// lookalike sender would imitate ([`crate::lookalike`]).
     pub fn written_domains(&self) -> impl Iterator<Item = String> + '_ {
@@ -267,6 +279,26 @@ mod tests {
             date,
             ..Default::default()
         }
+    }
+
+    /// Issue #253: a meeting's guests known as its mail's would make them, by whose it is.
+    #[test]
+    fn a_meetings_guests_are_people_one_writes_with() {
+        let me = vec!["me@studio.example".to_string()];
+        let mut b = ContactBook::new();
+        let now = 2_000_000_000;
+        let guests = [EmailAddress::new("Me", "ME@studio.example"), EmailAddress::new("Kim Ito", "kim@studio.example")];
+        b.add_meeting(Some(&EmailAddress::new("", "me@studio.example")), &guests, now, &me);
+        b.add_meeting(None, &[EmailAddress::new("", "kim@studio.example")], now, &me);
+        let kim = b.get("kim@studio.example").expect("known");
+        assert_eq!((kim.sent, kim.received, kim.address.name.as_str()), (2, 0, "Kim Ito"), "invited by the user: written to");
+        assert!(b.get("me@studio.example").is_none(), "not the user");
+        // Someone else's meeting: its organizer and its other guests write to the user.
+        let other = [EmailAddress::new("", "me@studio.example"), EmailAddress::new("", "sam@studio.example")];
+        b.add_meeting(Some(&EmailAddress::new("Zoe Park", "zoe@studio.example")), &other, now, &me);
+        assert_eq!(b.get("zoe@studio.example").map(|c| (c.sent, c.received)), Some((0, 1)));
+        assert_eq!(b.get("sam@studio.example").map(|c| (c.sent, c.received)), Some((0, 1)));
+        assert_eq!(b.suggest("ki", 5, now)[0].address.email, "kim@studio.example");
     }
 
     #[test]

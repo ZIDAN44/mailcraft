@@ -2030,11 +2030,14 @@ count	occurrences	keer
 	Delegate meeting	Vergadering delegeren
 	Delegate…	Delegeren…
 	Delegated	Gedelegeerd
+	Invite…	Uitnodigen…
 	Name <address>	Naam <adres>
+	Pick guests from the address book	Gasten kiezen uit het adresboek
 	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Iemand anders gaat in uw plaats: die krijgt de uitnodiging om te beantwoorden, en de organisator krijgt bericht.
 	The whole series	De hele reeks
 	This occurrence	Deze keer
 	Who goes instead of you	Wie gaat er in uw plaats
+	Who is “{name}”?	Wie is ‘{name}’?
 	You asked {name} to go in your place.	U hebt {name} gevraagd in uw plaats te gaan.
 	{name} asked you to go in their place.	{name} heeft u gevraagd in zijn of haar plaats te gaan.
 	{name} asked {delegate} to go in their place.	{name} heeft {delegate} gevraagd in zijn of haar plaats te gaan.

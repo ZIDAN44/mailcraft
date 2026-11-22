@@ -2049,11 +2049,14 @@ count	occurrences	opakovaní
 	Delegate meeting	Delegovať schôdzu
 	Delegate…	Delegovať…
 	Delegated	Delegované
+	Invite…	Pozvať…
 	Name <address>	Meno <adresa>
+	Pick guests from the address book	Vybrať hostí z adresára
 	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Namiesto vás pôjde niekto iný: dostane pozvánku, aby na ňu odpovedal, a organizátor dostane správu.
 	The whole series	Celú sériu
 	This occurrence	Tento výskyt
 	Who goes instead of you	Kto pôjde namiesto vás
+	Who is “{name}”?	Kto je „{name}“?
 	You asked {name} to go in your place.	Požiadali ste {name}, aby šiel namiesto vás.
 	{name} asked you to go in their place.	{name} vás žiada, aby ste šli namiesto neho.
 	{name} asked {delegate} to go in their place.	{name} žiada {delegate}, aby šiel namiesto neho.

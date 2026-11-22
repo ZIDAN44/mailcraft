@@ -2048,11 +2048,14 @@ count	occurrences	повторений
 	Delegate meeting	Делегировать встречу
 	Delegate…	Делегировать…
 	Delegated	Делегировано
+	Invite…	Пригласить…
 	Name <address>	Имя <адрес>
+	Pick guests from the address book	Выбрать гостей в адресной книге
 	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Вместо вас пойдёт другой человек: он получит приглашение, чтобы ответить на него, а организатор будет уведомлён.
 	The whole series	Всю серию
 	This occurrence	Это повторение
 	Who goes instead of you	Кто пойдёт вместо вас
+	Who is “{name}”?	Кто такой «{name}»?
 	You asked {name} to go in your place.	Вы попросили {name} пойти вместо вас.
 	{name} asked you to go in their place.	{name} просит вас пойти вместо него или неё.
 	{name} asked {delegate} to go in their place.	{name} просит {delegate} пойти вместо него или неё.

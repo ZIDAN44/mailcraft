@@ -358,16 +358,19 @@ impl Dialog {
 
     /// Dialogs that belong to the message being written (shown in its window when it has one).
     pub fn for_compose(&self) -> bool {
-        matches!(
-            self,
-            Dialog::SelectNames(_)
-                | Dialog::CheckNames(_)
-                | Dialog::SaveChanges
-                | Dialog::EmptySubject
-                | Dialog::CtrlEnter { .. }
-                | Dialog::SendCheck(_)
-                | Dialog::WordCount(..)
-        ) || matches!(self, Dialog::Signature(f) if f.insert)
+        // The address book for a meeting's guests (issue #253) is the meeting form's, which isn't
+        // a message's: it shows, and gives the form back, where the form was.
+        matches!(self, Dialog::SelectNames(f) if f.purpose != NamesFor::Guests)
+            || matches!(
+                self,
+                Dialog::CheckNames(_)
+                    | Dialog::SaveChanges
+                    | Dialog::EmptySubject
+                    | Dialog::CtrlEnter { .. }
+                    | Dialog::SendCheck(_)
+                    | Dialog::WordCount(..)
+            )
+            || matches!(self, Dialog::Signature(f) if f.insert)
     }
 
     /// The add-account dialog with the address filled in (servers guessed from it).

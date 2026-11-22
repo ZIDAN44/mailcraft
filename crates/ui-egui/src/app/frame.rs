@@ -661,6 +661,8 @@ impl MailApp {
                 let keep = dialogs::show(&ctx, &mut d, &self.session, &mut self.ui.pictures, &t, &mut acts);
                 if keep && self.ui.dialog.is_none() {
                     self.ui.dialog = Some(d);
+                } else if !keep && self.ui.dialog.is_none() {
+                    self.ui.dialog = d.returns_to();
                 }
             }
         }
