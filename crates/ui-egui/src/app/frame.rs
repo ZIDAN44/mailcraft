@@ -673,6 +673,8 @@ impl MailApp {
             super::caption::resize_zones(ui);
         }
         self.toasts(&ctx);
+        // Commands AI agents asked to run, waiting for the user (issue #255).
+        self.agents_asking_window(&ctx);
         crate::a11y::said(&ctx);
         self.undo_bar(&ctx);
         self.send_receive_window(&ctx);

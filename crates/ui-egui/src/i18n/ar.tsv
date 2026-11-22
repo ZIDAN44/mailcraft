@@ -2042,3 +2042,29 @@ count	occurrences	مرات
 	{name} asked you to go in their place.	طلب منك {name} الحضور مكانه.
 	{name} asked {delegate} to go in their place.	طلب {name} من {delegate} الحضور مكانه.
 	{name} (delegated to {delegate})	{name} (فوَّض {delegate})
+	AI agents	وكلاء الذكاء الاصطناعي
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	أضف إليه خادم MCP الخاص بـ MailCraft: الأمر mailcraft-cli مع الوسيط mcp
+	Agents run this command from now on without asking	يشغّل الوكلاء هذا الأمر من الآن دون سؤال
+	Allow	سماح
+	Always allow	السماح دائمًا
+	An AI agent asks	يطلب وكيل ذكاء اصطناعي
+	An AI agent wants to: {command}	يريد وكيل ذكاء اصطناعي: {command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	يقرأ مساعد ذكاء اصطناعي على هذا الكمبيوتر (Claude Desktop وClaude Code…) بريدك وتقويمك ومهامك وجهات اتصالك عبر خادم MCP الخاص بـ MailCraft، ويسأل هنا قبل كل أمر يريد تشغيله. عند الإيقاف لا يصل إلى شيء.
+	Commands agents run without asking first	أوامر يشغّلها الوكلاء دون سؤال أولًا
+	Connect an assistant	ربط مساعد
+	Deny	رفض
+	Forget	نسيان
+	Let AI agents use MailCraft	السماح لوكلاء الذكاء الاصطناعي باستخدام MailCraft
+	Nothing yet	لا شيء بعد
+	Run without asking	التشغيل دون سؤال
+	What AI agents did	ما فعله وكلاء الذكاء الاصطناعي
+	{n} more waiting	{n} أخرى بانتظار الرد
+	Looked, changed nothing	اطّلع دون تغيير شيء
+	Ran	نُفّذ
+	You didn't allow it	لم تسمح به
+	Didn't run: {why}	لم يُنفَّذ: {why}
+	Let AI agents ask to run commands	السماح لوكلاء الذكاء الاصطناعي بطلب تشغيل الأوامر
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	الإرسال والنقل والرد على دعوة… يُسأل عن كل منها هنا أولًا، ما لم تسمح به دائمًا. عند الإيقاف، يقرأ الوكلاء فقط.
+	Accounts AI agents read	الحسابات التي يقرؤها وكلاء الذكاء الاصطناعي
+	One turned off is left out of all they read, and they can't take pictures of the window	الحساب الموقوف يُستبعد من كل ما يقرؤونه، ولا يمكنهم التقاط صور للنافذة
+	… and {n} more characters	… و{n} حرفًا آخر

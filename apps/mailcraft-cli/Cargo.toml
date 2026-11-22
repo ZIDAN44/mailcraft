@@ -19,5 +19,8 @@ path = "src/main.rs"
 mailcraft-engine = { workspace = true }
 mailcraft-net = { workspace = true }
 serde_json = { workspace = true }
+# `mailcraft-cli mcp` (issue #255): the MCP server, and the control channel to the open window.
+craft-mcp-server = { workspace = true }
+craft-control = { workspace = true, features = ["agents"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 iana-time-zone = "0.1"

@@ -30,6 +30,9 @@ craft-font-catalog = { workspace = true }
 skrifa = { version = "0.44", default-features = false, features = ["std"] }
 serde_json = { workspace = true }
 log = { workspace = true }
+# AI agents in the open window (issue #255): the control channel on loopback, its token and the
+# connection file `mailcraft-cli mcp` finds it by.
+craft-control = { workspace = true, features = ["agents"] }
 # The local UTC offset for message times.
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 iana-time-zone = "0.1"

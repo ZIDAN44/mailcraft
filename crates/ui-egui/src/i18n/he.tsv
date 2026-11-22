@@ -2042,3 +2042,29 @@ count	occurrences	פעמים
 	{name} asked you to go in their place.	{name} ביקש/ה ממך ללכת במקומו/ה.
 	{name} asked {delegate} to go in their place.	{name} ביקש/ה מ-{delegate} ללכת במקומו/ה.
 	{name} (delegated to {delegate})	{name} (הואצל ל-{delegate})
+	AI agents	סוכני בינה מלאכותית
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	הוסיפו לו את שרת ה-MCP של MailCraft: הפקודה mailcraft-cli עם הארגומנט mcp
+	Agents run this command from now on without asking	סוכנים מריצים את הפקודה הזו מעכשיו בלי לשאול
+	Allow	אפשר
+	Always allow	אפשר תמיד
+	An AI agent asks	סוכן בינה מלאכותית מבקש
+	An AI agent wants to: {command}	סוכן בינה מלאכותית רוצה: {command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	עוזר בינה מלאכותית במחשב הזה (Claude Desktop, ‏Claude Code…) קורא את הדואר, היומן, המשימות ואנשי הקשר שלך דרך שרת ה-MCP של MailCraft, ושואל כאן לפני כל פקודה שהוא רוצה להריץ. כשזה כבוי, הוא לא מגיע לשום דבר.
+	Commands agents run without asking first	פקודות שסוכנים מריצים בלי לשאול קודם
+	Connect an assistant	חיבור עוזר
+	Deny	דחה
+	Forget	שכח
+	Let AI agents use MailCraft	לאפשר לסוכני בינה מלאכותית להשתמש ב-MailCraft
+	Nothing yet	עדיין כלום
+	Run without asking	הרצה בלי לשאול
+	What AI agents did	מה סוכני הבינה המלאכותית עשו
+	{n} more waiting	עוד {n} ממתינות
+	Looked, changed nothing	צפה, לא שינה דבר
+	Ran	בוצע
+	You didn't allow it	לא אישרת זאת
+	Didn't run: {why}	לא בוצע: {why}
+	Let AI agents ask to run commands	לאפשר לסוכני בינה מלאכותית לבקש להריץ פקודות
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	שליחה, העברה, מענה להזמנה… כל אחת נשאלת כאן קודם, אלא אם תמיד תאפשר אותה. כשכבוי, הסוכנים רק קוראים.
+	Accounts AI agents read	חשבונות שסוכני בינה מלאכותית קוראים
+	One turned off is left out of all they read, and they can't take pictures of the window	חשבון כבוי מושמט מכל מה שהם קוראים, והם לא יכולים לצלם את החלון
+	… and {n} more characters	… ועוד {n} תווים

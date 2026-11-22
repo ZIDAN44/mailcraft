@@ -2042,3 +2042,29 @@ count	occurrences	keer
 	{name} asked you to go in their place.	{name} heeft u gevraagd in zijn of haar plaats te gaan.
 	{name} asked {delegate} to go in their place.	{name} heeft {delegate} gevraagd in zijn of haar plaats te gaan.
 	{name} (delegated to {delegate})	{name} (gedelegeerd aan {delegate})
+	AI agents	AI-agents
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	Voeg er de MCP-server van MailCraft aan toe: de opdracht mailcraft-cli met het argument mcp
+	Agents run this command from now on without asking	Agents voeren deze opdracht voortaan uit zonder te vragen
+	Allow	Toestaan
+	Always allow	Altijd toestaan
+	An AI agent asks	Een AI-agent vraagt
+	An AI agent wants to: {command}	Een AI-agent wil: {command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	Een AI-assistent op deze computer (Claude Desktop, Claude Code…) leest je e-mail, agenda, taken en contacten via de MCP-server van MailCraft, en vraagt hier vóór elke opdracht die hij wil uitvoeren. Uit bereikt hij niets.
+	Commands agents run without asking first	Opdrachten die agents uitvoeren zonder eerst te vragen
+	Connect an assistant	Een assistent verbinden
+	Deny	Weigeren
+	Forget	Vergeten
+	Let AI agents use MailCraft	AI-agents MailCraft laten gebruiken
+	Nothing yet	Nog niets
+	Run without asking	Uitvoeren zonder te vragen
+	What AI agents did	Wat AI-agents deden
+	{n} more waiting	Nog {n} wachtend
+	Looked, changed nothing	Bekeken, niets gewijzigd
+	Ran	Uitgevoerd
+	You didn't allow it	Je hebt het niet toegestaan
+	Didn't run: {why}	Niet uitgevoerd: {why}
+	Let AI agents ask to run commands	AI-agents laten vragen om opdrachten uit te voeren
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Versturen, verplaatsen, een uitnodiging beantwoorden… elke opdracht wordt je hier eerst gevraagd, tenzij je hem altijd toestaat. Uit: agents lezen alleen.
+	Accounts AI agents read	Accounts die AI-agents lezen
+	One turned off is left out of all they read, and they can't take pictures of the window	Een uitgezet account blijft buiten alles wat ze lezen, en ze kunnen geen afbeeldingen van het venster maken
+	… and {n} more characters	… en nog {n} tekens

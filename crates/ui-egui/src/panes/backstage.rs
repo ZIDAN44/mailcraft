@@ -157,7 +157,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 // the page past a narrow window's edge, where it was cut off rather than wrapped).
                 ui.set_max_width(ui.available_width().min(820.0));
                 match b.page {
-                    Page::Info => info(s, &t, st.has_files, ui, &mut b, acts),
+                    Page::Info => info(s, &t, (st.has_files, &st.agents), ui, &mut b, acts),
                     Page::Open => open(s, &t, ui, &mut b, acts),
                     Page::Options => options(s, st, ui, acts),
                     Page::About => about(s, &t, &st.update, ui, acts),

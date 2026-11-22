@@ -238,6 +238,18 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** It's made from what's on this computer, nothing asked of a server. The contact form
   has Outlook's places for phone numbers, not yet one for a web page.
 
+### 20. AI agents: what isn't done yet
+
+- **Impact:** An organisation can't turn AI agents off for its people yet: there's no
+  organisation profile (#245). With MailCraft closed, agents read its data folder but run no
+  command and see no window: MailCraft isn't started for them. What they read is what's on this
+  computer: a message not downloaded yet is listed without its text, and a search reads the text
+  of 1,000 messages at most, saying how many it left.
+- **Workaround:** Turn agents off in File › Options › AI agents, or keep an account from them
+  there. Open MailCraft for an agent to run commands; open a folder to download its mail.
+- **Cause:** The organisation profile isn't built. Only the open window asks you about a
+  command, so nothing runs while it's closed.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

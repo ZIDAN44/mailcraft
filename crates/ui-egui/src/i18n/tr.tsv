@@ -2047,3 +2047,29 @@ count	occurrences	kez
 	{name} asked you to go in their place.	{name} sizden kendi yerine gitmenizi istedi.
 	{name} asked {delegate} to go in their place.	{name}, {delegate} kişisinden kendi yerine gitmesini istedi.
 	{name} (delegated to {delegate})	{name} ({delegate} kişisine devretti)
+	AI agents	Yapay zekâ aracıları
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	MailCraft'ın MCP sunucusunu ekleyin: mailcraft-cli komutu ve mcp bağımsız değişkeni
+	Agents run this command from now on without asking	Aracılar bu komutu artık sormadan çalıştırır
+	Allow	İzin ver
+	Always allow	Her zaman izin ver
+	An AI agent asks	Bir yapay zekâ aracısı soruyor
+	An AI agent wants to: {command}	Bir yapay zekâ aracısı şunu istiyor: {command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	Bu bilgisayardaki bir yapay zekâ yardımcısı (Claude Desktop, Claude Code…) MailCraft'ın MCP sunucusu üzerinden postanızı, takviminizi, görevlerinizi ve kişilerinizi okur ve çalıştırmak istediği her komuttan önce burada sorar. Kapalıyken hiçbir şeye ulaşamaz.
+	Commands agents run without asking first	Aracıların önce sormadan çalıştırdığı komutlar
+	Connect an assistant	Bir yardımcı bağla
+	Deny	Reddet
+	Forget	Unut
+	Let AI agents use MailCraft	Yapay zekâ aracılarının MailCraft'ı kullanmasına izin ver
+	Nothing yet	Henüz bir şey yok
+	Run without asking	Sormadan çalıştır
+	What AI agents did	Yapay zekâ aracılarının yaptıkları
+	{n} more waiting	{n} tane daha bekliyor
+	Looked, changed nothing	Baktı, hiçbir şey değiştirmedi
+	Ran	Çalıştırıldı
+	You didn't allow it	İzin vermediniz
+	Didn't run: {why}	Çalıştırılmadı: {why}
+	Let AI agents ask to run commands	Yapay zekâ ajanlarının komut çalıştırmayı istemesine izin ver
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Gönderme, taşıma, bir daveti yanıtlama… her biri önce burada sorulur, her zaman izin vermediyseniz. Kapalıyken ajanlar yalnızca okur.
+	Accounts AI agents read	Yapay zekâ ajanlarının okuduğu hesaplar
+	One turned off is left out of all they read, and they can't take pictures of the window	Kapatılan hesap okudukları her şeyin dışında kalır ve pencerenin resmini alamazlar
+	… and {n} more characters	… ve {n} karakter daha

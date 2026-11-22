@@ -23,6 +23,8 @@ unknown-git = "deny"
 unknown-registry = "deny"
 allow-git = [
     "https://github.com/storytold/craft-libs",
+    # The Craft apps' AI-agents settings, which craft-control's `agents` feature reads (#255).
+    "https://github.com/storytold/craft-ai-integrations",
     "https://github.com/storytold/egui",
     "https://github.com/storytold/winit",
 ]

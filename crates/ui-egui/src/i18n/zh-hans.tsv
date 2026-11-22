@@ -2043,3 +2043,29 @@ count	occurrences	次
 	{name} asked you to go in their place.	{name} 请你代其参加。
 	{name} asked {delegate} to go in their place.	{name} 请 {delegate} 代其参加。
 	{name} (delegated to {delegate})	{name}（已委托 {delegate}）
+	AI agents	AI 代理
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	为它添加 MailCraft 的 MCP 服务器：命令 mailcraft-cli，参数 mcp
+	Agents run this command from now on without asking	代理从现在起不经询问即运行此命令
+	Allow	允许
+	Always allow	始终允许
+	An AI agent asks	AI 代理请求
+	An AI agent wants to: {command}	AI 代理想要：{command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	这台电脑上的 AI 助手（Claude Desktop、Claude Code…）通过 MailCraft 的 MCP 服务器读取你的邮件、日历、任务和联系人，并在运行每个命令前先在这里询问。关闭后它无法访问任何内容。
+	Commands agents run without asking first	代理不经询问即运行的命令
+	Connect an assistant	连接助手
+	Deny	拒绝
+	Forget	忘记
+	Let AI agents use MailCraft	允许 AI 代理使用 MailCraft
+	Nothing yet	暂无
+	Run without asking	不经询问即运行
+	What AI agents did	AI 代理做过的事
+	{n} more waiting	还有 {n} 个在等待
+	Looked, changed nothing	已查看，未做更改
+	Ran	已运行
+	You didn't allow it	你未允许
+	Didn't run: {why}	未运行：{why}
+	Let AI agents ask to run commands	允许 AI 代理请求运行命令
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	发送、移动、答复邀请……每个命令都会先在这里询问，除非你始终允许它。关闭时，代理只能读取。
+	Accounts AI agents read	AI 代理读取的帐户
+	One turned off is left out of all they read, and they can't take pictures of the window	关闭的帐户不在它们读取的任何内容中，它们也不能截取窗口的图片
+	… and {n} more characters	……还有 {n} 个字符

@@ -2061,3 +2061,29 @@ count	occurrences	opakovaní
 	{name} asked you to go in their place.	{name} vás žiada, aby ste šli namiesto neho.
 	{name} asked {delegate} to go in their place.	{name} žiada {delegate}, aby šiel namiesto neho.
 	{name} (delegated to {delegate})	{name} (delegované na {delegate})
+	AI agents	Agenti AI
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	Pridajte doň server MCP aplikácie MailCraft: príkaz mailcraft-cli s argumentom mcp
+	Agents run this command from now on without asking	Agenti odteraz spúšťajú tento príkaz bez pýtania
+	Allow	Povoliť
+	Always allow	Povoliť vždy
+	An AI agent asks	Agent AI sa pýta
+	An AI agent wants to: {command}	Agent AI chce: {command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	Asistent AI na tomto počítači (Claude Desktop, Claude Code…) číta vašu poštu, kalendár, úlohy a kontakty cez server MCP aplikácie MailCraft a pred každým príkazom, ktorý chce spustiť, sa pýta tu. Vypnutý sa nedostane k ničomu.
+	Commands agents run without asking first	Príkazy, ktoré agenti spúšťajú bez pýtania
+	Connect an assistant	Pripojiť asistenta
+	Deny	Zamietnuť
+	Forget	Zabudnúť
+	Let AI agents use MailCraft	Povoliť agentom AI používať MailCraft
+	Nothing yet	Zatiaľ nič
+	Run without asking	Spúšťať bez pýtania
+	What AI agents did	Čo urobili agenti AI
+	{n} more waiting	Ďalšie čakajúce: {n}
+	Looked, changed nothing	Pozrel, nič nezmenil
+	Ran	Spustené
+	You didn't allow it	Nepovolili ste to
+	Didn't run: {why}	Nespustené: {why}
+	Let AI agents ask to run commands	Povoliť agentom AI žiadať o spustenie príkazov
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Odoslanie, presun, odpoveď na pozvánku… na každý sa najprv opýta tu, ak ho nepovolíte vždy. Vypnuté: agenti len čítajú.
+	Accounts AI agents read	Kontá, ktoré čítajú agenti AI
+	One turned off is left out of all they read, and they can't take pictures of the window	Vypnuté konto je vynechané zo všetkého, čo čítajú, a nemôžu robiť obrázky okna
+	… and {n} more characters	… a ďalších {n} znakov

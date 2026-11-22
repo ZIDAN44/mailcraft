@@ -43,6 +43,8 @@ impl PaneSizes {
 
 #[derive(Default)]
 pub struct UiState {
+    /// What AI agents asked of the window, and the commands waiting for the user (issue #255).
+    pub(crate) agents: super::Agents,
     /// Where the main window, the last message window and the last compose window were.
     pub places: std::collections::BTreeMap<String, WindowPlace>,
     /// Closing was confirmed though it loses online-only accounts' unsent mail (issue #4); and

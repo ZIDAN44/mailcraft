@@ -21,6 +21,9 @@ mailcraft-cli [--data DIR] <command>
                                  that looks like another, many people shown each other)
        [--from ID|ADDRESS]       From changed to that account, or to one of an account's
                                  addresses (`run account.setAddress`): its signature follows
+  mcp                            MailCraft's MCP server for AI assistants, on stdin and stdout:
+                                 the open MailCraft's window when it lets AI agents in (File ›
+                                 Options › AI agents), else this data folder read here
   commands                       every engine command, as JSON
   run ID [JSON]                  run an engine command against the cache (its changes
                                  to mail go to the server with the next `sync`;

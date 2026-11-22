@@ -30,6 +30,7 @@ macro_rules! errln {
 }
 
 mod commands;
+mod mcp;
 
 use commands::call;
 
@@ -271,6 +272,11 @@ fn run() -> Result<(), String> {
         (None, None) => mailcraft_engine::store::location::files_dir(&root),
         _ => root.join(mailcraft_engine::store::location::FILES_FOLDER),
     };
+    // MailCraft's MCP server (issue #255): the open window's, else this data folder read here;
+    // the data files open only when it reads them itself.
+    if args.positional(0).as_deref() == Some("mcp") {
+        return mcp::serve(root, files);
+    }
     let store = open_store(&root, &files)?;
     tell_checks(&store);
     // Last out, however the command ends: the sync threads that hold the store are let go.

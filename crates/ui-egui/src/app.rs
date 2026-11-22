@@ -1,6 +1,7 @@
 //! The window (`MailApp`), in parts: each continues `impl MailApp` with what it draws or does.
 
 mod actions;
+mod agents;
 mod alt_code;
 mod bodies;
 pub(crate) mod boot;
@@ -23,6 +24,7 @@ pub(crate) use data_files::{compacting, importing};
 use files::dropped;
 
 pub use actions::Action;
+pub use agents::{AGENTS_OFF, AgentAnswer, AgentLogLine, AgentOutcome, Agents};
 pub use alt_code::{alt_code_pages, alt_codes};
 pub(crate) use bodies::Bodies;
 pub use boot::BootCard;

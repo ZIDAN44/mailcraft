@@ -369,16 +369,29 @@ impl Session {
     /// contacts, then the organisation directory's (issue #9), asked once the search is three
     /// letters long.
     pub fn suggest_contacts(&mut self, query: &str, limit: usize) -> Vec<Contact> {
+        let out = self.suggest_contacts_here(query, limit, false);
+        if out.len() >= limit {
+            return out;
+        }
+        self.look_up_directory(query, false);
+        self.with_directory(out, query, limit)
+    }
+
+    /// [`Session::suggest_contacts`] with nothing asked of a directory's server (AI agents'
+    /// reads ask nothing of one); with `directory`, what the directories answered before too.
+    pub(crate) fn suggest_contacts_here(&mut self, query: &str, limit: usize, directory: bool) -> Vec<Contact> {
         self.ensure_contacts();
-        let mut out = self.contacts.as_ref().map(|b| b.suggest(query, limit, self.clock.now)).unwrap_or_default();
-        if out.len() < limit {
-            self.look_up_directory(query, false);
-            for a in self.directory_people(query) {
-                if let Some(c) = out.iter_mut().find(|c| c.address.email.eq_ignore_ascii_case(&a.email)) {
-                    fill_name(&mut c.address, &a);
-                } else if out.len() < limit {
-                    out.push(Contact { address: a, sent: 0, received: 0, last: 0 });
-                }
+        let out = self.contacts.as_ref().map(|b| b.suggest(query, limit, self.clock.now)).unwrap_or_default();
+        if directory && out.len() < limit { self.with_directory(out, query, limit) } else { out }
+    }
+
+    /// `out` with the directories' people for `query` after them, up to `limit`.
+    fn with_directory(&self, mut out: Vec<Contact>, query: &str, limit: usize) -> Vec<Contact> {
+        for a in self.directory_people(query) {
+            if let Some(c) = out.iter_mut().find(|c| c.address.email.eq_ignore_ascii_case(&a.email)) {
+                fill_name(&mut c.address, &a);
+            } else if out.len() < limit {
+                out.push(Contact { address: a, sent: 0, received: 0, last: 0 });
             }
         }
         out

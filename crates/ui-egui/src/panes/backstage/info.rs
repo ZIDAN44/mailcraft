@@ -5,7 +5,15 @@ use mailcraft_engine::AccountState;
 
 use super::*;
 
-pub(super) fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {
+/// `has_files`: files can be saved and opened here; `agents`: what AI agents asked lately.
+pub(super) fn info(
+    s: &Session,
+    t: &Tokens,
+    (has_files, agents): (bool, &crate::app::Agents),
+    ui: &mut Ui,
+    b: &mut Backstage,
+    acts: &mut Vec<Action>,
+) {
     heading(ui, t, "Account information");
     ui.set_max_width(ui.available_width().min(760.0));
     let Some(a) = b.account.as_deref().and_then(|id| s.account(id)).or_else(|| s.accounts.first()) else {
@@ -31,6 +39,8 @@ pub(super) fn info(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, b: &mu
     automatic_replies(t, ui, a, acts);
     data_file::mailbox(s, t, has_files, ui, a, b, acts);
     rules(s, t, ui, acts);
+    // What AI agents asked lately, whichever account (issue #255).
+    super::options::agents_log(s, t, agents, ui);
 }
 
 /// The account picker. In a narrow window the list is as wide as the page and the button goes

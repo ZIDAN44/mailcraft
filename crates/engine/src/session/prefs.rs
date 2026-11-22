@@ -253,6 +253,19 @@ pub struct Prefs {
     /// Outlook, Exchange and SOGo do (issue #236): one that's genuine, from a guest on the list,
     /// for the meeting as it is. Any other waits for Record the answer.
     pub record_answers: bool,
+    /// AI agents may use MailCraft through its MCP server (issue #255): read the mail, calendar,
+    /// tasks and people, and run the commands the user allows in the window. Off until turned on
+    /// (File › Options › AI agents).
+    pub agents: bool,
+    /// Agents may ask to run commands, each asked about in the window first. Off, they only
+    /// read: the first step the issue asks for.
+    pub agents_run: bool,
+    /// The commands agents may run without the window asking first (Always allow), by id.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub agents_always: Vec<String>,
+    /// The accounts kept from agents, by id: what agents read leaves them out.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub agents_hidden: Vec<String>,
     /// What becomes of a meeting invitation's mail (and its earlier versions in the Inbox) once
     /// it's answered, in the message or the calendar, and of a cancellation once it's taken in
     /// (issue #31), as Outlook's "Delete meeting requests and notifications from Inbox after
@@ -460,6 +473,10 @@ impl Default for Prefs {
             show_favorites: true,
             tentative_invites: true,
             record_answers: true,
+            agents: false,
+            agents_run: false,
+            agents_always: Vec::new(),
+            agents_hidden: Vec::new(),
             answered_invites: AnsweredInvites::Delete,
             answered_folders: BTreeMap::new(),
             answered_replies: false,
@@ -555,6 +572,9 @@ fn checked_reminders<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeMap<
 /// The most words the dictionary keeps, and the longest word.
 pub const DICTIONARY_MAX: usize = 10_000;
 pub const DICTIONARY_WORD_MAX: usize = 100;
+
+/// The most commands AI agents may run without asking (issue #255).
+pub const AGENTS_ALWAYS_MAX: usize = 200;
 
 /// A word as the dictionary keeps it, when it's one: trimmed, one word (no space or control
 /// character), at most [`DICTIONARY_WORD_MAX`] characters.

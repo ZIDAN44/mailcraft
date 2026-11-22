@@ -2043,3 +2043,29 @@ count	occurrences	回
 	{name} asked you to go in their place.	{name} さんから代理の出席を依頼されました。
 	{name} asked {delegate} to go in their place.	{name} さんが {delegate} さんに代理の出席を依頼しました。
 	{name} (delegated to {delegate})	{name}（{delegate} さんに代理を依頼）
+	AI agents	AI エージェント
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	MailCraft の MCP サーバーを追加します: コマンド mailcraft-cli と引数 mcp
+	Agents run this command from now on without asking	エージェントはこのコマンドを今後は確認なしで実行します
+	Allow	許可
+	Always allow	常に許可
+	An AI agent asks	AI エージェントからの確認
+	An AI agent wants to: {command}	AI エージェントの依頼: {command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	このコンピューターの AI アシスタント (Claude Desktop、Claude Code…) が MailCraft の MCP サーバーを通じてメール、予定表、タスク、連絡先を読み取り、実行したいコマンドごとにここで確認します。オフにすると何にもアクセスできません。
+	Commands agents run without asking first	エージェントが確認なしで実行するコマンド
+	Connect an assistant	アシスタントを接続
+	Deny	拒否
+	Forget	削除
+	Let AI agents use MailCraft	AI エージェントに MailCraft の使用を許可する
+	Nothing yet	まだありません
+	Run without asking	確認なしで実行
+	What AI agents did	AI エージェントが行ったこと
+	{n} more waiting	ほかに {n} 件待機中
+	Looked, changed nothing	参照のみ（変更なし）
+	Ran	実行しました
+	You didn't allow it	許可しませんでした
+	Didn't run: {why}	実行されませんでした: {why}
+	Let AI agents ask to run commands	AI エージェントにコマンドの実行を求めることを許可
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	送信、移動、招待への返答… いずれもまずここで確認します（常に許可したものを除く）。オフにすると、エージェントは読むだけです。
+	Accounts AI agents read	AI エージェントが読むアカウント
+	One turned off is left out of all they read, and they can't take pictures of the window	オフにしたアカウントは読む対象から外れ、ウィンドウの画像も撮れません
+	… and {n} more characters	… ほか {n} 文字

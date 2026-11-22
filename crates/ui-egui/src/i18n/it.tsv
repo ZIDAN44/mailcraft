@@ -2046,3 +2046,29 @@ count	occurrences	ripetizioni
 	{name} asked you to go in their place.	{name} ti ha chiesto di andare al suo posto.
 	{name} asked {delegate} to go in their place.	{name} ha chiesto a {delegate} di andare al suo posto.
 	{name} (delegated to {delegate})	{name} (delegato a {delegate})
+	AI agents	Agenti IA
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	Aggiungigli il server MCP di MailCraft: il comando mailcraft-cli con l’argomento mcp
+	Agents run this command from now on without asking	Gli agenti eseguono questo comando d’ora in poi senza chiedere
+	Allow	Consenti
+	Always allow	Consenti sempre
+	An AI agent asks	Un agente IA chiede
+	An AI agent wants to: {command}	Un agente IA vuole: {command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	Un assistente IA su questo computer (Claude Desktop, Claude Code…) legge la tua posta, il calendario, le attività e i contatti tramite il server MCP di MailCraft, e chiede qui prima di ogni comando che vuole eseguire. Disattivato, non raggiunge nulla.
+	Commands agents run without asking first	Comandi che gli agenti eseguono senza chiedere prima
+	Connect an assistant	Collega un assistente
+	Deny	Nega
+	Forget	Dimentica
+	Let AI agents use MailCraft	Consenti agli agenti IA di usare MailCraft
+	Nothing yet	Ancora niente
+	Run without asking	Esegui senza chiedere
+	What AI agents did	Cosa hanno fatto gli agenti IA
+	{n} more waiting	Altri {n} in attesa
+	Looked, changed nothing	Consultato, nulla modificato
+	Ran	Eseguito
+	You didn't allow it	Non l'hai consentito
+	Didn't run: {why}	Non eseguito: {why}
+	Let AI agents ask to run commands	Consenti agli agenti IA di chiedere di eseguire comandi
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Inviare, spostare, rispondere a un invito… ognuno ti viene chiesto qui prima, a meno che tu non lo consenta sempre. Disattivato, gli agenti leggono soltanto.
+	Accounts AI agents read	Account letti dagli agenti IA
+	One turned off is left out of all they read, and they can't take pictures of the window	Un account disattivato resta escluso da tutto ciò che leggono, e non possono fare immagini della finestra
+	… and {n} more characters	… e altri {n} caratteri

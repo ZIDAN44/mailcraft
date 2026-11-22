@@ -2047,3 +2047,29 @@ count	occurrences	Terminen
 	{name} asked you to go in their place.	{name} hat Sie gebeten, an seiner Stelle zu gehen.
 	{name} asked {delegate} to go in their place.	{name} hat {delegate} gebeten, an seiner Stelle zu gehen.
 	{name} (delegated to {delegate})	{name} (delegiert an {delegate})
+	AI agents	KI-Agenten
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	Fügen Sie ihm den MCP-Server von MailCraft hinzu: den Befehl mailcraft-cli mit dem Argument mcp
+	Agents run this command from now on without asking	Agenten führen diesen Befehl ab jetzt ohne Nachfrage aus
+	Allow	Zulassen
+	Always allow	Immer zulassen
+	An AI agent asks	Ein KI-Agent fragt
+	An AI agent wants to: {command}	Ein KI-Agent möchte: {command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	Ein KI-Assistent auf diesem Computer (Claude Desktop, Claude Code…) liest Ihre E-Mails, Ihren Kalender, Ihre Aufgaben und Kontakte über den MCP-Server von MailCraft und fragt hier vor jedem Befehl, den er ausführen möchte. Ausgeschaltet erreicht er nichts.
+	Commands agents run without asking first	Befehle, die Agenten ohne vorherige Nachfrage ausführen
+	Connect an assistant	Einen Assistenten verbinden
+	Deny	Ablehnen
+	Forget	Vergessen
+	Let AI agents use MailCraft	KI-Agenten MailCraft verwenden lassen
+	Nothing yet	Noch nichts
+	Run without asking	Ohne Nachfrage ausführen
+	What AI agents did	Was KI-Agenten getan haben
+	{n} more waiting	{n} weitere warten
+	Looked, changed nothing	Nur gelesen, nichts geändert
+	Ran	Ausgeführt
+	You didn't allow it	Von Ihnen nicht erlaubt
+	Didn't run: {why}	Nicht ausgeführt: {why}
+	Let AI agents ask to run commands	KI-Agenten dürfen um das Ausführen von Befehlen bitten
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Senden, Verschieben, eine Einladung beantworten… Jeder Befehl wird hier zuerst erfragt, außer Sie erlauben ihn immer. Aus: Agenten lesen nur.
+	Accounts AI agents read	Konten, die KI-Agenten lesen
+	One turned off is left out of all they read, and they can't take pictures of the window	Ein ausgeschaltetes Konto bleibt bei allem, was sie lesen, außen vor, und sie können keine Bilder des Fensters aufnehmen
+	… and {n} more characters	… und {n} weitere Zeichen

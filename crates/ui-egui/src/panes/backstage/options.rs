@@ -5,11 +5,13 @@ use super::*;
 /// MailCraft's own colour, the accent when none is chosen ([`theme::APP_COLOR`]).
 const APP_RGB: [u8; 3] = [theme::APP_COLOR.r(), theme::APP_COLOR.g(), theme::APP_COLOR.b()];
 
+mod agents;
 mod calendar;
 mod general;
 mod inbox;
 mod mail;
 mod safety;
+pub(super) use agents::log as agents_log;
 
 pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
@@ -26,6 +28,7 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
     safety::senders(s, &t, ui, acts);
     safety::safety(s, &t, ui, acts);
     safety::privacy(s, &t, ui, acts);
+    agents::agents(s, &t, ui, acts);
 }
 
 /// One setting of a card, one per row, by its name and the line about it (in the rows Info and

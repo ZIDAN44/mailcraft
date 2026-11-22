@@ -2060,3 +2060,29 @@ count	occurrences	повторений
 	{name} asked you to go in their place.	{name} просит вас пойти вместо него или неё.
 	{name} asked {delegate} to go in their place.	{name} просит {delegate} пойти вместо него или неё.
 	{name} (delegated to {delegate})	{name} (делегировано: {delegate})
+	AI agents	ИИ-агенты
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	Добавьте в него MCP-сервер MailCraft: команду mailcraft-cli с аргументом mcp
+	Agents run this command from now on without asking	Агенты теперь выполняют эту команду без вопроса
+	Allow	Разрешить
+	Always allow	Разрешать всегда
+	An AI agent asks	ИИ-агент спрашивает
+	An AI agent wants to: {command}	ИИ-агент хочет: {command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	ИИ-помощник на этом компьютере (Claude Desktop, Claude Code…) читает вашу почту, календарь, задачи и контакты через MCP-сервер MailCraft и спрашивает здесь перед каждой командой, которую хочет выполнить. Когда выключено, он ни к чему не имеет доступа.
+	Commands agents run without asking first	Команды, которые агенты выполняют без вопроса
+	Connect an assistant	Подключить помощника
+	Deny	Запретить
+	Forget	Забыть
+	Let AI agents use MailCraft	Разрешить ИИ-агентам использовать MailCraft
+	Nothing yet	Пока ничего
+	Run without asking	Выполнять без вопроса
+	What AI agents did	Что сделали ИИ-агенты
+	{n} more waiting	Ещё ждут: {n}
+	Looked, changed nothing	Просмотрено, ничего не изменено
+	Ran	Выполнено
+	You didn't allow it	Вы не разрешили
+	Didn't run: {why}	Не выполнено: {why}
+	Let AI agents ask to run commands	Разрешить ИИ-агентам просить выполнить команды
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Отправка, перемещение, ответ на приглашение… о каждой команде сначала спрашивают здесь, если вы не разрешили её всегда. Выключено — агенты только читают.
+	Accounts AI agents read	Учётные записи, которые читают ИИ-агенты
+	One turned off is left out of all they read, and they can't take pictures of the window	Выключенная учётная запись не попадает ни во что, что они читают, и они не могут делать снимки окна
+	… and {n} more characters	… и ещё {n} символов

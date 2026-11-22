@@ -4,6 +4,7 @@
 
 use super::*;
 
+pub(crate) mod agents;
 pub(crate) mod boot;
 pub(crate) mod fonts;
 mod lanes;

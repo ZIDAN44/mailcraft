@@ -243,6 +243,7 @@ fn the_version_line_names_the_program_and_its_build() {
 }
 
 mod accounts;
+mod agents;
 mod calendar;
 mod directory;
 mod mail;

@@ -158,6 +158,12 @@ impl Session {
     /// that are on this computer; the meetings they organise or are asked to; the others on
     /// that mail; and what their signature gives.
     pub fn person_activity(&mut self, email: &str) -> PersonActivity {
+        self.person_activity_in(email, &|_| true)
+    }
+
+    /// [`Session::person_activity`] from the accounts `keep` says alone: their mail and meetings,
+    /// the rest as if there were no others (AI agents', with accounts kept from them).
+    pub(crate) fn person_activity_in(&mut self, email: &str, keep: &dyn Fn(&str) -> bool) -> PersonActivity {
         let email = email.trim().to_lowercase();
         let mut out = PersonActivity { email: email.clone(), ..Default::default() };
         if !email.contains('@') {
@@ -188,6 +194,7 @@ impl Session {
         let mut folders: Vec<(String, String, u8)> = self
             .accounts
             .iter()
+            .filter(|a| keep(&a.config.id))
             .flat_map(|a| {
                 a.folders.iter().filter(|f| f.selectable && !matches!(f.role, FolderRole::Junk | FolderRole::Trash)).map(|f| {
                     let rank = match f.role {
@@ -317,7 +324,7 @@ impl Session {
 
         // Meetings they organise or are asked to, in every account, once each.
         let mut uids: HashSet<String> = HashSet::new();
-        for (account, p) in &self.pim {
+        for (account, p) in self.pim.iter().filter(|(a, _)| keep(a)) {
             for e in &p.events {
                 let ev = &e.event;
                 let organises = ev.organizer.as_ref().is_some_and(|o| is_them(&o.email));

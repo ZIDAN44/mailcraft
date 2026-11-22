@@ -2060,3 +2060,29 @@ count	occurrences	wystąpieniach
 	{name} asked you to go in their place.	{name} prosi Cię o pójście w zastępstwie.
 	{name} asked {delegate} to go in their place.	{name} prosi {delegate} o pójście w zastępstwie.
 	{name} (delegated to {delegate})	{name} (delegowano do: {delegate})
+	AI agents	Agenci AI
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	Dodaj do niego serwer MCP MailCraft: polecenie mailcraft-cli z argumentem mcp
+	Agents run this command from now on without asking	Agenci uruchamiają to polecenie od teraz bez pytania
+	Allow	Zezwól
+	Always allow	Zawsze zezwalaj
+	An AI agent asks	Agent AI pyta
+	An AI agent wants to: {command}	Agent AI chce: {command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	Asystent AI na tym komputerze (Claude Desktop, Claude Code…) czyta Twoją pocztę, kalendarz, zadania i kontakty przez serwer MCP MailCraft i pyta tutaj przed każdym poleceniem, które chce uruchomić. Wyłączony nie ma do niczego dostępu.
+	Commands agents run without asking first	Polecenia, które agenci uruchamiają bez pytania
+	Connect an assistant	Połącz asystenta
+	Deny	Odmów
+	Forget	Zapomnij
+	Let AI agents use MailCraft	Pozwól agentom AI używać MailCraft
+	Nothing yet	Jeszcze nic
+	Run without asking	Uruchamiaj bez pytania
+	What AI agents did	Co zrobili agenci AI
+	{n} more waiting	Czeka jeszcze: {n}
+	Looked, changed nothing	Odczytano, nic nie zmieniono
+	Ran	Wykonano
+	You didn't allow it	Nie zezwolono
+	Didn't run: {why}	Nie wykonano: {why}
+	Let AI agents ask to run commands	Pozwól agentom AI prosić o uruchamianie poleceń
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Wysyłanie, przenoszenie, odpowiedź na zaproszenie… o każde polecenie najpierw zapytamy tutaj, chyba że zawsze na nie zezwalasz. Wyłączone: agenci tylko czytają.
+	Accounts AI agents read	Konta czytane przez agentów AI
+	One turned off is left out of all they read, and they can't take pictures of the window	Wyłączone konto jest pomijane we wszystkim, co czytają, i nie mogą robić zdjęć okna
+	… and {n} more characters	… i jeszcze {n} znaków

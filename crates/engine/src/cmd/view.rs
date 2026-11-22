@@ -164,6 +164,41 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"does"?: "ask"|"send"|"nothing"}"#),
         toggle!("calendar.tentativeInvites", "Invitations into the calendar as tentative", "File › Options › Calendar", tentative_invites),
         toggle!("calendar.recordAnswers", "Record guests' answers as they arrive", "File › Options › Calendar", record_answers),
+        // AI agents (issue #255): whether they may use MailCraft, whether they may ask to run
+        // commands, the accounts kept from them, and the commands they may run without the
+        // window asking first. None is an agent's own to run.
+        toggle!("options.agents", "Let AI agents use MailCraft", "File › Options › AI agents", agents),
+        toggle!("options.agentsRun", "Let AI agents ask to run commands", "File › Options › AI agents", agents_run),
+        CommandSpec::new("options.agentsAccount", "Accounts AI agents read", "File › Options › AI agents", |s, v| {
+            let id = p::str(v, "account").ok_or_else(|| CmdError::Params("say which account".into()))?;
+            if s.account(id).is_none() {
+                return Err(CmdError::Params(format!("no account `{id}`")));
+            }
+            let on = v.get("on").and_then(serde_json::Value::as_bool).unwrap_or(true);
+            s.prefs.agents_hidden.retain(|x| x != id);
+            if !on {
+                s.prefs.agents_hidden.push(id.to_string());
+            }
+            Ok(json!({"hidden": s.prefs.agents_hidden}))
+        })
+        .params(r#"{"account": string (its id), "on"?: bool (agents read it; default true)}"#),
+        CommandSpec::new("options.agentsAlways", "Commands agents run without asking", "File › Options › AI agents", |s, v| {
+            match (p::str(v, "allow"), p::str(v, "forget")) {
+                (Some(id), _) => {
+                    if s.agent_command(id).is_err() {
+                        return Err(CmdError::Params(format!("`{id}` isn't a command agents may run")));
+                    }
+                    if !s.prefs.agents_always.iter().any(|x| x == id) && s.prefs.agents_always.len() < crate::session::AGENTS_ALWAYS_MAX {
+                        s.prefs.agents_always.push(id.to_string());
+                    }
+                }
+                (None, Some("")) => s.prefs.agents_always.clear(),
+                (None, Some(id)) => s.prefs.agents_always.retain(|x| x != id),
+                (None, None) => {}
+            }
+            Ok(json!({"always": s.prefs.agents_always}))
+        })
+        .params(r#"{"allow"?: string (a command's id: agents run it without asking), "forget"?: string (one such command's id; "" for all)}"#),
         CommandSpec::new("options.answeredInvites", "After answering a meeting invitation", "File › Options › Mail", |s, v| {
             if let Some(after) = p::str(v, "after") {
                 s.prefs.answered_invites = match after {

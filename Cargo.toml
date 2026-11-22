@@ -29,7 +29,10 @@ mailcraft-ui-egui = { path = "crates/ui-egui" }
 # The Craft apps' shared crates (storytold/craft-libs), all at one revision: kept up by the suite,
 # so their fixes reach MailCraft with a bump of this pin.
 craft-atomic = { git = "https://github.com/storytold/craft-libs", rev = "b24eba64758f1b9135e7a3afab1af88260f9323b" }
+# The control channel AI agents reach the open window by, and the MCP server (issue #255).
+craft-control = { git = "https://github.com/storytold/craft-libs", rev = "b24eba64758f1b9135e7a3afab1af88260f9323b" }
 craft-docpath = { git = "https://github.com/storytold/craft-libs", rev = "b24eba64758f1b9135e7a3afab1af88260f9323b" }
+craft-mcp-server = { git = "https://github.com/storytold/craft-libs", rev = "b24eba64758f1b9135e7a3afab1af88260f9323b" }
 craft-font-catalog = { git = "https://github.com/storytold/craft-libs", rev = "b24eba64758f1b9135e7a3afab1af88260f9323b", default-features = false }
 craft-proof = { git = "https://github.com/storytold/craft-libs", rev = "b24eba64758f1b9135e7a3afab1af88260f9323b" }
 

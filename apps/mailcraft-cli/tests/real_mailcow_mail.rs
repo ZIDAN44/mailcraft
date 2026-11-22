@@ -1,6 +1,6 @@
 //! MailCraft against a real Mailcow (Dovecot, Postfix, SOGo) on this computer: setting an account
-//! up, and categories shared with SOGo webmail and other users (issue #28). Never a real
-//! account; run by hand:
+//! up, categories shared with SOGo webmail and other users (issue #28), and what an AI agent
+//! reads through `mailcraft-cli mcp` (issue #255). Never a real account; run by hand:
 //!
 //! ```text
 //! MAILCRAFT_REAL_MAILCOW="127.0.0.1:22143 127.0.0.1:22588 http://127.0.0.1:22080 \
@@ -321,4 +321,100 @@ fn real_mailcow_everything_with_someone() {
     eprintln!("person.activity: {v}");
     assert_eq!(v["threadCount"], 1);
     assert_eq!(v["threads"][0]["messages"].as_array().map(Vec::len), Some(2));
+}
+
+/// What an AI agent reads through `mailcraft-cli mcp` (issue #255), MailCraft closed: ann's mail
+/// as synced from Mailcow, found by a word of its text and read whole, and still unread on the
+/// server after. The CLI itself, as an assistant starts it: the account added and synced with it,
+/// then its MCP server on stdin and stdout.
+#[test]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
+fn real_mailcow_mail_read_through_mcp() {
+    use std::io::{BufRead, Write};
+    use std::process::{Command, Stdio};
+    let Some(m) = Mailcow::from_env() else { return };
+    let ((ann, password), (bob, _)) = (m.user(0), m.user(1));
+    let tag = mailcow::now();
+    let subject = format!("Mix notes {tag}");
+    let word = format!("kestrel{tag}");
+    let raw = format!(
+        "From: {bob}\r\nTo: {ann}\r\nSubject: {subject}\r\nMessage-ID: <mcp-{tag}@mc31.test>\r\nDate: Sat, 31 Oct 2026 09:00:00 +0000\r\n\
+         MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nThe reel to send is {word}.\r\n"
+    );
+    m.send(1, &[ann], raw.as_bytes());
+    let dir = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("real-mcp-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let cli = |args: &[&str]| -> String {
+        let out = Command::new(env!("CARGO_BIN_EXE_mailcraft-cli"))
+            .arg("--data")
+            .arg(&dir)
+            .args(args)
+            .env("MAILCRAFT_PASSWORD", password)
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{args:?}: {}", String::from_utf8_lossy(&out.stderr));
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    cli(&["add", "--email", ann, "--imap", &m.imap, "--imap-security", "none", "--smtp", &m.smtp, "--smtp-security", "none"]);
+    // Delivery takes a moment.
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(120);
+    loop {
+        cli(&["sync", "--timeout", "60"]);
+        if cli(&["search", &format!("subject:\"{subject}\"")]).contains(&subject) {
+            break;
+        }
+        assert!(std::time::Instant::now() < end, "bob's message didn't arrive");
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+
+    // Agents let in, as File › Options › AI agents saves it (MailCraft closed, nothing else does).
+    let settings = |prefs: serde_json::Value| std::fs::write(dir.join("ui.json"), json!({"prefs": prefs}).to_string()).unwrap();
+    settings(json!({"agents": true}));
+    let mut mcp = Command::new(env!("CARGO_BIN_EXE_mailcraft-cli"))
+        .arg("--data")
+        .arg(&dir)
+        .arg("mcp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut input = mcp.stdin.take().unwrap();
+    let mut output = std::io::BufReader::new(mcp.stdout.take().unwrap());
+    let mut ask = |id: u64, method: &str, params: serde_json::Value| -> serde_json::Value {
+        writeln!(input, "{}", json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params})).unwrap();
+        let mut line = String::new();
+        output.read_line(&mut line).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["id"], id, "{v}");
+        v
+    };
+    let tool = |v: &serde_json::Value| -> serde_json::Value {
+        assert!(v["result"]["isError"] != true, "{v}");
+        serde_json::from_str(v["result"]["content"][0]["text"].as_str().unwrap()).unwrap()
+    };
+    ask(1, "initialize", json!({"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}}));
+    let accounts = tool(&ask(2, "tools/call", json!({"name": "list_accounts", "arguments": {}})));
+    eprintln!("list_accounts: {accounts}");
+    assert!(accounts.to_string().contains(ann), "{accounts}");
+    let found = tool(&ask(3, "tools/call", json!({"name": "search_mail", "arguments": {"query": word}})));
+    eprintln!("search_mail {word}: {found}");
+    assert_eq!(found["found"], 1, "{found}");
+    let key = found["messages"][0]["key"].as_str().unwrap().to_string();
+    let read = tool(&ask(4, "tools/call", json!({"name": "read_message", "arguments": {"key": key}})));
+    eprintln!("read_message: {read}");
+    assert_eq!(read["subject"], subject.as_str());
+    assert!(read["from"].as_str().unwrap().contains(bob) && read["text"].as_str().unwrap().contains(&word), "{read}");
+    assert_eq!(read["unread"], true);
+    // Kept from agents: the same server stays connected, and reads nothing of it now.
+    let id = accounts[0]["account"].as_str().unwrap().to_string();
+    settings(json!({"agents": true, "agentsHidden": [id]}));
+    assert_eq!(tool(&ask(5, "tools/call", json!({"name": "search_mail", "arguments": {"query": word}})))["found"], 0);
+    let refused = ask(6, "tools/call", json!({"name": "read_message", "arguments": {"key": key}}));
+    assert_eq!(refused["result"]["isError"], true, "{refused}");
+    drop(input);
+    assert!(mcp.wait().unwrap().success());
+    // Read by the agent, and nothing told the server.
+    let flags = m.imap_as(0).flags("INBOX", &subject);
+    assert!(!flags.iter().any(|f| f.eq_ignore_ascii_case("\\Seen")), "{flags:?}");
+    let _ = std::fs::remove_dir_all(&dir);
 }

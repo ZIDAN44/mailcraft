@@ -2047,3 +2047,29 @@ count	occurrences	előfordulás
 	{name} asked you to go in their place.	{name} megkérte Önt, hogy menjen helyette.
 	{name} asked {delegate} to go in their place.	{name} megkérte {delegate} személyt, hogy menjen helyette.
 	{name} (delegated to {delegate})	{name} (delegálta: {delegate})
+	AI agents	MI-ügynökök
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	Adja hozzá a MailCraft MCP-kiszolgálóját: a mailcraft-cli parancsot az mcp argumentummal
+	Agents run this command from now on without asking	Az ügynökök ezt a parancsot mostantól kérdés nélkül futtatják
+	Allow	Engedélyezés
+	Always allow	Mindig engedélyez
+	An AI agent asks	Egy MI-ügynök kérdez
+	An AI agent wants to: {command}	Egy MI-ügynök ezt szeretné: {command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	Egy MI-asszisztens ezen a számítógépen (Claude Desktop, Claude Code…) a MailCraft MCP-kiszolgálóján keresztül olvassa a leveleit, a naptárát, a feladatait és a partnereit, és itt kérdez minden parancs előtt, amelyet futtatni szeretne. Kikapcsolva semmihez sem fér hozzá.
+	Commands agents run without asking first	Parancsok, amelyeket az ügynökök előzetes kérdés nélkül futtatnak
+	Connect an assistant	Asszisztens csatlakoztatása
+	Deny	Elutasítás
+	Forget	Elfelejtés
+	Let AI agents use MailCraft	MI-ügynökök használhatják a MailCraftot
+	Nothing yet	Még semmi
+	Run without asking	Futtatás kérdés nélkül
+	What AI agents did	Amit az MI-ügynökök tettek
+	{n} more waiting	Még {n} várakozik
+	Looked, changed nothing	Megnézte, semmit nem változtatott
+	Ran	Lefutott
+	You didn't allow it	Nem lett engedélyezve
+	Didn't run: {why}	Nem futott le: {why}
+	Let AI agents ask to run commands	Az MI-ügynökök kérhetik parancsok futtatását
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Küldés, áthelyezés, meghívó megválaszolása… mindegyikről itt kérdez előbb, hacsak nem engedélyezi mindig. Kikapcsolva az ügynökök csak olvasnak.
+	Accounts AI agents read	Az MI-ügynökök által olvasott fiókok
+	One turned off is left out of all they read, and they can't take pictures of the window	A kikapcsolt fiók kimarad mindenből, amit olvasnak, és nem készíthetnek képet az ablakról
+	… and {n} more characters	… és még {n} karakter

@@ -9,6 +9,7 @@ use mailcraft_store::search::Reader;
 
 use super::*;
 
+mod agents;
 mod finish;
 mod folded;
 mod folder_text;

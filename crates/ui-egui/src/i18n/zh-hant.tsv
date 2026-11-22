@@ -2046,3 +2046,29 @@ count	occurrences	次
 	{name} asked you to go in their place.	{name} 請你代其參加。
 	{name} asked {delegate} to go in their place.	{name} 請 {delegate} 代其參加。
 	{name} (delegated to {delegate})	{name}（已委託 {delegate}）
+	AI agents	AI 代理
+	Add MailCraft's MCP server to it: the command mailcraft-cli with the argument mcp	為它加入 MailCraft 的 MCP 伺服器：指令 mailcraft-cli，引數 mcp
+	Agents run this command from now on without asking	代理從現在起不經詢問即執行此指令
+	Allow	允許
+	Always allow	一律允許
+	An AI agent asks	AI 代理請求
+	An AI agent wants to: {command}	AI 代理想要：{command}
+	An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing.	這台電腦上的 AI 助理（Claude Desktop、Claude Code…）透過 MailCraft 的 MCP 伺服器讀取你的郵件、行事曆、工作和聯絡人，並在執行每個指令前先在這裡詢問。關閉後它無法存取任何內容。
+	Commands agents run without asking first	代理不經詢問即執行的指令
+	Connect an assistant	連接助理
+	Deny	拒絕
+	Forget	忘記
+	Let AI agents use MailCraft	允許 AI 代理使用 MailCraft
+	Nothing yet	尚無
+	Run without asking	不經詢問即執行
+	What AI agents did	AI 代理做過的事
+	{n} more waiting	還有 {n} 個在等待
+	Looked, changed nothing	已檢視，未做變更
+	Ran	已執行
+	You didn't allow it	你未允許
+	Didn't run: {why}	未執行：{why}
+	Let AI agents ask to run commands	允許 AI 代理程式要求執行命令
+	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	傳送、移動、回覆邀請……每個命令都會先在這裡詢問，除非你一律允許它。關閉時，代理程式只能讀取。
+	Accounts AI agents read	AI 代理程式讀取的帳戶
+	One turned off is left out of all they read, and they can't take pictures of the window	關閉的帳戶不在它們讀取的任何內容中，它們也無法擷取視窗的圖片
+	… and {n} more characters	……還有 {n} 個字元

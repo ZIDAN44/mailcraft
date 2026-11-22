@@ -95,6 +95,8 @@ struct App {
     monitors_looked: Option<std::time::Instant>,
     /// MailCraft's icon in the notification area, while it's kept running there.
     tray: desktop::tray::Tray,
+    /// AI agents' control channel, while the user lets them in (issue #255).
+    agents: desktop::agents::Channel,
 }
 
 /// How often changed settings are written while MailCraft runs.
@@ -181,6 +183,8 @@ impl App {
                 self.badge = Some(unread);
             }
         }
+        // AI agents' requests (issue #255): answered, minimized or hidden too.
+        self.agents.follow(&mut self.app, ctx);
         // An update ready while the window is minimized or behind others: the system says so.
         self.app.follow_update(ctx);
         self.tray.follow(&mut self.app, ctx);
@@ -214,6 +218,8 @@ impl App {
         if let Some(server) = &self.instance {
             server.close();
         }
+        // Agents' connection file and token go: nothing listens any more.
+        self.agents.stop();
         // A test build downloaded and checked: installed now that MailCraft closes (unless it was
         // kept for later); a download still going stops, to carry on next time.
         if let Some(u) = &self.updater {
@@ -451,7 +457,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
     let Started { launch, opening: Opening { progress, opened, card, made }, state_path, instance, updater, looks: Looks { saved_ui, theme, x11 } } =
         started;
     let put_away = launch.starts_away(saved_ui.as_ref());
-    let Launch { args: cmd_args, handed, sample, base, .. } = launch;
+    let Launch { args: cmd_args, handed, sample, base, root, .. } = launch;
     // The guard stays here, outside the closure, so the handlers live as long as the loop.
     #[cfg(target_os = "macos")]
     let (_finder_guard, finder) = apple_events::listen();
@@ -574,6 +580,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                     looked: std::time::Instant::now(),
                     monitors_looked: None,
                     tray: desktop::tray::Tray::new(native_wayland),
+                    agents: desktop::agents::Channel::new(root.clone()),
                 }
             });
             Ok(Box::new(desktop::boot::Window::Booting(Box::new(desktop::boot::Booting {
