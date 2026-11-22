@@ -1976,6 +1976,7 @@ count	occurrences	回
 	Propose new time	新しい日時を提案
 	Send proposal	提案を送信
 	Start	開始
+	End	終了
 	The organizer declined your proposed time: the meeting stays as it was.	主催者があなたの提案した日時を辞退しました。会議は元のままです。
 	Your answer	あなたの返答
 	{name} proposes a new time: {when}	{name} が新しい日時を提案しています: {when}
