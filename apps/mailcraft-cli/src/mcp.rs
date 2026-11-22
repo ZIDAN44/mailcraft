@@ -139,13 +139,20 @@ impl MailTools {
     /// still be letting go of a data file (one being sealed as it closed), which looks like
     /// MailCraft having it: a moment's wait before saying so.
     fn open_here(&self) -> Result<(Store, Session), String> {
+        let open_there =
+            "MailCraft has its data folder open but isn't letting AI agents in at the moment: the user turns that on in File › Options › AI agents";
         let mut waited = Duration::ZERO;
         loop {
-            let store = Store::open_packed(&self.root, &self.files);
-            let opened = store.and_then(|store| {
+            // The session reads each account's folders as it opens, and one it couldn't read it
+            // takes as having none: what the store has now must be what the session took, or
+            // it's opened again. (`Err(None)`: not read whole yet, for no reason said.)
+            let opened = Store::open_packed(&self.root, &self.files).map_err(Some).and_then(|store| {
                 let s = Session::open(Some(store.clone()), crate::clock());
                 for a in &s.accounts {
-                    store.load_folders(&a.config.id)?;
+                    let folders = store.load_folders(&a.config.id).map_err(Some)?;
+                    if folders.len() != a.folders.len() {
+                        return Err(None);
+                    }
                 }
                 Ok((store, s))
             });
@@ -155,10 +162,9 @@ impl MailTools {
                     std::thread::sleep(OPEN_POLL);
                     waited += OPEN_POLL;
                 }
-                Err(e) if e.is_open_elsewhere() => {
-                    return Err("MailCraft has its data folder open but isn't letting AI agents in at the moment: the user turns that on in File › Options › AI agents".into());
-                }
-                Err(e) => return Err(e.to_string()),
+                Err(Some(e)) if e.is_open_elsewhere() => return Err(open_there.into()),
+                Err(Some(e)) => return Err(e.to_string()),
+                Err(None) => return Err(open_there.into()),
             }
         }
     }
