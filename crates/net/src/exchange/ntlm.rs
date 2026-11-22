@@ -31,6 +31,8 @@ const FLAGS: u32 = NEGOTIATE_UNICODE
     | NEGOTIATE_56;
 /// The target information kept at most.
 const MAX_TARGET_INFO: usize = 4096;
+/// `MsvAvChannelBindings` (MS-NLMP 2.2.2.1): the hash of the TLS channel's bindings.
+const AV_CHANNEL_BINDINGS: u16 = 0x000a;
 
 fn utf16(s: &str) -> Vec<u8> {
     s.encode_utf16().flat_map(u16::to_le_bytes).collect()
@@ -114,6 +116,30 @@ fn timestamp(info: &[u8]) -> Option<[u8; 8]> {
     None
 }
 
+/// The target information answered with: the server's, its pairs up to its end, with the TLS
+/// channel's `binding` (see [`crate::stream::binding`]) in place of any it named, then the end.
+fn with_binding(info: &[u8], binding: &[u8; 16]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(info.len() + 24);
+    let mut at = 0;
+    while let (Some(id), Some(len)) = (u16_at(info, at), u16_at(info, at + 2)) {
+        let end = at + 4 + usize::from(len);
+        let Some(pair) = info.get(at..end) else { break };
+        if id == 0 {
+            break;
+        }
+        if id != AV_CHANNEL_BINDINGS {
+            out.extend_from_slice(pair);
+        }
+        at = end;
+    }
+    out.extend_from_slice(&AV_CHANNEL_BINDINGS.to_le_bytes());
+    out.extend_from_slice(&16u16.to_le_bytes());
+    out.extend_from_slice(binding);
+    // MsvAvEOL.
+    out.extend_from_slice(&[0; 4]);
+    out
+}
+
 /// The NTLMv2 response: (LM response, NT response).
 fn responses(key: &[u8; 16], c: &Challenge, client_challenge: [u8; 8], time: [u8; 8]) -> (Vec<u8>, Vec<u8>) {
     let mut blob = vec![1, 1, 0, 0, 0, 0, 0, 0];
@@ -133,19 +159,22 @@ fn responses(key: &[u8; 16], c: &Challenge, client_challenge: [u8; 8], time: [u8
 /// The authenticate message answering the challenge message `m` (as the server sent it,
 /// decoded) as `user` with `password`: a client challenge of its own and the time now, as each
 /// sign-in makes them (EWS over HTTPS; IMAP, POP and SMTP with Secure Password Authentication).
-pub fn answer(m: &[u8], user: &str, password: &str) -> Result<Vec<u8>> {
+/// `binding`: the TLS channel's, which EWS over HTTPS sends (issue #249: Exchange's Extended
+/// Protection refuses a sign-in without it).
+pub fn answer(m: &[u8], user: &str, password: &str, binding: Option<&[u8; 16]>) -> Result<Vec<u8>> {
     let c = challenge(m)?;
     let mut client_challenge = [0u8; 8];
     ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut client_challenge)
         .map_err(|_| NetError::Protocol("no randomness".into()))?;
     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX));
     let filetime = u64::try_from(crate::data_files::outlook::filetime(now)).unwrap_or(0);
-    Ok(authenticate(&c, user, password, filetime, client_challenge))
+    Ok(authenticate(&c, user, password, filetime, client_challenge, binding))
 }
 
 /// The authenticate message (type 3) answering a challenge as `user` (`DOMAIN\user`,
-/// `user@domain` or a bare name) with `password`.
-pub fn authenticate(c: &Challenge, user: &str, password: &str, now_filetime: u64, client_challenge: [u8; 8]) -> Vec<u8> {
+/// `user@domain` or a bare name) with `password`, and the TLS channel's `binding` when there
+/// is one.
+pub fn authenticate(c: &Challenge, user: &str, password: &str, now_filetime: u64, client_challenge: [u8; 8], binding: Option<&[u8; 16]>) -> Vec<u8> {
     let (domain, name) = match user.split_once('\\') {
         Some((d, u)) => (d.to_string(), u.to_string()),
         None => (String::new(), user.to_string()),
@@ -155,6 +184,14 @@ pub fn authenticate(c: &Challenge, user: &str, password: &str, now_filetime: u64
     let (time, lm_empty) = match timestamp(&c.target_info) {
         Some(t) => (t, true),
         None => (now_filetime.to_le_bytes(), false),
+    };
+    let bound;
+    let c = match binding {
+        Some(b) => {
+            bound = Challenge { flags: c.flags, server_challenge: c.server_challenge, target_info: with_binding(&c.target_info, b) };
+            &bound
+        }
+        None => c,
     };
     let (lm, nt) = responses(&key, c, client_challenge, time);
     let lm = if lm_empty { vec![0; 24] } else { lm };
@@ -246,7 +283,7 @@ mod tests {
         let c = challenge(&ch).unwrap();
         assert_eq!(c.server_challenge, [7; 8]);
         assert_eq!(c.target_info, TARGET);
-        let m = authenticate(&c, "CORP\\riley", "pw", 0, [3; 8]);
+        let m = authenticate(&c, "CORP\\riley", "pw", 0, [3; 8], None);
         assert!(verify(&c, &m, "riley", "CORP", "pw"));
         assert!(!verify(&c, &m, "riley", "CORP", "wrong"));
         assert!(negotiate().starts_with(SIGNATURE));
@@ -258,5 +295,52 @@ mod tests {
         assert!(challenge(&lying).is_err());
         assert_eq!(timestamp(&[7, 0, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0]), Some([1, 2, 3, 4, 5, 6, 7, 8]));
         assert_eq!(timestamp(&[9, 0, 0xff, 0xff]), None);
+    }
+
+    /// The pairs of a target information list, as (id, value), up to its end.
+    fn pairs(info: &[u8]) -> Vec<(u16, Vec<u8>)> {
+        let mut out = Vec::new();
+        let mut at = 0;
+        while let (Some(id), Some(len)) = (u16_at(info, at), u16_at(info, at + 2)) {
+            let end = at + 4 + usize::from(len);
+            out.push((id, info.get(at + 4..end).unwrap_or_default().to_vec()));
+            if id == 0 {
+                break;
+            }
+            at = end;
+        }
+        out
+    }
+
+    /// Over HTTPS the answer carries the channel's bindings (issue #249: Exchange's Extended
+    /// Protection refused a sign-in without them, which read as a wrong password): the server's
+    /// pairs kept in their order, the bindings' hash after them (once, replacing any the server
+    /// named), then the end; and the answer still proves the password.
+    #[test]
+    fn the_channel_binding_goes_in_the_answer() {
+        let c = challenge(&make_challenge([7; 8], TARGET)).unwrap();
+        let binding = [0x5a; 16];
+        let m = authenticate(&c, "CORP\\riley", "pw", 0, [3; 8], Some(&binding));
+        assert!(verify(&c, &m, "riley", "CORP", "pw"));
+        let nt_len = usize::from(u16_at(&m, 20).unwrap());
+        let nt_off = usize::try_from(u32_at(&m, 24).unwrap()).unwrap();
+        // The NT response: its proof (16), the blob's header (28), the target information, 4 zeros.
+        let info = m.get(nt_off + 16 + 28..nt_off + nt_len - 4).unwrap();
+        let got = pairs(info);
+        let ids: Vec<u16> = got.iter().map(|(id, _)| *id).collect();
+        assert_eq!(ids, [2, 1, AV_CHANNEL_BINDINGS, 0]);
+        assert_eq!(got[2].1, binding);
+        // A server that named bindings already (all zeros, as some do): replaced, not doubled.
+        let named = with_binding(&with_binding(TARGET, &[0; 16]), &binding);
+        assert_eq!(pairs(&named).iter().filter(|(id, _)| *id == AV_CHANNEL_BINDINGS).count(), 1);
+        assert_eq!(pairs(&named)[2].1, binding);
+        // Without one (IMAP, POP and SMTP): the server's list as it sent it.
+        let plain = authenticate(&c, "CORP\\riley", "pw", 0, [3; 8], None);
+        assert!(!plain.windows(4).any(|w| w == [0x0a, 0, 16, 0]));
+        // Target information cut short or lying about its lengths: answered, never a panic.
+        for cut in 0..TARGET.len() {
+            let _ = with_binding(&TARGET[..cut], &binding);
+        }
+        let _ = with_binding(&[1, 0, 0xff, 0xff, 1], &binding);
     }
 }

@@ -24,6 +24,9 @@ pub struct Negotiation {
     kerberos: Kerberos,
     creds: <Kerberos as SspiImpl>::CredentialsHandle,
     target: String,
+    /// The TLS channel's binding as Windows lays it out, for a server that checks it (issue
+    /// #249: Exchange's Extended Protection).
+    bindings: Option<Vec<u8>>,
 }
 
 /// The Kerberos principal for a user name as it's typed (`user@corp.example`, `CORP\user`, or a
@@ -56,22 +59,30 @@ pub fn kdc_for(realm: &str) -> Option<String> {
 impl Negotiation {
     /// Start signing in to `host` (its service principal `HTTP/host`) as `user` (see
     /// [`principal`]): the first token to send, or why not (no realm, no KDC, refused).
-    pub fn start(user: &str, email: &str, password: &str, host: &str) -> Result<(Negotiation, Vec<u8>)> {
+    /// `binding`: the TLS channel's (`tls-server-end-point`), over HTTPS.
+    pub fn start(user: &str, email: &str, password: &str, host: &str, binding: Option<&[u8]>) -> Result<(Negotiation, Vec<u8>)> {
+        let bindings = binding.map(crate::stream::binding::sec_channel_bindings);
         let (name, realm) = principal(user, email).ok_or_else(|| NetError::Auth("Kerberos needs a user name with its domain".into()))?;
         let kdc = kdc_for(&realm).ok_or_else(|| NetError::No(format!("no Kerberos server (KDC) found for {realm}")))?;
         // The plain principal (name and realm), which every KDC knows; a name typed with its
         // domain (`riley@corp.example`) is asked again as Active Directory's enterprise name
         // when the KDC doesn't know the plain one (a UPN unlike the account name).
         let plain = Username::new_down_level_logon_name(&name, &realm).map_err(|e| sspi_error(e.into()))?;
-        match Negotiation::with(plain, &kdc, password, host) {
+        match Negotiation::with(plain, &kdc, password, host, bindings.clone()) {
             Err(f) if f.why == Why::ClientNotFound && user.contains('@') => {
-                Ok(Negotiation::with(Username::parse(user.trim()).map_err(|e| sspi_error(e.into()))?, &kdc, password, host)?)
+                Ok(Negotiation::with(Username::parse(user.trim()).map_err(|e| sspi_error(e.into()))?, &kdc, password, host, bindings)?)
             }
             r => Ok(r?),
         }
     }
 
-    fn with(username: Username, kdc: &str, password: &str, host: &str) -> std::result::Result<(Negotiation, Vec<u8>), Failure> {
+    fn with(
+        username: Username,
+        kdc: &str,
+        password: &str,
+        host: &str,
+        bindings: Option<Vec<u8>>,
+    ) -> std::result::Result<(Negotiation, Vec<u8>), Failure> {
         let computer = std::env::var("COMPUTERNAME").or_else(|_| std::env::var("HOSTNAME")).unwrap_or_else(|_| "mailcraft".into());
         let mut kerberos = Kerberos::new_client_from_config(KerberosConfig::new_with_kdc_url(&format!("tcp://{kdc}"), computer)).map_err(failure)?;
         let identity = AuthIdentity { username, password: password.to_string().into() };
@@ -82,7 +93,7 @@ impl Negotiation {
             .execute(&mut kerberos)
             .map_err(failure)?
             .credentials_handle;
-        let mut n = Negotiation { kerberos, creds, target: format!("HTTP/{}", host.to_ascii_lowercase()) };
+        let mut n = Negotiation { kerberos, creds, target: format!("HTTP/{}", host.to_ascii_lowercase()), bindings };
         let (token, _) = n.next(&[])?;
         Ok((n, token))
     }
@@ -95,6 +106,9 @@ impl Negotiation {
     /// [`Negotiation::step`], telling what went wrong.
     fn next(&mut self, input: &[u8]) -> std::result::Result<(Vec<u8>, bool), Failure> {
         let mut input = vec![SecurityBuffer::new(input.to_vec(), BufferType::Token)];
+        if let Some(b) = &self.bindings {
+            input.push(SecurityBuffer::new(b.clone(), BufferType::ChannelBindings));
+        }
         let mut output = vec![SecurityBuffer::new(Vec::new(), BufferType::Token)];
         let mut builder = self
             .kerberos

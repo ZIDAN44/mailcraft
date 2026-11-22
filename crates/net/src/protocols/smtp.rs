@@ -222,7 +222,7 @@ fn ntlm(conn: &mut SmtpConnection, sign_in: &SignIn<'_>, recipients: &[String]) 
         .first_word()
         .and_then(crate::ews::unb64)
         .ok_or_else(|| NetError::Protocol("bad NTLM challenge".into()))
-        .and_then(|c| crate::ntlm::answer(&c, sign_in.user, sign_in.password));
+        .and_then(|c| crate::ntlm::answer(&c, sign_in.user, sign_in.password, None));
     let answer = match answer {
         Ok(a) => a,
         Err(e) => {

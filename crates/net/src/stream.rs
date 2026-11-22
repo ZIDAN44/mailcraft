@@ -11,6 +11,7 @@ use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
 use crate::{NetError, Result};
 
+pub(crate) mod binding;
 pub(crate) mod trust;
 pub use trust::Trusted;
 pub(crate) use trust::{system_roots, system_verifier};

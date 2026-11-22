@@ -24,6 +24,39 @@ fn server() -> Option<(String, String, String)> {
     Some((parts.next()?, parts.next()?, parts.next()?))
 }
 
+/// Issue #249: signing in with NTLM over HTTPS to a server that checks the TLS channel's binding,
+/// as on-premises Exchange's Extended Protection does (on by default since Exchange 2019 CU14).
+/// Never a real account: a test server on this computer that answers GetFolder once signed in,
+/// with user `CORP\riley` and password `pw`, and checks the binding against its certificate (one
+/// made of Python's `http.server` and pyspnego's NTLM acceptor, given its channel bindings, was
+/// used), run by hand:
+///
+/// ```text
+/// SSL_CERT_FILE=<the test server's authority, PEM> \
+///   MAILCRAFT_REAL_EWS_NTLM=https://127.0.0.1:38443/EWS/Exchange.asmx \
+///   cargo test -p mailcraft-net real_ews_ntlm -- --ignored --nocapture
+/// ```
+///
+/// The test authority is trusted through `SSL_CERT_FILE`, as a company's is through its
+/// computers' store.
+#[test]
+#[ignore = "needs the EWS NTLM test server in MAILCRAFT_REAL_EWS_NTLM"]
+fn real_ews_ntlm_with_extended_protection() {
+    let Ok(url) = std::env::var("MAILCRAFT_REAL_EWS_NTLM") else {
+        eprintln!("MAILCRAFT_REAL_EWS_NTLM not set: skipped");
+        return;
+    };
+    assert!(std::env::var_os("SSL_CERT_FILE").is_some(), "SSL_CERT_FILE: the test server's ca.pem");
+    if let Err(e) = crate::ews::Client::connect(&url, "CORP\\riley", "pw", "riley@corp.test") {
+        panic!("the right password was refused: {e}");
+    }
+    match crate::ews::Client::connect(&url, "CORP\\riley", "wrong", "riley@corp.test") {
+        Err(crate::NetError::Auth(_)) => {}
+        Err(e) => panic!("a wrong password: {e}"),
+        Ok(_) => panic!("a wrong password was taken"),
+    }
+}
+
 /// The calendar and the contacts a real server holds are read, each whole.
 #[test]
 #[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]

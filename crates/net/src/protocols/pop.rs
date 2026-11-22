@@ -282,7 +282,8 @@ impl<S: Read + Write> Client<S> {
         self.send(&mailcraft_model::base64::encode(&crate::ntlm::negotiate()))?;
         let l = self.line()?;
         let Some(challenge) = goes_on(&l) else { return Err(refused(&l)) };
-        let answer = crate::ews::unb64(&challenge).ok_or_else(|| proto("bad NTLM challenge")).and_then(|c| crate::ntlm::answer(&c, user, password));
+        let answer =
+            crate::ews::unb64(&challenge).ok_or_else(|| proto("bad NTLM challenge")).and_then(|c| crate::ntlm::answer(&c, user, password, None));
         let answer = match answer {
             Ok(a) => a,
             Err(e) => {

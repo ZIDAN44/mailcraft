@@ -338,6 +338,16 @@ impl Conn {
         u.https == self.url.https && u.host.eq_ignore_ascii_case(&self.url.host) && u.port == self.url.port
     }
 
+    /// The TLS channel's binding (RFC 5929 `tls-server-end-point`, from the server's
+    /// certificate), which a sign-in over it carries for a server that checks it (EWS, issue
+    /// #249); `None` in the clear.
+    pub fn channel_binding(&self) -> Option<Vec<u8>> {
+        match &self.s {
+            Stream::Tls(t) => t.conn.peer_certificates()?.first().map(|c| crate::stream::binding::end_point(c)),
+            Stream::Plain(_) => None,
+        }
+    }
+
     /// Whether another request can go on it.
     pub fn usable(&self) -> bool {
         !self.closing

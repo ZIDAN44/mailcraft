@@ -16,17 +16,31 @@ impl Client {
     }
 
     pub(super) fn send_on_conn(&self, req: &Request) -> Result<Response> {
+        self.open_conn()?;
         let mut slot = self.conn.borrow_mut();
-        if slot.as_ref().is_none_or(|c| !c.usable()) {
-            *slot = Some(Conn::open(&self.url)?);
-            *self.signed_in.borrow_mut() = false;
-        }
         let Some(conn) = slot.as_mut() else { return Err(NetError::Closed("no connection".into())) };
         let r = conn.send(req);
         if r.is_err() {
             *slot = None;
         }
         r
+    }
+
+    /// The connection requests go on, opened when there's none or it can't take another.
+    fn open_conn(&self) -> Result<()> {
+        let mut slot = self.conn.borrow_mut();
+        if slot.as_ref().is_none_or(|c| !c.usable()) {
+            *slot = Some(Conn::open(&self.url)?);
+            *self.signed_in.borrow_mut() = false;
+        }
+        Ok(())
+    }
+
+    /// The connection's TLS channel binding, for a sign-in on it (issue #249); opened first,
+    /// as the sign-in's first message already carries it with Kerberos.
+    fn channel_binding(&self) -> Result<Option<Vec<u8>>> {
+        self.open_conn()?;
+        Ok(self.conn.borrow().as_ref().and_then(Conn::channel_binding))
     }
 
     /// The `WWW-Authenticate` schemes of a 401.
@@ -90,7 +104,9 @@ impl Client {
                             return Err(NetError::Auth("the server didn't answer the sign-in".into()));
                         };
                         let challenge = unb64(token).ok_or_else(|| NetError::Protocol("bad NTLM challenge".into()))?;
-                        let answer = crate::ntlm::answer(&challenge, &self.user, &self.password)?;
+                        // The channel the challenge came on, which the answer goes on too.
+                        let binding = self.channel_binding()?.map(|b| crate::stream::binding::ntlm_hash(&b));
+                        let answer = crate::ntlm::answer(&challenge, &self.user, &self.password, binding.as_ref())?;
                         let resp = self.send_on_conn(&base.clone().header("Authorization", &format!("{name} {}", base64::encode(&answer))))?;
                         if resp.status != 401 {
                             *self.signed_in.borrow_mut() = true;
@@ -228,7 +244,8 @@ impl Client {
     /// step more) is taken; one it can't use doesn't undo the sign-in it accepted.
     fn kerberos(&self, base: &Request) -> Result<Response> {
         let host = http::Url::parse(&self.url)?.host;
-        let (mut n, token) = crate::kerberos::Negotiation::start(&self.user, &self.email, &self.password, &host)?;
+        let binding = self.channel_binding()?;
+        let (mut n, token) = crate::kerberos::Negotiation::start(&self.user, &self.email, &self.password, &host, binding.as_deref())?;
         let mut token = token;
         for _ in 0..3 {
             let resp = self.send_on_conn(&base.clone().header("Authorization", &format!("Negotiate {}", base64::encode(&token))))?;

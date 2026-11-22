@@ -78,7 +78,7 @@ impl<S: Read + Write> Client<S> {
                     answered = true;
                     let answer = crate::ews::unb64(info(&o).trim())
                         .ok_or_else(|| NetError::Protocol("bad NTLM challenge".into()))
-                        .and_then(|c| crate::ntlm::answer(&c, user, pass));
+                        .and_then(|c| crate::ntlm::answer(&c, user, pass, None));
                     match answer {
                         Ok(a) => self.conn.send(format!("{}\r\n", mailcraft_model::base64::encode(&a)).as_bytes())?,
                         // A challenge that can't be read: the exchange is cancelled, and the
