@@ -219,3 +219,23 @@ fn a_rule_written_reads_back_the_same() {
     let two = Rule { actions: vec![RuleAction::MoveTo("a".into()), RuleAction::MoveTo("b".into())], ..rule };
     assert!(crate::ews::rule_written(&two).is_err());
 }
+
+/// What the weekly fuzz run found: a folder id holding NULs, which XML doesn't allow, was read
+/// with them and written back without them, so the rule sent wasn't the rule read. They're
+/// left out as the answer is read, as a control given by a reference is.
+#[test]
+fn a_rule_with_what_xml_does_not_allow_reads_back_the_same() {
+    let seed = include_str!("../../../../../../fuzz/seeds/ews/rules.xml");
+    let found = seed.replace("Id=\"AAMk\"", "Id=\"\0\0\0 AAMk\"").replace(">invoice<", ">in&#1;voice\u{1}<");
+    let rules = crate::ews::read_rules_answer(&found).unwrap();
+    let rule = rules.rules[0].rule.clone().expect("said as MailCraft's own");
+    assert_eq!(rule.conditions[0], Condition::Subject("invoice".into()), "{rule:?}");
+    assert!(rule.actions.contains(&RuleAction::MoveTo(" AAMk".into())), "{rule:?}");
+    let written = crate::ews::rule_written(&rule).unwrap();
+    let again = format!(
+        "<GetInboxRulesResponse ResponseClass=\"Success\"><InboxRules><Rule><RuleId>x</RuleId><IsEnabled>true</IsEnabled>{written}</Rule></InboxRules></GetInboxRulesResponse>"
+    );
+    let back = crate::ews::read_rules_answer(&again).unwrap();
+    let back = back.rules[0].rule.clone().unwrap();
+    assert_eq!((&back.conditions, &back.actions), (&rule.conditions, &rule.actions));
+}

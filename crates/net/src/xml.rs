@@ -119,7 +119,11 @@ pub fn parse(xml: &str) -> El {
                             let k: &str = a.key.as_ref();
                             k != "xmlns" && !k.starts_with("xmlns:")
                         })
-                        .map(|a| (local(a.key.as_ref()).to_string(), mailcraft_mime::decode_xml_refs(&a.value).into_owned()))
+                        .map(|a| {
+                            let mut value = String::new();
+                            push_in_xml(&mut value, &mailcraft_mime::decode_xml_refs(&a.value));
+                            (local(a.key.as_ref()).to_string(), value)
+                        })
                         .collect(),
                     ..Default::default()
                 };
@@ -130,17 +134,17 @@ pub fn parse(xml: &str) -> El {
             }
             X::Text(t) => {
                 if let Some(top) = stack.last_mut() {
-                    top.text.push_str(&t);
+                    push_in_xml(&mut top.text, &t);
                 }
             }
             X::CData(t) => {
                 if let Some(top) = stack.last_mut() {
-                    top.text.push_str(&t);
+                    push_in_xml(&mut top.text, &t);
                 }
             }
             X::GeneralRef(g) => {
                 if let (Some(c), Some(top)) = (mailcraft_mime::xml_ref_char(&g), stack.last_mut()) {
-                    top.text.push(c);
+                    push_in_xml(&mut top.text, c.encode_utf8(&mut [0; 4]));
                 }
             }
             X::End(_) => close(&mut stack),
@@ -154,6 +158,18 @@ pub fn parse(xml: &str) -> El {
     stack.pop().unwrap_or_default()
 }
 
+/// Whether XML 1.0 allows `c` (the controls but tab and line ends it doesn't). What it doesn't
+/// is neither written ([`esc`]) nor read ([`parse`]): read, an Exchange rule's folder id holding
+/// a NUL was written back without it, so the rule sent wasn't the rule read.
+fn in_xml(c: char) -> bool {
+    (c as u32) >= 0x20 || matches!(c, '\t' | '\n' | '\r')
+}
+
+/// `s` onto `out`, without what XML doesn't allow.
+fn push_in_xml(out: &mut String, s: &str) {
+    out.extend(s.chars().filter(|&c| in_xml(c)));
+}
+
 /// Text for XML.
 pub fn esc(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -163,8 +179,7 @@ pub fn esc(s: &str) -> String {
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
             '"' => out.push_str("&quot;"),
-            // Not allowed in XML 1.0.
-            c if (c as u32) < 0x20 && !matches!(c, '\t' | '\n' | '\r') => {}
+            c if !in_xml(c) => {}
             c => out.push(c),
         }
     }
