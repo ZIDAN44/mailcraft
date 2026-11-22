@@ -88,7 +88,7 @@ impl Data {
             "POST" if self.schedules && r.path == OUTBOX => self.free_busy_query(r),
             "REPORT" => self.report(&r.path, &r.body),
             "PUT" => self.put_item(r),
-            "DELETE" => self.delete_item(&r.path),
+            "DELETE" => self.delete_item(&r.path, r.if_match.as_deref()),
             _ => reply("404 Not Found"),
         }
     }
@@ -228,9 +228,15 @@ impl Data {
         ("200 OK", vec![("Content-Type", "application/xml".into())], body)
     }
 
-    fn delete_item(&mut self, p: &str) -> Reply {
+    fn delete_item(&mut self, p: &str, if_match: Option<&str>) -> Reply {
         if self.forbidden.iter().any(|f| f == p) {
             return reply("403 Forbidden");
+        }
+        // Changed since the version named (RFC 7232): left as it is.
+        if let (Some(m), Some((etag, _))) = (if_match, self.items.get(p))
+            && m != etag
+        {
+            return reply("412 Precondition Failed");
         }
         if self.items.remove(p).is_some() {
             self.ctag += 1;

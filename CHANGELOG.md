@@ -46,6 +46,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 ### Fixed
 
 - A change made on SOGo (Mailcow) to a calendar, contacts or tasks in the very second MailCraft read it is read at the next sync (#201): SOGo's collections say when they last changed, in seconds, and such a change was missed until something else changed there.
+- An event or task deleted here that was changed on the server meanwhile comes back, and you're told (#201), where its deletion was tried again at every sync and refused each time.
 - An on-premises Exchange account signs in where Exchange's Extended Protection is on (#249), as it is by default since Exchange 2019 CU14: MailCraft's NTLM and Kerberos sign-in now carry the secure connection's binding, and without it Exchange refused them, which MailCraft took for a wrong password and asked for it again and again.
 - On a Windows PC with two GPUs, MailCraft draws its window on the one Windows chooses for it (Settings › System › Display › Graphics: the power-saving one unless you chose otherwise), not always the dedicated one (#246). `WGPU_POWER_PREF=high` still asks for the dedicated GPU.
 - The message list's Pinned heading is in your language: it showed in English in every language (#198).

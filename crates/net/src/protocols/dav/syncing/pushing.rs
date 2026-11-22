@@ -7,13 +7,21 @@ use super::*;
 
 impl Run<'_> {
     /// Deletions made here. One the server doesn't allow (SOGo's roles) is given up and the
-    /// event read again, so it's back as it is there.
+    /// event read again, so it's back as it is there; so is one changed there since it was
+    /// read (412: another device's change, or a task moved to another list meanwhile), said so.
+    /// It was tried again at every sync, with the same version, refused each time.
     pub(super) fn push_deletions(&self, out: &mut DavSync, refetch: &mut Vec<String>) -> Result<()> {
         for t in self.pim.deleted.iter().filter(|t| self.ours(&t.href)) {
             match self.dav.remove(&t.href, &t.etag) {
                 Ok(Ok(())) => out.deleted.push(t.href.clone()),
                 Ok(Err(Refused::Forbidden)) => {
                     out.errors.push(format!("the server doesn't allow deleting {}", t.href.rsplit('/').next().unwrap_or_default()));
+                    out.deleted.push(t.href.clone());
+                    refetch.push(t.href.clone());
+                }
+                Ok(Err(Refused::Changed)) => {
+                    out.errors
+                        .push(format!("{} changed on the server meanwhile, so it wasn't deleted", t.href.rsplit('/').next().unwrap_or_default()));
                     out.deleted.push(t.href.clone());
                     refetch.push(t.href.clone());
                 }

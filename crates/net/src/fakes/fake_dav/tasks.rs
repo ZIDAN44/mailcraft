@@ -217,6 +217,27 @@ fn a_change_in_the_second_the_tag_was_read_is_read() {
     assert!(later.task_lists.unwrap().iter().all(|l| l.ctag == now.to_string()));
 }
 
+/// Found in review: a deletion of an item changed on the server since (another device's change,
+/// or a task moved to another list meanwhile) was refused (412) and tried again at every sync,
+/// with the same version. It's given up, said, and the server's copy read again.
+#[test]
+fn a_deletion_of_a_task_changed_meanwhile_is_given_up() {
+    let server = server_with_tasks();
+    let dav = Dav::new(USER, PASSWORD);
+    let mut pim = pim_at(&server);
+    let first = sync(&dav, &AT, &pim, 100, Zone::UTC).unwrap();
+    kept_after(&mut pim, &first);
+    let t1 = pim.tasks.iter().position(|t| t.task.uid == "t1").unwrap();
+    let gone = pim.tasks.remove(t1);
+    pim.deleted.push(Tombstone { href: gone.href.clone(), etag: gone.etag.clone(), ..Default::default() });
+    server.data.lock().unwrap().put(&format!("{TASKS}t1.ics"), &ical::write_calendar(&[], &[task("t1", "Buy milk and eggs")], 0));
+    let s = sync(&dav, &AT, &pim, 200, Zone::UTC).unwrap();
+    assert_eq!(s.deleted, std::slice::from_ref(&gone.href), "not tried again");
+    assert!(s.errors.iter().any(|e| e.contains("wasn't deleted")), "{:?}", s.errors);
+    assert!(s.list_tasks.iter().any(|t| t.task.title == "Buy milk and eggs"), "the server's copy");
+    assert!(server.data.lock().unwrap().items.contains_key(&format!("{TASKS}t1.ics")));
+}
+
 /// A list the user may only read is said so.
 #[test]
 fn a_read_only_list_is_marked() {
