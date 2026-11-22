@@ -62,6 +62,9 @@ pub(super) fn person(a: Option<&mailcraft_model::EmailAddress>) -> String {
     a.map(|a| if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() }).unwrap_or_default()
 }
 
+/// The heading pinned mail is under, above the rest of the list (translated where it's drawn).
+pub const PINNED_HEADING: &str = "Pinned";
+
 /// The fixed headings an arranged list shows (for translations).
 pub const ARRANGE_HEADINGS: [&str; 14] = [
     "Under 10 KB",
@@ -252,17 +255,17 @@ impl Session {
         }
         let rows = if pinned_rows.is_empty() {
             out
-        } else if is_folded(&Row::Header("Pinned")) {
+        } else if is_folded(&Row::Header(PINNED_HEADING)) {
             // Pinned mail folded away too: its heading and how much it hides.
             let (count, unread) = pinned_rows.iter().fold((0usize, 0usize), |(c, u), r| match r {
                 Row::Message { count, unread, .. } => (c.saturating_add(*count), u.saturating_add(*unread)),
                 _ => (c, u),
             });
-            let mut rows = vec![Row::Header("Pinned"), Row::Folded { count, unread }];
+            let mut rows = vec![Row::Header(PINNED_HEADING), Row::Folded { count, unread }];
             rows.extend(out);
             rows
         } else {
-            pinned_rows.insert(0, Row::Header("Pinned"));
+            pinned_rows.insert(0, Row::Header(PINNED_HEADING));
             pinned_rows.extend(out);
             pinned_of.extend(out_of);
             out_of = pinned_of;

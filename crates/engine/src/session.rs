@@ -57,7 +57,7 @@ pub use writing::{Compose, Drafted, Quote, Reactions, SendBlock, SendCheck, UNDO
 // The message list's arrangement and rows, named here as before.
 #[cfg(test)]
 pub(crate) use mailboxes::arrange_list;
-pub use mailboxes::{ARRANGE_HEADINGS, Arrange, ListFilter, Row};
+pub use mailboxes::{ARRANGE_HEADINGS, Arrange, ListFilter, PINNED_HEADING, Row};
 // Organizing mail's own parts, named here as before.
 pub use opening::SenderMarks;
 pub use organize::{junk, quick_steps, search_folders, server_rules};

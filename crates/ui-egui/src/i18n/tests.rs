@@ -139,6 +139,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         out.insert(a.label().to_string());
     }
     out.extend(mailcraft_engine::ARRANGE_HEADINGS.map(str::to_string));
+    out.insert(mailcraft_engine::PINNED_HEADING.to_string());
     // The message editor's ribbon and dialogs; labels chosen at run time.
     for s in [
         "Ignore the conversation",

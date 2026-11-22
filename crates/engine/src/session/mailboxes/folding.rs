@@ -135,7 +135,7 @@ impl Session {
             None => m.flags.pinned(),
         };
         let heading = if self.search.is_none() && pinned {
-            Row::Header("Pinned")
+            Row::Header(super::rows::PINNED_HEADING)
         } else {
             let date = thread.map_or(m.when(), |t| t.latest);
             let label = DateGroup::of_day(self.clock.local_day(date), self.clock.local_day(self.clock.now)).label();

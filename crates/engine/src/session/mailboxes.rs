@@ -14,7 +14,7 @@ mod sent_aside;
 pub(crate) use across::Transfer;
 pub(crate) use echo::{Echo, Echoes};
 pub(crate) use nav::{ListNav, NO_ROW, folder_hash, key_hash, key_hash_in};
-pub use rows::{ARRANGE_HEADINGS, Arrange, Row, arrange_list};
+pub use rows::{ARRANGE_HEADINGS, Arrange, PINNED_HEADING, Row, arrange_list};
 pub(crate) use sent_aside::SentIndex;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
