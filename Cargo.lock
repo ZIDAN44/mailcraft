@@ -1301,7 +1301,7 @@ dependencies = [
 [[package]]
 name = "craft-atomic"
 version = "0.1.0"
-source = "git+https://github.com/storytold/craft-libs?rev=600fc71614b316d8c2c7bd793c62f228a5b2e5b6#600fc71614b316d8c2c7bd793c62f228a5b2e5b6"
+source = "git+https://github.com/storytold/craft-libs?rev=b24eba64758f1b9135e7a3afab1af88260f9323b#b24eba64758f1b9135e7a3afab1af88260f9323b"
 dependencies = [
  "rustix 1.1.6",
 ]
@@ -1309,22 +1309,26 @@ dependencies = [
 [[package]]
 name = "craft-docpath"
 version = "0.1.0"
-source = "git+https://github.com/storytold/craft-libs?rev=600fc71614b316d8c2c7bd793c62f228a5b2e5b6#600fc71614b316d8c2c7bd793c62f228a5b2e5b6"
+source = "git+https://github.com/storytold/craft-libs?rev=b24eba64758f1b9135e7a3afab1af88260f9323b#b24eba64758f1b9135e7a3afab1af88260f9323b"
 
 [[package]]
 name = "craft-font-catalog"
 version = "0.1.0"
-source = "git+https://github.com/storytold/craft-libs?rev=600fc71614b316d8c2c7bd793c62f228a5b2e5b6#600fc71614b316d8c2c7bd793c62f228a5b2e5b6"
+source = "git+https://github.com/storytold/craft-libs?rev=b24eba64758f1b9135e7a3afab1af88260f9323b#b24eba64758f1b9135e7a3afab1af88260f9323b"
 dependencies = [
+ "harfrust 0.13.3",
+ "kurbo",
  "skrifa 0.47.0",
  "thiserror 2.0.21",
+ "unicode-bidi",
+ "unicode-segmentation",
  "windows-registry 0.6.1",
 ]
 
 [[package]]
 name = "craft-proof"
 version = "0.1.0"
-source = "git+https://github.com/storytold/craft-libs?rev=600fc71614b316d8c2c7bd793c62f228a5b2e5b6#600fc71614b316d8c2c7bd793c62f228a5b2e5b6"
+source = "git+https://github.com/storytold/craft-libs?rev=b24eba64758f1b9135e7a3afab1af88260f9323b#b24eba64758f1b9135e7a3afab1af88260f9323b"
 dependencies = [
  "log",
  "miniz_oxide 0.9.1",
@@ -2253,7 +2257,7 @@ dependencies = [
  "emath",
  "epaint_default_fonts",
  "font-types",
- "harfrust",
+ "harfrust 0.12.0",
  "log",
  "nohash-hasher",
  "parking_lot",
@@ -3146,6 +3150,19 @@ dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
  "read-fonts 0.41.0",
+ "smallvec",
+]
+
+[[package]]
+name = "harfrust"
+version = "0.13.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "948d0741125ba89cd3e1c23e5642415b6ade7e1d29d67ba25fb925b533e989d6"
+dependencies = [
+ "bitflags 2.13.2",
+ "bytemuck",
+ "once_cell",
+ "read-fonts 0.43.3",
  "smallvec",
 ]
 
@@ -6231,6 +6248,17 @@ name = "read-fonts"
 version = "0.41.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "046a7d674daf459825b32f5062056d6882db0d2f5a479fbd76ccfc870ac18709"
+dependencies = [
+ "bytemuck",
+ "font-types",
+ "once_cell",
+]
+
+[[package]]
+name = "read-fonts"
+version = "0.43.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "005c8acf251756c478b0bf402885bfd88a1476020c4c7e6060edc1aa68da38ea"
 dependencies = [
  "bytemuck",
  "font-types",
