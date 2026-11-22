@@ -133,6 +133,8 @@ fn basics(ui: &mut Ui, f: &mut AccountForm, s: &Session, acts: &mut Vec<Action>)
                 None => f.guess_pop(),
             }
             f.username = if c.username.eq_ignore_ascii_case(&email) { String::new() } else { c.username.clone() };
+            let dav = c.dav.clone().unwrap_or_default();
+            (f.found_caldav, f.found_carddav) = (dav.caldav, dav.carddav);
             f.found_for = Some(email.clone());
             f.found_source = Some(source.clone());
         }

@@ -37,6 +37,7 @@ mod writing;
 pub(crate) use accounts::REMOVE_BACKSTOP;
 pub(crate) use accounts::RuleChange;
 pub(crate) use accounts::data_file_path;
+pub(crate) use accounts::dav_address;
 pub use accounts::{AgeUnit, ArchiveRule, AutoArchive, Compacting, Compaction, FolderArchive, IDLE_AFTER_S};
 pub use accounts::{Changes, ImportState, Imports, TrustedCertificate};
 use changing::Batch;

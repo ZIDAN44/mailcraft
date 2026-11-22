@@ -12,12 +12,14 @@
 //! 5. DNS SRV records (RFC 6186: `_imaps._tcp`, `_imap._tcp`, `_submissions._tcp`,
 //!    `_submission._tcp`).
 //!
-//! The first answer wins; a POP server offered alongside is kept (`pop`) for POP accounts. Only
+//! The first answer wins; a POP server offered alongside is kept (`pop`) for POP accounts, and the
+//! calendar and address book servers a file names (`<calendar type="caldav">`, `<addressBook
+//! type="carddav">`, issue #176) for the account's calendars and contacts. Only
 //! the domain's own server is told the address; the others are asked about the domain, and
 //! only when the user types an address into the account dialog. Everything fetched is hostile input: sizes are capped and
 //! a bad file is simply skipped.
 
-use mailcraft_model::{AccountConfig, Security, ServerConfig};
+use mailcraft_model::{AccountConfig, DavSettings, Security, ServerConfig};
 
 use crate::xml::{self, El};
 
@@ -76,7 +78,28 @@ pub fn parse_config(xml: &str, email: &str) -> Option<AccountConfig> {
     c.smtp = smtp;
     c.username = user;
     c.pop = pick("incomingServer", "pop3").map(|(s, _)| s);
+    // Calendars and contacts (issue #176), where the file names them: signed in to as the mail
+    // server is (the file's own user name is the same address in every one seen).
+    let dav = |tag: &str, kind: &str| -> String {
+        let mut blocks = Vec::new();
+        doc.all(tag, &mut blocks);
+        blocks.into_iter().filter(|b| b.attr("type") == Some(kind)).find_map(|b| dav_url(text_of(b, "serverURL")?, email)).unwrap_or_default()
+    };
+    let (caldav, carddav) = (dav("calendar", "caldav"), dav("addressBook", "carddav"));
+    if !caldav.is_empty() || !carddav.is_empty() {
+        c.dav = Some(DavSettings { caldav, carddav, username: None });
+    }
     Some(c)
+}
+
+/// A calendar or address book server's address from a configuration file: https alone (the file
+/// came from the network, and the password goes there), with the address's parts put in.
+fn dav_url(given: &str, email: &str) -> Option<String> {
+    let (local, domain) = email.rsplit_once('@').unwrap_or((email, ""));
+    let url = given.trim().replace("%EMAILADDRESS%", email).replace("%EMAILLOCALPART%", local).replace("%EMAILDOMAIN%", domain);
+    let host = url.get(..8).filter(|s| s.eq_ignore_ascii_case("https://")).and_then(|_| url.get(8..))?.split(['/', '?', '#']).next()?;
+    let ok = url.len() <= 2048 && !host.is_empty() && !url.chars().any(|c| c.is_whitespace() || c.is_control());
+    ok.then_some(url)
 }
 
 /// The registrable part of a host name (`aspmx.l.google.com` → `google.com`; two-letter country
@@ -206,6 +229,30 @@ mod tests {
 
     /// A provider's file is read as XML: a server in a comment isn't offered, and character
     /// references and CDATA are read as such.
+    /// Issue #176: the calendar and address book servers a file names come with the mail
+    /// servers; one that isn't https, or is junk, is left out.
+    #[test]
+    fn reads_calendar_and_contacts_servers() {
+        let xml = XML.replace(
+            "</emailProvider>",
+            r#"</emailProvider>
+  <addressBook type="carddav"><username>%EMAILADDRESS%</username><authentication>http-basic</authentication>
+    <serverURL>https://cloud.example.org/remote.php/dav</serverURL></addressBook>
+  <calendar type="caldav"><serverURL>https://cloud.%EMAILDOMAIN%/remote.php/dav/calendars/%EMAILLOCALPART%/</serverURL></calendar>"#,
+        );
+        let c = parse_config(&xml, "zoe@example.org").unwrap();
+        let dav = c.dav.unwrap();
+        assert_eq!(dav.carddav, "https://cloud.example.org/remote.php/dav");
+        assert_eq!(dav.caldav, "https://cloud.example.org/remote.php/dav/calendars/zoe/");
+        assert_eq!(dav.username, None, "signed in to as the mail server is");
+        assert_eq!(parse_config(XML, "zoe@example.org").unwrap().dav, None, "none named");
+        for bad in ["http://cloud.example.org/dav", "ftp://x", "https://", "https:// spaced.example/", "javascript:alert(1)", ""] {
+            let xml = XML.replace("</emailProvider>", &format!(r#"</emailProvider><calendar type="caldav"><serverURL>{bad}</serverURL></calendar>"#));
+            assert_eq!(parse_config(&xml, "zoe@example.org").unwrap().dav, None, "{bad}");
+        }
+        assert_eq!(dav_url(&format!("https://x.example/{}", "a".repeat(3000)), "z@x.example"), None, "too long");
+    }
+
     #[test]
     fn reads_comments_references_and_cdata_as_xml() {
         const FILE: &str = r#"<clientConfig version="1.1"><emailProvider id="example.org">

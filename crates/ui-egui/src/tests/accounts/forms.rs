@@ -636,3 +636,31 @@ fn a_google_address_is_told_of_app_passwords() {
     let l = look(&s, &mut d, Some("Make an app password"));
     assert!(l.acts.iter().any(|a| a == "open https://myaccount.google.com/apppasswords"), "{}", l.dump());
 }
+
+/// Issue #176: the calendar and contacts servers a provider's settings name go with the account
+/// added; the Calendar server dialog shows a server MailCraft found itself under its empty field.
+#[test]
+fn found_calendar_servers_go_with_the_account_and_show_in_its_dialog() {
+    let mut s = session();
+    let mut provider = AccountConfig::guess("zoe@example.org");
+    provider.dav = Some(mailcraft_engine::model::DavSettings {
+        caldav: "https://cloud.example.org/remote.php/dav".into(),
+        carddav: "https://cloud.example.org/remote.php/dav".into(),
+        username: None,
+    });
+    s.discovered.insert("zoe@example.org".into(), Some((Some(provider), "example.org".into())));
+    let mut d = add("zoe@example.org", false, |_| {});
+    let seen = look(&s, &mut d, None);
+    assert_eq!(seen.params["caldav"], "https://cloud.example.org/remote.php/dav", "{}", seen.params);
+    assert_eq!(seen.params["carddav"], "https://cloud.example.org/remote.php/dav");
+    // None named: none sent, found as the account connects.
+    let mut d = add("kim@example.net", false, |_| {});
+    assert!(look(&session(), &mut d, None).params.get("caldav").is_none());
+
+    let mut c = AccountConfig::guess("zoe@example.org");
+    c.id = "zoe".into();
+    let mut d = Dialog::Dav(crate::dialogs::DavForm::of(&c, (Some("https://dav.example.org/calendars/zoe/".into()), None)));
+    let seen = look(&session(), &mut d, None);
+    assert!(seen.texts.iter().any(|(t, _)| t == "Found: https://dav.example.org/calendars/zoe/"), "{}", seen.dump());
+    assert_eq!(seen.texts.iter().filter(|(t, _)| t.starts_with("Found:")).count(), 1, "none found for contacts");
+}

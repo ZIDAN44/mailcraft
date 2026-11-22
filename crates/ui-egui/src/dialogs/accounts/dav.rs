@@ -18,11 +18,17 @@ pub struct DavForm {
     /// typing again while the user name stays.
     pub kept: Option<String>,
     pub error: Option<String>,
+    /// Where MailCraft found the calendars and contacts itself (issue #176), shown under a field
+    /// left empty: an empty field looked as if nothing was set.
+    pub found_caldav: Option<String>,
+    pub found_carddav: Option<String>,
 }
 
 impl DavForm {
-    pub fn of(c: &mailcraft_engine::model::AccountConfig) -> DavForm {
+    /// The dialog for an account; `found`: where its calendars and contacts were found.
+    pub fn of(c: &mailcraft_engine::model::AccountConfig, found: (Option<String>, Option<String>)) -> DavForm {
         let d = c.dav.clone().unwrap_or_default();
+        let given = |h: Option<String>| h.filter(|h| !h.trim().is_empty());
         DavForm {
             account: c.id.clone(),
             caldav: d.caldav,
@@ -32,6 +38,8 @@ impl DavForm {
             password: String::new(),
             kept: d.username.clone(),
             error: None,
+            found_caldav: given(found.0),
+            found_carddav: given(found.1),
         }
     }
 
@@ -60,9 +68,11 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Acti
     let w = ui.available_width();
     ui.label(RichText::new(tl!("Calendar server (CalDAV)")).color(t.text));
     ui.add(egui::TextEdit::singleline(&mut f.caldav).hint_text("https://dav.example.com/calendars/").desired_width(w));
+    found(ui, t, &f.caldav, f.found_caldav.as_deref());
     ui.add_space(6.0);
     ui.label(RichText::new(tl!("Contacts server (CardDAV)")).color(t.text));
     ui.add(egui::TextEdit::singleline(&mut f.carddav).hint_text("https://dav.example.com/addressbooks/").desired_width(w));
+    found(ui, t, &f.carddav, f.found_carddav.as_deref());
     ui.add_space(8.0);
     ui.checkbox(&mut f.own, tl!("The calendar server has its own user name and password"));
     if f.own {
@@ -87,6 +97,13 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Acti
         acts.push(Action::Submit("account.dav", f.params()));
     }
     !cancel
+}
+
+/// Under a field left empty, where MailCraft found that server itself (issue #176).
+fn found(ui: &mut Ui, t: &Tokens, typed: &str, found: Option<&str>) {
+    if let Some(url) = found.filter(|_| typed.trim().is_empty()) {
+        ui.add(egui::Label::new(RichText::new(tf!("Found: {url}", url = url)).color(t.dim).small()).truncate()).on_hover_text(url);
+    }
 }
 
 /// Adding a calendar-only account (issue #61): a CalDAV and CardDAV server with no email. Its

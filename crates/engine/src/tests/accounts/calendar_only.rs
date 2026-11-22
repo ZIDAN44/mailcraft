@@ -216,3 +216,23 @@ fn an_account_looking_only_when_asked_is_left_out_of_send_receive_for_all() {
     let c = s.account(&daily).unwrap().config.clone();
     assert!(!c.check_by_hand && c.check_every == Some(30));
 }
+
+/// Issue #176: a mail account added with the calendar and contacts servers its provider's settings
+/// named starts with them; one not on https is refused, and with none it looks for them.
+#[test]
+fn a_mail_account_starts_with_the_servers_its_settings_name() {
+    let mut s = sample_session("dav-from-autoconfig");
+    let with = s
+        .run("account.add", &json!({"email": "kim@cloud.example", "password": "pw", "caldav": format!("{SERVER}/calendars/kim/"), "carddav": SERVER}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let dav = s.account(&with).unwrap().config.dav.clone().unwrap();
+    assert_eq!((dav.caldav.as_str(), dav.carddav.as_str(), dav.username), ("https://cloud.example.org/remote.php/dav/calendars/kim/", SERVER, None));
+    let bad = s.run("account.add", &json!({"email": "lee@cloud.example", "password": "pw", "caldav": "http://cloud.example.org/dav"}));
+    assert!(bad.is_err(), "{bad:?}");
+    assert!(s.accounts.iter().all(|a| a.config.email != "lee@cloud.example"), "not added");
+    let without = s.run("account.add", &json!({"email": "ann@cloud.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    assert_eq!(s.account(&without).unwrap().config.dav, None, "found as it connects");
+}

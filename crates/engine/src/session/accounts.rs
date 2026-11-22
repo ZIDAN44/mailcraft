@@ -715,7 +715,7 @@ impl Session {
 /// A calendar or contacts address as typed: empty, or https (`posteo.de:8443` reads as
 /// `https://posteo.de:8443`); plain http only to this computer, so no password crosses the network
 /// in the clear.
-fn dav_address(given: &str) -> Result<String, CmdError> {
+pub(crate) fn dav_address(given: &str) -> Result<String, CmdError> {
     let g = given.trim();
     if g.is_empty() {
         return Ok(String::new());

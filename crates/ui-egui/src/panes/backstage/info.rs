@@ -219,7 +219,8 @@ fn calendars(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, acts: &mut 
     };
     setting_row(ui, t, false, name(t, tl!("Calendars and contacts")), Some(note(t, &about)), |ui| {
         if ui.button(tl!("Calendar server…")).clicked() {
-            acts.push(Action::Dialog(Dialog::Dav(crate::dialogs::DavForm::of(&a.config))));
+            let found = pim.map_or((None, None), |p| (p.caldav_home.clone(), p.carddav_home.clone()));
+            acts.push(Action::Dialog(Dialog::Dav(crate::dialogs::DavForm::of(&a.config, found))));
         }
     });
 }

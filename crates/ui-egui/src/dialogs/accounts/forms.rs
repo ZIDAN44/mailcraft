@@ -52,6 +52,10 @@ pub struct AccountForm {
     /// chosen before.
     pub calendar_only: bool,
     pub dav_url: String,
+    /// The calendar and contacts servers the provider's settings named (issue #176), sent with
+    /// an IMAP or POP account.
+    pub found_caldav: String,
+    pub found_carddav: String,
 }
 
 /// The kind of mail server an account added here works with.
@@ -337,6 +341,10 @@ impl AccountForm {
             p["smtpSecurity"] = json!(self.smtp_security.code());
             self.smtp_sign_in.params(&mut p);
             self.sign_in.params(&mut p);
+            if !self.found_caldav.is_empty() || !self.found_carddav.is_empty() {
+                p["caldav"] = json!(self.found_caldav);
+                p["carddav"] = json!(self.found_carddav);
+            }
         }
         p
     }

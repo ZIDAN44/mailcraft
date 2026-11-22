@@ -2014,3 +2014,4 @@ count	occurrences	повторений
 	Changes apply to this occurrence alone.	Изменения применяются только к этому повторению.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Ваши другие фильтры на сервере («{name}») выполняются первыми и остаются как есть.
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Эти правила не выполняются: другая программа сделала выполняемыми свои фильтры. Сохранение правила здесь снова запустит их вместе с фильтрами той программы.
+	Found: {url}	Найдено: {url}

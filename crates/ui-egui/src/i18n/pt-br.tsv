@@ -2001,3 +2001,4 @@ count	occurrences	ocorrências
 	Changes apply to this occurrence alone.	As alterações valem só para esta ocorrência.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Seus outros filtros no servidor (“{name}”) são executados primeiro e ficam como estão.
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Estas regras não estão sendo executadas: outro programa fez dos próprios filtros os que são executados. Salvar uma regra aqui as executa de novo, junto com as daquele programa.
+	Found: {url}	Encontrado: {url}

@@ -2001,3 +2001,4 @@ count	occurrences	előfordulás
 	Changes apply to this occurrence alone.	A módosítások csak erre az előfordulásra érvényesek.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	A kiszolgálón lévő többi szűrőd („{name}”) fut először, és változatlan marad.
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Ezek a szabályok nem futnak: egy másik program a saját szűrőit tette futóvá. Ha itt mentesz egy szabályt, újra futnak, a másik program szűrőivel együtt.
+	Found: {url}	Megtalálva: {url}

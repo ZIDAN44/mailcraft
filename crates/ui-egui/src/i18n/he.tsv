@@ -1996,3 +1996,4 @@ count	occurrences	פעמים
 	Changes apply to this occurrence alone.	השינויים חלים על המופע הזה בלבד.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	המסננים האחרים שלך בשרת („{name}”) פועלים קודם, ונשארים כמו שהם.
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	הכללים האלה לא פועלים: תוכנה אחרת הפכה את המסננים שלה לאלה שפועלים. שמירת כלל כאן מפעילה אותם שוב, יחד עם אלה של התוכנה ההיא.
+	Found: {url}	נמצא: {url}
