@@ -182,14 +182,10 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 
 ### 15. Moving an event: what isn't done yet
 
-- **Impact:** An event that repeats isn't dragged to another time (Outlook moves the occurrence
-  dragged, on its own), nor is an event's length changed by dragging its edge. A meeting someone
-  else organized isn't dragged either.
-- **Workaround:** Open the event and change its start and end in its form: a repeating one
-  moves as a whole there.
-- **Cause:** Nothing changes one occurrence of a series on its own yet: the form and the
-  calendar change the whole series, and the series moved for one occurrence went wrong on its
-  days (Monday's moved to Tuesday, the rule still said Mondays).
+- **Impact:** An event's length isn't changed by dragging its edge, and a meeting someone else
+  organized isn't dragged (its time is theirs to change).
+- **Workaround:** Open the event and change its end in its form.
+- **Cause:** The calendar drags an event's box only, not its edges.
 
 ### 16. People's photos: what isn't shown yet
 

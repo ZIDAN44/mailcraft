@@ -110,7 +110,7 @@ fn strip(s: &Session, t: &Tokens, ui: &mut Ui, e: &CalEvent, day: &InviteDay, ac
         p.with_clip_rect(r.shrink(2.0)).text(r.left_center() + vec2(4.0, 0.0), Align2::LEFT_CENTER, title, theme::regular(11.0), t.text);
         crate::widgets::named(ui, &resp, &named(s, it), true, None);
         if resp.on_hover_text(named(s, it)).clicked()
-            && let Some(d) = Dialog::open_event(s, &it.uid, it.occurrence)
+            && let Some(d) = Dialog::open_item(s, &it.uid, it.occurrence)
         {
             acts.push(Action::Dialog(d));
         }

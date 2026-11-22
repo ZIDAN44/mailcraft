@@ -12,6 +12,7 @@ mod backlog;
 mod fit;
 mod forwarding;
 mod invite_placing;
+mod occurrences;
 mod proposals;
 mod recorded;
 mod scheduling;

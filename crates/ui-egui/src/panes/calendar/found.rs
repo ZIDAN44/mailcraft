@@ -143,7 +143,7 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
 /// event open at that occurrence.
 pub(crate) fn open_hit(s: &Session, st: &mut UiState, h: &EventHit, acts: &mut Vec<Action>) {
     acts.push(super::goto(s.clock.local_day(h.start)));
-    if let Some(dialog) = Dialog::open_event(s, &h.uid, h.occurrence) {
+    if let Some(dialog) = Dialog::open_item(s, &h.uid, h.occurrence) {
         acts.push(Action::Dialog(dialog));
     }
     st.cal_search.query.clear();

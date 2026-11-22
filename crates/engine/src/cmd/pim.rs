@@ -144,6 +144,15 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"key": string, "minutes"?: 1…40320 | "beforeStart"?: minutes before the event starts}"#),
         CommandSpec::new("event.update", "Edit event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
+            // One occurrence of a series on its own (issue #241).
+            if let Some(at) = p::i64(v, "occurrence").filter(|_| repeats(s, &uid)) {
+                let current = s.occurrence_event(&uid, at).ok_or_else(|| CmdError::Params(format!("no occurrence of `{uid}` at {at}")))?;
+                let before = current.sequence;
+                let e = event_from(s, v, current)?;
+                let r = s.update_occurrence(&uid, at, |x| *x = e)?;
+                tell_of_occurrence(s, &uid, at, before)?;
+                return Ok(r);
+            }
             let current = s.find_event(&uid).map(|(_, e)| e.event.clone()).ok_or_else(|| CmdError::Params(format!("no event `{uid}`")))?;
             let before = current.sequence;
             let e = event_from(s, v, current)?;
@@ -151,17 +160,24 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             tell_of_change(s, &uid, before)?;
             Ok(r)
         })
-        .params(r#"{"uid": string, … the fields of event.create to change}"#),
+        .params(r#"{"uid": string, "occurrence"?: unix seconds (that occurrence of a series alone, by when the series starts it), … the fields of event.create to change}"#),
         // Dragged to another time or day in the calendar (issue #192).
         CommandSpec::new("event.move", "Move event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             let by = p::i64(v, "by").ok_or_else(|| CmdError::Params("`by` is how many seconds later (or earlier, below 0) it goes".into()))?;
+            let occurrence = p::i64(v, "occurrence").filter(|_| repeats(s, &uid));
+            if let Some(at) = occurrence {
+                let before = s.occurrence_event(&uid, at).map(|e| e.sequence).ok_or_else(|| CmdError::Params(format!("no occurrence of `{uid}` at {at}")))?;
+                let r = s.move_event(&uid, by, occurrence)?;
+                tell_of_occurrence(s, &uid, at, before)?;
+                return Ok(r);
+            }
             let before = s.find_event(&uid).map(|(_, e)| e.event.sequence).ok_or_else(|| CmdError::Params(format!("no event `{uid}`")))?;
-            let r = s.move_event(&uid, by)?;
+            let r = s.move_event(&uid, by, None)?;
             tell_of_change(s, &uid, before)?;
             Ok(r)
         })
-        .params(r#"{"uid": string, "by": seconds later (below 0: earlier; an all-day event by whole days)} (not one that repeats, nor a meeting someone else organized)"#),
+        .params(r#"{"uid": string, "by": seconds later (below 0: earlier; an all-day event by whole days), "occurrence"?: unix seconds (that occurrence of a series alone; a series moves only so)} (not a meeting someone else organized)"#),
         CommandSpec::new("event.delete", "Delete event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             let before = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone(), e.href.clone()));
@@ -252,9 +268,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .when(has_reading),
         CommandSpec::new("event.respond", "Answer an invitation", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
-            s.respond_to_event(&uid, p::req_str(v, "answer")?)
+            match p::i64(v, "occurrence") {
+                Some(at) => s.respond_to_occurrence(&uid, at, p::req_str(v, "answer")?),
+                None => s.respond_to_event(&uid, p::req_str(v, "answer")?),
+            }
         })
-        .params(r#"{"uid": string, "answer": "accepted"|"tentative"|"declined"}"#),
+        .params(r#"{"uid": string, "answer": "accepted"|"tentative"|"declined", "occurrence"?: unix seconds (that occurrence of a series alone)}"#),
         CommandSpec::new("calendar.setDefault", "Use as default calendar", "Calendar › Calendars", |s, v| {
             s.set_default_calendar(p::str(v, "account"), p::str(v, "calendar").unwrap_or_default())
         })
@@ -632,6 +651,26 @@ fn tell_of_change(s: &mut Session, uid: &str, before: u32) -> Result<(), CmdErro
     {
         let route = s.meeting_route(&account, uid);
         s.tell_guests(&account, &stored, "REQUEST", route, "")?;
+    }
+    Ok(())
+}
+
+/// Whether the event `uid` repeats: an occurrence named of one that doesn't is the event itself.
+fn repeats(s: &Session, uid: &str) -> bool {
+    s.find_event(uid).is_some_and(|(_, e)| e.event.rrule.is_some() || !e.event.rdates.is_empty())
+}
+
+/// The user's own meeting `uid` changed at its occurrence `at` alone (issue #241): its guests
+/// hear of that occurrence (a `REQUEST` naming it, RFC 5546 §3.2.2), when it's a new version of it
+/// (`before`: the version it was).
+fn tell_of_occurrence(s: &mut Session, uid: &str, at: i64, before: u32) -> Result<(), CmdError> {
+    let Some(account) = s.find_event(uid).map(|(a, _)| a.to_string()) else { return Ok(()) };
+    if let Some(e) = s.occurrence_event(uid, at)
+        && e.sequence != before
+        && organized_by_me(s, &e)
+    {
+        let route = s.meeting_route(&account, uid);
+        s.tell_guests(&account, &e, "REQUEST", route, "")?;
     }
     Ok(())
 }

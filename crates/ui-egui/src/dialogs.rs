@@ -219,6 +219,13 @@ pub enum Dialog {
     Propose(Box<crate::pim_dialogs::ProposeForm>),
     /// Invitations in the Inbox the calendar hasn't got (issue #237).
     WaitingInvites(Box<crate::pim_dialogs::WaitingForm>),
+    /// An occurrence of a repeating event opened (issue #241): that occurrence on its own, or
+    /// the series, as Outlook asks.
+    OpenRecurring {
+        uid: String,
+        occurrence: i64,
+        summary: String,
+    },
     /// Forward a meeting the user is invited to (issue #234): to whom.
     ForwardMeeting {
         uid: String,
@@ -422,9 +429,26 @@ impl Dialog {
         }
     }
 
-    /// An event, opened at one of its occurrences.
+    /// An event, opened at one of its occurrences: a series as a whole.
     pub fn open_event(s: &Session, uid: &str, occurrence: i64) -> Option<Dialog> {
         crate::pim_dialogs::EventForm::open(s, uid, occurrence).map(|f| Dialog::Event(Box::new(f)))
+    }
+
+    /// An event's occurrence clicked or opened in the calendar: one that repeats asks whether
+    /// that occurrence alone is opened or the series (issue #241); another opens.
+    pub fn open_item(s: &Session, uid: &str, occurrence: i64) -> Option<Dialog> {
+        let (_, stored) = s.find_event(uid)?;
+        let e = &stored.event;
+        if e.rrule.is_some() || !e.rdates.is_empty() {
+            let summary = s.occurrence_event(uid, occurrence).map_or_else(|| e.summary.clone(), |o| o.summary);
+            return Some(Dialog::OpenRecurring { uid: uid.to_string(), occurrence, summary });
+        }
+        Dialog::open_event(s, uid, occurrence)
+    }
+
+    /// One occurrence of a repeating event, opened on its own (issue #241).
+    pub fn open_occurrence(s: &Session, uid: &str, occurrence: i64) -> Option<Dialog> {
+        crate::pim_dialogs::EventForm::open_occurrence(s, uid, occurrence).map(|f| Dialog::Event(Box::new(f)))
     }
 
     /// The signature editor for the first account (`--cmd ui.signature`).
@@ -750,6 +774,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::FollowUp(..)
         | Dialog::Propose(..)
         | Dialog::ForwardMeeting { .. }
+        | Dialog::OpenRecurring { .. }
         | Dialog::WaitingInvites(..)
         | Dialog::Contact(..) => other::draw(ui, d, s, pics, t, acts),
     }

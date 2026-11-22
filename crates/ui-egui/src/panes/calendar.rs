@@ -391,7 +391,7 @@ fn open(s: &Session, item: &AgendaItem) -> Option<Action> {
     if item.task {
         return Dialog::open_task(s, &item.uid).map(Action::Dialog);
     }
-    Dialog::open_event(s, &item.uid, item.occurrence).map(Action::Dialog)
+    Dialog::open_item(s, &item.uid, item.occurrence).map(Action::Dialog)
 }
 
 /// An event's (or a task's) box: clicked, it opens; `movable`, it's dragged to another time or

@@ -19,6 +19,7 @@ mod counter;
 mod fit;
 mod forward;
 mod notices;
+mod occurrence;
 mod tidy;
 
 #[cfg(test)]

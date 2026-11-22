@@ -86,6 +86,8 @@ pub struct EventForm {
     /// The occurrence opened (its start), for deleting just that one.
     pub occurrence: Option<i64>,
     pub recurring: bool,
+    /// Opened as that occurrence on its own (issue #241): saved, deleted and answered, it alone.
+    pub this_occurrence: bool,
     /// The calendars that can take it: (account, calendar id, name).
     pub calendars: Vec<(String, String, String)>,
     pub calendar: usize,
@@ -236,10 +238,22 @@ impl EventForm {
         f
     }
 
-    /// An existing event, opened at one of its occurrences.
+    /// An existing event, opened at one of its occurrences: a series as a whole.
     pub fn open(s: &Session, uid: &str, occurrence: i64) -> Option<EventForm> {
+        let e = &s.find_event(uid)?.1.event;
+        EventForm::of(s, uid, occurrence, e, false)
+    }
+
+    /// One occurrence of a series, opened on its own (issue #241, as Outlook's "this
+    /// occurrence"): its own time and details, and no repeat of its own.
+    pub fn open_occurrence(s: &Session, uid: &str, at: i64) -> Option<EventForm> {
+        let e = s.occurrence_event(uid, at)?;
+        EventForm::of(s, uid, at, &e, true)
+    }
+
+    /// The form for `e`, the event `uid` (its series, or its occurrence `occurrence` alone).
+    fn of(s: &Session, uid: &str, occurrence: i64, e: &mailcraft_engine::model::ical::CalEvent, this_occurrence: bool) -> Option<EventForm> {
         let (account, stored) = s.find_event(uid)?;
-        let e = &stored.event;
         let calendars = writable_calendars(s);
         let read_only = s.pim.get(account).is_some_and(|p| p.calendars.iter().any(|c| c.id == stored.calendar && c.read_only));
         // A recurring event is edited as a series: its first occurrence's dates.
@@ -259,6 +273,7 @@ impl EventForm {
             uid: Some(uid.to_string()),
             occurrence: Some(occurrence),
             recurring: e.rrule.is_some(),
+            this_occurrence,
             calendar: calendars.iter().position(|c| c.0 == account && c.1 == stored.calendar).unwrap_or(0),
             calendars,
             summary: e.summary.clone(),
@@ -321,6 +336,15 @@ impl EventForm {
             p["attendees"] = json!(self.guests.trim());
         }
         online_meeting::param(self, &mut p);
+        // That occurrence alone: no rule of its own to say.
+        if self.this_occurrence
+            && let Some(at) = self.occurrence
+        {
+            p["occurrence"] = json!(at);
+            if let Some(o) = p.as_object_mut() {
+                o.remove("repeat");
+            }
+        }
         match &self.uid {
             Some(u) => p["uid"] = json!(u),
             None => {
@@ -547,9 +571,12 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
                 ui.checkbox(&mut f.all_day, tl!("All day"));
             });
         });
-        repeat_row(ui, t, "event-repeat", &mut f.repeat);
-        pattern::follow_choice(f);
-        pattern::rows(ui, t, f);
+        // One occurrence on its own has no repeat of its own (issue #241).
+        if !f.this_occurrence {
+            repeat_row(ui, t, "event-repeat", &mut f.repeat);
+            pattern::follow_choice(f);
+            pattern::rows(ui, t, f);
+        }
         form_row(ui, t, true, Some(Icon::Clock), "Reminder", |ui| {
             ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 let mut choices: Vec<Option<i64>> = std::iter::once(None).chain(REMINDER_CHOICES.iter().map(|m| Some(*m))).collect();
@@ -635,6 +662,9 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
     if f.recurring {
         ui.add_space(4.0);
         ui.label(RichText::new(tl!("Changes apply to every occurrence.")).color(t.faint).small());
+    } else if f.this_occurrence {
+        ui.add_space(4.0);
+        ui.label(RichText::new(tl!("Changes apply to this occurrence alone.")).color(t.faint).small());
     }
     if let Some(o) = &f.organizer {
         ui.add_space(4.0);
@@ -652,7 +682,11 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
             ui.label(RichText::new(tl!("Your answer:")).color(t.text));
             for (label, code) in [("Accept", "accepted"), ("Tentative", "tentative"), ("Decline", "declined")] {
                 if ui.button(tl!(label)).clicked() {
-                    acts.push(Action::Submit("event.respond", json!({"uid": uid, "answer": code})));
+                    let mut p = json!({"uid": uid, "answer": code});
+                    if f.this_occurrence {
+                        p["occurrence"] = json!(f.occurrence);
+                    }
+                    acts.push(Action::Submit("event.respond", p));
                 }
             }
         });
@@ -674,7 +708,11 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
     let mut keep = true;
     ui.horizontal(|ui| {
         if let Some(uid) = f.uid.clone().filter(|_| !f.read_only) {
-            if f.recurring {
+            if f.this_occurrence {
+                if ui.button(tl!("Delete this occurrence")).clicked() {
+                    acts.push(Action::Submit("event.delete", json!({"uid": uid, "occurrence": f.occurrence})));
+                }
+            } else if f.recurring {
                 if ui.button(tl!("Delete this occurrence")).clicked() {
                     acts.push(Action::Submit("event.delete", json!({"uid": uid, "occurrence": f.occurrence})));
                 }

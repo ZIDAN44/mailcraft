@@ -255,3 +255,54 @@ fn the_end_follows_the_start() {
     end_follows_start(&mut f, before);
     assert_eq!(f.end, "11:00");
 }
+
+/// Issue #241: an occurrence of a series opened from the calendar asks whether that occurrence
+/// or the series is opened. This occurrence: a form at its own date, with no Repeat, which saves
+/// that occurrence alone; the series opens as before.
+#[test]
+fn an_occurrence_opens_and_is_changed_on_its_own() {
+    let (mut a, _) = app("occurrence-open");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    a.run("event.create", json!({"summary": "Stand-up", "start": "2026-10-21T09:00", "end": "2026-10-21T09:15", "repeat": "weekly"}));
+    let ours = |a: &MailApp| -> Vec<mailcraft_engine::AgendaItem> {
+        a.session.agenda(NOW - 86_400, NOW + 30 * 86_400).into_iter().filter(|i| i.summary.starts_with("Stand-up")).collect()
+    };
+    let second = ours(&a)[1].clone();
+    a.ui.dialog = Dialog::open_item(&a.session, &second.uid, second.occurrence);
+    assert!(matches!(&a.ui.dialog, Some(Dialog::OpenRecurring { .. })), "{:?}", a.ui.dialog);
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Open this occurrence");
+    frame(&ctx, &mut a, vec![]);
+    let f = event_form(&mut a);
+    assert!(f.this_occurrence && !f.recurring, "that occurrence alone");
+    assert_eq!(
+        f.date,
+        mailcraft_engine::model::dates::day_string(mailcraft_engine::model::dates::today(&mailcraft_engine::model::dates::Clock::new(
+            second.start,
+            0
+        )))
+    );
+    f.summary = "Stand-up (Room 2)".into();
+    let p = params(&a);
+    assert_eq!(p["occurrence"], second.occurrence);
+    assert!(p.get("repeat").is_none(), "{p}");
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    assert!(!texts.iter().any(|s| s == "Repeat"), "no Repeat for one occurrence");
+    assert!(texts.iter().any(|s| s == "Changes apply to this occurrence alone."));
+    a.act(crate::Action::Submit("event.update", p));
+    let now: Vec<String> = ours(&a).into_iter().map(|i| i.summary).collect();
+    assert_eq!(now.get(..3), Some(&["Stand-up".to_string(), "Stand-up (Room 2)".to_string(), "Stand-up".to_string()][..]), "{now:?}");
+    // The series: as before, its form for all of it.
+    a.ui.dialog = Dialog::open_item(&a.session, &second.uid, second.occurrence);
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Open the series");
+    frame(&ctx, &mut a, vec![]);
+    let f = event_form(&mut a);
+    assert!(f.recurring && !f.this_occurrence && f.summary == "Stand-up");
+}

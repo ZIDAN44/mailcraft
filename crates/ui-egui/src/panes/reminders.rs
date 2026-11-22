@@ -151,7 +151,7 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
                             if let Some(key) = &r.message {
                                 // A flagged message, in a window of its own.
                                 acts.push(Action::Run("todo.open", json!({ "key": key.to_id() })));
-                            } else if let Some(d) = if r.task { Dialog::open_task(s, &r.uid) } else { Dialog::open_event(s, &r.uid, r.occurrence) } {
+                            } else if let Some(d) = if r.task { Dialog::open_task(s, &r.uid) } else { Dialog::open_item(s, &r.uid, r.occurrence) } {
                                 acts.push(Action::Dialog(d));
                             }
                         }

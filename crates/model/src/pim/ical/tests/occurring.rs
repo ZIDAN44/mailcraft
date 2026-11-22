@@ -128,3 +128,25 @@ fn an_unknown_frequency_is_no_rule() {
     let daily = CalEvent { uid: "d".into(), start, end: start + 1800, rrule: Some("freq=daily;count=3".into()), ..Default::default() };
     assert_eq!(starts(&daily, i64::MAX).len(), 3, "a known one in any case");
 }
+
+/// Issue #241: which times are a series' occurrences (to change one on its own), and each one's
+/// number by its rule, as Exchange counts them (those taken out counted too).
+#[test]
+fn a_series_names_its_occurrences() {
+    let start = 1_792_573_200; // a Wednesday, 09:00 UTC
+    let week = 7 * 86_400;
+    let mut e = CalEvent { uid: "w".into(), start, end: start + 1800, rrule: Some("FREQ=WEEKLY;COUNT=5".into()), ..Default::default() };
+    assert!(is_occurrence(&e, start) && is_occurrence(&e, start + 4 * week));
+    assert!(!is_occurrence(&e, start + 5 * week), "past its count");
+    assert!(!is_occurrence(&e, start + 3600) && !is_occurrence(&e, start - week) && !is_occurrence(&e, start + week / 2));
+    assert_eq!(occurrence_number(&e, start), Some(1));
+    assert_eq!(occurrence_number(&e, start + 3 * week), Some(4));
+    assert_eq!(occurrence_number(&e, start + 3600), None);
+    // One taken out isn't there to change, yet still counts.
+    e.exdates.push(start + week);
+    assert!(!is_occurrence(&e, start + week));
+    assert_eq!(occurrence_number(&e, start + 2 * week), Some(3));
+    // An event that happens once: its own start.
+    let once = CalEvent { rrule: None, exdates: Vec::new(), ..e };
+    assert!(is_occurrence(&once, start) && !is_occurrence(&once, start + week));
+}

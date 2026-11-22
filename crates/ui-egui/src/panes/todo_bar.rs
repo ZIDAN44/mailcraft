@@ -224,7 +224,7 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
         let heard = [Some(when.clone()), length.clone(), soon.clone(), Some(it.summary.clone())].into_iter().flatten().collect::<Vec<_>>().join(", ");
         widgets::named(ui, &resp, &heard, true, None);
         if resp.clicked()
-            && let Some(d) = Dialog::open_event(s, &it.uid, it.occurrence)
+            && let Some(d) = Dialog::open_item(s, &it.uid, it.occurrence)
         {
             acts.push(Action::Dialog(d));
         }

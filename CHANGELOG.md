@@ -16,6 +16,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Added
 
+- One occurrence of a repeating event can be changed, moved or answered on its own (#241), as Outlook's "this occurrence": opening one asks **Open this occurrence** or **Open the series**, and dragging one in the calendar moves it alone. It stays part of the series (on CalDAV servers in the series' own item; on Exchange the series' own occurrence), the others as they are. The guests of your meeting are sent that occurrence alone; as a guest, your answer to it goes to the organizer, the series keeping its own.
 - Hungarian as an interface language (#198): **File › Options › General › Language › Magyar**, and a Hungarian system picks it.
 - Polish as an interface language (#226): **File › Options › General › Language › Polski**, and a Polish system picks it.
 - Mark all as read can be undone (#248), as a move, a delete or a flag can: Ctrl+Z, or Undo on the top bar, marks the mail it marked unread again. Unread mail on a server that wasn't on this computer yet, which the server marks read itself, stays read.

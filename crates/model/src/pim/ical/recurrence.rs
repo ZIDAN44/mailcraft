@@ -302,6 +302,19 @@ pub fn starts(e: &CalEvent, before: i64) -> Vec<i64> {
     starts_from(e, i64::MIN, before)
 }
 
+/// Whether the series `e` has an occurrence starting at `at` (by its rule or its `RDATE`s, and
+/// not taken out with `EXDATE`): one that can be changed on its own (issue #241).
+pub fn is_occurrence(e: &CalEvent, at: i64) -> bool {
+    !e.exdates.contains(&at) && (e.start == at || starts_from(e, at, at.saturating_add(1)).contains(&at))
+}
+
+/// Which occurrence of the series `e` starts at `at`, counted from 1 by its rule (those taken
+/// out counted too): Exchange names an occurrence so (`InstanceIndex`, issue #241). `None`: no
+/// occurrence starts then.
+pub fn occurrence_number(e: &CalEvent, at: i64) -> Option<usize> {
+    starts(e, at.saturating_add(1)).iter().position(|s| *s == at).map(|n| n + 1)
+}
+
 /// Where each of the occurrences `at` of the series `old` is once the series is `new` (its start
 /// or its rule changed): the occurrence of the same number in `new` (issue #100), so one taken
 /// out or changed stays the one it was, whatever summer time or a change of day does to the

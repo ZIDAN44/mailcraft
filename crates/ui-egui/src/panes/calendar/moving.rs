@@ -1,6 +1,7 @@
 //! An event dragged to another time or day (issue #192), as in Outlook: while it's dragged, where
 //! it would go is outlined with its new times; let go there, it moves (`event.move`), all of it,
-//! as long as it was. Esc while dragging leaves it where it was.
+//! as long as it was; of a repeating event, the occurrence dragged alone (issue #241). Esc while
+//! dragging leaves it where it was.
 
 use super::*;
 
@@ -47,7 +48,13 @@ pub(super) fn dragged(ui: &Ui, resp: &egui::Response, rect: Rect) -> Option<Drag
 
 /// The event `it` moved by `by` seconds: none when it stays where it was.
 pub(super) fn moved(it: &AgendaItem, by: i64) -> Option<Action> {
-    (by != 0).then(|| Action::Run("event.move", json!({"uid": it.uid, "by": by})))
+    (by != 0).then(|| {
+        let mut p = json!({"uid": it.uid, "by": by});
+        if it.recurring {
+            p["occurrence"] = json!(it.occurrence);
+        }
+        Action::Run("event.move", p)
+    })
 }
 
 /// Seconds to the nearest quarter of an hour, as a dragged event steps.

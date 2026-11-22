@@ -268,3 +268,116 @@ fn real_ews_group_people_come_at_once() {
     eprintln!("listed after {:?}", began.elapsed());
     let _ = app.s.run("calendar.groupDelete", &json!({"name": "Team 208", "account": id}));
 }
+
+/// Issue #241: one occurrence of a series changed and another moved on their own, as a fresh
+/// MailCraft reads them back from the server: the series as it was, those two its changed
+/// occurrences. `occurrences(app, id)`: each part's (`RECURRENCE-ID`, summary, start).
+fn occurrences(app: &App, id: &str, uid: &str) -> Vec<(Option<i64>, String, i64)> {
+    let mut v: Vec<_> =
+        app.s.pim[id].events.iter().filter(|e| e.event.uid == uid).map(|e| (e.event.recurrence_id, e.event.summary.clone(), e.event.start)).collect();
+    v.sort();
+    v
+}
+
+/// Over CalDAV (`MAILCRAFT_REAL_CALENDAR`, as above): kept in the series' own item.
+#[test]
+#[ignore = "needs real IMAP and CalDAV servers in MAILCRAFT_REAL_CALENDAR"]
+fn real_occurrence_changed_on_its_own() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_CALENDAR") else {
+        eprintln!("MAILCRAFT_REAL_CALENDAR isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [imap, calendar] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALENDAR: imap calendar") };
+    let home = calendar.trim_end_matches('/').rsplit_once('/').unwrap().0.to_string() + "/";
+    let open = |tag: &str| {
+        let mut app = App::open(tag, "pw");
+        app.watch = watch;
+        let id = app.add_plain(imap, "127.0.0.1:1", json!({"email": USER, "password": "pw"}));
+        app.s.run("account.dav", &json!({"account": id, "caldav": home})).unwrap();
+        app.sync_dav(&id);
+        (app, id)
+    };
+    let (mut app, id) = open("occurrence-dav");
+    let summary = format!("Stand-up {}", std::process::id());
+    let uid = app
+        .s
+        .run("event.create", &json!({"summary": summary, "start": "2026-11-23T09:00", "end": "2026-11-23T09:15", "repeat": "weekly", "account": id}))
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    app.sync_dav(&id);
+    let first = app.s.find_event(&uid).unwrap().1.event.start;
+    let week = 7 * 86_400;
+    app.s.run("event.update", &json!({"uid": uid, "occurrence": first + week, "summary": format!("{summary} (Room 2)")})).unwrap();
+    app.s.run("event.move", &json!({"uid": uid, "occurrence": first + 2 * week, "by": 86_400 + 3600})).unwrap();
+    app.sync_dav(&id);
+    // The series' item as the server has it (MailCraft names its items its own way).
+    let href = app.s.find_event(&uid).unwrap().1.href.clone();
+    let got_item = http("GET", &href, &[("Authorization", &basic(&format!("{USER}:pw")))], b"");
+    let (status, ics) = (got_item.status, got_item.text());
+    eprintln!("{status}: {ics}");
+    let (fresh, fid) = open("occurrence-dav-read");
+    let got = occurrences(&fresh, &fid, &uid);
+    app.s.run("event.delete", &json!({"uid": uid})).unwrap();
+    app.sync_dav(&id);
+    assert_eq!(
+        got,
+        [
+            (None, summary.clone(), first),
+            (Some(first + week), format!("{summary} (Room 2)"), first + week),
+            (Some(first + 2 * week), summary.clone(), first + 2 * week + 86_400 + 3600)
+        ],
+        "read back"
+    );
+    assert_eq!(ics.matches("RECURRENCE-ID").count(), 2, "{ics}");
+}
+
+/// Over Exchange Web Services (`MAILCRAFT_REAL_EWS`, as above): each changed occurrence made from
+/// the series' own on the server.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_occurrence_changed_on_its_own() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_EWS") else {
+        eprintln!("MAILCRAFT_REAL_EWS isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_EWS: url user password") };
+    let open = |tag: &str| {
+        let mut app = App::open(tag, password);
+        app.watch = watch;
+        let id = app.add(json!({"email": user, "username": user, "password": password, "ews": url}));
+        app.sync_dav(&id);
+        (app, id)
+    };
+    let (mut app, id) = open("ews-occurrence");
+    let summary = format!("Stand-up {}", std::process::id());
+    app.s
+        .run("event.create", &json!({"summary": summary, "start": "2026-11-23T09:00", "end": "2026-11-23T09:15", "repeat": "weekly", "account": id}))
+        .unwrap();
+    app.sync_dav(&id);
+    // By the server's own UID, as it reads it back.
+    let (uid, first) = app.s.pim[&id].events.iter().find(|e| e.event.summary == summary).map(|e| (e.event.uid.clone(), e.event.start)).unwrap();
+    let week = 7 * 86_400;
+    app.s.run("event.update", &json!({"uid": uid, "occurrence": first + week, "summary": format!("{summary} (Room 2)")})).unwrap();
+    app.s.run("event.move", &json!({"uid": uid, "occurrence": first + 2 * week, "by": 86_400 + 3600})).unwrap();
+    app.sync_dav(&id);
+    let (fresh, fid) = open("ews-occurrence-read");
+    let got = occurrences(&fresh, &fid, &uid);
+    let shown: Vec<(i64, String)> =
+        fresh.s.agenda(first, first + 4 * week).into_iter().filter(|a| a.uid == uid).map(|a| (a.start, a.summary)).collect();
+    eprintln!("read back {got:?}, shown {shown:?}");
+    app.s.run("event.delete", &json!({"uid": uid})).unwrap();
+    app.sync_dav(&id);
+    assert_eq!(
+        shown,
+        [
+            (first, summary.clone()),
+            (first + week, format!("{summary} (Room 2)")),
+            (first + 2 * week + 86_400 + 3600, summary.clone()),
+            (first + 3 * week, summary.clone())
+        ]
+    );
+}

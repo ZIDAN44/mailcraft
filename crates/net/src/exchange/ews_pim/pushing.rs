@@ -42,8 +42,25 @@ pub(super) fn push_events(c: &Client, pim: &Pim, out: &mut DavSync) {
     for e in pim.events.iter().filter(|e| e.dirty) {
         let fields = event_fields(&e.event);
         let owner = mailcraft_model::pim::shared_calendar_owner(&e.calendar);
+        // A changed occurrence made here (issue #241): made from the series' own occurrence on
+        // the server (by the series' item and its number), not a new appointment beside it. Its
+        // series not on the server yet: it goes once the series is there.
+        let occurrence = match e.event.recurrence_id.filter(|_| e.href.is_empty()) {
+            Some(at) => match occurrence_of_series(pim, e, at) {
+                Some(id) => Some(id),
+                None => continue,
+            },
+            None => None,
+        };
         let r = in_calendar(c, &e.calendar, || {
-            if e.href.is_empty() {
+            if let Some(occurrence) = &occurrence {
+                let updates = event_updates(&e.event, &fields);
+                c.call_one(&format!(
+                    "<m:UpdateItem ConflictResolution=\"AlwaysOverwrite\" SendMeetingInvitationsOrCancellations=\"SendToNone\"><m:ItemChanges>\
+                     <t:ItemChange>{occurrence}<t:Updates>{updates}</t:Updates></t:ItemChange></m:ItemChanges></m:UpdateItem>"
+                ))
+                .map(|m| id_and_key(m.find("ItemId")))
+            } else if e.href.is_empty() {
                 let body: String = fields.iter().map(|(_, x)| x.as_str()).collect();
                 c.call_one(&format!(
                     "<m:CreateItem SendMeetingInvitations=\"SendToNone\"><m:SavedItemFolderId>{}</m:SavedItemFolderId>\
@@ -76,6 +93,17 @@ pub(super) fn push_events(c: &Client, pim: &Pim, out: &mut DavSync) {
             Err(x) => out.errors.push(format!("{}: {x}", e.event.summary)),
         }
     }
+}
+
+/// The occurrence `at` of the series `e` belongs to, as Exchange names it: the series' item and
+/// the occurrence's number in it (`OccurrenceItemId`). `None` while the series has no item there.
+fn occurrence_of_series(pim: &Pim, e: &StoredEvent, at: i64) -> Option<String> {
+    let master = pim.events.iter().find(|m| m.event.uid == e.event.uid && m.calendar == e.calendar && m.event.recurrence_id.is_none())?;
+    if master.href.is_empty() {
+        return None;
+    }
+    let n = mailcraft_model::ical::occurrence_number(&master.event, at)?;
+    Some(format!("<t:OccurrenceItemId RecurringMasterId=\"{}\" InstanceIndex=\"{n}\"/>", esc(&master.href)))
 }
 
 /// An appointment's changes, field by field. One that stopped repeating has its rule deleted; a
