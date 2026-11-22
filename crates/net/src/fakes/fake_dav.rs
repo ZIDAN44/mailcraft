@@ -14,6 +14,8 @@ pub const USER: &str = "me@studio.example";
 pub const PASSWORD: &str = "pw";
 pub const CAL: &str = "/dav/cal/work/";
 pub const BOOK: &str = "/dav/card/main/";
+/// The user's scheduling outbox, when the server schedules (RFC 6638).
+pub const OUTBOX: &str = "/dav/outbox/";
 
 #[derive(Default)]
 pub struct Data {
@@ -38,6 +40,12 @@ pub struct Data {
     /// Collections the user may not read (403 to reading them), as a calendar shared for free /
     /// busy only.
     pub unreadable: Vec<String>,
+    /// People whose free/busy time the scheduling outbox gives (when it `schedules`): address →
+    /// their `FREEBUSY` lines. Anyone else is an unknown calendar user.
+    pub free_busy: BTreeMap<String, String>,
+    /// The free/busy queries POSTed to the outbox: their `Originator` and `Recipient` headers and
+    /// their body.
+    pub queries: Vec<(String, String, String)>,
 }
 
 /// Whether an `Authorization` value answers the fake's Digest challenge for this request.

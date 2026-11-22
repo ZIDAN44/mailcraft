@@ -100,16 +100,23 @@ impl Worker {
         pim.dav_checked.is_some()
     }
 
+    /// A client for the account's calendar server, signed in as its settings say: as the mail
+    /// server is, or with the calendar server's own user name and password.
+    pub(in crate::worker) fn dav_client(&mut self) -> crate::dav::Dav {
+        let given = self.acc.dav.clone().unwrap_or_default();
+        let (user, password) = match &given.username {
+            Some(u) => (u.clone(), self.creds.as_ref().and_then(|c| c.get_secret(&self.acc, DAV_SECRET)).unwrap_or_default()),
+            None => (self.acc.login_name().to_string(), Auth::held(&self.auth).secret.clone()),
+        };
+        crate::dav::Dav::new(&user, &password).with_digest(self.dav_digest.take())
+    }
+
     /// One sync with the CalDAV and CardDAV server: the addresses given by hand (issue #7), or
     /// those found from the account's address; signed in with their own user name, or the mail's.
     fn dav_pass(&mut self) -> Result<()> {
         let given = self.acc.dav.clone().unwrap_or_default();
         let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-        let (user, password) = match &given.username {
-            Some(u) => (u.clone(), self.creds.as_ref().and_then(|c| c.get_secret(&self.acc, DAV_SECRET)).unwrap_or_default()),
-            None => (self.acc.login_name().to_string(), Auth::held(&self.auth).secret.clone()),
-        };
-        let dav = crate::dav::Dav::new(&user, &password).with_digest(self.dav_digest.take());
+        let dav = self.dav_client();
         let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
         let at = crate::dav::Where {
             email: &self.acc.email,
@@ -150,6 +157,8 @@ impl Worker {
                 // A change made here: sent at once, unless the sign-in is refused (it would be
                 // again, for every change).
                 Ok(Job::SyncDav { .. }) if !self.auth_failed => due = Some(Instant::now()),
+                // Colleagues' free/busy times, from its calendar server (issue #242).
+                Ok(Job::FreeBusy { people, from, to, .. }) => self.free_busy(people, from, to),
                 // Its mail is on this computer only: the pool keeps that itself.
                 Ok(other) => log::debug!("{}: {other:?} isn't for an account with no mail server", self.acc.id),
                 Err(RecvTimeoutError::Timeout) => due = self.calendars_pass(),

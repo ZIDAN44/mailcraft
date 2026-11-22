@@ -201,3 +201,43 @@ fn people_are_added_to_a_group_shown_by_name() {
         ["ana@contoso.example", "dev@contoso.example", "eli@contoso.example", "fay@contoso.example", "gus@contoso.example", "hana@contoso.example"]
     );
 }
+
+/// Issue #242: Open shared calendar… and New calendar group… are there for an account whose
+/// CalDAV server schedules (as for an Exchange one), not before that's known; a colleague opened
+/// from it is listed with their times' state.
+#[test]
+fn colleagues_open_from_a_calendar_server_that_schedules() {
+    let (mut a, _) = app("calendar-caldav-others");
+    let ctx = egui::Context::default();
+    a.run("account.add", json!({"email": "zoe@example.org", "username": "zoe", "password": "pw", "dav": "https://dav.example.org/"}));
+    let id = a.session.accounts.iter().find(|x| x.config.is_calendar_only()).map(|x| x.config.id.clone()).expect("the calendar account");
+    a.run("view.calendar", json!({}));
+    let tall = egui::vec2(1280.0, 1800.0);
+    let links = |a: &mut MailApp| -> Vec<String> {
+        drawn_with(&ctx, a, tall, vec![]);
+        let drawn = drawn_with(&ctx, a, tall, vec![]);
+        drawn
+            .into_iter()
+            .filter(|d| d.seen() && d.text.ends_with('…') && (d.text.starts_with("Open shared") || d.text.starts_with("New calendar group")))
+            .map(|d| d.text)
+            .collect()
+    };
+    assert!(links(&mut a).is_empty(), "not known to schedule yet");
+    let sync = mailcraft_engine::model::pim::DavSync {
+        caldav_home: Some("https://dav.example.org/calendars/zoe/".into()),
+        calendars: Some(vec![CalendarInfo {
+            id: "https://dav.example.org/calendars/zoe/personal/".into(),
+            name: "Personal".into(),
+            ..Default::default()
+        }]),
+        auto_schedule: Some(true),
+        checked: a.session.clock.now,
+        ..Default::default()
+    };
+    a.session.apply(NetEvent::DavSynced { account: id.clone(), sync: Box::new(sync) });
+    assert_eq!(links(&mut a), ["Open shared calendar…", "New calendar group…"]);
+    a.run("calendar.openShared", json!({"email": ANA}));
+    assert!(a.session.pim[&id].calendars.iter().any(|c| c.id == shared_calendar_id(ANA) && c.free_busy));
+    let drawn = drawn_with(&ctx, &mut a, tall, vec![]);
+    assert!(drawn.iter().any(|d| d.text == ANA && d.seen()), "listed: {:?}", drawn.iter().map(|d| d.text.as_str()).collect::<Vec<_>>());
+}

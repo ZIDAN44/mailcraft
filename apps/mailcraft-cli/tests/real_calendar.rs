@@ -15,7 +15,7 @@ mod servers;
 
 use mailcraft_engine::model::{Event, Job};
 use serde_json::json;
-use servers::{App, basic, http};
+use servers::{App, basic, between, http, http_as, now};
 
 const USER: &str = "riley@studio.example";
 
@@ -380,4 +380,91 @@ fn real_ews_occurrence_changed_on_its_own() {
             (first + 3 * week, summary.clone())
         ]
     );
+}
+
+/// Issue #242: a colleague's free/busy time from a CalDAV server that schedules (RFC 6638), run
+/// by hand with `MAILCRAFT_REAL_FREE_BUSY="<server> <user> <colleague> <password>"`: two users of
+/// one server, one password for both, each `address` or `address=sign-in name`:
+/// - Stalwart: `http://127.0.0.1:23080 ann@st.test bob@st.test <password>`;
+/// - Nextcloud: `http://127.0.0.1:26080/remote.php/dav ann@nc.test=ann bob@nc.test=bob <password>`;
+/// - SOGo (Mailcow): `http://127.0.0.1:22080/SOGo/dav ann@mc31.test bob@mc31.test <password>`.
+///
+/// The colleague's meeting is made in a MailCraft of their own, and their calendar opened to the
+/// user with WebDAV ACL (`read-free-busy`) where the server takes it (Stalwart; Nextcloud and
+/// SOGo give any user's free/busy time to the others). The user opens it with Open shared
+/// calendar, and their times are asked of the server while it's shown.
+#[test]
+#[ignore = "needs a real CalDAV server that schedules in MAILCRAFT_REAL_FREE_BUSY"]
+fn real_caldav_colleagues_times() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_FREE_BUSY") else {
+        eprintln!("MAILCRAFT_REAL_FREE_BUSY isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [server, user, colleague, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_FREE_BUSY: server user colleague password") };
+    let person = |s: &str| s.split_once('=').map_or((s.to_string(), s.to_string()), |(e, l)| (e.to_string(), l.to_string()));
+    let ((user, user_login), (colleague, colleague_login)) = (person(user), person(colleague));
+    let open = |tag: &str, email: &str, login: &str| {
+        let mut app = App::open(tag, password);
+        app.watch = watch;
+        let id = app.add(json!({"email": email, "username": login, "password": password, "dav": server}));
+        app.sync_dav(&id);
+        (app, id)
+    };
+    // The colleague's meeting, Tuesday of next week at 09:00 for an hour (UTC).
+    let (mut theirs, tid) = open("free-busy-colleague", &colleague, &colleague_login);
+    let day = 86_400;
+    let today = now() / day * day;
+    // 1970-01-01 was a Thursday: the days since a Monday are (days + 3) % 7.
+    let monday = today + (7 - (today / day + 3) % 7) * day;
+    let start = monday + day + 9 * 3600;
+    let summary = format!("Review {}", std::process::id());
+    let at = |t: i64| {
+        let (y, m, d) = mailcraft_engine::model::dates::civil_from_days(t / day);
+        format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}", t % day / 3600, t % 3600 / 60)
+    };
+    let uid = theirs.s.run("event.create", &json!({"summary": summary, "start": at(start), "end": at(start + 3600), "account": tid})).unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    theirs.sync_dav(&tid);
+    let calendar = theirs.s.find_event(&uid).expect("the meeting on their server").1.calendar.clone();
+
+    // The user's MailCraft: its server schedules, so other people's calendars open from it.
+    let (mut app, id) = open("free-busy-user", &user, &user_login);
+    assert!(app.s.opens_others(&id), "the server schedules");
+    let home = app.s.pim[&id].caldav_home.clone().expect("the calendars found");
+    let pal = http_as(
+        "PROPFIND",
+        &home,
+        &format!("{user_login}:{password}"),
+        "application/xml",
+        br#"<d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>"#,
+    );
+    // The principal's href, whatever prefix the server gives `DAV:`.
+    let text = pal.text();
+    let principal = text.split_once("current-user-principal").and_then(|(_, rest)| between(rest, "href>", "<")).expect("the user's principal");
+    let acl = format!(
+        r#"<?xml version="1.0"?><d:acl xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:ace><d:principal><d:href>{principal}</d:href></d:principal><d:grant><d:privilege><c:read-free-busy/></d:privilege></d:grant></d:ace></d:acl>"#
+    );
+    let granted = http_as("ACL", &calendar, &format!("{colleague_login}:{password}"), "application/xml", acl.as_bytes());
+    eprintln!("ACL on {calendar}: {}", granted.status);
+
+    app.s.run("calendar.openShared", &json!({"email": colleague, "account": id})).unwrap();
+    app.s.run("view.calendar", &json!({})).unwrap();
+    app.s.run("calendar.goto", &json!({"date": &at(start)[..10]})).unwrap();
+    let cal = mailcraft_engine::model::pim::shared_calendar_id(&colleague.to_ascii_lowercase());
+    app.pump(60, "their times", |_, e| matches!(e, Event::FreeBusy { .. }));
+    let state = format!("{:?}", app.s.free_busy_state(&id, &cal));
+    let shown: Vec<(i64, i64, String)> = app
+        .s
+        .agenda(monday, monday + 7 * day)
+        .into_iter()
+        .filter(|a| a.busy_only && a.calendar == cal)
+        .map(|a| (a.start, a.end, format!("{:?}", a.show_as)))
+        .collect();
+    eprintln!("{state}: {shown:?}");
+    theirs.s.run("event.delete", &json!({"uid": uid})).unwrap();
+    theirs.sync_dav(&tid);
+    assert!(shown.contains(&(start, start + 3600, "Busy".to_string())), "{state}: {shown:?}");
 }

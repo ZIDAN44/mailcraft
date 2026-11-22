@@ -1,6 +1,6 @@
 //! A calendar file (an invitation, a CalDAV event, an exported calendar's to-dos) read, written
 //! back and read again, its online meeting found, taken out and added; and the WebDAV answers
-//! CalDAV and CardDAV servers send.
+//! CalDAV and CardDAV servers send, a colleague's free/busy times among them (issue #242).
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
@@ -31,4 +31,9 @@ fuzz_target!(|data: &[u8]| {
     let _ = ical::unescape(&text);
     let _ = ical::split_text_list(&text);
     let _ = dav::multistatus(&text);
+    // Free/busy times: each one ends after it starts, and there are never more than the cap.
+    let times = ical::free_busy_times(&text);
+    assert!(times.len() <= 5_000 && times.iter().all(|(start, end, _)| end > start));
+    let answers = dav::schedule_answers(&text, &["ana@studio.example".to_string(), "ben@studio.example".into()]);
+    assert_eq!(answers.len(), 2);
 });

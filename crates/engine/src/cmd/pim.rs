@@ -360,7 +360,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .when(has_reading),
         CommandSpec::new("calendar.openShared", "Open shared calendar", "Calendar", |s, v| s.open_shared_calendars(p::str(v, "account"), p::req_str(v, "email")?))
-            .params(r#"{"email": string (whose calendar; several as in a recipient box), "account"?: string (an Exchange account; else the first)}"#),
+            .params(r#"{"email": string (whose calendar; several as in a recipient box), "account"?: string (an Exchange account, or one whose CalDAV server schedules: their free/busy time; else the first)}"#),
         CommandSpec::new("calendar.closeShared", "Close shared calendar", "Calendar", |s, v| s.close_shared_calendar(p::req_str(v, "email")?))
             .params(r#"{"email": string}"#),
         // Calendar groups (issue #140), as Outlook's.

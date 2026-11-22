@@ -199,7 +199,7 @@ impl Pool {
             Job::GetServerRules { account } | Job::SetServerRules { account, .. } if mail_offline => {
                 self.sink.emit(Event::ServerRules { account, rules: None, error: Some(OFFLINE.into()) });
             }
-            Job::FreeBusy { account, people, from, to } if mail_offline => {
+            Job::FreeBusy { account, people, from, to } if !running => {
                 let answers = people
                     .into_iter()
                     .map(|email| mailcraft_model::pim::free_busy::FreeBusyAnswer { email, error: Some(OFFLINE.into()), ..Default::default() })

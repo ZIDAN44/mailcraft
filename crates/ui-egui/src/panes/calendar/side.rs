@@ -292,9 +292,10 @@ fn more(s: &Session, ui: &mut Ui, several: bool, acts: &mut Vec<Action>) {
             acts.push(Action::Run("calendar.sideBySide", json!({"on": on})));
         }
     }
-    // Outlook's Open Calendar: someone's calendar shared with an Exchange account; and its
-    // calendar groups (issue #140).
-    if s.accounts.iter().any(|a| a.config.graph.is_some() || a.config.ews.is_some()) {
+    // Outlook's Open Calendar: someone's calendar shared with an Exchange account (or their
+    // free/busy time from a CalDAV server that schedules, issue #242); and its calendar groups
+    // (issue #140).
+    if s.accounts.iter().any(|a| s.opens_others(&a.config.id)) {
         ui.add_space(6.0);
         if ui.link(RichText::new(tl!("Open shared calendar…")).small()).clicked() {
             acts.push(Action::Dialog(Dialog::OpenSharedCalendar { email: String::new(), error: None }));

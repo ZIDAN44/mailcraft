@@ -585,9 +585,10 @@ impl Session {
     // ----- other people's calendars -----
 
     /// Open someone else's calendar from an Exchange account (Outlook's Open Calendar › From
-    /// Address Book): read with the account's own, read-only, once the server shows it.
+    /// Address Book): read with the account's own, read-only, once the server shows it. From an
+    /// account whose CalDAV server schedules, their free/busy time (issue #242).
     pub fn open_shared_calendar(&mut self, account: Option<&str>, email: &str) -> CmdResult {
-        let account = self.exchange_account(account)?;
+        let account = self.people_account(account)?;
         let email = email.trim().to_ascii_lowercase();
         let ok =
             mailcraft_model::addr::parse_list(&email).is_ok_and(|l| l.len() == 1 && l.first().is_some_and(|a| a.email.eq_ignore_ascii_case(&email)));

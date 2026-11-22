@@ -609,6 +609,8 @@ fn path_of(url: &str) -> String {
 }
 
 pub(crate) mod digest;
+mod free_busy;
+pub use free_busy::schedule_answers;
 pub(crate) mod guard;
 mod multistatus;
 pub use multistatus::multistatus;

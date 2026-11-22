@@ -2,7 +2,7 @@
 //! hidden together under it. Each member's calendar is one opened from the account (Open shared
 //! calendar), read as any is, or by its free/busy times when that's all they share.
 
-use mailcraft_model::pim::{CalendarGroup, shared_calendar_id};
+use mailcraft_model::pim::{CalendarGroup, CalendarInfo, shared_calendar_id};
 
 use super::*;
 
@@ -10,21 +10,38 @@ use super::*;
 const NAME_MAX: usize = 100;
 const MEMBERS_MAX: usize = 50;
 
+/// Why someone else's calendar can't be opened from an account.
+const NO_OTHERS: &str = "other people's calendars open from an Exchange account, or one whose calendar server schedules meetings";
+
 impl Session {
-    /// The Exchange account a calendar group or shared calendar is opened from: the one named,
-    /// else the first.
-    pub(super) fn exchange_account(&self, account: Option<&str>) -> Result<String, CmdError> {
+    /// Whether other people's calendars open from `account`: an Exchange one's (theirs read, or
+    /// their free/busy time), or one whose CalDAV server schedules (their free/busy time asked
+    /// of it, issue #242).
+    pub fn opens_others(&self, account: &str) -> bool {
+        self.account(account).is_some_and(|a| a.config.graph.is_some() || a.config.ews.is_some()) || self.caldav_schedules(account)
+    }
+
+    /// Whether `account`'s calendars are on a CalDAV server that schedules meetings (RFC 6638),
+    /// found already.
+    fn caldav_schedules(&self, account: &str) -> bool {
+        self.pim.get(account).is_some_and(|p| p.auto_schedule && p.caldav_home.as_deref().is_some_and(|h| !h.is_empty()))
+    }
+
+    /// The account a calendar group or shared calendar is opened from: the one named, else the
+    /// first Exchange one, else the first whose calendar server schedules.
+    pub(super) fn people_account(&self, account: Option<&str>) -> Result<String, CmdError> {
         let account = match account {
             Some(a) => self.account_or_shown(Some(a))?,
-            None => self
-                .accounts
-                .iter()
-                .find(|a| a.config.graph.is_some() || a.config.ews.is_some())
-                .map(|a| a.config.id.clone())
-                .ok_or_else(|| CmdError::Disabled("other people's calendars open from an Exchange account".into()))?,
+            None => {
+                let ids = || self.accounts.iter().map(|a| a.config.id.clone());
+                ids()
+                    .find(|id| self.account(id).is_some_and(|a| a.config.graph.is_some() || a.config.ews.is_some()))
+                    .or_else(|| ids().find(|id| self.caldav_schedules(id)))
+                    .ok_or_else(|| CmdError::Disabled(NO_OTHERS.into()))?
+            }
         };
-        if !self.account(&account).is_some_and(|a| a.config.graph.is_some() || a.config.ews.is_some()) {
-            return Err(CmdError::Params("other people's calendars open from an Exchange account".into()));
+        if !self.opens_others(&account) {
+            return Err(CmdError::Params(NO_OTHERS.into()));
         }
         Ok(account)
     }
@@ -33,6 +50,21 @@ impl Session {
     /// seconds, not with the next whole calendar pass, which took minutes on a big mailbox and
     /// waited for one under way. With no one new, the whole sync as before.
     pub(super) fn read_people(&mut self, account: &str, people: Vec<String>) {
+        // From a CalDAV account (issue #242): everyone open is a calendar of their free/busy time,
+        // asked of the server while it's shown; nothing of theirs to read.
+        let exchange = self.account(account).is_some_and(|a| a.config.graph.is_some() || a.config.ews.is_some());
+        if !exchange {
+            let p = self.pim_mut(account);
+            for email in p.shared.clone() {
+                let id = shared_calendar_id(&email);
+                if !p.calendars.iter().any(|c| c.id == id) {
+                    let color = u8::try_from(p.calendars.len() % 8).unwrap_or(0);
+                    p.calendars.push(CalendarInfo { id, name: email, color, read_only: true, foreign: true, free_busy: true, ..Default::default() });
+                }
+            }
+            self.after_pim_change(account, false);
+            return;
+        }
         let server = self.account(account).is_some_and(|a| a.config.has_server());
         if people.is_empty() || !server {
             self.after_pim_change(account, true);
@@ -66,7 +98,7 @@ impl Session {
     /// Make a calendar group named `name` of the people in `members` (addresses, as typed in a
     /// recipient box), each one's calendar opened; to a group of that name already, they're added.
     pub fn calendar_group_create(&mut self, account: Option<&str>, name: &str, members: &str) -> CmdResult {
-        let account = self.exchange_account(account)?;
+        let account = self.people_account(account)?;
         let name: String = name.trim().chars().filter(|c| !c.is_control()).take(NAME_MAX).collect();
         if name.is_empty() {
             return Err(CmdError::Params("a calendar group needs a name".into()));
@@ -114,7 +146,7 @@ impl Session {
 
     /// Delete a calendar group: its people's calendars close too, but those in another group.
     pub fn calendar_group_delete(&mut self, account: Option<&str>, name: &str) -> CmdResult {
-        let account = self.exchange_account(account)?;
+        let account = self.people_account(account)?;
         let p = self.pim_mut(&account);
         let Some(i) = p.groups.iter().position(|g| g.name.eq_ignore_ascii_case(name.trim())) else {
             return Err(CmdError::Params(format!("no calendar group `{}`", name.trim())));
@@ -133,7 +165,7 @@ impl Session {
 
     /// Show or hide every calendar of a group.
     pub fn calendar_group_show(&mut self, account: Option<&str>, name: &str, shown: bool) -> CmdResult {
-        let account = self.exchange_account(account)?;
+        let account = self.people_account(account)?;
         let members = self
             .pim
             .get(&account)

@@ -23,6 +23,7 @@ use crate::dates::{civil_from_days, days_from_civil};
 
 mod alarms;
 mod find;
+mod free_busy;
 mod meeting;
 mod notes;
 mod pattern;
@@ -34,6 +35,7 @@ mod tasks;
 mod zones;
 pub use alarms::*;
 pub use find::*;
+pub use free_busy::{free_busy_request, free_busy_times};
 pub use meeting::*;
 pub use notes::*;
 pub use pattern::*;

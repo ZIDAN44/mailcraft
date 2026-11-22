@@ -3,6 +3,7 @@
 
 use std::time::Duration;
 
+use mailcraft_model::ical::ShowAs;
 use mailcraft_model::job::Secret;
 use mailcraft_model::{AccountConfig, DavSettings, MessageKey, SyncStatus};
 
@@ -173,4 +174,61 @@ fn a_server_taking_digest_only_is_signed_in_to() {
     let mut wrong = start("calendar-only-digest-wrong", &server.base, "wrong");
     until(&wrong, "the password asked for", |e| matches!(status(e), Some(SyncStatus::NeedsPassword { .. })));
     wrong.submit(Job::Remove { account: "a1".into() });
+}
+
+/// Where the account's calendars are, kept as the engine keeps it after a sync.
+fn save_home(pool: &Pool, base: &str) {
+    let pim = mailcraft_model::pim::Pim { caldav_home: Some(format!("{base}/dav/cal/")), ..Default::default() };
+    pool.store.save_account_doc("a1", mailcraft_model::pim::PIM_DOC, &pim).unwrap();
+}
+
+/// Issue #242: colleagues' free/busy times from a server that schedules (RFC 6638), asked of the
+/// user's outbox as the user, an answer each; from one that doesn't, why there are none. Before,
+/// the pool answered "not connected" for an account with no mail server, and any account but an
+/// Exchange one said only Exchange could.
+#[test]
+fn colleagues_times_come_from_a_server_that_schedules() {
+    let ask = |pool: &mut Pool| {
+        let people = vec!["ana@studio.example".to_string(), "nobody@studio.example".into()];
+        pool.submit(Job::FreeBusy { account: "a1".into(), people, from: 1_800_000_000, to: 1_800_604_800 });
+        let e = until(pool, "the times", |e| matches!(e, Event::FreeBusy { .. })).pop().unwrap();
+        let Event::FreeBusy { answers, .. } = e else { panic!("not times: {e:?}") };
+        answers
+    };
+    let server = serve();
+    {
+        let mut d = server.data.lock().unwrap();
+        d.schedules = true;
+        let lines = "FREEBUSY;FBTYPE=BUSY:20270115T080000Z/20270115T090000Z\r\nFREEBUSY;FBTYPE=BUSY-TENTATIVE:20270115T100000Z/PT30M\r\n";
+        d.free_busy.insert("ana@studio.example".into(), lines.into());
+    }
+    let mut pool = start("calendar-only-free-busy", &server.base, PASSWORD);
+    until(&pool, "the first sync", synced);
+    // Not known yet (the engine keeps where the calendars are, once a sync found them): said.
+    assert!(ask(&mut pool).iter().all(|a| a.error.as_deref().is_some_and(|e| e.contains("isn't known"))));
+    save_home(&pool, &server.base);
+    let answers = ask(&mut pool);
+    assert_eq!(answers.len(), 2, "{answers:?}");
+    let ana: Vec<(i64, i64, ShowAs)> = answers[0].busy.iter().map(|b| (b.start, b.end, b.show_as)).collect();
+    assert_eq!(answers[0].error, None, "{answers:?}");
+    assert_eq!(ana, [(1_800_000_000, 1_800_003_600, ShowAs::Busy), (1_800_007_200, 1_800_009_000, ShowAs::Tentative)]);
+    assert_eq!(answers[1].error.as_deref(), Some("Invalid calendar user"));
+    {
+        let d = server.data.lock().unwrap();
+        let (originator, recipient, body) = d.queries.first().cloned().unwrap();
+        assert_eq!(originator, format!("mailto:{USER}"));
+        assert_eq!(recipient, "mailto:ana@studio.example, mailto:nobody@studio.example");
+        assert!(body.contains(&format!("ORGANIZER:mailto:{USER}\r\n")) && body.contains("DTSTART:20270115T080000Z\r\n"), "{body}");
+    }
+    pool.submit(Job::Remove { account: "a1".into() });
+
+    // A server that doesn't schedule: said for each, and nothing POSTed.
+    let server = serve();
+    let mut pool = start("calendar-only-free-busy-none", &server.base, PASSWORD);
+    until(&pool, "the first sync", synced);
+    save_home(&pool, &server.base);
+    let answers = ask(&mut pool);
+    assert!(answers.iter().all(|a| a.busy.is_empty() && a.error.as_deref().is_some_and(|e| e.contains("doesn't give"))), "{answers:?}");
+    assert!(server.data.lock().unwrap().queries.is_empty());
+    pool.submit(Job::Remove { account: "a1".into() });
 }

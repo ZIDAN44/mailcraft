@@ -16,6 +16,9 @@ pub(super) struct Request {
     basic_ok: bool,
     if_match: Option<String>,
     if_none: bool,
+    /// The `Originator` and `Recipient` headers of a free/busy query (RFC 6638's draft's).
+    originator: String,
+    recipient: String,
     body: String,
 }
 
@@ -35,6 +38,8 @@ pub(super) fn read_request(s: &TcpStream, auth: &str) -> Option<Request> {
         given,
         if_match: r.header("if-match").map(str::to_string),
         if_none: r.header("if-none-match").is_some(),
+        originator: r.header("originator").unwrap_or_default().to_string(),
+        recipient: r.header("recipient").unwrap_or_default().to_string(),
         body: String::from_utf8_lossy(&r.body).to_string(),
         method: r.method,
         path: r.target,
@@ -79,7 +84,8 @@ impl Data {
                 let dav = if self.schedules { "1, 2, access-control, calendar-access, calendar-auto-schedule" } else { "1, 2, 3, calendar-access" };
                 ("200 OK", vec![("DAV", dav.into())], String::new())
             }
-            "PROPFIND" => self.propfind(&r.path),
+            "PROPFIND" => self.propfind(&r.path, &r.body),
+            "POST" if self.schedules && r.path == OUTBOX => self.free_busy_query(r),
             "REPORT" => self.report(&r.path, &r.body),
             "PUT" => self.put_item(r),
             "DELETE" => self.delete_item(&r.path),
@@ -88,9 +94,20 @@ impl Data {
     }
 
     /// The well-known redirect, the principal and its homes, the collections and their items.
-    fn propfind(&self, path: &str) -> Reply {
+    fn propfind(&self, path: &str, body: &str) -> Reply {
         let found = |body: String| ("207 Multi-Status", Vec::new(), body);
         match path {
+            // Who the user is, asked alone of their calendars' home (as MailCraft finds the outbox).
+            "/dav/cal/" if body.contains("current-user-principal") && !body.contains("resourcetype") => found(multistatus(&[response(
+                "/dav/cal/",
+                "<d:current-user-principal><d:href>/dav/principals/me/</d:href></d:current-user-principal>",
+            )])),
+            // Its outbox, when it schedules (RFC 6638 §2.1).
+            "/dav/principals/me/" if body.contains("schedule-outbox-URL") => {
+                let outbox =
+                    if self.schedules { format!("<c:schedule-outbox-URL><d:href>{OUTBOX}</d:href></c:schedule-outbox-URL>") } else { String::new() };
+                found(multistatus(&[response("/dav/principals/me/", &outbox)]))
+            }
             "/.well-known/caldav" | "/.well-known/carddav" => ("301 Moved", vec![("Location", "/dav/".into())], String::new()),
             "/dav/" => {
                 found(multistatus(&[response("/dav/", "<d:current-user-principal><d:href>/dav/principals/me/</d:href></d:current-user-principal>")]))
@@ -177,6 +194,26 @@ impl Data {
         } else {
             reply("412 Precondition Failed")
         }
+    }
+
+    /// A free/busy query (RFC 6638 §5): each `ATTENDEE`'s busy times, or that they're unknown.
+    fn free_busy_query(&mut self, r: &Request) -> Reply {
+        self.queries.push((r.originator.clone(), r.recipient.clone(), r.body.clone()));
+        let mut responses = String::new();
+        for who in r.body.lines().filter_map(|l| l.trim().strip_prefix("ATTENDEE:mailto:")) {
+            let answer = match self.free_busy.get(who) {
+                Some(lines) => format!(
+                    "<c:request-status>2.0;Success</c:request-status><c:calendar-data>BEGIN:VCALENDAR\r\nMETHOD:REPLY\r\nBEGIN:VFREEBUSY\r\n{}END:VFREEBUSY\r\nEND:VCALENDAR\r\n</c:calendar-data>",
+                    esc(lines)
+                ),
+                None => "<c:request-status>3.7;Invalid calendar user</c:request-status>".into(),
+            };
+            responses.push_str(&format!("<c:response><c:recipient><d:href>mailto:{}</d:href></c:recipient>{answer}</c:response>", esc(who)));
+        }
+        let body = format!(
+            "<?xml version=\"1.0\"?><c:schedule-response xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\">{responses}</c:schedule-response>"
+        );
+        ("200 OK", vec![("Content-Type", "application/xml".into())], body)
     }
 
     fn delete_item(&mut self, p: &str) -> Reply {

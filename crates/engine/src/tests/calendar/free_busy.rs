@@ -235,3 +235,62 @@ fn a_colleagues_work_hours_come_with_their_times() {
     let own = s.pim[&account].calendars.iter().find(|c| !c.free_busy).map(|c| c.id.clone()).unwrap();
     assert_eq!(s.calendar_work_spans(&account, &own, wednesday.0, wednesday.1), [(at("2026-11-04T08:00:00Z"), at("2026-11-04T17:00:00Z"))]);
 }
+
+/// Issue #242: a colleague's free/busy time from an account whose CalDAV server schedules
+/// meetings (RFC 6638: SOGo, Stalwart, Nextcloud), as from an Exchange one: their calendar opens,
+/// alone or in a group, and their times are asked of the account's server while it's shown. One
+/// that doesn't schedule (Radicale) can't, and says why.
+#[test]
+fn a_calendar_server_that_schedules_gives_colleagues_times() {
+    let mut s = Session::open(Some(temp("free-busy-caldav")), mailcraft_model::dates::Clock::new(at("2026-11-04T12:00:00Z"), 0));
+    let added = s.run("account.add", &json!({"email": "zoe@example.org", "username": "zoe", "password": "pw", "dav": "https://dav.example.org/"}));
+    let account = added.unwrap()["account"].as_str().unwrap().to_string();
+    let own = "https://dav.example.org/calendars/zoe/personal/".to_string();
+    let synced = |s: &mut Session, schedules: bool| {
+        let sync = mailcraft_model::pim::DavSync {
+            caldav_home: Some("https://dav.example.org/calendars/zoe/".into()),
+            calendars: Some(vec![CalendarInfo { id: own.clone(), name: "Personal".into(), ..Default::default() }]),
+            auto_schedule: Some(schedules),
+            checked: s.clock.now,
+            ..Default::default()
+        };
+        s.apply(Event::DavSynced { account: account.clone(), sync: Box::new(sync) });
+    };
+    // Not known yet, or known not to schedule: refused, saying why.
+    let refused = s.run("calendar.openShared", &json!({"email": ANA})).unwrap_err().to_string();
+    assert!(refused.contains("schedules meetings"), "{refused}");
+    synced(&mut s, false);
+    assert!(!s.opens_others(&account));
+    assert!(s.run("calendar.openShared", &json!({"email": ANA})).is_err());
+
+    // A server that schedules: her calendar opens, of her times alone; nothing of hers to read.
+    synced(&mut s, true);
+    assert!(s.opens_others(&account));
+    s.take_jobs();
+    let r = s.run("calendar.openShared", &json!({"email": "Ana@Contoso.example"})).unwrap();
+    let id = shared_calendar_id(ANA);
+    assert_eq!((r["account"].as_str(), r["calendar"].as_str()), (Some(account.as_str()), Some(id.as_str())));
+    let cal = s.pim[&account].calendars.iter().find(|c| c.id == id).cloned().unwrap();
+    assert!(cal.free_busy && cal.read_only && cal.foreign && cal.name == ANA, "{cal:?}");
+    assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::ReadShared { .. } | Job::SyncDav { .. })));
+
+    // On screen: asked of this account's server.
+    s.cal_day = Some(day("2026-11-04"));
+    s.module = Module::Calendar;
+    s.tick();
+    let jobs = asked(&mut s);
+    assert_eq!(jobs.len(), 1, "{jobs:?}");
+    assert_eq!((jobs[0].0.as_str(), jobs[0].1.clone()), (account.as_str(), vec![ANA.to_string()]));
+
+    // The next sync knows nothing of her: her calendar stays.
+    synced(&mut s, true);
+    assert!(s.pim[&account].calendars.iter().any(|c| c.id == id));
+
+    // A group: each one's times, Ana's calendar not opened twice.
+    s.run("calendar.groupCreate", &json!({"name": "Team", "members": "ana@contoso.example, ben@contoso.example"})).unwrap();
+    let ids: Vec<&str> = s.pim[&account].calendars.iter().filter(|c| c.free_busy).map(|c| c.id.as_str()).collect();
+    let ben = shared_calendar_id("ben@contoso.example");
+    assert_eq!(ids, [id.as_str(), ben.as_str()]);
+    s.run("calendar.groupDelete", &json!({"name": "Team"})).unwrap();
+    assert!(s.pim[&account].calendars.iter().all(|c| !c.free_busy), "closed with the group");
+}
