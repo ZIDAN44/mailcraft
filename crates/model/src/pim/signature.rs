@@ -78,12 +78,22 @@ pub fn signature_details(text: &str, name: &str) -> FoundDetails {
 }
 
 /// The phone numbers in a line: runs of digits, spaces, `+`, `-`, `.`, `/` and brackets with 7 to
-/// 15 digits, that aren't a date or a time.
+/// 15 digits, that aren't a date or a time, nor part of a word (`MC31 (1795385049)`, an
+/// invoice's `INV2026-0001234`: their digits run on from letters).
 fn phones_in(line: &str) -> Vec<String> {
     let mut out = Vec::new();
     let allowed = |c: char| c.is_ascii_digit() || matches!(c, '+' | '-' | '.' | '/' | '(' | ')' | ' ' | '\u{a0}');
     let mut run = String::new();
-    let flush = |run: &mut String, out: &mut Vec<String>| {
+    // The run's first digit, `+` or `(` came straight after a letter (`MC31`), not after a
+    // label's dot or a space (`Tel. +44`, `Mob.07700`).
+    let mut glued = false;
+    let starts = |c: char| c.is_ascii_digit() || matches!(c, '+' | '(');
+    let mut prev: Option<char> = None;
+    let flush = |run: &mut String, out: &mut Vec<String>, glued: bool| {
+        if glued {
+            run.clear();
+            return;
+        }
         let candidate = run.trim().trim_matches(|c: char| matches!(c, '-' | '.' | '/' | ')') || c.is_whitespace()).to_string();
         let candidate = candidate.trim_start_matches(['-', '.', '/', ')']).to_string();
         let digits = candidate.chars().filter(char::is_ascii_digit).count();
@@ -97,12 +107,17 @@ fn phones_in(line: &str) -> Vec<String> {
     };
     for c in line.chars() {
         if allowed(c) {
+            if starts(c) && !run.chars().any(starts) {
+                glued = prev.is_some_and(char::is_alphabetic);
+            }
             run.push(c);
         } else {
-            flush(&mut run, &mut out);
+            flush(&mut run, &mut out, glued);
+            glued = false;
         }
+        prev = Some(c);
     }
-    flush(&mut run, &mut out);
+    flush(&mut run, &mut out, glued);
     out
 }
 
@@ -157,6 +172,16 @@ mod tests {
     fn dates_times_and_short_numbers_are_no_phones() {
         let text = "-- \nMeeting 2026-11-22 10:30, room 4512\nInvoice 22.11.2026\nRef 12345\n";
         assert!(signature_details(text, "Ann").phones.is_empty());
+    }
+
+    #[test]
+    fn numbers_in_a_word_are_no_phones() {
+        // A reference or a name with a number in it: its digits run on from letters.
+        let text = "Ann\nConfidential to MC31 (1795385049).\nInvoice INV2026-0001234\nPhone: +44 20 7946 0958";
+        assert_eq!(signature_details(text, "Ann").phones, ["+44 20 7946 0958"]);
+        // A label's dot isn't a word the number runs on from.
+        let labels = "Ann\nTel. +44 20 7946 0959\nMob.07700 900123\nFax.+44 20 7946 0960";
+        assert_eq!(signature_details(labels, "Ann").phones, ["+44 20 7946 0959", "07700 900123", "+44 20 7946 0960"]);
     }
 
     #[test]
