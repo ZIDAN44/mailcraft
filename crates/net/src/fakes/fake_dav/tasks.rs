@@ -188,6 +188,35 @@ BEGIN:VTODO\r\nUID:weekly\r\nRECURRENCE-ID;VALUE=DATE:20270111\r\nSUMMARY:Water 
     assert!(server.data.lock().unwrap().items[&format!("{TASKS}weekly.ics")].1.contains("RECURRENCE-ID"));
 }
 
+/// Found on a real Mailcow: SOGo's collection tag is the time of its last change in seconds,
+/// so a task changed in its web page in the second MailCraft read the tag left the tag as it
+/// was, and the change was never read. A tag that reads as the second of the sync isn't kept:
+/// the next sync looks at the items.
+#[test]
+fn a_change_in_the_second_the_tag_was_read_is_read() {
+    let server = server_with_tasks();
+    let dav = Dav::new(USER, PASSWORD);
+    let now = 1_795_338_902;
+    server.data.lock().unwrap().ctag = now;
+    let mut pim = pim_at(&server);
+    let first = sync(&dav, &AT, &pim, i64::from(now), Zone::UTC).unwrap();
+    assert!(first.task_lists.as_ref().unwrap().iter().all(|l| l.ctag.is_empty()), "not kept");
+    kept_after(&mut pim, &first);
+    // Changed in the same second: the tag stays.
+    server
+        .data
+        .lock()
+        .unwrap()
+        .items
+        .insert(format!("{TASKS}t1.ics"), ("\"e-later\"".into(), ical::write_calendar(&[], &[task("t1", "Buy milk and eggs")], 0)));
+    let s = sync(&dav, &AT, &pim, i64::from(now) + 1, Zone::UTC).unwrap();
+    assert!(s.list_tasks.iter().any(|t| t.task.title == "Buy milk and eggs"), "{:?}", s.list_tasks);
+    // Long after: kept, and nothing read when nothing changed.
+    kept_after(&mut pim, &s);
+    let later = sync(&dav, &AT, &pim, i64::from(now) + 600, Zone::UTC).unwrap();
+    assert!(later.task_lists.unwrap().iter().all(|l| l.ctag == now.to_string()));
+}
+
 /// A list the user may only read is said so.
 #[test]
 fn a_read_only_list_is_marked() {

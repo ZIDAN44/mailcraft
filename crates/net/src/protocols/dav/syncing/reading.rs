@@ -24,6 +24,7 @@ impl Run<'_> {
                 continue;
             }
             let ctag = ctag(&c);
+            let kept_tag = keepable(&ctag, self.now);
             let name = c.props.get("displayname").cloned().unwrap_or_else(|| if events { "Calendar" } else { "Tasks" }.into());
             let known = self.pim.calendars.iter().find(|k| k.id == c.href);
             let known_list = self.pim.task_lists.iter().find(|k| k.id == c.href);
@@ -33,7 +34,7 @@ impl Run<'_> {
                     name: name.clone(),
                     color: known.map_or(u8::try_from(n % 8).unwrap_or(0), |k| k.color),
                     read_only: c.writable == Some(false),
-                    ctag: ctag.clone(),
+                    ctag: kept_tag.clone(),
                     foreign: c.foreign,
                     free_busy: false,
                 });
@@ -44,7 +45,7 @@ impl Run<'_> {
                     id: c.href.clone(),
                     name: name.clone(),
                     read_only: c.writable == Some(false),
-                    ctag: ctag.clone(),
+                    ctag: kept_tag.clone(),
                     tasks_only: !events,
                     foreign: c.foreign,
                 });
@@ -103,7 +104,7 @@ impl Run<'_> {
                 id: c.href.clone(),
                 name: c.props.get("displayname").cloned().unwrap_or_else(|| "Contacts".into()),
                 read_only: c.writable == Some(false),
-                ctag: ctag.clone(),
+                ctag: keepable(&ctag, self.now),
             };
             let pushed_here = out.pushed_cards.iter().any(|x| x.book == c.href);
             if !ctag.is_empty() && known.is_some_and(|k| k.ctag == ctag) && !pushed_here {
@@ -162,6 +163,16 @@ fn server_tasks(read: Vec<mailcraft_model::pim::Task>, list: &str, href: &str, e
             StoredTask { task, list: list.into(), href: href.into(), etag: etag.into(), dirty: false, partial }
         })
         .collect()
+}
+
+/// The tag kept for the next sync: none when it reads as this very second (or one just before
+/// or after: clocks differ a little). SOGo's is the time of the last change, in seconds, so a
+/// change in the second it was read in leaves it as it was, and was never read: a task changed
+/// in SOGo's web page as MailCraft synced stayed as it had been (a real Mailcow, issue #201).
+/// With no tag kept, the next sync compares the items' etags.
+fn keepable(ctag: &str, now: i64) -> String {
+    let recent = ctag.trim().parse::<i64>().is_ok_and(|t| t.abs_diff(now) <= 2);
+    if recent { String::new() } else { ctag.to_string() }
 }
 
 /// A collection's tag, which changes when anything in it does (empty: none given).
