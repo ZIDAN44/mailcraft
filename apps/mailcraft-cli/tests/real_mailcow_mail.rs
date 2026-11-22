@@ -247,3 +247,78 @@ fn real_mailcow_categories_with_sogo() {
     c.pump(60, "Later taken back", |s, _| s.folder_state(&cid, &shared).messages.iter().any(|x| x.subject == subject && !x.flags.has("$label5")));
     assert!(!imap.flags("INBOX", &subject).iter().any(|f| f == "$label5"), "not on the server");
 }
+
+/// Everything with someone (issue #178), from real mail: ann writes to bob, carol on copy,
+/// through Postfix, with a file, a link and her number in her signature; bob answers from
+/// MailCraft. Bob's MailCraft puts the two together from his Inbox and Sent Items, with ann's
+/// file and link (or, while her message isn't downloaded, says so), her number to offer, and
+/// carol beside her (never bob himself).
+#[test]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
+fn real_mailcow_everything_with_someone() {
+    let Some(m) = Mailcow::from_env() else { return };
+    let tag = std::process::id();
+    let (ann, _) = m.user(0);
+    let (bob, _) = m.user(1);
+    let (carol, _) = m.user(2);
+    let subject = format!("The cut {tag}");
+    let raw = format!(
+        "From: Ann Example <{ann}>\r\nTo: Bob <{bob}>\r\nCc: Carol <{carol}>\r\nSubject: {subject}\r\nMessage-ID: <cut-{tag}@mc31.test>\r\n\
+         Date: Sat, 21 Nov 2026 09:00:00 +0000\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"b\"\r\n\r\n\
+         --b\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nThe second cut is at https://cut.example/{tag} for you, with the rushes{tag}.\r\n\r\n\
+         -- \r\nAnn Example\r\nTel +44 20 7946 0958\r\n\r\n\
+         --b\r\nContent-Type: application/pdf; name=\"notes-{tag}.pdf\"\r\nContent-Disposition: attachment; filename=\"notes-{tag}.pdf\"\r\n\
+         Content-Transfer-Encoding: base64\r\n\r\nJVBERi0xLjQK\r\n--b--\r\n"
+    );
+    m.send(0, &[bob, carol], raw.as_bytes());
+
+    let (mut b, bid) = App::new(&m, 1, "person");
+    let key = b.wait_for_mail(&bid, &subject);
+    let ours = |a: &mailcraft_engine::PersonActivity| a.threads.iter().find(|t| t.subject == subject).cloned();
+    let first = b.s.person_activity(ann);
+    let file = format!("notes-{tag}.pdf");
+    eprintln!("before it's opened: {} messages, {} not downloaded, files {:?}", first.message_count(), first.not_downloaded, first.files);
+    assert!(ours(&first).is_some(), "her message, from the Inbox");
+    assert!(first.not_downloaded > 0 || first.files.iter().any(|f| f.name == file), "a file not counted is said to be missing");
+
+    // Read, and answered from MailCraft: the answer goes out and into Sent Items on Mailcow.
+    b.s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    b.pump(60, "the message read", |s, _| s.reading.as_ref().is_some_and(|r| r.parsed.is_some()));
+    b.s.run("mail.reply", &json!({})).unwrap();
+    b.s.run("compose.update", &json!({"body": "Looks good, Ann."})).unwrap();
+    b.s.run("compose.send", &json!({})).unwrap();
+    b.pump(60, "sent", |_, e| matches!(e, Event::Sent { .. }));
+    let sent = b.s.account(&bid).and_then(|a| a.folder(FolderRole::Sent)).map(|f| f.path.clone()).expect("Sent Items");
+    let answer = format!("Re: {subject}");
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(90);
+    while !b.s.folder_state(&bid, &sent).messages.iter().any(|x| x.subject == answer) {
+        assert!(std::time::Instant::now() < end, "the answer didn't reach Sent Items");
+        b.pool.submit(mailcraft_engine::model::Job::SyncFolder { account: bid.clone(), folder: sent.clone() });
+        b.settle(2);
+    }
+
+    let a = b.s.person_activity(&ann.to_uppercase());
+    let thread = ours(&a).expect("the conversation");
+    let subjects: Vec<&str> = thread.messages.iter().map(|x| x.subject.as_str()).collect();
+    eprintln!("bob and ann: {} conversations; ours: {subjects:?}", a.threads.len());
+    assert_eq!(subjects, [answer.as_str(), subject.as_str()], "his answer from Sent Items, the newest first");
+    assert_eq!(a.name, "Ann Example");
+    assert!(a.files.iter().any(|f| f.name == file && f.from_them && f.key == key), "{:?}", a.files);
+    let link = format!("https://cut.example/{tag}");
+    assert!(a.links.iter().any(|l| l.url == link), "{:?}", a.links);
+    assert_eq!(a.found.phones, ["+44 20 7946 0958"], "her number, from her signature");
+    assert!(a.people.iter().any(|p| p.email.eq_ignore_ascii_case(carol)), "{:?}", a.people);
+    assert!(!a.people.iter().any(|p| p.email.eq_ignore_ascii_case(bob) || p.email.eq_ignore_ascii_case(ann)), "{:?}", a.people);
+    // Narrowed by a word of her message's text alone (the other tests here share the run's
+    // number): her message, read from its text (files and links go by their own names).
+    let word = format!("rushes{tag}");
+    let r = a.refined(&word);
+    eprintln!("narrowed to {word}: {} conversations, files {:?}, links {:?}", r.threads.len(), r.files.len(), r.links.len());
+    assert_eq!(r.threads.iter().map(|t| t.subject.as_str()).collect::<Vec<_>>(), [subject.as_str()]);
+    assert_eq!(r.message_count(), 1, "her message, not his answer");
+    // The command, as the CLI runs it.
+    let v = b.s.run("person.activity", &json!({"email": ann, "query": format!("subject:\"{subject}\"")})).unwrap();
+    eprintln!("person.activity: {v}");
+    assert_eq!(v["threadCount"], 1);
+    assert_eq!(v["threads"][0]["messages"].as_array().map(Vec::len), Some(2));
+}

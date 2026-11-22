@@ -84,4 +84,5 @@ The fuzzer keeps what it finds in `corpus/` and `artifacts/`. Git ignores both f
 | `pst_recurrence` | A recurrence pattern, read and written |
 | `pst_pim_text` | Contact and task text, exported and read back |
 | `signature` | A signature as HTML code or a saved web page |
+| `signature_details` | A message's text read for the phone numbers and web addresses in its signature |
 | `tnef` | `winmail.dat` (TNEF): files, body, attached messages, compressed RTF |

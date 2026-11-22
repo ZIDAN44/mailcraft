@@ -2,6 +2,7 @@
 
 use super::*;
 
+mod person;
 mod run;
 
 /// Bring `account`'s search index up to its mail at once, as the indexer does in the

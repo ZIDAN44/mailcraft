@@ -17,10 +17,12 @@ mod kept;
 mod look_up;
 mod matching;
 mod merge;
+mod person;
 mod publish;
 mod run;
 mod work;
 
+pub use person::{PersonActivity, PersonFile, PersonLink, PersonMeeting, PersonPeer, PersonThread};
 pub use run::{SearchProgress, SearchStats};
 pub use work::SearchWork;
 

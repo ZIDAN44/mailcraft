@@ -147,6 +147,9 @@ fn real_mailcow_invitations_between_two_users() {
     assert!(!e.dirty && !e.href.is_empty(), "stored: {e:?}");
     let copies = bob.s.pim[&bid].events.iter().filter(|x| x.event.uid == uid).count();
     assert_eq!(copies, 1, "one meeting, not one per invitation");
+    // Everything with ann (issue #178): the meeting she organises, from bob's calendar on SOGo.
+    let with_ann = bob.s.person_activity(m.user(0).0);
+    assert!(with_ann.meetings.iter().any(|x| x.uid == uid && x.theirs), "{:?}", with_ann.meetings);
     let in_sogo: Vec<(String, String)> =
         m.calendar(1, &format!("{}personal/", m.dav_home(1))).into_iter().filter(|(_, d)| d.contains(&uid)).collect();
     assert_eq!(in_sogo.len(), 1, "{in_sogo:?}");
@@ -204,6 +207,9 @@ fn real_mailcow_invitations_between_two_users() {
     let bob_said = e.event.attendees.iter().find(|a| a.email.eq_ignore_ascii_case(bob_email)).map(|a| a.partstat.clone()).unwrap_or_default();
     eprintln!("ann's event says bob: {bob_said}");
     assert_eq!(bob_said, "ACCEPTED");
+    // Everything with bob, on ann's side: her meeting he's invited to.
+    let with_bob = ann.s.person_activity(bob_email);
+    assert!(with_bob.meetings.iter().any(|x| x.uid == uid && !x.theirs), "{:?}", with_bob.meetings);
     let anns = m.calendar(0, &format!("{}personal/", m.dav_home(0))).into_iter().find(|(_, d)| d.contains(&uid)).map(|x| x.1).unwrap_or_default();
     eprintln!("--- ann's copy on SOGo:\n{anns}");
     let bobs_line = anns.lines().find(|l| l.starts_with("ATTENDEE") && l.contains(&format!("mailto:{bob_email}"))).unwrap_or_default();
