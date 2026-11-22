@@ -418,10 +418,24 @@ pub(super) fn mark_all_read(s: &mut Session, v: &Value) -> CmdResult {
     for k in keys {
         by_account.entry(k.account.clone()).or_default().push(k);
     }
+    remember_unread(s, by_account.iter().map(|(a, keys)| (a.clone(), keys.clone())).collect());
     for (a, keys) in by_account {
         s.apply_op(&a, mailcraft_model::Op::SetFlag { keys, flag: Flag::Seen, on: true });
     }
     Ok(json!({"count": n}))
+}
+
+/// Mark all as read can be undone, as any marking read (issue #248: one click on it by mistake
+/// lost which mail was unread): Undo marks unread again the messages it marked, by account.
+fn remember_unread(s: &mut Session, unread: Vec<(String, Vec<mailcraft_model::MessageKey>)>) {
+    let ops: Vec<_> = unread
+        .into_iter()
+        .filter(|(_, keys)| !keys.is_empty())
+        .map(|(a, keys)| (a, vec![mailcraft_model::Op::SetFlag { keys, flag: Flag::Seen, on: false }]))
+        .collect();
+    if !ops.is_empty() {
+        s.remember(crate::session::Undo::Ops { ops });
+    }
 }
 
 /// Every message of a folder read: those kept here as any marked read, and on a server holding
@@ -432,6 +446,9 @@ fn mark_folder_read(s: &mut Session, account: &str, folder: &str) -> CmdResult {
     let remote = s.account(account).is_some_and(|a| !a.is_local() && a.config.pop.is_none());
     let n = keys.len().max(if remote { on_server } else { 0 });
     if !keys.is_empty() {
+        // Those kept here can be marked unread again; mail the server marks read past them
+        // (below) isn't known by name, so it stays read.
+        remember_unread(s, vec![(account.to_string(), keys.clone())]);
         s.apply_op(account, mailcraft_model::Op::SetFlag { keys: keys.clone(), flag: Flag::Seen, on: true });
     }
     if remote && on_server > keys.len() {

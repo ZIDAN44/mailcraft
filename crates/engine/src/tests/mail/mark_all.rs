@@ -86,3 +86,32 @@ fn a_servers_unread_mail_past_whats_kept_is_marked_there() {
     s.run("mail.markAllRead", &json!({})).unwrap();
     assert!(!s.take_jobs().iter().any(|j| matches!(j, Job::Apply { .. })));
 }
+
+/// Issue #248: Mark all as read clicked by mistake is undone (Ctrl+Z, or Undo on the top bar):
+/// the mail it marked is unread again, the folder's count back, and mail already read stays so.
+#[test]
+fn mark_all_as_read_is_undone() {
+    let mut s = sample_session("mark-all-undo");
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    let unread: Vec<MessageKey> = s.folder_state("sample", "INBOX").messages.iter().filter(|m| !m.flags.seen).map(|m| m.key.clone()).collect();
+    assert!(unread.len() >= 2, "the sample's Inbox has unread mail");
+    let read_before = s.folder_state("sample", "INBOX").messages.len() - unread.len();
+    let count = s.folder("sample", "INBOX").unwrap().unread;
+    s.run("mail.markAllRead", &json!({})).unwrap();
+    assert_eq!(unread_in(&mut s, "sample", "INBOX"), 0);
+    s.run("edit.undo", &json!({})).unwrap();
+    let again: Vec<MessageKey> = s.folder_state("sample", "INBOX").messages.iter().filter(|m| !m.flags.seen).map(|m| m.key.clone()).collect();
+    assert_eq!(again, unread);
+    assert_eq!(s.folder_state("sample", "INBOX").messages.len() - again.len(), read_before);
+    assert_eq!(s.folder("sample", "INBOX").unwrap().unread, count);
+    // A folder named (its menu in the folder pane), the same.
+    s.run("mail.markAllRead", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    assert_eq!(unread_in(&mut s, "sample", "INBOX"), 0);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(unread_in(&mut s, "sample", "INBOX"), unread.len());
+    // Nothing unread: nothing to undo for it.
+    s.run("mail.markAllRead", &json!({})).unwrap();
+    s.run("mail.markAllRead", &json!({})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(unread_in(&mut s, "sample", "INBOX"), unread.len(), "the click that marked something is the one undone");
+}
