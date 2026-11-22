@@ -2001,3 +2001,8 @@ count	occurrences	회
 	Your other filters on the server (“{name}”) run first, and are left as they are.	서버의 다른 필터(“{name}”)가 먼저 실행되며 그대로 유지됩니다.
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	이 규칙은 실행되지 않습니다. 다른 프로그램이 자체 필터를 실행 대상으로 바꿨습니다. 여기서 규칙을 저장하면 그 프로그램의 필터와 함께 다시 실행됩니다.
 	Found: {url}	찾은 위치: {url}
+	Task list	작업 목록
+	Task lists	작업 목록들
+	All task lists	모든 작업 목록
+	This task is in a task list that can't be changed here.	이 작업은 여기서 변경할 수 없는 작업 목록에 있습니다.
+	Occurrences of this task were changed on their own elsewhere: change it there.	이 작업의 일부 반복이 다른 곳에서 따로 변경되었습니다. 그곳에서 변경하세요.

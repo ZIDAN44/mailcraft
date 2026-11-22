@@ -4,6 +4,8 @@
 use super::*;
 use mailcraft_model::pim::{TaskPriority, TaskStatus};
 
+mod caldav;
+
 fn day(y: i64, m: u32, d: u32) -> i64 {
     mailcraft_model::dates::days_from_civil(y, m, d) * 86_400
 }

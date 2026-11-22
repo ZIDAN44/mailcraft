@@ -71,9 +71,10 @@ pub(super) fn task_of(it: &El) -> Option<StoredTask> {
         rrule,
         modified: time("LastModifiedTime").unwrap_or(0),
         extra: Vec::new(),
+        source: None,
     };
     task.settle(task.completed.unwrap_or(task.modified));
-    Some(StoredTask { task, href, etag: id.attr("ChangeKey").unwrap_or("").to_string(), dirty: false })
+    Some(StoredTask { task, href, etag: id.attr("ChangeKey").unwrap_or("").to_string(), ..Default::default() })
 }
 
 /// A task's reminder as Outlook keeps it (MS-OXORMDR: PidLidReminderTime and
@@ -185,7 +186,7 @@ pub(super) fn push_tasks(c: &Client, pim: &Pim, out: &mut DavSync) {
             }
         };
         match r {
-            Ok((id, etag)) => out.pushed_tasks.push(StoredTask { task: s.task.clone(), href: format!("task:{id}"), etag, dirty: false }),
+            Ok((id, etag)) => out.pushed_tasks.push(StoredTask { task: s.task.clone(), href: format!("task:{id}"), etag, ..Default::default() }),
             Err(x) => out.errors.push(format!("{}: {x}", s.task.title)),
         }
     }

@@ -2015,3 +2015,8 @@ count	occurrences	wystąpieniach
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Twoje inne filtry na serwerze („{name}”) działają najpierw i pozostają bez zmian.
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Te reguły nie działają: inny program ustawił swoje filtry jako działające. Zapisanie reguły tutaj ponownie je uruchomi, razem z filtrami tamtego programu.
 	Found: {url}	Znaleziono: {url}
+	Task list	Lista zadań
+	Task lists	Listy zadań
+	All task lists	Wszystkie listy zadań
+	This task is in a task list that can't be changed here.	To zadanie jest na liście zadań, której nie można tu zmienić.
+	Occurrences of this task were changed on their own elsewhere: change it there.	Pojedyncze wystąpienia tego zadania zmieniono osobno gdzie indziej: zmień je tam.

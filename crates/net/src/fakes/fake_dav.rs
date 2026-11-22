@@ -16,6 +16,8 @@ pub const CAL: &str = "/dav/cal/work/";
 pub const BOOK: &str = "/dav/card/main/";
 /// The user's scheduling outbox, when the server schedules (RFC 6638).
 pub const OUTBOX: &str = "/dav/outbox/";
+/// A list of tasks alone (`VTODO`), as Nextcloud's Tasks makes, when the server has one.
+pub const TASKS: &str = "/dav/cal/tasks/";
 
 #[derive(Default)]
 pub struct Data {
@@ -46,6 +48,12 @@ pub struct Data {
     /// The free/busy queries POSTed to the outbox: their `Originator` and `Recipient` headers and
     /// their body.
     pub queries: Vec<(String, String, String)>,
+    /// The calendar says it takes to-dos as well as events (`VEVENT`, `VTODO`), as SOGo's and
+    /// Radicale's do; else it says nothing of what it takes.
+    pub cal_tasks: bool,
+    /// A list of tasks alone ([`TASKS`]), as Nextcloud's; `Some(true)`: one the user may only
+    /// read.
+    pub task_list: Option<bool>,
 }
 
 /// Whether an `Authorization` value answers the fake's Digest challenge for this request.
@@ -129,6 +137,9 @@ mod serving;
 
 #[cfg(test)]
 mod scheduling;
+
+#[cfg(test)]
+mod tasks;
 
 #[cfg(test)]
 mod tests;

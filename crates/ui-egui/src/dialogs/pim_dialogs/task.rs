@@ -13,6 +13,15 @@ pub struct TaskForm {
     /// The accounts that can take it: (account id, its address); the one chosen.
     pub accounts: Vec<(String, String)>,
     pub account: usize,
+    /// The CalDAV task lists it can go in (issue #201): (account id, list id, name, whether it's
+    /// the account's default), those the user may write to; the one chosen, and the one it was in.
+    pub lists: Vec<(String, String, String, bool)>,
+    pub list: String,
+    pub was_in: String,
+    /// It's in a task list the user may only read: shown, not changed.
+    pub read_only: bool,
+    /// Its item on the server holds occurrences changed on their own: shown, not changed.
+    pub partial: bool,
     pub title: String,
     pub notes: String,
     /// Local `YYYY-MM-DD`, or empty for none.
@@ -70,6 +79,7 @@ impl TaskForm {
         TaskForm {
             account: accounts.iter().position(|a| a.0 == current).unwrap_or(0),
             accounts,
+            lists: writable_lists(s),
             due: day_text(due),
             hours12: s.clock.style.hours12,
             dates: s.clock.style.order,
@@ -86,8 +96,16 @@ impl TaskForm {
             Some(at) => (local_date(at, s), local_time(at, s)),
             None => (String::new(), crate::i18n::time_box(9, 0, s.clock.style)),
         };
+        let partial = s.task_partial(uid);
+        let read_only = partial || s.pim.get(&r.account).is_some_and(|p| !p.task_list_writable(&r.list));
         Some(TaskForm {
             uid: Some(uid.to_string()),
+            accounts: vec![(r.account.clone(), String::new())],
+            lists: writable_lists(s),
+            list: r.list.clone(),
+            was_in: r.list.clone(),
+            read_only,
+            partial,
             title: t.title.clone(),
             notes: t.notes.clone(),
             start: day_text(t.start),
@@ -135,8 +153,30 @@ impl TaskForm {
                 }
             }
         }
+        // The list chosen, when one was (a new task goes to the account's default otherwise).
+        if !self.list.is_empty() && self.list != self.was_in {
+            p["list"] = json!(self.list);
+        }
         p
     }
+
+    /// The task lists of the account chosen that it can go in: (id, name, the default).
+    fn account_lists(&self) -> Vec<(String, String, bool)> {
+        let Some((account, _)) = self.accounts.get(self.account) else { return Vec::new() };
+        self.lists.iter().filter(|l| &l.0 == account).map(|l| (l.1.clone(), l.2.clone(), l.3)).collect()
+    }
+}
+
+/// Every account's task lists the user may write to: (account, list, name, its default).
+fn writable_lists(s: &Session) -> Vec<(String, String, String, bool)> {
+    s.task_lists()
+        .into_iter()
+        .filter(|(_, l)| !l.read_only && !l.foreign)
+        .map(|(a, l)| {
+            let default = s.pim.get(a).and_then(|p| p.default_task_list()).is_some_and(|d| d.id == l.id);
+            (a.to_string(), l.id.clone(), l.name.clone(), default)
+        })
+        .collect()
 }
 
 /// The categories to pick from, as chips: those chosen filled in their colour.
@@ -233,6 +273,41 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
             category_chips(ui, t, &f.all_categories, &mut f.categories);
         });
     }
+    // Its task list, where the account has several (issue #201); a new one in the account's
+    // default until another is picked. Picking one for a task moves it there.
+    let lists = f.account_lists();
+    // Another account chosen: its own default list.
+    if !lists.iter().any(|l| l.0 == f.list) && f.uid.is_none() {
+        f.list = lists.iter().find(|l| l.2).map(|l| l.0.clone()).unwrap_or_default();
+    }
+    if lists.len() > 1 && !f.read_only {
+        let shown = lists.iter().find(|l| l.0 == f.list).map(|l| l.1.clone()).unwrap_or_default();
+        form_row(ui, t, true, Some(Icon::Task), "Task list", |ui| {
+            ui.allocate_ui_with_layout(vec2(260.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                let r = egui::ComboBox::from_id_salt("task-list")
+                    .width(254.0)
+                    .selected_text(shown)
+                    .show_ui(ui, |ui| {
+                        for (id, name, _) in &lists {
+                            ui.selectable_value(&mut f.list, id.clone(), name);
+                        }
+                    })
+                    .response
+                    .accessible_name(tl!("Task list"));
+                let ids: Vec<String> = lists.iter().map(|l| l.0.clone()).collect();
+                crate::drop_down::keys(ui, &r, &mut f.list, &ids);
+            });
+        });
+    }
+    if f.read_only {
+        ui.add_space(4.0);
+        let why = if f.partial {
+            tl!("Occurrences of this task were changed on their own elsewhere: change it there.")
+        } else {
+            tl!("This task is in a task list that can't be changed here.")
+        };
+        ui.label(RichText::new(why).color(t.dim).small());
+    }
     if f.uid.is_none() && f.accounts.len() > 1 {
         let name = f.accounts.get(f.account).map(|a| a.1.clone()).unwrap_or_default();
         form_row(ui, t, true, Some(Icon::Person), "Account", |ui| {
@@ -266,7 +341,7 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
     footer_rule(ui, t);
     let mut keep = true;
     ui.horizontal(|ui| {
-        if let Some(uid) = f.uid.clone() {
+        if let Some(uid) = f.uid.clone().filter(|_| !f.read_only) {
             if ui.button(tl!("Delete")).clicked() {
                 acts.push(Action::Submit("task.delete", json!({"uid": uid})));
             }
@@ -276,7 +351,7 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
             }
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if widgets::accent_button(ui, crate::icons::Icon::Task, "Save", t, !f.title.trim().is_empty()).clicked() {
+            if widgets::accent_button(ui, crate::icons::Icon::Task, "Save", t, !f.title.trim().is_empty() && !f.read_only).clicked() {
                 f.error = None;
                 acts.push(Action::Submit(if f.uid.is_some() { "task.update" } else { "task.create" }, f.params()));
             }

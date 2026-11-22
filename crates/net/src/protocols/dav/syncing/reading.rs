@@ -1,4 +1,5 @@
-//! What the server has: its calendars and address books, and the items in each that changed.
+//! What the server has: its calendars, task lists and address books, and the items in each
+//! that changed.
 
 use std::collections::HashSet;
 
@@ -9,53 +10,85 @@ use super::*;
 type Changed = (Vec<String>, Vec<(String, String, String)>);
 
 impl Run<'_> {
-    /// The calendars, and the events of each that changed there or were pushed to it (`refetch`:
-    /// items read whatever their etag).
+    /// The calendars and task lists (issue #201), and the events and tasks of each that changed
+    /// there or were pushed to it (`refetch`: items read whatever their etag). A collection
+    /// that holds both (SOGo's, Stalwart's, Radicale's calendars) is read once, for both.
     pub(super) fn read_calendars(&self, refetch: &[String], out: &mut DavSync) -> Result<()> {
         let Some(home) = out.caldav_home.clone() else { return Ok(()) };
         let refetching: HashSet<&str> = refetch.iter().map(String::as_str).collect();
-        let mut calendars = Vec::new();
-        for (n, c) in self.dav.collections(Kind::Calendars, &home)?.into_iter().enumerate() {
-            let ctag = ctag(&c);
-            let known = self.pim.calendars.iter().find(|k| k.id == c.href);
-            let info = CalendarInfo {
-                id: c.href.clone(),
-                name: c.props.get("displayname").cloned().unwrap_or_else(|| "Calendar".into()),
-                color: known.map_or(u8::try_from(n % 8).unwrap_or(0), |k| k.color),
-                read_only: c.writable == Some(false),
-                ctag: ctag.clone(),
-                foreign: c.foreign,
-                free_busy: false,
-            };
-            let pushed_here = out.pushed_events.iter().any(|e| e.calendar == c.href) || refetch.iter().any(|h| h.starts_with(&c.href));
-            if !ctag.is_empty() && known.is_some_and(|k| k.ctag == ctag) && !pushed_here {
-                out.unchanged_calendars.push(c.href.clone());
-            } else {
-                let have: HashMap<&str, &str> =
-                    self.pim.events.iter().filter(|e| e.calendar == c.href).map(|e| (e.href.as_str(), e.etag.as_str())).collect();
-                match unreadable(self.changed(Kind::Calendars, &c.href, &have, &refetching), &info.name, &mut out.errors)? {
-                    Some((kept, got)) => {
-                        // Unchanged: the engine keeps what it has.
-                        out.kept.extend(kept);
-                        for (href, etag, data) in got {
-                            for event in ical::parse_in(&data, self.local).events {
-                                out.events.push(StoredEvent {
-                                    calendar: c.href.clone(),
-                                    href: href.clone(),
-                                    etag: etag.clone(),
-                                    event,
-                                    dirty: false,
-                                });
-                            }
-                        }
-                        out.synced_calendars.push(c.href.clone());
-                    }
-                    None => out.unchanged_calendars.push(c.href.clone()),
-                }
+        let (mut calendars, mut lists) = (Vec::new(), Vec::new());
+        let mut n = 0;
+        for c in self.dav.all_collections(Kind::Calendars, &home)? {
+            let (events, tasks) = (holds_events(&c), holds_tasks(&c));
+            if !events && !tasks {
+                continue;
             }
-            calendars.push(info);
+            let ctag = ctag(&c);
+            let name = c.props.get("displayname").cloned().unwrap_or_else(|| if events { "Calendar" } else { "Tasks" }.into());
+            let known = self.pim.calendars.iter().find(|k| k.id == c.href);
+            let known_list = self.pim.task_lists.iter().find(|k| k.id == c.href);
+            if events {
+                calendars.push(CalendarInfo {
+                    id: c.href.clone(),
+                    name: name.clone(),
+                    color: known.map_or(u8::try_from(n % 8).unwrap_or(0), |k| k.color),
+                    read_only: c.writable == Some(false),
+                    ctag: ctag.clone(),
+                    foreign: c.foreign,
+                    free_busy: false,
+                });
+                n += 1;
+            }
+            if tasks {
+                lists.push(TaskList {
+                    id: c.href.clone(),
+                    name: name.clone(),
+                    read_only: c.writable == Some(false),
+                    ctag: ctag.clone(),
+                    tasks_only: !events,
+                    foreign: c.foreign,
+                });
+            }
+            // Unchanged when what's kept of it, as a calendar and as a task list, has this tag.
+            let same = |k: Option<&String>| k.is_some_and(|k| *k == ctag);
+            let unchanged = !ctag.is_empty()
+                && (!events || same(known.map(|k| &k.ctag)))
+                && (!tasks || same(known_list.map(|k| &k.ctag)))
+                && !out.pushed_events.iter().any(|e| e.calendar == c.href)
+                && !out.pushed_tasks.iter().any(|t| t.list == c.href)
+                && !refetch.iter().any(|h| h.starts_with(&c.href));
+            if unchanged {
+                out.unchanged_calendars.extend(events.then(|| c.href.clone()));
+                continue;
+            }
+            let mut have: HashMap<&str, &str> = HashMap::new();
+            if events {
+                have.extend(self.pim.events.iter().filter(|e| e.calendar == c.href).map(|e| (e.href.as_str(), e.etag.as_str())));
+            }
+            if tasks {
+                have.extend(self.pim.tasks.iter().filter(|t| t.list == c.href).map(|t| (t.href.as_str(), t.etag.as_str())));
+            }
+            match unreadable(self.changed(Kind::Calendars, &c.href, &have, &refetching), &name, &mut out.errors)? {
+                Some((kept, got)) => {
+                    // Unchanged: the engine keeps what it has.
+                    out.kept.extend(kept);
+                    for (href, etag, data) in got {
+                        let read = ical::parse_in(&data, self.local);
+                        for event in read.events.into_iter().filter(|_| events) {
+                            out.events.push(StoredEvent { calendar: c.href.clone(), href: href.clone(), etag: etag.clone(), event, dirty: false });
+                        }
+                        if tasks {
+                            out.list_tasks.extend(server_tasks(read.tasks, &c.href, &href, &etag));
+                        }
+                    }
+                    out.synced_calendars.extend(events.then(|| c.href.clone()));
+                    out.synced_task_lists.extend(tasks.then(|| c.href.clone()));
+                }
+                None => out.unchanged_calendars.extend(events.then(|| c.href.clone())),
+            }
         }
         out.calendars = Some(calendars);
+        out.task_lists = Some(lists);
         Ok(())
     }
 
@@ -111,6 +144,24 @@ impl Run<'_> {
         let fetched: HashSet<&str> = fetch.iter().map(String::as_str).collect();
         Ok((listed.into_iter().filter(|(h, _)| !fetched.contains(h.as_str())).map(|(h, _)| h).collect(), got))
     }
+}
+
+/// The task an item of a task list holds (issue #201): its occurrences changed on their own
+/// (`RECURRENCE-ID`) aren't kept, and the task is marked so ([`StoredTask::partial`]) that it
+/// isn't written back without them; one with no uid (RFC 5545 asks for one) gets one made from
+/// its address, the same at every sync.
+fn server_tasks(read: Vec<mailcraft_model::pim::Task>, list: &str, href: &str, etag: &str) -> Vec<StoredTask> {
+    let is_override = |t: &mailcraft_model::pim::Task| t.extra.iter().any(|l| l.to_ascii_uppercase().starts_with("RECURRENCE-ID"));
+    let partial = read.len() > 1 || read.iter().any(is_override);
+    read.into_iter()
+        .filter(|t| !is_override(t))
+        .map(|mut task| {
+            if task.uid.trim().is_empty() {
+                task.uid = format!("{:016x}@caldav", mailcraft_store::fnv64(href));
+            }
+            StoredTask { task, list: list.into(), href: href.into(), etag: etag.into(), dirty: false, partial }
+        })
+        .collect()
 }
 
 /// A collection's tag, which changes when anything in it does (empty: none given).

@@ -118,13 +118,25 @@ impl Data {
             }
             "/dav/cal/" | "/dav/card/" => {
                 let (kind, child, name) = if path == "/dav/cal/" { ("<c:calendar/>", CAL, "Work") } else { ("<card:addressbook/>", BOOK, "Studio") };
-                let col = format!(
-                    "<d:resourcetype><d:collection/>{kind}</d:resourcetype><d:displayname>{name}</d:displayname><cs:getctag>{}</cs:getctag><d:current-user-privilege-set><d:privilege><d:write/></d:privilege></d:current-user-privilege-set>",
-                    self.ctag
-                );
-                found(multistatus(&[response(path, "<d:resourcetype><d:collection/></d:resourcetype>"), response(child, &col)]))
+                let comps = |c: &[&str]| -> String {
+                    let names: String = c.iter().map(|n| format!("<c:comp name=\"{n}\"/>")).collect();
+                    format!("<c:supported-calendar-component-set>{names}</c:supported-calendar-component-set>")
+                };
+                let col = |kind: &str, name: &str, write: bool, comps: String| {
+                    format!(
+                        "<d:resourcetype><d:collection/>{kind}</d:resourcetype><d:displayname>{name}</d:displayname><cs:getctag>{}</cs:getctag><d:current-user-privilege-set><d:privilege><d:{}/></d:privilege></d:current-user-privilege-set>{comps}",
+                        self.ctag,
+                        if write { "write" } else { "read" }
+                    )
+                };
+                let says = if path == "/dav/cal/" && self.cal_tasks { comps(&["VEVENT", "VTODO"]) } else { String::new() };
+                let mut rs = vec![response(path, "<d:resourcetype><d:collection/></d:resourcetype>"), response(child, &col(kind, name, true, says))];
+                if let (true, Some(read_only)) = (path == "/dav/cal/", self.task_list) {
+                    rs.push(response(TASKS, &col(kind, "Tasks", !read_only, comps(&["VTODO"]))));
+                }
+                found(multistatus(&rs))
             }
-            p if p == CAL || p == BOOK => {
+            p if p == CAL || p == BOOK || p == TASKS => {
                 let mut rs = vec![response(p, "<d:resourcetype><d:collection/></d:resourcetype>")];
                 for (href, (etag, _)) in self.items.iter().filter(|(h, _)| h.starts_with(p)) {
                     rs.push(response(href, &format!("<d:getetag>{}</d:getetag><d:resourcetype/>", esc(etag))));
@@ -153,10 +165,10 @@ impl Data {
             }
             return ("207 Multi-Status", Vec::new(), multistatus(&rs));
         }
-        if p != CAL && p != BOOK {
+        if p != CAL && p != BOOK && p != TASKS {
             return reply("404 Not Found");
         }
-        let field = if p == CAL { "c:calendar-data" } else { "card:address-data" };
+        let field = if p == BOOK { "card:address-data" } else { "c:calendar-data" };
         let mut rs = Vec::new();
         for href in body.split("<d:href>").skip(1).filter_map(|x| x.split("</d:href>").next()) {
             if let Some((etag, data)) = self.items.get(href) {

@@ -1997,3 +1997,8 @@ count	occurrences	keer
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Je andere filters op de server (‘{name}’) lopen eerst en blijven zoals ze zijn.
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Deze regels lopen niet: een ander programma heeft zijn eigen filters de lopende gemaakt. Een regel hier opslaan laat ze weer lopen, samen met die van dat programma.
 	Found: {url}	Gevonden: {url}
+	Task list	Takenlijst
+	Task lists	Takenlijsten
+	All task lists	Alle takenlijsten
+	This task is in a task list that can't be changed here.	Deze taak staat in een takenlijst die hier niet kan worden gewijzigd.
+	Occurrences of this task were changed on their own elsewhere: change it there.	Afzonderlijke keren van deze taak zijn elders gewijzigd: wijzig ze daar.

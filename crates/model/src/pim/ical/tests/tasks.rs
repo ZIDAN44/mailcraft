@@ -182,3 +182,53 @@ const PIECES: &[&str] = &[
     "\u{0}\r\n",
     "BEGIN:VTARY:x;RELATED=END:-PT1H\r\n",
 ];
+
+/// Found in review (issue #201): a server's to-do changed here went back with what MailCraft
+/// keeps of it alone: its due time of day as a day, its second alarm gone, `CANCELLED` as
+/// needing action, `CREATED` dropped. What a task keeps less of now goes back as it was while
+/// it's unchanged here; what's changed here is written as MailCraft writes it.
+#[test]
+fn a_servers_todo_keeps_what_a_task_keeps_less_of() {
+    let todo = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Nextcloud Tasks//EN\r\n\
+BEGIN:VTIMEZONE\r\nTZID:Europe/Berlin\r\nBEGIN:STANDARD\r\nDTSTART:19701025T030000\r\nTZOFFSETFROM:+0200\r\nTZOFFSETTO:+0100\r\nRRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\nEND:STANDARD\r\n\
+BEGIN:DAYLIGHT\r\nDTSTART:19700329T020000\r\nTZOFFSETFROM:+0100\r\nTZOFFSETTO:+0200\r\nRRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE\r\n\
+BEGIN:VTODO\r\nUID:nc-1\r\nCREATED:20261101T090000Z\r\nSEQUENCE:3\r\nSUMMARY:Submit the report\r\nSTATUS:CANCELLED\r\n\
+DTSTART;TZID=Europe/Berlin:20261123T090000\r\nDUE;TZID=Europe/Berlin:20261125T170000\r\n\
+BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER;RELATED=END:-PT1H\r\nEND:VALARM\r\nBEGIN:VALARM\r\nACTION:AUDIO\r\nTRIGGER;RELATED=END:-P1D\r\nEND:VALARM\r\n\
+END:VTODO\r\nEND:VCALENDAR\r\n";
+    let task = parse(todo, 0).tasks.remove(0);
+    assert_eq!((task.status, task.due.map(|d| d % 86_400)), (TaskStatus::Deferred, Some(0)), "a day, and Deferred, here");
+    // Unchanged here but its title: everything else as it was.
+    let mut changed = task.clone();
+    changed.title = "Submit the final report".into();
+    let back = write_calendar(&[], &[changed], 1_800_000_000);
+    for kept in [
+        "DUE:20261125T160000Z",
+        "DTSTART:20261123T080000Z",
+        "STATUS:CANCELLED",
+        "CREATED:20261101T090000Z",
+        "SEQUENCE:3",
+        "TRIGGER;RELATED=END:-PT1H",
+        "TRIGGER;RELATED=END:-P1D",
+        "ACTION:AUDIO",
+        "SUMMARY:Submit the final report",
+    ] {
+        assert!(back.contains(kept), "{kept}: {back}");
+    }
+    assert_eq!(back.matches("BEGIN:VALARM").count(), 2, "{back}");
+    assert!(!back.contains("NEEDS-ACTION") && !back.contains("VALUE=DATE:"), "{back}");
+    // Read back: the same task.
+    let again = parse(&back, 0).tasks.remove(0);
+    assert_eq!((again.due, again.start, again.status, again.reminder), (task.due, task.start, task.status, task.reminder));
+
+    // Changed here: its due day, status and reminder written as MailCraft writes them.
+    let mut moved = task.clone();
+    moved.due = moved.due.map(|d| d + 86_400);
+    moved.set_done(true, 1_800_000_000);
+    moved.reminder = Some(1_800_000_000);
+    let back = write_calendar(&[], &[moved], 1_800_000_000);
+    assert!(back.contains("DUE;VALUE=DATE:20261126") && back.contains("STATUS:COMPLETED"), "{back}");
+    assert!(back.contains("DTSTART:20261123T080000Z"), "its start unchanged: {back}");
+    assert_eq!(back.matches("BEGIN:VALARM").count(), 1, "the new reminder alone: {back}");
+    assert!(!back.contains("CANCELLED") && !back.contains("ACTION:AUDIO"), "{back}");
+}

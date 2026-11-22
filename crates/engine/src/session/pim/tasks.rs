@@ -1,8 +1,9 @@
-//! Tasks (Outlook's Tasks): each account's, kept with its calendar and contacts (`pim.json`) on
-//! this computer only (owner's decision: no CalDAV or Microsoft To Do sync). A task with a due
-//! day shows in the calendar that day, drawn from the task ([`Session::task_items`]): it isn't
-//! copied into the events. Marking a repeating task done keeps a done copy and moves the task to
-//! its next due day, as Outlook does.
+//! Tasks (Outlook's Tasks): each account's, kept with its calendar and contacts (`pim.json`),
+//! and on its server where that keeps them: an on-premises Exchange account's Tasks folder
+//! (issue #161), a CalDAV server's task lists (issue #201). No Microsoft To Do sync. A task with
+//! a due day shows in the calendar that day, drawn from the task ([`Session::task_items`]): it
+//! isn't copied into the events. Marking a repeating task done keeps a done copy and moves the
+//! task to its next due day, as Outlook does.
 
 use mailcraft_model::pim::{StoredTask, TASK_NOTES_KEPT, Task, task_day};
 use mailcraft_model::search::{fold_all, folded_has_phrase};
@@ -19,10 +20,11 @@ const NEXT_WITHIN: i64 = 10 * 366 * 86_400;
 /// The calendar a task is drawn in (it's no calendar's).
 pub const TASKS_CALENDAR: &str = "tasks";
 
-/// A task with the account it's in.
+/// A task with the account it's in, and its CalDAV task list (empty: none).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TaskRef {
     pub account: String,
+    pub list: String,
     pub task: Task,
 }
 
@@ -30,6 +32,8 @@ pub struct TaskRef {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ListedTask<'a> {
     pub account: &'a str,
+    /// Its CalDAV task list (empty: none).
+    pub list: &'a str,
     pub task: &'a Task,
     /// Its place among its account's tasks (`Pim::tasks`), to find it again without a search.
     pub at: usize,
@@ -151,25 +155,36 @@ impl Session {
         (list.len(), list.iter().filter(|r| r.task.overdue(today)).count())
     }
 
-    /// The tasks a search finds, done ones left out when the list hides them, in no order.
+    /// The task list shown alone (issue #201): the one chosen, while an account has it.
+    pub fn shown_task_list(&self) -> Option<&str> {
+        let l = self.prefs.tasks_list.as_deref()?;
+        self.pim.values().any(|p| p.task_lists.iter().any(|x| x.id == l)).then_some(l)
+    }
+
+    /// The tasks a search finds, done ones left out when the list hides them, in no order; of
+    /// the task list shown alone, when one is.
     fn tasks_matching(&self, query: &str) -> Vec<ListedTask<'_>> {
         let words: Vec<String> = fold_all(query).split(' ').filter(|w| !w.is_empty()).map(str::to_string).collect();
         let hide_done = self.prefs.tasks_hide_done;
+        let only = self.shown_task_list();
         self.pim
             .iter()
             .flat_map(|(a, p)| {
                 p.tasks
                     .iter()
                     .enumerate()
+                    .filter(|(_, t)| only.is_none_or(|l| t.list == l))
                     .filter(|(_, t)| !(hide_done && t.task.is_done()) && task_matches(&t.task, &words))
-                    .map(|(at, t)| ListedTask { account: a, task: &t.task, at })
+                    .map(|(at, t)| ListedTask { account: a, list: &t.list, task: &t.task, at })
             })
             .collect()
     }
 
     /// The task with a uid, and its account.
     pub fn find_task(&self, uid: &str) -> Option<TaskRef> {
-        self.pim.iter().find_map(|(a, p)| p.tasks.iter().find(|t| t.task.uid == uid).map(|t| TaskRef { account: a.clone(), task: t.task.clone() }))
+        self.pim.iter().find_map(|(a, p)| {
+            p.tasks.iter().find(|t| t.task.uid == uid).map(|t| TaskRef { account: a.clone(), list: t.list.clone(), task: t.task.clone() })
+        })
     }
 
     /// Tasks go to the server only where it keeps them: an on-premises Exchange account's Tasks
@@ -178,14 +193,89 @@ impl Session {
         self.notes_sync(account)
     }
 
+    /// Each account's CalDAV task lists (issue #201), in the order the server gave them.
+    pub fn task_lists(&self) -> Vec<(&str, &mailcraft_model::pim::TaskList)> {
+        self.accounts
+            .iter()
+            .filter_map(|a| self.pim.get(&a.config.id).map(|p| (a.config.id.as_str(), p)))
+            .flat_map(|(a, p)| p.task_lists.iter().map(move |l| (a, l)))
+            .collect()
+    }
+
+    /// The task list of `account` a task goes to: the one named (one of its own it may write
+    /// to), else the account's default; empty where its server keeps no task lists.
+    fn list_for(&self, account: &str, list: Option<&str>) -> Result<String, CmdError> {
+        let Some(p) = self.pim.get(account) else { return Ok(String::new()) };
+        match list.map(str::trim).filter(|l| !l.is_empty()) {
+            Some(l) => match p.task_lists.iter().find(|x| x.id == l) {
+                Some(x) if x.read_only => Err(CmdError::Disabled(format!("the task list `{}` can't be changed here", x.name))),
+                Some(x) => Ok(x.id.clone()),
+                None => Err(CmdError::Params(format!("no task list `{l}` in this account"))),
+            },
+            None => Ok(p.default_task_list().map(|l| l.id.clone()).unwrap_or_default()),
+        }
+    }
+
+    /// A task in a list the user may only read can't be changed here, nor one whose item on the
+    /// server holds occurrences changed on their own (they'd be lost).
+    fn task_writable(&self, account: &str, list: &str) -> Result<(), CmdError> {
+        if self.pim.get(account).is_some_and(|p| !p.task_list_writable(list)) {
+            return Err(CmdError::Disabled("this task is in a task list that can't be changed here".into()));
+        }
+        Ok(())
+    }
+
+    /// Whether a task's item on the server holds more than it ([`StoredTask::partial`]).
+    pub fn task_partial(&self, uid: &str) -> bool {
+        self.pim.values().flat_map(|p| &p.tasks).any(|t| t.task.uid == uid && t.partial)
+    }
+
+    fn task_whole(&self, uid: &str) -> Result<(), CmdError> {
+        if self.task_partial(uid) {
+            return Err(CmdError::Disabled("this task has occurrences changed on their own elsewhere: change it there".into()));
+        }
+        Ok(())
+    }
+
+    /// Move a task to another of its account's task lists (issue #201): stored in that one,
+    /// deleted from the one it was in.
+    pub fn move_task(&mut self, uid: &str, list: &str) -> CmdResult {
+        let Some(r) = self.find_task(uid) else { return Err(CmdError::Params(format!("no task `{uid}`"))) };
+        self.task_writable(&r.account, &r.list)?;
+        self.task_whole(uid)?;
+        let to = self.list_for(&r.account, Some(list))?;
+        if to == r.list {
+            return Ok(serde_json::json!({"uid": uid, "changed": false}));
+        }
+        let p = self.pim_mut(&r.account);
+        let Some(stored) = p.tasks.iter_mut().find(|t| t.task.uid == uid) else { return Err(CmdError::Params(format!("no task `{uid}`"))) };
+        let gone = (!stored.href.is_empty()).then(|| mailcraft_model::pim::Tombstone {
+            href: stored.href.clone(),
+            etag: stored.etag.clone(),
+            ..Default::default()
+        });
+        stored.list = to.clone();
+        stored.href.clear();
+        stored.etag.clear();
+        stored.dirty = true;
+        p.deleted.extend(gone);
+        self.after_pim_change(&r.account, true);
+        Ok(serde_json::json!({"uid": uid, "list": to}))
+    }
+
     fn task_account(&self, uid: &str) -> Result<String, CmdError> {
         self.find_task(uid).map(|r| r.account).ok_or_else(|| CmdError::Params(format!("no task `{uid}`")))
     }
 
     /// Add a task; returns its uid (a new one when it has none, or its own is taken).
     pub fn create_task(&mut self, account: Option<&str>, t: Task) -> CmdResult {
+        self.create_task_in(account, None, t)
+    }
+
+    /// Add a task to a task list of its account's server (`None`: the account's default).
+    pub fn create_task_in(&mut self, account: Option<&str>, list: Option<&str>, t: Task) -> CmdResult {
         check_task(&t, None)?;
-        self.add_task(account, t, false)
+        self.add_task(account, list, t, false)
     }
 
     /// Add a to-do from a calendar file: one with the uid of a task already in the account
@@ -198,12 +288,13 @@ impl Session {
         {
             t.start = Some(d);
         }
-        self.add_task(account, t, true)
+        self.add_task(account, None, t, true)
     }
 
-    /// Add a task as it is. `from_file`: it replaces the account's task with its uid and keeps
-    /// its own changed time (else a taken uid gets a new one, and the task is changed now).
-    fn add_task(&mut self, account: Option<&str>, mut t: Task, from_file: bool) -> CmdResult {
+    /// Add a task as it is, in `list` (`None`: the account's default, or the list of the task
+    /// it replaces). `from_file`: it replaces the account's task with its uid and keeps its own
+    /// changed time (else a taken uid gets a new one, and the task is changed now).
+    fn add_task(&mut self, account: Option<&str>, list: Option<&str>, mut t: Task, from_file: bool) -> CmdResult {
         let account = self.account_or_shown(account)?;
         let taken = self.find_task(&t.uid).map(|r| r.account);
         let replaces = from_file && !t.uid.trim().is_empty() && taken.as_deref() == Some(account.as_str());
@@ -216,7 +307,16 @@ impl Session {
             t.modified = now;
         }
         let uid = t.uid.clone();
-        let remote = self.tasks_sync(&account);
+        let replaced = replaces.then(|| self.find_task(&uid)).flatten();
+        if let Some(r) = &replaced {
+            self.task_writable(&account, &r.list)?;
+            self.task_whole(&uid)?;
+        }
+        let list = match (list, &replaced) {
+            (None, Some(r)) => r.list.clone(),
+            _ => self.list_for(&account, list)?,
+        };
+        let remote = self.tasks_sync(&account) || !list.is_empty();
         let p = self.pim_mut(&account);
         // One it takes the place of keeps its item on the server: changed there, not made twice.
         let mut kept = StoredTask::default();
@@ -227,7 +327,7 @@ impl Session {
         if p.tasks.len() >= MAX_TASKS {
             return Err(CmdError::Params(format!("an account keeps at most {MAX_TASKS} tasks")));
         }
-        p.tasks.push(StoredTask { task: t, href: kept.href, etag: kept.etag, dirty: remote });
+        p.tasks.push(StoredTask { task: t, list, href: kept.href, etag: kept.etag, dirty: remote, partial: false });
         self.after_pim_change(&account, remote);
         Ok(serde_json::json!({"uid": uid, "account": account}))
     }
@@ -235,8 +335,11 @@ impl Session {
     /// Change a task.
     pub fn update_task(&mut self, uid: &str, change: impl FnOnce(&mut Task)) -> CmdResult {
         let account = self.task_account(uid)?;
+        let list = self.find_task(uid).map(|r| r.list).unwrap_or_default();
+        self.task_writable(&account, &list)?;
+        self.task_whole(uid)?;
         let now = self.clock.now;
-        let remote = self.tasks_sync(&account);
+        let remote = self.tasks_sync(&account) || !list.is_empty();
         let p = self.pim_mut(&account);
         let Some(stored) = p.tasks.iter_mut().find(|t| t.task.uid == uid) else { return Err(CmdError::Params(format!("no task `{uid}`"))) };
         let before = stored.task.clone();
@@ -272,7 +375,9 @@ impl Session {
         copy.rrule = None;
         copy.reminder = None;
         copy.set_done(true, now);
-        let copied = self.add_task(Some(&r.account), copy, false)?;
+        self.task_writable(&r.account, &r.list)?;
+        self.task_whole(uid)?;
+        let copied = self.add_task(Some(&r.account), Some(&r.list).filter(|l| !l.is_empty()).map(String::as_str), copy, false)?;
         // The task, from its next time on.
         let shift = next.saturating_sub(r.task.due.or(r.task.start).unwrap_or(next));
         self.update_task(uid, |t| {
@@ -289,14 +394,19 @@ impl Session {
 
     pub fn delete_task(&mut self, uid: &str) -> CmdResult {
         let account = self.task_account(uid)?;
+        let list = self.find_task(uid).map(|r| r.list).unwrap_or_default();
+        self.task_writable(&account, &list)?;
+        self.task_whole(uid)?;
         let p = self.pim_mut(&account);
-        // One on the server is deleted there too.
-        let mut remote = false;
-        for t in p.tasks.iter().filter(|t| t.task.uid == uid && !t.href.is_empty()) {
-            remote = true;
-            p.deleted.push(mailcraft_model::pim::Tombstone { href: t.href.clone(), etag: t.etag.clone(), ..Default::default() });
+        // This one (the first with the uid, as `find_task` finds): a copy of it in another task
+        // list, a colleague's say, is another item, left as it is. One on the server is deleted
+        // there too.
+        let Some(at) = p.tasks.iter().position(|t| t.task.uid == uid) else { return Err(CmdError::Params(format!("no task `{uid}`"))) };
+        let gone = p.tasks.remove(at);
+        let remote = !gone.href.is_empty();
+        if remote {
+            p.deleted.push(mailcraft_model::pim::Tombstone { href: gone.href, etag: gone.etag, ..Default::default() });
         }
-        p.tasks.retain(|t| t.task.uid != uid);
         self.after_pim_change(&account, remote);
         Ok(serde_json::json!({"deleted": uid}))
     }

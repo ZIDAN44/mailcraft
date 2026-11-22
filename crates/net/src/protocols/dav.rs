@@ -14,7 +14,7 @@
 use std::collections::HashMap;
 
 use mailcraft_model::ical::{self, CalEvent};
-use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, LOCAL, Pim, StoredCard, StoredEvent};
+use mailcraft_model::pim::{BookInfo, CalendarInfo, DavSync, LOCAL, Pim, StoredCard, StoredEvent, StoredTask, TaskList};
 use mailcraft_model::vcard;
 
 use crate::http::{self, Request, Response, Url};
@@ -362,15 +362,19 @@ impl Dav {
     /// `owner` is known and is neither the home's owner nor the signed-in user is marked
     /// someone else's (SOGo lists the calendars subscribed to in the user's home, issue #30).
     pub fn collections(&self, kind: Kind, home: &str) -> Result<Vec<Item>> {
+        let all = self.all_collections(kind, home)?;
+        Ok(all.into_iter().filter(|i| kind != Kind::Calendars || holds_events(i)).collect())
+    }
+
+    /// Every collection of a kind in a home: for calendars, those of events and the task lists
+    /// alike (issue #201), each to be taken as what it holds ([`holds_events`], [`holds_tasks`]).
+    pub fn all_collections(&self, kind: Kind, home: &str) -> Result<Vec<Item>> {
         let props = "<d:resourcetype/><d:displayname/><cs:getctag/><d:sync-token/><a:calendar-color/><c:supported-calendar-component-set/><d:current-user-privilege-set/><d:owner/><d:current-user-principal/>";
         let (mut items, at) = self.propfind(home, "1", props)?;
         let want = if kind == Kind::Calendars { "calendar" } else { "addressbook" };
         mark_foreign(&mut items, &at, home);
         let mut out = Vec::new();
         for mut i in items.into_iter().filter(|i| i.kinds.iter().any(|k| k == want)) {
-            if kind == Kind::Calendars && !i.comps.is_empty() && !i.comps.iter().any(|c| c == "VEVENT") {
-                continue;
-            }
             i.href = absolute(&at, &i.href)?;
             out.push(i);
         }
@@ -537,6 +541,19 @@ impl std::fmt::Display for Refused {
             Refused::Other(s) => write!(f, "the server refused it (HTTP {s})"),
         }
     }
+}
+
+/// Whether a calendar collection holds events: it says it takes `VEVENT`, or says nothing of
+/// what it takes (RFC 4791 §5.2.3: then anything).
+pub fn holds_events(c: &Item) -> bool {
+    c.comps.is_empty() || c.comps.iter().any(|x| x == "VEVENT")
+}
+
+/// Whether a calendar collection is a task list (issue #201): it says it takes `VTODO`. One that
+/// says nothing isn't taken for one: SOGo lists its calendars' `.ics` and `.xml` views beside
+/// them as calendars that say nothing, and tasks would go there.
+pub fn holds_tasks(c: &Item) -> bool {
+    c.comps.iter().any(|x| x == "VTODO")
 }
 
 /// Mark the collections of a home listing (read at `at`) that are someone else's: an `owner`

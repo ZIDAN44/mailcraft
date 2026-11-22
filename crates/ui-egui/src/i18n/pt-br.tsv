@@ -2002,3 +2002,8 @@ count	occurrences	ocorrências
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Seus outros filtros no servidor (“{name}”) são executados primeiro e ficam como estão.
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Estas regras não estão sendo executadas: outro programa fez dos próprios filtros os que são executados. Salvar uma regra aqui as executa de novo, junto com as daquele programa.
 	Found: {url}	Encontrado: {url}
+	Task list	Lista de tarefas
+	Task lists	Listas de tarefas
+	All task lists	Todas as listas de tarefas
+	This task is in a task list that can't be changed here.	Esta tarefa está em uma lista de tarefas que não pode ser alterada aqui.
+	Occurrences of this task were changed on their own elsewhere: change it there.	Ocorrências desta tarefa foram alteradas separadamente em outro lugar: altere-a lá.

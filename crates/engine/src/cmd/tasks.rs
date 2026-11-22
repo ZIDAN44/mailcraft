@@ -6,16 +6,16 @@ use super::*;
 use crate::session::pim::TasksOrder;
 
 /// What a task's params look like (create and update; update also takes its `uid`).
-const TASK_PARAMS: &str = r#"{"title": string, "notes"?: string, "start"?: "YYYY-MM-DD" | "" (none), "due"?: "YYYY-MM-DD" | "" (none), "status"?: "notStarted"|"inProgress"|"completed"|"waiting"|"deferred", "percent"?: 0-100, "priority"?: "low"|"normal"|"high", "categories"?: [string] | "Work, Clients", "reminder"?: "YYYY-MM-DDTHH:MM" | "none", "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE|"none", "account"?: string}"#;
+const TASK_PARAMS: &str = r#"{"title": string, "notes"?: string, "start"?: "YYYY-MM-DD" | "" (none), "due"?: "YYYY-MM-DD" | "" (none), "status"?: "notStarted"|"inProgress"|"completed"|"waiting"|"deferred", "percent"?: 0-100, "priority"?: "low"|"normal"|"high", "categories"?: [string] | "Work, Clients", "reminder"?: "YYYY-MM-DDTHH:MM" | "none", "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE|"none", "account"?: string, "list"?: string (a task list's id, from task.lists; else the account's default)}"#;
 
 fn has_task(s: &Session) -> Option<&'static str> {
     if s.pim.values().any(|p| !p.tasks.is_empty()) { None } else { Some("there are no tasks") }
 }
 
 /// A task as commands answer it.
-fn task_json(account: &str, t: &Task) -> Value {
+fn task_json(account: &str, list: &str, t: &Task) -> Value {
     json!({
-        "uid": t.uid, "account": account, "title": t.title, "notes": t.notes, "start": t.start, "due": t.due,
+        "uid": t.uid, "account": account, "list": list, "title": t.title, "notes": t.notes, "start": t.start, "due": t.due,
         "completed": t.completed, "status": t.status.code(), "percent": t.percent, "priority": t.priority.code(),
         "categories": t.categories, "reminder": t.reminder, "repeat": t.rrule, "modified": t.modified,
     })
@@ -26,13 +26,25 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         // Outlook's key for Tasks.
         CommandSpec::new("view.tasks", "Tasks", "Navigation", |s, _| set_module(s, crate::Module::Tasks)).key("Mod+4"),
         CommandSpec::new("task.list", "Tasks", "Tasks", |s, v| {
-            let list: Vec<Value> = s.tasks(p::str(v, "query").unwrap_or("")).iter().map(|r| task_json(r.account, r.task)).collect();
+            let list: Vec<Value> = s.tasks(p::str(v, "query").unwrap_or("")).iter().map(|r| task_json(r.account, r.list, r.task)).collect();
             Ok(json!({"tasks": list}))
         })
         .params(r#"{"query"?: string (words of its title, notes or categories)}"#),
+        // The CalDAV server's task lists (issue #201).
+        CommandSpec::new("task.lists", "Task lists", "Tasks", |s, _| {
+            let lists: Vec<Value> = s
+                .task_lists()
+                .into_iter()
+                .map(|(account, l)| {
+                    let default = s.pim.get(account).and_then(|p| p.default_task_list()).is_some_and(|d| d.id == l.id);
+                    json!({"account": account, "id": l.id, "name": l.name, "readOnly": l.read_only, "default": default})
+                })
+                .collect();
+            Ok(json!({"lists": lists}))
+        }),
         CommandSpec::new("task.create", "New task", "Tasks", |s, v| {
             let t = task_from(s, v, Task::default())?;
-            s.create_task(p::str(v, "account"), t)
+            s.create_task_in(p::str(v, "account"), p::str(v, "list"), t)
         })
         .params(TASK_PARAMS)
         .when(has_account),
@@ -40,9 +52,14 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let uid = p::req_str(v, "uid")?.to_string();
             let before = s.find_task(&uid).ok_or_else(|| CmdError::Params(format!("no task `{uid}`")))?.task;
             let t = task_from(s, v, before)?;
+            // Into another task list first (issue #201): stored there, deleted from the one it was
+            // in. A list it can't go to refuses the whole change, nothing of it saved.
+            if let Some(list) = p::str(v, "list").map(str::trim).filter(|l| !l.is_empty()) {
+                s.move_task(&uid, list)?;
+            }
             s.update_task(&uid, |x| *x = t)
         })
-        .params(r#"{"uid": string, … as task.create (what's not given stays)}"#)
+        .params(r#"{"uid": string, … as task.create (what's not given stays; "list" moves it)}"#)
         .when(has_task),
         CommandSpec::new("task.complete", "Mark complete", "Tasks", |s, v| {
             s.complete_task(p::req_str(v, "uid")?, p::bool(v, "done").unwrap_or(true))
@@ -60,6 +77,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"by": "due"|"priority"|"title"|"modified"}"#),
         toggle!("task.hideDone", "Hide completed tasks", "Tasks › View", tasks_hide_done, r#"{"on"?: bool (default: the other way)}"#),
+        // One task list alone, or all of them (issue #201).
+        CommandSpec::new("task.showList", "Show a task list", "Tasks › View", |s, v| {
+            let list = p::str(v, "list").map(str::trim).filter(|l| !l.is_empty());
+            if let Some(l) = list
+                && !s.task_lists().iter().any(|(_, x)| x.id == l)
+            {
+                return Err(CmdError::Params(format!("no task list `{l}`")));
+            }
+            s.prefs.tasks_list = list.map(str::to_string);
+            Ok(json!({"list": s.prefs.tasks_list}))
+        })
+        .params(r#"{"list"?: string (a task list's id, from task.lists; none or "": every task)}"#),
     ]
 }
 

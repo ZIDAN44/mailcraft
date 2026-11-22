@@ -2015,3 +2015,8 @@ count	occurrences	повторений
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Ваши другие фильтры на сервере («{name}») выполняются первыми и остаются как есть.
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Эти правила не выполняются: другая программа сделала выполняемыми свои фильтры. Сохранение правила здесь снова запустит их вместе с фильтрами той программы.
 	Found: {url}	Найдено: {url}
+	Task list	Список задач
+	Task lists	Списки задач
+	All task lists	Все списки задач
+	This task is in a task list that can't be changed here.	Эта задача находится в списке задач, который здесь изменить нельзя.
+	Occurrences of this task were changed on their own elsewhere: change it there.	Отдельные повторения этой задачи изменены в другом месте: измените её там.

@@ -1,8 +1,9 @@
 //! Tasks, as Outlook's Tasks keeps them (MS-OXOTASK): a title and notes, the days it starts and
-//! is due, how far along it is, and when it was done. Kept on this computer, and for an
-//! on-premises Exchange account in its mailbox's Tasks folder too (issue #161), as Outlook keeps
-//! them; no CalDAV or Microsoft To Do sync (owner's decision). They go in and out of calendar
-//! files as `VTODO`s (RFC 5545 §3.6.2).
+//! is due, how far along it is, and when it was done. Kept on this computer; for an on-premises
+//! Exchange account in its mailbox's Tasks folder too (issue #161), as Outlook keeps them; and on
+//! a CalDAV server in its task lists (issue #201: Nextcloud, SOGo, Stalwart, Radicale), each a
+//! calendar collection that takes `VTODO`s. No Microsoft To Do sync. They go in and out of
+//! calendar files as `VTODO`s (RFC 5545 §3.6.2).
 
 use serde::{Deserialize, Serialize};
 
@@ -127,6 +128,32 @@ pub struct Task {
     /// (`ATTACH`) among them, as an event keeps its own.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra: Vec<String>,
+    /// What the to-do it was read from said that MailCraft keeps less of (issue #201): written
+    /// back as it was while what MailCraft read of it is unchanged, so a task changed here
+    /// doesn't lose its times of day, its other alarms or a status Outlook has no word for on the
+    /// server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<Box<TaskSource>>,
+}
+
+/// What a to-do said beyond what a task keeps ([`Task::source`]), each with what MailCraft read
+/// of it, to tell whether it changed since.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TaskSource {
+    /// `DTSTART` and `DUE` with a time of day: the day kept, and the time it was (UTC).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start: Option<(i64, i64)>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub due: Option<(i64, i64)>,
+    /// Its `STATUS` line as written, and the status read from it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<(TaskStatus, String)>,
+    /// Its alarms as written (unfolded lines, `BEGIN:VALARM` to `END:VALARM`), and the reminder
+    /// read from them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub alarms: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reminder: Option<i64>,
 }
 
 impl Task {
@@ -178,17 +205,49 @@ impl Task {
 }
 
 /// A task with what's needed to keep it: where it is on the server (an Exchange account's
-/// Tasks folder: its item and change key, empty for one kept here only), and whether it changed
-/// here since, to send.
+/// Tasks folder: its item and change key; a CalDAV task list: its list, its item's address and
+/// etag; empty for one kept here only), and whether it changed here since, to send.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StoredTask {
     pub task: Task,
+    /// The CalDAV task list it's in ([`TaskList::id`]); empty for one kept here, or in an
+    /// Exchange account's Tasks folder.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub list: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub href: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub etag: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub dirty: bool,
+    /// Its item on the server holds more than this task: occurrences of it changed on their own
+    /// (`RECURRENCE-ID`), which MailCraft doesn't keep. Shown, not changed here, so they aren't
+    /// lost when it's written back.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub partial: bool,
+}
+
+/// A task list on a CalDAV server (issue #201): a calendar collection that takes to-dos
+/// (`VTODO` in its `supported-calendar-component-set`). One that takes events too (SOGo's,
+/// Stalwart's, Radicale's calendars) is also one of the account's calendars; Nextcloud's are
+/// lists of tasks alone.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TaskList {
+    /// The collection's address on the server.
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub read_only: bool,
+    /// The collection's version at the last sync (`getctag` / sync token).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub ctag: String,
+    /// It takes to-dos alone, not events: a list made for tasks (Nextcloud's Tasks), where new
+    /// tasks go before a calendar that takes both.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub tasks_only: bool,
+    /// Someone else's, listed in the user's home (as a calendar can be).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub foreign: bool,
 }
 
 /// The day (UTC midnight) a time stored for a date falls on: the nearest midnight, as Outlook
@@ -244,5 +303,31 @@ mod tests {
         assert!(p.tasks.is_empty());
         let s: Task = serde_json::from_str(r#"{"uid":"a"}"#).unwrap();
         assert_eq!((s.status, s.priority, s.percent), (TaskStatus::NotStarted, TaskPriority::Normal, 0));
+        // Tasks kept before task lists: in none, and accounts with no lists (issue #201).
+        let st: StoredTask = serde_json::from_str(r#"{"task":{"uid":"a"},"href":"task:1"}"#).unwrap();
+        assert_eq!((st.list.as_str(), st.href.as_str()), ("", "task:1"));
+        assert!(p.task_lists.is_empty());
+    }
+
+    /// New tasks go to a list made for tasks before a calendar that takes them too, never to a
+    /// read-only list or someone else's.
+    #[test]
+    fn the_list_new_tasks_go_to() {
+        let list = |id: &str, tasks_only: bool, read_only: bool, foreign: bool| TaskList {
+            id: id.into(),
+            name: id.into(),
+            tasks_only,
+            read_only,
+            foreign,
+            ..Default::default()
+        };
+        let mut p = crate::pim::Pim::default();
+        assert_eq!(p.default_task_list(), None);
+        p.task_lists = vec![list("theirs", true, false, true), list("cal", false, false, false), list("ro", true, true, false)];
+        assert_eq!(p.default_task_list().map(|l| l.id.as_str()), Some("cal"));
+        p.task_lists.push(list("tasks", true, false, false));
+        assert_eq!(p.default_task_list().map(|l| l.id.as_str()), Some("tasks"));
+        p.task_lists = vec![list("ro", true, true, false)];
+        assert_eq!(p.default_task_list(), None);
     }
 }

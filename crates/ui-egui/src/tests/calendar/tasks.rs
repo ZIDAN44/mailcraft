@@ -186,3 +186,87 @@ fn a_tasks_days_are_written_as_options_says_and_picked() {
     let Some(Dialog::Task(f)) = &a.ui.dialog else { panic!("the form") };
     assert_eq!(f.due, "31.02.2026");
 }
+
+/// Issue #201: a CalDAV server's task lists in the side pane (every task, or one list's alone),
+/// a task's list under its title, the form's Task list where the account has several, and a
+/// task in a list the user may only read shown as such, not saved.
+#[test]
+fn caldav_task_lists_are_shown_and_picked() {
+    use mailcraft_engine::model::pim::{DavSync, StoredTask, Task, TaskList};
+    let (mut a, _) = app("task-lists-ui");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.run("account.add", json!({"email": "zoe@example.org", "username": "zoe", "password": "pw", "dav": "https://dav.example.org/"}));
+    let id = a.session.accounts.iter().find(|x| x.config.is_calendar_only()).map(|x| x.config.id.clone()).expect("the account");
+    let (cal, tasks, team) =
+        ("https://dav.example.org/cal/zoe/personal/", "https://dav.example.org/cal/zoe/tasks/", "https://dav.example.org/cal/ana/team/");
+    let list = |id: &str, name: &str, tasks_only: bool, read_only: bool| TaskList {
+        id: id.into(),
+        name: name.into(),
+        tasks_only,
+        read_only,
+        ..Default::default()
+    };
+    let task = |uid: &str, title: &str, list: &str| StoredTask {
+        task: Task { uid: uid.into(), title: title.into(), ..Default::default() },
+        list: list.into(),
+        href: format!("{list}{uid}.ics"),
+        etag: "\"1\"".into(),
+        dirty: false,
+        partial: false,
+    };
+    let sync = DavSync {
+        caldav_home: Some("https://dav.example.org/cal/zoe/".into()),
+        task_lists: Some(vec![list(cal, "Personal", false, false), list(tasks, "Errands", true, false), list(team, "Team", true, true)]),
+        list_tasks: vec![task("t1", "Buy milk", tasks), task("t3", "Their task", team)],
+        synced_task_lists: vec![cal.into(), tasks.into(), team.into()],
+        checked: a.session.clock.now,
+        ..Default::default()
+    };
+    a.session.apply(mailcraft_engine::model::Event::DavSynced { account: id.clone(), sync: Box::new(sync) });
+    a.run("view.tasks", json!({}));
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    drawn_text(&ctx, &mut a, size);
+    let drawn = drawn_text(&ctx, &mut a, size);
+    let seen = |d: &Vec<Drawn>, s: &str| d.iter().any(|x| x.text == s && x.seen());
+    for s in ["Task lists", "All task lists", "Personal", "Errands", "Team", "Buy milk", "Their task", "Send the grading notes to the client"] {
+        assert!(seen(&drawn, s), "{s}: {:?}", drawn.iter().map(|d| d.text.as_str()).collect::<Vec<_>>());
+    }
+    assert!(drawn.iter().any(|d| d.text.starts_with("Errands") && d.seen()), "the list under its task");
+
+    // One list alone, then every task again.
+    click_named(&ctx, &mut a, "Errands");
+    assert_eq!(a.session.shown_task_list(), Some(tasks));
+    drawn_text(&ctx, &mut a, size);
+    let one = drawn_text(&ctx, &mut a, size);
+    assert!(seen(&one, "Buy milk") && !seen(&one, "Their task") && !seen(&one, "Send the grading notes to the client"));
+    click_named(&ctx, &mut a, "All task lists");
+    assert_eq!(a.session.shown_task_list(), None);
+
+    // A new task in that account: its default list, another to pick.
+    let mut d = Dialog::new_task(&a.session, None);
+    if let Dialog::Task(f) = &mut d {
+        f.account = f.accounts.iter().position(|x| x.0 == id).unwrap();
+        f.title = "Post the parcel".into();
+    }
+    a.ui.dialog = Some(d);
+    drawn_text(&ctx, &mut a, size);
+    let form = drawn_text(&ctx, &mut a, size);
+    assert!(seen(&form, "Task list") && seen(&form, "Errands"), "{:?}", form.iter().map(|d| d.text.as_str()).collect::<Vec<_>>());
+    let Some(Dialog::Task(f)) = &mut a.ui.dialog else { panic!("the form") };
+    assert_eq!(f.list, tasks, "the account's default");
+    f.list = cal.into();
+    let p = f.params();
+    assert_eq!(p["list"], cal);
+    a.act(crate::Action::Submit("task.create", p));
+    let made = a.session.tasks("Post the parcel");
+    assert_eq!(made.first().map(|t| t.list), Some(cal));
+
+    // Their task: shown, said to be read-only, not saved or deleted from the form.
+    a.ui.dialog = Dialog::open_task(&a.session, "t3");
+    drawn_text(&ctx, &mut a, size);
+    let theirs = drawn_text(&ctx, &mut a, size);
+    assert!(seen(&theirs, "This task is in a task list that can't be changed here."));
+    assert!(!seen(&theirs, "Task list"));
+    assert!(matches!(&a.ui.dialog, Some(Dialog::Task(f)) if f.read_only));
+}

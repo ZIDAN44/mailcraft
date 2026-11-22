@@ -1,4 +1,4 @@
-//! What changed here, sent to the server: deletions, events and cards.
+//! What changed here, sent to the server: deletions, events, cards and tasks.
 
 use std::collections::BTreeMap;
 
@@ -129,6 +129,39 @@ impl Run<'_> {
                 Ok(new) => out.pushed_cards.push(StoredCard { href: url, etag: new, dirty: false, ..c.clone() }),
                 Err(e @ NetError::Auth(_)) => return Err(e),
                 Err(e) => out.errors.push(format!("{}: {e}", c.card.display())),
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Run<'_> {
+    /// Tasks changed here, each in its task list (issue #201): a `VTODO` item of its own. One
+    /// the server refuses for good (a list the user may only read), or that changed there
+    /// meanwhile (412), gives way to the server's copy, read again in this sync.
+    pub(super) fn push_tasks(&self, out: &mut DavSync, refetch: &mut Vec<String>) -> Result<()> {
+        for t in self.pim.tasks.iter().filter(|t| t.dirty && !t.list.is_empty() && !t.partial) {
+            let url =
+                if t.href.is_empty() { format!("{}/{}", t.list.trim_end_matches('/'), resource_name(&t.task.uid, "ics")) } else { t.href.clone() };
+            if !self.ours(&url) {
+                continue;
+            }
+            let etag = (!t.href.is_empty()).then_some(t.etag.as_str());
+            let data = ical::write_calendar(&[], std::slice::from_ref(&t.task), self.now);
+            let what = if t.task.title.trim().is_empty() { "a task".to_string() } else { t.task.title.clone() };
+            match self.dav.store(&url, CALENDAR_DATA, &data, etag) {
+                Ok(Ok(new)) => out.pushed_tasks.push(StoredTask { href: url, etag: new, dirty: false, ..t.clone() }),
+                Ok(Err(r @ (Refused::Forbidden | Refused::Changed))) if !t.href.is_empty() => {
+                    out.errors.push(format!("{what}: {r}"));
+                    theirs_kept(&t.task.uid, t.href.clone(), out, refetch);
+                }
+                // New, and there's one by that name already: this task stored by a sync the
+                // engine hadn't taken in yet (a real Radicale, two syncs one after the other). It's
+                // read in this sync, and the engine sends the change over it, not again as new.
+                Ok(Err(Refused::Changed)) => refetch.push(url),
+                Ok(Err(r)) => out.errors.push(format!("{what}: {r}")),
+                Err(e @ NetError::Auth(_)) => return Err(e),
+                Err(e) => out.errors.push(format!("{what}: {e}")),
             }
         }
         Ok(())

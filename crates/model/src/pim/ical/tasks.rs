@@ -5,7 +5,10 @@
 //! iCalendar: they're written as needing action, with an `X-` property that says which.
 
 use super::*;
-use crate::pim::{Task, TaskPriority, TaskStatus};
+use crate::pim::{Task, TaskPriority, TaskSource, TaskStatus};
+
+/// The most lines of a to-do's alarms kept as written.
+const ALARM_LINES_MAX: usize = 200;
 
 /// Outlook's statuses iCalendar has no word for.
 pub const TASK_STATUS: &str = "X-MAILCRAFT-TASK-STATUS";
@@ -18,6 +21,17 @@ struct Reading<'a> {
     trigger: Option<&'a Line>,
     duration: Option<i64>,
     own_status: Option<TaskStatus>,
+    /// What it says that the task keeps less of ([`TaskSource`]): `DTSTART` and `DUE` with a
+    /// time, its `STATUS` line, its alarms as written.
+    start_at: Option<i64>,
+    due_at: Option<i64>,
+    status_line: Option<String>,
+    alarms: Vec<String>,
+}
+
+/// The time a `DTSTART` or `DUE` with a time of day is at (UTC); `None` for a date.
+fn time_of(zones: &FileZones, l: &Line) -> Option<i64> {
+    zones.time(l, "").filter(|(_, all_day, _)| !all_day).map(|(t, _, _)| t)
 }
 
 /// The day (UTC midnight) a `DTSTART` or `DUE` falls on: a date as it is, a time on the viewer's
@@ -63,6 +77,9 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
                     continue;
                 };
                 depth = depth.saturating_add(1);
+                if (in_alarm || (depth == 1 && what() == "VALARM")) && r.alarms.len() < ALARM_LINES_MAX {
+                    r.alarms.push(l.raw.clone());
+                }
                 if depth == 1 {
                     in_alarm = what() == "VALARM";
                     keep = !in_alarm && r.task.extra.len() < EXTRA_MAX;
@@ -83,6 +100,9 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
                     continue;
                 };
                 if depth > 0 {
+                    if in_alarm && r.alarms.len() < ALARM_LINES_MAX {
+                        r.alarms.push(l.raw.clone());
+                    }
                     match dropped_from {
                         None if keep => r.task.extra.push(l.raw.clone()),
                         Some(d) if d == depth => dropped_from = None,
@@ -107,6 +127,9 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
         }
         let Some(r) = cur.as_mut() else { continue };
         if depth > 0 {
+            if in_alarm && r.alarms.len() < ALARM_LINES_MAX {
+                r.alarms.push(l.raw.clone());
+            }
             if in_alarm && l.name == "TRIGGER" && r.trigger.is_none() {
                 r.trigger = Some(l);
             } else if keep && dropped_from.is_none() && r.task.extra.len() < EXTRA_MAX {
@@ -119,11 +142,18 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
             "UID" => t.uid = stored_uid(&l.value),
             "SUMMARY" => t.title = unescape(&l.value),
             "DESCRIPTION" => t.notes = unescape(&l.value),
-            "DTSTART" => t.start = day_of(zones, l),
-            "DUE" => t.due = day_of(zones, l),
+            "DTSTART" => {
+                t.start = day_of(zones, l);
+                r.start_at = time_of(zones, l);
+            }
+            "DUE" => {
+                t.due = day_of(zones, l);
+                r.due_at = time_of(zones, l);
+            }
             "DURATION" => r.duration = duration(&l.value),
             "COMPLETED" => t.completed = zones.time(l, "").map(|(t, _, _)| t),
             "STATUS" => {
+                r.status_line = Some(l.raw.clone());
                 t.status = match l.value.trim().to_ascii_uppercase().as_str() {
                     "IN-PROCESS" => TaskStatus::InProgress,
                     "COMPLETED" => TaskStatus::Completed,
@@ -137,7 +167,8 @@ pub(super) fn read_tasks(all: &[&Line], zones: &FileZones) -> Vec<Task> {
             "CATEGORIES" => add_categories(&mut t.categories, &l.value),
             "RRULE" => t.rrule = Some(l.value.trim().to_string()).filter(|r| !r.is_empty()),
             "LAST-MODIFIED" => t.modified = zones.time(l, "").map_or(0, |(t, _, _)| t),
-            "DTSTAMP" | "CREATED" | "SEQUENCE" => {}
+            // Written new each time.
+            "DTSTAMP" => {}
             _ => {
                 if t.extra.len() < EXTRA_MAX {
                     t.extra.push(l.raw.clone());
@@ -173,7 +204,33 @@ fn finish(r: Reading<'_>, zones: &FileZones) -> Task {
     });
     let at = t.completed.unwrap_or(t.modified);
     t.settle(at);
+    // What it says beyond what the task keeps, with what was read of it.
+    let source = TaskSource {
+        start: t.start.zip(r.start_at),
+        due: t.due.zip(r.due_at),
+        // Only one MailCraft wouldn't write as it was (`CANCELLED`, needing action yet begun).
+        status: r
+            .status_line
+            .filter(|line| line.split_once(':').is_none_or(|(_, v)| !v.trim().eq_ignore_ascii_case(status_word(&t))))
+            .map(|line| (t.status, line)),
+        // Alarms cut off at the cap aren't kept: what's written back is whole.
+        reminder: if r.alarms.is_empty() || r.alarms.len() >= ALARM_LINES_MAX { None } else { t.reminder },
+        alarms: if r.alarms.len() >= ALARM_LINES_MAX { Vec::new() } else { r.alarms },
+    };
+    if source != TaskSource::default() {
+        t.source = Some(Box::new(source));
+    }
     t
+}
+
+/// The `STATUS` a task is written with.
+fn status_word(t: &Task) -> &'static str {
+    match t.status {
+        TaskStatus::Completed => "COMPLETED",
+        TaskStatus::InProgress => "IN-PROCESS",
+        TaskStatus::NotStarted | TaskStatus::Waiting | TaskStatus::Deferred if t.percent > 0 => "IN-PROCESS",
+        TaskStatus::NotStarted | TaskStatus::Waiting | TaskStatus::Deferred => "NEEDS-ACTION",
+    }
 }
 
 /// One `VTODO`, folded; `now` is its `DTSTAMP`.
@@ -189,25 +246,34 @@ pub(super) fn write_task(t: &Task, now: i64, out: &mut String) {
     if !t.notes.is_empty() {
         lines.push(format!("DESCRIPTION:{}", escape(&t.notes)));
     }
+    let src = t.source.as_deref();
+    // A day as read with its time of day (unchanged since): at that time again.
+    let as_read = |kept: Option<(i64, i64)>, day_now: i64| kept.filter(|(d, _)| *d == day_now).map(|(_, at)| stamp(at));
     // A rule needs a start to repeat from: the due day when there's none.
     let start = t.start.or_else(|| t.rrule.as_ref().and(t.due));
     if let Some(s) = start {
-        lines.push(format!("DTSTART;VALUE=DATE:{}", day(s)));
+        match as_read(src.and_then(|x| x.start), s) {
+            Some(at) => lines.push(format!("DTSTART:{at}")),
+            None => lines.push(format!("DTSTART;VALUE=DATE:{}", day(s))),
+        }
     }
     // Due no earlier than it starts (RFC 5545 §3.8.2.3).
     if let Some(d) = t.due {
-        lines.push(format!("DUE;VALUE=DATE:{}", day(start.map_or(d, |s| d.max(s)))));
+        let d = start.map_or(d, |s| d.max(s));
+        match as_read(src.and_then(|x| x.due), d) {
+            Some(at) => lines.push(format!("DUE:{at}")),
+            None => lines.push(format!("DUE;VALUE=DATE:{}", day(d))),
+        }
     }
     if let Some(c) = t.completed.filter(|_| t.is_done()) {
         lines.push(format!("COMPLETED:{}", stamp(c)));
     }
-    let status = match t.status {
-        TaskStatus::Completed => "COMPLETED",
-        TaskStatus::InProgress => "IN-PROCESS",
-        TaskStatus::NotStarted | TaskStatus::Waiting | TaskStatus::Deferred if t.percent > 0 => "IN-PROCESS",
-        TaskStatus::NotStarted | TaskStatus::Waiting | TaskStatus::Deferred => "NEEDS-ACTION",
-    };
-    lines.push(format!("STATUS:{status}"));
+    let status = status_word(t);
+    // The status as written, while it's the one read (`CANCELLED` is Deferred here).
+    match src.and_then(|x| x.status.as_ref()).filter(|(s, _)| *s == t.status) {
+        Some((_, line)) => lines.push(clean(line)),
+        None => lines.push(format!("STATUS:{status}")),
+    }
     if matches!(t.status, TaskStatus::Waiting | TaskStatus::Deferred) {
         lines.push(format!("{TASK_STATUS}:{}", t.status.code()));
     }
@@ -224,8 +290,14 @@ pub(super) fn write_task(t: &Task, now: i64, out: &mut String) {
         lines.push(format!("RRULE:{}", clean(r)));
     }
     lines.extend(whole(&t.extra, &["VEVENT"]));
-    if let Some(at) = t.reminder {
-        lines.extend(display_alarm(format!("TRIGGER;VALUE=DATE-TIME:{}", stamp(at))));
+    // Its alarms as written, while the reminder is the one read from them.
+    match src.filter(|x| !x.alarms.is_empty() && x.reminder == t.reminder) {
+        Some(x) => lines.extend(whole(&x.alarms, &["VEVENT", "VTODO"])),
+        None => {
+            if let Some(at) = t.reminder {
+                lines.extend(display_alarm(format!("TRIGGER;VALUE=DATE-TIME:{}", stamp(at))));
+            }
+        }
     }
     lines.push("END:VTODO".into());
     for l in lines {

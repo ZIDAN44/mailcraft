@@ -110,6 +110,9 @@ pub struct Prefs {
     /// How tasks are listed, and whether the list leaves out those done.
     pub tasks_order: pim::TasksOrder,
     pub tasks_hide_done: bool,
+    /// The CalDAV task list the Tasks list shows alone (issue #201); `None`: every task.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tasks_list: Option<String>,
     /// Calendars left out of the calendar (`account/calendar id`), as Outlook's unticked ones.
     pub hidden_calendars: BTreeSet<String>,
     /// Day and week show each calendar in a column of its own (Outlook's side-by-side view)
@@ -405,6 +408,7 @@ impl Default for Prefs {
             notes_order: NotesOrder::Modified,
             tasks_order: pim::TasksOrder::Due,
             tasks_hide_done: false,
+            tasks_list: None,
             hidden_calendars: BTreeSet::new(),
             calendars_side_by_side: false,
             schedule_work_hours: false,

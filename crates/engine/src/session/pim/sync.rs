@@ -72,11 +72,28 @@ impl Session {
         // are no longer to send; the server's read again take the place of the rest, those
         // changed here (and those never sent) staying.
         for x in &sync.pushed_tasks {
-            for t in p.tasks.iter_mut().filter(|t| t.task.uid == x.task.uid) {
+            // In the list it was stored in (a copy of the same task in another list is another
+            // item; Exchange's are in none).
+            let mut found = false;
+            for t in p.tasks.iter_mut().filter(|t| t.task.uid == x.task.uid && t.list == x.list) {
                 t.href = x.href.clone();
                 t.etag = x.etag.clone();
                 t.dirty &= t.task != x.task;
+                found = true;
             }
+            // Moved to another list, or deleted, while it was being stored: the item stored is
+            // deleted, with the version just stored (the one before is refused, 412); without
+            // that, it came back as a task of its own at the next read of that list.
+            if !found && !x.list.is_empty() {
+                match p.deleted.iter_mut().find(|g| g.href == x.href) {
+                    Some(g) => g.etag = x.etag.clone(),
+                    None => p.deleted.push(mailcraft_model::pim::Tombstone { href: x.href.clone(), etag: x.etag.clone(), ..Default::default() }),
+                }
+            }
+        }
+        // CalDAV task lists (issue #201), as calendars are.
+        if let Some(lists) = &sync.task_lists {
+            merge_task_lists(p, lists, sync, &kept, &refused);
         }
         let mut unsent = false;
         if let Some(server) = &sync.tasks {
@@ -193,6 +210,17 @@ impl Session {
             self.notice(format!("calendars and contacts: {e}"), true);
         }
         self.save_pim(account);
+        // Tasks kept here alone go to the server's default task list, as Exchange's go to its
+        // Tasks folder (issue #201).
+        let p = self.pim_mut(account);
+        if let Some(to) = p.default_task_list().map(|l| l.id.clone()) {
+            for t in p.tasks.iter_mut().filter(|t| t.list.is_empty() && t.href.is_empty()) {
+                t.list = to.clone();
+                t.dirty = true;
+                unsent = true;
+            }
+            self.save_pim(account);
+        }
         // Tasks made before the server kept them go there now, not at the next pass.
         if unsent {
             self.after_pim_change(account, true);
@@ -231,6 +259,53 @@ impl Session {
             self.notice(format!("calendars and contacts: {e}"), true);
         }
         self.save_pim(account);
+    }
+}
+
+/// What a sync found of the CalDAV task lists (issue #201), merged as calendars' events are:
+/// the lists as the server has them; for each read in full, the server's tasks in place of
+/// what's here, unless changed here (and sent next time); a task the server refused for good
+/// gives way to its copy. One changed here in a list that's gone goes to the default list.
+fn merge_task_lists(
+    p: &mut mailcraft_model::pim::Pim,
+    lists: &[mailcraft_model::pim::TaskList],
+    sync: &mailcraft_model::pim::DavSync,
+    kept: &HashSet<&str>,
+    refused: &HashSet<&str>,
+) {
+    for t in p.tasks.iter_mut().filter(|t| !t.list.is_empty() && refused.contains(t.task.uid.as_str())) {
+        t.dirty = false;
+    }
+    let listed: HashSet<&str> = lists.iter().map(|l| l.id.as_str()).collect();
+    p.tasks.retain(|t| t.list.is_empty() || listed.contains(t.list.as_str()) || t.dirty);
+    p.task_lists = lists.to_vec();
+    let fallback = p.default_task_list().map(|l| l.id.clone()).unwrap_or_default();
+    for t in p.tasks.iter_mut().filter(|t| !t.list.is_empty() && !listed.contains(t.list.as_str())) {
+        t.list = fallback.clone();
+        t.href.clear();
+        t.etag.clear();
+    }
+    for list in &sync.synced_task_lists {
+        // Changed here and not yet stored, though the server has it in this list (stored by a
+        // sync taken in after this one began): its item there, to send the change over it.
+        for t in p.tasks.iter_mut().filter(|t| &t.list == list && t.dirty && t.href.is_empty()) {
+            if let Some(x) = sync.list_tasks.iter().find(|x| &x.list == list && x.task.uid == t.task.uid) {
+                t.href = x.href.clone();
+                t.etag = x.etag.clone();
+            }
+        }
+        p.tasks.retain(|t| &t.list != list || t.dirty || t.href.is_empty() || kept.contains(t.href.as_str()));
+        // Changed here in this list: a copy of the same task in another list is another item.
+        let changed_here: HashSet<String> = p.tasks.iter().filter(|t| t.dirty && &t.list == list).map(|t| t.task.uid.clone()).collect();
+        let mut taken: Vec<&mailcraft_model::pim::StoredTask> = Vec::new();
+        let mut uids: HashSet<&str> = HashSet::new();
+        for x in sync.list_tasks.iter().filter(|x| &x.list == list).rev() {
+            if !changed_here.contains(&x.task.uid) && uids.insert(x.task.uid.as_str()) {
+                taken.push(x);
+            }
+        }
+        p.tasks.retain(|t| !(&t.list == list && uids.contains(t.task.uid.as_str())));
+        p.tasks.extend(taken.into_iter().rev().cloned());
     }
 }
 

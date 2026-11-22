@@ -113,7 +113,11 @@ How it works:
   that acts on it finishes parsing the body first. The CLI and the tests always parse straight
   away.
 - **Tasks** live in each account's `pim.json`; an on-premises Exchange account's also in its
-  mailbox's Tasks folder, synced as its notes are (`net/src/exchange/ews_pim/tasks.rs`).
+  mailbox's Tasks folder, synced as its notes are (`net/src/exchange/ews_pim/tasks.rs`); a
+  CalDAV account's also in its server's task lists, the calendar collections that take `VTODO`s,
+  read in the same pass as the calendars (a collection holding both read once,
+  `net/src/protocols/dav/syncing/reading.rs`) and merged per list as events are per calendar
+  (`engine/src/session/pim/sync.rs`).
 - **Sending:** `Session::send_block` says why an account can't send. `Session::deliver`, which
   every way of sending goes through, refuses to send from such an account.
 

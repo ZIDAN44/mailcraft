@@ -99,6 +99,7 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     run.push_deletions(&mut out, &mut refetch)?;
     run.push_events(&mut out, &mut refetch)?;
     run.push_cards(&mut out)?;
+    run.push_tasks(&mut out, &mut refetch)?;
     run.read_calendars(&refetch, &mut out)?;
     run.read_books(&mut out)?;
     Ok(out)

@@ -665,9 +665,8 @@ pub fn write(events: &[CalEvent], method: Option<&str>, now: i64) -> String {
     write_all(events, method, now, Purpose::Plain)
 }
 
-/// A calendar file with these events and tasks (`VTODO`s). Nothing exports one yet: the tests and
-/// the fuzz targets write tasks with it, to check what reading a calendar's tasks keeps.
-#[doc(hidden)]
+/// A calendar file with these events and tasks (`VTODO`s): a task stored in a CalDAV task list
+/// (issue #201) is one with that task alone.
 pub fn write_calendar(events: &[CalEvent], tasks: &[crate::pim::Task], now: i64) -> String {
     let mut out = write_events(events, None, now, Purpose::Plain);
     for t in tasks {

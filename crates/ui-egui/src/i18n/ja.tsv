@@ -1998,3 +1998,8 @@ count	occurrences	回
 	Your other filters on the server (“{name}”) run first, and are left as they are.	サーバー上のほかのフィルター（「{name}」）が先に実行され、そのまま残ります。
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	これらのルールは実行されていません。別のプログラムが自身のフィルターを実行対象にしました。ここでルールを保存すると、そのプログラムのフィルターと一緒に再び実行されます。
 	Found: {url}	見つかった場所: {url}
+	Task list	タスク リスト
+	Task lists	タスク リスト一覧
+	All task lists	すべてのタスク リスト
+	This task is in a task list that can't be changed here.	このタスクは、ここでは変更できないタスク リストにあります。
+	Occurrences of this task were changed on their own elsewhere: change it there.	このタスクの一部の回が別の場所で個別に変更されています。そちらで変更してください。

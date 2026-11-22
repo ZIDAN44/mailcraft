@@ -2002,3 +2002,8 @@ count	occurrences	előfordulás
 	Your other filters on the server (“{name}”) run first, and are left as they are.	A kiszolgálón lévő többi szűrőd („{name}”) fut először, és változatlan marad.
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Ezek a szabályok nem futnak: egy másik program a saját szűrőit tette futóvá. Ha itt mentesz egy szabályt, újra futnak, a másik program szűrőivel együtt.
 	Found: {url}	Megtalálva: {url}
+	Task list	Feladatlista
+	Task lists	Feladatlisták
+	All task lists	Összes feladatlista
+	This task is in a task list that can't be changed here.	Ez a feladat olyan feladatlistában van, amely itt nem módosítható.
+	Occurrences of this task were changed on their own elsewhere: change it there.	A feladat egyes előfordulásait máshol külön módosították: ott módosítsa.

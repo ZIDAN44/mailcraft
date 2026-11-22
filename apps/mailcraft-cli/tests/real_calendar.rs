@@ -468,3 +468,195 @@ fn real_caldav_colleagues_times() {
     theirs.sync_dav(&tid);
     assert!(shown.contains(&(start, start + 3600, "Busy".to_string())), "{state}: {shown:?}");
 }
+
+/// Issue #201: tasks in a CalDAV server's task lists, run by hand with
+/// `MAILCRAFT_REAL_TASKS="<server> <user> <password>"` (the user `address` or
+/// `address=sign-in name`, as `MAILCRAFT_REAL_FREE_BUSY`; the servers its setup scripts make:
+/// Nextcloud, SOGo, Stalwart, Radicale). Two MailCraft of the same user, and changes made on the
+/// server itself as another program would: a task made in one is in the other, changed and done
+/// there, comes back; a change on the server comes in; one crossing it gives way to it; a task
+/// made before the server's lists were known goes there; deleted, it's gone from the server.
+/// A server with no task list (a new Nextcloud user's, until its Tasks app makes one) gets one
+/// made as Nextcloud's Tasks makes them (`MKCALENDAR`, to-dos alone).
+#[test]
+#[ignore = "needs a real CalDAV server with task lists in MAILCRAFT_REAL_TASKS"]
+fn real_caldav_tasks() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_TASKS") else {
+        eprintln!("MAILCRAFT_REAL_TASKS isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [server, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_TASKS: server user password") };
+    let (email, login) = user.split_once('=').unwrap_or((user, user));
+    let auth = format!("{login}:{password}");
+    let open = |tag: &str| {
+        let mut app = App::open(tag, password);
+        app.watch = watch;
+        let id = app.add(json!({"email": email, "username": login, "password": password, "dav": server}));
+        (app, id)
+    };
+    // Synced until `done` says what's waited for is there (a sync can end in the second it was
+    // asked in, and be one begun before: `App::sync_dav` counts in seconds).
+    let settle = |app: &mut App, id: &str, done: &dyn Fn(&mailcraft_engine::Session) -> bool| {
+        for _ in 0..5 {
+            app.sync_dav(id);
+            if done(&app.s) {
+                return;
+            }
+        }
+        panic!("not after five syncs");
+    };
+    let (mut a, aid) = open("tasks-a");
+    // Made before the server's lists are known: kept here, then sent to the default list.
+    let early = format!("Early task {}", std::process::id());
+    let early_uid = a.s.run("task.create", &json!({"title": early, "account": aid})).unwrap()["uid"].as_str().unwrap().to_string();
+    a.sync_dav(&aid);
+    if a.s.pim[&aid].task_lists.is_empty() {
+        let home = a.s.pim[&aid].caldav_home.clone().expect("the calendars found");
+        let mk = r#"<?xml version="1.0"?><c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:set><d:prop><d:displayname>Tasks</d:displayname><c:supported-calendar-component-set><c:comp name="VTODO"/></c:supported-calendar-component-set></d:prop></d:set></c:mkcalendar>"#;
+        let made = http_as("MKCALENDAR", &format!("{}/mailcraft-tasks/", home.trim_end_matches('/')), &auth, "application/xml", mk.as_bytes());
+        eprintln!("no task list: one made ({})", made.status);
+        a.sync_dav(&aid);
+    }
+    let lists: Vec<String> = a.s.pim[&aid].task_lists.iter().map(|l| format!("{} {} tasks-only={}", l.name, l.id, l.tasks_only)).collect();
+    eprintln!("task lists: {lists:?}");
+    assert!(!lists.is_empty(), "the server's task lists");
+    settle(&mut a, &aid, &|s| s.pim.values().flat_map(|p| &p.tasks).any(|t| t.task.uid == early_uid && !t.dirty));
+    let sent = a.s.pim[&aid].tasks.iter().find(|t| t.task.uid == early_uid).cloned().unwrap();
+    assert!(!sent.list.is_empty() && !sent.href.is_empty() && !sent.dirty, "the early task on the server: {sent:?}");
+
+    // A task made in A, with a due day and a priority: on the server, as a to-do.
+    let title = format!("Book flights {}", std::process::id());
+    let uid = a
+        .s
+        .run("task.create", &json!({"title": title, "due": "2027-03-15", "priority": "high", "notes": "Window seat", "account": aid}))
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    settle(&mut a, &aid, &|s| s.pim.values().flat_map(|p| &p.tasks).any(|t| t.task.uid == uid && !t.dirty));
+    let stored = a.s.pim[&aid].tasks.iter().find(|t| t.task.uid == uid).cloned().unwrap();
+    assert!(!stored.href.is_empty() && !stored.dirty, "{stored:?}");
+    let item = http("GET", &stored.href, &[("Authorization", &basic(&auth))], b"");
+    let ics = item.text();
+    assert!(item.status == 200 && ics.contains("BEGIN:VTODO") && ics.contains(&title) && ics.contains("20270315"), "{}: {ics}", item.status);
+
+    // B, the same user elsewhere: the task as it was made.
+    let (mut b, bid) = open("tasks-b");
+    settle(&mut b, &bid, &|s| s.find_task(&uid).is_some());
+    let t = b.s.find_task(&uid).expect("in B").task;
+    assert_eq!((t.title.as_str(), t.notes.as_str(), t.priority.code()), (title.as_str(), "Window seat", "high"));
+    assert_eq!(t.due.map(|d| mailcraft_engine::model::dates::civil_from_days(d / 86_400)), Some((2027, 3, 15)));
+    // Changed and done in B: in A after its next sync.
+    b.s.run("task.update", &json!({"uid": uid, "title": format!("{title} (aisle)")})).unwrap();
+    b.s.run("task.complete", &json!({"uid": uid})).unwrap();
+    settle(&mut b, &bid, &|s| s.pim.values().flat_map(|p| &p.tasks).any(|t| t.task.uid == uid && !t.dirty));
+    settle(&mut a, &aid, &|s| s.find_task(&uid).is_some_and(|t| t.task.is_done()));
+    let t = a.s.find_task(&uid).unwrap().task;
+    assert_eq!((t.title.clone(), t.is_done()), (format!("{title} (aisle)"), true));
+
+    // Changed on the server by another program: comes in.
+    let now = a.s.pim[&aid].tasks.iter().find(|t| t.task.uid == uid).cloned().unwrap();
+    let theirs = mailcraft_engine::model::pim::Task { title: format!("{title} (changed elsewhere)"), ..now.task.clone() };
+    let data = mailcraft_engine::model::ical::write_calendar(&[], &[theirs], 1_800_000_000);
+    let put = http(
+        "PUT",
+        &now.href,
+        &[("Authorization", &basic(&auth)), ("Content-Type", "text/calendar; charset=utf-8"), ("If-Match", &now.etag)],
+        data.as_bytes(),
+    );
+    assert!((200..300).contains(&put.status), "PUT {}: {}", put.status, put.text());
+    let elsewhere = format!("{title} (changed elsewhere)");
+    settle(&mut a, &aid, &|s| s.find_task(&uid).is_some_and(|t| t.task.title == elsewhere));
+    assert_eq!(a.s.find_task(&uid).unwrap().task.title, format!("{title} (changed elsewhere)"));
+
+    // A change crossing one on the server (B changes it, A changes it before it syncs): A's,
+    // made on the version before, is refused (412), and the server's comes in its place.
+    settle(&mut b, &bid, &|s| s.find_task(&uid).is_some_and(|t| t.task.title == elsewhere));
+    b.s.run("task.update", &json!({"uid": uid, "notes": "From B"})).unwrap();
+    settle(&mut b, &bid, &|s| s.pim.values().flat_map(|p| &p.tasks).any(|t| t.task.uid == uid && !t.dirty));
+    a.s.run("task.update", &json!({"uid": uid, "notes": "From A"})).unwrap();
+    // The user is told their change didn't go (and only that): from here on in A, as a sync
+    // already asked for may still try it again from what was saved before (refused again,
+    // nothing written over).
+    a.watch = |e| {
+        if let Event::DavSynced { sync, .. } = e {
+            assert!(sync.errors.iter().all(|x| x.ends_with("changed on the server meanwhile")), "{:?}", sync.errors);
+        }
+    };
+    settle(&mut a, &aid, &|s| s.pim.values().flat_map(|p| &p.tasks).any(|t| t.task.uid == uid && !t.dirty));
+    let an = a.s.find_task(&uid).unwrap().task.notes;
+    settle(&mut b, &bid, &|_| true);
+    let bn = b.s.find_task(&uid).unwrap().task.notes;
+    eprintln!("after crossing changes: A has {an:?}, B has {bn:?}");
+    assert_eq!(an, "From B", "the server's copy, not A's sent over it");
+    assert_eq!(bn, "From B");
+
+    // A to-do another program stored with more than a task keeps (a due time in a zone, two
+    // alarms, when it was made): its title changed here, the rest stays on the server.
+    let list = a.s.pim[&aid].default_task_list().map(|l| l.id.clone()).expect("a list");
+    let rich = format!("{}/rich-{}.ics", list.trim_end_matches('/'), std::process::id());
+    let rich_uid = format!("rich-{}", std::process::id());
+    let todo = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Another program//EN",
+        "BEGIN:VTIMEZONE",
+        "TZID:Europe/Berlin",
+        "BEGIN:STANDARD",
+        "DTSTART:19701025T030000",
+        "TZOFFSETFROM:+0200",
+        "TZOFFSETTO:+0100",
+        "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU",
+        "END:STANDARD",
+        "BEGIN:DAYLIGHT",
+        "DTSTART:19700329T020000",
+        "TZOFFSETFROM:+0100",
+        "TZOFFSETTO:+0200",
+        "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU",
+        "END:DAYLIGHT",
+        "END:VTIMEZONE",
+        "BEGIN:VTODO",
+        &format!("UID:{rich_uid}"),
+        "DTSTAMP:20261122T090000Z",
+        "CREATED:20261120T080000Z",
+        "SUMMARY:Submit the report",
+        "DUE;TZID=Europe/Berlin:20271125T170000",
+        "BEGIN:VALARM",
+        "ACTION:DISPLAY",
+        "DESCRIPTION:Soon",
+        "TRIGGER;RELATED=END:-PT1H",
+        "END:VALARM",
+        "BEGIN:VALARM",
+        "ACTION:DISPLAY",
+        "DESCRIPTION:Tomorrow",
+        "TRIGGER;RELATED=END:-P1D",
+        "END:VALARM",
+        "END:VTODO",
+        "END:VCALENDAR",
+        "",
+    ]
+    .join("\r\n");
+    let put = http("PUT", &rich, &[("Authorization", &basic(&auth)), ("Content-Type", "text/calendar; charset=utf-8")], todo.as_bytes());
+    assert!((200..300).contains(&put.status), "PUT {}: {}", put.status, put.text());
+    settle(&mut a, &aid, &|s| s.find_task(&rich_uid).is_some());
+    a.s.run("task.update", &json!({"uid": rich_uid, "title": "Submit the final report"})).unwrap();
+    settle(&mut a, &aid, &|s| s.pim.values().flat_map(|p| &p.tasks).any(|t| t.task.uid == rich_uid && !t.dirty));
+    let stored = http("GET", &rich, &[("Authorization", &basic(&auth))], b"").text();
+    let flat = stored.replace("\r\n ", "").replace("\n ", "");
+    eprintln!("as stored after the change: {flat}");
+    assert!(flat.contains("Submit the final report"), "{flat}");
+    assert!(flat.contains("20271125T160000Z") || flat.contains("20271125T170000"), "its due time: {flat}");
+    assert_eq!(flat.matches("BEGIN:VALARM").count(), 2, "both alarms: {flat}");
+    assert!(flat.contains("CREATED:20261120T080000Z"), "{flat}");
+    a.s.run("task.delete", &json!({"uid": rich_uid})).unwrap();
+
+    // Deleted in A: gone from the server, and from B.
+    let href = a.s.pim[&aid].tasks.iter().find(|t| t.task.uid == uid).map(|t| t.href.clone()).unwrap();
+    a.s.run("task.delete", &json!({"uid": uid})).unwrap();
+    a.s.run("task.delete", &json!({"uid": early_uid})).unwrap();
+    settle(&mut a, &aid, &|s| s.pim.values().all(|p| p.deleted.is_empty()));
+    assert_eq!(http("GET", &href, &[("Authorization", &basic(&auth))], b"").status, 404);
+    settle(&mut b, &bid, &|s| s.find_task(&uid).is_none());
+    assert!(b.s.find_task(&uid).is_none() && b.s.find_task(&early_uid).is_none());
+}

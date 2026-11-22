@@ -15,7 +15,7 @@ pub(crate) const ICON_W: f32 = 24.0;
 /// time, a series' pattern), and of the contact form, which has none: every label
 /// [`form_row`](super::form_row) is given, so the column fits them all (a test holds the lists
 /// to the forms).
-pub(crate) const ICON_FORM_LABELS: [&str; 21] = [
+pub(crate) const ICON_FORM_LABELS: [&str; 22] = [
     "Starts",
     "Ends",
     "Start",
@@ -31,6 +31,7 @@ pub(crate) const ICON_FORM_LABELS: [&str; 21] = [
     "Show as",
     "Location",
     "Categories",
+    "Task list",
     "Invite",
     "Calendar",
     "Status",

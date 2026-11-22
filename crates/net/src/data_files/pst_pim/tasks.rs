@@ -45,6 +45,7 @@ pub(crate) fn task_of(x: &Extra, subject: &str, body: &str, importance: i8, uid:
         rrule,
         modified: x.modified.unwrap_or(0),
         extra: rest,
+        source: None,
     };
     // A start after the day it's due isn't one MailCraft can keep: the due day stands.
     if let (Some(s), Some(d)) = (t.start, t.due)

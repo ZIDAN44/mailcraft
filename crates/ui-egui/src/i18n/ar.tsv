@@ -1997,3 +1997,8 @@ count	occurrences	مرات
 	Your other filters on the server (“{name}”) run first, and are left as they are.	عوامل التصفية الأخرى لديك على الخادم («{name}») تعمل أولًا، وتبقى كما هي.
 	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	هذه القواعد لا تعمل: جعل برنامج آخر عوامل التصفية الخاصة به هي التي تعمل. حفظ قاعدة هنا يعيد تشغيلها، مع عوامل تصفية ذلك البرنامج.
 	Found: {url}	تم العثور عليه: {url}
+	Task list	قائمة المهام
+	Task lists	قوائم المهام
+	All task lists	كل قوائم المهام
+	This task is in a task list that can't be changed here.	هذه المهمة في قائمة مهام لا يمكن تغييرها من هنا.
+	Occurrences of this task were changed on their own elsewhere: change it there.	غُيّرت مرّات من هذه المهمة كلٌّ على حدة في مكان آخر: غيّرها هناك.

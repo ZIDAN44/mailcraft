@@ -32,21 +32,28 @@ pub(crate) struct Shown {
     pub(crate) people: Option<(PeopleKey, Rc<PeopleList>)>,
     /// The List view's order: the column sorted by, Z to A, and the language's code.
     pub(crate) phone: Option<((PeopleKey, Option<Column>, bool, &'static str), Rc<[At]>)>,
-    /// Tasks: the revision, the search, Arrange by, whether done ones are hidden.
-    pub(crate) tasks: Option<((u64, String, TasksOrder, bool), Rc<[At]>)>,
+    /// Tasks: the revision, the search, Arrange by, whether done ones are hidden, the task list
+    /// shown alone.
+    pub(crate) tasks: Option<(TasksKey, Rc<[At]>)>,
     /// Notes: the revision, the search, their order.
     pub(crate) notes: Option<((u64, String, NotesOrder), Rc<[At]>)>,
 }
 
+/// What the task list was made for ([`Shown::tasks`]).
+pub(crate) type TasksKey = (u64, String, TasksOrder, bool, Option<String>);
+
 /// Tasks as the list shows them, made again when what they were made for changed.
 pub(crate) fn tasks(s: &Session, kept: &mut Shown, query: &str) -> Rc<[At]> {
-    let fresh =
-        |k: &(u64, String, TasksOrder, bool)| k.0 == s.pim_revision && k.1 == query && k.2 == s.prefs.tasks_order && k.3 == s.prefs.tasks_hide_done;
+    let shown_list = s.shown_task_list();
+    let fresh = |k: &TasksKey| {
+        k.0 == s.pim_revision && k.1 == query && k.2 == s.prefs.tasks_order && k.3 == s.prefs.tasks_hide_done && k.4.as_deref() == shown_list
+    };
     match &kept.tasks {
         Some((k, list)) if fresh(k) => list.clone(),
         _ => {
             let list: Rc<[At]> = s.tasks(query).iter().map(|t| (t.account.to_string(), t.at)).collect();
-            kept.tasks = Some(((s.pim_revision, query.to_string(), s.prefs.tasks_order, s.prefs.tasks_hide_done), list.clone()));
+            let key = (s.pim_revision, query.to_string(), s.prefs.tasks_order, s.prefs.tasks_hide_done, shown_list.map(str::to_string));
+            kept.tasks = Some((key, list.clone()));
             list
         }
     }
@@ -75,7 +82,8 @@ pub(crate) fn person<'a>(s: &'a Session, at: &At) -> Option<Person<'a>> {
 /// The task kept at `at`.
 pub(crate) fn task<'a>(s: &'a Session, at: &At) -> Option<ListedTask<'a>> {
     let (account, p) = s.pim.get_key_value(&at.0)?;
-    Some(ListedTask { account, task: &p.tasks.get(at.1)?.task, at: at.1 })
+    let t = p.tasks.get(at.1)?;
+    Some(ListedTask { account, list: &t.list, task: &t.task, at: at.1 })
 }
 
 /// The note kept at `at`.

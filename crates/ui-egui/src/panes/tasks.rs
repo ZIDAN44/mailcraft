@@ -2,7 +2,8 @@
 //! due day, status and priority, the late ones in red and the done ones struck through, last.
 //! A click on its box marks it done; a click on the row picks it, a double click opens it. The
 //! columns' headings sort the list (Arrange by). Laid out from the left, mirrored for a
-//! right-to-left interface. Tasks live on this computer (no server keeps them).
+//! right-to-left interface. Tasks live on this computer, or on the account's server (Exchange's
+//! Tasks folder; a CalDAV server's task lists, listed in the side pane, issue #201).
 
 use egui::{Align2, Margin, Rect, RichText, Sense, Ui, pos2, vec2};
 use mailcraft_engine::model::dates;
@@ -41,7 +42,41 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         if late > 0 {
             ui.label(RichText::new(tf!("{n} overdue", n = late)).color(t.danger).small());
         }
+        task_lists(s, ui, acts);
     });
+}
+
+/// The CalDAV servers' task lists (issue #201), as Outlook lists its task folders: every task,
+/// or one list's alone. Nothing when no server keeps them.
+fn task_lists(s: &Session, ui: &mut Ui, acts: &mut Vec<Action>) {
+    let lists = s.task_lists();
+    if lists.is_empty() {
+        return;
+    }
+    let several_accounts = lists.iter().any(|(a, _)| Some(*a) != lists.first().map(|f| f.0));
+    ui.add_space(12.0);
+    ui.label(RichText::new(tl!("Task lists")).strong().small());
+    let shown = s.shown_task_list();
+    if ui.selectable_label(shown.is_none(), tl!("All task lists")).clicked() && shown.is_some() {
+        acts.push(Action::Run("task.showList", json!({})));
+    }
+    for (account, l) in lists {
+        let r = ui.selectable_label(shown == Some(l.id.as_str()), &l.name);
+        let r = if several_accounts { r.on_hover_text(s.account(account).map(|a| a.config.email.clone()).unwrap_or_default()) } else { r };
+        if r.clicked() && shown != Some(l.id.as_str()) {
+            acts.push(Action::Run("task.showList", json!({"list": l.id})));
+        }
+    }
+}
+
+/// The name of a task's list, when it's worth saying: there are several, and they're all shown.
+fn list_name<'a>(s: &'a Session, account: &str, list: &str) -> Option<&'a str> {
+    if list.is_empty() || s.shown_task_list().is_some() {
+        return None;
+    }
+    let p = s.pim.get(account)?;
+    let several = s.pim.values().map(|p| p.task_lists.len()).sum::<usize>() > 1;
+    p.task_lists.iter().find(|l| l.id == list).filter(|_| several).map(|l| l.name.as_str())
 }
 
 /// A local day (days since the epoch) as the task list and the To-Do Bar name it: Today,
@@ -188,8 +223,12 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     let galley = widgets::one_line(ui, &title, theme::bold(13.0), title_color, room);
     let title_w = galley.size().x.min(room);
     let title_x = if title_rtl && !mr.on() { rect.min.x + x_title + room - title_w } else { rect.min.x + x_title };
-    // Under it: that it repeats, its categories, its notes' first line.
+    // Under it: its task list (when there are several), that it repeats, its categories, its
+    // notes' first line.
     let mut under: Vec<String> = Vec::new();
+    if let Some(name) = list_name(s, r.account, r.list) {
+        under.push(name.to_string());
+    }
     if task.rrule.is_some() {
         under.push(tl!("Repeats").to_string());
     }
