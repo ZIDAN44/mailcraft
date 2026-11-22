@@ -2031,3 +2031,16 @@ count	occurrences	előfordulás
 	Overview	Áttekintés
 	Show all	Az összes megjelenítése
 	Find someone by name or address	Személy keresése név vagy cím alapján
+	Delegate	Delegálás
+	Delegate meeting	Értekezlet delegálása
+	Delegate…	Delegálás…
+	Delegated	Delegálva
+	Name <address>	Név <cím>
+	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Valaki más megy Ön helyett: megkapja a meghívást, hogy válaszoljon rá, és a szervező értesítést kap.
+	The whole series	A teljes sorozat
+	This occurrence	Ez az előfordulás
+	Who goes instead of you	Ki megy Ön helyett
+	You asked {name} to go in your place.	Megkérte {name} személyt, hogy menjen Ön helyett.
+	{name} asked you to go in their place.	{name} megkérte Önt, hogy menjen helyette.
+	{name} asked {delegate} to go in their place.	{name} megkérte {delegate} személyt, hogy menjen helyette.
+	{name} (delegated to {delegate})	{name} (delegálta: {delegate})

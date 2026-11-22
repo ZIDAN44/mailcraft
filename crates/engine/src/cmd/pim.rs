@@ -89,7 +89,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             // With guests, the user organizes it.
             if !e.attendees.is_empty() && e.organizer.is_none() {
                 let me = s.account(&account).map(|a| (a.config.name.clone(), a.config.email.clone())).unwrap_or_default();
-                e.organizer = Some(mailcraft_model::ical::Attendee { email: me.1, name: me.0, partstat: "ACCEPTED".into(), rsvp: false });
+                e.organizer = Some(mailcraft_model::ical::Attendee { email: me.1, name: me.0, partstat: "ACCEPTED".into(), rsvp: false, ..Default::default() });
             }
             let r = s.create_event(Some(&account), p::str(v, "calendar"), e.clone())?;
             if let Some(uid) = r.get("uid").and_then(Value::as_str) {
@@ -239,6 +239,15 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.forward_meeting(&uid, p::req_str(v, "to")?)
         })
         .params(r#"{"to": string (addresses, as a recipient box has them), "uid"?: string (a meeting in the calendar; else the open invitation's)}"#),
+        // Someone else goes in the user's place (issue #254).
+        CommandSpec::new("invite.delegate", "Delegate meeting", "Reading pane › Invitation", |s, v| {
+            let uid = match p::str(v, "uid") {
+                Some(u) => u.to_string(),
+                None => s.invite().map(|i| i.event.uid).ok_or_else(|| CmdError::Disabled("open the invitation first".into()))?,
+            };
+            s.delegate_meeting(&uid, p::req_str(v, "to")?, v.get("occurrence").and_then(serde_json::Value::as_i64))
+        })
+        .params(r#"{"to": string (one address, as a recipient box has it), "uid"?: string (a meeting in the calendar; else the open invitation's), "occurrence"?: number (when a series' occurrence starts, as the series has it: that one alone)}"#),
         // Invitations already in the Inbox when the account came (issue #237).
         CommandSpec::new("invite.findWaiting", "Invitations in the Inbox", "Calendar › Home", |s, v| {
             let account = account_param(s, v)?;
@@ -478,6 +487,7 @@ pub(super) fn event_from(s: &Session, v: &Value, mut e: mailcraft_model::ical::C
                     rsvp: known.is_none_or(|k| k.rsvp),
                     email: a.email,
                     name: a.name,
+                    ..Default::default()
                 }
             })
             .collect();

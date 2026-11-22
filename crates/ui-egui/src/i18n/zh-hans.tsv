@@ -2027,3 +2027,16 @@ count	occurrences	次
 	Overview	概览
 	Show all	全部显示
 	Find someone by name or address	按姓名或地址查找联系人
+	Delegate	委托他人
+	Delegate meeting	委托他人参加会议
+	Delegate…	委托他人…
+	Delegated	已委托
+	Name <address>	姓名 <地址>
+	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	由其他人代你参加：对方会收到邀请并可答复，组织者也会得到通知。
+	The whole series	整个系列
+	This occurrence	这一次
+	Who goes instead of you	由谁代你参加
+	You asked {name} to go in your place.	你已请 {name} 代你参加。
+	{name} asked you to go in their place.	{name} 请你代其参加。
+	{name} asked {delegate} to go in their place.	{name} 请 {delegate} 代其参加。
+	{name} (delegated to {delegate})	{name}（已委托 {delegate}）

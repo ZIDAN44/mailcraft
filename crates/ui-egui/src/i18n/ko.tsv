@@ -2030,3 +2030,16 @@ count	occurrences	회
 	Overview	개요
 	Show all	모두 표시
 	Find someone by name or address	이름 또는 주소로 사람 찾기
+	Delegate	대리 참석 요청
+	Delegate meeting	모임 대리 참석 요청
+	Delegate…	대리 참석 요청…
+	Delegated	대리 참석 요청함
+	Name <address>	이름 <주소>
+	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	다른 사람이 대신 참석합니다. 그 사람에게 응답할 초대가 가고, 주최자에게도 알려집니다.
+	The whole series	반복 일정 전체
+	This occurrence	이 일정
+	Who goes instead of you	대신 참석할 사람
+	You asked {name} to go in your place.	{name}님에게 대신 참석해 달라고 요청했습니다.
+	{name} asked you to go in their place.	{name}님이 대신 참석해 달라고 요청했습니다.
+	{name} asked {delegate} to go in their place.	{name}님이 {delegate}님에게 대신 참석해 달라고 요청했습니다.
+	{name} (delegated to {delegate})	{name} ({delegate}님이 대리 참석)

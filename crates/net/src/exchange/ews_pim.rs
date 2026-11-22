@@ -117,7 +117,7 @@ pub fn recurrence_xml(rule: &str, start: i64) -> Option<String> {
 fn person(m: &El) -> Option<Attendee> {
     let mb = if m.name == "Mailbox" { m } else { m.find("Mailbox")? };
     let email = text(mb, "EmailAddress");
-    email.contains('@').then(|| Attendee { email, name: text(mb, "Name"), partstat: String::new(), rsvp: false })
+    email.contains('@').then(|| Attendee { email, name: text(mb, "Name"), partstat: String::new(), rsvp: false, ..Default::default() })
 }
 
 /// The answer the mailbox's owner (`me`: their addresses) gave a meeting, from the appointment's

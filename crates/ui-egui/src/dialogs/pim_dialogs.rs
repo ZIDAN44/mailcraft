@@ -12,8 +12,10 @@ use crate::{Action, widgets};
 mod contact;
 mod date_pick;
 pub(crate) mod follow_up;
+mod guests;
 mod labels;
 mod online_meeting;
+mod passing;
 mod pattern;
 mod propose;
 mod reminders;
@@ -31,6 +33,7 @@ pub use follow_up::{FollowUpForm, follow_up};
 pub use online_meeting::MeetingState;
 #[cfg(test)]
 pub(crate) use online_meeting::{add as online_meeting_add, remove as online_meeting_remove};
+pub use passing::{PassForm, Passing, pass};
 pub use propose::{ProposeForm, propose};
 pub use repeat::Repeat;
 use repeat::repeat_row;
@@ -122,8 +125,8 @@ pub struct EventForm {
     pub privacy: mailcraft_engine::model::ical::Privacy,
     pub show_as: mailcraft_engine::model::ical::ShowAs,
     pub organizer: Option<String>,
-    /// (who, their answer).
-    pub attendees: Vec<(String, String)>,
+    /// (who, their answer, whom they handed their place to).
+    pub attendees: Vec<(String, String, String)>,
     /// The guests, as typed (`Name <address>, …`): editable on the user's own events.
     pub guests: String,
     /// The user can change the guests (a new event, or one they organize).
@@ -132,6 +135,8 @@ pub struct EventForm {
     pub needs_reply: bool,
     /// Someone else's meeting, which they let be forwarded (issue #234).
     pub can_forward: bool,
+    /// Someone else's meeting the user is a guest of: their place can be handed on (issue #254).
+    pub can_delegate: bool,
     pub read_only: bool,
     /// Its categories, and every category there is (name, colour) to pick from.
     pub categories: Vec<String>,
@@ -262,6 +267,7 @@ impl EventForm {
         // As an address is written in a recipient box (a name with a comma quoted), so that the
         // guests read back as they were.
         let written = |a: &mailcraft_engine::model::ical::Attendee| mailcraft_engine::model::EmailAddress::new(&a.name, &a.email).to_string();
+        let shown = |a: &mailcraft_engine::model::ical::Attendee| if a.name.is_empty() { a.email.clone() } else { a.name.clone() };
         let links = e.links();
         let pattern = e.rrule.as_deref().and_then(|r| mailcraft_engine::model::ical::Pattern::read(r, s.clock.local_day(start)));
         let reminders = mailcraft_engine::model::ical::reminders_minutes(e);
@@ -296,12 +302,22 @@ impl EventForm {
             until_text,
             length: None,
             organizer: e.organizer.as_ref().map(written),
-            attendees: e.attendees.iter().map(|a| (if a.name.is_empty() { a.email.clone() } else { a.name.clone() }, a.partstat.clone())).collect(),
+            attendees: e
+                .attendees
+                .iter()
+                .map(|a| {
+                    let to = e.attendees.iter().find(|d| d.email.eq_ignore_ascii_case(&a.delegated_to)).filter(|d| !d.name.is_empty());
+                    (shown(a), a.partstat.clone(), to.map_or_else(|| a.delegated_to.clone(), shown))
+                })
+                .collect(),
             needs_reply: e.attendees.iter().any(|a| mine.contains(&a.email.to_ascii_lowercase()) && a.partstat == "NEEDS-ACTION"),
             guests: e.attendees.iter().map(written).collect::<Vec<_>>().join(", "),
             can_invite: e.organizer.as_ref().is_none_or(|o| mine.contains(&o.email.to_ascii_lowercase())),
             can_forward: e.organizer.as_ref().is_some_and(|o| !mine.contains(&o.email.to_ascii_lowercase()))
                 && mailcraft_engine::forwarding_allowed(e),
+            can_delegate: e.organizer.as_ref().is_some_and(|o| !mine.contains(&o.email.to_ascii_lowercase()))
+                && e.attendees.iter().any(|a| mine.contains(&a.email.to_ascii_lowercase()))
+                && s.delegates_from(account),
             reading_notes: read_only || !links.is_empty(),
             links,
             join: s.join_link(e),
@@ -375,6 +391,7 @@ fn partstat_label(p: &str) -> &'static str {
         "ACCEPTED" => "Accepted",
         "DECLINED" => "Declined",
         "TENTATIVE" => "Tentative",
+        "DELEGATED" => "Delegated",
         _ => "No answer yet",
     }
 }
@@ -671,8 +688,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
         ui.label(RichText::new(tf!("Organizer: {name}", name = o)).color(t.dim).small());
     }
     if !f.attendees.is_empty() {
-        let list: Vec<String> = f.attendees.iter().map(|(who, p)| format!("{who} ({})", tl!(partstat_label(p)))).collect();
-        ui.label(RichText::new(tf!("Attendees: {names}", names = list.join(", "))).color(t.dim).small());
+        ui.add(egui::Label::new(RichText::new(tf!("Attendees: {names}", names = guests::listed(&f.attendees))).color(t.dim).small()).wrap());
     }
     if f.needs_reply
         && let Some(uid) = &f.uid
@@ -697,7 +713,17 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
     {
         ui.add_space(4.0);
         if ui.button(tl!("Forward meeting…")).clicked() {
-            acts.push(Action::Dialog(crate::Dialog::ForwardMeeting { uid: uid.clone(), summary: f.summary.clone(), to: String::new() }));
+            acts.push(Action::Dialog(crate::Dialog::PassMeeting(PassForm::new(Passing::Forward, uid, &f.summary, None))));
+        }
+    }
+    // Someone else goes in the user's place (issue #254): this occurrence of a series, or all.
+    if f.can_delegate
+        && let Some(uid) = &f.uid
+    {
+        ui.add_space(4.0);
+        if ui.button(tl!("Delegate…")).clicked() {
+            let occurrence = f.occurrence.filter(|_| f.recurring || f.this_occurrence);
+            acts.push(Action::Dialog(crate::Dialog::PassMeeting(PassForm::new(Passing::Delegate, uid, &f.summary, occurrence))));
         }
     }
     if let Some(e) = &f.error {

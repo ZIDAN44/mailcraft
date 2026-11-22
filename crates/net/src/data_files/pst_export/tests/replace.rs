@@ -147,6 +147,7 @@ fn two_accounts_in_one_file_keep_their_own_copies() {
         name: name.into(),
         partstat: partstat.into(),
         rsvp: partstat == "NEEDS-ACTION",
+        ..Default::default()
     };
     let meeting = |partstat: &str| StoredEvent {
         calendar: "local".into(),

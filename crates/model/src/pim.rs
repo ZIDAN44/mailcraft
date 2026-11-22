@@ -329,10 +329,16 @@ pub struct Pim {
     /// alarm's `ACKNOWLEDGED`, RFC 9074).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reminder_answers: Vec<ReminderAnswer>,
+    /// Answers to the user's meetings from someone a guest handed their place to (issue #254)
+    /// that came before that guest's own answer saying so: taken in once it does.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub delegate_answers: Vec<crate::MessageKey>,
 }
 
 /// The most notices kept waiting for the server.
 pub const MAX_NOTICES: usize = 500;
+/// The most delegates' answers kept waiting for the guest's ([`Pim::delegate_answers`]).
+pub const MAX_DELEGATE_ANSWERS: usize = 100;
 /// The most reminder answers kept waiting for the server.
 pub const MAX_REMINDER_ANSWERS: usize = 500;
 

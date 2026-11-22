@@ -160,6 +160,7 @@ fn own_events_invite_and_cancel_guests() {
         name: "Zoe Park".into(),
         partstat: "ACCEPTED".into(),
         rsvp: false,
+        ..Default::default()
     }];
     let ics = mailcraft_model::ical::write(&[reply], Some("REPLY"), NOW).into_bytes();
     let raw = calendar_mail(("Zoe Park", "zoe@studio.example"), "Accepted: Trailer review", "text/calendar; method=REPLY", ics, "<r1@x>");

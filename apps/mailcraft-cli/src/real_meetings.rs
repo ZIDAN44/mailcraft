@@ -485,3 +485,60 @@ fn real_invitations_waiting_in_the_inbox() {
         let _ = std::fs::remove_dir_all(st.root());
     }
 }
+
+/// Issue #254: Zoe hands her place in Riley's meeting to Sam. Sam's program gets Riley's
+/// invitation as Zoe's delegate; Riley's copy takes Zoe's answer and Sam with it as they arrive,
+/// then Sam's acceptance, on the calendar server too.
+#[test]
+#[ignore = "needs real mail and calendar servers in MAILCRAFT_REAL_MEETING"]
+fn real_meeting_delegated_to_someone_else() {
+    let Some(sv) = servers() else {
+        eprintln!("MAILCRAFT_REAL_MEETING isn't set: skipped");
+        return;
+    };
+    const SAM: &str = "sam@studio.test";
+    let (mut s, mut pool, store) = open("riley-delegate", RILEY, &sv);
+    let calendar = s.pim.values().flat_map(|p| p.calendars.iter()).find(|c| c.id.starts_with("http")).map(|c| c.id.clone()).unwrap();
+    let tag = std::process::id();
+    let start = (chrono::Utc::now().timestamp() / 3600 + 52) * 3600;
+    let summary = format!("Critique {tag}");
+    let p = json!({"summary": summary, "start": start, "end": start + 3600, "attendees": format!("Zoe Park <{ZOE}>"), "calendar": calendar});
+    let uid = s.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string();
+    send(&mut s, &mut pool);
+
+    // Zoe hands her place to Sam: Sam gets the invitation, Riley Zoe's answer.
+    let (mut z, mut zpool, zstore) = open("zoe-delegate", ZOE, &sv);
+    newest(&mut z, &mut zpool, &format!("Invitation: {summary}"), 1);
+    z.run("invite.delegate", &json!({"to": format!("Sam Okafor <{SAM}>")})).unwrap();
+    sent(&mut z, &mut zpool, 2);
+    assert_imip(&source_of(&sv, SAM, &format!("Invitation: {summary}")), "REQUEST");
+    assert_imip(&source_of(&sv, RILEY, &format!("Delegated: {summary}")), "REPLY");
+
+    // Sam's program: Riley's meeting, Sam handed Zoe's place; Sam accepts.
+    let (mut m, mut mpool, mstore) = open("sam-delegate", SAM, &sv);
+    newest(&mut m, &mut mpool, &format!("Invitation: {summary}"), 1);
+    let inv = m.invite().expect("an invitation");
+    assert_eq!((inv.method.as_str(), inv.event.uid.as_str(), inv.problem), ("REQUEST", uid.as_str(), None));
+    assert_eq!(inv.event.organizer.as_ref().map(|o| o.email.as_str()), Some(RILEY), "Riley's meeting");
+    assert_eq!(inv.handed_by.as_deref(), Some("Zoe Park"), "{inv:?}");
+    m.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    sent(&mut m, &mut mpool, 1);
+
+    // Riley's copy: Zoe delegated to Sam and Sam accepted, recorded as the answers arrived.
+    let riley = s.accounts.first().map(|a| a.config.id.clone()).unwrap();
+    pool.submit(Job::SyncAll { account: riley });
+    newest(&mut s, &mut pool, &format!("Accepted: {summary}"), 1);
+    let _ = drive(&mut s, &mut pool, Duration::from_secs(20), |e| {
+        matches!(e, Event::DavSynced { sync, .. } if !sync.pushed_events.is_empty()).then_some(Ok::<(), String>(()))
+    });
+    let back = from_server(&sv, &uid);
+    let said = |email: &str| {
+        back.attendees.iter().find(|a| a.email == email).map(|a| (a.partstat.clone(), a.delegated_to.clone(), a.delegated_from.clone()))
+    };
+    assert_eq!(said(ZOE), Some(("DELEGATED".into(), SAM.into(), String::new())), "{:?}", back.attendees);
+    assert_eq!(said(SAM), Some(("ACCEPTED".into(), String::new(), ZOE.into())), "{:?}", back.attendees);
+    drop((z, zpool, m, mpool));
+    for st in [store, zstore, mstore] {
+        let _ = std::fs::remove_dir_all(st.root());
+    }
+}

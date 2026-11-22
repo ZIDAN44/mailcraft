@@ -297,6 +297,8 @@ pub fn show_as_answered(e: &mut CalEvent, partstat: &str) {
             None => now,
         },
         "TENTATIVE" if now != ShowAs::Free => ShowAs::Tentative,
+        // Someone else goes in the user's place (issue #254): the time is theirs again.
+        "DELEGATED" => ShowAs::Free,
         _ => now,
     };
     set_show_as(e, to);

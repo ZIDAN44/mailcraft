@@ -69,7 +69,15 @@ pub(super) fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Mess
                     day::show(s, &t, ui, e, day, acts);
                     ui.add_space(6.0);
                 }
+                // Invited as someone's delegate (issue #254).
+                if let Some(by) = &inv.handed_by {
+                    ui.label(RichText::new(tf!("{name} asked you to go in their place.", name = by)).color(t.text));
+                }
                 ui.horizontal_wrapped(|ui| {
+                    if let Some(d) = inv.handed_to.as_ref().filter(|_| inv.answer == "DELEGATED") {
+                        let name = if d.name.is_empty() { d.email.clone() } else { d.name.clone() };
+                        ui.label(RichText::new(tf!("You asked {name} to go in your place.", name = name)).color(t.text));
+                    }
                     let current = match inv.answer.as_str() {
                         "ACCEPTED" => Some("You accepted."),
                         "TENTATIVE" => Some("You said maybe."),
@@ -88,11 +96,13 @@ pub(super) fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Mess
                     }
                     // Passed on to someone else, where the organizer allows it (issue #234).
                     if mailcraft_engine::forwarding_allowed(e) && widgets::pill_button(ui, Icon::Forward, "Forward", &t).clicked() {
-                        acts.push(Action::Dialog(crate::Dialog::ForwardMeeting {
-                            uid: e.uid.clone(),
-                            summary: e.summary.clone(),
-                            to: String::new(),
-                        }));
+                        let f = crate::pim_dialogs::PassForm::new(crate::pim_dialogs::Passing::Forward, &e.uid, &e.summary, None);
+                        acts.push(Action::Dialog(crate::Dialog::PassMeeting(f)));
+                    }
+                    // Someone else to go in the user's place (issue #254), when they're a guest.
+                    if inv.delegable && widgets::pill_button(ui, Icon::People, "Delegate", &t).clicked() {
+                        let f = crate::pim_dialogs::PassForm::new(crate::pim_dialogs::Passing::Delegate, &e.uid, &e.summary, None);
+                        acts.push(Action::Dialog(crate::Dialog::PassMeeting(f)));
                     }
                     // A new time, where the organizer takes proposals (issue #238).
                     if mailcraft_engine::proposals_allowed(e) && widgets::pill_button(ui, Icon::Clock, "Propose new time", &t).clicked() {
@@ -131,7 +141,15 @@ pub(super) fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Mess
             _ => {
                 if let Some(who) = &inv.replier {
                     let name = if who.name.is_empty() { who.email.clone() } else { who.name.clone() };
+                    // Whom a guest handed their place to (issue #254): the guest their answer adds.
+                    let delegate = e
+                        .attendees
+                        .iter()
+                        .find(|a| a.delegated_from.eq_ignore_ascii_case(&who.email))
+                        .map(|a| if a.name.is_empty() { a.email.clone() } else { a.name.clone() })
+                        .unwrap_or_else(|| who.delegated_to.clone());
                     let line = match who.partstat.as_str() {
+                        "DELEGATED" => tf!("{name} asked {delegate} to go in their place.", name = name, delegate = delegate),
                         "ACCEPTED" => tf!("{name} accepted.", name = name),
                         "DECLINED" => tf!("{name} declined.", name = name),
                         "TENTATIVE" => tf!("{name} said maybe.", name = name),

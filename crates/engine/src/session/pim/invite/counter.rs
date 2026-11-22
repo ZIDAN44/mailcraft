@@ -51,7 +51,8 @@ impl Session {
         counter.all_day = proposal.all_day;
         let current = meeting.attendees.iter().find(|a| is_mine(&a.email, &mine)).map(|a| a.partstat.clone());
         let stat = stat.map(str::to_string).or(current).unwrap_or_else(|| "NEEDS-ACTION".into());
-        counter.attendees = vec![Attendee { email: sender.email.clone(), name: sender.name.clone(), partstat: stat, rsvp: false }];
+        counter.attendees =
+            vec![Attendee { email: sender.email.clone(), name: sender.name.clone(), partstat: stat, rsvp: false, ..Default::default() }];
         counter.description.clear();
         ical::set_reminder(&mut counter, None);
         let who = if sender.name.is_empty() { sender.email.clone() } else { sender.name.clone() };

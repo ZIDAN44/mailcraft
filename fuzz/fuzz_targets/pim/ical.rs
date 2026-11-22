@@ -22,7 +22,14 @@ fuzz_target!(|data: &[u8]| {
         }
     }
     let written = ical::write(&cal.events, cal.method.as_deref(), 0);
-    let _ = ical::parse(&written, 3600);
+    let again = ical::parse(&written, 3600);
+    // Whom a guest handed their place to, and who handed it them (issue #254): as written once,
+    // read the same ever after.
+    let handed = |events: &[ical::CalEvent]| -> Vec<(String, String)> {
+        events.iter().flat_map(|e| e.attendees.iter().map(|a| (a.delegated_to.clone(), a.delegated_from.clone()))).collect()
+    };
+    let third = ical::parse(&ical::write(&again.events, cal.method.as_deref(), 0), 3600);
+    assert_eq!(handed(&third.events), handed(&again.events));
     // Its to-dos (`VTODO`), written with the events as an exported calendar is, and read back:
     // every one of them, so what a to-do keeps as written never swallows the ones after it.
     let exported = ical::write_calendar(&cal.events, &cal.tasks, 0);

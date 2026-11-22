@@ -253,20 +253,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             });
             keep
         }
-        // Forward a meeting (issue #234): to whom, as a recipient box takes them.
-        Dialog::ForwardMeeting { uid, summary, to } => {
-            ui.set_width(420.0);
-            title(ui, t, "Forward meeting");
-            ui.add(egui::Label::new(RichText::new(summary.as_str()).color(t.dim)).truncate());
-            ui.add_space(6.0);
-            ui.label(tl!("To"));
-            ui.add(egui::TextEdit::singleline(to).hint_text(tl!("Names <addresses>, separated by ; or ,")).desired_width(f32::INFINITY));
-            let (ok, cancel) = buttons(ui, t, "Forward", !to.trim().is_empty());
-            if ok {
-                acts.push(Action::Submit("invite.forward", json!({"uid": uid, "to": to})));
-            }
-            !cancel
-        }
+        // Forward or delegate a meeting (issues #234, #254): to whom.
+        Dialog::PassMeeting(f) => crate::pim_dialogs::pass(ui, f, t, acts),
         Dialog::Contact(f) => crate::pim_dialogs::contact(ui, f, t, acts),
         // Every other kind is shown by its own group (`body`).
         _ => true,

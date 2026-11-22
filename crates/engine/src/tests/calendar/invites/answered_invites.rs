@@ -137,7 +137,7 @@ fn guests_answers_when_asked_for() {
     let own = s.find_event(r["uid"].as_str().unwrap()).unwrap().1.event.clone();
     let reply = |stat: &str| CalEvent {
         organizer: Some(Attendee { email: "riley@studio.example".into(), ..Default::default() }),
-        attendees: vec![Attendee { email: ZOE.1.into(), name: ZOE.0.into(), partstat: stat.into(), rsvp: false }],
+        attendees: vec![Attendee { email: ZOE.1.into(), name: ZOE.0.into(), partstat: stat.into(), rsvp: false, ..Default::default() }],
         ..own.clone()
     };
     deliver(&mut s, 1, ZOE, "REPLY", &[reply("ACCEPTED")], NOW);

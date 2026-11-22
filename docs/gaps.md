@@ -200,12 +200,15 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 ### 17. Meetings: what isn't done yet
 
 - **Impact:** A new time for one occurrence of a series can't be proposed from its invitation,
-  nor taken when a guest proposes one. Your place in a meeting can't be handed to someone else
-  (delegated), as SOGo offers. Invitations already in the Inbox aren't offered as an account is
-  added: Invitations in the Inbox… in the calendar finds them.
-- **Workaround:** Change the occurrence in the calendar: its guests are sent it.
+  nor taken when a guest proposes one. An account with calendars only (no mail) can't delegate a
+  meeting. Invitations already in the Inbox aren't offered as an account is added: Invitations
+  in the Inbox… in the calendar finds them.
+- **Workaround:** Change the occurrence in the calendar: its guests are sent it. Delegate from an
+  account with mail, or in the server's web calendar.
 - **Cause:** Taking a proposal moves the meeting as a whole; an occurrence's proposal needs that
-  occurrence changed on its own.
+  occurrence changed on its own. A delegate is told by the account's mail: without mail, the
+  server would have to tell them, and Nextcloud and Stalwart don't (Nextcloud doesn't tell the
+  organizer whom either).
 
 ### 18. Tasks on CalDAV servers: what isn't done yet
 

@@ -16,6 +16,7 @@ mod answers;
 mod arrival;
 mod backlog;
 mod counter;
+mod delegate;
 mod fit;
 mod forward;
 mod notices;
@@ -53,6 +54,12 @@ pub struct Invite {
     pub recorded: bool,
     /// Why it can't be taken into the calendar, when it can't.
     pub problem: Option<InviteProblem>,
+    /// Someone else's meeting the user is a guest of: their place can be handed on (issue #254).
+    pub delegable: bool,
+    /// Who the user handed their place to (their answer `DELEGATED`), and who handed theirs to
+    /// the user (invited as their delegate).
+    pub handed_to: Option<Attendee>,
+    pub handed_by: Option<String>,
 }
 
 /// Why an invitation can't be taken into the calendar.
@@ -327,11 +334,12 @@ impl Session {
         // named the sender only in another part of the meeting set someone else's.)
         let answers = matches!(method.as_str(), "REPLY" | "COUNTER");
         let replier = answers.then(|| event.attendees.iter().find(|a| same_address(&a.email, &sender)).cloned()).flatten();
-        let problem = self.invite_problem(&cal, &sender).or_else(|| (answers && replier.is_none()).then_some(InviteProblem::NotFromGuest));
+        let problem = self.answer_problem(&cal, &sender).or_else(|| (answers && replier.is_none()).then_some(InviteProblem::NotFromGuest));
         let recorded = replier.as_ref().is_some_and(|who| {
             stored.as_ref().is_some_and(|s| s.attendees.iter().any(|a| same_address(&a.email, &who.email) && a.partstat == who.partstat))
         });
-        Some(Invite { method, event, answer, in_calendar: !parts.is_empty(), replier, recorded, problem })
+        let (delegable, handed_to, handed_by) = self.handed(&method, &event, stored.as_ref().unwrap_or(&event), &r.key.account);
+        Some(Invite { method, event, answer, in_calendar: !parts.is_empty(), replier, recorded, problem, delegable, handed_to, handed_by })
     }
 
     /// Answer the invitation in the open message: the event goes into the calendar (or out of
@@ -344,7 +352,7 @@ impl Session {
         if cal.method.as_deref() != Some("REQUEST") {
             return Err(CmdError::Disabled("this message isn't an invitation".into()));
         }
-        if let Some(p) = self.invite_problem(&cal, &sender) {
+        if let Some(p) = self.answer_problem(&cal, &sender) {
             return Err(CmdError::Disabled(p.reason().into()));
         }
         let account = key.account.clone();
@@ -354,9 +362,16 @@ impl Session {
         // The user's own copy (not a colleague's of the same meeting, in a calendar of theirs).
         let existing: Vec<StoredEvent> = self.stored_parts(&uid).map(|(_, parts)| parts.into_iter().cloned().collect()).unwrap_or_default();
         let mut events: Vec<CalEvent> = cal.events.into_iter().filter(|e| e.uid == uid).collect();
+        // Sent by someone other than the organizer (a guest passing it on, a service for the
+        // organizer): what the calendar has of it stays, only the user's answer changes.
+        let passed_on = existing
+            .iter()
+            .find(|x| x.event.recurrence_id.is_none())
+            .and_then(|x| x.event.organizer.as_ref())
+            .is_some_and(|o| !same_address(&o.email, &sender));
         for e in &mut events {
             // The same version the calendar has, stamped earlier: what the calendar has stays.
-            if let Some(kept) = existing.iter().find(|x| x.event.recurrence_id == e.recurrence_id && older(e, &x.event)) {
+            if let Some(kept) = existing.iter().find(|x| x.event.recurrence_id == e.recurrence_id && (older(e, &x.event) || passed_on)) {
                 *e = kept.event.clone();
             }
             set_answer(e, &mine, &me, stat);
@@ -497,7 +512,7 @@ impl Session {
             }
             "REPLY" => {
                 let who = inv.replier.ok_or_else(|| CmdError::Disabled("the answer names no one".into()))?;
-                self.record_answer(&account, &uid, inv.event.recurrence_id, &who);
+                self.record_answer(&account, &uid, inv.event.recurrence_id, &who, &inv.event.attendees);
                 self.tidy_reply_mail(&key);
                 Ok(serde_json::json!({"recorded": who.partstat}))
             }
@@ -530,9 +545,11 @@ impl Session {
         let me = (sender.name.clone(), sender.email.clone());
         let mine = self.my_addresses();
         let mut reply = event.clone();
-        reply.attendees.retain(|a| is_mine(&a.email, &mine));
+        // The user's answer, and whom they handed their place to (RFC 5546 §3.2.2.3: the new
+        // guest goes with it, the organizer's copy takes them in).
+        reply.attendees.retain(|a| is_mine(&a.email, &mine) || (stat == "DELEGATED" && is_mine(&a.delegated_from, &mine)));
         if reply.attendees.is_empty() {
-            reply.attendees.push(Attendee { email: me.1.clone(), name: me.0.clone(), partstat: stat.into(), rsvp: false });
+            reply.attendees.push(Attendee { email: me.1.clone(), name: me.0.clone(), partstat: stat.into(), rsvp: false, ..Default::default() });
         }
         reply.description.clear();
         // The user's alarms are their own: each goes whole (its lines left after a lone `BEGIN`
@@ -541,10 +558,15 @@ impl Session {
         let word = match stat {
             "ACCEPTED" => "Accepted",
             "TENTATIVE" => "Tentative",
+            "DELEGATED" => "Delegated",
             _ => "Declined",
         };
         let who = if me.0.is_empty() { me.1.clone() } else { me.0.clone() };
-        let body = format!("{who} {} the invitation to {}.", word.to_ascii_lowercase(), event.summary);
+        let to_whom = reply.attendees.iter().find(|a| is_mine(&a.delegated_from, &mine)).filter(|_| stat == "DELEGATED");
+        let body = match to_whom {
+            Some(d) => format!("{who} asked {} to go to {} in their place.", if d.name.is_empty() { &d.email } else { &d.name }, event.summary),
+            None => format!("{who} {} the invitation to {}.", word.to_ascii_lowercase(), event.summary),
+        };
         let to = vec![EmailAddress::new(organizer.name.clone(), organizer.email.clone())];
         let subject = format!("{word}: {}", event.summary);
         self.send_itip(account, Itip { from: &invited, to, method: "REPLY", events: &[reply], subject: &subject, body: &body })
@@ -659,10 +681,12 @@ fn set_answer(e: &mut CalEvent, mine: &[String], me: &str, stat: &str) {
     for a in e.attendees.iter_mut().filter(|a| is_mine(&a.email, mine)) {
         a.partstat = stat.to_string();
         a.rsvp = false;
+        // Answered after handing the place on: the user's own again.
+        a.delegated_to.clear();
         found = true;
     }
     if !found && !me.is_empty() {
-        e.attendees.push(Attendee { email: me.to_string(), name: String::new(), partstat: stat.to_string(), rsvp: false });
+        e.attendees.push(Attendee { email: me.to_string(), name: String::new(), partstat: stat.to_string(), rsvp: false, ..Default::default() });
     }
     // Issue #32: Outlook sends the guest's copy as tentative; accepted, it shows as busy (or as
     // the organizer meant it to), not tentative for good.

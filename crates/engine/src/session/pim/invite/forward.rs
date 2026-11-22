@@ -49,7 +49,13 @@ impl Session {
         for e in &mut events {
             for p in &new {
                 if !e.attendees.iter().any(|a| same_address(&a.email, &p.email)) {
-                    e.attendees.push(Attendee { email: p.email.clone(), name: p.name.clone(), partstat: "NEEDS-ACTION".into(), rsvp: true });
+                    e.attendees.push(Attendee {
+                        email: p.email.clone(),
+                        name: p.name.clone(),
+                        partstat: "NEEDS-ACTION".into(),
+                        rsvp: true,
+                        ..Default::default()
+                    });
                 }
             }
             // The user's reminders are their own.

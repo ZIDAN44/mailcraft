@@ -2031,3 +2031,16 @@ count	occurrences	occurrences
 	Overview	Vue d’ensemble
 	Show all	Tout afficher
 	Find someone by name or address	Trouver quelqu’un par nom ou adresse
+	Delegate	Déléguer
+	Delegate meeting	Déléguer la réunion
+	Delegate…	Déléguer…
+	Delegated	Déléguée
+	Name <address>	Nom <adresse>
+	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Quelqu’un d’autre y va à votre place : il reçoit l’invitation pour y répondre, et l’organisateur est prévenu.
+	The whole series	Toute la série
+	This occurrence	Cette occurrence
+	Who goes instead of you	Qui y va à votre place
+	You asked {name} to go in your place.	Vous avez demandé à {name} d’y aller à votre place.
+	{name} asked you to go in their place.	{name} vous a demandé d’y aller à sa place.
+	{name} asked {delegate} to go in their place.	{name} a demandé à {delegate} d’y aller à sa place.
+	{name} (delegated to {delegate})	{name} (délégué à {delegate})

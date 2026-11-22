@@ -97,6 +97,7 @@ fn what_cant_be_moved_says_why() {
         name: "Riley".into(),
         partstat: "ACCEPTED".into(),
         rsvp: false,
+        ..Default::default()
     }];
     let account = s.find_event(&weekly).unwrap().0.to_string();
     let calendar = s.find_event(&weekly).unwrap().1.calendar.clone();

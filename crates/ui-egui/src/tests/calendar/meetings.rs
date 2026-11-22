@@ -323,6 +323,7 @@ fn a_guests_answer_says_it_was_recorded() {
         name: "Zoe Park".into(),
         partstat: "ACCEPTED".into(),
         rsvp: false,
+        ..Default::default()
     }];
     let ics = mailcraft_engine::model::ical::write(&[own], Some("REPLY"), NOW);
     let raw = format!(
@@ -410,9 +411,10 @@ fn a_meeting_is_forwarded_from_its_card_and_its_form() {
         frame(&ctx, &mut a, vec![]);
     }
     click_named(&ctx, &mut a, "Forward");
-    let Some(Dialog::ForwardMeeting { to, uid, .. }) = a.ui.dialog.as_mut() else { panic!("asked to whom: {:?}", a.ui.dialog) };
-    *to = "Sam Okafor <sam@studio.example>".into();
-    let uid = uid.clone();
+    let Some(Dialog::PassMeeting(f)) = a.ui.dialog.as_mut() else { panic!("asked to whom: {:?}", a.ui.dialog) };
+    assert_eq!(f.passing, crate::pim_dialogs::Passing::Forward);
+    f.to = "Sam Okafor <sam@studio.example>".into();
+    let uid = f.uid.clone();
     for _ in 0..2 {
         frame(&ctx, &mut a, vec![]);
     }
@@ -430,7 +432,7 @@ fn a_meeting_is_forwarded_from_its_card_and_its_form() {
         frame(&ctx, &mut a, vec![]);
     }
     click_named(&ctx, &mut a, "Forward meeting…");
-    assert!(matches!(&a.ui.dialog, Some(Dialog::ForwardMeeting { uid: u, .. }) if *u == uid));
+    assert!(matches!(&a.ui.dialog, Some(Dialog::PassMeeting(f)) if f.uid == uid && f.passing == crate::pim_dialogs::Passing::Forward));
     // One's own meeting: not offered.
     let own = a.session.run("event.create", &json!({"summary": "Mine", "start": NOW + 86_400, "attendees": "sam@studio.example"})).unwrap();
     let own = own["uid"].as_str().unwrap().to_string();
@@ -487,4 +489,49 @@ fn invitations_waiting_in_the_inbox_are_put_in_the_calendar() {
     assert!(a.ui.dialog.is_none(), "{:?}", a.ui.dialog);
     let placed = a.session.find_event("wait-237").expect("in the calendar").1.event.clone();
     assert!(placed.attendees.iter().any(|x| x.email == "riley@studio.example" && x.partstat == "NEEDS-ACTION"), "unanswered");
+}
+
+/// Issue #254: Delegate on an invitation asks who goes instead, and they're sent the invitation;
+/// the meeting's form then lists the user as having handed their place on, and offers Delegate…
+/// itself.
+#[test]
+fn a_meeting_is_delegated_from_its_card_and_its_form() {
+    let (mut a, _) = app("delegate-meeting");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let k = a.session.list.iter().find(|m| m.subject == "Sound mix, version 3").map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Delegate");
+    let Some(Dialog::PassMeeting(f)) = a.ui.dialog.as_mut() else { panic!("asked who goes: {:?}", a.ui.dialog) };
+    assert_eq!((f.passing, f.occurrence), (crate::pim_dialogs::Passing::Delegate, None));
+    f.to = "Sam Okafor <sam@studio.example>".into();
+    let uid = f.uid.clone();
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Delegate");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none(), "sent: {:?}", a.ui.dialog);
+    let sent = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
+    assert!(sent.messages.iter().any(|m| m.subject == "Invitation: Sound mix playback" && m.to.iter().any(|t| t.email == "sam@studio.example")));
+    // The form: the user's place handed on, said so; Delegate… there too.
+    let e = a.session.find_event(&uid).unwrap().1.event.clone();
+    let f = crate::pim_dialogs::EventForm::open(&a.session, &uid, e.start).expect("its form");
+    assert!(f.can_delegate);
+    assert!(f.attendees.iter().any(|(_, answer, to)| answer == "DELEGATED" && to == "Sam Okafor"), "{:?}", f.attendees);
+    a.ui.dialog = Some(Dialog::Event(Box::new(f)));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(texts.iter().any(|t| t.contains("(delegated to Sam Okafor)")), "{texts:?}");
+    click_named(&ctx, &mut a, "Delegate…");
+    assert!(matches!(&a.ui.dialog, Some(Dialog::PassMeeting(f)) if f.uid == uid && f.passing == crate::pim_dialogs::Passing::Delegate));
+    // One's own meeting: not offered.
+    let own = a.session.run("event.create", &json!({"summary": "Mine", "start": NOW + 86_400, "attendees": "sam@studio.example"})).unwrap();
+    let f = crate::pim_dialogs::EventForm::open(&a.session, own["uid"].as_str().unwrap(), NOW + 86_400).unwrap();
+    assert!(!f.can_delegate);
 }

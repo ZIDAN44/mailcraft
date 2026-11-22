@@ -2044,3 +2044,16 @@ count	occurrences	wystąpieniach
 	Overview	Przegląd
 	Show all	Pokaż wszystko
 	Find someone by name or address	Znajdź osobę po nazwisku lub adresie
+	Delegate	Deleguj
+	Delegate meeting	Deleguj spotkanie
+	Delegate…	Deleguj…
+	Delegated	Delegowano
+	Name <address>	Nazwa <adres>
+	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Ktoś inny pójdzie za Ciebie: dostanie zaproszenie, by na nie odpowiedzieć, a organizator zostanie powiadomiony.
+	The whole series	Cała seria
+	This occurrence	To wystąpienie
+	Who goes instead of you	Kto pójdzie zamiast Ciebie
+	You asked {name} to go in your place.	Poproszono {name} o pójście w Twoim zastępstwie.
+	{name} asked you to go in their place.	{name} prosi Cię o pójście w zastępstwie.
+	{name} asked {delegate} to go in their place.	{name} prosi {delegate} o pójście w zastępstwie.
+	{name} (delegated to {delegate})	{name} (delegowano do: {delegate})

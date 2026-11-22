@@ -64,7 +64,7 @@ fn counter(own: &CalEvent, from: (&str, &str), start: i64, end: i64) -> CalEvent
         start,
         end,
         organizer: Some(Attendee { email: "riley@studio.example".into(), ..Default::default() }),
-        attendees: vec![Attendee { email: from.1.into(), name: from.0.into(), partstat: "TENTATIVE".into(), rsvp: false }],
+        attendees: vec![Attendee { email: from.1.into(), name: from.0.into(), partstat: "TENTATIVE".into(), rsvp: false, ..Default::default() }],
         ..own.clone()
     }
 }

@@ -69,6 +69,13 @@ pub struct Attendee {
     /// Asked to reply.
     #[serde(default)]
     pub rsvp: bool,
+    /// Whom they handed their place to (`DELEGATED-TO`, RFC 5545 §3.2.5; their answer is then
+    /// `DELEGATED`, issue #254): the first one named.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub delegated_to: String,
+    /// Who handed them their place (`DELEGATED-FROM`, §3.2.4): the first one named.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub delegated_from: String,
 }
 
 /// One event (or one changed instance of a recurring event, when `recurrence_id` is set).
@@ -398,7 +405,16 @@ fn person(l: &Line) -> Attendee {
         name: l.param("CN").map(|n| n.trim_matches('"').to_string()).unwrap_or_default(),
         partstat: l.param("PARTSTAT").map(str::to_ascii_uppercase).unwrap_or_default(),
         rsvp: l.param("RSVP").is_some_and(|r| r.eq_ignore_ascii_case("TRUE")),
+        delegated_to: l.param("DELEGATED-TO").map(first_address).unwrap_or_default(),
+        delegated_from: l.param("DELEGATED-FROM").map(first_address).unwrap_or_default(),
     }
+}
+
+/// The first address of a list of them (`"mailto:a@b","mailto:c@d"`), without its quotes and
+/// its `mailto:`.
+fn first_address(v: &str) -> String {
+    let first = v.split(',').next().unwrap_or_default().trim().trim_matches('"').trim();
+    first.get(..7).filter(|p| p.eq_ignore_ascii_case("mailto:")).map_or(first, |_| first.get(7..).unwrap_or("")).trim().to_string()
 }
 
 /// The most lines an event or a to-do keeps as written (`extra`): its properties MailCraft doesn't
@@ -572,6 +588,14 @@ fn mailbox(prop: &str, a: &Attendee, client: bool) -> String {
     }
     if a.rsvp {
         s.push_str(";RSVP=TRUE");
+    }
+    // An address in quotes: what would end the quotes, the line or the value, out.
+    let address = |v: &str| v.replace(['"', '\r', '\n', ',', ';', ':'], "");
+    if !a.delegated_to.is_empty() {
+        s.push_str(&format!(";DELEGATED-TO=\"mailto:{}\"", address(&a.delegated_to)));
+    }
+    if !a.delegated_from.is_empty() {
+        s.push_str(&format!(";DELEGATED-FROM=\"mailto:{}\"", address(&a.delegated_from)));
     }
     if client {
         s.push_str(";SCHEDULE-AGENT=CLIENT");

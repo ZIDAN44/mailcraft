@@ -184,7 +184,7 @@ fn partstat(response: &str) -> &'static str {
 fn person(v: &Value) -> Option<Attendee> {
     let e = v.get("emailAddress")?;
     let email = s(e, "address");
-    (!email.is_empty()).then(|| Attendee { email, name: s(e, "name"), partstat: String::new(), rsvp: false })
+    (!email.is_empty()).then(|| Attendee { email, name: s(e, "name"), partstat: String::new(), rsvp: false, ..Default::default() })
 }
 
 /// A Graph event as an event.

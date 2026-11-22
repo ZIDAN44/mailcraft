@@ -656,6 +656,8 @@ impl MailApp {
             if in_window && d.for_compose() {
                 self.ui.dialog = Some(d);
             } else {
+                // Its boxes of people suggest from the session, which drawing it can't change.
+                d.refresh_people(&mut self.session, &mut acts);
                 let keep = dialogs::show(&ctx, &mut d, &self.session, &mut self.ui.pictures, &t, &mut acts);
                 if keep && self.ui.dialog.is_none() {
                     self.ui.dialog = Some(d);

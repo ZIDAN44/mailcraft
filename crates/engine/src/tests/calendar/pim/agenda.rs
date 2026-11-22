@@ -13,7 +13,7 @@ fn measure_agenda_frame() {
     use mailcraft_model::ical::{Attendee, CalEvent};
     use mailcraft_model::pim::{LOCAL, StoredEvent};
     let mut s = sample_session("measure-agenda");
-    let guest = |email: &str| Attendee { email: email.into(), name: "Guest".into(), partstat: "ACCEPTED".into(), rsvp: true };
+    let guest = |email: &str| Attendee { email: email.into(), name: "Guest".into(), partstat: "ACCEPTED".into(), rsvp: true, ..Default::default() };
     let p = s.pim_mut("sample");
     for i in 0..20000_i64 {
         let start = NOW - 5 * 365 * 86_400 + i * 3 * 3600 * 2;

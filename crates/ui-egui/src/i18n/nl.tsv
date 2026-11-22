@@ -2026,3 +2026,16 @@ count	occurrences	keer
 	Overview	Overzicht
 	Show all	Alles weergeven
 	Find someone by name or address	Iemand zoeken op naam of adres
+	Delegate	Delegeren
+	Delegate meeting	Vergadering delegeren
+	Delegate…	Delegeren…
+	Delegated	Gedelegeerd
+	Name <address>	Naam <adres>
+	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Iemand anders gaat in uw plaats: die krijgt de uitnodiging om te beantwoorden, en de organisator krijgt bericht.
+	The whole series	De hele reeks
+	This occurrence	Deze keer
+	Who goes instead of you	Wie gaat er in uw plaats
+	You asked {name} to go in your place.	U hebt {name} gevraagd in uw plaats te gaan.
+	{name} asked you to go in their place.	{name} heeft u gevraagd in zijn of haar plaats te gaan.
+	{name} asked {delegate} to go in their place.	{name} heeft {delegate} gevraagd in zijn of haar plaats te gaan.
+	{name} (delegated to {delegate})	{name} (gedelegeerd aan {delegate})

@@ -660,3 +660,113 @@ fn real_caldav_tasks() {
     settle(&mut b, &bid, &|s| s.find_task(&uid).is_none());
     assert!(b.s.find_task(&uid).is_none() && b.s.find_task(&early_uid).is_none());
 }
+
+/// Issue #254: a meeting delegated by a guest whose calendar is on a server that schedules, run
+/// by hand with `MAILCRAFT_REAL_DELEGATE="<server> <organizer> <guest> <delegate> <password>
+/// <imap> <smtp>"`: three users of one calendar server, each `address` or `address=sign-in name`
+/// (as `MAILCRAFT_REAL_FREE_BUSY`), their mail on GreenMail (any password, its IMAP and SMTP):
+/// - Stalwart: `http://127.0.0.1:23080 ann@st.test bob@st.test carol@st.test <password> 127.0.0.1:3143 127.0.0.1:3025`;
+/// - Nextcloud: `http://127.0.0.1:26080/remote.php/dav ann@nc.test=ann bob@nc.test=bob carol@nc.test=carol <password> 127.0.0.1:3143 127.0.0.1:3025`;
+/// - SOGo (Mailcow): `http://127.0.0.1:22080/SOGo/dav ann@mc31.test bob@mc31.test carol@mc31.test <password> 127.0.0.1:3143 127.0.0.1:3025`.
+///
+/// The organizer's invitation reaches the guest by mail, and the guest hands their place to the
+/// delegate from it: the delegate gets one invitation, as the guest's delegate, and
+/// accepts it; the organizer's copy then has the guest's place handed on and the delegate's
+/// answer, both recorded as they arrived, in whichever order.
+#[test]
+#[ignore = "needs a real CalDAV server that schedules, and GreenMail, in MAILCRAFT_REAL_DELEGATE"]
+fn real_caldav_meeting_delegated() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_DELEGATE") else {
+        eprintln!("MAILCRAFT_REAL_DELEGATE isn't set: skipped");
+        return;
+    };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [server, organizer, guest, delegate, password, imap, smtp] = p.as_slice() else {
+        panic!("MAILCRAFT_REAL_DELEGATE: server organizer guest delegate password imap smtp")
+    };
+    let person = |s: &str| s.split_once('=').map_or((s.to_string(), s.to_string()), |(e, l)| (e.to_string(), l.to_string()));
+    let ((organizer, organizer_login), (guest, guest_login), (delegate, delegate_login)) = (person(organizer), person(guest), person(delegate));
+    let open = |tag: &str, email: &str, login: &str| {
+        let (mut app, id) = App::at(imap, smtp, email, email, password, tag);
+        app.watch = watch;
+        app.s.run("account.dav", &json!({"account": id, "caldav": server, "username": login, "password": password})).unwrap();
+        app.pump(120, "online", |_, e| matches!(e, Event::Status { status: mailcraft_engine::model::SyncStatus::Online { .. }, .. }));
+        app.sync_dav(&id);
+        (app, id)
+    };
+    let settled = |app: &mut App, id: &str, uid: &str| {
+        let (id, uid) = (id.to_string(), uid.to_string());
+        app.pump(120, "stored and sent", |s, _| s.find_event(&uid).is_none_or(|(_, e)| !e.dirty) && s.pim[&id].notices.is_empty());
+        app.settle(3);
+    };
+    let said = |e: &mailcraft_engine::model::ical::CalEvent, email: &str| {
+        e.attendees
+            .iter()
+            .find(|a| a.email.eq_ignore_ascii_case(email))
+            .map(|a| (a.partstat.clone(), a.delegated_to.clone(), a.delegated_from.clone()))
+    };
+    let day = 86_400;
+    let start = (now() / day + 9) * day + 11 * 3600;
+    let at = |t: i64| {
+        let (y, m, d) = mailcraft_engine::model::dates::civil_from_days(t / day);
+        format!("{y:04}-{m:02}-{d:02}T{:02}:00", t % day / 3600)
+    };
+    let summary = format!("Handover {}", std::process::id());
+    let (mut org, oid) = open("delegate-organizer", &organizer, &organizer_login);
+    let uid = org.s.run("event.create", &json!({"summary": summary, "start": at(start), "account": oid, "attendees": guest})).unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    settled(&mut org, &oid, &uid);
+
+    // The guest: the invitation (MailCraft mails it: the server is told to send none), handed to
+    // the delegate from the message.
+    let (mut g, gid) = open("delegate-guest", &guest, &guest_login);
+    let key = g.wait_for_mail(&gid, &format!("Invitation: {summary}"));
+    g.sync_dav(&gid);
+    g.s.run("folder.open", &json!({"account": gid, "folder": "INBOX"})).unwrap();
+    g.s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    assert!(g.s.invite().is_some_and(|i| i.delegable && i.problem.is_none()), "{:?}", g.s.invite());
+    g.s.run("invite.delegate", &json!({"to": delegate})).unwrap();
+    settled(&mut g, &gid, &uid);
+    g.sync_dav(&gid);
+    let copy = g.s.find_event(&uid).map(|(_, e)| e.event.clone()).unwrap();
+    eprintln!("the guest's copy: guest {:?}, delegate {:?}", said(&copy, &guest), said(&copy, &delegate));
+    assert_eq!(said(&copy, &guest).map(|x| x.0), Some("DELEGATED".to_string()));
+
+    // The delegate: one invitation, as the guest's delegate; accepted.
+    let (mut d, did) = open("delegate-delegate", &delegate, &delegate_login);
+    let key = d.wait_for_mail(&did, &format!("Invitation: {summary}"));
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    d.pool.submit(mailcraft_engine::model::Job::SyncFolder { account: did.clone(), folder: "INBOX".into() });
+    d.settle(3);
+    let invitations = d.s.folder_state(&did, "INBOX").messages.iter().filter(|m| m.subject.contains(&summary)).count();
+    assert_eq!(invitations, 1, "one invitation");
+    d.sync_dav(&did);
+    d.s.run("folder.open", &json!({"account": did, "folder": "INBOX"})).unwrap();
+    d.s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    let inv = d.s.invite().expect("the invitation");
+    eprintln!("the delegate's card: handed by {:?}, problem {:?}", inv.handed_by, inv.problem);
+    assert!(inv.handed_by.is_some() && inv.problem.is_none(), "{inv:?}");
+    d.s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    settled(&mut d, &did, &uid);
+
+    // The organizer: the guest's place handed on, and the delegate's answer.
+    let mut last = None;
+    for _ in 0..20 {
+        org.pool.submit(mailcraft_engine::model::Job::SyncFolder { account: oid.clone(), folder: "INBOX".into() });
+        org.settle(2);
+        org.sync_dav(&oid);
+        let e = org.s.find_event(&uid).map(|(_, e)| e.event.clone()).unwrap();
+        if said(&e, &delegate).is_some_and(|x| x.0 == "ACCEPTED") {
+            last = Some(e);
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    }
+    let e = last.expect("the delegate's answer never reached the organizer");
+    eprintln!("the organizer's copy: guest {:?}, delegate {:?}", said(&e, &guest), said(&e, &delegate));
+    assert_eq!(said(&e, &guest).map(|x| x.0), Some("DELEGATED".to_string()));
+    let _ = org.s.run("event.delete", &json!({"uid": uid}));
+    org.sync_dav(&oid);
+}

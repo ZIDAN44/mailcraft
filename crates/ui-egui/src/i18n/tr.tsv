@@ -2031,3 +2031,16 @@ count	occurrences	kez
 	Overview	Genel bakış
 	Show all	Tümünü göster
 	Find someone by name or address	Ad veya adrese göre birini bul
+	Delegate	Yetki devret
+	Delegate meeting	Toplantıyı devret
+	Delegate…	Yetki devret…
+	Delegated	Devredildi
+	Name <address>	Ad <adres>
+	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Sizin yerinize başka biri gider: yanıtlaması için daveti alır ve düzenleyiciye bildirilir.
+	The whole series	Tüm seri
+	This occurrence	Bu yineleme
+	Who goes instead of you	Sizin yerinize kim gidecek
+	You asked {name} to go in your place.	{name} kişisinden yerinize gitmesini istediniz.
+	{name} asked you to go in their place.	{name} sizden kendi yerine gitmenizi istedi.
+	{name} asked {delegate} to go in their place.	{name}, {delegate} kişisinden kendi yerine gitmesini istedi.
+	{name} (delegated to {delegate})	{name} ({delegate} kişisine devretti)

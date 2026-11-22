@@ -9,6 +9,7 @@ use crate::InviteProblem;
 
 mod answered_invites;
 mod backlog;
+mod delegating;
 mod fit;
 mod forwarding;
 mod invite_placing;
@@ -40,7 +41,7 @@ fn deliver_ics(s: &mut Session, n: u32, from: (&str, &str), method: &str, mime: 
 }
 
 pub(super) fn me(partstat: &str) -> Attendee {
-    Attendee { email: "riley@studio.example".into(), name: "Riley".into(), partstat: partstat.into(), rsvp: true }
+    Attendee { email: "riley@studio.example".into(), name: "Riley".into(), partstat: partstat.into(), rsvp: true, ..Default::default() }
 }
 
 /// Who sends the invitations of [`invitation`].
@@ -232,7 +233,13 @@ fn invitations_from_others_or_out_of_date_are_not_applied() {
         .unwrap()
         .to_string();
     let mut reply = s.find_event(&own).unwrap().1.event.clone();
-    reply.attendees = vec![Attendee { email: "zoe@studio.example".into(), name: "Zoe Park".into(), partstat: "DECLINED".into(), rsvp: false }];
+    reply.attendees = vec![Attendee {
+        email: "zoe@studio.example".into(),
+        name: "Zoe Park".into(),
+        partstat: "DECLINED".into(),
+        rsvp: false,
+        ..Default::default()
+    }];
     deliver(&mut s, 7, ("Mallory", "mallory@evil.example"), "REPLY", std::slice::from_ref(&reply), NOW);
     assert_eq!(s.invite().unwrap().problem, Some(InviteProblem::NotFromGuest));
     assert!(s.run("invite.apply", &json!({})).is_err());
@@ -244,7 +251,13 @@ fn invitations_from_others_or_out_of_date_are_not_applied() {
         recurrence_id: Some(reply.start + WEEK),
         start: reply.start + WEEK,
         end: reply.end + WEEK,
-        attendees: vec![Attendee { email: "mallory@evil.example".into(), name: "Mallory".into(), partstat: "ACCEPTED".into(), rsvp: false }],
+        attendees: vec![Attendee {
+            email: "mallory@evil.example".into(),
+            name: "Mallory".into(),
+            partstat: "ACCEPTED".into(),
+            rsvp: false,
+            ..Default::default()
+        }],
         ..reply.clone()
     };
     deliver(&mut s, 9, ("Mallory", "mallory@evil.example"), "REPLY", &[reply.clone(), elsewhere], NOW);
@@ -260,7 +273,8 @@ fn invitations_from_others_or_out_of_date_are_not_applied() {
     // goes from that address, the guest it's for: from the account's own, the organizer's
     // program took it for someone else's and recorded nothing.
     s.run("account.setAddress", &json!({"account": "sample", "address": "shop@studio.example", "name": "The Shop"})).unwrap();
-    let shop = Attendee { email: "shop@studio.example".into(), name: "The Shop".into(), partstat: "NEEDS-ACTION".into(), rsvp: true };
+    let shop =
+        Attendee { email: "shop@studio.example".into(), name: "The Shop".into(), partstat: "NEEDS-ACTION".into(), rsvp: true, ..Default::default() };
     let asked = CalEvent {
         uid: "stock@soundlab.example".into(),
         summary: "Stock take".into(),

@@ -2027,3 +2027,16 @@ count	occurrences	回
 	Overview	概要
 	Show all	すべて表示
 	Find someone by name or address	名前またはアドレスで人を検索
+	Delegate	代理を依頼
+	Delegate meeting	会議の代理を依頼
+	Delegate…	代理を依頼…
+	Delegated	代理を依頼済み
+	Name <address>	名前 <アドレス>
+	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	ほかの人があなたの代わりに出席します。その人には返信できる招待が届き、開催者にも知らされます。
+	The whole series	定期的な予定すべて
+	This occurrence	この回
+	Who goes instead of you	代わりに出席する人
+	You asked {name} to go in your place.	{name} さんに代理の出席を依頼しました。
+	{name} asked you to go in their place.	{name} さんから代理の出席を依頼されました。
+	{name} asked {delegate} to go in their place.	{name} さんが {delegate} さんに代理の出席を依頼しました。
+	{name} (delegated to {delegate})	{name}（{delegate} さんに代理を依頼）

@@ -231,12 +231,8 @@ pub enum Dialog {
         occurrence: i64,
         summary: String,
     },
-    /// Forward a meeting the user is invited to (issue #234): to whom.
-    ForwardMeeting {
-        uid: String,
-        summary: String,
-        to: String,
-    },
+    /// Forward or delegate a meeting the user is invited to (issues #234, #254): to whom.
+    PassMeeting(Box<crate::pim_dialogs::PassForm>),
     Contact(Box<crate::pim_dialogs::ContactForm>),
     /// Everything with one person (issue #178).
     Person(Box<PersonForm>),
@@ -785,7 +781,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::Task(..)
         | Dialog::FollowUp(..)
         | Dialog::Propose(..)
-        | Dialog::ForwardMeeting { .. }
+        | Dialog::PassMeeting(..)
         | Dialog::OpenRecurring { .. }
         | Dialog::WaitingInvites(..)
         | Dialog::Contact(..) => other::draw(ui, d, s, pics, t, acts),

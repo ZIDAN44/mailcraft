@@ -16,7 +16,7 @@ fn at(zone: &str, y: i64, m: u32, d: u32, h: i64, mi: i64) -> i64 {
 }
 
 fn person(email: &str, name: &str, partstat: &str, rsvp: bool) -> Attendee {
-    Attendee { email: email.into(), name: name.into(), partstat: partstat.into(), rsvp }
+    Attendee { email: email.into(), name: name.into(), partstat: partstat.into(), rsvp, ..Default::default() }
 }
 
 /// The account's calendar: a single event with all Outlook keeps of one, an all-day event, a

@@ -1,5 +1,6 @@
 use super::*;
 
+mod delegation;
 mod find;
 mod kept;
 mod meeting;

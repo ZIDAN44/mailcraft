@@ -2044,3 +2044,16 @@ count	occurrences	повторений
 	Overview	Обзор
 	Show all	Показать всё
 	Find someone by name or address	Найти человека по имени или адресу
+	Delegate	Делегировать
+	Delegate meeting	Делегировать встречу
+	Delegate…	Делегировать…
+	Delegated	Делегировано
+	Name <address>	Имя <адрес>
+	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Вместо вас пойдёт другой человек: он получит приглашение, чтобы ответить на него, а организатор будет уведомлён.
+	The whole series	Всю серию
+	This occurrence	Это повторение
+	Who goes instead of you	Кто пойдёт вместо вас
+	You asked {name} to go in your place.	Вы попросили {name} пойти вместо вас.
+	{name} asked you to go in their place.	{name} просит вас пойти вместо него или неё.
+	{name} asked {delegate} to go in their place.	{name} просит {delegate} пойти вместо него или неё.
+	{name} (delegated to {delegate})	{name} (делегировано: {delegate})

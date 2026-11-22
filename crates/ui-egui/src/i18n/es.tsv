@@ -2031,3 +2031,16 @@ count	occurrences	repeticiones
 	Overview	Resumen
 	Show all	Mostrar todo
 	Find someone by name or address	Buscar a alguien por nombre o dirección
+	Delegate	Delegar
+	Delegate meeting	Delegar reunión
+	Delegate…	Delegar…
+	Delegated	Delegada
+	Name <address>	Nombre <dirección>
+	Someone else goes in your place: they get the invitation to answer, and the organizer is told.	Otra persona va en tu lugar: recibe la invitación para responderla y se avisa al organizador.
+	The whole series	Toda la serie
+	This occurrence	Esta repetición
+	Who goes instead of you	Quién va en tu lugar
+	You asked {name} to go in your place.	Pediste a {name} que vaya en tu lugar.
+	{name} asked you to go in their place.	{name} te pidió que vayas en su lugar.
+	{name} asked {delegate} to go in their place.	{name} pidió a {delegate} que vaya en su lugar.
+	{name} (delegated to {delegate})	{name} (delegó en {delegate})
