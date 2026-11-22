@@ -3,8 +3,12 @@
 //!
 //! ```text
 //! MAILCRAFT_REAL_EWS="http://127.0.0.1:18080/EWS/Exchange.asmx user@domain password" \
-//!   cargo test -p mailcraft-net real_ews -- --ignored --nocapture
+//!   cargo test -p mailcraft-net real_ews -- --ignored --nocapture --test-threads 1
 //! ```
+//!
+//! One at a time: they share the mailbox, and one's folders made meanwhile made another's count
+//! of what came before the calendar wrong (`real_ews_calendar_comes_with_the_inbox`, one run in
+//! two with them all at once).
 //!
 //! The mailbox's calendar holds `Budget review`, `Stand-up` (Monday, Wednesday and Friday),
 //! `Company holiday` (all day) and `Design sync`; its contacts, Ana Silva.

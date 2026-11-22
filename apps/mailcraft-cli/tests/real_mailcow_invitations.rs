@@ -25,6 +25,14 @@ use serde_json::json;
 
 const MARK: &str = "Mailcow meeting";
 
+/// 10:00 (UTC) `days` from now: the meetings are to come, as SOGo mails no answer to a meeting
+/// that's over (they were on fixed days, gone by, and bob's answer never came).
+fn ahead(days: i64) -> String {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64);
+    let (y, m, d) = mailcraft_engine::model::dates::civil_from_days(now / 86_400 + days);
+    format!("{y:04}-{m:02}-{d:02}T10:00")
+}
+
 /// Take out what an earlier run left in ann's and bob's calendars and Inboxes.
 fn clean(m: &Mailcow) {
     m.clean_calendars(&[0, 1], MARK);
@@ -77,7 +85,10 @@ fn real_mailcow_invitations_between_two_users() {
     let first = format!("{MARK} {tag} one");
     let uid = ann
         .s
-        .run("event.create", &json!({"account": aid, "summary": first, "start": "2026-11-18T10:00", "attendees": format!("Bob Tester <{bob_email}>"), "onlineMeeting": "BBB"}))
+        .run(
+            "event.create",
+            &json!({"account": aid, "summary": first, "start": ahead(30), "attendees": format!("Bob Tester <{bob_email}>"), "onlineMeeting": "BBB"}),
+        )
         .unwrap()["uid"]
         .as_str()
         .unwrap()
@@ -206,11 +217,10 @@ fn real_mailcow_invitations_between_two_users() {
 
     // A second meeting, answered from bob's calendar: tentative, its invitations leave the Inbox.
     let second = format!("{MARK} {tag} two");
-    let uid2 =
-        ann.s.run("event.create", &json!({"account": aid, "summary": second, "start": "2026-11-19T10:00", "attendees": bob_email})).unwrap()["uid"]
-            .as_str()
-            .unwrap()
-            .to_string();
+    let uid2 = ann.s.run("event.create", &json!({"account": aid, "summary": second, "start": ahead(31), "attendees": bob_email})).unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
     ann.pump(120, "the second meeting stored", |s, _| s.find_event(&uid2).is_some_and(|(_, e)| !e.dirty && !e.href.is_empty()));
     wait_subjects(&m, 1, "INBOX", "the second invitation", |s| s.iter().any(|x| x.contains(&second)));
     std::thread::sleep(Duration::from_secs(5));
