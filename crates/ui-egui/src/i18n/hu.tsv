@@ -1,4 +1,4 @@
-# MailCraft interface strings: German (Deutsch).
+# MailCraft interface strings: Hungarian (magyar).
 # context<TAB>English<TAB>translation; escapes \n \t \\. Placeholders like {name} stay as they are.
 # Written for MailCraft (clean room): no wording is taken from other mail clients.
 
@@ -209,6 +209,7 @@
 	Pictures from the web are hidden to protect your privacy.	Az adatvédelem érdekében a webes képek nem jelennek meg.
 	Picture…	Kép…
 	Pin	Rögzítés
+	Pinned	Rögzítve
 	Plain text	Egyszerű szöveg
 	Preview	Előnézet
 	Print	Nyomtatás
@@ -231,7 +232,7 @@
 	Results for “{query}”	Találatok erre: „{query}”
 	Right	Jobbra
 	Rules	Szabályok
-	Rules run on new mail as it arrives in an Inbox, in this order.	A szabályok ebben a sorrendben futnak le, amikor új üzenet érkezik valamelyik beérkezettüzenet-mappába.
+	Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent.	A szabályok ebben a sorrendben futnak le: az új üzeneteken, amikor beérkeznek valamelyik beérkezettüzenet-mappába, és az általad küldött leveleken, amikor másolatuk az Elküldött elemek mappába kerül.
 	Rules…	Szabályok…
 	Run now	Futtatás most
 	Run on the folder on screen	Futtatás a megnyitott mappán
@@ -444,7 +445,7 @@
 	Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.	A formázás, a színek és a képek nem jelennek meg. Az üzenet feletti Megjelenítés formázva paranccsal az adott üzenetet az eredeti formájában láthatod.
 	Show mail without its formatting	Levelek megjelenítése formázás nélkül
 	Show a line of each message in the list	Egysoros előnézet megjelenítése az üzenetlistában
-	Sort new mail as it arrives: move it, flag it, categorize it.	Rendezd az új üzeneteket érkezéskor: áthelyezheted, megjelölheted vagy kategorizálhatod őket.
+	Sort mail as it arrives, or as you send it: move it, flag it, categorize it.	Rendezd a leveleket érkezéskor vagy küldéskor: áthelyezheted, megjelölheted vagy kategorizálhatod őket.
 	Source code and issues	Forráskód és hibajegyek
 	Subject (optional)	Tárgy (nem kötelező)
 	Tell people you're away: each sender gets one reply while they're on, even when this computer is off.	Értesítsd a feladókat a távollétedről: amíg a funkció be van kapcsolva, minden feladó kap egy választ, akkor is, ha ez a számítógép ki van kapcsolva.
@@ -939,7 +940,7 @@
 	Rules saved in {file}: {n}	Mentett szabályok száma a(z) {file} fájlban: {n}
 	Save {n} Selected…	{n} kijelölt elem mentése…
 	Run all	Összes futtatása
-	Run every rule that's on, on the mail already in the Inbox	Minden bekapcsolt szabály futtatása a már beérkezett üzeneteken
+	Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)	Minden bekapcsolt szabály futtatása a már beérkezett üzeneteken (a küldött levelekre vonatkozóké az Elküldött elemek mappában)
 	Find a rule	Szabály keresése
 	No rule matches.	Nincs egyező szabály.
 	 and {n} more	 és még {n}
@@ -1954,4 +1955,40 @@ count	occurrences	előfordulás
 	{h} h	{h} óra
 	Notify of mail in Other too	Értesítés az Egyéb lapra érkező e-mailekről is
 	Off, only mail that goes to Focused is announced	Ki: Csak a Fontos lapra érkező e-mailekről kap értesítést.
-	Pinned	Rögzítve
+	Copy link	Hivatkozás másolása
+	Add people…	Személyek hozzáadása…
+	Add people to the group	Személyek hozzáadása a csoporthoz
+	Department	Részleg
+	Only work hours	Csak a munkaidő
+	Add reminder	Emlékeztető hozzáadása
+	Remove reminder	Emlékeztető eltávolítása
+	Recorded in your calendar.	Rögzítve a naptáradban.
+	Record guests' answers to your meetings as they arrive	A meghívottak értekezletekre adott válaszainak rögzítése érkezéskor
+	One from someone not on the guest list, or to an earlier version, waits for Record the answer	A meghívottak listáján nem szereplő személy válasza vagy egy korábbi változatra adott válasz a Válasz rögzítése parancsra vár
+	Check Names	Nevek ellenőrzése
+	Ctrl+K in To, Cc or Bcc	Ctrl+K a Címzett, a Másolat vagy a Titkos másolat mezőben
+	No one found for {names}	Nincs találat: {names}
+	Still looking up {names} in the directory	Keresés a címtárban még folyamatban: {names}
+	More than one person could be “{typed}”. Pick the one you meant:	A(z) „{typed}” több személyre is illik. Válaszd ki, akire gondoltál:
+	Applies to	Vonatkozik
+	Mail that arrives	Beérkező levelek
+	Mail you send	Általad küldött levelek
+	Run it now on the mail already in Sent	Futtatás most az Elküldött elemek mappában már meglévő leveleken
+	If mail you send {condition}: {action}	Ha egy általad küldött levélre teljesül a feltétel ({condition}): {action}
+	Accept proposal	Javaslat elfogadása
+	Decline proposal	Javaslat elutasítása
+	Propose new time	Új időpont javaslása
+	Send proposal	Javaslat küldése
+	Start	Kezdés
+	End	Befejezés
+	The organizer declined your proposed time: the meeting stays as it was.	A szervező elutasította a javasolt időpontot: az értekezlet változatlan marad.
+	Your answer	Válaszod
+	{name} proposes a new time: {when}	{name} új időpontot javasol: {when}
+	Forward meeting	Értekezlet továbbítása
+	Forward meeting…	Értekezlet továbbítása…
+	Invitations in the Inbox	Meghívók a Beérkezett üzenetek mappában
+	Invitations in the Inbox…	Meghívók a Beérkezett üzenetek mappában…
+	Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered.	Válaszodra váró értekezletek, amelyek még nincsenek a naptáradban. A bejelöltek megválaszolatlanul kerülnek be.
+	None: every invitation in the Inbox is in your calendar or answered.	Nincs ilyen: a Beérkezett üzenetek mappa minden meghívója szerepel a naptáradban, vagy már válaszoltál rá.
+	Put in calendar	Felvétel a naptárba
+	Still reading {n} messages…	Még {n} üzenet beolvasása folyamatban…
