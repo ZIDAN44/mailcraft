@@ -12,11 +12,15 @@ use crate::{Action, widgets};
 mod contact;
 mod date_pick;
 pub(crate) mod follow_up;
+mod labels;
 mod online_meeting;
 mod pattern;
 mod propose;
 mod reminders;
 pub(crate) use date_pick::date_field;
+#[cfg(test)]
+pub(crate) use labels::{CONTACT_FORM_LABELS, ICON_FORM_LABELS, LABEL_W_MAX};
+pub(crate) use labels::{ICON_W, label_column};
 pub(crate) use pattern::form_day as pattern_day;
 mod repeat;
 mod showing;
@@ -351,8 +355,6 @@ fn partstat_label(p: &str) -> &'static str {
     }
 }
 
-/// Width of the forms' label column.
-const LABEL_W: f32 = 104.0;
 /// Height of a one-line field.
 const FIELD_H: f32 = 30.0;
 
@@ -377,16 +379,16 @@ fn form_header(ui: &mut Ui, t: &Tokens, badge: Result<Icon, String>, title: &str
 /// field (or fields) after, lined up with the field's first line.
 /// `icons_used`: the form puts icons before labels, so a row without one is indented to match.
 fn form_row(ui: &mut Ui, t: &Tokens, icons_used: bool, icon: Option<Icon>, label: &str, add: impl FnOnce(&mut Ui)) {
+    let text = ui.painter().layout_no_wrap(tl!(label).to_string(), theme::regular(13.0), t.dim);
+    let indent = if icons_used { ICON_W } else { 0.0 };
+    let width = label_column(ui, icons_used);
     ui.horizontal_top(|ui| {
-        let (r, _) = ui.allocate_exact_size(vec2(LABEL_W, FIELD_H), Sense::hover());
-        let mut x = r.left();
+        let (r, _) = ui.allocate_exact_size(vec2(width, FIELD_H), Sense::hover());
         if let Some(icon) = icon {
-            icons::paint(ui.painter(), egui::Rect::from_center_size(egui::pos2(x + 8.0, r.center().y), vec2(16.0, 16.0)), icon, t.dim);
+            icons::paint(ui.painter(), egui::Rect::from_center_size(egui::pos2(r.left() + 8.0, r.center().y), vec2(16.0, 16.0)), icon, t.dim);
         }
-        if icons_used {
-            x += 24.0;
-        }
-        ui.painter().text(egui::pos2(x, r.center().y), egui::Align2::LEFT_CENTER, tl!(label), theme::regular(13.0), t.dim);
+        let at = egui::pos2(r.left() + indent, r.center().y - text.size().y / 2.0);
+        ui.painter().with_clip_rect(r.intersect(ui.clip_rect())).galley(at, text, t.dim);
         add(ui);
     });
     ui.add_space(8.0);

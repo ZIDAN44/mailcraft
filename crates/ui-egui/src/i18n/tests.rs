@@ -142,6 +142,8 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     }
     out.extend(mailcraft_engine::ARRANGE_HEADINGS.map(str::to_string));
     out.insert(mailcraft_engine::PINNED_HEADING.to_string());
+    // The forms' labels, those given to a row by a variable too (a contact's emails and phones).
+    out.extend(crate::pim_dialogs::ICON_FORM_LABELS.iter().chain(&crate::pim_dialogs::CONTACT_FORM_LABELS).map(|s| s.to_string()));
     // The message editor's ribbon and dialogs; labels chosen at run time.
     for s in [
         "Ignore the conversation",

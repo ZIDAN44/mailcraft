@@ -542,3 +542,51 @@ fn email_on_a_card_named_last_first_writes_to_that_person() {
     assert_eq!(people.len(), 1, "{to}");
     assert_eq!((people[0].name.as_str(), people[0].email.as_str()), ("Park, Ann", "ann@studio.example"));
 }
+
+/// Every label of the event, task and contact forms fits their label column, in every language
+/// (#198: Hungarian's "Ismétlődés gyakorisága", Repeats every, ran into its field, and labels in
+/// German, Spanish, Polish, Russian and Slovak too); and the lists the column is measured from
+/// hold every label the forms give a row.
+#[test]
+fn form_labels_fit_their_column() {
+    use crate::pim_dialogs::{CONTACT_FORM_LABELS, ICON_FORM_LABELS, ICON_W, LABEL_W_MAX, label_column};
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/dialogs");
+    let mut files = vec![dir.join("pim_dialogs.rs")];
+    files.extend(std::fs::read_dir(dir.join("pim_dialogs")).unwrap().map(|e| e.unwrap().path()));
+    let mut seen = 0;
+    for file in files {
+        let src = std::fs::read_to_string(&file).unwrap();
+        for call in src.split("form_row(ui, t, ").skip(1) {
+            // The label, where it's written in the call (the contact's emails and phones are
+            // named in a list of their own).
+            let Some((args, _)) = call.split_once(", |ui|") else { continue };
+            let Some(label) = args.split('"').nth(1).filter(|l| !l.is_empty()) else { continue };
+            let list: &[&str] = if call.starts_with("true") { &ICON_FORM_LABELS } else { &CONTACT_FORM_LABELS };
+            assert!(list.contains(&label), "{label:?} ({}) isn't in its form's labels", file.display());
+            seen += 1;
+        }
+    }
+    assert!(seen > 30, "{seen}");
+
+    let (mut a, _) = app("form-labels");
+    let ctx = egui::Context::default();
+    for lang in crate::i18n::Lang::for_picker() {
+        a.ui.language = lang.code().to_string();
+        crate::i18n::set_current(lang);
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            a.ui(ui);
+            for (icons, labels, indent) in [(true, &ICON_FORM_LABELS[..], ICON_W), (false, &CONTACT_FORM_LABELS[..], 0.0)] {
+                let column = label_column(ui, icons);
+                assert!(column < LABEL_W_MAX, "{}: the column is at its widest", lang.code());
+                for l in labels {
+                    let w =
+                        ui.painter().layout_no_wrap(crate::i18n::t(l).to_string(), crate::theme::regular(13.0), egui::Color32::PLACEHOLDER).size().x;
+                    assert!(indent + w < column, "{}: {l:?} is {w} wide, in a column {column} wide", lang.code());
+                }
+            }
+        });
+        out.textures_delta.clear();
+    }
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+}
