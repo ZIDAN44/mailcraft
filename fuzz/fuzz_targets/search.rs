@@ -33,7 +33,9 @@ fuzz_target!(|data: &[u8]| {
     let _ = tokens(&fold_word(&text)).count();
     let a = Advanced::from_query(&text);
     let _ = Advanced::from_query(&a.to_query());
-    let _ = mailcraft_jmap::search_filter(&text);
+    // The server asked for the search box's words, and with a period (issue #179).
+    let _ = mailcraft_jmap::search_filter(&text, None);
+    let _ = mailcraft_jmap::search_filter(&text, Some((Some(now), (now % 2 == 0).then_some(now.wrapping_add(86_400)))));
     let _ = utf7::encode(&utf7::decode(&text));
     let (name, email) = text.split_once('\n').unwrap_or((&text, &text));
     let known = ["paypal.com".to_string(), "studio.example".to_string(), lookalike::domain_of(email)].into();
