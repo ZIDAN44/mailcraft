@@ -39,6 +39,16 @@ pub enum UpdateState {
     Ready { version: String, asks: InstallAsks },
 }
 
+/// How the install the updater started as MailCraft last closed ended, said at the next start
+/// (`apps/mailcraft/src/self_update.rs`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum UpdateOutcome {
+    /// This is the version (`0.43.0`) it installed.
+    Updated { version: String },
+    /// That version didn't install: this one is still running, and it's offered again.
+    NotInstalled { version: String },
+}
+
 /// What the system asks as an update installs, for the window to say so first.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum InstallAsks {
@@ -156,6 +166,11 @@ pub trait Services {
     /// Where a build that updates itself is with the next version. The default: nowhere.
     fn update_state(&mut self) -> UpdateState {
         UpdateState::None
+    }
+    /// How the update installed as MailCraft last closed ended, the first time it's asked after
+    /// (once). The default: nothing to say.
+    fn update_outcome(&mut self) -> Option<UpdateOutcome> {
+        None
     }
     /// Install the waiting version as MailCraft closes, then open it. False when there's none.
     fn restart_to_update(&mut self) -> bool {

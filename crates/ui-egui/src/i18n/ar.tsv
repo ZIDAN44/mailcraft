@@ -1274,6 +1274,8 @@ month	May	مايو
 	MailCraft {version} is ready	MailCraft {version} جاهز
 	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} جاهز. أعد التشغيل الآن لتثبيته، أو سيُثبَّت عند إغلاق MailCraft.
 	Restart MailCraft to install it now, or it installs when you close MailCraft.	أعد تشغيل MailCraft لتثبيته الآن، أو سيُثبَّت عند إغلاق MailCraft.
+	MailCraft is updated to {version}.	تم تحديث MailCraft إلى {version}.
+	MailCraft {version} didn't install. It's offered again.	لم يُثبَّت MailCraft {version}. سيُعرَض مرة أخرى.
 	Restart now	إعادة التشغيل الآن
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	تم تنزيل التحديث والتحقق منه. يُثبَّت الآن أثناء إغلاق MailCraft، وهذا يستغرق لحظة؛ افتح MailCraft مجددًا عند انتهائه.
 	Update and close	تحديث وإغلاق

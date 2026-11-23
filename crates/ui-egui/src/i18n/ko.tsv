@@ -1278,6 +1278,8 @@ month	May	5월
 	MailCraft {version} is ready	MailCraft {version} 준비 완료
 	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} 준비가 되었습니다. 지금 다시 시작하여 설치하거나, MailCraft를 닫으면 설치됩니다.
 	Restart MailCraft to install it now, or it installs when you close MailCraft.	지금 설치하려면 MailCraft를 다시 시작하세요. 그렇지 않으면 MailCraft를 닫을 때 설치됩니다.
+	MailCraft is updated to {version}.	MailCraft가 {version}(으)로 업데이트되었습니다.
+	MailCraft {version} didn't install. It's offered again.	MailCraft {version}이(가) 설치되지 않았습니다. 다시 제안됩니다.
 	Restart now	지금 다시 시작
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	업데이트를 다운로드하고 확인했습니다. MailCraft가 닫히는 지금 설치되며 잠시 걸립니다. 끝나면 MailCraft를 다시 여세요.
 	Update and close	업데이트하고 닫기

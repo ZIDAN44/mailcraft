@@ -68,6 +68,8 @@ pub struct UiState {
     /// MailCraft's earlier Flatpak this start brought the mail over from, still installed: a bar
     /// says how to remove it until it's dismissed.
     pub(crate) old_flatpak: Option<&'static str>,
+    /// How the update installed as MailCraft last closed ended: a bar says so until it's dismissed.
+    pub(crate) update_outcome: Option<crate::UpdateOutcome>,
     /// What to do with the update as MailCraft closes was answered: closing asks no more.
     pub(crate) update_answered: bool,
     /// Restart now was chosen: the new version opens once installed, if the close goes ahead.

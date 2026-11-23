@@ -145,6 +145,9 @@ impl Services for Desktop {
     fn update_state(&mut self) -> mailcraft_ui_egui::UpdateState {
         self.updater.as_ref().map(self_update::Updater::state).unwrap_or_default()
     }
+    fn update_outcome(&mut self) -> Option<mailcraft_ui_egui::UpdateOutcome> {
+        self.updater.as_ref().and_then(self_update::Updater::take_outcome)
+    }
     fn restart_to_update(&mut self) -> bool {
         self.updater.as_ref().is_some_and(self_update::Updater::restart_after_close)
     }

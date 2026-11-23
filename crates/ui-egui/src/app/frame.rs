@@ -434,6 +434,12 @@ impl MailApp {
                     .frame(egui::Frame::new().fill(t.accent_soft).inner_margin(Margin::symmetric(12, 6)).stroke(egui::Stroke::new(1.0, t.border)))
                     .show(ui, |ui| self.update_bar(ui, acts));
             }
+            // How the update installed as MailCraft last closed ended.
+            if self.ui.update_outcome.is_some() {
+                egui::Panel::top("update-outcome-bar")
+                    .frame(egui::Frame::new().fill(t.accent_soft).inner_margin(Margin::symmetric(12, 6)).stroke(egui::Stroke::new(1.0, t.border)))
+                    .show(ui, |ui| self.update_outcome_bar(ui));
+            }
             // MailCraft's earlier Flatpak, whose mail came over at this start, still installed.
             if self.ui.old_flatpak.is_some() {
                 egui::Panel::top("old-flatpak-bar")

@@ -1279,6 +1279,8 @@ month	May	Mai
 	MailCraft {version} is ready	MailCraft {version} ist bereit
 	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} ist bereit. Starten Sie jetzt neu, um es zu installieren, oder es wird installiert, wenn Sie MailCraft schließen.
 	Restart MailCraft to install it now, or it installs when you close MailCraft.	Starten Sie MailCraft neu, um es jetzt zu installieren, oder es wird installiert, wenn Sie MailCraft schließen.
+	MailCraft is updated to {version}.	MailCraft wurde auf {version} aktualisiert.
+	MailCraft {version} didn't install. It's offered again.	MailCraft {version} wurde nicht installiert. Es wird erneut angeboten.
 	Restart now	Jetzt neu starten
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	Das Update ist heruntergeladen und geprüft. Es wird jetzt beim Schließen von MailCraft installiert, was einen Moment dauert; öffnen Sie MailCraft danach wieder.
 	Update and close	Aktualisieren und schließen

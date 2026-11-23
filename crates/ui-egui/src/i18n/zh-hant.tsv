@@ -1278,6 +1278,8 @@ month	May	5月
 	MailCraft {version} is ready	MailCraft {version} 已準備就緒
 	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} 已準備就緒。立即重新啟動以安裝，或在關閉 MailCraft 時安裝。
 	Restart MailCraft to install it now, or it installs when you close MailCraft.	重新啟動 MailCraft 即可立即安裝，否則將在關閉 MailCraft 時安裝。
+	MailCraft is updated to {version}.	MailCraft 已更新至 {version}。
+	MailCraft {version} didn't install. It's offered again.	MailCraft {version} 未能安裝。它會再次提供。
 	Restart now	立即重新啟動
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	更新已下載並通過驗證。它現在會在 MailCraft 關閉時安裝，需要片刻；完成後請再次開啟 MailCraft。
 	Update and close	更新並關閉

@@ -55,6 +55,7 @@ impl MailApp {
         let keeps_running = services.keeps_running();
         let (data_folder, pending_move) = (services.data_folder(), services.pending_data_move());
         let old_flatpak = services.carried_over_from();
+        let update_outcome = services.update_outcome();
         let mut session = session;
         session.set_zone(services.zone().as_deref());
         // The window's network side keeps each account's search index up, and the window steps
@@ -78,6 +79,7 @@ impl MailApp {
             data_folder,
             pending_move,
             old_flatpak,
+            update_outcome,
             seen_notices: seen,
             craft_apps,
             can_drag_out: services.can_drag_out(),

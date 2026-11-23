@@ -356,3 +356,41 @@ fn a_window_put_away_minimized_is_drawn_again_when_brought_back() {
     // Minimized by the user: egui's to follow, nothing said.
     assert!(!unminimized(&logic(&mut a, false)) && !unminimized(&logic(&mut a, true)));
 }
+
+/// A start after the updater installed a version, or tried to.
+struct AfterUpdate(Option<crate::UpdateOutcome>);
+
+impl crate::Services for AfterUpdate {
+    stub_services!(clock, pick_files, save_path);
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Err("no".into())
+    }
+    fn update_outcome(&mut self) -> Option<crate::UpdateOutcome> {
+        self.0.take()
+    }
+}
+
+/// The first start after an update says how it ended in a bar of its own, until it's
+/// dismissed: this is the new version, or that one didn't install and is offered again.
+#[test]
+fn the_first_start_after_an_update_says_how_it_ended() {
+    use crate::UpdateOutcome::{NotInstalled, Updated};
+    for (outcome, said) in [
+        (Updated { version: "0.43.0".into() }, "MailCraft is updated to 0.43.0."),
+        (NotInstalled { version: "0.43.0".into() }, "MailCraft 0.43.0 didn't install. It's offered again."),
+    ] {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let mut a = MailApp::new(Session::open(None, Clock::new(NOW, 0)), Box::new(NullBackend), Box::new(AfterUpdate(Some(outcome))));
+        for _ in 0..3 {
+            drawn(&ctx, &mut a);
+        }
+        let texts = drawn(&ctx, &mut a);
+        assert!(texts.iter().any(|(t, _)| t == said), "{said}");
+        let at = texts.iter().find(|(t, _)| t == "Dismiss").map(|(_, p)| *p).expect("a Dismiss button");
+        click(&ctx, &mut a, at);
+        let texts = drawn(&ctx, &mut a);
+        assert_eq!(a.ui.update_outcome, None);
+        assert!(!texts.iter().any(|(t, _)| t == said));
+    }
+}

@@ -1280,6 +1280,8 @@ month	May	május
 	MailCraft {version} is ready	A MailCraft {version} telepítésre kész
 	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	A MailCraft {version} telepítésre kész. Indítsd újra most a telepítéshez, vagy a frissítés a MailCraft bezárásakor települ.
 	Restart MailCraft to install it now, or it installs when you close MailCraft.	Indítsd újra a MailCraftot az azonnali telepítéshez, vagy a frissítés a MailCraft bezárásakor települ.
+	MailCraft is updated to {version}.	A MailCraft frissült a(z) {version} verzióra.
+	MailCraft {version} didn't install. It's offered again.	A MailCraft {version} nem települt. Újra fel lesz ajánlva.
 	Restart now	Újraindítás most
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	A frissítés letöltve és ellenőrizve. A telepítés a MailCraft bezárásakor indul, és rövid ideig tart. Ha kész, nyisd meg újra a MailCraftot.
 	Update and close	Frissítés és bezárás
