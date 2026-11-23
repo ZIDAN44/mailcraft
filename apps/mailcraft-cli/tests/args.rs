@@ -46,3 +46,21 @@ fn help_is_printed_when_asked_for() {
         assert!(out.stderr.is_empty(), "{help}: {}", String::from_utf8_lossy(&out.stderr));
     }
 }
+
+/// What the CLI prints can't drive the terminal (as figcraft's CLI found): an error that repeats
+/// what it was given shows an escape in it as `\u{1b}`, never the byte itself. Mail it lists and
+/// reads, folders' names and servers' errors go through the same printing.
+#[test]
+fn what_is_printed_cant_drive_the_terminal() {
+    let data = std::env::temp_dir().join(format!("mailcraft-cli-printable-{}", std::process::id()));
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_mailcraft-cli"))
+        .arg("--data")
+        .arg(&data)
+        .args(["run", "mail.\u{1b}]0;pwned\u{7}\u{1b}[31mred", "{}"])
+        .output()
+        .unwrap();
+    let _ = std::fs::remove_dir_all(&data);
+    let err = String::from_utf8_lossy(&out.stderr);
+    assert!(!err.contains('\u{1b}') && !err.contains('\u{7}'), "{err:?}");
+    assert!(err.contains("\\u{1b}]0;pwned\\u{7}\\u{1b}[31mred"), "{err:?}");
+}
