@@ -2069,3 +2069,21 @@ count	occurrences	次
 	Accounts AI agents read	AI 代理读取的帐户
 	One turned off is left out of all they read, and they can't take pictures of the window	关闭的帐户不在它们读取的任何内容中，它们也不能截取窗口的图片
 	… and {n} more characters	……还有 {n} 个字符
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	从 MailCraft 版本安装的副本会查找更新的版本，并在关闭时安装
+	A notice under every message sent	每封发出的邮件下方的声明
+	Accounts of {domains} only	仅限 {domains} 的帐户
+	Encrypted connections only	仅限加密连接
+	Locked	已锁定
+	No certificate trusted by hand	没有手动信任的证书
+	Not taken	未采用
+	Office	办公室
+	Questions	咨询
+	Read from	读取自
+	Releases only	仅正式版本
+	Set by your organisation	由你的组织设置
+	Set up for {organisation}	为 {organisation} 设置
+	Update MailCraft by itself	自动更新 MailCraft
+	Your details for its signature	用于其签名的你的信息
+	Your organisation	你的组织
+	Your organisation doesn't allow trusting a certificate by hand.	你的组织不允许手动信任证书。
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	你的组织在这台电脑上设置了 MailCraft。它锁定的内容你无法更改。

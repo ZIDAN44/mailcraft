@@ -130,7 +130,10 @@ fn a_release_build_updates_to_the_next_release_from_end_to_end() {
     let feed = mailcraft_net::updates::Feed::local(&base).unwrap();
     let data = dir.join("data-folder");
     std::fs::create_dir_all(&data).unwrap();
-    let u = Updater::new(kind, data.clone(), feed, "0.32.0".into(), true).launch(None, Some(Duration::ZERO)).unwrap();
+    let u = Updater::new(kind, data.clone(), feed, "0.32.0".into(), true);
+    // The settings read: updating as installed.
+    u.follow_choice(mailcraft_engine::policy::Updates::On);
+    let u = u.launch(None, Some(Duration::ZERO)).unwrap();
     wait_for("the download", 60, || matches!(u.status(), Status::Ready { .. }));
     assert_eq!(u.state(), UpdateState::Ready { version: "0.33.0".into(), asks: InstallAsks::Nothing }, "the release, not the test build");
     assert!(u.install_after(false, ended()).unwrap());

@@ -2072,3 +2072,21 @@ count	occurrences	次
 	Accounts AI agents read	AI 代理程式讀取的帳戶
 	One turned off is left out of all they read, and they can't take pictures of the window	關閉的帳戶不在它們讀取的任何內容中，它們也無法擷取視窗的圖片
 	… and {n} more characters	……還有 {n} 個字元
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	從 MailCraft 版本安裝的副本會尋找較新的版本，並在關閉時安裝
+	A notice under every message sent	每封寄出郵件下方的聲明
+	Accounts of {domains} only	僅限 {domains} 的帳戶
+	Encrypted connections only	僅限加密連線
+	Locked	已鎖定
+	No certificate trusted by hand	沒有手動信任的憑證
+	Not taken	未採用
+	Office	辦公室
+	Questions	洽詢
+	Read from	讀取自
+	Releases only	僅正式版本
+	Set by your organisation	由你的組織設定
+	Set up for {organisation}	為 {organisation} 設定
+	Update MailCraft by itself	自動更新 MailCraft
+	Your details for its signature	用於其簽名的你的資料
+	Your organisation	你的組織
+	Your organisation doesn't allow trusting a certificate by hand.	你的組織不允許手動信任憑證。
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	你的組織在這台電腦上設定了 MailCraft。它鎖定的內容你無法變更。

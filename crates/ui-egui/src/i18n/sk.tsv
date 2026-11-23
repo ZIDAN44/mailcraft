@@ -2087,3 +2087,21 @@ count	occurrences	opakovaní
 	Accounts AI agents read	Kontá, ktoré čítajú agenti AI
 	One turned off is left out of all they read, and they can't take pictures of the window	Vypnuté konto je vynechané zo všetkého, čo čítajú, a nemôžu robiť obrázky okna
 	… and {n} more characters	… a ďalších {n} znakov
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	Kópia nainštalovaná z vydaní MailCraft hľadá novšiu a nainštaluje ju pri zatvorení
+	A notice under every message sent	Poznámka pod každou odoslanou správou
+	Accounts of {domains} only	Len kontá z {domains}
+	Encrypted connections only	Len šifrované pripojenia
+	Locked	Zamknuté
+	No certificate trusted by hand	Žiadny certifikát dôveryhodný ručne
+	Not taken	Neprevzaté
+	Office	Kancelária
+	Questions	Otázky
+	Read from	Načítané z
+	Releases only	Len vydania
+	Set by your organisation	Nastavuje vaša organizácia
+	Set up for {organisation}	Nastavené pre {organisation}
+	Update MailCraft by itself	Aktualizovať MailCraft samočinne
+	Your details for its signature	Vaše údaje pre jej podpis
+	Your organisation	Vaša organizácia
+	Your organisation doesn't allow trusting a certificate by hand.	Vaša organizácia nepovoľuje ručne dôverovať certifikátu.
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	Vaša organizácia nastavila MailCraft na tomto počítači. To, čo zamkla, nemôžete zmeniť.

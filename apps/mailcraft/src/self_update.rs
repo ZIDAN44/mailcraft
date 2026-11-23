@@ -267,7 +267,18 @@ struct Shared {
     /// Wakes the window when where the updater is changes: an idle window draws no frames, and a
     /// minimized one only looks (`eframe::App::logic`) when woken.
     waker: Mutex<Option<Waker>>,
+    /// What the settings say of updating (issue #207, an organisation's #245): [`CHOICE_ON`] and
+    /// the rest. Read at each check, and as MailCraft closes.
+    choice: std::sync::atomic::AtomicU8,
 }
+
+/// Updating as the copy was installed, releases only, never; and not known yet (the settings
+/// still being read: nothing is asked or installed until they are, so an organisation's "never"
+/// holds from the start).
+const CHOICE_ON: u8 = 0;
+const CHOICE_STABLE: u8 = 1;
+const CHOICE_OFF: u8 = 2;
+const CHOICE_UNKNOWN: u8 = 3;
 
 /// What wakes the window.
 pub type Waker = Arc<dyn Fn() + Send + Sync>;
@@ -305,7 +316,8 @@ impl Updater {
     /// An updater for a copy installed as `kind`, counting as `version` (following releases only
     /// when `stable`), its downloads in `data`, its releases from `feed`; not started.
     fn new(kind: Kind, data: PathBuf, feed: updates::Feed, version: String, stable: bool) -> Updater {
-        Updater { kind, data, feed, version, stable, build_sha: None, shared: Arc::default() }
+        let shared = Shared { choice: CHOICE_UNKNOWN.into(), ..Shared::default() };
+        Updater { kind, data, feed, version, stable, build_sha: None, shared: Arc::new(shared) }
     }
 
     /// Start its thread: the first check after `first` (by default a minute, or ten seconds when
@@ -373,11 +385,32 @@ impl Updater {
         self.shared.later.store(true, Ordering::SeqCst);
     }
 
-    /// MailCraft is closing: install what's waiting (unless kept for later), and stop a download
-    /// (what came of it is carried on from next time).
+    /// What the settings say of updating (issue #207), for the next check: as installed,
+    /// releases only, or never.
+    pub fn follow_choice(&self, u: mailcraft_engine::policy::Updates) {
+        use mailcraft_engine::policy::Updates;
+        let n = match u {
+            Updates::On => CHOICE_ON,
+            Updates::Stable => CHOICE_STABLE,
+            Updates::Off => CHOICE_OFF,
+        };
+        self.shared.choice.store(n, Ordering::Release);
+    }
+
+    /// Whether updates are asked for and installed: the settings read, and not "never".
+    fn updating(&self) -> bool {
+        matches!(self.shared.choice.load(Ordering::Acquire), CHOICE_ON | CHOICE_STABLE)
+    }
+
+    /// MailCraft is closing: install what's waiting (unless kept for later, or updating is off),
+    /// and stop a download (what came of it is carried on from next time).
     pub fn closing(&self) {
         self.shared.stop.store(true, Ordering::SeqCst);
         self.shared.wake.notify_all();
+        // Downloaded before updating was turned off (here, or by an organisation): it stays put.
+        if !self.updating() {
+            return;
+        }
         if self.shared.later.load(Ordering::SeqCst) {
             log::info!("updates: the update waits for the next time MailCraft closes");
             return;
@@ -434,6 +467,12 @@ impl Updater {
 
     /// One look at the releases, and the download of a newer one.
     fn check(&self, build_sha: Option<&str>, etag: &mut Option<String>) -> Result<(), String> {
+        // Turned off in the settings (or by the organisation), or the settings not read yet:
+        // nothing asked.
+        if !self.updating() {
+            return Ok(());
+        }
+        let choice = self.shared.choice.load(Ordering::Acquire);
         let releases = match updates::releases_since(&self.feed, Some(&self.kind.suffix()), etag.as_deref()).map_err(|e| e.to_string())? {
             Listing::Unchanged => return Ok(()),
             Listing::Changed(list, tag) => {
@@ -441,7 +480,7 @@ impl Updater {
                 list
             }
         };
-        let Some(release) = newer_release(&self.version, build_sha, &releases, self.stable) else { return Ok(()) };
+        let Some(release) = newer_release(&self.version, build_sha, &releases, self.stable || choice == CHOICE_STABLE) else { return Ok(()) };
         if release.download.is_empty() {
             return Err(format!("{} has no {} to update with", release.tag, self.kind.suffix().trim_start_matches('-')));
         }

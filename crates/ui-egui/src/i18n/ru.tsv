@@ -2086,3 +2086,21 @@ count	occurrences	повторений
 	Accounts AI agents read	Учётные записи, которые читают ИИ-агенты
 	One turned off is left out of all they read, and they can't take pictures of the window	Выключенная учётная запись не попадает ни во что, что они читают, и они не могут делать снимки окна
 	… and {n} more characters	… и ещё {n} символов
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	Копия, установленная из выпусков MailCraft, ищет более новую и устанавливает её при закрытии
+	A notice under every message sent	Примечание под каждым отправленным сообщением
+	Accounts of {domains} only	Только учётные записи {domains}
+	Encrypted connections only	Только зашифрованные подключения
+	Locked	Заблокировано
+	No certificate trusted by hand	Никаких сертификатов, отмеченных как надёжные вручную
+	Not taken	Не принято
+	Office	Офис
+	Questions	Вопросы
+	Read from	Прочитано из
+	Releases only	Только выпуски
+	Set by your organisation	Задано вашей организацией
+	Set up for {organisation}	Настроено для {organisation}
+	Update MailCraft by itself	Обновлять MailCraft самостоятельно
+	Your details for its signature	Ваши данные для её подписи
+	Your organisation	Ваша организация
+	Your organisation doesn't allow trusting a certificate by hand.	Ваша организация не разрешает доверять сертификату вручную.
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	Ваша организация настроила MailCraft на этом компьютере. То, что она заблокировала, изменить нельзя.

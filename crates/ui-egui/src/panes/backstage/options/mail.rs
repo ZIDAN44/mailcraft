@@ -7,7 +7,7 @@ use super::*;
 /// plain text.
 pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     card(ui, t, tl!("Reading"), None, |ui| {
-        setting(ui, t, true, tl!("Reading pane"), None, |ui| {
+        setting_by(s, "view.readingPane", ui, t, true, tl!("Reading pane"), None, |ui| {
             let values = [(ReadingPane::Right, "right"), (ReadingPane::Bottom, "bottom"), (ReadingPane::Off, "off")];
             let now = values.iter().position(|(v, _)| *v == s.prefs.reading_pane).unwrap_or(0);
             if let Some(i) = widgets::segmented(ui, t, "reading-pane", &[tl!("Right"), tl!("Bottom"), tl!("Off")], now)
@@ -30,13 +30,15 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             ),
         ];
         for (label, about, on, cmd) in switches {
-            switch_row(ui, t, false, Switch { label, about, on, cmd }, acts);
+            switch_row(s, ui, t, false, Switch { label, about, on, cmd }, acts);
         }
         // When the reading pane marks mail read, as Outlook's Reading Pane options: when shown
         // (after a wait), once another message is chosen, or not at all (only a message opened
         // in its own window is then).
         let on = s.prefs.mark_read_on_open;
-        setting(
+        setting_by(
+            s,
+            "view.readingOptions",
             ui,
             t,
             false,
@@ -73,7 +75,7 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             (tl!("Write replies and forwards in a window of their own"), s.prefs.reply_window, "view.replyWindow"),
         ];
         for (label, on, cmd) in windows {
-            switch_row(ui, t, false, Switch { label, about: None, on, cmd }, acts);
+            switch_row(s, ui, t, false, Switch { label, about: None, on, cmd }, acts);
         }
         // Issue #174: in the interface's language, which says when it has no dictionary here.
         let lang = crate::rich_edit::spelling::language();
@@ -81,6 +83,7 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             .then(|| tf!("There's no spelling dictionary for {language} on this computer.", language = crate::i18n::current().name()));
         let about = missing.as_deref().unwrap_or(tl!("Misspelled words are underlined in red. Right-click one for suggestions."));
         switch_row(
+            s,
             ui,
             t,
             false,
@@ -89,7 +92,7 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
         );
         compose_font(s, t, ui, acts);
         // Issue #115: Ctrl+Enter sends at once only when that's chosen.
-        setting(ui, t, false, tl!("Ctrl+Enter in a message"), None, |ui| {
+        setting_by(s, "options.ctrlEnter", ui, t, false, tl!("Ctrl+Enter in a message"), None, |ui| {
             use mailcraft_engine::CtrlEnter;
             let ways = [CtrlEnter::Ask, CtrlEnter::Send, CtrlEnter::Nothing];
             let now = ways.iter().position(|w| *w == s.prefs.ctrl_enter).unwrap_or(0);
@@ -100,21 +103,32 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             }
         });
         // Issue #135: a message sent waits this long in the Outbox, so it can be taken back.
-        setting(ui, t, false, tl!("Undo Send"), Some(tl!("A message you send waits this long in the Outbox, with Undo, before it goes.")), |ui| {
-            const WAITS: [u32; 5] = [0, 5, 10, 20, 30];
-            let labels: Vec<String> = WAITS.iter().map(|n| if *n == 0 { tl!("Off").to_string() } else { tf!("{n} s", n = n) }).collect();
-            let shown: Vec<&str> = labels.iter().map(String::as_str).collect();
-            let now = WAITS.iter().position(|n| *n == s.prefs.undo_send_secs).unwrap_or(0);
-            if let Some(i) = widgets::segmented(ui, t, "undo-send", &shown, now)
-                && let Some(n) = WAITS.get(i)
-            {
-                acts.push(Action::Run("options.undoSend", json!({"seconds": n})));
-            }
-        });
+        setting_by(
+            s,
+            "options.undoSend",
+            ui,
+            t,
+            false,
+            tl!("Undo Send"),
+            Some(tl!("A message you send waits this long in the Outbox, with Undo, before it goes.")),
+            |ui| {
+                const WAITS: [u32; 5] = [0, 5, 10, 20, 30];
+                let labels: Vec<String> = WAITS.iter().map(|n| if *n == 0 { tl!("Off").to_string() } else { tf!("{n} s", n = n) }).collect();
+                let shown: Vec<&str> = labels.iter().map(String::as_str).collect();
+                let now = WAITS.iter().position(|n| *n == s.prefs.undo_send_secs).unwrap_or(0);
+                if let Some(i) = widgets::segmented(ui, t, "undo-send", &shown, now)
+                    && let Some(n) = WAITS.get(i)
+                {
+                    acts.push(Action::Run("options.undoSend", json!({"seconds": n})));
+                }
+            },
+        );
         // Every message as plain text, as Outlook's own setting for all mail: here, out of the
         // way, and View › Plain text; one message's More actions (⋯) and Show formatted switch
         // that message alone.
-        setting(
+        setting_by(
+            s,
+            "view.html",
             ui,
             t,
             false,
@@ -138,7 +152,7 @@ pub(super) fn kept(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>)
         tl!("Mail kept on this computer"),
         Some(tl!("New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.")),
         |ui| {
-            setting(ui, t, true, tl!("Of each folder, keep"), None, |ui| {
+            setting_by(s, "account.keepMail", ui, t, true, tl!("Of each folder, keep"), None, |ui| {
                 let values = [1000u32, 5000, 20000, 0];
                 let now = values.iter().position(|v| *v == s.prefs.keep_messages).unwrap_or(0);
                 if let Some(i) = widgets::segmented(ui, t, "keep", &["1,000", "5,000", "20,000", tl!("All")], now)
@@ -147,7 +161,7 @@ pub(super) fn kept(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>)
                     acts.push(Action::Run("account.keepMail", json!({"messages": n})));
                 }
             });
-            setting(ui, t, false, tl!("Download in full for reading offline"), None, |ui| {
+            setting_by(s, "account.keepMail", ui, t, false, tl!("Download in full for reading offline"), None, |ui| {
                 let values = [40u32, 200, 1000];
                 let now = values.iter().position(|v| *v == s.prefs.keep_offline).unwrap_or(0);
                 if let Some(i) = widgets::segmented(ui, t, "offline", &["40", "200", "1,000"], now)
@@ -161,7 +175,7 @@ pub(super) fn kept(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>)
                 s.accounts.iter().map(|a| &a.config).filter(|c| c.can_be_online_only()).collect();
             for (i, c) in servers.iter().enumerate() {
                 let label = tf!("Online only: {email}", email = c.email);
-                setting(ui, t, false, &label, (i == 0).then(crate::dialogs::online_only_about), |ui| {
+                setting_by(s, "account.onlineOnly", ui, t, false, &label, (i == 0).then(crate::dialogs::online_only_about), |ui| {
                     let mut on = c.keeps_online();
                     if widgets::switch(ui, t, &mut on, &label).changed() {
                         acts.push(Action::Run("account.onlineOnly", json!({"account": c.id, "on": on})));
@@ -184,7 +198,7 @@ pub(super) fn checking(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
     );
     card(ui, t, tl!("Checking for new mail"), Some(about), |ui| {
         for (i, c) in checked.iter().enumerate() {
-            setting(ui, t, i == 0, &c.email, None, |ui| {
+            setting_by(s, "account.checkEvery", ui, t, i == 0, &c.email, None, |ui| {
                 let now = c.check_every.unwrap_or(0);
                 let word = |m: u32| if m == 0 { tl!("Automatically").to_string() } else { tf!("Every {n} minutes", n = m) };
                 // Only when asked (issue #104): Send / Receive on the account.
@@ -243,7 +257,7 @@ fn start_in(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         StartIn::Last => tl!("The folder open last").to_string(),
         StartIn::Folder { account, folder } => folder_name(account, folder).unwrap_or_else(|| tl!("The first account's Inbox").to_string()),
     };
-    setting(ui, t, false, tl!("Start in"), Some(tl!("What opens when MailCraft starts")), |ui| {
+    setting_by(s, "options.startIn", ui, t, false, tl!("Start in"), Some(tl!("What opens when MailCraft starts")), |ui| {
         let r = egui::ComboBox::from_id_salt("start-in")
             .width(260.0)
             .height(400.0)
@@ -299,7 +313,7 @@ fn compose_font(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         return;
     }
     let about = tl!("New messages, replies and forwards are written in it. Text you set a font on keeps its own.");
-    setting(ui, t, false, tl!("Font for new messages"), Some(about), |ui| {
+    setting_by(s, "options.composeFont", ui, t, false, tl!("Font for new messages"), Some(about), |ui| {
         let now = s.prefs.compose_font.clone();
         let r = egui::ComboBox::from_id_salt("compose-font")
             .width(220.0)

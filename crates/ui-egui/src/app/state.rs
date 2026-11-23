@@ -2,6 +2,7 @@
 //! and what of it is kept between runs.
 
 mod kept;
+mod organisation;
 
 use crate::*;
 
@@ -96,6 +97,9 @@ pub struct UiState {
     pub pending_move: Option<PathBuf>,
     /// `None` follows the system.
     pub dark: Option<bool>,
+    /// The organisation's logo (issue #245), for File › About.
+    pub(crate) org_logo: Option<egui::ColorImage>,
+    pub(crate) org_logo_tex: Option<egui::TextureHandle>,
     pub tab: RibbonTab,
     pub search_text: String,
     pub(crate) focus_search: bool,

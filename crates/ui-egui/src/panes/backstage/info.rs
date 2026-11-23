@@ -39,6 +39,8 @@ pub(super) fn info(
     automatic_replies(t, ui, a, acts);
     data_file::mailbox(s, t, has_files, ui, a, b, acts);
     rules(s, t, ui, acts);
+    // The organisation's profile, and the details its signature takes (issue #245).
+    super::organisation::show(s, t, a, ui, acts);
     // What AI agents asked lately, whichever account (issue #255).
     super::options::agents_log(s, t, agents, ui);
 }

@@ -2068,3 +2068,21 @@ count	occurrences	פעמים
 	Accounts AI agents read	חשבונות שסוכני בינה מלאכותית קוראים
 	One turned off is left out of all they read, and they can't take pictures of the window	חשבון כבוי מושמט מכל מה שהם קוראים, והם לא יכולים לצלם את החלון
 	… and {n} more characters	… ועוד {n} תווים
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	עותק שהותקן מהגרסאות של MailCraft מחפש גרסה חדשה יותר ומתקין אותה כשהוא נסגר
+	A notice under every message sent	הודעה מתחת לכל הודעה שנשלחת
+	Accounts of {domains} only	רק חשבונות של {domains}
+	Encrypted connections only	רק חיבורים מוצפנים
+	Locked	נעול
+	No certificate trusted by hand	אין אישור שסומך עליו ידנית
+	Not taken	לא נלקח
+	Office	משרד
+	Questions	שאלות
+	Read from	נקרא מתוך
+	Releases only	רק גרסאות רשמיות
+	Set by your organisation	נקבע על ידי הארגון שלך
+	Set up for {organisation}	הוגדר עבור {organisation}
+	Update MailCraft by itself	לעדכן את MailCraft מעצמו
+	Your details for its signature	הפרטים שלך עבור החתימה שלו
+	Your organisation	הארגון שלך
+	Your organisation doesn't allow trusting a certificate by hand.	הארגון שלך אינו מאפשר לסמוך על אישור ידנית.
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	הארגון שלך הגדיר את MailCraft במחשב זה. את מה שנעל אין באפשרותך לשנות.

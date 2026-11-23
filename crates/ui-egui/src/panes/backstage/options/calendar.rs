@@ -13,7 +13,7 @@ const LAST_END: u16 = 23 * 60 + 30;
 pub(super) fn calendar(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     let w = s.work_time();
     card(ui, t, tl!("Calendar"), None, |ui| {
-        setting(ui, t, true, tl!("Work days"), Some(tl!("The work week shows these days")), |ui| {
+        setting_by(s, "calendar.workTime", ui, t, true, tl!("Work days"), Some(tl!("The work week shows these days")), |ui| {
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 2.0;
                 let from_end = from_end(ui);
@@ -30,7 +30,7 @@ pub(super) fn calendar(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
                 }
             });
         });
-        setting(ui, t, false, tl!("Work hours"), Some(tl!("The calendar shades the hours outside them")), |ui| {
+        setting_by(s, "calendar.workTime", ui, t, false, tl!("Work hours"), Some(tl!("The calendar shades the hours outside them")), |ui| {
             ui.horizontal(|ui| {
                 let start = |ui: &mut Ui| time_choice(s, ui, "work-start", tl!("Start time"), w.start, 0..=w.end.saturating_sub(30));
                 // The last end in the list is 23:30, so midnight isn't read as the day's start.

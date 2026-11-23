@@ -10,6 +10,7 @@ pub(super) fn agents(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
             "An AI assistant on this computer (Claude Desktop, Claude Code…) reads your mail, calendar, tasks and people through MailCraft's MCP server, and asks here before each command it wants to run. Off, it reaches nothing."
         );
         switch_row(
+            s,
             ui,
             t,
             true,
@@ -28,6 +29,7 @@ pub(super) fn agents(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
             let about =
                 tl!("Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.");
             switch_row(
+                s,
                 ui,
                 t,
                 false,
@@ -47,7 +49,7 @@ pub(super) fn agents(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
                 for a in &s.accounts {
                     let id = a.config.id.as_str();
                     let name = if a.config.email.is_empty() { a.config.name.as_str() } else { a.config.email.as_str() };
-                    setting(ui, t, false, name, None, |ui| {
+                    setting_by(s, "options.agentsAccount", ui, t, false, name, None, |ui| {
                         let mut on = s.agent_sees(id);
                         if widgets::switch(ui, t, &mut on, name).changed() {
                             acts.push(Action::Run("options.agentsAccount", json!({"account": id, "on": on})));
@@ -61,7 +63,7 @@ pub(super) fn agents(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
             // Each one by its name, its id below it, as the commands are listed to agents.
             for id in &s.prefs.agents_always {
                 let label = s.registry().get(id).map(|c| tl!(c.label).to_string()).unwrap_or_else(|| id.clone());
-                setting(ui, t, false, &label, Some(id), |ui| {
+                setting_by(s, "options.agentsAlways", ui, t, false, &label, Some(id), |ui| {
                     if ui.button(tl!("Forget")).clicked() {
                         acts.push(Action::Run("options.agentsAlways", json!({"forget": id})));
                     }

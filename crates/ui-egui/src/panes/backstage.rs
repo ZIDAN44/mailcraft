@@ -20,6 +20,7 @@ mod info;
 pub(crate) use data_file::report_line;
 mod meetings;
 mod options;
+mod organisation;
 mod pgp;
 mod security;
 #[cfg(test)]
@@ -160,7 +161,15 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     Page::Info => info(s, &t, (st.has_files, &st.agents), ui, &mut b, acts),
                     Page::Open => open(s, &t, ui, &mut b, acts),
                     Page::Options => options(s, st, ui, acts),
-                    Page::About => about(s, &t, &st.update, ui, acts),
+                    Page::About => {
+                        // The organisation's logo (issue #245), made a texture once.
+                        if st.org_logo_tex.is_none()
+                            && let Some(img) = &st.org_logo
+                        {
+                            st.org_logo_tex = Some(ui.ctx().load_texture("organisation-logo", img.clone(), egui::TextureOptions::LINEAR));
+                        }
+                        about(s, &t, (&st.update, st.org_logo_tex.as_ref()), ui, acts)
+                    }
                 }
             });
         });
@@ -482,7 +491,7 @@ fn updates(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     });
 }
 
-fn about(s: &Session, t: &Tokens, update: &UpdateState, ui: &mut Ui, acts: &mut Vec<Action>) {
+fn about(s: &Session, t: &Tokens, (update, logo): (&UpdateState, Option<&egui::TextureHandle>), ui: &mut Ui, acts: &mut Vec<Action>) {
     heading(ui, t, "About MailCraft");
     ui.horizontal(|ui| {
         let (r, _) = ui.allocate_exact_size(vec2(56.0, 56.0), Sense::hover());
@@ -494,6 +503,22 @@ fn about(s: &Session, t: &Tokens, update: &UpdateState, ui: &mut Ui, acts: &mut 
             ui.label(RichText::new(tl!("Free and open source · MIT OR Apache-2.0")).color(t.dim));
         });
     });
+    // The organisation that set MailCraft up here (issue #245), beside MailCraft's own name.
+    if let Some(name) = &s.org.organisation {
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            if let Some(tex) = logo {
+                ui.add(egui::Image::new(tex).max_height(48.0).max_width(160.0).alt_text(name.as_str()));
+                ui.add_space(10.0);
+            }
+            ui.vertical(|ui| {
+                ui.label(RichText::new(tf!("Set up for {organisation}", organisation = name)).color(t.text));
+                if let Some(c) = &s.org.contact {
+                    ui.label(RichText::new(c.as_str()).color(t.dim));
+                }
+            });
+        });
+    }
     ui.add_space(10.0);
     updates(s, t, ui, acts);
     // A test build that updates itself: its next version on the way, or downloaded.

@@ -240,15 +240,25 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 
 ### 20. AI agents: what isn't done yet
 
-- **Impact:** An organisation can't turn AI agents off for its people yet: there's no
-  organisation profile (#245). With MailCraft closed, agents read its data folder but run no
-  command and see no window: MailCraft isn't started for them. What they read is what's on this
-  computer: a message not downloaded yet is listed without its text, and a search reads the text
-  of 1,000 messages at most, saying how many it left.
-- **Workaround:** Turn agents off in File › Options › AI agents, or keep an account from them
-  there. Open MailCraft for an agent to run commands; open a folder to download its mail.
-- **Cause:** The organisation profile isn't built. Only the open window asks you about a
-  command, so nothing runs while it's closed.
+- **Impact:** With MailCraft closed, agents read its data folder but run no command and see no
+  window: MailCraft isn't started for them. What they read is what's on this computer: a message
+  not downloaded yet is listed without its text, and a search reads the text of 1,000 messages
+  at most, saying how many it left.
+- **Workaround:** Open MailCraft for an agent to run commands; open a folder to download its
+  mail.
+- **Cause:** Only the open window asks you about a command, so nothing runs while it's closed.
+
+### 21. An organisation's profile: what isn't done yet
+
+- **Impact:** A profile can't set the interface's font, nor point updates at a mirror of the
+  organisation's own; the browser build reads none. A signature's details come from Exchange's
+  or Microsoft 365's directory, else from what the person gives in File › Info (no LDAP
+  directory is asked). Locks hold in MailCraft on this computer, not for someone with an
+  administrator's rights or another mail program.
+- **Workaround:** Updates can be turned off for the organisation to deploy each version itself.
+  What must hold everywhere (a disclaimer, encryption) is set on the mail server too.
+- **Cause:** The interface font waits for fonts to be chosen at all (#166); a mirror for updates
+  being signed (#233). Locks are a program's own, which its user's system can override.
 
 ## Not planned
 

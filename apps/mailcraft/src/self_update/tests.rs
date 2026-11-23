@@ -320,3 +320,26 @@ fn a_damaged_portable_zip_is_kept() {
     assert!(!good.exists(), "installed: the download goes");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Updates turned off in the settings (issue #207, or by an organisation, #245): a check asks
+/// nothing, and an update downloaded before isn't installed as MailCraft closes. Before the
+/// settings are read, nothing is asked either. On, the same check asks the feed (here one
+/// nothing answers at).
+#[test]
+fn updates_turned_off_ask_nothing() {
+    let dir = scratch("choice");
+    let feed = mailcraft_net::updates::Feed::local("http://127.0.0.1:9/").unwrap();
+    let u = Updater::new(Kind::Msi(PathBuf::from(r"C:\Program Files\MailCraft\mailcraft.exe")), dir.clone(), feed, "0.24.0".into(), false);
+    assert_eq!(u.check(None, &mut None), Ok(()), "the settings not read yet");
+    u.follow_choice(mailcraft_engine::policy::Updates::On);
+    assert!(u.check(None, &mut None).is_err(), "on: the feed is asked");
+    u.follow_choice(mailcraft_engine::policy::Updates::Off);
+    assert_eq!(u.check(None, &mut None), Ok(()));
+    u.follow_choice(mailcraft_engine::policy::Updates::Stable);
+    assert!(u.check(None, &mut None).is_err());
+    u.follow_choice(mailcraft_engine::policy::Updates::Off);
+    u.set_status(Status::Ready { tag: "v0.25.0".into(), file: dir.join("x.msi") });
+    u.closing();
+    assert!(!u.shared.started.load(Ordering::SeqCst), "not installed");
+    let _ = std::fs::remove_dir_all(&dir);
+}

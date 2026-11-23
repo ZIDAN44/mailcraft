@@ -79,7 +79,12 @@ pub(crate) fn draw(ui: &mut Ui, d: &Dialog, s: &Session, t: &Tokens, acts: &mut 
         let file = tl!("Whoever runs it may give you its certificate as a file instead: Server settings › Trust a certificate file…");
         ui.add(egui::Label::new(RichText::new(file).color(t.faint).small()).wrap());
     }
-    let (ok, cancel) = buttons(ui, t, "Trust this certificate", true);
+    // Not where the organisation doesn't allow trusting a certificate by hand (issue #245).
+    let allowed = !s.org.no_certificate_exceptions;
+    if !allowed {
+        ui.add(egui::Label::new(RichText::new(tl!("Your organisation doesn't allow trusting a certificate by hand.")).color(t.warn).small()).wrap());
+    }
+    let (ok, cancel) = buttons(ui, t, "Trust this certificate", allowed);
     if ok {
         acts.push(Action::Run("account.trustCertificate", json!({"account": account, "fingerprint": shown.fingerprint})));
         return false;
@@ -115,7 +120,9 @@ pub(crate) fn trusted_rows(ui: &mut Ui, s: &Session, t: &Tokens, account: &str, 
         });
     }
     let hint = tl!("An authority your organisation runs, or your mail server's own certificate (.pem, .crt, .cer)");
-    if ui.button(tl!("Trust a certificate file…")).on_hover_text(hint).clicked() {
+    // Not where the organisation doesn't allow it (issue #245).
+    let allowed = !s.org.no_certificate_exceptions;
+    if ui.add_enabled(allowed, egui::Button::new(tl!("Trust a certificate file…"))).on_hover_text(hint).clicked() {
         acts.push(Action::TrustCertificateFile(account.to_string()));
     }
 }

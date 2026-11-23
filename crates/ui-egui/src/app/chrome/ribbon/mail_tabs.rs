@@ -5,7 +5,7 @@ use crate::*;
 
 /// Whether a command can run now (its button is greyed out when it can't).
 fn enabled(s: &Session, id: &str) -> bool {
-    s.registry().get(id).is_some_and(|c| (c.enabled)(s).is_none())
+    s.registry().get(id).is_some_and(|c| (c.enabled)(s).is_none()) && s.command_locked(id).is_none()
 }
 
 /// Home: new items, deleting, moving, responding, tags and finding.

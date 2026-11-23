@@ -2068,3 +2068,21 @@ count	occurrences	keer
 	Accounts AI agents read	Accounts die AI-agents lezen
 	One turned off is left out of all they read, and they can't take pictures of the window	Een uitgezet account blijft buiten alles wat ze lezen, en ze kunnen geen afbeeldingen van het venster maken
 	… and {n} more characters	… en nog {n} tekens
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	Een kopie geïnstalleerd uit de releases van MailCraft zoekt een nieuwere en installeert die bij het sluiten
+	A notice under every message sent	Een mededeling onder elk verzonden bericht
+	Accounts of {domains} only	Alleen accounts van {domains}
+	Encrypted connections only	Alleen versleutelde verbindingen
+	Locked	Vergrendeld
+	No certificate trusted by hand	Geen certificaat met de hand vertrouwd
+	Not taken	Niet overgenomen
+	Office	Kantoor
+	Questions	Vragen
+	Read from	Gelezen uit
+	Releases only	Alleen releases
+	Set by your organisation	Ingesteld door je organisatie
+	Set up for {organisation}	Ingesteld voor {organisation}
+	Update MailCraft by itself	MailCraft zichzelf laten bijwerken
+	Your details for its signature	Je gegevens voor de handtekening
+	Your organisation	Je organisatie
+	Your organisation doesn't allow trusting a certificate by hand.	Je organisatie staat niet toe dat je een certificaat met de hand vertrouwt.
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	Je organisatie heeft MailCraft op deze computer ingesteld. Wat ze vergrendeld heeft, kun je niet wijzigen.

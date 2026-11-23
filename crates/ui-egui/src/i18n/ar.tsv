@@ -2068,3 +2068,21 @@ count	occurrences	مرات
 	Accounts AI agents read	الحسابات التي يقرؤها وكلاء الذكاء الاصطناعي
 	One turned off is left out of all they read, and they can't take pictures of the window	الحساب الموقوف يُستبعد من كل ما يقرؤونه، ولا يمكنهم التقاط صور للنافذة
 	… and {n} more characters	… و{n} حرفًا آخر
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	تبحث النسخة المثبتة من إصدارات MailCraft عن نسخة أحدث وتثبّتها عند إغلاقها
+	A notice under every message sent	تنبيه أسفل كل رسالة مرسلة
+	Accounts of {domains} only	حسابات {domains} فقط
+	Encrypted connections only	الاتصالات المشفّرة فقط
+	Locked	مقفل
+	No certificate trusted by hand	لا شهادة موثوقة يدويًا
+	Not taken	لم يُؤخذ
+	Office	المكتب
+	Questions	للاستفسار
+	Read from	قُرئ من
+	Releases only	الإصدارات فقط
+	Set by your organisation	تحدّده مؤسستك
+	Set up for {organisation}	مُعدّ لـ {organisation}
+	Update MailCraft by itself	تحديث MailCraft تلقائيًا
+	Your details for its signature	بياناتك لتوقيعها
+	Your organisation	مؤسستك
+	Your organisation doesn't allow trusting a certificate by hand.	لا تسمح مؤسستك بالوثوق بشهادة يدويًا.
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	أعدّت مؤسستك MailCraft على هذا الكمبيوتر. لا يمكنك تغيير ما أقفلته.

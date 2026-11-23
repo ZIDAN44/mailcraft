@@ -2072,3 +2072,21 @@ count	occurrences	회
 	Accounts AI agents read	AI 에이전트가 읽는 계정
 	One turned off is left out of all they read, and they can't take pictures of the window	끈 계정은 읽는 모든 것에서 빠지며, 창의 사진도 찍을 수 없습니다
 	… and {n} more characters	… 그리고 {n}자 더
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	MailCraft 릴리스에서 설치한 사본은 새 버전을 찾아 닫을 때 설치합니다
+	A notice under every message sent	보내는 모든 메시지 아래의 안내문
+	Accounts of {domains} only	{domains} 계정만
+	Encrypted connections only	암호화된 연결만
+	Locked	잠김
+	No certificate trusted by hand	직접 신뢰한 인증서 없음
+	Not taken	적용되지 않음
+	Office	사무실
+	Questions	문의
+	Read from	읽은 곳
+	Releases only	정식 릴리스만
+	Set by your organisation	조직에서 설정함
+	Set up for {organisation}	{organisation}용으로 설정됨
+	Update MailCraft by itself	MailCraft 자동 업데이트
+	Your details for its signature	서명에 들어갈 내 정보
+	Your organisation	내 조직
+	Your organisation doesn't allow trusting a certificate by hand.	조직에서 인증서를 직접 신뢰하는 것을 허용하지 않습니다.
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	조직이 이 컴퓨터의 MailCraft를 설정했습니다. 조직이 잠근 항목은 변경할 수 없습니다.

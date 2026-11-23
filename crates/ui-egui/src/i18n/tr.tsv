@@ -2073,3 +2073,21 @@ count	occurrences	kez
 	Accounts AI agents read	Yapay zekâ ajanlarının okuduğu hesaplar
 	One turned off is left out of all they read, and they can't take pictures of the window	Kapatılan hesap okudukları her şeyin dışında kalır ve pencerenin resmini alamazlar
 	… and {n} more characters	… ve {n} karakter daha
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	MailCraft sürümlerinden kurulan kopya daha yenisini arar ve kapanırken kurar
+	A notice under every message sent	Gönderilen her iletinin altında bir not
+	Accounts of {domains} only	Yalnızca {domains} hesapları
+	Encrypted connections only	Yalnızca şifreli bağlantılar
+	Locked	Kilitli
+	No certificate trusted by hand	Elle güvenilen sertifika yok
+	Not taken	Alınmadı
+	Office	Ofis
+	Questions	Sorular için
+	Read from	Okunduğu yer
+	Releases only	Yalnızca sürümler
+	Set by your organisation	Kuruluşunuz tarafından ayarlandı
+	Set up for {organisation}	{organisation} için ayarlandı
+	Update MailCraft by itself	MailCraft kendini güncellesin
+	Your details for its signature	İmzası için bilgileriniz
+	Your organisation	Kuruluşunuz
+	Your organisation doesn't allow trusting a certificate by hand.	Kuruluşunuz bir sertifikaya elle güvenmeye izin vermiyor.
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	Bu bilgisayardaki MailCraft'ı kuruluşunuz ayarladı. Kilitlediklerini değiştiremezsiniz.

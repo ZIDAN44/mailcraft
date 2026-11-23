@@ -212,13 +212,13 @@ fn server_settings(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tokens, ac
     ui.add_space(8.0);
     // Each server: where it is, then how it's signed in to.
     edited |= if pop {
-        server_row(ui, w, Server::Pop, "", &mut f.pop_host, &mut f.pop_port, &mut f.pop_security)
+        server_row(ui, w, Server::Pop, "", &mut f.pop_host, &mut f.pop_port, &mut f.pop_security, !s.org.require_encryption)
     } else {
-        server_row(ui, w, Server::Imap, "", &mut f.imap_host, &mut f.imap_port, &mut f.imap_security)
+        server_row(ui, w, Server::Imap, "", &mut f.imap_host, &mut f.imap_port, &mut f.imap_security, !s.org.require_encryption)
     };
     f.sign_in.incoming_ui(ui);
     ui.add_space(8.0);
-    edited |= server_row(ui, w, Server::Smtp, "", &mut f.smtp_host, &mut f.smtp_port, &mut f.smtp_security);
+    edited |= server_row(ui, w, Server::Smtp, "", &mut f.smtp_host, &mut f.smtp_port, &mut f.smtp_security, !s.org.require_encryption);
     f.sign_in.outgoing_ui(ui);
     // Its own user name only matters when it's signed in to.
     if f.sign_in.outgoing != mailcraft_engine::model::SignInMethod::None {

@@ -2069,3 +2069,21 @@ count	occurrences	回
 	Accounts AI agents read	AI エージェントが読むアカウント
 	One turned off is left out of all they read, and they can't take pictures of the window	オフにしたアカウントは読む対象から外れ、ウィンドウの画像も撮れません
 	… and {n} more characters	… ほか {n} 文字
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	MailCraft のリリースからインストールしたコピーは新しいものを探し、終了時にインストールします
+	A notice under every message sent	送信するすべてのメッセージの下に注記
+	Accounts of {domains} only	{domains} のアカウントのみ
+	Encrypted connections only	暗号化された接続のみ
+	Locked	ロック
+	No certificate trusted by hand	手動で信頼した証明書なし
+	Not taken	適用されなかったもの
+	Office	オフィス
+	Questions	問い合わせ先
+	Read from	読み込み元
+	Releases only	リリースのみ
+	Set by your organisation	組織が設定
+	Set up for {organisation}	{organisation} 用に設定済み
+	Update MailCraft by itself	MailCraft を自動で更新
+	Your details for its signature	その署名用のあなたの情報
+	Your organisation	あなたの組織
+	Your organisation doesn't allow trusting a certificate by hand.	組織では証明書を手動で信頼することが許可されていません。
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	このコンピューターの MailCraft はあなたの組織が設定しました。組織がロックした項目は変更できません。

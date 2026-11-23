@@ -308,9 +308,18 @@ impl MailApp {
                         if text.trim().is_empty() { Vec::new() } else { self.session.suggest_contacts(&text, crate::dialogs::PEOPLE_OFFERED) };
                 }
             }
-            Action::SetDark(d) => self.ui.dark = d,
+            // Not while the organisation has the theme locked (issue #245).
+            Action::SetDark(d) => {
+                if !self.session.org.theme.as_ref().is_some_and(|g| g.locked) {
+                    self.ui.dark = d;
+                }
+            }
             Action::ShowFormatted(key, on) => self.ui.shown_as.set(&key, on, self.session.prefs.show_html),
-            Action::SetLanguage(l) => self.ui.language = l,
+            Action::SetLanguage(l) => {
+                if !self.session.org.language.as_ref().is_some_and(|g| g.locked) {
+                    self.ui.language = l;
+                }
+            }
             Action::OpenUrl(url) => self.open_link(&url),
             Action::SignInAgain(id) => self.sign_in_again(&id),
             // Data files and the data folder (`actions/data_files.rs`).

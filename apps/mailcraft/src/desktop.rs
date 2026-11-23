@@ -9,6 +9,7 @@ pub(crate) mod boot;
 pub(crate) mod fonts;
 mod lanes;
 pub(crate) mod launch;
+pub(crate) mod organisation;
 pub(crate) mod start;
 pub(crate) mod state_writer;
 pub(crate) mod tray;

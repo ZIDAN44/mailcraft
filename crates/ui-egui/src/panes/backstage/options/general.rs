@@ -7,7 +7,8 @@ use super::*;
 pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     card(ui, &t, tl!("General"), None, |ui| {
-        setting(ui, &t, true, tl!("Theme"), None, |ui| {
+        let theme_locked = s.org.theme.as_ref().is_some_and(|g| g.locked);
+        setting_held(theme_locked, ui, &t, true, tl!("Theme"), None, |ui| {
             let options = [tl!("System"), tl!("Light"), tl!("Dark")];
             let values = [None, Some(false), Some(true)];
             let now = values.iter().position(|v| *v == st.dark).unwrap_or(0);
@@ -24,10 +25,10 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
             on: s.prefs.light_messages,
             cmd: "view.lightMessages",
         };
-        switch_row(ui, &t, false, light, acts);
+        switch_row(s, ui, &t, false, light, acts);
         // Issue #8: an accent colour of one's own (a named one, or any colour), made to read in
         // either theme, and the top bar in it or plain.
-        setting(ui, &t, false, tl!("Accent colour"), Some(tl!("Buttons, links, the selection and the top bar")), |ui| {
+        setting_by(s, "view.accent", ui, &t, false, tl!("Accent colour"), Some(tl!("Buttons, links, the selection and the top bar")), |ui| {
             accent_choice(ui, &t, &s.prefs.accent, acts);
         });
         let plain = Switch {
@@ -36,14 +37,14 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
             on: s.prefs.plain_top_bar,
             cmd: "view.plainTopBar",
         };
-        switch_row(ui, &t, false, plain, acts);
+        switch_row(s, ui, &t, false, plain, acts);
         let ribbon = Switch {
             label: tl!("Hide the ribbon"),
             about: Some(tl!("Its tabs stay on the top bar: click one for its buttons, twice to keep them")),
             on: s.prefs.ribbon_hidden,
             cmd: "view.hideRibbon",
         };
-        switch_row(ui, &t, false, ribbon, acts);
+        switch_row(s, ui, &t, false, ribbon, acts);
         // Windows: the top bar is the window's title bar (issue #22), or the system's is kept.
         if cfg!(windows) {
             let system = Switch {
@@ -52,12 +53,14 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 on: s.prefs.system_title_bar,
                 cmd: "view.systemTitleBar",
             };
-            switch_row(ui, &t, false, system, acts);
+            switch_row(s, ui, &t, false, system, acts);
         }
         // Issue #46: dates as the user writes them (each choice shown as today's date), and the
         // clock, as Windows' region settings offer them to Outlook.
         let style = s.prefs.date_style;
-        setting(
+        setting_by(
+            s,
+            "view.dateFormat",
             ui,
             &t,
             false,
@@ -85,13 +88,13 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 }
             },
         );
-        setting(ui, &t, false, tl!("Time"), None, |ui| {
+        setting_by(s, "view.dateFormat", ui, &t, false, tl!("Time"), None, |ui| {
             let options = [tl!("24-hour"), tl!("12-hour")];
             if let Some(i) = widgets::segmented(ui, &t, "clock", &options, usize::from(style.hours12)) {
                 acts.push(Action::Run("view.dateFormat", json!({"hours12": i == 1})));
             }
         });
-        setting(ui, &t, false, tl!("Whole date and time in the list"), None, |ui| {
+        setting_by(s, "view.dateFormat", ui, &t, false, tl!("Whole date and time in the list"), None, |ui| {
             let mut v = style.full_in_list;
             if widgets::switch(ui, &t, &mut v, tl!("Whole date and time in the list")).changed() {
                 acts.push(Action::Run("view.dateFormat", json!({"fullInList": v})));
@@ -114,7 +117,7 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 on: s.prefs.close_to_tray,
                 cmd: "view.closeToTray",
             };
-            switch_row(ui, &t, false, keep, acts);
+            switch_row(s, ui, &t, false, keep, acts);
             if s.prefs.close_to_tray {
                 // Issue #116: started at sign-in, MailCraft needn't bring its window up.
                 let label = match kept {
@@ -124,7 +127,7 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 let about = tl!(
                     "It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window."
                 );
-                switch_row(ui, &t, false, Switch { label, about: Some(about), on: s.prefs.start_in_tray, cmd: "view.startInTray" }, acts);
+                switch_row(s, ui, &t, false, Switch { label, about: Some(about), on: s.prefs.start_in_tray, cmd: "view.startInTray" }, acts);
                 // Issue #117: the icon there says how much is unread (the Dock's does on a Mac).
                 if !cfg!(target_os = "macos") {
                     let unread = Switch {
@@ -133,11 +136,12 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                         on: s.prefs.tray_unread,
                         cmd: "view.trayUnread",
                     };
-                    switch_row(ui, &t, false, unread, acts);
+                    switch_row(s, ui, &t, false, unread, acts);
                 }
             }
         }
-        setting(ui, &t, false, tl!("Language"), None, |ui| {
+        let language_locked = s.org.language.as_ref().is_some_and(|g| g.locked);
+        setting_held(language_locked, ui, &t, false, tl!("Language"), None, |ui| {
             let language = st.language.as_str();
             let current = crate::i18n::Lang::from_code(language).map_or_else(|| tl!("Same as the system").to_string(), |l| l.name().to_string());
             let r = egui::ComboBox::from_id_salt("language")
@@ -160,6 +164,19 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
             crate::drop_down::keys(ui, &r, &mut at, &codes);
             if at != language {
                 acts.push(Action::SetLanguage(at.into()));
+            }
+        });
+        // Issue #207: MailCraft updating itself, as installed, with releases only, or never.
+        let about = tl!("A copy installed from MailCraft's releases looks for a newer one and installs it as it closes");
+        setting_by(s, "options.updates", ui, &t, false, tl!("Update MailCraft by itself"), Some(about), |ui| {
+            use mailcraft_engine::policy::Updates;
+            let options = [tl!("Yes"), tl!("Releases only"), tl!("No")];
+            let values = [Updates::On, Updates::Stable, Updates::Off];
+            let now = values.iter().position(|v| *v == s.prefs.updates).unwrap_or(0);
+            if let Some(i) = widgets::segmented(ui, &t, "updates", &options, now)
+                && let Some(v) = values.get(i)
+            {
+                acts.push(Action::Run("options.updates", json!({"value": v})));
             }
         });
     });
@@ -224,7 +241,7 @@ pub(super) fn data_files(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<
                 on: s.prefs.compact_on_close,
                 cmd: "dataFile.compactOnClose",
             };
-            switch_row(ui, &t, false, compact, acts);
+            switch_row(s, ui, &t, false, compact, acts);
             if !*movable && st.pending_move.is_none() {
                 let why = if s.portable {
                     tl!("Portable: everything is kept in MailCraftData beside MailCraft, and passwords only until it closes.")

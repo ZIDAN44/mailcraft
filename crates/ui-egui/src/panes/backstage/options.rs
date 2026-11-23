@@ -37,6 +37,25 @@ fn setting(ui: &mut Ui, t: &Tokens, first: bool, label: &str, about: Option<&str
     setting_row(ui, t, first, name(t, label), about.map(|a| note(t, a)), control);
 }
 
+/// [`setting`], for one the command `cmd` changes: its controls greyed out, and said, while the
+/// organisation has it locked (issue #245; the command would be refused anyway).
+fn setting_by(s: &Session, cmd: &str, ui: &mut Ui, t: &Tokens, first: bool, label: &str, about: Option<&str>, control: impl FnOnce(&mut Ui)) {
+    setting_held(s.command_locked(cmd).is_some(), ui, t, first, label, about, control);
+}
+
+/// [`setting`], its controls greyed out and said to be the organisation's when `locked`.
+fn setting_held(locked: bool, ui: &mut Ui, t: &Tokens, first: bool, label: &str, about: Option<&str>, control: impl FnOnce(&mut Ui)) {
+    if !locked {
+        setting(ui, t, first, label, about, control);
+        return;
+    }
+    let locked = tl!("Set by your organisation");
+    let said = about.map_or_else(|| locked.to_string(), |a| format!("{a} · {locked}"));
+    setting(ui, t, first, label, Some(&said), |ui| {
+        ui.add_enabled_ui(false, control);
+    });
+}
+
 /// A setting that is a switch: its name, also the switch's to a screen reader; the line about
 /// it; whether it's on; the command told whether it's turned on.
 struct Switch<'a> {
@@ -47,9 +66,9 @@ struct Switch<'a> {
 }
 
 /// A setting that is a switch, its name given once.
-fn switch_row(ui: &mut Ui, t: &Tokens, first: bool, w: Switch<'_>, acts: &mut Vec<Action>) {
+fn switch_row(s: &Session, ui: &mut Ui, t: &Tokens, first: bool, w: Switch<'_>, acts: &mut Vec<Action>) {
     let Switch { label, about, on, cmd } = w;
-    setting(ui, t, first, label, about, |ui| {
+    setting_by(s, cmd, ui, t, first, label, about, |ui| {
         let mut v = on;
         if widgets::switch(ui, t, &mut v, label).changed() {
             acts.push(Action::Run(cmd, json!({"on": v})));

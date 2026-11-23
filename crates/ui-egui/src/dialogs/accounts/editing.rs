@@ -30,7 +30,7 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Token
         user_agent_field(ui, t, w, &mut f.user_agent);
     } else {
         if let Some((host, port, security)) = f.pop.as_mut() {
-            server_row(ui, w, Server::Pop, "edit-", host, port, security);
+            server_row(ui, w, Server::Pop, "edit-", host, port, security, !s.org.require_encryption);
             if !f.oauth {
                 f.sign_in.incoming_ui(ui);
             }
@@ -45,7 +45,7 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Token
                 field_label(ui, "JMAP session address");
                 ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
             } else {
-                server_row(ui, w, Server::Imap, "edit-", &mut f.imap_host, &mut f.imap_port, &mut f.imap_security);
+                server_row(ui, w, Server::Imap, "edit-", &mut f.imap_host, &mut f.imap_port, &mut f.imap_security, !s.org.require_encryption);
                 if !f.oauth {
                     f.sign_in.incoming_ui(ui);
                 }
@@ -54,7 +54,7 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Token
         // POP and IMAP send over SMTP.
         if f.pop.is_some() || !f.jmap {
             ui.add_space(10.0);
-            server_row(ui, w, Server::Smtp, "edit-", &mut f.smtp_host, &mut f.smtp_port, &mut f.smtp_security);
+            server_row(ui, w, Server::Smtp, "edit-", &mut f.smtp_host, &mut f.smtp_port, &mut f.smtp_security, !s.org.require_encryption);
             // Signed in through the browser: no password to sign in with, nor a user name of its
             // own for the outgoing server.
             if !f.oauth {

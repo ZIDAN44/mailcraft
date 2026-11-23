@@ -2073,3 +2073,21 @@ count	occurrences	előfordulás
 	Accounts AI agents read	Az MI-ügynökök által olvasott fiókok
 	One turned off is left out of all they read, and they can't take pictures of the window	A kikapcsolt fiók kimarad mindenből, amit olvasnak, és nem készíthetnek képet az ablakról
 	… and {n} more characters	… és még {n} karakter
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	A MailCraft kiadásaiból telepített példány újabbat keres, és bezáráskor telepíti
+	A notice under every message sent	Megjegyzés minden elküldött üzenet alatt
+	Accounts of {domains} only	Csak {domains} fiókjai
+	Encrypted connections only	Csak titkosított kapcsolatok
+	Locked	Zárolva
+	No certificate trusted by hand	Kézzel megbízhatónak jelölt tanúsítvány nincs
+	Not taken	Nem alkalmazva
+	Office	Iroda
+	Questions	Kérdések
+	Read from	Innen olvasva
+	Releases only	Csak kiadások
+	Set by your organisation	A szervezete állítja be
+	Set up for {organisation}	Beállítva ehhez: {organisation}
+	Update MailCraft by itself	A MailCraft frissítse magát
+	Your details for its signature	Az adatai az aláírásához
+	Your organisation	Az Ön szervezete
+	Your organisation doesn't allow trusting a certificate by hand.	A szervezete nem engedi, hogy egy tanúsítványt kézzel megbízhatónak jelöljön.
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	A szervezete állította be a MailCraftot ezen a számítógépen. Amit zárolt, azt nem módosíthatja.

@@ -78,6 +78,7 @@ cd apps/mailcraft-web && trunk serve           # browser: http://127.0.0.1:8774/
 - [How test builds update themselves](docs/updates.md)
 - [Microsoft and Google sign-in](docs/oauth.md)
 - [AI assistants: MailCraft's MCP server](docs/mcp.md)
+- [MailCraft in an organisation: its profile](docs/organisations.md)
 - [Hosting the web build](packaging/web/README.md)
 
 ## Contribute

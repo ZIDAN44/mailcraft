@@ -35,7 +35,7 @@ pub(super) fn senders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             }
             // A long list is shown in part: the first ones, and how many more.
             for (i, who) in entries.iter().take(200).enumerate() {
-                setting(ui, t, i == 0, who, None, |ui| {
+                setting_by(s, "junk.edit", ui, t, i == 0, who, None, |ui| {
                     if ui.button(tl!("Remove")).clicked() {
                         acts.push(Action::Run("junk.edit", json!({"list": list, "entry": who, "on": false})));
                     }
@@ -83,10 +83,12 @@ pub(super) fn safety(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
             ),
         ];
         for (i, (label, about, on, cmd)) in switches.into_iter().enumerate() {
-            switch_row(ui, t, i == 0, Switch { label, about: Some(about), on, cmd }, acts);
+            switch_row(s, ui, t, i == 0, Switch { label, about: Some(about), on, cmd }, acts);
         }
         // Issue #29: who mail is really from.
-        setting(
+        setting_by(
+            s,
+            "view.senderAddresses",
             ui,
             t,
             false,
@@ -112,8 +114,10 @@ pub(super) fn safety(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
             on: s.prefs.external_tag,
             cmd: "view.externalTag",
         };
-        switch_row(ui, t, false, external, acts);
-        setting(
+        switch_row(s, ui, t, false, external, acts);
+        setting_by(
+            s,
+            "view.externalTag",
             ui,
             t,
             false,
@@ -154,7 +158,7 @@ pub(super) fn privacy(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             ui.add_space(8.0);
         }
         for (i, who) in s.prefs.trusted_senders.iter().enumerate() {
-            setting(ui, t, i == 0, who, None, |ui| {
+            setting_by(s, "view.trustSender", ui, t, i == 0, who, None, |ui| {
                 if ui.button(tl!("Remove")).clicked() {
                     acts.push(Action::Run("view.trustSender", json!({"address": who, "on": false})));
                 }

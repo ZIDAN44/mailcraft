@@ -31,6 +31,8 @@ impl MailApp {
         // window draws no frame, and mail that came meanwhile was neither shown in the title
         // nor announced until the window was opened again (issue #68).
         self.pump();
+        // An organisation's theme and language (issue #245), as accounts come and go.
+        self.follow_organisation();
         self.announce(ctx);
         self.flush_jobs();
     }

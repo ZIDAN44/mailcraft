@@ -2073,3 +2073,21 @@ count	occurrences	ocorrências
 	Accounts AI agents read	Contas que os agentes de IA leem
 	One turned off is left out of all they read, and they can't take pictures of the window	Uma conta desligada fica fora de tudo o que eles leem, e eles não podem fazer imagens da janela
 	… and {n} more characters	… e mais {n} caracteres
+	A copy installed from MailCraft's releases looks for a newer one and installs it as it closes	Uma cópia instalada das versões do MailCraft procura uma mais nova e a instala ao fechar
+	A notice under every message sent	Um aviso abaixo de cada mensagem enviada
+	Accounts of {domains} only	Somente contas de {domains}
+	Encrypted connections only	Somente conexões criptografadas
+	Locked	Bloqueado
+	No certificate trusted by hand	Nenhum certificado confiado manualmente
+	Not taken	Não aplicado
+	Office	Escritório
+	Questions	Dúvidas
+	Read from	Lido de
+	Releases only	Somente versões oficiais
+	Set by your organisation	Definido pela sua organização
+	Set up for {organisation}	Configurado para {organisation}
+	Update MailCraft by itself	Atualizar o MailCraft sozinho
+	Your details for its signature	Seus dados para a assinatura dela
+	Your organisation	Sua organização
+	Your organisation doesn't allow trusting a certificate by hand.	Sua organização não permite confiar em um certificado manualmente.
+	Your organisation set up MailCraft on this computer. What it locked, you can't change.	Sua organização configurou o MailCraft neste computador. O que ela bloqueou você não pode alterar.

@@ -211,7 +211,9 @@ impl Server {
 
 /// A server's name, then its host, port and security on one row, in a dialog `w` wide (`id`
 /// sets its security box apart from the other dialog's). True when the host or port is edited.
-fn server_row(ui: &mut Ui, w: f32, server: Server, id: &str, host: &mut String, port: &mut String, security: &mut Security) -> bool {
+/// `plain`: no encryption may be chosen (not when the organisation requires it, issue #245).
+#[allow(clippy::too_many_arguments)]
+fn server_row(ui: &mut Ui, w: f32, server: Server, id: &str, host: &mut String, port: &mut String, security: &mut Security, plain: bool) -> bool {
     let (name, host_hint, port_hint, security_id) = server.says();
     // Fixed sizes: text boxes inside a Grid can't grow past last frame's column width.
     let host_w = (w - 196.0).max(140.0);
@@ -220,7 +222,7 @@ fn server_row(ui: &mut Ui, w: f32, server: Server, id: &str, host: &mut String, 
     ui.horizontal(|ui| {
         edited |= ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(host).hint_text(host_hint)).changed();
         edited |= ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(port).hint_text(port_hint).align(egui::Align2::CENTER_TOP)).changed();
-        security_combo(ui, &format!("{id}{security_id}"), security);
+        security_combo(ui, &format!("{id}{security_id}"), security, plain);
     });
     edited
 }
@@ -262,7 +264,7 @@ pub(crate) fn online_only_about() -> &'static str {
     )
 }
 
-pub(super) fn security_combo(ui: &mut Ui, id: &str, v: &mut Security) {
+pub(super) fn security_combo(ui: &mut Ui, id: &str, v: &mut Security, plain: bool) {
     let r = egui::ComboBox::from_id_salt(id)
         .selected_text(match v {
             Security::Tls => "SSL/TLS",
@@ -272,12 +274,15 @@ pub(super) fn security_combo(ui: &mut Ui, id: &str, v: &mut Security) {
         .show_ui(ui, |ui| {
             ui.selectable_value(v, Security::Tls, "SSL/TLS");
             ui.selectable_value(v, Security::StartTls, "STARTTLS");
-            ui.selectable_value(v, Security::None, tl!("None (unsafe)"));
+            if plain {
+                ui.selectable_value(v, Security::None, tl!("None (unsafe)"));
+            }
         })
         .response
         // Nothing beside it says what it is: the server row's name sits above the host.
         .accessible_name(tl!("Security"));
-    crate::drop_down::keys(ui, &r, v, &[Security::Tls, Security::StartTls, Security::None]);
+    let choices: &[Security] = if plain { &[Security::Tls, Security::StartTls, Security::None] } else { &[Security::Tls, Security::StartTls] };
+    crate::drop_down::keys(ui, &r, v, choices);
 }
 
 /// Google takes an app password from mail apps while 2-Step Verification is on (issue #164):

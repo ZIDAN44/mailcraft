@@ -185,6 +185,10 @@ impl App {
         }
         // AI agents' requests (issue #255): answered, minimized or hidden too.
         self.agents.follow(&mut self.app, ctx);
+        // What the settings say of updating, for the updater's next check.
+        if let Some(u) = &self.updater {
+            u.follow_choice(self.app.session.prefs.updates);
+        }
         // An update ready while the window is minimized or behind others: the system says so.
         self.app.follow_update(ctx);
         self.tray.follow(&mut self.app, ctx);
@@ -324,6 +328,10 @@ fn main() -> eframe::Result {
         say(&format!("the sample mailbox couldn't be created: {e}"));
     }
     let build_sha = option_env!("MAILCRAFT_BUILD_SHA").filter(|s| !s.trim().is_empty()).map(str::to_string);
+    // The organisation's profile (issue #245), before anything signs in: its own Microsoft
+    // registration is taken here; the session gets it once the window's settings are back.
+    let organisation = desktop::organisation::read(launch.portable.dir.as_deref());
+    let org_logo = organisation.effective(&[]).logo.as_deref().and_then(desktop::organisation::logo);
     let made = Made { clock: Clock::new(now, offset), portable: launch.portable.dir.is_some(), build_sha: build_sha.clone() };
     // The data files open on a thread of their own, and the session is made there from them,
     // while the window shows how that goes (a file not closed properly is checked: minutes).
@@ -343,8 +351,15 @@ fn main() -> eframe::Result {
     // `DISPLAY` is logged as it's chosen).
     let x11 = cfg!(all(unix, not(target_os = "macos"))) && display::choose_from_env() == display::Choice::X11;
     let (options, card) = launch::window(launch.sample, saved_ui.as_ref(), theme, x11);
-    let started =
-        Started { launch, opening: Opening { progress, opened, card, made }, state_path, instance, updater, looks: Looks { saved_ui, theme, x11 } };
+    let started = Started {
+        launch,
+        opening: Opening { progress, opened, card, made },
+        state_path,
+        instance,
+        updater,
+        looks: Looks { saved_ui, theme, x11 },
+        organisation: (organisation, org_logo),
+    };
     // A window that can't open says why, rather than the app leaving without a word (or
     // staying in the background); a panic on the way is caught for that too.
     let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(options, started)));
@@ -449,13 +464,22 @@ struct Started {
     instance: Option<single_instance::Server>,
     updater: Option<self_update::Updater>,
     looks: Looks,
+    /// The organisation's profile, and its logo's bytes (issue #245).
+    organisation: (mailcraft_engine::policy::Organisation, Option<Vec<u8>>),
 }
 
 /// Open the window and run the app until it closes: the boot card while the data files open,
 /// then MailCraft.
 fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
-    let Started { launch, opening: Opening { progress, opened, card, made }, state_path, instance, updater, looks: Looks { saved_ui, theme, x11 } } =
-        started;
+    let Started {
+        launch,
+        opening: Opening { progress, opened, card, made },
+        state_path,
+        instance,
+        updater,
+        looks: Looks { saved_ui, theme, x11 },
+        organisation: (organisation, org_logo),
+    } = started;
     let put_away = launch.starts_away(saved_ui.as_ref());
     let Launch { args: cmd_args, handed, sample, base, root, .. } = launch;
     // The guard stays here, outside the closure, so the handlers live as long as the loop.
@@ -559,6 +583,8 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                 if theme.is_some() {
                     app.ui.dark = theme;
                 }
+                // The organisation's profile over the settings, before any start-up command.
+                app.set_organisation(organisation.clone(), org_logo.clone());
                 desktop::start::commands(&mut app, &args);
                 handed.give(&mut app);
                 // From here the open message's body is read and parsed on a thread of its own (the
