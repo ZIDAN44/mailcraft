@@ -1,9 +1,9 @@
-//! The window's own title bar on Windows (issue #22): MailCraft's top bar is the title bar, in
+//! The window's own title bar on Windows, Linux and the BSDs (issue #22): MailCraft's top bar is the title bar, in
 //! its colour, as Outlook's is, instead of a bar under the system's. Ported from PhotoCraft's own
 //! title bar (`panels/titlebar.rs`), Windows' buttons only: the caption buttons at the bar's end,
 //! the bar's free space that drags the window (a double-click maximizes it), and thin zones along
-//! the window's edges that resize it. The system keeps the window borderless meanwhile
-//! (`window_frame.rs` in the app, [`crate::Services::keep_frame`]). While a dialog holds the
+//! the window's edges that resize it. Windows keeps the window borderless meanwhile
+//! (`window_frame.rs` in the app, [`crate::Services::keep_frame`]); elsewhere it opens so. While a dialog holds the
 //! window, the bar's drag and buttons are laid again above it ([`over_a_modal`], PhotoCraft's
 //! `modal_drag_overlay`). A pen or a finger moves and resizes the window itself ([`pen`]).
 

@@ -45,8 +45,9 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
             cmd: "view.hideRibbon",
         };
         switch_row(s, ui, &t, false, ribbon, acts);
-        // Windows: the top bar is the window's title bar (issue #22), or the system's is kept.
-        if cfg!(windows) {
+        // Windows, Linux and the BSDs: the top bar is the window's title bar (issue #22), or the
+        // system's is kept.
+        if cfg!(any(windows, all(unix, not(target_os = "macos")))) {
             let system = Switch {
                 label: tl!("Use the system title bar"),
                 about: Some(tl!("Applies when MailCraft starts again")),

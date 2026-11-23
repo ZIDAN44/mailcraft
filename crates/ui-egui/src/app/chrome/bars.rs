@@ -19,7 +19,7 @@ impl MailApp {
     /// says it) and the bar's controls had a row of their own above the tabs. A window too narrow
     /// for the box beside the tabs has it on a row of its own under them.
     ///
-    /// On Windows it is also the window's title bar ([`Services::own_title_bar`]): its free space
+    /// On Windows, Linux and the BSDs it is also the window's title bar ([`Services::own_title_bar`]): its free space
     /// drags the window, MailCraft's mark is at its start and the window's buttons at its end.
     pub(crate) fn top_bar(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let own = self.services.own_title_bar();
