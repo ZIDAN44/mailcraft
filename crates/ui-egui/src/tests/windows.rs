@@ -76,6 +76,43 @@ fn double_clicked_mail_opens_in_its_own_window() {
     assert!(a.session.windows.is_empty(), "Escape closes the window");
 }
 
+/// A relaxed double-click on a message opens it in its own window: 0.4 s between the clicks,
+/// which Windows and macOS count as a double-click. egui's own 0.3 s took it for two single
+/// clicks, and nothing opened (as AniCraft found).
+#[test]
+fn a_relaxed_double_click_opens_the_message() {
+    use egui::{PointerButton, Pos2, RawInput, Rect};
+    let (mut a, _) = app("relaxed-double-click");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    let mut time = 0.0;
+    let mut at = |a: &mut MailApp, after: f64, events: Vec<Event>| {
+        time += after;
+        windows::layout::dress(a);
+        let input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, size)), time: Some(time), events, ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| a.ui(ui));
+        windows::layout::look(a, &out.shapes);
+        out.textures_delta.clear();
+        out
+    };
+    let mut out = at(&mut a, 0.1, vec![]);
+    for _ in 0..3 {
+        out = at(&mut a, 0.1, vec![]);
+    }
+    let rows: Vec<Rect> = named_in(&out).into_iter().filter(|n| n.role == egui::accesskit::Role::ListItem).filter_map(|n| n.rect).collect();
+    let row = rows.iter().min_by(|x, y| x.min.y.total_cmp(&y.min.y)).expect("a message in the list").center();
+    let button = |pressed| Event::PointerButton { pos: row, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    at(&mut a, 0.1, vec![Event::PointerMoved(row), button(true)]);
+    at(&mut a, 0.05, vec![button(false)]);
+    at(&mut a, 0.4, vec![button(true)]);
+    at(&mut a, 0.05, vec![button(false)]);
+    for _ in 0..2 {
+        at(&mut a, 0.05, vec![]);
+    }
+    assert_eq!(a.session.windows.len(), 1, "the message opened in its own window");
+}
+
 /// A message's own window: its attachment buttons work on its message, not the one in the
 /// reading pane (they used to act on the reading pane's, and fail).
 #[test]
