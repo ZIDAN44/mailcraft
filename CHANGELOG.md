@@ -91,6 +91,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 - A double-click counts as the desktop counts one, up to half a second between the clicks: a relaxed double-click on a message was taken for two clicks, and it didn't open.
 - Double-clicking a one-letter word in a message you're writing (the "a" in "Take a walk") selects that word alone: it selected the word before it too, and typing replaced both.
 - On Windows and on a Mac, a window opens inside the part of the screen the taskbar, the Dock and the menu bar leave free: one whose title bar was under a taskbar along the top comes down below it, and one too big is made as big as that room (it was kept a fixed margin from the screen's edges, too little beside a tall taskbar and more than needed beside one that hides).
+- A list or a pane with more than it shows has a thin scroll bar at its edge while the pointer is elsewhere too, beside what it scrolls: it showed only under the pointer, so nothing said there was more.
 - On Windows, MailCraft and its tests no longer load OpenGL, which they don't use, as they start: each start and close is about 65 ms quicker.
 
 ## 0.41.0 - 2026-11-20

@@ -275,12 +275,22 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
         // Mac a mouse that scrolls smoothly counts as a trackpad, and what it pulled past the top
         // or end of a pane stayed there, a third of the pane blank, while the pointer rested (#150).
         s.spacing.scroll.kinetic.rubber_band = false;
+        // A list or a pane with more to scroll to shows a thin bar at its edge while the pointer is
+        // elsewhere too (egui's showed nothing until the pointer came over it, so nothing said there
+        // was more); it widens under the pointer, as before. Its line has room of its own beside
+        // what scrolls, so it isn't drawn over what's at the edge (a folder's unread count).
+        s.spacing.scroll.dormant_handle_opacity = s.spacing.scroll.active_handle_opacity;
+        s.spacing.scroll.floating_allocated_width = BAR_ROOM;
         s.text_styles.insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
         s.text_styles.insert(egui::TextStyle::Button, egui::FontId::proportional(13.5));
         s.text_styles.insert(egui::TextStyle::Small, egui::FontId::proportional(12.0));
         s.text_styles.insert(egui::TextStyle::Heading, egui::FontId::proportional(20.0));
     });
 }
+
+/// The room a scroll area keeps beside what it scrolls for its bar's thin line, when it has more
+/// to scroll to.
+pub(crate) const BAR_ROOM: f32 = 6.0;
 
 /// Quiet text on the ribbon that's still read as text (WCAG's 4.5:1 on the panes and the ribbon):
 /// the label of a command that can't be used now (no message selected), told apart from one that
@@ -457,6 +467,40 @@ pub fn regular(size: f32) -> egui::FontId {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A scroll area with more than it shows draws its bar's handle while the pointer is away
+    /// from it: something says there's more.
+    #[test]
+    fn a_scroll_bar_shows_with_the_pointer_elsewhere() {
+        let ctx = egui::Context::default();
+        apply(&ctx, &Tokens::light());
+        let handles = |ctx: &egui::Context| {
+            let input =
+                egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 300.0))), ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| {
+                egui::ScrollArea::vertical().auto_shrink(false).max_height(200.0).show(ui, |ui| {
+                    for i in 0..40 {
+                        ui.label(format!("row {i}"));
+                    }
+                });
+            });
+            out.textures_delta.clear();
+            // Filled shapes along the area's right edge, not transparent: the handle.
+            out.shapes
+                .iter()
+                .filter(|c| match &c.shape {
+                    egui::Shape::Rect(r) => r.rect.min.x > 380.0 && r.fill.a() > 0,
+                    _ => false,
+                })
+                .count()
+        };
+        // A few passes: egui eases the bar in.
+        let mut shown = 0;
+        for _ in 0..30 {
+            shown = handles(&ctx);
+        }
+        assert!(shown > 0, "no scroll bar drawn");
+    }
 
     /// Chinese, Japanese and Korean fallbacks sit on the main font's line; the others (Arabic and
     /// Hebrew, symbols) stay centred on it.
