@@ -113,12 +113,14 @@ has no warning and no user limit, and works for that organisation's accounts onl
 1. In Google Cloud Console, create a project, and under **Google Auth Platform › Audience** choose
    **Internal**.
 2. Under **Clients**, create an OAuth client of the type **Desktop app**.
-3. Enable the Google Calendar API for the project if calendar sync is wanted.
-
-Accounts signed in with Google sync their calendars over CalDAV using the OAuth token. Accounts
-signed in before MailCraft asked for the calendar permission need to sign in again to grant it.
 3. Set `MAILCRAFT_GOOGLE_CLIENT_ID` and `MAILCRAFT_GOOGLE_CLIENT_SECRET` to its ID and secret
    before MailCraft starts.
+4. To sync calendars, enable the **CalDAV API** (`caldav.googleapis.com`) for the project. Without
+   it Google answers HTTP 403 `accessNotConfigured`, and MailCraft shows Google's own message.
+
+Accounts signed in with Google sync their calendars over CalDAV with the OAuth token. An account
+signed in before MailCraft asked for the calendar permission signs in again to grant it. Contacts
+aren't synced for Google accounts yet.
 
 A client that is **External** and not verified works too, with Google's warning (choose
 **Advanced**, then **Go to MailCraft**) and its limit of 100 users.
