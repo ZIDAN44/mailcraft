@@ -13,6 +13,19 @@ A version's release comes after its test builds: a test build of 0.33.0 updates 
 `MAILCRAFT_NO_AUTO_UPDATE=1`. The workflow's `kind` input publishes a release (the default) or a
 test build.
 
+## Choosing whether it updates
+
+**File › Options › General › Update MailCraft by itself** chooses:
+
+| Choice | What MailCraft does |
+|---|---|
+| **Yes** (the default) | Updates as above, as the copy was installed. |
+| **Releases only** | Updates to the next release only, never to a test build, even on a copy installed as a test build. |
+| **No** | Never looks for an update nor installs one, not even one downloaded before. **Check for updates** in File › About still asks when you click it, and offers the download; nothing installs by itself. |
+
+An organisation's profile can set this choice, and lock it ([`updates`](organisations.md)). Locked
+to **No**, File › About doesn't check either.
+
 ## How an update installs
 
 1. **Check.** MailCraft asks GitHub for its releases a minute after it starts, then every hour.
