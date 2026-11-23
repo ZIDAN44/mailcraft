@@ -6,6 +6,7 @@ pub mod bidi;
 pub mod craft_fonts;
 pub(crate) mod drop_down;
 pub mod faces;
+pub(crate) mod fields;
 pub mod icons;
 pub mod mail_fonts;
 pub mod motion;

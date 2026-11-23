@@ -96,7 +96,7 @@ impl MailApp {
                     // searches where you are).
                     let module = self.session.module;
                     if matches!(module, Module::Calendar | Module::People | Module::Tasks | Module::Notes) {
-                        let focus = std::mem::take(&mut self.ui.focus_search);
+                        let mut focus = std::mem::take(&mut self.ui.focus_search);
                         let (query, hint) = match module {
                             Module::People => (&mut self.ui.people_query, tl!("Search people")),
                             Module::Calendar => (&mut self.ui.cal_search.query, tl!("Search calendar (location:, organizer:, after:…)")),
@@ -115,9 +115,8 @@ impl MailApp {
                         );
                         #[cfg(test)]
                         ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("mailcraft-top-search-input-rect"), resp.rect));
-                        if focus {
-                            resp.request_focus();
-                        }
+                        // Asked for again (Ctrl+E): the query selected, so what's typed replaces it.
+                        crate::look::fields::focus_selecting_all(ui, &resp, query, &mut focus);
                         if !query.is_empty() && widgets::tiny_icon_button(ui, Icon::Close, "Clear search", &t).clicked() {
                             query.clear();
                         }

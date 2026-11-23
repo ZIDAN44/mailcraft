@@ -104,9 +104,9 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.set_width(380.0);
             title(ui, t, if editing.is_some() { "Edit category" } else { "New category" });
             let r = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Name")).desired_width(f32::INFINITY));
-            if ui.memory(|m| m.focused().is_none()) {
-                r.request_focus();
-            }
+            // As it opens: editing, the name it has selected, so what's typed replaces it.
+            let mut opening = ui.memory(|m| m.focused().is_none());
+            crate::look::fields::focus_selecting_all(ui, &r, name, &mut opening);
             ui.horizontal(|ui| {
                 for c in 0..8u8 {
                     if swatch(ui, t, c, *color == c) {
