@@ -535,6 +535,7 @@ impl Dav {
         match resp.status {
             200..=299 => Ok(Ok(resp.header("ETag").unwrap_or_default().to_string())),
             401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
+            403 if self.is_bearer() => Err(NetError::Auth(bearer_403_message(&resp.headers, &resp.body))),
             s => {
                 // Where, and on which condition: what tells a wrong address (404, issue #147's
                 // Zoho) from a copy the server says changed (412) in the log (never the item).
@@ -554,6 +555,7 @@ impl Dav {
         match resp.status {
             200..=299 | 404 | 410 => Ok(Ok(())),
             401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
+            403 if self.is_bearer() => Err(NetError::Auth(bearer_403_message(&resp.headers, &resp.body))),
             s => Ok(Err(Refused::from_status(s))),
         }
     }

@@ -159,7 +159,7 @@ fn measure_big_collections() {
         let start = 1_800_000_000 + i64::try_from(i).unwrap_or_default() * 3600;
         CalEvent { uid: uid(i), summary: format!("Event {i}"), start, end: start + 1800, ..Default::default() }
     };
-    let at = Where { email: USER, imap_host: "imap.example", mails: true, ..Default::default() };
+    let at = Where { email: USER, imap_host: "imap.example", mails: true, contacts: true, ..Default::default() };
     let pim_at = |base: &str| {
         let mut pim = Pim {
             caldav_home: Some(format!("{base}/dav/cal/")),
@@ -267,7 +267,7 @@ fn bearer_403_is_auth_error_and_retries_while_no_home() {
 
     let dav = Dav::bearer(token);
     let caldav_url = format!("{}/dav/", server.base);
-    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), mails: true, ..Default::default() };
+    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), mails: true, contacts: true, ..Default::default() };
     let mut pim = Pim { dav_checked: Some(100), ..Default::default() };
     pim.ensure_defaults();
 
@@ -347,4 +347,40 @@ fn bearer_403_says_what_google_said() {
     let headers = vec![("www-authenticate".into(), "Bearer realm=\"x\", error=\"insufficient_scope\"".into())];
     let msg = bearer_403_message(&headers, b"");
     assert_eq!(msg, "sign in again to allow access");
+}
+
+/// Bearer sessions map 403 to NetError::Auth on write operations (store/remove), not Refused::Forbidden.
+#[test]
+fn bearer_forbidden() {
+    use crate::fakes::fake_dav::{CAL, USER, serve};
+    let token = "test-token";
+    let server = serve();
+    {
+        let mut d = server.data.lock().unwrap();
+        d.bearer = Some(token.to_string());
+        d.bearer_forbidden = true;
+    }
+    let dav = Dav::bearer(token);
+    let url = format!("{}{}/new.ics", server.base, CAL);
+
+    // PUT on Bearer session with 403 returns NetError::Auth
+    let result = dav.store(&url, "text/calendar; charset=utf-8", "BEGIN:VCALENDAR\r\nEND:VCALENDAR", None);
+    assert!(matches!(result, Err(NetError::Auth(_))), "store should return NetError::Auth for Bearer 403, got: {:?}", result);
+
+    // DELETE on Bearer session with 403 returns NetError::Auth
+    let result = dav.remove(&url, "\"e1\"");
+    assert!(matches!(result, Err(NetError::Auth(_))), "remove should return NetError::Auth for Bearer 403, got: {:?}", result);
+
+    // Basic auth session with 403 still returns Refused::Forbidden (not NetError::Auth)
+    let server2 = serve();
+    let url2 = format!("{}{}/forbidden.ics", server2.base, CAL);
+    let path2 = format!("{}/forbidden.ics", CAL);
+    server2.data.lock().unwrap().forbidden.push(path2);
+    let dav_basic = Dav::new(USER, "pw");
+    // PUT on a forbidden item with Basic auth returns Refused::Forbidden
+    let result = dav_basic.store(&url2, "text/calendar; charset=utf-8", "BEGIN:VCALENDAR\r\nUID:test\r\nEND:VCALENDAR", None);
+    assert!(matches!(result, Ok(Err(Refused::Forbidden))), "Basic auth store should return Refused::Forbidden for 403, got: {:?}", result);
+    // DELETE on a forbidden item with Basic auth returns Refused::Forbidden
+    let result = dav_basic.remove(&url2, "");
+    assert!(matches!(result, Ok(Err(Refused::Forbidden))), "Basic auth remove should return Refused::Forbidden for 403, got: {:?}", result);
 }
