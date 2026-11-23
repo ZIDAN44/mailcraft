@@ -5,31 +5,41 @@
 
 use std::path::Path;
 
-/// The `version = "…"` value inside `[workspace.package]`.
+/// The `version = "…"` value inside `[workspace.package]`: what's between its quotes (a comment
+/// after them was read as part of it).
 pub fn read(manifest: &str) -> Result<String, String> {
     let (_, line) = find_line(manifest)?;
-    let v = line.split_once('=').map(|(_, v)| v.trim().trim_matches('"').to_string()).unwrap_or_default();
+    let v = quoted(line).and_then(|r| line.get(r)).unwrap_or_default();
     if v.is_empty() {
         return Err("empty [workspace.package] version".into());
     }
-    Ok(v)
+    Ok(v.to_string())
 }
 
-/// `manifest` with the workspace version replaced; everything else is byte-for-byte unchanged.
+/// Where the value is in a `version = "…"` line: between the quotes after the `=`.
+fn quoted(line: &str) -> Option<std::ops::Range<usize>> {
+    let eq = line.find('=')?;
+    let after = line.get(eq + 1..)?;
+    let open = eq + 1 + after.find('"')?;
+    if !line.get(eq + 1..open)?.trim().is_empty() {
+        return None;
+    }
+    let close = open + 1 + line.get(open + 1..)?.find('"')?;
+    Some(open + 1..close)
+}
+
+/// `manifest` with the workspace version replaced; everything else is byte-for-byte unchanged,
+/// the version's own line too (its indentation and a comment after it were lost).
 pub fn replace(manifest: &str, new: &str) -> Result<String, String> {
     validate(new)?;
     let (idx, _) = find_line(manifest)?;
     let mut out = String::with_capacity(manifest.len() + 8);
     for (i, line) in manifest.split_inclusive('\n').enumerate() {
         if i == idx {
-            let eol = if line.ends_with("\r\n") {
-                "\r\n"
-            } else if line.ends_with('\n') {
-                "\n"
-            } else {
-                ""
-            };
-            out.push_str(&format!("version = \"{new}\"{eol}"));
+            let at = quoted(line).ok_or("the [workspace.package] version isn't a quoted string")?;
+            let mut line = line.to_string();
+            line.replace_range(at, new);
+            out.push_str(&line);
         } else {
             out.push_str(line);
         }
@@ -45,7 +55,13 @@ pub fn validate(v: &str) -> Result<(), String> {
         None => (v, None),
     };
     let nums: Vec<&str> = core.split('.').collect();
-    if nums.len() != 3 || nums.iter().any(|n| n.is_empty() || !n.bytes().all(|b| b.is_ascii_digit()) || (n.len() > 1 && n.starts_with('0'))) {
+    // Each a number Cargo takes (a u64): a larger one was written into Cargo.toml, which Cargo
+    // then refused, every build with it.
+    if nums.len() != 3
+        || nums
+            .iter()
+            .any(|n| n.is_empty() || !n.bytes().all(|b| b.is_ascii_digit()) || (n.len() > 1 && n.starts_with('0')) || n.parse::<u64>().is_err())
+    {
         return bad();
     }
     if let Some(p) = pre
@@ -68,8 +84,9 @@ fn find_line(manifest: &str) -> Result<(usize, &str), String> {
     let mut in_section = false;
     for (i, line) in manifest.lines().enumerate() {
         let t = line.trim();
+        // A section's heading, with a comment after it or not.
         if t.starts_with('[') {
-            in_section = t == "[workspace.package]";
+            in_section = t.split('#').next().map(str::trim) == Some("[workspace.package]");
             continue;
         }
         if in_section
@@ -159,6 +176,20 @@ mod tests {
             assert!(validate(bad).is_err(), "{bad}");
         }
         assert!(replace(MANIFEST, "nope").is_err());
+    }
+
+    /// A comment after the section's heading or the version, and the line's indentation, are
+    /// read past and kept (as PhotoCraft's xtask); a number Cargo can't take is refused before
+    /// Cargo.toml is written (as DesignCraft's).
+    #[test]
+    fn comments_and_indentation_are_kept() {
+        let noted = "[workspace.package] # shared by every crate\n  version = \"0.1.0\"  # the release\nedition = \"2024\"\n";
+        assert_eq!(read(noted).unwrap(), "0.1.0");
+        assert_eq!(replace(noted, "0.2.0").unwrap(), noted.replace("\"0.1.0\"", "\"0.2.0\""));
+        assert!(validate("18446744073709551615.0.0").is_ok());
+        for too_big in ["18446744073709551616.0.0", "1.99999999999999999999.0"] {
+            assert!(validate(too_big).is_err(), "{too_big}");
+        }
     }
 
     #[test]
