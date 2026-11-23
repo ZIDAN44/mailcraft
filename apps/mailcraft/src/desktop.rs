@@ -71,6 +71,18 @@ impl Desktop {
         }
     }
 
+    /// Shows a file dialog (`show`), on a Mac with the Edit menu its fields take their keys from.
+    #[cfg(target_os = "macos")]
+    fn modal<T>(show: impl FnOnce() -> T) -> T {
+        crate::platform::apple_events::with_edit_menu(show)
+    }
+
+    /// Shows a file dialog (`show`).
+    #[cfg(not(target_os = "macos"))]
+    fn modal<T>(show: impl FnOnce() -> T) -> T {
+        show()
+    }
+
     /// Notes where a dialog's answer was (a file's folder, or the folder picked); passes it on.
     fn used<T: AsRef<Path>>(&mut self, picked: Option<T>, is_folder: bool) -> Option<T> {
         if let Some(p) = &picked {
@@ -115,7 +127,7 @@ impl Services for Desktop {
         self.dark.get()
     }
     fn pick_files(&mut self) -> Vec<PathBuf> {
-        let files = self.dialog("Attach files").pick_files().unwrap_or_default();
+        let files = Self::modal(|| self.dialog("Attach files").pick_files()).unwrap_or_default();
         self.used(files.first(), false);
         files
     }
@@ -136,7 +148,7 @@ impl Services for Desktop {
             };
             d = d.add_filter(kind, &[ext]).add_filter("All files", &["*"]);
         }
-        let saved = d.save_file();
+        let saved = Self::modal(|| d.save_file());
         self.used(saved, false)
     }
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
@@ -309,33 +321,38 @@ impl Services for Desktop {
         self.lanes.tend();
     }
     fn pick_folder(&mut self) -> Option<PathBuf> {
-        let folder = self.dialog("Save attachments to").pick_folder();
+        let folder = Self::modal(|| self.dialog("Save attachments to").pick_folder());
         self.used(folder, true)
     }
     fn pick_certificate(&mut self) -> Option<PathBuf> {
-        let file =
-            self.dialog("Import certificate").add_filter("Certificate with its key", &["p12", "pfx"]).add_filter("All files", &["*"]).pick_file();
+        let file = Self::modal(|| {
+            self.dialog("Import certificate").add_filter("Certificate with its key", &["p12", "pfx"]).add_filter("All files", &["*"]).pick_file()
+        });
         self.used(file, false)
     }
     fn pick_server_certificate(&mut self) -> Option<PathBuf> {
-        let file = self
-            .dialog("Trust a certificate file")
-            .add_filter("Certificate", &["pem", "crt", "cer", "der"])
-            .add_filter("All files", &["*"])
-            .pick_file();
+        let file = Self::modal(|| {
+            self.dialog("Trust a certificate file")
+                .add_filter("Certificate", &["pem", "crt", "cer", "der"])
+                .add_filter("All files", &["*"])
+                .pick_file()
+        });
         self.used(file, false)
     }
     fn pick_pgp_key(&mut self) -> Option<PathBuf> {
-        let file =
-            self.dialog("Import OpenPGP key").add_filter("OpenPGP key", &["asc", "gpg", "key", "pgp"]).add_filter("All files", &["*"]).pick_file();
+        let file = Self::modal(|| {
+            self.dialog("Import OpenPGP key").add_filter("OpenPGP key", &["asc", "gpg", "key", "pgp"]).add_filter("All files", &["*"]).pick_file()
+        });
         self.used(file, false)
     }
     fn pick_rules_file(&mut self) -> Option<PathBuf> {
-        let file = self.dialog("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file();
+        let file = Self::modal(|| self.dialog("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file());
         self.used(file, false)
     }
     fn pick_categories_file(&mut self) -> Option<PathBuf> {
-        let file = self.dialog("Import categories").add_filter("MailCraft categories", &["json"]).add_filter("All files", &["*"]).pick_file();
+        let file = Self::modal(|| {
+            self.dialog("Import categories").add_filter("MailCraft categories", &["json"]).add_filter("All files", &["*"]).pick_file()
+        });
         self.used(file, false)
     }
     fn pick_data_file(&mut self) -> Option<PathBuf> {
@@ -344,20 +361,23 @@ impl Services for Desktop {
         if let Some(dir) = self.data.as_ref().filter(|d| d.is_dir()) {
             d = d.set_directory(dir);
         }
-        d.set_title("Open data file")
-            .add_filter("Data files", &["pst", "mailcraft"])
-            .add_filter("Outlook data files", &["pst"])
-            .add_filter("MailCraft data files", &["mailcraft"])
-            .pick_file()
+        Self::modal(|| {
+            d.set_title("Open data file")
+                .add_filter("Data files", &["pst", "mailcraft"])
+                .add_filter("Outlook data files", &["pst"])
+                .add_filter("MailCraft data files", &["mailcraft"])
+                .pick_file()
+        })
     }
     fn pick_mail_file(&mut self) -> Option<PathBuf> {
-        let file = self.dialog("Open mail file").add_filter("Mail files", &["eml", "msg"]).add_filter("All files", &["*"]).pick_file();
+        let file =
+            Self::modal(|| self.dialog("Open mail file").add_filter("Mail files", &["eml", "msg"]).add_filter("All files", &["*"]).pick_file());
         self.used(file.as_ref(), false);
         file
     }
     fn pick_pictures(&mut self) -> Vec<PathBuf> {
-        let files =
-            self.dialog("Insert pictures").add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"]).pick_files().unwrap_or_default();
+        let files = Self::modal(|| self.dialog("Insert pictures").add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"]).pick_files())
+            .unwrap_or_default();
         self.used(files.first(), false);
         files
     }

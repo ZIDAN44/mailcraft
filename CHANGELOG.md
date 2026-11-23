@@ -94,6 +94,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 - A list or a pane with more than it shows has a thin scroll bar at its edge while the pointer is elsewhere too, beside what it scrolls: it showed only under the pointer, so nothing said there was more.
 - The first start after MailCraft updated itself says so in a bar, or, when the update didn't install, that it's offered again (it said nothing either way).
 - On Linux and the BSDs the top bar is the window's title bar, as on Windows: it moves the window, and minimize, maximize and close are at its end, with no second bar from the desktop above it. **File › Options › General › Use the system title bar** keeps the desktop's.
+- On a Mac, ⌘A, ⌘C, ⌘V, ⌘X and ⌘Z work in a file dialog's fields (a Save As name, an Open dialog's search): MailCraft's menu bar had no Edit menu for them to go through, so ⌘A did nothing there.
 - On Windows, MailCraft and its tests no longer load OpenGL, which they don't use, as they start: each start and close is about 65 ms quicker.
 
 ## 0.41.0 - 2026-11-20

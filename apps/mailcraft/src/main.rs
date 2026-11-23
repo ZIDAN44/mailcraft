@@ -523,7 +523,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                 apple_events::repaint_on_arrival(&finder, &cc.egui_ctx);
                 // ⌘Q asks before what's being written is lost; without the menu it still runs,
                 // quitting as winit's does.
-                if let Err(e) = apple_events::install_menu(&cc.egui_ctx) {
+                if let Err(e) = apple_events::install_menu(&cc.egui_ctx, desktop::tray::ask_exit) {
                     log::warn!("the app menu wasn't put in place, so Quit won't ask first: {e}");
                 }
             }
