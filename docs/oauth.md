@@ -95,8 +95,9 @@ administrator can also have IMAP turned off for the organisation.
 
 ### Why the released builds have no Google sign-in
 
-MailCraft asks Google for full access to Gmail (`https://mail.google.com/`), which IMAP and SMTP
-need. Google treats that as a restricted scope:
+MailCraft asks Google for full access to Gmail (`https://mail.google.com/`) and Google Calendar
+(`https://www.googleapis.com/auth/calendar`), which IMAP, SMTP and CalDAV need. Google treats
+these as restricted scopes:
 
 - An app Google hasn't verified shows a warning before sign-in and is limited to 100 users over
   the life of its Google project. After that, Google blocks new sign-ins.
@@ -112,6 +113,10 @@ has no warning and no user limit, and works for that organisation's accounts onl
 1. In Google Cloud Console, create a project, and under **Google Auth Platform › Audience** choose
    **Internal**.
 2. Under **Clients**, create an OAuth client of the type **Desktop app**.
+3. Enable the Google Calendar API for the project if calendar sync is wanted.
+
+Accounts signed in with Google sync their calendars over CalDAV using the OAuth token. Accounts
+signed in before MailCraft asked for the calendar permission need to sign in again to grant it.
 3. Set `MAILCRAFT_GOOGLE_CLIENT_ID` and `MAILCRAFT_GOOGLE_CLIENT_SECRET` to its ID and secret
    before MailCraft starts.
 

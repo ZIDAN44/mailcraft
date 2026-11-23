@@ -14,6 +14,8 @@ pub(super) struct Request {
     given: String,
     /// Signed in with the right Basic credentials.
     basic_ok: bool,
+    /// Signed in with the right Bearer token.
+    bearer_ok: bool,
     if_match: Option<String>,
     if_none: bool,
     /// The `Originator` and `Recipient` headers of a free/busy query (RFC 6638's draft's).
@@ -30,11 +32,13 @@ fn reply(status: &'static str) -> Reply {
 }
 
 /// The connection's request; `None` when it's closed before one came.
-pub(super) fn read_request(s: &TcpStream, auth: &str) -> Option<Request> {
+pub(super) fn read_request(s: &TcpStream, auth: &str, bearer: Option<&str>) -> Option<Request> {
     let r = http::read_request(&mut BufReader::new(s.try_clone().ok()?))?;
     let given = r.header("authorization").unwrap_or_default().to_string();
+    let bearer_ok = bearer.is_some_and(|token| given == format!("Bearer {token}"));
     Some(Request {
         basic_ok: given == auth,
+        bearer_ok,
         given,
         if_match: r.header("if-match").map(str::to_string),
         if_none: r.header("if-none-match").is_some(),
@@ -48,13 +52,13 @@ pub(super) fn read_request(s: &TcpStream, auth: &str) -> Option<Request> {
 
 impl Data {
     /// One request, logged: refused without the right sign-in (a Digest challenge, stale when
-    /// the password was right for a nonce gone), else answered.
+    /// the password was right for a nonce gone, or Bearer if set), else answered.
     pub(super) fn answer(&mut self, r: &Request) -> Reply {
         self.log.push(format!("{} {}", r.method, r.path));
         if !r.given.is_empty() {
             self.offered += 1;
         }
-        let mut authorized = r.basic_ok;
+        let mut authorized = r.basic_ok || (self.bearer.is_some() && r.bearer_ok);
         if let Some(nonce) = self.digest.clone() {
             authorized = digest_ok(&r.given, &r.method, &r.path, &nonce);
             if !authorized {
@@ -74,7 +78,8 @@ impl Data {
             }
         }
         if !authorized {
-            return ("401 Unauthorized", vec![("WWW-Authenticate", "Basic realm=\"fake\"".to_string())], String::new());
+            let challenge = if self.bearer.is_some() { "Bearer realm=\"fake\"" } else { "Basic realm=\"fake\"" };
+            return ("401 Unauthorized", vec![("WWW-Authenticate", challenge.to_string())], String::new());
         }
         if matches!(r.method.as_str(), "PROPFIND" | "REPORT") && self.unreadable.iter().any(|p| r.path.starts_with(p.as_str())) {
             return reply("403 Forbidden");

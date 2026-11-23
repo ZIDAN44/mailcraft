@@ -11,7 +11,8 @@ use crate::dav::{Dav, Kind, Where, sync};
 /// Found from the address, as an account with nothing given by hand. The tests' syncs never
 /// look for anything there, out on the network: their calendars and contacts are given, or
 /// were looked for already (`dav_checked`), the contacts none.
-const AT: Where<'static> = Where { email: USER, username: "", others: &[], imap_host: "imap.example", caldav: None, carddav: None, mails: true };
+const AT: Where<'static> =
+    Where { email: USER, username: "", others: &[], imap_host: "imap.example", caldav: None, carddav: None, mails: true, contacts: true };
 
 fn event(uid: &str, summary: &str, start: i64) -> CalEvent {
     CalEvent { uid: uid.into(), summary: summary.into(), start, end: start + 3600, ..Default::default() }
@@ -559,4 +560,49 @@ fn a_change_crossing_a_guests_answer_keeps_both() {
     let out = sync(&dav, &AT, &solo, 400, Zone::UTC).unwrap();
     assert_eq!((out.errors.len(), out.refused.as_slice()), (1, ["solo".to_string()].as_slice()), "{:?}", out.errors);
     assert!(server.data.lock().unwrap().items[&format!("{CAL}solo.ics")].1.contains("Dentist (moved)"));
+}
+// Test file to add to fake_dav/tests.rs
+
+/// Google OAuth account: CalDAV sync with Bearer token, no CardDAV.
+#[test]
+fn google_oauth_bearer_auth() {
+    let server = serve();
+    let token = "test-access-token-12345";
+    server.data.lock().unwrap().bearer = Some(token.into());
+    server.data.lock().unwrap().put(&format!("{CAL}g.ics"), &ical::write(&[event("g", "Meeting", 1_800_000_000)], None, 0));
+
+    let dav = Dav::bearer(token);
+    // Discover the home with Bearer auth.
+    let home = dav.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)).unwrap().unwrap();
+
+    // Google: calendars only, no contacts.
+    let at_google = Where {
+        email: "user@gmail.com",
+        username: "",
+        others: &[],
+        imap_host: "imap.gmail.com",
+        caldav: None,
+        carddav: None,
+        mails: true,
+        contacts: false,
+    };
+
+    // First sync: discover and read.
+    let mut pim = Pim { caldav_home: Some(home), ..Default::default() };
+    pim.ensure_defaults();
+    let first = sync(&dav, &at_google, &pim, 100, Zone::UTC).unwrap();
+    assert!(first.errors.is_empty(), "{:?}", first.errors);
+
+    // Events synced with Bearer auth.
+    let cal_id = format!("{}{CAL}", server.base);
+    assert_eq!(first.calendars.as_ref().map(|c| (c.len(), c[0].name.as_str(), c[0].id.as_str())), Some((1, "Work", cal_id.as_str())));
+    assert_eq!(first.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Meeting"]);
+    // No CardDAV home discovered (contacts: false).
+    assert_eq!(first.carddav_home, None);
+    // No cards synced.
+    assert!(first.cards.is_empty());
+
+    // Wrong token refused.
+    let dav_wrong = Dav::bearer("wrong-token");
+    assert!(matches!(dav_wrong.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)), Err(crate::NetError::Auth(_))));
 }

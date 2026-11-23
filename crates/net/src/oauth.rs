@@ -112,7 +112,7 @@ fn provider_of(id: &str, email: &str) -> Option<Provider> {
             name: "Google".into(),
             auth_url: "https://accounts.google.com/o/oauth2/v2/auth".into(),
             token_url: "https://oauth2.googleapis.com/token".into(),
-            scope: "https://mail.google.com/".into(),
+            scope: "https://mail.google.com/ https://www.googleapis.com/auth/calendar".into(),
             client_id: setting("MAILCRAFT_GOOGLE_CLIENT_ID", option_env!("MAILCRAFT_GOOGLE_CLIENT_ID"))?,
             client_secret: setting("MAILCRAFT_GOOGLE_CLIENT_SECRET", option_env!("MAILCRAFT_GOOGLE_CLIENT_SECRET")),
         }),

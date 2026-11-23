@@ -54,6 +54,8 @@ pub struct Data {
     /// A list of tasks alone ([`TASKS`]), as Nextcloud's; `Some(true)`: one the user may only
     /// read.
     pub task_list: Option<bool>,
+    /// Require a Bearer token (Google Calendar over CalDAV): the token expected.
+    pub bearer: Option<String>,
 }
 
 /// Whether an `Authorization` value answers the fake's Digest challenge for this request.
@@ -114,7 +116,8 @@ pub fn serve() -> Server {
     std::thread::spawn(move || {
         for conn in l.incoming() {
             let Ok(mut s) = conn else { continue };
-            let Some(r) = serving::read_request(&s, &auth) else { continue };
+            let bearer = shared.lock().unwrap().bearer.clone();
+            let Some(r) = serving::read_request(&s, &auth, bearer.as_deref()) else { continue };
             let (status, mut headers, body) = shared.lock().unwrap().answer(&r);
             headers.push(("Connection", "close".into()));
             super::http::respond(&mut s, status, &headers, body.as_bytes());

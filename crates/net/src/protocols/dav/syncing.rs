@@ -75,8 +75,8 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         _ => None,
     };
     out.carddav_home = match &pim.carddav_home {
-        Some(h) if !h.is_empty() => Some(h.clone()),
-        _ if retry => find(Kind::Contacts, at.carddav, &mut out.errors)?,
+        Some(h) if !h.is_empty() && at.contacts => Some(h.clone()),
+        _ if retry && at.contacts => find(Kind::Contacts, at.carddav, &mut out.errors)?,
         _ => None,
     };
     out.checked = now;
@@ -98,10 +98,14 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     let mut refetch: Vec<String> = Vec::new();
     run.push_deletions(&mut out, &mut refetch)?;
     run.push_events(&mut out, &mut refetch)?;
-    run.push_cards(&mut out)?;
+    if at.contacts {
+        run.push_cards(&mut out)?;
+    }
     run.push_tasks(&mut out, &mut refetch)?;
     run.read_calendars(&refetch, &mut out)?;
-    run.read_books(&mut out)?;
+    if at.contacts {
+        run.read_books(&mut out)?;
+    }
     Ok(out)
 }
 

@@ -39,7 +39,7 @@ impl Worker {
         let Some(home) = pim.caldav_home.filter(|h| !h.is_empty()) else {
             return Err(NetError::No("this account's calendar server isn't known: its colleagues' free/busy time can't be asked".into()));
         };
-        let dav = self.dav_client();
+        let dav = self.dav_client()?;
         let r = dav.outbox(&home).and_then(|outbox| match outbox {
             Some(outbox) => dav.free_busy(&outbox, &self.acc.email, people, from, to, now()),
             None => Err(NetError::No("this calendar server doesn't give colleagues' free/busy time".into())),

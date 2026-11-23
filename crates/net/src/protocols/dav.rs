@@ -62,6 +62,8 @@ pub struct Where<'a> {
     /// MailCraft mails the account's meeting messages. Not for an account with calendars and
     /// contacts only (issue #61): a server that schedules sends them.
     pub mails: bool,
+    /// Whether to sync contacts (CardDAV). Google OAuth accounts lack the contacts scope.
+    pub contacts: bool,
 }
 
 impl Where<'_> {
@@ -102,22 +104,38 @@ impl Kind {
     }
 }
 
-/// A signed-in DAV session: Basic sign-in, or Digest once the server asks for it.
+/// How a DAV session signs in.
+enum Auth {
+    /// Basic or Digest authentication with username and password.
+    Password { user: String, password: String, basic: String },
+    /// OAuth Bearer token.
+    Bearer(String),
+}
+
+/// A signed-in DAV session: Basic sign-in, or Digest once the server asks for it, or Bearer token.
 pub struct Dav {
-    user: String,
-    password: String,
-    basic: String,
+    auth: Auth,
     /// The server's Digest challenge once it gave one (Baïkal's default): every request after
-    /// answers it, rather than being refused first.
+    /// answers it, rather than being refused first. Only for Password auth.
     digest: std::sync::Mutex<Option<digest::Challenge>>,
     /// Set while the account's server is being looked for: who may have the password then.
+    /// Only for Password auth.
     guard: std::sync::Mutex<Option<guard::Guard>>,
 }
 
 impl Dav {
     pub fn new(user: &str, password: &str) -> Dav {
         let basic = format!("Basic {}", mailcraft_model::base64::encode(format!("{user}:{password}").as_bytes()));
-        Dav { user: user.into(), password: password.into(), basic, digest: std::sync::Mutex::default(), guard: std::sync::Mutex::default() }
+        Dav {
+            auth: Auth::Password { user: user.into(), password: password.into(), basic },
+            digest: std::sync::Mutex::default(),
+            guard: std::sync::Mutex::default(),
+        }
+    }
+
+    /// A session that signs in with an OAuth Bearer token (Google Calendar over CalDAV).
+    pub fn bearer(token: &str) -> Dav {
+        Dav { auth: Auth::Bearer(format!("Bearer {token}")), digest: std::sync::Mutex::default(), guard: std::sync::Mutex::default() }
     }
 
     /// Looking for the server of the account `email` (its mail server `mail_host`) from here on,
@@ -170,11 +188,19 @@ impl Dav {
         self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
     }
 
-    /// Send a request signed in: with Basic, or the server's Digest challenge. Refused with a
-    /// Digest challenge it can answer, it's sent again answering it (twice at most: once more
-    /// for a nonce gone stale, or another realm a redirect led to); refused again, it's the
-    /// password.
+    /// Send a request signed in: with Bearer token, or with Basic / the server's Digest challenge.
+    /// Password auth: refused with a Digest challenge it can answer, it's sent again answering it
+    /// (twice at most: once more for a nonce gone stale, or another realm a redirect led to);
+    /// refused again, it's the password.
     fn send(&self, req: &Request) -> Result<Response> {
+        match &self.auth {
+            Auth::Bearer(token) => http::send(&req.clone().header("Authorization", token)),
+            Auth::Password { user, password, basic } => self.send_with_password(req, user, password, basic),
+        }
+    }
+
+    /// Send with password auth: check guard, try Basic or Digest.
+    fn send_with_password(&self, req: &Request, user: &str, password: &str, basic: &str) -> Result<Response> {
         if let Some(resp) = self.unsigned(req)? {
             return Ok(resp);
         }
@@ -184,8 +210,8 @@ impl Dav {
             let (auth, answered) = {
                 let mut held = self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                 match held.as_mut() {
-                    Some(c) => (c.authorization(&self.user, &self.password, &req.method, &uri), Some(c.realm.clone())),
-                    None => (self.basic.clone(), None),
+                    Some(c) => (c.authorization(user, password, &req.method, &uri), Some(c.realm.clone())),
+                    None => (basic.to_string(), None),
                 }
             };
             let resp = http::send(&req.clone().header("Authorization", &auth))?;
