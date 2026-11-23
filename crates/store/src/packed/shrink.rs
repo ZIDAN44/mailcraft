@@ -264,6 +264,35 @@ fn seal_copy(new: &Database, meta: &Meta) -> io::Result<()> {
     tx.commit().map_err(disk)
 }
 
+/// The pages a copy is grown to before anything is copied into it ([`grow_first`]), its file's
+/// header page apart. Its database then doubles it as it fills, so it lands on this many times a
+/// power of two, which [`super::health::settled`] counts on. redb starts a database at 17 pages
+/// (64 KiB, and a page for its region tracker; 1 MiB and that page before 4.6, #259), and an
+/// allocation of 128 pages there grows it to 17 + 2 × 128.
+pub(super) const COPY_GROWN_PAGES: u64 = 273;
+/// A table the first growth is written in and taken out of, in one transaction.
+const GROWING: TableDefinition<u32, &[u8]> = TableDefinition::new("copy.growing");
+/// One value its database gives an allocation of 128 pages (it needs more than 64).
+const GROWING_VALUE: usize = 400_000;
+
+/// Grow a new copy to [`COPY_GROWN_PAGES`]: one value of [`GROWING_VALUE`], taken out again in the
+/// same transaction. It isn't made durable, so the database doesn't trim the file's end, where
+/// the copy goes on. From redb 4.6's start alone, a copy grew by 17 × 2ⁿ pages, and a copy that
+/// ended just past a doubling had the end of its file free when it was closed: the database
+/// trimmed it then, and doubled it at its next write. Grown this way, the free block a doubling
+/// leaves at the file's end is among the first it fills (as from 4.5's start), so a copy keeps
+/// the size it was given, which is what Compact said it would give back.
+pub(super) fn grow_first(db: &Database) -> io::Result<()> {
+    let mut tx = db.begin_write().map_err(disk)?;
+    tx.set_durability(redb::Durability::None).map_err(other)?;
+    {
+        let mut t = tx.open_table(GROWING).map_err(disk)?;
+        t.insert(0, vec![0u8; GROWING_VALUE].as_slice()).map_err(disk)?;
+    }
+    tx.delete_table(GROWING).map_err(disk)?;
+    tx.commit().map_err(disk)
+}
+
 /// A write transaction of the copy `db`, not waited for to the disk (the seal at its end is).
 fn write_copy(db: &Database, f: impl FnOnce(&mut Tables<'_>) -> io::Result<()>) -> io::Result<()> {
     let mut tx = db.begin_write().map_err(disk)?;
@@ -382,6 +411,7 @@ impl Packs {
         let work = count(&db, None)?;
         drop(db);
         let new = Database::builder().set_cache_size(CACHE).create(&copy.path).map_err(other)?;
+        grow_first(&new)?;
         let cancelled = Shrunk { before, after: before, elapsed_ms: 0, cancelled: true, ..Shrunk::default() };
         match self.copy_batches(account, &new, work, go_on)? {
             Copied::All => {}

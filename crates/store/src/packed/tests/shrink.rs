@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use super::compact::{Kept, kept_compressed, old_store, read_back};
 use super::*;
 use crate::packed::health::{DEFLATE_NOW, PASSED, SAVED, STAYED_RAW, read_meta, write_meta};
-use crate::packed::shrink::{copy_path, is_copy};
+use crate::packed::shrink::{COPY_GROWN_PAGES, copy_path, grow_first, is_copy};
 
 /// A data store at `t` whose account `a1` keeps 40 messages of 64 KiB that don't compress, of
 /// which 30 are then deleted: room to give back.
@@ -367,4 +367,37 @@ fn the_windows_thread_isnt_kept_waiting_by_a_compaction() {
     assert_eq!(s.read_body(&kept[1]).unwrap(), b"Subject: w\r\n\r\nx");
     assert!(crate::packed::lock(&p.open).taken.is_empty(), "given back");
     drop(s);
+}
+
+/// A copy is grown first to the pages Compact counts on, and stays there through its close (#259:
+/// redb 4.6 starts a database at 17 pages, and a copy grown from there by doubling alone, ending
+/// just past a doubling, had the end of its file trimmed as it closed and doubled at its next
+/// write, so it gave back what Compact hadn't said). Each size it then doubles to holds too: its
+/// last pages are filled as soon as it's written past its first few, so closing trims nothing.
+#[test]
+fn a_copy_is_grown_to_what_compact_counts_on() {
+    let t = temp("copy-grown");
+    std::fs::create_dir_all(&t).unwrap();
+    let path = t.join("copy.mailcraft");
+    let page = crate::packed::PAGE as u64;
+    let len = || std::fs::metadata(&path).unwrap().len();
+    let db = redb::Database::create(&path).unwrap();
+    grow_first(&db).unwrap();
+    assert_eq!(len(), COPY_GROWN_PAGES * page + page, "grown to what's counted on, and its header");
+    let pieces: redb::TableDefinition<u32, &[u8]> = redb::TableDefinition::new("pieces");
+    let mut sizes = vec![len()];
+    for i in 0..1_500u32 {
+        let mut tx = db.begin_write().unwrap();
+        tx.set_durability(redb::Durability::None).unwrap();
+        tx.open_table(pieces).unwrap().insert(i, noise(3_000, u64::from(i)).as_slice()).unwrap();
+        tx.commit().unwrap();
+        if sizes.last() != Some(&len()) {
+            sizes.push(len());
+        }
+    }
+    let grown: Vec<u64> = (0..sizes.len()).map(|n| (COPY_GROWN_PAGES << n) * page + page).collect();
+    assert_eq!(sizes, grown, "doubled each time from where it was grown to");
+    let written = len();
+    drop(db);
+    assert_eq!(len(), written, "closing it trimmed it");
 }

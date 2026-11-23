@@ -14,8 +14,9 @@
 //! A data file under [`DOUBLES_BELOW`] is always copied (issue #221): its database doubles it
 //! whenever it needs more room, so compacted in place it was trimmed to what it keeps and doubled
 //! at its next write, bigger than before (measured: 1,485 MB with a third deleted, 1,834 MB after
-//! Compact now). A copy grows the same way as it's written and lands on the next power of two over
-//! what it keeps, where it stays until that fills (1,078 MB).
+//! Compact now). A copy grows the same way as it's written, from the size it's grown to first
+//! (`store`'s `COPY_GROWN_PAGES`), and lands on the first size over what it keeps, where it stays
+//! until that fills (1,078 MB).
 
 use serde::{Deserialize, Serialize};
 
@@ -48,9 +49,9 @@ pub struct DataFileHealth {
     /// What what it keeps takes in it, pages and all.
     pub live_bytes: u64,
     /// What compacting it would give back for good: its size over the size it stays at once
-    /// compacted (`store`'s `settled`: copied, the next power of two over what it keeps; in place,
-    /// what it keeps and what the file had over that after its last compaction, 2% until one has
-    /// measured it, to the end of its last region).
+    /// compacted (`store`'s `settled`: copied, the first size its growth gives over what it
+    /// keeps; in place, what it keeps and what the file had over that after its last compaction,
+    /// 2% until one has measured it, to the end of its last region).
     pub reclaimable: u64,
     /// How many files (messages, lists, documents) it keeps, and their bytes as kept.
     pub files: u64,

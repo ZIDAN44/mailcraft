@@ -81,6 +81,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 - The guests of a repeating meeting told that one occurrence is called off are told which, by its date and time (#235): the message read as if the whole series were cancelled.
 - On Windows, `mailcraft --help` and `mailcraft --version` print in the console MailCraft was started from (#257), where they printed nothing.
 - Where MailCraft's window can't open on Windows Server 2016 or a Windows 10 older than version 1709 without a graphics card to draw with, as over Remote Desktop (#256), the message says that Windows' own software renderer is too old to draw MailCraft there, and no longer suggests the setting that draws with it.
+- What **Compact** says it gives back is what it gives back again, and a compacted data file no longer grows at its next write (#259). Data files are kept with redb 4.6.0, which no longer opens a data file damaged in its last save as an empty one.
 
 ## 0.41.0 - 2026-11-20
 

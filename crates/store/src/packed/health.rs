@@ -15,6 +15,8 @@
 use mailcraft_model::job::{DOUBLES_BELOW, PACE_ONE, compacts_by_copy};
 use redb::ReadableTableMetadata;
 
+use super::shrink::COPY_GROWN_PAGES;
+
 use super::*;
 
 /// How the data file was written, a few values by name. Old files have none, and old builds
@@ -254,16 +256,23 @@ impl Packs {
 
 /// The size a data file keeping `live` bytes (the walk's count) stays at once compacted, which
 /// what it can give back is counted against (issue #221: the card counted what its database
-/// adds back at once). One that [`compacts_by_copy`] lands on the next power of two
-/// over that and its tree's 2% (its database doubles it as it's written: measured, 915 MB kept
-/// made a file of 1,078 MB). Past it, compacted in place: that and what the file had over it
-/// after its last compaction (`overhead`, millionths of it; 2% until one has measured it), to
-/// the end of the region it ends in, which the database fills out again at once (measured:
-/// 11.2 GB kept, 17.2 GB compacted to 12.88 GB, three regions).
+/// adds back at once). One that [`compacts_by_copy`] is copied into a file grown first to
+/// [`COPY_GROWN_PAGES`], which its database doubles as it's written: it lands on the first of
+/// those sizes over that and its tree's 2%, and its header page (measured, with 4.5's start:
+/// 915 MB kept made a file of 1,078 MB). Past it, compacted in place: that and what the file had
+/// over it after its last compaction (`overhead`, millionths of it; 2% until one has measured
+/// it), to the end of the region it ends in, which the database fills out again at once
+/// (measured: 11.2 GB kept, 17.2 GB compacted to 12.88 GB, three regions).
 pub(super) fn settled(live: u64, overhead: Option<u64>) -> u64 {
     let with = |ppm: u64| live.saturating_add(u64::try_from(u128::from(live) * u128::from(ppm) / 1_000_000).unwrap_or(u64::MAX));
     if compacts_by_copy(live) {
-        with(OVERHEAD_DEFAULT).checked_next_power_of_two().unwrap_or(u64::MAX)
+        let needed = with(OVERHEAD_DEFAULT);
+        let mut bytes = COPY_GROWN_PAGES * PAGE as u64;
+        // Below 4 GiB (`compacts_by_copy`), so a dozen doublings at most.
+        while bytes < needed && bytes < u64::MAX / 2 {
+            bytes *= 2;
+        }
+        bytes.saturating_add(PAGE as u64)
     } else {
         with(overhead.unwrap_or(OVERHEAD_DEFAULT)).checked_next_multiple_of(DOUBLES_BELOW).unwrap_or(u64::MAX)
     }

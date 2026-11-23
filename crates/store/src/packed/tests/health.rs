@@ -360,12 +360,15 @@ fn a_compaction_sets_the_baseline() {
         s.remove_body(&inbox(uid));
     }
     as_promised(&s);
-    // What a file is counted against: copied (under 4 GiB kept), the next power of two over what
-    // it keeps and its tree's 2%; compacted in place, what it keeps and what the last compaction
-    // measured it had over that (2% until one has), to the end of its region.
+    // What a file is counted against: copied (under 4 GiB kept), the first size its growth from
+    // the pages it's grown to first gives over what it keeps and its tree's 2%, and its header
+    // page; compacted in place, what it keeps and what the last compaction measured it had over
+    // that (2% until one has), to the end of its region.
     let settled = crate::packed::health::settled;
-    assert_eq!(settled(915_000_000, Some(500_000)), 1 << 30, "a copy: what it had is no matter");
-    assert_eq!(settled(3 << 30, None), 4 << 30);
+    let copy = |doublings: u32| super::super::shrink::COPY_GROWN_PAGES * 4096 * (1 << doublings) + 4096;
+    assert_eq!(settled(915_000_000, Some(500_000)), copy(10), "a copy: what it had is no matter");
+    assert_eq!(settled(1_000_000, None), copy(0), "a small one: as it's grown first");
+    assert_eq!(settled(3 << 30, None), copy(12));
     // In place, to the end of the region (4 GiB) it ends in: 6 GiB and 5% in two regions, 7.9
     // GiB and 2% in three.
     let big: u64 = 6 << 30;
