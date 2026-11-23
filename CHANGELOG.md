@@ -86,6 +86,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 - A damaged system font no longer stops MailCraft as it starts: a font file for its interface, Chinese, Japanese and Korean, or Arabic and Hebrew that's empty, cut short, too large or not a font is passed over for the next.
 - On Windows, the Explorer, PowerShell and rundll32 that MailCraft starts (to open a folder, a file or a link, and to install an update) are Windows' own, by their full path: a program of the same name beside a portable MailCraft no longer runs in their place.
 - On a Mac, data files kept on a network share (SMB), and Outlook data files exported or changed there, are written: the full flush the Mac asks for is refused there, and every change failed; a plain one is made then.
+- The browser version's sample server settings send `Cross-Origin-Opener-Policy: same-origin`, so a page opened from MailCraft can't reach its tab, and Apache's sends `nosniff` as the others did.
 
 ## 0.41.0 - 2026-11-20
 
