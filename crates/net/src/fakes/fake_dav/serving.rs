@@ -58,6 +58,11 @@ impl Data {
         if !r.given.is_empty() {
             self.offered += 1;
         }
+        // Bearer token with bearer_forbidden: insufficient OAuth scope (403).
+        if self.bearer.is_some() && self.bearer_forbidden && r.bearer_ok {
+            self.refused += 1;
+            return reply("403 Forbidden");
+        }
         let mut authorized = r.basic_ok || (self.bearer.is_some() && r.bearer_ok);
         if let Some(nonce) = self.digest.clone() {
             authorized = digest_ok(&r.given, &r.method, &r.path, &nonce);

@@ -56,6 +56,8 @@ pub struct Data {
     pub task_list: Option<bool>,
     /// Require a Bearer token (Google Calendar over CalDAV): the token expected.
     pub bearer: Option<String>,
+    /// Refuse a Bearer token with 403 instead of 401 (insufficient OAuth scope).
+    pub bearer_forbidden: bool,
 }
 
 /// Whether an `Authorization` value answers the fake's Digest challenge for this request.

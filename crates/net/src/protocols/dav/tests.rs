@@ -248,3 +248,52 @@ fn real_an_invitations_odd_uid_is_found_where_it_was_stored() {
     let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALDAV: url user password") };
     an_odd_uid_is_found(&Dav::new(user, password), url, &std::process::id().to_string());
 }
+
+/// A Bearer session refused with 403 (insufficient OAuth scope) returns Auth error and no home
+/// is remembered; the same account, once the token is accepted, finds its calendar on the next
+/// sync even though dav_checked is recent.
+#[test]
+fn bearer_403_is_auth_error_and_retries_while_no_home() {
+    use crate::fakes::fake_dav::{USER, serve};
+    use mailcraft_model::zone::Zone;
+
+    let server = serve();
+    let token = "test-token";
+    {
+        let mut d = server.data.lock().unwrap();
+        d.bearer = Some(token.to_string());
+        d.bearer_forbidden = true;
+    }
+
+    let dav = Dav::bearer(token);
+    let caldav_url = format!("{}/dav/", server.base);
+    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), mails: true, ..Default::default() };
+    let mut pim = Pim { dav_checked: Some(100), ..Default::default() };
+    pim.ensure_defaults();
+
+    // First sync: 403 becomes Auth error, no home is saved.
+    let err = sync(&dav, &at, &pim, 200, Zone::UTC).unwrap_err();
+    assert!(matches!(err, NetError::Auth(_)), "403 on Bearer should be Auth: {err:?}");
+    assert!(err.to_string().contains("sign in again"), "error should mention signing in again: {err}");
+
+    // No home was remembered.
+    pim.dav_checked = Some(200);
+    pim.caldav_home = None;
+
+    // Second sync: bearer_forbidden is still true, but dav_checked is recent (200, now 300).
+    // For Bearer with no home, it should still try (not wait a day).
+    let err = sync(&dav, &at, &pim, 300, Zone::UTC).unwrap_err();
+    assert!(matches!(err, NetError::Auth(_)), "should retry on Bearer with no home: {err:?}");
+
+    // Now the token is accepted.
+    {
+        let mut d = server.data.lock().unwrap();
+        d.bearer_forbidden = false;
+    }
+
+    // Third sync: dav_checked is still recent (200, now 400), but Bearer with no home retries.
+    let out = sync(&dav, &at, &pim, 400, Zone::UTC).unwrap();
+    assert!(out.caldav_home.is_some(), "calendar home should be found: {out:?}");
+    assert!(out.caldav_home.as_ref().unwrap().contains("/dav/cal/"), "home: {:?}", out.caldav_home);
+    assert_eq!(out.errors.len(), 0, "no errors: {out:?}");
+}

@@ -51,8 +51,10 @@ impl Run<'_> {
 /// last saved; nothing is written here: the result is for the engine to merge.
 pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::zone::Zone) -> Result<DavSync> {
     let mut out = DavSync::default();
-    // Where the collections live (looked up once; again a day after finding none). An address
-    // the user gave is followed instead of looking, and what's wrong with it is said.
+    // Where the collections live (looked up once; again a day after finding none, or at every
+    // sync for Bearer sessions with no home yet: the user may sign in again with calendar
+    // scope). An address the user gave is followed instead of looking, and what's wrong with it
+    // is said.
     let retry = pim.dav_checked.is_none_or(|t| now.saturating_sub(t) > 86_400);
     // A given address that holds nothing is said once and remembered as none, as one that wasn't
     // found is (looked at again a day on, or when it's changed); a refused sign-in stops the sync.
@@ -71,12 +73,12 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     };
     out.caldav_home = match &pim.caldav_home {
         Some(h) if !h.is_empty() => Some(h.clone()),
-        _ if retry => find(Kind::Calendars, at.caldav, &mut out.errors)?,
+        _ if retry || (dav.is_bearer() && pim.caldav_home.is_none()) => find(Kind::Calendars, at.caldav, &mut out.errors)?,
         _ => None,
     };
     out.carddav_home = match &pim.carddav_home {
         Some(h) if !h.is_empty() && at.contacts => Some(h.clone()),
-        _ if retry && at.contacts => find(Kind::Contacts, at.carddav, &mut out.errors)?,
+        _ if (retry || (dav.is_bearer() && pim.carddav_home.is_none())) && at.contacts => find(Kind::Contacts, at.carddav, &mut out.errors)?,
         _ => None,
     };
     out.checked = now;

@@ -138,6 +138,11 @@ impl Dav {
         Dav { auth: Auth::Bearer(format!("Bearer {token}")), digest: std::sync::Mutex::default(), guard: std::sync::Mutex::default() }
     }
 
+    /// Whether this session signs in with a Bearer token.
+    pub fn is_bearer(&self) -> bool {
+        matches!(self.auth, Auth::Bearer(_))
+    }
+
     /// Looking for the server of the account `email` (its mail server `mail_host`) from here on,
     /// until [`Dav::found`]: the password goes only to a server of the account's that asks for it.
     pub(crate) fn looking_for(&self, email: &str, mail_host: &str) {
@@ -258,10 +263,15 @@ impl Dav {
                 url = format!("{}{}", next.origin(), next.path);
                 continue;
             }
-            // Only 401 is the sign-in refused: a 403 is this request's (a collection the user may
-            // not read), and asking for the password again wouldn't change it.
+            // Only 401 is the sign-in refused for Password auth: a 403 is this request's (a
+            // collection the user may not read), and asking for the password again wouldn't
+            // change it. For Bearer auth, a 403 is insufficient OAuth scope: the user must sign
+            // in again to allow calendar access.
             if resp.status == 401 {
                 return Err(NetError::Auth("the calendar server refused the user name or password".into()));
+            }
+            if resp.status == 403 && self.is_bearer() {
+                return Err(NetError::Auth("the calendar server refused access; sign in again to allow calendar access".into()));
             }
             return Ok((resp, url));
         }
