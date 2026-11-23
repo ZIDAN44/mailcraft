@@ -59,6 +59,7 @@
   <provides>
     <id>ai.storyteller.mailcraft</id>
     <binary>mailcraft</binary>
+    <binary>mailcraft-cli</binary>
     <mediatype>x-scheme-handler/mailto</mediatype>
     <mediatype>message/rfc822</mediatype>
     <mediatype>application/vnd.ms-outlook</mediatype>
