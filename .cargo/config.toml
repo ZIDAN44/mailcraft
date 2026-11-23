@@ -1,2 +1,14 @@
 [alias]
 xtask = "run --package xtask --"
+
+# wgpu's OpenGL backend (glutin_wgl_sys) names opengl32.dll among every binary's imports, so
+# everything that links wgpu loaded it at start, and a process that has loaded it takes longer
+# to end (as PhotoCraft measured): every start and close of MailCraft, which draws with DirectX
+# 12, and every test process. Delay-loaded, it loads on the first OpenGL call, if one comes.
+# Here rather than in a build script, whose link arguments reach only its own package. Cargo
+# joins these with CARGO_TARGET_<triple>_RUSTFLAGS (packaging/windows/package.ps1); only
+# RUSTFLAGS would replace them. apps/mailcraft/tests/windows_delay_loads.rs holds it.
+[target.'cfg(all(windows, target_env = "msvc"))']
+# /IGNORE:4199: a binary without wgpu (xtask, most tests) has no OpenGL import to delay, and the
+# linker said so for each one.
+rustflags = ["-Clink-arg=/DELAYLOAD:opengl32.dll", "-Clink-arg=delayimp.lib", "-Clink-arg=/IGNORE:4199"]

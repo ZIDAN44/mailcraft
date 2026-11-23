@@ -89,6 +89,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 - The browser version's sample server settings send `Cross-Origin-Opener-Policy: same-origin`, so a page opened from MailCraft can't reach its tab, and Apache's sends `nosniff` as the others did.
 - Ctrl+E while typing in the search box selects the search, so what's typed starts a new one, and Rename folder and Edit category open with the name selected, so typing replaces it (it went on the end).
 - A double-click counts as the desktop counts one, up to half a second between the clicks: a relaxed double-click on a message was taken for two clicks, and it didn't open.
+- On Windows, MailCraft and its tests no longer load OpenGL, which they don't use, as they start: each start and close is about 65 ms quicker.
 
 ## 0.41.0 - 2026-11-20
 
