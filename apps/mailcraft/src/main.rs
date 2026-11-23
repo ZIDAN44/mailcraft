@@ -43,6 +43,7 @@ mod startup;
 mod window;
 #[cfg(test)]
 mod windows_manifest;
+mod windows_programs;
 
 /// The system's UI font, if installed (never bundled).
 fn system_fonts() -> (Option<Vec<u8>>, Option<Vec<u8>>) {

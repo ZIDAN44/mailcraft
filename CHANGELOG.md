@@ -84,6 +84,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 - What **Compact** says it gives back is what it gives back again, and a compacted data file no longer grows at its next write (#259). Data files are kept with redb 4.6.0, which no longer opens a data file damaged in its last save as an empty one.
 - What `mailcraft-cli` prints can't drive the terminal: a control character in a subject, a sender's name, a message, a folder's name or a server's error (an escape that recolours, retitles or clears it, a lone carriage return that rewrites a line) is shown as an escape, as `\u{1b}`.
 - A damaged system font no longer stops MailCraft as it starts: a font file for its interface, Chinese, Japanese and Korean, or Arabic and Hebrew that's empty, cut short, too large or not a font is passed over for the next.
+- On Windows, the Explorer, PowerShell and rundll32 that MailCraft starts (to open a folder, a file or a link, and to install an update) are Windows' own, by their full path: a program of the same name beside a portable MailCraft no longer runs in their place.
 
 ## 0.41.0 - 2026-11-20
 

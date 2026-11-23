@@ -374,7 +374,7 @@ impl Services for Desktop {
         // and quietly showed nothing, so sign-in pages never reached the browser.
         #[cfg(windows)]
         if url.starts_with("https://") || url.starts_with("http://") || url.starts_with("mailto:") {
-            return std::process::Command::new("rundll32.exe")
+            return std::process::Command::new(crate::windows_programs::path("rundll32.exe"))
                 .arg("url.dll,FileProtocolHandler")
                 .arg(url)
                 .spawn()
@@ -467,9 +467,18 @@ pub(crate) fn shell_open(target: &std::ffi::OsStr) -> Result<(), String> {
         // A folder opens in Explorer: ShellExec_RunDLL quietly does nothing with one (Options ›
         // Data files › Open folder never opened).
         if std::path::Path::new(target).is_dir() {
-            return std::process::Command::new("explorer.exe").arg(target).spawn().map(drop).map_err(|e| e.to_string());
+            return std::process::Command::new(crate::windows_programs::path("explorer.exe"))
+                .arg(target)
+                .spawn()
+                .map(drop)
+                .map_err(|e| e.to_string());
         }
-        std::process::Command::new("rundll32.exe").arg("shell32.dll,ShellExec_RunDLL").arg(target).spawn().map(drop).map_err(|e| e.to_string())
+        std::process::Command::new(crate::windows_programs::path("rundll32.exe"))
+            .arg("shell32.dll,ShellExec_RunDLL")
+            .arg(target)
+            .spawn()
+            .map(drop)
+            .map_err(|e| e.to_string())
     }
     #[cfg(not(windows))]
     {

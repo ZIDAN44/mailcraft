@@ -138,7 +138,8 @@ const WAIT_SECS: u32 = 120;
 /// writing a transcript to `log`.
 fn windows_helper(pid: u32, step: &str, exe: &Path, restart: bool, log: &Path) -> Result<(), String> {
     let script = windows_script(pid, step, exe, restart, log, WAIT_SECS);
-    let mut cmd = std::process::Command::new("powershell.exe");
+    // By its full path: by name, it was looked for in MailCraft's own folder first.
+    let mut cmd = std::process::Command::new(crate::windows_programs::path(r"WindowsPowerShell\v1.0\powershell.exe"));
     cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-Command", &script]);
     #[cfg(windows)]
     {
