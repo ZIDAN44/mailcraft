@@ -416,8 +416,13 @@ fn say(what: &str) {
     let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("mailcraft: {what}\n"));
 }
 
-/// Tell standard output, as `println!` would without its panic on a closed pipe.
+/// Tell standard output, as `println!` would without its panic on a closed pipe. On Windows the
+/// released app is a window program, with no console of its own: what `--help` and `--version`
+/// printed went nowhere (issue #257), so it goes to the console MailCraft was started from, if any
+/// (failing where there's none, or it has its own: a debug build).
 fn say_out(what: &str) {
+    #[cfg(windows)]
+    let _ = winsafe::AttachConsole(winsafe::PidParent::Parent);
     let _ = std::io::Write::write_fmt(&mut std::io::stdout(), format_args!("{what}\n"));
 }
 

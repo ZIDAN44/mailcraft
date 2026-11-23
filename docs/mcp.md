@@ -5,6 +5,7 @@
 and people, and, with MailCraft open, run its commands once you allow each in MailCraft's window.
 It speaks newline-delimited JSON-RPC 2.0 on stdin and stdout (protocol `2025-06-18`; `2025-03-26`
 and `2024-11-05` clients are answered in theirs); its own messages go to stderr.
+It comes with MailCraft 0.42.0: an older `mailcraft-cli` has no `mcp`.
 
 ## Turning it on
 
