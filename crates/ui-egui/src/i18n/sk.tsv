@@ -286,6 +286,9 @@
 	Keep MailCraft running when its window is closed	Nechať MailCraft spustený aj po zatvorení okna
 	Start MailCraft in the notification area	Spúšťať MailCraft v oblasti oznámení
 	Start MailCraft minimized	Spúšťať MailCraft minimalizovaný
+	Start MailCraft when you sign in	Spúšťať MailCraft pri prihlásení
+	It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below).	Spustí sa, keď sa prihlásite do tohto počítača, a skontroluje poštu. Zobrazí sa aj jeho okno, pokiaľ po zatvorení nezostáva spustený a nespúšťa sa skrytý (nižšie).
+	Starting MailCraft at sign-in couldn't be changed: {error}	Spúšťanie MailCraft pri prihlásení sa nepodarilo zmeniť: {error}
 	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	Kontroluje poštu a oznamuje ju so skrytým oknom, ako keď je zatvorený. Ak sa spustí na otvorenie odkazu alebo súboru, otvorí okno.
 	Show the unread mail on its icon	Zobrazovať neprečítanú poštu na ikone
 	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Počet neprečítaných správ v priečinkoch Doručená pošta, v rohu ikony MailCraftu v oblasti oznámení

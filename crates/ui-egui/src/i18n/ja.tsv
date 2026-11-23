@@ -286,6 +286,9 @@
 	Keep MailCraft running when its window is closed	ウィンドウを閉じても MailCraft を実行したままにする
 	Start MailCraft in the notification area	MailCraft を通知領域で起動する
 	Start MailCraft minimized	MailCraft を最小化して起動する
+	Start MailCraft when you sign in	サインイン時に MailCraft を起動する
+	It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below).	このコンピューターにサインインすると起動し、メールを確認します。閉じても実行したままにし、しまった状態で起動する設定 (下) にしない限り、ウィンドウも表示されます。
+	Starting MailCraft at sign-in couldn't be changed: {error}	サインイン時の MailCraft の起動を変更できませんでした: {error}
 	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	ウィンドウを閉じたときと同じく、ウィンドウをしまったままメールを確認して通知します。リンクやファイルを開くために起動したときはウィンドウを開きます。
 	Show the unread mail on its icon	アイコンに未読メールを表示する
 	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	受信トレイの未読メッセージの数を、通知領域の MailCraft アイコンの隅に表示します

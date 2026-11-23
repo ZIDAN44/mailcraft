@@ -286,6 +286,9 @@
 	Keep MailCraft running when its window is closed	Manter o MailCraft em execução quando a janela for fechada
 	Start MailCraft in the notification area	Iniciar o MailCraft na área de notificação
 	Start MailCraft minimized	Iniciar o MailCraft minimizado
+	Start MailCraft when you sign in	Iniciar o MailCraft ao entrar
+	It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below).	Ele inicia quando você entra neste computador e verifica os emails. A janela também aparece, a menos que ele continue em execução ao ser fechado e inicie oculto (abaixo).
+	Starting MailCraft at sign-in couldn't be changed: {error}	Não foi possível alterar a inicialização do MailCraft ao entrar: {error}
 	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	Ele verifica e-mails e os anuncia com a janela guardada, como quando está fechada. Iniciado para abrir um link ou arquivo, ele abre a janela.
 	Show the unread mail on its icon	Mostrar os e-mails não lidos no ícone
 	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Quantas mensagens não lidas as Caixas de Entrada têm, no canto do ícone do MailCraft na área de notificação

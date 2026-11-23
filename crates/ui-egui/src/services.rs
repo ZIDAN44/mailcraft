@@ -311,6 +311,15 @@ pub trait Services {
     fn kept_on_close(&self) -> Option<KeptOnClose> {
         None
     }
+    /// Whether MailCraft starts as the user signs in to the computer (issue #87), as the system
+    /// has it; none: it can't be set from here (the browser, a portable copy, a sandbox).
+    fn starts_at_sign_in(&self) -> Option<bool> {
+        None
+    }
+    /// MailCraft made to start as the user signs in, or not.
+    fn set_start_at_sign_in(&mut self, _on: bool) -> Result<(), String> {
+        Err("MailCraft can't start at sign-in from here".into())
+    }
     /// Whether files can be dragged out of the window to other apps (see
     /// [`MailApp::take_drag_out`](crate::MailApp::take_drag_out)).
     fn can_drag_out(&self) -> bool {

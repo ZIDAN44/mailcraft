@@ -286,6 +286,9 @@
 	Keep MailCraft running when its window is closed	Penceresi kapatıldığında MailCraft çalışmaya devam etsin
 	Start MailCraft in the notification area	MailCraft'ı bildirim alanında başlat
 	Start MailCraft minimized	MailCraft'ı simge durumunda başlat
+	Start MailCraft when you sign in	Oturum açıldığında MailCraft'ı başlat
+	It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below).	Bu bilgisayarda oturum açtığınızda başlar ve postaları denetler. Kapatıldıktan sonra çalışmaya devam edip gizli başlamadıkça (aşağıda) penceresi de açılır.
+	Starting MailCraft at sign-in couldn't be changed: {error}	MailCraft'ın oturum açılışında başlaması değiştirilemedi: {error}
 	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	Penceresi kapatıldığındaki gibi kaldırılmışken postayı denetler ve duyurur. Bir bağlantıyı veya dosyayı açmak için başlatıldığında pencereyi açar.
 	Show the unread mail on its icon	Okunmamış postayı simgesinde göster
 	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Gelen Kutularındaki okunmamış ileti sayısı, bildirim alanındaki MailCraft simgesinin köşesinde

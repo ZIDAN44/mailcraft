@@ -86,6 +86,9 @@ pub struct UiState {
     /// Whether MailCraft can keep running with its window closed (the desktop app), and what
     /// becomes of the window then; looked up at every frame.
     pub keeps_running: Option<KeptOnClose>,
+    /// Whether MailCraft starts as the user signs in, as the system has it (issue #87); none:
+    /// it can't be set from here.
+    pub(crate) at_sign_in: Option<bool>,
     /// The window was closed to the notification area and is hidden.
     pub(crate) in_tray: bool,
     /// MailCraft minimized the window itself (closed to the Dock or the taskbar, or started put

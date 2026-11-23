@@ -41,8 +41,8 @@ pub(crate) struct Desktop {
     pub(crate) base: Option<PathBuf>,
     /// How a move carried out at this start went (told once).
     pub(crate) moved: Option<Result<PathBuf, String>>,
-    /// Portable mode (`portable.rs`): MailCraft's name isn't written to Windows' registry.
-    #[cfg(windows)]
+    /// Portable mode (`portable.rs`): MailCraft's name isn't written to Windows' registry, nor
+    /// is an entry that starts it at sign-in made.
     pub(crate) portable: bool,
     /// Test builds' updater (`self_update.rs`), when this one has it.
     pub(crate) updater: Option<self_update::Updater>,
@@ -301,6 +301,12 @@ impl Services for Desktop {
     }
     fn kept_on_close(&self) -> Option<mailcraft_ui_egui::KeptOnClose> {
         tray::kept_on_close()
+    }
+    fn starts_at_sign_in(&self) -> Option<bool> {
+        crate::platform::sign_in::offered(self.portable).then(crate::platform::sign_in::on)
+    }
+    fn set_start_at_sign_in(&mut self, on: bool) -> Result<(), String> {
+        crate::platform::sign_in::set(on)
     }
     fn can_drag_out(&self) -> bool {
         // Elsewhere, from a window on X11 only (a Wayland window isn't an X window). That's the

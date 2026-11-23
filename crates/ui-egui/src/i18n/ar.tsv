@@ -286,6 +286,9 @@
 	Keep MailCraft running when its window is closed	إبقاء MailCraft قيد التشغيل عند إغلاق نافذته
 	Start MailCraft in the notification area	تشغيل MailCraft في منطقة الإعلامات
 	Start MailCraft minimized	تشغيل MailCraft مصغّرًا
+	Start MailCraft when you sign in	تشغيل MailCraft عند تسجيل الدخول
+	It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below).	يبدأ عند تسجيل دخولك إلى هذا الكمبيوتر ويتحقق من البريد. تظهر نافذته أيضًا، ما لم يكن قيد التشغيل بعد الإغلاق ويبدأ مخفيًا (أدناه).
+	Starting MailCraft at sign-in couldn't be changed: {error}	تعذّر تغيير تشغيل MailCraft عند تسجيل الدخول: {error}
 	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	يتحقق من البريد ويعلن عنه ونافذته مخفية، كما لو كانت مغلقة. وإذا شُغّل لفتح رابط أو ملف، فإنه يفتح النافذة.
 	Show the unread mail on its icon	إظهار البريد غير المقروء على أيقونته
 	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	عدد الرسائل غير المقروءة في صناديق الوارد، في زاوية أيقونة MailCraft في منطقة الإعلامات

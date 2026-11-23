@@ -286,6 +286,9 @@
 	Keep MailCraft running when its window is closed	关闭窗口后让 MailCraft 继续运行
 	Start MailCraft in the notification area	在通知区域启动 MailCraft
 	Start MailCraft minimized	以最小化方式启动 MailCraft
+	Start MailCraft when you sign in	登录时启动 MailCraft
+	It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below).	登录这台电脑时启动并检查邮件。除非设为关闭后继续运行并以收起方式启动（见下方），否则窗口也会打开。
+	Starting MailCraft at sign-in couldn't be changed: {error}	无法更改登录时启动 MailCraft：{error}
 	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	它会像关闭窗口时一样，在窗口收起的情况下检查并提示新邮件。为打开链接或文件而启动时，它会打开窗口。
 	Show the unread mail on its icon	在图标上显示未读邮件
 	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	收件箱中未读邮件的数量，显示在通知区域中 MailCraft 图标的角上

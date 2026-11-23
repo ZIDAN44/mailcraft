@@ -64,6 +64,8 @@ pub enum Action {
     /// Search every folder for this (shown in the box, with the Search tab).
     Search(String),
     SetDark(Option<bool>),
+    /// MailCraft made to start as the user signs in, or not (issue #87).
+    StartAtSignIn(bool),
     /// Print the open message (as a PDF opened in the system's viewer).
     Print,
     /// Save the open message as a PDF, or as its `.eml` source.
@@ -314,6 +316,11 @@ impl MailApp {
                     self.ui.dark = d;
                 }
             }
+            // The switch then says what the system has, read back.
+            Action::StartAtSignIn(on) => match self.services.set_start_at_sign_in(on) {
+                Ok(()) => self.ui.at_sign_in = self.services.starts_at_sign_in(),
+                Err(e) => self.session.notice(tf!("Starting MailCraft at sign-in couldn't be changed: {error}", error = e), true),
+            },
             Action::ShowFormatted(key, on) => self.ui.shown_as.set(&key, on, self.session.prefs.show_html),
             Action::SetLanguage(l) => {
                 if !self.session.org.language.as_ref().is_some_and(|g| g.locked) {

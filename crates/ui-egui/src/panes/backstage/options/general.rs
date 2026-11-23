@@ -101,6 +101,19 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 acts.push(Action::Run("view.dateFormat", json!({"fullInList": v})));
             }
         });
+        // Issue #87: as the system has it, read back after each change (not a setting of MailCraft's).
+        if let Some(on) = st.at_sign_in {
+            let label = tl!("Start MailCraft when you sign in");
+            let about = tl!(
+                "It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below)."
+            );
+            setting(ui, &t, false, label, Some(about), |ui| {
+                let mut v = on;
+                if widgets::switch(ui, &t, &mut v, label).changed() {
+                    acts.push(Action::StartAtSignIn(v));
+                }
+            });
+        }
         if let Some(kept) = st.keeps_running {
             let about = match kept {
                 crate::KeptOnClose::Hidden => {

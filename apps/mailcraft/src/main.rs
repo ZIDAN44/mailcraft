@@ -560,7 +560,6 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                         data: desktop_data,
                         base,
                         moved,
-                        #[cfg(windows)]
                         portable: app_portable,
                         updater: updater.clone(),
                         own_title_bar,

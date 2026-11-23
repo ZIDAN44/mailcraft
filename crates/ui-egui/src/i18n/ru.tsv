@@ -286,6 +286,9 @@
 	Keep MailCraft running when its window is closed	Не завершать MailCraft при закрытии окна
 	Start MailCraft in the notification area	Запускать MailCraft в области уведомлений
 	Start MailCraft minimized	Запускать MailCraft свёрнутым
+	Start MailCraft when you sign in	Запускать MailCraft при входе в систему
+	It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below).	Запускается при входе в этот компьютер и проверяет почту. Окно тоже открывается, если только MailCraft не остаётся работать после закрытия и не запускается скрытым (ниже).
+	Starting MailCraft at sign-in couldn't be changed: {error}	Не удалось изменить запуск MailCraft при входе в систему: {error}
 	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	Он проверяет почту и сообщает о ней, пока окно убрано, как после закрытия. Запущенный, чтобы открыть ссылку или файл, он открывает окно.
 	Show the unread mail on its icon	Показывать непрочитанную почту на значке
 	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Сколько непрочитанных писем во входящих — в углу значка MailCraft в области уведомлений
