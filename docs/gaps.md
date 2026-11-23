@@ -260,6 +260,15 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** The interface font waits for fonts to be chosen at all (#166); a mirror for updates
   being signed (#233). Locks are a program's own, which its user's system can override.
 
+### 22. Work and school accounts: Need admin approval
+
+- **Impact:** Where an organisation lets people approve only apps from a verified publisher,
+  **Sign in with Microsoft** stops at **Need admin approval**, and the account can't be added.
+- **Workaround:** An administrator approves MailCraft once for everyone, or the organisation
+  gives its own app in its profile ([how](oauth.md#your-organisation-needs-to-approve-mailcraft)).
+- **Cause:** MailCraft's Microsoft app has no verified publisher. That takes a publisher verified
+  in Microsoft's partner programme.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

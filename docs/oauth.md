@@ -2,7 +2,8 @@
 
 A build of MailCraft offers **Sign in with Microsoft** and **Sign in with Google** only when it
 carries a registered app. This page is for whoever builds or ships MailCraft, for users adding a
-Gmail or Google Workspace account, and for users whose Outlook.com account won't connect.
+Gmail or Google Workspace account, for users whose Outlook.com account won't connect, and for
+organisations whose work or school accounts need MailCraft approved.
 
 Microsoft and Google ask mail apps to sign in through the browser. MailCraft does this the way
 RFC 8252 describes for native apps, with PKCE (RFC 7636): a one-time code that stops another
@@ -33,19 +34,43 @@ program from taking over the sign-in.
    - Don't create a secret.
 
    If sign-in shows `AADSTS50011`, these redirect URIs are wrong.
-3. Leave **API permissions** empty. The user approves the scopes when signing in:
-   - IMAP and SMTP at `outlook.office.com`, with `offline_access`.
-   - For Microsoft Graph: `Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite`,
-     `Calendars.ReadWrite`, `Calendars.Read.Shared` and `Contacts.ReadWrite`.
+3. Leave **API permissions** empty. The user approves the permissions as they sign in, each
+   sign-in asking for its own:
+   - An account over IMAP: `IMAP.AccessAsUser.All` and `SMTP.Send` at `outlook.office.com`.
+   - An account through Microsoft Graph: `Mail.ReadWrite`, `Mail.Send`,
+     `MailboxSettings.ReadWrite`, `Calendars.ReadWrite`, `Calendars.ReadWrite.Shared` and
+     `Contacts.ReadWrite`.
+   - Searching a work or school directory, asked the first time someone allows it:
+     `User.ReadBasic.All` and `People.Read`.
+
+   Each also asks for `offline_access`, so the sign-in lasts. A sign-in in the browser also
+   asks for `openid` and `email`, so MailCraft can tell which account signed in.
 4. Put the client ID in `MAILCRAFT_MICROSOFT_CLIENT_ID`.
 
 Two kinds of account need more:
 
-- **Work and school accounts** often need a verified publisher, or an administrator's approval.
+- **Work and school accounts:** many organisations let people approve only apps from a
+  verified publisher. Their people see **Need admin approval** instead of the permissions. The
+  app registered above has no verified publisher until its owner verifies one through
+  Microsoft's partner programme. Until then, see
+  [Your organisation needs to approve MailCraft](#your-organisation-needs-to-approve-mailcraft).
 - **Personal accounts on another provider's address** (for example Gmail) have a hidden
   `outlook_…@outlook.com` mailbox, and SMTP refuses it with `535 5.7.3`. Make an Outlook.com
   address the account's **primary alias** at account.live.com, then add the account with that
   address.
+
+### An organisation's own app
+
+An organisation can register MailCraft in its own directory and give that app to its people
+through its [profile](organisations.md) (`accounts.microsoft`). Its accounts then sign in through
+that app, whichever build of MailCraft they use. Once an administrator has granted its
+permissions for everyone, no one is asked to approve it:
+
+1. Register the app as above, but choose accounts in this organizational directory only.
+2. Under **API permissions**, add the Microsoft Graph and Office 365 Exchange Online permissions
+   listed above that your accounts need, then choose **Grant admin consent**.
+3. In the profile, give the app's client ID as `clientId`, and the directory's ID or one of its
+   domains as `tenant`.
 
 ## Gmail and Google Workspace
 
@@ -110,3 +135,20 @@ IMAP is turned off for the account, or the browser signed in as a different acco
 
 Or choose **Use Microsoft Graph** instead. It needs no IMAP, and it adds your calendar and
 contacts.
+
+## Your organisation needs to approve MailCraft
+
+A work or school account may show **Need admin approval** at Microsoft's sign-in: the
+organisation lets people approve only apps it trusts. MailCraft can't get past this. Ask your IT
+department for one of these:
+
+- **Approve MailCraft for everyone.** An administrator chooses **Have an admin account? Sign in
+  with that account** on that page, and approves for the whole organisation. That approves what
+  this sign-in asked for. Searching the directory has a sign-in of its own, the first time
+  someone chooses **Allow searching the directory…**, and is approved the same way, once.
+- **Use the organisation's own app**, given to everyone in its profile: see
+  [An organisation's own app](#an-organisations-own-app).
+
+Exchange Online can also have IMAP or authenticated SMTP turned off for the organisation. An
+account through Microsoft Graph needs neither: `graph` among the domain's servers in the
+profile, or **Use Microsoft Graph** on the account.
