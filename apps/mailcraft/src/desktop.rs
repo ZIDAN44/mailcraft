@@ -257,7 +257,7 @@ impl Services for Desktop {
             }
             candidates.push((PathBuf::from("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"), 0));
         }
-        candidates.iter().find_map(|(p, i)| std::fs::read(p).ok().map(|b| (b, *i)))
+        fonts::first_readable(candidates)
     }
     fn rtl_font(&mut self) -> Option<Vec<u8>> {
         // Fonts with both Arabic and Hebrew first.
@@ -279,7 +279,7 @@ impl Services for Desktop {
             .map(PathBuf::from)
             .into()
         };
-        candidates.iter().find_map(|p| std::fs::read(p).ok())
+        fonts::first_readable(candidates.into_iter().map(|p| (p, 0))).map(|(bytes, _)| bytes)
     }
     fn keeps_running(&self) -> Option<mailcraft_ui_egui::KeptOnClose> {
         tray::offered()

@@ -61,9 +61,10 @@ fn system_fonts() -> (Option<Vec<u8>>, Option<Vec<u8>>) {
         };
         places.iter().map(|(r, b)| (PathBuf::from(r), PathBuf::from(b))).collect()
     };
+    // A damaged file is passed over for the next (egui stopped MailCraft on it, at every start).
     for (r, b) in candidates {
-        if let Ok(reg) = std::fs::read(r) {
-            return (Some(reg), std::fs::read(b).ok());
+        if let Some((reg, _)) = desktop::fonts::first_readable([(r, 0)]) {
+            return (Some(reg), desktop::fonts::first_readable([(b, 0)]).map(|(bold, _)| bold));
         }
     }
     (None, None)

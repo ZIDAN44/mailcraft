@@ -35,11 +35,36 @@ impl FontSource for CatalogFonts {
     }
 }
 
+/// The largest system font file read: a CJK collection is about 20 MB, Windows' largest about 40.
+const SYSTEM_FONT_MAX: u64 = 96 << 20;
+
+/// The first of `candidates` (a file, and the face in it) that can be read whole and has that
+/// face as egui reads it. A file that's empty, cut short, too large or not a font, or a collection
+/// without the face, is passed over for the next one: taken as it was, egui stopped MailCraft as
+/// it started, every time (as CADCraft found with its CJK fonts).
+pub(crate) fn first_readable(candidates: impl IntoIterator<Item = (std::path::PathBuf, u32)>) -> Option<(Vec<u8>, u32)> {
+    candidates.into_iter().find_map(|(path, index)| {
+        if std::fs::metadata(&path).ok()?.len() > SYSTEM_FONT_MAX {
+            log::warn!("fonts: {} is too large to be a font", path.display());
+            return None;
+        }
+        let bytes = std::fs::read(&path).ok()?;
+        if !readable(&bytes, index) {
+            log::warn!("fonts: {} isn't a font MailCraft can read (face {index}); another is used", path.display());
+            return None;
+        }
+        Some((bytes, index))
+    })
+}
+
 /// Whether egui reads face `index` of `bytes`: as it does, with its own skrifa (the same
 /// version, which the test below holds). A file it can't read stops egui, and MailCraft with it;
 /// one damaged on the disk is left out instead.
 fn readable(bytes: &[u8], index: u32) -> bool {
-    skrifa::FontRef::from_index(bytes, index).is_ok()
+    let Ok(font) = skrifa::FontRef::from_index(bytes, index) else { return false };
+    // And every table it lists is in the file: skrifa reads them only as they're used, so a
+    // file cut short was taken, and its letters drew as nothing.
+    font.table_directory.table_records().iter().all(|r| font.table_data(r.tag()).is_some())
 }
 
 /// The tables of black-and-white or grey bitmaps a face carries for some sizes (`EBDT`, `EBLC`,
@@ -98,6 +123,34 @@ fn sfnt(version: u32, tables: &[(skrifa::raw::types::Tag, u32, &[u8])]) -> Optio
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The computer's fonts for the interface (its own, Chinese, Japanese and Korean, Arabic and
+    /// Hebrew): a file that's empty, cut short or not a font, one too large, or a collection
+    /// without the face asked for, is passed over for the next candidate. Taken as it was, egui
+    /// stopped MailCraft as it started, every time (as CADCraft found).
+    #[test]
+    fn a_damaged_system_font_is_passed_over() {
+        let dir = std::env::temp_dir().join(format!("mailcraft-fonts-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (good, _) = with_a_bitmap();
+        let file = |name: &str, bytes: &[u8]| {
+            let p = dir.join(name);
+            std::fs::write(&p, bytes).unwrap();
+            p
+        };
+        let empty = file("empty.ttf", b"");
+        let junk = file("junk.ttf", b"<html>not found</html>");
+        let cut = file("cut.ttf", &good[..good.len() / 3]);
+        let font = file("good.ttf", &good);
+        let missing = dir.join("missing.ttf");
+        let big = file("big.ttf", b"");
+        std::fs::File::options().write(true).open(&big).unwrap().set_len(SYSTEM_FONT_MAX + 1).unwrap();
+        let candidates = [(missing, 0), (empty, 0), (junk, 0), (cut, 0), (big, 0), (font.clone(), 1), (font, 0)];
+        let (bytes, index) = first_readable(candidates).expect("the good one");
+        assert_eq!((bytes.as_slice(), index), (good.as_slice(), 0), "face 1 isn't in it either");
+        assert!(first_readable([(dir.join("empty.ttf"), 0)]).is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     /// A damaged font file, or one that isn't a font, is never handed to egui; nor a face its
     /// file doesn't have.
