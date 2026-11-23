@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The English strings of MailCraft's Group Policy template (MailCraft.admx). -->
+<policyDefinitionResources xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <displayName>MailCraft</displayName>
+  <description>MailCraft's settings for an organisation: a profile of defaults and locks, and the policies set most often.</description>
+  <resources>
+    <stringTable>
+      <string id="MailCraft">MailCraft</string>
+      <string id="SUPPORTED_MailCraft_0_42">MailCraft 0.42 and later</string>
+      <string id="Profile">Organisation profile</string>
+      <string id="Profile_Help">The whole profile, as JSON: the look, settings as defaults or locked, the servers of the organisation's mail domains, a signature and a disclaimer, and the policies. Its format is in MailCraft's docs/organisations.md. The other policies here are set over it.</string>
+      <string id="ProfileFile">Organisation profile file</string>
+      <string id="ProfileFile_Help">The full path of a profile file (JSON), for instance on a share every computer reads. Only administrators should be able to change that file. The Organisation profile policy is set over it.</string>
+      <string id="Organisation">Organisation's name</string>
+      <string id="Organisation_Help">The organisation's name, shown in File › About beside MailCraft's, and who to ask about a setting it locked.</string>
+      <string id="Updates">Updates</string>
+      <string id="Updates_Help">Whether MailCraft updates itself: never (the organisation deploys new versions), with releases only, or as the copy was installed. People can't change it.</string>
+      <string id="Updates_Off">Never</string>
+      <string id="Updates_Stable">Releases only</string>
+      <string id="Updates_On">As installed</string>
+      <string id="RequireEncryption">Encrypted connections only</string>
+      <string id="RequireEncryption_Help">Enabled: no account connects to its servers without encryption, and none can be set up that would. An existing account that would is held back, and says why.</string>
+      <string id="NoCertificateExceptions">No certificate trusted by hand</string>
+      <string id="NoCertificateExceptions_Help">Enabled: no one can trust a server's certificate by its fingerprint or from a file, and those trusted so before aren't used. Certificates the computer trusts (the organisation's own authority among them) still are.</string>
+      <string id="NoWebPictures">Pictures from the web never load by themselves</string>
+      <string id="NoWebPictures_Help">Enabled: pictures from the web in mail load only when someone asks, for that one message; never by themselves, nor for any sender, trusted or safe.</string>
+      <string id="AIAgents">AI agents</string>
+      <string id="AIAgents_Help">What AI assistants on the computer may do with MailCraft: nothing, read only, or ask in MailCraft's window before each command. People can't change it.</string>
+      <string id="AIAgents_Off">Nothing</string>
+      <string id="AIAgents_Read">Read only</string>
+      <string id="AIAgents_Ask">Read, and ask before each command</string>
+    </stringTable>
+    <presentationTable>
+      <presentation id="Profile">
+        <multiTextBox refId="Profile">Profile (JSON):</multiTextBox>
+      </presentation>
+      <presentation id="ProfileFile">
+        <textBox refId="ProfileFile"><label>Path of the profile file:</label></textBox>
+      </presentation>
+      <presentation id="Organisation">
+        <textBox refId="Organisation"><label>Name:</label></textBox>
+        <textBox refId="Contact"><label>Who to ask (a help desk's address or number):</label></textBox>
+      </presentation>
+      <presentation id="Updates">
+        <dropdownList refId="Updates" noSort="true" defaultItem="0">MailCraft updates itself:</dropdownList>
+      </presentation>
+      <presentation id="AIAgents">
+        <dropdownList refId="AIAgents" noSort="true" defaultItem="0">AI agents may:</dropdownList>
+      </presentation>
+    </presentationTable>
+  </resources>
+</policyDefinitionResources>

@@ -28,6 +28,16 @@ aes-gcm = { version = "0.10", default-features = false, features = ["aes", "allo
 pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
 sha2 = "0.11"
 
+# An organisation's profile (issue #245): Group Policy's registry key, and a macOS configuration
+# profile (a property list).
+[target.'cfg(windows)'.dependencies]
+windows-registry = "0.100"
+[target.'cfg(target_os = "macos")'.dependencies]
+craft-plist = { workspace = true }
+# The property list reading is tested on Linux and the BSDs too.
+[target.'cfg(unix)'.dev-dependencies]
+craft-plist = { workspace = true }
+
 [features]
 # The big made-up mailbox (`sample::big`), for the tests of the crates over the engine: the
 # interface's, which turn it on. Not in the app.

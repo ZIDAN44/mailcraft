@@ -35,6 +35,8 @@ craft-docpath = { git = "https://github.com/storytold/craft-libs", rev = "b24eba
 craft-mcp-server = { git = "https://github.com/storytold/craft-libs", rev = "b24eba64758f1b9135e7a3afab1af88260f9323b" }
 craft-font-catalog = { git = "https://github.com/storytold/craft-libs", rev = "b24eba64758f1b9135e7a3afab1af88260f9323b", default-features = false }
 craft-proof = { git = "https://github.com/storytold/craft-libs", rev = "b24eba64758f1b9135e7a3afab1af88260f9323b" }
+# macOS configuration profiles, read for an organisation's profile (issue #245).
+craft-plist = { git = "https://github.com/storytold/craft-libs", rev = "b24eba64758f1b9135e7a3afab1af88260f9323b" }
 
 # foundation
 thiserror = "2"

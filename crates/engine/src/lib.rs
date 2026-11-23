@@ -14,6 +14,7 @@
 pub mod agents;
 pub mod backup;
 pub mod cmd;
+pub mod policy;
 pub mod sample;
 mod session;
 

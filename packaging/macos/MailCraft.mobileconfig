@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- A sample configuration profile for MailCraft (issue #245): an MDM installs it, and macOS keeps
+     its settings in /Library/Managed Preferences/io.github.zidan44.MailCraft.plist, where MailCraft
+     reads them as it starts. Change the organisation's name, its mail domain and servers, and the
+     UUIDs (each profile its own); keep or remove what you need. docs/organisations.md has every key. -->
+<plist version="1.0">
+<dict>
+  <key>PayloadDisplayName</key>
+  <string>MailCraft for Contoso</string>
+  <key>PayloadIdentifier</key>
+  <string>example.contoso.mailcraft</string>
+  <key>PayloadType</key>
+  <string>Configuration</string>
+  <key>PayloadUUID</key>
+  <string>6F0E5A0C-2B7D-4C1E-9A43-2F6A1D8B0C11</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+  <key>PayloadScope</key>
+  <string>System</string>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadDisplayName</key>
+      <string>MailCraft</string>
+      <key>PayloadIdentifier</key>
+      <string>example.contoso.mailcraft.settings</string>
+      <key>PayloadType</key>
+      <string>io.github.zidan44.MailCraft</string>
+      <key>PayloadUUID</key>
+      <string>1C9D7B52-8E3F-4A60-B5D2-7E4F0A6C3D22</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+      <!-- The policies set most often, one key each. -->
+      <key>Organisation</key>
+      <string>Contoso</string>
+      <key>Contact</key>
+      <string>IT help desk, extension 4000</string>
+      <key>Updates</key>
+      <string>off</string>
+      <key>RequireEncryption</key>
+      <true/>
+      <key>CertificateExceptions</key>
+      <false/>
+      <key>WebPictures</key>
+      <false/>
+      <key>AIAgents</key>
+      <string>read</string>
+      <!-- The rest of a profile, as its own keys (the same as policies.json's). -->
+      <key>settings</key>
+      <dict>
+        <key>accent</key>
+        <string>#0f6cbd</string>
+        <key>plainTopBar</key>
+        <dict>
+          <key>value</key>
+          <true/>
+          <key>locked</key>
+          <true/>
+        </dict>
+      </dict>
+      <key>accounts</key>
+      <dict>
+        <key>servers</key>
+        <dict>
+          <key>contoso.example</key>
+          <dict>
+            <key>imap</key>
+            <string>mail.contoso.example:993:tls</string>
+            <key>smtp</key>
+            <string>mail.contoso.example:587:starttls</string>
+            <key>caldav</key>
+            <string>https://mail.contoso.example/SOGo/dav/</string>
+          </dict>
+        </dict>
+      </dict>
+      <key>signature</key>
+      <dict>
+        <key>name</key>
+        <string>Contoso</string>
+        <key>text</key>
+        <string>{name}
+{title}, {department}
+Contoso · Phone {phone}</string>
+        <key>locked</key>
+        <true/>
+      </dict>
+    </dict>
+  </array>
+</dict>
+</plist>

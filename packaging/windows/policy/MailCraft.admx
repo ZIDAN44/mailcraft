@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- MailCraft's Group Policy template (issue #245): copy it to PolicyDefinitions (with en-US\MailCraft.adml beside it in en-US),
+     or to the domain's Central Store. Each policy writes a value under Software\Policies\MailCraft, the computer's or the user's;
+     docs/organisations.md says what each means and how a whole profile is written. -->
+<policyDefinitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" revision="1.0" schemaVersion="1.0" xmlns="http://schemas.microsoft.com/GroupPolicy/2006/07/PolicyDefinitions">
+  <policyNamespaces>
+    <target prefix="mailcraft" namespace="io.github.zidan44.MailCraft.Policies" />
+  </policyNamespaces>
+  <resources minRequiredRevision="1.0" />
+  <supportedOn>
+    <definitions>
+      <definition name="SUPPORTED_MailCraft_0_42" displayName="$(string.SUPPORTED_MailCraft_0_42)" />
+    </definitions>
+  </supportedOn>
+  <categories>
+    <category name="MailCraft" displayName="$(string.MailCraft)" />
+  </categories>
+  <policies>
+    <policy name="Profile" class="Both" displayName="$(string.Profile)" explainText="$(string.Profile_Help)" presentation="$(presentation.Profile)" key="Software\Policies\MailCraft">
+      <parentCategory ref="MailCraft" />
+      <supportedOn ref="SUPPORTED_MailCraft_0_42" />
+      <elements>
+        <multiText id="Profile" valueName="Profile" maxLength="1048576" maxStrings="10000" />
+      </elements>
+    </policy>
+    <policy name="ProfileFile" class="Both" displayName="$(string.ProfileFile)" explainText="$(string.ProfileFile_Help)" presentation="$(presentation.ProfileFile)" key="Software\Policies\MailCraft">
+      <parentCategory ref="MailCraft" />
+      <supportedOn ref="SUPPORTED_MailCraft_0_42" />
+      <elements>
+        <text id="ProfileFile" valueName="ProfileFile" maxLength="2048" required="true" />
+      </elements>
+    </policy>
+    <policy name="Organisation" class="Both" displayName="$(string.Organisation)" explainText="$(string.Organisation_Help)" presentation="$(presentation.Organisation)" key="Software\Policies\MailCraft">
+      <parentCategory ref="MailCraft" />
+      <supportedOn ref="SUPPORTED_MailCraft_0_42" />
+      <elements>
+        <text id="Organisation" valueName="Organisation" maxLength="200" required="true" />
+        <text id="Contact" valueName="Contact" maxLength="500" />
+      </elements>
+    </policy>
+    <policy name="Updates" class="Both" displayName="$(string.Updates)" explainText="$(string.Updates_Help)" presentation="$(presentation.Updates)" key="Software\Policies\MailCraft">
+      <parentCategory ref="MailCraft" />
+      <supportedOn ref="SUPPORTED_MailCraft_0_42" />
+      <elements>
+        <enum id="Updates" valueName="Updates" required="true">
+          <item displayName="$(string.Updates_Off)"><value><string>off</string></value></item>
+          <item displayName="$(string.Updates_Stable)"><value><string>stable</string></value></item>
+          <item displayName="$(string.Updates_On)"><value><string>on</string></value></item>
+        </enum>
+      </elements>
+    </policy>
+    <policy name="RequireEncryption" class="Both" displayName="$(string.RequireEncryption)" explainText="$(string.RequireEncryption_Help)" key="Software\Policies\MailCraft" valueName="RequireEncryption">
+      <parentCategory ref="MailCraft" />
+      <supportedOn ref="SUPPORTED_MailCraft_0_42" />
+      <enabledValue><decimal value="1" /></enabledValue>
+      <disabledValue><decimal value="0" /></disabledValue>
+    </policy>
+    <policy name="NoCertificateExceptions" class="Both" displayName="$(string.NoCertificateExceptions)" explainText="$(string.NoCertificateExceptions_Help)" key="Software\Policies\MailCraft" valueName="CertificateExceptions">
+      <parentCategory ref="MailCraft" />
+      <supportedOn ref="SUPPORTED_MailCraft_0_42" />
+      <enabledValue><decimal value="0" /></enabledValue>
+      <disabledValue><decimal value="1" /></disabledValue>
+    </policy>
+    <policy name="NoWebPictures" class="Both" displayName="$(string.NoWebPictures)" explainText="$(string.NoWebPictures_Help)" key="Software\Policies\MailCraft" valueName="WebPictures">
+      <parentCategory ref="MailCraft" />
+      <supportedOn ref="SUPPORTED_MailCraft_0_42" />
+      <enabledValue><decimal value="0" /></enabledValue>
+      <disabledValue><decimal value="1" /></disabledValue>
+    </policy>
+    <policy name="AIAgents" class="Both" displayName="$(string.AIAgents)" explainText="$(string.AIAgents_Help)" presentation="$(presentation.AIAgents)" key="Software\Policies\MailCraft">
+      <parentCategory ref="MailCraft" />
+      <supportedOn ref="SUPPORTED_MailCraft_0_42" />
+      <elements>
+        <enum id="AIAgents" valueName="AIAgents" required="true">
+          <item displayName="$(string.AIAgents_Off)"><value><string>off</string></value></item>
+          <item displayName="$(string.AIAgents_Read)"><value><string>read</string></value></item>
+          <item displayName="$(string.AIAgents_Ask)"><value><string>ask</string></value></item>
+        </enum>
+      </elements>
+    </policy>
+  </policies>
+</policyDefinitions>
