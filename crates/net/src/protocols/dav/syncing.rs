@@ -73,7 +73,7 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     };
     out.caldav_home = match &pim.caldav_home {
         Some(h) if !h.is_empty() => Some(h.clone()),
-        _ if retry || (dav.is_bearer() && pim.caldav_home.is_none()) => find(Kind::Calendars, at.caldav, &mut out.errors)?,
+        _ if retry || (dav.is_bearer() && pim.caldav_home.as_deref().is_none_or(str::is_empty)) => find(Kind::Calendars, at.caldav, &mut out.errors)?,
         _ => None,
     };
     out.carddav_home = match &pim.carddav_home {

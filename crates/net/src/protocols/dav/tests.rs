@@ -278,7 +278,7 @@ fn bearer_403_is_auth_error_and_retries_while_no_home() {
 
     // No home was remembered.
     pim.dav_checked = Some(200);
-    pim.caldav_home = None;
+    pim.caldav_home = Some(String::new());
 
     // Second sync: bearer_forbidden is still true, but dav_checked is recent (200, now 300).
     // For Bearer with no home, it should still try (not wait a day).
