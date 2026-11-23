@@ -297,3 +297,54 @@ fn bearer_403_is_auth_error_and_retries_while_no_home() {
     assert!(out.caldav_home.as_ref().unwrap().contains("/dav/cal/"), "home: {:?}", out.caldav_home);
     assert_eq!(out.errors.len(), 0, "no errors: {out:?}");
 }
+
+/// Bearer 403: say what Google said (insufficient_scope, API not enabled, or generic).
+#[test]
+fn bearer_403_says_what_google_said() {
+    // (a) insufficient_scope without scope named
+    let headers = vec![("WWW-Authenticate".into(), "Bearer realm=\"https://accounts.google.com/\", error=\"insufficient_scope\"".into())];
+    let msg = bearer_403_message(&headers, b"");
+    assert_eq!(msg, "sign in again to allow access");
+
+    // (a) insufficient_scope with scope named
+    let headers = vec![(
+        "WWW-Authenticate".into(),
+        "Bearer realm=\"https://accounts.google.com/\", error=\"insufficient_scope\", scope=\"https://www.googleapis.com/auth/carddav\"".into(),
+    )];
+    let msg = bearer_403_message(&headers, b"");
+    assert_eq!(msg, "sign in again to allow access (scope missing: https://www.googleapis.com/auth/carddav)");
+
+    // (b) API not enabled: internalReason from XML body
+    let body = b"<errors xmlns='http://schemas.google.com/g/2005'><error><domain>GData</domain><code>accessNotConfigured</code>\
+        <internalReason>CalDAV API has not been used in project 123 before or it is disabled. Enable it by visiting \
+        https://console.developers.google.com/apis/api/caldav.googleapis.com/overview?project=123 then retry. \
+        If you enabled this API recently, wait a few minutes for the action to propagate.</internalReason></error></errors>";
+    let msg = bearer_403_message(&[], body);
+    assert!(msg.contains("CalDAV API has not been used"), "got: {msg}");
+    assert!(msg.contains("console.developers.google.com"), "got: {msg}");
+
+    // (b) internalReason oversized: capped at 500 chars, respecting char boundaries
+    let long = format!("<internalReason>{}</internalReason>", "x".repeat(1000));
+    let msg = bearer_403_message(&[], long.as_bytes());
+    assert!(msg.len() <= 500, "length: {}", msg.len());
+    assert_eq!(msg, "x".repeat(500));
+
+    // (b) internalReason with multi-byte chars: capped safely
+    let multibyte = format!("<internalReason>{}</internalReason>", "€".repeat(200)); // € is 3 bytes
+    let msg = bearer_403_message(&[], multibyte.as_bytes());
+    assert!(msg.len() <= 500, "length: {}", msg.len());
+    assert!(msg.chars().all(|c| c == '€'), "no broken chars: {msg}");
+
+    // Junk body: generic message
+    let msg = bearer_403_message(&[], b"not xml at all");
+    assert_eq!(msg, "the calendar or contacts server refused access; sign in again (HTTP 403)");
+
+    // (c) generic: no WWW-Authenticate or internalReason
+    let msg = bearer_403_message(&[], b"");
+    assert_eq!(msg, "the calendar or contacts server refused access; sign in again (HTTP 403)");
+
+    // Case-insensitive header matching
+    let headers = vec![("www-authenticate".into(), "Bearer realm=\"x\", error=\"insufficient_scope\"".into())];
+    let msg = bearer_403_message(&headers, b"");
+    assert_eq!(msg, "sign in again to allow access");
+}

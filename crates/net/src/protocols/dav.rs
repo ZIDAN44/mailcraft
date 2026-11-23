@@ -28,6 +28,51 @@ const DAV: &str = "DAV:";
 const CALDAV: &str = "urn:ietf:params:xml:ns:caldav";
 const CARDDAV: &str = "urn:ietf:params:xml:ns:carddav";
 
+/// Build an error message from a Bearer session's 403 response: what Google said, not a guess.
+/// Handles (a) insufficient_scope in WWW-Authenticate, (b) API not enabled in XML body,
+/// (c) anything else.
+fn bearer_403_message(headers: &[(String, String)], body: &[u8]) -> String {
+    // (a) insufficient_scope: WWW-Authenticate header with error and optionally scope
+    if let Some((_, auth_value)) = headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("WWW-Authenticate"))
+        && auth_value.contains("error=\"insufficient_scope\"")
+    {
+        // Extract the scope if present: scope="..."
+        if let Some(scope_start) = auth_value.find("scope=\"") {
+            let after = &auth_value[scope_start + 7..];
+            if let Some(end) = after.find('"') {
+                let scope = &after[..end];
+                return format!("sign in again to allow access (scope missing: {})", scope);
+            }
+        }
+        return "sign in again to allow access".to_string();
+    }
+
+    // (b) API not enabled: XML body with <internalReason>...</internalReason>
+    let body_str = String::from_utf8_lossy(body);
+    if let Some(start) = body_str.find("<internalReason>") {
+        let after = &body_str[start + 16..];
+        if let Some(end) = after.find("</internalReason>") {
+            let reason = &after[..end];
+            // Cap to reasonable length, respecting char boundaries (hostile input)
+            const MAX_REASON: usize = 500;
+            let capped = if reason.len() <= MAX_REASON {
+                reason
+            } else {
+                // Find a char boundary at or before MAX_REASON
+                let mut boundary = MAX_REASON;
+                while boundary > 0 && !reason.is_char_boundary(boundary) {
+                    boundary -= 1;
+                }
+                &reason[..boundary]
+            };
+            return capped.to_string();
+        }
+    }
+
+    // (c) anything else: generic message with HTTP status, still suggesting sign-in
+    "the calendar or contacts server refused access; sign in again (HTTP 403)".to_string()
+}
+
 /// One `<response>` of a multistatus: the resource and the properties found (200).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Item {
@@ -271,7 +316,7 @@ impl Dav {
                 return Err(NetError::Auth("the calendar server refused the user name or password".into()));
             }
             if resp.status == 403 && self.is_bearer() {
-                return Err(NetError::Auth("the calendar server refused access; sign in again to allow calendar access".into()));
+                return Err(NetError::Auth(bearer_403_message(&resp.headers, &resp.body)));
             }
             return Ok((resp, url));
         }
