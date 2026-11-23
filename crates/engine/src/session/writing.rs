@@ -661,6 +661,10 @@ impl Session {
         }
         self.can_send(&c.account)?;
         let mut d = self.draft_of(&c, false)?;
+        // The organisation's disclaimer, as it's sent (issue #245).
+        if let Some(email) = self.account(&c.account).map(|a| a.config.email.clone()) {
+            self.add_disclaimer(&email, &mut d);
+        }
         if sending::no_recipient(&d) {
             return Err(CmdError::Params("add at least one recipient".into()));
         }

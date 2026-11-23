@@ -27,14 +27,16 @@ pub use mailcraft_model as model;
 pub use mailcraft_pgp as pgp;
 pub use mailcraft_smime as smime;
 pub use mailcraft_store as store;
+pub use session::camel as setting_key;
 pub use session::{
-    ACCENTS, ARRANGE_HEADINGS, AccountState, AgeUnit, ArchiveRule, Arrange, AutoArchive, BodyWork, CardSearch, Changes, Compacting, Compaction,
-    Compose, CtrlEnter, Drafted, Filed, FolderArchive, FolderDensity, FolderRef, IDLE_AFTER_S, ImportState, Imports, IndexPass, KeySource, KnownCert,
-    KnownKey, ListFilter, Lock, MoveTarget, NotesOrder, Notice, PANICS_CAUGHT, PGP_DOC, PINNED_HEADING, PaneSection, PersonActivity, PersonFile,
-    PersonLink, PersonMeeting, PersonPeer, PersonThread, PgpSettings, Picture, Prefs, PreparedBody, Quote, Reach, Reactions, ReadInPane, Reading,
-    ReadingPane, RevocationCheck, Row, SMIME_DOC, SOURCE_SHOWN, Scheme, Seal, SearchProgress, SearchScope, SearchStats, SearchWork, Security,
-    SendBlock, SendCheck, SendReceive, SenderAddresses, SenderMarks, ServerSearch, Session, SignedBy, SmimeSettings, SourceView, StartIn,
-    TransferRow, TrustedCertificate, UNDO_SEND_MAX, UndoHold, UpdateCheck, VacationState, View, accent_code, accent_rgb,
+    ACCENTS, ARRANGE_HEADINGS, AccountState, AgeUnit, ArchiveRule, Arrange, AutoArchive, BY_ORGANISATION, BodyWork, CardSearch, Changes, Compacting,
+    Compaction, Compose, CtrlEnter, DETAILS, Drafted, Filed, FolderArchive, FolderDensity, FolderRef, IDLE_AFTER_S, ImportState, Imports, IndexPass,
+    KeySource, KnownCert, KnownKey, ListFilter, Lock, MoveTarget, NotesOrder, Notice, ORG_SETTINGS, PANICS_CAUGHT, PGP_DOC, PINNED_HEADING,
+    PaneSection, PersonActivity, PersonFile, PersonLink, PersonMeeting, PersonPeer, PersonThread, PgpSettings, Picture, Prefs, PreparedBody, Quote,
+    Reach, Reactions, ReadInPane, Reading, ReadingPane, RevocationCheck, Row, SMIME_DOC, SOURCE_SHOWN, Scheme, Seal, SearchProgress, SearchScope,
+    SearchStats, SearchWork, Security, SendBlock, SendCheck, SendReceive, SenderAddresses, SenderMarks, ServerSearch, Session, SignedBy,
+    SmimeSettings, SourceView, StartIn, TransferRow, TrustedCertificate, UNDO_SEND_MAX, UndoHold, UpdateCheck, VacationState, View, accent_code,
+    accent_rgb,
     invite::{AnsweredInvites, Fit, Invite, InviteDay, InviteProblem, Route, WaitingInvite, forwarding_allowed, proposals_allowed},
     junk::{JunkList, junk_entry},
     newer_release, parse_key,
@@ -103,6 +105,9 @@ pub struct CommandSpec {
     /// list or the view without acting on the open message, or is about a data file (the window
     /// tells the idle policy how long it's been every half minute).
     pub leaves_body: bool,
+    /// The setting it changes, as the settings name it (`autoPictures`, or the field's own name,
+    /// `auto_pictures`); `""` for none. Locked by the organisation (issue #245), it's refused.
+    pub setting: &'static str,
 }
 
 fn always(_: &Session) -> Option<&'static str> {
@@ -111,7 +116,7 @@ fn always(_: &Session) -> Option<&'static str> {
 
 impl CommandSpec {
     pub const fn new(id: &'static str, label: &'static str, location: &'static str, run: fn(&mut Session, &Value) -> CmdResult) -> Self {
-        CommandSpec { id, label, location, shortcut: "", params: "{}", enabled: always, run, leaves_body: false }
+        CommandSpec { id, label, location, shortcut: "", params: "{}", enabled: always, run, leaves_body: false, setting: "" }
     }
     pub const fn key(mut self, s: &'static str) -> Self {
         self.shortcut = s;
@@ -128,6 +133,11 @@ impl CommandSpec {
     }
     pub const fn when(mut self, f: fn(&Session) -> Option<&'static str>) -> Self {
         self.enabled = f;
+        self
+    }
+    /// The setting it changes ([`CommandSpec::setting`]).
+    pub const fn setting(mut self, key: &'static str) -> Self {
+        self.setting = key;
         self
     }
 }

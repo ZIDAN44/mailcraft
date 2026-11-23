@@ -65,6 +65,18 @@ impl Session {
         self.ask_directory(query, force, force);
     }
 
+    /// Ask `account`'s own directory about `email` (issue #245: the person themselves, for the
+    /// details their organisation's signature names), unless it's being asked or answered:
+    /// asked again only after a failure.
+    pub(crate) fn ask_directory_once(&mut self, account: &str, email: &str) {
+        let k = (account.to_string(), key(email));
+        if k.1.is_empty() || self.directory.answers.get(&k).is_some_and(|a| a.error.is_none()) {
+            return;
+        }
+        self.directory.answers.insert(k.clone(), Answer::default());
+        self.jobs.push(Job::SearchDirectory { account: k.0, query: k.1 });
+    }
+
     /// Ask the directories for `query`: `short`, under [`MIN_QUERY`] letters too (a name Check
     /// Names is given, issue #211); `again`, whatever they answered last.
     pub(crate) fn ask_directory(&mut self, query: &str, short: bool, again: bool) {
@@ -168,6 +180,8 @@ impl Session {
         } else if error.is_none() {
             self.directory.consent.remove(account);
         }
+        // The person themselves, for their organisation's signature (issue #245).
+        self.details_from_directory(account, people);
         let k = (account.to_string(), key(query));
         // Forgotten since (a refresh): a stale answer isn't kept.
         let Some(a) = self.directory.answers.get_mut(&k) else { return };

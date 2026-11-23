@@ -24,6 +24,9 @@ impl Session {
         let account = self.account_or_shown(account)?;
         let link = calendar_link(url)
             .ok_or_else(|| CmdError::Params(format!("not a calendar link: {}", url.trim().chars().take(80).collect::<String>())))?;
+        if self.org.require_encryption && link.to_ascii_lowercase().starts_with("http://") {
+            return Err(CmdError::Params(crate::session::organisation::ENCRYPTION_REQUIRED.into()));
+        }
         let id = web_calendar_id(&link);
         let name: String = name.unwrap_or("").chars().filter(|c| !c.is_control()).take(200).collect();
         let name = name.trim().to_string();

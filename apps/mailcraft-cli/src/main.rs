@@ -32,6 +32,22 @@ macro_rules! errln {
 mod commands;
 mod mcp;
 
+/// The organisation's profile on this computer (issue #245), its Microsoft registrations taken.
+fn organisation() -> mailcraft_engine::policy::Organisation {
+    let o = mailcraft_engine::policy::sources::read(None);
+    for why in &o.ignored {
+        errln!("organisation's profile: {why}");
+    }
+    // Its Microsoft registrations, each for the accounts of its domains.
+    let apps = o.microsoft_apps().into_iter().map(|(domains, app)| mailcraft_net::oauth::OrganisationApp {
+        domains,
+        client_id: app.client_id,
+        tenant: app.tenant,
+    });
+    mailcraft_net::oauth::set_organisation_apps(apps.collect());
+    o
+}
+
 use commands::call;
 
 struct Args {
@@ -289,6 +305,8 @@ fn run() -> Result<(), String> {
         return Ok(());
     }
     let mut s = Session::open(Some(store.clone()), clock());
+    // The organisation's profile (issue #245): its rules for accounts hold here too.
+    s.set_organisation(organisation());
     // An account's data file the app has open can't be read here: say so, where its folders came
     // out empty (found testing issue #20).
     for a in &s.accounts {

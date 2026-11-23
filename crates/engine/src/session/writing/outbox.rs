@@ -189,6 +189,10 @@ impl Session {
         let p = mime::parse(&raw).ok_or_else(|| CmdError::Failed("the message can't be read".into()))?;
         // As it went in: formatted, its pictures in place, a reply's original as it was.
         let mut c = self.compose_from_saved(&account, key, &raw)?;
+        // The organisation's disclaimer went under it as it went in: off, as it goes again.
+        if let Some(email) = self.account(&account).map(|a| a.config.email.clone()) {
+            self.strip_disclaimer(&email, &mut c);
+        }
         // Bcc isn't written into a message: it's the envelope recipients not in To or Cc.
         let shown: Vec<String> = p.to.iter().chain(&p.cc).map(|a| a.email.to_ascii_lowercase()).collect();
         let bcc: Vec<String> = item.recipients.iter().filter(|r| !shown.contains(&r.to_ascii_lowercase())).cloned().collect();

@@ -17,6 +17,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("account.signatureDefaults", "Choose default signature", "File › Options › Mail › Signatures", signature_defaults)
             .params(r#"{"account": string, "new"?: string|null (the one for new messages; null: none), "reply"?: string|null (for replies and forwards)}"#),
         CommandSpec::new("account.signatures", "Signatures", "File › Options › Mail › Signatures", list_signatures).params(r#"{"account": string}"#),
+        CommandSpec::new("account.details", "Your details for your organisation's signature", "File › Info", |s, v| {
+            let account = p::req_str(v, "account")?.to_string();
+            s.set_details(&account, v)
+        })
+        .params(r#"{"account": string, "name"?: string, "title"?: string, "department"?: string, "phone"?: string, "mobile"?: string, "office"?: string, "company"?: string ("" takes one out)}"#),
         CommandSpec::new("compose.insertSignature", "Insert signature", "Message › Signature", insert_signature)
             .params(r#"{"name"?: string (default: the one in the message, else the account's for this kind of message, else its first), "at"?: number (the character it goes at, when there's none in the message to replace; default where a signature goes: above the quote of a reply or forward, else the end)}"#)
             .when(has_compose),
@@ -31,7 +36,7 @@ const SIGNATURE_TEXT_MAX: usize = 10_000;
 /// A signature from the editor: its text, its look as HTML (kept as the editor would send it,
 /// with its pictures written in, issue #11, its text the signature's), or HTML code sent as
 /// written, the editor showing its text.
-fn signature_param(v: &Value, name: String) -> Result<Signature, CmdError> {
+pub(crate) fn signature_param(v: &Value, name: String) -> Result<Signature, CmdError> {
     let mut sig = Signature { name, text: p::req_str(v, "signature")?.chars().take(SIGNATURE_TEXT_MAX).collect(), ..Default::default() };
     sig.code = p::str(v, "code").map(mailcraft_mime::signature_code).unwrap_or_default();
     let html = if sig.code.is_empty() { p::str(v, "html").map(str::to_string) } else { Some(sig.code.clone()) };
@@ -58,6 +63,10 @@ pub(super) fn set_signature(s: &mut Session, v: &Value) -> CmdResult {
         .or(config.signatures.first().map(|s| s.name.as_str()))
         .unwrap_or(FIRST_SIGNATURE)
         .to_string();
+    // The organisation's, locked (issue #245): as it wrote it.
+    if s.org_signature_locked(&config, &name) || was.is_some_and(|w| s.org_signature_locked(&config, w)) {
+        return Err(CmdError::Disabled(crate::session::BY_ORGANISATION.into()));
+    }
     let sig = signature_param(v, name)?;
     // Nothing in it: it goes (as an empty signature always meant none).
     if sig.is_empty() {
@@ -74,6 +83,9 @@ pub(super) fn set_signature(s: &mut Session, v: &Value) -> CmdResult {
 pub(super) fn remove_signature(s: &mut Session, v: &Value) -> CmdResult {
     let mut config = s.config_of(p::req_str(v, "account")?)?;
     let name = p::req_str(v, "name")?;
+    if s.org_signature_locked(&config, name) {
+        return Err(CmdError::Disabled(crate::session::BY_ORGANISATION.into()));
+    }
     if !config.remove_signature(name) {
         return Err(CmdError::Params(format!("no signature called {name}")));
     }
@@ -94,6 +106,15 @@ pub(super) fn signature_defaults(s: &mut Session, v: &Value) -> CmdResult {
             }
             Some(_) => return Err(CmdError::Params(format!("`{key}` is a signature's name, or null for none"))),
         }
+    }
+    // The organisation's, locked, stays the one for what it says (issue #245).
+    let mut held = config.clone();
+    let locked = s.organisation.signature_for(&config.email).is_some_and(|r| r.locked);
+    if locked
+        && s.impose_org_signature(&mut held, None)
+        && (&held.signature_new, &held.signature_reply) != (&config.signature_new, &config.signature_reply)
+    {
+        return Err(CmdError::Disabled(crate::session::BY_ORGANISATION.into()));
     }
     let out = json!({"new": config.signature_new, "reply": config.signature_reply});
     s.update_account(config, None)?;

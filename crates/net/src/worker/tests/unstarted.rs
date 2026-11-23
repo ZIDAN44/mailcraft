@@ -56,7 +56,7 @@ fn signing_decrypting_and_keys_are_answered() {
 fn export_discovery_and_sign_in_are_answered() {
     let mut jobs = vec![
         Job::ExportPst { account: "a1".into(), path: "out.pst".into(), name: "Out".into(), follow_up: Default::default() },
-        Job::Discover { email: "ana@studio.example".into() },
+        Job::Discover { email: "ana@studio.example".into(), rules: Default::default() },
     ];
     // Signing in needs a provider registered in this build.
     let oauth = AccountConfig { oauth: Some("microsoft".into()), graph: Some(String::new()), ..account() };

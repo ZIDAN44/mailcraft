@@ -583,7 +583,7 @@ impl Backend for WebBackend {
                 wasm_bindgen_futures::spawn_local(fetch_calendar(sh.clone(), account, calendar, url))
             }
             // No autoconfiguration in the browser: the user gives the JMAP address.
-            Job::Discover { email } => emit(sh, Event::Discovered { email, config: None, source: String::new() }),
+            Job::Discover { email, .. } => emit(sh, Event::Discovered { email, config: None, source: String::new() }),
             Job::SignIn { account } => {
                 status(sh, &account.id, SyncStatus::NeedsPassword { error: "signing in through Google or Microsoft needs the desktop app".into() })
             }

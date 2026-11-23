@@ -8,6 +8,29 @@ use super::*;
 
 pub mod signature;
 
+/// How an address's servers are looked for (issue #245: an organisation can turn each way off,
+/// and name its own autoconfig file, asked first). Every way, by default.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiscoverRules {
+    /// An autoconfig file's https address, asked before anything else.
+    #[serde(default)]
+    pub autoconfig: Option<String>,
+    /// The domain's own autoconfig files.
+    pub domain: bool,
+    /// Thunderbird's provider database.
+    pub thunderbird: bool,
+    /// The domain's mail exchanger, to find its provider (and that provider's own file).
+    pub mx: bool,
+    /// DNS service records.
+    pub dns: bool,
+}
+
+impl Default for DiscoverRules {
+    fn default() -> Self {
+        DiscoverRules { autoconfig: None, domain: true, thunderbird: true, mx: true, dns: true }
+    }
+}
+
 /// How a connection to a server is secured.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -211,6 +234,15 @@ pub struct AccountConfig {
     /// limited as [`Self::trusted_certificates`].
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub trusted_authorities: Vec<String>,
+    /// The person's details for their organisation's signature (issue #245): `name`, `title`,
+    /// `department`, `phone`, `mobile`, `office`, `company`, as they gave them or their
+    /// organisation's directory did.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub details: std::collections::BTreeMap<String, String>,
+    /// The organisation's signature template last put in (its text, then its HTML): put in again
+    /// only when the organisation's changes, so one the person changed or removed stays so.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub org_signature: String,
 }
 
 impl AccountConfig {
@@ -241,6 +273,8 @@ impl AccountConfig {
             signature_html: _,
             signature_code: _,
             identities: _,
+            details: _,
+            org_signature: _,
             email,
             username,
             imap,

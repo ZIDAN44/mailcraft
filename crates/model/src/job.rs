@@ -138,8 +138,8 @@ pub enum Job {
     /// Read a calendar subscribed to by its link (issue #7), unless it's unchanged since the
     /// version named by `etag` / `modified`; answered by [`Event::CalendarFetched`].
     FetchCalendar { account: String, calendar: String, url: String, etag: String, modified: String },
-    /// Look up the server settings for an address (autoconfiguration).
-    Discover { email: String },
+    /// Look up the server settings for an address (autoconfiguration), the ways `rules` allow.
+    Discover { email: String, rules: crate::DiscoverRules },
     /// Sign an OAuth account in through the browser; it starts once signed in.
     SignIn { account: AccountConfig },
     /// Work offline (every account's connection closed, changes and mail kept to send later), or

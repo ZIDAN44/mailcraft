@@ -287,10 +287,10 @@ impl Pool {
 
     /// The servers for an address being set up (autoconfiguration), looked for on a thread of
     /// its own.
-    pub(super) fn discover(&self, email: String) {
+    pub(super) fn discover(&self, email: String, rules: mailcraft_model::DiscoverRules) {
         let (sink, asked) = (self.sink.clone(), email.clone());
         let spawned = spawn("mail-discover", move || {
-            let found = crate::autoconfig::discover(&email);
+            let found = crate::autoconfig::discover_by(&email, &rules);
             let (config, source) = match found {
                 Some(f) => (Some(Box::new(f.config)), f.source),
                 None => (None, String::new()),

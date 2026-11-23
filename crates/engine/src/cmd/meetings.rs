@@ -140,7 +140,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             };
             s.prefs.meeting_rooms.remove(i);
             Ok(listing(s))
-        })
+        }).setting("meeting_rooms")
         .params(r#"{"room": string (its name or link)}"#),
         CommandSpec::new("meetings.defaultRoom", "Room added first", "File › Options › Online meetings", |s, v| {
             let which = p::req_str(v, "room")?;
@@ -150,7 +150,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let r = s.prefs.meeting_rooms.remove(i);
             s.prefs.meeting_rooms.insert(0, r);
             Ok(listing(s))
-        })
+        }).setting("meeting_rooms")
         .params(r#"{"room": string (its name or link)}"#),
         CommandSpec::new("meetings.addHost", "Add a meeting host", "File › Options › Online meetings", |s, v| {
             let given = p::req_str(v, "host")?;
@@ -162,7 +162,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 s.prefs.meeting_hosts.push(h);
             }
             Ok(listing(s))
-        })
+        }).setting("meeting_hosts")
         .params(r#"{"host": string (meet.example.org, or with a path: example.edu/rooms/)}"#),
         CommandSpec::new("meetings.removeHost", "Remove a meeting host", "File › Options › Online meetings", |s, v| {
             let given = p::req_str(v, "host")?;
@@ -173,7 +173,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 return Err(CmdError::Params(format!("no host `{}`", given.chars().take(100).collect::<String>())));
             }
             Ok(listing(s))
-        })
+        }).setting("meeting_hosts")
         .params(r#"{"host": string}"#),
         toggle!("meetings.forAll", "Add an online meeting to all meetings with guests", "File › Options › Online meetings", meeting_for_all),
     ]

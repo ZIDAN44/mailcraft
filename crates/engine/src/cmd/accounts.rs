@@ -30,6 +30,10 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             if !mailcraft_model::addr::is_valid_email(&email) {
                 return Err(CmdError::Params(format!("`{email}` is not an email address")));
             }
+            // The organisation names the servers of its own domains (issue #245).
+            if let Some(c) = s.org_account_config(&email) {
+                s.discovered.insert(email.clone(), Some((Some(c), "your organisation".into())));
+            }
             match s.discovered.get(&email) {
                 Some(Some((Some(c), source))) => {
                     Ok(json!({"found": true, "source": source, "imap": c.imap, "smtp": c.smtp, "pop": c.pop, "username": c.username}))
@@ -38,7 +42,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 Some(None) => Ok(json!({"pending": true})),
                 None => {
                     s.discovered.insert(email.clone(), None);
-                    s.push_job(mailcraft_model::Job::Discover { email });
+                    let rules = s.discover_rules();
+                    s.push_job(mailcraft_model::Job::Discover { email, rules });
                     Ok(json!({"pending": true}))
                 }
             }
@@ -111,7 +116,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         ),
         CommandSpec::new("account.list", "Accounts", "File › Accounts", list_accounts),
         // Asks where MailCraft is published; File › About shows the answer (`Session::update`).
+        CommandSpec::new("options.updates", "Update MailCraft by itself", "File › Options › General", |s, v| {
+            let value = p::req_str(v, "value")?;
+            s.prefs.updates = crate::policy::Updates::parse(value).ok_or_else(|| CmdError::Params(format!("`value` is on, stable or off, not `{value}`")))?;
+            Ok(json!({"value": s.prefs.updates}))
+        })
+        .setting("updates")
+        .params(r#"{"value": "on"|"stable"|"off" (as the copy was installed, releases only, or never)}"#),
         CommandSpec::new("app.checkUpdates", "Check for updates", "File › About", |s, _| {
+            // Updates turned off by the organisation: it updates MailCraft itself.
+            if s.prefs.updates == crate::policy::Updates::Off && s.setting_locked("updates") {
+                return Err(CmdError::Disabled(crate::session::BY_ORGANISATION.into()));
+            }
             if s.jmap_only {
                 return Err(CmdError::Failed("the browser version is always the newest".into()));
             }
@@ -198,6 +214,9 @@ pub(super) fn server(v: &Value, prefix: &str, guess: &ServerConfig) -> Result<Se
 }
 
 pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
+    // The organisation's servers for the address, where none are named (issue #245).
+    let with_org = s.with_org_servers(v);
+    let v = &with_org;
     if let Some(server) = p::str(v, "dav") {
         return add_calendar_only(s, v, server);
     }
@@ -285,6 +304,8 @@ pub(super) fn add_account(s: &mut Session, v: &Value) -> CmdResult {
         user_agent,
         trusted_certificates: Vec::new(),
         trusted_authorities: Vec::new(),
+        details: Default::default(),
+        org_signature: String::new(),
     };
     // A line break or tab pasted in with the user name: no server would ever take it (in an
     // Exchange `DOMAIN\user`, a `\r` read from JSON became part of it, and sign-in failed).

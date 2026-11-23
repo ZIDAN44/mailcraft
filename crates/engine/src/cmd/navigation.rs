@@ -53,9 +53,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 s.prefs.undo_send_secs = u32::try_from(n).unwrap_or(0);
             }
             Ok(json!({"seconds": s.prefs.undo_send_secs}))
-        })
+        }).setting("undo_send_secs")
         .params(r#"{"seconds"?: 0-60 (0: sent at once)}"#),
-        CommandSpec::new("options.startIn", "Start in", "File › Options › Mail", start_in).params(
+        CommandSpec::new("options.startIn", "Start in", "File › Options › Mail", start_in).setting("start_in").params(
             r#"{"open"?: "firstInbox"|"allInboxes"|"last"|"folder" (what opens at the start), "account"?: string, "folder"?: string (the folder, for "folder")}"#,
         ),
         CommandSpec::new("outbox.edit", "Edit queued message", "Outbox", |s, v| {
@@ -291,7 +291,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let step = if s.prefs.keep_messages == 0 { 1000 } else { s.prefs.keep_messages };
             let more = p::u64(v, "more").map_or(step, |n| u32::try_from(n.clamp(1, 100_000)).unwrap_or(step));
             s.show_more(&account, &folder, more)
-        })
+        }).setting("keep_messages")
         .params(r#"{"account"?: string, "folder"?: string (default: the folder on view), "more"?: number (default: as many as Options keeps)}"#),
     ]
 }

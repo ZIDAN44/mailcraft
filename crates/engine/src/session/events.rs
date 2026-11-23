@@ -184,7 +184,12 @@ impl Session {
             Event::Releases { releases, error } => {
                 self.update = match error {
                     Some(e) => UpdateCheck::Failed(e),
-                    None => match newer_release(env!("CARGO_PKG_VERSION"), self.build_sha.as_deref(), &releases, self.updates_stable_only) {
+                    None => match newer_release(
+                        env!("CARGO_PKG_VERSION"),
+                        self.build_sha.as_deref(),
+                        &releases,
+                        self.updates_stable_only || self.prefs.updates == crate::policy::Updates::Stable,
+                    ) {
                         Some(r) => UpdateCheck::Available(r.clone()),
                         None => UpdateCheck::UpToDate(releases.first().map(|r| r.tag.clone()).unwrap_or_default()),
                     },
@@ -251,8 +256,13 @@ impl Session {
         }
         // What it had under way for Send / Receive stops with it.
         self.transfers_stopped(&account, &status);
+        let online = matches!(status, SyncStatus::Online { .. });
         if let Some(a) = self.account_mut(&account) {
             a.status = status;
+        }
+        // Its own details, from its organisation's directory (issue #245), once it can be asked.
+        if online {
+            self.ask_own_details();
         }
     }
 

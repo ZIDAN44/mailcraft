@@ -75,6 +75,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 TasksOrder::from_code(by).ok_or_else(|| CmdError::Params(format!("`by` is due, priority, title or modified, not `{by}`")))?;
             Ok(json!({"by": s.prefs.tasks_order.code()}))
         })
+        .setting("tasks_order")
         .params(r#"{"by": "due"|"priority"|"title"|"modified"}"#),
         toggle!("task.hideDone", "Hide completed tasks", "Tasks › View", tasks_hide_done, r#"{"on"?: bool (default: the other way)}"#),
         // One task list alone, or all of them (issue #201).

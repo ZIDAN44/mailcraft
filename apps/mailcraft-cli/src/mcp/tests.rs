@@ -139,3 +139,22 @@ fn the_data_folder_is_let_go_after_each_call() {
     }
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// An organisation that turns AI agents off (issue #245) is followed with MailCraft closed too,
+/// whatever the person's own setting says.
+#[test]
+fn an_organisation_turning_agents_off_is_followed_here() {
+    let (root, files) = sample("org-off");
+    settings(&root, json!({"agents": true}));
+    let mut tools = MailTools::new(root.clone(), files);
+    let locked = json!({"settings": {"agents": {"value": false, "locked": true}}});
+    tools.organisation = mailcraft_engine::policy::Organisation::from_sources(vec![("test".into(), locked, true)]);
+    assert_eq!(tools.run("list_accounts", &json!({})).unwrap_err(), NOT_LET_IN);
+    // A profile that leaves them on is read, and nothing of it written by a call that reads.
+    let signature = json!({"signature": {"name": "Studio", "text": "{name}, Studio", "locked": true}});
+    tools.organisation = mailcraft_engine::policy::Organisation::from_sources(vec![("test".into(), signature, true)]);
+    let accounts = std::fs::read(root.join("accounts.json")).unwrap();
+    assert!(tools.run("list_accounts", &json!({})).is_ok());
+    assert_eq!(std::fs::read(root.join("accounts.json")).unwrap(), accounts, "the accounts' settings as they were");
+    let _ = std::fs::remove_dir_all(&root);
+}

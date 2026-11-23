@@ -37,9 +37,19 @@ impl Session {
             return self.pictures_for.contains(&r.key);
         }
         let sender = r.parsed.as_ref().map(|p| p.from.email.trim().to_ascii_lowercase()).unwrap_or_default();
+        // Locked off by the organisation (issue #245): only when asked for this one message.
+        if self.pictures_locked_off() {
+            return self.pictures_for.contains(&r.key);
+        }
         self.pictures_for.contains(&r.key)
             || (!sender.is_empty() && (self.prefs.trusted_senders.contains(&sender) || self.sender_safe(&sender)))
             || (self.prefs.auto_pictures && self.pictures_load_alone())
+    }
+
+    /// Whether the organisation locked pictures off (issue #245): no sender's, safe or trusted,
+    /// load by themselves; only a message's own, when asked for it.
+    pub fn pictures_locked_off(&self) -> bool {
+        !self.prefs.auto_pictures && self.setting_locked("autoPictures")
     }
 
     /// Whether the open message doesn't look suspicious, for the setting that loads its pictures
@@ -108,7 +118,7 @@ impl Session {
         self.pictures_for.insert(r.key.clone());
         let sender = r.parsed.as_ref().map(|p| p.from.email.trim().to_ascii_lowercase()).unwrap_or_default();
         // A message file's sender is never trusted on the file's word.
-        let always = always && r.key.account != OPENED_FILE;
+        let always = always && r.key.account != OPENED_FILE && !self.pictures_locked_off();
         if always && !sender.is_empty() && self.prefs.trusted_senders.len() < 10_000 {
             self.prefs.trusted_senders.insert(sender.clone());
         }

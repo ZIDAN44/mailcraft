@@ -63,7 +63,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let m = p::u64(v, "minutes").filter(|m| (15..=1440).contains(m)).ok_or_else(|| CmdError::Params("`minutes` is 15 to 1440".into()))?;
             s.prefs.free_time_minutes = u16::try_from(m).unwrap_or(30);
             Ok(json!({"minutes": m}))
-        })
+        }).setting("free_time_minutes")
         .params(r#"{"minutes": number (15 to 1440: how long a time free for everyone is looked for)}"#),
         // Issue #33: find events in every calendar shown, offline, as the mail search box reads.
         CommandSpec::new("calendar.search", "Search the calendar", "Calendar › Search", |s, v| {
@@ -333,7 +333,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             s.prefs.address_book = source;
             Ok(json!({"source": s.prefs.address_book}))
-        })
+        }).setting("address_book")
         .params(r#"{"source": "all" | "people" | "book:<account>:<book id>"}"#),
         CommandSpec::new("contact.create", "New contact", "People › New contact", |s, v| {
             let c = card_from(v, mailcraft_model::vcard::Card::default())?;

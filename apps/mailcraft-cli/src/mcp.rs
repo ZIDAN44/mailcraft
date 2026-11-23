@@ -82,11 +82,13 @@ struct MailTools {
     root: PathBuf,
     files: PathBuf,
     window: Option<WindowLink>,
+    /// The organisation's profile (issue #245), read once: its locks hold here too.
+    organisation: mailcraft_engine::policy::Organisation,
 }
 
 impl MailTools {
     fn new(root: PathBuf, files: PathBuf) -> MailTools {
-        MailTools { root, files, window: None }
+        MailTools { root, files, window: None, organisation: mailcraft_engine::policy::Organisation::default() }
     }
 
     /// The MailCraft that has this data folder open and lets agents in now, if one does: its
@@ -128,6 +130,14 @@ impl MailTools {
         let prefs = agents_prefs(&self.root)?;
         let (store, mut s) = self.open_here()?;
         s.prefs = prefs;
+        // AI agents turned off by the organisation stay off, whatever the person's setting. Only
+        // that is looked at: its profile put into the session would put in its signatures, and
+        // write the accounts' settings, in a call that only reads.
+        let domains: Vec<String> = s.accounts.iter().map(|a| mailcraft_engine::policy::domain_of(&a.config.email)).collect();
+        let locked_off = self.organisation.effective(&domains).settings.get("agents").is_some_and(|g| g.locked && g.value == Value::Bool(false));
+        if !s.prefs.agents || locked_off {
+            return Err(NOT_LET_IN.into());
+        }
         let read = s.agent_read(tool, args);
         // The session and the store close here: the files are MailCraft's again.
         drop((s, store));
@@ -251,7 +261,9 @@ impl Tools for MailTools {
 
 /// Serve MCP on stdin and stdout until the client closes them.
 pub(crate) fn serve(root: PathBuf, files: PathBuf) -> Result<(), String> {
-    let mut server = Server::new(INFO, MailTools::new(root, files));
+    let mut tools = MailTools::new(root, files);
+    tools.organisation = crate::organisation();
+    let mut server = Server::new(INFO, tools);
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     let served = server.serve(stdin.lock(), stdout.lock());

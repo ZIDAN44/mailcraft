@@ -418,3 +418,60 @@ fn real_mailcow_mail_read_through_mcp() {
     assert!(!flags.iter().any(|f| f.eq_ignore_ascii_case("\\Seen")), "{flags:?}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// An organisation's profile (issue #245) against Mailcow: its servers for the domain make an
+/// address and a password all an account needs; a locked signature filled from the person's
+/// details, and the disclaimer, reach the other side in what's sent; another domain's account
+/// isn't allowed; and with encrypted connections required, this test server (which has none)
+/// is held back, said.
+#[test]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
+fn real_mailcow_organisation_profile() {
+    use mailcraft_engine::policy::Organisation;
+    let Some(m) = Mailcow::from_env() else { return };
+    let ((ann, password), (bob, _)) = (m.user(0), m.user(1));
+    let domain = ann.split('@').nth(1).unwrap().to_string();
+    let tag = mailcow::now();
+    let profile = |encrypted: bool| {
+        let v = json!({
+            "organisation": "MC31",
+            "requireEncryption": encrypted,
+            "accounts": {"onlyOrganisationDomains": true,
+                         "servers": {domain.clone(): {"imap": format!("{}:none", m.imap), "smtp": format!("{}:none", m.smtp)}}},
+            "signature": {"name": "MC31", "text": "{name}\n{title}", "locked": true},
+            "disclaimer": {"text": format!("Confidential to MC31 ({tag}).")}
+        });
+        Organisation::from_sources(vec![("test".into(), v, true)])
+    };
+    let mut a = App::open("org-ann", password);
+    a.s.set_organisation(profile(false));
+    assert!(a.s.run("account.add", &json!({"email": "someone@gmail.example", "password": "pw"})).is_err(), "only its domains");
+    let id = a.add(json!({"email": ann, "password": password}));
+    assert_eq!(a.s.account(&id).map(|x| format!("{}:{}", x.config.imap.host, x.config.imap.port)), Some(m.imap.clone()));
+    a.pump(120, "online", |_, e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    a.s.run("account.details", &json!({"account": id, "title": "Sound editor"})).unwrap();
+    let subject = format!("Mix review {tag}");
+    a.s.run("mail.new", &json!({})).unwrap();
+    a.s.run("compose.update", &json!({"to": bob, "subject": subject})).unwrap();
+    a.s.run("compose.send", &json!({})).unwrap();
+    a.pump(60, "sent", |_, e| matches!(e, Event::Sent { .. }));
+    // On Mailcow, in bob's Inbox: the signature and the disclaimer, as sent.
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(90);
+    let text = loop {
+        let t = m.imap_as(1).newest_text("INBOX");
+        if t.contains(&tag.to_string()) {
+            break t;
+        }
+        assert!(std::time::Instant::now() < end, "the message didn't reach bob");
+        std::thread::sleep(std::time::Duration::from_secs(2));
+    };
+    eprintln!("as bob got it: {text}");
+    assert!(text.contains("Sound editor") && text.contains(&format!("Confidential to MC31 ({tag}).")), "{text}");
+    // Encrypted connections required: this server has none, so the account is held back.
+    a.s.set_organisation(profile(true));
+    let config = a.s.account(&id).unwrap().config.clone();
+    a.s.push_job(mailcraft_engine::model::Job::Start { account: config, password: None });
+    assert!(a.s.take_jobs().is_empty());
+    let status = format!("{:?}", a.s.account(&id).unwrap().status);
+    assert!(status.contains("encrypted"), "{status}");
+}

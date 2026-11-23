@@ -19,7 +19,7 @@
 //! only when the user types an address into the account dialog. Everything fetched is hostile input: sizes are capped and
 //! a bad file is simply skipped.
 
-use mailcraft_model::{AccountConfig, DavSettings, Security, ServerConfig};
+use mailcraft_model::{AccountConfig, DavSettings, DiscoverRules, Security, ServerConfig};
 
 use crate::xml::{self, El};
 
@@ -128,6 +128,12 @@ pub struct Lookups<'a> {
 
 /// Find settings for `email` (see the module docs for the order).
 pub fn discover_with(email: &str, l: &mut Lookups<'_>) -> Option<Found> {
+    discover_ruled(email, l, &DiscoverRules::default())
+}
+
+/// [`discover_with`] the ways `rules` allow (an organisation's, issue #245): its own autoconfig
+/// file first, then each way it hasn't turned off.
+pub fn discover_ruled(email: &str, l: &mut Lookups<'_>, rules: &DiscoverRules) -> Option<Found> {
     let email = email.trim();
     let domain = email.rsplit_once('@').map(|(_, d)| d.trim().to_ascii_lowercase()).filter(|d| d.contains('.'))?;
     if !domain.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-')) {
@@ -135,21 +141,36 @@ pub fn discover_with(email: &str, l: &mut Lookups<'_>) -> Option<Found> {
     }
     let enc = crate::http::pct(email);
     let try_url = |l: &mut Lookups<'_>, url: &str| (l.fetch)(url).and_then(|x| parse_config(&x, email));
-    for url in [
-        format!("https://autoconfig.{domain}/mail/config-v1.1.xml?emailaddress={enc}"),
-        format!("https://{domain}/.well-known/autoconfig/mail/config-v1.1.xml"),
-    ] {
-        if let Some(c) = try_url(l, &url) {
-            return Some(Found { config: c, source: domain.clone() });
+    // The organisation's own file, asked about the address.
+    if let Some(url) = rules.autoconfig.as_deref().filter(|u| u.starts_with("https://")) {
+        let asked = if url.contains('?') { format!("{url}&emailaddress={enc}") } else { format!("{url}?emailaddress={enc}") };
+        if let Some(c) = try_url(l, &asked) {
+            return Some(Found { config: c, source: "your organisation".into() });
         }
     }
-    if let Some(c) = try_url(l, &format!("https://autoconfig.thunderbird.net/v1.1/{domain}")) {
+    if rules.domain {
+        for url in [
+            format!("https://autoconfig.{domain}/mail/config-v1.1.xml?emailaddress={enc}"),
+            format!("https://{domain}/.well-known/autoconfig/mail/config-v1.1.xml"),
+        ] {
+            if let Some(c) = try_url(l, &url) {
+                return Some(Found { config: c, source: domain.clone() });
+            }
+        }
+    }
+    if rules.thunderbird
+        && let Some(c) = try_url(l, &format!("https://autoconfig.thunderbird.net/v1.1/{domain}"))
+    {
         return Some(Found { config: c, source: "the ISP database".into() });
     }
-    if let Some(mx) = (l.mx)(&domain).into_iter().next() {
+    if rules.mx
+        && let Some(mx) = (l.mx)(&domain).into_iter().next()
+    {
         let base = base_domain(&mx);
         if base != domain {
-            if let Some(c) = try_url(l, &format!("https://autoconfig.thunderbird.net/v1.1/{base}")) {
+            if rules.thunderbird
+                && let Some(c) = try_url(l, &format!("https://autoconfig.thunderbird.net/v1.1/{base}"))
+            {
                 return Some(Found { config: c, source: format!("the ISP database ({base} handles this domain's mail)") });
             }
             // The mail provider's own configuration (asked about the domain, not the address).
@@ -157,6 +178,9 @@ pub fn discover_with(email: &str, l: &mut Lookups<'_>) -> Option<Found> {
                 return Some(Found { config: c, source: base });
             }
         }
+    }
+    if !rules.dns {
+        return None;
     }
     // Where Outlook looks: the host an `_autodiscover._tcp` record names, which providers point
     // at their configuration server.
@@ -183,6 +207,11 @@ pub fn discover_with(email: &str, l: &mut Lookups<'_>) -> Option<Found> {
 
 /// Find settings for `email` over the network.
 pub fn discover(email: &str) -> Option<Found> {
+    discover_by(email, &DiscoverRules::default())
+}
+
+/// [`discover`] the ways `rules` allow.
+pub fn discover_by(email: &str, rules: &DiscoverRules) -> Option<Found> {
     let mut fetch = |url: &str| {
         crate::http::get(url, MAX_XML)
             .ok()
@@ -191,7 +220,7 @@ pub fn discover(email: &str) -> Option<Found> {
     };
     let mut mx = crate::dns::mx;
     let mut srv = crate::dns::srv;
-    discover_with(email, &mut Lookups { fetch: &mut fetch, mx: &mut mx, srv: &mut srv })
+    discover_ruled(email, &mut Lookups { fetch: &mut fetch, mx: &mut mx, srv: &mut srv }, rules)
 }
 
 #[cfg(test)]

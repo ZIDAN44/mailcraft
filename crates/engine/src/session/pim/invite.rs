@@ -638,7 +638,7 @@ impl Session {
         let local = acc.is_local();
         let sent_folder = acc.folder(FolderRole::Sent).map(|f| f.path.clone());
         let ics = ical::write(events, Some(method), self.clock.now);
-        let d = mime::Draft {
+        let mut d = mime::Draft {
             to,
             subject: subject.to_string(),
             body: body.to_string(),
@@ -647,6 +647,8 @@ impl Session {
             calendar: Some(mime::OutCalendar { method: method.to_string(), data: ics }),
             ..Default::default()
         };
+        // The organisation's disclaimer, as under every message written (issue #245).
+        self.add_disclaimer(&from.email, &mut d);
         let now = self.clock.now;
         let mid = mime::new_message_id(&from.email, now, self.random());
         let raw = mime::build(&d, &from, now, &mid).map_err(CmdError::Failed)?;

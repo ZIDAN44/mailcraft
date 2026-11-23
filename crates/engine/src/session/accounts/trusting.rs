@@ -47,6 +47,9 @@ impl Session {
     /// Trust the certificate with this fingerprint for an account's mail servers, and connect
     /// again. The newest [`mailcraft_model::MAX_TRUSTED_CERTIFICATES`] are kept.
     pub fn trust_certificate(&mut self, account: &str, fingerprint: &str) -> CmdResult {
+        if self.org.no_certificate_exceptions {
+            return Err(CmdError::Disabled(super::super::organisation::NO_EXCEPTIONS.into()));
+        }
         let fingerprint = fingerprint.trim().to_ascii_lowercase();
         if !mailcraft_model::is_certificate_fingerprint(&fingerprint) {
             return Err(CmdError::Params("`fingerprint` is a certificate's SHA-256 in hex: 64 characters".into()));
@@ -64,6 +67,9 @@ impl Session {
     /// mail servers, and connect again (issue #105). The newest
     /// [`mailcraft_model::MAX_TRUSTED_AUTHORITIES`] are kept.
     pub fn trust_certificate_file(&mut self, account: &str, data: &[u8]) -> CmdResult {
+        if self.org.no_certificate_exceptions {
+            return Err(CmdError::Disabled(super::super::organisation::NO_EXCEPTIONS.into()));
+        }
         let found = certificates_in(data);
         if found.is_empty() {
             return Err(CmdError::Params("there's no certificate in that file: a .pem, .crt or .cer file has one".into()));

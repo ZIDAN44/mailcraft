@@ -25,6 +25,8 @@ mod changing;
 mod events;
 mod mailboxes;
 mod opening;
+mod organisation;
+pub use organisation::{BY_ORGANISATION, DETAILS, ORG_SETTINGS, camel};
 mod organize;
 mod photos;
 mod prefs;
@@ -487,6 +489,11 @@ pub struct Session {
     /// This is a build of a release, which is offered releases only, never test builds
     /// (`MAILCRAFT_UPDATE_CHANNEL=stable`).
     pub updates_stable_only: bool,
+    /// The organisation's profile as read (issue #245; empty: there's none), set by the app as
+    /// it starts ([`Session::set_organisation`]).
+    pub organisation: std::sync::Arc<crate::policy::Organisation>,
+    /// What of it applies, given the accounts' domains.
+    pub org: crate::policy::Effective,
     /// File › About's update check.
     pub update: UpdateCheck,
 }
@@ -617,6 +624,8 @@ impl Session {
             seed: (clock.now as u64) ^ 0x9E37_79B9_7F4A_7C15 ^ process_random(),
             build_sha: None,
             updates_stable_only: false,
+            organisation: std::sync::Arc::default(),
+            org: crate::policy::Effective::default(),
             update: UpdateCheck::NotAsked,
         };
         if let Some(store) = s.store.clone() {
@@ -678,6 +687,8 @@ impl Session {
         let result = self.run_command(id, params);
         // A file handed over for it that it didn't take (refused before it looked for it).
         self.drop_handed(params);
+        // What the organisation locked stays as it locked it (issue #245), whatever ran.
+        self.hold_org_locks();
         result
     }
 
@@ -696,10 +707,11 @@ impl Session {
         if let Some(why) = self.compaction_blocks(id, params) {
             return Err(CmdError::Disabled(why));
         }
+        let locked = self.org_locked_run(id)?;
         let run = spec.run;
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run(self, params)));
         match result {
-            Ok(r) => r,
+            Ok(r) => self.org_refuses_change(locked).map_or(r, Err),
             Err(_) => {
                 log::error!("command {id} panicked");
                 PANICS_CAUGHT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -711,7 +723,12 @@ impl Session {
 
     /// Jobs for the network layer, oldest first.
     pub fn take_jobs(&mut self) -> Vec<Job> {
-        std::mem::take(&mut self.jobs)
+        let jobs = std::mem::take(&mut self.jobs);
+        // As the organisation allows them (issue #245); without its rules, as they are.
+        if !self.org.require_encryption && !self.org.no_certificate_exceptions {
+            return jobs;
+        }
+        jobs.into_iter().filter_map(|j| self.org_job(j)).collect()
     }
 
     pub fn push_job(&mut self, job: Job) {

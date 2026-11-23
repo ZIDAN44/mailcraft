@@ -40,8 +40,72 @@ fn setting(name: &str, built_in: Option<&'static str>) -> Option<String> {
     std::env::var(name).ok().or_else(|| built_in.map(str::to_string)).map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
 }
 
+/// An organisation's own Microsoft 365 app registration (issue #245): its client id, its
+/// directory (tenant; `None`: any work or school account's), and the mail domains whose
+/// accounts sign in through it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OrganisationApp {
+    pub domains: Vec<String>,
+    pub client_id: String,
+    pub tenant: Option<String>,
+}
+
+/// The organisation's registrations. Set once, as MailCraft starts.
+static ORGANISATION_APPS: std::sync::OnceLock<Vec<OrganisationApp>> = std::sync::OnceLock::new();
+
+/// Sign in with Microsoft through the organisation's own app registrations, each for the
+/// accounts of its domains (those of others, a personal one among them, sign in through
+/// MailCraft's own). Kept to an id's and a domain's characters; taken once.
+pub fn set_organisation_apps(apps: Vec<OrganisationApp>) {
+    let name_ok = |t: &str| t.bytes().all(|b| b.is_ascii_alphanumeric() || b"-.".contains(&b));
+    let apps: Vec<OrganisationApp> = apps
+        .into_iter()
+        .map(|a| OrganisationApp { tenant: a.tenant.map(|t| t.trim().to_string()).filter(|t| !t.is_empty()), ..a })
+        .filter(|a| !a.client_id.is_empty() && a.client_id.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-'))
+        .filter(|a| a.tenant.as_deref().is_none_or(name_ok) && !a.domains.is_empty())
+        .collect();
+    if !apps.is_empty() {
+        let _ = ORGANISATION_APPS.set(apps);
+    }
+}
+
+/// The registration account `email` signs in with Microsoft through: its domain's
+/// organisation's, else MailCraft's own. With no address (sign-in offered, no account yet),
+/// MailCraft's own, else the first organisation's.
+fn microsoft_for(apps: &[OrganisationApp], email: &str) -> Option<Provider> {
+    let domain = email.rsplit_once('@').map(|(_, d)| d.trim().trim_end_matches('.').to_ascii_lowercase()).unwrap_or_default();
+    match apps.iter().find(|a| !domain.is_empty() && a.domains.contains(&domain)) {
+        Some(app) => microsoft(Some(app)),
+        None if email.is_empty() => microsoft(None).or_else(|| microsoft(apps.first())),
+        None => microsoft(None),
+    }
+}
+
+/// Microsoft's provider: through an organisation's registration (`org`, with its directory,
+/// else any work or school account's), else MailCraft's own.
+fn microsoft(org: Option<&OrganisationApp>) -> Option<Provider> {
+    let (client_id, tenant) = match org {
+        Some(app) => (app.client_id.clone(), app.tenant.clone().unwrap_or_else(|| "organizations".into())),
+        None => (setting("MAILCRAFT_MICROSOFT_CLIENT_ID", option_env!("MAILCRAFT_MICROSOFT_CLIENT_ID"))?, "common".into()),
+    };
+    Some(Provider {
+        id: "microsoft".into(),
+        name: "Microsoft".into(),
+        auth_url: format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize"),
+        token_url: format!("https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"),
+        scope: "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access".into(),
+        client_id,
+        client_secret: None,
+    })
+}
+
 /// A provider by id, when MailCraft has a registration for it.
 pub fn provider(id: &str) -> Option<Provider> {
+    provider_of(id, "")
+}
+
+/// A provider by id, for the account of address `email` (empty: no account yet).
+fn provider_of(id: &str, email: &str) -> Option<Provider> {
     match id {
         "google" => Some(Provider {
             id: "google".into(),
@@ -52,15 +116,7 @@ pub fn provider(id: &str) -> Option<Provider> {
             client_id: setting("MAILCRAFT_GOOGLE_CLIENT_ID", option_env!("MAILCRAFT_GOOGLE_CLIENT_ID"))?,
             client_secret: setting("MAILCRAFT_GOOGLE_CLIENT_SECRET", option_env!("MAILCRAFT_GOOGLE_CLIENT_SECRET")),
         }),
-        "microsoft" => Some(Provider {
-            id: "microsoft".into(),
-            name: "Microsoft".into(),
-            auth_url: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize".into(),
-            token_url: "https://login.microsoftonline.com/common/oauth2/v2.0/token".into(),
-            scope: "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access".into(),
-            client_id: setting("MAILCRAFT_MICROSOFT_CLIENT_ID", option_env!("MAILCRAFT_MICROSOFT_CLIENT_ID"))?,
-            client_secret: None,
-        }),
+        "microsoft" => microsoft_for(ORGANISATION_APPS.get().map_or(&[], Vec::as_slice), email),
         other => test_provider(other),
     }
 }
@@ -84,7 +140,7 @@ pub use mailcraft_model::oauth_provider_for as provider_for_host;
 /// The provider an account signs in with: Graph accounts ask Microsoft for Graph's mail
 /// permissions instead of IMAP's and SMTP's (a token is for one service).
 pub fn provider_for_account(account: &mailcraft_model::AccountConfig) -> Option<Provider> {
-    let mut p = provider(account.oauth.as_deref()?)?;
+    let mut p = provider_of(account.oauth.as_deref()?, &account.email)?;
     if account.graph.is_some() && p.id == "microsoft" {
         p.scope = GRAPH_SCOPE.into();
     }
@@ -103,7 +159,7 @@ pub const DIRECTORY_SCOPE: &str = "https://graph.microsoft.com/User.ReadBasic.Al
 /// sign-in, [`DIRECTORY_SCOPE`]).
 pub fn directory_provider(account: &mailcraft_model::AccountConfig) -> Option<Provider> {
     account.graph.as_ref()?;
-    let mut p = provider(account.oauth.as_deref()?)?;
+    let mut p = provider_of(account.oauth.as_deref()?, &account.email)?;
     p.scope = DIRECTORY_SCOPE.into();
     Some(p)
 }
@@ -419,6 +475,30 @@ use std::io::Read as _;
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    /// The organisation's own registration (issue #245): its client id, and sign-in at its
+    /// directory, else at any work or school account's; only for the accounts of its domains.
+    #[test]
+    fn microsoft_through_the_organisations_registration() {
+        let app = |domains: &[&str], id: &str, tenant: Option<&str>| OrganisationApp {
+            domains: domains.iter().map(|d| d.to_string()).collect(),
+            client_id: id.into(),
+            tenant: tenant.map(str::to_string),
+        };
+        let apps =
+            [app(&["contoso.example"], "0f1e2d3c-aaaa-bbbb-cccc-111122223333", Some("contoso.example")), app(&["fabrikam.example"], "0f1e", None)];
+        let p = microsoft_for(&apps, "Riley@Contoso.example").unwrap();
+        assert_eq!(p.client_id, "0f1e2d3c-aaaa-bbbb-cccc-111122223333");
+        assert_eq!(p.auth_url, "https://login.microsoftonline.com/contoso.example/oauth2/v2.0/authorize");
+        assert!(p.token_url.starts_with("https://login.microsoftonline.com/contoso.example/"));
+        let any = microsoft_for(&apps, "zoe@fabrikam.example").unwrap();
+        assert!(any.client_id == "0f1e" && any.auth_url.contains("/organizations/"));
+        // Another domain's account, a personal one among them: MailCraft's own registration,
+        // where this build has one (none in a test build), never the organisation's.
+        assert!(microsoft_for(&apps, "me@outlook.example").is_none_or(|p| p.auth_url.contains("/common/") && !p.client_id.starts_with("0f1e")));
+        // No account yet: MailCraft's own, else the organisation's, so sign-in is offered.
+        assert!(microsoft_for(&apps, "").is_some());
+    }
 
     /// A provider whose endpoints are local test servers.
     pub(crate) fn local(token_url: &str) -> Provider {

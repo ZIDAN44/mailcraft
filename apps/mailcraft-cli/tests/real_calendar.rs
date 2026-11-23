@@ -269,6 +269,28 @@ fn real_ews_group_people_come_at_once() {
     let _ = app.s.run("calendar.groupDelete", &json!({"name": "Team 208", "account": id}));
 }
 
+/// Issue #245 over Exchange Web Services (`MAILCRAFT_REAL_EWS`, its user given a job title and
+/// department in the directory: on grommunio, `grommunio-admin user create --property
+/// title=… --property departmentname=…`): an organisation's signature that names them is filled
+/// from the directory once the account is online, with no details typed.
+#[test]
+#[ignore = "needs a real Exchange server in MAILCRAFT_REAL_EWS"]
+fn real_ews_organisation_signature_from_the_directory() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_EWS") else { return eprintln!("MAILCRAFT_REAL_EWS isn't set: skipped") };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_EWS: url user password") };
+    let mut app = App::open("ews-org", password);
+    let profile = json!({"signature": {"name": "Org", "text": "{name}\n{title}, {department}", "locked": true}});
+    app.s.set_organisation(mailcraft_engine::policy::Organisation::from_sources(vec![("test".into(), profile, true)]));
+    let id = app.add(json!({"email": user, "username": user, "password": password, "ews": url}));
+    let details = |s: &mailcraft_engine::Session| s.account(&id).map(|a| a.config.details.clone()).unwrap_or_default();
+    app.pump(60, "the directory's answer", |s, e| matches!(e, Event::Directory { .. }) && details(s).contains_key("title"));
+    let filled = app.s.account(&id).and_then(|a| a.config.signature_named("Org")).map(|g| g.text.clone()).unwrap_or_default();
+    eprintln!("details {:?}; signature {filled:?}", details(&app.s));
+    let (title, department) = (&details(&app.s)["title"], &details(&app.s)["department"]);
+    assert!(!title.is_empty() && !department.is_empty() && filled.ends_with(&format!("\n{title}, {department}")), "{filled:?}");
+}
+
 /// Issue #241: one occurrence of a series changed and another moved on their own, as a fresh
 /// MailCraft reads them back from the server: the series as it was, those two its changed
 /// occurrences. `occurrences(app, id)`: each part's (`RECURRENCE-ID`, summary, start).

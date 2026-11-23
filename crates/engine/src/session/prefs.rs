@@ -239,6 +239,9 @@ pub struct Prefs {
     pub ctrl_enter: CtrlEnter,
     /// Seconds a message sent waits in the Outbox, to be undone (issue #135); 0: none.
     pub undo_send_secs: u32,
+    /// What updating MailCraft by itself does (issue #207): as the copy was installed, releases
+    /// only, or never.
+    pub updates: crate::policy::Updates,
     /// What opens at the start (issue #172).
     pub start_in: StartIn,
     /// The folder open last (All Inboxes or an account's), for [`StartIn::Last`].
@@ -266,6 +269,11 @@ pub struct Prefs {
     /// The accounts kept from agents, by id: what agents read leaves them out.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub agents_hidden: Vec<String>,
+    /// The defaults an organisation's profile gave, as given (issue #245), by setting: each is
+    /// put in once, and again only when the organisation gives another, so a default the person
+    /// changed stays as they left it.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub org_applied: BTreeMap<String, serde_json::Value>,
     /// What becomes of a meeting invitation's mail (and its earlier versions in the Inbox) once
     /// it's answered, in the message or the calendar, and of a cancellation once it's taken in
     /// (issue #31), as Outlook's "Delete meeting requests and notifications from Inbox after
@@ -450,6 +458,7 @@ impl Default for Prefs {
             confirm_permanent_delete: true,
             ctrl_enter: CtrlEnter::Ask,
             undo_send_secs: 0,
+            updates: crate::policy::Updates::On,
             start_in: StartIn::FirstInbox,
             last_open: None,
             favorites: None,
@@ -477,6 +486,7 @@ impl Default for Prefs {
             agents_run: false,
             agents_always: Vec::new(),
             agents_hidden: Vec::new(),
+            org_applied: BTreeMap::new(),
             answered_invites: AnsweredInvites::Delete,
             answered_folders: BTreeMap::new(),
             answered_replies: false,

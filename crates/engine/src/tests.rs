@@ -248,6 +248,7 @@ mod calendar;
 mod directory;
 mod mail;
 mod opening;
+mod organisation;
 mod organize;
 mod photos;
 mod safety;
