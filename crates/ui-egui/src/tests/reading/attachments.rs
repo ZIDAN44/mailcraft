@@ -328,3 +328,87 @@ fn selected_attachments_drag_out_together() {
     assert_eq!(twice.len(), 2);
     assert!(twice[0] != twice[1] && twice.iter().all(|p| p.is_file() && name(p) == attachments[0].name), "{twice:?}");
 }
+
+/// Services that remember the files handed to their app.
+#[cfg(windows)]
+struct Opens(std::rc::Rc<std::cell::RefCell<Vec<std::path::PathBuf>>>);
+
+#[cfg(windows)]
+impl crate::Services for Opens {
+    stub_services!(clock, pick_files, save_path);
+    fn open_path(&mut self, path: &std::path::Path) -> Result<(), String> {
+        self.0.borrow_mut().push(path.to_path_buf());
+        Ok(())
+    }
+}
+
+/// Issue #260: an attachment opened again while its app still had it open failed with "The
+/// process cannot access the file because it is being used by another process": Word keeps the
+/// file it shows, and Windows won't let it be written. The file there is that attachment, so it's
+/// opened as it is (Word comes to it). One of the same name that isn't the attachment goes in a
+/// folder of its own, the other left alone. Windows alone: elsewhere a file open in an app can be
+/// written.
+#[cfg(windows)]
+#[test]
+fn an_attachment_its_app_still_has_open_opens_again() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let (mut a, _) = app("attach-open-held");
+    let opened = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    a.services = Box::new(Opens(opened.clone()));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list.iter().find(|m| m.subject.starts_with("Your proof")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    let doc = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).and_then(|p| p.attachments.get(2)).cloned().expect("the document");
+    let bytes = a.session.attachment_bytes(doc.index).unwrap();
+    let errors = |a: &MailApp| a.session.notices.iter().filter(|n| n.error).map(|n| n.text.clone()).collect::<Vec<_>>();
+    // Held as Word holds a document it shows: no one else may write it.
+    let hold = |p: &std::path::Path| std::fs::OpenOptions::new().read(true).share_mode(0).open(p).unwrap();
+
+    a.act(crate::Action::OpenAttachment(doc.index));
+    let first = opened.borrow().last().cloned().expect("opened");
+    let held = hold(&first);
+    a.act(crate::Action::OpenAttachment(doc.index));
+    assert_eq!(errors(&a), Vec::<String>::new());
+    assert_eq!(*opened.borrow(), [first.clone(), first.clone()], "the same file, opened again");
+    drop(held);
+
+    // The file there now isn't this attachment (another of its name, or an earlier MailCraft's).
+    std::fs::write(&first, b"another file of the same name").unwrap();
+    a.ui.opened_files.clear();
+    let held = hold(&first);
+    a.act(crate::Action::OpenAttachment(doc.index));
+    assert_eq!(errors(&a), Vec::<String>::new());
+    let beside = opened.borrow().last().cloned().unwrap();
+    assert!(beside != first && beside.file_name() == first.file_name(), "{beside:?}");
+    assert_eq!(std::fs::read(&beside).unwrap(), bytes);
+    drop(held);
+    assert_eq!(std::fs::read(&first).unwrap(), b"another file of the same name", "left alone");
+}
+
+/// A note's file opened again while its app still has it open: the same as an attachment's (issue
+/// #260), as they're handed over from the same folder.
+#[cfg(windows)]
+#[test]
+fn a_note_s_file_its_app_still_has_open_opens_again() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let (mut a, _) = app("note-file-open-held");
+    let opened = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+    a.services = Box::new(Opens(opened.clone()));
+    a.run("view.module", json!({"name": "notes"}));
+    let uid = a.session.notes("")[0].note.uid.clone();
+    let line = "ATTACH;FMTTYPE=application/pdf;ENCODING=BASE64;VALUE=BINARY;X-FILENAME=\"swatch.pdf\":JVBERi0xLjc=".to_string();
+    for p in a.session.pim.values_mut() {
+        for n in p.notes.iter_mut().filter(|n| n.note.uid == uid) {
+            n.note.files = vec![line.clone()];
+        }
+    }
+    a.act(crate::Action::NoteFile { uid: uid.clone(), index: 0, open: true });
+    let first = opened.borrow().last().cloned().expect("opened");
+    let held = std::fs::OpenOptions::new().read(true).share_mode(0).open(&first).unwrap();
+    a.act(crate::Action::NoteFile { uid, index: 0, open: true });
+    assert!(a.session.notices.iter().all(|n| !n.error), "{:?}", a.session.notices);
+    assert_eq!(*opened.borrow(), [first.clone(), first], "the same file, opened again");
+    drop(held);
+}

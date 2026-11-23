@@ -96,6 +96,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 - On Linux and the BSDs the top bar is the window's title bar, as on Windows: it moves the window, and minimize, maximize and close are at its end, with no second bar from the desktop above it. **File › Options › General › Use the system title bar** keeps the desktop's.
 - On a Mac, ⌘A, ⌘C, ⌘V, ⌘X and ⌘Z work in a file dialog's fields (a Save As name, an Open dialog's search): MailCraft's menu bar had no Edit menu for them to go through, so ⌘A did nothing there.
 - On Windows, MailCraft and its tests no longer load OpenGL, which they don't use, as they start: each start and close is about 65 ms quicker.
+- On Windows, an attachment or a note's file opened again while its app still has it open (a document in Word) opens again, its app coming to it (#260): MailCraft said the file was "being used by another process". Another file of the same name, from another message, opens beside it.
 
 ## 0.41.0 - 2026-11-20
 

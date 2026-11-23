@@ -317,6 +317,10 @@ pub struct UiState {
     pub(crate) invite: Option<(MessageKey, u64, Option<mailcraft_engine::Invite>, Option<mailcraft_engine::InviteDay>)>,
     /// Files to drag out of the window (the app starts the system drag).
     pub(crate) drag_out: Vec<PathBuf>,
+    /// What each file opened in another app was written from (an attachment by its message and
+    /// index, a note's file by its note and index): one opened again while its app holds the
+    /// file is that file.
+    pub(crate) opened_files: HashMap<PathBuf, String>,
     /// The platform can drag files out.
     pub(crate) can_drag_out: bool,
     /// The account whose import's details are shown, beside the status bar.

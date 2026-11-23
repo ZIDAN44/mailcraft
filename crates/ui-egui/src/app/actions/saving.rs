@@ -3,6 +3,10 @@
 
 use crate::*;
 
+/// Most numbered folders a file to be opened in another app is tried in, while its name's file in
+/// the one before is held by an app.
+const OPEN_COPIES: usize = 20;
+
 impl MailApp {
     /// The message as a PDF, saved where asked, then opened to print from the viewer (in the
     /// browser, downloaded).
@@ -188,23 +192,59 @@ impl MailApp {
         if !self.ui.has_files {
             return None;
         }
-        let name = self.attachment_name(i);
-        let dir = crate::scratch_dir("open").and_then(|d| match sub {
-            Some(n) => std::fs::create_dir_all(d.join(n.to_string())).ok().map(|()| d.join(n.to_string())),
-            None => Some(d),
-        });
-        let Some(dir) = dir else {
-            self.session.notice(tl!("There's no folder to put the attachment in for another app"), true);
-            return None;
-        };
-        let path = dir.join(mailcraft_engine::mime::sanitize_filename(&name));
-        match self.session.run("attachment.save", &json!({"index": i, "path": path.to_string_lossy(), "open": open})) {
-            Ok(_) => Some(path),
-            Err(e) => {
-                self.session.notice(e.to_string(), true);
-                None
+        let name = mailcraft_engine::mime::sanitize_filename(&self.attachment_name(i));
+        let from = self.session.reading.as_ref().map(|r| format!("{}#{i}", r.key.to_id())).filter(|_| open);
+        self.write_for_app(&name, "attachment.save", json!({"index": i, "open": open}), from, sub)
+    }
+
+    /// The file `name` written by the command `id` (its `params` and the path) into the folder for
+    /// files handed to other apps, or its numbered folder `sub`. `from` says what it's written
+    /// from (an attachment, a note's file) when it's to be opened.
+    ///
+    /// One to be opened may find its name's file held by the app it was opened in before: Word
+    /// keeps the file it shows, and Windows won't let it be written ("being used by another
+    /// process", issue #260). When that file was written from the same thing, it's opened as it is
+    /// (its app comes to it); when from another of the same name, this one goes in a numbered
+    /// folder of its own.
+    fn write_for_app(&mut self, name: &str, id: &str, mut params: Value, from: Option<String>, sub: Option<usize>) -> Option<PathBuf> {
+        let tries: Vec<Option<usize>> =
+            if from.is_some() && sub.is_none() { std::iter::once(None).chain((2..=OPEN_COPIES).map(Some)).collect() } else { vec![sub] };
+        let mut first_error = None;
+        for sub in tries {
+            let dir = crate::scratch_dir("open").and_then(|d| match sub {
+                Some(n) => std::fs::create_dir_all(d.join(n.to_string())).ok().map(|()| d.join(n.to_string())),
+                None => Some(d),
+            });
+            let Some(dir) = dir else {
+                self.session.notice(tl!("There's no folder to put the attachment in for another app"), true);
+                return None;
+            };
+            let path = dir.join(name);
+            params["path"] = json!(path.to_string_lossy());
+            match self.session.run(id, &params) {
+                Ok(_) => {
+                    if let Some(from) = &from {
+                        self.ui.opened_files.insert(path.clone(), from.clone());
+                    }
+                    return Some(path);
+                }
+                // Not written over a file that's there: one its app holds.
+                Err(mailcraft_engine::CmdError::Failed(e)) if from.is_some() && path.is_file() => {
+                    if self.ui.opened_files.get(&path) == from.as_ref() {
+                        return Some(path);
+                    }
+                    first_error.get_or_insert(e);
+                }
+                Err(e) => {
+                    first_error = Some(first_error.unwrap_or_else(|| e.to_string()));
+                    break;
+                }
             }
         }
+        if let Some(e) = first_error {
+            self.session.notice(e, true);
+        }
+        None
     }
 
     /// A note's file `index`, opened in another app (saved for it first, never when it could run
@@ -224,22 +264,17 @@ impl MailApp {
             .find(|n| n.note.uid == uid)
             .and_then(|n| n.note.kept_files().get(index).map(|f| mailcraft_engine::mime::sanitize_filename(f.file_name())))
             .unwrap_or_else(|| "attachment".into());
-        let path = if open {
-            let Some(dir) = crate::scratch_dir("open") else {
-                self.session.notice(tl!("There's no folder to put the attachment in for another app"), true);
-                return;
-            };
-            dir.join(&name)
-        } else {
-            let Some(path) = self.services.save_path(&name) else { return };
-            path
-        };
-        match self.session.run("note.saveFile", &json!({"uid": uid, "index": index, "path": path.to_string_lossy(), "open": open})) {
-            Ok(_) if open => {
-                if let Err(e) = self.services.open_path(&path) {
-                    self.session.notice(tf!("{name} could not be opened: {error}", name = name, error = e), true);
-                }
+        if open {
+            let from = Some(format!("note:{uid}#{index}"));
+            if let Some(path) = self.write_for_app(&name, "note.saveFile", json!({"uid": uid, "index": index, "open": true}), from, None)
+                && let Err(e) = self.services.open_path(&path)
+            {
+                self.session.notice(tf!("{name} could not be opened: {error}", name = name, error = e), true);
             }
+            return;
+        }
+        let Some(path) = self.services.save_path(&name) else { return };
+        match self.session.run("note.saveFile", &json!({"uid": uid, "index": index, "path": path.to_string_lossy(), "open": false})) {
             Ok(_) => self.session.notice(tf!("Saved {path}", path = path.display()), false),
             Err(e) => self.session.notice(e.to_string(), true),
         }
