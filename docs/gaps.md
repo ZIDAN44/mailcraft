@@ -292,3 +292,9 @@ These are outside MailCraft's control, or accepted as they are.
   another user on the computer can copy it into their own `shell:sendto` folder), **Send with
   MailCraft** in Dolphin, Nemo and PCManFM-Qt, and files dropped on MailCraft's Dock icon or
   window.
+- **Windows Server 2016, and Windows 10 before version 1709, without a graphics card** (over
+  Remote Desktop, a virtual machine without one): the window can't open (#256). MailCraft draws
+  with DirectX 12 through wgpu, which needs more than those versions' own software renderer
+  has. A graphics card whose driver has DirectX 12 draws it there (over Remote Desktop, with the
+  policy that lets its sessions use it), as does Windows 10 version 1709, Windows Server 2019 or
+  later.

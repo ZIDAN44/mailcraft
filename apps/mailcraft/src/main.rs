@@ -380,7 +380,7 @@ fn main() -> eframe::Result {
     rfd::MessageDialog::new()
         .set_level(rfd::MessageLevel::Error)
         .set_title("MailCraft")
-        .set_description(cant_open(&failed))
+        .set_description(cant_open(&failed, graphics::windows_build()))
         .set_buttons(rfd::MessageButtons::Ok)
         .show();
     std::process::exit(1)
@@ -422,17 +422,10 @@ fn say_out(what: &str) {
 }
 
 /// What the message box says when the window can't open.
-fn cant_open(why: &str) -> String {
-    let (help, log) = if cfg!(windows) {
-        (
-            "Updating it may help, or starting MailCraft with the environment variable WGPU_FORCE_FALLBACK_ADAPTER=1, which draws it with \
-             Windows' software renderer.",
-            "%APPDATA%\\MailCraft\\mailcraft.log",
-        )
-    } else {
-        ("Updating it may help.", "mailcraft.log, in MailCraft's data folder")
-    };
-    format!("MailCraft's window couldn't open:\n{why}\n\nThis is usually the graphics driver. {help}\n\nThe details are in {log}.")
+fn cant_open(why: &str, build: Option<u32>) -> String {
+    let log = if cfg!(windows) { "%APPDATA%\\MailCraft\\mailcraft.log" } else { "mailcraft.log, in MailCraft's data folder" };
+    let help = graphics::advice(why, cfg!(windows), build);
+    format!("MailCraft's window couldn't open:\n{why}\n\n{help}\n\nThe details are in {log}.")
 }
 
 /// The data files opening (`desktop/boot.rs`), what the window shows meanwhile, and what the
@@ -662,9 +655,33 @@ mod tests {
     /// A window that can't open says why, in plain sentences (no gaps left from the source).
     #[test]
     fn a_window_that_cant_open_says_why() {
-        let m = cant_open("no graphics adapter");
+        let m = cant_open("no graphics adapter", None);
         assert!(m.starts_with("MailCraft's window couldn't open:\nno graphics adapter\n"), "{m}");
         assert!(m.contains("mailcraft.log") && !m.contains("  "), "{m}");
+    }
+
+    /// Issue #256: Windows Server 2016 over Remote Desktop, where DirectX 12 offers nothing at all.
+    /// The message says that Windows is too old for the software renderer, and doesn't send people
+    /// to the variable that draws with it (they set it, and nothing changed).
+    #[test]
+    fn an_old_windows_without_a_gpu_is_told_so() {
+        let none = format!("WGPU error: Adapter selection failed: {}", graphics::NONE_FOUND);
+        let fallback = "WGPU_FORCE_FALLBACK_ADAPTER";
+        let server_2016 = graphics::advice(&none, true, Some(14393));
+        assert!(server_2016.contains("1709") && server_2016.contains("14393") && !server_2016.contains(fallback), "{server_2016}");
+        // A newer Windows that found nothing: its driver, still without the variable.
+        let newer = graphics::advice(&none, true, Some(19045));
+        assert!(!newer.contains("1709") && !newer.contains(fallback) && newer.contains("driver"), "{newer}");
+        // Nothing known of the build: the driver.
+        assert!(!graphics::advice(&none, true, None).contains("1709"));
+        // An adapter found that can't draw: the variable is still offered, whatever the build.
+        let found = "a graphics adapter can't draw the window; DirectX 12 found Intel(R) HD Graphics (IntegratedGpu)";
+        assert!(graphics::advice(found, true, Some(14393)).contains(fallback));
+        // Not Windows: the driver alone.
+        let elsewhere = graphics::advice(&none, false, Some(14393));
+        assert!(!elsewhere.contains(fallback) && !elsewhere.contains("1709"), "{elsewhere}");
+        // And whole sentences in the box.
+        assert!(!cant_open(&none, Some(14393)).contains("  "));
     }
 
     /// The system's thumbnailer (as when ffmpeg isn't installed) makes a video's frame through

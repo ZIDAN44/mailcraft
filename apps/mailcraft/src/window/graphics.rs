@@ -52,6 +52,55 @@ pub struct Candidate {
     pub draws: bool,
 }
 
+/// What DirectX 12 offering nothing at all is said as.
+pub const NONE_FOUND: &str = "DirectX 12 found no graphics adapter, not even Windows' software renderer";
+
+/// The first Windows build (Windows 10 version 1709; Windows Server 2019 is later) whose software
+/// renderer, WARP, has DirectX 12's feature levels 12_0 and 12_1. wgpu takes no adapter short of
+/// what those bring (resource binding tier 2), and on Windows Server 2016 over Remote Desktop,
+/// without a graphics card, DirectX 12 offered it none at all (issue #256).
+pub const WARP_12_BUILD: u32 = 16299;
+
+/// What the message box advises when the window couldn't open for `why`, on `windows` build
+/// `build`: the graphics driver, and on Windows the variable that draws with WARP, unless WARP
+/// wasn't found either; then, on a Windows older than [`WARP_12_BUILD`], that it's too old.
+pub fn advice(why: &str, windows: bool, build: Option<u32>) -> String {
+    let driver = "This is usually the graphics driver. Updating it may help";
+    if !windows {
+        return format!("{driver}.");
+    }
+    if !why.contains(NONE_FOUND) {
+        return format!(
+            "{driver}, or starting MailCraft with the environment variable WGPU_FORCE_FALLBACK_ADAPTER=1, which draws it with Windows' software renderer."
+        );
+    }
+    match build.filter(|b| *b < WARP_12_BUILD) {
+        Some(b) => format!(
+            "This Windows (build {b}) is older than Windows 10 version 1709 and Windows Server 2019, whose software renderer draws \
+             MailCraft where there's no graphics card to draw with, as over Remote Desktop. Here it needs a graphics card whose driver \
+             has DirectX 12 (over Remote Desktop, with the policy \"Use hardware graphics adapters for all Remote Desktop Services \
+             sessions\" on), or a newer Windows."
+        ),
+        None => format!("{driver}."),
+    }
+}
+
+/// This Windows' build number, from the registry: Windows tells a program with no version
+/// manifest that it runs on Windows 8.
+#[cfg(windows)]
+pub fn windows_build() -> Option<u32> {
+    use winsafe::{HKEY, RegistryValue, co};
+    match HKEY::LOCAL_MACHINE.RegGetValue(Some(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion"), Some("CurrentBuild"), co::RRF::RT_ANY) {
+        Ok(RegistryValue::Sz(text)) => text.trim().parse().ok(),
+        _ => None,
+    }
+}
+
+#[cfg(not(windows))]
+pub fn windows_build() -> Option<u32> {
+    None
+}
+
 /// The adapter to draw with, by its place in `found`: the best-ranked one that can draw to the
 /// window (with `software_only`, WARP alone). `Err` says what was found, for the message shown
 /// when the window can't open.
@@ -64,7 +113,7 @@ pub fn choose(found: &[Candidate], prefer: PowerPreference, software_only: bool)
         .map(|(at, _)| at)
         .ok_or_else(|| {
             if found.is_empty() {
-                "DirectX 12 found no graphics adapter, not even Windows' software renderer".to_string()
+                NONE_FOUND.to_string()
             } else {
                 let names: Vec<String> =
                     found.iter().map(|c| format!("{} ({:?}{})", c.name, c.device, if c.draws { "" } else { ", can't draw to the window" })).collect();
@@ -197,7 +246,7 @@ fn windows_setup(options: &mut eframe::NativeOptions, backends: Option<wgpu::Bac
         for c in &found {
             log::info!("graphics: DirectX 12 adapter {:?} ({:?}){}", c.name, c.device, if c.draws { "" } else { ", can't draw to the window" });
         }
-        let at = choose(&found, prefer, software).inspect_err(|e| log::error!("graphics: {e}"))?;
+        let at = choose(&found, prefer, software).inspect_err(|e| log::error!("graphics: {e} (Windows build {:?})", windows_build()))?;
         let chosen = adapters.get(at).cloned().ok_or_else(|| "the chosen graphics adapter went away".to_string())?;
         if let Some(c) = found.get(at) {
             let how = if c.device == DeviceType::Cpu { " (software: drawn by the processor)" } else { "" };

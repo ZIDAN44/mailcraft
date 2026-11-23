@@ -79,6 +79,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 - In the To-Do Bar, an appointment's "In N min" sits above its time, and its title keeps all its room (#195): at the row's end it hid the end of the title.
 - An invitation's card says how it repeats (Repeats · Every week), and draws the invitation on a line of its own above your events, its name and theirs no longer written over each other (#194).
 - The guests of a repeating meeting told that one occurrence is called off are told which, by its date and time (#235): the message read as if the whole series were cancelled.
+- Where MailCraft's window can't open on Windows Server 2016 or a Windows 10 older than version 1709 without a graphics card to draw with, as over Remote Desktop (#256), the message says that Windows' own software renderer is too old to draw MailCraft there, and no longer suggests the setting that draws with it.
 
 ## 0.41.0 - 2026-11-20
 
