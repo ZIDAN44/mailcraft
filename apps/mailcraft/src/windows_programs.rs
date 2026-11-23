@@ -21,14 +21,14 @@ pub(crate) fn path(name: &str) -> PathBuf {
     system.join(name)
 }
 
-#[cfg(test)]
+// Windows alone: elsewhere there are no Windows programs to find.
+#[cfg(all(test, windows))]
 mod tests {
     use super::*;
 
     /// Windows' programs MailCraft starts (to open a folder, a file or a link, and to install an
     /// update) are Windows' own, by their full path where Windows says its folders are. Started by
     /// name, an `explorer.exe` beside a portable MailCraft ran in its place.
-    #[cfg(windows)]
     #[test]
     fn windows_programs_are_started_by_their_full_path() {
         let system = PathBuf::from(winsafe::GetSystemDirectory().unwrap());
