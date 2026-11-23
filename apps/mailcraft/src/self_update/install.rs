@@ -218,7 +218,8 @@ pub(super) fn replace_appimage(new: &Path, path: &Path) -> Result<(), String> {
                 use std::os::unix::fs::PermissionsExt;
                 file.set_permissions(std::fs::Permissions::from_mode(0o755))?;
             }
-            file.sync_all()
+            // On a Mac, a network share refuses the full flush Rust asks for there: a plain one.
+            craft_atomic::sync_file(&file)
         })
         .map_err(|e| format!("couldn't write beside {} ({e})", path.display()));
     drop(file);

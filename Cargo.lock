@@ -4057,6 +4057,7 @@ version = "0.42.0"
 dependencies = [
  "arboard",
  "chrono",
+ "craft-atomic",
  "craft-control",
  "craft-font-catalog",
  "dispatch2",
@@ -4256,6 +4257,7 @@ dependencies = [
 name = "mailcraft-pst"
 version = "0.42.0"
 dependencies = [
+ "craft-atomic",
  "log",
 ]
 

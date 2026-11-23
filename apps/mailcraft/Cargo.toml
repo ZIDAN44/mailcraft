@@ -13,6 +13,8 @@ default-run = "mailcraft"
 workspace = true
 
 [dependencies]
+# The update's file flushed as the cache's are (a plain flush where a Mac refuses the full one).
+craft-atomic = { workspace = true }
 mailcraft-engine = { workspace = true }
 mailcraft-net = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
