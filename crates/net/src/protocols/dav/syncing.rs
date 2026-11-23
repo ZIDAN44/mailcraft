@@ -77,8 +77,8 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         _ => None,
     };
     out.carddav_home = match &pim.carddav_home {
-        Some(h) if !h.is_empty() && at.contacts => Some(h.clone()),
-        _ if (retry || (dav.is_bearer() && pim.carddav_home.is_none())) && at.contacts => {
+        Some(h) if !h.is_empty() => Some(h.clone()),
+        _ if retry || (dav.is_bearer() && pim.carddav_home.as_deref().is_none_or(str::is_empty)) => {
             // For Bearer sessions, a 403 on CardDAV shouldn't abort the calendar sync.
             match find(Kind::Contacts, at.carddav, &mut out.errors) {
                 Ok(h) => h,
@@ -110,23 +110,18 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     let mut refetch: Vec<String> = Vec::new();
     run.push_deletions(&mut out, &mut refetch)?;
     run.push_events(&mut out, &mut refetch)?;
-    if at.contacts {
-        // For Bearer sessions, a 403 on contacts shouldn't abort the calendar sync.
-        match run.push_cards(&mut out) {
-            Ok(()) => {}
-            Err(NetError::Auth(msg)) if dav.is_bearer() => out.errors.push(format!("contacts: {msg}")),
-            Err(e) => return Err(e),
-        }
+    // For Bearer sessions, a 403 on contacts shouldn't abort the calendar sync.
+    match run.push_cards(&mut out) {
+        Ok(()) => {}
+        Err(NetError::Auth(msg)) if dav.is_bearer() => out.errors.push(format!("contacts: {msg}")),
+        Err(e) => return Err(e),
     }
     run.push_tasks(&mut out, &mut refetch)?;
     run.read_calendars(&refetch, &mut out)?;
-    if at.contacts {
-        // For Bearer sessions, a 403 on contacts shouldn't abort the calendar sync.
-        match run.read_books(&mut out) {
-            Ok(()) => {}
-            Err(NetError::Auth(msg)) if dav.is_bearer() => out.errors.push(format!("contacts: {msg}")),
-            Err(e) => return Err(e),
-        }
+    match run.read_books(&mut out) {
+        Ok(()) => {}
+        Err(NetError::Auth(msg)) if dav.is_bearer() => out.errors.push(format!("contacts: {msg}")),
+        Err(e) => return Err(e),
     }
     Ok(out)
 }

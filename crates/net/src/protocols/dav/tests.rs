@@ -159,7 +159,7 @@ fn measure_big_collections() {
         let start = 1_800_000_000 + i64::try_from(i).unwrap_or_default() * 3600;
         CalEvent { uid: uid(i), summary: format!("Event {i}"), start, end: start + 1800, ..Default::default() }
     };
-    let at = Where { email: USER, imap_host: "imap.example", mails: true, contacts: true, ..Default::default() };
+    let at = Where { email: USER, imap_host: "imap.example", mails: true, ..Default::default() };
     let pim_at = |base: &str| {
         let mut pim = Pim {
             caldav_home: Some(format!("{base}/dav/cal/")),
@@ -267,7 +267,7 @@ fn bearer_403_is_auth_error_and_retries_while_no_home() {
 
     let dav = Dav::bearer(token);
     let caldav_url = format!("{}/dav/", server.base);
-    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), mails: true, contacts: true, ..Default::default() };
+    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), mails: true, ..Default::default() };
     let mut pim = Pim { dav_checked: Some(100), ..Default::default() };
     pim.ensure_defaults();
 
@@ -402,15 +402,8 @@ fn bearer_syncs_calendar_and_contacts() {
     let dav = Dav::bearer(token);
     let caldav_url = format!("{}/dav/", server.base);
     let carddav_url = format!("{}/dav/", server.base);
-    let at = Where {
-        email: USER,
-        imap_host: "imap.example",
-        caldav: Some(&caldav_url),
-        carddav: Some(&carddav_url),
-        mails: true,
-        contacts: true,
-        ..Default::default()
-    };
+    let at =
+        Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), carddav: Some(&carddav_url), mails: true, ..Default::default() };
     let mut pim = Pim::default();
     pim.ensure_defaults();
 
@@ -440,15 +433,8 @@ fn bearer_403_on_carddav_syncs_calendar_anyway() {
     let dav = Dav::bearer(token);
     let caldav_url = format!("{}/dav/", server.base);
     let carddav_url = format!("{}/dav/", server.base);
-    let at = Where {
-        email: USER,
-        imap_host: "imap.example",
-        caldav: Some(&caldav_url),
-        carddav: Some(&carddav_url),
-        mails: true,
-        contacts: true,
-        ..Default::default()
-    };
+    let at =
+        Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), carddav: Some(&carddav_url), mails: true, ..Default::default() };
     let mut pim = Pim::default();
     pim.ensure_defaults();
 
@@ -461,4 +447,11 @@ fn bearer_403_on_carddav_syncs_calendar_anyway() {
     assert!(out.errors.iter().any(|e| e.contains("contacts")), "error should mention contacts: {out:?}");
     // No contacts books or cards should be synced (the read operations failed).
     assert!(out.books.is_none(), "contacts books should not be read: {out:?}");
+
+    // As the engine saves it: no contacts home is stored as an empty one. Once the scope is
+    // granted, the next sync looks again although the last look was recent.
+    server.data.lock().unwrap().unreadable.clear();
+    let saved = Pim { caldav_home: out.caldav_home.clone(), carddav_home: Some(String::new()), dav_checked: Some(100), ..Default::default() };
+    let again = sync(&dav, &at, &saved, 200, Zone::UTC).unwrap();
+    assert!(again.carddav_home.is_some(), "contacts home should be found at the next sync: {again:?}");
 }

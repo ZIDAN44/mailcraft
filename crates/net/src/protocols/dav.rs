@@ -107,8 +107,6 @@ pub struct Where<'a> {
     /// MailCraft mails the account's meeting messages. Not for an account with calendars and
     /// contacts only (issue #61): a server that schedules sends them.
     pub mails: bool,
-    /// Whether to sync contacts (CardDAV). Google OAuth accounts lack the contacts scope.
-    pub contacts: bool,
 }
 
 impl Where<'_> {

@@ -149,7 +149,6 @@ impl Worker {
             caldav: caldav.as_deref(),
             carddav: carddav.as_deref(),
             mails: !self.acc.is_calendar_only(),
-            contacts: true,
         };
         let sync = crate::dav::sync(&dav, &at, &pim, now(), system_zone());
         self.dav_digest = dav.digest();
