@@ -384,3 +384,81 @@ fn bearer_forbidden() {
     let result = dav_basic.remove(&url2, "");
     assert!(matches!(result, Ok(Err(Refused::Forbidden))), "Basic auth remove should return Refused::Forbidden for 403, got: {:?}", result);
 }
+
+/// A Google Bearer session with both scopes syncs both calendar and contacts.
+#[test]
+fn bearer_syncs_calendar_and_contacts() {
+    use crate::fakes::fake_dav::{USER, serve};
+    use mailcraft_model::zone::Zone;
+
+    let server = serve();
+    let token = "test-token";
+    {
+        let mut d = server.data.lock().unwrap();
+        d.bearer = Some(token.to_string());
+        d.bearer_forbidden = false;
+    }
+
+    let dav = Dav::bearer(token);
+    let caldav_url = format!("{}/dav/", server.base);
+    let carddav_url = format!("{}/dav/", server.base);
+    let at = Where {
+        email: USER,
+        imap_host: "imap.example",
+        caldav: Some(&caldav_url),
+        carddav: Some(&carddav_url),
+        mails: true,
+        contacts: true,
+        ..Default::default()
+    };
+    let mut pim = Pim::default();
+    pim.ensure_defaults();
+
+    let out = sync(&dav, &at, &pim, 100, Zone::UTC).unwrap();
+    assert!(out.caldav_home.is_some(), "calendar home should be found: {out:?}");
+    assert!(out.carddav_home.is_some(), "contacts home should be found: {out:?}");
+    assert_eq!(out.errors.len(), 0, "no errors: {out:?}");
+}
+
+/// Bearer 403 on CardDAV doesn't abort the calendar sync: the calendar syncs, and the
+/// contacts error is recorded.
+#[test]
+fn bearer_403_on_carddav_syncs_calendar_anyway() {
+    use crate::fakes::fake_dav::{USER, serve};
+    use mailcraft_model::zone::Zone;
+
+    let server = serve();
+    let token = "test-token";
+    {
+        let mut d = server.data.lock().unwrap();
+        d.bearer = Some(token.to_string());
+        d.bearer_forbidden = false;
+        // Make CardDAV paths forbidden (insufficient scope), but CalDAV paths work.
+        d.unreadable.push("/dav/card/".to_string());
+    }
+
+    let dav = Dav::bearer(token);
+    let caldav_url = format!("{}/dav/", server.base);
+    let carddav_url = format!("{}/dav/", server.base);
+    let at = Where {
+        email: USER,
+        imap_host: "imap.example",
+        caldav: Some(&caldav_url),
+        carddav: Some(&carddav_url),
+        mails: true,
+        contacts: true,
+        ..Default::default()
+    };
+    let mut pim = Pim::default();
+    pim.ensure_defaults();
+
+    // First sync: CardDAV operations are refused (403), but CalDAV works.
+    // The CardDAV home is discovered (from /dav/principals/me/), but operations on it fail.
+    let out = sync(&dav, &at, &pim, 100, Zone::UTC).unwrap();
+    assert!(out.caldav_home.is_some(), "calendar home should be found: {out:?}");
+    assert!(out.carddav_home.is_some(), "contacts home should be found during discovery: {out:?}");
+    assert!(!out.errors.is_empty(), "contacts error should be recorded: {out:?}");
+    assert!(out.errors.iter().any(|e| e.contains("contacts")), "error should mention contacts: {out:?}");
+    // No contacts books or cards should be synced (the read operations failed).
+    assert!(out.books.is_none(), "contacts books should not be read: {out:?}");
+}

@@ -78,7 +78,17 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     };
     out.carddav_home = match &pim.carddav_home {
         Some(h) if !h.is_empty() && at.contacts => Some(h.clone()),
-        _ if (retry || (dav.is_bearer() && pim.carddav_home.is_none())) && at.contacts => find(Kind::Contacts, at.carddav, &mut out.errors)?,
+        _ if (retry || (dav.is_bearer() && pim.carddav_home.is_none())) && at.contacts => {
+            // For Bearer sessions, a 403 on CardDAV shouldn't abort the calendar sync.
+            match find(Kind::Contacts, at.carddav, &mut out.errors) {
+                Ok(h) => h,
+                Err(NetError::Auth(msg)) if dav.is_bearer() => {
+                    out.errors.push(format!("contacts: {msg}"));
+                    None
+                }
+                Err(e) => return Err(e),
+            }
+        }
         _ => None,
     };
     out.checked = now;
@@ -101,12 +111,22 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     run.push_deletions(&mut out, &mut refetch)?;
     run.push_events(&mut out, &mut refetch)?;
     if at.contacts {
-        run.push_cards(&mut out)?;
+        // For Bearer sessions, a 403 on contacts shouldn't abort the calendar sync.
+        match run.push_cards(&mut out) {
+            Ok(()) => {}
+            Err(NetError::Auth(msg)) if dav.is_bearer() => out.errors.push(format!("contacts: {msg}")),
+            Err(e) => return Err(e),
+        }
     }
     run.push_tasks(&mut out, &mut refetch)?;
     run.read_calendars(&refetch, &mut out)?;
     if at.contacts {
-        run.read_books(&mut out)?;
+        // For Bearer sessions, a 403 on contacts shouldn't abort the calendar sync.
+        match run.read_books(&mut out) {
+            Ok(()) => {}
+            Err(NetError::Auth(msg)) if dav.is_bearer() => out.errors.push(format!("contacts: {msg}")),
+            Err(e) => return Err(e),
+        }
     }
     Ok(out)
 }

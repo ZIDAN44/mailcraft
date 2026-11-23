@@ -95,9 +95,10 @@ administrator can also have IMAP turned off for the organisation.
 
 ### Why the released builds have no Google sign-in
 
-MailCraft asks Google for full access to Gmail (`https://mail.google.com/`) and Google Calendar
-(`https://www.googleapis.com/auth/calendar`), which IMAP, SMTP and CalDAV need. Google treats
-these as restricted scopes:
+MailCraft asks Google for full access to Gmail (`https://mail.google.com/`), Google Calendar
+(`https://www.googleapis.com/auth/calendar`) and Google Contacts
+(`https://www.googleapis.com/auth/carddav`), which IMAP, SMTP, CalDAV and CardDAV need. Google
+treats these as restricted scopes:
 
 - An app Google hasn't verified shows a warning before sign-in and is limited to 100 users over
   the life of its Google project. After that, Google blocks new sign-ins.
@@ -115,12 +116,13 @@ has no warning and no user limit, and works for that organisation's accounts onl
 2. Under **Clients**, create an OAuth client of the type **Desktop app**.
 3. Set `MAILCRAFT_GOOGLE_CLIENT_ID` and `MAILCRAFT_GOOGLE_CLIENT_SECRET` to its ID and secret
    before MailCraft starts.
-4. To sync calendars, enable the **CalDAV API** (`caldav.googleapis.com`) for the project. Without
-   it Google answers HTTP 403 `accessNotConfigured`, and MailCraft shows Google's own message.
+4. To sync calendars and contacts, enable the **CalDAV API** (`caldav.googleapis.com`) and
+   **CardDAV API** (`carddav.googleapis.com`) for the project. Without them Google answers HTTP
+   403 `accessNotConfigured`, and MailCraft shows Google's own message.
 
-Accounts signed in with Google sync their calendars over CalDAV with the OAuth token. An account
-signed in before MailCraft asked for the calendar permission signs in again to grant it. Contacts
-aren't synced for Google accounts yet.
+Accounts signed in with Google sync their calendars and contacts over CalDAV and CardDAV with the
+OAuth token. An account signed in before MailCraft asked for the calendar and contacts permissions
+signs in again to grant them.
 
 A client that is **External** and not verified works too, with Google's warning (choose
 **Advanced**, then **Go to MailCraft**) and its limit of 100 users.

@@ -112,7 +112,7 @@ fn provider_of(id: &str, email: &str) -> Option<Provider> {
             name: "Google".into(),
             auth_url: "https://accounts.google.com/o/oauth2/v2/auth".into(),
             token_url: "https://oauth2.googleapis.com/token".into(),
-            scope: "https://mail.google.com/ https://www.googleapis.com/auth/calendar".into(),
+            scope: "https://mail.google.com/ https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/carddav".into(),
             client_id: setting("MAILCRAFT_GOOGLE_CLIENT_ID", option_env!("MAILCRAFT_GOOGLE_CLIENT_ID"))?,
             client_secret: setting("MAILCRAFT_GOOGLE_CLIENT_SECRET", option_env!("MAILCRAFT_GOOGLE_CLIENT_SECRET")),
         }),
@@ -529,6 +529,12 @@ pub(crate) mod tests {
         assert_eq!(provider_for_host("outlook.office365.com"), Some("microsoft"));
         assert_eq!(provider_for_host("mail.example.org"), None);
         assert!(provider("nope").is_none());
+        // Google provider includes mail, calendar, and carddav scopes (when credentials are set).
+        if let Some(google) = provider("google") {
+            assert!(google.scope.contains("https://mail.google.com/"), "scope should include mail");
+            assert!(google.scope.contains("https://www.googleapis.com/auth/calendar"), "scope should include calendar");
+            assert!(google.scope.contains("https://www.googleapis.com/auth/carddav"), "scope should include carddav");
+        }
         // Who signed in, from an ID token's claims.
         let token = |claims: &str| format!("e30.{}.sig", b64url(claims.as_bytes()));
         assert_eq!(

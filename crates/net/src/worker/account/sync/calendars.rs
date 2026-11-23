@@ -127,7 +127,7 @@ impl Worker {
         let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
         let dav = self.dav_client()?;
         let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
-        // Google OAuth: use its CalDAV endpoint when no address is given.
+        // Google OAuth: use its CalDAV and CardDAV endpoints when no address is given.
         let google = self.acc.oauth.as_deref() == Some("google") && given.username.is_none();
         let caldav = if google && given.caldav.trim().is_empty() {
             let email_enc = crate::http::pct(&self.acc.email);
@@ -135,15 +135,21 @@ impl Worker {
         } else {
             Some(given.caldav.clone()).filter(|c| !c.trim().is_empty())
         };
+        let carddav = if google && given.carddav.trim().is_empty() {
+            let email_enc = crate::http::pct(&self.acc.email);
+            Some(format!("https://www.googleapis.com/carddav/v1/principals/{email_enc}/lists/default/"))
+        } else {
+            Some(given.carddav.clone()).filter(|c| !c.trim().is_empty())
+        };
         let at = crate::dav::Where {
             email: &self.acc.email,
             username: &self.acc.username,
             others: &self.acc.identities,
             imap_host: host,
             caldav: caldav.as_deref(),
-            carddav: Some(given.carddav.as_str()).filter(|c| !c.trim().is_empty()),
+            carddav: carddav.as_deref(),
             mails: !self.acc.is_calendar_only(),
-            contacts: !google,
+            contacts: true,
         };
         let sync = crate::dav::sync(&dav, &at, &pim, now(), system_zone());
         self.dav_digest = dav.digest();

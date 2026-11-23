@@ -105,19 +105,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** It needs an Etebase client of MailCraft's own: the Rust library EteSync publishes
   brings C libraries with it (OpenSSL and libsodium), which MailCraft doesn't build with.
 
-### 9. Google Workspace and Gmail: contacts
-
-- **Impact:** Google accounts signed in with OAuth sync calendars, but not contacts. Contacts
-  stay on this computer and are not sent to Google's server.
-- **Workaround:** Add contacts in a different account with CalDAV/CardDAV (Nextcloud, iCloud), or
-  sign the Google account in with an app password, which syncs contacts over CardDAV but not
-  calendars.
-- **Cause:** The OAuth token asks only for the calendar permission
-  (`https://www.googleapis.com/auth/calendar`), not contacts
-  (`https://www.googleapis.com/auth/carddav`), which needs a separate sign-in flow. Google's
-  CalDAV works with the calendar permission; CardDAV does not.
-
-### 10. Spelling: what isn't checked yet
+### 9. Spelling: what isn't checked yet
 
 - **Impact:** Spelling is checked as you type in the interface's language only, and in the
   message's text only (not its subject). There's no Spelling window to go through a message's
@@ -132,7 +120,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   its other languages' data come from storytold's `craft-i18n` at build time, which MailCraft's
   builds don't include yet; it brings no dictionaries of its own for other languages.
 
-### 11. Screen readers: what isn't read yet
+### 10. Screen readers: what isn't read yet
 
 - **Impact:** A window of its own (a new message, which opens in one unless turned off, and a
   message opened with Enter or a double-click) shows a screen reader nothing at all. In the main
@@ -147,7 +135,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   from it, which don't keep its headings, lists and tables as such; a screen reader needs them
   told, as WordCraft tells its page's.
 
-### 12. Archiving: what isn't done yet
+### 11. Archiving: what isn't done yet
 
 - **Impact:** **Clean up old items** and AutoArchive take mail only: old calendar items and
   completed tasks stay where they are, where Outlook archives them too. A message can't be kept
@@ -160,7 +148,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   for MailCraft to read, nor does MailCraft keep settings of its own for single messages, and it
   keeps no expiry for mail.
 
-### 13. Work time: what isn't done yet
+### 12. Work time: what isn't done yet
 
 - **Impact:** A week always starts on Monday, in the calendar and its months: Outlook's **First
   day of week** isn't there. Your work time is kept on this computer alone: one set in Outlook
@@ -171,7 +159,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   draws them, not from a setting. MailCraft doesn't read or write a mailbox's own settings
   (Exchange's `GetUserConfiguration`, Microsoft Graph's `mailboxSettings`) yet.
 
-### 14. Finding a time: what isn't done yet
+### 13. Finding a time: what isn't done yet
 
 - **Impact:** A meeting's own form has no Scheduling Assistant: its guests' times and AutoPick
   are in the calendar alone (**Next free time**, over the calendars shown). Everyone shown counts
@@ -183,7 +171,7 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   suggestions (Exchange's `SuggestionsViewOptions`, Microsoft Graph's `findMeetingTimes`) come
   from those servers alone.
 
-### 15. Message list groups: what isn't done yet
+### 14. Message list groups: what isn't done yet
 
 - **Impact:** A heading folded stays folded as it was left: Outlook's **Expand/collapse
   defaults** (all expanded or all collapsed each time a folder opens) isn't there, and Left and
@@ -192,14 +180,14 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** What's folded is kept as the folder was last shown, the one way there is; the
   arrow keys move between messages, never stopping on a heading.
 
-### 16. Moving an event: what isn't done yet
+### 15. Moving an event: what isn't done yet
 
 - **Impact:** An event's length isn't changed by dragging its edge, and a meeting someone else
   organized isn't dragged (its time is theirs to change).
 - **Workaround:** Open the event and change its end in its form.
 - **Cause:** The calendar drags an event's box only, not its edges.
 
-### 17. People's photos: what isn't shown yet
+### 16. People's photos: what isn't shown yet
 
 - **Impact:** On Exchange Online (Microsoft 365) and Gmail, colleagues show their initials, not
   the photos their organisation has. Your own photo isn't shown for your account, and a
