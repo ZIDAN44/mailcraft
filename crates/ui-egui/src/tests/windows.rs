@@ -4,6 +4,7 @@ use super::*;
 
 pub(super) mod layout;
 mod source;
+mod work_area;
 
 #[test]
 fn in_the_browser_a_popped_out_message_opens_in_a_window_of_its_own() {
@@ -351,8 +352,8 @@ fn a_window_on_no_monitor_comes_back_though_the_sizes_match() {
         native_pixels_per_point: Some(1.0),
         ..Default::default()
     };
-    let one = Monitors { all: vec![left], primary: Some(left) };
-    let both = Monitors { all: vec![left, right], primary: Some(left) };
+    let one = Monitors { all: vec![left], primary: Some(left), ..Default::default() };
+    let both = Monitors { all: vec![left, right], primary: Some(left), ..Default::default() };
     assert_eq!(saved.rescue(&at(2100.0, 50.0), Some(&one)), Some(egui::pos2(360.0, 140.0)), "its monitor went");
     assert_eq!(saved.rescue(&at(2100.0, 50.0), Some(&both)), None, "still there");
     assert_eq!(saved.rescue(&at(2100.0, 50.0), None), None, "the system lists none: sizes only");
@@ -368,7 +369,7 @@ fn a_window_on_no_monitor_comes_back_though_the_sizes_match() {
         outer_rect: Some(egui::Rect::from_min_size(egui::pos2(5000.0, 50.0), egui::vec2(1200.0, 830.0))),
         ..at(0.0, 0.0)
     };
-    let far = Monitors { all: vec![primary], primary: Some(primary) };
+    let far = Monitors { all: vec![primary], primary: Some(primary), ..Default::default() };
     assert_eq!(saved.rescue(&hidpi, Some(&far)), Some(egui::pos2(-1280.0 + 40.0, 120.0)));
 }
 

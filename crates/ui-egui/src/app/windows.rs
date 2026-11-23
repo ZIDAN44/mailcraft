@@ -243,8 +243,13 @@ pub struct WindowPlace {
 }
 
 /// Room a window leaves on each side of its monitor for the taskbar, the Dock or a desktop panel,
-/// which the monitor size (all egui reports) includes.
+/// which the monitor size (all egui reports) includes, where the system doesn't say where they are
+/// ([`Monitors::work`]).
 pub(crate) const SYSTEM_BAR: egui::Vec2 = egui::vec2(48.0, 48.0);
+
+/// How far past a work area's sides and bottom a window it fits may reach: Windows draws the
+/// resize border of a window it frames outside it, unseen (7 pixels at 100 %, in the outer rect).
+const UNSEEN_BORDERS: f32 = 16.0;
 
 /// The smallest a window is made to fit its monitor (the main window's minimum size).
 pub(crate) const FIT_MIN: egui::Vec2 = egui::vec2(760.0, 480.0);
@@ -255,6 +260,9 @@ pub(crate) const FIT_MIN: egui::Vec2 = egui::vec2(760.0, 480.0);
 pub struct Monitors {
     pub all: Vec<egui::Rect>,
     pub primary: Option<egui::Rect>,
+    /// The part of each that windows may use, without the taskbar, the Dock or the menu bar,
+    /// where the system says (Windows, macOS).
+    pub work: Vec<egui::Rect>,
 }
 
 fn monitors_id() -> egui::Id {
@@ -391,6 +399,38 @@ impl WindowPlace {
         Some((egui::pos2((free.x / 2.0).max(0.0), (free.y / 2.0).max(0.0)), size))
     }
 
+    /// As [`WindowPlace::fit`], where the system says what part of the monitor windows may use
+    /// (`work`, in points): a window that doesn't fit in it, frame included, is made smaller and
+    /// centred there; one whose title bar is above it (under a taskbar or the menu bar along the
+    /// top, or past the screen's top) is moved down into it, as little as it takes; one the system
+    /// placed past its edge is centred there. A window that fits it to within the borders the
+    /// system leaves unseen round a window it frames is left as it is.
+    pub fn fit_in(info: &egui::ViewportInfo, restored: bool, work: egui::Rect) -> Option<(egui::Pos2, egui::Vec2)> {
+        if info.maximized == Some(true) || info.fullscreen == Some(true) || info.minimized == Some(true) {
+            return None;
+        }
+        let inner = info.inner_rect.filter(|r| r.is_finite())?;
+        let outer = info.outer_rect.filter(|r| r.is_finite()).unwrap_or(inner);
+        let frame = (outer.size() - inner.size()).max(egui::Vec2::ZERO);
+        let too_big = outer.width() > work.width() + UNSEEN_BORDERS || outer.height() > work.height() + UNSEEN_BORDERS;
+        // The top edge has no unseen border: a title bar above the work area can't be grabbed.
+        let above = outer.min.y < work.min.y - 1.0;
+        let past = !restored
+            && (outer.min.x < work.min.x - UNSEEN_BORDERS || outer.max.x > work.max.x + UNSEEN_BORDERS || outer.max.y > work.max.y + UNSEEN_BORDERS);
+        if !too_big && !above && !past {
+            return None;
+        }
+        let room = (work.size() - frame).max(egui::Vec2::ZERO);
+        let size = if too_big { inner.size().min(room).max(FIT_MIN.min(room)) } else { inner.size() };
+        let free = (work.size() - (size + frame)).max(egui::Vec2::ZERO);
+        let pos = if too_big || past {
+            work.min + free / 2.0
+        } else {
+            egui::pos2(outer.min.x.clamp(work.min.x, work.min.x + free.x), outer.min.y.clamp(work.min.y, work.min.y + free.y))
+        };
+        Some((pos, size))
+    }
+
     /// A place that's sensible to open at: a real size, and on a screen as far as can be told.
     pub fn usable(self) -> Option<WindowPlace> {
         let fine = |v: f32| v.is_finite();
@@ -433,7 +473,10 @@ pub fn after_open(ui: &Ui, place: Option<WindowPlace>) {
             if let Some(pos) = p.rescue(&info, monitors(ctx).as_deref()) {
                 ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
             } else if !p.maximized
-                && let Some((pos, size)) = WindowPlace::fit(&info, restored)
+                && let Some((pos, size)) = match work_area(&info, monitors(ctx).as_deref()) {
+                    Some(work) => WindowPlace::fit_in(&info, restored, work),
+                    None => WindowPlace::fit(&info, restored),
+                }
             {
                 ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
                 ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
@@ -461,6 +504,19 @@ pub(crate) fn track_place(places: &mut std::collections::BTreeMap<String, Window
             }
         }
     }
+}
+
+/// The work area ([`Monitors::work`]) of the monitor most of a window is on, in its points.
+pub(crate) fn work_area(info: &egui::ViewportInfo, monitors: Option<&Monitors>) -> Option<egui::Rect> {
+    let ppp = info.native_pixels_per_point.filter(|p| p.is_finite() && *p > 0.0).unwrap_or(1.0);
+    let outer = info.outer_rect.filter(|r| r.is_finite())?;
+    let window = egui::Rect::from_min_max(outer.min * ppp, outer.max * ppp);
+    let on = |w: &egui::Rect| {
+        let both = w.intersect(window);
+        if both.is_positive() { both.area() } else { 0.0 }
+    };
+    let work = monitors?.work.iter().filter(|w| w.is_finite() && w.is_positive() && on(w) > 0.0).max_by(|a, b| on(a).total_cmp(&on(b)))?;
+    Some(egui::Rect::from_min_max(work.min / ppp, work.max / ppp))
 }
 
 /// The size of the monitor a window is on, when the system has told a sensible one.

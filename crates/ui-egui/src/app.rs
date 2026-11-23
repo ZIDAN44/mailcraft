@@ -37,6 +37,8 @@ pub(crate) use ribbon::junk_menu;
 pub(crate) use search_box::{SearchDrop, SearchTimes, scope_label};
 pub(crate) use state::use_editor;
 pub use state::{PaneSizes, UiState};
+#[cfg(test)]
+pub(crate) use windows::work_area;
 pub use windows::{Monitors, WindowPlace, after_open, set_monitors};
 
 pub struct MailApp {

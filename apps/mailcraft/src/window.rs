@@ -5,6 +5,7 @@
 mod clipboard;
 pub(super) mod display;
 pub(super) mod graphics;
+pub(super) mod work_areas;
 #[cfg(all(unix, not(target_os = "macos")))]
 mod xdnd;
 

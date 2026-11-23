@@ -120,6 +120,7 @@ impl App {
         let monitors = frame.winit_window().map(|w| mailcraft_ui_egui::Monitors {
             all: w.available_monitors().map(|m| rect((m.position().x, m.position().y), (m.size().width, m.size().height))).collect(),
             primary: w.primary_monitor().map(|m| rect((m.position().x, m.position().y), (m.size().width, m.size().height))),
+            work: window::work_areas::list(),
         });
         mailcraft_ui_egui::set_monitors(ctx, monitors);
     }
