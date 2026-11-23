@@ -84,7 +84,7 @@ cd apps/mailcraft-web && trunk serve           # browser: http://127.0.0.1:8774/
 ## Contribute
 
 - Start with [how MailCraft is built](docs/architecture.md).
-- Follow the project rules in [CLAUDE.md](CLAUDE.md): no crashes, no Microsoft assets, clean room.
+- Follow the project rules in [AGENTS.md](AGENTS.md): no crashes, no Microsoft assets, clean room.
 - Run `cargo xtask ci` before every commit.
 - To fuzz the parsers, see [fuzzing](fuzz/README.md).
 - The installer scripts live in [`packaging/`](packaging). The `Release` workflow (`release.yml`) runs them and publishes a release.

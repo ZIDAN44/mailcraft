@@ -62,7 +62,7 @@ ignore = [
     { id = "RUSTSEC-2026-0555", reason = "chrono-tz unmaintained; goes with chrono until the house rules name a successor" },
 ]
 
-# Licences (see CLAUDE.md, clean room): only the permissive ones below pass. Copyleft licences
+# Licences (see AGENTS.md, clean room): only the permissive ones below pass. Copyleft licences
 # (GPL, LGPL, AGPL) are refused simply by being absent; a crate that offers one of them as an
 # alternative to a listed licence, such as `r-efi` or `self_cell`, still passes.
 [licenses]

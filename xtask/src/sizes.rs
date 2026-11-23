@@ -14,7 +14,7 @@ use std::path::Path;
 pub const MAX_LINES: usize = 1000;
 /// The most Rust files directly in one folder.
 pub const MAX_FILES: usize = 16;
-/// Where splitting starts, before the wall (CLAUDE.md: "split first" past ~800 lines): files and
+/// Where splitting starts, before the wall (AGENTS.md: "split first" past ~800 lines): files and
 /// folders this big are named, without failing, so they're split by topic while there's room.
 pub const NEAR_LINES: usize = 800;
 pub const NEAR_FILES: usize = 14;
@@ -153,7 +153,7 @@ fn report(bad: &[(String, usize, usize)]) -> String {
     s.push_str(
         "split by topic: `foo.rs` keeps what's shared and declares `mod bar;`, the pieces go in \
          `foo/bar.rs` (an `impl` can be continued there, a test module's tests too); a full folder \
-         gets subfolders. See CLAUDE.md › File size and organisation.",
+         gets subfolders. See AGENTS.md › File size and organisation.",
     );
     s
 }

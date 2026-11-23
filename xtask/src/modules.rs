@@ -1,5 +1,5 @@
 //! `cargo xtask modules`: how a crate's modules hang together, to split code where it divides,
-//! not where it's long (CLAUDE.md › File size and organisation).
+//! not where it's long (AGENTS.md › File size and organisation).
 //!
 //! - `cargo xtask modules <folder>`: the folder's Rust files grouped by what ties them, its
 //!   modules' references to each other (`crate::`, `super::`, `self::` paths) and the commits
@@ -436,7 +436,7 @@ fn cycles(root: &Path) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!(
-            "modules: top-level modules that reach each other round in a circle (CLAUDE.md › File size and organisation):\n  {}\n\
+            "modules: top-level modules that reach each other round in a circle (AGENTS.md › File size and organisation):\n  {}\n\
              move what both need into a module of its own, or have one depend on the other only",
             new.iter().map(|c| c.as_str()).collect::<Vec<_>>().join("\n  ")
         ))
