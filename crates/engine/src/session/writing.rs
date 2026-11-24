@@ -14,6 +14,7 @@ mod reactions;
 mod reopen;
 mod sending;
 mod signatures;
+mod tables;
 mod undo_send;
 pub use drafts::Drafted;
 pub(crate) use drafts::DraftedMemo;
@@ -69,6 +70,10 @@ pub struct Compose {
     pub signature_code: String,
     #[serde(default)]
     pub signature_tag: String,
+    /// Tables pasted into it (issue #268), in the order they stand in its text
+    /// ([`Compose::table_places`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tables: Vec<mime::PastedTable>,
     pub to: String,
     pub cc: String,
     pub bcc: String,
@@ -170,7 +175,7 @@ impl Compose {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
         (&self.account, &self.from, &self.to, &self.cc, &self.bcc, &self.reply_to, &self.subject, &self.body).hash(&mut h);
-        (&self.signature, &self.signature_name, &self.signature_code).hash(&mut h);
+        (&self.signature, &self.signature_name, &self.signature_code, &self.tables).hash(&mut h);
         (self.importance, self.read_receipt, self.plain, self.send_after, self.sign).hash(&mut h);
         (!self.encrypt_auto).then_some(self.encrypt).hash(&mut h);
         // As the editor keeps them each frame (fitted to the text), and the scheme, by their form.

@@ -179,13 +179,15 @@ fn same_id(found: &str, id: &str) -> bool {
 /// The text of a saved message (`own`: its HTML without the original under it) into `c`, its
 /// formatting kept, and its signature as it went in when it was written as HTML code.
 fn own_text(c: &mut Compose, own: &str) {
+    let mut tables = Vec::new();
     let Some((before, code, after)) = mime::split_marked(own, mime::SIGNATURE_CLASS) else {
-        let (text, styles) = mime::rich::from_rich(&mime::html_to_rich(own));
+        let (text, styles) = super::tables::text_with_tables(own, &mut tables);
         c.body = text;
         c.styles = styles;
+        c.tables = tables;
         return;
     };
-    let (mut text, mut styles) = mime::rich::from_rich(&mime::html_to_rich(&before));
+    let (mut text, mut styles) = super::tables::text_with_tables(&before, &mut tables);
     // The `-- ` line above the code is the signature's own.
     if let Some(cut) = text.rfind('\n').filter(|i| text.get(i + 1..).is_some_and(|l| l.trim() == "--")).or_else(|| (text.trim() == "--").then_some(0))
     {
@@ -209,13 +211,14 @@ fn own_text(c: &mut Compose, own: &str) {
         mime::rich::append(&mut text, &mut styles, "\n", &mime::rich::Styles::plain("\n"));
     }
     mime::rich::append(&mut text, &mut styles, &block, &mime::rich::Styles::plain(&block));
-    let (rest, rest_styles) = mime::rich::from_rich(&mime::html_to_rich(&after));
+    let (rest, rest_styles) = super::tables::text_with_tables(&after, &mut tables);
     if !rest.trim().is_empty() {
         mime::rich::append(&mut text, &mut styles, "\n", &mime::rich::Styles::plain("\n"));
         mime::rich::append(&mut text, &mut styles, &rest, &rest_styles);
     }
     c.body = text;
     c.styles = styles;
+    c.tables = tables;
     c.signature = block;
     c.signature_code = code;
     c.signature_tag = tag.clone();

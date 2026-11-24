@@ -36,6 +36,21 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"field": "to"|"cc"|"bcc", "typed": string (as Check Names said it), "email": string, "name"?: string}"#)
         .when(has_compose),
         CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "handed": number (a file handed over: Session::hand)} | {"name": string, "data": [bytes]}"#).when(has_compose),
+        // What another program put on the clipboard as HTML: its tables stay tables (issue #268).
+        CommandSpec::new("compose.pasteHtml", "Paste", "Message", |s, v| {
+            let html = p::req_str(v, "html")?;
+            let c = s.compose.as_mut().ok_or_else(|| CmdError::Disabled("no message is being written".into()))?;
+            let n = c.body.chars().count();
+            let at = p::u64(v, "at").map_or(n, |a| usize::try_from(a).unwrap_or(n).min(n));
+            let parts = mailcraft_mime::pasted_tables(html).unwrap_or_else(|| {
+                let (text, styles) = mailcraft_mime::rich::from_rich(&mailcraft_mime::html_to_rich(html));
+                vec![mailcraft_mime::Pasted::Text(text, styles)]
+            });
+            let cursor = c.paste_parts(at..at, parts);
+            Ok(json!({ "at": cursor, "tables": c.table_places().len() }))
+        })
+        .params(r#"{"html": string (as another program puts it on the clipboard: its tables stay tables, sent as they are), "at"?: number (the character it goes in at; default the end)} (answers {"at": where the cursor goes, "tables": the message's tables})"#)
+        .when(has_compose),
         CommandSpec::new("compose.insertPicture", "Insert picture", "Message › Insert", insert_picture)
             .params(r#"{"path": string} | {"name": string, "handed": number (a file handed over: Session::hand)} | {"name": string, "data": [bytes]}, "insert"?: bool (default true), "at"?: number (character; default the end), "width"?: number (CSS pixels it's shown and sent at; default its own width), "line"?: bool (on a line of its own), "quoteCell"?: number (into that block of text of the quoted original, `at` counted in it)"#)
             .when(has_compose),

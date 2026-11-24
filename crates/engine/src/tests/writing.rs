@@ -14,6 +14,7 @@ mod sending;
 mod signature_code;
 mod signatures;
 mod spelling;
+mod tables;
 mod undo_send;
 
 #[test]
