@@ -133,7 +133,6 @@
 	Mail from {sender}	Üzenet ettől a feladótól: {sender}
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · az ArtCraft alkalmazása · MIT OR Apache-2.0
-	Mailing list: unsubscribe at {address}	Levelezőlista: leiratkozás ezen a címen: {address}
 	Mar	márc.
 	Mark all as read	Összes megjelölése olvasottként
 	Mark as read	Megjelölés olvasottként
@@ -2110,3 +2109,5 @@ count	occurrences	előfordulás
 	Move to Cc	Áthelyezés a Másolat mezőbe
 	Move to Bcc	Áthelyezés a Titkos másolat mezőbe
 	Copy addresses	Címek másolása
+	Mailing list:	Levelezőlista:
+	Unsubscribe	Leiratkozás

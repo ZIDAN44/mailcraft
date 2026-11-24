@@ -203,3 +203,58 @@ fn a_linked_picture_written_into_the_message_shows_and_opens_its_link() {
     // The test's services open nothing: that they were asked to is the notice they give.
     assert!(a.session.notices.iter().any(|n| n.text.contains("The link couldn't be opened")), "{:?}", a.session.notices);
 }
+
+/// Services that remember the web pages they're asked to open.
+#[derive(Clone, Default)]
+struct Opens(std::sync::Arc<std::sync::Mutex<Vec<String>>>);
+
+impl crate::Services for Opens {
+    stub_services!();
+    fn open_url(&mut self, url: &str) -> Result<(), String> {
+        self.0.lock().unwrap().push(url.to_string());
+        Ok(())
+    }
+}
+
+/// A mailing list's way out is a link (issue #272): "Unsubscribe", which opens its whole
+/// address (it was written out, cut short at 80 characters, and couldn't be followed or
+/// copied whole); hovered, it says the address.
+#[test]
+fn a_mailing_lists_way_out_is_a_link() {
+    let (mut a, _) = app("unsubscribe-link");
+    let opens = Opens::default();
+    a.services = Box::new(opens.clone());
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let way_out = "https://fra1.lists.example/subscription/manage/unsubscribe?recipientId=CTR_3KEdQ7nTq&listId=SB_0x9aAbCdEf12345";
+    let store = a.session.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9973 };
+    let raw = format!(
+        "From: Survey <noreply@lists.example>\r\nSubject: Tell us\r\nList-Unsubscribe: <mailto:leave@lists.example>, <{way_out}>\r\nContent-Type: text/plain\r\n\r\nHi\r\n"
+    )
+    .into_bytes();
+    inbox.messages.insert(0, mailcraft_engine::mime::summary_from_full(&raw, key.clone(), Default::default(), 0, NOW).into());
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, &raw).unwrap();
+    a.session.apply(MailEvent::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    a.run("list.open", json!({"key": key.to_id()}));
+    let size = egui::vec2(1280.0, 800.0);
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let drawn = drawn_text(&ctx, &mut a, size);
+    let link = drawn.iter().find(|d| d.text == "Unsubscribe").map(|d| d.rect).expect("the link");
+    assert!(!drawn.iter().any(|d| d.text.contains("unsubscribe at")), "the address isn't written out");
+    // Its note drawn as when it's hovered (egui's way to show every widget's note at once).
+    ctx.memory_mut(|m| m.set_everything_is_visible(true));
+    sized_frame(&ctx, &mut a, size, vec![Event::PointerMoved(link.center())]);
+    sized_frame(&ctx, &mut a, size, vec![]);
+    let hovered = texts_in(&sized_frame(&ctx, &mut a, size, vec![]).shapes);
+    ctx.memory_mut(|m| m.set_everything_is_visible(false));
+    assert!(hovered.iter().any(|d| d.text == way_out), "hovered, the whole address");
+    click(&ctx, &mut a, link.center());
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(*opens.0.lock().unwrap(), [way_out.to_string()]);
+}

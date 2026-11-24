@@ -133,7 +133,6 @@
 	Mail from {sender}	{sender} からのメール
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · ArtCraft アプリ · MIT OR Apache-2.0
-	Mailing list: unsubscribe at {address}	メーリング リスト: {address} で登録解除
 	Mar	3月
 	Mark all as read	すべて既読にする
 	Mark as read	既読にする
@@ -2106,3 +2105,5 @@ count	occurrences	回
 	Move to Cc	CC に移動
 	Move to Bcc	BCC に移動
 	Copy addresses	アドレスをコピー
+	Mailing list:	メーリング リスト:
+	Unsubscribe	登録解除

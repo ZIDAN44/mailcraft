@@ -133,7 +133,6 @@
 	Mail from {sender}	來自 {sender} 的郵件
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · ArtCraft 應用程式 · MIT OR Apache-2.0
-	Mailing list: unsubscribe at {address}	郵寄清單: 在 {address} 取消訂閱
 	Mar	3月
 	Mark all as read	全部標示為已讀
 	Mark as read	標示為已讀
@@ -2109,3 +2108,5 @@ count	occurrences	次
 	Move to Cc	移到副本
 	Move to Bcc	移到密件副本
 	Copy addresses	複製地址
+	Mailing list:	郵寄清單：
+	Unsubscribe	取消訂閱

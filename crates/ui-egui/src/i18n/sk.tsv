@@ -133,7 +133,6 @@
 	Mail from {sender}	Pošta od odosielateľa {sender}
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · aplikácia ArtCraft · MIT OR Apache-2.0
-	Mailing list: unsubscribe at {address}	Mailing list: odhlásenie na adrese {address}
 	Mar	mar
 	Mark all as read	Označiť všetko ako prečítané
 	Mark as read	Označiť ako prečítané
@@ -2124,3 +2123,5 @@ count	occurrences	opakovaní
 	Move to Cc	Presunúť do poľa Kópia
 	Move to Bcc	Presunúť do poľa Skrytá kópia
 	Copy addresses	Kopírovať adresy
+	Mailing list:	Mailing list:
+	Unsubscribe	Odhlásiť odber

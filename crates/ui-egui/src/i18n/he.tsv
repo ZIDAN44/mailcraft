@@ -133,7 +133,6 @@
 	Mail from {sender}	דואר מ-{sender}
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · אפליקציה של ArtCraft · MIT OR Apache-2.0
-	Mailing list: unsubscribe at {address}	רשימת תפוצה: לביטול המינוי {address}
 	Mar	מרץ
 	Mark all as read	סמן הכול כנקרא
 	Mark as read	סמן כנקרא
@@ -2105,3 +2104,5 @@ count	occurrences	פעמים
 	Move to Cc	העבר אל "עותק"
 	Move to Bcc	העבר אל "עותק מוסתר"
 	Copy addresses	העתק כתובות
+	Mailing list:	רשימת תפוצה:
+	Unsubscribe	ביטול הרשמה

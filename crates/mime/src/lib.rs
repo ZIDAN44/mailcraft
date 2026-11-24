@@ -433,7 +433,17 @@ pub fn parse(raw: &[u8]) -> Option<Parsed> {
     };
     let (text, had_html) = shown_text(&m, real_html, &tnef_body, html.as_deref(), standing_in.as_deref(), ready.as_ref());
     let attachments = attached.into_iter().map(|a| a.info).collect();
-    let unsubscribe = m.list_unsubscribe().and_then(|a| a.first()).and_then(|x| x.address()).map(|t| t.trim_matches(['<', '>']).to_string());
+    // A mailing list's way out: its web page when it gives one (issue #272: opened as a link,
+    // asking there), else the first it gives (a mail address).
+    let ways: Vec<String> = m
+        .list_unsubscribe()
+        .map(|a| a.mailboxes().filter_map(|x| x.address()).map(|t| t.trim_matches(['<', '>']).to_string()).collect())
+        .unwrap_or_default();
+    let unsubscribe = ways
+        .iter()
+        .find(|w| w.to_ascii_lowercase().starts_with("https://") || w.to_ascii_lowercase().starts_with("http://"))
+        .or(ways.first())
+        .cloned();
     Some(Parsed {
         subject: fields::subject(&m),
         from: addrs(fields::from(&m)).into_iter().next().unwrap_or_default(),

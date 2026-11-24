@@ -133,7 +133,6 @@
 	Mail from {sender}	Nouveau message — expéditeur : {sender}
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · une application ArtCraft · MIT OR Apache-2.0
-	Mailing list: unsubscribe at {address}	Liste de diffusion : désabonnement à {address}
 	Mar	mars
 	Mark all as read	Tout marquer comme lu
 	Mark as read	Marquer comme lu
@@ -2110,3 +2109,5 @@ count	occurrences	occurrences
 	Move to Cc	Déplacer vers Cc
 	Move to Bcc	Déplacer vers Cci
 	Copy addresses	Copier les adresses
+	Mailing list:	Liste de diffusion :
+	Unsubscribe	Se désabonner

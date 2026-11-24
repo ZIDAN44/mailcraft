@@ -16,6 +16,7 @@ mod report;
 mod report_status;
 mod signature_code;
 mod text_attach;
+mod unsubscribe;
 pub(crate) mod util;
 
 /// An HTML body's links read whole from its `href`s: a 900-character Teams link that the

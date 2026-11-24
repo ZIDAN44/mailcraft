@@ -133,7 +133,6 @@
 	Mail from {sender}	Письма от {sender}
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · приложение ArtCraft · MIT OR Apache-2.0
-	Mailing list: unsubscribe at {address}	Список рассылки: отписаться по адресу {address}
 	Mar	мар
 	Mark all as read	Отметить всё как прочитанное
 	Mark as read	Отметить как прочитанное
@@ -2123,3 +2122,5 @@ count	occurrences	повторений
 	Move to Cc	Переместить в «Копия»
 	Move to Bcc	Переместить в «Скрытая копия»
 	Copy addresses	Копировать адреса
+	Mailing list:	Список рассылки:
+	Unsubscribe	Отписаться

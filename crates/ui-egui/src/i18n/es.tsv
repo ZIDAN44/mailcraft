@@ -133,7 +133,6 @@
 	Mail from {sender}	Correo de {sender}
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · una aplicación de ArtCraft · MIT OR Apache-2.0
-	Mailing list: unsubscribe at {address}	Lista de correo: cancela la suscripción en {address}
 	Mar	mar
 	Mark all as read	Marcar todo como leído
 	Mark as read	Marcar como leído
@@ -2110,3 +2109,5 @@ count	occurrences	repeticiones
 	Move to Cc	Mover a CC
 	Move to Bcc	Mover a CCO
 	Copy addresses	Copiar direcciones
+	Mailing list:	Lista de correo:
+	Unsubscribe	Cancelar suscripción

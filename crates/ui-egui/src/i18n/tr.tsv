@@ -133,7 +133,6 @@
 	Mail from {sender}	Gönderen {sender} olan posta
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · bir ArtCraft uygulaması · MIT OR Apache-2.0
-	Mailing list: unsubscribe at {address}	Posta listesi: aboneliği bırakmak için {address}
 	Mar	Mar
 	Mark all as read	Tümünü okundu olarak işaretle
 	Mark as read	Okundu olarak işaretle
@@ -2110,3 +2109,5 @@ count	occurrences	kez
 	Move to Cc	Cc alanına taşı
 	Move to Bcc	Bcc alanına taşı
 	Copy addresses	Adresleri kopyala
+	Mailing list:	Posta listesi:
+	Unsubscribe	Abonelikten çık

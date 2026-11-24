@@ -133,7 +133,6 @@
 	Mail from {sender}	E-Mail von {sender}
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · eine ArtCraft-App · MIT OR Apache-2.0
-	Mailing list: unsubscribe at {address}	Mailingliste: abmelden unter {address}
 	Mar	Mär
 	Mark all as read	Alle als gelesen markieren
 	Mark as read	Als gelesen markieren
@@ -2110,3 +2109,5 @@ count	occurrences	Terminen
 	Move to Cc	Nach „Cc“ verschieben
 	Move to Bcc	Nach „Bcc“ verschieben
 	Copy addresses	Adressen kopieren
+	Mailing list:	Mailingliste:
+	Unsubscribe	Abmelden

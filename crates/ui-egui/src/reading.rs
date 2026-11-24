@@ -314,8 +314,23 @@ fn message_text(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, format
     if p.had_html {
         html_bar(s, &t, ui, &r.key, p, formatted, acts);
     }
+    // A mailing list's way out (issue #272): a link, opened as a message's links are (a web page
+    // in the browser, a mail address a new message), all of it on hover and copied from its menu.
     if let Some(u) = &p.unsubscribe {
-        ui.label(RichText::new(tf!("Mailing list: unsubscribe at {address}", address = widgets::shorten(u, 80))).color(t.faint).small());
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 4.0;
+            ui.label(RichText::new(tl!("Mailing list:")).color(t.faint).small());
+            let link = ui.add(egui::Link::new(RichText::new(tl!("Unsubscribe")).small())).on_hover_text(u.as_str());
+            if link.clicked() {
+                acts.push(Action::OpenUrl(u.clone()));
+            }
+            link.context_menu(|ui| {
+                if ui.button(tl!("Copy link")).clicked() {
+                    ui.ctx().copy_text(u.clone());
+                    ui.close();
+                }
+            });
+        });
         ui.add_space(6.0);
     }
     // In the dark theme: the message on a light page or the dark one, switched here too (issue #109).

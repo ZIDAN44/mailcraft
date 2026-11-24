@@ -133,7 +133,6 @@
 	Mail from {sender}	Wiadomości od {sender}
 	MailCraft	MailCraft
 	MailCraft {version} · an ArtCraft app · MIT OR Apache-2.0	MailCraft {version} · aplikacja ArtCraft · MIT OR Apache-2.0
-	Mailing list: unsubscribe at {address}	Lista dyskusyjna: wypisz się pod adresem {address}
 	Mar	mar
 	Mark all as read	Oznacz wszystkie jako przeczytane
 	Mark as read	Oznacz jako przeczytane
@@ -2123,3 +2122,5 @@ count	occurrences	wystąpieniach
 	Move to Cc	Przenieś do pola DW
 	Move to Bcc	Przenieś do pola UDW
 	Copy addresses	Kopiuj adresy
+	Mailing list:	Lista mailingowa:
+	Unsubscribe	Wypisz się
