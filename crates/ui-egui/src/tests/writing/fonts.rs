@@ -7,6 +7,7 @@ use egui::accesskit::Role;
 
 use super::*;
 use crate::mail_fonts::FontSource;
+use mailcraft_engine::mime::rich::{DEFAULT_SIZE, Style};
 
 /// A computer with one font, "Testface" (egui's own sans, under another name).
 struct OneFont;
@@ -78,7 +79,7 @@ fn a_font_of_the_computers_is_picked_drawn_and_sent() {
     // Drawn in it: the text's run asks for that font's family, which the computer's font fills.
     let style = c.styles.style(0);
     let family = crate::mail_fonts::family("Testface", style.bold).expect("offered here");
-    let fmt = crate::rich_edit::text_format(&style, None, &a.ui.tokens);
+    let fmt = crate::rich_edit::text_format(&style, None, DEFAULT_SIZE, &a.ui.tokens);
     assert_eq!(fmt.font_id.family, family);
     let drawn: Vec<String> = drawn_strings(&ctx, &mut a, SIZE);
     assert!(drawn.iter().any(|t| t.contains("Hello")), "the text is drawn, not left blank: {drawn:?}");
@@ -99,11 +100,11 @@ fn without_the_computers_fonts_text_in_one_is_drawn_in_the_editors() {
     let (mut a, ctx, _) = writing("fonts-none", None);
     assert!(font_box(&ctx, &mut a).is_none(), "no font box");
     let style = mailcraft_engine::mime::rich::Style { font: Some("Tahoma".into()), ..Default::default() };
-    assert_eq!(crate::rich_edit::text_format(&style, None, &a.ui.tokens).font_id.family, egui::FontFamily::Proportional);
+    assert_eq!(crate::rich_edit::text_format(&style, None, DEFAULT_SIZE, &a.ui.tokens).font_id.family, egui::FontFamily::Proportional);
     let (mut b, ctx_b, _) = writing("fonts-not-here", Some(Arc::new(OneFont)));
     assert!(font_box(&ctx_b, &mut b).is_some());
     assert_eq!(
-        crate::rich_edit::text_format(&style, None, &b.ui.tokens).font_id.family,
+        crate::rich_edit::text_format(&style, None, DEFAULT_SIZE, &b.ui.tokens).font_id.family,
         egui::FontFamily::Proportional,
         "Tahoma isn't on this computer"
     );
@@ -157,5 +158,79 @@ fn the_font_for_new_messages_is_set_in_options_and_written_in() {
     assert_eq!(font_box(&ctx, &mut a).map(|(_, s)| s).as_deref(), Some("Testface"), "the font box shows the message's font");
     let plain = mailcraft_engine::mime::rich::Style::default();
     let family = crate::mail_fonts::family("Testface", false).expect("offered here");
-    assert_eq!(crate::rich_edit::text_format(&plain, c.font.as_deref(), &a.ui.tokens).font_id.family, family, "drawn in it");
+    assert_eq!(crate::rich_edit::text_format(&plain, c.font.as_deref(), DEFAULT_SIZE, &a.ui.tokens).font_id.family, family, "drawn in it");
+}
+
+/// The value of the combo box named `name` this frame, and its node.
+fn combo(ctx: &egui::Context, a: &mut MailApp, size: egui::Vec2, name: &str) -> Option<(egui::accesskit::NodeId, String)> {
+    let out = sized_frame(ctx, a, size, vec![]);
+    let nodes = out.platform_output.accesskit_update.expect("AccessKit is on").nodes;
+    nodes
+        .into_iter()
+        .find(|(_, n)| n.role() == Role::ComboBox && n.label() == Some(name))
+        .map(|(id, n)| (id, n.value().unwrap_or_default().to_string()))
+}
+
+/// File › Options › Mail's "Font size for new messages" (issue #267) sets the size a new message
+/// is written in: its size box shows it, the editor draws its text in it, a size set on text
+/// keeps its own, and its own size set again is none of the text's.
+#[test]
+fn the_size_for_new_messages_is_set_in_options_and_written_in() {
+    let (mut a, _) = app("sizes-new-messages");
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    let tall = egui::vec2(1280.0, 2400.0);
+    for _ in 0..3 {
+        sized_frame(&ctx, &mut a, tall, vec![]);
+    }
+    let row = combo(&ctx, &mut a, tall, "Font size for new messages").expect("the row");
+    assert_eq!(row.1, "11", "MailCraft's own");
+    // Down picks the next size; again, the one after.
+    sized_frame(&ctx, &mut a, tall, vec![focus(row.0)]);
+    sized_frame(&ctx, &mut a, tall, vec![]);
+    for _ in 0..2 {
+        sized_frame(&ctx, &mut a, tall, vec![key(Key::ArrowDown, Modifiers::NONE)]);
+        sized_frame(&ctx, &mut a, tall, vec![]);
+    }
+    assert_eq!(a.session.prefs.compose_size, Some(14));
+    assert_eq!(combo(&ctx, &mut a, tall, "Font size for new messages").map(|r| r.1).as_deref(), Some("14"));
+
+    a.ui.backstage = None;
+    frame(&ctx, &mut a, vec![]);
+    a.run("mail.new", json!({}));
+    a.run("compose.update", json!({"to": "ann@x.example", "subject": "Plan", "body": "Hello there"}));
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().expect("a message is written");
+    assert_eq!(c.size, Some(14));
+    assert_eq!(combo(&ctx, &mut a, SIZE, "Font size").map(|r| r.1).as_deref(), Some("14"), "the size box shows the message's size");
+    let plain = Style::default();
+    let px = |s: &Style, size: u8| crate::rich_edit::text_format(s, None, size, &a.ui.tokens).font_id.size;
+    assert_eq!(px(&plain, c.base_size()), px(&Style { size: Some(14), ..Style::default() }, DEFAULT_SIZE), "drawn in it");
+    // A size set on text keeps its own: 11 is a size of its own in a 14-point message, and
+    // 14 is none.
+    let mut ed = crate::rich_edit::Editor::new(c.id);
+    let mut c = c;
+    ed.sel = 0..5;
+    crate::rich_edit::apply(&mut ed, &mut c, crate::rich_edit::Op::Size(11));
+    assert_eq!(c.styles.style(0).size, Some(11));
+    let html = c.bodies().1.unwrap_or_default();
+    assert!(html.contains("font-size: 14pt") && html.contains("<span style=\"font-size:11pt\">Hello</span>"), "{html}");
+    crate::rich_edit::apply(&mut ed, &mut c, crate::rich_edit::Op::Size(14));
+    assert_eq!(c.styles.style(0).size, None);
+    // Bigger and smaller step from the message's own size.
+    crate::rich_edit::apply(&mut ed, &mut c, crate::rich_edit::Op::Grow);
+    assert_eq!(c.styles.style(0).size, Some(16));
+}
+
+/// The signature editor shows its text with no font of its own in the font for new messages
+/// (issue #267), as the signature goes in them; its size stays MailCraft's own.
+#[test]
+fn the_signature_editor_shows_the_font_for_new_messages() {
+    let (mut a, _) = app("sizes-signature");
+    a.session.prefs.compose_font = Some("Testface".into());
+    a.session.prefs.compose_size = Some(14);
+    let form = crate::dialogs::SignatureForm::new(&a.session, "sample", false);
+    assert_eq!((form.compose.font.as_deref(), form.compose.size), (Some("Testface"), None));
 }

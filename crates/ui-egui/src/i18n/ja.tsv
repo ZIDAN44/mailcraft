@@ -1881,6 +1881,8 @@ count	occurrences	回
 	Default font	既定のフォント
 	Font for new messages	新しいメッセージのフォント
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	新しいメッセージ、返信、転送はこのフォントで書かれます。フォントを指定した文字はそのフォントのままです。
+	Font size for new messages	新しいメッセージのフォント サイズ
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	新しいメッセージ、返信、転送はこのサイズで書かれます。サイズを指定した文字はそのサイズのままです。
 	Clean up old items	古いアイテムの整理
 	Clean up old items…	古いアイテムの整理…
 	Move old mail to an archive file on this computer, out of the mailbox.	古いメールをメールボックスから、このコンピューター上のアーカイブ ファイルに移動します。

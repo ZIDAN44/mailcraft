@@ -235,21 +235,23 @@ fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich:
         // In the middle of the row's height, as the buttons' faces are.
         ui.allocate_ui_with_layout(vec2(0.0, ROW_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             font_box(ui, c, cur, ops);
+            // Text with no size of its own is in the message's (issue #267).
+            let shown = cur.size.unwrap_or(c.base_size());
             let r = egui::ComboBox::from_id_salt(("font-size", c.id))
                 .width(48.0)
-                .selected_text(cur.size().to_string())
+                .selected_text(shown.to_string())
                 .show_ui(ui, |ui| {
                     for z in rich::SIZES {
-                        if ui.selectable_label(cur.size() == z, z.to_string()).clicked() {
+                        if ui.selectable_label(shown == z, z.to_string()).clicked() {
                             ops.push(Op::Size(z));
                         }
                     }
                 })
                 .response
                 .accessible_name(tl!("Font size"));
-            let mut size = cur.size();
+            let mut size = shown;
             crate::drop_down::keys(ui, &r, &mut size, &rich::SIZES);
-            if size != cur.size() {
+            if size != shown {
                 ops.push(Op::Size(size));
                 keyed(ui);
             }

@@ -98,6 +98,9 @@ pub struct Compose {
     /// messages when it was begun. Sent as HTML for it, even with nothing else formatted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub font: Option<String>,
+    /// Its text's size in points where none is set on it (issue #267), as the font is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u8>,
     /// The pictures placed in the text (each where a [`mime::rich::PICTURE`] stands).
     #[serde(default)]
     pub inline: Vec<mime::InlinePicture>,
@@ -326,8 +329,8 @@ impl Session {
         let sig = self.signature_for(&account, &from, false);
         let id = self.fresh_id();
         let window = self.prefs.new_mail_window;
-        let font = self.prefs.compose_font.clone();
-        self.open_compose(Compose { id, account, from, window, font, ..Default::default() });
+        let (font, size) = (self.prefs.compose_font.clone(), self.prefs.compose_size);
+        self.open_compose(Compose { id, account, from, window, font, size, ..Default::default() });
         self.put_signature(sig.as_ref(), None)?;
         self.compose.as_mut().ok_or_else(|| CmdError::Failed("compose".into()))
     }
@@ -425,6 +428,7 @@ impl Session {
             window: self.prefs.reply_window,
             quote,
             font: self.prefs.compose_font.clone(),
+            size: self.prefs.compose_size,
             ..Default::default()
         });
         self.style_signature(signature.as_ref());
@@ -474,6 +478,7 @@ impl Session {
             scheme,
             window: self.prefs.reply_window,
             font: self.prefs.compose_font.clone(),
+            size: self.prefs.compose_size,
             ..Default::default()
         };
         c.set_text(String::new());

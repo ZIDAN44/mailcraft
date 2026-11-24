@@ -1885,6 +1885,8 @@ count	occurrences	kez
 	Default font	Varsayılan yazı tipi
 	Font for new messages	Yeni iletilerin yazı tipi
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Yeni iletiler, yanıtlar ve iletmeler bu yazı tipiyle yazılır. Yazı tipi belirlediğiniz metin kendi yazı tipini korur.
+	Font size for new messages	Yeni iletilerin yazı tipi boyutu
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	Yeni iletiler, yanıtlar ve iletmeler bu boyutta yazılır. Boyut belirlediğiniz metin kendi boyutunu korur.
 	Clean up old items	Eski öğeleri temizle
 	Clean up old items…	Eski öğeleri temizle…
 	Move old mail to an archive file on this computer, out of the mailbox.	Eski postaları posta kutusundan bu bilgisayardaki bir arşiv dosyasına taşı.

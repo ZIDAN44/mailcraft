@@ -6,7 +6,7 @@
 use super::*;
 
 /// A screen tall enough for File › Options' Reading group without scrolling.
-const SCREEN: egui::Vec2 = egui::vec2(1280.0, 1800.0);
+const SCREEN: egui::Vec2 = egui::vec2(1280.0, 2000.0);
 
 fn shows(ctx: &egui::Context, a: &mut MailApp, label: &str) -> bool {
     named(ctx, a, SCREEN).iter().any(|n| n.name() == Some(label))

@@ -1885,6 +1885,8 @@ count	occurrences	Terminen
 	Default font	Standardschriftart
 	Font for new messages	Schriftart für neue Nachrichten
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Neue Nachrichten, Antworten und Weiterleitungen werden darin geschrieben. Text, für den Sie eine Schriftart festlegen, behält seine eigene.
+	Font size for new messages	Schriftgröße für neue Nachrichten
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	Neue Nachrichten, Antworten und Weiterleitungen werden in dieser Größe geschrieben. Text, für den Sie eine Größe festlegen, behält seine eigene.
 	Clean up old items	Alte Elemente aufräumen
 	Clean up old items…	Alte Elemente aufräumen…
 	Move old mail to an archive file on this computer, out of the mailbox.	Alte E-Mails aus dem Postfach in eine Archivdatei auf diesem Computer verschieben.

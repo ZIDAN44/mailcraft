@@ -1899,6 +1899,8 @@ count	occurrences	opakovaní
 	Default font	Predvolené písmo
 	Font for new messages	Písmo nových správ
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Nové správy, odpovede a preposlané správy sa píšu týmto písmom. Text, ktorému nastavíte písmo, si ponechá svoje.
+	Font size for new messages	Veľkosť písma nových správ
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	Nové správy, odpovede a preposlané správy sa píšu touto veľkosťou. Text, ktorému nastavíte veľkosť, si ponechá svoju.
 	Clean up old items	Vyčistiť staré položky
 	Clean up old items…	Vyčistiť staré položky…
 	Move old mail to an archive file on this computer, out of the mailbox.	Presunúť starú poštu z poštovej schránky do archívneho súboru na tomto počítači.

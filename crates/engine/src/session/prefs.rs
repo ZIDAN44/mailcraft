@@ -201,6 +201,10 @@ pub struct Prefs {
     /// "New mail messages" font; `None`: MailCraft's own.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "checked_font")]
     pub compose_font: Option<String>,
+    /// The size, in points, new messages, replies and forwards are written in (issue #267), with
+    /// the font; `None`: MailCraft's own ([`mime::rich::DEFAULT_SIZE`]).
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "checked_size")]
+    pub compose_size: Option<u8>,
     /// Closing the window leaves MailCraft running in the notification area, where the app
     /// has one (issue #67): mail is still checked and announced.
     pub close_to_tray: bool,
@@ -467,6 +471,7 @@ impl Default for Prefs {
             spelling: true,
             dictionary: BTreeSet::new(),
             compose_font: None,
+            compose_size: None,
             close_to_tray: false,
             start_in_tray: false,
             tray_unread: true,
@@ -599,6 +604,13 @@ pub fn dictionary_word(w: &str) -> Option<String> {
 fn checked_font<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
     let read = <Option<String> as serde::Deserialize>::deserialize(d)?;
     Ok(read.as_deref().and_then(mailcraft_mime::rich::font_name))
+}
+
+/// The size for new messages read from disk: only one the size box offers
+/// ([`mime::rich::SIZES`]).
+fn checked_size<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u8>, D::Error> {
+    let read = <Option<serde_json::Value> as serde::Deserialize>::deserialize(d)?;
+    Ok(mailcraft_mime::rich::font_size(read.and_then(|v| v.as_u64()).and_then(|v| u8::try_from(v).ok())))
 }
 
 /// The dictionary's words read from disk: only what are words, up to [`DICTIONARY_MAX`].

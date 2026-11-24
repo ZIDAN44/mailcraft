@@ -1880,6 +1880,8 @@ count	occurrences	keer
 	Default font	Standaardlettertype
 	Font for new messages	Lettertype voor nieuwe berichten
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Nieuwe berichten, antwoorden en doorgestuurde berichten worden erin geschreven. Tekst waarvoor u een lettertype instelt, houdt zijn eigen lettertype.
+	Font size for new messages	Tekengrootte voor nieuwe berichten
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	Nieuwe berichten, antwoorden en doorgestuurde berichten worden in deze grootte geschreven. Tekst waarvoor u een grootte instelt, houdt zijn eigen grootte.
 	Clean up old items	Oude items opruimen
 	Clean up old items…	Oude items opruimen…
 	Move old mail to an archive file on this computer, out of the mailbox.	Oude mail uit het postvak naar een archiefbestand op deze computer verplaatsen.

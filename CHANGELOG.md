@@ -16,6 +16,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Added
 
+- **Font size for new messages**, in **File › Options › Mail** (#267), beside the font: new messages, replies and forwards are written in it, and text you set a size on keeps its own. A signature is shown in the font for new messages while you edit it, as it goes in them.
 - Accounts signed in with Google sync their calendars and contacts too (#262, #263), in a copy of MailCraft given a Google client of your own ([docs/oauth.md](docs/oauth.md)). One signed in before is told to sign in again, to allow them.
 - Everything with one person in one place (#178): **Everything with them…** in someone's card above a message, on their name's right-click menu and in the People pane, and **Find related › Everything with sender…** on a message. It shows the mail you and they have exchanged in every account, by conversation and with the folder each message is in; the files and links in it; the meetings they organise or are invited to; and the others on that mail, each a click away, with an overview of a few of each first. A search narrows every part, and a box at its top finds someone else. Phone numbers in their signature are offered for their contact, never put there by themselves.
 - A new account starts with the calendar and contacts servers its provider's settings name (#176), as Thunderbird's autoconfig files can (a Nextcloud's, for one); **Calendar server…** shows the servers MailCraft found by itself, where its fields looked empty.

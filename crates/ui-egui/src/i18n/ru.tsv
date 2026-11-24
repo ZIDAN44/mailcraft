@@ -1898,6 +1898,8 @@ count	occurrences	повторений
 	Default font	Шрифт по умолчанию
 	Font for new messages	Шрифт новых сообщений
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Новые сообщения, ответы и пересылки пишутся этим шрифтом. Текст, которому вы задали шрифт, сохраняет свой.
+	Font size for new messages	Размер шрифта новых сообщений
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	Новые сообщения, ответы и пересылки пишутся этим размером шрифта. Текст, которому вы задали размер, сохраняет свой.
 	Clean up old items	Очистить старые элементы
 	Clean up old items…	Очистить старые элементы…
 	Move old mail to an archive file on this computer, out of the mailbox.	Перенести старую почту из почтового ящика в файл архива на этом компьютере.

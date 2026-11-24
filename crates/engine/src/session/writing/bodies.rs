@@ -18,11 +18,16 @@ impl Compose {
         let used = mime::rich::pictures(&self.body, &styles);
         let pictures: Vec<mime::InlinePicture> = self.inline.iter().filter(|p| used.contains(&p.cid)).cloned().collect();
         let text = mime::rich::to_text(&self.body, &styles);
-        if self.plain || (styles.is_plain() && pictures.is_empty() && self.font.is_none()) {
+        if self.plain || (styles.is_plain() && pictures.is_empty() && self.font.is_none() && self.size.is_none()) {
             (text, None, Vec::new())
         } else {
-            (text, Some(mime::rich::to_html_in(&self.body, &styles, self.font.as_deref())), pictures)
+            (text, Some(mime::rich::to_html_in(&self.body, &styles, self.font.as_deref(), self.size)), pictures)
         }
+    }
+
+    /// The size its text is in where none is set on it, in points (issue #267).
+    pub fn base_size(&self) -> u8 {
+        mime::rich::font_size(self.size).unwrap_or(mime::rich::DEFAULT_SIZE)
     }
 
     /// Set the text (and forget its formatting).
@@ -47,11 +52,11 @@ impl Compose {
         let (before, before_styles) = mime::rich::slice(&self.body, &styles, 0..start + "-- ".len());
         let (after, after_styles) = mime::rich::slice(&self.body, &styles, end..self.body.chars().count());
         let (code_html, code_pictures) = mime::signature_code_parts(code, &self.signature_code_tag());
-        let mut out = mime::rich::to_html_in(&before, &before_styles, self.font.as_deref());
+        let mut out = mime::rich::to_html_in(&before, &before_styles, self.font.as_deref(), self.size);
         // Marked, so a saved draft opened again has the code back as it was.
         out.push_str(&format!("<div class=\"{}\">{code_html}</div>", mime::SIGNATURE_CLASS));
         if !after.trim().is_empty() {
-            out.push_str(&mime::rich::to_html_in(&after, &after_styles, self.font.as_deref()));
+            out.push_str(&mime::rich::to_html_in(&after, &after_styles, self.font.as_deref(), self.size));
         }
         let mut used = mime::rich::pictures(&before, &before_styles);
         used.extend(mime::rich::pictures(&after, &after_styles));

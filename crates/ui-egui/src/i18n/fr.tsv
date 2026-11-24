@@ -1885,6 +1885,8 @@ count	occurrences	occurrences
 	Default font	Police par défaut
 	Font for new messages	Police des nouveaux messages
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Les nouveaux messages, les réponses et les transferts sont écrits dans cette police. Le texte auquel vous donnez une police garde la sienne.
+	Font size for new messages	Taille de police des nouveaux messages
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	Les nouveaux messages, les réponses et les transferts sont écrits dans cette taille. Le texte auquel vous donnez une taille garde la sienne.
 	Clean up old items	Nettoyer les anciens éléments
 	Clean up old items…	Nettoyer les anciens éléments…
 	Move old mail to an archive file on this computer, out of the mailbox.	Déplacer les anciens messages de la boîte aux lettres vers un fichier d'archive sur cet ordinateur.

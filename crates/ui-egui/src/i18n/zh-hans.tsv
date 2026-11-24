@@ -1881,6 +1881,8 @@ count	occurrences	次
 	Default font	默认字体
 	Font for new messages	新邮件的字体
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	新邮件、回复和转发都使用此字体书写。你设置了字体的文字保留其自己的字体。
+	Font size for new messages	新邮件的字号
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	新邮件、回复和转发都使用此字号书写。你设置了字号的文字保留其自己的字号。
 	Clean up old items	清理旧项目
 	Clean up old items…	清理旧项目…
 	Move old mail to an archive file on this computer, out of the mailbox.	将旧邮件从邮箱移到这台电脑上的存档文件中。

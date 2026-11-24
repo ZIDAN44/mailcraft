@@ -1886,6 +1886,8 @@ count	occurrences	előfordulás
 	Default font	Alapértelmezett betűtípus
 	Font for new messages	Új üzenetek betűtípusa
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Az új üzenetek, válaszok és továbbított üzenetek ezt a betűtípust használják. A külön beállított betűtípusú szöveg változatlan marad.
+	Font size for new messages	Új üzenetek betűmérete
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	Az új üzenetek, válaszok és továbbított üzenetek ezt a betűméretet használják. A külön beállított méretű szöveg változatlan marad.
 	Clean up old items	Régi elemek karbantartása
 	Clean up old items…	Régi elemek karbantartása…
 	Move old mail to an archive file on this computer, out of the mailbox.	Régi e-mailek áthelyezése a postaládából egy archiválási fájlba ezen a számítógépen.

@@ -354,8 +354,8 @@ fn paragraphs(text: &str) -> Vec<(&str, usize)> {
     out
 }
 
-/// One paragraph's runs as HTML.
-fn para_html(line: &str, start: usize, styles: &Styles) -> String {
+/// One paragraph's runs as HTML, in a message whose text is `base` points where none is set.
+fn para_html(line: &str, start: usize, styles: &Styles, base: u8) -> String {
     let mut out = String::new();
     let chars: Vec<char> = line.chars().collect();
     let mut i = 0;
@@ -396,7 +396,7 @@ fn para_html(line: &str, start: usize, styles: &Styles) -> String {
         {
             css.push(format!("font-family:'{}',sans-serif", f.trim()));
         }
-        if let Some(sz) = st.size.filter(|s| *s != DEFAULT_SIZE) {
+        if let Some(sz) = st.size.filter(|s| *s != base) {
             css.push(format!("font-size:{sz}pt"));
         }
         if let Some(c) = st.color {
@@ -429,6 +429,11 @@ pub fn font_name(name: &str) -> Option<String> {
 /// The longest typeface name kept.
 pub const FONT_NAME_MAX: usize = 64;
 
+/// A size text can be written in: one of [`SIZES`], else `None`.
+pub fn font_size(size: Option<u8>) -> Option<u8> {
+    size.filter(|z| SIZES.contains(z))
+}
+
 fn para_css(p: &Para) -> String {
     let mut css = Vec::new();
     if p.indent > 0 {
@@ -445,16 +450,17 @@ fn para_css(p: &Para) -> String {
 /// The message as HTML: a `<div>` per paragraph (as Outlook writes them), lists grouped, rules
 /// as `<hr>`, pictures by `cid:`.
 pub fn to_html(text: &str, styles: &Styles) -> String {
-    to_html_in(text, styles, None)
+    to_html_in(text, styles, None, None)
 }
 
-/// [`to_html`], its text in typeface `font` where none is set on it (issue #166: the font chosen
-/// for new messages), else in MailCraft's own.
-pub fn to_html_in(text: &str, styles: &Styles, font: Option<&str>) -> String {
+/// [`to_html`], its text in typeface `font` and `size` points where none is set on it (issues
+/// #166 and #267: the font and size chosen for new messages), else in MailCraft's own.
+pub fn to_html_in(text: &str, styles: &Styles, font: Option<&str>, size: Option<u8>) -> String {
     let mut st = styles.clone();
     st.fit(text);
     let first = font.and_then(font_name).map(|f| format!("'{f}', ")).unwrap_or_default();
-    let mut out = format!("<div style=\"font-family: {first}Aptos, Calibri, 'Segoe UI', Arial, sans-serif; font-size: {DEFAULT_SIZE}pt\">\n");
+    let base = font_size(size).unwrap_or(DEFAULT_SIZE);
+    let mut out = format!("<div style=\"font-family: {first}Aptos, Calibri, 'Segoe UI', Arial, sans-serif; font-size: {base}pt\">\n");
     let mut open: Option<(List, u8)> = None;
     for (n, (line, start)) in paragraphs(text).into_iter().enumerate() {
         let p = st.para(n);
@@ -469,7 +475,7 @@ pub fn to_html_in(text: &str, styles: &Styles, font: Option<&str>) -> String {
                 open = want;
             }
         }
-        let body = para_html(line, start, &st);
+        let body = para_html(line, start, &st, base);
         if p.rule {
             out.push_str("<hr style=\"border:none; border-top:1px solid #e1e1e1; margin:0.5em 0\">\n");
         } else if open.is_some() {

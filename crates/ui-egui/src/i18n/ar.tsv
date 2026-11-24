@@ -1880,6 +1880,8 @@ count	occurrences	مرات
 	Default font	الخط الافتراضي
 	Font for new messages	خط الرسائل الجديدة
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	تُكتب به الرسائل الجديدة والردود وإعادة التوجيه. النص الذي تحدد له خطًا يحتفظ بخطه.
+	Font size for new messages	حجم خط الرسائل الجديدة
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	تُكتب به الرسائل الجديدة والردود وإعادة التوجيه. النص الذي تحدد له حجمًا يحتفظ بحجمه.
 	Clean up old items	تنظيف العناصر القديمة
 	Clean up old items…	تنظيف العناصر القديمة…
 	Move old mail to an archive file on this computer, out of the mailbox.	نقل البريد القديم من صندوق البريد إلى ملف أرشيف على هذا الكمبيوتر.

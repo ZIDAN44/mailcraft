@@ -51,6 +51,7 @@ pub(crate) fn apply(ed: &mut Editor, c: &mut Compose, op: Op) {
     let base = ed.typing.clone().unwrap_or_else(|| typing_style(&c.body, &c.styles, sel.start));
     let toggled = |get: fn(&Style) -> bool| -> bool { if collapsed { !get(&base) } else { !rich::all(&c.body, &c.styles, sel.clone(), get) } };
     type F = Box<dyn Fn(&Style) -> Style>;
+    let message_size = c.base_size();
     let char_op: Option<F> = match op.clone() {
         Op::Bold => {
             let on = toggled(|s| s.bold);
@@ -68,13 +69,14 @@ pub(crate) fn apply(ed: &mut Editor, c: &mut Compose, op: Op) {
             let on = toggled(|s| s.strike);
             Some(Box::new(move |s| Style { strike: on, ..s.clone() }))
         }
-        Op::Size(z) => Some(Box::new(move |s| Style { size: (z != rich::DEFAULT_SIZE).then_some(z), ..s.clone() })),
+        // The message's own size (issue #267) is no size of the text's own.
+        Op::Size(z) => Some(Box::new(move |s| Style { size: (z != message_size).then_some(z), ..s.clone() })),
         Op::Font(f) => Some(Box::new(move |s| Style { font: f.clone(), ..s.clone() })),
         Op::Grow | Op::Shrink => {
             let up = op == Op::Grow;
             Some(Box::new(move |s| {
-                let z = rich::step_size(s.size(), up);
-                Style { size: (z != rich::DEFAULT_SIZE).then_some(z), ..s.clone() }
+                let z = rich::step_size(s.size.unwrap_or(message_size), up);
+                Style { size: (z != message_size).then_some(z), ..s.clone() }
             }))
         }
         Op::Color(col) => Some(Box::new(move |s| Style { color: col, ..s.clone() })),

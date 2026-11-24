@@ -1884,6 +1884,8 @@ count	occurrences	ripetizioni
 	Default font	Carattere predefinito
 	Font for new messages	Carattere per i nuovi messaggi
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	I nuovi messaggi, le risposte e gli inoltri vengono scritti con questo carattere. Il testo a cui assegni un carattere mantiene il proprio.
+	Font size for new messages	Dimensione del carattere per i nuovi messaggi
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	I nuovi messaggi, le risposte e gli inoltri vengono scritti in questa dimensione. Il testo a cui assegni una dimensione mantiene la propria.
 	Clean up old items	Pulisci elementi vecchi
 	Clean up old items…	Pulisci elementi vecchi…
 	Move old mail to an archive file on this computer, out of the mailbox.	Sposta la posta vecchia dalla casella a un file di archivio su questo computer.

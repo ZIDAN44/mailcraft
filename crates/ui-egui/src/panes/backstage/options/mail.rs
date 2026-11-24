@@ -91,6 +91,7 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             acts,
         );
         compose_font(s, t, ui, acts);
+        compose_size(s, t, ui, acts);
         // Issue #115: Ctrl+Enter sends at once only when that's chosen.
         setting_by(s, "options.ctrlEnter", ui, t, false, tl!("Ctrl+Enter in a message"), None, |ui| {
             use mailcraft_engine::CtrlEnter;
@@ -301,6 +302,34 @@ fn start_in(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             && let Ok(p) = serde_json::to_value(&at)
         {
             acts.push(Action::Run("options.startIn", p));
+        }
+    });
+}
+
+/// The size new messages are written in (issue #267), with their font: one the message's size
+/// box offers, MailCraft's own 11 points unless chosen.
+fn compose_size(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    use mailcraft_engine::mime::rich::{DEFAULT_SIZE, SIZES};
+    let about = tl!("New messages, replies and forwards are written in it. Text you set a size on keeps its own.");
+    setting_by(s, "options.composeSize", ui, t, false, tl!("Font size for new messages"), Some(about), |ui| {
+        let now = s.prefs.compose_size.unwrap_or(DEFAULT_SIZE);
+        let r = egui::ComboBox::from_id_salt("compose-size")
+            .width(60.0)
+            .selected_text(now.to_string())
+            .show_ui(ui, |ui| {
+                for z in SIZES {
+                    if ui.selectable_label(now == z, z.to_string()).clicked() {
+                        acts.push(Action::Run("options.composeSize", json!({"size": z})));
+                    }
+                }
+            })
+            .response
+            // The setting's name is beside it in the row, which doesn't hand it on.
+            .accessible_name(tl!("Font size for new messages"));
+        let mut at = now;
+        crate::drop_down::keys(ui, &r, &mut at, &SIZES);
+        if at != now {
+            acts.push(Action::Run("options.composeSize", json!({"size": at})));
         }
     });
 }

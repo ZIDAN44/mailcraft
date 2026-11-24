@@ -133,6 +133,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({ "font": s.prefs.compose_font }))
         }).setting("compose_font")
         .params(r#"{"font"?: string (an installed typeface: new messages, replies and forwards are written in it) | null (MailCraft's own)}"#),
+        CommandSpec::new("options.composeSize", "Font size for new messages", "File › Options › Mail", |s, v| {
+            s.prefs.compose_size = match v.get("size") {
+                Some(serde_json::Value::Null) | None => None,
+                Some(z) => {
+                    let z = z.as_u64().and_then(|z| u8::try_from(z).ok());
+                    let ok = mailcraft_mime::rich::font_size(z).ok_or_else(|| CmdError::Params(format!("`size` is one of {:?} or null", mailcraft_mime::rich::SIZES)))?;
+                    (ok != mailcraft_mime::rich::DEFAULT_SIZE).then_some(ok)
+                }
+            };
+            Ok(json!({ "size": s.prefs.compose_size }))
+        }).setting("compose_size")
+        .params(r#"{"size"?: number (points: 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28 or 36; new messages, replies and forwards are written in it) | null (MailCraft's own, 11)}"#),
         CommandSpec::new("spelling.addWord", "Add to dictionary", "Message editor › Spelling", |s, v| {
             let word = p::req_str(v, "word")?;
             let w = crate::session::dictionary_word(word).ok_or_else(|| CmdError::Params(format!("`{word}` isn't a word")))?;

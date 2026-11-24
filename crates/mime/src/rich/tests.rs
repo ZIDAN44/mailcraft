@@ -131,13 +131,35 @@ fn rich_cost() {
 #[test]
 fn a_message_in_a_typeface_of_its_own() {
     let s = Styles::plain("Hi");
-    assert!(to_html_in("Hi", &s, Some("Georgia")).starts_with("<div style=\"font-family: 'Georgia', Aptos, Calibri"));
-    assert_eq!(to_html_in("Hi", &s, None), to_html("Hi", &s));
-    let evil = to_html_in("Hi", &s, Some("x'; color: red\"><script>alert(1)</script>"));
+    assert!(to_html_in("Hi", &s, Some("Georgia"), None).starts_with("<div style=\"font-family: 'Georgia', Aptos, Calibri"));
+    assert_eq!(to_html_in("Hi", &s, None, None), to_html("Hi", &s));
+    let evil = to_html_in("Hi", &s, Some("x'; color: red\"><script>alert(1)</script>"), None);
     assert!(!evil.contains("<script>") && !evil.contains("color: red\""), "{evil}");
     assert!(evil.starts_with("<div style=\"font-family: 'x color red"), "{evil}");
-    assert_eq!(to_html_in("Hi", &s, Some("'\";<>")), to_html("Hi", &s));
+    assert_eq!(to_html_in("Hi", &s, Some("'\";<>"), None), to_html("Hi", &s));
     let long = "A".repeat(500);
     assert_eq!(font_name(&long).map(|f| f.chars().count()), Some(FONT_NAME_MAX));
     assert_eq!(font_name("  Segoe UI  ").as_deref(), Some("Segoe UI"));
+}
+
+/// The size for new messages (issue #267) is the message's own: the text with none set on it
+/// is in it, a size set on text is written where it differs from it, and only a size the size
+/// box offers is taken.
+#[test]
+fn a_message_is_written_in_its_own_size() {
+    let text = "Big small same";
+    let mut s = Styles::plain(text);
+    s.restyle(text, 4..9, |st| Style { size: Some(11), ..st.clone() });
+    s.restyle(text, 10..14, |st| Style { size: Some(14), ..st.clone() });
+    let html = to_html_in(text, &s, None, Some(14));
+    assert!(html.starts_with("<div style=\"font-family: Aptos, Calibri, 'Segoe UI', Arial, sans-serif; font-size: 14pt\">"), "{html}");
+    assert!(html.contains("<span style=\"font-size:11pt\">small</span>"), "{html}");
+    assert!(!html.contains("font-size:14pt"), "the message's own size isn't written again: {html}");
+    // MailCraft's own, as before.
+    let own = to_html_in(text, &s, None, None);
+    assert!(own.contains("font-size: 11pt\">") && own.contains("font-size:14pt") && !own.contains("font-size:11pt"), "{own}");
+    // A size the box doesn't offer is MailCraft's own.
+    assert_eq!(to_html_in(text, &s, None, Some(13)), own);
+    assert_eq!(to_html_in(text, &s, None, Some(0)), own);
+    assert_eq!((font_size(Some(36)), font_size(Some(37)), font_size(None)), (Some(36), None, None));
 }

@@ -99,7 +99,11 @@ impl SignatureForm {
             Some(g) => g.name.clone(),
             None => self.free_name(),
         };
-        self.compose = Compose { id: crate::rich_edit::SIGNATURE_ID, account: self.account.clone(), body, styles, inline, ..Default::default() };
+        // Its text with no font of its own shows in the font for new messages, as it's sent in
+        // them (issue #267); its size stays MailCraft's own, the one a signature keeps.
+        let font = s.prefs.compose_font.clone();
+        self.compose =
+            Compose { id: crate::rich_edit::SIGNATURE_ID, account: self.account.clone(), body, styles, inline, font, ..Default::default() };
         self.editor = SignatureEditor(crate::rich_edit::Editor::new(crate::rich_edit::SIGNATURE_ID));
         self.code = code;
         self.pictures = pictures;

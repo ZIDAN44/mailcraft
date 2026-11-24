@@ -1880,6 +1880,8 @@ count	occurrences	פעמים
 	Default font	גופן ברירת מחדל
 	Font for new messages	גופן להודעות חדשות
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	הודעות חדשות, תשובות והעברות נכתבות בו. טקסט שקבעת לו גופן שומר על הגופן שלו.
+	Font size for new messages	גודל גופן להודעות חדשות
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	הודעות חדשות, תשובות והעברות נכתבות בגודל זה. טקסט שקבעת לו גודל שומר על הגודל שלו.
 	Clean up old items	ניקוי פריטים ישנים
 	Clean up old items…	ניקוי פריטים ישנים…
 	Move old mail to an archive file on this computer, out of the mailbox.	העברת דואר ישן מתיבת הדואר לקובץ ארכיון במחשב הזה.

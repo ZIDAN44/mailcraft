@@ -1898,6 +1898,8 @@ count	occurrences	wystąpieniach
 	Default font	Czcionka domyślna
 	Font for new messages	Czcionka nowych wiadomości
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Tą czcionką pisane są nowe wiadomości, odpowiedzi i wiadomości przekazywane dalej. Tekst z ustawioną czcionką zachowuje własną.
+	Font size for new messages	Rozmiar czcionki nowych wiadomości
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	W tym rozmiarze pisane są nowe wiadomości, odpowiedzi i wiadomości przekazywane dalej. Tekst z ustawionym rozmiarem zachowuje własny.
 	Clean up old items	Oczyść stare elementy
 	Clean up old items…	Oczyść stare elementy…
 	Move old mail to an archive file on this computer, out of the mailbox.	Przenieś starą pocztę ze skrzynki pocztowej do pliku archiwum na tym komputerze.

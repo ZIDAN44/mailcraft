@@ -1885,6 +1885,8 @@ count	occurrences	repeticiones
 	Default font	Fuente predeterminada
 	Font for new messages	Fuente para mensajes nuevos
 	New messages, replies and forwards are written in it. Text you set a font on keeps its own.	Los mensajes nuevos, las respuestas y los reenvíos se escriben con ella. El texto al que le pongas una fuente conserva la suya.
+	Font size for new messages	Tamaño de fuente para mensajes nuevos
+	New messages, replies and forwards are written in it. Text you set a size on keeps its own.	Los mensajes nuevos, las respuestas y los reenvíos se escriben con este tamaño. El texto al que le pongas un tamaño conserva el suyo.
 	Clean up old items	Limpiar elementos antiguos
 	Clean up old items…	Limpiar elementos antiguos…
 	Move old mail to an archive file on this computer, out of the mailbox.	Mover el correo antiguo del buzón a un archivo en este equipo.

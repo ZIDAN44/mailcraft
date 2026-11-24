@@ -5,9 +5,9 @@ use super::*;
 /// A look as text formatting (the person's colours adjusted to stay readable on the page). A
 /// typeface of the computer's is drawn in it where the computer's fonts are offered (issue
 /// #166: it was sent with the message, and shown in the editor's own font): the look's own, else
-/// the message's (`base`, the font chosen for new messages).
-pub(super) fn format(s: &Style, base: Option<&str>, t: &Tokens) -> TextFormat {
-    let px = f32::from(s.size()) * PX;
+/// the message's (`base`, the font chosen for new messages); so is its size (`size`, issue #267).
+pub(super) fn format(s: &Style, base: Option<&str>, size: u8, t: &Tokens) -> TextFormat {
+    let px = f32::from(s.size.unwrap_or(size)) * PX;
     let typeface = s.font.as_deref().or(base).filter(|_| !s.mono).and_then(|f| crate::mail_fonts::family(f, s.bold));
     let font = if let Some(family) = typeface {
         FontId::new(px, family)
@@ -109,11 +109,13 @@ pub(super) struct Lay<'a> {
     pub(super) card: Option<&'a Card>,
     /// The message's own typeface, for text with none set on it.
     pub(super) font: Option<&'a str>,
+    /// The message's own size in points, for text with none set on it (issue #267).
+    pub(super) size: u8,
 }
 
 /// The text laid out as `lay` says; `shift` moves a paragraph right (alignment).
 pub(super) fn job(text: &str, lay: Lay<'_>, shift: &[f32]) -> LayoutJob {
-    let Lay { st, plain, t, wrap, own, card, font } = lay;
+    let Lay { st, plain, t, wrap, own, card, font, size: text_size } = lay;
     let card = card.filter(|_| !plain).map(|c| (c, c.last_line(text)));
     // A card's letter at `at`: how tall its line is, and the room before it (its last line's start).
     let hidden = |at: usize| {
@@ -135,7 +137,7 @@ pub(super) fn job(text: &str, lay: Lay<'_>, shift: &[f32]) -> LayoutJob {
             let f = match hidden(i) {
                 Some((height, _)) => hidden_format(height),
                 None if plain => plain_fmt.clone(),
-                None => format(&st.style(i.saturating_sub(1)), font, t),
+                None => format(&st.style(i.saturating_sub(1)), font, text_size, t),
             };
             job.append("\n", 0.0, f);
             i += 1;
@@ -167,7 +169,7 @@ pub(super) fn job(text: &str, lay: Lay<'_>, shift: &[f32]) -> LayoutJob {
                 let f = match size {
                     _ if plain => plain_fmt.clone(),
                     Some(size) => picture_format(size.y),
-                    None => format(&style, font, t),
+                    None => format(&style, font, text_size, t),
                 };
                 // Last in its line, a picture's room goes before it.
                 let last = to == line.len();
@@ -185,7 +187,7 @@ pub(super) fn job(text: &str, lay: Lay<'_>, shift: &[f32]) -> LayoutJob {
             }
         }
         if chars.is_empty() && lead > 0.0 {
-            let f = if plain { plain_fmt.clone() } else { format(&st.style(i), font, t) };
+            let f = if plain { plain_fmt.clone() } else { format(&st.style(i), font, text_size, t) };
             job.append("", lead, f);
         }
         i += chars.len();
