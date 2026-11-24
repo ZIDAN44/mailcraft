@@ -479,9 +479,15 @@ impl Node {
         Node { tag: "div".into(), attrs, kids: self.kids.iter().map(copy).collect(), styles: Default::default() }
     }
 
+    /// Whether a table's borders collapse (`border-collapse: collapse`): its cells side by side
+    /// with no room between, sharing the lines between them.
+    pub(super) fn collapses(&self) -> bool {
+        self.style("border-collapse").is_some_and(|c| c == "collapse")
+    }
+
     /// A table's room between and around its cells (`cellspacing`; HTML's 2 when not said).
     pub(super) fn cell_spacing(&self) -> u16 {
-        if self.style("border-collapse").is_some_and(|c| c == "collapse") {
+        if self.collapses() {
             return 0;
         }
         let spacing = self.style("border-spacing").and_then(|v| v.split_whitespace().next().and_then(length_px));

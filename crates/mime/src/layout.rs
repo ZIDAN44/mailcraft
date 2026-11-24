@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::RichText;
 
 mod blocks;
+mod collapse;
 mod flat;
 mod node;
 mod parse;

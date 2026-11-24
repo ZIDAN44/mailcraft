@@ -257,3 +257,16 @@ fn a_table_in_a_cell_stays_in_it() {
     assert_eq!(found[0].code.matches("<table").count(), 2, "{}", found[0].code);
     assert_eq!(found[0].text, "Outer\tIn 1 In 2");
 }
+
+/// A table written collapsed, as MailCraft writes one, has each line two cells share once: a
+/// table of `border=1` (each cell lined all round) read again is the same, and drawn as sent.
+#[test]
+fn a_pasted_tables_shared_lines_are_written_once() {
+    let parts = pasted_tables("<table border=1><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>").expect("a table");
+    let code = &tables(&parts)[0].code;
+    assert_eq!(code.matches("border-left:").count(), 2, "the first column's: {code}");
+    assert_eq!(code.matches("border-top:").count(), 2, "the first row's: {code}");
+    assert_eq!(code.matches("border-right:").count(), 4, "{code}");
+    let again = pasted_tables(code).expect("a table");
+    assert_eq!(&tables(&again)[0].code, code);
+}

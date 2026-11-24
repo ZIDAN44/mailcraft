@@ -50,9 +50,11 @@ fn write(blocks: &[Block], text: &mut dyn FnMut(usize) -> String, n: &mut usize,
                     t.background.map(|c| format!(" bgcolor=\"{}\"", hex(c))).unwrap_or_default(),
                     t.background_image.as_deref().map(|s| format!(" background=\"{}\"", escaped(s))).unwrap_or_default(),
                 ));
-                for row in &t.rows {
+                // Written collapsed: a line two cells share once, as it's read again.
+                let shared = super::collapse::shared_lines(&t.rows);
+                for (row, row_lines) in t.rows.iter().zip(&shared) {
                     out.push_str("<tr>");
-                    for c in row {
+                    for (c, borders) in row.iter().zip(row_lines) {
                         let span = if c.span > 1 { format!(" colspan=\"{}\"", c.span) } else { String::new() };
                         // Its room inside and the lines along its sides, as it has them (a table
                         // pasted from Excel, issue #268, keeps its cells' lines).
@@ -63,7 +65,7 @@ fn write(blocks: &[Block], text: &mut dyn FnMut(usize) -> String, n: &mut usize,
                         };
                         let lines: String = ["top", "right", "bottom", "left"]
                             .iter()
-                            .zip(&c.borders)
+                            .zip(borders)
                             .filter_map(|(side, l)| l.as_ref().map(|l| format!(";border-{side}:{}px solid {}", l.width, hex(l.color))))
                             .collect();
                         out.push_str(&format!(

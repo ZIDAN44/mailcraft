@@ -252,7 +252,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
             }
             Kid::El(n) if n.tag == "table" && depth < MAX_DEPTH => {
                 flush(&mut pending, &mut out, ctx);
-                let rows: Vec<Vec<Cell>> = colored(ctx, n, |ctx| {
+                let mut rows: Vec<Vec<Cell>> = colored(ctx, n, |ctx| {
                     n.rows()
                         .into_iter()
                         .map(|(tr, row)| {
@@ -298,6 +298,9 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                 });
                 if rows.is_empty() {
                     continue;
+                }
+                if n.collapses() {
+                    super::collapse::share_lines(&mut rows);
                 }
                 out.push(Block::Table(Table {
                     rows,
