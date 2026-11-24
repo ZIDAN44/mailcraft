@@ -21,7 +21,7 @@ pub(crate) use body::{html_bodies, shown_text};
 pub(crate) use entities::{Refs, decode_refs, escaped};
 pub use entities::{decode_xml_refs, xml_ref_char};
 pub(crate) use footers::footers_last;
-use lines::{bullet, heading_of, line_spans, table_rules};
+use lines::{bullet, heading_gap, heading_of, line_spans, table_rules};
 use mailcraft_model::work;
 #[doc(hidden)]
 pub use outlook::as_outlook_reads;
@@ -338,9 +338,14 @@ pub(crate) fn html_to_rich_within(html: &str, max: usize, hidden: bool) -> RichT
     let mut out: RichText = Vec::new();
     let mut blank = 0;
     let mut size = 0u16;
+    // The heading the line before is a line of (0: none).
+    let mut heading = 0u8;
     for line in lines.into_iter().take(RICH_MAX_LINES) {
         let mut spans = line_spans(&line);
-        heading_of(&mut spans);
+        if !heading_gap(&mut spans, heading) {
+            heading_of(&mut spans);
+            heading = spans.iter().map(|s| s.heading).max().unwrap_or(0);
+        }
         for sp in &mut spans {
             sp.text = sp.text.replace([HEADING_MARK, PICTURE_MARK], "");
         }

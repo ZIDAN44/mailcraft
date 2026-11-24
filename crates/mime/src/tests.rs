@@ -257,6 +257,32 @@ fn rich_html_keeps_formatting_links_and_pictures() {
     assert!(parse(SIMPLE).unwrap().rich.is_empty(), "plain mail has no rich body");
 }
 
+/// Issue #271: an empty line in a heading (paragraphs apart by `<br><br>` in an `<h3>`, as a
+/// survey's mail had them) is an empty line, where it showed the heading's marks, `###`. A
+/// paragraph that says `###` still does.
+#[test]
+fn an_empty_line_in_a_heading_is_empty() {
+    let lines = |h: &RichText| h.iter().map(|l| l.iter().map(|s| s.text.as_str()).collect::<String>()).collect::<Vec<_>>();
+    let h = html_to_rich("<h3>Thank you.<br><br>After the survey.<br>\n\t\t<br>\n\t\tReady?</h3><p>###</p>");
+    assert_eq!(lines(&h), ["Thank you.", "", "After the survey.", "", "Ready?", "", "###"], "{h:?}");
+    assert!(h[0].iter().chain(&h[2]).chain(&h[4]).all(|s| s.heading == 3), "{h:?}");
+    // In a quote too, and two empty lines in a row.
+    let q = html_to_rich("<blockquote><h2>A<br><br><br>B</h2></blockquote>");
+    assert!(!lines(&q).iter().any(|l| l.contains('#')), "{q:?}");
+    assert!(q.iter().flatten().filter(|s| s.text.contains('A') || s.text.contains('B')).all(|s| s.heading == 2), "{q:?}");
+    // As it came: quoted-printable, the heading's paragraph in a box in a table's cell.
+    let qp = "<table width=3D\"600\"><tr><td><h3><div>\r\n=09=09=09<p style=3D\"margin-top: 0px;\">Thank you for your visit<strong>&nbsp;=\r\nCambridge</strong>.<br>\r\n=09=09=09<br>\r\n=09=09=09After completing this=\r\n short survey.<br>\r\n=09=09=09<br>\r\n=09=09=09Ready?</p>\r\n=09=09=09</div></h3></td></tr></table>";
+    let raw = format!(
+        "From: a@b.example\r\nSubject: s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: quoted-printable\r\n\r\n{qp}\r\n"
+    );
+    let p = parse(raw.as_bytes()).expect("parsed");
+    let mut shown = p.layout.clone();
+    let mut words = Vec::new();
+    crate::layout::each_span(&mut shown, &mut |s| words.push(s.text.clone()));
+    assert!(words.iter().any(|w| w.contains("Ready?")), "{words:?}");
+    assert!(!words.iter().any(|w| w.contains('#')), "{words:?}");
+}
+
 /// Issue #11: a WebP sent without a name, or with a name without an extension, is named with its
 /// type's extension (it was saved as `attachment-1`, which nothing would open); one sent as
 /// `application/octet-stream` is still a picture; a name with its own extension is left as it is.

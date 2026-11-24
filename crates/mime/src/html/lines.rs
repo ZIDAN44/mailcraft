@@ -91,6 +91,26 @@ pub(super) fn heading_of(spans: &mut [Span]) {
     }
 }
 
+/// Whether a line is a heading's empty line (`<br><br>` in an `<h3>`): nothing but the marks of
+/// a heading of `level`, the level of the line before it, as the converter writes them on each
+/// line of a heading, text or not. Its marks go, and it's an empty line; elsewhere `###` is what
+/// the message says. They showed where its empty lines were (#271).
+pub(super) fn heading_gap(spans: &mut [Span], level: u8) -> bool {
+    if level == 0 || spans.iter().any(|s| s.image.is_some()) {
+        return false;
+    }
+    let whole: String = spans.iter().map(|s| s.text.as_str()).collect();
+    // In a quote, after its `> `.
+    let marks = whole.trim().trim_start_matches(['>', ' ']);
+    if marks.len() != usize::from(level) || !marks.chars().all(|c| c == '#') {
+        return false;
+    }
+    for sp in spans.iter_mut() {
+        sp.text.retain(|c| c != '#');
+    }
+    true
+}
+
 /// A list's bullet (`* item`, indented when nested) as a real one.
 pub(super) fn bullet(spans: &mut [Span]) {
     if let Some(first) = spans.first_mut() {
