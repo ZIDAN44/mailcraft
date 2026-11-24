@@ -268,7 +268,7 @@ fn a_token_without_the_permission_waits_for_a_new_sign_in() {
     }
     let dav = Dav::bearer(token, &["127.0.0.1"]);
     let caldav_url = format!("{}/dav/", server.base);
-    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), mails: true, contacts: true, ..Default::default() };
+    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), mails: true, contacts: false, ..Default::default() };
     let mut pim = Pim::default();
     pim.ensure_defaults();
 
