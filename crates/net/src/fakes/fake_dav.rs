@@ -64,6 +64,8 @@ pub struct Data {
     pub bearer_lacks_contacts: bool,
     /// Or for everything but the address books: a sign-in that granted the contacts alone.
     pub bearer_lacks_calendars: bool,
+    /// Refuse the right token outright (401) for the address books: not a permission it lacks.
+    pub contacts_reject_token: bool,
 }
 
 /// Whether an `Authorization` value answers the fake's Digest challenge for this request.

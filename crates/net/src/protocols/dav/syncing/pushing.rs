@@ -29,13 +29,15 @@ impl Run<'_> {
                 // Google refusing the token this server (a sign-in that granted the calendars and
                 // not the contacts, or the other way): kept to delete, said once, and the rest
                 // syncs; what's refused is then dropped as when it isn't found.
-                Err(NetError::Auth(why)) if self.dav.is_bearer() => {
-                    if !out.errors.contains(&why) {
-                        out.errors.push(why);
+                Err(e) => match self.dav.permission_refused(&e) {
+                    Some(why) => {
+                        if !out.errors.contains(&why) {
+                            out.errors.push(why);
+                        }
                     }
-                }
-                Err(e @ NetError::Auth(_)) => return Err(e),
-                Err(e) => out.errors.push(e.to_string()),
+                    None if matches!(e, NetError::Auth(_)) => return Err(e),
+                    None => out.errors.push(e.to_string()),
+                },
             }
         }
         Ok(())

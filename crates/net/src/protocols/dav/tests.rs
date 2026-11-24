@@ -547,4 +547,47 @@ fn a_token_refused_its_calendars_leaves_the_contacts_syncing() {
     assert_eq!(out.errors, ["sign in again to allow MailCraft this permission: https://www.googleapis.com/auth/calendar"]);
     let log = server.data.lock().unwrap().log.clone();
     assert_eq!(log.iter().filter(|l| !l.contains("/dav/card/")).count(), 1, "one request to the calendars: {log:?}");
+
+    // The syncs after, as the engine saved it (no calendars, looked for just now): the event
+    // still waits, and the contacts sync.
+    (pim.caldav_home, pim.dav_checked) = (Some(String::new()), Some(1_800_000_600));
+    server.data.lock().unwrap().log.clear();
+    let out = sync(&dav, &at, &pim, 1_800_001_200, Zone::UTC).unwrap();
+    assert_eq!((read(&out), out.errors.len()), ((vec![], vec!["g-card"]), 0));
+    let log = server.data.lock().unwrap().log.clone();
+    assert!(log.iter().all(|l| l.contains("/dav/card/")), "nothing asked of the calendars: {log:?}");
+}
+
+/// The token refused outright (401) for the contacts isn't a permission it lacks: the sync stops
+/// as for a refused sign-in, and the contacts' saved server is kept, read again as it was once
+/// the token is taken.
+#[test]
+fn a_token_refused_outright_keeps_the_contacts_server() {
+    use crate::fakes::fake_dav::{USER, serve};
+    use mailcraft_model::zone::Zone;
+
+    let server = serve();
+    {
+        let mut d = server.data.lock().unwrap();
+        d.bearer = Some("test-token".into());
+        d.contacts_reject_token = true;
+    }
+    seed(&server);
+    let dav = Dav::bearer("test-token", &["127.0.0.1"]);
+    let at = Where { email: USER, imap_host: "imap.example", mails: true, ..Default::default() };
+    let mut pim = Pim {
+        caldav_home: Some(format!("{}/dav/cal/", server.base)),
+        carddav_home: Some(format!("{}/dav/card/", server.base)),
+        dav_checked: Some(1_800_000_000),
+        ..Default::default()
+    };
+    pim.ensure_defaults();
+
+    assert!(matches!(sync(&dav, &at, &pim, 1_800_000_600, Zone::UTC), Err(NetError::Auth(_))));
+
+    // Nothing was saved: the next sync, the token taken, reads the contacts where they were.
+    server.data.lock().unwrap().contacts_reject_token = false;
+    let out = sync(&dav, &at, &pim, 1_800_001_200, Zone::UTC).unwrap();
+    assert_eq!(out.carddav_home, pim.carddav_home);
+    assert_eq!((read(&out), out.errors.len()), ((vec!["g-event"], vec!["g-card"]), 0));
 }

@@ -13,11 +13,31 @@ const MAX_REASON: usize = 500;
 pub(super) struct Bearer {
     header: String,
     hosts: Vec<String>,
+    /// What Google said in refusing the token a permission this session: told apart from the
+    /// token itself refused (401), which is the whole sign-in's.
+    refused: std::sync::Mutex<Vec<String>>,
 }
 
 impl Bearer {
     pub(super) fn new(token: &str, hosts: &[&str]) -> Bearer {
-        Bearer { header: format!("Bearer {token}"), hosts: hosts.iter().map(|h| h.to_ascii_lowercase()).collect() }
+        Bearer {
+            header: format!("Bearer {token}"),
+            hosts: hosts.iter().map(|h| h.to_ascii_lowercase()).collect(),
+            refused: std::sync::Mutex::default(),
+        }
+    }
+
+    /// Google refused the token a permission, saying `why`.
+    pub(super) fn note_refused(&self, why: &str) {
+        let mut said = self.refused.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if !said.iter().any(|s| s == why) && said.len() < 8 {
+            said.push(why.to_string());
+        }
+    }
+
+    /// Whether `why` is what Google said in refusing the token a permission this session.
+    pub(super) fn was_refused(&self, why: &str) -> bool {
+        self.refused.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().any(|s| s == why)
     }
 
     /// The `Authorization` value for a request to `url`: `None` (sent without it) to a host the

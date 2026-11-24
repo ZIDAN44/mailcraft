@@ -60,6 +60,10 @@ impl Data {
         }
         // The right token, without the permission (Google's answer, RFC 6750 §3.1).
         let contacts = r.path.starts_with("/dav/card/");
+        if self.contacts_reject_token && contacts && r.bearer_ok {
+            self.refused += 1;
+            return ("401 Unauthorized", vec![("WWW-Authenticate", "Bearer realm=\"fake\", error=\"invalid_token\"".to_string())], String::new());
+        }
         let lacks = self.bearer_forbidden || if contacts { self.bearer_lacks_contacts } else { self.bearer_lacks_calendars };
         if lacks && r.bearer_ok {
             self.refused += 1;

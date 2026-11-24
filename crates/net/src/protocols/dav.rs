@@ -137,15 +137,23 @@ impl Dav {
         Dav { auth: Auth::Bearer(bearer::Bearer::new(token, hosts)), digest: std::sync::Mutex::default(), guard: std::sync::Mutex::default() }
     }
 
-    /// Whether this session signs in with an access token.
-    pub(crate) fn is_bearer(&self) -> bool {
-        matches!(self.auth, Auth::Bearer(_))
-    }
-
     /// Why Google refused this session's access token (a 403 for a permission it lacks, or the
     /// API turned off): `None` for any other answer.
     fn token_refused(&self, resp: &Response) -> Option<String> {
-        (resp.status == 403 && self.is_bearer()).then(|| bearer::refusal(&resp.headers, &resp.body)).flatten()
+        let Auth::Bearer(b) = &self.auth else { return None };
+        let why = (resp.status == 403).then(|| bearer::refusal(&resp.headers, &resp.body)).flatten()?;
+        b.note_refused(&why);
+        Some(why)
+    }
+
+    /// What Google said, when `e` is its refusing this session's token a permission (the
+    /// calendars, or the contacts): that part waits for a new sign-in while the rest syncs. `None`
+    /// for any other error, a token refused outright (401) among them, which stops the sync.
+    pub(crate) fn permission_refused(&self, e: &NetError) -> Option<String> {
+        match (&self.auth, e) {
+            (Auth::Bearer(b), NetError::Auth(why)) if b.was_refused(why) => Some(why.clone()),
+            _ => None,
+        }
     }
 
     /// Looking for the server of the account `email` (its mail server `mail_host`) from here on,
