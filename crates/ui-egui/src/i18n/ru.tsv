@@ -2116,3 +2116,6 @@ count	occurrences	повторений
 	Text size: {percent}%	Размер текста: {percent}%
 	{percent}%	{percent}%
 	A table, as it will be sent. Backspace after it takes it out.	Таблица в том виде, в каком она будет отправлена. Backspace сразу после неё удаляет её.
+	Attach messages	Вложить письма
+	Attach 1 message	Вложить 1 письмо
+	Attach {n} messages	Вложить письма: {n}

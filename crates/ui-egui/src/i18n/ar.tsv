@@ -2098,3 +2098,6 @@ count	occurrences	مرات
 	Text size: {percent}%	حجم النص: {percent}%
 	{percent}%	{percent}%
 	A table, as it will be sent. Backspace after it takes it out.	جدول كما سيُرسَل. يحذفه مفتاح Backspace بعده.
+	Attach messages	إرفاق رسائل
+	Attach 1 message	إرفاق رسالة واحدة
+	Attach {n} messages	إرفاق {n} رسائل

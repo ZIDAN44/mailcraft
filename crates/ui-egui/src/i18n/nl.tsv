@@ -2098,3 +2098,6 @@ count	occurrences	keer
 	Text size: {percent}%	Tekstgrootte: {percent}%
 	{percent}%	{percent}%
 	A table, as it will be sent. Backspace after it takes it out.	Een tabel, zoals hij wordt verzonden. Backspace erna haalt hem weg.
+	Attach messages	Berichten bijvoegen
+	Attach 1 message	1 bericht bijvoegen
+	Attach {n} messages	{n} berichten bijvoegen

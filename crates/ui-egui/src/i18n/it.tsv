@@ -2102,3 +2102,6 @@ count	occurrences	ripetizioni
 	Text size: {percent}%	Dimensione del testo: {percent}%
 	{percent}%	{percent}%
 	A table, as it will be sent. Backspace after it takes it out.	Una tabella, così come verrà inviata. Backspace subito dopo la toglie.
+	Attach messages	Allega messaggi
+	Attach 1 message	Allega 1 messaggio
+	Attach {n} messages	Allega {n} messaggi

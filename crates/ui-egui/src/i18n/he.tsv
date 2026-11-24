@@ -2098,3 +2098,6 @@ count	occurrences	פעמים
 	Text size: {percent}%	גודל הטקסט: {percent}%
 	{percent}%	{percent}%
 	A table, as it will be sent. Backspace after it takes it out.	טבלה, כפי שתישלח. Backspace אחריה מוחק אותה.
+	Attach messages	צירוף הודעות
+	Attach 1 message	צרף הודעה אחת
+	Attach {n} messages	צרף {n} הודעות

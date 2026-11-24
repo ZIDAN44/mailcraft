@@ -56,7 +56,7 @@ pub(crate) use compose::parse_local;
 #[cfg(test)]
 pub(crate) use compose::send_block_text;
 use compose::*;
-pub(crate) use compose::{ComposeAlert, Suggested};
+pub(crate) use compose::{ComposeAlert, Suggested, dragged};
 pub(crate) use frame_lru::FrameLru;
 pub(crate) use long_text::LongText;
 #[cfg(test)]

@@ -2116,3 +2116,6 @@ count	occurrences	wystąpieniach
 	Text size: {percent}%	Rozmiar tekstu: {percent}%
 	{percent}%	{percent}%
 	A table, as it will be sent. Backspace after it takes it out.	Tabela w takiej postaci, w jakiej zostanie wysłana. Backspace tuż za nią ją usuwa.
+	Attach messages	Załącz wiadomości
+	Attach 1 message	Załącz 1 wiadomość
+	Attach {n} messages	Załącz wiadomości: {n}

@@ -2117,3 +2117,6 @@ count	occurrences	opakovaní
 	Text size: {percent}%	Veľkosť textu: {percent} %
 	{percent}%	{percent} %
 	A table, as it will be sent. Backspace after it takes it out.	Tabuľka tak, ako bude odoslaná. Backspace hneď za ňou ju odstráni.
+	Attach messages	Priložiť správy
+	Attach 1 message	Priložiť 1 správu
+	Attach {n} messages	Priložiť správy ({n})

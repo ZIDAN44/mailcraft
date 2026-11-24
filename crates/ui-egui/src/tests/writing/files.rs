@@ -494,3 +494,38 @@ fn a_mail_files_window_comes_to_the_front() {
     a.open_handed(&eml.to_string_lossy());
     assert_eq!(focused(&mut a, 6), 1, "opened again: in front again");
 }
+
+/// A message dragged from the list onto the message being written (issue #270) is attached to
+/// it, whole, an `.eml`: here a reply written in the reading pane, its own message dragged onto
+/// it; the drag says it attaches. Let go anywhere else in the message's room, nothing is.
+#[test]
+fn a_message_dragged_onto_the_message_is_attached() {
+    let (mut a, _) = app("drag-attach");
+    a.session.prefs.reply_window = false;
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let m = a.session.list.first().cloned().expect("a message");
+    a.run("list.open", json!({"key": m.key.to_id()}));
+    a.run("mail.reply", json!({}));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let size = crate::tests::windows::layout::SIZE.with(std::cell::Cell::get);
+    let row = drawn_text(&ctx, &mut a, size).into_iter().filter(|d| d.text == m.subject).min_by(|x, y| x.rect.left().total_cmp(&y.rect.left()));
+    let from = row.expect("its row in the list").rect.center();
+    let (_, area) = a.ui.compose_area.expect("the reply in the reading pane");
+    let to = area.center();
+    let press = |pos, pressed| Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(&ctx, &mut a, vec![Event::PointerMoved(from)]);
+    frame(&ctx, &mut a, vec![press(from, true)]);
+    for k in 1..=4 {
+        frame(&ctx, &mut a, vec![Event::PointerMoved(from + (to - from) * (k as f32 / 4.0))]);
+    }
+    assert!(crate::reading::dragged::over_message(&ctx), "the drag says it attaches");
+    frame(&ctx, &mut a, vec![press(to, false)]);
+    frame(&ctx, &mut a, vec![]);
+    let c = a.session.compose.clone().expect("the reply");
+    assert_eq!(c.attachments.len(), 1, "{:?}", c.attachments.iter().map(|x| &x.name).collect::<Vec<_>>());
+    assert_eq!(c.attachments[0].mime, "message/rfc822");
+    assert!(!egui::DragAndDrop::has_any_payload(&ctx), "the drag is over");
+}

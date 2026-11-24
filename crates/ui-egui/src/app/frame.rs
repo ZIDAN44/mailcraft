@@ -366,6 +366,7 @@ impl MailApp {
         self.shortcuts(&ctx);
 
         let mut acts: Vec<Action> = Vec::new();
+        self.messages_onto_windows(&ctx, &mut acts);
         if file {
             acts.push(Action::Backstage(backstage::Page::Info));
         }

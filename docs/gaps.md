@@ -33,11 +33,13 @@ Some things are left out on purpose; they are listed under [Not planned](#not-pl
 ### 3. Dragging attachments out on a Wayland-only desktop
 
 - **Impact:** You can't drag an attachment out of MailCraft on a Wayland-only desktop, or when
-  `MAILCRAFT_WAYLAND=1` is set. Dragging works on Windows, macOS and X11.
+  `MAILCRAFT_WAYLAND=1` is set, nor a message from the list onto a message being written in a
+  window of its own (#270). Dragging works on Windows, macOS and X11.
 - **Workaround:** Run under X11 or XWayland (the default), or use **Save**.
 - **Cause:** winit 0.30 can't start a drag on Wayland. winit 0.31 can, with
   `ActiveEventLoop::start_drag` (rust-windowing/winit#4571), once egui and the Craft forks move
-  to it.
+  to it. Wayland doesn't tell an app where its windows are, so a message let go over another of
+  its windows can't be told from one let go anywhere else.
 
 ### 4. Signed updates and releases
 

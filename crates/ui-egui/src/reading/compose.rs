@@ -10,6 +10,7 @@ use super::*;
 mod addresses;
 mod alert;
 mod chips;
+pub(crate) mod dragged;
 mod options;
 mod tables;
 #[cfg(test)]
@@ -121,6 +122,7 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
         st.compose_area = Some((ui.ctx().cumulative_pass_nr(), ui.max_rect()));
     }
     attach_dropped(ui, &t, acts);
+    dragged::onto_message(ui, &t, acts);
     // Where there are no windows of their own (the browser), the other messages being written
     // are a click away above this one.
     if !in_window && !s.composes.is_empty() && ui.ctx().embed_viewports() {

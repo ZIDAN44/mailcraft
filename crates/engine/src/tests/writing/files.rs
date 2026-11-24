@@ -241,3 +241,38 @@ Content-Type: multipart/mixed; boundary=\"M\"\r\n\r\n--M\r\nContent-Type: text/p
     let sent = mailcraft_mime::build(&d, &mailcraft_model::EmailAddress::new("Riley", "riley@studio.example"), NOW, "<fwd@x>").unwrap();
     assert!(mailcraft_mime::attachment_text(&sent, 0).is_some_and(|t| t.starts_with("Caf\u{e9} au lait")));
 }
+
+/// Messages dragged from the list onto a message being written (issue #270) are attached whole,
+/// each an `.eml` named by its subject, as Forward as attachment attaches one: the selected ones,
+/// or those it names. A message not on this computer yet attaches none of them.
+#[test]
+fn messages_are_attached_whole() {
+    let mut s = sample_session("attach-messages");
+    s.prefs.new_mail_window = true;
+    let keys: Vec<_> = s.list.iter().map(|m| m.key.clone()).take(3).collect();
+    let subjects: Vec<String> = keys.iter().map(|k| s.summary(k).unwrap().subject.clone()).collect();
+    s.run("mail.new", &json!({})).unwrap();
+    // Two selected (in the list, while it's written in a window of its own).
+    s.run("list.select", &json!({"key": keys[0].to_id()})).unwrap();
+    s.run("list.selectRange", &json!({"key": keys[1].to_id()})).unwrap();
+    assert!(s.compose.is_some() && s.selection.len() == 2);
+    let answer = s.run("compose.attachMessages", &json!({})).unwrap();
+    assert_eq!(answer["count"], 2);
+    let c = s.compose.clone().unwrap();
+    for (a, (key, subject)) in c.attachments.iter().zip(keys.iter().zip(&subjects)) {
+        // Its name one any system can save (`Re: …` is `Re_ …`).
+        assert_eq!((a.name.clone(), a.mime.as_str()), (mailcraft_mime::sanitize_filename(&format!("{subject}.eml")), "message/rfc822"));
+        assert_eq!(Some(a.data.clone()), s.store.as_ref().unwrap().read_body(key), "the message whole, as it came");
+    }
+    // Named by their keys.
+    s.run("compose.attachMessages", &json!({"keys": [keys[2].to_id()]})).unwrap();
+    assert_eq!(s.compose.as_ref().unwrap().attachments.len(), 3);
+    // One not downloaded yet: none goes, and it's said which.
+    let missing = mailcraft_model::MessageKey { uid: 99_999, ..keys[0].clone() };
+    let err = s.run("compose.attachMessages", &json!({"keys": [keys[0].to_id(), missing.to_id()]})).unwrap_err();
+    assert!(err.to_string().contains("still downloading"), "{err}");
+    assert_eq!(s.compose.as_ref().unwrap().attachments.len(), 3);
+    for bad in [json!({"keys": "x"}), json!({"keys": [1]}), json!({"keys": ["not a key"]})] {
+        assert!(s.run("compose.attachMessages", &bad).is_err(), "{bad}");
+    }
+}

@@ -16,6 +16,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Added
 
+- A message dragged from the list onto a message being written is attached to it, as an `.eml` (#270), as Outlook does; several selected go together. The drag says **Attach** while it's over the message, in the reading pane or a window of its own.
 - Tables pasted into a message stay tables (#268): cells copied in Excel, or a table copied from a web page or another message, show in the message as they will be sent (their rows and cells, lines, colours and alignment) and go out as a table, with each row a line of text in the plain text. Backspace after one takes it out; a draft keeps its tables. Its cells can't be edited in MailCraft yet.
 - **Text size**, in **File › Options › General** (#267): everything in the window larger or smaller, from 80 % to 200 %, kept for the next time MailCraft starts; **Ctrl** and **+** or **−** change it too, and **Ctrl+0** puts it back. Windows keep their size and place on the screen as it changes.
 - **Font size for new messages**, in **File › Options › Mail** (#267), beside the font: new messages, replies and forwards are written in it, and text you set a size on keeps its own. A signature is shown in the font for new messages while you edit it, as it goes in them.

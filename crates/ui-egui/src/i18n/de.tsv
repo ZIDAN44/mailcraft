@@ -2103,3 +2103,6 @@ count	occurrences	Terminen
 	Text size: {percent}%	Textgröße: {percent} %
 	{percent}%	{percent} %
 	A table, as it will be sent. Backspace after it takes it out.	Eine Tabelle, so wie sie gesendet wird. Die Rücktaste dahinter entfernt sie.
+	Attach messages	Nachrichten anhängen
+	Attach 1 message	1 Nachricht anhängen
+	Attach {n} messages	{n} Nachrichten anhängen

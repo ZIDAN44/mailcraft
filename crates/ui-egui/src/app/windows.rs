@@ -46,6 +46,34 @@ impl MailApp {
         }
     }
 
+    /// Messages dragged from the list over a message being written in a window of its own (issue
+    /// #270): the drag says it attaches them, and let go there they're attached and that window
+    /// comes forward. Taken before the panes are drawn, so a folder under that window (the main
+    /// window's) doesn't take them too.
+    pub(crate) fn messages_onto_windows(&mut self, ctx: &egui::Context, acts: &mut Vec<Action>) {
+        if !reading::dragged::dragging(ctx) {
+            return;
+        }
+        let windows: Vec<(u64, egui::ViewportId)> = self
+            .session
+            .all_composes()
+            .filter(|c| !compose_inline(c, ctx))
+            .map(|c| (c.id, egui::ViewportId::from_hash_of(("compose-window", c.id))))
+            .collect();
+        if windows.is_empty() {
+            return;
+        }
+        let now = reading::dragged::pointer_on_screen(ctx, self.services.pointer_on_screen());
+        let at = reading::dragged::last_place(ctx, now);
+        let Some((id, viewport)) = at.and_then(|at| reading::dragged::window_under(ctx, &windows, at)) else { return };
+        reading::dragged::note_over(ctx);
+        if ctx.input(|i| i.pointer.any_released()) {
+            egui::DragAndDrop::clear_payload(ctx);
+            acts.push(Action::ForCompose(id, Box::new(Action::Run("compose.attachMessages", json!({})))));
+            ctx.send_viewport_cmd_to(viewport, egui::ViewportCommand::Focus);
+        }
+    }
+
     /// The window of the message acted on now, opening `n` steps down and right of the last
     /// place (as many as are open already).
     pub(crate) fn compose_window(&mut self, ctx: &egui::Context, n: usize, acts: &mut Vec<Action>) {

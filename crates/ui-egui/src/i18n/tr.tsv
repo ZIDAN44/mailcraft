@@ -2103,3 +2103,6 @@ count	occurrences	kez
 	Text size: {percent}%	Metin boyutu: %{percent}
 	{percent}%	%{percent}
 	A table, as it will be sent. Backspace after it takes it out.	Gönderileceği haliyle bir tablo. Hemen ardından Geri tuşu onu kaldırır.
+	Attach messages	İletileri ekle
+	Attach 1 message	1 iletiyi ekle
+	Attach {n} messages	{n} iletiyi ekle

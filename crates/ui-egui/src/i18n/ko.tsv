@@ -2102,3 +2102,6 @@ count	occurrences	회
 	Text size: {percent}%	텍스트 크기: {percent}%
 	{percent}%	{percent}%
 	A table, as it will be sent. Backspace after it takes it out.	보내질 모습 그대로의 표입니다. 바로 뒤에서 Backspace를 누르면 없어집니다.
+	Attach messages	메시지 첨부
+	Attach 1 message	메시지 1개 첨부
+	Attach {n} messages	메시지 {n}개 첨부

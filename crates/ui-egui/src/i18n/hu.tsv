@@ -2103,3 +2103,6 @@ count	occurrences	előfordulás
 	Text size: {percent}%	Szövegméret: {percent}%
 	{percent}%	{percent}%
 	A table, as it will be sent. Backspace after it takes it out.	Egy táblázat, ahogy el lesz küldve. A mögötte lenyomott Backspace eltávolítja.
+	Attach messages	Üzenetek csatolása
+	Attach 1 message	1 üzenet csatolása
+	Attach {n} messages	{n} üzenet csatolása

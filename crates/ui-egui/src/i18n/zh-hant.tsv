@@ -2102,3 +2102,6 @@ count	occurrences	次
 	Text size: {percent}%	文字大小：{percent}%
 	{percent}%	{percent}%
 	A table, as it will be sent. Backspace after it takes it out.	表格，依傳送時的樣子顯示。在它後面按 Backspace 可將其刪除。
+	Attach messages	附加郵件
+	Attach 1 message	附加 1 封郵件
+	Attach {n} messages	附加 {n} 封郵件

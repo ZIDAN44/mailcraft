@@ -36,6 +36,10 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"field": "to"|"cc"|"bcc", "typed": string (as Check Names said it), "email": string, "name"?: string}"#)
         .when(has_compose),
         CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "handed": number (a file handed over: Session::hand)} | {"name": string, "data": [bytes]}"#).when(has_compose),
+        // Messages dragged from the list onto the message (issue #270).
+        CommandSpec::new("compose.attachMessages", "Attach messages", "Message › Insert", attach_messages)
+            .params(r#"{"keys"?: [string] (the messages' keys; the selected ones when left out)} (each attached whole, an .eml, as Forward as attachment attaches one)"#)
+            .when(has_compose),
         // What another program put on the clipboard as HTML: its tables stay tables (issue #268).
         CommandSpec::new("compose.pasteHtml", "Paste", "Message", |s, v| {
             let html = p::req_str(v, "html")?;
@@ -278,6 +282,52 @@ pub(super) fn attach(s: &mut Session, v: &Value) -> CmdResult {
     let mime = mime_from_name(&name).to_string();
     c.attachments.push(OutAttachment { name: name.clone(), mime, data, ..Default::default() });
     Ok(json!({"attached": name, "count": c.attachments.len()}))
+}
+
+/// Most messages attached at once.
+const ATTACH_MESSAGES_MAX: usize = 100;
+
+/// Messages attached whole, each an `.eml` named by its subject, as Forward as attachment attaches
+/// one: those `keys` names, else the selected ones (issue #270: dragged from the list onto the
+/// message). None is attached unless all are: one still to download is said.
+pub(super) fn attach_messages(s: &mut Session, v: &Value) -> CmdResult {
+    use mailcraft_model::MessageKey;
+    let keys: Vec<MessageKey> = match v.get("keys") {
+        Some(list) => {
+            let list = list.as_array().ok_or_else(|| CmdError::Params("`keys` is a list of message keys".into()))?;
+            list.iter()
+                .map(|k| k.as_str().and_then(MessageKey::from_id).ok_or_else(|| CmdError::Params(format!("not a message key: {k}"))))
+                .collect::<Result<_, _>>()?
+        }
+        None => s.selection.clone(),
+    };
+    if keys.is_empty() {
+        return Err(CmdError::Disabled("select the messages to attach".into()));
+    }
+    if keys.len() > ATTACH_MESSAGES_MAX {
+        return Err(CmdError::Failed(format!("at most {ATTACH_MESSAGES_MAX} messages are attached at once")));
+    }
+    let mut found: Vec<OutAttachment> = Vec::new();
+    let mut size = s.composing_mut().map(|c| compose_size(c))?;
+    for key in &keys {
+        let subject = s.summary(key).map(|m| m.subject.trim().to_string()).unwrap_or_default();
+        let shown = if subject.is_empty() { "a message".to_string() } else { format!("“{subject}”") };
+        let data = s
+            .store
+            .as_ref()
+            .and_then(|st| st.read_body(key))
+            .ok_or_else(|| CmdError::Failed(format!("{shown} is still downloading: open it, then try again")))?;
+        size = size.saturating_add(data.len());
+        if size > ATTACH_MAX {
+            return Err(CmdError::Failed(format!("attachments are limited to {ATTACH_MAX_MB} MB in total")));
+        }
+        let name = sanitize_filename(&format!("{}.eml", if subject.is_empty() { "message" } else { subject.as_str() }));
+        found.push(OutAttachment { name, mime: "message/rfc822".into(), data, ..Default::default() });
+    }
+    let names: Vec<String> = found.iter().map(|a| a.name.clone()).collect();
+    let c = s.composing_mut()?;
+    c.attachments.extend(found);
+    Ok(json!({"attached": names, "count": c.attachments.len()}))
 }
 
 /// Place a picture in the text. With `"insert": false` the mark isn't added to the text (the

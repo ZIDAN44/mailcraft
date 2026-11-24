@@ -416,9 +416,13 @@ impl MessageRow<'_> {
         if resp.dragged() {
             let n = if selected { s.selection.len() } else { 1 };
             egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), self.id.with("drag"), egui::PopupAnchor::Pointer).show(|ui| {
-                // With Ctrl held, dropped on a folder they're copied there.
+                // With Ctrl held, dropped on a folder they're copied there. Over a message being
+                // written they're attached to it (issue #270).
                 let copy = ui.input(|i| i.modifiers.command);
+                let attach = crate::reading::dragged::over_message(ui.ctx());
                 ui.label(match (copy, n) {
+                    _ if attach && n == 1 => tl!("Attach 1 message").to_string(),
+                    _ if attach => tf!("Attach {n} messages", n = n),
                     (false, 1) => tl!("Move 1 message").to_string(),
                     (false, n) => tf!("Move {n} messages", n = n),
                     (true, 1) => tl!("Copy 1 message").to_string(),
