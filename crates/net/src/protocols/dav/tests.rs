@@ -591,3 +591,32 @@ fn a_token_refused_outright_keeps_the_contacts_server() {
     assert_eq!(out.carddav_home, pim.carddav_home);
     assert_eq!((read(&out), out.errors.len()), ((vec!["g-event"], vec!["g-card"]), 0));
 }
+
+/// A server not found is looked for again a day after it was looked for, however often the
+/// account syncs meanwhile: a sync that only takes the homes as saved says so, and the engine
+/// keeps the time of the last look.
+#[test]
+fn a_server_not_found_is_looked_for_again_a_day_after_the_look() {
+    use crate::fakes::fake_dav::{PASSWORD, USER, serve};
+    use mailcraft_model::zone::Zone;
+
+    const T: i64 = 1_800_000_000;
+    let server = serve();
+    let dav = Dav::new(USER, PASSWORD);
+    let url = format!("{}/dav/", server.base);
+    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&url), carddav: Some(&url), mails: true, ..Default::default() };
+    // The calendars found; the contacts looked for at T and not found.
+    let mut pim =
+        Pim { caldav_home: Some(format!("{}/dav/cal/", server.base)), carddav_home: Some(String::new()), dav_checked: Some(T), ..Default::default() };
+    pim.ensure_defaults();
+
+    // Syncs every quarter of an hour for a day: none looks, each says so.
+    for i in 1..=96 {
+        let out = sync(&dav, &at, &pim, T + i * 900, Zone::UTC).unwrap();
+        assert!(out.homes_kept && out.carddav_home.is_none(), "sync {i}: {out:?}");
+    }
+    // A day and a moment after the look: looked for again, and found.
+    let out = sync(&dav, &at, &pim, T + 86_400 + 60, Zone::UTC).unwrap();
+    assert!(!out.homes_kept, "{out:?}");
+    assert_eq!(out.carddav_home, Some(format!("{}/dav/card/", server.base)));
+}

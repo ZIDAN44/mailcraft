@@ -53,6 +53,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Fixed
 
+- A calendar or contacts server that wasn't found, or that Google refused, is looked for again a day after it was looked for, where an account syncing more often than once a day never looked again until its servers or password changed. Checked on Radicale, Nextcloud, Stalwart and SOGo.
 - A change made on SOGo (Mailcow) to a calendar, contacts or tasks in the very second MailCraft read it is read at the next sync (#201): SOGo's collections say when they last changed, in seconds, and such a change was missed until something else changed there.
 - An event or task deleted here that was changed on the server meanwhile comes back, and you're told (#201), where its deletion was tried again at every sync and refused each time.
 - An on-premises Exchange account signs in where Exchange's Extended Protection is on (#249), as it is by default since Exchange 2019 CU14: MailCraft's NTLM and Kerberos sign-in now carry the secure connection's binding, and without it Exchange refused them, which MailCraft took for a wrong password and asked for it again and again.

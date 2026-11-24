@@ -461,6 +461,11 @@ pub struct DavSync {
     /// taken in, everything else left as it is.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub people_only: bool,
+    /// The homes were taken as saved, not looked for: the last look ([`Pim::dav_checked`]) stays
+    /// as it was, so a server not found is looked for again a day after that look, not a day after
+    /// the last of the syncs since.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub homes_kept: bool,
 }
 
 impl Pim {

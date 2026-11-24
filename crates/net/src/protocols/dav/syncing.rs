@@ -81,17 +81,26 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
             r => r,
         }
     };
+    let mut looked = false;
     out.caldav_home = match &pim.caldav_home {
         Some(h) if !h.is_empty() => Some(h.clone()),
-        _ if retry => find(Kind::Calendars, at.caldav, &mut out.errors)?,
+        _ if retry => {
+            looked = true;
+            find(Kind::Calendars, at.caldav, &mut out.errors)?
+        }
         _ => None,
     };
     out.carddav_home = match &pim.carddav_home {
         Some(h) if !h.is_empty() => Some(h.clone()),
-        _ if retry => find(Kind::Contacts, at.carddav, &mut out.errors)?,
+        _ if retry => {
+            looked = true;
+            find(Kind::Contacts, at.carddav, &mut out.errors)?
+        }
         _ => None,
     };
     out.checked = now;
+    // The day is counted from the last look, not from this sync.
+    out.homes_kept = !looked;
     // Whether the calendar server schedules meetings itself (asked at every sync: it's one short
     // request, and a server's settings change). Not known, what was known stays. Google refusing
     // the token the calendars (a later sign-in that granted the contacts alone): said, and they're

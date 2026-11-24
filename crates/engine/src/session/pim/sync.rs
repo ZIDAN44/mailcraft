@@ -23,7 +23,9 @@ impl Session {
         let p = self.pim_mut(account);
         p.caldav_home = sync.caldav_home.clone().or_else(|| Some(String::new()));
         p.carddav_home = sync.carddav_home.clone().or_else(|| Some(String::new()));
-        p.dav_checked = Some(sync.checked);
+        if !sync.homes_kept || p.dav_checked.is_none() {
+            p.dav_checked = Some(sync.checked);
+        }
         if let Some(schedules) = sync.auto_schedule {
             p.auto_schedule = schedules;
         }

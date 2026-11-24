@@ -676,3 +676,24 @@ fn an_occurrence_called_off_says_which() {
     assert_eq!(method, "CANCEL");
     assert!(raw.contains("RECURRENCE-ID") && raw.contains(&format!("Stand-up on {when} has been cancelled.")), "{raw}");
 }
+
+/// A sync that took the homes as saved keeps the time of the last look, so what wasn't found
+/// is looked for again a day after that look; one that looked moves it.
+#[test]
+fn the_last_look_moves_only_when_a_sync_looked() {
+    let mut s = Session::blank();
+    let id = s.run("account.add", &json!({"email": "zoe@example.org", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    s.pim_mut(&id).dav_checked = Some(NOW - 3_600);
+    use mailcraft_model::pim::DavSync;
+    let kept = DavSync { checked: NOW, homes_kept: true, ..Default::default() };
+    s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(kept) });
+    assert_eq!(s.pim[&id].dav_checked, Some(NOW - 3_600));
+    let looked = DavSync { checked: NOW, ..Default::default() };
+    s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(looked) });
+    assert_eq!(s.pim[&id].dav_checked, Some(NOW));
+    // Never looked before: the first sync's time, whatever it says.
+    s.pim_mut(&id).dav_checked = None;
+    s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(DavSync { checked: NOW, homes_kept: true, ..Default::default() }) });
+    assert_eq!(s.pim[&id].dav_checked, Some(NOW));
+}
