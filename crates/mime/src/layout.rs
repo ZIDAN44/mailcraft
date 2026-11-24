@@ -213,7 +213,8 @@ enum Kid {
     Text(String),
 }
 
-/// `#rgb`, `#rrggbb`, `rgb(r, g, b)` or a few colour names.
+/// `#rgb`, `#rrggbb`, `rgb(r, g, b)`, or a colour's name: HTML's sixteen (Excel writes a fill of
+/// one of them by its name) and a few more.
 fn color(v: &str) -> Option<[u8; 3]> {
     let v = v.trim().trim_end_matches(';');
     if let Some(hex) = v.strip_prefix('#') {
@@ -234,7 +235,7 @@ fn color(v: &str) -> Option<[u8; 3]> {
         let on_white = |c: f32| (c.clamp(0.0, 255.0) + (255.0 - c.clamp(0.0, 255.0)) * through).round() as u8;
         return Some([on_white(*parts.first()?), on_white(*parts.get(1)?), on_white(*parts.get(2)?)]);
     }
-    match v {
+    match v.to_ascii_lowercase().as_str() {
         "white" => Some([255, 255, 255]),
         "black" => Some([0, 0, 0]),
         "red" => Some([255, 0, 0]),
@@ -243,6 +244,16 @@ fn color(v: &str) -> Option<[u8; 3]> {
         "gray" | "grey" => Some([128, 128, 128]),
         "silver" => Some([192, 192, 192]),
         "lightgray" | "lightgrey" => Some([211, 211, 211]),
+        "yellow" => Some([255, 255, 0]),
+        "lime" => Some([0, 255, 0]),
+        "aqua" | "cyan" => Some([0, 255, 255]),
+        "fuchsia" | "magenta" => Some([255, 0, 255]),
+        "maroon" => Some([128, 0, 0]),
+        "navy" => Some([0, 0, 128]),
+        "olive" => Some([128, 128, 0]),
+        "purple" => Some([128, 0, 128]),
+        "teal" => Some([0, 128, 128]),
+        "orange" => Some([255, 165, 0]),
         _ => None,
     }
 }
@@ -524,13 +535,13 @@ fn write(k: &Kid, out: &mut String) {
 }
 
 /// [`write`], as it's shown ([`How::shown`]).
-fn write_shown(k: &Kid, out: &mut String, size: u16, bold: bool) {
-    write_as(k, out, How::shown(size, bold));
+fn write_shown(k: &Kid, out: &mut String, size: u16, bold: bool, italic: bool) {
+    write_as(k, out, How::shown(size, bold, italic));
 }
 
 /// [`write_shown`], every table in it written as blocks.
-fn write_flat(k: &Kid, out: &mut String, size: u16, bold: bool) {
-    write_as(k, out, How::flat(size, bold));
+fn write_flat(k: &Kid, out: &mut String, size: u16, bold: bool, italic: bool) {
+    write_as(k, out, How::flat(size, bold, italic));
 }
 
 /// A copy of a part of the tree, all of what's under it too (a deep copy).
@@ -604,7 +615,7 @@ pub(crate) fn html_layout_within(html: &str, max: usize) -> Vec<Block> {
         let root = parse(html);
         let mut css = String::new();
         collect_css(&root, &mut css, 0);
-        let mut ctx = Ctx { css, cells: 0, buttons: 0, color: None, around: Around::default(), unwrapped: 0, size: 0, bold: false };
+        let mut ctx = Ctx { css, cells: 0, buttons: 0, color: None, around: Around::default(), unwrapped: 0, size: 0, bold: false, italic: false };
         let body = find(&root, "body", 0).unwrap_or(&root);
         // A body of a set width is a column of that width, as a box would be.
         let out = if body.tag == "body" && matches!(body.width(), Some(Width::Px(_))) {

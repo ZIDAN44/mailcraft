@@ -197,6 +197,9 @@ pub(super) struct How {
     /// The text here is bold (`font-weight` on a box around it: the text converter reads bold
     /// from `<b>` alone, and a step's name or a total set bold by its cell came out plain).
     pub(super) bold: bool,
+    /// The text here is in italics (`font-style` on a box around it, as `bold`: a total Excel
+    /// sets in italics by its cell's class came out upright).
+    pub(super) italic: bool,
     /// Inside a layout table written as blocks: its table parts are written as blocks too.
     pub(super) layout: bool,
 }
@@ -208,14 +211,14 @@ impl How {
     }
 
     /// Without what's hidden from Outlook (a layout's text, as it's shown), the size of its text
-    /// marked (`size`: what's around it), and bold where the boxes around it are (`bold`).
-    pub(super) fn shown(size: u16, bold: bool) -> How {
-        How { leave_hidden: true, styles: true, sizing: true, size, bold, ..How::default() }
+    /// marked (`size`: what's around it), and bold or in italics where the boxes around it are.
+    pub(super) fn shown(size: u16, bold: bool, italic: bool) -> How {
+        How { leave_hidden: true, styles: true, sizing: true, size, bold, italic, ..How::default() }
     }
 
     /// [`How::shown`], every table in it written as blocks.
-    pub(super) fn flat(size: u16, bold: bool) -> How {
-        How { blocks: true, flat: true, ..How::shown(size, bold) }
+    pub(super) fn flat(size: u16, bold: bool, italic: bool) -> How {
+        How { blocks: true, flat: true, ..How::shown(size, bold, italic) }
     }
 
     /// What a message's text is read from: without what's hidden from Outlook nor the styles,
@@ -241,12 +244,15 @@ pub(super) fn write_as(k: &Kid, out: &mut String, how: How) {
     });
     match k {
         // Its size around the words: a space outside it stays a space between words.
-        Kid::Text(t) if how.sizing && (how.size > 0 || how.bold) && !t.trim().is_empty() => {
+        Kid::Text(t) if how.sizing && (how.size > 0 || how.bold || how.italic) && !t.trim().is_empty() => {
             let words = t.trim();
             let before = t.len() - t.trim_start().len();
             escaped(t.get(..before).unwrap_or(""), out, false);
             if how.bold {
                 out.push_str("<b>");
+            }
+            if how.italic {
+                out.push_str("<i>");
             }
             if how.size > 0 {
                 out.push(crate::html::size_mark(how.size));
@@ -254,6 +260,9 @@ pub(super) fn write_as(k: &Kid, out: &mut String, how: How) {
             escaped(words, out, false);
             if how.size > 0 {
                 out.push(crate::html::SIZE_END);
+            }
+            if how.italic {
+                out.push_str("</i>");
             }
             if how.bold {
                 out.push_str("</b>");
@@ -271,7 +280,7 @@ pub(super) fn write_as(k: &Kid, out: &mut String, how: How) {
             if how.leave_hidden && n.attr("style").is_some_and(crate::html::mso_hidden) {
                 return;
             }
-            let how = if how.sizing { How { size: n.text_size(how.size), bold: n.bold(how.bold), ..how } } else { how };
+            let how = if how.sizing { How { size: n.text_size(how.size), bold: n.bold(how.bold), italic: n.italic(how.italic), ..how } } else { how };
             let (tag, how) = match n.tag.as_str() {
                 // Its text as it's written, in a box that ends (`<plaintext>` doesn't, and the
                 // tags written after it showed as text; found in review).

@@ -40,6 +40,20 @@ fn a_boxs_weight_is_its_words() {
     assert_eq!(bold("Ordered"), [false], "a medium weight isn't bold");
 }
 
+/// Italics set on the box around the words, as bold is: a total Excel puts in italics by its
+/// cell's class came out upright (issue #268). A box inside that sets it back is upright.
+#[test]
+fn a_boxs_slant_is_its_words() {
+    let b = html_layout(&page(
+        r#"<table width="100%" cellpadding="0" cellspacing="0" role="presentation"><tr><td>Total</td><td align="right" style="font-style:italic">$15.98</td></tr></table><div style="font-style:oblique"><span>Shipped</span> <span style="font-style:normal">today</span></div>"#,
+    ));
+    let italic = |words: &str| spans(&b, words).iter().map(|s| s.italic).collect::<Vec<bool>>();
+    assert_eq!(italic("$15.98"), [true], "{b:?}");
+    assert_eq!(italic("Total"), [false]);
+    assert_eq!(italic("Shipped"), [true]);
+    assert_eq!(italic("today"), [false]);
+}
+
 /// A cell that puts its boxes at the right (`<td align="right">`): the table in it goes there,
 /// unless it says where it sits. A header's link stood at the left of its cell.
 #[test]

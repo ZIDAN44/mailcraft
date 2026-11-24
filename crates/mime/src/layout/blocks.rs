@@ -18,6 +18,8 @@ pub(super) struct Ctx {
     pub(super) size: u16,
     /// Text here is bold, as the boxes around set it (a cell's `font-weight`).
     pub(super) bold: bool,
+    /// Text here is in italics, as the boxes around set it (a cell's `font-style`).
+    pub(super) italic: bool,
 }
 
 /// What's known of the box a part is in.
@@ -103,15 +105,19 @@ impl Ctx {
     }
 }
 
-/// `f` with the text colour, size and weight `n` sets, if it sets them, as CSS inherits them.
+/// `f` with the text colour, size, weight and slant `n` sets, if it sets them, as CSS inherits
+/// them.
 pub(super) fn colored<R>(ctx: &mut Ctx, n: &Node, f: impl FnOnce(&mut Ctx) -> R) -> R {
     let size = n.text_size(ctx.size);
     let saved_size = std::mem::replace(&mut ctx.size, size);
     let bold = n.bold(ctx.bold);
     let saved_bold = std::mem::replace(&mut ctx.bold, bold);
+    let italic = n.italic(ctx.italic);
+    let saved_italic = std::mem::replace(&mut ctx.italic, italic);
     let r = colored_only(ctx, n, f);
     ctx.size = saved_size;
     ctx.bold = saved_bold;
+    ctx.italic = saved_italic;
     r
 }
 
@@ -579,12 +585,12 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
             }
             // A table past what's laid out: read as blocks, one cell after another. A text table
             // here, of box-drawing lines in a monospace font, is no part of a layout.
-            Kid::El(n) if n.tag == "table" || n.has_table(0) => write_flat(k, &mut pending, ctx.size, ctx.bold),
+            Kid::El(n) if n.tag == "table" || n.has_table(0) => write_flat(k, &mut pending, ctx.size, ctx.bold, ctx.italic),
             k => {
                 if matches!(k, Kid::El(n) if parted(n, &pending)) {
                     pending.push_str("<br>");
                 }
-                write_shown(k, &mut pending, ctx.size, ctx.bold);
+                write_shown(k, &mut pending, ctx.size, ctx.bold, ctx.italic);
             }
         }
     }

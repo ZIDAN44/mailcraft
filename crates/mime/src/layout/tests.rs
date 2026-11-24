@@ -193,6 +193,30 @@ fn colours_read_as_css_writes_them() {
     assert_eq!(color("#12"), None);
 }
 
+/// The sixteen colours HTML names, and orange, by name in any case: Excel writes a fill of
+/// one of them so (`background:yellow`), and a heading's yellow was white (issue #268).
+#[test]
+fn colours_by_their_names() {
+    for (name, rgb) in [
+        ("yellow", [255, 255, 0]),
+        ("Lime", [0, 255, 0]),
+        ("aqua", [0, 255, 255]),
+        ("cyan", [0, 255, 255]),
+        ("fuchsia", [255, 0, 255]),
+        ("magenta", [255, 0, 255]),
+        ("maroon", [128, 0, 0]),
+        ("NAVY", [0, 0, 128]),
+        ("olive", [128, 128, 0]),
+        ("purple", [128, 0, 128]),
+        ("teal", [0, 128, 128]),
+        ("orange", [255, 165, 0]),
+        ("green", [0, 128, 0]),
+    ] {
+        assert_eq!(color(name), Some(rgb), "{name}");
+    }
+    assert_eq!(color("windowtext"), None);
+}
+
 /// A message in a centred column of a set width keeps it, one column or not: it was stretched
 /// across the window (issue #10).
 #[test]

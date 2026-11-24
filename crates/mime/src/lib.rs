@@ -12,6 +12,8 @@
 //! additionally fenced with `catch_unwind` and size caps, since mail is hostile input.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod clipboard;
+pub use clipboard::windows_clipboard_html;
 mod css;
 mod header;
 pub use header::{field_span, header_end, header_field, header_fields, report_type, without_line_end, written_message_id};
@@ -40,6 +42,8 @@ pub use smime::pgp;
 /// Outlook's RTF bodies for tests (`test-support`).
 #[cfg(any(test, feature = "test-support"))]
 pub use tnef::fixtures as tnef_fixtures;
+mod tables;
+pub use tables::{Pasted, PastedTable, TABLE_CELLS_MAX, TABLE_CLASS, TABLE_CODE_MAX, pasted_tables};
 mod trackers;
 pub use attachments::{
     AttachmentInfo, AttachmentKind, HtmlRefs, MAX_WANTED, PendingFile, TEXT_FIRST, attachment_data, attachment_out, attachment_text,

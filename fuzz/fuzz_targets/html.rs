@@ -1,4 +1,4 @@
-//! An HTML body: read as Outlook reads it (its conditional comments and VML), converted to text,
+//! An HTML body (or Windows' clipboard HTML): read as Outlook reads it (its conditional comments and VML), converted to text,
 //! to formatted lines and to columns (and those to text again),
 //! quoted under a reply as it came, and searched for its
 //! pictures and links (and the trackers among them, links cleaned, text it hides); plus the plain-text markup
@@ -34,6 +34,8 @@ fuzz_target!(|input: &[u8]| {
     let words: Vec<String> = page.split_whitespace().take(8).map(str::to_string).collect();
     let given: Vec<(String, String)> = words.iter().map(|w| (w.clone(), format!("{w}@x"))).collect();
     let _ = mime::quote_html(&page, &given, &words);
+    // Copied on Windows: its clipboard's header read for what was copied.
+    let _ = mime::windows_clipboard_html(input);
     // Pasting it into a draft, and the round trip back out.
     let (text, styles) = mime::pasted_html(&page);
     let _ = rich::to_text(&text, &styles);

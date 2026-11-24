@@ -656,6 +656,16 @@ impl Node {
         }
     }
 
+    /// Whether the text in it is in italics, given whether what's around it is: as its style's
+    /// `font-style` says, when it says (`<i>` and `<em>` the text converter reads itself).
+    pub(super) fn italic(&self, around: bool) -> bool {
+        match self.style("font-style").as_deref().map(str::trim) {
+            Some(v) if v.starts_with("italic") || v.starts_with("oblique") => true,
+            Some("normal") => false,
+            _ => around,
+        }
+    }
+
     /// Its size in pixels, when its style or `<font size>` sets one.
     pub(super) fn font_size(&self) -> Option<f32> {
         self.style("font-size")

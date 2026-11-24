@@ -55,6 +55,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Fixed
 
+- A table cell's italics, and a colour written by its name (yellow, navy, teal…), show as written, in mail read, a reply's original and a pasted table (#268): a total Excel sets in italics was upright, and its yellow headings were white.
 - A contact deleted here is deleted on the server only while its contacts are found there, and an event or task only while its calendars are: on a server holding both, where one of them wasn't found (or Google refused it), the deletion was sent anyway. It waits until they're found. Checked on Radicale, Nextcloud, Stalwart and SOGo.
 - A calendar or contacts server that wasn't found, or that Google refused, is looked for again a day after it was looked for, where an account syncing more often than once a day never looked again until its servers or password changed. Checked on Radicale, Nextcloud, Stalwart and SOGo.
 - A change made on SOGo (Mailcow) to a calendar, contacts or tasks in the very second MailCraft read it is read at the next sync (#201): SOGo's collections say when they last changed, in seconds, and such a change was missed until something else changed there.
