@@ -259,6 +259,11 @@ fn a_stale_socket_is_replaced_and_junk_is_refused() {
     let _ = std::fs::remove_dir_all(silent.parent().unwrap());
 }
 
+/// `p` (`/u/a.pdf`) as an absolute path on this system: on Windows, on drive C.
+fn abs(p: &str) -> String {
+    if cfg!(windows) { format!("C:{p}") } else { p.to_string() }
+}
+
 /// What a launch hands over reaches the running window, in order, once; the request carries
 /// the run's key, which is in a file beside the socket and new each run.
 #[test]
@@ -268,11 +273,11 @@ fn a_launch_hands_over_its_links_and_files() {
     let key = read_key(&path).unwrap();
     assert_eq!(key, first.key);
     assert!(key.len() >= 40, "{key}");
-    let open = vec!["mailto:ana@x.example?subject=Hi".to_string(), "C:/Users/zoe/Downloads/Invite.ics".to_string()];
+    let open = vec!["mailto:ana@x.example?subject=Hi".to_string(), abs("/Users/zoe/Downloads/Invite.ics")];
     assert!(matches!(claim_at(&path, &Handed::opening(open.clone())), Claim::Shown));
-    assert!(matches!(claim_at(&path, &Handed::opening(vec!["/home/zoe/x.eml".to_string()])), Claim::Shown));
+    assert!(matches!(claim_at(&path, &Handed::opening(vec![abs("/home/zoe/x.eml")])), Claim::Shown));
     let mut all = open.clone();
-    all.push("/home/zoe/x.eml".into());
+    all.push(abs("/home/zoe/x.eml"));
     assert_eq!(first.take(), Some(Handed::opening(all)));
     assert!(first.take().is_none());
     first.close();
@@ -324,14 +329,21 @@ fn requests_without_the_key_are_refused() {
 /// The request's parser: the key exactly, a list of strings, empties and extras left out.
 #[test]
 fn requests_are_read_strictly() {
-    let open: Vec<String> = (0..100).map(|i| format!("/m/{i}.eml")).collect();
+    let open: Vec<String> = (0..100).map(|i| abs(&format!("/m/{i}.eml"))).collect();
     let line = request("k3y", &Handed::opening(open.clone()));
     assert!(line.ends_with('\n') && !line.trim_end().contains('\n'), "one line");
     assert_eq!(parse_request(&line, "k3y").map(|h| h.open.len()), Some(MAX_OPEN));
     assert_eq!(parse_request(&line, "k3Y"), None);
     assert_eq!(parse_request(&line, ""), None, "no key, no requests");
     assert_eq!(parse_request(&request("", &Handed::default()), ""), None);
-    assert_eq!(parse_request("{\"key\":\"k\",\"open\":[\"\",\" \",\"a\"]}", "k"), Some(Handed::opening(vec!["a".to_string()])));
+    assert_eq!(
+        parse_request("{\"key\":\"k\",\"open\":[\"\",\" \",\"mailto:a@x.example\"]}", "k"),
+        Some(Handed::opening(vec!["mailto:a@x.example".to_string()]))
+    );
+    // A path that isn't absolute (a launch makes them so) would be opened from this MailCraft's
+    // folder: left out, here and among the files to send.
+    let relative = request("k", &Handed { open: vec!["x.eml".into(), abs("/m/y.eml")], attach: vec![vec!["a.pdf".into(), abs("/u/b.pdf")]] });
+    assert_eq!(parse_request(&relative, "k"), Some(Handed::new(vec![abs("/m/y.eml")], vec![abs("/u/b.pdf")])));
     for junk in ["", "{}", "[]", "null", "{\"key\":\"k\"}", "{\"key\":5,\"open\":[]}", "\u{0}\u{ff}"] {
         assert_eq!(parse_request(junk, "k"), None, "{junk:?}");
     }
@@ -346,13 +358,14 @@ fn a_launch_hands_over_its_files_to_send() {
     let path = socket("attach");
     let Claim::Primary(first) = claim_at(&path, &Handed::default()) else { panic!("the first launch listens") };
     let files = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-    let one = Handed { open: Vec::new(), attach: vec![files(&["/u/report.pdf", "/u/photo.jpg"])] };
-    let two = Handed { open: files(&["mailto:a@x.example"]), attach: vec![files(&["/u/notes.txt"])] };
+    let paths = |a: &[&str]| a.iter().map(|s| abs(s)).collect::<Vec<_>>();
+    let one = Handed { open: Vec::new(), attach: vec![paths(&["/u/report.pdf", "/u/photo.jpg"])] };
+    let two = Handed { open: files(&["mailto:a@x.example"]), attach: vec![paths(&["/u/notes.txt"])] };
     assert!(matches!(claim_at(&path, &one), Claim::Shown));
     assert!(matches!(claim_at(&path, &two), Claim::Shown));
     let got = first.take().unwrap();
     assert_eq!(got.open, files(&["mailto:a@x.example"]));
-    assert_eq!(got.attach, [files(&["/u/report.pdf", "/u/photo.jpg"]), files(&["/u/notes.txt"])], "a message each, in order");
+    assert_eq!(got.attach, [paths(&["/u/report.pdf", "/u/photo.jpg"]), paths(&["/u/notes.txt"])], "a message each, in order");
     // As many as wait at once.
     for _ in 0..MAX_WAITING_SENDS + 4 {
         first.ask(one.clone());
@@ -361,10 +374,14 @@ fn a_launch_hands_over_its_files_to_send() {
     first.close();
     let _ = std::fs::remove_dir_all(path.parent().unwrap());
 
-    let many: Vec<String> = (0..500).map(|i| format!("/u/{i}.pdf")).collect();
+    let many: Vec<String> = (0..500).map(|i| abs(&format!("/u/{i}.pdf"))).collect();
     let read = parse_request(&request("k", &Handed { open: Vec::new(), attach: vec![many] }), "k").unwrap();
     assert_eq!(read.attach.iter().map(Vec::len).collect::<Vec<_>>(), [MAX_ATTACHED]);
-    assert_eq!(parse_request("{\"key\":\"k\",\"open\":[\"a\"]}", "k"), Some(Handed::opening(vec!["a".to_string()])), "before 0.39");
+    assert_eq!(
+        parse_request("{\"key\":\"k\",\"open\":[\"mailto:a@x.example\"]}", "k"),
+        Some(Handed::opening(vec!["mailto:a@x.example".to_string()])),
+        "before 0.39"
+    );
     assert_eq!(parse_request("{\"key\":\"k\",\"open\":[],\"attach\":[\"\",\" \"]}", "k"), Some(Handed::default()), "nothing to send");
     for junk in [
         "{\"key\":\"k\",\"open\":[],\"attach\":\"/u/a.pdf\"}",

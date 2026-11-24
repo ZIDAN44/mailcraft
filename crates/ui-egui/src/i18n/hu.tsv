@@ -286,6 +286,9 @@
 	Keep MailCraft running when its window is closed	A MailCraft fusson tovább az ablak bezárása után is
 	Start MailCraft in the notification area	A MailCraft indítása az értesítési területen
 	Start MailCraft minimized	A MailCraft indítása kis méretben
+	Start MailCraft when you sign in	A MailCraft indítása bejelentkezéskor
+	It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below).	Elindul, amikor bejelentkezik erre a számítógépre, és ellenőrzi a leveleket. Az ablaka is megjelenik, kivéve, ha bezárás után tovább fut, és elrejtve indul (lent).
+	Starting MailCraft at sign-in couldn't be changed: {error}	A MailCraft bejelentkezéskori indítását nem sikerült módosítani. Hiba: {error}
 	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	A MailCraft rejtett ablakkal is ellenőrzi a leveleket, és értesít az új üzenetekről, akárcsak az ablak bezárása után. Ha hivatkozás vagy fájl megnyitásával indul, megjelenik az ablaka.
 	Show the unread mail on its icon	Az olvasatlan üzenetek számának megjelenítése az ikonon
 	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Az értesítési területen lévő MailCraft ikon sarkában a beérkezett olvasatlan üzenetek száma látható.
@@ -1280,6 +1283,8 @@ month	May	május
 	MailCraft {version} is ready	A MailCraft {version} telepítésre kész
 	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	A MailCraft {version} telepítésre kész. Indítsd újra most a telepítéshez, vagy a frissítés a MailCraft bezárásakor települ.
 	Restart MailCraft to install it now, or it installs when you close MailCraft.	Indítsd újra a MailCraftot az azonnali telepítéshez, vagy a frissítés a MailCraft bezárásakor települ.
+	MailCraft is updated to {version}.	A MailCraft frissült a(z) {version} verzióra.
+	MailCraft {version} didn't install. It's offered again.	A MailCraft {version} nem települt. Újra fel lesz ajánlva.
 	Restart now	Újraindítás most
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	A frissítés letöltve és ellenőrizve. A telepítés a MailCraft bezárásakor indul, és rövid ideig tart. Ha kész, nyisd meg újra a MailCraftot.
 	Update and close	Frissítés és bezárás

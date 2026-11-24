@@ -30,6 +30,7 @@ mod spoken;
 mod toolbar;
 mod tracked;
 mod undo;
+mod word_select;
 
 pub(crate) use layout::Card;
 use layout::*;
@@ -471,11 +472,16 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
         .desired_rows(if ed.min_height.is_some() { 1 } else { 4 })
         .layouter(&mut layouter)
         .show(ui);
+    // A double-click selects the word under the pointer alone (egui's took the word before a
+    // one-letter one too).
+    let word = word_select::narrow_double_click(ui, id, egui::TextBuffer::as_str(&text), &out);
     // What the text was, when the text box changed it.
     let before = text.before();
-    let mut cursor = out.cursor_range.map(|r| {
-        let r = r.as_sorted_char_range();
-        r.start.0..r.end.0
+    let mut cursor = word.or_else(|| {
+        out.cursor_range.map(|r| {
+            let r = r.as_sorted_char_range();
+            r.start.0..r.end.0
+        })
     });
     if right_press
         && !kept.is_empty()

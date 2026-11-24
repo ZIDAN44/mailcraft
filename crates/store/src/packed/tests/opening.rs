@@ -490,3 +490,38 @@ fn a_damaged_list_never_guesses_between_accounts_of_one_address() {
     assert!(!made.contains(&new), "{}", new.display());
     assert!(made.iter().all(|f| f.is_file()), "the old files stay");
 }
+
+/// Issue #266: a backup of MailCraft is its app folder and its data files' folder copied, with
+/// MailCraft closed. Put back somewhere else (another computer, another user's Documents), they
+/// open with every account's mail in its own file: the data files are named in the app folder by
+/// their names, not by where they were.
+#[test]
+fn the_folders_copied_elsewhere_open_with_everything() {
+    fn copy(from: &std::path::Path, to: &std::path::Path) {
+        std::fs::create_dir_all(to).unwrap();
+        for e in std::fs::read_dir(from).unwrap().map(Result::unwrap) {
+            let at = to.join(e.file_name());
+            if e.file_type().unwrap().is_dir() { copy(&e.path(), &at) } else { std::fs::copy(e.path(), &at).map(drop).unwrap() }
+        }
+    }
+    let t = temp("copied");
+    let s = Store::open_packed(t.join("app"), t.join("Files")).unwrap();
+    s.save_accounts(&[account("a1", "zoe@studio.example"), account("a2", "ana@studio.example")]).unwrap();
+    s.write_body(&inbox(7), b"Subject: kept\r\n\r\nx").unwrap();
+    s.write_body(&MessageKey { account: "a2".into(), ..inbox(8) }, b"Subject: also kept\r\n\r\ny").unwrap();
+    drop(s);
+    let elsewhere = temp("copied-elsewhere");
+    let (app, files) = (elsewhere.join("Roaming").join("MailCraft"), elsewhere.join("Documents").join("MailCraft Files"));
+    copy(&t.join("app"), &app);
+    copy(&t.join("Files"), &files);
+    let _ = std::fs::remove_dir_all(&t);
+
+    let s = Store::open_packed(app, files.clone()).unwrap();
+    assert_eq!(s.read_body(&inbox(7)).unwrap(), b"Subject: kept\r\n\r\nx");
+    assert_eq!(s.read_body(&MessageKey { account: "a2".into(), ..inbox(8) }).unwrap(), b"Subject: also kept\r\n\r\ny");
+    assert_eq!(s.data_file("a1"), Some(files.join("zoe@studio.example.mailcraft")), "its own file, not a new one");
+    assert_eq!(
+        std::fs::read_dir(&files).unwrap().filter(|e| e.as_ref().is_ok_and(|e| e.path().extension().is_some_and(|x| x == "mailcraft"))).count(),
+        2
+    );
+}

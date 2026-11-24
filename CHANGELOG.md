@@ -16,7 +16,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Added
 
-- Google accounts signed in with OAuth now sync calendars and contacts over CalDAV and CardDAV (#262, #263). Accounts signed in before this release need to sign in again to grant the calendar and contacts permissions.
+- Accounts signed in with Google sync their calendars and contacts too (#262, #263), in a copy of MailCraft given a Google client of your own ([docs/oauth.md](docs/oauth.md)). One signed in before is told to sign in again, to allow them.
 - Everything with one person in one place (#178): **Everything with them…** in someone's card above a message, on their name's right-click menu and in the People pane, and **Find related › Everything with sender…** on a message. It shows the mail you and they have exchanged in every account, by conversation and with the folder each message is in; the files and links in it; the meetings they organise or are invited to; and the others on that mail, each a click away, with an overview of a few of each first. A search narrows every part, and a box at its top finds someone else. Phone numbers in their signature are offered for their contact, never put there by themselves.
 - A new account starts with the calendar and contacts servers its provider's settings name (#176), as Thunderbird's autoconfig files can (a Nextcloud's, for one); **Calendar server…** shows the servers MailCraft found by itself, where its fields looked empty.
 - Tasks sync with a CalDAV server's task lists (#201): Nextcloud's Tasks, SOGo and Mailcow, Stalwart, Radicale. Made, changed, marked complete or deleted here or on another device, they follow; **Task lists** in the Tasks side pane shows every task or one list's, and the task form has **Task list** where there are several (a new task goes in the list shown). Tasks kept on this computer before go to the server's task list. A change made here to a task changed elsewhere meanwhile gives way to that one, and you're told. A list you may only read is shown, not changed.
@@ -49,6 +49,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 - In the calendar's Day, Work week and Week, dragging over the hours makes a new event that long (#212): a click made half an hour's, and a longer one needed its end changed in the form.
 - The Schedule view has Only work hours: its time line over the hours anyone shown works, from the earliest start to the latest end, as Outlook's Scheduling Assistant can show (#206).
 - On Exchange, a colleague's calendar opened here (on its own, or in a calendar group) is named as the directory names them, in the calendar list and the Schedule view (#222): it was labelled with their address.
+- MailCraft can start as you sign in to the computer (#87): **File › Options › General › Start MailCraft when you sign in**, on Windows, Linux and the BSDs, and a Mac. With **Start MailCraft in the notification area** on as well, it starts there, checking for mail with no window coming up. Not offered in a portable copy (it leaves nothing on the computer), nor in the Flatpak or a Snap.
 
 ### Fixed
 
@@ -83,6 +84,21 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 - On Windows, `mailcraft --help` and `mailcraft --version` print in the console MailCraft was started from (#257), where they printed nothing.
 - Where MailCraft's window can't open on Windows Server 2016 or a Windows 10 older than version 1709 without a graphics card to draw with, as over Remote Desktop (#256), the message says that Windows' own software renderer is too old to draw MailCraft there, and no longer suggests the setting that draws with it.
 - What **Compact** says it gives back is what it gives back again, and a compacted data file no longer grows at its next write (#259). Data files are kept with redb 4.6.0, which no longer opens a data file damaged in its last save as an empty one.
+- What `mailcraft-cli` prints can't drive the terminal: a control character in a subject, a sender's name, a message, a folder's name or a server's error (an escape that recolours, retitles or clears it, a lone carriage return that rewrites a line) is shown as an escape, as `\u{1b}`.
+- A damaged system font no longer stops MailCraft as it starts: a font file for its interface, Chinese, Japanese and Korean, or Arabic and Hebrew that's empty, cut short, too large or not a font is passed over for the next.
+- On Windows, the Explorer, PowerShell and rundll32 that MailCraft starts (to open a folder, a file or a link, and to install an update) are Windows' own, by their full path: a program of the same name beside a portable MailCraft no longer runs in their place.
+- On a Mac, data files kept on a network share (SMB), and Outlook data files exported or changed there, are written: the full flush the Mac asks for is refused there, and every change failed; a plain one is made then.
+- The browser version's sample server settings send `Cross-Origin-Opener-Policy: same-origin`, so a page opened from MailCraft can't reach its tab, and Apache's sends `nosniff` as the others did.
+- Ctrl+E while typing in the search box selects the search, so what's typed starts a new one, and Rename folder and Edit category open with the name selected, so typing replaces it (it went on the end).
+- A double-click counts as the desktop counts one, up to half a second between the clicks: a relaxed double-click on a message was taken for two clicks, and it didn't open.
+- Double-clicking a one-letter word in a message you're writing (the "a" in "Take a walk") selects that word alone: it selected the word before it too, and typing replaced both.
+- On Windows and on a Mac, a window opens inside the part of the screen the taskbar, the Dock and the menu bar leave free: one whose title bar was under a taskbar along the top comes down below it, and one too big is made as big as that room (it was kept a fixed margin from the screen's edges, too little beside a tall taskbar and more than needed beside one that hides).
+- A list or a pane with more than it shows has a thin scroll bar at its edge while the pointer is elsewhere too, beside what it scrolls: it showed only under the pointer, so nothing said there was more.
+- The first start after MailCraft updated itself says so in a bar, or, when the update didn't install, that it's offered again (it said nothing either way).
+- On Linux and the BSDs the top bar is the window's title bar, as on Windows: it moves the window, and minimize, maximize and close are at its end, with no second bar from the desktop above it. **File › Options › General › Use the system title bar** keeps the desktop's.
+- On a Mac, ⌘A, ⌘C, ⌘V, ⌘X and ⌘Z work in a file dialog's fields (a Save As name, an Open dialog's search): MailCraft's menu bar had no Edit menu for them to go through, so ⌘A did nothing there.
+- On Windows, MailCraft and its tests no longer load OpenGL, which they don't use, as they start: each start and close is about 65 ms quicker.
+- On Windows, an attachment or a note's file opened again while its app still has it open (a document in Word) opens again, its app coming to it (#260): MailCraft said the file was "being used by another process". Another file of the same name, from another message, opens beside it.
 
 ## 0.41.0 - 2026-11-20
 

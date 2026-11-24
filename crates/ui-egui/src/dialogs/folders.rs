@@ -96,9 +96,9 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.add_space(4.0);
             }
             let r = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Folder name")).desired_width(f32::INFINITY));
-            if ui.memory(|m| m.focused().is_none()) {
-                r.request_focus();
-            }
+            // As it opens: renaming, the name it has selected, so what's typed replaces it.
+            let mut opening = ui.memory(|m| m.focused().is_none());
+            crate::look::fields::focus_selecting_all(ui, &r, name, &mut opening);
             // One field: Enter means OK wherever the focus is.
             let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
             if let Some(e) = error {

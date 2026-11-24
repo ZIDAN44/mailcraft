@@ -335,14 +335,16 @@ impl Editor {
         // The maps, worked out before anything in the file changes: an error here changes nothing.
         let (pages, free_delta, runs) = self.map_pages()?;
         self.flush()?;
-        self.file.sync_data()?;
+        // Through craft-atomic: on a Mac, a network share (SMB) refuses the full flush Rust's own
+        // asks for there, and the change failed; a plain one is made then (as GridCraft found).
+        craft_atomic::sync_file(&self.file)?;
 
         // The maps will disagree with the header until it is written: said first.
         let mut interim = self.header.clone();
         interim.root = root;
         interim.root.amap_valid = AMAP_INVALID;
         self.write_header(&interim)?;
-        self.file.sync_data()?;
+        craft_atomic::sync_file(&self.file)?;
         for (at, page) in pages {
             self.queue(at, &page)?;
         }
@@ -351,7 +353,7 @@ impl Editor {
         if eof > self.file.metadata()?.len() {
             self.file.set_len(eof)?;
         }
-        self.file.sync_data()?;
+        craft_atomic::sync_file(&self.file)?;
 
         self.touch_density_list()?;
         let h = &mut self.header;
@@ -364,7 +366,7 @@ impl Editor {
         h.unique = h.unique.wrapping_add(1);
         let final_header = self.header.clone();
         self.write_header(&final_header)?;
-        self.file.sync_data()
+        craft_atomic::sync_file(&self.file)
     }
 
     fn write_header(&mut self, header: &Header) -> io::Result<()> {

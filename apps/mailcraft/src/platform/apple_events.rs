@@ -88,13 +88,45 @@ thread_local! {
 /// muda's id for the menu's Quit.
 const QUIT_ITEM: &str = "mailcraft.quit";
 
+/// Runs `show`, a file dialog, with an Edit menu of the system's own items in the menu bar: the
+/// dialog's fields take ⌘A, ⌘C, ⌘V, ⌘X and ⌘Z only through the menu bar's Select All, Copy and
+/// the rest, and MailCraft's has none, so ⌘A in the Save As panel's name did nothing (as
+/// EffectCraft found in its Open panel). It's there only while the dialog is: MailCraft's own
+/// windows take those keys themselves.
+pub fn with_edit_menu<T>(show: impl FnOnce() -> T) -> T {
+    use muda::{PredefinedMenuItem, Submenu};
+    let edit = Submenu::new("Edit", true);
+    let added = edit
+        .append_items(&[
+            &PredefinedMenuItem::undo(None),
+            &PredefinedMenuItem::redo(None),
+            &PredefinedMenuItem::separator(),
+            &PredefinedMenuItem::cut(None),
+            &PredefinedMenuItem::copy(None),
+            &PredefinedMenuItem::paste(None),
+            &PredefinedMenuItem::select_all(None),
+        ])
+        .is_ok()
+        && MENU.with_borrow(|m| m.as_ref().is_some_and(|m| m.append(&edit).is_ok()));
+    let shown = show();
+    if added {
+        MENU.with_borrow(|m| {
+            if let Some(m) = m {
+                let _ = m.remove(&edit);
+            }
+        });
+    }
+    shown
+}
+
 /// Puts in place of winit's app menu one with the same items, but whose Quit (⌘Q) asks the
 /// window to close: winit's sends `terminate:` straight away, and winit's
 /// `applicationShouldTerminate:` always answers "now", so ⌘Q ended MailCraft with a message half
 /// written and no "save?" question. Now ⌘Q goes the close button's way: the question when
-/// something would be lost, then [`quit`]. Call it once, from the app creator (winit builds its
+/// something would be lost, then [`quit`]. `ask_exit` is the app's Exit (`desktop/tray.rs`): false
+/// when MailCraft isn't in the window yet. Call it once, from the app creator (winit builds its
 /// menu before then).
-pub fn install_menu(ctx: &egui::Context) -> muda::Result<()> {
+pub fn install_menu(ctx: &egui::Context, ask_exit: fn(&egui::Context) -> bool) -> muda::Result<()> {
     use muda::accelerator::{Accelerator, Code, Modifiers};
     use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
     if MENU.with_borrow(Option::is_some) {
@@ -121,7 +153,7 @@ pub fn install_menu(ctx: &egui::Context) -> muda::Result<()> {
         if event.id.as_ref() == QUIT_ITEM {
             // Quit ends MailCraft, where a close of its window may only put it away
             // (`desktop/tray.rs`); before MailCraft is in the window, the window closes.
-            if !crate::desktop::tray::ask_exit(&ctx) {
+            if !ask_exit(&ctx) {
                 // Between frames: egui keeps the command for the next one, which this wakes.
                 ctx.send_viewport_cmd_to(egui::ViewportId::ROOT, egui::ViewportCommand::Close);
                 ctx.request_repaint();

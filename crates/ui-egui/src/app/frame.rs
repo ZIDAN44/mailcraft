@@ -14,6 +14,9 @@ pub(crate) const TOP_BAR_H: f32 = 40.0;
 pub(crate) const TOP_BAR_MARGIN: (i8, i8) = (8, 5);
 /// The narrowest the message list goes beside the reading pane, and the width the reading pane
 /// keeps while the folders and the list have any to give.
+/// The longest pause between the two clicks of a double-click, in seconds: the half second
+/// Windows and macOS accept by default.
+pub(crate) const DOUBLE_CLICK_SECONDS: f64 = 0.5;
 const LIST_LEAST: f32 = 280.0;
 const READING_LEAST: f32 = 300.0;
 
@@ -298,6 +301,11 @@ impl MailApp {
         if !cfg!(target_os = "macos") && ctx.options(|o| !o.quit_shortcuts.is_empty()) {
             ctx.options_mut(|o| o.quit_shortcuts.clear());
         }
+        // A double-click as the desktop counts one: egui's 0.3 s between the clicks took a relaxed
+        // one for two single clicks, and the message didn't open (as AniCraft found).
+        if ctx.options(|o| o.input_options.max_double_click_delay < DOUBLE_CLICK_SECONDS) {
+            ctx.options_mut(|o| o.input_options.max_double_click_delay = DOUBLE_CLICK_SECONDS);
+        }
         self.ui.keeps_running = self.services.keeps_running();
         // Done in `logic` already when the app runs it, as the close is.
         let in_logic = self.ui.close_checked == Some(ctx.input(|i| i.time));
@@ -425,6 +433,12 @@ impl MailApp {
                 egui::Panel::top("update-bar")
                     .frame(egui::Frame::new().fill(t.accent_soft).inner_margin(Margin::symmetric(12, 6)).stroke(egui::Stroke::new(1.0, t.border)))
                     .show(ui, |ui| self.update_bar(ui, acts));
+            }
+            // How the update installed as MailCraft last closed ended.
+            if self.ui.update_outcome.is_some() {
+                egui::Panel::top("update-outcome-bar")
+                    .frame(egui::Frame::new().fill(t.accent_soft).inner_margin(Margin::symmetric(12, 6)).stroke(egui::Stroke::new(1.0, t.border)))
+                    .show(ui, |ui| self.update_outcome_bar(ui));
             }
             // MailCraft's earlier Flatpak, whose mail came over at this start, still installed.
             if self.ui.old_flatpak.is_some() {

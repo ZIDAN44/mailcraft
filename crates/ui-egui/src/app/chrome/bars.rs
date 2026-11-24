@@ -19,7 +19,7 @@ impl MailApp {
     /// says it) and the bar's controls had a row of their own above the tabs. A window too narrow
     /// for the box beside the tabs has it on a row of its own under them.
     ///
-    /// On Windows it is also the window's title bar ([`Services::own_title_bar`]): its free space
+    /// On Windows, Linux and the BSDs it is also the window's title bar ([`Services::own_title_bar`]): its free space
     /// drags the window, MailCraft's mark is at its start and the window's buttons at its end.
     pub(crate) fn top_bar(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let own = self.services.own_title_bar();
@@ -96,7 +96,7 @@ impl MailApp {
                     // searches where you are).
                     let module = self.session.module;
                     if matches!(module, Module::Calendar | Module::People | Module::Tasks | Module::Notes) {
-                        let focus = std::mem::take(&mut self.ui.focus_search);
+                        let mut focus = std::mem::take(&mut self.ui.focus_search);
                         let (query, hint) = match module {
                             Module::People => (&mut self.ui.people_query, tl!("Search people")),
                             Module::Calendar => (&mut self.ui.cal_search.query, tl!("Search calendar (location:, organizer:, after:…)")),
@@ -115,9 +115,8 @@ impl MailApp {
                         );
                         #[cfg(test)]
                         ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("mailcraft-top-search-input-rect"), resp.rect));
-                        if focus {
-                            resp.request_focus();
-                        }
+                        // Asked for again (Ctrl+E): the query selected, so what's typed replaces it.
+                        crate::look::fields::focus_selecting_all(ui, &resp, query, &mut focus);
                         if !query.is_empty() && widgets::tiny_icon_button(ui, Icon::Close, "Clear search", &t).clicked() {
                             query.clear();
                         }

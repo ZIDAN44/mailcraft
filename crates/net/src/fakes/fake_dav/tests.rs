@@ -568,7 +568,7 @@ fn google_oauth_bearer_auth() {
     server.data.lock().unwrap().bearer = Some(token.into());
     server.data.lock().unwrap().put(&format!("{CAL}g.ics"), &ical::write(&[event("g", "Meeting", 1_800_000_000)], None, 0));
 
-    let dav = Dav::bearer(token);
+    let dav = Dav::bearer(token, &["127.0.0.1"]);
     // Discover the home with Bearer auth.
     let home = dav.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)).unwrap().unwrap();
 
@@ -587,6 +587,6 @@ fn google_oauth_bearer_auth() {
     assert_eq!(first.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Meeting"]);
 
     // Wrong token refused.
-    let dav_wrong = Dav::bearer("wrong-token");
+    let dav_wrong = Dav::bearer("wrong-token", &["127.0.0.1"]);
     assert!(matches!(dav_wrong.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)), Err(crate::NetError::Auth(_))));
 }

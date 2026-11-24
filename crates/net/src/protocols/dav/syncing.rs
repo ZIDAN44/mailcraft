@@ -51,44 +51,41 @@ impl Run<'_> {
 /// last saved; nothing is written here: the result is for the engine to merge.
 pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::zone::Zone) -> Result<DavSync> {
     let mut out = DavSync::default();
-    // Where the collections live (looked up once; again a day after finding none, or at every
-    // sync for Bearer sessions with no home yet: the user may sign in again with calendar
-    // scope). An address the user gave is followed instead of looking, and what's wrong with it
-    // is said.
+    // Where the collections live (looked up once; again a day after finding none, or after
+    // signing in again). An address the user gave is followed instead of looking, and what's
+    // wrong with it is said.
     let retry = pim.dav_checked.is_none_or(|t| now.saturating_sub(t) > 86_400);
     // A given address that holds nothing is said once and remembered as none, as one that wasn't
     // found is (looked at again a day on, or when it's changed); a refused sign-in stops the sync.
+    // Google refusing the access token a permission it lacks (an account signed in before
+    // MailCraft asked for calendars) is said the same way: the rest syncs, and signing in again
+    // looks again.
     let find = |kind: Kind, given: Option<&str>, errors: &mut Vec<String>| -> Result<Option<String>> {
-        match given.filter(|g| !g.trim().is_empty()) {
-            Some(g) => match dav.home_given(kind, g) {
-                Ok(h) => Ok(Some(h)),
-                Err(NetError::No(e)) => {
-                    errors.push(e);
-                    Ok(None)
-                }
-                Err(e) => Err(e),
-            },
+        let given = given.filter(|g| !g.trim().is_empty());
+        let found = match given {
+            Some(g) => dav.home_given(kind, g).map(Some),
             None => dav.discover(kind, at.email, at.imap_host),
+        };
+        match found {
+            Err(NetError::No(e)) if given.is_some() => {
+                errors.push(e);
+                Ok(None)
+            }
+            Err(NetError::Auth(e)) if dav.is_bearer() => {
+                errors.push(e);
+                Ok(None)
+            }
+            r => r,
         }
     };
     out.caldav_home = match &pim.caldav_home {
         Some(h) if !h.is_empty() => Some(h.clone()),
-        _ if retry || (dav.is_bearer() && pim.caldav_home.as_deref().is_none_or(str::is_empty)) => find(Kind::Calendars, at.caldav, &mut out.errors)?,
+        _ if retry => find(Kind::Calendars, at.caldav, &mut out.errors)?,
         _ => None,
     };
     out.carddav_home = match &pim.carddav_home {
         Some(h) if !h.is_empty() => Some(h.clone()),
-        _ if retry || (dav.is_bearer() && pim.carddav_home.as_deref().is_none_or(str::is_empty)) => {
-            // For Bearer sessions, a 403 on CardDAV shouldn't abort the calendar sync.
-            match find(Kind::Contacts, at.carddav, &mut out.errors) {
-                Ok(h) => h,
-                Err(NetError::Auth(msg)) if dav.is_bearer() => {
-                    out.errors.push(format!("contacts: {msg}"));
-                    None
-                }
-                Err(e) => return Err(e),
-            }
-        }
+        _ if retry => find(Kind::Contacts, at.carddav, &mut out.errors)?,
         _ => None,
     };
     out.checked = now;
@@ -110,20 +107,33 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     let mut refetch: Vec<String> = Vec::new();
     run.push_deletions(&mut out, &mut refetch)?;
     run.push_events(&mut out, &mut refetch)?;
-    // For Bearer sessions, a 403 on contacts shouldn't abort the calendar sync.
-    match run.push_cards(&mut out) {
-        Ok(()) => {}
-        Err(NetError::Auth(msg)) if dav.is_bearer() => out.errors.push(format!("contacts: {msg}")),
-        Err(e) => return Err(e),
+    if let Err(e) = run.push_cards(&mut out) {
+        contacts_refused(dav, e, &mut out)?;
     }
     run.push_tasks(&mut out, &mut refetch)?;
     run.read_calendars(&refetch, &mut out)?;
-    match run.read_books(&mut out) {
-        Ok(()) => {}
-        Err(NetError::Auth(msg)) if dav.is_bearer() => out.errors.push(format!("contacts: {msg}")),
-        Err(e) => return Err(e),
+    if let Err(e) = run.read_books(&mut out) {
+        contacts_refused(dav, e, &mut out)?;
     }
     Ok(out)
+}
+
+/// A contacts step's error. Google refusing the token its contacts (a sign-in that granted the
+/// calendars alone) is said, and the contacts are looked for again as when none were found (a
+/// day on, or once signed in again), the calendars syncing meanwhile. Anything else stops the sync.
+fn contacts_refused(dav: &Dav, e: NetError, out: &mut DavSync) -> Result<()> {
+    match e {
+        NetError::Auth(why) if dav.is_bearer() => {
+            out.errors.push(why);
+            // What was read of them before is dropped: none of it is merged.
+            (out.carddav_home, out.books) = (None, None);
+            out.cards.clear();
+            out.synced_books.clear();
+            out.unchanged_books.clear();
+            Ok(())
+        }
+        e => Err(e),
+    }
 }
 
 /// The server's copy of an item comes in place of the one here: it's read again, whatever its

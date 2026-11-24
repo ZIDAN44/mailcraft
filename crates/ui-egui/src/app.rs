@@ -37,6 +37,8 @@ pub(crate) use ribbon::junk_menu;
 pub(crate) use search_box::{SearchDrop, SearchTimes, scope_label};
 pub(crate) use state::use_editor;
 pub use state::{PaneSizes, UiState};
+#[cfg(test)]
+pub(crate) use windows::work_area;
 pub use windows::{Monitors, WindowPlace, after_open, set_monitors};
 
 pub struct MailApp {
@@ -51,8 +53,10 @@ impl MailApp {
         let seen = session.notices.len();
         let has_files = !services.downloads();
         let keeps_running = services.keeps_running();
+        let at_sign_in = services.starts_at_sign_in();
         let (data_folder, pending_move) = (services.data_folder(), services.pending_data_move());
         let old_flatpak = services.carried_over_from();
+        let update_outcome = services.update_outcome();
         let mut session = session;
         session.set_zone(services.zone().as_deref());
         // The window's network side keeps each account's search index up, and the window steps
@@ -73,9 +77,11 @@ impl MailApp {
         let ui = UiState {
             has_files,
             keeps_running,
+            at_sign_in,
             data_folder,
             pending_move,
             old_flatpak,
+            update_outcome,
             seen_notices: seen,
             craft_apps,
             can_drag_out: services.can_drag_out(),

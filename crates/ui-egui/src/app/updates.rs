@@ -92,6 +92,29 @@ impl MailApp {
         });
     }
 
+    /// The bar saying how the update installed as MailCraft last closed ended (Dismiss): this is
+    /// the new version, or that one didn't install and is offered again (as EffectCraft's updater
+    /// says at its first start after an update).
+    pub(crate) fn update_outcome_bar(&mut self, ui: &mut Ui) {
+        let Some(outcome) = &self.ui.update_outcome else { return };
+        let t = self.ui.tokens;
+        let (icon, color, text) = match outcome {
+            crate::UpdateOutcome::Updated { version } => (Icon::Sync, t.accent, tf!("MailCraft is updated to {version}.", version = version)),
+            crate::UpdateOutcome::NotInstalled { version } => {
+                (Icon::Info, t.danger, tf!("MailCraft {version} didn't install. It's offered again.", version = version))
+            }
+        };
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing.x = 10.0;
+            let (r, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
+            icons::paint(ui.painter(), r, icon, color);
+            ui.label(RichText::new(text).color(t.text));
+            if ui.button(tl!("Dismiss")).clicked() {
+                self.ui.update_outcome = None;
+            }
+        });
+    }
+
     /// The bar saying the mail came over from MailCraft's earlier Flatpak (its id before 0.36),
     /// and how to remove that one, which MailCraft can't from inside its sandbox (Dismiss).
     pub(crate) fn old_flatpak_bar(&mut self, ui: &mut Ui) {

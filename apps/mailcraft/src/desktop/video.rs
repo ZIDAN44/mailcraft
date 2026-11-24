@@ -45,10 +45,11 @@ pub(crate) fn source() -> Option<Source> {
 
 /// The system's own thumbnailer.
 pub(crate) fn system() -> Option<Source> {
+    // Windows' own PowerShell, by its full path (`windows_program`): from `%SystemRoot%`, or the
+    // PATH, it could be anyone's.
     if cfg!(windows) {
-        let root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
-        let dir = format!("{root}\\System32\\WindowsPowerShell\\v1.0");
-        find_tool("powershell", &[dir.as_str()]).map(Source::Shell)
+        let powershell = crate::windows_programs::path(r"WindowsPowerShell\v1.0\powershell.exe");
+        powershell.is_file().then_some(Source::Shell(powershell))
     } else if cfg!(target_os = "macos") {
         find_tool("qlmanage", &["/usr/bin"]).map(Source::QuickLook)
     } else {

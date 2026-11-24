@@ -255,7 +255,8 @@ fn write_bare(path: &Path, format: Format) -> io::Result<()> {
     put_page(nbt_at, &page_bytes(format, PT_NBT, nbt_at, 2, node_entry_size(format), 0, &[])?)?;
     put_page(bbt_at, &page_bytes(format, PT_BBT, bbt_at, 1, block_entry_size(format), 0, &[])?)?;
     file.write_all(&image)?;
-    file.sync_all()
+    // On a Mac, a network share refuses the full flush Rust asks for there: a plain one then.
+    craft_atomic::sync_file(&file)
 }
 
 impl Editor {

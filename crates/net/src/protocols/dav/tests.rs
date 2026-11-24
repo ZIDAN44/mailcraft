@@ -249,11 +249,13 @@ fn real_an_invitations_odd_uid_is_found_where_it_was_stored() {
     an_odd_uid_is_found(&Dav::new(user, password), url, &std::process::id().to_string());
 }
 
-/// A Bearer session refused with 403 (insufficient OAuth scope) returns Auth error and no home
-/// is remembered; the same account, once the token is accepted, finds its calendar on the next
-/// sync even though dav_checked is recent.
+/// A Google account signed in before MailCraft asked for calendars: Google refuses its token
+/// the permission (403, `insufficient_scope`). That's said, the rest syncs and none is saved;
+/// it isn't asked again at every sync, only a day on or once signed in again (the engine then
+/// saves the last look as long ago).
 #[test]
-fn bearer_403_is_auth_error_and_retries_while_no_home() {
+fn a_token_without_the_permission_waits_for_a_new_sign_in() {
+    const T: i64 = 1_800_000_000;
     use crate::fakes::fake_dav::{USER, serve};
     use mailcraft_model::zone::Zone;
 
@@ -264,194 +266,197 @@ fn bearer_403_is_auth_error_and_retries_while_no_home() {
         d.bearer = Some(token.to_string());
         d.bearer_forbidden = true;
     }
-
-    let dav = Dav::bearer(token);
+    let dav = Dav::bearer(token, &["127.0.0.1"]);
     let caldav_url = format!("{}/dav/", server.base);
-    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), mails: true, ..Default::default() };
-    let mut pim = Pim { dav_checked: Some(100), ..Default::default() };
+    let at =
+        Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), carddav: Some(&caldav_url), mails: true, ..Default::default() };
+    let mut pim = Pim::default();
     pim.ensure_defaults();
 
-    // First sync: 403 becomes Auth error, no home is saved.
-    let err = sync(&dav, &at, &pim, 200, Zone::UTC).unwrap_err();
-    assert!(matches!(err, NetError::Auth(_)), "403 on Bearer should be Auth: {err:?}");
-    assert!(err.to_string().contains("sign in again"), "error should mention signing in again: {err}");
+    let out = sync(&dav, &at, &pim, T, Zone::UTC).unwrap();
+    assert_eq!(out.caldav_home, None);
+    // Said for the calendars and the contacts, both looked for at the address given.
+    assert_eq!(out.errors, ["sign in again to allow MailCraft this permission: https://www.googleapis.com/auth/calendar"; 2], "{out:?}");
 
-    // No home was remembered.
-    pim.dav_checked = Some(200);
-    pim.caldav_home = Some(String::new());
+    // As the engine saves it: none, looked for at T. The next sync doesn't ask.
+    (pim.caldav_home, pim.carddav_home, pim.dav_checked) = (Some(String::new()), Some(String::new()), Some(T));
+    server.data.lock().unwrap().bearer_forbidden = false;
+    let asked = server.data.lock().unwrap().log.len();
+    let out = sync(&dav, &at, &pim, T + 600, Zone::UTC).unwrap();
+    assert_eq!((out.caldav_home, out.errors.len()), (None, 0));
+    assert_eq!(server.data.lock().unwrap().log.len(), asked, "not asked again at every sync");
 
-    // Second sync: bearer_forbidden is still true, but dav_checked is recent (200, now 300).
-    // For Bearer with no home, it should still try (not wait a day).
-    let err = sync(&dav, &at, &pim, 300, Zone::UTC).unwrap_err();
-    assert!(matches!(err, NetError::Auth(_)), "should retry on Bearer with no home: {err:?}");
-
-    // Now the token is accepted.
-    {
-        let mut d = server.data.lock().unwrap();
-        d.bearer_forbidden = false;
-    }
-
-    // Third sync: dav_checked is still recent (200, now 400), but Bearer with no home retries.
-    let out = sync(&dav, &at, &pim, 400, Zone::UTC).unwrap();
-    assert!(out.caldav_home.is_some(), "calendar home should be found: {out:?}");
-    assert!(out.caldav_home.as_ref().unwrap().contains("/dav/cal/"), "home: {:?}", out.caldav_home);
-    assert_eq!(out.errors.len(), 0, "no errors: {out:?}");
+    // Signed in again: found.
+    pim.dav_checked = Some(0);
+    let out = sync(&dav, &at, &pim, T + 1200, Zone::UTC).unwrap();
+    assert_eq!(out.caldav_home, Some(format!("{}/dav/cal/", server.base)), "{out:?}");
+    assert!(out.errors.is_empty(), "{out:?}");
 }
 
-/// Bearer 403: say what Google said (insufficient_scope, API not enabled, or generic).
+/// What Google said in refusing a token: the permission it lacks, or the API not turned on for
+/// the client (its own words, capped); any other 403 isn't the token's.
 #[test]
-fn bearer_403_says_what_google_said() {
-    // (a) insufficient_scope without scope named
-    let headers = vec![("WWW-Authenticate".into(), "Bearer realm=\"https://accounts.google.com/\", error=\"insufficient_scope\"".into())];
-    let msg = bearer_403_message(&headers, b"");
-    assert_eq!(msg, "sign in again to allow access");
-
-    // (a) insufficient_scope with scope named
-    let headers = vec![(
-        "WWW-Authenticate".into(),
-        "Bearer realm=\"https://accounts.google.com/\", error=\"insufficient_scope\", scope=\"https://www.googleapis.com/auth/carddav\"".into(),
-    )];
-    let msg = bearer_403_message(&headers, b"");
-    assert_eq!(msg, "sign in again to allow access (scope missing: https://www.googleapis.com/auth/carddav)");
-
-    // (b) API not enabled: internalReason from XML body
+fn a_refused_token_says_what_google_said() {
+    let header = |v: &str| vec![("www-authenticate".to_string(), v.to_string())];
+    assert_eq!(
+        bearer::refusal(&header("Bearer realm=\"https://accounts.google.com/\", error=\"insufficient_scope\""), b""),
+        Some("sign in again to allow MailCraft this permission".into())
+    );
+    assert_eq!(
+        bearer::refusal(&header("Bearer error=\"insufficient_scope\", scope=\"https://www.googleapis.com/auth/carddav\""), b""),
+        Some("sign in again to allow MailCraft this permission: https://www.googleapis.com/auth/carddav".into())
+    );
     let body = b"<errors xmlns='http://schemas.google.com/g/2005'><error><domain>GData</domain><code>accessNotConfigured</code>\
         <internalReason>CalDAV API has not been used in project 123 before or it is disabled. Enable it by visiting \
-        https://console.developers.google.com/apis/api/caldav.googleapis.com/overview?project=123 then retry. \
-        If you enabled this API recently, wait a few minutes for the action to propagate.</internalReason></error></errors>";
-    let msg = bearer_403_message(&[], body);
-    assert!(msg.contains("CalDAV API has not been used"), "got: {msg}");
-    assert!(msg.contains("console.developers.google.com"), "got: {msg}");
-
-    // (b) internalReason oversized: capped at 500 chars, respecting char boundaries
-    let long = format!("<internalReason>{}</internalReason>", "x".repeat(1000));
-    let msg = bearer_403_message(&[], long.as_bytes());
-    assert!(msg.len() <= 500, "length: {}", msg.len());
-    assert_eq!(msg, "x".repeat(500));
-
-    // (b) internalReason with multi-byte chars: capped safely
-    let multibyte = format!("<internalReason>{}</internalReason>", "€".repeat(200)); // € is 3 bytes
-    let msg = bearer_403_message(&[], multibyte.as_bytes());
-    assert!(msg.len() <= 500, "length: {}", msg.len());
-    assert!(msg.chars().all(|c| c == '€'), "no broken chars: {msg}");
-
-    // Junk body: generic message
-    let msg = bearer_403_message(&[], b"not xml at all");
-    assert_eq!(msg, "the calendar or contacts server refused access; sign in again (HTTP 403)");
-
-    // (c) generic: no WWW-Authenticate or internalReason
-    let msg = bearer_403_message(&[], b"");
-    assert_eq!(msg, "the calendar or contacts server refused access; sign in again (HTTP 403)");
-
-    // Case-insensitive header matching
-    let headers = vec![("www-authenticate".into(), "Bearer realm=\"x\", error=\"insufficient_scope\"".into())];
-    let msg = bearer_403_message(&headers, b"");
-    assert_eq!(msg, "sign in again to allow access");
+        https://console.developers.google.com/apis/api/caldav.googleapis.com/overview?project=123 then retry.</internalReason></error></errors>";
+    let said = bearer::refusal(&[], body).unwrap_or_default();
+    assert!(said.starts_with("CalDAV API has not been used") && said.ends_with("then retry."), "{said}");
+    assert_eq!(bearer::refusal(&[], b"<code>accessNotConfigured</code>"), Some("the server's API isn't turned on for this Google client".into()));
+    // Capped on a character's boundary (hostile input).
+    let long = format!("<code>accessNotConfigured</code><internalReason>{}</internalReason>", "€".repeat(400));
+    let said = bearer::refusal(&[], long.as_bytes()).unwrap_or_default();
+    assert!(said.len() <= 500 && said.len() > 490 && said.chars().all(|c| c == '€'), "{}", said.len());
+    // Not the token's: a calendar or item the user may not change, or no reason given.
+    assert_eq!(bearer::refusal(&[], b"<internalReason>You don't have permission</internalReason>"), None);
+    assert_eq!(bearer::refusal(&header("Bearer realm=\"x\""), b"not xml at all"), None);
 }
 
-/// Bearer sessions map 403 to NetError::Auth on write operations (store/remove), not Refused::Forbidden.
+/// A 403 for one item is that item's on a token session too: refused, the rest of the sync goes
+/// on. Google refusing the token itself, there, is the sign-in's.
 #[test]
-fn bearer_forbidden() {
-    use crate::fakes::fake_dav::{CAL, USER, serve};
+fn a_403_on_a_token_session_is_the_items_unless_the_token_is_refused() {
+    use crate::fakes::fake_dav::{CAL, serve};
     let token = "test-token";
     let server = serve();
     {
         let mut d = server.data.lock().unwrap();
         d.bearer = Some(token.to_string());
-        d.bearer_forbidden = true;
+        d.forbidden.push(format!("{CAL}forbidden.ics"));
+        d.unreadable.push(CAL.to_string());
     }
-    let dav = Dav::bearer(token);
-    let url = format!("{}{}/new.ics", server.base, CAL);
+    let dav = Dav::bearer(token, &["127.0.0.1"]);
+    let url = format!("{}{CAL}forbidden.ics", server.base);
+    let ics = "BEGIN:VCALENDAR\r\nUID:test\r\nEND:VCALENDAR";
+    assert!(matches!(dav.store(&url, "text/calendar; charset=utf-8", ics, None), Ok(Err(Refused::Forbidden))));
+    assert!(matches!(dav.remove(&url, ""), Ok(Err(Refused::Forbidden))));
+    assert!(!matches!(dav.collections(Kind::Calendars, &format!("{}{CAL}", server.base)), Err(NetError::Auth(_))));
 
-    // PUT on Bearer session with 403 returns NetError::Auth
-    let result = dav.store(&url, "text/calendar; charset=utf-8", "BEGIN:VCALENDAR\r\nEND:VCALENDAR", None);
-    assert!(matches!(result, Err(NetError::Auth(_))), "store should return NetError::Auth for Bearer 403, got: {:?}", result);
-
-    // DELETE on Bearer session with 403 returns NetError::Auth
-    let result = dav.remove(&url, "\"e1\"");
-    assert!(matches!(result, Err(NetError::Auth(_))), "remove should return NetError::Auth for Bearer 403, got: {:?}", result);
-
-    // Basic auth session with 403 still returns Refused::Forbidden (not NetError::Auth)
-    let server2 = serve();
-    let url2 = format!("{}{}/forbidden.ics", server2.base, CAL);
-    let path2 = format!("{}/forbidden.ics", CAL);
-    server2.data.lock().unwrap().forbidden.push(path2);
-    let dav_basic = Dav::new(USER, "pw");
-    // PUT on a forbidden item with Basic auth returns Refused::Forbidden
-    let result = dav_basic.store(&url2, "text/calendar; charset=utf-8", "BEGIN:VCALENDAR\r\nUID:test\r\nEND:VCALENDAR", None);
-    assert!(matches!(result, Ok(Err(Refused::Forbidden))), "Basic auth store should return Refused::Forbidden for 403, got: {:?}", result);
-    // DELETE on a forbidden item with Basic auth returns Refused::Forbidden
-    let result = dav_basic.remove(&url2, "");
-    assert!(matches!(result, Ok(Err(Refused::Forbidden))), "Basic auth remove should return Refused::Forbidden for 403, got: {:?}", result);
+    server.data.lock().unwrap().bearer_forbidden = true;
+    let url = format!("{}{CAL}new.ics", server.base);
+    assert!(matches!(dav.store(&url, "text/calendar; charset=utf-8", ics, None), Err(NetError::Auth(_))));
+    assert!(matches!(dav.remove(&url, "\"e1\""), Err(NetError::Auth(_))));
 }
 
-/// A Google Bearer session with both scopes syncs both calendar and contacts.
+/// The access token opens the whole Google account: it goes over https to the hosts the session
+/// was made for, and nowhere else (another host, a redirect's, plain http but to this computer).
 #[test]
-fn bearer_syncs_calendar_and_contacts() {
+fn the_token_goes_to_its_hosts_alone() {
+    use crate::fakes::fake_dav::serve;
+    let b = bearer::Bearer::new("t", &["apidata.googleusercontent.com", "127.0.0.1"]);
+    assert_eq!(b.for_url("https://apidata.googleusercontent.com/caldav/v2/a/events"), Some("Bearer t"));
+    assert_eq!(b.for_url("https://APIDATA.googleusercontent.com./x"), Some("Bearer t"));
+    assert_eq!(b.for_url("http://apidata.googleusercontent.com/x"), None, "in the clear");
+    assert_eq!(b.for_url("https://apidata.googleusercontent.com.attacker.example/x"), None);
+    assert_eq!(b.for_url("https://attacker.example/x"), None);
+    assert_eq!(b.for_url("http://127.0.0.1:8080/dav/"), Some("Bearer t"), "a test server on this computer");
+    assert_eq!(b.for_url("not a url"), None);
+
+    // A server of another name is asked without it.
+    let server = serve();
+    server.data.lock().unwrap().bearer = Some("t".into());
+    let dav = Dav::bearer("t", &["localhost"]);
+    assert!(matches!(dav.home_from(Kind::Calendars, &format!("{}/dav/", server.base)), Err(NetError::Auth(_))));
+    assert_eq!(server.data.lock().unwrap().offered, 0, "no request carried the token");
+}
+
+/// A Google token with both permissions syncs calendars and contacts.
+#[test]
+fn a_token_syncs_calendars_and_contacts() {
     use crate::fakes::fake_dav::{USER, serve};
     use mailcraft_model::zone::Zone;
 
     let server = serve();
-    let token = "test-token";
-    {
-        let mut d = server.data.lock().unwrap();
-        d.bearer = Some(token.to_string());
-        d.bearer_forbidden = false;
-    }
-
-    let dav = Dav::bearer(token);
-    let caldav_url = format!("{}/dav/", server.base);
-    let carddav_url = format!("{}/dav/", server.base);
-    let at =
-        Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), carddav: Some(&carddav_url), mails: true, ..Default::default() };
+    server.data.lock().unwrap().bearer = Some("test-token".into());
+    let dav = Dav::bearer("test-token", &["127.0.0.1"]);
+    let url = format!("{}/dav/", server.base);
+    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&url), carddav: Some(&url), mails: true, ..Default::default() };
     let mut pim = Pim::default();
     pim.ensure_defaults();
 
-    let out = sync(&dav, &at, &pim, 100, Zone::UTC).unwrap();
-    assert!(out.caldav_home.is_some(), "calendar home should be found: {out:?}");
-    assert!(out.carddav_home.is_some(), "contacts home should be found: {out:?}");
-    assert_eq!(out.errors.len(), 0, "no errors: {out:?}");
+    let out = sync(&dav, &at, &pim, 1_800_000_000, Zone::UTC).unwrap();
+    assert_eq!(out.caldav_home, Some(format!("{}/dav/cal/", server.base)), "{out:?}");
+    assert_eq!(out.carddav_home, Some(format!("{}/dav/card/", server.base)), "{out:?}");
+    assert!(out.books.is_some() && out.errors.is_empty(), "{out:?}");
 }
 
-/// Bearer 403 on CardDAV doesn't abort the calendar sync: the calendar syncs, and the
-/// contacts error is recorded.
+/// A sign-in that granted the calendars and not the contacts (Google asks for each, and an
+/// account signed in before MailCraft asked for contacts has the calendars' alone): the calendars
+/// sync, the contacts' refusal is said once and they're saved as none, looked for again a day on
+/// or once signed in again, not at every sync.
 #[test]
-fn bearer_403_on_carddav_syncs_calendar_anyway() {
+fn a_token_without_contacts_syncs_the_calendars() {
+    use crate::fakes::fake_dav::{USER, serve};
+    use mailcraft_model::zone::Zone;
+
+    const T: i64 = 1_800_000_000;
+    let server = serve();
+    {
+        let mut d = server.data.lock().unwrap();
+        d.bearer = Some("test-token".into());
+        d.bearer_lacks_contacts = true;
+    }
+    let dav = Dav::bearer("test-token", &["127.0.0.1"]);
+    let url = format!("{}/dav/", server.base);
+    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&url), carddav: Some(&url), mails: true, ..Default::default() };
+    let mut pim = Pim::default();
+    pim.ensure_defaults();
+
+    let out = sync(&dav, &at, &pim, T, Zone::UTC).unwrap();
+    assert_eq!(out.caldav_home, Some(format!("{}/dav/cal/", server.base)));
+    assert!(out.calendars.is_some(), "the calendars synced: {out:?}");
+    assert_eq!((out.carddav_home.as_deref(), out.books.as_ref()), (None, None));
+    assert_eq!(out.errors, ["sign in again to allow MailCraft this permission: https://www.googleapis.com/auth/carddav"]);
+
+    // As the engine saves it. The next sync doesn't ask for the contacts.
+    (pim.caldav_home, pim.carddav_home, pim.dav_checked) = (out.caldav_home.clone(), Some(String::new()), Some(T));
+    server.data.lock().unwrap().bearer_lacks_contacts = false;
+    server.data.lock().unwrap().log.clear();
+    let out = sync(&dav, &at, &pim, T + 600, Zone::UTC).unwrap();
+    assert_eq!((out.carddav_home.as_deref(), out.errors.len()), (None, 0));
+    assert!(!server.data.lock().unwrap().log.iter().any(|l| l.contains("/dav/card/")), "not asked again at every sync");
+
+    // Signed in again: found and read.
+    pim.dav_checked = Some(0);
+    let out = sync(&dav, &at, &pim, T + 1200, Zone::UTC).unwrap();
+    assert_eq!(out.carddav_home, Some(format!("{}/dav/card/", server.base)), "{out:?}");
+    assert!(out.books.is_some() && out.errors.is_empty(), "{out:?}");
+}
+
+/// Contacts found before, and a later sign-in that didn't grant them: the calendars still sync,
+/// and the contacts are saved as none (looked for again as above), what was read of them dropped.
+#[test]
+fn contacts_refused_after_a_new_sign_in_leave_the_calendars_syncing() {
     use crate::fakes::fake_dav::{USER, serve};
     use mailcraft_model::zone::Zone;
 
     let server = serve();
-    let token = "test-token";
     {
         let mut d = server.data.lock().unwrap();
-        d.bearer = Some(token.to_string());
-        d.bearer_forbidden = false;
-        // Make CardDAV paths forbidden (insufficient scope), but CalDAV paths work.
-        d.unreadable.push("/dav/card/".to_string());
+        d.bearer = Some("test-token".into());
+        d.bearer_lacks_contacts = true;
     }
-
-    let dav = Dav::bearer(token);
-    let caldav_url = format!("{}/dav/", server.base);
-    let carddav_url = format!("{}/dav/", server.base);
-    let at =
-        Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), carddav: Some(&carddav_url), mails: true, ..Default::default() };
-    let mut pim = Pim::default();
+    let dav = Dav::bearer("test-token", &["127.0.0.1"]);
+    let at = Where { email: USER, imap_host: "imap.example", mails: true, ..Default::default() };
+    let mut pim = Pim {
+        caldav_home: Some(format!("{}/dav/cal/", server.base)),
+        carddav_home: Some(format!("{}/dav/card/", server.base)),
+        dav_checked: Some(1_800_000_000),
+        ..Default::default()
+    };
     pim.ensure_defaults();
 
-    // First sync: CardDAV operations are refused (403), but CalDAV works.
-    // The CardDAV home is discovered (from /dav/principals/me/), but operations on it fail.
-    let out = sync(&dav, &at, &pim, 100, Zone::UTC).unwrap();
-    assert!(out.caldav_home.is_some(), "calendar home should be found: {out:?}");
-    assert!(out.carddav_home.is_some(), "contacts home should be found during discovery: {out:?}");
-    assert!(!out.errors.is_empty(), "contacts error should be recorded: {out:?}");
-    assert!(out.errors.iter().any(|e| e.contains("contacts")), "error should mention contacts: {out:?}");
-    // No contacts books or cards should be synced (the read operations failed).
-    assert!(out.books.is_none(), "contacts books should not be read: {out:?}");
-
-    // As the engine saves it: no contacts home is stored as an empty one. Once the scope is
-    // granted, the next sync looks again although the last look was recent.
-    server.data.lock().unwrap().unreadable.clear();
-    let saved = Pim { caldav_home: out.caldav_home.clone(), carddav_home: Some(String::new()), dav_checked: Some(100), ..Default::default() };
-    let again = sync(&dav, &at, &saved, 200, Zone::UTC).unwrap();
-    assert!(again.carddav_home.is_some(), "contacts home should be found at the next sync: {again:?}");
+    let out = sync(&dav, &at, &pim, 1_800_000_600, Zone::UTC).unwrap();
+    assert!(out.calendars.is_some(), "the calendars synced: {out:?}");
+    assert_eq!((out.carddav_home.as_deref(), out.books.as_ref(), out.cards.len()), (None, None, 0));
+    assert_eq!(out.errors.len(), 1, "{out:?}");
 }

@@ -343,3 +343,25 @@ fn updates_turned_off_ask_nothing() {
     assert!(!u.shared.started.load(Ordering::SeqCst), "not installed");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// The first start after an update says how it ended, once: this is the version installed, or
+/// the one that didn't install is offered again; nothing while it may still be installing, a
+/// day on, or with no marker (as EffectCraft's updater says at its first start after an update).
+#[test]
+fn the_first_start_after_an_update_says_how_it_ended() {
+    let dir = scratch("outcome");
+    let (old, new) = ("0.42.0 aaa", "0.43.0 bbb");
+    let mark = |by: &str| std::fs::write(dir.join(MARKER), format!("v0.43.0\n1000000\n{by}\n")).unwrap();
+    mark(old);
+    assert_eq!(outcome(&dir, "0.43.0", new, 1_000_060), Some(UpdateOutcome::Updated { version: "0.43.0".into() }));
+    assert_eq!(outcome(&dir, "0.43.0", new, 1_000_120), None, "said once");
+    assert!(just_installed(&dir, "v0.43.0", 1_000_120, new), "the marker still holds the version back");
+    mark(old);
+    assert_eq!(outcome(&dir, "0.42.0", old, 1_000_010), None, "still installing");
+    assert_eq!(outcome(&dir, "0.42.0", old, 1_000_000 + INSTALL_TIME), Some(UpdateOutcome::NotInstalled { version: "0.43.0".into() }));
+    assert!(!just_installed(&dir, "v0.43.0", 1_000_000 + INSTALL_TIME, old), "offered again");
+    mark(old);
+    assert_eq!(outcome(&dir, "0.43.0", new, 1_000_000 + JUST_INSTALLED_FOR), None, "a day later");
+    std::fs::remove_file(dir.join(MARKER)).unwrap();
+    assert_eq!(outcome(&dir, "0.43.0", new, 1_000_060), None, "no marker");
+}

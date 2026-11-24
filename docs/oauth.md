@@ -95,15 +95,15 @@ administrator can also have IMAP turned off for the organisation.
 
 ### Why the released builds have no Google sign-in
 
-MailCraft asks Google for full access to Gmail (`https://mail.google.com/`), Google Calendar
-(`https://www.googleapis.com/auth/calendar`) and Google Contacts
-(`https://www.googleapis.com/auth/carddav`), which IMAP, SMTP, CalDAV and CardDAV need. Google
-treats these as restricted scopes:
+MailCraft asks Google for full access to Gmail (`https://mail.google.com/`), which IMAP and SMTP
+need, and for Google Calendar (`https://www.googleapis.com/auth/calendar`) and Google Contacts
+(`https://www.googleapis.com/auth/carddav`), which CalDAV and CardDAV need. Google treats Gmail's
+as a restricted scope and the other two as sensitive ones:
 
 - An app Google hasn't verified shows a warning before sign-in and is limited to 100 users over
   the life of its Google project. After that, Google blocks new sign-ins.
-- Verification for this scope includes a security assessment by an outside lab, repeated every
-  year. MailCraft hasn't been through it.
+- Verification for the restricted scope includes a security assessment by an outside lab,
+  repeated every year. MailCraft hasn't been through it.
 
 ### Sign in with Google through a client of your own
 
@@ -121,8 +121,9 @@ has no warning and no user limit, and works for that organisation's accounts onl
    403 `accessNotConfigured`, and MailCraft shows Google's own message.
 
 Accounts signed in with Google sync their calendars and contacts over CalDAV and CardDAV with the
-OAuth token. An account signed in before MailCraft asked for the calendar and contacts permissions
-signs in again to grant them.
+OAuth token, which goes to Google's servers alone. An account signed in before MailCraft asked for
+these permissions, or that granted only some of them, is told so, and signing in again grants
+them; its calendars and contacts are then looked for at once.
 
 A client that is **External** and not verified works too, with Google's warning (choose
 **Advanced**, then **Go to MailCraft**) and its limit of 100 users.

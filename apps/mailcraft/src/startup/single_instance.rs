@@ -151,7 +151,10 @@ fn request(key: &str, handed: &Handed) -> String {
 
 /// What a request hands over, or `None` when it isn't one with `key`: anything but one JSON
 /// object with that key, a list of strings to open and, if there is one, a list of strings to
-/// send (empty ones, and those past [`MAX_OPEN`] or [`MAX_ATTACHED`], left out).
+/// send (empty ones, and those past [`MAX_OPEN`] or [`MAX_ATTACHED`], left out). A launch hands
+/// on links as they are and paths made absolute (`args::handed`): a path that isn't one would be
+/// opened, or sent, from this MailCraft's own folder instead, so it's left out too (as CADCraft
+/// found).
 fn parse_request(line: &str, key: &str) -> Option<Handed> {
     let value: serde_json::Value = serde_json::from_str(line.trim_end()).ok()?;
     let sent = value.get("key")?.as_str()?;
@@ -162,11 +165,14 @@ fn parse_request(line: &str, key: &str) -> Option<Handed> {
         let list = list.as_array()?.iter().map(|v| v.as_str().map(str::to_string)).collect::<Option<Vec<String>>>()?;
         Some(list.into_iter().filter(|s| !s.trim().is_empty()).take(most).collect())
     };
-    let open = strings(value.get("open")?, MAX_OPEN)?;
-    let attach = match value.get("attach") {
+    let absolute = |s: &String| Path::new(s).is_absolute();
+    let mut open = strings(value.get("open")?, MAX_OPEN)?;
+    open.retain(|s| mailcraft_engine::model::mailto::is_mailto(s) || absolute(s));
+    let mut attach = match value.get("attach") {
         Some(list) => strings(list, MAX_ATTACHED)?,
         None => Vec::new(),
     };
+    attach.retain(absolute);
     Some(Handed::new(open, attach))
 }
 
@@ -352,6 +358,13 @@ fn claim_at(path: &Path, handed: &Handed) -> Claim {
                         Claim::Alone
                     }
                 };
+            }
+            // Only a refused or missing socket is one nobody listens on: another failure (no right
+            // to it, too many waiting) may come from a MailCraft that's running, whose socket
+            // isn't taken from it (as CADCraft found).
+            Err(e) if !matches!(e.kind(), std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::NotFound) => {
+                log::info!("single instance off: can't reach {} ({e})", path.display());
+                return Claim::Alone;
             }
             // Nobody listens: no socket yet, or one left by a MailCraft that didn't exit cleanly.
             // Removed without asking `exists()` first: on Windows that follows the socket's

@@ -75,19 +75,23 @@ fn writable(dir: &Path) -> std::io::Result<()> {
 /// Names a probe tries before the folder counts as unwritable.
 const PROBE_TRIES: u32 = 64;
 
-/// Prove a file can be made in `dir`: one is made and removed again. It's made new
-/// (`create_new`), so whatever is already at its name (a file, a link someone left there
-/// pointing elsewhere) is never opened, written through or removed: the next name is tried
-/// instead (as PhotoCraft's portable check). Only the probe made here is removed.
+/// Prove a file can be made and written in `dir`: one is made, a byte written into it and on the
+/// disk, and it's removed again. On a full drive a file can be made with nothing written into it,
+/// and a portable copy (or an update into its folder) that took that for a yes failed at its first
+/// save (as CADCraft found). It's made new (`create_new`), so whatever is already at its name (a
+/// file, a link someone left there pointing elsewhere) is never opened, written through or
+/// removed: the next name is tried instead (as PhotoCraft's portable check). Only the probe made
+/// here is removed.
 pub(crate) fn probe(dir: &Path, stem: &str) -> std::io::Result<()> {
     let pid = std::process::id();
     for n in 0..PROBE_TRIES {
         let path = dir.join(format!("{stem}-{pid}-{n}"));
         match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
-            Ok(file) => {
+            Ok(mut file) => {
+                let written = std::io::Write::write_all(&mut file, &[0]).and_then(|()| file.sync_all());
                 drop(file);
                 let _ = std::fs::remove_file(&path);
-                return Ok(());
+                return written;
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(e) => return Err(e),

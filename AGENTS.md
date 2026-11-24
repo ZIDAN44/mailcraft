@@ -110,8 +110,8 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
 - `fuzz/Cargo.lock` keeps the versions `Cargo.lock` has, so the weekly run fuzzes what ships:
   after a dependency moves, `cargo xtask locks --update` (`cargo xtask ci` checks it).
 - **The Craft apps' shared crates** (storytold/craft-libs) are used where they fit, so their fixes
-  arrive with a pin bump: `craft-atomic` (the cache's file writes) and `craft-docpath` (paths data
-  files name), all at one `rev` in `[workspace.dependencies]`. A gap one has is fixed there (a PR
+  arrive with a pin bump: `craft-atomic` (the cache's file writes), `craft-docpath` (paths data
+  files name) and `craft-proof` (spelling), all at one `rev` in `[workspace.dependencies]`. A gap one has is fixed there (a PR
   to craft-libs), not copied here. Which crates were weighed and why the rest aren't used:
   `docs/architecture.md`.
 
