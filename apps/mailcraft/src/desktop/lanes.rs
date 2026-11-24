@@ -178,7 +178,10 @@ mod tests {
         Work { run: Box::new(run), cancelled: cancelled.clone(), first: false }
     }
 
-    /// Work that panics leaves the lane working: the next runs, on the same thread.
+    /// Work that panics leaves the lane working: the next runs, on the same thread. It unwinds as
+    /// a panic does, without the panic hook (`resume_unwind`): the lane catches the unwinding
+    /// alone, and the hook's backtrace (`RUST_BACKTRACE=1` in CI) took over the test's 10 s to
+    /// print on a loaded Windows runner, the next work waiting behind it.
     #[test]
     fn a_panic_leaves_the_lane_working() {
         let lanes = Lanes::default();
@@ -191,7 +194,7 @@ mod tests {
                     Lane::Pictures,
                     work(&no, move || {
                         tx2.send(std::thread::current().id()).unwrap();
-                        panic!("a picture that breaks the decoder");
+                        std::panic::resume_unwind(Box::new("a picture that breaks the decoder"));
                     })
                 )
                 .is_ok()
