@@ -59,10 +59,17 @@ impl Data {
             self.offered += 1;
         }
         // The right token, without the permission (Google's answer, RFC 6750 §3.1).
-        if self.bearer_forbidden && r.bearer_ok {
+        let contacts = r.path.starts_with("/dav/card/");
+        if self.contacts_reject_token && contacts && r.bearer_ok {
             self.refused += 1;
-            let challenge = "Bearer realm=\"fake\", error=\"insufficient_scope\", scope=\"https://www.googleapis.com/auth/calendar\"";
-            return ("403 Forbidden", vec![("WWW-Authenticate", challenge.to_string())], String::new());
+            return ("401 Unauthorized", vec![("WWW-Authenticate", "Bearer realm=\"fake\", error=\"invalid_token\"".to_string())], String::new());
+        }
+        let lacks = self.bearer_forbidden || if contacts { self.bearer_lacks_contacts } else { self.bearer_lacks_calendars };
+        if lacks && r.bearer_ok {
+            self.refused += 1;
+            let scope = if contacts { "carddav" } else { "calendar" };
+            let challenge = format!("Bearer realm=\"fake\", error=\"insufficient_scope\", scope=\"https://www.googleapis.com/auth/{scope}\"");
+            return ("403 Forbidden", vec![("WWW-Authenticate", challenge)], String::new());
         }
         let mut authorized = r.basic_ok || (self.bearer.is_some() && r.bearer_ok);
         if let Some(nonce) = self.digest.clone() {

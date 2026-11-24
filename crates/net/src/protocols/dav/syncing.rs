@@ -71,10 +71,13 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
                 errors.push(e);
                 Ok(None)
             }
-            Err(NetError::Auth(e)) if dav.is_bearer() => {
-                errors.push(e);
-                Ok(None)
-            }
+            Err(e) => match dav.permission_refused(&e) {
+                Some(why) => {
+                    errors.push(why);
+                    Ok(None)
+                }
+                None => Err(e),
+            },
             r => r,
         }
     };
@@ -84,20 +87,33 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         _ => None,
     };
     out.carddav_home = match &pim.carddav_home {
-        Some(h) if !h.is_empty() && at.contacts => Some(h.clone()),
-        _ if retry && at.contacts => find(Kind::Contacts, at.carddav, &mut out.errors)?,
+        Some(h) if !h.is_empty() => Some(h.clone()),
+        _ if retry => find(Kind::Contacts, at.carddav, &mut out.errors)?,
         _ => None,
     };
     out.checked = now;
     // Whether the calendar server schedules meetings itself (asked at every sync: it's one short
-    // request, and a server's settings change). Not known, what was known stays.
+    // request, and a server's settings change). Not known, what was known stays. Google refusing
+    // the token the calendars (a later sign-in that granted the contacts alone): said, and they're
+    // looked for again as when none were found, the contacts syncing meanwhile; nothing of the
+    // calendars is sent or read, as their server isn't the sync's any more.
     if let Some(home) = &out.caldav_home {
         out.auto_schedule = match dav.schedules(home) {
             Ok(b) => Some(b),
-            Err(e @ NetError::Auth(_)) => return Err(e),
-            Err(_) => None,
+            Err(e) => match dav.permission_refused(&e) {
+                Some(why) => {
+                    out.errors.push(why);
+                    out.caldav_home = None;
+                    None
+                }
+                None if matches!(e, NetError::Auth(_)) => return Err(e),
+                None => None,
+            },
         };
     }
+    // Calendars are sent to only with their server known: not after a refusal, though their
+    // server may be the contacts' too, nor at the syncs after it, until they're found again.
+    let calendars = out.caldav_home.is_some();
     let schedules = out.auto_schedule.unwrap_or(pim.auto_schedule);
     let origins: Vec<String> =
         [&out.caldav_home, &out.carddav_home].into_iter().flatten().filter_map(|h| Url::parse(h).ok()).map(|u| u.origin()).collect();
@@ -106,16 +122,36 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     // Items whose change the server refused for good: read again below, whatever their etag.
     let mut refetch: Vec<String> = Vec::new();
     run.push_deletions(&mut out, &mut refetch)?;
-    run.push_events(&mut out, &mut refetch)?;
-    if at.contacts {
-        run.push_cards(&mut out)?;
+    if calendars {
+        run.push_events(&mut out, &mut refetch)?;
     }
-    run.push_tasks(&mut out, &mut refetch)?;
+    if let Err(e) = run.push_cards(&mut out) {
+        contacts_refused(dav, e, &mut out)?;
+    }
+    if calendars {
+        run.push_tasks(&mut out, &mut refetch)?;
+    }
     run.read_calendars(&refetch, &mut out)?;
-    if at.contacts {
-        run.read_books(&mut out)?;
+    if let Err(e) = run.read_books(&mut out) {
+        contacts_refused(dav, e, &mut out)?;
     }
     Ok(out)
+}
+
+/// A contacts step's error. Google refusing the token its contacts (a sign-in that granted the
+/// calendars alone) is said, and the contacts are looked for again as when none were found (a
+/// day on, or once signed in again), the calendars syncing meanwhile. Anything else stops the sync.
+fn contacts_refused(dav: &Dav, e: NetError, out: &mut DavSync) -> Result<()> {
+    let Some(why) = dav.permission_refused(&e) else { return Err(e) };
+    if !out.errors.contains(&why) {
+        out.errors.push(why);
+    }
+    // What was read of them before is dropped: none of it is merged.
+    (out.carddav_home, out.books) = (None, None);
+    out.cards.clear();
+    out.synced_books.clear();
+    out.unchanged_books.clear();
+    Ok(())
 }
 
 /// The server's copy of an item comes in place of the one here: it's read again, whatever its

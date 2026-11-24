@@ -9,8 +9,7 @@ use mailcraft_model::zone::Zone;
 use super::*;
 use crate::dav::{Dav, Where, sync};
 
-const AT: Where<'static> =
-    Where { email: USER, username: "", others: &[], imap_host: "imap.example", caldav: None, carddav: None, mails: true, contacts: true };
+const AT: Where<'static> = Where { email: USER, username: "", others: &[], imap_host: "imap.example", caldav: None, carddav: None, mails: true };
 
 fn task(uid: &str, title: &str) -> Task {
     Task { uid: uid.into(), title: title.into(), due: Some(1_800_000_000 / 86_400 * 86_400), modified: 1_799_000_000, ..Default::default() }

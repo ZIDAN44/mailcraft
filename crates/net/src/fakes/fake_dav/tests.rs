@@ -11,8 +11,7 @@ use crate::dav::{Dav, Kind, Where, sync};
 /// Found from the address, as an account with nothing given by hand. The tests' syncs never
 /// look for anything there, out on the network: their calendars and contacts are given, or
 /// were looked for already (`dav_checked`), the contacts none.
-const AT: Where<'static> =
-    Where { email: USER, username: "", others: &[], imap_host: "imap.example", caldav: None, carddav: None, mails: true, contacts: true };
+const AT: Where<'static> = Where { email: USER, username: "", others: &[], imap_host: "imap.example", caldav: None, carddav: None, mails: true };
 
 fn event(uid: &str, summary: &str, start: i64) -> CalEvent {
     CalEvent { uid: uid.into(), summary: summary.into(), start, end: start + 3600, ..Default::default() }
@@ -562,7 +561,7 @@ fn a_change_crossing_a_guests_answer_keeps_both() {
     assert!(server.data.lock().unwrap().items[&format!("{CAL}solo.ics")].1.contains("Dentist (moved)"));
 }
 
-/// Google OAuth account: CalDAV sync with Bearer token, no CardDAV.
+/// Google OAuth account: CalDAV sync with a Bearer token.
 #[test]
 fn google_oauth_bearer_auth() {
     let server = serve();
@@ -574,16 +573,16 @@ fn google_oauth_bearer_auth() {
     // Discover the home with Bearer auth.
     let home = dav.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)).unwrap().unwrap();
 
-    // Google: calendars only, no contacts.
+    // The contacts at the fake's address too: nothing is looked for out on the network.
+    let contacts = format!("{}/dav/", server.base);
     let at_google = Where {
         email: "user@gmail.com",
         username: "",
         others: &[],
         imap_host: "imap.gmail.com",
         caldav: None,
-        carddav: None,
+        carddav: Some(&contacts),
         mails: true,
-        contacts: false,
     };
 
     // First sync: discover and read.
@@ -596,10 +595,6 @@ fn google_oauth_bearer_auth() {
     let cal_id = format!("{}{CAL}", server.base);
     assert_eq!(first.calendars.as_ref().map(|c| (c.len(), c[0].name.as_str(), c[0].id.as_str())), Some((1, "Work", cal_id.as_str())));
     assert_eq!(first.events.iter().map(|e| e.event.summary.as_str()).collect::<Vec<_>>(), ["Meeting"]);
-    // No CardDAV home discovered (contacts: false).
-    assert_eq!(first.carddav_home, None);
-    // No cards synced.
-    assert!(first.cards.is_empty());
 
     // Wrong token refused.
     let dav_wrong = Dav::bearer("wrong-token", &["127.0.0.1"]);

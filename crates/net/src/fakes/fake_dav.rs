@@ -59,6 +59,13 @@ pub struct Data {
     /// Refuse the right Bearer token with 403 for a permission it lacks (`insufficient_scope`), as
     /// Google does a token from a sign-in that didn't grant calendars.
     pub bearer_forbidden: bool,
+    /// Refuse it so for the address books alone, as Google does a sign-in that granted the
+    /// calendars and not the contacts.
+    pub bearer_lacks_contacts: bool,
+    /// Or for everything but the address books: a sign-in that granted the contacts alone.
+    pub bearer_lacks_calendars: bool,
+    /// Refuse the right token outright (401) for the address books: not a permission it lacks.
+    pub contacts_reject_token: bool,
 }
 
 /// Whether an `Authorization` value answers the fake's Digest challenge for this request.

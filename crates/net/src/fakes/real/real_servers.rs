@@ -74,16 +74,7 @@ pub(super) fn caldav_env() -> Option<(String, String, crate::dav::Dav)> {
 
 /// Where a CalDAV sync looks: the calendar at `url`, as `user`.
 pub(super) fn caldav_where<'a>(url: &'a str, user: &'a str) -> crate::dav::Where<'a> {
-    crate::dav::Where {
-        email: user,
-        username: "",
-        others: &[],
-        imap_host: "127.0.0.1",
-        caldav: Some(url),
-        carddav: None,
-        mails: true,
-        contacts: true,
-    }
+    crate::dav::Where { email: user, username: "", others: &[], imap_host: "127.0.0.1", caldav: Some(url), carddav: None, mails: true }
 }
 
 /// Events until `f` says yes (`secs` at most, as a real server takes): all of them, that one last.

@@ -26,8 +26,18 @@ impl Run<'_> {
                     refetch.push(t.href.clone());
                 }
                 Ok(Err(r)) => out.errors.push(r.to_string()),
-                Err(e @ NetError::Auth(_)) => return Err(e),
-                Err(e) => out.errors.push(e.to_string()),
+                // Google refusing the token this server (a sign-in that granted the calendars and
+                // not the contacts, or the other way): kept to delete, said once, and the rest
+                // syncs; what's refused is then dropped as when it isn't found.
+                Err(e) => match self.dav.permission_refused(&e) {
+                    Some(why) => {
+                        if !out.errors.contains(&why) {
+                            out.errors.push(why);
+                        }
+                    }
+                    None if matches!(e, NetError::Auth(_)) => return Err(e),
+                    None => out.errors.push(e.to_string()),
+                },
             }
         }
         Ok(())
