@@ -63,6 +63,28 @@ fn oauth_accounts_sign_in_through_the_browser() {
     assert!(saved.contains("\"oauth\":\"google\""));
 }
 
+/// A Google account signed in before MailCraft asked for its calendar (issue #262) has none
+/// saved: signing in again looks for it at once, not a day on. One whose calendar is known
+/// isn't looked for again.
+#[test]
+fn signing_in_again_looks_for_a_calendar_refused_before() {
+    let mut s = Session::blank();
+    s.oauth_available = vec!["google".into()];
+    let id = s.run("account.add", &json!({"email": "zoe@gmail.com", "oauth": "google"})).unwrap()["account"].as_str().unwrap().to_string();
+    s.take_jobs();
+    let p = s.pim_mut(&id);
+    (p.caldav_home, p.carddav_home, p.dav_checked) = (Some(String::new()), Some("https://dav.example/card/".into()), Some(NOW));
+    s.apply(Event::SignedIn { account: id.clone(), user: None });
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { .. }, Job::SyncDav { account }] if *account == id));
+    assert_eq!(s.pim[&id].dav_checked, Some(0), "looked for again at the next sync");
+
+    let p = s.pim_mut(&id);
+    (p.caldav_home, p.dav_checked) = (Some("https://dav.example/cal/".into()), Some(NOW));
+    s.apply(Event::SignedIn { account: id.clone(), user: None });
+    assert!(matches!(s.take_jobs().as_slice(), [Job::Start { .. }]));
+    assert_eq!(s.pim[&id].dav_checked, Some(NOW));
+}
+
 #[test]
 fn server_settings_are_looked_up_once() {
     let mut s = Session::blank();

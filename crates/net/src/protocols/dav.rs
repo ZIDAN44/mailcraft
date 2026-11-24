@@ -62,6 +62,8 @@ pub struct Where<'a> {
     /// MailCraft mails the account's meeting messages. Not for an account with calendars and
     /// contacts only (issue #61): a server that schedules sends them.
     pub mails: bool,
+    /// Whether to sync contacts (CardDAV). Google OAuth accounts lack the contacts scope.
+    pub contacts: bool,
 }
 
 impl Where<'_> {
@@ -102,22 +104,50 @@ impl Kind {
     }
 }
 
-/// A signed-in DAV session: Basic sign-in, or Digest once the server asks for it.
+/// How a DAV session signs in.
+enum Auth {
+    /// Basic or Digest authentication with username and password.
+    Password { user: String, password: String, basic: String },
+    /// An OAuth access token, and the hosts it may go to.
+    Bearer(bearer::Bearer),
+}
+
+/// A signed-in DAV session: Basic sign-in, or Digest once the server asks for it, or Bearer token.
 pub struct Dav {
-    user: String,
-    password: String,
-    basic: String,
+    auth: Auth,
     /// The server's Digest challenge once it gave one (Baïkal's default): every request after
-    /// answers it, rather than being refused first.
+    /// answers it, rather than being refused first. Only for Password auth.
     digest: std::sync::Mutex<Option<digest::Challenge>>,
     /// Set while the account's server is being looked for: who may have the password then.
+    /// Only for Password auth.
     guard: std::sync::Mutex<Option<guard::Guard>>,
 }
 
 impl Dav {
     pub fn new(user: &str, password: &str) -> Dav {
         let basic = format!("Basic {}", mailcraft_model::base64::encode(format!("{user}:{password}").as_bytes()));
-        Dav { user: user.into(), password: password.into(), basic, digest: std::sync::Mutex::default(), guard: std::sync::Mutex::default() }
+        Dav {
+            auth: Auth::Password { user: user.into(), password: password.into(), basic },
+            digest: std::sync::Mutex::default(),
+            guard: std::sync::Mutex::default(),
+        }
+    }
+
+    /// A session that signs in with an OAuth access token (Google's CalDAV and CardDAV), sent
+    /// over https to `hosts` alone.
+    pub fn bearer(token: &str, hosts: &[&str]) -> Dav {
+        Dav { auth: Auth::Bearer(bearer::Bearer::new(token, hosts)), digest: std::sync::Mutex::default(), guard: std::sync::Mutex::default() }
+    }
+
+    /// Whether this session signs in with an access token.
+    pub(crate) fn is_bearer(&self) -> bool {
+        matches!(self.auth, Auth::Bearer(_))
+    }
+
+    /// Why Google refused this session's access token (a 403 for a permission it lacks, or the
+    /// API turned off): `None` for any other answer.
+    fn token_refused(&self, resp: &Response) -> Option<String> {
+        (resp.status == 403 && self.is_bearer()).then(|| bearer::refusal(&resp.headers, &resp.body)).flatten()
     }
 
     /// Looking for the server of the account `email` (its mail server `mail_host`) from here on,
@@ -170,11 +200,22 @@ impl Dav {
         self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
     }
 
-    /// Send a request signed in: with Basic, or the server's Digest challenge. Refused with a
-    /// Digest challenge it can answer, it's sent again answering it (twice at most: once more
-    /// for a nonce gone stale, or another realm a redirect led to); refused again, it's the
-    /// password.
+    /// Send a request signed in: with the access token (to its hosts alone), or with Basic or the
+    /// server's Digest challenge. Refused with a Digest challenge it can answer, it's sent again
+    /// answering it (twice at most: once more for a nonce gone stale, or another realm a redirect
+    /// led to); refused again, it's the password.
     fn send(&self, req: &Request) -> Result<Response> {
+        match &self.auth {
+            Auth::Bearer(b) => match b.for_url(&req.url) {
+                Some(token) => http::send(&req.clone().header("Authorization", token)),
+                None => http::send(req),
+            },
+            Auth::Password { user, password, basic } => self.send_with_password(req, user, password, basic),
+        }
+    }
+
+    /// Send with password auth: check guard, try Basic or Digest.
+    fn send_with_password(&self, req: &Request, user: &str, password: &str, basic: &str) -> Result<Response> {
         if let Some(resp) = self.unsigned(req)? {
             return Ok(resp);
         }
@@ -184,8 +225,8 @@ impl Dav {
             let (auth, answered) = {
                 let mut held = self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
                 match held.as_mut() {
-                    Some(c) => (c.authorization(&self.user, &self.password, &req.method, &uri), Some(c.realm.clone())),
-                    None => (self.basic.clone(), None),
+                    Some(c) => (c.authorization(user, password, &req.method, &uri), Some(c.realm.clone())),
+                    None => (basic.to_string(), None),
                 }
             };
             let resp = http::send(&req.clone().header("Authorization", &auth))?;
@@ -233,9 +274,13 @@ impl Dav {
                 continue;
             }
             // Only 401 is the sign-in refused: a 403 is this request's (a collection the user may
-            // not read), and asking for the password again wouldn't change it.
+            // not read), and asking for the password again wouldn't change it; unless it's Google
+            // refusing the access token itself.
             if resp.status == 401 {
                 return Err(NetError::Auth("the calendar server refused the user name or password".into()));
+            }
+            if let Some(why) = self.token_refused(&resp) {
+                return Err(NetError::Auth(why));
             }
             return Ok((resp, url));
         }
@@ -451,6 +496,9 @@ impl Dav {
         };
         req = req.header(cond.0, &cond.1);
         let resp = self.send(&req)?;
+        if let Some(why) = self.token_refused(&resp) {
+            return Err(NetError::Auth(why));
+        }
         match resp.status {
             200..=299 => Ok(Ok(resp.header("ETag").unwrap_or_default().to_string())),
             401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
@@ -470,6 +518,9 @@ impl Dav {
             req = req.header("If-Match", etag);
         }
         let resp = self.send(&req)?;
+        if let Some(why) = self.token_refused(&resp) {
+            return Err(NetError::Auth(why));
+        }
         match resp.status {
             200..=299 | 404 | 410 => Ok(Ok(())),
             401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
@@ -625,6 +676,7 @@ fn path_of(url: &str) -> String {
     Url::parse(url).map(|u| u.path).unwrap_or_else(|_| url.to_string())
 }
 
+mod bearer;
 pub(crate) mod digest;
 mod free_busy;
 pub use free_busy::schedule_answers;

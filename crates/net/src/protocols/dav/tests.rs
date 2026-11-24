@@ -159,7 +159,7 @@ fn measure_big_collections() {
         let start = 1_800_000_000 + i64::try_from(i).unwrap_or_default() * 3600;
         CalEvent { uid: uid(i), summary: format!("Event {i}"), start, end: start + 1800, ..Default::default() }
     };
-    let at = Where { email: USER, imap_host: "imap.example", mails: true, ..Default::default() };
+    let at = Where { email: USER, imap_host: "imap.example", mails: true, contacts: true, ..Default::default() };
     let pim_at = |base: &str| {
         let mut pim = Pim {
             caldav_home: Some(format!("{base}/dav/cal/")),
@@ -247,4 +247,122 @@ fn real_an_invitations_odd_uid_is_found_where_it_was_stored() {
     let p: Vec<&str> = v.split_whitespace().collect();
     let [url, user, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_CALDAV: url user password") };
     an_odd_uid_is_found(&Dav::new(user, password), url, &std::process::id().to_string());
+}
+
+/// A Google account signed in before MailCraft asked for calendars: Google refuses its token
+/// the permission (403, `insufficient_scope`). That's said, the rest syncs and none is saved;
+/// it isn't asked again at every sync, only a day on or once signed in again (the engine then
+/// saves the last look as long ago).
+#[test]
+fn a_token_without_the_permission_waits_for_a_new_sign_in() {
+    const T: i64 = 1_800_000_000;
+    use crate::fakes::fake_dav::{USER, serve};
+    use mailcraft_model::zone::Zone;
+
+    let server = serve();
+    let token = "test-token";
+    {
+        let mut d = server.data.lock().unwrap();
+        d.bearer = Some(token.to_string());
+        d.bearer_forbidden = true;
+    }
+    let dav = Dav::bearer(token, &["127.0.0.1"]);
+    let caldav_url = format!("{}/dav/", server.base);
+    let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&caldav_url), mails: true, contacts: false, ..Default::default() };
+    let mut pim = Pim::default();
+    pim.ensure_defaults();
+
+    let out = sync(&dav, &at, &pim, T, Zone::UTC).unwrap();
+    assert_eq!(out.caldav_home, None);
+    assert_eq!(out.errors, ["sign in again to allow MailCraft this permission: https://www.googleapis.com/auth/calendar"], "{out:?}");
+
+    // As the engine saves it: none, looked for at T. The next sync doesn't ask.
+    (pim.caldav_home, pim.carddav_home, pim.dav_checked) = (Some(String::new()), Some(String::new()), Some(T));
+    server.data.lock().unwrap().bearer_forbidden = false;
+    let asked = server.data.lock().unwrap().log.len();
+    let out = sync(&dav, &at, &pim, T + 600, Zone::UTC).unwrap();
+    assert_eq!((out.caldav_home, out.errors.len()), (None, 0));
+    assert_eq!(server.data.lock().unwrap().log.len(), asked, "not asked again at every sync");
+
+    // Signed in again: found.
+    pim.dav_checked = Some(0);
+    let out = sync(&dav, &at, &pim, T + 1200, Zone::UTC).unwrap();
+    assert_eq!(out.caldav_home, Some(format!("{}/dav/cal/", server.base)), "{out:?}");
+    assert!(out.errors.is_empty(), "{out:?}");
+}
+
+/// What Google said in refusing a token: the permission it lacks, or the API not turned on for
+/// the client (its own words, capped); any other 403 isn't the token's.
+#[test]
+fn a_refused_token_says_what_google_said() {
+    let header = |v: &str| vec![("www-authenticate".to_string(), v.to_string())];
+    assert_eq!(
+        bearer::refusal(&header("Bearer realm=\"https://accounts.google.com/\", error=\"insufficient_scope\""), b""),
+        Some("sign in again to allow MailCraft this permission".into())
+    );
+    assert_eq!(
+        bearer::refusal(&header("Bearer error=\"insufficient_scope\", scope=\"https://www.googleapis.com/auth/carddav\""), b""),
+        Some("sign in again to allow MailCraft this permission: https://www.googleapis.com/auth/carddav".into())
+    );
+    let body = b"<errors xmlns='http://schemas.google.com/g/2005'><error><domain>GData</domain><code>accessNotConfigured</code>\
+        <internalReason>CalDAV API has not been used in project 123 before or it is disabled. Enable it by visiting \
+        https://console.developers.google.com/apis/api/caldav.googleapis.com/overview?project=123 then retry.</internalReason></error></errors>";
+    let said = bearer::refusal(&[], body).unwrap_or_default();
+    assert!(said.starts_with("CalDAV API has not been used") && said.ends_with("then retry."), "{said}");
+    assert_eq!(bearer::refusal(&[], b"<code>accessNotConfigured</code>"), Some("the server's API isn't turned on for this Google client".into()));
+    // Capped on a character's boundary (hostile input).
+    let long = format!("<code>accessNotConfigured</code><internalReason>{}</internalReason>", "€".repeat(400));
+    let said = bearer::refusal(&[], long.as_bytes()).unwrap_or_default();
+    assert!(said.len() <= 500 && said.len() > 490 && said.chars().all(|c| c == '€'), "{}", said.len());
+    // Not the token's: a calendar or item the user may not change, or no reason given.
+    assert_eq!(bearer::refusal(&[], b"<internalReason>You don't have permission</internalReason>"), None);
+    assert_eq!(bearer::refusal(&header("Bearer realm=\"x\""), b"not xml at all"), None);
+}
+
+/// A 403 for one item is that item's on a token session too: refused, the rest of the sync goes
+/// on. Google refusing the token itself, there, is the sign-in's.
+#[test]
+fn a_403_on_a_token_session_is_the_items_unless_the_token_is_refused() {
+    use crate::fakes::fake_dav::{CAL, serve};
+    let token = "test-token";
+    let server = serve();
+    {
+        let mut d = server.data.lock().unwrap();
+        d.bearer = Some(token.to_string());
+        d.forbidden.push(format!("{CAL}forbidden.ics"));
+        d.unreadable.push(CAL.to_string());
+    }
+    let dav = Dav::bearer(token, &["127.0.0.1"]);
+    let url = format!("{}{CAL}forbidden.ics", server.base);
+    let ics = "BEGIN:VCALENDAR\r\nUID:test\r\nEND:VCALENDAR";
+    assert!(matches!(dav.store(&url, "text/calendar; charset=utf-8", ics, None), Ok(Err(Refused::Forbidden))));
+    assert!(matches!(dav.remove(&url, ""), Ok(Err(Refused::Forbidden))));
+    assert!(!matches!(dav.collections(Kind::Calendars, &format!("{}{CAL}", server.base)), Err(NetError::Auth(_))));
+
+    server.data.lock().unwrap().bearer_forbidden = true;
+    let url = format!("{}{CAL}new.ics", server.base);
+    assert!(matches!(dav.store(&url, "text/calendar; charset=utf-8", ics, None), Err(NetError::Auth(_))));
+    assert!(matches!(dav.remove(&url, "\"e1\""), Err(NetError::Auth(_))));
+}
+
+/// The access token opens the whole Google account: it goes over https to the hosts the session
+/// was made for, and nowhere else (another host, a redirect's, plain http but to this computer).
+#[test]
+fn the_token_goes_to_its_hosts_alone() {
+    use crate::fakes::fake_dav::serve;
+    let b = bearer::Bearer::new("t", &["apidata.googleusercontent.com", "127.0.0.1"]);
+    assert_eq!(b.for_url("https://apidata.googleusercontent.com/caldav/v2/a/events"), Some("Bearer t"));
+    assert_eq!(b.for_url("https://APIDATA.googleusercontent.com./x"), Some("Bearer t"));
+    assert_eq!(b.for_url("http://apidata.googleusercontent.com/x"), None, "in the clear");
+    assert_eq!(b.for_url("https://apidata.googleusercontent.com.attacker.example/x"), None);
+    assert_eq!(b.for_url("https://attacker.example/x"), None);
+    assert_eq!(b.for_url("http://127.0.0.1:8080/dav/"), Some("Bearer t"), "a test server on this computer");
+    assert_eq!(b.for_url("not a url"), None);
+
+    // A server of another name is asked without it.
+    let server = serve();
+    server.data.lock().unwrap().bearer = Some("t".into());
+    let dav = Dav::bearer("t", &["localhost"]);
+    assert!(matches!(dav.home_from(Kind::Calendars, &format!("{}/dav/", server.base)), Err(NetError::Auth(_))));
+    assert_eq!(server.data.lock().unwrap().offered, 0, "no request carried the token");
 }

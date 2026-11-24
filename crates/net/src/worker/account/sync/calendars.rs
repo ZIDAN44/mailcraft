@@ -7,10 +7,12 @@ use super::*;
 const CALENDAR_MINUTES: u32 = 15;
 /// The longest a calendar-only account waits to try again after its server couldn't be reached.
 const MOST_BACKOFF: Duration = Duration::from_secs(300);
+/// Where a Google account's access token may go for its calendars: Google's CalDAV server.
+const GOOGLE_DAV: &[&str] = &["apidata.googleusercontent.com"];
 
 impl Worker {
     /// Sync calendars and address books with the account's CalDAV / CardDAV server (password
-    /// accounts: OAuth tokens are for mail only). An Exchange account's are read a step at a
+    /// accounts, and Google's signed in with OAuth). An Exchange account's are read a step at a
     /// time, its mail looked at between ([`Worker::between_pim_steps`]; jobs too, from `rx`).
     pub(in crate::worker) fn sync_dav(&mut self, rx: Option<&Receiver<Job>>) {
         // Exchange Online: its calendars and contacts through Graph.
@@ -43,9 +45,11 @@ impl Worker {
             self.exchange_read(read);
             return;
         }
-        // OAuth tokens are for mail only: such an account's calendars need a sign-in of their own.
+        // Google's calendars take its access token (issue #262); another OAuth account's token is
+        // for mail only, so its calendars, as an EWS account's, need a sign-in of their own.
         let own = self.acc.dav.as_ref().is_some_and(|d| d.username.is_some());
-        if (self.acc.oauth.is_some() || self.acc.ews.is_some()) && !own {
+        let google = self.acc.oauth.as_deref() == Some("google");
+        if !google && (self.acc.oauth.is_some() || self.acc.ews.is_some()) && !own {
             return;
         }
         if let Err(e) = self.dav_pass() {
@@ -101,31 +105,47 @@ impl Worker {
     }
 
     /// A client for the account's calendar server, signed in as its settings say: as the mail
-    /// server is, or with the calendar server's own user name and password.
-    pub(in crate::worker) fn dav_client(&mut self) -> crate::dav::Dav {
+    /// server is, with the calendar server's own user name and password, or with an OAuth Bearer token.
+    pub(in crate::worker) fn dav_client(&mut self) -> Result<crate::dav::Dav> {
+        // Google: the mail's access token (refreshed as for mail), to Google's servers alone.
+        if self.acc.oauth.as_deref() == Some("google") && self.acc.dav.as_ref().and_then(|d| d.username.as_ref()).is_none() {
+            let token = self.secret()?;
+            return Ok(crate::dav::Dav::bearer(&token, GOOGLE_DAV));
+        }
+        // Password auth: the DAV username's password, or the mail password.
         let given = self.acc.dav.clone().unwrap_or_default();
         let (user, password) = match &given.username {
             Some(u) => (u.clone(), self.creds.as_ref().and_then(|c| c.get_secret(&self.acc, DAV_SECRET)).unwrap_or_default()),
             None => (self.acc.login_name().to_string(), Auth::held(&self.auth).secret.clone()),
         };
-        crate::dav::Dav::new(&user, &password).with_digest(self.dav_digest.take())
+        Ok(crate::dav::Dav::new(&user, &password).with_digest(self.dav_digest.take()))
     }
 
     /// One sync with the CalDAV and CardDAV server: the addresses given by hand (issue #7), or
-    /// those found from the account's address; signed in with their own user name, or the mail's.
+    /// those found from the account's address; signed in with their own user name, the mail's password,
+    /// or an OAuth Bearer token (Google).
     fn dav_pass(&mut self) -> Result<()> {
         let given = self.acc.dav.clone().unwrap_or_default();
         let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
-        let dav = self.dav_client();
+        let dav = self.dav_client()?;
         let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
+        // Google OAuth: use its CalDAV endpoint when no address is given.
+        let google = self.acc.oauth.as_deref() == Some("google") && given.username.is_none();
+        let caldav = if google && given.caldav.trim().is_empty() {
+            let email_enc = crate::http::pct(&self.acc.email);
+            Some(format!("https://apidata.googleusercontent.com/caldav/v2/{email_enc}/events"))
+        } else {
+            Some(given.caldav.clone()).filter(|c| !c.trim().is_empty())
+        };
         let at = crate::dav::Where {
             email: &self.acc.email,
             username: &self.acc.username,
             others: &self.acc.identities,
             imap_host: host,
-            caldav: Some(given.caldav.as_str()).filter(|c| !c.trim().is_empty()),
+            caldav: caldav.as_deref(),
             carddav: Some(given.carddav.as_str()).filter(|c| !c.trim().is_empty()),
             mails: !self.acc.is_calendar_only(),
+            contacts: !google,
         };
         let sync = crate::dav::sync(&dav, &at, &pim, now(), system_zone());
         self.dav_digest = dav.digest();

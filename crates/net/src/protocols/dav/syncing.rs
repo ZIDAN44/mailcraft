@@ -51,22 +51,31 @@ impl Run<'_> {
 /// last saved; nothing is written here: the result is for the engine to merge.
 pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::zone::Zone) -> Result<DavSync> {
     let mut out = DavSync::default();
-    // Where the collections live (looked up once; again a day after finding none). An address
-    // the user gave is followed instead of looking, and what's wrong with it is said.
+    // Where the collections live (looked up once; again a day after finding none, or after
+    // signing in again). An address the user gave is followed instead of looking, and what's
+    // wrong with it is said.
     let retry = pim.dav_checked.is_none_or(|t| now.saturating_sub(t) > 86_400);
     // A given address that holds nothing is said once and remembered as none, as one that wasn't
     // found is (looked at again a day on, or when it's changed); a refused sign-in stops the sync.
+    // Google refusing the access token a permission it lacks (an account signed in before
+    // MailCraft asked for calendars) is said the same way: the rest syncs, and signing in again
+    // looks again.
     let find = |kind: Kind, given: Option<&str>, errors: &mut Vec<String>| -> Result<Option<String>> {
-        match given.filter(|g| !g.trim().is_empty()) {
-            Some(g) => match dav.home_given(kind, g) {
-                Ok(h) => Ok(Some(h)),
-                Err(NetError::No(e)) => {
-                    errors.push(e);
-                    Ok(None)
-                }
-                Err(e) => Err(e),
-            },
+        let given = given.filter(|g| !g.trim().is_empty());
+        let found = match given {
+            Some(g) => dav.home_given(kind, g).map(Some),
             None => dav.discover(kind, at.email, at.imap_host),
+        };
+        match found {
+            Err(NetError::No(e)) if given.is_some() => {
+                errors.push(e);
+                Ok(None)
+            }
+            Err(NetError::Auth(e)) if dav.is_bearer() => {
+                errors.push(e);
+                Ok(None)
+            }
+            r => r,
         }
     };
     out.caldav_home = match &pim.caldav_home {
@@ -75,8 +84,8 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         _ => None,
     };
     out.carddav_home = match &pim.carddav_home {
-        Some(h) if !h.is_empty() => Some(h.clone()),
-        _ if retry => find(Kind::Contacts, at.carddav, &mut out.errors)?,
+        Some(h) if !h.is_empty() && at.contacts => Some(h.clone()),
+        _ if retry && at.contacts => find(Kind::Contacts, at.carddav, &mut out.errors)?,
         _ => None,
     };
     out.checked = now;
@@ -98,10 +107,14 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     let mut refetch: Vec<String> = Vec::new();
     run.push_deletions(&mut out, &mut refetch)?;
     run.push_events(&mut out, &mut refetch)?;
-    run.push_cards(&mut out)?;
+    if at.contacts {
+        run.push_cards(&mut out)?;
+    }
     run.push_tasks(&mut out, &mut refetch)?;
     run.read_calendars(&refetch, &mut out)?;
-    run.read_books(&mut out)?;
+    if at.contacts {
+        run.read_books(&mut out)?;
+    }
     Ok(out)
 }
 

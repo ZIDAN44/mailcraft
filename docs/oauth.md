@@ -96,12 +96,13 @@ administrator can also have IMAP turned off for the organisation.
 ### Why the released builds have no Google sign-in
 
 MailCraft asks Google for full access to Gmail (`https://mail.google.com/`), which IMAP and SMTP
-need. Google treats that as a restricted scope:
+need, and for Google Calendar (`https://www.googleapis.com/auth/calendar`), which CalDAV needs.
+Google treats Gmail's as a restricted scope and Calendar's as a sensitive one:
 
 - An app Google hasn't verified shows a warning before sign-in and is limited to 100 users over
   the life of its Google project. After that, Google blocks new sign-ins.
-- Verification for this scope includes a security assessment by an outside lab, repeated every
-  year. MailCraft hasn't been through it.
+- Verification for the restricted scope includes a security assessment by an outside lab,
+  repeated every year. MailCraft hasn't been through it.
 
 ### Sign in with Google through a client of your own
 
@@ -114,6 +115,13 @@ has no warning and no user limit, and works for that organisation's accounts onl
 2. Under **Clients**, create an OAuth client of the type **Desktop app**.
 3. Set `MAILCRAFT_GOOGLE_CLIENT_ID` and `MAILCRAFT_GOOGLE_CLIENT_SECRET` to its ID and secret
    before MailCraft starts.
+4. To sync calendars, enable the **CalDAV API** (`caldav.googleapis.com`) for the project. Without
+   it Google answers HTTP 403 `accessNotConfigured`, and MailCraft shows Google's own message.
+
+Accounts signed in with Google sync their calendars over CalDAV with the OAuth token, which goes
+to Google's CalDAV server alone. An account signed in before MailCraft asked for the calendar
+permission is told so, and signing in again grants it; its calendars are then looked for at once.
+Contacts aren't synced for Google accounts yet.
 
 A client that is **External** and not verified works too, with Google's warning (choose
 **Advanced**, then **Go to MailCraft**) and its limit of 100 users.
