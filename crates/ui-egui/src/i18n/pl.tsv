@@ -2119,3 +2119,6 @@ count	occurrences	wystąpieniach
 	Attach messages	Załącz wiadomości
 	Attach 1 message	Załącz 1 wiadomość
 	Attach {n} messages	Załącz wiadomości: {n}
+	Move to To	Przenieś do pola Do
+	Move to Cc	Przenieś do pola DW
+	Move to Bcc	Przenieś do pola UDW

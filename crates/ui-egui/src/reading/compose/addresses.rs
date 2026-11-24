@@ -29,7 +29,16 @@ pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engi
                     continue;
                 }
                 let value = field.of(&mut c.to, &mut c.cc, &mut c.bcc);
-                let (book, check) = recipient_field(ui, st, field, label, value, hint, field == Recipients::To && focus_to, &f.suggestions);
+                let (book, check, done, edit_id) =
+                    recipient_field(ui, st, field, label, value, hint, field == Recipients::To && focus_to, &f.suggestions);
+                // A chip put back to edit: its box has the keyboard, at the end of it.
+                if recipients::apply(c, field, done) {
+                    ui.memory_mut(|m| m.request_focus(edit_id));
+                    if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), edit_id) {
+                        state.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(usize::MAX))));
+                        state.store(ui.ctx(), edit_id);
+                    }
+                }
                 if book {
                     let d = crate::Dialog::select_names(c, field);
                     acts.push(Action::Dialog(d));
@@ -112,7 +121,10 @@ pub(super) fn suggestions(s: &mut Session, st: &mut UiState) -> Vec<Contact> {
                 Recipients::Cc => c.cc.clone(),
                 Recipients::Bcc => c.bcc.clone(),
             };
-            if mailcraft_engine::model::contacts::last_token(&text).is_empty() || st.suggest_dismissed.as_deref() == Some(text.as_str()) {
+            // Escape put them away for what's being typed after the chips (all the box hands
+            // the suggestions).
+            let typing = recipients::entries(&text).1;
+            if mailcraft_engine::model::contacts::last_token(&text).is_empty() || st.suggest_dismissed.as_deref() == Some(typing.as_str()) {
                 Vec::new()
             } else {
                 suggested(s, st, text)
@@ -208,9 +220,11 @@ fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, c
     address_check(ui, t, value, check_addresses);
 }
 
-/// A recipient box (To, Cc, Bcc) that suggests people from mail already seen
-/// ([`crate::look::people_box`]). Whether its button was pressed (the address book), and whether
-/// Ctrl+K was (Check Names).
+/// A recipient box (To, Cc, Bcc): its people a chip each ([`recipients`], issue #269), then what's
+/// being typed, which suggests people from mail already seen ([`crate::look::people_box`]).
+/// Whether its button was pressed (the address book), whether Ctrl+K was (Check Names), what was
+/// done to its chips, and its text box's id.
+#[allow(clippy::too_many_arguments)]
 fn recipient_field(
     ui: &mut Ui,
     st: &mut UiState,
@@ -220,18 +234,50 @@ fn recipient_field(
     hint: &str,
     focus: bool,
     suggestions: &[Contact],
-) -> (bool, bool) {
+) -> (bool, bool, Vec<recipients::ChipDone>, egui::Id) {
     let t = st.tokens;
     let showing = st.suggest_field == Some(field) && !suggestions.is_empty();
     let refocus = st.suggest_refocus == Some(field);
     let edit_id = ui.scope_id().with(("recipient", field.code()));
-    let (pressed, typed) = ui
+    let (pressed, typed, done) = ui
         .horizontal(|ui| {
             // The field's button opens the address book (the caller's to show).
             let b = label_button(ui, &t, label, true);
-            let typing = people_box::Typing { index: &mut st.suggest_index, dismissed: &mut st.suggest_dismissed, refocus };
+            let (list, _) = recipients::entries(value);
+            let (_, at) = addr::split_entries(value);
+            let mut typing = value.get(at..).unwrap_or_default().to_string();
+            let before = typing.clone();
+            // Backspace with nothing typed after them takes the last one out, as Outlook's does.
+            let back = typing.is_empty()
+                && !list.is_empty()
+                && ui.memory(|m| m.has_focus(edit_id))
+                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Backspace));
+            // A list pasted a person a line (from a spreadsheet or another mail program) is a
+            // chip each: its lines apart by `;` (the one-line box ran them together, one entry).
+            if ui.memory(|m| m.has_focus(edit_id)) {
+                ui.input_mut(|i| {
+                    for e in &mut i.events {
+                        if let egui::Event::Paste(pasted) = e
+                            && pasted.contains(['\n', '\r', '\t'])
+                        {
+                            *pasted = pasted.split(['\n', '\r', '\t']).map(str::trim).filter(|l| !l.is_empty()).collect::<Vec<_>>().join("; ");
+                        }
+                    }
+                });
+            }
+            let typing_state = people_box::Typing { index: &mut st.suggest_index, dismissed: &mut st.suggest_dismissed, refocus };
             let shown = if showing { suggestions } else { &[] };
-            (b.clicked(), people_box::edit(ui, &t, edit_id, value, shown, typing, |ui, e| underlined(ui, &t, e.hint_text(tl!(hint)))))
+            let hint = if list.is_empty() { tl!(hint) } else { "" };
+            let (typed, mut done) = recipients::chips_and_typing(ui, &t, field, value, |ui| {
+                people_box::edit(ui, &t, edit_id, &mut typing, shown, typing_state, |ui, e| underlined(ui, &t, e.hint_text(hint)))
+            });
+            if back {
+                done.push(recipients::ChipDone::Remove(list.len() - 1));
+            }
+            if typing != before {
+                *value = format!("{}{typing}", value.get(..at).unwrap_or_default());
+            }
+            (b.clicked(), typed, done)
         })
         .inner;
     let r = &typed.response;
@@ -251,7 +297,7 @@ fn recipient_field(
     }
     // Half-typed addresses are fine while typing; check once the box is left.
     address_check(ui, &t, value, !r.has_focus() && st.suggest_refocus != Some(field));
-    (pressed, typed.check)
+    (pressed, typed.check, done, edit_id)
 }
 
 fn address_check(ui: &mut Ui, t: &Tokens, value: &str, check_addresses: bool) {

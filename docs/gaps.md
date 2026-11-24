@@ -308,6 +308,16 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** The message editor holds text and its formatting; a table is kept beside the text
   as the HTML it goes out as, drawn where its text stands, which the editor doesn't edit.
 
+### 26. Recipients as chips: what isn't done yet
+
+- **Impact:** The people in To, Cc and Bcc are chips (#269), but several can't be selected at
+  once, the arrow keys don't move between them, and they can't be put in another order by
+  dragging within a box. A long list isn't folded to one line with "+N more".
+- **Workaround:** Each chip's right-click menu moves, copies, edits or removes it; a drag moves
+  it to another box; Backspace after the last one removes it.
+- **Cause:** The smaller version of the request was built first: the chips are the box's text,
+  a chip an entry, so what's sent is what's shown.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

@@ -2101,3 +2101,6 @@ count	occurrences	פעמים
 	Attach messages	צירוף הודעות
 	Attach 1 message	צרף הודעה אחת
 	Attach {n} messages	צרף {n} הודעות
+	Move to To	העבר אל "אל"
+	Move to Cc	העבר אל "עותק"
+	Move to Bcc	העבר אל "עותק מוסתר"

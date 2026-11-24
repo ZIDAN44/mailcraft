@@ -2102,3 +2102,6 @@ count	occurrences	次
 	Attach messages	附加邮件
 	Attach 1 message	附加 1 封邮件
 	Attach {n} messages	附加 {n} 封邮件
+	Move to To	移到收件人
+	Move to Cc	移到抄送
+	Move to Bcc	移到密送

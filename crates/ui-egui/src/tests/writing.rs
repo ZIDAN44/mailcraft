@@ -4,6 +4,7 @@
 use super::*;
 
 mod check_names;
+mod chips;
 mod files;
 mod fonts;
 mod form;

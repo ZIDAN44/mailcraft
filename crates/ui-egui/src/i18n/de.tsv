@@ -2106,3 +2106,6 @@ count	occurrences	Terminen
 	Attach messages	Nachrichten anhängen
 	Attach 1 message	1 Nachricht anhängen
 	Attach {n} messages	{n} Nachrichten anhängen
+	Move to To	Nach „An“ verschieben
+	Move to Cc	Nach „Cc“ verschieben
+	Move to Bcc	Nach „Bcc“ verschieben

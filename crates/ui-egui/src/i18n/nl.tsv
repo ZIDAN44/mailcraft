@@ -2101,3 +2101,6 @@ count	occurrences	keer
 	Attach messages	Berichten bijvoegen
 	Attach 1 message	1 bericht bijvoegen
 	Attach {n} messages	{n} berichten bijvoegen
+	Move to To	Verplaatsen naar Aan
+	Move to Cc	Verplaatsen naar CC
+	Move to Bcc	Verplaatsen naar Bcc

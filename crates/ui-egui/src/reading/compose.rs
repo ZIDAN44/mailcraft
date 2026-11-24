@@ -12,6 +12,7 @@ mod alert;
 mod chips;
 pub(crate) mod dragged;
 mod options;
+pub(crate) mod recipients;
 mod tables;
 #[cfg(test)]
 mod tests;

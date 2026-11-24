@@ -16,6 +16,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Added
 
+- **Recipients as chips** in To, Cc and Bcc (#269): each person by name (the address on hover), × to remove them, dragged to another box to move them, and a right-click menu to move, copy, edit or remove them; Backspace after the last one removes it, an address that isn't one is outlined in red, and a list pasted a person a line becomes a chip each. What's sent is unchanged.
 - A message dragged from the list onto a message being written is attached to it, as an `.eml` (#270), as Outlook does; several selected go together. The drag says **Attach** while it's over the message, in the reading pane or a window of its own.
 - Tables pasted into a message stay tables (#268): cells copied in Excel, or a table copied from a web page or another message, show in the message as they will be sent (their rows and cells, lines, colours and alignment) and go out as a table, with each row a line of text in the plain text. Backspace after one takes it out; a draft keeps its tables. Its cells can't be edited in MailCraft yet.
 - **Text size**, in **File › Options › General** (#267): everything in the window larger or smaller, from 80 % to 200 %, kept for the next time MailCraft starts; **Ctrl** and **+** or **−** change it too, and **Ctrl+0** puts it back. Windows keep their size and place on the screen as it changes.

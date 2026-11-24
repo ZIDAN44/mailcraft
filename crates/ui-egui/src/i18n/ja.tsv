@@ -2102,3 +2102,6 @@ count	occurrences	回
 	Attach messages	メッセージを添付
 	Attach 1 message	1 件のメッセージを添付
 	Attach {n} messages	{n} 件のメッセージを添付
+	Move to To	宛先に移動
+	Move to Cc	CC に移動
+	Move to Bcc	BCC に移動

@@ -2119,3 +2119,6 @@ count	occurrences	повторений
 	Attach messages	Вложить письма
 	Attach 1 message	Вложить 1 письмо
 	Attach {n} messages	Вложить письма: {n}
+	Move to To	Переместить в «Кому»
+	Move to Cc	Переместить в «Копия»
+	Move to Bcc	Переместить в «Скрытая копия»

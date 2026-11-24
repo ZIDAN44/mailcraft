@@ -2105,3 +2105,6 @@ count	occurrences	회
 	Attach messages	메시지 첨부
 	Attach 1 message	메시지 1개 첨부
 	Attach {n} messages	메시지 {n}개 첨부
+	Move to To	받는 사람으로 이동
+	Move to Cc	참조로 이동
+	Move to Bcc	숨은 참조로 이동

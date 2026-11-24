@@ -2106,3 +2106,6 @@ count	occurrences	kez
 	Attach messages	İletileri ekle
 	Attach 1 message	1 iletiyi ekle
 	Attach {n} messages	{n} iletiyi ekle
+	Move to To	Kime alanına taşı
+	Move to Cc	Cc alanına taşı
+	Move to Bcc	Bcc alanına taşı

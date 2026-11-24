@@ -149,6 +149,53 @@ fn split_outside_quotes(s: &str) -> Vec<&str> {
     parts
 }
 
+/// A To/Cc/Bcc box's text as its recipients are shown, a chip each (issue #269): each entry
+/// ended (by `;`, `,`, or an address's `>` with more after it: a list pasted run together),
+/// trimmed, as its place in `input` (empty ones left out), and where what's still being typed
+/// starts (past the spaces before it). An address at the end is still being typed: one put back
+/// to edit stays text until its `;`.
+pub fn split_entries(input: &str) -> (Vec<std::ops::Range<usize>>, usize) {
+    let mut entries = Vec::new();
+    let (mut quoted, mut angle, mut start) = (false, false, 0usize);
+    let mut push = |from: usize, to: usize| {
+        let part = input.get(from..to).unwrap_or_default();
+        let lead = part.len() - part.trim_start().len();
+        let trimmed = part.trim();
+        if !trimmed.is_empty() {
+            entries.push(from + lead..from + lead + trimmed.len());
+        }
+    };
+    for (i, c) in input.char_indices() {
+        match c {
+            '"' => quoted = !quoted,
+            '<' if !quoted => angle = true,
+            '>' if !quoted && angle => {
+                angle = false;
+                if input.get(i + 1..).is_some_and(|after| !after.trim().is_empty()) {
+                    push(start, i + 1);
+                    start = i + 1;
+                }
+            }
+            ',' | ';' if !quoted && !angle => {
+                push(start, i);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    let rest = input.get(start..).unwrap_or_default();
+    (entries, start + (rest.len() - rest.trim_start().len()))
+}
+
+/// A box's text again from its entries and what's being typed after them ([`split_entries`]).
+pub fn join_entries<S: AsRef<str>>(entries: &[S], typing: &str) -> String {
+    if entries.is_empty() {
+        return typing.to_string();
+    }
+    let done: Vec<&str> = entries.iter().map(AsRef::as_ref).collect();
+    format!("{}; {typing}", done.join("; "))
+}
+
 /// Format a list for a header-like line (`Zoe Park <zoe@…>; ops@…`).
 pub fn format_list(list: &[EmailAddress]) -> String {
     list.iter().map(ToString::to_string).collect::<Vec<_>>().join("; ")
@@ -221,5 +268,31 @@ mod tests {
         let got: Vec<(&str, &str)> = got.iter().map(|a| (a.name.as_str(), a.email.as_str())).collect();
         assert_eq!(got, [("Ann", "a@b.org"), ("Bob", "c@d.org"), ("", "e@f.org"), ("Park, Zoe", "z@x.org")]);
         assert_eq!(parse_valid("\"Park, Zoe\" <z@x.org>, half@").len(), 1);
+    }
+
+    /// A box's text as its chips show it (issue #269): each entry ended (`;`, `,`, an address's
+    /// `>`, a name's comma in quotes not), and what's still being typed; put back together, the
+    /// same people in the same order.
+    #[test]
+    fn a_boxs_entries_and_what_is_being_typed() {
+        let split = |s: &str| {
+            let (entries, typing) = split_entries(s);
+            (
+                entries.into_iter().map(|r| s.get(r).unwrap_or_default().to_string()).collect::<Vec<_>>(),
+                s.get(typing..).unwrap_or_default().to_string(),
+            )
+        };
+        let s = "Zoe Park <zoe@x.org>; ops@x.org, \"Park, Ann\" <ann@x.org>  jo";
+        assert_eq!(split(s), (vec!["Zoe Park <zoe@x.org>".into(), "ops@x.org".into(), "\"Park, Ann\" <ann@x.org>".into()], "jo".into()));
+        assert_eq!(split("ops@x.org;  "), (vec!["ops@x.org".into()], String::new()));
+        assert_eq!(split("half typ"), (vec![], "half typ".into()));
+        assert_eq!(split(" ;; ,"), (vec![], String::new()));
+        assert_eq!(split("\"Park, Ann"), (vec![], "\"Park, Ann".into()), "a quote still open is typed");
+        assert_eq!(split("ops@x.org; Zoe <zoe@x.org> "), (vec!["ops@x.org".into()], "Zoe <zoe@x.org> ".into()), "one at the end is being typed");
+        let (entries, typing) = split(s);
+        let again = join_entries(&entries, &typing);
+        assert_eq!(parse_valid(&again), parse_valid(s));
+        assert_eq!(again, "Zoe Park <zoe@x.org>; ops@x.org; \"Park, Ann\" <ann@x.org>; jo");
+        assert_eq!(join_entries::<&str>(&[], "jo"), "jo");
     }
 }

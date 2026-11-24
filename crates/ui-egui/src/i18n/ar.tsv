@@ -2101,3 +2101,6 @@ count	occurrences	مرات
 	Attach messages	إرفاق رسائل
 	Attach 1 message	إرفاق رسالة واحدة
 	Attach {n} messages	إرفاق {n} رسائل
+	Move to To	نقل إلى «إلى»
+	Move to Cc	نقل إلى «نسخة»
+	Move to Bcc	نقل إلى «نسخة مخفية»

@@ -2106,3 +2106,6 @@ count	occurrences	occurrences
 	Attach messages	Joindre des messages
 	Attach 1 message	Joindre 1 message
 	Attach {n} messages	Joindre {n} messages
+	Move to To	Déplacer vers À
+	Move to Cc	Déplacer vers Cc
+	Move to Bcc	Déplacer vers Cci

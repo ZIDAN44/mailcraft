@@ -2106,3 +2106,6 @@ count	occurrences	repeticiones
 	Attach messages	Adjuntar mensajes
 	Attach 1 message	Adjuntar 1 mensaje
 	Attach {n} messages	Adjuntar {n} mensajes
+	Move to To	Mover a Para
+	Move to Cc	Mover a CC
+	Move to Bcc	Mover a CCO

@@ -2120,3 +2120,6 @@ count	occurrences	opakovaní
 	Attach messages	Priložiť správy
 	Attach 1 message	Priložiť 1 správu
 	Attach {n} messages	Priložiť správy ({n})
+	Move to To	Presunúť do poľa Komu
+	Move to Cc	Presunúť do poľa Kópia
+	Move to Bcc	Presunúť do poľa Skrytá kópia

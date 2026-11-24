@@ -2106,3 +2106,6 @@ count	occurrences	előfordulás
 	Attach messages	Üzenetek csatolása
 	Attach 1 message	1 üzenet csatolása
 	Attach {n} messages	{n} üzenet csatolása
+	Move to To	Áthelyezés a Címzett mezőbe
+	Move to Cc	Áthelyezés a Másolat mezőbe
+	Move to Bcc	Áthelyezés a Titkos másolat mezőbe

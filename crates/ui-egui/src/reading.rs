@@ -54,6 +54,8 @@ pub use compose::compose_window;
 #[cfg(test)]
 pub(crate) use compose::parse_local;
 #[cfg(test)]
+pub(crate) use compose::recipients as compose_chips;
+#[cfg(test)]
 pub(crate) use compose::send_block_text;
 use compose::*;
 pub(crate) use compose::{ComposeAlert, Suggested, dragged};
