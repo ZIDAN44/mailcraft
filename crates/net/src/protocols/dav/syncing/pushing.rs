@@ -10,8 +10,13 @@ impl Run<'_> {
     /// event read again, so it's back as it is there; so is one changed there since it was
     /// read (412: another device's change, or a task moved to another list meanwhile), said so.
     /// It was tried again at every sync, with the same version, refused each time.
+    ///
+    /// A deletion goes only while its own part's server is known: a contact's while the contacts'
+    /// home is, an event's or task's while the calendars' is. One server may hold both, and a part
+    /// not found there (or refused, Google's) waits until it's found again.
     pub(super) fn push_deletions(&self, out: &mut DavSync, refetch: &mut Vec<String>) -> Result<()> {
-        for t in self.pim.deleted.iter().filter(|t| self.ours(&t.href)) {
+        let known = (out.caldav_home.is_some(), out.carddav_home.is_some());
+        for t in self.pim.deleted.iter().filter(|t| self.ours(&t.href) && self.part_known(&t.href, known)) {
             match self.dav.remove(&t.href, &t.etag) {
                 Ok(Ok(())) => out.deleted.push(t.href.clone()),
                 Ok(Err(Refused::Forbidden)) => {
@@ -41,6 +46,20 @@ impl Run<'_> {
             }
         }
         Ok(())
+    }
+
+    /// Whether the server of the part an item at `href` is in is known this sync (`known`: the
+    /// calendars', the contacts'; see [`Run::push_deletions`]); an item of no collection kept here
+    /// goes as before.
+    fn part_known(&self, href: &str, (calendars, contacts): (bool, bool)) -> bool {
+        let under = |id: &str| !id.is_empty() && href.starts_with(id);
+        if self.pim.books.iter().any(|b| under(&b.id)) {
+            return contacts;
+        }
+        if self.pim.calendars.iter().any(|c| under(&c.id)) || self.pim.task_lists.iter().any(|l| under(&l.id)) {
+            return calendars;
+        }
+        true
     }
 
     /// Changes made here, per item (an event with its changed instances), in the calendar it's

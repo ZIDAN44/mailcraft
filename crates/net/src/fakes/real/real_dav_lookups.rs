@@ -7,7 +7,7 @@
 //!   cargo test -p mailcraft-net real_dav_ -- --ignored --nocapture --test-threads 1
 //! ```
 
-use mailcraft_model::pim::Pim;
+use mailcraft_model::pim::{Pim, Tombstone};
 use mailcraft_model::zone::Zone;
 
 use super::real_servers::{caldav_env, caldav_where};
@@ -37,4 +37,45 @@ fn real_dav_a_server_not_found_is_looked_for_a_day_after_the_look() {
     let s = sync(&pim, now + 86_460);
     assert!(!s.homes_kept, "{s:?}");
     assert_eq!(s.carddav_home, Some(contacts));
+}
+
+/// A contact deleted here goes to the server only while the contacts are found there: on a
+/// server holding the calendars and the contacts, a contact's deletion waits while its contacts
+/// aren't found (or are refused), and goes once they are.
+#[test]
+#[ignore = "needs a real CalDAV server in MAILCRAFT_REAL_CALDAV"]
+fn real_dav_a_contacts_deletion_waits_for_its_server() {
+    let Some((url, user, dav)) = caldav_env() else { return };
+    let at = crate::dav::Where { carddav: Some(&url), ..caldav_where(&url, &user) };
+    let now = crate::worker::now();
+    let sync = |pim: &Pim| crate::dav::sync(&dav, &at, pim, now, Zone::UTC).unwrap();
+    let read = |uid: &str| sync(&Pim::default()).cards.iter().any(|c| c.card.uid == uid);
+
+    let first = sync(&Pim::default());
+    let book = first.books.iter().flatten().find(|b| !b.read_only).map(|b| b.id.clone()).expect("an address book to write to");
+    let uid = format!("mc-waits-{}", std::process::id());
+    let href = format!("{}/{uid}.vcf", book.trim_end_matches('/'));
+    let card = mailcraft_model::vcard::Card { uid: uid.clone(), name: "Waits Here".into(), ..Default::default() };
+    let etag = dav.put(&href, "text/vcard; charset=utf-8", &mailcraft_model::vcard::write(&card), None).unwrap();
+    assert!(read(&uid), "stored");
+    // Where the server's own href for it may differ from the one written to (SOGo's).
+    let href = sync(&Pim::default()).cards.iter().find(|c| c.card.uid == uid).map(|c| c.href.clone()).unwrap_or(href);
+
+    let pim = |carddav: Option<String>| Pim {
+        caldav_home: first.caldav_home.clone(),
+        carddav_home: carddav,
+        dav_checked: Some(now),
+        calendars: first.calendars.clone().unwrap_or_default(),
+        books: first.books.clone().unwrap_or_default(),
+        deleted: vec![Tombstone { href: href.clone(), etag: etag.clone(), ..Default::default() }],
+        ..Default::default()
+    };
+    // The contacts saved as not found: the deletion waits, the contact stays on the server.
+    let s = sync(&pim(Some(String::new())));
+    assert!(!s.deleted.contains(&href), "{s:?}");
+    assert!(read(&uid), "still on the server");
+    // Found: it goes.
+    let s = sync(&pim(first.carddav_home.clone()));
+    assert!(s.deleted.contains(&href), "{s:?}");
+    assert!(!read(&uid), "deleted on the server");
 }

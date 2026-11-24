@@ -620,3 +620,49 @@ fn a_server_not_found_is_looked_for_again_a_day_after_the_look() {
     assert!(!out.homes_kept, "{out:?}");
     assert_eq!(out.carddav_home, Some(format!("{}/dav/card/", server.base)));
 }
+
+/// A deletion goes only while its own part's server is known: one server holding the calendars
+/// and the contacts, a contact deleted here waits while the contacts aren't found there (or are
+/// refused), and an event while the calendars aren't; each goes once its part is found.
+#[test]
+fn a_deletion_waits_for_its_own_parts_server() {
+    use crate::fakes::fake_dav::{BOOK, CAL, PASSWORD, USER, serve};
+    use mailcraft_model::pim::{BookInfo, CalendarInfo, Tombstone};
+    use mailcraft_model::zone::Zone;
+
+    const T: i64 = 1_800_000_000;
+    let server = serve();
+    seed(&server);
+    let dav = Dav::new(USER, PASSWORD);
+    let at = Where { email: USER, imap_host: "imap.example", mails: true, ..Default::default() };
+    let (cal, book) = (format!("{}{CAL}", server.base), format!("{}{BOOK}", server.base));
+    let (event, card) = (format!("{cal}g-event.ics"), format!("{book}g-card.vcf"));
+    let homes = (Some(format!("{}/dav/cal/", server.base)), Some(format!("{}/dav/card/", server.base)));
+    let pim = |caldav: Option<String>, carddav: Option<String>, gone: &str| {
+        let mut p = Pim {
+            caldav_home: caldav,
+            carddav_home: carddav,
+            dav_checked: Some(T),
+            calendars: vec![CalendarInfo { id: cal.clone(), name: "Work".into(), ..Default::default() }],
+            books: vec![BookInfo { id: book.clone(), name: "Contacts".into(), ..Default::default() }],
+            deleted: vec![Tombstone { href: gone.to_string(), ..Default::default() }],
+            ..Default::default()
+        };
+        p.ensure_defaults();
+        p
+    };
+    let deletes = || server.data.lock().unwrap().log.iter().filter(|l| l.starts_with("DELETE")).count();
+
+    // The contacts not found, the calendars found: the contact waits.
+    let out = sync(&dav, &at, &pim(homes.0.clone(), Some(String::new()), &card), T + 600, Zone::UTC).unwrap();
+    assert!(!out.deleted.contains(&card) && deletes() == 0, "{out:?}");
+    // The calendars not found, the contacts found: the event waits.
+    let out = sync(&dav, &at, &pim(Some(String::new()), homes.1.clone(), &event), T + 600, Zone::UTC).unwrap();
+    assert!(!out.deleted.contains(&event) && deletes() == 0, "{out:?}");
+    // Each part found: each goes.
+    let out = sync(&dav, &at, &pim(homes.0.clone(), homes.1.clone(), &card), T + 600, Zone::UTC).unwrap();
+    assert!(out.deleted.contains(&card), "{out:?}");
+    let out = sync(&dav, &at, &pim(homes.0.clone(), homes.1.clone(), &event), T + 600, Zone::UTC).unwrap();
+    assert!(out.deleted.contains(&event), "{out:?}");
+    assert_eq!(deletes(), 2);
+}
