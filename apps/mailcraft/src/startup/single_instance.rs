@@ -167,7 +167,9 @@ fn parse_request(line: &str, key: &str) -> Option<Handed> {
     };
     let absolute = |s: &String| Path::new(s).is_absolute();
     let mut open = strings(value.get("open")?, MAX_OPEN)?;
-    open.retain(|s| mailcraft_engine::model::mailto::is_mailto(s) || absolute(s));
+    // A notification's `mailcraft:` link too (issue #273): clicked in the notification centre,
+    // it reaches the running window through a launch.
+    open.retain(|s| mailcraft_engine::model::mailto::is_mailto(s) || mailcraft_engine::model::app_link::is_app_link(s) || absolute(s));
     let mut attach = match value.get("attach") {
         Some(list) => strings(list, MAX_ATTACHED)?,
         None => Vec::new(),
@@ -351,6 +353,12 @@ fn claim_at(path: &Path, handed: &Handed) -> Claim {
     for _ in 0..3 {
         match UnixStream::connect(path) {
             Ok(stream) => {
+                // The running window may come to the front: Windows lets a program do so only
+                // when the one in front (this launch, from a click) says it may. Without it, a
+                // notification clicked in the notification centre only flashed on the taskbar
+                // (issue #273), and so did a link opened in a browser.
+                #[cfg(windows)]
+                let _ = winsafe::AllowSetForegroundWindow(None);
                 return match hand_over(stream, path, handed, || std::thread::sleep(KEY_WAIT)) {
                     Ok(()) => Claim::Shown,
                     Err(e) => {

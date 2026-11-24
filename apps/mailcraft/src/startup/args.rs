@@ -192,13 +192,17 @@ fn rejoin_split_paths(args: Vec<String>, exists: impl Fn(&str) -> bool) -> Vec<S
     out
 }
 
-/// One argument as handed on: a `mailto:` link as it is; a `file:` link or a path as an absolute
-/// path; nothing for an empty one or a link MailCraft doesn't open (another scheme, a `file:` link
-/// to another computer).
+/// One argument as handed on: a `mailto:` or `mailcraft:` link as it is; a `file:` link or a path
+/// as an absolute path; nothing for an empty one or a link MailCraft doesn't open (another
+/// scheme, a `file:` link to another computer).
 fn one(arg: &str) -> Option<String> {
     let arg = arg.trim();
     if arg.is_empty() || arg == "/?" {
         return None;
+    }
+    // A notification's link (issue #273): as it is, for the window to read.
+    if mailcraft_engine::model::app_link::is_app_link(arg) {
+        return (arg.len() <= mailcraft_engine::model::app_link::MAX_LINK).then(|| arg.to_string());
     }
     if mailcraft_engine::model::mailto::is_mailto(arg) {
         let mut end = arg.len().min(mailcraft_engine::model::mailto::MAX_LINK);
@@ -299,6 +303,12 @@ mod tests {
         // Just the link, or the file.
         assert_eq!(opened(args(&["--open", "mailto:a@x.example?subject=Hi"])).1.unwrap(), ["mailto:a@x.example?subject=Hi"]);
         assert_eq!(opened(args(&["--open"])), (Vec::new(), Some(Vec::new())));
+        // A notification's link, clicked in the notification centre (issue #273); one too long
+        // to be a notification's, nothing.
+        let link = "mailcraft:show?key=sample%3A1%3A1%3AINBOX";
+        assert_eq!(opened(args(&["--open", link])).1.unwrap(), [link]);
+        let long = format!("mailcraft:show?key={}", "a".repeat(mailcraft_engine::model::app_link::MAX_LINK));
+        assert!(opened(args(&["--open", &long])).1.unwrap().is_empty());
         // Not first: an option like any other, and the rest are read as ever.
         let given = args(&["--sample", "--open", "mailto:a@x.example", "--cmd", "ui.about"]);
         assert_eq!(opened(given.clone()), (given.clone(), None));

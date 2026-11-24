@@ -42,8 +42,6 @@ iana-time-zone = "0.1"
 rfd = "0.18"
 # Pictures pasted into a message.
 arboard = { version = "3", default-features = false, features = ["image-data"] }
-# Desktop notifications for new mail (toasts, Notification Center, freedesktop notifications).
-notify-rust = { version = "4", default-features = false, features = ["z"] }
 # Decodes the window icon (assets/app-icon).
 image = { version = "0.25", default-features = false, features = ["png"] }
 # Passwords live in the system keychain, never in MailCraft's files.
@@ -60,11 +58,18 @@ winresource = "0.1"
 # `desktop::shell_open`.)
 [target.'cfg(not(windows))'.dependencies]
 open = "5"
+# Desktop notifications for new mail (Notification Center, freedesktop notifications); Windows'
+# toasts are MailCraft's own (`platform/toast.rs`).
+notify-rust = { version = "4", default-features = false, features = ["z"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 # Notifications under MailCraft's name: its app id's name and icon, per user (`platform/toast.rs`).
 # The version ipconfig (the network crate's DNS settings) uses, so it's built once.
 windows-registry = "0.100"
+# Windows' toasts, made here (`platform/toast.rs`): one carries a `mailcraft:` link, so a click in
+# the notification centre comes back to MailCraft (issue #273), which notify-rust's can't. The
+# version and the features notify-rust's toasts used, so nothing more is built.
+windows = { version = "0.62", features = ["Data_Xml_Dom", "Foundation", "System", "UI_Notifications"] }
 # One MailCraft per data folder (`startup/single_instance.rs`): Unix sockets on Windows, which std lacks.
 # The version zbus brings, so it's built once.
 uds_windows = "1.2"

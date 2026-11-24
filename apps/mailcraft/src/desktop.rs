@@ -62,6 +62,9 @@ pub(crate) struct Desktop {
     pub(crate) x11: bool,
     /// A notification clicked, for the window's next frame (issue #273).
     pub(crate) clicks: notified::Clicks,
+    /// The data folder this MailCraft runs on, which a launch hands what it opens to: a
+    /// notification's link reaches this one when it starts on it (issue #273).
+    pub(crate) root: Option<PathBuf>,
 }
 
 impl Desktop {
@@ -420,40 +423,12 @@ impl Services for Desktop {
     }
     fn notify_about(&mut self, title: &str, body: &str, opens: Option<mailcraft_engine::model::MessageKey>) {
         let (title, body) = (title.to_string(), body.to_string());
-        #[cfg(windows)]
         let clicks = self.clicks.clone();
-        #[cfg(not(windows))]
-        let _ = &opens;
-        #[cfg(windows)]
-        let portable = self.portable;
-        // Off the UI thread: the notification service can be slow, or missing.
+        let sending = notified::Sending { portable: self.portable, root: self.root.clone() };
+        // Off the UI thread: the notification service can be slow, or missing. Clicked,
+        // MailCraft comes forward at the message (issue #273).
         off_thread(std::thread::Builder::new().name("notify".into()), "notification", move || {
-            let mut n = notify_rust::Notification::new();
-            n.summary(&title).body(&body).appname("MailCraft");
-            // Windows names a toast after its app id (PowerShell's when none is given). A
-            // portable copy writes nothing to the registry: it uses an installed MailCraft's.
-            #[cfg(windows)]
-            if (!portable && toast::registered()) || (portable && toast::installed()) {
-                n.app_id(toast::APP_ID);
-            }
-            match n.show() {
-                // Clicked on Windows, MailCraft comes forward at the message (issue #273): the
-                // toast tells this thread, which waits for that or the toast going away.
-                #[cfg(windows)]
-                Ok(shown) => {
-                    let _ = shown.wait_for_response(|r: &notify_rust::NotificationResponse| {
-                        if matches!(r, notify_rust::NotificationResponse::Default | notify_rust::NotificationResponse::Action(_)) {
-                            log::info!("notification clicked");
-                            clicks.clicked(opens);
-                        } else {
-                            log::info!("notification gone unclicked: {r:?}");
-                        }
-                    });
-                }
-                #[cfg(not(windows))]
-                Ok(_) => {}
-                Err(e) => log::warn!("notification: {e}"),
-            }
+            notified::send(&title, &body, opens, &clicks, &sending);
         });
     }
     fn notification_clicked(&mut self) -> Option<Option<mailcraft_engine::model::MessageKey>> {

@@ -29,8 +29,6 @@ use secrets::Keychain;
 
 #[cfg(target_os = "macos")]
 use platform::apple_events;
-#[cfg(windows)]
-use platform::toast;
 use platform::{appearance, secrets};
 use startup::{args, logfile, portable, single_instance};
 use window::{ClipboardKeys, app_icon, clipboard_files, clipboard_html, drag_out, read_clipboard};
@@ -569,6 +567,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                         frame_guard,
                         x11,
                         clicks: desktop::notified::Clicks::waking(ctx),
+                        root: root.clone(),
                         ..Default::default()
                     }),
                 );

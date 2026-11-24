@@ -214,9 +214,20 @@ impl MailApp {
 
     /// A `mailto:` link or a mail file the system handed MailCraft (as its mail app, or through
     /// Open with): a new message to write, the message shown, or the events or people added and
-    /// shown. Nothing is sent and nothing is attached.
+    /// shown; or a notification's `mailcraft:` link, the message it names shown. Nothing is sent
+    /// and nothing is attached.
     pub fn open_handed(&mut self, what: &str) {
         use mailcraft_engine::CmdError;
+        use mailcraft_engine::model::app_link;
+        // A notification's own link (issue #273): MailCraft shown, at its message. Another
+        // `mailcraft:` link asks for nothing MailCraft does.
+        if app_link::is_app_link(what) {
+            if let Some(shows) = app_link::parse(what) {
+                self.ui.backstage = None;
+                self.ui.link_shows = Some(shows);
+            }
+            return;
+        }
         let mailto = mailcraft_engine::model::mailto::is_mailto(what);
         let r = if mailto { self.session.run("mail.mailto", &json!({"url": what})) } else { self.session.run("file.open", &json!({"path": what})) };
         let name = mailcraft_engine::model::file_name(what);

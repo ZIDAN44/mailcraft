@@ -340,6 +340,11 @@ fn requests_are_read_strictly() {
         parse_request("{\"key\":\"k\",\"open\":[\"\",\" \",\"mailto:a@x.example\"]}", "k"),
         Some(Handed::opening(vec!["mailto:a@x.example".to_string()]))
     );
+    // A notification's link, clicked in the notification centre (issue #273).
+    assert_eq!(
+        parse_request("{\"key\":\"k\",\"open\":[\"mailcraft:show?key=a%3A1%3A2%3AINBOX\",\"https://x.example\"]}", "k"),
+        Some(Handed::opening(vec!["mailcraft:show?key=a%3A1%3A2%3AINBOX".to_string()]))
+    );
     // A path that isn't absolute (a launch makes them so) would be opened from this MailCraft's
     // folder: left out, here and among the files to send.
     let relative = request("k", &Handed { open: vec!["x.eml".into(), abs("/m/y.eml")], attach: vec![vec!["a.pdf".into(), abs("/u/b.pdf")]] });

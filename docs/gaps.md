@@ -308,18 +308,17 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** The message editor holds text and its formatting; a table is kept beside the text
   as the HTML it goes out as, drawn where its text stands, which the editor doesn't edit.
 
-### 26. Notifications clicked in the notification centre
+### 26. A portable copy's notifications in the notification centre
 
-- **Impact:** On Windows, a new-mail notification clicked while it shows brings MailCraft forward
-  at that mail (#273); one clicked later, from the notification centre, does nothing. A portable
-  copy on a computer where MailCraft was never installed gets no clicks at all, and on Linux and
-  macOS a click isn't followed yet.
+- **Impact:** On Windows, a portable copy's new-mail notification clicked once its banner has
+  gone, in the notification centre, does nothing; one clicked while it shows brings MailCraft
+  forward at that mail (#273). An installed MailCraft's does from the notification centre too.
 - **Workaround:** Click MailCraft on the taskbar or in the notification area; the mail is at the
   top of the Inbox.
-- **Cause:** Windows hands a click from the notification centre to a program it starts for it,
-  through a COM server or a link registered for MailCraft, which MailCraft doesn't have yet; a
-  click while the notification shows goes to MailCraft itself, under the app id the installer
-  registers.
+- **Cause:** Windows answers a click in the notification centre by starting the program a link
+  in the notification is registered for (`mailcraft:`). The installer registers it for everyone;
+  a portable copy writes nothing to the registry, and Windows doesn't start a link one program
+  registers for its user alone from a notification.
 
 ## Not planned
 

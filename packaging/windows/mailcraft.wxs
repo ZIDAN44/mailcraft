@@ -127,6 +127,20 @@
           </RegistryKey>
         </RegistryKey>
 
+        <!-- mailcraft: links, which MailCraft's notifications carry: one clicked in the notification
+             centre starts MailCraft with it, which hands it to the MailCraft running (#273,
+             apps/mailcraft/src/platform/toast/link.rs). -->
+        <RegistryKey Root="HKLM" Key="Software\Classes\mailcraft">
+          <RegistryValue Type="string" Value="URL:MailCraft" />
+          <RegistryValue Name="URL Protocol" Type="string" Value="" />
+          <RegistryKey Key="DefaultIcon">
+            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot;,0" />
+          </RegistryKey>
+          <RegistryKey Key="shell\open\command">
+            <RegistryValue Type="string" Value="&quot;[#MailcraftExe]&quot; --open &quot;%1&quot;" />
+          </RegistryKey>
+        </RegistryKey>
+
         <!-- .eml -->
         <RegistryKey Root="HKLM" Key="Software\Classes\MailCraft.eml">
           <RegistryValue Type="string" Value="Saved email message" />

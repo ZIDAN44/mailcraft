@@ -91,6 +91,9 @@ pub struct UiState {
     pub(crate) at_sign_in: Option<bool>,
     /// The window was closed to the notification area and is hidden.
     pub(crate) in_tray: bool,
+    /// A notification's `mailcraft:` link handed over (issue #273): shown, as a click on it is,
+    /// in the next pass.
+    pub(crate) link_shows: Option<Option<mailcraft_engine::model::MessageKey>>,
     /// MailCraft minimized the window itself (closed to the Dock or the taskbar, or started put
     /// away), and whether it has lost the focus since (issue #169, [`MailApp::logic`]).
     pub(crate) minimized_away: Option<bool>,

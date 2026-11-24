@@ -7,6 +7,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod addresses;
+pub mod app_link;
 pub mod dates;
 pub mod encoding;
 pub mod job;

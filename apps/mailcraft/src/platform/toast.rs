@@ -5,6 +5,13 @@
 //! name and icon under `HKCU\Software\Classes\AppUserModelId\<id>`; the Start menu shortcut the
 //! installer makes carries the same id. Writing that per-user key needs no rights; it's done
 //! when the first notification is shown (the icon file lives in MailCraft's data folder).
+//!
+//! A toast is MailCraft's own (`shown.rs`), carrying a `mailcraft:` link a click starts
+//! (`link.rs`), so one clicked in the notification centre comes back to MailCraft too (#273).
+
+mod link;
+mod shown;
+pub use shown::{POWERSHELL, show};
 
 /// MailCraft's id: also the Linux app id and the macOS bundle id.
 pub const APP_ID: &str = mailcraft_ui_egui::APP_ID;
@@ -32,6 +39,12 @@ pub fn claim(portable: bool) {
     if let Err(e) = winsafe::SetCurrentProcessExplicitAppUserModelID(APP_ID) {
         log::warn!("notifications: MailCraft didn't take its app id ({e}): a click on one may do nothing");
     }
+}
+
+/// Whether a toast's `mailcraft:` link reaches the MailCraft on the data folder `root`, and
+/// Windows starts it from a toast (`link.rs`).
+pub fn link_ready(root: &std::path::Path) -> bool {
+    link::link_reaches(root) && link::launcher_takes_links()
 }
 
 /// The icon shown on MailCraft's notifications.
