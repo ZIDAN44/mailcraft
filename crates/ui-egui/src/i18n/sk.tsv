@@ -2126,3 +2126,8 @@ count	occurrences	opakovaní
 	Mailing list:	Mailing list:
 	Unsubscribe	Odhlásiť odber
 	Show the message in its folder	Zobraziť správu v jej priečinku
+	Buttons on a message in the list	Tlačidlá na správe v zozname
+	Shown when the pointer is over a message, up to {n}.	Zobrazia sa, keď je ukazovateľ nad správou, najviac {n}.
+	Mark read or unread	Označiť ako prečítanú alebo neprečítanú
+	Choose a date…	Vybrať dátum…
+	Pick a time in the future.	Vyberte čas v budúcnosti.

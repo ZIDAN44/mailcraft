@@ -2,6 +2,8 @@
 //! the subject line with its markers, the buttons shown on hover, clicks and drags, and its
 //! right-click menu.
 
+use mailcraft_engine::RowAction;
+
 use super::*;
 
 /// The message a row shows, and where.
@@ -329,7 +331,7 @@ impl MessageRow<'_> {
         let subject = if m.subject.is_empty() { tl!("(no subject)").to_string() } else { m.subject.clone() };
         let subj_color = if unread { t.accent } else { t.text };
         let subj_rtl = crate::bidi::reads_rtl(&subject);
-        let subj_right = end - icons_w.max(if self.hovered { 70.0 } else { 0.0 }) - 4.0;
+        let subj_right = end - icons_w.max(if self.hovered { self.buttons_w() } else { 0.0 }) - 4.0;
         let subj_font = if unread { theme::bold(13.0) } else { theme::regular(13.0) };
         let marks = crate::reading::subject_marks(self.s, &subject);
         let subj_g = marked_line(ui, &subject, &marks, subj_font, subj_color, subj_right - subject_x);
@@ -342,40 +344,57 @@ impl MessageRow<'_> {
         }
     }
 
-    /// Delete, Flag and Mark read, at the subject line's end (`end`) while the row is pointed at.
-    /// Whether one was clicked.
+    /// The buttons chosen for a row (File › Options; issue #274), as many as it has room for.
+    fn buttons(&self) -> impl Iterator<Item = RowAction> + '_ {
+        self.s.prefs.row_actions.iter().copied().take(mailcraft_engine::ROW_ACTIONS_MAX)
+    }
+
+    /// How wide the buttons are, from the subject line's end.
+    fn buttons_w(&self) -> f32 {
+        self.buttons().map(|_| 24.0).sum::<f32>() - 2.0
+    }
+
+    /// The buttons chosen (Delete, Flag and Mark read at first), at the subject line's end
+    /// (`end`) while the row is pointed at. Whether one was clicked.
     fn hover_actions(&self, ui: &mut Ui, end: f32, acts: &mut Vec<Action>) -> bool {
         let (t, m, mr, id) = (self.t, self.m, self.mr, self.id);
         let line2 = self.line2();
         let mut clicked_action = false;
         let mut bx = end - 22.0;
-        let actions: [(Icon, &str, &'static str, &str); 3] = [
-            (Icon::Delete, tl!("Delete"), "mail.delete", "delete"),
-            (Icon::Flag, tl!(if m.flags.flagged { "Unflag" } else { "Flag" }), "mail.flag", "flag"),
-            (
-                if m.flags.seen { Icon::Unread } else { Icon::Read },
-                tl!(if m.flags.seen { "Mark unread" } else { "Mark read" }),
-                "mail.toggleRead",
-                "read",
-            ),
-        ];
-        for (ic, tip, cmd, action) in actions {
+        let pinned = m.flags.pinned();
+        for action in self.buttons() {
+            let (ic, tip, cmd, params) = match action {
+                RowAction::Delete => (Icon::Delete, tl!("Delete"), "mail.delete", json!({})),
+                RowAction::Archive => (Icon::Archive, tl!("Archive"), "mail.archive", json!({})),
+                RowAction::Flag => (Icon::Flag, tl!(if m.flags.flagged { "Unflag" } else { "Flag" }), "mail.flag", json!({})),
+                RowAction::Read => (
+                    if m.flags.seen { Icon::Unread } else { Icon::Read },
+                    tl!(if m.flags.seen { "Mark unread" } else { "Mark read" }),
+                    "mail.toggleRead",
+                    json!({}),
+                ),
+                RowAction::Pin => (Icon::Pin, tl!(if pinned { "Unpin" } else { "Pin" }), "mail.pin", json!({"on": !pinned})),
+            };
             let br = mr.rect(Rect::from_min_size(egui::pos2(bx, line2 - 3.0), vec2(22.0, 22.0)));
             let bresp = ui.interact(br, id.with(cmd), Sense::click()).on_hover_text(tip);
             crate::widgets::named(ui, &bresp, tip, true, None);
             if bresp.hovered() {
                 ui.painter().rect_filled(br, 4.0, t.border);
             }
-            let color = if cmd == "mail.flag" && m.flags.flagged { t.flag } else { t.dim };
-            icons::paint(ui.painter(), icons::centered(br, 14.0), ic, color);
+            let lit = match action {
+                RowAction::Flag => m.flags.flagged.then_some(t.flag),
+                RowAction::Pin => pinned.then_some(t.accent),
+                _ => None,
+            };
+            icons::paint(ui.painter(), icons::centered(br, 14.0), ic, lit.unwrap_or(t.dim));
             if bresp.clicked() {
                 clicked_action = true;
                 // A row selected: what's selected, as the ribbon's. Another: that message alone,
                 // the selection kept (issue #216: it was selected first, and the user's was lost).
                 if self.selected {
-                    acts.push(Action::Run(cmd, json!({})));
+                    acts.push(Action::Run(cmd, params));
                 } else {
-                    acts.push(Action::Run("list.rowAction", json!({"key": m.key.to_id(), "action": action})));
+                    acts.push(Action::Run("list.rowAction", json!({"key": m.key.to_id(), "action": action.code()})));
                 }
             }
             bx -= 24.0;

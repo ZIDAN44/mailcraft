@@ -292,6 +292,12 @@ fn action_bar(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut V
             if o.summary.is_none_or(|m| m.reaction.is_empty() && !m.bulk) && !p.bulk && r.security.as_ref().is_none_or(|sec| sec.lock.is_none()) {
                 reactions::react_button(ui, &t, acts);
             }
+            // Issue #274: Snooze beside the message, as the ribbon's (what's selected: the
+            // message open).
+            if !s.selection.is_empty() {
+                let snooze = widgets::pill_button(ui, Icon::Clock, "Snooze", &t);
+                egui::Popup::menu(&snooze).show(|ui| crate::organize::snooze_menu(ui, s, &t, acts));
+            }
             ui.add_space(6.0);
             if widgets::pill_button(ui, Icon::Print, "Print", &t).on_hover_text(tl!("Open as a PDF to print")).clicked() {
                 acts.push(Action::Print);

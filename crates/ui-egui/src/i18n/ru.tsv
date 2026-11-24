@@ -2125,3 +2125,8 @@ count	occurrences	повторений
 	Mailing list:	Список рассылки:
 	Unsubscribe	Отписаться
 	Show the message in its folder	Показать письмо в его папке
+	Buttons on a message in the list	Кнопки на письме в списке
+	Shown when the pointer is over a message, up to {n}.	Видны при наведении указателя на письмо, не больше {n}.
+	Mark read or unread	Отметить как прочитанное или непрочитанное
+	Choose a date…	Выбрать дату…
+	Pick a time in the future.	Выберите время в будущем.

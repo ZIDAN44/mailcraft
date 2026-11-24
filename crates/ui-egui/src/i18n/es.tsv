@@ -2112,3 +2112,8 @@ count	occurrences	repeticiones
 	Mailing list:	Lista de correo:
 	Unsubscribe	Cancelar suscripción
 	Show the message in its folder	Mostrar el mensaje en su carpeta
+	Buttons on a message in the list	Botones en un mensaje de la lista
+	Shown when the pointer is over a message, up to {n}.	Aparecen al pasar el puntero sobre un mensaje, hasta {n}.
+	Mark read or unread	Marcar como leído o no leído
+	Choose a date…	Elegir una fecha…
+	Pick a time in the future.	Elija una hora futura.

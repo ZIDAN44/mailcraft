@@ -11,11 +11,11 @@ pub(super) const LABEL_W: f32 = 104.0;
 pub(crate) const LABEL_W_MAX: f32 = 220.0;
 /// Room for the icon before a label, in the forms that have them.
 pub(crate) const ICON_W: f32 = 24.0;
-/// The labels of the forms with icons before them (event, task, follow-up, a meeting's new
-/// time, a series' pattern), and of the contact form, which has none: every label
+/// The labels of the forms with icons before them (event, task, follow-up, snooze, a meeting's
+/// new time, a series' pattern), and of the contact form, which has none: every label
 /// [`form_row`](super::form_row) is given, so the column fits them all (a test holds the lists
 /// to the forms).
-pub(crate) const ICON_FORM_LABELS: [&str; 22] = [
+pub(crate) const ICON_FORM_LABELS: [&str; 23] = [
     "Starts",
     "Ends",
     "Start",
@@ -38,6 +38,7 @@ pub(crate) const ICON_FORM_LABELS: [&str; 22] = [
     "Priority",
     "Account",
     "Your answer",
+    "Until",
 ];
 pub(crate) const CONTACT_FORM_LABELS: [&str; 18] = [
     "Name",

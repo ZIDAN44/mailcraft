@@ -2108,3 +2108,8 @@ count	occurrences	回
 	Mailing list:	メーリング リスト:
 	Unsubscribe	登録解除
 	Show the message in its folder	メッセージをそのフォルダーで表示
+	Buttons on a message in the list	一覧のメッセージに表示するボタン
+	Shown when the pointer is over a message, up to {n}.	ポインターをメッセージに合わせたときに表示されます (最大 {n} 個)。
+	Mark read or unread	既読または未読にする
+	Choose a date…	日付を選択…
+	Pick a time in the future.	今より後の時刻を選んでください。

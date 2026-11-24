@@ -2107,3 +2107,8 @@ count	occurrences	keer
 	Mailing list:	Mailinglijst:
 	Unsubscribe	Afmelden
 	Show the message in its folder	Bericht in de map tonen
+	Buttons on a message in the list	Knoppen op een bericht in de lijst
+	Shown when the pointer is over a message, up to {n}.	Te zien als de aanwijzer op een bericht staat, tot {n}.
+	Mark read or unread	Markeren als gelezen of ongelezen
+	Choose a date…	Datum kiezen…
+	Pick a time in the future.	Kies een tijd in de toekomst.

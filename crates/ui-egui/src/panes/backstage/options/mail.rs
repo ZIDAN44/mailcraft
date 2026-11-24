@@ -3,6 +3,29 @@
 
 use super::*;
 
+/// The buttons a message in the list shows under the pointer (issue #274: Archive among them),
+/// each on or off, as many as a row has room for.
+fn row_actions(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    use mailcraft_engine::{ROW_ACTIONS_MAX, RowAction};
+    let chosen = &s.prefs.row_actions;
+    let about = tf!("Shown when the pointer is over a message, up to {n}.", n = ROW_ACTIONS_MAX);
+    setting_by(s, "options.rowActions", ui, t, false, tl!("Buttons on a message in the list"), Some(&about), |ui| {
+        ui.horizontal_wrapped(|ui| {
+            for a in RowAction::ALL {
+                let mut on = chosen.contains(&a);
+                let room = on || chosen.len() < ROW_ACTIONS_MAX;
+                if ui.add_enabled(room, egui::Checkbox::new(&mut on, tl!(a.label()))).changed() {
+                    let mut now: Vec<RowAction> = chosen.iter().copied().filter(|x| *x != a).collect();
+                    if on {
+                        now.push(a);
+                    }
+                    acts.push(Action::Run("options.rowActions", json!({"actions": RowAction::tidy(now)})));
+                }
+            }
+        });
+    });
+}
+
 /// The reading pane and the list, marking mail read, the windows messages are written in, and
 /// plain text.
 pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
@@ -32,6 +55,7 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
         for (label, about, on, cmd) in switches {
             switch_row(s, ui, t, false, Switch { label, about, on, cmd }, acts);
         }
+        row_actions(s, t, ui, acts);
         // When the reading pane marks mail read, as Outlook's Reading Pane options: when shown
         // (after a wait), once another message is chosen, or not at all (only a message opened
         // in its own window is then).

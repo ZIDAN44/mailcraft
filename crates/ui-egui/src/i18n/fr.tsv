@@ -2112,3 +2112,8 @@ count	occurrences	occurrences
 	Mailing list:	Liste de diffusion :
 	Unsubscribe	Se désabonner
 	Show the message in its folder	Afficher le message dans son dossier
+	Buttons on a message in the list	Boutons sur un message de la liste
+	Shown when the pointer is over a message, up to {n}.	Affichés quand le pointeur survole un message, jusqu’à {n}.
+	Mark read or unread	Marquer comme lu ou non lu
+	Choose a date…	Choisir une date…
+	Pick a time in the future.	Choisissez une heure à venir.

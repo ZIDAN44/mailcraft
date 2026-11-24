@@ -221,6 +221,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
         Dialog::Event(f) => crate::pim_dialogs::event(ui, f, t, acts),
         Dialog::Task(f) => crate::pim_dialogs::task(ui, f, t, acts),
         Dialog::FollowUp(f) => crate::pim_dialogs::follow_up(ui, f, t, acts),
+        Dialog::Snooze(f) => crate::pim_dialogs::snooze(ui, f, s, t, acts),
         Dialog::Propose(f) => crate::pim_dialogs::propose(ui, f, t, acts),
         Dialog::WaitingInvites(f) => crate::pim_dialogs::waiting(ui, f, s, t, acts),
         // An occurrence of a repeating event (issue #241): it alone, or the series.

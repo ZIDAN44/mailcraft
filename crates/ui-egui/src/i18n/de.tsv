@@ -2112,3 +2112,8 @@ count	occurrences	Terminen
 	Mailing list:	Mailingliste:
 	Unsubscribe	Abmelden
 	Show the message in its folder	Nachricht in ihrem Ordner anzeigen
+	Buttons on a message in the list	Schaltflächen an einer Nachricht in der Liste
+	Shown when the pointer is over a message, up to {n}.	Erscheinen, wenn der Mauszeiger auf einer Nachricht steht, bis zu {n}.
+	Mark read or unread	Als gelesen oder ungelesen markieren
+	Choose a date…	Datum wählen…
+	Pick a time in the future.	Wählen Sie eine Zeit in der Zukunft.

@@ -140,6 +140,9 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     for a in mailcraft_engine::Arrange::ALL {
         out.insert(a.label().to_string());
     }
+    for a in mailcraft_engine::RowAction::ALL {
+        out.insert(a.label().to_string());
+    }
     out.extend(mailcraft_engine::ARRANGE_HEADINGS.map(str::to_string));
     out.insert(mailcraft_engine::PINNED_HEADING.to_string());
     // The forms' labels, those given to a row by a variable too (a contact's emails and phones).

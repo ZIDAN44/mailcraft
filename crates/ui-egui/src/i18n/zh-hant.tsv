@@ -2111,3 +2111,8 @@ count	occurrences	次
 	Mailing list:	郵寄清單：
 	Unsubscribe	取消訂閱
 	Show the message in its folder	在所在資料夾中顯示郵件
+	Buttons on a message in the list	清單中郵件上的按鈕
+	Shown when the pointer is over a message, up to {n}.	指標停在郵件上時顯示，最多 {n} 個。
+	Mark read or unread	標示為已讀或未讀
+	Choose a date…	選擇日期…
+	Pick a time in the future.	請選擇未來的時間。

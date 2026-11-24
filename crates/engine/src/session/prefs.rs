@@ -298,6 +298,9 @@ pub struct Prefs {
     /// How the message list is arranged (View › Arrange by), and turned the other way round.
     pub arrange: Arrange,
     pub reverse_sort: bool,
+    /// The buttons a message in the list shows under the pointer (issue #274), as chosen.
+    #[serde(deserialize_with = "checked_row_actions")]
+    pub row_actions: Vec<crate::RowAction>,
     /// Work offline (Send / Receive › Work Offline): no account connects; kept across starts.
     pub work_offline: bool,
     /// Ignored conversations (Delete › Ignore): their messages' Message-IDs; replies to any of
@@ -502,6 +505,7 @@ impl Default for Prefs {
             answered_replies: false,
             arrange: Arrange::Date,
             reverse_sort: false,
+            row_actions: crate::RowAction::DEFAULT.to_vec(),
             work_offline: false,
             ignored: IgnoredIds::default(),
             follow_up: BTreeMap::new(),
@@ -587,6 +591,11 @@ fn checked_reminders<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeMap<
     let mut kept = BTreeMap::new();
     mailcraft_model::organize::merge_reminders(&mut kept, read);
     Ok(kept)
+}
+
+/// A row's buttons read from disk: each once, as many as a row holds.
+fn checked_row_actions<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<crate::RowAction>, D::Error> {
+    Ok(crate::RowAction::tidy(<Vec<crate::RowAction> as serde::Deserialize>::deserialize(d)?))
 }
 
 /// The most words the dictionary keeps, and the longest word.

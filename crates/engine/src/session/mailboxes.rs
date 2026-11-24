@@ -9,11 +9,13 @@ mod folder_order;
 mod folding;
 mod nav;
 mod patch;
+mod row_buttons;
 mod rows;
 mod sent_aside;
 pub(crate) use across::Transfer;
 pub(crate) use echo::{Echo, Echoes};
 pub(crate) use nav::{ListNav, NO_ROW, folder_hash, key_hash, key_hash_in};
+pub use row_buttons::{ROW_ACTIONS_MAX, RowAction};
 pub use rows::{ARRANGE_HEADINGS, Arrange, PINNED_HEADING, Row, arrange_list};
 pub(crate) use sent_aside::SentIndex;
 

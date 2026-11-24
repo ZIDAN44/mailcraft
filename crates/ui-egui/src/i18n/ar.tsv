@@ -2107,3 +2107,8 @@ count	occurrences	مرات
 	Mailing list:	قائمة بريدية:
 	Unsubscribe	إلغاء الاشتراك
 	Show the message in its folder	عرض الرسالة في مجلدها
+	Buttons on a message in the list	الأزرار على رسالة في القائمة
+	Shown when the pointer is over a message, up to {n}.	تظهر عند وضع المؤشر على رسالة، حتى {n}.
+	Mark read or unread	وضع علامة مقروءة أو غير مقروءة
+	Choose a date…	اختيار تاريخ…
+	Pick a time in the future.	اختر وقتًا في المستقبل.

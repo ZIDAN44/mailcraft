@@ -203,6 +203,25 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"does": s.prefs.ctrl_enter}))
         }).setting("ctrl_enter")
         .params(r#"{"does"?: "ask"|"send"|"nothing"}"#),
+        // Issue #274: Archive (or Pin) among a row's buttons, as the user chooses.
+        CommandSpec::new("options.rowActions", "Buttons on a message in the list", "File › Options › Mail", |s, v| {
+            if let Some(given) = v.get("actions") {
+                let codes = given.as_array().ok_or_else(|| CmdError::Params("`actions` is a list".into()))?;
+                let mut chosen = Vec::new();
+                for c in codes {
+                    let code = c.as_str().unwrap_or_default();
+                    chosen.push(crate::RowAction::from_code(code).ok_or_else(|| CmdError::Params(format!("`{c}` isn't delete, archive, flag, read or pin")))?);
+                }
+                chosen.sort();
+                chosen.dedup();
+                if chosen.len() > crate::ROW_ACTIONS_MAX {
+                    return Err(CmdError::Params(format!("a row has room for {} buttons", crate::ROW_ACTIONS_MAX)));
+                }
+                s.prefs.row_actions = chosen;
+            }
+            Ok(json!({"actions": s.prefs.row_actions}))
+        }).setting("row_actions")
+        .params(r#"{"actions"?: ["delete"|"archive"|"flag"|"read"|"pin"] (up to 4; [] for none)}"#),
         toggle!("calendar.tentativeInvites", "Invitations into the calendar as tentative", "File › Options › Calendar", tentative_invites),
         toggle!("calendar.recordAnswers", "Record guests' answers as they arrive", "File › Options › Calendar", record_answers),
         // AI agents (issue #255): whether they may use MailCraft, whether they may ask to run

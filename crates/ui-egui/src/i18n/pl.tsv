@@ -2125,3 +2125,8 @@ count	occurrences	wystąpieniach
 	Mailing list:	Lista mailingowa:
 	Unsubscribe	Wypisz się
 	Show the message in its folder	Pokaż wiadomość w jej folderze
+	Buttons on a message in the list	Przyciski na wiadomości na liście
+	Shown when the pointer is over a message, up to {n}.	Widoczne po wskazaniu wiadomości, najwyżej {n}.
+	Mark read or unread	Oznacz jako przeczytaną lub nieprzeczytaną
+	Choose a date…	Wybierz datę…
+	Pick a time in the future.	Wybierz godzinę w przyszłości.

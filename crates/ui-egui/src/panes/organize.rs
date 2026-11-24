@@ -80,6 +80,14 @@ pub fn snooze_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>)
             ui.close();
         }
     }
+    // A time of the user's own (issue #274).
+    ui.separator();
+    if ui.selectable_label(false, tl!("Choose a date…")).clicked() {
+        if let Some(f) = crate::pim_dialogs::SnoozeForm::for_selection(s) {
+            acts.push(Action::Dialog(Dialog::Snooze(Box::new(f))));
+        }
+        ui.close();
+    }
 }
 
 /// The Follow Up menu, as Outlook's: flag for today, tomorrow, this week, next week or no day

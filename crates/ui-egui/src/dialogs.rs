@@ -220,6 +220,8 @@ pub enum Dialog {
     Task(Box<crate::pim_dialogs::TaskForm>),
     /// Follow Up › Custom… on a flagged message of the To-Do Bar (issue #160).
     FollowUp(Box<crate::pim_dialogs::FollowUpForm>),
+    /// Snooze › Choose a date… (issue #274).
+    Snooze(Box<crate::pim_dialogs::SnoozeForm>),
     /// Propose new time, for a meeting the user is invited to (issue #238).
     Propose(Box<crate::pim_dialogs::ProposeForm>),
     /// Invitations in the Inbox the calendar hasn't got (issue #237).
@@ -783,6 +785,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::Event(..)
         | Dialog::Task(..)
         | Dialog::FollowUp(..)
+        | Dialog::Snooze(..)
         | Dialog::Propose(..)
         | Dialog::PassMeeting(..)
         | Dialog::OpenRecurring { .. }

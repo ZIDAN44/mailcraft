@@ -2108,3 +2108,8 @@ count	occurrences	次
 	Mailing list:	邮件列表：
 	Unsubscribe	退订
 	Show the message in its folder	在所在文件夹中显示邮件
+	Buttons on a message in the list	列表中邮件上的按钮
+	Shown when the pointer is over a message, up to {n}.	指针悬停在邮件上时显示，最多 {n} 个。
+	Mark read or unread	标记为已读或未读
+	Choose a date…	选择日期…
+	Pick a time in the future.	请选择将来的时间。

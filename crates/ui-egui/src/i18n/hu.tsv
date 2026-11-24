@@ -2112,3 +2112,8 @@ count	occurrences	előfordulás
 	Mailing list:	Levelezőlista:
 	Unsubscribe	Leiratkozás
 	Show the message in its folder	Üzenet megjelenítése a mappájában
+	Buttons on a message in the list	Gombok a lista üzenetein
+	Shown when the pointer is over a message, up to {n}.	Akkor jelennek meg, ha a mutató egy üzenet fölött van, legfeljebb {n}.
+	Mark read or unread	Megjelölés olvasottként vagy olvasatlanként
+	Choose a date…	Dátum választása…
+	Pick a time in the future.	Válasszon egy jövőbeli időpontot.

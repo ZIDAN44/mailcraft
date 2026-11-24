@@ -512,7 +512,10 @@ fn a_meeting_is_delegated_from_its_card_and_its_form() {
     for _ in 0..2 {
         frame(&ctx, &mut a, vec![]);
     }
-    click_named(&ctx, &mut a, "Delegate");
+    // The form's own Delegate, drawn over the card (whose Delegate is on screen behind it).
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    let at = drawn_text(&ctx, &mut a, size).into_iter().rev().find(|d| d.text == "Delegate").map(|d| d.rect.center()).expect("the form's Delegate");
+    click(&ctx, &mut a, at);
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.dialog.is_none(), "sent: {:?}", a.ui.dialog);
     let sent = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();

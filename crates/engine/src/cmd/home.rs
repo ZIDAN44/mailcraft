@@ -11,8 +11,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .when(has_account),
         // Home › Delete
         CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete").params(r#"{"permanent"?: bool}"#).when(has_selection),
-        CommandSpec::new("list.rowAction", "Delete, flag or mark read", "Message list › row", row_action)
-            .params(r#"{"key": string, "action": "delete"|"flag"|"read"} (that message alone, what's selected and open kept)"#),
+        CommandSpec::new("list.rowAction", "A message's own button in the list", "Message list › row", row_action)
+            .params(r#"{"key": string, "action": "delete"|"archive"|"flag"|"read"|"pin"} (that message alone, what's selected and open kept)"#),
         CommandSpec::new("mail.archive", "Archive", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Archive)))
             .key("Backspace")
             .when(has_selection),
@@ -110,7 +110,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .when(has_selection),
         CommandSpec::new("mail.pin", "Pin / Unpin", "Home › Tags", |s, v| s.pin_selection(p::bool(v, "on"))).params(r#"{"on"?: bool}"#).when(has_selection),
         CommandSpec::new("mail.snooze", "Snooze", "Home › Tags", snooze)
-            .params(r#"{"preset": "later"|"tomorrow"|"weekend"|"nextWeek"} | {"until": unix seconds}"#)
+            .params(r#"{"preset": "later"|"tomorrow"|"weekend"|"nextWeek"} | {"at": "YYYY-MM-DDTHH:MM" (local; a day alone: 8:00)} | {"until": unix seconds}"#)
             .when(has_selection),
         CommandSpec::new("mail.unsnooze", "Unsnooze", "Home › Tags", |s, _| s.unsnooze_selection()).when(has_selection),
         CommandSpec::new("mail.moveToFocused", "Move to Focused", "Home › Move", |s, _| s.set_focus_for_selection(true)).when(has_selection),
@@ -258,20 +258,20 @@ pub(super) fn delete(s: &mut Session, v: &Value) -> CmdResult {
 /// selection), and the selection the user had was lost.
 fn row_action(s: &mut Session, v: &Value) -> CmdResult {
     let key = key_param(s, v)?;
-    let action = p::req_str(v, "action")?;
-    if !matches!(action, "delete" | "flag" | "read") {
-        return Err(CmdError::Params(format!("`{action}` isn't delete, flag or read")));
-    }
+    let code = p::req_str(v, "action")?;
+    let action = crate::RowAction::from_code(code).ok_or_else(|| CmdError::Params(format!("`{code}` isn't delete, archive, flag, read or pin")))?;
     let selection = std::mem::replace(&mut s.selection, vec![key.clone()]);
     let (focus, anchor, reading) = (s.focus.take(), s.anchor.take(), s.reading.take());
     let done = match action {
-        "delete" => delete(s, &json!({})),
-        "flag" => flag(s, &json!({})),
-        _ => s.flag_selection(Flag::Seen, None),
+        crate::RowAction::Delete => delete(s, &json!({})),
+        crate::RowAction::Archive => s.move_selection(MoveTarget::Role(FolderRole::Archive)),
+        crate::RowAction::Flag => flag(s, &json!({})),
+        crate::RowAction::Read => s.flag_selection(Flag::Seen, None),
+        crate::RowAction::Pin => s.pin_selection(None),
     };
-    // Put back as it was, but the message deleted (the one it went to stays shown when that
-    // was the one open).
-    let gone = action == "delete" && done.is_ok();
+    // Put back as it was, but the message deleted or archived (the one it went to stays shown
+    // when that was the one open).
+    let gone = matches!(action, crate::RowAction::Delete | crate::RowAction::Archive) && done.is_ok();
     let kept = |k: &Option<mailcraft_model::MessageKey>| if gone && k.as_ref() == Some(&key) { None } else { k.clone() };
     s.selection = selection.into_iter().filter(|k| !gone || *k != key).collect();
     s.focus = kept(&focus);
@@ -319,12 +319,19 @@ pub(super) fn move_to(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 pub(super) fn snooze(s: &mut Session, v: &Value) -> CmdResult {
-    let until = match (p::str(v, "preset"), v.get("until").and_then(Value::as_i64)) {
-        (Some(code), _) => {
+    let until = match (p::str(v, "preset"), p::str(v, "at"), v.get("until").and_then(Value::as_i64)) {
+        (Some(code), _, _) => {
             mailcraft_model::organize::SnoozeUntil::from_code(code).ok_or_else(|| CmdError::Params(format!("unknown preset `{code}`")))?.at(&s.clock)
         }
-        (None, Some(t)) => t,
-        (None, None) => return Err(CmdError::Params("`preset` or `until` is required".into())),
+        // A time of the user's own (issue #274: Choose a date…), as the presets' a day alone is
+        // eight in its morning.
+        (None, Some(at), _) => match crate::session::pim::parse_local(at, &s.clock) {
+            Some((day, true)) => s.clock.utc(day.saturating_add(8 * 3600)),
+            Some((t, false)) => t,
+            None => return Err(CmdError::Params(format!("`at`: not a date and time (YYYY-MM-DDTHH:MM): `{at}`"))),
+        },
+        (None, None, Some(t)) => t,
+        (None, None, None) => return Err(CmdError::Params("`preset`, `at` or `until` is required".into())),
     };
     s.snooze_selection(until)
 }

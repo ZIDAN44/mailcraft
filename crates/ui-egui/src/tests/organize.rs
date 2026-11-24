@@ -4,6 +4,7 @@ use super::*;
 
 mod categories;
 mod folder_pane;
+mod row_buttons;
 mod sent_rules;
 mod server_rules;
 
