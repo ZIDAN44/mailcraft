@@ -369,6 +369,20 @@ fn the_token_goes_to_its_hosts_alone() {
     assert_eq!(server.data.lock().unwrap().offered, 0, "no request carried the token");
 }
 
+/// An event and a contact on the fake server, to see each read.
+fn seed(server: &crate::fakes::fake_dav::Server) {
+    use crate::fakes::fake_dav::{BOOK, CAL};
+    let mut d = server.data.lock().unwrap();
+    let event = CalEvent { uid: "g-event".into(), summary: "Planning".into(), start: 1_800_000_000, end: 1_800_003_600, ..Default::default() };
+    d.put(&format!("{CAL}g-event.ics"), &ical::write(&[event], None, 0));
+    d.put(&format!("{BOOK}g-card.vcf"), &vcard::write(&vcard::Card { uid: "g-card".into(), name: "Zoe Park".into(), ..Default::default() }));
+}
+
+/// The uids of the events and the contacts a sync read.
+fn read(out: &DavSync) -> (Vec<&str>, Vec<&str>) {
+    (out.events.iter().map(|e| e.event.uid.as_str()).collect(), out.cards.iter().map(|c| c.card.uid.as_str()).collect())
+}
+
 /// A Google token with both permissions syncs calendars and contacts.
 #[test]
 fn a_token_syncs_calendars_and_contacts() {
@@ -377,6 +391,7 @@ fn a_token_syncs_calendars_and_contacts() {
 
     let server = serve();
     server.data.lock().unwrap().bearer = Some("test-token".into());
+    seed(&server);
     let dav = Dav::bearer("test-token", &["127.0.0.1"]);
     let url = format!("{}/dav/", server.base);
     let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&url), carddav: Some(&url), mails: true, ..Default::default() };
@@ -386,7 +401,8 @@ fn a_token_syncs_calendars_and_contacts() {
     let out = sync(&dav, &at, &pim, 1_800_000_000, Zone::UTC).unwrap();
     assert_eq!(out.caldav_home, Some(format!("{}/dav/cal/", server.base)), "{out:?}");
     assert_eq!(out.carddav_home, Some(format!("{}/dav/card/", server.base)), "{out:?}");
-    assert!(out.books.is_some() && out.errors.is_empty(), "{out:?}");
+    assert!(out.errors.is_empty(), "{out:?}");
+    assert_eq!(read(&out), (vec!["g-event"], vec!["g-card"]));
 }
 
 /// A sign-in that granted the calendars and not the contacts (Google asks for each, and an
@@ -405,6 +421,7 @@ fn a_token_without_contacts_syncs_the_calendars() {
         d.bearer = Some("test-token".into());
         d.bearer_lacks_contacts = true;
     }
+    seed(&server);
     let dav = Dav::bearer("test-token", &["127.0.0.1"]);
     let url = format!("{}/dav/", server.base);
     let at = Where { email: USER, imap_host: "imap.example", caldav: Some(&url), carddav: Some(&url), mails: true, ..Default::default() };
@@ -413,7 +430,7 @@ fn a_token_without_contacts_syncs_the_calendars() {
 
     let out = sync(&dav, &at, &pim, T, Zone::UTC).unwrap();
     assert_eq!(out.caldav_home, Some(format!("{}/dav/cal/", server.base)));
-    assert!(out.calendars.is_some(), "the calendars synced: {out:?}");
+    assert_eq!(read(&out), (vec!["g-event"], vec![]), "the calendars synced");
     assert_eq!((out.carddav_home.as_deref(), out.books.as_ref()), (None, None));
     assert_eq!(out.errors, ["sign in again to allow MailCraft this permission: https://www.googleapis.com/auth/carddav"]);
 
@@ -429,7 +446,8 @@ fn a_token_without_contacts_syncs_the_calendars() {
     pim.dav_checked = Some(0);
     let out = sync(&dav, &at, &pim, T + 1200, Zone::UTC).unwrap();
     assert_eq!(out.carddav_home, Some(format!("{}/dav/card/", server.base)), "{out:?}");
-    assert!(out.books.is_some() && out.errors.is_empty(), "{out:?}");
+    assert!(out.errors.is_empty(), "{out:?}");
+    assert_eq!(read(&out).1, ["g-card"]);
 }
 
 /// Contacts found before, and a later sign-in that didn't grant them: the calendars still sync,
@@ -446,6 +464,7 @@ fn contacts_refused_after_a_new_sign_in_leave_the_calendars_syncing() {
         d.bearer_lacks_contacts = true;
     }
     let dav = Dav::bearer("test-token", &["127.0.0.1"]);
+    seed(&server);
     let at = Where { email: USER, imap_host: "imap.example", mails: true, ..Default::default() };
     let mut pim = Pim {
         caldav_home: Some(format!("{}/dav/cal/", server.base)),
@@ -456,8 +475,8 @@ fn contacts_refused_after_a_new_sign_in_leave_the_calendars_syncing() {
     pim.ensure_defaults();
 
     let out = sync(&dav, &at, &pim, 1_800_000_600, Zone::UTC).unwrap();
-    assert!(out.calendars.is_some(), "the calendars synced: {out:?}");
-    assert_eq!((out.carddav_home.as_deref(), out.books.as_ref(), out.cards.len()), (None, None, 0));
+    assert_eq!(read(&out), (vec!["g-event"], vec![]), "the calendars synced");
+    assert_eq!((out.carddav_home.as_deref(), out.books.as_ref()), (None, None));
     assert_eq!(out.errors.len(), 1, "{out:?}");
 }
 
@@ -487,18 +506,20 @@ fn a_contact_deletion_refused_its_token_waits_and_the_calendars_sync() {
     };
     pim.ensure_defaults();
 
+    seed(&server);
     let out = sync(&dav, &at, &pim, 1_800_000_600, Zone::UTC).unwrap();
-    assert!(out.calendars.is_some(), "the calendars synced: {out:?}");
+    assert_eq!(read(&out).0, ["g-event"], "the calendars synced");
     assert!(!out.deleted.contains(&gone), "kept to delete later");
     assert_eq!(out.errors, ["sign in again to allow MailCraft this permission: https://www.googleapis.com/auth/carddav"]);
     assert_eq!(out.carddav_home, None);
 }
 
 /// A later sign-in that granted the contacts and not the calendars: the contacts sync, the
-/// calendars are said once and looked for again as when none were found, nothing of them sent.
+/// calendars are said once and looked for again as when none were found, nothing of them sent,
+/// though the server is the contacts' too (an event changed here waits).
 #[test]
 fn a_token_refused_its_calendars_leaves_the_contacts_syncing() {
-    use crate::fakes::fake_dav::{USER, serve};
+    use crate::fakes::fake_dav::{CAL, USER, serve};
     use mailcraft_model::zone::Zone;
 
     let server = serve();
@@ -507,18 +528,21 @@ fn a_token_refused_its_calendars_leaves_the_contacts_syncing() {
         d.bearer = Some("test-token".into());
         d.bearer_lacks_calendars = true;
     }
+    seed(&server);
     let dav = Dav::bearer("test-token", &["127.0.0.1"]);
     let at = Where { email: USER, imap_host: "imap.example", mails: true, ..Default::default() };
+    let changed = CalEvent { uid: "here".into(), summary: "Moved here".into(), start: 1_800_000_000, end: 1_800_003_600, ..Default::default() };
     let mut pim = Pim {
         caldav_home: Some(format!("{}/dav/cal/", server.base)),
         carddav_home: Some(format!("{}/dav/card/", server.base)),
         dav_checked: Some(1_800_000_000),
+        events: vec![StoredEvent { calendar: format!("{}{CAL}", server.base), event: changed, dirty: true, ..Default::default() }],
         ..Default::default()
     };
     pim.ensure_defaults();
 
     let out = sync(&dav, &at, &pim, 1_800_000_600, Zone::UTC).unwrap();
-    assert!(out.books.is_some(), "the contacts synced: {out:?}");
+    assert_eq!(read(&out), (vec![], vec!["g-card"]), "the contacts synced");
     assert_eq!((out.caldav_home.as_deref(), out.calendars.as_ref()), (None, None));
     assert_eq!(out.errors, ["sign in again to allow MailCraft this permission: https://www.googleapis.com/auth/calendar"]);
     let log = server.data.lock().unwrap().log.clone();

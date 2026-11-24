@@ -94,12 +94,15 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     // the token the calendars (a later sign-in that granted the contacts alone): said, and they're
     // looked for again as when none were found, the contacts syncing meanwhile; nothing of the
     // calendars is sent or read, as their server isn't the sync's any more.
+    // (Their server may be the contacts' too: nothing is sent to it for them.)
+    let mut calendars_refused = false;
     if let Some(home) = &out.caldav_home {
         out.auto_schedule = match dav.schedules(home) {
             Ok(b) => Some(b),
             Err(NetError::Auth(why)) if dav.is_bearer() => {
                 out.errors.push(why);
                 out.caldav_home = None;
+                calendars_refused = true;
                 None
             }
             Err(e @ NetError::Auth(_)) => return Err(e),
@@ -114,11 +117,15 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     // Items whose change the server refused for good: read again below, whatever their etag.
     let mut refetch: Vec<String> = Vec::new();
     run.push_deletions(&mut out, &mut refetch)?;
-    run.push_events(&mut out, &mut refetch)?;
+    if !calendars_refused {
+        run.push_events(&mut out, &mut refetch)?;
+    }
     if let Err(e) = run.push_cards(&mut out) {
         contacts_refused(dav, e, &mut out)?;
     }
-    run.push_tasks(&mut out, &mut refetch)?;
+    if !calendars_refused {
+        run.push_tasks(&mut out, &mut refetch)?;
+    }
     run.read_calendars(&refetch, &mut out)?;
     if let Err(e) = run.read_books(&mut out) {
         contacts_refused(dav, e, &mut out)?;
