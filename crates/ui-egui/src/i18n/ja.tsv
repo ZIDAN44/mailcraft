@@ -2094,3 +2094,7 @@ count	occurrences	回
 	Your organisation	あなたの組織
 	Your organisation doesn't allow trusting a certificate by hand.	組織では証明書を手動で信頼することが許可されていません。
 	Your organisation set up MailCraft on this computer. What it locked, you can't change.	このコンピューターの MailCraft はあなたの組織が設定しました。組織がロックした項目は変更できません。
+	Text size	文字のサイズ
+	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	ウィンドウ内のすべてを大きく、または小さくします。Ctrl と + または − でも変わり、Ctrl+0 で元に戻ります。
+	Text size: {percent}%	文字のサイズ: {percent}%
+	{percent}%	{percent}%

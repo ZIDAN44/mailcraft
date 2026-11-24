@@ -205,6 +205,10 @@ pub struct Prefs {
     /// the font; `None`: MailCraft's own ([`mime::rich::DEFAULT_SIZE`]).
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "checked_size")]
     pub compose_size: Option<u8>,
+    /// The interface's text size in percent (the comment on issue #267): everything in the
+    /// window drawn larger or smaller, as a browser zooms; 100 is MailCraft's own.
+    #[serde(default = "normal_text", skip_serializing_if = "is_normal_text", deserialize_with = "checked_text_size")]
+    pub text_size: u16,
     /// Closing the window leaves MailCraft running in the notification area, where the app
     /// has one (issue #67): mail is still checked and announced.
     pub close_to_tray: bool,
@@ -472,6 +476,7 @@ impl Default for Prefs {
             dictionary: BTreeSet::new(),
             compose_font: None,
             compose_size: None,
+            text_size: NORMAL_TEXT,
             close_to_tray: false,
             start_in_tray: false,
             tray_unread: true,
@@ -604,6 +609,33 @@ pub fn dictionary_word(w: &str) -> Option<String> {
 fn checked_font<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
     let read = <Option<String> as serde::Deserialize>::deserialize(d)?;
     Ok(read.as_deref().and_then(mailcraft_mime::rich::font_name))
+}
+
+/// The interface's own text size, in percent.
+pub const NORMAL_TEXT: u16 = 100;
+/// The text sizes File › Options › General offers, in percent.
+pub const TEXT_SIZES: [u16; 8] = [80, 90, NORMAL_TEXT, 110, 125, 150, 175, 200];
+/// The least and most text size kept, in percent: the keys go no further.
+pub const TEXT_SIZE_RANGE: std::ops::RangeInclusive<u16> = 80..=200;
+
+/// The next text size up or down from `percent`, by tens, within [`TEXT_SIZE_RANGE`].
+pub fn text_size_step(percent: u16, up: bool) -> u16 {
+    let next = if up { (percent / 10).saturating_add(1).saturating_mul(10) } else { percent.saturating_sub(1) / 10 * 10 };
+    next.clamp(*TEXT_SIZE_RANGE.start(), *TEXT_SIZE_RANGE.end())
+}
+
+fn normal_text() -> u16 {
+    NORMAL_TEXT
+}
+
+fn is_normal_text(percent: &u16) -> bool {
+    *percent == NORMAL_TEXT
+}
+
+/// The text size read from disk: within [`TEXT_SIZE_RANGE`], else the interface's own.
+fn checked_text_size<'de, D: serde::Deserializer<'de>>(d: D) -> Result<u16, D::Error> {
+    let read = <Option<serde_json::Value> as serde::Deserialize>::deserialize(d)?;
+    Ok(read.and_then(|v| v.as_u64()).and_then(|v| u16::try_from(v).ok()).filter(|v| TEXT_SIZE_RANGE.contains(v)).unwrap_or(NORMAL_TEXT))
 }
 
 /// The size for new messages read from disk: only one the size box offers

@@ -2093,3 +2093,7 @@ count	occurrences	פעמים
 	Your organisation	הארגון שלך
 	Your organisation doesn't allow trusting a certificate by hand.	הארגון שלך אינו מאפשר לסמוך על אישור ידנית.
 	Your organisation set up MailCraft on this computer. What it locked, you can't change.	הארגון שלך הגדיר את MailCraft במחשב זה. את מה שנעל אין באפשרותך לשנות.
+	Text size	גודל הטקסט
+	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	כל מה שבחלון, גדול או קטן יותר. גם Ctrl עם + או − משנים אותו, ו-Ctrl+0 מחזיר אותו.
+	Text size: {percent}%	גודל הטקסט: {percent}%
+	{percent}%	{percent}%

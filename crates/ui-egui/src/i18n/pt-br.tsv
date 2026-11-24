@@ -2098,3 +2098,7 @@ count	occurrences	ocorrências
 	Your organisation	Sua organização
 	Your organisation doesn't allow trusting a certificate by hand.	Sua organização não permite confiar em um certificado manualmente.
 	Your organisation set up MailCraft on this computer. What it locked, you can't change.	Sua organização configurou o MailCraft neste computador. O que ela bloqueou você não pode alterar.
+	Text size	Tamanho do texto
+	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	Tudo na janela, maior ou menor. Ctrl e + ou − também o mudam, e Ctrl+0 o restaura.
+	Text size: {percent}%	Tamanho do texto: {percent}%
+	{percent}%	{percent}%

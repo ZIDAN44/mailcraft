@@ -82,11 +82,11 @@ fn the_work_area_is_the_one_of_the_monitor_its_on() {
     };
     // On the right-hand monitor at its title bar's height, at 100 %.
     let on_right = opened(rect(4000.0, 0.0, 1000.0, 700.0), rect(4000.0, 0.0, 1000.0, 700.0));
-    assert_eq!(crate::app::work_area(&on_right, Some(&monitors)), Some(rect(3840.0, 48.0, 1920.0, 1032.0)));
+    assert_eq!(crate::app::work_area(&on_right, Some(&monitors), 1.0), Some(rect(3840.0, 48.0, 1920.0, 1032.0)));
     // On the left-hand one, at 200 %: its work area in points.
     let on_left =
         egui::ViewportInfo { native_pixels_per_point: Some(2.0), ..opened(rect(100.0, 100.0, 800.0, 600.0), rect(100.0, 100.0, 800.0, 600.0)) };
-    assert_eq!(crate::app::work_area(&on_left, Some(&monitors)), Some(rect(0.0, 0.0, 1920.0, 1032.0)));
-    assert_eq!(crate::app::work_area(&on_left, Some(&Monitors { work: vec![], ..monitors })), None);
-    assert_eq!(crate::app::work_area(&on_left, None), None);
+    assert_eq!(crate::app::work_area(&on_left, Some(&monitors), 1.0), Some(rect(0.0, 0.0, 1920.0, 1032.0)));
+    assert_eq!(crate::app::work_area(&on_left, Some(&Monitors { work: vec![], ..monitors }), 1.0), None);
+    assert_eq!(crate::app::work_area(&on_left, None, 1.0), None);
 }

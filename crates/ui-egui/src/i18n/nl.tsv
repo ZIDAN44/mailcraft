@@ -2093,3 +2093,7 @@ count	occurrences	keer
 	Your organisation	Je organisatie
 	Your organisation doesn't allow trusting a certificate by hand.	Je organisatie staat niet toe dat je een certificaat met de hand vertrouwt.
 	Your organisation set up MailCraft on this computer. What it locked, you can't change.	Je organisatie heeft MailCraft op deze computer ingesteld. Wat ze vergrendeld heeft, kun je niet wijzigen.
+	Text size	Tekstgrootte
+	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	Alles in het venster, groter of kleiner. Ctrl en + of − veranderen het ook, en Ctrl+0 zet het terug.
+	Text size: {percent}%	Tekstgrootte: {percent}%
+	{percent}%	{percent}%

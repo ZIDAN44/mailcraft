@@ -166,7 +166,9 @@ fn place(ctx: &egui::Context, drag: &mut PenDrag, pen: Pos2, inner: Rect, outer:
             }
         }
         Kind::Resize(dir) => {
-            let r = resized(inner0, dir, d, MIN_WINDOW_SIZE);
+            // The least size stays as it is on the screen at any text size.
+            let least = egui::Vec2::from(crate::app::at_zoom(MIN_WINDOW_SIZE.into(), ctx.zoom_factor()));
+            let r = resized(inner0, dir, d, least);
             if r.size() != inner.size() {
                 ctx.send_viewport_cmd(ViewportCommand::InnerSize(r.size()));
             }

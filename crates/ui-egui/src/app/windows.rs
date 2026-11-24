@@ -54,14 +54,15 @@ impl MailApp {
         let t = self.ui.tokens;
         let subject = if c.subject.trim().is_empty() { tl!("Untitled").to_string() } else { c.subject.trim().to_string() };
         let id = egui::ViewportId::from_hash_of(("compose-window", c.id));
+        let zoom = ctx.zoom_factor();
         let builder = crate::os_window()
             .with_title(tf!("{subject} – Message", subject = subject))
-            .with_inner_size([900.0, 720.0])
-            .with_min_inner_size([520.0, 420.0]);
+            .with_inner_size(at_zoom([900.0, 720.0], zoom))
+            .with_min_inner_size(at_zoom([520.0, 420.0], zoom));
         // Where the last one was, and its size; each further one a step down and right.
         let step = 28.0 * (n % 8) as f32;
         let builder = match self.ui.places.get("compose") {
-            Some(p) if opening(ctx, id) => WindowPlace { x: p.x + step, y: p.y + step, ..*p }.apply(builder),
+            Some(p) if opening(ctx, id) => WindowPlace { x: p.x + step, y: p.y + step, ..*p }.apply(builder, zoom),
             _ => builder,
         };
         let (session, st, services) = (&mut self.session, &mut self.ui, &mut self.services);
@@ -173,13 +174,14 @@ impl MailApp {
             let subject =
                 w.parsed.as_ref().map(|p| p.subject.clone()).filter(|s| !s.trim().is_empty()).unwrap_or_else(|| tl!("(no subject)").to_string());
             let id = egui::ViewportId::from_hash_of(("message-window", key.to_id()));
+            let zoom = ctx.zoom_factor();
             let builder = crate::os_window()
                 .with_title(tf!("{subject} – Message", subject = subject))
-                .with_inner_size([940.0, 740.0])
-                .with_min_inner_size([480.0, 360.0]);
+                .with_inner_size(at_zoom([940.0, 740.0], zoom))
+                .with_min_inner_size(at_zoom([480.0, 360.0], zoom));
             // Where the last one was, and its size.
             let builder = match self.ui.places.get("message") {
-                Some(p) if opening(ctx, id) => p.apply(builder),
+                Some(p) if opening(ctx, id) => p.apply(builder, zoom),
                 _ => builder,
             };
             let (session, st) = (&mut self.session, &mut self.ui);
@@ -229,6 +231,9 @@ impl MailApp {
 /// Where a window was and how big (in points), and whether it was maximized: its normal place is
 /// kept while maximized, so Restore goes back to it, as Outlook does.
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+/// Where a window was and its size, in its monitor's own points (as the system has them, whatever
+/// the interface's text size): a window keeps its size and place on the screen as the text is made
+/// larger or smaller, and opens again so.
 pub struct WindowPlace {
     pub x: f32,
     pub y: f32,
@@ -342,7 +347,8 @@ impl WindowPlace {
         }
         if let (Some(outer), Some(inner)) = (v.outer_rect, v.inner_rect) {
             let monitor = monitor_of(&v).map(|m| [m.x, m.y]);
-            *place = Some(WindowPlace { x: outer.min.x, y: outer.min.y, w: inner.width(), h: inner.height(), maximized: false, monitor });
+            let here = WindowPlace { x: outer.min.x, y: outer.min.y, w: inner.width(), h: inner.height(), maximized: false, monitor };
+            *place = Some(here.scaled(ui.ctx().zoom_factor()));
         }
     }
 
@@ -353,14 +359,15 @@ impl WindowPlace {
     /// doesn't say where it is). Sizes alone can't tell: a monitor unplugged can leave one of
     /// the same size (WordCraft found). A maximized window fills whichever monitor the system
     /// picks.
-    pub fn rescue(self, info: &egui::ViewportInfo, monitors: Option<&Monitors>) -> Option<egui::Pos2> {
+    /// The place and `monitors` in the window's points at text size `zoom` (egui's zoom factor).
+    pub fn rescue(self, info: &egui::ViewportInfo, monitors: Option<&Monitors>, zoom: f32) -> Option<egui::Pos2> {
         if self.maximized {
             return None;
         }
         let now = monitor_of(info)?;
         let other = self.monitor.is_some_and(|saved| (now - egui::Vec2::from(saved)).length() > 1.0);
         // In the monitors' physical pixels.
-        let ppp = info.native_pixels_per_point.filter(|p| p.is_finite() && *p > 0.0).unwrap_or(1.0);
+        let ppp = pixels_per_point(info, zoom);
         let lost = match (monitors.filter(|m| !m.all.is_empty()), info.outer_rect.filter(|r| r.is_finite())) {
             (Some(m), Some(outer)) => !reachable(egui::Rect::from_min_max(outer.min * ppp, outer.max * ppp), &m.all),
             _ => false,
@@ -439,9 +446,28 @@ impl WindowPlace {
             .filter(|p| p.x > -2_000.0 && p.y > -200.0 && p.x < 20_000.0 && p.y < 20_000.0)
     }
 
-    /// Open a window where this place says.
-    pub fn apply(self, b: egui::ViewportBuilder) -> egui::ViewportBuilder {
-        match self.usable() {
+    /// This place, kept in the monitor's own points, in the points of text size `zoom` (egui's
+    /// zoom factor), which windows are placed and measured in; or back, by `1 / zoom`.
+    pub fn at_zoom(self, zoom: f32) -> WindowPlace {
+        self.scaled(1.0 / zoom_or_own(zoom))
+    }
+
+    fn scaled(self, by: f32) -> WindowPlace {
+        let by = zoom_or_own(by);
+        WindowPlace {
+            x: self.x * by,
+            y: self.y * by,
+            w: self.w * by,
+            h: self.h * by,
+            maximized: self.maximized,
+            monitor: self.monitor.map(|[w, h]| [w * by, h * by]),
+        }
+    }
+
+    /// Open a window where this place says, at text size `zoom` (egui's zoom factor; 1 for the
+    /// main window, opened before the text size is set).
+    pub fn apply(self, b: egui::ViewportBuilder, zoom: f32) -> egui::ViewportBuilder {
+        match self.at_zoom(zoom).usable() {
             // On Windows, winit 0.30.13 showed a window created maximized at once, though eframe
             // keeps it hidden until its first frame: it appeared, vanished and appeared again. The
             // patched winit (storytold/winit) maximizes a hidden window only as it's shown.
@@ -460,7 +486,8 @@ impl WindowPlace {
 pub fn after_open(ui: &Ui, place: Option<WindowPlace>) {
     let ctx = ui.ctx();
     let id = egui::Id::unique(("after-open", ctx.viewport_id()));
-    let place = place.and_then(WindowPlace::usable);
+    let zoom = ctx.zoom_factor();
+    let place = place.map(|p| p.at_zoom(zoom)).and_then(WindowPlace::usable);
     // Absent: its first frame; Some(pending): still to check once the monitor is known.
     let pending: Option<Option<WindowPlace>> = ctx.data(|d| d.get_temp(id));
     // A window with no place (the system put it) is checked too.
@@ -470,10 +497,10 @@ pub fn after_open(ui: &Ui, place: Option<WindowPlace>) {
     let pending = match pending {
         Some(p) if known => {
             let restored = place.is_some();
-            if let Some(pos) = p.rescue(&info, monitors(ctx).as_deref()) {
+            if let Some(pos) = p.rescue(&info, monitors(ctx).as_deref(), zoom) {
                 ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
             } else if !p.maximized
-                && let Some((pos, size)) = match work_area(&info, monitors(ctx).as_deref()) {
+                && let Some((pos, size)) = match work_area(&info, monitors(ctx).as_deref(), zoom) {
                     Some(work) => WindowPlace::fit_in(&info, restored, work),
                     None => WindowPlace::fit(&info, restored),
                 }
@@ -506,9 +533,10 @@ pub(crate) fn track_place(places: &mut std::collections::BTreeMap<String, Window
     }
 }
 
-/// The work area ([`Monitors::work`]) of the monitor most of a window is on, in its points.
-pub(crate) fn work_area(info: &egui::ViewportInfo, monitors: Option<&Monitors>) -> Option<egui::Rect> {
-    let ppp = info.native_pixels_per_point.filter(|p| p.is_finite() && *p > 0.0).unwrap_or(1.0);
+/// The work area ([`Monitors::work`]) of the monitor most of a window is on, in its points at
+/// text size `zoom` (egui's zoom factor).
+pub(crate) fn work_area(info: &egui::ViewportInfo, monitors: Option<&Monitors>, zoom: f32) -> Option<egui::Rect> {
+    let ppp = pixels_per_point(info, zoom);
     let outer = info.outer_rect.filter(|r| r.is_finite())?;
     let window = egui::Rect::from_min_max(outer.min * ppp, outer.max * ppp);
     let on = |w: &egui::Rect| {
@@ -517,6 +545,25 @@ pub(crate) fn work_area(info: &egui::ViewportInfo, monitors: Option<&Monitors>) 
     };
     let work = monitors?.work.iter().filter(|w| w.is_finite() && w.is_positive() && on(w) > 0.0).max_by(|a, b| on(a).total_cmp(&on(b)))?;
     Some(egui::Rect::from_min_max(work.min / ppp, work.max / ppp))
+}
+
+/// The physical pixels in one of a window's points: the monitor's scale, times the text size
+/// (egui's zoom factor), as egui measures windows and monitors.
+fn pixels_per_point(info: &egui::ViewportInfo, zoom: f32) -> f32 {
+    info.native_pixels_per_point.filter(|p| p.is_finite() && *p > 0.0).unwrap_or(1.0) * zoom_or_own(zoom)
+}
+
+/// A zoom factor to measure by: one that makes no sense is the interface's own.
+fn zoom_or_own(zoom: f32) -> f32 {
+    if zoom.is_finite() && zoom > 0.0 { zoom } else { 1.0 }
+}
+
+/// A window's size in the monitor's own points as egui's points at text size `zoom`: the size a
+/// window opens at, and the least it can be, stay as they are on the screen at any text size (at
+/// 200 % a message window's least height was taller than a laptop's screen).
+pub(crate) fn at_zoom(size: [f32; 2], zoom: f32) -> [f32; 2] {
+    let zoom = zoom_or_own(zoom);
+    [size[0] / zoom, size[1] / zoom]
 }
 
 /// The size of the monitor a window is on, when the system has told a sensible one.

@@ -2098,3 +2098,7 @@ count	occurrences	kez
 	Your organisation	Kuruluşunuz
 	Your organisation doesn't allow trusting a certificate by hand.	Kuruluşunuz bir sertifikaya elle güvenmeye izin vermiyor.
 	Your organisation set up MailCraft on this computer. What it locked, you can't change.	Bu bilgisayardaki MailCraft'ı kuruluşunuz ayarladı. Kilitlediklerini değiştiremezsiniz.
+	Text size	Metin boyutu
+	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	Penceredeki her şey, daha büyük ya da daha küçük. Ctrl ile + veya − de değiştirir, Ctrl+0 geri alır.
+	Text size: {percent}%	Metin boyutu: %{percent}
+	{percent}%	%{percent}

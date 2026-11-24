@@ -52,6 +52,9 @@ impl MailApp {
             let answer = self.answer(id, params);
             // A setting switched from the keyboard says how it's left (issue #175): nothing
             // where the keyboard is may show it (Ctrl+F1 hides the ribbon it's in).
+            if let Some(percent) = answer.as_ref().and_then(|v| v.get("percent")).and_then(Value::as_u64) {
+                crate::a11y::announce(ctx, tf!("Text size: {percent}%", percent = percent), false);
+            }
             if let Some(on) = answer.as_ref().and_then(|v| v.get("on")).and_then(Value::as_bool) {
                 let name = tl!(spec.label);
                 crate::a11y::announce(ctx, if on { tf!("{name}: on", name = name) } else { tf!("{name}: off", name = name) }, false);

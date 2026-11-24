@@ -347,6 +347,15 @@ impl MailApp {
         // best; except on Linux, where winit knows no system theme and would say dark.
         let said = if cfg!(all(unix, not(target_os = "macos"))) { Some(dark) } else { self.ui.dark };
         super::windows::title_bars_in(&ctx, said);
+        // The text size (the comment on issue #267), as egui zooms every window: kept with the
+        // preferences, its keys MailCraft's commands rather than egui's own, which kept nothing.
+        if ctx.options(|o| o.zoom_with_keyboard) {
+            ctx.options_mut(|o| o.zoom_with_keyboard = false);
+        }
+        let zoom = f32::from(self.session.prefs.text_size) / 100.0;
+        if ctx.zoom_factor() != zoom {
+            ctx.set_zoom_factor(zoom);
+        }
         // The theme: light or dark, with the accent colour and top bar chosen (issue #8).
         let want = Tokens::themed(dark, mailcraft_engine::accent_rgb(&self.session.prefs.accent), self.session.prefs.plain_top_bar);
         if want != self.ui.tokens || ctx.global_style().visuals.panel_fill != self.ui.tokens.surface {

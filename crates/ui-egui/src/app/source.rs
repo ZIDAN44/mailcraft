@@ -15,12 +15,13 @@ impl MailApp {
             let key = v.key.clone();
             let subject = if v.subject.trim().is_empty() { tl!("(no subject)").to_string() } else { v.subject.trim().to_string() };
             let id = egui::ViewportId::from_hash_of(("source-window", key.to_id()));
+            let zoom = ctx.zoom_factor();
             let builder = crate::os_window()
                 .with_title(tf!("{subject} – Message source", subject = subject))
-                .with_inner_size([860.0, 680.0])
-                .with_min_inner_size([420.0, 300.0]);
+                .with_inner_size(super::windows::at_zoom([860.0, 680.0], zoom))
+                .with_min_inner_size(super::windows::at_zoom([420.0, 300.0], zoom));
             let builder = match st.places.get("source") {
-                Some(p) if super::windows::opening(ctx, id) => p.apply(builder),
+                Some(p) if super::windows::opening(ctx, id) => p.apply(builder, zoom),
                 _ => builder,
             };
             let mut draw = |ui: &mut egui::Ui| {

@@ -2097,3 +2097,7 @@ count	occurrences	회
 	Your organisation	내 조직
 	Your organisation doesn't allow trusting a certificate by hand.	조직에서 인증서를 직접 신뢰하는 것을 허용하지 않습니다.
 	Your organisation set up MailCraft on this computer. What it locked, you can't change.	조직이 이 컴퓨터의 MailCraft를 설정했습니다. 조직이 잠근 항목은 변경할 수 없습니다.
+	Text size	텍스트 크기
+	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	창 안의 모든 것을 크게 또는 작게 합니다. Ctrl과 + 또는 −로도 바뀌고, Ctrl+0으로 되돌립니다.
+	Text size: {percent}%	텍스트 크기: {percent}%
+	{percent}%	{percent}%

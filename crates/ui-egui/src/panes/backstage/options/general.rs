@@ -18,6 +18,7 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
                 acts.push(Action::SetDark(*v));
             }
         });
+        text_size(s, &t, ui, acts);
         // Issue #109: messages on a light background in the dark theme, as they were written.
         let light = Switch {
             label: tl!("Messages on a light background"),
@@ -197,6 +198,35 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
 }
 
 /// Where the data files are (one per account, as Outlook's .pst files); movable as those are.
+/// The interface's text size (the comment on issue #267): the whole window larger or smaller,
+/// as a browser zooms; the keys say the same.
+fn text_size(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    use mailcraft_engine::TEXT_SIZES;
+    let about = tl!("Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.");
+    setting_by(s, "view.textSize", ui, t, false, tl!("Text size"), Some(about), |ui| {
+        let now = s.prefs.text_size;
+        let shown = |p: u16| tf!("{percent}%", percent = p);
+        let r = egui::ComboBox::from_id_salt("text-size")
+            .width(90.0)
+            .selected_text(shown(now))
+            .show_ui(ui, |ui| {
+                for p in TEXT_SIZES {
+                    if ui.selectable_label(now == p, shown(p)).clicked() {
+                        acts.push(Action::Run("view.textSize", json!({"percent": p})));
+                    }
+                }
+            })
+            .response
+            // The setting's name is beside it in the row, which doesn't hand it on.
+            .accessible_name(tl!("Text size"));
+        let mut at = now;
+        crate::drop_down::keys(ui, &r, &mut at, &TEXT_SIZES);
+        if at != now {
+            acts.push(Action::Run("view.textSize", json!({"percent": at})));
+        }
+    });
+}
+
 pub(super) fn data_files(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let Some((dir, movable)) = &st.data_folder else { return };

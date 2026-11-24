@@ -142,7 +142,8 @@ pub(crate) fn window(
         ..Default::default()
     };
     let mut options = match main_place {
-        Some(p) => eframe::NativeOptions { viewport: p.apply(options.viewport), ..options },
+        // Opened before the text size is set: at the interface's own.
+        Some(p) => eframe::NativeOptions { viewport: p.apply(options.viewport, 1.0), ..options },
         None => options,
     };
     // Read here, before the window opens.

@@ -157,6 +157,35 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({ "added": s.prefs.dictionary.insert(w) }))
         }).setting("dictionary")
         .params(r#"{"word": string (taken as spelled right in every language), "remove"?: true (taken out of the dictionary)}"#),
+        CommandSpec::new("view.textSize", "Text size", "File › Options › General", |s, v| {
+            s.prefs.text_size = match v.get("percent") {
+                Some(serde_json::Value::Null) | None => crate::NORMAL_TEXT,
+                Some(z) => z.as_u64().and_then(|z| u16::try_from(z).ok()).filter(|z| crate::TEXT_SIZE_RANGE.contains(z)).ok_or_else(|| {
+                    CmdError::Params(format!("`percent` is from {} to {}, or null", crate::TEXT_SIZE_RANGE.start(), crate::TEXT_SIZE_RANGE.end()))
+                })?,
+            };
+            Ok(json!({ "percent": s.prefs.text_size }))
+        })
+        .setting("text_size")
+        .params(r#"{"percent"?: number (80 to 200: the whole window's text and controls, larger or smaller) | null (its own size, 100)}"#),
+        CommandSpec::new("view.textBigger", "Larger text", "View", |s, _| {
+            s.prefs.text_size = crate::session::text_size_step(s.prefs.text_size, true);
+            Ok(json!({ "percent": s.prefs.text_size }))
+        })
+        .key("Mod+Plus / Mod+Shift+Plus / Mod+Equals")
+        .setting("text_size"),
+        CommandSpec::new("view.textSmaller", "Smaller text", "View", |s, _| {
+            s.prefs.text_size = crate::session::text_size_step(s.prefs.text_size, false);
+            Ok(json!({ "percent": s.prefs.text_size }))
+        })
+        .key("Mod+Minus")
+        .setting("text_size"),
+        CommandSpec::new("view.textNormal", "Text at its own size", "View", |s, _| {
+            s.prefs.text_size = crate::NORMAL_TEXT;
+            Ok(json!({ "percent": s.prefs.text_size }))
+        })
+        .key("Mod+0")
+        .setting("text_size"),
         toggle!("view.closeToTray", "Keep MailCraft running when its window is closed", "File › Options › General", close_to_tray),
         toggle!("view.startInTray", "Start MailCraft with its window put away", "File › Options › General", start_in_tray),
         toggle!("view.trayUnread", "The unread count on the notification area's icon", "File › Options › General", tray_unread),

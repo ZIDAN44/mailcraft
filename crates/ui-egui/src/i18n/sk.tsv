@@ -2112,3 +2112,7 @@ count	occurrences	opakovaní
 	Your organisation	Vaša organizácia
 	Your organisation doesn't allow trusting a certificate by hand.	Vaša organizácia nepovoľuje ručne dôverovať certifikátu.
 	Your organisation set up MailCraft on this computer. What it locked, you can't change.	Vaša organizácia nastavila MailCraft na tomto počítači. To, čo zamkla, nemôžete zmeniť.
+	Text size	Veľkosť textu
+	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	Všetko v okne, väčšie alebo menšie. Mení ju aj Ctrl a + alebo −, Ctrl+0 ju vráti.
+	Text size: {percent}%	Veľkosť textu: {percent} %
+	{percent}%	{percent} %

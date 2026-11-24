@@ -253,4 +253,5 @@ mod organize;
 mod photos;
 mod safety;
 mod smime;
+mod view;
 mod writing;

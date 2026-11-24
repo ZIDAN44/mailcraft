@@ -2097,3 +2097,7 @@ count	occurrences	次
 	Your organisation	你的組織
 	Your organisation doesn't allow trusting a certificate by hand.	你的組織不允許手動信任憑證。
 	Your organisation set up MailCraft on this computer. What it locked, you can't change.	你的組織在這台電腦上設定了 MailCraft。它鎖定的內容你無法變更。
+	Text size	文字大小
+	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	視窗中的一切變大或變小。Ctrl 加 + 或 − 也可以變更，Ctrl+0 恢復原樣。
+	Text size: {percent}%	文字大小：{percent}%
+	{percent}%	{percent}%
