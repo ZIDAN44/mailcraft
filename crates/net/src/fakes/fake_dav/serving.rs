@@ -60,7 +60,8 @@ impl Data {
         }
         // The right token, without the permission (Google's answer, RFC 6750 §3.1).
         let contacts = r.path.starts_with("/dav/card/");
-        if (self.bearer_forbidden || (self.bearer_lacks_contacts && contacts)) && r.bearer_ok {
+        let lacks = self.bearer_forbidden || if contacts { self.bearer_lacks_contacts } else { self.bearer_lacks_calendars };
+        if lacks && r.bearer_ok {
             self.refused += 1;
             let scope = if contacts { "carddav" } else { "calendar" };
             let challenge = format!("Bearer realm=\"fake\", error=\"insufficient_scope\", scope=\"https://www.googleapis.com/auth/{scope}\"");

@@ -90,10 +90,18 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     };
     out.checked = now;
     // Whether the calendar server schedules meetings itself (asked at every sync: it's one short
-    // request, and a server's settings change). Not known, what was known stays.
+    // request, and a server's settings change). Not known, what was known stays. Google refusing
+    // the token the calendars (a later sign-in that granted the contacts alone): said, and they're
+    // looked for again as when none were found, the contacts syncing meanwhile; nothing of the
+    // calendars is sent or read, as their server isn't the sync's any more.
     if let Some(home) = &out.caldav_home {
         out.auto_schedule = match dav.schedules(home) {
             Ok(b) => Some(b),
+            Err(NetError::Auth(why)) if dav.is_bearer() => {
+                out.errors.push(why);
+                out.caldav_home = None;
+                None
+            }
             Err(e @ NetError::Auth(_)) => return Err(e),
             Err(_) => None,
         };
@@ -124,7 +132,9 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
 fn contacts_refused(dav: &Dav, e: NetError, out: &mut DavSync) -> Result<()> {
     match e {
         NetError::Auth(why) if dav.is_bearer() => {
-            out.errors.push(why);
+            if !out.errors.contains(&why) {
+                out.errors.push(why);
+            }
             // What was read of them before is dropped: none of it is merged.
             (out.carddav_home, out.books) = (None, None);
             out.cards.clear();

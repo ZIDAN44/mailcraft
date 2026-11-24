@@ -460,3 +460,67 @@ fn contacts_refused_after_a_new_sign_in_leave_the_calendars_syncing() {
     assert_eq!((out.carddav_home.as_deref(), out.books.as_ref(), out.cards.len()), (None, None, 0));
     assert_eq!(out.errors.len(), 1, "{out:?}");
 }
+
+/// A contact deleted here, and a later sign-in that didn't grant the contacts: the deletion is
+/// kept for later (said once), and doesn't stop the calendars, nor lose them what they did.
+#[test]
+fn a_contact_deletion_refused_its_token_waits_and_the_calendars_sync() {
+    use crate::fakes::fake_dav::{BOOK, USER, serve};
+    use mailcraft_model::pim::Tombstone;
+    use mailcraft_model::zone::Zone;
+
+    let server = serve();
+    {
+        let mut d = server.data.lock().unwrap();
+        d.bearer = Some("test-token".into());
+        d.bearer_lacks_contacts = true;
+    }
+    let dav = Dav::bearer("test-token", &["127.0.0.1"]);
+    let at = Where { email: USER, imap_host: "imap.example", mails: true, ..Default::default() };
+    let gone = format!("{}{BOOK}gone.vcf", server.base);
+    let mut pim = Pim {
+        caldav_home: Some(format!("{}/dav/cal/", server.base)),
+        carddav_home: Some(format!("{}/dav/card/", server.base)),
+        dav_checked: Some(1_800_000_000),
+        deleted: vec![Tombstone { href: gone.clone(), ..Default::default() }],
+        ..Default::default()
+    };
+    pim.ensure_defaults();
+
+    let out = sync(&dav, &at, &pim, 1_800_000_600, Zone::UTC).unwrap();
+    assert!(out.calendars.is_some(), "the calendars synced: {out:?}");
+    assert!(!out.deleted.contains(&gone), "kept to delete later");
+    assert_eq!(out.errors, ["sign in again to allow MailCraft this permission: https://www.googleapis.com/auth/carddav"]);
+    assert_eq!(out.carddav_home, None);
+}
+
+/// A later sign-in that granted the contacts and not the calendars: the contacts sync, the
+/// calendars are said once and looked for again as when none were found, nothing of them sent.
+#[test]
+fn a_token_refused_its_calendars_leaves_the_contacts_syncing() {
+    use crate::fakes::fake_dav::{USER, serve};
+    use mailcraft_model::zone::Zone;
+
+    let server = serve();
+    {
+        let mut d = server.data.lock().unwrap();
+        d.bearer = Some("test-token".into());
+        d.bearer_lacks_calendars = true;
+    }
+    let dav = Dav::bearer("test-token", &["127.0.0.1"]);
+    let at = Where { email: USER, imap_host: "imap.example", mails: true, ..Default::default() };
+    let mut pim = Pim {
+        caldav_home: Some(format!("{}/dav/cal/", server.base)),
+        carddav_home: Some(format!("{}/dav/card/", server.base)),
+        dav_checked: Some(1_800_000_000),
+        ..Default::default()
+    };
+    pim.ensure_defaults();
+
+    let out = sync(&dav, &at, &pim, 1_800_000_600, Zone::UTC).unwrap();
+    assert!(out.books.is_some(), "the contacts synced: {out:?}");
+    assert_eq!((out.caldav_home.as_deref(), out.calendars.as_ref()), (None, None));
+    assert_eq!(out.errors, ["sign in again to allow MailCraft this permission: https://www.googleapis.com/auth/calendar"]);
+    let log = server.data.lock().unwrap().log.clone();
+    assert_eq!(log.iter().filter(|l| !l.contains("/dav/card/")).count(), 1, "one request to the calendars: {log:?}");
+}

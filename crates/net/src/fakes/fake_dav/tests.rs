@@ -560,6 +560,7 @@ fn a_change_crossing_a_guests_answer_keeps_both() {
     assert_eq!((out.errors.len(), out.refused.as_slice()), (1, ["solo".to_string()].as_slice()), "{:?}", out.errors);
     assert!(server.data.lock().unwrap().items[&format!("{CAL}solo.ics")].1.contains("Dentist (moved)"));
 }
+
 /// Google OAuth account: CalDAV sync with a Bearer token.
 #[test]
 fn google_oauth_bearer_auth() {
@@ -572,8 +573,17 @@ fn google_oauth_bearer_auth() {
     // Discover the home with Bearer auth.
     let home = dav.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)).unwrap().unwrap();
 
-    let at_google =
-        Where { email: "user@gmail.com", username: "", others: &[], imap_host: "imap.gmail.com", caldav: None, carddav: None, mails: true };
+    // The contacts at the fake's address too: nothing is looked for out on the network.
+    let contacts = format!("{}/dav/", server.base);
+    let at_google = Where {
+        email: "user@gmail.com",
+        username: "",
+        others: &[],
+        imap_host: "imap.gmail.com",
+        caldav: None,
+        carddav: Some(&contacts),
+        mails: true,
+    };
 
     // First sync: discover and read.
     let mut pim = Pim { caldav_home: Some(home), ..Default::default() };

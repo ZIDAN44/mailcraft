@@ -62,6 +62,8 @@ pub struct Data {
     /// Refuse it so for the address books alone, as Google does a sign-in that granted the
     /// calendars and not the contacts.
     pub bearer_lacks_contacts: bool,
+    /// Or for everything but the address books: a sign-in that granted the contacts alone.
+    pub bearer_lacks_calendars: bool,
 }
 
 /// Whether an `Authorization` value answers the fake's Digest challenge for this request.
