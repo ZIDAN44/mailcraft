@@ -28,51 +28,6 @@ const DAV: &str = "DAV:";
 const CALDAV: &str = "urn:ietf:params:xml:ns:caldav";
 const CARDDAV: &str = "urn:ietf:params:xml:ns:carddav";
 
-/// Build an error message from a Bearer session's 403 response: what Google said, not a guess.
-/// Handles (a) insufficient_scope in WWW-Authenticate, (b) API not enabled in XML body,
-/// (c) anything else.
-fn bearer_403_message(headers: &[(String, String)], body: &[u8]) -> String {
-    // (a) insufficient_scope: WWW-Authenticate header with error and optionally scope
-    if let Some((_, auth_value)) = headers.iter().find(|(k, _)| k.eq_ignore_ascii_case("WWW-Authenticate"))
-        && auth_value.contains("error=\"insufficient_scope\"")
-    {
-        // Extract the scope if present: scope="..."
-        if let Some(scope_start) = auth_value.find("scope=\"") {
-            let after = &auth_value[scope_start + 7..];
-            if let Some(end) = after.find('"') {
-                let scope = &after[..end];
-                return format!("sign in again to allow access (scope missing: {})", scope);
-            }
-        }
-        return "sign in again to allow access".to_string();
-    }
-
-    // (b) API not enabled: XML body with <internalReason>...</internalReason>
-    let body_str = String::from_utf8_lossy(body);
-    if let Some(start) = body_str.find("<internalReason>") {
-        let after = &body_str[start + 16..];
-        if let Some(end) = after.find("</internalReason>") {
-            let reason = &after[..end];
-            // Cap to reasonable length, respecting char boundaries (hostile input)
-            const MAX_REASON: usize = 500;
-            let capped = if reason.len() <= MAX_REASON {
-                reason
-            } else {
-                // Find a char boundary at or before MAX_REASON
-                let mut boundary = MAX_REASON;
-                while boundary > 0 && !reason.is_char_boundary(boundary) {
-                    boundary -= 1;
-                }
-                &reason[..boundary]
-            };
-            return capped.to_string();
-        }
-    }
-
-    // (c) anything else: generic message with HTTP status, still suggesting sign-in
-    "the calendar or contacts server refused access; sign in again (HTTP 403)".to_string()
-}
-
 /// One `<response>` of a multistatus: the resource and the properties found (200).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Item {
@@ -153,8 +108,8 @@ impl Kind {
 enum Auth {
     /// Basic or Digest authentication with username and password.
     Password { user: String, password: String, basic: String },
-    /// OAuth Bearer token.
-    Bearer(String),
+    /// An OAuth access token, and the hosts it may go to.
+    Bearer(bearer::Bearer),
 }
 
 /// A signed-in DAV session: Basic sign-in, or Digest once the server asks for it, or Bearer token.
@@ -178,14 +133,21 @@ impl Dav {
         }
     }
 
-    /// A session that signs in with an OAuth Bearer token (Google Calendar over CalDAV).
-    pub fn bearer(token: &str) -> Dav {
-        Dav { auth: Auth::Bearer(format!("Bearer {token}")), digest: std::sync::Mutex::default(), guard: std::sync::Mutex::default() }
+    /// A session that signs in with an OAuth access token (Google's CalDAV and CardDAV), sent
+    /// over https to `hosts` alone.
+    pub fn bearer(token: &str, hosts: &[&str]) -> Dav {
+        Dav { auth: Auth::Bearer(bearer::Bearer::new(token, hosts)), digest: std::sync::Mutex::default(), guard: std::sync::Mutex::default() }
     }
 
-    /// Whether this session signs in with a Bearer token.
-    pub fn is_bearer(&self) -> bool {
+    /// Whether this session signs in with an access token.
+    pub(crate) fn is_bearer(&self) -> bool {
         matches!(self.auth, Auth::Bearer(_))
+    }
+
+    /// Why Google refused this session's access token (a 403 for a permission it lacks, or the
+    /// API turned off): `None` for any other answer.
+    fn token_refused(&self, resp: &Response) -> Option<String> {
+        (resp.status == 403 && self.is_bearer()).then(|| bearer::refusal(&resp.headers, &resp.body)).flatten()
     }
 
     /// Looking for the server of the account `email` (its mail server `mail_host`) from here on,
@@ -238,13 +200,16 @@ impl Dav {
         self.digest.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
     }
 
-    /// Send a request signed in: with Bearer token, or with Basic / the server's Digest challenge.
-    /// Password auth: refused with a Digest challenge it can answer, it's sent again answering it
-    /// (twice at most: once more for a nonce gone stale, or another realm a redirect led to);
-    /// refused again, it's the password.
+    /// Send a request signed in: with the access token (to its hosts alone), or with Basic or the
+    /// server's Digest challenge. Refused with a Digest challenge it can answer, it's sent again
+    /// answering it (twice at most: once more for a nonce gone stale, or another realm a redirect
+    /// led to); refused again, it's the password.
     fn send(&self, req: &Request) -> Result<Response> {
         match &self.auth {
-            Auth::Bearer(token) => http::send(&req.clone().header("Authorization", token)),
+            Auth::Bearer(b) => match b.for_url(&req.url) {
+                Some(token) => http::send(&req.clone().header("Authorization", token)),
+                None => http::send(req),
+            },
             Auth::Password { user, password, basic } => self.send_with_password(req, user, password, basic),
         }
     }
@@ -308,15 +273,14 @@ impl Dav {
                 url = format!("{}{}", next.origin(), next.path);
                 continue;
             }
-            // Only 401 is the sign-in refused for Password auth: a 403 is this request's (a
-            // collection the user may not read), and asking for the password again wouldn't
-            // change it. For Bearer auth, a 403 is insufficient OAuth scope: the user must sign
-            // in again to allow calendar access.
+            // Only 401 is the sign-in refused: a 403 is this request's (a collection the user may
+            // not read), and asking for the password again wouldn't change it; unless it's Google
+            // refusing the access token itself.
             if resp.status == 401 {
                 return Err(NetError::Auth("the calendar server refused the user name or password".into()));
             }
-            if resp.status == 403 && self.is_bearer() {
-                return Err(NetError::Auth(bearer_403_message(&resp.headers, &resp.body)));
+            if let Some(why) = self.token_refused(&resp) {
+                return Err(NetError::Auth(why));
             }
             return Ok((resp, url));
         }
@@ -532,10 +496,12 @@ impl Dav {
         };
         req = req.header(cond.0, &cond.1);
         let resp = self.send(&req)?;
+        if let Some(why) = self.token_refused(&resp) {
+            return Err(NetError::Auth(why));
+        }
         match resp.status {
             200..=299 => Ok(Ok(resp.header("ETag").unwrap_or_default().to_string())),
             401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
-            403 if self.is_bearer() => Err(NetError::Auth(bearer_403_message(&resp.headers, &resp.body))),
             s => {
                 // Where, and on which condition: what tells a wrong address (404, issue #147's
                 // Zoho) from a copy the server says changed (412) in the log (never the item).
@@ -552,10 +518,12 @@ impl Dav {
             req = req.header("If-Match", etag);
         }
         let resp = self.send(&req)?;
+        if let Some(why) = self.token_refused(&resp) {
+            return Err(NetError::Auth(why));
+        }
         match resp.status {
             200..=299 | 404 | 410 => Ok(Ok(())),
             401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
-            403 if self.is_bearer() => Err(NetError::Auth(bearer_403_message(&resp.headers, &resp.body))),
             s => Ok(Err(Refused::from_status(s))),
         }
     }
@@ -708,6 +676,7 @@ fn path_of(url: &str) -> String {
     Url::parse(url).map(|u| u.path).unwrap_or_else(|_| url.to_string())
 }
 
+mod bearer;
 pub(crate) mod digest;
 mod free_busy;
 pub use free_busy::schedule_answers;

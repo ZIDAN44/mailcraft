@@ -7,10 +7,12 @@ use super::*;
 const CALENDAR_MINUTES: u32 = 15;
 /// The longest a calendar-only account waits to try again after its server couldn't be reached.
 const MOST_BACKOFF: Duration = Duration::from_secs(300);
+/// Where a Google account's access token may go for its calendars: Google's CalDAV server.
+const GOOGLE_DAV: &[&str] = &["apidata.googleusercontent.com"];
 
 impl Worker {
     /// Sync calendars and address books with the account's CalDAV / CardDAV server (password
-    /// accounts: OAuth tokens are for mail only). An Exchange account's are read a step at a
+    /// accounts, and Google's signed in with OAuth). An Exchange account's are read a step at a
     /// time, its mail looked at between ([`Worker::between_pim_steps`]; jobs too, from `rx`).
     pub(in crate::worker) fn sync_dav(&mut self, rx: Option<&Receiver<Job>>) {
         // Exchange Online: its calendars and contacts through Graph.
@@ -43,8 +45,8 @@ impl Worker {
             self.exchange_read(read);
             return;
         }
-        // OAuth tokens: Google supports CalDAV with Bearer auth (issue #262); other OAuth accounts
-        // and EWS accounts need a sign-in of their own unless they have a separate DAV username.
+        // Google's calendars take its access token (issue #262); another OAuth account's token is
+        // for mail only, so its calendars, as an EWS account's, need a sign-in of their own.
         let own = self.acc.dav.as_ref().is_some_and(|d| d.username.is_some());
         let google = self.acc.oauth.as_deref() == Some("google");
         if !google && (self.acc.oauth.is_some() || self.acc.ews.is_some()) && !own {
@@ -105,10 +107,10 @@ impl Worker {
     /// A client for the account's calendar server, signed in as its settings say: as the mail
     /// server is, with the calendar server's own user name and password, or with an OAuth Bearer token.
     pub(in crate::worker) fn dav_client(&mut self) -> Result<crate::dav::Dav> {
-        // Google OAuth: Bearer token from secret().
+        // Google: the mail's access token (refreshed as for mail), to Google's servers alone.
         if self.acc.oauth.as_deref() == Some("google") && self.acc.dav.as_ref().and_then(|d| d.username.as_ref()).is_none() {
             let token = self.secret()?;
-            return Ok(crate::dav::Dav::bearer(&token));
+            return Ok(crate::dav::Dav::bearer(&token, GOOGLE_DAV));
         }
         // Password auth: the DAV username's password, or the mail password.
         let given = self.acc.dav.clone().unwrap_or_default();

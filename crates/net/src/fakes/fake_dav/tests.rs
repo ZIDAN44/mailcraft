@@ -561,7 +561,6 @@ fn a_change_crossing_a_guests_answer_keeps_both() {
     assert_eq!((out.errors.len(), out.refused.as_slice()), (1, ["solo".to_string()].as_slice()), "{:?}", out.errors);
     assert!(server.data.lock().unwrap().items[&format!("{CAL}solo.ics")].1.contains("Dentist (moved)"));
 }
-// Test file to add to fake_dav/tests.rs
 
 /// Google OAuth account: CalDAV sync with Bearer token, no CardDAV.
 #[test]
@@ -571,7 +570,7 @@ fn google_oauth_bearer_auth() {
     server.data.lock().unwrap().bearer = Some(token.into());
     server.data.lock().unwrap().put(&format!("{CAL}g.ics"), &ical::write(&[event("g", "Meeting", 1_800_000_000)], None, 0));
 
-    let dav = Dav::bearer(token);
+    let dav = Dav::bearer(token, &["127.0.0.1"]);
     // Discover the home with Bearer auth.
     let home = dav.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)).unwrap().unwrap();
 
@@ -603,6 +602,6 @@ fn google_oauth_bearer_auth() {
     assert!(first.cards.is_empty());
 
     // Wrong token refused.
-    let dav_wrong = Dav::bearer("wrong-token");
+    let dav_wrong = Dav::bearer("wrong-token", &["127.0.0.1"]);
     assert!(matches!(dav_wrong.home_from(Kind::Calendars, &format!("{}/.well-known/caldav", server.base)), Err(crate::NetError::Auth(_))));
 }

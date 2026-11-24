@@ -386,6 +386,17 @@ impl Session {
                 self.save_accounts();
             }
             self.jobs.push(Job::Start { account: config, password: None });
+            // A calendar or address book the last sign-in was refused (a Google account's, signed
+            // in before MailCraft asked for them) is looked for again with this one, not a day on.
+            let refused = self
+                .pim
+                .get(account)
+                .is_some_and(|p| p.dav_checked.is_some() && [&p.caldav_home, &p.carddav_home].into_iter().any(|h| h.as_deref() == Some("")));
+            if refused {
+                self.pim_mut(account).dav_checked = Some(0);
+                self.save_pim(account);
+                self.jobs.push(Job::SyncDav { account: account.to_string() });
+            }
             match other {
                 Some(o) => self.notice(format!("{who} is signed in (as {o})"), false),
                 None => self.notice(format!("{who} is signed in"), false),
