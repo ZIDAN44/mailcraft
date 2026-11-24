@@ -19,6 +19,9 @@ pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engi
         ui.add_space(SEND_GAP);
         crate::bidi::vertical(ui, |ui| {
             from_row(ui, &t, c, &f.accounts, acts);
+            // Each box's text box, and whether chips were taken out, moved or put in another
+            // order: then none stays selected (they're kept by their places, which changed).
+            let (mut boxes, mut changed) = (Vec::new(), false);
             // To, Cc and Bcc open the address book, as in Outlook.
             for (field, label, hint) in [
                 (Recipients::To, "To", "Names <addresses>, separated by ; or ,"),
@@ -31,6 +34,8 @@ pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engi
                 let value = field.of(&mut c.to, &mut c.cc, &mut c.bcc);
                 let (book, check, done, edit_id) =
                     recipient_field(ui, st, field, label, value, hint, field == Recipients::To && focus_to, &f.suggestions);
+                boxes.push(edit_id);
+                changed |= !done.is_empty();
                 // A chip put back to edit: its box has the keyboard, at the end of it.
                 if recipients::apply(c, field, done) {
                     ui.memory_mut(|m| m.request_focus(edit_id));
@@ -46,6 +51,11 @@ pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engi
                 // Ctrl+K checks the names typed, as Outlook's does in these boxes (issue #211).
                 if check {
                     acts.push(Action::Run("compose.checkNames", json!({})));
+                }
+            }
+            if changed {
+                for edit_id in boxes {
+                    recipients::let_go(ui.ctx(), edit_id);
                 }
             }
         });
@@ -247,11 +257,10 @@ fn recipient_field(
             let (_, at) = addr::split_entries(value);
             let mut typing = value.get(at..).unwrap_or_default().to_string();
             let before = typing.clone();
-            // Backspace with nothing typed after them takes the last one out, as Outlook's does.
-            let back = typing.is_empty()
-                && !list.is_empty()
-                && ui.memory(|m| m.has_focus(edit_id))
-                && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Backspace));
+            // The keys on the chips, before the text box sees them (Backspace with nothing typed
+            // selects the last, a second takes it out).
+            let mut keyed = Vec::new();
+            recipients::keys(ui, edit_id, list.len(), &typing, &mut keyed);
             // A list pasted a person a line (from a spreadsheet or another mail program) is a
             // chip each: its lines apart by `;` (the one-line box ran them together, one entry).
             if ui.memory(|m| m.has_focus(edit_id)) {
@@ -268,12 +277,10 @@ fn recipient_field(
             let typing_state = people_box::Typing { index: &mut st.suggest_index, dismissed: &mut st.suggest_dismissed, refocus };
             let shown = if showing { suggestions } else { &[] };
             let hint = if list.is_empty() { tl!(hint) } else { "" };
-            let (typed, mut done) = recipients::chips_and_typing(ui, &t, field, value, |ui| {
+            let (typed, mut done) = recipients::chips_and_typing(ui, &t, field, value, edit_id, |ui| {
                 people_box::edit(ui, &t, edit_id, &mut typing, shown, typing_state, |ui, e| underlined(ui, &t, e.hint_text(hint)))
             });
-            if back {
-                done.push(recipients::ChipDone::Remove(list.len() - 1));
-            }
+            done.extend(keyed);
             if typing != before {
                 *value = format!("{}{typing}", value.get(..at).unwrap_or_default());
             }
