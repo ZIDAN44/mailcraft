@@ -336,6 +336,9 @@ fn main() -> eframe::Result {
     let organisation = desktop::organisation::read(launch.portable.dir.as_deref());
     let org_logo = organisation.effective(&[]).logo.as_deref().and_then(desktop::organisation::logo);
     let made = Made { clock: Clock::new(now, offset), portable: launch.portable.dir.is_some(), build_sha: build_sha.clone() };
+    // A notification clicked comes back to this MailCraft (issue #273).
+    #[cfg(windows)]
+    platform::toast::claim(made.portable);
     // The data files open on a thread of their own, and the session is made there from them,
     // while the window shows how that goes (a file not closed properly is checked: minutes).
     let (progress, opened) = {
@@ -565,6 +568,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                         own_title_bar,
                         frame_guard,
                         x11,
+                        clicks: desktop::notified::Clicks::waking(ctx),
                         ..Default::default()
                     }),
                 );

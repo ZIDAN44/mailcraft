@@ -34,6 +34,14 @@ impl MailApp {
         // window draws no frame, and mail that came meanwhile was neither shown in the title
         // nor announced until the window was opened again (issue #68).
         self.pump();
+        // A notification clicked (issue #273): MailCraft comes forward, at the message it named,
+        // minimized or in the notification area too.
+        if let Some(opens) = self.services.notification_clicked() {
+            self.show_window(ctx);
+            if let Some(key) = opens {
+                self.run("message.reveal", json!({"key": key.to_id()}));
+            }
+        }
         // An organisation's theme and language (issue #245), as accounts come and go.
         self.follow_organisation();
         self.announce(ctx);

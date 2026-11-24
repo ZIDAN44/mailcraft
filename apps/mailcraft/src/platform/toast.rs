@@ -20,6 +20,20 @@ pub fn installed() -> bool {
     start(std::env::var_os("ProgramData")) || start(std::env::var_os("APPDATA"))
 }
 
+/// Run as [`APP_ID`] when MailCraft's toasts go out under it (`portable`: only when an installed
+/// MailCraft has made Windows know it, as [`installed`] says): Windows hands a toast's click to
+/// the program running under its id, and one started otherwise than from the Start menu's
+/// shortcut (a portable copy, a link opened) ran under none, so a click on its notification did
+/// nothing (issue #273). Before the window opens, so it's grouped under that id too.
+pub fn claim(portable: bool) {
+    if portable && !installed() {
+        return;
+    }
+    if let Err(e) = winsafe::SetCurrentProcessExplicitAppUserModelID(APP_ID) {
+        log::warn!("notifications: MailCraft didn't take its app id ({e}): a click on one may do nothing");
+    }
+}
+
 /// The icon shown on MailCraft's notifications.
 const ICON: &[u8] = include_bytes!("../../../../assets/app-icon/hicolor/256x256/apps/io.github.zidan44.MailCraft.png");
 

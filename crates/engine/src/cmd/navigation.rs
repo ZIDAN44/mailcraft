@@ -124,6 +124,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"folder": string, "on"?: bool, "account"?: string}"#)
         .when(has_account),
         CommandSpec::new("list.open", "Open message", "Message list", open_message).leaves_body().params(r#"{"key": "account:validity:uid:folder"}"#),
+        // A new-mail notification clicked (issue #273): the message where it is.
+        CommandSpec::new("message.reveal", "Show the message in its folder", "A notification", |s, v| {
+            let k = parse_key(v).ok_or_else(|| CmdError::Params("`key` is required (account:validity:uid:folder)".into()))?;
+            s.reveal_message(&k)
+        })
+        .leaves_body()
+        .params(r#"{"key": "account:validity:uid:folder"} (its folder opened, the Focused or Other tab that has it, a filter hiding it lifted)"#),
         CommandSpec::new("list.select", "Select", "Message list", select).leaves_body().params(r#"{"key": string, "add"?: bool}"#),
         CommandSpec::new("list.selectAll", "Select all", "Message list", select_all).leaves_body().key("Mod+A"),
         // Issue #189: a heading folded away, or its mail shown again, as Outlook's groups.

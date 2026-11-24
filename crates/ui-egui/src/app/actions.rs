@@ -230,7 +230,9 @@ impl MailApp {
             };
             // Only the system notification and the title's unread count announce mail. No
             // RequestUserAttention: Windows keeps that highlight on the taskbar until focus returns.
-            self.services.notify(&title, &body);
+            // Clicked, it shows the newest of them (issue #273).
+            let newest = news.iter().max_by_key(|m| m.date).map(|m| m.key.clone());
+            self.services.notify_about(&title, &body, newest);
         }
         let unread = self.session.inbox_unread();
         let view = match self.session.module {

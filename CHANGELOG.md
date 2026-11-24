@@ -58,6 +58,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Fixed
 
+- Clicking MailCraft's notification of new mail on Windows brings MailCraft forward with the newest of that mail open (#273), from a minimized window or the notification area too; it did nothing. A notification clicked later in the notification centre doesn't yet ([gap 26](docs/gaps.md#26-notifications-clicked-in-the-notification-centre)).
 - A mailing list's **Unsubscribe**, above its message, is a link (#272): it opens the list's own page for leaving it when the list gives one (its address otherwise), with the whole address on hover and **Copy link** on a right-click. It was a line of text cut off at the pane's edge.
 - A blank line inside a heading of an HTML message (paragraphs apart by an empty line in a large title, as some survey mail has them) shows as a blank line, where it showed `###` (#271).
 - A table whose cells share their lines (`border-collapse`), as web pages and pasted tables have them, is drawn with one line between two cells, as a browser draws it, where it was twice as thick as the table's others: in mail read, a reply's original and a pasted table (#268).

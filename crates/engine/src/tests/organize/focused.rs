@@ -76,3 +76,32 @@ fn only_focused_mail_is_announced() {
     let kept: crate::session::Prefs = serde_json::from_value(serde_json::to_value(&s.prefs).unwrap()).unwrap();
     assert!(kept.notify_other);
 }
+
+/// A new-mail notification clicked shows its message where it is (issue #273): from another
+/// folder, its folder opens; on the Focused tab, Other (where it is); a filter hiding it is
+/// lifted; and it's shown. One no longer there is said, the view as it was.
+#[test]
+fn a_message_is_shown_where_it_is() {
+    let mut s = sample_session("reveal");
+    s.run("view.focused", &json!({"on": true})).unwrap();
+    s.run("list.focusTab", &json!({"value": "other"})).unwrap();
+    let other = s.list.iter().find(|m| m.subject == "Open call: winter group show").map(|m| m.key.clone()).expect("in Other");
+    // Read, so the Unread filter hides it.
+    s.run("list.select", &json!({"key": other.to_id()})).unwrap();
+    s.run("mail.markRead", &json!({})).unwrap();
+    s.run("list.focusTab", &json!({"value": "focused"})).unwrap();
+    s.run("folder.open", &json!({"account": "sample", "folder": "Sent"})).unwrap();
+    s.run("list.filter", &json!({"value": "unread"})).unwrap();
+    s.run("message.reveal", &json!({"key": other.to_id()})).unwrap();
+    assert_eq!(s.filter, crate::session::ListFilter::All, "the filter lifted");
+    assert!(matches!(&s.view, View::Folder { account, folder } if account == "sample" && folder == "INBOX"), "{:?}", s.view);
+    assert!(s.focus_other, "on the Other tab, where it is");
+    assert!(s.reading.as_ref().is_some_and(|r| r.key == other));
+    assert_eq!(s.selection, std::slice::from_ref(&other));
+    // One no longer there.
+    let gone = mailcraft_model::MessageKey { uid: 99_999, ..other.clone() };
+    assert!(s.run("message.reveal", &json!({"key": gone.to_id()})).is_err());
+    let elsewhere = mailcraft_model::MessageKey { folder: "No such folder".into(), ..other };
+    assert!(s.run("message.reveal", &json!({"key": elsewhere.to_id()})).is_err());
+    assert!(s.run("message.reveal", &json!({})).is_err());
+}

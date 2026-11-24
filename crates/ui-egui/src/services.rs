@@ -180,6 +180,17 @@ pub trait Services {
     fn keep_update_for_later(&mut self) {}
     /// Show a desktop notification (new mail). The default does nothing.
     fn notify(&mut self, _title: &str, _body: &str) {}
+    /// [`Services::notify`] for new mail: clicked, MailCraft comes forward and shows `opens`
+    /// (issue #273), as [`Services::notification_clicked`] says. The default: a notification alone.
+    fn notify_about(&mut self, title: &str, body: &str, opens: Option<mailcraft_engine::model::MessageKey>) {
+        let _ = opens;
+        self.notify(title, body);
+    }
+    /// A notification clicked since last asked: the message it was about (`Some(None)`: nothing
+    /// in particular). The default: none ever is.
+    fn notification_clicked(&mut self) -> Option<Option<mailcraft_engine::model::MessageKey>> {
+        None
+    }
     /// Where an installed Craft app is (`pdfcraft`, `wordcraft`…), if it is.
     fn craft_app(&mut self, _command: &str) -> Option<PathBuf> {
         None

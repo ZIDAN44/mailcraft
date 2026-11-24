@@ -118,6 +118,33 @@ impl Session {
         self.show_message(key, true);
     }
 
+    /// Show a message where it is (issue #273: its new-mail notification clicked): its folder
+    /// open unless the list shows it already (a unified Inbox, a search), the Focused or Other tab
+    /// that has it, a filter hiding it lifted, and it selected and shown. One no longer there
+    /// (moved, deleted) is said.
+    pub fn reveal_message(&mut self, key: &MessageKey) -> CmdResult {
+        let gone = || CmdError::Failed("that message isn't there any more".into());
+        if self.index_of(key).is_none() {
+            if self.folder(&key.account, &key.folder).is_none() {
+                return Err(gone());
+            }
+            self.open_view(View::Folder { account: key.account.clone(), folder: key.folder.clone() });
+        }
+        if self.index_of(key).is_none() && self.focus_split() {
+            self.focus_other = !self.focus_other;
+            self.refresh_list();
+        }
+        if self.index_of(key).is_none() && self.filter != ListFilter::All {
+            self.filter = ListFilter::All;
+            self.refresh_list();
+        }
+        if self.index_of(key).is_none() {
+            return Err(gone());
+        }
+        self.open_message(key);
+        Ok(serde_json::json!({"key": key.to_id()}))
+    }
+
     /// Select one message and show it; `mark`: as the reading options say (else left as it is).
     pub(super) fn show_message(&mut self, key: &MessageKey, mark: bool) {
         self.shown = self.shown.wrapping_add(1);

@@ -5,6 +5,7 @@ use super::*;
 mod attachments;
 mod conversation_sent;
 mod links;
+mod notified;
 mod people;
 mod person;
 mod pinned_header;

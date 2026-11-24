@@ -288,6 +288,7 @@ fn the_commands_that_leave_the_body_waiting_are_these() {
     leaving.sort_unstable();
     let mut listed = vec![
         "list.open",
+        "message.reveal",
         "list.select",
         "list.selectRange",
         "list.selectAll",

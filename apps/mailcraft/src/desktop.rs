@@ -9,6 +9,7 @@ pub(crate) mod boot;
 pub(crate) mod fonts;
 mod lanes;
 pub(crate) mod launch;
+pub(crate) mod notified;
 pub(crate) mod organisation;
 pub(crate) mod start;
 pub(crate) mod state_writer;
@@ -59,6 +60,8 @@ pub(crate) struct Desktop {
     /// The window opened on X11 (Linux and the BSDs, `window/display.rs`): through XWayland on a
     /// Wayland desktop too, where attachments drag out as on X11 itself.
     pub(crate) x11: bool,
+    /// A notification clicked, for the window's next frame (issue #273).
+    pub(crate) clicks: notified::Clicks,
 }
 
 impl Desktop {
@@ -413,7 +416,14 @@ impl Services for Desktop {
         shell_open(std::ffi::OsStr::new(url))
     }
     fn notify(&mut self, title: &str, body: &str) {
+        self.notify_about(title, body, None);
+    }
+    fn notify_about(&mut self, title: &str, body: &str, opens: Option<mailcraft_engine::model::MessageKey>) {
         let (title, body) = (title.to_string(), body.to_string());
+        #[cfg(windows)]
+        let clicks = self.clicks.clone();
+        #[cfg(not(windows))]
+        let _ = &opens;
         #[cfg(windows)]
         let portable = self.portable;
         // Off the UI thread: the notification service can be slow, or missing.
@@ -426,10 +436,28 @@ impl Services for Desktop {
             if (!portable && toast::registered()) || (portable && toast::installed()) {
                 n.app_id(toast::APP_ID);
             }
-            if let Err(e) = n.show() {
-                log::warn!("notification: {e}");
+            match n.show() {
+                // Clicked on Windows, MailCraft comes forward at the message (issue #273): the
+                // toast tells this thread, which waits for that or the toast going away.
+                #[cfg(windows)]
+                Ok(shown) => {
+                    let _ = shown.wait_for_response(|r: &notify_rust::NotificationResponse| {
+                        if matches!(r, notify_rust::NotificationResponse::Default | notify_rust::NotificationResponse::Action(_)) {
+                            log::info!("notification clicked");
+                            clicks.clicked(opens);
+                        } else {
+                            log::info!("notification gone unclicked: {r:?}");
+                        }
+                    });
+                }
+                #[cfg(not(windows))]
+                Ok(_) => {}
+                Err(e) => log::warn!("notification: {e}"),
             }
         });
+    }
+    fn notification_clicked(&mut self) -> Option<Option<mailcraft_engine::model::MessageKey>> {
+        self.clicks.take()
     }
 }
 
