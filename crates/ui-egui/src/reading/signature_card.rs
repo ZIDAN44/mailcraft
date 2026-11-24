@@ -52,7 +52,7 @@ pub(super) fn own_picture(ctx: &egui::Context, src: &str) -> Option<egui::Textur
 /// Before the editor is drawn: the part of the text the signature's code stands for, and the
 /// room it took when it was last drawn.
 pub(super) fn place(st: &mut UiState, ui: &Ui, c: &Compose, ed: &mut rich_edit::Editor) {
-    ed.card = None;
+    ed.cards.retain(|k| k.what != rich_edit::CardFor::Signature);
     let Some(range) = c.signature_card() else {
         st.signature_cards.remove(&c.id);
         return;
@@ -77,12 +77,14 @@ pub(super) fn place(st: &mut UiState, ui: &Ui, c: &Compose, ed: &mut rich_edit::
     // Code with nothing to lay out (a line of text): its text, as ever.
     let Some(view) = st.signature_cards.get(&c.id).filter(|v| !v.blocks.is_empty()) else { return };
     let Some(whole) = c.signature_place() else { return };
-    ed.card = Some(rich_edit::Card { range, whole, size: view.size.map_or(FIRST_GUESS, |(_, size)| size) });
+    ed.cards.push(rich_edit::Card { what: rich_edit::CardFor::Signature, range, whole, size: view.size.map_or(FIRST_GUESS, |(_, size)| size) });
 }
 
 /// After the editor: the signature drawn in the room the editor kept for it.
 pub(super) fn show(s: &Session, st: &mut UiState, ui: &mut Ui, c: &Compose, ed: &mut rich_edit::Editor, acts: &mut Vec<Action>) {
-    let (Some(rect), Some(card)) = (ed.card_rect.take(), ed.card.clone()) else { return };
+    let rect = ed.card_rects.iter().find(|(what, _)| *what == rich_edit::CardFor::Signature).map(|(_, r)| *r);
+    let card = ed.cards.iter().find(|k| k.what == rich_edit::CardFor::Signature).cloned();
+    let (Some(rect), Some(card)) = (rect, card) else { return };
     let Some(mut view) = st.signature_cards.remove(&c.id) else { return };
     let t = st.tokens;
     // A message of its own to the drawing: none of its pictures is another message's.

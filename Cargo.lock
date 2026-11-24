@@ -4057,6 +4057,7 @@ version = "0.42.0"
 dependencies = [
  "arboard",
  "chrono",
+ "clipboard-win",
  "craft-atomic",
  "craft-control",
  "craft-font-catalog",

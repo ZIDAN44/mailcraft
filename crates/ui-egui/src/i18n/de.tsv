@@ -2102,3 +2102,4 @@ count	occurrences	Terminen
 	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	Alles im Fenster, größer oder kleiner. Strg und + oder − ändern sie ebenfalls, Strg+0 stellt sie zurück.
 	Text size: {percent}%	Textgröße: {percent} %
 	{percent}%	{percent} %
+	A table, as it will be sent. Backspace after it takes it out.	Eine Tabelle, so wie sie gesendet wird. Die Rücktaste dahinter entfernt sie.

@@ -222,6 +222,8 @@ pub struct UiState {
     pub(crate) all_selected: Option<u64>,
     /// Signatures written as HTML code, laid out for the messages being written (issue #90).
     pub(crate) signature_cards: reading::SignatureCards,
+    /// The tables pasted into messages being written, laid out (issue #268).
+    pub(crate) table_cards: reading::TableCards,
     /// The recipient box showing suggestions, the highlighted one, and the text for which Escape
     /// hid them.
     pub(crate) suggest_field: Option<dialogs::Recipients>,

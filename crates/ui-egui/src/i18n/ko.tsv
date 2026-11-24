@@ -2101,3 +2101,4 @@ count	occurrences	회
 	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	창 안의 모든 것을 크게 또는 작게 합니다. Ctrl과 + 또는 −로도 바뀌고, Ctrl+0으로 되돌립니다.
 	Text size: {percent}%	텍스트 크기: {percent}%
 	{percent}%	{percent}%
+	A table, as it will be sent. Backspace after it takes it out.	보내질 모습 그대로의 표입니다. 바로 뒤에서 Backspace를 누르면 없어집니다.

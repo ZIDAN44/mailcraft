@@ -57,7 +57,7 @@ English stays left.
             let g = layout::layout(
                 ui,
                 text,
-                Lay { st: &Styles::plain(text), plain, t: &t, wrap, own: &HashMap::new(), card: None, font: None, size: rich::DEFAULT_SIZE },
+                Lay { st: &Styles::plain(text), plain, t: &t, wrap, own: &HashMap::new(), cards: &[], font: None, size: rich::DEFAULT_SIZE },
             );
             rows = g
                 .rows
@@ -108,7 +108,7 @@ fn a_picture_sits_where_it_is_in_the_text() {
             }
         }
         let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
-            let g = layout::layout(ui, body, Lay { st: &st, plain: false, t: &t, wrap, own: &own, card: None, font: None, size: rich::DEFAULT_SIZE });
+            let g = layout::layout(ui, body, Lay { st: &st, plain: false, t: &t, wrap, own: &own, cards: &[], font: None, size: rich::DEFAULT_SIZE });
             let (a, b) = (g.pos_from_cursor(CCursor::new(at)), g.pos_from_cursor(CCursor::new(at + 1)));
             let last = body.chars().nth(at + 1).is_none_or(|c| c == '\n');
             let place = pictures::Place::of(&g, egui::Pos2::ZERO, at, last);
@@ -384,7 +384,7 @@ fn a_selection_is_drawn_where_it_was() {
         for wrap in [250.0, 700.0] {
             let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
                 let g =
-                    layout::layout(ui, text, Lay { st: &st, plain: false, t: &t, wrap, own: &own, card: None, font: None, size: rich::DEFAULT_SIZE });
+                    layout::layout(ui, text, Lay { st: &st, plain: false, t: &t, wrap, own: &own, cards: &[], font: None, size: rich::DEFAULT_SIZE });
                 let mut carets = carets::Carets::new(&g);
                 for i in 0..n + 3 {
                     assert_eq!(carets.at(i), g.pos_from_cursor(CCursor::new(i)), "{wrap}: cursor {i} of {n}");
@@ -513,7 +513,7 @@ fn measure_editor_frame_pieces() {
                 black_box(layout::layout(
                     ui,
                     &c.body,
-                    Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, card: None, font: None, size: rich::DEFAULT_SIZE },
+                    Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, cards: &[], font: None, size: rich::DEFAULT_SIZE },
                 ));
             });
             let mut laid = layout::Laid::default();
@@ -522,13 +522,13 @@ fn measure_editor_frame_pieces() {
                     &mut laid,
                     ui,
                     &c.body,
-                    Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, card: None, font: None, size: rich::DEFAULT_SIZE },
+                    Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, cards: &[], font: None, size: rich::DEFAULT_SIZE },
                 ));
             });
             let g = layout::layout(
                 ui,
                 &c.body,
-                Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, card: None, font: None, size: rich::DEFAULT_SIZE },
+                Lay { st: &c.styles, plain: false, t: &t, wrap: 900.0, own: &own, cards: &[], font: None, size: rich::DEFAULT_SIZE },
             );
             let lines_was = median(|| {
                 for &i in &starts {
@@ -668,10 +668,10 @@ fn the_text_laid_out_is_kept_only_while_the_same() {
     let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
         let own = HashMap::new();
         let fresh = |st: &Styles, plain: bool, wrap: f32| {
-            format!("{:?}", layout::layout(ui, &c.body, Lay { st, plain, t: &t, wrap, own: &own, card: None, font: None, size: rich::DEFAULT_SIZE }))
+            format!("{:?}", layout::layout(ui, &c.body, Lay { st, plain, t: &t, wrap, own: &own, cards: &[], font: None, size: rich::DEFAULT_SIZE }))
         };
         let mut kept = |st: &Styles, plain: bool, wrap: f32| {
-            layout::layout_kept(&mut laid, ui, &c.body, Lay { st, plain, t: &t, wrap, own: &own, card: None, font: None, size: rich::DEFAULT_SIZE })
+            layout::layout_kept(&mut laid, ui, &c.body, Lay { st, plain, t: &t, wrap, own: &own, cards: &[], font: None, size: rich::DEFAULT_SIZE })
         };
         let a = kept(&c.styles, false, 900.4);
         let b = kept(&c.styles, false, 900.4);
@@ -722,7 +722,7 @@ fn the_web_pictures_given_follow_the_readers() {
 /// it is by one after it, and none when the change is in it (its text is the writer's then).
 #[test]
 fn a_card_moves_with_what_changes_before_it() {
-    let card = Card { range: 3..7, whole: 3..7, size: vec2(10.0, 10.0) };
+    let card = Card { what: CardFor::Signature, range: 3..7, whole: 3..7, size: vec2(10.0, 10.0) };
     let old = "ab\nSIGN";
     let at = |new: &str| card.moved(old, new).map(|c| (c.range, c.whole));
     assert_eq!(at("Xab\nSIGN"), Some((4..8, 4..8)), "typed before it");

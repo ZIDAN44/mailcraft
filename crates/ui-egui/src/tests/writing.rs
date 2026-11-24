@@ -12,6 +12,7 @@ mod quote;
 mod sending;
 mod signatures;
 mod suggest;
+mod tables;
 mod undo_send;
 
 #[test]

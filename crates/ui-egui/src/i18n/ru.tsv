@@ -2115,3 +2115,4 @@ count	occurrences	повторений
 	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	Всё в окне крупнее или мельче. Его меняют и Ctrl с + или −, а Ctrl+0 возвращает прежний.
 	Text size: {percent}%	Размер текста: {percent}%
 	{percent}%	{percent}%
+	A table, as it will be sent. Backspace after it takes it out.	Таблица в том виде, в каком она будет отправлена. Backspace сразу после неё удаляет её.

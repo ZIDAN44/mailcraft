@@ -2098,3 +2098,4 @@ count	occurrences	回
 	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	ウィンドウ内のすべてを大きく、または小さくします。Ctrl と + または − でも変わり、Ctrl+0 で元に戻ります。
 	Text size: {percent}%	文字のサイズ: {percent}%
 	{percent}%	{percent}%
+	A table, as it will be sent. Backspace after it takes it out.	送信されるとおりの表です。直後で Backspace を押すと削除されます。

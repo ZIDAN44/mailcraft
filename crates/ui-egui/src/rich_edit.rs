@@ -32,8 +32,8 @@ mod tracked;
 mod undo;
 mod word_select;
 
-pub(crate) use layout::Card;
 use layout::*;
+pub(crate) use layout::{Card, CardFor};
 pub(crate) use links::link_dialog;
 use links::*;
 pub(crate) use ops::{Op, apply};
@@ -107,8 +107,12 @@ pub(crate) struct Editor {
     pub(crate) min_height: Option<f32>,
     /// A part of the text drawn as something else, set for each frame by who draws it (a
     /// signature's HTML code, laid out), and where its room was in the last frame.
-    pub(crate) card: Option<Card>,
-    pub(crate) card_rect: Option<Rect>,
+    pub(crate) cards: Vec<Card>,
+    /// Tables pasted stay tables (issue #268): in a message's own text, not a signature's nor a
+    /// block of a reply's original, which keep their text.
+    pub(crate) tables: bool,
+    /// Where each card's room was in the text, this frame.
+    pub(crate) card_rects: Vec<(CardFor, Rect)>,
     /// The text as laid out last.
     laid: Laid,
     /// The misspelled words, and the one right-clicked (issue #174).
@@ -132,8 +136,9 @@ impl Editor {
             placed: Vec::new(),
             refocus: None,
             min_height: None,
-            card: None,
-            card_rect: None,
+            cards: Vec::new(),
+            tables: false,
+            card_rects: Vec::new(),
             laid: Laid::default(),
             spelling: spelling::Marks::default(),
         }
@@ -291,7 +296,7 @@ fn keys(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
     let listed = para.list != List::None;
     // A card is one thing: Backspace after it, or Delete before it, takes all of it (its
     // unseen letters one at a time would leave the rest of them as text).
-    if let Some(card) = ed.card.clone().filter(|card| !c.sending && ed.sel.is_empty() && card.whole.end <= n) {
+    for card in ed.cards.clone().into_iter().filter(|card| !c.sending && ed.sel.is_empty() && card.whole.end <= n) {
         let first = card.before(&c.body);
         let key = if ed.sel.start == card.whole.end {
             Some(Key::Backspace)
@@ -307,7 +312,7 @@ fn keys(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
             let style = typing_style(&c.body, &c.styles, first);
             replace(ed, c, first..card.whole.end, "", style);
             set_selection(&ctx, id, ed.sel.clone());
-            ed.card = None;
+            ed.cards.retain(|k| k.what != card.what);
             return;
         }
     }
@@ -369,6 +374,19 @@ fn keys(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
 /// none, or it holds no text (a picture alone is pasted as a picture).
 fn paste_formatted(ui: &mut Ui, ed: &mut Editor, c: &mut Compose, id: egui::Id) -> bool {
     let Some(html) = crate::clipboard_html() else { return false };
+    // Tables (cells copied in Excel, a table on a web page) stay tables (issue #268).
+    if let Some(parts) = mailcraft_engine::mime::pasted_tables(&html).filter(|_| ed.tables) {
+        ui.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Paste(_))));
+        c.styles.fit(&c.body);
+        ed.remember(c, ed.sel.start);
+        let n = c.body.chars().count();
+        let end = c.paste_parts(ed.sel.start.min(n)..ed.sel.end.min(n), parts);
+        set_selection(ui.ctx(), id, end..end);
+        ed.sel = end..end;
+        ed.typing = None;
+        ui.ctx().request_repaint();
+        return true;
+    }
     let (add, mut add_styles, found) = mailcraft_engine::mime::signature_html(&html);
     if add.trim().is_empty() || add.chars().all(|ch| ch == PICTURE || ch.is_whitespace()) {
         return false;
@@ -418,7 +436,7 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let plain = c.plain;
     let tokens = *t;
     let own = if plain { HashMap::new() } else { pictures::own_sizes(ui.ctx(), ed, c) };
-    let card = ed.card.clone().filter(|_| !plain);
+    let cards: Vec<Card> = if plain { Vec::new() } else { ed.cards.clone() };
     // The text box changes the text in this frame, and lays it out at once: its look (and the
     // card's place) moved along with the change, as they are once the frame is over. Laid out
     // with the frame's first ones, all that followed the change was a letter off for a frame: a
@@ -426,30 +444,25 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     let was = c.body.clone();
     let (font, size) = (c.font.clone(), c.base_size());
     let (typing, at) = (ed.typing.clone(), ed.sel.start);
-    let mut moved: Option<(String, Styles, Option<Card>)> = None;
+    let mut moved: Option<(String, Styles, Vec<Card>)> = None;
     let mut text = Tracked::new(&mut c.body);
     let styles = &c.styles;
     let laid = &mut ed.laid;
     let mut layouter = |ui: &Ui, buf: &dyn egui::TextBuffer, wrap: f32| {
         let now = buf.as_str();
         if now == was {
-            return layout_kept(
-                laid,
-                ui,
-                now,
-                Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: card.as_ref(), font: font.as_deref(), size },
-            );
+            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, cards: &cards, font: font.as_deref(), size });
         }
         if moved.as_ref().is_none_or(|(laid_for, ..)| laid_for != now) {
             let mut st = styles.clone();
             let typing = typing.clone().unwrap_or_else(|| typing_style(&was, styles, at));
             st.edit_at(&was, now, &typing, None);
-            moved = Some((now.to_string(), st, card.as_ref().and_then(|card| card.moved(&was, now))));
+            moved = Some((now.to_string(), st, cards.iter().filter_map(|card| card.moved(&was, now)).collect()));
         }
-        let Some((_, st, card)) = moved.as_ref() else {
-            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, card: None, font: font.as_deref(), size });
+        let Some((_, st, moved_cards)) = moved.as_ref() else {
+            return layout_kept(laid, ui, now, Lay { st: styles, plain, t: &tokens, wrap, own: &own, cards: &[], font: font.as_deref(), size });
         };
-        layout_kept(laid, ui, now, Lay { st, plain, t: &tokens, wrap, own: &own, card: card.as_ref(), font: font.as_deref(), size })
+        layout_kept(laid, ui, now, Lay { st, plain, t: &tokens, wrap, own: &own, cards: moved_cards, font: font.as_deref(), size })
     };
     // As tall as the pane, or, above the original of a reply shown as it came, as its text.
     let height = ed.min_height.unwrap_or_else(|| if c.quote.is_some() { 96.0 } else { ui.available_height().max(220.0) });
@@ -501,9 +514,8 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
     // A card is passed as one thing: the cursor doesn't stop among its unseen letters (on the
     // way down it comes out after it, on the way up before it), and a selection that reaches
     // into it takes all of it.
-    if let (Some(card), Some(r)) = (&card, cursor.as_mut())
-        && before.is_none()
-    {
+    for card in &cards {
+        let Some(r) = cursor.as_mut().filter(|_| before.is_none()) else { break };
         let (first, last) = (card.before(&c.body), card.whole.end);
         let inside = |p: usize| p > first && p < last;
         let moved = if r.start == r.end && inside(r.start) {
@@ -520,12 +532,17 @@ pub(crate) fn body(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, st
             ui.ctx().request_repaint();
         }
     }
-    // Where its room is: its last line's row, the width of the text.
-    ed.card_rect = card.as_ref().filter(|card| card.range.end <= c.body.chars().count()).map(|card| {
-        let row = out.galley.pos_from_cursor(CCursor::new(card.last_line(&c.body)));
-        let top = out.galley_pos.y + row.min.y + 2.0;
-        Rect::from_min_size(egui::pos2(out.galley_pos.x, top), vec2(out.response.rect.width(), card.size.y))
-    });
+    // Where each one's room is: its last line's row, the width of the text.
+    let n = c.body.chars().count();
+    ed.card_rects = cards
+        .iter()
+        .filter(|card| card.range.end <= n)
+        .map(|card| {
+            let row = out.galley.pos_from_cursor(CCursor::new(card.last_line(&c.body)));
+            let top = out.galley_pos.y + row.min.y + 2.0;
+            (card.what, Rect::from_min_size(egui::pos2(out.galley_pos.x, top), vec2(out.response.rect.width(), card.size.y)))
+        })
+        .collect();
     if let Some(before) = before {
         // The look of what was typed: the ribbon's choice, else the text's at the cursor.
         let typing = ed.typing.take().unwrap_or_else(|| typing_style(&before, &c.styles, ed.sel.start));
@@ -657,8 +674,8 @@ fn decorate(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, g: &Galle
     let mut pictures = Vec::new();
     ed.placed.clear();
     // (Nothing is drawn over a card's unseen letters: what stands for them is drawn there.)
-    let card = ed.card.clone();
-    let in_card = |i: usize| card.as_ref().is_some_and(|c| c.range.contains(&i));
+    let cards = ed.cards.clone();
+    let in_card = |i: usize| cards.iter().any(|c| c.range.contains(&i));
     for (n, line) in c.body.split('\n').enumerate() {
         let p = if in_card(i) { Default::default() } else { c.styles.para(n) };
         let r = at(i);

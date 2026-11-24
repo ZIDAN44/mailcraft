@@ -295,6 +295,17 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   while it goes on writing to it; the browser's backup is made in memory, too small a place for a
   computer's mailboxes.
 
+### 25. Tables in a message being written: what isn't done yet
+
+- **Impact:** A table pasted into a message (#268) goes as it is: its cells can't be edited in
+  MailCraft, nor rows or columns added. A cell merged down several rows keeps to its first row,
+  and a picture in a cell is left out. A table can't be made from nothing (Outlook's
+  **Insert › Table**).
+- **Workaround:** Change the table where it was made (Excel, the web page) and paste it again;
+  Backspace after a table takes it out.
+- **Cause:** The message editor holds text and its formatting; a table is kept beside the text
+  as the HTML it goes out as, drawn where its text stands, which the editor doesn't edit.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

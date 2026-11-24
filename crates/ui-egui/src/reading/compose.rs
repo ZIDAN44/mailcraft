@@ -11,6 +11,7 @@ mod addresses;
 mod alert;
 mod chips;
 mod options;
+mod tables;
 #[cfg(test)]
 mod tests;
 
@@ -18,6 +19,7 @@ pub(crate) use addresses::Suggested;
 pub use alert::ComposeAlert;
 #[cfg(test)]
 pub(crate) use options::parse_local;
+pub(crate) use tables::TableCards;
 
 /// Height of an attachment chip.
 pub(super) const CHIP_H: f32 = 42.0;
@@ -192,8 +194,12 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
                     // Replies start above the quoted text.
                     // A signature written as HTML code is drawn laid out, where its text stands.
                     super::signature_card::place(st, ui, c, &mut ed);
+                    // So are the tables pasted in (issue #268).
+                    tables::place(st, c, &mut ed);
+                    ed.tables = true;
                     rich_edit::body(ui, &t, &mut ed, c, focus_body.then_some(0), acts);
                     super::signature_card::show(s, st, ui, c, &mut ed, acts);
+                    tables::show(s, st, ui, c, &mut ed, acts);
                     if ui.memory(|m| m.has_focus(rich_edit::body_id(c))) {
                         st.quote_focus = None;
                     }
@@ -208,6 +214,7 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
     quote_eds.retain(|(id, _), _| *id == taken.id || s.composes.iter().any(|c| c.id == *id));
     st.quote_editors = quote_eds;
     st.signature_cards.retain(|id, _| *id == taken.id || s.composes.iter().any(|c| c.id == *id));
+    st.table_cards.retain(|id, _| *id == taken.id || s.composes.iter().any(|c| c.id == *id));
     s.compose = Some(taken);
 }
 

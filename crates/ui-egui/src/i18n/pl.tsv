@@ -2115,3 +2115,4 @@ count	occurrences	wystąpieniach
 	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	Wszystko w oknie, większe lub mniejsze. Zmieniają go też Ctrl i + lub −, a Ctrl+0 przywraca.
 	Text size: {percent}%	Rozmiar tekstu: {percent}%
 	{percent}%	{percent}%
+	A table, as it will be sent. Backspace after it takes it out.	Tabela w takiej postaci, w jakiej zostanie wysłana. Backspace tuż za nią ją usuwa.

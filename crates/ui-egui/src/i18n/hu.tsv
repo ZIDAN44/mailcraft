@@ -2102,3 +2102,4 @@ count	occurrences	előfordulás
 	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	Az ablakban minden nagyobb vagy kisebb. A Ctrl és a + vagy − is módosítja, a Ctrl+0 visszaállítja.
 	Text size: {percent}%	Szövegméret: {percent}%
 	{percent}%	{percent}%
+	A table, as it will be sent. Backspace after it takes it out.	Egy táblázat, ahogy el lesz küldve. A mögötte lenyomott Backspace eltávolítja.

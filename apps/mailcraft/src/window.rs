@@ -9,7 +9,7 @@ pub(super) mod work_areas;
 #[cfg(all(unix, not(target_os = "macos")))]
 mod xdnd;
 
-pub(super) use clipboard::{ClipboardKeys, clipboard_files, read_clipboard};
+pub(super) use clipboard::{ClipboardKeys, clipboard_files, clipboard_html, read_clipboard};
 
 use std::path::PathBuf;
 

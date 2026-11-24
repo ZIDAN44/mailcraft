@@ -49,6 +49,7 @@ pub(crate) use body::WEB_PICTURES;
 pub(crate) use body::picture_menu_for_tests;
 use body::*;
 pub(crate) use body::{Marked, marked_job, subject_marks, text_marks};
+pub(crate) use compose::TableCards;
 pub use compose::compose_window;
 #[cfg(test)]
 pub(crate) use compose::parse_local;

@@ -2116,3 +2116,4 @@ count	occurrences	opakovaní
 	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	Všetko v okne, väčšie alebo menšie. Mení ju aj Ctrl a + alebo −, Ctrl+0 ju vráti.
 	Text size: {percent}%	Veľkosť textu: {percent} %
 	{percent}%	{percent} %
+	A table, as it will be sent. Backspace after it takes it out.	Tabuľka tak, ako bude odoslaná. Backspace hneď za ňou ju odstráni.

@@ -50,6 +50,8 @@ pub(super) fn picture_format(height: f32) -> TextFormat {
 /// that tall, at its right, as after a picture).
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Card {
+    /// What it's drawn for: the signature's code, or a table pasted in (issue #268).
+    pub what: CardFor,
     /// The characters it stands for.
     pub range: std::ops::Range<usize>,
     /// What's one thing with it (a signature's `-- ` line and its text): the cursor doesn't
@@ -80,7 +82,7 @@ impl Card {
             let shift = |at: usize| (at + new_len).checked_sub(old_len);
             let range = shift(self.range.start)?..shift(self.range.end)?;
             let whole = shift(self.whole.start)?..shift(self.whole.end)?;
-            return Some(Card { range, whole, size: self.size });
+            return Some(Card { what: self.what, range, whole, size: self.size });
         }
         Some(self.clone())
     }
@@ -90,6 +92,15 @@ impl Card {
         let breaks = text.chars().enumerate().take(self.range.end).skip(self.range.start);
         breaks.filter(|(_, ch)| *ch == '\n').map(|(i, _)| i + 1).last().unwrap_or(self.range.start)
     }
+}
+
+/// What a [`Card`] is drawn for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum CardFor {
+    /// The signature's HTML code (issue #90).
+    Signature,
+    /// The table pasted in at this place in [`mailcraft_engine::Compose::tables`] (issue #268).
+    Table(usize),
 }
 
 /// Letters that take (next to) no room and aren't seen: a [`Card`]'s text. `height`: its line's.
@@ -106,7 +117,8 @@ pub(super) struct Lay<'a> {
     pub(super) t: &'a Tokens,
     pub(super) wrap: f32,
     pub(super) own: &'a HashMap<String, egui::Vec2>,
-    pub(super) card: Option<&'a Card>,
+    /// What's drawn over some of the text, in its place ([`Card`]).
+    pub(super) cards: &'a [Card],
     /// The message's own typeface, for text with none set on it.
     pub(super) font: Option<&'a str>,
     /// The message's own size in points, for text with none set on it (issue #267).
@@ -115,16 +127,16 @@ pub(super) struct Lay<'a> {
 
 /// The text laid out as `lay` says; `shift` moves a paragraph right (alignment).
 pub(super) fn job(text: &str, lay: Lay<'_>, shift: &[f32]) -> LayoutJob {
-    let Lay { st, plain, t, wrap, own, card, font, size: text_size } = lay;
-    let card = card.filter(|_| !plain).map(|c| (c, c.last_line(text)));
+    let Lay { st, plain, t, wrap, own, cards, font, size: text_size } = lay;
+    let cards: Vec<(&Card, usize)> = if plain { Vec::new() } else { cards.iter().map(|c| (c, c.last_line(text))).collect() };
     // A card's letter at `at`: how tall its line is, and the room before it (its last line's start).
     let hidden = |at: usize| {
-        card.filter(|(c, _)| c.range.contains(&at)).map(|(c, last)| {
+        cards.iter().find(|(c, _)| c.range.contains(&at)).map(|(c, last)| {
             let room = if wrap.is_finite() { c.size.x.min((wrap - 40.0).max(0.0)) } else { c.size.x };
-            (if at >= last { c.size.y + 4.0 } else { 0.5 }, if at == last { room } else { 0.0 })
+            (if at >= *last { c.size.y + 4.0 } else { 0.5 }, if at == *last { room } else { 0.0 })
         })
     };
-    let edge = |at: usize| card.is_some_and(|(c, _)| at == c.range.start || at == c.range.end);
+    let edge = |at: usize| cards.iter().any(|(c, _)| at == c.range.start || at == c.range.end);
     let mut job = LayoutJob::default();
     job.wrap.max_width = wrap;
     // Where a paragraph goes is decided here (`layout_aligned`), against the editor's width;

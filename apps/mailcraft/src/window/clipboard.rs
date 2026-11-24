@@ -70,6 +70,25 @@ pub(crate) fn read_clipboard<T: Send + 'static>(read: fn(&mut arboard::Clipboard
     rx.recv_timeout(CLIPBOARD_WAIT).ok().flatten()
 }
 
+/// HTML on the clipboard: what was copied with its look (`None`: none, or nothing in it).
+pub(crate) fn clipboard_html() -> Option<String> {
+    #[cfg(windows)]
+    let html = windows_html();
+    #[cfg(not(windows))]
+    let html = read_clipboard(|c| c.get().html().ok());
+    html.filter(|h| !h.trim().is_empty())
+}
+
+/// Windows' "HTML Format" as the program that copied wrote it, read
+/// ([`mailcraft_engine::mime::windows_clipboard_html`]) for what was copied: arboard reads its
+/// fragment alone, and cells copied in Excel lost the table they're in (issue #268).
+#[cfg(windows)]
+fn windows_html() -> Option<String> {
+    let format = clipboard_win::register_format("HTML Format")?;
+    let raw: Vec<u8> = clipboard_win::get_clipboard(clipboard_win::formats::RawData(format.get())).ok()?;
+    mailcraft_engine::mime::windows_clipboard_html(&raw)
+}
+
 /// Files copied in a file manager. PCManFM ends its list with a NUL byte, which stayed on the
 /// last file's name: of two files copied, one was pasted (issue #10).
 pub(crate) fn clipboard_files() -> Vec<PathBuf> {

@@ -33,7 +33,7 @@ use platform::apple_events;
 use platform::toast;
 use platform::{appearance, secrets};
 use startup::{args, logfile, portable, single_instance};
-use window::{ClipboardKeys, app_icon, clipboard_files, drag_out, read_clipboard};
+use window::{ClipboardKeys, app_icon, clipboard_files, clipboard_html, drag_out, read_clipboard};
 use window::{display, graphics};
 
 mod desktop;
@@ -283,7 +283,7 @@ fn main() -> eframe::Result {
     }
     // Text pasted from Outlook, Word or a web page keeps its look.
     // A logo copied with it from older Word or Outlook, a file of Office's own, comes along too.
-    mailcraft_ui_egui::set_clipboard_html(|| read_clipboard(|c| c.get().html().ok()).filter(|h| !h.trim().is_empty()).map(desktop::office_pictures));
+    mailcraft_ui_egui::set_clipboard_html(|| clipboard_html().map(desktop::office_pictures));
     let launch = Launch::resolve(args, opened);
     // MailCraft's Flatpak under its id before 0.36 kept its mail in that id's sandbox: brought
     // across before anything is made in this one's.

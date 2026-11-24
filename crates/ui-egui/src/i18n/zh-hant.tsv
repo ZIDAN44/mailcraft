@@ -2101,3 +2101,4 @@ count	occurrences	次
 	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	視窗中的一切變大或變小。Ctrl 加 + 或 − 也可以變更，Ctrl+0 恢復原樣。
 	Text size: {percent}%	文字大小：{percent}%
 	{percent}%	{percent}%
+	A table, as it will be sent. Backspace after it takes it out.	表格，依傳送時的樣子顯示。在它後面按 Backspace 可將其刪除。

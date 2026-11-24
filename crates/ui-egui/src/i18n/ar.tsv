@@ -2097,3 +2097,4 @@ count	occurrences	مرات
 	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	كل ما في النافذة، أكبر أو أصغر. يغيّره أيضًا Ctrl مع + أو −، ويعيده Ctrl+0 كما كان.
 	Text size: {percent}%	حجم النص: {percent}%
 	{percent}%	{percent}%
+	A table, as it will be sent. Backspace after it takes it out.	جدول كما سيُرسَل. يحذفه مفتاح Backspace بعده.

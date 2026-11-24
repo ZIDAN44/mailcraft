@@ -2097,3 +2097,4 @@ count	occurrences	פעמים
 	Everything in the window, larger or smaller. Ctrl and + or − change it too, and Ctrl+0 puts it back.	כל מה שבחלון, גדול או קטן יותר. גם Ctrl עם + או − משנים אותו, ו-Ctrl+0 מחזיר אותו.
 	Text size: {percent}%	גודל הטקסט: {percent}%
 	{percent}%	{percent}%
+	A table, as it will be sent. Backspace after it takes it out.	טבלה, כפי שתישלח. Backspace אחריה מוחק אותה.

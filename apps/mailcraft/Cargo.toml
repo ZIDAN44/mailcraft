@@ -74,6 +74,9 @@ winit = { version = "0.30", default-features = false }
 winsafe = { version = "0.0.29", default-features = false, features = ["advapi", "dwm", "user"] }
 # MailCraft's icon in the notification area, for running with its window closed (`desktop/tray.rs`).
 tray-icon = { version = "0.26", default-features = false }
+# The clipboard's HTML as the program that copied wrote it (`window/clipboard.rs`): arboard reads
+# its fragment alone. The version arboard uses, so it's built once.
+clipboard-win = "5.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Finder hands documents to an app through an `odoc` Apple event; winit 0.30 never sees it
