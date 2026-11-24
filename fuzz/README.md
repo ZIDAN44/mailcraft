@@ -1,7 +1,7 @@
 # Fuzzing
 
 Every parser that reads network or disk input has a fuzz target here, because MailCraft must never
-crash on hostile input (see "Never crash" in [CLAUDE.md](../CLAUDE.md)). The targets live in a
+crash on hostile input (see "Never crash" in [AGENTS.md](../AGENTS.md)). The targets live in a
 workspace of their own, so the main build never needs a nightly toolchain.
 `.github/workflows/fuzz.yml` runs every target once a week.
 

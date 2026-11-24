@@ -43,6 +43,7 @@ mod startup;
 mod window;
 #[cfg(test)]
 mod windows_manifest;
+mod windows_programs;
 
 /// The system's UI font, if installed (never bundled).
 fn system_fonts() -> (Option<Vec<u8>>, Option<Vec<u8>>) {
@@ -61,9 +62,10 @@ fn system_fonts() -> (Option<Vec<u8>>, Option<Vec<u8>>) {
         };
         places.iter().map(|(r, b)| (PathBuf::from(r), PathBuf::from(b))).collect()
     };
+    // A damaged file is passed over for the next (egui stopped MailCraft on it, at every start).
     for (r, b) in candidates {
-        if let Ok(reg) = std::fs::read(r) {
-            return (Some(reg), std::fs::read(b).ok());
+        if let Some((reg, _)) = desktop::fonts::first_readable([(r, 0)]) {
+            return (Some(reg), desktop::fonts::first_readable([(b, 0)]).map(|(bold, _)| bold));
         }
     }
     (None, None)
@@ -118,6 +120,7 @@ impl App {
         let monitors = frame.winit_window().map(|w| mailcraft_ui_egui::Monitors {
             all: w.available_monitors().map(|m| rect((m.position().x, m.position().y), (m.size().width, m.size().height))).collect(),
             primary: w.primary_monitor().map(|m| rect((m.position().x, m.position().y), (m.size().width, m.size().height))),
+            work: window::work_areas::list(),
         });
         mailcraft_ui_egui::set_monitors(ctx, monitors);
     }
@@ -520,7 +523,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                 apple_events::repaint_on_arrival(&finder, &cc.egui_ctx);
                 // ⌘Q asks before what's being written is lost; without the menu it still runs,
                 // quitting as winit's does.
-                if let Err(e) = apple_events::install_menu(&cc.egui_ctx) {
+                if let Err(e) = apple_events::install_menu(&cc.egui_ctx, desktop::tray::ask_exit) {
                     log::warn!("the app menu wasn't put in place, so Quit won't ask first: {e}");
                 }
             }
@@ -557,7 +560,6 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                         data: desktop_data,
                         base,
                         moved,
-                        #[cfg(windows)]
                         portable: app_portable,
                         updater: updater.clone(),
                         own_title_bar,

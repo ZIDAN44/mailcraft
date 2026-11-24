@@ -41,8 +41,8 @@ pub(crate) struct Desktop {
     pub(crate) base: Option<PathBuf>,
     /// How a move carried out at this start went (told once).
     pub(crate) moved: Option<Result<PathBuf, String>>,
-    /// Portable mode (`portable.rs`): MailCraft's name isn't written to Windows' registry.
-    #[cfg(windows)]
+    /// Portable mode (`portable.rs`): MailCraft's name isn't written to Windows' registry, nor
+    /// is an entry that starts it at sign-in made.
     pub(crate) portable: bool,
     /// Test builds' updater (`self_update.rs`), when this one has it.
     pub(crate) updater: Option<self_update::Updater>,
@@ -69,6 +69,18 @@ impl Desktop {
             Some(dir) => d.set_directory(dir),
             None => d,
         }
+    }
+
+    /// Shows a file dialog (`show`), on a Mac with the Edit menu its fields take their keys from.
+    #[cfg(target_os = "macos")]
+    fn modal<T>(show: impl FnOnce() -> T) -> T {
+        crate::platform::apple_events::with_edit_menu(show)
+    }
+
+    /// Shows a file dialog (`show`).
+    #[cfg(not(target_os = "macos"))]
+    fn modal<T>(show: impl FnOnce() -> T) -> T {
+        show()
     }
 
     /// Notes where a dialog's answer was (a file's folder, or the folder picked); passes it on.
@@ -115,7 +127,7 @@ impl Services for Desktop {
         self.dark.get()
     }
     fn pick_files(&mut self) -> Vec<PathBuf> {
-        let files = self.dialog("Attach files").pick_files().unwrap_or_default();
+        let files = Self::modal(|| self.dialog("Attach files").pick_files()).unwrap_or_default();
         self.used(files.first(), false);
         files
     }
@@ -136,7 +148,7 @@ impl Services for Desktop {
             };
             d = d.add_filter(kind, &[ext]).add_filter("All files", &["*"]);
         }
-        let saved = d.save_file();
+        let saved = Self::modal(|| d.save_file());
         self.used(saved, false)
     }
     fn open_path(&mut self, path: &Path) -> Result<(), String> {
@@ -144,6 +156,9 @@ impl Services for Desktop {
     }
     fn update_state(&mut self) -> mailcraft_ui_egui::UpdateState {
         self.updater.as_ref().map(self_update::Updater::state).unwrap_or_default()
+    }
+    fn update_outcome(&mut self) -> Option<mailcraft_ui_egui::UpdateOutcome> {
+        self.updater.as_ref().and_then(self_update::Updater::take_outcome)
     }
     fn restart_to_update(&mut self) -> bool {
         self.updater.as_ref().is_some_and(self_update::Updater::restart_after_close)
@@ -257,7 +272,7 @@ impl Services for Desktop {
             }
             candidates.push((PathBuf::from("/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf"), 0));
         }
-        candidates.iter().find_map(|(p, i)| std::fs::read(p).ok().map(|b| (b, *i)))
+        fonts::first_readable(candidates)
     }
     fn rtl_font(&mut self) -> Option<Vec<u8>> {
         // Fonts with both Arabic and Hebrew first.
@@ -279,13 +294,19 @@ impl Services for Desktop {
             .map(PathBuf::from)
             .into()
         };
-        candidates.iter().find_map(|p| std::fs::read(p).ok())
+        fonts::first_readable(candidates.into_iter().map(|p| (p, 0))).map(|(bytes, _)| bytes)
     }
     fn keeps_running(&self) -> Option<mailcraft_ui_egui::KeptOnClose> {
         tray::offered()
     }
     fn kept_on_close(&self) -> Option<mailcraft_ui_egui::KeptOnClose> {
         tray::kept_on_close()
+    }
+    fn starts_at_sign_in(&self) -> Option<bool> {
+        crate::platform::sign_in::offered(self.portable).then(crate::platform::sign_in::on)
+    }
+    fn set_start_at_sign_in(&mut self, on: bool) -> Result<(), String> {
+        crate::platform::sign_in::set(on)
     }
     fn can_drag_out(&self) -> bool {
         // Elsewhere, from a window on X11 only (a Wayland window isn't an X window). That's the
@@ -306,33 +327,38 @@ impl Services for Desktop {
         self.lanes.tend();
     }
     fn pick_folder(&mut self) -> Option<PathBuf> {
-        let folder = self.dialog("Save attachments to").pick_folder();
+        let folder = Self::modal(|| self.dialog("Save attachments to").pick_folder());
         self.used(folder, true)
     }
     fn pick_certificate(&mut self) -> Option<PathBuf> {
-        let file =
-            self.dialog("Import certificate").add_filter("Certificate with its key", &["p12", "pfx"]).add_filter("All files", &["*"]).pick_file();
+        let file = Self::modal(|| {
+            self.dialog("Import certificate").add_filter("Certificate with its key", &["p12", "pfx"]).add_filter("All files", &["*"]).pick_file()
+        });
         self.used(file, false)
     }
     fn pick_server_certificate(&mut self) -> Option<PathBuf> {
-        let file = self
-            .dialog("Trust a certificate file")
-            .add_filter("Certificate", &["pem", "crt", "cer", "der"])
-            .add_filter("All files", &["*"])
-            .pick_file();
+        let file = Self::modal(|| {
+            self.dialog("Trust a certificate file")
+                .add_filter("Certificate", &["pem", "crt", "cer", "der"])
+                .add_filter("All files", &["*"])
+                .pick_file()
+        });
         self.used(file, false)
     }
     fn pick_pgp_key(&mut self) -> Option<PathBuf> {
-        let file =
-            self.dialog("Import OpenPGP key").add_filter("OpenPGP key", &["asc", "gpg", "key", "pgp"]).add_filter("All files", &["*"]).pick_file();
+        let file = Self::modal(|| {
+            self.dialog("Import OpenPGP key").add_filter("OpenPGP key", &["asc", "gpg", "key", "pgp"]).add_filter("All files", &["*"]).pick_file()
+        });
         self.used(file, false)
     }
     fn pick_rules_file(&mut self) -> Option<PathBuf> {
-        let file = self.dialog("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file();
+        let file = Self::modal(|| self.dialog("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file());
         self.used(file, false)
     }
     fn pick_categories_file(&mut self) -> Option<PathBuf> {
-        let file = self.dialog("Import categories").add_filter("MailCraft categories", &["json"]).add_filter("All files", &["*"]).pick_file();
+        let file = Self::modal(|| {
+            self.dialog("Import categories").add_filter("MailCraft categories", &["json"]).add_filter("All files", &["*"]).pick_file()
+        });
         self.used(file, false)
     }
     fn pick_data_file(&mut self) -> Option<PathBuf> {
@@ -341,20 +367,23 @@ impl Services for Desktop {
         if let Some(dir) = self.data.as_ref().filter(|d| d.is_dir()) {
             d = d.set_directory(dir);
         }
-        d.set_title("Open data file")
-            .add_filter("Data files", &["pst", "mailcraft"])
-            .add_filter("Outlook data files", &["pst"])
-            .add_filter("MailCraft data files", &["mailcraft"])
-            .pick_file()
+        Self::modal(|| {
+            d.set_title("Open data file")
+                .add_filter("Data files", &["pst", "mailcraft"])
+                .add_filter("Outlook data files", &["pst"])
+                .add_filter("MailCraft data files", &["mailcraft"])
+                .pick_file()
+        })
     }
     fn pick_mail_file(&mut self) -> Option<PathBuf> {
-        let file = self.dialog("Open mail file").add_filter("Mail files", &["eml", "msg"]).add_filter("All files", &["*"]).pick_file();
+        let file =
+            Self::modal(|| self.dialog("Open mail file").add_filter("Mail files", &["eml", "msg"]).add_filter("All files", &["*"]).pick_file());
         self.used(file.as_ref(), false);
         file
     }
     fn pick_pictures(&mut self) -> Vec<PathBuf> {
-        let files =
-            self.dialog("Insert pictures").add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"]).pick_files().unwrap_or_default();
+        let files = Self::modal(|| self.dialog("Insert pictures").add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"]).pick_files())
+            .unwrap_or_default();
         self.used(files.first(), false);
         files
     }
@@ -374,7 +403,7 @@ impl Services for Desktop {
         // and quietly showed nothing, so sign-in pages never reached the browser.
         #[cfg(windows)]
         if url.starts_with("https://") || url.starts_with("http://") || url.starts_with("mailto:") {
-            return std::process::Command::new("rundll32.exe")
+            return std::process::Command::new(crate::windows_programs::path("rundll32.exe"))
                 .arg("url.dll,FileProtocolHandler")
                 .arg(url)
                 .spawn()
@@ -467,9 +496,18 @@ pub(crate) fn shell_open(target: &std::ffi::OsStr) -> Result<(), String> {
         // A folder opens in Explorer: ShellExec_RunDLL quietly does nothing with one (Options ›
         // Data files › Open folder never opened).
         if std::path::Path::new(target).is_dir() {
-            return std::process::Command::new("explorer.exe").arg(target).spawn().map(drop).map_err(|e| e.to_string());
+            return std::process::Command::new(crate::windows_programs::path("explorer.exe"))
+                .arg(target)
+                .spawn()
+                .map(drop)
+                .map_err(|e| e.to_string());
         }
-        std::process::Command::new("rundll32.exe").arg("shell32.dll,ShellExec_RunDLL").arg(target).spawn().map(drop).map_err(|e| e.to_string())
+        std::process::Command::new(crate::windows_programs::path("rundll32.exe"))
+            .arg("shell32.dll,ShellExec_RunDLL")
+            .arg(target)
+            .spawn()
+            .map(drop)
+            .map_err(|e| e.to_string())
     }
     #[cfg(not(windows))]
     {

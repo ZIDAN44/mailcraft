@@ -13,6 +13,8 @@ default-run = "mailcraft"
 workspace = true
 
 [dependencies]
+# The update's file flushed as the cache's are (a plain flush where a Mac refuses the full one).
+craft-atomic = { workspace = true }
 mailcraft-engine = { workspace = true }
 mailcraft-net = { workspace = true }
 mailcraft-ui-egui = { workspace = true }
@@ -84,9 +86,10 @@ fmv-macos-events = "=0.1.0"
 # come in through eframe already; muda builds the menu.
 dispatch2 = { version = "0.3.1", default-features = false, features = ["std"] }
 objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
-# The Dock's count of unread mail (issue #93), as the window's title has it.
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSDockTile"] }
-objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSString"] }
+# The Dock's count of unread mail (issue #93), as the window's title has it; the part of each screen
+# windows may use (`window/work_areas.rs`).
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSResponder", "NSDockTile", "NSScreen", "objc2-core-foundation"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSString", "NSArray", "NSEnumerator", "NSGeometry"] }
 muda = { version = "0.21.2", default-features = false }
 
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]

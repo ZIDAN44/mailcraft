@@ -181,18 +181,20 @@ impl MailApp {
             self.ui.search_drop = SearchDrop::Recent;
         }
         self.ui.search_focused = resp.has_focus();
-        if self.ui.search_cursor_end {
-            self.ui.search_cursor_end = false;
+        let at_end = std::mem::take(&mut self.ui.search_cursor_end);
+        if at_end {
             if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), resp.id) {
                 let end = egui::text::CCursor::new(self.ui.search_text.chars().count());
                 state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
                 state.store(ui.ctx(), resp.id);
             }
+            if std::mem::take(&mut self.ui.focus_search) {
+                resp.request_focus();
+            }
         }
-        if self.ui.focus_search {
-            resp.request_focus();
-            self.ui.focus_search = false;
-        }
+        // Asked for again (Ctrl+E, its key tip): the query selected, so what's typed replaces it.
+        // After a term put in the box (From, Subject), the caret at its end, for the name.
+        crate::look::fields::focus_selecting_all(ui, &resp, &self.ui.search_text, &mut self.ui.focus_search);
         // Searched a moment after the last key (Enter: at once), not on every key.
         let now = ui.input(|i| i.time);
         if resp.changed() {

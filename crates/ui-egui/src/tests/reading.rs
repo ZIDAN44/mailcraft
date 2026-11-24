@@ -438,7 +438,10 @@ fn a_narrow_row_keeps_the_senders_name_readable() {
         widths = drawn.into_iter().filter(|d| d.text == name).map(|d| d.rect.width()).collect();
     }
     let full = ctx.fonts_mut(|f| f.layout_no_wrap(name.into(), crate::theme::regular(14.0), egui::Color32::WHITE).size().x);
-    assert!(widths.iter().any(|w| *w >= full * 0.6), "the name drawn {widths:?} wide of {full}");
+    // The row keeps the name nine twentieths of its room (here "Alexandra…"); egui keeps a cut
+    // name inside the width it's given, so its last letter can give way to the ellipsis (a letter
+    // that fitted only by running a third of a point past it did before the egui fork's f5025284).
+    assert!(widths.iter().any(|w| *w >= full * 0.55), "the name drawn {widths:?} wide of {full}");
 }
 
 /// The External tag stays one line in a pane too narrow for it (wrapped, its word stood in a

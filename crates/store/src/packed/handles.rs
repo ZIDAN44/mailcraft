@@ -51,6 +51,9 @@ thread_local! {
 #[derive(Debug)]
 pub(super) struct DataFile {
     file: FileBackend,
+    /// Another handle on the file, for a plain flush where a Mac refuses the full one
+    /// ([`StorageBackend::sync_data`]).
+    flushes: File,
     /// Each used by one read at a time (none: reads go through `file`).
     reads: Vec<Mutex<File>>,
     /// Told of the bytes read: how far a check of the file has come.
@@ -62,6 +65,7 @@ impl DataFile {
     /// can't be opened leaves it fewer (none: its reads go through the database's handle).
     pub(super) fn open(path: &Path) -> Result<DataFile, DatabaseError> {
         let file = OpenOptions::new().read(true).write(true).create(true).truncate(false).open(path)?;
+        let flushes = file.try_clone()?;
         let file = FileBackend::new(file)?;
         #[cfg(windows)]
         let reads = (0..READ_HANDLES)
@@ -70,7 +74,7 @@ impl DataFile {
             .collect();
         #[cfg(not(windows))]
         let reads = Vec::new();
-        Ok(DataFile { file, reads, counted: None })
+        Ok(DataFile { file, flushes, reads, counted: None })
     }
 
     /// Its reads told to `progress` ([`OpenProgress::read`]).
@@ -181,8 +185,11 @@ impl StorageBackend for DataFile {
         self.file.set_len(len)
     }
 
+    /// On a Mac, the full flush Rust asks for there (`F_FULLFSYNC`) is refused on a network share
+    /// (SMB) and some other file systems, and every change to a data file kept there failed: a
+    /// plain one then, as the cache's own writes do (craft-atomic; GridCraft found).
     fn sync_data(&self) -> io::Result<()> {
-        self.file.sync_data()
+        craft_atomic::or_plain_fsync(self.file.sync_data(), || craft_atomic::sync_file(&self.flushes))
     }
 
     fn write(&self, offset: u64, data: &[u8]) -> io::Result<()> {

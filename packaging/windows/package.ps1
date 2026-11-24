@@ -24,7 +24,7 @@ param(
   [switch] $SkipBuild
 )
 $ErrorActionPreference = 'Stop'
-$Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+$Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 
 function Invoke-Native([string] $What, [scriptblock] $Block) {
   Write-Output "==> $What"
@@ -36,7 +36,7 @@ function Invoke-Native([string] $What, [scriptblock] $Block) {
 $Version = $env:MAILCRAFT_VERSION
 if (-not $Version) {
   $inPkg = $false
-  foreach ($line in Get-Content (Join-Path $Root 'Cargo.toml')) {
+  foreach ($line in Get-Content -LiteralPath (Join-Path $Root 'Cargo.toml')) {
     if ($line -match '^\s*\[') { $inPkg = ($line.Trim() -eq '[workspace.package]'); continue }
     if ($inPkg -and $line -match '^\s*version\s*=\s*"([^"]+)"') { $Version = $Matches[1]; break }
   }
@@ -94,7 +94,7 @@ $Icons = [MailCraft.Shell]::ExtractIconEx((Join-Path $Bin 'mailcraft.exe'), -1, 
 if ($Icons -eq 0) { throw 'mailcraft.exe has no embedded icon: rebuild it with MAILCRAFT_REQUIRE_WINRES=1 (omit -SkipBuild)' }
 Write-Output "ok mailcraft.exe: $Icons embedded icon group(s)"
 $Stage = Join-Path $TargetDir "windows-package\$Arch"
-Remove-Item -Recurse -Force $Stage -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $Stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 Copy-Item (Join-Path $Bin 'mailcraft.exe'), (Join-Path $Bin 'mailcraft-cli.exe') $Stage
 
@@ -108,12 +108,12 @@ Invoke-Native 'wix build' {
     -o $Msi
 }
 # wix writes its debug symbols (.wixpdb) next to the MSI; keep them out of the release assets.
-Remove-Item -Force -ErrorAction SilentlyContinue ([IO.Path]::ChangeExtension($Msi, '.wixpdb'))
+Remove-Item -LiteralPath ([IO.Path]::ChangeExtension($Msi, '.wixpdb')) -Force -ErrorAction SilentlyContinue
 & (Join-Path $PSScriptRoot 'sign.ps1') $Msi
 
 # ---- portable zip ------------------------------------------------------------------------------
 $Portable = Join-Path $TargetDir "windows-package\mailcraft-$Version-windows-$Arch-portable"
-Remove-Item -Recurse -Force $Portable -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $Portable -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $Portable | Out-Null
 Copy-Item (Join-Path $Stage '*.exe') $Portable
 foreach ($f in 'README.md', 'LICENSE', 'LICENSE-MIT', 'LICENSE-APACHE', 'ATTRIBUTION.md') {
@@ -124,7 +124,7 @@ foreach ($f in 'README.md', 'LICENSE', 'LICENSE-MIT', 'LICENSE-APACHE', 'ATTRIBU
 # to the exe, passwords stay in memory (issue #4; see apps/mailcraft/src/startup/portable.rs).
 Copy-Item (Join-Path $PSScriptRoot 'portable.txt') $Portable
 $Zip = Join-Path $Dist "mailcraft-$Version-windows-$Arch-portable.zip"
-Remove-Item -Force $Zip -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $Zip -Force -ErrorAction SilentlyContinue
 Compress-Archive -Path $Portable -DestinationPath $Zip
 
 # Smoke-test the CLI when this machine can run it. An ARM64 build made on an x64 runner can't run

@@ -269,6 +269,32 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Cause:** MailCraft's Microsoft app has no verified publisher. That takes a publisher verified
   in Microsoft's partner programme.
 
+### 23. Starting at sign-in: a portable copy, Flatpak and Snap, a Mac's Login Items
+
+- **Impact:** **File › Options › General › Start MailCraft when you sign in** isn't offered in a
+  portable copy, nor in the Flatpak or a Snap. On a Mac, MailCraft turned off under **System
+  Settings › General › Login Items › Allow in the Background** still shows the option on.
+- **Workaround:** A portable copy on Windows: a shortcut to `mailcraft.exe` in the Startup folder
+  (type `shell:startup` in Explorer's address bar). The Flatpak: the desktop's own list of apps
+  started at sign-in (GNOME Tweaks' Startup Applications, KDE's Autostart). On a Mac, turn it
+  on again there.
+- **Cause:** A portable copy leaves nothing on the computer, and the path it would name changes
+  with the USB stick's drive letter. A sandbox starts an app at sign-in only through its Background
+  portal, which MailCraft doesn't ask yet. macOS keeps Login Items' switches where apps can't read
+  them.
+
+### 24. Backups on a schedule
+
+- **Impact:** MailCraft on a computer doesn't back itself up (#266); in the browser, **File › Open
+  & Export › Back up…** saves everything as one file, when asked.
+- **Workaround:** A backup program that copies MailCraft's two folders, with MailCraft closed or
+  from a snapshot of the disk ([which folders](../README.md#build-and-run)); **Export to Outlook
+  data file** for an account's mail as a `.pst`.
+- **Cause:** On a computer, MailCraft's data is files a backup program copies already. A backup
+  MailCraft made itself while it runs would have to read each data file as it was at one moment,
+  while it goes on writing to it; the browser's backup is made in memory, too small a place for a
+  computer's mailboxes.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

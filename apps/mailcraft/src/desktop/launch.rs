@@ -145,9 +145,8 @@ pub(crate) fn window(
         Some(p) => eframe::NativeOptions { viewport: p.apply(options.viewport), ..options },
         None => options,
     };
-    // Windows: MailCraft's top bar is the window's title bar, in its colour, as Outlook's (issue
-    // #22), unless File › Options asked for the system's. Read here, before the window opens.
-    let own_title_bar = cfg!(windows) && !saved_ui.and_then(|v| v.get("prefs")?.get("systemTitleBar")?.as_bool()).unwrap_or(false);
+    // Read here, before the window opens.
+    let own_title_bar = own_title_bar(saved_ui);
     options.viewport = options.viewport.with_decorations(!own_title_bar);
     graphics::configure(&mut options);
     // Cut, Copy and Paste keys are MailCraft's, in every window: Ctrl+V attaches files copied
@@ -172,6 +171,14 @@ pub(crate) fn window(
     (options, card)
 }
 
+/// Whether MailCraft's top bar is the window's title bar, in its colour, as Outlook's (issue #22):
+/// on Windows, and on Linux and the BSDs (as GridCraft's), where the desktop's title bar sat above
+/// it; unless File › Options asked for the system's. A Mac keeps its own.
+fn own_title_bar(saved_ui: Option<&Value>) -> bool {
+    cfg!(any(windows, all(unix, not(target_os = "macos"))))
+        && !saved_ui.and_then(|v| v.get("prefs")?.get("systemTitleBar")?.as_bool()).unwrap_or(false)
+}
+
 /// The theme asked for at start: `--light` (false) before `--dark` (true).
 pub(crate) fn theme_asked(args: &[String]) -> Option<bool> {
     if args.iter().any(|a| a == "--light") {
@@ -186,6 +193,16 @@ pub(crate) fn theme_asked(args: &[String]) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The top bar is the window's title bar on Windows, Linux and the BSDs, unless the settings
+    /// ask for the system's; a Mac keeps its own.
+    #[test]
+    fn the_top_bar_is_the_title_bar_but_on_a_mac() {
+        let own = cfg!(any(windows, all(unix, not(target_os = "macos"))));
+        assert_eq!(own_title_bar(None), own);
+        assert_eq!(own_title_bar(Some(&serde_json::json!({"prefs": {"systemTitleBar": false}}))), own);
+        assert!(!own_title_bar(Some(&serde_json::json!({"prefs": {"systemTitleBar": true}}))));
+    }
 
     fn launch(args: &[&str], opened: Option<&[&str]>, env_data: bool) -> Launch {
         let strings = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();

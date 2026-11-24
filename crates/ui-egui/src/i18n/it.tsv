@@ -286,6 +286,9 @@
 	Keep MailCraft running when its window is closed	Mantieni MailCraft in esecuzione quando la finestra viene chiusa
 	Start MailCraft in the notification area	Avvia MailCraft nell’area di notifica
 	Start MailCraft minimized	Avvia MailCraft ridotto a icona
+	Start MailCraft when you sign in	Avvia MailCraft all’accesso
+	It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below).	Si avvia quando accedi a questo computer e controlla la posta. Si apre anche la sua finestra, a meno che resti in esecuzione dopo la chiusura e si avvii nascosto (sotto).
+	Starting MailCraft at sign-in couldn't be changed: {error}	Non è stato possibile modificare l’avvio di MailCraft all’accesso: {error}
 	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	Controlla la posta e la annuncia con la finestra nascosta, come quando è chiusa. Avviato per aprire un link o un file, apre la finestra.
 	Show the unread mail on its icon	Mostra la posta non letta sull’icona
 	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Quanti messaggi non letti hanno le Posta in arrivo, nell’angolo dell’icona di MailCraft nell’area di notifica
@@ -1278,6 +1281,8 @@ month	May	maggio
 	MailCraft {version} is ready	MailCraft {version} è pronto
 	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} è pronto. Riavvia ora per installarlo, oppure verrà installato alla chiusura di MailCraft.
 	Restart MailCraft to install it now, or it installs when you close MailCraft.	Riavvia MailCraft per installarlo ora, oppure verrà installato alla chiusura di MailCraft.
+	MailCraft is updated to {version}.	MailCraft è stato aggiornato alla versione {version}.
+	MailCraft {version} didn't install. It's offered again.	MailCraft {version} non è stato installato. Verrà proposto di nuovo.
 	Restart now	Riavvia ora
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	L'aggiornamento è scaricato e verificato. Viene installato ora, alla chiusura di MailCraft, e richiede un momento; riapri MailCraft quando ha finito.
 	Update and close	Aggiorna e chiudi

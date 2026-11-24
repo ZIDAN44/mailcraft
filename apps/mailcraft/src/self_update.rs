@@ -58,7 +58,7 @@ use std::time::Duration;
 use mailcraft_engine::model::job::Release;
 use mailcraft_engine::newer_release;
 use mailcraft_net::updates::{self, Listing, Progress};
-use mailcraft_ui_egui::{InstallAsks, UpdateState};
+use mailcraft_ui_egui::{InstallAsks, UpdateOutcome, UpdateState};
 
 mod detect;
 #[cfg(test)]
@@ -82,6 +82,11 @@ const RETRY: Duration = Duration::from_secs(5 * 60);
 const JUST_INSTALLED_FOR: u64 = 24 * 3600;
 /// The marker recording it, in the data folder.
 const MARKER: &str = "update-installed.txt";
+/// The marker's last line once [`outcome`] has said how the install ended.
+const TOLD: &str = "told";
+/// How long after an install started a start of the same build counts it as failed: one sooner
+/// may come while it's still installing (MailCraft opened again at once).
+const INSTALL_TIME: u64 = 5 * 60;
 /// Where downloads wait, in the data folder.
 const DOWNLOADS: &str = "updates";
 
@@ -296,6 +301,8 @@ pub struct Updater {
     /// The commit this build was made from, when known.
     build_sha: Option<String>,
     shared: Arc<Shared>,
+    /// How the install started as MailCraft last closed ended ([`outcome`]), until the window takes it.
+    outcome: Arc<Mutex<Option<UpdateOutcome>>>,
 }
 
 impl Updater {
@@ -310,14 +317,23 @@ impl Updater {
             return None;
         };
         let first = std::env::var("MAILCRAFT_UPDATE_FIRST_CHECK").ok().and_then(|v| v.trim().parse::<u64>().ok()).map(Duration::from_secs);
-        Updater::new(kind, data, updates::Feed::current(), current_version(), stable()).launch(build_sha, first)
+        let mut updater = Updater::new(kind, data, updates::Feed::current(), current_version(), stable());
+        updater.build_sha.clone_from(&build_sha);
+        let said = outcome(&updater.data, &updater.version, &updater.build(), now());
+        *updater.outcome.lock().unwrap_or_else(PoisonError::into_inner) = said;
+        updater.launch(build_sha, first)
+    }
+
+    /// How the install started as MailCraft last closed ended, the first time it's asked.
+    pub fn take_outcome(&self) -> Option<UpdateOutcome> {
+        self.outcome.lock().unwrap_or_else(PoisonError::into_inner).take()
     }
 
     /// An updater for a copy installed as `kind`, counting as `version` (following releases only
     /// when `stable`), its downloads in `data`, its releases from `feed`; not started.
     fn new(kind: Kind, data: PathBuf, feed: updates::Feed, version: String, stable: bool) -> Updater {
         let shared = Shared { choice: CHOICE_UNKNOWN.into(), ..Shared::default() };
-        Updater { kind, data, feed, version, stable, build_sha: None, shared: Arc::new(shared) }
+        Updater { kind, data, feed, version, stable, build_sha: None, shared: Arc::new(shared), outcome: Arc::default() }
     }
 
     /// Start its thread: the first check after `first` (by default a minute, or ten seconds when
@@ -597,6 +613,36 @@ fn just_installed(data: &Path, tag: &str, now: u64, me: &str) -> bool {
     let (Some(done), Some(at)) = (lines.next(), lines.next().and_then(|a| a.trim().parse::<u64>().ok())) else { return false };
     let by = lines.next().map(str::trim).filter(|b| !b.is_empty());
     done.trim() == tag && by != Some(me) && now.checked_sub(at).is_some_and(|age| age < JUST_INSTALLED_FOR)
+}
+
+/// How the install the marker in `data` names ended, as build `me` (version `version`) sees it,
+/// once: a marker under a day old written by another build that named this version means this
+/// is what it installed; one this very build wrote (at least [`INSTALL_TIME`] ago) means the
+/// install didn't take, and the version is offered again ([`just_installed`]). The marker then
+/// notes it was said, so it's said the once (as EffectCraft's updater says at its first start
+/// after an update how it ended).
+fn outcome(data: &Path, version: &str, me: &str, now: u64) -> Option<UpdateOutcome> {
+    let path = data.join(MARKER);
+    let text = std::fs::read_to_string(&path).ok()?;
+    let mut lines = text.lines().map(str::trim);
+    let (tag, at) = (lines.next()?, lines.next()?.parse::<u64>().ok()?);
+    let by = lines.next().unwrap_or_default();
+    if lines.next() == Some(TOLD) {
+        return None;
+    }
+    let age = now.checked_sub(at).filter(|age| *age < JUST_INSTALLED_FOR)?;
+    let named = tag.trim_start_matches('v');
+    let said = if named == version && by != me {
+        UpdateOutcome::Updated { version: named.to_string() }
+    } else if by == me && named != version && age >= INSTALL_TIME {
+        UpdateOutcome::NotInstalled { version: named.to_string() }
+    } else {
+        return None;
+    };
+    if let Err(e) = mailcraft_engine::store::write_atomic(&path, format!("{tag}\n{at}\n{by}\n{TOLD}\n").as_bytes()) {
+        log::warn!("updates: couldn't note the update was told: {e}");
+    }
+    Some(said)
 }
 
 fn now() -> u64 {

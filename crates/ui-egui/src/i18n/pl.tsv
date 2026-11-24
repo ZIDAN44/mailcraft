@@ -286,6 +286,9 @@
 	Keep MailCraft running when its window is closed	Pozostaw MailCraft uruchomiony po zamknięciu okna
 	Start MailCraft in the notification area	Uruchamiaj MailCraft w obszarze powiadomień
 	Start MailCraft minimized	Uruchamiaj MailCraft zminimalizowany
+	Start MailCraft when you sign in	Uruchamiaj MailCraft po zalogowaniu
+	It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below).	Uruchamia się, gdy logujesz się na tym komputerze, i sprawdza pocztę. Okno też się otwiera, chyba że program działa dalej po zamknięciu i uruchamia się ukryty (poniżej).
+	Starting MailCraft at sign-in couldn't be changed: {error}	Nie można zmienić uruchamiania MailCraft po zalogowaniu: {error}
 	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	Sprawdza pocztę i powiadamia o niej przy schowanym oknie, tak jak po jego zamknięciu. Uruchomiony w celu otwarcia łącza lub pliku, otwiera okno.
 	Show the unread mail on its icon	Pokazuj nieprzeczytaną pocztę na ikonie
 	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	Liczba nieprzeczytanych wiadomości w Skrzynkach odbiorczych, w rogu ikony MailCraft w obszarze powiadomień
@@ -1292,6 +1295,8 @@ date	December	grudnia
 	MailCraft {version} is ready	MailCraft {version} jest gotowy
 	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} jest gotowy. Uruchom ponownie teraz, aby go zainstalować, albo zostanie zainstalowany po zamknięciu MailCraft.
 	Restart MailCraft to install it now, or it installs when you close MailCraft.	Uruchom ponownie MailCraft, aby zainstalować aktualizację teraz, albo zostanie zainstalowana po zamknięciu MailCraft.
+	MailCraft is updated to {version}.	MailCraft został zaktualizowany do wersji {version}.
+	MailCraft {version} didn't install. It's offered again.	MailCraft {version} nie został zainstalowany. Zostanie zaproponowany ponownie.
 	Restart now	Uruchom ponownie teraz
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	Aktualizacja została pobrana i sprawdzona. Zostanie zainstalowana teraz, podczas zamykania MailCraft, co chwilę potrwa; po zakończeniu otwórz MailCraft ponownie.
 	Update and close	Aktualizuj i zamknij

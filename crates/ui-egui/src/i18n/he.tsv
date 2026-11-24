@@ -286,6 +286,9 @@
 	Keep MailCraft running when its window is closed	להשאיר את MailCraft פועל כשהחלון שלו נסגר
 	Start MailCraft in the notification area	הפעלת MailCraft באזור ההודעות
 	Start MailCraft minimized	הפעלת MailCraft ממוזער
+	Start MailCraft when you sign in	הפעלת MailCraft בעת הכניסה למחשב
+	It starts as you sign in to this computer and checks for mail. Its window comes up too, unless it's kept running when closed and started put away (below).	הוא מופעל כשנכנסים למחשב הזה ובודק דואר. גם החלון שלו נפתח, אלא אם הוא נשאר פועל אחרי הסגירה ומופעל כשהוא מוסתר (למטה).
+	Starting MailCraft at sign-in couldn't be changed: {error}	לא ניתן היה לשנות את הפעלת MailCraft בעת הכניסה: {error}
 	It checks for mail and announces it with its window put away, as when it's closed. Started to open a link or a file, it opens the window.	הוא בודק דואר ומודיע עליו כשהחלון שלו מוסתר, כמו כשהוא סגור. כשהוא מופעל כדי לפתוח קישור או קובץ, הוא פותח את החלון.
 	Show the unread mail on its icon	הצגת הדואר שלא נקרא על הסמל שלו
 	How many unread messages the Inboxes have, in the corner of MailCraft's icon in the notification area	כמה הודעות שלא נקראו יש בתיבות הדואר הנכנס, בפינת הסמל של MailCraft באזור ההודעות
@@ -1274,6 +1277,8 @@ month	May	מאי
 	MailCraft {version} is ready	MailCraft {version} מוכן
 	MailCraft {version} is ready. Restart now to install it, or it installs when you close MailCraft.	MailCraft {version} מוכן. הפעל מחדש עכשיו כדי להתקין אותו, או שהוא יותקן כשתסגור את MailCraft.
 	Restart MailCraft to install it now, or it installs when you close MailCraft.	הפעל מחדש את MailCraft כדי להתקין אותו עכשיו, או שהוא יותקן כשתסגור את MailCraft.
+	MailCraft is updated to {version}.	MailCraft עודכן לגרסה {version}.
+	MailCraft {version} didn't install. It's offered again.	MailCraft {version} לא הותקן. הוא יוצע שוב.
 	Restart now	להפעיל מחדש עכשיו
 	The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.	העדכון הורד ונבדק. הוא מותקן עכשיו, בזמן ש-MailCraft נסגר, וזה לוקח רגע; פתח את MailCraft שוב כשזה יסתיים.
 	Update and close	לעדכן ולסגור

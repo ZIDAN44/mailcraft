@@ -43,6 +43,8 @@ site works from any path, inside an `<iframe>` or from a CDN bucket.
 | Caching, `index.html` | `Cache-Control: no-cache` |
 | HTTPS | Required for WebGPU, the clipboard and JMAP passwords |
 | CSP | `connect-src` includes the JMAP origin; `script-src` includes `'wasm-unsafe-eval'` |
+| Opener isolation | `Cross-Origin-Opener-Policy: same-origin`: a page opened from MailCraft can't reach or navigate its tab. It opens links with `noopener` already; this covers any other way. |
+| Sniffing | `X-Content-Type-Options: nosniff` |
 
 Without HTTPS, MailCraft draws with WebGL2 instead of WebGPU.
 

@@ -316,6 +316,72 @@ fn the_tray_icon_counts_unread_mail_and_mailcraft_can_start_there() {
     assert!(a.session.prefs.start_in_tray);
 }
 
+/// The system's starting at sign-in, as a test has it: on or not, and why setting it fails.
+#[derive(Default)]
+struct System {
+    at_sign_in: bool,
+    refuses: Option<String>,
+}
+
+/// Services where starting at sign-in can be set.
+struct SignsIn(Rc<RefCell<System>>);
+
+impl crate::Services for SignsIn {
+    stub_services!();
+    fn starts_at_sign_in(&self) -> Option<bool> {
+        Some(self.0.borrow().at_sign_in)
+    }
+    fn set_start_at_sign_in(&mut self, on: bool) -> Result<(), String> {
+        let mut s = self.0.borrow_mut();
+        match s.refuses.clone() {
+            Some(e) => Err(e),
+            None => {
+                s.at_sign_in = on;
+                Ok(())
+            }
+        }
+    }
+}
+
+/// Issue #87: File › Options › General offers starting MailCraft as you sign in where the system
+/// lets it be set from here (not in the browser, a portable copy or a sandbox). Its switch says
+/// what the system has, read as MailCraft starts and again after each change; a change the
+/// system refuses is said, and the switch stays as the system has it.
+#[test]
+fn mailcraft_can_start_as_you_sign_in() {
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let tall = egui::vec2(1280.0, 2400.0);
+    let _tall = super::windows::layout::Dressed::new(tall, "");
+    let label = "Start MailCraft when you sign in";
+    let switch = |a: &mut MailApp| {
+        let nodes = (0..3).map(|_| named(&ctx, a, tall)).last().unwrap_or_default();
+        nodes.iter().find(|n| n.label.as_deref() == Some(label) && n.role == egui::accesskit::Role::CheckBox).and_then(Named::centre)
+    };
+    let mut a = MailApp::new(Session::open(None, Clock::new(NOW, 0)), Box::new(NullBackend), Box::new(NullServices(NOW)));
+    a.act(Action::Backstage(crate::backstage::Page::Options));
+    assert_eq!(switch(&mut a), None, "not where it can't be set");
+
+    let system = Rc::new(RefCell::new(System { at_sign_in: true, refuses: None }));
+    let mut a = MailApp::new(Session::open(None, Clock::new(NOW, 0)), Box::new(NullBackend), Box::new(SignsIn(system.clone())));
+    assert_eq!(a.ui.at_sign_in, Some(true), "read as it starts");
+    a.act(Action::Backstage(crate::backstage::Page::Options));
+    let at = switch(&mut a).expect("the switch");
+    click(&ctx, &mut a, at);
+    assert!(!system.borrow().at_sign_in, "turned off");
+    assert_eq!(a.ui.at_sign_in, Some(false));
+    let at = switch(&mut a).expect("the switch");
+    click(&ctx, &mut a, at);
+    assert!(system.borrow().at_sign_in, "on again");
+    assert_eq!(a.ui.at_sign_in, Some(true));
+
+    system.borrow_mut().refuses = Some("access is denied".into());
+    a.act(Action::StartAtSignIn(false));
+    assert_eq!(a.ui.at_sign_in, Some(true), "as the system has it");
+    let said = a.session.notices.last().filter(|n| n.error).map(|n| n.text.clone()).unwrap_or_default();
+    assert!(said.contains("access is denied"), "{said:?}");
+}
+
 /// Issue #169: a window MailCraft minimized itself (closed to the Dock, or started put away) is
 /// told it isn't minimized once the user brings it back, that is once it has the focus again
 /// after losing it. egui notes a window minimized when told to minimize it, and on a Mac never
@@ -355,4 +421,42 @@ fn a_window_put_away_minimized_is_drawn_again_when_brought_back() {
     }
     // Minimized by the user: egui's to follow, nothing said.
     assert!(!unminimized(&logic(&mut a, false)) && !unminimized(&logic(&mut a, true)));
+}
+
+/// A start after the updater installed a version, or tried to.
+struct AfterUpdate(Option<crate::UpdateOutcome>);
+
+impl crate::Services for AfterUpdate {
+    stub_services!(clock, pick_files, save_path);
+    fn open_path(&mut self, _: &std::path::Path) -> Result<(), String> {
+        Err("no".into())
+    }
+    fn update_outcome(&mut self) -> Option<crate::UpdateOutcome> {
+        self.0.take()
+    }
+}
+
+/// The first start after an update says how it ended in a bar of its own, until it's
+/// dismissed: this is the new version, or that one didn't install and is offered again.
+#[test]
+fn the_first_start_after_an_update_says_how_it_ended() {
+    use crate::UpdateOutcome::{NotInstalled, Updated};
+    for (outcome, said) in [
+        (Updated { version: "0.43.0".into() }, "MailCraft is updated to 0.43.0."),
+        (NotInstalled { version: "0.43.0".into() }, "MailCraft 0.43.0 didn't install. It's offered again."),
+    ] {
+        let ctx = egui::Context::default();
+        ctx.enable_accesskit();
+        let mut a = MailApp::new(Session::open(None, Clock::new(NOW, 0)), Box::new(NullBackend), Box::new(AfterUpdate(Some(outcome))));
+        for _ in 0..3 {
+            drawn(&ctx, &mut a);
+        }
+        let texts = drawn(&ctx, &mut a);
+        assert!(texts.iter().any(|(t, _)| t == said), "{said}");
+        let at = texts.iter().find(|(t, _)| t == "Dismiss").map(|(_, p)| *p).expect("a Dismiss button");
+        click(&ctx, &mut a, at);
+        let texts = drawn(&ctx, &mut a);
+        assert_eq!(a.ui.update_outcome, None);
+        assert!(!texts.iter().any(|(t, _)| t == said));
+    }
 }

@@ -1,7 +1,7 @@
 # Architecture
 
 This page explains how MailCraft's crates fit together and why they are split this way. It is for
-contributors. The rules every change follows are in [`CLAUDE.md`](../CLAUDE.md); what each version
+contributors. The rules every change follows are in [`AGENTS.md`](../AGENTS.md); what each version
 added is in the [changelog](../CHANGELOG.md).
 
 ## How a click becomes network work
@@ -62,7 +62,7 @@ In the browser (`apps/mailcraft-web`), the same `ui-egui` and engine run over JM
 ## Source layout
 
 Code is split by topic. `foo.rs` sits beside a `foo/` folder and declares its pieces; there is no
-`mod.rs`. A big type keeps one `impl`, continued across files. The size limits are in `CLAUDE.md`,
+`mod.rs`. A big type keeps one `impl`, continued across files. The size limits are in `AGENTS.md`,
 and `cargo xtask sizes` enforces them.
 
 | Where | What |
@@ -274,7 +274,7 @@ MailCraft uses what the other Craft apps share where it fits, so the suite's fix
 
 ## Crash safety
 
-MailCraft must never crash; the rules are in `CLAUDE.md`. `Session::run`, lanes and the
+MailCraft must never crash; the rules are in `AGENTS.md`. `Session::run`, lanes and the
 importer's lanes catch escaped panics. A damaged cache file or index is set aside, never fatal.
 
 ## Tests

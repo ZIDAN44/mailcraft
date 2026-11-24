@@ -1,3 +1,8 @@
+# Text is kept with LF in the repository, whatever the computer that commits it: a Windows
+# checkout without core.autocrlf would commit CRLF, which `cargo fmt --check` passes (as
+# WordCraft found). What Git takes for binary is left as it is.
+* text=auto
+
 # Test files whose exact bytes matter (signed and encrypted MIME parts end lines in CR LF): no
 # line-ending conversion on checkout.
 crates/pgp/testdata/** -text

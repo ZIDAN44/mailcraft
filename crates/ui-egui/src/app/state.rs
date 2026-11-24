@@ -68,6 +68,8 @@ pub struct UiState {
     /// MailCraft's earlier Flatpak this start brought the mail over from, still installed: a bar
     /// says how to remove it until it's dismissed.
     pub(crate) old_flatpak: Option<&'static str>,
+    /// How the update installed as MailCraft last closed ended: a bar says so until it's dismissed.
+    pub(crate) update_outcome: Option<crate::UpdateOutcome>,
     /// What to do with the update as MailCraft closes was answered: closing asks no more.
     pub(crate) update_answered: bool,
     /// Restart now was chosen: the new version opens once installed, if the close goes ahead.
@@ -84,6 +86,9 @@ pub struct UiState {
     /// Whether MailCraft can keep running with its window closed (the desktop app), and what
     /// becomes of the window then; looked up at every frame.
     pub keeps_running: Option<KeptOnClose>,
+    /// Whether MailCraft starts as the user signs in, as the system has it (issue #87); none:
+    /// it can't be set from here.
+    pub(crate) at_sign_in: Option<bool>,
     /// The window was closed to the notification area and is hidden.
     pub(crate) in_tray: bool,
     /// MailCraft minimized the window itself (closed to the Dock or the taskbar, or started put
@@ -315,6 +320,10 @@ pub struct UiState {
     pub(crate) invite: Option<(MessageKey, u64, Option<mailcraft_engine::Invite>, Option<mailcraft_engine::InviteDay>)>,
     /// Files to drag out of the window (the app starts the system drag).
     pub(crate) drag_out: Vec<PathBuf>,
+    /// What each file opened in another app was written from (an attachment by its message and
+    /// index, a note's file by its note and index): one opened again while its app holds the
+    /// file is that file.
+    pub(crate) opened_files: HashMap<PathBuf, String>,
     /// The platform can drag files out.
     pub(crate) can_drag_out: bool,
     /// The account whose import's details are shown, beside the status bar.
