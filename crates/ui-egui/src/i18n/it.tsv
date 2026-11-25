@@ -2153,3 +2153,10 @@ count	occurrences	ripetizioni
 	Run my rules again	Riattiva le mie regole
 	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Queste sono le risposte inviate dagli altri tuoi filtri sul server («{name}»): modificale nel programma che le ha create. Quelle di MailCraft possono essere attive solo mentre queste sono disattivate: il server invia una sola risposta.
 	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Queste regole non sono attive: un altro programma ha reso attivi i propri filtri. Riattivale qui, insieme a quelli di quel programma.
+	Account: {email}	Account: {email}
+	Details	Dettagli
+	Event: “{name}”, {when}	Evento: «{name}», {when}
+	Message: “{subject}”, from {from}	Messaggio: «{subject}», da {from}
+	Task: “{name}”	Attività: «{name}»
+	This occurrence: {when}	Questa ricorrenza: {when}
+	To: {who}	A: {who}

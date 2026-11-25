@@ -2149,3 +2149,10 @@ count	occurrences	keer
 	Run my rules again	Mijn regels weer laten lopen
 	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Dit zijn de antwoorden die je andere filters op de server (‘{name}’) versturen: wijzig ze in het programma dat ze heeft gemaakt. Die van MailCraft kunnen alleen aan staan zolang deze uit staan: de server verstuurt één antwoord.
 	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Deze regels lopen niet: een ander programma heeft zijn eigen filters de lopende gemaakt. Laat ze hier weer lopen, samen met die van dat programma.
+	Account: {email}	Account: {email}
+	Details	Details
+	Event: “{name}”, {when}	Afspraak: ‘{name}’, {when}
+	Message: “{subject}”, from {from}	Bericht: ‘{subject}’, van {from}
+	Task: “{name}”	Taak: ‘{name}’
+	This occurrence: {when}	Deze keer: {when}
+	To: {who}	Aan: {who}

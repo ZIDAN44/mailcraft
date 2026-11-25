@@ -45,6 +45,8 @@ Claude Desktop and other clients (`mcpServers` in their settings):
 The client's settings hold no port and no token: before each tool call, `mailcraft-cli mcp`
 looks for the MailCraft that has the same data folder open and lets agents in. For another data
 folder (`--data` when MailCraft was started with one): `"args": ["--data", "D:\\Mail", "mcp"]`.
+A portable copy's `mailcraft-cli` (beside `portable.txt`) takes the `MailCraftData` folder beside
+it, as the MailCraft beside it does: give its full path as the command.
 
 ## Where a call goes
 
@@ -67,8 +69,8 @@ folder (`--data` when MailCraft was started with one): `"args": ["--data", "D:\\
 | `list_tasks` | `query?`, `done?` | The tasks: title, due day, list, notes. |
 | `find_people` | `query` | People from the address books, and from the mail and meetings with them. |
 | `everything_with` | `email`, `query?` | Everything with one person: the conversations, the files and links in them, the meetings, the others on that mail. |
-| `list_commands` | `search?` | MailCraft's commands: id, label, where they are, their params, whether they can run now, and whether agents run them without asking. |
-| `execute_command` | `command`, `params?` | Runs one of them in the window, once you allow it (with agents let ask to run commands). |
+| `list_commands` | `search?` | MailCraft's commands: id, label, where they are, their params, whether they can run now (and why not), whether agents run them without asking, and whether they take `keys`. |
+| `execute_command` | `command`, `params?` | Runs one of them in the window, once you allow it (with agents let ask to run commands). A command that acts on the selected messages (`mail.delete`, `mail.move`, `mail.flag`…) takes `"keys"`, the messages' keys in the list shown: they're selected first, as clicks would. One that asks a server (`rules.server`, `account.vacation`) answers with what the server says, a minute at most. |
 | `inspect` | | What the window shows: the module, folder, search, selection, the message open or being written, a dialog, the commands waiting for you. |
 | `screenshot` | | A picture of the window (PNG). |
 
@@ -80,8 +82,10 @@ included: `find_people` gives what it answered before). `list_commands`,
 ## You decide
 
 Each command an agent wants to run is shown in a small window of its own in MailCraft, above the
-rest (a dialog you're filling in stays): what it is and its params, then **Allow**, **Always
-allow** (that command, from then on), or **Deny**. The call waits for your answer, ten minutes at
+rest (a dialog you're filling in stays), MailCraft brought forward and a notification shown as it
+comes up: what it is and what it names in words (the event and its day, the message, whom to,
+the account), its params as sent under **Details**, then **Allow**, **Always allow** (that
+command, from then on), or **Deny**. The call waits for your answer, ten minutes at
 most (then nothing runs), and the agent's other calls wait with it; Deny is the agent's answer.
 A command that may no longer run by the time you answer (agents not let ask any more, an account
 kept meanwhile) isn't run, nor one the agent took back. **File › Options › AI agents** lists the commands agents run

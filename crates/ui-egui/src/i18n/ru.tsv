@@ -2167,3 +2167,10 @@ count	occurrences	повторений
 	Run my rules again	Снова запустить мои правила
 	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Эти автоответы отправляют ваши другие фильтры на сервере («{name}»): измените их в программе, которая их создала. Автоответы MailCraft можно включить, только пока эти выключены: сервер отправляет один ответ.
 	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Эти правила не выполняются: другая программа сделала выполняемыми свои фильтры. Запустите их здесь снова вместе с фильтрами той программы.
+	Account: {email}	Учётная запись: {email}
+	Details	Подробности
+	Event: “{name}”, {when}	Событие: «{name}», {when}
+	Message: “{subject}”, from {from}	Сообщение: «{subject}», от {from}
+	Task: “{name}”	Задача: «{name}»
+	This occurrence: {when}	Это повторение: {when}
+	To: {who}	Кому: {who}

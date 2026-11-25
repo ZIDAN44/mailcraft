@@ -189,3 +189,51 @@ fn what_agents_asked_runs_only_as_things_are_now() {
     assert_eq!(v["ran"], true);
     assert!(!v.to_string().contains("studio.example"), "{v}");
 }
+
+/// Issue #255, as the tester met it: the question said in words (the event and its occurrence,
+/// whom to), the JSON folded away; a notification as it comes up (the window was easy to miss);
+/// and a command that asks a server answered with the server's answer, not `pending`.
+#[test]
+fn an_ask_reads_in_words_is_announced_and_a_servers_answer_is_awaited() {
+    let (mut a, _) = app("agents-words");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let shown = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    a.services = Box::new(Recorder(shown.clone()));
+    a.run("options.agents", json!({"on": true}));
+    a.run("options.agentsRun", json!({"on": true}));
+    let p = json!({"summary": "Delegation check", "start": "2026-10-22T14:00", "attendees": "Zoe Park <zoe@studio.example>"});
+    let uid = a.session.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string();
+    let at = a.session.find_event(&uid).unwrap().1.event.start;
+    let params = json!({"uid": uid, "occurrence": at, "to": "Jane Doe <jane@studio.example>"});
+    let AgentAnswer::Asking(ticket) = a.agent_request("engine.execute", &json!({"command": "invite.forward", "params": params})) else {
+        panic!("asked")
+    };
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(texts.iter().any(|t| t.starts_with("Event: “Delegation check”, Thu 2026-10-22")), "{texts:?}");
+    assert!(texts.iter().any(|t| t == "To: Jane Doe <jane@studio.example>"), "{texts:?}");
+    assert!(texts.iter().any(|t| t == "Details") && !texts.iter().any(|t| t.contains("\"occurrence\"")), "the JSON folded: {texts:?}");
+    let said = shown.lock().unwrap().clone();
+    assert!(matches!(said.as_slice(), [(title, body)] if title == "An AI agent asks" && body.contains("Delegation check")), "{said:?}");
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(shown.lock().unwrap().len(), 1, "said once");
+    a.agent_withdraw(ticket);
+
+    // A server's answer awaited: given once it came, under the same ticket.
+    let id = a.session.run("account.add", &json!({"email": "ann@mc31.test", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    a.session.take_jobs();
+    a.run("options.agentsAlways", json!({"allow": "rules.server"}));
+    let AgentAnswer::Asking(ticket) = a.agent_request("engine.execute", &json!({"command": "rules.server", "params": {"account": id}})) else {
+        panic!("awaited")
+    };
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.agent_decisions().is_empty(), "not yet");
+    let rules = mailcraft_engine::model::organize::ServerRules { other_script: Some("sogo".into()), ..Default::default() };
+    a.session.apply(mailcraft_engine::model::Event::ServerRules { account: id, rules: Some(rules), error: None });
+    frame(&ctx, &mut a, vec![]);
+    let decided = a.agent_decisions();
+    assert!(matches!(decided.as_slice(), [(t, Ok(v))] if *t == ticket && v["rules"]["otherScript"] == "sogo"), "{decided:?}");
+}

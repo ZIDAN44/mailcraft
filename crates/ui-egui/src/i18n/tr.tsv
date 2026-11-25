@@ -2154,3 +2154,10 @@ count	occurrences	kez
 	Run my rules again	Kurallarımı yeniden çalıştır
 	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Bunlar sunucudaki diğer filtrelerinizin (“{name}”) gönderdiği yanıtlar: onları oluşturan programda değiştirin. MailCraft'ınkiler yalnızca bunlar kapalıyken açık olabilir: sunucu tek bir yanıt gönderir.
 	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Bu kurallar çalışmıyor: başka bir program kendi filtrelerini çalışan filtreler yaptı. Onları burada, o programınkilerle birlikte yeniden çalıştırın.
+	Account: {email}	Hesap: {email}
+	Details	Ayrıntılar
+	Event: “{name}”, {when}	Etkinlik: “{name}”, {when}
+	Message: “{subject}”, from {from}	İleti: “{subject}”, gönderen: {from}
+	Task: “{name}”	Görev: “{name}”
+	This occurrence: {when}	Bu yineleme: {when}
+	To: {who}	Kime: {who}

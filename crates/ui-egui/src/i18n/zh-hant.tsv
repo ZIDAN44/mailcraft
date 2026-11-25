@@ -2153,3 +2153,10 @@ count	occurrences	次
 	Run my rules again	重新執行我的規則
 	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	這些是你在伺服器上的其他篩選器（「{name}」）傳送的回覆：請在建立它們的程式中變更。只有這些關閉時，MailCraft 的回覆才能開啟：伺服器只會傳送一份回覆。
 	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	這些規則沒有執行：另一個程式讓它自己的篩選器成為執行的那組。在這裡重新執行它們，並與那個程式的篩選器一起執行。
+	Account: {email}	帳戶: {email}
+	Details	詳細資料
+	Event: “{name}”, {when}	事件: 「{name}」，{when}
+	Message: “{subject}”, from {from}	郵件: 「{subject}」，寄件者 {from}
+	Task: “{name}”	工作: 「{name}」
+	This occurrence: {when}	這一次: {when}
+	To: {who}	收件者: {who}

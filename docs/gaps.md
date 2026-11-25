@@ -249,6 +249,12 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Workaround:** Open MailCraft for an agent to run commands; open a folder to download its
   mail.
 - **Cause:** Only the open window asks you about a command, so nothing runs while it's closed.
+- **Impact:** An organisation's profile can turn agents off, let them only read, or have every
+  command asked about, but can't let them reach only some accounts (its own domain's): which
+  accounts agents read is each person's choice.
+- **Workaround:** Each person turns accounts off under **File › Options › AI agents**.
+- **Cause:** The accounts kept from agents are the person's own setting, by account; a profile
+  names domains, and isn't read where that setting is checked yet.
 
 ### 21. An organisation's profile: what isn't done yet
 

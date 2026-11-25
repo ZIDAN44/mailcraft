@@ -2154,3 +2154,10 @@ count	occurrences	Terminen
 	Run my rules again	Meine Regeln wieder ausführen
 	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Diese Antworten senden Ihre anderen Filter auf dem Server („{name}“): Ändern Sie sie in dem Programm, das sie erstellt hat. Die von MailCraft können nur an sein, solange diese aus sind: Der Server sendet nur eine Antwort.
 	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Diese Regeln laufen nicht: Ein anderes Programm hat seine eigenen Filter zu denen gemacht, die laufen. Führen Sie sie hier wieder aus, zusammen mit denen dieses Programms.
+	Account: {email}	Konto: {email}
+	Details	Details
+	Event: “{name}”, {when}	Termin: „{name}“, {when}
+	Message: “{subject}”, from {from}	Nachricht: „{subject}“, von {from}
+	Task: “{name}”	Aufgabe: „{name}“
+	This occurrence: {when}	Dieser Termin: {when}
+	To: {who}	An: {who}

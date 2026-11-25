@@ -2149,3 +2149,10 @@ count	occurrences	مرات
 	Run my rules again	تشغيل قواعدي مجددًا
 	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	هذه هي الردود التي ترسلها عوامل التصفية الأخرى لديك على الخادم («{name}»): غيّرها في البرنامج الذي أنشأها. لا يمكن تفعيل ردود MailCraft إلا عندما تكون هذه متوقفة: يرسل الخادم ردًا واحدًا.
 	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	هذه القواعد لا تعمل: جعل برنامج آخر عوامل التصفية الخاصة به هي التي تعمل. أعد تشغيلها هنا، مع عوامل تصفية ذلك البرنامج.
+	Account: {email}	الحساب: {email}
+	Details	التفاصيل
+	Event: “{name}”, {when}	الحدث: «{name}»، {when}
+	Message: “{subject}”, from {from}	الرسالة: «{subject}»، من {from}
+	Task: “{name}”	المهمة: «{name}»
+	This occurrence: {when}	هذا التكرار: {when}
+	To: {who}	إلى: {who}

@@ -2154,3 +2154,10 @@ count	occurrences	előfordulás
 	Run my rules again	Szabályaim újbóli futtatása
 	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Ezeket a válaszokat a kiszolgálón lévő többi szűrőd („{name}”) küldi: abban a programban módosítsd őket, amelyik létrehozta őket. A MailCraft válaszai csak akkor lehetnek bekapcsolva, ha ezek ki vannak kapcsolva: a kiszolgáló egy választ küld.
 	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Ezek a szabályok nem futnak: egy másik program a saját szűrőit tette futóvá. Futtasd őket újra itt, a másik program szűrőivel együtt.
+	Account: {email}	Fiók: {email}
+	Details	Részletek
+	Event: “{name}”, {when}	Esemény: „{name}”, {when}
+	Message: “{subject}”, from {from}	Üzenet: „{subject}”, feladó: {from}
+	Task: “{name}”	Feladat: „{name}”
+	This occurrence: {when}	Ez az előfordulás: {when}
+	To: {who}	Címzett: {who}

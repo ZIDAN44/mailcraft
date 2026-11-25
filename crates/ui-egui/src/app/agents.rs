@@ -36,6 +36,8 @@ pub struct AgentAsk {
     pub params: Value,
     /// The params as the asking window shows them, made once.
     pub shown: String,
+    /// What it's about, in words, made once ([`MailApp::described`]).
+    pub about: Vec<String>,
 }
 
 /// What an agent asked, and what came of it.
@@ -79,6 +81,26 @@ pub struct Agents {
     decided: Vec<(u64, Result<Value, String>)>,
     pub(crate) log: VecDeque<AgentLogLine>,
     next: u64,
+    /// The ask last brought to the user's attention.
+    announced: u64,
+    /// Commands run whose answer is the server's, awaited ([`SETTLES`]).
+    settling: Vec<Settling>,
+}
+
+/// A command that asks a server, answering `pending` (issue #255: an agent was given only that):
+/// its answer is what it reads with `refresh` false, once that isn't pending any more.
+const SETTLES: [&str; 2] = ["rules.server", "account.vacation"];
+/// How long a server's answer is awaited, in seconds.
+const SETTLE_WAIT: f64 = 60.0;
+
+/// A command run whose answer is awaited from the server.
+#[derive(Clone, Debug)]
+struct Settling {
+    ticket: u64,
+    command: String,
+    params: Value,
+    /// When it was first looked at (the window's clock), once it has been.
+    since: Option<f64>,
 }
 
 /// A reply's error, refused because agents are off.
@@ -135,7 +157,14 @@ impl MailApp {
             Err(e) => return AgentAnswer::Now(Err(e)),
         };
         if self.session.prefs.agents_always.iter().any(|c| c == command) {
-            return AgentAnswer::Now(self.agent_run(command, &params));
+            let ran = self.agent_run(command, &params);
+            if awaits_server(command, &ran) {
+                self.ui.agents.next = self.ui.agents.next.wrapping_add(1);
+                let ticket = self.ui.agents.next;
+                self.ui.agents.settling.push(Settling { ticket, command: command.to_string(), params, since: None });
+                return AgentAnswer::Asking(ticket);
+            }
+            return AgentAnswer::Now(ran);
         }
         if self.ui.agents.asks.len() >= ASKS_MAX {
             return AgentAnswer::Now(Err("too many commands are waiting for the user's answer".into()));
@@ -143,7 +172,8 @@ impl MailApp {
         self.ui.agents.next = self.ui.agents.next.wrapping_add(1);
         let ticket = self.ui.agents.next;
         let shown = shown_params(&params);
-        self.ui.agents.asks.push(AgentAsk { ticket, command: command.to_string(), label, params, shown });
+        let about = self.described(&params);
+        self.ui.agents.asks.push(AgentAsk { ticket, command: command.to_string(), label, params, shown, about });
         AgentAnswer::Asking(ticket)
     }
 
@@ -207,9 +237,41 @@ impl MailApp {
     /// The ask under `ticket` taken back, unanswered: the agent cancelled it or gave up waiting,
     /// or it waited too long. Whether it was still waiting.
     pub fn agent_withdraw(&mut self, ticket: u64) -> bool {
-        let before = self.ui.agents.asks.len();
+        let before = self.ui.agents.asks.len() + self.ui.agents.settling.len();
         self.ui.agents.asks.retain(|a| a.ticket != ticket);
-        self.ui.agents.asks.len() != before
+        self.ui.agents.settling.retain(|a| a.ticket != ticket);
+        self.ui.agents.asks.len() + self.ui.agents.settling.len() != before
+    }
+
+    /// The commands awaiting a server's answer, answered once it came, or after [`SETTLE_WAIT`]
+    /// with what there is: every frame, at the window's time `now`.
+    pub(crate) fn agents_settle(&mut self, now: f64) {
+        for mut w in std::mem::take(&mut self.ui.agents.settling) {
+            let since = *w.since.get_or_insert(now);
+            let mut asked = w.params.clone();
+            if let Some(o) = asked.as_object_mut() {
+                o.insert("refresh".into(), json!(false));
+            }
+            let read = self.session.run(&w.command, &asked).map_err(|e| e.to_string());
+            let waiting = read.as_ref().is_ok_and(|v| v.get("pending").and_then(Value::as_bool) == Some(true));
+            if waiting && now - since < SETTLE_WAIT {
+                self.ui.agents.settling.push(w);
+                continue;
+            }
+            let answer = if waiting {
+                Err(format!("`{}`: the server didn't answer within a minute; ask again with \"refresh\": false later", w.command))
+            } else if self.session.prefs.agents_hidden.is_empty() {
+                read
+            } else {
+                read.map(|_| json!({"ran": true, "result": "not given while an account is kept from AI agents"}))
+            };
+            self.ui.agents.decided.push((w.ticket, answer));
+        }
+    }
+
+    /// Whether answers are awaited from servers for agents.
+    pub fn agents_settling(&self) -> bool {
+        !self.ui.agents.settling.is_empty()
     }
 
     /// The user's answer to the command waiting under `ticket`: `allow` (and, with `always`, that
@@ -224,7 +286,12 @@ impl MailApp {
                     if always {
                         let _ = self.session.run("options.agentsAlways", &json!({"allow": ask.command}));
                     }
-                    self.agent_run(&ask.command, &ask.params)
+                    let ran = self.agent_run(&ask.command, &ask.params);
+                    if awaits_server(&ask.command, &ran) {
+                        self.ui.agents.settling.push(Settling { ticket, command: ask.command.clone(), params: ask.params.clone(), since: None });
+                        return;
+                    }
+                    ran
                 }
                 Err(e) => {
                     self.agent_log(ask.command.clone(), AgentOutcome::Failed(e.clone()));
@@ -287,14 +354,24 @@ impl MailApp {
             .filter(|c| !c.id.starts_with("options.agents"))
             .filter(|c| s.is_empty() || [c.id, c.label, c.location].iter().any(|x| x.to_lowercase().contains(&s)))
             .map(|c| {
-                json!({
+                let why = (c.enabled)(&self.session);
+                let mut d = json!({
                     "id": c.id,
                     "label": c.label,
                     "location": c.location,
                     "params": c.params,
-                    "enabled": (c.enabled)(&self.session).is_none(),
+                    "enabled": why.is_none(),
                     "withoutAsking": self.session.prefs.agents_always.iter().any(|x| x == c.id),
-                })
+                });
+                // Why not now, and (issue #255: "enabled: false unless something is selected")
+                // that the messages a command acts on can be named instead.
+                if let Some(why) = why {
+                    d["why"] = json!(why);
+                }
+                if c.on_selection {
+                    d["keys"] = json!("the messages it acts on, in the list shown: [key]; else those selected");
+                }
+                d
             })
             .collect();
         json!(listed)
@@ -324,8 +401,30 @@ impl MailApp {
 
     /// The commands agents asked to run, waiting for the user: a small window above the rest.
     pub(crate) fn agents_asking_window(&mut self, ctx: &egui::Context) {
+        if self.agents_settling() {
+            self.agents_settle(ctx.input(|i| i.time));
+            ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        }
         self.agents_recheck();
         let Some(ask) = self.ui.agents.asks.first().cloned() else { return };
+        // Easy to miss behind the agent's own window (issue #255: calls timed out waiting): each
+        // ask, as it comes up, brings MailCraft forward and is said in a notification.
+        if ask.ticket != self.ui.agents.announced {
+            self.ui.agents.announced = ask.ticket;
+            if self.ui.in_tray {
+                self.show_window(ctx);
+            } else {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            }
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Critical));
+            let mut body = tf!("An AI agent wants to: {command}", command = tl!(ask.label));
+            for line in ask.about.iter().take(3) {
+                body.push('\n');
+                body.push_str(line);
+            }
+            self.services.notify(tl!("An AI agent asks"), &body);
+        }
         let t = self.ui.tokens;
         let mut decided = None;
         egui::Window::new(tl!("An AI agent asks"))
@@ -337,12 +436,18 @@ impl MailApp {
             .show(ctx, |ui| {
                 ui.set_max_width(420.0);
                 ui.label(egui::RichText::new(tf!("An AI agent wants to: {command}", command = tl!(ask.label))).strong());
-                ui.label(egui::RichText::new(ask.command.as_str()).monospace().color(t.dim));
-                if ask.params.as_object().is_some_and(|o| !o.is_empty()) {
-                    egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
-                        ui.label(egui::RichText::new(ask.shown.as_str()).monospace().small());
-                    });
+                // What it's about, in words; the command and its params as sent, folded away.
+                for line in &ask.about {
+                    ui.add(egui::Label::new(egui::RichText::new(line.as_str()).color(t.text)).wrap());
                 }
+                egui::CollapsingHeader::new(tl!("Details")).id_salt(("agent-ask", ask.ticket)).default_open(ask.about.is_empty()).show(ui, |ui| {
+                    ui.label(egui::RichText::new(ask.command.as_str()).monospace().color(t.dim));
+                    if ask.params.as_object().is_some_and(|o| !o.is_empty()) {
+                        egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
+                            ui.label(egui::RichText::new(ask.shown.as_str()).monospace().small());
+                        });
+                    }
+                });
                 if self.ui.agents.asks.len() > 1 {
                     ui.label(egui::RichText::new(tf!("{n} more waiting", n = self.ui.agents.asks.len() - 1)).color(t.dim).small());
                 }
@@ -363,6 +468,47 @@ impl MailApp {
             self.agent_decide(ask.ticket, allow, always);
         }
     }
+}
+
+impl MailApp {
+    /// What a command's params name, in words (issue #255: only the JSON was shown, a meeting
+    /// as a uid and its occurrence in Unix seconds): the event or task, the occurrence, the
+    /// messages, whom to, the account. Only what's found here: the JSON says the rest.
+    fn described(&self, params: &Value) -> Vec<String> {
+        let s = &self.session;
+        let text = |k: &str| params.get(k).and_then(Value::as_str).map(str::trim).filter(|v| !v.is_empty());
+        let when = |t: i64| crate::i18n::date(&mailcraft_engine::model::dates::full_time(t, &s.clock));
+        let mut out = Vec::new();
+        if let Some(uid) = text("uid") {
+            if let Some((_, e)) = s.find_event(uid) {
+                out.push(tf!("Event: “{name}”, {when}", name = e.event.summary, when = when(e.event.start)));
+            } else if let Some(t) = s.find_task(uid) {
+                out.push(tf!("Task: “{name}”", name = t.task.title));
+            }
+        }
+        if let Some(at) = params.get("occurrence").and_then(Value::as_i64) {
+            out.push(tf!("This occurrence: {when}", when = when(at)));
+        }
+        let keys = params.get("keys").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str);
+        for k in text("key").into_iter().chain(keys).take(5) {
+            if let Some(m) = mailcraft_engine::model::MessageKey::from_id(k).and_then(|k| s.summary(&k)) {
+                let from = if m.from.name.is_empty() { m.from.email.as_str() } else { m.from.name.as_str() };
+                out.push(tf!("Message: “{subject}”, from {from}", subject = m.subject, from = from));
+            }
+        }
+        if let Some(to) = text("to") {
+            out.push(tf!("To: {who}", who = to));
+        }
+        if let Some(a) = text("account").and_then(|a| s.account(a)) {
+            out.push(tf!("Account: {email}", email = a.config.email));
+        }
+        out
+    }
+}
+
+/// Whether a command's answer is a server's, still to come ([`SETTLES`]).
+fn awaits_server(command: &str, ran: &Result<Value, String>) -> bool {
+    SETTLES.contains(&command) && ran.as_ref().is_ok_and(|v| v.get("pending").and_then(Value::as_bool) == Some(true))
 }
 
 /// A command's params as the asking window shows them: every one, as JSON, up to

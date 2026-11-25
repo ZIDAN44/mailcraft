@@ -2154,3 +2154,10 @@ count	occurrences	occurrences
 	Run my rules again	Remettre mes règles en route
 	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Ce sont les réponses qu’envoient vos autres filtres sur le serveur (« {name} ») : modifiez-les dans le programme qui les a créées. Celles de MailCraft ne peuvent être activées que lorsque celles-ci sont désactivées : le serveur n’envoie qu’une réponse.
 	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Ces règles ne s’exécutent pas : un autre programme a fait de ses propres filtres ceux qui s’exécutent. Remettez-les en route ici, avec ceux de ce programme.
+	Account: {email}	Compte : {email}
+	Details	Détails
+	Event: “{name}”, {when}	Événement : « {name} », {when}
+	Message: “{subject}”, from {from}	Message : « {subject} », envoyé par {from}
+	Task: “{name}”	Tâche : « {name} »
+	This occurrence: {when}	Cette occurrence : {when}
+	To: {who}	À : {who}

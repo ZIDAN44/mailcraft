@@ -2150,3 +2150,10 @@ count	occurrences	回
 	Run my rules again	ルールを再び実行
 	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	これはサーバー上のほかのフィルター（「{name}」）が送る応答です。作成したプログラムで変更してください。MailCraft の応答は、こちらがオフの間だけオンにできます。サーバーが送る応答は 1 つです。
 	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	これらのルールは実行されていません。別のプログラムが自身のフィルターを実行対象にしました。ここで、そのプログラムのフィルターと一緒に再び実行できます。
+	Account: {email}	アカウント: {email}
+	Details	詳細
+	Event: “{name}”, {when}	予定: 「{name}」、{when}
+	Message: “{subject}”, from {from}	メッセージ: 「{subject}」、差出人 {from}
+	Task: “{name}”	タスク: 「{name}」
+	This occurrence: {when}	この回: {when}
+	To: {who}	宛先: {who}
