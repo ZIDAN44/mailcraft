@@ -267,6 +267,14 @@ fn a_calendar_by_its_id_or_its_name() {
         assert!(run(&mut s, command, extra, "Personal Calendar").is_err(), "{command}: two have that name");
         assert!(run(&mut s, command, extra, OWN).is_ok(), "{command}: its id still");
     }
+    // A name in any case of any letters, the spaces around it aside; and so two such are the
+    // same name.
+    let other = "https://dav.example.org/SOGo/dav/riley/Calendar/eigen/";
+    s.pim.get_mut(&id).unwrap().calendars.push(cal(other, "Persönlich", false));
+    let shown = s.run("calendar.show", &json!({"account": id, "calendar": "  PERSÖNLICH ", "shown": true})).unwrap();
+    assert_eq!(shown["calendar"], other);
+    s.pim.get_mut(&id).unwrap().calendars.push(cal("https://dav.example.org/SOGo/dav/riley/Calendar/x/", " persönlich", false));
+    assert!(s.run("calendar.show", &json!({"account": id, "calendar": "Persönlich"})).is_err(), "two have that name");
 }
 
 /// An OAuth account without a calendar sign-in of its own is never asked for calendars: its

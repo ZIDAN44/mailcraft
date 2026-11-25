@@ -36,13 +36,15 @@ pub use todo::{TODO_BAR_SPLIT, TODO_BAR_WIDTH, TodoBar, TodoGroup, TodoItem, Tod
 pub mod web;
 mod work_time;
 
-/// An account's calendar a command names (issue #280): by its id, else by its name in any case.
-/// `None` when none has it; an error when the name is two calendars', so neither is picked.
+/// An account's calendar a command names (issue #280): by its id, else by its name in any case
+/// (`Persönlich` is `PERSÖNLICH`), the spaces around it aside. `None` when none has it; an error
+/// when the name is two calendars', so neither is picked.
 pub(crate) fn calendar_named<'a>(p: &'a Pim, c: &str) -> Result<Option<&'a CalendarInfo>, CmdError> {
     if let Some(x) = p.calendars.iter().find(|x| x.id == c) {
         return Ok(Some(x));
     }
-    let mut named = p.calendars.iter().filter(|x| x.name.eq_ignore_ascii_case(c));
+    let wanted = c.trim().to_lowercase();
+    let mut named = p.calendars.iter().filter(|x| x.name.trim().to_lowercase() == wanted);
     match (named.next(), named.next()) {
         (Some(_), Some(_)) => Err(CmdError::Params(format!("more than one calendar is called `{c}`: give its id"))),
         (x, _) => Ok(x),
