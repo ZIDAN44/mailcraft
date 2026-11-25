@@ -29,6 +29,10 @@ pub struct VacationForm {
     pub external: String,
     /// Who outside gets one.
     pub outside: Outside,
+    /// IMAP (issue #243): the replies shown are another program's filters' (that script's),
+    /// changed there; and another program's filters run in place of MailCraft's.
+    pub sent_by: Option<String>,
+    pub instead: Option<String>,
     pub error: Option<String>,
 }
 
@@ -94,7 +98,53 @@ pub(super) fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut
         .color(t.dim)
         .small(),
     );
+    // Another program's filters on the server (issue #243: SOGo's took over, and its replies
+    // showed as off here).
+    if let Some(name) = &f.instead {
+        ui.add_space(6.0);
+        ui.add(
+            egui::Label::new(
+                RichText::new(tf!(
+                    "MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.",
+                    name = name
+                ))
+                .color(t.warn)
+                .small(),
+            )
+            .wrap(),
+        );
+    }
+    let theirs = f.sent_by.clone();
+    if let Some(name) = &theirs {
+        ui.add_space(6.0);
+        ui.add(
+            egui::Label::new(
+                RichText::new(tf!(
+                    "These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.",
+                    name = name
+                ))
+                .color(t.dim)
+                .small(),
+            )
+            .wrap(),
+        );
+    }
     ui.add_space(8.0);
+    ui.add_enabled_ui(theirs.is_none(), |ui| form(ui, f));
+    if let Some(e) = &f.error {
+        ui.add_space(6.0);
+        ui.label(RichText::new(e).color(t.danger));
+    }
+    let (ok, cancel) = buttons(ui, t, "Save", theirs.is_none() && (!f.enabled || !f.text.trim().is_empty()));
+    if ok {
+        f.error = None;
+        acts.push(Action::Submit("account.setVacation", f.params()));
+    }
+    !cancel
+}
+
+/// The replies' fields.
+fn form(ui: &mut Ui, f: &mut VacationForm) {
     ui.radio_value(&mut f.enabled, false, tl!("Don't send automatic replies"));
     ui.radio_value(&mut f.enabled, true, tl!("Send automatic replies"));
     ui.add_enabled_ui(f.enabled, |ui| {
@@ -135,14 +185,4 @@ pub(super) fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut
             }
         }
     });
-    if let Some(e) = &f.error {
-        ui.add_space(6.0);
-        ui.label(RichText::new(e).color(t.danger));
-    }
-    let (ok, cancel) = buttons(ui, t, "Save", !f.enabled || !f.text.trim().is_empty());
-    if ok {
-        f.error = None;
-        acts.push(Action::Submit("account.setVacation", f.params()));
-    }
-    !cancel
 }

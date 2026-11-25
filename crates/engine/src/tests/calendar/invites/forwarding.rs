@@ -5,7 +5,7 @@
 use mailcraft_model::ical::CalEvent;
 
 use super::*;
-use super::{ZOE, deliver, invitation};
+use super::{WEEK, ZOE, deliver, invitation, parts, weekly_series};
 
 /// The meeting in the message sent with `subject` from the sample's Sent.
 fn sent_meeting(s: &Session, subject: &str) -> (String, Vec<String>, CalEvent) {
@@ -46,4 +46,31 @@ fn a_meeting_is_forwarded_as_the_organizers_invitation() {
     assert!(s.run("invite.forward", &json!({"uid": "f1", "to": "not an address"})).is_err());
     let own = s.run("event.create", &json!({"summary": "Mine", "start": NOW + 86_400, "attendees": "sam@studio.example"})).unwrap();
     assert!(s.run("invite.forward", &json!({"uid": own["uid"], "to": "ana@soundlab.example"})).is_err());
+}
+
+/// Issue #234: one occurrence of a series forwarded ("This occurrence") goes alone, at its own
+/// time, as one delegated does; the whole series went to the guest every week. The user's copy
+/// stays as it was, no part made for it.
+#[test]
+fn one_occurrence_is_forwarded_on_its_own() {
+    let mut s = sample_session("forward-occurrence");
+    let series = weekly_series(&mut s);
+    let before: Vec<CalEvent> = parts(&s, &series.uid).iter().map(|p| p.event.clone()).collect();
+    let at = series.start + 3 * WEEK;
+    let r = s.run("invite.forward", &json!({"uid": series.uid, "to": "Sam Okafor <sam@studio.example>", "occurrence": at})).unwrap();
+    assert_eq!(r["occurrence"], at);
+    let (method, to, e) = sent_meeting(&s, "Fwd: Mix review");
+    assert_eq!((method.as_str(), to), ("REQUEST", vec!["sam@studio.example".to_string()]));
+    assert_eq!((e.recurrence_id, e.start, e.rrule.as_deref()), (Some(at), at, None), "that occurrence alone");
+    assert!(e.attendees.iter().any(|a| a.email == "sam@studio.example" && a.partstat == "NEEDS-ACTION"));
+    let st = s.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
+    let m = st.messages.iter().find(|m| m.subject == "Fwd: Mix review").unwrap();
+    let body = String::from_utf8_lossy(&s.store.as_ref().unwrap().read_body(&m.key).unwrap()).to_string();
+    let day = mailcraft_model::dates::full_time(at, &s.clock);
+    assert!(body.contains(&day), "the mail says that occurrence's day: {day}");
+    let after: Vec<CalEvent> = parts(&s, &series.uid).iter().map(|p| p.event.clone()).collect();
+    assert_eq!(after, before, "the user's copy unchanged");
+    // The whole series, as before; an occurrence the series hasn't, refused.
+    s.run("invite.forward", &json!({"uid": series.uid, "to": "kim@studio.example"})).unwrap();
+    assert!(s.run("invite.forward", &json!({"uid": series.uid, "to": "kim@studio.example", "occurrence": at + 60})).is_err());
 }

@@ -248,6 +248,8 @@ pub struct UiState {
     pub(crate) rtl_font: Option<Vec<u8>>,
     /// The language whose CJK font is loaded.
     pub(crate) cjk_loaded: Option<&'static str>,
+    /// The language the meeting mail is written in (`i18n::mail_words`, issue #235).
+    pub(crate) words_lang: Option<&'static str>,
     /// Shown text has Chinese characters none of the fonts has (`reading::han_missing`).
     pub(crate) han_missing: bool,
     /// Long message texts laid out by what's in view: their parts' heights, and their selection.

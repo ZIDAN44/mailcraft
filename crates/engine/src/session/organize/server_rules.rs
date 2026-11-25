@@ -57,6 +57,17 @@ impl Session {
         Ok(serde_json::json!({"pending": true}))
     }
 
+    /// The rules as last read from the server, for `rules.server` with `refresh` false.
+    pub fn server_rules_json(&self, account: &str) -> serde_json::Value {
+        match self.server_rules(account) {
+            ServerRulesState::Loaded { rules, error } => serde_json::json!({"rules": rules, "error": error}),
+            ServerRulesState::Loading => serde_json::json!({"pending": true}),
+            ServerRulesState::Failed(e) => serde_json::json!({"error": e}),
+            ServerRulesState::NotOffered => serde_json::json!({"offered": false}),
+            ServerRulesState::Unknown => serde_json::json!({}),
+        }
+    }
+
     /// The rules as the server has them, or why there are none ([`Event::ServerRules`]).
     pub(crate) fn server_rules_read(&mut self, account: &str, rules: Option<ServerRules>, error: Option<String>) {
         let Some(a) = self.account_mut(account) else { return };
@@ -123,6 +134,16 @@ impl Session {
             }
         };
         self.change_server_rules(account, vec![op], drop_outlook_list)
+    }
+
+    /// Make MailCraft's rules on an IMAP server run again (issue #243): another program (SOGo's
+    /// "Manage everything in SOGo") made its own filters the ones that run. Theirs still run,
+    /// first, included by MailCraft's.
+    pub fn resume_server_rules(&mut self, account: &str) -> CmdResult {
+        if !self.rules_to_change(account, false)?.not_running {
+            return Err(CmdError::Params("MailCraft's rules on this server are running already".into()));
+        }
+        self.change_server_rules(account, Vec::new(), false)
     }
 
     /// Turn the rule `id` on or off.

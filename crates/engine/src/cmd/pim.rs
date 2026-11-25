@@ -59,6 +59,36 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         // Issue #186: the next (or previous) time everyone shown is free, as Outlook's AutoPick.
         CommandSpec::new("calendar.findFree", "Next free time", "Calendar › Home", |s, v| s.find_free_time(p::u64(v, "minutes"), p::bool(v, "back").unwrap_or(false)))
             .params(r#"{"minutes"?: number (15 to 1440; the last length otherwise), "back"?: bool (the one before)}"#),
+        // Issue #277: a meeting's Scheduling Assistant, its guests' times and the next time all
+        // of them are free.
+        CommandSpec::new("event.scheduling", "Scheduling Assistant", "Calendar › Event", |s, v| {
+            let account = account_param(s, v)?;
+            let guests = guests_param(v)?;
+            let day = p::str(v, "date")
+                .and_then(|d| crate::session::pim::parse_local(d, &s.clock))
+                .map(|(t, all_day)| if all_day { t.div_euclid(86_400) } else { s.clock.local_day(t) })
+                .ok_or_else(|| CmdError::Params("`date` is required (YYYY-MM-DD)".into()))?;
+            s.want_guest_times(&account, &guests, day);
+            let times: Vec<Value> = guests.iter().map(|g| guest_json(s, &account, g)).collect();
+            Ok(json!({"account": account, "guests": times}))
+        })
+        .params(r#"{"attendees": "a@x, Name <b@y>", "date": "YYYY-MM-DD", "account"?: string (whose server is asked)} (asks their servers; call again for what came)"#),
+        CommandSpec::new("event.nextFree", "Next free time for everyone", "Calendar › Event", |s, v| {
+            let account = account_param(s, v)?;
+            let guests = guests_param(v)?;
+            let from = p::str(v, "start")
+                .and_then(|d| crate::session::pim::parse_local(d, &s.clock))
+                .map(|(t, _)| t)
+                .ok_or_else(|| CmdError::Params("`start` is required (YYYY-MM-DDTHH:MM)".into()))?;
+            let minutes = p::u64(v, "minutes").filter(|m| (5..=1440).contains(m)).ok_or_else(|| CmdError::Params("`minutes` is 5 to 1440".into()))?;
+            let length = i64::try_from(minutes).unwrap_or(30) * 60;
+            match s.next_free_with(&account, &guests, from, length, p::str(v, "uid")) {
+                Ok(Some(start)) => Ok(json!({"found": true, "start": start, "end": start + length})),
+                Ok(None) => Ok(json!({"found": false})),
+                Err(why) => Err(CmdError::Failed(why.into())),
+            }
+        })
+        .params(r#"{"attendees": "a@x, Name <b@y>", "start": "YYYY-MM-DDTHH:MM" (from then on), "minutes": number, "account"?: string, "uid"?: string (the meeting being moved: its own time isn't taken)}"#),
         CommandSpec::new("calendar.freeLength", "Meeting length", "Calendar › Home", |s, v| {
             let m = p::u64(v, "minutes").filter(|m| (15..=1440).contains(m)).ok_or_else(|| CmdError::Params("`minutes` is 15 to 1440".into()))?;
             s.prefs.free_time_minutes = u16::try_from(m).unwrap_or(30);
@@ -188,10 +218,15 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let route = before.as_ref().map(|(a, _, _)| s.meeting_route(a, &uid));
             let occurrence = p::i64(v, "occurrence");
             let r = s.delete_event(&uid, occurrence)?;
+            // The guests told unless asked not to (issue #235: as Outlook, the window asks first),
+            // with the user's own words when they wrote some.
+            let notify = p::bool(v, "notify") != Some(false);
             if let Some((account, mut e, href)) = before
                 && let Some(route) = route
+                && notify
                 && organized_by_me(s, &e)
             {
+                e.description = p::str(v, "message").map(|m| m.chars().take(10_000).collect()).unwrap_or_default();
                 // One occurrence off: the guests are told of that one.
                 if let Some(at) = occurrence.filter(|_| e.rrule.is_some()) {
                     let len = e.end.saturating_sub(e.start);
@@ -211,7 +246,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             Ok(r)
         })
-        .params(r#"{"uid": string, "occurrence"?: unix seconds (only that occurrence)}"#)
+        .params(r#"{"uid": string, "occurrence"?: unix seconds (only that occurrence), "notify"?: bool (the guests of one's own meeting told: default true; Exchange, through Graph, tells them itself), "message"?: string (said in the cancellation)}"#)
         .sends_when(mails_guests),
         CommandSpec::new("invite.respond", "Answer the invitation", "Reading pane › Invitation", |s, v| s.respond_to_invite(p::req_str(v, "answer")?))
             .params(r#"{"answer": "accepted"|"tentative"|"declined"}"#)
@@ -242,9 +277,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 Some(u) => u.to_string(),
                 None => s.invite().map(|i| i.event.uid).ok_or_else(|| CmdError::Disabled("open the invitation first".into()))?,
             };
-            s.forward_meeting(&uid, p::req_str(v, "to")?)
+            s.forward_meeting(&uid, p::req_str(v, "to")?, v.get("occurrence").and_then(serde_json::Value::as_i64))
         })
-        .params(r#"{"to": string (addresses, as a recipient box has them), "uid"?: string (a meeting in the calendar; else the open invitation's)}"#)
+        .params(r#"{"to": string (addresses, as a recipient box has them), "uid"?: string (a meeting in the calendar; else the open invitation's), "occurrence"?: number (when a series' occurrence starts, as the series has it: that one alone)}"#)
         .sends(),
         // Someone else goes in the user's place (issue #254).
         CommandSpec::new("invite.delegate", "Delegate meeting", "Reading pane › Invitation", |s, v| {
@@ -685,7 +720,8 @@ fn tell_of_change(s: &mut Session, uid: &str, before: u32) -> Result<(), CmdErro
         && organized_by_me(s, &stored)
     {
         let route = s.meeting_route(&account, uid);
-        s.tell_guests(&account, &stored, "REQUEST", route, "")?;
+        // An update, said so (issue #235: it went as "Invitation:" again).
+        s.tell_guests(&account, &stored, "UPDATE", route, "")?;
     }
     Ok(())
 }
@@ -705,7 +741,7 @@ fn tell_of_occurrence(s: &mut Session, uid: &str, at: i64, before: u32) -> Resul
         && organized_by_me(s, &e)
     {
         let route = s.meeting_route(&account, uid);
-        s.tell_guests(&account, &e, "REQUEST", route, "")?;
+        s.tell_guests(&account, &e, "UPDATE", route, "")?;
     }
     Ok(())
 }
@@ -723,4 +759,20 @@ fn save_note_file(s: &mut Session, v: &Value) -> CmdResult {
     std::fs::write(path, &data).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     super::compose::mark_from_internet(std::path::Path::new(path), &data);
     Ok(json!({"saved": path, "bytes": data.len()}))
+}
+
+/// The `attendees` of a meeting whose times are asked for: their addresses.
+fn guests_param(v: &Value) -> Result<Vec<String>, CmdError> {
+    let list = p::str(v, "attendees").ok_or_else(|| CmdError::Params("`attendees` is required".into()))?;
+    let people = mailcraft_model::addr::parse_list(list).map_err(|bad| CmdError::Params(format!("not an email address: {bad}")))?;
+    Ok(people.into_iter().take(100).map(|a| a.email).collect())
+}
+
+/// A guest's times as `event.scheduling` answers them.
+fn guest_json(s: &Session, account: &str, email: &str) -> Value {
+    match s.guest_times(account, email) {
+        crate::GuestTimes::Asking => json!({"email": email, "pending": true}),
+        crate::GuestTimes::Unknown(e) => json!({"email": email, "error": e}),
+        crate::GuestTimes::Known { from, to, busy, .. } => json!({"email": email, "from": from, "to": to, "busy": busy}),
+    }
 }

@@ -88,15 +88,18 @@ fn when(r: &DueReminder, s: &Session) -> String {
     if r.all_day { date } else { format!("{date} {}", crate::calendar::hm(r.start, s)) }
 }
 
-/// How far off it is: `Now`, `In 15 minutes`, `Overdue`.
-fn due_in(r: &DueReminder, now: i64) -> String {
+/// How far off it is: `Now`, `In 15 minutes`, `In 1 minute`, `Overdue`. One of each has words
+/// of its own (issue #239: German said "In 1 Minuten").
+pub(crate) fn due_in(r: &DueReminder, now: i64) -> String {
     let minutes = (r.start - now).div_euclid(60);
     if r.start <= now {
         if r.end.max(r.start) < now { tl!("Overdue").to_string() } else { tl!("Now").to_string() }
     } else if minutes < 60 {
-        tf!("In {n} minutes", n = minutes.max(1))
+        if minutes <= 1 { tl!("In 1 minute").to_string() } else { tf!("In {n} minutes", n = minutes) }
     } else if minutes < 1440 {
-        tf!("In {n} hours", n = minutes / 60)
+        if minutes / 60 == 1 { tl!("In 1 hour").to_string() } else { tf!("In {n} hours", n = minutes / 60) }
+    } else if minutes / 1440 == 1 {
+        tl!("In 1 day").to_string()
     } else {
         tf!("In {n} days", n = minutes / 1440)
     }
@@ -138,33 +141,37 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
             });
             ui.add_space(6.0);
             let picked = st.selected.clone().and_then(|k| st.due.iter().find(|r| r.key == k).cloned());
-            ui.horizontal(|ui| {
+            // An online meeting (Teams, Zoom, the user's own rooms…): joined from here (issue
+            // #239), as the event's form does, not opened first; on a line of its own, above the
+            // others, as Outlook has it (beside them, it was drawn over Dismiss All in German).
+            let join = picked
+                .as_ref()
+                .filter(|r| !r.task && r.message.is_none())
+                .and_then(|r| s.find_event(&r.uid).and_then(|(_, e)| s.join_link(&e.event)));
+            if let Some(url) = join
+                && widgets::accent_button(ui, crate::icons::Icon::Calendar, "Join meeting", t, true).on_hover_text(&url).clicked()
+            {
+                acts.push(Action::OpenUrl(url));
+            }
+            // Wrapped: a language with longer words takes a second line rather than one button
+            // drawn over another.
+            ui.horizontal_wrapped(|ui| {
                 if ui.button(tl!("Dismiss All")).clicked() {
                     acts.push(Action::Run("reminders.dismiss", json!({})));
                 }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if let Some(r) = &picked {
-                        if widgets::accent_button(ui, crate::icons::Icon::Close, "Dismiss", t, true).clicked() {
-                            acts.push(Action::Run("reminders.dismiss", json!({ "key": r.key })));
-                        }
-                        if ui.button(tl!("Open Item")).clicked() {
-                            if let Some(key) = &r.message {
-                                // A flagged message, in a window of its own.
-                                acts.push(Action::Run("todo.open", json!({ "key": key.to_id() })));
-                            } else if let Some(d) = if r.task { Dialog::open_task(s, &r.uid) } else { Dialog::open_item(s, &r.uid, r.occurrence) } {
-                                acts.push(Action::Dialog(d));
-                            }
-                        }
-                        // An online meeting (Teams, Zoom, the user's own rooms…): joined from here
-                        // (issue #239), as the event's form does, not opened first.
-                        let join = if r.task || r.message.is_some() { None } else { s.find_event(&r.uid).and_then(|(_, e)| s.join_link(&e.event)) };
-                        if let Some(url) = join
-                            && ui.button(tl!("Join meeting")).on_hover_text(&url).clicked()
-                        {
-                            acts.push(Action::OpenUrl(url));
+                if let Some(r) = &picked {
+                    if ui.button(tl!("Open Item")).clicked() {
+                        if let Some(key) = &r.message {
+                            // A flagged message, in a window of its own.
+                            acts.push(Action::Run("todo.open", json!({ "key": key.to_id() })));
+                        } else if let Some(d) = if r.task { Dialog::open_task(s, &r.uid) } else { Dialog::open_item(s, &r.uid, r.occurrence) } {
+                            acts.push(Action::Dialog(d));
                         }
                     }
-                });
+                    if widgets::accent_button(ui, crate::icons::Icon::Close, "Dismiss", t, true).clicked() {
+                        acts.push(Action::Run("reminders.dismiss", json!({ "key": r.key })));
+                    }
+                }
             });
             ui.add_space(4.0);
             let again = ui.label(RichText::new(tl!("Click Snooze to be reminded again in:")).color(t.dim).small());

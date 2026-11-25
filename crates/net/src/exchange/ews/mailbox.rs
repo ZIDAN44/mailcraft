@@ -391,6 +391,7 @@ impl Client {
             text,
             from: if scheduled { day("StartTime", false) } else { None },
             until: if scheduled { day("EndTime", true) } else { None },
+            ..Default::default()
         })
     }
 

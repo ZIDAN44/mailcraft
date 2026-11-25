@@ -270,6 +270,38 @@ fn a_meetings_reminder_joins_it() {
     assert!(a.session.notices.iter().any(|n| n.text.contains("The link couldn't be opened")), "{:?}", a.session.notices);
 }
 
+/// Issue #239: in German, Dismiss All was drawn over Join meeting (the buttons wider than the
+/// window has room for on one line); and one minute off read "In 1 Minuten". Each button stands
+/// clear of the others, in every language, and one of each says so in the singular.
+#[test]
+fn a_reminders_buttons_stand_clear_and_say_one_minute() {
+    let (mut a, _) = app("reminder-buttons");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let day = mailcraft_engine::model::dates::day_string(NOW.div_euclid(86_400));
+    let at = |s: i64| format!("{day}T{:02}:{:02}", s.div_euclid(3600).rem_euclid(24), s.div_euclid(60).rem_euclid(60));
+    let link = "https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0";
+    a.run("event.create", json!({"summary": "Stand-up", "start": at(NOW + 90), "reminder": 15, "location": link}));
+    let size = egui::vec2(1280.0, 800.0);
+    for lang in crate::i18n::Lang::for_picker() {
+        crate::i18n::set_current(lang);
+        let mut shown = Vec::new();
+        for _ in 0..3 {
+            shown = drawn_text(&ctx, &mut a, size);
+        }
+        let rect = |what: &str| shown.iter().find(|d| d.text == crate::i18n::t(what)).map(|d| d.rect);
+        let buttons: Vec<egui::Rect> = ["Join meeting", "Dismiss All", "Open Item", "Dismiss"].iter().filter_map(|b| rect(b)).collect();
+        assert_eq!(buttons.len(), 4, "{}: every button drawn", lang.code());
+        for (i, x) in buttons.iter().enumerate() {
+            for y in buttons.iter().skip(i + 1) {
+                assert!(!x.intersects(*y), "{}: {x:?} over {y:?}", lang.code());
+            }
+        }
+        assert!(shown.iter().any(|d| d.text.contains(crate::i18n::t("In 1 minute"))), "{}: one minute, in the singular", lang.code());
+    }
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+}
+
 /// Issue #224: an event's several reminders (Google's "an hour before and 2 minutes before") each
 /// have a list in its form; Add reminder gives one more and its button takes one away, and the
 /// form saves them all. A calendar that keeps one an event (Exchange's) isn't offered more.

@@ -2019,7 +2019,6 @@ count	occurrences	повторений
 	Open the series	Открыть всю серию
 	Changes apply to this occurrence alone.	Изменения применяются только к этому повторению.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Ваши другие фильтры на сервере («{name}») выполняются первыми и остаются как есть.
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Эти правила не выполняются: другая программа сделала выполняемыми свои фильтры. Сохранение правила здесь снова запустит их вместе с фильтрами той программы.
 	Found: {url}	Найдено: {url}
 	Task list	Список задач
 	Task lists	Списки задач
@@ -2132,3 +2131,56 @@ count	occurrences	повторений
 	Mark read or unread	Отметить как прочитанное или непрочитанное
 	Choose a date…	Выбрать дату…
 	Pick a time in the future.	Выберите время в будущем.
+	In 1 minute	Через 1 минуту
+	In 1 day	Через 1 день
+	Proposal accepted: the meeting is at {when} now.	Предложение принято: встреча теперь {when}.
+	Invitation: {summary}	Приглашение: {summary}
+	Updated: {summary}	Обновлено: {summary}
+	Cancelled: {summary}	Отменено: {summary}
+	Cancelled: {summary} ({when})	Отменено: {summary} ({when})
+	{summary} has been cancelled.	Встреча «{summary}» отменена.
+	{summary} on {when} has been cancelled.	Встреча «{summary}» ({when}) отменена.
+	When: {when}	Когда: {when}
+	Where: {place}	Где: {place}
+	Fwd: {summary}	Пересл.: {summary}
+	{who} forwarded you this meeting, organized by {organizer}.	{who} пересылает вам эту встречу. Организатор: {organizer}.
+	{who} asked you to go to this meeting in their place. It's organized by {organizer}.	{who} просит вас пойти на эту встречу вместо себя. Организатор: {organizer}.
+	Accepted: {summary}	Принято: {summary}
+	Tentative: {summary}	Под вопросом: {summary}
+	Declined: {summary}	Отклонено: {summary}
+	Delegated: {summary}	Делегировано: {summary}
+	{who} accepted the invitation to {summary}.	{who}: приглашение на «{summary}» принято.
+	{who} tentatively accepted the invitation to {summary}.	{who}: приглашение на «{summary}» принято под вопросом.
+	{who} declined the invitation to {summary}.	{who}: приглашение на «{summary}» отклонено.
+	{who} asked {delegate} to go to {summary} in their place.	{who}: вместо себя на «{summary}» пойдёт {delegate}.
+	New time proposed: {summary}	Предложено новое время: {summary}
+	{who} proposes a new time for {summary}: {when}.	{who} предлагает новое время для «{summary}»: {when}.
+	New time declined: {summary}	Новое время отклонено: {summary}
+	The proposed new time for {summary} was declined. The meeting stays as it was.	Предложенное новое время для «{summary}» отклонено. Встреча остаётся без изменений.
+	Cancel meeting	Отменить встречу
+	Cancel this occurrence	Отменить это повторение
+	Send cancellation	Отправить отмену
+	Delete without sending	Удалить без отправки
+	Message to your guests	Сообщение участникам
+	Your guests are sent a cancellation. Add a message to them, if you like.	Участники получат уведомление об отмене. При желании добавьте для них сообщение.
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	Автоответы и правила MailCraft на сервере не выполняются: другая программа сделала выполняемыми свои фильтры («{name}»).
+	Off: another program's filters (“{name}”) run in place of MailCraft's	Выключены: вместо фильтров MailCraft выполняются фильтры другой программы («{name}»)
+	On, sent by your other filters on the server (“{name}”)	Включены, их отправляют ваши другие фильтры на сервере («{name}»)
+	Run my rules again	Снова запустить мои правила
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Эти автоответы отправляют ваши другие фильтры на сервере («{name}»): измените их в программе, которая их создала. Автоответы MailCraft можно включить, только пока эти выключены: сервер отправляет один ответ.
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Эти правила не выполняются: другая программа сделала выполняемыми свои фильтры. Запустите их здесь снова вместе с фильтрами той программы.
+	Account: {email}	Учётная запись: {email}
+	Details	Подробности
+	Event: “{name}”, {when}	Событие: «{name}», {when}
+	Message: “{subject}”, from {from}	Сообщение: «{subject}», от {from}
+	Task: “{name}”	Задача: «{name}»
+	This occurrence: {when}	Это повторение: {when}
+	To: {who}	Кому: {who}
+	Asking their server…	Запрос к их серверу…
+	Click a time to move the meeting there	Щёлкните время, чтобы перенести туда встречу
+	Hide Scheduling Assistant	Скрыть помощника планирования
+	Scheduling Assistant	Помощник планирования
+	The next time you and your guests are all free	Ближайшее время, когда вы и все участники свободны
+	Their times can't be had: {why}	Их время недоступно: {why}
+	You	Вы
+	{free} of {all} free	Свободны: {free} из {all}

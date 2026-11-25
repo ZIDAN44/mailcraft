@@ -202,7 +202,8 @@ fn a_guest_named_with_a_comma_stays_one_guest() {
 /// The invitations and updates in Sent (the sample account files what it sends there).
 fn sent_updates(a: &MailApp, summary: &str) -> usize {
     let st = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
-    st.messages.iter().filter(|m| m.subject == format!("Invitation: {summary}")).count()
+    let said = [format!("Invitation: {summary}"), format!("Updated: {summary}")];
+    st.messages.iter().filter(|m| said.contains(&m.subject)).count()
 }
 
 /// Issue #102: the user's meeting opened in the form and saved without a change sends the
@@ -369,9 +370,18 @@ fn a_new_time_is_proposed_and_taken() {
     }
     let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
     assert!(texts.iter().any(|t| t.starts_with("Zoe Park proposes a new time: ")), "{texts:?}");
+    // Answered invitations kept where they are: the proposal stays open to read.
+    a.session.prefs.answered_invites = mailcraft_engine::AnsweredInvites::Keep;
     click_named(&ctx, &mut a, "Accept proposal");
     frame(&ctx, &mut a, vec![]);
     assert_eq!(a.session.find_event(&uid).unwrap().1.event.start, proposal.start, "moved");
+    // Taken, it says so (issue #238: it read "This invitation is out of date").
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(texts.iter().any(|t| t.starts_with("Proposal accepted: the meeting is at ")), "{texts:?}");
+    assert!(!texts.iter().any(|t| t.contains("out of date")) && !has(&texts, "Accept proposal"), "{texts:?}");
 
     // Invited: Propose new time opens its form, which sends the proposal.
     let k = a.session.list.iter().find(|m| m.subject == "Sound mix, version 3").map(|m| m.key.clone()).unwrap();
@@ -410,7 +420,11 @@ fn a_meeting_is_forwarded_from_its_card_and_its_form() {
     for _ in 0..3 {
         frame(&ctx, &mut a, vec![]);
     }
-    click_named(&ctx, &mut a, "Forward");
+    // The invitation card's Forward, under the message's own (the ribbon's and the header's).
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    let forwards = named(&ctx, &mut a, size).into_iter().filter(|n| n.label.as_deref() == Some("Forward") && !n.disabled);
+    let card = forwards.filter_map(|n| n.centre()).max_by(|x, y| x.y.total_cmp(&y.y)).expect("the card's Forward");
+    click(&ctx, &mut a, card);
     let Some(Dialog::PassMeeting(f)) = a.ui.dialog.as_mut() else { panic!("asked to whom: {:?}", a.ui.dialog) };
     assert_eq!(f.passing, crate::pim_dialogs::Passing::Forward);
     f.to = "Sam Okafor <sam@studio.example>".into();
@@ -418,7 +432,9 @@ fn a_meeting_is_forwarded_from_its_card_and_its_form() {
     for _ in 0..2 {
         frame(&ctx, &mut a, vec![]);
     }
-    click_named(&ctx, &mut a, "Forward");
+    // The dialog's Forward, drawn last.
+    let ok = drawn_text(&ctx, &mut a, size).into_iter().rev().find(|d| d.text == "Forward").map(|d| d.rect.center()).expect("the dialog's Forward");
+    click(&ctx, &mut a, ok);
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.dialog.is_none(), "sent: {:?}", a.ui.dialog);
     let sent = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
@@ -595,4 +611,112 @@ fn a_meetings_guests_are_suggested_checked_and_picked() {
     click_named(&ctx, &mut a, "Cancel");
     frame(&ctx, &mut a, vec![]);
     assert_eq!(form(&mut a.ui.dialog).guests, before);
+}
+
+/// Issue #234: a series opened on one occurrence ("This occurrence") and forwarded: the form asks
+/// this occurrence or the whole series, as Delegate does, and the occurrence goes alone. The whole
+/// series went, every day.
+#[test]
+fn one_occurrence_is_forwarded_from_its_form() {
+    let (mut a, _) = app("forward-occurrence");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let k = a.session.list.iter().find(|m| m.subject == "Sound mix, version 3").map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.run("invite.respond", json!({"answer": "accepted"}));
+    let (uid, start) = a
+        .session
+        .pim
+        .get("sample")
+        .and_then(|p| {
+            p.events
+                .iter()
+                .find(|e| e.event.summary == "Sound mix playback" && e.event.recurrence_id.is_none())
+                .map(|e| (e.event.uid.clone(), e.event.start))
+        })
+        .expect("in the calendar");
+    // A daily series, as the tester's was.
+    for e in a.session.pim.get_mut("sample").unwrap().events.iter_mut().filter(|e| e.event.uid == uid) {
+        e.event.rrule = Some("FREQ=DAILY;COUNT=5".into());
+    }
+    let at = start + 2 * 86_400;
+    let f = crate::pim_dialogs::EventForm::open_occurrence(&a.session, &uid, at).expect("the occurrence's form");
+    a.ui.dialog = Some(Dialog::Event(Box::new(f)));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Forward meeting…");
+    let Some(Dialog::PassMeeting(f)) = a.ui.dialog.as_mut() else { panic!("asked to whom: {:?}", a.ui.dialog) };
+    assert_eq!((f.passing, f.occurrence, f.only_this), (crate::pim_dialogs::Passing::Forward, Some(at), true));
+    f.to = "Sam Okafor <sam@studio.example>".into();
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(has(&texts, "This occurrence") && has(&texts, "The whole series"), "{texts:?}");
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    let ok = drawn_text(&ctx, &mut a, size).into_iter().rev().find(|d| d.text == "Forward").map(|d| d.rect.center()).expect("the form's Forward");
+    click(&ctx, &mut a, ok);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none(), "sent: {:?}", a.ui.dialog);
+    let sent = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
+    let m = sent.messages.iter().find(|m| m.subject == "Fwd: Sound mix playback").expect("forwarded");
+    let cal = a.session.message_calendar(&m.key).expect("a meeting");
+    assert_eq!(cal.events.iter().map(|e| e.recurrence_id).collect::<Vec<_>>(), [Some(at)], "that occurrence alone");
+}
+
+/// Issue #235: deleting the user's own meeting with guests asks first, as Outlook: the
+/// cancellation goes with the user's words; asked not to, none goes. In German the mail is in
+/// German, and the default categories, untouched, take German names.
+#[test]
+fn deleting_a_meeting_asks_how_its_guests_are_told() {
+    let (mut a, _) = app("cancel-meeting");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let made = |a: &mut MailApp, summary: &str| {
+        let p = json!({"summary": summary, "start": "2026-10-21T15:00", "attendees": "Zoe Park <zoe@studio.example>"});
+        a.session.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string()
+    };
+    let delete = |a: &mut MailApp, uid: &str, button: &str| {
+        let start = a.session.find_event(uid).unwrap().1.event.start;
+        a.ui.dialog = Dialog::open_event(&a.session, uid, start);
+        for _ in 0..3 {
+            frame(&ctx, a, vec![]);
+        }
+        click_named(&ctx, a, "Delete");
+        let Some(Dialog::CancelMeeting(f)) = a.ui.dialog.as_mut() else { panic!("asked first: {:?}", a.ui.dialog) };
+        f.message = "The room is gone; next week instead.".into();
+        for _ in 0..2 {
+            frame(&ctx, a, vec![]);
+        }
+        click_named(&ctx, a, button);
+        frame(&ctx, a, vec![]);
+        assert!(a.ui.dialog.is_none(), "done: {:?}", a.ui.dialog);
+        assert!(a.session.find_event(uid).is_none(), "deleted");
+    };
+    let sent = |a: &MailApp, subject: &str| {
+        let st = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
+        st.messages.iter().find(|m| m.subject == subject).map(|m| {
+            let raw = a.session.store.as_ref().unwrap().read_body(&m.key).unwrap();
+            mailcraft_engine::mime::parse(&raw).unwrap().text
+        })
+    };
+    let uid = made(&mut a, "Grading");
+    delete(&mut a, &uid, "Send cancellation");
+    let text = sent(&a, "Cancelled: Grading").expect("the guests told");
+    assert!(text.contains("Grading has been cancelled.") && text.contains("The room is gone; next week instead."), "{text}");
+    let uid = made(&mut a, "Pitch");
+    delete(&mut a, &uid, "Delete without sending");
+    assert!(sent(&a, "Cancelled: Pitch").is_none(), "nobody told");
+
+    // In German: the mail, and the categories as they came.
+    a.session.prefs.categories = mailcraft_engine::model::organize::default_categories();
+    a.ui.language = "de".into();
+    frame(&ctx, &mut a, vec![]);
+    let uid = made(&mut a, "Schnitt");
+    assert!(sent(&a, "Einladung: Schnitt").is_some(), "the invitation in German");
+    a.session.run("event.delete", &json!({"uid": uid})).unwrap();
+    assert_eq!(sent(&a, "Abgesagt: Schnitt").as_deref().map(str::trim), Some("Schnitt wurde abgesagt."));
+    assert_eq!(a.session.prefs.categories[0].name, "Wichtig");
+    crate::i18n::set_current(crate::i18n::Lang::EN);
 }

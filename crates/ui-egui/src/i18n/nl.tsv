@@ -2001,7 +2001,6 @@ count	occurrences	keer
 	Open the series	De reeks openen
 	Changes apply to this occurrence alone.	Wijzigingen gelden alleen voor deze keer.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Je andere filters op de server (‘{name}’) lopen eerst en blijven zoals ze zijn.
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Deze regels lopen niet: een ander programma heeft zijn eigen filters de lopende gemaakt. Een regel hier opslaan laat ze weer lopen, samen met die van dat programma.
 	Found: {url}	Gevonden: {url}
 	Task list	Takenlijst
 	Task lists	Takenlijsten
@@ -2114,3 +2113,56 @@ count	occurrences	keer
 	Mark read or unread	Markeren als gelezen of ongelezen
 	Choose a date…	Datum kiezen…
 	Pick a time in the future.	Kies een tijd in de toekomst.
+	In 1 minute	Over 1 minuut
+	In 1 day	Over 1 dag
+	Proposal accepted: the meeting is at {when} now.	Voorstel geaccepteerd: de vergadering is nu op {when}.
+	Invitation: {summary}	Uitnodiging: {summary}
+	Updated: {summary}	Bijgewerkt: {summary}
+	Cancelled: {summary}	Geannuleerd: {summary}
+	Cancelled: {summary} ({when})	Geannuleerd: {summary} ({when})
+	{summary} has been cancelled.	{summary} is geannuleerd.
+	{summary} on {when} has been cancelled.	{summary} op {when} is geannuleerd.
+	When: {when}	Wanneer: {when}
+	Where: {place}	Waar: {place}
+	Fwd: {summary}	Doorst: {summary}
+	{who} forwarded you this meeting, organized by {organizer}.	{who} heeft je deze vergadering doorgestuurd, georganiseerd door {organizer}.
+	{who} asked you to go to this meeting in their place. It's organized by {organizer}.	{who} vraagt je om in diens plaats naar deze vergadering te gaan. Die wordt georganiseerd door {organizer}.
+	Accepted: {summary}	Geaccepteerd: {summary}
+	Tentative: {summary}	Voorlopig: {summary}
+	Declined: {summary}	Afgewezen: {summary}
+	Delegated: {summary}	Gedelegeerd: {summary}
+	{who} accepted the invitation to {summary}.	{who} heeft de uitnodiging voor {summary} geaccepteerd.
+	{who} tentatively accepted the invitation to {summary}.	{who} heeft de uitnodiging voor {summary} voorlopig geaccepteerd.
+	{who} declined the invitation to {summary}.	{who} heeft de uitnodiging voor {summary} afgewezen.
+	{who} asked {delegate} to go to {summary} in their place.	{who} heeft {delegate} gevraagd om in diens plaats naar {summary} te gaan.
+	New time proposed: {summary}	Nieuwe tijd voorgesteld: {summary}
+	{who} proposes a new time for {summary}: {when}.	{who} stelt een nieuwe tijd voor {summary} voor: {when}.
+	New time declined: {summary}	Nieuwe tijd afgewezen: {summary}
+	The proposed new time for {summary} was declined. The meeting stays as it was.	De voorgestelde nieuwe tijd voor {summary} is afgewezen. De vergadering blijft zoals ze was.
+	Cancel meeting	Vergadering annuleren
+	Cancel this occurrence	Deze keer annuleren
+	Send cancellation	Annulering verzenden
+	Delete without sending	Verwijderen zonder te verzenden
+	Message to your guests	Bericht aan de deelnemers
+	Your guests are sent a cancellation. Add a message to them, if you like.	De deelnemers krijgen een annulering. Voeg er eventueel een bericht voor hen aan toe.
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	De automatische antwoorden en regels van MailCraft op de server lopen niet: een ander programma heeft zijn eigen filters (‘{name}’) de lopende gemaakt.
+	Off: another program's filters (“{name}”) run in place of MailCraft's	Uit: de filters van een ander programma (‘{name}’) lopen in plaats van die van MailCraft
+	On, sent by your other filters on the server (“{name}”)	Aan, verstuurd door je andere filters op de server (‘{name}’)
+	Run my rules again	Mijn regels weer laten lopen
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Dit zijn de antwoorden die je andere filters op de server (‘{name}’) versturen: wijzig ze in het programma dat ze heeft gemaakt. Die van MailCraft kunnen alleen aan staan zolang deze uit staan: de server verstuurt één antwoord.
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Deze regels lopen niet: een ander programma heeft zijn eigen filters de lopende gemaakt. Laat ze hier weer lopen, samen met die van dat programma.
+	Account: {email}	Account: {email}
+	Details	Details
+	Event: “{name}”, {when}	Afspraak: ‘{name}’, {when}
+	Message: “{subject}”, from {from}	Bericht: ‘{subject}’, van {from}
+	Task: “{name}”	Taak: ‘{name}’
+	This occurrence: {when}	Deze keer: {when}
+	To: {who}	Aan: {who}
+	Asking their server…	Hun server wordt gevraagd…
+	Click a time to move the meeting there	Klik op een tijd om de vergadering daarheen te verplaatsen
+	Hide Scheduling Assistant	Planningsassistent verbergen
+	Scheduling Assistant	Planningsassistent
+	The next time you and your guests are all free	De volgende tijd waarop jij en je deelnemers allemaal vrij zijn
+	Their times can't be had: {why}	Hun tijden zijn niet beschikbaar: {why}
+	You	Jij
+	{free} of {all} free	{free} van {all} vrij

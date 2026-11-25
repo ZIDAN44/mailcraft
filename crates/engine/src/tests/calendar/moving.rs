@@ -15,7 +15,7 @@ fn when(s: &Session, uid: &str) -> (i64, i64) {
 /// How many invitations to `subject` the sample account has sent (it files them in Sent).
 fn invitations(s: &Session, subject: &str) -> usize {
     let sent = s.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
-    sent.messages.iter().filter(|m| m.subject == format!("Invitation: {subject}")).count()
+    sent.messages.iter().filter(|m| m.subject == format!("Invitation: {subject}") || m.subject == format!("Updated: {subject}")).count()
 }
 
 #[test]
@@ -70,7 +70,8 @@ fn a_meeting_the_user_organizes_tells_its_guests() {
     let (start, _) = when(&s, &uid);
     s.run("event.move", &json!({"uid": uid, "by": 3600})).unwrap();
     assert_eq!(invitations(&s, "Trailer review"), 2, "the guests are told");
-    let (method, raw) = sent_calendar(&s, "Sent", "Invitation: Trailer review");
+    // An update, said so (issue #235).
+    let (method, raw) = sent_calendar(&s, "Sent", "Updated: Trailer review");
     assert_eq!(method, "REQUEST");
     assert!(raw.contains("zoe@studio.example"));
     assert_eq!(when(&s, &uid).0, start + 3600);

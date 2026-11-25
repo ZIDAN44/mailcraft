@@ -2002,7 +2002,6 @@ count	occurrences	回
 	Open the series	定期的な予定全体を開く
 	Changes apply to this occurrence alone.	変更はこの回にのみ適用されます。
 	Your other filters on the server (“{name}”) run first, and are left as they are.	サーバー上のほかのフィルター（「{name}」）が先に実行され、そのまま残ります。
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	これらのルールは実行されていません。別のプログラムが自身のフィルターを実行対象にしました。ここでルールを保存すると、そのプログラムのフィルターと一緒に再び実行されます。
 	Found: {url}	見つかった場所: {url}
 	Task list	タスク リスト
 	Task lists	タスク リスト一覧
@@ -2115,3 +2114,56 @@ count	occurrences	回
 	Mark read or unread	既読または未読にする
 	Choose a date…	日付を選択…
 	Pick a time in the future.	今より後の時刻を選んでください。
+	In 1 minute	1 分後
+	In 1 day	1 日後
+	Proposal accepted: the meeting is at {when} now.	提案を承諾しました: 会議は {when} になりました。
+	Invitation: {summary}	招待: {summary}
+	Updated: {summary}	更新: {summary}
+	Cancelled: {summary}	キャンセル: {summary}
+	Cancelled: {summary} ({when})	キャンセル: {summary} ({when})
+	{summary} has been cancelled.	{summary} はキャンセルされました。
+	{summary} on {when} has been cancelled.	{when} の {summary} はキャンセルされました。
+	When: {when}	日時: {when}
+	Where: {place}	場所: {place}
+	Fwd: {summary}	転送: {summary}
+	{who} forwarded you this meeting, organized by {organizer}.	{who} さんがこの会議を転送しました。開催者: {organizer}
+	{who} asked you to go to this meeting in their place. It's organized by {organizer}.	{who} さんから、代わりにこの会議に出席するよう依頼されました。開催者: {organizer}
+	Accepted: {summary}	承諾: {summary}
+	Tentative: {summary}	仮承諾: {summary}
+	Declined: {summary}	辞退: {summary}
+	Delegated: {summary}	代理: {summary}
+	{who} accepted the invitation to {summary}.	{who} さんが {summary} への招待を承諾しました。
+	{who} tentatively accepted the invitation to {summary}.	{who} さんが {summary} への招待を仮承諾しました。
+	{who} declined the invitation to {summary}.	{who} さんが {summary} への招待を辞退しました。
+	{who} asked {delegate} to go to {summary} in their place.	{who} さんが {delegate} さんに {summary} への代理出席を依頼しました。
+	New time proposed: {summary}	新しい日時の提案: {summary}
+	{who} proposes a new time for {summary}: {when}.	{who} さんが {summary} の新しい日時を提案しています: {when}
+	New time declined: {summary}	新しい日時は不採用: {summary}
+	The proposed new time for {summary} was declined. The meeting stays as it was.	{summary} に提案された新しい日時は採用されませんでした。会議は変更ありません。
+	Cancel meeting	会議をキャンセル
+	Cancel this occurrence	この回をキャンセル
+	Send cancellation	キャンセルを送信
+	Delete without sending	送信せずに削除
+	Message to your guests	出席者へのメッセージ
+	Your guests are sent a cancellation. Add a message to them, if you like.	出席者にキャンセルの通知が送られます。必要ならメッセージを添えてください。
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	サーバー上の MailCraft の自動応答とルールは実行されていません。別のプログラムが自身のフィルター（「{name}」）を実行対象にしました。
+	Off: another program's filters (“{name}”) run in place of MailCraft's	オフ: MailCraft のものの代わりに別のプログラムのフィルター（「{name}」）が実行されています
+	On, sent by your other filters on the server (“{name}”)	オン、サーバー上のほかのフィルター（「{name}」）が送信
+	Run my rules again	ルールを再び実行
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	これはサーバー上のほかのフィルター（「{name}」）が送る応答です。作成したプログラムで変更してください。MailCraft の応答は、こちらがオフの間だけオンにできます。サーバーが送る応答は 1 つです。
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	これらのルールは実行されていません。別のプログラムが自身のフィルターを実行対象にしました。ここで、そのプログラムのフィルターと一緒に再び実行できます。
+	Account: {email}	アカウント: {email}
+	Details	詳細
+	Event: “{name}”, {when}	予定: 「{name}」、{when}
+	Message: “{subject}”, from {from}	メッセージ: 「{subject}」、差出人 {from}
+	Task: “{name}”	タスク: 「{name}」
+	This occurrence: {when}	この回: {when}
+	To: {who}	宛先: {who}
+	Asking their server…	相手のサーバーに問い合わせ中…
+	Click a time to move the meeting there	時刻をクリックすると会議をそこへ移動します
+	Hide Scheduling Assistant	スケジュール アシスタントを隠す
+	Scheduling Assistant	スケジュール アシスタント
+	The next time you and your guests are all free	あなたと出席者全員が空いている次の時間
+	Their times can't be had: {why}	空き時間を取得できません: {why}
+	You	あなた
+	{free} of {all} free	{all} 人中 {free} 人が空き

@@ -37,13 +37,13 @@ pub use session::{
     SOURCE_SHOWN, Scheme, Seal, SearchProgress, SearchScope, SearchStats, SearchWork, Security, SendBlock, SendCheck, SendReceive, SenderAddresses,
     SenderMarks, ServerSearch, Session, SignedBy, SmimeSettings, SourceView, StartIn, TEXT_SIZE_RANGE, TEXT_SIZES, TransferRow, TrustedCertificate,
     UNDO_SEND_MAX, UndoHold, UpdateCheck, VacationState, View, accent_code, accent_rgb,
-    invite::{AnsweredInvites, Fit, Invite, InviteDay, InviteProblem, Route, WaitingInvite, forwarding_allowed, proposals_allowed},
+    invite::{AnsweredInvites, Fit, Invite, InviteDay, InviteProblem, MailWords, Route, WaitingInvite, forwarding_allowed, proposals_allowed},
     junk::{JunkList, junk_entry},
     newer_release, parse_key,
     pim::{
-        ACCOUNT_COLOR, AgendaItem, CalMode, DueReminder, EVENT_HITS_MAX, EventHit, EventWhen, FREE_LENGTHS, FreeBusyState, ListedTask, LocalEvents,
-        Module, NoteRef, Person, TASKS_CALENDAR, TODO_BAR_SPLIT, TODO_BAR_WIDTH, TaskRef, TasksOrder, TodoBar, TodoGroup, TodoItem, TodoWhat,
-        parse_local,
+        ACCOUNT_COLOR, AgendaItem, CalMode, DueReminder, EVENT_HITS_MAX, EventHit, EventWhen, FREE_LENGTHS, FreeBusyState, GuestTimes, ListedTask,
+        LocalEvents, Module, NoteRef, Person, TASKS_CALENDAR, TODO_BAR_SPLIT, TODO_BAR_WIDTH, TaskRef, TasksOrder, TodoBar, TodoGroup, TodoItem,
+        TodoWhat, parse_local,
     },
     quick_steps::QuickStep,
     search_folders::SearchFolder,
@@ -108,6 +108,9 @@ pub struct CommandSpec {
     /// The setting it changes, as the settings name it (`autoPictures`, or the field's own name,
     /// `auto_pictures`); `""` for none. Locked by the organisation (issue #245), it's refused.
     pub setting: &'static str,
+    /// It acts on the selected messages: `keys` (messages in the list shown) selects them first,
+    /// as clicks would (issue #255: an agent couldn't name the messages to delete).
+    pub on_selection: bool,
     /// Whether it sends mail or invitations to other people with these params, as things are: a
     /// message, a reaction, a meeting's invitations, changes or cancellation, an answer to one.
     /// `None`: it never does. Agents are asked about one that does even when they may run every
@@ -121,7 +124,7 @@ fn always(_: &Session) -> Option<&'static str> {
 
 impl CommandSpec {
     pub const fn new(id: &'static str, label: &'static str, location: &'static str, run: fn(&mut Session, &Value) -> CmdResult) -> Self {
-        CommandSpec { id, label, location, shortcut: "", params: "{}", enabled: always, run, leaves_body: false, setting: "", sends: None }
+        CommandSpec { id, label, location, shortcut: "", params: "{}", enabled: always, run, leaves_body: false, setting: "", on_selection: false, sends: None }
     }
     pub const fn key(mut self, s: &'static str) -> Self {
         self.shortcut = s;
@@ -147,6 +150,12 @@ impl CommandSpec {
     }
     pub const fn when(mut self, f: fn(&Session) -> Option<&'static str>) -> Self {
         self.enabled = f;
+        self
+    }
+    /// It acts on the selected messages ([`CommandSpec::on_selection`]), enabled as `f` says.
+    pub const fn on_selection(mut self, f: fn(&Session) -> Option<&'static str>) -> Self {
+        self.enabled = f;
+        self.on_selection = true;
         self
     }
     /// The setting it changes ([`CommandSpec::setting`]).
@@ -178,7 +187,13 @@ impl Registry {
         Value::Array(
             self.specs
                 .iter()
-                .map(|s| serde_json::json!({"id": s.id, "label": s.label, "location": s.location, "shortcut": s.shortcut, "params": s.params}))
+                .map(|s| {
+                    let mut d = serde_json::json!({"id": s.id, "label": s.label, "location": s.location, "shortcut": s.shortcut, "params": s.params});
+                    if s.on_selection {
+                        d["keys"] = serde_json::json!("the messages it acts on, in the list shown: [key]; else those selected");
+                    }
+                    d
+                })
                 .collect(),
         )
     }

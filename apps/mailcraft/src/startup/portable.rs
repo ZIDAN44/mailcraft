@@ -14,10 +14,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-/// Files beside the executable that switch on portable mode (either one; contents are ignored).
-pub const MARKERS: [&str; 2] = ["portable.txt", "MailCraft.portable"];
-/// The data folder created beside the executable in portable mode.
-pub const DATA_DIR: &str = "MailCraftData";
+/// Files beside the executable that switch on portable mode (either one; contents are ignored),
+/// and the data folder made beside it: the store's, which the command line reads too.
+pub use mailcraft_engine::store::location::{PORTABLE_DATA as DATA_DIR, PORTABLE_MARKERS as MARKERS};
 
 /// The outcome of looking for a portable marker.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -40,7 +39,7 @@ pub fn current() -> &'static Portable {
 /// Look for a marker beside the executable in `exe_dir` and, when one is there, make its data
 /// folder.
 pub fn resolve(exe_dir: Option<&Path>) -> Portable {
-    let Some(base) = exe_dir.map(|d| bundle_parent(d).unwrap_or(d)) else { return Portable::default() };
+    let Some(base) = exe_dir.map(mailcraft_engine::store::location::portable_base) else { return Portable::default() };
     let Some(marker) = MARKERS.iter().map(|m| base.join(m)).find(|p| p.is_file()) else { return Portable::default() };
     let folder = base.join(DATA_DIR);
     match writable(&folder) {
@@ -54,16 +53,6 @@ pub fn resolve(exe_dir: Option<&Path>) -> Portable {
             )),
         },
     }
-}
-
-/// On macOS the executable is in `X.app/Contents/MacOS`: the folder the bundle is in.
-fn bundle_parent(exe_dir: &Path) -> Option<&Path> {
-    if !cfg!(target_os = "macos") || exe_dir.file_name()? != "MacOS" {
-        return None;
-    }
-    let contents = exe_dir.parent()?;
-    let bundle = contents.parent()?;
-    (contents.file_name()? == "Contents" && bundle.extension()? == "app").then_some(bundle.parent()?)
 }
 
 /// Make `dir` and prove a file can be written in it (a folder can exist yet be read-only).

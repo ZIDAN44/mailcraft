@@ -235,6 +235,8 @@ pub enum Dialog {
     },
     /// Forward or delegate a meeting the user is invited to (issues #234, #254): to whom.
     PassMeeting(Box<crate::pim_dialogs::PassForm>),
+    /// Delete a meeting the user organizes (issue #235): the guests told, with a message, or not.
+    CancelMeeting(Box<crate::pim_dialogs::CancelForm>),
     Contact(Box<crate::pim_dialogs::ContactForm>),
     /// Everything with one person (issue #178).
     Person(Box<PersonForm>),
@@ -533,6 +535,8 @@ impl Dialog {
             split: v.external.is_some(),
             external: v.external.clone().unwrap_or_default(),
             outside: Outside::from_code(&v.outside),
+            sent_by: v.sent_by.clone(),
+            instead: v.instead.clone(),
             error: None,
         }))
     }
@@ -788,6 +792,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::Snooze(..)
         | Dialog::Propose(..)
         | Dialog::PassMeeting(..)
+        | Dialog::CancelMeeting(..)
         | Dialog::OpenRecurring { .. }
         | Dialog::WaitingInvites(..)
         | Dialog::Contact(..) => other::draw(ui, d, s, pics, t, acts),

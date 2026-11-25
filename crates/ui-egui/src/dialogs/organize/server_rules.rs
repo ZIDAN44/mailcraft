@@ -75,11 +75,14 @@ pub(super) fn sections(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Acti
                 if rules.not_running {
                     ui.label(
                         RichText::new(tl!(
-                            "These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's."
+                            "These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's."
                         ))
                         .color(t.warn)
                         .small(),
                     );
+                    if ui.button(tl!("Run my rules again")).clicked() {
+                        acts.push(Action::Run("rules.serverResume", json!({"account": account})));
+                    }
                 }
                 let may = !rules.outlook_list || allowed;
                 let drop = rules.outlook_list && allowed;

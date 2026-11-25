@@ -328,7 +328,8 @@ fn real_scheduling_on_sogo() {
     ann.s.run("event.update", &json!({"uid": uid, "start": "2026-12-01T11:00"})).unwrap();
     sent(&mut ann, &aid, &uid);
     counted(&tag, &[("bob", &bob_box, 2), ("outside", &ext, 2)]);
-    let key = newest(&mut bob, &bid, &format!("Invitation: {tag}"), before);
+    // An update, said so (issue #235).
+    let key = newest(&mut bob, &bid, &format!("Updated: {tag}"), before);
     bob.sync_dav(&bid);
     bob.s.run("folder.open", &json!({"account": bid, "folder": "INBOX"})).unwrap();
     bob.s.run("list.open", &json!({"key": key.to_id()})).unwrap();

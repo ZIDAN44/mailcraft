@@ -122,6 +122,13 @@ impl MailApp {
     pub(super) fn apply_language(&mut self, ctx: &egui::Context) {
         let lang = i18n::Lang::from_pref(&self.ui.language);
         i18n::set_current(lang);
+        // Meeting mail in the window's language, and the default categories, untouched, named
+        // in it (issue #235).
+        if self.ui.words_lang != Some(lang.code()) {
+            self.ui.words_lang = Some(lang.code());
+            self.session.mail_words = i18n::mail_words();
+            self.session.name_default_categories();
+        }
         // egui's own parts mirrored for Arabic and Hebrew (the Craft apps' egui): submenus open
         // to the left, scroll bars on the left, closed arrows pointing left.
         if ctx.global_style().right_to_left != lang.rtl() {

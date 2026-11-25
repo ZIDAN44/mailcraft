@@ -2006,7 +2006,6 @@ count	occurrences	kez
 	Open the series	Seriyi aç
 	Changes apply to this occurrence alone.	Değişiklikler yalnızca bu yinelemeye uygulanır.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Sunucudaki diğer filtreleriniz (“{name}”) önce çalışır ve olduğu gibi kalır.
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Bu kurallar çalışmıyor: başka bir program kendi filtrelerini çalışan filtreler yaptı. Burada bir kural kaydetmek, o programınkilerle birlikte onları yeniden çalıştırır.
 	Found: {url}	Bulundu: {url}
 	Task list	Görev listesi
 	Task lists	Görev listeleri
@@ -2119,3 +2118,56 @@ count	occurrences	kez
 	Mark read or unread	Okundu veya okunmadı olarak işaretle
 	Choose a date…	Tarih seç…
 	Pick a time in the future.	Gelecekte bir zaman seçin.
+	In 1 minute	1 dakika içinde
+	In 1 day	1 gün içinde
+	Proposal accepted: the meeting is at {when} now.	Öneri kabul edildi: toplantı artık {when}.
+	Invitation: {summary}	Davet: {summary}
+	Updated: {summary}	Güncellendi: {summary}
+	Cancelled: {summary}	İptal edildi: {summary}
+	Cancelled: {summary} ({when})	İptal edildi: {summary} ({when})
+	{summary} has been cancelled.	{summary} iptal edildi.
+	{summary} on {when} has been cancelled.	{summary} ({when}) iptal edildi.
+	When: {when}	Ne zaman: {when}
+	Where: {place}	Nerede: {place}
+	Fwd: {summary}	İlt: {summary}
+	{who} forwarded you this meeting, organized by {organizer}.	{who} bu toplantıyı size iletti. Düzenleyen: {organizer}.
+	{who} asked you to go to this meeting in their place. It's organized by {organizer}.	{who} bu toplantıya kendi yerine sizin gitmenizi istiyor. Düzenleyen: {organizer}.
+	Accepted: {summary}	Kabul edildi: {summary}
+	Tentative: {summary}	Belki: {summary}
+	Declined: {summary}	Reddedildi: {summary}
+	Delegated: {summary}	Devredildi: {summary}
+	{who} accepted the invitation to {summary}.	{who}, {summary} davetini kabul etti.
+	{who} tentatively accepted the invitation to {summary}.	{who}, {summary} davetini belki olarak yanıtladı.
+	{who} declined the invitation to {summary}.	{who}, {summary} davetini reddetti.
+	{who} asked {delegate} to go to {summary} in their place.	{who}, {summary} toplantısına kendi yerine {delegate} kişisinin gitmesini istedi.
+	New time proposed: {summary}	Yeni saat önerildi: {summary}
+	{who} proposes a new time for {summary}: {when}.	{who}, {summary} için yeni bir saat öneriyor: {when}.
+	New time declined: {summary}	Yeni saat reddedildi: {summary}
+	The proposed new time for {summary} was declined. The meeting stays as it was.	{summary} için önerilen yeni saat reddedildi. Toplantı olduğu gibi kalıyor.
+	Cancel meeting	Toplantıyı iptal et
+	Cancel this occurrence	Bu yinelemeyi iptal et
+	Send cancellation	İptal bildirimi gönder
+	Delete without sending	Göndermeden sil
+	Message to your guests	Katılımcılara mesaj
+	Your guests are sent a cancellation. Add a message to them, if you like.	Katılımcılara bir iptal bildirimi gönderilir. İsterseniz onlara bir mesaj ekleyin.
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	MailCraft'ın sunucudaki otomatik yanıtları ve kuralları çalışmıyor: başka bir program kendi filtrelerini (“{name}”) çalışan filtreler yaptı.
+	Off: another program's filters (“{name}”) run in place of MailCraft's	Kapalı: MailCraft'ınkilerin yerine başka bir programın filtreleri (“{name}”) çalışıyor
+	On, sent by your other filters on the server (“{name}”)	Açık, sunucudaki diğer filtreleriniz (“{name}”) tarafından gönderiliyor
+	Run my rules again	Kurallarımı yeniden çalıştır
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Bunlar sunucudaki diğer filtrelerinizin (“{name}”) gönderdiği yanıtlar: onları oluşturan programda değiştirin. MailCraft'ınkiler yalnızca bunlar kapalıyken açık olabilir: sunucu tek bir yanıt gönderir.
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Bu kurallar çalışmıyor: başka bir program kendi filtrelerini çalışan filtreler yaptı. Onları burada, o programınkilerle birlikte yeniden çalıştırın.
+	Account: {email}	Hesap: {email}
+	Details	Ayrıntılar
+	Event: “{name}”, {when}	Etkinlik: “{name}”, {when}
+	Message: “{subject}”, from {from}	İleti: “{subject}”, gönderen: {from}
+	Task: “{name}”	Görev: “{name}”
+	This occurrence: {when}	Bu yineleme: {when}
+	To: {who}	Kime: {who}
+	Asking their server…	Sunucularına soruluyor…
+	Click a time to move the meeting there	Toplantıyı oraya taşımak için bir saate tıklayın
+	Hide Scheduling Assistant	Zamanlama Yardımcısını gizle
+	Scheduling Assistant	Zamanlama Yardımcısı
+	The next time you and your guests are all free	Sizin ve katılımcılarınızın hepsinin boş olduğu bir sonraki zaman
+	Their times can't be had: {why}	Zamanlarına ulaşılamıyor: {why}
+	You	Siz
+	{free} of {all} free	{all} kişiden {free} kişi boş

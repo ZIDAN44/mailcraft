@@ -307,6 +307,8 @@ pub struct Session {
     /// The messages a draft answers or forwards, as last found ([`Session::drafted`]).
     pub(crate) drafted: writing::DraftedMemo,
     pub prefs: Prefs,
+    /// What the meeting mail MailCraft writes says, in the window's language (issue #235).
+    pub mail_words: pim::invite::MailWords,
     pub clock: Clock,
     pub notices: Vec<Notice>,
     /// Message files put into folders (issue #38), for the window to say: what each drop did,
@@ -534,6 +536,7 @@ impl Session {
             saving: Vec::new(),
             drafted: writing::DraftedMemo::default(),
             prefs: Prefs::default(),
+            mail_words: pim::invite::MailWords::default(),
             clock,
             notices: Vec::new(),
             filed: Vec::new(),
@@ -700,6 +703,17 @@ impl Session {
         if !spec.leaves_body && std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.finish_pending_body())).is_err() {
             log::error!("the open message couldn't be shown");
             PANICS_CAUGHT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+        // The messages it acts on named (issue #255): selected first, as clicks would, from the
+        // list shown, as a click can.
+        if spec.on_selection
+            && let Some(keys) = params.get("keys").and_then(Value::as_array)
+        {
+            let keys: Vec<MessageKey> = keys.iter().filter_map(Value::as_str).filter_map(MessageKey::from_id).collect();
+            if keys.is_empty() || keys.iter().any(|k| self.index_of(k).is_none()) {
+                return Err(CmdError::Params("`keys`: messages in the list shown (its folder opened first: folder.open)".into()));
+            }
+            self.selection = keys;
         }
         if let Some(why) = (spec.enabled)(self) {
             return Err(CmdError::Disabled(why.to_string()));

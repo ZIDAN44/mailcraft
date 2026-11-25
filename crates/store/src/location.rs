@@ -54,6 +54,34 @@ pub fn base_root() -> Option<PathBuf> {
     }
 }
 
+/// Files beside the executable that make a copy portable (issue #4): either one, whatever it
+/// holds.
+pub const PORTABLE_MARKERS: [&str; 2] = ["portable.txt", "MailCraft.portable"];
+/// The folder a portable copy keeps everything in, beside its executable.
+pub const PORTABLE_DATA: &str = "MailCraftData";
+
+/// The folder a copy's markers go in: the executable's, or on macOS the folder its `.app`
+/// bundle is in (writing inside a signed bundle breaks its signature).
+pub fn portable_base(exe_dir: &Path) -> &Path {
+    let bundle = || {
+        if !cfg!(target_os = "macos") || exe_dir.file_name()? != "MacOS" {
+            return None;
+        }
+        let contents = exe_dir.parent()?;
+        let bundle = contents.parent()?;
+        (contents.file_name()? == "Contents" && bundle.extension()? == "app").then_some(bundle.parent()?)
+    };
+    bundle().unwrap_or(exe_dir)
+}
+
+/// A portable copy's data folder, when the executable in `exe_dir` is one (a marker beside it):
+/// the app's, and the command line's beside it in the portable zip (issue #255: its MCP server
+/// looked in the user's folder, and didn't find the window).
+pub fn portable_data(exe_dir: &Path) -> Option<PathBuf> {
+    let base = portable_base(exe_dir);
+    PORTABLE_MARKERS.iter().any(|m| base.join(m).is_file()).then(|| base.join(PORTABLE_DATA))
+}
+
 /// Where the data files go unless moved: "MailCraft Files" in Documents (wherever the system
 /// keeps Documents), or in the app folder when there's no Documents folder.
 pub fn default_files_dir(base: &Path) -> PathBuf {
@@ -209,6 +237,19 @@ mod tests {
         let d = scratch(&format!("location-{name}"));
         fs::create_dir_all(&d).unwrap();
         d
+    }
+
+    /// Issue #255: a portable copy's data folder, beside it, for the app and the command line
+    /// alike; none without a marker, and a folder named so isn't one.
+    #[test]
+    fn a_portable_copys_folder_is_found_beside_it() {
+        let exe = temp("portable");
+        assert_eq!(portable_data(&exe), None);
+        fs::create_dir_all(exe.join("portable.txt")).unwrap();
+        assert_eq!(portable_data(&exe), None, "a folder isn't a marker");
+        fs::write(exe.join("MailCraft.portable"), b"").unwrap();
+        assert_eq!(portable_data(&exe), Some(exe.join(PORTABLE_DATA)));
+        assert_eq!(portable_base(&exe), exe.as_path());
     }
 
     /// An app folder whose data files were moved to `files` (as if from Documents).
