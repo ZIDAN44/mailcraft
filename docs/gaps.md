@@ -327,6 +327,20 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   a portable copy writes nothing to the registry, and Windows doesn't start a link one program
   registers for its user alone from a notification.
 
+### 27. Moving an event to another calendar: what isn't done yet
+
+- **Impact:** An event moves to another calendar of its account from its form's **Calendar** box
+  (#279), not by dragging it onto a calendar in the side pane or from a menu on it. Exchange's
+  calendars (Microsoft 365, on-premises Exchange) aren't moved between. A meeting on a CalDAV
+  server that won't move items stays in its calendar, and one on the server isn't moved to this
+  computer's.
+- **Workaround:** Open the event and pick its calendar. On Exchange, move it in Outlook on the
+  web.
+- **Cause:** The calendar views have no menu on an event, and dragging stops at their own days
+  and times. Moving between Exchange's calendars takes Graph's and EWS's own move, not written
+  yet. A meeting is moved with a WebDAV MOVE, which tells no one; copied and deleted instead, a
+  server that schedules sends the guests the meeting again (Stalwart did), or a cancellation.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

@@ -16,6 +16,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Added
 
+- An event moves to another calendar of its account (#279): pick it in the event's **Calendar** box, or `event.update` with `calendar` (id or name). A meeting's guests and organizer aren't told: on the server it's moved, not copied and deleted. Tried on Stalwart and Nextcloud; not between Exchange's calendars yet ([gap 27](docs/gaps.md#27-moving-an-event-to-another-calendar-what-isnt-done-yet)).
 - A **Scheduling Assistant** in a meeting's form (#277), as Outlook's: as guests are named their free/busy times are asked of your server (Exchange, or a CalDAV server that schedules: SOGo and Mailcow, Nextcloud, Stalwart), and beside the guests it says how many are free at the meeting's time ("2 of 3 free"). **Next free time** moves the meeting to the next time you and your guests are all free, its length kept; opened, the assistant shows everyone together, you and each guest over the meeting's day, their hours off shaded, and a click on a time moves the meeting there.
 - **Snooze** beside a message's Reply, Reply all and Forward (#274), and **Choose a date…** in every Snooze menu: the message comes back on a day and at a time of your own.
 - **Archive** can be among the buttons a message in the list shows under the pointer (#274): **File › Options › Reading › Buttons on a message in the list** picks up to four of Delete, Archive, Flag, Mark read or unread and Pin. Delete, Flag and Mark read until you choose.

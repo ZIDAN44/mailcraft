@@ -101,6 +101,9 @@ pub struct EventForm {
     /// The calendars that can take it: (account, calendar id, name).
     pub calendars: Vec<(String, String, String)>,
     pub calendar: usize,
+    /// The calendar an event opened was in (`None`: a new one): another picked moves it there
+    /// (issue #279).
+    pub calendar_was: Option<String>,
     pub summary: String,
     pub location: String,
     pub description: String,
@@ -289,6 +292,7 @@ impl EventForm {
             recurring: e.rrule.is_some(),
             this_occurrence,
             calendar: calendars.iter().position(|c| c.0 == account && c.1 == stored.calendar).unwrap_or(0),
+            calendar_was: Some(stored.calendar.clone()),
             calendars,
             summary: e.summary.clone(),
             location: e.location.clone(),
@@ -374,7 +378,16 @@ impl EventForm {
             }
         }
         match &self.uid {
-            Some(u) => p["uid"] = json!(u),
+            Some(u) => {
+                p["uid"] = json!(u);
+                // Another of its account's calendars picked: moved there (issue #279).
+                if let (Some(was), Some((_, c, _))) = (&self.calendar_was, self.calendars.get(self.calendar))
+                    && c != was
+                    && self.calendars.iter().any(|x| &x.1 == was)
+                {
+                    p["calendar"] = json!(c);
+                }
+            }
             None => {
                 if let Some((a, c, _)) = self.calendars.get(self.calendar) {
                     p["account"] = json!(a);
@@ -641,7 +654,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut
             guests::row(ui, t, f, acts);
             guests::scheduling(ui, s, t, f, acts);
         }
-        showing::calendar_row(ui, t, f);
+        showing::calendar_row(ui, s, t, f);
         if !f.reading_notes {
             // Tall notes scroll in their box: the dialog keeps its buttons on screen.
             egui::ScrollArea::vertical().id_salt("event-notes").max_height(NOTES_MAX_H).show(ui, |ui| {

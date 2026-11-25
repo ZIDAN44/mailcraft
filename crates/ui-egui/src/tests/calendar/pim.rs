@@ -627,3 +627,66 @@ fn people_sort_by_last_name() {
     a.ui.people_list.by_last_name = false;
     assert_eq!(order(&mut a)[0], ("Ivo Marsh".to_string(), 'I'));
 }
+
+/// Issue #279: an event's form offers the other calendars of its account (a CalDAV account's),
+/// and saved with another picked, the event moves there; a meeting on the server isn't offered
+/// this computer's calendar, and an Exchange account's form offers none.
+#[test]
+fn an_events_form_moves_it_to_another_calendar() {
+    let (mut a, _) = app("event-move");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    // Tall enough for a meeting's form, its box on screen.
+    crate::tests::windows::layout::SIZE.with(|s| s.set(egui::vec2(1280.0, 1400.0)));
+    const WORK: &str = "https://dav.example/cal/work/";
+    const HOME: &str = "https://dav.example/cal/home/";
+    let cal = |id: &str, name: &str| mailcraft_engine::model::pim::CalendarInfo { id: id.into(), name: name.into(), ..Default::default() };
+    {
+        let p = a.session.pim.get_mut("sample").unwrap();
+        p.caldav_home = Some("https://dav.example/cal/".into());
+        p.calendars.extend([cal(WORK, "Work"), cal(HOME, "Home")]);
+    }
+    let made = |a: &mut MailApp, p: serde_json::Value| a.session.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string();
+    let gym = made(&mut a, json!({"summary": "Gym", "start": "2026-12-01T09:00", "calendar": WORK}));
+    let plan = made(&mut a, json!({"summary": "Plan", "start": "2026-12-01T11:00", "calendar": WORK, "attendees": "Zoe Park <zoe@studio.example>"}));
+    let start = |a: &MailApp, uid: &str| a.session.find_event(uid).unwrap().1.event.start;
+    // The choices drawn: the box opened.
+    let offered = |a: &mut MailApp, uid: &str| {
+        a.ui.dialog = Dialog::open_event(&a.session, uid, start(a, uid));
+        for _ in 0..5 {
+            frame(&ctx, a, vec![]);
+        }
+        // The form's box, not the Calendar module's button of the same name.
+        let size = crate::tests::windows::layout::SIZE.with(std::cell::Cell::get);
+        let boxed = named(&ctx, a, size).into_iter().find(|n| n.label.as_deref() == Some("Calendar") && n.role == egui::accesskit::Role::ComboBox);
+        let Some(at) = boxed.and_then(|n| n.centre()) else {
+            a.ui.dialog = None;
+            return Vec::new();
+        };
+        click(&ctx, a, at);
+        for _ in 0..2 {
+            frame(&ctx, a, vec![]);
+        }
+        let texts = drawn_strings(&ctx, a, egui::vec2(1280.0, 1400.0));
+        // Closed again, as the next form's box shares its id.
+        click(&ctx, a, at);
+        frame(&ctx, a, vec![]);
+        a.ui.dialog = None;
+        ["Work", "Home", "Calendar"].into_iter().filter(|n| texts.iter().any(|t| t.starts_with(&format!("{n} · ")))).collect::<Vec<_>>()
+    };
+    assert_eq!(offered(&mut a, &gym), ["Work", "Home", "Calendar"]);
+    assert_eq!(offered(&mut a, &plan), ["Work", "Home"], "a meeting on the server stays there");
+
+    // Saved unchanged: not moved; with Home picked: moved there.
+    let Some(Dialog::Event(mut f)) = Dialog::open_event(&a.session, &gym, start(&a, &gym)) else { panic!("no form") };
+    assert!(f.params().get("calendar").is_none(), "{}", f.params());
+    f.calendar = f.calendars.iter().position(|c| c.1 == HOME).unwrap();
+    let params = f.params();
+    assert_eq!(params["calendar"], HOME);
+    a.act(crate::Action::Submit("event.update", params));
+    assert_eq!(a.session.find_event(&gym).unwrap().1.calendar, HOME);
+
+    // Exchange's calendars (no CalDAV home): no box.
+    a.session.pim.get_mut("sample").unwrap().caldav_home = Some(String::new());
+    assert!(offered(&mut a, &gym).is_empty());
+}
