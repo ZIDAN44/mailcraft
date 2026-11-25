@@ -10,13 +10,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .params(r#"{"account"?: string, "to"?: string (who it's to, "Name <address>")}"#)
             .when(has_account),
         // Home › Delete
-        CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete").params(r#"{"permanent"?: bool}"#).when(has_selection),
+        CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete").params(r#"{"permanent"?: bool}"#).on_selection(has_selection),
         CommandSpec::new("list.rowAction", "A message's own button in the list", "Message list › row", row_action)
             .params(r#"{"key": string, "action": "delete"|"archive"|"flag"|"read"|"pin"} (that message alone, what's selected and open kept)"#),
         CommandSpec::new("mail.archive", "Archive", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Archive)))
             .key("Backspace")
-            .when(has_selection),
-        CommandSpec::new("mail.ignore", "Ignore conversation", "Home › Delete", |s, _| s.ignore_selection()).when(has_selection),
+            .on_selection(has_selection),
+        CommandSpec::new("mail.ignore", "Ignore conversation", "Home › Delete", |s, _| s.ignore_selection()).on_selection(has_selection),
         CommandSpec::new("mail.cleanUp", "Clean up conversation", "Home › Delete › Clean Up", |s, _| {
             let sel = s.selected_shared();
             let keys: Vec<mailcraft_model::MessageKey> = sel.iter().map(|m| m.key.clone()).collect();
@@ -25,7 +25,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             folders.dedup();
             s.clean_up(&folders, Some(&keys))
         })
-        .when(has_selection),
+        .on_selection(has_selection),
         CommandSpec::new("folder.cleanUp", "Clean up folder", "Home › Delete › Clean Up", |s, v| {
             let folders = match p::str(v, "folder") {
                 Some(f) => {
@@ -44,7 +44,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.clean_up(&folders, None)
         })
         .params(r#"{"account"?: string, "folder"?: string (none: the folder on screen)}"#),
-        CommandSpec::new("mail.junk", "Report junk", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Junk))).when(has_selection),
+        CommandSpec::new("mail.junk", "Report junk", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Junk))).on_selection(has_selection),
         CommandSpec::new("mail.notJunk", "Not junk", "Home › Delete", |s, v| {
             // "Always trust mail from this sender", as Outlook asks.
             if p::bool(v, "always").unwrap_or(false) {
@@ -54,16 +54,16 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.move_selection(MoveTarget::Role(FolderRole::Inbox))
         })
         .params(r#"{"always"?: bool}"#)
-        .when(has_selection),
+        .on_selection(has_selection),
         // Home › Delete › Junk
         CommandSpec::new("junk.blockSender", "Block sender", "Home › Delete › Junk", |s, _| s.junk_list_selection(JunkList::Blocked, false))
-            .when(has_selection),
+            .on_selection(has_selection),
         CommandSpec::new("junk.neverBlockSender", "Never block sender", "Home › Delete › Junk", |s, _| s.junk_list_selection(JunkList::Safe, false))
-            .when(has_selection),
+            .on_selection(has_selection),
         CommandSpec::new("junk.neverBlockDomain", "Never block sender's domain", "Home › Delete › Junk", |s, _| {
             s.junk_list_selection(JunkList::Safe, true)
         })
-        .when(has_selection),
+        .on_selection(has_selection),
         CommandSpec::new("junk.lists", "Junk Email options", "Home › Delete › Junk", |s, _| {
             Ok(json!({"blocked": s.prefs.blocked_senders, "safe": s.prefs.safe_senders}))
         }),
@@ -90,31 +90,31 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("mail.move", "Move to", "Home › Move", move_to)
             .key("Mod+Shift+V")
             .params(r#"{"folder": string, "account"?: string (the folder's account, when it isn't the messages' own)}"#)
-            .when(has_selection),
+            .on_selection(has_selection),
         CommandSpec::new("mail.copy", "Copy to", "Home › Move", copy_to)
             .params(r#"{"folder": string, "account"?: string (the folder's account; else the messages' own)}"#)
-            .when(has_selection),
+            .on_selection(has_selection),
         // Home › Tags
-        CommandSpec::new("mail.markRead", "Mark as read", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, Some(true))).key("Mod+Q").when(has_selection),
-        CommandSpec::new("mail.markUnread", "Mark as unread", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, Some(false))).key("Mod+U").when(has_selection),
-        CommandSpec::new("mail.toggleRead", "Read / Unread", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, None)).when(has_selection),
+        CommandSpec::new("mail.markRead", "Mark as read", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, Some(true))).key("Mod+Q").on_selection(has_selection),
+        CommandSpec::new("mail.markUnread", "Mark as unread", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, Some(false))).key("Mod+U").on_selection(has_selection),
+        CommandSpec::new("mail.toggleRead", "Read / Unread", "Home › Tags", |s, _| s.flag_selection(Flag::Seen, None)).on_selection(has_selection),
         CommandSpec::new("mail.flag", "Flag / Unflag", "Home › Tags", flag)
             .key("Insert")
             .params(r#"{"on"?: bool, "due"?: "today"|"tomorrow"|"thisWeek"|"nextWeek"|"none"|"YYYY-MM-DD" (Follow Up: flag, due then), "reminder"?: "YYYY-MM-DDTHH:MM"|"none" (Add Reminder: flag, remind then; a day alone at 09:00), "complete"?: true (Mark Complete: unflag, mark it done today; flagging again or "on": false clears that)}"#)
-            .when(has_selection),
+            .on_selection(has_selection),
         CommandSpec::new("mail.markAllRead", "Mark all as read", "Folder", mark_all_read)
             .params(r#"{"account"?: string, "folder"?: string} (that folder, all of it; none: the folder on view, or the mail another view lists)"#)
             .when(has_account),
         CommandSpec::new("mail.categorize", "Categorize", "Home › Tags", |s, v| s.categorize_selection(p::str(v, "category"), p::str(v, "keyword"), p::bool(v, "on")))
             .params(r#"{"category": string, "on"?: bool} | {"keyword": string (one not in the list, e.g. "$label6"), "on"?: bool}"#)
-            .when(has_selection),
-        CommandSpec::new("mail.pin", "Pin / Unpin", "Home › Tags", |s, v| s.pin_selection(p::bool(v, "on"))).params(r#"{"on"?: bool}"#).when(has_selection),
+            .on_selection(has_selection),
+        CommandSpec::new("mail.pin", "Pin / Unpin", "Home › Tags", |s, v| s.pin_selection(p::bool(v, "on"))).params(r#"{"on"?: bool}"#).on_selection(has_selection),
         CommandSpec::new("mail.snooze", "Snooze", "Home › Tags", snooze)
             .params(r#"{"preset": "later"|"tomorrow"|"weekend"|"nextWeek"} | {"at": "YYYY-MM-DDTHH:MM" (local; a day alone: 8:00)} | {"until": unix seconds}"#)
-            .when(has_selection),
-        CommandSpec::new("mail.unsnooze", "Unsnooze", "Home › Tags", |s, _| s.unsnooze_selection()).when(has_selection),
-        CommandSpec::new("mail.moveToFocused", "Move to Focused", "Home › Move", |s, _| s.set_focus_for_selection(true)).when(has_selection),
-        CommandSpec::new("mail.moveToOther", "Move to Other", "Home › Move", |s, _| s.set_focus_for_selection(false)).when(has_selection),
+            .on_selection(has_selection),
+        CommandSpec::new("mail.unsnooze", "Unsnooze", "Home › Tags", |s, _| s.unsnooze_selection()).on_selection(has_selection),
+        CommandSpec::new("mail.moveToFocused", "Move to Focused", "Home › Move", |s, _| s.set_focus_for_selection(true)).on_selection(has_selection),
+        CommandSpec::new("mail.moveToOther", "Move to Other", "Home › Move", |s, _| s.set_focus_for_selection(false)).on_selection(has_selection),
         // Categories
         CommandSpec::new("category.list", "Categories", "Home › Tags › Categorize", |s, _| {
             Ok(json!(s.prefs.categories.iter().map(|c| json!({"name": c.name, "keyword": c.keyword, "color": c.color})).collect::<Vec<_>>()))

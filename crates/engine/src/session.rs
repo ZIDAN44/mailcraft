@@ -704,6 +704,17 @@ impl Session {
             log::error!("the open message couldn't be shown");
             PANICS_CAUGHT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
+        // The messages it acts on named (issue #255): selected first, as clicks would, from the
+        // list shown, as a click can.
+        if spec.on_selection
+            && let Some(keys) = params.get("keys").and_then(Value::as_array)
+        {
+            let keys: Vec<MessageKey> = keys.iter().filter_map(Value::as_str).filter_map(MessageKey::from_id).collect();
+            if keys.is_empty() || keys.iter().any(|k| self.index_of(k).is_none()) {
+                return Err(CmdError::Params("`keys`: messages in the list shown (its folder opened first: folder.open)".into()));
+            }
+            self.selection = keys;
+        }
         if let Some(why) = (spec.enabled)(self) {
             return Err(CmdError::Disabled(why.to_string()));
         }
