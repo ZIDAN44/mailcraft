@@ -194,9 +194,17 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.import_rules(&bytes, p::bool(v, "replace").unwrap_or(false))
         })
         .params(r#"{"path": string, "replace"?: bool (in place of the rules here; else added after them)}"#),
-        // The rules an Exchange mailbox keeps on its server (issue #139).
-        CommandSpec::new("rules.server", "Rules on the server", "Home › Rules", |s, v| s.load_server_rules(p::req_str(v, "account")?))
-            .params(r#"{"account": string (an Exchange account)}"#),
+        // The rules an Exchange mailbox keeps on its server (issue #139), or MailCraft's in an IMAP
+        // server's Sieve (issue #243).
+        CommandSpec::new("rules.server", "Rules on the server", "Home › Rules", |s, v| {
+            let account = p::req_str(v, "account")?;
+            if p::bool(v, "refresh").unwrap_or(true) { s.load_server_rules(account) } else { Ok(s.server_rules_json(account)) }
+        })
+        .params(r#"{"account": string (an Exchange account, or an IMAP one whose server runs Sieve), "refresh"?: bool} (asks the server; call with refresh=false for the answer)"#),
+        CommandSpec::new("rules.serverResume", "Run my rules on the server again", "Home › Rules", |s, v| {
+            s.resume_server_rules(p::req_str(v, "account")?)
+        })
+        .params(r#"{"account": string} (an IMAP account whose server runs another program's filters instead: they run too, first)"#),
         CommandSpec::new("rules.serverSave", "Save a rule on the server", "Home › Rules", |s, v| {
             let rule = v.get("rule").cloned().ok_or_else(|| CmdError::Params("`rule` is required".into()))?;
             let rule = serde_json::from_value(rule).map_err(|e| CmdError::Params(format!("rule: {e}")))?;

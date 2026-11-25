@@ -23,6 +23,14 @@ pub struct Vacation {
     /// (the user's contacts only) or `none`.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub outside: String,
+    /// IMAP (Sieve, issue #243): these are the replies another program's filters send (its
+    /// script's name), not MailCraft's: shown as they are, and changed in that program.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sent_by: Option<String>,
+    /// IMAP (Sieve, issue #243): another program made its filters (this script) the ones that
+    /// run, in place of MailCraft's: MailCraft's replies and rules on the server don't run.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub instead: Option<String>,
 }
 
 impl Vacation {
