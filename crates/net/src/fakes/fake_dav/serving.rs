@@ -18,6 +18,9 @@ pub(super) struct Request {
     bearer_ok: bool,
     if_match: Option<String>,
     if_none: bool,
+    /// A `MOVE`'s `Destination` (its path), and whether it may go over an item (`Overwrite`).
+    destination: String,
+    overwrite: bool,
     /// The `Originator` and `Recipient` headers of a free/busy query (RFC 6638's draft's).
     originator: String,
     recipient: String,
@@ -42,6 +45,11 @@ pub(super) fn read_request(s: &TcpStream, auth: &str, bearer: Option<&str>) -> O
         given,
         if_match: r.header("if-match").map(str::to_string),
         if_none: r.header("if-none-match").is_some(),
+        destination: r
+            .header("destination")
+            .map(|d| d.split_once("://").and_then(|(_, rest)| rest.find('/').map(|i| rest[i..].to_string())).unwrap_or_else(|| d.to_string()))
+            .unwrap_or_default(),
+        overwrite: !r.header("overwrite").is_some_and(|o| o.eq_ignore_ascii_case("F")),
         originator: r.header("originator").unwrap_or_default().to_string(),
         recipient: r.header("recipient").unwrap_or_default().to_string(),
         body: String::from_utf8_lossy(&r.body).to_string(),
@@ -107,6 +115,7 @@ impl Data {
             "REPORT" => self.report(&r.path, &r.body),
             "PUT" => self.put_item(r),
             "DELETE" => self.delete_item(&r.path, r.if_match.as_deref()),
+            "MOVE" => self.move_item(r),
             _ => reply("404 Not Found"),
         }
     }
@@ -159,12 +168,20 @@ impl Data {
                 };
                 let says = if path == "/dav/cal/" && self.cal_tasks { comps(&["VEVENT", "VTODO"]) } else { String::new() };
                 let mut rs = vec![response(path, "<d:resourcetype><d:collection/></d:resourcetype>"), response(child, &col(kind, name, true, says))];
+                if path == "/dav/cal/" && self.home {
+                    rs.push(response(HOME, &col(kind, "Home", true, String::new())));
+                }
                 if let (true, Some(read_only)) = (path == "/dav/cal/", self.task_list) {
                     rs.push(response(TASKS, &col(kind, "Tasks", !read_only, comps(&["VTODO"]))));
                 }
                 found(multistatus(&rs))
             }
-            p if p == CAL || p == BOOK || p == TASKS => {
+            // One item, its etag (as MailCraft asks after a MOVE that didn't say it).
+            p if self.items.contains_key(p) => {
+                let etag = self.items.get(p).map(|(e, _)| e.clone()).unwrap_or_default();
+                found(multistatus(&[response(p, &format!("<d:getetag>{}</d:getetag>", esc(&etag)))]))
+            }
+            p if p == CAL || p == BOOK || p == TASKS || (p == HOME && self.home) => {
                 let mut rs = vec![response(p, "<d:resourcetype><d:collection/></d:resourcetype>")];
                 for (href, (etag, _)) in self.items.iter().filter(|(h, _)| h.starts_with(p)) {
                     rs.push(response(href, &format!("<d:getetag>{}</d:getetag><d:resourcetype/>", esc(etag))));
@@ -193,7 +210,7 @@ impl Data {
             }
             return ("207 Multi-Status", Vec::new(), multistatus(&rs));
         }
-        if p != CAL && p != BOOK && p != TASKS {
+        if p != CAL && p != BOOK && p != TASKS && !(p == HOME && self.home) {
             return reply("404 Not Found");
         }
         let field = if p == BOOK { "card:address-data" } else { "c:calendar-data" };
@@ -254,6 +271,26 @@ impl Data {
             "<?xml version=\"1.0\"?><c:schedule-response xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\">{responses}</c:schedule-response>"
         );
         ("200 OK", vec![("Content-Type", "application/xml".into())], body)
+    }
+
+    /// A `MOVE` (RFC 4918 §9.9) to another calendar: kept as it is under its new name, refused
+    /// over an item there with `Overwrite: F` (412), or when the server moves nothing (405).
+    fn move_item(&mut self, r: &Request) -> Reply {
+        if self.no_moves {
+            return reply("405 Method Not Allowed");
+        }
+        let (from, to) = (r.path.as_str(), r.destination.as_str());
+        if self.forbidden.iter().any(|f| f == from) {
+            return reply("403 Forbidden");
+        }
+        let Some((etag, _)) = self.items.get(from) else { return reply("404 Not Found") };
+        if r.if_match.as_deref().is_some_and(|m| m != etag) || (!r.overwrite && self.items.contains_key(to)) {
+            return reply("412 Precondition Failed");
+        }
+        let Some(item) = self.items.remove(from) else { return reply("404 Not Found") };
+        self.items.insert(to.to_string(), item);
+        self.ctag += 1;
+        reply("201 Created")
     }
 
     fn delete_item(&mut self, p: &str, if_match: Option<&str>) -> Reply {

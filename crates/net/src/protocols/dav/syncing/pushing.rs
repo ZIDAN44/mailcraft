@@ -112,6 +112,46 @@ impl Run<'_> {
         if role == Role::GuestCopy && master.href.is_empty() && !answered(&self.at, parts) {
             return Ok(());
         }
+        // Moved here to another calendar (issue #279): moved there first, then stored over.
+        let (url, etag) = match self.moving(calendar, master) {
+            None => (url, etag.map(str::to_string)),
+            Some(to) if !self.ours(&to) => {
+                out.errors.push(format!("{}: its calendar isn't on the server it's on, so it wasn't moved", master.event.summary));
+                return Ok(());
+            }
+            Some(to) => match self.dav.relocate(&master.href, &to, &master.etag) {
+                // Moved, its etag not said nor read: the server's copy is taken, read again.
+                Ok(Ok(tag)) if tag.is_empty() => {
+                    for p in parts {
+                        out.pushed_events.push(StoredEvent { href: to.clone(), etag: String::new(), dirty: false, ..(*p).clone() });
+                    }
+                    refetch.push(to);
+                    return Ok(());
+                }
+                // Moved, nothing else changed: as it is there (stored over, Nextcloud would send
+                // the guests the meeting again).
+                Ok(Ok(tag)) if self.as_there(calendar, &to, parts) => {
+                    for p in parts {
+                        out.pushed_events.push(StoredEvent { href: to.clone(), etag: tag.clone(), dirty: false, ..(*p).clone() });
+                    }
+                    return Ok(());
+                }
+                Ok(Ok(tag)) => (to, Some(tag)),
+                // Changed there since it was read: as a change refused for that.
+                Ok(Err(r @ Refused::Changed)) => return self.refused(role, master, parts, r, out, refetch),
+                Err(e @ NetError::Auth(_)) => return Err(e),
+                // Refused (a server that moves nothing, or not between these calendars): an event
+                // copied there, then deleted here. Not a meeting: a server that schedules takes a
+                // second item of it as a new invitation (Stalwart sends the guests one), so it
+                // stays where it is, said, the server's copy read again.
+                _ if parts.iter().any(|p| !p.event.attendees.is_empty()) => {
+                    out.errors.push(format!("{}: the server won't move a meeting to another calendar, so it stays in its own", master.event.summary));
+                    theirs_kept(uid, master.href.clone(), out, refetch);
+                    return Ok(());
+                }
+                _ => return self.copied(&to, master, parts, &data, out),
+            },
+        };
         // Stored over the calendar's own copy (its address and etag).
         let over = |(href, tag): (String, String)| self.dav.store(&href, CALENDAR_DATA, &data, Some(&tag)).map(|r| r.map(|t| (href, t)));
         let stored = match found.map(|f| over_theirs(f, parts, master.event.sequence)) {
@@ -120,7 +160,7 @@ impl Run<'_> {
                 return Ok(());
             }
             Some(Ok(found)) => over(found),
-            None => match self.dav.store(&url, CALENDAR_DATA, &data, etag) {
+            None => match self.dav.store(&url, CALENDAR_DATA, &data, etag.as_deref()) {
                 // A new one the calendar has already, under another name (409, "Event UID
                 // already in use"): the same.
                 Ok(Err(Refused::UidTaken)) if master.href.is_empty() => match the_servers(self.dav, calendar, uid, self.local) {
@@ -149,6 +189,55 @@ impl Run<'_> {
             Ok(Err(r)) => out.errors.push(format!("{}: {r}", master.event.summary)),
             Err(e @ NetError::Auth(_)) => return Err(e),
             Err(e) => out.errors.push(format!("{}: {e}", master.event.summary)),
+        }
+        Ok(())
+    }
+
+    /// Whether the item at `href` holds these parts as they are here: read and compared, as the
+    /// sync reads it (so one moved and changed in nothing else isn't stored over).
+    fn as_there(&self, calendar: &str, href: &str, parts: &[&StoredEvent]) -> bool {
+        let Ok(got) = self.dav.multiget(Kind::Calendars, calendar, &[href.to_string()]) else { return false };
+        let Some((_, _, data)) = got.into_iter().next() else { return false };
+        let read = ical::parse_in(&data, self.local).events;
+        read.len() == parts.len() && parts.iter().all(|p| read.contains(&p.event))
+    }
+
+    /// Where an item moved here to another calendar goes (issue #279): under its name in
+    /// `calendar`, when it's stored in another one.
+    fn moving(&self, calendar: &str, master: &StoredEvent) -> Option<String> {
+        let collection = format!("{}/", calendar.trim_end_matches('/'));
+        if master.href.is_empty() || master.href.starts_with(&collection) {
+            return None;
+        }
+        let name = master.href.trim_end_matches('/').rsplit('/').next().filter(|n| !n.is_empty())?;
+        Some(format!("{collection}{name}"))
+    }
+
+    /// A move of an event (not a meeting) the server refused: a copy stored in the other calendar
+    /// (`to`), then the item where it was deleted. Not stored there: said, and tried again at the
+    /// next sync.
+    fn copied(&self, to: &str, master: &StoredEvent, parts: &[&StoredEvent], data: &str, out: &mut DavSync) -> Result<()> {
+        let what = &master.event.summary;
+        let tag = match self.dav.store(to, CALENDAR_DATA, data, None) {
+            Ok(Ok(tag)) => tag,
+            Err(e @ NetError::Auth(_)) => return Err(e),
+            Ok(Err(r)) => {
+                out.errors.push(format!("{what}: not moved to its calendar ({r})"));
+                return Ok(());
+            }
+            Err(e) => {
+                out.errors.push(format!("{what}: not moved to its calendar ({e})"));
+                return Ok(());
+            }
+        };
+        match self.dav.remove(&master.href, &master.etag) {
+            Ok(Ok(())) => {}
+            Err(e @ NetError::Auth(_)) => return Err(e),
+            Ok(Err(r)) => out.errors.push(format!("{what}: its copy in the calendar it was in wasn't deleted ({r})")),
+            Err(e) => out.errors.push(format!("{what}: its copy in the calendar it was in wasn't deleted ({e})")),
+        }
+        for p in parts {
+            out.pushed_events.push(StoredEvent { href: to.to_string(), etag: tag.clone(), dirty: false, ..(*p).clone() });
         }
         Ok(())
     }

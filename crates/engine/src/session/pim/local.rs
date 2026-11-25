@@ -1,6 +1,7 @@
 //! An account's calendar on this computer and its calendars on the server (issue #30): which
-//! one new events and invitations go to (the Default calendar), and moving what was kept on
-//! this computer before the server's were found.
+//! one new events and invitations go to (the Default calendar), moving what was kept on this
+//! computer before the server's were found, and moving an event to another of the account's
+//! calendars (issue #279).
 
 use mailcraft_model::pim::{CalendarInfo, LOCAL, is_server_calendar};
 
@@ -75,6 +76,57 @@ impl Session {
         crate::session::invite::drop_empty_local(p);
         self.after_pim_change(&account, moved > 0);
         Ok(serde_json::json!({"account": account, "calendar": target.id, "moved": moved, "kept": kept}))
+    }
+
+    /// Move an event, a series with its changed occurrences, to another calendar of its account
+    /// (`calendar`: its id or name; issue #279). On the server it's moved there at the next sync
+    /// (a WebDAV MOVE, which tells no guest or organizer anything), or stored there if it's on
+    /// this computer; one taken off the server to this computer is deleted there, and so a
+    /// meeting isn't, as its guests or organizer would hear of it. Exchange's calendars aren't
+    /// moved between yet.
+    pub fn move_event_to(&mut self, uid: &str, calendar: &str) -> CmdResult {
+        let (account, from) =
+            self.find_event(uid).map(|(a, e)| (a.to_string(), e.calendar.clone())).ok_or_else(|| CmdError::Params(format!("no event `{uid}`")))?;
+        let p = self.pim_mut(&account);
+        let to = super::calendar_named(p, calendar)?.ok_or_else(|| CmdError::Params(format!("no calendar `{calendar}`")))?.clone();
+        if to.id == from {
+            return Ok(serde_json::json!({"uid": uid, "account": account, "calendar": to.id, "moved": false}));
+        }
+        // Each a calendar of the account's own (on this computer, or its server's), that can be
+        // changed: not one subscribed to by its link, nor a colleague's opened by their address.
+        let usable = |id: &str| id == LOCAL || is_server_calendar(id);
+        let read_only = |id: &str| p.calendars.iter().any(|c| c.id == id && c.read_only);
+        if !usable(&to.id) || to.read_only {
+            return Err(CmdError::Params(format!("`{}` can't be added to", to.name)));
+        }
+        if !usable(&from) || read_only(&from) {
+            return Err(CmdError::Params("this event's calendar can't be changed".into()));
+        }
+        let caldav = p.caldav_home.as_deref().is_some_and(|h| !h.is_empty());
+        if !caldav && (is_server_calendar(&to.id) || is_server_calendar(&from)) {
+            return Err(CmdError::Disabled("moving an event to another calendar isn't done on this account's server yet".into()));
+        }
+        let parts: Vec<StoredEvent> = p.events.iter().filter(|e| e.event.uid == uid && e.calendar == from).cloned().collect();
+        if parts.iter().any(|e| mailcraft_model::ical::details_hidden(&e.event)) {
+            return Err(CmdError::Params("only this event's time can be seen: it can't be moved".into()));
+        }
+        if to.id == LOCAL && parts.iter().any(|e| !e.href.is_empty() && !e.event.attendees.is_empty()) {
+            return Err(CmdError::Params("a meeting stays on the server: deleted there, its guests or organizer would be told".into()));
+        }
+        // Off the server: deleted there.
+        let remote = if to.id == LOCAL { super::invite::delete_items(p, &parts) } else { true };
+        for e in p.events.iter_mut().filter(|e| e.event.uid == uid && e.calendar == from) {
+            e.calendar = to.id.clone();
+            if to.id == LOCAL || from == LOCAL {
+                e.href.clear();
+                e.etag.clear();
+            }
+            // Kept where it's stored on the server, to be moved from there.
+            e.dirty = to.id != LOCAL;
+        }
+        p.placed.retain(|u| u != uid || to.id == LOCAL);
+        self.after_pim_change(&account, remote);
+        Ok(serde_json::json!({"uid": uid, "account": account, "calendar": to.id, "moved": true}))
     }
 
     /// Keep an account's calendar on this computer as it is: moving its events isn't offered

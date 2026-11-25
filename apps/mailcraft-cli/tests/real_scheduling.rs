@@ -528,3 +528,146 @@ fn real_scheduling_crossings_on_sogo() {
     sent(&mut ann, &aid, &uid);
     counted(&tag, &[("ann", &ann_box, 3 * sogos + 1), ("bob", &bob_box, 2), ("outside", &ext, 2)]);
 }
+
+/// The first href inside `prop` of a `PROPFIND` (`Depth: 0`) of `url`, made whole.
+fn prop_href(url: &str, auth: &str, prop: &str) -> Option<String> {
+    let ns = if prop.starts_with("schedule") || prop.starts_with("calendar") { "c" } else { "d" };
+    let body = format!(
+        r#"<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><{ns}:{prop}/></d:prop></d:propfind>"#
+    );
+    let r = mailcow::http(
+        "PROPFIND",
+        url,
+        &[("Authorization", &mailcow::basic(auth)), ("Depth", "0"), ("Content-Type", "application/xml")],
+        body.as_bytes(),
+    );
+    let text = r.text();
+    let at = text.to_ascii_lowercase().find(&prop.to_ascii_lowercase())?;
+    let href = mailcow::between(text.get(at..)?, "href>", "</")?;
+    let origin: String = url.splitn(4, '/').take(3).collect::<Vec<_>>().join("/");
+    Some(if href.starts_with("http") { href } else { format!("{origin}{href}") })
+}
+
+/// How many items the user's scheduling inbox holds (RFC 6638 §2.2: what the server delivered).
+fn inbox_items(home: &str, auth: &str) -> usize {
+    let principal = prop_href(home, auth, "current-user-principal").expect("the principal");
+    let inbox = prop_href(&principal, auth, "schedule-inbox-URL").expect("the scheduling inbox");
+    let body = r#"<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getetag/></d:prop></d:propfind>"#;
+    let r = mailcow::http(
+        "PROPFIND",
+        &inbox,
+        &[("Authorization", &mailcow::basic(auth)), ("Depth", "1"), ("Content-Type", "application/xml")],
+        body.as_bytes(),
+    );
+    (r.text().matches("response>").count() / 2).saturating_sub(1)
+}
+
+/// Issue #279: a meeting moved to another calendar of the same user, on a server that schedules,
+/// tells nobody (a WebDAV MOVE: RFC 6638 §3.2.3.4). Made by a plain PUT, without MailCraft's
+/// marks, so the server schedules it as one made in its own web calendar. The guest's copy moved
+/// leaves their answer in the organizer's copy as it was; the organizer's moved cancels nothing
+/// for the guest; neither scheduling inbox gets anything. Never a real account; one server at a
+/// time:
+///
+/// ```text
+/// MAILCRAFT_REAL_MOVE="<dav server> <organizer>[=login] <guest>[=login] <password>" \
+///   cargo test -p mailcraft-cli --test real_scheduling real_a_meeting_moved -- --ignored --nocapture
+/// ```
+/// - Stalwart: `http://127.0.0.1:23080 ann@st.test bob@st.test <password>`;
+/// - Nextcloud: `http://127.0.0.1:26080/remote.php/dav ann@nc.test=ann bob@nc.test=bob <password>`.
+#[test]
+#[ignore = "needs a CalDAV server that schedules, in MAILCRAFT_REAL_MOVE"]
+fn real_a_meeting_moved_to_another_calendar_tells_nobody() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_MOVE") else { return eprintln!("MAILCRAFT_REAL_MOVE isn't set: skipped") };
+    let p: Vec<&str> = v.split_whitespace().collect();
+    let [server, org, guest, password] = p.as_slice() else { panic!("MAILCRAFT_REAL_MOVE: server organizer guest password") };
+    let who = |u: &str| {
+        let (e, l) = u.split_once('=').unwrap_or((u, u));
+        (e.to_string(), l.to_string())
+    };
+    let (org, guest) = (who(org), who(guest));
+    let auth = |(_, login): &(String, String)| format!("{login}:{password}");
+    let tag = format!("Moved{}", std::process::id());
+    let open = |(email, login): &(String, String), name: &str| {
+        let mut app = mailcow::App::open(name, password);
+        let id = app.add(json!({"email": email, "username": login, "password": password, "dav": server}));
+        app.sync_dav(&id);
+        (app, id)
+    };
+    let (mut a, aid) = open(&org, "move-org");
+    let (mut b, bid) = open(&guest, "move-guest");
+    assert!(a.s.pim[&aid].auto_schedule, "the server schedules");
+    // A second calendar each, by its name.
+    let second = |app: &mut mailcow::App, id: &str, user: &(String, String)| {
+        let home = app.s.pim[id].caldav_home.clone().expect("the calendars found");
+        let url = format!("{}/{}/", home.trim_end_matches('/'), tag.to_ascii_lowercase());
+        let mk = format!(
+            r#"<?xml version="1.0"?><c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:set><d:prop><d:displayname>{tag}</d:displayname></d:prop></d:set></c:mkcalendar>"#
+        );
+        let made = mailcow::http_as("MKCALENDAR", &url, &auth(user), "application/xml", mk.as_bytes());
+        assert_eq!(made.status, 201, "MKCALENDAR {url}");
+        app.sync_dav(id);
+        (home, url)
+    };
+    let (a_home, a_second) = second(&mut a, &aid, &org);
+    let (b_home, b_second) = second(&mut b, &bid, &guest);
+
+    // The organizer's meeting, put as another program puts it: the server schedules it.
+    let uid = format!("{tag}@test.example");
+    let a_cal = a.s.pim[&aid].server_calendar().expect("a calendar").id.clone();
+    let ics = format!(
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//test//EN\r\nBEGIN:VEVENT\r\nUID:{uid}\r\nDTSTAMP:20261125T120000Z\r\nDTSTART:20261210T100000Z\r\nDTEND:20261210T110000Z\r\nSUMMARY:{tag}\r\nORGANIZER:mailto:{o}\r\nATTENDEE;PARTSTAT=ACCEPTED:mailto:{o}\r\nATTENDEE;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:{g}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+        o = org.0,
+        g = guest.0
+    );
+    let put =
+        mailcow::http_as("PUT", &format!("{}/{tag}.ics", a_cal.trim_end_matches('/')), &auth(&org), "text/calendar; charset=utf-8", ics.as_bytes());
+    assert!(matches!(put.status, 201 | 204), "PUT {}", put.status);
+    let mut found = false;
+    for _ in 0..15 {
+        b.sync_dav(&bid);
+        if b.s.find_event(&uid).is_some() {
+            found = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_secs(2));
+    }
+    assert!(found, "the server put it in the guest's calendar");
+    a.sync_dav(&aid);
+    let before = (inbox_items(&a_home, &auth(&org)), inbox_items(&b_home, &auth(&guest)));
+    eprintln!("scheduling inboxes before: {before:?}");
+    // Moved, and stored: where it is on the server now.
+    let moved = |app: &mut mailcow::App, id: &str, user: &(String, String), to: &str| {
+        app.s.run("event.update", &json!({"uid": uid, "calendar": tag})).unwrap();
+        for _ in 0..5 {
+            app.sync_dav(id);
+            if app.s.find_event(&uid).is_some_and(|(_, e)| !e.dirty && e.href.starts_with(to)) {
+                break;
+            }
+        }
+        let e = app.s.find_event(&uid).expect("still there").1.clone();
+        assert!(!e.dirty && e.href.starts_with(to) && e.calendar == to, "{} {} dirty {}", e.calendar, e.href, e.dirty);
+        let got = mailcow::http_as("GET", &e.href, &auth(user), "text/plain", b"");
+        assert!(got.status == 200 && got.text().contains(&uid), "GET {}: {}", e.href, got.status);
+    };
+    let theirs = |app: &mut mailcow::App, id: &str, user: &(String, String)| {
+        app.sync_dav(id);
+        let e = app.s.find_event(&uid).expect("their copy").1.clone();
+        mailcow::http_as("GET", &e.href, &auth(user), "text/plain", b"").text().replace("\r\n ", "")
+    };
+
+    eprintln!("the guest moves their copy");
+    moved(&mut b, &bid, &guest, &b_second);
+    let org_copy = theirs(&mut a, &aid, &org);
+    assert_eq!(partstat(&org_copy, &guest.0), "NEEDS-ACTION", "the organizer heard nothing: {org_copy}");
+    eprintln!("the organizer moves theirs");
+    moved(&mut a, &aid, &org, &a_second);
+    let guest_copy = theirs(&mut b, &bid, &guest);
+    assert!(guest_copy.contains(&uid) && !guest_copy.contains("STATUS:CANCELLED"), "the guest's copy stays: {guest_copy}");
+    let after = (inbox_items(&a_home, &auth(&org)), inbox_items(&b_home, &auth(&guest)));
+    eprintln!("scheduling inboxes after: {after:?}");
+    assert_eq!(after, before, "nothing delivered to either");
+    for (url, user) in [(&a_second, &org), (&b_second, &guest)] {
+        mailcow::http_as("DELETE", url, &auth(user), "text/plain", b"");
+    }
+}

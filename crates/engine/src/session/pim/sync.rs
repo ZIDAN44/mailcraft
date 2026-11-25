@@ -53,6 +53,12 @@ impl Session {
             for e in p.events.iter_mut().filter(|e| e.event.uid == x.event.uid && e.event.recurrence_id == x.event.recurrence_id) {
                 e.href = x.href.clone();
                 e.etag = x.etag.clone();
+                // Moved to another calendar while it was stored (issue #279): where it's stored
+                // now, still to be moved.
+                if e.calendar != x.calendar && mailcraft_model::pim::is_server_calendar(&e.calendar) {
+                    e.dirty = true;
+                    continue;
+                }
                 // Stored in another calendar (a new event goes to the server's default one).
                 e.calendar = x.calendar.clone();
                 e.dirty &= e.event != x.event;

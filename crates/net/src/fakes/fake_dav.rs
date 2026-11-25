@@ -20,6 +20,8 @@ pub const OUTBOX: &str = "/dav/outbox/";
 pub const INBOX: &str = "/dav/inbox/";
 /// A list of tasks alone (`VTODO`), as Nextcloud's Tasks makes, when the server has one.
 pub const TASKS: &str = "/dav/cal/tasks/";
+/// A second calendar of events, when the server has one ([`Data::home`]).
+pub const HOME: &str = "/dav/cal/home/";
 
 #[derive(Default)]
 pub struct Data {
@@ -68,6 +70,10 @@ pub struct Data {
     pub bearer_lacks_calendars: bool,
     /// Refuse the right token outright (401) for the address books: not a permission it lacks.
     pub contacts_reject_token: bool,
+    /// A second calendar of events, "Home" ([`HOME`]), listed after the first.
+    pub home: bool,
+    /// Refuse to move items (`MOVE` answers 405), as a server that moves nothing.
+    pub no_moves: bool,
 }
 
 /// Whether an `Authorization` value answers the fake's Digest challenge for this request.
@@ -149,6 +155,9 @@ pub(crate) fn looked_for_today(store: &mailcraft_store::Store, account: &str) {
 }
 
 mod serving;
+
+#[cfg(test)]
+mod moving;
 
 #[cfg(test)]
 mod scheduling;

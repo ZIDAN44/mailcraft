@@ -555,6 +555,38 @@ impl Dav {
         }
     }
 
+    /// Move an item to `to`, another calendar of the same server (issue #279), when it still has
+    /// `etag`: a WebDAV MOVE, which a server that schedules takes as no change to a meeting (RFC
+    /// 6638 §3.2.3.4: nothing is sent), never over an item there (`Overwrite: F`). Its etag
+    /// there, as the server says it, else as it's read; why it didn't (`Err` inside).
+    pub fn relocate(&self, from: &str, to: &str, etag: &str) -> Result<std::result::Result<String, Refused>> {
+        let mut req = Request { method: "MOVE".into(), url: from.into(), max: 1 << 20, ..Default::default() };
+        req = req.header("Destination", to).header("Overwrite", "F");
+        if !etag.is_empty() {
+            req = req.header("If-Match", etag);
+        }
+        let resp = self.send(&req)?;
+        if let Some(why) = self.token_refused(&resp) {
+            return Err(NetError::Auth(why));
+        }
+        match resp.status {
+            200..=299 => match resp.header("ETag").filter(|t| !t.is_empty()) {
+                Some(t) => Ok(Ok(t.to_string())),
+                // Not said: read, else none (what's stored there next goes over it unasked).
+                None => Ok(Ok(self
+                    .propfind(to, "0", "<d:getetag/>")
+                    .ok()
+                    .and_then(|(items, _)| items.iter().find_map(|i| i.props.get("getetag")).cloned())
+                    .unwrap_or_default())),
+            },
+            401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
+            s => {
+                log::info!("calendars and contacts: MOVE {from} answered HTTP {s}");
+                Ok(Err(Refused::from_status(s)))
+            }
+        }
+    }
+
     /// The items of a calendar that may have this uid (a calendar-query, RFC 4791 §7.8; its
     /// text-match finds the uid inside longer ones too, so what's found is to be read to be
     /// sure).

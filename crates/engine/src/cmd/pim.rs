@@ -175,6 +175,10 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"key": string, "minutes"?: 1…40320 | "beforeStart"?: minutes before the event starts}"#),
         CommandSpec::new("event.update", "Edit event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
+            // To another calendar of its account first (issue #279): the whole item, a series too.
+            if let Some(c) = p::str(v, "calendar").map(str::trim).filter(|c| !c.is_empty()) {
+                s.move_event_to(&uid, c)?;
+            }
             // One occurrence of a series on its own (issue #241).
             if let Some(at) = p::i64(v, "occurrence").filter(|_| repeats(s, &uid)) {
                 let current = s.occurrence_event(&uid, at).ok_or_else(|| CmdError::Params(format!("no occurrence of `{uid}` at {at}")))?;
@@ -191,7 +195,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             tell_of_change(s, &uid, before)?;
             Ok(r)
         })
-        .params(r#"{"uid": string, "occurrence"?: unix seconds (that occurrence of a series alone, by when the series starts it), … the fields of event.create to change}"#)
+        .params(r#"{"uid": string, "occurrence"?: unix seconds (that occurrence of a series alone, by when the series starts it), "calendar"?: string (another calendar of its account, by id or name: the event moves there, a series whole), … the fields of event.create to change}"#)
         .asks_when(mails_guests),
         // Dragged to another time or day in the calendar (issue #192).
         CommandSpec::new("event.move", "Move event", "Calendar › Event", |s, v| {
