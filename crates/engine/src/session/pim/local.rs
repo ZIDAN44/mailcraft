@@ -44,7 +44,7 @@ impl Session {
         }
         let p = self.pim_mut(&account);
         let target = match calendar.map(str::trim).filter(|c| !c.is_empty()) {
-            Some(id) => p.calendars.iter().find(|c| c.id == id).ok_or_else(|| CmdError::Params(format!("no calendar `{id}`")))?,
+            Some(c) => super::calendar_named(p, c)?.ok_or_else(|| CmdError::Params(format!("no calendar `{c}`")))?,
             None => p.server_calendar().ok_or_else(|| CmdError::Disabled("this account has no calendar on its server yet".into()))?,
         };
         if !is_server_calendar(&target.id) || target.read_only {
@@ -95,7 +95,7 @@ impl Session {
         if calendar.is_empty() {
             p.chosen_calendar = None;
         } else {
-            let c = p.calendars.iter().find(|c| c.id == calendar).ok_or_else(|| CmdError::Params(format!("no calendar `{calendar}`")))?;
+            let c = super::calendar_named(p, calendar)?.ok_or_else(|| CmdError::Params(format!("no calendar `{calendar}`")))?;
             if c.read_only || mailcraft_model::pim::is_web_calendar(&c.id) {
                 return Err(CmdError::Params(format!("`{}` can't be added to", c.name)));
             }

@@ -72,7 +72,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 None => crate::EventWhen::All,
             };
             let limit = p::u64(v, "limit").map_or(200, |n| usize::try_from(n).unwrap_or(usize::MAX)).clamp(1, crate::EVENT_HITS_MAX);
-            let hits = s.find_events(p::str(v, "query").unwrap_or_default(), when, p::str(v, "account"), p::str(v, "calendar"), limit);
+            let hits = s.find_events(p::str(v, "query").unwrap_or_default(), when, p::str(v, "account"), p::str(v, "calendar"), limit)?;
             Ok(json!(hits.iter().map(|h| json!({
                 "uid": h.uid, "account": h.account, "calendar": h.calendar, "summary": h.summary, "location": h.location,
                 "start": h.start, "end": h.end, "allDay": h.all_day, "occurrence": h.occurrence, "recurring": h.recurring,
@@ -99,7 +99,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             Ok(r)
         })
-        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "reminders"?: [minutes before, …] (each, at most ten; [] none: in place of "reminder"), "privacy"?: "public"|"private"|"confidential" (show time only), "showAs"?: "free"|"workingElsewhere"|"tentative"|"busy"|"oof", "onlineMeeting"?: a saved room's name | true (the first room) | false (take it out) | {"url": string, "name"?, "code"?, "details"?, "labels"?: {"heading"?, "join"?, "code"?}}, "account"?: string, "calendar"?: string}"#),
+        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "reminders"?: [minutes before, …] (each, at most ten; [] none: in place of "reminder"), "privacy"?: "public"|"private"|"confidential" (show time only), "showAs"?: "free"|"workingElsewhere"|"tentative"|"busy"|"oof", "onlineMeeting"?: a saved room's name | true (the first room) | false (take it out) | {"url": string, "name"?, "code"?, "details"?, "labels"?: {"heading"?, "join"?, "code"?}}, "account"?: string, "calendar"?: string (id or name)}"#),
         CommandSpec::new("reminders.list", "Reminders", "File › Reminders", |s, _| {
             let now = s.clock.now;
             Ok(json!(s
@@ -286,11 +286,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("calendar.setDefault", "Use as default calendar", "Calendar › Calendars", |s, v| {
             s.set_default_calendar(p::str(v, "account"), p::str(v, "calendar").unwrap_or_default())
         })
-        .params(r#"{"account"?: string, "calendar": string ("" for the account's own)}"#),
+        .params(r#"{"account"?: string, "calendar": string (id or name; "" for the account's own)}"#),
         CommandSpec::new("calendar.moveLocal", "Move events to the server's calendar", "Calendar › Calendars", |s, v| {
             s.move_local_events(p::str(v, "account"), p::str(v, "calendar"))
         })
-        .params(r#"{"account"?: string, "calendar"?: string (default: the account's default calendar)}"#),
+        .params(r#"{"account"?: string, "calendar"?: string (id or name; default: the account's default calendar)}"#),
         CommandSpec::new("calendar.keepLocal", "Keep events on this computer", "Calendar › Calendars", |s, v| s.keep_local_events(p::str(v, "account")))
             .params(r#"{"account"?: string}"#),
         CommandSpec::new("contact.list", "People", "People", |s, v| {
