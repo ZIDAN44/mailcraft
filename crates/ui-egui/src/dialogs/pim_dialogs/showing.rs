@@ -1,8 +1,10 @@
 //! The event form's Show as and Private (issue #32): how the event shows its time to those
 //! planning around it, and whether others see what it is. Outlook's Private is the lock; "Show
-//! time only" is the third choice SOGo and Thunderbird have (`CLASS:CONFIDENTIAL`).
+//! time only" is the third choice SOGo and Thunderbird have (`CLASS:CONFIDENTIAL`). And the
+//! calendar it's in.
 
 use egui::{RichText, Ui, vec2};
+use mailcraft_engine::Session;
 use mailcraft_engine::model::ical::{Privacy, ShowAs};
 
 use super::{EventForm, FIELD_H, form_row};
@@ -49,4 +51,40 @@ pub(super) fn show_as_row(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
             },
         );
     });
+}
+
+pub(super) fn writable_calendars(s: &Session) -> Vec<(String, String, String)> {
+    let mut out = Vec::new();
+    for a in &s.accounts {
+        if let Some(p) = s.pim.get(&a.config.id) {
+            for c in p.calendars.iter().filter(|c| !c.read_only) {
+                let name = if c.id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { c.name.clone() };
+                out.push((a.config.id.clone(), c.id.clone(), format!("{name} · {}", a.config.email)));
+            }
+        }
+    }
+    out
+}
+
+/// The calendar a new event goes in, when there's more than one.
+pub(super) fn calendar_row(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
+    if f.uid.is_none() && f.calendars.len() > 1 {
+        let name = f.calendars.get(f.calendar).map(|c| c.2.clone()).unwrap_or_default();
+        form_row(ui, t, true, Some(Icon::Calendar), "Calendar", |ui| {
+            ui.allocate_ui_with_layout(vec2(260.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                let r = egui::ComboBox::from_id_salt("event-calendar")
+                    .width(254.0)
+                    .selected_text(name)
+                    .show_ui(ui, |ui| {
+                        for (i, c) in f.calendars.iter().enumerate() {
+                            ui.selectable_value(&mut f.calendar, i, &c.2);
+                        }
+                    })
+                    .response
+                    .accessible_name(tl!("Calendar"));
+                let all: Vec<usize> = (0..f.calendars.len()).collect();
+                crate::drop_down::keys(ui, &r, &mut f.calendar, &all);
+            });
+        });
+    }
 }
