@@ -535,6 +535,8 @@ impl Dialog {
             split: v.external.is_some(),
             external: v.external.clone().unwrap_or_default(),
             outside: Outside::from_code(&v.outside),
+            sent_by: v.sent_by.clone(),
+            instead: v.instead.clone(),
             error: None,
         }))
     }

@@ -420,7 +420,11 @@ fn a_meeting_is_forwarded_from_its_card_and_its_form() {
     for _ in 0..3 {
         frame(&ctx, &mut a, vec![]);
     }
-    click_named(&ctx, &mut a, "Forward");
+    // The invitation card's Forward, under the message's own (the ribbon's and the header's).
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    let forwards = named(&ctx, &mut a, size).into_iter().filter(|n| n.label.as_deref() == Some("Forward") && !n.disabled);
+    let card = forwards.filter_map(|n| n.centre()).max_by(|x, y| x.y.total_cmp(&y.y)).expect("the card's Forward");
+    click(&ctx, &mut a, card);
     let Some(Dialog::PassMeeting(f)) = a.ui.dialog.as_mut() else { panic!("asked to whom: {:?}", a.ui.dialog) };
     assert_eq!(f.passing, crate::pim_dialogs::Passing::Forward);
     f.to = "Sam Okafor <sam@studio.example>".into();
@@ -428,7 +432,9 @@ fn a_meeting_is_forwarded_from_its_card_and_its_form() {
     for _ in 0..2 {
         frame(&ctx, &mut a, vec![]);
     }
-    click_named(&ctx, &mut a, "Forward");
+    // The dialog's Forward, drawn last.
+    let ok = drawn_text(&ctx, &mut a, size).into_iter().rev().find(|d| d.text == "Forward").map(|d| d.rect.center()).expect("the dialog's Forward");
+    click(&ctx, &mut a, ok);
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.dialog.is_none(), "sent: {:?}", a.ui.dialog);
     let sent = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();

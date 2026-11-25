@@ -2006,7 +2006,6 @@ count	occurrences	előfordulás
 	Open the series	Sorozat megnyitása
 	Changes apply to this occurrence alone.	A módosítások csak erre az előfordulásra érvényesek.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	A kiszolgálón lévő többi szűrőd („{name}”) fut először, és változatlan marad.
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Ezek a szabályok nem futnak: egy másik program a saját szűrőit tette futóvá. Ha itt mentesz egy szabályt, újra futnak, a másik program szűrőivel együtt.
 	Found: {url}	Megtalálva: {url}
 	Task list	Feladatlista
 	Task lists	Feladatlisták
@@ -2149,3 +2148,9 @@ count	occurrences	előfordulás
 	Delete without sending	Törlés küldés nélkül
 	Message to your guests	Üzenet a résztvevőknek
 	Your guests are sent a cancellation. Add a message to them, if you like.	A résztvevők lemondást kapnak. Ha szeretnéd, írj nekik üzenetet.
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	A MailCraft automatikus válaszai és szabályai nem futnak a kiszolgálón: egy másik program a saját szűrőit („{name}”) tette futóvá.
+	Off: another program's filters (“{name}”) run in place of MailCraft's	Ki: a MailCraft szűrői helyett egy másik program szűrői („{name}”) futnak
+	On, sent by your other filters on the server (“{name}”)	Be, a kiszolgálón lévő többi szűrőd („{name}”) küldi
+	Run my rules again	Szabályaim újbóli futtatása
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Ezeket a válaszokat a kiszolgálón lévő többi szűrőd („{name}”) küldi: abban a programban módosítsd őket, amelyik létrehozta őket. A MailCraft válaszai csak akkor lehetnek bekapcsolva, ha ezek ki vannak kapcsolva: a kiszolgáló egy választ küld.
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Ezek a szabályok nem futnak: egy másik program a saját szűrőit tette futóvá. Futtasd őket újra itt, a másik program szűrőivel együtt.

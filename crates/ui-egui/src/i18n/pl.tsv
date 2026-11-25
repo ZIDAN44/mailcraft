@@ -2019,7 +2019,6 @@ count	occurrences	wystąpieniach
 	Open the series	Otwórz serię
 	Changes apply to this occurrence alone.	Zmiany dotyczą tylko tego wystąpienia.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Twoje inne filtry na serwerze („{name}”) działają najpierw i pozostają bez zmian.
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Te reguły nie działają: inny program ustawił swoje filtry jako działające. Zapisanie reguły tutaj ponownie je uruchomi, razem z filtrami tamtego programu.
 	Found: {url}	Znaleziono: {url}
 	Task list	Lista zadań
 	Task lists	Listy zadań
@@ -2162,3 +2161,9 @@ count	occurrences	wystąpieniach
 	Delete without sending	Usuń bez wysyłania
 	Message to your guests	Wiadomość do uczestników
 	Your guests are sent a cancellation. Add a message to them, if you like.	Uczestnicy otrzymają odwołanie. Możesz dodać dla nich wiadomość.
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	Automatyczne odpowiedzi i reguły MailCraft na serwerze nie działają: inny program ustawił swoje filtry („{name}”) jako działające.
+	Off: another program's filters (“{name}”) run in place of MailCraft's	Wyłączone: zamiast filtrów MailCraft działają filtry innego programu („{name}”)
+	On, sent by your other filters on the server (“{name}”)	Włączone, wysyłane przez Twoje inne filtry na serwerze („{name}”)
+	Run my rules again	Uruchom ponownie moje reguły
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	To odpowiedzi wysyłane przez Twoje inne filtry na serwerze („{name}”): zmień je w programie, który je utworzył. Odpowiedzi MailCraft mogą być włączone tylko wtedy, gdy tamte są wyłączone: serwer wysyła jedną odpowiedź.
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Te reguły nie działają: inny program ustawił swoje filtry jako działające. Uruchom je tutaj ponownie, razem z filtrami tamtego programu.

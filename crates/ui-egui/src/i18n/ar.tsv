@@ -2001,7 +2001,6 @@ count	occurrences	مرات
 	Open the series	فتح السلسلة
 	Changes apply to this occurrence alone.	تنطبق التغييرات على هذا التكرار وحده.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	عوامل التصفية الأخرى لديك على الخادم («{name}») تعمل أولًا، وتبقى كما هي.
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	هذه القواعد لا تعمل: جعل برنامج آخر عوامل التصفية الخاصة به هي التي تعمل. حفظ قاعدة هنا يعيد تشغيلها، مع عوامل تصفية ذلك البرنامج.
 	Found: {url}	تم العثور عليه: {url}
 	Task list	قائمة المهام
 	Task lists	قوائم المهام
@@ -2144,3 +2143,9 @@ count	occurrences	مرات
 	Delete without sending	حذف دون إرسال
 	Message to your guests	رسالة إلى الحضور
 	Your guests are sent a cancellation. Add a message to them, if you like.	يتلقى الحضور إشعارًا بالإلغاء. أضف رسالة إليهم إن شئت.
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	الردود التلقائية وقواعد MailCraft على الخادم لا تعمل: جعل برنامج آخر عوامل التصفية الخاصة به («{name}») هي التي تعمل.
+	Off: another program's filters (“{name}”) run in place of MailCraft's	متوقفة: تعمل عوامل تصفية برنامج آخر («{name}») بدلًا من عوامل MailCraft
+	On, sent by your other filters on the server (“{name}”)	مفعّلة، ترسلها عوامل التصفية الأخرى لديك على الخادم («{name}»)
+	Run my rules again	تشغيل قواعدي مجددًا
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	هذه هي الردود التي ترسلها عوامل التصفية الأخرى لديك على الخادم («{name}»): غيّرها في البرنامج الذي أنشأها. لا يمكن تفعيل ردود MailCraft إلا عندما تكون هذه متوقفة: يرسل الخادم ردًا واحدًا.
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	هذه القواعد لا تعمل: جعل برنامج آخر عوامل التصفية الخاصة به هي التي تعمل. أعد تشغيلها هنا، مع عوامل تصفية ذلك البرنامج.

@@ -2006,7 +2006,6 @@ count	occurrences	Terminen
 	Open the series	Serie öffnen
 	Changes apply to this occurrence alone.	Änderungen gelten nur für diesen Termin.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Ihre anderen Filter auf dem Server („{name}“) laufen zuerst und bleiben, wie sie sind.
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Diese Regeln laufen nicht: Ein anderes Programm hat seine eigenen Filter zu denen gemacht, die laufen. Wenn Sie hier eine Regel speichern, laufen sie wieder, zusammen mit denen dieses Programms.
 	Found: {url}	Gefunden: {url}
 	Task list	Aufgabenliste
 	Task lists	Aufgabenlisten
@@ -2149,3 +2148,9 @@ count	occurrences	Terminen
 	Delete without sending	Löschen, ohne zu senden
 	Message to your guests	Nachricht an die Teilnehmer
 	Your guests are sent a cancellation. Add a message to them, if you like.	Die Teilnehmer erhalten eine Absage. Fügen Sie bei Bedarf eine Nachricht für sie hinzu.
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	Die automatischen Antworten und Regeln von MailCraft auf dem Server laufen nicht: Ein anderes Programm hat seine eigenen Filter („{name}“) zu denen gemacht, die laufen.
+	Off: another program's filters (“{name}”) run in place of MailCraft's	Aus: Die Filter eines anderen Programms („{name}“) laufen anstelle der von MailCraft
+	On, sent by your other filters on the server (“{name}”)	An, gesendet von Ihren anderen Filtern auf dem Server („{name}“)
+	Run my rules again	Meine Regeln wieder ausführen
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Diese Antworten senden Ihre anderen Filter auf dem Server („{name}“): Ändern Sie sie in dem Programm, das sie erstellt hat. Die von MailCraft können nur an sein, solange diese aus sind: Der Server sendet nur eine Antwort.
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Diese Regeln laufen nicht: Ein anderes Programm hat seine eigenen Filter zu denen gemacht, die laufen. Führen Sie sie hier wieder aus, zusammen mit denen dieses Programms.

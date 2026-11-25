@@ -2002,7 +2002,6 @@ count	occurrences	次
 	Open the series	打开整个系列
 	Changes apply to this occurrence alone.	更改仅应用于这一次。
 	Your other filters on the server (“{name}”) run first, and are left as they are.	你在服务器上的其他筛选器（“{name}”）会先运行，并保持原样。
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	这些规则没有运行：另一个程序让它自己的筛选器成为运行的那组。在这里保存一条规则会让它们重新运行，并与那个程序的筛选器一起运行。
 	Found: {url}	已找到：{url}
 	Task list	任务列表
 	Task lists	任务列表
@@ -2145,3 +2144,9 @@ count	occurrences	次
 	Delete without sending	删除但不发送
 	Message to your guests	给与会者的消息
 	Your guests are sent a cancellation. Add a message to them, if you like.	与会者会收到取消通知。如有需要，可以给他们附上一条消息。
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	MailCraft 在服务器上的自动答复和规则没有运行：另一个程序让它自己的筛选器（“{name}”）成为运行的那组。
+	Off: another program's filters (“{name}”) run in place of MailCraft's	关闭：运行的是另一个程序的筛选器（“{name}”），而不是 MailCraft 的
+	On, sent by your other filters on the server (“{name}”)	开启，由你在服务器上的其他筛选器（“{name}”）发送
+	Run my rules again	重新运行我的规则
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	这些是你在服务器上的其他筛选器（“{name}”）发送的答复：请在创建它们的程序中更改。只有这些关闭时，MailCraft 的答复才能开启：服务器只发送一份答复。
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	这些规则没有运行：另一个程序让它自己的筛选器成为运行的那组。在这里重新运行它们，并与那个程序的筛选器一起运行。

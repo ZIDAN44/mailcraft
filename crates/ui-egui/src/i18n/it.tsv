@@ -2005,7 +2005,6 @@ count	occurrences	ripetizioni
 	Open the series	Apri la serie
 	Changes apply to this occurrence alone.	Le modifiche valgono solo per questa ricorrenza.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Gli altri tuoi filtri sul server («{name}») vengono eseguiti per primi e restano come sono.
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Queste regole non sono attive: un altro programma ha reso attivi i propri filtri. Salvando una regola qui tornano attive, insieme a quelli di quel programma.
 	Found: {url}	Trovato: {url}
 	Task list	Elenco attività
 	Task lists	Elenchi attività
@@ -2148,3 +2147,9 @@ count	occurrences	ripetizioni
 	Delete without sending	Elimina senza inviare
 	Message to your guests	Messaggio ai partecipanti
 	Your guests are sent a cancellation. Add a message to them, if you like.	I partecipanti ricevono un annullamento. Se vuoi, aggiungi un messaggio per loro.
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	Le risposte automatiche e le regole di MailCraft sul server non sono attive: un altro programma ha reso attivi i propri filtri («{name}»).
+	Off: another program's filters (“{name}”) run in place of MailCraft's	Disattivate: i filtri di un altro programma («{name}») vengono eseguiti al posto di quelli di MailCraft
+	On, sent by your other filters on the server (“{name}”)	Attivate, inviate dagli altri tuoi filtri sul server («{name}»)
+	Run my rules again	Riattiva le mie regole
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Queste sono le risposte inviate dagli altri tuoi filtri sul server («{name}»): modificale nel programma che le ha create. Quelle di MailCraft possono essere attive solo mentre queste sono disattivate: il server invia una sola risposta.
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Queste regole non sono attive: un altro programma ha reso attivi i propri filtri. Riattivale qui, insieme a quelli di quel programma.

@@ -2006,7 +2006,6 @@ count	occurrences	repeticiones
 	Open the series	Abrir la serie
 	Changes apply to this occurrence alone.	Los cambios se aplican solo a esta repetición.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Tus otros filtros del servidor («{name}») se ejecutan primero y se quedan como están.
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Estas reglas no se están ejecutando: otro programa hizo que se ejecuten sus propios filtros. Si guardas una regla aquí, vuelven a ejecutarse, junto con los de ese programa.
 	Found: {url}	Encontrado: {url}
 	Task list	Lista de tareas
 	Task lists	Listas de tareas
@@ -2149,3 +2148,9 @@ count	occurrences	repeticiones
 	Delete without sending	Eliminar sin enviar
 	Message to your guests	Mensaje para los asistentes
 	Your guests are sent a cancellation. Add a message to them, if you like.	Los asistentes recibirán una cancelación. Si quieres, añade un mensaje para ellos.
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	Las respuestas automáticas y las reglas de MailCraft en el servidor no se están ejecutando: otro programa hizo que se ejecuten sus propios filtros («{name}»).
+	Off: another program's filters (“{name}”) run in place of MailCraft's	Desactivadas: los filtros de otro programa («{name}») se ejecutan en lugar de los de MailCraft
+	On, sent by your other filters on the server (“{name}”)	Activadas, enviadas por tus otros filtros del servidor («{name}»)
+	Run my rules again	Volver a ejecutar mis reglas
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Estas son las respuestas que envían tus otros filtros del servidor («{name}»): cámbialas en el programa que las creó. Las de MailCraft solo pueden estar activadas mientras esas estén desactivadas: el servidor envía una sola respuesta.
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Estas reglas no se están ejecutando: otro programa hizo que se ejecuten sus propios filtros. Vuelve a ejecutarlas aquí, junto con los de ese programa.
