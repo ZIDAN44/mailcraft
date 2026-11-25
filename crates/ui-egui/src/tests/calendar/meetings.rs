@@ -202,7 +202,8 @@ fn a_guest_named_with_a_comma_stays_one_guest() {
 /// The invitations and updates in Sent (the sample account files what it sends there).
 fn sent_updates(a: &MailApp, summary: &str) -> usize {
     let st = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
-    st.messages.iter().filter(|m| m.subject == format!("Invitation: {summary}")).count()
+    let said = [format!("Invitation: {summary}"), format!("Updated: {summary}")];
+    st.messages.iter().filter(|m| said.contains(&m.subject)).count()
 }
 
 /// Issue #102: the user's meeting opened in the form and saved without a change sends the

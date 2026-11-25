@@ -22,6 +22,7 @@ mod forward;
 mod notices;
 mod occurrence;
 mod tidy;
+mod words;
 
 #[cfg(test)]
 pub(crate) use arrival::HOLD_SECS;
@@ -33,6 +34,7 @@ pub use forward::forwarding_allowed;
 pub use notices::Route;
 pub use tidy::AnsweredInvites;
 pub(crate) use tidy::WaitingTidy;
+pub use words::MailWords;
 
 /// The most occurrences one message can take out of a series.
 const MAX_EXDATES: usize = 1000;
@@ -562,26 +564,36 @@ impl Session {
         // The user's alarms are their own: each goes whole (its lines left after a lone `BEGIN`
         // taken out would end a component never begun).
         ical::set_reminder(&mut reply, None);
-        let word = match stat {
-            "ACCEPTED" => "Accepted",
-            "TENTATIVE" => "Tentative",
-            "DELEGATED" => "Delegated",
-            _ => "Declined",
+        // In the window's language (issue #235).
+        let w = &self.mail_words;
+        let (head, said) = match stat {
+            "ACCEPTED" => (&w.accepted, &w.accepted_body),
+            "TENTATIVE" => (&w.tentative, &w.tentative_body),
+            "DELEGATED" => (&w.delegated, &w.declined_body),
+            _ => (&w.declined, &w.declined_body),
         };
         let who = if me.0.is_empty() { me.1.clone() } else { me.0.clone() };
+        let summary = event.summary.as_str();
         let to_whom = reply.attendees.iter().find(|a| is_mine(&a.delegated_from, &mine)).filter(|_| stat == "DELEGATED");
         let body = match to_whom {
-            Some(d) => format!("{who} asked {} to go to {} in their place.", if d.name.is_empty() { &d.email } else { &d.name }, event.summary),
-            None => format!("{who} {} the invitation to {}.", word.to_ascii_lowercase(), event.summary),
+            Some(d) => {
+                let delegate = if d.name.is_empty() { &d.email } else { &d.name };
+                MailWords::fill(&w.delegated_answer_body, &[("who", &who), ("delegate", delegate), ("summary", summary)])
+            }
+            None => MailWords::fill(said, &[("who", &who), ("summary", summary)]),
         };
         let to = vec![EmailAddress::new(organizer.name.clone(), organizer.email.clone())];
-        let subject = format!("{word}: {}", event.summary);
+        let subject = MailWords::fill(head, &[("summary", summary)]);
         self.send_itip(account, Itip { from: &invited, to, method: "REPLY", events: &[reply], subject: &subject, body: &body })
     }
 
-    /// Invite the guests of one of the user's events (or tell them of a change: `REQUEST`, or
-    /// that it's off: `CANCEL`).
+    /// Invite the guests of one of the user's events (`REQUEST`), tell them of a change
+    /// (`UPDATE`, sent as a `REQUEST` that says it's an update), or that it's off (`CANCEL`, with
+    /// the user's own words when they gave some: the event's notes then). In the window's
+    /// language (issue #235).
     pub fn send_invitations(&mut self, event: &CalEvent, account: &str, method: &str) -> Result<usize, CmdError> {
+        let update = method == "UPDATE";
+        let method = if update { "REQUEST" } else { method };
         let config = self.account(account).map(|a| a.config.clone()).unwrap_or_default();
         // From the address that organises it, when that's one of the account's others. The
         // organizer isn't invited to their own meeting; another of the account's addresses
@@ -598,20 +610,28 @@ impl Session {
             return Ok(0);
         }
         let mut e = event.clone();
+        let w = &self.mail_words;
+        let summary = event.summary.as_str();
+        let when = w.time(event.start, &self.clock);
         let (subject, body) = if method == "CANCEL" {
             e.status = "CANCELLED".into();
-            if event.recurrence_id.is_some() {
-                // One occurrence of a series (issue #235): which one, or it read as the whole
-                // series called off.
-                let when = mailcraft_model::dates::full_time(event.start, &self.clock);
-                (format!("Cancelled: {} ({when})", event.summary), format!("{} on {when} has been cancelled.", event.summary))
+            let (subject, mut body) = if event.recurrence_id.is_some() {
+                // One occurrence of a series: which one, or it read as the whole series called off.
+                let v = [("summary", summary), ("when", when.as_str())];
+                (MailWords::fill(&w.cancelled_on, &v), MailWords::fill(&w.cancelled_on_body, &v))
             } else {
-                (format!("Cancelled: {}", event.summary), format!("{} has been cancelled.", event.summary))
+                (MailWords::fill(&w.cancelled, &[("summary", summary)]), MailWords::fill(&w.cancelled_body, &[("summary", summary)]))
+            };
+            // What the user wrote when asked to send it.
+            if !event.description.trim().is_empty() {
+                body.push_str("\n\n");
+                body.push_str(&event.description);
             }
+            (subject, body)
         } else {
-            let when = mailcraft_model::dates::full_time(event.start, &self.clock);
-            let place = if event.location.is_empty() { String::new() } else { format!("\nWhere: {}", event.location) };
-            (format!("Invitation: {}", event.summary), format!("{}\nWhen: {when}{place}\n\n{}", event.summary, event.description))
+            let head = if update { &w.updated } else { &w.invitation };
+            let lines = w.when_where(&when, &event.location);
+            (MailWords::fill(head, &[("summary", summary)]), format!("{summary}\n{lines}\n\n{}", event.description))
         };
         let n = to.len();
         // A series sent as a whole goes with its changed occurrences (RFC 5546 §3.2.2): a guest's

@@ -75,15 +75,13 @@ impl Session {
             master.attendees.iter().filter(|_| !own_invited).find_map(|a| config.identity(&a.email)).map(|i| i.email.clone()).unwrap_or_default();
         let sender = config.sender(&invited);
         let who = if sender.name.is_empty() { sender.email.clone() } else { sender.name.clone() };
-        // When the occurrence forwarded is, for one alone.
-        let when = mailcraft_model::dates::full_time(first.start, &self.clock);
-        let place = if first.location.is_empty() { String::new() } else { format!("\nWhere: {}", first.location) };
+        // When the occurrence forwarded is, for one alone; in the window's language (issue #235).
+        let w = &self.mail_words;
+        let lines = w.when_where(&w.time(first.start, &self.clock), &first.location);
         let organizer = master.organizer.as_ref().map(|o| if o.name.is_empty() { o.email.clone() } else { o.name.clone() }).unwrap_or_default();
-        let body = format!(
-            "{who} forwarded you this meeting, organized by {organizer}.\n\n{}\nWhen: {when}{place}\n\n{}",
-            master.summary, master.description
-        );
-        let subject = format!("Fwd: {}", master.summary);
+        let said = MailWords::fill(&w.forwarded_body, &[("who", &who), ("organizer", &organizer)]);
+        let body = format!("{said}\n\n{}\n{lines}\n\n{}", master.summary, master.description);
+        let subject = MailWords::fill(&w.forward, &[("summary", &master.summary)]);
         let to: Vec<EmailAddress> = new.into_iter().cloned().collect();
         let n = to.len();
         if n == 0 {

@@ -32,6 +32,25 @@ pub(super) fn checked_name<'n>(name: &'n str, max: usize, what: &str) -> Result<
 }
 
 impl Session {
+    /// The categories a new profile starts with, still as they started (English, issue #235),
+    /// named in the window's language ([`crate::MailWords::categories`]): their keywords, and
+    /// so the mail they're on, stay. Any one changed, renamed or taken away, they're the user's
+    /// and are left as they are. Whether they were renamed.
+    pub fn name_default_categories(&mut self) -> bool {
+        let defaults = mailcraft_model::organize::default_categories();
+        if self.prefs.categories != defaults {
+            return false;
+        }
+        let names = self.mail_words.categories.clone();
+        if names.iter().zip(&defaults).all(|(n, d)| *n == d.name) || names.iter().any(|n| n.trim().is_empty()) {
+            return false;
+        }
+        for (c, name) in self.prefs.categories.iter_mut().zip(names) {
+            c.name = name.trim().chars().take(100).collect();
+        }
+        true
+    }
+
     /// The category called `name` (any case).
     pub fn category(&self, name: &str) -> Option<&Category> {
         self.prefs.categories.iter().find(|c| c.name.eq_ignore_ascii_case(name.trim()))

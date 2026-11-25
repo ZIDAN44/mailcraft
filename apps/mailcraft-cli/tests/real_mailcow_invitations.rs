@@ -483,3 +483,44 @@ fn real_mailcow_meeting_delegated_in_sogo() {
     }
     m.clean_calendars(&[0, 1, 2], MARK);
 }
+
+/// Issue #235: ann's MailCraft in German. Her meeting goes to bob as "Einladung:"; deleted with
+/// a message, its cancellation waits for SOGo to have the meeting gone, then reaches bob as
+/// "Abgesagt:", in German, with her words.
+#[test]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
+fn real_mailcow_cancellation_in_the_windows_language() {
+    let Some(m) = Mailcow::from_env() else { return };
+    clean(&m);
+    let (bob_email, _) = m.user(1);
+    let web = format!("{}/", m.web);
+    let title = format!("{MARK} {} abgesagt", std::process::id());
+
+    let (mut ann, aid) = App::new(&m, 0, "cancel-words");
+    ann.s.mail_words = mailcraft_engine::MailWords {
+        invitation: "Einladung: {summary}".into(),
+        cancelled: "Abgesagt: {summary}".into(),
+        cancelled_body: "{summary} wurde abgesagt.".into(),
+        when: "Wann: {when}".into(),
+        ..Default::default()
+    };
+    ann.s.run("account.dav", &json!({"account": aid, "caldav": web})).unwrap();
+    ann.sync_dav(&aid);
+    let uid = ann
+        .s
+        .run("event.create", &json!({"account": aid, "summary": title, "start": ahead(33), "attendees": format!("Bob Tester <{bob_email}>")}))
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    ann.pump(120, "ann's meeting stored and sent", |s, _| s.find_event(&uid).is_some_and(|(_, e)| !e.dirty && !e.href.is_empty()));
+    wait_subjects(&m, 1, "INBOX", "the invitation", |s| s.iter().any(|x| *x == format!("Einladung: {title}")));
+
+    ann.s.run("event.delete", &json!({"uid": uid, "message": "Raum 4 ist belegt, bitte naechste Woche."})).unwrap();
+    ann.pump(120, "the meeting gone from SOGo", |s, _| s.pim.get(&aid).is_none_or(|p| p.notices.iter().all(|n| n.uid != uid)));
+    wait_subjects(&m, 1, "INBOX", "the cancellation", |s| s.iter().any(|x| *x == format!("Abgesagt: {title}")));
+    let text = m.imap_as(1).newest_text("INBOX");
+    eprintln!("--- the cancellation bob has:\n{text}");
+    assert!(text.contains("wurde abgesagt.") && text.contains("Raum 4 ist belegt, bitte naechste Woche."), "{text}");
+    clean(&m);
+}

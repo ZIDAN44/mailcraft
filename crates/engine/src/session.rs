@@ -307,6 +307,8 @@ pub struct Session {
     /// The messages a draft answers or forwards, as last found ([`Session::drafted`]).
     pub(crate) drafted: writing::DraftedMemo,
     pub prefs: Prefs,
+    /// What the meeting mail MailCraft writes says, in the window's language (issue #235).
+    pub mail_words: pim::invite::MailWords,
     pub clock: Clock,
     pub notices: Vec<Notice>,
     /// Message files put into folders (issue #38), for the window to say: what each drop did,
@@ -534,6 +536,7 @@ impl Session {
             saving: Vec::new(),
             drafted: writing::DraftedMemo::default(),
             prefs: Prefs::default(),
+            mail_words: pim::invite::MailWords::default(),
             clock,
             notices: Vec::new(),
             filed: Vec::new(),

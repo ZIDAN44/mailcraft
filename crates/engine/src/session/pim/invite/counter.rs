@@ -56,9 +56,11 @@ impl Session {
         counter.description.clear();
         ical::set_reminder(&mut counter, None);
         let who = if sender.name.is_empty() { sender.email.clone() } else { sender.name.clone() };
-        let when = mailcraft_model::dates::full_time(proposal.start, &self.clock);
-        let subject = format!("New time proposed: {}", meeting.summary);
-        let body = format!("{who} proposes a new time for {}: {when}.", meeting.summary);
+        // In the window's language (issue #235).
+        let w = &self.mail_words;
+        let when = w.time(proposal.start, &self.clock);
+        let subject = MailWords::fill(&w.proposed, &[("summary", &meeting.summary)]);
+        let body = MailWords::fill(&w.proposed_body, &[("who", &who), ("summary", &meeting.summary), ("when", &when)]);
         let to = vec![EmailAddress::new(organizer.name.clone(), organizer.email.clone())];
         self.send_itip(&account, Itip { from: &invited, to, method: "COUNTER", events: &[counter], subject: &subject, body: &body })?;
         Ok(serde_json::json!({"proposed": proposal.start, "uid": uid}))
@@ -96,7 +98,7 @@ impl Session {
         })?;
         if let Some(stored) = self.find_event(&uid).map(|(_, e)| e.event.clone()).filter(|e| e.sequence != before) {
             let route = self.meeting_route(&account, &uid);
-            self.tell_guests(&account, &stored, "REQUEST", route, "")?;
+            self.tell_guests(&account, &stored, "UPDATE", route, "")?;
         }
         // Answered, the proposal leaves the Inbox as an answered invitation does (issue #238);
         // that message alone, another guest's is theirs to read.
@@ -118,8 +120,9 @@ impl Session {
         declined.attendees = vec![guest.clone()];
         declined.description.clear();
         ical::set_reminder(&mut declined, None);
-        let subject = format!("New time declined: {}", meeting.summary);
-        let body = format!("The proposed new time for {} was declined. The meeting stays as it was.", meeting.summary);
+        let w = &self.mail_words;
+        let subject = MailWords::fill(&w.proposal_declined, &[("summary", &meeting.summary)]);
+        let body = MailWords::fill(&w.proposal_declined_body, &[("summary", &meeting.summary)]);
         let to = vec![EmailAddress::new(guest.name.clone(), guest.email.clone())];
         self.send_itip(&account, Itip { from: &from, to, method: "DECLINECOUNTER", events: &[declined], subject: &subject, body: &body })?;
         // That message alone: another guest's proposal for the same meeting is still to answer.

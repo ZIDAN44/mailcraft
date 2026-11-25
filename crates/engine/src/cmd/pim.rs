@@ -185,10 +185,15 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let route = before.as_ref().map(|(a, _, _)| s.meeting_route(a, &uid));
             let occurrence = p::i64(v, "occurrence");
             let r = s.delete_event(&uid, occurrence)?;
+            // The guests told unless asked not to (issue #235: as Outlook, the window asks first),
+            // with the user's own words when they wrote some.
+            let notify = p::bool(v, "notify") != Some(false);
             if let Some((account, mut e, href)) = before
                 && let Some(route) = route
+                && notify
                 && organized_by_me(s, &e)
             {
+                e.description = p::str(v, "message").map(|m| m.chars().take(10_000).collect()).unwrap_or_default();
                 // One occurrence off: the guests are told of that one.
                 if let Some(at) = occurrence.filter(|_| e.rrule.is_some()) {
                     let len = e.end.saturating_sub(e.start);
@@ -208,7 +213,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             Ok(r)
         })
-        .params(r#"{"uid": string, "occurrence"?: unix seconds (only that occurrence)}"#),
+        .params(r#"{"uid": string, "occurrence"?: unix seconds (only that occurrence), "notify"?: bool (the guests of one's own meeting told: default true; Exchange, through Graph, tells them itself), "message"?: string (said in the cancellation)}"#),
         CommandSpec::new("invite.respond", "Answer the invitation", "Reading pane › Invitation", |s, v| s.respond_to_invite(p::req_str(v, "answer")?))
             .params(r#"{"answer": "accepted"|"tentative"|"declined"}"#)
             .when(has_reading),
@@ -660,7 +665,8 @@ fn tell_of_change(s: &mut Session, uid: &str, before: u32) -> Result<(), CmdErro
         && organized_by_me(s, &stored)
     {
         let route = s.meeting_route(&account, uid);
-        s.tell_guests(&account, &stored, "REQUEST", route, "")?;
+        // An update, said so (issue #235: it went as "Invitation:" again).
+        s.tell_guests(&account, &stored, "UPDATE", route, "")?;
     }
     Ok(())
 }
@@ -680,7 +686,7 @@ fn tell_of_occurrence(s: &mut Session, uid: &str, at: i64, before: u32) -> Resul
         && organized_by_me(s, &e)
     {
         let route = s.meeting_route(&account, uid);
-        s.tell_guests(&account, &e, "REQUEST", route, "")?;
+        s.tell_guests(&account, &e, "UPDATE", route, "")?;
     }
     Ok(())
 }

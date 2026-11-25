@@ -366,7 +366,7 @@ pub struct ReminderAnswer {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Notice {
     pub uid: String,
-    /// `REQUEST`, `CANCEL` or `REPLY`.
+    /// `REQUEST`, a change (`UPDATE`, sent as a `REQUEST` that says so), `CANCEL` or `REPLY`.
     pub method: String,
     /// A guest's answer (`ACCEPTED`, `TENTATIVE`, `DECLINED`).
     #[serde(default, skip_serializing_if = "String::is_empty")]
