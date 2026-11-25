@@ -73,7 +73,11 @@ pub(crate) fn lock<T>(m: &std::sync::Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 use icons::Icon;
-pub use services::{Backend, InstallAsks, KeptOnClose, Lane, NullBackend, NullServices, Picked, Services, UpdateOutcome, UpdateState, Work};
+pub use rich_edit::spelling::{install_in_memory as install_dictionary_bytes, reload_dictionaries, set_dictionaries_dir, validate_hunspell};
+pub use services::{
+    Backend, DictionaryDownload, DownloadedDictionary, InstallAsks, KeptOnClose, Lane, NullBackend, NullServices, Picked, Services, UpdateOutcome,
+    UpdateState, Work,
+};
 use theme::Tokens;
 
 /// How the app reads HTML from the clipboard, set once at start (the clipboard is the

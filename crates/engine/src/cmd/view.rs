@@ -122,6 +122,22 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         toggle!("view.notifications", "Desktop notifications", "File › Options › Mail", notify),
         toggle!("view.notifyOther", "Notify of mail in Other too", "File › Options › Mail", notify_other),
         toggle!("options.spelling", "Check spelling as you type", "File › Options › Mail", spelling),
+        CommandSpec::new("options.spellingLanguage", "Spelling language", "File › Options › Mail", |s, v| {
+            s.prefs.spelling_language = match v.get("language") {
+                Some(serde_json::Value::Null) | None => None,
+                Some(serde_json::Value::String(raw)) => {
+                    let trimmed = raw.trim();
+                    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("auto") {
+                        None
+                    } else {
+                        Some(crate::spelling_language_code(trimmed).ok_or_else(|| CmdError::Params(format!("`{raw}` isn't a spelling language")))?)
+                    }
+                }
+                Some(_) => return Err(CmdError::Params("`language` is a language code or null".into())),
+            };
+            Ok(json!({ "language": s.prefs.spelling_language }))
+        }).setting("spelling_language")
+        .params(r#"{"language"?: string ("en_US", "bg_BG"…) | null (follow interface language)}"#),
         CommandSpec::new("options.composeFont", "Font for new messages", "File › Options › Mail", |s, v| {
             s.prefs.compose_font = match v.get("font") {
                 Some(serde_json::Value::String(name)) => {

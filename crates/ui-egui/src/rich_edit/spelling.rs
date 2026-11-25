@@ -1,25 +1,35 @@
 //! Spelling as you type (issue #174), as Outlook checks it: a word the dictionary doesn't know
 //! is underlined with a red wavy line, and its right-click menu offers the dictionary's
 //! suggestions, Ignore all (until MailCraft closes) and Add to dictionary (kept with the
-//! preferences). The text is checked in the interface's language, when there's a dictionary for
-//! it (English always: the Craft apps' own word list; others from the Hunspell dictionaries the
-//! system has); a word being typed isn't marked until it's left.
+//! preferences). The spelling language can be chosen independently of the interface language and
+//! switched live in the compose editor; missing Hunspell dictionaries can be downloaded directly.
 //!
-//! The checking is the Craft apps' shared `craft-proof`: it takes URLs, addresses, words in
-//! capitals and words with digits as spelled right.
+//! The checking is powered by `craft-proof`: URLs, addresses, words in capitals, words with
+//! digits, `>` quoted lines, and original reply blocks are skipped.
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, HashMap};
 use std::ops::Range;
+use std::path::PathBuf;
 
 use craft_proof::ProofLang;
 use egui::{Color32, Galley, Pos2, Rect, RichText, Stroke, Ui};
 use mailcraft_engine::Compose;
+use serde_json::json;
 
 use super::carets::Carets;
 use super::{Editor, replace, typing_style};
-use crate::Action;
 use crate::theme::Tokens;
+use crate::{Action, Dialog, DictionaryDownload};
+
+pub(crate) mod catalog;
+pub(crate) mod discover;
+pub(crate) mod memory;
+#[cfg(test)]
+mod tests;
+
+pub(crate) use catalog::{DictSource, display_name, find_source as download_source};
+pub(crate) use discover::discover_all as available_dictionaries;
 
 /// Most lines' results kept, and most marks drawn.
 const LINES_KEPT: usize = 4_000;
@@ -33,13 +43,68 @@ const TYPING_SECS: f64 = 1.5;
 
 thread_local! {
     static ON: Cell<bool> = const { Cell::new(true) };
+    static PREF_LANG: RefCell<Option<String>> = const { RefCell::new(None) };
     static WORDS: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
+    static WORDS_LOWER: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
+    static IGNORED: RefCell<BTreeSet<String>> = const { RefCell::new(BTreeSet::new()) };
+    static DOWNLOAD_STATUS: RefCell<(bool, DictionaryDownload)> = const { RefCell::new((false, DictionaryDownload::Idle)) };
 }
 
-/// Each frame, from the preferences: whether to check as you type, and the words added to the
-/// dictionary (given to the checker when they change).
-pub(crate) fn follow(on: bool, words: &BTreeSet<String>) {
+/// Register the per-user `<app_data_dir>/dictionaries/` directory.
+pub fn set_dictionaries_dir(dir: Option<PathBuf>) {
+    discover::set_dictionaries_dir(dir);
+}
+
+/// Validate a raw Hunspell `.aff`/`.dic` pair before saving or installing.
+pub fn validate_hunspell(locale: &str, aff: &[u8], dic: &[u8]) -> Result<(), String> {
+    memory::validate(locale, aff, dic).map(|_| ())
+}
+
+/// Install an in-memory Hunspell `.aff`/`.dic` pair for `locale` (used by WASM IndexedDB cache
+/// and tests).
+pub fn install_in_memory(locale: &str, aff: &[u8], dic: &[u8]) -> Result<(), String> {
+    memory::install(locale, aff, dic)
+}
+
+/// Reload Hunspell dictionaries from disk after installing new files.
+pub fn reload_dictionaries() {
+    discover::reload_dictionaries();
+}
+
+/// All curated downloadable dictionaries.
+pub(crate) fn downloadable_dictionaries() -> &'static [DictSource] {
+    catalog::CATALOG
+}
+
+/// Update the UI-visible download status snapshot (synced every frame in `MailApp::pump`).
+pub(crate) fn set_download_status(can_download: bool, state: DictionaryDownload) {
+    DOWNLOAD_STATUS.with_borrow_mut(|s| *s = (can_download, state));
+}
+
+/// Current dictionary download status snapshot (`(can_download, DictionaryDownload)`).
+pub(crate) fn download_status() -> (bool, DictionaryDownload) {
+    DOWNLOAD_STATUS.with_borrow(Clone::clone)
+}
+
+/// Format active dictionary download progress using `checked_div` to avoid checked-division lints.
+pub(crate) fn download_progress_text(done: u64, total: u64) -> String {
+    if let Some(pct) = done.saturating_mul(100).checked_div(total) {
+        tf!("Downloading… {pct}%", pct = pct.min(100))
+    } else {
+        tl!("Downloading…").to_string()
+    }
+}
+
+/// Each frame, from the preferences: whether to check as you type, the explicit spelling language
+/// (`None` follows UI language), and the words added to the dictionary.
+pub(crate) fn follow(on: bool, spelling_language: Option<&str>, words: &BTreeSet<String>) {
     ON.set(on);
+    let next_lang = spelling_language.map(catalog::normalize_locale).filter(|s| !s.is_empty());
+    PREF_LANG.with_borrow_mut(|cur| {
+        if *cur != next_lang {
+            *cur = next_lang;
+        }
+    });
     WORDS.with_borrow_mut(|had| {
         if had != words {
             for w in had.difference(words) {
@@ -49,6 +114,10 @@ pub(crate) fn follow(on: bool, words: &BTreeSet<String>) {
                 craft_proof::add_word(w);
             }
             had.clone_from(words);
+            WORDS_LOWER.with_borrow_mut(|low| {
+                *low = words.iter().map(|w| w.to_lowercase()).collect();
+            });
+            memory::bump_generation();
         }
     });
 }
@@ -58,23 +127,52 @@ pub(crate) fn on() -> bool {
     ON.get()
 }
 
-/// The language the text is checked in: the interface's.
-pub(crate) fn language() -> ProofLang {
-    ProofLang::from_tag(Some(crate::i18n::current().code()))
+/// The explicitly configured spelling language preference (`None`: follows UI language).
+pub(crate) fn pref_language() -> Option<String> {
+    PREF_LANG.with_borrow(Clone::clone)
 }
 
-/// Whether there's a dictionary for `lang` here (English always has one).
-pub(crate) fn has_dictionary(lang: ProofLang) -> bool {
-    lang.is_proofed()
+/// The active Hunspell locale code (`en_US`, `bg_BG`, …).
+pub(crate) fn active_locale() -> String {
+    if let Some(explicit) = pref_language() {
+        return explicit;
+    }
+    catalog::ui_code_to_locale(crate::i18n::current().code()).to_string()
+}
+
+/// Compact badge label for the active spelling language on the compose toolbar (`EN`, `BG`, …).
+pub(crate) fn active_badge() -> String {
+    let active = active_locale();
+    let primary = active.split('_').next().unwrap_or("");
+    let available = available_dictionaries();
+    let same_primary = available.iter().filter(|d| d.locale.split('_').next() == Some(primary)).count();
+    catalog::short_badge(&active, same_primary > 1)
+}
+
+/// Whether there is an installed or built-in dictionary for `locale`.
+pub(crate) fn has_dictionary_for(locale: &str) -> bool {
+    let norm = catalog::normalize_locale(locale);
+    if norm.is_empty() {
+        return false;
+    }
+    let lang = ProofLang::from_tag(Some(&norm));
+    if lang == ProofLang::Other {
+        return false;
+    }
+    if memory::has(&norm) || discover::find_entry(&norm).is_some() {
+        return true;
+    }
+    lang.is_english() || craft_proof::missing_dictionary(Some(&norm)).is_none()
 }
 
 /// The misspelled words of a message, as last worked out, and each line's own (a change checks
 /// the lines it changed).
 #[derive(Default)]
 pub(crate) struct Marks {
-    /// What the marks are for: the text's hash, the language, the dictionary's generation and
-    /// the word left alone while it's typed.
-    key: Option<(u64, String, u64, Option<usize>)>,
+    /// What the marks are for: text hash, active locale, craft-proof gen, memory gen, typing caret.
+    key: Option<(u64, String, u64, u64, Option<usize>)>,
+    /// Locale and generations that populated `lines`.
+    lines_for: Option<(String, u64, u64)>,
     /// The misspelled words, by character.
     pub(super) marks: Vec<Range<usize>>,
     /// Each line's misspelled words (bytes of the line), by its text.
@@ -84,33 +182,46 @@ pub(crate) struct Marks {
 }
 
 impl Marks {
+    /// Drop cached line results and current marks immediately (called on language switch).
+    pub(crate) fn invalidate(&mut self) {
+        self.lines.clear();
+        self.marks.clear();
+        self.key = None;
+        self.lines_for = None;
+        self.offer = None;
+    }
+
     /// Work the marks out for `text` when it changed: every misspelled word but the one at
     /// `typing` (a character position, while a word is being typed there), and none in a line
     /// quoted with `>`.
     pub(super) fn follow(&mut self, text: &str, typing: Option<usize>) {
-        let lang = language();
-        if !on() || !has_dictionary(lang) {
+        let locale = active_locale();
+        if !on() || !has_dictionary_for(&locale) {
             self.marks.clear();
+            self.lines.clear();
             self.key = None;
+            self.lines_for = None;
             return;
         }
-        let generation = craft_proof::dictionary_generation();
-        let key = (hash(text), lang.tag().into_owned(), generation, typing);
+        let cp_gen = craft_proof::dictionary_generation();
+        let mem_gen = memory::generation();
+        let key = (hash(text), locale.clone(), cp_gen, mem_gen, typing);
         if self.key.as_ref() == Some(&key) {
             return;
         }
-        if self.key.as_ref().is_some_and(|k| k.1 != key.1 || k.2 != key.2) || self.lines.len() > LINES_KEPT {
+        let line_key = (locale.clone(), cp_gen, mem_gen);
+        if self.lines_for.as_ref() != Some(&line_key) || self.lines.len() > LINES_KEPT {
             self.lines.clear();
+            self.lines_for = Some(line_key);
         }
         self.key = Some(key);
         self.marks.clear();
+        let lang = ProofLang::from_tag(Some(&locale));
         let mut at = 0usize;
         for line in text.split('\n') {
             let n = line.chars().count();
             if !line.trim_start().starts_with('>') && line.len() <= LINE_MAX && self.marks.len() < MARKS_MAX {
-                let found = self.lines.entry(line.to_string()).or_insert_with(|| {
-                    craft_proof::check_spelling_in(line, lang).into_iter().filter_map(|i| line.get(i.start..i.end).map(|_| i.start..i.end)).collect()
-                });
+                let found = self.lines.entry(line.to_string()).or_insert_with(|| check_line_with(line, &locale, lang));
                 for r in found.iter() {
                     let (Some(a), Some(b)) = (line.get(..r.start), line.get(..r.end)) else { continue };
                     let chars = at + a.chars().count()..at + b.chars().count();
@@ -129,6 +240,20 @@ impl Marks {
     pub(super) fn at(&self, at: usize) -> Option<Range<usize>> {
         self.marks.iter().find(|r| r.start <= at && at <= r.end).cloned()
     }
+}
+
+fn check_line_with(line: &str, locale: &str, lang: ProofLang) -> Vec<Range<usize>> {
+    if let Some(dict) = memory::get_or_load(locale) {
+        return WORDS_LOWER.with_borrow(|words| IGNORED.with_borrow(|ignored| memory::check_line(line, &dict, words, ignored)));
+    }
+    craft_proof::check_spelling_in(line, lang).into_iter().filter_map(|i| line.get(i.start..i.end).map(|_| i.start..i.end)).collect()
+}
+
+fn suggest_with(word: &str, max: usize, locale: &str) -> Vec<String> {
+    if let Some(dict) = memory::get_or_load(locale) {
+        return memory::suggest(word, max, &dict);
+    }
+    craft_proof::suggest_in(word, max, ProofLang::from_tag(Some(locale)))
 }
 
 fn hash(text: &str) -> u64 {
@@ -152,7 +277,8 @@ impl Offer {
     pub(super) fn at(marks: &Marks, text: &str, at: usize) -> Option<Offer> {
         let range = marks.at(at)?;
         let word: String = text.chars().skip(range.start).take(range.end - range.start).collect();
-        let suggestions = craft_proof::suggest_in(&word, SUGGESTIONS, language());
+        let locale = active_locale();
+        let suggestions = suggest_with(&word, SUGGESTIONS, &locale);
         Some(Offer { range, word, suggestions })
     }
 }
@@ -160,6 +286,40 @@ impl Offer {
 /// Ignore a word until MailCraft closes (Ignore all).
 pub(super) fn ignore(word: &str) {
     craft_proof::ignore_word(word);
+    IGNORED.with_borrow_mut(|set| {
+        if set.insert(word.to_lowercase()) {
+            memory::bump_generation();
+        }
+    });
+}
+
+/// Language switcher menu items shared between the compose ribbon dropdown and editor context menu.
+pub(super) fn language_menu_items(ui: &mut Ui, ed: &mut Editor, acts: &mut Vec<Action>) {
+    let explicit = pref_language();
+    if ui.add(egui::Button::selectable(explicit.is_none(), tl!("Follow interface language"))).clicked() {
+        acts.push(Action::Run("options.spellingLanguage", json!({ "language": null })));
+        ed.spelling.invalidate();
+        ed.refocus = Some(ed.sel.clone());
+        ui.close();
+    }
+    ui.separator();
+    for entry in available_dictionaries() {
+        let on = explicit.as_deref().is_some_and(|e| e.eq_ignore_ascii_case(&entry.locale));
+        let label = format!("{} ({})", entry.name, entry.locale);
+        if ui.add(egui::Button::selectable(on, label)).clicked() {
+            acts.push(Action::Run("options.spellingLanguage", json!({ "language": entry.locale })));
+            ed.spelling.invalidate();
+            ed.refocus = Some(ed.sel.clone());
+            ui.close();
+        }
+    }
+    if download_status().0 {
+        ui.separator();
+        if ui.button(tl!("Download more dictionaries…")).clicked() {
+            acts.push(Action::Dialog(Dialog::Dictionaries { filter: String::new() }));
+            ui.close();
+        }
+    }
 }
 
 /// The editor's misspelled words, once its text is laid out: worked out, underlined, and the one
@@ -241,155 +401,5 @@ pub(super) fn underline(painter: &egui::Painter, g: &Galley, origin: Pos2, marks
         }
         points.push(egui::pos2(x1, if up { y - 1.5 } else { y }));
         painter.add(egui::Shape::line(points, stroke));
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn marks(text: &str, typing: Option<usize>) -> Vec<String> {
-        let mut m = Marks::default();
-        m.follow(text, typing);
-        m.marks.iter().map(|r| text.chars().skip(r.start).take(r.end - r.start).collect()).collect()
-    }
-
-    #[test]
-    fn misspelled_words_are_marked_by_character() {
-        crate::i18n::set_current(crate::i18n::Lang::EN);
-        follow(true, &BTreeSet::new());
-        assert_eq!(marks("OK — the meeting is tomorow.\nWe recieve it.", None), ["tomorow", "recieve"]);
-        // Addresses, links, capitals and words with digits are left alone; a quoted line too.
-        assert!(marks("Write to ana@studio.example or see https://studio.example/xyzzq, NASA, mp3", None).is_empty());
-        assert!(marks("> I wrot this", None).is_empty());
-        // The word being typed waits until it's left.
-        assert_eq!(marks("Hello wrld", Some(10)), Vec::<String>::new());
-        assert_eq!(marks("Hello wrld ", Some(11)), ["wrld"]);
-        // Off: none.
-        follow(false, &BTreeSet::new());
-        assert!(marks("tomorow", None).is_empty());
-        follow(true, &BTreeSet::new());
-    }
-
-    #[test]
-    fn words_added_to_the_dictionary_are_spelled_right() {
-        crate::i18n::set_current(crate::i18n::Lang::EN);
-        follow(true, &BTreeSet::new());
-        assert_eq!(marks("Ask Qwzorbit about it", None), ["Qwzorbit"]);
-        follow(true, &BTreeSet::from(["qwzorbit".to_string()]));
-        assert!(marks("Ask Qwzorbit about it", None).is_empty());
-        follow(true, &BTreeSet::new());
-        assert_eq!(marks("Ask Qwzorbit about it", None), ["Qwzorbit"], "taken out again");
-    }
-
-    /// Ignore all: the word is taken as spelled right until MailCraft closes (a word no other
-    /// test uses: the checker's list is the process's).
-    #[test]
-    fn a_word_ignored_is_marked_no_more() {
-        crate::i18n::set_current(crate::i18n::Lang::EN);
-        follow(true, &BTreeSet::new());
-        assert_eq!(marks("Zxqvintor again", None), ["Zxqvintor"]);
-        ignore("Zxqvintor");
-        assert!(marks("Zxqvintor again", None).is_empty());
-    }
-
-    #[test]
-    fn a_misspelled_word_is_offered_its_suggestions() {
-        crate::i18n::set_current(crate::i18n::Lang::EN);
-        follow(true, &BTreeSet::new());
-        let text = "See you tomorow.";
-        let mut m = Marks::default();
-        m.follow(text, None);
-        let o = Offer::at(&m, text, 10).expect("a misspelled word there");
-        assert_eq!((o.word.as_str(), o.range.clone()), ("tomorow", 8..15));
-        assert!(o.suggestions.iter().any(|s| s == "tomorrow"), "{:?}", o.suggestions);
-        assert!(Offer::at(&m, text, 2).is_none(), "a word spelled right");
-    }
-
-    /// The editor's frame with these input events: what it asked for and what it drew.
-    fn frame(
-        ctx: &egui::Context,
-        ed: &mut super::super::Editor,
-        c: &mut mailcraft_engine::Compose,
-        events: Vec<egui::Event>,
-    ) -> (Vec<crate::Action>, Vec<egui::Shape>) {
-        let t = crate::theme::Tokens::light();
-        let raw = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, egui::vec2(900.0, 600.0))), events, ..Default::default() };
-        let mut acts = Vec::new();
-        let mut out = ctx.run_ui(raw, |ui| super::super::body(ui, &t, ed, c, None, &mut acts));
-        out.textures_delta.clear();
-        (acts, out.shapes.into_iter().map(|s| s.shape).collect())
-    }
-
-    /// Where the red wavy line is drawn (its left end), and where `text` is drawn.
-    fn underline_at(shapes: &[egui::Shape]) -> Option<Pos2> {
-        let red = crate::theme::Tokens::light().danger;
-        shapes.iter().find_map(|s| match s {
-            egui::Shape::Path(p) if p.stroke.color == egui::epaint::ColorMode::Solid(red) => p.points.first().copied(),
-            _ => None,
-        })
-    }
-    fn text_at(shapes: &[egui::Shape], text: &str) -> Option<Rect> {
-        shapes.iter().rev().find_map(|s| match s {
-            egui::Shape::Text(t) if t.galley.text() == text => Some(t.visual_bounding_rect()),
-            _ => None,
-        })
-    }
-
-    /// Issue #174, in the editor: a misspelled word is underlined; its right-click menu's first
-    /// suggestion takes its place; Add to dictionary asks for the command, Ignore all takes the
-    /// line off until MailCraft closes.
-    #[test]
-    fn the_editor_underlines_and_corrects_a_misspelled_word() {
-        crate::i18n::set_current(crate::i18n::Lang::EN);
-        follow(true, &BTreeSet::new());
-        let ctx = egui::Context::default();
-        let mut ed = super::super::Editor::new(7);
-        let mut c = mailcraft_engine::Compose { body: "See you tomorow then".into(), ..Default::default() };
-        c.styles = mailcraft_engine::mime::rich::Styles::plain(&c.body);
-        let (_, shapes) = frame(&ctx, &mut ed, &mut c, vec![]);
-        let line = underline_at(&shapes).expect("the word underlined");
-        let word = line + egui::vec2(8.0, -6.0);
-        let right =
-            |pressed| egui::Event::PointerButton { pos: word, button: egui::PointerButton::Secondary, pressed, modifiers: egui::Modifiers::NONE };
-        frame(&ctx, &mut ed, &mut c, vec![egui::Event::PointerMoved(word)]);
-        frame(&ctx, &mut ed, &mut c, vec![right(true)]);
-        frame(&ctx, &mut ed, &mut c, vec![right(false)]);
-        let (_, shapes) = frame(&ctx, &mut ed, &mut c, vec![]);
-        for item in ["Ignore all", "Add to dictionary", "Cut"] {
-            assert!(text_at(&shapes, item).is_some(), "{item} in the menu");
-        }
-        let fix = text_at(&shapes, "tomorrow").expect("the suggestion in the menu").center();
-        let left = |pressed| egui::Event::PointerButton { pos: fix, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
-        frame(&ctx, &mut ed, &mut c, vec![egui::Event::PointerMoved(fix)]);
-        frame(&ctx, &mut ed, &mut c, vec![left(true)]);
-        frame(&ctx, &mut ed, &mut c, vec![left(false)]);
-        assert_eq!(c.body, "See you tomorrow then");
-        let (_, shapes) = frame(&ctx, &mut ed, &mut c, vec![]);
-        assert!(underline_at(&shapes).is_none(), "spelled right now");
-
-        // Another: Add to dictionary asks for the command with it.
-        c.body = "Ask Qwzorbat now".into();
-        c.styles = mailcraft_engine::mime::rich::Styles::plain(&c.body);
-        let (_, shapes) = frame(&ctx, &mut ed, &mut c, vec![]);
-        let word = underline_at(&shapes).expect("underlined") + egui::vec2(8.0, -6.0);
-        let right =
-            |pressed| egui::Event::PointerButton { pos: word, button: egui::PointerButton::Secondary, pressed, modifiers: egui::Modifiers::NONE };
-        frame(&ctx, &mut ed, &mut c, vec![egui::Event::PointerMoved(word)]);
-        frame(&ctx, &mut ed, &mut c, vec![right(true)]);
-        frame(&ctx, &mut ed, &mut c, vec![right(false)]);
-        let (_, shapes) = frame(&ctx, &mut ed, &mut c, vec![]);
-        let add = text_at(&shapes, "Add to dictionary").expect("in the menu").center();
-        let left = |pressed| egui::Event::PointerButton { pos: add, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
-        frame(&ctx, &mut ed, &mut c, vec![egui::Event::PointerMoved(add)]);
-        frame(&ctx, &mut ed, &mut c, vec![left(true)]);
-        let (acts, _) = frame(&ctx, &mut ed, &mut c, vec![left(false)]);
-        assert!(acts.iter().any(|a| matches!(a, crate::Action::Run("spelling.addWord", p) if p["word"] == "Qwzorbat")), "asked to add it");
-
-        // A block of the original under a reply: left alone.
-        let mut quoted = super::super::Editor::new(9);
-        quoted.min_height = Some(0.0);
-        let (_, shapes) = frame(&ctx, &mut quoted, &mut c, vec![]);
-        assert!(underline_at(&shapes).is_none(), "the original isn't checked");
     }
 }

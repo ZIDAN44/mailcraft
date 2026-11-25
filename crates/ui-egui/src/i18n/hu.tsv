@@ -2169,3 +2169,16 @@ count	occurrences	előfordulás
 	Their times can't be had: {why}	Az idejük nem érhető el: {why}
 	You	Te
 	{free} of {all} free	{all} közül {free} szabad
+	Download dictionary	Szótár letöltése
+	Download failed: {error}	A letöltés sikertelen: {error}
+	Download more dictionaries…	További szótárak letöltése…
+	Downloading…	Letöltés…
+	Downloading… {pct}%	Letöltés… {pct}%
+	Filter languages	Nyelvek szűrése
+	Follow interface language	A felület nyelvének követése
+	Installed	Telepítve
+	Retry	Újra
+	Spelling dictionaries	Helyesírási szótárak
+	Spelling dictionary installed: {language}	Helyesírási szótár telepítve: {language}
+	Spelling language	Helyesírás nyelve
+	Spelling language: {language}	Helyesírás nyelve: {language}

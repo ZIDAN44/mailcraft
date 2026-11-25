@@ -204,6 +204,10 @@ pub enum Dialog {
     },
     /// Word count of the message being written (or its selection: the `bool`).
     WordCount(crate::rich_edit::Counts, bool),
+    /// Downloadable Hunspell spelling dictionaries.
+    Dictionaries {
+        filter: String,
+    },
     /// A folder's Properties: where it is, how many messages, how much is on this computer.
     FolderProperties {
         name: String,
@@ -373,6 +377,7 @@ impl Dialog {
                     | Dialog::CtrlEnter { .. }
                     | Dialog::SendCheck(_)
                     | Dialog::WordCount(..)
+                    | Dialog::Dictionaries { .. }
             )
             || matches!(self, Dialog::Signature(f) if f.insert)
     }
@@ -777,7 +782,8 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::EmptySubject
         | Dialog::CtrlEnter { .. }
         | Dialog::SendCheck(_)
-        | Dialog::WordCount(..) => writing::draw(ui, d, s, t, acts),
+        | Dialog::WordCount(..)
+        | Dialog::Dictionaries { .. } => writing::draw(ui, d, s, t, acts),
         Dialog::ConfirmDeleteContact { .. }
         | Dialog::PicturePreview { .. }
         | Dialog::Preview { .. }

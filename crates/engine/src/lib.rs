@@ -48,7 +48,7 @@ pub use session::{
     quick_steps::QuickStep,
     search_folders::SearchFolder,
     server_rules::{OUTLOOK_LIST, ServerRulesState},
-    signature_parts,
+    signature_parts, spelling_language_code,
 };
 
 /// What `--version` prints for the program `name` (`mailcraft`, `mailcraft-cli`): its version,

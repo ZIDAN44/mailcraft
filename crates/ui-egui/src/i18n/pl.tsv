@@ -2182,3 +2182,16 @@ count	occurrences	wystąpieniach
 	Their times can't be had: {why}	Ich terminy są niedostępne: {why}
 	You	Ty
 	{free} of {all} free	Wolni: {free} z {all}
+	Download dictionary	Pobierz słownik
+	Download failed: {error}	Pobieranie nie powiodło się: {error}
+	Download more dictionaries…	Pobierz więcej słowników…
+	Downloading…	Pobieranie…
+	Downloading… {pct}%	Pobieranie… {pct}%
+	Filter languages	Filtruj języki
+	Follow interface language	Użyj języka interfejsu
+	Installed	Zainstalowano
+	Retry	Ponów
+	Spelling dictionaries	Słowniki pisowni
+	Spelling dictionary installed: {language}	Zainstalowano słownik pisowni: {language}
+	Spelling language	Język sprawdzania pisowni
+	Spelling language: {language}	Język sprawdzania pisowni: {language}

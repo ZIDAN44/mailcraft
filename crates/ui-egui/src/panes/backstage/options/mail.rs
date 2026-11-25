@@ -28,7 +28,8 @@ fn row_actions(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
 
 /// The reading pane and the list, marking mail read, the windows messages are written in, and
 /// plain text.
-pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+pub(super) fn reading(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
+    let t = &st.tokens;
     card(ui, t, tl!("Reading"), None, |ui| {
         setting_by(s, "view.readingPane", ui, t, true, tl!("Reading pane"), None, |ui| {
             let values = [(ReadingPane::Right, "right"), (ReadingPane::Bottom, "bottom"), (ReadingPane::Off, "off")];
@@ -101,19 +102,9 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
         for (label, on, cmd) in windows {
             switch_row(s, ui, t, false, Switch { label, about: None, on, cmd }, acts);
         }
-        // Issue #174: in the interface's language, which says when it has no dictionary here.
-        let lang = crate::rich_edit::spelling::language();
-        let missing = (!crate::rich_edit::spelling::has_dictionary(lang))
-            .then(|| tf!("There's no spelling dictionary for {language} on this computer.", language = crate::i18n::current().name()));
-        let about = missing.as_deref().unwrap_or(tl!("Misspelled words are underlined in red. Right-click one for suggestions."));
-        switch_row(
-            s,
-            ui,
-            t,
-            false,
-            Switch { label: tl!("Check spelling as you type"), about: Some(about), on: s.prefs.spelling, cmd: "options.spelling" },
-            acts,
-        );
+        // Issue #174: independent spelling language, local dictionary discovery, and automatic downloader.
+        let active_locale = s.prefs.spelling_language.clone().unwrap_or_else(crate::rich_edit::spelling::active_locale);
+        spelling_row(s, st, t, &active_locale, ui, acts);
         compose_font(s, t, ui, acts);
         compose_size(s, t, ui, acts);
         // Issue #115: Ctrl+Enter sends at once only when that's chosen.
@@ -393,5 +384,103 @@ fn compose_font(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         if at != now {
             acts.push(Action::Run("options.composeFont", json!({"font": at})));
         }
+    });
+}
+
+/// Check spelling switch, language selector, and inline dictionary downloader (issue #174).
+fn spelling_row(s: &Session, st: &UiState, t: &Tokens, active_locale: &str, ui: &mut Ui, acts: &mut Vec<Action>) {
+    use crate::DictionaryDownload;
+    use crate::rich_edit::spelling;
+
+    let has_dict = spelling::has_dictionary_for(active_locale);
+    let active_name = spelling::display_name(active_locale);
+    let downloadable = st.can_download_dicts && spelling::download_source(active_locale).is_some();
+    let lang_locked = s.command_locked("options.spellingLanguage").is_some();
+    let base_about = if !has_dict && !downloadable {
+        tf!("There's no spelling dictionary for {language} on this computer.", language = active_name)
+    } else {
+        tl!("Misspelled words are underlined in red. Right-click one for suggestions.").to_string()
+    };
+    let about = if lang_locked { format!("{base_about} · {}", tl!("Set by your organisation")) } else { base_about };
+
+    setting_by(s, "options.spelling", ui, t, false, tl!("Check spelling as you type"), Some(&about), |ui| {
+        ui.horizontal(|ui| {
+            ui.add_enabled_ui(!lang_locked, |ui| {
+                let current_pref = s.prefs.spelling_language.clone();
+                let selected_label = match &current_pref {
+                    None => active_name.clone(),
+                    Some(loc) => spelling::display_name(loc),
+                };
+                let available = spelling::available_dictionaries();
+                let mut choices: Vec<Option<String>> = vec![None];
+                for entry in &available {
+                    choices.push(Some(entry.locale.clone()));
+                }
+                for src in spelling::downloadable_dictionaries() {
+                    if !choices.iter().any(|c| c.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(src.locale))) {
+                        choices.push(Some(src.locale.to_string()));
+                    }
+                }
+                let r = egui::ComboBox::from_id_salt("spelling-language")
+                    .width(170.0)
+                    .height(340.0)
+                    .selected_text(selected_label)
+                    .truncate()
+                    .show_ui(ui, |ui| {
+                        if ui.selectable_label(current_pref.is_none(), tl!("Follow interface language")).clicked() {
+                            acts.push(Action::Run("options.spellingLanguage", json!({"language": null})));
+                        }
+                        ui.separator();
+                        for choice in choices.iter().flatten() {
+                            let on = current_pref.as_deref().is_some_and(|l| l.eq_ignore_ascii_case(choice));
+                            let label = format!("{} ({choice})", spelling::display_name(choice));
+                            if ui.selectable_label(on, label).clicked() {
+                                acts.push(Action::Run("options.spellingLanguage", json!({"language": choice})));
+                            }
+                        }
+                        if st.can_download_dicts {
+                            ui.separator();
+                            if ui.button(tl!("Download more dictionaries…")).clicked() {
+                                acts.push(Action::Dialog(Dialog::Dictionaries { filter: String::new() }));
+                                ui.close();
+                            }
+                        }
+                    })
+                    .response
+                    .accessible_name(tl!("Spelling language"))
+                    .on_hover_text(tl!("Spelling language"));
+                let mut picked = current_pref.clone();
+                crate::drop_down::keys(ui, &r, &mut picked, &choices);
+                if picked != current_pref {
+                    acts.push(Action::Run("options.spellingLanguage", json!({"language": picked})));
+                }
+            });
+
+            if !has_dict && let Some(src) = spelling::download_source(active_locale) {
+                match &st.dict_download {
+                    DictionaryDownload::Downloading { locale, done, total } if locale.eq_ignore_ascii_case(src.locale) => {
+                        ui.spinner();
+                        ui.label(RichText::new(spelling::download_progress_text(*done, *total)).color(t.dim));
+                    }
+                    _ if st.can_download_dicts => {
+                        let busy = matches!(st.dict_download, DictionaryDownload::Downloading { .. });
+                        if ui.add_enabled(!busy, egui::Button::new(tl!("Download dictionary"))).clicked() {
+                            acts.push(Action::DownloadDictionary(src.locale.to_string()));
+                        }
+                        if let DictionaryDownload::Error { locale, message } = &st.dict_download
+                            && locale.eq_ignore_ascii_case(src.locale)
+                        {
+                            ui.label(RichText::new(tf!("Download failed: {error}", error = message)).color(t.danger));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            let mut v = s.prefs.spelling;
+            if widgets::switch(ui, t, &mut v, tl!("Check spelling as you type")).changed() {
+                acts.push(Action::Run("options.spelling", json!({"on": v})));
+            }
+        });
     });
 }

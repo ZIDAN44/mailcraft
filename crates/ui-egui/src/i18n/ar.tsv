@@ -2164,3 +2164,16 @@ count	occurrences	مرات
 	Their times can't be had: {why}	تعذّر الحصول على أوقاتهم: {why}
 	You	أنت
 	{free} of {all} free	{free} من {all} متفرغون
+	Download dictionary	تنزيل القاموس
+	Download failed: {error}	فشل التنزيل: {error}
+	Download more dictionaries…	تنزيل المزيد من القواميس…
+	Downloading…	جارٍ التنزيل…
+	Downloading… {pct}%	جارٍ التنزيل… {pct}%
+	Filter languages	تصفية اللغات
+	Follow interface language	اتّباع لغة الواجهة
+	Installed	مثبّت
+	Retry	إعادة المحاولة
+	Spelling dictionaries	قواميس التدقيق الإملائي
+	Spelling dictionary installed: {language}	تم تثبيت قاموس التدقيق الإملائي: {language}
+	Spelling language	لغة التدقيق الإملائي
+	Spelling language: {language}	لغة التدقيق الإملائي: {language}

@@ -54,8 +54,13 @@ pub(crate) async fn open_named(name: &str, store: &'static str) -> Result<IdbDat
 
 /// Every file kept.
 pub async fn load(db: &IdbDatabase) -> Result<Vec<(String, Vec<u8>)>, String> {
-    let tx = db.transaction_with_str(FILES).map_err(|e| js(&e))?;
-    let store = tx.object_store(FILES).map_err(|e| js(&e))?;
+    load_from(db, FILES).await
+}
+
+/// Every entry kept in object store `store_name`.
+pub async fn load_from(db: &IdbDatabase, store_name: &str) -> Result<Vec<(String, Vec<u8>)>, String> {
+    let tx = db.transaction_with_str(store_name).map_err(|e| js(&e))?;
+    let store = tx.object_store(store_name).map_err(|e| js(&e))?;
     // Keys and values come in the same (key) order.
     let keys = done(&store.get_all_keys().map_err(|e| js(&e))?).await?;
     let values = done(&store.get_all().map_err(|e| js(&e))?).await?;
@@ -93,8 +98,13 @@ pub fn replace(db: &IdbDatabase, files: &[(String, Vec<u8>)], then: impl Fn(Resu
 
 /// Write changed files (`None`: removed), in one transaction that finishes on its own.
 pub fn save(db: &IdbDatabase, changes: &[(String, Option<Vec<u8>>)]) -> Result<(), String> {
-    let tx = db.transaction_with_str_and_mode(FILES, IdbTransactionMode::Readwrite).map_err(|e| js(&e))?;
-    let store = tx.object_store(FILES).map_err(|e| js(&e))?;
+    save_in(db, FILES, changes)
+}
+
+/// Write changed entries (`None`: removed) into object store `store_name`.
+pub fn save_in(db: &IdbDatabase, store_name: &str, changes: &[(String, Option<Vec<u8>>)]) -> Result<(), String> {
+    let tx = db.transaction_with_str_and_mode(store_name, IdbTransactionMode::Readwrite).map_err(|e| js(&e))?;
+    let store = tx.object_store(store_name).map_err(|e| js(&e))?;
     for (path, bytes) in changes {
         let key = JsValue::from_str(path);
         let r = match bytes {

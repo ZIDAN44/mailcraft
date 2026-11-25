@@ -2169,3 +2169,16 @@ count	occurrences	occurrences
 	Their times can't be had: {why}	Leurs disponibilités sont introuvables : {why}
 	You	Vous
 	{free} of {all} free	{free} sur {all} libres
+	Download dictionary	Télécharger le dictionnaire
+	Download failed: {error}	Échec du téléchargement : {error}
+	Download more dictionaries…	Télécharger d'autres dictionnaires…
+	Downloading…	Téléchargement…
+	Downloading… {pct}%	Téléchargement… {pct}%
+	Filter languages	Filtrer les langues
+	Follow interface language	Suivre la langue de l'interface
+	Installed	Installé
+	Retry	Réessayer
+	Spelling dictionaries	Dictionnaires orthographiques
+	Spelling dictionary installed: {language}	Dictionnaire orthographique installé : {language}
+	Spelling language	Langue d'orthographe
+	Spelling language: {language}	Langue d'orthographe : {language}

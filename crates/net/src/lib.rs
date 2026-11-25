@@ -18,6 +18,7 @@
 
 pub mod autoconfig;
 mod data_files;
+pub mod dictionaries;
 pub mod dns;
 mod exchange;
 #[cfg(test)]

@@ -2168,3 +2168,16 @@ count	occurrences	ripetizioni
 	Their times can't be had: {why}	I loro orari non sono disponibili: {why}
 	You	Tu
 	{free} of {all} free	{free} su {all} liberi
+	Download dictionary	Scarica dizionario
+	Download failed: {error}	Download non riuscito: {error}
+	Download more dictionaries…	Scarica altri dizionari…
+	Downloading…	Download in corso…
+	Downloading… {pct}%	Download in corso… {pct}%
+	Filter languages	Filtra lingue
+	Follow interface language	Segui la lingua dell'interfaccia
+	Installed	Installato
+	Retry	Riprova
+	Spelling dictionaries	Dizionari ortografici
+	Spelling dictionary installed: {language}	Dizionario ortografico installato: {language}
+	Spelling language	Lingua di controllo ortografico
+	Spelling language: {language}	Lingua di controllo ortografico: {language}

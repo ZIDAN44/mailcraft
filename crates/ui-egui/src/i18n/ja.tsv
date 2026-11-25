@@ -2165,3 +2165,16 @@ count	occurrences	回
 	Their times can't be had: {why}	空き時間を取得できません: {why}
 	You	あなた
 	{free} of {all} free	{all} 人中 {free} 人が空き
+	Download dictionary	辞書をダウンロード
+	Download failed: {error}	ダウンロードに失敗しました: {error}
+	Download more dictionaries…	他の辞書をダウンロード…
+	Downloading…	ダウンロード中…
+	Downloading… {pct}%	ダウンロード中… {pct}%
+	Filter languages	言語を絞り込む
+	Follow interface language	表示言語に従う
+	Installed	インストール済み
+	Retry	再試行
+	Spelling dictionaries	スペルチェック辞書
+	Spelling dictionary installed: {language}	スペルチェック辞書をインストールしました: {language}
+	Spelling language	スペルチェックの言語
+	Spelling language: {language}	スペルチェックの言語: {language}
