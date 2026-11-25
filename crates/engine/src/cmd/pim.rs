@@ -59,6 +59,36 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         // Issue #186: the next (or previous) time everyone shown is free, as Outlook's AutoPick.
         CommandSpec::new("calendar.findFree", "Next free time", "Calendar › Home", |s, v| s.find_free_time(p::u64(v, "minutes"), p::bool(v, "back").unwrap_or(false)))
             .params(r#"{"minutes"?: number (15 to 1440; the last length otherwise), "back"?: bool (the one before)}"#),
+        // Issue #277: a meeting's Scheduling Assistant, its guests' times and the next time all
+        // of them are free.
+        CommandSpec::new("event.scheduling", "Scheduling Assistant", "Calendar › Event", |s, v| {
+            let account = account_param(s, v)?;
+            let guests = guests_param(v)?;
+            let day = p::str(v, "date")
+                .and_then(|d| crate::session::pim::parse_local(d, &s.clock))
+                .map(|(t, all_day)| if all_day { t.div_euclid(86_400) } else { s.clock.local_day(t) })
+                .ok_or_else(|| CmdError::Params("`date` is required (YYYY-MM-DD)".into()))?;
+            s.want_guest_times(&account, &guests, day);
+            let times: Vec<Value> = guests.iter().map(|g| guest_json(s, &account, g)).collect();
+            Ok(json!({"account": account, "guests": times}))
+        })
+        .params(r#"{"attendees": "a@x, Name <b@y>", "date": "YYYY-MM-DD", "account"?: string (whose server is asked)} (asks their servers; call again for what came)"#),
+        CommandSpec::new("event.nextFree", "Next free time for everyone", "Calendar › Event", |s, v| {
+            let account = account_param(s, v)?;
+            let guests = guests_param(v)?;
+            let from = p::str(v, "start")
+                .and_then(|d| crate::session::pim::parse_local(d, &s.clock))
+                .map(|(t, _)| t)
+                .ok_or_else(|| CmdError::Params("`start` is required (YYYY-MM-DDTHH:MM)".into()))?;
+            let minutes = p::u64(v, "minutes").filter(|m| (5..=1440).contains(m)).ok_or_else(|| CmdError::Params("`minutes` is 5 to 1440".into()))?;
+            let length = i64::try_from(minutes).unwrap_or(30) * 60;
+            match s.next_free_with(&account, &guests, from, length, p::str(v, "uid")) {
+                Ok(Some(start)) => Ok(json!({"found": true, "start": start, "end": start + length})),
+                Ok(None) => Ok(json!({"found": false})),
+                Err(why) => Err(CmdError::Failed(why.into())),
+            }
+        })
+        .params(r#"{"attendees": "a@x, Name <b@y>", "start": "YYYY-MM-DDTHH:MM" (from then on), "minutes": number, "account"?: string, "uid"?: string (the meeting being moved: its own time isn't taken)}"#),
         CommandSpec::new("calendar.freeLength", "Meeting length", "Calendar › Home", |s, v| {
             let m = p::u64(v, "minutes").filter(|m| (15..=1440).contains(m)).ok_or_else(|| CmdError::Params("`minutes` is 15 to 1440".into()))?;
             s.prefs.free_time_minutes = u16::try_from(m).unwrap_or(30);
@@ -704,4 +734,20 @@ fn save_note_file(s: &mut Session, v: &Value) -> CmdResult {
     std::fs::write(path, &data).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
     super::compose::mark_from_internet(std::path::Path::new(path), &data);
     Ok(json!({"saved": path, "bytes": data.len()}))
+}
+
+/// The `attendees` of a meeting whose times are asked for: their addresses.
+fn guests_param(v: &Value) -> Result<Vec<String>, CmdError> {
+    let list = p::str(v, "attendees").ok_or_else(|| CmdError::Params("`attendees` is required".into()))?;
+    let people = mailcraft_model::addr::parse_list(list).map_err(|bad| CmdError::Params(format!("not an email address: {bad}")))?;
+    Ok(people.into_iter().take(100).map(|a| a.email).collect())
+}
+
+/// A guest's times as `event.scheduling` answers them.
+fn guest_json(s: &Session, account: &str, email: &str) -> Value {
+    match s.guest_times(account, email) {
+        crate::GuestTimes::Asking => json!({"email": email, "pending": true}),
+        crate::GuestTimes::Unknown(e) => json!({"email": email, "error": e}),
+        crate::GuestTimes::Known { from, to, busy, .. } => json!({"email": email, "from": from, "to": to, "busy": busy}),
+    }
 }

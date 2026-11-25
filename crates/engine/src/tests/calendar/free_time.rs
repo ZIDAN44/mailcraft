@@ -123,3 +123,48 @@ fn someone_whose_times_cant_be_had_counts_as_free() {
     assert_eq!(r["unknown"], json!([ANA]));
     assert_eq!(s.notices.last().map(|n| n.text.as_str()), Some(crate::session::pim::UNKNOWN_FREE));
 }
+
+/// Issue #277: a meeting's form asks for its guests' times, their calendars not shown, kept
+/// fresh while it's open; and finds the next time the user and they are all free: their times
+/// taken and the user's own (but the meeting's, being moved). Not come yet, that's said.
+#[test]
+fn a_meetings_guests_times_are_asked_for_and_the_next_free_time_found() {
+    let (mut s, account, id) = quiet("assistant");
+    s.run("calendar.show", &json!({"account": account, "calendar": id, "shown": false})).unwrap();
+    s.module = Module::Mail;
+    s.take_jobs();
+    let guests = format!("Ana <{ANA}>, riley@studio.example");
+    let r = s.run("event.scheduling", &json!({"account": account, "attendees": guests, "date": "2026-11-02"})).unwrap();
+    assert_eq!((r["guests"][0]["email"].as_str(), r["guests"][0]["pending"].as_bool()), (Some(ANA), Some(true)), "{r}");
+    let jobs = s.take_jobs();
+    let Some(Job::FreeBusy { people, from, to, .. }) = jobs.first().cloned() else { panic!("{jobs:?}") };
+    assert_eq!(people, [ANA], "the user's own address isn't asked for");
+    let next = |s: &mut Session, uid: Option<&str>| {
+        let mut p = json!({"account": account, "attendees": format!("Ana <{ANA}>"), "start": "2026-11-02T08:00", "minutes": 60});
+        if let Some(u) = uid {
+            p["uid"] = json!(u);
+        }
+        s.run("event.nextFree", &p)
+    };
+    assert!(matches!(next(&mut s, None), Err(CmdError::Failed(e)) if e == crate::session::pim::NOT_COME));
+
+    let answers = vec![FreeBusyAnswer {
+        email: ANA.into(),
+        busy: vec![busy("2026-11-02T08:00:00Z", "2026-11-02T10:00:00Z", ShowAs::Busy, "")],
+        ..Default::default()
+    }];
+    s.apply(Event::FreeBusy { account: account.clone(), from, to, answers });
+    let r = s.run("event.scheduling", &json!({"account": account, "attendees": format!("Ana <{ANA}>"), "date": "2026-11-02"})).unwrap();
+    assert_eq!(r["guests"][0]["busy"][0]["start"], at("2026-11-02T08:00:00Z"), "{r}");
+    assert!(s.take_jobs().is_empty(), "known: not asked again");
+    let uid = s.run("event.create", &json!({"summary": "Planning", "start": "2026-11-02T10:00", "end": "2026-11-02T11:00"})).unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(found(&next(&mut s, None).unwrap()).0, "2026-11-02T11:00:00Z", "after Ana's and the user's own");
+    assert_eq!(found(&next(&mut s, Some(&uid)).unwrap()).0, "2026-11-02T10:00:00Z", "the meeting moved: its own time free");
+    // Kept fresh while the form is open: asked again once they're old.
+    s.clock.now += 400;
+    s.free_busy_due();
+    assert!(matches!(s.take_jobs().as_slice(), [Job::FreeBusy { .. }]), "asked again");
+}
