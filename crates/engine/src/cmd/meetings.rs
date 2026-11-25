@@ -56,7 +56,9 @@ fn words(v: &Value, k: &str, default: &str) -> String {
 /// `false` to take its meeting out.
 pub(super) fn apply(s: &Session, v: &Value, e: &mut CalEvent) -> Result<(), CmdError> {
     let Some(m) = v.get("onlineMeeting") else { return Ok(()) };
-    let mut labels = MeetingLabels::default();
+    // The block's words in the window's language, unless given (issue #235: a saved room's was
+    // English).
+    let mut labels = s.mail_words.meeting.clone();
     let room = match m {
         Value::Null | Value::Bool(false) => None,
         Value::String(x) if matches!(x.trim(), "" | "none") => None,
@@ -102,7 +104,7 @@ pub(super) fn for_all(s: &Session, v: &Value, e: &mut CalEvent) {
         && s.join_link(e).is_none()
         && let Some(r) = s.prefs.meeting_rooms.first()
     {
-        e.add_online_meeting(r, &MeetingLabels::default());
+        e.add_online_meeting(r, &s.mail_words.meeting);
     }
 }
 

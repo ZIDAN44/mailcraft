@@ -190,6 +190,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                     Some(o @ ("known" | "none")) => o.to_string(),
                     Some(other) => return Err(CmdError::Params(format!("`outside` is all, known or none, not `{other}`"))),
                 },
+                // What the server says of another program's replies, never set from here.
+                ..Default::default()
             };
             s.set_vacation(&id, vacation)
         })

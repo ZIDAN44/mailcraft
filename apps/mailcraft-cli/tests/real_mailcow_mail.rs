@@ -475,3 +475,114 @@ fn real_mailcow_organisation_profile() {
     let status = format!("{:?}", a.s.account(&id).unwrap().status);
     assert!(status.contains("encrypted"), "{status}");
 }
+
+/// Issue #243, as the tester met it: a rule MailCraft keeps on the server (Sieve), then SOGo's
+/// automatic reply turned on in SOGo, which makes SOGo's own script the one that runs. MailCraft
+/// shows SOGo's reply as SOGo's (it showed off), says its rules aren't running, won't add a reply
+/// of its own beside SOGo's (Pigeonhole stops a script that sends two, and runs no rule), and
+/// runs its rules again when asked: a matching message is filed, and SOGo's reply still goes.
+#[test]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
+fn real_mailcow_sogo_takes_over_the_filters() {
+    use mailcraft_engine::ServerRulesState;
+    let Some(m) = Mailcow::from_env() else { return };
+    let tag = std::process::id();
+    let (ann, _) = m.user(0);
+    let (bob, _) = m.user(1);
+    let (mut app, id) = App::new(&m, 0, "sogo-filters");
+    // Mailcow's ManageSieve, on this computer.
+    app.pool.sieve_port = 22190;
+    app.pump(120, "online", |_, e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let loaded = |app: &mut App, what: &str| {
+        app.pump(60, what, |s, _| matches!(s.server_rules(&id), ServerRulesState::Loaded { .. } | ServerRulesState::Failed(_)));
+        match app.s.server_rules(&id).clone() {
+            ServerRulesState::Loaded { rules, error } => (rules, error),
+            other => panic!("{what}: {other:?}"),
+        }
+    };
+    let vacation = |app: &mut App| {
+        app.s.run("account.vacation", &json!({"account": id})).unwrap();
+        app.pump(60, "the replies", |s, _| !matches!(s.account(&id).map(|a| &a.vacation), Some(mailcraft_engine::VacationState::Loading)));
+        app.s.run("account.vacation", &json!({"account": id, "refresh": false})).unwrap()
+    };
+    let sogo = m.sogo(0);
+    let reply = |on: bool| {
+        let mut d = sogo.json("Preferences/jsonDefaults");
+        d["Vacation"] = json!({"enabled": i32::from(on), "autoReplyText": format!("Away ({tag})."), "customSubjectEnabled": 1,
+            "customSubject": "Away", "daysBetweenResponse": 1, "autoReplyEmailAddresses": [ann]});
+        sogo.post("Preferences/save", &json!({ "defaults": d }));
+    };
+    reply(false);
+
+    // MailCraft's rule on the server, as the tester made one: the subject's word → Archive.
+    app.s.run("rules.server", &json!({"account": id})).unwrap();
+    let (before, _) = loaded(&mut app, "the rules");
+    for r in before.rules {
+        app.s.run("rules.serverDelete", &json!({"account": id, "id": r.id})).unwrap();
+        loaded(&mut app, "an old rule deleted");
+    }
+    let word = format!("invoice{tag}");
+    use mailcraft_engine::model::organize::{Condition, Rule, RuleAction};
+    let rule = Rule {
+        name: "Invoices".into(),
+        enabled: true,
+        account: None,
+        conditions: vec![Condition::Subject(word.clone())],
+        match_all: true,
+        actions: vec![RuleAction::MoveTo("Archive".into())],
+        stop: true,
+        sent: false,
+    };
+    app.s.run("rules.serverSave", &json!({"account": id, "rule": rule})).unwrap();
+    let (rules, error) = loaded(&mut app, "the rule saved");
+    assert_eq!((rules.rules.len(), error, rules.not_running), (1, None, false), "{rules:?}");
+
+    // SOGo's automatic reply turned on, in SOGo.
+    reply(true);
+    let v = vacation(&mut app);
+    eprintln!("the replies MailCraft shows: {v}");
+    assert_eq!((v["vacation"]["enabled"].as_bool(), v["vacation"]["sent_by"].as_str()), (Some(true), Some("sogo")), "{v}");
+    assert!(v["vacation"]["text"].as_str().is_some_and(|t| t.contains(&format!("Away ({tag})."))), "{v}");
+    app.s.run("rules.server", &json!({"account": id})).unwrap();
+    let (rules, _) = loaded(&mut app, "the rules again");
+    assert!(rules.not_running && rules.other_script.as_deref() == Some("sogo"), "{rules:?}");
+
+    // A reply of MailCraft's own beside SOGo's: refused.
+    app.s.run("account.setVacation", &json!({"account": id, "enabled": true, "text": "Out."})).unwrap();
+    let mut said = String::new();
+    app.pump(60, "refused", |_, e| match e {
+        Event::Vacation { error, .. } => {
+            said = format!("{error:?}");
+            true
+        }
+        _ => false,
+    });
+    assert!(said.contains("one at a time"), "{said}");
+
+    // Run again: MailCraft's rule files the mail, SOGo's reply still goes.
+    app.s.run("rules.serverResume", &json!({"account": id})).unwrap();
+    let (rules, error) = loaded(&mut app, "running again");
+    assert_eq!((rules.not_running, error), (false, None), "{rules:?}");
+    let subject = format!("Your {word}");
+    m.send(1, &[ann], &message(&format!("Bob <{bob}>"), ann, &subject, &format!("sogo-filters-{tag}@mc31.test")));
+    let end = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    let (mut ann_box, mut bob_box) = (m.imap_as(0), m.imap_as(1));
+    loop {
+        let filed = ann_box.subjects("Archive").contains(&subject);
+        let replied = bob_box.subjects("INBOX").iter().any(|s| s == "Away");
+        if filed && replied {
+            break;
+        }
+        assert!(std::time::Instant::now() < end, "filed {filed}, SOGo's reply {replied}");
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+
+    // As it was: SOGo's reply off, MailCraft's rule gone.
+    reply(false);
+    app.s.run("rules.server", &json!({"account": id})).unwrap();
+    let (rules, _) = loaded(&mut app, "the rules at the end");
+    for r in rules.rules {
+        app.s.run("rules.serverDelete", &json!({"account": id, "id": r.id})).unwrap();
+        loaded(&mut app, "the rule deleted");
+    }
+}

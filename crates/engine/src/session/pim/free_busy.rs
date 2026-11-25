@@ -40,6 +40,26 @@ struct Known {
 #[derive(Debug, Default)]
 pub struct FreeBusyKept {
     known: HashMap<(String, String), Known>,
+    /// The guests of a meeting being written, whose times its Scheduling Assistant shows (issue
+    /// #277): their account, addresses and the day shown, until when they're kept fresh.
+    assisting: Option<(String, Vec<String>, i64, i64)>,
+}
+
+/// How long a meeting's form keeps its guests' times fresh after it last asked.
+const ASSIST_FOR: i64 = 15 * 60;
+/// The most guests whose times a meeting's form asks for (a list pasted in is cut there).
+const GUESTS_MAX: usize = 100;
+
+/// What's known of one guest's times, for a meeting's Scheduling Assistant (issue #277).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GuestTimes {
+    /// Asked for, not come yet.
+    Asking,
+    /// Their times taken from one instant to another, and when they work when their server
+    /// says.
+    Known { from: i64, to: i64, busy: Vec<Busy>, work: Option<mailcraft_model::pim::work_hours::WorkHours> },
+    /// None could be had: why.
+    Unknown(String),
 }
 
 /// What's known of the times of a calendar shared for its free/busy time alone, to find a time
@@ -94,9 +114,17 @@ impl Session {
         out
     }
 
-    /// Ask for the times the calendar on screen needs and doesn't have (or has had a while).
-    /// Called each tick: nothing unless the calendar is shown with such a calendar ticked.
+    /// Ask for the times the calendar on screen needs and doesn't have (or has had a while), and
+    /// those a meeting's form shows (issue #277). Called each tick: nothing unless the calendar
+    /// is shown with such a calendar ticked, or a meeting's guests were asked for lately.
     pub(crate) fn free_busy_due(&mut self) {
+        if let Some((account, guests, day, until)) = self.free_busy.assisting.clone() {
+            if self.clock.now < until {
+                self.ask_times(&account, guests, self.free_busy_window((day, day + 1)), (self.clock.midnight(day), self.clock.midnight(day + 1)));
+            } else {
+                self.free_busy.assisting = None;
+            }
+        }
         if self.module != Module::Calendar {
             return;
         }
@@ -105,30 +133,64 @@ impl Session {
             return;
         }
         let (d0, d1) = self.cal_days();
-        let (shown_from, shown_to) = (self.clock.midnight(d0), self.clock.midnight(d1));
-        let (from, to) = self.free_busy_window((d0, d1));
-        let now = self.clock.now;
+        let shown = (self.clock.midnight(d0), self.clock.midnight(d1));
+        let window = self.free_busy_window((d0, d1));
         for (account, people) in wanted {
-            let ask: Vec<String> = people
-                .into_iter()
-                .filter(|email| {
-                    let Some(k) = self.free_busy.known.get(&(account.clone(), email.clone())) else { return true };
-                    if k.waiting.is_some_and(|(_, _, at)| now < at.saturating_add(WAIT_MAX)) {
-                        return false;
-                    }
-                    // What's on screen, as far as a window from where these start reaches.
-                    let covered = k.from <= shown_from && k.to >= shown_to.min(k.from.saturating_add(WINDOW_MAX));
-                    let stale = k.answered.is_none_or(|at| now >= at.saturating_add(if k.error.is_some() { RETRY } else { FRESH }));
-                    !covered || stale
-                })
-                .collect();
-            if ask.is_empty() {
-                continue;
-            }
-            for email in &ask {
-                self.free_busy.known.entry((account.clone(), email.clone())).or_default().waiting = Some((from, to, now));
-            }
-            self.jobs.push(Job::FreeBusy { account, people: ask, from, to });
+            self.ask_times(&account, people, window, shown);
+        }
+    }
+
+    /// Ask `account`'s server for `people`'s times over `from..to`, those not known as far as
+    /// `shown_from..shown_to` reaches, or known a while.
+    fn ask_times(&mut self, account: &str, people: Vec<String>, (from, to): (i64, i64), (shown_from, shown_to): (i64, i64)) {
+        let now = self.clock.now;
+        let account = account.to_string();
+        let ask: Vec<String> = people
+            .into_iter()
+            .filter(|email| {
+                let Some(k) = self.free_busy.known.get(&(account.clone(), email.clone())) else { return true };
+                if k.waiting.is_some_and(|(_, _, at)| now < at.saturating_add(WAIT_MAX)) {
+                    return false;
+                }
+                // What's on screen, as far as a window from where these start reaches.
+                let covered = k.from <= shown_from && k.to >= shown_to.min(k.from.saturating_add(WINDOW_MAX));
+                let stale = k.answered.is_none_or(|at| now >= at.saturating_add(if k.error.is_some() { RETRY } else { FRESH }));
+                !covered || stale
+            })
+            .collect();
+        if ask.is_empty() {
+            return;
+        }
+        for email in &ask {
+            self.free_busy.known.entry((account.clone(), email.clone())).or_default().waiting = Some((from, to, now));
+        }
+        self.jobs.push(Job::FreeBusy { account, people: ask, from, to });
+    }
+
+    /// A meeting's guests (their addresses) whose times its Scheduling Assistant shows around
+    /// `day` (issue #277): asked for of `account`'s server now, and kept fresh while it's open.
+    pub fn want_guest_times(&mut self, account: &str, guests: &[String], day: i64) {
+        let mine = self.my_addresses();
+        let mut people: Vec<String> =
+            guests.iter().map(|g| g.trim().to_ascii_lowercase()).filter(|g| mailcraft_model::addr::is_valid_email(g) && !mine.contains(g)).collect();
+        people.sort();
+        people.dedup();
+        people.truncate(GUESTS_MAX);
+        if people.is_empty() {
+            self.free_busy.assisting = None;
+            return;
+        }
+        let shown = (self.clock.midnight(day), self.clock.midnight(day + 1));
+        self.ask_times(account, people.clone(), self.free_busy_window((day, day + 1)), shown);
+        self.free_busy.assisting = Some((account.to_string(), people, day, self.clock.now.saturating_add(ASSIST_FOR)));
+    }
+
+    /// What's known of a guest's times through `account` (issue #277).
+    pub fn guest_times(&self, account: &str, email: &str) -> GuestTimes {
+        match self.free_busy.known.get(&(account.to_string(), email.trim().to_ascii_lowercase())) {
+            Some(k) if k.answered.is_some() && k.error.is_some() => GuestTimes::Unknown(k.error.clone().unwrap_or_default()),
+            Some(k) if k.answered.is_some() => GuestTimes::Known { from: k.from, to: k.to, busy: k.busy.clone(), work: k.work.clone() },
+            _ => GuestTimes::Asking,
         }
     }
 

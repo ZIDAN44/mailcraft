@@ -320,6 +320,7 @@ fn an_exchange_account_syncs_changes_and_sends_through_graph() {
         until: Some("2026-10-20".into()),
         external: Some("Out of office".into()),
         outside: "none".into(),
+        ..Default::default()
     };
     // A token Microsoft refuses means signing in again.
     an_exchange_account_end_to_end("graph-e2e", account, "expired", TOKEN, &[away], &server);

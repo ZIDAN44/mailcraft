@@ -252,7 +252,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.run_quick_step(p::str(v, "name"), index)
         })
         .params(r#"{"name"?: string, "index"?: number (from 0)}"#)
-        .when(has_selection),
+        .on_selection(has_selection),
         quick_step!(1),
         quick_step!(2),
         quick_step!(3),

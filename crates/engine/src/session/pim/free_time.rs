@@ -7,7 +7,7 @@
 use mailcraft_model::ical::ShowAs;
 use mailcraft_model::pim::work_hours::{merged, outside, overlap};
 
-use super::free_busy::Covered;
+use super::free_busy::{Covered, GuestTimes};
 use super::*;
 
 /// Times start on the half hour (local), as a meeting's do.
@@ -139,5 +139,52 @@ impl Session {
                 (start + length <= b).then_some(start)
             })
         }
+    }
+
+    /// The first time at or after `from`, `length` long, when the user and `guests` all work
+    /// and are free (issue #277: Next free time in a meeting's form): the user's events but
+    /// `except` (the meeting being moved), and the guests' times through `account` as far as
+    /// they reach. A guest whose times can't be had counts as free; one whose times haven't
+    /// come yet stops it ([`NOT_COME`]). `None`: no such time within six weeks, or as far as
+    /// the guests' times reach.
+    pub fn next_free_with(
+        &self,
+        account: &str,
+        guests: &[String],
+        from: i64,
+        length: i64,
+        except: Option<&str>,
+    ) -> Result<Option<i64>, &'static str> {
+        let lo = self.on_the_half_hour(from.max(self.clock.now), true);
+        let mut hi = lo.saturating_add(LOOK);
+        let mut work = self.work_spans(lo, hi);
+        let mut taken: Vec<(i64, i64)> = self
+            .agenda(lo, hi)
+            .into_iter()
+            .filter(|it| !it.busy_only && it.show_as != ShowAs::Free && it.status != "CANCELLED" && Some(it.uid.as_str()) != except)
+            .map(|it| (it.start, it.end.max(it.start + 1)))
+            .collect();
+        let mine = self.my_addresses();
+        for g in guests.iter().map(|g| g.trim().to_ascii_lowercase()).filter(|g| !mine.contains(g)) {
+            match self.guest_times(account, &g) {
+                GuestTimes::Asking => return Err(NOT_COME),
+                GuestTimes::Unknown(_) => {}
+                GuestTimes::Known { to, busy, work: hours, .. } => {
+                    hi = hi.min(to);
+                    if let Some(h) = hours {
+                        work = overlap(&work, &h.spans(lo, hi));
+                    }
+                    taken.extend(busy.iter().filter(|b| b.show_as != ShowAs::Free).map(|b| (b.start, b.end.max(b.start + 1))));
+                }
+            }
+        }
+        if length <= 0 || lo >= hi {
+            return Ok(None);
+        }
+        let taken = merged(taken);
+        Ok(work.iter().flat_map(|(a, b)| outside(&taken, *a, (*b).min(hi))).find_map(|(a, b)| {
+            let start = self.on_the_half_hour(a.max(lo), true);
+            (start + length <= b).then_some(start)
+        }))
     }
 }

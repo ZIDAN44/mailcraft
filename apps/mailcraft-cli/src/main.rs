@@ -301,12 +301,23 @@ fn run() -> Result<(), String> {
         outln!("{}", include_str!("help.txt"));
         return Ok(());
     }
-    let root =
-        args.opt("--data").map(std::path::PathBuf::from).or_else(mailcraft_engine::store::default_root).ok_or("no data folder: pass --data DIR")?;
+    let env_data = std::env::var_os("MAILCRAFT_DATA").filter(|d| !d.is_empty());
+    // A portable copy's own folder, beside it, as the app beside it keeps (issue #255: its MCP
+    // server looked in the user's folder, and found no window); a folder chosen comes first.
+    let portable = (args.opt("--data").is_none() && env_data.is_none())
+        .then(std::env::current_exe)
+        .and_then(Result::ok)
+        .and_then(|exe| exe.parent().and_then(mailcraft_engine::store::location::portable_data));
+    let root = args
+        .opt("--data")
+        .map(std::path::PathBuf::from)
+        .or_else(|| portable.clone())
+        .or_else(mailcraft_engine::store::default_root)
+        .ok_or("no data folder: pass --data DIR")?;
     // The same data files as the app: in Documents\MailCraft Files (or where they were moved),
-    // or beside a folder given with --data.
-    let files = match (args.opt("--data"), std::env::var_os("MAILCRAFT_DATA").filter(|d| !d.is_empty())) {
-        (None, None) => mailcraft_engine::store::location::files_dir(&root),
+    // or beside a folder given with --data, or a portable copy's.
+    let files = match (args.opt("--data"), env_data, portable) {
+        (None, None, None) => mailcraft_engine::store::location::files_dir(&root),
         _ => root.join(mailcraft_engine::store::location::FILES_FOLDER),
     };
     // MailCraft's MCP server (issue #255): the open window's, else this data folder read here;

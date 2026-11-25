@@ -20,8 +20,9 @@ pub fn forwarding_allowed(e: &CalEvent) -> bool {
 
 impl Session {
     /// Forward the meeting `uid` (the invitation in the open message, or one in the calendar) to
-    /// `to` (addresses, as typed in a recipient box).
-    pub fn forward_meeting(&mut self, uid: &str, to: &str) -> CmdResult {
+    /// `to` (addresses, as typed in a recipient box): all of it, or its occurrence `at` alone
+    /// (when it repeats; it must be in the calendar), as a delegation can be.
+    pub fn forward_meeting(&mut self, uid: &str, to: &str, at: Option<i64>) -> CmdResult {
         let people = addr::parse_list(to).map_err(|bad| CmdError::Params(format!("`{bad}` isn't an address")))?;
         if people.is_empty() {
             return Err(CmdError::Params("say who to forward it to".into()));
@@ -37,14 +38,21 @@ impl Session {
         if !forwarding_allowed(&master) {
             return Err(CmdError::Disabled("the organizer doesn't let this meeting be forwarded".into()));
         }
+        let repeats = master.rrule.is_some() || !master.rdates.is_empty();
         // The meeting as the organizer sent it: its changed occurrences with it, from the
-        // calendar when it's there, else the invitation's.
-        let mut events: Vec<CalEvent> = match self.stored_parts(uid) {
-            Some((_, parts)) if parts.iter().any(|p| p.event.recurrence_id.is_none() && p.event.sequence >= master.sequence) => {
+        // calendar when it's there, else the invitation's. One occurrence (issue #234: the whole
+        // series went for one day): that occurrence's own part alone, as the calendar has it.
+        let mut events: Vec<CalEvent> = match (at.filter(|_| repeats), self.stored_parts(uid)) {
+            (Some(at), Some(_)) => {
+                vec![self.occurrence_event(uid, at).ok_or_else(|| CmdError::Params(format!("the series has no occurrence at {at}")))?]
+            }
+            (Some(_), None) => return Err(CmdError::Disabled("put the meeting in your calendar first".into())),
+            (None, Some((_, parts))) if parts.iter().any(|p| p.event.recurrence_id.is_none() && p.event.sequence >= master.sequence) => {
                 parts.iter().map(|p| p.event.clone()).collect()
             }
-            _ => vec![master.clone()],
+            (None, _) => vec![master.clone()],
         };
+        let first = events.first().cloned().unwrap_or_else(|| master.clone());
         let new: Vec<&EmailAddress> = people.iter().filter(|p| !is_mine(&p.email, &mine)).collect();
         for e in &mut events {
             for p in &new {
@@ -67,20 +75,19 @@ impl Session {
             master.attendees.iter().filter(|_| !own_invited).find_map(|a| config.identity(&a.email)).map(|i| i.email.clone()).unwrap_or_default();
         let sender = config.sender(&invited);
         let who = if sender.name.is_empty() { sender.email.clone() } else { sender.name.clone() };
-        let when = mailcraft_model::dates::full_time(master.start, &self.clock);
-        let place = if master.location.is_empty() { String::new() } else { format!("\nWhere: {}", master.location) };
+        // When the occurrence forwarded is, for one alone; in the window's language (issue #235).
+        let w = &self.mail_words;
+        let lines = w.when_where(&w.time(first.start, &self.clock), &first.location);
         let organizer = master.organizer.as_ref().map(|o| if o.name.is_empty() { o.email.clone() } else { o.name.clone() }).unwrap_or_default();
-        let body = format!(
-            "{who} forwarded you this meeting, organized by {organizer}.\n\n{}\nWhen: {when}{place}\n\n{}",
-            master.summary, master.description
-        );
-        let subject = format!("Fwd: {}", master.summary);
+        let said = MailWords::fill(&w.forwarded_body, &[("who", &who), ("organizer", &organizer)]);
+        let body = format!("{said}\n\n{}\n{lines}\n\n{}", master.summary, master.description);
+        let subject = MailWords::fill(&w.forward, &[("summary", &master.summary)]);
         let to: Vec<EmailAddress> = new.into_iter().cloned().collect();
         let n = to.len();
         if n == 0 {
             return Err(CmdError::Params("say who to forward it to (not yourself)".into()));
         }
         self.send_itip(&account, Itip { from: &invited, to, method: "REQUEST", events: &events, subject: &subject, body: &body })?;
-        Ok(serde_json::json!({"uid": uid, "forwarded": n}))
+        Ok(serde_json::json!({"uid": uid, "forwarded": n, "occurrence": at.filter(|_| repeats)}))
     }
 }

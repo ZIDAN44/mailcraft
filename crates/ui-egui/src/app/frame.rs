@@ -723,7 +723,7 @@ impl MailApp {
             }
             for r in reminders::refresh(&mut self.ui.reminders, &self.session, false) {
                 let when = if r.all_day { String::new() } else { crate::calendar::hm(r.start, &self.session) };
-                self.services.notify(&r.summary, &if r.location.is_empty() { when } else { format!("{when} · {}", r.location) });
+                self.services.notify_reminder(&r.summary, &if r.location.is_empty() { when } else { format!("{when} · {}", r.location) });
             }
             reminders::show(&ctx, &mut self.ui.reminders, &self.session, &t, &mut acts);
             if reminders::showing(&self.ui.reminders) {

@@ -365,6 +365,7 @@ impl Client {
             text,
             from: day("scheduledStartDateTime").filter(|_| scheduled).map(str::to_string),
             until: day("scheduledEndDateTime").filter(|_| scheduled).map(str::to_string),
+            ..Default::default()
         })
     }
 

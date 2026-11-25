@@ -160,12 +160,9 @@ impl Channel {
             }
             match app.agent_request(&req.method, &req.params) {
                 AgentAnswer::Now(r) => reply(&req, r),
-                AgentAnswer::Asking(ticket) => {
-                    self.asking.push((ticket, req, Instant::now()));
-                    // The window comes forward: the user is asked.
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
-                    ctx.send_viewport_cmd(egui::ViewportCommand::RequestUserAttention(egui::UserAttentionType::Informational));
-                }
+                // Asked about (the window brings itself forward and says so, `agents_asking_window`),
+                // or a server's answer awaited: answered once decided.
+                AgentAnswer::Asking(ticket) => self.asking.push((ticket, req, Instant::now())),
             }
         }
         if !self.asking.is_empty() {

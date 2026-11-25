@@ -296,3 +296,49 @@ fn graph_sends_the_users_meeting_itself() {
     let mail = sent(&mut s);
     assert!(mail.len() == 1 && mail[0].0 == "CANCEL" && mail[0].1.contains("RECURRENCE-ID"), "{mail:?}");
 }
+
+/// Issue #235: one occurrence of the user's series changed, on a server that schedules: once the
+/// server has it, the guests get that occurrence, its own day in the mail. The series went
+/// instead, its mail naming the series' start.
+#[test]
+fn an_occurrences_update_names_that_occurrence() {
+    let (mut s, id) = imap_session("sched-occurrence");
+    synced(&mut s, &id, true, Vec::new(), Vec::new(), Vec::new());
+    s.take_jobs();
+    let p = json!({"account": id, "summary": "Stand-up", "start": "2026-11-10T10:00", "repeat": "FREQ=DAILY;COUNT=5", "attendees": format!("Ann <{ANN}>")});
+    let uid = s.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string();
+    stored(&mut s, &id, &uid, |e| e.sequence = 1);
+    sent(&mut s);
+    let first = account_parts(&s, &id, &uid)[0].event.start;
+    let third = first + 2 * 86_400;
+    s.run("event.update", &json!({"uid": uid, "occurrence": third, "start": third + 3600, "end": third + 5400})).unwrap();
+    assert!(sent(&mut s).is_empty(), "not before the server has it");
+    // The server stores both parts, and reads them back.
+    let parts: Vec<StoredEvent> = account_parts(&s, &id, &uid)
+        .into_iter()
+        .map(|p| StoredEvent { href: format!("{OWN}{uid}.ics"), etag: "\"9\"".into(), dirty: false, ..p.clone() })
+        .collect();
+    synced(&mut s, &id, true, parts.clone(), parts, Vec::new());
+    let mail: Vec<(String, String, String)> = s
+        .take_jobs()
+        .into_iter()
+        .filter_map(|j| match j {
+            Job::Send { raw, .. } => {
+                let p = mailcraft_mime::parse(&raw)?;
+                let ics = p
+                    .attachments
+                    .iter()
+                    .find(|a| a.mime.starts_with("text/calendar"))
+                    .and_then(|a| mailcraft_mime::attachment_data(&raw, a.index))?;
+                Some((p.subject.clone(), p.text.clone(), String::from_utf8_lossy(&ics).to_string()))
+            }
+            _ => None,
+        })
+        .collect();
+    let [(subject, body, ics)] = mail.as_slice() else { panic!("one update: {mail:?}") };
+    let events = ical::parse(ics, 0).events;
+    assert_eq!(events.iter().map(|e| (e.recurrence_id, e.start)).collect::<Vec<_>>(), [(Some(third), third + 3600)], "that occurrence alone");
+    let day = mailcraft_model::dates::full_time(third + 3600, &s.clock);
+    assert!(body.contains(&format!("When: {day}")), "its own day: {body}");
+    assert!(subject.starts_with("Updated: "), "an update says so: {subject}");
+}

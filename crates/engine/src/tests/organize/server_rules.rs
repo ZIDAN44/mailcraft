@@ -142,6 +142,19 @@ fn an_imap_servers_rules_are_offered_unless_it_keeps_none() {
         }
         other => panic!("{other:?}"),
     }
+    // Issue #243: the answer read back without asking again (an agent's way to it); and another
+    // program's filters running instead of MailCraft's, which run again when asked, with no
+    // change to the rules.
+    let not_running =
+        ServerRules { rules: vec![on_server().rules.remove(0)], not_running: true, other_script: Some("sogo".into()), ..Default::default() };
+    s.apply(Event::ServerRules { account: id.clone(), rules: Some(not_running), error: None });
+    let read = s.run("rules.server", &json!({"account": id, "refresh": false})).unwrap();
+    assert_eq!((read["rules"]["notRunning"].as_bool(), read["rules"]["otherScript"].as_str()), (Some(true), Some("sogo")), "{read}");
+    assert!(s.take_jobs().is_empty(), "the server isn't asked");
+    s.run("rules.serverResume", &json!({"account": id})).unwrap();
+    assert!(matches!(ops(&mut s), (o, false) if o.is_empty()));
+    s.apply(Event::ServerRules { account: id.clone(), rules: Some(ServerRules::default()), error: None });
+    assert!(s.run("rules.serverResume", &json!({"account": id})).is_err(), "running already");
     // A server without ManageSieve: nothing to show for it.
     s.apply(Event::ServerRules { account: id.clone(), rules: None, error: Some(mailcraft_model::organize::NO_SERVER_RULES.into()) });
     assert_eq!(*s.server_rules(&id), ServerRulesState::NotOffered);

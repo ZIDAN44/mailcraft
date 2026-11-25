@@ -163,15 +163,16 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 
 ### 13. Finding a time: what isn't done yet
 
-- **Impact:** A meeting's own form has no Scheduling Assistant: its guests' times and AutoPick
-  are in the calendar alone (**Next free time**, over the calendars shown). Everyone shown counts
-  as required, and rooms aren't looked at. Exchange's own suggested times aren't asked for.
-- **Workaround:** Show the guests' calendars (**Open shared calendar**), find the time with
-  **Next free time**, and click it for the meeting; leave an optional guest's calendar unticked.
-- **Cause:** The event form edits one event and reads no one's times; the search goes over the
-  times the calendar has, which works for every kind of account, where the servers' own
-  suggestions (Exchange's `SuggestionsViewOptions`, Microsoft Graph's `findMeetingTimes`) come
-  from those servers alone.
+- **Impact:** Every guest counts as required, in a meeting's Scheduling Assistant and in the
+  calendar's **Next free time**, and rooms aren't looked at. The meeting's band in the assistant
+  is moved with a click, not dragged, and shows its day alone. Exchange's own suggested times
+  aren't asked for.
+- **Workaround:** Leave an optional guest out while finding the time, and add them after; for a
+  day other than the meeting's, change its date.
+- **Cause:** The search goes over the times MailCraft has (the calendar's, and the guests'
+  free/busy times), which works for every kind of account, where the servers' own suggestions
+  (Exchange's `SuggestionsViewOptions`, Microsoft Graph's `findMeetingTimes`) come from those
+  servers alone; MailCraft's guests have no optional kind yet.
 
 ### 14. Message list groups: what isn't done yet
 
@@ -249,6 +250,12 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Workaround:** Open MailCraft for an agent to run commands; open a folder to download its
   mail.
 - **Cause:** Only the open window asks you about a command, so nothing runs while it's closed.
+- **Impact:** An organisation's profile can turn agents off, let them only read, or have every
+  command asked about, but can't let them reach only some accounts (its own domain's): which
+  accounts agents read is each person's choice.
+- **Workaround:** Each person turns accounts off under **File › Options › AI agents**.
+- **Cause:** The accounts kept from agents are the person's own setting, by account; a profile
+  names domains, and isn't read where that setting is checked yet.
 
 ### 21. An organisation's profile: what isn't done yet
 
