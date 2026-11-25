@@ -8,6 +8,7 @@ use mailcraft_engine::model::pim::work_hours::{outside, overlap};
 use mailcraft_engine::{AgendaItem, CalMode, Session};
 use serde_json::json;
 
+pub(crate) mod assistant;
 mod days;
 mod found;
 mod moving;

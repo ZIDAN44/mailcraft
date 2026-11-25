@@ -2160,3 +2160,11 @@ count	occurrences	ripetizioni
 	Task: “{name}”	Attività: «{name}»
 	This occurrence: {when}	Questa ricorrenza: {when}
 	To: {who}	A: {who}
+	Asking their server…	Richiesta al loro server…
+	Click a time to move the meeting there	Fai clic su un orario per spostarvi la riunione
+	Hide Scheduling Assistant	Nascondi Assistente pianificazione
+	Scheduling Assistant	Assistente pianificazione
+	The next time you and your guests are all free	Il prossimo orario in cui tu e i partecipanti siete tutti liberi
+	Their times can't be had: {why}	I loro orari non sono disponibili: {why}
+	You	Tu
+	{free} of {all} free	{free} su {all} liberi

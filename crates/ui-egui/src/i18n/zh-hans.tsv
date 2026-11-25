@@ -2157,3 +2157,11 @@ count	occurrences	次
 	Task: “{name}”	任务: “{name}”
 	This occurrence: {when}	这一次: {when}
 	To: {who}	收件人: {who}
+	Asking their server…	正在询问他们的服务器…
+	Click a time to move the meeting there	点击一个时间，把会议移到那里
+	Hide Scheduling Assistant	隐藏日程安排助理
+	Scheduling Assistant	日程安排助理
+	The next time you and your guests are all free	你和所有与会者都空闲的下一个时间
+	Their times can't be had: {why}	无法获得他们的时间: {why}
+	You	你
+	{free} of {all} free	{all} 人中 {free} 人空闲

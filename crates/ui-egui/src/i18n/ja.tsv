@@ -2157,3 +2157,11 @@ count	occurrences	回
 	Task: “{name}”	タスク: 「{name}」
 	This occurrence: {when}	この回: {when}
 	To: {who}	宛先: {who}
+	Asking their server…	相手のサーバーに問い合わせ中…
+	Click a time to move the meeting there	時刻をクリックすると会議をそこへ移動します
+	Hide Scheduling Assistant	スケジュール アシスタントを隠す
+	Scheduling Assistant	スケジュール アシスタント
+	The next time you and your guests are all free	あなたと出席者全員が空いている次の時間
+	Their times can't be had: {why}	空き時間を取得できません: {why}
+	You	あなた
+	{free} of {all} free	{all} 人中 {free} 人が空き

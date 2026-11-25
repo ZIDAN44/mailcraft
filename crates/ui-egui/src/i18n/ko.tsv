@@ -2160,3 +2160,11 @@ count	occurrences	회
 	Task: “{name}”	작업: “{name}”
 	This occurrence: {when}	이 일정: {when}
 	To: {who}	받는 사람: {who}
+	Asking their server…	상대 서버에 묻는 중…
+	Click a time to move the meeting there	시간을 클릭하면 모임을 그곳으로 옮깁니다
+	Hide Scheduling Assistant	일정 도우미 숨기기
+	Scheduling Assistant	일정 도우미
+	The next time you and your guests are all free	나와 참석자 모두가 비어 있는 다음 시간
+	Their times can't be had: {why}	시간을 알 수 없습니다: {why}
+	You	나
+	{free} of {all} free	{all}명 중 {free}명 가능

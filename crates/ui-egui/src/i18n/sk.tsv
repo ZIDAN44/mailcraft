@@ -2175,3 +2175,11 @@ count	occurrences	opakovaní
 	Task: “{name}”	Úloha: „{name}“
 	This occurrence: {when}	Tento výskyt: {when}
 	To: {who}	Komu: {who}
+	Asking their server…	Pýtam sa ich servera…
+	Click a time to move the meeting there	Kliknutím na čas presuniete schôdzu tam
+	Hide Scheduling Assistant	Skryť Asistenta plánovania
+	Scheduling Assistant	Asistent plánovania
+	The next time you and your guests are all free	Najbližší čas, keď ste vy aj účastníci všetci voľní
+	Their times can't be had: {why}	Ich časy nie sú k dispozícii: {why}
+	You	Vy
+	{free} of {all} free	Voľní: {free} z {all}

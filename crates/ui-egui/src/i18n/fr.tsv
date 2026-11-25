@@ -2161,3 +2161,11 @@ count	occurrences	occurrences
 	Task: “{name}”	Tâche : « {name} »
 	This occurrence: {when}	Cette occurrence : {when}
 	To: {who}	À : {who}
+	Asking their server…	Interrogation de leur serveur…
+	Click a time to move the meeting there	Cliquez sur une heure pour y déplacer la réunion
+	Hide Scheduling Assistant	Masquer l’Assistant Planification
+	Scheduling Assistant	Assistant Planification
+	The next time you and your guests are all free	Le prochain moment où vous et vos participants êtes tous libres
+	Their times can't be had: {why}	Leurs disponibilités sont introuvables : {why}
+	You	Vous
+	{free} of {all} free	{free} sur {all} libres

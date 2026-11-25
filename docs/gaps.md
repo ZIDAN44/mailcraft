@@ -163,15 +163,16 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 
 ### 13. Finding a time: what isn't done yet
 
-- **Impact:** A meeting's own form has no Scheduling Assistant: its guests' times and AutoPick
-  are in the calendar alone (**Next free time**, over the calendars shown). Everyone shown counts
-  as required, and rooms aren't looked at. Exchange's own suggested times aren't asked for.
-- **Workaround:** Show the guests' calendars (**Open shared calendar**), find the time with
-  **Next free time**, and click it for the meeting; leave an optional guest's calendar unticked.
-- **Cause:** The event form edits one event and reads no one's times; the search goes over the
-  times the calendar has, which works for every kind of account, where the servers' own
-  suggestions (Exchange's `SuggestionsViewOptions`, Microsoft Graph's `findMeetingTimes`) come
-  from those servers alone.
+- **Impact:** Every guest counts as required, in a meeting's Scheduling Assistant and in the
+  calendar's **Next free time**, and rooms aren't looked at. The meeting's band in the assistant
+  is moved with a click, not dragged, and shows its day alone. Exchange's own suggested times
+  aren't asked for.
+- **Workaround:** Leave an optional guest out while finding the time, and add them after; for a
+  day other than the meeting's, change its date.
+- **Cause:** The search goes over the times MailCraft has (the calendar's, and the guests'
+  free/busy times), which works for every kind of account, where the servers' own suggestions
+  (Exchange's `SuggestionsViewOptions`, Microsoft Graph's `findMeetingTimes`) come from those
+  servers alone; MailCraft's guests have no optional kind yet.
 
 ### 14. Message list groups: what isn't done yet
 

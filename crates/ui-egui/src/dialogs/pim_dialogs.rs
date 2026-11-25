@@ -165,6 +165,11 @@ pub struct EventForm {
     pub reading_notes: bool,
     /// Its online meeting (issue #25): the rooms to add, and what Save asks.
     pub meeting: MeetingState,
+    /// The Scheduling Assistant opened (issue #277); the guests and day whose times were asked
+    /// for last; what Next free time said.
+    pub assist: bool,
+    pub assist_asked: Option<(String, i64)>,
+    pub assist_note: Option<String>,
     pub error: Option<String>,
 }
 
@@ -576,7 +581,7 @@ pub(crate) fn end_follows_start(f: &mut EventForm, before: Option<i64>) {
     }
 }
 
-pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(540.0);
     form_header(ui, t, Ok(Icon::Calendar), if f.uid.is_some() { "Event" } else { "New event" });
     // An online meeting (Teams, Zoom…): Join, as Outlook has it, read-only calendar or not.
@@ -646,6 +651,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
         }
         if f.can_invite {
             guests::row(ui, t, f, acts);
+            guests::scheduling(ui, s, t, f, acts);
         }
         if f.uid.is_none() && f.calendars.len() > 1 {
             let name = f.calendars.get(f.calendar).map(|c| c.2.clone()).unwrap_or_default();

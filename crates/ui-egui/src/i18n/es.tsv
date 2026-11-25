@@ -2161,3 +2161,11 @@ count	occurrences	repeticiones
 	Task: “{name}”	Tarea: «{name}»
 	This occurrence: {when}	Esta repetición: {when}
 	To: {who}	Para: {who}
+	Asking their server…	Preguntando a su servidor…
+	Click a time to move the meeting there	Haz clic en una hora para mover la reunión allí
+	Hide Scheduling Assistant	Ocultar Asistente para programación
+	Scheduling Assistant	Asistente para programación
+	The next time you and your guests are all free	La próxima hora en que tú y tus asistentes estáis todos libres
+	Their times can't be had: {why}	Sus horas no están disponibles: {why}
+	You	Tú
+	{free} of {all} free	{free} de {all} libres

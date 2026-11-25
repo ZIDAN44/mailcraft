@@ -2174,3 +2174,11 @@ count	occurrences	повторений
 	Task: “{name}”	Задача: «{name}»
 	This occurrence: {when}	Это повторение: {when}
 	To: {who}	Кому: {who}
+	Asking their server…	Запрос к их серверу…
+	Click a time to move the meeting there	Щёлкните время, чтобы перенести туда встречу
+	Hide Scheduling Assistant	Скрыть помощника планирования
+	Scheduling Assistant	Помощник планирования
+	The next time you and your guests are all free	Ближайшее время, когда вы и все участники свободны
+	Their times can't be had: {why}	Их время недоступно: {why}
+	You	Вы
+	{free} of {all} free	Свободны: {free} из {all}

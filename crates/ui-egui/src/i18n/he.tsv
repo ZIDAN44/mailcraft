@@ -2156,3 +2156,11 @@ count	occurrences	פעמים
 	Task: “{name}”	משימה: „{name}”
 	This occurrence: {when}	המופע הזה: {when}
 	To: {who}	אל: {who}
+	Asking their server…	שואלים את השרת שלהם…
+	Click a time to move the meeting there	לחיצה על שעה מעבירה אליה את הפגישה
+	Hide Scheduling Assistant	הסתרת עוזר התזמון
+	Scheduling Assistant	עוזר התזמון
+	The next time you and your guests are all free	הזמן הבא שבו את/ה וכל המשתתפים פנויים
+	Their times can't be had: {why}	אי אפשר לקבל את הזמנים שלהם: {why}
+	You	את/ה
+	{free} of {all} free	{free} מתוך {all} פנויים

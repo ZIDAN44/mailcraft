@@ -2161,3 +2161,11 @@ count	occurrences	Terminen
 	Task: “{name}”	Aufgabe: „{name}“
 	This occurrence: {when}	Dieser Termin: {when}
 	To: {who}	An: {who}
+	Asking their server…	Server wird gefragt…
+	Click a time to move the meeting there	Auf eine Zeit klicken, um die Besprechung dorthin zu verschieben
+	Hide Scheduling Assistant	Terminplanungs-Assistent ausblenden
+	Scheduling Assistant	Terminplanungs-Assistent
+	The next time you and your guests are all free	Die nächste Zeit, in der Sie und Ihre Teilnehmer alle frei sind
+	Their times can't be had: {why}	Ihre Zeiten sind nicht verfügbar: {why}
+	You	Sie
+	{free} of {all} free	{free} von {all} frei

@@ -2156,3 +2156,11 @@ count	occurrences	keer
 	Task: “{name}”	Taak: ‘{name}’
 	This occurrence: {when}	Deze keer: {when}
 	To: {who}	Aan: {who}
+	Asking their server…	Hun server wordt gevraagd…
+	Click a time to move the meeting there	Klik op een tijd om de vergadering daarheen te verplaatsen
+	Hide Scheduling Assistant	Planningsassistent verbergen
+	Scheduling Assistant	Planningsassistent
+	The next time you and your guests are all free	De volgende tijd waarop jij en je deelnemers allemaal vrij zijn
+	Their times can't be had: {why}	Hun tijden zijn niet beschikbaar: {why}
+	You	Jij
+	{free} of {all} free	{free} van {all} vrij

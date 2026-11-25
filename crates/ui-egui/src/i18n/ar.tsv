@@ -2156,3 +2156,11 @@ count	occurrences	مرات
 	Task: “{name}”	المهمة: «{name}»
 	This occurrence: {when}	هذا التكرار: {when}
 	To: {who}	إلى: {who}
+	Asking their server…	جارٍ سؤال خادمهم…
+	Click a time to move the meeting there	انقر وقتًا لنقل الاجتماع إليه
+	Hide Scheduling Assistant	إخفاء مساعد الجدولة
+	Scheduling Assistant	مساعد الجدولة
+	The next time you and your guests are all free	الوقت التالي الذي تكون فيه أنت وكل الحضور متفرغين
+	Their times can't be had: {why}	تعذّر الحصول على أوقاتهم: {why}
+	You	أنت
+	{free} of {all} free	{free} من {all} متفرغون

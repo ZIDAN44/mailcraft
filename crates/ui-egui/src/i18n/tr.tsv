@@ -2161,3 +2161,11 @@ count	occurrences	kez
 	Task: “{name}”	Görev: “{name}”
 	This occurrence: {when}	Bu yineleme: {when}
 	To: {who}	Kime: {who}
+	Asking their server…	Sunucularına soruluyor…
+	Click a time to move the meeting there	Toplantıyı oraya taşımak için bir saate tıklayın
+	Hide Scheduling Assistant	Zamanlama Yardımcısını gizle
+	Scheduling Assistant	Zamanlama Yardımcısı
+	The next time you and your guests are all free	Sizin ve katılımcılarınızın hepsinin boş olduğu bir sonraki zaman
+	Their times can't be had: {why}	Zamanlarına ulaşılamıyor: {why}
+	You	Siz
+	{free} of {all} free	{all} kişiden {free} kişi boş

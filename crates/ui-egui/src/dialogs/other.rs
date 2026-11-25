@@ -218,7 +218,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             }
             !cancel
         }
-        Dialog::Event(f) => crate::pim_dialogs::event(ui, f, t, acts),
+        Dialog::Event(f) => crate::pim_dialogs::event(ui, f, s, t, acts),
         Dialog::Task(f) => crate::pim_dialogs::task(ui, f, t, acts),
         Dialog::FollowUp(f) => crate::pim_dialogs::follow_up(ui, f, t, acts),
         Dialog::Snooze(f) => crate::pim_dialogs::snooze(ui, f, s, t, acts),

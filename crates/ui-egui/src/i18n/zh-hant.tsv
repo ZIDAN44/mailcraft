@@ -2160,3 +2160,11 @@ count	occurrences	次
 	Task: “{name}”	工作: 「{name}」
 	This occurrence: {when}	這一次: {when}
 	To: {who}	收件者: {who}
+	Asking their server…	正在詢問他們的伺服器…
+	Click a time to move the meeting there	按一下某個時間，把會議移到那裡
+	Hide Scheduling Assistant	隱藏排程小幫手
+	Scheduling Assistant	排程小幫手
+	The next time you and your guests are all free	你和所有與會者都有空的下一個時間
+	Their times can't be had: {why}	無法取得他們的時間: {why}
+	You	你
+	{free} of {all} free	{all} 人中 {free} 人有空
