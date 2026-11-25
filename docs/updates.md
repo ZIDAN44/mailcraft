@@ -35,7 +35,10 @@ to **No**, File › About doesn't check either.
    `<file>.<size>.part`. If the download stops, it carries on from where it was.
 3. **Verify.** The file's size and SHA-256 checksum must match the release's own record: GitHub's
    `digest` for the file, or else the release's `SHA256SUMS.txt`. A file that doesn't match is
-   deleted.
+   deleted. Once MailCraft is built with the project's public key (see
+   [signed updates](#signed-updates)), only the release's `SHA256SUMS.txt` counts, and only if its
+   signature `SHA256SUMS.txt.minisig` checks out against that key and names this release; a
+   release without one isn't installed.
 4. **Announce.** A bar offers **Restart now** or **Later**. The system shows one notification per
    version, and the status bar shows the download's progress.
 5. **Close.** Closing MailCraft offers **Update and close** or **Close without updating**. If the
@@ -91,8 +94,34 @@ ones. At each start MailCraft tidies whatever else the old id left:
   checking, scheduling, how this copy was installed, and the helper; `self_update/renamed.rs`:
   tidying what the old id left.
 - `crates/engine/src/session.rs` (`newer_release`): which release is newer, by channel.
-- `crates/net/src/updates.rs` and `updates/download.rs`: reading the release list and downloading.
+- `crates/net/src/updates.rs` and `updates/download.rs`: reading the release list and downloading;
+  `updates/signed.rs`: the public keys and checking the checksums' signature.
 - `crates/ui-egui/src/app/updates.rs` and `dialogs/closing.rs`: the bar and the close dialog.
 
-Signed updates, staged rollouts and delta downloads are still missing. See
+## Signed updates
+
+A release's `SHA256SUMS.txt` can be signed with [minisign](https://jedisct1.github.io/minisign/)
+(or rsign2, its Rust port, which writes the same files). The signature covers every file by its
+checksum, and its trusted comment, `MailCraft <tag>`, names the release, so an older release's
+checksums can't stand in for a newer one's. Until MailCraft is built with a public key, releases
+needn't be signed and nothing changes.
+
+To start signing (the owner, once):
+
+1. Make a key pair without a password, kept off any repository:
+   `minisign -G -W -p mailcraft.pub -s mailcraft.key` (or `rsign generate -W -p … -s …`).
+2. Add the private key's file, as it is, as the repository secret `MAILCRAFT_UPDATE_KEY`.
+   `release.yml` signs `SHA256SUMS.txt` with it; without the secret it signs nothing.
+3. Put the second line of `mailcraft.pub` (`RW…`) in `KEYS` in `crates/net/src/updates/signed.rs`.
+   From the version built with it, every later release must be signed (so the secret stays
+   set). Earlier versions keep checking the SHA-256 alone, so they still update to it.
+
+To change keys, list the new public key beside the old one for a version or two, then sign with
+the new key and drop the old one. If the private key leaks, builds that know it still trust what
+it signs: build a version with a new key alone and ask testers to install it by hand.
+
+A release can be checked by hand: `minisign -V -p mailcraft.pub -m SHA256SUMS.txt`, then
+`sha256sum -c SHA256SUMS.txt --ignore-missing`.
+
+Code-signed builds, staged rollouts and delta downloads are still missing. See
 [known gaps](gaps.md#4-signed-updates-and-releases).

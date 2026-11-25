@@ -78,6 +78,9 @@ pub struct Release {
     /// The release's `SHA256SUMS.txt`, for checking a download GitHub gives no digest for.
     #[serde(default)]
     pub sums: String,
+    /// That file's minisign signature (`SHA256SUMS.txt.minisig`), when the release has one.
+    #[serde(default)]
+    pub sums_sig: String,
 }
 
 /// Work for the network layer.
