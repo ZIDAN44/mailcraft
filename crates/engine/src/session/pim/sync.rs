@@ -29,6 +29,9 @@ impl Session {
         if let Some(schedules) = sync.auto_schedule {
             p.auto_schedule = schedules;
         }
+        if let Some(default) = &sync.default_calendar {
+            p.server_default = Some(default.clone());
+        }
         let deleted: HashSet<&str> = sync.deleted.iter().map(String::as_str).collect();
         p.deleted.retain(|t| !deleted.contains(t.href.as_str()));
         let told: HashSet<(&str, i64)> = sync.answered.iter().map(|(uid, at)| (uid.as_str(), *at)).collect();

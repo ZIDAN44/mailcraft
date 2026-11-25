@@ -297,6 +297,11 @@ pub struct Pim {
     /// #30); without one, [`Pim::default_calendar`] picks the account's own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chosen_calendar: Option<String>,
+    /// The calendar the server takes as the user's default (RFC 6638's
+    /// `schedule-default-calendar-URL`, issue #278), which [`Pim::default_calendar`] picks when
+    /// the user chose none. `Some("")`: the server was asked and names none; `None`: not asked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_default: Option<String>,
     /// Invitations that arrived before the server was asked where the calendars are, waiting to
     /// be put in the calendar once it's known (issue #30); kept, so a restart doesn't lose them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -453,6 +458,10 @@ pub struct DavSync {
     /// Whether the calendar server schedules (`calendar-auto-schedule`); `None`: not asked.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_schedule: Option<bool>,
+    /// The calendar the server takes as the user's default ([`Pim::server_default`]): `Some("")`
+    /// when it names none; `None`: not asked this time, what was known stays.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_calendar: Option<String>,
     /// Reminder answers the server took, or that no longer apply there (the event is gone): by
     /// uid and occurrence.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -547,20 +556,22 @@ impl Pim {
         // The old server's calendar can't be the default any more; the user said to keep the
         // calendar here for the old one.
         self.chosen_calendar = None;
+        self.server_default = None;
         self.keep_here = false;
     }
 
     /// The calendar new events and invitations go to: the one the user chose, else the
-    /// account's own on its server (SOGo's `personal` or a `default` first) rather than someone else's listed
-    /// with it, else the first that can be added to (issue #30).
+    /// account's own on its server (the one the server names its default, else SOGo's
+    /// `personal` or a `default`) rather than someone else's listed with it, else the first
+    /// that can be added to (issues #30, #278).
     pub fn default_calendar(&self) -> Option<&CalendarInfo> {
-        pick_calendar(self.calendars.iter(), self.chosen_calendar.as_deref())
+        pick_calendar(self.calendars.iter(), self.chosen_calendar.as_deref(), self.server_default.as_deref())
     }
 
     /// The calendar on the server events move to from this computer: as
     /// [`Pim::default_calendar`], among the server's own calendars only.
     pub fn server_calendar(&self) -> Option<&CalendarInfo> {
-        pick_calendar(self.calendars.iter().filter(|c| is_server_calendar(&c.id)), self.chosen_calendar.as_deref())
+        pick_calendar(self.calendars.iter().filter(|c| is_server_calendar(&c.id)), self.chosen_calendar.as_deref(), self.server_default.as_deref())
     }
 
     /// The user's own calendars on the server, that they may change: not someone else's listed
@@ -593,13 +604,25 @@ pub fn is_server_calendar(id: &str) -> bool {
     id != LOCAL && !is_web_calendar(id) && shared_calendar_owner(id).is_none() && !id.is_empty()
 }
 
-/// The calendar new events go to among these (see [`Pim::default_calendar`]).
-pub fn pick_calendar<'a>(calendars: impl Iterator<Item = &'a CalendarInfo> + Clone, chosen: Option<&str>) -> Option<&'a CalendarInfo> {
+/// The calendar new events go to among these (see [`Pim::default_calendar`]): the one `chosen`
+/// by the user, else the one the server names its default (`server`), each when it can be added
+/// to.
+pub fn pick_calendar<'a>(
+    calendars: impl Iterator<Item = &'a CalendarInfo> + Clone,
+    chosen: Option<&str>,
+    server: Option<&str>,
+) -> Option<&'a CalendarInfo> {
     let writable = |c: &&CalendarInfo| !c.read_only && !is_web_calendar(&c.id);
     if let Some(c) = chosen.and_then(|id| calendars.clone().filter(writable).find(|c| c.id == id)) {
         return Some(c);
     }
     let own = |c: &&CalendarInfo| writable(c) && !c.foreign && shared_calendar_owner(&c.id).is_none();
+    // The server's default as it names it (issue #278), when it's among these (a trailing slash
+    // aside) and the user's own.
+    let same = |a: &str, b: &str| a.trim_end_matches('/') == b.trim_end_matches('/');
+    if let Some(c) = server.filter(|s| !s.is_empty()).and_then(|s| calendars.clone().filter(own).find(|c| same(&c.id, s))) {
+        return Some(c);
+    }
     // The server's own default by its name: SOGo's `personal`, Stalwart's and Radicale-style
     // `default` (issue #278), before the order the server lists them in.
     let named_default = |c: &&CalendarInfo| {
@@ -719,14 +742,14 @@ mod default_calendar_tests {
             cal("https://d.example/u/personal/", false, false),
             cal(LOCAL, false, false),
         ];
-        let pick = |chosen: Option<&str>| pick_calendar(list.iter(), chosen).map(|c| c.id.clone());
+        let pick = |chosen: Option<&str>| pick_calendar(list.iter(), chosen, None).map(|c| c.id.clone());
         assert_eq!(pick(None).as_deref(), Some("https://d.example/u/personal/"));
         assert_eq!(pick(Some("https://d.example/u/sam_team/")).as_deref(), Some("https://d.example/u/sam_team/"), "chosen");
         assert_eq!(pick(Some("https://d.example/web/")).as_deref(), Some("https://d.example/u/personal/"), "read-only: not taken");
         assert_eq!(pick(Some("gone")).as_deref(), Some("https://d.example/u/personal/"));
         let theirs = [cal("https://d.example/u/sam_team/", false, true), cal(&web_calendar_id("https://x/a.ics"), false, false)];
-        assert_eq!(pick_calendar(theirs.iter(), None).map(|c| c.id.as_str()), Some("https://d.example/u/sam_team/"), "only someone else's");
-        assert!(pick_calendar([cal("https://d.example/ro/", true, false)].iter(), None).is_none());
+        assert_eq!(pick_calendar(theirs.iter(), None, None).map(|c| c.id.as_str()), Some("https://d.example/u/sam_team/"), "only someone else's");
+        assert!(pick_calendar([cal("https://d.example/ro/", true, false)].iter(), None, None).is_none());
         let p = Pim { calendars: list.clone(), ..Default::default() };
         assert_eq!(p.server_calendar().map(|c| c.id.as_str()), Some("https://d.example/u/personal/"));
         let only_here =
@@ -747,5 +770,30 @@ mod default_calendar_tests {
         let p = Pim { calendars: list, ..Default::default() };
         assert_eq!(p.default_calendar().map(|c| c.id.as_str()), Some("https://d.example/dav/cal/zoe/Default/"));
         assert_eq!(p.server_calendar().map(|c| c.id.as_str()), Some("https://d.example/dav/cal/zoe/Default/"));
+    }
+
+    /// Issue #278: the calendar the server names its default comes before any name, the one the
+    /// user chose before it; one the server names that isn't the user's own, or can't be added
+    /// to, is passed over.
+    #[test]
+    fn the_calendar_the_server_names_its_default_comes_first() {
+        let list = vec![
+            cal("https://d.example/dav/cal/zoe/default/", false, false),
+            cal("https://d.example/dav/cal/zoe/posts/", false, false),
+            cal("https://d.example/dav/cal/zoe/archive/", true, false),
+            cal("https://d.example/dav/cal/zoe/sam/", false, true),
+        ];
+        let mut p = Pim { calendars: list, server_default: Some("https://d.example/dav/cal/zoe/posts".into()), ..Default::default() };
+        assert_eq!(p.default_calendar().map(|c| c.id.as_str()), Some("https://d.example/dav/cal/zoe/posts/"), "a trailing slash aside");
+        assert_eq!(p.server_calendar().map(|c| c.id.as_str()), Some("https://d.example/dav/cal/zoe/posts/"));
+        p.chosen_calendar = Some("https://d.example/dav/cal/zoe/default/".into());
+        assert_eq!(p.default_calendar().map(|c| c.id.as_str()), Some("https://d.example/dav/cal/zoe/default/"), "the user's choice first");
+        p.chosen_calendar = None;
+        for passed_over in ["https://d.example/dav/cal/zoe/archive/", "https://d.example/dav/cal/zoe/sam/", ""] {
+            p.server_default = Some(passed_over.into());
+            assert_eq!(p.default_calendar().map(|c| c.id.as_str()), Some("https://d.example/dav/cal/zoe/default/"), "{passed_over}");
+        }
+        p.leave_server();
+        assert_eq!(p.server_default, None, "the old server's default forgotten");
     }
 }

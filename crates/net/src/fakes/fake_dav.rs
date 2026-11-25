@@ -16,6 +16,8 @@ pub const CAL: &str = "/dav/cal/work/";
 pub const BOOK: &str = "/dav/card/main/";
 /// The user's scheduling outbox, when the server schedules (RFC 6638).
 pub const OUTBOX: &str = "/dav/outbox/";
+/// Its scheduling inbox, which names [`CAL`] the user's default calendar (RFC 6638 §9.2).
+pub const INBOX: &str = "/dav/inbox/";
 /// A list of tasks alone (`VTODO`), as Nextcloud's Tasks makes, when the server has one.
 pub const TASKS: &str = "/dav/cal/tasks/";
 

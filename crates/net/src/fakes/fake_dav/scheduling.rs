@@ -81,6 +81,34 @@ fn the_users_meeting_tells_a_scheduling_server_to_leave_it() {
     }
 }
 
+/// Issue #278: the calendar a server that schedules names the user's default is asked for at the
+/// first sync, then only when the calendars change; one that doesn't schedule isn't asked.
+#[test]
+fn the_servers_default_calendar_is_asked_once_and_again_as_calendars_change() {
+    for schedules in [true, false] {
+        let server = serve();
+        server.data.lock().unwrap().schedules = schedules;
+        let (mut pim, cal) = pim_at(&server);
+        let asked = |server: &Server| server.data.lock().unwrap().log.iter().filter(|l| l.ends_with(INBOX)).count();
+        let out = sync(&Dav::new(USER, PASSWORD), &AT, &pim, 100, Zone::UTC).unwrap();
+        assert!(out.errors.is_empty(), "{:?}", out.errors);
+        assert_eq!(out.default_calendar, schedules.then(|| cal.clone()), "schedules: {schedules}");
+        assert_eq!(asked(&server), usize::from(schedules));
+        if !schedules {
+            continue;
+        }
+        // Known, and the same calendars: not asked again.
+        pim.server_default = out.default_calendar.clone();
+        pim.calendars = out.calendars.clone().unwrap_or_default();
+        let again = sync(&Dav::new(USER, PASSWORD), &AT, &pim, 200, Zone::UTC).unwrap();
+        assert_eq!((again.default_calendar, asked(&server)), (None, 1), "known: not asked again");
+        // A calendar gone since (or one new): asked again.
+        pim.calendars.push(mailcraft_model::pim::CalendarInfo { id: format!("{}/dav/cal/gone/", server.base), ..Default::default() });
+        let changed = sync(&Dav::new(USER, PASSWORD), &AT, &pim, 300, Zone::UTC).unwrap();
+        assert_eq!((changed.default_calendar, asked(&server)), (Some(cal.clone()), 2), "the calendars changed: asked again");
+    }
+}
+
 /// An invitation from elsewhere put in the calendar here: the server never had the meeting, so
 /// the copy is marked as the guest's own, and the server leaves its answers to MailCraft. A
 /// meeting the server put in the calendar itself (a colleague's) is answered over its copy, as

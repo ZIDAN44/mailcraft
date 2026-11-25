@@ -439,6 +439,27 @@ impl Dav {
         Ok(resp.ok() && schedules_in(&resp.headers))
     }
 
+    /// The user's principal, from where their calendars are (`home`); `None` when not said.
+    fn principal(&self, home: &str) -> Result<Option<String>> {
+        let (items, at) = self.propfind(home, "0", "<d:current-user-principal/>")?;
+        items.iter().find_map(|i| i.hrefs.get("current-user-principal").and_then(|h| h.first())).map(|p| absolute(&at, p)).transpose()
+    }
+
+    /// The calendar the server takes as the user's default, from where their calendars are
+    /// (`home`): their scheduling inbox's `schedule-default-calendar-URL` (RFC 6638 §9.2, issue
+    /// #278), as Stalwart says it. `None` when the server names none.
+    pub fn default_calendar(&self, home: &str) -> Result<Option<String>> {
+        let Some(principal) = self.principal(home)? else { return Ok(None) };
+        let (items, at) = self.propfind(&principal, "0", "<c:schedule-inbox-URL/>")?;
+        let Some(inbox) =
+            items.iter().find_map(|i| i.hrefs.get("schedule-inbox-url").and_then(|h| h.first())).map(|h| absolute(&at, h)).transpose()?
+        else {
+            return Ok(None);
+        };
+        let (items, at) = self.propfind(&inbox, "0", "<c:schedule-default-calendar-URL/>")?;
+        items.iter().find_map(|i| i.hrefs.get("schedule-default-calendar-url").and_then(|h| h.first())).map(|h| absolute(&at, h)).transpose()
+    }
+
     /// The items in a collection and their etags.
     pub fn etags(&self, collection: &str) -> Result<Vec<(String, String)>> {
         let (items, at) = self.propfind(collection, "1", "<d:getetag/><d:resourcetype/>")?;
