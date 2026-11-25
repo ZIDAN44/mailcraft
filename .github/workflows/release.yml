@@ -449,6 +449,25 @@ jobs:
       - name: Checksums
         working-directory: artifacts
         run: sha256sum -- * | tee SHA256SUMS.txt
+      # The checksums signed with the project's minisign key (docs/updates.md, "Signed updates"),
+      # the release named in the signed comment. Without the secret nothing is signed: once a
+      # public key is built in, keep it set, or those builds won't install the release.
+      - name: Sign the checksums
+        working-directory: artifacts
+        env:
+          UPDATE_KEY: ${{ secrets.MAILCRAFT_UPDATE_KEY }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          if [ -z "$UPDATE_KEY" ]; then
+            echo "::notice::No MAILCRAFT_UPDATE_KEY: the checksums aren't signed"
+            exit 0
+          fi
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends minisign >/dev/null
+          key="$RUNNER_TEMP/update.key"
+          (umask 077 && printf '%s\n' "$UPDATE_KEY" >"$key")
+          minisign -S -s "$key" -m SHA256SUMS.txt -x SHA256SUMS.txt.minisig -t "MailCraft $TAG" </dev/null
+          rm -f "$key"
+          cat SHA256SUMS.txt.minisig
       - name: Publish
         working-directory: artifacts
         env:
