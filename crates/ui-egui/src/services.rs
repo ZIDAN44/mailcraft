@@ -134,6 +134,30 @@ pub enum KeptOnClose {
     Minimized,
 }
 
+/// Progress of an asynchronous spelling dictionary download.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum DictionaryDownload {
+    #[default]
+    Idle,
+    Downloading {
+        locale: String,
+        done: u64,
+        total: u64,
+    },
+    Error {
+        locale: String,
+        message: String,
+    },
+}
+
+/// A finished spelling dictionary download handed back to the UI (`files` is `Some` when stored
+/// in memory rather than on disk, e.g. on the web).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DownloadedDictionary {
+    pub locale: String,
+    pub files: Option<(Vec<u8>, Vec<u8>)>,
+}
+
 /// Platform services the UI needs.
 pub trait Services {
     /// Unix seconds and the local UTC offset in seconds.
@@ -372,6 +396,20 @@ pub trait Services {
     /// read it from the desktop portal); `None` when not known.
     fn system_dark(&self) -> Option<bool> {
         None
+    }
+    /// Whether this platform can download Hunspell spelling dictionaries asynchronously.
+    fn can_download_dictionaries(&self) -> bool {
+        false
+    }
+    /// Start downloading the `.aff` and `.dic` files for `locale`.
+    fn download_dictionary(&mut self, _locale: &str, _aff_url: &str, _dic_url: &str) {}
+    /// Current state of any active or failed dictionary download.
+    fn dictionary_download_state(&self) -> DictionaryDownload {
+        DictionaryDownload::Idle
+    }
+    /// Drain completed dictionary downloads ready to activate in the UI.
+    fn take_downloaded_dictionaries(&mut self) -> Vec<DownloadedDictionary> {
+        Vec::new()
     }
 }
 

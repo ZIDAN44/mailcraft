@@ -19,7 +19,7 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
     ui.set_max_width(ui.available_width().min(760.0));
     general::general(s, st, ui, acts);
     general::data_files(s, st, ui, acts);
-    mail::reading(s, &t, ui, acts);
+    mail::reading(s, st, ui, acts);
     mail::kept(s, &t, ui, acts);
     mail::checking(s, &t, ui, acts);
     inbox::inbox(s, &t, ui, acts);

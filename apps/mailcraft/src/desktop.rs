@@ -6,6 +6,7 @@ use super::*;
 
 pub(crate) mod agents;
 pub(crate) mod boot;
+pub(crate) mod dictionaries;
 pub(crate) mod fonts;
 mod lanes;
 pub(crate) mod launch;
@@ -65,6 +66,8 @@ pub(crate) struct Desktop {
     /// The data folder this MailCraft runs on, which a launch hands what it opens to: a
     /// notification's link reaches this one when it starts on it (issue #273).
     pub(crate) root: Option<PathBuf>,
+    /// Asynchronous Hunspell dictionary downloader and state.
+    pub(crate) dictionaries: dictionaries::Downloader,
 }
 
 impl Desktop {
@@ -442,6 +445,18 @@ impl Services for Desktop {
     }
     fn notification_clicked(&mut self) -> Option<Option<mailcraft_engine::model::MessageKey>> {
         self.clicks.take()
+    }
+    fn can_download_dictionaries(&self) -> bool {
+        self.dictionaries.has_dir()
+    }
+    fn download_dictionary(&mut self, locale: &str, aff_url: &str, dic_url: &str) {
+        self.dictionaries.start(locale, aff_url, dic_url);
+    }
+    fn dictionary_download_state(&self) -> mailcraft_ui_egui::DictionaryDownload {
+        self.dictionaries.state()
+    }
+    fn take_downloaded_dictionaries(&mut self) -> Vec<mailcraft_ui_egui::DownloadedDictionary> {
+        self.dictionaries.take_ready()
     }
 }
 

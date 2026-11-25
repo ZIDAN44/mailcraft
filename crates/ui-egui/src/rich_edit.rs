@@ -629,6 +629,11 @@ fn text_menu(resp: &egui::Response, ed: &mut Editor, c: &mut Compose, acts: &mut
         if item(ui, "Select all", "Ctrl+A", n > 0) {
             ed.refocus = Some(0..n);
         }
+        ui.separator();
+        ui.menu_button(tl!("Language"), |ui| {
+            ui.set_min_width(210.0);
+            spelling::language_menu_items(ui, ed, acts);
+        });
         if !c.plain {
             ui.separator();
             if item(ui, if link.is_some() { "Edit link…" } else { "Link…" }, "Ctrl+K", !c.sending) {

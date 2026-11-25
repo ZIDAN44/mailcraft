@@ -86,6 +86,7 @@ impl MailApp {
             seen_notices: seen,
             craft_apps,
             can_drag_out: services.can_drag_out(),
+            can_download_dicts: services.can_download_dictionaries(),
             // Until the ribbon and the list are first drawn: every button labelled, a page of ten.
             ribbon_icons_from: usize::MAX,
             list_page: 10,
@@ -351,8 +352,30 @@ impl MailApp {
         }
         // Snoozed mail that is due comes back.
         self.session.tick();
-        // Spelling as you type, and the words added to the dictionary (issue #174).
-        rich_edit::spelling::follow(self.session.prefs.spelling, &self.session.prefs.dictionary);
+        // Downloaded spelling dictionaries finish asynchronously on desktop or in the browser.
+        self.ui.dict_download = self.services.dictionary_download_state();
+        for done in self.services.take_downloaded_dictionaries() {
+            let installed = match done.files {
+                Some((aff, dic)) => rich_edit::spelling::install_in_memory(&done.locale, &aff, &dic),
+                None => {
+                    rich_edit::spelling::reload_dictionaries();
+                    Ok(())
+                }
+            };
+            match installed {
+                Ok(()) => {
+                    self.run("options.spellingLanguage", json!({ "language": done.locale }));
+                    let name = rich_edit::spelling::display_name(&done.locale);
+                    self.session.notice(tf!("Spelling dictionary installed: {language}", language = name), false);
+                }
+                Err(e) => {
+                    self.session.notice(tf!("Download failed: {error}", error = e), true);
+                }
+            }
+        }
+        rich_edit::spelling::set_download_status(self.ui.can_download_dicts, self.ui.dict_download.clone());
+        // Spelling as you type, its language, and the words added to the dictionary (issue #174).
+        rich_edit::spelling::follow(self.session.prefs.spelling, self.session.prefs.spelling_language.as_deref(), &self.session.prefs.dictionary);
     }
 
     pub(super) fn flush_jobs(&mut self) {

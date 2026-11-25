@@ -2168,3 +2168,16 @@ count	occurrences	회
 	Their times can't be had: {why}	시간을 알 수 없습니다: {why}
 	You	나
 	{free} of {all} free	{all}명 중 {free}명 가능
+	Download dictionary	사전 다운로드
+	Download failed: {error}	다운로드 실패: {error}
+	Download more dictionaries…	더 많은 사전 다운로드…
+	Downloading…	다운로드 중…
+	Downloading… {pct}%	다운로드 중… {pct}%
+	Filter languages	언어 필터
+	Follow interface language	인터페이스 언어 따르기
+	Installed	설치됨
+	Retry	다시 시도
+	Spelling dictionaries	맞춤법 사전
+	Spelling dictionary installed: {language}	맞춤법 사전 설치됨: {language}
+	Spelling language	맞춤법 언어
+	Spelling language: {language}	맞춤법 언어: {language}

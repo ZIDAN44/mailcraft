@@ -553,6 +553,9 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                     }
                     None => Box::new(mailcraft_ui_egui::NullBackend),
                 };
+                let dict_dir = root.clone().or_else(mailcraft_engine::store::location::base_root).map(|r| r.join("dictionaries"));
+                mailcraft_ui_egui::set_dictionaries_dir(dict_dir.clone());
+                let dictionaries = desktop::dictionaries::Downloader::new(dict_dir, ctx.clone());
                 let mut app = MailApp::new(
                     session,
                     backend,
@@ -568,6 +571,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                         x11,
                         clicks: desktop::notified::Clicks::waking(ctx),
                         root: root.clone(),
+                        dictionaries,
                         ..Default::default()
                     }),
                 );

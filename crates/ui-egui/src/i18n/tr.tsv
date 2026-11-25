@@ -2169,3 +2169,16 @@ count	occurrences	kez
 	Their times can't be had: {why}	Zamanlarına ulaşılamıyor: {why}
 	You	Siz
 	{free} of {all} free	{all} kişiden {free} kişi boş
+	Download dictionary	Sözlüğü indir
+	Download failed: {error}	İndirme başarısız: {error}
+	Download more dictionaries…	Daha fazla sözlük indir…
+	Downloading…	İndiriliyor…
+	Downloading… {pct}%	İndiriliyor… %{pct}
+	Filter languages	Dilleri filtrele
+	Follow interface language	Arayüz dilini izle
+	Installed	Yüklü
+	Retry	Yeniden dene
+	Spelling dictionaries	Yazım denetimi sözlükleri
+	Spelling dictionary installed: {language}	Yazım denetimi sözlüğü yüklendi: {language}
+	Spelling language	Yazım denetimi dili
+	Spelling language: {language}	Yazım denetimi dili: {language}

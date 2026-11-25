@@ -337,4 +337,8 @@ pub struct UiState {
     pub(crate) import_details: Option<String>,
     /// Send / Receive's progress window.
     pub(crate) send_receive: super::chrome::send_receive::SendReceiveUi,
+    /// Whether the platform supports downloading Hunspell dictionaries asynchronously.
+    pub(crate) can_download_dicts: bool,
+    /// Progress or error of an active spelling dictionary download.
+    pub(crate) dict_download: DictionaryDownload,
 }

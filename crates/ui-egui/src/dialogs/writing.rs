@@ -138,9 +138,76 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(8.0);
             close_row(ui)
         }
+        Dialog::Dictionaries { filter } => dictionaries(ui, filter, t, acts),
         // Every other kind is shown by its own group (`body`).
         _ => true,
     }
+}
+
+fn dictionaries(ui: &mut Ui, filter: &mut String, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+    use crate::DictionaryDownload;
+    use crate::rich_edit::spelling;
+
+    ui.set_width(480.0);
+    title(ui, t, "Spelling dictionaries");
+    let (can_download, state) = spelling::download_status();
+    let active = spelling::active_locale();
+
+    ui.horizontal(|ui| {
+        ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Filter languages")).desired_width(ui.available_width()));
+    });
+    ui.add_space(6.0);
+
+    if let DictionaryDownload::Error { locale, message } = &state {
+        let name = spelling::display_name(locale);
+        ui.horizontal_wrapped(|ui| {
+            ui.label(RichText::new(tf!("Download failed: {error}", error = format!("{name}: {message}"))).color(t.danger));
+            if ui.button(tl!("Retry")).clicked() {
+                acts.push(Action::DownloadDictionary(locale.clone()));
+            }
+        });
+        ui.add_space(6.0);
+    }
+
+    let q = filter.trim().to_lowercase();
+    let busy = matches!(state, DictionaryDownload::Downloading { .. });
+    egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(4.0).inner_margin(Margin::same(6)).show(ui, |ui| {
+        egui::ScrollArea::vertical().max_height(320.0).auto_shrink([false, true]).show(ui, |ui| {
+            for src in spelling::downloadable_dictionaries() {
+                if !q.is_empty() && !src.name.to_lowercase().contains(&q) && !src.locale.to_lowercase().contains(&q) {
+                    continue;
+                }
+                ui.horizontal(|ui| {
+                    ui.label(RichText::new(src.name).color(t.text));
+                    ui.label(RichText::new(src.locale).color(t.dim).small());
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let installed = spelling::has_dictionary_for(src.locale);
+                        let is_active = active.eq_ignore_ascii_case(src.locale);
+                        if let DictionaryDownload::Downloading { locale, done, total } = &state
+                            && locale.eq_ignore_ascii_case(src.locale)
+                        {
+                            ui.spinner();
+                            ui.label(RichText::new(spelling::download_progress_text(*done, *total)).color(t.dim).small());
+                        } else if installed {
+                            if is_active {
+                                ui.label(RichText::new(tl!("Installed")).color(t.accent).small());
+                            } else {
+                                if ui.button(tl!("Use")).clicked() {
+                                    acts.push(Action::Run("options.spellingLanguage", json!({ "language": src.locale })));
+                                }
+                                ui.label(RichText::new(tl!("Installed")).color(t.dim).small());
+                            }
+                        } else if can_download && ui.add_enabled(!busy, egui::Button::new(tl!("Download"))).clicked() {
+                            acts.push(Action::DownloadDictionary(src.locale.to_string()));
+                        }
+                    });
+                });
+                ui.add_space(2.0);
+            }
+        });
+    });
+    ui.add_space(8.0);
+    close_row(ui)
 }
 
 /// Check Names' question (issue #211): a name typed that could be several people, and who.

@@ -193,6 +193,10 @@ pub struct Prefs {
     /// Check spelling as you type (issue #174): misspelled words underlined in the message
     /// editor, as Outlook does (on unless turned off).
     pub spelling: bool,
+    /// The language spelling is checked in (`en_US`, `bg_BG`, …). `None` follows the interface
+    /// language.
+    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "checked_spelling_language")]
+    pub spelling_language: Option<String>,
     /// The words added to the dictionary (Add to dictionary), taken as spelled right in every
     /// language.
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty", deserialize_with = "checked_words")]
@@ -476,6 +480,7 @@ impl Default for Prefs {
             notify: true,
             notify_other: false,
             spelling: true,
+            spelling_language: None,
             dictionary: BTreeSet::new(),
             compose_font: None,
             compose_size: None,
@@ -658,6 +663,52 @@ fn checked_size<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u8>, D:
 fn checked_words<'de, D: serde::Deserializer<'de>>(d: D) -> Result<BTreeSet<String>, D::Error> {
     let read = <Vec<String> as serde::Deserialize>::deserialize(d)?;
     Ok(read.iter().filter_map(|w| dictionary_word(w)).take(DICTIONARY_MAX).collect())
+}
+
+/// Normalize a spelling language tag (`en-us` → `en_US`, `bg_bg` → `bg_BG`, `ar` → `ar`), or
+/// `None` when it is empty, `"auto"`, too long, or malformed.
+pub fn spelling_language_code(raw: &str) -> Option<String> {
+    let s = raw.trim();
+    if s.is_empty() || s.eq_ignore_ascii_case("auto") || s.len() > 32 {
+        return None;
+    }
+    if !s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-') {
+        return None;
+    }
+    let parts: Vec<&str> = s.split(['_', '-']).collect();
+    if parts.is_empty() || parts.len() > 3 || parts.iter().any(|p| p.is_empty()) {
+        return None;
+    }
+    let first = parts.first()?;
+    if !(2..=3).contains(&first.len()) || !first.bytes().all(|b| b.is_ascii_alphabetic()) {
+        return None;
+    }
+    let mut out = first.to_ascii_lowercase();
+    if let Some(second) = parts.get(1) {
+        if !(2..=4).contains(&second.len()) || !second.bytes().all(|b| b.is_ascii_alphanumeric()) {
+            return None;
+        }
+        out.push('_');
+        if second.len() == 2 && second.bytes().all(|b| b.is_ascii_alphabetic()) {
+            out.push_str(&second.to_ascii_uppercase());
+        } else {
+            out.push_str(second);
+        }
+    }
+    if let Some(third) = parts.get(2) {
+        if third.len() > 16 || !third.bytes().all(|b| b.is_ascii_alphanumeric()) {
+            return None;
+        }
+        out.push('_');
+        out.push_str(&third.to_ascii_lowercase());
+    }
+    Some(out)
+}
+
+/// The spelling language read from disk: a valid locale code, or `None` (follow UI language).
+fn checked_spelling_language<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    let read = <Option<serde_json::Value> as serde::Deserialize>::deserialize(d)?;
+    Ok(read.and_then(|v| v.as_str().and_then(spelling_language_code)))
 }
 
 /// An accent as it's kept: a name from [`ACCENTS`] or `#rrggbb` (lower case); `""` for

@@ -150,9 +150,38 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
             let text: String = chars_in(&c.body, range).filter(|ch| *ch != rich::PICTURE).collect();
             acts.push(Action::Dialog(Dialog::WordCount(count_words(&text), !sel.is_empty())));
         }
+        spelling_language_button(ui, t, ed, acts);
     });
     link_dialog(ui, t, ed, c);
     apply_ops(ui.ctx(), ed, c, ops);
+}
+
+/// Compact spelling language switcher on the compose toolbar: displays the active language badge
+/// and opens a menu of all discovered dictionaries plus "Download more dictionaries…".
+fn spelling_language_button(ui: &mut Ui, t: &Tokens, ed: &mut Editor, acts: &mut Vec<Action>) {
+    let badge = super::spelling::active_badge();
+    let active_name = super::spelling::display_name(&super::spelling::active_locale());
+    let galley = ui.painter().layout_job(egui::text::LayoutJob::single_section(badge.clone(), egui::TextFormat::simple(theme::bold(11.5), t.text)));
+    let w = (galley.size().x + 24.0).max(40.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(w, ROW_H), Sense::click());
+    let box_rect = rect.shrink2(vec2(0.0, (ROW_H - 28.0) / 2.0));
+    crate::widgets::named(ui, &resp, tl!("Spelling language"), true, None);
+    if resp.hovered() {
+        ui.painter().rect_filled(box_rect, 4.0, t.hover);
+    }
+    let text_pos = egui::pos2(box_rect.min.x + 6.0, box_rect.center().y - galley.size().y / 2.0);
+    ui.painter().galley(text_pos, galley, t.text);
+    icons::paint(
+        ui.painter(),
+        Rect::from_min_size(egui::pos2(box_rect.max.x - 12.0, box_rect.center().y - 4.0), vec2(8.0, 8.0)),
+        Icon::ChevronDown,
+        t.dim,
+    );
+    let resp = resp.on_hover_text(tf!("Spelling language: {language}", language = active_name));
+    egui::Popup::menu(&resp).show(|ui| {
+        ui.set_min_width(220.0);
+        super::spelling::language_menu_items(ui, ed, acts);
+    });
 }
 
 /// What a ribbon shows the buttons for: the selection (inside the text), the look there (what

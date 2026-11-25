@@ -2182,3 +2182,16 @@ count	occurrences	повторений
 	Their times can't be had: {why}	Их время недоступно: {why}
 	You	Вы
 	{free} of {all} free	Свободны: {free} из {all}
+	Download dictionary	Скачать словарь
+	Download failed: {error}	Ошибка загрузки: {error}
+	Download more dictionaries…	Скачать другие словари…
+	Downloading…	Загрузка…
+	Downloading… {pct}%	Загрузка… {pct}%
+	Filter languages	Фильтр языков
+	Follow interface language	Как язык интерфейса
+	Installed	Установлен
+	Retry	Повторить
+	Spelling dictionaries	Словари правописания
+	Spelling dictionary installed: {language}	Установлен словарь правописания: {language}
+	Spelling language	Язык проверки правописания
+	Spelling language: {language}	Язык проверки правописания: {language}

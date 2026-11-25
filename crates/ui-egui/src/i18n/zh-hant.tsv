@@ -2168,3 +2168,16 @@ count	occurrences	次
 	Their times can't be had: {why}	無法取得他們的時間: {why}
 	You	你
 	{free} of {all} free	{all} 人中 {free} 人有空
+	Download dictionary	下載詞典
+	Download failed: {error}	下載失敗: {error}
+	Download more dictionaries…	下載更多詞典…
+	Downloading…	正在下載…
+	Downloading… {pct}%	正在下載… {pct}%
+	Filter languages	篩選語言
+	Follow interface language	跟隨介面語言
+	Installed	已安裝
+	Retry	重試
+	Spelling dictionaries	拼寫詞典
+	Spelling dictionary installed: {language}	已安裝拼寫詞典: {language}
+	Spelling language	拼寫檢查語言
+	Spelling language: {language}	拼寫檢查語言: {language}

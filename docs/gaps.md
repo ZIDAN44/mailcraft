@@ -109,18 +109,18 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 
 ### 9. Spelling: what isn't checked yet
 
-- **Impact:** Spelling is checked as you type in the interface's language only, and in the
-  message's text only (not its subject). There's no Spelling window to go through a message's
-  mistakes one by one (Outlook's F7), and no check before sending. English uses the Craft apps'
+- **Impact:** Spelling is checked in the message's text only (not its subject). There's no Spelling
+  window to go through a message's mistakes one by one (Outlook's F7), and no check before
+  sending. When no English Hunspell dictionary is installed, English uses the Craft apps'
   built-in word list, which takes a few common misspellings (`thier`, `untill`, `occured`) as
-  words. In the browser, only English is checked.
-- **Workaround:** Install a Hunspell dictionary for your language (Linux: the `hunspell-xx`
-  package; macOS: `.aff` and `.dic` files in `~/Library/Spelling`; any system: LibreOffice and its
-  language's dictionary). An English Hunspell dictionary installed there is used instead of the
-  built-in list.
-- **Cause:** The checker is the Craft apps' shared `craft-proof`. Its better English (SCOWL) and
-  its other languages' data come from storytold's `craft-i18n` at build time, which MailCraft's
-  builds don't include yet; it brings no dictionaries of its own for other languages.
+  words.
+- **Workaround:** Switch the spelling language from the compose toolbar or right-click **Language**
+  menu, or choose **Download dictionary** / **Download more dictionaries…** under **File ›
+  Options › Mail** (or place `.aff`/`.dic` files in MailCraft's `dictionaries` folder). An English
+  Hunspell dictionary installed there is used instead of the built-in list.
+- **Cause:** The checker is the Craft apps' shared `craft-proof`. Its better English (SCOWL) comes
+  from storytold's `craft-i18n` at build time, which MailCraft's builds don't include yet; other
+  languages' Hunspell dictionaries are downloaded on demand rather than bundled.
 
 ### 10. Screen readers: what isn't read yet
 

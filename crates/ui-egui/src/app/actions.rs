@@ -177,6 +177,8 @@ pub enum Action {
     ShowFormatted(MessageKey, bool),
     /// Forget a move asked for.
     CancelDataMove,
+    /// Download and install the Hunspell spelling dictionary for a locale (`bg_BG`, `de_DE`, …).
+    DownloadDictionary(String),
 }
 
 impl MailApp {
@@ -385,6 +387,13 @@ impl MailApp {
             Action::SignatureFile => self.signature_file(),
             Action::PasteFiles => self.paste_files(),
             Action::AttachFiles => self.attach_files(),
+            Action::DownloadDictionary(locale) => {
+                if let Some(src) = rich_edit::spelling::download_source(&locale) {
+                    self.services.download_dictionary(src.locale, &src.aff_url(), &src.dic_url());
+                    self.ui.dict_download = self.services.dictionary_download_state();
+                    rich_edit::spelling::set_download_status(self.ui.can_download_dicts, self.ui.dict_download.clone());
+                }
+            }
         }
     }
 

@@ -106,11 +106,14 @@ pub fn start() {
                     }
                     let backend = WebBackend::new(store.clone(), cc.egui_ctx.clone());
                     let restore = Restoring::default();
+                    let dicts = crate::dictionaries::Handle::default();
+                    wasm_bindgen_futures::spawn_local(crate::dictionaries::init(dicts.clone(), cc.egui_ctx.clone()));
                     let services = WebServices {
                         picked: Rc::default(),
                         ctx: cc.egui_ctx.clone(),
                         font: Rc::default(),
                         restore: restore.clone(),
+                        dicts,
                         keeps: db.is_some(),
                     };
                     let mut app = MailApp::new(session, Box::new(backend), Box::new(services));
@@ -313,6 +316,7 @@ struct WebServices {
     ctx: egui::Context,
     font: Rc<RefCell<FontFetch>>,
     restore: Restoring,
+    dicts: crate::dictionaries::Handle,
     /// Whether this page keeps anything between visits (not the sample, nor without IndexedDB).
     keeps: bool,
 }
@@ -441,6 +445,18 @@ impl Services for WebServices {
     }
     fn font_pending(&self) -> bool {
         matches!(*self.font.borrow(), FontFetch::Fetching)
+    }
+    fn can_download_dictionaries(&self) -> bool {
+        true
+    }
+    fn download_dictionary(&mut self, locale: &str, aff_url: &str, dic_url: &str) {
+        crate::dictionaries::start(&self.dicts, locale, aff_url, dic_url, &self.ctx);
+    }
+    fn dictionary_download_state(&self) -> mailcraft_ui_egui::DictionaryDownload {
+        crate::dictionaries::state(&self.dicts)
+    }
+    fn take_downloaded_dictionaries(&mut self) -> Vec<mailcraft_ui_egui::DownloadedDictionary> {
+        crate::dictionaries::take_ready(&self.dicts)
     }
 }
 
