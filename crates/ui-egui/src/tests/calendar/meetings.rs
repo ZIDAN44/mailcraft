@@ -369,9 +369,18 @@ fn a_new_time_is_proposed_and_taken() {
     }
     let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
     assert!(texts.iter().any(|t| t.starts_with("Zoe Park proposes a new time: ")), "{texts:?}");
+    // Answered invitations kept where they are: the proposal stays open to read.
+    a.session.prefs.answered_invites = mailcraft_engine::AnsweredInvites::Keep;
     click_named(&ctx, &mut a, "Accept proposal");
     frame(&ctx, &mut a, vec![]);
     assert_eq!(a.session.find_event(&uid).unwrap().1.event.start, proposal.start, "moved");
+    // Taken, it says so (issue #238: it read "This invitation is out of date").
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(texts.iter().any(|t| t.starts_with("Proposal accepted: the meeting is at ")), "{texts:?}");
+    assert!(!texts.iter().any(|t| t.contains("out of date")) && !has(&texts, "Accept proposal"), "{texts:?}");
 
     // Invited: Propose new time opens its form, which sends the proposal.
     let k = a.session.list.iter().find(|m| m.subject == "Sound mix, version 3").map(|m| m.key.clone()).unwrap();

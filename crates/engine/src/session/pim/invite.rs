@@ -50,7 +50,8 @@ pub struct Invite {
     pub in_calendar: bool,
     /// For a reply or a proposal: who answered, and how.
     pub replier: Option<Attendee>,
-    /// For a reply: the calendar has that answer already (recorded as it arrived, issue #236).
+    /// The calendar has it already: a reply's answer (recorded as it arrived, issue #236), or a
+    /// proposal's time (accepted, issue #238: it read as an invitation out of date).
     pub recorded: bool,
     /// Why it can't be taken into the calendar, when it can't.
     pub problem: Option<InviteProblem>,
@@ -335,9 +336,15 @@ impl Session {
         let answers = matches!(method.as_str(), "REPLY" | "COUNTER");
         let replier = answers.then(|| event.attendees.iter().find(|a| same_address(&a.email, &sender)).cloned()).flatten();
         let problem = self.answer_problem(&cal, &sender).or_else(|| (answers && replier.is_none()).then_some(InviteProblem::NotFromGuest));
-        let recorded = replier.as_ref().is_some_and(|who| {
-            stored.as_ref().is_some_and(|s| s.attendees.iter().any(|a| same_address(&a.email, &who.email) && a.partstat == who.partstat))
-        });
+        let recorded = if method == "COUNTER" {
+            stored.as_ref().is_some_and(|s| s.start == event.start && s.end == event.end)
+        } else {
+            replier.as_ref().is_some_and(|who| {
+                stored.as_ref().is_some_and(|s| s.attendees.iter().any(|a| same_address(&a.email, &who.email) && a.partstat == who.partstat))
+            })
+        };
+        // A proposal taken is newer in the calendar for having been taken, not out of date.
+        let problem = problem.filter(|p| !(recorded && method == "COUNTER" && *p == InviteProblem::OutOfDate));
         let (delegable, handed_to, handed_by) = self.handed(&method, &event, stored.as_ref().unwrap_or(&event), &r.key.account);
         Some(Invite { method, event, answer, in_calendar: !parts.is_empty(), replier, recorded, problem, delegable, handed_to, handed_by })
     }

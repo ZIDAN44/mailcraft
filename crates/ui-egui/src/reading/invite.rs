@@ -117,6 +117,11 @@ pub(super) fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Mess
             // the user's (issue #238).
             "COUNTER" => {
                 let name = inv.replier.as_ref().map(|w| if w.name.is_empty() { w.email.clone() } else { w.name.clone() }).unwrap_or_default();
+                // Taken already (issue #238: it said "out of date" once accepted).
+                if inv.recorded {
+                    ui.label(RichText::new(tf!("Proposal accepted: the meeting is at {when} now.", when = invite_when(e, s))).color(t.text));
+                    return;
+                }
                 ui.label(RichText::new(tf!("{name} proposes a new time: {when}", name = name, when = invite_when(e, s))).color(t.text));
                 ui.horizontal_wrapped(|ui| {
                     if widgets::pill_button(ui, Icon::Read, "Accept proposal", &t).clicked() {

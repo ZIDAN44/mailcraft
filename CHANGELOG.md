@@ -60,6 +60,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Fixed
 
+- A proposed new time you accepted says so on its message ("Proposal accepted: the meeting is at … now"), where it said the invitation was out of date, and a proposal you answer leaves the Inbox as an answered invitation does (#238).
 - The reminder window's buttons no longer overlap in German and other languages, with **Join meeting** on a line of its own; each reminder sounds (the second of two came silent); one minute, hour or day away is said in the singular ("In 1 Minute"); and its hint names the Snooze button as it reads in Arabic, German, French, Italian and Chinese (#239).
 - **Forward** on one occurrence of a series (opened with **This occurrence**) sends that occurrence alone, and asks this occurrence or the whole series as **Delegate** does; the whole series went (#234).
 - Clicking MailCraft's notification of new mail brings MailCraft forward with the newest of that mail open (#273), from a minimized window or the notification area too; it did nothing. On Windows, one clicked later in the notification centre does too, as the installer registers MailCraft's own `mailcraft:` links for it (a portable copy's, while it shows: [gap 26](docs/gaps.md#26-a-portable-copys-notifications-in-the-notification-centre)); on Linux and macOS, a click on it, in the notification list too.

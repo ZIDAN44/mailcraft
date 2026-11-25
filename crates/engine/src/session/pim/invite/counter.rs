@@ -84,9 +84,10 @@ impl Session {
     }
 
     /// Take the proposal in the open message: the meeting moves to its time, and every guest is
-    /// sent the meeting as it is now.
+    /// sent the meeting as it is now. Its mail goes where an answered invitation's does (#31).
     pub fn accept_proposal(&mut self) -> CmdResult {
         let (account, uid, proposal, _) = self.open_proposal()?;
+        let key = self.reading.as_ref().map(|r| r.key.clone());
         let before = self.find_event(&uid).map(|(_, e)| e.event.sequence).unwrap_or_default();
         self.update_event(&uid, |e| {
             e.start = proposal.start;
@@ -97,13 +98,17 @@ impl Session {
             let route = self.meeting_route(&account, &uid);
             self.tell_guests(&account, &stored, "REQUEST", route, "")?;
         }
-        Ok(serde_json::json!({"uid": uid, "start": proposal.start, "end": proposal.end}))
+        // Answered, the proposal leaves the Inbox as an answered invitation does (issue #238);
+        // that message alone, another guest's is theirs to read.
+        let moved = self.tidy_meeting_mail(&account, &uid, &[], None, &[], key.as_ref());
+        Ok(serde_json::json!({"uid": uid, "start": proposal.start, "end": proposal.end, "moved": moved}))
     }
 
     /// Turn down the proposal in the open message: its guest is told (`DECLINECOUNTER`), and the
-    /// meeting stays as it is.
+    /// meeting stays as it is. Its mail goes where an answered invitation's does (#31).
     pub fn decline_proposal(&mut self) -> CmdResult {
         let (account, uid, _, guest) = self.open_proposal()?;
+        let key = self.reading.as_ref().map(|r| r.key.clone());
         let Some(meeting) = self.find_event(&uid).map(|(_, e)| e.event.clone()) else {
             return Err(CmdError::Params(format!("no meeting `{uid}`")));
         };
@@ -117,7 +122,9 @@ impl Session {
         let body = format!("The proposed new time for {} was declined. The meeting stays as it was.", meeting.summary);
         let to = vec![EmailAddress::new(guest.name.clone(), guest.email.clone())];
         self.send_itip(&account, Itip { from: &from, to, method: "DECLINECOUNTER", events: &[declined], subject: &subject, body: &body })?;
-        Ok(serde_json::json!({"uid": uid, "declined": guest.email}))
+        // That message alone: another guest's proposal for the same meeting is still to answer.
+        let moved = self.tidy_meeting_mail(&account, &uid, &[], None, &[], key.as_ref());
+        Ok(serde_json::json!({"uid": uid, "declined": guest.email, "moved": moved}))
     }
 
     /// The proposal in the open message, when it can be taken or turned down: the account, the
