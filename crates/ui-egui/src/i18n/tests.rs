@@ -11,7 +11,8 @@ fn ui_sources() -> Vec<String> {
         for p in paths {
             let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
             if p.is_dir() {
-                if name != "i18n" && name != "tests" {
+                // `i18n/` too: the meeting mail's words are there (`mail.rs`).
+                if name != "tests" {
                     walk(&p, out);
                 }
             } else if name.ends_with(".rs") && name != "tests.rs" {
@@ -32,7 +33,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     // and the catalogs' own code left out.
     let sources = ui_sources();
     // (prefix, which string literals after it are interface text)
-    let prefixes: [(&str, &[usize]); 23] = [
+    let prefixes: [(&str, &[usize]); 24] = [
         ("tl!(", &[0]),
         ("tf!(", &[0]),
         ("tool_button(ui, Icon::", &[0]),
@@ -42,6 +43,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         ("tiny_icon_button(ui, Icon::", &[0]),
         ("title(ui, t, ", &[0]),
         ("buttons(ui, t, ", &[0]),
+        ("primary_button(ui, ", &[0]),
         ("row(ui, t, Icon::", &[0]),
         ("section(ui, t, ", &[0]),
         ("empty(ui, &t, ", &[0]),

@@ -658,3 +658,59 @@ fn one_occurrence_is_forwarded_from_its_form() {
     let cal = a.session.message_calendar(&m.key).expect("a meeting");
     assert_eq!(cal.events.iter().map(|e| e.recurrence_id).collect::<Vec<_>>(), [Some(at)], "that occurrence alone");
 }
+
+/// Issue #235: deleting the user's own meeting with guests asks first, as Outlook: the
+/// cancellation goes with the user's words; asked not to, none goes. In German the mail is in
+/// German, and the default categories, untouched, take German names.
+#[test]
+fn deleting_a_meeting_asks_how_its_guests_are_told() {
+    let (mut a, _) = app("cancel-meeting");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let made = |a: &mut MailApp, summary: &str| {
+        let p = json!({"summary": summary, "start": "2026-10-21T15:00", "attendees": "Zoe Park <zoe@studio.example>"});
+        a.session.run("event.create", &p).unwrap()["uid"].as_str().unwrap().to_string()
+    };
+    let delete = |a: &mut MailApp, uid: &str, button: &str| {
+        let start = a.session.find_event(uid).unwrap().1.event.start;
+        a.ui.dialog = Dialog::open_event(&a.session, uid, start);
+        for _ in 0..3 {
+            frame(&ctx, a, vec![]);
+        }
+        click_named(&ctx, a, "Delete");
+        let Some(Dialog::CancelMeeting(f)) = a.ui.dialog.as_mut() else { panic!("asked first: {:?}", a.ui.dialog) };
+        f.message = "The room is gone; next week instead.".into();
+        for _ in 0..2 {
+            frame(&ctx, a, vec![]);
+        }
+        click_named(&ctx, a, button);
+        frame(&ctx, a, vec![]);
+        assert!(a.ui.dialog.is_none(), "done: {:?}", a.ui.dialog);
+        assert!(a.session.find_event(uid).is_none(), "deleted");
+    };
+    let sent = |a: &MailApp, subject: &str| {
+        let st = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
+        st.messages.iter().find(|m| m.subject == subject).map(|m| {
+            let raw = a.session.store.as_ref().unwrap().read_body(&m.key).unwrap();
+            mailcraft_engine::mime::parse(&raw).unwrap().text
+        })
+    };
+    let uid = made(&mut a, "Grading");
+    delete(&mut a, &uid, "Send cancellation");
+    let text = sent(&a, "Cancelled: Grading").expect("the guests told");
+    assert!(text.contains("Grading has been cancelled.") && text.contains("The room is gone; next week instead."), "{text}");
+    let uid = made(&mut a, "Pitch");
+    delete(&mut a, &uid, "Delete without sending");
+    assert!(sent(&a, "Cancelled: Pitch").is_none(), "nobody told");
+
+    // In German: the mail, and the categories as they came.
+    a.session.prefs.categories = mailcraft_engine::model::organize::default_categories();
+    a.ui.language = "de".into();
+    frame(&ctx, &mut a, vec![]);
+    let uid = made(&mut a, "Schnitt");
+    assert!(sent(&a, "Einladung: Schnitt").is_some(), "the invitation in German");
+    a.session.run("event.delete", &json!({"uid": uid})).unwrap();
+    assert_eq!(sent(&a, "Abgesagt: Schnitt").as_deref().map(str::trim), Some("Schnitt wurde abgesagt."));
+    assert_eq!(a.session.prefs.categories[0].name, "Wichtig");
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+}

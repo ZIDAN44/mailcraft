@@ -2116,3 +2116,32 @@ count	occurrences	回
 	In 1 minute	1 分後
 	In 1 day	1 日後
 	Proposal accepted: the meeting is at {when} now.	提案を承諾しました: 会議は {when} になりました。
+	Invitation: {summary}	招待: {summary}
+	Updated: {summary}	更新: {summary}
+	Cancelled: {summary}	キャンセル: {summary}
+	Cancelled: {summary} ({when})	キャンセル: {summary} ({when})
+	{summary} has been cancelled.	{summary} はキャンセルされました。
+	{summary} on {when} has been cancelled.	{when} の {summary} はキャンセルされました。
+	When: {when}	日時: {when}
+	Where: {place}	場所: {place}
+	Fwd: {summary}	転送: {summary}
+	{who} forwarded you this meeting, organized by {organizer}.	{who} さんがこの会議を転送しました。開催者: {organizer}
+	{who} asked you to go to this meeting in their place. It's organized by {organizer}.	{who} さんから、代わりにこの会議に出席するよう依頼されました。開催者: {organizer}
+	Accepted: {summary}	承諾: {summary}
+	Tentative: {summary}	仮承諾: {summary}
+	Declined: {summary}	辞退: {summary}
+	Delegated: {summary}	代理: {summary}
+	{who} accepted the invitation to {summary}.	{who} さんが {summary} への招待を承諾しました。
+	{who} tentatively accepted the invitation to {summary}.	{who} さんが {summary} への招待を仮承諾しました。
+	{who} declined the invitation to {summary}.	{who} さんが {summary} への招待を辞退しました。
+	{who} asked {delegate} to go to {summary} in their place.	{who} さんが {delegate} さんに {summary} への代理出席を依頼しました。
+	New time proposed: {summary}	新しい日時の提案: {summary}
+	{who} proposes a new time for {summary}: {when}.	{who} さんが {summary} の新しい日時を提案しています: {when}
+	New time declined: {summary}	新しい日時は不採用: {summary}
+	The proposed new time for {summary} was declined. The meeting stays as it was.	{summary} に提案された新しい日時は採用されませんでした。会議は変更ありません。
+	Cancel meeting	会議をキャンセル
+	Cancel this occurrence	この回をキャンセル
+	Send cancellation	キャンセルを送信
+	Delete without sending	送信せずに削除
+	Message to your guests	出席者へのメッセージ
+	Your guests are sent a cancellation. Add a message to them, if you like.	出席者にキャンセルの通知が送られます。必要ならメッセージを添えてください。

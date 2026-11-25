@@ -2115,3 +2115,32 @@ count	occurrences	פעמים
 	In 1 minute	בעוד דקה
 	In 1 day	בעוד יום
 	Proposal accepted: the meeting is at {when} now.	ההצעה התקבלה: הפגישה נקבעה כעת ל-{when}.
+	Invitation: {summary}	הזמנה: {summary}
+	Updated: {summary}	עודכן: {summary}
+	Cancelled: {summary}	בוטל: {summary}
+	Cancelled: {summary} ({when})	בוטל: {summary} ({when})
+	{summary} has been cancelled.	הפגישה {summary} בוטלה.
+	{summary} on {when} has been cancelled.	הפגישה {summary} ב-{when} בוטלה.
+	When: {when}	מתי: {when}
+	Where: {place}	איפה: {place}
+	Fwd: {summary}	הועבר: {summary}
+	{who} forwarded you this meeting, organized by {organizer}.	הפגישה הזו הועברה אליך מאת {who}. מארגן: {organizer}.
+	{who} asked you to go to this meeting in their place. It's organized by {organizer}.	התבקשת להשתתף בפגישה הזו במקום {who}. מארגן: {organizer}.
+	Accepted: {summary}	התקבל: {summary}
+	Tentative: {summary}	אולי: {summary}
+	Declined: {summary}	נדחה: {summary}
+	Delegated: {summary}	הואצל: {summary}
+	{who} accepted the invitation to {summary}.	{who}: ההזמנה ל-{summary} התקבלה.
+	{who} tentatively accepted the invitation to {summary}.	{who}: ההזמנה ל-{summary} התקבלה באופן מותנה.
+	{who} declined the invitation to {summary}.	{who}: ההזמנה ל-{summary} נדחתה.
+	{who} asked {delegate} to go to {summary} in their place.	{who}: ההשתתפות ב-{summary} הואצלה אל {delegate}.
+	New time proposed: {summary}	הוצע מועד חדש: {summary}
+	{who} proposes a new time for {summary}: {when}.	{who}: הצעה למועד חדש ל-{summary}: {when}.
+	New time declined: {summary}	המועד החדש נדחה: {summary}
+	The proposed new time for {summary} was declined. The meeting stays as it was.	המועד החדש שהוצע ל-{summary} נדחה. הפגישה נשארת כפי שהייתה.
+	Cancel meeting	ביטול הפגישה
+	Cancel this occurrence	ביטול המופע הזה
+	Send cancellation	שליחת הודעת ביטול
+	Delete without sending	מחיקה בלי לשלוח
+	Message to your guests	הודעה למשתתפים
+	Your guests are sent a cancellation. Add a message to them, if you like.	המשתתפים יקבלו הודעת ביטול. אפשר להוסיף להם הודעה.
