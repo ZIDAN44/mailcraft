@@ -217,6 +217,15 @@ fn only_work_hours_narrows_the_day() {
     assert!(review.max.x <= nine.min.x + 2.0, "her 08:00 – 09:00 still there: {review:?} {nine:?}");
 }
 
+/// Frames at the window's own size after the form was drawn bigger (`drawn_strings`): centred
+/// again, it has stopped moving before a click is aimed at it. With the craft-fonts fallbacks
+/// built in, as CI builds, it moves for a frame longer than without.
+fn settle(ctx: &egui::Context, a: &mut MailApp) {
+    for _ in 0..3 {
+        frame(ctx, a, vec![]);
+    }
+}
+
 /// Issue #277: a meeting's form shows its guests' times while it's written, as Outlook's
 /// Scheduling Assistant: asked for as they're named, how many are free at its time, Next free
 /// time moving it to when all are free (its length kept), and everyone's rows over its day.
@@ -249,6 +258,7 @@ fn a_meetings_form_has_a_scheduling_assistant() {
     a.session.apply(NetEvent::FreeBusy { account: "sample".into(), from: at(-24 * 7), to: at(24 * 14), answers });
     let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 1000.0));
     assert!(texts.iter().any(|t| t == "1 of 2 free"), "{texts:?}");
+    settle(&ctx, &mut a);
     click_named(&ctx, &mut a, "Next free time");
     frame(&ctx, &mut a, vec![]);
     let Some(Dialog::Event(f)) = a.ui.dialog.as_ref() else { panic!("the form stays") };
@@ -258,6 +268,7 @@ fn a_meetings_form_has_a_scheduling_assistant() {
     assert_eq!((moment(&f.date, &f.start), moment(&f.end_date, &f.end)), (Some(eleven), Some(at(12))), "after Ana's hour, an hour long");
     let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 1000.0));
     assert!(texts.iter().any(|t| t == "2 of 2 free"), "{texts:?}");
+    settle(&ctx, &mut a);
     click_named(&ctx, &mut a, "Scheduling Assistant");
     for _ in 0..2 {
         frame(&ctx, &mut a, vec![]);
@@ -267,9 +278,7 @@ fn a_meetings_form_has_a_scheduling_assistant() {
         assert!(texts.iter().any(|t| t == want), "{want}: {texts:?}");
     }
     // Open, it finds the next time too: all free now, so the half hour after.
-    for _ in 0..2 {
-        frame(&ctx, &mut a, vec![]);
-    }
+    settle(&ctx, &mut a);
     click_named(&ctx, &mut a, "Next free time");
     frame(&ctx, &mut a, vec![]);
     let Some(Dialog::Event(f)) = a.ui.dialog.as_ref() else { panic!("the form stays") };
