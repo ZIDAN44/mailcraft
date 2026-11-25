@@ -1032,7 +1032,7 @@ month	May	مايو
 	0 minutes before start	0 دقيقة قبل البدء
 	1 Reminder	تذكير واحد
 	{n} Reminders	{n} تذكيرات
-	Click Snooze to be reminded again in:	انقر فوق «غفوة» للتذكير مرة أخرى بعد:
+	Click Snooze to be reminded again in:	انقر فوق «تأجيل» للتذكير مرة أخرى بعد:
 	Dismiss	تجاهل
 	Dismiss All	تجاهل الكل
 	Open Item	فتح العنصر
@@ -2112,3 +2112,5 @@ count	occurrences	مرات
 	Mark read or unread	وضع علامة مقروءة أو غير مقروءة
 	Choose a date…	اختيار تاريخ…
 	Pick a time in the future.	اختر وقتًا في المستقبل.
+	In 1 minute	خلال دقيقة واحدة
+	In 1 day	خلال يوم واحد

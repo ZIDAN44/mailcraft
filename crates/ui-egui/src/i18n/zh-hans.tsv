@@ -1033,7 +1033,7 @@ month	May	5月
 	0 minutes before start	开始前 0 分钟
 	1 Reminder	1 个提醒
 	{n} Reminders	{n} 个提醒
-	Click Snooze to be reminded again in:	单击“推迟”，在以下时间后再次提醒:
+	Click Snooze to be reminded again in:	单击“暂停提醒”，在以下时间后再次提醒:
 	Dismiss	关闭
 	Dismiss All	全部关闭
 	Open Item	打开项目
@@ -2113,3 +2113,5 @@ count	occurrences	次
 	Mark read or unread	标记为已读或未读
 	Choose a date…	选择日期…
 	Pick a time in the future.	请选择将来的时间。
+	In 1 minute	1 分钟后
+	In 1 day	1 天后

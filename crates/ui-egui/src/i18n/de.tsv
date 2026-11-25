@@ -1037,7 +1037,7 @@ month	May	Mai
 	0 minutes before start	0 Minuten vor Beginn
 	1 Reminder	1 Erinnerung
 	{n} Reminders	{n} Erinnerungen
-	Click Snooze to be reminded again in:	Klicken Sie auf „Erneut erinnern“, um erinnert zu werden in:
+	Click Snooze to be reminded again in:	Klicken Sie auf „Zurückstellen“, um erneut erinnert zu werden in:
 	Dismiss	Schließen
 	Dismiss All	Alle schließen
 	Open Item	Element öffnen
@@ -2117,3 +2117,5 @@ count	occurrences	Terminen
 	Mark read or unread	Als gelesen oder ungelesen markieren
 	Choose a date…	Datum wählen…
 	Pick a time in the future.	Wählen Sie eine Zeit in der Zukunft.
+	In 1 minute	In 1 Minute
+	In 1 day	In 1 Tag

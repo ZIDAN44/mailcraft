@@ -443,6 +443,17 @@ fn french_keeps_filled_in_values_away_from_words_that_elide() {
     assert_eq!(word_before("{x}", 0), "");
 }
 
+/// Issue #239: the reminder window's hint names its Snooze button as each language has it (in six,
+/// it named another word: German "Erneut erinnern" beside a "Zurückstellen" button).
+#[test]
+fn the_snooze_hint_names_the_snooze_button() {
+    for lang in Lang::for_picker() {
+        set_current(lang);
+        assert!(t("Click Snooze to be reminded again in:").contains(t("Snooze")), "{}", lang.code());
+    }
+    set_current(Lang::EN);
+}
+
 /// Every interface string is in every catalog. With `MAILCRAFT_DUMP_STRINGS=<file>` set, the
 /// strings are also written to that file, one a line, for a new language's catalog to start from.
 #[test]

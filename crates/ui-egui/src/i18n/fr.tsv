@@ -1037,7 +1037,7 @@ month	May	mai
 	0 minutes before start	0 minute avant le début
 	1 Reminder	1 rappel
 	{n} Reminders	{n} rappels
-	Click Snooze to be reminded again in:	Cliquez sur Répéter pour être averti de nouveau dans :
+	Click Snooze to be reminded again in:	Cliquez sur Répéter plus tard pour être averti de nouveau dans :
 	Dismiss	Ignorer
 	Dismiss All	Tout ignorer
 	Open Item	Ouvrir l'élément
@@ -2117,3 +2117,5 @@ count	occurrences	occurrences
 	Mark read or unread	Marquer comme lu ou non lu
 	Choose a date…	Choisir une date…
 	Pick a time in the future.	Choisissez une heure à venir.
+	In 1 minute	Dans 1 minute
+	In 1 day	Dans 1 jour

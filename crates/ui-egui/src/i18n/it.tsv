@@ -1036,7 +1036,7 @@ month	May	maggio
 	0 minutes before start	0 minuti prima dell'inizio
 	1 Reminder	1 promemoria
 	{n} Reminders	{n} promemoria
-	Click Snooze to be reminded again in:	Fare clic su Posponi per ricevere un nuovo promemoria tra:
+	Click Snooze to be reminded again in:	Fare clic su Posticipa per ricevere un nuovo promemoria tra:
 	Dismiss	Chiudi
 	Dismiss All	Chiudi tutto
 	Open Item	Apri elemento
@@ -2116,3 +2116,5 @@ count	occurrences	ripetizioni
 	Mark read or unread	Segna come letto o da leggere
 	Choose a date…	Scegli una data…
 	Pick a time in the future.	Scegli un orario futuro.
+	In 1 minute	Tra 1 minuto
+	In 1 day	Tra 1 giorno

@@ -1036,7 +1036,7 @@ month	May	5月
 	0 minutes before start	開始前 0 分鐘
 	1 Reminder	1 個提醒
 	{n} Reminders	{n} 個提醒
-	Click Snooze to be reminded again in:	按一下「延後」，在以下時間後再次提醒：
+	Click Snooze to be reminded again in:	按一下「延後提醒」，在以下時間後再次提醒：
 	Dismiss	關閉
 	Dismiss All	全部關閉
 	Open Item	開啟項目
@@ -2116,3 +2116,5 @@ count	occurrences	次
 	Mark read or unread	標示為已讀或未讀
 	Choose a date…	選擇日期…
 	Pick a time in the future.	請選擇未來的時間。
+	In 1 minute	1 分鐘後
+	In 1 day	1 天後
