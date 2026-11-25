@@ -36,6 +36,22 @@ pub(super) fn agents(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
                 Switch { label: tl!("Let AI agents ask to run commands"), about: Some(about), on: s.prefs.agents_run, cmd: "options.agentsRun" },
                 acts,
             );
+            if s.prefs.agents_run {
+                let about = tl!("Sending mail or invitations to other people is still asked about first.");
+                switch_row(
+                    s,
+                    ui,
+                    t,
+                    false,
+                    Switch {
+                        label: tl!("Always allow every command"),
+                        about: Some(about),
+                        on: s.prefs.agents_always_all,
+                        cmd: "options.agentsAlwaysAll",
+                    },
+                    acts,
+                );
+            }
             // Each account, read by agents or kept from them.
             if s.accounts.len() > 1 || !s.prefs.agents_hidden.is_empty() {
                 setting(

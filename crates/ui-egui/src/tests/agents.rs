@@ -189,3 +189,17 @@ fn what_agents_asked_runs_only_as_things_are_now() {
     assert_eq!(v["ran"], true);
     assert!(!v.to_string().contains("studio.example"), "{v}");
 }
+
+/// Always allow every command: one that sends nothing runs at once; one that sends mail or
+/// invitations to other people is still asked about.
+#[test]
+fn every_command_allowed_but_sending_still_asks() {
+    let (mut a, _) = app("agents-all");
+    a.run("options.agents", json!({"on": true}));
+    a.run("options.agentsRun", json!({"on": true}));
+    a.run("options.agentsAlwaysAll", json!({"on": true}));
+    assert!(matches!(a.agent_request("engine.execute", &json!({"command": "view.calendar"})), AgentAnswer::Now(Ok(_))));
+    assert_eq!(a.session.module, mailcraft_engine::Module::Calendar);
+    let answer = a.agent_request("engine.execute", &json!({"command": "compose.send"}));
+    assert!(matches!(answer, AgentAnswer::Asking(_)), "{answer:?}");
+}

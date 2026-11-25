@@ -229,6 +229,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         // window asking first. None is an agent's own to run.
         toggle!("options.agents", "Let AI agents use MailCraft", "File › Options › AI agents", agents),
         toggle!("options.agentsRun", "Let AI agents ask to run commands", "File › Options › AI agents", agents_run),
+        toggle!("options.agentsAlwaysAll", "Always allow every command", "File › Options › AI agents", agents_always_all),
         CommandSpec::new("options.agentsAccount", "Accounts AI agents read", "File › Options › AI agents", |s, v| {
             let id = p::str(v, "account").ok_or_else(|| CmdError::Params("say which account".into()))?;
             if s.account(id).is_none() {

@@ -2071,6 +2071,8 @@ count	occurrences	مرات
 	Didn't run: {why}	لم يُنفَّذ: {why}
 	Let AI agents ask to run commands	السماح لوكلاء الذكاء الاصطناعي بطلب تشغيل الأوامر
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	الإرسال والنقل والرد على دعوة… يُسأل عن كل منها هنا أولًا، ما لم تسمح به دائمًا. عند الإيقاف، يقرأ الوكلاء فقط.
+	Always allow every command	السماح دائمًا بكل الأوامر
+	Sending mail or invitations to other people is still asked about first.	إرسال البريد أو الدعوات إلى أشخاص آخرين يُسأل عنه أولًا دائمًا.
 	Accounts AI agents read	الحسابات التي يقرؤها وكلاء الذكاء الاصطناعي
 	One turned off is left out of all they read, and they can't take pictures of the window	الحساب الموقوف يُستبعد من كل ما يقرؤونه، ولا يمكنهم التقاط صور للنافذة
 	… and {n} more characters	… و{n} حرفًا آخر

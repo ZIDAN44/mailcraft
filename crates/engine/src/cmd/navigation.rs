@@ -42,7 +42,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             None => s.send_outbox(),
         })
         .params(r#"{"key"?: string (one message, even one held back to be sent later; else all that are due)}"#)
-        .when(|s| if s.outbox.is_empty() { Some("the Outbox is empty") } else { None }),
+        .when(|s| if s.outbox.is_empty() { Some("the Outbox is empty") } else { None })
+        .sends(),
         // Undo Send (issue #135): a message sent, still waiting, back into the form.
         CommandSpec::new("outbox.undoSend", "Undo Send", "Outbox", |s, v| s.undo_send(p::u64(v, "id")))
             .params(r#"{"id"?: number (a message held to be undone; else the newest)}"#),

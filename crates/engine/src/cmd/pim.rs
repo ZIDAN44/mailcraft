@@ -99,7 +99,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             Ok(r)
         })
-        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "reminders"?: [minutes before, …] (each, at most ten; [] none: in place of "reminder"), "privacy"?: "public"|"private"|"confidential" (show time only), "showAs"?: "free"|"workingElsewhere"|"tentative"|"busy"|"oof", "onlineMeeting"?: a saved room's name | true (the first room) | false (take it out) | {"url": string, "name"?, "code"?, "details"?, "labels"?: {"heading"?, "join"?, "code"?}}, "account"?: string, "calendar"?: string}"#),
+        .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "reminders"?: [minutes before, …] (each, at most ten; [] none: in place of "reminder"), "privacy"?: "public"|"private"|"confidential" (show time only), "showAs"?: "free"|"workingElsewhere"|"tentative"|"busy"|"oof", "onlineMeeting"?: a saved room's name | true (the first room) | false (take it out) | {"url": string, "name"?, "code"?, "details"?, "labels"?: {"heading"?, "join"?, "code"?}}, "account"?: string, "calendar"?: string}"#)
+        .sends(),
         CommandSpec::new("reminders.list", "Reminders", "File › Reminders", |s, _| {
             let now = s.clock.now;
             Ok(json!(s
@@ -160,7 +161,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             tell_of_change(s, &uid, before)?;
             Ok(r)
         })
-        .params(r#"{"uid": string, "occurrence"?: unix seconds (that occurrence of a series alone, by when the series starts it), … the fields of event.create to change}"#),
+        .params(r#"{"uid": string, "occurrence"?: unix seconds (that occurrence of a series alone, by when the series starts it), … the fields of event.create to change}"#)
+        .sends(),
         // Dragged to another time or day in the calendar (issue #192).
         CommandSpec::new("event.move", "Move event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
@@ -177,7 +179,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             tell_of_change(s, &uid, before)?;
             Ok(r)
         })
-        .params(r#"{"uid": string, "by": seconds later (below 0: earlier; an all-day event by whole days), "occurrence"?: unix seconds (that occurrence of a series alone; a series moves only so)} (not a meeting someone else organized)"#),
+        .params(r#"{"uid": string, "by": seconds later (below 0: earlier; an all-day event by whole days), "occurrence"?: unix seconds (that occurrence of a series alone; a series moves only so)} (not a meeting someone else organized)"#)
+        .sends(),
         CommandSpec::new("event.delete", "Delete event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             let before = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone(), e.href.clone()));
@@ -208,10 +211,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             Ok(r)
         })
-        .params(r#"{"uid": string, "occurrence"?: unix seconds (only that occurrence)}"#),
+        .params(r#"{"uid": string, "occurrence"?: unix seconds (only that occurrence)}"#)
+        .sends(),
         CommandSpec::new("invite.respond", "Answer the invitation", "Reading pane › Invitation", |s, v| s.respond_to_invite(p::req_str(v, "answer")?))
             .params(r#"{"answer": "accepted"|"tentative"|"declined"}"#)
-            .when(has_reading),
+            .when(has_reading)
+            .sends(),
         CommandSpec::new("invite.apply", "Update the calendar", "Reading pane › Invitation", |s, _| s.apply_invite())
             .params("(an answer from a guest, or a cancellation)")
             .when(has_reading),
@@ -229,7 +234,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let proposal = event_from(s, v, current)?;
             s.propose_time(&uid, &proposal, p::str(v, "answer"))
         })
-        .params(r#"{"start": string|number, "end"?: string|number (else as long as the meeting), "uid"?: string (a meeting in the calendar; else the open invitation's), "answer"?: "tentative"|"declined"}"#),
+        .params(r#"{"start": string|number, "end"?: string|number (else as long as the meeting), "uid"?: string (a meeting in the calendar; else the open invitation's), "answer"?: "tentative"|"declined"}"#)
+        .sends(),
         // A meeting the user is invited to, forwarded to someone else (issue #234).
         CommandSpec::new("invite.forward", "Forward meeting", "Reading pane › Invitation", |s, v| {
             let uid = match p::str(v, "uid") {
@@ -238,7 +244,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             };
             s.forward_meeting(&uid, p::req_str(v, "to")?)
         })
-        .params(r#"{"to": string (addresses, as a recipient box has them), "uid"?: string (a meeting in the calendar; else the open invitation's)}"#),
+        .params(r#"{"to": string (addresses, as a recipient box has them), "uid"?: string (a meeting in the calendar; else the open invitation's)}"#)
+        .sends(),
         // Someone else goes in the user's place (issue #254).
         CommandSpec::new("invite.delegate", "Delegate meeting", "Reading pane › Invitation", |s, v| {
             let uid = match p::str(v, "uid") {
@@ -247,7 +254,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             };
             s.delegate_meeting(&uid, p::req_str(v, "to")?, v.get("occurrence").and_then(serde_json::Value::as_i64))
         })
-        .params(r#"{"to": string (one address, as a recipient box has it), "uid"?: string (a meeting in the calendar; else the open invitation's), "occurrence"?: number (when a series' occurrence starts, as the series has it: that one alone)}"#),
+        .params(r#"{"to": string (one address, as a recipient box has it), "uid"?: string (a meeting in the calendar; else the open invitation's), "occurrence"?: number (when a series' occurrence starts, as the series has it: that one alone)}"#)
+        .sends(),
         // Invitations already in the Inbox when the account came (issue #237).
         CommandSpec::new("invite.findWaiting", "Invitations in the Inbox", "Calendar › Home", |s, v| {
             let account = account_param(s, v)?;
@@ -271,10 +279,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"keys": [string] (the messages' keys, as invite.findWaiting gives them): their meetings into the calendar, unanswered}"#),
         CommandSpec::new("invite.acceptProposal", "Accept proposal", "Reading pane › Invitation", |s, _| s.accept_proposal())
             .params("(a guest's proposal of a new time, in the open message: the meeting moves, and every guest is told)")
-            .when(has_reading),
+            .when(has_reading)
+            .sends(),
         CommandSpec::new("invite.declineProposal", "Decline proposal", "Reading pane › Invitation", |s, _| s.decline_proposal())
             .params("(a guest's proposal of a new time, in the open message: they're told)")
-            .when(has_reading),
+            .when(has_reading)
+            .sends(),
         CommandSpec::new("event.respond", "Answer an invitation", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             match p::i64(v, "occurrence") {
@@ -282,7 +292,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 None => s.respond_to_event(&uid, p::req_str(v, "answer")?),
             }
         })
-        .params(r#"{"uid": string, "answer": "accepted"|"tentative"|"declined", "occurrence"?: unix seconds (that occurrence of a series alone)}"#),
+        .params(r#"{"uid": string, "answer": "accepted"|"tentative"|"declined", "occurrence"?: unix seconds (that occurrence of a series alone)}"#)
+        .sends(),
         CommandSpec::new("calendar.setDefault", "Use as default calendar", "Calendar › Calendars", |s, v| {
             s.set_default_calendar(p::str(v, "account"), p::str(v, "calendar").unwrap_or_default())
         })

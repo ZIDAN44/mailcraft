@@ -85,7 +85,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         // A reaction (issue #39, RFC 9078): an emoji to the sender and everyone else it went to.
         CommandSpec::new("mail.react", "React", "Reading pane › Reactions", |s, v| s.react(parse_key(v), p::req_str(v, "emoji")?))
             .params(r#"{"emoji": string (👍 ❤️ 🎉 😆 😮 😢, or other emoji), "key"?: string (the message shown)}"#)
-            .when(has_reading),
+            .when(has_reading)
+            .sends(),
         // Home › Move
         CommandSpec::new("mail.move", "Move to", "Home › Move", move_to)
             .key("Mod+Shift+V")

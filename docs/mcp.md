@@ -84,7 +84,10 @@ rest (a dialog you're filling in stays): what it is and its params, then **Allow
 allow** (that command, from then on), or **Deny**. The call waits for your answer, ten minutes at
 most (then nothing runs), and the agent's other calls wait with it; Deny is the agent's answer.
 A command that may no longer run by the time you answer (agents not let ask any more, an account
-kept meanwhile) isn't run, nor one the agent took back. **File › Options › AI agents** lists the commands agents run
+kept meanwhile) isn't run, nor one the agent took back. **Always allow every command** lets agents run
+every command without asking, but one that sends mail or invitations to other people (a message, a
+reaction, a meeting's invitations, changes or cancellation, an answer to one): that is still asked
+about, unless you always allow it on its own. **File › Options › AI agents** lists the commands agents run
 without asking, each with **Forget**; agents can't change these settings themselves.
 **File › Info › What AI agents did** lists what they read and ran lately (pictures of the window
 and `inspect` too) and what came of it.

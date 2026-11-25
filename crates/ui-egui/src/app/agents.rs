@@ -125,7 +125,8 @@ impl MailApp {
         Ok(())
     }
 
-    /// A command an agent asks to run: at once when the user always allows it, else asked about.
+    /// A command an agent asks to run: at once when the user always allows it
+    /// ([`MailApp::agent_runs_unasked`]), else asked about.
     fn agent_execute(&mut self, command: &str, params: Value) -> AgentAnswer {
         if !params.is_object() {
             return AgentAnswer::Now(Err("a command's params are an object".into()));
@@ -134,7 +135,7 @@ impl MailApp {
             Ok(label) => label,
             Err(e) => return AgentAnswer::Now(Err(e)),
         };
-        if self.session.prefs.agents_always.iter().any(|c| c == command) {
+        if self.agent_runs_unasked(command) {
             return AgentAnswer::Now(self.agent_run(command, &params));
         }
         if self.ui.agents.asks.len() >= ASKS_MAX {
@@ -145,6 +146,13 @@ impl MailApp {
         let shown = shown_params(&params);
         self.ui.agents.asks.push(AgentAsk { ticket, command: command.to_string(), label, params, shown });
         AgentAnswer::Asking(ticket)
+    }
+
+    /// Whether agents run `command` without the window asking first: always allowed on its own,
+    /// or every command is, and it sends nothing to other people.
+    fn agent_runs_unasked(&self, command: &str) -> bool {
+        let s = &self.session;
+        s.prefs.agents_always.iter().any(|c| c == command) || (s.prefs.agents_always_all && s.registry().get(command).is_some_and(|c| !c.sends))
     }
 
     /// Whether an agent may have `command` run with `params` now, asked when it asks, every frame
@@ -293,7 +301,7 @@ impl MailApp {
                     "location": c.location,
                     "params": c.params,
                     "enabled": (c.enabled)(&self.session).is_none(),
-                    "withoutAsking": self.session.prefs.agents_always.iter().any(|x| x == c.id),
+                    "withoutAsking": self.agent_runs_unasked(c.id),
                 })
             })
             .collect();

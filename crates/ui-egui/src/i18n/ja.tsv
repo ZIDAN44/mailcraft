@@ -2072,6 +2072,8 @@ count	occurrences	回
 	Didn't run: {why}	実行されませんでした: {why}
 	Let AI agents ask to run commands	AI エージェントにコマンドの実行を求めることを許可
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	送信、移動、招待への返答… いずれもまずここで確認します（常に許可したものを除く）。オフにすると、エージェントは読むだけです。
+	Always allow every command	すべてのコマンドを常に許可
+	Sending mail or invitations to other people is still asked about first.	他の人へのメールや招待の送信は、引き続きまず確認します。
 	Accounts AI agents read	AI エージェントが読むアカウント
 	One turned off is left out of all they read, and they can't take pictures of the window	オフにしたアカウントは読む対象から外れ、ウィンドウの画像も撮れません
 	… and {n} more characters	… ほか {n} 文字
