@@ -87,7 +87,7 @@ A command that may no longer run by the time you answer (agents not let ask any 
 kept meanwhile) isn't run, nor one the agent took back. **Always allow every command** lets agents run
 every command without asking, but one that sends mail or invitations to other people (a message, a
 reaction, a meeting's invitations, changes or cancellation, an answer to one): that is still asked
-about, unless you always allow it on its own. **File › Options › AI agents** lists the commands agents run
+about, unless you always allow it on its own. An event with no guests mails nobody, so it runs. **File › Options › AI agents** lists the commands agents run
 without asking, each with **Forget**; agents can't change these settings themselves.
 **File › Info › What AI agents did** lists what they read and ran lately (pictures of the window
 and `inspect` too) and what came of it.

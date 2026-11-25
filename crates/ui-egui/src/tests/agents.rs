@@ -191,7 +191,8 @@ fn what_agents_asked_runs_only_as_things_are_now() {
 }
 
 /// Always allow every command: one that sends nothing runs at once; one that sends mail or
-/// invitations to other people is still asked about.
+/// invitations to other people is still asked about, an event only when it's a meeting with
+/// guests.
 #[test]
 fn every_command_allowed_but_sending_still_asks() {
     let (mut a, _) = app("agents-all");
@@ -200,6 +201,17 @@ fn every_command_allowed_but_sending_still_asks() {
     a.run("options.agentsAlwaysAll", json!({"on": true}));
     assert!(matches!(a.agent_request("engine.execute", &json!({"command": "view.calendar"})), AgentAnswer::Now(Ok(_))));
     assert_eq!(a.session.module, mailcraft_engine::Module::Calendar);
-    let answer = a.agent_request("engine.execute", &json!({"command": "compose.send"}));
-    assert!(matches!(answer, AgentAnswer::Asking(_)), "{answer:?}");
+    let asked = |a: &mut MailApp, command: &str, params: serde_json::Value| {
+        let answer = a.agent_request("engine.execute", &json!({"command": command, "params": params}));
+        assert!(matches!(answer, AgentAnswer::Asking(_)), "{command}: {answer:?}");
+    };
+    asked(&mut a, "compose.send", json!({}));
+    // An event with no guests mails nobody: run at once. One with guests is asked about, and so
+    // is deleting a stored meeting with guests.
+    let alone = a.agent_request("engine.execute", &json!({"command": "event.create", "params": {"summary": "Focus", "start": "2026-12-01T09:00"}}));
+    assert!(matches!(alone, AgentAnswer::Now(Ok(_))), "{alone:?}");
+    let meeting = json!({"summary": "Review", "start": "2026-12-01T10:00", "attendees": "guest@example.org"});
+    asked(&mut a, "event.create", meeting.clone());
+    let uid = a.session.run("event.create", &meeting).unwrap()["uid"].as_str().unwrap().to_string();
+    asked(&mut a, "event.delete", json!({"uid": uid}));
 }

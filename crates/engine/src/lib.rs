@@ -108,10 +108,11 @@ pub struct CommandSpec {
     /// The setting it changes, as the settings name it (`autoPictures`, or the field's own name,
     /// `auto_pictures`); `""` for none. Locked by the organisation (issue #245), it's refused.
     pub setting: &'static str,
-    /// It sends mail or invitations to other people: a message, a reaction, a meeting's
-    /// invitations, changes or cancellation, an answer to one. Agents are asked about it even
-    /// when they may run every other command without asking (issue #281).
-    pub sends: bool,
+    /// Whether it sends mail or invitations to other people with these params, as things are: a
+    /// message, a reaction, a meeting's invitations, changes or cancellation, an answer to one.
+    /// `None`: it never does. Agents are asked about one that does even when they may run every
+    /// other command without asking (issue #281).
+    pub sends: Option<fn(&Session, &Value) -> bool>,
 }
 
 fn always(_: &Session) -> Option<&'static str> {
@@ -120,7 +121,7 @@ fn always(_: &Session) -> Option<&'static str> {
 
 impl CommandSpec {
     pub const fn new(id: &'static str, label: &'static str, location: &'static str, run: fn(&mut Session, &Value) -> CmdResult) -> Self {
-        CommandSpec { id, label, location, shortcut: "", params: "{}", enabled: always, run, leaves_body: false, setting: "", sends: false }
+        CommandSpec { id, label, location, shortcut: "", params: "{}", enabled: always, run, leaves_body: false, setting: "", sends: None }
     }
     pub const fn key(mut self, s: &'static str) -> Self {
         self.shortcut = s;
@@ -135,9 +136,13 @@ impl CommandSpec {
         self.leaves_body = true;
         self
     }
-    /// It sends to other people ([`CommandSpec::sends`]).
-    pub const fn sends(mut self) -> Self {
-        self.sends = true;
+    /// It always sends to other people ([`CommandSpec::sends`]).
+    pub const fn sends(self) -> Self {
+        self.sends_when(|_, _| true)
+    }
+    /// It sends to other people when `f` says so ([`CommandSpec::sends`]).
+    pub const fn sends_when(mut self, f: fn(&Session, &Value) -> bool) -> Self {
+        self.sends = Some(f);
         self
     }
     pub const fn when(mut self, f: fn(&Session) -> Option<&'static str>) -> Self {

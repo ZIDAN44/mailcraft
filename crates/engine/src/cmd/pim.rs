@@ -100,7 +100,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(r)
         })
         .params(r#"{"summary": string, "start": "YYYY-MM-DD[THH:MM]", "end"?: …, "allDay"?: bool, "location"?: string, "description"?: string, "repeat"?: "daily"|"weekly"|"monthly"|"yearly"|RRULE, "attendees"?: "a@x, Name <b@y>" (invited by mail), "categories"?: [string] | "Work, Clients" (colour it as those categories), "reminder"?: minutes before | "none", "reminders"?: [minutes before, …] (each, at most ten; [] none: in place of "reminder"), "privacy"?: "public"|"private"|"confidential" (show time only), "showAs"?: "free"|"workingElsewhere"|"tentative"|"busy"|"oof", "onlineMeeting"?: a saved room's name | true (the first room) | false (take it out) | {"url": string, "name"?, "code"?, "details"?, "labels"?: {"heading"?, "join"?, "code"?}}, "account"?: string, "calendar"?: string}"#)
-        .sends(),
+        .sends_when(mails_guests),
         CommandSpec::new("reminders.list", "Reminders", "File › Reminders", |s, _| {
             let now = s.clock.now;
             Ok(json!(s
@@ -162,7 +162,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(r)
         })
         .params(r#"{"uid": string, "occurrence"?: unix seconds (that occurrence of a series alone, by when the series starts it), … the fields of event.create to change}"#)
-        .sends(),
+        .sends_when(mails_guests),
         // Dragged to another time or day in the calendar (issue #192).
         CommandSpec::new("event.move", "Move event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
@@ -180,7 +180,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(r)
         })
         .params(r#"{"uid": string, "by": seconds later (below 0: earlier; an all-day event by whole days), "occurrence"?: unix seconds (that occurrence of a series alone; a series moves only so)} (not a meeting someone else organized)"#)
-        .sends(),
+        .sends_when(mails_guests),
         CommandSpec::new("event.delete", "Delete event", "Calendar › Event", |s, v| {
             let uid = p::req_str(v, "uid")?.to_string();
             let before = s.find_event(&uid).map(|(a, e)| (a.to_string(), e.event.clone(), e.href.clone()));
@@ -212,7 +212,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(r)
         })
         .params(r#"{"uid": string, "occurrence"?: unix seconds (only that occurrence)}"#)
-        .sends(),
+        .sends_when(mails_guests),
         CommandSpec::new("invite.respond", "Answer the invitation", "Reading pane › Invitation", |s, v| s.respond_to_invite(p::req_str(v, "answer")?))
             .params(r#"{"answer": "accepted"|"tentative"|"declined"}"#)
             .when(has_reading)
@@ -660,6 +660,20 @@ pub(super) fn card_from(v: &Value, mut c: mailcraft_model::vcard::Card) -> Resul
 /// The user organizes this event and it has guests to tell.
 pub(super) fn organized_by_me(s: &Session, e: &mailcraft_model::ical::CalEvent) -> bool {
     !e.attendees.is_empty() && s.organizes(e)
+}
+
+/// Whether an event command with `v` would mail guests (issue #281): someone other than the user
+/// in its `attendees`, or the stored event `uid` is a meeting the user organizes, with guests.
+/// Attendees that can't be read are taken as guests.
+fn mails_guests(s: &Session, v: &Value) -> bool {
+    let mine = s.my_addresses();
+    let guest = |email: &str| !mine.contains(&email.trim().to_ascii_lowercase());
+    let given = p::str(v, "attendees")
+        .is_some_and(|list| mailcraft_model::addr::parse_list(list).map_or(true, |people| people.iter().any(|a| guest(&a.email))));
+    let stored = p::str(v, "uid")
+        .and_then(|uid| s.find_event(uid))
+        .is_some_and(|(_, e)| organized_by_me(s, &e.event) && e.event.attendees.iter().any(|a| guest(&a.email)));
+    given || stored
 }
 
 /// The user's own meeting `uid`, changed: the guests hear of a change that's theirs to know, a
