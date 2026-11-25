@@ -2075,7 +2075,7 @@ count	occurrences	次
 	Let AI agents ask to run commands	允許 AI 代理程式要求執行命令
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	傳送、移動、回覆邀請……每個命令都會先在這裡詢問，除非你一律允許它。關閉時，代理程式只能讀取。
 	Always allow every command	一律允許所有命令
-	Sending mail or invitations to other people is still asked about first.	向他人傳送郵件或邀請時仍會先詢問。
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	仍會先詢問：向他人傳送、帳戶與安全性、網路、儲存檔案以及永久刪除。
 	Accounts AI agents read	AI 代理程式讀取的帳戶
 	One turned off is left out of all they read, and they can't take pictures of the window	關閉的帳戶不在它們讀取的任何內容中，它們也無法擷取視窗的圖片
 	… and {n} more characters	……還有 {n} 個字元

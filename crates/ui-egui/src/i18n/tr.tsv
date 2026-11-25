@@ -2076,7 +2076,7 @@ count	occurrences	kez
 	Let AI agents ask to run commands	Yapay zekâ ajanlarının komut çalıştırmayı istemesine izin ver
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Gönderme, taşıma, bir daveti yanıtlama… her biri önce burada sorulur, her zaman izin vermediyseniz. Kapalıyken ajanlar yalnızca okur.
 	Always allow every command	Her komuta her zaman izin ver
-	Sending mail or invitations to other people is still asked about first.	Başkalarına posta veya davet göndermek yine de önce sorulur.
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Yine de önce sorulur: başkalarına gönderme, hesaplar ve güvenlik, web, dosya kaydetme ve kalıcı silme.
 	Accounts AI agents read	Yapay zekâ ajanlarının okuduğu hesaplar
 	One turned off is left out of all they read, and they can't take pictures of the window	Kapatılan hesap okudukları her şeyin dışında kalır ve pencerenin resmini alamazlar
 	… and {n} more characters	… ve {n} karakter daha

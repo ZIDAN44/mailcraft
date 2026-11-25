@@ -80,7 +80,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .leaves_body()
         .params(r#"{"path": string (the .pst file to archive to: made when it isn't there, added to when it is), "before": number (Unix seconds: mail received before then is archived), "account"?: string (default: the current one), "folder"?: string (that folder and those under it; default: all the account's folders)} (each old message goes into the folder of the same name in the file, and leaves the mailbox once it's there; the file then shows in the folder list)"#)
-        .when(archiving),
+        .when(archiving)
+        .asks(),
         CommandSpec::new("autoArchive.set", "AutoArchive settings", "File › Options › Data files", |s, v| {
             let every = p::u64(v, "everyDays").map(|n| u32::try_from(n).unwrap_or(u32::MAX));
             s.set_auto_archive(every, p::bool(v, "prompt"), p::bool(v, "show"), rule_change(v))

@@ -89,9 +89,14 @@ command, from then on), or **Deny**. The call waits for your answer, ten minutes
 most (then nothing runs), and the agent's other calls wait with it; Deny is the agent's answer.
 A command that may no longer run by the time you answer (agents not let ask any more, an account
 kept meanwhile) isn't run, nor one the agent took back. **Always allow every command** lets agents run
-every command without asking, but one that sends mail or invitations to other people (a message, a
-reaction, a meeting's invitations, changes or cancellation, an answer to one): that is still asked
-about, unless you always allow it on its own. An event with no guests mails nobody, so it runs. **File › Options › AI agents** lists the commands agents run
+every command without asking, but these, still asked about unless you always allow one on its own:
+sending mail or invitations to other people (a message, a reaction, automatic replies, a meeting's
+invitations, changes or cancellation, an answer to one); adding or changing an account, its servers,
+password or addresses (a password could go to another server, mail be copied out); the web (a
+calendar subscribed to, web pictures shown, which tell the sender); certificates, keys and how mail
+is encrypted; saving a file, or attaching one from disk; and deleting for good (an account, Deleted
+Items or Junk emptied, a folder, mail in Deleted Items). An event with no guests mails nobody, so it
+runs. **File › Options › AI agents** lists the commands agents run
 without asking, each with **Forget**; agents can't change these settings themselves.
 **File › Info › What AI agents did** lists what they read and ran lately (pictures of the window
 and `inspect` too) and what came of it.

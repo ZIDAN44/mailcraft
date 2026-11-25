@@ -274,9 +274,9 @@ pub struct Prefs {
     /// The commands agents may run without the window asking first (Always allow), by id.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub agents_always: Vec<String>,
-    /// Agents run every command without the window asking first, but those that send mail or
-    /// invitations to other people ([`crate::CommandSpec::sends`]): those are still asked about,
-    /// unless always allowed one by one.
+    /// Agents run every command without the window asking first, but those still asked about
+    /// ([`crate::CommandSpec::asks`]: sending to other people, accounts and security, the web,
+    /// files, deleting for good), unless always allowed one by one.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub agents_always_all: bool,
     /// The accounts kept from agents, by id: what agents read leaves them out.

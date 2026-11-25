@@ -2076,7 +2076,7 @@ count	occurrences	előfordulás
 	Let AI agents ask to run commands	Az MI-ügynökök kérhetik parancsok futtatását
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Küldés, áthelyezés, meghívó megválaszolása… mindegyikről itt kérdez előbb, hacsak nem engedélyezi mindig. Kikapcsolva az ügynökök csak olvasnak.
 	Always allow every command	Minden parancs engedélyezése mindig
-	Sending mail or invitations to other people is still asked about first.	Levél vagy meghívó küldéséről másoknak továbbra is előbb kérdez.
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Továbbra is előbb kérdez: küldés másoknak, fiókok és biztonság, a web, fájlok mentése és végleges törlés.
 	Accounts AI agents read	Az MI-ügynökök által olvasott fiókok
 	One turned off is left out of all they read, and they can't take pictures of the window	A kikapcsolt fiók kimarad mindenből, amit olvasnak, és nem készíthetnek képet az ablakról
 	… and {n} more characters	… és még {n} karakter

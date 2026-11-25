@@ -10,7 +10,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .params(r#"{"account"?: string, "to"?: string (who it's to, "Name <address>")}"#)
             .when(has_account),
         // Home › Delete
-        CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete").params(r#"{"permanent"?: bool}"#).on_selection(has_selection),
+        CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete").params(r#"{"permanent"?: bool}"#).on_selection(has_selection)
+            .asks_when(deletes_for_good),
         CommandSpec::new("list.rowAction", "A message's own button in the list", "Message list › row", row_action)
             .params(r#"{"key": string, "action": "delete"|"archive"|"flag"|"read"|"pin"} (that message alone, what's selected and open kept)"#),
         CommandSpec::new("mail.archive", "Archive", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Archive)))
@@ -86,7 +87,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("mail.react", "React", "Reading pane › Reactions", |s, v| s.react(parse_key(v), p::req_str(v, "emoji")?))
             .params(r#"{"emoji": string (👍 ❤️ 🎉 😆 😮 😢, or other emoji), "key"?: string (the message shown)}"#)
             .when(has_reading)
-            .sends(),
+            .asks(),
         // Home › Move
         CommandSpec::new("mail.move", "Move to", "Home › Move", move_to)
             .key("Mod+Shift+V")
@@ -147,7 +148,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             std::fs::write(path, bytes).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
             Ok(json!({ "categories": s.prefs.categories.len(), "path": path }))
         })
-        .params(r#"{"path": string}"#),
+        .params(r#"{"path": string}"#)
+        .asks(),
         CommandSpec::new("category.import", "Import categories", "Home › Tags › Categorize › All Categories", |s, v| {
             let path = p::req_str(v, "path")?;
             let bytes = read_capped(path, 1 << 20)?;
@@ -188,7 +190,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             std::fs::write(path, bytes).map_err(|e| CmdError::Failed(format!("{path}: {e}")))?;
             Ok(json!({ "rules": s.rules.len(), "path": path }))
         })
-        .params(r#"{"path": string}"#),
+        .params(r#"{"path": string}"#)
+        .asks(),
         CommandSpec::new("rules.import", "Import rules", "Home › Rules › Options", |s, v| {
             let path = p::req_str(v, "path")?;
             let bytes = read_capped(path, 4 << 20)?;
@@ -289,6 +292,21 @@ fn row_action(s: &mut Session, v: &Value) -> CmdResult {
         s.reading = reading;
     }
     done
+}
+
+/// Whether `mail.delete` with `v` deletes for good, as [`delete_selection`] decides, for agents
+/// to be asked first (issue #281): `permanent`, Deleted Items shown, or a message it deletes
+/// (those `keys` names, else the selection) in Deleted Items already.
+fn deletes_for_good(s: &Session, v: &Value) -> bool {
+    let in_trash =
+        |k: &mailcraft_model::MessageKey| s.account(&k.account).and_then(|a| a.folder(FolderRole::Trash)).is_some_and(|t| t.path == k.folder);
+    let named: Vec<mailcraft_model::MessageKey> = v
+        .get("keys")
+        .and_then(Value::as_array)
+        .map(|k| k.iter().filter_map(Value::as_str).filter_map(mailcraft_model::MessageKey::from_id).collect())
+        .unwrap_or_default();
+    let deleted = if named.is_empty() { s.selection.clone() } else { named };
+    p::bool(v, "permanent").unwrap_or(false) || (s.view_role() == Some(FolderRole::Trash) && s.search.is_none()) || deleted.iter().any(in_trash)
 }
 
 fn delete_selection(s: &mut Session, v: &Value) -> CmdResult {

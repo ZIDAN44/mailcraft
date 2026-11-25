@@ -27,7 +27,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let data = file(v, 1 << 20)?;
             s.import_pgp_key_data(&account, data, &passphrase)
         })
-        .params(r#"{"path": string (a secret key file: .asc, .gpg, .key), "data"?: [bytes] (the file itself, in place of path), "passphrase"?: string, "account"?: string}"#),
+        .params(r#"{"path": string (a secret key file: .asc, .gpg, .key), "data"?: [bytes] (the file itself, in place of path), "passphrase"?: string, "account"?: string}"#)
+        .asks(),
         CommandSpec::new("pgp.keys", "OpenPGP keys", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             let settings = s.pgp_settings(&account);
@@ -43,23 +44,27 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let account = account_param(s, v)?;
             s.forget_pgp_key(&account, p::req_str(v, "fingerprint")?)
         })
-        .params(r#"{"fingerprint": string (of one of the account's keys, from pgp.keys; its key ID will do), "account"?: string}"#),
+        .params(r#"{"fingerprint": string (of one of the account's keys, from pgp.keys; its key ID will do), "account"?: string}"#)
+        .asks(),
         CommandSpec::new("pgp.use", "Use for sending", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             s.use_pgp_key(&account, p::req_str(v, "fingerprint")?)
         })
-        .params(r#"{"fingerprint": string (an older key's, from pgp.keys), "account"?: string}"#),
+        .params(r#"{"fingerprint": string (an older key's, from pgp.keys), "account"?: string}"#)
+        .asks(),
         CommandSpec::new("pgp.options", "OpenPGP options", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             s.set_pgp_options(&account, p::bool(v, "autocrypt"))
         })
-        .params(r#"{"autocrypt"?: bool (send the account's public key with its mail, so answers can be encrypted), "account"?: string}"#),
+        .params(r#"{"autocrypt"?: bool (send the account's public key with its mail, so answers can be encrypted), "account"?: string}"#)
+        .asks(),
         CommandSpec::new("pgp.importPublic", "Import someone's key", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             let data = file(v, 8 << 20)?;
             s.import_public_keys_data(&account, &data)
         })
-        .params(r#"{"path": string (a public key file, armored or binary, one key or many), "data"?: [bytes], "account"?: string}"#),
+        .params(r#"{"path": string (a public key file, armored or binary, one key or many), "data"?: [bytes], "account"?: string}"#)
+        .asks(),
         CommandSpec::new("pgp.importAttached", "Import key", "Reading pane › Attachments", |s, v| {
             let index = p::u64(v, "index").ok_or_else(|| CmdError::Params("`index`: which attachment".into()))?;
             let data = s.attachment_bytes(usize::try_from(index).unwrap_or(usize::MAX))?;
@@ -85,6 +90,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let account = account_param(s, v)?;
             s.forget_public_key(&account, p::req_str(v, "email")?)
         })
-        .params(r#"{"email": string, "account"?: string}"#),
+        .params(r#"{"email": string, "account"?: string}"#)
+        .asks(),
     ]
 }

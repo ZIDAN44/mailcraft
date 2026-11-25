@@ -111,11 +111,15 @@ pub struct CommandSpec {
     /// It acts on the selected messages: `keys` (messages in the list shown) selects them first,
     /// as clicks would (issue #255: an agent couldn't name the messages to delete).
     pub on_selection: bool,
-    /// Whether it sends mail or invitations to other people with these params, as things are: a
-    /// message, a reaction, a meeting's invitations, changes or cancellation, an answer to one.
-    /// `None`: it never does. Agents are asked about one that does even when they may run every
-    /// other command without asking (issue #281).
-    pub sends: Option<fn(&Session, &Value) -> bool>,
+    /// Whether agents are still asked before it runs with these params, as things are, when they
+    /// may run every other command without asking (issue #281): it sends mail or invitations to
+    /// other people (a message, a reaction, automatic replies, a meeting's invitations, changes
+    /// or cancellation, an answer to one); it adds or changes an account, its servers, password
+    /// or addresses (a password sent elsewhere, mail copied out); it reaches the web (a calendar
+    /// subscribed to, pictures shown); it changes certificates, keys or how mail is encrypted;
+    /// it saves a file, or attaches one from disk; or it deletes for good. `None`: none of these.
+    /// A command that does any of these is marked where it's written.
+    pub asks: Option<fn(&Session, &Value) -> bool>,
 }
 
 fn always(_: &Session) -> Option<&'static str> {
@@ -124,7 +128,19 @@ fn always(_: &Session) -> Option<&'static str> {
 
 impl CommandSpec {
     pub const fn new(id: &'static str, label: &'static str, location: &'static str, run: fn(&mut Session, &Value) -> CmdResult) -> Self {
-        CommandSpec { id, label, location, shortcut: "", params: "{}", enabled: always, run, leaves_body: false, setting: "", on_selection: false, sends: None }
+        CommandSpec {
+            id,
+            label,
+            location,
+            shortcut: "",
+            params: "{}",
+            enabled: always,
+            run,
+            leaves_body: false,
+            setting: "",
+            on_selection: false,
+            asks: None,
+        }
     }
     pub const fn key(mut self, s: &'static str) -> Self {
         self.shortcut = s;
@@ -139,13 +155,13 @@ impl CommandSpec {
         self.leaves_body = true;
         self
     }
-    /// It always sends to other people ([`CommandSpec::sends`]).
-    pub const fn sends(self) -> Self {
-        self.sends_when(|_, _| true)
+    /// Agents are always asked before it runs ([`CommandSpec::asks`]).
+    pub const fn asks(self) -> Self {
+        self.asks_when(|_, _| true)
     }
-    /// It sends to other people when `f` says so ([`CommandSpec::sends`]).
-    pub const fn sends_when(mut self, f: fn(&Session, &Value) -> bool) -> Self {
-        self.sends = Some(f);
+    /// Agents are asked before it runs when `f` says so ([`CommandSpec::asks`]).
+    pub const fn asks_when(mut self, f: fn(&Session, &Value) -> bool) -> Self {
+        self.asks = Some(f);
         self
     }
     pub const fn when(mut self, f: fn(&Session) -> Option<&'static str>) -> Self {

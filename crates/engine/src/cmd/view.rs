@@ -464,8 +464,10 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         toggle!("view.animations", "Play animations", "File › Options › General", animations, r#"{"on"?: bool (none: switch)}"#),
         toggle!("view.photoLocation", "Send where photos were taken", "File › Options › Safety", keep_photo_location, r#"{"on"?: bool (none: switch; off, the place is taken out of attached photos as they're sent)}"#),
         toggle!("view.cleanLinks", "Open links without their tracking", "File › Options › Safety", clean_links, r#"{"on"?: bool (none: switch; on, a link opens out of its redirect wrapper and without the tags naming the reader)}"#),
-        toggle!("view.autoPictures", "Show web pictures unless a message looks suspicious", "File › Options › Safety", auto_pictures, r#"{"on"?: bool (none: switch; on, a message whose sender the mail server confirmed shows its web pictures as it opens)}"#),
-        toggle!("view.checkRevocation", "Check whether certificates were withdrawn", "File › Options › Safety", check_revocation, r#"{"on"?: bool (none: switch; on, a signed message's certificate is checked with its authority as it's shown, which tells the authority)}"#),
+        toggle!("view.autoPictures", "Show web pictures unless a message looks suspicious", "File › Options › Safety", auto_pictures, r#"{"on"?: bool (none: switch; on, a message whose sender the mail server confirmed shows its web pictures as it opens)}"#)
+            .asks(),
+        toggle!("view.checkRevocation", "Check whether certificates were withdrawn", "File › Options › Safety", check_revocation, r#"{"on"?: bool (none: switch; on, a signed message's certificate is checked with its authority as it's shown, which tells the authority)}"#)
+            .asks(),
         CommandSpec::new("view.senderAddresses", "Show sender addresses in the message list", "File › Options › Safety", |s, v| {
             let show = p::req_str(v, "show")?;
             s.prefs.sender_addresses = crate::session::SenderAddresses::from_code(show)
@@ -488,7 +490,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             Ok(json!({"trusted": s.prefs.trusted_senders.iter().collect::<Vec<_>>()}))
         }).setting("trusted_senders,auto_pictures")
-        .params(r#"{"address": string, "on"?: bool}"#),
+        .params(r#"{"address": string, "on"?: bool}"#)
+        .asks(),
     ]
 }
 

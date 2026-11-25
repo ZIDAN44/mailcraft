@@ -37,7 +37,8 @@ pub(super) fn agents(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
                 acts,
             );
             if s.prefs.agents_run {
-                let about = tl!("Sending mail or invitations to other people is still asked about first.");
+                let about =
+                    tl!("Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.");
                 switch_row(
                     s,
                     ui,

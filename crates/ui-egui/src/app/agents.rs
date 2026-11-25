@@ -179,12 +179,13 @@ impl MailApp {
     }
 
     /// Whether agents run `command` with `params` without the window asking first: always
-    /// allowed on its own, or every command is, and it sends nothing to other people. Without
-    /// `params`, one that may send is taken as sending.
+    /// allowed on its own, or every command is, and it isn't one still asked about
+    /// ([`mailcraft_engine::CommandSpec::asks`]). Without `params`, one that may be is taken as
+    /// being.
     fn agent_runs_unasked(&self, command: &str, params: Option<&Value>) -> bool {
         let s = &self.session;
-        let sends = |c: &mailcraft_engine::CommandSpec| c.sends.is_some_and(|f| params.is_none_or(|v| f(s, v)));
-        s.prefs.agents_always.iter().any(|c| c == command) || (s.prefs.agents_always_all && s.registry().get(command).is_some_and(|c| !sends(c)))
+        let asks = |c: &mailcraft_engine::CommandSpec| c.asks.is_some_and(|f| params.is_none_or(|v| f(s, v)));
+        s.prefs.agents_always.iter().any(|c| c == command) || (s.prefs.agents_always_all && s.registry().get(command).is_some_and(|c| !asks(c)))
     }
 
     /// Whether an agent may have `command` run with `params` now, asked when it asks, every frame

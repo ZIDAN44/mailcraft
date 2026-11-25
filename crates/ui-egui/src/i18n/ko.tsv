@@ -2075,7 +2075,7 @@ count	occurrences	회
 	Let AI agents ask to run commands	AI 에이전트가 명령 실행을 요청하도록 허용
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	보내기, 이동, 초대에 응답… 항상 허용한 명령이 아니면 각각 여기서 먼저 묻습니다. 끄면 에이전트는 읽기만 합니다.
 	Always allow every command	모든 명령 항상 허용
-	Sending mail or invitations to other people is still asked about first.	다른 사람에게 메일이나 초대를 보내는 것은 여전히 먼저 묻습니다.
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	여전히 먼저 묻습니다: 다른 사람에게 보내기, 계정과 보안, 웹, 파일 저장, 영구 삭제.
 	Accounts AI agents read	AI 에이전트가 읽는 계정
 	One turned off is left out of all they read, and they can't take pictures of the window	끈 계정은 읽는 모든 것에서 빠지며, 창의 사진도 찍을 수 없습니다
 	… and {n} more characters	… 그리고 {n}자 더

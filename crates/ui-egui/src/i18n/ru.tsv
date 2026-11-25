@@ -2089,7 +2089,7 @@ count	occurrences	повторений
 	Let AI agents ask to run commands	Разрешить ИИ-агентам просить выполнить команды
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Отправка, перемещение, ответ на приглашение… о каждой команде сначала спрашивают здесь, если вы не разрешили её всегда. Выключено — агенты только читают.
 	Always allow every command	Всегда разрешать все команды
-	Sending mail or invitations to other people is still asked about first.	Об отправке писем или приглашений другим людям по-прежнему сначала спрашивают.
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	По-прежнему сначала спрашивают: отправка другим людям, учётные записи и безопасность, интернет, сохранение файлов и удаление навсегда.
 	Accounts AI agents read	Учётные записи, которые читают ИИ-агенты
 	One turned off is left out of all they read, and they can't take pictures of the window	Выключенная учётная запись не попадает ни во что, что они читают, и они не могут делать снимки окна
 	… and {n} more characters	… и ещё {n} символов

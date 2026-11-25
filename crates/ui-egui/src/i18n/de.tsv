@@ -2076,7 +2076,7 @@ count	occurrences	Terminen
 	Let AI agents ask to run commands	KI-Agenten dürfen um das Ausführen von Befehlen bitten
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Senden, Verschieben, eine Einladung beantworten… Jeder Befehl wird hier zuerst erfragt, außer Sie erlauben ihn immer. Aus: Agenten lesen nur.
 	Always allow every command	Jeden Befehl immer erlauben
-	Sending mail or invitations to other people is still asked about first.	Das Senden von Mails oder Einladungen an andere wird weiterhin zuerst erfragt.
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Weiterhin zuerst erfragt: Senden an andere, Konten und Sicherheit, das Web, Speichern von Dateien und endgültiges Löschen.
 	Accounts AI agents read	Konten, die KI-Agenten lesen
 	One turned off is left out of all they read, and they can't take pictures of the window	Ein ausgeschaltetes Konto bleibt bei allem, was sie lesen, außen vor, und sie können keine Bilder des Fensters aufnehmen
 	… and {n} more characters	… und {n} weitere Zeichen

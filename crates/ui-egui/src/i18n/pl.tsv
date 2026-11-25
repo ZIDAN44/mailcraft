@@ -2089,7 +2089,7 @@ count	occurrences	wystąpieniach
 	Let AI agents ask to run commands	Pozwól agentom AI prosić o uruchamianie poleceń
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Wysyłanie, przenoszenie, odpowiedź na zaproszenie… o każde polecenie najpierw zapytamy tutaj, chyba że zawsze na nie zezwalasz. Wyłączone: agenci tylko czytają.
 	Always allow every command	Zawsze zezwalaj na każde polecenie
-	Sending mail or invitations to other people is still asked about first.	O wysłanie poczty lub zaproszeń do innych osób nadal najpierw zapytamy.
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Nadal najpierw zapytamy o: wysyłanie do innych osób, konta i bezpieczeństwo, sieć, zapisywanie plików i trwałe usuwanie.
 	Accounts AI agents read	Konta czytane przez agentów AI
 	One turned off is left out of all they read, and they can't take pictures of the window	Wyłączone konto jest pomijane we wszystkim, co czytają, i nie mogą robić zdjęć okna
 	… and {n} more characters	… i jeszcze {n} znaków

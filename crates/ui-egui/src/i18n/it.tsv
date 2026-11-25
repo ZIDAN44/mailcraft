@@ -2075,7 +2075,7 @@ count	occurrences	ripetizioni
 	Let AI agents ask to run commands	Consenti agli agenti IA di chiedere di eseguire comandi
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Inviare, spostare, rispondere a un invito… ognuno ti viene chiesto qui prima, a meno che tu non lo consenta sempre. Disattivato, gli agenti leggono soltanto.
 	Always allow every command	Consenti sempre ogni comando
-	Sending mail or invitations to other people is still asked about first.	L'invio di posta o inviti ad altre persone ti viene comunque chiesto prima.
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Ti viene comunque chiesto prima: inviare ad altre persone, account e sicurezza, il web, salvare file ed eliminare definitivamente.
 	Accounts AI agents read	Account letti dagli agenti IA
 	One turned off is left out of all they read, and they can't take pictures of the window	Un account disattivato resta escluso da tutto ciò che leggono, e non possono fare immagini della finestra
 	… and {n} more characters	… e altri {n} caratteri

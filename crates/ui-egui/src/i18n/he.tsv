@@ -2071,7 +2071,7 @@ count	occurrences	פעמים
 	Let AI agents ask to run commands	לאפשר לסוכני בינה מלאכותית לבקש להריץ פקודות
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	שליחה, העברה, מענה להזמנה… כל אחת נשאלת כאן קודם, אלא אם תמיד תאפשר אותה. כשכבוי, הסוכנים רק קוראים.
 	Always allow every command	לאפשר תמיד כל פקודה
-	Sending mail or invitations to other people is still asked about first.	שליחת דואר או הזמנות לאנשים אחרים עדיין נשאלת קודם.
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	עדיין נשאל קודם: שליחה לאנשים אחרים, חשבונות ואבטחה, הרשת, שמירת קבצים ומחיקה לצמיתות.
 	Accounts AI agents read	חשבונות שסוכני בינה מלאכותית קוראים
 	One turned off is left out of all they read, and they can't take pictures of the window	חשבון כבוי מושמט מכל מה שהם קוראים, והם לא יכולים לצלם את החלון
 	… and {n} more characters	… ועוד {n} תווים
