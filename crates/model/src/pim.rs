@@ -551,7 +551,7 @@ impl Pim {
     }
 
     /// The calendar new events and invitations go to: the one the user chose, else the
-    /// account's own on its server (SOGo's `personal` first) rather than someone else's listed
+    /// account's own on its server (SOGo's `personal` or a `default` first) rather than someone else's listed
     /// with it, else the first that can be added to (issue #30).
     pub fn default_calendar(&self) -> Option<&CalendarInfo> {
         pick_calendar(self.calendars.iter(), self.chosen_calendar.as_deref())
@@ -600,11 +600,15 @@ pub fn pick_calendar<'a>(calendars: impl Iterator<Item = &'a CalendarInfo> + Clo
         return Some(c);
     }
     let own = |c: &&CalendarInfo| writable(c) && !c.foreign && shared_calendar_owner(&c.id).is_none();
-    let personal = |c: &&CalendarInfo| c.id.trim_end_matches('/').rsplit('/').next().is_some_and(|n| n.eq_ignore_ascii_case("personal"));
+    // The server's own default by its name: SOGo's `personal`, Stalwart's and Radicale-style
+    // `default` (issue #278), before the order the server lists them in.
+    let named_default = |c: &&CalendarInfo| {
+        c.id.trim_end_matches('/').rsplit('/').next().is_some_and(|n| n.eq_ignore_ascii_case("personal") || n.eq_ignore_ascii_case("default"))
+    };
     calendars
         .clone()
         .filter(own)
-        .find(personal)
+        .find(named_default)
         .or_else(|| calendars.clone().find(own))
         .or_else(|| calendars.clone().find(|c| writable(c) && shared_calendar_owner(&c.id).is_none()))
         .or_else(|| calendars.clone().find(writable))
@@ -729,5 +733,19 @@ mod default_calendar_tests {
             Pim { calendars: vec![cal(LOCAL, false, false), cal(&shared_calendar_id("a@b.example"), false, false)], ..Default::default() };
         assert!(only_here.server_calendar().is_none());
         assert_eq!(only_here.default_calendar().map(|c| c.id.as_str()), Some(LOCAL));
+    }
+
+    /// Issue #278: Stalwart lists a second calendar before the account's `default`; the
+    /// default is still `default`, for new events and for events moved to the server.
+    #[test]
+    fn a_calendar_named_default_beats_the_listing_order() {
+        let list = vec![
+            cal("https://d.example/dav/cal/zoe/social-posts/", false, false),
+            cal("https://d.example/dav/cal/zoe/Default/", false, false),
+            cal(LOCAL, false, false),
+        ];
+        let p = Pim { calendars: list, ..Default::default() };
+        assert_eq!(p.default_calendar().map(|c| c.id.as_str()), Some("https://d.example/dav/cal/zoe/Default/"));
+        assert_eq!(p.server_calendar().map(|c| c.id.as_str()), Some("https://d.example/dav/cal/zoe/Default/"));
     }
 }
