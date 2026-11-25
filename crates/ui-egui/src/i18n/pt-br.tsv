@@ -2006,7 +2006,6 @@ count	occurrences	ocorrências
 	Open the series	Abrir a série
 	Changes apply to this occurrence alone.	As alterações valem só para esta ocorrência.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	Seus outros filtros no servidor (“{name}”) são executados primeiro e ficam como estão.
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	Estas regras não estão sendo executadas: outro programa fez dos próprios filtros os que são executados. Salvar uma regra aqui as executa de novo, junto com as daquele programa.
 	Found: {url}	Encontrado: {url}
 	Task list	Lista de tarefas
 	Task lists	Listas de tarefas
@@ -2117,3 +2116,56 @@ count	occurrences	ocorrências
 	Mark read or unread	Marcar como lida ou não lida
 	Choose a date…	Escolher uma data…
 	Pick a time in the future.	Escolha um horário futuro.
+	In 1 minute	Em 1 minuto
+	In 1 day	Em 1 dia
+	Proposal accepted: the meeting is at {when} now.	Proposta aceita: a reunião agora é em {when}.
+	Invitation: {summary}	Convite: {summary}
+	Updated: {summary}	Atualizado: {summary}
+	Cancelled: {summary}	Cancelado: {summary}
+	Cancelled: {summary} ({when})	Cancelado: {summary} ({when})
+	{summary} has been cancelled.	{summary} foi cancelado.
+	{summary} on {when} has been cancelled.	{summary} em {when} foi cancelado.
+	When: {when}	Quando: {when}
+	Where: {place}	Onde: {place}
+	Fwd: {summary}	ENC: {summary}
+	{who} forwarded you this meeting, organized by {organizer}.	{who} encaminhou esta reunião para você. A reunião é organizada por {organizer}.
+	{who} asked you to go to this meeting in their place. It's organized by {organizer}.	{who} pediu que você vá a esta reunião em seu lugar. A reunião é organizada por {organizer}.
+	Accepted: {summary}	Aceito: {summary}
+	Tentative: {summary}	Provisório: {summary}
+	Declined: {summary}	Recusado: {summary}
+	Delegated: {summary}	Delegado: {summary}
+	{who} accepted the invitation to {summary}.	{who} aceitou o convite para {summary}.
+	{who} tentatively accepted the invitation to {summary}.	{who} aceitou provisoriamente o convite para {summary}.
+	{who} declined the invitation to {summary}.	{who} recusou o convite para {summary}.
+	{who} asked {delegate} to go to {summary} in their place.	{who} pediu a {delegate} que vá a {summary} em seu lugar.
+	New time proposed: {summary}	Novo horário proposto: {summary}
+	{who} proposes a new time for {summary}: {when}.	{who} propõe um novo horário para {summary}: {when}.
+	New time declined: {summary}	Novo horário recusado: {summary}
+	The proposed new time for {summary} was declined. The meeting stays as it was.	O novo horário proposto para {summary} foi recusado. A reunião continua como estava.
+	Cancel meeting	Cancelar reunião
+	Cancel this occurrence	Cancelar esta ocorrência
+	Send cancellation	Enviar cancelamento
+	Delete without sending	Excluir sem enviar
+	Message to your guests	Mensagem aos participantes
+	Your guests are sent a cancellation. Add a message to them, if you like.	Os participantes recebem um cancelamento. Se quiser, adicione uma mensagem para eles.
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	As respostas automáticas e as regras do MailCraft no servidor não estão sendo executadas: outro programa fez dos próprios filtros (“{name}”) os que são executados.
+	Off: another program's filters (“{name}”) run in place of MailCraft's	Desativadas: os filtros de outro programa (“{name}”) são executados no lugar dos do MailCraft
+	On, sent by your other filters on the server (“{name}”)	Ativadas, enviadas pelos seus outros filtros no servidor (“{name}”)
+	Run my rules again	Executar minhas regras de novo
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	Estas são as respostas que seus outros filtros no servidor (“{name}”) enviam: altere-as no programa que as criou. As do MailCraft só podem ficar ativadas enquanto essas estiverem desativadas: o servidor envia uma só resposta.
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	Estas regras não estão sendo executadas: outro programa fez dos próprios filtros os que são executados. Execute-as de novo aqui, junto com as daquele programa.
+	Account: {email}	Conta: {email}
+	Details	Detalhes
+	Event: “{name}”, {when}	Evento: “{name}”, {when}
+	Message: “{subject}”, from {from}	Mensagem: “{subject}”, de {from}
+	Task: “{name}”	Tarefa: “{name}”
+	This occurrence: {when}	Esta ocorrência: {when}
+	To: {who}	Para: {who}
+	Asking their server…	Perguntando ao servidor deles…
+	Click a time to move the meeting there	Clique em um horário para mover a reunião para lá
+	Hide Scheduling Assistant	Ocultar Assistente de Agendamento
+	Scheduling Assistant	Assistente de Agendamento
+	The next time you and your guests are all free	O próximo horário em que você e os participantes estão todos livres
+	Their times can't be had: {why}	Os horários deles não estão disponíveis: {why}
+	You	Você
+	{free} of {all} free	{free} de {all} livres

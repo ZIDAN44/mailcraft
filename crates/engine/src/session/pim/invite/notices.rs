@@ -63,9 +63,9 @@ impl Session {
             // guests, never invited, hear nothing.
             Route::Wait if method == "CANCEL" && href.is_empty() && event.recurrence_id.is_none() => {
                 let p = self.pim_mut(account);
-                let before = p.notices.len();
-                p.notices.retain(|n| !(n.uid == event.uid && n.method == "REQUEST"));
-                let never_sent = p.notices.len() != before;
+                let never_sent = p.notices.iter().any(|n| n.uid == event.uid && n.method == "REQUEST");
+                // Its updates waiting too: the guests never had it.
+                p.notices.retain(|n| !(n.uid == event.uid && matches!(n.method.as_str(), "REQUEST" | "UPDATE")) || !never_sent);
                 self.save_pim(account);
                 if never_sent { Ok(0) } else { self.send_invitations(event, account, method) }
             }
@@ -150,7 +150,14 @@ impl Session {
                 waiting.push(n);
             } else {
                 let master = parts.iter().find(|e| e.event.recurrence_id.is_none()).or_else(|| parts.first()).map(|e| e.event.clone());
-                ready.push((n, master));
+                // An update of one occurrence: that occurrence as stored, not the series (issue
+                // #235: its mail named the series' start, and sent the guests the whole series).
+                let own = n
+                    .event
+                    .recurrence_id
+                    .filter(|_| matches!(n.method.as_str(), "REQUEST" | "UPDATE"))
+                    .and_then(|at| parts.iter().find(|e| e.event.recurrence_id == Some(at)).map(|e| e.event.clone()));
+                ready.push((n, own.or(master)));
             }
         }
         p.notices = waiting;
@@ -168,8 +175,8 @@ impl Session {
             // The version the server stored, unless the server mailed the guests itself after all
             // (it says it delivered them: one that doesn't do as `SCHEDULE-AGENT` asks). Gone
             // meanwhile, it isn't sent.
-            "REQUEST" => match stored {
-                Some(s) if !s.server_delivered => self.send_invitations(&s, account, "REQUEST"),
+            "REQUEST" | "UPDATE" => match stored {
+                Some(s) if !s.server_delivered => self.send_invitations(&s, account, &n.method),
                 _ => Ok(0),
             },
             "CANCEL" => {

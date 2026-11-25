@@ -218,7 +218,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             }
             !cancel
         }
-        Dialog::Event(f) => crate::pim_dialogs::event(ui, f, t, acts),
+        Dialog::Event(f) => crate::pim_dialogs::event(ui, f, s, t, acts),
         Dialog::Task(f) => crate::pim_dialogs::task(ui, f, t, acts),
         Dialog::FollowUp(f) => crate::pim_dialogs::follow_up(ui, f, t, acts),
         Dialog::Snooze(f) => crate::pim_dialogs::snooze(ui, f, s, t, acts),
@@ -256,6 +256,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
         }
         // Forward or delegate a meeting (issues #234, #254): to whom.
         Dialog::PassMeeting(f) => crate::pim_dialogs::pass(ui, f, t, acts),
+        Dialog::CancelMeeting(f) => crate::pim_dialogs::cancel(ui, f, t, acts),
         Dialog::Contact(f) => crate::pim_dialogs::contact(ui, f, t, acts),
         // Every other kind is shown by its own group (`body`).
         _ => true,

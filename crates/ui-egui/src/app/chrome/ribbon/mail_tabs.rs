@@ -77,6 +77,17 @@ pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Ac
     // Quick Steps: each done to the selection in one click (Ctrl+Shift+1…9).
     let r = widgets::tool_button(ui, Icon::Steps, "Quick steps", &t, true);
     egui::Popup::menu(&r).show(|ui| quick_steps_menu(ui, s, acts));
+    // Rules (issue #243: Home had no way to them): one made from the message, or all of them.
+    let r = widgets::tool_button(ui, Icon::Rules, "Rules", &t, true);
+    egui::Popup::menu(&r).show(|ui| {
+        let sender = s.first_selected().map(|m| m.from.email.clone()).filter(|e| !e.is_empty());
+        if ui.add_enabled(sender.is_some(), egui::Button::new(tl!("Create rule…"))).clicked() {
+            acts.push(Action::Dialog(Dialog::rule_from(sender.as_deref().unwrap_or_default())));
+        }
+        if ui.button(tl!("Manage rules")).clicked() {
+            acts.push(Action::Dialog(Dialog::Rules));
+        }
+    });
     widgets::group(ui, &t, "Move", false);
     for (id, icon, label, tip) in [
         ("mail.reply", Icon::Reply, "Reply", "Reply (Ctrl+R)"),

@@ -1,7 +1,7 @@
 //! File › Info: the account picker, then the account's cards: its settings, security, automatic
 //! replies, its mailbox and data file, and its rules.
 
-use mailcraft_engine::AccountState;
+use mailcraft_engine::{AccountState, ServerRulesState};
 
 use super::*;
 
@@ -38,7 +38,7 @@ pub(super) fn info(
     }
     automatic_replies(t, ui, a, acts);
     data_file::mailbox(s, t, has_files, ui, a, b, acts);
-    rules(s, t, ui, acts);
+    rules(s, t, ui, a, acts);
     // The organisation's profile, and the details its signature takes (issue #245).
     super::organisation::show(s, t, a, ui, acts);
     // What AI agents asked lately, whichever account (issue #255).
@@ -244,6 +244,14 @@ fn automatic_replies(t: &Tokens, ui: &mut Ui, a: &AccountState, acts: &mut Vec<A
         _ if a.config.is_calendar_only() => (t.faint, tl!("Not available: this account has no mail server.").to_string()),
         _ if a.is_local() => (t.faint, tl!("Not available: this mailbox has no server.").to_string()),
         VacationState::Unknown | VacationState::Loading => (t.faint, tl!("Checking with the server…").to_string()),
+        // Another program's filters on the server (issue #243): their replies, or theirs running
+        // in place of MailCraft's.
+        VacationState::Loaded(v) if v.enabled && v.sent_by.is_some() => {
+            (t.ok, tf!("On, sent by your other filters on the server (“{name}”)", name = v.sent_by.as_deref().unwrap_or_default()))
+        }
+        VacationState::Loaded(v) if v.instead.is_some() => {
+            (t.warn, tf!("Off: another program's filters (“{name}”) run in place of MailCraft's", name = v.instead.as_deref().unwrap_or_default()))
+        }
         VacationState::Loaded(v) if v.enabled => (
             t.ok,
             match (&v.from, &v.until) {
@@ -281,8 +289,9 @@ fn automatic_replies(t: &Tokens, ui: &mut Ui, a: &AccountState, acts: &mut Vec<A
     );
 }
 
-/// The rules: how many, and Manage rules.
-fn rules(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+/// The rules (issue #243: they were hard to find): MailCraft's, each by name and whether it's on,
+/// then those the account's server runs, and Manage rules.
+fn rules(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, acts: &mut Vec<Action>) {
     let n = s.rules.len();
     card(ui, t, tl!("Rules"), Some(tl!("Sort mail as it arrives, or as you send it: move it, flag it, categorize it.")), |ui| {
         let count = if n == 0 { tl!("No rules yet.").to_string() } else { tf!("Rules: {n}", n = n) };
@@ -291,5 +300,55 @@ fn rules(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 acts.push(Action::Dialog(Dialog::Rules));
             }
         });
+        for r in s.rules.iter().take(SHOWN_RULES) {
+            listed_rule(ui, t, &r.name, r.enabled);
+        }
+        if n > SHOWN_RULES {
+            ui.label(note(t, &tf!("and {n} more", n = n - SHOWN_RULES)));
+        }
+        let id = &a.config.id;
+        if !s.server_rule_accounts().contains(id) {
+            return;
+        }
+        ui.add_space(8.0);
+        ui.label(RichText::new(tf!("On the server: {account}", account = a.config.email)).color(t.text).strong());
+        match s.server_rules(id) {
+            ServerRulesState::Unknown => acts.push(Action::Run("rules.server", json!({"account": id}))),
+            ServerRulesState::Loading => {
+                ui.label(note(t, tl!("Reading the rules on the server…")));
+            }
+            ServerRulesState::Failed(e) => {
+                ui.label(RichText::new(tf!("Not available: {error}", error = tl!(e))).color(t.warn).small());
+            }
+            ServerRulesState::NotOffered => {}
+            ServerRulesState::Loaded { rules, .. } => {
+                if rules.not_running {
+                    ui.label(RichText::new(tl!("These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.")).color(t.warn).small());
+                    if ui.button(tl!("Run my rules again")).clicked() {
+                        acts.push(Action::Run("rules.serverResume", json!({"account": id})));
+                    }
+                }
+                if rules.rules.is_empty() {
+                    ui.label(note(t, tl!("No rules yet.")));
+                }
+                for r in rules.rules.iter().take(SHOWN_RULES) {
+                    listed_rule(ui, t, &r.name, r.enabled);
+                }
+                if rules.rules.len() > SHOWN_RULES {
+                    ui.label(note(t, &tf!("and {n} more", n = rules.rules.len() - SHOWN_RULES)));
+                }
+            }
+        }
+    });
+}
+
+/// The most rules named in a list here: Manage rules has them all.
+const SHOWN_RULES: usize = 8;
+
+/// A rule by name, and whether it's on.
+fn listed_rule(ui: &mut Ui, t: &Tokens, rule: &str, on: bool) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(rule).color(if on { t.text } else { t.dim }));
+        ui.label(note(t, tl!(if on { "On" } else { "Off" })));
     });
 }

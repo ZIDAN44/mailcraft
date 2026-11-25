@@ -486,9 +486,25 @@ fn real_caldav_colleagues_times() {
         .map(|a| (a.start, a.end, format!("{:?}", a.show_as)))
         .collect();
     eprintln!("{state}: {shown:?}");
+    // Issue #277: a meeting's form asks for the same times as the colleague is invited, their
+    // calendar not shown, and Next free time goes past their hour.
+    app.s.run("calendar.show", &json!({"account": id, "calendar": cal, "shown": false})).unwrap();
+    app.s.run("view.mail", &json!({})).unwrap();
+    let ask = json!({"account": id, "attendees": colleague, "date": &at(start)[..10]});
+    app.s.run("event.scheduling", &ask).unwrap();
+    // Known already from the calendar shown, or asked for now.
+    if matches!(app.s.guest_times(&id, &colleague), mailcraft_engine::GuestTimes::Asking) {
+        app.pump(60, "the guest's times", |s, _| !matches!(s.guest_times(&id, &colleague), mailcraft_engine::GuestTimes::Asking));
+    }
+    let times = app.s.run("event.scheduling", &ask).unwrap();
+    eprintln!("the form's: {times}");
+    let busy = times["guests"][0]["busy"].as_array().cloned().unwrap_or_default();
+    let next = app.s.run("event.nextFree", &json!({"account": id, "attendees": colleague, "start": at(start), "minutes": 60})).unwrap();
     theirs.s.run("event.delete", &json!({"uid": uid})).unwrap();
     theirs.sync_dav(&tid);
     assert!(shown.contains(&(start, start + 3600, "Busy".to_string())), "{state}: {shown:?}");
+    assert!(busy.iter().any(|b| b["start"] == start && b["end"] == start + 3600), "{times}");
+    assert!(next["found"] == true && next["start"].as_i64().is_some_and(|t| t >= start + 3600), "{next}");
 }
 
 /// Issue #201: tasks in a CalDAV server's task lists, run by hand with

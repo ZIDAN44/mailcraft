@@ -17,11 +17,11 @@ pub const POWERSHELL: &str = r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPow
 const WAIT: std::time::Duration = std::time::Duration::from_secs(10 * 60);
 
 /// Show a toast under `app_id`, carrying `link` when there is one (Windows starts it when it's
-/// clicked). Without one, the toast's own click event is waited for while it shows: whether it
-/// was clicked.
-pub fn show(app_id: &str, title: &str, body: &str, link: Option<&str>) -> Result<bool, String> {
+/// clicked), sounding Windows' reminder sound for a `reminder`. Without a link, the toast's own
+/// click event is waited for while it shows: whether it was clicked.
+pub fn show(app_id: &str, title: &str, body: &str, link: Option<&str>, reminder: bool) -> Result<bool, String> {
     let doc = XmlDocument::new().map_err(|e| e.to_string())?;
-    doc.LoadXml(&HSTRING::from(toast_xml(title, body, link))).map_err(|e| e.to_string())?;
+    doc.LoadXml(&HSTRING::from(toast_xml(title, body, link, reminder))).map_err(|e| e.to_string())?;
     let toast = ToastNotification::CreateToastNotification(&doc).map_err(|e| e.to_string())?;
     let (tx, rx) = mpsc::channel::<bool>();
     if link.is_none() {
@@ -55,12 +55,13 @@ pub fn show(app_id: &str, title: &str, body: &str, link: Option<&str>) -> Result
     Ok(clicked)
 }
 
-/// A toast's XML: its title and text, silent as MailCraft's were, and the link a click starts
-/// (`activationType="protocol"`) when there's one.
-pub fn toast_xml(title: &str, body: &str, link: Option<&str>) -> String {
+/// A toast's XML: its title and text, and the link a click starts (`activationType="protocol"`)
+/// when there's one; silent as new mail's were, or a reminder's sound, each time.
+pub fn toast_xml(title: &str, body: &str, link: Option<&str>, reminder: bool) -> String {
     let launch = link.map_or_else(String::new, |l| format!(" launch=\"{}\" activationType=\"protocol\"", xml_text(l)));
+    let audio = if reminder { r#"<audio src="ms-winsoundevent:Notification.Reminder"/>"# } else { r#"<audio silent="true"/>"# };
     format!(
-        "<toast{launch}><visual><binding template=\"ToastGeneric\"><text>{}</text><text>{}</text></binding></visual><audio silent=\"true\"/></toast>",
+        "<toast{launch}><visual><binding template=\"ToastGeneric\"><text>{}</text><text>{}</text></binding></visual>{audio}</toast>",
         xml_text(title),
         xml_text(body)
     )
@@ -91,19 +92,30 @@ mod tests {
 
     #[test]
     fn a_toast_carries_its_link_and_holds_any_text() {
-        let xml = toast_xml("New mail: <Ana> & \"Bo\"", "Re: 'plans'\u{7}\u{0}\nnext", Some("mailcraft:show?key=a%3A1%3A2%3AINBOX&x=1"));
+        let xml = toast_xml("New mail: <Ana> & \"Bo\"", "Re: 'plans'\u{7}\u{0}\nnext", Some("mailcraft:show?key=a%3A1%3A2%3AINBOX&x=1"), false);
         assert!(xml.starts_with("<toast launch=\"mailcraft:show?key=a%3A1%3A2%3AINBOX&amp;x=1\" activationType=\"protocol\">"), "{xml}");
         assert!(xml.contains("<text>New mail: &lt;Ana&gt; &amp; &quot;Bo&quot;</text><text>Re: &apos;plans&apos;\nnext</text>"), "{xml}");
-        assert!(!toast_xml("a", "b", None).contains("launch"));
+        assert!(xml.contains(r#"<audio silent="true"/>"#), "new mail silent, as it was");
+        assert!(!toast_xml("a", "b", None, false).contains("launch"));
+    }
+
+    /// Issue #239: a reminder sounds Windows' reminder sound, each one (the second of two came
+    /// silent).
+    #[test]
+    fn a_reminder_sounds() {
+        let xml = toast_xml("Standup", "09:00", None, true);
+        assert!(xml.contains(r#"<audio src="ms-winsoundevent:Notification.Reminder"/>"#) && !xml.contains("silent"), "{xml}");
     }
 
     /// Windows reads the XML (a control character in a subject made it refuse the toast).
     #[test]
     fn windows_reads_every_toast() {
         for (title, body) in [("New mail", "Ana: plans"), ("a\u{1}b", "\u{0}<&>\u{fffe}"), ("", "")] {
-            let doc = XmlDocument::new().unwrap();
-            doc.LoadXml(&HSTRING::from(toast_xml(title, body, Some("mailcraft:show")))).unwrap();
-            assert!(ToastNotification::CreateToastNotification(&doc).is_ok(), "{title:?}");
+            for reminder in [false, true] {
+                let doc = XmlDocument::new().unwrap();
+                doc.LoadXml(&HSTRING::from(toast_xml(title, body, Some("mailcraft:show"), reminder))).unwrap();
+                assert!(ToastNotification::CreateToastNotification(&doc).is_ok(), "{title:?}");
+            }
         }
     }
 }

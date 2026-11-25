@@ -19,9 +19,9 @@ mod free_busy;
 mod free_time;
 pub use free_time::FREE_LENGTHS;
 #[cfg(test)]
-pub(crate) use free_time::{NONE_YET, UNKNOWN_FREE};
+pub(crate) use free_time::{NONE_YET, NOT_COME, UNKNOWN_FREE};
 mod groups;
-pub use free_busy::{FreeBusyKept, FreeBusyState};
+pub use free_busy::{FreeBusyKept, FreeBusyState, GuestTimes};
 pub mod invite;
 mod local;
 pub use local::LocalEvents;

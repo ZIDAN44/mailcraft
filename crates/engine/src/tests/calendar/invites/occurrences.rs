@@ -45,7 +45,7 @@ fn one_occurrence_is_changed_on_its_own() {
     assert!(own.event.rrule.is_none() && own.event.exdates.is_empty());
     assert_eq!(own.event.sequence, m.sequence + 1, "a new version of that occurrence");
     // Zoe is sent that occurrence alone: one event, naming it.
-    let (method, raw) = sent_calendar(&s, "Sent", "Invitation: Stand-up (Room 2)");
+    let (method, raw) = sent_calendar(&s, "Sent", "Updated: Stand-up (Room 2)");
     assert_eq!(method, "REQUEST");
     let cal = mailcraft_model::ical::parse(&raw[raw.find("BEGIN:VCALENDAR").unwrap()..], 0);
     assert_eq!(cal.events.len(), 1, "{raw}");

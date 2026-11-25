@@ -216,3 +216,71 @@ fn only_work_hours_narrows_the_day() {
     let (review, nine) = (at(&drawn, "Budget review"), at(&drawn, "09:00"));
     assert!(review.max.x <= nine.min.x + 2.0, "her 08:00 – 09:00 still there: {review:?} {nine:?}");
 }
+
+/// Frames at the window's own size after the form was drawn bigger (`drawn_strings`): centred
+/// again, it has stopped moving before a click is aimed at it. With the craft-fonts fallbacks
+/// built in, as CI builds, it moves for a frame longer than without.
+fn settle(ctx: &egui::Context, a: &mut MailApp) {
+    for _ in 0..3 {
+        frame(ctx, a, vec![]);
+    }
+}
+
+/// Issue #277: a meeting's form shows its guests' times while it's written, as Outlook's
+/// Scheduling Assistant: asked for as they're named, how many are free at its time, Next free
+/// time moving it to when all are free (its length kept), and everyone's rows over its day.
+#[test]
+fn a_meetings_form_has_a_scheduling_assistant() {
+    let (mut a, _) = app("assistant");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    for p in a.session.pim.values_mut() {
+        p.events.clear();
+    }
+    // The next Monday, 10:00 to 11:00.
+    let today = a.session.clock.local_day(NOW);
+    let monday = today + 7 - i64::from(mailcraft_engine::model::dates::weekday_index(today));
+    let midnight = a.session.clock.midnight(monday);
+    let at = |h: i64| midnight + h * 3600;
+    let (ten, eleven) = (at(10), at(11));
+    let mut d = Dialog::new_event(&a.session, Some(ten));
+    if let Dialog::Event(f) = &mut d {
+        f.summary = "Planning".into();
+        f.guests = format!("Ana Lima <{ANA}>");
+    }
+    a.ui.dialog = Some(d);
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    assert_eq!(a.session.guest_times("sample", ANA), mailcraft_engine::GuestTimes::Asking, "asked for as named");
+    let busy = vec![Busy { start: ten, end: eleven, show_as: ShowAs::Busy, ..Default::default() }];
+    let answers = vec![FreeBusyAnswer { email: ANA.into(), busy, ..Default::default() }];
+    a.session.apply(NetEvent::FreeBusy { account: "sample".into(), from: at(-24 * 7), to: at(24 * 14), answers });
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 1000.0));
+    assert!(texts.iter().any(|t| t == "1 of 2 free"), "{texts:?}");
+    settle(&ctx, &mut a);
+    click_named(&ctx, &mut a, "Next free time");
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::Event(f)) = a.ui.dialog.as_ref() else { panic!("the form stays") };
+    let clock = a.session.clock;
+    let moment =
+        |date: &str, time: &str| mailcraft_engine::parse_local(&format!("{date}T{}", crate::pim_dialogs::time_param(time)), &clock).map(|(t, _)| t);
+    assert_eq!((moment(&f.date, &f.start), moment(&f.end_date, &f.end)), (Some(eleven), Some(at(12))), "after Ana's hour, an hour long");
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 1000.0));
+    assert!(texts.iter().any(|t| t == "2 of 2 free"), "{texts:?}");
+    settle(&ctx, &mut a);
+    click_named(&ctx, &mut a, "Scheduling Assistant");
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 1000.0));
+    for want in ["All together", "You", "Ana Lima", "Hide Scheduling Assistant"] {
+        assert!(texts.iter().any(|t| t == want), "{want}: {texts:?}");
+    }
+    // Open, it finds the next time too: all free now, so the half hour after.
+    settle(&ctx, &mut a);
+    click_named(&ctx, &mut a, "Next free time");
+    frame(&ctx, &mut a, vec![]);
+    let Some(Dialog::Event(f)) = a.ui.dialog.as_ref() else { panic!("the form stays") };
+    assert_eq!(moment(&f.date, &f.start), Some(eleven + 1800));
+}

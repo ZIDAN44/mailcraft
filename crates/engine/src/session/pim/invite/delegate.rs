@@ -209,14 +209,13 @@ impl Session {
         let from = config.identity(&invited).map(|i| i.email.clone()).unwrap_or_default();
         let sender = config.sender(&from);
         let who = if sender.name.is_empty() { sender.email.clone() } else { sender.name.clone() };
-        let when = mailcraft_model::dates::full_time(first.start, &self.clock);
-        let place = if first.location.is_empty() { String::new() } else { format!("\nWhere: {}", first.location) };
+        // In the window's language (issue #235).
+        let w = &self.mail_words;
+        let lines = w.when_where(&w.time(first.start, &self.clock), &first.location);
         let by = if organizer.name.is_empty() { organizer.email.clone() } else { organizer.name.clone() };
-        let body = format!(
-            "{who} asked you to go to this meeting in their place. It's organized by {by}.\n\n{}\nWhen: {when}{place}\n\n{}",
-            first.summary, first.description
-        );
-        let subject = format!("Invitation: {}", first.summary);
+        let said = MailWords::fill(&w.delegated_body, &[("who", &who), ("organizer", &by)]);
+        let body = format!("{said}\n\n{}\n{lines}\n\n{}", first.summary, first.description);
+        let subject = MailWords::fill(&w.invitation, &[("summary", &first.summary)]);
         let to = vec![EmailAddress::new(person.name.clone(), person.email.clone())];
         self.send_itip(&account, Itip { from: &from, to, method: "REQUEST", events: &sent, subject: &subject, body: &body })?;
         // The organizer told, as an answer is (now, or once a server that schedules has it).

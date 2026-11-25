@@ -70,6 +70,8 @@ pub enum Icon {
     Task,
     /// Two chevrons running ahead (Quick Steps: several things in one go).
     Steps,
+    /// Three lines, and an arrow leading off from them (Rules: mail sorted as it comes).
+    Rules,
     /// A padlock (encrypted mail).
     Lock,
     /// A rosette with a tick (signed mail).
@@ -435,6 +437,13 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Icon::Steps => {
             pen.line(&[(3.0, 4.0), (7.0, 8.0), (3.0, 12.0)]);
             pen.line(&[(8.5, 4.0), (12.5, 8.0), (8.5, 12.0)]);
+        }
+        Icon::Rules => {
+            for y in [3.5, 8.0, 12.5] {
+                pen.line(&[(1.5, y), (6.5, y)]);
+            }
+            pen.line(&[(8.5, 8.0), (14.5, 8.0)]);
+            pen.line(&[(11.5, 5.0), (14.5, 8.0), (11.5, 11.0)]);
         }
         Icon::PopIn => {
             pen.line(&[(7.0, 2.5), (2.5, 2.5), (2.5, 13.5), (13.5, 13.5), (13.5, 9.0)]);

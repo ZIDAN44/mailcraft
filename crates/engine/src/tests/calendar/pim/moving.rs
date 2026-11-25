@@ -66,9 +66,10 @@ fn on(s: &Session, day: u32) -> Vec<i64> {
     ical::occurrences(&events, from, from + 86_400).into_iter().map(|o| o.start).collect()
 }
 
-/// The update the guests were sent (the sample account files it in Sent).
+/// The update the guests were sent (the sample account files it in Sent), said to be one (issue
+/// #235).
 fn update(s: &Session) -> String {
-    let (method, raw) = sent_calendar(s, "Sent", "Invitation: Stand-up");
+    let (method, raw) = sent_calendar(s, "Sent", "Updated: Stand-up");
     assert_eq!(method, "REQUEST");
     raw
 }

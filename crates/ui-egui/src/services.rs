@@ -186,6 +186,11 @@ pub trait Services {
         let _ = opens;
         self.notify(title, body);
     }
+    /// A calendar reminder on the desktop: a notification that sounds each time, as Outlook's
+    /// reminders do (issue #239: the second of two came silent). The default: as [`Services::notify`].
+    fn notify_reminder(&mut self, title: &str, body: &str) {
+        self.notify(title, body);
+    }
     /// A notification clicked since last asked: the message it was about (`Some(None)`: nothing
     /// in particular). The default: none ever is.
     fn notification_clicked(&mut self) -> Option<Option<mailcraft_engine::model::MessageKey>> {

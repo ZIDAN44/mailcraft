@@ -428,7 +428,16 @@ impl Services for Desktop {
         // Off the UI thread: the notification service can be slow, or missing. Clicked,
         // MailCraft comes forward at the message (issue #273).
         off_thread(std::thread::Builder::new().name("notify".into()), "notification", move || {
-            notified::send(&title, &body, opens, &clicks, &sending);
+            notified::send(&title, &body, opens, &clicks, &sending, false);
+        });
+    }
+    fn notify_reminder(&mut self, title: &str, body: &str) {
+        let (title, body) = (title.to_string(), body.to_string());
+        let clicks = self.clicks.clone();
+        let sending = notified::Sending { portable: self.portable, root: self.root.clone() };
+        // With a sound, each one (issue #239); clicked, MailCraft comes forward.
+        off_thread(std::thread::Builder::new().name("notify".into()), "notification", move || {
+            notified::send(&title, &body, None, &clicks, &sending, true);
         });
     }
     fn notification_clicked(&mut self) -> Option<Option<mailcraft_engine::model::MessageKey>> {

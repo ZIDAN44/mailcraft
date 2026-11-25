@@ -2005,7 +2005,6 @@ count	occurrences	회
 	Open the series	반복 일정 전체 열기
 	Changes apply to this occurrence alone.	변경 내용은 이 일정에만 적용됩니다.
 	Your other filters on the server (“{name}”) run first, and are left as they are.	서버의 다른 필터(“{name}”)가 먼저 실행되며 그대로 유지됩니다.
-	These rules aren't running: another program made its own filters the ones that run. Saving a rule here runs them again, with that program's.	이 규칙은 실행되지 않습니다. 다른 프로그램이 자체 필터를 실행 대상으로 바꿨습니다. 여기서 규칙을 저장하면 그 프로그램의 필터와 함께 다시 실행됩니다.
 	Found: {url}	찾은 위치: {url}
 	Task list	작업 목록
 	Task lists	작업 목록들
@@ -2116,3 +2115,56 @@ count	occurrences	회
 	Mark read or unread	읽음 또는 읽지 않음으로 표시
 	Choose a date…	날짜 선택…
 	Pick a time in the future.	앞으로의 시간을 선택하세요.
+	In 1 minute	1분 후
+	In 1 day	1일 후
+	Proposal accepted: the meeting is at {when} now.	제안을 수락했습니다: 이제 모임은 {when}입니다.
+	Invitation: {summary}	초대: {summary}
+	Updated: {summary}	업데이트됨: {summary}
+	Cancelled: {summary}	취소됨: {summary}
+	Cancelled: {summary} ({when})	취소됨: {summary} ({when})
+	{summary} has been cancelled.	{summary} 모임이 취소되었습니다.
+	{summary} on {when} has been cancelled.	{when}의 {summary} 모임이 취소되었습니다.
+	When: {when}	일시: {when}
+	Where: {place}	장소: {place}
+	Fwd: {summary}	전달: {summary}
+	{who} forwarded you this meeting, organized by {organizer}.	{who} 님이 이 모임을 전달했습니다. 주최자: {organizer}
+	{who} asked you to go to this meeting in their place. It's organized by {organizer}.	{who} 님이 대신 이 모임에 참석해 달라고 요청했습니다. 주최자: {organizer}
+	Accepted: {summary}	수락: {summary}
+	Tentative: {summary}	미정: {summary}
+	Declined: {summary}	거절: {summary}
+	Delegated: {summary}	위임: {summary}
+	{who} accepted the invitation to {summary}.	{who} 님이 {summary} 초대를 수락했습니다.
+	{who} tentatively accepted the invitation to {summary}.	{who} 님이 {summary} 초대에 미정으로 응답했습니다.
+	{who} declined the invitation to {summary}.	{who} 님이 {summary} 초대를 거절했습니다.
+	{who} asked {delegate} to go to {summary} in their place.	{who} 님이 {delegate} 님에게 {summary} 대리 참석을 요청했습니다.
+	New time proposed: {summary}	새 시간 제안: {summary}
+	{who} proposes a new time for {summary}: {when}.	{who} 님이 {summary}의 새 시간을 제안합니다: {when}
+	New time declined: {summary}	새 시간 거절: {summary}
+	The proposed new time for {summary} was declined. The meeting stays as it was.	{summary}에 제안된 새 시간이 거절되었습니다. 모임은 그대로입니다.
+	Cancel meeting	모임 취소
+	Cancel this occurrence	이 일정만 취소
+	Send cancellation	취소 알림 보내기
+	Delete without sending	보내지 않고 삭제
+	Message to your guests	참석자에게 보낼 메시지
+	Your guests are sent a cancellation. Add a message to them, if you like.	참석자에게 취소 알림이 갑니다. 원하면 메시지를 덧붙이세요.
+	MailCraft's automatic replies and rules on the server aren't running: another program made its own filters (“{name}”) the ones that run.	서버의 MailCraft 자동 회신과 규칙이 실행되지 않습니다. 다른 프로그램이 자체 필터(“{name}”)를 실행 대상으로 바꿨습니다.
+	Off: another program's filters (“{name}”) run in place of MailCraft's	꺼짐: MailCraft 대신 다른 프로그램의 필터(“{name}”)가 실행됩니다
+	On, sent by your other filters on the server (“{name}”)	켜짐, 서버의 다른 필터(“{name}”)가 보냄
+	Run my rules again	내 규칙 다시 실행
+	These are the replies your other filters on the server (“{name}”) send: change them in the program that made them. MailCraft's can be on only while those are off: the server sends one reply.	서버의 다른 필터(“{name}”)가 보내는 회신입니다. 그것을 만든 프로그램에서 바꾸세요. MailCraft의 회신은 이 회신이 꺼져 있을 때만 켤 수 있습니다. 서버는 회신을 하나만 보냅니다.
+	These rules aren't running: another program made its own filters the ones that run. Run them again here, with that program's.	이 규칙은 실행되지 않습니다. 다른 프로그램이 자체 필터를 실행 대상으로 바꿨습니다. 여기서 그 프로그램의 필터와 함께 다시 실행하세요.
+	Account: {email}	계정: {email}
+	Details	자세히
+	Event: “{name}”, {when}	일정: “{name}”, {when}
+	Message: “{subject}”, from {from}	메시지: “{subject}”, 보낸 사람 {from}
+	Task: “{name}”	작업: “{name}”
+	This occurrence: {when}	이 일정: {when}
+	To: {who}	받는 사람: {who}
+	Asking their server…	상대 서버에 묻는 중…
+	Click a time to move the meeting there	시간을 클릭하면 모임을 그곳으로 옮깁니다
+	Hide Scheduling Assistant	일정 도우미 숨기기
+	Scheduling Assistant	일정 도우미
+	The next time you and your guests are all free	나와 참석자 모두가 비어 있는 다음 시간
+	Their times can't be had: {why}	시간을 알 수 없습니다: {why}
+	You	나
+	{free} of {all} free	{all}명 중 {free}명 가능

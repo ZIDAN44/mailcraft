@@ -120,3 +120,68 @@ fn rules_run_on_an_imap_server_through_sieve() {
     assert_eq!(got.other_script.as_deref(), Some("roundcube"));
     pool.submit(Job::Remove { account: "a1".into() });
 }
+
+/// Issue #243, as on Mailcow: SOGo's "Manage everything in SOGo" made its own script run, with
+/// its automatic reply on. MailCraft shows that reply as SOGo's, and that its own script doesn't
+/// run; it won't turn on a reply of its own beside SOGo's (the server stops a script sending two,
+/// and runs no rule); asked, its rules run again, SOGo's filters and reply with them.
+#[test]
+fn another_programs_reply_is_shown_and_never_doubled() {
+    let st = State::new();
+    let imap_port = serve_tcp(&st);
+    let (sieve_port, sieve) = crate::sieve::tests::serve(crate::sieve::tests::Fake {
+        scripts: Vec::new(),
+        active: None,
+        sieve: "fileinto imap4flags vacation include",
+        log: Vec::new(),
+    });
+    let store = store("sieve-theirs");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
+    let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+    pool.sieve_port = sieve_port;
+    pool.submit(Job::Start { account: imap_account(imap_port, 1), password: Some(Secret("pw".into())) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    let (_, error) = rules(&mut pool, Job::GetServerRules { account: "a1".into() });
+    assert_eq!(error, None);
+    let (_, error) = rules(&mut pool, set(vec![new_rule("Shop", vec![Condition::From("orders@shop.example".into())], vec![RuleAction::Flag])]));
+    assert_eq!(error, None);
+    // SOGo takes over.
+    {
+        let mut s = sieve.lock().unwrap();
+        let sogo = "require [\"vacation\"];\r\nvacation :days 7 :addresses [\"riley@studio.example\"] :subject \"Away\" \"Back on Monday.\";\r\n";
+        s.scripts.push(("sogo".into(), sogo.into()));
+        s.active = Some("sogo".into());
+    }
+    let vacation = |pool: &mut crate::worker::Pool, job: Job| {
+        pool.submit(job);
+        let seen = until(pool, "the replies", |e| matches!(e, Event::Vacation { .. }));
+        match seen.into_iter().rev().find(|e| matches!(e, Event::Vacation { .. })) {
+            Some(Event::Vacation { vacation, error, .. }) => (vacation, error),
+            _ => (None, None),
+        }
+    };
+    let (v, error) = vacation(&mut pool, Job::GetVacation { account: "a1".into() });
+    let v = v.unwrap_or_else(|| panic!("{error:?}"));
+    assert_eq!((v.enabled, v.subject.as_str(), v.text.as_str()), (true, "Away", "Back on Monday."));
+    assert_eq!((v.sent_by.as_deref(), v.instead.as_deref()), (Some("sogo"), Some("sogo")));
+    let (got, _) = rules(&mut pool, Job::GetServerRules { account: "a1".into() });
+    assert!(got.is_some_and(|g| g.not_running), "the rules don't run");
+
+    // A reply of MailCraft's own beside SOGo's: refused, nothing changed.
+    let away = mailcraft_model::job::Vacation { enabled: true, text: "Out".into(), ..Default::default() };
+    let (_, error) = vacation(&mut pool, Job::SetVacation { account: "a1".into(), vacation: away });
+    assert!(error.as_deref().is_some_and(|e| e.contains("one at a time")), "{error:?}");
+    assert_eq!(sieve.lock().unwrap().active.as_deref(), Some("sogo"));
+
+    // Run again: ours runs, SOGo's included first; its reply is still the one shown.
+    let (got, error) = rules(&mut pool, set(Vec::new()));
+    assert_eq!(error, None);
+    assert!(got.is_some_and(|g| !g.not_running && g.rules.len() == 1));
+    let ours = sieve.lock().unwrap().scripts.iter().find(|(n, _)| n == crate::sieve::SCRIPT).map(|(_, s)| s.clone()).unwrap();
+    assert!(ours.contains("include :personal \"sogo\";") && !ours.contains("vacation :days"), "{ours}");
+    assert_eq!(sieve.lock().unwrap().active.as_deref(), Some(crate::sieve::SCRIPT));
+    let (v, _) = vacation(&mut pool, Job::GetVacation { account: "a1".into() });
+    let v = v.unwrap();
+    assert_eq!((v.enabled, v.sent_by.as_deref(), v.instead.as_deref()), (true, Some("sogo"), None));
+    pool.submit(Job::Remove { account: "a1".into() });
+}

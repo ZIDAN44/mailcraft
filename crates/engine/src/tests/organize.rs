@@ -24,6 +24,7 @@ fn every_command_survives_junk_params() {
         json!({"query": "\"unterminated from: -", "scope": 3}),
         json!({"email": "@", "password": "", "imapPort": 99_999_999}),
         json!({"index": 1e300, "limit": -5, "on": "yes"}),
+        json!({"keys": ["x", 5, null, {"a": []}], "uid": "x"}),
     ];
     for id in &ids {
         for p in &junk {

@@ -138,3 +138,34 @@ fn a_proposal_is_for_the_newest_version() {
     let sent = s.message_calendar(&key).unwrap().events.into_iter().next().unwrap();
     assert_eq!((sent.sequence, sent.end - sent.start), (1, 3600), "the update's version, its length");
 }
+
+/// Issue #238: the proposal just accepted read "This invitation is out of date" (the calendar's
+/// meeting a new version for having taken it). It's said to be taken, nothing to do; and, as an
+/// answered invitation's (#31), its mail goes where File › Options sends those.
+#[test]
+fn an_accepted_proposal_is_said_to_be_taken_and_tidied() {
+    let mut s = sample_session("propose-taken");
+    let own = meeting(&mut s);
+    s.prefs.answered_invites = crate::AnsweredInvites::Keep;
+    let (start, end) = (NOW + 2 * 86_400, NOW + 2 * 86_400 + 3600);
+    deliver(&mut s, 1, ZOE, "COUNTER", &[counter(&own, ZOE, start, end)], NOW);
+    let key = s.reading.as_ref().map(|r| r.key.clone()).unwrap();
+    assert!(!s.invite().unwrap().recorded, "not taken yet");
+    let r = s.run("invite.acceptProposal", &json!({})).unwrap();
+    assert_eq!(r["moved"], 0, "kept where it is: answered invitations are left by these settings");
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    let inv = s.invite().unwrap();
+    assert_eq!((inv.problem, inv.recorded), (None, true), "taken, not out of date");
+    assert!(s.run("invite.acceptProposal", &json!({})).is_ok(), "taking it again changes nothing");
+    assert_eq!(s.find_event(&own.uid).unwrap().1.event.start, start);
+
+    // Answered invitations to Deleted Items: the proposal goes there once taken, or turned down.
+    s.prefs.answered_invites = crate::AnsweredInvites::Delete;
+    let moved = s.find_event(&own.uid).unwrap().1.event.clone();
+    deliver(&mut s, 2, SAM, "COUNTER", &[counter(&moved, SAM, start + 3600, end + 3600)], NOW);
+    let sam = s.reading.as_ref().map(|r| r.key.clone()).unwrap();
+    assert_eq!(s.run("invite.declineProposal", &json!({})).unwrap()["moved"], 1);
+    assert!(s.summary(&sam).is_none(), "out of the Inbox");
+    deliver(&mut s, 3, ZOE, "COUNTER", &[counter(&moved, ZOE, start + 7200, end + 7200)], NOW);
+    assert_eq!(s.run("invite.acceptProposal", &json!({})).unwrap()["moved"], 1);
+}

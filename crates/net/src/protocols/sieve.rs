@@ -29,13 +29,26 @@ const MARK: &str = "# mailcraft-vacation ";
 const RULES: &str = "# mailcraft-rules ";
 
 mod rules;
+mod theirs;
 pub use rules::{Context as RulesContext, KeptRules};
+pub use theirs::vacation_in;
 
 /// The scripts on the server, the one that runs, and ours as it is (`None`: none yet).
 struct Scripts {
     names: Vec<String>,
     active: Option<String>,
     ours: Option<String>,
+}
+
+impl Scripts {
+    fn ours_runs(&self) -> bool {
+        self.active.as_deref() == Some(SCRIPT)
+    }
+
+    /// Another program's script that runs: first, included by ours, or in place of ours.
+    fn other_running(&self) -> Option<String> {
+        if self.ours_runs() { self.ours.as_deref().and_then(read_previous).filter(|p| self.names.contains(p)) } else { self.active.clone() }
+    }
 }
 const MAX_LINE: usize = 64 << 10;
 const MAX_LITERAL: usize = 1 << 20;
@@ -289,6 +302,16 @@ impl<S: Read + Write> Client<S> {
                 "another Sieve script runs your filters and this server can't combine scripts (include); turn it off first".into(),
             ));
         }
+        // Theirs sends replies of its own: with ours too, the server would stop the script, and
+        // the mail would be only kept, no rule run (Pigeonhole: "duplicate vacation action").
+        if v.enabled
+            && let Some(t) = &theirs
+            && vacation_in(&self.get(t)?).is_some()
+        {
+            return Err(NetError::No(format!(
+                "your other filters on the server (“{t}”) send automatic replies of their own, and the server sends one at a time: turn those off there first"
+            )));
+        }
         self.put(SCRIPT, &script(v, kept, theirs.as_deref()))?;
         if runs { self.activate(SCRIPT) } else { self.activate(theirs.as_deref().unwrap_or("")) }
     }
@@ -299,13 +322,11 @@ impl<S: Read + Write> Client<S> {
     pub fn server_rules(&mut self) -> Result<ServerRules> {
         let s = self.scripts()?;
         let kept = s.ours.as_deref().map(read_rules).unwrap_or_default();
-        let ours_runs = s.active.as_deref() == Some(SCRIPT);
-        let other = if ours_runs { s.ours.as_deref().and_then(read_previous).filter(|p| s.names.contains(p)) } else { s.active.clone() };
         Ok(ServerRules {
             outlook_list: false,
             rules: listed(&kept.rules),
-            other_script: other,
-            not_running: !ours_runs && kept.rules.iter().any(|r| r.enabled),
+            other_script: s.other_running(),
+            not_running: !s.ours_runs() && kept.rules.iter().any(|r| r.enabled),
         })
     }
 
@@ -324,15 +345,22 @@ impl<S: Read + Write> Client<S> {
         self.write(&s, &v, &kept)
     }
 
-    /// The automatic replies this script holds (the default when never set up here).
+    /// The automatic replies that run: ours (the default when never set up here), or those of
+    /// another program's filters that run, when ours don't (issue #243: SOGo's showed as off).
     pub fn vacation(&mut self) -> Result<Vacation> {
-        let (names, active) = self.list()?;
-        if !names.iter().any(|n| n == SCRIPT) {
-            return Ok(Vacation::default());
-        }
-        let mut v = read_script(&self.get(SCRIPT)?).unwrap_or_default();
+        let s = self.scripts()?;
+        let mut v = s.ours.as_deref().and_then(read_script).unwrap_or_default();
         // Someone switched our script off elsewhere: the replies don't run.
-        v.enabled &= active.as_deref() == Some(SCRIPT);
+        v.enabled &= s.ours_runs();
+        if s.ours.is_some() && !s.ours_runs() {
+            v.instead = s.active.clone();
+        }
+        if !v.enabled
+            && let Some(name) = s.other_running()
+            && let Some((subject, text)) = vacation_in(&self.get(&name)?)
+        {
+            v = Vacation { enabled: true, subject, text, sent_by: Some(name), instead: v.instead, ..Vacation::default() };
+        }
         Ok(v)
     }
 

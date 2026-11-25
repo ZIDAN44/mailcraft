@@ -503,6 +503,9 @@ fn build_day_halves() -> dates::DayHalves {
     halves
 }
 
+mod mail;
+pub use mail::mail_words;
+
 #[cfg(test)]
 pub(crate) mod pseudo {
     //! A test-only pseudo-language: every looked-up string is recorded and comes back wrapped in

@@ -169,3 +169,25 @@ fn an_account_kept_from_agents_is_left_out_of_all_they_read() {
     assert!(s.run("options.agentsAccount", &json!({"account": "nobody", "on": false})).is_err());
     assert!(s.prefs.agents_hidden.is_empty());
 }
+
+/// Issue #255: a command that acts on the selection takes the messages to act on (`keys`), as an
+/// agent can't click: they're selected first, as clicks would. Only from the list shown; none, or
+/// one not there, is refused with nothing done. The command list says which take them.
+#[test]
+fn a_selection_command_takes_the_messages_named() {
+    let mut s = sample_session("agents-keys");
+    s.run("folder.open", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    s.selection.clear();
+    let keys: Vec<String> = s.list.iter().take(2).map(|m| m.key.to_id()).collect();
+    let before = s.list.len();
+    assert!(matches!(s.run("mail.delete", &json!({})), Err(CmdError::Disabled(_))), "nothing selected, none named");
+    assert!(matches!(s.run("mail.delete", &json!({"keys": []})), Err(CmdError::Params(_))));
+    assert!(matches!(s.run("mail.delete", &json!({"keys": ["sample:1:999999:INBOX"]})), Err(CmdError::Params(_))), "not in the list");
+    assert_eq!(s.list.len(), before, "nothing deleted");
+    s.run("mail.delete", &json!({"keys": keys})).unwrap();
+    assert_eq!(s.list.len(), before - 2);
+    assert!(!s.list.iter().any(|m| keys.contains(&m.key.to_id())), "those two");
+    let listed = s.registry().describe();
+    let said = |id: &str| listed.as_array().unwrap().iter().find(|c| c["id"] == id).map(|c| c.get("keys").is_some());
+    assert_eq!((said("mail.delete"), said("mail.flag"), said("mail.new")), (Some(true), Some(true), Some(false)));
+}
