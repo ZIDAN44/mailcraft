@@ -596,3 +596,55 @@ fn a_meetings_guests_are_suggested_checked_and_picked() {
     frame(&ctx, &mut a, vec![]);
     assert_eq!(form(&mut a.ui.dialog).guests, before);
 }
+
+/// Issue #234: a series opened on one occurrence ("This occurrence") and forwarded: the form asks
+/// this occurrence or the whole series, as Delegate does, and the occurrence goes alone. The whole
+/// series went, every day.
+#[test]
+fn one_occurrence_is_forwarded_from_its_form() {
+    let (mut a, _) = app("forward-occurrence");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let k = a.session.list.iter().find(|m| m.subject == "Sound mix, version 3").map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.run("invite.respond", json!({"answer": "accepted"}));
+    let (uid, start) = a
+        .session
+        .pim
+        .get("sample")
+        .and_then(|p| {
+            p.events
+                .iter()
+                .find(|e| e.event.summary == "Sound mix playback" && e.event.recurrence_id.is_none())
+                .map(|e| (e.event.uid.clone(), e.event.start))
+        })
+        .expect("in the calendar");
+    // A daily series, as the tester's was.
+    for e in a.session.pim.get_mut("sample").unwrap().events.iter_mut().filter(|e| e.event.uid == uid) {
+        e.event.rrule = Some("FREQ=DAILY;COUNT=5".into());
+    }
+    let at = start + 2 * 86_400;
+    let f = crate::pim_dialogs::EventForm::open_occurrence(&a.session, &uid, at).expect("the occurrence's form");
+    a.ui.dialog = Some(Dialog::Event(Box::new(f)));
+    for _ in 0..3 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    click_named(&ctx, &mut a, "Forward meeting…");
+    let Some(Dialog::PassMeeting(f)) = a.ui.dialog.as_mut() else { panic!("asked to whom: {:?}", a.ui.dialog) };
+    assert_eq!((f.passing, f.occurrence, f.only_this), (crate::pim_dialogs::Passing::Forward, Some(at), true));
+    f.to = "Sam Okafor <sam@studio.example>".into();
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(has(&texts, "This occurrence") && has(&texts, "The whole series"), "{texts:?}");
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    let ok = drawn_text(&ctx, &mut a, size).into_iter().rev().find(|d| d.text == "Forward").map(|d| d.rect.center()).expect("the form's Forward");
+    click(&ctx, &mut a, ok);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none(), "sent: {:?}", a.ui.dialog);
+    let sent = a.session.store.as_ref().unwrap().load_folder("sample", "Sent").unwrap();
+    let m = sent.messages.iter().find(|m| m.subject == "Fwd: Sound mix playback").expect("forwarded");
+    let cal = a.session.message_calendar(&m.key).expect("a meeting");
+    assert_eq!(cal.events.iter().map(|e| e.recurrence_id).collect::<Vec<_>>(), [Some(at)], "that occurrence alone");
+}

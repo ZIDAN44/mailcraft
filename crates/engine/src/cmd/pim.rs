@@ -236,9 +236,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 Some(u) => u.to_string(),
                 None => s.invite().map(|i| i.event.uid).ok_or_else(|| CmdError::Disabled("open the invitation first".into()))?,
             };
-            s.forward_meeting(&uid, p::req_str(v, "to")?)
+            s.forward_meeting(&uid, p::req_str(v, "to")?, v.get("occurrence").and_then(serde_json::Value::as_i64))
         })
-        .params(r#"{"to": string (addresses, as a recipient box has them), "uid"?: string (a meeting in the calendar; else the open invitation's)}"#),
+        .params(r#"{"to": string (addresses, as a recipient box has them), "uid"?: string (a meeting in the calendar; else the open invitation's), "occurrence"?: number (when a series' occurrence starts, as the series has it: that one alone)}"#),
         // Someone else goes in the user's place (issue #254).
         CommandSpec::new("invite.delegate", "Delegate meeting", "Reading pane › Invitation", |s, v| {
             let uid = match p::str(v, "uid") {

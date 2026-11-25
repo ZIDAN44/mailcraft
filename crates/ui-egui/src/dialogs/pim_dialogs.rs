@@ -715,13 +715,15 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>)
             }
         });
     }
-    // Someone else's meeting, passed on to another (issue #234).
+    // Someone else's meeting, passed on to another (issue #234): this occurrence of a series, or
+    // all.
     if f.can_forward
         && let Some(uid) = &f.uid
     {
         ui.add_space(4.0);
         if ui.button(tl!("Forward meeting…")).clicked() {
-            acts.push(Action::Dialog(crate::Dialog::PassMeeting(PassForm::new(Passing::Forward, uid, &f.summary, None))));
+            let occurrence = f.occurrence.filter(|_| f.recurring || f.this_occurrence);
+            acts.push(Action::Dialog(crate::Dialog::PassMeeting(PassForm::new(Passing::Forward, uid, &f.summary, occurrence))));
         }
     }
     // Someone else goes in the user's place (issue #254): this occurrence of a series, or all.

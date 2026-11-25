@@ -136,3 +136,73 @@ fn real_mailcow_one_occurrence_declined_as_a_guest() {
     assert!(ann.s.folder_state(&aid, "Trash").messages.iter().any(|x| x.subject == format!("Updated: {title}")));
     m.clean_calendars(&[0, 1], &mark);
 }
+
+/// Issue #234: ann, a guest of bob's daily series (bob a SOGo user), forwards one occurrence of it
+/// to carol from MailCraft: carol gets that occurrence alone (the whole series went, every day);
+/// accepted in MailCraft, her SOGo calendar has that day alone, and ann's copy is as it was.
+#[test]
+#[ignore = "needs a Mailcow on this computer in MAILCRAFT_REAL_MAILCOW"]
+fn real_mailcow_one_occurrence_forwarded() {
+    let Some(m) = Mailcow::from_env() else { return };
+    let mark = format!("{MARK} forward");
+    m.clean_calendars(&[0, 1, 2], &mark);
+    let web = format!("{}/", m.web);
+    let (ann_email, carol_email) = (m.user(0).0.to_string(), m.user(2).0.to_string());
+    let title = format!("{mark} {}", std::process::id());
+
+    let (mut bob, bid) = App::new(&m, 1, "forward-bob");
+    bob.s.run("account.dav", &json!({"account": bid, "caldav": web})).unwrap();
+    online(&mut bob);
+    bob.sync_dav(&bid);
+    let uid = bob
+        .s
+        .run(
+            "event.create",
+            &json!({"account": bid, "summary": title, "start": "2026-12-14T11:00", "repeat": "FREQ=DAILY;COUNT=5", "attendees": ann_email}),
+        )
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    bob.pump(120, "the series stored", |s, _| s.find_event(&uid).is_some_and(|(_, e)| !e.dirty && !e.href.is_empty()));
+    bob.settle(5);
+
+    let (mut ann, aid) = App::new(&m, 0, "forward-ann");
+    ann.s.run("account.dav", &json!({"account": aid, "caldav": web})).unwrap();
+    online(&mut ann);
+    ann.sync_dav(&aid);
+    let invitation = ann.wait_for_mail(&aid, &format!("Invitation: {title}"));
+    ann.s.run("folder.open", &json!({"account": aid, "folder": "INBOX"})).unwrap();
+    ann.s.run("list.open", &json!({"key": invitation.to_id()})).unwrap();
+    ann.s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    ann.pump(120, "ann's answer stored", |s, _| s.find_event(&uid).is_some_and(|(_, e)| !e.dirty));
+    ann.settle(5);
+    let (_, before) = on_sogo(&m, 0, &uid).expect("ann's copy on SOGo");
+    let master = before.iter().find(|e| e.recurrence_id.is_none()).cloned().unwrap();
+    let third = ical::starts(&master, i64::MAX).get(2).copied().unwrap();
+    let r = ann.s.run("invite.forward", &json!({"uid": uid, "to": carol_email, "occurrence": third})).unwrap();
+    assert_eq!(r["forwarded"], 1, "{r}");
+    ann.settle(10);
+    let (_, after) = on_sogo(&m, 0, &uid).expect("ann's copy on SOGo");
+    assert_eq!(after.len(), before.len(), "ann's copy as it was");
+
+    let (mut carol, cid) = App::new(&m, 2, "forward-carol");
+    carol.s.run("account.dav", &json!({"account": cid, "caldav": web})).unwrap();
+    online(&mut carol);
+    carol.sync_dav(&cid);
+    let fwd = carol.wait_for_mail(&cid, &format!("Fwd: {title}"));
+    let cal = carol.s.message_calendar(&fwd).expect("a meeting");
+    assert_eq!(cal.events.iter().map(|e| (e.recurrence_id, e.rrule.is_some())).collect::<Vec<_>>(), [(Some(third), false)], "that occurrence alone");
+    carol.s.run("folder.open", &json!({"account": cid, "folder": "INBOX"})).unwrap();
+    carol.s.run("list.open", &json!({"key": fwd.to_id()})).unwrap();
+    carol.s.run("invite.respond", &json!({"answer": "accepted"})).unwrap();
+    carol.pump(120, "carol's answer stored", |s, _| {
+        s.pim.values().flat_map(|p| p.events.iter()).filter(|e| e.event.uid == uid).all(|e| !e.dirty && !e.href.is_empty())
+    });
+    carol.settle(5);
+    let (_, carols) = on_sogo(&m, 2, &uid).expect("carol's copy on SOGo");
+    eprintln!("carol's copy on SOGo: {:?}", carols.iter().map(|e| (e.recurrence_id, e.start, e.rrule.clone())).collect::<Vec<_>>());
+    assert!(carols.iter().all(|e| e.rrule.is_none()), "no series in carol's calendar");
+    assert!(carols.iter().any(|e| e.start == third && answer_of(e, &carol_email) == "ACCEPTED"), "that day, accepted");
+    m.clean_calendars(&[0, 1, 2], &mark);
+}
