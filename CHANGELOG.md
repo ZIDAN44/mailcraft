@@ -61,6 +61,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Fixed
 
+- MailCraft's commands that take a calendar (`calendar.show`, `calendar.setDefault`, `calendar.moveLocal`, as `event.create` and `calendar.search` already did) take its name as well as its id, in any case (#280), and AI agents' `list_events` gives each event's calendar id: an agent could add an event to a calendar it knew by name, but not show, hide or choose that calendar. A name two calendars share is refused, its id still taken.
 - A proposed new time you accepted says so on its message ("Proposal accepted: the meeting is at … now"), where it said the invitation was out of date, and a proposal you answer leaves the Inbox as an answered invitation does (#238).
 - The reminder window's buttons no longer overlap in German and other languages, with **Join meeting** on a line of its own; each reminder sounds (the second of two came silent); one minute, hour or day away is said in the singular ("In 1 Minute"); and its hint names the Snooze button as it reads in Arabic, German, French, Italian and Chinese (#239).
 - **Forward** on one occurrence of a series (opened with **This occurrence**) sends that occurrence alone, and asks this occurrence or the whole series as **Delegate** does; the whole series went (#234).
