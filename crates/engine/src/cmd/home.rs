@@ -13,7 +13,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete").params(r#"{"permanent"?: bool}"#).on_selection(has_selection)
             .asks_when(deletes_for_good),
         CommandSpec::new("list.rowAction", "A message's own button in the list", "Message list › row", row_action)
-            .params(r#"{"key": string, "action": "delete"|"archive"|"flag"|"read"|"pin"} (that message alone, what's selected and open kept)"#)
+            .params(r#"{"key": string, "action": "delete"|"archive"|"flag"|"read"|"pin", "permanent"?: bool (with delete: for good)} (that message alone, what's selected and open kept)"#)
             .asks_when(row_deletes_for_good),
         CommandSpec::new("mail.archive", "Archive", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Archive)))
             .key("Backspace")
@@ -276,7 +276,7 @@ fn row_action(s: &mut Session, v: &Value) -> CmdResult {
     let selection = std::mem::replace(&mut s.selection, vec![key.clone()]);
     let (focus, anchor, reading) = (s.focus.take(), s.anchor.take(), s.reading.take());
     let done = match action {
-        crate::RowAction::Delete => delete(s, &json!({})),
+        crate::RowAction::Delete => delete(s, &json!({"permanent": p::bool(v, "permanent").unwrap_or(false)})),
         crate::RowAction::Archive => s.move_selection(MoveTarget::Role(FolderRole::Archive)),
         crate::RowAction::Flag => flag(s, &json!({})),
         crate::RowAction::Read => s.flag_selection(Flag::Seen, None),

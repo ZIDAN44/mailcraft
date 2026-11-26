@@ -146,7 +146,7 @@ fn a_question_is_read_as_an_alert_by_its_title() {
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     for (d, role, title) in [
-        (Dialog::ConfirmDelete { count: 2 }, Role::AlertDialog, "Delete permanently?"),
+        (Dialog::ConfirmDelete { count: 2, one: None }, Role::AlertDialog, "Delete permanently?"),
         (Dialog::SaveOnClose(1), Role::AlertDialog, "Save the message you're writing?"),
         (Dialog::MoveTo { filter: String::new(), copy: false }, Role::Dialog, "Move to folder"),
         (Dialog::MoveTo { filter: String::new(), copy: true }, Role::Dialog, "Copy to folder"),

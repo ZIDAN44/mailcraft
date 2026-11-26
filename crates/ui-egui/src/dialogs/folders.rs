@@ -4,7 +4,7 @@ use super::*;
 
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
-        Dialog::ConfirmDelete { count } => {
+        Dialog::ConfirmDelete { count, one } => {
             ui.set_width(360.0);
             title(ui, t, "Delete permanently?");
             let what = if *count == 1 {
@@ -15,7 +15,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.label(RichText::new(what).color(t.dim));
             let (ok, cancel) = buttons(ui, t, "Delete", true);
             if ok {
-                acts.push(Action::Run("mail.delete", json!({"permanent": true})));
+                // A row's own Delete: its message alone, as the button does.
+                acts.push(match one {
+                    Some(k) => Action::Run("list.rowAction", json!({"key": k.to_id(), "action": "delete", "permanent": true})),
+                    None => Action::Run("mail.delete", json!({"permanent": true})),
+                });
                 return false;
             }
             !cancel

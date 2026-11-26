@@ -59,8 +59,11 @@ pub enum Dialog {
         user: String,
         password: String,
     },
+    /// Deleting for good, asked first: `count` messages, the selection's, or (`one`) a row's own
+    /// Delete button's message alone.
     ConfirmDelete {
         count: usize,
+        one: Option<mailcraft_engine::model::MessageKey>,
     },
     /// Closing MailCraft with messages being written (how many): save them as drafts?
     SaveOnClose(usize),

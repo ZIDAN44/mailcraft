@@ -403,7 +403,7 @@ pub(crate) fn tour() {
         for d in [
             Dialog::add_account(),
             Dialog::move_to(),
-            Dialog::ConfirmDelete { count: 2 },
+            Dialog::ConfirmDelete { count: 2, one: None },
             Dialog::ConfirmDeleteContact { uid: "zoe".into(), name: "Zoe Park".into() },
             Dialog::EmptySubject,
             Dialog::SendCheck(vec![
