@@ -160,7 +160,8 @@ fn server_default(dav: &Dav, pim: &Pim, out: &DavSync, schedules: bool) -> Optio
         pim.calendars.iter().map(|c| c.id.as_str()).filter(|id| mailcraft_model::pim::is_server_calendar(id)).collect();
     let now: std::collections::BTreeSet<&str> =
         list.iter().map(|c| c.id.as_str()).filter(|id| mailcraft_model::pim::is_server_calendar(id)).collect();
-    let lately = pim.server_default_at.is_some_and(|at| out.checked.saturating_sub(at) <= 86_400);
+    // An answer "later" than now (the clock set back since) isn't lately: asked again.
+    let lately = pim.server_default_at.is_some_and(|at| (0..=86_400).contains(&out.checked.saturating_sub(at)));
     if pim.server_default.is_some() && was == now && lately {
         return None;
     }
