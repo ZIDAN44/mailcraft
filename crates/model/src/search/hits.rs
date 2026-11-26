@@ -42,6 +42,12 @@ fn sought_in(term: &Term, field: &Field, out: &mut Vec<Vec<String>>) {
                 sought_in(t, field, out);
             }
         }
+        // What a group looks for not to be there isn't marked.
+        Term::All(all) => {
+            for c in all.iter().filter(|c| !c.negated) {
+                sought_in(&c.term, field, out);
+            }
+        }
         _ => {}
     }
 }

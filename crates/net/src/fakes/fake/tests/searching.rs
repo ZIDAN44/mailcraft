@@ -28,6 +28,16 @@ fn a_query_becomes_imap_search_keys() {
         imap_criteria("from:ana,jun lee", None),
         Some(vec![a("TEXT"), st("lee")]).map(|v| [vec![a("OR"), a("FROM"), st("ana"), a("FROM"), st("jun")], v].concat())
     );
+    // `OR` across fields is IMAP's OR; a group is left to the list, which checks what comes back,
+    // unless it's plain "and" (spread out).
+    assert_eq!(imap_criteria("from:ana OR subject:plan", None), Some(vec![a("OR"), a("FROM"), st("ana"), a("SUBJECT"), st("plan")]));
+    assert_eq!(imap_criteria("(from:ana is:unread) OR subject:plan budget", None), Some(vec![a("TEXT"), st("budget")]));
+    assert_eq!(imap_criteria("(from:ana is:unread)", None), Some(vec![a("FROM"), st("ana"), a("UNSEEN")]));
+    assert_eq!(imap_criteria("-(from:ana is:unread)", None), None);
+    assert_eq!(
+        mailcraft_jmap::search_filter("from:ana OR subject:plan", None),
+        Some(serde_json::json!({"operator": "AND", "conditions": [{"operator": "OR", "conditions": [{"from": "ana"}, {"subject": "plan"}]}]}))
+    );
     // Issue #28: Thunderbird's keywords are asked as they are (they were left out); what isn't an
     // atom can't be.
     assert_eq!(

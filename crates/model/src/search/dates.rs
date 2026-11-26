@@ -256,16 +256,11 @@ impl Query {
     /// Place the query's dates (`received:2024`, `after:yesterday`) in the clock's zone, from
     /// its day: needed before they match anything.
     pub fn resolve(&mut self, clock: &Clock) {
-        fn term(t: &mut Term, clock: &Clock) {
-            match t {
-                Term::Date(spec) => spec.resolve(clock),
-                Term::AnyOf(any) => any.iter_mut().for_each(|t| term(t, clock)),
-                _ => {}
+        self.each_term_mut(|t| {
+            if let Term::Date(spec) = t {
+                spec.resolve(clock);
             }
-        }
-        for c in &mut self.clauses {
-            term(&mut c.term, clock);
-        }
+        });
     }
 
     /// The period a server is asked for (issue #179): from (on) and to (before) in Unix seconds,

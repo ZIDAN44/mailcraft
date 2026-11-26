@@ -384,16 +384,17 @@ impl Session {
         let mut query = Query::parse(q);
         // `category:Work` means the Work category's keyword (`$label2`).
         // `is:categorized` means one of the categories.
-        for c in &mut query.clauses {
-            if let mailcraft_model::search::Term::Keyword(k) = &mut c.term
+        // Inside groups and `OR`s too.
+        query.each_term_mut(|t| {
+            if let mailcraft_model::search::Term::Keyword(k) = t
                 && let Some(cat) = self.category(k)
             {
                 *k = cat.keyword.clone();
             }
-            if let mailcraft_model::search::Term::Categorized(ks) = &mut c.term {
+            if let mailcraft_model::search::Term::Categorized(ks) = t {
                 *ks = self.prefs.categories.iter().map(|c| c.keyword.clone()).collect();
             }
-        }
+        });
         // `received:2024` is the year where the user is.
         query.resolve(&self.clock);
         query
@@ -677,13 +678,14 @@ impl Session {
     }
 }
 
-/// Whether a search term looks for words in the senders, recipients or subject (alone or among
-/// others): what a server matches its own way (IMAP's FROM finds `ana` in "Joana").
+/// Whether a search term looks for words in the senders, recipients or subject, and a server
+/// was surely asked it: what a server matches its own way (IMAP's FROM finds `ana` in "Joana").
 fn asks_field_words(t: &mailcraft_model::search::Term) -> bool {
     use mailcraft_model::search::{Field, Term};
     match t {
         Term::Words(f, _) | Term::Phrase(f, _) => matches!(f, Field::From | Field::To | Field::Subject),
-        Term::AnyOf(any) => !any.is_empty() && any.iter().all(asks_field_words),
+        // A list or an `OR` isn't always asked (IMAP only when each is one word or a phrase,
+        // Exchange never; a group never): what a server found for it is checked here.
         _ => false,
     }
 }
@@ -694,6 +696,7 @@ fn asks_awaiting(t: &mailcraft_model::search::Term) -> bool {
     match t {
         Term::Awaiting => true,
         Term::AnyOf(any) => any.iter().any(asks_awaiting),
+        Term::All(all) => all.iter().any(|c| asks_awaiting(&c.term)),
         _ => false,
     }
 }

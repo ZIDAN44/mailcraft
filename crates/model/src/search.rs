@@ -9,7 +9,10 @@
 //! `sent:`, `date:`) a day, month or year, `today`, `"last week"`, a range `2024-01-01..2024-03-31`
 //! or `>=2024-03-01`; `after:X` is from X's start on and `before:X` before it ([`dates`]). A leading
 //! `-` negates a term. `from:` and `to:` take a list, `from:ana,jun`, matching any of them (terms
-//! otherwise must all match). Words are read [folded](fold): `resume` finds "Résumé".
+//! otherwise must all match). `OR` (in capitals) between two terms matches either, and binds
+//! closer than the terms around it: `a b OR c` is a and (b or c), as Gmail reads it. Brackets
+//! group terms, `-( … )` negates a group: `(from:ana is:unread) OR -(subject:x body:y)`
+//! ([`grouping`]). Words are read [folded](fold): `resume` finds "Résumé".
 //!
 //! A query is checked against a message with [`Query::eval`], which answers yes, no, or (when the
 //! message's text isn't known well enough) "can't tell" ([`Tri`]). The words a message is indexed
@@ -21,6 +24,7 @@ mod advanced;
 pub mod dates;
 pub mod fold;
 mod fold_table;
+mod grouping;
 mod hits;
 mod matching;
 mod parse;
@@ -74,8 +78,10 @@ pub enum Term {
     Categorized(Vec<String>),
     /// Bigger than this many bytes (`larger:`), or (`false`) smaller (`smaller:`).
     Size(bool, u64),
-    /// Any one of these (`from:ana,jun`).
+    /// Any one of these (`from:ana,jun`, `a OR b`). A negated one is an [`All`](Term::All) of it.
     AnyOf(Vec<Term>),
+    /// All of these (a bracketed group, `(from:ana is:unread)`).
+    All(Vec<Clause>),
     /// Mail the user sent that nobody has answered yet (`is:awaiting`): the caller works out
     /// which, from every conversation ([`Doc::awaiting`]).
     Awaiting,
@@ -92,8 +98,19 @@ impl Term {
         match self {
             Term::Words(f, _) | Term::Phrase(f, _) => *f == Field::Attachment,
             Term::AnyOf(any) => any.iter().any(Term::asks_names),
+            Term::All(all) => all.iter().any(|c| c.term.asks_names()),
             _ => false,
         }
+    }
+
+    /// This term and every term inside it (in a group, in a list), to change them.
+    pub fn each_mut(&mut self, f: &mut dyn FnMut(&mut Term)) {
+        match self {
+            Term::AnyOf(any) => any.iter_mut().for_each(|t| t.each_mut(f)),
+            Term::All(all) => all.iter_mut().for_each(|c| c.term.each_mut(f)),
+            _ => {}
+        }
+        f(self);
     }
 }
 
@@ -131,6 +148,14 @@ pub struct Query {
 impl Query {
     pub fn is_empty(&self) -> bool {
         self.clauses.is_empty()
+    }
+
+    /// Every term, however deep in groups and lists, to change them (a category's name for its
+    /// keyword, a date placed in the user's zone).
+    pub fn each_term_mut(&mut self, mut f: impl FnMut(&mut Term)) {
+        for c in &mut self.clauses {
+            c.term.each_mut(&mut f);
+        }
     }
 }
 
