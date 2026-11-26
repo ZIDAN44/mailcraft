@@ -276,3 +276,68 @@ fn messages_are_attached_whole() {
         assert!(s.run("compose.attachMessages", &bad).is_err(), "{bad}");
     }
 }
+
+/// A PDF's text as written: each stream inflated (with no fonts given it's in Helvetica, whose
+/// text reads as it is).
+fn pdf_text(pdf: &[u8]) -> String {
+    use std::io::Read as _;
+    let mut out = String::new();
+    let mut rest = pdf;
+    while let Some(at) = rest.windows(7).position(|w| w == b"stream\n") {
+        let head = String::from_utf8_lossy(rest.get(at.saturating_sub(80)..at).unwrap_or_default()).into_owned();
+        let len: usize = head.rsplit("/Length ").next().and_then(|l| l.split(|c: char| !c.is_ascii_digit()).next()?.parse().ok()).unwrap_or(0);
+        let body = rest.get(at + 7..at + 7 + len).unwrap_or_default();
+        let mut text = String::new();
+        if flate2::read::ZlibDecoder::new(body).read_to_string(&mut text).is_ok() {
+            out.push_str(&text);
+        }
+        rest = rest.get(at + 7 + len..).unwrap_or_default();
+    }
+    out
+}
+
+/// A date as a translation writes it, for the test below.
+fn in_german(date: &str) -> String {
+    format!("de:{date}")
+}
+
+/// Issue #291: a printed message's header is in the window's language (its words and its date,
+/// as MailCraft writes it there), and says under it when pictures from the web were left out.
+/// A tracking picture isn't counted: it's never loaded.
+#[test]
+fn a_printed_message_says_its_header_in_the_windows_language() {
+    let mut s = sample_session("print-words");
+    let store = s.store.clone().unwrap();
+    let mut inbox = store.load_folder("sample", "INBOX").unwrap();
+    let key = mailcraft_model::MessageKey { account: "sample".into(), folder: "INBOX".into(), validity: inbox.validity, uid: 9981 };
+    let raw = b"From: Ann <ann@news.example>\r\nTo: Riley <riley@studio.example>\r\nSubject: Summit\r\nDate: Wed, 25 Nov 2026 20:54:00 +0000\r\nContent-Type: text/html\r\n\r\n<p>Hello</p><img src=\"https://pictures.example/banner.png\" width=\"600\" height=\"200\" alt=\"Banner\">\r\n";
+    inbox.messages.insert(0, mailcraft_mime::summary_from_full(raw, key.clone(), Default::default(), 0, NOW).into());
+    store.save_folder("sample", "INBOX", &inbox).unwrap();
+    store.write_body(&key, raw).unwrap();
+    s.apply(Event::FolderChanged { account: "sample".into(), folder: "INBOX".into() });
+    s.mail_words.print = crate::PrintWords {
+        from: "Von".into(),
+        to: "An".into(),
+        date: "Datum".into(),
+        not_loaded: "Bilder aus dem Web wurden nicht geladen.".into(),
+        ..Default::default()
+    };
+    s.mail_words.date = in_german;
+    let dir = store.root().join("printed");
+    std::fs::create_dir_all(&dir).unwrap();
+    let printed = |s: &mut Session, key: &mailcraft_model::MessageKey| {
+        s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+        let pdf = dir.join("m.pdf");
+        s.run("message.exportPdf", &json!({"path": pdf.to_string_lossy()})).unwrap();
+        pdf_text(&std::fs::read(&pdf).unwrap())
+    };
+    let text = printed(&mut s, &key);
+    for said in ["(Von:)", "(An:)", "(Datum:)", "(de:Wed 2026-11-25 ", "(Bilder aus dem Web wurden nicht geladen.)"] {
+        assert!(text.contains(said), "{said} in {text}");
+    }
+    assert!(!text.contains("(From:)") && !text.contains("(Date:)"), "{text}");
+    // A tracking picture alone, and pictures of its own: nothing left out to say.
+    let newsletter = s.list.iter().find(|m| m.subject.contains("winter group show")).map(|m| m.key.clone()).unwrap();
+    let text = printed(&mut s, &newsletter);
+    assert!(text.contains("(Von:)") && !text.contains("nicht geladen"), "{text}");
+}

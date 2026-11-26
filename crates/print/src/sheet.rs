@@ -44,10 +44,16 @@ impl Op {
 pub(super) fn cuts(ops: &[Op], first: f32, room: f32, most: usize) -> (Vec<f32>, bool) {
     let room = room.max(40.0);
     let total = ops.iter().map(|o| o.span().1).fold(0.0f32, f32::max);
-    // What a cut must not go through: a line of text, a picture that fits a page; from the top.
+    // What a cut must not go through: a line of text, a picture that fits a page, a box no taller
+    // than a third of one (issue #291: a coloured box of a few lines went over two pages; a page's
+    // background, or a column's, is cut where it must be); from the top.
     let mut whole: Vec<(f32, f32)> = ops
         .iter()
-        .filter(|o| matches!(o, Op::Text { .. } | Op::Image { .. }))
+        .filter(|o| match o {
+            Op::Text { .. } | Op::Image { .. } => true,
+            Op::Fill { h, .. } => *h <= room / 3.0,
+            Op::Link { .. } => false,
+        })
         .map(Op::span)
         .filter(|(top, bottom)| bottom - top <= room && bottom > top)
         .collect();
@@ -196,6 +202,19 @@ mod tests {
             })
             .collect();
         assert_eq!(fills, [(50.0, 50.0, 0.0), (0.0, 50.0, 0.0)], "half on each page, square where it's cut");
+    }
+
+    /// Issue #291: a box of a few lines (a coloured note) goes whole on the next page rather than
+    /// over two; one taller than a third of a page is cut, as a page's background is.
+    #[test]
+    fn a_small_box_is_kept_whole() {
+        let box_at = |y: f32, h: f32| Op::Fill { x: 0.0, y, w: 100.0, h, color: [1, 2, 3], radius: 6.0 };
+        let mut ops = vec![box_at(80.0, 30.0)];
+        ops.extend((0..15).map(|i| line(i as f32 * 10.0)));
+        assert_eq!(cuts(&ops, 100.0, 100.0, 500).0, [0.0, 80.0], "above the box");
+        let mut ops = vec![box_at(60.0, 50.0)];
+        ops.extend((0..15).map(|i| line(i as f32 * 10.0)));
+        assert_eq!(cuts(&ops, 100.0, 100.0, 500).0, [0.0, 100.0], "too tall to move: cut through");
     }
 
     #[test]

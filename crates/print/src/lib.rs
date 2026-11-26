@@ -28,6 +28,10 @@ pub struct Doc {
     pub title: String,
     /// `From`, `To`, `Date`… lines under it.
     pub header: Vec<(String, String)>,
+    /// A line under those, when there's one to say (pictures from the web not loaded).
+    pub note: String,
+    /// Said at the end of a message too long for the pages (English when empty).
+    pub cut: String,
     /// The text.
     pub body: String,
     /// The text with its formatting, a line at a time, for a message that has any: printed in
@@ -41,10 +45,14 @@ pub struct Doc {
 }
 
 /// Font files to embed (TrueType or OpenType with TrueType outlines).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Fonts<'a> {
     pub regular: &'a [u8],
     pub bold: Option<&'a [u8]>,
+    /// Fonts for what the regular and bold ones don't have (symbols, emoji, other scripts), the
+    /// first that has a character drawing it, as on screen (issue #291: they printed as empty
+    /// boxes). Each is embedded only when a character of the document needs it.
+    pub fallbacks: &'a [&'a [u8]],
 }
 
 const PAGE_W: f32 = 595.28;
@@ -53,9 +61,10 @@ const MARGIN: f32 = 56.0;
 /// Most pages written (a very long message is cut, with a note).
 const MAX_PAGES: usize = 500;
 
-/// A font as the layout and the writer see it.
+/// A font as the layout and the writer see it. An embedded one measures what it doesn't have
+/// with its `fallbacks`' metrics (the writer's own faces for them draw it).
 enum Face<'a> {
-    Embedded { data: &'a [u8], font: Box<Font<'a>>, used: BTreeMap<u16, char> },
+    Embedded { data: &'a [u8], font: Box<Font<'a>>, used: BTreeMap<u16, char>, fallbacks: Vec<Font<'a>> },
     Helvetica { bold: bool },
 }
 
@@ -92,8 +101,8 @@ impl Font<'_> {
     }
 }
 
-impl<'a> Face<'a> {
-    fn parse(data: &'a [u8]) -> Option<Face<'a>> {
+impl<'a> Font<'a> {
+    fn parse(data: &'a [u8]) -> Option<Font<'a>> {
         use skrifa::MetadataProvider as _;
         use skrifa::raw::TableProvider as _;
         let face = skrifa::FontRef::from_index(data, 0).ok()?;
@@ -102,16 +111,62 @@ impl<'a> Face<'a> {
             return None;
         }
         let (size, at) = (skrifa::instance::Size::unscaled(), skrifa::instance::LocationRef::default());
-        let font = Font { charmap: face.charmap(), advances: face.glyph_metrics(size, at), metrics: face.metrics(size, at) };
-        Some(Face::Embedded { data, font: Box::new(font), used: BTreeMap::new() })
+        Some(Font { charmap: face.charmap(), advances: face.glyph_metrics(size, at), metrics: face.metrics(size, at) })
+    }
+
+    /// Width of `c` in thousandths of the font size.
+    fn width(&self, c: char) -> f32 {
+        self.advance(self.glyph(c)) * 1000.0 / self.units_per_em()
+    }
+}
+
+impl<'a> Face<'a> {
+    fn parse(data: &'a [u8]) -> Option<Face<'a>> {
+        Some(Face::Embedded { data, font: Box::new(Font::parse(data)?), used: BTreeMap::new(), fallbacks: Vec::new() })
+    }
+
+    /// Measuring what it lacks with these fonts' metrics (ones that can't be embedded left out).
+    fn with_fallbacks(mut self, list: &[&'a [u8]]) -> Face<'a> {
+        if let Face::Embedded { fallbacks, .. } = &mut self {
+            *fallbacks = list.iter().filter_map(|d| Font::parse(d)).collect();
+        }
+        self
+    }
+
+    /// Which font draws `c`: 0 this one, `k` its `k`th fallback (one it hasn't and none has: this
+    /// one, its missing glyph).
+    fn drawn_by(&self, c: char) -> usize {
+        match self {
+            Face::Embedded { font, fallbacks, .. } if font.glyph(c) == 0 => fallbacks.iter().position(|f| f.glyph(c) != 0).map_or(0, |k| k + 1),
+            _ => 0,
+        }
     }
 
     /// Width of a character in thousandths of the font size.
     fn width(&self, c: char) -> f32 {
+        if ignorable(c) {
+            return 0.0;
+        }
         match self {
-            Face::Embedded { font, .. } => font.advance(font.glyph(c)) * 1000.0 / font.units_per_em(),
+            Face::Embedded { font, fallbacks, .. } => match self.drawn_by(c) {
+                0 => font.width(c),
+                k => fallbacks.get(k - 1).map_or(0.0, |f| f.width(c)),
+            },
             Face::Helvetica { bold } => helvetica_width(c, *bold),
         }
+    }
+
+    /// `s` in pieces by the font that draws them ([`Face::drawn_by`]), in order.
+    fn pieces(&self, s: &str) -> Vec<(usize, String)> {
+        let mut out: Vec<(usize, String)> = Vec::new();
+        for c in s.chars().filter(|c| !ignorable(*c)) {
+            let k = self.drawn_by(c);
+            match out.last_mut() {
+                Some((last, piece)) if *last == k => piece.push(c),
+                _ => out.push((k, c.to_string())),
+            }
+        }
+        out
     }
 
     fn text_width(&self, s: &str, size: f32) -> f32 {
@@ -124,7 +179,7 @@ impl<'a> Face<'a> {
             Face::Embedded { font, used, .. } => {
                 let mut hex = String::with_capacity(s.len() * 4 + 2);
                 hex.push('<');
-                for c in s.chars() {
+                for c in s.chars().filter(|c| !ignorable(*c)) {
                     let gid = font.glyph(c);
                     used.entry(gid).or_insert(c);
                     let _ = write!(hex, "{gid:04X}");
@@ -134,7 +189,7 @@ impl<'a> Face<'a> {
             }
             Face::Helvetica { .. } => {
                 let mut lit = String::from("(");
-                for c in s.chars() {
+                for c in s.chars().filter(|c| !ignorable(*c)) {
                     match win_ansi(c) {
                         b'(' | b')' | b'\\' => {
                             lit.push('\\');
@@ -151,6 +206,18 @@ impl<'a> Face<'a> {
             }
         }
     }
+}
+
+/// A character that's drawn as nothing and takes no room (Unicode's default ignorables: joiners,
+/// direction marks, variation selectors, the soft hyphen…). Newsletters pad the line their list
+/// shows with them; a font without them drew each as an empty box (issue #291: "a row of thin
+/// coloured stripes" no one saw on screen).
+fn ignorable(c: char) -> bool {
+    matches!(
+        u32::from(c),
+        0xAD | 0x34F | 0x61C | 0x115F..=0x1160 | 0x17B4..=0x17B5 | 0x180B..=0x180F | 0x200B..=0x200F | 0x202A..=0x202E | 0x2060..=0x206F
+            | 0x3164 | 0xFE00..=0xFE0F | 0xFEFF | 0xFFA0 | 0xFFF0..=0xFFF8 | 0x1BCA0..=0x1BCA3 | 0x1D173..=0x1D17A | 0xE0000..=0xE0FFF
+    )
 }
 
 /// Windows-1252 code of a character (`?` when it has none).
@@ -326,7 +393,7 @@ fn add(objects: &mut Vec<Vec<u8>>, body: Vec<u8>) -> usize {
 
 /// The document as PDF bytes.
 pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Vec<u8> {
-    let mut faces = faces(fonts);
+    let (mut faces, mut extra) = faces(fonts);
     let title = if doc.title.trim().is_empty() { "(no subject)".to_string() } else { doc.title.clone() };
     let laid = layout::layout(doc, &title, &faces);
     let n = laid.pages.len();
@@ -335,14 +402,18 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Vec<u8> {
         .pages
         .iter()
         .enumerate()
-        .map(|(i, page)| content_stream(&mut faces, page, laid.extras.get(i), (i == laid.rule.0).then_some(laid.rule.1), i + 1, n))
+        .map(|(i, page)| content_stream(&mut faces, &mut extra, page, laid.extras.get(i), (i == laid.rule.0).then_some(laid.rule.1), i + 1, n))
         .collect();
 
     // Objects: 1 catalog, 2 page tree, 3 info, then fonts, pictures, and page + content pairs.
     let info = format!("<< /Producer (MailCraft {}) /Title {} >>", env!("CARGO_PKG_VERSION"), info_string(&title)).into_bytes();
     let mut objects: Vec<Vec<u8>> = vec![b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(), Vec::new(), info];
-    let font_refs: Vec<usize> = faces.iter().enumerate().map(|(i, f)| font_objects(f, i, &mut objects)).collect();
-    let fonts_dict: String = font_refs.iter().enumerate().map(|(i, r)| format!("/F{} {r} 0 R", i + 1)).collect::<Vec<_>>().join(" ");
+    let mut fonts_dict: String =
+        faces.iter().enumerate().map(|(i, f)| format!("/F{} {} 0 R", i + 1, font_objects(f, i, &mut objects))).collect::<Vec<_>>().join(" ");
+    // A fallback only when the text drew a character with it (each is the whole font file).
+    for (k, f) in extra.iter().enumerate().filter(|(_, f)| matches!(f, Face::Embedded { used, .. } if !used.is_empty())) {
+        let _ = write!(fonts_dict, " /F{} {} 0 R", k + 3, font_objects(f, k + 2, &mut objects));
+    }
     // The pictures the pages draw, each once.
     let shown: std::collections::BTreeSet<usize> = laid.extras.iter().flat_map(|e| e.images.iter().map(|i| i.index)).collect();
     let mut pictures_dict = String::new();
@@ -369,18 +440,33 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Vec<u8> {
     write_file(&objects)
 }
 
-/// The regular and bold fonts: the ones given when they can be embedded, else Helvetica.
-fn faces(fonts: Option<Fonts<'_>>) -> [Face<'_>; 2] {
-    match fonts.and_then(|f| Face::parse(f.regular).map(|r| (r, f.bold))) {
-        Some((regular, bold)) => [regular, bold.and_then(Face::parse).unwrap_or(Face::Helvetica { bold: true })],
-        None => [Face::Helvetica { bold: false }, Face::Helvetica { bold: true }],
+/// The regular and bold fonts: the ones given when they can be embedded, else Helvetica; and
+/// the fallbacks the writer draws with (`/F3` on), with an embedded regular font only.
+fn faces(fonts: Option<Fonts<'_>>) -> ([Face<'_>; 2], Vec<Face<'_>>) {
+    match fonts.and_then(|f| Face::parse(f.regular).map(|r| (r, f))) {
+        Some((regular, f)) => {
+            // Measured with the fallbacks the writer has, in the same order.
+            let usable: Vec<&[u8]> = f.fallbacks.iter().copied().filter(|d| Font::parse(d).is_some()).collect();
+            let extra: Vec<Face<'_>> = usable.iter().filter_map(|d| Face::parse(d)).collect();
+            let bold = f.bold.and_then(Face::parse).map_or(Face::Helvetica { bold: true }, |b| b.with_fallbacks(&usable));
+            ([regular.with_fallbacks(&usable), bold], extra)
+        }
+        None => ([Face::Helvetica { bold: false }, Face::Helvetica { bold: true }], Vec::new()),
     }
 }
 
 /// Page `number` of `of`'s content stream: the line under the header when it's on it (`rule`,
 /// how high), a laid-out message's boxes and pictures, highlights, the text, the page's number,
 /// and lines under and through the text.
-fn content_stream(faces: &mut [Face<'_>; 2], page: &[Placed], extra: Option<&objects::Extra>, rule: Option<f32>, number: usize, of: usize) -> String {
+fn content_stream(
+    faces: &mut [Face<'_>; 2],
+    fallbacks: &mut [Face<'_>],
+    page: &[Placed],
+    extra: Option<&objects::Extra>,
+    rule: Option<f32>,
+    number: usize,
+    of: usize,
+) -> String {
     let mut c = String::new();
     if let Some(rule_y) = rule {
         let _ = writeln!(c, "0.75 G 0.6 w {MARGIN:.2} {rule_y:.2} m {:.2} {rule_y:.2} l S 0 G", PAGE_W - MARGIN);
@@ -399,13 +485,26 @@ fn content_stream(faces: &mut [Face<'_>; 2], page: &[Placed], extra: Option<&obj
     }
     c.push_str("BT\n");
     for p in page {
-        let enc = faces.get_mut(p.font).map(|f| f.encode(&p.text)).unwrap_or_default();
+        let pieces = faces.get(p.font).map(|f| f.pieces(&p.text)).unwrap_or_default();
         if let Some(color) = p.color {
             let _ = write!(c, "{} rg ", rgb(color));
         }
         // Italic: the upright font, leaning.
         let lean = if p.slant { "0.21" } else { "0" };
-        let _ = write!(c, "/F{} {:.1} Tf 1 0 {lean} 1 {:.2} {:.2} Tm {enc} Tj", p.font + 1, p.size, p.x, p.y);
+        let _ = write!(c, "/F{} {:.1} Tf 1 0 {lean} 1 {:.2} {:.2} Tm", p.font + 1, p.size, p.x, p.y);
+        // A piece another font draws goes on from where the one before ended, in that font.
+        let mut font = p.font + 1;
+        for (k, text) in pieces {
+            let (f, enc) = match k {
+                0 => (p.font + 1, faces.get_mut(p.font).map(|f| f.encode(&text)).unwrap_or_default()),
+                k => (k + 2, fallbacks.get_mut(k - 1).map(|f| f.encode(&text)).unwrap_or_default()),
+            };
+            if f != font {
+                let _ = write!(c, " /F{f} {:.1} Tf", p.size);
+                font = f;
+            }
+            let _ = write!(c, " {enc} Tj");
+        }
         c.push_str(if p.color.is_some() { " 0 g\n" } else { "\n" });
     }
     let footer = format!("{number} / {of}");
@@ -434,7 +533,7 @@ fn font_objects(face: &Face<'_>, i: usize, objects: &mut Vec<Vec<u8>>) -> usize 
             let name = if *bold { "Helvetica-Bold" } else { "Helvetica" };
             return add(objects, format!("<< /Type /Font /Subtype /Type1 /BaseFont /{name} /Encoding /WinAnsiEncoding >>").into_bytes());
         }
-        Face::Embedded { data, font, used } => (data, font, used),
+        Face::Embedded { data, font, used, .. } => (data, font, used),
     };
     let upem = font.units_per_em();
     let scale = |v: f32| (v * 1000.0 / upem).round() as i32;

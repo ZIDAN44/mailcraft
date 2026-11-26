@@ -440,6 +440,8 @@ pub struct Session {
     pub jmap_only: bool,
     /// The fonts PDFs embed (regular, bold): the system's, set by the app.
     pub print_fonts: Option<(Vec<u8>, Option<Vec<u8>>)>,
+    /// The fonts a PDF draws what those don't have with, as the window does (issue #291).
+    pub print_fallbacks: Vec<std::sync::Arc<dyn AsRef<[u8]> + Send + Sync>>,
     /// Files the window handed over for a command ([`Session::hand`]), by number, newest last.
     pub(crate) handed: Vec<(u64, Vec<u8>)>,
     pub(crate) last_handed: u64,
@@ -600,6 +602,7 @@ impl Session {
             portable: false,
             jmap_only: false,
             print_fonts: None,
+            print_fallbacks: Vec::new(),
             handed: Vec::new(),
             last_handed: 0,
             open_urls: Vec::new(),

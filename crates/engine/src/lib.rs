@@ -37,7 +37,9 @@ pub use session::{
     SOURCE_SHOWN, Scheme, Seal, SearchProgress, SearchScope, SearchStats, SearchWork, Security, SendBlock, SendCheck, SendReceive, SenderAddresses,
     SenderMarks, ServerSearch, Session, SignedBy, SmimeSettings, SourceView, StartIn, TEXT_SIZE_RANGE, TEXT_SIZES, TransferRow, TrustedCertificate,
     UNDO_SEND_MAX, UndoHold, UpdateCheck, VacationState, View, accent_code, accent_rgb,
-    invite::{AnsweredInvites, Fit, Invite, InviteDay, InviteProblem, MailWords, Route, WaitingInvite, forwarding_allowed, proposals_allowed},
+    invite::{
+        AnsweredInvites, Fit, Invite, InviteDay, InviteProblem, MailWords, PrintWords, Route, WaitingInvite, forwarding_allowed, proposals_allowed,
+    },
     junk::{JunkList, junk_entry},
     newer_release, parse_key,
     pim::{

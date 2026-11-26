@@ -331,7 +331,7 @@ fn selected_attachments_drag_out_together() {
 
 /// Services that remember the files handed to their app.
 #[cfg(windows)]
-struct Opens(std::rc::Rc<std::cell::RefCell<Vec<std::path::PathBuf>>>);
+pub(super) struct Opens(pub(super) std::rc::Rc<std::cell::RefCell<Vec<std::path::PathBuf>>>);
 
 #[cfg(windows)]
 impl crate::Services for Opens {

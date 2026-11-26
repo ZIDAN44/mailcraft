@@ -125,8 +125,8 @@ impl Lay<'_, '_> {
             match b {
                 Block::Text(lines) => self.text(lines, x, width, align, y, ops),
                 Block::Table(t) if depth < MAX_DEPTH => match tables.next() {
-                    Some(m) => self.table(t, m, x, width, y, ops, depth),
-                    None => self.table(t, &self.measure(t, depth), x, width, y, ops, depth),
+                    Some(m) => self.table(t, m, x, width, align, y, ops, depth),
+                    None => self.table(t, &self.measure(t, depth), x, width, align, y, ops, depth),
                 },
                 Block::Table(_) => {}
             }
@@ -341,7 +341,10 @@ impl Lay<'_, '_> {
     }
 
     /// Lay out `t`, measured in `m`.
-    fn table(&self, t: &Table, m: &Measure, x: f32, room: f32, y: &mut f32, ops: &mut Vec<Op>, depth: usize) {
+    /// `content`: where its room's content goes (its cell's `align`), where a table that says
+    /// nothing of its own place goes too, as browsers and the reading pane put it (issue #291: a
+    /// button in a cell centred with `text-align`, centred on screen, printed at the left).
+    fn table(&self, t: &Table, m: &Measure, x: f32, room: f32, content: Align, y: &mut f32, ops: &mut Vec<Op>, depth: usize) {
         let n = columns_in(t);
         let between = t.spacing * (n as f32 + 1.0);
         let wanted = match t.width {
@@ -355,7 +358,8 @@ impl Lay<'_, '_> {
         // Each cell's tables, measured, in the order they're laid out.
         let mut measured = m.cells.iter();
         let outer = (widths.iter().sum::<f32>() + between).min(room.max(NARROWEST));
-        let left = x + match t.align {
+        let place = if t.align == Align::Left { content } else { t.align };
+        let left = x + match place {
             Align::Left => 0.0,
             Align::Center => (room - outer) / 2.0,
             Align::Right => room - outer,

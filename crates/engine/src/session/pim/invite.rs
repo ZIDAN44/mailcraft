@@ -34,7 +34,7 @@ pub use forward::forwarding_allowed;
 pub use notices::Route;
 pub use tidy::AnsweredInvites;
 pub(crate) use tidy::WaitingTidy;
-pub use words::MailWords;
+pub use words::{MailWords, PrintWords};
 
 /// The most occurrences one message can take out of a series.
 const MAX_EXDATES: usize = 1000;

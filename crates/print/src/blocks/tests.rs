@@ -255,3 +255,24 @@ fn measure_nested_tables() {
         }
     }
 }
+
+/// Issue #291: a button (a table as wide as its words) in a cell centred by `text-align`, which
+/// sets no place of its own, goes where the cell's content goes, as on screen: it printed at the
+/// cell's left. One that says where it goes keeps to that.
+#[test]
+fn a_table_that_says_no_place_goes_where_its_cells_content_goes() {
+    let button = |align| Table { rows: vec![vec![cell("Join the livestream")]], fit: true, align, ..Default::default() };
+    let in_centred_cell = |inner| {
+        let page = Table {
+            rows: vec![vec![Cell { blocks: vec![Block::Table(inner)], align: Align::Center, ..Default::default() }]],
+            width: Some(Width::Percent(100.0)),
+            ..Default::default()
+        };
+        let (ops, _) = laid(&[Block::Table(page)], 500.0);
+        texts(&ops).first().map(|(_, p, _)| p.x).expect("the button's words")
+    };
+    let centred = in_centred_cell(button(Align::Left));
+    assert!(centred > 150.0 && centred < 250.0, "centred: {centred}");
+    let own = in_centred_cell(button(Align::Right));
+    assert!(own > 300.0, "where it says: {own}");
+}

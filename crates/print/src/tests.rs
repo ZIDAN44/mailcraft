@@ -96,12 +96,26 @@ fn wrapping() {
     assert_eq!(win_ansi('漢'), b'?');
 }
 
+/// Issue #291: what's drawn as nothing (a newsletter's padding of joiners and marks) prints
+/// as nothing, taking no room, in Helvetica and in an embedded font: each was a box or a `?`.
+#[test]
+fn what_shows_as_nothing_prints_as_nothing() {
+    let padded = "A\u{34F}\u{200C}\u{A0}\u{200B}\u{FEFF}B\u{FE0F}";
+    let mut helvetica = Face::Helvetica { bold: false };
+    assert_eq!(helvetica.encode(padded), "(A\\240B)");
+    assert_eq!(helvetica.text_width(padded, 10.0), helvetica.text_width("A\u{A0}B", 10.0));
+    let Some(data) = system_font() else { return };
+    let face = Face::parse(&data).unwrap();
+    assert_eq!(face.pieces(padded), [(0, "A\u{A0}B".to_string())]);
+    assert_eq!(face.text_width(padded, 10.0), face.text_width("A\u{A0}B", 10.0));
+}
+
 #[test]
 fn empty_and_hostile_input() {
     let p = pdf(&Doc::default(), None);
     objects_are_where_the_xref_says(&p);
     // Not a font: falls back to Helvetica rather than failing.
-    let p = pdf(&doc("x"), Some(Fonts { regular: b"not a font", bold: None }));
+    let p = pdf(&doc("x"), Some(Fonts { regular: b"not a font", ..Default::default() }));
     assert!(String::from_utf8_lossy(&p).contains("/Helvetica"));
     let huge = "y\n".repeat(200_000);
     let p = pdf(&doc(&huge), None);
@@ -188,7 +202,7 @@ fn embeds_a_system_font_when_there_is_one() {
         eprintln!("skipped: no system font to embed");
         return;
     };
-    let p = pdf(&doc("Hello café — ünïcödé"), Some(Fonts { regular: &data, bold: None }));
+    let p = pdf(&doc("Hello café — ünïcödé"), Some(Fonts { regular: &data, ..Default::default() }));
     let text = String::from_utf8_lossy(&p);
     assert!(text.contains("/Subtype /CIDFontType2") && text.contains("/FontFile2") && text.contains("/ToUnicode"));
     assert!(p.len() < data.len(), "the font file is compressed");

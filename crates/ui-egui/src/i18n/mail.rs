@@ -33,6 +33,15 @@ pub fn mail_words() -> MailWords {
         meeting: crate::pim_dialogs::meeting_labels(),
         date: super::date,
         categories: [tl!("Important"), tl!("Work"), tl!("Personal"), tl!("To do"), tl!("Later")].map(String::from),
+        print: mailcraft_engine::PrintWords {
+            from: tl!("From").into(),
+            to: tl!("To").into(),
+            cc: tl!("Cc").into(),
+            date: tl!("Date").into(),
+            attachments: tl!("Attachments").into(),
+            not_loaded: tl!("Pictures from the web weren't loaded.").into(),
+            cut: tl!("(The rest of the message didn't fit in this document.)").into(),
+        },
     }
 }
 

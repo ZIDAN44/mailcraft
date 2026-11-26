@@ -10,6 +10,7 @@ mod people;
 mod person;
 mod pinned_header;
 mod plain_text;
+mod printing;
 mod reactions;
 mod search_marks;
 

@@ -456,6 +456,23 @@ pub(crate) fn add_craft_fallbacks(fonts: &mut FontDefinitions) {
     }
 }
 
+/// The fonts the window falls back to for what the system's doesn't have (egui's emoji and
+/// symbols, then the Craft apps' scripts), for a PDF to draw them too (issue #291): what's built
+/// in, in the window's order.
+pub fn print_fallbacks() -> Vec<Arc<dyn AsRef<[u8]> + Send + Sync>> {
+    let defaults = FontDefinitions::default();
+    let mut list: Vec<Arc<dyn AsRef<[u8]> + Send + Sync>> = defaults
+        .families
+        .get(&FontFamily::Proportional)
+        .into_iter()
+        .flatten()
+        .filter_map(|name| defaults.font_data.get(name))
+        .map(|d| d.font.clone())
+        .collect();
+    list.extend(crate::craft_fonts::fallbacks().map(|f| Arc::new(f.bytes) as Arc<dyn AsRef<[u8]> + Send + Sync>));
+    list
+}
+
 pub fn bold(size: f32) -> egui::FontId {
     egui::FontId::new(size, FontFamily::Name("bold".into()))
 }
