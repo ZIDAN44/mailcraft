@@ -31,6 +31,9 @@ impl Session {
         }
         if let Some(default) = &sync.default_calendar {
             p.server_default = Some(default.clone());
+        } else if sync.default_calendar_failed {
+            // Asked again next time, not kept as known until the calendars change again.
+            p.server_default = None;
         }
         let deleted: HashSet<&str> = sync.deleted.iter().map(String::as_str).collect();
         p.deleted.retain(|t| !deleted.contains(t.href.as_str()));

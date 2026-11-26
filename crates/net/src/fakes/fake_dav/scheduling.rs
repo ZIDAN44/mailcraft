@@ -106,6 +106,19 @@ fn the_servers_default_calendar_is_asked_once_and_again_as_calendars_change() {
         pim.calendars.push(mailcraft_model::pim::CalendarInfo { id: format!("{}/dav/cal/gone/", server.base), ..Default::default() });
         let changed = sync(&Dav::new(USER, PASSWORD), &AT, &pim, 300, Zone::UTC).unwrap();
         assert_eq!((changed.default_calendar, asked(&server)), (Some(cal.clone()), 2), "the calendars changed: asked again");
+        assert!(!changed.default_calendar_failed);
+        // Changed again, and the inbox doesn't answer: said, so it's asked at the next sync,
+        // though the calendars are the same then.
+        server.data.lock().unwrap().unreadable.push(INBOX.into());
+        pim.calendars.last_mut().expect("the one gone").id = format!("{}/dav/cal/gone-too/", server.base);
+        let failed = sync(&Dav::new(USER, PASSWORD), &AT, &pim, 400, Zone::UTC).unwrap();
+        assert!(failed.errors.is_empty(), "{:?}", failed.errors);
+        assert_eq!((failed.default_calendar, failed.default_calendar_failed, asked(&server)), (None, true, 3), "not answered");
+        server.data.lock().unwrap().unreadable.clear();
+        pim.server_default = None;
+        pim.calendars = failed.calendars.clone().unwrap_or_default();
+        let retried = sync(&Dav::new(USER, PASSWORD), &AT, &pim, 500, Zone::UTC).unwrap();
+        assert_eq!((retried.default_calendar, asked(&server)), (Some(cal.clone()), 4), "asked again");
     }
 }
 

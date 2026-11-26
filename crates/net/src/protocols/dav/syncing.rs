@@ -141,7 +141,9 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         run.push_tasks(&mut out, &mut refetch)?;
     }
     run.read_calendars(&refetch, &mut out)?;
-    out.default_calendar = server_default(dav, pim, &out, schedules);
+    let asked = server_default(dav, pim, &out, schedules);
+    out.default_calendar_failed = asked.as_ref().is_some_and(Option::is_none);
+    out.default_calendar = asked.flatten();
     if let Err(e) = run.read_books(&mut out) {
         contacts_refused(dav, e, &mut out)?;
     }
@@ -150,9 +152,9 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
 
 /// The calendar a server that schedules takes as the user's default (issue #278): asked the first
 /// time, and again when its calendars aren't the ones they were (one made or removed may be the
-/// default now), `Some("")` when it names none. `None`, not asked or not answered: what was
-/// known stays.
-fn server_default(dav: &Dav, pim: &Pim, out: &DavSync, schedules: bool) -> Option<String> {
+/// default now), `Some("")` when it names none. `None`: not asked; `Some(None)`: asked and not
+/// answered.
+fn server_default(dav: &Dav, pim: &Pim, out: &DavSync, schedules: bool) -> Option<Option<String>> {
     let (true, Some(home), Some(list)) = (schedules, &out.caldav_home, &out.calendars) else { return None };
     let was: std::collections::BTreeSet<&str> =
         pim.calendars.iter().map(|c| c.id.as_str()).filter(|id| mailcraft_model::pim::is_server_calendar(id)).collect();
@@ -161,7 +163,7 @@ fn server_default(dav: &Dav, pim: &Pim, out: &DavSync, schedules: bool) -> Optio
     if pim.server_default.is_some() && was == now {
         return None;
     }
-    dav.default_calendar(home).ok().map(Option::unwrap_or_default)
+    Some(dav.default_calendar(home).ok().map(Option::unwrap_or_default))
 }
 
 /// A contacts step's error. Google refusing the token its contacts (a sign-in that granted the

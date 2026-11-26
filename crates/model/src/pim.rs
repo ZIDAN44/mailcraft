@@ -462,6 +462,10 @@ pub struct DavSync {
     /// when it names none; `None`: not asked this time, what was known stays.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_calendar: Option<String>,
+    /// Asking for it failed: what was known is forgotten, so it's asked again at the next sync,
+    /// though the calendars are the same then (they changed this time, or it was never known).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub default_calendar_failed: bool,
     /// Reminder answers the server took, or that no longer apply there (the event is gone): by
     /// uid and occurrence.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
