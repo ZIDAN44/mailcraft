@@ -1720,7 +1720,6 @@ month	May	5月
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	你的 OpenPGP 密钥由 MailCraft 桌面应用使用，而不在浏览器中使用
 	Not sent yet: this is a draft.	尚未发送：这是草稿。
 	Show web pictures unless a message looks suspicious	除非邮件看起来可疑，否则显示网络图片
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	如果邮件服务器已确认发件人且邮件不在垃圾邮件中，打开邮件时会加载图片。每张图片所在的服务器都能看到你的 IP 地址和打开时间。跟踪图片仍被阻止
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	此邮件看起来可疑或无法确认发件人，因此其图片保持隐藏。
 	These senders' pictures always load, even when a message looks suspicious:	这些发件人的图片始终加载，即使邮件看起来可疑：
 	Open a mail file	打开邮件文件
@@ -2198,3 +2197,10 @@ count	occurrences	次
 	New task list…	新建任务列表…
 	Reminders over other apps' windows	提醒显示在其他应用的窗口之上
 	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	提醒窗口显示在你正在使用的应用之上，但不会抢走它的键盘输入。
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	邮件上方：其中的跟踪图片、报告点击的链接，以及对你隐藏的文本
+	Ask	询问
+	Notes about tracking and hidden text	关于跟踪和隐藏文本的提示
+	Show web pictures	显示网络图片
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	此邮件位于垃圾邮件中或其发件人已被阻止，因此其图片保持隐藏。
+	Unless suspicious	除非可疑
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	除非可疑：当你的邮件服务器确认了邮件的发件人时。始终：除垃圾邮件中的邮件和被阻止发件人的邮件外的所有邮件。每张图片所在的服务器可以看到你的 IP 地址以及你打开邮件的时间；跟踪图片仍被阻止

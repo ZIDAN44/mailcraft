@@ -165,6 +165,22 @@ fn pictures_locked_off_load_for_no_sender() {
     s.run("message.showPictures", &json!({"always": true})).unwrap();
     assert!(s.prefs.trusted_senders.is_empty());
     assert!(s.run("view.trustSender", &json!({"address": "zoe@studio.example"})).is_err());
+    assert!(s.run("view.webPictures", &json!({"load": "always"})).is_err(), "issue #276: nor every message's");
+}
+
+/// Issue #276: an organisation that locks every message's pictures off leaves the choice
+/// between asking and loading those that don't look suspicious.
+#[test]
+fn every_messages_pictures_locked_off_leaves_the_rest() {
+    let mut s = sample_session("org-all-pictures");
+    s.set_organisation(org(json!({"settings": {"allPictures": {"value": false, "locked": true}}})));
+    s.run("view.webPictures", &json!({"load": "safe"})).unwrap();
+    assert!(s.prefs.auto_pictures && !s.prefs.all_pictures);
+    s.run("view.webPictures", &json!({"load": "always"})).unwrap();
+    s.run("view.compact", &json!({})).unwrap();
+    assert!(s.prefs.auto_pictures && !s.prefs.all_pictures, "held: unless suspicious");
+    s.run("view.webPictures", &json!({"load": "ask"})).unwrap();
+    assert!(!s.prefs.auto_pictures);
 }
 
 #[test]

@@ -1724,7 +1724,6 @@ month	May	mai
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	vos clés OpenPGP sont utilisées par l'application de bureau MailCraft, pas dans le navigateur
 	Not sent yet: this is a draft.	Pas encore envoyé : c'est un brouillon.
 	Show web pictures unless a message looks suspicious	Afficher les images web sauf si un message semble suspect
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Les images se chargent à l'ouverture du message, si votre serveur de messagerie a confirmé l'expéditeur et que le message n'est pas dans le courrier indésirable. Le serveur de chaque image peut voir votre adresse IP et le moment de l'ouverture. Les images de suivi restent bloquées
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Ce message semble suspect ou son expéditeur n'a pas pu être confirmé : ses images restent masquées.
 	These senders' pictures always load, even when a message looks suspicious:	Les images de ces expéditeurs se chargent toujours, même si un message semble suspect :
 	Open a mail file	Ouvrir un fichier de courrier
@@ -2202,3 +2201,10 @@ count	occurrences	occurrences
 	New task list…	Nouvelle liste de tâches…
 	Reminders over other apps' windows	Rappels au-dessus des fenêtres des autres applications
 	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	La fenêtre des rappels s'affiche au-dessus de l'application où vous travaillez, sans lui prendre le clavier.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	Au-dessus d'un message : ses images de suivi, les liens qui signalent les clics et le texte qu'il vous cache
+	Ask	Demander
+	Notes about tracking and hidden text	Notes sur le suivi et le texte masqué
+	Show web pictures	Afficher les images du web
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Ce message est dans le Courrier indésirable ou son expéditeur est bloqué : ses images restent masquées.
+	Unless suspicious	Sauf si suspect
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Sauf si suspect : quand votre serveur de messagerie a confirmé qui a envoyé un message. Toujours : tous les messages, sauf ceux du Courrier indésirable et des expéditeurs bloqués. Le serveur de chaque image peut voir votre adresse IP et quand vous avez ouvert le message ; les images de suivi restent bloquées

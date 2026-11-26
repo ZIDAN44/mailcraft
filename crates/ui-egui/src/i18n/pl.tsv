@@ -1737,7 +1737,6 @@ date	December	grudnia
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	klucze OpenPGP są używane przez aplikację komputerową MailCraft, a nie w przeglądarce
 	Not sent yet: this is a draft.	Jeszcze nie wysłano: to wersja robocza.
 	Show web pictures unless a message looks suspicious	Pokazuj obrazy z sieci, chyba że wiadomość wygląda podejrzanie
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Obrazy są ładowane przy otwieraniu wiadomości, gdy serwer poczty potwierdził nadawcę, a wiadomość nie jest w folderze Wiadomości-śmieci. Serwer, na którym jest dany obraz, widzi adres IP i czas otwarcia. Obrazy śledzące pozostają zablokowane
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Ta wiadomość wygląda podejrzanie lub nie udało się potwierdzić jej nadawcy, więc jej obrazy pozostają ukryte.
 	These senders' pictures always load, even when a message looks suspicious:	Obrazy od tych nadawców są zawsze ładowane, nawet gdy wiadomość wygląda podejrzanie:
 	Open a mail file	Otwórz plik wiadomości
@@ -2215,3 +2214,10 @@ count	occurrences	wystąpieniach
 	New task list…	Nowa lista zadań…
 	Reminders over other apps' windows	Przypomnienia nad oknami innych aplikacji
 	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	Okno przypomnień pojawia się nad aplikacją, w której pracujesz, nie odbierając jej klawiatury.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	Nad wiadomością: jej obrazy śledzące, linki zgłaszające kliknięcia i tekst, który przed Tobą ukrywa
+	Ask	Pytaj
+	Notes about tracking and hidden text	Uwagi o śledzeniu i ukrytym tekście
+	Show web pictures	Pokazuj obrazy z internetu
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Ta wiadomość jest w folderze Wiadomości-śmieci lub jej nadawca jest zablokowany, więc jej obrazy pozostają ukryte.
+	Unless suspicious	Chyba że podejrzana
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Chyba że podejrzana: gdy serwer poczty potwierdził, kto wysłał wiadomość. Zawsze: każda wiadomość oprócz tych w folderze Wiadomości-śmieci i od zablokowanych nadawców. Serwer, na którym jest każdy obraz, widzi Twój adres IP i to, kiedy otwarto wiadomość; obrazy śledzące pozostają zablokowane

@@ -1724,7 +1724,6 @@ month	May	Mai
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	Ihre OpenPGP-Schlüssel werden von der MailCraft-Desktop-App verwendet, nicht im Browser
 	Not sent yet: this is a draft.	Noch nicht gesendet: Dies ist ein Entwurf.
 	Show web pictures unless a message looks suspicious	Webbilder anzeigen, außer wenn eine Nachricht verdächtig wirkt
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Bilder werden beim Öffnen geladen, wenn Ihr Mailserver den Absender bestätigt hat und die Nachricht nicht in „Junk-E-Mail“ liegt. Der Server des Bildes sieht Ihre IP-Adresse und wann Sie die Nachricht geöffnet haben. Tracking-Bilder bleiben blockiert
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Diese Nachricht wirkt verdächtig oder ihr Absender konnte nicht bestätigt werden, daher bleiben ihre Bilder ausgeblendet.
 	These senders' pictures always load, even when a message looks suspicious:	Bilder dieser Absender werden immer geladen, auch wenn eine Nachricht verdächtig wirkt:
 	Open a mail file	Eine E-Mail-Datei öffnen
@@ -2202,3 +2201,10 @@ count	occurrences	Terminen
 	New task list…	Neue Aufgabenliste…
 	Reminders over other apps' windows	Erinnerungen über den Fenstern anderer Apps
 	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	Das Erinnerungsfenster erscheint über der App, in der Sie arbeiten, ohne ihr die Tastatur zu nehmen.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	Über einer Nachricht: ihre Tracking-Bilder, Links, die Klicks melden, und Text, den sie vor Ihnen verbirgt
+	Ask	Fragen
+	Notes about tracking and hidden text	Hinweise zu Tracking und verborgenem Text
+	Show web pictures	Webbilder anzeigen
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Diese Nachricht ist in Junk-E-Mail oder ihr Absender ist blockiert, daher bleiben ihre Bilder ausgeblendet.
+	Unless suspicious	Außer bei Verdacht
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Außer bei Verdacht: wenn Ihr Mailserver bestätigt hat, wer eine Nachricht gesendet hat. Immer: jede Nachricht außer denen in Junk-E-Mail und von blockierten Absendern. Der Server, auf dem ein Bild liegt, sieht Ihre IP-Adresse und wann Sie die Nachricht geöffnet haben; Tracking-Bilder bleiben blockiert

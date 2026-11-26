@@ -1720,7 +1720,6 @@ month	May	5月
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	OpenPGP 鍵はブラウザーではなく、MailCraft のデスクトップ版で使われます
 	Not sent yet: this is a draft.	まだ送信されていません。これは下書きです。
 	Show web pictures unless a message looks suspicious	不審なメッセージ以外は Web の画像を表示する
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	メール サーバーが送信者を確認でき、迷惑メールにないメッセージは、開いたときに画像を読み込みます。各画像のサーバーには IP アドレスと開いた時刻が伝わります。トラッキング画像はブロックされたままです
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	このメッセージは不審であるか送信者を確認できないため、画像は非表示のままです。
 	These senders' pictures always load, even when a message looks suspicious:	これらの送信者の画像は、メッセージが不審に見える場合でも常に読み込まれます:
 	Open a mail file	メール ファイルを開く
@@ -2198,3 +2197,10 @@ count	occurrences	回
 	New task list…	新しいタスク リスト…
 	Reminders over other apps' windows	アラームを他のアプリのウィンドウの前面に表示
 	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	作業中のアプリの前面にアラーム ウィンドウを表示します。キーボードの入力先は変わりません。
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	メッセージの上部: トラッキング画像、クリックを報告するリンク、あなたから隠しているテキスト
+	Ask	確認する
+	Notes about tracking and hidden text	トラッキングと隠しテキストに関する注記
+	Show web pictures	Web 上の画像を表示
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	このメッセージは迷惑メールにあるか、差出人が受信拒否されているため、画像は非表示のままです。
+	Unless suspicious	疑わしくない場合
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	疑わしくない場合: メール サーバーが差出人を確認したとき。常に: 迷惑メールにあるものと受信拒否された差出人からのもの以外のすべてのメッセージ。各画像のあるサーバーには、あなたの IP アドレスとメッセージを開いた日時がわかります。トラッキング画像は引き続きブロックされます

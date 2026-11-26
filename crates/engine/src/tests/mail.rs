@@ -415,6 +415,24 @@ fn web_pictures_load_only_when_asked() {
     assert!(!s.pictures_load_alone(), "in Junk");
     s.run("view.autoPictures", &json!({"on": false})).unwrap();
     assert!(!s.pictures_allowed(), "off again: it asks");
+    // Issue #276: every message's, looking suspicious or not, but Junk's and blocked senders'.
+    store.write_body(&key(1), mail("fail").as_bytes()).unwrap();
+    s.apply(Event::Body { key: key(1), raw: mail("fail").into_bytes() });
+    s.run("view.webPictures", &json!({"load": "always"})).unwrap();
+    assert!(s.prefs.auto_pictures && s.prefs.all_pictures);
+    assert!(!s.pictures_allowed(), "in Junk: it asks");
+    let inbox =
+        mailcraft_model::Folder { account: id.clone(), path: "INBOX".into(), role: FolderRole::Inbox, selectable: true, ..Default::default() };
+    s.apply(Event::Folders { account: id.clone(), folders: vec![inbox] });
+    assert!(s.pictures_allowed(), "failed, and shown all the same");
+    s.prefs.blocked_senders.insert("news@shop.example".into());
+    assert!(!s.pictures_allowed(), "a blocked sender's ask");
+    s.prefs.blocked_senders.clear();
+    s.run("view.webPictures", &json!({"load": "safe"})).unwrap();
+    assert!(!s.pictures_allowed(), "unless suspicious: failed, so it asks");
+    s.run("view.webPictures", &json!({"load": "ask"})).unwrap();
+    assert!(!s.prefs.auto_pictures && !s.prefs.all_pictures);
+    assert!(s.run("view.webPictures", &json!({"load": "sometimes"})).is_err());
 }
 
 #[test]

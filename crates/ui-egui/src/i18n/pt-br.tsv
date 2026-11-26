@@ -1724,7 +1724,6 @@ month	May	maio
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	suas chaves OpenPGP são usadas pelo aplicativo para desktop do MailCraft, não no navegador
 	Not sent yet: this is a draft.	Ainda não enviado: este é um rascunho.
 	Show web pictures unless a message looks suspicious	Mostrar imagens da web, a menos que a mensagem pareça suspeita
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	As imagens carregam quando a mensagem abre, se o seu servidor de e-mail confirmou quem enviou e ela não está no Lixo Eletrônico. O servidor de cada imagem pode ver seu endereço IP e quando você a abriu. Imagens de rastreamento continuam bloqueadas
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Esta mensagem parece suspeita ou o remetente não pôde ser confirmado, por isso as imagens continuam ocultas.
 	These senders' pictures always load, even when a message looks suspicious:	As imagens destes remetentes sempre carregam, mesmo quando a mensagem parece suspeita:
 	Open a mail file	Abrir um arquivo de e-mail
@@ -2202,3 +2201,10 @@ count	occurrences	ocorrências
 	New task list…	Nova lista de tarefas…
 	Reminders over other apps' windows	Lembretes sobre as janelas de outros aplicativos
 	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	A janela de lembretes aparece sobre o aplicativo em que você está trabalhando, sem tirar o teclado dele.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	Acima de uma mensagem: as imagens de rastreamento, os links que informam cliques e o texto que ela esconde de você
+	Ask	Perguntar
+	Notes about tracking and hidden text	Notas sobre rastreamento e texto oculto
+	Show web pictures	Mostrar imagens da web
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Esta mensagem está no Lixo eletrônico ou o remetente está bloqueado, então as imagens continuam ocultas.
+	Unless suspicious	A menos que seja suspeita
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	A menos que seja suspeita: quando seu servidor de email confirmou quem enviou a mensagem. Sempre: todas as mensagens, exceto as do Lixo eletrônico e as de remetentes bloqueados. O servidor de cada imagem pode ver seu endereço IP e quando você abriu a mensagem; as imagens de rastreamento continuam bloqueadas

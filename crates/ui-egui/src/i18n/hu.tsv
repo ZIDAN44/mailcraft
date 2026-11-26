@@ -1725,7 +1725,6 @@ month	May	május
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	az OpenPGP-kulcsaidat a MailCraft asztali alkalmazása tudja használni, a böngészős változat nem
 	Not sent yet: this is a draft.	Még nincs elküldve: ez egy piszkozat.
 	Show web pictures unless a message looks suspicious	Webes képek megjelenítése, ha az üzenet nem gyanús
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	A képek megnyitáskor betöltődnek, ha a levelezőkiszolgáló ellenőrizte a feladót, és az üzenet nincs a Levélszemét mappában. A képet kiszolgáló szerver láthatja az IP-címedet és a megnyitás időpontját. A követőképek továbbra is blokkolva maradnak.
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Az üzenet gyanúsnak tűnik, vagy a feladót nem sikerült ellenőrizni, ezért a képek rejtve maradnak.
 	These senders' pictures always load, even when a message looks suspicious:	A következő feladók képei akkor is betöltődnek, ha az üzenet gyanúsnak tűnik:
 	Open a mail file	Üzenetfájl megnyitása
@@ -2202,3 +2201,10 @@ count	occurrences	előfordulás
 	New task list…	Új feladatlista…
 	Reminders over other apps' windows	Emlékeztetők más alkalmazások ablakai fölött
 	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	Az Emlékeztetők ablak annak az alkalmazásnak az ablaka fölött jelenik meg, amelyben dolgozik, anélkül hogy elvenné tőle a billentyűzetet.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	Az üzenet fölött: a követőképei, a kattintásokat jelentő hivatkozások és az Ön elől elrejtett szöveg
+	Ask	Kérdezzen
+	Notes about tracking and hidden text	Megjegyzések a követésről és a rejtett szövegről
+	Show web pictures	Webes képek megjelenítése
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Ez az üzenet a Levélszemét mappában van, vagy a feladója le van tiltva, ezért a képei rejtve maradnak.
+	Unless suspicious	Kivéve, ha gyanús
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Kivéve, ha gyanús: ha a levelezőkiszolgálója megerősítette, ki küldte az üzenetet. Mindig: minden üzenetnél, kivéve a Levélszemét mappában lévőket és a letiltott feladóktól érkezőket. Az a kiszolgáló, amelyen egy kép van, látja az IP-címét és azt, mikor nyitotta meg az üzenetet; a követőképek továbbra is tiltva maradnak

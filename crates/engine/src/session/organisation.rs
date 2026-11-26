@@ -21,7 +21,7 @@ pub const BY_ORGANISATION: &str = "Set by your organisation";
 
 /// The settings an organisation may set: every one MailCraft has but the person's own state
 /// (what's open, folded, ordered or searched lately, and what names their accounts' folders).
-pub const ORG_SETTINGS: [&str; 87] = [
+pub const ORG_SETTINGS: [&str; 89] = [
     "updates",
     "readingPane",
     "conversations",
@@ -102,6 +102,8 @@ pub const ORG_SETTINGS: [&str; 87] = [
     "keepPhotoLocation",
     "cleanLinks",
     "autoPictures",
+    "allPictures",
+    "messageNotes",
     "checkRevocation",
     "senderAddresses",
     "externalTag",

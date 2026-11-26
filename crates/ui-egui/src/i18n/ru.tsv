@@ -1737,7 +1737,6 @@ date	December	декабря
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	ваши ключи OpenPGP используются настольным приложением MailCraft, а не в браузере
 	Not sent yet: this is a draft.	Ещё не отправлено: это черновик.
 	Show web pictures unless a message looks suspicious	Показывать картинки из интернета, если письмо не выглядит подозрительным
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Картинки загружаются при открытии письма, если почтовый сервер подтвердил отправителя и письмо не в папке «Нежелательная почта». Сервер каждой картинки увидит ваш IP-адрес и время открытия. Картинки слежения остаются заблокированными
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Это письмо выглядит подозрительным или его отправителя не удалось подтвердить, поэтому картинки скрыты.
 	These senders' pictures always load, even when a message looks suspicious:	Картинки от этих отправителей загружаются всегда, даже если письмо выглядит подозрительным:
 	Open a mail file	Открыть файл письма
@@ -2215,3 +2214,10 @@ count	occurrences	повторений
 	New task list…	Новый список задач…
 	Reminders over other apps' windows	Напоминания поверх окон других приложений
 	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	Окно напоминаний появляется поверх приложения, в котором вы работаете, не забирая у него клавиатуру.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	Над сообщением: его следящие изображения, ссылки, сообщающие о переходах, и скрытый от вас текст
+	Ask	Спрашивать
+	Notes about tracking and hidden text	Заметки о слежении и скрытом тексте
+	Show web pictures	Показывать изображения из интернета
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Это сообщение в папке «Нежелательная почта» или его отправитель заблокирован, поэтому изображения остаются скрытыми.
+	Unless suspicious	Если не подозрительное
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Если не подозрительное: когда почтовый сервер подтвердил, кто отправил сообщение. Всегда: все сообщения, кроме находящихся в нежелательной почте и от заблокированных отправителей. Сервер, на котором лежит изображение, видит ваш IP-адрес и время открытия сообщения; следящие изображения по-прежнему блокируются

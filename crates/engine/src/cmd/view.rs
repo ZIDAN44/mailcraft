@@ -475,6 +475,22 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         toggle!("view.cleanLinks", "Open links without their tracking", "File › Options › Safety", clean_links, r#"{"on"?: bool (none: switch; on, a link opens out of its redirect wrapper and without the tags naming the reader)}"#),
         toggle!("view.autoPictures", "Show web pictures unless a message looks suspicious", "File › Options › Safety", auto_pictures, r#"{"on"?: bool (none: switch; on, a message whose sender the mail server confirmed shows its web pictures as it opens)}"#)
             .asks(),
+        // Issue #276: each message asks, those that don't look suspicious load, or every one's.
+        CommandSpec::new("view.webPictures", "Show web pictures", "File › Options › Safety", |s, v| {
+            let load = p::req_str(v, "load")?;
+            let (auto, all) = match load {
+                "ask" => (false, false),
+                "safe" => (true, false),
+                "always" => (true, true),
+                other => return Err(CmdError::Params(format!("`load` is ask, safe or always, not `{other}`"))),
+            };
+            s.prefs.auto_pictures = auto;
+            s.prefs.all_pictures = all;
+            Ok(json!({"load": load}))
+        }).setting("auto_pictures")
+        .params(r#"{"load": "ask"|"safe"|"always" (ask: each message asks; safe: a message whose sender the mail server confirmed shows them as it opens; always: every message but those in Junk and from blocked senders)}"#)
+        .asks(),
+        toggle!("view.messageNotes", "Notes about tracking and hidden text", "File › Options › Safety", message_notes, r#"{"on"?: bool (none: switch; off, a message's tracking pictures, links that report clicks and hidden text aren't said above it)}"#),
         toggle!("view.checkRevocation", "Check whether certificates were withdrawn", "File › Options › Safety", check_revocation, r#"{"on"?: bool (none: switch; on, a signed message's certificate is checked with its authority as it's shown, which tells the authority)}"#)
             .asks(),
         CommandSpec::new("view.senderAddresses", "Show sender addresses in the message list", "File › Options › Safety", |s, v| {
