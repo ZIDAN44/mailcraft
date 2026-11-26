@@ -2197,3 +2197,6 @@ count	occurrences	occurrences
 	is from the list “{text}”	vient de la liste « {text} »
 	Create event	Créer un événement
 	Create task	Créer une tâche
+	New task list	Nouvelle liste de tâches
+	Task list name	Nom de la liste de tâches
+	New task list…	Nouvelle liste de tâches…

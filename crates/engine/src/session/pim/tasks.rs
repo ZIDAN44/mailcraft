@@ -193,6 +193,50 @@ impl Session {
         self.notes_sync(account)
     }
 
+    /// The accounts a task list can be made on (issue #294): those whose calendars are on a
+    /// CalDAV server, found.
+    pub fn task_list_accounts(&self) -> Vec<&str> {
+        self.accounts
+            .iter()
+            .filter(|a| a.config.has_server() && a.config.graph.is_none() && a.config.ews.is_none())
+            .filter(|a| self.pim.get(&a.config.id).is_some_and(|p| p.caldav_home.as_deref().is_some_and(|h| !h.is_empty())))
+            .map(|a| a.config.id.as_str())
+            .collect()
+    }
+
+    /// Ask for a task list called `name` on `account`'s CalDAV server (or the one on screen's,
+    /// else the first that has one): made at its next sync (issue #294: a server with none kept
+    /// MailCraft's tasks on this computer).
+    pub fn new_task_list(&mut self, account: Option<&str>, name: &str) -> CmdResult {
+        let name = name.trim();
+        if name.is_empty() || name.chars().count() > 100 || name.chars().any(char::is_control) {
+            return Err(CmdError::Params("a task list's name: up to 100 characters, on one line".into()));
+        }
+        let able = self.task_list_accounts();
+        let current = self.current_account().map(|a| a.config.id.clone());
+        let account = match account {
+            Some(a) if able.contains(&a) => a.to_string(),
+            Some(a) => return Err(CmdError::Disabled(format!("`{a}` has no calendar server to make a task list on"))),
+            None => match current.filter(|c| able.contains(&c.as_str())).or_else(|| able.first().map(|a| a.to_string())) {
+                Some(a) => a,
+                None => return Err(CmdError::Disabled("no account has a calendar server to make a task list on".into())),
+            },
+        };
+        let p = self.pim_mut(&account);
+        let taken = p
+            .task_lists
+            .iter()
+            .map(|l| l.name.as_str())
+            .chain(p.new_task_lists.iter().map(String::as_str))
+            .any(|n| n.trim().eq_ignore_ascii_case(name));
+        if taken {
+            return Err(CmdError::Params(format!("there's a task list called “{name}” already")));
+        }
+        p.new_task_lists.push(name.to_string());
+        self.after_pim_change(&account, true);
+        Ok(serde_json::json!({"account": account, "name": name}))
+    }
+
     /// Each account's CalDAV task lists (issue #201), in the order the server gave them.
     pub fn task_lists(&self) -> Vec<(&str, &mailcraft_model::pim::TaskList)> {
         self.accounts

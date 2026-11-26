@@ -283,6 +283,10 @@ pub struct Pim {
     /// on this computer).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub task_lists: Vec<TaskList>,
+    /// Task lists to make on the server, by name, at the next sync (issue #294: one with none kept
+    /// MailCraft's tasks on this computer).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub new_task_lists: Vec<String>,
 
     /// Where the server keeps the user's calendars and address books (found once); empty when
     /// it has none.
@@ -452,6 +456,10 @@ pub struct DavSync {
     pub task_lists: Option<Vec<TaskList>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub list_tasks: Vec<StoredTask>,
+    /// The task lists asked for ([`Pim::new_task_lists`]) this sync tried to make: made, read
+    /// with the others, or said why not; not asked for again.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub made_task_lists: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub synced_task_lists: Vec<String>,
     /// Deletions done (by href).

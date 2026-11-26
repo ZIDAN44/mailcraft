@@ -269,6 +269,11 @@ pub enum Dialog {
         permanent: bool,
         error: Option<String>,
     },
+    /// A task list to make on the calendars' server (issue #294): its name.
+    NewTaskList {
+        name: String,
+        error: Option<String>,
+    },
     /// A category made or changed ([`Dialog::new_category`], [`Dialog::edit_category`],
     /// [`Dialog::name_keyword`]).
     NewCategory {
@@ -581,7 +586,8 @@ impl Dialog {
             Dialog::FolderName { error, .. }
             | Dialog::MoveFolder { error, .. }
             | Dialog::DeleteFolder { error, .. }
-            | Dialog::NewCategory { error, .. } => *error = Some(e),
+            | Dialog::NewCategory { error, .. }
+            | Dialog::NewTaskList { error, .. } => *error = Some(e),
             Dialog::EditRule(f) => f.error = Some(e),
             Dialog::SearchFolder(f) => f.error = Some(e),
             Dialog::QuickStep(f) => f.error = Some(e),
@@ -810,6 +816,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::SmartCard { .. }
         | Dialog::Event(..)
         | Dialog::Task(..)
+        | Dialog::NewTaskList { .. }
         | Dialog::FollowUp(..)
         | Dialog::Snooze(..)
         | Dialog::Propose(..)

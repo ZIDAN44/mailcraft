@@ -16,6 +16,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Added
 
+- **New task list…** in Tasks makes a task list on your calendars' server (#294): a server with none (a new Nextcloud account, before its Tasks app was opened) kept MailCraft's tasks on this computer. Tried on Nextcloud and Radicale.
 - **Create event** and **Create task** in a message's **More actions** (⋯) (#297): the message's subject and text in a new event that invites no one (**Reply with meeting** invites the people on it), or in a new task, due on the day the message's follow-up flag is due.
 - A rule can be for one mailing list (#288): **Mailing list (List-Id) contains** matches the list's id or its name as its `List-Id` says, in MailCraft's own rules and in rules kept on a Sieve server (tried on Dovecot). Rules run again on mail that came before this version don't find its list. Other headers aren't looked at yet ([gap 28](docs/gaps.md#28-rules-on-other-headers)).
 - An event moves to another calendar of its account (#279): pick it in the event's **Calendar** box, or `event.update` with `calendar` (id or name). A meeting's guests and organizer aren't told: on the server it's moved, not copied and deleted. Tried on Stalwart and Nextcloud; not between Exchange's calendars yet ([gap 27](docs/gaps.md#27-moving-an-event-to-another-calendar-what-isnt-done-yet)).

@@ -220,6 +220,26 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
         }
         Dialog::Event(f) => crate::pim_dialogs::event(ui, f, s, t, acts),
         Dialog::Task(f) => crate::pim_dialogs::task(ui, f, t, acts),
+        Dialog::NewTaskList { name, error } => {
+            ui.set_width(360.0);
+            title(ui, t, "New task list");
+            let r = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Task list name")).desired_width(f32::INFINITY));
+            if ui.memory(|m| m.focused().is_none()) {
+                r.request_focus();
+            }
+            // One field: Enter means OK wherever the focus is.
+            let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+            if let Some(e) = error {
+                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+            }
+            let ready = !name.trim().is_empty();
+            let (ok, cancel) = buttons(ui, t, "Create", ready);
+            if (ok || enter) && ready {
+                *error = None;
+                acts.push(Action::Submit("task.newList", json!({"name": name.trim()})));
+            }
+            !cancel
+        }
         Dialog::FollowUp(f) => crate::pim_dialogs::follow_up(ui, f, t, acts),
         Dialog::Snooze(f) => crate::pim_dialogs::snooze(ui, f, s, t, acts),
         Dialog::Propose(f) => crate::pim_dialogs::propose(ui, f, t, acts),

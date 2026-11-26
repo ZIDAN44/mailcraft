@@ -538,6 +538,32 @@ impl Dav {
         }
     }
 
+    /// Make a task list at `url` (a collection of to-dos alone, as Nextcloud's Tasks makes one:
+    /// `MKCALENDAR`, RFC 4791 §5.3.1) called `name`: the HTTP status when the server didn't
+    /// (`Err` inside; 405: something is there already).
+    pub fn make_task_list(&self, url: &str, name: &str) -> Result<std::result::Result<(), u16>> {
+        let body = format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?><c:mkcalendar xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:set><d:prop><d:displayname>{}</d:displayname><c:supported-calendar-component-set><c:comp name=\"VTODO\"/></c:supported-calendar-component-set></d:prop></d:set></c:mkcalendar>",
+            crate::xml::esc(name)
+        );
+        let req = Request {
+            method: "MKCALENDAR".into(),
+            url: url.into(),
+            headers: vec![("Content-Type".into(), "application/xml; charset=utf-8".into())],
+            body: body.into_bytes(),
+            max: 1 << 20,
+        };
+        let resp = self.send(&req)?;
+        if let Some(why) = self.token_refused(&resp) {
+            return Err(NetError::Auth(why));
+        }
+        match resp.status {
+            200..=299 => Ok(Ok(())),
+            401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
+            s => Ok(Err(s)),
+        }
+    }
+
     /// Delete an item (when it still has `etag`, if given): why the server didn't (`Err` inside).
     pub fn remove(&self, url: &str, etag: &str) -> Result<std::result::Result<(), Refused>> {
         let mut req = Request { method: "DELETE".into(), url: url.into(), max: 1 << 20, ..Default::default() };

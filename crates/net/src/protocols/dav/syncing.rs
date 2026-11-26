@@ -139,6 +139,7 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     }
     if calendars {
         run.push_tasks(&mut out, &mut refetch)?;
+        run.make_task_lists(&mut out)?;
     }
     run.read_calendars(&refetch, &mut out)?;
     let asked = server_default(dav, pim, &out, schedules);
@@ -166,6 +167,37 @@ fn server_default(dav: &Dav, pim: &Pim, out: &DavSync, schedules: bool) -> Optio
         return None;
     }
     Some(dav.default_calendar(home).ok().map(Option::unwrap_or_default))
+}
+
+impl Run<'_> {
+    /// The task lists asked for (issue #294), each a collection of its own under the calendars'
+    /// home, named for it (another name beside one there already); read with the others below.
+    fn make_task_lists(&self, out: &mut DavSync) -> Result<()> {
+        let Some(home) = out.caldav_home.clone().filter(|h| !h.is_empty()) else { return Ok(()) };
+        for name in self.pim.new_task_lists.iter().take(10) {
+            out.made_task_lists.push(name.clone());
+            let slug: String = name
+                .chars()
+                .filter_map(|c| if c.is_ascii_alphanumeric() { Some(c.to_ascii_lowercase()) } else { c.is_whitespace().then_some('-') })
+                .take(40)
+                .collect();
+            let slug = if slug.trim_matches('-').is_empty() { "tasks".to_string() } else { slug.trim_matches('-').to_string() };
+            let mut made = Err(0);
+            for n in 1..=5 {
+                let url =
+                    if n == 1 { format!("{}/{slug}/", home.trim_end_matches('/')) } else { format!("{}/{slug}-{n}/", home.trim_end_matches('/')) };
+                made = self.dav.make_task_list(&url, name)?;
+                // Something there already by that name: the next one.
+                if made != Err(405) {
+                    break;
+                }
+            }
+            if let Err(s) = made {
+                out.errors.push(format!("{name}: the server didn't make this task list (HTTP {s})"));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// A contacts step's error. Google refusing the token its contacts (a sign-in that granted the

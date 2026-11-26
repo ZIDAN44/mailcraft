@@ -247,3 +247,35 @@ fn a_read_only_list_is_marked() {
     let ro: Vec<bool> = s.task_lists.unwrap().iter().map(|l| l.read_only).collect();
     assert_eq!(ro, [false, true]);
 }
+
+/// Issue #294: a server with no task list (a new Nextcloud account's) keeps none of MailCraft's
+/// tasks. One asked for is made at the next sync, a list of to-dos alone named as asked, and read
+/// in the same sync; one named as another there is made beside it, and the server's refusal said.
+#[test]
+fn a_task_list_asked_for_is_made_and_read() {
+    let server = serve();
+    let dav = Dav::new(USER, PASSWORD);
+    let mut pim = pim_at(&server);
+    let first = sync(&dav, &AT, &pim, 100, Zone::UTC).unwrap();
+    assert_eq!(first.task_lists.as_ref().map(Vec::len), Some(0), "none yet");
+    kept_after(&mut pim, &first);
+    pim.new_task_lists = vec!["Tasks".into()];
+    let made = sync(&dav, &AT, &pim, 200, Zone::UTC).unwrap();
+    assert!(made.errors.is_empty(), "{:?}", made.errors);
+    assert_eq!(made.made_task_lists, ["Tasks"]);
+    let lists = made.task_lists.clone().unwrap_or_default();
+    assert!(lists.iter().any(|l| l.id.ends_with(TASKS) && l.tasks_only && !l.read_only), "{lists:?}");
+    assert!(server.data.lock().unwrap().log.iter().any(|l| l.starts_with("MKCALENDAR") && l.ends_with(TASKS)));
+    // Asked again by the same name, though one is there: another beside it, which this server
+    // refuses; said, and not asked for again.
+    // As the engine takes it in: asked for no more.
+    kept_after(&mut pim, &made);
+    pim.new_task_lists.clear();
+    let again = sync(&dav, &AT, &pim, 300, Zone::UTC).unwrap();
+    assert!(again.made_task_lists.is_empty(), "not made again");
+    pim.new_task_lists = vec!["Tasks".into()];
+    let refused = sync(&dav, &AT, &pim, 400, Zone::UTC).unwrap();
+    assert_eq!(refused.made_task_lists, ["Tasks"]);
+    assert!(refused.errors.iter().any(|e| e.starts_with("Tasks: the server didn't make this task list (HTTP 403)")), "{:?}", refused.errors);
+    assert!(server.data.lock().unwrap().log.iter().any(|l| l.starts_with("MKCALENDAR") && l.ends_with("/dav/cal/tasks-2/")));
+}

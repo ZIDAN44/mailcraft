@@ -2197,3 +2197,6 @@ count	occurrences	repeticiones
 	is from the list “{text}”	es de la lista «{text}»
 	Create event	Crear evento
 	Create task	Crear tarea
+	New task list	Nueva lista de tareas
+	Task list name	Nombre de la lista de tareas
+	New task list…	Nueva lista de tareas…

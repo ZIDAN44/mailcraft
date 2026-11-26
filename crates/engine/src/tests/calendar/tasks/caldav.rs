@@ -293,3 +293,35 @@ fn unchanged_tasks_stay() {
     assert_eq!(stored(&s, &id, "b").task.title, "B again");
     assert_eq!(s.pim[&id].tasks.len(), 2);
 }
+
+/// Issue #294: a task list asked for on an account whose calendars are on a CalDAV server, kept
+/// to be made at its next sync (asked for at once); refused where there's none to make it on, by
+/// a name one has already, or a name that isn't one; asked for no more once a sync tried it.
+#[test]
+fn a_task_list_is_asked_for_and_made_at_the_next_sync() {
+    let (mut s, id) = account("tasks-new-list");
+    assert!(s.run("task.newList", &json!({"name": "Errands"})).is_err(), "its calendars not found yet");
+    synced(&mut s, &id, vec![list(CAL, "Personal", false, false)], Vec::new(), &[CAL], &[]);
+    s.take_jobs();
+    for bad in [
+        json!({"name": " "}),
+        json!({"name": "a\nb"}),
+        json!({"name": "x".repeat(101)}),
+        json!({"name": "personal"}),
+        json!({"name": "Errands", "account": "nobody"}),
+    ] {
+        assert!(s.run("task.newList", &bad).is_err(), "{bad}");
+    }
+    let r = s.run("task.newList", &json!({"name": " Errands "})).unwrap();
+    assert_eq!((r["account"].as_str(), r["name"].as_str()), (Some(id.as_str()), Some("Errands")));
+    assert_eq!(s.pim[&id].new_task_lists, ["Errands"]);
+    assert!(s.take_jobs().iter().any(|j| matches!(j, Job::SyncDav { account } if *account == id)), "a sync asked for");
+    assert!(s.run("task.newList", &json!({"name": "errands"})).is_err(), "asked for already");
+    // A sync that tried it (made, and read with the others): asked for no more.
+    let sync = DavSync {
+        made_task_lists: vec!["Errands".into()],
+        ..synced(&mut s, &id, vec![list(CAL, "Personal", false, false)], Vec::new(), &[CAL], &[])
+    };
+    s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(sync) });
+    assert!(s.pim[&id].new_task_lists.is_empty());
+}

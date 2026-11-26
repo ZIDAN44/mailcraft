@@ -116,6 +116,16 @@ impl Data {
             "PUT" => self.put_item(r),
             "DELETE" => self.delete_item(&r.path, r.if_match.as_deref()),
             "MOVE" => self.move_item(r),
+            // A task list made (issue #294): the one the fake keeps, when it has none.
+            "MKCALENDAR" if r.path == TASKS && r.body.contains("VTODO") => match self.task_list {
+                Some(_) => reply("405 Method Not Allowed"),
+                None => {
+                    self.task_list = Some(false);
+                    self.ctag += 1;
+                    reply("201 Created")
+                }
+            },
+            "MKCALENDAR" => reply("403 Forbidden"),
             _ => reply("404 Not Found"),
         }
     }

@@ -218,12 +218,10 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 ### 18. Tasks on CalDAV servers: what isn't done yet
 
 - **Impact:** A task's due or start time of day (Nextcloud's Tasks can give one) shows beside
-  its day, and stays when the day is changed here, but can't be set or changed here. A server
-  with no task list (a new Nextcloud account, before its
-  Tasks app makes one) keeps none of MailCraft's tasks: they stay on this computer. MailCraft
-  doesn't make, rename or delete task lists, nor sync subtasks as such, nor Microsoft To Do.
-- **Workaround:** Make the task list in the server's own web page (Nextcloud's Tasks makes one
-  when opened); MailCraft finds it at its next sync. Set due times there.
+  its day, and stays when the day is changed here, but can't be set or changed here. MailCraft
+  makes a task list (**New task list…** in Tasks), but doesn't rename or delete one, nor sync
+  subtasks as such, nor Microsoft To Do.
+- **Workaround:** Rename or delete a task list, and set due times, in the server's own web page.
 - **Cause:** Tasks are kept by day, as Outlook's are. A collection is taken for a task list only
   when it says it takes `VTODO`s: one that says nothing (SOGo's calendars' `.ics` and `.xml`
   views) isn't, so tasks don't go where they'd be lost.

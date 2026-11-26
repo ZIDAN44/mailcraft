@@ -23,6 +23,8 @@ impl Session {
         let p = self.pim_mut(account);
         // Taken in: the next sync may start (it waits for this, saved below).
         p.dav_pass = p.dav_pass.max(sync.pass);
+        // Task lists asked for, tried (made, and read with the others; or said why not).
+        p.new_task_lists.retain(|n| !sync.made_task_lists.contains(n));
         p.caldav_home = sync.caldav_home.clone().or_else(|| Some(String::new()));
         p.carddav_home = sync.carddav_home.clone().or_else(|| Some(String::new()));
         if !sync.homes_kept || p.dav_checked.is_none() {

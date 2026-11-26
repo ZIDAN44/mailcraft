@@ -2197,3 +2197,6 @@ count	occurrences	előfordulás
 	is from the list “{text}”	erről a levelezőlistáról érkezett: „{text}”
 	Create event	Esemény létrehozása
 	Create task	Feladat létrehozása
+	New task list	Új feladatlista
+	Task list name	A feladatlista neve
+	New task list…	Új feladatlista…

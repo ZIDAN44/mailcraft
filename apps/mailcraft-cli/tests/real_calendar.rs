@@ -515,7 +515,7 @@ fn real_caldav_colleagues_times() {
 /// there, comes back; a change on the server comes in; one crossing it gives way to it; a task
 /// made before the server's lists were known goes there; deleted, it's gone from the server.
 /// A server with no task list (a new Nextcloud user's, until its Tasks app makes one) gets one
-/// made as Nextcloud's Tasks makes them (`MKCALENDAR`, to-dos alone).
+/// made by MailCraft (`task.newList`: `MKCALENDAR`, to-dos alone, issue #294).
 #[test]
 #[ignore = "needs a real CalDAV server with task lists in MAILCRAFT_REAL_TASKS"]
 fn real_caldav_tasks() {
@@ -549,12 +549,12 @@ fn real_caldav_tasks() {
     let early = format!("Early task {}", std::process::id());
     let early_uid = a.s.run("task.create", &json!({"title": early, "account": aid})).unwrap()["uid"].as_str().unwrap().to_string();
     a.sync_dav(&aid);
+    // None (a new Nextcloud user's): one made by MailCraft, as asked (issue #294).
     if a.s.pim[&aid].task_lists.is_empty() {
-        let home = a.s.pim[&aid].caldav_home.clone().expect("the calendars found");
-        let mk = r#"<?xml version="1.0"?><c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:set><d:prop><d:displayname>Tasks</d:displayname><c:supported-calendar-component-set><c:comp name="VTODO"/></c:supported-calendar-component-set></d:prop></d:set></c:mkcalendar>"#;
-        let made = http_as("MKCALENDAR", &format!("{}/mailcraft-tasks/", home.trim_end_matches('/')), &auth, "application/xml", mk.as_bytes());
-        eprintln!("no task list: one made ({})", made.status);
+        a.s.run("task.newList", &json!({"name": "Tasks", "account": aid})).unwrap();
         a.sync_dav(&aid);
+        eprintln!("no task list: one made by task.newList");
+        assert!(a.s.pim[&aid].new_task_lists.is_empty(), "tried");
     }
     let lists: Vec<String> = a.s.pim[&aid].task_lists.iter().map(|l| format!("{} {} tasks-only={}", l.name, l.id, l.tasks_only)).collect();
     eprintln!("task lists: {lists:?}");

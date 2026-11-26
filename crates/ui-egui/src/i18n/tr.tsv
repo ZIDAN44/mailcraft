@@ -2197,3 +2197,6 @@ count	occurrences	kez
 	is from the list “{text}”	“{text}” listesinden
 	Create event	Etkinlik oluştur
 	Create task	Görev oluştur
+	New task list	Yeni görev listesi
+	Task list name	Görev listesinin adı
+	New task list…	Yeni görev listesi…

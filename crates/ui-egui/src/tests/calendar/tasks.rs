@@ -334,3 +334,43 @@ fn a_message_makes_a_task_or_an_event() {
     assert_eq!((e.summary.as_str(), e.guests.as_str()), ("Open call: winter group show", ""), "no one invited");
     assert!(e.description.contains("Dear artists"));
 }
+
+/// Issue #294: an account whose calendars are on a CalDAV server with no task list (a new
+/// Nextcloud account's) gets New task list… in the Tasks pane; its dialog asks for one by name,
+/// to be made at the next sync.
+#[test]
+fn a_task_list_is_made_from_the_tasks_pane() {
+    let (mut a, _) = app("tasks-new-list");
+    let id = a
+        .session
+        .run("account.add", &json!({"email": "zoe@example.org", "username": "zoe", "password": "pw", "dav": "https://dav.example.org/"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let size = egui::vec2(1280.0, 800.0);
+    let ctx = egui::Context::default();
+    a.run("view.module", json!({"name": "tasks"}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(!drawn_text(&ctx, &mut a, size).iter().any(|d| d.text == "New task list…"), "its calendars not found yet");
+    let sync = mailcraft_engine::model::pim::DavSync {
+        caldav_home: Some("https://dav.example.org/calendars/zoe/".into()),
+        calendars: Some(vec![mailcraft_engine::model::pim::CalendarInfo {
+            id: "https://dav.example.org/calendars/zoe/personal/".into(),
+            name: "Personal".into(),
+            ..Default::default()
+        }]),
+        task_lists: Some(Vec::new()),
+        checked: NOW,
+        ..Default::default()
+    };
+    a.session.apply(MailEvent::DavSynced { account: id.clone(), sync: Box::new(sync) });
+    frame(&ctx, &mut a, vec![]);
+    let at = drawn_text(&ctx, &mut a, size).into_iter().find(|d| d.text == "New task list…").map(|d| d.rect).expect("the button");
+    click(&ctx, &mut a, at.center());
+    let Some(Dialog::NewTaskList { name, .. }) = a.ui.dialog.as_mut() else { panic!("its dialog: {:?}", a.ui.dialog.is_some()) };
+    *name = "Errands".into();
+    a.act(crate::Action::Submit("task.newList", json!({"name": "Errands"})));
+    assert!(a.ui.dialog.is_none(), "closed");
+    assert_eq!(a.session.pim[&id].new_task_lists, ["Errands"]);
+}
