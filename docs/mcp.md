@@ -65,7 +65,7 @@ it, as the MailCraft beside it does: give its full path as the command.
 | `list_messages` | `account?`, `folder?`, `limit?`, `offset?` | A folder's messages, newest first (the account's Inbox by default): key, date, sender, recipients, subject, the start of the text, unread, flagged, files. |
 | `search_mail` | `query`, `account?`, `folder?`, `limit?` | As the search box finds them (`from:`, `subject:`, `has:attachment`, `is:unread`, `received:`, `before:`/`after:`, `category:`, `-word`, `"a phrase"`, words in the text of the messages downloaded). |
 | `read_message` | `key` | One message: sender, recipients, date, subject, its text (HTML as text), its files. |
-| `list_events` | `from?`, `to?` (`YYYY-MM-DD`) | The calendars' events, each occurrence on its own: times, place, the organizer, the guests and their answers, your answer. Today and the six days after by default; a year at most. |
+| `list_events` | `from?`, `to?` (`YYYY-MM-DD`) | The calendars' events, each occurrence on its own: times, place, the organizer, the guests and their answers, your answer, and the calendar: its name, and its id as `calendarId`, which the calendar commands take. Today and the six days after by default; a year at most. |
 | `list_tasks` | `query?`, `done?` | The tasks: title, due day, list, notes. |
 | `find_people` | `query` | People from the address books, and from the mail and meetings with them. |
 | `everything_with` | `email`, `query?` | Everything with one person: the conversations, the files and links in them, the meetings, the others on that mail. |

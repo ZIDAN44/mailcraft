@@ -331,10 +331,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         toggle!("view.markReadOnOpen", "Mark as read when opened", "File › Options › Mail", mark_read_on_open),
         CommandSpec::new("calendar.show", "Show or hide a calendar", "Calendar › Calendars", |s, v| {
             let account = p::req_str(v, "account")?.to_string();
-            let calendar = p::req_str(v, "calendar")?.to_string();
-            if !s.pim.get(&account).is_some_and(|p| p.calendars.iter().any(|c| c.id == calendar)) {
-                return Err(CmdError::Params(format!("no calendar `{calendar}` in `{account}`")));
-            }
+            let named = p::req_str(v, "calendar")?;
+            let found = match s.pim.get(&account) {
+                Some(p) => crate::session::pim::calendar_named(p, named)?.map(|c| c.id.clone()),
+                None => None,
+            };
+            let calendar = found.ok_or_else(|| CmdError::Params(format!("no calendar `{named}` in `{account}`")))?;
             let key = Session::calendar_key(&account, &calendar);
             let shown = p::bool(v, "shown").unwrap_or(s.prefs.hidden_calendars.contains(&key));
             if shown {
@@ -345,7 +347,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.pim_revision = s.pim_revision.wrapping_add(1);
             Ok(json!({"account": account, "calendar": calendar, "shown": shown}))
         })
-        .params(r#"{"account": string, "calendar": string, "shown"?: bool (default: the other way)}"#),
+        .params(r#"{"account": string, "calendar": string (id or name), "shown"?: bool (default: the other way)}"#),
         toggle!("calendar.sideBySide", "Side by side", "Calendar › View", calendars_side_by_side, r#"{"on"?: bool (each calendar in a column of its own in day and week)}"#),
         toggle!(
             "calendar.scheduleWorkHours",

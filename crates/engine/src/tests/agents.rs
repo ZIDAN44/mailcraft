@@ -56,6 +56,12 @@ fn agents_read_without_changing_anything() {
     let events = s.agent_read("list_events", &json!({"from": from, "to": to})).unwrap();
     let mix = events["events"].as_array().unwrap().iter().find(|e| e["title"] == "Sound mix playback").expect("the sample's meeting");
     assert!(mix["guests"].as_array().is_some_and(|g| !g.is_empty()) && mix["yourAnswer"].is_string(), "{mix}");
+    // Its calendar by name, and by the id the calendar's commands take (issue #280): the id its
+    // event is kept in, not a name a command would take too.
+    let kept = s.find_event(mix["uid"].as_str().unwrap()).map(|(_, e)| e.calendar.clone());
+    assert_eq!(mix["calendarId"].as_str(), kept.as_deref(), "{mix}");
+    assert_ne!(mix["calendarId"], mix["calendar"], "{mix}");
+    assert!(s.run("calendar.show", &json!({"account": mix["account"], "calendar": mix["calendarId"], "shown": true})).is_ok(), "{mix}");
 
     assert_eq!(shown(&mut s), before, "the window as it was, the mail as unread as it was");
     assert!(s.take_jobs().is_empty(), "nothing asked of a server");
