@@ -358,3 +358,17 @@ fn a_locked_setting_is_read_not_changed() {
     assert!(s.run("options.updates", &json!({"value": "on"})).is_err());
     assert!(s.command_locked("options.undoSend").is_some(), "its control is still held");
 }
+
+/// Every setting a command changes is one an organisation can set and lock (the Reminders
+/// window's, issue #299, came without being one: a profile's was said not to be a setting).
+#[test]
+fn every_setting_a_command_changes_an_organisation_sets() {
+    let missing: Vec<String> = crate::cmd::registry()
+        .all()
+        .iter()
+        .flat_map(|c| c.setting.split(',').map(str::trim).filter(|k| !k.is_empty()).map(|k| (c.id, crate::session::camel(k))))
+        .filter(|(_, k)| !crate::ORG_SETTINGS.contains(&k.as_str()))
+        .map(|(id, k)| format!("{id}: {k}"))
+        .collect();
+    assert!(missing.is_empty(), "{missing:?}");
+}
