@@ -244,6 +244,7 @@ impl SummaryText {
                     }
                 }
                 Term::AnyOf(any) => any.iter().for_each(|t| mark(t, want)),
+                Term::All(all) => all.iter().for_each(|c| mark(&c.term, want)),
                 _ => {}
             }
         }
@@ -411,6 +412,10 @@ impl Query {
                     any.iter().for_each(|t| term(t, negated, out));
                     &[]
                 }
+                Term::All(all) => {
+                    all.iter().for_each(|c| term(&c.term, negated != c.negated, out));
+                    &[]
+                }
                 _ => &[],
             };
             let words: Vec<Cow<'_, str>> = match t {
@@ -442,6 +447,7 @@ impl Query {
             let (f, p) = match t {
                 Term::Phrase(f, p) => (f, p),
                 Term::AnyOf(any) => return any.iter().for_each(|t| term(t, out)),
+                Term::All(all) => return all.iter().for_each(|c| term(&c.term, out)),
                 _ => return,
             };
             let words: Vec<String> = all_words(p).map(Cow::into_owned).collect();
@@ -466,6 +472,7 @@ fn term_needs_text(t: &Term) -> bool {
     match t {
         Term::Words(f, _) | Term::Phrase(f, _) => matches!(f, Field::Any | Field::Body | Field::Attachment),
         Term::AnyOf(any) => any.iter().any(term_needs_text),
+        Term::All(all) => all.iter().any(|c| term_needs_text(&c.term)),
         _ => false,
     }
 }
@@ -488,7 +495,14 @@ fn clause(term: &Term, doc: &Doc<'_>) -> Tri {
         Term::Size(false, b) => Tri::from(u64::from(m.size) < *b),
         // `received:` (`after:`, `before:`) reads when it came, `sent:` and `date:` its Date:.
         Term::Date(spec) => spec.holds(if spec.sent { m.date } else { m.when() }).map_or(Tri::Unknown, Tri::from),
-        Term::AnyOf(ts) => ts.iter().fold(Tri::No, |acc, t| acc.or(clause(t, doc))),
+        Term::AnyOf(ts) => ts.iter().fold(Tri::No, |acc, t| if acc == Tri::Yes { acc } else { acc.or(clause(t, doc)) }),
+        Term::All(cs) => cs.iter().fold(Tri::Yes, |acc, c| {
+            if acc == Tri::No {
+                return acc;
+            }
+            let t = clause(&c.term, doc);
+            acc.and(if c.negated { !t } else { t })
+        }),
         Term::Words(f, ws) => ws.iter().fold(Tri::Yes, |acc, w| if acc == Tri::No { acc } else { acc.and(word(f, w, doc)) }),
         Term::Phrase(f, p) => phrase(f, p, doc),
     }

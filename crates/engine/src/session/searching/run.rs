@@ -173,6 +173,7 @@ impl SearchRun {
             match t {
                 Term::Words(..) | Term::Phrase(..) => true,
                 Term::AnyOf(any) => any.iter().any(summary_words),
+                Term::All(all) => all.iter().any(|c| summary_words(&c.term)),
                 _ => false,
             }
         }
@@ -180,6 +181,7 @@ impl SearchRun {
             match t {
                 Term::HasAttachment(_) => true,
                 Term::AnyOf(any) => any.iter().any(files),
+                Term::All(all) => all.iter().any(|c| files(&c.term)),
                 _ => false,
             }
         }

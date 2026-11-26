@@ -1,5 +1,6 @@
 //! Reading what's typed in the search box into a [`Query`].
 
+use super::grouping;
 use super::*;
 
 pub(super) fn split_tokens(input: &str) -> Vec<String> {
@@ -190,53 +191,11 @@ fn date_term(spec: Option<DateSpec>, value: &str, tok: &str, problems: &mut Vec<
 
 impl Query {
     pub fn parse(input: &str) -> Query {
-        let mut clauses = Vec::new();
         let mut problems = Vec::new();
         let tokens = size_units_joined(split_tokens(input));
         let too_many = tokens.len() > MAX_TERMS;
-        for tok in tokens.into_iter().take(MAX_TERMS) {
-            let (negated, tok) = match tok.strip_prefix('-') {
-                Some(rest) if !rest.is_empty() => (true, rest.to_string()),
-                _ => (false, tok),
-            };
-            let term = match tok.split_once(':') {
-                Some((k, v)) if !v.is_empty() && !k.starts_with('"') => match k.to_ascii_lowercase().as_str() {
-                    "from" => list_term(Field::From, v, &mut problems),
-                    "to" | "cc" => list_term(Field::To, v, &mut problems),
-                    "larger" => value_term(size(v), &tok, &mut problems, |b| Term::Size(true, b)),
-                    "smaller" => value_term(size(v), &tok, &mut problems, |b| Term::Size(false, b)),
-                    "subject" => text_term(Field::Subject, v),
-                    "body" => text_term(Field::Body, v),
-                    "attachment" | "attachments" => list_term(Field::Attachment, v, &mut problems),
-                    "received" => date_term(dates::period(v), v, &tok, &mut problems),
-                    "sent" | "date" => date_term(dates::period(v).map(|s| DateSpec { sent: true, ..s }), v, &tok, &mut problems),
-                    "after" => date_term(dates::after(v), v, &tok, &mut problems),
-                    "before" => date_term(dates::before(v), v, &tok, &mut problems),
-                    "has" if v.eq_ignore_ascii_case("attachment") || v.eq_ignore_ascii_case("attachments") => Some(Term::HasAttachment(true)),
-                    "hasattachment" | "hasattachments" => value_term(yes_no(v), &tok, &mut problems, Term::HasAttachment),
-                    "is" => match v.to_ascii_lowercase().as_str() {
-                        "unread" => Some(Term::Unread(true)),
-                        "read" => Some(Term::Unread(false)),
-                        "flagged" => Some(Term::Flagged(true)),
-                        "unflagged" => Some(Term::Flagged(false)),
-                        "pinned" => Some(Term::Keyword(crate::PINNED.to_string())),
-                        "complete" | "completed" => Some(Term::Complete),
-                        "important" => Some(Term::Important),
-                        "categorized" | "categorised" => Some(Term::Categorized(Vec::new())),
-                        "awaiting" | "awaitingreply" | "unanswered" => Some(Term::Awaiting),
-                        _ => text_term(Field::Any, &tok),
-                    },
-                    "isread" => value_term(yes_no(v), &tok, &mut problems, |b| Term::Unread(!b)),
-                    "isflagged" => value_term(yes_no(v), &tok, &mut problems, Term::Flagged),
-                    "keyword" | "category" | "label" | "tag" => Some(Term::Keyword(v.trim_matches('"').to_string())),
-                    _ => text_term(Field::Any, &tok),
-                },
-                _ => text_term(Field::Any, &tok),
-            };
-            if let Some(term) = term {
-                clauses.push(Clause { term, negated });
-            }
-        }
+        let pieces = grouping::pieces(tokens.into_iter().take(MAX_TERMS));
+        let clauses = grouping::build(pieces, &mut |tok| term_of(tok, &mut problems));
         // Said after what the terms taken said.
         if too_many {
             too_long(&mut problems);
@@ -250,19 +209,33 @@ impl Query {
     pub fn with_keywords(input: &str, keyword_of: impl Fn(&str) -> Option<String>) -> String {
         let tokens = split_tokens(input);
         let mut changed = false;
+        // Groups open, so a `)` closes only those (`grouping::pieces`).
+        let mut depth = 0usize;
         let out: Vec<String> = tokens
             .into_iter()
             .map(|tok| {
-                let (neg, rest) = match tok.strip_prefix('-') {
-                    Some(r) if !r.is_empty() => ("-", r),
-                    _ => ("", tok.as_str()),
+                // A group's brackets around it (`(category:x`, `category:x)`) stay as they are.
+                let open = tok.len() - tok.trim_start_matches(['(', '-']).len();
+                let (brackets, inner) = tok.split_at_checked(open).unwrap_or(("", tok.as_str()));
+                let (brackets, neg, inner) = match brackets.strip_suffix('-') {
+                    Some(b) => (b, "-", inner),
+                    None => (brackets, "", inner),
                 };
-                let resolved = rest
+                depth += brackets.matches('(').count();
+                let mut body = inner;
+                while depth > 0
+                    && let Some(b) = body.strip_suffix(')')
+                {
+                    body = b;
+                    depth -= 1;
+                }
+                let closes = inner.get(body.len()..).unwrap_or_default();
+                let resolved = body
                     .split_once(':')
                     .filter(|(k, v)| !v.is_empty() && matches!(k.to_ascii_lowercase().as_str(), "keyword" | "category" | "label" | "tag"))
                     .and_then(|(_, v)| keyword_of(v.trim_matches('"')))
                     .filter(|k| crate::is_keyword(k))
-                    .map(|k| format!("{neg}keyword:{k}"));
+                    .map(|k| format!("{brackets}{neg}keyword:{k}{closes}"));
                 match resolved {
                     Some(r) if r != tok => {
                         changed = true;
@@ -274,4 +247,48 @@ impl Query {
             .collect();
         if changed { out.join(" ") } else { input.to_string() }
     }
+}
+
+/// One term as typed (`-from:ana`, `is:unread`, a word), or nothing when it was left out (a
+/// date that isn't one, said in `problems`).
+fn term_of(tok: String, problems: &mut Vec<Problem>) -> Option<Clause> {
+    let (negated, tok) = match tok.strip_prefix('-') {
+        Some(rest) if !rest.is_empty() => (true, rest.to_string()),
+        _ => (false, tok),
+    };
+    let term = match tok.split_once(':') {
+        Some((k, v)) if !v.is_empty() && !k.starts_with('"') => match k.to_ascii_lowercase().as_str() {
+            "from" => list_term(Field::From, v, problems),
+            "to" | "cc" => list_term(Field::To, v, problems),
+            "larger" => value_term(size(v), &tok, problems, |b| Term::Size(true, b)),
+            "smaller" => value_term(size(v), &tok, problems, |b| Term::Size(false, b)),
+            "subject" => text_term(Field::Subject, v),
+            "body" => text_term(Field::Body, v),
+            "attachment" | "attachments" => list_term(Field::Attachment, v, problems),
+            "received" => date_term(dates::period(v), v, &tok, problems),
+            "sent" | "date" => date_term(dates::period(v).map(|s| DateSpec { sent: true, ..s }), v, &tok, problems),
+            "after" => date_term(dates::after(v), v, &tok, problems),
+            "before" => date_term(dates::before(v), v, &tok, problems),
+            "has" if v.eq_ignore_ascii_case("attachment") || v.eq_ignore_ascii_case("attachments") => Some(Term::HasAttachment(true)),
+            "hasattachment" | "hasattachments" => value_term(yes_no(v), &tok, problems, Term::HasAttachment),
+            "is" => match v.to_ascii_lowercase().as_str() {
+                "unread" => Some(Term::Unread(true)),
+                "read" => Some(Term::Unread(false)),
+                "flagged" => Some(Term::Flagged(true)),
+                "unflagged" => Some(Term::Flagged(false)),
+                "pinned" => Some(Term::Keyword(crate::PINNED.to_string())),
+                "complete" | "completed" => Some(Term::Complete),
+                "important" => Some(Term::Important),
+                "categorized" | "categorised" => Some(Term::Categorized(Vec::new())),
+                "awaiting" | "awaitingreply" | "unanswered" => Some(Term::Awaiting),
+                _ => text_term(Field::Any, &tok),
+            },
+            "isread" => value_term(yes_no(v), &tok, problems, |b| Term::Unread(!b)),
+            "isflagged" => value_term(yes_no(v), &tok, problems, Term::Flagged),
+            "keyword" | "category" | "label" | "tag" => Some(Term::Keyword(v.trim_matches('"').to_string())),
+            _ => text_term(Field::Any, &tok),
+        },
+        _ => text_term(Field::Any, &tok),
+    };
+    term.map(|term| Clause { term, negated })
 }
