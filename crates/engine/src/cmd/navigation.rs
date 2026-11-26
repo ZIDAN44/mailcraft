@@ -42,7 +42,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             None => s.send_outbox(),
         })
         .params(r#"{"key"?: string (one message, even one held back to be sent later; else all that are due)}"#)
-        .when(|s| if s.outbox.is_empty() { Some("the Outbox is empty") } else { None }),
+        .when(|s| if s.outbox.is_empty() { Some("the Outbox is empty") } else { None })
+        .asks(),
         // Undo Send (issue #135): a message sent, still waiting, back into the form.
         CommandSpec::new("outbox.undoSend", "Undo Send", "Outbox", |s, v| s.undo_send(p::u64(v, "id")))
             .params(r#"{"id"?: number (a message held to be undone; else the newest)}"#),
@@ -116,7 +117,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.delete_folder(&account, p::req_str(v, "folder")?, p::bool(v, "permanent").unwrap_or(false))
         })
         .params(r#"{"folder": string, "permanent"?: bool, "account"?: string}"#)
-        .when(has_account),
+        .when(has_account)
+        .asks(),
         CommandSpec::new("folder.favorite", "Show in Favorites", "Folder › Favorites", |s, v| {
             let account = account_param(s, v)?;
             s.set_favorite(&account, p::req_str(v, "folder")?, p::bool(v, "on"))
@@ -211,11 +213,14 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"sources": s.sources.len()}))
         })
         .params(r#"{"key": string}"#),
-        CommandSpec::new("message.saveAs", "Save as", "File › Save As", save_message).params(r#"{"path": string}"#).when(has_reading),
-        CommandSpec::new("message.exportPdf", "Save as PDF", "File › Save As", export_pdf).params(r#"{"path": string}"#).when(has_reading),
+        CommandSpec::new("message.saveAs", "Save as", "File › Save As", save_message).params(r#"{"path": string}"#).when(has_reading)
+            .asks(),
+        CommandSpec::new("message.exportPdf", "Save as PDF", "File › Save As", export_pdf).params(r#"{"path": string}"#).when(has_reading)
+            .asks(),
         CommandSpec::new("message.showPictures", "Show pictures", "Reading pane", |s, v| s.show_pictures(p::bool(v, "always").unwrap_or(false)))
             .params(r#"{"always"?: bool}"#)
-            .when(has_reading),
+            .when(has_reading)
+            .asks(),
         CommandSpec::new("message.blockPictures", "Don't show pictures from this sender", "Reading pane", |s, _| s.block_pictures())
             .when(has_reading),
         toggle!("view.html", "Show HTML formatted", "View › Messages", show_html),

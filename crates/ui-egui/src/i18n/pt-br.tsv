@@ -2075,6 +2075,8 @@ count	occurrences	ocorrências
 	Didn't run: {why}	Não executado: {why}
 	Let AI agents ask to run commands	Permitir que agentes de IA peçam para executar comandos
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Enviar, mover, responder a um convite… cada um é perguntado aqui antes, a menos que você o permita sempre. Desligado, os agentes apenas leem.
+	Always allow every command	Sempre permitir todos os comandos
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Ainda é perguntado antes: enviar para outras pessoas, contas e segurança, a web, salvar arquivos e excluir definitivamente.
 	Accounts AI agents read	Contas que os agentes de IA leem
 	One turned off is left out of all they read, and they can't take pictures of the window	Uma conta desligada fica fora de tudo o que eles leem, e eles não podem fazer imagens da janela
 	… and {n} more characters	… e mais {n} caracteres

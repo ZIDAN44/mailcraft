@@ -18,7 +18,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(
             r#"{"path": string (a .p12 or .pfx file), "data"?: [bytes] (the file itself, in place of path), "kept"?: bool (the one the browser keeps, unlocked), "password"?: string, "account"?: string}"#,
-        ),
+        )
+        .asks(),
         CommandSpec::new("security.findKeys", "Use a smart card", "File › Info › Security", |s, v| {
             let module = if p::bool(v, "keychain") == Some(true) { None } else { Some(p::req_str(v, "module")?.to_string()) };
             s.find_held_keys(module, p::str(v, "pin").map(str::to_string))
@@ -29,7 +30,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let index = p::u64(v, "index").ok_or_else(|| CmdError::Params("`index`: which certificate security.findKeys found".into()))?;
             s.use_held_key(&account, usize::try_from(index).unwrap_or(usize::MAX))
         })
-        .params(r#"{"index": number (of what security.findKeys found), "account"?: string}"#),
+        .params(r#"{"index": number (of what security.findKeys found), "account"?: string}"#)
+        .asks(),
         CommandSpec::new("security.forget", "Remove certificate", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             match p::str(v, "older") {
@@ -37,12 +39,14 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 None => s.forget_identity(&account),
             }
         })
-        .params(r#"{"older"?: string (an older certificate's SHA-256, AB:CD:…, from security.certificates; else the one in use), "account"?: string}"#),
+        .params(r#"{"older"?: string (an older certificate's SHA-256, AB:CD:…, from security.certificates; else the one in use), "account"?: string}"#)
+        .asks(),
         CommandSpec::new("security.useOlder", "Use for sending", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             s.use_older_identity(&account, p::req_str(v, "older")?)
         })
-        .params(r#"{"older": string (an older certificate's SHA-256, from security.certificates), "account"?: string}"#),
+        .params(r#"{"older": string (an older certificate's SHA-256, from security.certificates), "account"?: string}"#)
+        .asks(),
         CommandSpec::new("security.certificates", "Certificates", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             let show = |i: &mailcraft_smime::CertInfo| {
@@ -57,13 +61,15 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(
             r#"{"sign"?: bool, "encrypt"?: bool, "keepSubject"?: bool (encrypted mail shows its subject on the way, not "[...]"), "autoEncrypt"?: bool (new messages encrypted by themselves while every recipient can receive it), "account"?: string}"#,
-        ),
+        )
+        .asks(),
         CommandSpec::new("security.keepUnlocked", "Keep unlocked in this browser", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             s.keep_unlocked(&account, p::bool(v, "on").unwrap_or(true))
         })
         .when(|s| (!s.jmap_only).then_some("the desktop app keeps certificates in the system's keychain"))
-        .params(r#"{"on"?: bool (default true; false forgets the kept password), "account"?: string}"#),
+        .params(r#"{"on"?: bool (default true; false forgets the kept password), "account"?: string}"#)
+        .asks(),
         CommandSpec::new("compose.security", "Sign and Encrypt", "Message › Options", |s, v| {
             let c = s.composing()?;
             let wants = p::bool(v, "sign") == Some(true) || p::bool(v, "encrypt") == Some(true);

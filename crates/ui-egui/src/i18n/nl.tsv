@@ -2070,6 +2070,8 @@ count	occurrences	keer
 	Didn't run: {why}	Niet uitgevoerd: {why}
 	Let AI agents ask to run commands	AI-agents laten vragen om opdrachten uit te voeren
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Versturen, verplaatsen, een uitnodiging beantwoorden… elke opdracht wordt je hier eerst gevraagd, tenzij je hem altijd toestaat. Uit: agents lezen alleen.
+	Always allow every command	Elke opdracht altijd toestaan
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Wordt je nog steeds eerst gevraagd: versturen naar anderen, accounts en beveiliging, het web, bestanden opslaan en definitief verwijderen.
 	Accounts AI agents read	Accounts die AI-agents lezen
 	One turned off is left out of all they read, and they can't take pictures of the window	Een uitgezet account blijft buiten alles wat ze lezen, en ze kunnen geen afbeeldingen van het venster maken
 	… and {n} more characters	… en nog {n} tekens

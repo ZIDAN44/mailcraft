@@ -190,6 +190,126 @@ fn what_agents_asked_runs_only_as_things_are_now() {
     assert!(!v.to_string().contains("studio.example"), "{v}");
 }
 
+/// Always allow every command (issue #281): a command that sends nothing runs at once; one that
+/// sends mail or invitations to other people is still asked about (an event only when it's a
+/// meeting that tells its guests), and so is one that changes an account or security, reaches
+/// the web, saves a file or deletes for good, however it's reached.
+#[test]
+fn every_command_allowed_but_some_still_ask() {
+    let (mut a, _) = app("agents-all");
+    a.run("options.agents", json!({"on": true}));
+    a.run("options.agentsRun", json!({"on": true}));
+    a.run("options.agentsAlwaysAll", json!({"on": true}));
+    assert!(matches!(a.agent_request("engine.execute", &json!({"command": "view.calendar"})), AgentAnswer::Now(Ok(_))));
+    assert_eq!(a.session.module, mailcraft_engine::Module::Calendar);
+    let asked = |a: &mut MailApp, command: &str, params: serde_json::Value| {
+        let answer = a.agent_request("engine.execute", &json!({"command": command, "params": params}));
+        let AgentAnswer::Asking(ticket) = answer else { panic!("{command} {params}: {answer:?}") };
+        a.agent_withdraw(ticket);
+    };
+    let ran = |a: &mut MailApp, command: &str, params: serde_json::Value| {
+        let answer = a.agent_request("engine.execute", &json!({"command": command, "params": params}));
+        assert!(matches!(answer, AgentAnswer::Now(Ok(_))), "{command} {params}: {answer:?}");
+    };
+    asked(&mut a, "compose.send", json!({}));
+    // An event with no guests mails nobody: run at once. One with guests is asked about, and so
+    // is deleting a stored meeting with guests, unless they're not to be told.
+    let alone = a.agent_request("engine.execute", &json!({"command": "event.create", "params": {"summary": "Focus", "start": "2026-12-01T09:00"}}));
+    assert!(matches!(alone, AgentAnswer::Now(Ok(_))), "{alone:?}");
+    let meeting = json!({"summary": "Review", "start": "2026-12-01T10:00", "attendees": "guest@example.org"});
+    asked(&mut a, "event.create", meeting.clone());
+    let uid = a.session.run("event.create", &meeting).unwrap()["uid"].as_str().unwrap().to_string();
+    asked(&mut a, "event.delete", json!({"uid": uid}));
+    ran(&mut a, "event.delete", json!({"uid": uid, "notify": false}));
+    // Past the mailbox: a server (and the password with it), automatic replies, the web, a key,
+    // files, and what can't be undone.
+    for (command, params) in [
+        ("account.update", json!({"account": "sample", "imapHost": "imap.elsewhere.example"})),
+        ("account.add", json!({"email": "x@elsewhere.example", "password": "made-up"})),
+        ("account.setVacation", json!({"enabled": true, "text": "Away"})),
+        ("calendar.subscribe", json!({"url": "https://elsewhere.example/c.ics"})),
+        ("message.showPictures", json!({})),
+        ("view.autoPictures", json!({"on": true})),
+        ("security.defaults", json!({"encrypt": false})),
+        ("pgp.importPublic", json!({"path": "C:/elsewhere/key.asc"})),
+        ("attachment.save", json!({"index": 0, "path": "C:/Users/someone/Documents/report.docx"})),
+        ("compose.attach", json!({"path": "C:/Users/someone/.ssh/id_ed25519"})),
+        ("folder.empty", json!({"role": "trash"})),
+        ("account.remove", json!({"account": "sample"})),
+        ("mail.delete", json!({"permanent": true})),
+    ] {
+        asked(&mut a, command, params);
+    }
+    // Turning automatic replies off sends nothing; deleting into Deleted Items can be undone.
+    let server = a.session.run("account.add", &json!({"email": "ann@mc31.test", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    a.session.take_jobs();
+    ran(&mut a, "account.setVacation", json!({"account": server, "enabled": false, "text": ""}));
+    a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
+    let key = a.session.list.first().map(|m| m.key.to_id()).expect("the sample's Inbox");
+    ran(&mut a, "mail.delete", json!({"keys": [key]}));
+    // In Deleted Items, deleting is for good.
+    let trash = a.session.account("sample").and_then(|x| x.folder(mailcraft_engine::model::FolderRole::Trash)).map(|f| f.path.clone()).unwrap();
+    a.run("folder.open", json!({"account": "sample", "folder": trash}));
+    let key = a.session.list.first().map(|m| m.key.to_id()).expect("what was just deleted");
+    asked(&mut a, "mail.delete", json!({"keys": [key]}));
+    // The ways round those: a row's delete there; AutoArchive set to delete for good or to
+    // archive to a file, run now, or every folder made to delete; a key from an attachment, an
+    // older certificate, a data file imported; guests told on a change though `notify` is false
+    // (deleting alone heeds it); an occurrence's own guests.
+    a.session.run("autoArchive.set", &json!({"delete": false})).unwrap();
+    ran(&mut a, "list.rowAction", json!({"key": key, "action": "flag"}));
+    ran(&mut a, "autoArchive.set", json!({"everyDays": 14}));
+    // Archiving to the file already chosen, with its question off.
+    asked(&mut a, "autoArchive.set", json!({"everyDays": 1, "prompt": false}));
+    ran(&mut a, "autoArchive.applyToAll", json!({}));
+    for (command, params) in [
+        ("list.rowAction", json!({"key": key, "action": "delete"})),
+        ("autoArchive.set", json!({"delete": true})),
+        ("autoArchive.set", json!({"path": "C:/elsewhere/archive.pst"})),
+        ("autoArchive.folder", json!({"folder": "INBOX", "archive": "own", "delete": true})),
+        ("autoArchive.run", json!({})),
+        ("pgp.importAttached", json!({"index": 0})),
+        ("security.useOlder", json!({"older": "AB:CD"})),
+        ("account.importPst", json!({"path": "C:/elsewhere/old.pst"})),
+        ("account.restartImport", json!({"path": "C:/elsewhere/old.pst"})),
+        ("event.create", json!({"summary": "Review", "start": "2026-12-01T10:00", "attendees": "guest@example.org", "notify": false})),
+    ] {
+        asked(&mut a, command, params);
+    }
+    // Set to delete already: its schedule or question changed is asked about, as is every folder
+    // made to follow it; a folder never archived, or deleting turned off, isn't.
+    a.session.run("autoArchive.set", &json!({"delete": true})).unwrap();
+    asked(&mut a, "autoArchive.applyToAll", json!({}));
+    asked(&mut a, "autoArchive.set", json!({"prompt": false}));
+    ran(&mut a, "autoArchive.folder", json!({"account": "sample", "folder": "INBOX", "archive": "off"}));
+    ran(&mut a, "autoArchive.set", json!({"delete": false}));
+    let series = a
+        .session
+        .run(
+            "event.create",
+            &json!({"account": server, "summary": "Standup", "start": "2026-12-02T09:00", "repeat": "daily", "attendees": "guest@example.org"}),
+        )
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let at = a.session.find_event(&series).unwrap().1.event.start;
+    // The user's series, its guests now on one occurrence alone.
+    a.session.run("event.update", &json!({"uid": series, "attendees": ""})).unwrap();
+    a.session.run("event.update", &json!({"uid": series, "occurrence": at, "attendees": "guest@example.org"})).unwrap();
+    assert!(a.session.find_event(&series).unwrap().1.event.attendees.is_empty());
+    asked(&mut a, "event.move", json!({"uid": series, "occurrence": at, "by": 3600}));
+    ran(&mut a, "event.move", json!({"uid": series, "occurrence": at + 86_400, "by": 3600}));
+    // Listed as agents see them: what may ask isn't said to run without asking.
+    let listed = a.agent_request("engine.commands", &json!({}));
+    let AgentAnswer::Now(Ok(listed)) = listed else { panic!("{listed:?}") };
+    let unasked = |id: &str| listed.as_array().and_then(|c| c.iter().find(|c| c["id"] == id)).map(|c| c["withoutAsking"].clone());
+    assert_eq!(unasked("view.calendar"), Some(json!(true)));
+    for id in ["compose.send", "account.update", "event.create", "mail.delete"] {
+        assert_eq!(unasked(id), Some(json!(false)), "{id}");
+    }
+}
+
 /// Issue #255, as the tester met it: the question said in words (the event and its occurrence,
 /// whom to), the JSON folded away; a notification as it comes up (the window was easy to miss);
 /// and a command that asks a server answered with the server's answer, not `pending`.

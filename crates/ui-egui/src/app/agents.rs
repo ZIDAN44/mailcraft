@@ -147,7 +147,8 @@ impl MailApp {
         Ok(())
     }
 
-    /// A command an agent asks to run: at once when the user always allows it, else asked about.
+    /// A command an agent asks to run: at once when the user always allows it
+    /// ([`MailApp::agent_runs_unasked`]), else asked about.
     fn agent_execute(&mut self, command: &str, params: Value) -> AgentAnswer {
         if !params.is_object() {
             return AgentAnswer::Now(Err("a command's params are an object".into()));
@@ -156,7 +157,7 @@ impl MailApp {
             Ok(label) => label,
             Err(e) => return AgentAnswer::Now(Err(e)),
         };
-        if self.session.prefs.agents_always.iter().any(|c| c == command) {
+        if self.agent_runs_unasked(command, Some(&params)) {
             let ran = self.agent_run(command, &params);
             if awaits_server(command, &ran) {
                 self.ui.agents.next = self.ui.agents.next.wrapping_add(1);
@@ -175,6 +176,16 @@ impl MailApp {
         let about = self.described(&params);
         self.ui.agents.asks.push(AgentAsk { ticket, command: command.to_string(), label, params, shown, about });
         AgentAnswer::Asking(ticket)
+    }
+
+    /// Whether agents run `command` with `params` without the window asking first: always
+    /// allowed on its own, or every command is, and it isn't one still asked about
+    /// ([`mailcraft_engine::CommandSpec::asks`]). Without `params`, one that may be is taken as
+    /// being.
+    fn agent_runs_unasked(&self, command: &str, params: Option<&Value>) -> bool {
+        let s = &self.session;
+        let asks = |c: &mailcraft_engine::CommandSpec| c.asks.is_some_and(|f| params.is_none_or(|v| f(s, v)));
+        s.prefs.agents_always.iter().any(|c| c == command) || (s.prefs.agents_always_all && s.registry().get(command).is_some_and(|c| !asks(c)))
     }
 
     /// Whether an agent may have `command` run with `params` now, asked when it asks, every frame
@@ -361,7 +372,7 @@ impl MailApp {
                     "location": c.location,
                     "params": c.params,
                     "enabled": why.is_none(),
-                    "withoutAsking": self.session.prefs.agents_always.iter().any(|x| x == c.id),
+                    "withoutAsking": self.agent_runs_unasked(c.id, None),
                 });
                 // Why not now, and (issue #255: "enabled: false unless something is selected")
                 // that the messages a command acts on can be named instead.

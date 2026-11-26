@@ -2089,6 +2089,8 @@ count	occurrences	opakovaní
 	Didn't run: {why}	Nespustené: {why}
 	Let AI agents ask to run commands	Povoliť agentom AI žiadať o spustenie príkazov
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Odoslanie, presun, odpoveď na pozvánku… na každý sa najprv opýta tu, ak ho nepovolíte vždy. Vypnuté: agenti len čítajú.
+	Always allow every command	Vždy povoliť každý príkaz
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Stále sa najprv opýta: odosielanie iným ľuďom, kontá a zabezpečenie, web, ukladanie súborov a trvalé odstránenie.
 	Accounts AI agents read	Kontá, ktoré čítajú agenti AI
 	One turned off is left out of all they read, and they can't take pictures of the window	Vypnuté konto je vynechané zo všetkého, čo čítajú, a nemôžu robiť obrázky okna
 	… and {n} more characters	… a ďalších {n} znakov

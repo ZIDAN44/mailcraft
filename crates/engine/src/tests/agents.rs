@@ -1,6 +1,7 @@
 //! Issue #255: what AI agents read here (`crate::agents`), from the sample mailbox. Nothing of it
 //! changes anything: the window's folder, list, search and reading pane stay, no message is
-//! marked read, and nothing is asked of a server.
+//! marked read, and nothing is asked of a server. And what they're still asked about (issue
+//! #281) where the session decides it.
 
 use super::*;
 
@@ -190,4 +191,41 @@ fn a_selection_command_takes_the_messages_named() {
     let listed = s.registry().describe();
     let said = |id: &str| listed.as_array().unwrap().iter().find(|c| c["id"] == id).map(|c| c.get("keys").is_some());
     assert_eq!((said("mail.delete"), said("mail.flag"), said("mail.new")), (Some(true), Some(true), Some(false)));
+}
+
+/// Issue #281: a meeting deleted with `notify: false` runs without asking only when nothing tells
+/// its guests: not Exchange's server (through Graph), nor a CalDAV server that schedules a meeting
+/// it wasn't told MailCraft does, as it cancels it for the organizer.
+#[test]
+fn deleting_without_telling_is_asked_when_the_server_tells() {
+    let mut s = Session::open(Some(temp("agents-notify")), mailcraft_model::dates::Clock::new(NOW, 0));
+    let id = s.run("account.add", &json!({"email": "riley@studio.example", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    let cal = "https://dav.example.org/cal/riley/";
+    let person = |email: &str| mailcraft_model::ical::Attendee { email: email.into(), ..Default::default() };
+    let p = s.pim_mut(&id);
+    p.calendars.push(mailcraft_model::pim::CalendarInfo { id: cal.into(), name: "Calendar".into(), ..Default::default() });
+    p.events.push(mailcraft_model::pim::StoredEvent {
+        calendar: cal.into(),
+        href: format!("{cal}review.ics"),
+        event: mailcraft_model::ical::CalEvent {
+            uid: "review".into(),
+            summary: "Review".into(),
+            start: NOW + 3600,
+            end: NOW + 7200,
+            organizer: Some(person("riley@studio.example")),
+            attendees: vec![person("guest@example.org")],
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    let asks = |s: &Session, params: Value| s.registry().get("event.delete").and_then(|c| c.asks).expect("marked")(s, &params);
+    let quietly = json!({"uid": "review", "notify": false});
+    assert!(asks(&s, json!({"uid": "review"})), "MailCraft tells them");
+    assert!(!asks(&s, quietly.clone()), "nobody tells them");
+    s.pim.get_mut(&id).unwrap().auto_schedule = true;
+    assert!(asks(&s, quietly.clone()), "a server that schedules it cancels it itself");
+    s.pim.get_mut(&id).unwrap().events[0].event.client_scheduled = true;
+    assert!(!asks(&s, quietly.clone()), "one MailCraft schedules: the server leaves it to MailCraft");
+    s.accounts.iter_mut().filter(|a| a.config.id == id).for_each(|a| a.config.graph = Some("https://graph.microsoft.com/v1.0".into()));
+    assert!(asks(&s, quietly), "Exchange tells them itself");
 }

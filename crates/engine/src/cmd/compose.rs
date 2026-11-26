@@ -35,7 +35,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"field": "to"|"cc"|"bcc", "typed": string (as Check Names said it), "email": string, "name"?: string}"#)
         .when(has_compose),
-        CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "handed": number (a file handed over: Session::hand)} | {"name": string, "data": [bytes]}"#).when(has_compose),
+        CommandSpec::new("compose.attach", "Attach file", "Message › Insert", attach).params(r#"{"path": string} | {"name": string, "handed": number (a file handed over: Session::hand)} | {"name": string, "data": [bytes]}"#).when(has_compose)
+            .asks_when(|_, v| v.get("path").is_some()),
         // Messages dragged from the list onto the message (issue #270).
         CommandSpec::new("compose.attachMessages", "Attach messages", "Message › Insert", attach_messages)
             .params(r#"{"keys"?: [string] (the messages' keys; the selected ones when left out)} (each attached whole, an .eml, as Forward as attachment attaches one)"#)
@@ -57,7 +58,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .when(has_compose),
         CommandSpec::new("compose.insertPicture", "Insert picture", "Message › Insert", insert_picture)
             .params(r#"{"path": string} | {"name": string, "handed": number (a file handed over: Session::hand)} | {"name": string, "data": [bytes]}, "insert"?: bool (default true), "at"?: number (character; default the end), "width"?: number (CSS pixels it's shown and sent at; default its own width), "line"?: bool (on a line of its own), "quoteCell"?: number (into that block of text of the quoted original, `at` counted in it)"#)
-            .when(has_compose),
+            .when(has_compose)
+            .asks_when(|_, v| v.get("path").is_some()),
         CommandSpec::new("compose.resizePicture", "Picture size", "Message › Picture", resize_picture)
             .params(r#"{"cid": string, "width"?: number (CSS pixels; 0 or none: its own width)}"#)
             .when(has_compose),
@@ -81,7 +83,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .key("Mod+Enter / Alt+S")
         .params(r#"{"allowEmptySubject"?: bool, "checked"?: bool (without it, a message to a lookalike address or showing many people each other's addresses is held, and the answer is {"check": [...]})}"#)
-        .when(can_send_compose),
+        .when(can_send_compose)
+        .asks(),
         CommandSpec::new("compose.hideRecipients", "Put everyone in Bcc", "Message", |s, _| s.hide_recipients()).when(has_compose),
         CommandSpec::new("compose.saveDraft", "Save draft", "Message", |s, _| s.save_draft()).key("Mod+S").when(has_compose),
         CommandSpec::new("compose.discard", "Discard", "Message", discard).when(has_compose),
@@ -102,11 +105,14 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         // Attachments
         CommandSpec::new("attachment.save", "Save attachment", "Reading pane", save_attachment)
             .params(r#"{"index": number, "path": string, "open"?: bool (saved to be opened by another app: never a file that runs code)}"#)
-            .when(has_reading),
-        CommandSpec::new("attachment.saveAll", "Save all attachments", "Reading pane", save_all_attachments).params(r#"{"dir": string, "indices"?: [number] (only these attachments)}"#).when(has_reading),
+            .when(has_reading)
+            .asks(),
+        CommandSpec::new("attachment.saveAll", "Save all attachments", "Reading pane", save_all_attachments).params(r#"{"dir": string, "indices"?: [number] (only these attachments)}"#).when(has_reading)
+            .asks(),
         CommandSpec::new("attachment.preview", "Preview attachment", "Reading pane", preview_attachment).params(r#"{"index": number}"#).when(has_reading),
         CommandSpec::new("picture.save", "Save picture", "Reading pane › Picture", save_picture)
-            .params(r#"{"key": string (an open message), "src": string (the picture as the message names it), "path": string}"#),
+            .params(r#"{"key": string (an open message), "src": string (the picture as the message names it), "path": string}"#)
+            .asks(),
     ]
 }
 
