@@ -259,6 +259,8 @@ fn every_command_allowed_but_some_still_ask() {
     a.session.run("autoArchive.set", &json!({"delete": false})).unwrap();
     ran(&mut a, "list.rowAction", json!({"key": key, "action": "flag"}));
     ran(&mut a, "autoArchive.set", json!({"everyDays": 14}));
+    // Archiving to the file already chosen, with its question off.
+    asked(&mut a, "autoArchive.set", json!({"everyDays": 1, "prompt": false}));
     ran(&mut a, "autoArchive.applyToAll", json!({}));
     for (command, params) in [
         ("list.rowAction", json!({"key": key, "action": "delete"})),

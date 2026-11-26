@@ -25,13 +25,14 @@ fn rule_change(v: &Value) -> crate::session::RuleChange {
 }
 
 /// AutoArchive settings that leave old mail deleted for good (`delete`, or not said and a rule
-/// set so already: its schedule or question changed), or archived to a file named (issue #281):
-/// what an agent sets so is asked about first, as the archiving it leads to runs on its own
-/// later. A folder set never to be archived isn't.
+/// set so already: its schedule or question changed), archived to a file named, or archived
+/// without its question, on a schedule (issue #281): what an agent sets so is asked about first,
+/// as the archiving it leads to runs on its own later. A folder set never to be archived isn't.
 fn deletes_or_files(s: &Session, v: &Value) -> bool {
     let a = &s.prefs.auto_archive;
     let deleting = || a.rule.delete || a.folders.iter().any(|f| f.rule.as_ref().is_some_and(|r| r.delete));
-    p::str(v, "archive") != Some("off") && (p::bool(v, "delete").unwrap_or_else(deleting) || p::str(v, "path").is_some())
+    let unasked = !p::bool(v, "prompt").unwrap_or(a.prompt) && p::u64(v, "everyDays").unwrap_or(u64::from(a.every_days)) > 0;
+    p::str(v, "archive") != Some("off") && (p::bool(v, "delete").unwrap_or_else(deleting) || p::str(v, "path").is_some() || unasked)
 }
 
 fn archiving(s: &Session) -> Option<&'static str> {
