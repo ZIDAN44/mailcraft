@@ -21,6 +21,8 @@ impl Session {
         // of the same meeting (CalDAV scheduling) takes their place (issue #30).
         let answered = self.answered_here(account);
         let p = self.pim_mut(account);
+        // Taken in: the next sync may start (it waits for this, saved below).
+        p.dav_pass = p.dav_pass.max(sync.pass);
         p.caldav_home = sync.caldav_home.clone().or_else(|| Some(String::new()));
         p.carddav_home = sync.carddav_home.clone().or_else(|| Some(String::new()));
         if !sync.homes_kept || p.dav_checked.is_none() {

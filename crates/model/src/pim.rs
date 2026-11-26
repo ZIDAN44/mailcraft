@@ -293,6 +293,10 @@ pub struct Pim {
     /// When the server was last asked where they are.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dav_checked: Option<i64>,
+    /// The last sync with the server taken in here ([`DavSync::pass`]): the next one waits for
+    /// it, as it reads this to send what changed here.
+    #[serde(default, skip_serializing_if = "no_pass")]
+    pub dav_pass: u64,
     /// The calendar the user chose for new events and invitations (Default calendar, issue
     /// #30); without one, [`Pim::default_calendar`] picks the account's own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -478,6 +482,12 @@ pub struct DavSync {
     /// taken in, everything else left as it is.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub people_only: bool,
+    /// Which sync with the server this is, counted up for each account: the engine keeps the
+    /// last it took in ([`Pim::dav_pass`]), and the next waits for it. A sync begun before the one
+    /// before was taken in read what changed here as it was before that one, and sent it again:
+    /// refused (412) as "changed on the server meanwhile", and the server's copy kept.
+    #[serde(default, skip_serializing_if = "no_pass")]
+    pub pass: u64,
     /// The homes were taken as saved, not looked for: the last look ([`Pim::dav_checked`]) stays
     /// as it was, so a server not found is looked for again a day after that look, not a day after
     /// the last of the syncs since.
@@ -674,6 +684,11 @@ pub fn separate_shared_uids(events: &mut [StoredEvent]) {
         }
         e.event.uid = uid;
     }
+}
+
+/// No sync numbered yet (left out of the files).
+fn no_pass(n: &u64) -> bool {
+    *n == 0
 }
 
 #[cfg(test)]

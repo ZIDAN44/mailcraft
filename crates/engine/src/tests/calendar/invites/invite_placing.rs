@@ -366,6 +366,29 @@ fn an_event_moves_to_another_calendar_of_its_account() {
     assert!(matches!(s.move_event_to("plan", OWN), Err(CmdError::Disabled(_))));
 }
 
+/// A sync taken in is kept by its number, saved, for the next to wait for (it reads what's saved
+/// to send what changed here): a lower one (from an earlier run) doesn't take it back, and one
+/// with only people's calendars just opened doesn't count.
+#[test]
+fn a_sync_taken_in_is_kept_by_its_number() {
+    let (mut s, id) = imap_session("placing-pass");
+    let synced = |s: &mut Session, pass: u64, people_only: bool| {
+        let sync = DavSync {
+            caldav_home: Some("https://dav.example.org/SOGo/dav/riley/Calendar/".into()),
+            pass,
+            people_only,
+            checked: NOW,
+            ..Default::default()
+        };
+        s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(sync) });
+        let saved: mailcraft_model::pim::Pim = s.store.as_ref().unwrap().load_account_doc(&id, mailcraft_model::pim::PIM_DOC).unwrap();
+        (s.pim[&id].dav_pass, saved.dav_pass)
+    };
+    assert_eq!(synced(&mut s, 7, false), (7, 7), "taken in, and saved");
+    assert_eq!(synced(&mut s, 3, false), (7, 7), "a lower one doesn't take it back");
+    assert_eq!(synced(&mut s, 9, true), (7, 7), "people's calendars alone");
+}
+
 /// An OAuth account without a calendar sign-in of its own is never asked for calendars: its
 /// invitations don't wait.
 #[test]
