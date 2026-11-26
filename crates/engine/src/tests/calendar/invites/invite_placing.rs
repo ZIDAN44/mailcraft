@@ -232,6 +232,51 @@ fn the_default_calendar_and_keeping_events_here() {
     assert!(sample.run("calendar.moveLocal", &json!({"account": "sample"})).is_err());
 }
 
+/// Every command that takes a calendar takes its id or its name, in any case; a name two of
+/// the account's calendars share takes neither (issue #280).
+#[test]
+fn a_calendar_by_its_id_or_its_name() {
+    let (mut s, id) = imap_session("placing-named");
+    s.run("event.create", &json!({"account": id, "summary": "Gym", "start": NOW + 3600, "end": NOW + 7200})).unwrap();
+    found(&mut s, &id, Vec::new());
+    // Each command, with what else it needs, and where it says which calendar it took.
+    let planning = json!({"summary": "Planning", "start": NOW + 3600});
+    let commands: [(&str, Value, fn(&Session, &Value) -> String); 5] = [
+        ("calendar.show", json!({"shown": true}), |_, r| r["calendar"].as_str().unwrap().into()),
+        ("calendar.setDefault", json!({}), |_, r| r["calendar"].as_str().unwrap().into()),
+        ("calendar.moveLocal", json!({}), |_, r| r["calendar"].as_str().unwrap().into()),
+        ("event.create", planning, |s, r| {
+            let uid = r["uid"].as_str().unwrap();
+            s.pim[r["account"].as_str().unwrap()].events.iter().find(|e| e.event.uid == uid).unwrap().calendar.clone()
+        }),
+        ("calendar.search", json!({"query": "Planning"}), |_, r| r[0]["calendar"].as_str().unwrap().into()),
+    ];
+    let run = |s: &mut Session, command: &str, extra: &Value, calendar: &str| {
+        let mut params = json!({"account": id, "calendar": calendar});
+        params.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        s.run(command, &params)
+    };
+    for calendar in [OWN, "personal calendar"] {
+        for (command, extra, took) in &commands {
+            let r = run(&mut s, command, extra, calendar).unwrap_or_else(|e| panic!("{command} {calendar}: {e:?}"));
+            assert_eq!(took(&s, &r), OWN, "{command} {calendar}");
+        }
+    }
+    s.pim.get_mut(&id).unwrap().calendars.push(cal("https://dav.example.org/SOGo/dav/riley/Calendar/other/", "Personal Calendar", false));
+    for (command, extra, _) in &commands {
+        assert!(run(&mut s, command, extra, "Personal Calendar").is_err(), "{command}: two have that name");
+        assert!(run(&mut s, command, extra, OWN).is_ok(), "{command}: its id still");
+    }
+    // A name in any case of any letters, the spaces around it aside; and so two such are the
+    // same name.
+    let other = "https://dav.example.org/SOGo/dav/riley/Calendar/eigen/";
+    s.pim.get_mut(&id).unwrap().calendars.push(cal(other, "Persönlich", false));
+    let shown = s.run("calendar.show", &json!({"account": id, "calendar": "  PERSÖNLICH ", "shown": true})).unwrap();
+    assert_eq!(shown["calendar"], other);
+    s.pim.get_mut(&id).unwrap().calendars.push(cal("https://dav.example.org/SOGo/dav/riley/Calendar/x/", " persönlich", false));
+    assert!(s.run("calendar.show", &json!({"account": id, "calendar": "Persönlich"})).is_err(), "two have that name");
+}
+
 /// An OAuth account without a calendar sign-in of its own is never asked for calendars: its
 /// invitations don't wait.
 #[test]

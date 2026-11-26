@@ -4,7 +4,7 @@
 
 use mailcraft_model::dates::{civil_from_days, day_string, days_from_civil, weekday_index};
 use mailcraft_model::ical::{self, CalEvent};
-use mailcraft_model::pim::{LOCAL, Pim, StoredCard, StoredEvent, Tombstone};
+use mailcraft_model::pim::{CalendarInfo, LOCAL, Pim, StoredCard, StoredEvent, Tombstone};
 use mailcraft_model::vcard::Card;
 
 use super::*;
@@ -35,6 +35,21 @@ mod todo;
 pub use todo::{TODO_BAR_SPLIT, TODO_BAR_WIDTH, TodoBar, TodoGroup, TodoItem, TodoMail, TodoWhat};
 pub mod web;
 mod work_time;
+
+/// An account's calendar a command names (issue #280): by its id, else by its name in any case
+/// (`Persönlich` is `PERSÖNLICH`), the spaces around it aside. `None` when none has it; an error
+/// when the name is two calendars', so neither is picked.
+pub(crate) fn calendar_named<'a>(p: &'a Pim, c: &str) -> Result<Option<&'a CalendarInfo>, CmdError> {
+    if let Some(x) = p.calendars.iter().find(|x| x.id == c) {
+        return Ok(Some(x));
+    }
+    let wanted = c.trim().to_lowercase();
+    let mut named = p.calendars.iter().filter(|x| x.name.trim().to_lowercase() == wanted);
+    match (named.next(), named.next()) {
+        (Some(_), Some(_)) => Err(CmdError::Params(format!("more than one calendar is called `{c}`: give its id"))),
+        (x, _) => Ok(x),
+    }
+}
 
 /// The part of the app on screen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -369,11 +384,7 @@ impl Session {
         }
         let p = self.pim_mut(&account);
         let cal = match calendar {
-            Some(c) => p
-                .calendars
-                .iter()
-                .find(|x| x.id == c || x.name.eq_ignore_ascii_case(c))
-                .ok_or_else(|| CmdError::Params(format!("no calendar `{c}`")))?,
+            Some(c) => calendar_named(p, c)?.ok_or_else(|| CmdError::Params(format!("no calendar `{c}`")))?,
             None => p.default_calendar().ok_or_else(|| CmdError::Disabled("no calendar to add to".into()))?,
         };
         if cal.read_only {

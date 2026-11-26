@@ -77,8 +77,16 @@ const FAR: i64 = 20 * 366 * 86_400;
 impl Session {
     /// The events matching `query` ([`EventQuery`]): in every calendar shown, or only those of
     /// `account` (and of them `calendar`, by id or name). Upcoming ones first, soonest first,
-    /// then past ones, latest first; at most `limit`.
-    pub fn find_events(&self, query: &str, when: EventWhen, account: Option<&str>, calendar: Option<&str>, limit: usize) -> Vec<EventHit> {
+    /// then past ones, latest first; at most `limit`. An error when `calendar` is the name of two
+    /// calendars of an account.
+    pub fn find_events(
+        &self,
+        query: &str,
+        when: EventWhen,
+        account: Option<&str>,
+        calendar: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<EventHit>, CmdError> {
         let q = EventQuery::parse(query);
         let now = self.clock.now;
         // The dates are the user's days.
@@ -91,9 +99,13 @@ impl Session {
                 continue;
             }
             let Some(p) = self.pim.get(id) else { continue };
+            let named = match calendar {
+                Some(c) => Some(super::calendar_named(p, c)?.map(|x| x.id.as_str())),
+                None => None,
+            };
             for cal in &p.calendars {
-                let wanted = match calendar {
-                    Some(c) => cal.id == c || cal.name.eq_ignore_ascii_case(c),
+                let wanted = match named {
+                    Some(only) => only == Some(cal.id.as_str()),
                     None => self.calendar_shown(id, &cal.id),
                 };
                 if !wanted {
@@ -153,7 +165,7 @@ impl Session {
             (x, y) => y.cmp(&x),
         });
         hits.truncate(limit.min(EVENT_HITS_MAX));
-        hits
+        Ok(hits)
     }
 
     /// The occurrence of a series a search shows: which event of it, and when. Its next one that
