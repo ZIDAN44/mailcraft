@@ -27,6 +27,10 @@ pub struct TaskForm {
     /// Local `YYYY-MM-DD`, or empty for none.
     pub start: String,
     pub due: String,
+    /// The times of day those days came with from elsewhere (Nextcloud's Tasks), shown beside
+    /// them and kept when they're changed here (issue #294); empty for none.
+    pub start_time: String,
+    pub due_time: String,
     pub status: TaskStatus,
     pub percent: u8,
     pub priority: TaskPriority,
@@ -117,6 +121,8 @@ impl TaskForm {
             notes: t.notes.clone(),
             start: day_text(t.start),
             due: day_text(t.due),
+            start_time: t.start_at().map(|at| local_time(at, s)).unwrap_or_default(),
+            due_time: t.due_at().map(|at| local_time(at, s)).unwrap_or_default(),
             status: t.status,
             percent: t.percent,
             priority: t.priority,
@@ -223,15 +229,28 @@ fn choice<T: PartialEq + Copy>(ui: &mut Ui, id: &str, name: &str, width: f32, va
     });
 }
 
+/// The time of day a day came with from elsewhere, beside it while it has a day (issue #294).
+fn time_kept(ui: &mut Ui, t: &Tokens, day: &str, time: &str) {
+    if !day.trim().is_empty() && !time.is_empty() {
+        ui.add_space(6.0);
+        // On the line the date box is on.
+        ui.allocate_ui_with_layout(vec2(ui.available_width(), FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.label(RichText::new(time).color(t.dim));
+        });
+    }
+}
+
 pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(540.0);
     form_header(ui, t, Ok(Icon::Task), if f.uid.is_some() { "Task" } else { "New task" });
     title_field(ui, &mut f.title);
     form_row(ui, t, true, Some(Icon::Calendar), "Start date", |ui| {
         date_pick::date_field(ui, t, "task-start", &mut f.start, f.dates, Some(tl!("None")));
+        time_kept(ui, t, &f.start, &f.start_time);
     });
     form_row(ui, t, true, Some(Icon::Flag), "Due date", |ui| {
         date_pick::date_field(ui, t, "task-due", &mut f.due, f.dates, Some(tl!("None")));
+        time_kept(ui, t, &f.due, &f.due_time);
     });
     let before = f.status;
     form_row(ui, t, true, Some(Icon::Task), "Status", |ui| {

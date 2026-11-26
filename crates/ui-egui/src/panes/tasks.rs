@@ -250,7 +250,12 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     let under = widgets::one_line(ui, &under.join(" · "), theme::regular(11.5), t.dim, room);
     let under_at = start.anchor_size(mr.pos(pos2(rect.min.x + x_title, rect.min.y + 31.0)), under.size());
     p.with_clip_rect(clip).galley(under_at.min, under, t.dim);
-    let due_text = task.due_day().map_or_else(|| tl!("None").to_string(), |d| relative_day(d, s));
+    // With the time of day it came with from elsewhere, when it has one (issue #294).
+    let due_text = match (task.due_day(), task.due_at()) {
+        (Some(d), Some(at)) => format!("{} {}", relative_day(d, s), dates::hm(at, &s.clock)),
+        (Some(d), None) => relative_day(d, s),
+        (None, _) => tl!("None").to_string(),
+    };
     let due_color = if late {
         t.danger
     } else if task.due.is_none() {

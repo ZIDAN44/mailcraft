@@ -687,6 +687,14 @@ fn real_caldav_tasks() {
     assert!(flat.contains("20271125T160000Z") || flat.contains("20271125T170000"), "its due time: {flat}");
     assert_eq!(flat.matches("BEGIN:VALARM").count(), 2, "both alarms: {flat}");
     assert!(flat.contains("CREATED:20261120T080000Z"), "{flat}");
+    // Its due day moved here: at the same time on that day (issue #294: it went back as a day
+    // alone, the time set elsewhere lost).
+    a.s.run("task.update", &json!({"uid": rich_uid, "due": "2027-11-26"})).unwrap();
+    settle(&mut a, &aid, &|s| s.pim.values().flat_map(|p| &p.tasks).any(|t| t.task.uid == rich_uid && !t.dirty));
+    let flat = http("GET", &rich, &[("Authorization", &basic(&auth))], b"").text().replace("\r\n ", "").replace("\n ", "");
+    eprintln!("as stored after its day moved: {flat}");
+    assert!(flat.contains("20271126T160000Z") || flat.contains("20271126T170000"), "its due time on the new day: {flat}");
+    assert!(!flat.contains("VALUE=DATE"), "{flat}");
     a.s.run("task.delete", &json!({"uid": rich_uid})).unwrap();
 
     // Deleted in A: gone from the server, and from B.

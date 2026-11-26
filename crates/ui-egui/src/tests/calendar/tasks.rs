@@ -276,3 +276,36 @@ fn caldav_task_lists_are_shown_and_picked() {
     assert!(!seen(&theirs, "Task list"));
     assert!(matches!(&a.ui.dialog, Some(Dialog::Task(f)) if f.read_only));
 }
+
+/// Issue #294: a task whose due and start days came with a time of day from elsewhere (Nextcloud's
+/// Tasks) shows the time: beside its due day in the list, beside both days in its form; and
+/// keeps it on the day it's moved to here.
+#[test]
+fn a_tasks_time_of_day_from_elsewhere_is_shown() {
+    let (mut a, _) = app("tasks-time");
+    let ctx = egui::Context::default();
+    a.run("view.module", json!({"name": "tasks"}));
+    let uid = a.session.tasks("").iter().find(|t| t.task.title == "Send the grading notes to the client").map(|t| t.task.uid.clone()).unwrap();
+    let due = a.session.find_task(&uid).unwrap().task.due.expect("a due day");
+    // As read from a server: its due day at 14:30 there, its start at 09:15 (UTC: the sample's
+    // clock is UTC).
+    for p in a.session.pim.values_mut() {
+        for t in p.tasks.iter_mut().filter(|t| t.task.uid == uid) {
+            t.task.start = Some(due - 86_400);
+            t.task.source = Some(Box::new(mailcraft_engine::model::pim::TaskSource {
+                due: Some((due, due + 14 * 3600 + 1800)),
+                start: Some((due - 86_400, due - 86_400 + 9 * 3600 + 900)),
+                ..Default::default()
+            }));
+        }
+    }
+    frame(&ctx, &mut a, vec![]);
+    let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    assert!(texts.iter().any(|d| d.text.ends_with(" 14:30")), "the due time in the list: {texts:?}");
+    let Some(Dialog::Task(f)) = Dialog::open_task(&a.session, &uid) else { panic!("its form") };
+    assert_eq!((f.start_time.as_str(), f.due_time.as_str()), ("09:15", "14:30"));
+    // Moved a day on here: the same time, on that day.
+    let mut moved = a.session.find_task(&uid).unwrap().task;
+    moved.due = Some(due + 86_400);
+    assert_eq!(moved.due_at(), Some(due + 86_400 + 14 * 3600 + 1800));
+}

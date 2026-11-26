@@ -217,9 +217,9 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 
 ### 18. Tasks on CalDAV servers: what isn't done yet
 
-- **Impact:** A task's due or start time of day (Nextcloud's Tasks can give one) shows as its
-  day; it stays on the server as it was, unless that day is changed here (the task then goes
-  back with the day alone). A server with no task list (a new Nextcloud account, before its
+- **Impact:** A task's due or start time of day (Nextcloud's Tasks can give one) shows beside
+  its day, and stays when the day is changed here, but can't be set or changed here. A server
+  with no task list (a new Nextcloud account, before its
   Tasks app makes one) keeps none of MailCraft's tasks: they stay on this computer. MailCraft
   doesn't make, rename or delete task lists, nor sync subtasks as such, nor Microsoft To Do.
 - **Workaround:** Make the task list in the server's own web page (Nextcloud's Tasks makes one
