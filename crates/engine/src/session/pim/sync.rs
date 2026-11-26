@@ -31,6 +31,7 @@ impl Session {
         }
         if let Some(default) = &sync.default_calendar {
             p.server_default = Some(default.clone());
+            p.server_default_at = Some(sync.checked);
         } else if sync.default_calendar_failed {
             // Asked again next time, not kept as known until the calendars change again.
             p.server_default = None;

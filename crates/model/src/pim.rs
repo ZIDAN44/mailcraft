@@ -302,6 +302,10 @@ pub struct Pim {
     /// the user chose none. `Some("")`: the server was asked and names none; `None`: not asked.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_default: Option<String>,
+    /// When the server last answered which is its default: it's asked again a day on, as
+    /// another program may have set another.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_default_at: Option<i64>,
     /// Invitations that arrived before the server was asked where the calendars are, waiting to
     /// be put in the calendar once it's known (issue #30); kept, so a restart doesn't lose them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -561,6 +565,7 @@ impl Pim {
         // calendar here for the old one.
         self.chosen_calendar = None;
         self.server_default = None;
+        self.server_default_at = None;
         self.keep_here = false;
     }
 

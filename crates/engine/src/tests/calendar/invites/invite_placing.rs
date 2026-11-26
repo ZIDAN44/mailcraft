@@ -232,8 +232,9 @@ fn the_default_calendar_and_keeping_events_here() {
     assert!(sample.run("calendar.moveLocal", &json!({"account": "sample"})).is_err());
 }
 
-/// Issue #278: the default the server names is kept while it isn't asked again, and forgotten
-/// when asking failed, so the next sync asks again rather than keep an old answer.
+/// Issue #278: the default the server names is kept while it isn't asked again, with when it
+/// answered, and forgotten when asking failed, so the next sync asks again rather than keep an
+/// old answer.
 #[test]
 fn the_servers_default_is_forgotten_when_asking_for_it_failed() {
     let (mut s, id) = imap_session("placing-server-default");
@@ -250,6 +251,7 @@ fn the_servers_default_is_forgotten_when_asking_for_it_failed() {
         s.pim[&id].server_default.clone()
     };
     assert_eq!(synced(&mut s, Some(OWN), false).as_deref(), Some(OWN), "named");
+    assert_eq!(s.pim[&id].server_default_at, Some(NOW), "when it answered: asked again a day on");
     assert_eq!(synced(&mut s, None, false).as_deref(), Some(OWN), "not asked: kept");
     assert_eq!(synced(&mut s, None, true), None, "asking failed: forgotten, to be asked again");
 }
