@@ -247,7 +247,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(r)
         })
         .params(r#"{"uid": string, "occurrence"?: unix seconds (only that occurrence), "notify"?: bool (the guests of one's own meeting told: default true; Exchange, through Graph, tells them itself), "message"?: string (said in the cancellation)}"#)
-        .asks_when(mails_guests),
+        .asks_when(deleting_tells),
         CommandSpec::new("invite.respond", "Answer the invitation", "Reading pane › Invitation", |s, v| s.respond_to_invite(p::req_str(v, "answer")?))
             .params(r#"{"answer": "accepted"|"tentative"|"declined"}"#)
             .when(has_reading)
@@ -702,20 +702,27 @@ pub(super) fn organized_by_me(s: &Session, e: &mailcraft_model::ical::CalEvent) 
 
 /// Whether an event command with `v` would mail guests (issue #281): someone other than the user
 /// in its `attendees`, or the stored event `uid` is a meeting the user organizes, with guests.
-/// Attendees that can't be read are taken as guests. A meeting deleted with `notify: false` tells
-/// no one.
+/// Attendees that can't be read are taken as guests. With `occurrence`, of a series, that
+/// occurrence as it is: its own guests are the ones told.
 fn mails_guests(s: &Session, v: &Value) -> bool {
-    if p::bool(v, "notify") == Some(false) {
-        return false;
-    }
     let mine = s.my_addresses();
     let guest = |email: &str| !mine.contains(&email.trim().to_ascii_lowercase());
     let given = p::str(v, "attendees")
         .is_some_and(|list| mailcraft_model::addr::parse_list(list).map_or(true, |people| people.iter().any(|a| guest(&a.email))));
-    let stored = p::str(v, "uid")
-        .and_then(|uid| s.find_event(uid))
-        .is_some_and(|(_, e)| organized_by_me(s, &e.event) && e.event.attendees.iter().any(|a| guest(&a.email)));
+    let stored = p::str(v, "uid").is_some_and(|uid| {
+        let event = match p::i64(v, "occurrence").filter(|_| repeats(s, uid)) {
+            Some(at) => s.occurrence_event(uid, at),
+            None => s.find_event(uid).map(|(_, e)| e.event.clone()),
+        };
+        event.is_some_and(|e| organized_by_me(s, &e) && e.attendees.iter().any(|a| guest(&a.email)))
+    });
     given || stored
+}
+
+/// Whether `event.delete` with `v` mails guests: as [`mails_guests`], unless they're not to be
+/// told (`notify: false`), which only deleting heeds.
+fn deleting_tells(s: &Session, v: &Value) -> bool {
+    p::bool(v, "notify") != Some(false) && mails_guests(s, v)
 }
 
 /// The user's own meeting `uid`, changed: the guests hear of a change that's theirs to know, a

@@ -13,7 +13,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("mail.delete", "Delete", "Home › Delete", delete).key("Delete").params(r#"{"permanent"?: bool}"#).on_selection(has_selection)
             .asks_when(deletes_for_good),
         CommandSpec::new("list.rowAction", "A message's own button in the list", "Message list › row", row_action)
-            .params(r#"{"key": string, "action": "delete"|"archive"|"flag"|"read"|"pin"} (that message alone, what's selected and open kept)"#),
+            .params(r#"{"key": string, "action": "delete"|"archive"|"flag"|"read"|"pin"} (that message alone, what's selected and open kept)"#)
+            .asks_when(row_deletes_for_good),
         CommandSpec::new("mail.archive", "Archive", "Home › Delete", |s, _| s.move_selection(MoveTarget::Role(FolderRole::Archive)))
             .key("Backspace")
             .on_selection(has_selection),
@@ -307,6 +308,12 @@ fn deletes_for_good(s: &Session, v: &Value) -> bool {
         .unwrap_or_default();
     let deleted = if named.is_empty() { s.selection.clone() } else { named };
     p::bool(v, "permanent").unwrap_or(false) || (s.view_role() == Some(FolderRole::Trash) && s.search.is_none()) || deleted.iter().any(in_trash)
+}
+
+/// Whether `list.rowAction` with `v` deletes for good: its delete, of the message `key` names, as
+/// [`deletes_for_good`] decides.
+fn row_deletes_for_good(s: &Session, v: &Value) -> bool {
+    p::str(v, "action") == Some("delete") && deletes_for_good(s, &json!({"keys": [v.get("key").cloned().unwrap_or(Value::Null)]}))
 }
 
 fn delete_selection(s: &mut Session, v: &Value) -> CmdResult {

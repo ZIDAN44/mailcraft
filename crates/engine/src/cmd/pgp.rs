@@ -71,7 +71,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let account = s.reading.as_ref().map(|r| r.key.account.clone()).ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
             s.import_public_keys_data(&account, &data)
         })
-        .params(r#"{"index": number (an attached key file of the open message)}"#),
+        .params(r#"{"index": number (an attached key file of the open message)}"#)
+        .asks(),
         CommandSpec::new("pgp.known", "People's OpenPGP keys", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             let now = s.clock.now;

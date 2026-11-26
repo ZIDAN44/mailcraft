@@ -193,7 +193,7 @@ fn what_agents_asked_runs_only_as_things_are_now() {
 /// Always allow every command (issue #281): a command that sends nothing runs at once; one that
 /// sends mail or invitations to other people is still asked about (an event only when it's a
 /// meeting that tells its guests), and so is one that changes an account or security, reaches
-/// the web, saves a file or deletes for good.
+/// the web, saves a file or deletes for good, however it's reached.
 #[test]
 fn every_command_allowed_but_some_still_ask() {
     let (mut a, _) = app("agents-all");
@@ -209,7 +209,7 @@ fn every_command_allowed_but_some_still_ask() {
     };
     let ran = |a: &mut MailApp, command: &str, params: serde_json::Value| {
         let answer = a.agent_request("engine.execute", &json!({"command": command, "params": params}));
-        assert!(matches!(answer, AgentAnswer::Now(_)), "{command} {params}: {answer:?}");
+        assert!(matches!(answer, AgentAnswer::Now(Ok(_))), "{command} {params}: {answer:?}");
     };
     asked(&mut a, "compose.send", json!({}));
     // An event with no guests mails nobody: run at once. One with guests is asked about, and so
@@ -241,7 +241,9 @@ fn every_command_allowed_but_some_still_ask() {
         asked(&mut a, command, params);
     }
     // Turning automatic replies off sends nothing; deleting into Deleted Items can be undone.
-    ran(&mut a, "account.setVacation", json!({"enabled": false, "text": ""}));
+    let server = a.session.run("account.add", &json!({"email": "ann@mc31.test", "password": "pw"})).unwrap()["account"].as_str().unwrap().to_string();
+    a.session.take_jobs();
+    ran(&mut a, "account.setVacation", json!({"account": server, "enabled": false, "text": ""}));
     a.run("folder.open", json!({"account": "sample", "folder": "INBOX"}));
     let key = a.session.list.first().map(|m| m.key.to_id()).expect("the sample's Inbox");
     ran(&mut a, "mail.delete", json!({"keys": [key]}));
@@ -250,6 +252,47 @@ fn every_command_allowed_but_some_still_ask() {
     a.run("folder.open", json!({"account": "sample", "folder": trash}));
     let key = a.session.list.first().map(|m| m.key.to_id()).expect("what was just deleted");
     asked(&mut a, "mail.delete", json!({"keys": [key]}));
+    // The ways round those: a row's delete there; AutoArchive set to delete for good or to
+    // archive to a file, run now, or every folder made to delete; a key from an attachment, an
+    // older certificate, a data file imported; guests told on a change though `notify` is false
+    // (deleting alone heeds it); an occurrence's own guests.
+    a.session.run("autoArchive.set", &json!({"delete": false})).unwrap();
+    ran(&mut a, "list.rowAction", json!({"key": key, "action": "flag"}));
+    ran(&mut a, "autoArchive.set", json!({"everyDays": 14}));
+    ran(&mut a, "autoArchive.applyToAll", json!({}));
+    for (command, params) in [
+        ("list.rowAction", json!({"key": key, "action": "delete"})),
+        ("autoArchive.set", json!({"delete": true})),
+        ("autoArchive.set", json!({"path": "C:/elsewhere/archive.pst"})),
+        ("autoArchive.folder", json!({"folder": "INBOX", "archive": "own", "delete": true})),
+        ("autoArchive.run", json!({})),
+        ("pgp.importAttached", json!({"index": 0})),
+        ("security.useOlder", json!({"older": "AB:CD"})),
+        ("account.importPst", json!({"path": "C:/elsewhere/old.pst"})),
+        ("account.restartImport", json!({"path": "C:/elsewhere/old.pst"})),
+        ("event.create", json!({"summary": "Review", "start": "2026-12-01T10:00", "attendees": "guest@example.org", "notify": false})),
+    ] {
+        asked(&mut a, command, params);
+    }
+    a.session.run("autoArchive.set", &json!({"delete": true})).unwrap();
+    asked(&mut a, "autoArchive.applyToAll", json!({}));
+    let series = a
+        .session
+        .run(
+            "event.create",
+            &json!({"account": server, "summary": "Standup", "start": "2026-12-02T09:00", "repeat": "daily", "attendees": "guest@example.org"}),
+        )
+        .unwrap()["uid"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let at = a.session.find_event(&series).unwrap().1.event.start;
+    // The user's series, its guests now on one occurrence alone.
+    a.session.run("event.update", &json!({"uid": series, "attendees": ""})).unwrap();
+    a.session.run("event.update", &json!({"uid": series, "occurrence": at, "attendees": "guest@example.org"})).unwrap();
+    assert!(a.session.find_event(&series).unwrap().1.event.attendees.is_empty());
+    asked(&mut a, "event.move", json!({"uid": series, "occurrence": at, "by": 3600}));
+    ran(&mut a, "event.move", json!({"uid": series, "occurrence": at + 86_400, "by": 3600}));
     // Listed as agents see them: what may ask isn't said to run without asking.
     let listed = a.agent_request("engine.commands", &json!({}));
     let AgentAnswer::Now(Ok(listed)) = listed else { panic!("{listed:?}") };

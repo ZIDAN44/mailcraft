@@ -24,6 +24,13 @@ fn rule_change(v: &Value) -> crate::session::RuleChange {
     }
 }
 
+/// AutoArchive settings that delete old mail for good, or archive it to a file named
+/// (issue #281): what an agent sets so is asked about first, as the archiving it leads to runs
+/// on its own later.
+fn deletes_or_files(_: &Session, v: &Value) -> bool {
+    p::bool(v, "delete") == Some(true) || p::str(v, "path").is_some()
+}
+
 fn archiving(s: &Session) -> Option<&'static str> {
     if s.archiving.is_some() { Some("old mail is being archived already") } else { None }
 }
@@ -39,7 +46,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let changes = crate::session::Changes::parse(p::str(v, "changes"))?;
             s.import_pst(&path, p::bool(v, "again").unwrap_or(false), changes, p::bool(v, "takeOver").unwrap_or(false))
         })
-        .params(r#"{"path": string (a .pst or .mailcraft data file; its mail goes into a new account on this computer, an Outlook file's copy beside it: archive.pst's in archive.mailcraft, gone on with when it's opened again), "again"?: bool (import it though it's already open as another account), "changes"?: "read" (the file changed since its copy was read, or it's open already: what it has new is added to the copy) | "keep" (the copy opened as it was read), "takeOver"?: bool (its copy is an account of another MailCraft data folder: take it over here; it's refused otherwise, naming that folder)}"#),
+        .params(r#"{"path": string (a .pst or .mailcraft data file; its mail goes into a new account on this computer, an Outlook file's copy beside it: archive.pst's in archive.mailcraft, gone on with when it's opened again), "again"?: bool (import it though it's already open as another account), "changes"?: "read" (the file changed since its copy was read, or it's open already: what it has new is added to the copy) | "keep" (the copy opened as it was read), "takeOver"?: bool (its copy is an account of another MailCraft data folder: take it over here; it's refused otherwise, naming that folder)}"#)
+        .asks(),
         CommandSpec::new("account.stopImport", "Stop importing", "Folder pane › account menu", |s, v| {
             let how = match p::str(v, "how") {
                 None | Some("cancel") => StopHow::Cancel,
@@ -64,7 +72,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let account = account_param(s, v)?;
             s.restart_import(&account, p::str(v, "path"))
         })
-        .params(r#"{"account"?: string, "path"?: string (default: the file it came from)} (what a stopped import brought in goes, and the file is read from the start)"#),
+        .params(r#"{"account"?: string, "path"?: string (default: the file it came from)} (what a stopped import brought in goes, and the file is read from the start)"#)
+        .asks_when(|_, v| p::str(v, "path").is_some()),
         CommandSpec::new("account.keepImported", "Keep what's imported", "Folder pane › account menu", |s, v| {
             let account = account_param(s, v)?;
             s.keep_imported(&account)
@@ -87,7 +96,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.set_auto_archive(every, p::bool(v, "prompt"), p::bool(v, "show"), rule_change(v))
         })
         .leaves_body()
-        .params(r#"{"everyDays"?: number (runs every so many days, up to 60; 0: never), "prompt"?: bool (asks first), "show"?: bool (the file shown in the folder list), "olderThan"?: number (1 to 999), "unit"?: "days"|"weeks"|"months", "delete"?: bool (deleted for good, not archived), "path"?: string (the .pst file it's archived to)} (the default settings, for folders without their own)"#),
+        .params(r#"{"everyDays"?: number (runs every so many days, up to 60; 0: never), "prompt"?: bool (asks first), "show"?: bool (the file shown in the folder list), "olderThan"?: number (1 to 999), "unit"?: "days"|"weeks"|"months", "delete"?: bool (deleted for good, not archived), "path"?: string (the .pst file it's archived to)} (the default settings, for folders without their own)"#)
+        .asks_when(deletes_or_files),
         CommandSpec::new("autoArchive.folder", "Folder's AutoArchive settings", "Folder › Properties", |s, v| {
             let account = account_param(s, v)?;
             let folder = p::req_str(v, "folder")?.to_string();
@@ -95,19 +105,22 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.set_folder_archive(&account, &folder, &mode, rule_change(v))
         })
         .leaves_body()
-        .params(r#"{"account"?: string, "folder": string, "archive": "off" (never archived) | "default" (the default settings) | "own" (these: from the default ones, or its own), "olderThan"?: number (1 to 999), "unit"?: "days"|"weeks"|"months", "delete"?: bool (deleted for good, not archived), "path"?: string (the .pst file it's archived to)}"#),
+        .params(r#"{"account"?: string, "folder": string, "archive": "off" (never archived) | "default" (the default settings) | "own" (these: from the default ones, or its own), "olderThan"?: number (1 to 999), "unit"?: "days"|"weeks"|"months", "delete"?: bool (deleted for good, not archived), "path"?: string (the .pst file it's archived to)}"#)
+        .asks_when(deletes_or_files),
         CommandSpec::new("autoArchive.applyToAll", "Apply these settings to all folders now", "File › Options › Data files › AutoArchive settings", |s, _| {
             s.auto_archive_to_all()
         })
         .leaves_body()
-        .params(r#"{} (every folder follows the default settings)"#),
+        .params(r#"{} (every folder follows the default settings)"#)
+        .asks_when(|s, _| s.prefs.auto_archive.rule.delete),
         CommandSpec::new("autoArchive.run", "Run AutoArchive now", "AutoArchive's question", |s, _| {
             let groups = s.auto_archive_now();
             Ok(json!({ "groups": groups }))
         })
         .leaves_body()
         .params(r#"{} (each folder's old mail by its settings, a group at a time)"#)
-        .when(archiving),
+        .when(archiving)
+        .asks(),
         CommandSpec::new("autoArchive.later", "Not now", "AutoArchive's question", |s, _| {
             s.auto_archive_later();
             Ok(json!({ "next": s.prefs.auto_archive.last_run.saturating_add(i64::from(s.prefs.auto_archive.every_days) * 86_400) }))

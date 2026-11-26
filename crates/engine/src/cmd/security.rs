@@ -45,7 +45,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let account = account_param(s, v)?;
             s.use_older_identity(&account, p::req_str(v, "older")?)
         })
-        .params(r#"{"older": string (an older certificate's SHA-256, from security.certificates), "account"?: string}"#),
+        .params(r#"{"older": string (an older certificate's SHA-256, from security.certificates), "account"?: string}"#)
+        .asks(),
         CommandSpec::new("security.certificates", "Certificates", "File › Info › Security", |s, v| {
             let account = account_param(s, v)?;
             let show = |i: &mailcraft_smime::CertInfo| {
