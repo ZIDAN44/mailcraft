@@ -141,10 +141,31 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
         run.push_tasks(&mut out, &mut refetch)?;
     }
     run.read_calendars(&refetch, &mut out)?;
+    let asked = server_default(dav, pim, &out, schedules);
+    out.default_calendar_failed = asked.as_ref().is_some_and(Option::is_none);
+    out.default_calendar = asked.flatten();
     if let Err(e) = run.read_books(&mut out) {
         contacts_refused(dav, e, &mut out)?;
     }
     Ok(out)
+}
+
+/// The calendar a server that schedules takes as the user's default (issue #278): asked the first
+/// time, again when its calendars aren't the ones they were (one made or removed may be the
+/// default now), and a day after it last answered (another program may have set another),
+/// `Some("")` when it names none. `None`: not asked; `Some(None)`: asked and not answered.
+fn server_default(dav: &Dav, pim: &Pim, out: &DavSync, schedules: bool) -> Option<Option<String>> {
+    let (true, Some(home), Some(list)) = (schedules, &out.caldav_home, &out.calendars) else { return None };
+    let was: std::collections::BTreeSet<&str> =
+        pim.calendars.iter().map(|c| c.id.as_str()).filter(|id| mailcraft_model::pim::is_server_calendar(id)).collect();
+    let now: std::collections::BTreeSet<&str> =
+        list.iter().map(|c| c.id.as_str()).filter(|id| mailcraft_model::pim::is_server_calendar(id)).collect();
+    // An answer "later" than now (the clock set back since) isn't lately: asked again.
+    let lately = pim.server_default_at.is_some_and(|at| (0..=86_400).contains(&out.checked.saturating_sub(at)));
+    if pim.server_default.is_some() && was == now && lately {
+        return None;
+    }
+    Some(dav.default_calendar(home).ok().map(Option::unwrap_or_default))
 }
 
 /// A contacts step's error. Google refusing the token its contacts (a sign-in that granted the

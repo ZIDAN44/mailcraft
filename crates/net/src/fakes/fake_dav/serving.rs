@@ -126,6 +126,16 @@ impl Data {
                     if self.schedules { format!("<c:schedule-outbox-URL><d:href>{OUTBOX}</d:href></c:schedule-outbox-URL>") } else { String::new() };
                 found(multistatus(&[response("/dav/principals/me/", &outbox)]))
             }
+            // Its inbox, and the default calendar the inbox names (§9.2), when it schedules.
+            "/dav/principals/me/" if body.contains("schedule-inbox-URL") => {
+                let inbox =
+                    if self.schedules { format!("<c:schedule-inbox-URL><d:href>{INBOX}</d:href></c:schedule-inbox-URL>") } else { String::new() };
+                found(multistatus(&[response("/dav/principals/me/", &inbox)]))
+            }
+            INBOX if self.schedules && body.contains("schedule-default-calendar-URL") => found(multistatus(&[response(
+                INBOX,
+                &format!("<c:schedule-default-calendar-URL><d:href>{CAL}</d:href></c:schedule-default-calendar-URL>"),
+            )])),
             "/.well-known/caldav" | "/.well-known/carddav" => ("301 Moved", vec![("Location", "/dav/".into())], String::new()),
             "/dav/" => {
                 found(multistatus(&[response("/dav/", "<d:current-user-principal><d:href>/dav/principals/me/</d:href></d:current-user-principal>")]))
