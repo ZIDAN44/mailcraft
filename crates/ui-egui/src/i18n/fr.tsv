@@ -2173,3 +2173,23 @@ count	occurrences	occurrences
 	{free} of {all} free	{free} sur {all} libres
 	Pictures from the web weren't loaded.	Les images du Web n'ont pas été chargées.
 	(The rest of the message didn't fit in this document.)	(La suite du message ne tenait pas dans ce document.)
+	Attach files	Joindre des fichiers
+	Save as	Enregistrer sous
+	Save attachments to	Enregistrer les pièces jointes dans
+	Trust a certificate file	Faire confiance à un fichier de certificat
+	Import categories	Importer des catégories
+	Open mail file	Ouvrir un fichier de message
+	Insert pictures	Insérer des images
+	All files	Tous les fichiers
+	Certificate with its key	Certificat avec sa clé
+	Certificate	Certificat
+	Mail files	Fichiers de messages
+	MailCraft categories	Catégories MailCraft
+	MailCraft data files	Fichiers de données MailCraft
+	MailCraft rules	Règles MailCraft
+	OpenPGP key	Clé OpenPGP
+	Outlook data files	Fichiers de données Outlook
+	PDF document	Document PDF
+	Contact card	Carte de contact
+	Web page	Page web
+	{ext} file	Fichier {ext}

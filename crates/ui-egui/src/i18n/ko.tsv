@@ -2172,3 +2172,23 @@ count	occurrences	회
 	{free} of {all} free	{all}명 중 {free}명 가능
 	Pictures from the web weren't loaded.	웹의 그림은 불러오지 않았습니다.
 	(The rest of the message didn't fit in this document.)	(메시지의 나머지는 이 문서에 다 들어가지 않았습니다.)
+	Attach files	파일 첨부
+	Save as	다른 이름으로 저장
+	Save attachments to	첨부 파일 저장 위치
+	Trust a certificate file	인증서 파일 신뢰
+	Import categories	범주 가져오기
+	Open mail file	메일 파일 열기
+	Insert pictures	그림 삽입
+	All files	모든 파일
+	Certificate with its key	키가 포함된 인증서
+	Certificate	인증서
+	Mail files	메일 파일
+	MailCraft categories	MailCraft 범주
+	MailCraft data files	MailCraft 데이터 파일
+	MailCraft rules	MailCraft 규칙
+	OpenPGP key	OpenPGP 키
+	Outlook data files	Outlook 데이터 파일
+	PDF document	PDF 문서
+	Contact card	연락처 카드
+	Web page	웹 페이지
+	{ext} file	{ext} 파일

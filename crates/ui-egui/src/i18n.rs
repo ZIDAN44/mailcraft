@@ -503,7 +503,9 @@ fn build_day_halves() -> dates::DayHalves {
     halves
 }
 
+mod files;
 mod mail;
+pub use files::{file_dialog_word, file_kind};
 pub use mail::mail_words;
 
 #[cfg(test)]

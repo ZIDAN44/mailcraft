@@ -2186,3 +2186,23 @@ count	occurrences	повторений
 	{free} of {all} free	Свободны: {free} из {all}
 	Pictures from the web weren't loaded.	Изображения из интернета не загружены.
 	(The rest of the message didn't fit in this document.)	(Остальная часть сообщения не поместилась в этот документ.)
+	Attach files	Вложить файлы
+	Save as	Сохранить как
+	Save attachments to	Сохранить вложения в
+	Trust a certificate file	Доверять файлу сертификата
+	Import categories	Импорт категорий
+	Open mail file	Открыть файл письма
+	Insert pictures	Вставить изображения
+	All files	Все файлы
+	Certificate with its key	Сертификат с ключом
+	Certificate	Сертификат
+	Mail files	Файлы писем
+	MailCraft categories	Категории MailCraft
+	MailCraft data files	Файлы данных MailCraft
+	MailCraft rules	Правила MailCraft
+	OpenPGP key	Ключ OpenPGP
+	Outlook data files	Файлы данных Outlook
+	PDF document	Документ PDF
+	Contact card	Карточка контакта
+	Web page	Веб-страница
+	{ext} file	Файл {ext}
