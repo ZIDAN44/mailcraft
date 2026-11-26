@@ -2193,3 +2193,5 @@ count	occurrences	előfordulás
 	Contact card	Névjegykártya
 	Web page	Weboldal
 	{ext} file	{ext}-fájl
+	Mailing list (List-Id) contains	A levelezőlista (List-Id) tartalmazza
+	is from the list “{text}”	erről a levelezőlistáról érkezett: „{text}”

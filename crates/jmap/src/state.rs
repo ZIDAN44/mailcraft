@@ -163,6 +163,9 @@ pub fn fill_from_source(m: &mut Summary, raw: &[u8]) {
         (m.in_reply_to, m.references) = (full.in_reply_to, full.references);
     }
     m.bulk = m.bulk || full.bulk;
+    if m.list_id.is_empty() {
+        m.list_id = full.list_id;
+    }
     m.reaction = full.reaction;
     // A draft's header as Graph and EWS list it may leave out the message it forwards.
     if !full.forward_of.is_empty() {

@@ -456,11 +456,12 @@ pub enum RuleTest {
     AnyText,
     HasAttachment,
     Bulk,
+    ListId,
 }
 
 impl RuleTest {
-    pub(super) const ALL: [RuleTest; 6] =
-        [RuleTest::From, RuleTest::To, RuleTest::Subject, RuleTest::AnyText, RuleTest::HasAttachment, RuleTest::Bulk];
+    pub(super) const ALL: [RuleTest; 7] =
+        [RuleTest::From, RuleTest::To, RuleTest::Subject, RuleTest::AnyText, RuleTest::HasAttachment, RuleTest::Bulk, RuleTest::ListId];
     pub(super) fn label(self) -> &'static str {
         tl!(match self {
             RuleTest::From => "From contains",
@@ -469,6 +470,7 @@ impl RuleTest {
             RuleTest::AnyText => "Sender, recipients or subject contain",
             RuleTest::HasAttachment => "Has attachments",
             RuleTest::Bulk => "Is a newsletter or list mail",
+            RuleTest::ListId => "Mailing list (List-Id) contains",
         })
     }
     pub(super) fn needs_text(self) -> bool {
@@ -476,11 +478,11 @@ impl RuleTest {
     }
     /// Whether a rule on an Exchange server can look at it (issue #139).
     pub(super) fn on_server(self) -> bool {
-        !matches!(self, RuleTest::AnyText | RuleTest::Bulk)
+        !matches!(self, RuleTest::AnyText | RuleTest::Bulk | RuleTest::ListId)
     }
     /// Whether it says anything of mail the user sends (issue #202).
     pub(super) fn for_sent(self) -> bool {
-        self != RuleTest::Bulk
+        !matches!(self, RuleTest::Bulk | RuleTest::ListId)
     }
 }
 
@@ -550,6 +552,7 @@ fn shown(r: &Rule) -> (RuleTest, String, RuleDo, String) {
         Some(Condition::Subject(t)) => (RuleTest::Subject, t.clone()),
         Some(Condition::AnyText(t)) => (RuleTest::AnyText, t.clone()),
         Some(Condition::HasAttachment) => (RuleTest::HasAttachment, String::new()),
+        Some(Condition::ListId(t)) => (RuleTest::ListId, t.clone()),
         Some(Condition::Bulk) | None => (RuleTest::Bulk, String::new()),
     };
     let (action, target) = match r.actions.first() {
@@ -588,6 +591,7 @@ impl RuleForm {
             RuleTest::AnyText => Condition::AnyText(t),
             RuleTest::HasAttachment => Condition::HasAttachment,
             RuleTest::Bulk => Condition::Bulk,
+            RuleTest::ListId => Condition::ListId(t),
         };
         let action = match self.action {
             RuleDo::MoveTo if self.target.is_empty() => return Err(tl!("Pick a folder").to_string()),
@@ -739,6 +743,7 @@ pub(super) fn describe(s: &Session, r: &Rule) -> String {
             Condition::AnyText(t) => tf!("mentions “{text}”", text = t),
             Condition::HasAttachment => tl!("has attachments").to_string(),
             Condition::Bulk => tl!("is list mail").to_string(),
+            Condition::ListId(t) => tf!("is from the list “{text}”", text = t),
         })
         .collect::<Vec<_>>()
         .join(&format!(" {} ", if r.match_all { tl!("and") } else { tl!("or") }));

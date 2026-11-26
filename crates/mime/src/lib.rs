@@ -183,6 +183,7 @@ fn summary_from_message(m: &Message<'_>, key: MessageKey, flags: Flags, size: u3
         preview: preview(&text),
         modseq: 0,
         bulk: is_bulk(m),
+        list_id: list_id(m),
         smime: m.root_part().content_type().map_or(mailcraft_model::Smime::None, |c| {
             mailcraft_model::Smime::from_content_type(
                 c.ctype(),
@@ -252,6 +253,16 @@ pub(crate) fn importance(m: &Message<'_>) -> i8 {
         _ => 0,
     }
 }
+
+/// The list a message came through, as its `List-Id` says (RFC 2919), on one line: at most
+/// [`LIST_ID_MAX`] characters of it (a hostile header's length aside).
+fn list_id(m: &Message<'_>) -> String {
+    let v = header_raw(m.root(), "List-Id").unwrap_or_default();
+    v.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(LIST_ID_MAX).collect()
+}
+
+/// The most of a `List-Id` kept (RFC 2919's list id is at most 255 characters, a name before it).
+const LIST_ID_MAX: usize = 400;
 
 /// Mail sent in bulk: lists, newsletters, notifications (RFC 2369 `List-*`, RFC 2919 `List-Id`,
 /// RFC 3834 `Auto-Submitted`, the de-facto `Precedence: bulk|list|junk`, and no-reply senders).

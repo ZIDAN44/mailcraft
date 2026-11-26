@@ -51,6 +51,8 @@ pub enum Condition {
     HasAttachment,
     /// Newsletters, lists, automatic mail.
     Bulk,
+    /// The mailing list it came through (`List-Id`: its id, or its name, issue #288).
+    ListId(String),
 }
 
 impl Condition {
@@ -64,6 +66,7 @@ impl Condition {
             Condition::AnyText(t) => has(&m.subject, t) || has(&addr(&m.from), t) || m.to.iter().chain(&m.cc).any(|a| has(&addr(a), t)),
             Condition::HasAttachment => m.has_attachments,
             Condition::Bulk => m.bulk,
+            Condition::ListId(t) => has(&m.list_id, t),
         }
     }
 }
@@ -325,6 +328,13 @@ mod tests {
         assert!(!Rule { enabled: false, ..news.clone() }.matches(&m("letters@x", "", true)));
         assert!(!Rule { account: Some("a2".into()), ..news }.matches(&m("letters@x", "", true)));
         assert!(Condition::To("me@".into()).matches(&m("a@b", "", false)));
+        // A list by its id or its name (issue #288); mail from no list isn't.
+        let listed = Summary { list_id: "Debian developers <debian-devel.lists.debian.org>".into(), ..m("x@y", "", true) };
+        assert!(Condition::ListId("debian-devel.lists".into()).matches(&listed));
+        assert!(Condition::ListId("DEBIAN DEVELOPERS".into()).matches(&listed));
+        assert!(!Condition::ListId("debian-user".into()).matches(&listed));
+        assert!(!Condition::ListId("debian".into()).matches(&m("x@y", "", true)));
+        assert!(!Condition::ListId(" ".into()).matches(&listed), "nothing to look for");
         assert!(!Condition::Subject("  ".into()).matches(&m("a@b", "anything", false)), "an empty test matches nothing");
         // Rules round-trip through JSON (rules.json, the CLI).
         let json = serde_json::to_string(&rules).unwrap();

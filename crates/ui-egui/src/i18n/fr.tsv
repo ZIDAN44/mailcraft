@@ -2193,3 +2193,5 @@ count	occurrences	occurrences
 	Contact card	Carte de contact
 	Web page	Page web
 	{ext} file	Fichier {ext}
+	Mailing list (List-Id) contains	La liste de diffusion (List-Id) contient
+	is from the list “{text}”	vient de la liste « {text} »

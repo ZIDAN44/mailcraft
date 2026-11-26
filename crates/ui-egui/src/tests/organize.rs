@@ -371,6 +371,27 @@ fn a_rule_shown_in_part_keeps_the_rest() {
     assert_eq!(f.to_rule().unwrap(), Rule { name: "Bare".into(), ..bare });
 }
 
+/// Issue #288: a rule for one mailing list, by its List-Id, shown in the editor and saved again
+/// as it was.
+#[test]
+fn a_rule_for_one_mailing_list() {
+    use crate::dialogs::{RuleForm, RuleTest};
+    use mailcraft_engine::model::organize::{Condition, Rule, RuleAction};
+    let rule = Rule {
+        name: "Debian".into(),
+        enabled: true,
+        conditions: vec![Condition::ListId("debian-devel.lists.debian.org".into())],
+        match_all: true,
+        account: None,
+        actions: vec![RuleAction::MarkRead],
+        stop: false,
+        sent: false,
+    };
+    let f = RuleForm::from_rule(0, &rule);
+    assert_eq!((f.test, f.text.as_str()), (RuleTest::ListId, "debian-devel.lists.debian.org"));
+    assert_eq!(f.to_rule().unwrap(), rule);
+}
+
 /// A rule that moved mail to a folder of one account, changed to do something else, is for every
 /// account, as a new rule of that kind is: it kept the move's account, which the editor shows for
 /// no other action. One that still moves mail to a folder (an action the editor doesn't show)

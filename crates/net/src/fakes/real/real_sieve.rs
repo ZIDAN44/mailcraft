@@ -65,11 +65,13 @@ fn real_sieve_rules() {
     );
     let lists =
         rule("Lists", vec![Condition::Bulk, Condition::AnyText("newsletter".into()), Condition::To("team@".into())], vec![RuleAction::Delete]);
-    let (got, error) = rules(&mut pool, set(vec![shop, lists]));
+    // One mailing list, by its List-Id (issue #288).
+    let debian = rule("Debian", vec![Condition::ListId("debian-devel.lists.debian.org".into())], vec![RuleAction::MarkRead]);
+    let (got, error) = rules(&mut pool, set(vec![shop, lists, debian]));
     let got = got.unwrap_or_else(|| panic!("{error:?}"));
     assert_eq!(error, None);
     let names: Vec<&str> = got.rules.iter().map(|r| r.name.as_str()).collect();
-    assert_eq!(names, ["Shop", "Lists"]);
+    assert_eq!(names, ["Shop", "Lists", "Debian"]);
     assert!(!got.not_running);
     // The automatic replies on with them, then off: the rules stay.
     let away = Vacation { enabled: true, subject: "Away".into(), text: "Back soon".into(), ..Default::default() };
@@ -78,6 +80,6 @@ fn real_sieve_rules() {
     pool.submit(Job::SetVacation { account: "s1".into(), vacation: Vacation { enabled: false, ..away } });
     crate::waiting::until(&pool, "replies off", |e| matches!(e, Event::Vacation { vacation: Some(v), error: None, .. } if !v.enabled));
     let (got, _) = rules(&mut pool, Job::GetServerRules { account: "s1".into() });
-    assert_eq!(got.map(|g| g.rules.len()), Some(2), "kept with the replies");
-    eprintln!("two rules on the server, compiled by it; left there to deliver mail through");
+    assert_eq!(got.map(|g| g.rules.len()), Some(3), "kept with the replies");
+    eprintln!("three rules on the server, compiled by it; left there to deliver mail through");
 }

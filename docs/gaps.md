@@ -341,6 +341,15 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   yet. A meeting is moved with a WebDAV MOVE, which tells no one; copied and deleted instead, a
   server that schedules sends the guests the meeting again (Stalwart did), or a cancellation.
 
+### 28. Rules on other headers
+
+- **Impact:** A rule can look at a message's mailing list (its `List-Id`, #288), but not at any
+  other header (`X-Mailer`, a header a service adds). A List-Id rule can't be an Exchange
+  server's rule.
+- **Workaround:** A rule on the sender, the recipients or the subject; for a list, its List-Id.
+- **Cause:** MailCraft's own rules run on the message list's entries, which keep a few headers,
+  not all; Exchange's server rules have no test of one header, only of words anywhere in them.
+
 ## Not planned
 
 These are outside MailCraft's control, or accepted as they are.

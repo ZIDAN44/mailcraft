@@ -2206,3 +2206,5 @@ count	occurrences	повторений
 	Contact card	Карточка контакта
 	Web page	Веб-страница
 	{ext} file	Файл {ext}
+	Mailing list (List-Id) contains	Список рассылки (List-Id) содержит
+	is from the list “{text}”	из рассылки «{text}»

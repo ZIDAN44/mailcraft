@@ -164,6 +164,7 @@ fn test(c: &Condition, cx: &Context, needs: &mut Vec<&'static str>) -> Result<St
         Condition::To(t) => contains(&["to", "cc"], t),
         Condition::Subject(t) => contains(&["subject"], t),
         Condition::AnyText(t) => contains(&["from", "to", "cc", "subject"], t),
+        Condition::ListId(t) => contains(&["list-id"], t),
         // As MailCraft tells bulk mail (`mime::is_bulk`): a list's headers, a precedence of bulk,
         // list or junk, mail sent automatically, or from a no-reply address.
         Condition::Bulk => "anyof(exists \"list-id\", exists \"list-unsubscribe\", header :is \"precedence\" [\"bulk\", \"list\", \"junk\"], \
@@ -217,6 +218,10 @@ mod tests {
         assert!(s.contains("if allof(header :contains \"from\" \"billing@shop.example\", header :contains \"subject\" \"Invoice\") {"), "{s}");
         assert!(s.contains("    addflag [\"\\\\Seen\", \"$label1\"];\r\n    fileinto \"Bills/Été\";\r\n    stop;\r\n}"), "{s}");
         assert!(s.contains("if anyof(anyof(exists \"list-id\""), "{s}");
+        // A list by its List-Id (issue #288).
+        let debian = rule("Debian", vec![Condition::ListId("debian-devel.lists.debian.org".into())], vec![RuleAction::MarkRead]);
+        let listed = written(&[debian], &cx()).unwrap().sieve;
+        assert!(listed.contains("if header :contains \"list-id\" \"debian-devel.lists.debian.org\" {"), "{listed}");
         assert!(s.contains("header :contains [\"to\", \"cc\"] \"team@\") {\r\n    fileinto \"Archive\";"), "{s}");
         assert!(!s.contains("Off"), "a rule turned off isn't written: {s}");
         assert_eq!(k.rules.len(), 3, "but kept");
