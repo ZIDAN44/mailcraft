@@ -719,10 +719,18 @@ fn mails_guests(s: &Session, v: &Value) -> bool {
     given || stored
 }
 
-/// Whether `event.delete` with `v` mails guests: as [`mails_guests`], unless they're not to be
-/// told (`notify: false`), which only deleting heeds.
+/// Whether `event.delete` with `v` mails guests: as [`mails_guests`]. `notify: false` (which only
+/// deleting heeds) keeps MailCraft from telling them, not a server that tells them itself:
+/// Exchange's, through Graph, or a CalDAV server that schedules a meeting it wasn't told
+/// MailCraft does (RFC 6638 §3.2.2: it cancels for the organizer).
 fn deleting_tells(s: &Session, v: &Value) -> bool {
-    p::bool(v, "notify") != Some(false) && mails_guests(s, v)
+    if !mails_guests(s, v) {
+        return false;
+    }
+    let Some((account, e)) = p::str(v, "uid").and_then(|uid| s.find_event(uid)) else { return true };
+    p::bool(v, "notify") != Some(false)
+        || s.meeting_route(account, &e.event.uid) == crate::Route::Server
+        || (s.pim.get(account).is_some_and(|p| p.auto_schedule) && mailcraft_model::pim::is_server_calendar(&e.calendar) && !e.event.client_scheduled)
 }
 
 /// The user's own meeting `uid`, changed: the guests hear of a change that's theirs to know, a

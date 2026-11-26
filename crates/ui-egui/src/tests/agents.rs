@@ -274,8 +274,13 @@ fn every_command_allowed_but_some_still_ask() {
     ] {
         asked(&mut a, command, params);
     }
+    // Set to delete already: its schedule or question changed is asked about, as is every folder
+    // made to follow it; a folder never archived, or deleting turned off, isn't.
     a.session.run("autoArchive.set", &json!({"delete": true})).unwrap();
     asked(&mut a, "autoArchive.applyToAll", json!({}));
+    asked(&mut a, "autoArchive.set", json!({"prompt": false}));
+    ran(&mut a, "autoArchive.folder", json!({"account": "sample", "folder": "INBOX", "archive": "off"}));
+    ran(&mut a, "autoArchive.set", json!({"delete": false}));
     let series = a
         .session
         .run(
