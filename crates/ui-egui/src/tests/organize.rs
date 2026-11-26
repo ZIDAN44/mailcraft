@@ -25,7 +25,7 @@ fn organising_renders_and_rules_save() {
     a.run("list.focusTab", json!({"value": "other"}));
     frame(&ctx, &mut a, vec![]);
     // The rule editor saves the rule its form says; the Rules dialog lists it.
-    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example"));
+    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example", None));
     frame(&ctx, &mut a, vec![]);
     if let Some(Dialog::EditRule(f)) = a.ui.dialog.as_mut() {
         f.action = crate::dialogs::RuleDo::Categorize;
@@ -393,12 +393,11 @@ fn a_rule_for_one_mailing_list() {
     assert_eq!(f.to_rule().unwrap(), rule);
 }
 
-/// A rule that moved mail to a folder of one account, changed to do something else, is for every
-/// account, as a new rule of that kind is: it kept the move's account, which the editor shows for
-/// no other action. One that still moves mail to a folder (an action the editor doesn't show)
-/// keeps it, and so does one whose move goes to another folder.
+/// A rule's account is whose mail it's for, as its form's For mail to says: changed from moving
+/// mail to doing something else, it stays (it was cleared then, when nothing in the form showed
+/// it), and the form clears it. One whose move goes to another folder keeps it too.
 #[test]
-fn a_rule_that_no_longer_moves_is_for_every_account() {
+fn a_rules_account_is_what_its_form_says() {
     use crate::dialogs::{RuleDo, RuleForm};
     use mailcraft_engine::model::organize::{Condition, Rule, RuleAction};
     let rule = Rule {
@@ -414,7 +413,10 @@ fn a_rule_that_no_longer_moves_is_for_every_account() {
     let mut f = RuleForm::from_rule(0, &rule);
     (f.action, f.target) = (RuleDo::Flag, String::new());
     let saved = f.to_rule().unwrap();
-    assert_eq!((saved.actions.as_slice(), saved.account), ([RuleAction::Flag, RuleAction::MarkRead].as_slice(), None));
+    assert_eq!((saved.actions.as_slice(), saved.account.as_deref()), ([RuleAction::Flag, RuleAction::MarkRead].as_slice(), Some("sample")));
+    // For every account's mail, as the form can say.
+    f.scope = None;
+    assert_eq!(f.to_rule().unwrap().account, None);
     // As the same rule made new.
     let new = RuleForm { index: None, original: None, ..f }.to_rule().unwrap();
     assert_eq!(new.account, None);
@@ -646,4 +648,41 @@ fn options_offer_notifications_for_other_with_the_focused_inbox() {
     assert!(a.session.prefs.notify_other, "turned on");
     a.run("view.notifications", json!({"on": false}));
     assert!(!shown(&ctx, &mut a), "no notifications: nothing to say");
+}
+
+/// A rule for one account's mail moves it into another account's folder, as Outlook's can: the
+/// folder picked was in another account, and the rule became that account's, so the mail it was
+/// meant for never matched. A rule left that way says whose it is, and can be put right.
+#[test]
+fn a_rule_moves_one_accounts_mail_into_anothers_folder() {
+    use crate::dialogs::{RuleDo, RuleForm};
+    use mailcraft_engine::model::organize::{Condition, Rule, RuleAction};
+    let Dialog::EditRule(mut f) = Dialog::rule_from("hello@dev.example", Some("a")) else { panic!("a rule's form") };
+    f.action = RuleDo::MoveTo;
+    (f.account, f.target) = (Some("b".into()), "Projects".into());
+    let r = f.to_rule().unwrap();
+    assert_eq!(r.account.as_deref(), Some("a"), "for a's mail, as made from it");
+    assert_eq!(r.actions, [RuleAction::MoveToAccount { account: "b".into(), folder: "Projects".into() }]);
+    // Into its own account's folder: named as ever.
+    (f.account, f.target) = (Some("a".into()), "Projects".into());
+    assert_eq!(f.to_rule().unwrap().actions, [RuleAction::MoveTo("Projects".into())]);
+    // A rule made b's that way: its form says so; made a's, it moves a's mail into b's folder.
+    let old = Rule {
+        name: "Dev".into(),
+        enabled: true,
+        account: Some("b".into()),
+        conditions: vec![Condition::From("hello@dev.example".into())],
+        match_all: true,
+        actions: vec![RuleAction::MoveTo("Projects".into())],
+        stop: false,
+        sent: false,
+    };
+    let mut f = RuleForm::from_rule(0, &old);
+    assert_eq!((f.scope.as_deref(), f.account.as_deref()), (Some("b"), Some("b")));
+    f.scope = Some("a".into());
+    let r = f.to_rule().unwrap();
+    assert_eq!(r.account.as_deref(), Some("a"));
+    assert_eq!(r.actions, [RuleAction::MoveToAccount { account: "b".into(), folder: "Projects".into() }]);
+    let f = RuleForm::from_rule(0, &r);
+    assert_eq!((f.scope.as_deref(), f.account.as_deref(), f.target.as_str()), (Some("a"), Some("b"), "Projects"), "back as saved");
 }

@@ -113,7 +113,7 @@ fn every_drop_down_says_what_it_is_for() {
     a.run("mail.new", json!({}));
     check(&mut a, "new message", wide);
     a.run("compose.discard", json!({}));
-    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example"));
+    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example", None));
     for action in [crate::dialogs::RuleDo::MoveTo, crate::dialogs::RuleDo::Categorize] {
         if let Some(Dialog::EditRule(f)) = a.ui.dialog.as_mut() {
             f.action = action;

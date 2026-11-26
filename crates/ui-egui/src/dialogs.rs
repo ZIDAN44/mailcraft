@@ -612,8 +612,9 @@ impl Dialog {
         true
     }
 
-    /// A new rule for mail like this (from its sender, into Archive).
-    pub fn rule_from(sender: &str) -> Dialog {
+    /// A new rule for mail like this (from its sender, into Archive), for `account`'s mail (the
+    /// message's; `None`: every account's).
+    pub fn rule_from(sender: &str, account: Option<&str>) -> Dialog {
         Dialog::EditRule(Box::new(RuleForm {
             index: None,
             name: tf!("Mail from {sender}", sender = sender),
@@ -622,6 +623,7 @@ impl Dialog {
             action: RuleDo::Archive,
             target: String::new(),
             account: None,
+            scope: account.map(str::to_string),
             stop: false,
             run_now: true,
             sent: false,

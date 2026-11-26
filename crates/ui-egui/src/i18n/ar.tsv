@@ -2203,3 +2203,5 @@ count	occurrences	مرات
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	هذه الرسالة في البريد العشوائي أو مرسلها محظور، لذا تبقى صورها مخفية.
 	Unless suspicious	ما لم تكن مريبة
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	ما لم تكن مريبة: عندما يؤكد خادم بريدك مَن أرسل الرسالة. دائمًا: كل رسالة عدا ما في البريد العشوائي وما يأتي من مرسلين محظورين. يمكن للخادم الذي توجد عليه كل صورة أن يرى عنوان IP الخاص بك ووقت فتحك للرسالة؛ وتبقى صور التتبع محظورة
+	For mail to	للبريد الوارد إلى
+	Every account	كل الحسابات

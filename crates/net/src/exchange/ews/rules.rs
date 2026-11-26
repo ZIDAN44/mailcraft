@@ -275,6 +275,7 @@ fn what_it_does(rule: &Rule, folder_id: &dyn Fn(&str) -> Option<String>) -> Resu
                     return Err(cant("move mail to two folders"));
                 }
             }
+            RuleAction::MoveToAccount { .. } => return Err(cant("move mail into another account")),
             RuleAction::Flag => return Err(cant("flag mail")),
             RuleAction::Pin => return Err(cant("pin mail")),
         }

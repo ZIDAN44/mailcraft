@@ -173,7 +173,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.set_rules(rules)
         })
         .params(
-            r#"{"rule": {"name": string, "conditions": [{"if": "from"|"to"|"subject"|"anyText", "value": string} | {"if": "hasAttachment"|"bulk"}], "matchAll"?: bool, "actions": [{"do": "moveTo", "value": folder} | {"do": "moveToRole", "value": "archive"|…} | {"do": "categorize", "value": name} | {"do": "markRead"|"flag"|"pin"|"delete"}], "account"?: string, "stop"?: bool, "enabled"?: bool, "sent"?: bool (on mail you send, as its copy reaches Sent, not mail arriving)}}"#,
+            r#"{"rule": {"name": string, "conditions": [{"if": "from"|"to"|"subject"|"anyText", "value": string} | {"if": "hasAttachment"|"bulk"}], "matchAll"?: bool, "actions": [{"do": "moveTo", "value": folder} | {"do": "moveToAccount", "value": {"account": string, "folder": string}} (another account's folder) | {"do": "moveToRole", "value": "archive"|…} | {"do": "categorize", "value": name} | {"do": "markRead"|"flag"|"pin"|"delete"}], "account"?: string, "stop"?: bool, "enabled"?: bool, "sent"?: bool (on mail you send, as its copy reaches Sent, not mail arriving)}}"#,
         ),
         CommandSpec::new("rules.delete", "Delete rule", "Home › Rules", |s, v| {
             let i = p::u64(v, "index").and_then(|i| usize::try_from(i).ok()).ok_or_else(|| CmdError::Params("`index` is required".into()))?;

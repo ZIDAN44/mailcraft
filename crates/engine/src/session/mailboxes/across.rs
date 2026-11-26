@@ -53,6 +53,24 @@ impl Session {
         if sel.is_empty() {
             return Err(CmdError::Disabled("no message selected".into()));
         }
+        let next = if moved && self.takes_mail(account) { self.successor(&self.selection.clone()) } else { None };
+        let (done, filed) = self.transfer(sel, account, folder, moved)?;
+        if moved && filed > 0 {
+            self.after_removal(next);
+        }
+        Ok(done)
+    }
+
+    /// Move (`moved`) or copy `sel` into `folder` of `account`: what was done, and how many
+    /// were filed (and, moved, deleted where they were) at once. A rule's move into another
+    /// account's folder goes this way too.
+    pub(in crate::session) fn transfer(
+        &mut self,
+        sel: Vec<SharedSummary>,
+        account: &str,
+        folder: &str,
+        moved: bool,
+    ) -> Result<(Value, usize), CmdError> {
         if self.account(account).is_none() {
             return Err(CmdError::Params(format!("no account `{account}`")));
         }
@@ -126,7 +144,6 @@ impl Session {
                 "More than {WAITING_MAX} of these messages aren't downloaded yet, too many to download at once: pick fewer of them."
             )));
         }
-        let next = if moved && here { self.successor(&self.selection.clone()) } else { None };
         let (done, sending) = (filed.len(), ready.len());
         if let Some(f) = filing {
             self.file_and_remove(account, folder, f, filed, moved)?;
@@ -152,10 +169,7 @@ impl Session {
         if missing > 0 {
             self.notice(format!("{missing} couldn't be {did}: {} never downloaded.", if missing == 1 { "it was" } else { "they were" }), true);
         }
-        if moved && done > 0 {
-            self.after_removal(next);
-        }
-        Ok(serde_json::json!({ did: done, "sending": sending, "waiting": asked, "failed": missing }))
+        Ok((serde_json::json!({ did: done, "sending": sending, "waiting": asked, "failed": missing }), done))
     }
 
     /// Hand `mail`, all for one folder on a server, to the network layer to be uploaded there.

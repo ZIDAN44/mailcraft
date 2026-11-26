@@ -2204,3 +2204,5 @@ count	occurrences	次
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	此邮件位于垃圾邮件中或其发件人已被阻止，因此其图片保持隐藏。
 	Unless suspicious	除非可疑
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	除非可疑：当你的邮件服务器确认了邮件的发件人时。始终：除垃圾邮件中的邮件和被阻止发件人的邮件外的所有邮件。每张图片所在的服务器可以看到你的 IP 地址以及你打开邮件的时间；跟踪图片仍被阻止
+	For mail to	适用于发送到
+	Every account	所有帐户

@@ -2208,3 +2208,5 @@ count	occurrences	kez
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Bu ileti Gereksiz E-posta klasöründe ya da göndericisi engellenmiş, bu yüzden resimleri gizli kalır.
 	Unless suspicious	Şüpheli değilse
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Şüpheli değilse: posta sunucunuz iletiyi kimin gönderdiğini doğruladığında. Her zaman: Gereksiz E-posta'dakiler ve engellenen göndericilerden gelenler dışında her ileti. Her resmin bulunduğu sunucu IP adresinizi ve iletiyi ne zaman açtığınızı görebilir; izleme resimleri engelli kalır
+	For mail to	Şu hesabın postası
+	Every account	Tüm hesaplar

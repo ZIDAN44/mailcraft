@@ -9,7 +9,8 @@
 //! Dovecot (any user, password `pw`, cleartext allowed). Found there: folders whose names have
 //! a `"` or a `\` in them were shown, and asked for, with the server's escapes still in. Then
 //! what an audit changed in moving mail to another account: its categories and the day it came
-//! go with it, and it's deleted where it was once its copy is there.
+//! go with it, and it's deleted where it was once its copy is there. And a rule moving one
+//! account's mail into another account's folder.
 
 #[path = "support/servers.rs"]
 mod servers;
@@ -93,4 +94,22 @@ fn real_awkward_names_and_mail_between_accounts() {
     assert!(["\\Seen", "\\Flagged", "to=20do"].iter().all(|f| m.flags.iter().any(|x| x == f)), "{m:?}");
     assert!(m.line.contains("02-Nov-2026"), "the day it came: {m:?}");
     assert!(!other.subjects("INBOX").contains(&"Note 2".to_string()), "moved, not copied");
+
+    // A rule for Kim's mail moving it into a folder of Lee's account, as Outlook's can: filed
+    // there, gone from Kim's Inbox (the folder was looked for in Kim's account, and nothing moved).
+    theirs.create("Projects");
+    app.s.run("mail.sync", &json!({})).unwrap();
+    app.pump(120, "Lee's Projects", |s, _| s.folder(&b, "Projects").is_some());
+    let rule = json!({
+        "name": "To Lee", "account": a,
+        "conditions": [{"if": "subject", "value": "Note 3"}],
+        "actions": [{"do": "moveToAccount", "value": {"account": b, "folder": "Projects"}}],
+    });
+    app.s.run("rules.set", &json!({"rules": [rule]})).unwrap();
+    let r = app.s.run("rules.run", &json!({"inbox": true})).unwrap();
+    assert_eq!(r["matched"], 1, "{r}");
+    app.pump(120, "the rule's copy", |_, e| matches!(e, Event::CopiesFiled { .. }));
+    app.settle(8);
+    assert_eq!(theirs.subjects("Projects"), ["Note 3"]);
+    assert!(!other.subjects("INBOX").contains(&"Note 3".to_string()), "moved by the rule");
 }

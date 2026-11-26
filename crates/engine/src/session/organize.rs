@@ -254,6 +254,15 @@ impl Session {
                 }
             }
         }
+        for a in rules.iter_mut().flat_map(|r| r.actions.iter_mut()) {
+            if let RuleAction::MoveToAccount { account: in_account, folder } = a
+                && in_account == account
+                && let Some(new) = mailcraft_model::rebase_path(folder, from, to, delimiter)
+            {
+                *folder = new;
+                changed = true;
+            }
+        }
         if changed {
             self.rules = rules;
             if let Some(store) = &self.store
@@ -541,6 +550,7 @@ impl Session {
     fn apply_rules<S: std::borrow::Borrow<Summary>>(&mut self, rules: &[Rule], msgs: &[S]) -> (Vec<MessageKey>, usize) {
         let (mut quiet, mut matched) = (Vec::new(), 0usize);
         let mut changes = Batch::default();
+        let mut across: Vec<(String, String, MessageKey)> = Vec::new();
         let (sending, arriving): (Vec<Rule>, Vec<Rule>) = rules.iter().cloned().partition(|r| r.sent);
         for m in msgs {
             let m: &Summary = m.borrow();
@@ -552,7 +562,9 @@ impl Session {
             matched += 1;
             let a = m.key.account.clone();
             let keys = vec![m.key.clone()];
-            let mut dest: Option<String> = None;
+            // Where it goes: a folder of its own account, or of another, as Outlook's rules can.
+            let mut dest: Option<(String, String)> = None;
+            let own = |path: Option<String>| path.map(|p| (a.clone(), p));
             for act in actions {
                 match act {
                     RuleAction::MarkRead => {
@@ -566,23 +578,47 @@ impl Session {
                             changes.add(&a, Op::SetKeyword { keys: keys.clone(), keyword: kw, on: true });
                         }
                     }
-                    RuleAction::MoveTo(f) => dest = self.folder(&a, &f).map(|f| f.path.clone()).or(dest),
-                    RuleAction::MoveToRole(r) => dest = self.account(&a).and_then(|x| x.folder(r)).map(|f| f.path.clone()).or(dest),
-                    RuleAction::Delete => dest = self.account(&a).and_then(|x| x.folder(FolderRole::Trash)).map(|f| f.path.clone()).or(dest),
+                    RuleAction::MoveTo(f) => dest = own(self.folder(&a, &f).map(|f| f.path.clone())).or(dest),
+                    RuleAction::MoveToRole(r) => dest = own(self.account(&a).and_then(|x| x.folder(r)).map(|f| f.path.clone())).or(dest),
+                    RuleAction::Delete => dest = own(self.account(&a).and_then(|x| x.folder(FolderRole::Trash)).map(|f| f.path.clone())).or(dest),
+                    RuleAction::MoveToAccount { account, folder } => {
+                        dest = self.folder(&account, &folder).map(|f| (f.account.clone(), f.path.clone())).or(dest);
+                    }
                 }
             }
             // Moves last (`apply_changes`), so flags and categories are set on the message before
             // it leaves. Mail filed in a folder is still new mail (announced, as Outlook does);
             // mail a rule sends to Deleted Items or Junk isn't.
-            if let Some(to) = dest.filter(|to| *to != m.key.folder) {
-                let role = self.folder(&a, &to).map(|f| f.role);
-                if matches!(role, Some(FolderRole::Trash | FolderRole::Junk)) {
-                    quiet.push(m.key.clone());
-                }
+            let Some((to_account, to)) = dest.filter(|(acc, to)| *acc != a || *to != m.key.folder) else { continue };
+            let role = self.folder(&to_account, &to).map(|f| f.role);
+            if matches!(role, Some(FolderRole::Trash | FolderRole::Junk)) {
+                quiet.push(m.key.clone());
+            }
+            if to_account == a {
                 changes.add(&a, Op::Move { keys, to });
+            } else {
+                across.push((to_account, to, m.key.clone()));
             }
         }
         self.apply_changes(changes);
+        // Into another account's folder: a copy filed there with the flags the rules set, then
+        // deleted here once it's there (a message not downloaded yet goes when it is).
+        let mut by_folder: Vec<((String, String), Vec<SharedSummary>)> = Vec::new();
+        for (account, folder, key) in across {
+            let now = self.folder_state(&key.account, &key.folder).messages.iter().find(|x| x.key == key).cloned();
+            let Some(m) = now.or_else(|| msgs.iter().map(|m| m.borrow()).find(|m| m.key == key).map(|m| SharedSummary::new(m.clone()))) else {
+                continue;
+            };
+            match by_folder.iter_mut().find(|(at, _)| *at == (account.clone(), folder.clone())) {
+                Some((_, list)) => list.push(m),
+                None => by_folder.push(((account, folder), vec![m])),
+            }
+        }
+        for ((account, folder), mail) in by_folder {
+            if let Err(e) = self.transfer(mail, &account, &folder, true) {
+                self.notice(format!("A rule couldn't move mail into {}: {e}", mailcraft_model::utf7::decode(&folder)), true);
+            }
+        }
         (quiet, matched)
     }
 

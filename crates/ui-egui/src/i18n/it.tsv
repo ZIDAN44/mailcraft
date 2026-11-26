@@ -2207,3 +2207,5 @@ count	occurrences	ripetizioni
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Questo messaggio è nella Posta indesiderata o il mittente è bloccato, quindi le sue immagini restano nascoste.
 	Unless suspicious	Se non sospetto
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Se non sospetto: quando il tuo server di posta ha confermato chi ha inviato un messaggio. Sempre: ogni messaggio tranne quelli nella Posta indesiderata e quelli da mittenti bloccati. Il server su cui si trova ogni immagine può vedere il tuo indirizzo IP e quando hai aperto il messaggio; le immagini di tracciamento restano bloccate
+	For mail to	Per la posta di
+	Every account	Tutti gli account

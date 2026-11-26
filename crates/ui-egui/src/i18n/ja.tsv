@@ -2204,3 +2204,5 @@ count	occurrences	回
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	このメッセージは迷惑メールにあるか、差出人が受信拒否されているため、画像は非表示のままです。
 	Unless suspicious	疑わしくない場合
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	疑わしくない場合: メール サーバーが差出人を確認したとき。常に: 迷惑メールにあるものと受信拒否された差出人からのもの以外のすべてのメッセージ。各画像のあるサーバーには、あなたの IP アドレスとメッセージを開いた日時がわかります。トラッキング画像は引き続きブロックされます
+	For mail to	対象のアカウント
+	Every account	すべてのアカウント

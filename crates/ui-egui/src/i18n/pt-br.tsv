@@ -2208,3 +2208,5 @@ count	occurrences	ocorrências
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Esta mensagem está no Lixo eletrônico ou o remetente está bloqueado, então as imagens continuam ocultas.
 	Unless suspicious	A menos que seja suspeita
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	A menos que seja suspeita: quando seu servidor de email confirmou quem enviou a mensagem. Sempre: todas as mensagens, exceto as do Lixo eletrônico e as de remetentes bloqueados. O servidor de cada imagem pode ver seu endereço IP e quando você abriu a mensagem; as imagens de rastreamento continuam bloqueadas
+	For mail to	Para emails de
+	Every account	Todas as contas

@@ -2208,3 +2208,5 @@ count	occurrences	előfordulás
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Ez az üzenet a Levélszemét mappában van, vagy a feladója le van tiltva, ezért a képei rejtve maradnak.
 	Unless suspicious	Kivéve, ha gyanús
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Kivéve, ha gyanús: ha a levelezőkiszolgálója megerősítette, ki küldte az üzenetet. Mindig: minden üzenetnél, kivéve a Levélszemét mappában lévőket és a letiltott feladóktól érkezőket. Az a kiszolgáló, amelyen egy kép van, látja az IP-címét és azt, mikor nyitotta meg az üzenetet; a követőképek továbbra is tiltva maradnak
+	For mail to	Ennek a levelei
+	Every account	Minden fiók

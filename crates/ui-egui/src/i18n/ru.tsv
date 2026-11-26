@@ -2221,3 +2221,5 @@ count	occurrences	повторений
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Это сообщение в папке «Нежелательная почта» или его отправитель заблокирован, поэтому изображения остаются скрытыми.
 	Unless suspicious	Если не подозрительное
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Если не подозрительное: когда почтовый сервер подтвердил, кто отправил сообщение. Всегда: все сообщения, кроме находящихся в нежелательной почте и от заблокированных отправителей. Сервер, на котором лежит изображение, видит ваш IP-адрес и время открытия сообщения; следящие изображения по-прежнему блокируются
+	For mail to	Для почты на
+	Every account	Все учётные записи

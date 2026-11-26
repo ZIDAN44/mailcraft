@@ -128,6 +128,7 @@ fn rule_parts(rule: &Rule, cx: &Context) -> Result<(String, String, Vec<&'static
                 let p = cx.folder(FolderRole::Trash)?.to_string();
                 folder.get_or_insert(p);
             }
+            RuleAction::MoveToAccount { .. } => return Err("a rule on the server can't move mail into another account".into()),
         }
     }
     let mut actions = String::new();

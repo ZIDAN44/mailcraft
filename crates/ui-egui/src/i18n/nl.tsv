@@ -2203,3 +2203,5 @@ count	occurrences	keer
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Dit bericht staat in Ongewenste e-mail of de afzender is geblokkeerd, dus de afbeeldingen blijven verborgen.
 	Unless suspicious	Tenzij verdacht
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Tenzij verdacht: als uw mailserver heeft bevestigd wie een bericht heeft verzonden. Altijd: elk bericht behalve die in Ongewenste e-mail en van geblokkeerde afzenders. De server waarop een afbeelding staat, ziet uw IP-adres en wanneer u het bericht opende; volgafbeeldingen blijven geblokkeerd
+	For mail to	Voor e-mail aan
+	Every account	Alle accounts

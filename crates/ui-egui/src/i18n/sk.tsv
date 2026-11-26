@@ -2222,3 +2222,5 @@ count	occurrences	opakovaní
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Táto správa je v Nevyžiadanej pošte alebo je jej odosielateľ blokovaný, preto jej obrázky zostávajú skryté.
 	Unless suspicious	Ak nie je podozrivá
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Ak nie je podozrivá: keď poštový server potvrdil, kto správu poslal. Vždy: každá správa okrem tých v Nevyžiadanej pošte a od blokovaných odosielateľov. Server, na ktorom je obrázok, vidí vašu IP adresu a kedy ste správu otvorili; sledovacie obrázky zostávajú blokované
+	For mail to	Pre poštu pre
+	Every account	Všetky účty

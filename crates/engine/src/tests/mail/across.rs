@@ -378,3 +378,48 @@ fn a_failed_copy_names_the_folder_as_shown() {
     let said = s.notices.last().map(|n| n.text.clone()).unwrap_or_default();
     assert!(said.contains("copied to Entwürfe") && !said.contains("&APw-"), "{said}");
 }
+
+/// A rule for one account's mail moves it into another account's folder, as Outlook's can: its
+/// copy is filed there with what the rules marked, then deleted where it came; one not
+/// downloaded yet goes when it is. (The folder was looked for in the mail's own account, so
+/// nothing moved, and the Rules dialog made the rule the folder's account's.)
+#[test]
+fn a_rule_moves_mail_into_another_accounts_folder() {
+    let (mut s, file, server, [first, second]) = two_accounts("across-rule");
+    let rule = json!({
+        "name": "To the file", "account": server,
+        "conditions": [{"if": "from", "value": "x.example"}],
+        "actions": [{"do": "markRead"}, {"do": "moveToAccount", "value": {"account": file, "folder": "Kept"}}],
+    });
+    s.run("rules.set", &json!({"rules": [rule]})).unwrap();
+    let r = s.run("rules.run", &json!({"inbox": true})).unwrap();
+    assert_eq!(r["matched"].as_u64(), Some(2), "{r}");
+    assert_eq!(held(&s, &file, "Kept"), [("First".to_string(), true, true, vec!["work".to_string()])]);
+    let jobs = s.take_jobs();
+    assert!(
+        jobs.iter().any(
+            |j| matches!(j, Job::Apply { account, op: Op::Expunge { keys } } if account == &server && keys.as_slice() == std::slice::from_ref(&first))
+        ),
+        "deleted where it came: {jobs:?}"
+    );
+    assert!(jobs.iter().any(|j| matches!(j, Job::FetchBody { key } if key == &second)), "{jobs:?}");
+    // The other comes: filed, marked read by the rule.
+    s.apply(Event::Body { key: second.clone(), raw: SECOND.to_vec() });
+    let kept = held(&s, &file, "Kept");
+    assert_eq!(kept.iter().map(|m| (m.0.as_str(), m.1)).collect::<Vec<_>>(), [("Second", true), ("First", true)]);
+
+    // A folder of the mail's own account, named with it: moved there as ever.
+    let (mut s, _, server, [first, _]) = two_accounts("across-rule-own");
+    let rule = json!({
+        "name": "Away", "conditions": [{"if": "from", "value": "ana@"}],
+        "actions": [{"do": "moveToAccount", "value": {"account": server, "folder": "Trash"}}],
+    });
+    s.run("rules.set", &json!({"rules": [rule]})).unwrap();
+    s.run("rules.run", &json!({"inbox": true})).unwrap();
+    let jobs = s.take_jobs();
+    assert!(
+        jobs.iter()
+            .any(|j| matches!(j, Job::Apply { op: Op::Move { keys, to }, .. } if to == "Trash" && keys.as_slice() == std::slice::from_ref(&first))),
+        "{jobs:?}"
+    );
+}

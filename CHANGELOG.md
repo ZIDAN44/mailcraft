@@ -68,6 +68,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Fixed
 
+- A rule can move mail into a folder of another account, as Outlook's can: picking such a folder made the rule that account's, so the mail it was made for never matched and nothing moved. With more than one account, a rule's **For mail to** says whose mail it's for (a rule made from a message: that message's account). Tried on Dovecot.
 - A change to an event, a task or a contact on a calendar server made soon after another (a task changed twice, an invitation answered as MailCraft opened) could be refused as "changed on the server meanwhile", the server's copy kept in its place: a sync that began before the one before it was taken in sent that one's changes again. A sync now waits for the one before (found on Stalwart, testing #294).
 - A task's due or start time of day from another program (Nextcloud's Tasks, Thunderbird) shows beside its day, in the task list and its form, and stays when its day is changed here (#294): it went back to the server as the day alone, the time lost.
 - The system's file dialogs MailCraft opens (**Save as**, attaching files, importing rules, keys or a data file…) have their titles and kinds of file in MailCraft's language (#292): they were English in a German window ("Save as", "Email message (*.eml)").

@@ -2208,3 +2208,5 @@ count	occurrences	occurrences
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Ce message est dans le Courrier indésirable ou son expéditeur est bloqué : ses images restent masquées.
 	Unless suspicious	Sauf si suspect
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Sauf si suspect : quand votre serveur de messagerie a confirmé qui a envoyé un message. Toujours : tous les messages, sauf ceux du Courrier indésirable et des expéditeurs bloqués. Le serveur de chaque image peut voir votre adresse IP et quand vous avez ouvert le message ; les images de suivi restent bloquées
+	For mail to	Pour le courrier de
+	Every account	Tous les comptes

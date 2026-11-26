@@ -56,7 +56,9 @@ impl QuickStepForm {
                 RuleAction::Flag => f.flag = true,
                 RuleAction::Pin => f.pin = true,
                 RuleAction::Categorize(c) => f.category = c.clone(),
-                RuleAction::MoveTo(p) => f.move_to = StepMove::Folder(p.clone()),
+                // Another account's folder (made by a command: the form offers its own account's):
+                // shown by its path.
+                RuleAction::MoveTo(p) | RuleAction::MoveToAccount { folder: p, .. } => f.move_to = StepMove::Folder(p.clone()),
                 RuleAction::MoveToRole(r) => f.move_to = StepMove::Role(*r),
                 RuleAction::Delete => f.move_to = StepMove::Role(FolderRole::Trash),
             }

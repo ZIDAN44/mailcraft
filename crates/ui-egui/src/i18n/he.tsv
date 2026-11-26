@@ -2203,3 +2203,5 @@ count	occurrences	פעמים
 	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	ההודעה הזו בדואר זבל או שהשולח שלה חסום, ולכן התמונות שלה נשארות מוסתרות.
 	Unless suspicious	אלא אם היא חשודה
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	אלא אם היא חשודה: כששרת הדואר שלך אישר מי שלח את ההודעה. תמיד: כל הודעה מלבד אלה שבדואר זבל ואלה משולחים חסומים. השרת שעליו נמצאת כל תמונה יכול לראות את כתובת ה-IP שלך ומתי פתחת את ההודעה; תמונות מעקב נשארות חסומות
+	For mail to	לדואר אל
+	Every account	כל החשבונות

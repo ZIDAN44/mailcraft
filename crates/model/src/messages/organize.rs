@@ -77,6 +77,12 @@ impl Condition {
 pub enum RuleAction {
     /// Move to a folder (its path) of the same account.
     MoveTo(String),
+    /// Move to a folder (its path) of another account, as Outlook's rules can: a copy filed
+    /// there, then deleted where it came.
+    MoveToAccount {
+        account: String,
+        folder: String,
+    },
     /// Move to the folder with this role (Archive, Junk…).
     MoveToRole(FolderRole),
     MarkRead,
