@@ -348,6 +348,9 @@ pub struct Prefs {
     /// Play animations: hovers and selections easing, panes sliding, notices sliding in (off:
     /// everything changes at once).
     pub animations: bool,
+    /// The Reminders window comes up over other apps' windows, without taking the keyboard
+    /// (issue #299: drawn in MailCraft's window, it was behind the app being worked in).
+    pub reminders_on_top: bool,
     /// Compact data files as MailCraft closes, when one has room to give back and that takes
     /// no longer than closing waits for (File › Options › Data files; off unless chosen: it's
     /// done when MailCraft is left alone, or by hand, either way).
@@ -521,6 +524,7 @@ impl Default for Prefs {
             reminders: BTreeMap::new(),
             search_folders: Vec::new(),
             animations: true,
+            reminders_on_top: true,
             compact_on_close: false,
             auto_archive: AutoArchive::default(),
             search_scope: SearchScope::Mailbox,

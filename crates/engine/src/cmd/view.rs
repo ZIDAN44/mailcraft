@@ -464,6 +464,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         }).setting("mark_read_on_open,read_after_secs,read_in_pane")
         .params(r#"{"markRead"?: bool (in the reading pane at all; opening a message in its own window always does), "when"?: "shown"|"left" (when it's shown, or once another is chosen), "after"?: number (seconds shown first, with "shown")}"#),
         toggle!("view.animations", "Play animations", "File › Options › General", animations, r#"{"on"?: bool (none: switch)}"#),
+        toggle!(
+            "view.remindersOnTop",
+            "Reminders over other apps' windows",
+            "File › Options › Calendar",
+            reminders_on_top,
+            r#"{"on"?: bool (none: switch; on, the Reminders window comes up over the app being worked in, without taking the keyboard)}"#
+        ),
         toggle!("view.photoLocation", "Send where photos were taken", "File › Options › Safety", keep_photo_location, r#"{"on"?: bool (none: switch; off, the place is taken out of attached photos as they're sent)}"#),
         toggle!("view.cleanLinks", "Open links without their tracking", "File › Options › Safety", clean_links, r#"{"on"?: bool (none: switch; on, a link opens out of its redirect wrapper and without the tags naming the reader)}"#),
         toggle!("view.autoPictures", "Show web pictures unless a message looks suspicious", "File › Options › Safety", auto_pictures, r#"{"on"?: bool (none: switch; on, a message whose sender the mail server confirmed shows its web pictures as it opens)}"#)

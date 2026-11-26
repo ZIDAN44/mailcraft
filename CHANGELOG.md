@@ -16,6 +16,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Added
 
+- The **Reminders** window comes up over other apps' windows (#299), as Outlook's can, without taking the keyboard from the app you're working in: a window of its own, no longer inside MailCraft's, where a reminder waited behind that app. It comes with MailCraft minimized too, and the desktop is told of a reminder as it comes (with MailCraft minimized, or covered on a Mac, both waited for it to be shown again). **File › Options › Calendar › Reminders over other apps' windows** turns it off. Tried on Windows and macOS; not on Linux.
 - **New task list…** in Tasks makes a task list on your calendars' server (#294): a server with none (a new Nextcloud account, before its Tasks app was opened) kept MailCraft's tasks on this computer. Tried on Nextcloud and Radicale.
 - **Create event** and **Create task** in a message's **More actions** (⋯) (#297): the message's subject and text in a new event that invites no one (**Reply with meeting** invites the people on it), or in a new task, due on the day the message's follow-up flag is due.
 - A rule can be for one mailing list (#288): **Mailing list (List-Id) contains** matches the list's id or its name as its `List-Id` says, in MailCraft's own rules and in rules kept on a Sieve server (tried on Dovecot). Rules run again on mail that came before this version don't find its list. Other headers aren't looked at yet ([gap 28](docs/gaps.md#28-rules-on-other-headers)).

@@ -5,6 +5,7 @@ use crate::*;
 use super::ribbon::{RIBBON_H, RIBBON_H_CLASSIC, module_switch, module_switch_vertical};
 
 mod guard;
+mod reminding;
 pub use guard::FramePart;
 pub(crate) use guard::{FrameGuard, guarded_window};
 
@@ -45,6 +46,12 @@ impl MailApp {
         }
         // An organisation's theme and language (issue #245), as accounts come and go.
         self.follow_organisation();
+        // Calendar reminders, the window minimized or covered too (issue #299).
+        let mut acts = Vec::new();
+        self.remind(ctx, true, &mut acts);
+        for a in acts {
+            self.act(a);
+        }
         self.announce(ctx);
         self.flush_jobs();
     }
@@ -713,23 +720,9 @@ impl MailApp {
         crate::a11y::said(&ctx);
         self.undo_bar(&ctx);
         self.send_receive_window(&ctx);
-        // Calendar reminders: the window, and the desktop told of each as it comes. A message's
-        // own page leaves them to the main window's (each page would tell of them again).
-        if self.ui.page_message.is_none() {
-            // Flagged mail's (gap 9) are found in every folder's flagged mail, read a folder a
-            // frame as the To-Do Bar reads it, when there may be some.
-            if self.session.mail_reminders_wanted() && self.session.todo_step() {
-                ctx.request_repaint();
-            }
-            for r in reminders::refresh(&mut self.ui.reminders, &self.session, false) {
-                let when = if r.all_day { String::new() } else { crate::calendar::hm(r.start, &self.session) };
-                self.services.notify_reminder(&r.summary, &if r.location.is_empty() { when } else { format!("{when} · {}", r.location) });
-            }
-            reminders::show(&ctx, &mut self.ui.reminders, &self.session, &t, &mut acts);
-            if reminders::showing(&self.ui.reminders) {
-                ctx.request_repaint_after(std::time::Duration::from_secs(15));
-            }
-        }
+        // Calendar reminders: the desktop told of each as it comes, and their window, when it's
+        // in MailCraft's (`logic` opens one of its own).
+        self.remind(&ctx, false, &mut acts);
         // Video thumbnails the cards asked for.
         for (path, (frame, _)) in self.ui.video_frames.iter_mut().filter(|(_, (f, _))| *f == VideoFrame::Pending) {
             *frame = self.services.video_frame(path);
