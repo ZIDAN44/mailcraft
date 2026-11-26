@@ -1,8 +1,10 @@
 //! The event form's Show as and Private (issue #32): how the event shows its time to those
 //! planning around it, and whether others see what it is. Outlook's Private is the lock; "Show
-//! time only" is the third choice SOGo and Thunderbird have (`CLASS:CONFIDENTIAL`).
+//! time only" is the third choice SOGo and Thunderbird have (`CLASS:CONFIDENTIAL`). And the
+//! calendar it's in, picked for a new one, or moved to for one of a CalDAV account (issue #279).
 
 use egui::{RichText, Ui, vec2};
+use mailcraft_engine::Session;
 use mailcraft_engine::model::ical::{Privacy, ShowAs};
 
 use super::{EventForm, FIELD_H, form_row};
@@ -49,4 +51,56 @@ pub(super) fn show_as_row(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
             },
         );
     });
+}
+
+pub(super) fn writable_calendars(s: &Session) -> Vec<(String, String, String)> {
+    let mut out = Vec::new();
+    for a in &s.accounts {
+        if let Some(p) = s.pim.get(&a.config.id) {
+            for c in p.calendars.iter().filter(|c| !c.read_only) {
+                let name = if c.id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { c.name.clone() };
+                out.push((a.config.id.clone(), c.id.clone(), format!("{name} · {}", a.config.email)));
+            }
+        }
+    }
+    out
+}
+
+/// The calendar a new event goes in, when there's more than one; for an event opened, the
+/// calendars of its account it can move to (issue #279): a CalDAV account's (Exchange's aren't
+/// moved between yet), and not this computer's for a meeting on the server, whose guests would
+/// be told it's off.
+pub(super) fn calendar_row(ui: &mut Ui, s: &Session, t: &Tokens, f: &mut EventForm) {
+    let options: Vec<usize> = match &f.calendar_was {
+        None => (0..f.calendars.len()).collect(),
+        Some(was) => {
+            let Some(account) = f.calendars.iter().find(|c| &c.1 == was).map(|c| c.0.clone()) else { return };
+            if !s.pim.get(&account).is_some_and(|p| p.caldav_home.as_deref().is_some_and(|h| !h.is_empty())) {
+                return;
+            }
+            let local = mailcraft_engine::model::pim::LOCAL;
+            let meeting = !f.guests.trim().is_empty() && was != local;
+            (0..f.calendars.len()).filter(|i| f.calendars.get(*i).is_some_and(|c| c.0 == account && !(meeting && c.1 == local))).collect()
+        }
+    };
+    if options.len() > 1 {
+        let name = f.calendars.get(f.calendar).map(|c| c.2.clone()).unwrap_or_default();
+        form_row(ui, t, true, Some(Icon::Calendar), "Calendar", |ui| {
+            ui.allocate_ui_with_layout(vec2(260.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                let r = egui::ComboBox::from_id_salt("event-calendar")
+                    .width(254.0)
+                    .selected_text(name)
+                    .show_ui(ui, |ui| {
+                        for i in &options {
+                            if let Some(c) = f.calendars.get(*i) {
+                                ui.selectable_value(&mut f.calendar, *i, &c.2);
+                            }
+                        }
+                    })
+                    .response
+                    .accessible_name(tl!("Calendar"));
+                crate::drop_down::keys(ui, &r, &mut f.calendar, &options);
+            });
+        });
+    }
 }

@@ -88,7 +88,7 @@ pub const AGENT_TOOLS: &[AgentTool] = &[
     AgentTool {
         name: "list_events",
         title: "Calendar",
-        description: "The events in the user's calendars from one day to another (each occurrence of a series on its own): title, start and end, place, whether it's all day, the user's answer to a meeting, its organizer and guests, and its calendar. Default: today and the six days after.",
+        description: "The events in the user's calendars from one day to another (each occurrence of a series on its own): title, start and end, place, whether it's all day, the user's answer to a meeting, its organizer and guests, and its calendar (its name, and its id as `calendarId`). Default: today and the six days after.",
         schema: || {
             object(
                 json!({
@@ -398,6 +398,7 @@ impl Session {
                     "uid": i.uid,
                     "account": i.account,
                     "calendar": calendar.unwrap_or_else(|| i.calendar.clone()),
+                    "calendarId": i.calendar,
                     "title": i.summary,
                     "location": i.location,
                     "start": i.start,

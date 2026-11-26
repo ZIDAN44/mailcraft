@@ -1725,7 +1725,6 @@ month	May	május
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	az OpenPGP-kulcsaidat a MailCraft asztali alkalmazása tudja használni, a böngészős változat nem
 	Not sent yet: this is a draft.	Még nincs elküldve: ez egy piszkozat.
 	Show web pictures unless a message looks suspicious	Webes képek megjelenítése, ha az üzenet nem gyanús
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	A képek megnyitáskor betöltődnek, ha a levelezőkiszolgáló ellenőrizte a feladót, és az üzenet nincs a Levélszemét mappában. A képet kiszolgáló szerver láthatja az IP-címedet és a megnyitás időpontját. A követőképek továbbra is blokkolva maradnak.
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Az üzenet gyanúsnak tűnik, vagy a feladót nem sikerült ellenőrizni, ezért a képek rejtve maradnak.
 	These senders' pictures always load, even when a message looks suspicious:	A következő feladók képei akkor is betöltődnek, ha az üzenet gyanúsnak tűnik:
 	Open a mail file	Üzenetfájl megnyitása
@@ -2075,6 +2074,8 @@ count	occurrences	előfordulás
 	Didn't run: {why}	Nem futott le: {why}
 	Let AI agents ask to run commands	Az MI-ügynökök kérhetik parancsok futtatását
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Küldés, áthelyezés, meghívó megválaszolása… mindegyikről itt kérdez előbb, hacsak nem engedélyezi mindig. Kikapcsolva az ügynökök csak olvasnak.
+	Always allow every command	Minden parancs engedélyezése mindig
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Továbbra is előbb kérdez: küldés másoknak, fiókok és biztonság, a web, fájlok mentése és végleges törlés.
 	Accounts AI agents read	Az MI-ügynökök által olvasott fiókok
 	One turned off is left out of all they read, and they can't take pictures of the window	A kikapcsolt fiók kimarad mindenből, amit olvasnak, és nem készíthetnek képet az ablakról
 	… and {n} more characters	… és még {n} karakter
@@ -2169,3 +2170,43 @@ count	occurrences	előfordulás
 	Their times can't be had: {why}	Az idejük nem érhető el: {why}
 	You	Te
 	{free} of {all} free	{all} közül {free} szabad
+	Pictures from the web weren't loaded.	A webes képek nem töltődtek be.
+	(The rest of the message didn't fit in this document.)	(Az üzenet többi része nem fért el ebben a dokumentumban.)
+	Attach files	Fájlok csatolása
+	Save as	Mentés másként
+	Save attachments to	Mellékletek mentése ide
+	Trust a certificate file	Tanúsítványfájl megbízhatóvá tétele
+	Import categories	Kategóriák importálása
+	Open mail file	Levélfájl megnyitása
+	Insert pictures	Képek beszúrása
+	All files	Minden fájl
+	Certificate with its key	Tanúsítvány a kulcsával
+	Certificate	Tanúsítvány
+	Mail files	Levélfájlok
+	MailCraft categories	MailCraft-kategóriák
+	MailCraft data files	MailCraft-adatfájlok
+	MailCraft rules	MailCraft-szabályok
+	OpenPGP key	OpenPGP-kulcs
+	Outlook data files	Outlook-adatfájlok
+	PDF document	PDF-dokumentum
+	Contact card	Névjegykártya
+	Web page	Weboldal
+	{ext} file	{ext}-fájl
+	Mailing list (List-Id) contains	A levelezőlista (List-Id) tartalmazza
+	is from the list “{text}”	erről a levelezőlistáról érkezett: „{text}”
+	Create event	Esemény létrehozása
+	Create task	Feladat létrehozása
+	New task list	Új feladatlista
+	Task list name	A feladatlista neve
+	New task list…	Új feladatlista…
+	Reminders over other apps' windows	Emlékeztetők más alkalmazások ablakai fölött
+	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	Az Emlékeztetők ablak annak az alkalmazásnak az ablaka fölött jelenik meg, amelyben dolgozik, anélkül hogy elvenné tőle a billentyűzetet.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	Az üzenet fölött: a követőképei, a kattintásokat jelentő hivatkozások és az Ön elől elrejtett szöveg
+	Ask	Kérdezzen
+	Notes about tracking and hidden text	Megjegyzések a követésről és a rejtett szövegről
+	Show web pictures	Webes képek megjelenítése
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Ez az üzenet a Levélszemét mappában van, vagy a feladója le van tiltva, ezért a képei rejtve maradnak.
+	Unless suspicious	Kivéve, ha gyanús
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Kivéve, ha gyanús: ha a levelezőkiszolgálója megerősítette, ki küldte az üzenetet. Mindig: minden üzenetnél, kivéve a Levélszemét mappában lévőket és a letiltott feladóktól érkezőket. Az a kiszolgáló, amelyen egy kép van, látja az IP-címét és azt, mikor nyitotta meg az üzenetet; a követőképek továbbra is tiltva maradnak
+	For mail to	Ennek a levelei
+	Every account	Minden fiók

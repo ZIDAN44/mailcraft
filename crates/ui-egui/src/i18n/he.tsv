@@ -1719,7 +1719,6 @@ month	May	מאי
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	מפתחות OpenPGP שלך משמשים באפליקציה של MailCraft לשולחן העבודה, לא בדפדפן
 	Not sent yet: this is a draft.	עדיין לא נשלח: זוהי טיוטה.
 	Show web pictures unless a message looks suspicious	הצג תמונות מהאינטרנט אלא אם ההודעה נראית חשודה
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	תמונות נטענות כשההודעה נפתחת, אם שרת הדואר אישר מי שלח אותה והיא לא בדואר הזבל. השרת של כל תמונה יכול לראות את כתובת ה-IP שלך ומתי פתחת אותה. תמונות מעקב נשארות חסומות
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	ההודעה נראית חשודה או שלא ניתן היה לאשר את השולח, ולכן התמונות נשארות מוסתרות.
 	These senders' pictures always load, even when a message looks suspicious:	תמונות משולחים אלה נטענות תמיד, גם כשההודעה נראית חשודה:
 	Open a mail file	פתח קובץ דואר
@@ -2070,6 +2069,8 @@ count	occurrences	פעמים
 	Didn't run: {why}	לא בוצע: {why}
 	Let AI agents ask to run commands	לאפשר לסוכני בינה מלאכותית לבקש להריץ פקודות
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	שליחה, העברה, מענה להזמנה… כל אחת נשאלת כאן קודם, אלא אם תמיד תאפשר אותה. כשכבוי, הסוכנים רק קוראים.
+	Always allow every command	לאפשר תמיד כל פקודה
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	עדיין נשאל קודם: שליחה לאנשים אחרים, חשבונות ואבטחה, הרשת, שמירת קבצים ומחיקה לצמיתות.
 	Accounts AI agents read	חשבונות שסוכני בינה מלאכותית קוראים
 	One turned off is left out of all they read, and they can't take pictures of the window	חשבון כבוי מושמט מכל מה שהם קוראים, והם לא יכולים לצלם את החלון
 	… and {n} more characters	… ועוד {n} תווים
@@ -2164,3 +2165,43 @@ count	occurrences	פעמים
 	Their times can't be had: {why}	אי אפשר לקבל את הזמנים שלהם: {why}
 	You	את/ה
 	{free} of {all} free	{free} מתוך {all} פנויים
+	Pictures from the web weren't loaded.	תמונות מהאינטרנט לא נטענו.
+	(The rest of the message didn't fit in this document.)	(שאר ההודעה לא נכנס למסמך הזה.)
+	Attach files	צירוף קבצים
+	Save as	שמירה בשם
+	Save attachments to	שמירת הקבצים המצורפים בתיקייה
+	Trust a certificate file	מתן אמון בקובץ תעודה
+	Import categories	ייבוא קטגוריות
+	Open mail file	פתיחת קובץ דואר
+	Insert pictures	הוספת תמונות
+	All files	כל הקבצים
+	Certificate with its key	תעודה עם המפתח שלה
+	Certificate	תעודה
+	Mail files	קובצי דואר
+	MailCraft categories	קטגוריות של MailCraft
+	MailCraft data files	קובצי נתונים של MailCraft
+	MailCraft rules	כללים של MailCraft
+	OpenPGP key	מפתח OpenPGP
+	Outlook data files	קובצי נתונים של Outlook
+	PDF document	מסמך PDF
+	Contact card	כרטיס איש קשר
+	Web page	דף אינטרנט
+	{ext} file	קובץ {ext}
+	Mailing list (List-Id) contains	רשימת התפוצה (List-Id) מכילה
+	is from the list “{text}”	מרשימת התפוצה „{text}”
+	Create event	יצירת אירוע
+	Create task	יצירת משימה
+	New task list	רשימת משימות חדשה
+	Task list name	שם רשימת המשימות
+	New task list…	רשימת משימות חדשה…
+	Reminders over other apps' windows	תזכורות מעל חלונות של אפליקציות אחרות
+	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	חלון התזכורות מופיע מעל האפליקציה שבה אתם עובדים, בלי לקחת ממנה את המקלדת.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	מעל ההודעה: תמונות המעקב שבה, קישורים שמדווחים על לחיצות, וטקסט שהיא מסתירה ממך
+	Ask	לשאול
+	Notes about tracking and hidden text	הערות על מעקב וטקסט מוסתר
+	Show web pictures	הצגת תמונות מהאינטרנט
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	ההודעה הזו בדואר זבל או שהשולח שלה חסום, ולכן התמונות שלה נשארות מוסתרות.
+	Unless suspicious	אלא אם היא חשודה
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	אלא אם היא חשודה: כששרת הדואר שלך אישר מי שלח את ההודעה. תמיד: כל הודעה מלבד אלה שבדואר זבל ואלה משולחים חסומים. השרת שעליו נמצאת כל תמונה יכול לראות את כתובת ה-IP שלך ומתי פתחת את ההודעה; תמונות מעקב נשארות חסומות
+	For mail to	לדואר אל
+	Every account	כל החשבונות

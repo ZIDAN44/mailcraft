@@ -17,15 +17,16 @@ impl Worker {
     /// time, its mail looked at between ([`Worker::between_pim_steps`]; jobs too, from `rx`).
     pub(in crate::worker) fn sync_dav(&mut self, rx: Option<&Receiver<Job>>) {
         // Exchange Online: its calendars and contacts through Graph.
-        if let Some(Conn::Graph(c)) = &self.conn {
-            let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+        if matches!(self.conn, Some(Conn::Graph(_))) {
+            let pim = self.pim_taken_in();
+            let Some(Conn::Graph(c)) = &self.conn else { return };
             let read = crate::graph_pim::sync(c, &pim, now());
-            self.exchange_read(read);
+            self.exchange_read(read, &pim);
             return;
         }
         // On-premises Exchange: its calendar and contacts through EWS.
         if matches!(self.conn, Some(Conn::Ews(_))) {
-            let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+            let pim = self.pim_taken_in();
             let mut pass = crate::ews_pim::Pass::new(now());
             self.in_pim = true;
             let read = loop {
@@ -43,7 +44,7 @@ impl Worker {
                 }
             };
             self.in_pim = false;
-            self.exchange_read(read);
+            self.exchange_read(read, &pim);
             return;
         }
         // Google's calendars take its access token (issue #262); another OAuth account's token is
@@ -78,9 +79,10 @@ impl Worker {
     /// An Exchange account's calendars and contacts, read or not. What the server wouldn't give
     /// is said with why, once and not at every sync (issue #80: the calendar stayed empty and
     /// nothing said so); a server that couldn't be reached is the mail's to say.
-    fn exchange_read(&mut self, read: Result<mailcraft_model::pim::DavSync>) {
+    fn exchange_read(&mut self, read: Result<mailcraft_model::pim::DavSync>, pim: &mailcraft_model::pim::Pim) {
         match read {
             Ok(mut sync) => {
+                self.stamp(&mut sync, pim);
                 let said = (!sync.errors.is_empty()).then(|| sync.errors.join("; "));
                 if said.is_some() && said == self.dav_said {
                     sync.errors.clear();
@@ -127,7 +129,7 @@ impl Worker {
     /// or an OAuth Bearer token (Google).
     fn dav_pass(&mut self) -> Result<()> {
         let given = self.acc.dav.clone().unwrap_or_default();
-        let pim: mailcraft_model::pim::Pim = self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default();
+        let pim = self.pim_taken_in();
         let dav = self.dav_client()?;
         let host = self.acc.pop.as_ref().map_or(self.acc.imap.host.as_str(), |p| p.host.as_str());
         // Google OAuth: use its CalDAV and CardDAV endpoints when no address is given.
@@ -155,9 +157,38 @@ impl Worker {
         };
         let sync = crate::dav::sync(&dav, &at, &pim, now(), system_zone());
         self.dav_digest = dav.digest();
-        let sync = sync?;
+        let mut sync = sync?;
+        self.stamp(&mut sync, &pim);
         self.sink.emit(Event::DavSynced { account: self.id(), sync: Box::new(sync) });
         Ok(())
+    }
+
+    /// The account's calendars, contacts and tasks as the engine keeps them, once it has taken in
+    /// the last sync sent: one begun before read what changed here as it was before that sync,
+    /// and sent it again (on a real Stalwart, a task changed twice: its second change was refused
+    /// as "changed on the server meanwhile", the server's copy kept). Waited for a while at most,
+    /// as an engine that doesn't take it in (closing) mustn't stop the syncs.
+    fn pim_taken_in(&self) -> mailcraft_model::pim::Pim {
+        let load = || -> mailcraft_model::pim::Pim { self.store.load_account_doc(&self.acc.id, mailcraft_model::pim::PIM_DOC).unwrap_or_default() };
+        let mut pim = load();
+        while waiting_for_engine(pim.dav_pass, self.dav_sent, Instant::now()) && !self.closed {
+            std::thread::sleep(Duration::from_millis(100));
+            pim = load();
+        }
+        pim
+    }
+
+    /// Number this sync, after the last taken in and the last sent, and note it sent: when, if it
+    /// stored or deleted anything (one that only read has nothing to send again, and the next
+    /// needn't wait for it: a mail account's syncs share its thread).
+    fn stamp(&mut self, sync: &mut mailcraft_model::pim::DavSync, pim: &mailcraft_model::pim::Pim) {
+        sync.pass = pim.dav_pass.max(self.dav_sent.0).saturating_add(1);
+        let sent = !(sync.pushed_events.is_empty()
+            && sync.pushed_tasks.is_empty()
+            && sync.pushed_cards.is_empty()
+            && sync.pushed_notes.is_empty()
+            && sync.deleted.is_empty());
+        self.dav_sent = (sync.pass, sent.then(Instant::now));
     }
 
     /// A calendar-only account's thread (issue #61): no mail server, so no connection is held.
@@ -224,4 +255,32 @@ impl Worker {
 /// The system's time zone, for calendar times written without one (`UTC` when it can't say).
 fn system_zone() -> mailcraft_model::zone::Zone {
     iana_time_zone::get_timezone().ok().and_then(|z| mailcraft_model::zone::Zone::named(&z)).unwrap_or_default()
+}
+
+/// How long a sync waits at most for the engine to take in the one before (it does within a
+/// frame of the window).
+const WAIT_FOR_ENGINE: Duration = Duration::from_secs(10);
+
+/// Whether a sync waits: the engine has taken in up to `taken_in`, and `sent` is the last sent
+/// (its number, and when it was sent, if it sent any changes), not long ago.
+fn waiting_for_engine(taken_in: u64, sent: (u64, Option<Instant>), now: Instant) -> bool {
+    sent.1.is_some_and(|at| taken_in < sent.0 && now.saturating_duration_since(at) < WAIT_FOR_ENGINE)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A sync waits for the engine to take in the one sent before, for a while at most; the first
+    /// doesn't wait, nor one after the last was taken in (or a later one, saved by another run).
+    #[test]
+    fn a_sync_waits_for_the_one_before_to_be_taken_in() {
+        let now = Instant::now();
+        assert!(!waiting_for_engine(0, (0, None), now), "none sent yet");
+        assert!(!waiting_for_engine(4, (5, None), now), "the last sent changed nothing");
+        assert!(waiting_for_engine(4, (5, Some(now)), now), "the last sent not taken in");
+        assert!(!waiting_for_engine(5, (5, Some(now)), now), "taken in");
+        assert!(!waiting_for_engine(9, (5, Some(now)), now), "a later one taken in");
+        assert!(!waiting_for_engine(4, (5, Some(now)), now + WAIT_FOR_ENGINE), "not taken in after a while: it goes on");
+    }
 }

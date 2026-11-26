@@ -439,6 +439,27 @@ impl Dav {
         Ok(resp.ok() && schedules_in(&resp.headers))
     }
 
+    /// The user's principal, from where their calendars are (`home`); `None` when not said.
+    fn principal(&self, home: &str) -> Result<Option<String>> {
+        let (items, at) = self.propfind(home, "0", "<d:current-user-principal/>")?;
+        items.iter().find_map(|i| i.hrefs.get("current-user-principal").and_then(|h| h.first())).map(|p| absolute(&at, p)).transpose()
+    }
+
+    /// The calendar the server takes as the user's default, from where their calendars are
+    /// (`home`): their scheduling inbox's `schedule-default-calendar-URL` (RFC 6638 §9.2, issue
+    /// #278), as Stalwart says it. `None` when the server names none.
+    pub fn default_calendar(&self, home: &str) -> Result<Option<String>> {
+        let Some(principal) = self.principal(home)? else { return Ok(None) };
+        let (items, at) = self.propfind(&principal, "0", "<c:schedule-inbox-URL/>")?;
+        let Some(inbox) =
+            items.iter().find_map(|i| i.hrefs.get("schedule-inbox-url").and_then(|h| h.first())).map(|h| absolute(&at, h)).transpose()?
+        else {
+            return Ok(None);
+        };
+        let (items, at) = self.propfind(&inbox, "0", "<c:schedule-default-calendar-URL/>")?;
+        items.iter().find_map(|i| i.hrefs.get("schedule-default-calendar-url").and_then(|h| h.first())).map(|h| absolute(&at, h)).transpose()
+    }
+
     /// The items in a collection and their etags.
     pub fn etags(&self, collection: &str) -> Result<Vec<(String, String)>> {
         let (items, at) = self.propfind(collection, "1", "<d:getetag/><d:resourcetype/>")?;
@@ -517,6 +538,32 @@ impl Dav {
         }
     }
 
+    /// Make a task list at `url` (a collection of to-dos alone, as Nextcloud's Tasks makes one:
+    /// `MKCALENDAR`, RFC 4791 §5.3.1) called `name`: the HTTP status when the server didn't
+    /// (`Err` inside; 405: something is there already).
+    pub fn make_task_list(&self, url: &str, name: &str) -> Result<std::result::Result<(), u16>> {
+        let body = format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?><c:mkcalendar xmlns:d=\"DAV:\" xmlns:c=\"urn:ietf:params:xml:ns:caldav\"><d:set><d:prop><d:displayname>{}</d:displayname><c:supported-calendar-component-set><c:comp name=\"VTODO\"/></c:supported-calendar-component-set></d:prop></d:set></c:mkcalendar>",
+            crate::xml::esc(name)
+        );
+        let req = Request {
+            method: "MKCALENDAR".into(),
+            url: url.into(),
+            headers: vec![("Content-Type".into(), "application/xml; charset=utf-8".into())],
+            body: body.into_bytes(),
+            max: 1 << 20,
+        };
+        let resp = self.send(&req)?;
+        if let Some(why) = self.token_refused(&resp) {
+            return Err(NetError::Auth(why));
+        }
+        match resp.status {
+            200..=299 => Ok(Ok(())),
+            401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
+            s => Ok(Err(s)),
+        }
+    }
+
     /// Delete an item (when it still has `etag`, if given): why the server didn't (`Err` inside).
     pub fn remove(&self, url: &str, etag: &str) -> Result<std::result::Result<(), Refused>> {
         let mut req = Request { method: "DELETE".into(), url: url.into(), max: 1 << 20, ..Default::default() };
@@ -531,6 +578,38 @@ impl Dav {
             200..=299 | 404 | 410 => Ok(Ok(())),
             401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
             s => Ok(Err(Refused::from_status(s))),
+        }
+    }
+
+    /// Move an item to `to`, another calendar of the same server (issue #279), when it still has
+    /// `etag`: a WebDAV MOVE, which a server that schedules takes as no change to a meeting (RFC
+    /// 6638 §3.2.3.4: nothing is sent), never over an item there (`Overwrite: F`). Its etag
+    /// there, as the server says it, else as it's read; why it didn't (`Err` inside).
+    pub fn relocate(&self, from: &str, to: &str, etag: &str) -> Result<std::result::Result<String, Refused>> {
+        let mut req = Request { method: "MOVE".into(), url: from.into(), max: 1 << 20, ..Default::default() };
+        req = req.header("Destination", to).header("Overwrite", "F");
+        if !etag.is_empty() {
+            req = req.header("If-Match", etag);
+        }
+        let resp = self.send(&req)?;
+        if let Some(why) = self.token_refused(&resp) {
+            return Err(NetError::Auth(why));
+        }
+        match resp.status {
+            200..=299 => match resp.header("ETag").filter(|t| !t.is_empty()) {
+                Some(t) => Ok(Ok(t.to_string())),
+                // Not said: read, else none (what's stored there next goes over it unasked).
+                None => Ok(Ok(self
+                    .propfind(to, "0", "<d:getetag/>")
+                    .ok()
+                    .and_then(|(items, _)| items.iter().find_map(|i| i.props.get("getetag")).cloned())
+                    .unwrap_or_default())),
+            },
+            401 => Err(NetError::Auth("the calendar server refused the user name or password".into())),
+            s => {
+                log::info!("calendars and contacts: MOVE {from} answered HTTP {s}");
+                Ok(Err(Refused::from_status(s)))
+            }
         }
     }
 

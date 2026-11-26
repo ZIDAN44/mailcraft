@@ -274,6 +274,11 @@ pub struct Prefs {
     /// The commands agents may run without the window asking first (Always allow), by id.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub agents_always: Vec<String>,
+    /// Agents run every command without the window asking first, but those still asked about
+    /// ([`crate::CommandSpec::asks`]: sending to other people, accounts and security, the web,
+    /// files, deleting for good), unless always allowed one by one.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub agents_always_all: bool,
     /// The accounts kept from agents, by id: what agents read leaves them out.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub agents_hidden: Vec<String>,
@@ -343,6 +348,9 @@ pub struct Prefs {
     /// Play animations: hovers and selections easing, panes sliding, notices sliding in (off:
     /// everything changes at once).
     pub animations: bool,
+    /// The Reminders window comes up over other apps' windows, without taking the keyboard
+    /// (issue #299: drawn in MailCraft's window, it was behind the app being worked in).
+    pub reminders_on_top: bool,
     /// Compact data files as MailCraft closes, when one has room to give back and that takes
     /// no longer than closing waits for (File › Options › Data files; off unless chosen: it's
     /// done when MailCraft is left alone, or by hand, either way).
@@ -372,6 +380,14 @@ pub struct Prefs {
     /// ([`Session::pictures_load_alone`]). Off at first: every message asks.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub auto_pictures: bool,
+    /// With [`Prefs::auto_pictures`], every message's web pictures load, looking suspicious or
+    /// not, as Outlook's do with automatic downloads on (issue #276): all but those in Junk and
+    /// from blocked senders. Off at first.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub all_pictures: bool,
+    /// The notes above a message about what tracks its reader and the text it hides from them
+    /// (issue #276: some would rather not see them). On at first.
+    pub message_notes: bool,
     /// Ask a signer's certificate's authority whether it was withdrawn (OCSP or its CRL), as
     /// signed mail is shown. Off at first: the authority learns whose mail is being read.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
@@ -498,6 +514,7 @@ impl Default for Prefs {
             agents: false,
             agents_run: false,
             agents_always: Vec::new(),
+            agents_always_all: false,
             agents_hidden: Vec::new(),
             org_applied: BTreeMap::new(),
             answered_invites: AnsweredInvites::Delete,
@@ -515,6 +532,7 @@ impl Default for Prefs {
             reminders: BTreeMap::new(),
             search_folders: Vec::new(),
             animations: true,
+            reminders_on_top: true,
             compact_on_close: false,
             auto_archive: AutoArchive::default(),
             search_scope: SearchScope::Mailbox,
@@ -522,6 +540,8 @@ impl Default for Prefs {
             keep_photo_location: false,
             clean_links: true,
             auto_pictures: false,
+            all_pictures: false,
+            message_notes: true,
             check_revocation: false,
             sender_addresses: SenderAddresses::Strangers,
             external_tag: false,

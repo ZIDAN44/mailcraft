@@ -175,7 +175,7 @@ fn a_refused_dialog_submit_is_said() {
     assert_eq!(a.session.notices.len(), before + 2, "{:?}", a.session.notices);
     assert!(a.session.notices.last().is_some_and(|n| n.error));
     // A dialog with its own error line keeps showing it there, and only there.
-    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example"));
+    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example", None));
     a.act(crate::Action::Submit("rules.set", json!({"rules": "not a list"})));
     assert_eq!(a.session.notices.len(), before + 2, "{:?}", a.session.notices);
     let Some(Dialog::EditRule(f)) = &a.ui.dialog else { panic!("no dialog") };

@@ -52,14 +52,16 @@ impl Session {
         !self.prefs.auto_pictures && self.setting_locked("autoPictures")
     }
 
-    /// Whether the open message doesn't look suspicious, for the setting that loads its pictures
-    /// by themselves: the mail server confirmed who sent it, it isn't in Junk, and its sender
-    /// isn't blocked. A message that can't be told is suspicious here, and still asks.
+    /// Whether the open message's pictures load by themselves, for the setting that loads them:
+    /// it isn't in Junk, its sender isn't blocked, and the mail server confirmed who sent it
+    /// (unless every message's load, issue #276). A message that can't be told is suspicious
+    /// here, and still asks.
     pub fn pictures_load_alone(&self) -> bool {
         let Some(r) = &self.reading else { return false };
         let Some(p) = r.parsed.as_ref() else { return false };
         let junk = self.folder(&r.key.account, &r.key.folder).is_none_or(|f| f.role == FolderRole::Junk);
-        p.sender_check == mime::SenderCheck::Confirmed && !junk && !self.sender_blocked(&p.from.email.trim().to_ascii_lowercase())
+        let confirmed = self.prefs.all_pictures || p.sender_check == mime::SenderCheck::Confirmed;
+        confirmed && !junk && !self.sender_blocked(&p.from.email.trim().to_ascii_lowercase())
     }
 
     /// Ask the network layer for the open message's pictures, when allowed.

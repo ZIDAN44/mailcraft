@@ -1724,7 +1724,6 @@ month	May	mai
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	vos clés OpenPGP sont utilisées par l'application de bureau MailCraft, pas dans le navigateur
 	Not sent yet: this is a draft.	Pas encore envoyé : c'est un brouillon.
 	Show web pictures unless a message looks suspicious	Afficher les images web sauf si un message semble suspect
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Les images se chargent à l'ouverture du message, si votre serveur de messagerie a confirmé l'expéditeur et que le message n'est pas dans le courrier indésirable. Le serveur de chaque image peut voir votre adresse IP et le moment de l'ouverture. Les images de suivi restent bloquées
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Ce message semble suspect ou son expéditeur n'a pas pu être confirmé : ses images restent masquées.
 	These senders' pictures always load, even when a message looks suspicious:	Les images de ces expéditeurs se chargent toujours, même si un message semble suspect :
 	Open a mail file	Ouvrir un fichier de courrier
@@ -2075,6 +2074,8 @@ count	occurrences	occurrences
 	Didn't run: {why}	Non exécuté : {why}
 	Let AI agents ask to run commands	Autoriser les agents IA à demander l'exécution de commandes
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Envoyer, déplacer, répondre à une invitation… chacune vous est demandée ici d'abord, sauf si vous l'autorisez toujours. Désactivé, les agents ne font que lire.
+	Always allow every command	Toujours autoriser toutes les commandes
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Toujours demandé d'abord : l'envoi à d'autres personnes, les comptes et la sécurité, le web, l'enregistrement de fichiers et la suppression définitive.
 	Accounts AI agents read	Comptes lus par les agents IA
 	One turned off is left out of all they read, and they can't take pictures of the window	Un compte désactivé est exclu de tout ce qu'ils lisent, et ils ne peuvent pas prendre de captures de la fenêtre
 	… and {n} more characters	… et {n} caractères de plus
@@ -2169,3 +2170,43 @@ count	occurrences	occurrences
 	Their times can't be had: {why}	Leurs disponibilités sont introuvables : {why}
 	You	Vous
 	{free} of {all} free	{free} sur {all} libres
+	Pictures from the web weren't loaded.	Les images du Web n'ont pas été chargées.
+	(The rest of the message didn't fit in this document.)	(La suite du message ne tenait pas dans ce document.)
+	Attach files	Joindre des fichiers
+	Save as	Enregistrer sous
+	Save attachments to	Enregistrer les pièces jointes dans
+	Trust a certificate file	Faire confiance à un fichier de certificat
+	Import categories	Importer des catégories
+	Open mail file	Ouvrir un fichier de message
+	Insert pictures	Insérer des images
+	All files	Tous les fichiers
+	Certificate with its key	Certificat avec sa clé
+	Certificate	Certificat
+	Mail files	Fichiers de messages
+	MailCraft categories	Catégories MailCraft
+	MailCraft data files	Fichiers de données MailCraft
+	MailCraft rules	Règles MailCraft
+	OpenPGP key	Clé OpenPGP
+	Outlook data files	Fichiers de données Outlook
+	PDF document	Document PDF
+	Contact card	Carte de contact
+	Web page	Page web
+	{ext} file	Fichier {ext}
+	Mailing list (List-Id) contains	La liste de diffusion (List-Id) contient
+	is from the list “{text}”	vient de la liste « {text} »
+	Create event	Créer un événement
+	Create task	Créer une tâche
+	New task list	Nouvelle liste de tâches
+	Task list name	Nom de la liste de tâches
+	New task list…	Nouvelle liste de tâches…
+	Reminders over other apps' windows	Rappels au-dessus des fenêtres des autres applications
+	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	La fenêtre des rappels s'affiche au-dessus de l'application où vous travaillez, sans lui prendre le clavier.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	Au-dessus d'un message : ses images de suivi, les liens qui signalent les clics et le texte qu'il vous cache
+	Ask	Demander
+	Notes about tracking and hidden text	Notes sur le suivi et le texte masqué
+	Show web pictures	Afficher les images du web
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Ce message est dans le Courrier indésirable ou son expéditeur est bloqué : ses images restent masquées.
+	Unless suspicious	Sauf si suspect
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Sauf si suspect : quand votre serveur de messagerie a confirmé qui a envoyé un message. Toujours : tous les messages, sauf ceux du Courrier indésirable et des expéditeurs bloqués. Le serveur de chaque image peut voir votre adresse IP et quand vous avez ouvert le message ; les images de suivi restent bloquées
+	For mail to	Pour le courrier de
+	Every account	Tous les comptes

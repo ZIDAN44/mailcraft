@@ -21,6 +21,10 @@ impl Session {
         // of the same meeting (CalDAV scheduling) takes their place (issue #30).
         let answered = self.answered_here(account);
         let p = self.pim_mut(account);
+        // Taken in: the next sync may start (it waits for this, saved below).
+        p.dav_pass = p.dav_pass.max(sync.pass);
+        // Task lists asked for, tried (made, and read with the others; or said why not).
+        p.new_task_lists.retain(|n| !sync.made_task_lists.contains(n));
         p.caldav_home = sync.caldav_home.clone().or_else(|| Some(String::new()));
         p.carddav_home = sync.carddav_home.clone().or_else(|| Some(String::new()));
         if !sync.homes_kept || p.dav_checked.is_none() {
@@ -28,6 +32,13 @@ impl Session {
         }
         if let Some(schedules) = sync.auto_schedule {
             p.auto_schedule = schedules;
+        }
+        if let Some(default) = &sync.default_calendar {
+            p.server_default = Some(default.clone());
+            p.server_default_at = Some(sync.checked);
+        } else if sync.default_calendar_failed {
+            // Asked again next time, not kept as known until the calendars change again.
+            p.server_default = None;
         }
         let deleted: HashSet<&str> = sync.deleted.iter().map(String::as_str).collect();
         p.deleted.retain(|t| !deleted.contains(t.href.as_str()));
@@ -46,6 +57,12 @@ impl Session {
             for e in p.events.iter_mut().filter(|e| e.event.uid == x.event.uid && e.event.recurrence_id == x.event.recurrence_id) {
                 e.href = x.href.clone();
                 e.etag = x.etag.clone();
+                // Moved to another calendar while it was stored (issue #279): where it's stored
+                // now, still to be moved.
+                if e.calendar != x.calendar && mailcraft_model::pim::is_server_calendar(&e.calendar) {
+                    e.dirty = true;
+                    continue;
+                }
                 // Stored in another calendar (a new event goes to the server's default one).
                 e.calendar = x.calendar.clone();
                 e.dirty &= e.event != x.event;

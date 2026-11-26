@@ -198,6 +198,8 @@ BEGIN:VALARM\r\nACTION:DISPLAY\r\nTRIGGER;RELATED=END:-PT1H\r\nEND:VALARM\r\nBEG
 END:VTODO\r\nEND:VCALENDAR\r\n";
     let task = parse(todo, 0).tasks.remove(0);
     assert_eq!((task.status, task.due.map(|d| d % 86_400)), (TaskStatus::Deferred, Some(0)), "a day, and Deferred, here");
+    // 17:00 in Berlin, 16:00 UTC; and its start, 09:00 there.
+    assert_eq!((task.due_at().map(|t| t % 86_400), task.start_at().map(|t| t % 86_400)), (Some(16 * 3600), Some(8 * 3600)));
     // Unchanged here but its title: everything else as it was.
     let mut changed = task.clone();
     changed.title = "Submit the final report".into();
@@ -221,13 +223,15 @@ END:VTODO\r\nEND:VCALENDAR\r\n";
     let again = parse(&back, 0).tasks.remove(0);
     assert_eq!((again.due, again.start, again.status, again.reminder), (task.due, task.start, task.status, task.reminder));
 
-    // Changed here: its due day, status and reminder written as MailCraft writes them.
+    // Changed here: its status and reminder written as MailCraft writes them; its due day moved,
+    // at the time it had (issue #294: it went back as a day alone, the time set elsewhere lost).
     let mut moved = task.clone();
     moved.due = moved.due.map(|d| d + 86_400);
     moved.set_done(true, 1_800_000_000);
     moved.reminder = Some(1_800_000_000);
+    assert_eq!(moved.due_at(), Some(task.due_at().unwrap() + 86_400), "the time it had, a day on");
     let back = write_calendar(&[], &[moved], 1_800_000_000);
-    assert!(back.contains("DUE;VALUE=DATE:20261126") && back.contains("STATUS:COMPLETED"), "{back}");
+    assert!(back.contains("DUE:20261126T160000Z") && back.contains("STATUS:COMPLETED"), "{back}");
     assert!(back.contains("DTSTART:20261123T080000Z"), "its start unchanged: {back}");
     assert_eq!(back.matches("BEGIN:VALARM").count(), 1, "the new reminder alone: {back}");
     assert!(!back.contains("CANCELLED") && !back.contains("ACTION:AUDIO"), "{back}");

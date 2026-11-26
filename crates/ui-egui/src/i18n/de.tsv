@@ -1724,7 +1724,6 @@ month	May	Mai
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	Ihre OpenPGP-Schlüssel werden von der MailCraft-Desktop-App verwendet, nicht im Browser
 	Not sent yet: this is a draft.	Noch nicht gesendet: Dies ist ein Entwurf.
 	Show web pictures unless a message looks suspicious	Webbilder anzeigen, außer wenn eine Nachricht verdächtig wirkt
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Bilder werden beim Öffnen geladen, wenn Ihr Mailserver den Absender bestätigt hat und die Nachricht nicht in „Junk-E-Mail“ liegt. Der Server des Bildes sieht Ihre IP-Adresse und wann Sie die Nachricht geöffnet haben. Tracking-Bilder bleiben blockiert
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Diese Nachricht wirkt verdächtig oder ihr Absender konnte nicht bestätigt werden, daher bleiben ihre Bilder ausgeblendet.
 	These senders' pictures always load, even when a message looks suspicious:	Bilder dieser Absender werden immer geladen, auch wenn eine Nachricht verdächtig wirkt:
 	Open a mail file	Eine E-Mail-Datei öffnen
@@ -2075,6 +2074,8 @@ count	occurrences	Terminen
 	Didn't run: {why}	Nicht ausgeführt: {why}
 	Let AI agents ask to run commands	KI-Agenten dürfen um das Ausführen von Befehlen bitten
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Senden, Verschieben, eine Einladung beantworten… Jeder Befehl wird hier zuerst erfragt, außer Sie erlauben ihn immer. Aus: Agenten lesen nur.
+	Always allow every command	Jeden Befehl immer erlauben
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Weiterhin zuerst erfragt: Senden an andere, Konten und Sicherheit, das Web, Speichern von Dateien und endgültiges Löschen.
 	Accounts AI agents read	Konten, die KI-Agenten lesen
 	One turned off is left out of all they read, and they can't take pictures of the window	Ein ausgeschaltetes Konto bleibt bei allem, was sie lesen, außen vor, und sie können keine Bilder des Fensters aufnehmen
 	… and {n} more characters	… und {n} weitere Zeichen
@@ -2169,3 +2170,43 @@ count	occurrences	Terminen
 	Their times can't be had: {why}	Ihre Zeiten sind nicht verfügbar: {why}
 	You	Sie
 	{free} of {all} free	{free} von {all} frei
+	Pictures from the web weren't loaded.	Bilder aus dem Web wurden nicht geladen.
+	(The rest of the message didn't fit in this document.)	(Der Rest der Nachricht passte nicht in dieses Dokument.)
+	Attach files	Dateien anhängen
+	Save as	Speichern unter
+	Save attachments to	Anhänge speichern in
+	Trust a certificate file	Einer Zertifikatsdatei vertrauen
+	Import categories	Kategorien importieren
+	Open mail file	Maildatei öffnen
+	Insert pictures	Bilder einfügen
+	All files	Alle Dateien
+	Certificate with its key	Zertifikat mit Schlüssel
+	Certificate	Zertifikat
+	Mail files	Maildateien
+	MailCraft categories	MailCraft-Kategorien
+	MailCraft data files	MailCraft-Datendateien
+	MailCraft rules	MailCraft-Regeln
+	OpenPGP key	OpenPGP-Schlüssel
+	Outlook data files	Outlook-Datendateien
+	PDF document	PDF-Dokument
+	Contact card	Kontaktkarte
+	Web page	Webseite
+	{ext} file	{ext}-Datei
+	Mailing list (List-Id) contains	Mailingliste (List-Id) enthält
+	is from the list “{text}”	aus der Liste „{text}“ ist
+	Create event	Termin erstellen
+	Create task	Aufgabe erstellen
+	New task list	Neue Aufgabenliste
+	Task list name	Name der Aufgabenliste
+	New task list…	Neue Aufgabenliste…
+	Reminders over other apps' windows	Erinnerungen über den Fenstern anderer Apps
+	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	Das Erinnerungsfenster erscheint über der App, in der Sie arbeiten, ohne ihr die Tastatur zu nehmen.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	Über einer Nachricht: ihre Tracking-Bilder, Links, die Klicks melden, und Text, den sie vor Ihnen verbirgt
+	Ask	Fragen
+	Notes about tracking and hidden text	Hinweise zu Tracking und verborgenem Text
+	Show web pictures	Webbilder anzeigen
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Diese Nachricht ist in Junk-E-Mail oder ihr Absender ist blockiert, daher bleiben ihre Bilder ausgeblendet.
+	Unless suspicious	Außer bei Verdacht
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Außer bei Verdacht: wenn Ihr Mailserver bestätigt hat, wer eine Nachricht gesendet hat. Immer: jede Nachricht außer denen in Junk-E-Mail und von blockierten Absendern. Der Server, auf dem ein Bild liegt, sieht Ihre IP-Adresse und wann Sie die Nachricht geöffnet haben; Tracking-Bilder bleiben blockiert
+	For mail to	Für E-Mails an
+	Every account	Alle Konten

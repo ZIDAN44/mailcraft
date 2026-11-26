@@ -47,17 +47,19 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
 }
 
 /// The CalDAV servers' task lists (issue #201), as Outlook lists its task folders: every task,
-/// or one list's alone. Nothing when no server keeps them.
+/// or one list's alone; and a new one made (issue #294: a server with none kept MailCraft's
+/// tasks on this computer). Nothing when no account's calendars are on a CalDAV server.
 fn task_lists(s: &Session, ui: &mut Ui, acts: &mut Vec<Action>) {
     let lists = s.task_lists();
-    if lists.is_empty() {
+    let can_make = !s.task_list_accounts().is_empty();
+    if lists.is_empty() && !can_make {
         return;
     }
     let several_accounts = lists.iter().any(|(a, _)| Some(*a) != lists.first().map(|f| f.0));
     ui.add_space(12.0);
     ui.label(RichText::new(tl!("Task lists")).strong().small());
     let shown = s.shown_task_list();
-    if ui.selectable_label(shown.is_none(), tl!("All task lists")).clicked() && shown.is_some() {
+    if !lists.is_empty() && ui.selectable_label(shown.is_none(), tl!("All task lists")).clicked() && shown.is_some() {
         acts.push(Action::Run("task.showList", json!({})));
     }
     for (account, l) in lists {
@@ -65,6 +67,12 @@ fn task_lists(s: &Session, ui: &mut Ui, acts: &mut Vec<Action>) {
         let r = if several_accounts { r.on_hover_text(s.account(account).map(|a| a.config.email.clone()).unwrap_or_default()) } else { r };
         if r.clicked() && shown != Some(l.id.as_str()) {
             acts.push(Action::Run("task.showList", json!({"list": l.id})));
+        }
+    }
+    if can_make {
+        ui.add_space(4.0);
+        if ui.button(tl!("New task list…")).clicked() {
+            acts.push(Action::Dialog(Dialog::NewTaskList { name: String::new(), error: None }));
         }
     }
 }
@@ -250,7 +258,12 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     let under = widgets::one_line(ui, &under.join(" · "), theme::regular(11.5), t.dim, room);
     let under_at = start.anchor_size(mr.pos(pos2(rect.min.x + x_title, rect.min.y + 31.0)), under.size());
     p.with_clip_rect(clip).galley(under_at.min, under, t.dim);
-    let due_text = task.due_day().map_or_else(|| tl!("None").to_string(), |d| relative_day(d, s));
+    // With the time of day it came with from elsewhere, when it has one (issue #294).
+    let due_text = match (task.due_day(), task.due_at()) {
+        (Some(d), Some(at)) => format!("{} {}", relative_day(d, s), dates::hm(at, &s.clock)),
+        (Some(d), None) => relative_day(d, s),
+        (None, _) => tl!("None").to_string(),
+    };
     let due_color = if late {
         t.danger
     } else if task.due.is_none() {

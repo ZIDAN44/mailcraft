@@ -28,6 +28,10 @@ pub struct Doc {
     pub title: String,
     /// `From`, `To`, `Date`… lines under it.
     pub header: Vec<(String, String)>,
+    /// A line under those, when there's one to say (pictures from the web not loaded).
+    pub note: String,
+    /// Said at the end of a message too long for the pages (English when empty).
+    pub cut: String,
     /// The text.
     pub body: String,
     /// The text with its formatting, a line at a time, for a message that has any: printed in
@@ -41,10 +45,14 @@ pub struct Doc {
 }
 
 /// Font files to embed (TrueType or OpenType with TrueType outlines).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Fonts<'a> {
     pub regular: &'a [u8],
     pub bold: Option<&'a [u8]>,
+    /// Fonts for what the regular and bold ones don't have (symbols, emoji, other scripts), the
+    /// first that has a character drawing it, as on screen (issue #291: they printed as empty
+    /// boxes). Each is embedded only when a character of the document needs it.
+    pub fallbacks: &'a [&'a [u8]],
 }
 
 const PAGE_W: f32 = 595.28;
@@ -53,9 +61,10 @@ const MARGIN: f32 = 56.0;
 /// Most pages written (a very long message is cut, with a note).
 const MAX_PAGES: usize = 500;
 
-/// A font as the layout and the writer see it.
+/// A font as the layout and the writer see it. An embedded one measures what it doesn't have
+/// with its `fallbacks`' metrics (the writer's own faces for them draw it).
 enum Face<'a> {
-    Embedded { data: &'a [u8], font: Box<Font<'a>>, used: BTreeMap<u16, char> },
+    Embedded { data: &'a [u8], font: Box<Font<'a>>, used: BTreeMap<u16, char>, fallbacks: Vec<Font<'a>> },
     Helvetica { bold: bool },
 }
 
@@ -92,8 +101,8 @@ impl Font<'_> {
     }
 }
 
-impl<'a> Face<'a> {
-    fn parse(data: &'a [u8]) -> Option<Face<'a>> {
+impl<'a> Font<'a> {
+    fn parse(data: &'a [u8]) -> Option<Font<'a>> {
         use skrifa::MetadataProvider as _;
         use skrifa::raw::TableProvider as _;
         let face = skrifa::FontRef::from_index(data, 0).ok()?;
@@ -102,16 +111,62 @@ impl<'a> Face<'a> {
             return None;
         }
         let (size, at) = (skrifa::instance::Size::unscaled(), skrifa::instance::LocationRef::default());
-        let font = Font { charmap: face.charmap(), advances: face.glyph_metrics(size, at), metrics: face.metrics(size, at) };
-        Some(Face::Embedded { data, font: Box::new(font), used: BTreeMap::new() })
+        Some(Font { charmap: face.charmap(), advances: face.glyph_metrics(size, at), metrics: face.metrics(size, at) })
+    }
+
+    /// Width of `c` in thousandths of the font size.
+    fn width(&self, c: char) -> f32 {
+        self.advance(self.glyph(c)) * 1000.0 / self.units_per_em()
+    }
+}
+
+impl<'a> Face<'a> {
+    fn parse(data: &'a [u8]) -> Option<Face<'a>> {
+        Some(Face::Embedded { data, font: Box::new(Font::parse(data)?), used: BTreeMap::new(), fallbacks: Vec::new() })
+    }
+
+    /// Measuring what it lacks with these fonts' metrics (ones that can't be embedded left out).
+    fn with_fallbacks(mut self, list: &[&'a [u8]]) -> Face<'a> {
+        if let Face::Embedded { fallbacks, .. } = &mut self {
+            *fallbacks = list.iter().filter_map(|d| Font::parse(d)).collect();
+        }
+        self
+    }
+
+    /// Which font draws `c`: 0 this one, `k` its `k`th fallback (one it hasn't and none has: this
+    /// one, its missing glyph).
+    fn drawn_by(&self, c: char) -> usize {
+        match self {
+            Face::Embedded { font, fallbacks, .. } if font.glyph(c) == 0 => fallbacks.iter().position(|f| f.glyph(c) != 0).map_or(0, |k| k + 1),
+            _ => 0,
+        }
     }
 
     /// Width of a character in thousandths of the font size.
     fn width(&self, c: char) -> f32 {
+        if ignorable(c) {
+            return 0.0;
+        }
         match self {
-            Face::Embedded { font, .. } => font.advance(font.glyph(c)) * 1000.0 / font.units_per_em(),
+            Face::Embedded { font, fallbacks, .. } => match self.drawn_by(c) {
+                0 => font.width(c),
+                k => fallbacks.get(k - 1).map_or(0.0, |f| f.width(c)),
+            },
             Face::Helvetica { bold } => helvetica_width(c, *bold),
         }
+    }
+
+    /// `s` in pieces by the font that draws them ([`Face::drawn_by`]), in order.
+    fn pieces(&self, s: &str) -> Vec<(usize, String)> {
+        let mut out: Vec<(usize, String)> = Vec::new();
+        for c in s.chars().filter(|c| !ignorable(*c)) {
+            let k = self.drawn_by(c);
+            match out.last_mut() {
+                Some((last, piece)) if *last == k => piece.push(c),
+                _ => out.push((k, c.to_string())),
+            }
+        }
+        out
     }
 
     fn text_width(&self, s: &str, size: f32) -> f32 {
@@ -124,7 +179,7 @@ impl<'a> Face<'a> {
             Face::Embedded { font, used, .. } => {
                 let mut hex = String::with_capacity(s.len() * 4 + 2);
                 hex.push('<');
-                for c in s.chars() {
+                for c in s.chars().filter(|c| !ignorable(*c)) {
                     let gid = font.glyph(c);
                     used.entry(gid).or_insert(c);
                     let _ = write!(hex, "{gid:04X}");
@@ -134,7 +189,7 @@ impl<'a> Face<'a> {
             }
             Face::Helvetica { .. } => {
                 let mut lit = String::from("(");
-                for c in s.chars() {
+                for c in s.chars().filter(|c| !ignorable(*c)) {
                     match win_ansi(c) {
                         b'(' | b')' | b'\\' => {
                             lit.push('\\');
@@ -151,6 +206,18 @@ impl<'a> Face<'a> {
             }
         }
     }
+}
+
+/// A character that's drawn as nothing and takes no room (Unicode's default ignorables: joiners,
+/// direction marks, variation selectors, the soft hyphen…). Newsletters pad the line their list
+/// shows with them; a font without them drew each as an empty box (issue #291: "a row of thin
+/// coloured stripes" no one saw on screen).
+fn ignorable(c: char) -> bool {
+    matches!(
+        u32::from(c),
+        0xAD | 0x34F | 0x61C | 0x115F..=0x1160 | 0x17B4..=0x17B5 | 0x180B..=0x180F | 0x200B..=0x200F | 0x202A..=0x202E | 0x2060..=0x206F
+            | 0x3164 | 0xFE00..=0xFE0F | 0xFEFF | 0xFFA0 | 0xFFF0..=0xFFF8 | 0x1BCA0..=0x1BCA3 | 0x1D173..=0x1D17A | 0xE0000..=0xE0FFF
+    )
 }
 
 /// Windows-1252 code of a character (`?` when it has none).
@@ -326,7 +393,7 @@ fn add(objects: &mut Vec<Vec<u8>>, body: Vec<u8>) -> usize {
 
 /// The document as PDF bytes.
 pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Vec<u8> {
-    let mut faces = faces(fonts);
+    let (mut faces, mut extra) = faces(fonts);
     let title = if doc.title.trim().is_empty() { "(no subject)".to_string() } else { doc.title.clone() };
     let laid = layout::layout(doc, &title, &faces);
     let n = laid.pages.len();
@@ -335,14 +402,18 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Vec<u8> {
         .pages
         .iter()
         .enumerate()
-        .map(|(i, page)| content_stream(&mut faces, page, laid.extras.get(i), (i == laid.rule.0).then_some(laid.rule.1), i + 1, n))
+        .map(|(i, page)| content_stream(&mut faces, &mut extra, page, laid.extras.get(i), (i == laid.rule.0).then_some(laid.rule.1), i + 1, n))
         .collect();
 
     // Objects: 1 catalog, 2 page tree, 3 info, then fonts, pictures, and page + content pairs.
     let info = format!("<< /Producer (MailCraft {}) /Title {} >>", env!("CARGO_PKG_VERSION"), info_string(&title)).into_bytes();
     let mut objects: Vec<Vec<u8>> = vec![b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(), Vec::new(), info];
-    let font_refs: Vec<usize> = faces.iter().enumerate().map(|(i, f)| font_objects(f, i, &mut objects)).collect();
-    let fonts_dict: String = font_refs.iter().enumerate().map(|(i, r)| format!("/F{} {r} 0 R", i + 1)).collect::<Vec<_>>().join(" ");
+    let mut fonts_dict: String =
+        faces.iter().enumerate().map(|(i, f)| format!("/F{} {} 0 R", i + 1, font_objects(f, i, &mut objects))).collect::<Vec<_>>().join(" ");
+    // A fallback only when the text drew a character with it (each is the whole font file).
+    for (k, f) in extra.iter().enumerate().filter(|(_, f)| matches!(f, Face::Embedded { used, .. } if !used.is_empty())) {
+        let _ = write!(fonts_dict, " /F{} {} 0 R", k + 3, font_objects(f, k + 2, &mut objects));
+    }
     // The pictures the pages draw, each once.
     let shown: std::collections::BTreeSet<usize> = laid.extras.iter().flat_map(|e| e.images.iter().map(|i| i.index)).collect();
     let mut pictures_dict = String::new();
@@ -369,18 +440,33 @@ pub fn pdf(doc: &Doc, fonts: Option<Fonts<'_>>) -> Vec<u8> {
     write_file(&objects)
 }
 
-/// The regular and bold fonts: the ones given when they can be embedded, else Helvetica.
-fn faces(fonts: Option<Fonts<'_>>) -> [Face<'_>; 2] {
-    match fonts.and_then(|f| Face::parse(f.regular).map(|r| (r, f.bold))) {
-        Some((regular, bold)) => [regular, bold.and_then(Face::parse).unwrap_or(Face::Helvetica { bold: true })],
-        None => [Face::Helvetica { bold: false }, Face::Helvetica { bold: true }],
+/// The regular and bold fonts: the ones given when they can be embedded, else Helvetica; and
+/// the fallbacks the writer draws with (`/F3` on), with an embedded regular font only.
+fn faces(fonts: Option<Fonts<'_>>) -> ([Face<'_>; 2], Vec<Face<'_>>) {
+    match fonts.and_then(|f| Face::parse(f.regular).map(|r| (r, f))) {
+        Some((regular, f)) => {
+            // Measured with the fallbacks the writer has, in the same order.
+            let usable: Vec<&[u8]> = f.fallbacks.iter().copied().filter(|d| Font::parse(d).is_some()).collect();
+            let extra: Vec<Face<'_>> = usable.iter().filter_map(|d| Face::parse(d)).collect();
+            let bold = f.bold.and_then(Face::parse).map_or(Face::Helvetica { bold: true }, |b| b.with_fallbacks(&usable));
+            ([regular.with_fallbacks(&usable), bold], extra)
+        }
+        None => ([Face::Helvetica { bold: false }, Face::Helvetica { bold: true }], Vec::new()),
     }
 }
 
 /// Page `number` of `of`'s content stream: the line under the header when it's on it (`rule`,
 /// how high), a laid-out message's boxes and pictures, highlights, the text, the page's number,
 /// and lines under and through the text.
-fn content_stream(faces: &mut [Face<'_>; 2], page: &[Placed], extra: Option<&objects::Extra>, rule: Option<f32>, number: usize, of: usize) -> String {
+fn content_stream(
+    faces: &mut [Face<'_>; 2],
+    fallbacks: &mut [Face<'_>],
+    page: &[Placed],
+    extra: Option<&objects::Extra>,
+    rule: Option<f32>,
+    number: usize,
+    of: usize,
+) -> String {
     let mut c = String::new();
     if let Some(rule_y) = rule {
         let _ = writeln!(c, "0.75 G 0.6 w {MARGIN:.2} {rule_y:.2} m {:.2} {rule_y:.2} l S 0 G", PAGE_W - MARGIN);
@@ -399,13 +485,26 @@ fn content_stream(faces: &mut [Face<'_>; 2], page: &[Placed], extra: Option<&obj
     }
     c.push_str("BT\n");
     for p in page {
-        let enc = faces.get_mut(p.font).map(|f| f.encode(&p.text)).unwrap_or_default();
+        let pieces = faces.get(p.font).map(|f| f.pieces(&p.text)).unwrap_or_default();
         if let Some(color) = p.color {
             let _ = write!(c, "{} rg ", rgb(color));
         }
         // Italic: the upright font, leaning.
         let lean = if p.slant { "0.21" } else { "0" };
-        let _ = write!(c, "/F{} {:.1} Tf 1 0 {lean} 1 {:.2} {:.2} Tm {enc} Tj", p.font + 1, p.size, p.x, p.y);
+        let _ = write!(c, "/F{} {:.1} Tf 1 0 {lean} 1 {:.2} {:.2} Tm", p.font + 1, p.size, p.x, p.y);
+        // A piece another font draws goes on from where the one before ended, in that font.
+        let mut font = p.font + 1;
+        for (k, text) in pieces {
+            let (f, enc) = match k {
+                0 => (p.font + 1, faces.get_mut(p.font).map(|f| f.encode(&text)).unwrap_or_default()),
+                k => (k + 2, fallbacks.get_mut(k - 1).map(|f| f.encode(&text)).unwrap_or_default()),
+            };
+            if f != font {
+                let _ = write!(c, " /F{f} {:.1} Tf", p.size);
+                font = f;
+            }
+            let _ = write!(c, " {enc} Tj");
+        }
         c.push_str(if p.color.is_some() { " 0 g\n" } else { "\n" });
     }
     let footer = format!("{number} / {of}");
@@ -434,7 +533,7 @@ fn font_objects(face: &Face<'_>, i: usize, objects: &mut Vec<Vec<u8>>) -> usize 
             let name = if *bold { "Helvetica-Bold" } else { "Helvetica" };
             return add(objects, format!("<< /Type /Font /Subtype /Type1 /BaseFont /{name} /Encoding /WinAnsiEncoding >>").into_bytes());
         }
-        Face::Embedded { data, font, used } => (data, font, used),
+        Face::Embedded { data, font, used, .. } => (data, font, used),
     };
     let upem = font.units_per_em();
     let scale = |v: f32| (v * 1000.0 / upem).round() as i32;
@@ -504,202 +603,4 @@ fn write_file(objects: &[Vec<u8>]) -> Vec<u8> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn doc(body: &str) -> Doc {
-        Doc {
-            title: "Storyboard (v2) review".into(),
-            header: vec![("From".into(), "Zoe Park <zoe@studio.example>".into()), ("Date".into(), "Wed 14 Oct 2026 09:30".into())],
-            body: body.into(),
-            ..Default::default()
-        }
-    }
-
-    /// Every object starts exactly where the cross-reference table says (on the bytes: the
-    /// streams are binary).
-    fn objects_are_where_the_xref_says(pdf: &[u8]) {
-        let find_last = |needle: &[u8]| pdf.windows(needle.len()).rposition(|w| w == needle);
-        let sx = find_last(b"startxref\n").unwrap() + 10;
-        let tail = String::from_utf8_lossy(&pdf[sx..]);
-        let start: usize = tail.lines().next().unwrap().trim().parse().unwrap();
-        assert!(pdf[start..].starts_with(b"xref"));
-        let table = String::from_utf8_lossy(&pdf[start..sx]).to_string();
-        let mut n = 0;
-        for (i, line) in table.lines().skip(3).take_while(|l| l.ends_with(" n ")).enumerate() {
-            let off: usize = line[..10].parse().unwrap();
-            assert!(pdf[off..].starts_with(format!("{} 0 obj", i + 1).as_bytes()), "object {} at {off}", i + 1);
-            n += 1;
-        }
-        assert!(n >= 4);
-    }
-
-    /// A laid-out message: its boxes, pictures (a JPEG as it is, another with what shows through
-    /// it as a mask) and links are in the file, each picture once, and the file holds together.
-    #[test]
-    fn a_laid_out_message_has_its_boxes_pictures_and_links() {
-        let png = |pixel: [u8; 4]| {
-            let mut out = std::io::Cursor::new(Vec::new());
-            image::RgbaImage::from_pixel(8, 6, image::Rgba(pixel)).write_to(&mut out, image::ImageFormat::Png).unwrap();
-            out.into_inner()
-        };
-        let mut jpeg = std::io::Cursor::new(Vec::new());
-        image::RgbImage::from_pixel(16, 8, image::Rgb([200, 100, 50])).write_to(&mut jpeg, image::ImageFormat::Jpeg).unwrap();
-        let pictures = vec![
-            Picture::decode(&png([9, 9, 9, 100])).unwrap(),
-            Picture::decode(&jpeg.into_inner()).unwrap(),
-            Picture::decode(&png([1, 1, 1, 255])).unwrap(),
-        ];
-        let picture = |index| Run { picture: Some((index, 60.0, 45.0)), ..Default::default() };
-        let link = Run { text: "Track package".into(), link: Some("https://shop.example/track?a=(1)".into()), underline: true, ..Default::default() };
-        let cell =
-            |runs: Vec<Run>| Cell { blocks: vec![Block::Text(vec![runs])], background: Some([240, 240, 240]), radius: 6.0, ..Default::default() };
-        // Enough rows to go over a page: the pictures are drawn on several pages, and kept once.
-        let rows: Vec<Vec<Cell>> = (0..40).map(|_| vec![cell(vec![picture(0), picture(1)]), cell(vec![link.clone(), picture(7)])]).collect();
-        let table = Table { rows, width: Some(Width::Percent(100.0)), spacing: 3.0, padding: 4.0, ..Default::default() };
-        let d = Doc { blocks: vec![Block::Table(table)], pictures, ..doc("") };
-        let p = pdf(&d, None);
-        objects_are_where_the_xref_says(&p);
-        let text = String::from_utf8_lossy(&p);
-        let count: usize = text.split("/Count ").nth(1).and_then(|r| r.split_whitespace().next()).and_then(|n| n.parse().ok()).unwrap();
-        assert!(count >= 3, "{count} pages");
-        // The two it shows, each once (and the mask of the one that shows through); not the one
-        // it doesn't show, nor one it names that isn't there.
-        assert_eq!(text.matches("/Subtype /Image").count(), 3);
-        assert_eq!((text.matches("/DCTDecode").count(), text.matches("/SMask ").count()), (1, 1));
-        let dict = text.split("/XObject <<").nth(1).and_then(|r| r.split(">>").next()).unwrap();
-        assert!(dict.contains("/Im0 ") && dict.contains("/Im1 ") && !dict.contains("/Im2") && !dict.contains("/Im7"), "{dict}");
-        assert_eq!(text.matches("/URI (https://shop.example/track?a=\\(1\\))").count(), 40);
-        // Nothing but the header on a page of its own, and no blocks: as before.
-        let plain = pdf(&doc("Hello"), None);
-        assert!(!String::from_utf8_lossy(&plain).contains("/XObject"));
-    }
-
-    #[test]
-    fn helvetica_pages() {
-        let long = (0..400).map(|i| format!("Line {i}: the quick brown fox jumps over the lazy dog (café, “quotes”)")).collect::<Vec<_>>().join("\n");
-        let p = pdf(&doc(&long), None);
-        assert!(p.starts_with(b"%PDF-1.7"));
-        assert!(p.ends_with(b"%%EOF\n"));
-        let text = String::from_utf8_lossy(&p);
-        assert!(text.contains("/BaseFont /Helvetica"));
-        let count: usize = text.split("/Count ").nth(1).and_then(|r| r.split_whitespace().next()).and_then(|n| n.parse().ok()).unwrap();
-        assert!(count >= 8, "{count} pages");
-        assert!(text.contains("/Title (Storyboard \\(v2\\) review)"));
-        objects_are_where_the_xref_says(&p);
-    }
-
-    #[test]
-    fn wrapping() {
-        let f = Face::Helvetica { bold: false };
-        let lines = wrap(&f, "a b c", 11.0, 1000.0);
-        assert_eq!(lines, vec!["a b c".to_string()]);
-        let lines = wrap(&f, &"word ".repeat(100), 11.0, 200.0);
-        assert!(lines.len() > 5 && lines.iter().all(|l| f.text_width(l, 11.0) <= 200.0));
-        let lines = wrap(&f, &"x".repeat(500), 11.0, 100.0);
-        assert!(lines.len() > 5 && lines.iter().all(|l| f.text_width(l, 11.0) <= 100.0), "long words are cut");
-        assert_eq!(wrap(&f, "> quoted\n\n  indented", 11.0, 400.0), vec!["> quoted".to_string(), String::new(), "  indented".to_string()]);
-        assert_eq!(win_ansi('é'), 0xE9);
-        assert_eq!(win_ansi('€'), 0x80);
-        assert_eq!(win_ansi('漢'), b'?');
-    }
-
-    #[test]
-    fn empty_and_hostile_input() {
-        let p = pdf(&Doc::default(), None);
-        objects_are_where_the_xref_says(&p);
-        // Not a font: falls back to Helvetica rather than failing.
-        let p = pdf(&doc("x"), Some(Fonts { regular: b"not a font", bold: None }));
-        assert!(String::from_utf8_lossy(&p).contains("/Helvetica"));
-        let huge = "y\n".repeat(200_000);
-        let p = pdf(&doc(&huge), None);
-        assert!(String::from_utf8_lossy(&p).contains(&format!("/Count {MAX_PAGES}")));
-    }
-
-    /// A TrueType font the system has, when it has one of these.
-    fn system_font() -> Option<Vec<u8>> {
-        // Windows' fonts are in its folder (`%WINDIR%`), which needn't be `C:\Windows`.
-        let windows = std::env::var_os("WINDIR").map_or_else(|| std::path::PathBuf::from("C:\\Windows"), std::path::PathBuf::from).join("Fonts");
-        let candidates = [
-            windows.join("segoeui.ttf"),
-            windows.join("arial.ttf"),
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf".into(),
-            "/System/Library/Fonts/Supplemental/Arial.ttf".into(),
-        ];
-        candidates.iter().find_map(|p| std::fs::read(p).ok())
-    }
-
-    /// How long a word too wide for the line takes to cut when a long run of accents follows it
-    /// (they take no room, so the piece they're on never fills).
-    /// A long word is cut asking each character's width once: its piece was measured again
-    /// from its start at every character, so a run of characters that take no room (accents),
-    /// which never fills a piece, was measured as many times over as it is long.
-    #[test]
-    fn a_word_is_cut_measuring_each_character_once() {
-        let asked = std::cell::Cell::new(0usize);
-        // Accents take no room; a letter half the size.
-        let advance = |c: char| {
-            asked.set(asked.get() + 1);
-            if c == '\u{301}' { 0.0 } else { 500.0 }
-        };
-        let word: String = "\u{301}".repeat(3000) + &"a".repeat(7) + &"\u{301}".repeat(2000) + "bc";
-        let mut pieces: Vec<(String, f32)> = Vec::new();
-        // Size 10, 20 wide: four letters a piece.
-        let rest = cut_word(&word, 10.0, 20.0, advance, |piece, w| {
-            pieces.push((piece, w));
-            true
-        });
-        assert_eq!(asked.get(), word.chars().count(), "each character's width asked once");
-        pieces.extend(rest);
-        let letters: Vec<usize> = pieces.iter().map(|(p, _)| p.chars().filter(|c| *c != '\u{301}').count()).collect();
-        assert_eq!(letters, [4, 4, 1]);
-        let widths: Vec<f32> = pieces.iter().map(|(_, w)| *w).collect();
-        assert_eq!(widths, [20.0, 20.0, 5.0]);
-        assert_eq!(pieces.iter().map(|(p, _)| p.as_str()).collect::<String>(), word, "nothing lost");
-        // Told to stop at the first full piece: no more asked than the characters up to it.
-        asked.set(0);
-        assert!(cut_word(&word, 10.0, 20.0, advance, |_, _| false).is_none());
-        assert_eq!(asked.get(), 3005);
-    }
-
-    #[test]
-    #[ignore = "a measurement, with a system font"]
-    fn measure_cutting_a_word_of_accents() {
-        let data = system_font().unwrap();
-        let faces = [Face::parse(&data).unwrap(), Face::Helvetica { bold: true }];
-        assert_eq!(faces[0].width('\u{308}'), 0.0, "the accent takes no room");
-        let word = format!("{}{}", "x".repeat(200), "\u{308}".repeat(20_000));
-        let start = std::time::Instant::now();
-        let lines = wrap(&faces[0], &word, 11.0, 480.0);
-        let plain = start.elapsed();
-        let start = std::time::Instant::now();
-        let mut rows = 0;
-        rich::lay(&faces, &[vec![Run { text: word.clone(), ..Default::default() }]], 480.0, |_, _| {
-            rows += 1;
-            true
-        });
-        let formatted = start.elapsed();
-        println!(
-            "MEASURE cutting a word of 200 letters and 20,000 accents: wrap {plain:?} ({} lines), rich::lay {formatted:?} ({rows} rows)",
-            lines.len()
-        );
-    }
-
-    #[test]
-    fn embeds_a_system_font_when_there_is_one() {
-        let Some(data) = system_font() else {
-            // Windows and macOS always have one of them, so it's tested there; a Linux without
-            // DejaVu has none to embed.
-            if cfg!(any(windows, target_os = "macos")) {
-                panic!("no system font to embed");
-            }
-            eprintln!("skipped: no system font to embed");
-            return;
-        };
-        let p = pdf(&doc("Hello café — ünïcödé"), Some(Fonts { regular: &data, bold: None }));
-        let text = String::from_utf8_lossy(&p);
-        assert!(text.contains("/Subtype /CIDFontType2") && text.contains("/FontFile2") && text.contains("/ToUnicode"));
-        assert!(p.len() < data.len(), "the font file is compressed");
-        objects_are_where_the_xref_says(&p);
-    }
-}
+mod tests;

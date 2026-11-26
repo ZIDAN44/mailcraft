@@ -46,7 +46,7 @@ impl CalSearch {
                 Some((a, c)) => (Some(a.as_str()), Some(c.as_str())),
                 None => (None, None),
             };
-            let hits = s.find_events(&self.query, self.when, account, calendar, SHOWN);
+            let hits = s.find_events(&self.query, self.when, account, calendar, SHOWN).unwrap_or_default();
             self.found = Some((key, hits.into()));
         }
         self.found.as_ref().map_or_else(|| Arc::from([]), |(_, h)| Arc::clone(h))

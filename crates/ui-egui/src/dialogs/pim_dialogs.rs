@@ -42,6 +42,7 @@ pub use passing::{PassForm, Passing, pass};
 pub use propose::{ProposeForm, propose};
 pub use repeat::Repeat;
 use repeat::repeat_row;
+use showing::writable_calendars;
 pub use snooze::{SnoozeForm, snooze};
 use task::category_chips;
 pub use task::{TaskForm, status_label, task};
@@ -100,6 +101,9 @@ pub struct EventForm {
     /// The calendars that can take it: (account, calendar id, name).
     pub calendars: Vec<(String, String, String)>,
     pub calendar: usize,
+    /// The calendar an event opened was in (`None`: a new one): another picked moves it there
+    /// (issue #279).
+    pub calendar_was: Option<String>,
     pub summary: String,
     pub location: String,
     pub description: String,
@@ -196,19 +200,6 @@ fn time_field(ui: &mut Ui, value: &mut String, hour: u32, hours12: bool) -> egui
     field(ui, value, &hint, if hours12 { 96.0 } else { 70.0 })
 }
 
-fn writable_calendars(s: &Session) -> Vec<(String, String, String)> {
-    let mut out = Vec::new();
-    for a in &s.accounts {
-        if let Some(p) = s.pim.get(&a.config.id) {
-            for c in p.calendars.iter().filter(|c| !c.read_only) {
-                let name = if c.id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { c.name.clone() };
-                out.push((a.config.id.clone(), c.id.clone(), format!("{name} · {}", a.config.email)));
-            }
-        }
-    }
-    out
-}
-
 impl EventForm {
     /// A new event at `at` (an hour long), or at the next full hour.
     pub fn new(s: &Session, at: Option<i64>) -> EventForm {
@@ -301,6 +292,7 @@ impl EventForm {
             recurring: e.rrule.is_some(),
             this_occurrence,
             calendar: calendars.iter().position(|c| c.0 == account && c.1 == stored.calendar).unwrap_or(0),
+            calendar_was: Some(stored.calendar.clone()),
             calendars,
             summary: e.summary.clone(),
             location: e.location.clone(),
@@ -386,7 +378,16 @@ impl EventForm {
             }
         }
         match &self.uid {
-            Some(u) => p["uid"] = json!(u),
+            Some(u) => {
+                p["uid"] = json!(u);
+                // Another of its account's calendars picked: moved there (issue #279).
+                if let (Some(was), Some((_, c, _))) = (&self.calendar_was, self.calendars.get(self.calendar))
+                    && c != was
+                    && self.calendars.iter().any(|x| &x.1 == was)
+                {
+                    p["calendar"] = json!(c);
+                }
+            }
             None => {
                 if let Some((a, c, _)) = self.calendars.get(self.calendar) {
                     p["account"] = json!(a);
@@ -653,25 +654,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut
             guests::row(ui, t, f, acts);
             guests::scheduling(ui, s, t, f, acts);
         }
-        if f.uid.is_none() && f.calendars.len() > 1 {
-            let name = f.calendars.get(f.calendar).map(|c| c.2.clone()).unwrap_or_default();
-            form_row(ui, t, true, Some(Icon::Calendar), "Calendar", |ui| {
-                ui.allocate_ui_with_layout(vec2(260.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    let r = egui::ComboBox::from_id_salt("event-calendar")
-                        .width(254.0)
-                        .selected_text(name)
-                        .show_ui(ui, |ui| {
-                            for (i, c) in f.calendars.iter().enumerate() {
-                                ui.selectable_value(&mut f.calendar, i, &c.2);
-                            }
-                        })
-                        .response
-                        .accessible_name(tl!("Calendar"));
-                    let all: Vec<usize> = (0..f.calendars.len()).collect();
-                    crate::drop_down::keys(ui, &r, &mut f.calendar, &all);
-                });
-            });
-        }
+        showing::calendar_row(ui, s, t, f);
         if !f.reading_notes {
             // Tall notes scroll in their box: the dialog keeps its buttons on screen.
             egui::ScrollArea::vertical().id_salt("event-notes").max_height(NOTES_MAX_H).show(ui, |ui| {

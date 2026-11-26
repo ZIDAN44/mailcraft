@@ -65,7 +65,7 @@ it, as the MailCraft beside it does: give its full path as the command.
 | `list_messages` | `account?`, `folder?`, `limit?`, `offset?` | A folder's messages, newest first (the account's Inbox by default): key, date, sender, recipients, subject, the start of the text, unread, flagged, files. |
 | `search_mail` | `query`, `account?`, `folder?`, `limit?` | As the search box finds them (`from:`, `subject:`, `has:attachment`, `is:unread`, `received:`, `before:`/`after:`, `category:`, `-word`, `"a phrase"`, words in the text of the messages downloaded). |
 | `read_message` | `key` | One message: sender, recipients, date, subject, its text (HTML as text), its files. |
-| `list_events` | `from?`, `to?` (`YYYY-MM-DD`) | The calendars' events, each occurrence on its own: times, place, the organizer, the guests and their answers, your answer. Today and the six days after by default; a year at most. |
+| `list_events` | `from?`, `to?` (`YYYY-MM-DD`) | The calendars' events, each occurrence on its own: times, place, the organizer, the guests and their answers, your answer, and the calendar: its name, and its id as `calendarId`, which the calendar commands take. Today and the six days after by default; a year at most. |
 | `list_tasks` | `query?`, `done?` | The tasks: title, due day, list, notes. |
 | `find_people` | `query` | People from the address books, and from the mail and meetings with them. |
 | `everything_with` | `email`, `query?` | Everything with one person: the conversations, the files and links in them, the meetings, the others on that mail. |
@@ -88,7 +88,15 @@ the account), its params as sent under **Details**, then **Allow**, **Always all
 command, from then on), or **Deny**. The call waits for your answer, ten minutes at
 most (then nothing runs), and the agent's other calls wait with it; Deny is the agent's answer.
 A command that may no longer run by the time you answer (agents not let ask any more, an account
-kept meanwhile) isn't run, nor one the agent took back. **File › Options › AI agents** lists the commands agents run
+kept meanwhile) isn't run, nor one the agent took back. **Always allow every command** lets agents run
+every command without asking, but these, still asked about unless you always allow one on its own:
+sending mail or invitations to other people (a message, a reaction, automatic replies, a meeting's
+invitations, changes or cancellation, an answer to one); adding or changing an account, its servers,
+password or addresses (a password could go to another server, mail be copied out); the web (a
+calendar subscribed to, web pictures shown, which tell the sender); certificates, keys and how mail
+is encrypted; saving a file, or attaching one from disk; and deleting for good (an account, Deleted
+Items or Junk emptied, a folder, mail in Deleted Items). An event with no guests mails nobody, so it
+runs. **File › Options › AI agents** lists the commands agents run
 without asking, each with **Forget**; agents can't change these settings themselves.
 **File › Info › What AI agents did** lists what they read and ran lately (pictures of the window
 and `inspect` too) and what came of it.

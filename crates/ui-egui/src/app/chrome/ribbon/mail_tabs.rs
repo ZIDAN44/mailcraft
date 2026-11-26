@@ -82,7 +82,8 @@ pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Ac
     egui::Popup::menu(&r).show(|ui| {
         let sender = s.first_selected().map(|m| m.from.email.clone()).filter(|e| !e.is_empty());
         if ui.add_enabled(sender.is_some(), egui::Button::new(tl!("Create rule…"))).clicked() {
-            acts.push(Action::Dialog(Dialog::rule_from(sender.as_deref().unwrap_or_default())));
+            let account = s.first_selected().map(|m| m.key.account.as_str());
+            acts.push(Action::Dialog(Dialog::rule_from(sender.as_deref().unwrap_or_default(), account)));
         }
         if ui.button(tl!("Manage rules")).clicked() {
             acts.push(Action::Dialog(Dialog::Rules));

@@ -69,6 +69,12 @@ pub(crate) fn commands(app: &mut MailApp, args: &[String]) {
             "ui.openTask" => {
                 app.ui.dialog = mailcraft_ui_egui::Dialog::open_task(&app.session, p.get("uid").and_then(|v| v.as_str()).unwrap_or_default());
             }
+            // An event's form, by its uid (`{"uid": …}`): the whole of it, at its first start.
+            "ui.openEvent" => {
+                let uid = p.get("uid").and_then(|v| v.as_str()).unwrap_or_default();
+                let start = app.session.find_event(uid).map(|(_, e)| e.event.start);
+                app.ui.dialog = start.and_then(|at| mailcraft_ui_egui::Dialog::open_event(&app.session, uid, at));
+            }
             "ui.signature" => app.ui.dialog = mailcraft_ui_egui::Dialog::signature(&app.session),
             // Everything with a person (`{"email": …}`, issue #178).
             "ui.person" => {

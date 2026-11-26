@@ -521,4 +521,5 @@ mod buttons;
 mod lines;
 mod links;
 mod notices;
+mod row_spans;
 mod templates;

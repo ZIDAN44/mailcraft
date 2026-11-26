@@ -23,13 +23,38 @@ impl MailApp {
             self.session.notice(tl!("There's no folder to put the PDF in for the viewer"), true);
             return;
         };
-        let path = dir.join(name);
-        match self.session.run("message.exportPdf", &json!({"path": path.to_string_lossy()})) {
-            Ok(_) => match self.services.open_path(&path) {
-                Ok(()) => self.session.notice(tl!("Opened as a PDF: print it from the viewer"), false),
-                Err(e) => self.session.notice(tf!("The PDF couldn't be opened: {error}", error = e), true),
-            },
-            Err(e) => self.session.notice(e.to_string(), true),
+        // The viewer may still have the one printed before open, which Windows won't let be
+        // written (issue #291): then in a numbered folder beside it, under the same name.
+        let mut first_error = None;
+        for sub in std::iter::once(None).chain((2..=OPEN_COPIES).map(Some)) {
+            let folder = match sub {
+                Some(n) => dir.join(n.to_string()),
+                None => dir.clone(),
+            };
+            if std::fs::create_dir_all(&folder).is_err() {
+                continue;
+            }
+            let path = folder.join(&name);
+            match self.session.run("message.exportPdf", &json!({"path": path.to_string_lossy()})) {
+                Ok(_) => {
+                    match self.services.open_path(&path) {
+                        Ok(()) => self.session.notice(tl!("Opened as a PDF: print it from the viewer"), false),
+                        Err(e) => self.session.notice(tf!("The PDF couldn't be opened: {error}", error = e), true),
+                    }
+                    return;
+                }
+                // One that's there and couldn't be written over: held.
+                Err(mailcraft_engine::CmdError::Failed(e)) if path.is_file() => {
+                    first_error.get_or_insert(e);
+                }
+                Err(e) => {
+                    first_error = Some(e.to_string());
+                    break;
+                }
+            }
+        }
+        if let Some(e) = first_error {
+            self.session.notice(e, true);
         }
     }
 

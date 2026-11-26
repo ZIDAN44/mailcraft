@@ -184,6 +184,17 @@ fn bulk_mail_is_recognised() {
     assert!(summary_from_header(b"From: noreply@shop.example\r\n\r\nx", key(), Flags::default(), 0, 0).bulk);
 }
 
+/// Issue #288: the list a message came through is kept as its `List-Id` says, on one line, for
+/// rules to tell lists apart; a hostile one's length capped.
+#[test]
+fn a_lists_id_is_kept() {
+    let s = |head: &str| summary_from_header(format!("{head}From: a@x.example\r\nSubject: s\r\n\r\nb").as_bytes(), key(), Flags::default(), 0, 0);
+    assert_eq!(s("List-Id: Debian developers\r\n <debian-devel.lists.debian.org>\r\n").list_id, "Debian developers <debian-devel.lists.debian.org>");
+    assert_eq!(s("").list_id, "");
+    let long = s(&format!("List-Id: <{}.example>\r\n", "x".repeat(5000))).list_id;
+    assert_eq!(long.chars().count(), LIST_ID_MAX);
+}
+
 /// A conversation index comes in as its keys: a reply's parent is its original; a folded
 /// header reads, and one of the wrong length, with no GUID or past the longest an index can be
 /// gives none.

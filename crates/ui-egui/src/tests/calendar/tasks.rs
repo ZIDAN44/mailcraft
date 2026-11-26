@@ -276,3 +276,101 @@ fn caldav_task_lists_are_shown_and_picked() {
     assert!(!seen(&theirs, "Task list"));
     assert!(matches!(&a.ui.dialog, Some(Dialog::Task(f)) if f.read_only));
 }
+
+/// Issue #294: a task whose due and start days came with a time of day from elsewhere (Nextcloud's
+/// Tasks) shows the time: beside its due day in the list, beside both days in its form; and
+/// keeps it on the day it's moved to here.
+#[test]
+fn a_tasks_time_of_day_from_elsewhere_is_shown() {
+    let (mut a, _) = app("tasks-time");
+    let ctx = egui::Context::default();
+    a.run("view.module", json!({"name": "tasks"}));
+    let uid = a.session.tasks("").iter().find(|t| t.task.title == "Send the grading notes to the client").map(|t| t.task.uid.clone()).unwrap();
+    let due = a.session.find_task(&uid).unwrap().task.due.expect("a due day");
+    // As read from a server: its due day at 14:30 there, its start at 09:15 (UTC: the sample's
+    // clock is UTC).
+    for p in a.session.pim.values_mut() {
+        for t in p.tasks.iter_mut().filter(|t| t.task.uid == uid) {
+            t.task.start = Some(due - 86_400);
+            t.task.source = Some(Box::new(mailcraft_engine::model::pim::TaskSource {
+                due: Some((due, due + 14 * 3600 + 1800)),
+                start: Some((due - 86_400, due - 86_400 + 9 * 3600 + 900)),
+                ..Default::default()
+            }));
+        }
+    }
+    frame(&ctx, &mut a, vec![]);
+    let texts = drawn_text(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    assert!(texts.iter().any(|d| d.text.ends_with(" 14:30")), "the due time in the list: {texts:?}");
+    let Some(Dialog::Task(f)) = Dialog::open_task(&a.session, &uid) else { panic!("its form") };
+    assert_eq!((f.start_time.as_str(), f.due_time.as_str()), ("09:15", "14:30"));
+    // Moved a day on here: the same time, on that day.
+    let mut moved = a.session.find_task(&uid).unwrap().task;
+    moved.due = Some(due + 86_400);
+    assert_eq!(moved.due_at(), Some(due + 86_400 + 14 * 3600 + 1800));
+}
+
+/// Issue #297: a message made into a task of the user's own: its subject the title, its text the
+/// notes, due on the day its follow-up flag is; and into an event that invites no one (Reply with
+/// meeting invites the people on it), its subject and text.
+#[test]
+fn a_message_makes_a_task_or_an_event() {
+    let (mut a, _) = app("message-to-task");
+    let k = a.session.list.iter().find(|m| m.subject.contains("winter group show")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    let due = mailcraft_engine::model::dates::today(&a.session.clock) + 3;
+    a.session.follow_up_selection(Some(due), false).unwrap();
+    let parsed = a.session.reading.as_ref().and_then(|r| r.parsed.clone()).expect("read");
+    let summary = a.session.summary(&k);
+    let Dialog::Task(f) = Dialog::task_from(&a.session, &parsed, summary) else { panic!("a task's form") };
+    assert_eq!(f.title, "Open call: winter group show");
+    assert!(f.notes.contains("Dear artists"), "{}", f.notes);
+    assert_eq!(f.due, mailcraft_engine::model::dates::day_string(due), "the flag's day");
+    a.ui.dialog = Some(Dialog::Task(f.clone()));
+    a.act(crate::Action::Submit("task.create", f.params()));
+    let uid = a.ui.task.clone().expect("made");
+    assert_eq!(a.session.find_task(&uid).unwrap().task.title, "Open call: winter group show");
+    let Dialog::Event(e) = Dialog::event_from(&a.session, &parsed) else { panic!("an event's form") };
+    assert_eq!((e.summary.as_str(), e.guests.as_str()), ("Open call: winter group show", ""), "no one invited");
+    assert!(e.description.contains("Dear artists"));
+}
+
+/// Issue #294: an account whose calendars are on a CalDAV server with no task list (a new
+/// Nextcloud account's) gets New task list… in the Tasks pane; its dialog asks for one by name,
+/// to be made at the next sync.
+#[test]
+fn a_task_list_is_made_from_the_tasks_pane() {
+    let (mut a, _) = app("tasks-new-list");
+    let id = a
+        .session
+        .run("account.add", &json!({"email": "zoe@example.org", "username": "zoe", "password": "pw", "dav": "https://dav.example.org/"}))
+        .unwrap()["account"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let size = egui::vec2(1280.0, 800.0);
+    let ctx = egui::Context::default();
+    a.run("view.module", json!({"name": "tasks"}));
+    frame(&ctx, &mut a, vec![]);
+    assert!(!drawn_text(&ctx, &mut a, size).iter().any(|d| d.text == "New task list…"), "its calendars not found yet");
+    let sync = mailcraft_engine::model::pim::DavSync {
+        caldav_home: Some("https://dav.example.org/calendars/zoe/".into()),
+        calendars: Some(vec![mailcraft_engine::model::pim::CalendarInfo {
+            id: "https://dav.example.org/calendars/zoe/personal/".into(),
+            name: "Personal".into(),
+            ..Default::default()
+        }]),
+        task_lists: Some(Vec::new()),
+        checked: NOW,
+        ..Default::default()
+    };
+    a.session.apply(MailEvent::DavSynced { account: id.clone(), sync: Box::new(sync) });
+    frame(&ctx, &mut a, vec![]);
+    let at = drawn_text(&ctx, &mut a, size).into_iter().find(|d| d.text == "New task list…").map(|d| d.rect).expect("the button");
+    click(&ctx, &mut a, at.center());
+    let Some(Dialog::NewTaskList { name, .. }) = a.ui.dialog.as_mut() else { panic!("its dialog: {:?}", a.ui.dialog.is_some()) };
+    *name = "Errands".into();
+    a.act(crate::Action::Submit("task.newList", json!({"name": "Errands"})));
+    assert!(a.ui.dialog.is_none(), "closed");
+    assert_eq!(a.session.pim[&id].new_task_lists, ["Errands"]);
+}

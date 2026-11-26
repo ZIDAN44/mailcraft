@@ -99,6 +99,11 @@ impl Desktop {
     }
 }
 
+/// A file dialog's title or kind of file, in the window's language (issue #292).
+fn words(english: &str) -> String {
+    mailcraft_ui_egui::i18n::file_dialog_word(english)
+}
+
 impl Services for Desktop {
     fn own_title_bar(&self) -> bool {
         self.own_title_bar
@@ -133,26 +138,15 @@ impl Services for Desktop {
         self.dark.get()
     }
     fn pick_files(&mut self) -> Vec<PathBuf> {
-        let files = Self::modal(|| self.dialog("Attach files").pick_files()).unwrap_or_default();
+        let files = Self::modal(|| self.dialog(&words("Attach files")).pick_files()).unwrap_or_default();
         self.used(files.first(), false);
         files
     }
     fn save_path(&mut self, suggested: &str) -> Option<PathBuf> {
-        let mut d = self.dialog("Save as").set_file_name(suggested);
+        let mut d = self.dialog(&words("Save as")).set_file_name(suggested);
         // Save as type: the suggested name's kind first, so the system keeps its extension.
         if let Some((_, ext)) = suggested.rsplit_once('.').filter(|(_, e)| !e.is_empty() && e.len() <= 8) {
-            let kind = match ext.to_ascii_lowercase().as_str() {
-                "pst" => "Outlook data file".to_string(),
-                "eml" => "Email message".to_string(),
-                "pdf" => "PDF document".to_string(),
-                "ics" => "Calendar".to_string(),
-                "vcf" => "Contact card".to_string(),
-                "txt" => "Text".to_string(),
-                "json" => "MailCraft rules".to_string(),
-                "html" | "htm" => "Web page".to_string(),
-                e => format!("{} file", e.to_ascii_uppercase()),
-            };
-            d = d.add_filter(kind, &[ext]).add_filter("All files", &["*"]);
+            d = d.add_filter(mailcraft_ui_egui::i18n::file_kind(ext), &[ext]).add_filter(words("All files"), &["*"]);
         }
         let saved = Self::modal(|| d.save_file());
         self.used(saved, false)
@@ -333,37 +327,48 @@ impl Services for Desktop {
         self.lanes.tend();
     }
     fn pick_folder(&mut self) -> Option<PathBuf> {
-        let folder = Self::modal(|| self.dialog("Save attachments to").pick_folder());
+        let folder = Self::modal(|| self.dialog(&words("Save attachments to")).pick_folder());
         self.used(folder, true)
     }
     fn pick_certificate(&mut self) -> Option<PathBuf> {
         let file = Self::modal(|| {
-            self.dialog("Import certificate").add_filter("Certificate with its key", &["p12", "pfx"]).add_filter("All files", &["*"]).pick_file()
+            self.dialog(&words("Import certificate"))
+                .add_filter(words("Certificate with its key"), &["p12", "pfx"])
+                .add_filter(words("All files"), &["*"])
+                .pick_file()
         });
         self.used(file, false)
     }
     fn pick_server_certificate(&mut self) -> Option<PathBuf> {
         let file = Self::modal(|| {
-            self.dialog("Trust a certificate file")
-                .add_filter("Certificate", &["pem", "crt", "cer", "der"])
-                .add_filter("All files", &["*"])
+            self.dialog(&words("Trust a certificate file"))
+                .add_filter(words("Certificate"), &["pem", "crt", "cer", "der"])
+                .add_filter(words("All files"), &["*"])
                 .pick_file()
         });
         self.used(file, false)
     }
     fn pick_pgp_key(&mut self) -> Option<PathBuf> {
         let file = Self::modal(|| {
-            self.dialog("Import OpenPGP key").add_filter("OpenPGP key", &["asc", "gpg", "key", "pgp"]).add_filter("All files", &["*"]).pick_file()
+            self.dialog(&words("Import OpenPGP key"))
+                .add_filter(words("OpenPGP key"), &["asc", "gpg", "key", "pgp"])
+                .add_filter(words("All files"), &["*"])
+                .pick_file()
         });
         self.used(file, false)
     }
     fn pick_rules_file(&mut self) -> Option<PathBuf> {
-        let file = Self::modal(|| self.dialog("Import rules").add_filter("MailCraft rules", &["json"]).add_filter("All files", &["*"]).pick_file());
+        let file = Self::modal(|| {
+            self.dialog(&words("Import rules")).add_filter(words("MailCraft rules"), &["json"]).add_filter(words("All files"), &["*"]).pick_file()
+        });
         self.used(file, false)
     }
     fn pick_categories_file(&mut self) -> Option<PathBuf> {
         let file = Self::modal(|| {
-            self.dialog("Import categories").add_filter("MailCraft categories", &["json"]).add_filter("All files", &["*"]).pick_file()
+            self.dialog(&words("Import categories"))
+                .add_filter(words("MailCraft categories"), &["json"])
+                .add_filter(words("All files"), &["*"])
+                .pick_file()
         });
         self.used(file, false)
     }
@@ -374,22 +379,25 @@ impl Services for Desktop {
             d = d.set_directory(dir);
         }
         Self::modal(|| {
-            d.set_title("Open data file")
-                .add_filter("Data files", &["pst", "mailcraft"])
-                .add_filter("Outlook data files", &["pst"])
-                .add_filter("MailCraft data files", &["mailcraft"])
+            d.set_title(words("Open data file"))
+                .add_filter(words("Data files"), &["pst", "mailcraft"])
+                .add_filter(words("Outlook data files"), &["pst"])
+                .add_filter(words("MailCraft data files"), &["mailcraft"])
                 .pick_file()
         })
     }
     fn pick_mail_file(&mut self) -> Option<PathBuf> {
-        let file =
-            Self::modal(|| self.dialog("Open mail file").add_filter("Mail files", &["eml", "msg"]).add_filter("All files", &["*"]).pick_file());
+        let file = Self::modal(|| {
+            self.dialog(&words("Open mail file")).add_filter(words("Mail files"), &["eml", "msg"]).add_filter(words("All files"), &["*"]).pick_file()
+        });
         self.used(file.as_ref(), false);
         file
     }
     fn pick_pictures(&mut self) -> Vec<PathBuf> {
-        let files = Self::modal(|| self.dialog("Insert pictures").add_filter("Pictures", &["png", "jpg", "jpeg", "gif", "webp", "bmp"]).pick_files())
-            .unwrap_or_default();
+        let files = Self::modal(|| {
+            self.dialog(&words("Insert pictures")).add_filter(words("Pictures"), &["png", "jpg", "jpeg", "gif", "webp", "bmp"]).pick_files()
+        })
+        .unwrap_or_default();
         self.used(files.first(), false);
         files
     }

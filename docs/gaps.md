@@ -218,13 +218,11 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 
 ### 18. Tasks on CalDAV servers: what isn't done yet
 
-- **Impact:** A task's due or start time of day (Nextcloud's Tasks can give one) shows as its
-  day; it stays on the server as it was, unless that day is changed here (the task then goes
-  back with the day alone). A server with no task list (a new Nextcloud account, before its
-  Tasks app makes one) keeps none of MailCraft's tasks: they stay on this computer. MailCraft
-  doesn't make, rename or delete task lists, nor sync subtasks as such, nor Microsoft To Do.
-- **Workaround:** Make the task list in the server's own web page (Nextcloud's Tasks makes one
-  when opened); MailCraft finds it at its next sync. Set due times there.
+- **Impact:** A task's due or start time of day (Nextcloud's Tasks can give one) shows beside
+  its day, and stays when the day is changed here, but can't be set or changed here. MailCraft
+  makes a task list (**New task list…** in Tasks), but doesn't rename or delete one, nor sync
+  subtasks as such, nor Microsoft To Do.
+- **Workaround:** Rename or delete a task list, and set due times, in the server's own web page.
 - **Cause:** Tasks are kept by day, as Outlook's are. A collection is taken for a task list only
   when it says it takes `VTODO`s: one that says nothing (SOGo's calendars' `.ics` and `.xml`
   views) isn't, so tasks don't go where they'd be lost.
@@ -327,6 +325,29 @@ Test builds update themselves ([how test builds update](updates.md)). These part
   in the notification is registered for (`mailcraft:`). The installer registers it for everyone;
   a portable copy writes nothing to the registry, and Windows doesn't start a link one program
   registers for its user alone from a notification.
+
+### 27. Moving an event to another calendar: what isn't done yet
+
+- **Impact:** An event moves to another calendar of its account from its form's **Calendar** box
+  (#279), not by dragging it onto a calendar in the side pane or from a menu on it. Exchange's
+  calendars (Microsoft 365, on-premises Exchange) aren't moved between. A meeting on a CalDAV
+  server that won't move items stays in its calendar, and one on the server isn't moved to this
+  computer's.
+- **Workaround:** Open the event and pick its calendar. On Exchange, move it in Outlook on the
+  web.
+- **Cause:** The calendar views have no menu on an event, and dragging stops at their own days
+  and times. Moving between Exchange's calendars takes Graph's and EWS's own move, not written
+  yet. A meeting is moved with a WebDAV MOVE, which tells no one; copied and deleted instead, a
+  server that schedules sends the guests the meeting again (Stalwart did), or a cancellation.
+
+### 28. Rules on other headers
+
+- **Impact:** A rule can look at a message's mailing list (its `List-Id`, #288), but not at any
+  other header (`X-Mailer`, a header a service adds). A List-Id rule can't be an Exchange
+  server's rule.
+- **Workaround:** A rule on the sender, the recipients or the subject; for a list, its List-Id.
+- **Cause:** MailCraft's own rules run on the message list's entries, which keep a few headers,
+  not all; Exchange's server rules have no test of one header, only of words anywhere in them.
 
 ## Not planned
 

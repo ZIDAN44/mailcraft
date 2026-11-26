@@ -39,6 +39,12 @@ pub(super) fn layout(doc: &Doc, title: &str, faces: &[Face<'_>; 2]) -> Laid {
             }
         }
     }
+    if !doc.note.trim().is_empty() {
+        y -= 3.0;
+        for line in wrap(&faces[0], doc.note.trim(), 9.0, width) {
+            place(&mut pages, &mut y, 0, 9.0, 12.0, MARGIN, line);
+        }
+    }
     y -= 8.0;
     let rule = (pages.len().saturating_sub(1), y);
     y -= 6.0;
@@ -63,7 +69,8 @@ pub(super) fn layout(doc: &Doc, title: &str, faces: &[Face<'_>; 2]) -> Laid {
         !fitted
     };
     if truncated {
-        place(&mut pages, &mut y, 1, 11.0, 18.0, MARGIN, "(The rest of the message didn't fit in this document.)".into());
+        let cut = if doc.cut.trim().is_empty() { "(The rest of the message didn't fit in this document.)" } else { doc.cut.trim() };
+        place(&mut pages, &mut y, 1, 11.0, 18.0, MARGIN, cut.into());
     }
     Laid { pages, extras, rule }
 }

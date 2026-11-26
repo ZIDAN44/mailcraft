@@ -66,14 +66,6 @@ pub(super) fn safety(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
                 "view.cleanLinks",
             ),
             (
-                tl!("Show web pictures unless a message looks suspicious"),
-                tl!(
-                    "Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked"
-                ),
-                s.prefs.auto_pictures,
-                "view.autoPictures",
-            ),
-            (
                 tl!("Check whether certificates were withdrawn"),
                 tl!(
                     "As signed mail is shown, its certificate's authority is asked whether it withdrew it. Its authority then learns whose mail you're reading"
@@ -85,6 +77,15 @@ pub(super) fn safety(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
         for (i, (label, about, on, cmd)) in switches.into_iter().enumerate() {
             switch_row(s, ui, t, i == 0, Switch { label, about: Some(about), on, cmd }, acts);
         }
+        web_pictures(s, t, ui, acts);
+        // Issue #276: the notes above a message, for those who'd rather not see them.
+        let notes = Switch {
+            label: tl!("Notes about tracking and hidden text"),
+            about: Some(tl!("Above a message: its tracking pictures, links that report clicks, and text it hides from you")),
+            on: s.prefs.message_notes,
+            cmd: "view.messageNotes",
+        };
+        switch_row(s, ui, t, false, notes, acts);
         // Issue #29: who mail is really from.
         setting_by(
             s,
@@ -141,6 +142,29 @@ pub(super) fn safety(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
                 }
             },
         );
+    });
+}
+
+/// When a message's web pictures load (issue #276): each message asks, those that don't look
+/// suspicious load as they open, or every message's but those in Junk and from blocked senders,
+/// as Outlook's with automatic downloads on.
+fn web_pictures(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    let about = tl!(
+        "Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked"
+    );
+    setting_by(s, "view.webPictures", ui, t, false, tl!("Show web pictures"), Some(about), |ui| {
+        let options = [tl!("Ask"), tl!("Unless suspicious"), tl!("Always")];
+        let values = ["ask", "safe", "always"];
+        let now = match (s.prefs.auto_pictures, s.prefs.all_pictures) {
+            (false, _) => 0,
+            (true, false) => 1,
+            (true, true) => 2,
+        };
+        if let Some(i) = widgets::segmented(ui, t, "web-pictures", &options, now)
+            && let Some(v) = values.get(i)
+        {
+            acts.push(Action::Run("view.webPictures", json!({"load": v})));
+        }
     });
 }
 

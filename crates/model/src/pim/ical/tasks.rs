@@ -247,8 +247,9 @@ pub(super) fn write_task(t: &Task, now: i64, out: &mut String) {
         lines.push(format!("DESCRIPTION:{}", escape(&t.notes)));
     }
     let src = t.source.as_deref();
-    // A day as read with its time of day (unchanged since): at that time again.
-    let as_read = |kept: Option<(i64, i64)>, day_now: i64| kept.filter(|(d, _)| *d == day_now).map(|(_, at)| stamp(at));
+    // A day read with its time of day: at that time again, on the day it's on now (one moved
+    // here keeps its time, issue #294: it went back as a day alone).
+    let as_read = |kept: Option<(i64, i64)>, day_now: i64| kept.map(|(d, at)| stamp(at.saturating_add(day_now.saturating_sub(d))));
     // A rule needs a start to repeat from: the due day when there's none.
     let start = t.start.or_else(|| t.rrule.as_ref().and(t.due));
     if let Some(s) = start {

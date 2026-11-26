@@ -17,7 +17,7 @@ fn a_rule_for_mail_sent_is_made_in_the_editor() {
     let (mut a, _) = app("sent-rule-editor");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
-    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example"));
+    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example", None));
     let shown = editing(&ctx, &mut a);
     assert!(has(&shown, "Applies to") && has(&shown, "Mail that arrives"), "{shown:?}");
     // Mail sent: list mail isn't a test it offers; one picked becomes To or Cc.

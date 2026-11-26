@@ -52,6 +52,14 @@ pub(super) fn calendar(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
                 }
             });
         });
+        // Issue #299.
+        let w = Switch {
+            label: tl!("Reminders over other apps' windows"),
+            about: Some(tl!("The Reminders window comes up over the app you're working in, without taking the keyboard from it.")),
+            on: s.prefs.reminders_on_top,
+            cmd: "view.remindersOnTop",
+        };
+        switch_row(s, ui, t, false, w, acts);
     });
 }
 

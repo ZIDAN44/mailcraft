@@ -1724,7 +1724,6 @@ month	May	Mayıs
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	OpenPGP anahtarlarınızı tarayıcı değil, MailCraft masaüstü uygulaması kullanır
 	Not sent yet: this is a draft.	Henüz gönderilmedi: bu bir taslak.
 	Show web pictures unless a message looks suspicious	İleti şüpheli görünmedikçe web resimlerini göster
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Posta sunucunuz göndereni doğruladıysa ve ileti Gereksiz klasöründe değilse resimler ileti açılırken yüklenir. Her resmin sunucusu IP adresinizi ve iletiyi ne zaman açtığınızı görebilir. İzleme resimleri engelli kalır
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Bu ileti şüpheli görünüyor veya göndereni doğrulanamadı, bu yüzden resimleri gizli kalıyor.
 	These senders' pictures always load, even when a message looks suspicious:	Bu gönderenlerin resimleri, ileti şüpheli görünse bile her zaman yüklenir:
 	Open a mail file	Bir posta dosyası aç
@@ -2075,6 +2074,8 @@ count	occurrences	kez
 	Didn't run: {why}	Çalıştırılmadı: {why}
 	Let AI agents ask to run commands	Yapay zekâ ajanlarının komut çalıştırmayı istemesine izin ver
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Gönderme, taşıma, bir daveti yanıtlama… her biri önce burada sorulur, her zaman izin vermediyseniz. Kapalıyken ajanlar yalnızca okur.
+	Always allow every command	Her komuta her zaman izin ver
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Yine de önce sorulur: başkalarına gönderme, hesaplar ve güvenlik, web, dosya kaydetme ve kalıcı silme.
 	Accounts AI agents read	Yapay zekâ ajanlarının okuduğu hesaplar
 	One turned off is left out of all they read, and they can't take pictures of the window	Kapatılan hesap okudukları her şeyin dışında kalır ve pencerenin resmini alamazlar
 	… and {n} more characters	… ve {n} karakter daha
@@ -2169,3 +2170,43 @@ count	occurrences	kez
 	Their times can't be had: {why}	Zamanlarına ulaşılamıyor: {why}
 	You	Siz
 	{free} of {all} free	{all} kişiden {free} kişi boş
+	Pictures from the web weren't loaded.	Web'den gelen resimler yüklenmedi.
+	(The rest of the message didn't fit in this document.)	(İletinin geri kalanı bu belgeye sığmadı.)
+	Attach files	Dosya ekle
+	Save as	Farklı kaydet
+	Save attachments to	Ekleri şuraya kaydet
+	Trust a certificate file	Bir sertifika dosyasına güven
+	Import categories	Kategorileri içe aktar
+	Open mail file	Posta dosyası aç
+	Insert pictures	Resim ekle
+	All files	Tüm dosyalar
+	Certificate with its key	Anahtarıyla sertifika
+	Certificate	Sertifika
+	Mail files	Posta dosyaları
+	MailCraft categories	MailCraft kategorileri
+	MailCraft data files	MailCraft veri dosyaları
+	MailCraft rules	MailCraft kuralları
+	OpenPGP key	OpenPGP anahtarı
+	Outlook data files	Outlook veri dosyaları
+	PDF document	PDF belgesi
+	Contact card	Kişi kartı
+	Web page	Web sayfası
+	{ext} file	{ext} dosyası
+	Mailing list (List-Id) contains	Posta listesi (List-Id) şunu içerir
+	is from the list “{text}”	“{text}” listesinden
+	Create event	Etkinlik oluştur
+	Create task	Görev oluştur
+	New task list	Yeni görev listesi
+	Task list name	Görev listesinin adı
+	New task list…	Yeni görev listesi…
+	Reminders over other apps' windows	Anımsatıcılar diğer uygulamaların pencerelerinin üstünde
+	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	Anımsatıcılar penceresi, klavyeyi ondan almadan, çalıştığınız uygulamanın üstünde açılır.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	İletinin üstünde: izleme resimleri, tıklamaları bildiren bağlantılar ve sizden gizlediği metin
+	Ask	Sor
+	Notes about tracking and hidden text	İzleme ve gizli metin notları
+	Show web pictures	Web resimlerini göster
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Bu ileti Gereksiz E-posta klasöründe ya da göndericisi engellenmiş, bu yüzden resimleri gizli kalır.
+	Unless suspicious	Şüpheli değilse
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Şüpheli değilse: posta sunucunuz iletiyi kimin gönderdiğini doğruladığında. Her zaman: Gereksiz E-posta'dakiler ve engellenen göndericilerden gelenler dışında her ileti. Her resmin bulunduğu sunucu IP adresinizi ve iletiyi ne zaman açtığınızı görebilir; izleme resimleri engelli kalır
+	For mail to	Şu hesabın postası
+	Every account	Tüm hesaplar

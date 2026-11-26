@@ -1723,7 +1723,6 @@ month	May	5月
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	你的 OpenPGP 金鑰由 MailCraft 桌面應用程式使用，而不在瀏覽器中使用
 	Not sent yet: this is a draft.	尚未傳送：這是草稿。
 	Show web pictures unless a message looks suspicious	除非郵件看起來可疑，否則顯示網路圖片
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	如果郵件伺服器已確認寄件者且郵件不在垃圾郵件中，開啟郵件時會載入圖片。每張圖片所在的伺服器都能看到你的 IP 位址和開啟時間。追蹤圖片仍被封鎖
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	此郵件看起來可疑或無法確認寄件者，因此其圖片保持隱藏。
 	These senders' pictures always load, even when a message looks suspicious:	這些寄件者的圖片一律載入，即使郵件看起來可疑：
 	Open a mail file	開啟郵件檔案
@@ -2074,6 +2073,8 @@ count	occurrences	次
 	Didn't run: {why}	未執行：{why}
 	Let AI agents ask to run commands	允許 AI 代理程式要求執行命令
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	傳送、移動、回覆邀請……每個命令都會先在這裡詢問，除非你一律允許它。關閉時，代理程式只能讀取。
+	Always allow every command	一律允許所有命令
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	仍會先詢問：向他人傳送、帳戶與安全性、網路、儲存檔案以及永久刪除。
 	Accounts AI agents read	AI 代理程式讀取的帳戶
 	One turned off is left out of all they read, and they can't take pictures of the window	關閉的帳戶不在它們讀取的任何內容中，它們也無法擷取視窗的圖片
 	… and {n} more characters	……還有 {n} 個字元
@@ -2168,3 +2169,43 @@ count	occurrences	次
 	Their times can't be had: {why}	無法取得他們的時間: {why}
 	You	你
 	{free} of {all} free	{all} 人中 {free} 人有空
+	Pictures from the web weren't loaded.	未載入來自網路的圖片。
+	(The rest of the message didn't fit in this document.)	（郵件的其餘部分未能放入此文件。）
+	Attach files	附加檔案
+	Save as	另存新檔
+	Save attachments to	將附件儲存到
+	Trust a certificate file	信任憑證檔案
+	Import categories	匯入類別
+	Open mail file	開啟郵件檔案
+	Insert pictures	插入圖片
+	All files	所有檔案
+	Certificate with its key	含金鑰的憑證
+	Certificate	憑證
+	Mail files	郵件檔案
+	MailCraft categories	MailCraft 類別
+	MailCraft data files	MailCraft 資料檔案
+	MailCraft rules	MailCraft 規則
+	OpenPGP key	OpenPGP 金鑰
+	Outlook data files	Outlook 資料檔案
+	PDF document	PDF 文件
+	Contact card	連絡人名片
+	Web page	網頁
+	{ext} file	{ext} 檔案
+	Mailing list (List-Id) contains	郵寄清單 (List-Id) 包含
+	is from the list “{text}”	來自郵寄清單「{text}」
+	Create event	建立活動
+	Create task	建立任務
+	New task list	新增任務清單
+	Task list name	任務清單名稱
+	New task list…	新增任務清單…
+	Reminders over other apps' windows	提醒顯示在其他應用程式的視窗之上
+	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	提醒視窗會顯示在你正在使用的應用程式之上，但不會搶走它的鍵盤輸入。
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	郵件上方：其中的追蹤圖片、回報點擊的連結，以及對你隱藏的文字
+	Ask	詢問
+	Notes about tracking and hidden text	關於追蹤與隱藏文字的提示
+	Show web pictures	顯示網路圖片
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	此郵件位於垃圾郵件中或其寄件者已被封鎖，因此其圖片保持隱藏。
+	Unless suspicious	除非可疑
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	除非可疑：當你的郵件伺服器確認了郵件的寄件者時。一律：除垃圾郵件中的郵件與被封鎖寄件者的郵件外的所有郵件。每張圖片所在的伺服器可以看到你的 IP 位址以及你開啟郵件的時間；追蹤圖片仍會被封鎖
+	For mail to	適用於寄到
+	Every account	所有帳戶

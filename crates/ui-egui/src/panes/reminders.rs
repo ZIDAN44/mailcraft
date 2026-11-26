@@ -112,93 +112,120 @@ fn snooze_label(snooze: Snooze) -> String {
     }
 }
 
-/// The window, when something is due.
+/// The Reminders window as a window of its own (issue #299): over other apps' windows, as
+/// Outlook's can be, and shown without taking the keyboard from the app being worked in.
+pub(crate) fn own_window(title: &str, zoom: f32) -> egui::ViewportBuilder {
+    crate::os_window()
+        .with_title(title)
+        .with_inner_size(crate::app::at_zoom([460.0, 300.0], zoom))
+        .with_min_inner_size(crate::app::at_zoom([360.0, 200.0], zoom))
+        .with_window_level(egui::WindowLevel::AlwaysOnTop)
+        .with_active(false)
+}
+
+/// Whether the Reminders window is a window of its own over other apps' (the setting, where the
+/// system has windows), drawn from `logic`; else it's in MailCraft's.
+pub(crate) fn in_own_window(ctx: &egui::Context, s: &Session) -> bool {
+    s.prefs.reminders_on_top && !ctx.embed_viewports()
+}
+
+/// The window, when something is due: a window of its own over other apps' ([`in_own_window`]),
+/// else in MailCraft's.
 pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
     if !showing(st) {
         return;
     }
-    let snooze = *st.snooze.get_or_insert(FIRST_SNOOZE);
-    let now = s.clock.now;
-    let mut open = true;
     let title = if st.due.len() == 1 { tl!("1 Reminder").to_string() } else { tf!("{n} Reminders", n = st.due.len()) };
-    egui::Window::new(title)
-        .id(egui::Id::unique("reminders-window"))
-        .open(&mut open)
-        .collapsible(false)
-        .resizable(false)
-        .default_width(420.0)
-        .anchor(egui::Align2::RIGHT_BOTTOM, vec2(-24.0, -48.0))
-        .show(ctx, |ui: &mut Ui| {
-            egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
-                for r in &st.due {
-                    let picked = st.selected.as_deref() == Some(r.key.as_str());
-                    let text = format!("{}  ·  {}  ·  {}", r.summary, when(r, s), due_in(r, now));
-                    let label = RichText::new(text).color(if r.start <= now { t.danger } else { t.text });
-                    if ui.selectable_label(picked, label).on_hover_text(&r.location).clicked() {
-                        st.selected = Some(r.key.clone());
-                    }
-                }
-            });
-            ui.add_space(6.0);
-            let picked = st.selected.clone().and_then(|k| st.due.iter().find(|r| r.key == k).cloned());
-            // An online meeting (Teams, Zoom, the user's own rooms…): joined from here (issue
-            // #239), as the event's form does, not opened first; on a line of its own, above the
-            // others, as Outlook has it (beside them, it was drawn over Dismiss All in German).
-            let join = picked
-                .as_ref()
-                .filter(|r| !r.task && r.message.is_none())
-                .and_then(|r| s.find_event(&r.uid).and_then(|(_, e)| s.join_link(&e.event)));
-            if let Some(url) = join
-                && widgets::accent_button(ui, crate::icons::Icon::Calendar, "Join meeting", t, true).on_hover_text(&url).clicked()
-            {
-                acts.push(Action::OpenUrl(url));
-            }
-            // Wrapped: a language with longer words takes a second line rather than one button
-            // drawn over another.
-            ui.horizontal_wrapped(|ui| {
-                if ui.button(tl!("Dismiss All")).clicked() {
-                    acts.push(Action::Run("reminders.dismiss", json!({})));
-                }
-                if let Some(r) = &picked {
-                    if ui.button(tl!("Open Item")).clicked() {
-                        if let Some(key) = &r.message {
-                            // A flagged message, in a window of its own.
-                            acts.push(Action::Run("todo.open", json!({ "key": key.to_id() })));
-                        } else if let Some(d) = if r.task { Dialog::open_task(s, &r.uid) } else { Dialog::open_item(s, &r.uid, r.occurrence) } {
-                            acts.push(Action::Dialog(d));
-                        }
-                    }
-                    if widgets::accent_button(ui, crate::icons::Icon::Close, "Dismiss", t, true).clicked() {
-                        acts.push(Action::Run("reminders.dismiss", json!({ "key": r.key })));
-                    }
-                }
-            });
-            ui.add_space(4.0);
-            let again = ui.label(RichText::new(tl!("Click Snooze to be reminded again in:")).color(t.dim).small());
-            ui.horizontal(|ui| {
-                let r = egui::ComboBox::from_id_salt("reminder-snooze")
-                    .width(200.0)
-                    .selected_text(snooze_label(snooze))
-                    .show_ui(ui, |ui| {
-                        for m in SNOOZES {
-                            ui.selectable_value(&mut st.snooze, Some(m), snooze_label(m));
-                        }
-                    })
-                    .response
-                    .labelled_by(again.id);
-                crate::drop_down::keys(ui, &r, &mut st.snooze, &SNOOZES.map(Some));
-                if let Some(r) = &picked
-                    && ui.button(tl!("Snooze")).clicked()
-                {
-                    let p = match snooze {
-                        Snooze::AtStart => json!({ "key": r.key, "beforeStart": 0 }),
-                        Snooze::Minutes(m) => json!({ "key": r.key, "minutes": m }),
-                    };
-                    acts.push(Action::Run("reminders.snooze", p));
-                }
-            });
+    let mut open = true;
+    if in_own_window(ctx, s) {
+        let id = egui::ViewportId::from_hash_of("reminders-window");
+        let close = ctx.show_viewport_immediate(id, own_window(&title, ctx.zoom_factor()), |ui, _| {
+            egui::CentralPanel::default().frame(egui::Frame::new().fill(t.surface).inner_margin(12)).show(ui, |ui| body(ui, st, s, t, acts));
+            ui.input(|i| i.viewport().close_requested())
         });
+        open = !close;
+    } else {
+        egui::Window::new(title)
+            .id(egui::Id::unique("reminders-window"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_width(420.0)
+            .anchor(egui::Align2::RIGHT_BOTTOM, vec2(-24.0, -48.0))
+            .show(ctx, |ui: &mut Ui| body(ui, st, s, t, acts));
+    }
     if !open {
         st.closed.extend(st.due.iter().map(|r| r.key.clone()));
     }
+}
+
+/// What the window holds: the reminders due, Join, Dismiss, Open and Snooze.
+fn body(ui: &mut Ui, st: &mut State, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
+    let snooze = *st.snooze.get_or_insert(FIRST_SNOOZE);
+    let now = s.clock.now;
+    egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
+        for r in &st.due {
+            let picked = st.selected.as_deref() == Some(r.key.as_str());
+            let text = format!("{}  ·  {}  ·  {}", r.summary, when(r, s), due_in(r, now));
+            let label = RichText::new(text).color(if r.start <= now { t.danger } else { t.text });
+            if ui.selectable_label(picked, label).on_hover_text(&r.location).clicked() {
+                st.selected = Some(r.key.clone());
+            }
+        }
+    });
+    ui.add_space(6.0);
+    let picked = st.selected.clone().and_then(|k| st.due.iter().find(|r| r.key == k).cloned());
+    // An online meeting (Teams, Zoom, the user's own rooms…): joined from here (issue
+    // #239), as the event's form does, not opened first; on a line of its own, above the
+    // others, as Outlook has it (beside them, it was drawn over Dismiss All in German).
+    let join = picked.as_ref().filter(|r| !r.task && r.message.is_none()).and_then(|r| s.find_event(&r.uid).and_then(|(_, e)| s.join_link(&e.event)));
+    if let Some(url) = join
+        && widgets::accent_button(ui, crate::icons::Icon::Calendar, "Join meeting", t, true).on_hover_text(&url).clicked()
+    {
+        acts.push(Action::OpenUrl(url));
+    }
+    // Wrapped: a language with longer words takes a second line rather than one button
+    // drawn over another.
+    ui.horizontal_wrapped(|ui| {
+        if ui.button(tl!("Dismiss All")).clicked() {
+            acts.push(Action::Run("reminders.dismiss", json!({})));
+        }
+        if let Some(r) = &picked {
+            if ui.button(tl!("Open Item")).clicked() {
+                if let Some(key) = &r.message {
+                    // A flagged message, in a window of its own.
+                    acts.push(Action::Run("todo.open", json!({ "key": key.to_id() })));
+                } else if let Some(d) = if r.task { Dialog::open_task(s, &r.uid) } else { Dialog::open_item(s, &r.uid, r.occurrence) } {
+                    acts.push(Action::Dialog(d));
+                }
+            }
+            if widgets::accent_button(ui, crate::icons::Icon::Close, "Dismiss", t, true).clicked() {
+                acts.push(Action::Run("reminders.dismiss", json!({ "key": r.key })));
+            }
+        }
+    });
+    ui.add_space(4.0);
+    let again = ui.label(RichText::new(tl!("Click Snooze to be reminded again in:")).color(t.dim).small());
+    ui.horizontal(|ui| {
+        let r = egui::ComboBox::from_id_salt("reminder-snooze")
+            .width(200.0)
+            .selected_text(snooze_label(snooze))
+            .show_ui(ui, |ui| {
+                for m in SNOOZES {
+                    ui.selectable_value(&mut st.snooze, Some(m), snooze_label(m));
+                }
+            })
+            .response
+            .labelled_by(again.id);
+        crate::drop_down::keys(ui, &r, &mut st.snooze, &SNOOZES.map(Some));
+        if let Some(r) = &picked
+            && ui.button(tl!("Snooze")).clicked()
+        {
+            let p = match snooze {
+                Snooze::AtStart => json!({ "key": r.key, "beforeStart": 0 }),
+                Snooze::Minutes(m) => json!({ "key": r.key, "minutes": m }),
+            };
+            acts.push(Action::Run("reminders.snooze", p));
+        }
+    });
 }

@@ -165,6 +165,22 @@ fn pictures_locked_off_load_for_no_sender() {
     s.run("message.showPictures", &json!({"always": true})).unwrap();
     assert!(s.prefs.trusted_senders.is_empty());
     assert!(s.run("view.trustSender", &json!({"address": "zoe@studio.example"})).is_err());
+    assert!(s.run("view.webPictures", &json!({"load": "always"})).is_err(), "issue #276: nor every message's");
+}
+
+/// Issue #276: an organisation that locks every message's pictures off leaves the choice
+/// between asking and loading those that don't look suspicious.
+#[test]
+fn every_messages_pictures_locked_off_leaves_the_rest() {
+    let mut s = sample_session("org-all-pictures");
+    s.set_organisation(org(json!({"settings": {"allPictures": {"value": false, "locked": true}}})));
+    s.run("view.webPictures", &json!({"load": "safe"})).unwrap();
+    assert!(s.prefs.auto_pictures && !s.prefs.all_pictures);
+    s.run("view.webPictures", &json!({"load": "always"})).unwrap();
+    s.run("view.compact", &json!({})).unwrap();
+    assert!(s.prefs.auto_pictures && !s.prefs.all_pictures, "held: unless suspicious");
+    s.run("view.webPictures", &json!({"load": "ask"})).unwrap();
+    assert!(!s.prefs.auto_pictures);
 }
 
 #[test]
@@ -357,4 +373,18 @@ fn a_locked_setting_is_read_not_changed() {
     assert_eq!(s.prefs.undo_send_secs, 10);
     assert!(s.run("options.updates", &json!({"value": "on"})).is_err());
     assert!(s.command_locked("options.undoSend").is_some(), "its control is still held");
+}
+
+/// Every setting a command changes is one an organisation can set and lock (the Reminders
+/// window's, issue #299, came without being one: a profile's was said not to be a setting).
+#[test]
+fn every_setting_a_command_changes_an_organisation_sets() {
+    let missing: Vec<String> = crate::cmd::registry()
+        .all()
+        .iter()
+        .flat_map(|c| c.setting.split(',').map(str::trim).filter(|k| !k.is_empty()).map(|k| (c.id, crate::session::camel(k))))
+        .filter(|(_, k)| !crate::ORG_SETTINGS.contains(&k.as_str()))
+        .map(|(id, k)| format!("{id}: {k}"))
+        .collect();
+    assert!(missing.is_empty(), "{missing:?}");
 }

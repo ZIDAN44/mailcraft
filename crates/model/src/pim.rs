@@ -283,6 +283,10 @@ pub struct Pim {
     /// on this computer).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub task_lists: Vec<TaskList>,
+    /// Task lists to make on the server, by name, at the next sync (issue #294: one with none kept
+    /// MailCraft's tasks on this computer).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub new_task_lists: Vec<String>,
 
     /// Where the server keeps the user's calendars and address books (found once); empty when
     /// it has none.
@@ -293,10 +297,23 @@ pub struct Pim {
     /// When the server was last asked where they are.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dav_checked: Option<i64>,
+    /// The last sync with the server taken in here ([`DavSync::pass`]): the next one waits for
+    /// it, as it reads this to send what changed here.
+    #[serde(default, skip_serializing_if = "no_pass")]
+    pub dav_pass: u64,
     /// The calendar the user chose for new events and invitations (Default calendar, issue
     /// #30); without one, [`Pim::default_calendar`] picks the account's own.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chosen_calendar: Option<String>,
+    /// The calendar the server takes as the user's default (RFC 6638's
+    /// `schedule-default-calendar-URL`, issue #278), which [`Pim::default_calendar`] picks when
+    /// the user chose none. `Some("")`: the server was asked and names none; `None`: not asked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_default: Option<String>,
+    /// When the server last answered which is its default: it's asked again a day on, as
+    /// another program may have set another.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_default_at: Option<i64>,
     /// Invitations that arrived before the server was asked where the calendars are, waiting to
     /// be put in the calendar once it's known (issue #30); kept, so a restart doesn't lose them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -439,6 +456,10 @@ pub struct DavSync {
     pub task_lists: Option<Vec<TaskList>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub list_tasks: Vec<StoredTask>,
+    /// The task lists asked for ([`Pim::new_task_lists`]) this sync tried to make: made, read
+    /// with the others, or said why not; not asked for again.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub made_task_lists: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub synced_task_lists: Vec<String>,
     /// Deletions done (by href).
@@ -453,6 +474,14 @@ pub struct DavSync {
     /// Whether the calendar server schedules (`calendar-auto-schedule`); `None`: not asked.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_schedule: Option<bool>,
+    /// The calendar the server takes as the user's default ([`Pim::server_default`]): `Some("")`
+    /// when it names none; `None`: not asked this time, what was known stays.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_calendar: Option<String>,
+    /// Asking for it failed: what was known is forgotten, so it's asked again at the next sync,
+    /// though the calendars are the same then (they changed this time, or it was never known).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub default_calendar_failed: bool,
     /// Reminder answers the server took, or that no longer apply there (the event is gone): by
     /// uid and occurrence.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -461,6 +490,12 @@ pub struct DavSync {
     /// taken in, everything else left as it is.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub people_only: bool,
+    /// Which sync with the server this is, counted up for each account: the engine keeps the
+    /// last it took in ([`Pim::dav_pass`]), and the next waits for it. A sync begun before the one
+    /// before was taken in read what changed here as it was before that one, and sent it again:
+    /// refused (412) as "changed on the server meanwhile", and the server's copy kept.
+    #[serde(default, skip_serializing_if = "no_pass")]
+    pub pass: u64,
     /// The homes were taken as saved, not looked for: the last look ([`Pim::dav_checked`]) stays
     /// as it was, so a server not found is looked for again a day after that look, not a day after
     /// the last of the syncs since.
@@ -547,20 +582,23 @@ impl Pim {
         // The old server's calendar can't be the default any more; the user said to keep the
         // calendar here for the old one.
         self.chosen_calendar = None;
+        self.server_default = None;
+        self.server_default_at = None;
         self.keep_here = false;
     }
 
     /// The calendar new events and invitations go to: the one the user chose, else the
-    /// account's own on its server (SOGo's `personal` first) rather than someone else's listed
-    /// with it, else the first that can be added to (issue #30).
+    /// account's own on its server (the one the server names its default, else SOGo's
+    /// `personal` or a `default`) rather than someone else's listed with it, else the first
+    /// that can be added to (issues #30, #278).
     pub fn default_calendar(&self) -> Option<&CalendarInfo> {
-        pick_calendar(self.calendars.iter(), self.chosen_calendar.as_deref())
+        pick_calendar(self.calendars.iter(), self.chosen_calendar.as_deref(), self.server_default.as_deref())
     }
 
     /// The calendar on the server events move to from this computer: as
     /// [`Pim::default_calendar`], among the server's own calendars only.
     pub fn server_calendar(&self) -> Option<&CalendarInfo> {
-        pick_calendar(self.calendars.iter().filter(|c| is_server_calendar(&c.id)), self.chosen_calendar.as_deref())
+        pick_calendar(self.calendars.iter().filter(|c| is_server_calendar(&c.id)), self.chosen_calendar.as_deref(), self.server_default.as_deref())
     }
 
     /// The user's own calendars on the server, that they may change: not someone else's listed
@@ -593,18 +631,34 @@ pub fn is_server_calendar(id: &str) -> bool {
     id != LOCAL && !is_web_calendar(id) && shared_calendar_owner(id).is_none() && !id.is_empty()
 }
 
-/// The calendar new events go to among these (see [`Pim::default_calendar`]).
-pub fn pick_calendar<'a>(calendars: impl Iterator<Item = &'a CalendarInfo> + Clone, chosen: Option<&str>) -> Option<&'a CalendarInfo> {
+/// The calendar new events go to among these (see [`Pim::default_calendar`]): the one `chosen`
+/// by the user, else the one the server names its default (`server`), each when it can be added
+/// to.
+pub fn pick_calendar<'a>(
+    calendars: impl Iterator<Item = &'a CalendarInfo> + Clone,
+    chosen: Option<&str>,
+    server: Option<&str>,
+) -> Option<&'a CalendarInfo> {
     let writable = |c: &&CalendarInfo| !c.read_only && !is_web_calendar(&c.id);
     if let Some(c) = chosen.and_then(|id| calendars.clone().filter(writable).find(|c| c.id == id)) {
         return Some(c);
     }
     let own = |c: &&CalendarInfo| writable(c) && !c.foreign && shared_calendar_owner(&c.id).is_none();
-    let personal = |c: &&CalendarInfo| c.id.trim_end_matches('/').rsplit('/').next().is_some_and(|n| n.eq_ignore_ascii_case("personal"));
+    // The server's default as it names it (issue #278), when it's among these (a trailing slash
+    // aside) and the user's own.
+    let same = |a: &str, b: &str| a.trim_end_matches('/') == b.trim_end_matches('/');
+    if let Some(c) = server.filter(|s| !s.is_empty()).and_then(|s| calendars.clone().filter(own).find(|c| same(&c.id, s))) {
+        return Some(c);
+    }
+    // The server's own default by its name: SOGo's `personal`, Stalwart's and Radicale-style
+    // `default` (issue #278), before the order the server lists them in.
+    let named_default = |c: &&CalendarInfo| {
+        c.id.trim_end_matches('/').rsplit('/').next().is_some_and(|n| n.eq_ignore_ascii_case("personal") || n.eq_ignore_ascii_case("default"))
+    };
     calendars
         .clone()
         .filter(own)
-        .find(personal)
+        .find(named_default)
         .or_else(|| calendars.clone().find(own))
         .or_else(|| calendars.clone().find(|c| writable(c) && shared_calendar_owner(&c.id).is_none()))
         .or_else(|| calendars.clone().find(writable))
@@ -640,94 +694,14 @@ pub fn separate_shared_uids(events: &mut [StoredEvent]) {
     }
 }
 
-#[cfg(test)]
-mod shared_uid_tests {
-    use super::*;
-
-    /// Duplicates get their start appended (a counter when the start repeats too); a lone
-    /// event and a recurring one in another calendar keep their UID.
-    #[test]
-    fn repeated_uids_get_their_start_appended() {
-        let ev = |cal: &str, start: i64, rrule: Option<&str>| StoredEvent {
-            calendar: cal.into(),
-            event: CalEvent { uid: "series-1".into(), start, rrule: rrule.map(str::to_string), ..Default::default() },
-            ..Default::default()
-        };
-        let mut list = vec![ev("cal", 100, None), ev("cal", 200, None), ev("cal", 100, None), ev("other", 100, Some("FREQ=WEEKLY"))];
-        separate_shared_uids(&mut list);
-        let uids: Vec<&str> = list.iter().map(|e| e.event.uid.as_str()).collect();
-        assert_eq!(uids, ["series-1/100", "series-1/200", "series-1/100-2", "series-1"]);
-        // Nothing to tell apart: unchanged.
-        let mut one = vec![ev("cal", 100, None)];
-        separate_shared_uids(&mut one);
-        assert_eq!(one[0].event.uid, "series-1");
-    }
+/// No sync numbered yet (left out of the files).
+fn no_pass(n: &u64) -> bool {
+    *n == 0
 }
 
 #[cfg(test)]
-mod web_calendar_tests {
-    use super::*;
-
-    /// Issue #7: the links calendars are published with, and what isn't one.
-    #[test]
-    fn calendar_links_are_read_as_web_addresses() {
-        assert_eq!(calendar_link(" webcal://p01-calendars.example.com/x.ics ").as_deref(), Some("https://p01-calendars.example.com/x.ics"));
-        assert_eq!(calendar_link("WEBCALS://cal.example/a?b=1").as_deref(), Some("https://cal.example/a?b=1"));
-        assert_eq!(calendar_link("http://192.168.1.10:5232/riley/work/").as_deref(), Some("http://192.168.1.10:5232/riley/work/"));
-        assert_eq!(calendar_link("https://[::1]:8443/cal.ics").as_deref(), Some("https://[::1]:8443/cal.ics"));
-        assert_eq!(calendar_link("https://cal.example/a.ics#top").as_deref(), Some("https://cal.example/a.ics"));
-        for bad in [
-            "",
-            "webcal://",
-            "https:///x",
-            "ftp://x.example/a.ics",
-            "file:///etc/passwd",
-            "https://a@b.example/x",
-            "https://x.example/a b",
-            "https://:80/x",
-            "x.example/a.ics",
-        ] {
-            assert_eq!(calendar_link(bad), None, "{bad:?}");
-        }
-        assert_eq!(calendar_link(&format!("https://x.example/{}", "a".repeat(MAX_CALENDAR_LINK))), None);
-        assert!(is_web_calendar(&web_calendar_id("https://x.example/a.ics")));
-        assert!(!is_web_calendar(LOCAL) && !is_web_calendar(&shared_calendar_id("a@b.example")));
-    }
-}
-
+mod default_calendar_tests;
 #[cfg(test)]
-mod default_calendar_tests {
-    use super::*;
-
-    fn cal(id: &str, read_only: bool, foreign: bool) -> CalendarInfo {
-        CalendarInfo { id: id.into(), name: id.into(), read_only, foreign, ..Default::default() }
-    }
-
-    /// Issue #30: the user's choice, else the account's own (SOGo's `personal` first) before
-    /// someone else's listed with it, else whatever can be added to; never a read-only one or
-    /// one subscribed to by its link.
-    #[test]
-    fn the_accounts_own_calendar_is_the_default() {
-        let list = vec![
-            cal("https://d.example/web/", true, false),
-            cal("https://d.example/u/sam_team/", false, true),
-            cal("https://d.example/u/work/", false, false),
-            cal("https://d.example/u/personal/", false, false),
-            cal(LOCAL, false, false),
-        ];
-        let pick = |chosen: Option<&str>| pick_calendar(list.iter(), chosen).map(|c| c.id.clone());
-        assert_eq!(pick(None).as_deref(), Some("https://d.example/u/personal/"));
-        assert_eq!(pick(Some("https://d.example/u/sam_team/")).as_deref(), Some("https://d.example/u/sam_team/"), "chosen");
-        assert_eq!(pick(Some("https://d.example/web/")).as_deref(), Some("https://d.example/u/personal/"), "read-only: not taken");
-        assert_eq!(pick(Some("gone")).as_deref(), Some("https://d.example/u/personal/"));
-        let theirs = [cal("https://d.example/u/sam_team/", false, true), cal(&web_calendar_id("https://x/a.ics"), false, false)];
-        assert_eq!(pick_calendar(theirs.iter(), None).map(|c| c.id.as_str()), Some("https://d.example/u/sam_team/"), "only someone else's");
-        assert!(pick_calendar([cal("https://d.example/ro/", true, false)].iter(), None).is_none());
-        let p = Pim { calendars: list.clone(), ..Default::default() };
-        assert_eq!(p.server_calendar().map(|c| c.id.as_str()), Some("https://d.example/u/personal/"));
-        let only_here =
-            Pim { calendars: vec![cal(LOCAL, false, false), cal(&shared_calendar_id("a@b.example"), false, false)], ..Default::default() };
-        assert!(only_here.server_calendar().is_none());
-        assert_eq!(only_here.default_calendar().map(|c| c.id.as_str()), Some(LOCAL));
-    }
-}
+mod shared_uid_tests;
+#[cfg(test)]
+mod web_calendar_tests;

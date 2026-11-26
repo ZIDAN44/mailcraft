@@ -394,6 +394,9 @@ impl MailApp {
         if id == "mail.delete" && p.get("permanent").is_none() && self.ask_before_deleting() {
             return;
         }
+        if id == "list.rowAction" && p.get("permanent").is_none() && self.ask_before_row_delete(&p) {
+            return;
+        }
         match id {
             "attachment.preview" => match self.session.run(id, &p) {
                 Ok(v) => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),

@@ -13,11 +13,7 @@ impl Dav {
     /// The user's scheduling outbox (RFC 6638 §2.1), from where their calendars are (`home`):
     /// their principal's `schedule-outbox-URL`; `None` when the server names none.
     pub fn outbox(&self, home: &str) -> Result<Option<String>> {
-        let (items, at) = self.propfind(home, "0", "<d:current-user-principal/>")?;
-        let Some(principal) = items.iter().find_map(|i| i.hrefs.get("current-user-principal").and_then(|h| h.first())).cloned() else {
-            return Ok(None);
-        };
-        let principal = absolute(&at, &principal)?;
+        let Some(principal) = self.principal(home)? else { return Ok(None) };
         let (items, at) = self.propfind(&principal, "0", "<c:schedule-outbox-URL/>")?;
         items.iter().find_map(|i| i.hrefs.get("schedule-outbox-url").and_then(|h| h.first())).map(|h| absolute(&at, h)).transpose()
     }

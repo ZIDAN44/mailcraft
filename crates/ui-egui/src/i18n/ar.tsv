@@ -1719,7 +1719,6 @@ month	May	مايو
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	يستخدم تطبيق MailCraft لسطح المكتب مفاتيح OpenPGP الخاصة بك، لا المتصفح
 	Not sent yet: this is a draft.	لم تُرسل بعد: هذه مسودة.
 	Show web pictures unless a message looks suspicious	إظهار صور الويب ما لم تبدُ الرسالة مريبة
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	تُحمَّل الصور عند فتح الرسالة إذا أكد خادم بريدك هوية المرسل ولم تكن في البريد العشوائي. يستطيع خادم كل صورة رؤية عنوان IP الخاص بك ووقت فتحها. تظل صور التتبع محظورة
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	تبدو هذه الرسالة مريبة أو تعذّر تأكيد مرسلها، لذا تظل صورها مخفية.
 	These senders' pictures always load, even when a message looks suspicious:	تُحمَّل صور هؤلاء المرسلين دائمًا، حتى عندما تبدو الرسالة مريبة:
 	Open a mail file	فتح ملف بريد
@@ -2070,6 +2069,8 @@ count	occurrences	مرات
 	Didn't run: {why}	لم يُنفَّذ: {why}
 	Let AI agents ask to run commands	السماح لوكلاء الذكاء الاصطناعي بطلب تشغيل الأوامر
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	الإرسال والنقل والرد على دعوة… يُسأل عن كل منها هنا أولًا، ما لم تسمح به دائمًا. عند الإيقاف، يقرأ الوكلاء فقط.
+	Always allow every command	السماح دائمًا بكل الأوامر
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	يُسأل عنه أولًا دائمًا: الإرسال إلى أشخاص آخرين، والحسابات والأمان، والويب، وحفظ الملفات، والحذف النهائي.
 	Accounts AI agents read	الحسابات التي يقرؤها وكلاء الذكاء الاصطناعي
 	One turned off is left out of all they read, and they can't take pictures of the window	الحساب الموقوف يُستبعد من كل ما يقرؤونه، ولا يمكنهم التقاط صور للنافذة
 	… and {n} more characters	… و{n} حرفًا آخر
@@ -2164,3 +2165,43 @@ count	occurrences	مرات
 	Their times can't be had: {why}	تعذّر الحصول على أوقاتهم: {why}
 	You	أنت
 	{free} of {all} free	{free} من {all} متفرغون
+	Pictures from the web weren't loaded.	لم تُحمَّل الصور من الويب.
+	(The rest of the message didn't fit in this document.)	(لم يتسع باقي الرسالة في هذا المستند.)
+	Attach files	إرفاق ملفات
+	Save as	حفظ باسم
+	Save attachments to	حفظ المرفقات في
+	Trust a certificate file	الوثوق بملف شهادة
+	Import categories	استيراد الفئات
+	Open mail file	فتح ملف بريد
+	Insert pictures	إدراج صور
+	All files	كل الملفات
+	Certificate with its key	شهادة مع مفتاحها
+	Certificate	شهادة
+	Mail files	ملفات البريد
+	MailCraft categories	فئات MailCraft
+	MailCraft data files	ملفات بيانات MailCraft
+	MailCraft rules	قواعد MailCraft
+	OpenPGP key	مفتاح OpenPGP
+	Outlook data files	ملفات بيانات Outlook
+	PDF document	مستند PDF
+	Contact card	بطاقة جهة اتصال
+	Web page	صفحة ويب
+	{ext} file	ملف {ext}
+	Mailing list (List-Id) contains	القائمة البريدية (List-Id) تحتوي على
+	is from the list “{text}”	من القائمة «{text}»
+	Create event	إنشاء حدث
+	Create task	إنشاء مهمة
+	New task list	قائمة مهام جديدة
+	Task list name	اسم قائمة المهام
+	New task list…	قائمة مهام جديدة…
+	Reminders over other apps' windows	التذكيرات فوق نوافذ التطبيقات الأخرى
+	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	تظهر نافذة التذكيرات فوق التطبيق الذي تعمل فيه، دون أن تأخذ منه لوحة المفاتيح.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	فوق الرسالة: صور التتبع فيها، والروابط التي تُبلغ عن النقرات، والنص الذي تخفيه عنك
+	Ask	اسأل
+	Notes about tracking and hidden text	ملاحظات عن التتبع والنص المخفي
+	Show web pictures	إظهار صور الويب
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	هذه الرسالة في البريد العشوائي أو مرسلها محظور، لذا تبقى صورها مخفية.
+	Unless suspicious	ما لم تكن مريبة
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	ما لم تكن مريبة: عندما يؤكد خادم بريدك مَن أرسل الرسالة. دائمًا: كل رسالة عدا ما في البريد العشوائي وما يأتي من مرسلين محظورين. يمكن للخادم الذي توجد عليه كل صورة أن يرى عنوان IP الخاص بك ووقت فتحك للرسالة؛ وتبقى صور التتبع محظورة
+	For mail to	للبريد الوارد إلى
+	Every account	كل الحسابات

@@ -1738,7 +1738,6 @@ date	December	decembra
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	vaše kľúče OpenPGP používa desktopová aplikácia MailCraft, nie prehliadač
 	Not sent yet: this is a draft.	Ešte neodoslané: toto je koncept.
 	Show web pictures unless a message looks suspicious	Zobrazovať obrázky z webu, ak správa nevyzerá podozrivo
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Obrázky sa načítajú pri otvorení správy, ak váš poštový server overil odosielateľa a správa nie je v nevyžiadanej pošte. Server, na ktorom je každý obrázok, vidí vašu IP adresu a čas otvorenia. Sledovacie obrázky zostávajú blokované
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Táto správa vyzerá podozrivo alebo sa nepodarilo overiť jej odosielateľa, preto jej obrázky zostávajú skryté.
 	These senders' pictures always load, even when a message looks suspicious:	Obrázky od týchto odosielateľov sa načítajú vždy, aj keď správa vyzerá podozrivo:
 	Open a mail file	Otvoriť poštový súbor
@@ -2089,6 +2088,8 @@ count	occurrences	opakovaní
 	Didn't run: {why}	Nespustené: {why}
 	Let AI agents ask to run commands	Povoliť agentom AI žiadať o spustenie príkazov
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Odoslanie, presun, odpoveď na pozvánku… na každý sa najprv opýta tu, ak ho nepovolíte vždy. Vypnuté: agenti len čítajú.
+	Always allow every command	Vždy povoliť každý príkaz
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Stále sa najprv opýta: odosielanie iným ľuďom, kontá a zabezpečenie, web, ukladanie súborov a trvalé odstránenie.
 	Accounts AI agents read	Kontá, ktoré čítajú agenti AI
 	One turned off is left out of all they read, and they can't take pictures of the window	Vypnuté konto je vynechané zo všetkého, čo čítajú, a nemôžu robiť obrázky okna
 	… and {n} more characters	… a ďalších {n} znakov
@@ -2183,3 +2184,43 @@ count	occurrences	opakovaní
 	Their times can't be had: {why}	Ich časy nie sú k dispozícii: {why}
 	You	Vy
 	{free} of {all} free	Voľní: {free} z {all}
+	Pictures from the web weren't loaded.	Obrázky z webu sa nenačítali.
+	(The rest of the message didn't fit in this document.)	(Zvyšok správy sa do tohto dokumentu nezmestil.)
+	Attach files	Priložiť súbory
+	Save as	Uložiť ako
+	Save attachments to	Uložiť prílohy do
+	Trust a certificate file	Dôverovať súboru certifikátu
+	Import categories	Importovať kategórie
+	Open mail file	Otvoriť súbor správy
+	Insert pictures	Vložiť obrázky
+	All files	Všetky súbory
+	Certificate with its key	Certifikát s kľúčom
+	Certificate	Certifikát
+	Mail files	Súbory správ
+	MailCraft categories	Kategórie MailCraftu
+	MailCraft data files	Údajové súbory MailCraftu
+	MailCraft rules	Pravidlá MailCraftu
+	OpenPGP key	Kľúč OpenPGP
+	Outlook data files	Údajové súbory Outlooku
+	PDF document	Dokument PDF
+	Contact card	Vizitka kontaktu
+	Web page	Webová stránka
+	{ext} file	Súbor {ext}
+	Mailing list (List-Id) contains	Mailing list (List-Id) obsahuje
+	is from the list “{text}”	je z mailing listu „{text}“
+	Create event	Vytvoriť udalosť
+	Create task	Vytvoriť úlohu
+	New task list	Nový zoznam úloh
+	Task list name	Názov zoznamu úloh
+	New task list…	Nový zoznam úloh…
+	Reminders over other apps' windows	Pripomienky nad oknami iných aplikácií
+	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	Okno pripomienok sa zobrazí nad aplikáciou, v ktorej pracujete, bez toho, aby jej vzalo klávesnicu.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	Nad správou: jej sledovacie obrázky, prepojenia hlásiace kliknutia a text, ktorý pred vami skrýva
+	Ask	Pýtať sa
+	Notes about tracking and hidden text	Poznámky o sledovaní a skrytom texte
+	Show web pictures	Zobrazovať obrázky z webu
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Táto správa je v Nevyžiadanej pošte alebo je jej odosielateľ blokovaný, preto jej obrázky zostávajú skryté.
+	Unless suspicious	Ak nie je podozrivá
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Ak nie je podozrivá: keď poštový server potvrdil, kto správu poslal. Vždy: každá správa okrem tých v Nevyžiadanej pošte a od blokovaných odosielateľov. Server, na ktorom je obrázok, vidí vašu IP adresu a kedy ste správu otvorili; sledovacie obrázky zostávajú blokované
+	For mail to	Pre poštu pre
+	Every account	Všetky účty

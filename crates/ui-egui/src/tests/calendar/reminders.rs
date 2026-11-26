@@ -351,3 +351,60 @@ fn an_events_reminders_each_have_a_list_in_its_form() {
     let texts = drawn_strings(&ctx, &mut a, size);
     assert!(!has(&texts, "Add reminder"), "{texts:?}");
 }
+
+/// Issue #299: the Reminders window is a window of its own over other apps' windows, as Outlook's
+/// can be, shown without taking the keyboard from the app being worked in (drawn in MailCraft's
+/// window, it was behind that app). File › Options › Calendar turns it off.
+#[test]
+fn the_reminders_window_comes_up_over_other_apps() {
+    let w = crate::reminders::own_window("1 Reminder", 2.0);
+    assert_eq!(w.window_level, Some(egui::WindowLevel::AlwaysOnTop));
+    assert_eq!(w.active, Some(false), "the keyboard stays where it was");
+    assert_eq!(w.title.as_deref(), Some("1 Reminder"));
+    assert_eq!(w.inner_size, Some(egui::vec2(230.0, 150.0)), "the same size on the screen at any text size");
+
+    let tall = egui::vec2(1280.0, 8000.0);
+    let _tall = crate::tests::windows::layout::Dressed::new(tall, "");
+    let (mut a, _) = app("reminders-on-top");
+    assert!(a.session.prefs.reminders_on_top, "on unless turned off");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.ui.backstage = Some(crate::backstage::Backstage::new(crate::backstage::Page::Options));
+    frame(&ctx, &mut a, vec![]);
+    frame(&ctx, &mut a, vec![]);
+    let nodes = named(&ctx, &mut a, tall);
+    let label = "Reminders over other apps' windows";
+    let switch = nodes.iter().find(|n| n.label.as_deref() == Some(label) && n.role == egui::accesskit::Role::CheckBox).and_then(Named::centre);
+    click(&ctx, &mut a, switch.expect("its switch in Options"));
+    frame(&ctx, &mut a, vec![]);
+    assert!(!a.session.prefs.reminders_on_top, "turned off in Options");
+    a.run("view.remindersOnTop", json!({}));
+    assert!(a.session.prefs.reminders_on_top, "and on again");
+}
+
+/// Issue #299: with the window minimized, hidden or covered (a Mac's window behind another app's),
+/// eframe runs only `logic`: a reminder coming due then is told of at once, not when MailCraft is
+/// switched to, and not told again when the window is drawn after.
+#[test]
+fn a_reminder_is_told_of_with_the_window_minimized() {
+    let (mut a, _) = app("reminder-minimized");
+    let now = std::sync::Arc::new(std::sync::Mutex::new(NOW));
+    let shown = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    a.services = Box::new(Ticking(now.clone(), shown.clone()));
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let day = mailcraft_engine::model::dates::day_string(NOW.div_euclid(86_400));
+    let start = NOW + 3600;
+    let at = format!("{day}T{:02}:{:02}", start.div_euclid(3600).rem_euclid(24), start.div_euclid(60).rem_euclid(60));
+    a.run("event.create", json!({"summary": "Design review", "start": at, "reminder": 15}));
+    a.logic(&ctx);
+    let told = |shown: &std::sync::Mutex<Vec<(String, String)>>| shown.lock().unwrap().iter().filter(|(t, _)| t == "Design review").count();
+    assert_eq!(told(&shown), 0, "not due yet");
+    *now.lock().unwrap() = start - 15 * 60;
+    a.logic(&ctx);
+    assert_eq!(told(&shown), 1, "told with only `logic` running");
+    assert!(crate::reminders::showing(&a.ui.reminders));
+    frame(&ctx, &mut a, vec![]);
+    a.logic(&ctx);
+    assert_eq!(told(&shown), 1, "once");
+}

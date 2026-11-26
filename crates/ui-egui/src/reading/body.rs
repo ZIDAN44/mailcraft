@@ -77,8 +77,12 @@ pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageKey, p
                 ui.horizontal_wrapped(|ui| {
                     let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), ir, Icon::Image, t.dim);
-                    // Shown by themselves elsewhere: why not on this one.
-                    let why = if s.prefs.auto_pictures {
+                    // Shown by themselves elsewhere: why not on this one (every message's but Junk's
+                    // and blocked senders', issue #276; a message file's sender is never taken on
+                    // its word).
+                    let why = if s.prefs.auto_pictures && s.prefs.all_pictures && s.opened_file_name(key).is_none() {
+                        tl!("This message is in Junk Email or its sender is blocked, so its pictures stay hidden.")
+                    } else if s.prefs.auto_pictures {
                         tl!("This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.")
                     } else {
                         tl!("Pictures from the web are hidden to protect your privacy.")
@@ -98,9 +102,10 @@ pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageKey, p
         );
         ui.add_space(6.0);
     }
-    // What reports back to the sender: never-loaded pictures, links that count clicks.
+    // What reports back to the sender: never-loaded pictures, links that count clicks (unless
+    // the notes are turned off, issue #276).
     let tr = &p.trackers;
-    if !tr.is_empty() {
+    if !tr.is_empty() && s.prefs.message_notes {
         let line = match (tr.pictures.len(), tr.links) {
             (0, links) => tf!("Links that report clicks: {links}", links = links),
             (pictures, 0) => tf!("Tracking pictures, never loaded: {pictures}", pictures = pictures),
@@ -119,7 +124,11 @@ pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageKey, p
             ui.label(RichText::new(line).color(t.faint).small()).on_hover_text(about);
         });
     }
-    let trusted = formatted && !web.is_empty() && s.pictures_allowed() && s.prefs.trusted_senders.contains(&p.from.email.to_ascii_lowercase());
+    let trusted = s.prefs.message_notes
+        && formatted
+        && !web.is_empty()
+        && s.pictures_allowed()
+        && s.prefs.trusted_senders.contains(&p.from.email.to_ascii_lowercase());
     if !formatted || trusted {
         ui.horizontal(|ui| {
             if trusted {

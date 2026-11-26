@@ -308,7 +308,8 @@ fn attachments_strip(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, f
 fn message_text(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, formatted: bool, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let (r, p) = (o.r, o.p);
-    if p.hidden_words > 0 {
+    // Unless the notes are turned off (issue #276).
+    if p.hidden_words > 0 && s.prefs.message_notes {
         hidden_bar(&t, ui, &r.key, p);
     }
     if p.had_html {

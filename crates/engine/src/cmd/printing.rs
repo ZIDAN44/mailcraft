@@ -30,21 +30,24 @@ impl Session {
     pub fn message_pdf(&self) -> Result<Vec<u8>, CmdError> {
         let r = self.reading.as_ref().ok_or_else(|| CmdError::Disabled("open a message first".into()))?;
         let m = r.parsed.as_ref().ok_or_else(|| CmdError::Disabled("the message is still downloading".into()))?;
-        let mut header = vec![("From".to_string(), m.from.to_string())];
+        // In the window's language, the date as MailCraft writes it there (issue #291).
+        let w = &self.mail_words.print;
+        let mut header = vec![(w.from.clone(), m.from.to_string())];
         if !m.to.is_empty() {
-            header.push(("To".into(), mailcraft_model::addr::format_list(&m.to)));
+            header.push((w.to.clone(), mailcraft_model::addr::format_list(&m.to)));
         }
         if !m.cc.is_empty() {
-            header.push(("Cc".into(), mailcraft_model::addr::format_list(&m.cc)));
+            header.push((w.cc.clone(), mailcraft_model::addr::format_list(&m.cc)));
         }
         if m.date > 0 {
-            header.push(("Date".into(), mailcraft_model::dates::full_time(m.date, &self.clock)));
+            header.push((w.date.clone(), self.mail_words.time(m.date, &self.clock)));
         }
         let files: Vec<String> = m.attachments.iter().filter(|a| !a.inline).map(|a| a.name.clone()).collect();
         if !files.is_empty() {
-            header.push(("Attachments".into(), files.join(", ")));
+            header.push((w.attachments.clone(), files.join(", ")));
         }
-        let mut printing = Printing { s: self, key: &r.key, p: m, raw: None, own: None, pictures: Vec::new(), by_src: HashMap::new(), pixels: 0 };
+        let mut printing =
+            Printing { s: self, key: &r.key, p: m, raw: None, own: None, pictures: Vec::new(), by_src: HashMap::new(), pixels: 0, not_loaded: false };
         // A formatted message: its layout, or (one with no columns) its lines.
         let blocks = if !m.layout.is_empty() {
             printing.blocks(&m.layout, 0, false)
@@ -53,8 +56,19 @@ impl Session {
         } else {
             Vec::new()
         };
-        let doc = print::Doc { title: m.subject.clone(), header, body: m.text.clone(), rich: Vec::new(), blocks, pictures: printing.pictures };
-        let fonts = self.print_fonts.as_ref().map(|(r, b)| print::Fonts { regular: r, bold: b.as_deref() });
+        let note = if printing.not_loaded { w.not_loaded.clone() } else { String::new() };
+        let doc = print::Doc {
+            title: m.subject.clone(),
+            header,
+            note,
+            cut: w.cut.clone(),
+            body: m.text.clone(),
+            rich: Vec::new(),
+            blocks,
+            pictures: printing.pictures,
+        };
+        let fallbacks: Vec<&[u8]> = self.print_fallbacks.iter().map(|f| (**f).as_ref()).collect();
+        let fonts = self.print_fonts.as_ref().map(|(r, b)| print::Fonts { regular: r, bold: b.as_deref(), fallbacks: &fallbacks });
         Ok(print::pdf(&doc, fonts))
     }
 }
@@ -74,6 +88,8 @@ struct Printing<'a> {
     /// Each picture address looked up: its place in `pictures`, or that there's none.
     by_src: HashMap<String, Option<usize>>,
     pixels: u64,
+    /// A picture from the web is left out: not loaded (a tracking one aside, never loaded).
+    not_loaded: bool,
 }
 
 impl Printing<'_> {
@@ -94,12 +110,15 @@ impl Printing<'_> {
         }
         let lower = src.trim().to_ascii_lowercase();
         let bytes: Vec<u8> = if lower.starts_with("https://") || lower.starts_with("http://") {
-            if !self.s.pictures_allowed() || self.p.trackers.pictures.iter().any(|t| t == src) {
+            if self.p.trackers.pictures.iter().any(|t| t == src) {
                 return None;
             }
-            match self.s.pictures.get(src) {
+            match self.s.pictures.get(src).filter(|_| self.s.pictures_allowed()) {
                 Some(crate::Picture::Ready(b)) => b.to_vec(),
-                _ => return None,
+                _ => {
+                    self.not_loaded = true;
+                    return None;
+                }
             }
         } else {
             let index = mailcraft_mime::picture_attachment(self.p, src)?;

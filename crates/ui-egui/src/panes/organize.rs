@@ -150,7 +150,7 @@ pub fn context_items(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action
     if let Some(m) = s.first_selected()
         && ui.button(tl!("Create rule…")).clicked()
     {
-        acts.push(Action::Dialog(Dialog::rule_from(&m.from.email)));
+        acts.push(Action::Dialog(Dialog::rule_from(&m.from.email, Some(&m.key.account))));
         ui.close();
     }
 }

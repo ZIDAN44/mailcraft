@@ -37,6 +37,37 @@ pub struct MailWords {
     pub date: fn(&str) -> String,
     /// The five categories a new profile starts with, by name (`organize::default_categories`).
     pub categories: [String; 5],
+    /// A printed message's header and notes (Print, Save as PDF; issue #291).
+    pub print: PrintWords,
+}
+
+/// The words a printed message has of MailCraft's own, in the window's language.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PrintWords {
+    pub from: String,
+    pub to: String,
+    pub cc: String,
+    pub date: String,
+    pub attachments: String,
+    /// Under the header when pictures from the web are left out (nothing is fetched to print).
+    pub not_loaded: String,
+    /// At the end of a message too long for the pages.
+    pub cut: String,
+}
+
+impl Default for PrintWords {
+    fn default() -> Self {
+        let s = |x: &str| x.to_string();
+        PrintWords {
+            from: s("From"),
+            to: s("To"),
+            cc: s("Cc"),
+            date: s("Date"),
+            attachments: s("Attachments"),
+            not_loaded: s("Pictures from the web weren't loaded."),
+            cut: s("(The rest of the message didn't fit in this document.)"),
+        }
+    }
 }
 
 fn same(s: &str) -> String {
@@ -73,6 +104,7 @@ impl Default for MailWords {
             meeting: MeetingLabels::default(),
             date: same,
             categories: [s("Important"), s("Work"), s("Personal"), s("To do"), s("Later")],
+            print: PrintWords::default(),
         }
     }
 }

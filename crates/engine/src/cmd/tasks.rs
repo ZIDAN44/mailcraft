@@ -79,6 +79,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"by": "due"|"priority"|"title"|"modified"}"#),
         toggle!("task.hideDone", "Hide completed tasks", "Tasks › View", tasks_hide_done, r#"{"on"?: bool (default: the other way)}"#),
         // One task list alone, or all of them (issue #201).
+        // A task list made on the server (issue #294).
+        CommandSpec::new("task.newList", "New task list", "Tasks", |s, v| s.new_task_list(p::str(v, "account"), p::req_str(v, "name")?))
+            .params(r#"{"name": string, "account"?: string (an account whose calendars are on a CalDAV server; else the one on screen's)} (made at its next sync)"#),
         CommandSpec::new("task.showList", "Show a task list", "Tasks › View", |s, v| {
             let list = p::str(v, "list").map(str::trim).filter(|l| !l.is_empty());
             if let Some(l) = list

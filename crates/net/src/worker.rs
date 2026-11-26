@@ -530,6 +530,9 @@ struct Worker {
     /// Why the calendars and contacts couldn't be read, as last said: said once, not at every
     /// sync.
     dav_said: Option<String>,
+    /// The last sync of them sent to the engine ([`DavSync::pass`]), and when, if it sent changes
+    /// to the server.
+    dav_sent: (u64, Option<Instant>),
     /// Done on this thread before it first connects ([`Worker::settle_password`]): the password
     /// just given, to keep in the keychain, or `None` to read the one kept there.
     keychain: Option<Option<String>>,
@@ -661,6 +664,7 @@ impl Worker {
             search,
             dav_digest: None,
             dav_said: None,
+            dav_sent: (0, None),
             keychain: None,
             quick_start: None,
             no_password: Arc::default(),

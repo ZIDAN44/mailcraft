@@ -66,6 +66,8 @@ impl MailApp {
         session.set_indexing(true);
         session.set_background_search(true);
         session.set_search_first_units(0);
+        // A PDF draws what its font lacks with the fonts the window does (issue #291).
+        session.print_fallbacks = crate::theme::print_fallbacks();
         match services.take_data_moved() {
             Some(Ok(to)) => session.notice(tf!("Your mail is now kept in {folder}", folder = to.display().to_string()), false),
             Some(Err(e)) => session.notice(tf!("Your mail couldn't be moved, so it stays where it was: {error}", error = e), true),

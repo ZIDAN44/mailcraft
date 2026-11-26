@@ -113,7 +113,7 @@ fn every_drop_down_says_what_it_is_for() {
     a.run("mail.new", json!({}));
     check(&mut a, "new message", wide);
     a.run("compose.discard", json!({}));
-    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example"));
+    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example", None));
     for action in [crate::dialogs::RuleDo::MoveTo, crate::dialogs::RuleDo::Categorize] {
         if let Some(Dialog::EditRule(f)) = a.ui.dialog.as_mut() {
             f.action = action;
@@ -146,7 +146,7 @@ fn a_question_is_read_as_an_alert_by_its_title() {
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     for (d, role, title) in [
-        (Dialog::ConfirmDelete { count: 2 }, Role::AlertDialog, "Delete permanently?"),
+        (Dialog::ConfirmDelete { count: 2, one: None }, Role::AlertDialog, "Delete permanently?"),
         (Dialog::SaveOnClose(1), Role::AlertDialog, "Save the message you're writing?"),
         (Dialog::MoveTo { filter: String::new(), copy: false }, Role::Dialog, "Move to folder"),
         (Dialog::MoveTo { filter: String::new(), copy: true }, Role::Dialog, "Copy to folder"),

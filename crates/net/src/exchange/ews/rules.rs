@@ -234,6 +234,7 @@ fn what_it_does(rule: &Rule, folder_id: &dyn Fn(&str) -> Option<String>) -> Resu
             }
             Condition::AnyText(_) => return Err(cant("look at the sender, recipients and subject together")),
             Condition::Bulk => return Err(cant("tell list mail")),
+            Condition::ListId(_) => return Err(cant("tell a mailing list by its List-Id")),
         };
         if slot.replace(strings(t)).is_some() {
             return Err(cant("have two conditions of one kind"));
@@ -274,6 +275,7 @@ fn what_it_does(rule: &Rule, folder_id: &dyn Fn(&str) -> Option<String>) -> Resu
                     return Err(cant("move mail to two folders"));
                 }
             }
+            RuleAction::MoveToAccount { .. } => return Err(cant("move mail into another account")),
             RuleAction::Flag => return Err(cant("flag mail")),
             RuleAction::Pin => return Err(cant("pin mail")),
         }

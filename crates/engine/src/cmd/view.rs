@@ -229,6 +229,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         // window asking first. None is an agent's own to run.
         toggle!("options.agents", "Let AI agents use MailCraft", "File › Options › AI agents", agents),
         toggle!("options.agentsRun", "Let AI agents ask to run commands", "File › Options › AI agents", agents_run),
+        toggle!("options.agentsAlwaysAll", "Always allow every command", "File › Options › AI agents", agents_always_all),
         CommandSpec::new("options.agentsAccount", "Accounts AI agents read", "File › Options › AI agents", |s, v| {
             let id = p::str(v, "account").ok_or_else(|| CmdError::Params("say which account".into()))?;
             if s.account(id).is_none() {
@@ -330,10 +331,12 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         toggle!("view.markReadOnOpen", "Mark as read when opened", "File › Options › Mail", mark_read_on_open),
         CommandSpec::new("calendar.show", "Show or hide a calendar", "Calendar › Calendars", |s, v| {
             let account = p::req_str(v, "account")?.to_string();
-            let calendar = p::req_str(v, "calendar")?.to_string();
-            if !s.pim.get(&account).is_some_and(|p| p.calendars.iter().any(|c| c.id == calendar)) {
-                return Err(CmdError::Params(format!("no calendar `{calendar}` in `{account}`")));
-            }
+            let named = p::req_str(v, "calendar")?;
+            let found = match s.pim.get(&account) {
+                Some(p) => crate::session::pim::calendar_named(p, named)?.map(|c| c.id.clone()),
+                None => None,
+            };
+            let calendar = found.ok_or_else(|| CmdError::Params(format!("no calendar `{named}` in `{account}`")))?;
             let key = Session::calendar_key(&account, &calendar);
             let shown = p::bool(v, "shown").unwrap_or(s.prefs.hidden_calendars.contains(&key));
             if shown {
@@ -344,7 +347,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.pim_revision = s.pim_revision.wrapping_add(1);
             Ok(json!({"account": account, "calendar": calendar, "shown": shown}))
         })
-        .params(r#"{"account": string, "calendar": string, "shown"?: bool (default: the other way)}"#),
+        .params(r#"{"account": string, "calendar": string (id or name), "shown"?: bool (default: the other way)}"#),
         toggle!("calendar.sideBySide", "Side by side", "Calendar › View", calendars_side_by_side, r#"{"on"?: bool (each calendar in a column of its own in day and week)}"#),
         toggle!(
             "calendar.scheduleWorkHours",
@@ -461,10 +464,35 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         }).setting("mark_read_on_open,read_after_secs,read_in_pane")
         .params(r#"{"markRead"?: bool (in the reading pane at all; opening a message in its own window always does), "when"?: "shown"|"left" (when it's shown, or once another is chosen), "after"?: number (seconds shown first, with "shown")}"#),
         toggle!("view.animations", "Play animations", "File › Options › General", animations, r#"{"on"?: bool (none: switch)}"#),
+        toggle!(
+            "view.remindersOnTop",
+            "Reminders over other apps' windows",
+            "File › Options › Calendar",
+            reminders_on_top,
+            r#"{"on"?: bool (none: switch; on, the Reminders window comes up over the app being worked in, without taking the keyboard)}"#
+        ),
         toggle!("view.photoLocation", "Send where photos were taken", "File › Options › Safety", keep_photo_location, r#"{"on"?: bool (none: switch; off, the place is taken out of attached photos as they're sent)}"#),
         toggle!("view.cleanLinks", "Open links without their tracking", "File › Options › Safety", clean_links, r#"{"on"?: bool (none: switch; on, a link opens out of its redirect wrapper and without the tags naming the reader)}"#),
-        toggle!("view.autoPictures", "Show web pictures unless a message looks suspicious", "File › Options › Safety", auto_pictures, r#"{"on"?: bool (none: switch; on, a message whose sender the mail server confirmed shows its web pictures as it opens)}"#),
-        toggle!("view.checkRevocation", "Check whether certificates were withdrawn", "File › Options › Safety", check_revocation, r#"{"on"?: bool (none: switch; on, a signed message's certificate is checked with its authority as it's shown, which tells the authority)}"#),
+        toggle!("view.autoPictures", "Show web pictures unless a message looks suspicious", "File › Options › Safety", auto_pictures, r#"{"on"?: bool (none: switch; on, a message whose sender the mail server confirmed shows its web pictures as it opens)}"#)
+            .asks(),
+        // Issue #276: each message asks, those that don't look suspicious load, or every one's.
+        CommandSpec::new("view.webPictures", "Show web pictures", "File › Options › Safety", |s, v| {
+            let load = p::req_str(v, "load")?;
+            let (auto, all) = match load {
+                "ask" => (false, false),
+                "safe" => (true, false),
+                "always" => (true, true),
+                other => return Err(CmdError::Params(format!("`load` is ask, safe or always, not `{other}`"))),
+            };
+            s.prefs.auto_pictures = auto;
+            s.prefs.all_pictures = all;
+            Ok(json!({"load": load}))
+        }).setting("auto_pictures")
+        .params(r#"{"load": "ask"|"safe"|"always" (ask: each message asks; safe: a message whose sender the mail server confirmed shows them as it opens; always: every message but those in Junk and from blocked senders)}"#)
+        .asks(),
+        toggle!("view.messageNotes", "Notes about tracking and hidden text", "File › Options › Safety", message_notes, r#"{"on"?: bool (none: switch; off, a message's tracking pictures, links that report clicks and hidden text aren't said above it)}"#),
+        toggle!("view.checkRevocation", "Check whether certificates were withdrawn", "File › Options › Safety", check_revocation, r#"{"on"?: bool (none: switch; on, a signed message's certificate is checked with its authority as it's shown, which tells the authority)}"#)
+            .asks(),
         CommandSpec::new("view.senderAddresses", "Show sender addresses in the message list", "File › Options › Safety", |s, v| {
             let show = p::req_str(v, "show")?;
             s.prefs.sender_addresses = crate::session::SenderAddresses::from_code(show)
@@ -487,7 +515,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             }
             Ok(json!({"trusted": s.prefs.trusted_senders.iter().collect::<Vec<_>>()}))
         }).setting("trusted_senders,auto_pictures")
-        .params(r#"{"address": string, "on"?: bool}"#),
+        .params(r#"{"address": string, "on"?: bool}"#)
+        .asks(),
     ]
 }
 

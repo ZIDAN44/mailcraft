@@ -232,6 +232,163 @@ fn the_default_calendar_and_keeping_events_here() {
     assert!(sample.run("calendar.moveLocal", &json!({"account": "sample"})).is_err());
 }
 
+/// Issue #278: the default the server names is kept while it isn't asked again, with when it
+/// answered, and forgotten when asking failed, so the next sync asks again rather than keep an
+/// old answer.
+#[test]
+fn the_servers_default_is_forgotten_when_asking_for_it_failed() {
+    let (mut s, id) = imap_session("placing-server-default");
+    let synced = |s: &mut Session, default: Option<&str>, failed: bool| {
+        let sync = DavSync {
+            caldav_home: Some("https://dav.example.org/SOGo/dav/riley/Calendar/".into()),
+            calendars: Some(vec![cal(THEIRS, "Sam's team", true), cal(OWN, "Personal Calendar", false)]),
+            default_calendar: default.map(Into::into),
+            default_calendar_failed: failed,
+            checked: NOW,
+            ..Default::default()
+        };
+        s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(sync) });
+        s.pim[&id].server_default.clone()
+    };
+    assert_eq!(synced(&mut s, Some(OWN), false).as_deref(), Some(OWN), "named");
+    assert_eq!(s.pim[&id].server_default_at, Some(NOW), "when it answered: asked again a day on");
+    assert_eq!(synced(&mut s, None, false).as_deref(), Some(OWN), "not asked: kept");
+    assert_eq!(synced(&mut s, None, true), None, "asking failed: forgotten, to be asked again");
+}
+
+/// Every command that takes a calendar takes its id or its name, in any case; a name two of
+/// the account's calendars share takes neither (issue #280).
+#[test]
+fn a_calendar_by_its_id_or_its_name() {
+    let (mut s, id) = imap_session("placing-named");
+    s.run("event.create", &json!({"account": id, "summary": "Gym", "start": NOW + 3600, "end": NOW + 7200})).unwrap();
+    found(&mut s, &id, Vec::new());
+    // Each command, with what else it needs, and where it says which calendar it took.
+    let planning = json!({"summary": "Planning", "start": NOW + 3600});
+    let commands: [(&str, Value, fn(&Session, &Value) -> String); 5] = [
+        ("calendar.show", json!({"shown": true}), |_, r| r["calendar"].as_str().unwrap().into()),
+        ("calendar.setDefault", json!({}), |_, r| r["calendar"].as_str().unwrap().into()),
+        ("calendar.moveLocal", json!({}), |_, r| r["calendar"].as_str().unwrap().into()),
+        ("event.create", planning, |s, r| {
+            let uid = r["uid"].as_str().unwrap();
+            s.pim[r["account"].as_str().unwrap()].events.iter().find(|e| e.event.uid == uid).unwrap().calendar.clone()
+        }),
+        ("calendar.search", json!({"query": "Planning"}), |_, r| r[0]["calendar"].as_str().unwrap().into()),
+    ];
+    let run = |s: &mut Session, command: &str, extra: &Value, calendar: &str| {
+        let mut params = json!({"account": id, "calendar": calendar});
+        params.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        s.run(command, &params)
+    };
+    for calendar in [OWN, "personal calendar"] {
+        for (command, extra, took) in &commands {
+            let r = run(&mut s, command, extra, calendar).unwrap_or_else(|e| panic!("{command} {calendar}: {e:?}"));
+            assert_eq!(took(&s, &r), OWN, "{command} {calendar}");
+        }
+    }
+    s.pim.get_mut(&id).unwrap().calendars.push(cal("https://dav.example.org/SOGo/dav/riley/Calendar/other/", "Personal Calendar", false));
+    for (command, extra, _) in &commands {
+        assert!(run(&mut s, command, extra, "Personal Calendar").is_err(), "{command}: two have that name");
+        assert!(run(&mut s, command, extra, OWN).is_ok(), "{command}: its id still");
+    }
+    // A name in any case of any letters, the spaces around it aside; and so two such are the
+    // same name.
+    let other = "https://dav.example.org/SOGo/dav/riley/Calendar/eigen/";
+    s.pim.get_mut(&id).unwrap().calendars.push(cal(other, "Persönlich", false));
+    let shown = s.run("calendar.show", &json!({"account": id, "calendar": "  PERSÖNLICH ", "shown": true})).unwrap();
+    assert_eq!(shown["calendar"], other);
+    s.pim.get_mut(&id).unwrap().calendars.push(cal("https://dav.example.org/SOGo/dav/riley/Calendar/x/", " persönlich", false));
+    assert!(s.run("calendar.show", &json!({"account": id, "calendar": "Persönlich"})).is_err(), "two have that name");
+}
+
+/// Issue #279: an event moved to another of its account's calendars, by id or name, all of it:
+/// kept where it's stored on the server, to be moved there at the next sync; off the server to
+/// this computer, deleted there, but not a meeting; never to or from a calendar that can't be
+/// changed, nor on a server that isn't CalDAV.
+#[test]
+fn an_event_moves_to_another_calendar_of_its_account() {
+    let (mut s, id) = imap_session("placing-move");
+    // Kept on this computer too, so its calendar there stays.
+    s.run("event.create", &json!({"account": id, "summary": "Dentist", "start": NOW + 3600, "end": NOW + 7200})).unwrap();
+    const WORK: &str = "https://dav.example.org/SOGo/dav/riley/Calendar/work/";
+    let stored = |uid: &str, summary: &str, attendees: Vec<Attendee>| StoredEvent {
+        calendar: OWN.into(),
+        href: format!("{OWN}{uid}.ics"),
+        etag: "\"1\"".into(),
+        event: CalEvent { uid: uid.into(), summary: summary.into(), start: NOW + 3600, end: NOW + 7200, attendees, ..Default::default() },
+        dirty: false,
+    };
+    let guest = Attendee { email: ZOE.1.into(), partstat: "NEEDS-ACTION".into(), ..Default::default() };
+    found(&mut s, &id, vec![stored("gym", "Gym", Vec::new()), stored("plan", "Planning", vec![guest])]);
+    let p = s.pim.get_mut(&id).unwrap();
+    p.calendars.push(cal(WORK, "Work", false));
+    p.calendars.push(CalendarInfo { id: "https://dav.example.org/ro/".into(), name: "Holidays".into(), read_only: true, ..Default::default() });
+    s.take_jobs();
+
+    // By name, any case: kept where it's stored, to be moved; a sync asked for.
+    let r = s.run("event.update", &json!({"uid": "plan", "calendar": "WORK", "summary": "Planning, moved"})).unwrap();
+    assert_eq!(r["uid"], "plan");
+    let e = s.find_event("plan").unwrap().1;
+    assert_eq!(
+        (e.calendar.as_str(), e.href.as_str(), e.dirty, e.event.summary.as_str()),
+        (WORK, format!("{OWN}plan.ics").as_str(), true, "Planning, moved")
+    );
+    assert!(asks_sync(&mut s));
+    assert!(s.pim[&id].deleted.is_empty(), "moved there, not deleted here");
+    // Where it is already: nothing.
+    assert_eq!(s.move_event_to("plan", WORK).unwrap()["moved"], false);
+    // Not to a calendar that can't be added to, nor to one there isn't.
+    assert!(s.run("event.update", &json!({"uid": "gym", "calendar": "Holidays"})).is_err());
+    assert!(s.run("event.update", &json!({"uid": "gym", "calendar": "Nowhere"})).is_err());
+    // A meeting stays on the server; a plain event leaves it, deleted there.
+    assert!(s.move_event_to("plan", LOCAL).is_err());
+    s.move_event_to("gym", LOCAL).unwrap();
+    let e = s.find_event("gym").unwrap().1;
+    assert_eq!((e.calendar.as_str(), e.href.as_str(), e.dirty), (LOCAL, "", false));
+    assert_eq!(s.pim[&id].deleted.iter().map(|t| t.href.as_str()).collect::<Vec<_>>(), [format!("{OWN}gym.ics").as_str()]);
+    // And back: stored there anew.
+    s.move_event_to("gym", OWN).unwrap();
+    let e = s.find_event("gym").unwrap().1;
+    assert_eq!((e.calendar.as_str(), e.href.as_str(), e.dirty), (OWN, "", true));
+
+    // Moved again while the sync stored it where it was: where it's stored now, still to move.
+    let mut pushed = s.find_event("plan").unwrap().1.clone();
+    pushed.calendar = OWN.into();
+    pushed.href = format!("{OWN}plan-2.ics");
+    let sync =
+        DavSync { pushed_events: vec![pushed], caldav_home: Some("https://dav.example.org/SOGo/dav/riley/Calendar/".into()), ..Default::default() };
+    s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(sync) });
+    let e = s.find_event("plan").unwrap().1;
+    assert_eq!((e.calendar.as_str(), e.href.as_str(), e.dirty), (WORK, format!("{OWN}plan-2.ics").as_str(), true));
+
+    // A server that isn't CalDAV (Exchange's calendars): not yet.
+    s.pim.get_mut(&id).unwrap().caldav_home = Some(String::new());
+    assert!(matches!(s.move_event_to("plan", OWN), Err(CmdError::Disabled(_))));
+}
+
+/// A sync taken in is kept by its number, saved, for the next to wait for (it reads what's saved
+/// to send what changed here): a lower one (from an earlier run) doesn't take it back, and one
+/// with only people's calendars just opened doesn't count.
+#[test]
+fn a_sync_taken_in_is_kept_by_its_number() {
+    let (mut s, id) = imap_session("placing-pass");
+    let synced = |s: &mut Session, pass: u64, people_only: bool| {
+        let sync = DavSync {
+            caldav_home: Some("https://dav.example.org/SOGo/dav/riley/Calendar/".into()),
+            pass,
+            people_only,
+            checked: NOW,
+            ..Default::default()
+        };
+        s.apply(Event::DavSynced { account: id.clone(), sync: Box::new(sync) });
+        let saved: mailcraft_model::pim::Pim = s.store.as_ref().unwrap().load_account_doc(&id, mailcraft_model::pim::PIM_DOC).unwrap();
+        (s.pim[&id].dav_pass, saved.dav_pass)
+    };
+    assert_eq!(synced(&mut s, 7, false), (7, 7), "taken in, and saved");
+    assert_eq!(synced(&mut s, 3, false), (7, 7), "a lower one doesn't take it back");
+    assert_eq!(synced(&mut s, 9, true), (7, 7), "people's calendars alone");
+}
+
 /// An OAuth account without a calendar sign-in of its own is never asked for calendars: its
 /// invitations don't wait.
 #[test]

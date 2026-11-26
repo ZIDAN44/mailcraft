@@ -99,6 +99,7 @@ impl Session {
             return Err(CmdError::Disabled("no message selected".into()));
         }
         let mut target: Option<MoveTarget> = None;
+        let mut across: Option<(String, String)> = None;
         for a in &q.actions {
             match a {
                 RuleAction::MarkRead => {
@@ -119,10 +120,13 @@ impl Session {
                 RuleAction::MoveTo(f) => target = Some(MoveTarget::Folder(f.clone())),
                 RuleAction::MoveToRole(r) => target = Some(MoveTarget::Role(*r)),
                 RuleAction::Delete => target = Some(MoveTarget::Role(FolderRole::Trash)),
+                RuleAction::MoveToAccount { account, folder } => across = Some((account.clone(), folder.clone())),
             }
         }
         let n = self.selection.len();
-        if let Some(t) = target {
+        if let Some((account, folder)) = across {
+            self.transfer_selection(&account, &folder, true)?;
+        } else if let Some(t) = target {
             self.move_selection(t)?;
         }
         Ok(serde_json::json!({ "name": q.name, "messages": n }))

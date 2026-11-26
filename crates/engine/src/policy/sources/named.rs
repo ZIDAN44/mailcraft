@@ -105,6 +105,7 @@ pub fn from_named(values: &[(String, Named)], at: &str) -> (Option<String>, Opti
                 // Asked before each command: none may be let run without asking.
                 Some("ask") => {
                     settings.insert("agentsAlways".into(), json!({"value": [], "locked": true}));
+                    settings.insert("agentsAlwaysAll".into(), json!({"value": false, "locked": true}));
                 }
                 _ => bad(&mut ignored),
             },
@@ -160,5 +161,6 @@ mod tests {
         // Asking before each command: no command let run without asking.
         let (_, _, set, _) = from_named(&[("AIAgents".to_string(), Named::Text("Ask".into()))], "HKLM");
         assert_eq!(set["settings"]["agentsAlways"], json!({"value": [], "locked": true}));
+        assert_eq!(set["settings"]["agentsAlwaysAll"], json!({"value": false, "locked": true}));
     }
 }

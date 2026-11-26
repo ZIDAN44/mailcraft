@@ -1719,7 +1719,6 @@ month	May	mei
 	your OpenPGP keys are used by the MailCraft desktop app, not in the browser	uw OpenPGP-sleutels worden gebruikt door de desktop-app van MailCraft, niet in de browser
 	Not sent yet: this is a draft.	Nog niet verzonden: dit is een concept.
 	Show web pictures unless a message looks suspicious	Webafbeeldingen tonen tenzij een bericht verdacht lijkt
-	Pictures load as a message opens, when your mail server confirmed who sent it and it isn't in Junk. The server each picture is on can see your IP address and when you opened it. Tracking pictures stay blocked	Afbeeldingen worden geladen zodra een bericht opent, als uw e-mailserver de afzender heeft bevestigd en het niet in Ongewenste e-mail staat. De server van elke afbeelding kan uw IP-adres zien en wanneer u het opende. Volgafbeeldingen blijven geblokkeerd
 	This message looks suspicious or its sender couldn't be confirmed, so its pictures stay hidden.	Dit bericht lijkt verdacht of de afzender kon niet worden bevestigd, dus de afbeeldingen blijven verborgen.
 	These senders' pictures always load, even when a message looks suspicious:	Afbeeldingen van deze afzenders worden altijd geladen, ook als een bericht verdacht lijkt:
 	Open a mail file	Een e-mailbestand openen
@@ -2070,6 +2069,8 @@ count	occurrences	keer
 	Didn't run: {why}	Niet uitgevoerd: {why}
 	Let AI agents ask to run commands	AI-agents laten vragen om opdrachten uit te voeren
 	Sending, moving, answering an invitation… each asked about here first, unless you always allow it. Off, agents only read.	Versturen, verplaatsen, een uitnodiging beantwoorden… elke opdracht wordt je hier eerst gevraagd, tenzij je hem altijd toestaat. Uit: agents lezen alleen.
+	Always allow every command	Elke opdracht altijd toestaan
+	Still asked about first: sending to other people, accounts and security, the web, saving files, and deleting for good.	Wordt je nog steeds eerst gevraagd: versturen naar anderen, accounts en beveiliging, het web, bestanden opslaan en definitief verwijderen.
 	Accounts AI agents read	Accounts die AI-agents lezen
 	One turned off is left out of all they read, and they can't take pictures of the window	Een uitgezet account blijft buiten alles wat ze lezen, en ze kunnen geen afbeeldingen van het venster maken
 	… and {n} more characters	… en nog {n} tekens
@@ -2164,3 +2165,43 @@ count	occurrences	keer
 	Their times can't be had: {why}	Hun tijden zijn niet beschikbaar: {why}
 	You	Jij
 	{free} of {all} free	{free} van {all} vrij
+	Pictures from the web weren't loaded.	Afbeeldingen van het web zijn niet geladen.
+	(The rest of the message didn't fit in this document.)	(De rest van het bericht paste niet in dit document.)
+	Attach files	Bestanden bijvoegen
+	Save as	Opslaan als
+	Save attachments to	Bijlagen opslaan in
+	Trust a certificate file	Een certificaatbestand vertrouwen
+	Import categories	Categorieën importeren
+	Open mail file	E-mailbestand openen
+	Insert pictures	Afbeeldingen invoegen
+	All files	Alle bestanden
+	Certificate with its key	Certificaat met sleutel
+	Certificate	Certificaat
+	Mail files	E-mailbestanden
+	MailCraft categories	MailCraft-categorieën
+	MailCraft data files	MailCraft-gegevensbestanden
+	MailCraft rules	MailCraft-regels
+	OpenPGP key	OpenPGP-sleutel
+	Outlook data files	Outlook-gegevensbestanden
+	PDF document	PDF-document
+	Contact card	Contactkaart
+	Web page	Webpagina
+	{ext} file	{ext}-bestand
+	Mailing list (List-Id) contains	Mailinglijst (List-Id) bevat
+	is from the list “{text}”	van de lijst “{text}” is
+	Create event	Afspraak maken
+	Create task	Taak maken
+	New task list	Nieuwe takenlijst
+	Task list name	Naam van de takenlijst
+	New task list…	Nieuwe takenlijst…
+	Reminders over other apps' windows	Herinneringen boven de vensters van andere apps
+	The Reminders window comes up over the app you're working in, without taking the keyboard from it.	Het venster Herinneringen verschijnt boven de app waarin u werkt, zonder het toetsenbord over te nemen.
+	Above a message: its tracking pictures, links that report clicks, and text it hides from you	Boven een bericht: de volgafbeeldingen, koppelingen die klikken melden, en tekst die het voor u verbergt
+	Ask	Vragen
+	Notes about tracking and hidden text	Opmerkingen over volgen en verborgen tekst
+	Show web pictures	Afbeeldingen van het web weergeven
+	This message is in Junk Email or its sender is blocked, so its pictures stay hidden.	Dit bericht staat in Ongewenste e-mail of de afzender is geblokkeerd, dus de afbeeldingen blijven verborgen.
+	Unless suspicious	Tenzij verdacht
+	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Tenzij verdacht: als uw mailserver heeft bevestigd wie een bericht heeft verzonden. Altijd: elk bericht behalve die in Ongewenste e-mail en van geblokkeerde afzenders. De server waarop een afbeelding staat, ziet uw IP-adres en wanneer u het bericht opende; volgafbeeldingen blijven geblokkeerd
+	For mail to	Voor e-mail aan
+	Every account	Alle accounts

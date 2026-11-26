@@ -225,7 +225,22 @@ impl MailApp {
         if !self.needs_delete_confirm() {
             return false;
         }
-        self.ui.dialog = Some(Dialog::ConfirmDelete { count: self.session.with_conversations(&self.session.selection).len() });
+        self.ui.dialog = Some(Dialog::ConfirmDelete { count: self.session.with_conversations(&self.session.selection).len(), one: None });
+        true
+    }
+
+    /// A row's own Delete button (`list.rowAction` with `p`) on a message in Deleted Items: asked
+    /// first too (it was deleted for good unasked). Whether it was asked.
+    pub(crate) fn ask_before_row_delete(&mut self, p: &serde_json::Value) -> bool {
+        let key = p.get("key").and_then(serde_json::Value::as_str).and_then(MessageKey::from_id);
+        let Some(key) = key.filter(|k| p.get("action").and_then(serde_json::Value::as_str) == Some("delete") && self.in_deleted_items(k)) else {
+            return false;
+        };
+        if !self.session.prefs.confirm_permanent_delete {
+            return false;
+        }
+        let count = self.session.with_conversations(std::slice::from_ref(&key)).len();
+        self.ui.dialog = Some(Dialog::ConfirmDelete { count, one: Some(key) });
         true
     }
 
@@ -235,12 +250,12 @@ impl MailApp {
             && !self.session.selection.is_empty()
             // (One whose message is in the list: a message's own window may show one that isn't.)
             && self.session.selected_iter().next().is_some()
-            && self.session.selected_iter().all(|m| {
-                self.session
-                    .account(&m.key.account)
-                    .and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Trash))
-                    .is_some_and(|t| t.path == m.key.folder)
-            })
+            && self.session.selected_iter().all(|m| self.in_deleted_items(&m.key))
+    }
+
+    /// Whether message `k` is in its account's Deleted Items.
+    fn in_deleted_items(&self, k: &MessageKey) -> bool {
+        self.session.account(&k.account).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Trash)).is_some_and(|t| t.path == k.folder)
     }
 }
 

@@ -112,7 +112,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 if ui.button(tl!("New rule…")).clicked() {
-                    acts.push(Action::Dialog(Dialog::rule_from("")));
+                    acts.push(Action::Dialog(Dialog::rule_from("", None)));
                 }
                 let any_on = s.rules.iter().any(|r| r.enabled);
                 if ui
@@ -166,6 +166,27 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     if f.sent && !f.test.for_sent() {
                         f.test = RuleTest::To;
                     }
+                }
+                if f.server.is_none() && s.accounts.len() > 1 {
+                    let l = ui.label(tl!("For mail to"));
+                    let mut scopes: Vec<Option<String>> = vec![None];
+                    scopes.extend(s.accounts.iter().map(|a| Some(a.config.id.clone())));
+                    let said = |x: &Option<String>| match x {
+                        None => tl!("Every account").to_string(),
+                        Some(id) => s.account(id).map_or_else(|| id.clone(), |a| a.config.email.clone()),
+                    };
+                    let r = egui::ComboBox::from_id_salt("rule-scope")
+                        .width(300.0)
+                        .selected_text(said(&f.scope))
+                        .show_ui(ui, |ui| {
+                            for x in &scopes {
+                                ui.selectable_value(&mut f.scope, x.clone(), said(x));
+                            }
+                        })
+                        .response
+                        .labelled_by(l.id);
+                    crate::drop_down::keys(ui, &r, &mut f.scope, &scopes);
+                    ui.end_row();
                 }
                 let l = ui.label(tl!("When mail"));
                 // What the server can run: Exchange's rules say less than MailCraft's; Sieve's
@@ -456,11 +477,12 @@ pub enum RuleTest {
     AnyText,
     HasAttachment,
     Bulk,
+    ListId,
 }
 
 impl RuleTest {
-    pub(super) const ALL: [RuleTest; 6] =
-        [RuleTest::From, RuleTest::To, RuleTest::Subject, RuleTest::AnyText, RuleTest::HasAttachment, RuleTest::Bulk];
+    pub(super) const ALL: [RuleTest; 7] =
+        [RuleTest::From, RuleTest::To, RuleTest::Subject, RuleTest::AnyText, RuleTest::HasAttachment, RuleTest::Bulk, RuleTest::ListId];
     pub(super) fn label(self) -> &'static str {
         tl!(match self {
             RuleTest::From => "From contains",
@@ -469,6 +491,7 @@ impl RuleTest {
             RuleTest::AnyText => "Sender, recipients or subject contain",
             RuleTest::HasAttachment => "Has attachments",
             RuleTest::Bulk => "Is a newsletter or list mail",
+            RuleTest::ListId => "Mailing list (List-Id) contains",
         })
     }
     pub(super) fn needs_text(self) -> bool {
@@ -476,11 +499,11 @@ impl RuleTest {
     }
     /// Whether a rule on an Exchange server can look at it (issue #139).
     pub(super) fn on_server(self) -> bool {
-        !matches!(self, RuleTest::AnyText | RuleTest::Bulk)
+        !matches!(self, RuleTest::AnyText | RuleTest::Bulk | RuleTest::ListId)
     }
     /// Whether it says anything of mail the user sends (issue #202).
     pub(super) fn for_sent(self) -> bool {
-        self != RuleTest::Bulk
+        !matches!(self, RuleTest::Bulk | RuleTest::ListId)
     }
 }
 
@@ -525,8 +548,12 @@ pub struct RuleForm {
     pub action: RuleDo,
     /// A folder path (`MoveTo`) or a category name (`Categorize`).
     pub target: String,
-    /// The account whose folders `MoveTo` offers (and the only one it applies to).
+    /// The account `target`'s folder is in (`MoveTo`).
     pub account: Option<String>,
+    /// The account whose mail the rule is for (`None`: every account's). Apart from the move's
+    /// folder's: a rule moves mail into another account's folder too, as Outlook's can (it
+    /// became the rule's account, and the mail it was meant for never matched).
+    pub scope: Option<String>,
     pub stop: bool,
     /// Run it on the mail already in the Inbox (or Sent) once saved (Outlook's "run this rule
     /// now").
@@ -550,10 +577,11 @@ fn shown(r: &Rule) -> (RuleTest, String, RuleDo, String) {
         Some(Condition::Subject(t)) => (RuleTest::Subject, t.clone()),
         Some(Condition::AnyText(t)) => (RuleTest::AnyText, t.clone()),
         Some(Condition::HasAttachment) => (RuleTest::HasAttachment, String::new()),
+        Some(Condition::ListId(t)) => (RuleTest::ListId, t.clone()),
         Some(Condition::Bulk) | None => (RuleTest::Bulk, String::new()),
     };
     let (action, target) = match r.actions.first() {
-        Some(RuleAction::MoveTo(f)) => (RuleDo::MoveTo, f.clone()),
+        Some(RuleAction::MoveTo(f)) | Some(RuleAction::MoveToAccount { folder: f, .. }) => (RuleDo::MoveTo, f.clone()),
         Some(RuleAction::MoveToRole(FolderRole::Trash)) | Some(RuleAction::Delete) => (RuleDo::Delete, String::new()),
         Some(RuleAction::MoveToRole(_)) => (RuleDo::Archive, String::new()),
         Some(RuleAction::Categorize(c)) => (RuleDo::Categorize, c.clone()),
@@ -562,6 +590,23 @@ fn shown(r: &Rule) -> (RuleTest, String, RuleDo, String) {
         Some(RuleAction::Pin) | None => (RuleDo::Pin, String::new()),
     };
     (test, text, action, target)
+}
+
+/// The account the folder of `r`'s move is in: the one it names, else the rule's own.
+fn folder_account(r: &Rule) -> Option<String> {
+    match r.actions.first() {
+        Some(RuleAction::MoveToAccount { account, .. }) => Some(account.clone()),
+        _ => r.account.clone(),
+    }
+}
+
+/// A move into `path` of `folder_account`, for a rule for `scope`'s mail: named by its account
+/// when that isn't the rule's own.
+fn move_action(scope: Option<&str>, folder_account: Option<&str>, path: &str) -> RuleAction {
+    match folder_account {
+        Some(a) if scope != Some(a) => RuleAction::MoveToAccount { account: a.to_string(), folder: path.to_string() },
+        _ => RuleAction::MoveTo(path.to_string()),
+    }
 }
 
 /// `new` in the place of a list's first, or as its only one.
@@ -588,10 +633,11 @@ impl RuleForm {
             RuleTest::AnyText => Condition::AnyText(t),
             RuleTest::HasAttachment => Condition::HasAttachment,
             RuleTest::Bulk => Condition::Bulk,
+            RuleTest::ListId => Condition::ListId(t),
         };
         let action = match self.action {
             RuleDo::MoveTo if self.target.is_empty() => return Err(tl!("Pick a folder").to_string()),
-            RuleDo::MoveTo => RuleAction::MoveTo(self.target.clone()),
+            RuleDo::MoveTo => move_action(self.scope.as_deref(), self.account.as_deref(), &self.target),
             RuleDo::Archive => RuleAction::MoveToRole(FolderRole::Archive),
             RuleDo::Delete => RuleAction::Delete,
             RuleDo::Categorize if self.target.is_empty() => return Err(tl!("Pick a category").to_string()),
@@ -604,7 +650,7 @@ impl RuleForm {
             return Ok(Rule {
                 name: self.name.trim().to_string(),
                 enabled: true,
-                account: if self.action == RuleDo::MoveTo { self.account.clone() } else { None },
+                account: self.scope.clone(),
                 conditions: vec![condition],
                 match_all: true,
                 actions: vec![action],
@@ -613,21 +659,15 @@ impl RuleForm {
             });
         };
         let (test, text, act, target) = shown(original);
-        let mut rule = Rule { name: self.name.trim().to_string(), stop: self.stop, sent: self.sent, ..original.clone() };
+        let mut rule = Rule { name: self.name.trim().to_string(), stop: self.stop, sent: self.sent, account: self.scope.clone(), ..original.clone() };
         if self.test != test || self.text.trim() != text.trim() {
             put_first(&mut rule.conditions, condition);
         }
-        let moved_elsewhere = self.action == RuleDo::MoveTo && self.account != original.account;
+        // A move named again when its folder, or whose mail the rule is for, changed (a folder of
+        // the rule's own account is named without it).
+        let moved_elsewhere = self.action == RuleDo::MoveTo && (self.account != folder_account(original) || self.scope != original.account);
         if self.action != act || self.target != target || moved_elsewhere {
             put_first(&mut rule.actions, action);
-            // The account a move's folder is in is the one it's for; other actions keep theirs.
-            if self.action == RuleDo::MoveTo {
-                rule.account.clone_from(&self.account);
-            } else if act == RuleDo::MoveTo && !rule.actions.iter().any(|a| matches!(a, RuleAction::MoveTo(_))) {
-                // The move's account, which goes with the move: no other action shows one, and a
-                // new rule of this kind has none.
-                rule.account = None;
-            }
         }
         Ok(rule)
     }
@@ -641,7 +681,8 @@ impl RuleForm {
             text,
             action,
             target,
-            account: r.account.clone(),
+            account: folder_account(r),
+            scope: r.account.clone(),
             stop: r.stop,
             run_now: false,
             sent: r.sent,
@@ -664,6 +705,7 @@ impl RuleForm {
                 text: String::new(),
                 action: RuleDo::MoveTo,
                 target: String::new(),
+                scope: account.clone(),
                 account,
                 stop: false,
                 run_now: false,
@@ -739,6 +781,7 @@ pub(super) fn describe(s: &Session, r: &Rule) -> String {
             Condition::AnyText(t) => tf!("mentions “{text}”", text = t),
             Condition::HasAttachment => tl!("has attachments").to_string(),
             Condition::Bulk => tl!("is list mail").to_string(),
+            Condition::ListId(t) => tf!("is from the list “{text}”", text = t),
         })
         .collect::<Vec<_>>()
         .join(&format!(" {} ", if r.match_all { tl!("and") } else { tl!("or") }));
@@ -747,6 +790,10 @@ pub(super) fn describe(s: &Session, r: &Rule) -> String {
         .iter()
         .map(|a| match a {
             RuleAction::MoveTo(f) => tf!("move to {folder}", folder = folder_path_label(s, f)),
+            RuleAction::MoveToAccount { account, folder } => {
+                let email = s.account(account).map_or(account.as_str(), |a| a.config.email.as_str());
+                tf!("move to {folder}", folder = format!("{} ({email})", folder_path_label(s, folder)))
+            }
             RuleAction::MoveToRole(role) => tf!("move to {folder}", folder = tl!(role.label().unwrap_or("folder"))),
             RuleAction::MarkRead => tl!("mark read").to_string(),
             RuleAction::Flag => tl!("flag").to_string(),

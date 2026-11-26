@@ -16,15 +16,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             };
             s.empty_folder(&account, &folder)
         })
-        .params(r#"{"account"?: string, "folder"?: string (Deleted Items and Junk are emptied for good; any other folder's mail goes to Deleted Items), "role"?: "trash"|"junk"}"#),
+        .params(r#"{"account"?: string, "folder"?: string (Deleted Items and Junk are emptied for good; any other folder's mail goes to Deleted Items), "role"?: "trash"|"junk"}"#)
+        .asks(),
         CommandSpec::new("account.add", "Add account", "File › Accounts", add_account)
-            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "signIn"?: "automatic"|"password"|"ntlm" (how the incoming server is signed in to), "smtpSignIn"?: "automatic"|"password"|"ntlm"|"none" (the outgoing server's; "none": it takes mail without a sign-in), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "dav"?: string (calendars and contacts only, with no mail server: its CalDAV and CardDAV server's address; signs in as username, or the address, with password), "caldav"?: string and "carddav"?: string (a mail account's calendar and contacts servers, as its provider's settings name them; else found from the address), "userAgent"?: string (with ews: the User-Agent its requests name instead of MailCraft's, for a server that lets in only clients it knows), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#),
+            .params(r#"{"email": string, "password"?: string, "oauth"?: "google"|"microsoft", "deferSignIn"?: bool, "local"?: bool, "name"?: string, "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: "tls"|"starttls"|"none", "smtpHost"?: string, "smtpPort"?: number, "smtpSecurity"?: …, "smtpUsername"?: string and "smtpPassword"?: string (the outgoing server's own sign-in, when it isn't the incoming server's), "signIn"?: "automatic"|"password"|"ntlm" (how the incoming server is signed in to), "smtpSignIn"?: "automatic"|"password"|"ntlm"|"none" (the outgoing server's; "none": it takes mail without a sign-in), "jmap"?: string (a JMAP session URL, instead of IMAP and SMTP), "pop"?: true (POP3 instead of IMAP: popHost, popPort, popSecurity, "popDelete"?: bool to remove mail from the server once downloaded, else a copy stays: "popKeepDays"?: number (removed that many days after downloading; 14 when not given, 0 for never), "popDeleteWithTrash"?: bool (removed once deleted here for good)), "pst"?: string (an existing Outlook data file whose mail comes in first), "ews"?: string|true (on-premises Exchange: its EWS address or server name, or true to find it with Autodiscover; username DOMAIN\\user or an address), "graph"?: true|string (Exchange Online through Microsoft Graph; signs in with Microsoft), "dav"?: string (calendars and contacts only, with no mail server: its CalDAV and CardDAV server's address; signs in as username, or the address, with password), "caldav"?: string and "carddav"?: string (a mail account's calendar and contacts servers, as its provider's settings name them; else found from the address), "userAgent"?: string (with ews: the User-Agent its requests name instead of MailCraft's, for a server that lets in only clients it knows), "onlineOnly"?: bool (keep none of its mail on this computer; not for POP)}"#)
+            .asks(),
         CommandSpec::new("account.exportPst", "Export to Outlook data file", "File › Open & Export", |s, v| {
             let path = p::req_str(v, "path")?.to_string();
             let account = account_param(s, v)?;
             s.export_pst(&account, &path)
         })
-        .params(r#"{"path": string (the .pst file to write; one already there in Outlook's Unicode format or Outlook 97–2002's ANSI one, encoded or not, is added to, its messages not written twice), "account"?: string (default: the current one)}"#),
+        .params(r#"{"path": string (the .pst file to write; one already there in Outlook's Unicode format or Outlook 97–2002's ANSI one, encoded or not, is added to, its messages not written twice), "account"?: string (default: the current one)}"#)
+        .asks(),
         CommandSpec::new("account.discover", "Find server settings", "File › Accounts", |s, v| {
             let email = p::req_str(v, "email")?.trim().to_ascii_lowercase();
             if !mailcraft_model::addr::is_valid_email(&email) {
@@ -66,7 +69,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             let id = p::req_str(v, "account")?.to_string();
             s.remove_account(&id)
         })
-        .params(r#"{"account": string}"#),
+        .params(r#"{"account": string}"#)
+        .asks(),
         CommandSpec::new("account.signIn", "Sign in with the browser", "File › Accounts", |s, v| {
             let id = p::req_str(v, "account")?;
             let config = s.config_of(id)?;
@@ -83,19 +87,23 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             s.push_job(mailcraft_model::Job::SignIn { account: config });
             Ok(json!({"signingIn": id}))
         })
-        .params(r#"{"account": string} (a Microsoft account that signs in with a password switches to Sign in with Microsoft, keeping its mail)"#),
+        .params(r#"{"account": string} (a Microsoft account that signs in with a password switches to Sign in with Microsoft, keeping its mail)"#)
+        .asks(),
         CommandSpec::new("account.useGraph", "Connect through Microsoft Graph", "File › Accounts", |s, v| {
             let id = p::req_str(v, "account")?.to_string();
             s.use_graph(&id)
         })
-        .params(r#"{"account": string} (a Microsoft account over IMAP starts again through Microsoft Graph, for a mailbox Microsoft won't open over IMAP)"#),
-        CommandSpec::new("account.setPassword", "Sign in again", "File › Accounts", set_password).params(r#"{"account": string, "password": string}"#),
+        .params(r#"{"account": string} (a Microsoft account over IMAP starts again through Microsoft Graph, for a mailbox Microsoft won't open over IMAP)"#)
+        .asks(),
+        CommandSpec::new("account.setPassword", "Sign in again", "File › Accounts", set_password).params(r#"{"account": string, "password": string}"#)
+            .asks(),
         CommandSpec::new("account.trustCertificate", "Trust this certificate", "Account status", |s, v| {
             s.trust_certificate(p::req_str(v, "account")?, p::req_str(v, "fingerprint")?)
         })
         .params(
             r#"{"account": string, "fingerprint": string (the SHA-256, in hex, of the certificate a mail server showed that no authority vouches for: it's trusted for that account's IMAP, POP, SMTP and Sieve servers, elsewhere than this computer only while it's in date and for the server's name)}"#,
-        ),
+        )
+        .asks(),
         CommandSpec::new("account.trustCertificateFile", "Trust a certificate file", "File › Accounts › Server settings", |s, v| {
             let account = p::req_str(v, "account")?.to_string();
             let data = match p::bytes(v, "data", 64 << 10)? {
@@ -106,14 +114,16 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(
             r#"{"account": string, "path": string (a certificate file, PEM or DER: an authority that issues the account's servers' certificates, or a server's own), "data"?: [bytes]}"#,
-        ),
+        )
+        .asks(),
         CommandSpec::new("account.forgetCertificate", "Stop trusting this certificate", "File › Accounts › Server settings", |s, v| {
             s.forget_certificate(p::req_str(v, "account")?, p::req_str(v, "fingerprint")?)
         })
         .params(r#"{"account": string, "fingerprint": string (a certificate it trusts, when asked or from a file)}"#),
         CommandSpec::new("account.dav", "Calendars and contacts", "File › Info › Account settings", set_dav).params(
             r#"{"account": string, "caldav"?: string (the calendar server's address: its own, the home, or one calendar; empty: found from the account's address), "carddav"?: string (the same for contacts), "username"?: string|null (its own sign-in; null: as the mail server), "password"?: string}"#,
-        ),
+        )
+        .asks(),
         CommandSpec::new("account.list", "Accounts", "File › Accounts", list_accounts),
         // Asks where MailCraft is published; File › About shows the answer (`Session::update`).
         CommandSpec::new("options.updates", "Update MailCraft by itself", "File › Options › General", |s, v| {
@@ -122,7 +132,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"value": s.prefs.updates}))
         })
         .setting("updates")
-        .params(r#"{"value": "on"|"stable"|"off" (as the copy was installed, releases only, or never)}"#),
+        .params(r#"{"value": "on"|"stable"|"off" (as the copy was installed, releases only, or never)}"#)
+        .asks(),
         CommandSpec::new("app.checkUpdates", "Check for updates", "File › About", |s, _| {
             // Updates turned off by the organisation: it updates MailCraft itself.
             if s.prefs.updates == crate::policy::Updates::Off && s.setting_locked("updates") {
@@ -144,7 +155,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .params(r#"{"account": string, "address": string}"#),
         CommandSpec::new("account.setAddress", "Add or change an address", "File › Info › Account settings", set_address).params(
             r#"{"account": string, "address": string (another address of the same mailbox, to send from), "name"?: string (shown on mail from it; else the account's), "replyTo"?: string (where replies to it go), "signature"?: string|null (one of the account's, for mail from it; null: the account's own), "newMail"?: bool (new mail is written from it, not from the account's own address: one address at most)}"#,
-        ),
+        )
+        .asks(),
         CommandSpec::new("account.findAddresses", "Find addresses on the server", "File › Info › Account settings", |s, v| {
             let id = account_param(s, v)?;
             if s.account(&id).is_none_or(|a| a.config.jmap.is_none()) {
@@ -158,7 +170,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             .params(r#"{"account": string, "address": string}"#),
         CommandSpec::new("account.update", "Account settings", "File › Info › Account settings", update_account).params(
             r#"{"account": string, "name"?: string, "email"?: string (the address its mail goes from; IMAP and POP accounts), "username"?: string, "imapHost"?: string, "imapPort"?: number, "imapSecurity"?: …, "smtpHost"?: …, "smtpUsername"?: string|null (the outgoing server's own sign-in; null: the incoming server's), "smtpPassword"?: string, "signIn"?: "automatic"|"password"|"ntlm", "smtpSignIn"?: "automatic"|"password"|"ntlm"|"none", "jmap"?: string|null, "popHost"?: …, "popDelete"?: bool, "popKeepDays"?: number, "popDeleteWithTrash"?: bool, "onlineOnly"?: bool, "ews"?: string, "userAgent"?: string (Exchange: the User-Agent its requests name; "" for MailCraft's)}"#,
-        ),
+        )
+        .asks(),
         CommandSpec::new("account.mailbox", "Mailbox settings", "File › Info › Mailbox settings", |s, v| {
             let id = account_param(s, v)?;
             let a = s.account(&id).ok_or_else(|| CmdError::Params(format!("no account `{id}`")))?;
@@ -195,7 +208,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             };
             s.set_vacation(&id, vacation)
         })
-        .params(r#"{"account"?: string, "enabled": bool, "subject"?: string, "text": string, "from"?: "YYYY-MM-DD", "until"?: "YYYY-MM-DD", "external"?: string (Exchange: another reply for people outside the organisation), "outside"?: "all"|"known"|"none" (Exchange: who outside gets one)}"#),
+        .params(r#"{"account"?: string, "enabled": bool, "subject"?: string, "text": string, "from"?: "YYYY-MM-DD", "until"?: "YYYY-MM-DD", "external"?: string (Exchange: another reply for people outside the organisation), "outside"?: "all"|"known"|"none" (Exchange: who outside gets one)}"#)
+        .asks_when(|_, v| p::bool(v, "enabled") != Some(false)),
     ]
 }
 

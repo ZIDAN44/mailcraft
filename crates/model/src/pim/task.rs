@@ -191,6 +191,20 @@ impl Task {
         }
     }
 
+    /// When it's due, for one whose due day came with a time of day (another program's, as
+    /// Nextcloud's Tasks gives one): that time on the day it's due now (issue #294). `None`: a
+    /// day alone.
+    pub fn due_at(&self) -> Option<i64> {
+        let (day, at) = self.source.as_ref()?.due?;
+        Some(at.saturating_add(self.due?.saturating_sub(day)))
+    }
+
+    /// When it starts, for one whose start day came with a time of day (as [`Task::due_at`]).
+    pub fn start_at(&self) -> Option<i64> {
+        let (day, at) = self.source.as_ref()?.start?;
+        Some(at.saturating_add(self.start?.saturating_sub(day)))
+    }
+
     /// The day it's due (days since the epoch), when it has one: the same day in every time
     /// zone, as it's kept at UTC midnight.
     pub fn due_day(&self) -> Option<i64> {

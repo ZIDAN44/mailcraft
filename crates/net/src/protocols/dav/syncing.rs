@@ -139,12 +139,65 @@ pub fn sync(dav: &Dav, at: &Where, pim: &Pim, now: i64, local: mailcraft_model::
     }
     if calendars {
         run.push_tasks(&mut out, &mut refetch)?;
+        run.make_task_lists(&mut out)?;
     }
     run.read_calendars(&refetch, &mut out)?;
+    let asked = server_default(dav, pim, &out, schedules);
+    out.default_calendar_failed = asked.as_ref().is_some_and(Option::is_none);
+    out.default_calendar = asked.flatten();
     if let Err(e) = run.read_books(&mut out) {
         contacts_refused(dav, e, &mut out)?;
     }
     Ok(out)
+}
+
+/// The calendar a server that schedules takes as the user's default (issue #278): asked the first
+/// time, again when its calendars aren't the ones they were (one made or removed may be the
+/// default now), and a day after it last answered (another program may have set another),
+/// `Some("")` when it names none. `None`: not asked; `Some(None)`: asked and not answered.
+fn server_default(dav: &Dav, pim: &Pim, out: &DavSync, schedules: bool) -> Option<Option<String>> {
+    let (true, Some(home), Some(list)) = (schedules, &out.caldav_home, &out.calendars) else { return None };
+    let was: std::collections::BTreeSet<&str> =
+        pim.calendars.iter().map(|c| c.id.as_str()).filter(|id| mailcraft_model::pim::is_server_calendar(id)).collect();
+    let now: std::collections::BTreeSet<&str> =
+        list.iter().map(|c| c.id.as_str()).filter(|id| mailcraft_model::pim::is_server_calendar(id)).collect();
+    // An answer "later" than now (the clock set back since) isn't lately: asked again.
+    let lately = pim.server_default_at.is_some_and(|at| (0..=86_400).contains(&out.checked.saturating_sub(at)));
+    if pim.server_default.is_some() && was == now && lately {
+        return None;
+    }
+    Some(dav.default_calendar(home).ok().map(Option::unwrap_or_default))
+}
+
+impl Run<'_> {
+    /// The task lists asked for (issue #294), each a collection of its own under the calendars'
+    /// home, named for it (another name beside one there already); read with the others below.
+    fn make_task_lists(&self, out: &mut DavSync) -> Result<()> {
+        let Some(home) = out.caldav_home.clone().filter(|h| !h.is_empty()) else { return Ok(()) };
+        for name in self.pim.new_task_lists.iter().take(10) {
+            out.made_task_lists.push(name.clone());
+            let slug: String = name
+                .chars()
+                .filter_map(|c| if c.is_ascii_alphanumeric() { Some(c.to_ascii_lowercase()) } else { c.is_whitespace().then_some('-') })
+                .take(40)
+                .collect();
+            let slug = if slug.trim_matches('-').is_empty() { "tasks".to_string() } else { slug.trim_matches('-').to_string() };
+            let mut made = Err(0);
+            for n in 1..=5 {
+                let url =
+                    if n == 1 { format!("{}/{slug}/", home.trim_end_matches('/')) } else { format!("{}/{slug}-{n}/", home.trim_end_matches('/')) };
+                made = self.dav.make_task_list(&url, name)?;
+                // Something there already by that name: the next one.
+                if made != Err(405) {
+                    break;
+                }
+            }
+            if let Err(s) = made {
+                out.errors.push(format!("{name}: the server didn't make this task list (HTTP {s})"));
+            }
+        }
+        Ok(())
+    }
 }
 
 /// A contacts step's error. Google refusing the token its contacts (a sign-in that granted the
