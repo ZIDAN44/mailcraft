@@ -20,6 +20,7 @@ mod flat;
 mod node;
 mod parse;
 mod ready;
+mod row_spans;
 mod write;
 pub(crate) use blocks::background_pictures;
 use blocks::*;

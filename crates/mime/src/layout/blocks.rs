@@ -138,12 +138,18 @@ fn colored_only<R>(ctx: &mut Ctx, n: &Node, f: impl FnOnce(&mut Ctx) -> R) -> R 
     }
 }
 
-/// Whether a cell holds its place in its row: one with something in it or behind it, or one
-/// that says how wide or tall it is (a spacer). An empty cell that says neither is left out; one
-/// that does was too, and what came after it in the row moved into its place (a progress bar's
-/// first step stood at its column's edge, its line gone from before it).
+/// Whether a cell holds its place in its row: one with something in it or behind it, a line
+/// along it, or one that says how wide or tall it is (a spacer). An empty cell that says none of
+/// these is left out; one that does was too, and what came after it in the row moved into its
+/// place (a progress bar's first step stood at its column's edge, its line gone from before it;
+/// a signature's line between its logo and its details, discussion #275).
 fn held(c: &Cell) -> bool {
-    !c.blocks.is_empty() || c.background.is_some() || c.background_image.is_some() || c.width.is_some() || c.height.is_some()
+    !c.blocks.is_empty()
+        || c.background.is_some()
+        || c.background_image.is_some()
+        || c.width.is_some()
+        || c.height.is_some()
+        || c.borders.iter().any(Option::is_some)
 }
 
 /// The room inside a `table`'s cell: its own (`padding`), and above its first box the room that
@@ -252,7 +258,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
             }
             Kid::El(n) if n.tag == "table" && depth < MAX_DEPTH => {
                 flush(&mut pending, &mut out, ctx);
-                let mut rows: Vec<Vec<Cell>> = colored(ctx, n, |ctx| {
+                let rows: Vec<Vec<(Cell, usize)>> = colored(ctx, n, |ctx| {
                     n.rows()
                         .into_iter()
                         .map(|(tr, row)| {
@@ -274,7 +280,7 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                     if c.tag == "th" && c.style("font-weight").is_none_or(|w| w != "normal" && w != "400") {
                                         each_span(&mut content, &mut |s| s.bold = true);
                                     }
-                                    Cell {
+                                    let cell = Cell {
                                         width: c.width().or_else(|| picture_width(&content)),
                                         blocks: content,
                                         background: c.background().or(row_bg),
@@ -288,10 +294,11 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                                         valign: c.valign().or(row_valign).unwrap_or(VAlign::Middle),
                                         height: c.min_height().max(row_height),
                                         radius: c.radius(),
-                                    }
+                                    };
+                                    (cell, super::row_spans::rows_spanned(c.attr("rowspan")))
                                 })
-                                .filter(held)
-                                .collect::<Vec<Cell>>()
+                                .filter(|(c, _)| held(c))
+                                .collect::<Vec<(Cell, usize)>>()
                         })
                         .filter(|r| !r.is_empty())
                         .collect()
@@ -299,6 +306,8 @@ pub(super) fn blocks(kids: &[Kid], ctx: &mut Ctx, depth: usize) -> Vec<Block> {
                 if rows.is_empty() {
                     continue;
                 }
+                // A cell spanning rows beside them (discussion #275), as a browser lays it out.
+                let mut rows = super::row_spans::fold(rows, Some(n.cell_spacing()), Some(n.cell_padding()));
                 if n.collapses() {
                     super::collapse::share_lines(&mut rows);
                 }
