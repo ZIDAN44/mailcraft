@@ -2190,3 +2190,5 @@ count	occurrences	keer
 	{ext} file	{ext}-bestand
 	Mailing list (List-Id) contains	Mailinglijst (List-Id) bevat
 	is from the list “{text}”	van de lijst “{text}” is
+	Create event	Afspraak maken
+	Create task	Taak maken

@@ -2195,3 +2195,5 @@ count	occurrences	ocorrências
 	{ext} file	Arquivo {ext}
 	Mailing list (List-Id) contains	A lista de e-mails (List-Id) contém
 	is from the list “{text}”	for da lista “{text}”
+	Create event	Criar evento
+	Create task	Criar tarefa

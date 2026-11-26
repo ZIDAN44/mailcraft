@@ -2195,3 +2195,5 @@ count	occurrences	előfordulás
 	{ext} file	{ext}-fájl
 	Mailing list (List-Id) contains	A levelezőlista (List-Id) tartalmazza
 	is from the list “{text}”	erről a levelezőlistáról érkezett: „{text}”
+	Create event	Esemény létrehozása
+	Create task	Feladat létrehozása

@@ -416,6 +416,28 @@ impl Dialog {
         Dialog::Event(Box::new(f))
     }
 
+    /// An event from a message, inviting no one (issue #297: Reply with meeting invites the people
+    /// on it): its subject the event's, its text the notes, as Outlook's message made into an
+    /// appointment.
+    pub fn event_from(s: &Session, p: &mailcraft_engine::mime::Parsed) -> Dialog {
+        let mut f = crate::pim_dialogs::EventForm::new(s, None);
+        f.summary = p.subject.clone();
+        f.description = p.text.chars().take(4000).collect();
+        Dialog::Event(Box::new(f))
+    }
+
+    /// A task from a message (issue #297): its subject the task's title, its text the notes, due
+    /// on the day its follow-up flag is due, when it has one.
+    pub fn task_from(s: &Session, p: &mailcraft_engine::mime::Parsed, m: Option<&mailcraft_engine::model::Summary>) -> Dialog {
+        let due = m.and_then(|m| s.follow_up_due(m)).map(|day| day.saturating_mul(86_400));
+        let mut d = Dialog::new_task(s, due);
+        if let Dialog::Task(f) = &mut d {
+            f.title = p.subject.clone();
+            f.notes = p.text.chars().take(4000).collect();
+        }
+        d
+    }
+
     /// A folder's Properties, from what this computer keeps of it.
     pub fn folder_properties(s: &Session, f: &mailcraft_engine::model::Folder) -> Dialog {
         let kept = s.store.as_ref().and_then(|st| st.load_folder(&f.account, &f.path).ok()).unwrap_or_default();

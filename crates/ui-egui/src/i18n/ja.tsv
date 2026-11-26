@@ -2191,3 +2191,5 @@ count	occurrences	回
 	{ext} file	{ext} ファイル
 	Mailing list (List-Id) contains	メーリング リスト (List-Id) に次を含む
 	is from the list “{text}”	メーリング リスト「{text}」のメール
+	Create event	予定を作成
+	Create task	タスクを作成

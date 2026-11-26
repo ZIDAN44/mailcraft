@@ -2190,3 +2190,5 @@ count	occurrences	مرات
 	{ext} file	ملف {ext}
 	Mailing list (List-Id) contains	القائمة البريدية (List-Id) تحتوي على
 	is from the list “{text}”	من القائمة «{text}»
+	Create event	إنشاء حدث
+	Create task	إنشاء مهمة

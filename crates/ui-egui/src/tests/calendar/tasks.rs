@@ -309,3 +309,28 @@ fn a_tasks_time_of_day_from_elsewhere_is_shown() {
     moved.due = Some(due + 86_400);
     assert_eq!(moved.due_at(), Some(due + 86_400 + 14 * 3600 + 1800));
 }
+
+/// Issue #297: a message made into a task of the user's own: its subject the title, its text the
+/// notes, due on the day its follow-up flag is; and into an event that invites no one (Reply with
+/// meeting invites the people on it), its subject and text.
+#[test]
+fn a_message_makes_a_task_or_an_event() {
+    let (mut a, _) = app("message-to-task");
+    let k = a.session.list.iter().find(|m| m.subject.contains("winter group show")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    let due = mailcraft_engine::model::dates::today(&a.session.clock) + 3;
+    a.session.follow_up_selection(Some(due), false).unwrap();
+    let parsed = a.session.reading.as_ref().and_then(|r| r.parsed.clone()).expect("read");
+    let summary = a.session.summary(&k);
+    let Dialog::Task(f) = Dialog::task_from(&a.session, &parsed, summary) else { panic!("a task's form") };
+    assert_eq!(f.title, "Open call: winter group show");
+    assert!(f.notes.contains("Dear artists"), "{}", f.notes);
+    assert_eq!(f.due, mailcraft_engine::model::dates::day_string(due), "the flag's day");
+    a.ui.dialog = Some(Dialog::Task(f.clone()));
+    a.act(crate::Action::Submit("task.create", f.params()));
+    let uid = a.ui.task.clone().expect("made");
+    assert_eq!(a.session.find_task(&uid).unwrap().task.title, "Open call: winter group show");
+    let Dialog::Event(e) = Dialog::event_from(&a.session, &parsed) else { panic!("an event's form") };
+    assert_eq!((e.summary.as_str(), e.guests.as_str()), ("Open call: winter group show", ""), "no one invited");
+    assert!(e.description.contains("Dear artists"));
+}

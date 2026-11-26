@@ -2195,3 +2195,5 @@ count	occurrences	Terminen
 	{ext} file	{ext}-Datei
 	Mailing list (List-Id) contains	Mailingliste (List-Id) enthält
 	is from the list “{text}”	aus der Liste „{text}“ ist
+	Create event	Termin erstellen
+	Create task	Aufgabe erstellen

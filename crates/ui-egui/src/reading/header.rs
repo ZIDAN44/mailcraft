@@ -320,6 +320,15 @@ fn action_bar(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut V
                     acts.push(Action::Dialog(crate::Dialog::meeting_from(s, p)));
                     ui.close();
                 }
+                // The message made into an event or a task of the user's own (issue #297).
+                if ui.button(tl!("Create event")).clicked() {
+                    acts.push(Action::Dialog(crate::Dialog::event_from(s, p)));
+                    ui.close();
+                }
+                if ui.button(tl!("Create task")).clicked() {
+                    acts.push(Action::Dialog(crate::Dialog::task_from(s, p, s.summary(&r.key))));
+                    ui.close();
+                }
                 if ui.button(tl!("Forward as attachment")).clicked() {
                     acts.push(Action::Run("mail.forwardAsAttachment", json!({})));
                     ui.close();

@@ -2208,3 +2208,5 @@ count	occurrences	повторений
 	{ext} file	Файл {ext}
 	Mailing list (List-Id) contains	Список рассылки (List-Id) содержит
 	is from the list “{text}”	из рассылки «{text}»
+	Create event	Создать событие
+	Create task	Создать задачу

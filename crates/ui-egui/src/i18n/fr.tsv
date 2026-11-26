@@ -2195,3 +2195,5 @@ count	occurrences	occurrences
 	{ext} file	Fichier {ext}
 	Mailing list (List-Id) contains	La liste de diffusion (List-Id) contient
 	is from the list “{text}”	vient de la liste « {text} »
+	Create event	Créer un événement
+	Create task	Créer une tâche

@@ -2195,3 +2195,5 @@ count	occurrences	repeticiones
 	{ext} file	Archivo {ext}
 	Mailing list (List-Id) contains	La lista de correo (List-Id) contiene
 	is from the list “{text}”	es de la lista «{text}»
+	Create event	Crear evento
+	Create task	Crear tarea

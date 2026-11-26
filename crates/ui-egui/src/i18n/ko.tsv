@@ -2194,3 +2194,5 @@ count	occurrences	회
 	{ext} file	{ext} 파일
 	Mailing list (List-Id) contains	메일링 리스트(List-Id)에 포함
 	is from the list “{text}”	메일링 리스트 "{text}"의 메일임
+	Create event	일정 만들기
+	Create task	작업 만들기
