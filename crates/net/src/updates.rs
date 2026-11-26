@@ -189,7 +189,8 @@ pub fn expected_sum_with(keys: &[&str], release: &Release) -> Result<String> {
     if keys.is_empty() && is_sha256(&release.sha256) {
         return Ok(release.sha256.to_ascii_lowercase());
     }
-    let file = release.download.rsplit('/').next().unwrap_or_default();
+    // The installer's name as the checksums list it: its address writes a `+` as `%2B`.
+    let file = unescaped(release.download.rsplit('/').next().unwrap_or_default());
     if release.sums.is_empty() || file.is_empty() {
         return Err(NetError::No(format!("{} lists no checksum for its installer", release.tag)));
     }
@@ -199,9 +200,17 @@ pub fn expected_sum_with(keys: &[&str], release: &Release) -> Result<String> {
     let sums = fetch(&release.sums, MAX_SUMS, "checksums file")?;
     if !keys.is_empty() {
         let sig = fetch(&release.sums_sig, signed::MAX_SIG, "checksums signature")?;
-        signed::verify_sums(keys, &release.tag, &sums, &String::from_utf8_lossy(&sig))?;
+        // The release named whole, from the address the checksums came from (`Release::tag` is
+        // cut short for showing).
+        let tag = unescaped(release.sums.rsplit('/').nth(1).unwrap_or_default());
+        signed::verify_sums(keys, &tag, &sums, &String::from_utf8_lossy(&sig))?;
     }
-    checked_sum(keys, release, &String::from_utf8_lossy(&sums), file)
+    checked_sum(keys, release, &String::from_utf8_lossy(&sums), &file)
+}
+
+/// A part of a release file's address as it's named: [`Feed::file_address`] writes `+` as `%2B`.
+fn unescaped(part: &str) -> String {
+    part.replace("%2B", "+").replace("%2b", "+")
 }
 
 /// `file`'s line in `sums` (signed, when there are `keys`), held to GitHub's record of it too then.
@@ -485,6 +494,49 @@ mod tests {
         assert!(expected_sum_with(&[KEY_A], &bare).is_err());
         // Without a key built in (releases not signed yet), GitHub's record is enough, as before.
         assert_eq!(expected_sum_with(&[], &unsigned).unwrap(), msi);
+    }
+
+    /// A release whose tag is longer than the 64 characters `Release::tag` keeps, and an installer
+    /// named with a `+` (written `%2B` in its address), are still found in their checksums and
+    /// their signature checked against the whole tag. Signed for these tests with rsign2, as the
+    /// fixtures in `signed`.
+    #[test]
+    fn long_tags_and_plus_signs_are_named_as_the_release_names_them() {
+        use signed::tests::KEY_A;
+        let tag = "v0.43.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa+build.7";
+        let sums = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08  mailcraft-0.43.0+build.7-windows-x64.msi\n\
+                    e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  mailcraft-0.43.0-windows-x64-portable.zip\n";
+        let sig = "untrusted comment: signature from rsign secret key\n\
+                   RUQliLDa3ZytQjPv9pgRJf1oVpualWrfQX67o2mkQOyvyrBVRe0ObFAAaLkSxUyUdL2HU/kk+Dtl0FAontRvPK/VZE9Rqw2zOwE=\n\
+                   trusted comment: MailCraft v0.43.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa+build.7\n\
+                   9Ta/3BAMKpnpueYI6UTmDT1/9gxo75cNahZzxDbWJZCNdJpq5KLfEkf6tONA907Bu8U3AqruubDy0i52QHR1DA==\n";
+        let ok = |body: &str| format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).into_bytes();
+        for (name, sum) in [
+            ("mailcraft-0.43.0+build.7-windows-x64.msi", "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"),
+            ("mailcraft-0.43.0-windows-x64-portable.zip", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+        ] {
+            let (base, _) = crate::http::tests::serve(vec![ok(sums), ok(sig)]);
+            let feed = Feed::local(&format!("{base}/")).unwrap();
+            let release = Release {
+                tag: tag.chars().take(64).collect(),
+                download: feed.file_address(tag, name).unwrap(),
+                sums: feed.file_address(tag, "SHA256SUMS.txt").unwrap(),
+                sums_sig: feed.file_address(tag, "SHA256SUMS.txt.minisig").unwrap(),
+                ..Default::default()
+            };
+            assert!(release.download.contains("%2B") && release.tag.len() < tag.len());
+            assert_eq!(expected_sum_with(&[KEY_A], &release).unwrap(), sum, "{name}");
+        }
+        // Unsigned, with no GitHub record: the `+` name is still found in the checksums.
+        let (base, _) = crate::http::tests::serve(vec![ok(sums)]);
+        let feed = Feed::local(&format!("{base}/")).unwrap();
+        let release = Release {
+            tag: tag.into(),
+            download: feed.file_address(tag, "mailcraft-0.43.0+build.7-windows-x64.msi").unwrap(),
+            sums: feed.file_address(tag, "SHA256SUMS.txt").unwrap(),
+            ..Default::default()
+        };
+        assert_eq!(expected_sum_with(&[], &release).unwrap(), "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
     }
 
     /// The signature is found beside the checksums, at the address its own release gives it.
