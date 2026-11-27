@@ -398,3 +398,34 @@ fn typing_above_a_signatures_picture_moves_nothing_under_it() {
     }
     assert!(a.session.compose.as_ref().unwrap().body.starts_with("Hi!"));
 }
+
+/// Cancel leaves the account's signatures as they were when the editor opened: one renamed (saved
+/// on switching to another), one made and one deleted in it came back, or stayed, after Cancel,
+/// beside a button that said nothing would change.
+#[test]
+fn cancel_puts_the_signatures_back_as_they_were() {
+    let (mut a, _) = app("signatures-cancel");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    a.run("account.setSignature", json!({"account": "sample", "name": "Short", "signature": "R.", "html": "<b>R.</b>"}));
+    a.run("account.signatureDefaults", json!({"account": "sample", "new": "Signature", "reply": "Short"}));
+    let before = a.session.account("sample").unwrap().config.clone();
+    a.ui.dialog = Dialog::signature(&a.session);
+    frame(&ctx, &mut a, vec![]);
+    // "Signature" renamed, saved as "New" is clicked; the new one filled in and saved as "Short"
+    // is picked; "Short" deleted.
+    form_mut(&mut a).name = "Full".into();
+    click_named(&ctx, &mut a, "New");
+    form_mut(&mut a).compose.set_text("Riley, quickly".into());
+    let Some(Dialog::Signature(f)) = a.ui.dialog.as_mut() else { panic!() };
+    f.load(&a.session, Some("Short"));
+    click_named(&ctx, &mut a, "Delete");
+    assert_ne!(a.session.account("sample").unwrap().config.signatures, before.signatures, "changed while it's open");
+    click_named(&ctx, &mut a, "Cancel");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none(), "closed");
+    let after = a.session.account("sample").unwrap().config.clone();
+    assert_eq!(after.signatures, before.signatures, "as they were");
+    assert_eq!((after.signature_new, after.signature_reply), (before.signature_new, before.signature_reply));
+}

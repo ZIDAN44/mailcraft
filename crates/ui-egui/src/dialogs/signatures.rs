@@ -38,6 +38,9 @@ pub struct SignatureForm {
     /// issue #91): the code and its pictures, and the editor's text and look it made. Switched
     /// back with these unchanged, the code comes back as it was, its pictures too.
     kept_code: Option<(String, Vec<String>, String, mailcraft_engine::mime::rich::Styles)>,
+    /// The account's signatures and its defaults (for new messages, for replies) as the editor
+    /// opened: what Cancel puts back, a signature saved on switching or deleted in it included.
+    before: (Vec<mailcraft_engine::model::Signature>, Option<String>, Option<String>),
 }
 
 /// Whether HTML code shows pictures from the web (`<img src="https://…">`), which only the code
@@ -78,6 +81,7 @@ impl SignatureForm {
             picked: false,
             loaded: Value::Null,
             kept_code: None,
+            before: (config.signatures.clone(), config.signature_new.clone(), config.signature_reply.clone()),
         };
         f.load(s, first.as_deref());
         f
@@ -189,6 +193,29 @@ impl SignatureForm {
             self.editing = Some(name);
         }
         self.loaded = self.params();
+    }
+
+    /// Put the account's signatures and defaults back as they were when the editor opened (Cancel):
+    /// those made since go, those changed or deleted come back as they were.
+    fn put_back(&self, s: &Session, acts: &mut Vec<Action>) {
+        let Some(now) = s.account(&self.account).map(|a| &a.config) else { return };
+        let (before, new, reply) = &self.before;
+        let had = |n: &str| before.iter().any(|g| g.name.eq_ignore_ascii_case(n));
+        for g in now.signatures.iter().filter(|g| !had(&g.name)) {
+            acts.push(Action::Run("account.removeSignature", json!({"account": self.account, "name": g.name})));
+        }
+        for g in before.iter().filter(|g| now.signature_named(&g.name) != Some(*g)) {
+            let mut v = json!({"account": self.account, "name": g.name, "signature": g.text});
+            if !g.code.is_empty() {
+                v["code"] = json!(g.code);
+            } else if !g.html.is_empty() {
+                v["html"] = json!(g.html);
+            }
+            acts.push(Action::Run("account.setSignature", v));
+        }
+        if (&now.signature_new, &now.signature_reply) != (new, reply) {
+            acts.push(Action::Run("account.signatureDefaults", json!({"account": self.account, "new": new, "reply": reply})));
+        }
     }
 
     /// To HTML code (the formatted signature's, to start from) or back to the editor (the
@@ -378,6 +405,10 @@ pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, 
             acts.push(Action::InsertSignature(Some(f.name.trim().to_string())));
         }
         return false;
+    }
+    // Cancel: nothing changed, what was saved on switching or deleted here included.
+    if cancel {
+        f.put_back(s, acts);
     }
     !cancel
 }

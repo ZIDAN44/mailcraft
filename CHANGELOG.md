@@ -23,6 +23,7 @@ on GitHub.
 - The calendar's month view cut the bottom off its events' titles ("Storyboard" read "Storvboard"): each event's box is as tall as a line of its text and a little more, the line in its middle.
 - With mail shown by conversation, no row in the list was selected while a conversation's older message was open (picked in the reading pane's conversation): the conversation's row is.
 - **Move to folder** and **Copy to folder** work as **Move folder** does: a click picks the folder and **Move** (or **Copy**) takes the mail there; a double click still does it at once. A click moved the mail straight away, and the button was never on.
+- **Cancel** in **Signatures** leaves the account's signatures as they were when it opened: one deleted there, or saved on switching to another, stayed so after Cancel.
 
 ## 0.42.0 - 2026-11-27
 
