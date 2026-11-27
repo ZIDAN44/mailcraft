@@ -46,9 +46,9 @@ Some things are left out on purpose; they are listed under [Not planned](#not-pl
 Test builds update themselves ([how test builds update](updates.md)). These parts are missing:
 
 - **Impact:**
-  - An update is checked only by its SHA-256 checksum. That proves the download is intact, not
-    who made it. Checking a signature on the release's checksums is built
-    ([signed updates](updates.md#signed-updates)) but waits for the project's key.
+  - The builds aren't code-signed (Windows SmartScreen, macOS notarization): an update is
+    checked by the project's own signature on the release's checksums
+    ([signed updates](updates.md#signed-updates)), not by a certificate the system knows.
   - On a standard (non-administrator) macOS account, a copy in `/Applications` isn't replaced.
   - Every tester gets a new build within the hour. There is no staged rollout.
   - Each update downloads the whole installer. There are no delta downloads.
@@ -56,8 +56,8 @@ Test builds update themselves ([how test builds update](updates.md)). These part
     from the keychain.
 - **Workaround:** On a standard macOS account, keep MailCraft in `~/Applications`. On macOS,
   choose **Always Allow** when asked (it lasts until the next update).
-- **Cause:** An Ed25519 signature on updates and releases needs a signing key that only the
-  owner can create: the updater checks one as soon as its public key is built in. The keychain
+- **Cause:** Code-signing certificates (Windows, Apple) are paid for and in a person's or a
+  company's name. The keychain
   ties an app's passwords to its Apple developer team, and a build signed without an Apple
   certificate has none, so each build is a new app to it; a designated requirement by bundle id
   doesn't change that.

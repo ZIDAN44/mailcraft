@@ -130,7 +130,10 @@ fn a_release_build_updates_to_the_next_release_from_end_to_end() {
     let feed = mailcraft_net::updates::Feed::local(&base).unwrap();
     let data = dir.join("data-folder");
     std::fs::create_dir_all(&data).unwrap();
-    let u = Updater::new(kind, data.clone(), feed, "0.32.0".into(), true);
+    let mut u = Updater::new(kind, data.clone(), feed, "0.32.0".into(), true);
+    // How an update installs, as a build without a key takes it (a release unsigned): the
+    // signature is held to in its own test, `an_update_is_taken_only_with_its_checksums_signed`.
+    u.keys = &[];
     // The settings read: updating as installed.
     u.follow_choice(mailcraft_engine::policy::Updates::On);
     let u = u.launch(None, Some(Duration::ZERO)).unwrap();

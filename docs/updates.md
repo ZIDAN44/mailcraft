@@ -33,12 +33,12 @@ to **No**, File › About doesn't check either.
    A failed check tries again after 5, then 10, 20 and 40 minutes.
 2. **Download.** The installer for this platform goes into `<data>/updates` as
    `<file>.<size>.part`. If the download stops, it carries on from where it was.
-3. **Verify.** The file's size and SHA-256 checksum must match the release's own record: GitHub's
-   `digest` for the file, or else the release's `SHA256SUMS.txt`. A file that doesn't match is
-   deleted. Once MailCraft is built with the project's public key (see
-   [signed updates](#signed-updates)), only the release's `SHA256SUMS.txt` counts, and only if its
-   signature `SHA256SUMS.txt.minisig` checks out against that key and names this release; a
-   release without one isn't installed.
+3. **Verify.** The file's size and SHA-256 checksum must match its line in the release's
+   `SHA256SUMS.txt`, and that file's signature `SHA256SUMS.txt.minisig` must check out against
+   the project's public key and name this release ([signed updates](#signed-updates)); GitHub's
+   `digest` for the file, when there is one, must say the same. A release without a signature
+   isn't installed, and a file that doesn't match is deleted. (Versions before 0.42.0 hold the file
+   to GitHub's `digest`, or else the release's `SHA256SUMS.txt`, alone.)
 4. **Announce.** A bar offers **Restart now** or **Later**. The system shows one notification per
    version, and the status bar shows the download's progress.
 5. **Close.** Closing MailCraft offers **Update and close** or **Close without updating**. If the
@@ -103,11 +103,12 @@ ones. At each start MailCraft tidies whatever else the old id left:
 A release's `SHA256SUMS.txt` can be signed with [minisign](https://jedisct1.github.io/minisign/)
 (or rsign2, its Rust port, which writes the same files). The signature covers every file by its
 checksum, for every system at once, and its trusted comment, `MailCraft <tag>`, names the release,
-so an older release's checksums can't stand in for a newer one's. Until MailCraft is built with a
-public key, releases needn't be signed and nothing changes. MailCraft reads minisign's files
-itself and checks them with what it already uses (`ring`'s Ed25519, RustCrypto's BLAKE2b).
+so an older release's checksums can't stand in for a newer one's. MailCraft is built with the
+project's public key from 0.42.0 on (`KEYS` in `crates/net/src/updates/signed.rs`), so every
+release from then must be signed. MailCraft reads minisign's files itself and checks them with
+what it already uses (`ring`'s Ed25519, RustCrypto's BLAKE2b).
 
-To start signing (the owner, once), in this order:
+How it was switched on (the owner, once), in this order; for a new key, the same:
 
 1. Make a key pair without a password, kept off any repository, with a copy somewhere safe (a
    password manager): `minisign -G -W -p mailcraft.pub -s mailcraft.key` (or

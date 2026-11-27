@@ -412,8 +412,9 @@ mod tests {
         assert_eq!(feed.file_address("v1.0.0+1", "x.msi").as_deref(), Some(format!("{base}/v1.0.0%2B1/x.msi").as_str()));
     }
 
-    /// What the updater holds a download to: GitHub's digest, else the checksums file's line;
-    /// only for an installer on the project's page, with its size.
+    /// What a build without a key (before 0.42.0) holds a download to: GitHub's digest, else the
+    /// checksums file's line; only for an installer on the project's page, with its size. This
+    /// build, with the project's key, takes neither alone: the release isn't signed.
     #[test]
     fn installers_come_with_what_to_check_them_against() {
         let body = r#"[{"tag_name": "v0.21.0-test.19", "draft": false, "target_commitish": "8180a31aa25d1ea4c7e8b4bd94e0f0f2c3a1b2c3",
@@ -429,7 +430,8 @@ mod tests {
         let msi = &parse(body, Some("-windows-x64.msi")).unwrap()[0];
         assert_eq!((msi.sha256.as_str(), msi.size), ("9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08", 31_457_280));
         assert!(msi.sums.ends_with("/v0.21.0-test.19/SHA256SUMS.txt"));
-        assert_eq!(expected_sum(msi).unwrap(), msi.sha256);
+        assert_eq!(expected_sum_with(&[], msi).unwrap(), msi.sha256);
+        assert!(expected_sum(msi).unwrap_err().to_string().contains("isn't signed"), "built with the project's key");
         let zip = &parse(body, Some("-windows-x64-portable.zip")).unwrap()[0];
         assert_eq!((zip.sha256.as_str(), zip.size), ("", 9), "a digest of another kind isn't taken");
         let sums = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08  mailcraft-0.21.0-windows-x64.msi\n\
@@ -452,6 +454,7 @@ mod tests {
         assert_eq!(sha256_hex(b""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
         // Nothing to check against: refused before anything is fetched.
         let bare = Release { download: msi.download.clone(), ..Default::default() };
+        assert!(expected_sum_with(&[], &bare).is_err());
         assert!(expected_sum(&bare).is_err());
     }
 

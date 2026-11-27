@@ -24,11 +24,15 @@ use ring::signature::{ED25519, UnparsedPublicKey};
 use crate::{NetError, Result};
 
 /// The public keys a release's checksums must be signed with: minisign's (the second line of its
-/// `.pub` file, `RW…`). None yet: until a version is built with one, releases aren't signed and a
-/// download is held to its SHA-256 alone. From the first version built with a key, every later
-/// release must be signed or that version won't install it. Two may be listed while one key takes
-/// over from another. How to make the key and sign with it: `docs/updates.md`.
-pub const KEYS: &[&str] = &[];
+/// `.pub` file, `RW…`). From the first version built with a key, every later release must be
+/// signed or that version won't install it (versions before it hold a download to its SHA-256
+/// alone). Two may be listed while one key takes over from another. How the key was made and how
+/// releases are signed with it: `docs/updates.md`.
+pub const KEYS: &[&str] = &[
+    // The project's key (made 2026-11-27); its secret half is the release workflow's
+    // `MAILCRAFT_UPDATE_KEY`.
+    "RWQ8EKag3Naj3gC0lqpZDefK16t00l/3VO185Ey2T3i/gvy8TRqbJnye",
+];
 
 /// The largest signature file read (minisign's are about 300 bytes).
 pub(super) const MAX_SIG: usize = 4 << 10;
