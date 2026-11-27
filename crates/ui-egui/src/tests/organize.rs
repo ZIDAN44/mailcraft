@@ -766,3 +766,27 @@ fn rules_and_categories_deleted_come_back_by_undo_and_rules_move() {
     frame(&ctx, &mut a, vec![]);
     assert_eq!(a.session.prefs.categories, before, "back where it was, its colour and keyword too");
 }
+
+/// A click beside a dialog with things to fill in leaves it open, what was typed kept (a click
+/// there closed it, a rule or an automatic reply half written lost); Escape and its buttons close
+/// it. A dialog only to look at (an attachment's preview) still closes on a click beside it.
+#[test]
+fn a_click_beside_a_form_leaves_it_open() {
+    let (mut a, _) = app("click-beside");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let beside = egui::pos2(8.0, 790.0);
+    a.ui.dialog = Some(Dialog::rule_from("zoe@studio.example", None));
+    frame(&ctx, &mut a, vec![]);
+    click(&ctx, &mut a, beside);
+    frame(&ctx, &mut a, vec![]);
+    assert!(matches!(a.ui.dialog, Some(Dialog::EditRule(_))), "still open: {:?}", a.ui.dialog.as_ref().map(std::mem::discriminant));
+    frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none(), "Escape closes it");
+    a.ui.dialog = Some(Dialog::Preview { title: "notes.txt".into(), header: vec![], text: "Hello".into(), warning: None });
+    frame(&ctx, &mut a, vec![]);
+    click(&ctx, &mut a, beside);
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none(), "a preview closes on a click beside it");
+}

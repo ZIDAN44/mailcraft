@@ -358,6 +358,12 @@ impl Dialog {
             )
     }
 
+    /// One only to look at, put away by a click beside it as well; any other keeps what's in it
+    /// until Escape or one of its buttons.
+    pub fn closes_on_a_click_beside(&self) -> bool {
+        matches!(self, Dialog::Preview { .. } | Dialog::Person(_))
+    }
+
     /// A question asked as MailCraft closes.
     pub fn about_closing(&self) -> bool {
         matches!(
@@ -771,7 +777,12 @@ pub(crate) fn show(
     // The part of a compaction that has a data file to itself can't be stopped, and nothing of
     // its account can be done meanwhile: Escape or a click beside it doesn't put it away.
     let stays = matches!(d, Dialog::Compacting { account, .. } if s.compaction.exclusive(account));
-    keep && (stays || !modal.should_close())
+    // Escape (when nothing in it, a list it opened, has it first) and its own buttons close it; a
+    // click beside it only one to look at (a click there put away a rule or an automatic reply
+    // half written, as Windows' dialogs never do).
+    let escape = modal.is_top_modal && !modal.any_popup_open && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+    let beside = modal.backdrop_response.clicked() && d.closes_on_a_click_beside();
+    keep && (stays || !(escape || beside || modal.response.should_close()))
 }
 
 fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pictures, t: &Tokens, acts: &mut Vec<Action>) -> bool {
