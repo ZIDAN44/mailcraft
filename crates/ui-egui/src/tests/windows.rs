@@ -599,6 +599,9 @@ fn the_top_bar_is_the_window_title_bar_when_it_has_none_of_the_systems() {
     assert!(min.right() <= max.left() + 0.5 && max.right() <= close.left() + 0.5);
     let settings = at("Accounts and settings");
     assert!(settings.right() <= min.left(), "the bar's controls keep clear of the window's buttons: {settings:?} {min:?}");
+    // Audit S14: the theme is under View and in Options; the bar had a button for it beside
+    // settings, a gap between it and the search box.
+    assert!(!seen.iter().any(|(l, _)| l.starts_with("Switch to")), "no theme button on the bar: {seen:?}");
     // Each button does what the system's does.
     for (r, what) in [(close, "close"), (max, "maximize"), (min, "minimize")] {
         let out = run(&mut a, click(r.center()));

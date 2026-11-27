@@ -5,17 +5,17 @@ use mailcraft_engine::model::FailureKind;
 
 /// A row of the top bar: its tabs, its buttons, the search box.
 pub(crate) const BAR_ROW_H: f32 = 30.0;
-/// The room the controls at the bar's end take: four of them (Undo's kept while there's nothing
+/// The room the controls at the bar's end take: three of them (Undo's kept while there's nothing
 /// to undo, so the box doesn't move when there is) and a margin.
-const BAR_END: f32 = 4.0 * 34.0 + 8.0;
+const BAR_END: f32 = 3.0 * 34.0 + 8.0;
 /// The narrowest the search box is beside the tabs (its edge and margins included); narrower,
 /// it has a row of its own.
 const MIN_SEARCH_BOX: f32 = 216.0;
 const MAX_SEARCH_BOX: f32 = 656.0;
 
 impl MailApp {
-    /// The top bar: the ribbon's tabs, the search box, and at its end Send / Receive, Undo, dark
-    /// mode and settings (issue #22). One row, where the app's name (the window's title already
+    /// The top bar: the ribbon's tabs, the search box, and at its end Send / Receive, Undo and
+    /// settings (issue #22; the theme is under View and in Options, as other apps keep it). One row, where the app's name (the window's title already
     /// says it) and the bar's controls had a row of their own above the tabs. A window too narrow
     /// for the box beside the tabs has it on a row of its own under them.
     ///
@@ -135,12 +135,6 @@ impl MailApp {
         let can_sync = self.session.registry().get("mail.sync").is_some_and(|c| (c.enabled)(&self.session).is_none());
         let can_undo = !self.session.undo.is_empty();
         ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
-            let dark = t.dark;
-            // The buttons' words in English: the button translates them.
-            let (icon, tip) = if dark { (Icon::Sun, "Switch to light mode") } else { (Icon::Moon, "Switch to dark mode") };
-            if widgets::bar_icon_button(ui, icon, tip, &t).clicked() {
-                acts.push(Action::SetDark(Some(!dark)));
-            }
             if widgets::bar_icon_button(ui, Icon::Gear, "Accounts and settings", &t).clicked() {
                 acts.push(Action::Backstage(backstage::Page::Info));
             }
