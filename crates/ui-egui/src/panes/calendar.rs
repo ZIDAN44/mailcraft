@@ -340,18 +340,17 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 acts.push(Action::Run("calendar.goto", json!({"step": 1})));
             }
             ui.add_space(6.0);
+            // In the usual order (it ran Schedule, Day … Month, the ribbon's the other way).
             let modes = [
-                (CalMode::Month, "Month", "month"),
-                (CalMode::Week, "Week", "week"),
-                (CalMode::WorkWeek, "Work week", "workWeek"),
                 (CalMode::Day, "Day", "day"),
+                (CalMode::WorkWeek, "Work week", "workWeek"),
+                (CalMode::Week, "Week", "week"),
+                (CalMode::Month, "Month", "month"),
                 (CalMode::Schedule, "Schedule", "schedule"),
             ];
-            let pad = ui.spacing().button_padding.x * 2.0 + ui.spacing().item_spacing.x;
-            let buttons: f32 = modes
-                .iter()
-                .map(|(_, label, _)| ui.painter().layout_no_wrap(tl!(label).to_string(), theme::regular(13.5), t.text).size().x + pad)
-                .sum();
+            let labels: Vec<&str> = modes.iter().map(|(_, l, _)| tl!(*l)).collect();
+            let buttons: f32 =
+                labels.iter().map(|l| ui.painter().layout_no_wrap(l.to_string(), theme::regular(13.0), t.text).size().x + 24.0).sum::<f32>() + 4.0;
             let whole = ui.painter().layout_no_wrap(title(s), theme::semibold(18.0), t.text).size().x;
             // The days shown, then the views' buttons against the end. In a window with no room
             // for both, the days alone (they ran on under the buttons): the views are on the
@@ -360,10 +359,9 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             let shown = widgets::one_line(ui, &title(s), theme::semibold(18.0), t.text, ui.available_width());
             ui.label(shown);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                for (mode, label, code) in modes.into_iter().filter(|_| both) {
-                    if ui.selectable_label(s.cal_mode == mode, tl!(label)).clicked() {
-                        acts.push(Action::Run("calendar.view", json!({"mode": code})));
-                    }
+                let at = modes.iter().position(|(m, ..)| *m == s.cal_mode).unwrap_or(0);
+                if both && let Some(code) = widgets::segmented(ui, &t, "calendar-views", &labels, at).and_then(|i| modes.get(i)).map(|m| m.2) {
+                    acts.push(Action::Run("calendar.view", json!({"mode": code})));
                 }
             });
         });
@@ -444,8 +442,18 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str, mova
     let title = text.lines().next().unwrap_or_default();
     let widest = title.split_whitespace().map(|w| ui.painter().layout_no_wrap(w.to_string(), font.clone(), ink).size().x).fold(0.0, f32::max);
     let narrow = widest > room;
-    let mut job = egui::text::LayoutJob::simple(if narrow { title.to_string() } else { text.to_string() }, font, ink, room);
-    job.wrap.max_rows = if narrow { 1 } else { ((rect.height() - 4.0) / row).floor().max(1.0) as usize };
+    let rows = ((rect.height() - 4.0) / row).floor().max(1.0) as usize;
+    let mut job = egui::text::LayoutJob::simple(if narrow { title.to_string() } else { text.to_string() }, font.clone(), ink, room);
+    // Room for one line (half an hour in the day): the title, then its time and place quieter on
+    // the same line; the time was the second line, lost to "…" after a title that fitted.
+    if !narrow && rows == 1 && text.contains('\n') {
+        let rest: Vec<&str> = text.lines().skip(1).collect();
+        job = egui::text::LayoutJob::default();
+        job.append(title, 0.0, egui::TextFormat { font_id: font.clone(), color: ink, ..Default::default() });
+        job.append(&rest.join(" · "), 6.0, egui::TextFormat { font_id: font, color: t.dim, ..Default::default() });
+        job.wrap.max_width = room;
+    }
+    job.wrap.max_rows = if narrow { 1 } else { rows };
     job.wrap.break_anywhere = narrow;
     job.wrap.overflow_character = Some('…');
     let galley = ui.fonts_mut(|f| f.layout_job(job));

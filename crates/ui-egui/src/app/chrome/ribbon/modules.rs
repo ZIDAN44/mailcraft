@@ -13,13 +13,10 @@ impl MailApp {
             acts.push(Action::Dialog(Dialog::new_event(s, None)));
         }
         widgets::group_sep(ui, &t);
-        if widgets::tool_button(ui, Icon::Clock, "Today", &t, true).clicked() {
-            acts.push(Action::Run("calendar.goto", json!({"date": "today"})));
-        }
-        widgets::group_sep(ui, &t);
         free_time(ui, s, t, acts);
-        widgets::group_sep(ui, &t);
-        calendar_views(ui, s, t, acts);
+        // Today and the views are over the calendar (and the views on View): twice, in two
+        // orders, they were 70 points apart.
+        side_by_side(ui, s, t, acts);
     }
 
     /// The View tab of the module shown: how it shows what it holds, and the folder pane.
@@ -152,21 +149,25 @@ fn free_time(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
     }
 }
 
-/// The calendar's views (Day, Work week, Week, Month, Schedule), and its calendars side by side.
+/// The calendar's views (Day, Work week, Week, Month, Schedule), the one shown lit (it was drawn
+/// off, as if it couldn't be used), each with its own icon; and its calendars side by side.
 fn calendar_views(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
-    for (mode, label, code) in [
-        (CalMode::Day, "Day", "day"),
-        (CalMode::WorkWeek, "Work week", "workWeek"),
-        (CalMode::Week, "Week", "week"),
-        (CalMode::Month, "Month", "month"),
-        (CalMode::Schedule, "Schedule", "schedule"),
+    for (mode, icon, label, code) in [
+        (CalMode::Day, Icon::ViewDay, "Day", "day"),
+        (CalMode::WorkWeek, Icon::ViewWorkWeek, "Work week", "workWeek"),
+        (CalMode::Week, Icon::ViewWeek, "Week", "week"),
+        (CalMode::Month, Icon::ViewMonth, "Month", "month"),
+        (CalMode::Schedule, Icon::ViewSchedule, "Schedule", "schedule"),
     ] {
-        let r = widgets::tool_button(ui, Icon::Layout, label, &t, s.cal_mode != mode);
-        if r.clicked() {
+        if widgets::tool_toggle(ui, icon, label, &t, s.cal_mode == mode).clicked() && s.cal_mode != mode {
             acts.push(Action::Run("calendar.view", json!({"mode": code})));
         }
     }
-    // Each calendar in a column of its own (Outlook's side by side), or together.
+    side_by_side(ui, s, t, acts);
+}
+
+/// Each calendar in a column of its own (Outlook's side by side), or together.
+fn side_by_side(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
     if s.pim.values().map(|p| p.calendars.len()).sum::<usize>() > 1 {
         widgets::group_sep(ui, &t);
         if widgets::tool_toggle(ui, Icon::Calendar, "Side by side", &t, s.prefs.calendars_side_by_side).clicked() {

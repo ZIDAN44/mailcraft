@@ -29,6 +29,15 @@ pub enum Icon {
     Close,
     ChevronDown,
     ChevronUp,
+    /// The calendar's views: a day, five days, a week, a month, the schedule (each told apart; one
+    /// glyph stood for all five).
+    ViewDay,
+    ViewWorkWeek,
+    ViewWeek,
+    ViewMonth,
+    ViewSchedule,
+    /// A list (People's list view; it had a phone).
+    ViewList,
     ChevronRight,
     ChevronLeft,
     Star,
@@ -283,6 +292,41 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Icon::Plus => {
             pen.line(&[(8.0, 2.5), (8.0, 13.5)]);
             pen.line(&[(2.5, 8.0), (13.5, 8.0)]);
+        }
+        Icon::ViewDay => {
+            pen.rect(1.5, 2.5, 14.5, 13.5);
+            pen.line(&[(1.5, 5.5), (14.5, 5.5)]);
+            pen.rect(4.5, 7.5, 11.5, 11.0);
+        }
+        Icon::ViewWorkWeek | Icon::ViewWeek => {
+            pen.rect(1.5, 2.5, 14.5, 13.5);
+            pen.line(&[(1.5, 5.5), (14.5, 5.5)]);
+            let n = if icon == Icon::ViewWeek { 7 } else { 5 };
+            for i in 1..n {
+                let x = 1.5 + 13.0 * i as f32 / n as f32;
+                pen.line(&[(x, 5.5), (x, 13.5)]);
+            }
+        }
+        Icon::ViewMonth => {
+            pen.rect(1.5, 2.5, 14.5, 13.5);
+            for y in [5.5, 8.2, 10.9] {
+                pen.line(&[(1.5, y), (14.5, y)]);
+            }
+            for x in [4.75, 8.0, 11.25] {
+                pen.line(&[(x, 5.5), (x, 13.5)]);
+            }
+        }
+        Icon::ViewSchedule => {
+            pen.rect(1.5, 2.5, 14.5, 13.5);
+            pen.line(&[(4.0, 6.0), (10.0, 6.0)]);
+            pen.line(&[(6.0, 9.0), (13.0, 9.0)]);
+            pen.line(&[(3.5, 12.0), (8.0, 12.0)]);
+        }
+        Icon::ViewList => {
+            for y in [4.0, 8.0, 12.0] {
+                pen.dot(2.5, y, 1.0);
+                pen.line(&[(5.5, y), (14.5, y)]);
+            }
         }
         Icon::Layout => {
             pen.rect(1.5, 2.5, 14.5, 13.5);

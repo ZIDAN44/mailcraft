@@ -176,8 +176,8 @@ impl PeopleView {
     pub fn icon(self) -> Icon {
         match self {
             PeopleView::People => Icon::Person,
-            PeopleView::Cards => Icon::Layout,
-            PeopleView::Phone => Icon::Phone,
+            PeopleView::Cards => Icon::ViewMonth,
+            PeopleView::Phone => Icon::ViewList,
         }
     }
 }
@@ -359,10 +359,7 @@ fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
 /// The side pane: everyone, A to Z (searched from the box at the top), under the address books.
 pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    if widgets::accent_button(ui, Icon::Plus, "New contact", &t, !s.accounts.is_empty()).clicked() {
-        acts.push(Action::Dialog(Dialog::new_contact()));
-    }
-    ui.add_space(8.0);
+    // New contact is the ribbon's (a second, here, was 75 points from it).
     books(s, st, ui);
     let people = shown(s, st);
     if people.at.is_empty() {

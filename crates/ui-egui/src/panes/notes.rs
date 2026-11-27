@@ -33,12 +33,9 @@ pub(crate) fn paper(color: u8, dark: bool) -> Color32 {
 const INK: Color32 = Color32::from_rgb(0x1F, 0x23, 0x28);
 
 /// The side pane: a new note, how many there are (searched from the box at the top).
-pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
+pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, _acts: &mut Vec<Action>) {
     let t = st.tokens;
-    if widgets::accent_button(ui, Icon::Plus, "New note", &t, !s.accounts.is_empty()).clicked() {
-        new_note(st, acts);
-    }
-    ui.add_space(8.0);
+    // New note is the ribbon's (a second, here, was 75 points from it).
     let n = shown::notes(s, &mut st.shown, &st.notes_query).len();
     ui.label(RichText::new(tf!("{n} notes", n = n)).color(t.faint).small());
 }

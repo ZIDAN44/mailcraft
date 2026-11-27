@@ -12,14 +12,10 @@ use super::*;
 pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     egui::ScrollArea::vertical().auto_shrink(false).id_salt("calendar-nav").show(ui, |ui| {
-        if widgets::accent_button(ui, Icon::Plus, "New event", &t, !s.accounts.is_empty()).clicked() {
-            acts.push(Action::Dialog(Dialog::new_event(s, None)));
-        }
-        ui.add_space(10.0);
+        // New event is the ribbon's (a second, here, was 75 points from it).
         months(s, st, ui, acts);
         ui.add_space(12.0);
         ui.label(RichText::new(tl!("Calendars")).font(theme::semibold(12.0)).color(t.faint));
-        let several = s.pim.values().map(|p| p.calendars.len()).sum::<usize>() > 1;
         let groups = groups(s);
         let grouped = groups.len() > 1;
         for (a, mailbox, cals) in groups {
@@ -65,7 +61,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                 }
             }
         }
-        more(s, ui, several, acts);
+        more(s, ui, acts);
     });
 }
 
@@ -283,15 +279,8 @@ fn calendar_row(s: &Session, t: &Tokens, ui: &mut Ui, rows: &Rows<'_>, c: &Calen
 }
 
 /// Under the calendars: side by side, opening a shared calendar, subscribing to one.
-fn more(s: &Session, ui: &mut Ui, several: bool, acts: &mut Vec<Action>) {
-    // Each in a column of its own, or all together (Outlook's side-by-side view).
-    if several {
-        ui.add_space(4.0);
-        let mut on = s.prefs.calendars_side_by_side;
-        if ui.checkbox(&mut on, tl!("Side by side")).on_hover_text(tl!("Day and week show each calendar in a pane of its own")).changed() {
-            acts.push(Action::Run("calendar.sideBySide", json!({"on": on})));
-        }
-    }
+fn more(s: &Session, ui: &mut Ui, acts: &mut Vec<Action>) {
+    // (Side by side is the ribbon's: a checkbox here read as one of the calendars.)
     // Outlook's Open Calendar: someone's calendar shared with an Exchange account (or their
     // free/busy time from a CalDAV server that schedules, issue #242); and its calendar groups
     // (issue #140).

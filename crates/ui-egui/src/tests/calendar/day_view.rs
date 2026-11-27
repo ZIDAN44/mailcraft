@@ -112,3 +112,34 @@ fn options_sets_the_work_days() {
     assert!(a.session.work_time().works_on(5), "Saturday worked: {:?}", a.session.work_time());
     assert!(a.session.work_time().works_on(0), "Monday still");
 }
+
+/// Half an hour in the day view: its title and its time on one line ("Team stand-up 09:30 –
+/// 10:00"); the time was a second line that didn't fit, and the title ended in "…".
+#[test]
+fn a_short_event_shows_its_time_beside_its_title() {
+    let (mut a, _) = app("short-event-time");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.module", json!({"name": "calendar"}));
+    a.run("calendar.view", json!({"mode": "day"}));
+    let day = mailcraft_engine::model::dates::day_string(a.session.cal_days().0);
+    a.session.run("event.create", &json!({"summary": "Quick sync", "start": format!("{day}T10:00"), "end": format!("{day}T10:30")})).unwrap();
+    let size = egui::vec2(1280.0, 800.0);
+    for _ in 0..3 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    // What's drawn: the letters laid out, not the text given (its cut part isn't drawn).
+    let out = sized_frame(&ctx, &mut a, size, vec![]);
+    let shown: Vec<String> = out
+        .shapes
+        .iter()
+        .filter_map(|s| match &s.shape {
+            egui::Shape::Text(t) if t.galley.job.text.starts_with("Quick sync") => {
+                Some(t.galley.rows.iter().flat_map(|r| r.row.glyphs.iter().map(|g| g.chr)).collect())
+            }
+            _ => None,
+        })
+        .collect();
+    let chip = shown.first().expect("the event");
+    assert!(chip.starts_with("Quick sync") && chip.contains("10:00") && !chip.contains('…'), "{chip:?}");
+}

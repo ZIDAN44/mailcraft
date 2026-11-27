@@ -26,10 +26,7 @@ const PRIORITY_W: f32 = 70.0;
 /// The side pane: a new task, the view (every task, or those not done), how many there are.
 pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    if widgets::accent_button(ui, Icon::Task, "New task", &t, !s.accounts.is_empty()).clicked() {
-        acts.push(Action::Dialog(Dialog::new_task(s, None)));
-    }
-    ui.add_space(10.0);
+    // New task is the ribbon's (a second, here, was 75 points from it).
     ui.with_layout(crate::bidi::column(), |ui| {
         for (hide, label) in [(false, "All tasks"), (true, "Active tasks")] {
             if ui.selectable_label(s.prefs.tasks_hide_done == hide, tl!(label)).clicked() && s.prefs.tasks_hide_done != hide {
