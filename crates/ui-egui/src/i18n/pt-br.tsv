@@ -1403,8 +1403,6 @@ month	May	maio
 	Default signatures for {email}	Assinaturas padrão de {email}
 	New signature	Nova assinatura
 	No signatures yet	Nenhuma assinatura ainda
-	New messages:	Novas mensagens:
-	Replies/forwards:	Respostas e encaminhamentos:
 	Another signature has that name.	Outra assinatura já tem esse nome.
 	Add to the list	Adicionar à lista
 	All categories…	Todas as categorias…
@@ -2238,3 +2236,6 @@ count	occurrences	ocorrências
 	Check the card is in its reader and the module is the one it came with.	Verifique se o cartão está no leitor e se o módulo é o que veio com ele.
 	Choose the file old mail goes to, or to delete it.	Escolha o arquivo para onde vão os e-mails antigos, ou escolha excluí-los.
 	Find someone	Encontrar alguém
+	New messages	Novas mensagens
+	Replies and forwards	Respostas e encaminhamentos
+	More formatting	Mais formatação

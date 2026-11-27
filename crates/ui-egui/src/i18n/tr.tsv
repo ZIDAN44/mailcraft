@@ -1403,8 +1403,6 @@ month	May	Mayıs
 	Default signatures for {email}	{email} için varsayılan imzalar
 	New signature	Yeni imza
 	No signatures yet	Henüz imza yok
-	New messages:	Yeni iletiler:
-	Replies/forwards:	Yanıtlar/iletmeler:
 	Another signature has that name.	Başka bir imza bu ada sahip.
 	Add to the list	Listeye ekle
 	All categories…	Tüm kategoriler…
@@ -2238,3 +2236,6 @@ count	occurrences	kez
 	Check the card is in its reader and the module is the one it came with.	Kartın okuyucuda olduğunu ve modülün kartla gelen modül olduğunu denetleyin.
 	Choose the file old mail goes to, or to delete it.	Eski postaların gideceği dosyayı seçin ya da silinmelerini seçin.
 	Find someone	Birini bul
+	New messages	Yeni iletiler
+	Replies and forwards	Yanıtlar ve iletmeler
+	More formatting	Diğer biçimlendirme

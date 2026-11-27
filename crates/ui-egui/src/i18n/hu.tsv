@@ -1404,8 +1404,6 @@ month	May	május
 	Default signatures for {email}	Alapértelmezett aláírások ehhez a fiókhoz: {email}
 	New signature	Új aláírás
 	No signatures yet	Még nincsenek aláírások
-	New messages:	Új üzenetek:
-	Replies/forwards:	Válaszok és továbbítások:
 	Another signature has that name.	Már van ilyen nevű aláírás.
 	Add to the list	Hozzáadás a listához
 	All categories…	Összes kategória…
@@ -2238,3 +2236,6 @@ count	occurrences	előfordulás
 	Check the card is in its reader and the module is the one it came with.	Ellenőrizze, hogy a kártya az olvasóban van-e, és a modul az, amelyiket hozzá kapta.
 	Choose the file old mail goes to, or to delete it.	Válassza ki a fájlt, ahová a régi levelek kerülnek, vagy válassza a törlésüket.
 	Find someone	Valaki keresése
+	New messages	Új üzenetek
+	Replies and forwards	Válaszok és továbbítások
+	More formatting	További formázás

@@ -1398,8 +1398,6 @@ month	May	mei
 	Default signatures for {email}	Standaardhandtekeningen voor {email}
 	New signature	Nieuwe handtekening
 	No signatures yet	Nog geen handtekeningen
-	New messages:	Nieuwe berichten:
-	Replies/forwards:	Antwoorden en doorsturen:
 	Another signature has that name.	Een andere handtekening heeft die naam al.
 	Add to the list	Aan de lijst toevoegen
 	All categories…	Alle categorieën…
@@ -2233,3 +2231,6 @@ count	occurrences	keer
 	Check the card is in its reader and the module is the one it came with.	Controleer of de kaart in de lezer zit en of de module bij de kaart hoort.
 	Choose the file old mail goes to, or to delete it.	Kies het bestand voor oude e-mail, of kies ervoor die te verwijderen.
 	Find someone	Iemand zoeken
+	New messages	Nieuwe berichten
+	Replies and forwards	Antwoorden en doorsturen
+	More formatting	Meer opmaak

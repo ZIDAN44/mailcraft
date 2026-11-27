@@ -275,11 +275,12 @@ impl std::fmt::Debug for SignatureEditor {
     }
 }
 
-/// A picker of signature names, "(none)" first. Whether one was picked.
-fn default_picker(ui: &mut Ui, id: &str, label: String, names: &[String], value: &mut Option<String>) -> bool {
+/// A picker of signature names, "(none)" first, its label over it (they were beside, centred in
+/// 150 points and ending in colons). Whether one was picked.
+fn default_picker(ui: &mut Ui, t: &Tokens, id: &str, label: &str, names: &[String], value: &mut Option<String>) -> bool {
     let before = value.clone();
-    ui.horizontal(|ui| {
-        let l = ui.add_sized([150.0, 22.0], egui::Label::new(label));
+    ui.vertical(|ui| {
+        label_over(ui, t, label);
         let none = tl!("(none)").to_string();
         let r = egui::ComboBox::from_id_salt(id)
             .width(240.0)
@@ -291,7 +292,8 @@ fn default_picker(ui: &mut Ui, id: &str, label: String, names: &[String], value:
                 }
             })
             .response
-            .labelled_by(l.id);
+            // Named as its label over it says (that's painted, not handed on).
+            .accessible_name(tl!(label));
         let choices: Vec<Option<String>> = std::iter::once(None).chain(names.iter().cloned().map(Some)).collect();
         crate::drop_down::keys(ui, &r, value, &choices);
     });
@@ -354,18 +356,17 @@ pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, 
         }
         f.load(s, next.as_deref());
     }
-    ui.horizontal(|ui| {
-        ui.label(tl!("Name"));
-        ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(240.0).char_limit(mailcraft_engine::model::signature::MAX_SIGNATURE_NAME));
-    });
-    ui.add_space(4.0);
-    // Formatted here, or HTML code made elsewhere (a business card in columns).
+    ui.add_space(6.0);
+    label_over(ui, t, "Name");
+    ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(f32::INFINITY).char_limit(mailcraft_engine::model::signature::MAX_SIGNATURE_NAME));
+    ui.add_space(6.0);
+    // Formatted here, or HTML code made elsewhere (a business card in columns): the segmented
+    // control every such choice has (it had a style of its own).
     let was_code = f.code.is_some();
     let mut code = was_code;
-    ui.horizontal(|ui| {
-        ui.selectable_value(&mut code, false, tl!("Formatted"));
-        ui.selectable_value(&mut code, true, tl!("HTML code"));
-    });
+    if let Some(i) = widgets::segmented(ui, t, "signature-kind", &[tl!("Formatted"), tl!("HTML code")], usize::from(code)) {
+        code = i == 1;
+    }
     if code != was_code {
         f.switch(code);
     }
@@ -377,7 +378,7 @@ pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, 
     // Outlook's "Choose default signature", for this account.
     ui.add_space(8.0);
     let email = s.account(&f.account).map(|a| a.config.email.clone()).unwrap_or_default();
-    ui.label(RichText::new(tf!("Default signatures for {email}", email = email)).strong().small());
+    ui.label(RichText::new(tf!("Default signatures for {email}", email = email)).font(theme::semibold(crate::sizes::BODY)).color(t.text));
     let mut names = f.names.clone();
     if f.editing.is_none() && !f.is_empty() && !names.iter().any(|n| n.eq_ignore_ascii_case(f.name.trim())) {
         names.push(f.name.trim().to_string());
@@ -388,8 +389,11 @@ pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, 
         f.for_new.clone_from(&first);
         f.for_reply = first;
     }
-    f.picked |= default_picker(ui, "signature-new", tl!("New messages:").to_string(), &names, &mut f.for_new);
-    f.picked |= default_picker(ui, "signature-reply", tl!("Replies/forwards:").to_string(), &names, &mut f.for_reply);
+    ui.horizontal(|ui| {
+        f.picked |= default_picker(ui, t, "signature-new", "New messages", &names, &mut f.for_new);
+        ui.add_space(12.0);
+        f.picked |= default_picker(ui, t, "signature-reply", "Replies and forwards", &names, &mut f.for_reply);
+    });
     let problem = f.problem().filter(|_| !f.is_empty());
     if let Some(p) = &problem {
         ui.label(RichText::new(p.as_str()).color(t.danger).small());

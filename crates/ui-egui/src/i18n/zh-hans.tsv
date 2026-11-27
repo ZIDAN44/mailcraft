@@ -1399,8 +1399,6 @@ month	May	5月
 	Default signatures for {email}	{email} 的默认签名
 	New signature	新建签名
 	No signatures yet	还没有签名
-	New messages:	新邮件:
-	Replies/forwards:	答复和转发:
 	Another signature has that name.	已有同名的签名。
 	Add to the list	添加到列表
 	All categories…	所有类别…
@@ -2234,3 +2232,6 @@ count	occurrences	次
 	Check the card is in its reader and the module is the one it came with.	请检查卡是否在读卡器中，以及模块是否为卡附带的模块。
 	Choose the file old mail goes to, or to delete it.	请选择旧邮件要存入的文件，或选择删除旧邮件。
 	Find someone	查找某人
+	New messages	新邮件
+	Replies and forwards	答复和转发
+	More formatting	更多格式

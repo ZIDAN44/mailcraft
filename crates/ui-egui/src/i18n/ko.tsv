@@ -1402,8 +1402,6 @@ month	May	5월
 	Default signatures for {email}	{email}의 기본 서명
 	New signature	새 서명
 	No signatures yet	아직 서명이 없습니다
-	New messages:	새 메시지:
-	Replies/forwards:	회신 및 전달:
 	Another signature has that name.	같은 이름의 서명이 이미 있습니다.
 	Add to the list	목록에 추가
 	All categories…	모든 범주…
@@ -2237,3 +2235,6 @@ count	occurrences	회
 	Check the card is in its reader and the module is the one it came with.	카드가 리더기에 있고 모듈이 카드와 함께 제공된 것인지 확인하세요.
 	Choose the file old mail goes to, or to delete it.	오래된 메일을 보낼 파일을 고르거나 삭제를 선택하세요.
 	Find someone	사람 찾기
+	New messages	새 메시지
+	Replies and forwards	회신 및 전달
+	More formatting	기타 서식

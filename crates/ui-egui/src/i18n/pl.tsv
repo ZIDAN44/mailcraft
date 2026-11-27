@@ -1416,8 +1416,6 @@ date	December	grudnia
 	Default signatures for {email}	Domyślne podpisy dla {email}
 	New signature	Nowy podpis
 	No signatures yet	Brak podpisów
-	New messages:	Nowe wiadomości:
-	Replies/forwards:	Odpowiedzi/przekazania:
 	Another signature has that name.	Inny podpis ma już tę nazwę.
 	Add to the list	Dodaj do listy
 	All categories…	Wszystkie kategorie…
@@ -2251,3 +2249,6 @@ count	occurrences	wystąpieniach
 	Check the card is in its reader and the module is the one it came with.	Sprawdź, czy karta jest w czytniku, a moduł to ten dołączony do karty.
 	Choose the file old mail goes to, or to delete it.	Wybierz plik na starą pocztę albo wybierz jej usunięcie.
 	Find someone	Znajdź osobę
+	New messages	Nowe wiadomości
+	Replies and forwards	Odpowiedzi i przekazania
+	More formatting	Więcej formatowania

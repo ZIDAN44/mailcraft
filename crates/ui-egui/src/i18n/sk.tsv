@@ -1417,8 +1417,6 @@ date	December	decembra
 	Default signatures for {email}	Predvolené podpisy pre {email}
 	New signature	Nový podpis
 	No signatures yet	Zatiaľ žiadne podpisy
-	New messages:	Nové správy:
-	Replies/forwards:	Odpovede/preposlania:
 	Another signature has that name.	Iný podpis už má tento názov.
 	Add to the list	Pridať do zoznamu
 	All categories…	Všetky kategórie…
@@ -2252,3 +2250,6 @@ count	occurrences	opakovaní
 	Check the card is in its reader and the module is the one it came with.	Skontrolujte, či je karta v čítačke a či je modul ten, ktorý k nej patrí.
 	Choose the file old mail goes to, or to delete it.	Vyberte súbor pre starú poštu alebo vyberte jej odstránenie.
 	Find someone	Nájsť osobu
+	New messages	Nové správy
+	Replies and forwards	Odpovede a preposlania
+	More formatting	Ďalšie formátovanie

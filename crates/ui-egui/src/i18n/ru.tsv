@@ -1416,8 +1416,6 @@ date	December	декабря
 	Default signatures for {email}	Подписи по умолчанию для {email}
 	New signature	Новая подпись
 	No signatures yet	Подписей пока нет
-	New messages:	Новые сообщения:
-	Replies/forwards:	Ответы и пересылка:
 	Another signature has that name.	Подпись с таким именем уже есть.
 	Add to the list	Добавить в список
 	All categories…	Все категории…
@@ -2251,3 +2249,6 @@ count	occurrences	повторений
 	Check the card is in its reader and the module is the one it came with.	Проверьте, что карта вставлена в считыватель и модуль тот, что шёл с ней.
 	Choose the file old mail goes to, or to delete it.	Выберите файл для старой почты или выберите её удаление.
 	Find someone	Найти человека
+	New messages	Новые сообщения
+	Replies and forwards	Ответы и пересылки
+	More formatting	Другое форматирование

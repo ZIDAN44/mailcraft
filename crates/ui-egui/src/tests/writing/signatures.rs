@@ -431,3 +431,31 @@ fn cancel_puts_the_signatures_back_as_they_were() {
     assert_eq!(after.signatures, before.signatures, "as they were");
     assert_eq!((after.signature_new, after.signature_reply), (before.signature_new, before.signature_reply));
 }
+
+/// Audit D19: the signature editor's bar is one row at the dialog's width, what's used less in
+/// More (it wrapped onto three rows, Decrease and Increase indent on different ones); the default
+/// pickers have their labels over them, without colons; Formatted and HTML code are the shared
+/// segmented control.
+#[test]
+fn the_signature_editor_is_one_row_with_labels_over_its_pickers() {
+    let (mut a, _) = app("signature-tidy");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.ui.dialog = Some(Dialog::Signature(Box::new(crate::dialogs::SignatureForm::new(&a.session, "sample", false))));
+    let size = egui::vec2(1280.0, 900.0);
+    for _ in 0..4 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    let all = named(&ctx, &mut a, size);
+    let at = |name: &str| all.iter().find(|n| n.label.as_deref() == Some(name)).and_then(|n| n.rect).unwrap_or_else(|| panic!("no {name}"));
+    let (bold, pictures, more) = (at("Bold (Ctrl+B)"), at("Pictures"), at("More formatting"));
+    for r in [pictures, more] {
+        assert!((r.center().y - bold.center().y).abs() < 2.0, "one row: {r:?} beside Bold {bold:?}");
+    }
+    let texts = drawn_text(&ctx, &mut a, size);
+    let label = texts.iter().find(|d| d.text == "New messages").map(|d| d.rect).expect("New messages, without a colon");
+    let picker = at("New messages");
+    assert!(label.bottom() <= picker.top() + 1.0, "over its picker");
+    assert!(!texts.iter().any(|d| d.text.ends_with(':')), "no label ends in a colon");
+    assert!(all.iter().any(|n| n.label.as_deref() == Some("Formatted") && n.selected), "a segment chosen");
+}

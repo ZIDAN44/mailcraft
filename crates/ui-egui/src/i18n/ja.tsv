@@ -1399,8 +1399,6 @@ month	May	5月
 	Default signatures for {email}	{email} の既定の署名
 	New signature	新しい署名
 	No signatures yet	署名はまだありません
-	New messages:	新しいメッセージ:
-	Replies/forwards:	返信と転送:
 	Another signature has that name.	同じ名前の署名がすでにあります。
 	Add to the list	一覧に追加
 	All categories…	すべての分類…
@@ -2234,3 +2232,6 @@ count	occurrences	回
 	Check the card is in its reader and the module is the one it came with.	カードがリーダーに入っていて、モジュールがカード付属のものか確認してください。
 	Choose the file old mail goes to, or to delete it.	古いメールの保存先ファイルを選ぶか、削除を選んでください。
 	Find someone	ユーザーを検索
+	New messages	新しいメッセージ
+	Replies and forwards	返信と転送
+	More formatting	その他の書式

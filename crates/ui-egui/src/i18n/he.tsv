@@ -1398,8 +1398,6 @@ month	May	מאי
 	Default signatures for {email}	חתימות ברירת מחדל עבור {email}
 	New signature	חתימה חדשה
 	No signatures yet	אין עדיין חתימות
-	New messages:	הודעות חדשות:
-	Replies/forwards:	תשובות והעברות:
 	Another signature has that name.	לחתימה אחרת יש כבר את השם הזה.
 	Add to the list	הוספה לרשימה
 	All categories…	כל הקטגוריות…
@@ -2233,3 +2231,6 @@ count	occurrences	פעמים
 	Check the card is in its reader and the module is the one it came with.	יש לוודא שהכרטיס נמצא בקורא ושהמודול הוא זה שהגיע איתו.
 	Choose the file old mail goes to, or to delete it.	יש לבחור את הקובץ שאליו יעבור הדואר הישן, או לבחור למחוק אותו.
 	Find someone	חיפוש אדם
+	New messages	הודעות חדשות
+	Replies and forwards	תשובות והעברות
+	More formatting	עוד עיצוב

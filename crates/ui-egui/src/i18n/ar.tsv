@@ -1398,8 +1398,6 @@ month	May	مايو
 	Default signatures for {email}	التوقيعات الافتراضية لـ {email}
 	New signature	توقيع جديد
 	No signatures yet	لا توجد توقيعات بعد
-	New messages:	الرسائل الجديدة:
-	Replies/forwards:	الردود وإعادة التوجيه:
 	Another signature has that name.	يحمل توقيع آخر هذا الاسم.
 	Add to the list	إضافة إلى القائمة
 	All categories…	كل الفئات…
@@ -2233,3 +2231,6 @@ count	occurrences	مرات
 	Check the card is in its reader and the module is the one it came with.	تأكد من أن البطاقة في القارئ وأن الوحدة هي التي جاءت معها.
 	Choose the file old mail goes to, or to delete it.	اختر الملف الذي يُنقل إليه البريد القديم، أو اختر حذفه.
 	Find someone	البحث عن شخص
+	New messages	الرسائل الجديدة
+	Replies and forwards	الردود وإعادة التوجيه
+	More formatting	مزيد من التنسيق

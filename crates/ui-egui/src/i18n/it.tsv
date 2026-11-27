@@ -1402,8 +1402,6 @@ month	May	maggio
 	Default signatures for {email}	Firme predefinite per {email}
 	New signature	Nuova firma
 	No signatures yet	Ancora nessuna firma
-	New messages:	Nuovi messaggi:
-	Replies/forwards:	Risposte e inoltri:
 	Another signature has that name.	Un'altra firma ha già questo nome.
 	Add to the list	Aggiungi all'elenco
 	All categories…	Tutte le categorie…
@@ -2237,3 +2235,6 @@ count	occurrences	ripetizioni
 	Check the card is in its reader and the module is the one it came with.	Controlla che la scheda sia nel lettore e che il modulo sia quello fornito con essa.
 	Choose the file old mail goes to, or to delete it.	Scegli il file in cui va la posta vecchia, oppure scegli di eliminarla.
 	Find someone	Trova qualcuno
+	New messages	Nuovi messaggi
+	Replies and forwards	Risposte e inoltri
+	More formatting	Altra formattazione

@@ -138,20 +138,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
             let more = crate::widgets::icon_more(ui, "More actions", t);
             egui::Popup::menu(&more).show(|ui| {
                 if compact {
-                    for (tip, op) in [
-                        ("Strikethrough", Op::Strike),
-                        ("Decrease indent (Ctrl+Shift+T)", Op::Outdent),
-                        ("Increase indent (Ctrl+T)", Op::Indent),
-                        ("Align left (Ctrl+L)", Op::Align(Align::Left)),
-                        ("Center (Ctrl+E)", Op::Align(Align::Center)),
-                        ("Align right (Ctrl+R)", Op::Align(Align::Right)),
-                        ("Clear all formatting (Ctrl+Space)", Op::Clear),
-                    ] {
-                        if ui.button(tl!(tip)).clicked() {
-                            ops.push(op);
-                            ui.close();
-                        }
-                    }
+                    less_used_formatting(ui, &mut ops);
                     ui.separator();
                     if ui.add_enabled(!c.sending, egui::Button::new(tl!("Address book"))).on_hover_text(tl!("Ctrl+Shift+B")).clicked() {
                         acts.push(Action::Dialog(Dialog::select_names(c, crate::dialogs::Recipients::To)));
@@ -369,21 +356,55 @@ fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich:
     });
 }
 
+/// The formatting used less, as menu items: in More when the bar is narrow (strikethrough,
+/// indenting, alignment, clearing it).
+fn less_used_formatting(ui: &mut Ui, ops: &mut Vec<Op>) {
+    for (tip, op) in [
+        ("Strikethrough", Op::Strike),
+        ("Decrease indent (Ctrl+Shift+T)", Op::Outdent),
+        ("Increase indent (Ctrl+T)", Op::Indent),
+        ("Align left (Ctrl+L)", Op::Align(Align::Left)),
+        ("Center (Ctrl+E)", Op::Align(Align::Center)),
+        ("Align right (Ctrl+R)", Op::Align(Align::Right)),
+        ("Clear all formatting (Ctrl+Space)", Op::Clear),
+    ] {
+        if ui.button(tl!(tip)).clicked() {
+            ops.push(op);
+            ui.close();
+        }
+    }
+}
+
 /// The signature editor's bar (Outlook's signature editor has one): the formatting, a link, and
 /// pictures (issue #11: signatures were thought to be plain text, their formatting there only to
-/// paste or by its shortcuts).
+/// paste or by its shortcuts). One row: at the dialog's width what's used less is in More (it
+/// wrapped onto three rows, Decrease and Increase indent on different ones).
 pub(crate) fn signature_bar(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, acts: &mut Vec<Action>) {
     let (sel, cur, para) = ribbon_state(ed, c);
     let mut ops: Vec<Op> = Vec::new();
+    let compact = ui.available_width() < 700.0;
     wrapped_row(ui, |ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
-        format_buttons(ui, t, c, &cur, para, &mut ops, false);
+        format_buttons(ui, t, c, &cur, para, &mut ops, compact);
         sep(ui, t);
-        if crate::widgets::tool_button(ui, Icon::Link, "Link", t, true).on_hover_text(tl!("Ctrl+K")).clicked() {
+        // Narrow: a link and pictures as icons, named on hover (their words took the row's end).
+        let (link, pictures) = if compact {
+            (crate::widgets::icon_action(ui, Icon::Link, "Link (Ctrl+K)", t), crate::widgets::icon_action(ui, Icon::Image, "Pictures", t))
+        } else {
+            (
+                crate::widgets::tool_button(ui, Icon::Link, "Link", t, true).on_hover_text(tl!("Ctrl+K")),
+                crate::widgets::tool_button(ui, Icon::Image, "Pictures", t, true),
+            )
+        };
+        if link.clicked() {
             ed.link = Some(LinkForm::open(c, sel.clone()));
         }
-        if crate::widgets::tool_button(ui, Icon::Image, "Pictures", t, true).clicked() {
+        if pictures.clicked() {
             acts.push(Action::SignaturePicture { paste: false });
+        }
+        if compact {
+            let more = crate::widgets::icon_more(ui, "More formatting", t);
+            egui::Popup::menu(&more).show(|ui| less_used_formatting(ui, &mut ops));
         }
     });
     apply_ops(ui.ctx(), ed, c, ops);

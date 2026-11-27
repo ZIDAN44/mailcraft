@@ -1402,8 +1402,6 @@ month	May	5月
 	Default signatures for {email}	{email} 的預設簽名
 	New signature	新增簽名
 	No signatures yet	尚無簽名
-	New messages:	新郵件:
-	Replies/forwards:	回覆和轉寄:
 	Another signature has that name.	已有同名的簽名。
 	Add to the list	新增到清單
 	All categories…	所有類別…
@@ -2237,3 +2235,6 @@ count	occurrences	次
 	Check the card is in its reader and the module is the one it came with.	請檢查卡片是否在讀卡機中，以及模組是否為卡片隨附的模組。
 	Choose the file old mail goes to, or to delete it.	請選擇舊郵件要存入的檔案，或選擇刪除舊郵件。
 	Find someone	尋找某人
+	New messages	新郵件
+	Replies and forwards	回覆和轉寄
+	More formatting	更多格式
