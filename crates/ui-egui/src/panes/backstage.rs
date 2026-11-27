@@ -162,7 +162,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 }
             }
             rail_divider(ui, &t);
-            for (page, icon, label) in [(Page::Options, Icon::Gear, "Options"), (Page::About, Icon::Star, "About")] {
+            for (page, icon, label) in [(Page::Options, Icon::Gear, "Options"), (Page::About, Icon::Unread, "About")] {
                 if rail_item(ui, &t, icon, label, b.page == page).clicked() {
                     b.page = page;
                 }
@@ -568,7 +568,7 @@ fn updates(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
                 let name = r.tag.trim_start_matches('v').to_string();
                 ui.label(RichText::new(tf!("MailCraft {version} is available.", version = name)).color(t.text).strong());
                 let target = if r.download.is_empty() { r.page.clone() } else { r.download.clone() };
-                if widgets::accent_button(ui, Icon::Sync, "Download", t, true).on_hover_text(&target).clicked() {
+                if widgets::accent_button(ui, Icon::Download, "Download", t, true).on_hover_text(&target).clicked() {
                     acts.push(Action::OpenUrl(target));
                 }
                 if ui.link(tl!("What's new")).on_hover_text(&r.page).clicked() {

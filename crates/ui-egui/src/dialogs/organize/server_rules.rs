@@ -144,8 +144,7 @@ fn rule_row(
         if !r.not_supported && ui.add_enabled_ui(may, |ui| widgets::tiny_icon_button(ui, Icon::Delete, "Delete", t)).inner.clicked() {
             acts.push(run("rules.serverDelete", json!({})));
         }
-        if r.rule.is_some() && !r.not_supported && ui.add_enabled_ui(may, |ui| widgets::tiny_icon_button(ui, Icon::Drafts, "Edit", t)).inner.clicked()
-        {
+        if r.rule.is_some() && !r.not_supported && ui.add_enabled_ui(may, |ui| widgets::tiny_icon_button(ui, Icon::Edit, "Edit", t)).inner.clicked() {
             let target = ServerTarget { account: account.to_string(), id: Some(r.id.clone()), drop_outlook_list: drop };
             acts.push(Action::Dialog(Dialog::EditRule(Box::new(RuleForm::for_server(target, Some(r))))));
         }

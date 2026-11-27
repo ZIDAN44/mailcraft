@@ -629,7 +629,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut
             pattern::follow_choice(f);
             pattern::rows(ui, t, f);
         }
-        form_row(ui, t, true, Some(Icon::Clock), "Reminder", |ui| {
+        form_row(ui, t, true, Some(Icon::Bell), "Reminder", |ui| {
             ui.allocate_ui_with_layout(vec2(CHOICE_W, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 let mut choices: Vec<Option<i64>> = std::iter::once(None).chain(REMINDER_CHOICES.iter().map(|m| Some(*m))).collect();
                 // One set elsewhere (another app, a server) stays offered as it is.

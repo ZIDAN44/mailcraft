@@ -130,7 +130,7 @@ pub(crate) fn ribbon(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Compose, 
             // The account's signatures, one picked replacing the one in the message, or making
             // and changing them, from the message (Outlook's Signature menu on the Message ribbon).
             if !compact {
-                let r = crate::widgets::tool_button(ui, Icon::Drafts, "Signature", t, !c.sending);
+                let r = crate::widgets::tool_button(ui, Icon::Signature, "Signature", t, !c.sending);
                 egui::Popup::menu(&r).show(|ui| signature_menu(ui, c, signatures, acts));
             }
             // The rest, used less: Check Names, the date and time, the word count; in a narrow

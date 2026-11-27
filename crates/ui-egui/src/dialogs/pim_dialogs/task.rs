@@ -301,7 +301,7 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
             priority_label,
         );
     });
-    form_row(ui, t, true, Some(Icon::Clock), "Reminder", |ui| {
+    form_row(ui, t, true, Some(Icon::Bell), "Reminder", |ui| {
         ui.allocate_ui_with_layout(vec2(90.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.checkbox(&mut f.remind, tl!("Remind me"));
         });

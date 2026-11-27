@@ -528,7 +528,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                         if s.person_read_only(&c.uid) {
                             ui.label(RichText::new(tl!("In a shared address book: read-only")).color(t.faint).small());
                         } else {
-                            if widgets::pill_button(ui, Icon::Drafts, "Edit", &t).clicked() {
+                            if widgets::pill_button(ui, Icon::Edit, "Edit", &t).clicked() {
                                 acts.push(Action::Dialog(Dialog::edit_contact(c)));
                             }
                             if widgets::pill_button(ui, Icon::Delete, "Delete", &t).clicked() {

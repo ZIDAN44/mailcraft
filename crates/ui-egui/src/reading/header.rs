@@ -151,7 +151,7 @@ fn sender_card(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut 
                     let _ = external_tag(ui, t);
                 }
                 let known = known_contact(s, &p.from.email).is_some();
-                if !known && !p.from.email.is_empty() && widgets::tiny_icon_button(ui, Icon::Person, "Add to contacts", t).clicked() {
+                if !known && !p.from.email.is_empty() && widgets::tiny_icon_button(ui, Icon::PersonAdd, "Add to contacts", t).clicked() {
                     acts.push(Action::Dialog(crate::Dialog::contact_from(&p.from)));
                 }
             });
@@ -379,7 +379,7 @@ fn action_bar(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, beside: bool
             if widgets::pill_button(ui, Icon::Send, "Send now", &t).clicked() {
                 acts.push(Action::Run("outbox.send", json!({"key": r.key.to_id()})));
             }
-            if widgets::pill_button(ui, Icon::Drafts, "Edit", &t).clicked() {
+            if widgets::pill_button(ui, Icon::Edit, "Edit", &t).clicked() {
                 acts.push(Action::Run("outbox.edit", json!({"key": r.key.to_id()})));
             }
             if widgets::pill_button(ui, Icon::Delete, "Delete", &t).clicked() {
@@ -395,7 +395,7 @@ fn action_bar(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, beside: bool
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 6.0;
-            if widgets::pill_button(ui, Icon::Drafts, "Edit", &t).clicked() {
+            if widgets::pill_button(ui, Icon::Edit, "Edit", &t).clicked() {
                 acts.push(Action::Run("draft.edit", json!({"key": r.key.to_id()})));
             }
             if widgets::pill_button(ui, Icon::Delete, "Delete", &t).clicked() {

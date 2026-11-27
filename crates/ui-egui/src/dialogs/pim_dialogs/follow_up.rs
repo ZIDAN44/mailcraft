@@ -103,7 +103,7 @@ pub fn follow_up(ui: &mut Ui, f: &mut FollowUpForm, t: &Tokens, acts: &mut Vec<A
     form_row(ui, t, true, Some(Icon::Flag), "Due date", |ui| {
         date_pick::date_field(ui, t, "follow-up-due", &mut f.due, f.dates, None);
     });
-    form_row(ui, t, true, Some(Icon::Clock), "Reminder", |ui| {
+    form_row(ui, t, true, Some(Icon::Bell), "Reminder", |ui| {
         ui.allocate_ui_with_layout(vec2(90.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.checkbox(&mut f.remind, tl!("Remind me"));
         });

@@ -46,7 +46,7 @@ impl MailApp {
         // The task picked in the list.
         let picked = self.ui.task.as_deref().and_then(|u| s.find_task(u));
         let done = picked.as_ref().is_some_and(|r| r.task.is_done());
-        if widgets::tool_button(ui, Icon::Drafts, "Open", &t, picked.is_some()).clicked()
+        if widgets::tool_button(ui, Icon::PopOut, "Open", &t, picked.is_some()).clicked()
             && let Some(d) = picked.as_ref().and_then(|r| Dialog::open_task(s, &r.task.uid))
         {
             acts.push(Action::Dialog(d));
@@ -102,14 +102,14 @@ impl MailApp {
     pub(super) fn ribbon_people(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
         let s = &self.session;
-        if widgets::accent_button(ui, Icon::Person, "New contact", &t, !s.accounts.is_empty()).clicked() {
+        if widgets::accent_button(ui, Icon::PersonAdd, "New contact", &t, !s.accounts.is_empty()).clicked() {
             acts.push(Action::Dialog(Dialog::new_contact()));
         }
         widgets::group_sep(ui, &t);
         let picked = self.ui.person.as_deref().and_then(|u| s.find_person(u));
         // Someone in a shared (read-only) address book can't be changed here.
         let picked = picked.filter(|p| !s.person_read_only(&p.card.uid));
-        if widgets::tool_button(ui, Icon::Drafts, "Edit", &t, picked.is_some()).clicked()
+        if widgets::tool_button(ui, Icon::Edit, "Edit", &t, picked.is_some()).clicked()
             && let Some(p) = &picked
         {
             acts.push(Action::Dialog(Dialog::edit_contact(p.card)));
@@ -129,7 +129,7 @@ impl MailApp {
 fn free_time(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
     let label = |m: u16| crate::pim_dialogs::reminder_label(Some(i64::from(m)));
     let length = label(s.prefs.free_time_minutes);
-    let r = widgets::menu_tool_button(ui, Icon::Clock, widgets::Label::shown("Meeting length", &length), &t, true)
+    let r = widgets::menu_tool_button(ui, Icon::Timer, widgets::Label::shown("Meeting length", &length), &t, true)
         .on_hover_text(tl!("How long a time free for everyone is looked for"));
     egui::Popup::menu(&r).show(|ui| {
         for m in mailcraft_engine::FREE_LENGTHS {
@@ -179,7 +179,7 @@ fn side_by_side(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
 
 /// How tasks are listed, and whether the done ones are.
 fn tasks_arrangement(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
-    let r = widgets::menu_tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::Sort, "Arrange by", &t, true);
     egui::Popup::menu(&r).show(|ui| {
         use mailcraft_engine::TasksOrder as O;
         for (order, label) in [(O::Due, "Due date"), (O::Priority, "Priority"), (O::Title, "Title (A to Z)"), (O::Modified, "Last changed")] {
@@ -194,7 +194,7 @@ fn tasks_arrangement(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>
 
 /// How notes are listed: the last changed first, A to Z, or by colour.
 fn notes_arrangement(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
-    let r = widgets::menu_tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::Sort, "Arrange by", &t, true);
     egui::Popup::menu(&r).show(|ui| {
         use mailcraft_engine::NotesOrder as O;
         for (order, label, code) in [(O::Modified, "Last changed", "modified"), (O::Title, "Title (A to Z)", "title"), (O::Color, "Color", "color")] {
@@ -215,7 +215,7 @@ fn people_views(ui: &mut Ui, st: &mut UiState, t: Tokens) {
         }
     }
     // Outlook's Sort by: first name or last name (issue #244).
-    let r = widgets::menu_tool_button(ui, Icon::ListBullet, "Sort by", &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::Sort, "Sort by", &t, true);
     egui::Popup::menu(&r).show(|ui| people::sort_menu(ui, &mut st.people_list));
     if st.people_view == people::PeopleView::Phone {
         let r = widgets::menu_tool_button(ui, Icon::Layout, "Columns", &t, true);

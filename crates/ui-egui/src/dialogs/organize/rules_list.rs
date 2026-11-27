@@ -115,7 +115,7 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
                             if widgets::tiny_icon_button(ui, Icon::Delete, "Delete", t).clicked() {
                                 remove = Some(i);
                             }
-                            if widgets::tiny_icon_button(ui, Icon::Drafts, "Edit", t).clicked() {
+                            if widgets::tiny_icon_button(ui, Icon::Edit, "Edit", t).clicked() {
                                 acts.push(Action::Dialog(Dialog::EditRule(Box::new(RuleForm::from_rule(i, r)))));
                             }
                             if widgets::tiny_icon_button(ui, Icon::Sync, "Run now", t).clicked() {

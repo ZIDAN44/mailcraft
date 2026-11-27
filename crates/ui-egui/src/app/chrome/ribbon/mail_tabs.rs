@@ -316,7 +316,7 @@ pub(super) fn ribbon_view(ui: &mut Ui, s: &Session, t: Tokens, dark: Option<bool
     });
     widgets::group(ui, &t, "Layout", false);
     let arrange = tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label()));
-    let r = widgets::menu_tool_button(ui, Icon::ListBullet, widgets::Label::shown("Arrange by", &arrange), &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::Sort, widgets::Label::shown("Arrange by", &arrange), &t, true);
     egui::Popup::menu(&r).show(|ui| list::arrange_menu(ui, s, acts));
     if widgets::tool_toggle(ui, Icon::Sort, "Reverse sort", &t, s.prefs.reverse_sort).clicked() {
         acts.push(Action::Run("view.reverseSort", json!({})));

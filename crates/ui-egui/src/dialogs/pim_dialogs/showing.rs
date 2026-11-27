@@ -14,7 +14,7 @@ use crate::theme::Tokens;
 
 /// Show as, in Outlook's order, and the lock beside it.
 pub(super) fn show_as_row(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
-    form_row(ui, t, true, Some(Icon::Clock), "Show as", |ui| {
+    form_row(ui, t, true, Some(Icon::Availability), "Show as", |ui| {
         ui.allocate_ui_with_layout(vec2(CHOICE_W, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             let r = egui::ComboBox::from_id_salt("event-show-as")
                 .width(CHOICE_W - 6.0)

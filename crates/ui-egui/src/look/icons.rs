@@ -45,6 +45,19 @@ pub enum Icon {
     /// priority (a star and a "!" glyph stood for it).
     Priority,
     LowPriority,
+    /// Each for one thing (a clock, a person, a pencil and a star each stood for several): a
+    /// reminder's bell; a meeting's length (an hourglass); Show as (a time block, part taken);
+    /// changing something (a pencil on a line; the Drafts folder keeps the pencil alone); saving
+    /// (a disk); a signature (a pen's line on a rule); a person added; a download (an arrow down
+    /// onto a line: an update fetched, which had the Send / Receive arrows).
+    Bell,
+    Timer,
+    Availability,
+    Edit,
+    Save,
+    Signature,
+    PersonAdd,
+    Download,
     ChevronRight,
     ChevronLeft,
     Star,
@@ -329,6 +342,44 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.line(&[(6.0, 9.0), (13.0, 9.0)]);
             pen.line(&[(3.5, 12.0), (8.0, 12.0)]);
         }
+        Icon::Bell => {
+            pen.arc(8.0, 7.0, 4.5, PI, 2.0 * PI);
+            pen.line(&[(3.5, 7.0), (3.5, 10.5), (2.5, 11.5), (13.5, 11.5), (12.5, 10.5), (12.5, 7.0)]);
+            pen.dot(8.0, 13.6, 1.3);
+        }
+        Icon::Timer => {
+            pen.line(&[(4.0, 2.5), (12.0, 2.5)]);
+            pen.line(&[(4.0, 13.5), (12.0, 13.5)]);
+            pen.closed(&[(5.0, 2.5), (11.0, 2.5), (8.6, 8.0), (11.0, 13.5), (5.0, 13.5), (7.4, 8.0)]);
+        }
+        Icon::Availability => {
+            pen.rect(2.5, 3.5, 13.5, 12.5);
+            pen.filled(&[(2.5, 3.5), (6.5, 3.5), (6.5, 12.5), (2.5, 12.5)], pen.s.color);
+        }
+        Icon::Edit => {
+            pen.closed(&[(10.5, 1.5), (13.0, 4.0), (6.5, 10.5), (3.5, 11.0), (4.0, 8.0)]);
+            pen.line(&[(2.0, 14.0), (14.0, 14.0)]);
+        }
+        Icon::Save => {
+            pen.closed(&[(2.5, 2.5), (11.0, 2.5), (13.5, 5.0), (13.5, 13.5), (2.5, 13.5)]);
+            pen.line(&[(5.0, 2.5), (5.0, 6.0), (10.0, 6.0), (10.0, 2.5)]);
+            pen.rect(4.5, 9.0, 11.5, 13.5);
+        }
+        Icon::Signature => {
+            pen.line(&[(2.0, 11.0), (4.0, 5.5), (6.0, 10.5), (8.0, 6.5), (10.0, 10.5), (14.0, 8.5)]);
+            pen.line(&[(2.0, 13.5), (14.0, 13.5)]);
+        }
+        Icon::PersonAdd => {
+            pen.circle(6.5, 5.0, 2.8);
+            pen.arc(6.5, 15.0, 5.5, PI, 2.0 * PI);
+            pen.line(&[(12.5, 6.0), (12.5, 11.0)]);
+            pen.line(&[(10.0, 8.5), (15.0, 8.5)]);
+        }
+        Icon::Download => {
+            pen.line(&[(8.0, 1.5), (8.0, 10.5)]);
+            pen.line(&[(4.5, 7.0), (8.0, 10.5), (11.5, 7.0)]);
+            pen.line(&[(2.5, 14.0), (13.5, 14.0)]);
+        }
         Icon::Priority => {
             pen.line(&[(8.0, 2.5), (8.0, 10.0)]);
             pen.dot(8.0, 13.2, 1.3);
@@ -596,4 +647,54 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
 /// An icon-sized rect centred in `rect`.
 pub fn centered(rect: Rect, size: f32) -> Rect {
     Rect::from_center_size(rect.center(), Vec2::splat(size))
+}
+
+#[cfg(test)]
+mod tests {
+    /// Audit S8: each glyph stands for one thing. These are the meanings the audit found sharing
+    /// a glyph with others (a clock for a reminder, a meeting's length and Show as; a pencil for
+    /// Save draft, Signature and Edit; a person for Bcc and Add to contacts; a star for About and
+    /// Priority; one grid for every calendar view; a bulleted list for Sort by beside List): none of them may go back to that glyph.
+    #[test]
+    fn a_glyph_stands_for_one_thing() {
+        const NOT: [(&str, &[&str]); 8] = [
+            ("Clock", &["Reminder", "Show as", "Meeting length"]),
+            ("Drafts", &["Save draft", "Signature", "Edit", "Open"]),
+            ("Person", &["Bcc", "Add to contacts", "New contact"]),
+            ("Star", &["About", "Priority"]),
+            ("Layout", &["Day", "Work week", "Week", "Month", "Schedule", "Cards"]),
+            ("Phone", &["List"]),
+            ("Sync", &["Download"]),
+            ("ListBullet", &["Sort by", "Arrange by"]),
+        ];
+        fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+                let p = e.path();
+                let name = p.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+                if p.is_dir() && name != "tests" {
+                    walk(&p, out);
+                } else if name.ends_with(".rs") && name != "tests.rs" && name != "icons.rs" {
+                    out.push(p);
+                }
+            }
+        }
+        let mut files = Vec::new();
+        walk(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
+        assert!(files.len() > 100, "the window's code found: {}", files.len());
+        // `Icon::Clock` itself, not `Icon::ClockSomething`.
+        let uses =
+            |line: &str, icon: &str| line.split(&format!("Icon::{icon}")).skip(1).any(|rest| !rest.starts_with(|c: char| c.is_ascii_alphanumeric()));
+        let mut shared = Vec::new();
+        for f in files {
+            let text = std::fs::read_to_string(&f).unwrap_or_default();
+            for (i, line) in text.lines().enumerate() {
+                for (icon, meanings) in NOT {
+                    if uses(line, icon) && meanings.iter().any(|m| line.contains(&format!("\"{m}\""))) {
+                        shared.push(format!("{}:{}: {}", f.display(), i + 1, line.trim()));
+                    }
+                }
+            }
+        }
+        assert!(shared.is_empty(), "a glyph standing for something it doesn't show:\n{}", shared.join("\n"));
+    }
 }

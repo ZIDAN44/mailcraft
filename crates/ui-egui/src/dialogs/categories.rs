@@ -233,7 +233,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                                 deleted::remember(ui, "categories", (c.clone(), i));
                                 acts.push(Action::Run("category.delete", json!({"name": c.name})));
                             }
-                            if widgets::tiny_icon_button(ui, Icon::Drafts, "Edit", t).clicked() {
+                            if widgets::tiny_icon_button(ui, Icon::Edit, "Edit", t).clicked() {
                                 acts.push(Action::Dialog(Dialog::edit_category(c)));
                             }
                         });

@@ -34,10 +34,10 @@ pub(super) fn options_row(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Com
 
 /// The options at the left of the row.
 fn left_options(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, f: &Form, acts: &mut Vec<Action>) {
-    if widgets::tool_button(ui, Icon::Drafts, "Save draft", t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
+    if widgets::tool_button(ui, Icon::Save, "Save draft", t, !c.sending).on_hover_text(tl!("Save draft (Ctrl+S)")).clicked() {
         acts.push(Action::Run("compose.saveDraft", json!({})));
     }
-    if widgets::tool_button(ui, Icon::Person, if c.show_bcc { "Hide Bcc" } else { "Bcc" }, t, !c.sending).clicked() {
+    if widgets::tool_button(ui, Icon::EyeOff, if c.show_bcc { "Hide Bcc" } else { "Bcc" }, t, !c.sending).clicked() {
         c.show_bcc = !c.show_bcc;
     }
     // The rest in one menu, lit while one of them is on: Outlook's Tags and Options.
