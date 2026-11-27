@@ -819,7 +819,6 @@ month	May	mei
 	A message opened in its own window (double-click) is always marked as read.	Een bericht dat in een eigen venster wordt geopend (dubbelklikken) wordt altijd als gelezen gemarkeerd.
 	Mark messages as read in the reading pane	Berichten in het leesvenster als gelezen markeren
 	When I choose another message	Wanneer ik een ander bericht kies
-	When it's shown, after	Wanneer het wordt getoond, na
 	seconds	seconden
 	Arrange by	Rangschikken op
 	Last changed	Laatst gewijzigd
@@ -836,8 +835,6 @@ month	May	mei
 	Shown: click to hide it	Getoond: klik om te verbergen
 	Side by side	Naast elkaar
 	Mail kept on this computer	E-mail op deze computer bewaard
-	Of each folder, keep	Van elke map bewaren
-	Download in full for reading offline	Volledig downloaden om offline te lezen
 	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Nieuwe e-mail komt altijd binnen. Oudere e-mail blijft op de server; de rest van elk bericht wordt bij openen gedownload.
 	the newest 1,000	de nieuwste 1.000
 	the newest 40	de nieuwste 40
@@ -1236,7 +1233,6 @@ month	May	mei
 	Use one from Windows…	Een uit Windows gebruiken…
 	Use one from the Keychain…	Een uit de sleutelhanger gebruiken…
 	the certificate is in another computer's certificate store	het certificaat staat in het certificaatarchief van een andere computer
-	Or use one this computer has	Of een gebruiken die deze computer heeft
 	On a smart card, or kept by the system: the key stays where it is.	Op een smartcard, of door het systeem bewaard: de sleutel blijft waar hij is.
 	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows kan met deze EC-sleutel geen sleutel afspreken (de provider houdt hem misschien alleen voor ondertekenen)
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	de kaart heeft nog maar weinig pinpogingen, dus MailCraft probeert het niet: geef de pincode opnieuw (Bestand › Info › Beveiliging › Een smartcard gebruiken…)
@@ -1319,7 +1315,6 @@ month	May	mei
 	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Alleen als de server van je organisatie MailCraft weigert: de naam van een mailprogramma dat hij wel toelaat.
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Alleen letters, cijfers, spaties en leestekens, hooguit 256 tekens.
 	Orange	Oranje
-	Plain top bar	Eenvoudige bovenbalk
 	Minimize	Minimaliseren
 	Maximize	Maximaliseren
 	Restore	Herstellen
@@ -1750,7 +1745,6 @@ nth	fourth	vierde
 nth	last	laatste
 count	occurrences	keer
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Afbeeldingen van het web worden hier niet getoond. Ga terug naar de HTML-code zonder hier iets te wijzigen en ze blijven bewaard.
-	Messages on a light background	Berichten op een lichte achtergrond
 	In the dark theme, messages keep the light page and colours they were written in	In het donkere thema houden berichten de lichte pagina en de kleuren waarin ze geschreven zijn
 	Show messages on a light background	Berichten op een lichte achtergrond tonen
 	Show messages on the dark background	Berichten op de donkere achtergrond tonen
@@ -2239,3 +2233,11 @@ count	occurrences	keer
 	More	Meer
 	Add email	E-mailadres toevoegen
 	Add phone	Telefoonnummer toevoegen
+	Marked as read	Als gelezen gemarkeerd
+	As soon as it's shown	Zodra het wordt getoond
+	{n} seconds after it's shown	{n} seconden nadat het wordt getoond
+	Messages kept from each folder	Berichten die per map worden bewaard
+	Messages downloaded in full to read offline	Berichten die volledig worden gedownload om offline te lezen
+	Keep messages light in the dark theme	Berichten licht houden in het donkere thema
+	Top bar in the panes' colours	Bovenbalk in de kleuren van de deelvensters
+	Use a certificate on this computer	Een certificaat op deze computer gebruiken

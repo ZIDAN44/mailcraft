@@ -820,7 +820,6 @@ month	May	5月
 	A message opened in its own window (double-click) is always marked as read.	在单独窗口中打开的邮件（双击）总是标为已读。
 	Mark messages as read in the reading pane	在阅读窗格中将邮件标为已读
 	When I choose another message	当我选择其他邮件时
-	When it's shown, after	显示后，经过
 	seconds	秒
 	Arrange by	排列方式
 	Last changed	最近更改
@@ -837,8 +836,6 @@ month	May	5月
 	Shown: click to hide it	已显示：单击以隐藏
 	Side by side	并排
 	Mail kept on this computer	保存在此电脑上的邮件
-	Of each folder, keep	每个文件夹保留
-	Download in full for reading offline	完整下载以便脱机阅读
 	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	新邮件总会收到。更早的邮件留在服务器上；每封邮件的其余部分在打开时下载。
 	the newest 1,000	最新 1,000 封
 	the newest 40	最新 40 封
@@ -1237,7 +1234,6 @@ month	May	5月
 	Use one from Windows…	使用 Windows 中的…
 	Use one from the Keychain…	使用钥匙串中的…
 	the certificate is in another computer's certificate store	该证书在另一台电脑的证书存储中
-	Or use one this computer has	或使用这台电脑上已有的证书
 	On a smart card, or kept by the system: the key stays where it is.	在智能卡上，或由系统保管：密钥保留在原处。
 	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows 无法用此 EC 密钥协商密钥（其提供程序可能仅将其用于签名）
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	这张卡剩余的 PIN 尝试次数不多，所以 MailCraft 不会尝试：请再次输入 PIN（文件 › 信息 › 安全 › 使用智能卡…）
@@ -1320,7 +1316,6 @@ month	May	5月
 	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	仅当组织的服务器拒绝 MailCraft 时填写：它允许的邮件程序的名称。
 	Only letters, digits, spaces and punctuation, up to 256 characters.	只能包含字母、数字、空格和标点，最多 256 个字符。
 	Orange	橙色
-	Plain top bar	简洁顶部栏
 	Minimize	最小化
 	Maximize	最大化
 	Restore	还原
@@ -1751,7 +1746,6 @@ nth	fourth	第四个
 nth	last	最后一个
 count	occurrences	次
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	此处不显示来自网络的图片。不在此处修改并切换回 HTML 代码，图片即会保留。
-	Messages on a light background	在浅色背景上显示邮件
 	In the dark theme, messages keep the light page and colours they were written in	在深色主题下，邮件保留其撰写时的浅色页面和颜色
 	Show messages on a light background	在浅色背景上显示邮件
 	Show messages on the dark background	在深色背景上显示邮件
@@ -2240,3 +2234,11 @@ count	occurrences	次
 	More	更多
 	Add email	添加电子邮件
 	Add phone	添加电话
+	Marked as read	标记为已读
+	As soon as it's shown	显示后立即
+	{n} seconds after it's shown	显示 {n} 秒后
+	Messages kept from each folder	每个文件夹保留的邮件
+	Messages downloaded in full to read offline	完整下载以供脱机阅读的邮件
+	Keep messages light in the dark theme	在深色主题中保持邮件为浅色
+	Top bar in the panes' colours	顶部栏使用窗格的颜色
+	Use a certificate on this computer	使用此计算机上的证书

@@ -39,7 +39,10 @@ fn a_locked_setting_is_greyed_out_and_holds() {
     assert!(said >= 3, "plain top bar, accent, theme, updates: {texts:?}");
     // Its switch can't be clicked to change it.
     let nodes = super::named(&ctx, &mut a, egui::vec2(1280.0, 8000.0));
-    let plain = nodes.iter().find(|n| n.label.as_deref() == Some("Plain top bar") && n.role == egui::accesskit::Role::CheckBox).expect("switch");
+    let plain = nodes
+        .iter()
+        .find(|n| n.label.as_deref() == Some("Top bar in the panes' colours") && n.role == egui::accesskit::Role::CheckBox)
+        .expect("switch");
     assert!(plain.disabled, "{plain:?}");
     a.act(Action::SetDark(Some(false)));
     assert_eq!(a.ui.dark, Some(true), "the theme stays as locked");

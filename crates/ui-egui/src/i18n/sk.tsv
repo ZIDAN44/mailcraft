@@ -818,7 +818,6 @@
 	A message opened in its own window (double-click) is always marked as read.	Správa otvorená v samostatnom okne (dvojklikom) sa vždy označí ako prečítaná.
 	Mark messages as read in the reading pane	Označovať správy ako prečítané na table na čítanie
 	When I choose another message	Keď vyberiem inú správu
-	When it's shown, after	Keď sa zobrazí, po
 	seconds	sekundách
 	Arrange by	Usporiadať podľa
 	Last changed	Posledná zmena
@@ -835,8 +834,6 @@
 	Shown: click to hide it	Zobrazený: kliknutím ho skryjete
 	Side by side	Vedľa seba
 	Mail kept on this computer	Pošta uložená na tomto počítači
-	Of each folder, keep	Z každého priečinka uchovať
-	Download in full for reading offline	Stiahnuť celé na čítanie offline
 	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Nová pošta príde vždy. Staršia pošta mimo tohto rozsahu zostáva na serveri; zvyšok každej správy sa stiahne pri jej otvorení.
 	the newest 1,000	najnovších 1 000
 	the newest 40	najnovších 40
@@ -1255,7 +1252,6 @@ date	December	decembra
 	Use one from Windows…	Použiť certifikát z Windows…
 	Use one from the Keychain…	Použiť certifikát z Kľúčenky…
 	the certificate is in another computer's certificate store	certifikát je v úložisku certifikátov iného počítača
-	Or use one this computer has	Alebo použite certifikát, ktorý má tento počítač
 	On a smart card, or kept by the system: the key stays where it is.	Na čipovej karte alebo uložený v systéme: kľúč zostáva tam, kde je.
 	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows sa s týmto kľúčom EC nedokáže dohodnúť na kľúči (jeho poskytovateľ ho môže uchovávať len na podpisovanie)
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	karte zostáva málo pokusov na PIN, preto ho MailCraft neskúsi: zadajte PIN znova (Súbor › Informácie › Zabezpečenie › Použiť čipovú kartu…)
@@ -1338,7 +1334,6 @@ date	December	decembra
 	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Len ak server vašej organizácie odmieta MailCraft: názov poštového programu, ktorý povoľuje.
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Len písmená, číslice, medzery a interpunkcia, najviac 256 znakov.
 	Orange	Oranžová
-	Plain top bar	Jednoduchý horný pruh
 	Minimize	Minimalizovať
 	Maximize	Maximalizovať
 	Restore	Obnoviť
@@ -1769,7 +1764,6 @@ nth	fourth	štvrtý
 nth	last	posledný
 count	occurrences	opakovaní
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Obrázky z webu sa tu nezobrazujú. Ak sa vrátite ku kódu HTML bez zmeny tu, zostanú zachované.
-	Messages on a light background	Správy na svetlom pozadí
 	In the dark theme, messages keep the light page and colours they were written in	V tmavom motíve si správy zachovajú svetlú stránku a farby, v ktorých boli napísané
 	Show messages on a light background	Zobrazovať správy na svetlom pozadí
 	Show messages on the dark background	Zobrazovať správy na tmavom pozadí
@@ -2258,3 +2252,11 @@ count	occurrences	opakovaní
 	More	Ďalšie
 	Add email	Pridať e-mail
 	Add phone	Pridať telefón
+	Marked as read	Označenie ako prečítané
+	As soon as it's shown	Hneď po zobrazení
+	{n} seconds after it's shown	{n} s po zobrazení
+	Messages kept from each folder	Uchované správy z každého priečinka
+	Messages downloaded in full to read offline	Správy stiahnuté celé na čítanie offline
+	Keep messages light in the dark theme	Ponechať správy svetlé v tmavom motíve
+	Top bar in the panes' colours	Horný panel vo farbách tably
+	Use a certificate on this computer	Použiť certifikát v tomto počítači

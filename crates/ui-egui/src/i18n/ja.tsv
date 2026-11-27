@@ -820,7 +820,6 @@ month	May	5月
 	A message opened in its own window (double-click) is always marked as read.	別のウィンドウで開いたメッセージ (ダブルクリック) は常に既読になります。
 	Mark messages as read in the reading pane	閲覧ウィンドウでメッセージを既読にする
 	When I choose another message	別のメッセージを選んだとき
-	When it's shown, after	表示されてから
 	seconds	秒後
 	Arrange by	並べ替え
 	Last changed	最終更新
@@ -837,8 +836,6 @@ month	May	5月
 	Shown: click to hide it	表示中: クリックで非表示
 	Side by side	並べて表示
 	Mail kept on this computer	このコンピューターに保持するメール
-	Of each folder, keep	各フォルダーで保持
-	Download in full for reading offline	オフラインで読むために全体をダウンロード
 	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	新着メールは常に届きます。これより古いメールはサーバーに残り、各メッセージの残りは開いたときにダウンロードされます。
 	the newest 1,000	最新 1,000 件
 	the newest 40	最新 40 件
@@ -1237,7 +1234,6 @@ month	May	5月
 	Use one from Windows…	Windows のものを使う…
 	Use one from the Keychain…	キーチェーンのものを使う…
 	the certificate is in another computer's certificate store	証明書は別のコンピューターの証明書ストアにあります
-	Or use one this computer has	またはこのコンピューターにあるものを使う
 	On a smart card, or kept by the system: the key stays where it is.	スマートカード上、またはシステムが保管しているもの。鍵はその場所に残ります。
 	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows はこの EC 鍵で鍵を合意できません (プロバイダーが署名専用にしている可能性があります)
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	カードの PIN の残り回数が少ないため、MailCraft は試しません。PIN をもう一度入力してください (ファイル › 情報 › セキュリティ › スマートカードを使う…)
@@ -1320,7 +1316,6 @@ month	May	5月
 	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	組織のサーバーが MailCraft を拒否する場合のみ: そのサーバーが受け入れるメールソフトの名前。
 	Only letters, digits, spaces and punctuation, up to 256 characters.	英字、数字、スペース、句読点のみ、256 文字まで。
 	Orange	オレンジ
-	Plain top bar	シンプルな上部バー
 	Minimize	最小化
 	Maximize	最大化
 	Restore	元に戻す
@@ -1751,7 +1746,6 @@ nth	fourth	第4
 nth	last	最終
 count	occurrences	回
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Web 上の画像はここには表示されません。ここで変更せずに HTML コードに戻すと、画像は保持されます。
-	Messages on a light background	メッセージを明るい背景で表示
 	In the dark theme, messages keep the light page and colours they were written in	ダーク テーマでも、メッセージは書かれたときの明るいページと色のまま表示されます
 	Show messages on a light background	メッセージを明るい背景で表示する
 	Show messages on the dark background	メッセージを暗い背景で表示する
@@ -2240,3 +2234,11 @@ count	occurrences	回
 	More	その他
 	Add email	メールを追加
 	Add phone	電話番号を追加
+	Marked as read	既読にするタイミング
+	As soon as it's shown	表示したらすぐ
+	{n} seconds after it's shown	表示から {n} 秒後
+	Messages kept from each folder	フォルダーごとに保持するメッセージ
+	Messages downloaded in full to read offline	オフラインで読むために全体をダウンロードするメッセージ
+	Keep messages light in the dark theme	ダーク テーマでもメッセージを明るく表示
+	Top bar in the panes' colours	上部バーをウィンドウの各部と同じ色に
+	Use a certificate on this computer	このコンピューターの証明書を使う

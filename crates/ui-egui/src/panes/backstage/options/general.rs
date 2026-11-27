@@ -21,7 +21,8 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
         text_size(s, &t, ui, acts);
         // Issue #109: messages on a light background in the dark theme, as they were written.
         let light = Switch {
-            label: tl!("Messages on a light background"),
+            // Named for what it does (it needed its description to be understood).
+            label: tl!("Keep messages light in the dark theme"),
             about: Some(tl!("In the dark theme, messages keep the light page and colours they were written in")),
             on: s.prefs.light_messages,
             cmd: "view.lightMessages",
@@ -33,7 +34,7 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
             accent_choice(ui, &t, &s.prefs.accent, acts);
         });
         let plain = Switch {
-            label: tl!("Plain top bar"),
+            label: tl!("Top bar in the panes' colours"),
             about: Some(tl!("The top bar in the panes' colours instead of the accent colour")),
             on: s.prefs.plain_top_bar,
             cmd: "view.plainTopBar",

@@ -306,7 +306,9 @@ fn setting_row_at(
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
         ui.painter().rect_filled(r, 0.0, t.border.gamma_multiply(0.6));
     }
-    ui.add_space(7.0);
+    // 12 points above and below, rows at least 56 points tall, 64 with a line under the name
+    // (they were 7 points apart, 42 and 52 tall).
+    ui.add_space(ROW_PAD);
     // How wide the controls and how tall the text were last time (they're laid out after the
     // decision to stack, which they decide).
     let id = ui.scope_id().with(("setting-row", label.text().to_string()));
@@ -333,10 +335,10 @@ fn setting_row_at(
         let row = ui.scope_builder(egui::UiBuilder::new().layout(crate::bidi::row_from_end(egui::Align::Min).with_main_wrap(true)), control);
         let w = row.response.rect.width();
         remember(ui, id, (controls_w, text_h), (if w + gap + SETTING_TEXT_MIN < full { w } else { controls_w.max(w) }, left.height()));
-        ui.add_space(7.0);
+        ui.add_space(ROW_PAD);
         (left, row.response.rect)
     } else {
-        let height = text_h.max(if about.is_some() { 38.0 } else { 28.0 });
+        let height = text_h.max(if about.is_some() { 40.0 } else { 32.0 });
         let top = ui.cursor().min;
         let rect = egui::Rect::from_min_size(top, vec2(full, height));
         let rtl = crate::i18n::current().rtl();
@@ -356,7 +358,7 @@ fn setting_row_at(
         let text = left.min_rect();
         ui.advance_cursor_after_rect(rect.union(text).union(controls));
         remember(ui, id, (controls_w, text_h), (w, h));
-        ui.add_space(7.0);
+        ui.add_space(ROW_PAD);
         (text, controls)
     }
 }
@@ -378,9 +380,16 @@ fn name(t: &Tokens, s: &str) -> RichText {
     RichText::new(s).color(t.text)
 }
 
+/// A setting's line under its name: one sentence without its full stop, as Windows writes them
+/// (about half ended in one); more than one sentence, as written.
 fn note(t: &Tokens, s: &str) -> RichText {
-    RichText::new(s).color(t.faint).size(12.0)
+    let one = !s.trim_end_matches(['.', '。']).contains(". ") && !s.trim_end_matches(['.', '。']).contains('。');
+    let s = if one && !s.ends_with("...") { s.trim_end_matches(['.', '。']) } else { s };
+    RichText::new(s).color(t.faint).size(crate::sizes::CAPTION)
 }
+
+/// Room above and below a setting's row.
+const ROW_PAD: f32 = 12.0;
 
 /// Open & Export: Outlook data files, and the rules as a file.
 fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<Action>) {

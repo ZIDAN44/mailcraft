@@ -818,7 +818,6 @@
 	A message opened in its own window (double-click) is always marked as read.	Uma mensagem aberta em sua própria janela (clique duplo) é sempre marcada como lida.
 	Mark messages as read in the reading pane	Marcar mensagens como lidas no painel de leitura
 	When I choose another message	Quando eu escolher outra mensagem
-	When it's shown, after	Quando for exibida, após
 	seconds	segundos
 	Arrange by	Organizar por
 	Last changed	Última alteração
@@ -835,8 +834,6 @@
 	Shown: click to hide it	Visível: clique para ocultar
 	Side by side	Lado a lado
 	Mail kept on this computer	E-mail mantido neste computador
-	Of each folder, keep	De cada pasta, manter
-	Download in full for reading offline	Baixar completos para ler offline
 	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	E-mails novos sempre chegam. Os mais antigos ficam no servidor; o restante de cada mensagem é baixado ao abri-la.
 	the newest 1,000	os 1.000 mais recentes
 	the newest 40	os 40 mais recentes
@@ -1241,7 +1238,6 @@ month	May	maio
 	Use one from Windows…	Usar um do Windows…
 	Use one from the Keychain…	Usar um das Chaves…
 	the certificate is in another computer's certificate store	o certificado está no repositório de certificados de outro computador
-	Or use one this computer has	Ou usar um que este computador tem
 	On a smart card, or kept by the system: the key stays where it is.	Em um cartão inteligente, ou guardado pelo sistema: a chave fica onde está.
 	Windows can't agree a key with this EC key (its provider may keep it for signing only)	O Windows não consegue combinar uma chave com esta chave EC (o provedor pode guardá-la só para assinar)
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	o cartão tem poucas tentativas de PIN, então o MailCraft não vai tentar: informe o PIN de novo (Arquivo › Informações › Segurança › Usar um cartão inteligente…)
@@ -1324,7 +1320,6 @@ month	May	maio
 	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Só se o servidor da sua organização recusar o MailCraft: o nome de um programa de e-mail que ele aceita.
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Apenas letras, dígitos, espaços e pontuação, até 256 caracteres.
 	Orange	Laranja
-	Plain top bar	Barra superior simples
 	Minimize	Minimizar
 	Maximize	Maximizar
 	Restore	Restaurar
@@ -1755,7 +1750,6 @@ nth	fourth	quarta
 nth	last	última
 count	occurrences	ocorrências
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	As imagens da web não aparecem aqui. Volte ao código HTML sem alterar nada aqui e elas são mantidas.
-	Messages on a light background	Mensagens em fundo claro
 	In the dark theme, messages keep the light page and colours they were written in	No tema escuro, as mensagens mantêm a página clara e as cores em que foram escritas
 	Show messages on a light background	Mostrar as mensagens em fundo claro
 	Show messages on the dark background	Mostrar as mensagens em fundo escuro
@@ -2244,3 +2238,11 @@ count	occurrences	ocorrências
 	More	Mais
 	Add email	Adicionar e-mail
 	Add phone	Adicionar telefone
+	Marked as read	Marcada como lida
+	As soon as it's shown	Assim que é exibida
+	{n} seconds after it's shown	{n} segundos depois de exibida
+	Messages kept from each folder	Mensagens mantidas de cada pasta
+	Messages downloaded in full to read offline	Mensagens baixadas por inteiro para ler offline
+	Keep messages light in the dark theme	Manter as mensagens claras no tema escuro
+	Top bar in the panes' colours	Barra superior nas cores dos painéis
+	Use a certificate on this computer	Usar um certificado deste computador

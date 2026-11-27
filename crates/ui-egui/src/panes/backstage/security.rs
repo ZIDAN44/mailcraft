@@ -29,7 +29,7 @@ fn other_sources(ui: &mut Ui, t: &Tokens, id: &str, acts: &mut Vec<Action>) {
         ui,
         t,
         false,
-        name(t, tl!("Or use one this computer has")),
+        name(t, tl!("Use a certificate on this computer")),
         Some(note(t, tl!("On a smart card, or kept by the system: the key stays where it is."))),
         |ui| {
             system_certificate(ui, id, acts);

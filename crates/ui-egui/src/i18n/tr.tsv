@@ -818,7 +818,6 @@
 	A message opened in its own window (double-click) is always marked as read.	Kendi penceresinde açılan bir ileti (çift tıklama) her zaman okundu olarak işaretlenir.
 	Mark messages as read in the reading pane	Okuma bölmesindeki iletileri okundu olarak işaretle
 	When I choose another message	Başka bir ileti seçtiğimde
-	When it's shown, after	Gösterildiğinde, şu süre sonra
 	seconds	saniye
 	Arrange by	Sıralama
 	Last changed	Son değişiklik
@@ -835,8 +834,6 @@
 	Shown: click to hide it	Görünür: gizlemek için tıklayın
 	Side by side	Yan yana
 	Mail kept on this computer	Bu bilgisayarda tutulan posta
-	Of each folder, keep	Her klasörden şunu tut
-	Download in full for reading offline	Çevrimdışı okumak için tamamını indir
 	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Yeni postalar her zaman gelir. Bunların ötesindeki eski postalar sunucuda kalır; her iletinin geri kalanı açıldığında indirilir.
 	the newest 1,000	en yeni 1.000 ileti
 	the newest 40	en yeni 40 ileti
@@ -1241,7 +1238,6 @@ month	May	Mayıs
 	Use one from Windows…	Windows'tan birini kullan…
 	Use one from the Keychain…	Anahtar Zinciri'nden birini kullan…
 	the certificate is in another computer's certificate store	sertifika başka bir bilgisayarın sertifika deposunda
-	Or use one this computer has	Ya da bu bilgisayardakini kullanın
 	On a smart card, or kept by the system: the key stays where it is.	Akıllı kartta veya sistemde tutulan: anahtar olduğu yerde kalır.
 	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows bu EC anahtarıyla anahtar uzlaşması yapamıyor (sağlayıcısı onu yalnızca imzalama için tutuyor olabilir)
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	kartın az PIN deneme hakkı kaldı, bu yüzden MailCraft denemeyecek: PIN'i yeniden girin (Dosya › Bilgi › Güvenlik › Akıllı kart kullan…)
@@ -1324,7 +1320,6 @@ month	May	Mayıs
 	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Yalnızca kuruluşunuzun sunucusu MailCraft'ı reddederse: izin verdiği bir posta programının adı.
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Yalnızca harfler, rakamlar, boşluklar ve noktalama işaretleri; en fazla 256 karakter.
 	Orange	Turuncu
-	Plain top bar	Düz üst çubuk
 	Minimize	Simge durumuna küçült
 	Maximize	Ekranı kapla
 	Restore	Önceki boyuta getir
@@ -1755,7 +1750,6 @@ nth	fourth	dördüncü
 nth	last	son
 count	occurrences	kez
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Web'deki resimleri burada gösterilmez. Burada değiştirmeden HTML koduna dönerseniz korunurlar.
-	Messages on a light background	İletiler açık arka planda
 	In the dark theme, messages keep the light page and colours they were written in	Koyu temada iletiler, yazıldıkları açık sayfayı ve renkleri korur
 	Show messages on a light background	İletileri açık arka planda göster
 	Show messages on the dark background	İletileri koyu arka planda göster
@@ -2244,3 +2238,11 @@ count	occurrences	kez
 	More	Diğer
 	Add email	E-posta ekle
 	Add phone	Telefon ekle
+	Marked as read	Okundu olarak işaretleme
+	As soon as it's shown	Gösterilir gösterilmez
+	{n} seconds after it's shown	Gösterildikten {n} saniye sonra
+	Messages kept from each folder	Her klasörden saklanan iletiler
+	Messages downloaded in full to read offline	Çevrimdışı okumak için tamamen indirilen iletiler
+	Keep messages light in the dark theme	Koyu temada iletileri açık tut
+	Top bar in the panes' colours	Bölmelerin renklerinde üst çubuk
+	Use a certificate on this computer	Bu bilgisayardaki bir sertifikayı kullan

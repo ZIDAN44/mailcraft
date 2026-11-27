@@ -817,7 +817,6 @@
 	A message opened in its own window (double-click) is always marked as read.	별도 창에서 연 메시지(두 번 클릭)는 항상 읽음으로 표시됩니다.
 	Mark messages as read in the reading pane	읽기 창에서 메시지를 읽음으로 표시
 	When I choose another message	다른 메시지를 고를 때
-	When it's shown, after	표시된 후
 	seconds	초
 	Arrange by	정렬 기준
 	Last changed	마지막 변경
@@ -834,8 +833,6 @@
 	Shown: click to hide it	표시됨: 클릭하여 숨기기
 	Side by side	나란히 보기
 	Mail kept on this computer	이 컴퓨터에 보관할 메일
-	Of each folder, keep	각 폴더에서 보관
-	Download in full for reading offline	오프라인으로 읽도록 전체 다운로드
 	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	새 메일은 항상 들어옵니다. 그보다 오래된 메일은 서버에 남고, 각 메시지의 나머지는 열 때 다운로드됩니다.
 	the newest 1,000	최신 1,000개
 	the newest 40	최신 40개
@@ -1240,7 +1237,6 @@ month	May	5월
 	Use one from Windows…	Windows의 것 사용…
 	Use one from the Keychain…	키체인의 것 사용…
 	the certificate is in another computer's certificate store	인증서가 다른 컴퓨터의 인증서 저장소에 있습니다
-	Or use one this computer has	또는 이 컴퓨터에 있는 인증서 사용
 	On a smart card, or kept by the system: the key stays where it is.	스마트 카드에 있거나 시스템이 보관하는 것: 키는 그 자리에 남습니다.
 	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows가 이 EC 키로 키를 합의할 수 없습니다 (공급자가 서명 전용으로 보관할 수 있습니다)
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	카드의 PIN 시도 횟수가 얼마 남지 않아 MailCraft가 시도하지 않습니다: PIN을 다시 입력하세요 (파일 › 정보 › 보안 › 스마트 카드 사용…)
@@ -1323,7 +1319,6 @@ month	May	5월
 	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	조직 서버가 MailCraft를 거부할 때만: 서버가 허용하는 메일 프로그램 이름.
 	Only letters, digits, spaces and punctuation, up to 256 characters.	문자, 숫자, 공백, 문장 부호만 최대 256자까지.
 	Orange	주황
-	Plain top bar	단순한 상단 표시줄
 	Minimize	최소화
 	Maximize	최대화
 	Restore	이전 크기로 복원
@@ -1754,7 +1749,6 @@ nth	fourth	넷째
 nth	last	마지막
 count	occurrences	회
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	웹의 그림은 여기에 표시되지 않습니다. 여기서 바꾸지 않고 HTML 코드로 돌아가면 그대로 유지됩니다.
-	Messages on a light background	메시지를 밝은 배경에 표시
 	In the dark theme, messages keep the light page and colours they were written in	어두운 테마에서도 메시지는 작성된 밝은 페이지와 색을 그대로 유지합니다
 	Show messages on a light background	메시지를 밝은 배경에 표시
 	Show messages on the dark background	메시지를 어두운 배경에 표시
@@ -2243,3 +2237,11 @@ count	occurrences	회
 	More	기타
 	Add email	메일 추가
 	Add phone	전화 추가
+	Marked as read	읽음으로 표시
+	As soon as it's shown	표시되는 즉시
+	{n} seconds after it's shown	표시되고 {n}초 후
+	Messages kept from each folder	폴더마다 보관할 메시지
+	Messages downloaded in full to read offline	오프라인으로 읽도록 전체를 받을 메시지
+	Keep messages light in the dark theme	어두운 테마에서도 메시지를 밝게 유지
+	Top bar in the panes' colours	위쪽 막대를 창 영역 색으로
+	Use a certificate on this computer	이 컴퓨터의 인증서 사용

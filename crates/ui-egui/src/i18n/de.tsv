@@ -818,7 +818,6 @@
 	A message opened in its own window (double-click) is always marked as read.	Eine im eigenen Fenster geöffnete Nachricht (Doppelklick) wird immer als gelesen markiert.
 	Mark messages as read in the reading pane	Nachrichten im Lesebereich als gelesen markieren
 	When I choose another message	Wenn ich eine andere Nachricht wähle
-	When it's shown, after	Wenn sie angezeigt wird, nach
 	seconds	Sekunden
 	Arrange by	Anordnen nach
 	Last changed	Zuletzt geändert
@@ -835,8 +834,6 @@
 	Shown: click to hide it	Eingeblendet: zum Ausblenden klicken
 	Side by side	Nebeneinander
 	Mail kept on this computer	Auf diesem Computer behaltene E-Mails
-	Of each folder, keep	Aus jedem Ordner behalten
-	Download in full for reading offline	Vollständig für das Offline-Lesen herunterladen
 	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Neue E-Mails kommen immer an. Ältere bleiben auf dem Server; der Rest einer Nachricht wird beim Öffnen geladen.
 	the newest 1,000	die neuesten 1.000
 	the newest 40	die neuesten 40
@@ -1241,7 +1238,6 @@ month	May	Mai
 	Use one from Windows…	Eines aus Windows verwenden…
 	Use one from the Keychain…	Eines aus dem Schlüsselbund verwenden…
 	the certificate is in another computer's certificate store	das Zertifikat liegt im Zertifikatspeicher eines anderen Computers
-	Or use one this computer has	Oder eines verwenden, das dieser Computer hat
 	On a smart card, or kept by the system: the key stays where it is.	Auf einer Smartcard oder vom System aufbewahrt: Der Schlüssel bleibt, wo er ist.
 	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows kann mit diesem EC-Schlüssel keinen Schlüssel vereinbaren (sein Anbieter hält ihn vielleicht nur zum Signieren)
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	die Karte hat nur noch wenige PIN-Versuche, daher probiert MailCraft sie nicht: geben Sie die PIN erneut ein (Datei › Informationen › Sicherheit › Smartcard verwenden…)
@@ -1324,7 +1320,6 @@ month	May	Mai
 	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Nur wenn der Server Ihrer Organisation MailCraft abweist: der Name eines Mailprogramms, das er zulässt.
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Nur Buchstaben, Ziffern, Leerzeichen und Satzzeichen, höchstens 256 Zeichen.
 	Orange	Orange
-	Plain top bar	Schlichte obere Leiste
 	Minimize	Minimieren
 	Maximize	Maximieren
 	Restore	Wiederherstellen
@@ -1755,7 +1750,6 @@ nth	fourth	vierten
 nth	last	letzten
 count	occurrences	Terminen
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Bilder aus dem Web werden hier nicht angezeigt. Wechseln Sie ohne Änderung hier zurück zum HTML-Code, dann bleiben sie erhalten.
-	Messages on a light background	Nachrichten auf hellem Hintergrund
 	In the dark theme, messages keep the light page and colours they were written in	Im dunklen Design behalten Nachrichten die helle Seite und die Farben, in denen sie geschrieben wurden
 	Show messages on a light background	Nachrichten auf hellem Hintergrund anzeigen
 	Show messages on the dark background	Nachrichten auf dunklem Hintergrund anzeigen
@@ -2244,3 +2238,11 @@ count	occurrences	Terminen
 	More	Weiteres
 	Add email	E-Mail-Adresse hinzufügen
 	Add phone	Telefonnummer hinzufügen
+	Marked as read	Als gelesen markiert
+	As soon as it's shown	Sobald sie angezeigt wird
+	{n} seconds after it's shown	{n} Sekunden nach der Anzeige
+	Messages kept from each folder	Aufbewahrte Nachrichten je Ordner
+	Messages downloaded in full to read offline	Vollständig geladene Nachrichten zum Offline-Lesen
+	Keep messages light in the dark theme	Nachrichten im dunklen Design hell lassen
+	Top bar in the panes' colours	Obere Leiste in den Farben der Bereiche
+	Use a certificate on this computer	Zertifikat auf diesem Computer verwenden

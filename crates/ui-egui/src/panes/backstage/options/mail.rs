@@ -70,21 +70,30 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             },
         );
         if on {
-            ui.indent("read-when", |ui| {
+            // When, one drop-down (two radio buttons and a box for seconds, it was).
+            setting(ui, t, false, tl!("Marked as read"), None, |ui| {
                 let shown = s.prefs.read_in_pane == mailcraft_engine::ReadInPane::Shown;
-                ui.horizontal(|ui| {
-                    if ui.radio(shown, tl!("When it's shown, after")).clicked() {
-                        acts.push(Action::Run("view.readingOptions", json!({"when": "shown"})));
-                    }
-                    let mut secs = s.prefs.read_after_secs;
-                    if ui.add_enabled(shown, egui::DragValue::new(&mut secs).range(0..=999).speed(0.2)).changed() {
-                        acts.push(Action::Run("view.readingOptions", json!({"after": secs})));
-                    }
-                    ui.label(tl!("seconds"));
-                });
-                if ui.radio(!shown, tl!("When I choose another message")).clicked() {
-                    acts.push(Action::Run("view.readingOptions", json!({"when": "left"})));
+                let secs = s.prefs.read_after_secs;
+                let said = |shown: bool, secs: u32| match (shown, secs) {
+                    (false, _) => tl!("When I choose another message").to_string(),
+                    (true, 0) => tl!("As soon as it's shown").to_string(),
+                    (true, n) => tf!("{n} seconds after it's shown", n = n),
+                };
+                let mut choices: Vec<(bool, u32)> = vec![(true, 0), (true, 5), (true, 15), (false, secs)];
+                if shown && ![0, 5, 15].contains(&secs) {
+                    choices.insert(3, (true, secs));
                 }
+                egui::ComboBox::from_id_salt("read-when").selected_text(said(shown, secs)).width(240.0).show_ui(ui, |ui| {
+                    for (when, n) in choices {
+                        let now = shown == when && (!when || secs == n);
+                        if ui.selectable_label(now, said(when, n)).clicked() && !now {
+                            let p = if when { json!({"when": "shown", "after": n}) } else { json!({"when": "left"}) };
+                            acts.push(Action::Run("view.readingOptions", p));
+                        }
+                    }
+                });
+            });
+            ui.indent("read-when", |ui| {
                 // The folders whose mail is left unread, from their own menus (issue #203).
                 let left: Vec<String> =
                     s.prefs.unread_folders.iter().filter_map(|r| s.folder(&r.account, &r.folder)).map(crate::i18n::folder).collect();
@@ -190,19 +199,25 @@ pub(super) fn kept(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>)
         tl!("Mail kept on this computer"),
         Some(tl!("New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.")),
         |ui| {
-            setting_by(s, "account.keepMail", ui, t, true, tl!("Of each folder, keep"), None, |ui| {
+            // Said as the language writes numbers (in English in every one, it was), and what the
+            // numbers count in the setting's name.
+            setting_by(s, "account.keepMail", ui, t, true, tl!("Messages kept from each folder"), None, |ui| {
                 let values = [1000u32, 5000, 20000, 0];
                 let now = values.iter().position(|v| *v == s.prefs.keep_messages).unwrap_or(0);
-                if let Some(i) = widgets::segmented(ui, t, "keep", &["1,000", "5,000", "20,000", tl!("All")], now)
+                let shown: Vec<String> = values[..3].iter().map(|v| crate::i18n::number(u64::from(*v))).collect();
+                let labels = [shown[0].as_str(), shown[1].as_str(), shown[2].as_str(), tl!("All")];
+                if let Some(i) = widgets::segmented(ui, t, "keep", &labels, now)
                     && let Some(n) = values.get(i)
                 {
                     acts.push(Action::Run("account.keepMail", json!({"messages": n})));
                 }
             });
-            setting_by(s, "account.keepMail", ui, t, false, tl!("Download in full for reading offline"), None, |ui| {
+            setting_by(s, "account.keepMail", ui, t, false, tl!("Messages downloaded in full to read offline"), None, |ui| {
                 let values = [40u32, 200, 1000];
                 let now = values.iter().position(|v| *v == s.prefs.keep_offline).unwrap_or(0);
-                if let Some(i) = widgets::segmented(ui, t, "offline", &["40", "200", "1,000"], now)
+                let shown: Vec<String> = values.iter().map(|v| crate::i18n::number(u64::from(*v))).collect();
+                let labels: Vec<&str> = shown.iter().map(String::as_str).collect();
+                if let Some(i) = widgets::segmented(ui, t, "offline", &labels, now)
                     && let Some(n) = values.get(i)
                 {
                     acts.push(Action::Run("account.keepMail", json!({"offline": n})));

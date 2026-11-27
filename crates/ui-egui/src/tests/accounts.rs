@@ -8,6 +8,7 @@ mod forms;
 mod held_keys;
 pub(super) mod importing;
 mod offers;
+mod options_look;
 mod send_receive;
 
 pub(super) fn jmap_form() -> Dialog {

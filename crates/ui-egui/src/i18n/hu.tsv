@@ -818,7 +818,6 @@
 	A message opened in its own window (double-click) is always marked as read.	A külön ablakban (dupla kattintással) megnyitott üzenet mindig olvasottnak lesz jelölve.
 	Mark messages as read in the reading pane	Üzenetek megjelölése olvasottként az olvasópanelen
 	When I choose another message	Amikor másik üzenetet választok
-	When it's shown, after	A megjelenítés után ennyi idővel:
 	seconds	másodperc
 	Arrange by	Rendezés szempontja
 	Last changed	Utolsó módosítás
@@ -835,8 +834,6 @@
 	Shown: click to hide it	Látható: kattints az elrejtéshez
 	Side by side	Egymás mellett
 	Mail kept on this computer	Ezen a számítógépen tárolt levelek
-	Of each folder, keep	Megőrzés mappánként:
-	Download in full for reading offline	Teljes letöltés a kapcsolat nélküli olvasáshoz
 	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Az új levelek mindig megérkeznek. Az ezen a határon túli régebbi levelek a kiszolgálón maradnak; az üzenet többi része megnyitáskor töltődik le.
 	the newest 1,000	a legújabb 1000 üzenet
 	the newest 40	a legújabb 40 üzenet
@@ -1242,7 +1239,6 @@ month	May	május
 	Use one from Windows…	Használat a Windows tanúsítványtárából…
 	Use one from the Keychain…	Használat a Kulcskarikából…
 	the certificate is in another computer's certificate store	a tanúsítvány egy másik számítógép tanúsítványtárában van
-	Or use one this computer has	Vagy használj ezen a számítógépen már elérhető tanúsítványt
 	On a smart card, or kept by the system: the key stays where it is.	Intelligens kártyán vagy a rendszerben tárolt tanúsítvány: a kulcs a helyén marad.
 	Windows can't agree a key with this EC key (its provider may keep it for signing only)	a Windows nem tud ezzel az EC-kulccsal kulcsegyeztetést végezni (lehet, hogy a kulcsszolgáltató csak aláírásra engedi használni)
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	már csak kevés PIN-próbálkozás maradt, ezért a MailCraft nem próbálkozik: add meg újra a PIN-kódot (Fájl › Információ › Tanúsítványok és titkosítás › Intelligens kártya használata…)
@@ -1325,7 +1321,6 @@ month	May	május
 	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Csak akkor töltsd ki, ha a szervezeted kiszolgálója elutasítja a MailCraftot. Olyan levelezőprogram nevét add meg, amelyet a kiszolgáló elfogad.
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Csak betűk, számjegyek, szóközök és írásjelek használhatók, legfeljebb 256 karakterig.
 	Orange	Narancssárga
-	Plain top bar	Egyszínű felső sáv
 	Minimize	Kis méret
 	Maximize	Teljes méret
 	Restore	Előző méret
@@ -1756,7 +1751,6 @@ nth	fourth	negyedik
 nth	last	utolsó
 count	occurrences	előfordulás
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	A webes képek itt nem jelennek meg. Ha itt nem módosítasz semmit, és visszaváltasz a HTML-kódra, megmaradnak.
-	Messages on a light background	Üzenetek világos háttéren
 	In the dark theme, messages keep the light page and colours they were written in	Sötét téma esetén az üzenetek megtartják eredeti világos hátterüket és színeiket
 	Show messages on a light background	Üzenetek megjelenítése világos háttéren
 	Show messages on the dark background	Üzenetek megjelenítése sötét háttéren
@@ -2244,3 +2238,11 @@ count	occurrences	előfordulás
 	More	Egyéb
 	Add email	E-mail-cím hozzáadása
 	Add phone	Telefonszám hozzáadása
+	Marked as read	Olvasottnak jelölés
+	As soon as it's shown	Amint megjelenik
+	{n} seconds after it's shown	{n} másodperccel a megjelenése után
+	Messages kept from each folder	Mappánként megőrzött üzenetek
+	Messages downloaded in full to read offline	Offline olvasáshoz teljesen letöltött üzenetek
+	Keep messages light in the dark theme	Az üzenetek világosak maradnak a sötét témában
+	Top bar in the panes' colours	Felső sáv a panelek színeivel
+	Use a certificate on this computer	A számítógépen lévő tanúsítvány használata

@@ -185,14 +185,29 @@ fn accent_choice(ui: &mut Ui, t: &Tokens, current: &str, acts: &mut Vec<Action>)
         ui.spacing_mut().item_spacing.x = 4.0;
         let picker = |ui: &mut Ui, acts: &mut Vec<Action>| {
             // Any colour: what's chosen now, or the accent in use, to start from.
-            let mut rgb = mailcraft_engine::accent_rgb(current).unwrap_or(APP_RGB);
-            let r = egui::widgets::color_picker::color_edit_button_srgb(ui, &mut rgb).on_hover_text(tl!("Any colour"));
-            if current.starts_with('#') {
-                ui.painter().rect_stroke(r.rect.expand(2.0), 4.0, egui::Stroke::new(2.0, t.text), egui::StrokeKind::Outside);
+            // A round swatch like the others, ringed only when it's the one chosen; a "+" on
+            // it while it isn't (a block in the accent's colour read as a second chosen swatch).
+            let rgb = mailcraft_engine::accent_rgb(current).unwrap_or(APP_RGB);
+            let mine = current.starts_with('#');
+            let (rect, r) = ui.allocate_exact_size(vec2(24.0, 24.0), Sense::click());
+            widgets::named(ui, &r, tl!("Any colour"), true, Some(mine));
+            if mine {
+                ui.painter().circle_stroke(rect.center(), 11.5, egui::Stroke::new(2.0, t.text));
+                ui.painter().circle_filled(rect.center(), 8.5, egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]));
+            } else {
+                ui.painter().circle_stroke(rect.center(), 8.5, egui::Stroke::new(1.0, if r.hovered() { t.text } else { t.dim }));
+                let c = rect.center();
+                let ink = egui::Stroke::new(1.5, t.dim);
+                ui.painter().line_segment([c - vec2(4.0, 0.0), c + vec2(4.0, 0.0)], ink);
+                ui.painter().line_segment([c - vec2(0.0, 4.0), c + vec2(0.0, 4.0)], ink);
             }
-            if r.changed() {
-                acts.push(Action::Run("view.accent", json!({"color": format!("#{:02x}{:02x}{:02x}", rgb[0], rgb[1], rgb[2])})));
-            }
+            let r = r.on_hover_text(tl!("Any colour"));
+            egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
+                let mut c = egui::Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
+                if egui::widgets::color_picker::color_picker_color32(ui, &mut c, egui::widgets::color_picker::Alpha::Opaque) {
+                    acts.push(Action::Run("view.accent", json!({"color": format!("#{:02x}{:02x}{:02x}", c.r(), c.g(), c.b())})));
+                }
+            });
         };
         if from_end {
             picker(ui, acts);

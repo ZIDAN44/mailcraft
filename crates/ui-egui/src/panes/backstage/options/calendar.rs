@@ -14,21 +14,19 @@ pub(super) fn calendar(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Acti
     let w = s.work_time();
     card(ui, t, tl!("Calendar"), None, |ui| {
         setting_by(s, "calendar.workTime", ui, t, true, tl!("Work days"), Some(tl!("The work week shows these days")), |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                let from_end = from_end(ui);
-                let order: Vec<u32> = if from_end { (0..7).rev().collect() } else { (0..7).collect() };
-                for d in order {
-                    let on = w.works_on(d);
-                    let name = tl!(dates::weekday_short(A_MONDAY + i64::from(d)));
-                    let r = ui.selectable_label(on, name).on_hover_text(tl!(dates::weekday_long(A_MONDAY + i64::from(d))));
-                    // The last day worked stays: a week has one at least.
-                    if r.clicked() && !(on && w.days.count_ones() == 1) {
-                        let days: Vec<u32> = (0..7).filter(|x| if *x == d { !on } else { w.works_on(*x) }).collect();
-                        acts.push(Action::Run("calendar.workTime", json!({"days": days})));
-                    }
+            // Joined toggles, as the other choices' segments (bare words, lit or not, they were).
+            let from_end = from_end(ui);
+            let order: Vec<u32> = if from_end { (0..7).rev().collect() } else { (0..7).collect() };
+            let names: Vec<&str> = order.iter().map(|d| tl!(dates::weekday_short(A_MONDAY + i64::from(*d)))).collect();
+            let on = |i: usize| order.get(i).is_some_and(|d| w.works_on(*d));
+            if let Some(d) = widgets::toggle_segments(ui, t, "work-days", &names, &on).and_then(|i| order.get(i).copied()) {
+                let was = w.works_on(d);
+                // The last day worked stays: a week has one at least.
+                if !(was && w.days.count_ones() == 1) {
+                    let days: Vec<u32> = (0..7).filter(|x| if *x == d { !was } else { w.works_on(*x) }).collect();
+                    acts.push(Action::Run("calendar.workTime", json!({"days": days})));
                 }
-            });
+            }
         });
         setting_by(s, "calendar.workTime", ui, t, false, tl!("Work hours"), Some(tl!("The calendar shades the hours outside them")), |ui| {
             ui.horizontal(|ui| {

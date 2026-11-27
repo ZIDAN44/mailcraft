@@ -575,7 +575,16 @@ pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens) -> Response
 /// An on/off switch (a setting that applies at once). `label` (translated) is for screen readers
 /// only; the row shows its own. Clicking it flips `on`; the response says it changed.
 pub fn switch(ui: &mut Ui, t: &Tokens, on: &mut bool, label: &str) -> Response {
-    let (rect, mut resp) = ui.allocate_exact_size(vec2(36.0, 20.0), Sense::click());
+    // On or Off beside it, dim, as Windows' own switches say (36 by 20 and silent, it was
+    // small and said nothing to anyone not sure which way is on).
+    let said = tl!(if *on { "On" } else { "Off" });
+    let word = ui.painter().layout_no_wrap(said.to_string(), theme::regular(crate::sizes::CAPTION), t.dim);
+    let (whole, mut resp) = ui.allocate_exact_size(vec2(40.0 + 8.0 + word.size().x.max(20.0), 20.0), Sense::click());
+    let m = crate::bidi::Mirror::new(whole);
+    let rect = m.rect(egui::Rect::from_min_size(egui::pos2(whole.right() - 40.0, whole.top()), vec2(40.0, 20.0)));
+    let word_at =
+        m.rect(egui::Rect::from_min_size(egui::pos2(whole.right() - 48.0 - word.size().x, whole.center().y - word.size().y / 2.0), word.size()));
+    ui.painter().galley(word_at.min, word, t.dim);
     if resp.clicked() {
         *on = !*on;
         resp.mark_changed();
@@ -606,6 +615,17 @@ pub fn switch(ui: &mut Ui, t: &Tokens, on: &mut bool, label: &str) -> Response {
 /// One choice among a few, as joined buttons (Theme: System, Light, Dark), labels translated.
 /// The picked one is raised; returns the index clicked, if any.
 pub fn segmented(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], selected: usize) -> Option<usize> {
+    segments(ui, t, id, options, &|i| i == selected, egui::Role::RadioButton).filter(|i| *i != selected)
+}
+
+/// Several on at once, as joined buttons (the work week's days), each on in the soft accent:
+/// the one clicked, on or off (they were bare words, lit or not). Labels translated by the caller.
+pub fn toggle_segments(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], on: &dyn Fn(usize) -> bool) -> Option<usize> {
+    segments(ui, t, id, options, on, egui::Role::CheckBox)
+}
+
+/// Joined buttons, those `on` in the soft accent; the one clicked.
+fn segments(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], is_on: &dyn Fn(usize) -> bool, role: egui::Role) -> Option<usize> {
     let font = theme::regular(13.0);
     let labels: Vec<String> = options.iter().map(|o| o.to_string()).collect();
     let widths: Vec<f32> = labels.iter().map(|l| ui.painter().layout_no_wrap(l.clone(), font.clone(), t.text).size().x + 24.0).collect();
@@ -617,8 +637,8 @@ pub fn segmented(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], selected: 
     for (i, (label, w)) in labels.iter().zip(&widths).enumerate() {
         let r = egui::Rect::from_min_size(egui::pos2(x, rect.top() + 2.0), vec2(*w, 24.0));
         let resp = ui.interact(r, ui.scope_id().with(("segment", id, i)), Sense::click());
-        let on = i == selected;
-        resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::RadioButton, ui.is_enabled(), on, label));
+        let on = is_on(i);
+        resp.widget_info(|| egui::WidgetInfo::selected(role, ui.is_enabled(), on, label));
         // The chosen one in the soft accent, its words in the accent (white on a light grey track,
         // barely lifted in the dark theme, it was hard to tell).
         if on {
@@ -637,7 +657,7 @@ pub fn segmented(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], selected: 
             t.dim
         };
         ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, label, if on { theme::semibold(13.0) } else { font.clone() }, color);
-        if resp.clicked() && !on {
+        if resp.clicked() {
             clicked = Some(i);
         }
         x += w;

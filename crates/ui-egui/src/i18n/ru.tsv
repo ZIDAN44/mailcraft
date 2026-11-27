@@ -817,7 +817,6 @@
 	A message opened in its own window (double-click) is always marked as read.	Сообщение, открытое в отдельном окне (двойной щелчок), всегда помечается как прочитанное.
 	Mark messages as read in the reading pane	Помечать сообщения прочитанными в области чтения
 	When I choose another message	Когда я выбираю другое сообщение
-	When it's shown, after	Когда показано, через
 	seconds	с
 	Arrange by	Упорядочить по
 	Last changed	Последнее изменение
@@ -834,8 +833,6 @@
 	Shown: click to hide it	Показан: щёлкните, чтобы скрыть
 	Side by side	Рядом
 	Mail kept on this computer	Почта на этом компьютере
-	Of each folder, keep	Из каждой папки хранить
-	Download in full for reading offline	Загружать полностью для чтения без сети
 	New mail always comes in. Older mail past these stays on the server; the rest of each message is downloaded when it's opened.	Новая почта приходит всегда. Более старая остаётся на сервере; остальное в каждом письме загружается при открытии.
 	the newest 1,000	последние 1000
 	the newest 40	последние 40
@@ -1254,7 +1251,6 @@ date	December	декабря
 	Use one from Windows…	Взять из Windows…
 	Use one from the Keychain…	Взять из связки ключей…
 	the certificate is in another computer's certificate store	сертификат находится в хранилище сертификатов другого компьютера
-	Or use one this computer has	Или взять тот, что есть на этом компьютере
 	On a smart card, or kept by the system: the key stays where it is.	На смарт-карте или в хранилище системы: ключ остаётся на месте.
 	Windows can't agree a key with this EC key (its provider may keep it for signing only)	Windows не может согласовать ключ с этим EC-ключом (возможно, поставщик держит его только для подписи)
 	the card has few PIN tries left, so MailCraft won't try it: give its PIN again (File › Info › Security › Use a smart card…)	у карты осталось мало попыток ввода PIN-кода, поэтому MailCraft не будет пробовать: введите PIN-код снова (Файл › Сведения › Безопасность › Использовать смарт-карту…)
@@ -1337,7 +1333,6 @@ date	December	декабря
 	Only if your organisation's server refuses MailCraft: the name of a mail program it lets in.	Только если сервер вашей организации не пускает MailCraft: название почтовой программы, которую он пропускает.
 	Only letters, digits, spaces and punctuation, up to 256 characters.	Только буквы, цифры, пробелы и знаки препинания, не более 256 символов.
 	Orange	Оранжевый
-	Plain top bar	Простая верхняя панель
 	Minimize	Свернуть
 	Maximize	Развернуть
 	Restore	Восстановить
@@ -1768,7 +1763,6 @@ nth	fourth	четвёртый
 nth	last	последний
 count	occurrences	повторений
 	Its pictures from the web aren't shown here. Go back to HTML code without changing it here, and they're kept.	Изображения из интернета здесь не показываются. Вернитесь к HTML-коду, ничего здесь не меняя, и они сохранятся.
-	Messages on a light background	Сообщения на светлом фоне
 	In the dark theme, messages keep the light page and colours they were written in	В тёмной теме сообщения сохраняют светлую страницу и цвета, в которых их написали
 	Show messages on a light background	Показывать сообщения на светлом фоне
 	Show messages on the dark background	Показывать сообщения на тёмном фоне
@@ -2257,3 +2251,11 @@ count	occurrences	повторений
 	More	Дополнительно
 	Add email	Добавить адрес почты
 	Add phone	Добавить телефон
+	Marked as read	Отмечать как прочитанное
+	As soon as it's shown	Сразу при показе
+	{n} seconds after it's shown	Через {n} с после показа
+	Messages kept from each folder	Сообщений хранить из каждой папки
+	Messages downloaded in full to read offline	Сообщений загружать полностью для чтения офлайн
+	Keep messages light in the dark theme	Оставлять сообщения светлыми в тёмной теме
+	Top bar in the panes' colours	Верхняя панель в цветах областей
+	Use a certificate on this computer	Использовать сертификат на этом компьютере

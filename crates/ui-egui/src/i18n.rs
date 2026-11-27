@@ -289,6 +289,26 @@ pub fn set_current(lang: Lang) {
     CURRENT.set(lang);
 }
 
+/// A whole number as the language writes it, its thousands grouped ("1,000", "1.000",
+/// "1 000"): the Options' counts were in English in every language.
+pub fn number(n: u64) -> String {
+    let sep = match current().code() {
+        "de" | "es" | "it" | "nl" | "pt-br" | "tr" => ".",
+        "fr" => "\u{202f}",
+        "hu" | "pl" | "ru" | "sk" => "\u{a0}",
+        _ => ",",
+    };
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push_str(sep);
+        }
+        out.push(c);
+    }
+    out
+}
+
 pub fn current() -> Lang {
     CURRENT.get()
 }
