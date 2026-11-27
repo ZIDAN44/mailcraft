@@ -13,6 +13,7 @@ pub mod motion;
 pub(crate) mod people_box;
 pub(crate) mod photos;
 pub(crate) mod progress;
+pub mod sizes;
 pub mod theme;
 pub(crate) mod thumbs;
 pub(crate) mod widgets;

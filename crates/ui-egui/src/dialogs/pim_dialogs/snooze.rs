@@ -60,15 +60,15 @@ pub fn snooze(ui: &mut Ui, f: &mut SnoozeForm, s: &Session, t: &Tokens, acts: &m
     }
     footer_rule(ui, t);
     let mut keep = true;
-    ui.allocate_ui_with_layout(vec2(ui.available_width(), 32.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    crate::dialogs::button_row(ui, |ui| {
+        if widgets::secondary(ui, "Cancel").clicked() {
+            keep = false;
+        }
         let ready = at.as_ref().filter(|(_, ahead)| *ahead);
-        if widgets::accent_button(ui, Icon::Clock, "Snooze", t, ready.is_some()).clicked()
+        if widgets::primary_button(ui, "Snooze", t, ready.is_some()).clicked()
             && let Some((when, _)) = ready
         {
             acts.push(Action::Run("mail.snooze", json!({"at": when})));
-            keep = false;
-        }
-        if ui.button(tl!("Cancel")).clicked() {
             keep = false;
         }
     });

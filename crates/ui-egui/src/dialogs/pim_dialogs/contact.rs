@@ -234,13 +234,13 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
     let mut keep = true;
     let any_email = f.emails.iter().any(|e| !e.trim().is_empty());
     // A row of its own height, as Follow Up's (issue #220).
-    ui.allocate_ui_with_layout(vec2(ui.available_width(), 32.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if widgets::accent_button(ui, crate::icons::Icon::Person, "Save", t, !f.name.trim().is_empty() || any_email).clicked() {
+    crate::dialogs::button_row(ui, |ui| {
+        if widgets::secondary(ui, "Cancel").clicked() {
+            keep = false;
+        }
+        if widgets::primary_button(ui, "Save", t, !f.name.trim().is_empty() || any_email).clicked() {
             f.error = None;
             acts.push(Action::Submit(if f.uid.is_some() { "contact.update" } else { "contact.create" }, f.params()));
-        }
-        if ui.button(tl!("Cancel")).clicked() {
-            keep = false;
         }
     });
     keep

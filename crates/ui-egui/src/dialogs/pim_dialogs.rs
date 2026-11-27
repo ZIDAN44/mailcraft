@@ -424,21 +424,23 @@ fn partstat_label(p: &str) -> &'static str {
 /// Height of a one-line field.
 const FIELD_H: f32 = 30.0;
 
-/// A form's heading: a round badge (an icon, or a person's initials) and the title.
+/// A form's heading: its title, as every dialog's; a person's, their initials before it. (An icon
+/// in a teal badge before every form's title took 52 points of a form that already ran past the
+/// window, and a dialog's title has no icon.) Its fields, drop-downs and buttons one height.
 fn form_header(ui: &mut Ui, t: &Tokens, badge: Result<Icon, String>, title: &str) {
-    ui.horizontal(|ui| {
-        let (r, _) = ui.allocate_exact_size(vec2(40.0, 40.0), Sense::hover());
-        ui.painter().circle_filled(r.center(), 20.0, t.accent_soft);
-        match badge {
-            Ok(icon) => icons::paint(ui.painter(), icons::centered(r, 20.0), icon, t.accent),
-            Err(initials) => {
-                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, initials, theme::semibold(15.0), t.accent);
-            }
+    ui.spacing_mut().interact_size.y = FIELD_H;
+    match badge {
+        Err(initials) if !initials.trim().is_empty() => {
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(32.0, 32.0), Sense::hover());
+                ui.painter().circle_filled(r.center(), 16.0, t.accent_soft);
+                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, initials, theme::semibold(13.0), t.accent);
+                crate::dialogs::title(ui, t, title);
+            });
         }
-        ui.add_space(6.0);
-        ui.label(RichText::new(tl!(title)).font(theme::semibold(19.0)).color(t.text));
-    });
-    ui.add_space(12.0);
+        _ => crate::dialogs::title(ui, t, title),
+    }
+    ui.add_space(6.0);
 }
 
 /// A labelled row of a form: an optional icon and the label in a column of their own, the
@@ -740,37 +742,45 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut
     }
     footer_rule(ui, t);
     let mut keep = true;
-    ui.horizontal(|ui| {
-        if let Some(uid) = f.uid.clone().filter(|_| !f.read_only) {
-            // The user's own meeting with guests: how they're told is asked first (issue #235).
-            let asks = f.asks_cancel;
-            let mut delete = |occurrence: Option<i64>| {
-                acts.push(if asks {
-                    Action::Dialog(crate::Dialog::CancelMeeting(CancelForm::new(&uid, &f.summary, occurrence)))
-                } else {
-                    Action::Submit("event.delete", json!({"uid": uid, "occurrence": occurrence}))
-                });
-            };
-            if f.this_occurrence || f.recurring {
-                if ui.button(tl!("Delete this occurrence")).clicked() {
-                    delete(f.occurrence);
-                }
-                if !f.this_occurrence && ui.button(tl!("Delete the series")).clicked() {
+    let (mut saved, mut cancel) = (false, false);
+    let ready = !f.summary.trim().is_empty();
+    let read_only = f.read_only;
+    crate::dialogs::button_row_from(
+        ui,
+        |ui| {
+            if let Some(uid) = f.uid.clone().filter(|_| !f.read_only) {
+                // The user's own meeting with guests: how they're told is asked first (issue #235).
+                let asks = f.asks_cancel;
+                let mut delete = |occurrence: Option<i64>| {
+                    acts.push(if asks {
+                        Action::Dialog(crate::Dialog::CancelMeeting(CancelForm::new(&uid, &f.summary, occurrence)))
+                    } else {
+                        Action::Submit("event.delete", json!({"uid": uid, "occurrence": occurrence}))
+                    });
+                };
+                if f.this_occurrence || f.recurring {
+                    if widgets::secondary(ui, "Delete this occurrence").clicked() {
+                        delete(f.occurrence);
+                    }
+                    if !f.this_occurrence && widgets::secondary(ui, "Delete the series").clicked() {
+                        delete(None);
+                    }
+                } else if widgets::secondary(ui, "Delete").clicked() {
                     delete(None);
                 }
-            } else if ui.button(tl!("Delete")).clicked() {
-                delete(None);
             }
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if !f.read_only && widgets::accent_button(ui, crate::icons::Icon::Calendar, "Save", t, !f.summary.trim().is_empty()).clicked() {
-                f.error = None;
-                acts.push(Action::Submit(if f.uid.is_some() { "event.update" } else { "event.create" }, f.params()));
-            }
-            if ui.button(tl!(if f.read_only { "Close" } else { "Cancel" })).clicked() {
-                keep = false;
-            }
-        });
-    });
+        },
+        |ui| {
+            cancel = widgets::secondary(ui, if read_only { "Close" } else { "Cancel" }).clicked();
+            saved = !read_only && widgets::primary_button(ui, "Save", t, ready).clicked();
+        },
+    );
+    if saved {
+        f.error = None;
+        acts.push(Action::Submit(if f.uid.is_some() { "event.update" } else { "event.create" }, f.params()));
+    }
+    if cancel {
+        keep = false;
+    }
     keep
 }

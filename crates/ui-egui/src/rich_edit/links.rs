@@ -115,10 +115,19 @@ pub(crate) fn link_dialog(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Comp
                 done = Some(None);
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.add_enabled(url.is_some(), egui::Button::new(tl!("OK"))).clicked() || (enter && url.is_some()) {
+                // In the system's order (right to left: the first added is the last of the row).
+                let t = crate::theme::Tokens::of(ui);
+                let (ok, cancel) = if crate::dialogs::MAIN_FIRST {
+                    let c = crate::widgets::secondary(ui, "Cancel").clicked();
+                    (crate::widgets::primary_button(ui, "OK", &t, url.is_some()).clicked(), c)
+                } else {
+                    let o = crate::widgets::primary_button(ui, "OK", &t, url.is_some()).clicked();
+                    (o, crate::widgets::secondary(ui, "Cancel").clicked())
+                };
+                if ok || (enter && url.is_some()) {
                     done = Some(url.clone());
                 }
-                if ui.button(tl!("Cancel")).clicked() {
+                if cancel {
                     close = true;
                 }
             });

@@ -55,14 +55,14 @@ pub fn cancel(ui: &mut Ui, f: &mut CancelForm, t: &Tokens, acts: &mut Vec<Action
     ui.add_space(10.0);
     crate::dialogs::button_row(ui, |ui| {
         let mut keep = true;
-        if widgets::primary_button(ui, "Send cancellation", t, true).clicked() {
-            acts.push(Action::Submit("event.delete", f.params(true)));
+        if widgets::secondary(ui, "Cancel").clicked() {
+            keep = false;
         }
-        if ui.button(tl!("Delete without sending")).clicked() {
+        if widgets::secondary(ui, "Delete without sending").clicked() {
             acts.push(Action::Submit("event.delete", f.params(false)));
         }
-        if ui.button(tl!("Cancel")).clicked() {
-            keep = false;
+        if widgets::primary_button(ui, "Send cancellation", t, true).clicked() {
+            acts.push(Action::Submit("event.delete", f.params(true)));
         }
         keep
     })

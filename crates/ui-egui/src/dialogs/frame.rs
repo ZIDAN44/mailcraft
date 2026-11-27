@@ -3,8 +3,9 @@
 
 use super::*;
 
-pub(super) fn title(ui: &mut Ui, t: &Tokens, s: &str) {
-    let r = ui.label(RichText::new(tl!(s)).font(theme::semibold(18.0)).color(t.text));
+/// A dialog's title: a subtitle of the type ramp, with room under it.
+pub(crate) fn title(ui: &mut Ui, t: &Tokens, s: &str) {
+    let r = ui.label(RichText::new(tl!(s)).font(theme::semibold(crate::sizes::SUBTITLE)).color(t.text));
     // What the dialog is called, to a screen reader ([`show`] names the dialog after it).
     ui.ctx().data_mut(|d| d.insert_temp(title_id(), Some(r.id)));
     ui.add_space(6.0);
@@ -44,14 +45,41 @@ fn take_footer(ui: &Ui) -> Option<Option<Rect>> {
 /// every dialog as tall as the last one shown, with its buttons floating halfway down. In a dialog
 /// shown by [`show`], under the part that scrolls, where it stays in sight (the whole dialog
 /// scrolled, and a tall one's buttons were out of sight below the window).
-pub(super) fn button_row<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
-    let layout = egui::Layout::right_to_left(egui::Align::Center);
-    if let Some(Some(rect)) = take_footer(ui) {
-        let mut row = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(layout));
-        row.set_clip_rect(rect);
+///
+/// `add` adds Cancel (or Close) first and the main button last: the row puts them in the system's
+/// order, the main button first on Windows (right to left), last elsewhere (left to right, at the
+/// row's end, as wide as it was the frame before).
+pub(crate) fn button_row<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    button_row_from(ui, |_| {}, add)
+}
+
+/// [`button_row`] with `start` at the row's other end (a form's Delete, apart from Save and
+/// Cancel).
+pub(crate) fn button_row_from<R>(ui: &mut Ui, start: impl FnOnce(&mut Ui), add: impl FnOnce(&mut Ui) -> R) -> R {
+    let rect = match take_footer(ui) {
+        Some(Some(rect)) => rect,
+        _ => ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover()).0,
+    };
+    let mut first = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(crate::bidi::row_from_start(egui::Align::Center)));
+    first.set_clip_rect(rect.expand(3.0));
+    start(&mut first);
+    if MAIN_FIRST {
+        let mut row = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::right_to_left(egui::Align::Center)));
+        row.set_clip_rect(rect.expand(3.0));
         return add(&mut row);
     }
-    ui.allocate_ui_with_layout(vec2(ui.available_width(), ROW_H), layout, add).inner
+    let width_id = ui.scope_id().with("button-row-width");
+    let width: f32 = ui.data(|d| d.get_temp(width_id)).unwrap_or(0.0);
+    let from = egui::Rect::from_min_max(egui::pos2((rect.right() - width).max(rect.left()), rect.top()), rect.max);
+    let mut row = ui.new_child(egui::UiBuilder::new().max_rect(from).layout(egui::Layout::left_to_right(egui::Align::Center)));
+    row.set_clip_rect(rect.expand(3.0));
+    let out = add(&mut row);
+    let wide = row.min_rect().width();
+    if (wide - width).abs() > 0.5 {
+        ui.data_mut(|d| d.insert_temp(width_id, wide));
+        ui.ctx().request_discard("a dialog's buttons were measured");
+    }
+    out
 }
 
 /// Whether a row of buttons drawn now goes under the part that scrolls (not after the rest).
@@ -61,22 +89,38 @@ fn in_footer(ui: &Ui) -> bool {
 
 /// A Close button on its own row; whether the dialog stays open.
 pub(super) fn close_row(ui: &mut Ui) -> bool {
-    button_row(ui, |ui| !ui.button(tl!("Close")).clicked())
+    let t = Tokens::of(ui);
+    button_row(ui, |ui| !widgets::secondary_button(ui, "Close", &t, true).clicked())
 }
 
+/// Whether a dialog's main button comes before Cancel, as Windows' own dialogs have it; a Mac's
+/// and GNOME's have Cancel first, the main button at the end.
+pub(crate) const MAIN_FIRST: bool = cfg!(target_os = "windows");
+
+/// A dialog's main button `ok` and Cancel: whether each was clicked.
 pub(super) fn buttons(ui: &mut Ui, t: &Tokens, ok: &str, ok_enabled: bool) -> (bool, bool) {
+    pair(ui, t, widgets::ButtonKind::Primary, ok, ok_enabled)
+}
+
+/// A dialog's button `ok` that deletes or removes for good (red, and not Enter's) and Cancel.
+pub(super) fn danger_buttons(ui: &mut Ui, t: &Tokens, ok: &str, ok_enabled: bool) -> (bool, bool) {
+    pair(ui, t, widgets::ButtonKind::Danger, ok, ok_enabled)
+}
+
+fn pair(ui: &mut Ui, t: &Tokens, kind: widgets::ButtonKind, ok: &str, ok_enabled: bool) -> (bool, bool) {
     let mut res = (false, false);
     if !in_footer(ui) {
         ui.add_space(10.0);
     }
     button_row(ui, |ui| {
-        if widgets::primary_button(ui, ok, t, ok_enabled).clicked() {
-            res.0 = true;
-        }
-        if ui.button(tl!("Cancel")).clicked() {
-            res.1 = true;
-        }
+        res.1 = widgets::secondary_button(ui, "Cancel", t, true).clicked();
+        res.0 = widgets::dialog_button(ui, kind, ok, t, ok_enabled).clicked();
     });
+    // Enter: the main button of a question (nothing in it has the keys), never one that deletes.
+    let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+    if enter && ok_enabled && kind == widgets::ButtonKind::Primary && ui.memory(|m| m.focused().is_none()) {
+        res.0 = true;
+    }
     res
 }
 
@@ -106,6 +150,10 @@ pub(crate) fn show(
     ctx.data_mut(|data| data.insert_temp(footer_id(), Footer { at: foot_was, taken: false }));
     let modal = egui::Modal::new(id).frame(frame).show(ctx, |ui| {
         ui.scope_builder(egui::UiBuilder::new().accessibility_role(role), |ui| {
+            // Its buttons, text boxes and drop-downs one height, as Windows' own dialogs' (they
+            // were 26 points, its main button 30, a form's title 36).
+            ui.spacing_mut().interact_size.y = crate::sizes::CONTROL_H;
+            ui.spacing_mut().button_padding = egui::vec2(12.0, 4.0);
             // As tall as it needs, up to the window (its buttons under it): only then does it
             // scroll.
             // (egui puts its space between two things there before the gap is added).
@@ -160,5 +208,11 @@ pub(crate) fn show(
 
 /// How every dialog looks (the main window's, and those over a message's own window).
 pub(crate) fn dialog_frame(t: &Tokens) -> egui::Frame {
-    egui::Frame::new().fill(t.surface).corner_radius(12).inner_margin(Margin::same(22)).stroke(egui::Stroke::new(1.0, t.border))
+    let shadow = egui::epaint::Shadow { offset: [0, 8], blur: 24, spread: 0, color: egui::Color32::from_black_alpha(if t.dark { 120 } else { 45 }) };
+    egui::Frame::new()
+        .fill(t.surface)
+        .corner_radius(crate::sizes::SURFACE_RADIUS)
+        .inner_margin(Margin::same(crate::sizes::GAP_L as i8))
+        .stroke(egui::Stroke::new(1.0, t.border))
+        .shadow(shadow)
 }

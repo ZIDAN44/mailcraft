@@ -62,14 +62,14 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(10.0);
             let mut keep = true;
             button_row(ui, |ui| {
-                if ui.button(tl!("Cancel")).clicked() {
+                if widgets::secondary(ui, "Cancel").clicked() {
                     keep = false;
                 }
-                if ui.button(tl!("Don't save")).clicked() {
+                if widgets::secondary(ui, "Don't save").clicked() {
                     acts.push(Action::CloseAnyway);
                     keep = false;
                 }
-                if widgets::accent_button(ui, crate::icons::Icon::Drafts, "Save", t, true).clicked() {
+                if widgets::primary_button(ui, "Save", t, true).clicked() {
                     acts.push(Action::Run("compose.keepAll", json!({})));
                     acts.push(Action::CloseAnyway);
                     keep = false;
@@ -93,10 +93,10 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(10.0);
             let mut keep = true;
             button_row(ui, |ui| {
-                if ui.button(tl!("Keep importing")).clicked() {
+                if widgets::secondary(ui, "Keep importing").clicked() {
                     keep = false;
                 }
-                if widgets::accent_button(ui, Icon::Close, "Close MailCraft", t, true).clicked() {
+                if widgets::primary_button(ui, "Close MailCraft", t, true).clicked() {
                     // Paused, its place kept: it goes on from there as MailCraft opens.
                     acts.push(Action::Run("account.stopImport", json!({"all": true, "how": "pause"})));
                     acts.push(Action::CloseAnyway);
@@ -119,14 +119,15 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.add_space(10.0);
                 let mut keep = true;
                 button_row(ui, |ui| {
-                    if ui.button(tl!("Cancel")).clicked() {
+                    if widgets::secondary(ui, "Cancel").clicked() {
                         keep = false;
                     }
-                    if ui.button(tl!("Close without updating")).on_hover_text(tl!("It installs the next time you close MailCraft.")).clicked() {
+                    if widgets::secondary(ui, "Close without updating").on_hover_text(tl!("It installs the next time you close MailCraft.")).clicked()
+                    {
                         acts.push(Action::UpdateOnClose(false));
                         keep = false;
                     }
-                    if widgets::accent_button(ui, Icon::Sync, "Update and close", t, true).clicked() {
+                    if widgets::primary_button(ui, "Update and close", t, true).clicked() {
                         acts.push(Action::UpdateOnClose(true));
                         keep = false;
                     }
@@ -154,10 +155,10 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.add_space(10.0);
                 let mut keep = true;
                 button_row(ui, |ui| {
-                    if ui.button(tl!("Keep MailCraft open")).clicked() {
+                    if widgets::secondary(ui, "Keep MailCraft open").clicked() {
                         keep = false;
                     }
-                    if widgets::accent_button(ui, Icon::Close, "Close", t, true).clicked() {
+                    if widgets::primary_button(ui, "Close", t, true).clicked() {
                         // Kept for later: should it finish as MailCraft closes, it isn't installed
                         // without its own question.
                         acts.push(Action::UpdateOnClose(false));
@@ -195,17 +196,17 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             let mut keep = true;
             button_row(ui, |ui| {
                 if *closing {
-                    if widgets::accent_button(ui, Icon::Close, "Close now", t, true).clicked() {
+                    if widgets::primary_button(ui, "Close now", t, true).clicked() {
                         acts.push(Action::CompactOnClose(None));
                         keep = false;
                     }
                 } else if exclusive {
                     ui.add_enabled(false, egui::Button::new(tl!("Finishing…")));
                 } else {
-                    if ui.button(tl!("Hide")).clicked() {
+                    if widgets::secondary(ui, "Hide").clicked() {
                         keep = false;
                     }
-                    if ui.button(tl!("Stop compacting")).clicked() {
+                    if widgets::secondary(ui, "Stop compacting").clicked() {
                         acts.push(Action::Run("dataFile.cancelCompact", json!({ "account": account })));
                     }
                 }
@@ -247,11 +248,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(10.0);
             let mut keep = true;
             button_row(ui, |ui| {
-                if ui.button(tl!("Close without compacting")).clicked() {
+                if widgets::secondary(ui, "Close without compacting").clicked() {
                     acts.push(Action::CompactOnClose(None));
                     keep = false;
                 }
-                if widgets::accent_button(ui, Icon::Sync, "Compact, then close", t, true).clicked() {
+                if widgets::primary_button(ui, "Compact, then close", t, true).clicked() {
                     acts.push(Action::CompactOnClose(Some(account.clone())));
                     keep = false;
                 }

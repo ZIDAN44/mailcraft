@@ -96,7 +96,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, t: &Tokens, acts: &mut Vec<Actio
                 ui.add_space(4.0);
                 ui.add(egui::Label::new(RichText::new(e.as_str()).color(t.danger).small()).wrap());
             }
-            let (ok, cancel) = buttons(ui, t, "Restore", !locked || !f.password.is_empty());
+            let (ok, cancel) = danger_buttons(ui, t, "Restore", !locked || !f.password.is_empty());
             if ok || (enter && !f.password.is_empty()) {
                 f.error = None;
                 acts.push(Action::Restore { data: f.data.clone(), password: f.password.clone() });

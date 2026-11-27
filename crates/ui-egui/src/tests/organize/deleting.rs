@@ -44,12 +44,14 @@ fn a_rows_delete_in_deleted_items_asks_first() {
     assert!(a.session.row_keys().contains(&target), "not deleted yet");
     // Its Delete: that message alone, for good.
     frame(&ctx, &mut a, vec![]);
-    let rows: Vec<egui::Rect> = named(&ctx, &mut a, SIZE).into_iter().filter(|n| n.role == Role::ListItem).filter_map(|n| n.rect).collect();
+    // The question's own (not the ribbon's or a row's).
+    let id = egui::Id::unique(("dialog", std::mem::discriminant(a.ui.dialog.as_ref().unwrap())));
+    let question = ctx.memory(|m| m.area_rect(id)).expect("the question");
     let ok = named(&ctx, &mut a, SIZE)
         .iter()
         .filter(|n| n.role == Role::Button && n.label.as_deref() == Some("Delete"))
         .filter_map(Named::centre)
-        .find(|c| !rows.iter().any(|r| r.contains(*c)));
+        .find(|c| question.contains(*c));
     click(&ctx, &mut a, ok.expect("the question's Delete"));
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.dialog.is_none());

@@ -195,15 +195,15 @@ fn every_data_file_offers_its_buttons() {
 /// What the dialog showed for each, before its rows of buttons were drawn from one place: its
 /// words, then each button and what a click on it did.
 const EXPECTED: &[(&str, &[&str])] = &[
-    ("counting", &["Open Outlook data file", "Counting.pst", "Counting items…", "[Import] stays ", "[Cancel] closes "]),
+    ("counting", &["Open Outlook data file", "Counting.pst", "Counting items…", "[Cancel] closes ", "[Import] stays "]),
     (
         "broken",
         &[
             "Open Outlook data file",
             "Broken.pst",
             "This file couldn't be looked at: not an Outlook data file",
-            "[Import] closes import D:/Mail/Broken.pst again=false changes=- takeOver=false",
             "[Cancel] closes ",
+            "[Import] closes import D:/Mail/Broken.pst again=false changes=- takeOver=false",
         ],
     ),
     (
@@ -214,8 +214,8 @@ const EXPECTED: &[(&str, &[&str])] = &[
             "5.0 MB   ·   40 items in 3 folders",
             "MailCraft keeps its own copy beside the file, about 3.0 MB, in D:/Mail. The file itself is never changed.",
             "Free there: 8.0 GB",
-            "[Import] closes import D:/Mail/Fits.pst again=false changes=- takeOver=false",
             "[Cancel] closes ",
+            "[Import] closes import D:/Mail/Fits.pst again=false changes=- takeOver=false",
         ],
     ),
     (
@@ -226,8 +226,8 @@ const EXPECTED: &[(&str, &[&str])] = &[
             "5.0 MB   ·   40 items in 3 folders",
             "This file's folder can't be written: MailCraft's copy, about 3.0 MB, goes in C:/MailCraft Files.",
             "Free there: 8.0 GB",
-            "[Import] closes import D:/Mail/Elsewhere.pst again=false changes=- takeOver=false",
             "[Cancel] closes ",
+            "[Import] closes import D:/Mail/Elsewhere.pst again=false changes=- takeOver=false",
         ],
     ),
     (
@@ -239,8 +239,8 @@ const EXPECTED: &[(&str, &[&str])] = &[
             "MailCraft keeps its own copy beside the file, about 3.0 MB, in D:/Mail. The file itself is never changed.",
             "Free there: 1.0 MB",
             "There isn't room for the copy beside the file. Free up space on that drive.",
-            "[Import] stays ",
             "[Cancel] closes ",
+            "[Import] stays ",
         ],
     ),
     (
@@ -252,8 +252,8 @@ const EXPECTED: &[(&str, &[&str])] = &[
             "This file's folder can't be written: MailCraft's copy, about 3.0 MB, goes in D:/Mail.",
             "Free there: 1.0 MB",
             "There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).",
-            "[Import] stays ",
             "[Cancel] closes ",
+            "[Import] stays ",
         ],
     ),
     (
@@ -264,8 +264,8 @@ const EXPECTED: &[(&str, &[&str])] = &[
             "5.0 MB   ·   40 items in 3 folders",
             "MailCraft makes its own copy, about 3.0 MB, in D:/Mail.",
             "Free there: 8.0 GB",
-            "[Import] closes import D:/Mail/Old.mailcraft again=false changes=- takeOver=false",
             "[Cancel] closes ",
+            "[Import] closes import D:/Mail/Old.mailcraft again=false changes=- takeOver=false",
         ],
     ),
     (
@@ -277,8 +277,8 @@ const EXPECTED: &[(&str, &[&str])] = &[
             "MailCraft makes its own copy, about 3.0 MB, in D:/Mail.",
             "Free there: 1.0 MB",
             "There isn't room for the copy. Free up space, or move MailCraft's data folder (File › Options).",
-            "[Import] stays ",
             "[Cancel] closes ",
+            "[Import] stays ",
         ],
     ),
     (
@@ -288,8 +288,8 @@ const EXPECTED: &[(&str, &[&str])] = &[
             "Copy.pst",
             "5.0 MB   ·   40 items in 3 folders",
             "MailCraft's copy of this file is beside it, with what was changed in MailCraft: D:/Mail/Copy.mailcraft",
-            "[Open] closes import D:/Mail/Copy.pst again=false changes=- takeOver=false",
             "[Cancel] closes ",
+            "[Open] closes import D:/Mail/Copy.pst again=false changes=- takeOver=false",
         ],
     ),
     (

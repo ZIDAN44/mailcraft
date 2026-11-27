@@ -16,14 +16,14 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(10.0);
             let mut keep = true;
             button_row(ui, |ui| {
-                if ui.button(tl!("Cancel")).clicked() {
+                if widgets::secondary(ui, "Cancel").clicked() {
                     keep = false;
                 }
-                if ui.button(tl!("No")).clicked() {
+                if widgets::secondary(ui, "No").clicked() {
                     acts.push(Action::Run("compose.close", json!({"save": false})));
                     keep = false;
                 }
-                if widgets::accent_button(ui, crate::icons::Icon::Drafts, "Yes", t, true).clicked() {
+                if widgets::primary_button(ui, "Yes", t, true).clicked() {
                     acts.push(Action::Run("compose.close", json!({"save": true})));
                     keep = false;
                 }
@@ -51,8 +51,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             let (mut send, mut not) = (false, false);
             // Right to left: Send rightmost, as each dialog's main button.
             button_row(ui, |ui| {
-                send = widgets::accent_button(ui, Icon::Send, "Send", t, true).clicked();
-                not = ui.button(tl!("Don't send")).clicked();
+                send = widgets::primary_button(ui, "Send", t, true).clicked();
+                not = widgets::secondary(ui, "Don't send").clicked();
             });
             if send || not {
                 if *remember {
@@ -455,6 +455,8 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         ui.separator();
         // Only the rows in view are laid out: the list holds up to 2,000 people. A row is as tall
         // as `horizontal` makes it: its 22 points, or a control's height if that's more.
+        // Its rows as a pane's list's (the dialog's controls are taller).
+        ui.spacing_mut().interact_size.y = crate::sizes::PANE_CONTROL_H;
         let row_height = ui.spacing().interact_size.y.max(22.0);
         egui::ScrollArea::vertical().max_height(210.0).auto_shrink([false, false]).show_rows(ui, row_height, f.list.len(), |ui, range| {
             if f.list.is_empty() && !f.stale && !f.searching {

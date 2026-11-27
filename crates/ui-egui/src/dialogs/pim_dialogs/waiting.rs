@@ -83,12 +83,12 @@ pub fn waiting(ui: &mut Ui, f: &mut WaitingForm, s: &Session, t: &Tokens, acts: 
     let keys: Vec<String> = f.found.iter().filter(|w| w.picked).map(|w| w.key.to_id()).collect();
     footer_rule(ui, t);
     let mut keep = true;
-    ui.allocate_ui_with_layout(vec2(ui.available_width(), 32.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if widgets::accent_button(ui, Icon::Calendar, "Put in calendar", t, !keys.is_empty()).clicked() {
-            acts.push(Action::Submit("invite.placeWaiting", json!({"keys": keys})));
-        }
-        if ui.button(tl!("Close")).clicked() {
+    crate::dialogs::button_row(ui, |ui| {
+        if widgets::secondary(ui, "Close").clicked() {
             keep = false;
+        }
+        if widgets::primary_button(ui, "Put in calendar", t, !keys.is_empty()).clicked() {
+            acts.push(Action::Submit("invite.placeWaiting", json!({"keys": keys})));
         }
     });
     keep

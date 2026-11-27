@@ -12,7 +12,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
                 title(ui, t, &tf!("Delete “{name}”?", name = name));
             }
             ui.label(RichText::new(tl!("This contact will be deleted, along with everything kept about them. This can't be undone.")).color(t.dim));
-            let (ok, cancel) = buttons(ui, t, "Delete", true);
+            let (ok, cancel) = danger_buttons(ui, t, "Delete", true);
             if ok {
                 acts.push(Action::Run("contact.delete", json!({"uid": uid})));
                 return false;
@@ -267,7 +267,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
                     keep = false;
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button(tl!("Cancel")).clicked() {
+                    if widgets::secondary(ui, "Cancel").clicked() {
                         keep = false;
                     }
                 });

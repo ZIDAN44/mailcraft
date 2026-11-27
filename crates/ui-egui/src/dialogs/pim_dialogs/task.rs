@@ -366,25 +366,32 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
     }
     footer_rule(ui, t);
     let mut keep = true;
-    ui.horizontal(|ui| {
-        if let Some(uid) = f.uid.clone().filter(|_| !f.read_only) {
-            if ui.button(tl!("Delete")).clicked() {
-                acts.push(Action::Submit("task.delete", json!({"uid": uid})));
+    let ready = !f.title.trim().is_empty() && !f.read_only;
+    let (mut saved, mut cancel) = (false, false);
+    crate::dialogs::button_row_from(
+        ui,
+        |ui| {
+            if let Some(uid) = f.uid.clone().filter(|_| !f.read_only) {
+                if widgets::secondary(ui, "Delete").clicked() {
+                    acts.push(Action::Submit("task.delete", json!({"uid": uid})));
+                }
+                let mark = if f.done { "Mark not complete" } else { "Mark complete" };
+                if widgets::secondary(ui, mark).clicked() {
+                    acts.push(Action::Submit("task.complete", json!({"uid": uid, "done": !f.done})));
+                }
             }
-            let mark = if f.done { "Mark not complete" } else { "Mark complete" };
-            if ui.button(tl!(mark)).clicked() {
-                acts.push(Action::Submit("task.complete", json!({"uid": uid, "done": !f.done})));
-            }
-        }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if widgets::accent_button(ui, crate::icons::Icon::Task, "Save", t, !f.title.trim().is_empty() && !f.read_only).clicked() {
-                f.error = None;
-                acts.push(Action::Submit(if f.uid.is_some() { "task.update" } else { "task.create" }, f.params()));
-            }
-            if ui.button(tl!("Cancel")).clicked() {
-                keep = false;
-            }
-        });
-    });
+        },
+        |ui| {
+            cancel = widgets::secondary(ui, "Cancel").clicked();
+            saved = widgets::primary_button(ui, "Save", t, ready).clicked();
+        },
+    );
+    if saved {
+        f.error = None;
+        acts.push(Action::Submit(if f.uid.is_some() { "task.update" } else { "task.create" }, f.params()));
+    }
+    if cancel {
+        keep = false;
+    }
     keep
 }

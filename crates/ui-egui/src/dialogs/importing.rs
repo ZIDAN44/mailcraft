@@ -91,10 +91,10 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.add_space(10.0);
             let mut keep = true;
             button_row(ui, |ui| {
-                if ui.button(tl!("Keep importing")).clicked() {
+                if widgets::secondary(ui, "Keep importing").clicked() {
                     keep = false;
                 }
-                if widgets::accent_button(ui, Icon::Close, "Stop", t, true).clicked() {
+                if widgets::primary_button(ui, "Stop", t, true).clicked() {
                     acts.push(Action::Run("account.stopImport", json!({"account": account})));
                     keep = false;
                 }
@@ -280,7 +280,7 @@ fn offer_buttons(ui: &mut Ui, t: &Tokens, s: &Session, path: &str, offer: &Offer
     let mut picked: Option<Option<Action>> = None;
     ui.add_space(6.0);
     button_row(ui, |ui| {
-        if ui.button(tl!("Cancel")).clicked() {
+        if widgets::secondary(ui, "Cancel").clicked() {
             picked = Some(None);
         }
         match offer {
@@ -295,7 +295,7 @@ fn offer_buttons(ui: &mut Ui, t: &Tokens, s: &Session, path: &str, offer: &Offer
                 if state.is_some_and(|st| !st.live && !st.removing) && offered(ui, tl!("Continue importing"), true) {
                     picked = Some(Some(Action::Run("account.resumeImport", json!({"account": account}))));
                 }
-                if widgets::accent_button(ui, Icon::Inbox, "Go to it", t, true).clicked() {
+                if widgets::primary_button(ui, "Go to it", t, true).clicked() {
                     picked = Some(inbox_of(s, account).map(|inbox| Action::Run("folder.open", json!({"account": account, "folder": inbox}))));
                 }
             }
@@ -372,11 +372,11 @@ fn import_done(ui: &mut Ui, account: &str, report: &ImportReport, s: &Session, t
     ui.add_space(10.0);
     let mut keep = true;
     button_row(ui, |ui| {
-        if ui.button(tl!("Close")).clicked() {
+        if widgets::secondary(ui, "Close").clicked() {
             keep = false;
         }
         if let Some(inbox) = inbox_of(s, account)
-            && widgets::accent_button(ui, Icon::Inbox, "Go to Inbox", t, true).clicked()
+            && widgets::primary_button(ui, "Go to Inbox", t, true).clicked()
         {
             acts.push(Action::Run("folder.open", json!({"account": account, "folder": inbox})));
             keep = false;

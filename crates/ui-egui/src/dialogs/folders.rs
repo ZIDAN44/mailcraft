@@ -13,7 +13,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 tf!("These {n} messages will be deleted for good. This can't be undone.", n = count)
             };
             ui.label(RichText::new(what).color(t.dim));
-            let (ok, cancel) = buttons(ui, t, "Delete", true);
+            let (ok, cancel) = danger_buttons(ui, t, "Delete", true);
             if ok {
                 // A row's own Delete: its message alone, as the button does.
                 acts.push(match one {
@@ -42,7 +42,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             accounts.dedup();
             let Some(account) = accounts.first().and_then(|a| s.account(a)) else {
                 ui.label(RichText::new(tl!("Select a message first.")).color(t.dim));
-                return !buttons(ui, t, "Close", false).1;
+                return close_row(ui);
             };
             let needle = filter.to_lowercase();
             // The messages' own account's folders, then every other account's, each under its
@@ -191,7 +191,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             if let Some(e) = error {
                 ui.label(RichText::new(e.as_str()).color(t.danger).small());
             }
-            let (ok, cancel) = buttons(ui, t, "Delete", true);
+            let pair = if *permanent { danger_buttons } else { buttons };
+            let (ok, cancel) = pair(ui, t, "Delete", true);
             if ok {
                 *error = None;
                 acts.push(Action::Submit("folder.delete", json!({"account": account, "folder": folder})));
@@ -247,7 +248,9 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 title(ui, t, &tf!("Delete everything in “{folder}”?", folder = name));
                 ui.label(RichText::new(tl!("Every message in it will be moved to Deleted Items.")).color(t.dim));
             }
-            let (ok, cancel) = buttons(ui, t, if *for_good { "Empty" } else { "Delete all" }, true);
+            // For good: red, and not Enter's.
+            let pair = if *for_good { danger_buttons } else { buttons };
+            let (ok, cancel) = pair(ui, t, if *for_good { "Empty" } else { "Delete all" }, true);
             if ok {
                 acts.push(Action::Run("folder.empty", json!({"account": account, "folder": folder})));
                 return false;

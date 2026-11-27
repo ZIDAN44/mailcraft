@@ -48,6 +48,13 @@ impl Default for Tokens {
 }
 
 impl Tokens {
+    /// The tokens the window was last drawn with ([`apply`]), for what's drawn without them in
+    /// hand; the light or dark theme's own before that.
+    pub fn of(ui: &egui::Ui) -> Tokens {
+        let kept: Option<Tokens> = ui.data(|d| d.get_temp(tokens_id()));
+        kept.unwrap_or_else(|| if ui.visuals().dark_mode { Tokens::dark() } else { Tokens::light() })
+    }
+
     pub fn light() -> Tokens {
         Tokens {
             dark: false,
@@ -227,8 +234,13 @@ pub fn category_color(i: u8, dark: bool) -> Color32 {
     if dark { c.gamma_multiply(1.15) } else { c }
 }
 
+fn tokens_id() -> egui::Id {
+    egui::Id::unique("theme-tokens")
+}
+
 /// Apply the tokens to egui's style.
 pub fn apply(ctx: &egui::Context, t: &Tokens) {
+    ctx.data_mut(|d| d.insert_temp(tokens_id(), *t));
     let mut v = if t.dark { Visuals::dark() } else { Visuals::light() };
     v.panel_fill = t.surface;
     v.window_fill = t.surface;
@@ -244,9 +256,10 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent;
     v.override_text_color = Some(t.text);
-    let r = CornerRadius::same(6);
-    v.window_corner_radius = CornerRadius::same(10);
-    v.menu_corner_radius = CornerRadius::same(8);
+    // Two corners: a control's, and a surface's (a window, a menu).
+    let r = CornerRadius::same(crate::sizes::CONTROL_RADIUS);
+    v.window_corner_radius = CornerRadius::same(crate::sizes::SURFACE_RADIUS);
+    v.menu_corner_radius = CornerRadius::same(crate::sizes::SURFACE_RADIUS);
     for w in [&mut v.widgets.noninteractive, &mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
         w.corner_radius = r;
     }
@@ -265,6 +278,7 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
     v.widgets.active.bg_fill = t.accent_soft;
     v.widgets.active.fg_stroke = Stroke::new(1.0, t.text);
     v.widgets.open.weak_bg_fill = t.accent_soft;
+    v.widgets.open.fg_stroke = Stroke::new(1.0, t.text);
     // Text: each letter drawn at a whole pixel, not at a quarter of one (egui's subpixel binning,
     // "somewhat blurrier" in its own words): with it, a variable font's Semibold came out as its
     // Regular, so an unread sender looked like a read one (Segoe UI Variable, compared on screen).
@@ -278,7 +292,8 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
     ctx.global_style_mut(|s| {
         s.spacing.item_spacing = egui::vec2(8.0, 6.0);
         s.spacing.button_padding = egui::vec2(8.0, 4.0);
-        s.spacing.interact_size.y = 26.0;
+        // The panes' and menus' controls (a dialog's are taller: [`crate::sizes::CONTROL_H`]).
+        s.spacing.interact_size.y = crate::sizes::PANE_CONTROL_H;
         s.spacing.menu_margin = egui::Margin::same(6);
         // Scrolling stops at the first and last line, as in Outlook: no stretching past them. On a
         // Mac a mouse that scrolls smoothly counts as a trackpad, and what it pulled past the top

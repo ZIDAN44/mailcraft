@@ -71,7 +71,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 None => tf!("{email} will be removed from MailCraft. Nothing is deleted on the server.", email = email),
             };
             ui.add(egui::Label::new(RichText::new(text).color(t.dim)).wrap());
-            let (ok, cancel) = buttons(ui, t, "Remove", true);
+            let (ok, cancel) = danger_buttons(ui, t, "Remove", true);
             if ok {
                 acts.push(Action::Run("account.remove", json!({"account": account})));
                 return false;

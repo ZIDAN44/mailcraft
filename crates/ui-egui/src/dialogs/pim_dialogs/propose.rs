@@ -74,15 +74,15 @@ pub fn propose(ui: &mut Ui, f: &mut ProposeForm, t: &Tokens, acts: &mut Vec<Acti
     let run = f.params();
     footer_rule(ui, t);
     let mut keep = true;
-    ui.allocate_ui_with_layout(vec2(ui.available_width(), 32.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if widgets::accent_button(ui, Icon::Send, "Send proposal", t, run.is_some()).clicked()
+    crate::dialogs::button_row(ui, |ui| {
+        if widgets::secondary(ui, "Cancel").clicked() {
+            keep = false;
+        }
+        if widgets::primary_button(ui, "Send proposal", t, run.is_some()).clicked()
             && let Some(p) = run
         {
             acts.push(Action::Submit("invite.propose", p));
             keep = true;
-        }
-        if ui.button(tl!("Cancel")).clicked() {
-            keep = false;
         }
     });
     keep

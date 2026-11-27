@@ -361,16 +361,61 @@ fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled
     resp
 }
 
-/// A dialog's main button (OK, Connect, Remove…): filled in the app colour, words only.
-pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Response {
+/// What a dialog's button is: its main one, filled in the app colour; one that deletes or
+/// removes for good, filled red; or another (Cancel, Close), outlined.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ButtonKind {
+    Primary,
+    Danger,
+    Secondary,
+}
+
+/// A dialog's button, words only, of `kind`: every kind one height and at least
+/// [`crate::sizes::BUTTON_MIN_W`] wide (Cancel was shorter and narrower than the button beside
+/// it). One that can't be used now is drawn quiet, not as a darker button.
+pub fn dialog_button(ui: &mut Ui, kind: ButtonKind, label: &str, t: &Tokens, enabled: bool) -> Response {
+    use crate::sizes::{BUTTON_MIN_W, CONTROL_H, CONTROL_RADIUS};
     let label = tl!(label);
-    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::semibold(13.0), t.on_accent);
-    let size = vec2((galley.size().x + 28.0).max(76.0), 30.0);
+    let font = if kind == ButtonKind::Secondary { theme::regular(13.5) } else { theme::semibold(13.5) };
+    let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
+    let size = vec2((galley.size().x + 32.0).max(BUTTON_MIN_W), CONTROL_H);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     named(ui, &resp, label, enabled, None);
-    ui.painter().rect_filled(rect, 6.0, accent_fill(t, enabled, resp.hovered()));
-    ui.painter().galley_with_override_text_color(rect.center() - galley.size() / 2.0, galley, t.on_accent);
+    let hovered = enabled && resp.hovered();
+    let r = f32::from(CONTROL_RADIUS);
+    let (fill, stroke, ink) = match (kind, enabled) {
+        (_, false) => (ui.visuals().widgets.inactive.bg_fill, Stroke::NONE, t.faint),
+        (ButtonKind::Primary, true) => (accent_fill(t, true, hovered), Stroke::NONE, t.on_accent),
+        // The light theme's red in both (the dark theme's lighter red is for text, and white on
+        // it was hard to read).
+        (ButtonKind::Danger, true) => {
+            let red = Color32::from_rgb(0xC4, 0x2B, 0x1C);
+            (if hovered { red.gamma_multiply(0.88) } else { red }, Stroke::NONE, Color32::WHITE)
+        }
+        (ButtonKind::Secondary, true) => (if hovered { t.hover } else { t.surface }, ui.visuals().widgets.inactive.bg_stroke, t.text),
+    };
+    ui.painter().rect(rect, r, fill, stroke, egui::StrokeKind::Inside);
+    if resp.has_focus() {
+        ui.painter().rect_stroke(rect.expand(2.0), r + 2.0, Stroke::new(2.0, t.accent), egui::StrokeKind::Outside);
+    }
+    ui.painter().galley_with_override_text_color(rect.center() - galley.size() / 2.0, galley, ink);
     resp
+}
+
+/// A dialog's main button (OK, Connect, Save…): filled in the app colour, words only.
+pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Response {
+    dialog_button(ui, ButtonKind::Primary, label, t, enabled)
+}
+
+/// A dialog's other button (Cancel, Close…): outlined, as tall and wide as its main one.
+pub fn secondary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Response {
+    dialog_button(ui, ButtonKind::Secondary, label, t, enabled)
+}
+
+/// [`secondary_button`] in the theme the window is drawn in.
+pub fn secondary(ui: &mut Ui, label: &str) -> Response {
+    let t = Tokens::of(ui);
+    secondary_button(ui, label, &t, true)
 }
 
 /// The top bar's hover: a lighter wash on the coloured bar, the pane's hover on a plain one.
