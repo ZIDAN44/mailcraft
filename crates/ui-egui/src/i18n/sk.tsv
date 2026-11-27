@@ -1917,7 +1917,7 @@ count	occurrences	opakovaní
 	Show the archive file in the folder list	Zobraziť archívny súbor v zozname priečinkov
 	For folders without settings of their own	Pre priečinky bez vlastných nastavení
 	Apply these settings to all folders now	Použiť tieto nastavenia na všetky priečinky teraz
-	Folders with settings of their own follow these instead.	Priečinky s vlastnými nastaveniami sa namiesto nich budú riadiť týmito.
+	Folders with settings of their own follow these instead	Priečinky s vlastnými nastaveniami sa namiesto nich budú riadiť týmito
 	It's been {days} days: archive old mail now, as AutoArchive is set to?	Uplynulo {days} dní: archivovať starú poštu teraz, ako je nastavená automatická archivácia?
 	Archive now	Archivovať teraz
 	Off: old mail stays where it is until you clean it up.	Vypnuté: stará pošta zostane, kde je, kým ju neupracete.

@@ -1916,7 +1916,7 @@ count	occurrences	wystąpieniach
 	Show the archive file in the folder list	Pokazuj plik archiwum na liście folderów
 	For folders without settings of their own	Dla folderów bez własnych ustawień
 	Apply these settings to all folders now	Zastosuj teraz te ustawienia do wszystkich folderów
-	Folders with settings of their own follow these instead.	Foldery z własnymi ustawieniami będą stosować te ustawienia.
+	Folders with settings of their own follow these instead	Foldery z własnymi ustawieniami będą stosować te ustawienia
 	It's been {days} days: archive old mail now, as AutoArchive is set to?	Minęło dni: {days}. Zarchiwizować teraz starą pocztę zgodnie z ustawieniami autoarchiwizacji?
 	Archive now	Archiwizuj teraz
 	Off: old mail stays where it is until you clean it up.	Wyłączone: stara poczta pozostaje na miejscu do czasu ręcznego oczyszczenia.

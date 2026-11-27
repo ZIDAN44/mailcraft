@@ -25,6 +25,7 @@ on GitHub.
 - **Move to folder** and **Copy to folder** work as **Move folder** does: a click picks the folder and **Move** (or **Copy**) takes the mail there; a double click still does it at once. A click moved the mail straight away, and the button was never on.
 - A rule or category deleted in **Rules** or **Categories** can be put back: the list says which went, with **Undo**, while the dialog is open. One click on the bin took it for good, and the bin sat close against **Edit**.
 - Rules can be put in order: **Move up** and **Move down** beside each rule (they run in the list's order, and only rules on a server could be moved).
+- In **AutoArchive** settings, folders with settings of their own follow the ones shown once you choose that and save: **Apply these settings to all folders now** did it at once, with the settings as saved before rather than as shown, and **Cancel** didn't undo it.
 - **Cancel** in **Signatures** leaves the account's signatures as they were when it opened: one deleted there, or saved on switching to another, stayed so after Cancel.
 
 ## 0.42.0 - 2026-11-27

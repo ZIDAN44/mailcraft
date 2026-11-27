@@ -97,10 +97,15 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .asks(),
         CommandSpec::new("autoArchive.set", "AutoArchive settings", "File › Options › Data files", |s, v| {
             let every = p::u64(v, "everyDays").map(|n| u32::try_from(n).unwrap_or(u32::MAX));
-            s.set_auto_archive(every, p::bool(v, "prompt"), p::bool(v, "show"), rule_change(v))
+            let set = s.set_auto_archive(every, p::bool(v, "prompt"), p::bool(v, "show"), rule_change(v))?;
+            // Saved: then every folder follows them, those with settings of their own too.
+            if p::bool(v, "allFolders") == Some(true) {
+                s.auto_archive_to_all()?;
+            }
+            Ok(set)
         })
         .leaves_body()
-        .params(r#"{"everyDays"?: number (runs every so many days, up to 60; 0: never), "prompt"?: bool (asks first), "show"?: bool (the file shown in the folder list), "olderThan"?: number (1 to 999), "unit"?: "days"|"weeks"|"months", "delete"?: bool (deleted for good, not archived), "path"?: string (the .pst file it's archived to)} (the default settings, for folders without their own)"#)
+        .params(r#"{"everyDays"?: number (runs every so many days, up to 60; 0: never), "prompt"?: bool (asks first), "show"?: bool (the file shown in the folder list), "olderThan"?: number (1 to 999), "unit"?: "days"|"weeks"|"months", "delete"?: bool (deleted for good, not archived), "path"?: string (the .pst file it's archived to), "allFolders"?: bool (once saved, every folder follows them, those with settings of their own too)} (the default settings, for folders without their own)"#)
         .asks_when(deletes_or_files),
         CommandSpec::new("autoArchive.folder", "Folder's AutoArchive settings", "Folder › Properties", |s, v| {
             let account = account_param(s, v)?;

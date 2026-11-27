@@ -103,3 +103,30 @@ fn autoarchive_is_set_and_asks() {
     assert!(a.ui.dialog.is_none());
     assert_eq!(a.session.prefs.auto_archive.last_run, a.session.clock.now, "put off from now");
 }
+
+/// "Folders with settings of their own follow these instead" is a choice saved with the rest:
+/// nothing changes for those folders until Save (a button cleared their own settings at once,
+/// with the settings as saved before, and Cancel didn't undo it), nor after Cancel.
+#[test]
+fn every_folder_follows_the_settings_only_once_saved() {
+    let (mut a, dir) = app("auto-archive-all");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.run("autoArchive.folder", json!({"account": "sample", "folder": "Projects", "archive": "off"}));
+    let path = dir.join("archive.pst").display().to_string();
+    let open = |a: &mut MailApp| {
+        let mut f = crate::dialogs::AutoArchiveForm::new(&a.session, &path);
+        f.all_folders = true;
+        a.ui.dialog = Some(Dialog::AutoArchive(Box::new(f)));
+        frame(&ctx, a, vec![]);
+        frame(&ctx, a, vec![]);
+    };
+    open(&mut a);
+    assert_eq!(a.session.prefs.auto_archive.folders.len(), 1, "not until Save");
+    click_named(&ctx, &mut a, "Cancel");
+    assert_eq!(a.session.prefs.auto_archive.folders.len(), 1, "nor after Cancel");
+    open(&mut a);
+    click_named(&ctx, &mut a, "Save");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.session.prefs.auto_archive.folders.is_empty(), "Projects follows the settings now");
+}

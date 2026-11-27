@@ -1898,7 +1898,7 @@ count	occurrences	مرات
 	Show the archive file in the folder list	إظهار ملف الأرشيف في قائمة المجلدات
 	For folders without settings of their own	للمجلدات التي ليست لها إعدادات خاصة
 	Apply these settings to all folders now	تطبيق هذه الإعدادات على كل المجلدات الآن
-	Folders with settings of their own follow these instead.	تتبع المجلدات ذات الإعدادات الخاصة هذه الإعدادات بدلًا منها.
+	Folders with settings of their own follow these instead	تتبع المجلدات ذات الإعدادات الخاصة هذه الإعدادات بدلًا منها
 	It's been {days} days: archive old mail now, as AutoArchive is set to?	مرّ {days} يومًا: هل تريد أرشفة البريد القديم الآن كما ضُبطت الأرشفة التلقائية؟
 	Archive now	أرشفة الآن
 	Off: old mail stays where it is until you clean it up.	متوقفة: يبقى البريد القديم مكانه حتى تنظفه بنفسك.

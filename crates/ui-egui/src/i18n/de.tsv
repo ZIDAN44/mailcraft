@@ -1903,7 +1903,7 @@ count	occurrences	Terminen
 	Show the archive file in the folder list	Die Archivdatei in der Ordnerliste anzeigen
 	For folders without settings of their own	Für Ordner ohne eigene Einstellungen
 	Apply these settings to all folders now	Diese Einstellungen jetzt auf alle Ordner anwenden
-	Folders with settings of their own follow these instead.	Ordner mit eigenen Einstellungen folgen stattdessen diesen.
+	Folders with settings of their own follow these instead	Ordner mit eigenen Einstellungen folgen stattdessen diesen
 	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} Tage sind vergangen: alte E-Mails jetzt archivieren, wie die AutoArchivierung eingestellt ist?
 	Archive now	Jetzt archivieren
 	Off: old mail stays where it is until you clean it up.	Aus: Alte E-Mails bleiben, wo sie sind, bis Sie aufräumen.

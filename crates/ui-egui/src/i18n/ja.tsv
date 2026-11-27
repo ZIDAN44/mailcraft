@@ -1899,7 +1899,7 @@ count	occurrences	回
 	Show the archive file in the folder list	アーカイブ ファイルをフォルダー一覧に表示
 	For folders without settings of their own	独自の設定がないフォルダー
 	Apply these settings to all folders now	これらの設定を今すぐすべてのフォルダーに適用
-	Folders with settings of their own follow these instead.	独自の設定があるフォルダーも、代わりにこれらの設定に従います。
+	Folders with settings of their own follow these instead	独自の設定があるフォルダーも、代わりにこれらの設定に従います
 	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} 日経過しました: 自動アーカイブの設定どおり、古いメールを今すぐアーカイブしますか?
 	Archive now	今すぐアーカイブ
 	Off: old mail stays where it is until you clean it up.	オフ: 古いメールは整理するまでそのままです。

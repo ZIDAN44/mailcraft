@@ -1916,7 +1916,7 @@ count	occurrences	повторений
 	Show the archive file in the folder list	Показывать файл архива в списке папок
 	For folders without settings of their own	Для папок без собственных параметров
 	Apply these settings to all folders now	Применить эти параметры ко всем папкам сейчас
-	Folders with settings of their own follow these instead.	Папки с собственными параметрами будут следовать этим.
+	Folders with settings of their own follow these instead	Папки с собственными параметрами будут следовать этим
 	It's been {days} days: archive old mail now, as AutoArchive is set to?	Прошло {days} дн.: заархивировать старую почту сейчас, как настроена автоархивация?
 	Archive now	Архивировать сейчас
 	Off: old mail stays where it is until you clean it up.	Выключено: старая почта остаётся на месте, пока вы её не уберёте.

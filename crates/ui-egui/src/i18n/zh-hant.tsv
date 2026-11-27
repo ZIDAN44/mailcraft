@@ -1902,7 +1902,7 @@ count	occurrences	次
 	Show the archive file in the folder list	在資料夾清單中顯示封存檔案
 	For folders without settings of their own	用於沒有自己設定的資料夾
 	Apply these settings to all folders now	立即將這些設定套用到所有資料夾
-	Folders with settings of their own follow these instead.	有自己設定的資料夾也將改用這些設定。
+	Folders with settings of their own follow these instead	有自己設定的資料夾也將改用這些設定
 	It's been {days} days: archive old mail now, as AutoArchive is set to?	已經過了 {days} 天：要依自動封存的設定立即封存舊郵件嗎？
 	Archive now	立即封存
 	Off: old mail stays where it is until you clean it up.	關閉：舊郵件會留在原處，直到你自己清理。

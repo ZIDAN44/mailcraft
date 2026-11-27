@@ -75,6 +75,8 @@ pub struct AutoArchiveForm {
     pub prompt: bool,
     pub show: bool,
     pub rule: AgeForm,
+    /// Once saved, folders with settings of their own follow these too.
+    pub all_folders: bool,
     pub error: Option<String>,
 }
 
@@ -88,6 +90,7 @@ impl AutoArchiveForm {
             prompt: a.prompt,
             show: a.show,
             rule: AgeForm::of(&a.rule, default_path),
+            all_folders: false,
             error: None,
         }
     }
@@ -96,6 +99,9 @@ impl AutoArchiveForm {
     pub(crate) fn params(&self) -> serde_json::Value {
         let mut p = json!({ "everyDays": if self.on { self.every } else { 0 }, "prompt": self.prompt, "show": self.show });
         self.rule.put(&mut p);
+        if self.all_folders {
+            p["allFolders"] = json!(true);
+        }
         p
     }
 }
@@ -215,11 +221,9 @@ fn auto_archive(ui: &mut Ui, f: &mut AutoArchiveForm, t: &Tokens, acts: &mut Vec
     ui.label(RichText::new(tl!("For folders without settings of their own")).strong());
     rule_fields(ui, &mut f.rule, "auto", acts);
     ui.add_space(6.0);
-    let all =
-        ui.button(tl!("Apply these settings to all folders now")).on_hover_text(tl!("Folders with settings of their own follow these instead."));
-    if all.clicked() {
-        acts.push(Action::Run("autoArchive.applyToAll", json!({})));
-    }
+    // With Save, as the rest of the dialog (a button here did it at once, with the settings as
+    // saved before, not as shown, and Cancel didn't undo it).
+    ui.checkbox(&mut f.all_folders, tl!("Folders with settings of their own follow these instead"));
     if let Some(e) = &f.error {
         ui.add_space(4.0);
         ui.add(egui::Label::new(RichText::new(e.as_str()).color(t.danger).small()).wrap());

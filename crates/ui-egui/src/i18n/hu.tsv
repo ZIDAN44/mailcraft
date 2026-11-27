@@ -1904,7 +1904,7 @@ count	occurrences	előfordulás
 	Show the archive file in the folder list	Az archiválási fájl megjelenítése a mappalistában
 	For folders without settings of their own	Saját beállítások nélküli mappákhoz
 	Apply these settings to all folders now	Beállítások alkalmazása most az összes mappára
-	Folders with settings of their own follow these instead.	A saját beállításokkal rendelkező mappák ehelyett az itt megadott beállításokat fogják használni.
+	Folders with settings of their own follow these instead	A saját beállításokkal rendelkező mappák ehelyett az itt megadott beállításokat fogják használni
 	It's been {days} days: archive old mail now, as AutoArchive is set to?	Eltelt {days} nap. Archiválja most a régi e-maileket az automatikus archiválás beállításai szerint?
 	Archive now	Archiválás most
 	Off: old mail stays where it is until you clean it up.	Ki: A régi e-mailek a helyükön maradnak, amíg kézzel nem rendezi őket.

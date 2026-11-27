@@ -1898,7 +1898,7 @@ count	occurrences	keer
 	Show the archive file in the folder list	Het archiefbestand in de mappenlijst tonen
 	For folders without settings of their own	Voor mappen zonder eigen instellingen
 	Apply these settings to all folders now	Deze instellingen nu op alle mappen toepassen
-	Folders with settings of their own follow these instead.	Mappen met eigen instellingen volgen dan deze.
+	Folders with settings of their own follow these instead	Mappen met eigen instellingen volgen dan deze
 	It's been {days} days: archive old mail now, as AutoArchive is set to?	Er zijn {days} dagen voorbij: oude mail nu archiveren, zoals AutoArchiveren is ingesteld?
 	Archive now	Nu archiveren
 	Off: old mail stays where it is until you clean it up.	Uit: oude mail blijft waar die is tot u opruimt.

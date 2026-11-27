@@ -1903,7 +1903,7 @@ count	occurrences	kez
 	Show the archive file in the folder list	Arşiv dosyasını klasör listesinde göster
 	For folders without settings of their own	Kendi ayarları olmayan klasörler için
 	Apply these settings to all folders now	Bu ayarları şimdi tüm klasörlere uygula
-	Folders with settings of their own follow these instead.	Kendi ayarları olan klasörler de bunun yerine bu ayarları izler.
+	Folders with settings of their own follow these instead	Kendi ayarları olan klasörler de bunun yerine bu ayarları izler
 	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} gün geçti: Otomatik Arşivleme ayarlandığı gibi eski postalar şimdi arşivlensin mi?
 	Archive now	Şimdi arşivle
 	Off: old mail stays where it is until you clean it up.	Kapalı: eski postalar siz temizleyene kadar yerinde kalır.

@@ -80,6 +80,14 @@ fn autoarchive_s_settings_are_kept() {
     // Apply these settings to all folders now: each follows the default ones.
     assert_eq!(s.run("autoArchive.applyToAll", &json!({})).unwrap()["cleared"], 2);
     assert!(s.prefs.auto_archive.folders.is_empty());
+    // Saved with the default settings, for all folders: those settings first, then every folder
+    // follows them; settings that can't be saved leave the folders' own as they are.
+    s.run("autoArchive.folder", &json!({"account": id, "folder": "Sent", "archive": "off"})).unwrap();
+    assert!(s.run("autoArchive.set", &json!({"olderThan": 3, "unit": "fortnights", "allFolders": true})).is_err());
+    assert_eq!(s.prefs.auto_archive.folders.len(), 1, "kept: nothing was saved");
+    s.run("autoArchive.set", &json!({"olderThan": 3, "unit": "months", "allFolders": true})).unwrap();
+    assert!(s.prefs.auto_archive.folders.is_empty());
+    assert_eq!(s.prefs.auto_archive.rule.older_than, 3);
 }
 
 /// Due, it asks first: once, and not again until the next period after "Not now". Run, each

@@ -1903,7 +1903,7 @@ count	occurrences	repeticiones
 	Show the archive file in the folder list	Mostrar el archivo en la lista de carpetas
 	For folders without settings of their own	Para las carpetas sin configuración propia
 	Apply these settings to all folders now	Aplicar esta configuración a todas las carpetas ahora
-	Folders with settings of their own follow these instead.	Las carpetas con configuración propia siguen esta en su lugar.
+	Folders with settings of their own follow these instead	Las carpetas con configuración propia siguen esta en su lugar
 	It's been {days} days: archive old mail now, as AutoArchive is set to?	Han pasado {days} días: ¿archivar ahora el correo antiguo, como está configurado Autoarchivar?
 	Archive now	Archivar ahora
 	Off: old mail stays where it is until you clean it up.	Desactivado: el correo antiguo se queda donde está hasta que lo limpie.
