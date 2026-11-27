@@ -66,15 +66,15 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut AddressForm, s: &Session, t: &Tokens, ac
         if f.changing {
             ui.label(RichText::new(f.address.as_str()).color(t.dim));
         } else {
-            first = Some(ui.add(egui::TextEdit::singleline(&mut f.address).hint_text(tl!("you@example.com")).desired_width(ui.available_width())));
+            first = Some(ui.add(crate::widgets::line_edit(&mut f.address).hint_text(tl!("you@example.com")).desired_width(ui.available_width())));
         }
         ui.end_row();
         ui.label(tl!("Name on mail from it"));
         let own = config.map(|c| c.name.clone()).unwrap_or_default();
-        ui.add(egui::TextEdit::singleline(&mut f.name).hint_text(own).desired_width(ui.available_width()));
+        ui.add(crate::widgets::line_edit(&mut f.name).hint_text(own).desired_width(ui.available_width()));
         ui.end_row();
         ui.label(tl!("Replies go to"));
-        ui.add(egui::TextEdit::singleline(&mut f.reply_to).hint_text(f.address.trim().to_string()).desired_width(ui.available_width()));
+        ui.add(crate::widgets::line_edit(&mut f.reply_to).hint_text(f.address.trim().to_string()).desired_width(ui.available_width()));
         ui.end_row();
         let l = ui.label(tl!("Signature"));
         let own = tl!("(the account's own)").to_string();

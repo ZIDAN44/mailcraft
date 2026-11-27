@@ -28,7 +28,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             let copy = *copy;
             ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, if copy { "Copy to folder" } else { "Move to folder" });
-            let r = ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
+            let r = ui.add(crate::widgets::line_edit(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
             // Once, as it opens (it wasn't drawn the frame before), whatever had the keys:
             // asked for every frame, Tab never left the box.
             let (shown, now) = (egui::Id::unique("move-to-shown"), ui.ctx().cumulative_pass_nr());
@@ -111,7 +111,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.add_space(4.0);
             }
             label_over(ui, t, "Folder name");
-            let r = ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
+            let r = ui.add(crate::widgets::line_edit(name).desired_width(f32::INFINITY));
             // As it opens: renaming, the name it has selected, so what's typed replaces it.
             let mut opening = ui.memory(|m| m.focused().is_none());
             crate::look::fields::focus_selecting_all(ui, &r, name, &mut opening);
@@ -135,7 +135,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.set_width(crate::sizes::DIALOG_S);
             let name = s.folder(account, folder).map(Folder::display_name).unwrap_or_default();
             title(ui, t, &tf!("Move “{folder}” to", folder = name));
-            let r = ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
+            let r = ui.add(crate::widgets::line_edit(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
             }

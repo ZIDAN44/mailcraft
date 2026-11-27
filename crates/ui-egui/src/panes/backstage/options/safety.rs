@@ -125,7 +125,7 @@ pub(super) fn safety(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action
                 let mut text: String = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_else(|| saved.clone());
                 let own: Vec<&str> = s.organisation().into_iter().flatten().map(String::as_str).collect();
                 let hint = if own.is_empty() { tl!("None: nothing is tagged").to_string() } else { own.join(", ") };
-                let r = ui.add_enabled(s.prefs.external_tag, egui::TextEdit::singleline(&mut text).hint_text(hint).desired_width(260.0));
+                let r = ui.add_enabled(s.prefs.external_tag, crate::widgets::line_edit(&mut text).hint_text(hint).desired_width(260.0));
                 if r.lost_focus() && text.trim() != saved {
                     acts.push(Action::Run("view.externalTag", json!({"domains": text.trim()})));
                 }

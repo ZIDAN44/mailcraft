@@ -358,7 +358,7 @@ pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, 
     }
     ui.add_space(6.0);
     label_over(ui, t, "Name");
-    ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(f32::INFINITY).char_limit(mailcraft_engine::model::signature::MAX_SIGNATURE_NAME));
+    ui.add(crate::widgets::line_edit(&mut f.name).desired_width(f32::INFINITY).char_limit(mailcraft_engine::model::signature::MAX_SIGNATURE_NAME));
     ui.add_space(6.0);
     // Formatted here, or HTML code made elsewhere (a business card in columns): the segmented
     // control every such choice has (it had a style of its own).

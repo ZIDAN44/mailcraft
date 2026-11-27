@@ -67,17 +67,17 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Acti
     ui.add_space(10.0);
     let w = ui.available_width();
     ui.label(RichText::new(tl!("Calendar server (CalDAV)")).color(t.text));
-    ui.add(egui::TextEdit::singleline(&mut f.caldav).hint_text("https://dav.example.com/calendars/").desired_width(w));
+    ui.add(crate::widgets::line_edit(&mut f.caldav).hint_text("https://dav.example.com/calendars/").desired_width(w));
     found(ui, t, &f.caldav, f.found_caldav.as_deref());
     ui.add_space(6.0);
     ui.label(RichText::new(tl!("Contacts server (CardDAV)")).color(t.text));
-    ui.add(egui::TextEdit::singleline(&mut f.carddav).hint_text("https://dav.example.com/addressbooks/").desired_width(w));
+    ui.add(crate::widgets::line_edit(&mut f.carddav).hint_text("https://dav.example.com/addressbooks/").desired_width(w));
     found(ui, t, &f.carddav, f.found_carddav.as_deref());
     ui.add_space(8.0);
     ui.checkbox(&mut f.own, tl!("The calendar server has its own user name and password"));
     if f.own {
         label_over(ui, &Tokens::of(ui), "User name");
-        ui.add(egui::TextEdit::singleline(&mut f.username).desired_width(w));
+        ui.add(crate::widgets::line_edit(&mut f.username).desired_width(w));
         let kept = f.kept.as_deref().is_some_and(|k| k == f.username.trim());
         // The hint says one is kept, "Saved", as the other password boxes do.
         let hint = if kept { tl!("Saved: type to replace it") } else { "" };
@@ -126,10 +126,10 @@ pub(crate) fn add_calendar_only(ui: &mut Ui, f: &mut super::AccountForm, t: &Tok
     let (w, h) = (ui.available_width(), crate::sizes::CONTROL_H);
     {
         super::field_label(ui, "Email address");
-        ui.add_sized([w, h], egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")));
+        ui.add_sized([w, h], crate::widgets::line_edit(&mut f.email).hint_text(tl!("you@example.com")));
         ui.add_space(6.0);
         super::field_label(ui, "Your name");
-        ui.add_sized([w, h], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
+        ui.add_sized([w, h], crate::widgets::line_edit(&mut f.name).hint_text(tl!("Shown on mail you send")));
         ui.add_space(6.0);
         super::field_label(ui, "Password");
         widgets::password_field(ui, &mut f.password, "");
@@ -137,10 +137,10 @@ pub(crate) fn add_calendar_only(ui: &mut Ui, f: &mut super::AccountForm, t: &Tok
     ui.add_space(10.0);
     let w = ui.available_width();
     super::field_label(ui, "Calendar and contacts server");
-    ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.dav_url).hint_text("https://cloud.example.com/remote.php/dav"));
+    ui.add_sized([w, crate::sizes::CONTROL_H], crate::widgets::line_edit(&mut f.dav_url).hint_text("https://cloud.example.com/remote.php/dav"));
     ui.add_space(6.0);
     super::field_label(ui, "User name");
-    ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+    ui.add_sized([w, crate::sizes::CONTROL_H], crate::widgets::line_edit(&mut f.username).hint_text(tl!("Usually the email address")));
     if let Some(e) = &f.error {
         ui.add_space(6.0);
         crate::dialogs::field_error(ui, t, e);

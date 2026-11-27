@@ -470,7 +470,7 @@ fn form_row(ui: &mut Ui, t: &Tokens, icons_used: bool, icon: Option<Icon>, label
 fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32) -> egui::Response {
     let w = if width.is_finite() { width } else { ui.available_width() };
     ui.add(
-        egui::TextEdit::singleline(value)
+        crate::widgets::line_edit(value)
             .hint_text(hint)
             .desired_width(w)
             .min_size(vec2(w, FIELD_H))
@@ -483,7 +483,7 @@ fn field(ui: &mut Ui, value: &mut String, hint: &str, width: f32) -> egui::Respo
 fn title_field(ui: &mut Ui, value: &mut String) {
     let w = ui.available_width();
     ui.add(
-        egui::TextEdit::singleline(value)
+        crate::widgets::line_edit(value)
             .hint_text(tl!("Add a title"))
             .font(theme::semibold(crate::sizes::SUBTITLE))
             .desired_width(w)

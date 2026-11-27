@@ -160,9 +160,9 @@ fn delay_menu(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, clock:
     ui.label(RichText::new(tl!("Don't send before")).color(t.dim).small());
     let mut chosen = None;
     ui.horizontal(|ui| {
-        ui.add(egui::TextEdit::singleline(&mut day).desired_width(90.0).hint_text("YYYY-MM-DD"));
+        ui.add(crate::widgets::line_edit(&mut day).desired_width(90.0).hint_text("YYYY-MM-DD"));
         let (hint, width) = (crate::i18n::time_box(8, 0, clock.style), if clock.style.hours12 { 76.0 } else { 50.0 });
-        ui.add(egui::TextEdit::singleline(&mut time).desired_width(width).hint_text(hint));
+        ui.add(crate::widgets::line_edit(&mut time).desired_width(width).hint_text(hint));
         let parsed = parse_local(&day, &time).map(|(d, m)| at(d, m));
         if ui.add_enabled(parsed.is_some_and(|w| w > clock.now), egui::Button::new(tl!("Set"))).clicked() {
             chosen = parsed;

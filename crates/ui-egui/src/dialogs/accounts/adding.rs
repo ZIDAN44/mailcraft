@@ -101,7 +101,7 @@ fn basics(ui: &mut Ui, f: &mut AccountForm, s: &Session, acts: &mut Vec<Action>)
     let h = crate::sizes::CONTROL_H;
     {
         field_label(ui, "Email address");
-        let r = ui.add_sized([w, h], egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")));
+        let r = ui.add_sized([w, h], crate::widgets::line_edit(&mut f.email).hint_text(tl!("you@example.com")));
         if r.changed() && !f.servers_edited {
             f.guess();
             f.found_for = None;
@@ -143,7 +143,7 @@ fn basics(ui: &mut Ui, f: &mut AccountForm, s: &Session, acts: &mut Vec<Action>)
         }
         ui.add_space(6.0);
         field_label(ui, "Your name");
-        ui.add_sized([w, h], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
+        ui.add_sized([w, h], crate::widgets::line_edit(&mut f.name).hint_text(tl!("Shown on mail you send")));
         // Exchange signs in with Microsoft in the browser; so do Outlook.com, Hotmail and
         // Live, which take no passwords from mail apps (when this copy can sign in there).
         let browser_only = f.kind == AccountKind::Graph
@@ -180,30 +180,30 @@ fn server_settings(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tokens, ac
             field_label(ui, "Exchange server");
             ui.add_sized(
                 [w, crate::sizes::CONTROL_H],
-                egui::TextEdit::singleline(&mut f.ews_url).hint_text(tl!("Found automatically when left empty")),
+                crate::widgets::line_edit(&mut f.ews_url).hint_text(tl!("Found automatically when left empty")),
             );
             ui.add_space(6.0);
             field_label(ui, "User name");
             ui.add_sized(
                 [w, crate::sizes::CONTROL_H],
-                egui::TextEdit::singleline(&mut f.username).hint_text(tl!("DOMAIN\\user, or the email address")),
+                crate::widgets::line_edit(&mut f.username).hint_text(tl!("DOMAIN\\user, or the email address")),
             );
             user_agent_field(ui, t, w, &mut f.user_agent);
             return;
         }
         AccountKind::Jmap => {
             field_label(ui, "JMAP session address");
-            ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+            ui.add_sized([w, crate::sizes::CONTROL_H], crate::widgets::line_edit(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
             ui.add_space(6.0);
             field_label(ui, "User name");
-            ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+            ui.add_sized([w, crate::sizes::CONTROL_H], crate::widgets::line_edit(&mut f.username).hint_text(tl!("Usually the email address")));
             return;
         }
     };
     // Who signs in, for both servers.
     field_label(ui, "User name");
     let mut edited =
-        ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
+        ui.add_sized([w, crate::sizes::CONTROL_H], crate::widgets::line_edit(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
     ui.add_space(8.0);
     // Each server: where it is, then how it's signed in to.
     edited |= if pop {

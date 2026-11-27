@@ -163,7 +163,7 @@ impl MailApp {
         // An id of its own: one counted from its place on the bar changed as the Search tab came
         // before it, and the box lost the focus it had just been given, the tab going as the
         // pointer left (issue #158).
-        let te = egui::TextEdit::singleline(&mut self.ui.search_text)
+        let te = crate::widgets::line_edit(&mut self.ui.search_text)
             .id(egui::Id::unique("mailcraft-mail-search"))
             .hint_text(tl!("Search mail"))
             .frame(egui::Frame::NONE)
@@ -309,14 +309,14 @@ impl MailApp {
                         (tl!("Other terms"), &mut form.rest),
                     ] {
                         ui.label(RichText::new(label).color(t.dim));
-                        let r = ui.add(egui::TextEdit::singleline(value).desired_width(f32::INFINITY));
+                        let r = ui.add(crate::widgets::line_edit(value).desired_width(f32::INFINITY));
                         enter |= r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                         ui.end_row();
                     }
                     // Days as `2024-03-15`: written to the query as `after:` and `before:`.
                     for (label, value) in [(tl!("Received after"), &mut form.received_after), (tl!("Received before"), &mut form.received_before)] {
                         ui.label(RichText::new(label).color(t.dim));
-                        let r = ui.add(egui::TextEdit::singleline(value).hint_text(DAY_HINT).desired_width(120.0));
+                        let r = ui.add(crate::widgets::line_edit(value).hint_text(DAY_HINT).desired_width(120.0));
                         enter |= r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                         ui.end_row();
                     }

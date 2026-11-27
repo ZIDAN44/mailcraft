@@ -120,7 +120,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 .wrap(),
             );
             ui.add_space(8.0);
-            let r = ui.add(egui::TextEdit::singleline(address).hint_text("sales@example.com").desired_width(f32::INFINITY));
+            let r = ui.add(crate::widgets::line_edit(address).hint_text("sales@example.com").desired_width(f32::INFINITY));
             // Before the focus request below, which would hide the Enter that ended input.
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             if ui.memory(|m| m.focused().is_none()) {
@@ -224,9 +224,9 @@ fn server_row(ui: &mut Ui, w: f32, server: Server, id: &str, host: &mut String, 
     field_label(ui, name);
     let mut edited = false;
     ui.horizontal(|ui| {
-        edited |= ui.add_sized([host_w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(host).hint_text(host_hint)).changed();
+        edited |= ui.add_sized([host_w, crate::sizes::CONTROL_H], crate::widgets::line_edit(host).hint_text(host_hint)).changed();
         edited |= ui
-            .add_sized([PORT_W, crate::sizes::CONTROL_H], egui::TextEdit::singleline(port).hint_text(port_hint).align(egui::Align2::CENTER_TOP))
+            .add_sized([PORT_W, crate::sizes::CONTROL_H], crate::widgets::line_edit(port).hint_text(port_hint).align(egui::Align2::CENTER_CENTER))
             .changed();
         security_combo(ui, &format!("{id}{security_id}"), security, plain);
     });
@@ -249,7 +249,7 @@ fn clear_text_warning(ui: &mut Ui, t: &Tokens, incoming: Security, outgoing: Sec
 pub(super) fn user_agent_field(ui: &mut Ui, t: &Tokens, w: f32, agent: &mut String) {
     ui.add_space(4.0);
     field_label(ui, "User-Agent (optional)");
-    ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(agent).hint_text(tl!("Left empty: MailCraft's own")).char_limit(300));
+    ui.add_sized([w, crate::sizes::CONTROL_H], crate::widgets::line_edit(agent).hint_text(tl!("Left empty: MailCraft's own")).char_limit(300));
     let note = if !agent.trim().is_empty() && mailcraft_engine::model::user_agent(agent).is_none() {
         RichText::new(tl!("Only letters, digits, spaces and punctuation, up to 256 characters.")).color(t.danger)
     } else {

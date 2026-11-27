@@ -96,7 +96,7 @@ pub(super) fn draw(ui: &mut Ui, f: &mut PersonForm, s: &Session, t: &Tokens, act
     found(ui, f, s, t, acts);
     ui.add_space(8.0);
     let r = ui.add(
-        egui::TextEdit::singleline(&mut f.query).id(search_id()).hint_text(tl!("Search within everything with them")).desired_width(f32::INFINITY),
+        crate::widgets::line_edit(&mut f.query).id(search_id()).hint_text(tl!("Search within everything with them")).desired_width(f32::INFINITY),
     );
     if r.changed() {
         let q = f.query.clone();
@@ -156,9 +156,8 @@ fn label(tab: PersonTab, a: &PersonActivity) -> String {
 /// Someone else, by name or address: those mail was exchanged with and the contacts (the app
 /// asks, [`Action::PersonLookup`]); a click shows everything with them.
 fn lookup(ui: &mut Ui, f: &mut PersonForm, t: &Tokens, acts: &mut Vec<Action>) {
-    let r = ui.add(
-        egui::TextEdit::singleline(&mut f.lookup).id(lookup_id()).hint_text(tl!("Find someone by name or address")).desired_width(f32::INFINITY),
-    );
+    let r = ui
+        .add(crate::widgets::line_edit(&mut f.lookup).id(lookup_id()).hint_text(tl!("Find someone by name or address")).desired_width(f32::INFINITY));
     if std::mem::take(&mut f.find_focus) {
         r.request_focus();
     }

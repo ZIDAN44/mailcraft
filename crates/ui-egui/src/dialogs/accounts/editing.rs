@@ -11,22 +11,22 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Token
         // Outlook's Email Address: mistyped, every message was turned away by the server.
         ui.add_space(4.0);
         field_label(ui, "Email address");
-        ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.email).hint_text("you@example.com"));
+        ui.add_sized([w, crate::sizes::CONTROL_H], crate::widgets::line_edit(&mut f.email).hint_text("you@example.com"));
         ui.add_space(6.0);
     } else {
         ui.label(RichText::new(&f.email).color(t.dim));
         ui.add_space(8.0);
     }
     field_label(ui, "Your name");
-    ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
+    ui.add_sized([w, crate::sizes::CONTROL_H], crate::widgets::line_edit(&mut f.name).hint_text(tl!("Shown on mail you send")));
     ui.add_space(6.0);
     field_label(ui, "User name");
-    ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+    ui.add_sized([w, crate::sizes::CONTROL_H], crate::widgets::line_edit(&mut f.username).hint_text(tl!("Usually the email address")));
     ui.add_space(10.0);
     if let Some(url) = f.ews.as_mut() {
         // An Exchange server's address is all EWS needs.
         field_label(ui, "Exchange server");
-        ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(url).hint_text("mail.example.com"));
+        ui.add_sized([w, crate::sizes::CONTROL_H], crate::widgets::line_edit(url).hint_text("mail.example.com"));
         user_agent_field(ui, t, w, &mut f.user_agent);
     } else {
         if let Some((host, port, security)) = f.pop.as_mut() {
@@ -43,7 +43,7 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Token
                 field_label(ui, "JMAP session address");
                 ui.add_sized(
                     [w, crate::sizes::CONTROL_H],
-                    egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"),
+                    crate::widgets::line_edit(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"),
                 );
             } else {
                 server_row(ui, w, Server::Imap, "edit-", &mut f.imap_host, &mut f.imap_port, &mut f.imap_security, !s.org.require_encryption);

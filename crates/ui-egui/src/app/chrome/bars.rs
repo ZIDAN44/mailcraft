@@ -105,7 +105,7 @@ impl MailApp {
                         };
                         // An id of its own, as the mail's (issue #158): the bar's tabs before it change.
                         let resp = ui.add(
-                            egui::TextEdit::singleline(query)
+                            crate::widgets::line_edit(query)
                                 .id(egui::Id::unique(("mailcraft-module-search", module as u8)))
                                 .hint_text(hint)
                                 .frame(egui::Frame::NONE)

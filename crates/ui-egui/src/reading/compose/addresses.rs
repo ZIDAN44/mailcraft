@@ -240,7 +240,7 @@ fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, c
         ui.allocate_ui_with_layout(vec2(LABEL_W, ROW_H), crate::bidi::row_from_start(egui::Align::Center), |ui| {
             ui.label(RichText::new(tl!(label)).color(t.dim).size(crate::sizes::BODY));
         });
-        let r = underlined(ui, t, egui::TextEdit::singleline(value).hint_text(tl!(hint)));
+        let r = underlined(ui, t, crate::widgets::line_edit(value).hint_text(tl!(hint)));
         if focus {
             r.request_focus();
         }

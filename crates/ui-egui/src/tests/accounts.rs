@@ -4,6 +4,7 @@ use super::*;
 
 mod archiving;
 pub(super) mod compacting;
+mod fields_look;
 mod forms;
 mod held_keys;
 pub(super) mod importing;

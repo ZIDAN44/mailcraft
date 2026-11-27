@@ -93,7 +93,7 @@ fn details(t: &Tokens, a: &AccountState, ui: &mut Ui, acts: &mut Vec<Action>) {
     egui::Grid::new(("org-details-grid", a.config.id.as_str())).num_columns(2).spacing(vec2(12.0, 6.0)).show(ui, |ui| {
         for (label, value) in labels.iter().zip(values.iter_mut()) {
             ui.label(RichText::new(*label).color(t.dim));
-            ui.add(egui::TextEdit::singleline(value).desired_width(280.0).char_limit(200)).accessible_name(*label);
+            ui.add(crate::widgets::line_edit(value).desired_width(280.0).char_limit(200)).accessible_name(*label);
             ui.end_row();
         }
     });

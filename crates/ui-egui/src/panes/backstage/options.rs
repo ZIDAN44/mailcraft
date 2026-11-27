@@ -86,7 +86,7 @@ pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, section: Section, 
     heading(ui, &t, if find.trim().is_empty() { section.label() } else { "Options" });
     ui.set_max_width(ui.available_width().min(760.0));
     // A setting found by its name or what it does, in any section.
-    ui.add(egui::TextEdit::singleline(find).hint_text(tl!("Find a setting")).desired_width(320.0));
+    ui.add(crate::widgets::line_edit(find).hint_text(tl!("Find a setting")).desired_width(320.0));
     ui.add_space(12.0);
     let query = find.trim().to_lowercase();
     ui.data_mut(|d| d.insert_temp(find_id(), query.clone()));

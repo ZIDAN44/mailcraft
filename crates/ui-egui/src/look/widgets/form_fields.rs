@@ -13,7 +13,7 @@ pub(crate) fn password_field(ui: &mut Ui, text: &mut String, hint: &str) -> Resp
     let t = Tokens::of(ui);
     let inner = ui.horizontal(|ui| {
         let w = (ui.available_width() - h - gap).max(80.0);
-        let r = ui.add_sized([w, h], egui::TextEdit::singleline(text).password(!shown).hint_text(hint));
+        let r = ui.add_sized([w, h], line_edit(text).password(!shown).hint_text(hint));
         let (icon, tip) = if shown { (Icon::EyeOff, tl!("Hide the password")) } else { (Icon::Eye, tl!("Show the password")) };
         let (rect, b) = ui.allocate_exact_size(vec2(h, h), Sense::click());
         named(ui, &b, tip, true, Some(shown));
@@ -30,10 +30,20 @@ pub(crate) fn password_field(ui: &mut Ui, text: &mut String, hint: &str) -> Resp
     inner.inner
 }
 
+/// A one-line text box, its words in its middle top to bottom. egui's own put them at the top,
+/// so a box taller than its line (a dialog's 32 points) had its spare height all under them.
+/// Every one-line box is made here (`tests::one_line_boxes_are_made_here`).
+pub(crate) fn line_edit(text: &mut dyn egui::TextBuffer) -> egui::TextEdit<'_> {
+    egui::TextEdit::singleline(text).align(egui::Align2::LEFT_CENTER)
+}
+
 /// A checkbox whose words wrap: the box beside their first line (egui's centred it on all of
 /// them, two lines of German put it between them), a click on the words ticking it too.
 pub(crate) fn checkbox_wrapped(ui: &mut Ui, on: &mut bool, text: &str) -> Response {
     ui.horizontal_top(|ui| {
+        // The box as tall as the words' first line, so it's in that line's middle: a dialog's
+        // controls are 32 points, and in their middle it sat lower than the line.
+        ui.spacing_mut().interact_size.y = ui.text_style_height(&egui::TextStyle::Body);
         let mut r = ui.checkbox(on, "");
         let words = ui.add(egui::Label::new(text).wrap().sense(Sense::click()));
         if words.clicked() {
@@ -53,7 +63,7 @@ pub(crate) fn add_row(ui: &mut Ui, text: &mut String, hint: &str, ok: bool, why:
     ui.add_space(8.0);
     let mut add = false;
     ui.horizontal(|ui| {
-        let r = ui.add(egui::TextEdit::singleline(text).hint_text(hint).desired_width((ui.available_width() - 90.0).clamp(160.0, 360.0)));
+        let r = ui.add(line_edit(text).hint_text(hint).desired_width((ui.available_width() - 90.0).clamp(160.0, 360.0)));
         add |= ok && r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
         add |= ui.add_enabled(ok, egui::Button::new(tl!("Add"))).clicked();
     });
@@ -76,8 +86,41 @@ pub(crate) fn field_and_button(ui: &mut Ui, text: &mut String, hint: &str, butto
     let mut clicked = false;
     ui.horizontal(|ui| {
         let w = (ui.available_width() - button_w - gap).max(80.0);
-        ui.add_sized([w, h], egui::TextEdit::singleline(text).hint_text(hint));
+        ui.add_sized([w, h], line_edit(text).hint_text(hint));
         clicked = ui.add(egui::Button::new(button).min_size(vec2(button_w, h))).clicked();
     });
     clicked
+}
+
+#[cfg(test)]
+mod tests {
+    /// Every one-line text box is a [`super::line_edit`], so its words sit in its middle: egui's
+    /// own put them at its top.
+    #[test]
+    fn one_line_boxes_are_made_here() {
+        fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+                let p = e.path();
+                let name = p.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+                if p.is_dir() && name != "tests" {
+                    walk(&p, out);
+                } else if name.ends_with(".rs") && name != "tests.rs" && name != "form_fields.rs" {
+                    out.push(p);
+                }
+            }
+        }
+        let mut files = Vec::new();
+        walk(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
+        assert!(files.len() > 100, "the window's code found: {}", files.len());
+        let mut bare = Vec::new();
+        for f in files {
+            let text = std::fs::read_to_string(&f).unwrap_or_default();
+            for (i, line) in text.lines().enumerate() {
+                if line.contains("TextEdit::singleline(") || line.contains("text_edit_singleline(") {
+                    bare.push(format!("{}:{}: {}", f.display(), i + 1, line.trim()));
+                }
+            }
+        }
+        assert!(bare.is_empty(), "one-line boxes not made with widgets::line_edit:\n{}", bare.join("\n"));
+    }
 }

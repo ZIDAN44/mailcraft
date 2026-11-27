@@ -260,7 +260,7 @@ fn tasks(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let can_add = !s.accounts.is_empty();
     let typed = ui.add_enabled(
         can_add,
-        egui::TextEdit::singleline(&mut st.todo_new)
+        crate::widgets::line_edit(&mut st.todo_new)
             .hint_text(tl!("Type a new task"))
             .desired_width(f32::INFINITY)
             .font(theme::regular(crate::sizes::BODY)),

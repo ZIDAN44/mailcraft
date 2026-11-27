@@ -120,7 +120,7 @@ impl SmtpSignIn {
             super::indented(ui, |ui| {
                 let w = (w - 22.0).max(120.0);
                 super::field_label(ui, "Outgoing server's user name");
-                ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut self.username));
+                ui.add_sized([w, crate::sizes::CONTROL_H], crate::widgets::line_edit(&mut self.username));
                 ui.add_space(6.0);
                 super::field_label(ui, "Outgoing server's password");
                 let hint = if self.kept { tl!("Saved: type to replace it") } else { "" };
@@ -264,7 +264,7 @@ impl PopKeep {
             ui.horizontal(|ui| {
                 ui.add_space(22.0);
                 ui.checkbox(&mut self.for_days, tl!("Remove it from the server after"));
-                ui.add_enabled(self.for_days, egui::TextEdit::singleline(&mut self.days).desired_width(36.0).align(egui::Align2::CENTER_TOP));
+                ui.add_enabled(self.for_days, crate::widgets::line_edit(&mut self.days).desired_width(36.0).align(egui::Align2::CENTER_CENTER));
                 ui.label(tl!("days"));
             });
             ui.horizontal(|ui| {

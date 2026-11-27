@@ -18,7 +18,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             title(ui, t, if f.index.is_some() { "Edit rule" } else { "New rule" });
             egui::Grid::new("rule").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
                 ui.label(tl!("Name"));
-                ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(ui.available_width()));
+                ui.add(crate::widgets::line_edit(&mut f.name).desired_width(ui.available_width()));
                 ui.end_row();
                 // Mail arriving, or mail sent (issue #202): a rule on a server is for arriving mail.
                 if f.server.is_none() {
@@ -82,7 +82,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.end_row();
                 if f.test.needs_text() {
                     ui.label("");
-                    ui.add(egui::TextEdit::singleline(&mut f.text).hint_text(tl!("Text or address")).desired_width(ui.available_width()));
+                    ui.add(crate::widgets::line_edit(&mut f.text).hint_text(tl!("Text or address")).desired_width(ui.available_width()));
                     ui.end_row();
                 }
                 let l = ui.label(tl!("Then"));
@@ -237,16 +237,16 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             if f.preset == PresetKind::People {
                 ui.add_space(6.0);
                 ui.label(RichText::new(tl!("From these people (addresses or names, separated by commas)")).color(t.dim).small());
-                ui.add(egui::TextEdit::singleline(&mut f.people).hint_text("ana@example.com, Jun").desired_width(f32::INFINITY));
+                ui.add(crate::widgets::line_edit(&mut f.people).hint_text("ana@example.com, Jun").desired_width(f32::INFINITY));
             }
             if f.preset == PresetKind::Custom {
                 ui.add_space(6.0);
                 ui.label(RichText::new(tl!("Search for")).color(t.dim).small());
-                ui.add(egui::TextEdit::singleline(&mut f.query).hint_text("from:ana subject:invoice has:attachment").desired_width(f32::INFINITY));
+                ui.add(crate::widgets::line_edit(&mut f.query).hint_text("from:ana subject:invoice has:attachment").desired_width(f32::INFINITY));
             }
             ui.add_space(6.0);
             ui.label(RichText::new(tl!("Name")).color(t.dim).small());
-            let r = ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(f32::INFINITY));
+            let r = ui.add(crate::widgets::line_edit(&mut f.name).desired_width(f32::INFINITY));
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             if let Some(e) = &f.error {
                 ui.add_space(4.0);
@@ -275,7 +275,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             );
             ui.add_space(8.0);
             ui.label(RichText::new(tl!("Name")).color(t.dim).small());
-            let r = ui.add(egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Done")).desired_width(f32::INFINITY));
+            let r = ui.add(crate::widgets::line_edit(&mut f.name).hint_text(tl!("Done")).desired_width(f32::INFINITY));
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             ui.add_space(6.0);
             ui.checkbox(&mut f.read, tl!("Mark as read"));

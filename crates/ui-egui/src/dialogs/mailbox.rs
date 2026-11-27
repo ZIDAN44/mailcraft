@@ -163,10 +163,7 @@ fn form(ui: &mut Ui, f: &mut VacationForm, order: mailcraft_engine::model::dates
         }
         ui.add_space(4.0);
         label_over(ui, &Tokens::of(ui), "Subject");
-        ui.add_sized(
-            [ui.available_width(), crate::sizes::CONTROL_H],
-            egui::TextEdit::singleline(&mut f.subject).hint_text(tl!("Subject (optional)")),
-        );
+        ui.add_sized([ui.available_width(), crate::sizes::CONTROL_H], crate::widgets::line_edit(&mut f.subject).hint_text(tl!("Subject (optional)")));
         ui.add_space(4.0);
         let rows = if f.exchange { 4 } else { 6 };
         if f.exchange {

@@ -343,7 +343,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             if f.adding {
                 ui.label(RichText::new(&f.group).color(t.text));
             } else {
-                ui.add(egui::TextEdit::singleline(&mut f.group).desired_width(240.0).hint_text(tl!("Design team")));
+                ui.add(crate::widgets::line_edit(&mut f.group).desired_width(240.0).hint_text(tl!("Design team")));
             }
         });
         ui.add_space(4.0);
@@ -351,7 +351,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
     ui.horizontal(|ui| {
         ui.label(RichText::new(tl!("Search")).strong());
         let w = if f.directory { 186.0 } else { 240.0 };
-        let r = ui.add(egui::TextEdit::singleline(&mut f.query).desired_width(w).hint_text(tl!("Name or address")));
+        let r = ui.add(crate::widgets::line_edit(&mut f.query).desired_width(w).hint_text(tl!("Name or address")));
         if ui.memory(|m| m.focused().is_none()) {
             r.request_focus();
         }
@@ -549,7 +549,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
                 add = Some(*field);
             }
             if f.purpose == NamesFor::Message {
-                ui.add(egui::TextEdit::singleline(field.of(&mut f.to, &mut f.cc, &mut f.bcc)).desired_width(f32::INFINITY));
+                ui.add(crate::widgets::line_edit(field.of(&mut f.to, &mut f.cc, &mut f.bcc)).desired_width(f32::INFINITY));
             } else {
                 crate::bidi::vertical(ui, |ui| people_field(ui, t, &mut f.to));
             }
@@ -635,7 +635,7 @@ fn people_field(ui: &mut Ui, t: &Tokens, to: &mut String) {
             remove = Some(i);
         }
     });
-    ui.add(egui::TextEdit::singleline(&mut typing).desired_width(f32::INFINITY));
+    ui.add(crate::widgets::line_edit(&mut typing).desired_width(f32::INFINITY));
     if let Some(i) = remove.filter(|i| *i < people.len()) {
         people.remove(i);
     }

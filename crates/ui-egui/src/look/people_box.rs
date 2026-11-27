@@ -115,7 +115,7 @@ pub(crate) fn edit(
         *dismissed = Some(value.clone());
     }
     let check = ui.memory(|m| m.has_focus(edit_id)) && ui.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::K));
-    let r = draw(ui, egui::TextEdit::singleline(value).id(edit_id));
+    let r = draw(ui, crate::widgets::line_edit(value).id(edit_id));
     // Picked from the suggestions: the box stays the one being typed in, cursor at the end,
     // until the click that picked is over.
     if refocus {

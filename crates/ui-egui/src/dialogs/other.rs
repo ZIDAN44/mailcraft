@@ -176,7 +176,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
                 .wrap(),
             );
             ui.add_space(8.0);
-            let r = ui.add(egui::TextEdit::singleline(email).hint_text("name@example.com").desired_width(f32::INFINITY));
+            let r = ui.add(crate::widgets::line_edit(email).hint_text("name@example.com").desired_width(f32::INFINITY));
             // Before the focus request below, which would hide the Enter that ended input.
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             if ui.memory(|m| m.focused().is_none()) {
@@ -211,7 +211,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
                 .wrap(),
             );
             ui.add_space(8.0);
-            let r = ui.add(egui::TextEdit::singleline(url).hint_text("webcal://example.com/calendar.ics").desired_width(f32::INFINITY));
+            let r = ui.add(crate::widgets::line_edit(url).hint_text("webcal://example.com/calendar.ics").desired_width(f32::INFINITY));
             // Before the focus request below, which would hide the Enter that ended input.
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             if ui.memory(|m| m.focused().is_none()) {
@@ -219,7 +219,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             }
             ui.add_space(6.0);
             ui.label(RichText::new(tl!("Name (optional)")).color(t.dim).small());
-            ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
+            ui.add(crate::widgets::line_edit(name).desired_width(f32::INFINITY));
             if let Some(e) = error {
                 ui.add_space(4.0);
                 field_error(ui, t, e);
@@ -235,16 +235,16 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Add a meeting room");
             label_over(ui, t, "Link");
-            let r = ui.add(egui::TextEdit::singleline(url).hint_text("https://meet.example.org/rooms/abc-def-ghi").desired_width(f32::INFINITY));
+            let r = ui.add(crate::widgets::line_edit(url).hint_text("https://meet.example.org/rooms/abc-def-ghi").desired_width(f32::INFINITY));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
             }
             ui.add_space(6.0);
             label_over(ui, t, "Name");
-            ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
+            ui.add(crate::widgets::line_edit(name).desired_width(f32::INFINITY));
             ui.add_space(6.0);
             label_over(ui, t, "Access code (optional)");
-            ui.add(egui::TextEdit::singleline(code).desired_width(200.0));
+            ui.add(crate::widgets::line_edit(code).desired_width(200.0));
             ui.add_space(6.0);
             label_over(ui, t, "Dial-in numbers and other lines for the invitation (optional)");
             ui.add(egui::TextEdit::multiline(details).desired_rows(3).desired_width(f32::INFINITY));
@@ -271,7 +271,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, "New task list");
             label_over(ui, t, "Task list name");
-            let r = ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
+            let r = ui.add(crate::widgets::line_edit(name).desired_width(f32::INFINITY));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
             }
@@ -363,7 +363,7 @@ fn smart_card(
     // help under them; Find certificates the dialog's main button (it had none).
     title(ui, t, "Use a smart card");
     label_over(ui, t, "Card module");
-    ui.add(egui::TextEdit::singleline(module).hint_text("opensc-pkcs11").desired_width(f32::INFINITY));
+    ui.add(crate::widgets::line_edit(module).hint_text("opensc-pkcs11").desired_width(f32::INFINITY));
     ui.add(egui::Label::new(RichText::new(tl!("The one your card came with. OpenSC's works with most cards.")).color(t.faint).small()).wrap());
     ui.add_space(8.0);
     label_over(ui, t, "Card PIN");

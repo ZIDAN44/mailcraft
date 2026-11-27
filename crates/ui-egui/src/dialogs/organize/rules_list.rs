@@ -48,7 +48,7 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
     let find_id = egui::Id::unique("rules-find");
     let mut find: String = ui.ctx().data(|d| d.get_temp(find_id)).unwrap_or_default();
     if s.rules.len() > 6 {
-        ui.add(egui::TextEdit::singleline(&mut find).hint_text(tl!("Find a rule")).desired_width(f32::INFINITY));
+        ui.add(crate::widgets::line_edit(&mut find).hint_text(tl!("Find a rule")).desired_width(f32::INFINITY));
         ui.ctx().data_mut(|d| d.insert_temp(find_id, find.clone()));
         ui.add_space(4.0);
     }

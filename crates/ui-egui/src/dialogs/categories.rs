@@ -116,7 +116,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, if editing.is_some() { "Edit category" } else { "New category" });
             label_over(ui, t, "Name");
-            let r = ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
+            let r = ui.add(crate::widgets::line_edit(name).desired_width(f32::INFINITY));
             // As it opens: editing, the name it has selected, so what's typed replaces it.
             let mut opening = ui.memory(|m| m.focused().is_none());
             crate::look::fields::focus_selecting_all(ui, &r, name, &mut opening);
@@ -136,7 +136,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 Some(c) => c.keyword.clone(),
                 None => keywords::new_keyword(name, &s.prefs.categories),
             };
-            ui.add(egui::TextEdit::singleline(keyword).hint_text(made).font(egui::FontId::monospace(13.0)).desired_width(f32::INFINITY));
+            ui.add(crate::widgets::line_edit(keyword).hint_text(made).font(egui::FontId::monospace(13.0)).desired_width(f32::INFINITY));
             let wanted = keyword.trim();
             let bad = !wanted.is_empty() && check_keyword(wanted).is_err();
             let taken = s.category_with_keyword(wanted).filter(|c| editing.as_ref().is_none_or(|e| !c.name.eq_ignore_ascii_case(e)));

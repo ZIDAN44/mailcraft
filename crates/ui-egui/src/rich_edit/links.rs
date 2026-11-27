@@ -86,20 +86,20 @@ pub(crate) fn link_dialog(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Comp
             if f.multi {
                 ui.label(RichText::new(tl!("The selected text")).color(t.faint).italics());
             } else {
-                ui.add(egui::TextEdit::singleline(&mut f.text).hint_text(tl!("The address itself")).desired_width(w));
+                ui.add(crate::widgets::line_edit(&mut f.text).hint_text(tl!("The address itself")).desired_width(w));
             }
             ui.end_row();
             if f.email {
                 ui.label(RichText::new(tl!("Email address")).color(t.dim));
-                let r = ui.add(egui::TextEdit::singleline(&mut f.to).hint_text("name@example.com").desired_width(w));
+                let r = ui.add(crate::widgets::line_edit(&mut f.to).hint_text("name@example.com").desired_width(w));
                 ui.end_row();
                 ui.label(RichText::new(tl!("Subject")).color(t.dim));
-                ui.add(egui::TextEdit::singleline(&mut f.subject).desired_width(w));
+                ui.add(crate::widgets::line_edit(&mut f.subject).desired_width(w));
                 ui.end_row();
                 r
             } else {
                 ui.label(RichText::new(tl!("Address")).color(t.dim));
-                let r = ui.add(egui::TextEdit::singleline(&mut f.address).hint_text("https://").desired_width(w));
+                let r = ui.add(crate::widgets::line_edit(&mut f.address).hint_text("https://").desired_width(w));
                 ui.end_row();
                 r
             }
