@@ -74,6 +74,29 @@ fn dialogs_fit_what_they_show() {
     assert!(small > 0.0 && small < 220.0, "Remove account: {small}");
 }
 
+/// A dialog taller than the window keeps its buttons in sight, under the part that scrolls, and
+/// stays clear of the window's edges: the whole of it scrolled, Add account's Connect and Cancel
+/// out of sight below, the dialog touching the window's top and bottom.
+#[test]
+fn a_tall_dialogs_buttons_stay_in_sight() {
+    let (mut a, _) = app("dialog-tall");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = egui::vec2(1280.0, 560.0);
+    a.ui.dialog = Some(Dialog::add_account_with("zoe@hotmail.com", true));
+    for _ in 0..4 {
+        let _ = sized_frame(&ctx, &mut a, size, vec![]);
+    }
+    let nodes = named(&ctx, &mut a, size);
+    for label in ["Connect", "Cancel"] {
+        let r = nodes.iter().filter(|n| n.name() == Some(label)).find_map(|n| n.rect).unwrap_or_else(|| panic!("no {label}"));
+        assert!(r.top() >= 0.0 && r.bottom() <= size.y - 24.0, "{label} at {r:?}, in a window {} tall", size.y);
+    }
+    let id = egui::Id::unique(("dialog", std::mem::discriminant(a.ui.dialog.as_ref().unwrap())));
+    let whole = ctx.memory(|m| m.area_rect(id)).expect("the dialog");
+    assert!(whole.top() >= 24.0 && whole.bottom() <= size.y - 24.0, "clear of the window's edges: {whole:?}");
+}
+
 #[test]
 fn keyboard_shortcuts_run_commands() {
     let (mut a, _) = app("keys");

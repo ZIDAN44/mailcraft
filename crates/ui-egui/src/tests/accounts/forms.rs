@@ -464,8 +464,10 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
         let (id, v) = p.split_once(' ').unwrap();
         (id.to_string(), serde_json::from_str::<serde_json::Value>(v).unwrap())
     };
-    // The settings are looked up as the server settings are open (once a frame, until found).
-    assert_eq!(acts("imap in the clear"), vec![r#"run account.discover {"email":"zoe@example.org"}"#; 3]);
+    // The settings are looked up as the server settings are open (once a pass, until found: a
+    // frame laid out again, as the dialog's buttons find their place, is a pass more).
+    let looked = acts("imap in the clear");
+    assert!(looked.len() >= 3 && looked.iter().all(|a| a == r#"run account.discover {"email":"zoe@example.org"}"#), "{looked:?}");
     assert_eq!(
         submitted("imap"),
         (
