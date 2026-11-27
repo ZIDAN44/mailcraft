@@ -1,10 +1,19 @@
-//! Small shared widgets: toolbar buttons, avatars, the welcome screen.
+//! Small shared widgets: toolbar buttons, avatars; dialogs' buttons, form fields and the welcome
+//! screen in parts of their own.
 
 use egui::{Color32, CornerRadius, Response, RichText, Sense, Stroke, Ui, vec2};
 
 use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens};
 use crate::{Action, Dialog};
+
+mod dialog_buttons;
+mod form_fields;
+mod welcome;
+
+pub use dialog_buttons::*;
+pub(crate) use form_fields::{field_and_button, password_field};
+pub use welcome::welcome;
 
 /// The ribbon's buttons as it's drawn: those from `icons_from` on are icons alone, their labels
 /// tooltips (it didn't fit the window); how wide each label is, and how far right (and left, for
@@ -462,128 +471,6 @@ fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled
     resp
 }
 
-/// A password's box, the row's width, with a button at its end that shows what's typed and hides
-/// it again (they were dots alone, a mistyped one found only when the server refused it).
-pub(crate) fn password_field(ui: &mut Ui, text: &mut String, hint: &str) -> Response {
-    let h = ui.spacing().interact_size.y;
-    let gap = ui.spacing().item_spacing.x;
-    let id = ui.next_auto_id().with("password-shown");
-    let mut shown = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
-    let t = Tokens::of(ui);
-    let inner = ui.horizontal(|ui| {
-        let w = (ui.available_width() - h - gap).max(80.0);
-        let r = ui.add_sized([w, h], egui::TextEdit::singleline(text).password(!shown).hint_text(hint));
-        let (icon, tip) = if shown { (Icon::EyeOff, tl!("Hide the password")) } else { (Icon::Eye, tl!("Show the password")) };
-        let (rect, b) = ui.allocate_exact_size(vec2(h, h), Sense::click());
-        named(ui, &b, tip, true, Some(shown));
-        if b.hovered() {
-            ui.painter().rect_filled(rect, crate::sizes::CONTROL_RADIUS, t.hover);
-        }
-        icons::paint(ui.painter(), egui::Rect::from_center_size(rect.center(), vec2(16.0, 16.0)), icon, t.dim);
-        if b.on_hover_text(tip).clicked() {
-            shown = !shown;
-        }
-        r
-    });
-    ui.data_mut(|d| d.insert_temp(id, shown));
-    inner.inner
-}
-
-/// A text box filling its row but for a button after it (Browse…), the row ending where the
-/// fields above it do (the box was the room less 100 or 112 points, the row ragged): true when
-/// the button is clicked.
-pub(crate) fn field_and_button(ui: &mut Ui, text: &mut String, hint: &str, button: &str) -> bool {
-    let gap = ui.spacing().item_spacing.x;
-    let font = egui::TextStyle::Button.resolve(ui.style());
-    let label_w = ui.painter().layout_no_wrap(button.to_string(), font, Color32::PLACEHOLDER).size().x;
-    let button_w = (label_w + 2.0 * ui.spacing().button_padding.x).max(ui.spacing().interact_size.x);
-    let h = ui.spacing().interact_size.y;
-    let mut clicked = false;
-    ui.horizontal(|ui| {
-        let w = (ui.available_width() - button_w - gap).max(80.0);
-        ui.add_sized([w, h], egui::TextEdit::singleline(text).hint_text(hint));
-        clicked = ui.add(egui::Button::new(button).min_size(vec2(button_w, h))).clicked();
-    });
-    clicked
-}
-
-/// An outlined button with an icon before its label: another way to do what a dialog's main
-/// button does (Sign in with Google beside Connect), not filled in the app colour as that one is.
-pub(crate) fn outline_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
-    let font = theme::regular(crate::sizes::BODY);
-    let ink = if enabled { t.text } else { t.faint };
-    let galley = ui.painter().layout_no_wrap(label.to_string(), font, ink);
-    let h = ui.spacing().interact_size.y;
-    let size = vec2(galley.size().x + 44.0, h);
-    let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
-    named(ui, &resp, label, enabled, None);
-    let fill = if enabled && resp.hovered() { t.hover } else { t.surface };
-    ui.painter().rect(rect, crate::sizes::CONTROL_RADIUS, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-    let m = crate::bidi::Mirror::new(rect);
-    let ir = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 12.0, rect.center().y - 8.0), vec2(16.0, 16.0)));
-    icons::paint(ui.painter(), ir, icon, ink);
-    let at = egui::pos2(m.start(rect.min.x + 34.0, galley.size().x), rect.center().y - galley.size().y / 2.0);
-    ui.painter().galley(at, galley, ink);
-    resp
-}
-
-/// What a dialog's button is: its main one, filled in the app colour; one that deletes or
-/// removes for good, filled red; or another (Cancel, Close), outlined.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ButtonKind {
-    Primary,
-    Danger,
-    Secondary,
-}
-
-/// A dialog's button, words only, of `kind`: every kind one height and at least
-/// [`crate::sizes::BUTTON_MIN_W`] wide (Cancel was shorter and narrower than the button beside
-/// it). One that can't be used now is drawn quiet, not as a darker button.
-pub fn dialog_button(ui: &mut Ui, kind: ButtonKind, label: &str, t: &Tokens, enabled: bool) -> Response {
-    use crate::sizes::{BUTTON_MIN_W, CONTROL_H, CONTROL_RADIUS};
-    let label = tl!(label);
-    let font = if kind == ButtonKind::Secondary { theme::regular(13.5) } else { theme::semibold(13.5) };
-    let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
-    let size = vec2((galley.size().x + 32.0).max(BUTTON_MIN_W), CONTROL_H);
-    let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
-    named(ui, &resp, label, enabled, None);
-    let hovered = enabled && resp.hovered();
-    let r = f32::from(CONTROL_RADIUS);
-    let (fill, stroke, ink) = match (kind, enabled) {
-        (_, false) => (ui.visuals().widgets.inactive.bg_fill, Stroke::NONE, t.faint),
-        (ButtonKind::Primary, true) => (accent_fill(t, true, hovered), Stroke::NONE, t.on_accent),
-        // The light theme's red in both (the dark theme's lighter red is for text, and white on
-        // it was hard to read).
-        (ButtonKind::Danger, true) => {
-            let red = Color32::from_rgb(0xC4, 0x2B, 0x1C);
-            (if hovered { red.gamma_multiply(0.88) } else { red }, Stroke::NONE, Color32::WHITE)
-        }
-        (ButtonKind::Secondary, true) => (if hovered { t.hover } else { t.surface }, ui.visuals().widgets.inactive.bg_stroke, t.text),
-    };
-    ui.painter().rect(rect, r, fill, stroke, egui::StrokeKind::Inside);
-    if resp.has_focus() {
-        ui.painter().rect_stroke(rect.expand(2.0), r + 2.0, Stroke::new(2.0, t.accent), egui::StrokeKind::Outside);
-    }
-    ui.painter().galley_with_override_text_color(rect.center() - galley.size() / 2.0, galley, ink);
-    resp
-}
-
-/// A dialog's main button (OK, Connect, Save…): filled in the app colour, words only.
-pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Response {
-    dialog_button(ui, ButtonKind::Primary, label, t, enabled)
-}
-
-/// A dialog's other button (Cancel, Close…): outlined, as tall and wide as its main one.
-pub fn secondary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Response {
-    dialog_button(ui, ButtonKind::Secondary, label, t, enabled)
-}
-
-/// [`secondary_button`] in the theme the window is drawn in.
-pub fn secondary(ui: &mut Ui, label: &str) -> Response {
-    let t = Tokens::of(ui);
-    secondary_button(ui, label, &t, true)
-}
-
 /// The top bar's hover: a lighter wash on the coloured bar, the pane's hover on a plain one.
 pub fn bar_wash(t: &Tokens) -> Color32 {
     if t.on_bar == Color32::WHITE { Color32::from_white_alpha(40) } else { t.hover }
@@ -862,45 +749,6 @@ pub fn human_bytes(bytes: u64) -> String {
 
 pub fn shorten(s: &str, max: usize) -> String {
     if s.chars().count() <= max { s.to_string() } else { format!("{}…", s.chars().take(max.saturating_sub(1)).collect::<String>()) }
-}
-
-/// First run: no accounts yet.
-pub fn welcome(ui: &mut Ui, t: &Tokens, jmap_only: bool, acts: &mut Vec<Action>) {
-    ui.vertical_centered(|ui| {
-        ui.add_space((ui.available_height() * 0.18).max(20.0));
-        egui::Frame::new().fill(t.surface).stroke(Stroke::new(1.0, t.border)).corner_radius(CornerRadius::same(12)).inner_margin(egui::Margin::same(32)).show(ui, |ui| {
-            ui.set_max_width(460.0);
-            ui.vertical_centered(|ui| {
-                let (r, _) = ui.allocate_exact_size(vec2(64.0, 64.0), Sense::hover());
-                ui.painter().rect_filled(r, 14.0, t.accent);
-                icons::paint(ui.painter(), icons::centered(r, 38.0), Icon::Unread, t.on_accent);
-                ui.add_space(12.0);
-                ui.label(RichText::new(tl!("Welcome to MailCraft")).font(theme::semibold(22.0)).color(t.text));
-                ui.add_space(4.0);
-                let about = if jmap_only {
-                    "Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only."
-                } else {
-                    "Your mail, on your computer. Add any IMAP account: messages are kept on this device so they're fast to search and readable offline. Your password stays in the system keychain."
-                };
-                ui.label(RichText::new(tl!(about)).color(t.dim));
-                ui.add_space(18.0);
-                if accent_button(ui, Icon::Plus, "Add an account", t, true).clicked() {
-                    acts.push(Action::Dialog(Dialog::add_account()));
-                }
-                // Or begin from what Outlook kept: there are no data files in the browser. There,
-                // from a backup of what another browser kept, or this one before its data for
-                // the site was cleared (issue #83).
-                ui.add_space(6.0);
-                if jmap_only {
-                    if ui.button(tl!("Restore from a backup…")).clicked() {
-                        acts.push(Action::PickBackup);
-                    }
-                } else if ui.button(tl!("Open an Outlook data file…")).clicked() {
-                    acts.push(Action::OpenDataFile);
-                }
-            });
-        });
-    });
 }
 
 /// The colour of a ribbon command's label: the text's, or, when it can't be used now, a quiet
