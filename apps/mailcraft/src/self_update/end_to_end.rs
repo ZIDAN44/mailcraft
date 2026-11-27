@@ -217,21 +217,20 @@ fn an_update_is_taken_only_with_its_checksums_signed() {
         let mut u = Updater::new(kind, data.clone(), mailcraft_net::updates::Feed::local(&base).unwrap(), "0.32.0".into(), true);
         u.keys = Box::leak(Box::new([&*Box::leak(key.into_boxed_str())]));
         u.follow_choice(mailcraft_engine::policy::Updates::On);
-        let u = u.launch(None, Some(Duration::ZERO)).unwrap();
         if case == "signed" {
+            let u = u.launch(None, Some(Duration::ZERO)).unwrap();
             wait_for("the download", 60, || matches!(u.status(), Status::Ready { .. }));
             assert_eq!(std::fs::read(data.join(DOWNLOADS).join(&name)).unwrap(), file);
+            u.closing();
         } else {
-            // Its first check has come and gone (the list asked for, then the checksums and their
-            // signature when there is one): nothing downloaded, nothing offered.
-            let wanted = if signature { "/download/v0.33.0/SHA256SUMS.txt.minisig" } else { "/releases" };
-            wait_for("the check", 60, || asked.lock().unwrap().iter().any(|p| p == wanted));
-            std::thread::sleep(Duration::from_secs(2));
+            // One check, run here to its end (not launched: its thread would check beside it):
+            // refused, nothing downloaded, nothing offered.
+            let refused = u.check(None, &mut None).expect_err(case);
+            assert!(refused.contains("isn't installed"), "{case}: {refused}");
             assert!(!asked.lock().unwrap().iter().any(|p| p.ends_with(&name)), "{case}: downloaded: {:?}", asked.lock().unwrap());
             assert!(!matches!(u.status(), Status::Ready { .. }), "{case}: offered");
             assert!(!data.join(DOWNLOADS).join(&name).exists(), "{case}: downloaded");
         }
-        u.closing();
         let _ = std::fs::remove_dir_all(&dir);
     }
 }
