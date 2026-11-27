@@ -103,8 +103,8 @@ Copy-Item (Join-Path $Bin 'mailcraft.exe'), (Join-Path $Bin 'mailcraft-cli.exe')
 # ---- MSI ---------------------------------------------------------------------------------------
 $Msi = Join-Path $Dist "mailcraft-$Version-windows-$Arch.msi"
 Invoke-Native 'wix build' {
-  wix build (Join-Path $PSScriptRoot 'mailcraft.wxs') -arch $Arch `
-    -d "Version=$MsiVersion" -d "BinDir=$Stage" -d "IconPath=$(Join-Path $Root 'assets\app-icon\mailcraft.ico')" `
+  wix build (Join-Path $PSScriptRoot 'mailcraft.wxs') (Join-Path $PSScriptRoot 'setup-ui.wxs') -arch $Arch `
+    -d "Version=$MsiVersion" -d "DisplayVersion=$Version" -d "BinDir=$Stage" -d "IconPath=$(Join-Path $Root 'assets\app-icon\mailcraft.ico')" `
     -o $Msi
 }
 # wix writes its debug symbols (.wixpdb) next to the MSI; keep them out of the release assets.

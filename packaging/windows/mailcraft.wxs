@@ -2,7 +2,7 @@
 <!--
   MailCraft MSI (WiX Toolset v5: `dotnet tool install -g wix`). Built by package.ps1:
 
-    wix build mailcraft.wxs -arch x64 -d Version=1.2.3 -d BinDir=... -d IconPath=... -o out.msi
+    wix build mailcraft.wxs setup-ui.wxs -arch x64 -d Version=1.2.3 -d DisplayVersion=1.2.3-rc.1 -d BinDir=... -d IconPath=... -o out.msi
 
   Per-machine install into Program Files, a Start Menu shortcut, and mailcraft.exe on the App
   Paths list (so Win+R `mailcraft` starts it), MailCraft offered as the mail app and for .eml,
@@ -55,6 +55,11 @@
     <Feature Id="Main" Title="MailCraft" Level="1">
       <ComponentGroupRef Id="MailcraftFiles" />
     </Feature>
+
+    <!-- The setup window (setup-ui.wxs), naming the version in full: Version above is numeric,
+         so it drops a pre-release's tag. -->
+    <UIRef Id="MailcraftSetup" />
+    <Property Id="MailcraftVersion" Value="$(var.DisplayVersion)" />
   </Package>
 
   <Fragment>

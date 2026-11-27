@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MailCraft's setup window (issue #301): with none, a double-clicked MSI showed a progress bar
+  for a moment and closed, and nothing said MailCraft was installed or where to find it.
+
+  MailCraft's own dialogs, written here, not WiX's UI extension (whose dialogs, words and pictures
+  are WiX's, under its own licence): a first page saying what happens (installs, replaces an older
+  version, or repairs or removes this one), the progress, and a last page saying how it ended,
+  with "Start MailCraft" ticked after an install. Windows Installer shows these only when the MSI
+  is opened with its full window (a double-click, `msiexec /i`): the updater's `/passive` and a
+  silent `/qn` install show no dialogs and start nothing, as before, and nor does uninstalling
+  from Settings (`msiexec /x`: Windows' own question and progress bar).
+
+  The dialogs Windows Installer itself asks for once a package has any (its errors, files in use)
+  are here too, or it would have none to ask with.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <!-- Starts the MailCraft just installed, from the last page's Finish: through Explorer, which
+         hands it to the desktop and returns, so MailCraft runs as the signed-in user and never as
+         the administrator that installed it. Setup waits for Explorer alone: on Windows Server
+         2022 a program setup doesn't wait for (asyncNoWait) isn't started at all from this page,
+         as GitHub's runners showed (Server 2025 starts it), and one it waits for would keep
+         setup's window up until MailCraft closed. -->
+    <CustomAction Id="LaunchMailcraft" Directory="INSTALLFOLDER" ExeCommand="&quot;[WindowsFolder]explorer.exe&quot; &quot;[INSTALLFOLDER]mailcraft.exe&quot;" Return="ignore" />
+    <!-- Ticked: an install ends with MailCraft started, unless the box is cleared. -->
+    <Property Id="LAUNCHMAILCRAFT" Value="1" />
+    <!-- The error dialog's icon until Windows puts its own in. -->
+    <Binary Id="MailcraftErrorIcon" SourceFile="$(var.IconPath)" />
+
+    <UI Id="MailcraftSetup">
+      <TextStyle Id="MailcraftText" FaceName="Segoe UI" Size="9" />
+      <TextStyle Id="MailcraftTitle" FaceName="Segoe UI" Size="14" />
+      <Property Id="DefaultUIFont" Value="MailcraftText" />
+      <Property Id="ErrorDialog" Value="MailcraftError" />
+      <Property Id="MailcraftRMOption" Value="UseRM" />
+
+      <!-- The first page. -->
+      <Dialog Id="MailcraftWelcome" Width="370" Height="200" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="20" Y="18" Width="330" Height="26" NoPrefix="yes" Text="{\MailcraftTitle}MailCraft [MailcraftVersion]" />
+        <Control Id="New" Type="Text" X="20" Y="54" Width="330" Height="80" NoPrefix="yes" Hidden="yes"
+            ShowCondition="NOT Installed AND NOT WIX_UPGRADE_DETECTED"
+            Text="Setup installs MailCraft for everyone on this computer, in [INSTALLFOLDER], and adds it to the Start menu.&#xD;&#xA;&#xD;&#xA;Windows asks for an administrator's permission when you choose Install." />
+        <Control Id="Upgrade" Type="Text" X="20" Y="54" Width="330" Height="80" NoPrefix="yes" Hidden="yes"
+            ShowCondition="NOT Installed AND WIX_UPGRADE_DETECTED"
+            Text="Setup replaces the MailCraft on this computer with this version. Your mail, accounts and settings stay as they are.&#xD;&#xA;&#xD;&#xA;Windows asks for an administrator's permission when you choose Install." />
+        <Control Id="Maintenance" Type="Text" X="20" Y="54" Width="330" Height="80" NoPrefix="yes" Hidden="yes"
+            ShowCondition="Installed"
+            Text="This version of MailCraft is installed already.&#xD;&#xA;&#xD;&#xA;Repair puts its files back as they were installed. Remove uninstalls it; your mail, accounts and settings stay in your user folder, should you install it again." />
+        <Control Id="Line" Type="Line" X="0" Y="162" Width="370" Height="0" />
+        <Control Id="Install" Type="PushButton" X="230" Y="172" Width="64" Height="17" Default="yes" ElevationShield="yes" Hidden="yes"
+            ShowCondition="NOT Installed" Text="&amp;Install">
+          <Publish Event="EndDialog" Value="Return" />
+        </Control>
+        <Control Id="Repair" Type="PushButton" X="160" Y="172" Width="64" Height="17" ElevationShield="yes" Hidden="yes"
+            ShowCondition="Installed" Text="&amp;Repair">
+          <Publish Event="ReinstallMode" Value="ecmus" Order="1" />
+          <Publish Event="Reinstall" Value="All" Order="2" />
+          <Publish Event="EndDialog" Value="Return" Order="3" />
+        </Control>
+        <Control Id="Remove" Type="PushButton" X="230" Y="172" Width="64" Height="17" ElevationShield="yes" Hidden="yes"
+            ShowCondition="Installed" Text="Re&amp;move">
+          <Publish Event="Remove" Value="All" Order="1" />
+          <Publish Event="EndDialog" Value="Return" Order="2" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="300" Y="172" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="EndDialog" Value="Exit" />
+        </Control>
+      </Dialog>
+
+      <!-- While it works. Modeless: Windows Installer keeps it up and sends it the progress. -->
+      <Dialog Id="MailcraftProgress" Width="370" Height="200" Title="[ProductName] Setup" Modeless="yes">
+        <Control Id="Title" Type="Text" X="20" Y="18" Width="330" Height="26" NoPrefix="yes" Text="{\MailcraftTitle}MailCraft [MailcraftVersion]" />
+        <Control Id="Installing" Type="Text" X="20" Y="54" Width="330" Height="16" NoPrefix="yes" Hidden="yes"
+            ShowCondition="NOT Installed" Text="Installing MailCraft…" />
+        <Control Id="Repairing" Type="Text" X="20" Y="54" Width="330" Height="16" NoPrefix="yes" Hidden="yes"
+            ShowCondition="Installed AND NOT REMOVE~=&quot;ALL&quot;" Text="Repairing MailCraft…" />
+        <Control Id="Removing" Type="Text" X="20" Y="54" Width="330" Height="16" NoPrefix="yes" Hidden="yes"
+            ShowCondition="REMOVE~=&quot;ALL&quot;" Text="Removing MailCraft…" />
+        <Control Id="ActionText" Type="Text" X="20" Y="78" Width="330" Height="16" NoPrefix="yes">
+          <Subscribe Event="ActionText" Attribute="Text" />
+        </Control>
+        <Control Id="Progress" Type="ProgressBar" X="20" Y="98" Width="330" Height="12" ProgressBlocks="yes" Text="Progress">
+          <Subscribe Event="SetProgress" Attribute="Progress" />
+        </Control>
+        <Control Id="Line" Type="Line" X="0" Y="162" Width="370" Height="0" />
+        <Control Id="Cancel" Type="PushButton" X="300" Y="172" Width="56" Height="17" Default="yes" Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="MailcraftCancel" />
+        </Control>
+      </Dialog>
+
+      <!-- Asked when Cancel is chosen while it works. -->
+      <Dialog Id="MailcraftCancel" Width="260" Height="85" Title="[ProductName] Setup" NoMinimize="yes">
+        <Control Id="Text" Type="Text" X="15" Y="15" Width="230" Height="30" NoPrefix="yes" Text="Stop setup? What it has done so far is undone." />
+        <Control Id="Yes" Type="PushButton" X="122" Y="57" Width="56" Height="17" Text="&amp;Stop">
+          <Publish Event="EndDialog" Value="Exit" />
+        </Control>
+        <Control Id="No" Type="PushButton" X="186" Y="57" Width="56" Height="17" Default="yes" Cancel="yes" Text="&amp;Go on">
+          <Publish Event="EndDialog" Value="Return" />
+        </Control>
+      </Dialog>
+
+      <!-- The last page, after it worked. -->
+      <Dialog Id="MailcraftDone" Width="370" Height="200" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="20" Y="18" Width="330" Height="26" NoPrefix="yes" Text="{\MailcraftTitle}MailCraft [MailcraftVersion]" />
+        <Control Id="Installed" Type="Text" X="20" Y="54" Width="330" Height="40" NoPrefix="yes" Hidden="yes"
+            ShowCondition="NOT Installed" Text="MailCraft is installed. You can start it any time from the Start menu." />
+        <Control Id="Repaired" Type="Text" X="20" Y="54" Width="330" Height="40" NoPrefix="yes" Hidden="yes"
+            ShowCondition="Installed AND NOT REMOVE~=&quot;ALL&quot;" Text="MailCraft is repaired." />
+        <Control Id="Removed" Type="Text" X="20" Y="54" Width="330" Height="40" NoPrefix="yes" Hidden="yes"
+            ShowCondition="REMOVE~=&quot;ALL&quot;" Text="MailCraft is removed. Your mail, accounts and settings are still in your user folder." />
+        <Control Id="Launch" Type="CheckBox" X="20" Y="100" Width="330" Height="17" Property="LAUNCHMAILCRAFT" CheckBoxValue="1" Hidden="yes"
+            ShowCondition="NOT Installed" Text="&amp;Start MailCraft" />
+        <Control Id="Line" Type="Line" X="0" Y="162" Width="370" Height="0" />
+        <Control Id="Finish" Type="PushButton" X="300" Y="172" Width="56" Height="17" Default="yes" Cancel="yes" Text="&amp;Finish">
+          <Publish Event="DoAction" Value="LaunchMailcraft" Order="1" Condition="LAUNCHMAILCRAFT AND NOT Installed" />
+          <Publish Event="EndDialog" Value="Return" Order="2" />
+        </Control>
+      </Dialog>
+
+      <!-- The last page, after Cancel. -->
+      <Dialog Id="MailcraftCancelled" Width="370" Height="200" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="20" Y="18" Width="330" Height="26" NoPrefix="yes" Text="{\MailcraftTitle}MailCraft [MailcraftVersion]" />
+        <Control Id="Text" Type="Text" X="20" Y="54" Width="330" Height="40" NoPrefix="yes" Text="Setup was cancelled. Nothing on this computer was changed." />
+        <Control Id="Line" Type="Line" X="0" Y="162" Width="370" Height="0" />
+        <Control Id="Finish" Type="PushButton" X="300" Y="172" Width="56" Height="17" Default="yes" Cancel="yes" Text="&amp;Finish">
+          <Publish Event="EndDialog" Value="Exit" />
+        </Control>
+      </Dialog>
+
+      <!-- The last page, after an error (Windows Installer has said which, in its own message). -->
+      <Dialog Id="MailcraftFailed" Width="370" Height="200" Title="[ProductName] Setup">
+        <Control Id="Title" Type="Text" X="20" Y="18" Width="330" Height="26" NoPrefix="yes" Text="{\MailcraftTitle}MailCraft [MailcraftVersion]" />
+        <Control Id="Text" Type="Text" X="20" Y="54" Width="330" Height="100" NoPrefix="yes"
+            Text="Setup couldn't finish, so it changed nothing on this computer.&#xD;&#xA;&#xD;&#xA;To see why, run it again from a command prompt, which writes everything it does to setup.log:&#xD;&#xA;msiexec /i &quot;[OriginalDatabase]&quot; /l*v setup.log" />
+        <Control Id="Line" Type="Line" X="0" Y="162" Width="370" Height="0" />
+        <Control Id="Finish" Type="PushButton" X="300" Y="172" Width="56" Height="17" Default="yes" Cancel="yes" Text="&amp;Finish">
+          <Publish Event="EndDialog" Value="Exit" />
+        </Control>
+      </Dialog>
+
+      <!-- Windows Installer's own messages (an error, a question) are shown in this one: it fills
+           in ErrorText and shows the buttons each message needs. -->
+      <Dialog Id="MailcraftError" Width="270" Height="105" Title="[ProductName] Setup" ErrorDialog="yes">
+        <Control Id="ErrorText" Type="Text" X="48" Y="12" Width="207" Height="60" NoPrefix="yes" TabSkip="no" Text="Information" />
+        <!-- Windows puts its own error, warning or information icon here, by the message. -->
+        <Control Id="ErrorIcon" Type="Icon" X="15" Y="15" Width="24" Height="24" FixedSize="yes" Text="MailcraftErrorIcon" />
+        <Control Id="A" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="&amp;Abort">
+          <Publish Event="EndDialog" Value="ErrorAbort" />
+        </Control>
+        <Control Id="C" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="&amp;Cancel">
+          <Publish Event="EndDialog" Value="ErrorCancel" />
+        </Control>
+        <Control Id="I" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="&amp;Ignore">
+          <Publish Event="EndDialog" Value="ErrorIgnore" />
+        </Control>
+        <Control Id="N" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="&amp;No">
+          <Publish Event="EndDialog" Value="ErrorNo" />
+        </Control>
+        <Control Id="O" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="&amp;OK">
+          <Publish Event="EndDialog" Value="ErrorOk" />
+        </Control>
+        <Control Id="R" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="&amp;Retry">
+          <Publish Event="EndDialog" Value="ErrorRetry" />
+        </Control>
+        <Control Id="Y" Type="PushButton" X="100" Y="80" Width="56" Height="17" TabSkip="yes" Text="&amp;Yes">
+          <Publish Event="EndDialog" Value="ErrorYes" />
+        </Control>
+      </Dialog>
+
+      <!-- MailCraft running while it's replaced or removed: Windows lists what has its files open,
+           and setup closes them (Restart Manager), or leaves them for Windows to finish on the
+           next restart. -->
+      <Dialog Id="MsiRMFilesInUse" Width="370" Height="200" Title="[ProductName] Setup" KeepModeless="yes">
+        <Control Id="Text" Type="Text" X="20" Y="15" Width="330" Height="30" NoPrefix="yes"
+            Text="These are using files setup needs to change. Close them, or let setup close them." />
+        <Control Id="List" Type="ListBox" X="20" Y="48" Width="330" Height="55" Property="FileInUseProcess" Sunken="yes" Sorted="yes" Disabled="yes" TabSkip="yes" />
+        <Control Id="Options" Type="RadioButtonGroup" X="20" Y="110" Width="330" Height="40" Property="MailcraftRMOption">
+          <RadioButtonGroup Property="MailcraftRMOption">
+            <RadioButton Value="UseRM" X="0" Y="0" Width="330" Height="17" Text="&amp;Close them for me" />
+            <RadioButton Value="DontUseRM" X="0" Y="20" Width="330" Height="17" Text="&amp;Leave them open (Windows may need to restart)" />
+          </RadioButtonGroup>
+        </Control>
+        <Control Id="Line" Type="Line" X="0" Y="162" Width="370" Height="0" />
+        <Control Id="OK" Type="PushButton" X="236" Y="172" Width="56" Height="17" Default="yes" Text="OK">
+          <!-- This event is what has them closed: without it, setup goes on with them open. -->
+          <Publish Event="RMShutdownAndRestart" Value="0" Order="1" Condition="MailcraftRMOption~=&quot;UseRM&quot;" />
+          <Publish Event="EndDialog" Value="Return" Order="2" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="300" Y="172" Width="56" Height="17" Cancel="yes" Text="Cancel">
+          <Publish Event="EndDialog" Value="Exit" />
+        </Control>
+      </Dialog>
+
+      <!-- The same, where Windows can't close them itself. -->
+      <Dialog Id="FilesInUse" Width="370" Height="200" Title="[ProductName] Setup" KeepModeless="yes">
+        <Control Id="Text" Type="Text" X="20" Y="15" Width="330" Height="30" NoPrefix="yes"
+            Text="These are using files setup needs to change. Close them, then choose Retry." />
+        <Control Id="List" Type="ListBox" X="20" Y="48" Width="330" Height="100" Property="FileInUseProcess" Sunken="yes" Sorted="yes" Disabled="yes" TabSkip="yes" />
+        <Control Id="Line" Type="Line" X="0" Y="162" Width="370" Height="0" />
+        <Control Id="Retry" Type="PushButton" X="172" Y="172" Width="56" Height="17" Default="yes" Text="&amp;Retry">
+          <Publish Event="EndDialog" Value="Retry" />
+        </Control>
+        <Control Id="Ignore" Type="PushButton" X="236" Y="172" Width="56" Height="17" Text="&amp;Ignore">
+          <Publish Event="EndDialog" Value="Ignore" />
+        </Control>
+        <Control Id="Exit" Type="PushButton" X="300" Y="172" Width="56" Height="17" Cancel="yes" Text="E&amp;xit">
+          <Publish Event="EndDialog" Value="Exit" />
+        </Control>
+      </Dialog>
+
+      <InstallUISequence>
+        <!-- Not when it's started to uninstall (REMOVE=ALL from the start, as `msiexec /x /qf`
+             does): straight to the progress. -->
+        <Show Dialog="MailcraftWelcome" Before="MailcraftProgress" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+        <Show Dialog="MailcraftProgress" Before="ExecuteAction" />
+        <Show Dialog="MailcraftDone" OnExit="success" />
+        <Show Dialog="MailcraftCancelled" OnExit="cancel" />
+        <Show Dialog="MailcraftFailed" OnExit="error" />
+      </InstallUISequence>
+      <AdminUISequence>
+        <Show Dialog="MailcraftProgress" Before="ExecuteAction" />
+        <Show Dialog="MailcraftDone" OnExit="success" />
+        <Show Dialog="MailcraftCancelled" OnExit="cancel" />
+        <Show Dialog="MailcraftFailed" OnExit="error" />
+      </AdminUISequence>
+    </UI>
+  </Fragment>
+</Wix>
