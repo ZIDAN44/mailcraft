@@ -148,8 +148,8 @@ fn a_question_is_read_as_an_alert_by_its_title() {
     for (d, role, title) in [
         (Dialog::ConfirmDelete { count: 2, one: None }, Role::AlertDialog, "Delete permanently?"),
         (Dialog::SaveOnClose(1), Role::AlertDialog, "Save the message you're writing?"),
-        (Dialog::MoveTo { filter: String::new(), copy: false }, Role::Dialog, "Move to folder"),
-        (Dialog::MoveTo { filter: String::new(), copy: true }, Role::Dialog, "Copy to folder"),
+        (Dialog::MoveTo { filter: String::new(), copy: false, chosen: None }, Role::Dialog, "Move to folder"),
+        (Dialog::MoveTo { filter: String::new(), copy: true, chosen: None }, Role::Dialog, "Copy to folder"),
     ] {
         a.ui.dialog = Some(d);
         for _ in 0..3 {

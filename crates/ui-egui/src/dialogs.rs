@@ -119,6 +119,8 @@ pub enum Dialog {
     MoveTo {
         filter: String,
         copy: bool,
+        /// The folder picked (its account and path), which Move moves the mail to.
+        chosen: Option<(String, String)>,
     },
     EmptySubject,
     /// Ctrl+Enter pressed in a message (issue #115): send it? `remember`: "Don't ask again".
@@ -395,11 +397,11 @@ impl Dialog {
     }
 
     pub fn move_to() -> Dialog {
-        Dialog::MoveTo { filter: String::new(), copy: false }
+        Dialog::MoveTo { filter: String::new(), copy: false, chosen: None }
     }
 
     pub fn copy_to() -> Dialog {
-        Dialog::MoveTo { filter: String::new(), copy: true }
+        Dialog::MoveTo { filter: String::new(), copy: true, chosen: None }
     }
 
     /// A new event (at a time, or the next hour).

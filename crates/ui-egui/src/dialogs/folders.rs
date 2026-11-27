@@ -24,7 +24,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
-        Dialog::MoveTo { filter, copy } => {
+        Dialog::MoveTo { filter, copy, chosen } => {
             let copy = *copy;
             ui.set_width(340.0);
             title(ui, t, if copy { "Copy to folder" } else { "Move to folder" });
@@ -54,7 +54,9 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 .flat_map(|a| a.folders.iter())
                 .filter(|f| f.selectable && folder_matches(f, &needle))
                 .collect();
-            let mut chosen = None;
+            // A click picks the folder and Move moves the mail there, as Move folder (issue #182):
+            // a click moved it at once, and Move was never on. A double click still moves it.
+            let mut now = None;
             // As wide as the dialog, its scroll bar at the edge, each row across it (issue #182).
             let rows = egui::Layout::top_down_justified(egui::Align::Min);
             egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
@@ -70,21 +72,31 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                             ui.label(RichText::new(name).color(t.dim).small());
                         }
                         let indent = "    ".repeat(f.depth());
-                        if ui.selectable_label(false, format!("{indent}{}", crate::i18n::folder(f))).clicked() {
-                            chosen = Some((f.account.clone(), f.path.clone()));
+                        let picked = chosen.as_ref().is_some_and(|(a, p)| *a == f.account && *p == f.path);
+                        let row = ui.selectable_label(picked, format!("{indent}{}", crate::i18n::folder(f)));
+                        if row.clicked() {
+                            *chosen = Some((f.account.clone(), f.path.clone()));
+                        }
+                        if row.double_clicked() {
+                            now = Some((f.account.clone(), f.path.clone()));
                         }
                     }
                 })
             });
-            let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
-            if enter && folders.len() == 1 {
-                chosen = folders.first().map(|f| (f.account.clone(), f.path.clone()));
+            // A folder picked that the search has since left out isn't moved to unseen.
+            if chosen.as_ref().is_some_and(|(a, p)| !folders.iter().any(|f| f.account == *a && f.path == *p)) {
+                *chosen = None;
             }
-            if let Some((to, path)) = chosen {
+            let (ok, cancel) = buttons(ui, t, if copy { "Copy" } else { "Move" }, chosen.is_some());
+            // Enter: the folder picked, or the one the search left.
+            let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+            let only = (folders.len() == 1).then(|| folders.first().map(|f| (f.account.clone(), f.path.clone()))).flatten();
+            let go = now.or_else(|| chosen.clone().filter(|_| ok || enter)).or_else(|| only.filter(|_| enter));
+            if let Some((to, path)) = go {
                 acts.push(Action::Run(if copy { "mail.copy" } else { "mail.move" }, json!({"folder": path, "account": to})));
                 return false;
             }
-            !buttons(ui, t, if copy { "Copy" } else { "Move" }, false).1
+            !cancel
         }
         Dialog::FolderName { account, parent, rename, name, error } => {
             ui.set_width(360.0);

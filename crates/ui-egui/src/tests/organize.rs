@@ -455,9 +455,9 @@ fn folder_search_finds_the_name_shown() {
     };
     a.ui.language = "de".into();
     for typed in ["posteingang", "inbox"] {
-        assert_eq!(rows(&mut a, Dialog::MoveTo { filter: typed.into(), copy: false }, typed), ["Posteingang"], "Move to, {typed:?}");
+        assert_eq!(rows(&mut a, Dialog::MoveTo { filter: typed.into(), copy: false, chosen: None }, typed), ["Posteingang"], "Move to, {typed:?}");
     }
-    assert_eq!(rows(&mut a, Dialog::MoveTo { filter: "entw".into(), copy: false }, "entw"), ["Entwürfe"]);
+    assert_eq!(rows(&mut a, Dialog::MoveTo { filter: "entw".into(), copy: false, chosen: None }, "entw"), ["Entwürfe"]);
     let moving =
         |filter: &str| Dialog::MoveFolder { account: "sample".into(), folder: "Projects".into(), filter: filter.into(), chosen: None, error: None };
     for typed in ["posteingang", "inbox"] {
@@ -685,4 +685,32 @@ fn a_rule_moves_one_accounts_mail_into_anothers_folder() {
     assert_eq!(r.actions, [RuleAction::MoveToAccount { account: "b".into(), folder: "Projects".into() }]);
     let f = RuleForm::from_rule(0, &r);
     assert_eq!((f.scope.as_deref(), f.account.as_deref(), f.target.as_str()), (Some("a"), Some("b"), "Projects"), "back as saved");
+}
+
+/// Move to folder works as Move folder does: a click picks the folder (the mail stays where it
+/// is) and turns Move on, which moves it there; a double click moves it at once. A click moved
+/// it at once, and Move was never on.
+#[test]
+fn move_to_folder_picks_then_moves() {
+    let (mut a, _) = app("move-to-picks");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list[1].key.clone();
+    a.run("list.select", json!({"key": k.to_id()}));
+    a.ui.dialog = Some(Dialog::move_to());
+    frame(&ctx, &mut a, vec![]);
+    let size = egui::vec2(1280.0, 800.0);
+    let move_is_on = |ctx: &egui::Context, a: &mut MailApp| named(ctx, a, size).iter().any(|n| n.name() == Some("Move") && !n.disabled);
+    assert!(!move_is_on(&ctx, &mut a), "nothing picked yet");
+    let archive = drawn_text(&ctx, &mut a, size).into_iter().rev().find(|d| d.text.trim() == "Archive" && d.seen()).expect("Archive listed").rect;
+    click(&ctx, &mut a, archive.center());
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_some(), "a click picks, it doesn't move");
+    assert_eq!(a.session.list.iter().filter(|m| m.key == k).count(), 1, "still in the Inbox");
+    assert!(move_is_on(&ctx, &mut a), "Move is on once a folder is picked");
+    click_named(&ctx, &mut a, "Move");
+    frame(&ctx, &mut a, vec![]);
+    assert!(a.ui.dialog.is_none(), "Move moves and closes it");
+    assert!(a.session.list.iter().all(|m| m.key != k), "moved out of the Inbox");
 }
