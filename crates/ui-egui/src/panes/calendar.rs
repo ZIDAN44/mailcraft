@@ -449,7 +449,10 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str, mova
     job.wrap.break_anywhere = narrow;
     job.wrap.overflow_character = Some('…');
     let galley = ui.fonts_mut(|f| f.layout_job(job));
-    ui.painter().with_clip_rect(rect.shrink(1.0)).galley(rect.min + vec2(6.0 + lead, 2.0), galley, ink);
+    // A box with room for one line (the month view's) has it in its middle; a taller one starts
+    // its lines at its top.
+    let down = if rect.height() < 2.0 * row { ((rect.height() - galley.size().y) / 2.0).max(1.0) } else { 2.0 };
+    ui.painter().with_clip_rect(rect.shrink(1.0)).galley(rect.min + vec2(6.0 + lead, down), galley, ink);
     resp
 }
 
@@ -471,6 +474,11 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
     // behind "n more" (as tall as a day's number and that link). Only `area` is allocated: rows
     // kept 60 points tall ran the last weeks past the pane's edge, where nothing scrolls.
     let rh = ((area.height() - head) / 6.0).max(MONTH_ROW_MIN);
+    // An event's box: a line of its text with room above and below (17 points cut the lower part
+    // of the system font's letters off), and a little space under it.
+    let row = ui.fonts_mut(|f| f.row_height(&theme::regular(12.0)));
+    let chip_h = (row + 6.0).max(20.0).round();
+    let pitch = chip_h + 2.0;
     for (i, d) in dates::WEEKDAYS.iter().enumerate() {
         ui.painter().text(pos2(area.min.x + cw * (i as f32 + 0.5), area.min.y + 10.0), Align2::CENTER_CENTER, tl!(d), theme::regular(12.0), t.dim);
     }
@@ -503,10 +511,10 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
             let bg = ui.interact(r, ui.scope_id().with(("month-day", d)), Sense::click());
             let todays: Vec<&AgendaItem> =
                 items.iter().filter(|it| day_of(it.start, s) <= d && day_of(it.end.max(it.start + 1) - 1, s) >= d).collect();
-            let fit = ((rh - 26.0) / 19.0).floor().max(0.0) as usize;
+            let fit = ((rh - 26.0) / pitch).floor().max(0.0) as usize;
             let shown = if todays.len() > fit { fit.saturating_sub(1) } else { todays.len() };
             for (k, it) in todays.iter().take(shown).enumerate() {
-                let cr = Rect::from_min_size(r.min + vec2(3.0, 24.0 + 19.0 * k as f32), vec2(cw - 6.0, 17.0));
+                let cr = Rect::from_min_size(r.min + vec2(3.0, 24.0 + pitch * k as f32), vec2(cw - 6.0, chip_h));
                 let text = if it.all_day { title_of(it) } else { format!("{} {}", hm(it.start, s), title_of(it)) };
                 let resp = chip(ui, t, cr, it, &text, s.movable(it));
                 if resp.clicked()
@@ -534,7 +542,7 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
             }
             if todays.len() > shown {
                 let more = ui.put(
-                    Rect::from_min_size(r.min + vec2(6.0, 24.0 + 19.0 * shown as f32), vec2(cw - 12.0, 17.0)),
+                    Rect::from_min_size(r.min + vec2(6.0, 24.0 + pitch * shown as f32), vec2(cw - 12.0, chip_h)),
                     egui::Link::new(RichText::new(tf!("{n} more", n = todays.len() - shown)).small()),
                 );
                 if more.clicked() {

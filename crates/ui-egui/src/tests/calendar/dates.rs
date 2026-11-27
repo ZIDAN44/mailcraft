@@ -198,3 +198,31 @@ fn tl_ru(day: &str) -> String {
     let en = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
     en.iter().position(|d| *d == day).and_then(|i| ru.get(i)).map(|s| s.to_string()).unwrap_or_default()
 }
+
+/// The month view's events show their titles whole: in boxes 17 points tall, the text started 2
+/// points down and its lower part was cut off at the box's edge ("Storyboard" read "Storvboard",
+/// in the system's font, whose lines are taller).
+#[test]
+fn the_month_view_shows_whole_lines_in_its_events() {
+    let (mut a, _) = app("month-chips");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.module", json!({"name": "calendar"}));
+    a.run("calendar.view", json!({"mode": "month"}));
+    let size = egui::vec2(1280.0, 800.0);
+    for _ in 0..3 {
+        let _ = drawn_with(&ctx, &mut a, size, vec![]);
+    }
+    let texts = drawn_with(&ctx, &mut a, size, vec![]);
+    // The events' titles: each cut to its own box, a short one.
+    let chips: Vec<&Drawn> =
+        texts.iter().filter(|d| d.seen() && d.clip.height() < 40.0 && d.clip.width() < 200.0 && d.text.chars().any(char::is_alphabetic)).collect();
+    assert!(!chips.is_empty(), "the sample's month has events");
+    let font = crate::theme::regular(12.0);
+    let row = ctx.fonts_mut(|f| f.row_height(&font));
+    for c in chips {
+        // A whole line, with room above and below it.
+        assert!(c.clip.height() >= row + 2.0, "{:?}: a box {} tall for a line {row} tall", c.text, c.clip.height());
+        assert!(c.rect.top() >= c.clip.top() && c.rect.top() + row <= c.clip.bottom() + 0.01, "{:?} at {:?} in {:?}", c.text, c.rect, c.clip);
+    }
+}
