@@ -57,9 +57,10 @@ Test builds update themselves ([how test builds update](updates.md)). These part
 - **Workaround:** On a standard macOS account, keep MailCraft in `~/Applications`. On macOS,
   choose **Always Allow** when asked (it lasts until the next update).
 - **Cause:** An Ed25519 signature on updates and releases needs a signing key that only the
-  owner can create: the updater checks one as soon as its public key is built in. The keychain ties an app's passwords to its Apple developer team, and a
-  build signed without an Apple certificate has none, so each build is a new app to it; a
-  designated requirement by bundle id doesn't change that.
+  owner can create: the updater checks one as soon as its public key is built in. The keychain
+  ties an app's passwords to its Apple developer team, and a build signed without an Apple
+  certificate has none, so each build is a new app to it; a designated requirement by bundle id
+  doesn't change that.
 
 ### 5. OpenPGP: what isn't done yet
 

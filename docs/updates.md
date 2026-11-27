@@ -102,19 +102,26 @@ ones. At each start MailCraft tidies whatever else the old id left:
 
 A release's `SHA256SUMS.txt` can be signed with [minisign](https://jedisct1.github.io/minisign/)
 (or rsign2, its Rust port, which writes the same files). The signature covers every file by its
-checksum, and its trusted comment, `MailCraft <tag>`, names the release, so an older release's
-checksums can't stand in for a newer one's. Until MailCraft is built with a public key, releases
-needn't be signed and nothing changes.
+checksum, for every system at once, and its trusted comment, `MailCraft <tag>`, names the release,
+so an older release's checksums can't stand in for a newer one's. Until MailCraft is built with a
+public key, releases needn't be signed and nothing changes. MailCraft reads minisign's files
+itself and checks them with what it already uses (`ring`'s Ed25519, RustCrypto's BLAKE2b).
 
-To start signing (the owner, once):
+To start signing (the owner, once), in this order:
 
-1. Make a key pair without a password, kept off any repository:
-   `minisign -G -W -p mailcraft.pub -s mailcraft.key` (or `rsign generate -W -p … -s …`).
+1. Make a key pair without a password, kept off any repository, with a copy somewhere safe (a
+   password manager): `minisign -G -W -p mailcraft.pub -s mailcraft.key` (or
+   `rsign generate -W -p … -s …`). Lost, no build that knows its public key takes an update
+   again until it's installed by hand.
 2. Add the private key's file, as it is, as the repository secret `MAILCRAFT_UPDATE_KEY`.
-   `release.yml` signs `SHA256SUMS.txt` with it; without the secret it signs nothing.
-3. Put the second line of `mailcraft.pub` (`RW…`) in `KEYS` in `crates/net/src/updates/signed.rs`.
-   From the version built with it, every later release must be signed (so the secret stays
-   set). Earlier versions keep checking the SHA-256 alone, so they still update to it.
+   `release.yml` signs `SHA256SUMS.txt` with it from the next release on.
+3. Then put the second line of `mailcraft.pub` (`RW…`) in `KEYS` in
+   `crates/net/src/updates/signed.rs`. From the version built with it, every later release must
+   be signed. Earlier versions keep checking the SHA-256 alone, so they still update to it.
+
+Once a key is in `KEYS`, `release.yml` won't publish a release it can't sign, or whose signature
+doesn't check out against one of those keys for that release (the secret isn't the key's): the
+builds with the key wouldn't install it.
 
 To change keys, list the new public key beside the old one for a version or two, then sign with
 the new key and drop the old one. If the private key leaks, builds that know it still trust what

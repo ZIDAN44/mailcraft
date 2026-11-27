@@ -441,6 +441,14 @@ jobs:
         uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit
+      # The public keys these builds check their updates with (none: releases aren't signed yet),
+      # for the signature to be checked against before anything is published.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          path: source
+          sparse-checkout: crates/net/src/updates/signed.rs
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: release-*
@@ -450,15 +458,22 @@ jobs:
         working-directory: artifacts
         run: sha256sum -- * | tee SHA256SUMS.txt
       # The checksums signed with the project's minisign key (docs/updates.md, "Signed updates"),
-      # the release named in the signed comment. Without the secret nothing is signed: once a
-      # public key is built in, keep it set, or those builds won't install the release.
+      # the release named in the signed comment. Without the secret nothing is signed, while the
+      # builds have no public key; once they have one, a release that isn't signed, or is signed
+      # with a key they don't know, isn't published: they wouldn't install it.
       - name: Sign the checksums
         working-directory: artifacts
         env:
           UPDATE_KEY: ${{ secrets.MAILCRAFT_UPDATE_KEY }}
           TAG: ${{ needs.version.outputs.tag }}
         run: |
+          keys=$(awk '/^pub const KEYS/ { on = 1 } on { print } on && /\];/ { exit }' ../source/crates/net/src/updates/signed.rs \
+            | grep -o 'RW[A-Za-z0-9+/]\{54\}' || true)
           if [ -z "$UPDATE_KEY" ]; then
+            if [ -n "$keys" ]; then
+              echo "::error::MailCraft is built with an update key but MAILCRAFT_UPDATE_KEY isn't set: those builds wouldn't install this release"
+              exit 1
+            fi
             echo "::notice::No MAILCRAFT_UPDATE_KEY: the checksums aren't signed"
             exit 0
           fi
@@ -467,6 +482,21 @@ jobs:
           (umask 077 && printf '%s\n' "$UPDATE_KEY" >"$key")
           minisign -S -s "$key" -m SHA256SUMS.txt -x SHA256SUMS.txt.minisig -t "MailCraft $TAG" </dev/null
           rm -f "$key"
+          # Checked as the builds will check it: by a key they're made with, naming this release.
+          if [ -n "$keys" ]; then
+            ok=
+            for k in $keys; do
+              if out=$(minisign -V -P "$k" -m SHA256SUMS.txt -x SHA256SUMS.txt.minisig 2>&1) \
+                && printf '%s\n' "$out" | grep -qxF "Trusted comment: MailCraft $TAG"; then
+                ok=1
+                break
+              fi
+            done
+            if [ -z "$ok" ]; then
+              echo "::error::The checksums' signature doesn't check out against the key MailCraft is built with: MAILCRAFT_UPDATE_KEY isn't its secret key"
+              exit 1
+            fi
+          fi
           cat SHA256SUMS.txt.minisig
       - name: Publish
         working-directory: artifacts
