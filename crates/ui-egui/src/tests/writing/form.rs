@@ -81,6 +81,9 @@ fn states() -> Vec<(&'static str, Vec<String>)> {
     a.session.apply(event);
     a.run("mail.new", json!({}));
     a.run("compose.update", json!({"to": "ana@studio.example", "subject": "Signed"}));
+    // Sign and Encrypt are in its Options.
+    let options = drawn_text(&ctx, &mut a, wide).into_iter().rev().find(|d| d.text == "Options").map(|d| d.rect.center()).expect("Options");
+    click(&ctx, &mut a, options);
     settle(&mut a, "signed", wide);
     a.run("compose.discard", json!({}));
     // In a window of its own.
@@ -107,16 +110,19 @@ fn the_message_form_draws_in_each_state() {
     let get = |name: &str| all.iter().find(|(n, ..)| *n == name).map(|(_, texts)| texts.clone()).unwrap_or_default();
     let has = |name: &str, what: &str| get(name).iter().any(|t| t == what);
     for name in ["new", "reply", "attachments", "dark", "window", "blocked"] {
-        for what in ["Send", "From", "To", "Cc", "Subject", "Save draft", "Discard", "Plain text", "Read receipt", "Replies to"] {
+        // The rest of the options are in Options; Discard and Pop out are icons.
+        for what in ["Send", "To", "Cc", "Subject", "Save draft", "Options"] {
             assert!(has(name, what), "{name}: {what}: {:?}", get(name));
         }
     }
+    // From only with accounts to choose from (the one left in "blocked" has none to pick).
+    assert!(has("new", "From") && !has("blocked", "From"), "{:?}", get("blocked"));
     assert!(has("suggesting", "Zoe Park") && has("suggesting", "zoe@studio.example"), "{:?}", get("suggesting"));
     assert!(has("reply", "Bcc") && has("reply", "Hide Bcc") && has("reply", "desk@example.org"), "{:?}", get("reply"));
     assert!(has("reply", "Not sent: the server said no") && has("reply", "Not an email address: ann@"), "{:?}", get("reply"));
     assert!(get("attachments").iter().any(|t| t.starts_with("notes.txt (")), "{:?}", get("attachments"));
     assert!(get("window").iter().any(|t| t.starts_with("Sends ")), "{:?}", get("window"));
-    for what in ["Send", "From", "To", "Save draft", "Discard", "notes.txt (3 B)"] {
+    for what in ["Send", "From", "To", "Save draft", "notes.txt (3 B)"] {
         assert!(has("narrow", what), "narrow: {what}: {:?}", get("narrow"));
     }
     assert!(has("alert", "Add at least one name in To, Cc or Bcc before sending.") && has("alert", "OK"));
@@ -127,4 +133,35 @@ fn the_message_form_draws_in_each_state() {
     let why = crate::reading::send_block_text(mailcraft_engine::SendBlock::DataFile);
     assert!(has("blocked", &why) && has("blocked", "Add an account"), "{:?}", get("blocked"));
     assert_eq!(get("blocked-alert").iter().filter(|t| *t == "Add an account").count(), 2, "in the bar and in the alert");
+}
+
+/// A reply in the reading pane: its ribbon is one row (its buttons' words given up as the width
+/// needs: it wrapped onto three rows, over half the pane before the text), and Send is the one
+/// button in the app colour (a white tile, quieter than New mail).
+#[test]
+fn a_replys_ribbon_is_one_row_and_send_stands_out() {
+    let (mut a, _) = app("reply-chrome");
+    a.session.prefs.new_mail_window = false;
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = egui::vec2(1280.0, 800.0);
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list.first().map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    a.run("mail.reply", json!({}));
+    for _ in 0..4 {
+        let _ = sized_frame(&ctx, &mut a, size, vec![]);
+    }
+    let out = sized_frame(&ctx, &mut a, size, vec![]);
+    let nodes = named_in(&out);
+    let at = |name: &str| nodes.iter().filter(|n| n.name() == Some(name)).filter_map(|n| n.rect).max_by(|x, y| x.left().total_cmp(&y.left()));
+    let tops: Vec<f32> = ["Bold (Ctrl+B)", "Numbering", "Attach file", "Link", "More actions"]
+        .iter()
+        .map(|n| at(n).unwrap_or_else(|| panic!("no {n}")).top())
+        .collect();
+    assert!(tops.iter().all(|y| (y - tops[0]).abs() < 4.0), "one row: {tops:?}");
+    let send = at("Send").expect("Send");
+    let accent = a.ui.tokens.accent;
+    let filled = out.shapes.iter().any(|s| matches!(&s.shape, egui::Shape::Rect(r) if r.fill == accent && r.rect.contains(send.center())));
+    assert!(filled, "Send filled in the app colour");
 }

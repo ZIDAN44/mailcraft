@@ -4,34 +4,29 @@
 
 use super::*;
 
-/// The options under the ribbon: Drafts, Bcc and the format at the left (wrapping onto a second
-/// line in a narrow pane); Discard and Pop out (or in) kept at the right, as in Outlook.
+/// The options under the ribbon: Save draft, Bcc and the message's Options (its format,
+/// importance, a read receipt, signing and encryption, Delay delivery, Replies to) at the left;
+/// Pop out (or in) and Discard at the right, as icons. Each option was a control of its own kind
+/// on the row (buttons, checkboxes, a bare "!" and "↓"), and a long label (German's Pop in) put
+/// the row on two lines.
 pub(super) fn options_row(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, f: &Form, acts: &mut Vec<Action>) {
     let (icon, label, id) = if f.in_window { (Icon::PopIn, "Pop in", "compose.popIn") } else { (Icon::PopOut, "Pop out", "compose.popOut") };
     // Where windows can't open (the browser), messages stay in the reading pane.
     let can_pop = !ui.ctx().embed_viewports();
-    let width_of = |ui: &Ui, l: &str| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::regular(13.0), t.text).size().x + 36.0;
-    let gap = ui.spacing().item_spacing.x;
-    let right = width_of(ui, "Discard") + if can_pop { width_of(ui, label) + gap } else { 0.0 } + 2.0 * gap;
-    // A pane too narrow for both halves side by side has them one under the other (the
-    // left one was drawn under the right one).
-    let beside = ui.available_width() - right >= 160.0;
-    let halves = if beside { egui::Layout::left_to_right(egui::Align::Center) } else { egui::Layout::top_down(egui::Align::Min) };
-    ui.allocate_ui_with_layout(vec2(ui.available_width(), 30.0), halves, |ui| {
-        let left_w = if beside { ui.available_width() - right } else { ui.available_width() };
-        ui.allocate_ui_with_layout(vec2(left_w, 30.0), crate::bidi::row_from_start(egui::Align::Center).with_main_wrap(true), |ui| {
+    ui.allocate_ui_with_layout(vec2(ui.available_width(), 32.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        let right = if can_pop { 2.0 * 32.0 + 2.0 } else { 32.0 };
+        let left_w = (ui.available_width() - right - 8.0).max(0.0);
+        ui.allocate_ui_with_layout(vec2(left_w, 32.0), crate::bidi::row_from_start(egui::Align::Center), |ui| {
             left_options(ui, t, c, f, acts);
         });
-        ui.with_layout(crate::bidi::row_from_end(egui::Align::Min), |ui| {
-            if can_pop
-                && widgets::tool_button(ui, icon, label, t, true)
-                    .on_hover_text(tl!(if f.in_window { "Back to the reading pane" } else { "Write it in a window of its own" }))
-                    .clicked()
-            {
-                acts.push(Action::Run(id, json!({})));
-            }
-            if widgets::tool_button(ui, Icon::Delete, "Discard", t, true).clicked() {
+        ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
+            ui.spacing_mut().item_spacing.x = 2.0;
+            if widgets::icon_action(ui, Icon::Delete, "Discard", t).clicked() {
                 acts.push(Action::Run("compose.discard", json!({})));
+            }
+            let pop = widgets::icon_action(ui, icon, label, t);
+            if can_pop && pop.on_hover_text(tl!(if f.in_window { "Back to the reading pane" } else { "Write it in a window of its own" })).clicked() {
+                acts.push(Action::Run(id, json!({})));
             }
         });
     });
@@ -45,54 +40,64 @@ fn left_options(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, f: &
     if widgets::tool_button(ui, Icon::Person, if c.show_bcc { "Hide Bcc" } else { "Bcc" }, t, !c.sending).clicked() {
         c.show_bcc = !c.show_bcc;
     }
-    let mut plain = c.plain;
-    if ui.checkbox(&mut plain, RichText::new(tl!("Plain text")).small()).on_hover_text(tl!("Send without formatting")).changed() {
-        c.plain = plain;
-    }
-    // Importance and a read receipt, as Outlook's Tags and Options.
-    ui.add_space(6.0);
-    if ui.selectable_label(c.importance > 0, RichText::new("!").strong().color(t.danger)).on_hover_text(tl!("High importance")).clicked() {
-        c.importance = if c.importance > 0 { 0 } else { 1 };
-    }
-    if ui.selectable_label(c.importance < 0, RichText::new("↓").strong().color(t.accent)).on_hover_text(tl!("Low importance")).clicked() {
-        c.importance = if c.importance < 0 { 0 } else { -1 };
-    }
-    let mut receipt = c.read_receipt;
-    if ui
-        .checkbox(&mut receipt, RichText::new(tl!("Read receipt")).small())
-        .on_hover_text(tl!("Ask the recipients to confirm they've read it (their mail app may not, or may ask them)"))
-        .changed()
-    {
-        c.read_receipt = receipt;
-    }
-    if f.has_cert || f.has_pgp {
-        sign_and_encrypt(ui, t, c, f);
-    }
-    // Outlook's Delay Delivery and Direct Replies To.
-    if f.can_delay {
-        let label = match c.send_after {
-            Some(at) => tf!("Sends {when}", when = crate::i18n::date(&dates::full_time(at, &f.clock))),
-            None => tl!("Delay delivery").to_string(),
-        };
-        let r = widgets::tool_toggle(ui, Icon::Clock, &label, t, c.send_after.is_some())
-            .on_hover_text(tl!("Keep it in the Outbox and send it later (MailCraft has to be running then)"));
+    // The rest in one menu, lit while one of them is on: Outlook's Tags and Options.
+    let any = c.plain || c.importance != 0 || c.read_receipt || c.send_after.is_some() || c.show_reply_to || !c.reply_to.is_empty();
+    let r = widgets::tool_toggle(ui, Icon::Gear, "Options", t, any);
+    egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
+        let mut plain = c.plain;
+        if ui.checkbox(&mut plain, tl!("Plain text")).on_hover_text(tl!("Send without formatting")).changed() {
+            c.plain = plain;
+        }
+        let (mut high, mut low) = (c.importance > 0, c.importance < 0);
+        if ui.checkbox(&mut high, tl!("High importance")).changed() {
+            c.importance = i8::from(high);
+        }
+        if ui.checkbox(&mut low, tl!("Low importance")).changed() {
+            c.importance = if low { -1 } else { 0 };
+        }
+        let mut receipt = c.read_receipt;
+        if ui
+            .checkbox(&mut receipt, tl!("Read receipt"))
+            .on_hover_text(tl!("Ask the recipients to confirm they've read it (their mail app may not, or may ask them)"))
+            .changed()
+        {
+            c.read_receipt = receipt;
+        }
+        if f.has_cert || f.has_pgp {
+            ui.separator();
+            sign_and_encrypt(ui, t, c, f);
+        }
+        ui.separator();
+        // Outlook's Direct Replies To and Delay Delivery.
+        let mut reply_to = c.show_reply_to || !c.reply_to.is_empty();
+        if ui.checkbox(&mut reply_to, tl!("Replies to")).on_hover_text(tl!("Have replies sent to another address")).changed() {
+            c.show_reply_to = reply_to;
+        }
+        if f.can_delay {
+            ui.menu_button(tl!("Delay delivery"), |ui| delay_menu(ui, t, c, &f.clock))
+                .response
+                .on_hover_text(tl!("Keep it in the Outbox and send it later (MailCraft has to be running then)"));
+        }
+    });
+    // Held back: when it goes, in sight.
+    if let Some(at) = c.send_after.filter(|_| f.can_delay) {
+        let label = tf!("Sends {when}", when = crate::i18n::date(&dates::full_time(at, &f.clock)));
+        let r = widgets::tool_toggle(ui, Icon::Clock, &label, t, true);
         egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| delay_menu(ui, t, c, &f.clock));
-    }
-    if widgets::tool_toggle(ui, Icon::Reply, "Replies to", t, c.show_reply_to || !c.reply_to.is_empty())
-        .on_hover_text(tl!("Have replies sent to another address"))
-        .clicked()
-    {
-        c.show_reply_to = !c.show_reply_to;
     }
 }
 
 /// Sign and Encrypt, for an account with a certificate or an OpenPGP key; which of the two,
 /// when it has both.
 fn sign_and_encrypt(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, f: &Form) {
+    // Each on its row of the Options menu, its icon before it.
     let toggle = |ui: &mut Ui, on: &mut bool, icon: Icon, label: &str, about: &str| {
-        let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
-        icons::paint(ui.painter(), r, icon, if *on { t.accent } else { t.dim });
-        ui.checkbox(on, RichText::new(tl!(label)).small()).on_hover_text(tl!(about)).changed()
+        ui.horizontal(|ui| {
+            let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+            icons::paint(ui.painter(), r, icon, if *on { t.accent } else { t.dim });
+            ui.checkbox(on, tl!(label)).on_hover_text(tl!(about)).changed()
+        })
+        .inner
     };
     let (sign_about, encrypt_about) = if f.has_pgp {
         (

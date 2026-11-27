@@ -9,16 +9,17 @@ use crate::look::people_box;
 /// encrypted, and the subject. `focus_to`: a new message starts in To.
 pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engine::Compose, f: &Form, focus_to: bool, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    // Send beside the address rows (From, To, Cc and Bcc when shown).
-    let rows = if c.show_bcc { 4.0 } else { 3.0 };
-    let height = rows * ROW_H + (rows - 1.0) * 6.0;
+    // Send beside the address rows (From, To, Cc and Bcc when shown), at their top.
     ui.horizontal_top(|ui| {
-        if send_button(ui, &t, height, c.sending, f.blocked_text.as_deref()).clicked() {
+        if send_button(ui, &t, c.sending, f.blocked_text.as_deref()).clicked() {
             send(c, f.blocked, acts);
         }
         ui.add_space(SEND_GAP);
         crate::bidi::vertical(ui, |ui| {
-            from_row(ui, &t, c, &f.accounts, acts);
+            // From only with a choice to make: one account's was a greyed row saying the obvious.
+            if f.accounts.len() > 1 {
+                from_row(ui, &t, c, &f.accounts, acts);
+            }
             // Each box's text box, and whether chips were taken out, moved or put in another
             // order: then none stays selected (they're kept by their places, which changed).
             let (mut boxes, mut changed) = (Vec::new(), false);
@@ -180,18 +181,23 @@ fn label_button(ui: &mut Ui, t: &Tokens, label: &str, enabled: bool) -> egui::Re
     label_button_menu(ui, t, label, enabled, false)
 }
 
-/// A label button that opens a menu: its label and a small drawn chevron, centred together.
+/// A field's label that opens something (the address book, From's accounts): the field's label as
+/// Subject's is, at the same place, underlined under the pointer, with a small drawn chevron
+/// when it opens a menu. (A framed button with its words centred, Outlook 2010's, set To and Cc
+/// apart from Subject beside them.)
 fn label_button_menu(ui: &mut Ui, t: &Tokens, label: &str, enabled: bool, menu: bool) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(LABEL_W - 8.0, ROW_H - 4.0), if enabled { Sense::click() } else { Sense::hover() });
     crate::widgets::named(ui, &resp, tl!(label), enabled, None);
-    let fill = if resp.hovered() && enabled { t.hover } else { t.surface };
-    ui.painter().rect(rect, 3.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-    let color = if enabled { t.text } else { t.dim };
-    let galley = ui.painter().layout_no_wrap(tl!(label).to_string(), theme::regular(13.0), color);
-    let chevron = if menu { 14.0 } else { 0.0 };
-    let left = rect.center().x - (galley.size().x + chevron) / 2.0;
+    let hovered = resp.hovered() && enabled;
+    let color = if hovered { t.text } else { t.dim };
+    let galley = ui.painter().layout_no_wrap(tl!(label).to_string(), theme::regular(13.5), color);
+    let left = crate::bidi::Mirror::new(rect).start(rect.left(), galley.size().x);
     let text_pos = egui::pos2(left, rect.center().y - galley.size().y / 2.0);
     let text_w = galley.size().x;
+    if hovered {
+        let y = text_pos.y + galley.size().y;
+        ui.painter().hline(left..=left + text_w, y, egui::Stroke::new(1.0, color));
+    }
     ui.painter().galley(text_pos, galley, color);
     if menu {
         let r = egui::Rect::from_center_size(egui::pos2(left + text_w + 4.0 + 5.0, rect.center().y + 0.5), vec2(10.0, 10.0));
@@ -201,18 +207,26 @@ fn label_button_menu(ui: &mut Ui, t: &Tokens, label: &str, enabled: bool, menu: 
     resp
 }
 
-/// Outlook's tall Send button beside the address rows. `blocked`: why the message can't go from
-/// its account; it's drawn off, and a click says why.
-fn send_button(ui: &mut Ui, t: &Tokens, height: f32, sending: bool, blocked: Option<&str>) -> egui::Response {
-    let (rect, resp) = ui.allocate_exact_size(vec2(SEND_W, height), if sending { Sense::hover() } else { Sense::click() });
+/// Send, beside the address rows at their top: the message's one button in the app colour (a tall
+/// white tile, quieter than New mail, it was). `blocked`: why the message can't go from its
+/// account; it's drawn off, and a click says why.
+fn send_button(ui: &mut Ui, t: &Tokens, sending: bool, blocked: Option<&str>) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(SEND_W, crate::sizes::CONTROL_H), if sending { Sense::hover() } else { Sense::click() });
     let on = !sending && blocked.is_none();
     crate::widgets::named(ui, &resp, if sending { tl!("Sending…") } else { tl!("Send") }, on, None);
-    let fill = if resp.hovered() && on { t.hover } else { t.surface };
-    ui.painter().rect(rect, 4.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-    let icon = egui::Rect::from_center_size(rect.center() - vec2(0.0, 10.0), vec2(24.0, 24.0));
-    icons::paint(ui.painter(), icon, Icon::Send, if on { t.accent } else { t.dim });
+    let fill = match (on, resp.hovered()) {
+        (false, _) => ui.visuals().widgets.inactive.bg_fill,
+        (true, false) => t.accent,
+        (true, true) => t.accent.gamma_multiply(0.88),
+    };
+    let ink = if on { t.on_accent } else { t.faint };
+    ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), fill);
     let label = if sending { tl!("Sending…") } else { tl!("Send") };
-    ui.painter().text(rect.center() + vec2(0.0, 16.0), egui::Align2::CENTER_CENTER, label, theme::regular(12.5), if on { t.text } else { t.dim });
+    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::semibold(13.5), ink);
+    let m = crate::bidi::Mirror::new(rect);
+    let start = rect.center().x - (galley.size().x + 22.0) / 2.0;
+    icons::paint(ui.painter(), m.rect(egui::Rect::from_min_size(egui::pos2(start, rect.center().y - 8.0), vec2(16.0, 16.0))), Icon::Send, ink);
+    ui.painter().galley(egui::pos2(m.start(start + 22.0, galley.size().x), rect.center().y - galley.size().y / 2.0), galley, ink);
     match blocked {
         Some(why) => resp.on_hover_text(why),
         None => resp.on_hover_text(tl!("Send (Ctrl+Enter)")),
@@ -221,7 +235,10 @@ fn send_button(ui: &mut Ui, t: &Tokens, height: f32, sending: bool, blocked: Opt
 
 fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, check_addresses: bool, focus: bool) {
     ui.horizontal(|ui| {
-        ui.add_sized(vec2(LABEL_W, ROW_H), egui::Label::new(RichText::new(tl!(label)).color(t.dim)));
+        // At the start of its column, as To's and Cc's are (centred, it started 8 points off).
+        ui.allocate_ui_with_layout(vec2(LABEL_W, ROW_H), crate::bidi::row_from_start(egui::Align::Center), |ui| {
+            ui.label(RichText::new(tl!(label)).color(t.dim).size(13.5));
+        });
         let r = underlined(ui, t, egui::TextEdit::singleline(value).hint_text(tl!(hint)));
         if focus {
             r.request_focus();

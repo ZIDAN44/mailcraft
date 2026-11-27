@@ -41,14 +41,16 @@ fn ctrl_k_in_to_puts_in_one_and_asks_about_several() {
     assert_eq!(to(&a), format!("Zoe Park <zoe@studio.example>; {name} <{email}>; nobody-by-that-name; "));
 }
 
-/// The ribbon's Check Names does it too; Cancel leaves the name as typed.
+/// The ribbon's Check names (in its More) does it too; Cancel leaves the name as typed.
 #[test]
 fn the_ribbon_checks_names_and_cancel_leaves_them() {
     let (mut a, _) = app("check-names-ribbon");
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     typing_in_to(&ctx, &mut a, "studio");
-    click_named(&ctx, &mut a, "Check Names");
+    click_named(&ctx, &mut a, "More actions");
+    frame(&ctx, &mut a, vec![]);
+    click_named(&ctx, &mut a, "Check names");
     frame(&ctx, &mut a, vec![]);
     assert!(matches!(&a.ui.dialog, Some(Dialog::CheckNames(_))), "{:?}", a.ui.dialog);
     click_named(&ctx, &mut a, "Cancel");

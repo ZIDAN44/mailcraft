@@ -1970,7 +1970,7 @@ count	occurrences	előfordulás
 	Recorded in your calendar.	Rögzítve a naptáradban.
 	Record guests' answers to your meetings as they arrive	A meghívottak értekezletekre adott válaszainak rögzítése érkezéskor
 	One from someone not on the guest list, or to an earlier version, waits for Record the answer	A meghívottak listáján nem szereplő személy válasza vagy egy korábbi változatra adott válasz a Válasz rögzítése parancsra vár
-	Check Names	Nevek ellenőrzése
+	Check names	Nevek ellenőrzése
 	Ctrl+K in To, Cc or Bcc	Ctrl+K a Címzett, a Másolat vagy a Titkos másolat mezőben
 	No one found for {names}	Nincs találat: {names}
 	Still looking up {names} in the directory	Keresés a címtárban még folyamatban: {names}

@@ -133,6 +133,8 @@ fn the_signature_menu_lists_the_accounts_signatures() {
     a.run("account.setSignature", json!({"account": "sample", "name": "Short", "signature": "R."}));
     a.run("mail.new", json!({}));
     frame(&ctx, &mut a, vec![]);
+    // In the reading pane's narrow ribbon, in its More actions.
+    click_named(&ctx, &mut a, "More actions");
     click_named(&ctx, &mut a, "Signature");
     click_named(&ctx, &mut a, "Short");
     let c = a.session.compose.as_ref().unwrap();

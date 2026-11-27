@@ -169,11 +169,14 @@ fn a_small_window_keeps_room_to_read_and_write() {
     let over: Vec<_> = found.iter().filter(|f| f.starts_with("over")).collect();
     assert!(over.is_empty(), "{over:?}");
     let top = |name: &str| drawn.iter().find(|p| p.text == crate::i18n::t(name)).map(|p| p.ink.min.y);
-    // Two buttons side by side in the ribbon: on one row, or the second at the start of the next.
-    let (book, next) = (top("Address Book"), top("Check Names"));
-    assert!(book.is_some() && next.is_some(), "the ribbon's buttons are drawn");
-    let apart = next.unwrap_or(0.0) - book.unwrap_or(0.0);
-    assert!((0.0..=40.0).contains(&apart), "rows {apart} apart");
+    // The ribbon's buttons on one row (their words given up as it needs), or the next at the
+    // start of the next row: the font size's box and the words still drawn no further apart
+    // than that.
+    let bold = top("11").expect("the ribbon is drawn");
+    for name in ["Attach file", "Link"] {
+        let apart = top(name).map_or(0.0, |y| y - bold);
+        assert!((0.0..=40.0).contains(&apart), "{name}: rows {apart} apart");
+    }
 }
 
 /// The calendar, tasks, people and the File page in the smallest window, in languages with long

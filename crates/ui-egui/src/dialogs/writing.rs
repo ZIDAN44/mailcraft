@@ -173,7 +173,7 @@ pub struct CheckNamesForm {
 fn check_names(ui: &mut Ui, f: &mut CheckNamesForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     let Some(ask) = f.asks.first() else { return false };
     ui.set_width(440.0);
-    title(ui, t, "Check Names");
+    title(ui, t, "Check names");
     ui.add(
         egui::Label::new(RichText::new(tf!("More than one person could be “{typed}”. Pick the one you meant:", typed = ask.typed)).color(t.text))
             .wrap(),
@@ -376,7 +376,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
             }
         }
         ui.add_space(12.0);
-        let book = ui.label(RichText::new(tl!("Address Book")).strong());
+        let book = ui.label(RichText::new(tl!("Address book")).strong());
         // Everyone (the people written to or heard from, and contacts), every contact, or one
         // address book (each account's Contacts, an organisation's shared ones).
         let accounts = f.books.iter().map(|(_, _, a)| a).collect::<std::collections::BTreeSet<_>>().len();

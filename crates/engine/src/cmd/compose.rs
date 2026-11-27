@@ -21,11 +21,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         CommandSpec::new("compose.update", "Edit message", "Message", compose_update).leaves_body()
             .params(r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "marks"?: bool (the body uses **bold**, *italic*, - lists…), "account"?: string, "from"?: string (one of the account's addresses; "" for its own), "importance"?: "high"|"normal"|"low", "readReceipt"?: bool, "replyTo"?: string (where replies go), "sendAfter"?: number (Unix seconds: held in the Outbox until then; 0 sends at once)}"#)
             .when(has_compose),
-        CommandSpec::new("compose.checkNames", "Check Names", "Message", |s, _| s.check_names())
+        CommandSpec::new("compose.checkNames", "Check names", "Message", |s, _| s.check_names())
             .params(r#"{} (the names typed in To, Cc and Bcc that aren't addresses, looked up: one person is put in; answers {"resolved": n, "several": [{"field", "typed", "people": [{"name", "email"}]}] to pick from with compose.pickName, "none": [{"field", "typed"}], "pending": [{"field", "typed"}] (a directory still asked)})"#)
             .when(has_compose),
         // A box of people elsewhere: a meeting's guests (issue #253).
-        CommandSpec::new("names.check", "Check Names", "Event › Invite", |s, v| s.check_names_in(p::req_str(v, "text")?))
+        CommandSpec::new("names.check", "Check names", "Event › Invite", |s, v| s.check_names_in(p::req_str(v, "text")?))
             .params(r#"{"text": string (names and addresses, as a recipient box has them)} (answers {"text": the box with each name that's one person put in, "resolved": n, "several": [{"typed", "people": [{"name", "email"}]}], "none": [{"typed"}], "pending": [{"typed"}] (a directory still asked)})"#),
         CommandSpec::new("compose.pickName", "Pick a name", "Message › Check Names", |s, v| {
             let field = p::req_str(v, "field")?;

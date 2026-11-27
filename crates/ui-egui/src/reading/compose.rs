@@ -30,10 +30,12 @@ pub(super) const CHIP_H: f32 = 42.0;
 const LABEL_W: f32 = 76.0;
 
 /// Width of the Send button beside the address rows, and the gap after it.
-const SEND_W: f32 = 66.0;
+const SEND_W: f32 = 84.0;
 const SEND_GAP: f32 = 10.0;
-/// How far in the rows under Send start (Replies to, Subject, the attachments): past it.
-const PAST_SEND: f32 = SEND_W + SEND_GAP;
+/// How far in the rows under Send start (Replies to, Subject, the attachments): past it, as the
+/// rows beside it are (after Send and its gap, each followed by a row's spacing, 8, less the one
+/// a row under it puts after this).
+const PAST_SEND: f32 = SEND_W + SEND_GAP + 8.0;
 
 const ROW_H: f32 = 30.0;
 
