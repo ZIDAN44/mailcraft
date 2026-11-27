@@ -465,3 +465,57 @@ fn the_shading_has_no_seam_between_runs_on_a_line() {
         assert!((w[1].left() - w[0].right()).abs() < 0.01, "edge to edge: {} then {}", w[0].right(), w[1].left());
     }
 }
+
+/// A right-click in a message's text has a menu, as Outlook's reading pane has (issue #302): Copy
+/// what's selected (greyed with nothing selected) and Select all. It did nothing; only Ctrl+C
+/// copied. A right-to-left line keeps its own menu, without this one over it.
+#[test]
+fn a_right_click_in_the_text_copies_what_is_selected() {
+    let (mut a, _) = app("select-right-click");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let area = open(&mut a, &ctx, mixed());
+    let size = egui::vec2(1280.0, 800.0);
+    let menu = |ctx: &egui::Context, a: &mut MailApp| -> Vec<Named> {
+        named(ctx, a, size).into_iter().filter(|n| matches!(n.name(), Some("Copy" | "Select all" | "Copy the whole message"))).collect()
+    };
+    let right_click = |ctx: &egui::Context, a: &mut MailApp, at: egui::Pos2| click_at(ctx, a, at, egui::PointerButton::Secondary, Modifiers::NONE);
+    let at = area.left_top() + egui::vec2(4.0, 8.0);
+
+    right_click(&ctx, &mut a, at);
+    let items = menu(&ctx, &mut a);
+    assert!(
+        items.iter().any(|n| n.name() == Some("Copy") && n.disabled),
+        "Copy is greyed with nothing selected: {:?}",
+        items.iter().map(|n| (n.name(), n.disabled)).collect::<Vec<_>>()
+    );
+    assert!(items.iter().any(|n| n.name() == Some("Select all") && !n.disabled));
+    click_named(&ctx, &mut a, "Select all");
+    assert!(a.ui.text_selection.all(), "Select all selects the whole message");
+
+    right_click(&ctx, &mut a, at);
+    assert!(a.ui.text_selection.all(), "a right-click leaves the selection as it was");
+    let copy = menu(&ctx, &mut a)
+        .into_iter()
+        .find(|n| n.name() == Some("Copy") && !n.disabled)
+        .and_then(|n| n.centre())
+        .expect("Copy, with the text selected");
+    let press = |pressed| Event::PointerButton { pos: copy, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    frame(&ctx, &mut a, vec![Event::PointerMoved(copy)]);
+    frame(&ctx, &mut a, vec![press(true)]);
+    let got = copied(&ctx, &mut a, vec![press(false)]).expect("the menu's Copy copied");
+    assert!(got.contains("First paragraph with bold words in it.") && got.contains("Last paragraph, a link at its end."), "{got:?}");
+    frame(&ctx, &mut a, vec![]);
+    assert!(menu(&ctx, &mut a).is_empty(), "the menu closes");
+
+    // A right-to-left line: its own menu, this one not over it.
+    let rtl = named(&ctx, &mut a, size)
+        .into_iter()
+        .find(|n| n.name().is_some_and(|l| l.contains('\u{5e9}')))
+        .and_then(|n| n.centre())
+        .expect("the right-to-left line");
+    right_click(&ctx, &mut a, rtl);
+    let names: Vec<_> = menu(&ctx, &mut a).iter().filter_map(|n| n.name().map(str::to_string)).collect();
+    assert!(names.iter().any(|n| n == "Copy the whole message"), "{names:?}");
+    assert!(!names.iter().any(|n| n == "Select all"), "one menu: {names:?}");
+}

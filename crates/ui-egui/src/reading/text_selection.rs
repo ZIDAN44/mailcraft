@@ -79,6 +79,8 @@ struct Run {
     slot: egui::layers::ShapeIdx,
     response: Response,
     link: bool,
+    /// A right-to-left line's run, which has a menu of its own (`body::rtl_copy_menu`).
+    own_menu: bool,
 }
 
 impl Run {
@@ -447,7 +449,8 @@ pub(crate) fn begin(st: &mut UiState, ui: &mut Ui, id: egui::Id, window: bool) {
     // egui's labels there). The pointer's alone: it was a stop for Tab with nothing to say, read
     // by a screen reader as a nameless "custom" before the text (issue #175).
     let touch = ui.input(|i| i.has_touch_screen());
-    d.under = d.rect.filter(|_| !touch).map(|r| ui.interact(r, id.with("text-under"), Sense::DRAG));
+    // A click too, for its right-click menu; never a stop for Tab (no `FOCUSABLE`).
+    d.under = d.rect.filter(|_| !touch).map(|r| ui.interact(r, id.with("text-under"), Sense::DRAG | Sense::CLICK));
     d.document = d.rect.filter(|_| crate::a11y::screen_reader(ui.ctx())).map(|r| reader::document(ui, id, r));
     ts.cur = Some((id, d));
 }
@@ -510,7 +513,20 @@ pub(crate) fn run(st: &mut UiState, ui: &mut Ui, text: impl Into<egui::WidgetTex
     let painter = ui.painter().clone();
     let slot = painter.add(egui::Shape::Noop);
     let breaks = std::mem::take(&mut d.breaks);
-    d.runs.push(Run { part: d.part, n: d.n, breaks, galley, pos, color, underline, painter, slot, response: response.clone(), link: link.is_some() });
+    d.runs.push(Run {
+        part: d.part,
+        n: d.n,
+        breaks,
+        galley,
+        pos,
+        color,
+        underline,
+        painter,
+        slot,
+        response: response.clone(),
+        link: link.is_some(),
+        own_menu: false,
+    });
     d.n = d.n.saturating_add(1);
     response
 }
@@ -519,11 +535,15 @@ pub(crate) fn run(st: &mut UiState, ui: &mut Ui, text: impl Into<egui::WidgetTex
 /// against the right edge, where it starts (as [`crate::bidi::add_label`]).
 pub(crate) fn rtl_run(st: &mut UiState, ui: &mut Ui, mut job: LayoutJob) -> Response {
     job.wrap.max_width = ui.available_width();
-    if crate::bidi::has_rtl(&job.text) && crate::bidi::paragraph_rtl(&job.text) {
+    let r = if crate::bidi::has_rtl(&job.text) && crate::bidi::paragraph_rtl(&job.text) {
         ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| run(st, ui, job, None)).inner
     } else {
         run(st, ui, job, None)
+    };
+    if let Some(last) = st.text_selection.cur.as_mut().and_then(|(_, d)| d.runs.last_mut()).filter(|l| l.response.id == r.id) {
+        last.own_menu = true;
     }
+    r
 }
 
 /// The text started with [`begin`] ends here: the pointer and keys, the copy, and the runs drawn
@@ -632,6 +652,7 @@ pub(crate) fn finish(st: &mut UiState, ui: &mut Ui, whole: Option<&str>) {
     if d.dragging || d.runs.iter().any(|r| !r.link && r.response.hovered()) {
         ctx.set_cursor_icon(egui::CursorIcon::Text);
     }
+    menu(&mut d, ui, id, rect, whole);
     paint(&d, ui);
     if let Some(doc) = d.document.clone() {
         reader::tell(&d, ui, &doc);
@@ -646,6 +667,26 @@ pub(crate) fn finish(st: &mut UiState, ui: &mut Ui, whole: Option<&str>) {
     }
     d.runs.clear();
     ts.docs.insert(id, d);
+}
+
+/// A right-click in the text: its menu, as Outlook's reading pane has (issue #302): Copy what's
+/// selected, and Select all. A right-click leaves the selection as it is. Not on a picture or a
+/// right-to-left line, which have menus of their own.
+fn menu(d: &mut Doc, ui: &mut Ui, id: egui::Id, rect: Rect, whole: Option<&str>) {
+    let right = d.runs.iter().filter(|r| !r.own_menu).map(|r| &r.response).chain(&d.under).any(Response::secondary_clicked);
+    // Where the menu comes from: over the runs, but taking no click or drag from them.
+    let anchor = ui.interact(rect, id.with("text-menu"), Sense::hover());
+    let open = right.then_some(egui::SetOpenCommand::Bool(true));
+    egui::Popup::menu(&anchor).open_memory(open).at_pointer_fixed().show(|ui| {
+        if ui.add_enabled(d.selection().is_some(), egui::Button::new(tl!("Copy"))).clicked() {
+            ui.ctx().copy_text(d.text(whole));
+            ui.close();
+        }
+        if ui.button(tl!("Select all")).clicked() {
+            (d.anchor, d.head, d.active) = (Some(Mark::START), Some(Mark::END), true);
+            ui.close();
+        }
+    });
 }
 
 /// The text's keys: Ctrl+A, Shift with the arrows, Home and End, Escape, and a copy. With a

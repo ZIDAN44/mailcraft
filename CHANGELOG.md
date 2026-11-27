@@ -69,6 +69,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Fixed
 
+- A right-click in a message's text opens a menu (#302): **Copy** what's selected and **Select all**, in the reading pane and a message's own window. It did nothing; only Ctrl+C copied.
 - The Windows installer has a setup window (#301): opened, the `.msi` showed a progress bar for a moment and closed, without a word of MailCraft being installed or where to find it. It now says what it does (installs MailCraft, replaces an older version, or repairs or removes this one) and how it ended, with **Start MailCraft** ticked after an install; a cancelled or failed setup says it changed nothing, and how to see why. MailCraft's updates and `msiexec /qn` install without it, as before.
 - A table cell spanning several rows (`rowspan`) stands beside them, as a browser shows it (discussion #275): a signature's logo beside its lines stood above them, with every line but the first under it. An empty cell drawn only as a line along its edge (a signature's divider) is kept too.
 - A rule can move mail into a folder of another account, as Outlook's can: picking such a folder made the rule that account's, so the mail it was made for never matched and nothing moved. With more than one account, a rule's **For mail to** says whose mail it's for (a rule made from a message: that message's account). Tried on Dovecot.
