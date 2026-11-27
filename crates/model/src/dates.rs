@@ -345,6 +345,19 @@ pub fn full_time(t: i64, clock: &Clock) -> String {
     format!("{} {} {}", weekday_name(&c), date_of(&c, clock.style), time_of(&c, clock.style))
 }
 
+/// A moment as the window shows one (the reading pane's date, a reminder, when a message will
+/// be sent): its day as the lists write one ([`day_short`]: `Fri Nov 27` this year, the whole
+/// date before then) and its time, so the reading pane and the list beside it agree; the whole
+/// date each time when the Dates option asks for it in the list. [`full_time`] is for text that
+/// leaves the window, where the year must be there: a reply's Sent line, a certificate's dates.
+pub fn when_text(t: i64, clock: &Clock) -> String {
+    if clock.style.full_in_list {
+        return full_time(t, clock);
+    }
+    let c = civil(t, clock);
+    format!("{} {}", day_short(clock.local_day(t), clock), time_of(&c, clock.style))
+}
+
 /// The time of day alone: `14:05`, or `2:05 PM` on a 12-hour clock.
 pub fn hm(t: i64, clock: &Clock) -> String {
     time_of(&civil(t, clock), clock.style)
@@ -614,6 +627,24 @@ mod tests {
         assert_eq!(day_short(days_from_civil(2026, 12, 20), &eve), "Sun 2026-12-20");
         for far in [i64::MIN, i64::MAX] {
             assert!(!day_short(far, &clock).is_empty());
+        }
+    }
+
+    /// Audit S12: a moment in the window is written as the list writes its day (the reading pane
+    /// said `Wed 2026-10-14 12:00` beside a list saying `Oct 14`), with the year when it isn't
+    /// this one, and whole when the Dates option asks for whole dates.
+    #[test]
+    fn moments_as_the_list_writes_days() {
+        let day = 86_400;
+        let clock = Clock::new(NOW, 0);
+        assert_eq!(when_text(NOW, &clock), "Wed Oct 14 12:00");
+        assert_eq!(when_text(NOW - 400 * day, &clock), "Tue 2025-09-09 12:00");
+        let dmy = clock.styled(DateStyle { order: DateOrder::DayMonthYear, hours12: true, full_in_list: false });
+        assert_eq!(when_text(NOW + 3600, &dmy), "Wed 14 Oct 1:00 PM");
+        let full = clock.styled(DateStyle { order: DateOrder::DayMonthYear, hours12: false, full_in_list: true });
+        assert_eq!(when_text(NOW, &full), full_time(NOW, &full));
+        for far in [i64::MIN, i64::MAX] {
+            assert!(!when_text(far, &clock).is_empty());
         }
     }
 

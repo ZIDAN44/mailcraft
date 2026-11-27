@@ -40,8 +40,9 @@ fn month_names_and_days_written_out_as_before() {
 
 /// An all-day invitation's card says its day as the follow-up dates do: its weekday as the
 /// language writes it (whatever that has in it: the card cut a date and time at its second
-/// space) and its date in the order chosen, the day the event is on wherever the viewer is. A
-/// timed one says its start and end as before.
+/// space) and its date in the order chosen (by its month's name in the viewer's year, as the lists
+/// write a day: audit S12), the day the event is on wherever the viewer is. A timed one says its
+/// start and end, its start as the reading pane writes a moment.
 #[test]
 fn an_invitation_says_its_day() {
     const WEEKDAYS: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -75,11 +76,13 @@ fn an_invitation_says_its_day() {
                         };
                         // 1 January 1970 was a Thursday.
                         let weekday = crate::i18n::t(WEEKDAYS[(day + 3).rem_euclid(7) as usize]);
-                        assert_eq!(crate::reading::invite_when(&e, &s), format!("{weekday} {date}"), "{} {day}", lang.code());
+                        let this_year = y == civil_from_days(dates::today(&s.clock)).0;
+                        let said = if this_year { crate::i18n::date(&dates::day_short(day, &s.clock)) } else { format!("{weekday} {date}") };
+                        assert_eq!(crate::reading::invite_when(&e, &s), said, "{} {day}", lang.code());
                         e.all_day = false;
                         e.start = day * 86_400 + 13 * 3600 + 5 * 60;
                         e.end = e.start + 3600;
-                        let was = format!("{} – {}", crate::i18n::date(&dates::full_time(e.start, &clock)), crate::calendar::hm(e.end, &s));
+                        let was = format!("{} – {}", crate::i18n::date(&dates::when_text(e.start, &clock)), crate::calendar::hm(e.end, &s));
                         assert_eq!(crate::reading::invite_when(&e, &s), was, "{} {day}", lang.code());
                         checked += 1;
                     }
@@ -91,7 +94,7 @@ fn an_invitation_says_its_day() {
     assert!(checked > 100_000, "{checked}");
     let s = Session::open(None, Clock::new(NOW, 0));
     let e = mailcraft_engine::model::ical::CalEvent { all_day: true, start: 20_740 * 86_400, end: 20_741 * 86_400, ..Default::default() };
-    assert_eq!(crate::reading::invite_when(&e, &s), "Wed 2026-10-14");
+    assert_eq!(crate::reading::invite_when(&e, &s), "Wed Oct 14");
 }
 
 /// Showing a day (from an invitation, the To-Do Bar's month) and going to one (the calendar's

@@ -298,7 +298,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             title(ui, t, "Open a repeating event");
             ui.add(egui::Label::new(RichText::new(summary.as_str()).color(t.dim)).truncate());
             ui.add_space(4.0);
-            ui.label(RichText::new(mailcraft_engine::model::dates::full_time(*occurrence, &s.clock)).color(t.dim));
+            ui.label(RichText::new(crate::i18n::date(&mailcraft_engine::model::dates::when_text(*occurrence, &s.clock))).color(t.dim));
             ui.add_space(12.0);
             let mut keep = true;
             ui.horizontal(|ui| {

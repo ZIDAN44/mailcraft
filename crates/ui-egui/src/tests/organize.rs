@@ -322,7 +322,8 @@ fn a_completed_follow_up_shows_as_done() {
     let spoken = format!("{}, {}, ", m.from.display(), m.subject);
     let row = shown.iter().find(|l| l.starts_with(&spoken)).cloned().unwrap_or_default();
     assert!(row.contains("Completed") && !row.contains("Flagged"), "{row}");
-    let today = mailcraft_engine::model::dates::day_label(mailcraft_engine::model::dates::today(&a.session.clock));
+    let today =
+        crate::i18n::date(&mailcraft_engine::model::dates::day_short(mailcraft_engine::model::dates::today(&a.session.clock), &a.session.clock));
     assert!(shown.iter().any(|l| l.starts_with("Completed on ") && l.contains(&today)), "{shown:?}");
     // Arranged by the flag, under its own heading.
     a.run("view.arrange", json!({"by": "flag"}));

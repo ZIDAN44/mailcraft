@@ -52,6 +52,22 @@ fn the_follow_up_bar_and_the_headings_line() {
     assert!((heading.top() - title.top()).abs() <= 2.0, "one line: the list's title at {}, the subject at {}", title.top(), heading.top());
 }
 
+/// S12: the reading pane writes its date as the list beside it writes a day (`Fri Nov 27 21:10`
+/// beside `Nov 27`; it said `Fri 2026-11-27 21:10`).
+#[test]
+fn the_reading_panes_date_reads_as_the_lists() {
+    let (mut a, ctx) = shown("date-style", &[("list.open", json!({"key": "sample:1:1:INBOX"}))]);
+    let texts = drawn_text(&ctx, &mut a, SIZE);
+    let date = a.session.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.date).unwrap_or_default();
+    let clock = &a.session.clock;
+    let short = crate::i18n::date(&mailcraft_engine::model::dates::when_text(date, clock));
+    let whole = crate::i18n::date(&mailcraft_engine::model::dates::full_time(date, clock));
+    assert_ne!(short, whole, "the sample's message is from this year");
+    let all: Vec<&str> = texts.iter().map(|d| d.text.as_str()).collect();
+    assert!(all.contains(&short.as_str()), "{short} in {all:?}");
+    assert!(!all.contains(&whole.as_str()), "not {whole}");
+}
+
 /// M21: what a search found in a subject is tinted, its words in their own colour (black on solid
 /// yellow, it was).
 #[test]

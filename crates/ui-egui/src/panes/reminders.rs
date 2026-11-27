@@ -84,7 +84,8 @@ pub fn showing(st: &State) -> bool {
 /// When an occurrence is, for the list: `Today 09:00`, `Tomorrow`, `Mon 2026-10-26 14:00`.
 fn when(r: &DueReminder, s: &Session) -> String {
     let day = s.clock.local_day(r.start);
-    let date = crate::tasks::near_day(day, dates::today(&s.clock)).map_or_else(|| crate::i18n::date(&dates::day_text(day, &s.clock)), str::to_string);
+    let date =
+        crate::tasks::near_day(day, dates::today(&s.clock)).map_or_else(|| crate::i18n::date(&dates::day_short(day, &s.clock)), str::to_string);
     if r.all_day { date } else { format!("{date} {}", crate::calendar::hm(r.start, s)) }
 }
 

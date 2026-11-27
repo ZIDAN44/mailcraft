@@ -115,7 +115,7 @@ fn sender_card(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut 
         // narrow pane); under the sender when the pane is too narrow for both.
         let when = o.summary.map_or(p.date, |m| if p.date > 0 { p.date } else { m.date });
         // None at all (a message file without one): no date, rather than 1970's.
-        let when = if when > 0 { crate::i18n::date(&dates::full_time(when, &s.clock)) } else { String::new() };
+        let when = if when > 0 { crate::i18n::date(&dates::when_text(when, &s.clock)) } else { String::new() };
         let date = egui::WidgetText::from(RichText::new(when).color(t.dim).small()).into_galley(
             ui,
             Some(egui::TextWrapMode::Extend),
@@ -314,7 +314,7 @@ fn follow_up_line(s: &Session, t: &Tokens, ui: &mut Ui, summary: Option<&Summary
             icons::paint(ui.painter(), ir, Icon::Done, t.dim);
             // A bar's words, not sentences: no full stops, its parts joined by " · ".
             let text = match summary.and_then(|m| s.follow_up_done(m)) {
-                Some(d) => tf!("Completed on {date}", date = crate::i18n::date(&dates::day_text(d, &s.clock))),
+                Some(d) => tf!("Completed on {date}", date = crate::i18n::date(&dates::day_short(d, &s.clock))),
                 None => tl!("Completed").to_string(),
             };
             ui.label(RichText::new(text).color(t.dim).small());
@@ -326,10 +326,10 @@ fn follow_up_line(s: &Session, t: &Tokens, ui: &mut Ui, summary: Option<&Summary
             icons::paint(ui.painter(), ir, Icon::Flag, t.flag);
             let text = match due {
                 Some(d) if d < today => {
-                    tf!("Follow up · Overdue: it was due {date}", date = crate::i18n::date(&dates::day_text(d, &s.clock)))
+                    tf!("Follow up · Overdue: it was due {date}", date = crate::i18n::date(&dates::day_short(d, &s.clock)))
                 }
                 Some(d) if d == today => tl!("Follow up · Due today").to_string(),
-                Some(d) => tf!("Follow up · Due {date}", date = crate::i18n::date(&dates::day_text(d, &s.clock))),
+                Some(d) => tf!("Follow up · Due {date}", date = crate::i18n::date(&dates::day_short(d, &s.clock))),
                 None => tl!("Follow up").to_string(),
             };
             let overdue = due.is_some_and(|d| d < today);
@@ -354,7 +354,7 @@ fn outbox_says(item: &mailcraft_engine::store::OutboxItem, s: &Session) -> Strin
         Some(e) if crate::i18n::fixed_reason(e).is_some() => tf!("Waiting in the Outbox. Last try: {error}", error = crate::i18n::error(e)),
         Some(e) if e != "offline" => tf!("Waiting in the Outbox. Last try: {error}", error = widgets::shorten(e, 140)),
         _ if item.not_before > s.clock.now => {
-            tf!("Held in the Outbox: it will be sent {when}.", when = crate::i18n::date(&dates::full_time(item.not_before, &s.clock)))
+            tf!("Held in the Outbox: it will be sent {when}.", when = crate::i18n::date(&dates::when_text(item.not_before, &s.clock)))
         }
         _ => tl!("Waiting in the Outbox: it will be sent when you're back online.").to_string(),
     }

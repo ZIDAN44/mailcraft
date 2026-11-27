@@ -364,7 +364,7 @@ fn menu(s: &Session, t: &Tokens, ui: &mut Ui, it: &TodoItem, acts: &mut Vec<Acti
     ui.menu_button(tl!("Follow up"), |ui| {
         for f in dates::FollowUp::ALL {
             let day = f.due(&s.clock);
-            let when = crate::i18n::date(&dates::day_text(day, &s.clock));
+            let when = crate::i18n::date(&dates::day_short(day, &s.clock));
             let clicked = ui
                 .horizontal(|ui| {
                     let r = ui.selectable_label(it.due == Some(day), tl!(f.label()));

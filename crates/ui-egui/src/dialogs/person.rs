@@ -423,7 +423,7 @@ fn files(ui: &mut Ui, a: &PersonActivity, s: &Session, t: &Tokens, acts: &mut Ve
 /// The meetings they organise or are asked to: a click opens one.
 fn meetings(ui: &mut Ui, a: &PersonActivity, s: &Session, t: &Tokens, acts: &mut Vec<Action>, limit: usize) -> bool {
     for (i, m) in a.meetings.iter().take(limit).enumerate() {
-        let when = if m.all_day { dates::day_text(m.start.div_euclid(86_400), &s.clock) } else { dates::full_time(m.start, &s.clock) };
+        let when = if m.all_day { dates::day_short(m.start.div_euclid(86_400), &s.clock) } else { dates::when_text(m.start, &s.clock) };
         let summary = if m.summary.trim().is_empty() { tl!("(no subject)").to_string() } else { m.summary.clone() };
         let hint = if m.theirs { tl!("They organise it") } else { tl!("They're invited") };
         if ui.push_id(("meeting", i), |ui| row(ui, t, &summary, false, &crate::i18n::date(&when), hint)).inner.clicked()

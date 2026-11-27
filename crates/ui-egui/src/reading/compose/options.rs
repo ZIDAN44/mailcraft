@@ -81,7 +81,7 @@ fn left_options(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, f: &
     });
     // Held back: when it goes, in sight.
     if let Some(at) = c.send_after.filter(|_| f.can_delay) {
-        let label = tf!("Sends {when}", when = crate::i18n::date(&dates::full_time(at, &f.clock)));
+        let label = tf!("Sends {when}", when = crate::i18n::date(&dates::when_text(at, &f.clock)));
         let r = widgets::tool_toggle(ui, Icon::Clock, &label, t, true);
         egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| delay_menu(ui, t, c, &f.clock));
     }
@@ -140,7 +140,7 @@ fn delay_menu(ui: &mut Ui, t: &Tokens, c: &mut mailcraft_engine::Compose, clock:
         let clicked = ui
             .horizontal(|ui| {
                 let r = ui.selectable_label(c.send_after == Some(when), tl!(label));
-                ui.label(RichText::new(crate::i18n::date(&dates::full_time(when, clock))).color(t.faint).small());
+                ui.label(RichText::new(crate::i18n::date(&dates::when_text(when, clock))).color(t.faint).small());
                 r.clicked()
             })
             .inner;

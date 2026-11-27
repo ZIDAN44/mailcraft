@@ -12,9 +12,9 @@ pub(crate) use day::repeats as invite_repeats_for_tests;
 /// is a local midnight), else the date and time it starts and the time it ends.
 pub(crate) fn invite_when(e: &mailcraft_engine::model::ical::CalEvent, s: &Session) -> String {
     if e.all_day {
-        crate::i18n::date(&dates::day_text(s.clock.local_day(s.clock.utc(e.start)), &s.clock))
+        crate::i18n::date(&dates::day_short(s.clock.local_day(s.clock.utc(e.start)), &s.clock))
     } else {
-        format!("{} – {}", crate::i18n::date(&dates::full_time(e.start, &s.clock)), crate::calendar::hm(e.end, s))
+        format!("{} – {}", crate::i18n::date(&dates::when_text(e.start, &s.clock)), crate::calendar::hm(e.end, s))
     }
 }
 

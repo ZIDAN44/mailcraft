@@ -71,7 +71,7 @@ pub fn waiting(ui: &mut Ui, f: &mut WaitingForm, s: &Session, t: &Tokens, acts: 
     }
     egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
         for w in &mut f.found {
-            let when = crate::i18n::date(&dates::full_time(w.start, &s.clock));
+            let when = crate::i18n::date(&dates::when_text(w.start, &s.clock));
             let line =
                 if w.organizer.is_empty() { format!("{} · {when}", w.summary) } else { format!("{} · {when} · {}", w.summary, w.organizer) };
             ui.checkbox(&mut w.picked, line);
