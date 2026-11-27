@@ -135,6 +135,21 @@ A mail client that crashes loses drafts and trust. **This outranks feature work.
   (the tests fail on an untranslated string).
 - **Rust only. Never break wasm** for the portable crates (`cargo xtask wasm`).
 
+## The interface
+How it looks is decided once, in `docs/interface.md`; read it before changing a pane, form or
+dialog. In short:
+- **Sizes from `look/sizes.rs` only:** text 12, 14, 20 or 28 (Semibold, never Bold), controls 32
+  in dialogs and 26 in panes, corners 4 and 8, gaps 8, 16 and 24, dialogs 360, 440 or 560 wide.
+- **The accent** for the one main button, the selection, the unread bar and links; icons in the
+  text's colour. Destructive buttons are red and never the default.
+- **Dialogs** through `dialogs/frame.rs`: buttons in `button_row` (the system's order), saying
+  what they do; labels over their fields, errors under them. What can be undone happens with
+  Undo; only what can't asks first.
+- **Sentence case,** one glyph for one meaning, a command once per surface, dates as the list
+  writes them (`dates::day_short`, `when_text`).
+- Tests guard the ramp, the icons and sentence case; a change is also looked at in the app,
+  light, dark and in German.
+
 ## File size and organisation
 Small files that each hold one topic are what keep this codebase readable by people and agents.
 `cargo xtask sizes` and `cargo xtask modules --cycles` (both part of `cargo xtask ci`) enforce it:
