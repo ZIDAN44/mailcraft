@@ -56,12 +56,25 @@ pub struct PersonForm {
     /// The name or address typed to find someone else, and who it finds.
     pub lookup: String,
     pub people_found: Vec<Contact>,
+    /// Finding someone else: its box shown (opened from the header's search icon; it was the
+    /// dialog's first line, over the person), and given the keys once as it opens.
+    pub finding: bool,
+    pub find_focus: bool,
 }
 
 impl PersonForm {
     pub fn new(s: &mut Session, email: &str) -> PersonForm {
         let all = s.person_activity(email);
-        PersonForm { shown: all.clone(), all, query: String::new(), tab: PersonTab::Overview, lookup: String::new(), people_found: Vec::new() }
+        PersonForm {
+            shown: all.clone(),
+            all,
+            query: String::new(),
+            tab: PersonTab::Overview,
+            lookup: String::new(),
+            people_found: Vec::new(),
+            finding: false,
+            find_focus: false,
+        }
     }
 
     /// Search within it (an empty search shows it all).
@@ -74,9 +87,12 @@ impl PersonForm {
 pub(super) fn draw(ui: &mut Ui, f: &mut PersonForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     let w = (ui.ctx().content_rect().width() * 0.6).clamp(420.0, crate::sizes::VIEWER_MAX);
     ui.set_width(w);
-    lookup(ui, f, t, acts);
-    ui.add_space(8.0);
+    // The person first, as the dialog's title; finding someone else from the header's icon.
     header(ui, f, s, t, acts);
+    if f.finding {
+        ui.add_space(6.0);
+        lookup(ui, f, t, acts);
+    }
     found(ui, f, s, t, acts);
     ui.add_space(8.0);
     let r = ui.add(
@@ -128,7 +144,8 @@ pub(super) fn draw(ui: &mut Ui, f: &mut PersonForm, s: &Session, t: &Tokens, act
 fn label(tab: PersonTab, a: &PersonActivity) -> String {
     match tab {
         PersonTab::Overview => tl!("Overview").to_string(),
-        PersonTab::Mail => tf!("Mail ({n})", n = a.message_count()),
+        // Counted as it's listed, by conversation ("Mail (3)" over two rows).
+        PersonTab::Mail => tf!("Mail ({n})", n = a.threads.len()),
         PersonTab::Files => tf!("Files ({n})", n = a.files.len()),
         PersonTab::Meetings => tf!("Meetings ({n})", n = a.meetings.len()),
         PersonTab::Links => tf!("Links ({n})", n = a.links.len()),
@@ -142,6 +159,9 @@ fn lookup(ui: &mut Ui, f: &mut PersonForm, t: &Tokens, acts: &mut Vec<Action>) {
     let r = ui.add(
         egui::TextEdit::singleline(&mut f.lookup).id(lookup_id()).hint_text(tl!("Find someone by name or address")).desired_width(f32::INFINITY),
     );
+    if std::mem::take(&mut f.find_focus) {
+        r.request_focus();
+    }
     if r.changed() {
         acts.push(Action::PersonLookup(f.lookup.clone()));
     }
@@ -161,7 +181,7 @@ fn lookup(ui: &mut Ui, f: &mut PersonForm, t: &Tokens, acts: &mut Vec<Action>) {
 }
 
 /// Who they are, their addresses, and what can be done with them.
-fn header(ui: &mut Ui, f: &PersonForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
+fn header(ui: &mut Ui, f: &mut PersonForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) {
     let a = &f.all;
     let known = s.contact_by_address(&a.email);
     let who = EmailAddress::new(&a.name, &a.email);
@@ -169,18 +189,18 @@ fn header(ui: &mut Ui, f: &PersonForm, s: &Session, t: &Tokens, acts: &mut Vec<A
         let (ar, _) = ui.allocate_exact_size(vec2(48.0, 48.0), Sense::hover());
         crate::photos::avatar(ui, s, ar.center(), 23.0, &a.email, &who.initials(), theme::avatar_color(&a.email, t.dark));
         ui.add_space(6.0);
-        ui.vertical(|ui| {
-            let r = ui.label(RichText::new(&a.name).font(theme::semibold(18.0)).color(t.text));
-            // What the dialog is called, to a screen reader.
-            ui.ctx().data_mut(|d| d.insert_temp(title_id(), Some(r.id)));
-            if let Some(c) = known {
-                let what = [c.title.as_str(), c.org.as_str()].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(" · ");
-                if !what.is_empty() {
-                    ui.label(RichText::new(what).color(t.dim));
-                }
-            }
-            ui.label(RichText::new(a.addresses.join(", ")).color(t.dim).small());
+        // Finding someone else, at the row's end.
+        let mut toggle = false;
+        ui.with_layout(crate::bidi::row_from_end(egui::Align::Min), |ui| {
+            toggle = widgets::icon_action(ui, Icon::Search, "Find someone", t).clicked();
+            ui.with_layout(crate::bidi::column(), |ui| {
+                header_text(ui, a, known, t);
+            });
         });
+        if toggle {
+            f.finding = !f.finding;
+            f.find_focus = f.finding;
+        }
     });
     ui.add_space(6.0);
     ui.horizontal_wrapped(|ui| {
@@ -195,6 +215,24 @@ fn header(ui: &mut Ui, f: &PersonForm, s: &Session, t: &Tokens, acts: &mut Vec<A
             acts.push(Action::Dialog(dialog));
         }
     });
+}
+
+/// The header's words: the name as the dialog's title, what they do, and their addresses when
+/// they aren't the name itself (someone known by address alone had it twice).
+fn header_text(ui: &mut Ui, a: &PersonActivity, known: Option<&mailcraft_engine::model::vcard::Card>, t: &Tokens) {
+    let r = ui.label(RichText::new(&a.name).font(theme::semibold(crate::sizes::SUBTITLE)).color(t.text));
+    // What the dialog is called, to a screen reader.
+    ui.ctx().data_mut(|d| d.insert_temp(title_id(), Some(r.id)));
+    if let Some(c) = known {
+        let what = [c.title.as_str(), c.org.as_str()].into_iter().filter(|x| !x.is_empty()).collect::<Vec<_>>().join(" · ");
+        if !what.is_empty() {
+            ui.label(RichText::new(what).color(t.dim));
+        }
+    }
+    let only_the_name = a.addresses.len() == 1 && a.addresses.first().is_some_and(|x| x.eq_ignore_ascii_case(a.name.trim()));
+    if !only_the_name {
+        ui.label(RichText::new(a.addresses.join(", ")).color(t.dim).small());
+    }
 }
 
 /// What their signature gives that their contact doesn't have: offered, never put in by itself.
@@ -288,10 +326,16 @@ fn overview(ui: &mut Ui, f: &mut PersonForm, s: &Session, t: &Tokens, acts: &mut
             ui.add_space(8.0);
         }
         empty = false;
-        let heading = ui.add(egui::Label::new(RichText::new(label(tab, a)).font(theme::semibold(14.0)).color(t.accent)).sense(Sense::click()));
-        if heading.on_hover_text(tl!("Show all")).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
-            go = Some(tab);
-        }
+        // A heading in the text's colour, with Show all at its end (each heading was a link in
+        // the app colour).
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(label(tab, a)).font(theme::semibold(crate::sizes::BODY)).color(t.text));
+            ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
+                if ui.link(RichText::new(tl!("Show all")).color(t.accent).small()).clicked() {
+                    go = Some(tab);
+                }
+            });
+        });
         ui.push_id(("overview", tab as u8), |ui| match tab {
             PersonTab::Overview => true,
             PersonTab::Mail => mail(ui, a, s, t, acts, OVERVIEW_ROWS, false),

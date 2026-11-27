@@ -65,14 +65,15 @@ fn everything_with_someone_from_their_card() {
     // A few of each, first; each conversation's folder.
     assert_eq!(person(&a).tab, PersonTab::Overview);
     let nodes = shown(&ctx, &mut a);
-    for part in ["Overview", "Mail (3)", "Files (1)", "Meetings (1)", "Links (0)", "People (1)"] {
+    // Mail counted as it's listed, by conversation (audit D17: "Mail (3)" over two rows).
+    for part in ["Overview", "Mail (2)", "Files (1)", "Meetings (1)", "Links (0)", "People (1)"] {
         at(&nodes, part, false);
     }
     at(&nodes, "Kick-off notes, Archive · ", true);
     at(&nodes, "colour-key.png, 268 B · ", true);
     // Her mail by conversation: the Storyboard one with Sam's answer in the Inbox, the kick-off
     // in the Archive.
-    click_named(&ctx, &mut a, "Mail (3)");
+    click_named(&ctx, &mut a, "Mail (2)");
     assert_eq!(person(&a).tab, PersonTab::Mail);
     let nodes = shown(&ctx, &mut a);
     at(&nodes, "Storyboard review on Thursday, 2 messages", false);
@@ -128,8 +129,12 @@ fn someone_else_from_the_box_and_from_people() {
     a.act(crate::Action::Person("zoe@studio.example".into()));
     assert!(a.ui.focus_main, "the main window forward, where it shows (asked for from a message window)");
     shown(&ctx, &mut a);
-    ctx.memory_mut(|m| m.request_focus(crate::dialogs::person_lookup_id()));
+    // Audit D17: the person first; finding someone else from the header's search icon (its box
+    // was the dialog's first line).
+    assert!(!person(&a).finding, "no find box at first");
+    click_named(&ctx, &mut a, "Find someone");
     frame(&ctx, &mut a, vec![]);
+    assert!(ctx.memory(|m| m.has_focus(crate::dialogs::person_lookup_id())), "its box has the keys as it opens");
     frame(&ctx, &mut a, vec![Event::Text("watan".into())]);
     let found: Vec<&str> = person(&a).people_found.iter().map(|c| c.address.email.as_str()).collect();
     assert_eq!(found, ["jun@studio.example"]);
@@ -141,7 +146,7 @@ fn someone_else_from_the_box_and_from_people() {
 
     // Nobody: said.
     shown(&ctx, &mut a);
-    ctx.memory_mut(|m| m.request_focus(crate::dialogs::person_lookup_id()));
+    click_named(&ctx, &mut a, "Find someone");
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![Event::Text("zzqx".into())]);
     assert!(has(&texts(&ctx, &mut a), "No one found."));
@@ -209,4 +214,26 @@ fn a_signatures_number_is_offered_for_their_contact() {
     assert!(f.uid.is_some(), "her own contact");
     assert_eq!(f.phones[0], "020 7946 0018");
     assert_eq!(f.phones[2], "+1 555 0142", "her mobile where it was");
+}
+
+/// Audit D17: someone known by their address alone has it once, as the dialog's title (it was
+/// the title and again under it); the overview's headings say Show all at their end rather than
+/// being links in the app colour themselves.
+#[test]
+fn an_address_alone_is_said_once_and_headings_show_all() {
+    let (mut a, _) = app("person-address-once");
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1280.0, 800.0);
+    a.ui.dialog = Some(Dialog::person(&mut a.session, "nobody@nowhere.example"));
+    for _ in 0..3 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    let texts = drawn_strings(&ctx, &mut a, size);
+    assert_eq!(texts.iter().filter(|t| *t == "nobody@nowhere.example").count(), 1, "{texts:?}");
+    a.ui.dialog = Some(Dialog::person(&mut a.session, "zoe@studio.example"));
+    for _ in 0..3 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    let texts = drawn_strings(&ctx, &mut a, size);
+    assert!(texts.iter().filter(|t| *t == "Show all").count() >= 3, "a Show all for each part shown: {texts:?}");
 }
