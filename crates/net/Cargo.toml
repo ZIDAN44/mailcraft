@@ -32,9 +32,9 @@ rustls = { workspace = true }
 webpki-roots = { workspace = true }
 # SHA-256 and randomness for OAuth's PKCE (already rustls's crypto provider).
 ring = "0.17"
-# Signed updates: checking a release's minisign signature (Ed25519 over BLAKE2b) against the
-# project's public key; pure Rust, no dependencies of its own (MIT).
-minisign-verify = "0.3"
+# Signed updates: a release's minisign signature is Ed25519 (ring, above) over a BLAKE2b-512
+# hash; RustCrypto's BLAKE2, already in MailCraft through OpenPGP's argon2 (MIT or Apache-2.0).
+blake2 = "0.10"
 serde = { workspace = true }
 serde_json = { workspace = true }
 # WebDAV answers (CalDAV, CardDAV).

@@ -148,9 +148,100 @@ fn a_release_build_updates_to_the_next_release_from_end_to_end() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// Base64, as minisign writes its keys and signatures.
+fn base64(bytes: &[u8]) -> String {
+    const ABC: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let n = chunk.iter().enumerate().fold(0u32, |n, (i, b)| n | u32::from(*b) << (16 - 8 * i));
+        for i in 0..4 {
+            out.push(if i <= chunk.len() { char::from(ABC[(n >> (18 - 6 * i) & 63) as usize]) } else { '=' });
+        }
+    }
+    out
+}
+
+/// `data` signed as minisign signs it (Ed25519 over its BLAKE2b-512 hash, `comment` signed with
+/// the signature) by the key made from `seed`: that key's public line (`RW…`), and the
+/// `.minisig` file.
+fn minisign(seed: u8, data: &[u8], comment: &str) -> (String, String) {
+    use blake2::Digest;
+    use ring::signature::KeyPair;
+    let pair = ring::signature::Ed25519KeyPair::from_seed_unchecked(&[seed; 32]).unwrap();
+    let id = [seed; 8];
+    let public = [b"Ed".as_slice(), &id, pair.public_key().as_ref()].concat();
+    let signature = pair.sign(&blake2::Blake2b512::digest(data));
+    let line = [b"ED".as_slice(), &id, signature.as_ref()].concat();
+    let global = pair.sign(&[signature.as_ref(), comment.as_bytes()].concat());
+    let sig = format!("untrusted comment: a test's\n{}\ntrusted comment: {comment}\n{}\n", base64(&line), base64(global.as_ref()));
+    (base64(&public), sig)
+}
+
+/// Signed updates (#233): built with a public key, a build takes its update once the release's
+/// checksums are signed with that key for that release; signed with another key, for another
+/// release, or not at all, the update isn't downloaded or offered.
+#[test]
+fn an_update_is_taken_only_with_its_checksums_signed() {
+    let file = b"the new MailCraft".to_vec();
+    for (case, signer, signed_tag, signature) in [
+        ("signed", 7u8, "v0.33.0", true),
+        ("another key", 9, "v0.33.0", true),
+        ("another release", 7, "v0.32.0", true),
+        ("unsigned", 7, "v0.33.0", false),
+    ] {
+        let dir = scratch(&format!("signed-{}", case.replace(' ', "-")));
+        let kind = if cfg!(windows) { Kind::Portable(dir.join("MailCraft").join("mailcraft.exe")) } else { Kind::Tarball(dir.join("MailCraft")) };
+        let name = format!("mailcraft-0.33.0{}", kind.suffix());
+        let sums = format!("{}  {name}\n", mailcraft_net::updates::sha256_hex(&file));
+        let (key, _) = minisign(7, b"", "");
+        let (_, sig) = minisign(signer, sums.as_bytes(), &format!("MailCraft {signed_tag}"));
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let base = format!("http://127.0.0.1:{}/", listener.local_addr().unwrap().port());
+        let asset = |n: &str, body: &[u8]| format!(r#"{{"name":"{n}","size":{},"browser_download_url":"{base}download/v0.33.0/{n}"}}"#, body.len());
+        let mut assets = vec![asset(&name, &file), asset("SHA256SUMS.txt", sums.as_bytes())];
+        let mut files =
+            vec![(format!("/download/v0.33.0/{name}"), file.clone()), ("/download/v0.33.0/SHA256SUMS.txt".to_string(), sums.clone().into_bytes())];
+        if signature {
+            assets.push(asset("SHA256SUMS.txt.minisig", sig.as_bytes()));
+            files.push(("/download/v0.33.0/SHA256SUMS.txt.minisig".to_string(), sig.into_bytes()));
+        }
+        let list = format!(
+            r#"[{{"tag_name":"v0.33.0","draft":false,"prerelease":false,"target_commitish":"0123456789abcdef0123456789abcdef01234567",
+                 "html_url":"{base}tag/v0.33.0","assets":[{}]}}]"#,
+            assets.join(",")
+        );
+        files.push(("/releases".to_string(), list.into_bytes()));
+        let asked = serve(listener, files);
+        let data = dir.join("data-folder");
+        std::fs::create_dir_all(&data).unwrap();
+        let mut u = Updater::new(kind, data.clone(), mailcraft_net::updates::Feed::local(&base).unwrap(), "0.32.0".into(), true);
+        u.keys = Box::leak(Box::new([&*Box::leak(key.into_boxed_str())]));
+        u.follow_choice(mailcraft_engine::policy::Updates::On);
+        let u = u.launch(None, Some(Duration::ZERO)).unwrap();
+        if case == "signed" {
+            wait_for("the download", 60, || matches!(u.status(), Status::Ready { .. }));
+            assert_eq!(std::fs::read(data.join(DOWNLOADS).join(&name)).unwrap(), file);
+        } else {
+            // Its first check has come and gone (the list asked for, then the checksums and their
+            // signature when there is one): nothing downloaded, nothing offered.
+            let wanted = if signature { "/download/v0.33.0/SHA256SUMS.txt.minisig" } else { "/releases" };
+            wait_for("the check", 60, || asked.lock().unwrap().iter().any(|p| p == wanted));
+            std::thread::sleep(Duration::from_secs(2));
+            assert!(!asked.lock().unwrap().iter().any(|p| p.ends_with(&name)), "{case}: downloaded: {:?}", asked.lock().unwrap());
+            assert!(!matches!(u.status(), Status::Ready { .. }), "{case}: offered");
+            assert!(!data.join(DOWNLOADS).join(&name).exists(), "{case}: downloaded");
+        }
+        u.closing();
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
 /// Serve `files` (path → body) over HTTP on `listener` (bound beforehand, so the addresses in
-/// the files could name its port), as many requests as come, on a thread of its own.
-fn serve(listener: TcpListener, files: Vec<(String, Vec<u8>)>) {
+/// the files could name its port), as many requests as come, on a thread of its own: the paths
+/// asked for, as they come.
+fn serve(listener: TcpListener, files: Vec<(String, Vec<u8>)>) -> std::sync::Arc<Mutex<Vec<String>>> {
+    let asked = std::sync::Arc::new(Mutex::new(Vec::new()));
+    let seen = asked.clone();
     std::thread::spawn(move || {
         for stream in listener.incoming().flatten() {
             let mut reader = BufReader::new(stream.try_clone().unwrap());
@@ -163,6 +254,7 @@ fn serve(listener: TcpListener, files: Vec<(String, Vec<u8>)>) {
                 }
             }
             let path = first.split_whitespace().nth(1).unwrap_or("/").to_string();
+            seen.lock().unwrap().push(path.clone());
             let mut out = stream;
             match files.iter().find(|(p, _)| *p == path) {
                 Some((_, body)) => {
@@ -178,6 +270,7 @@ fn serve(listener: TcpListener, files: Vec<(String, Vec<u8>)>) {
             let _ = reader.read_to_end(&mut rest);
         }
     });
+    asked
 }
 
 /// The package step run by a shell, `pkexec` and the package tools stood in for: the `.deb` goes
