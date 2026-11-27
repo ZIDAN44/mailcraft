@@ -2209,3 +2209,4 @@ count	occurrences	回
 	Mark as read in the reading pane	閲覧ウィンドウで既読にする
 	Turned off for a folder it's in	このフォルダーを含むフォルダーでオフになっています
 	Not in {folders}: a folder's right-click menu turns it off and on.	{folders} を除く: フォルダーの右クリック メニューでオフとオンを切り替えます。
+	“{name}” deleted.	「{name}」を削除しました。

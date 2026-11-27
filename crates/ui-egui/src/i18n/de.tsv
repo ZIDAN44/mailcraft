@@ -2213,3 +2213,4 @@ count	occurrences	Terminen
 	Mark as read in the reading pane	Im Lesebereich als gelesen markieren
 	Turned off for a folder it's in	Für einen Ordner ausgeschaltet, in dem er liegt
 	Not in {folders}: a folder's right-click menu turns it off and on.	Nicht in {folders}: Das Kontextmenü eines Ordners schaltet es aus und ein.
+	“{name}” deleted.	„{name}“ gelöscht.

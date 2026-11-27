@@ -134,9 +134,17 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             ))
         }),
         CommandSpec::new("category.create", "New category", "Home › Tags › Categorize", |s, v| {
-            s.add_category(p::req_str(v, "name")?, color(v), p::str(v, "keyword"))
+            let at = match v.get("at") {
+                None | Some(Value::Null) => None,
+                Some(n) => Some(n.as_u64().and_then(|n| usize::try_from(n).ok()).ok_or_else(|| CmdError::Params("`at` is a place in the list, from 0".into()))?),
+            };
+            let made = s.add_category(p::req_str(v, "name")?, color(v), p::str(v, "keyword"))?;
+            if let Some(at) = at {
+                s.place_last_category(at);
+            }
+            Ok(made)
         })
-        .params(r#"{"name": string, "color"?: number, "keyword"?: string (the IMAP keyword, e.g. "$label6"; else made from the name as Thunderbird does)}"#),
+        .params(r#"{"name": string, "color"?: number, "keyword"?: string (the IMAP keyword, e.g. "$label6"; else made from the name as Thunderbird does), "at"?: number (its place in the list, from 0; default: the end)}"#),
         CommandSpec::new("category.edit", "Edit category", "Home › Tags › Categorize › All Categories", |s, v| {
             s.edit_category(p::req_str(v, "name")?, p::str(v, "newName"), color(v), p::str(v, "keyword"))
         })

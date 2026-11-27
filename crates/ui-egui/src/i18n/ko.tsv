@@ -2212,3 +2212,4 @@ count	occurrences	회
 	Mark as read in the reading pane	읽기 창에서 읽음으로 표시
 	Turned off for a folder it's in	이 폴더를 포함하는 폴더에서 꺼져 있음
 	Not in {folders}: a folder's right-click menu turns it off and on.	{folders} 제외: 폴더의 오른쪽 클릭 메뉴에서 끄고 켭니다.
+	“{name}” deleted.	"{name}"을(를) 삭제했습니다.

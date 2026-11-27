@@ -139,7 +139,8 @@ fn rule_row(
         acts.push(run("rules.serverSwitch", json!({"on": on})));
     }
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        ui.spacing_mut().item_spacing.x = 2.0;
+        // Apart enough that Delete isn't hit for Edit beside it.
+        ui.spacing_mut().item_spacing.x = 6.0;
         if !r.not_supported && ui.add_enabled_ui(may, |ui| widgets::tiny_icon_button(ui, Icon::Delete, "Delete", t)).inner.clicked() {
             acts.push(run("rules.serverDelete", json!({})));
         }
@@ -148,10 +149,10 @@ fn rule_row(
             let target = ServerTarget { account: account.to_string(), id: Some(r.id.clone()), drop_outlook_list: drop };
             acts.push(Action::Dialog(Dialog::EditRule(Box::new(RuleForm::for_server(target, Some(r))))));
         }
-        if ui.add_enabled(may && !last, egui::Button::new("↓").small()).on_hover_text(tl!("Move down")).clicked() {
+        if ui.add_enabled_ui(may && !last, |ui| widgets::tiny_icon_button(ui, Icon::ChevronDown, "Move down", t)).inner.clicked() {
             acts.push(run("rules.serverMove", json!({"up": false})));
         }
-        if ui.add_enabled(may && !first, egui::Button::new("↑").small()).on_hover_text(tl!("Move up")).clicked() {
+        if ui.add_enabled_ui(may && !first, |ui| widgets::tiny_icon_button(ui, Icon::ChevronUp, "Move up", t)).inner.clicked() {
             acts.push(run("rules.serverMove", json!({"up": true})));
         }
         ui.add_space(6.0);

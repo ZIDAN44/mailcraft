@@ -218,3 +218,19 @@ fn a_refused_rules_import_makes_no_categories() {
     import(&mut s, json!([rule(1, brand_new)])).unwrap();
     assert_eq!(s.category("Brand New").map(|c| c.keyword.as_str()), Some("brandnew"));
 }
+
+/// A category made `at` a place in the list goes there (a deleted one put back by Undo, where it
+/// was); past the end, or with none given, at the end.
+#[test]
+fn a_category_can_be_made_at_its_place() {
+    let mut s = sample_session("cat-at");
+    let names = |s: &Session| s.prefs.categories.iter().map(|c| c.name.clone()).collect::<Vec<_>>();
+    let first = names(&s);
+    s.run("category.delete", &json!({"name": first[1]})).unwrap();
+    s.run("category.create", &json!({"name": first[1], "at": 1})).unwrap();
+    assert_eq!(names(&s), first, "back where it was");
+    s.run("category.create", &json!({"name": "Last", "at": 999})).unwrap();
+    s.run("category.create", &json!({"name": "End"})).unwrap();
+    assert_eq!(names(&s).iter().rev().take(2).map(String::as_str).collect::<Vec<_>>(), ["End", "Last"]);
+    assert!(s.run("category.create", &json!({"name": "Bad place", "at": "first"})).is_err(), "a number, or nothing");
+}

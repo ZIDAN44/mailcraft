@@ -15,6 +15,7 @@ mod archiving;
 mod backup;
 mod categories;
 mod closing;
+mod deleted;
 mod folders;
 mod importing;
 mod mailbox;

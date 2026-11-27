@@ -12,6 +12,13 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
             .small(),
     );
     ui.add_space(6.0);
+    // The rule just deleted, with Undo (deleting one asks nothing first).
+    if let Some((name, rules)) = deleted::last::<(String, Vec<Rule>)>(ui, "rules")
+        && deleted::undo_line(ui, t, &name)
+    {
+        deleted::forget::<(String, Vec<Rule>)>(ui, "rules");
+        acts.push(Action::Run("rules.set", json!({"rules": rules})));
+    }
     // Many rules: a box to find one by its name or what it does.
     let find_id = egui::Id::unique("rules-find");
     let mut find: String = ui.ctx().data(|d| d.get_temp(find_id)).unwrap_or_default();
@@ -31,6 +38,8 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
         .collect();
     let mut toggled = None;
     let mut remove = None;
+    // A rule moved up or down the list (they run in its order): from where, to where.
+    let mut moved: Option<(usize, usize)> = None;
     // One line a rule (its switch, name, what it does, and its buttons as icons), in a
     // list that scrolls past a dozen or so; only the lines in view are laid out.
     egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).show(ui, |ui| {
@@ -59,7 +68,8 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
                     toggled = Some(i);
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing.x = 2.0;
+                    // Apart enough that Delete isn't hit for Edit beside it.
+                    ui.spacing_mut().item_spacing.x = 6.0;
                     if widgets::tiny_icon_button(ui, Icon::Delete, "Delete", t).clicked() {
                         remove = Some(i);
                     }
@@ -68,6 +78,13 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
                     }
                     if widgets::tiny_icon_button(ui, Icon::Sync, "Run now", t).clicked() {
                         acts.push(Action::Run("rules.run", json!({"index": i, "inbox": true})));
+                    }
+                    let last = i + 1 >= s.rules.len();
+                    if ui.add_enabled_ui(!last, |ui| widgets::tiny_icon_button(ui, Icon::ChevronDown, "Move down", t)).inner.clicked() {
+                        moved = Some((i, i + 1));
+                    }
+                    if ui.add_enabled_ui(i > 0, |ui| widgets::tiny_icon_button(ui, Icon::ChevronUp, "Move up", t)).inner.clicked() {
+                        moved = i.checked_sub(1).map(|to| (i, to));
                     }
                     ui.add_space(6.0);
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
@@ -92,7 +109,15 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
         });
     });
     if let Some(i) = remove {
+        if let Some(r) = s.rules.get(i) {
+            deleted::remember(ui, "rules", (r.name.clone(), s.rules.clone()));
+        }
         acts.push(Action::Run("rules.delete", json!({"index": i})));
+    } else if let Some((from, to)) = moved.filter(|&(f, t)| f < s.rules.len() && t < s.rules.len()) {
+        let mut rules = s.rules.clone();
+        rules.swap(from, to);
+        deleted::forget::<(String, Vec<Rule>)>(ui, "rules");
+        acts.push(Action::Run("rules.set", json!({"rules": rules})));
     } else if let Some(i) = toggled {
         // Copied only now, to send with the one switched.
         let mut rules = s.rules.clone();

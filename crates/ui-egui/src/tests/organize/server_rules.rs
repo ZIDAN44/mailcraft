@@ -84,12 +84,13 @@ fn an_exchange_accounts_rules_on_the_server_are_shown_and_changed() {
 }
 
 /// Issue #214: a rule made in another program, its note beside its name, is cut short before the
-/// row's buttons (the whole of it on hover): the note ran under ↑, ↓ and Delete, and past the
-/// dialog's edge.
+/// row's buttons (the whole of it on hover): the note ran under Move up, Move down and Delete,
+/// and past the dialog's edge.
 #[test]
 fn a_rules_note_stays_clear_of_its_buttons() {
     let (mut a, _) = app("rules-note-width");
     let ctx = egui::Context::default();
+    ctx.enable_accesskit();
     let id = a
         .session
         .run("account.add", &json!({"email": "zoe@contoso.example", "password": "pw", "ews": "https://mail.contoso.example/EWS/Exchange.asmx"}))
@@ -118,8 +119,13 @@ fn a_rules_note_stays_clear_of_its_buttons() {
         shown = drawn_text(&ctx, &mut a, size);
     }
     let note = shown.iter().find(|d| d.text.starts_with("Forward the studio's invoices R2")).expect("the rule's row");
-    let up = shown.iter().filter(|d| d.text == "↑").map(|d| d.rect).find(|r| (r.center().y - note.rect.center().y).abs() < 10.0).expect("its ↑");
-    assert!(note.rect.right() <= up.left(), "the note {:?} runs under ↑ {:?}", note.rect, up);
+    let up = named(&ctx, &mut a, size)
+        .into_iter()
+        .filter(|n| n.name() == Some("Move up"))
+        .filter_map(|n| n.rect)
+        .find(|r| (r.center().y - note.rect.center().y).abs() < 10.0)
+        .expect("its Move up");
+    assert!(note.rect.right() <= up.left(), "the note {:?} runs under Move up {:?}", note.rect, up);
 }
 
 /// Issue #243: an IMAP account's rules on its server (Sieve): its section, with the user's other

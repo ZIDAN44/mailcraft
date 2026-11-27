@@ -2226,3 +2226,4 @@ count	occurrences	wystąpieniach
 	Mark as read in the reading pane	Oznaczaj jako przeczytane w okienku odczytu
 	Turned off for a folder it's in	Wyłączone dla folderu, w którym się znajduje
 	Not in {folders}: a folder's right-click menu turns it off and on.	Oprócz: {folders}. Menu kontekstowe folderu to wyłącza i włącza.
+	“{name}” deleted.	Usunięto „{name}”.

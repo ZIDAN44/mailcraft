@@ -83,7 +83,8 @@ fn row(ui: &mut Ui, t: &Tokens, c: &Category, odd: bool, extra: &str, buttons: i
     let ui = &mut inner;
     crate::panes::organize::dot(ui, c.color, t.dark);
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        ui.spacing_mut().item_spacing.x = 2.0;
+        // Apart enough that Delete isn't hit for Edit beside it.
+        ui.spacing_mut().item_spacing.x = 6.0;
         buttons(ui);
         ui.add_space(6.0);
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
@@ -181,6 +182,14 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             );
             ui.add_space(6.0);
             let unlisted = unlisted(ui.ctx(), s);
+            // The category just deleted, with Undo (deleting one asks nothing first), put back
+            // where it was in the list.
+            if let Some((c, at)) = deleted::last::<(Category, usize)>(ui, "categories")
+                && deleted::undo_line(ui, t, &c.name)
+            {
+                deleted::forget::<(Category, usize)>(ui, "categories");
+                acts.push(Action::Run("category.create", json!({"name": c.name, "color": c.color, "keyword": c.keyword, "at": at})));
+            }
             egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).show(ui, |ui| {
                 egui::ScrollArea::vertical().max_height(360.0).auto_shrink([false, true]).show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;
@@ -192,6 +201,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     for (i, c) in s.prefs.categories.iter().enumerate() {
                         row(ui, t, c, i % 2 == 1, "", |ui| {
                             if widgets::tiny_icon_button(ui, Icon::Delete, "Delete", t).clicked() {
+                                deleted::remember(ui, "categories", (c.clone(), i));
                                 acts.push(Action::Run("category.delete", json!({"name": c.name})));
                             }
                             if widgets::tiny_icon_button(ui, Icon::Drafts, "Edit", t).clicked() {

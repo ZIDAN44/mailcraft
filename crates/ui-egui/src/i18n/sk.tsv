@@ -2227,3 +2227,4 @@ count	occurrences	opakovaní
 	Mark as read in the reading pane	Označovať ako prečítané na table na čítanie
 	Turned off for a folder it's in	Vypnuté pre priečinok, v ktorom je
 	Not in {folders}: a folder's right-click menu turns it off and on.	Okrem: {folders}. Vypína a zapína sa to v kontextovej ponuke priečinka.
+	“{name}” deleted.	„{name}“ odstránené.

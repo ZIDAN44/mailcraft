@@ -714,3 +714,55 @@ fn move_to_folder_picks_then_moves() {
     assert!(a.ui.dialog.is_none(), "Move moves and closes it");
     assert!(a.session.list.iter().all(|m| m.key != k), "moved out of the Inbox");
 }
+
+/// Rules: one deleted goes at once and Undo, over the list, puts it back where it was; one moved
+/// down changes places with the next (rules run in the list's order; a local rule couldn't be
+/// moved). Categories: one deleted comes back by Undo where it was in the list.
+#[test]
+fn rules_and_categories_deleted_come_back_by_undo_and_rules_move() {
+    let (mut a, _) = app("rules-undo");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    let rule = |name: &str| json!({"name": name, "conditions": [{"if": "from", "value": name}], "actions": [{"do": "markRead"}]});
+    for name in ["First", "Second", "Third"] {
+        a.run("rules.add", json!({"rule": rule(name)}));
+    }
+    let names = |a: &MailApp| a.session.rules.iter().map(|r| r.name.clone()).collect::<Vec<_>>();
+    a.ui.dialog = Some(Dialog::Rules);
+    frame(&ctx, &mut a, vec![]);
+    let size = egui::vec2(1280.0, 800.0);
+    // The Delete of the second rule: the second of the list's Delete buttons, top to bottom.
+    let nth = |ctx: &egui::Context, a: &mut MailApp, label: &str, n: usize| {
+        let mut at: Vec<egui::Pos2> =
+            named(ctx, a, size).iter().filter(|x| x.name() == Some(label) && !x.disabled).filter_map(Named::centre).collect();
+        at.sort_by(|p, q| p.y.total_cmp(&q.y));
+        at[n]
+    };
+    let at = nth(&ctx, &mut a, "Delete", 1);
+    click(&ctx, &mut a, at);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(names(&a), ["First", "Third"], "deleted at once");
+    assert!(has(&drawn_strings(&ctx, &mut a, size), "“Second” deleted."), "named over the list");
+    click_named(&ctx, &mut a, "Undo");
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(names(&a), ["First", "Second", "Third"], "back where it was");
+    assert!(!has(&drawn_strings(&ctx, &mut a, size), "“Second” deleted."), "and no longer offered");
+    let at = nth(&ctx, &mut a, "Move down", 0);
+    click(&ctx, &mut a, at);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(names(&a), ["Second", "First", "Third"], "the first moved down one");
+
+    a.ui.dialog = Some(Dialog::Categories);
+    for _ in 0..4 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let before: Vec<_> = a.session.prefs.categories.clone();
+    let at = nth(&ctx, &mut a, "Delete", 1);
+    click(&ctx, &mut a, at);
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.prefs.categories.len(), before.len() - 1, "deleted at once");
+    click_named(&ctx, &mut a, "Undo");
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(a.session.prefs.categories, before, "back where it was, its colour and keyword too");
+}

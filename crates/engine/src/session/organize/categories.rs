@@ -160,6 +160,15 @@ impl Session {
         Ok(serde_json::json!({ "created": name, "keyword": keyword, "color": color }))
     }
 
+    /// Put the category last in the list at place `at` instead (the end when past it): one put
+    /// back where it was.
+    pub(crate) fn place_last_category(&mut self, at: usize) {
+        if let Some(c) = self.prefs.categories.pop() {
+            let at = at.min(self.prefs.categories.len());
+            self.prefs.categories.insert(at, c);
+        }
+    }
+
     /// Change a category: its name (rules and Quick Steps that use it follow), colour or
     /// keyword. A new keyword isn't put on mail that has the old one: that mail shows the old
     /// keyword as a category not in the list.

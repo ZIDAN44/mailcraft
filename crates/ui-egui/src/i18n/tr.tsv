@@ -2213,3 +2213,4 @@ count	occurrences	kez
 	Mark as read in the reading pane	Okuma bölmesinde okundu olarak işaretle
 	Turned off for a folder it's in	İçinde bulunduğu bir klasör için kapalı
 	Not in {folders}: a folder's right-click menu turns it off and on.	Şunlarda değil: {folders}. Bir klasörün sağ tık menüsü bunu kapatıp açar.
+	“{name}” deleted.	“{name}” silindi.

@@ -2212,3 +2212,4 @@ count	occurrences	次
 	Mark as read in the reading pane	在讀取窗格中標為已讀
 	Turned off for a folder it's in	已在包含它的資料夾上關閉
 	Not in {folders}: a folder's right-click menu turns it off and on.	不包括 {folders}：可在資料夾的右鍵選單中關閉和開啟。
+	“{name}” deleted.	已刪除「{name}」。

@@ -2213,3 +2213,4 @@ count	occurrences	repeticiones
 	Mark as read in the reading pane	Marcar como leído en el panel de lectura
 	Turned off for a folder it's in	Desactivado en una carpeta que la contiene
 	Not in {folders}: a folder's right-click menu turns it off and on.	Excepto en {folders}: el menú contextual de una carpeta lo desactiva y lo activa.
+	“{name}” deleted.	«{name}» eliminado.

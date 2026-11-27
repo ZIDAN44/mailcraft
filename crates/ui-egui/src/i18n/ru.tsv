@@ -2226,3 +2226,4 @@ count	occurrences	повторений
 	Mark as read in the reading pane	Помечать прочитанным в области чтения
 	Turned off for a folder it's in	Отключено для папки, в которую она входит
 	Not in {folders}: a folder's right-click menu turns it off and on.	Кроме: {folders}. Это отключается и включается в контекстном меню папки.
+	“{name}” deleted.	«{name}» удалено.
