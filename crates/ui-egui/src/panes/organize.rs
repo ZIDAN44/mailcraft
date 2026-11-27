@@ -25,7 +25,9 @@ pub fn categorize_menu(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Acti
         let clicked = ui
             .horizontal(|ui| {
                 dot(ui, c.color, t.dark);
-                ui.selectable_label(on, tl!(&c.name)).clicked()
+                // A built-in one in the language shown; the user's own as they named it (any name
+                // a catalog happened to have was translated).
+                ui.selectable_label(on, crate::i18n::category(&c.name)).clicked()
             })
             .inner;
         if clicked {

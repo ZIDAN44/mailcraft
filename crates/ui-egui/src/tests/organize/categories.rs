@@ -130,3 +130,20 @@ fn the_categories_list_is_worked_from_above_with_buttons_on_hover() {
         assert!(names.iter().any(|n| n == colour), "{colour}: {names:?}");
     }
 }
+
+/// Audit L4: the categories MailCraft starts with are in the language shown while they're still
+/// called that (they stayed English in every language); one renamed is as it's named.
+#[test]
+fn built_in_categories_are_in_the_language_shown() {
+    let (mut a, _) = app("categories-german");
+    let ctx = egui::Context::default();
+    a.ui.language = "de".into();
+    crate::i18n::set_current(crate::i18n::Lang::from_code("de").unwrap());
+    let texts: Vec<String> = categories_drawn(&ctx, &mut a).into_iter().map(|(t, _)| t).collect();
+    let calendar = crate::i18n::calendar("Calendar").to_string();
+    a.ui.language = "en".into();
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+    assert!(texts.iter().any(|t| t == "Wichtig") && !texts.iter().any(|t| t == "Important"), "{texts:?}");
+    assert_eq!(calendar, "Kalender");
+    assert_eq!(crate::i18n::category("Clients"), "Clients", "the user's own as named");
+}

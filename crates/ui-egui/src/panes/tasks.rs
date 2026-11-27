@@ -269,7 +269,7 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     for (i, (colour, name)) in dots.iter().enumerate() {
         let gap = if i == 0 { 0.0 } else { 8.0 };
         job.append("●", gap, egui::TextFormat { font_id: caption.clone(), color: *colour, ..Default::default() });
-        job.append(name, 3.0, egui::TextFormat { font_id: caption.clone(), color: t.dim, ..Default::default() });
+        job.append(crate::i18n::category(name), 3.0, egui::TextFormat { font_id: caption.clone(), color: t.dim, ..Default::default() });
     }
     if !under.is_empty() {
         let lead = if dots.is_empty() { "" } else { "  ·  " };

@@ -733,3 +733,32 @@ fn a_password_can_be_shown_and_hidden() {
     click_named(&ctx, &mut a, "Hide the password");
     assert!(!typed(&ctx, &mut a), "hidden again");
 }
+
+/// Audit L5: a checkbox whose words wrap (German's online only) sits beside their first line, not
+/// between the lines, and a click on its words ticks it.
+#[test]
+fn a_wrapped_checkbox_sits_on_its_first_line() {
+    let (mut a, _) = app("checkbox-first-line");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.ui.language = "de".into();
+    crate::i18n::set_current(crate::i18n::Lang::from_code("de").unwrap());
+    let words = crate::i18n::t("Online only: keep none of this account's mail on this computer").to_string();
+    a.ui.dialog = Some(Dialog::AddAccount(Box::default()));
+    let size = egui::vec2(900.0, 900.0);
+    for _ in 0..3 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    let texts = drawn_text(&ctx, &mut a, size);
+    let all = named(&ctx, &mut a, size);
+    a.ui.language = "en".into();
+    crate::i18n::set_current(crate::i18n::Lang::EN);
+    let text = texts.iter().find(|d| d.text == words).map(|d| d.rect).expect("its words");
+    let boxed = all
+        .iter()
+        .find(|n| n.role == egui::accesskit::Role::CheckBox && n.label.as_deref() == Some(words.as_str()))
+        .and_then(|n| n.rect)
+        .expect("the box");
+    assert!(text.height() > 30.0, "two lines in German: {text:?}");
+    assert!((boxed.center().y - (text.top() + 10.0)).abs() < 8.0, "beside the first line: box {boxed:?}, words {text:?}");
+}

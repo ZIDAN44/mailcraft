@@ -61,12 +61,11 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
     }
     if !s.jmap_only {
         ui.add_space(8.0);
-        ui.horizontal_wrapped(|ui| {
-            ui.label(RichText::new(tl!("Only calendars and contacts, with no email?")).color(t.dim).small());
-            if ui.link(RichText::new(tl!("Add a CalDAV and CardDAV account")).color(t.accent).small()).clicked() {
-                f.calendar_only = true;
-            }
-        });
+        // The link on a line of its own, whole (it broke mid-phrase after a long question).
+        ui.label(RichText::new(tl!("Only calendars and contacts, with no email?")).color(t.dim).small());
+        if ui.link(RichText::new(tl!("Add a CalDAV and CardDAV account")).color(t.accent).small()).clicked() {
+            f.calendar_only = true;
+        }
     }
     // The main button: signing in through the browser where that's the only way (Microsoft 365,
     // or Outlook.com where this copy can), else connecting with the password.

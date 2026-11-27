@@ -81,7 +81,7 @@ fn subject_line(s: &Session, t: &Tokens, ui: &mut Ui, o: &Open<'_>, acts: &mut V
                         egui::Frame::new().stroke(egui::Stroke::new(1.0, color.gamma_multiply(0.6)))
                     };
                     let chip = frame.corner_radius(10).inner_margin(Margin::symmetric(8, 2)).show(ui, |ui| {
-                        ui.label(RichText::new(&c.name).color(color).small());
+                        ui.label(RichText::new(crate::i18n::category(&c.name)).color(color).small());
                     });
                     if !listed {
                         let r = chip

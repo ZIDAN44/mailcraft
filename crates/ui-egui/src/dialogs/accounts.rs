@@ -261,7 +261,7 @@ pub(super) fn user_agent_field(ui: &mut Ui, t: &Tokens, w: f32, agent: &mut Stri
 /// Online only (issue #4), as an account is added or changed: none of its mail on this computer.
 pub(super) fn online_only(ui: &mut Ui, t: &Tokens, on: &mut bool) {
     ui.add_space(6.0);
-    ui.checkbox(on, tl!("Online only: keep none of this account's mail on this computer"));
+    widgets::checkbox_wrapped(ui, on, tl!("Online only: keep none of this account's mail on this computer"));
     if *on {
         ui.add(egui::Label::new(RichText::new(online_only_about()).color(t.faint).small()).wrap());
     }

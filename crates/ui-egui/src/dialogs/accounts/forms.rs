@@ -115,7 +115,7 @@ impl SmtpSignIn {
     }
 
     pub(crate) fn ui(&mut self, ui: &mut Ui, w: f32) {
-        ui.checkbox(&mut self.own, tl!("The outgoing server has its own user name and password"));
+        widgets::checkbox_wrapped(ui, &mut self.own, tl!("The outgoing server has its own user name and password"));
         if self.own {
             super::indented(ui, |ui| {
                 let w = (w - 22.0).max(120.0);

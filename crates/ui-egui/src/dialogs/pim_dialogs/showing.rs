@@ -57,7 +57,7 @@ pub(super) fn writable_calendars(s: &Session) -> Vec<(String, String, String)> {
     for a in &s.accounts {
         if let Some(p) = s.pim.get(&a.config.id) {
             for c in p.calendars.iter().filter(|c| !c.read_only) {
-                let name = if c.id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { c.name.clone() };
+                let name = if c.id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar") } else { crate::i18n::calendar(&c.name) };
                 out.push((a.config.id.clone(), c.id.clone(), format!("{name} · {}", a.config.email)));
             }
         }

@@ -30,6 +30,22 @@ pub(crate) fn password_field(ui: &mut Ui, text: &mut String, hint: &str) -> Resp
     inner.inner
 }
 
+/// A checkbox whose words wrap: the box beside their first line (egui's centred it on all of
+/// them, two lines of German put it between them), a click on the words ticking it too.
+pub(crate) fn checkbox_wrapped(ui: &mut Ui, on: &mut bool, text: &str) -> Response {
+    ui.horizontal_top(|ui| {
+        let mut r = ui.checkbox(on, "");
+        let words = ui.add(egui::Label::new(text).wrap().sense(Sense::click()));
+        if words.clicked() {
+            *on = !*on;
+            r.mark_changed();
+        }
+        r.widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, true, *on, text));
+        r | words
+    })
+    .inner
+}
+
 /// A list's last row: a box and Add, Add on while what's typed is `ok`, and `why` it isn't under
 /// the box once something is typed. True when it's to be added (Add, or Enter in the box).
 pub(crate) fn add_row(ui: &mut Ui, text: &mut String, hint: &str, ok: bool, why: &str) -> bool {

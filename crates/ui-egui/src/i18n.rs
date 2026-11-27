@@ -289,6 +289,19 @@ pub fn set_current(lang: Lang) {
     CURRENT.set(lang);
 }
 
+/// A category's name as shown: one of the five MailCraft starts with, while it's still called
+/// that, in the language shown (they stayed English in every language); any other as it's named.
+pub fn category(name: &str) -> &str {
+    const BUILT_IN: [&str; 5] = ["Important", "Work", "Personal", "To do", "Later"];
+    if BUILT_IN.contains(&name) { t(name) } else { name }
+}
+
+/// A calendar's name as shown: one called "Calendar" (this computer's, or a server's first, as
+/// most servers name it) in the language shown.
+pub fn calendar(name: &str) -> &str {
+    if name == "Calendar" { t(name) } else { name }
+}
+
 /// A whole number as the language writes it, its thousands grouped ("1,000", "1.000",
 /// "1 000"): the Options' counts were in English in every language.
 pub fn number(n: u64) -> String {

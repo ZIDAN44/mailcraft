@@ -202,7 +202,7 @@ pub(super) fn category_chips(ui: &mut Ui, t: &Tokens, all: &[(String, u8)], chos
         let mut job = egui::text::LayoutJob::default();
         let font = theme::regular(crate::sizes::CAPTION);
         job.append("●", 0.0, egui::TextFormat { font_id: font.clone(), color: colour, ..Default::default() });
-        job.append(name, 4.0, egui::TextFormat { font_id: font.clone(), color: t.text, ..Default::default() });
+        job.append(crate::i18n::category(name), 4.0, egui::TextFormat { font_id: font.clone(), color: t.text, ..Default::default() });
         if !tail.is_empty() {
             job.append(tail, 6.0, egui::TextFormat { font_id: font, color: t.dim, ..Default::default() });
         }

@@ -13,7 +13,7 @@ mod row_actions;
 mod welcome;
 
 pub use dialog_buttons::*;
-pub(crate) use form_fields::{add_row, field_and_button, password_field};
+pub(crate) use form_fields::{add_row, checkbox_wrapped, field_and_button, password_field};
 pub(crate) use row_actions::row_actions;
 pub use welcome::welcome;
 

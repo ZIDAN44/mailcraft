@@ -488,7 +488,7 @@ const MONTH_ROW_MIN: f32 = 42.0;
 
 /// A calendar's name as shown: the local one's in the language shown.
 fn calendar_name(id: &str, name: &str) -> String {
-    if id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { name.to_string() }
+    if id == mailcraft_engine::model::pim::LOCAL { tl!("Calendar").to_string() } else { crate::i18n::calendar(name).to_string() }
 }
 
 fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, acts: &mut Vec<Action>) {

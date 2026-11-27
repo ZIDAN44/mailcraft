@@ -96,7 +96,11 @@ fn row(ui: &mut Ui, t: &Tokens, c: &Category, odd: bool, extra: &str, buttons: i
         ui.add_space(6.0);
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             let mut job = egui::text::LayoutJob::default();
-            job.append(&c.name, 0.0, egui::TextFormat { font_id: theme::semibold(crate::sizes::BODY), color: t.text, ..Default::default() });
+            job.append(
+                crate::i18n::category(&c.name),
+                0.0,
+                egui::TextFormat { font_id: theme::semibold(crate::sizes::BODY), color: t.text, ..Default::default() },
+            );
             if !extra.is_empty() {
                 job.append(extra, 10.0, egui::TextFormat { font_id: theme::regular(crate::sizes::CAPTION), color: t.faint, ..Default::default() });
             }
