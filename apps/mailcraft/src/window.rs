@@ -1,10 +1,12 @@
 //! What MailCraft's window is opened with: the graphics adapter it's drawn with, the windowing
-//! system it opens on (Linux and the BSDs), its icon, the clipboard and its keys, and dragging
-//! files out of it.
+//! system it opens on (Linux and the BSDs), how often its windows are drawn there, its icon, the
+//! clipboard and its keys, and dragging files out of it.
 
 mod clipboard;
 pub(super) mod display;
 pub(super) mod graphics;
+#[cfg(all(unix, not(target_os = "macos")))]
+pub(super) mod pacing;
 pub(super) mod work_areas;
 #[cfg(all(unix, not(target_os = "macos")))]
 mod xdnd;

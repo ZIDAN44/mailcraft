@@ -97,6 +97,9 @@ struct App {
     tray: desktop::tray::Tray,
     /// AI agents' control channel, while the user lets them in (issue #255).
     agents: desktop::agents::Channel,
+    /// How often the windows are drawn while more than one is open (issue #287).
+    #[cfg(all(unix, not(target_os = "macos")))]
+    pacing: window::pacing::Pacing,
 }
 
 /// How often changed settings are written while MailCraft runs.
@@ -165,7 +168,14 @@ impl eframe::App for App {
 impl App {
     // Every frame, the window minimized or hidden too (when eframe runs no `ui`): started again,
     // this window comes forward instead of a second one, and opens what that launch handed over.
-    fn logic_unguarded(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn logic_unguarded(
+        &mut self,
+        ctx: &egui::Context,
+        #[cfg_attr(not(all(unix, not(target_os = "macos"))), allow(unused_variables))] frame: &mut eframe::Frame,
+    ) {
+        // A message written in a window of its own: drawn at the screen's rate, not at half of it.
+        #[cfg(all(unix, not(target_os = "macos")))]
+        self.pacing.follow(ctx, frame);
         // The GPU device is gone: what's being written is kept as drafts and MailCraft closes, as
         // nothing can be drawn any more.
         if self.lost.as_ref().is_some_and(graphics::LostWatch::lost) {
@@ -608,6 +618,8 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                     updater,
                     looked: std::time::Instant::now(),
                     monitors_looked: None,
+                    #[cfg(all(unix, not(target_os = "macos")))]
+                    pacing: window::pacing::Pacing::default(),
                     tray: desktop::tray::Tray::new(native_wayland),
                     agents: desktop::agents::Channel::new(root.clone()),
                 }
