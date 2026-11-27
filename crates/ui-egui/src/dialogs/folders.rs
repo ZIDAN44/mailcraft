@@ -58,30 +58,29 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             // a click moved it at once, and Move was never on. A double click still moves it.
             let mut now = None;
             // As wide as the dialog, its scroll bar at the edge, each row across it (issue #182).
-            let rows = egui::Layout::top_down_justified(egui::Align::Min);
-            egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
-                ui.with_layout(rows, |ui| {
-                    let mut of = own.as_str();
-                    for f in &folders {
-                        if f.account != of {
-                            of = f.account.as_str();
-                            // By its address, as the folder list names it: the name on its mail
-                            // is the user's own, the same for each of their accounts.
-                            let name = s.account(of).map(|a| a.config.email.clone()).unwrap_or_default();
-                            ui.add_space(4.0);
+            folder_list(ui, t, |ui| {
+                let mut of = own.as_str();
+                for f in &folders {
+                    if f.account != of {
+                        of = f.account.as_str();
+                        // By its address, as the folder list names it: the name on its mail
+                        // is the user's own, the same for each of their accounts.
+                        let name = s.account(of).map(|a| a.config.email.clone()).unwrap_or_default();
+                        ui.add_space(4.0);
+                        ui.horizontal(|ui| {
+                            ui.add_space(8.0);
                             ui.label(RichText::new(name).color(t.dim).small());
-                        }
-                        let indent = "    ".repeat(f.depth());
-                        let picked = chosen.as_ref().is_some_and(|(a, p)| *a == f.account && *p == f.path);
-                        let row = ui.selectable_label(picked, format!("{indent}{}", crate::i18n::folder(f)));
-                        if row.clicked() {
-                            *chosen = Some((f.account.clone(), f.path.clone()));
-                        }
-                        if row.double_clicked() {
-                            now = Some((f.account.clone(), f.path.clone()));
-                        }
+                        });
                     }
-                })
+                    let picked = chosen.as_ref().is_some_and(|(a, p)| *a == f.account && *p == f.path);
+                    let row = folder_row(ui, t, crate::panes::nav::role_icon(f.look()), &crate::i18n::folder(f), f.depth(), picked);
+                    if row.clicked() {
+                        *chosen = Some((f.account.clone(), f.path.clone()));
+                    }
+                    if row.double_clicked() {
+                        now = Some((f.account.clone(), f.path.clone()));
+                    }
+                }
             });
             // A folder picked that the search has since left out isn't moved to unseen.
             if chosen.as_ref().is_some_and(|(a, p)| !folders.iter().any(|f| f.account == *a && f.path == *p)) {
@@ -148,26 +147,25 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             // still moves it at once.
             let mut now = false;
             // As wide as the dialog, its scroll bar at the edge, each row across it (issue #182).
-            let rows = egui::Layout::top_down_justified(egui::Align::Min);
-            egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
-                ui.with_layout(rows, |ui| {
-                    if needle.is_empty() {
-                        let top = ui.selectable_label(*chosen == Some(None), RichText::new(tl!("(Top level)")).italics());
-                        if top.clicked() {
-                            *chosen = Some(None);
-                        }
-                        now |= top.double_clicked();
+            folder_list(ui, t, |ui| {
+                // The top level, by the account's address as the folder pane names it (it was
+                // "(Top level)" in italics).
+                if needle.is_empty() {
+                    let top = folder_row(ui, t, Icon::Folder, &acc.config.email, 0, *chosen == Some(None));
+                    if top.clicked() {
+                        *chosen = Some(None);
                     }
-                    for f in acc.folders.iter().filter(|f| !mailcraft_engine::model::is_within(&f.path, folder, d) && folder_matches(f, &needle)) {
-                        let indent = "    ".repeat(f.depth());
-                        let picked = chosen.as_ref().is_some_and(|c| c.as_deref() == Some(f.path.as_str()));
-                        let row = ui.selectable_label(picked, format!("{indent}{}", crate::i18n::folder(f)));
-                        if row.clicked() {
-                            *chosen = Some(Some(f.path.clone()));
-                        }
-                        now |= row.double_clicked();
+                    now |= top.double_clicked();
+                }
+                for f in acc.folders.iter().filter(|f| !mailcraft_engine::model::is_within(&f.path, folder, d) && folder_matches(f, &needle)) {
+                    let picked = chosen.as_ref().is_some_and(|c| c.as_deref() == Some(f.path.as_str()));
+                    // Under the account's row.
+                    let row = folder_row(ui, t, crate::panes::nav::role_icon(f.look()), &crate::i18n::folder(f), f.depth() + 1, picked);
+                    if row.clicked() {
+                        *chosen = Some(Some(f.path.clone()));
                     }
-                })
+                    now |= row.double_clicked();
+                }
             });
             if let Some(e) = error {
                 field_error(ui, t, e);
@@ -256,6 +254,41 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         // Every other kind is shown by its own group (`body`).
         _ => true,
     }
+}
+
+/// The folders to pick from, as the folder pane has them, in a framed list that scrolls (they were
+/// a bare list of names, indented with spaces).
+fn folder_list(ui: &mut Ui, t: &Tokens, rows: impl FnOnce(&mut Ui)) {
+    egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(crate::sizes::CONTROL_RADIUS).inner_margin(Margin::same(4)).show(
+        ui,
+        |ui| {
+            egui::ScrollArea::vertical().max_height(300.0).auto_shrink([false, true]).show(ui, |ui| {
+                ui.spacing_mut().item_spacing.y = 0.0;
+                rows(ui);
+            });
+        },
+    );
+}
+
+/// A folder's row to pick: its icon `depth` in, its name; `picked` lit as the folder pane lights
+/// the folder open.
+fn folder_row(ui: &mut Ui, t: &Tokens, icon: Icon, name: &str, depth: usize, picked: bool) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 28.0), Sense::click());
+    widgets::named(ui, &resp, name, true, Some(picked));
+    if picked {
+        ui.painter().rect_filled(rect, crate::sizes::CONTROL_RADIUS, t.accent_soft);
+    } else if resp.hovered() {
+        ui.painter().rect_filled(rect, crate::sizes::CONTROL_RADIUS, t.hover_row);
+    }
+    let m = crate::bidi::Mirror::new(rect);
+    let x = rect.left() + 8.0 + 16.0 * depth.min(8) as f32;
+    let icon_rect = m.rect(egui::Rect::from_center_size(egui::pos2(x + 8.0, rect.center().y), vec2(16.0, 16.0)));
+    crate::icons::paint(ui.painter(), icon_rect, icon, if picked { t.accent } else { t.dim });
+    let room = (rect.right() - x - 30.0).max(20.0);
+    let galley = widgets::one_line(ui, name, theme::regular(crate::sizes::BODY), t.text, room);
+    let at = m.rect(egui::Rect::from_min_size(egui::pos2(x + 24.0, rect.center().y - galley.size().y / 2.0), galley.size()));
+    ui.painter().galley(at.min, galley, t.text);
+    resp
 }
 
 /// A folder the search box's text (lower case) is in: in the name the row shows (translated,

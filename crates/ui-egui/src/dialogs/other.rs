@@ -46,7 +46,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             })
             .inner
         }
-        Dialog::Preview { title: name, header, text, warning } => {
+        Dialog::Preview { title: name, header, text, warning, open } => {
             // A viewer, as wide as it reads well (900 was wider than any dialog).
             let w = (ui.ctx().content_rect().width() * 0.7).clamp(360.0, crate::sizes::VIEWER_MAX);
             ui.set_width(w);
@@ -66,14 +66,26 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             });
             ui.add_space(6.0);
             let h = (tall * 0.55).max(200.0);
+            // An attached message reads in the body's font; a file (code, a table) keeps its
+            // columns in monospace.
+            let font = if header.is_empty() { egui::FontId::monospace(13.0) } else { theme::regular(crate::sizes::BODY) };
             egui::ScrollArea::both().max_height(h).auto_shrink([false, true]).show(ui, |ui| {
                 let mut shown = text.as_str();
-                ui.add(
-                    egui::TextEdit::multiline(&mut shown).font(egui::FontId::monospace(13.0)).desired_width(f32::INFINITY).frame(egui::Frame::NONE),
-                );
+                ui.add(egui::TextEdit::multiline(&mut shown).font(font).desired_width(f32::INFINITY).frame(egui::Frame::NONE));
             });
             ui.add_space(6.0);
-            close_row(ui)
+            match open {
+                Some((key, index)) => {
+                    ui.horizontal(|ui| {
+                        if ui.button(tl!("Open")).clicked() {
+                            acts.push(Action::InWindow(key.clone(), Box::new(Action::OpenAttachment(*index))));
+                        }
+                        close_row(ui)
+                    })
+                    .inner
+                }
+                None => close_row(ui),
+            }
         }
         Dialog::Certificate { account, path, data, password } => {
             ui.set_width(crate::sizes::DIALOG_M);

@@ -317,6 +317,9 @@ pub enum Dialog {
         text: String,
         /// An email whose sender doesn't add up.
         warning: Option<mailcraft_engine::model::lookalike::SenderWarning>,
+        /// The message and attachment it's of, for Open beside Close (as a picture's preview
+        /// has); none for a file dropped on the window.
+        open: Option<(mailcraft_engine::model::MessageKey, usize)>,
     },
 }
 
@@ -679,7 +682,7 @@ impl Dialog {
         }
         let title = if get("kind") == "message" && !get("subject").is_empty() { get("subject") } else { get("name") };
         let warning = v.get("warning").and_then(|w| serde_json::from_value(w.clone()).ok());
-        Dialog::Preview { title, header, text, warning }
+        Dialog::Preview { title, header, text, warning, open: None }
     }
 
     pub fn new_folder(account: &str, parent: Option<&str>) -> Dialog {

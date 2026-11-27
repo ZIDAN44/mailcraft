@@ -412,3 +412,37 @@ fn a_note_s_file_its_app_still_has_open_opens_again() {
     assert_eq!(*opened.borrow(), [first.clone(), first], "the same file, opened again");
     drop(held);
 }
+
+/// Audit D24: an attachment's text preview has Open beside Close, as a picture's has; an attached
+/// message's text reads in the body's font (it was monospace, a file's stays so).
+#[test]
+fn a_text_preview_opens_its_file_and_reads_a_message_in_the_bodys_font() {
+    let (mut a, _) = app("attachment-preview-open");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    let k = a.session.list.iter().find(|m| m.subject.starts_with("Your proof")).map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Run("attachment.preview", json!({"index": 0})));
+    assert!(matches!(&a.ui.dialog, Some(Dialog::Preview { open: Some((key, 0)), .. }) if *key == k), "{:?}", a.ui.dialog.is_some());
+    let size = egui::vec2(1280.0, 800.0);
+    for _ in 0..3 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    assert!(named(&ctx, &mut a, size).iter().any(|n| n.label.as_deref() == Some("Open")), "Open beside Close");
+    // A message's text, proportional; a file's, monospace.
+    let family = |ctx: &egui::Context, a: &mut MailApp, header: Vec<(String, String)>| {
+        a.ui.dialog = Some(Dialog::Preview { title: "x".into(), header, text: "Are you at your desk?".into(), warning: None, open: None });
+        let _ = sized_frame(ctx, a, size, vec![]);
+        let out = sized_frame(ctx, a, size, vec![]);
+        out.shapes.iter().find_map(|s| match &s.shape {
+            egui::Shape::Text(t) if t.galley.job.text == "Are you at your desk?" => {
+                t.galley.job.sections.first().map(|s| s.format.font_id.family.clone())
+            }
+            _ => None,
+        })
+    };
+    assert_eq!(family(&ctx, &mut a, vec![("From".into(), "Zoe".into())]), Some(egui::FontFamily::Proportional), "a message");
+    assert_eq!(family(&ctx, &mut a, vec![]), Some(egui::FontFamily::Monospace), "a file");
+}

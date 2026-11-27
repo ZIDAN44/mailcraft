@@ -469,7 +469,8 @@ fn folder_search_finds_the_name_shown() {
 }
 
 /// Issue #182: in Move folder a click picks where the folder goes, Move turns on and moves it
-/// there. A click moved it at once, and Move never turned on.
+/// there. A click moved it at once, and Move never turned on. Audit D26: the top level is named
+/// after the account, as the folder pane names it (it was "(Top level)" in italics).
 #[test]
 fn move_folder_picks_then_moves() {
     let (mut a, _) = app("move-folder-pick");
@@ -488,7 +489,8 @@ fn move_folder_picks_then_moves() {
         let all = named(ctx, a, egui::vec2(1280.0, 800.0));
         all.into_iter().find(|n| n.label.as_deref() == Some(name)).and_then(|n| n.rect).map(|r| r.width()).unwrap()
     };
-    let (inbox, top) = (width(&ctx, &mut a, "Inbox"), width(&ctx, &mut a, "(Top level)"));
+    let (inbox, top) = (width(&ctx, &mut a, "Inbox"), width(&ctx, &mut a, "riley@studio.example"));
+    assert!(!drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 800.0)).iter().any(|t| t == "(Top level)"));
     assert!(inbox > 200.0 && (inbox - top).abs() < 1.0, "rows as wide as the list: {inbox} {top}");
     click_named(&ctx, &mut a, "Inbox");
     frame(&ctx, &mut a, vec![]);
@@ -786,7 +788,7 @@ fn a_click_beside_a_form_leaves_it_open() {
     frame(&ctx, &mut a, vec![key(Key::Escape, Modifiers::NONE)]);
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.dialog.is_none(), "Escape closes it");
-    a.ui.dialog = Some(Dialog::Preview { title: "notes.txt".into(), header: vec![], text: "Hello".into(), warning: None });
+    a.ui.dialog = Some(Dialog::Preview { title: "notes.txt".into(), header: vec![], text: "Hello".into(), warning: None, open: None });
     frame(&ctx, &mut a, vec![]);
     click(&ctx, &mut a, beside);
     frame(&ctx, &mut a, vec![]);

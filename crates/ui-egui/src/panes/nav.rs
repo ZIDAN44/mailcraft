@@ -22,7 +22,7 @@ use folder_rows::{dropped_mail, folder_row};
 use mailboxes::{move_items, section_drag, shared_section};
 use rows::{CORNER, Count, RowIs, corner_inset, corner_row, corner_top, row, section_header};
 
-fn role_icon(role: FolderRole) -> Icon {
+pub(crate) fn role_icon(role: FolderRole) -> Icon {
     match role {
         FolderRole::Inbox => Icon::Inbox,
         FolderRole::Drafts => Icon::Drafts,

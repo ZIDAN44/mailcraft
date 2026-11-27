@@ -568,6 +568,7 @@ line two"
                     domain: "printsh0p.example".into(),
                     like: "printshop.example".into(),
                 }),
+                open: None,
             },
             Dialog::Preview {
                 title: "favour.eml".into(),
@@ -578,6 +579,7 @@ line two"
                     known: "zoe@studio.example".into(),
                     real: "zoe.park.director@gmail.com".into(),
                 }),
+                open: None,
             },
         ] {
             a.ui.dialog = Some(d);

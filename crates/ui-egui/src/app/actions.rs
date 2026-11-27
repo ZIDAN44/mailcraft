@@ -409,7 +409,15 @@ impl MailApp {
         }
         match id {
             "attachment.preview" => match self.session.run(id, &p) {
-                Ok(v) => self.ui.dialog = Some(Dialog::preview(&v, &self.session.clock)),
+                Ok(v) => {
+                    let mut d = Dialog::preview(&v, &self.session.clock);
+                    // Which it is, to open from the preview.
+                    let at = p.get("index").and_then(Value::as_u64).and_then(|i| usize::try_from(i).ok());
+                    if let (Dialog::Preview { open, .. }, Some(r), Some(i)) = (&mut d, self.session.reading.as_ref(), at) {
+                        *open = Some((r.key.clone(), i));
+                    }
+                    self.ui.dialog = Some(d);
+                }
                 Err(e) => self.session.notice(e.to_string(), true),
             },
             // Check Names: who's several people asked about, who's no one said (issue #211).
