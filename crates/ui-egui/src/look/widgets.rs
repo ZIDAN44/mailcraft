@@ -122,7 +122,7 @@ pub const CLASSIC_CAPTION_H: f32 = 22.0;
 /// A classic ribbon button: a big icon over its label, as wide as the label needs (a short one
 /// still a comfortable target). `fill`: the filled New button.
 fn big_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, on: bool, fill: bool) -> Response {
-    let font = if fill { theme::semibold(12.5) } else { theme::regular(12.5) };
+    let font = if fill { theme::semibold(crate::sizes::CAPTION) } else { theme::regular(crate::sizes::CAPTION) };
     let text = if fill { t.on_accent } else { command_label(t, enabled) };
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, text);
     let size = vec2((galley.size().x + 16.0).max(54.0), CLASSIC_BUTTON_H);
@@ -296,13 +296,13 @@ fn tool_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: 
 fn tool_button_with(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, menu: bool) -> Response {
     if classic(ui) {
         // Its label's width noted all the same, so the simplified ribbon fits at once when it's back.
-        let width = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text).size().x;
+        let width = ui.painter().layout_no_wrap(label.to_string(), theme::regular(crate::sizes::BODY), t.text).size().x;
         ribbon_button(ui, width);
         let resp = big_button(ui, icon, label, t, enabled, false, false);
         named(ui, &resp, label, enabled, None);
         return resp;
     }
-    let font = theme::regular(13.0);
+    let font = theme::regular(crate::sizes::BODY);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
     // Its arrow goes with its words (the fit counts both, or it put them back for room it hadn't).
     let arrow = if menu { 11.0 } else { 0.0 };
@@ -343,13 +343,13 @@ pub fn tool_toggle<'a>(ui: &mut Ui, icon: Icon, label: impl Into<Label<'a>>, t: 
 fn tool_toggle_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool) -> Response {
     if classic(ui) {
         // Its label's width noted all the same, so the simplified ribbon fits at once when it's back.
-        let width = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text).size().x;
+        let width = ui.painter().layout_no_wrap(label.to_string(), theme::regular(crate::sizes::BODY), t.text).size().x;
         ribbon_button(ui, width);
         let resp = big_button(ui, icon, label, t, true, on, false);
         named(ui, &resp, label, true, Some(on));
         return resp;
     }
-    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text);
+    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::regular(crate::sizes::BODY), t.text);
     if ribbon_button(ui, galley.size().x) {
         let resp = icon_button(ui, icon, label, t, true, on);
         named(ui, &resp, label, true, Some(on));
@@ -395,7 +395,7 @@ pub fn icon_action(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Response {
 /// (a filled "⏷" or a raised "▾" glyph, beside chevrons drawn elsewhere, was a third and fourth
 /// kind of arrow). Its menu is the caller's.
 pub fn dropdown_label(ui: &mut Ui, text: &str, t: &Tokens) -> Response {
-    let galley = ui.painter().layout_no_wrap(text.to_string(), theme::regular(12.5), t.dim);
+    let galley = ui.painter().layout_no_wrap(text.to_string(), theme::regular(crate::sizes::CAPTION), t.dim);
     let (rect, resp) = ui.allocate_exact_size(vec2(galley.size().x + 26.0, 22.0), Sense::click());
     named(ui, &resp, text, true, None);
     if resp.hovered() {
@@ -459,7 +459,7 @@ fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled
         named(ui, &resp, label, enabled, None);
         return resp;
     }
-    let font = theme::semibold(13.0);
+    let font = theme::semibold(crate::sizes::BODY);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.on_accent);
     let size = vec2(galley.size().x + 40.0, 30.0);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
@@ -559,7 +559,7 @@ pub fn one_line(ui: &Ui, text: &str, font: egui::FontId, color: Color32, width: 
 /// A labelled icon button for the reading pane's action row.
 pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens) -> Response {
     let label = tl!(label);
-    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text);
+    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::regular(crate::sizes::BODY), t.text);
     let size = vec2(galley.size().x + 34.0, 28.0);
     let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
     named(ui, &resp, label, true, None);
@@ -626,7 +626,7 @@ pub fn toggle_segments(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], on: 
 
 /// Joined buttons, those `on` in the soft accent; the one clicked.
 fn segments(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], is_on: &dyn Fn(usize) -> bool, role: egui::Role) -> Option<usize> {
-    let font = theme::regular(13.0);
+    let font = theme::regular(crate::sizes::BODY);
     let labels: Vec<String> = options.iter().map(|o| o.to_string()).collect();
     let widths: Vec<f32> = labels.iter().map(|l| ui.painter().layout_no_wrap(l.clone(), font.clone(), t.text).size().x + 24.0).collect();
     let total: f32 = widths.iter().sum::<f32>() + 4.0;
@@ -656,7 +656,7 @@ fn segments(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], is_on: &dyn Fn(
         } else {
             t.dim
         };
-        ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, label, if on { theme::semibold(13.0) } else { font.clone() }, color);
+        ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, label, if on { theme::semibold(crate::sizes::BODY) } else { font.clone() }, color);
         if resp.clicked() {
             clicked = Some(i);
         }
@@ -682,7 +682,7 @@ pub fn group(ui: &mut Ui, t: &Tokens, name: &str, last: bool) {
         let to = cursor_x(ui);
         let y = ui.max_rect().top() + CLASSIC_BUTTON_H + CLASSIC_CAPTION_H / 2.0 + 4.0;
         let mid = if from > 0.0 && from != to { (from + to) / 2.0 } else { to };
-        ui.painter().text(egui::pos2(mid, y), egui::Align2::CENTER_CENTER, tl!(name), theme::regular(11.5), group_caption(t));
+        ui.painter().text(egui::pos2(mid, y), egui::Align2::CENTER_CENTER, tl!(name), theme::regular(crate::sizes::CAPTION), group_caption(t));
     }
     if !last {
         group_sep(ui, t);

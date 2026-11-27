@@ -98,7 +98,7 @@ pub(crate) fn draw(ui: &mut Ui, s: &Session, t: &Tokens, m: &Meeting<'_>) -> Opt
             u32::try_from(s.clock.local(midnight + h * 3600).rem_euclid(86_400) / 3600).unwrap_or(0),
             s.clock.style,
         ));
-        p.text(pos2(at + 3.0, grid.min.y + HEAD / 2.0), Align2::LEFT_CENTER, label, theme::regular(10.0), t.faint);
+        p.text(pos2(at + 3.0, grid.min.y + HEAD / 2.0), Align2::LEFT_CENTER, label, theme::regular(crate::sizes::CAPTION), t.faint);
     }
     // Everyone together first, then each row.
     let names: Vec<String> = std::iter::once(tl!("All together").to_string()).chain(all.iter().map(|r| r.name.clone())).collect();
@@ -106,7 +106,7 @@ pub(crate) fn draw(ui: &mut Ui, s: &Session, t: &Tokens, m: &Meeting<'_>) -> Opt
         let y = row_y(k);
         p.line_segment([pos2(rect.min.x, y), pos2(grid.max.x, y)], egui::Stroke::new(1.0, t.border));
         let text = Rect::from_min_max(pos2(rect.min.x + 4.0, y), pos2(rect.min.x + NAMES_W - 6.0, y + ROW_H));
-        let font = if k == 0 { theme::semibold(12.0) } else { theme::regular(12.0) };
+        let font = if k == 0 { theme::semibold(crate::sizes::CAPTION) } else { theme::regular(crate::sizes::CAPTION) };
         p.with_clip_rect(text).text(pos2(text.min.x, text.center().y), Align2::LEFT_CENTER, name, font, t.text);
     }
     for (k, row) in all.iter().enumerate() {
@@ -118,7 +118,7 @@ pub(crate) fn draw(ui: &mut Ui, s: &Session, t: &Tokens, m: &Meeting<'_>) -> Opt
         }
         if let Some(why) = &row.missing {
             let r = Rect::from_min_max(pos2(grid.min.x, y0), pos2(grid.max.x, y1));
-            p.text(r.left_center() + vec2(6.0, 0.0), Align2::LEFT_CENTER, why, theme::regular(11.0), t.faint);
+            p.text(r.left_center() + vec2(6.0, 0.0), Align2::LEFT_CENTER, why, theme::regular(crate::sizes::CAPTION), t.faint);
             ui.interact(r, egui::Id::unique(("assist-missing", k)), Sense::hover()).on_hover_text(why);
         }
         for (a, b, show_as) in &row.taken {

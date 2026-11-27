@@ -276,8 +276,8 @@ pub(super) fn attachment_card(
         }
         let text_x = r.right() + 8.0;
         let text_w = more_rect.left() - 4.0 - text_x;
-        let name = widgets::one_line(ui, &a.name, theme::regular(12.5), t.text, text_w);
-        let size = widgets::one_line(ui, &widgets::human_size(a.size), theme::regular(11.5), t.dim, text_w);
+        let name = widgets::one_line(ui, &a.name, theme::regular(crate::sizes::CAPTION), t.text, text_w);
+        let size = widgets::one_line(ui, &widgets::human_size(a.size), theme::regular(crate::sizes::CAPTION), t.dim, text_w);
         p.galley(egui::pos2(text_x, rect.center().y - name.size().y - 1.0), name, t.text);
         p.galley(egui::pos2(text_x, rect.center().y + 1.0), size, t.dim);
     }
@@ -336,7 +336,7 @@ pub(super) fn preview_header(t: &Tokens, ui: &mut Ui, a: &mime::AttachmentInfo, 
         let (r, _) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::hover());
         icons::paint(ui.painter(), icons::centered(r, 22.0), kind_icon(a.kind()), t.accent);
         ui.vertical(|ui| {
-            ui.add(egui::Label::new(RichText::new(&a.name).font(theme::semibold(16.0)).color(t.text)).truncate());
+            ui.add(egui::Label::new(RichText::new(&a.name).font(theme::semibold(crate::sizes::SUBTITLE)).color(t.text)).truncate());
             ui.label(RichText::new(widgets::human_size(a.size)).color(t.dim).small());
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -432,7 +432,7 @@ pub(super) fn attachment_preview(
                 egui::TextEdit::multiline(&mut text)
                     .frame(egui::Frame::NONE)
                     .desired_width(f32::INFINITY)
-                    .font(theme::regular(14.0))
+                    .font(theme::regular(crate::sizes::BODY))
                     .text_color(t.text),
             );
         }
@@ -545,7 +545,7 @@ pub(super) fn pdf_pages(st: &mut UiState, ui: &mut Ui, key: &MessageKey, a: &mim
             Got::Pending | Got::Failed => {
                 let (r, _) = ui.allocate_exact_size(vec2(width, width * shape), Sense::hover());
                 if ui.is_rect_visible(r) {
-                    let label = widgets::one_line(ui, &tf!("Page {n}", n = n + 1), theme::regular(11.5), t.dim, width);
+                    let label = widgets::one_line(ui, &tf!("Page {n}", n = n + 1), theme::regular(crate::sizes::CAPTION), t.dim, width);
                     ui.painter().galley(r.center() + vec2(-label.size().x / 2.0, 14.0), label, t.dim);
                     if matches!(got, Got::Pending) {
                         egui::Spinner::new().paint_at(ui, Rect::from_center_size(r.center(), vec2(18.0, 18.0)));
@@ -634,7 +634,7 @@ pub(super) fn office_preview(t: &Tokens, ui: &mut Ui, p: &mime::office::Preview,
                         ui.set_width(w - 38.0);
                         ui.set_min_height((w - 38.0) * 9.0 / 16.0 * 0.6);
                         for (i, para) in paras.iter().enumerate() {
-                            let font = if i == 0 { theme::semibold(18.0) } else { theme::regular(14.5) };
+                            let font = if i == 0 { theme::semibold(crate::sizes::SUBTITLE) } else { theme::regular(crate::sizes::BODY) };
                             ui.label(RichText::new(para).font(font).color(t.text));
                             ui.add_space(if i == 0 { 8.0 } else { 3.0 });
                         }

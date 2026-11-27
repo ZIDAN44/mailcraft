@@ -359,7 +359,7 @@ impl Body<'_> {
                     Some(size) => {
                         // The room it will take, with its description if that fits.
                         let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-                        let galley = ui.painter().layout_no_wrap(alt, theme::regular(12.0), t.faint);
+                        let galley = ui.painter().layout_no_wrap(alt, theme::regular(crate::sizes::CAPTION), t.faint);
                         if galley.size().x <= rect.width() && galley.size().y <= rect.height() {
                             ui.painter().galley(rect.center() - galley.size() / 2.0, galley, t.faint);
                         }

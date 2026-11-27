@@ -7,7 +7,7 @@ use super::*;
 /// ending in a colon, small bold, small grey, the body's size, and a hint inside the box alone,
 /// gone once something was typed).
 pub(crate) fn label_over(ui: &mut Ui, t: &Tokens, text: &str) {
-    ui.label(RichText::new(tl!(text)).size(13.5).color(t.text));
+    ui.label(RichText::new(tl!(text)).size(crate::sizes::BODY).color(t.text));
 }
 
 /// What's wrong, under what it's about: translated where it's known, as a sentence ("no access"

@@ -134,7 +134,7 @@ fn row_names(s: &Session, t: &Tokens, ui: &mut Ui, names: Rect, rows: &[Row]) {
         };
         ui.painter().circle_filled(pos2(r.min.x + 10.0, r.center().y), 4.0, c);
         let text = r.with_min_x(r.min.x + 20.0).with_max_x(r.max.x - 6.0);
-        let font = if row.is_none() { theme::semibold(12.0) } else { theme::regular(12.0) };
+        let font = if row.is_none() { theme::semibold(crate::sizes::CAPTION) } else { theme::regular(crate::sizes::CAPTION) };
         ui.painter().with_clip_rect(text).text(pos2(text.min.x, text.center().y), Align2::LEFT_CENTER, label, font, t.text);
     }
 }
@@ -167,7 +167,7 @@ fn hour_lines(s: &Session, t: &Tokens, ui: &mut Ui, day: &Day, rows: usize) {
             // The local hour the line stands at: the day may start later (Only work hours).
             let hour = s.clock.local(day.day0.saturating_add(h.saturating_mul(3600))).rem_euclid(86_400) / 3600;
             let at = crate::i18n::date(&mailcraft_engine::model::dates::hour_label(u32::try_from(hour).unwrap_or(0), s.clock.style));
-            ui.painter().text(pos2(x + 4.0, g.min.y + HEAD / 2.0), Align2::LEFT_CENTER, at, theme::regular(11.0), t.faint);
+            ui.painter().text(pos2(x + 4.0, g.min.y + HEAD / 2.0), Align2::LEFT_CENTER, at, theme::regular(crate::sizes::CAPTION), t.faint);
         }
     }
     for k in 0..=rows {

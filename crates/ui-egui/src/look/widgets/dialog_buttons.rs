@@ -38,7 +38,7 @@ pub enum ButtonKind {
 pub fn dialog_button(ui: &mut Ui, kind: ButtonKind, label: &str, t: &Tokens, enabled: bool) -> Response {
     use crate::sizes::{BUTTON_MIN_W, CONTROL_H, CONTROL_RADIUS};
     let label = tl!(label);
-    let font = if kind == ButtonKind::Secondary { theme::regular(13.5) } else { theme::semibold(13.5) };
+    let font = if kind == ButtonKind::Secondary { theme::regular(crate::sizes::BODY) } else { theme::semibold(crate::sizes::BODY) };
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
     let size = vec2((galley.size().x + 32.0).max(BUTTON_MIN_W), CONTROL_H);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });

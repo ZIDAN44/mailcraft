@@ -57,8 +57,10 @@ fn file_card(ui: &mut Ui, t: &Tokens, path: &str, holds: &str) {
                 ui.add_space(4.0);
                 crate::bidi::vertical(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
-                    ui.add(egui::Label::new(RichText::new(file_name(path)).font(crate::theme::semibold(15.0)).color(t.text)).truncate())
-                        .on_hover_text(path);
+                    ui.add(
+                        egui::Label::new(RichText::new(file_name(path)).font(crate::theme::semibold(crate::sizes::BODY)).color(t.text)).truncate(),
+                    )
+                    .on_hover_text(path);
                     if !holds.is_empty() {
                         ui.add(egui::Label::new(RichText::new(holds).color(t.dim)).truncate());
                     }

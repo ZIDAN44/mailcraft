@@ -33,7 +33,7 @@ pub(super) fn attachment_chips(ui: &mut Ui, t: &Tokens, keep_photo_location: boo
                 let ir = Rect::from_center_size(egui::pos2(rect.left() + 15.0, rect.center().y), vec2(14.0, 14.0));
                 icons::paint(p, ir, Icon::Attach, t.dim);
                 let text = format!("{} ({})", a.name, widgets::human_size(a.data.len()));
-                let g = widgets::one_line(ui, &text, theme::regular(12.0), t.text, x_rect.left() - 4.0 - (ir.right() + 6.0));
+                let g = widgets::one_line(ui, &text, theme::regular(crate::sizes::CAPTION), t.text, x_rect.left() - 4.0 - (ir.right() + 6.0));
                 p.galley(egui::pos2(ir.right() + 6.0, rect.center().y - g.size().y / 2.0), g, t.text);
                 resp.on_hover_text(a.name.clone());
                 if x.clicked() {

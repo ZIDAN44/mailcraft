@@ -76,7 +76,7 @@ pub(crate) fn label_column(ui: &Ui, icons_used: bool) -> f32 {
     let (labels, indent): (&[&str], f32) = if icons_used { (&ICON_FORM_LABELS, ICON_W) } else { (&CONTACT_FORM_LABELS, 0.0) };
     let widest = labels
         .iter()
-        .map(|l| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::regular(13.0), Color32::PLACEHOLDER).size().x)
+        .map(|l| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::regular(crate::sizes::BODY), Color32::PLACEHOLDER).size().x)
         .fold(0.0, f32::max);
     let w = (indent + widest + 12.0).clamp(LABEL_W, LABEL_W_MAX);
     ui.ctx().data_mut(|d| d.insert_temp(id, (pass, w)));

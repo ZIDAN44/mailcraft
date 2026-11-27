@@ -79,7 +79,7 @@ impl crate::Dialog {
 
 /// How wide the address book button is: its label and a little room.
 fn book_width(ui: &Ui, label: &str) -> f32 {
-    ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.5), Color32::WHITE).size().x + 20.0
+    ui.painter().layout_no_wrap(label.to_string(), theme::regular(crate::sizes::BODY), Color32::WHITE).size().x + 20.0
 }
 
 /// The guests as the form lists them: each with their answer, or whom they handed their place to.

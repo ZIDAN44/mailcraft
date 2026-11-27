@@ -167,9 +167,13 @@ fn rule_row(
             };
             let what = if r.in_error { format!("{} · {what}", tl!("The server can't run this rule as it is")) } else { what };
             let mut job = egui::text::LayoutJob::default();
-            let strong = egui::TextFormat { font_id: theme::semibold(13.0), color: if r.enabled { t.text } else { t.faint }, ..Default::default() };
+            let strong = egui::TextFormat {
+                font_id: theme::semibold(crate::sizes::BODY),
+                color: if r.enabled { t.text } else { t.faint },
+                ..Default::default()
+            };
             job.append(&r.name, 0.0, strong);
-            job.append(&what, 10.0, egui::TextFormat { font_id: theme::regular(12.0), color: t.dim, ..Default::default() });
+            job.append(&what, 10.0, egui::TextFormat { font_id: theme::regular(crate::sizes::CAPTION), color: t.dim, ..Default::default() });
             // Cut short by the label itself (issue #214): a job's own wrapping gives way to the row's,
             // which runs on, and the note went under the row's buttons and past the dialog's edge.
             ui.add(egui::Label::new(job).selectable(false).truncate()).on_hover_text(format!("{}\n{what}", r.name));

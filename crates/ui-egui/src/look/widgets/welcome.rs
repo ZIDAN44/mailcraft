@@ -13,7 +13,7 @@ pub fn welcome(ui: &mut Ui, t: &Tokens, jmap_only: bool, acts: &mut Vec<Action>)
                 ui.painter().rect_filled(r, 14.0, t.accent);
                 icons::paint(ui.painter(), icons::centered(r, 38.0), Icon::Unread, t.on_accent);
                 ui.add_space(12.0);
-                ui.label(RichText::new(tl!("Welcome to MailCraft")).font(theme::semibold(22.0)).color(t.text));
+                ui.label(RichText::new(tl!("Welcome to MailCraft")).font(theme::semibold(crate::sizes::TITLE)).color(t.text));
                 ui.add_space(4.0);
                 let about = if jmap_only {
                     "Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only."

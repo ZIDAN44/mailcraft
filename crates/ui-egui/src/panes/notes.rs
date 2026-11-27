@@ -127,7 +127,13 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
     ui.painter().add(egui::Shape::convex_polygon(corner.to_vec(), fill.gamma_multiply(0.8), egui::Stroke::NONE));
     let inner = rect.shrink2(vec2(12.0, 10.0));
     let when = crate::i18n::date(&dates::list_time(n.note.modified, &s.clock));
-    ui.painter().text(egui::pos2(inner.left(), inner.bottom()), egui::Align2::LEFT_BOTTOM, when, theme::regular(11.0), INK.gamma_multiply(0.55));
+    ui.painter().text(
+        egui::pos2(inner.left(), inner.bottom()),
+        egui::Align2::LEFT_BOTTOM,
+        when,
+        theme::regular(crate::sizes::CAPTION),
+        INK.gamma_multiply(0.55),
+    );
     let on_files = files(ui, n, inner, id, acts);
     let text_rect = egui::Rect::from_min_max(inner.min, egui::pos2(inner.right(), inner.bottom() - 18.0));
     let mut pressed = resp.is_pointer_button_down_on() || resp.clicked() || on_files;
@@ -140,7 +146,7 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
                 .id(id.with("text"))
                 .frame(egui::Frame::NONE)
                 .text_color(INK)
-                .font(theme::regular(14.0))
+                .font(theme::regular(crate::sizes::BODY))
                 .hint_text(RichText::new(tl!("Write your note…")).color(INK.gamma_multiply(0.45)))
                 .desired_width(text_rect.width())
                 .min_size(text_rect.size()),
@@ -160,12 +166,12 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
         job.wrap.max_width = text_rect.width();
         let title = n.note.title().to_string();
         let rest: String = n.note.text.trim_start().split_once('\n').map(|(_, r)| r.to_string()).unwrap_or_default();
-        job.append(&title, 0.0, egui::TextFormat { font_id: theme::semibold(14.0), color: INK, ..Default::default() });
+        job.append(&title, 0.0, egui::TextFormat { font_id: theme::semibold(crate::sizes::BODY), color: INK, ..Default::default() });
         if !rest.trim().is_empty() {
             job.append(
                 &format!("\n{}", rest.trim()),
                 0.0,
-                egui::TextFormat { font_id: theme::regular(13.0), color: INK.gamma_multiply(0.85), ..Default::default() },
+                egui::TextFormat { font_id: theme::regular(crate::sizes::BODY), color: INK.gamma_multiply(0.85), ..Default::default() },
             );
         }
         let galley = ui.painter().layout_job(job);
@@ -222,7 +228,7 @@ fn files(ui: &mut Ui, n: &mailcraft_engine::NoteRef<'_>, inner: egui::Rect, id: 
     let ink = if resp.hovered() { INK } else { INK.gamma_multiply(0.7) };
     let icon = egui::Rect::from_min_size(chip.min + vec2(4.0, 1.0), vec2(14.0, 14.0));
     icons::paint(ui.painter(), icon, Icon::Attach, ink);
-    ui.painter().text(egui::pos2(icon.right() + 3.0, chip.center().y), egui::Align2::LEFT_CENTER, count, theme::regular(11.0), ink);
+    ui.painter().text(egui::pos2(icon.right() + 3.0, chip.center().y), egui::Align2::LEFT_CENTER, count, theme::regular(crate::sizes::CAPTION), ink);
     let uid = &n.note.uid;
     egui::Popup::menu(&resp).show(|ui| {
         for (index, f) in files.iter().enumerate() {

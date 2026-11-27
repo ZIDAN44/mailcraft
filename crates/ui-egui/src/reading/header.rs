@@ -141,7 +141,7 @@ fn sender_card(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut 
             ui.spacing_mut().item_spacing.y = 2.0;
             ui.spacing_mut().interact_size.y = 16.0;
             ui.horizontal_wrapped(|ui| {
-                let name = person_link(ui, t, RichText::new(p.from.display()).font(theme::semibold(15.0)).color(t.text));
+                let name = person_link(ui, t, RichText::new(p.from.display()).font(theme::semibold(crate::sizes::BODY)).color(t.text));
                 person_menus(s, t, &name, &p.from, acts);
                 if !p.from.name.is_empty() {
                     ui.label(RichText::new(format!("<{}>", p.from.email)).color(t.dim));

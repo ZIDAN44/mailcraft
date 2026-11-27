@@ -207,7 +207,7 @@ pub(super) fn show(s: &Session, st: &mut UiState, ui: &mut Ui, c: &mut Compose, 
     ui.add_space(4.0);
     // Sent as plain text, it goes as its text: shown so.
     if c.plain {
-        ui.add(egui::Label::new(RichText::new(q.text()).font(theme::regular(14.5)).color(t.text)).wrap());
+        ui.add(egui::Label::new(RichText::new(q.text()).font(theme::regular(crate::sizes::BODY)).color(t.text)).wrap());
         ui.add_space(8.0);
         return;
     }

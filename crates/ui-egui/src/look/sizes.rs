@@ -39,3 +39,39 @@ pub const DIALOG_M: f32 = 440.0;
 pub const DIALOG_L: f32 = 560.0;
 /// The widest a dialog that shows something to read is (a message attached, a person's card).
 pub const VIEWER_MAX: f32 = 720.0;
+
+#[cfg(test)]
+mod tests {
+    /// Audit S5: no text size is written as a number in the window's code, only the ramp's names
+    /// above (a list row alone used six sizes, down to 11 points; 22 in all).
+    #[test]
+    fn text_sizes_come_from_the_ramp() {
+        fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
+            for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+                let p = e.path();
+                let name = p.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+                if p.is_dir() && name != "tests" {
+                    walk(&p, out);
+                } else if name.ends_with(".rs") && name != "tests.rs" && name != "sizes.rs" {
+                    out.push(p);
+                }
+            }
+        }
+        let mut files = Vec::new();
+        walk(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
+        assert!(files.len() > 100, "the window's code found: {}", files.len());
+        let starts_number = |rest: &str| rest.chars().next().is_some_and(|c| c.is_ascii_digit());
+        let mut written = Vec::new();
+        for f in files {
+            let text = std::fs::read_to_string(&f).unwrap_or_default();
+            for (i, line) in text.lines().enumerate() {
+                let font = ["theme::regular(", "theme::semibold("].iter().any(|call| line.split(call).skip(1).any(starts_number));
+                let rich = line.contains("RichText") && line.split(".size(").skip(1).any(starts_number);
+                if font || rich {
+                    written.push(format!("{}:{}: {}", f.display(), i + 1, line.trim()));
+                }
+            }
+        }
+        assert!(written.is_empty(), "text sizes written as numbers:\n{}", written.join("\n"));
+    }
+}

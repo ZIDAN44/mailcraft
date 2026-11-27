@@ -126,7 +126,11 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
                     heading = Some(h.upcoming);
                     ui.add_space(6.0);
                     ui.with_layout(crate::bidi::column(), |ui| {
-                        ui.label(RichText::new(if h.upcoming { tl!("Upcoming") } else { tl!("Past") }).font(theme::semibold(13.0)).color(t.dim));
+                        ui.label(
+                            RichText::new(if h.upcoming { tl!("Upcoming") } else { tl!("Past") })
+                                .font(theme::semibold(crate::sizes::BODY))
+                                .color(t.dim),
+                        );
                     });
                     ui.add_space(2.0);
                 }
@@ -171,9 +175,9 @@ fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> Option<egui::Respo
     let p = ui.painter().with_clip_rect(rect);
     let date_x = rect.min.x + 16.0;
     let date = long_date(s.clock.local_day(h.start));
-    p.text(mr.pos(pos2(date_x, rect.min.y + 14.0)), start, date.clone(), theme::regular(12.5), t.text);
+    p.text(mr.pos(pos2(date_x, rect.min.y + 14.0)), start, date.clone(), theme::regular(crate::sizes::CAPTION), t.text);
     let time = if h.all_day { tl!("All day").to_string() } else { format!("{} – {}", hm(h.start, s), hm(h.end, s)) };
-    p.text(mr.pos(pos2(date_x, rect.min.y + 32.0)), start, time, theme::regular(12.0), t.dim);
+    p.text(mr.pos(pos2(date_x, rect.min.y + 32.0)), start, time, theme::regular(crate::sizes::CAPTION), t.dim);
     // The subject and what's under it, after the date's column (narrower on a narrow pane).
     let x = date_x + (rect.width() * 0.3).clamp(150.0, 240.0);
     let mut sx = x;
@@ -190,7 +194,7 @@ fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> Option<egui::Respo
         mr.pos(pos2(sx, rect.min.y + 14.0)),
         start,
         title.clone(),
-        theme::semibold(13.0),
+        theme::semibold(crate::sizes::BODY),
         t.text,
     );
     let calendar = s
@@ -204,7 +208,7 @@ fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> Option<egui::Respo
         mr.pos(pos2(x, rect.min.y + 32.0)),
         start,
         under.join(" · "),
-        theme::regular(12.0),
+        theme::regular(crate::sizes::CAPTION),
         t.dim,
     );
     ui.painter().line_segment([rect.left_bottom(), rect.right_bottom()], egui::Stroke::new(1.0, t.border));

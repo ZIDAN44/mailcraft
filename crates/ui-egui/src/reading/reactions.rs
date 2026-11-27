@@ -8,6 +8,10 @@ use mailcraft_engine::model::MessageKey;
 use mailcraft_engine::{Reactions, Session};
 use serde_json::json;
 
+/// An emoji's size on a reaction's chip: a picture, bigger than the words beside it (not one of
+/// the type ramp's sizes, which are for text).
+const EMOJI_SIZE: f32 = 18.0;
+
 use crate::icons::{self, Icon};
 use crate::theme::Tokens;
 use crate::{Action, widgets};
@@ -25,7 +29,7 @@ pub(crate) fn react_button(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
                 }
                 let r = rect.shrink(5.0);
                 if !crate::faces::paint(ui.painter(), r, emoji) {
-                    ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, emoji, crate::theme::regular(18.0), t.text);
+                    ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, emoji, crate::theme::regular(EMOJI_SIZE), t.text);
                 }
                 widgets::named(ui, &resp, emoji, true, None);
                 if resp.clicked() {
@@ -62,7 +66,7 @@ pub(crate) fn reactions_row(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageK
             // The emoji drawn when it's one of the six, else as text; then how many.
             let drawn = crate::faces::drawn(&r.emoji);
             let text = if drawn { r.people.len().to_string() } else { format!("{} {}", r.emoji, r.people.len()) };
-            let galley = ui.painter().layout_no_wrap(text, crate::theme::regular(14.0), t.text);
+            let galley = ui.painter().layout_no_wrap(text, crate::theme::regular(crate::sizes::BODY), t.text);
             let art = if drawn { 18.0 } else { 0.0 };
             let (rect, resp) = ui.allocate_exact_size(galley.size() + vec2(16.0 + art, 8.0), Sense::click());
             let fill = if r.mine {

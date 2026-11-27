@@ -156,8 +156,8 @@ fn shown(ui: &mut Ui, t: &Tokens, edit_id: egui::Id, r: &egui::Response, suggest
         egui::Frame::popup(ui.style()).inner_margin(egui::Margin::same(4)).show(ui, |ui| {
             // As wide as the longest suggestion (within the box's width), every row taking a
             // click anywhere on it: the name, and the address dimmer beside it.
-            let name_font = theme::regular(13.5);
-            let mail_font = theme::regular(12.5);
+            let name_font = theme::regular(crate::sizes::BODY);
+            let mail_font = theme::regular(crate::sizes::CAPTION);
             let text_w = |text: &str, font: &egui::FontId| ui.fonts_mut(|f| f.layout_no_wrap(text.to_string(), font.clone(), t.text).size().x);
             let widest = suggestions
                 .iter()

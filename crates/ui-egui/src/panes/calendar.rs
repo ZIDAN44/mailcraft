@@ -244,7 +244,7 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
     let t = st.tokens;
     let (y, m) = (month.div_euclid(12), u32::try_from(month.rem_euclid(12) + 1).unwrap_or(1));
     ui.horizontal(|ui| {
-        ui.label(RichText::new(tf!("{month} {year}", month = month_name(m), year = y)).font(theme::semibold(13.0)).color(t.text));
+        ui.label(RichText::new(tf!("{month} {year}", month = month_name(m), year = y)).font(theme::semibold(crate::sizes::BODY)).color(t.text));
         if !arrows {
             return;
         }
@@ -267,7 +267,7 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 r.center(),
                 Align2::CENTER_CENTER,
                 tl!(d).chars().next().map(String::from).unwrap_or_default(),
-                theme::regular(11.0),
+                theme::regular(crate::sizes::CAPTION),
                 t.faint,
             );
         }
@@ -308,7 +308,7 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 } else {
                     t.text
                 };
-                let font = if busy.contains(&d) { theme::semibold(12.0) } else { theme::regular(12.0) };
+                let font = if busy.contains(&d) { theme::semibold(crate::sizes::CAPTION) } else { theme::regular(crate::sizes::CAPTION) };
                 ui.painter().text(r.center(), Align2::CENTER_CENTER, dd.to_string(), font, c);
                 // The To-Do Bar's: a look at the day under it, the mail kept on screen (issue #154:
                 // the calendar opening at every click lost one's place); the calendar on it at a
@@ -359,14 +359,17 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 (CalMode::Schedule, "Schedule", "schedule"),
             ];
             let labels: Vec<&str> = modes.iter().map(|(_, l, _)| tl!(*l)).collect();
-            let buttons: f32 =
-                labels.iter().map(|l| ui.painter().layout_no_wrap(l.to_string(), theme::regular(13.0), t.text).size().x + 24.0).sum::<f32>() + 4.0;
-            let whole = ui.painter().layout_no_wrap(title(s), theme::semibold(18.0), t.text).size().x;
+            let buttons: f32 = labels
+                .iter()
+                .map(|l| ui.painter().layout_no_wrap(l.to_string(), theme::regular(crate::sizes::BODY), t.text).size().x + 24.0)
+                .sum::<f32>()
+                + 4.0;
+            let whole = ui.painter().layout_no_wrap(title(s), theme::semibold(crate::sizes::SUBTITLE), t.text).size().x;
             // The days shown, then the views' buttons against the end. In a window with no room
             // for both, the days alone (they ran on under the buttons): the views are on the
             // ribbon too.
             let both = whole <= ui.available_width() - buttons - 12.0;
-            let shown = widgets::one_line(ui, &title(s), theme::semibold(18.0), t.text, ui.available_width());
+            let shown = widgets::one_line(ui, &title(s), theme::semibold(crate::sizes::SUBTITLE), t.text, ui.available_width());
             ui.label(shown);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let at = modes.iter().position(|(m, ..)| *m == s.cal_mode).unwrap_or(0);
@@ -441,7 +444,7 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str, mova
     }
     // As many whole lines as the box holds, the last one ending in "…" when more is left (a line
     // cut in half by the box's edge read badly).
-    let font = theme::regular(12.0);
+    let font = theme::regular(crate::sizes::CAPTION);
     let row = ui.fonts_mut(|f| f.row_height(&font)).max(1.0);
     // A task: its box before its title, ticked (and the title faint) when it's done.
     let done = item.task && item.status == "COMPLETED";
@@ -503,11 +506,17 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
     let rh = ((area.height() - head) / 6.0).max(MONTH_ROW_MIN);
     // An event's box: a line of its text with room above and below (17 points cut the lower part
     // of the system font's letters off), and a little space under it.
-    let row = ui.fonts_mut(|f| f.row_height(&theme::regular(12.0)));
+    let row = ui.fonts_mut(|f| f.row_height(&theme::regular(crate::sizes::CAPTION)));
     let chip_h = (row + 6.0).max(20.0).round();
     let pitch = chip_h + 2.0;
     for (i, d) in dates::WEEKDAYS.iter().enumerate() {
-        ui.painter().text(pos2(area.min.x + cw * (i as f32 + 0.5), area.min.y + 10.0), Align2::CENTER_CENTER, tl!(d), theme::regular(12.0), t.dim);
+        ui.painter().text(
+            pos2(area.min.x + cw * (i as f32 + 0.5), area.min.y + 10.0),
+            Align2::CENTER_CENTER,
+            tl!(d),
+            theme::regular(crate::sizes::CAPTION),
+            t.dim,
+        );
     }
     for w in 0..6 {
         for i in 0..7 {
@@ -544,9 +553,9 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
             if dd == 1 && d != now && cw > 90.0 {
                 // In the language's order ("1 December", "12月1日").
                 let text = tf!("{day} {month}", day = dd, month = date_month_name(m));
-                ui.painter().text(num_pos - vec2(4.0, 0.0), Align2::LEFT_CENTER, text, theme::semibold(12.0), ink);
+                ui.painter().text(num_pos - vec2(4.0, 0.0), Align2::LEFT_CENTER, text, theme::semibold(crate::sizes::CAPTION), ink);
             } else {
-                ui.painter().text(num_pos, Align2::CENTER_CENTER, dd.to_string(), theme::regular(12.0), ink);
+                ui.painter().text(num_pos, Align2::CENTER_CENTER, dd.to_string(), theme::regular(crate::sizes::CAPTION), ink);
             }
             let bg = ui.interact(r, ui.scope_id().with(("month-day", d)), Sense::click());
             let todays: Vec<&AgendaItem> =

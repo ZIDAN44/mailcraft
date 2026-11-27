@@ -294,9 +294,9 @@ fn row(ui: &mut Ui, t: &Tokens, main: &str, strong: bool, side: &str, hint: &str
         ui.painter().rect_filled(rect, 4.0, t.hover);
     }
     let m = crate::bidi::Mirror::new(rect);
-    let side_g = ui.painter().layout_no_wrap(side.to_string(), theme::regular(12.0), t.dim);
+    let side_g = ui.painter().layout_no_wrap(side.to_string(), theme::regular(crate::sizes::CAPTION), t.dim);
     let main_w = (w - side_g.size().x - 24.0).max(40.0);
-    let font = if strong { theme::semibold(13.0) } else { theme::regular(13.0) };
+    let font = if strong { theme::semibold(crate::sizes::BODY) } else { theme::regular(crate::sizes::BODY) };
     let g = widgets::one_line(ui, main, font, t.text, main_w);
     let y = |h: f32| rect.center().y - h / 2.0;
     ui.painter().galley(egui::pos2(m.start(rect.left() + 6.0, g.size().x), y(g.size().y)), g, t.text);

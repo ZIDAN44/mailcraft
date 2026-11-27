@@ -158,7 +158,7 @@ fn arrow(i: &mut egui::InputState, key: egui::Key) -> Option<bool> {
 fn measured(ui: &Ui, t: &Tokens, entry: &str) -> (String, Arc<egui::Galley>, f32, Option<mailcraft_engine::model::EmailAddress>) {
     let person = addr::parse_list(entry).ok().and_then(|list| list.into_iter().next());
     let label = person.as_ref().map_or_else(|| entry.to_string(), |p| p.display().to_string());
-    let galley = ui.painter().layout_no_wrap(label.clone(), theme::regular(13.0), t.text);
+    let galley = ui.painter().layout_no_wrap(label.clone(), theme::regular(crate::sizes::BODY), t.text);
     let w = (galley.size().x + 32.0).clamp(48.0, CHIP_MAX);
     (label, galley, w, person)
 }
@@ -258,8 +258,9 @@ fn fitting(ui: &Ui, t: &Tokens, measures: &[(String, Arc<egui::Galley>, f32, Opt
     if all + 4.0 + TYPING_MIN <= width {
         return widths.len();
     }
-    let more =
-        |hidden: usize| ui.painter().layout_no_wrap(format!("+{}", tf!("{n} more", n = hidden)), theme::regular(13.0), t.accent).size().x + 16.0;
+    let more = |hidden: usize| {
+        ui.painter().layout_no_wrap(format!("+{}", tf!("{n} more", n = hidden)), theme::regular(crate::sizes::BODY), t.accent).size().x + 16.0
+    };
     let mut used = 0.0;
     let mut k = 0;
     for (i, w) in widths.iter().enumerate() {

@@ -2,6 +2,9 @@
 
 use super::*;
 
+/// The font of an empty run that holds a line's height (`line_height` sets it), not text.
+const SPACER_SIZE: f32 = 1.0;
+
 /// A look as text formatting (the person's colours adjusted to stay readable on the page). A
 /// typeface of the computer's is drawn in it where the computer's fonts are offered (issue
 /// #166: it was sent with the message, and shown in the editor's own font): the look's own, else
@@ -40,7 +43,7 @@ pub(super) fn format(s: &Style, base: Option<&str>, size: u8, t: &Tokens) -> Tex
 /// after the last one wasn't the row's: a picture that didn't fit stayed on the row, squeezed).
 /// (As letter spacing it went before the character, and not at all at the start of a line.)
 pub(super) fn picture_format(height: f32) -> TextFormat {
-    TextFormat { font_id: theme::regular(14.5), line_height: Some(height + 4.0), color: Color32::TRANSPARENT, ..Default::default() }
+    TextFormat { font_id: theme::regular(crate::sizes::BODY), line_height: Some(height + 4.0), color: Color32::TRANSPARENT, ..Default::default() }
 }
 
 /// A part of the text with something drawn in its place (a signature's HTML code, laid out as
@@ -105,7 +108,7 @@ pub(crate) enum CardFor {
 
 /// Letters that take (next to) no room and aren't seen: a [`Card`]'s text. `height`: its line's.
 fn hidden_format(height: f32) -> TextFormat {
-    TextFormat { font_id: theme::regular(1.0), line_height: Some(height), color: Color32::TRANSPARENT, ..Default::default() }
+    TextFormat { font_id: theme::regular(SPACER_SIZE), line_height: Some(height), color: Color32::TRANSPARENT, ..Default::default() }
 }
 
 /// What the message's text is laid out with: its styles, whether it's plain text, the colours,
@@ -142,7 +145,7 @@ pub(super) fn job(text: &str, lay: Lay<'_>, shift: &[f32]) -> LayoutJob {
     // Where a paragraph goes is decided here (`layout_aligned`), against the editor's width;
     // egui would put a right-to-left one against the widest line instead.
     job.halign_min_is_start = false;
-    let plain_fmt = TextFormat { font_id: theme::regular(14.5), color: t.text, ..Default::default() };
+    let plain_fmt = TextFormat { font_id: theme::regular(crate::sizes::BODY), color: t.text, ..Default::default() };
     let mut i = 0usize;
     for (n, line) in text.split('\n').enumerate() {
         if n > 0 {

@@ -85,7 +85,10 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
         // the tabs wrap in what's left, so long words (Dutch, German…) never run into it.
         let arrange = tf!("By {field}", field = tl!(s.prefs.arrange.label()));
         let right = if s.search.is_none() {
-            ui.painter().layout_no_wrap(arrange.clone(), theme::regular(12.5), t.dim).size().x + 26.0 + 32.0 + 2.0 * ui.spacing().item_spacing.x
+            ui.painter().layout_no_wrap(arrange.clone(), theme::regular(crate::sizes::CAPTION), t.dim).size().x
+                + 26.0
+                + 32.0
+                + 2.0 * ui.spacing().item_spacing.x
         } else {
             0.0
         };
@@ -94,7 +97,7 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
         // stay on one line: those that don't fit go into a "⋯" menu after the rest (the chosen
         // one always shows), so the head keeps its height however narrow the pane.
         let shown: Vec<ListFilter> = ListFilter::ALL.into_iter().chain((!ListFilter::ALL.contains(&s.filter)).then_some(s.filter)).collect();
-        let font = |on: bool| if on { theme::semibold(12.5) } else { theme::regular(12.5) };
+        let font = |on: bool| if on { theme::semibold(crate::sizes::CAPTION) } else { theme::regular(crate::sizes::CAPTION) };
         let pad = ui.spacing().button_padding.x * 2.0;
         let gap = ui.spacing().item_spacing.x;
         let width = |f: ListFilter| ui.painter().layout_no_wrap(tl!(f.label()).to_string(), font(s.filter == f), t.dim).size().x + pad;
@@ -192,7 +195,7 @@ fn list_head_line(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Ac
             }
             // The name has what's left, cut short where it's too long.
             ui.with_layout(crate::bidi::row_from_start(egui::Align::Center), |ui| {
-                ui.add(egui::Label::new(RichText::new(crate::view_title(s)).font(theme::semibold(13.5)).color(t.text)).truncate());
+                ui.add(egui::Label::new(RichText::new(crate::view_title(s)).font(theme::semibold(crate::sizes::BODY)).color(t.text)).truncate());
             });
         });
     });
@@ -300,13 +303,25 @@ fn group_heading(t: &crate::theme::Tokens, ui: &mut Ui, r: Rect, h: Heading<'_>,
     let m = crate::bidi::Mirror::new(r);
     let arrow = Rect::from_center_size(m.pos(r.left_bottom() + vec2(19.0, -14.0)), vec2(10.0, 10.0));
     icons::paint(ui.painter(), arrow, if folded.is_some() { m.closed() } else { Icon::ChevronDown }, t.dim);
-    let text = ui.painter().text(m.pos(r.left_bottom() + vec2(30.0, -8.0)), m.align(egui::Align2::LEFT_BOTTOM), shown, theme::semibold(12.5), t.dim);
+    let text = ui.painter().text(
+        m.pos(r.left_bottom() + vec2(30.0, -8.0)),
+        m.align(egui::Align2::LEFT_BOTTOM),
+        shown,
+        theme::semibold(crate::sizes::CAPTION),
+        t.dim,
+    );
     let name = match folded {
         Some((count, unread)) => {
             // How much it hides, in the accent when some of it is unread.
             let at = if m.on() { text.min.x - 6.0 } else { text.max.x + 6.0 };
             let colour = if unread > 0 { t.accent } else { t.faint };
-            ui.painter().text(pos2(at, text.max.y), m.align(egui::Align2::LEFT_BOTTOM), format!("({count})"), theme::regular(12.0), colour);
+            ui.painter().text(
+                pos2(at, text.max.y),
+                m.align(egui::Align2::LEFT_BOTTOM),
+                format!("({count})"),
+                theme::regular(crate::sizes::CAPTION),
+                colour,
+            );
             tf!("{heading} ({count}), folded", heading = shown, count = count)
         }
         None => shown.to_string(),

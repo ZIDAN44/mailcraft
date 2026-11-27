@@ -331,7 +331,7 @@ fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
         let icon = egui::Rect::from_center_size(mirror.pos(r.left_center() + vec2(14.0, 0.0)), vec2(14.0, 14.0));
         icons::paint(ui.painter(), icon, if shared { Icon::People } else { Icon::Person }, if on { t.accent } else { t.dim });
         // Limit Latin names too: right-aligned unbounded text would hide its start in RTL.
-        let text = widgets::one_line(ui, label, theme::regular(13.0), t.text, (r.width() - 36.0).max(1.0));
+        let text = widgets::one_line(ui, label, theme::regular(crate::sizes::BODY), t.text, (r.width() - 36.0).max(1.0));
         let at = egui::pos2(mirror.start(r.left() + 28.0, text.size().x), r.center().y - text.size().y / 2.0);
         ui.painter().with_clip_rect(r.shrink2(vec2(4.0, 0.0))).galley(at, text, t.text);
         match tip {
@@ -339,7 +339,7 @@ fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
             None => resp.clicked(),
         }
     };
-    ui.label(RichText::new(tl!("Address books")).font(theme::semibold(12.0)).color(t.dim));
+    ui.label(RichText::new(tl!("Address books")).font(theme::semibold(crate::sizes::CAPTION)).color(t.dim));
     if row(ui, st.people_book.is_none(), tl!("All contacts"), None, false) {
         st.people_book = None;
     }
@@ -385,7 +385,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                 let heights: Vec<(char, f32)> = people
                     .letters
                     .iter()
-                    .map(|&c| (c, 4.0 + ui.painter().layout_no_wrap(c.to_string(), theme::semibold(12.0), t.accent).size().y + gap))
+                    .map(|&c| (c, 4.0 + ui.painter().layout_no_wrap(c.to_string(), theme::semibold(crate::sizes::CAPTION), t.accent).size().y + gap))
                     .collect();
                 let heading = |c: char| heights.iter().find(|(x, _)| *x == c).map_or(0.0, |(_, h)| *h);
                 let mut tops = Vec::with_capacity(people.lines.len() + 1);
@@ -409,7 +409,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                 shown::rows(ui, viewport, people.lines.len(), top, None, |ui, k| match people.lines.get(k) {
                     Some(Line::Letter(c)) => {
                         ui.add_space(4.0);
-                        ui.label(RichText::new(c.to_string()).font(theme::semibold(12.0)).color(t.accent));
+                        ui.label(RichText::new(c.to_string()).font(theme::semibold(crate::sizes::CAPTION)).color(t.accent));
                     }
                     Some(Line::Person(i)) => match people.at.get(*i).and_then(|at| shown::person(s, at)) {
                         Some(p) => side_row(s, st, ui, &p, acts),
@@ -506,7 +506,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 crate::photos::avatar(ui, s, r.center(), 34.0, email, &initials(&name), theme::avatar_color(&name, t.dark));
                 ui.add_space(10.0);
                 ui.vertical(|ui| {
-                    ui.label(RichText::new(&name).font(theme::semibold(22.0)).color(t.text));
+                    ui.label(RichText::new(&name).font(theme::semibold(crate::sizes::TITLE)).color(t.text));
                     let role = [c.title.as_str(), c.org.as_str()].iter().filter(|x| !x.is_empty()).copied().collect::<Vec<_>>().join(" · ");
                     if !role.is_empty() {
                         ui.label(RichText::new(role).color(t.dim));
@@ -575,7 +575,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             }
             if !c.note.is_empty() {
                 ui.add_space(10.0);
-                ui.label(RichText::new(tl!("Notes")).font(theme::semibold(13.0)).color(t.dim));
+                ui.label(RichText::new(tl!("Notes")).font(theme::semibold(crate::sizes::BODY)).color(t.dim));
                 ui.label(RichText::new(&c.note).color(t.text));
             }
             ui.add_space(14.0);
@@ -670,14 +670,14 @@ fn cards(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                                 ui.painter().galley(egui::pos2(x, y), g, color);
                                 y += h + 3.0;
                             };
-                            line(&name, theme::semibold(14.5), t.text);
-                            line(&c.title, theme::regular(12.0), t.dim);
-                            line(&c.org, theme::regular(12.0), t.dim);
+                            line(&name, theme::semibold(crate::sizes::BODY), t.text);
+                            line(&c.title, theme::regular(crate::sizes::CAPTION), t.dim);
+                            line(&c.org, theme::regular(crate::sizes::CAPTION), t.dim);
                             for e in c.emails.iter().take(2) {
-                                line(&e.value, theme::regular(12.0), t.accent);
+                                line(&e.value, theme::regular(crate::sizes::CAPTION), t.accent);
                             }
                             for ph in c.phones.iter().take(1) {
-                                line(&ph.value, theme::regular(12.0), t.text);
+                                line(&ph.value, theme::regular(crate::sizes::CAPTION), t.text);
                             }
                             if resp.clicked() {
                                 st.person = Some(c.uid.clone());
@@ -717,7 +717,7 @@ fn phone_list(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
             let mut x = r.left() + 8.0;
             let mut rects = Vec::new();
             for (cw, text) in widths.iter().zip(cells) {
-                let font = if header { theme::semibold(12.5) } else { theme::regular(13.0) };
+                let font = if header { theme::semibold(crate::sizes::CAPTION) } else { theme::regular(crate::sizes::BODY) };
                 let g = widgets::one_line(ui, text, font, if header { t.dim } else { t.text }, cw - 12.0);
                 ui.painter().galley(egui::pos2(mirror.start(x, g.size().x), r.center().y - g.size().y / 2.0), g, t.text);
                 rects.push(mirror.rect(egui::Rect::from_min_size(egui::pos2(x - 8.0, r.top()), vec2(*cw, r.height()))));

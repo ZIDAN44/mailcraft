@@ -41,11 +41,9 @@ pub(super) fn pgp(s: &Session, t: &Tokens, ui: &mut Ui, a: &AccountState, acts: 
             Some(k) => {
                 let who = whose(&k.emails, &k.name);
                 let bad = k.revoked.is_some() || k.expires.is_some_and(|at| at <= s.clock.now);
-                let about = RichText::new(format!("{} · {} · {}", k.spaced(), k.algorithm, validity(s, k))).size(12.0).color(if bad {
-                    t.danger
-                } else {
-                    t.faint
-                });
+                let about = RichText::new(format!("{} · {} · {}", k.spaced(), k.algorithm, validity(s, k)))
+                    .size(crate::sizes::CAPTION)
+                    .color(if bad { t.danger } else { t.faint });
                 setting_row(ui, t, true, name(t, who), Some(about), |ui| {
                     if ui
                         .button(RichText::new(tl!("Remove")).color(t.danger))

@@ -127,12 +127,12 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         let mut job = egui::text::LayoutJob::default();
                         let strong = egui::TextFormat {
-                            font_id: theme::semibold(13.0),
+                            font_id: theme::semibold(crate::sizes::BODY),
                             color: if r.enabled { t.text } else { t.faint },
                             ..Default::default()
                         };
                         job.append(&r.name, 0.0, strong);
-                        let dim = egui::TextFormat { font_id: theme::regular(12.0), color: t.dim, ..Default::default() };
+                        let dim = egui::TextFormat { font_id: theme::regular(crate::sizes::CAPTION), color: t.dim, ..Default::default() };
                         job.append(what, 10.0, dim);
                         ui.add(egui::Label::new(job).selectable(false).truncate()).on_hover_text(format!("{}\n{}", r.name, what));
                     });

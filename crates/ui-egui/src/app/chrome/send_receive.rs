@@ -244,7 +244,9 @@ fn draw(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     let mut closed = false;
     row(ui, 24.0, |ui| {
         // Not text to select: the window is moved by it.
-        ui.add(egui::Label::new(RichText::new(tl!("Send / Receive progress")).font(theme::semibold(14.0)).color(t.text)).selectable(false));
+        ui.add(
+            egui::Label::new(RichText::new(tl!("Send / Receive progress")).font(theme::semibold(crate::sizes::BODY)).color(t.text)).selectable(false),
+        );
         ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
             closed = icon_button(ui, t, icons::Icon::Close, tl!("Close")).clicked();
         });

@@ -158,7 +158,7 @@ fn tab_button(ui: &mut Ui, t: &Tokens, label: &str, on: Option<bool>) -> egui::R
     let shown = on == Some(true);
     let (on_color, off_color) = tab_colors(t);
     let color = if shown { on_color } else { off_color };
-    let font = if shown { theme::semibold(13.5) } else { theme::regular(13.5) };
+    let font = if shown { theme::semibold(crate::sizes::BODY) } else { theme::regular(crate::sizes::BODY) };
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, color);
     let height = ui.available_height().clamp(22.0, 30.0);
     let (rect, resp) = ui.allocate_exact_size(vec2(galley.size().x + 18.0, height), Sense::click());

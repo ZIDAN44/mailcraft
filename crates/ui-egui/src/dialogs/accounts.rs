@@ -164,7 +164,7 @@ fn disclosure(ui: &mut Ui, t: &Tokens, open: &mut bool, label: &str, note: Optio
     let m = crate::bidi::Mirror::new(rect);
     let icon = m.rect(egui::Rect::from_center_size(egui::pos2(rect.left() + 10.0, rect.center().y), vec2(14.0, 14.0)));
     crate::icons::paint(ui.painter(), icon, if *open { Icon::ChevronDown } else { m.closed() }, t.dim);
-    let name = widgets::one_line(ui, label, theme::semibold(13.0), t.text, rect.width() - 28.0);
+    let name = widgets::one_line(ui, label, theme::semibold(crate::sizes::BODY), t.text, rect.width() - 28.0);
     let at = m.rect(egui::Rect::from_min_size(egui::pos2(rect.left() + 22.0, rect.center().y - name.size().y / 2.0), name.size()));
     ui.painter().galley(at.min, name, t.text);
     // Lined up with the name, the chevron's room left before it.

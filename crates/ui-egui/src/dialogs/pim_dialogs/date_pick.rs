@@ -51,7 +51,8 @@ pub(crate) fn date_field(ui: &mut Ui, t: &Tokens, id: &str, text: &mut String, o
             }
             let m = u32::try_from(month.rem_euclid(12) + 1).unwrap_or(1);
             ui.label(
-                RichText::new(tf!("{month} {year}", month = crate::calendar::month_name(m), year = month.div_euclid(12))).font(theme::semibold(13.0)),
+                RichText::new(tf!("{month} {year}", month = crate::calendar::month_name(m), year = month.div_euclid(12)))
+                    .font(theme::semibold(crate::sizes::BODY)),
             );
             if widgets::tiny_icon_button(ui, Icon::ChevronRight, "Next month", t).clicked() {
                 month += 1;
@@ -67,7 +68,7 @@ pub(crate) fn date_field(ui: &mut Ui, t: &Tokens, id: &str, text: &mut String, o
                     r.center(),
                     egui::Align2::CENTER_CENTER,
                     tl!(d).chars().next().map(String::from).unwrap_or_default(),
-                    theme::regular(11.0),
+                    theme::regular(crate::sizes::CAPTION),
                     t.faint,
                 );
             }
@@ -93,7 +94,7 @@ pub(crate) fn date_field(ui: &mut Ui, t: &Tokens, id: &str, text: &mut String, o
                     } else {
                         t.faint
                     };
-                    ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, dd.to_string(), theme::regular(12.0), c);
+                    ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, dd.to_string(), theme::regular(crate::sizes::CAPTION), c);
                     let resp = resp.on_hover_text(dates::typed_day(d, order));
                     if resp.clicked() {
                         picked = Some(d);

@@ -45,7 +45,7 @@ pub(super) fn alert(ui: &mut Ui, t: &Tokens, st: &mut UiState, id: u64, blocked:
             icons::paint(ui.painter(), r, Icon::Warning, t.warn);
             ui.add_space(6.0);
             ui.vertical(|ui| {
-                ui.label(RichText::new(tl!("MailCraft")).font(theme::semibold(16.0)).color(t.text));
+                ui.label(RichText::new(tl!("MailCraft")).font(theme::semibold(crate::sizes::SUBTITLE)).color(t.text));
                 ui.add(egui::Label::new(RichText::new(alert.text()).color(t.text)).wrap());
             });
         });

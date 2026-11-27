@@ -71,7 +71,7 @@ pub(super) fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaIt
     let n = i64::try_from(days.len()).unwrap_or(1).max(1);
     // Wide enough for "All day" in the language shown ("Toute la journée" ran out of it, under
     // the folder pane's edge).
-    let all_day = ui.painter().layout_no_wrap(tl!("All day").to_string(), theme::regular(11.0), t.faint).size().x;
+    let all_day = ui.painter().layout_no_wrap(tl!("All day").to_string(), theme::regular(crate::sizes::CAPTION), t.faint).size().x;
     let gutter = (all_day + 14.0).clamp(52.0, 110.0);
     let now = today(s);
     let full = ui.available_rect_before_wrap();
@@ -127,7 +127,7 @@ fn calendar_headings(s: &Session, t: &Tokens, ui: &mut Ui, cols: &Columns, width
             pos2(r.min.x + 8.0, r.center().y),
             Align2::LEFT_CENTER,
             label.clone(),
-            theme::semibold(12.0),
+            theme::semibold(crate::sizes::CAPTION),
             t.text,
         );
         let x = Rect::from_center_size(pos2(r.max.x - 12.0, r.center().y), vec2(18.0, 18.0));
@@ -156,14 +156,20 @@ fn day_headings(t: &Tokens, ui: &mut Ui, cols: &Columns, width: f32, now: i64) {
                 pos2(x + cols.cw / 2.0, head.min.y + 10.0),
                 Align2::CENTER_CENTER,
                 tl!(wd),
-                theme::regular(12.0),
+                theme::regular(crate::sizes::CAPTION),
                 if d == now { t.accent } else { t.dim },
             );
             let c = pos2(x + cols.cw / 2.0, head.min.y + 28.0);
             if d == now {
                 ui.painter().circle_filled(c, 12.0, t.accent);
             }
-            ui.painter().text(c, Align2::CENTER_CENTER, dd.to_string(), theme::semibold(15.0), if d == now { t.on_accent } else { t.text });
+            ui.painter().text(
+                c,
+                Align2::CENTER_CENTER,
+                dd.to_string(),
+                theme::semibold(crate::sizes::BODY),
+                if d == now { t.on_accent } else { t.text },
+            );
         }
     }
 }
@@ -191,7 +197,13 @@ fn all_day_strip(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], col
         placed.push((lane, it, (a, b)));
     }
     let (strip, _) = ui.allocate_exact_size(vec2(width, 20.0 * lanes.len().min(4) as f32 + 6.0), Sense::hover());
-    ui.painter().text(pos2(strip.min.x + cols.gutter - 6.0, strip.min.y + 10.0), Align2::RIGHT_CENTER, tl!("All day"), theme::regular(11.0), t.faint);
+    ui.painter().text(
+        pos2(strip.min.x + cols.gutter - 6.0, strip.min.y + 10.0),
+        Align2::RIGHT_CENTER,
+        tl!("All day"),
+        theme::regular(crate::sizes::CAPTION),
+        t.faint,
+    );
     for (lane, it, (a, b)) in placed.into_iter().filter(|(l, ..)| *l < 4) {
         let j = cols.col_of(it);
         let r = Rect::from_min_size(
@@ -356,7 +368,7 @@ fn timed_events(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], cols
             let mut text = format!("{}\n{} – {}", title_of(it), hm(it.start, s), hm(it.end, s));
             if !it.location.is_empty() {
                 let both = format!("{} – {} · {}", hm(it.start, s), hm(it.end, s), it.location);
-                let w = ui.fonts_mut(|f| f.layout_no_wrap(both, theme::regular(12.0), t.text).size().x);
+                let w = ui.fonts_mut(|f| f.layout_no_wrap(both, theme::regular(crate::sizes::CAPTION), t.text).size().x);
                 text.push_str(if w <= r.width() - 8.0 { " · " } else { "\n" });
                 text.push_str(&it.location);
             }

@@ -166,7 +166,7 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
     if coming.is_empty() {
         let none = if picked.is_some() { tl!("Nothing on this day") } else { tl!("Nothing in the next 7 days") };
         if let Some(day) = picked {
-            ui.label(RichText::new(super::tasks::relative_day(day, s)).font(theme::semibold(11.5)).color(t.accent));
+            ui.label(RichText::new(super::tasks::relative_day(day, s)).font(theme::semibold(crate::sizes::CAPTION)).color(t.accent));
         }
         ui.label(RichText::new(none).color(t.faint).small());
         return;
@@ -180,7 +180,7 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
         let day = day_of(it);
         if last != Some(day) {
             last = Some(day);
-            ui.label(RichText::new(super::tasks::relative_day(day, s)).font(theme::semibold(11.5)).color(t.accent));
+            ui.label(RichText::new(super::tasks::relative_day(day, s)).font(theme::semibold(crate::sizes::CAPTION)).color(t.accent));
         }
         let when = if it.all_day { tl!("All day").to_string() } else { super::calendar::hm(it.start, s) };
         // How long it is under its time, and how soon it starts when that's within the hour
@@ -204,8 +204,8 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
         let stripe = mr.rect(Rect::from_min_size(rect.min + vec2(1.0, 3.0), vec2(3.0, h - 6.0)));
         ui.painter().rect_filled(stripe, 1.5, it.category.map_or_else(|| super::calendar::color(it.color, t), |i| theme::category_color(i, t.dark)));
         let p = ui.painter().with_clip_rect(rect);
-        let time = widgets::one_line(ui, &when, theme::regular(11.5), t.dim, 70.0);
-        let laid = length.as_ref().map(|l| widgets::one_line(ui, l, theme::regular(11.0), t.faint, 70.0));
+        let time = widgets::one_line(ui, &when, theme::regular(crate::sizes::CAPTION), t.dim, 70.0);
+        let laid = length.as_ref().map(|l| widgets::one_line(ui, l, theme::regular(crate::sizes::CAPTION), t.faint, 70.0));
         // The time's column as wide as the wider of its time and its length (`15 min` ran into
         // the place beside it).
         let time_w = time.size().x.max(laid.as_ref().map_or(0.0, |l| l.size().x));
@@ -216,14 +216,14 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
         }
         let room = (rect.width() - 22.0 - time_w).max(10.0);
         if let Some(soon) = &soon {
-            let badge = widgets::one_line(ui, soon, theme::semibold(11.0), t.accent, rect.width() - 16.0);
+            let badge = widgets::one_line(ui, soon, theme::semibold(crate::sizes::CAPTION), t.accent, rect.width() - 16.0);
             p.galley(pos2(mr.start(rect.min.x + 10.0, badge.size().x), rect.min.y + 4.0), badge, t.accent);
         }
         let title = if it.summary.trim().is_empty() { tl!("(no title)").to_string() } else { it.summary.clone() };
-        let title = widgets::one_line(ui, &title, theme::regular(13.0), t.text, room);
+        let title = widgets::one_line(ui, &title, theme::regular(crate::sizes::BODY), t.text, room);
         p.galley(pos2(mr.start(rect.min.x + 18.0 + time_w, title.size().x), top), title, t.text);
         if !it.location.trim().is_empty() {
-            let place = widgets::one_line(ui, it.location.trim(), theme::regular(11.5), t.faint, room);
+            let place = widgets::one_line(ui, it.location.trim(), theme::regular(crate::sizes::CAPTION), t.faint, room);
             p.galley(pos2(mr.start(rect.min.x + 18.0 + time_w, place.size().x), top + 17.0), place, t.faint);
         }
         // Read as it's shown: its time, how long and how soon, then what it is.
@@ -260,7 +260,10 @@ fn tasks(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let can_add = !s.accounts.is_empty();
     let typed = ui.add_enabled(
         can_add,
-        egui::TextEdit::singleline(&mut st.todo_new).hint_text(tl!("Type a new task")).desired_width(f32::INFINITY).font(theme::regular(13.0)),
+        egui::TextEdit::singleline(&mut st.todo_new)
+            .hint_text(tl!("Type a new task"))
+            .desired_width(f32::INFINITY)
+            .font(theme::regular(crate::sizes::BODY)),
     );
     if typed.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !st.todo_new.trim().is_empty() {
         acts.push(Action::Run("task.create", json!({"title": st.todo_new.trim(), "due": dates::day_string(dates::today(&s.clock))})));
@@ -281,7 +284,7 @@ fn tasks(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                 group = Some(it.group);
                 ui.add_space(4.0);
                 let color = if it.group == TodoGroup::Overdue { t.danger } else { t.accent };
-                ui.label(RichText::new(tl!(it.group.label())).font(theme::semibold(11.5)).color(color));
+                ui.label(RichText::new(tl!(it.group.label())).font(theme::semibold(crate::sizes::CAPTION)).color(color));
                 ui.add_space(2.0);
             }
             row(s, &t, ui, it, acts);
@@ -328,7 +331,7 @@ fn row(s: &Session, t: &Tokens, ui: &mut Ui, it: &TodoItem, acts: &mut Vec<Actio
     let kind = mr.rect(Rect::from_center_size(pos2(rect.min.x + 11.0, rect.center().y), vec2(14.0, 14.0)));
     icons::paint(ui.painter(), kind, if mail { Icon::Read } else { Icon::Task }, t.dim);
     let room = (rect.width() - 50.0).max(10.0);
-    let galley = widgets::one_line(ui, &title, theme::regular(13.0), t.text, room);
+    let galley = widgets::one_line(ui, &title, theme::regular(crate::sizes::BODY), t.text, room);
     let at = pos2(mr.start(rect.min.x + 24.0, galley.size().x), rect.center().y - galley.size().y / 2.0);
     ui.painter().with_clip_rect(rect).galley(at, galley, t.text);
     widgets::named(ui, &resp, &title, true, None);

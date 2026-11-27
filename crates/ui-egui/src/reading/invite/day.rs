@@ -78,7 +78,7 @@ fn strip(s: &Session, t: &Tokens, ui: &mut Ui, e: &CalEvent, day: &InviteDay, ac
         let hx = x(h);
         p.line_segment([pos2(hx, lane.min.y), pos2(hx, band.max.y)], egui::Stroke::new(1.0, t.border));
         if n % every == 0 && hx + 30.0 < rect.max.x {
-            p.text(pos2(hx + 3.0, rect.min.y + 2.0), Align2::LEFT_TOP, crate::calendar::hm(h, s), theme::regular(10.5), t.faint);
+            p.text(pos2(hx + 3.0, rect.min.y + 2.0), Align2::LEFT_TOP, crate::calendar::hm(h, s), theme::regular(crate::sizes::CAPTION), t.faint);
         }
     }
     // The user's events, a lane each where they overlap.
@@ -107,7 +107,13 @@ fn strip(s: &Session, t: &Tokens, ui: &mut Ui, e: &CalEvent, day: &InviteDay, ac
         let edge = if fit == Fit::Clash { egui::Stroke::new(1.5, t.danger) } else { egui::Stroke::NONE };
         p.rect(r, 3.0, fill, edge, egui::StrokeKind::Inside);
         let title = crate::calendar::event_title(&it.summary, it.privacy, it.show_as);
-        p.with_clip_rect(r.shrink(2.0)).text(r.left_center() + vec2(4.0, 0.0), Align2::LEFT_CENTER, title, theme::regular(11.0), t.text);
+        p.with_clip_rect(r.shrink(2.0)).text(
+            r.left_center() + vec2(4.0, 0.0),
+            Align2::LEFT_CENTER,
+            title,
+            theme::regular(crate::sizes::CAPTION),
+            t.text,
+        );
         crate::widgets::named(ui, &resp, &named(s, it), true, None);
         if resp.on_hover_text(named(s, it)).clicked()
             && let Some(d) = Dialog::open_item(s, &it.uid, it.occurrence)
@@ -120,7 +126,13 @@ fn strip(s: &Session, t: &Tokens, ui: &mut Ui, e: &CalEvent, day: &InviteDay, ac
     let (from, to) = (x(e.start), x(e.end).max(x(e.start) + 4.0));
     let r = Rect::from_min_max(pos2(from, lane.min.y + 1.0), pos2(to, lane.max.y - 1.0));
     p.rect(r, 3.0, t.accent.gamma_multiply(0.35), egui::Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
-    p.with_clip_rect(r.shrink(2.0)).text(r.left_center() + vec2(4.0, 0.0), Align2::LEFT_CENTER, &e.summary, theme::semibold(11.0), t.text);
+    p.with_clip_rect(r.shrink(2.0)).text(
+        r.left_center() + vec2(4.0, 0.0),
+        Align2::LEFT_CENTER,
+        &e.summary,
+        theme::semibold(crate::sizes::CAPTION),
+        t.text,
+    );
     let under = Rect::from_min_max(pos2(from, band.min.y), pos2(to, band.max.y));
     p.rect(under, 3.0, egui::Color32::TRANSPARENT, egui::Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
 }

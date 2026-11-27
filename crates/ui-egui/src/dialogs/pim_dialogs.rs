@@ -438,7 +438,7 @@ fn form_header(ui: &mut Ui, t: &Tokens, badge: Result<Icon, String>, title: &str
             ui.horizontal(|ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(32.0, 32.0), Sense::hover());
                 ui.painter().circle_filled(r.center(), 16.0, t.accent_soft);
-                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, initials, theme::semibold(13.0), t.accent);
+                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, initials, theme::semibold(crate::sizes::BODY), t.accent);
                 crate::dialogs::title(ui, t, title);
             });
         }
@@ -451,7 +451,7 @@ fn form_header(ui: &mut Ui, t: &Tokens, badge: Result<Icon, String>, title: &str
 /// field (or fields) after, lined up with the field's first line.
 /// `icons_used`: the form puts icons before labels, so a row without one is indented to match.
 fn form_row(ui: &mut Ui, t: &Tokens, icons_used: bool, icon: Option<Icon>, label: &str, add: impl FnOnce(&mut Ui)) {
-    let text = ui.painter().layout_no_wrap(tl!(label).to_string(), theme::regular(13.0), t.dim);
+    let text = ui.painter().layout_no_wrap(tl!(label).to_string(), theme::regular(crate::sizes::BODY), t.dim);
     let indent = if icons_used { ICON_W } else { 0.0 };
     let width = label_column(ui, icons_used);
     ui.horizontal_top(|ui| {
@@ -485,7 +485,7 @@ fn title_field(ui: &mut Ui, value: &mut String) {
     ui.add(
         egui::TextEdit::singleline(value)
             .hint_text(tl!("Add a title"))
-            .font(theme::semibold(16.0))
+            .font(theme::semibold(crate::sizes::SUBTITLE))
             .desired_width(w)
             .min_size(vec2(w, 36.0))
             .margin(Margin::symmetric(10, 8))

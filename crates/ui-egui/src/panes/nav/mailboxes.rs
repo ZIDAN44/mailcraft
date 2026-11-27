@@ -120,7 +120,7 @@ pub(super) fn shared_header(
             m.pos(egui::pos2(rect.max.x - 10.0 - inset, rect.center().y)),
             m.align(egui::Align2::RIGHT_CENTER),
             unread.to_string(),
-            theme::semibold(12.5),
+            theme::semibold(crate::sizes::CAPTION),
             t.accent,
         );
     }

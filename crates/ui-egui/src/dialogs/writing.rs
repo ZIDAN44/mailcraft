@@ -478,7 +478,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
                     }
                     // Each in its column, a long one cut short with "…" (the whole of it on hover).
                     let cell = |ui: &Ui, text: &str, x: f32, w: f32, c: egui::Color32| {
-                        let mut job = egui::text::LayoutJob::simple_singleline(text.to_string(), theme::regular(13.5), c);
+                        let mut job = egui::text::LayoutJob::simple_singleline(text.to_string(), theme::regular(crate::sizes::BODY), c);
                         job.wrap.max_width = w;
                         job.wrap.max_rows = 1;
                         job.wrap.break_anywhere = true;
@@ -628,7 +628,7 @@ fn people_field(ui: &mut Ui, t: &Tokens, to: &mut String) {
             p.rect_filled(x_rect, 3.0, t.hover);
         }
         crate::icons::paint(p, crate::icons::centered(x_rect, 10.0), crate::icons::Icon::Close, if x.hovered() { t.text } else { t.dim });
-        let g = widgets::one_line(ui, name, theme::regular(12.5), t.text, x_rect.left() - 4.0 - (rect.left() + 8.0));
+        let g = widgets::one_line(ui, name, theme::regular(crate::sizes::CAPTION), t.text, x_rect.left() - 4.0 - (rect.left() + 8.0));
         p.galley(egui::pos2(rect.left() + 8.0, rect.center().y - g.size().y / 2.0), g, t.text);
         resp.on_hover_text(a.email.clone());
         if x.clicked() {

@@ -68,7 +68,7 @@ pub(super) fn color_button(
     if resp.hovered() {
         ui.painter().rect_filled(rect, 4.0, t.hover);
     }
-    ui.painter().text(rect.center() - vec2(4.0, 3.0), egui::Align2::CENTER_CENTER, letter, theme::regular(14.0), t.text);
+    ui.painter().text(rect.center() - vec2(4.0, 3.0), egui::Align2::CENTER_CENTER, letter, theme::regular(crate::sizes::BODY), t.text);
     let bar = Rect::from_min_size(egui::pos2(rect.min.x + 6.0, rect.max.y - 7.0), vec2(16.0, 3.5));
     let shown = current.map_or(if letter == "A" { t.text } else { Color32::TRANSPARENT }, |c| Color32::from_rgb(c[0], c[1], c[2]));
     ui.painter().rect_filled(bar, 1.0, shown);
@@ -306,7 +306,7 @@ fn format_buttons(ui: &mut Ui, t: &Tokens, c: &Compose, cur: &Style, para: rich:
         let letter = |bold: bool, italic: bool, under: bool, strike: bool| {
             let line = Stroke::new(1.2, t.text);
             TextFormat {
-                font_id: if bold { theme::bold(15.0) } else { theme::regular(15.0) },
+                font_id: if bold { theme::bold(15.0) } else { theme::regular(crate::sizes::BODY) },
                 color: t.text,
                 italics: italic,
                 underline: if under { line } else { Stroke::NONE },

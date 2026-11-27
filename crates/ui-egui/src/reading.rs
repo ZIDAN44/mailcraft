@@ -391,11 +391,11 @@ fn message_body(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, format
     } else if crate::bidi::has_rtl(&p.text) {
         // Right-to-left text, against the right edge where it starts; selected with the
         // pointer as it reads, and right-click copies it as written too.
-        let job = egui::text::LayoutJob::simple(p.text.clone(), theme::regular(14.5), t.text, ui.available_width());
+        let job = egui::text::LayoutJob::simple(p.text.clone(), theme::regular(crate::sizes::BODY), t.text, ui.available_width());
         let r = text_selection::rtl_run(st, ui, job);
         rtl_copy_menu(&r, None, &p.text);
     } else {
-        text_selection::run(st, ui, RichText::new(&p.text).font(theme::regular(14.5)).color(t.text), None);
+        text_selection::run(st, ui, RichText::new(&p.text).font(theme::regular(crate::sizes::BODY)).color(t.text), None);
     }
     // Laid out by what's in view, a long text's copy of all of it is its text.
     let long = if formatted { long_text::many_lines(p) } else { p.text.len() > long_text::LONG };
@@ -508,7 +508,7 @@ fn thread_list(
             if current || resp.hovered() {
                 ui.painter().rect_filled(rect, 4.0, if current { t.accent_soft } else { t.hover_row });
             }
-            let font = if !m.flags.seen && !sent { theme::semibold(13.0) } else { theme::regular(13.0) };
+            let font = if !m.flags.seen && !sent { theme::semibold(crate::sizes::BODY) } else { theme::regular(crate::sizes::BODY) };
             let p = ui.painter_at(rect);
             // Who, the first words and when, each in its own room: the words ran on under
             // the time in a narrow pane, and a long name under the words. One from Sent
@@ -517,13 +517,13 @@ fn thread_list(
                 .then(|| s.account(&k.account).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Sent)).map(crate::i18n::folder))
                 .flatten();
             let date = crate::i18n::date(&dates::list_time(m.when(), &s.clock));
-            let when = p.layout_no_wrap(folder.map_or(date.clone(), |f| format!("{f} · {date}")), theme::regular(12.0), t.dim);
+            let when = p.layout_no_wrap(folder.map_or(date.clone(), |f| format!("{f} · {date}")), theme::regular(crate::sizes::CAPTION), t.dim);
             let who = widgets::one_line(ui, m.from.display(), font, if sent { t.dim } else { t.text }, 154.0);
             let mid = |g: &egui::Galley| rect.center().y - g.size().y / 2.0;
             let room = rect.width() - 170.0 - when.size().x - 20.0;
             p.galley(egui::pos2(rect.left() + 8.0, mid(&who)), who, t.text);
             if room > 24.0 {
-                let words = widgets::one_line(ui, &m.preview, theme::regular(12.5), t.dim, room);
+                let words = widgets::one_line(ui, &m.preview, theme::regular(crate::sizes::CAPTION), t.dim, room);
                 p.galley(egui::pos2(rect.left() + 170.0, mid(&words)), words, t.dim);
             }
             p.galley(egui::pos2(rect.right() - 8.0 - when.size().x, mid(&when)), when, t.dim);

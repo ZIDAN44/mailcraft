@@ -80,7 +80,7 @@ pub(super) fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -
         m.pos(egui::pos2(rect.min.x + 18.0, rect.center().y)),
         m.align(egui::Align2::LEFT_CENTER),
         tl!(label),
-        theme::semibold(12.0),
+        theme::semibold(crate::sizes::CAPTION),
         t.faint,
     );
     resp
@@ -164,7 +164,7 @@ pub(super) fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count
         }
         Count::Items(n) if n > 0 => {
             let at = m.pos(egui::pos2(rect.max.x - 10.0 - inset, rect.center().y));
-            ui.painter().text(at, m.align(egui::Align2::RIGHT_CENTER), format!("[{n}]"), theme::regular(12.5), t.dim);
+            ui.painter().text(at, m.align(egui::Align2::RIGHT_CENTER), format!("[{n}]"), theme::regular(crate::sizes::CAPTION), t.dim);
         }
         _ => {}
     }

@@ -180,7 +180,7 @@ fn headings(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             mr.pos(pos2(rect.min.x + x, r.center().y)),
             mr.align(Align2::LEFT_CENTER),
             text,
-            theme::semibold(12.0),
+            theme::semibold(crate::sizes::CAPTION),
             color,
         );
         if let Some(o) = order
@@ -292,7 +292,7 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     } else {
         t.text
     };
-    p.text(mr.pos(pos2(rect.min.x + x_due, rect.center().y)), start, due_text, theme::regular(12.5), due_color);
+    p.text(mr.pos(pos2(rect.min.x + x_due, rect.center().y)), start, due_text, theme::regular(crate::sizes::CAPTION), due_color);
     let status = match task.status {
         TaskStatus::InProgress | TaskStatus::Waiting | TaskStatus::Deferred if task.percent > 0 => {
             format!("{} · {}%", tl!(crate::pim_dialogs::status_label(task.status)), task.percent)
@@ -300,7 +300,7 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
         other => tl!(crate::pim_dialogs::status_label(other)).to_string(),
     };
     let status_clip = mr.rect(Rect::from_min_size(pos2(rect.min.x + x_status, rect.min.y), vec2(STATUS_W - 8.0, ROW)));
-    let status = widgets::one_line(ui, &status, theme::regular(12.5), t.dim, STATUS_W - 8.0);
+    let status = widgets::one_line(ui, &status, theme::regular(crate::sizes::CAPTION), t.dim, STATUS_W - 8.0);
     let status_at = start.anchor_size(mr.pos(pos2(rect.min.x + x_status, rect.center().y)), status.size());
     p.with_clip_rect(status_clip).galley(status_at.min, status, t.dim);
     // Drawn, as the app's other marks are (a "!" and a "↓" in the text's font).

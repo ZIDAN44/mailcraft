@@ -191,7 +191,7 @@ fn label_button_menu(ui: &mut Ui, t: &Tokens, label: &str, enabled: bool, menu: 
     crate::widgets::named(ui, &resp, tl!(label), enabled, None);
     let hovered = resp.hovered() && enabled;
     let color = if hovered { t.text } else { t.dim };
-    let galley = ui.painter().layout_no_wrap(tl!(label).to_string(), theme::regular(13.5), color);
+    let galley = ui.painter().layout_no_wrap(tl!(label).to_string(), theme::regular(crate::sizes::BODY), color);
     let left = crate::bidi::Mirror::new(rect).start(rect.left(), galley.size().x);
     let text_pos = egui::pos2(left, rect.center().y - galley.size().y / 2.0);
     let text_w = galley.size().x;
@@ -223,7 +223,7 @@ fn send_button(ui: &mut Ui, t: &Tokens, sending: bool, blocked: Option<&str>) ->
     let ink = if on { t.on_accent } else { t.faint };
     ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), fill);
     let label = if sending { tl!("Sending…") } else { tl!("Send") };
-    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::semibold(13.5), ink);
+    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::semibold(crate::sizes::BODY), ink);
     let m = crate::bidi::Mirror::new(rect);
     let start = rect.center().x - (galley.size().x + 22.0) / 2.0;
     icons::paint(ui.painter(), m.rect(egui::Rect::from_min_size(egui::pos2(start, rect.center().y - 8.0), vec2(16.0, 16.0))), Icon::Send, ink);
@@ -238,7 +238,7 @@ fn field(ui: &mut Ui, t: &Tokens, label: &str, value: &mut String, hint: &str, c
     ui.horizontal(|ui| {
         // At the start of its column, as To's and Cc's are (centred, it started 8 points off).
         ui.allocate_ui_with_layout(vec2(LABEL_W, ROW_H), crate::bidi::row_from_start(egui::Align::Center), |ui| {
-            ui.label(RichText::new(tl!(label)).color(t.dim).size(13.5));
+            ui.label(RichText::new(tl!(label)).color(t.dim).size(crate::sizes::BODY));
         });
         let r = underlined(ui, t, egui::TextEdit::singleline(value).hint_text(tl!(hint)));
         if focus {

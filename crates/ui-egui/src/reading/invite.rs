@@ -41,7 +41,7 @@ pub(super) fn invite_card(s: &Session, st: &mut UiState, ui: &mut Ui, key: &Mess
             let (r, _) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::hover());
             icons::paint(ui.painter(), r, Icon::Calendar, t.accent);
             ui.vertical(|ui| {
-                ui.label(RichText::new(&e.summary).font(theme::semibold(15.0)).color(t.text));
+                ui.label(RichText::new(&e.summary).font(theme::semibold(crate::sizes::BODY)).color(t.text));
                 ui.label(RichText::new(invite_when(e, s)).color(t.dim));
                 if let Some(rule) = e.rrule.as_deref().filter(|r| !r.trim().is_empty()) {
                     ui.label(RichText::new(day::repeats(rule)).color(t.dim));

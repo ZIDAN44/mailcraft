@@ -256,7 +256,11 @@ impl MessageRow<'_> {
         }
         // A reply begun and left in Drafts: [Draft] before the name, in red, as Outlook writes it.
         if self.drafting {
-            let dg = p.layout_no_wrap(tl!("[Draft]").to_string(), if unread { theme::semibold(14.0) } else { theme::regular(14.0) }, t.danger);
+            let dg = p.layout_no_wrap(
+                tl!("[Draft]").to_string(),
+                if unread { theme::semibold(crate::sizes::BODY) } else { theme::regular(crate::sizes::BODY) },
+                t.danger,
+            );
             let dw = dg.size().x;
             p.galley(egui::pos2(mr.start(who_x, dw), line1), dg, t.danger);
             who_x += dw + 6.0;
@@ -268,7 +272,7 @@ impl MessageRow<'_> {
         let badge_w = badge.as_ref().map_or(0.0, |g| g.size().x + 10.0 + 6.0);
         let who_rtl = crate::bidi::reads_rtl(&who);
         let who_right = if single { subject_x - 12.0 } else { right - tw - 10.0 };
-        let who_font = if unread { theme::semibold(14.0) } else { theme::regular(14.0) };
+        let who_font = if unread { theme::semibold(crate::sizes::BODY) } else { theme::regular(crate::sizes::BODY) };
         // The single-line list's sender column too narrow for both: the name alone ("Com… <…@g…"
         // said neither), the address on hover.
         if marks.address && !(single && who_right - who_x < 220.0) {
@@ -339,7 +343,13 @@ impl MessageRow<'_> {
             if m.importance != 0 {
                 icons_w += 12.0;
                 let (mark, color) = if m.importance > 0 { ("!", t.danger) } else { ("↓", t.accent) };
-                p.text(mr.pos(egui::pos2(right - icons_w + 6.0, line2 + 8.0)), egui::Align2::CENTER_CENTER, mark, theme::semibold(13.0), color);
+                p.text(
+                    mr.pos(egui::pos2(right - icons_w + 6.0, line2 + 8.0)),
+                    egui::Align2::CENTER_CENTER,
+                    mark,
+                    theme::semibold(crate::sizes::BODY),
+                    color,
+                );
             }
             if m.flags.answered {
                 marker(Icon::Reply, t.faint, &mut icons_w);

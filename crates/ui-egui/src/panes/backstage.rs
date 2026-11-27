@@ -128,7 +128,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
         .iter()
         .copied()
         .chain(options::Section::ALL.iter().map(|s| s.label()))
-        .map(|l| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::semibold(14.0), t.text).size().x)
+        .map(|l| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::semibold(crate::sizes::BODY), t.text).size().x)
         .fold(0.0, f32::max);
     let rail = (longest + 46.0 + 14.0).clamp(200.0, 280.0);
     egui::Panel::left("backstage-rail").exact_size(rail).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(0, 10))).show(
@@ -248,7 +248,7 @@ fn rail_item(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, on: bool) -> egui
         r.left_center() + vec2(46.0, 0.0),
         egui::Align2::LEFT_CENTER,
         tl!(label),
-        if on { theme::semibold(14.0) } else { theme::regular(14.0) },
+        if on { theme::semibold(crate::sizes::BODY) } else { theme::regular(crate::sizes::BODY) },
         if enabled { t.text } else { t.faint },
     );
     resp
@@ -274,14 +274,14 @@ fn rail_sub_item(ui: &mut Ui, t: &Tokens, label: &str, on: bool) -> egui::Respon
         r.left_center() + vec2(46.0, 0.0),
         egui::Align2::LEFT_CENTER,
         tl!(label),
-        if on { theme::semibold(13.5) } else { theme::regular(13.5) },
+        if on { theme::semibold(crate::sizes::BODY) } else { theme::regular(crate::sizes::BODY) },
         if on { t.text } else { t.dim },
     );
     resp
 }
 
 fn heading(ui: &mut Ui, t: &Tokens, text: &str) {
-    ui.label(RichText::new(tl!(text)).font(theme::semibold(22.0)).color(t.text));
+    ui.label(RichText::new(tl!(text)).font(theme::semibold(crate::sizes::TITLE)).color(t.text));
     ui.add_space(14.0);
 }
 
@@ -590,7 +590,11 @@ fn about(s: &Session, t: &Tokens, (update, logo): (&UpdateState, Option<&egui::T
         icons::paint(ui.painter(), icons::centered(r, 34.0), Icon::Unread, egui::Color32::WHITE);
         ui.add_space(10.0);
         ui.vertical(|ui| {
-            ui.label(RichText::new(tf!("MailCraft {version}", version = env!("CARGO_PKG_VERSION"))).font(theme::semibold(18.0)).color(t.text));
+            ui.label(
+                RichText::new(tf!("MailCraft {version}", version = env!("CARGO_PKG_VERSION")))
+                    .font(theme::semibold(crate::sizes::SUBTITLE))
+                    .color(t.text),
+            );
             ui.label(RichText::new(tl!("Free and open source · MIT OR Apache-2.0")).color(t.dim));
         });
     });
@@ -661,7 +665,7 @@ fn about(s: &Session, t: &Tokens, (update, logo): (&UpdateState, Option<&egui::T
     // Fonts built in from craft-fonts travel with their licences.
     if !crate::craft_fonts::CRAFT_FONTS.is_empty() {
         ui.add_space(12.0);
-        ui.label(RichText::new(tl!("Fonts")).font(theme::semibold(14.0)).color(t.text));
+        ui.label(RichText::new(tl!("Fonts")).font(theme::semibold(crate::sizes::BODY)).color(t.text));
         for f in crate::craft_fonts::CRAFT_FONTS {
             egui::CollapsingHeader::new(RichText::new(format!("{} {} · {}", f.family, f.style, f.licence)).color(t.dim))
                 .id_salt(("craft-font", f.family, f.style))

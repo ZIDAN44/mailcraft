@@ -77,7 +77,7 @@ pub(super) fn contact_card(
         ui.add_space(4.0);
         ui.vertical(|ui| {
             let name = known.map(|c| c.display()).filter(|n| !n.is_empty()).unwrap_or_else(|| a.display().to_string());
-            ui.label(RichText::new(&name).font(theme::semibold(15.0)).color(t.text));
+            ui.label(RichText::new(&name).font(theme::semibold(crate::sizes::BODY)).color(t.text));
             // Their job and company, when saved (not the company again when it's the name).
             if let Some(c) = known {
                 let what = [c.title.as_str(), c.org.as_str()]

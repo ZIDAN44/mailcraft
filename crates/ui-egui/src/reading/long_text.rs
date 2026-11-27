@@ -168,7 +168,7 @@ fn put_back(st: &mut UiState, id: egui::Id, mut v: LongText, now: f64) {
 /// A long plain text (`LONG`), in chunks; right-to-left text keeps its own labels.
 pub(super) fn plain(st: &mut UiState, ui: &mut Ui, id: egui::Id, text: &str) {
     let t = st.tokens;
-    let font = theme::regular(14.5);
+    let font = theme::regular(crate::sizes::BODY);
     let mut v = take(st, id);
     // Cut and looked through once, not on every frame (4 MB took 3.4 ms a frame).
     let stamp = stamp(text);
@@ -250,7 +250,7 @@ pub(super) fn rich(body: &mut Body, st: &mut UiState, ui: &mut Ui, id: egui::Id,
     let parts_of = units(p);
     let mut v = take(st, id);
     v.fit(p.text.len(), parts_of.len());
-    let (row, letter) = metrics(ui, &theme::regular(14.5));
+    let (row, letter) = metrics(ui, &theme::regular(crate::sizes::BODY));
     let gap = ui.spacing().item_spacing.y;
     let pins = text_selection::parts(st, parts_of.len());
     let guess = |i: usize, width: f32| match parts_of.get(i) {

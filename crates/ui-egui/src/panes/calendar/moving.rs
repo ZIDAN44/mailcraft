@@ -70,5 +70,5 @@ pub(super) fn ghost(ui: &Ui, t: &Tokens, r: Rect, label: &str) {
     let p =
         ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("calendar-event-moved"))).with_clip_rect(ui.clip_rect());
     p.rect(r, 4.0, t.accent.gamma_multiply(0.25), egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
-    p.with_clip_rect(r.shrink(1.0)).text(r.min + vec2(6.0, 3.0), Align2::LEFT_TOP, label, theme::semibold(12.0), t.text);
+    p.with_clip_rect(r.shrink(1.0)).text(r.min + vec2(6.0, 3.0), Align2::LEFT_TOP, label, theme::semibold(crate::sizes::CAPTION), t.text);
 }
