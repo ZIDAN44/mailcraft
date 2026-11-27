@@ -368,6 +368,7 @@ impl Store {
         let store = Store { marking: Arc::default(), ..self.clone() };
         let marking = self.marking.state.clone();
         let spawned = std::thread::Builder::new().name("mail-marks".into()).spawn(move || {
+            crate::files::atomic::patient();
             for task in rx {
                 #[cfg(any(test, feature = "test-drive"))]
                 drop(marking.pause.lock().unwrap_or_else(PoisonError::into_inner));

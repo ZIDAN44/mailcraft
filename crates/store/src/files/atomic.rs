@@ -8,9 +8,31 @@
 use std::fs;
 use std::path::Path;
 
-use craft_atomic::{NewFilePermissions, RenameRetry, WriteOptions};
+use craft_atomic::{NewFilePermissions, RealFs, RenameRetry, WriteOptions};
 
 use crate::{Result, io_err};
+
+thread_local! {
+    /// This thread may wait seconds for a file another program holds ([`patient`]).
+    static PATIENT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Let this thread wait out a file held for seconds before a write to it counts as failed: the
+/// thread for marks ([`crate::Store::mark_later`]), which nothing waits on but a reader that
+/// waits up to ten seconds anyway. An antivirus scanning a list it wrote, on a busy computer,
+/// held it past a rename's own retries (under a second), and the mark failed: the window took
+/// it back, a message marked complete flagged again. The window's thread keeps the short
+/// retries, so a file held for good never stops its frame for long.
+pub(crate) fn patient() {
+    PATIENT.set(true);
+}
+
+/// The retries of a rename on this thread: craft-atomic's own (Windows: 7, about 0.7 s in all),
+/// or on a [`patient`] thread 30 (about 5 s: each 200 ms at most).
+fn retry() -> RenameRetry {
+    let own = RenameRetry::platform();
+    if PATIENT.get() && own.attempts > 0 { RenameRetry { attempts: 30, ..own } } else { own }
+}
 
 /// Replaces `path` with `bytes`: they go to a scratch file beside it, are flushed to the disk, and
 /// the scratch file is then renamed over `path`. Missing folders are made first. On any failure
@@ -20,7 +42,10 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(folder) = path.parent().filter(|f| !f.as_os_str().is_empty()) {
         fs::create_dir_all(folder).map_err(io_err(folder))?;
     }
-    WriteOptions::default().with_new_file_permissions(NewFilePermissions::Private).atomic_write(path, bytes).map_err(io_err(path))
+    WriteOptions::default()
+        .with_new_file_permissions(NewFilePermissions::Private)
+        .atomic_write_custom(&RealFs, retry(), path, bytes)
+        .map_err(io_err(path))
 }
 
 /// Make a rename to `path` last too: its folder flushed to the disk, so a power cut can't bring
@@ -43,7 +68,7 @@ pub(crate) fn sync_folder_of(path: &Path) {
 /// or lock violation, or access denied: it's tried again for up to about a second before that
 /// counts as a failure (craft-atomic's `retry_rename`).
 pub(crate) fn rename(from: &Path, to: &Path) -> std::io::Result<()> {
-    craft_atomic::retry_rename(RenameRetry::platform(), || {
+    craft_atomic::retry_rename(retry(), || {
         let renamed = fs::rename(from, to);
         #[cfg(test)]
         if renamed.is_err() {

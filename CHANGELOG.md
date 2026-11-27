@@ -65,6 +65,7 @@ on GitHub.
 ### Fixed
 
 - The reading pane drew two lines, one under the other, between a message's header and its text.
+- A message marked read, flagged or complete stays so when another program (an antivirus, the search indexer) holds MailCraft's copy of its folder for a few seconds as it's saved: past a second the change was undone, a message marked complete coming back flagged.
 - The File page's **About** read like **Info** beside it: the same word in Dutch and Polish, "Info" beside "Informationen" in German, "Informazioni" beside "Info" in Italian. It's "Über MailCraft", "Over MailCraft", "O programie" and "Informazioni su MailCraft" now, and Italian's Info is "Account".
 - The calendar's month view cut the bottom off its events' titles ("Storyboard" read "Storvboard"): each event's box is as tall as a line of its text and a little more, the line in its middle.
 - With mail shown by conversation, no row in the list was selected while a conversation's older message was open (picked in the reading pane's conversation): the conversation's row is.

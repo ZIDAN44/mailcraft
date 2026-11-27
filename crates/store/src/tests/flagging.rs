@@ -237,6 +237,33 @@ fn marks_kept_later_are_there_for_the_next_reader() {
     assert!(!s.load_folder("a1", "INBOX").unwrap().find(6).unwrap().flags.seen);
 }
 
+/// On Windows: a mark written while another program holds the folder's list for longer than a
+/// rename's own retries (an antivirus scanning it, held two seconds on a busy computer). The thread
+/// for marks waits it out and the mark is kept: it failed, and the window took the change back, a
+/// message marked complete coming back flagged.
+#[cfg(windows)]
+#[test]
+fn a_mark_outlasts_a_file_held_for_seconds() {
+    use std::os::windows::fs::OpenOptionsExt;
+    let s = temp_store("held-marks");
+    let st = FolderState { validity: 3, uid_next: 4, messages: (1..=3).map(|uid| msg(uid, false)).map(Into::into).collect(), ..Default::default() };
+    s.save_folder("a1", "INBOX", &st).unwrap();
+    let list = s.folder_dir("a1", "INBOX").join(folders::HEAD);
+    const SHARE_READ: u32 = 1;
+    let held = fs::OpenOptions::new().read(true).share_mode(SHARE_READ).open(&list).unwrap();
+    let letting_go = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        drop(held);
+    });
+    let seen = Flags { seen: true, ..Default::default() };
+    s.mark_later("a1", vec![FolderMarks { folder: "INBOX".into(), validity: 3, flags: vec![(2, seen)] }], Vec::new());
+    assert!(s.flush_marks());
+    letting_go.join().unwrap();
+    let after = s.take_marks_failed();
+    assert!(after.is_empty(), "the mark failed: {after:?}");
+    assert!(s.load_folder("a1", "INBOX").unwrap().find(2).unwrap().flags.seen);
+}
+
 /// A big list saved after only flags changed, with a newer modseq: the few marks beside its
 /// pages, and its head with the modseq (it was dropped, the marks alone written).
 #[test]
