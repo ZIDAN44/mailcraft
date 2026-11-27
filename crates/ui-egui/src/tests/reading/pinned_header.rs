@@ -64,3 +64,32 @@ fn the_header_stays_at_the_top_as_the_text_scrolls() {
         }
     }
 }
+
+/// One line between the kept header and the message's text: the header's own edge drew one
+/// and the text a second 17 points under it, with nothing between them.
+#[test]
+fn one_line_parts_the_kept_header_from_the_text() {
+    let size = egui::vec2(1280.0, 800.0);
+    let (mut a, _) = app("pinned-header-one-line");
+    let ctx = egui::Context::default();
+    long_message(&mut a);
+    for _ in 0..5 {
+        let _ = drawn_with(&ctx, &mut a, size, vec![]);
+    }
+    let out = sized_frame(&ctx, &mut a, size, vec![]);
+    let texts = texts_in(&out.shapes);
+    let subject = seen_at(&texts, "Quarterly plan").expect("the subject");
+    let text = seen_at(&texts, "Line 1 of the plan").expect("the text");
+    // The pane's rules: level lines most of its width (the list's rows have their own).
+    let lines: Vec<f32> = out
+        .shapes
+        .iter()
+        .filter_map(|s| match &s.shape {
+            egui::Shape::LineSegment { points: [p, q], .. } if (p.y - q.y).abs() < 0.5 && (p.x - q.x).abs() > 300.0 => Some((p.y, p.x.min(q.x))),
+            _ => None,
+        })
+        .filter(|&(y, x)| y > subject.bottom() && y < text.top() && x >= subject.left() - 30.0)
+        .map(|(y, _)| y)
+        .collect();
+    assert_eq!(lines.len(), 1, "one line above the text, not {lines:?}");
+}

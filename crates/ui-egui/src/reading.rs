@@ -189,8 +189,9 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
             };
             let o = Open { r: &r, p, summary: summary.as_ref(), in_window };
             if pinned.is_some() {
+                let below_edge = ui.cursor().top();
                 header::header(s, st, ui, &o, header::Part::Scrolled, acts);
-                message_text(s, st, ui, &o, shown_formatted(s, st, &r.key, p), acts);
+                message_text(s, st, ui, &o, shown_formatted(s, st, &r.key, p), Some(below_edge), acts);
                 return;
             }
             // Previewing an attachment: back to the message, and what can be done with the file.
@@ -222,7 +223,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
                 attachment_preview(s, st, ui, &r.key, p, a, acts);
                 return;
             }
-            message_text(s, st, ui, &o, formatted, acts);
+            message_text(s, st, ui, &o, formatted, None, acts);
         });
     });
 }
@@ -305,7 +306,9 @@ fn attachments_strip(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, f
 
 /// The message's text, under the bars about it (words hidden, its formatting, its mailing list):
 /// formatted, or plain, selected as one whatever it's drawn as.
-fn message_text(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, formatted: bool, acts: &mut Vec<Action>) {
+/// `edge`: where the kept header's edge (its own line) leaves off, when it's kept at the top: the
+/// text's line is drawn only if something came between them.
+fn message_text(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, formatted: bool, edge: Option<f32>, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let (r, p) = (o.r, o.p);
     // Unless the notes are turned off (issue #276).
@@ -349,9 +352,14 @@ fn message_text(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, format
             }
         });
     }
+    // Right under the kept header's line (the space between two parts of a column apart), a
+    // second would make two with nothing between.
     let sep = ui.available_rect_before_wrap();
-    ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
-    ui.add_space(12.0);
+    let nothing = ui.spacing().item_spacing.y + 1.0;
+    if edge.is_none_or(|at| sep.top() > at + nothing) {
+        ui.painter().line_segment([sep.left_top(), sep.right_top()], egui::Stroke::new(1.0, t.border));
+        ui.add_space(12.0);
+    }
     if han_missing(ui, &p.text) {
         st.han_missing = true;
     }
