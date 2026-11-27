@@ -636,7 +636,7 @@
 	Kept until deleted from Deleted Items	Przechowywana do usunięcia z Kosza
 	Kept for good	Przechowywana na stałe
 	Arrange by: {field}	Uporządkuj według: {field}
-	By {field} ⏷	Według: {field} ⏷
+	By {field}	Według: {field}
 	Reverse sort	Odwróć sortowanie
 	Show in groups	Pokaż w grupach
 	Size	Rozmiar
@@ -2231,3 +2231,4 @@ count	occurrences	wystąpieniach
 	Privacy and safety	Prywatność i bezpieczeństwo
 	Find a setting	Znajdź ustawienie
 	No setting matches that.	Żadne ustawienie nie pasuje.
+	Search mail	Wyszukaj w poczcie

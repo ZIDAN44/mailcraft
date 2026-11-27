@@ -356,7 +356,7 @@ fn a_heading_clicked_folds_its_mail_away() {
     assert_eq!(list_rows(&ctx, &mut a).len(), 0, "every message folded away");
     assert!(a.session.rows().iter().all(|r| !matches!(r, Row::Message { .. })));
     // The list's arrangement menu shows them all again.
-    click_named(&ctx, &mut a, "By Date ⏷");
+    click_named(&ctx, &mut a, "By Date");
     click_named(&ctx, &mut a, "Expand all groups");
     frame(&ctx, &mut a, vec![]);
     assert_eq!(a.session.rows().len(), rows);
@@ -418,4 +418,57 @@ fn a_conversations_row_is_selected_while_one_of_its_messages_is_open() {
     let selected: Vec<_> = rows.iter().filter(|n| n.selected).filter_map(Named::name).collect();
     let all: Vec<_> = rows.iter().map(|n| (n.name().unwrap_or("").chars().take(30).collect::<String>(), n.selected)).collect();
     assert_eq!(selected.len(), 1, "one row selected, the conversation's: {selected:?} {all:?}");
+}
+
+/// An unread message is told by the bar at its row's start and its sender and subject in
+/// Semibold; its subject and time in the app colour too made four marks, and the list loud.
+#[test]
+fn unread_is_the_bar_and_semibold_not_colour() {
+    let (mut a, _) = app("unread-marks");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let unread = a.session.list.iter().find(|m| !m.flags.seen).cloned().expect("the sample has unread mail");
+    let size = egui::vec2(1280.0, 800.0);
+    let out = sized_frame(&ctx, &mut a, size, vec![]);
+    let accent = a.ui.tokens.accent;
+    let colour_of = |text: &str| {
+        out.shapes.iter().find_map(|s| match &s.shape {
+            egui::Shape::Text(t) if t.galley.job.text == text => {
+                let own = t.galley.job.sections.first().map(|x| x.format.color).filter(|c| *c != egui::Color32::PLACEHOLDER);
+                Some(t.override_text_color.or(own).unwrap_or(t.fallback_color))
+            }
+            _ => None,
+        })
+    };
+    let subject = colour_of(&unread.subject).expect("its subject drawn");
+    assert_ne!(subject, accent, "the subject in the text's colour");
+    let time = crate::i18n::date(&mailcraft_engine::model::dates::list_time(unread.when(), &a.session.clock));
+    assert_ne!(colour_of(&time), Some(accent), "the time quiet");
+}
+
+/// The folder open is lit once in the folder pane: the Inbox, in Favorites and in its account,
+/// was lit in both. Picked in Favorites, its favourite is the one lit; in its account, that.
+#[test]
+fn the_folder_open_is_lit_once() {
+    let (mut a, _) = app("folder-lit-once");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = egui::vec2(1280.0, 800.0);
+    frame(&ctx, &mut a, vec![]);
+    let lit = |ctx: &egui::Context, a: &mut MailApp| {
+        named(ctx, a, size).into_iter().filter(|n| n.role == Role::TreeItem && n.selected).filter_map(|n| n.rect).collect::<Vec<_>>()
+    };
+    let inboxes: Vec<egui::Rect> = named(&ctx, &mut a, size)
+        .into_iter()
+        .filter(|n| n.role == Role::TreeItem && n.name().is_some_and(|l| l.starts_with("Inbox")))
+        .filter_map(|n| n.rect)
+        .collect();
+    assert_eq!(inboxes.len(), 2, "in Favorites and in its account");
+    for at in inboxes {
+        click(&ctx, &mut a, at.center());
+        frame(&ctx, &mut a, vec![]);
+        let now = lit(&ctx, &mut a);
+        assert_eq!(now.len(), 1, "lit once: {now:?}");
+        assert!((now[0].center().y - at.center().y).abs() < 1.0, "the one clicked");
+    }
 }

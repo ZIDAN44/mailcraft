@@ -69,6 +69,11 @@ impl MailApp {
                 acts.push(Action::Run("view.hideRibbon", json!({})));
             }
         }
+        // The Search tab's room kept while it isn't shown (in Mail, where it comes and goes): the
+        // search box after the tabs moved under the pointer as it came.
+        if !searching && s.module == Module::Mail {
+            ui.scope_builder(egui::UiBuilder::new().invisible(), |ui| tab_button(ui, &t, tl!("Search"), Some(false)));
+        }
     }
 
     /// Whether the ribbon's buttons are drawn: always, unless it's hidden and no tab was clicked.

@@ -637,7 +637,7 @@
 	Kept until deleted from Deleted Items	Ponecháva sa do odstránenia z priečinka Odstránené položky
 	Kept for good	Ponecháva sa natrvalo
 	Arrange by: {field}	Usporiadať podľa: {field}
-	By {field} ⏷	Podľa: {field} ⏷
+	By {field}	Podľa: {field}
 	Reverse sort	Obrátiť zoradenie
 	Show in groups	Zobraziť v skupinách
 	Size	Veľkosť
@@ -2232,3 +2232,4 @@ count	occurrences	opakovaní
 	Privacy and safety	Súkromie a bezpečnosť
 	Find a setting	Nájsť nastavenie
 	No setting matches that.	Žiadne nastavenie sa nezhoduje.
+	Search mail	Hľadať v pošte

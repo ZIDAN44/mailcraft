@@ -152,13 +152,21 @@ pub(super) fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count
     let resp = if galley.elided { resp.on_hover_text(label) } else { resp };
     let gy = rect.center().y - galley.size().y / 2.0;
     ui.painter().galley(egui::pos2(m.start(x + 24.0, galley.size().x), gy), galley, t.text);
-    let shown = match count {
-        Count::Unread(n) if n > 0 => Some((n.to_string(), theme::semibold(12.5), t.accent)),
-        Count::Items(n) if n > 0 => Some((format!("[{n}]"), theme::regular(12.5), t.dim)),
-        _ => None,
-    };
-    if let Some((text, font, color)) = shown {
-        ui.painter().text(m.pos(egui::pos2(rect.max.x - 10.0 - inset, rect.center().y)), m.align(egui::Align2::RIGHT_CENTER), text, font, color);
+    // Unread: a small badge, the soft accent with the number in the accent (a bare number);
+    // Drafts' count of items as it was.
+    match count {
+        Count::Unread(n) if n > 0 => {
+            let g = ui.painter().layout_no_wrap(n.to_string(), theme::semibold(crate::sizes::CAPTION), t.accent);
+            let w = (g.size().x + 12.0).max(20.0);
+            let badge = m.rect(egui::Rect::from_min_size(egui::pos2(rect.max.x - 8.0 - inset - w, rect.center().y - 9.0), vec2(w, 18.0)));
+            ui.painter().rect_filled(badge, 9.0, t.accent_soft);
+            ui.painter().galley(badge.center() - g.size() / 2.0, g, t.accent);
+        }
+        Count::Items(n) if n > 0 => {
+            let at = m.pos(egui::pos2(rect.max.x - 10.0 - inset, rect.center().y));
+            ui.painter().text(at, m.align(egui::Align2::RIGHT_CENTER), format!("[{n}]"), theme::regular(12.5), t.dim);
+        }
+        _ => {}
     }
     resp
 }

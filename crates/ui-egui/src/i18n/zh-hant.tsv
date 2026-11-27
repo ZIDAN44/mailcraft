@@ -636,7 +636,7 @@
 	Kept until deleted from Deleted Items	保留到從「刪除的郵件」中刪除為止
 	Kept for good	一直保留
 	Arrange by: {field}	排列方式：{field}
-	By {field} ⏷	依{field} ⏷
+	By {field}	依{field}
 	Reverse sort	反向排序
 	Show in groups	以群組顯示
 	Size	大小
@@ -2217,3 +2217,4 @@ count	occurrences	次
 	Privacy and safety	隱私權與安全
 	Find a setting	尋找設定
 	No setting matches that.	沒有相符的設定。
+	Search mail	搜尋郵件

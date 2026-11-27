@@ -637,7 +637,7 @@
 	Kept until deleted from Deleted Items	Megőrzés a Törölt elemekből való törlésig
 	Kept for good	Megőrzés határozatlan ideig
 	Arrange by: {field}	Rendezés eszerint: {field}
-	By {field} ⏷	{field} szerint ⏷
+	By {field}	{field} szerint
 	Reverse sort	Rendezési sorrend megfordítása
 	Show in groups	Megjelenítés csoportokban
 	Size	Méret
@@ -2218,3 +2218,4 @@ count	occurrences	előfordulás
 	Privacy and safety	Adatvédelem és biztonság
 	Find a setting	Beállítás keresése
 	No setting matches that.	Nincs ilyen beállítás.
+	Search mail	Keresés a levelekben

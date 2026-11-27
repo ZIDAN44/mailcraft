@@ -144,8 +144,10 @@ impl MailApp {
     pub(crate) fn search_box(&mut self, ui: &mut Ui, width: f32, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
         let scope = self.session.search.as_ref().map_or(self.session.prefs.search_scope, |(_, s)| *s);
-        // Where to look, as Outlook's menu at the box's left.
-        let menu = ui.menu_button(RichText::new(format!("{} ▾", scope_label(scope))).small().color(t.dim), |ui| {
+        // Where to look, as Outlook's menu at the box's left: its words and the app's chevron, a
+        // line after it (a framed button inside the box was a frame in a frame).
+        let menu = widgets::dropdown_label(ui, scope_label(scope), &t).on_hover_text(tl!("Look in"));
+        egui::Popup::menu(&menu).show(|ui| {
             for s in SearchScope::ALL {
                 if ui.selectable_label(s == scope, scope_label(s)).clicked() {
                     acts.push(Action::Run("search.run", json!({"query": self.ui.search_text, "scope": s.code()})));
@@ -153,7 +155,8 @@ impl MailApp {
                 }
             }
         });
-        menu.response.on_hover_text(tl!("Look in"));
+        let (line, _) = ui.allocate_exact_size(egui::vec2(1.0, 16.0), egui::Sense::hover());
+        ui.painter().rect_filled(line, 0.0, t.border);
         // The words get what's left: the box keeps one width whatever the menu says, and room for
         // its two buttons (Clear's kept when it isn't shown).
         let button = 22.0 + ui.spacing().item_spacing.x;
@@ -162,12 +165,13 @@ impl MailApp {
         // pointer left (issue #158).
         let te = egui::TextEdit::singleline(&mut self.ui.search_text)
             .id(egui::Id::unique("mailcraft-mail-search"))
-            .hint_text(tl!("Search mail (from:, subject:, has:attachment…)"))
+            .hint_text(tl!("Search mail"))
             .frame(egui::Frame::NONE)
             .align(if i18n::current().rtl() { egui::Align2::RIGHT_CENTER } else { egui::Align2::LEFT_CENTER })
             .desired_width((width - ui.min_rect().width() - 2.0 * button - ui.spacing().item_spacing.x).max(80.0))
             .text_color(t.text);
-        let resp = ui.add(te);
+        // What it understands, on hover (it was the box's hint, over what was typed).
+        let resp = ui.add(te).on_hover_text(tl!("Search mail (from:, subject:, has:attachment…)"));
         #[cfg(test)]
         ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique("mailcraft-top-search-input-rect"), resp.rect));
         if let Some(letters) = crate::keytips::table::letters(crate::keytips::table::Top::Search).filter(|_| self.ui.keytips.prefix() == Some("")) {

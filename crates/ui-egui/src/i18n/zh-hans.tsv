@@ -639,7 +639,7 @@ month	May	5月
 	Kept until deleted from Deleted Items	保留到从“已删除邮件”中删除为止
 	Kept for good	一直保留
 	Arrange by: {field}	排列方式：{field}
-	By {field} ⏷	按{field} ⏷
+	By {field}	按{field}
 	Reverse sort	反向排序
 	Show in groups	按组显示
 	Size	大小
@@ -2214,3 +2214,4 @@ count	occurrences	次
 	Privacy and safety	隐私和安全
 	Find a setting	查找设置
 	No setting matches that.	没有匹配的设置。
+	Search mail	搜索邮件

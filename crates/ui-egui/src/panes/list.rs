@@ -67,7 +67,7 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
     // Cut short where it's too long, the whole of it on hover (issue #200): a search's heading
     // holds its query, and a long one widened the list as far as it goes, then ran past it.
     ui.horizontal(|ui| {
-        ui.add(egui::Label::new(RichText::new(crate::view_title(s)).font(theme::semibold(18.0)).color(t.text)).truncate());
+        ui.add(egui::Label::new(RichText::new(crate::view_title(s)).font(theme::semibold(crate::sizes::SUBTITLE)).color(t.text)).truncate());
     });
     ui.add_space(4.0);
     if s.focus_split() {
@@ -77,9 +77,9 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
     ui.horizontal(|ui| {
         // How the list is arranged, kept at the right (as Outlook's "By Date" above its list):
         // the tabs wrap in what's left, so long words (Dutch, German…) never run into it.
-        let arrange = tf!("By {field} ⏷", field = tl!(s.prefs.arrange.label()));
+        let arrange = tf!("By {field}", field = tl!(s.prefs.arrange.label()));
         let right = if s.search.is_none() {
-            ui.painter().layout_no_wrap(arrange.clone(), egui::TextStyle::Small.resolve(ui.style()), t.dim).size().x + 54.0
+            ui.painter().layout_no_wrap(arrange.clone(), theme::regular(12.5), t.dim).size().x + 26.0 + 32.0 + 2.0 * ui.spacing().item_spacing.x
         } else {
             0.0
         };
@@ -92,12 +92,8 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
         let pad = ui.spacing().button_padding.x * 2.0;
         let gap = ui.spacing().item_spacing.x;
         let width = |f: ListFilter| ui.painter().layout_no_wrap(tl!(f.label()).to_string(), font(s.filter == f), t.dim).size().x + pad;
-        let scope = s.search.as_ref().filter(|_| s.open_search_folder_name().is_none());
-        let scope_w = scope.map_or(0.0, |(_, current)| {
-            let label = format!("{} ▾", crate::scope_label(*current));
-            ui.painter().layout_no_wrap(label, egui::TextStyle::Small.resolve(ui.style()), t.dim).size().x + pad + 8.0 + gap
-        });
-        let (kept, hidden) = fit_tabs(&shown, s.filter, width, left_w - scope_w, gap);
+        // (Where a search looks is the search box's: here too, it was said twice.)
+        let (kept, hidden) = fit_tabs(&shown, s.filter, width, left_w, gap);
         ui.allocate_ui_with_layout(vec2(left_w, 22.0), crate::bidi::row_from_start(egui::Align::Center), |ui| {
             for f in kept {
                 let on = s.filter == f;
@@ -124,32 +120,14 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
                     }
                 });
             }
-            // A Search Folder always looks everywhere: no scope to pick.
-            if let Some((q, current)) = scope {
-                ui.add_space(8.0);
-                ui.menu_button(RichText::new(format!("{} ▾", crate::scope_label(*current))).small(), |ui| {
-                    for scope in SearchScope::ALL {
-                        if ui.selectable_label(scope == *current, crate::scope_label(scope)).clicked() {
-                            acts.push(Action::Run("search.run", json!({"query": q, "scope": scope.code()})));
-                            ui.close();
-                        }
-                    }
-                })
-                .response
-                .on_hover_text(tl!("Look in"));
-            }
         });
         if s.search.is_none() {
             ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
-                let rev = s.prefs.reverse_sort;
-                if ui
-                    .add(egui::Button::new(RichText::new(if rev { "↓" } else { "↑" }).color(t.dim)).frame_when_inactive(false))
-                    .on_hover_text(tl!("Reverse sort"))
-                    .clicked()
-                {
+                // The sort's way as the app's own icon (a bare "↑" before).
+                if widgets::icon_action(ui, Icon::Sort, "Reverse sort", t).clicked() {
                     acts.push(Action::Run("view.reverseSort", json!({})));
                 }
-                let r = ui.add(egui::Button::new(RichText::new(arrange).color(t.dim).small()).frame_when_inactive(false));
+                let r = widgets::dropdown_label(ui, &arrange, t);
                 egui::Popup::menu(&r).show(|ui| arrange_menu(ui, s, acts));
             });
         }
@@ -183,34 +161,16 @@ fn focus_tabs(s: &Session, t: &theme::Tokens, ui: &mut Ui, size: f32, others: [b
 fn list_head_line(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
     ui.horizontal(|ui| {
         ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
+            // (Where a search looks is the search box's.)
             if s.search.is_none() {
-                let rev = s.prefs.reverse_sort;
-                if ui
-                    .add(egui::Button::new(RichText::new(if rev { "↓" } else { "↑" }).color(t.dim)).frame_when_inactive(false))
-                    .on_hover_text(tl!("Reverse sort"))
-                    .clicked()
-                {
+                if widgets::icon_action(ui, Icon::Sort, "Reverse sort", t).clicked() {
                     acts.push(Action::Run("view.reverseSort", json!({})));
                 }
-                let arrange = tf!("By {field} ⏷", field = tl!(s.prefs.arrange.label()));
-                let r = ui.add(egui::Button::new(RichText::new(arrange).color(t.dim).small()).frame_when_inactive(false));
+                let arrange = tf!("By {field}", field = tl!(s.prefs.arrange.label()));
+                let r = widgets::dropdown_label(ui, &arrange, t);
                 egui::Popup::menu(&r).show(|ui| arrange_menu(ui, s, acts));
-            } else if let Some((q, current)) = s.search.as_ref().filter(|_| s.open_search_folder_name().is_none()) {
-                ui.menu_button(RichText::new(format!("{} ▾", crate::scope_label(*current))).small(), |ui| {
-                    for scope in SearchScope::ALL {
-                        if ui.selectable_label(scope == *current, crate::scope_label(scope)).clicked() {
-                            acts.push(Action::Run("search.run", json!({"query": q, "scope": scope.code()})));
-                            ui.close();
-                        }
-                    }
-                })
-                .response
-                .on_hover_text(tl!("Look in"));
             }
-            // A filter chosen stands out, as its tab's underline does.
-            let chosen = s.filter != ListFilter::All;
-            let text = RichText::new(format!("{} ⏷", tl!(s.filter.label()))).color(if chosen { t.accent } else { t.dim }).small();
-            let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
+            let r = widgets::dropdown_label(ui, tl!(s.filter.label()), t);
             crate::widgets::named(ui, &r, tl!("Filter"), true, None);
             egui::Popup::menu(&r).show(|ui| {
                 for f in ListFilter::ALL.into_iter().chain((!ListFilter::ALL.contains(&s.filter)).then_some(s.filter)) {

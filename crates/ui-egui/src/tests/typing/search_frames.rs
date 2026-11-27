@@ -207,3 +207,22 @@ fn the_list_says_how_a_search_is_going() {
     let texts = drawn(&ctx, &mut a);
     assert!(["Received after", "Received before", "2024-03-01"].iter().all(|w| texts.iter().any(|t| t == w)), "{texts:?}");
 }
+
+/// The search box stays where it is as a search starts and the Search tab comes before it (it
+/// moved 56 points under the pointer).
+#[test]
+fn the_search_box_holds_still_as_the_search_tab_comes() {
+    let (mut a, _) = app("search-box-still");
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1280.0, 800.0);
+    let rect = |ctx: &egui::Context, a: &mut MailApp| {
+        for _ in 0..3 {
+            let _ = sized_frame(ctx, a, size, vec![]);
+        }
+        ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::unique("mailcraft-top-search-input-rect"))).expect("the box")
+    };
+    let before = rect(&ctx, &mut a);
+    a.run("search.run", json!({"query": "storyboard"}));
+    let during = rect(&ctx, &mut a);
+    assert!((during.left() - before.left()).abs() < 1.0, "it moved: {before:?} to {during:?}");
+}

@@ -380,6 +380,33 @@ pub fn icon_action(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Response {
     resp.on_hover_text(tl!(tip))
 }
 
+/// A quiet drop-down: its words and the app's drawn chevron after them, a fill under the pointer
+/// (a filled "⏷" or a raised "▾" glyph, beside chevrons drawn elsewhere, was a third and fourth
+/// kind of arrow). Its menu is the caller's.
+pub fn dropdown_label(ui: &mut Ui, text: &str, t: &Tokens) -> Response {
+    let galley = ui.painter().layout_no_wrap(text.to_string(), theme::regular(12.5), t.dim);
+    let (rect, resp) = ui.allocate_exact_size(vec2(galley.size().x + 26.0, 22.0), Sense::click());
+    named(ui, &resp, text, true, None);
+    if resp.hovered() {
+        ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), t.hover);
+    }
+    let ink = if resp.hovered() { t.text } else { t.dim };
+    let m = crate::bidi::Mirror::new(rect);
+    let text_w = galley.size().x;
+    ui.painter().galley_with_override_text_color(
+        egui::pos2(m.start(rect.left() + 6.0, text_w), rect.center().y - galley.size().y / 2.0),
+        galley,
+        ink,
+    );
+    icons::paint(
+        ui.painter(),
+        m.rect(egui::Rect::from_min_size(egui::pos2(rect.left() + 10.0 + text_w, rect.center().y - 4.0), vec2(9.0, 9.0))),
+        Icon::ChevronDown,
+        ink,
+    );
+    resp
+}
+
 /// [`icon_action`]'s "⋯", for a menu of the rest.
 pub fn icon_more(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(32.0, 32.0), Sense::click());

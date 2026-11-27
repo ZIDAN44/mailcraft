@@ -637,7 +637,7 @@
 	Kept until deleted from Deleted Items	Silinmiş Öğeler'den silinene kadar tutulur
 	Kept for good	Hep tutulur
 	Arrange by: {field}	Sıralama: {field}
-	By {field} ⏷	Sıralama: {field} ⏷
+	By {field}	Sıralama: {field}
 	Reverse sort	Sıralamayı ters çevir
 	Show in groups	Gruplar hâlinde göster
 	Size	Boyut
@@ -2218,3 +2218,4 @@ count	occurrences	kez
 	Privacy and safety	Gizlilik ve güvenlik
 	Find a setting	Ayar bul
 	No setting matches that.	Eşleşen ayar yok.
+	Search mail	Postada ara

@@ -636,7 +636,7 @@
 	Kept until deleted from Deleted Items	지운 편지함에서 삭제할 때까지 보관
 	Kept for good	계속 보관
 	Arrange by: {field}	정렬 기준: {field}
-	By {field} ⏷	{field} 기준 ⏷
+	By {field}	{field} 기준
 	Reverse sort	역순 정렬
 	Show in groups	그룹으로 표시
 	Size	크기
@@ -2217,3 +2217,4 @@ count	occurrences	회
 	Privacy and safety	개인 정보 및 안전
 	Find a setting	설정 찾기
 	No setting matches that.	일치하는 설정이 없습니다.
+	Search mail	메일 검색

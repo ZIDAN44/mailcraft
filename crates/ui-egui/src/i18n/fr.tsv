@@ -637,7 +637,7 @@
 	Kept until deleted from Deleted Items	Conservée jusqu'à sa suppression des Éléments supprimés
 	Kept for good	Conservée pour toujours
 	Arrange by: {field}	Réorganiser par : {field}
-	By {field} ⏷	Par {field} ⏷
+	By {field}	Par {field}
 	Reverse sort	Inverser le tri
 	Show in groups	Afficher par groupes
 	Size	Taille
@@ -2218,3 +2218,4 @@ count	occurrences	occurrences
 	Privacy and safety	Confidentialité et sécurité
 	Find a setting	Rechercher un paramètre
 	No setting matches that.	Aucun paramètre ne correspond.
+	Search mail	Rechercher dans le courrier

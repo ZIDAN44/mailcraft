@@ -637,7 +637,7 @@
 	Kept until deleted from Deleted Items	Mantida até ser excluída de Itens Excluídos
 	Kept for good	Mantida para sempre
 	Arrange by: {field}	Organizar por: {field}
-	By {field} ⏷	Por {field} ⏷
+	By {field}	Por {field}
 	Reverse sort	Inverter classificação
 	Show in groups	Mostrar em grupos
 	Size	Tamanho
@@ -2218,3 +2218,4 @@ count	occurrences	ocorrências
 	Privacy and safety	Privacidade e segurança
 	Find a setting	Encontrar uma configuração
 	No setting matches that.	Nenhuma configuração corresponde.
+	Search mail	Pesquisar emails

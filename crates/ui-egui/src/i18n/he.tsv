@@ -638,7 +638,7 @@ month	May	מאי
 	Kept until deleted from Deleted Items	נשמר עד שנמחק מ'פריטים שנמחקו'
 	Kept for good	נשמר לצמיתות
 	Arrange by: {field}	סדר לפי: {field}
-	By {field} ⏷	לפי {field} ⏷
+	By {field}	לפי {field}
 	Reverse sort	הפוך מיון
 	Show in groups	הצגה בקבוצות
 	Size	גודל
@@ -2213,3 +2213,4 @@ count	occurrences	פעמים
 	Privacy and safety	פרטיות ובטיחות
 	Find a setting	חיפוש הגדרה
 	No setting matches that.	אין הגדרה שתואמת.
+	Search mail	חפש בדואר

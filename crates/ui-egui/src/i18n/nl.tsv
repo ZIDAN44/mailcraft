@@ -636,7 +636,7 @@
 	Kept until deleted from Deleted Items	Bewaard tot het uit Verwijderde items is verwijderd
 	Kept for good	Voorgoed bewaard
 	Arrange by: {field}	Rangschikken op: {field}
-	By {field} ⏷	Op {field} ⏷
+	By {field}	Op {field}
 	Reverse sort	Omgekeerd sorteren
 	Show in groups	In groepen weergeven
 	Size	Grootte
@@ -2213,3 +2213,4 @@ count	occurrences	keer
 	Privacy and safety	Privacy en veiligheid
 	Find a setting	Instelling zoeken
 	No setting matches that.	Geen instelling komt overeen.
+	Search mail	Mail zoeken

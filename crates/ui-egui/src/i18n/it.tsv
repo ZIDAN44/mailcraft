@@ -636,7 +636,7 @@
 	Kept until deleted from Deleted Items	Conservata finché non viene eliminata da Posta eliminata
 	Kept for good	Conservata per sempre
 	Arrange by: {field}	Disponi per: {field}
-	By {field} ⏷	Per {field} ⏷
+	By {field}	Per {field}
 	Reverse sort	Inverti ordinamento
 	Show in groups	Mostra in gruppi
 	Size	Dimensione
@@ -2217,3 +2217,4 @@ count	occurrences	ripetizioni
 	Privacy and safety	Privacy e sicurezza
 	Find a setting	Cerca un'impostazione
 	No setting matches that.	Nessuna impostazione corrisponde.
+	Search mail	Cerca nella posta

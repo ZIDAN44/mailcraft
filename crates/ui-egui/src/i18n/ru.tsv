@@ -636,7 +636,7 @@
 	Kept until deleted from Deleted Items	Хранится до удаления из папки «Удаленные»
 	Kept for good	Хранится всегда
 	Arrange by: {field}	Упорядочить по: {field}
-	By {field} ⏷	По: {field} ⏷
+	By {field}	По: {field}
 	Reverse sort	Обратный порядок
 	Show in groups	Показывать группами
 	Size	Размер
@@ -2231,3 +2231,4 @@ count	occurrences	повторений
 	Privacy and safety	Конфиденциальность и безопасность
 	Find a setting	Найти параметр
 	No setting matches that.	Нет подходящих параметров.
+	Search mail	Поиск в почте

@@ -639,7 +639,7 @@ month	May	5月
 	Kept until deleted from Deleted Items	[削除済みアイテム] から削除するまで保存
 	Kept for good	無期限に保存
 	Arrange by: {field}	並べ替え: {field}
-	By {field} ⏷	{field} 順 ⏷
+	By {field}	{field} 順
 	Reverse sort	逆順に並べ替え
 	Show in groups	グループで表示
 	Size	サイズ
@@ -2214,3 +2214,4 @@ count	occurrences	回
 	Privacy and safety	プライバシーと安全
 	Find a setting	設定を検索
 	No setting matches that.	一致する設定はありません。
+	Search mail	メールを検索

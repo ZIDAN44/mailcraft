@@ -24,6 +24,11 @@ pub(super) fn dropped_mail(ui: &Ui, account: &str, folder: &str) -> Action {
     Action::Run(if copy { "mail.copy" } else { "mail.move" }, json!({"folder": folder, "account": account}))
 }
 
+/// The folder last picked from Favorites (its account and path): its favourite's row is the one lit.
+fn favorite_pick_id() -> egui::Id {
+    egui::Id::unique("nav-favorite-pick")
+}
+
 /// A folder's row; `collapse` is whether it's collapsed, for one with folders in it (it gets
 /// an arrow).
 pub(super) fn folder_row(
@@ -36,7 +41,11 @@ pub(super) fn folder_row(
     favorite: bool,
     collapse: Option<bool>,
 ) {
-    let selected = s.search.is_none() && matches!(&s.view, View::Folder { account, folder } if *account == f.account && *folder == f.path);
+    // The folder open lit once: in Favorites when it was picked there, else in its account's tree
+    // (both rows were lit).
+    let open = s.search.is_none() && matches!(&s.view, View::Folder { account, folder } if *account == f.account && *folder == f.path);
+    let from_favorites = ui.data(|d| d.get_temp::<(String, String)>(favorite_pick_id())).is_some_and(|(a, p)| a == f.account && p == f.path);
+    let selected = open && favorite == from_favorites;
     // In Favorites, a shared mailbox's folder says whose it is (its Inbox isn't the account's).
     let shared_top = f.mailbox.as_ref().and_then(|_| {
         let top = f.delimiter.and_then(|d| f.path.split(d).next()).unwrap_or(&f.path);
@@ -68,6 +77,13 @@ pub(super) fn folder_row(
         }
     }
     if f.selectable && resp.clicked() {
+        ui.data_mut(|d| {
+            if favorite {
+                d.insert_temp(favorite_pick_id(), (f.account.clone(), f.path.clone()));
+            } else {
+                d.remove::<(String, String)>(favorite_pick_id());
+            }
+        });
         acts.push(Action::Run("folder.open", json!({"account": f.account, "folder": f.path})));
     }
     if f.selectable && dropped::<DragKeys>(&resp).is_some() {

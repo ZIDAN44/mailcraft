@@ -449,7 +449,7 @@ fn the_single_line_list_has_its_head_on_one_line() {
         (name, menu)
     };
     a.run("view.singleLine", json!({}));
-    let (name, filter) = places(&ctx, &mut a, "All ⏷");
+    let (name, filter) = places(&ctx, &mut a, "All");
     let name = name.expect("the folder's name is on the filter's line");
     assert!(filter.left() > name.right(), "the filter after the name: {name:?} {filter:?}");
     // Its menu has the filters.
@@ -458,7 +458,7 @@ fn the_single_line_list_has_its_head_on_one_line() {
     click_named(&ctx, &mut a, "Unread");
     frame(&ctx, &mut a, vec![]);
     assert_eq!(a.session.filter, mailcraft_engine::ListFilter::Unread);
-    places(&ctx, &mut a, "Unread ⏷");
+    places(&ctx, &mut a, "Unread");
 }
 
 /// The single-line list's head keeps the Inbox's Focused and Other: one of them clicked shows

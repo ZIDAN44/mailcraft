@@ -638,7 +638,7 @@ month	May	مايو
 	Kept until deleted from Deleted Items	تُحفظ حتى حذفها من «العناصر المحذوفة»
 	Kept for good	تُحفظ دائمًا
 	Arrange by: {field}	ترتيب حسب: {field}
-	By {field} ⏷	حسب {field} ⏷
+	By {field}	حسب {field}
 	Reverse sort	عكس الترتيب
 	Show in groups	العرض في مجموعات
 	Size	الحجم
@@ -2213,3 +2213,4 @@ count	occurrences	مرات
 	Privacy and safety	الخصوصية والأمان
 	Find a setting	ابحث عن إعداد
 	No setting matches that.	لا يطابق ذلك أي إعداد.
+	Search mail	البحث في البريد
