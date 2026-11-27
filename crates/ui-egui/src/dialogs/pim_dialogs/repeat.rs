@@ -61,9 +61,9 @@ impl Repeat {
 /// A form's Repeat row: the list of choices, and Custom while the form's rule is one of its own.
 pub(super) fn repeat_row(ui: &mut Ui, t: &Tokens, id: &str, repeat: &mut Repeat) {
     form_row(ui, t, true, Some(Icon::Sync), "Repeat", |ui| {
-        ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        ui.allocate_ui_with_layout(vec2(CHOICE_W, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             let r = egui::ComboBox::from_id_salt(id)
-                .width(194.0)
+                .width(CHOICE_W - 6.0)
                 .selected_text(repeat.label())
                 .show_ui(ui, |ui| {
                     for r in Repeat::PLAIN {

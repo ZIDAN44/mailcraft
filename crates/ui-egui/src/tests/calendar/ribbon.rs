@@ -25,7 +25,7 @@ fn each_modules_tabs_show_their_own_buttons() {
     let is = |texts: &[String], what: &str| texts.iter().any(|t| t == what);
     for (module, home, view) in [
         ("calendar", "New event", "Month"),
-        ("tasks", "New task", "Hide completed"),
+        ("tasks", "New task", "Arrange by"),
         ("notes", "New note", "Arrange by"),
         ("people", "New contact", "Cards"),
     ] {

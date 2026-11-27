@@ -41,6 +41,10 @@ pub enum Icon {
     /// A password shown (an eye), and hidden (the eye struck through): its field's toggle.
     Eye,
     EyeOff,
+    /// High importance (an exclamation mark) and low (an arrow down): a task's or a message's
+    /// priority (a star and a "!" glyph stood for it).
+    Priority,
+    LowPriority,
     ChevronRight,
     ChevronLeft,
     Star,
@@ -324,6 +328,14 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.line(&[(4.0, 6.0), (10.0, 6.0)]);
             pen.line(&[(6.0, 9.0), (13.0, 9.0)]);
             pen.line(&[(3.5, 12.0), (8.0, 12.0)]);
+        }
+        Icon::Priority => {
+            pen.line(&[(8.0, 2.5), (8.0, 10.0)]);
+            pen.dot(8.0, 13.2, 1.3);
+        }
+        Icon::LowPriority => {
+            pen.line(&[(8.0, 2.5), (8.0, 13.0)]);
+            pen.line(&[(4.5, 9.5), (8.0, 13.0), (11.5, 9.5)]);
         }
         Icon::Eye | Icon::EyeOff => {
             // Two lids meeting at the corners (1.5, 8) and (14.5, 8), 4.5 above and below the

@@ -422,12 +422,14 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str, mova
     let fill = match (tentative, hovered) {
         (true, false) => t.surface,
         (true, true) => t.hover,
-        (false, h) => c.gamma_multiply(match (t.dark, h) {
-            (true, false) => 0.35,
-            (true, true) => 0.5,
-            (false, false) => 0.18,
-            (false, true) => 0.3,
-        }),
+        // In the dark, a tint of its colour mixed in linear light, which keeps it (at 35% over
+        // the dark, orange came out brown and yellow olive); its strip at full strength.
+        (false, h) if t.dark => {
+            let k = if h { 0.34 } else { 0.24 };
+            let (a, b) = (egui::Rgba::from(t.surface), egui::Rgba::from(c));
+            Color32::from(a * (1.0 - k) + b * k)
+        }
+        (false, h) => c.gamma_multiply(if h { 0.3 } else { 0.18 }),
     };
     ui.painter().rect(rect, 4.0, fill, egui::Stroke::new(if tentative || hovered { 1.0 } else { 0.0 }, c), egui::StrokeKind::Inside);
     time_strip(ui, Rect::from_min_size(rect.min, vec2(3.0, rect.height())), c, item.show_as);

@@ -27,7 +27,7 @@ pub(super) fn more_rows(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
                     choices.push(chosen);
                 }
                 let r = egui::ComboBox::from_id_salt(("event-reminder-more", i))
-                    .width(194.0)
+                    .width(CHOICE_W - 6.0)
                     .selected_text(reminder_label(chosen))
                     .show_ui(ui, |ui| {
                         for c in choices.iter().copied() {
@@ -49,18 +49,22 @@ pub(super) fn more_rows(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
     if let Some(i) = gone.filter(|i| *i < f.more_reminders.len()) {
         f.more_reminders.remove(i);
     }
+}
+
+/// "+ Add reminder" beside the first reminder's box, once it has one, up to the most an event
+/// keeps (none on a calendar that keeps one).
+pub(super) fn add_button(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
     let account = f.calendars.get(f.calendar).map(|c| c.0.as_str());
     let keeps_one = account.is_some_and(|a| f.one_reminder.iter().any(|o| o == a));
     let count = usize::from(f.reminder.is_some()).saturating_add(f.more_reminders.len());
     if f.reminder.is_none() || keeps_one || count >= REMINDERS_MAX || f.read_only {
         return;
     }
-    form_row(ui, t, true, None, "", |ui| {
-        if ui.link(RichText::new(tl!("Add reminder")).color(t.accent).small()).clicked() {
-            // The longest of Outlook's list not taken yet, after the first's: 15 minutes, then 5…
-            let taken = |m: &i64| f.reminder == Some(*m) || f.more_reminders.contains(m);
-            let next = [DEFAULT_REMINDER, 5, 30, 60, 1440].into_iter().chain(REMINDER_CHOICES).find(|m| !taken(m)).unwrap_or(0);
-            f.more_reminders.push(next);
-        }
-    });
+    ui.add_space(6.0);
+    if ui.link(RichText::new(format!("+ {}", tl!("Add reminder"))).color(t.accent)).clicked() {
+        // The longest of Outlook's list not taken yet, after the first's: 15 minutes, then 5…
+        let taken = |m: &i64| f.reminder == Some(*m) || f.more_reminders.contains(m);
+        let next = [DEFAULT_REMINDER, 5, 30, 60, 1440].into_iter().chain(REMINDER_CHOICES).find(|m| !taken(m)).unwrap_or(0);
+        f.more_reminders.push(next);
+    }
 }

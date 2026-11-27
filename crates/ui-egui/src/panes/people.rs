@@ -394,7 +394,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     tops.push(y);
                     y += match line {
                         Line::Letter(c) => heading(*c),
-                        Line::Person(_) => 40.0 + gap,
+                        Line::Person(_) => PERSON_ROW_H + gap,
                     };
                 }
                 tops.push(y);
@@ -414,7 +414,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                     Some(Line::Person(i)) => match people.at.get(*i).and_then(|at| shown::person(s, at)) {
                         Some(p) => side_row(s, st, ui, &p, acts),
                         None => {
-                            ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::hover());
+                            ui.allocate_exact_size(vec2(ui.available_width(), PERSON_ROW_H), Sense::hover());
                         }
                     },
                     None => {}
@@ -452,25 +452,29 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
 
 /// A person in the side list: their initials, name and address (or company); a click picks them,
 /// a double-click edits them.
+/// A person's row in the side list: two lines beside a 32-point picture (it was 40 points, a
+/// 28-point picture and an 11.5-point second line).
+const PERSON_ROW_H: f32 = 52.0;
+
 fn side_row(s: &Session, st: &mut UiState, ui: &mut Ui, p: &mailcraft_engine::Person<'_>, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let name = p.card.display();
     let selected = st.person.as_deref() == Some(p.card.uid.as_str());
-    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 40.0), Sense::click());
+    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), PERSON_ROW_H), Sense::click());
     let mirror = crate::bidi::Mirror::new(r);
     if selected || resp.hovered() {
         ui.painter().rect_filled(r, 6.0, if selected { t.accent_soft } else { t.hover_row });
     }
     let email = p.card.emails.first().map(|e| e.value.as_str()).unwrap_or_default();
-    crate::photos::avatar(ui, s, mirror.pos(r.left_center() + vec2(20.0, 0.0)), 14.0, email, &initials(&name), theme::avatar_color(&name, t.dark));
+    crate::photos::avatar(ui, s, mirror.pos(r.left_center() + vec2(24.0, 0.0)), 16.0, email, &initials(&name), theme::avatar_color(&name, t.dark));
     // Each on one line, "…" where the pane is too narrow (they were cut mid-letter).
-    let room = r.width() - 46.0;
-    let line = widgets::one_line(ui, &name, theme::regular(13.5), t.text, room);
-    let at = egui::pos2(mirror.start(r.left() + 42.0, line.size().x), r.center().y - 7.0 - line.size().y / 2.0);
+    let room = r.width() - 54.0;
+    let line = widgets::one_line(ui, &name, theme::regular(crate::sizes::BODY), t.text, room);
+    let at = egui::pos2(mirror.start(r.left() + 50.0, line.size().x), r.center().y - 9.0 - line.size().y / 2.0);
     ui.painter().galley(at, line, t.text);
     let sub = p.card.emails.first().map(|e| e.value.clone()).unwrap_or_else(|| p.card.org.clone());
-    let line = widgets::one_line(ui, &sub, theme::regular(11.5), t.dim, room);
-    let at = egui::pos2(mirror.start(r.left() + 42.0, line.size().x), r.center().y + 8.0 - line.size().y / 2.0);
+    let line = widgets::one_line(ui, &sub, theme::regular(crate::sizes::CAPTION), t.dim, room);
+    let at = egui::pos2(mirror.start(r.left() + 50.0, line.size().x), r.center().y + 10.0 - line.size().y / 2.0);
     ui.painter().galley(at, line, t.dim);
     if resp.clicked() {
         st.person = Some(p.card.uid.clone());

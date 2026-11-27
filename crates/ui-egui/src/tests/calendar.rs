@@ -9,6 +9,7 @@ mod lists;
 mod meetings;
 mod moving;
 mod pim;
+mod pim_look;
 mod reminders;
 mod repeat;
 mod ribbon;

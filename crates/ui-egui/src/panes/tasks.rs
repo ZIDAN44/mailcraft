@@ -28,8 +28,19 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     // New task is the ribbon's (a second, here, was 75 points from it).
     ui.with_layout(crate::bidi::column(), |ui| {
+        // The views as the folder pane's rows, across the pane: the one place to hide what's
+        // done (the ribbon's Hide completed did the same; these were pills as wide as their words).
         for (hide, label) in [(false, "All tasks"), (true, "Active tasks")] {
-            if ui.selectable_label(s.prefs.tasks_hide_done == hide, tl!(label)).clicked() && s.prefs.tasks_hide_done != hide {
+            let on = s.prefs.tasks_hide_done == hide;
+            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), Sense::click());
+            widgets::named(ui, &resp, tl!(label), true, Some(on));
+            if on || resp.hovered() {
+                ui.painter().rect_filled(rect, crate::sizes::CONTROL_RADIUS, if on { t.accent_soft } else { t.hover_row });
+            }
+            let m = crate::bidi::Mirror::new(rect);
+            let g = widgets::one_line(ui, tl!(label), theme::regular(crate::sizes::BODY), if on { t.accent } else { t.text }, rect.width() - 20.0);
+            ui.painter().galley(pos2(m.start(rect.left() + 10.0, g.size().x), rect.center().y - g.size().y / 2.0), g, t.text);
+            if resp.clicked() && !on {
                 acts.push(Action::Run("task.hideDone", json!({"on": hide})));
             }
         }
@@ -225,7 +236,8 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     // Cut with "…" where it doesn't fit, as the list's subjects are (it stopped mid-letter at
     // the next column).
     let room = (x_due - x_title - 10.0).max(10.0);
-    let galley = widgets::one_line(ui, &title, theme::semibold(13.0), title_color, room);
+    // Regular, as the message list's read rows are (every title was Semibold).
+    let galley = widgets::one_line(ui, &title, theme::regular(crate::sizes::BODY), title_color, room);
     let title_w = galley.size().x.min(room);
     let title_x = if title_rtl && !mr.on() { rect.min.x + x_title + room - title_w } else { rect.min.x + x_title };
     // Under it: its task list (when there are several), that it repeats, its categories, its
@@ -237,9 +249,9 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     if task.rrule.is_some() {
         under.push(tl!("Repeats").to_string());
     }
-    if !task.categories.is_empty() {
-        under.push(task.categories.join(", "));
-    }
+    // Its categories go first, each a dot in its colour by its name (they were words alone).
+    let dots: Vec<(egui::Color32, String)> =
+        task.categories.iter().map(|c| (s.category(c).map_or(t.dim, |cat| theme::category_color(cat.color, t.dark)), c.clone())).collect();
     if let Some(line) = task.notes.lines().map(str::trim).find(|l| !l.is_empty()) {
         under.push(line.to_string());
     }
@@ -252,7 +264,19 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
         let y = title_rect.center().y;
         p.with_clip_rect(clip).line_segment([pos2(title_rect.min.x, y), pos2(title_rect.max.x, y)], egui::Stroke::new(1.0, t.faint));
     }
-    let under = widgets::one_line(ui, &under.join(" · "), theme::regular(11.5), t.dim, room);
+    let mut job = egui::text::LayoutJob::default();
+    let caption = theme::regular(crate::sizes::CAPTION);
+    for (i, (colour, name)) in dots.iter().enumerate() {
+        let gap = if i == 0 { 0.0 } else { 8.0 };
+        job.append("●", gap, egui::TextFormat { font_id: caption.clone(), color: *colour, ..Default::default() });
+        job.append(name, 3.0, egui::TextFormat { font_id: caption.clone(), color: t.dim, ..Default::default() });
+    }
+    if !under.is_empty() {
+        let lead = if dots.is_empty() { "" } else { "  ·  " };
+        job.append(&format!("{lead}{}", under.join(" · ")), 0.0, egui::TextFormat { font_id: caption, color: t.dim, ..Default::default() });
+    }
+    job.wrap = egui::text::TextWrapping::truncate_at_width(room);
+    let under = ui.fonts_mut(|f| f.layout_job(job));
     let under_at = start.anchor_size(mr.pos(pos2(rect.min.x + x_title, rect.min.y + 31.0)), under.size());
     p.with_clip_rect(clip).galley(under_at.min, under, t.dim);
     // With the time of day it came with from elsewhere, when it has one (issue #294).
@@ -279,11 +303,12 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     let status = widgets::one_line(ui, &status, theme::regular(12.5), t.dim, STATUS_W - 8.0);
     let status_at = start.anchor_size(mr.pos(pos2(rect.min.x + x_status, rect.center().y)), status.size());
     p.with_clip_rect(status_clip).galley(status_at.min, status, t.dim);
+    // Drawn, as the app's other marks are (a "!" and a "↓" in the text's font).
     if task.priority != TaskPriority::Normal {
         let high = task.priority == TaskPriority::High;
-        let text = if high { "!" } else { "↓" };
-        let color = if high { t.danger } else { t.dim };
-        p.text(mr.pos(pos2(rect.min.x + x_priority + 6.0, rect.center().y)), start, text, theme::semibold(15.0), color);
+        let (icon, color) = if high { (Icon::Priority, t.danger) } else { (Icon::LowPriority, t.dim) };
+        let at = mr.rect(Rect::from_min_size(pos2(rect.min.x + x_priority + 6.0, rect.center().y - 8.0), vec2(16.0, 16.0)));
+        crate::icons::paint(&p, at, icon, color);
     }
     ui.painter().line_segment([rect.left_bottom(), rect.right_bottom()], egui::Stroke::new(1.0, t.border));
     widgets::named(ui, &resp, &title, true, Some(picked));

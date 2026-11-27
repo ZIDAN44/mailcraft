@@ -74,7 +74,8 @@ impl MailApp {
             notes::new_note(&mut self.ui, acts);
         }
         widgets::group_sep(ui, &t);
-        let editing = self.ui.note_edit.as_ref().map(|(u, _)| u.clone());
+        // The note written on, else the one picked.
+        let editing = self.ui.note_edit.as_ref().map(|(u, _)| u.clone()).or_else(|| self.ui.note_picked.clone());
         if widgets::tool_button(ui, Icon::Delete, "Delete", &t, editing.is_some()).clicked()
             && let Some(uid) = editing.clone()
         {
@@ -188,9 +189,7 @@ fn tasks_arrangement(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>
             }
         }
     });
-    if widgets::tool_toggle(ui, Icon::Funnel, "Hide completed", &t, s.prefs.tasks_hide_done).clicked() {
-        acts.push(Action::Run("task.hideDone", json!({})));
-    }
+    // Hiding what's done is the side pane's Active tasks (this did the same).
 }
 
 /// How notes are listed: the last changed first, A to Z, or by colour.

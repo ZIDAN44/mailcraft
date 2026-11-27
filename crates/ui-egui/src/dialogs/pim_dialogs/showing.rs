@@ -7,7 +7,7 @@ use egui::{RichText, Ui, vec2};
 use mailcraft_engine::Session;
 use mailcraft_engine::model::ical::{Privacy, ShowAs};
 
-use super::{EventForm, FIELD_H, form_row};
+use super::{CHOICE_W, EventForm, FIELD_H, form_row};
 use crate::icons::Icon;
 use crate::panes::calendar::{AWAY, show_as_label};
 use crate::theme::Tokens;
@@ -15,9 +15,9 @@ use crate::theme::Tokens;
 /// Show as, in Outlook's order, and the lock beside it.
 pub(super) fn show_as_row(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
     form_row(ui, t, true, Some(Icon::Clock), "Show as", |ui| {
-        ui.allocate_ui_with_layout(vec2(170.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        ui.allocate_ui_with_layout(vec2(CHOICE_W, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             let r = egui::ComboBox::from_id_salt("event-show-as")
-                .width(164.0)
+                .width(CHOICE_W - 6.0)
                 .selected_text(show_as_label(f.show_as))
                 .show_ui(ui, |ui| {
                     for s in ShowAs::ALL {
@@ -35,12 +35,11 @@ pub(super) fn show_as_row(ui: &mut Ui, t: &Tokens, f: &mut EventForm) {
             vec2(ui.available_width(), FIELD_H),
             egui::Layout::left_to_right(egui::Align::Center).with_main_wrap(true),
             |ui| {
-                let private = f.privacy != Privacy::Public;
-                // A toggle with the lock the calendar marks private events with.
-                let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), egui::Sense::hover());
-                crate::icons::paint(ui.painter(), r, Icon::Lock, if private { t.accent } else { t.dim });
-                if ui.selectable_label(private, tl!("Private")).clicked() {
-                    f.privacy = if private { Privacy::Public } else { Privacy::Private };
+                // A checkbox, which says it's a choice (a lock and the word, it was, with
+                // nothing showing it could be clicked).
+                let mut private = f.privacy != Privacy::Public;
+                if ui.checkbox(&mut private, tl!("Private")).changed() {
+                    f.privacy = if private { Privacy::Private } else { Privacy::Public };
                 }
                 if f.privacy != Privacy::Public {
                     let mut time_only = f.privacy == Privacy::Confidential;

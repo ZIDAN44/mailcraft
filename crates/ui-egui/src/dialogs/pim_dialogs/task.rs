@@ -192,23 +192,43 @@ fn writable_lists(s: &Session) -> Vec<(String, String, String, bool)> {
         .collect()
 }
 
-/// The categories to pick from, as chips: those chosen filled in their colour.
+/// The categories chosen, each a small chip in a tint of its colour with the text's colour (a
+/// click takes it off), then Categorize, a drop-down of them all with their colours. Every one
+/// was an outlined pill in its colour, the loudest thing in the form, and a chosen one white on
+/// its colour (on yellow, unreadable).
 pub(super) fn category_chips(ui: &mut Ui, t: &Tokens, all: &[(String, u8)], chosen: &mut Vec<String>) {
+    let colour = |name: &str| all.iter().find(|(n, _)| n.eq_ignore_ascii_case(name)).map_or(t.dim, |(_, c)| theme::category_color(*c, t.dark));
+    let dot_and = |name: &str, colour: Color32, tail: &str| {
+        let mut job = egui::text::LayoutJob::default();
+        let font = theme::regular(crate::sizes::CAPTION);
+        job.append("●", 0.0, egui::TextFormat { font_id: font.clone(), color: colour, ..Default::default() });
+        job.append(name, 4.0, egui::TextFormat { font_id: font.clone(), color: t.text, ..Default::default() });
+        if !tail.is_empty() {
+            job.append(tail, 6.0, egui::TextFormat { font_id: font, color: t.dim, ..Default::default() });
+        }
+        job
+    };
     ui.horizontal_wrapped(|ui| {
-        for (name, color) in all {
-            let on = chosen.iter().any(|c| c.eq_ignore_ascii_case(name));
-            let c = theme::category_color(*color, t.dark);
-            let text = RichText::new(format!("● {name}")).color(if on { Color32::WHITE } else { c });
-            let r =
-                ui.add(egui::Button::new(text).fill(if on { c } else { Color32::TRANSPARENT }).stroke(egui::Stroke::new(1.0, c)).corner_radius(10));
-            if r.clicked() {
-                if on {
-                    chosen.retain(|x| !x.eq_ignore_ascii_case(name));
-                } else {
-                    chosen.push(name.clone());
-                }
+        for name in chosen.clone() {
+            let c = colour(&name);
+            let chip = egui::Button::new(dot_and(&name, c, "×")).fill(c.gamma_multiply(0.18)).stroke(egui::Stroke::NONE).corner_radius(10);
+            if ui.add(chip).on_hover_text(tl!("Take it off")).clicked() {
+                chosen.retain(|x| !x.eq_ignore_ascii_case(&name));
             }
         }
+        let r = widgets::dropdown_label(ui, tl!("Categorize"), t);
+        egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
+            for (name, c) in all {
+                let mut on = chosen.iter().any(|x| x.eq_ignore_ascii_case(name));
+                if ui.checkbox(&mut on, dot_and(name, theme::category_color(*c, t.dark), "")).changed() {
+                    if on {
+                        chosen.push(name.clone());
+                    } else {
+                        chosen.retain(|x| !x.eq_ignore_ascii_case(name));
+                    }
+                }
+            }
+        });
     });
 }
 
@@ -254,7 +274,7 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
     });
     let before = f.status;
     form_row(ui, t, true, Some(Icon::Task), "Status", |ui| {
-        choice(ui, "task-status", tl!("Status"), 220.0, &mut f.status, &TaskStatus::ALL, status_label);
+        choice(ui, "task-status", tl!("Status"), CHOICE_W, &mut f.status, &TaskStatus::ALL, status_label);
         ui.add_space(6.0);
         ui.allocate_ui_with_layout(vec2(ui.available_width(), FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
             ui.add(egui::DragValue::new(&mut f.percent).range(0..=100).suffix("%"));
@@ -270,12 +290,12 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
             _ => f.percent,
         };
     }
-    form_row(ui, t, true, Some(Icon::Star), "Priority", |ui| {
+    form_row(ui, t, true, Some(Icon::Priority), "Priority", |ui| {
         choice(
             ui,
             "task-priority",
             tl!("Priority"),
-            140.0,
+            CHOICE_W,
             &mut f.priority,
             &[TaskPriority::Low, TaskPriority::Normal, TaskPriority::High],
             priority_label,

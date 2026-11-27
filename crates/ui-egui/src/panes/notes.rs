@@ -32,13 +32,9 @@ pub(crate) fn paper(color: u8, dark: bool) -> Color32 {
 
 const INK: Color32 = Color32::from_rgb(0x1F, 0x23, 0x28);
 
-/// The side pane: a new note, how many there are (searched from the box at the top).
-pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, _acts: &mut Vec<Action>) {
-    let t = st.tokens;
-    // New note is the ribbon's (a second, here, was 75 points from it).
-    let n = shown::notes(s, &mut st.shown, &st.notes_query).len();
-    ui.label(RichText::new(tf!("{n} notes", n = n)).color(t.faint).small());
-}
+/// The side pane, never shown open: Notes has the strip alone (it held a count and nothing else;
+/// the count is over the notes, [`show`]).
+pub fn nav(_s: &Session, _st: &mut UiState, _ui: &mut Ui, _acts: &mut Vec<Action>) {}
 
 /// Start a note and write on it at once (the app makes it, then opens it by its uid).
 pub(crate) fn new_note(st: &mut UiState, acts: &mut Vec<Action>) {
@@ -61,6 +57,9 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
         widgets::empty_state(ui, &t, Icon::Note, tl!(if empty { "No notes yet: New note starts one." } else { "No note matches." }));
         return;
     }
+    // How many there are (searched from the box at the top), in the margin over them.
+    let count = ui.painter().layout_no_wrap(tf!("{n} notes", n = notes.len()), theme::regular(crate::sizes::CAPTION), t.faint);
+    ui.painter().galley(ui.max_rect().right_top() + egui::vec2(-18.0 - count.size().x, 2.0), count, t.faint);
     let mut clicked_off = ui.input(|i| i.pointer.primary_pressed()) && ui.rect_contains_pointer(ui.max_rect());
     egui::ScrollArea::vertical().auto_shrink(false).id_salt("notes").show_viewport(ui, |ui, viewport| {
         egui::Frame::new().inner_margin(Margin::same(18)).show(ui, |ui| {
@@ -109,6 +108,7 @@ pub(crate) fn save_edit(st: &mut UiState, acts: &mut Vec<Action>) {
 fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_engine::NoteRef, size: f32, acts: &mut Vec<Action>) -> bool {
     let uid = &n.note.uid;
     let editing = st.note_edit.as_ref().is_some_and(|(u, _)| u == uid);
+    let picked = editing || st.note_picked.as_deref() == Some(uid.as_str());
     let id = ui.scope_id().with(("note", uid));
     let (rect, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
     let hovered = resp.hovered() || editing;
@@ -119,7 +119,7 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
         rect,
         4.0,
         fill,
-        egui::Stroke::new(if editing { 2.0 } else { 1.0 }, if editing { t.accent } else { fill.gamma_multiply(0.85) }),
+        egui::Stroke::new(if picked { 2.0 } else { 1.0 }, if picked { t.accent } else { fill.gamma_multiply(0.85) }),
         egui::StrokeKind::Inside,
     );
     let fold = 18.0;
@@ -170,8 +170,13 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
         }
         let galley = ui.painter().layout_job(job);
         ui.painter().with_clip_rect(text_rect).galley(text_rect.min, galley, INK);
+        // A click picks it (the ribbon's Delete and Color take it; they stayed off, a click
+        // having opened it), a double click writes on it.
         if resp.clicked() {
             save_edit(st, acts);
+            st.note_picked = Some(uid.clone());
+        }
+        if resp.double_clicked() {
             st.note_edit = Some((uid.clone(), n.note.text.clone()));
             st.note_focus = true;
         }

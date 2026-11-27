@@ -523,7 +523,9 @@ impl MailApp {
             let start = |id: &'static str| if rtl { egui::Panel::right(id) } else { egui::Panel::left(id) };
             // Minimized: a narrow strip with the way back and the modules, as Outlook's. Between
             // the two, the pane slides (or changes at once, with animations off).
-            let mut expanded = !self.session.prefs.folder_pane_minimized;
+            // Notes: the strip alone (its pane held only a count).
+            let notes = module == Module::Notes;
+            let mut expanded = !self.session.prefs.folder_pane_minimized && !notes;
             let strip =
                 start("nav-min").resizable(false).exact_size(52.0).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(4, 8)));
             // In a small window the folders and the list give way, so what's read or written
@@ -542,7 +544,7 @@ impl MailApp {
                 if !wide {
                     ui.vertical_centered(|ui| {
                         let chevron = if rtl { Icon::ChevronLeft } else { Icon::ChevronRight };
-                        if widgets::tiny_icon_button(ui, chevron, "Show the folder pane", &t).clicked() {
+                        if !notes && widgets::tiny_icon_button(ui, chevron, "Show the folder pane", &t).clicked() {
                             acts.push(Action::Run("view.folderPane", json!({"minimized": false})));
                         }
                         ui.add_space(10.0);
@@ -578,7 +580,7 @@ impl MailApp {
                 self.ui.pane_sizes.folders = PaneSizes::kept(nav.response.rect.width()).or(self.ui.pane_sizes.folders);
             }
             // Dragged narrower than it goes: minimized, as the button does.
-            if expanded == self.session.prefs.folder_pane_minimized {
+            if !notes && expanded == self.session.prefs.folder_pane_minimized {
                 acts.push(Action::Run("view.folderPane", json!({"minimized": !expanded})));
             }
             let pane = self.session.prefs.reading_pane;

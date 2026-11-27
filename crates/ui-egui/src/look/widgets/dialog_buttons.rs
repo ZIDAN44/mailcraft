@@ -46,7 +46,8 @@ pub fn dialog_button(ui: &mut Ui, kind: ButtonKind, label: &str, t: &Tokens, ena
     let hovered = enabled && resp.hovered();
     let r = f32::from(CONTROL_RADIUS);
     let (fill, stroke, ink) = match (kind, enabled) {
-        (_, false) => (ui.visuals().widgets.inactive.bg_fill, Stroke::NONE, t.faint),
+        // Quiet, outlined: in the dark the style's own grey was a light slab, brighter than Cancel.
+        (_, false) => (t.chrome, Stroke::new(1.0, t.border), t.faint),
         (ButtonKind::Primary, true) => (accent_fill(t, true, hovered), Stroke::NONE, t.on_accent),
         // The light theme's red in both (the dark theme's lighter red is for text, and white on
         // it was hard to read).

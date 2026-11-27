@@ -4,6 +4,22 @@
 use super::*;
 
 /// Outlook's phone fields, and the kind each keeps.
+/// A group's heading in the form: what the rows under it are about.
+fn group_head(ui: &mut Ui, t: &Tokens, name: &str) {
+    ui.add_space(10.0);
+    ui.label(RichText::new(tl!(name)).font(theme::semibold(crate::sizes::BODY)).color(t.text));
+    ui.add_space(2.0);
+}
+
+/// "+ Add …" under a group, lined up with its fields: whether it was clicked.
+fn add_link(ui: &mut Ui, t: &Tokens, what: &str) -> bool {
+    let mut clicked = false;
+    form_row(ui, t, false, None, "", |ui| {
+        clicked = ui.link(RichText::new(format!("+ {}", tl!(what))).color(t.accent)).clicked();
+    });
+    clicked
+}
+
 const PHONES: [(&str, &str); 5] = [("Business", "work"), ("Home", "home"), ("Mobile", "cell"), ("Fax", "fax"), ("Other", "")];
 /// Outlook's addresses, and the kind each keeps.
 const ADDRESSES: [(&str, &str); 3] = [("Business", "work"), ("Home", "home"), ("Other", "")];
@@ -34,6 +50,10 @@ pub struct ContactForm {
     pub other_address_kind: String,
     /// The address shown in the form.
     pub address_shown: usize,
+    /// Rows asked for with "+ Add email" and "+ Add phone": the empty ones past the first
+    /// (three emails and five phones were all shown, always).
+    pub emails_added: usize,
+    pub phones_added: usize,
     /// `YYYY-MM-DD`.
     pub birthday: String,
     pub org: String,
@@ -145,6 +165,8 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
     egui::ScrollArea::vertical().max_height(tall.max(260.0)).auto_shrink([false, true]).show(ui, |ui| {
         // Room on the right for the scroll bar, so it doesn't run over the fields.
         ui.set_max_width((ui.available_width() - 14.0).max(120.0));
+        // In groups under headings (fifteen rows, one after another, it was).
+        group_head(ui, t, "Name and work");
         form_row(ui, t, false, None, "Name", |ui| {
             field(ui, &mut f.name, tl!("First and last name"), f32::INFINITY);
         });
@@ -154,14 +176,39 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
         form_row(ui, t, false, None, "Job title", |ui| {
             field(ui, &mut f.title, "", f32::INFINITY);
         });
+        // The first email and phone, those filled in, and the empty ones asked for.
+        group_head(ui, t, "Email");
+        let email_filled = |f: &ContactForm, i: usize| f.emails.get(i).is_some_and(|v| !v.trim().is_empty());
+        let mut added = 0;
         for (i, label) in ["Email", "Email 2", "Email 3"].into_iter().enumerate() {
+            if i > 0 && !email_filled(f, i) {
+                if added >= f.emails_added {
+                    continue;
+                }
+                added += 1;
+            }
             if let Some(v) = f.emails.get_mut(i) {
                 form_row(ui, t, false, None, label, |ui| {
                     field(ui, v, "", f32::INFINITY);
                 });
             }
         }
+        let emails_hidden = (1..f.emails.len()).filter(|i| !email_filled(f, *i)).count();
+        if f.emails_added < emails_hidden && add_link(ui, t, "Add email") {
+            f.emails_added += 1;
+        }
+        group_head(ui, t, "Phone");
+        let none = !f.phones.iter().any(|p| !p.trim().is_empty());
+        // Shown: those filled in, and the mobile when none is (the one most give).
+        let phone_shown = |f: &ContactForm, i: usize| f.phones.get(i).is_some_and(|v| !v.trim().is_empty()) || (none && i == 2);
+        let mut added = 0;
         for (i, (label, _)) in PHONES.iter().enumerate() {
+            if !phone_shown(f, i) {
+                if added >= f.phones_added {
+                    continue;
+                }
+                added += 1;
+            }
             if let Some(v) = f.phones.get_mut(i) {
                 let label = match *label {
                     "Business" => "Business phone",
@@ -170,11 +217,17 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
                     "Fax" => "Business fax",
                     _ => "Other phone",
                 };
+                // A phone number's width, not the form's.
                 form_row(ui, t, false, None, label, |ui| {
-                    field(ui, v, "", f32::INFINITY);
+                    field(ui, v, "", 220.0);
                 });
             }
         }
+        let phones_hidden = (0..f.phones.len()).filter(|i| !phone_shown(f, *i)).count();
+        if f.phones_added < phones_hidden && add_link(ui, t, "Add phone") {
+            f.phones_added += 1;
+        }
+        group_head(ui, t, "Address");
         // One address at a time, as Outlook's form: choose which.
         form_row(ui, t, false, None, "Address", |ui| {
             let shown = f.address_shown.min(2);
@@ -220,6 +273,7 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
                 field(ui, &mut a.country, "", f32::INFINITY);
             });
         }
+        group_head(ui, t, "More");
         form_row(ui, t, false, None, "Birthday", |ui| {
             field(ui, &mut f.birthday, tl!("YYYY-MM-DD"), 140.0);
         });

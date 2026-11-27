@@ -424,6 +424,10 @@ fn partstat_label(p: &str) -> &'static str {
 /// Height of a one-line field.
 const FIELD_H: f32 = 30.0;
 
+/// A short choice's width (repeat, reminder, show as, status, priority): one for all of them
+/// (they were 133 to 220 points wide, a ragged column).
+const CHOICE_W: f32 = 200.0;
+
 /// A form's heading: its title, as every dialog's; a person's, their initials before it. (An icon
 /// in a teal badge before every form's title took 52 points of a form that already ran past the
 /// window, and a dialog's title has no icon.) Its fields, drop-downs and buttons one height.
@@ -597,11 +601,16 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut
     ui.add_enabled_ui(!f.read_only, |ui| {
         title_field(ui, &mut f.summary);
         let start_before = typed_moment(&f.date, &f.start, f.all_day);
+        // All day on the row it changes first (it sat at the end of Ends).
         form_row(ui, t, true, Some(Icon::Clock), "Starts", |ui| {
             date_pick::date_field(ui, t, "event-start", &mut f.date, f.dates, None);
             if !f.all_day {
                 time_field(ui, &mut f.start, 9, f.hours12);
             }
+            ui.add_space(6.0);
+            ui.allocate_ui_with_layout(vec2(ui.available_width(), FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.checkbox(&mut f.all_day, tl!("All day"));
+            });
         });
         end_follows_start(f, start_before);
         form_row(ui, t, true, None, "Ends", |ui| {
@@ -609,10 +618,6 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut
             if !f.all_day {
                 time_field(ui, &mut f.end, 10, f.hours12);
             }
-            ui.add_space(6.0);
-            ui.allocate_ui_with_layout(vec2(ui.available_width(), FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                ui.checkbox(&mut f.all_day, tl!("All day"));
-            });
         });
         // One occurrence on its own has no repeat of its own (issue #241).
         if !f.this_occurrence {
@@ -621,14 +626,14 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut
             pattern::rows(ui, t, f);
         }
         form_row(ui, t, true, Some(Icon::Clock), "Reminder", |ui| {
-            ui.allocate_ui_with_layout(vec2(200.0, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.allocate_ui_with_layout(vec2(CHOICE_W, FIELD_H), egui::Layout::left_to_right(egui::Align::Center), |ui| {
                 let mut choices: Vec<Option<i64>> = std::iter::once(None).chain(REMINDER_CHOICES.iter().map(|m| Some(*m))).collect();
                 // One set elsewhere (another app, a server) stays offered as it is.
                 if !choices.contains(&f.reminder) {
                     choices.push(f.reminder);
                 }
                 let r = egui::ComboBox::from_id_salt("event-reminder")
-                    .width(194.0)
+                    .width(CHOICE_W - 6.0)
                     .selected_text(reminder_label(f.reminder))
                     .show_ui(ui, |ui| {
                         for c in choices.iter().copied() {
@@ -639,6 +644,8 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut
                     .accessible_name(tl!("Reminder"));
                 crate::drop_down::keys(ui, &r, &mut f.reminder, &choices);
             });
+            // Another, right after the box (a link on a row of its own broke the rows' rhythm).
+            reminders::add_button(ui, t, f);
         });
         reminders::more_rows(ui, t, f);
         showing::show_as_row(ui, t, f);

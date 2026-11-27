@@ -325,7 +325,7 @@ fn an_events_reminders_each_have_a_list_in_its_form() {
         Some(Dialog::Event(f)) => (f.reminder, f.more_reminders.clone()),
         other => panic!("{other:?}"),
     };
-    let add = drawn_text(&ctx, &mut a, size).into_iter().find(|d| d.text == "Add reminder").map(|d| d.rect.center()).expect("Add reminder");
+    let add = drawn_text(&ctx, &mut a, size).into_iter().find(|d| d.text.ends_with("Add reminder")).map(|d| d.rect.center()).expect("Add reminder");
     click(&ctx, &mut a, add);
     frame(&ctx, &mut a, vec![]);
     assert_eq!(form(&a), (Some(60), vec![2, 15]), "one more, of Outlook's default");

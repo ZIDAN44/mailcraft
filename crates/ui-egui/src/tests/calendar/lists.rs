@@ -165,6 +165,9 @@ fn long_lists_scroll_in_order_and_follow_changes() {
     let Some(first) = texts.iter().find(|(t, _)| t.lines().next() == Some(all[0].as_str())).map(|(_, p)| *p + egui::vec2(10.0, 30.0)) else {
         panic!("{texts:?}")
     };
+    // A click picks it, a double click writes on it.
+    click(&ctx, &mut a, first);
+    assert_eq!(a.ui.note_picked.as_deref(), Some("note-0"));
     click(&ctx, &mut a, first);
     assert!(a.ui.note_edit.as_ref().is_some_and(|(u, _)| u == "note-0"), "{:?}", a.ui.note_edit);
     scroll(&ctx, &mut a, is_note, false, 8_000.0);

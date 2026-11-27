@@ -312,6 +312,8 @@ pub struct UiState {
     /// the keyboard to give its text box.
     pub(crate) notes_query: String,
     pub(crate) note_edit: Option<(String, String)>,
+    /// The note picked (a click), for the ribbon's Delete and Color; a double click writes on it.
+    pub(crate) note_picked: Option<String>,
     pub(crate) note_focus: bool,
     /// Tasks: the search, and the task picked (uid).
     pub(crate) tasks_query: String,

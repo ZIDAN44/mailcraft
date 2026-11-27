@@ -95,7 +95,9 @@ pub(super) fn days(s: &Session, st: &mut UiState, ui: &mut Ui, items: &[AgendaIt
     // Each view (day, week) opens on the working day the first time it's shown.
     let view = usize::from(s.cal_mode == CalMode::Day);
     if !st.cal_scrolled[view] {
-        scroll = scroll.vertical_scroll_offset(HOUR * 7.5);
+        // On the hour, its time whole under the top (07:30 put a shaded strip with no time
+        // over the first line).
+        scroll = scroll.vertical_scroll_offset(HOUR * 7.0 - 10.0);
         st.cal_scrolled[view] = true;
     }
     scroll.show(ui, |ui| {
@@ -247,14 +249,18 @@ fn hour_lines(s: &Session, t: &Tokens, ui: &mut Ui, cols: &Columns, grid: Rect) 
     }
     for h in 0..24 {
         let y = grid.min.y + HOUR * h as f32;
+        // Each hour, and a fainter line at its half (only the hours had one, so a half-hour
+        // meeting's place was guessed).
+        let half = y + HOUR / 2.0;
         for j in 0..k {
             let x0 = grid.min.x + cols.pane_x(j);
             ui.painter().line_segment([pos2(x0, y), pos2(x0 + cols.pane, y)], egui::Stroke::new(1.0, t.border));
+            ui.painter().line_segment([pos2(x0, half), pos2(x0 + cols.pane, half)], egui::Stroke::new(1.0, t.border.gamma_multiply(0.45)));
         }
         if h > 0 {
             // As the clock is set (issue #46): `13:00`, or `1 PM`.
             let label = crate::i18n::date(&mailcraft_engine::model::dates::hour_label(h, s.clock.style));
-            ui.painter().text(pos2(grid.min.x + cols.gutter - 6.0, y), Align2::RIGHT_CENTER, label, theme::regular(11.0), t.faint);
+            ui.painter().text(pos2(grid.min.x + cols.gutter - 6.0, y), Align2::RIGHT_CENTER, label, theme::regular(crate::sizes::CAPTION), t.faint);
         }
     }
     for j in 0..k {
