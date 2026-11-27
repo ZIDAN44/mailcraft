@@ -568,20 +568,17 @@
 	Center (Ctrl+E)	По центру (Ctrl+E)
 	Align right (Ctrl+R)	По правому краю (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	Очистить всё форматирование (Ctrl+Пробел)
-	Address Book	Адресная книга
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	Вложить файл
 	Ctrl+K	Ctrl+K
 	Pictures	Рисунки
 	Address	Адрес
 	Insert	Вставить
 	Remove link	Удалить ссылку
-	Select Names	Выбор имён
+	Select names	Выбор имён
 	Search	Поиск
 	Name or address	Имя или адрес
 	All addresses	Все адреса
 	Contacts	Контакты
-	Email Address	Адрес электронной почты
 	No one found.	Никого не найдено.
 	To ->	Кому ->
 	Cc ->	Копия ->
@@ -668,8 +665,7 @@
 	Folder pane	Область папок
 	Minimize the folder pane	Свернуть область папок
 	Show the folder pane	Показать область папок
-	Save As	Сохранить как
-	Save Attachments	Сохранить вложения
+	Save attachments	Сохранить вложения
 	Exit	Выход
 	High importance	Высокая важность
 	Low importance	Низкая важность
@@ -682,10 +678,9 @@
 	Run it now on the mail already in the Inbox	Применить сейчас к почте во «Входящих»
 	Run on the mail already in the Inbox	Применить к почте во «Входящих»
 	More options	Другие действия
-	Save As…	Сохранить как…
-	Save All Attachments…	Сохранить все вложения…
+	Save all attachments…	Сохранить все вложения…
 	This picture can't be shown.	Не удаётся показать это изображение.
-	Close Search	Закрыть поиск
+	Close search	Закрыть поиск
 	Look in	Искать в
 	Account	Учетная запись
 	Account settings…	Настройки учетной записи…
@@ -701,7 +696,7 @@
 	Messages	Сообщения
 	Open file location	Открыть расположение файла
 	Properties…	Свойства…
-	{folder} Properties	Свойства: {folder}
+	{folder} properties	Свойства: {folder}
 	Size on this computer	Размер на этом компьютере
 	Quick print	Быстрая печать
 	Always move to Focused	Всегда перемещать в «Отсортированные»
@@ -1029,12 +1024,12 @@ date	December	декабря
 	1 week	1 неделя
 	{n} weeks	{n} нед.
 	0 minutes before start	За 0 мин. до начала
-	1 Reminder	1 напоминание
-	{n} Reminders	Напоминаний: {n}
+	1 reminder	1 напоминание
+	{n} reminders	Напоминаний: {n}
 	Click Snooze to be reminded again in:	Нажмите «Отложить», чтобы получить напоминание через:
 	Dismiss	Закрыть
-	Dismiss All	Закрыть все
-	Open Item	Открыть элемент
+	Dismiss all	Закрыть все
+	Open item	Открыть элемент
 	Overdue	Просрочено
 	Now	Сейчас
 	In {n} minutes	Через {n} мин.
@@ -1105,10 +1100,10 @@ date	December	декабря
 	Also being written:	Также пишется:
 	Play animations	Воспроизводить анимацию
 	Hovers, selections and panes ease into place; off, everything changes at once	Наведение, выделение и панели меняются плавно; если выключить, всё меняется сразу
-	Current Folder	Текущая папка
+	Current folder	Текущая папка
 	Subfolders	Вложенные папки
-	Current Mailbox	Текущий почтовый ящик
-	All Mailboxes	Все почтовые ящики
+	Current mailbox	Текущий почтовый ящик
+	All mailboxes	Все почтовые ящики
 	Recent searches	Недавние поиски
 	Clear recent searches	Очистить недавние поиски
 	Advanced search	Расширенный поиск
@@ -1317,8 +1312,7 @@ date	December	декабря
 	Appearance	Оформление
 	Expand	Развернуть
 	Collapse	Свернуть
-	Sent To	Кому
-	Has Attachments	С вложениями
+	Sent to	Кому
 	To:	Кому:
 	Cc:	Копия:
 	Accent colour	Цвет акцента
@@ -1818,7 +1812,7 @@ count	occurrences	повторений
 	New rule on the server…	Новое правило на сервере…
 	Made in another program: it can be turned on or off, moved or deleted here	Создано в другой программе: здесь его можно включить или выключить, переместить или удалить
 	The server can't run this rule as it is	Сервер не может выполнить это правило в таком виде
-	Undo Send	Отмена отправки
+	Undo send	Отмена отправки
 	A message you send waits this long in the Outbox, with Undo, before it goes.	Отправленное письмо ждёт столько в папке «Исходящие», с кнопкой «Отменить», прежде чем уйти.
 	Sending · {n} s	Отправка · {n} с
 	Sending {count} messages · {n} s	Отправка писем: {count} · {n} с

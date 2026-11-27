@@ -196,7 +196,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         Dialog::FolderProperties { name, account, location, total, unread, size, archive } => {
             // One width with AutoArchive or without (it changed with what it showed).
             ui.set_width(crate::sizes::DIALOG_M);
-            title(ui, t, &tf!("{folder} Properties", folder = name));
+            title(ui, t, &tf!("{folder} properties", folder = name));
             egui::Grid::new("folder-props").num_columns(2).spacing(vec2(16.0, 6.0)).show(ui, |ui| {
                 let rows = [
                     (tl!("Account"), account.clone()),

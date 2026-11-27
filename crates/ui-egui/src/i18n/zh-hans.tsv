@@ -571,20 +571,17 @@ month	May	5月
 	Center (Ctrl+E)	居中 (Ctrl+E)
 	Align right (Ctrl+R)	右对齐 (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	清除所有格式 (Ctrl+空格)
-	Address Book	通讯簿
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	附加文件
 	Ctrl+K	Ctrl+K
 	Pictures	图片
 	Address	地址
 	Insert	插入
 	Remove link	删除链接
-	Select Names	选择姓名
+	Select names	选择姓名
 	Search	搜索
 	Name or address	姓名或地址
 	All addresses	所有地址
 	Contacts	联系人
-	Email Address	电子邮件地址
 	No one found.	未找到任何人。
 	To ->	收件人 ->
 	Cc ->	抄送 ->
@@ -671,8 +668,7 @@ month	May	5月
 	Folder pane	文件夹窗格
 	Minimize the folder pane	最小化文件夹窗格
 	Show the folder pane	显示文件夹窗格
-	Save As	另存为
-	Save Attachments	保存附件
+	Save attachments	保存附件
 	Exit	退出
 	High importance	重要性 - 高
 	Low importance	重要性 - 低
@@ -685,10 +681,9 @@ month	May	5月
 	Run it now on the mail already in the Inbox	立即对收件箱中已有的邮件运行
 	Run on the mail already in the Inbox	对收件箱中已有的邮件运行
 	More options	更多选项
-	Save As…	另存为…
-	Save All Attachments…	保存所有附件…
+	Save all attachments…	保存所有附件…
 	This picture can't be shown.	无法显示此图片。
-	Close Search	关闭搜索
+	Close search	关闭搜索
 	Look in	搜索范围
 	Account	帐户
 	Account settings…	帐户设置…
@@ -704,7 +699,7 @@ month	May	5月
 	Messages	邮件
 	Open file location	打开文件位置
 	Properties…	属性…
-	{folder} Properties	{folder} 属性
+	{folder} properties	{folder} 属性
 	Size on this computer	在此电脑上的大小
 	Quick print	快速打印
 	Always move to Focused	始终移到“重点”
@@ -1012,12 +1007,12 @@ month	May	5月
 	1 week	1 周
 	{n} weeks	{n} 周
 	0 minutes before start	开始前 0 分钟
-	1 Reminder	1 个提醒
-	{n} Reminders	{n} 个提醒
+	1 reminder	1 个提醒
+	{n} reminders	{n} 个提醒
 	Click Snooze to be reminded again in:	单击“暂停提醒”，在以下时间后再次提醒:
 	Dismiss	关闭
-	Dismiss All	全部关闭
-	Open Item	打开项目
+	Dismiss all	全部关闭
+	Open item	打开项目
 	Overdue	已过期
 	Now	现在
 	In {n} minutes	{n} 分钟后
@@ -1088,10 +1083,10 @@ month	May	5月
 	Also being written:	其他正在撰写的邮件:
 	Play animations	播放动画
 	Hovers, selections and panes ease into place; off, everything changes at once	悬停、选择和窗格平滑过渡；关闭后一切立即变化
-	Current Folder	当前文件夹
+	Current folder	当前文件夹
 	Subfolders	子文件夹
-	Current Mailbox	当前邮箱
-	All Mailboxes	所有邮箱
+	Current mailbox	当前邮箱
+	All mailboxes	所有邮箱
 	Recent searches	最近的搜索
 	Clear recent searches	清除最近的搜索
 	Advanced search	高级搜索
@@ -1300,8 +1295,7 @@ month	May	5月
 	Appearance	外观
 	Expand	展开
 	Collapse	折叠
-	Sent To	发送给
-	Has Attachments	有附件
+	Sent to	发送给
 	To:	收件人:
 	Cc:	抄送:
 	Accent colour	强调色
@@ -1801,7 +1795,7 @@ count	occurrences	次
 	New rule on the server…	在服务器上新建规则…
 	Made in another program: it can be turned on or off, moved or deleted here	在其他程序中创建：此处可以将其打开或关闭、移动或删除
 	The server can't run this rule as it is	服务器无法按原样运行此规则
-	Undo Send	撤消发送
+	Undo send	撤消发送
 	A message you send waits this long in the Outbox, with Undo, before it goes.	发送的邮件会先在发件箱中等待这段时间，期间可以撤消，然后再发出。
 	Sending · {n} s	正在发送 · {n} 秒
 	Sending {count} messages · {n} s	正在发送 {count} 封邮件 · {n} 秒

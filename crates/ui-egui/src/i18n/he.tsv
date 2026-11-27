@@ -568,20 +568,17 @@
 	Center (Ctrl+E)	מרכז (Ctrl+E)
 	Align right (Ctrl+R)	יישור לימין (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	נקה את כל העיצוב (Ctrl+Space)
-	Address Book	פנקס כתובות
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	צרף קובץ
 	Ctrl+K	Ctrl+K
 	Pictures	תמונות
 	Address	כתובת
 	Insert	הוסף
 	Remove link	הסר קישור
-	Select Names	בחירת שמות
+	Select names	בחירת שמות
 	Search	חיפוש
 	Name or address	שם או כתובת
 	All addresses	כל הכתובות
 	Contacts	אנשי קשר
-	Email Address	כתובת דואר אלקטרוני
 	No one found.	לא נמצא אף אחד.
 	To ->	אל ->
 	Cc ->	עותק ->
@@ -670,8 +667,7 @@ month	May	מאי
 	Folder pane	חלונית תיקיות
 	Minimize the folder pane	מזער את חלונית התיקיות
 	Show the folder pane	הצג את חלונית התיקיות
-	Save As	שמירה בשם
-	Save Attachments	שמור קבצים מצורפים
+	Save attachments	שמור קבצים מצורפים
 	Exit	יציאה
 	High importance	חשיבות גבוהה
 	Low importance	חשיבות נמוכה
@@ -684,10 +680,9 @@ month	May	מאי
 	Run it now on the mail already in the Inbox	הפעל אותו עכשיו על הדואר שכבר בתיבת הדואר הנכנס
 	Run on the mail already in the Inbox	הפעל על הדואר שכבר בתיבת הדואר הנכנס
 	More options	אפשרויות נוספות
-	Save As…	שמירה בשם…
-	Save All Attachments…	שמור את כל הקבצים המצורפים…
+	Save all attachments…	שמור את כל הקבצים המצורפים…
 	This picture can't be shown.	לא ניתן להציג את התמונה.
-	Close Search	סגור חיפוש
+	Close search	סגור חיפוש
 	Look in	חפש ב
 	Account	חשבון
 	Account settings…	הגדרות חשבון…
@@ -703,7 +698,7 @@ month	May	מאי
 	Messages	הודעות
 	Open file location	פתח מיקום קובץ
 	Properties…	מאפיינים…
-	{folder} Properties	מאפייני {folder}
+	{folder} properties	מאפייני {folder}
 	Size on this computer	גודל במחשב זה
 	Quick print	הדפסה מהירה
 	Always move to Focused	העבר תמיד למיקוד
@@ -1011,12 +1006,12 @@ month	May	מאי
 	1 week	שבוע אחד
 	{n} weeks	{n} שבועות
 	0 minutes before start	0 דקות לפני ההתחלה
-	1 Reminder	תזכורת אחת
-	{n} Reminders	{n} תזכורות
+	1 reminder	תזכורת אחת
+	{n} reminders	{n} תזכורות
 	Click Snooze to be reminded again in:	לחץ על 'נודניק' כדי לקבל תזכורת שוב בעוד:
 	Dismiss	בטל
-	Dismiss All	בטל הכל
-	Open Item	פתח פריט
+	Dismiss all	בטל הכל
+	Open item	פתח פריט
 	Overdue	באיחור
 	Now	עכשיו
 	In {n} minutes	בעוד {n} דקות
@@ -1087,10 +1082,10 @@ month	May	מאי
 	Also being written:	בכתיבה גם:
 	Play animations	הפעל הנפשות
 	Hovers, selections and panes ease into place; off, everything changes at once	ריחוף, בחירות וחלוניות נכנסים למקומם בהדרגה; כשכבוי, הכול משתנה מיד
-	Current Folder	התיקייה הנוכחית
+	Current folder	התיקייה הנוכחית
 	Subfolders	תיקיות משנה
-	Current Mailbox	תיבת הדואר הנוכחית
-	All Mailboxes	כל תיבות הדואר
+	Current mailbox	תיבת הדואר הנוכחית
+	All mailboxes	כל תיבות הדואר
 	Recent searches	חיפושים אחרונים
 	Clear recent searches	ניקוי החיפושים האחרונים
 	Advanced search	חיפוש מתקדם
@@ -1299,8 +1294,7 @@ month	May	מאי
 	Appearance	מראה
 	Expand	הרחבה
 	Collapse	כיווץ
-	Sent To	נשלח אל
-	Has Attachments	עם קבצים מצורפים
+	Sent to	נשלח אל
 	To:	אל:
 	Cc:	עותק:
 	Accent colour	צבע הדגשה
@@ -1800,7 +1794,7 @@ count	occurrences	פעמים
 	New rule on the server…	כלל חדש בשרת…
 	Made in another program: it can be turned on or off, moved or deleted here	נוצר בתוכנה אחרת: כאן אפשר להפעיל או לכבות, להזיז או למחוק אותו
 	The server can't run this rule as it is	השרת לא יכול להפעיל את הכלל הזה כפי שהוא
-	Undo Send	ביטול שליחה
+	Undo send	ביטול שליחה
 	A message you send waits this long in the Outbox, with Undo, before it goes.	הודעה שנשלחה ממתינה זמן זה בתיבת הדואר היוצא, עם אפשרות ביטול, לפני שהיא יוצאת.
 	Sending · {n} s	שולח · {n} ש׳
 	Sending {count} messages · {n} s	שולח {count} הודעות · {n} ש׳

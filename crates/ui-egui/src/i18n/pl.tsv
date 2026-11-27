@@ -568,20 +568,17 @@
 	Center (Ctrl+E)	Wyśrodkuj (Ctrl+E)
 	Align right (Ctrl+R)	Wyrównaj do prawej (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	Wyczyść całe formatowanie (Ctrl+Spacja)
-	Address Book	Książka adresowa
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	Dołącz plik
 	Ctrl+K	Ctrl+K
 	Pictures	Obrazy
 	Address	Adres
 	Insert	Wstaw
 	Remove link	Usuń link
-	Select Names	Wybierz nazwy
+	Select names	Wybierz nazwy
 	Search	Wyszukaj
 	Name or address	Nazwa lub adres
 	All addresses	Wszystkie adresy
 	Contacts	Kontakty
-	Email Address	Adres e-mail
 	No one found.	Nie znaleziono nikogo.
 	To ->	Do ->
 	Cc ->	DW ->
@@ -668,8 +665,7 @@
 	Folder pane	Okienko folderów
 	Minimize the folder pane	Minimalizuj okienko folderów
 	Show the folder pane	Pokaż okienko folderów
-	Save As	Zapisz jako
-	Save Attachments	Zapisz załączniki
+	Save attachments	Zapisz załączniki
 	Exit	Zakończ
 	High importance	Wysoka ważność
 	Low importance	Niska ważność
@@ -682,10 +678,9 @@
 	Run it now on the mail already in the Inbox	Uruchom ją teraz dla wiadomości w Skrzynce odbiorczej
 	Run on the mail already in the Inbox	Uruchom dla wiadomości w Skrzynce odbiorczej
 	More options	Więcej opcji
-	Save As…	Zapisz jako…
-	Save All Attachments…	Zapisz wszystkie załączniki…
+	Save all attachments…	Zapisz wszystkie załączniki…
 	This picture can't be shown.	Nie można wyświetlić tego obrazu.
-	Close Search	Zamknij wyszukiwanie
+	Close search	Zamknij wyszukiwanie
 	Look in	Szukaj w
 	Account	Konto
 	Account settings…	Ustawienia konta…
@@ -701,7 +696,7 @@
 	Messages	Wiadomości
 	Open file location	Otwórz lokalizację pliku
 	Properties…	Właściwości…
-	{folder} Properties	Właściwości: {folder}
+	{folder} properties	Właściwości: {folder}
 	Size on this computer	Rozmiar na tym komputerze
 	Quick print	Szybkie drukowanie
 	Always move to Focused	Zawsze przenoś do Priorytetowych
@@ -1029,12 +1024,12 @@ date	December	grudnia
 	1 week	1 tydzień
 	{n} weeks	{n} tyg.
 	0 minutes before start	0 min przed rozpoczęciem
-	1 Reminder	1 przypomnienie
-	{n} Reminders	Przypomnienia: {n}
+	1 reminder	1 przypomnienie
+	{n} reminders	Przypomnienia: {n}
 	Click Snooze to be reminded again in:	Kliknij „Odłóż”, aby otrzymać ponowne przypomnienie za:
 	Dismiss	Odrzuć
-	Dismiss All	Odrzuć wszystkie
-	Open Item	Otwórz element
+	Dismiss all	Odrzuć wszystkie
+	Open item	Otwórz element
 	Overdue	Zaległe
 	Now	Teraz
 	In {n} minutes	Za {n} min
@@ -1105,10 +1100,10 @@ date	December	grudnia
 	Also being written:	Pisane są także:
 	Play animations	Odtwarzaj animacje
 	Hovers, selections and panes ease into place; off, everything changes at once	Wskazania, zaznaczenia i okienka zmieniają się płynnie; po wyłączeniu wszystko zmienia się od razu
-	Current Folder	Bieżący folder
+	Current folder	Bieżący folder
 	Subfolders	Podfoldery
-	Current Mailbox	Bieżąca skrzynka pocztowa
-	All Mailboxes	Wszystkie skrzynki pocztowe
+	Current mailbox	Bieżąca skrzynka pocztowa
+	All mailboxes	Wszystkie skrzynki pocztowe
 	Recent searches	Ostatnie wyszukiwania
 	Clear recent searches	Wyczyść ostatnie wyszukiwania
 	Advanced search	Wyszukiwanie zaawansowane
@@ -1317,8 +1312,7 @@ date	December	grudnia
 	Appearance	Wygląd
 	Expand	Rozwiń
 	Collapse	Zwiń
-	Sent To	Wysłane do
-	Has Attachments	Z załącznikami
+	Sent to	Wysłane do
 	To:	Do:
 	Cc:	DW:
 	Accent colour	Kolor akcentu
@@ -1818,7 +1812,7 @@ count	occurrences	wystąpieniach
 	New rule on the server…	Nowa reguła na serwerze…
 	Made in another program: it can be turned on or off, moved or deleted here	Utworzona w innym programie: można ją tutaj włączyć lub wyłączyć, przenieść albo usunąć
 	The server can't run this rule as it is	Serwer nie może wykonać tej reguły w obecnej postaci
-	Undo Send	Cofnij wysyłanie
+	Undo send	Cofnij wysyłanie
 	A message you send waits this long in the Outbox, with Undo, before it goes.	Wysyłana wiadomość czeka tyle czasu w Skrzynce nadawczej, z możliwością cofnięcia, zanim zostanie wysłana.
 	Sending · {n} s	Wysyłanie · {n} s
 	Sending {count} messages · {n} s	Wysyłanie wiadomości: {count} · {n} s

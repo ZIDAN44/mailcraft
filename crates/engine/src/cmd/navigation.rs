@@ -45,7 +45,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         .when(|s| if s.outbox.is_empty() { Some("the Outbox is empty") } else { None })
         .asks(),
         // Undo Send (issue #135): a message sent, still waiting, back into the form.
-        CommandSpec::new("outbox.undoSend", "Undo Send", "Outbox", |s, v| s.undo_send(p::u64(v, "id")))
+        CommandSpec::new("outbox.undoSend", "Undo send", "Outbox", |s, v| s.undo_send(p::u64(v, "id")))
             .params(r#"{"id"?: number (a message held to be undone; else the newest)}"#),
         CommandSpec::new("options.undoSend", "Wait before sending, to undo Send", "File › Options › Mail", |s, v| {
             if let Some(n) = v.get("seconds") {
@@ -221,9 +221,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({"sources": s.sources.len()}))
         })
         .params(r#"{"key": string}"#),
-        CommandSpec::new("message.saveAs", "Save as", "File › Save As", save_message).params(r#"{"path": string}"#).when(has_reading)
+        CommandSpec::new("message.saveAs", "Save as", "File › Save as", save_message).params(r#"{"path": string}"#).when(has_reading)
             .asks(),
-        CommandSpec::new("message.exportPdf", "Save as PDF", "File › Save As", export_pdf).params(r#"{"path": string}"#).when(has_reading)
+        CommandSpec::new("message.exportPdf", "Save as PDF", "File › Save as", export_pdf).params(r#"{"path": string}"#).when(has_reading)
             .asks(),
         CommandSpec::new("message.showPictures", "Show pictures", "Reading pane", |s, v| s.show_pictures(p::bool(v, "always").unwrap_or(false)))
             .params(r#"{"always"?: bool}"#)

@@ -569,20 +569,17 @@
 	Center (Ctrl+E)	Ortala (Ctrl+E)
 	Align right (Ctrl+R)	Sağa hizala (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	Tüm biçimlendirmeyi temizle (Ctrl+Space)
-	Address Book	Adres Defteri
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	Dosya Ekle
 	Ctrl+K	Ctrl+K
 	Pictures	Resimler
 	Address	Adres
 	Insert	Ekle
 	Remove link	Bağlantıyı kaldır
-	Select Names	Ad Seç
+	Select names	Ad Seç
 	Search	Ara
 	Name or address	Ad veya adres
 	All addresses	Tüm adresler
 	Contacts	Kişiler
-	Email Address	E-posta Adresi
 	No one found.	Kimse bulunamadı.
 	To ->	Kime ->
 	Cc ->	Cc ->
@@ -669,8 +666,7 @@
 	Folder pane	Klasör bölmesi
 	Minimize the folder pane	Klasör bölmesini daralt
 	Show the folder pane	Klasör bölmesini göster
-	Save As	Farklı Kaydet
-	Save Attachments	Ekleri Kaydet
+	Save attachments	Ekleri Kaydet
 	Exit	Çıkış
 	High importance	Yüksek önem
 	Low importance	Düşük önem
@@ -683,10 +679,9 @@
 	Run it now on the mail already in the Inbox	Gelen Kutusundaki mevcut postalarda şimdi çalıştır
 	Run on the mail already in the Inbox	Gelen Kutusundaki mevcut postalarda çalıştır
 	More options	Diğer seçenekler
-	Save As…	Farklı Kaydet…
-	Save All Attachments…	Tüm Ekleri Kaydet…
+	Save all attachments…	Tüm Ekleri Kaydet…
 	This picture can't be shown.	Bu resim gösterilemiyor.
-	Close Search	Aramayı Kapat
+	Close search	Aramayı Kapat
 	Look in	Arama yeri
 	Account	Hesap
 	Account settings…	Hesap ayarları…
@@ -702,7 +697,7 @@
 	Messages	İletiler
 	Open file location	Dosya konumunu aç
 	Properties…	Özellikler…
-	{folder} Properties	{folder} Özellikleri
+	{folder} properties	{folder} Özellikleri
 	Size on this computer	Bu bilgisayardaki boyut
 	Quick print	Hızlı yazdır
 	Always move to Focused	Her zaman Odaklanmış'a taşı
@@ -1016,12 +1011,12 @@ month	May	Mayıs
 	1 week	1 hafta
 	{n} weeks	{n} hafta
 	0 minutes before start	Başlangıçtan 0 dakika önce
-	1 Reminder	1 Anımsatıcı
-	{n} Reminders	{n} Anımsatıcı
+	1 reminder	1 Anımsatıcı
+	{n} reminders	{n} Anımsatıcı
 	Click Snooze to be reminded again in:	Şu süre sonra yeniden anımsatılmak için Ertele'ye tıklayın:
 	Dismiss	Kapat
-	Dismiss All	Tümünü Kapat
-	Open Item	Öğeyi Aç
+	Dismiss all	Tümünü Kapat
+	Open item	Öğeyi Aç
 	Overdue	Gecikmiş
 	Now	Şimdi
 	In {n} minutes	{n} dakika içinde
@@ -1092,10 +1087,10 @@ month	May	Mayıs
 	Also being written:	Ayrıca yazılmakta olanlar:
 	Play animations	Animasyonları oynat
 	Hovers, selections and panes ease into place; off, everything changes at once	Üzerine gelmeler, seçimler ve bölmeler yumuşakça yerine oturur; kapalıyken her şey bir anda değişir
-	Current Folder	Geçerli Klasör
+	Current folder	Geçerli Klasör
 	Subfolders	Alt klasörler
-	Current Mailbox	Geçerli Posta Kutusu
-	All Mailboxes	Tüm Posta Kutuları
+	Current mailbox	Geçerli Posta Kutusu
+	All mailboxes	Tüm Posta Kutuları
 	Recent searches	Son aramalar
 	Clear recent searches	Son aramaları temizle
 	Advanced search	Gelişmiş arama
@@ -1304,8 +1299,7 @@ month	May	Mayıs
 	Appearance	Görünüm
 	Expand	Genişlet
 	Collapse	Daralt
-	Sent To	Gönderilen Kişi
-	Has Attachments	Eki Var
+	Sent to	Gönderilen Kişi
 	To:	Kime:
 	Cc:	Cc:
 	Accent colour	Vurgu rengi
@@ -1805,7 +1799,7 @@ count	occurrences	kez
 	New rule on the server…	Sunucuda yeni kural…
 	Made in another program: it can be turned on or off, moved or deleted here	Başka bir programda oluşturuldu: burada açılıp kapatılabilir, taşınabilir ya da silinebilir
 	The server can't run this rule as it is	Sunucu bu kuralı bu hâliyle çalıştıramıyor
-	Undo Send	Göndermeyi geri al
+	Undo send	Göndermeyi geri al
 	A message you send waits this long in the Outbox, with Undo, before it goes.	Gönderdiğiniz ileti, gitmeden önce bu süre boyunca Giden Kutusu'nda Geri al ile bekler.
 	Sending · {n} s	Gönderiliyor · {n} sn
 	Sending {count} messages · {n} s	{count} ileti gönderiliyor · {n} sn

@@ -202,7 +202,7 @@ pub(super) fn ribbon_search(ui: &mut Ui, s: &Session, ust: &mut UiState, t: Toke
     }
     widgets::group(ui, &t, "Scope", false);
     // Terms to type a name after: put in the box, ready for it.
-    for (icon, label, term) in [(Icon::Person, "From", "from:"), (Icon::Send, "Sent To", "to:"), (Icon::Read, "Subject", "subject:")] {
+    for (icon, label, term) in [(Icon::Person, "From", "from:"), (Icon::Send, "Sent to", "to:"), (Icon::Read, "Subject", "subject:")] {
         if widgets::tool_button(ui, icon, label, &t, true).clicked() {
             let text = &mut ust.search_text;
             if !text.is_empty() && !text.ends_with(' ') {
@@ -216,7 +216,7 @@ pub(super) fn ribbon_search(ui: &mut Ui, s: &Session, ust: &mut UiState, t: Toke
     // Terms that narrow at once: on, or off again.
     let words: Vec<&str> = query.split_whitespace().collect();
     for (icon, label, term) in [
-        (Icon::Attach, "Has Attachments", "has:attachment"),
+        (Icon::Attach, "Has attachments", "has:attachment"),
         (Icon::Unread, "Unread", "is:unread"),
         (Icon::Tag, "Categorized", "is:categorized"),
         (Icon::Flag, "Flagged", "is:flagged"),
@@ -241,7 +241,7 @@ pub(super) fn ribbon_search(ui: &mut Ui, s: &Session, ust: &mut UiState, t: Toke
         }
     }
     widgets::group(ui, &t, "Refine", false);
-    if widgets::tool_button(ui, Icon::Close, "Close Search", &t, true).clicked() {
+    if widgets::tool_button(ui, Icon::Close, "Close search", &t, true).clicked() {
         acts.push(Action::Run("search.clear", json!({})));
         ust.search_text.clear();
         ust.tab = RibbonTab::Home;

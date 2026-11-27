@@ -568,20 +568,17 @@
 	Center (Ctrl+E)	Centreren (Ctrl+E)
 	Align right (Ctrl+R)	Rechts uitlijnen (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	Alle opmaak wissen (Ctrl+spatie)
-	Address Book	Adresboek
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	Bestand bijvoegen
 	Ctrl+K	Ctrl+K
 	Pictures	Afbeeldingen
 	Address	Adres
 	Insert	Invoegen
 	Remove link	Koppeling verwijderen
-	Select Names	Namen selecteren
+	Select names	Namen selecteren
 	Search	Zoeken
 	Name or address	Naam of adres
 	All addresses	Alle adressen
 	Contacts	Contactpersonen
-	Email Address	E-mailadres
 	No one found.	Niemand gevonden.
 	To ->	Aan ->
 	Cc ->	CC ->
@@ -668,8 +665,7 @@
 	Folder pane	Mappenvenster
 	Minimize the folder pane	Het mappenvenster minimaliseren
 	Show the folder pane	Het mappenvenster weergeven
-	Save As	Opslaan als
-	Save Attachments	Bijlagen opslaan
+	Save attachments	Bijlagen opslaan
 	Exit	Afsluiten
 	High importance	Hoge urgentie
 	Low importance	Lage urgentie
@@ -682,10 +678,9 @@
 	Run it now on the mail already in the Inbox	Nu uitvoeren op de mail die al in Postvak IN staat
 	Run on the mail already in the Inbox	Uitvoeren op de mail die al in Postvak IN staat
 	More options	Meer opties
-	Save As…	Opslaan als…
-	Save All Attachments…	Alle bijlagen opslaan…
+	Save all attachments…	Alle bijlagen opslaan…
 	This picture can't be shown.	Deze afbeelding kan niet worden weergegeven.
-	Close Search	Zoeken sluiten
+	Close search	Zoeken sluiten
 	Look in	Zoeken in
 	Account	Account
 	Account settings…	Accountinstellingen…
@@ -701,7 +696,7 @@
 	Messages	Berichten
 	Open file location	Bestandslocatie openen
 	Properties…	Eigenschappen…
-	{folder} Properties	Eigenschappen van {folder}
+	{folder} properties	Eigenschappen van {folder}
 	Size on this computer	Grootte op deze computer
 	Quick print	Snel afdrukken
 	Always move to Focused	Altijd naar Prioriteit verplaatsen
@@ -1011,12 +1006,12 @@ month	May	mei
 	1 week	1 week
 	{n} weeks	{n} weken
 	0 minutes before start	0 minuten voor aanvang
-	1 Reminder	1 herinnering
-	{n} Reminders	{n} herinneringen
+	1 reminder	1 herinnering
+	{n} reminders	{n} herinneringen
 	Click Snooze to be reminded again in:	Klik op Uitstellen om opnieuw te worden herinnerd over:
 	Dismiss	Negeren
-	Dismiss All	Alles negeren
-	Open Item	Item openen
+	Dismiss all	Alles negeren
+	Open item	Item openen
 	Overdue	Te laat
 	Now	Nu
 	In {n} minutes	Over {n} minuten
@@ -1087,10 +1082,10 @@ month	May	mei
 	Also being written:	Ook in bewerking:
 	Play animations	Animaties afspelen
 	Hovers, selections and panes ease into place; off, everything changes at once	Aanwijzen, selecties en deelvensters schuiven soepel op hun plek; uit: alles verandert meteen
-	Current Folder	Huidige map
+	Current folder	Huidige map
 	Subfolders	Submappen
-	Current Mailbox	Huidig postvak
-	All Mailboxes	Alle postvakken
+	Current mailbox	Huidig postvak
+	All mailboxes	Alle postvakken
 	Recent searches	Recente zoekopdrachten
 	Clear recent searches	Recente zoekopdrachten wissen
 	Advanced search	Geavanceerd zoeken
@@ -1299,8 +1294,7 @@ month	May	mei
 	Appearance	Weergave
 	Expand	Uitvouwen
 	Collapse	Samenvouwen
-	Sent To	Verzonden aan
-	Has Attachments	Met bijlagen
+	Sent to	Verzonden aan
 	To:	Aan:
 	Cc:	CC:
 	Accent colour	Accentkleur
@@ -1800,7 +1794,7 @@ count	occurrences	keer
 	New rule on the server…	Nieuwe regel op de server…
 	Made in another program: it can be turned on or off, moved or deleted here	Gemaakt in een ander programma: hier kan deze aan- of uitgezet, verplaatst of verwijderd worden
 	The server can't run this rule as it is	De server kan deze regel zo niet uitvoeren
-	Undo Send	Verzenden ongedaan maken
+	Undo send	Verzenden ongedaan maken
 	A message you send waits this long in the Outbox, with Undo, before it goes.	Een verzonden bericht wacht zo lang in Postvak UIT, met Ongedaan maken, voordat het vertrekt.
 	Sending · {n} s	Verzenden · {n} s
 	Sending {count} messages · {n} s	{count} berichten verzenden · {n} s

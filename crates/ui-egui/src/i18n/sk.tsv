@@ -569,20 +569,17 @@
 	Center (Ctrl+E)	Na stred (Ctrl+E)
 	Align right (Ctrl+R)	Zarovnať doprava (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	Vymazať celé formátovanie (Ctrl+medzerník)
-	Address Book	Adresár
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	Priložiť súbor
 	Ctrl+K	Ctrl+K
 	Pictures	Obrázky
 	Address	Adresa
 	Insert	Vložiť
 	Remove link	Odstrániť odkaz
-	Select Names	Vybrať mená
+	Select names	Vybrať mená
 	Search	Hľadať
 	Name or address	Meno alebo adresa
 	All addresses	Všetky adresy
 	Contacts	Kontakty
-	Email Address	E-mailová adresa
 	No one found.	Nikto sa nenašiel.
 	To ->	Komu ->
 	Cc ->	Kópia ->
@@ -669,8 +666,7 @@
 	Folder pane	Tabla priečinkov
 	Minimize the folder pane	Minimalizovať tablu priečinkov
 	Show the folder pane	Zobraziť tablu priečinkov
-	Save As	Uložiť ako
-	Save Attachments	Uložiť prílohy
+	Save attachments	Uložiť prílohy
 	Exit	Skončiť
 	High importance	Vysoká dôležitosť
 	Low importance	Nízka dôležitosť
@@ -683,10 +679,9 @@
 	Run it now on the mail already in the Inbox	Spustiť ho teraz na poštu, ktorá už je v priečinku Doručená pošta
 	Run on the mail already in the Inbox	Spustiť na poštu, ktorá už je v priečinku Doručená pošta
 	More options	Ďalšie možnosti
-	Save As…	Uložiť ako…
-	Save All Attachments…	Uložiť všetky prílohy…
+	Save all attachments…	Uložiť všetky prílohy…
 	This picture can't be shown.	Tento obrázok sa nedá zobraziť.
-	Close Search	Zavrieť hľadanie
+	Close search	Zavrieť hľadanie
 	Look in	Hľadať v
 	Account	Konto
 	Account settings…	Nastavenia konta…
@@ -702,7 +697,7 @@
 	Messages	Správy
 	Open file location	Otvoriť umiestnenie súboru
 	Properties…	Vlastnosti…
-	{folder} Properties	Vlastnosti priečinka {folder}
+	{folder} properties	Vlastnosti priečinka {folder}
 	Size on this computer	Veľkosť na tomto počítači
 	Quick print	Rýchla tlač
 	Always move to Focused	Vždy presúvať do Prioritné
@@ -1030,12 +1025,12 @@ date	December	decembra
 	1 week	1 týždeň
 	{n} weeks	{n} týž.
 	0 minutes before start	0 minút pred začiatkom
-	1 Reminder	1 pripomenutie
-	{n} Reminders	Pripomenutia: {n}
+	1 reminder	1 pripomenutie
+	{n} reminders	Pripomenutia: {n}
 	Click Snooze to be reminded again in:	Kliknite na Odložiť a pripomenutie sa zobrazí znova o:
 	Dismiss	Zavrieť
-	Dismiss All	Zavrieť všetko
-	Open Item	Otvoriť položku
+	Dismiss all	Zavrieť všetko
+	Open item	Otvoriť položku
 	Overdue	Po termíne
 	Now	Teraz
 	In {n} minutes	O {n} min
@@ -1106,10 +1101,10 @@ date	December	decembra
 	Also being written:	Rozpísané sú aj:
 	Play animations	Prehrávať animácie
 	Hovers, selections and panes ease into place; off, everything changes at once	Ukázanie myšou, výbery a tably sa presúvajú plynulo; ak je vypnuté, všetko sa zmení naraz
-	Current Folder	Aktuálny priečinok
+	Current folder	Aktuálny priečinok
 	Subfolders	Podpriečinky
-	Current Mailbox	Aktuálna schránka
-	All Mailboxes	Všetky schránky
+	Current mailbox	Aktuálna schránka
+	All mailboxes	Všetky schránky
 	Recent searches	Nedávne hľadania
 	Clear recent searches	Vymazať nedávne hľadania
 	Advanced search	Rozšírené hľadanie
@@ -1318,8 +1313,7 @@ date	December	decembra
 	Appearance	Vzhľad
 	Expand	Rozbaliť
 	Collapse	Zbaliť
-	Sent To	Odoslané komu
-	Has Attachments	Má prílohy
+	Sent to	Odoslané komu
 	To:	Komu:
 	Cc:	Kópia:
 	Accent colour	Farba zvýraznenia
@@ -1819,7 +1813,7 @@ count	occurrences	opakovaní
 	New rule on the server…	Nové pravidlo na serveri…
 	Made in another program: it can be turned on or off, moved or deleted here	Vytvorené v inom programe: tu ho možno zapnúť alebo vypnúť, presunúť alebo odstrániť
 	The server can't run this rule as it is	Server nemôže toto pravidlo spustiť v tejto podobe
-	Undo Send	Zrušiť odoslanie
+	Undo send	Zrušiť odoslanie
 	A message you send waits this long in the Outbox, with Undo, before it goes.	Odoslaná správa čaká takto dlho v priečinku Pošta na odoslanie, s možnosťou Zrušiť, kým odíde.
 	Sending · {n} s	Odosiela sa · {n} s
 	Sending {count} messages · {n} s	Odosielajú sa správy ({count}) · {n} s

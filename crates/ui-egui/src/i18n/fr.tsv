@@ -569,20 +569,17 @@
 	Center (Ctrl+E)	Centrer (Ctrl+E)
 	Align right (Ctrl+R)	Aligner à droite (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	Effacer toute la mise en forme (Ctrl+Espace)
-	Address Book	Carnet d’adresses
 	Ctrl+Shift+B	Ctrl+Maj+B
-	Attach File	Joindre un fichier
 	Ctrl+K	Ctrl+K
 	Pictures	Images
 	Address	Adresse
 	Insert	Insérer
 	Remove link	Supprimer le lien
-	Select Names	Sélectionner des noms
+	Select names	Sélectionner des noms
 	Search	Rechercher
 	Name or address	Nom ou adresse
 	All addresses	Toutes les adresses
 	Contacts	Contacts
-	Email Address	Adresse de messagerie
 	No one found.	Personne trouvé.
 	To ->	À ->
 	Cc ->	Cc ->
@@ -669,8 +666,7 @@
 	Folder pane	Volet Dossiers
 	Minimize the folder pane	Réduire le volet Dossiers
 	Show the folder pane	Afficher le volet Dossiers
-	Save As	Enregistrer sous
-	Save Attachments	Enregistrer les pièces jointes
+	Save attachments	Enregistrer les pièces jointes
 	Exit	Quitter
 	High importance	Importance haute
 	Low importance	Importance faible
@@ -683,10 +679,9 @@
 	Run it now on the mail already in the Inbox	L'exécuter maintenant sur le courrier déjà dans la Boîte de réception
 	Run on the mail already in the Inbox	Exécuter sur le courrier déjà dans la Boîte de réception
 	More options	Plus d'options
-	Save As…	Enregistrer sous…
-	Save All Attachments…	Enregistrer toutes les pièces jointes…
+	Save all attachments…	Enregistrer toutes les pièces jointes…
 	This picture can't be shown.	Cette image ne peut pas être affichée.
-	Close Search	Fermer la recherche
+	Close search	Fermer la recherche
 	Look in	Rechercher dans
 	Account	Compte
 	Account settings…	Paramètres du compte…
@@ -702,7 +697,7 @@
 	Messages	Messages
 	Open file location	Ouvrir l'emplacement du fichier
 	Properties…	Propriétés…
-	{folder} Properties	{folder} : propriétés
+	{folder} properties	{folder} : propriétés
 	Size on this computer	Taille sur cet ordinateur
 	Quick print	Impression rapide
 	Always move to Focused	Toujours déplacer vers Prioritaire
@@ -1016,12 +1011,12 @@ month	May	mai
 	1 week	1 semaine
 	{n} weeks	{n} semaines
 	0 minutes before start	0 minute avant le début
-	1 Reminder	1 rappel
-	{n} Reminders	{n} rappels
+	1 reminder	1 rappel
+	{n} reminders	{n} rappels
 	Click Snooze to be reminded again in:	Cliquez sur Répéter plus tard pour être averti de nouveau dans :
 	Dismiss	Ignorer
-	Dismiss All	Tout ignorer
-	Open Item	Ouvrir l'élément
+	Dismiss all	Tout ignorer
+	Open item	Ouvrir l'élément
 	Overdue	En retard
 	Now	Maintenant
 	In {n} minutes	Dans {n} minutes
@@ -1092,10 +1087,10 @@ month	May	mai
 	Also being written:	Également en cours :
 	Play animations	Lire les animations
 	Hovers, selections and panes ease into place; off, everything changes at once	Survols, sélections et volets se mettent en place en douceur ; désactivé, tout change immédiatement
-	Current Folder	Dossier actuel
+	Current folder	Dossier actuel
 	Subfolders	Sous-dossiers
-	Current Mailbox	Boîte aux lettres actuelle
-	All Mailboxes	Toutes les boîtes aux lettres
+	Current mailbox	Boîte aux lettres actuelle
+	All mailboxes	Toutes les boîtes aux lettres
 	Recent searches	Recherches récentes
 	Clear recent searches	Effacer les recherches récentes
 	Advanced search	Recherche avancée
@@ -1304,8 +1299,7 @@ month	May	mai
 	Appearance	Apparence
 	Expand	Développer
 	Collapse	Réduire
-	Sent To	Envoyé à
-	Has Attachments	Avec pièces jointes
+	Sent to	Envoyé à
 	To:	À :
 	Cc:	Cc :
 	Accent colour	Couleur d'accentuation
@@ -1805,7 +1799,7 @@ count	occurrences	occurrences
 	New rule on the server…	Nouvelle règle sur le serveur…
 	Made in another program: it can be turned on or off, moved or deleted here	Créée dans un autre programme : on peut l’activer ou la désactiver, la déplacer ou la supprimer ici
 	The server can't run this rule as it is	Le serveur ne peut pas exécuter cette règle telle quelle
-	Undo Send	Annuler l’envoi
+	Undo send	Annuler l’envoi
 	A message you send waits this long in the Outbox, with Undo, before it goes.	Un message envoyé attend ce temps dans la boîte d’envoi, avec Annuler, avant de partir.
 	Sending · {n} s	Envoi · {n} s
 	Sending {count} messages · {n} s	Messages en cours d’envoi : {count} · {n} s

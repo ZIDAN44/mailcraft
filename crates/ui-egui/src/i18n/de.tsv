@@ -569,20 +569,17 @@
 	Center (Ctrl+E)	Zentriert (Strg+E)
 	Align right (Ctrl+R)	Rechtsbündig (Strg+R)
 	Clear all formatting (Ctrl+Space)	Alle Formatierungen löschen (Strg+Leertaste)
-	Address Book	Adressbuch
 	Ctrl+Shift+B	Strg+Umschalt+B
-	Attach File	Datei anfügen
 	Ctrl+K	Strg+K
 	Pictures	Bilder
 	Address	Adresse
 	Insert	Einfügen
 	Remove link	Link entfernen
-	Select Names	Namen auswählen
+	Select names	Namen auswählen
 	Search	Suchen
 	Name or address	Name oder Adresse
 	All addresses	Alle Adressen
 	Contacts	Kontakte
-	Email Address	E-Mail-Adresse
 	No one found.	Niemand gefunden.
 	To ->	An ->
 	Cc ->	Cc ->
@@ -669,8 +666,7 @@
 	Folder pane	Ordnerbereich
 	Minimize the folder pane	Ordnerbereich minimieren
 	Show the folder pane	Ordnerbereich anzeigen
-	Save As	Speichern unter
-	Save Attachments	Anlagen speichern
+	Save attachments	Anlagen speichern
 	Exit	Beenden
 	High importance	Wichtigkeit: hoch
 	Low importance	Wichtigkeit: niedrig
@@ -683,10 +679,9 @@
 	Run it now on the mail already in the Inbox	Jetzt auf die E-Mails im Posteingang anwenden
 	Run on the mail already in the Inbox	Auf die E-Mails im Posteingang anwenden
 	More options	Weitere Optionen
-	Save As…	Speichern unter…
-	Save All Attachments…	Alle Anlagen speichern…
+	Save all attachments…	Alle Anlagen speichern…
 	This picture can't be shown.	Dieses Bild kann nicht angezeigt werden.
-	Close Search	Suche schließen
+	Close search	Suche schließen
 	Look in	Suchen in
 	Account	Konto
 	Account settings…	Kontoeinstellungen…
@@ -702,7 +697,7 @@
 	Messages	Nachrichten
 	Open file location	Dateispeicherort öffnen
 	Properties…	Eigenschaften…
-	{folder} Properties	Eigenschaften von {folder}
+	{folder} properties	Eigenschaften von {folder}
 	Size on this computer	Größe auf diesem Computer
 	Quick print	Schnelldruck
 	Always move to Focused	Immer in „Relevant“ verschieben
@@ -1016,12 +1011,12 @@ month	May	Mai
 	1 week	1 Woche
 	{n} weeks	{n} Wochen
 	0 minutes before start	0 Minuten vor Beginn
-	1 Reminder	1 Erinnerung
-	{n} Reminders	{n} Erinnerungen
+	1 reminder	1 Erinnerung
+	{n} reminders	{n} Erinnerungen
 	Click Snooze to be reminded again in:	Klicken Sie auf „Zurückstellen“, um erneut erinnert zu werden in:
 	Dismiss	Schließen
-	Dismiss All	Alle schließen
-	Open Item	Element öffnen
+	Dismiss all	Alle schließen
+	Open item	Element öffnen
 	Overdue	Überfällig
 	Now	Jetzt
 	In {n} minutes	In {n} Minuten
@@ -1092,10 +1087,10 @@ month	May	Mai
 	Also being written:	Ebenfalls in Arbeit:
 	Play animations	Animationen abspielen
 	Hovers, selections and panes ease into place; off, everything changes at once	Hervorhebungen, Auswahl und Bereiche gleiten an ihren Platz; aus: alles ändert sich sofort
-	Current Folder	Aktueller Ordner
+	Current folder	Aktueller Ordner
 	Subfolders	Unterordner
-	Current Mailbox	Aktuelles Postfach
-	All Mailboxes	Alle Postfächer
+	Current mailbox	Aktuelles Postfach
+	All mailboxes	Alle Postfächer
 	Recent searches	Letzte Suchen
 	Clear recent searches	Letzte Suchen löschen
 	Advanced search	Erweiterte Suche
@@ -1304,8 +1299,7 @@ month	May	Mai
 	Appearance	Darstellung
 	Expand	Erweitern
 	Collapse	Reduzieren
-	Sent To	Gesendet an
-	Has Attachments	Mit Anlagen
+	Sent to	Gesendet an
 	To:	An:
 	Cc:	Cc:
 	Accent colour	Akzentfarbe
@@ -1805,7 +1799,7 @@ count	occurrences	Terminen
 	New rule on the server…	Neue Regel auf dem Server…
 	Made in another program: it can be turned on or off, moved or deleted here	In einem anderen Programm erstellt: Sie kann hier ein- oder ausgeschaltet, verschoben oder gelöscht werden
 	The server can't run this rule as it is	Der Server kann diese Regel so nicht ausführen
-	Undo Send	Senden rückgängig machen
+	Undo send	Senden rückgängig machen
 	A message you send waits this long in the Outbox, with Undo, before it goes.	Eine gesendete Nachricht wartet so lange im Postausgang, mit „Rückgängig“, bevor sie verschickt wird.
 	Sending · {n} s	Wird gesendet · {n} s
 	Sending {count} messages · {n} s	{count} Nachrichten werden gesendet · {n} s

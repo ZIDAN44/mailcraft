@@ -330,7 +330,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         ui,
         t,
         match f.purpose {
-            NamesFor::Message => "Select Names",
+            NamesFor::Message => "Select names",
             NamesFor::Calendars => "Open a shared calendar",
             NamesFor::Group if f.adding => "Add people to the group",
             NamesFor::Group => "New calendar group",
@@ -443,9 +443,9 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         // Address Book has them: namesakes are told apart.
         let titled = f.details.iter().any(|(title, department)| !title.is_empty() || !department.is_empty());
         let cols: &[(&str, f32)] = if titled {
-            &[("Name", 6.0), ("Job title", 176.0), ("Department", 312.0), ("Email Address", 432.0)]
+            &[("Name", 6.0), ("Job title", 176.0), ("Department", 312.0), ("Email address", 432.0)]
         } else {
-            &[("Name", 6.0), ("Email Address", 256.0)]
+            &[("Name", 6.0), ("Email address", 256.0)]
         };
         let head = ui.allocate_exact_size(vec2(ui.available_width(), 18.0), egui::Sense::hover()).0;
         for (label, x) in cols {

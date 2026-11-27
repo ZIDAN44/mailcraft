@@ -181,7 +181,7 @@ pub(super) fn attachment_card(
             ui.close();
         }
         ui.separator();
-        if ui.button(tl!("Save As…")).clicked() {
+        if ui.button(tl!("Save as…")).clicked() {
             acts.push(Action::SaveAttachment(a.index));
             ui.close();
         }
@@ -191,7 +191,7 @@ pub(super) fn attachment_card(
             acts.push(Action::SaveAttachments(v.clone()));
             ui.close();
         }
-        if ui.button(tl!("Save All Attachments…")).clicked() {
+        if ui.button(tl!("Save all attachments…")).clicked() {
             acts.push(Action::SaveAll);
             ui.close();
         }
@@ -341,7 +341,7 @@ pub(super) fn preview_header(t: &Tokens, ui: &mut Ui, a: &mime::AttachmentInfo, 
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 6.0;
-            if widgets::pill_button(ui, Icon::File, "Save As…", t).clicked() {
+            if widgets::pill_button(ui, Icon::File, "Save as…", t).clicked() {
                 acts.push(Action::SaveAttachment(a.index));
             }
             if widgets::pill_button(ui, Icon::PopOut, "Open", t).clicked() {
@@ -507,7 +507,7 @@ pub(super) fn no_preview(t: &Tokens, ui: &mut Ui, a: &mime::AttachmentInfo, acts
             if widgets::pill_button(ui, Icon::PopOut, "Open", t).clicked() {
                 acts.push(Action::OpenAttachment(a.index));
             }
-            if widgets::pill_button(ui, Icon::File, "Save As…", t).clicked() {
+            if widgets::pill_button(ui, Icon::File, "Save as…", t).clicked() {
                 acts.push(Action::SaveAttachment(a.index));
             }
         });

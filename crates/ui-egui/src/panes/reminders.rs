@@ -136,7 +136,7 @@ pub fn show(ctx: &egui::Context, st: &mut State, s: &Session, t: &Tokens, acts: 
     if !showing(st) {
         return;
     }
-    let title = if st.due.len() == 1 { tl!("1 Reminder").to_string() } else { tf!("{n} Reminders", n = st.due.len()) };
+    let title = if st.due.len() == 1 { tl!("1 reminder").to_string() } else { tf!("{n} reminders", n = st.due.len()) };
     let mut open = true;
     if in_own_window(ctx, s) {
         let id = egui::ViewportId::from_hash_of("reminders-window");
@@ -188,11 +188,11 @@ fn body(ui: &mut Ui, st: &mut State, s: &Session, t: &Tokens, acts: &mut Vec<Act
     // Wrapped: a language with longer words takes a second line rather than one button
     // drawn over another.
     ui.horizontal_wrapped(|ui| {
-        if ui.button(tl!("Dismiss All")).clicked() {
+        if ui.button(tl!("Dismiss all")).clicked() {
             acts.push(Action::Run("reminders.dismiss", json!({})));
         }
         if let Some(r) = &picked {
-            if ui.button(tl!("Open Item")).clicked() {
+            if ui.button(tl!("Open item")).clicked() {
                 if let Some(key) = &r.message {
                     // A flagged message, in a window of its own.
                     acts.push(Action::Run("todo.open", json!({ "key": key.to_id() })));

@@ -571,20 +571,17 @@ month	May	5月
 	Center (Ctrl+E)	中央揃え (Ctrl+E)
 	Align right (Ctrl+R)	右揃え (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	すべての書式をクリア (Ctrl+Space)
-	Address Book	アドレス帳
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	ファイルの添付
 	Ctrl+K	Ctrl+K
 	Pictures	画像
 	Address	アドレス
 	Insert	挿入
 	Remove link	リンクの削除
-	Select Names	名前の選択
+	Select names	名前の選択
 	Search	検索
 	Name or address	名前またはアドレス
 	All addresses	すべてのアドレス
 	Contacts	連絡先
-	Email Address	電子メール アドレス
 	No one found.	見つかりませんでした。
 	To ->	宛先 ->
 	Cc ->	CC ->
@@ -671,8 +668,7 @@ month	May	5月
 	Folder pane	フォルダー ウィンドウ
 	Minimize the folder pane	フォルダー ウィンドウを最小化
 	Show the folder pane	フォルダー ウィンドウを表示
-	Save As	名前を付けて保存
-	Save Attachments	添付ファイルの保存
+	Save attachments	添付ファイルの保存
 	Exit	終了
 	High importance	重要度 - 高
 	Low importance	重要度 - 低
@@ -685,10 +681,9 @@ month	May	5月
 	Run it now on the mail already in the Inbox	受信トレイにあるメールに今すぐ実行する
 	Run on the mail already in the Inbox	受信トレイにあるメールに実行
 	More options	その他のオプション
-	Save As…	名前を付けて保存…
-	Save All Attachments…	すべての添付ファイルを保存…
+	Save all attachments…	すべての添付ファイルを保存…
 	This picture can't be shown.	この画像は表示できません。
-	Close Search	検索を閉じる
+	Close search	検索を閉じる
 	Look in	検索場所
 	Account	アカウント
 	Account settings…	アカウント設定…
@@ -704,7 +699,7 @@ month	May	5月
 	Messages	メッセージ
 	Open file location	ファイルの場所を開く
 	Properties…	プロパティ…
-	{folder} Properties	{folder} のプロパティ
+	{folder} properties	{folder} のプロパティ
 	Size on this computer	このコンピューター上のサイズ
 	Quick print	クイック印刷
 	Always move to Focused	常に [優先] に移動
@@ -1012,12 +1007,12 @@ month	May	5月
 	1 week	1 週間
 	{n} weeks	{n} 週間
 	0 minutes before start	開始の 0 分前
-	1 Reminder	1 件のアラーム
-	{n} Reminders	{n} 件のアラーム
+	1 reminder	1 件のアラーム
+	{n} reminders	{n} 件のアラーム
 	Click Snooze to be reminded again in:	[再通知] をクリックすると、次の時間後に再度通知します:
 	Dismiss	アラームを消す
-	Dismiss All	すべてのアラームを消す
-	Open Item	アイテムを開く
+	Dismiss all	すべてのアラームを消す
+	Open item	アイテムを開く
 	Overdue	期限切れ
 	Now	今
 	In {n} minutes	{n} 分後
@@ -1088,10 +1083,10 @@ month	May	5月
 	Also being written:	ほかに作成中:
 	Play animations	アニメーションを再生する
 	Hovers, selections and panes ease into place; off, everything changes at once	ホバー、選択、ウィンドウ枠がなめらかに切り替わります。オフにするとすぐに切り替わります
-	Current Folder	現在のフォルダー
+	Current folder	現在のフォルダー
 	Subfolders	サブフォルダー
-	Current Mailbox	現在のメールボックス
-	All Mailboxes	すべてのメールボックス
+	Current mailbox	現在のメールボックス
+	All mailboxes	すべてのメールボックス
 	Recent searches	最近の検索
 	Clear recent searches	最近の検索をクリア
 	Advanced search	詳細検索
@@ -1300,8 +1295,7 @@ month	May	5月
 	Appearance	外観
 	Expand	展開
 	Collapse	折りたたむ
-	Sent To	宛先
-	Has Attachments	添付ファイルあり
+	Sent to	宛先
 	To:	宛先:
 	Cc:	CC:
 	Accent colour	アクセントカラー
@@ -1801,7 +1795,7 @@ count	occurrences	回
 	New rule on the server…	サーバーに新しいルール…
 	Made in another program: it can be turned on or off, moved or deleted here	別のプログラムで作成: ここではオン／オフ、移動、削除ができます
 	The server can't run this rule as it is	サーバーはこのルールをこのままでは実行できません
-	Undo Send	送信の取り消し
+	Undo send	送信の取り消し
 	A message you send waits this long in the Outbox, with Undo, before it goes.	送信したメッセージは、送信されるまでこの時間だけ送信トレイで待機し、取り消すことができます。
 	Sending · {n} s	送信中 · {n} 秒
 	Sending {count} messages · {n} s	{count} 件のメッセージを送信中 · {n} 秒

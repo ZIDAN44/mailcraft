@@ -569,20 +569,17 @@
 	Center (Ctrl+E)	Középre igazítás (Ctrl+E)
 	Align right (Ctrl+R)	Jobbra igazítás (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	Minden formázás törlése (Ctrl+Space)
-	Address Book	Címjegyzék
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	Fájl csatolása
 	Ctrl+K	Ctrl+K
 	Pictures	Képek
 	Address	Cím
 	Insert	Beszúrás
 	Remove link	Hivatkozás eltávolítása
-	Select Names	Nevek kiválasztása
+	Select names	Nevek kiválasztása
 	Search	Keresés
 	Name or address	Név vagy cím
 	All addresses	Összes cím
 	Contacts	Névjegyek
-	Email Address	E-mail-cím
 	No one found.	Nincs találat.
 	To ->	Címzett ->
 	Cc ->	Másolat ->
@@ -669,8 +666,7 @@
 	Folder pane	Mappapanel
 	Minimize the folder pane	Mappapanel összecsukása
 	Show the folder pane	Mappapanel megjelenítése
-	Save As	Mentés másként
-	Save Attachments	Mellékletek mentése
+	Save attachments	Mellékletek mentése
 	Exit	Kilépés
 	High importance	Kiemelt fontosság
 	Low importance	Alacsony fontosság
@@ -683,10 +679,9 @@
 	Run it now on the mail already in the Inbox	Futtatás most a már beérkezett üzeneteken
 	Run on the mail already in the Inbox	Futtatás a már beérkezett üzeneteken
 	More options	További beállítások
-	Save As…	Mentés másként…
-	Save All Attachments…	Összes melléklet mentése…
+	Save all attachments…	Összes melléklet mentése…
 	This picture can't be shown.	Ez a kép nem jeleníthető meg.
-	Close Search	Keresés bezárása
+	Close search	Keresés bezárása
 	Look in	Keresés helye
 	Account	Fiók
 	Account settings…	Fiókbeállítások…
@@ -702,7 +697,7 @@
 	Messages	Üzenetek
 	Open file location	Fájl helyének megnyitása
 	Properties…	Tulajdonságok…
-	{folder} Properties	A(z) {folder} mappa tulajdonságai
+	{folder} properties	A(z) {folder} mappa tulajdonságai
 	Size on this computer	Méret ezen a számítógépen
 	Quick print	Gyorsnyomtatás
 	Always move to Focused	Mindig kerüljön a Fontos lapra
@@ -1017,12 +1012,12 @@ month	May	május
 	1 week	1 hét
 	{n} weeks	{n} hét
 	0 minutes before start	A kezdés időpontjában
-	1 Reminder	1 emlékeztető
-	{n} Reminders	{n} emlékeztető
+	1 reminder	1 emlékeztető
+	{n} reminders	{n} emlékeztető
 	Click Snooze to be reminded again in:	A Halasztás gombbal ennyi idő múlva kapsz újabb emlékeztetőt:
 	Dismiss	Elvetés
-	Dismiss All	Összes elvetése
-	Open Item	Elem megnyitása
+	Dismiss all	Összes elvetése
+	Open item	Elem megnyitása
 	Overdue	Lejárt
 	Now	Most
 	In {n} minutes	{n} perc múlva
@@ -1093,10 +1088,10 @@ month	May	május
 	Also being written:	További szerkesztés alatt álló üzenetek:
 	Play animations	Animációk lejátszása
 	Hovers, selections and panes ease into place; off, everything changes at once	Az egérmutató ráhúzásakor, kijelöléskor és a panelek változásakor animáció jelenik meg. Kikapcsolva minden azonnal változik.
-	Current Folder	Jelenlegi mappa
+	Current folder	Jelenlegi mappa
 	Subfolders	Almappák
-	Current Mailbox	Jelenlegi postafiók
-	All Mailboxes	Összes postafiók
+	Current mailbox	Jelenlegi postafiók
+	All mailboxes	Összes postafiók
 	Recent searches	Legutóbbi keresések
 	Clear recent searches	Legutóbbi keresések törlése
 	Advanced search	Speciális keresés
@@ -1305,8 +1300,7 @@ month	May	május
 	Appearance	Megjelenés
 	Expand	Kibontás
 	Collapse	Összecsukás
-	Sent To	Címzett
-	Has Attachments	Van melléklete
+	Sent to	Címzett
 	To:	Címzett:
 	Cc:	Másolat:
 	Accent colour	Kiemelőszín
@@ -1806,7 +1800,7 @@ count	occurrences	előfordulás
 	New rule on the server…	Új szabály a kiszolgálón…
 	Made in another program: it can be turned on or off, moved or deleted here	Másik programban készült. Itt be- és kikapcsolható, áthelyezhető vagy törölhető.
 	The server can't run this rule as it is	A kiszolgáló ebben a formában nem tudja futtatni a szabályt
-	Undo Send	Küldés visszavonása
+	Undo send	Küldés visszavonása
 	A message you send waits this long in the Outbox, with Undo, before it goes.	A Küldés gomb megnyomása után az üzenet ennyi ideig vár a kimenő üzenetek között. Ezalatt visszavonhatod a küldést.
 	Sending · {n} s	Küldés · {n} mp
 	Sending {count} messages · {n} s	{count} üzenet küldése · {n} mp

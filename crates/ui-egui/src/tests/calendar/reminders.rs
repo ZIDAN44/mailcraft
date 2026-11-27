@@ -175,7 +175,7 @@ fn flagged_mail_reminds_in_the_window() {
     let r = a.ui.reminders.due.iter().find(|r| r.message.as_ref() == Some(&key)).cloned().expect("listed");
     let row = drawn_text(&ctx, &mut a, size).into_iter().find(|d| d.text.starts_with(&format!("{}  ·", r.summary))).map(|d| d.rect.center());
     click(&ctx, &mut a, row.expect("drawn in the window"));
-    let open = last(&mut a, "Open Item");
+    let open = last(&mut a, "Open item");
     click(&ctx, &mut a, open);
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.windows.iter().any(|w| w.key == key), "opened in a window of its own");
@@ -290,7 +290,7 @@ fn a_reminders_buttons_stand_clear_and_say_one_minute() {
             shown = drawn_text(&ctx, &mut a, size);
         }
         let rect = |what: &str| shown.iter().find(|d| d.text == crate::i18n::t(what)).map(|d| d.rect);
-        let buttons: Vec<egui::Rect> = ["Join meeting", "Dismiss All", "Open Item", "Dismiss"].iter().filter_map(|b| rect(b)).collect();
+        let buttons: Vec<egui::Rect> = ["Join meeting", "Dismiss all", "Open item", "Dismiss"].iter().filter_map(|b| rect(b)).collect();
         assert_eq!(buttons.len(), 4, "{}: every button drawn", lang.code());
         for (i, x) in buttons.iter().enumerate() {
             for y in buttons.iter().skip(i + 1) {
@@ -357,10 +357,10 @@ fn an_events_reminders_each_have_a_list_in_its_form() {
 /// window, it was behind that app). File › Options › Calendar turns it off.
 #[test]
 fn the_reminders_window_comes_up_over_other_apps() {
-    let w = crate::reminders::own_window("1 Reminder", 2.0);
+    let w = crate::reminders::own_window("1 reminder", 2.0);
     assert_eq!(w.window_level, Some(egui::WindowLevel::AlwaysOnTop));
     assert_eq!(w.active, Some(false), "the keyboard stays where it was");
-    assert_eq!(w.title.as_deref(), Some("1 Reminder"));
+    assert_eq!(w.title.as_deref(), Some("1 reminder"));
     assert_eq!(w.inner_size, Some(egui::vec2(230.0, 150.0)), "the same size on the screen at any text size");
 
     let tall = egui::vec2(1280.0, 8000.0);

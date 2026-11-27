@@ -568,20 +568,17 @@
 	Center (Ctrl+E)	Centra (Ctrl+E)
 	Align right (Ctrl+R)	Allinea a destra (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	Cancella formattazione (Ctrl+Spazio)
-	Address Book	Rubrica
 	Ctrl+Shift+B	Ctrl+Maiusc+B
-	Attach File	Allega file
 	Ctrl+K	Ctrl+K
 	Pictures	Immagini
 	Address	Indirizzo
 	Insert	Inserisci
 	Remove link	Rimuovi collegamento
-	Select Names	Seleziona nomi
+	Select names	Seleziona nomi
 	Search	Cerca
 	Name or address	Nome o indirizzo
 	All addresses	Tutti gli indirizzi
 	Contacts	Contatti
-	Email Address	Indirizzo di posta
 	No one found.	Nessuno trovato.
 	To ->	A ->
 	Cc ->	Cc ->
@@ -668,8 +665,7 @@
 	Folder pane	Riquadro delle cartelle
 	Minimize the folder pane	Riduci il riquadro delle cartelle
 	Show the folder pane	Mostra il riquadro delle cartelle
-	Save As	Salva con nome
-	Save Attachments	Salva allegati
+	Save attachments	Salva allegati
 	Exit	Esci
 	High importance	Priorità alta
 	Low importance	Priorità bassa
@@ -682,10 +678,9 @@
 	Run it now on the mail already in the Inbox	Eseguila ora sulla posta già presente in Posta in arrivo
 	Run on the mail already in the Inbox	Esegui sulla posta già presente in Posta in arrivo
 	More options	Altre opzioni
-	Save As…	Salva con nome…
-	Save All Attachments…	Salva tutti gli allegati…
+	Save all attachments…	Salva tutti gli allegati…
 	This picture can't be shown.	Impossibile mostrare questa immagine.
-	Close Search	Chiudi ricerca
+	Close search	Chiudi ricerca
 	Look in	Cerca in
 	Account	Account
 	Account settings…	Impostazioni account…
@@ -701,7 +696,7 @@
 	Messages	Messaggi
 	Open file location	Apri percorso file
 	Properties…	Proprietà…
-	{folder} Properties	Proprietà di {folder}
+	{folder} properties	Proprietà di {folder}
 	Size on this computer	Dimensioni su questo computer
 	Quick print	Stampa rapida
 	Always move to Focused	Sposta sempre in Evidenziata
@@ -1015,12 +1010,12 @@ month	May	maggio
 	1 week	1 settimana
 	{n} weeks	{n} settimane
 	0 minutes before start	0 minuti prima dell'inizio
-	1 Reminder	1 promemoria
-	{n} Reminders	{n} promemoria
+	1 reminder	1 promemoria
+	{n} reminders	{n} promemoria
 	Click Snooze to be reminded again in:	Fare clic su Posticipa per ricevere un nuovo promemoria tra:
 	Dismiss	Chiudi
-	Dismiss All	Chiudi tutto
-	Open Item	Apri elemento
+	Dismiss all	Chiudi tutto
+	Open item	Apri elemento
 	Overdue	Scaduto
 	Now	Ora
 	In {n} minutes	Tra {n} minuti
@@ -1091,10 +1086,10 @@ month	May	maggio
 	Also being written:	In scrittura anche:
 	Play animations	Riproduci animazioni
 	Hovers, selections and panes ease into place; off, everything changes at once	Evidenziazioni, selezioni e riquadri si posizionano dolcemente; disattivato, tutto cambia subito
-	Current Folder	Cartella corrente
+	Current folder	Cartella corrente
 	Subfolders	Sottocartelle
-	Current Mailbox	Cassetta postale corrente
-	All Mailboxes	Tutte le cassette postali
+	Current mailbox	Cassetta postale corrente
+	All mailboxes	Tutte le cassette postali
 	Recent searches	Ricerche recenti
 	Clear recent searches	Cancella le ricerche recenti
 	Advanced search	Ricerca avanzata
@@ -1303,8 +1298,7 @@ month	May	maggio
 	Appearance	Aspetto
 	Expand	Espandi
 	Collapse	Comprimi
-	Sent To	Inviato a
-	Has Attachments	Con allegati
+	Sent to	Inviato a
 	To:	A:
 	Cc:	Cc:
 	Accent colour	Colore principale
@@ -1804,7 +1798,7 @@ count	occurrences	ripetizioni
 	New rule on the server…	Nuova regola sul server…
 	Made in another program: it can be turned on or off, moved or deleted here	Creata in un altro programma: qui si può attivare o disattivare, spostare o eliminare
 	The server can't run this rule as it is	Il server non può eseguire questa regola così com'è
-	Undo Send	Annulla invio
+	Undo send	Annulla invio
 	A message you send waits this long in the Outbox, with Undo, before it goes.	Un messaggio inviato attende questo tempo nella Posta in uscita, con Annulla, prima di partire.
 	Sending · {n} s	Invio · {n} s
 	Sending {count} messages · {n} s	Invio di {count} messaggi · {n} s

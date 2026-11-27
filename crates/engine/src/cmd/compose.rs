@@ -27,7 +27,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         // A box of people elsewhere: a meeting's guests (issue #253).
         CommandSpec::new("names.check", "Check names", "Event › Invite", |s, v| s.check_names_in(p::req_str(v, "text")?))
             .params(r#"{"text": string (names and addresses, as a recipient box has them)} (answers {"text": the box with each name that's one person put in, "resolved": n, "several": [{"typed", "people": [{"name", "email"}]}], "none": [{"typed"}], "pending": [{"typed"}] (a directory still asked)})"#),
-        CommandSpec::new("compose.pickName", "Pick a name", "Message › Check Names", |s, v| {
+        CommandSpec::new("compose.pickName", "Pick a name", "Message › Check names", |s, v| {
             let field = p::req_str(v, "field")?;
             let typed = p::req_str(v, "typed")?;
             let person = mailcraft_model::EmailAddress { name: p::str(v, "name").unwrap_or_default().to_string(), email: p::req_str(v, "email")?.to_string() };

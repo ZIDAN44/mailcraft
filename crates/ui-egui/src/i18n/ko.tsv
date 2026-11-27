@@ -568,20 +568,17 @@
 	Center (Ctrl+E)	가운데 맞춤(Ctrl+E)
 	Align right (Ctrl+R)	오른쪽 맞춤(Ctrl+R)
 	Clear all formatting (Ctrl+Space)	모든 서식 지우기(Ctrl+Space)
-	Address Book	주소록
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	파일 첨부
 	Ctrl+K	Ctrl+K
 	Pictures	그림
 	Address	주소
 	Insert	삽입
 	Remove link	링크 제거
-	Select Names	이름 선택
+	Select names	이름 선택
 	Search	검색
 	Name or address	이름 또는 주소
 	All addresses	모든 주소
 	Contacts	연락처
-	Email Address	전자 메일 주소
 	No one found.	아무도 없습니다.
 	To ->	받는 사람 ->
 	Cc ->	참조 ->
@@ -668,8 +665,7 @@
 	Folder pane	폴더 창
 	Minimize the folder pane	폴더 창 최소화
 	Show the folder pane	폴더 창 표시
-	Save As	다른 이름으로 저장
-	Save Attachments	첨부 파일 저장
+	Save attachments	첨부 파일 저장
 	Exit	끝내기
 	High importance	높은 중요도
 	Low importance	낮은 중요도
@@ -682,10 +678,9 @@
 	Run it now on the mail already in the Inbox	받은 편지함에 이미 있는 메일에 지금 실행
 	Run on the mail already in the Inbox	받은 편지함에 이미 있는 메일에 실행
 	More options	추가 옵션
-	Save As…	다른 이름으로 저장…
-	Save All Attachments…	모든 첨부 파일 저장…
+	Save all attachments…	모든 첨부 파일 저장…
 	This picture can't be shown.	이 그림을 표시할 수 없습니다.
-	Close Search	검색 닫기
+	Close search	검색 닫기
 	Look in	찾을 위치
 	Account	계정
 	Account settings…	계정 설정…
@@ -701,7 +696,7 @@
 	Messages	메시지
 	Open file location	파일 위치 열기
 	Properties…	속성…
-	{folder} Properties	{folder} 속성
+	{folder} properties	{folder} 속성
 	Size on this computer	이 컴퓨터의 크기
 	Quick print	빠른 인쇄
 	Always move to Focused	항상 [중요]로 이동
@@ -1015,12 +1010,12 @@ month	May	5월
 	1 week	1주
 	{n} weeks	{n}주
 	0 minutes before start	시작 0분 전
-	1 Reminder	미리 알림 1개
-	{n} Reminders	미리 알림 {n}개
+	1 reminder	미리 알림 1개
+	{n} reminders	미리 알림 {n}개
 	Click Snooze to be reminded again in:	다시 알림을 클릭하면 다음 시간 후에 다시 알립니다:
 	Dismiss	해제
-	Dismiss All	모두 해제
-	Open Item	항목 열기
+	Dismiss all	모두 해제
+	Open item	항목 열기
 	Overdue	기한 지남
 	Now	지금
 	In {n} minutes	{n}분 후
@@ -1091,10 +1086,10 @@ month	May	5월
 	Also being written:	작성 중인 다른 메시지:
 	Play animations	애니메이션 재생
 	Hovers, selections and panes ease into place; off, everything changes at once	마우스 오버, 선택, 창이 부드럽게 바뀝니다. 끄면 모든 것이 즉시 바뀝니다
-	Current Folder	현재 폴더
+	Current folder	현재 폴더
 	Subfolders	하위 폴더
-	Current Mailbox	현재 사서함
-	All Mailboxes	모든 사서함
+	Current mailbox	현재 사서함
+	All mailboxes	모든 사서함
 	Recent searches	최근 검색
 	Clear recent searches	최근 검색 지우기
 	Advanced search	고급 검색
@@ -1303,8 +1298,7 @@ month	May	5월
 	Appearance	모양
 	Expand	펼치기
 	Collapse	접기
-	Sent To	받는 사람
-	Has Attachments	첨부 파일 있음
+	Sent to	받는 사람
 	To:	받는 사람:
 	Cc:	참조:
 	Accent colour	강조 색
@@ -1804,7 +1798,7 @@ count	occurrences	회
 	New rule on the server…	서버에 새 규칙…
 	Made in another program: it can be turned on or off, moved or deleted here	다른 프로그램에서 만듦: 여기서는 켜거나 끄고, 옮기거나 삭제할 수 있습니다
 	The server can't run this rule as it is	서버가 이 규칙을 이대로 실행할 수 없습니다
-	Undo Send	보내기 취소
+	Undo send	보내기 취소
 	A message you send waits this long in the Outbox, with Undo, before it goes.	보낸 메시지는 나가기 전에 이 시간 동안 보낼 편지함에서 기다리며, 취소할 수 있습니다.
 	Sending · {n} s	보내는 중 · {n}초
 	Sending {count} messages · {n} s	메시지 {count}개 보내는 중 · {n}초

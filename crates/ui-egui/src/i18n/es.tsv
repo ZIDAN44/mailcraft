@@ -569,20 +569,17 @@
 	Center (Ctrl+E)	Centrar (Ctrl+E)
 	Align right (Ctrl+R)	Alinear a la derecha (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	Borrar todo el formato (Ctrl+Espacio)
-	Address Book	Libreta de direcciones
 	Ctrl+Shift+B	Ctrl+Mayús+B
-	Attach File	Adjuntar archivo
 	Ctrl+K	Ctrl+K
 	Pictures	Imágenes
 	Address	Dirección
 	Insert	Insertar
 	Remove link	Quitar vínculo
-	Select Names	Seleccionar nombres
+	Select names	Seleccionar nombres
 	Search	Buscar
 	Name or address	Nombre o dirección
 	All addresses	Todas las direcciones
 	Contacts	Contactos
-	Email Address	Dirección de correo
 	No one found.	No se encontró a nadie.
 	To ->	Para ->
 	Cc ->	CC ->
@@ -669,8 +666,7 @@
 	Folder pane	Panel de carpetas
 	Minimize the folder pane	Minimizar el panel de carpetas
 	Show the folder pane	Mostrar el panel de carpetas
-	Save As	Guardar como
-	Save Attachments	Guardar datos adjuntos
+	Save attachments	Guardar datos adjuntos
 	Exit	Salir
 	High importance	Importancia alta
 	Low importance	Importancia baja
@@ -683,10 +679,9 @@
 	Run it now on the mail already in the Inbox	Ejecutarla ahora en el correo que ya está en la Bandeja de entrada
 	Run on the mail already in the Inbox	Ejecutar en el correo que ya está en la Bandeja de entrada
 	More options	Más opciones
-	Save As…	Guardar como…
-	Save All Attachments…	Guardar todos los datos adjuntos…
+	Save all attachments…	Guardar todos los datos adjuntos…
 	This picture can't be shown.	Esta imagen no se puede mostrar.
-	Close Search	Cerrar búsqueda
+	Close search	Cerrar búsqueda
 	Look in	Buscar en
 	Account	Cuenta
 	Account settings…	Configuración de la cuenta…
@@ -702,7 +697,7 @@
 	Messages	Mensajes
 	Open file location	Abrir ubicación del archivo
 	Properties…	Propiedades…
-	{folder} Properties	Propiedades de {folder}
+	{folder} properties	Propiedades de {folder}
 	Size on this computer	Tamaño en este equipo
 	Quick print	Impresión rápida
 	Always move to Focused	Mover siempre a Prioritarios
@@ -1016,12 +1011,12 @@ month	May	mayo
 	1 week	1 semana
 	{n} weeks	{n} semanas
 	0 minutes before start	0 minutos antes del inicio
-	1 Reminder	1 aviso
-	{n} Reminders	{n} avisos
+	1 reminder	1 aviso
+	{n} reminders	{n} avisos
 	Click Snooze to be reminded again in:	Haga clic en Posponer para recibir otro aviso en:
 	Dismiss	Descartar
-	Dismiss All	Descartar todo
-	Open Item	Abrir elemento
+	Dismiss all	Descartar todo
+	Open item	Abrir elemento
 	Overdue	Vencido
 	Now	Ahora
 	In {n} minutes	En {n} minutos
@@ -1092,10 +1087,10 @@ month	May	mayo
 	Also being written:	También en curso:
 	Play animations	Reproducir animaciones
 	Hovers, selections and panes ease into place; off, everything changes at once	Los resaltados, las selecciones y los paneles se colocan suavemente; desactivado, todo cambia al instante
-	Current Folder	Carpeta actual
+	Current folder	Carpeta actual
 	Subfolders	Subcarpetas
-	Current Mailbox	Buzón actual
-	All Mailboxes	Todos los buzones
+	Current mailbox	Buzón actual
+	All mailboxes	Todos los buzones
 	Recent searches	Búsquedas recientes
 	Clear recent searches	Borrar búsquedas recientes
 	Advanced search	Búsqueda avanzada
@@ -1304,8 +1299,7 @@ month	May	mayo
 	Appearance	Apariencia
 	Expand	Expandir
 	Collapse	Contraer
-	Sent To	Enviado a
-	Has Attachments	Con datos adjuntos
+	Sent to	Enviado a
 	To:	Para:
 	Cc:	CC:
 	Accent colour	Color de énfasis
@@ -1805,7 +1799,7 @@ count	occurrences	repeticiones
 	New rule on the server…	Nueva regla en el servidor…
 	Made in another program: it can be turned on or off, moved or deleted here	Creada en otro programa: aquí se puede activar o desactivar, mover o eliminar
 	The server can't run this rule as it is	El servidor no puede ejecutar esta regla tal como está
-	Undo Send	Deshacer envío
+	Undo send	Deshacer envío
 	A message you send waits this long in the Outbox, with Undo, before it goes.	Un mensaje que envía espera este tiempo en la Bandeja de salida, con Deshacer, antes de salir.
 	Sending · {n} s	Enviando · {n} s
 	Sending {count} messages · {n} s	Enviando {count} mensajes · {n} s

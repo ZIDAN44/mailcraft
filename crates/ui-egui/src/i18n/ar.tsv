@@ -568,20 +568,17 @@
 	Center (Ctrl+E)	توسيط (Ctrl+E)
 	Align right (Ctrl+R)	محاذاة لليمين (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	مسح كل التنسيق (Ctrl+Space)
-	Address Book	دفتر العناوين
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	إرفاق ملف
 	Ctrl+K	Ctrl+K
 	Pictures	صور
 	Address	العنوان
 	Insert	إدراج
 	Remove link	إزالة الرابط
-	Select Names	تحديد الأسماء
+	Select names	تحديد الأسماء
 	Search	بحث
 	Name or address	الاسم أو العنوان
 	All addresses	كل العناوين
 	Contacts	جهات الاتصال
-	Email Address	عنوان البريد الإلكتروني
 	No one found.	لم يُعثر على أحد.
 	To ->	إلى ->
 	Cc ->	نسخة ->
@@ -670,8 +667,7 @@ month	May	مايو
 	Folder pane	جزء المجلدات
 	Minimize the folder pane	تصغير جزء المجلدات
 	Show the folder pane	إظهار جزء المجلدات
-	Save As	حفظ باسم
-	Save Attachments	حفظ المرفقات
+	Save attachments	حفظ المرفقات
 	Exit	خروج
 	High importance	أهمية عالية
 	Low importance	أهمية منخفضة
@@ -684,10 +680,9 @@ month	May	مايو
 	Run it now on the mail already in the Inbox	تشغيلها الآن على البريد الموجود في «علبة الوارد»
 	Run on the mail already in the Inbox	تشغيل على البريد الموجود في «علبة الوارد»
 	More options	خيارات أخرى
-	Save As…	حفظ باسم…
-	Save All Attachments…	حفظ كل المرفقات…
+	Save all attachments…	حفظ كل المرفقات…
 	This picture can't be shown.	لا يمكن عرض هذه الصورة.
-	Close Search	إغلاق البحث
+	Close search	إغلاق البحث
 	Look in	البحث في
 	Account	الحساب
 	Account settings…	إعدادات الحساب…
@@ -703,7 +698,7 @@ month	May	مايو
 	Messages	الرسائل
 	Open file location	فتح موقع الملف
 	Properties…	خصائص…
-	{folder} Properties	خصائص {folder}
+	{folder} properties	خصائص {folder}
 	Size on this computer	الحجم على هذا الكمبيوتر
 	Quick print	طباعة سريعة
 	Always move to Focused	النقل دائماً إلى البريد الأهم
@@ -1011,12 +1006,12 @@ month	May	مايو
 	1 week	أسبوع واحد
 	{n} weeks	{n} أسابيع
 	0 minutes before start	0 دقيقة قبل البدء
-	1 Reminder	تذكير واحد
-	{n} Reminders	{n} تذكيرات
+	1 reminder	تذكير واحد
+	{n} reminders	{n} تذكيرات
 	Click Snooze to be reminded again in:	انقر فوق «تأجيل» للتذكير مرة أخرى بعد:
 	Dismiss	تجاهل
-	Dismiss All	تجاهل الكل
-	Open Item	فتح العنصر
+	Dismiss all	تجاهل الكل
+	Open item	فتح العنصر
 	Overdue	متأخر
 	Now	الآن
 	In {n} minutes	بعد {n} دقيقة
@@ -1087,10 +1082,10 @@ month	May	مايو
 	Also being written:	قيد الكتابة أيضاً:
 	Play animations	تشغيل الرسوم المتحركة
 	Hovers, selections and panes ease into place; off, everything changes at once	تنتقل التمريرات والتحديدات والأجزاء إلى مكانها بسلاسة؛ عند الإيقاف يتغير كل شيء فوراً
-	Current Folder	المجلد الحالي
+	Current folder	المجلد الحالي
 	Subfolders	المجلدات الفرعية
-	Current Mailbox	صندوق البريد الحالي
-	All Mailboxes	كل صناديق البريد
+	Current mailbox	صندوق البريد الحالي
+	All mailboxes	كل صناديق البريد
 	Recent searches	عمليات البحث الأخيرة
 	Clear recent searches	مسح عمليات البحث الأخيرة
 	Advanced search	بحث متقدم
@@ -1299,8 +1294,7 @@ month	May	مايو
 	Appearance	المظهر
 	Expand	توسيع
 	Collapse	طي
-	Sent To	مرسل إلى
-	Has Attachments	بها مرفقات
+	Sent to	مرسل إلى
 	To:	إلى:
 	Cc:	نسخة:
 	Accent colour	لون التمييز
@@ -1800,7 +1794,7 @@ count	occurrences	مرات
 	New rule on the server…	قاعدة جديدة على الخادم…
 	Made in another program: it can be turned on or off, moved or deleted here	أُنشئت في برنامج آخر: يمكن هنا تشغيلها أو إيقافها أو نقلها أو حذفها
 	The server can't run this rule as it is	لا يستطيع الخادم تشغيل هذه القاعدة كما هي
-	Undo Send	التراجع عن الإرسال
+	Undo send	التراجع عن الإرسال
 	A message you send waits this long in the Outbox, with Undo, before it goes.	تنتظر الرسالة التي ترسلها هذه المدة في صندوق الصادر، مع زر التراجع، قبل أن تُرسل.
 	Sending · {n} s	جارٍ الإرسال · {n} ث
 	Sending {count} messages · {n} s	جارٍ إرسال {count} رسائل · {n} ث

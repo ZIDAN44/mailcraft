@@ -76,10 +76,10 @@ impl SearchTimes {
 /// The search box's menu's name for where it looks.
 pub(crate) fn scope_label(scope: SearchScope) -> &'static str {
     match scope {
-        SearchScope::Current => tl!("Current Folder"),
+        SearchScope::Current => tl!("Current folder"),
         SearchScope::Subfolders => tl!("Subfolders"),
-        SearchScope::Mailbox => tl!("Current Mailbox"),
-        SearchScope::All => tl!("All Mailboxes"),
+        SearchScope::Mailbox => tl!("Current mailbox"),
+        SearchScope::All => tl!("All mailboxes"),
     }
 }
 

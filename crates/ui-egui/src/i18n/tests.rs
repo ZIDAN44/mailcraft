@@ -66,7 +66,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         ("disclosure(ui, t, ", &[0]),
         // A form's labels: `form_row(ui, t, true, Some(Icon::Clock), "Starts", |ui|`.
         ("form_row(ui, t, ", &[0]),
-        // Labels in tables of buttons drawn in a loop: `(Icon::Send, "Sent To", "to:")`.
+        // Labels in tables of buttons drawn in a loop: `(Icon::Send, "Sent to", "to:")`.
         ("(Icon::", &[0]),
     ];
     let mut out = BTreeSet::new();
@@ -161,8 +161,8 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     for s in [
         "Ignore the conversation",
         "Minimize the folder pane",
-        "Save As",
-        "Save Attachments",
+        "Save as",
+        "Save attachments",
         "Exit",
         "Show the folder pane",
         "Stop ignoring the conversation",
@@ -605,7 +605,7 @@ fn a_tour_in_the_pseudo_language_only_draws_known_strings() {
         })
         .collect();
     assert!(wording.is_empty(), "drawn, read as wording, but not in every catalog: {wording:?}");
-    // Short labels too (the filter above passes "To:" and "Sent To", looked up by a variable):
+    // Short labels too (the filter above passes "To:" and "Sent to", looked up by a variable):
     // what was drawn and is written as a literal in the interface's code is wording, and must
     // be in the catalogs.
     let sources = ui_sources().concat();
@@ -786,4 +786,73 @@ fn the_file_rail_names_each_place_apart() {
             }
         }
     }
+}
+
+/// Audit S15: a label is in sentence case, its first word alone capitalised ("Address Book",
+/// "Save As" and "Current Mailbox" stood beside "Save draft" and "Date & time"), but for names:
+/// MailCraft's, other products', the special folders' and a few features'. A word after a
+/// separator (" / ", " & ", " · ", a bullet) starts a phrase of its own. Short labels only: a sentence
+/// can name a folder or a feature in passing.
+#[test]
+fn labels_are_in_sentence_case() {
+    const NAMES: [&str; 17] = [
+        "Search Folder",
+        "Search Folders",
+        "Quick Step",
+        "Deleted Items",
+        "Sent Items",
+        "Junk Email",
+        "Global Address List",
+        "Scheduling Assistant",
+        "To-Do Bar",
+        "Public Folders",
+        "Focused Inbox",
+        "All Inboxes",
+        "All Sent",
+        "Microsoft Graph",
+        "Outlook data file",
+        "Sample mailbox",
+        "Open & Export",
+    ];
+    const WORDS: [&str; 16] = [
+        "MailCraft",
+        "Outlook",
+        "Microsoft",
+        "Windows",
+        "OpenPGP",
+        "GitHub",
+        "AutoArchive",
+        "Keychain",
+        "Inbox",
+        "Drafts",
+        "Favorites",
+        "Focused",
+        "Other",
+        "Bcc",
+        "Cc",
+        "To",
+    ];
+    let de = LANGUAGES.iter().find(|l| l.code == "de").map(|l| parse(l.source).0).unwrap_or_default();
+    assert!(de.len() > 1000, "the catalog: {}", de.len());
+    let mut titled = Vec::new();
+    for (key, _) in &de {
+        let english = key.rsplit(CTX).next().unwrap_or(key).trim();
+        let mut rest = english.trim_end_matches('…').to_string();
+        for n in NAMES {
+            rest = rest.replace(n, "name");
+        }
+        let words: Vec<&str> = rest.split(' ').collect();
+        if words.len() > 5 || rest.contains(['.', ':', ',', '(', '"', '{', '?', '!']) {
+            continue;
+        }
+        for (i, w) in words.iter().enumerate() {
+            let after_separator = i == 0 || ["/", "&", "·", "–", "•"].contains(&words[i - 1]);
+            let capital = w.chars().next().is_some_and(char::is_uppercase) && w.chars().nth(1).is_some_and(char::is_lowercase);
+            if capital && !after_separator && !WORDS.contains(w) {
+                titled.push(english.to_string());
+                break;
+            }
+        }
+    }
+    assert!(titled.is_empty(), "labels in Title Case: {titled:?}");
 }

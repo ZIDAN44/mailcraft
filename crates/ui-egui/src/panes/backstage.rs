@@ -115,7 +115,7 @@ fn kind(a: &AccountState) -> &'static str {
 }
 
 /// What the File page's rail lists, top to bottom.
-pub(crate) const RAIL_LABELS: [&str; 9] = ["Back", "Info", "Open & Export", "Save As", "Save Attachments", "Print", "Options", "About", "Exit"];
+pub(crate) const RAIL_LABELS: [&str; 9] = ["Back", "Info", "Open & Export", "Save as", "Save attachments", "Print", "Options", "About", "Exit"];
 
 pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
@@ -151,8 +151,8 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             let open = s.reading.as_ref().and_then(|r| r.parsed.as_ref());
             let attachments = open.is_some_and(|p| !p.attachments.is_empty());
             for (icon, label, on, action) in [
-                (Icon::File, "Save As", open.is_some(), Action::SaveMessage),
-                (Icon::Attach, "Save Attachments", attachments, Action::SaveAll),
+                (Icon::File, "Save as", open.is_some(), Action::SaveMessage),
+                (Icon::Attach, "Save attachments", attachments, Action::SaveAll),
                 (Icon::Print, "Print", open.is_some(), Action::Print),
             ] {
                 let r = ui.add_enabled_ui(on, |ui| rail_item(ui, &t, icon, label, false)).inner;

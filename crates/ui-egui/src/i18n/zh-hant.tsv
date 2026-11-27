@@ -568,20 +568,17 @@
 	Center (Ctrl+E)	置中 (Ctrl+E)
 	Align right (Ctrl+R)	靠右對齊 (Ctrl+R)
 	Clear all formatting (Ctrl+Space)	清除所有格式設定 (Ctrl+空白鍵)
-	Address Book	通訊錄
 	Ctrl+Shift+B	Ctrl+Shift+B
-	Attach File	附加檔案
 	Ctrl+K	Ctrl+K
 	Pictures	圖片
 	Address	網址
 	Insert	插入
 	Remove link	移除連結
-	Select Names	選取名稱
+	Select names	選取名稱
 	Search	搜尋
 	Name or address	名稱或地址
 	All addresses	所有地址
 	Contacts	連絡人
-	Email Address	電子郵件地址
 	No one found.	找不到任何人。
 	To ->	收件者 ->
 	Cc ->	副本 ->
@@ -668,8 +665,7 @@
 	Folder pane	資料夾窗格
 	Minimize the folder pane	最小化資料夾窗格
 	Show the folder pane	顯示資料夾窗格
-	Save As	另存新檔
-	Save Attachments	儲存附件
+	Save attachments	儲存附件
 	Exit	結束
 	High importance	重要性 - 高
 	Low importance	重要性 - 低
@@ -682,10 +678,9 @@
 	Run it now on the mail already in the Inbox	立即對收件匣中已有的郵件執行
 	Run on the mail already in the Inbox	對收件匣中已有的郵件執行
 	More options	更多選項
-	Save As…	另存新檔…
-	Save All Attachments…	儲存所有附件…
+	Save all attachments…	儲存所有附件…
 	This picture can't be shown.	無法顯示此圖片。
-	Close Search	關閉搜尋
+	Close search	關閉搜尋
 	Look in	搜尋範圍
 	Account	帳戶
 	Account settings…	帳戶設定…
@@ -701,7 +696,7 @@
 	Messages	郵件
 	Open file location	開啟檔案位置
 	Properties…	內容…
-	{folder} Properties	{folder} 內容
+	{folder} properties	{folder} 內容
 	Size on this computer	在此電腦上的大小
 	Quick print	快速列印
 	Always move to Focused	一律移至「焦點」
@@ -1015,12 +1010,12 @@ month	May	5月
 	1 week	1 週
 	{n} weeks	{n} 週
 	0 minutes before start	開始前 0 分鐘
-	1 Reminder	1 個提醒
-	{n} Reminders	{n} 個提醒
+	1 reminder	1 個提醒
+	{n} reminders	{n} 個提醒
 	Click Snooze to be reminded again in:	按一下「延後提醒」，在以下時間後再次提醒：
 	Dismiss	關閉
-	Dismiss All	全部關閉
-	Open Item	開啟項目
+	Dismiss all	全部關閉
+	Open item	開啟項目
 	Overdue	已逾期
 	Now	現在
 	In {n} minutes	{n} 分鐘後
@@ -1091,10 +1086,10 @@ month	May	5月
 	Also being written:	其他正在撰寫的郵件:
 	Play animations	播放動畫
 	Hovers, selections and panes ease into place; off, everything changes at once	暫留、選取和窗格會平順轉換；關閉後一切立即變更
-	Current Folder	目前資料夾
+	Current folder	目前資料夾
 	Subfolders	子資料夾
-	Current Mailbox	目前信箱
-	All Mailboxes	所有信箱
+	Current mailbox	目前信箱
+	All mailboxes	所有信箱
 	Recent searches	最近的搜尋
 	Clear recent searches	清除最近的搜尋
 	Advanced search	進階搜尋
@@ -1303,8 +1298,7 @@ month	May	5月
 	Appearance	外觀
 	Expand	展開
 	Collapse	摺疊
-	Sent To	傳送給
-	Has Attachments	有附件
+	Sent to	傳送給
 	To:	收件者:
 	Cc:	副本:
 	Accent colour	強調色
@@ -1804,7 +1798,7 @@ count	occurrences	次
 	New rule on the server…	在伺服器上新增規則…
 	Made in another program: it can be turned on or off, moved or deleted here	在其他程式中建立：此處可以將其開啟或關閉、移動或刪除
 	The server can't run this rule as it is	伺服器無法依原樣執行此規則
-	Undo Send	復原傳送
+	Undo send	復原傳送
 	A message you send waits this long in the Outbox, with Undo, before it goes.	傳送的郵件會先在寄件匣中等待這段時間，期間可以復原，然後再寄出。
 	Sending · {n} s	正在傳送 · {n} 秒
 	Sending {count} messages · {n} s	正在傳送 {count} 封郵件 · {n} 秒

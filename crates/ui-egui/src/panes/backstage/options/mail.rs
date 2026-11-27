@@ -174,7 +174,7 @@ fn writing(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             ui,
             t,
             false,
-            tl!("Undo Send"),
+            tl!("Undo send"),
             Some(tl!("A message you send waits this long in the Outbox, with Undo, before it goes.")),
             |ui| {
                 const WAITS: [u32; 5] = [0, 5, 10, 20, 30];
