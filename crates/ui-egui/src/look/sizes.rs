@@ -29,3 +29,13 @@ pub const GAP_S: f32 = 8.0;
 pub const GAP_M: f32 = 16.0;
 /// Spacing: between groups, and a dialog's margin.
 pub const GAP_L: f32 = 24.0;
+
+/// A dialog's width, one of three (there were fourteen, four for the same two-line question):
+/// a question or one field.
+pub const DIALOG_S: f32 = 360.0;
+/// A dialog's width: a form.
+pub const DIALOG_M: f32 = 440.0;
+/// A dialog's width: a list or an editor.
+pub const DIALOG_L: f32 = 560.0;
+/// The widest a dialog that shows something to read is (a message attached, a person's card).
+pub const VIEWER_MAX: f32 = 720.0;

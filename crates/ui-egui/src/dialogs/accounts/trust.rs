@@ -44,7 +44,7 @@ fn what_it_says(ui: &mut Ui, s: &Session, t: &Tokens, shown: &UntrustedCertifica
 /// Whether the dialog stays open.
 pub(crate) fn draw(ui: &mut Ui, d: &Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     let Dialog::TrustCertificate { account, shown } = d else { return false };
-    ui.set_width(460.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     if shown.remote {
         title(ui, t, "Trust this mail server's certificate?");
     } else {

@@ -25,10 +25,10 @@ mod other;
 mod person;
 pub(crate) mod pim_dialogs;
 mod signatures;
-pub(crate) use frame::title;
 pub(crate) use frame::{MAIN_FIRST, button_row, button_row_from};
 use frame::{buttons, close_row, danger_buttons, title_id};
 pub(crate) use frame::{dialog_frame, show};
+pub(crate) use frame::{field_error, label_over, title};
 #[cfg(test)]
 pub(crate) use signatures::has_web_pictures;
 mod writing;

@@ -54,7 +54,7 @@ impl ProposeForm {
 }
 
 pub fn propose(ui: &mut Ui, f: &mut ProposeForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(440.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     form_header(ui, t, Ok(Icon::Clock), "Propose new time");
     ui.add(egui::Label::new(RichText::new(&f.summary).color(t.dim)).truncate());
     ui.add_space(6.0);

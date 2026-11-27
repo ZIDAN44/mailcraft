@@ -4,7 +4,7 @@
 use super::*;
 
 pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(560.0);
+    ui.set_width(crate::sizes::DIALOG_L);
     title(ui, t, "Rules");
     ui.label(
         RichText::new(tl!("Rules run in this order, on new mail as it arrives in an Inbox, and on mail you send as its copy reaches Sent."))

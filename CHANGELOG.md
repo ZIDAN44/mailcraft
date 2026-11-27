@@ -27,6 +27,7 @@ on GitHub.
 - The calendar has one of each command on screen: **New event** on the ribbon (the side pane had a second), **Today** and the views over the calendar, in the usual order (the ribbon had the views too, in another order), the view shown lit. Each view has an icon of its own (one stood for all five), as do People's **Cards** and **List** (List had a phone). Tasks, Notes and People have one **New** button too. **Side by side** is on the ribbon (the side pane's checkbox read as a calendar).
 - A short event in the day and week views shows its time beside its title ("Team stand-up 09:30 – 10:00"); the time was cut off, the title ending in "…". A segmented choice (the calendar's views, Options' choices) shows the one chosen in the app colour.
 - An event's online meeting is a switch under its place, **Online meeting**, with its link beside it; with no meeting rooms set up there's no row. A greyed **Add online meeting** button over the title read as an empty box.
+- Dialogs come in three widths (fourteen before, four of them for the same two-line question), and an attachment's text preview and a person's card are at most 720 wide. A field's label is over it in one style everywhere (no more words in the box alone, gone once you type); fields fill their row; what went wrong reads as a sentence in your language ("No access", not "no access").
 - The event, task and contact forms open with their title alone (an icon in a coloured circle took room the form needed), and their drop-downs are as tall as their text boxes.
 
 ### Fixed

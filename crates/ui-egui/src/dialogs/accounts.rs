@@ -20,7 +20,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         Dialog::AddAccount(f) if f.calendar_only => super::dav::add_calendar_only(ui, f, t, acts),
         Dialog::AddAccount(f) => add_account(ui, f, s, t, acts),
         Dialog::Password { account, email, user, password } => {
-            ui.set_width(380.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, "Sign in again");
             // An account that signs in with a user name of its own says so: asked for "the
             // password for" its address, it read as signing in with the address (issue #88).
@@ -35,6 +35,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 google_app_password(ui, t, acts, refused);
             }
             ui.add_space(8.0);
+            label_over(ui, t, "Password");
             let r = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
             // Before the focus request below, which would hide the Enter that ended input.
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -50,7 +51,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::RemoveAccount { account, email } => {
-            ui.set_width(380.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, "Remove account?");
             // As Outlook removes one: its data file stays, to open again from Open & Export.
             let file = s.store.as_ref().and_then(|st| st.data_file(account)).filter(|f| f.exists());
@@ -79,7 +80,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::MailboxClosed { account, email, error } => {
-            ui.set_width(440.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "The mailbox won't open");
             ui.label(RichText::new(email.as_str()).strong());
             ui.add_space(4.0);
@@ -109,7 +110,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         }
         Dialog::EditAccount(f) => edit_account(ui, f, s, t, acts),
         Dialog::AddSharedMailbox { account, address, error } => {
-            ui.set_width(420.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Add a shared mailbox");
             ui.add(
                 egui::Label::new(
@@ -127,7 +128,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             if let Some(e) = error {
                 ui.add_space(4.0);
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                field_error(ui, t, e);
             }
             let ready = address.contains('@');
             let (ok, cancel) = buttons(ui, t, "Add", ready);
@@ -143,7 +144,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
 
 /// A field's name, small and strong above it.
 fn field_label(ui: &mut Ui, s: &str) {
-    ui.label(RichText::new(tl!(s)).strong().small());
+    let t = Tokens::of(ui);
+    label_over(ui, &t, s);
 }
 
 /// A part of a dialog that opens and closes (`open`), its name after a chevron; closed, `note`

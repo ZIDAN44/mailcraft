@@ -241,7 +241,7 @@ fn time_kept(ui: &mut Ui, t: &Tokens, day: &str, time: &str) {
 }
 
 pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(540.0);
+    ui.set_width(crate::sizes::DIALOG_L);
     form_header(ui, t, Ok(Icon::Task), if f.uid.is_some() { "Task" } else { "New task" });
     title_field(ui, &mut f.title);
     form_row(ui, t, true, Some(Icon::Calendar), "Start date", |ui| {
@@ -362,7 +362,7 @@ pub fn task(ui: &mut Ui, f: &mut TaskForm, t: &Tokens, acts: &mut Vec<Action>) -
     }
     if let Some(e) = &f.error {
         ui.add_space(6.0);
-        ui.label(RichText::new(e).color(t.danger));
+        crate::dialogs::field_error(ui, t, e);
     }
     footer_rule(ui, t);
     let mut keep = true;

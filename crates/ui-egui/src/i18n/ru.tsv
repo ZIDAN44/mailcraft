@@ -2232,3 +2232,6 @@ count	occurrences	повторений
 	Find a setting	Найти параметр
 	No setting matches that.	Нет подходящих параметров.
 	Search mail	Поиск в почте
+	Old mail is being archived already: wait until that's done.	Старая почта уже архивируется: дождитесь окончания.
+	no access	нет доступа
+	already open	уже открыто

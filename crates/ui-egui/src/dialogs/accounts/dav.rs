@@ -58,7 +58,7 @@ impl DavForm {
 }
 
 pub(crate) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(480.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     title(ui, t, "Calendars and contacts");
     let about = tl!(
         "MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it."
@@ -76,9 +76,11 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Acti
     ui.add_space(8.0);
     ui.checkbox(&mut f.own, tl!("The calendar server has its own user name and password"));
     if f.own {
-        ui.add(egui::TextEdit::singleline(&mut f.username).hint_text(tl!("User name")).desired_width(w));
+        label_over(ui, &Tokens::of(ui), "User name");
+        ui.add(egui::TextEdit::singleline(&mut f.username).desired_width(w));
         let kept = f.kept.as_deref().is_some_and(|k| k == f.username.trim());
         let hint = if kept { tl!("Password (kept: type to change it)") } else { tl!("Password") };
+        label_over(ui, &Tokens::of(ui), "Password");
         ui.add(egui::TextEdit::singleline(&mut f.password).password(true).hint_text(hint).desired_width(w));
         ui.label(
             RichText::new(tl!("Some providers want an app password for calendars: make one in your account's settings there."))
@@ -88,7 +90,7 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Acti
     }
     if let Some(e) = &f.error {
         ui.add_space(4.0);
-        ui.label(RichText::new(e.as_str()).color(t.danger).small());
+        crate::dialogs::field_error(ui, t, e);
     }
     let kept = f.kept.as_deref().is_some_and(|k| k == f.username.trim());
     let ready = !f.own || (!f.username.trim().is_empty() && (kept || !f.password.is_empty()));
@@ -109,7 +111,7 @@ fn found(ui: &mut Ui, t: &Tokens, typed: &str, found: Option<&str>) {
 /// Adding a calendar-only account (issue #61): a CalDAV and CardDAV server with no email. Its
 /// address names the account, as every account's does, and the meetings it organises.
 pub(crate) fn add_calendar_only(ui: &mut Ui, f: &mut super::AccountForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(440.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     title(ui, t, "Add calendars and contacts");
     super::about(
         ui,

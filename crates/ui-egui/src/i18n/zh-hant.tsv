@@ -2218,3 +2218,6 @@ count	occurrences	次
 	Find a setting	尋找設定
 	No setting matches that.	沒有相符的設定。
 	Search mail	搜尋郵件
+	Old mail is being archived already: wait until that's done.	已在封存舊郵件：請等候完成。
+	no access	無存取權
+	already open	已經開啟

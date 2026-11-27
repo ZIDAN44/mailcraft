@@ -33,7 +33,7 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
     // and the catalogs' own code left out.
     let sources = ui_sources();
     // (prefix, which string literals after it are interface text)
-    let prefixes: [(&str, &[usize]); 30] = [
+    let prefixes: [(&str, &[usize]); 32] = [
         ("tl!(", &[0]),
         ("tf!(", &[0]),
         ("tool_button(ui, Icon::", &[0]),
@@ -49,6 +49,8 @@ pub(crate) fn interface_strings() -> BTreeSet<String> {
         ("icon_action(ui, Icon::", &[0]),
         ("menu_tool_button(ui, Icon::", &[0]),
         ("split_arrow(ui, ", &[0]),
+        ("label_over(ui, t, ", &[0]),
+        ("label_over(ui, &Tokens::of(ui), ", &[0]),
         ("icon_more(ui, ", &[0]),
         ("row(ui, t, Icon::", &[0]),
         ("section(ui, t, ", &[0]),

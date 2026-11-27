@@ -102,9 +102,10 @@ fn row(ui: &mut Ui, t: &Tokens, c: &Category, odd: bool, extra: &str, buttons: i
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::NewCategory { name, color, keyword, editing, error } => {
-            ui.set_width(380.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, if editing.is_some() { "Edit category" } else { "New category" });
-            let r = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Name")).desired_width(f32::INFINITY));
+            label_over(ui, t, "Name");
+            let r = ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
             // As it opens: editing, the name it has selected, so what's typed replaces it.
             let mut opening = ui.memory(|m| m.focused().is_none());
             crate::look::fields::focus_selecting_all(ui, &r, name, &mut opening);
@@ -116,7 +117,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 }
             });
             ui.add_space(6.0);
-            ui.label(RichText::new(tl!("Keyword on the server")).small().color(t.dim));
+            label_over(ui, t, "Keyword on the server");
             // Left empty, one made from the name as Thunderbird makes a tag's (a category being
             // changed keeps its own): shown as the hint.
             let current = editing.as_ref().and_then(|e| s.category(e));
@@ -147,7 +148,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.label(RichText::new(note).color(t.faint).small());
             }
             if let Some(e) = error {
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                field_error(ui, t, e);
             }
             let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
             let ready = !name.trim().is_empty() && !bad && taken.is_none();
@@ -173,7 +174,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::Categories => {
-            ui.set_width(480.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Categories");
             ui.label(
                 RichText::new(tl!("Each category is kept with the mail on the server as a keyword, which other mail programs see too."))

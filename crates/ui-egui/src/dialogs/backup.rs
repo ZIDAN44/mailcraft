@@ -27,7 +27,7 @@ pub struct RestoreForm {
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::Backup(f) => {
-            ui.set_width(440.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Back up");
             ui.add(
                 egui::Label::new(
@@ -54,7 +54,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, t: &Tokens, acts: &mut Vec<Actio
             };
             ui.add(egui::Label::new(RichText::new(about).color(t.faint).small()).wrap());
             if let Some(e) = &f.error {
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                field_error(ui, t, e);
             }
             let (ok, cancel) = buttons(ui, t, "Save backup", true);
             if ok {
@@ -68,7 +68,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, t: &Tokens, acts: &mut Vec<Actio
             !cancel
         }
         Dialog::Restore(f) => {
-            ui.set_width(440.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Restore from backup");
             ui.add(egui::Label::new(RichText::new(f.name.as_str()).color(t.text)).wrap());
             ui.add_space(6.0);
@@ -94,7 +94,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, t: &Tokens, acts: &mut Vec<Actio
             }
             if let Some(e) = &f.error {
                 ui.add_space(4.0);
-                ui.add(egui::Label::new(RichText::new(e.as_str()).color(t.danger).small()).wrap());
+                field_error(ui, t, e);
             }
             let (ok, cancel) = danger_buttons(ui, t, "Restore", !locked || !f.password.is_empty());
             if ok || (enter && !f.password.is_empty()) {

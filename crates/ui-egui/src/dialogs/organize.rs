@@ -14,11 +14,11 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
     match d {
         Dialog::Rules => rules_list::rules_list(ui, s, t, acts),
         Dialog::EditRule(f) => {
-            ui.set_width(440.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, if f.index.is_some() { "Edit rule" } else { "New rule" });
             egui::Grid::new("rule").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
                 ui.label(tl!("Name"));
-                ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(300.0));
+                ui.add(egui::TextEdit::singleline(&mut f.name).desired_width(ui.available_width()));
                 ui.end_row();
                 // Mail arriving, or mail sent (issue #202): a rule on a server is for arriving mail.
                 if f.server.is_none() {
@@ -26,7 +26,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     let kinds = [false, true];
                     let said = |sent: bool| if sent { tl!("Mail you send") } else { tl!("Mail that arrives") };
                     let r = egui::ComboBox::from_id_salt("rule-sent")
-                        .width(300.0)
+                        .width(ui.available_width())
                         .selected_text(said(f.sent))
                         .show_ui(ui, |ui| {
                             for k in kinds {
@@ -51,7 +51,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         Some(id) => s.account(id).map_or_else(|| id.clone(), |a| a.config.email.clone()),
                     };
                     let r = egui::ComboBox::from_id_salt("rule-scope")
-                        .width(300.0)
+                        .width(ui.available_width())
                         .selected_text(said(&f.scope))
                         .show_ui(ui, |ui| {
                             for x in &scopes {
@@ -69,7 +69,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 let exchange = f.server.as_ref().is_some_and(|t| s.account(&t.account).is_some_and(|a| a.config.ews.is_some()));
                 let tests: Vec<RuleTest> = RuleTest::ALL.into_iter().filter(|x| (!exchange || x.on_server()) && (!f.sent || x.for_sent())).collect();
                 let r = egui::ComboBox::from_id_salt("rule-test")
-                    .width(300.0)
+                    .width(ui.available_width())
                     .selected_text(f.test.label())
                     .show_ui(ui, |ui| {
                         for x in tests.iter().copied() {
@@ -82,13 +82,13 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.end_row();
                 if f.test.needs_text() {
                     ui.label("");
-                    ui.add(egui::TextEdit::singleline(&mut f.text).hint_text(tl!("Text or address")).desired_width(300.0));
+                    ui.add(egui::TextEdit::singleline(&mut f.text).hint_text(tl!("Text or address")).desired_width(ui.available_width()));
                     ui.end_row();
                 }
                 let l = ui.label(tl!("Then"));
                 let actions: Vec<RuleDo> = RuleDo::ALL.into_iter().filter(|x| !exchange || x.on_server()).collect();
                 let r = egui::ComboBox::from_id_salt("rule-do")
-                    .width(300.0)
+                    .width(ui.available_width())
                     .selected_text(f.action.label())
                     .show_ui(ui, |ui| {
                         for x in actions.iter().copied() {
@@ -120,7 +120,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         let server = f.server.as_ref().map(|x| x.account.clone());
                         let accounts: Vec<_> = s.accounts.iter().filter(|a| server.as_ref().is_none_or(|x| *x == a.config.id)).collect();
                         let r = egui::ComboBox::from_id_salt("rule-folder")
-                            .width(300.0)
+                            .width(ui.available_width())
                             .selected_text(shown)
                             .show_ui(ui, |ui| {
                                 for a in &accounts {
@@ -149,7 +149,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                         let l = ui.label(tl!("Category"));
                         let shown = if f.target.is_empty() { tl!("Choose…").to_string() } else { tl!(&f.target).to_string() };
                         let r = egui::ComboBox::from_id_salt("rule-cat")
-                            .width(300.0)
+                            .width(ui.available_width())
                             .selected_text(shown)
                             .show_ui(ui, |ui| {
                                 for c in &s.prefs.categories {
@@ -171,7 +171,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.checkbox(&mut f.run_now, now);
             }
             if let Some(e) = &f.error {
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                field_error(ui, t, e);
             }
             let (ok, cancel) = buttons(ui, t, "Save", true);
             if ok {
@@ -210,7 +210,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::SearchFolder(f) => {
-            ui.set_width(460.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, if f.original.is_some() { "Edit Search Folder" } else { "New Search Folder" });
             ui.add(
                 egui::Label::new(RichText::new(tl!("Shows the mail it finds in every folder, except Deleted Items and Junk Email.")).color(t.dim))
@@ -250,7 +250,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             if let Some(e) = &f.error {
                 ui.add_space(4.0);
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                field_error(ui, t, e);
             }
             let query = f.final_query();
             let ready = !f.name.trim().is_empty() && !query.trim().is_empty();
@@ -265,7 +265,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::QuickStep(f) => {
-            ui.set_width(440.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, if f.original.is_some() { "Edit Quick Step" } else { "New Quick Step" });
             ui.add(
                 egui::Label::new(
@@ -319,7 +319,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             });
             if let Some(e) = &f.error {
                 ui.add_space(4.0);
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                field_error(ui, t, e);
             }
             let ready = !f.name.trim().is_empty() && !f.actions().is_empty();
             if let Some(old) = f.original.clone() {

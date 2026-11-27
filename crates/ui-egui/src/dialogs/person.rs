@@ -72,7 +72,7 @@ impl PersonForm {
 }
 
 pub(super) fn draw(ui: &mut Ui, f: &mut PersonForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    let w = (ui.ctx().content_rect().width() * 0.6).clamp(420.0, 760.0);
+    let w = (ui.ctx().content_rect().width() * 0.6).clamp(420.0, crate::sizes::VIEWER_MAX);
     ui.set_width(w);
     lookup(ui, f, t, acts);
     ui.add_space(8.0);

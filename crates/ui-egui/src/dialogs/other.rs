@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pictures, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::ConfirmDeleteContact { uid, name } => {
-            ui.set_width(380.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             if name.trim().is_empty() {
                 title(ui, t, "Delete this contact?");
             } else {
@@ -47,7 +47,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             .inner
         }
         Dialog::Preview { title: name, header, text, warning } => {
-            let w = (ui.ctx().content_rect().width() * 0.7).clamp(360.0, 900.0);
+            // A viewer, as wide as it reads well (900 was wider than any dialog).
+            let w = (ui.ctx().content_rect().width() * 0.7).clamp(360.0, crate::sizes::VIEWER_MAX);
             ui.set_width(w);
             title(ui, t, name);
             if let Some(warning) = warning {
@@ -75,7 +76,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             close_row(ui)
         }
         Dialog::Certificate { account, path, data, password } => {
-            ui.set_width(420.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             let unlock = path.is_empty() && data.is_none();
             title(ui, t, if unlock { "Unlock certificate" } else { "Import certificate" });
             let file = mailcraft_engine::model::file_name(path);
@@ -125,7 +126,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             !cancel
         }
         Dialog::PgpKey { account, path, passphrase } => {
-            ui.set_width(420.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Import OpenPGP key");
             let file = mailcraft_engine::model::file_name(path);
             let ask = tf!("The passphrase {file} is locked with (none, if it has none):", file = file);
@@ -154,7 +155,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
         }
         Dialog::SmartCard { account, module, pin, system } => smart_card(ui, s, t, acts, account, module, pin, *system),
         Dialog::OpenSharedCalendar { email, error } => {
-            ui.set_width(420.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Open a shared calendar");
             ui.add(
                 egui::Label::new(
@@ -171,7 +172,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             }
             if let Some(e) = error {
                 ui.add_space(4.0);
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                field_error(ui, t, e);
             }
             // Outlook's From Address Book: picked from the address book, the organisation's
             // directory among them (issue #140).
@@ -186,7 +187,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             !cancel
         }
         Dialog::SubscribeCalendar { url, name, error } => {
-            ui.set_width(440.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Subscribe to a calendar");
             ui.add(
                 egui::Label::new(
@@ -209,7 +210,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
             if let Some(e) = error {
                 ui.add_space(4.0);
-                ui.add(egui::Label::new(RichText::new(e.as_str()).color(t.danger).small()).wrap());
+                field_error(ui, t, e);
             }
             let ready = mailcraft_engine::model::pim::calendar_link(url).is_some();
             let (ok, cancel) = buttons(ui, t, "Subscribe", ready);
@@ -221,16 +222,17 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
         Dialog::Event(f) => crate::pim_dialogs::event(ui, f, s, t, acts),
         Dialog::Task(f) => crate::pim_dialogs::task(ui, f, t, acts),
         Dialog::NewTaskList { name, error } => {
-            ui.set_width(360.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, "New task list");
-            let r = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Task list name")).desired_width(f32::INFINITY));
+            label_over(ui, t, "Task list name");
+            let r = ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
             }
             // One field: Enter means OK wherever the focus is.
             let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
             if let Some(e) = error {
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                field_error(ui, t, e);
             }
             let ready = !name.trim().is_empty();
             let (ok, cancel) = buttons(ui, t, "Create", ready);
@@ -246,7 +248,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
         Dialog::WaitingInvites(f) => crate::pim_dialogs::waiting(ui, f, s, t, acts),
         // An occurrence of a repeating event (issue #241): it alone, or the series.
         Dialog::OpenRecurring { uid, occurrence, summary } => {
-            ui.set_width(420.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Open a repeating event");
             ui.add(egui::Label::new(RichText::new(summary.as_str()).color(t.dim)).truncate());
             ui.add_space(4.0);
@@ -294,7 +296,7 @@ fn smart_card(
     pin: &mut String,
     system: bool,
 ) -> bool {
-    ui.set_width(460.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     if system {
         title(ui, t, if cfg!(windows) { "Use a certificate from Windows" } else { "Use a certificate from the Keychain" });
         ui.add(

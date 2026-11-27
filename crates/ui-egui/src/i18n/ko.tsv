@@ -2218,3 +2218,6 @@ count	occurrences	회
 	Find a setting	설정 찾기
 	No setting matches that.	일치하는 설정이 없습니다.
 	Search mail	메일 검색
+	Old mail is being archived already: wait until that's done.	오래된 메일을 이미 보관하는 중입니다. 끝날 때까지 기다리세요.
+	no access	액세스 권한 없음
+	already open	이미 열려 있음

@@ -34,7 +34,7 @@ impl CancelForm {
 
 /// The box; whether it stays open.
 pub fn cancel(ui: &mut Ui, f: &mut CancelForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(440.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     if f.occurrence.is_some() {
         crate::dialogs::title(ui, t, "Cancel this occurrence");
     } else {

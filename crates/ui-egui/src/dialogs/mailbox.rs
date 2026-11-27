@@ -89,7 +89,7 @@ impl VacationForm {
 }
 
 pub(super) fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(520.0);
+    ui.set_width(crate::sizes::DIALOG_L);
     title(ui, t, "Automatic replies");
     ui.label(
         RichText::new(tl!(
@@ -133,7 +133,7 @@ pub(super) fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut
     ui.add_enabled_ui(theirs.is_none(), |ui| form(ui, f));
     if let Some(e) = &f.error {
         ui.add_space(6.0);
-        ui.label(RichText::new(e).color(t.danger));
+        field_error(ui, t, e);
     }
     let (ok, cancel) = buttons(ui, t, "Save", theirs.is_none() && (!f.enabled || !f.text.trim().is_empty()));
     if ok {
@@ -159,12 +159,14 @@ fn form(ui: &mut Ui, f: &mut VacationForm) {
             });
         }
         ui.add_space(4.0);
+        label_over(ui, &Tokens::of(ui), "Subject");
         ui.add_sized([ui.available_width(), 26.0], egui::TextEdit::singleline(&mut f.subject).hint_text(tl!("Subject (optional)")));
         ui.add_space(4.0);
         let rows = if f.exchange { 4 } else { 6 };
         if f.exchange {
             ui.label(RichText::new(tl!("Inside my organization")).strong().small());
         }
+        label_over(ui, &Tokens::of(ui), "Message");
         ui.add(egui::TextEdit::multiline(&mut f.text).hint_text(tl!("I'm away until…")).desired_rows(rows).desired_width(f32::INFINITY));
         // Exchange: who outside the organisation gets a reply, and which (Outlook's two tabs).
         if f.exchange {

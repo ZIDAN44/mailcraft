@@ -45,7 +45,7 @@ impl SnoozeForm {
 }
 
 pub fn snooze(ui: &mut Ui, f: &mut SnoozeForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(420.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     form_header(ui, t, Ok(Icon::Clock), "Snooze");
     let subject = if f.subject.trim().is_empty() { tl!("(no subject)") } else { f.subject.as_str() };
     ui.add(egui::Label::new(RichText::new(subject).color(t.dim)).truncate());

@@ -10,7 +10,7 @@ use crate::UpdateState;
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::LostOnClose { unsent, changes, sending } => {
-            ui.set_width(420.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Close MailCraft?");
             if *sending > 0 {
                 ui.add(
@@ -51,7 +51,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::SaveOnClose(n) => {
-            ui.set_width(400.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, if *n == 1 { "Save the message you're writing?" } else { "Save the messages you're writing?" });
             let about = if *n == 1 {
                 tl!("It's kept in Drafts if you save it.").to_string()
@@ -79,7 +79,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         }
         // An import pauses as MailCraft closes, and goes on as it opens again.
         Dialog::ImportOnClose { file, permille } => {
-            ui.set_width(440.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Close MailCraft?");
             let about = match permille {
                 Some(p) => tf!(
@@ -108,7 +108,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         // Closing never installs an update, or drops a download, without a word.
         Dialog::UpdateOnClose(state) => match state {
             UpdateState::Ready { version, asks } => {
-                ui.set_width(440.0);
+                ui.set_width(crate::sizes::DIALOG_M);
                 title(ui, t, &tf!("Install MailCraft {version} as it closes?", version = version));
                 let mut about = tl!("The update is downloaded and checked. It installs now, as MailCraft closes, which takes a moment; open MailCraft again when it's done.").to_string();
                 if let Some(asked) = asks.say() {
@@ -135,7 +135,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 keep
             }
             UpdateState::Downloading { version, done, total } => {
-                ui.set_width(440.0);
+                ui.set_width(crate::sizes::DIALOG_M);
                 title(ui, t, "An update is still downloading");
                 let so_far = if *total > 0 {
                     tf!(
@@ -173,7 +173,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         // A data file being compacted; it ends by itself (nothing left to show).
         Dialog::Compacting { account, closing, since } => {
             let Some(c) = s.compaction.running.get(account.as_str()) else { return false };
-            ui.set_width(440.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             let file = crate::app::compacting::file_name(s, account);
             title(ui, t, &if *closing { tf!("Compacting {file} before closing…", file = file) } else { tf!("Compacting {file}…", file = file) });
             let (words, permille) = crate::app::compacting::phase_words(c, *since, ui.input(|i| i.time));
@@ -215,7 +215,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         }
         // Closing waits only so long: a longer one is offered by hand, saying how long it takes.
         Dialog::CompactOnClose { account, seconds } => {
-            ui.set_width(460.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             let file = crate::app::compacting::file_name(s, account);
             title(ui, t, &tf!("Compact {file} before closing?", file = file));
             let health = s.compaction.health.get(account.as_str());

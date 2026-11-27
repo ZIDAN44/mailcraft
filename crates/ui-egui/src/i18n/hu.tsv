@@ -2219,3 +2219,6 @@ count	occurrences	előfordulás
 	Find a setting	Beállítás keresése
 	No setting matches that.	Nincs ilyen beállítás.
 	Search mail	Keresés a levelekben
+	Old mail is being archived already: wait until that's done.	A régi levelek archiválása már folyamatban van: várjon, amíg befejeződik.
+	no access	nincs hozzáférés
+	already open	már meg van nyitva

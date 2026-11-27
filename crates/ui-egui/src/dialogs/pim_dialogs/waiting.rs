@@ -56,7 +56,7 @@ impl WaitingForm {
 }
 
 pub fn waiting(ui: &mut Ui, f: &mut WaitingForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(520.0);
+    ui.set_width(crate::sizes::DIALOG_L);
     form_header(ui, t, Ok(Icon::Calendar), "Invitations in the Inbox");
     ui.label(
         RichText::new(tl!("Meetings waiting for your answer that your calendar doesn't have yet. Those you tick go in unanswered."))

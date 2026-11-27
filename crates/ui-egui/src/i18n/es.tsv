@@ -2219,3 +2219,6 @@ count	occurrences	repeticiones
 	Find a setting	Buscar una opción
 	No setting matches that.	Ninguna opción coincide.
 	Search mail	Buscar correo
+	Old mail is being archived already: wait until that's done.	Ya se está archivando el correo antiguo: espere a que termine.
+	no access	sin acceso
+	already open	ya está abierto

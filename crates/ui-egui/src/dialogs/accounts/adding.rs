@@ -7,7 +7,7 @@
 use super::*;
 
 pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(440.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     title(ui, t, "Add an email account");
     if s.jmap_only {
         // The browser: JMAP only, and its address is needed.
@@ -57,7 +57,7 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
     }
     if let Some(e) = &f.error {
         ui.add_space(6.0);
-        ui.add(egui::Label::new(RichText::new(e).color(t.danger)).wrap());
+        crate::dialogs::field_error(ui, t, e);
     }
     if !s.jmap_only {
         ui.add_space(8.0);
@@ -98,7 +98,7 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
 fn basics(ui: &mut Ui, f: &mut AccountForm, s: &Session, acts: &mut Vec<Action>) {
     egui::Grid::new("acct").num_columns(2).spacing(vec2(12.0, 8.0)).show(ui, |ui| {
         ui.label(tl!("Email address"));
-        let r = ui.add(egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")).min_size(vec2(300.0, 26.0)).desired_width(300.0));
+        let r = ui.add(egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")).desired_width(ui.available_width()));
         if r.changed() && !f.servers_edited {
             f.guess();
             f.found_for = None;
@@ -140,7 +140,7 @@ fn basics(ui: &mut Ui, f: &mut AccountForm, s: &Session, acts: &mut Vec<Action>)
         }
         ui.end_row();
         ui.label(tl!("Your name"));
-        ui.add(egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")).min_size(vec2(300.0, 26.0)).desired_width(300.0));
+        ui.add(egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")).desired_width(ui.available_width()));
         ui.end_row();
         // Exchange signs in with Microsoft in the browser; so do Outlook.com, Hotmail and
         // Live, which take no passwords from mail apps (when this copy can sign in there).
@@ -148,7 +148,7 @@ fn basics(ui: &mut Ui, f: &mut AccountForm, s: &Session, acts: &mut Vec<Action>)
             || (f.kind.imap_or_pop() && mailcraft_engine::model::microsoft_consumer(&f.email) && s.oauth_available.iter().any(|p| p == "microsoft"));
         if !browser_only {
             ui.label(tl!("Password"));
-            ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(vec2(300.0, 26.0)).desired_width(300.0));
+            ui.add(egui::TextEdit::singleline(&mut f.password).password(true).desired_width(ui.available_width()));
             ui.end_row();
         }
     });

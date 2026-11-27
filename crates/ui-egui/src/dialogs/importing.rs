@@ -85,7 +85,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
     match d {
         Dialog::OpenDataFile { path } => open_data_file(ui, path, s, t, acts),
         Dialog::StopImport { account, file } => {
-            ui.set_width(400.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, &tf!("Stop importing {file}?", file = file));
             say(ui, tl!("What's imported so far is kept. You can continue later.").to_string(), t.dim);
             ui.add_space(10.0);
@@ -103,7 +103,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         }
         // Removing an account whose data file is being imported: the part imported goes.
         Dialog::RemoveAccount { account, email } => {
-            ui.set_width(400.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, &tf!("Stop importing and remove {file}?", file = email));
             say(ui, tl!("The part imported so far is deleted. The data file itself isn't changed.").to_string(), t.dim);
             let (ok, cancel) = buttons(ui, t, "Remove", true);
@@ -166,7 +166,7 @@ fn changed_notes(ui: &mut Ui, t: &Tokens, rereadable: bool) {
 /// (an Outlook file's beside it, never into the file itself) and whether there's room for it, the
 /// copy made there before, and the account it's open as already, if any.
 fn open_data_file(ui: &mut Ui, path: &str, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(480.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     title(ui, t, "Open Outlook data file");
     // The file, and what it holds, on a card of its own: what the rest of the dialog is about.
     let facts = s.data_file_facts(path);
@@ -333,7 +333,7 @@ fn offer_buttons(ui: &mut Ui, t: &Tokens, s: &Session, path: &str, offer: &Offer
 /// What an import came to: messages and folders, the contacts, calendar, notes and tasks, the
 /// time it took, and what it couldn't bring in, a line for each reason.
 fn import_done(ui: &mut Ui, account: &str, report: &ImportReport, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(440.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     let file = if report.file.is_empty() {
         s.account(account).map(|a| a.config.email.clone()).unwrap_or_default()
     } else {

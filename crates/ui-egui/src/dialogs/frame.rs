@@ -3,6 +3,22 @@
 
 use super::*;
 
+/// A field's label, over it: one style for every dialog's fields (there were five: grey words
+/// ending in a colon, small bold, small grey, the body's size, and a hint inside the box alone,
+/// gone once something was typed).
+pub(crate) fn label_over(ui: &mut Ui, t: &Tokens, text: &str) {
+    ui.label(RichText::new(tl!(text)).size(13.5).color(t.text));
+}
+
+/// What's wrong, under what it's about: translated where it's known, as a sentence ("no access"
+/// and "already open" were shown as the mail engine said them), in the danger colour, wrapped.
+pub(crate) fn field_error(ui: &mut Ui, t: &Tokens, e: &str) {
+    let said = crate::i18n::error(e);
+    let mut chars = said.chars();
+    let sentence: String = chars.next().map(|c| c.to_uppercase().chain(chars).collect()).unwrap_or_default();
+    ui.add(egui::Label::new(RichText::new(sentence).color(t.danger).small()).wrap());
+}
+
 /// A dialog's title: a subtitle of the type ramp, with room under it.
 pub(crate) fn title(ui: &mut Ui, t: &Tokens, s: &str) {
     let r = ui.label(RichText::new(tl!(s)).font(theme::semibold(crate::sizes::SUBTITLE)).color(t.text));
@@ -66,7 +82,9 @@ pub(crate) fn button_row_from<R>(ui: &mut Ui, start: impl FnOnce(&mut Ui), add: 
     if MAIN_FIRST {
         let mut row = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::right_to_left(egui::Align::Center)));
         row.set_clip_rect(rect.expand(3.0));
-        return add(&mut row);
+        let out = add(&mut row);
+        needs(ui, row.min_rect().width() + first.min_rect().width());
+        return out;
     }
     let width_id = ui.scope_id().with("button-row-width");
     let width: f32 = ui.data(|d| d.get_temp(width_id)).unwrap_or(0.0);
@@ -79,7 +97,18 @@ pub(crate) fn button_row_from<R>(ui: &mut Ui, start: impl FnOnce(&mut Ui), add: 
         ui.data_mut(|d| d.insert_temp(width_id, wide));
         ui.ctx().request_discard("a dialog's buttons were measured");
     }
+    needs(ui, wide + first.min_rect().width());
     out
+}
+
+/// How wide the dialog's row of buttons was, for its place under the part that scrolls (as wide
+/// as what's in it, or as the row, when that's wider).
+fn needs(ui: &Ui, wide: f32) {
+    ui.data_mut(|d| d.insert_temp(footer_need_id(), wide));
+}
+
+fn footer_need_id() -> egui::Id {
+    egui::Id::unique("dialog-footer-need")
 }
 
 /// Whether a row of buttons drawn now goes under the part that scrolls (not after the rest).
@@ -169,7 +198,11 @@ pub(crate) fn show(
             let taken = ui.data(|data| data.get_temp::<Footer>(footer_id())).is_some_and(|f| f.taken);
             let foot = taken.then(|| {
                 ui.add_space((FOOTER_GAP - between).max(0.0));
-                ui.allocate_exact_size(vec2(scrolled.inner_rect.width(), ROW_H), Sense::hover()).0
+                // As wide as what's in it (the part that scrolls can be wider than its content, and the
+                // buttons ended past the fields' edge).
+                let row: f32 = ui.data(|d| d.get_temp(footer_need_id())).unwrap_or(0.0);
+                let wide = scrolled.content_size.x.max(row + 8.0).min(scrolled.inner_rect.width());
+                ui.allocate_exact_size(vec2(wide, ROW_H), Sense::hover()).0
             });
             if foot != foot_was {
                 ui.data_mut(|data| {

@@ -299,7 +299,7 @@ fn default_picker(ui: &mut Ui, id: &str, label: String, names: &[String], value:
 }
 
 pub(super) fn draw(ui: &mut Ui, f: &mut SignatureForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(520.0);
+    ui.set_width(crate::sizes::DIALOG_L);
     title(ui, t, "Signatures");
     // Which one: picked from the account's (the one being edited saved first), a new one, or
     // this one deleted.

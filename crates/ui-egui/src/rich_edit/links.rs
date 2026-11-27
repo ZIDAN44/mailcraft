@@ -71,7 +71,7 @@ pub(crate) fn link_dialog(ui: &mut Ui, t: &Tokens, ed: &mut Editor, c: &mut Comp
     let mut close = false;
     let mut done: Option<Option<String>> = None;
     let modal = egui::Modal::new(egui::Id::unique(("link-dialog", c.id))).frame(crate::dialogs::dialog_frame(t)).show(ui.ctx(), |ui| {
-        ui.set_width(440.0);
+        ui.set_width(crate::sizes::DIALOG_M);
         ui.label(RichText::new(tl!(if f.editing { "Edit link" } else { "Insert link" })).font(theme::semibold(18.0)).color(t.text));
         ui.add_space(10.0);
         ui.horizontal(|ui| {

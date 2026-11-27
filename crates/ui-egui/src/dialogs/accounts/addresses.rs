@@ -52,7 +52,7 @@ impl AddressForm {
 }
 
 pub(crate) fn draw(ui: &mut Ui, f: &mut AddressForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(460.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     title(ui, t, if f.changing { "Change an address" } else { "Add an address" });
     let about = tl!(
         "Another address of this same mailbox, such as an alias, that mail can be sent from. Pick it in From when you write a message. Your mail server has to allow sending from it."
@@ -60,28 +60,27 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut AddressForm, s: &Session, t: &Tokens, ac
     ui.add(egui::Label::new(RichText::new(about).color(t.dim)).wrap());
     ui.add_space(10.0);
     let config = s.account(&f.account).map(|a| &a.config);
-    let size = vec2(290.0, 26.0);
     let mut first = None;
     egui::Grid::new("account-address").num_columns(2).spacing(vec2(10.0, 8.0)).show(ui, |ui| {
         ui.label(tl!("Email address"));
         if f.changing {
             ui.label(RichText::new(f.address.as_str()).color(t.dim));
         } else {
-            first = Some(ui.add(egui::TextEdit::singleline(&mut f.address).hint_text(tl!("you@example.com")).min_size(size).desired_width(size.x)));
+            first = Some(ui.add(egui::TextEdit::singleline(&mut f.address).hint_text(tl!("you@example.com")).desired_width(ui.available_width())));
         }
         ui.end_row();
         ui.label(tl!("Name on mail from it"));
         let own = config.map(|c| c.name.clone()).unwrap_or_default();
-        ui.add(egui::TextEdit::singleline(&mut f.name).hint_text(own).min_size(size).desired_width(size.x));
+        ui.add(egui::TextEdit::singleline(&mut f.name).hint_text(own).desired_width(ui.available_width()));
         ui.end_row();
         ui.label(tl!("Replies go to"));
-        ui.add(egui::TextEdit::singleline(&mut f.reply_to).hint_text(f.address.trim().to_string()).min_size(size).desired_width(size.x));
+        ui.add(egui::TextEdit::singleline(&mut f.reply_to).hint_text(f.address.trim().to_string()).desired_width(ui.available_width()));
         ui.end_row();
         let l = ui.label(tl!("Signature"));
         let own = tl!("(the account's own)").to_string();
         let names: Vec<String> = config.map(|c| c.signatures.iter().map(|g| g.name.clone()).collect()).unwrap_or_default();
         let r = egui::ComboBox::from_id_salt("account-address-signature")
-            .width(size.x)
+            .width(ui.available_width())
             .selected_text(f.signature.clone().unwrap_or_else(|| own.clone()))
             .show_ui(ui, |ui| {
                 ui.selectable_value(&mut f.signature, None, own.as_str());
@@ -107,7 +106,7 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut AddressForm, s: &Session, t: &Tokens, ac
     }
     if let Some(e) = &f.error {
         ui.add_space(6.0);
-        ui.label(RichText::new(e.as_str()).color(t.danger).small());
+        crate::dialogs::field_error(ui, t, e);
     }
     let ready = f.address.contains('@');
     let (ok, cancel) = buttons(ui, t, if f.changing { "Save" } else { "Add" }, ready);

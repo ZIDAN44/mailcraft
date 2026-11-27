@@ -136,7 +136,7 @@ impl ContactForm {
 }
 
 pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(560.0);
+    ui.set_width(crate::sizes::DIALOG_L);
     // The person's initials once a name is typed, as the people list shows them.
     let initials: String = f.name.split_whitespace().filter_map(|w| w.chars().next()).take(2).collect::<String>().to_uppercase();
     let badge = if initials.is_empty() { Ok(Icon::Person) } else { Err(initials) };
@@ -228,7 +228,7 @@ pub fn contact(ui: &mut Ui, f: &mut ContactForm, t: &Tokens, acts: &mut Vec<Acti
         });
     });
     if let Some(e) = &f.error {
-        ui.label(RichText::new(e).color(t.danger));
+        crate::dialogs::field_error(ui, t, e);
     }
     footer_rule(ui, t);
     let mut keep = true;

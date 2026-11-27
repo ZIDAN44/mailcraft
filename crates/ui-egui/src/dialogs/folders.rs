@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::ConfirmDelete { count, one } => {
-            ui.set_width(360.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, "Delete permanently?");
             let what = if *count == 1 {
                 tl!("This message will be deleted for good. This can't be undone.").to_string()
@@ -26,7 +26,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         }
         Dialog::MoveTo { filter, copy, chosen } => {
             let copy = *copy;
-            ui.set_width(340.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, if copy { "Copy to folder" } else { "Move to folder" });
             let r = ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
             // Once, as it opens (it wasn't drawn the frame before), whatever had the keys:
@@ -99,7 +99,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::FolderName { account, parent, rename, name, error } => {
-            ui.set_width(360.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, if rename.is_some() { "Rename folder" } else { "New folder" });
             if rename.is_none() {
                 let place = parent.as_deref().and_then(|p| s.folder(account, p)).map(Folder::display_name);
@@ -111,14 +111,15 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 ui.label(RichText::new(text).color(t.dim).small());
                 ui.add_space(4.0);
             }
-            let r = ui.add(egui::TextEdit::singleline(name).hint_text(tl!("Folder name")).desired_width(f32::INFINITY));
+            label_over(ui, t, "Folder name");
+            let r = ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
             // As it opens: renaming, the name it has selected, so what's typed replaces it.
             let mut opening = ui.memory(|m| m.focused().is_none());
             crate::look::fields::focus_selecting_all(ui, &r, name, &mut opening);
             // One field: Enter means OK wherever the focus is.
             let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
             if let Some(e) = error {
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                field_error(ui, t, e);
             }
             let ready = !name.trim().is_empty();
             let (ok, cancel) = buttons(ui, t, if rename.is_some() { "Rename" } else { "Create" }, ready);
@@ -132,7 +133,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::MoveFolder { account, folder, filter, chosen, error } => {
-            ui.set_width(340.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             let name = s.folder(account, folder).map(Folder::display_name).unwrap_or_default();
             title(ui, t, &tf!("Move “{folder}” to", folder = name));
             let r = ui.add(egui::TextEdit::singleline(filter).hint_text(tl!("Search folders")).desired_width(f32::INFINITY));
@@ -169,7 +170,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 })
             });
             if let Some(e) = error {
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                field_error(ui, t, e);
             }
             let (ok, cancel) = buttons(ui, t, "Move", chosen.is_some());
             let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
@@ -180,7 +181,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::DeleteFolder { account, folder, name, permanent, error } => {
-            ui.set_width(380.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, &tf!("Delete “{folder}”?", folder = name));
             let text = if *permanent {
                 tl!("The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.")
@@ -189,7 +190,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             };
             ui.label(RichText::new(text).color(t.dim));
             if let Some(e) = error {
-                ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                field_error(ui, t, e);
             }
             let pair = if *permanent { danger_buttons } else { buttons };
             let (ok, cancel) = pair(ui, t, "Delete", true);
@@ -200,7 +201,8 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::FolderProperties { name, account, location, total, unread, size, archive } => {
-            ui.set_width(if archive.is_some() { 460.0 } else { 380.0 });
+            // One width with AutoArchive or without (it changed with what it showed).
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, &tf!("{folder} Properties", folder = name));
             egui::Grid::new("folder-props").num_columns(2).spacing(vec2(16.0, 6.0)).show(ui, |ui| {
                 let rows = [
@@ -235,7 +237,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::ConfirmEmpty { account, folder, name, for_good } => {
-            ui.set_width(400.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             if *for_good {
                 title(ui, t, &tf!("Empty “{folder}”?", folder = name));
                 ui.label(

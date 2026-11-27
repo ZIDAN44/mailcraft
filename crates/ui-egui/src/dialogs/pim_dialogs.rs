@@ -585,7 +585,7 @@ pub(crate) fn end_follows_start(f: &mut EventForm, before: Option<i64>) {
 }
 
 pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(540.0);
+    ui.set_width(crate::sizes::DIALOG_L);
     form_header(ui, t, Ok(Icon::Calendar), if f.uid.is_some() { "Event" } else { "New event" });
     // An online meeting (Teams, Zoom…): Join, as Outlook has it, read-only calendar or not.
     if let Some(url) = f.join.clone() {
@@ -738,7 +738,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut
     }
     if let Some(e) = &f.error {
         ui.add_space(6.0);
-        ui.label(RichText::new(e).color(t.danger));
+        crate::dialogs::field_error(ui, t, e);
     }
     footer_rule(ui, t);
     let mut keep = true;

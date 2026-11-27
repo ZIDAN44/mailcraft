@@ -791,3 +791,19 @@ fn a_click_beside_a_form_leaves_it_open() {
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.dialog.is_none(), "a preview closes on a click beside it");
 }
+
+/// A dialog says what went wrong as a sentence: "no access", as the mail engine said it, read
+/// "No access" (and a known one in the language shown).
+#[test]
+fn a_dialogs_error_is_a_sentence() {
+    let (mut a, _) = app("error-sentence");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.ui.dialog = Some(Dialog::OpenSharedCalendar { email: "ana@contoso.example".into(), error: Some("no access".into()) });
+    let size = egui::vec2(1280.0, 800.0);
+    for _ in 0..2 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    let texts = drawn_strings(&ctx, &mut a, size);
+    assert!(texts.iter().any(|t| t == "No access") && !texts.iter().any(|t| t == "no access"), "{texts:?}");
+}

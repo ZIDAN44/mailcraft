@@ -10,7 +10,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         Dialog::SelectNames(f) => select_names(ui, f, t, acts),
         Dialog::CheckNames(f) => check_names(ui, f, t, acts),
         Dialog::SaveChanges => {
-            ui.set_width(380.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, "Want to save your changes?");
             ui.label(RichText::new(tl!("The message is kept in Drafts if you save it.")).color(t.dim));
             ui.add_space(10.0);
@@ -31,7 +31,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             keep
         }
         Dialog::EmptySubject => {
-            ui.set_width(360.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, "Send without a subject?");
             ui.label(RichText::new(tl!("Messages without a subject are easy to overlook.")).color(t.dim));
             let (ok, cancel) = buttons(ui, t, "Send anyway", true);
@@ -42,7 +42,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::CtrlEnter { remember } => {
-            ui.set_width(380.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, "Send this message?");
             ui.label(RichText::new(tl!("Ctrl+Enter sends the message you're writing.")).color(t.dim));
             ui.add_space(6.0);
@@ -73,7 +73,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
         }
         Dialog::SendCheck(found) => {
             use mailcraft_engine::SendCheck;
-            ui.set_width(440.0);
+            ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Check before sending");
             let mut exposed = false;
             // What was found can't be shown (see `MailApp::run`): that there is something.
@@ -116,7 +116,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             !cancel
         }
         Dialog::WordCount(n, selection) => {
-            ui.set_width(320.0);
+            ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, "Word count");
             if *selection {
                 ui.label(RichText::new(tl!("The selected text")).color(t.dim).small());
@@ -172,7 +172,7 @@ pub struct CheckNamesForm {
 /// then the next name. Cancel leaves the rest as typed.
 fn check_names(ui: &mut Ui, f: &mut CheckNamesForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     let Some(ask) = f.asks.first() else { return false };
-    ui.set_width(440.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     title(ui, t, "Check names");
     ui.add(
         egui::Label::new(RichText::new(tf!("More than one person could be “{typed}”. Pick the one you meant:", typed = ask.typed)).color(t.text))
@@ -325,7 +325,7 @@ pub(super) fn add_to(field: &mut String, a: &mailcraft_engine::model::EmailAddre
 }
 
 pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(620.0);
+    ui.set_width(crate::sizes::DIALOG_L);
     title(
         ui,
         t,
@@ -559,7 +559,7 @@ pub(super) fn select_names(ui: &mut Ui, f: &mut NamesForm, t: &Tokens, acts: &mu
         add_to(target.of(&mut f.to, &mut f.cc, &mut f.bcc), &a);
     }
     if let Some(e) = &f.error {
-        ui.label(RichText::new(e.as_str()).color(t.danger).small());
+        field_error(ui, t, e);
     }
     let ready = match f.purpose {
         NamesFor::Message | NamesFor::Guests => true,

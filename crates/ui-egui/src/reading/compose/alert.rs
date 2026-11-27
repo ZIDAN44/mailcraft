@@ -39,7 +39,7 @@ impl ComposeAlert {
 pub(super) fn alert(ui: &mut Ui, t: &Tokens, st: &mut UiState, id: u64, blocked: Option<SendBlock>, acts: &mut Vec<Action>) {
     let Some(alert) = st.compose_alert.clone() else { return };
     let modal = egui::Modal::new(egui::Id::unique(("compose-alert", id))).frame(crate::dialogs::dialog_frame(t)).show(ui.ctx(), |ui| {
-        ui.set_width(380.0);
+        ui.set_width(crate::sizes::DIALOG_S);
         ui.horizontal(|ui| {
             let (r, _) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::hover());
             icons::paint(ui.painter(), r, Icon::Warning, t.warn);

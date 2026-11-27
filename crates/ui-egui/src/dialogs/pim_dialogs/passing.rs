@@ -44,7 +44,7 @@ impl PassForm {
 
 /// The form; whether it stays open.
 pub fn pass(ui: &mut Ui, f: &mut PassForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(420.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     let delegate = f.passing == Passing::Delegate;
     crate::dialogs::title(ui, t, if delegate { "Delegate meeting" } else { "Forward meeting" });
     ui.add(egui::Label::new(RichText::new(f.summary.as_str()).color(t.dim)).truncate());

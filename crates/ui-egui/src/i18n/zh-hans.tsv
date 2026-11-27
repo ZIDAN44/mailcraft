@@ -2215,3 +2215,6 @@ count	occurrences	次
 	Find a setting	查找设置
 	No setting matches that.	没有匹配的设置。
 	Search mail	搜索邮件
+	Old mail is being archived already: wait until that's done.	已在归档旧邮件：请等待完成。
+	no access	无访问权限
+	already open	已经打开

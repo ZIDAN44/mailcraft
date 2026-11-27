@@ -4,7 +4,7 @@
 use super::*;
 
 pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(480.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     title(ui, t, "Server settings");
     let w = ui.available_width();
     if f.address_editable() {
@@ -81,7 +81,7 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Token
     }
     if let Some(e) = &f.error {
         ui.add_space(6.0);
-        ui.add(egui::Label::new(RichText::new(e).color(t.danger)).wrap());
+        crate::dialogs::field_error(ui, t, e);
     }
     let (ok, cancel) = buttons(ui, t, "Save", true);
     if ok {

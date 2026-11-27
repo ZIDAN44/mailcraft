@@ -2219,3 +2219,6 @@ count	occurrences	occurrences
 	Find a setting	Rechercher un paramètre
 	No setting matches that.	Aucun paramètre ne correspond.
 	Search mail	Rechercher dans le courrier
+	Old mail is being archived already: wait until that's done.	L'ancien courrier est déjà en cours d'archivage : attendez que ce soit terminé.
+	no access	aucun accès
+	already open	déjà ouvert

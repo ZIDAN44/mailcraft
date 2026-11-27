@@ -196,7 +196,7 @@ pub(super) fn rule_fields(ui: &mut Ui, r: &mut AgeForm, id: &str, acts: &mut Vec
 
 /// File › Options › Data files › AutoArchive settings.
 fn auto_archive(ui: &mut Ui, f: &mut AutoArchiveForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(500.0);
+    ui.set_width(crate::sizes::DIALOG_L);
     title(ui, t, "AutoArchive");
     ui.add(
         egui::Label::new(
@@ -226,7 +226,7 @@ fn auto_archive(ui: &mut Ui, f: &mut AutoArchiveForm, t: &Tokens, acts: &mut Vec
     ui.checkbox(&mut f.all_folders, tl!("Folders with settings of their own follow these instead"));
     if let Some(e) = &f.error {
         ui.add_space(4.0);
-        ui.add(egui::Label::new(RichText::new(e.as_str()).color(t.danger).small()).wrap());
+        field_error(ui, t, e);
     }
     let ready = f.rule.delete || !f.rule.path.trim().is_empty();
     let (ok, cancel) = buttons(ui, t, "Save", ready);
@@ -239,7 +239,7 @@ fn auto_archive(ui: &mut Ui, f: &mut AutoArchiveForm, t: &Tokens, acts: &mut Vec
 
 /// AutoArchive is due, and asks first.
 fn auto_archive_due(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(420.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     title(ui, t, "AutoArchive");
     let days = s.prefs.auto_archive.every_days;
     let asked = tf!("It's been {days} days: archive old mail now, as AutoArchive is set to?", days = days);
@@ -256,7 +256,7 @@ fn auto_archive_due(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>
 }
 
 fn archive(ui: &mut Ui, f: &mut ArchiveForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
-    ui.set_width(480.0);
+    ui.set_width(crate::sizes::DIALOG_M);
     title(ui, t, "Clean up old items");
     ui.add(
         egui::Label::new(
@@ -299,7 +299,7 @@ fn archive(ui: &mut Ui, f: &mut ArchiveForm, s: &Session, t: &Tokens, acts: &mut
     });
     if let Some(e) = &f.error {
         ui.add_space(4.0);
-        ui.add(egui::Label::new(RichText::new(e.as_str()).color(t.danger).small()).wrap());
+        field_error(ui, t, e);
     }
     let ready = !f.path.trim().is_empty() && crate::pim_dialogs::pattern_day(&f.before).is_some();
     let (ok, cancel) = buttons(ui, t, "Archive", ready);

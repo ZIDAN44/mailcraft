@@ -48,7 +48,7 @@ pub(super) fn sections(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Acti
             }
             ServerRulesState::Loaded { rules, error } => {
                 if let Some(e) = error {
-                    ui.label(RichText::new(e.as_str()).color(t.danger).small());
+                    crate::dialogs::field_error(ui, t, e);
                 }
                 let mut allowed: bool = ui.ctx().data(|d| d.get_temp(allowed_id(&account))).unwrap_or(false);
                 if rules.outlook_list {
