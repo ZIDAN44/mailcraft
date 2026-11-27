@@ -1434,7 +1434,6 @@ month	May	mei
 	Online meetings	Onlinevergaderingen
 	Join:	Deelnemen:
 	Access code:	Toegangscode:
-	Access code	Toegangscode
 	Remove online meeting	Onlinevergadering verwijderen
 	Add online meeting	Onlinevergadering toevoegen
 	Adds {room}: its link as the place, and how to join in the notes	Voegt {room} toe: de link als locatie, en in de notities hoe je deelneemt
@@ -2241,3 +2240,19 @@ count	occurrences	keer
 	Keep messages light in the dark theme	Berichten licht houden in het donkere thema
 	Top bar in the panes' colours	Bovenbalk in de kleuren van de deelvensters
 	Use a certificate on this computer	Een certificaat op deze computer gebruiken
+	How MailCraft works	Hoe MailCraft werkt
+	No rules yet: make one in Rules, on the Home tab.	Nog geen regels: maak er een via Regels, op het tabblad Start.
+	Open data file…	Gegevensbestand openen…
+	Open message file…	Berichtbestand openen…
+	Open on GitHub	Openen op GitHub
+	Outlook or MailCraft data file	Outlook- of MailCraft-gegevensbestand
+	Saved message (.eml or .msg)	Opgeslagen bericht (.eml of .msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	E-mail ondertekenen en versleutelen: S/MIME-certificaten en OpenPGP-sleutels
+	Updates	Updates
+	Access code (optional)	Toegangscode (optioneel)
+	Add a meeting room	Een vergaderruimte toevoegen
+	Add a room	Een ruimte toevoegen
+	Add room…	Ruimte toevoegen…
+	That isn't a meeting link: paste the room's https:// address.	Dat is geen vergaderlink: plak het https://-adres van de ruimte.
+	That isn't a server's name, such as jitsi.example.org.	Dat is geen servernaam, zoals jitsi.example.org.
+	Type an address (name@example.com) or a domain (@example.com).	Typ een adres (naam@example.com) of een domein (@example.com).

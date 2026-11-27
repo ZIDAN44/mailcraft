@@ -1439,7 +1439,6 @@ month	May	Mayıs
 	Online meetings	Çevrimiçi toplantılar
 	Join:	Katıl:
 	Access code:	Erişim kodu:
-	Access code	Erişim kodu
 	Remove online meeting	Çevrimiçi toplantıyı kaldır
 	Add online meeting	Çevrimiçi toplantı ekle
 	Adds {room}: its link as the place, and how to join in the notes	{room} ekler: bağlantısını yer olarak, nasıl katılınacağını notlara
@@ -2246,3 +2245,19 @@ count	occurrences	kez
 	Keep messages light in the dark theme	Koyu temada iletileri açık tut
 	Top bar in the panes' colours	Bölmelerin renklerinde üst çubuk
 	Use a certificate on this computer	Bu bilgisayardaki bir sertifikayı kullan
+	How MailCraft works	MailCraft nasıl çalışır
+	No rules yet: make one in Rules, on the Home tab.	Henüz kural yok: Giriş sekmesindeki Kurallar'dan bir kural oluşturun.
+	Open data file…	Veri dosyası aç…
+	Open message file…	İleti dosyası aç…
+	Open on GitHub	GitHub'da aç
+	Outlook or MailCraft data file	Outlook veya MailCraft veri dosyası
+	Saved message (.eml or .msg)	Kaydedilmiş ileti (.eml veya .msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	Postaları imzalama ve şifreleme: S/MIME sertifikaları ve OpenPGP anahtarları
+	Updates	Güncellemeler
+	Access code (optional)	Erişim kodu (isteğe bağlı)
+	Add a meeting room	Toplantı odası ekle
+	Add a room	Oda ekle
+	Add room…	Oda ekle…
+	That isn't a meeting link: paste the room's https:// address.	Bu bir toplantı bağlantısı değil: odanın https:// adresini yapıştırın.
+	That isn't a server's name, such as jitsi.example.org.	Bu bir sunucu adı değil (ör. jitsi.example.org).
+	Type an address (name@example.com) or a domain (@example.com).	Bir adres (ad@example.com) veya etki alanı (@example.com) yazın.

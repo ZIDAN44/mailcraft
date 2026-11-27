@@ -1439,7 +1439,6 @@ month	May	Mai
 	Online meetings	Onlinebesprechungen
 	Join:	Teilnehmen:
 	Access code:	Zugangscode:
-	Access code	Zugangscode
 	Remove online meeting	Onlinebesprechung entfernen
 	Add online meeting	Onlinebesprechung hinzufügen
 	Adds {room}: its link as the place, and how to join in the notes	Fügt {room} hinzu: den Link als Ort und in den Notizen, wie man teilnimmt
@@ -2246,3 +2245,19 @@ count	occurrences	Terminen
 	Keep messages light in the dark theme	Nachrichten im dunklen Design hell lassen
 	Top bar in the panes' colours	Obere Leiste in den Farben der Bereiche
 	Use a certificate on this computer	Zertifikat auf diesem Computer verwenden
+	How MailCraft works	So funktioniert MailCraft
+	No rules yet: make one in Rules, on the Home tab.	Noch keine Regeln: Erstellen Sie eine unter „Regeln“ auf der Registerkarte „Start“.
+	Open data file…	Datendatei öffnen…
+	Open message file…	Nachrichtendatei öffnen…
+	Open on GitHub	Auf GitHub öffnen
+	Outlook or MailCraft data file	Outlook- oder MailCraft-Datendatei
+	Saved message (.eml or .msg)	Gespeicherte Nachricht (.eml oder .msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	E-Mails signieren und verschlüsseln: S/MIME-Zertifikate und OpenPGP-Schlüssel
+	Updates	Updates
+	Access code (optional)	Zugangscode (optional)
+	Add a meeting room	Besprechungsraum hinzufügen
+	Add a room	Raum hinzufügen
+	Add room…	Raum hinzufügen…
+	That isn't a meeting link: paste the room's https:// address.	Das ist kein Besprechungslink: Fügen Sie die https://-Adresse des Raums ein.
+	That isn't a server's name, such as jitsi.example.org.	Das ist kein Servername wie jitsi.example.org.
+	Type an address (name@example.com) or a domain (@example.com).	Geben Sie eine Adresse (name@example.com) oder eine Domäne (@example.com) ein.

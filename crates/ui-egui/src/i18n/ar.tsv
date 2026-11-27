@@ -1434,7 +1434,6 @@ month	May	مايو
 	Online meetings	الاجتماعات عبر الإنترنت
 	Join:	الانضمام:
 	Access code:	رمز الدخول:
-	Access code	رمز الدخول
 	Remove online meeting	إزالة الاجتماع عبر الإنترنت
 	Add online meeting	إضافة اجتماع عبر الإنترنت
 	Adds {room}: its link as the place, and how to join in the notes	يضيف {room}: رابطها كمكان، وطريقة الانضمام في الملاحظات
@@ -2241,3 +2240,19 @@ count	occurrences	مرات
 	Keep messages light in the dark theme	إبقاء الرسائل فاتحة في المظهر الداكن
 	Top bar in the panes' colours	الشريط العلوي بألوان الأجزاء
 	Use a certificate on this computer	استخدام شهادة على هذا الكمبيوتر
+	How MailCraft works	كيف يعمل MailCraft
+	No rules yet: make one in Rules, on the Home tab.	لا توجد قواعد بعد: أنشئ واحدة من القواعد في علامة التبويب الرئيسية.
+	Open data file…	فتح ملف بيانات…
+	Open message file…	فتح ملف رسالة…
+	Open on GitHub	فتح في GitHub
+	Outlook or MailCraft data file	ملف بيانات Outlook أو MailCraft
+	Saved message (.eml or .msg)	رسالة محفوظة (‎.eml أو ‎.msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	توقيع البريد وتشفيره: شهادات S/MIME ومفاتيح OpenPGP
+	Updates	التحديثات
+	Access code (optional)	رمز الوصول (اختياري)
+	Add a meeting room	إضافة غرفة اجتماع
+	Add a room	إضافة غرفة
+	Add room…	إضافة غرفة…
+	That isn't a meeting link: paste the room's https:// address.	هذا ليس رابط اجتماع: الصق عنوان https:// الخاص بالغرفة.
+	That isn't a server's name, such as jitsi.example.org.	هذا ليس اسم خادم، مثل jitsi.example.org.
+	Type an address (name@example.com) or a domain (@example.com).	اكتب عنوانًا (name@example.com) أو نطاقًا (‎@example.com).

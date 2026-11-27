@@ -52,3 +52,48 @@ fn work_days_are_toggles() {
     click_named(&ctx, &mut a, "Sat");
     assert!(a.session.work_time().works_on(5), "Saturday on");
 }
+
+/// F7: Info has the everyday cards first, S/MIME and OpenPGP in one Security part that opens.
+#[test]
+fn info_puts_the_everyday_first() {
+    let (mut a, _) = app("info-order");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    a.act(crate::Action::Backstage(crate::backstage::Page::Info));
+    for _ in 0..3 {
+        let _ = drawn_text(&ctx, &mut a, TALL);
+    }
+    let texts = drawn_text(&ctx, &mut a, TALL);
+    let y = |w: &str| texts.iter().find(|d| d.text == w).map(|d| d.rect.top());
+    assert!(y("Automatic replies").zip(y("Security")).is_some_and(|(r, s)| r < s), "replies over security");
+    assert!(y("Import certificate…").is_none(), "closed");
+    // Clicked in a window this tall (it's under the usual one's edge).
+    let at = named(&ctx, &mut a, TALL).into_iter().find(|n| n.label.as_deref() == Some("Security")).and_then(|n| n.centre()).expect("Security");
+    let press = |pressed| Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+    for events in [vec![Event::PointerMoved(at)], vec![press(true)], vec![press(false)]] {
+        let _ = sized_frame(&ctx, &mut a, TALL, events);
+    }
+    let _ = drawn_text(&ctx, &mut a, TALL);
+    let after = drawn_strings(&ctx, &mut a, TALL);
+    assert!(after.iter().any(|t| t == "Import certificate…"), "opened: {after:?}");
+}
+
+/// F8 and F9: Open & Export's buttons say what they open, a greyed Export says why; a blocked
+/// sender mistyped is said under its box, not added.
+#[test]
+fn file_pages_say_what_and_why() {
+    let (mut a, ctx) = options("file-pages", crate::backstage::Section::Safety);
+    let before = a.session.prefs.blocked_senders.len();
+    // What's typed in Blocked senders' box.
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique(("junk-add", "blocked")), "not an address".to_string()));
+    let _ = drawn_text(&ctx, &mut a, TALL);
+    let texts = drawn_strings(&ctx, &mut a, TALL);
+    assert!(has(&texts, "Type an address (name@example.com) or a domain (@example.com)."), "said under it");
+    assert_eq!(a.session.prefs.blocked_senders.len(), before, "not added");
+    a.act(crate::Action::Backstage(crate::backstage::Page::Open));
+    let _ = drawn_text(&ctx, &mut a, TALL);
+    let texts = drawn_strings(&ctx, &mut a, TALL);
+    assert!(has(&texts, "Open data file…") && has(&texts, "Open message file…"), "{texts:?}");
+    assert!(has(&texts, "No rules yet: make one in Rules, on the Home tab"), "why Export is off");
+}

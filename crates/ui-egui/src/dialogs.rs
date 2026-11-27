@@ -170,6 +170,16 @@ pub enum Dialog {
         error: Option<String>,
     },
     /// Subscribe to a calendar by its link (Outlook's Add Calendar › From Internet, issue #7).
+    /// One of the user's own meeting rooms added (File › Options › Online meetings): its name,
+    /// link, access code and the lines for the invitation (a form of four boxes packed into a
+    /// wrapping row of the settings, it was).
+    AddRoom {
+        name: String,
+        url: String,
+        code: String,
+        details: String,
+        error: Option<String>,
+    },
     SubscribeCalendar {
         url: String,
         name: String,
@@ -621,9 +631,10 @@ impl Dialog {
             Dialog::Dav(f) => f.error = Some(e),
             Dialog::Address(f) => f.error = Some(e),
             Dialog::SelectNames(f) if f.purpose != NamesFor::Message => f.error = Some(e),
-            Dialog::OpenSharedCalendar { error, .. } | Dialog::SubscribeCalendar { error, .. } | Dialog::AddSharedMailbox { error, .. } => {
-                *error = Some(e)
-            }
+            Dialog::OpenSharedCalendar { error, .. }
+            | Dialog::SubscribeCalendar { error, .. }
+            | Dialog::AddRoom { error, .. }
+            | Dialog::AddSharedMailbox { error, .. } => *error = Some(e),
             _ => return false,
         }
         true
@@ -755,6 +766,7 @@ fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pic
         | Dialog::Preview { .. }
         | Dialog::OpenSharedCalendar { .. }
         | Dialog::SubscribeCalendar { .. }
+        | Dialog::AddRoom { .. }
         | Dialog::Certificate { .. }
         | Dialog::PgpKey { .. }
         | Dialog::SmartCard { .. }

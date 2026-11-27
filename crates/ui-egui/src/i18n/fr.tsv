@@ -1439,7 +1439,6 @@ month	May	mai
 	Online meetings	Réunions en ligne
 	Join:	Rejoindre :
 	Access code:	Code d'accès :
-	Access code	Code d'accès
 	Remove online meeting	Retirer la réunion en ligne
 	Add online meeting	Ajouter une réunion en ligne
 	Adds {room}: its link as the place, and how to join in the notes	Ajoute la salle {room} : son lien comme lieu, et comment la rejoindre dans les notes
@@ -2246,3 +2245,19 @@ count	occurrences	occurrences
 	Keep messages light in the dark theme	Garder les messages clairs dans le thème sombre
 	Top bar in the panes' colours	Barre du haut aux couleurs des volets
 	Use a certificate on this computer	Utiliser un certificat de cet ordinateur
+	How MailCraft works	Fonctionnement de MailCraft
+	No rules yet: make one in Rules, on the Home tab.	Aucune règle pour l'instant : créez-en une dans Règles, sous l'onglet Accueil.
+	Open data file…	Ouvrir un fichier de données…
+	Open message file…	Ouvrir un fichier de message…
+	Open on GitHub	Ouvrir sur GitHub
+	Outlook or MailCraft data file	Fichier de données Outlook ou MailCraft
+	Saved message (.eml or .msg)	Message enregistré (.eml ou .msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	Signer et chiffrer le courrier : certificats S/MIME et clés OpenPGP
+	Updates	Mises à jour
+	Access code (optional)	Code d'accès (facultatif)
+	Add a meeting room	Ajouter une salle de réunion
+	Add a room	Ajouter une salle
+	Add room…	Ajouter une salle…
+	That isn't a meeting link: paste the room's https:// address.	Ce n'est pas un lien de réunion : collez l'adresse https:// de la salle.
+	That isn't a server's name, such as jitsi.example.org.	Ce n'est pas un nom de serveur, comme jitsi.example.org.
+	Type an address (name@example.com) or a domain (@example.com).	Saisissez une adresse (nom@example.com) ou un domaine (@example.com).

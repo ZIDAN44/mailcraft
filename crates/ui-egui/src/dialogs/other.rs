@@ -231,6 +231,40 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             }
             !cancel
         }
+        Dialog::AddRoom { name, url, code, details, error } => {
+            ui.set_width(crate::sizes::DIALOG_M);
+            title(ui, t, "Add a meeting room");
+            label_over(ui, t, "Link");
+            let r = ui.add(egui::TextEdit::singleline(url).hint_text("https://meet.example.org/rooms/abc-def-ghi").desired_width(f32::INFINITY));
+            if ui.memory(|m| m.focused().is_none()) {
+                r.request_focus();
+            }
+            ui.add_space(6.0);
+            label_over(ui, t, "Name");
+            ui.add(egui::TextEdit::singleline(name).desired_width(f32::INFINITY));
+            ui.add_space(6.0);
+            label_over(ui, t, "Access code (optional)");
+            ui.add(egui::TextEdit::singleline(code).desired_width(200.0));
+            ui.add_space(6.0);
+            label_over(ui, t, "Dial-in numbers and other lines for the invitation (optional)");
+            ui.add(egui::TextEdit::multiline(details).desired_rows(3).desired_width(f32::INFINITY));
+            // What's wrong with the link, under it as it's typed (it was a notice in the corner).
+            let link = mailcraft_engine::model::ical::meeting_url(url);
+            if !url.trim().is_empty() && link.is_none() {
+                field_error(ui, t, tl!("That isn't a meeting link: paste the room's https:// address."));
+            }
+            if let Some(e) = error {
+                field_error(ui, t, e);
+            }
+            let (ok, cancel) = buttons(ui, t, "Add room", link.is_some());
+            if ok {
+                acts.push(Action::Submit(
+                    "meetings.addRoom",
+                    json!({"name": name.trim(), "url": url.trim(), "code": code.trim(), "details": details.trim()}),
+                ));
+            }
+            !cancel
+        }
         Dialog::Event(f) => crate::pim_dialogs::event(ui, f, s, t, acts),
         Dialog::Task(f) => crate::pim_dialogs::task(ui, f, t, acts),
         Dialog::NewTaskList { name, error } => {

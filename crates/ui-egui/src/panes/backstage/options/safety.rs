@@ -12,22 +12,6 @@ pub(super) fn senders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
     ] {
         let entries = if list == "blocked" { &s.prefs.blocked_senders } else { &s.prefs.safe_senders };
         card(ui, t, tl!(title), Some(tl!(about)), |ui| {
-            let id = egui::Id::unique(("junk-add", list));
-            let mut text: String = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_default();
-            let mut add = false;
-            ui.horizontal(|ui| {
-                let r = ui.add(egui::TextEdit::singleline(&mut text).hint_text(tl!("name@example.com or @example.com")).desired_width(320.0));
-                add |= r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-                add |= ui.add_enabled(!text.trim().is_empty(), egui::Button::new(tl!("Add"))).clicked();
-            });
-            if add && !text.trim().is_empty() {
-                acts.push(Action::Run("junk.edit", json!({"list": list, "entry": text.trim()})));
-                // One that can't be added stays to be corrected (the reason shows as a notice).
-                if mailcraft_engine::junk_entry(&text).is_some() {
-                    text.clear();
-                }
-            }
-            ui.data_mut(|d| d.insert_temp(id, text));
             if entries.is_empty() {
                 ui.add_space(4.0);
                 ui.label(RichText::new(tl!("No senders yet.")).color(t.faint).small());
@@ -44,6 +28,17 @@ pub(super) fn senders(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             if entries.len() > 200 {
                 ui.label(RichText::new(tf!("And {n} more", n = entries.len() - 200)).color(t.faint).small());
             }
+            // Adding one last, under the list, and what's wrong said under its box (first, it
+            // looked unlike the rows under it, and a mistake was a notice in the corner).
+            let id = egui::Id::unique(("junk-add", list));
+            let mut text: String = ui.data_mut(|d| d.get_temp::<String>(id)).unwrap_or_default();
+            let ok = mailcraft_engine::junk_entry(&text).is_some();
+            let why = tl!("Type an address (name@example.com) or a domain (@example.com).");
+            if crate::widgets::add_row(ui, &mut text, tl!("name@example.com or @example.com"), ok, why) {
+                acts.push(Action::Run("junk.edit", json!({"list": list, "entry": text.trim()})));
+                text.clear();
+            }
+            ui.data_mut(|d| d.insert_temp(id, text));
         });
     }
 }

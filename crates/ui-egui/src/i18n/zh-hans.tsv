@@ -1435,7 +1435,6 @@ month	May	5月
 	Online meetings	联机会议
 	Join:	加入：
 	Access code:	访问码：
-	Access code	访问码
 	Remove online meeting	删除联机会议
 	Add online meeting	添加联机会议
 	Adds {room}: its link as the place, and how to join in the notes	添加 {room}:链接作为地点，备注中写明如何加入
@@ -2242,3 +2241,19 @@ count	occurrences	次
 	Keep messages light in the dark theme	在深色主题中保持邮件为浅色
 	Top bar in the panes' colours	顶部栏使用窗格的颜色
 	Use a certificate on this computer	使用此计算机上的证书
+	How MailCraft works	MailCraft 的工作方式
+	No rules yet: make one in Rules, on the Home tab.	还没有规则：可在“开始”选项卡的“规则”中创建。
+	Open data file…	打开数据文件…
+	Open message file…	打开邮件文件…
+	Open on GitHub	在 GitHub 上打开
+	Outlook or MailCraft data file	Outlook 或 MailCraft 数据文件
+	Saved message (.eml or .msg)	保存的邮件(.eml 或 .msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	签名和加密邮件：S/MIME 证书和 OpenPGP 密钥
+	Updates	更新
+	Access code (optional)	访问代码(可选)
+	Add a meeting room	添加会议室
+	Add a room	添加会议室
+	Add room…	添加会议室…
+	That isn't a meeting link: paste the room's https:// address.	这不是会议链接：请粘贴会议室的 https:// 地址。
+	That isn't a server's name, such as jitsi.example.org.	这不是服务器名称，例如 jitsi.example.org。
+	Type an address (name@example.com) or a domain (@example.com).	请输入地址(name@example.com)或域(@example.com)。

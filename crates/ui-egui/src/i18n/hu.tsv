@@ -1440,7 +1440,6 @@ month	May	május
 	Online meetings	Online értekezletek
 	Join:	Csatlakozás:
 	Access code:	Hozzáférési kód:
-	Access code	Hozzáférési kód
 	Remove online meeting	Online értekezlet eltávolítása
 	Add online meeting	Online értekezlet hozzáadása
 	Adds {room}: its link as the place, and how to join in the notes	A(z) {room} szoba hozzáadása: a hivatkozás a helyszínhez, a csatlakozási útmutató a jegyzetekbe kerül
@@ -2246,3 +2245,19 @@ count	occurrences	előfordulás
 	Keep messages light in the dark theme	Az üzenetek világosak maradnak a sötét témában
 	Top bar in the panes' colours	Felső sáv a panelek színeivel
 	Use a certificate on this computer	A számítógépen lévő tanúsítvány használata
+	How MailCraft works	Így működik a MailCraft
+	No rules yet: make one in Rules, on the Home tab.	Még nincs szabály: a Kezdőlap lap Szabályok gombjával hozhat létre egyet.
+	Open data file…	Adatfájl megnyitása…
+	Open message file…	Üzenetfájl megnyitása…
+	Open on GitHub	Megnyitás a GitHubon
+	Outlook or MailCraft data file	Outlook- vagy MailCraft-adatfájl
+	Saved message (.eml or .msg)	Mentett üzenet (.eml vagy .msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	Levelek aláírása és titkosítása: S/MIME-tanúsítványok és OpenPGP-kulcsok
+	Updates	Frissítések
+	Access code (optional)	Belépési kód (nem kötelező)
+	Add a meeting room	Megbeszélésterem hozzáadása
+	Add a room	Terem hozzáadása
+	Add room…	Terem hozzáadása…
+	That isn't a meeting link: paste the room's https:// address.	Ez nem megbeszélés hivatkozása: illessze be a terem https:// címét.
+	That isn't a server's name, such as jitsi.example.org.	Ez nem kiszolgálónév, például jitsi.example.org.
+	Type an address (name@example.com) or a domain (@example.com).	Írjon be egy címet (nev@example.com) vagy tartományt (@example.com).

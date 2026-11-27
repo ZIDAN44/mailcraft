@@ -29,16 +29,38 @@ pub(super) fn info(
     if !a.is_local() && b.asked.insert(id.clone()) {
         acts.push(Action::Run("account.vacation", json!({"account": id})));
     }
+    // What's used every day first; S/MIME and OpenPGP after, in one part that opens (they came
+    // first, putting automatic replies and rules two screens down).
     account_settings(s, t, ui, a, acts);
-    // S/MIME and OpenPGP, for accounts that send mail.
-    if !a.is_data_file() {
-        security::security(s, t, ui, a, acts);
-        pgp::pgp(s, t, ui, a, acts);
-        security::defaults(s, t, ui, a, acts);
-    }
     automatic_replies(t, ui, a, acts);
-    data_file::mailbox(s, t, has_files, ui, a, b, acts);
     rules(s, t, ui, a, acts);
+    data_file::mailbox(s, t, has_files, ui, a, b, acts);
+    if !a.is_data_file() {
+        let (rect, resp) = ui.allocate_exact_size(egui::vec2(ui.available_width(), 36.0), egui::Sense::click());
+        crate::widgets::named(ui, &resp, tl!("Security"), true, Some(b.security_open));
+        if resp.hovered() {
+            ui.painter().rect_filled(rect, crate::sizes::CONTROL_RADIUS, t.hover_row);
+        }
+        let m = crate::bidi::Mirror::new(rect);
+        let chevron = if b.security_open { crate::icons::Icon::ChevronDown } else { m.closed() };
+        let icon = m.rect(egui::Rect::from_center_size(egui::pos2(rect.left() + 12.0, rect.center().y), egui::vec2(14.0, 14.0)));
+        crate::icons::paint(ui.painter(), icon, chevron, t.dim);
+        let name = crate::widgets::one_line(ui, tl!("Security"), crate::theme::semibold(crate::sizes::SUBTITLE), t.text, rect.width() - 40.0);
+        let at = m.rect(egui::Rect::from_min_size(egui::pos2(rect.left() + 28.0, rect.center().y - name.size().y / 2.0), name.size()));
+        ui.painter().galley(at.min, name, t.text);
+        if resp.clicked() {
+            b.security_open = !b.security_open;
+        }
+        if b.security_open {
+            ui.add_space(6.0);
+            security::security(s, t, ui, a, acts);
+            pgp::pgp(s, t, ui, a, acts);
+            security::defaults(s, t, ui, a, acts);
+        } else {
+            ui.label(RichText::new(tl!("Signing and encrypting mail: S/MIME certificates and OpenPGP keys")).color(t.dim).small());
+            ui.add_space(14.0);
+        }
+    }
     // The organisation's profile, and the details its signature takes (issue #245).
     super::organisation::show(s, t, a, ui, acts);
     // What AI agents asked lately, whichever account (issue #255).

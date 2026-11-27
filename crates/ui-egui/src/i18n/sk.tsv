@@ -1453,7 +1453,6 @@ date	December	decembra
 	Online meetings	Online schôdze
 	Join:	Pripojiť sa:
 	Access code:	Prístupový kód:
-	Access code	Prístupový kód
 	Remove online meeting	Odstrániť online schôdzu
 	Add online meeting	Pridať online schôdzu
 	Adds {room}: its link as the place, and how to join in the notes	Pridá {room}: jej odkaz ako miesto a pokyny na pripojenie do poznámok
@@ -2260,3 +2259,19 @@ count	occurrences	opakovaní
 	Keep messages light in the dark theme	Ponechať správy svetlé v tmavom motíve
 	Top bar in the panes' colours	Horný panel vo farbách tably
 	Use a certificate on this computer	Použiť certifikát v tomto počítači
+	How MailCraft works	Ako funguje MailCraft
+	No rules yet: make one in Rules, on the Home tab.	Zatiaľ žiadne pravidlá: vytvorte ho v Pravidlách na karte Domov.
+	Open data file…	Otvoriť dátový súbor…
+	Open message file…	Otvoriť súbor správy…
+	Open on GitHub	Otvoriť na GitHube
+	Outlook or MailCraft data file	Dátový súbor Outlooku alebo MailCraftu
+	Saved message (.eml or .msg)	Uložená správa (.eml alebo .msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	Podpisovanie a šifrovanie pošty: certifikáty S/MIME a kľúče OpenPGP
+	Updates	Aktualizácie
+	Access code (optional)	Prístupový kód (voliteľné)
+	Add a meeting room	Pridať miestnosť na schôdze
+	Add a room	Pridať miestnosť
+	Add room…	Pridať miestnosť…
+	That isn't a meeting link: paste the room's https:// address.	To nie je odkaz na schôdzu: prilepte adresu https:// miestnosti.
+	That isn't a server's name, such as jitsi.example.org.	To nie je názov servera, napríklad jitsi.example.org.
+	Type an address (name@example.com) or a domain (@example.com).	Zadajte adresu (meno@example.com) alebo doménu (@example.com).

@@ -1435,7 +1435,6 @@ month	May	5月
 	Online meetings	オンライン会議
 	Join:	参加：
 	Access code:	アクセスコード：
-	Access code	アクセスコード
 	Remove online meeting	オンライン会議を削除
 	Add online meeting	オンライン会議を追加
 	Adds {room}: its link as the place, and how to join in the notes	{room} を追加します: リンクを場所に、参加方法をメモに入れます
@@ -2242,3 +2241,19 @@ count	occurrences	回
 	Keep messages light in the dark theme	ダーク テーマでもメッセージを明るく表示
 	Top bar in the panes' colours	上部バーをウィンドウの各部と同じ色に
 	Use a certificate on this computer	このコンピューターの証明書を使う
+	How MailCraft works	MailCraft のしくみ
+	No rules yet: make one in Rules, on the Home tab.	ルールはまだありません。[ホーム] タブの [ルール] で作成します。
+	Open data file…	データ ファイルを開く…
+	Open message file…	メッセージ ファイルを開く…
+	Open on GitHub	GitHub で開く
+	Outlook or MailCraft data file	Outlook または MailCraft のデータ ファイル
+	Saved message (.eml or .msg)	保存したメッセージ (.eml または .msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	メールの署名と暗号化: S/MIME 証明書と OpenPGP キー
+	Updates	更新
+	Access code (optional)	アクセス コード (省略可)
+	Add a meeting room	会議室を追加
+	Add a room	会議室を追加
+	Add room…	会議室を追加…
+	That isn't a meeting link: paste the room's https:// address.	会議のリンクではありません。会議室の https:// アドレスを貼り付けてください。
+	That isn't a server's name, such as jitsi.example.org.	サーバー名 (jitsi.example.org など) ではありません。
+	Type an address (name@example.com) or a domain (@example.com).	アドレス (name@example.com) またはドメイン (@example.com) を入力してください。

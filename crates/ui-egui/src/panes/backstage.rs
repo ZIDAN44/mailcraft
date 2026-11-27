@@ -54,6 +54,8 @@ pub struct Backstage {
     /// The part of Options shown, and a search over all of it.
     pub section: options::Section,
     find: String,
+    /// Info's Security part opened (S/MIME and OpenPGP, closed until it's wanted).
+    security_open: bool,
 }
 
 impl Backstage {
@@ -66,6 +68,7 @@ impl Backstage {
             measured: HashSet::new(),
             export: None,
             section: options::Section::default(),
+            security_open: false,
             find: String::new(),
         }
     }
@@ -136,14 +139,15 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             if r.clicked() {
                 close = true;
             }
-            ui.add_space(8.0);
+            // Its groups apart by a line (by space alone, they ran together).
+            rail_divider(ui, &t);
             for (page, icon, label) in [(Page::Info, Icon::Info, "Info"), (Page::Open, Icon::Folder, "Open & Export")] {
                 if rail_item(ui, &t, icon, label, b.page == page).clicked() {
                     b.page = page;
                 }
             }
             // The open message, as Outlook's File › Save As, Save Attachments and Print.
-            ui.add_space(8.0);
+            rail_divider(ui, &t);
             let open = s.reading.as_ref().and_then(|r| r.parsed.as_ref());
             let attachments = open.is_some_and(|p| !p.attachments.is_empty());
             for (icon, label, on, action) in [
@@ -157,7 +161,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     close = true;
                 }
             }
-            ui.add_space(8.0);
+            rail_divider(ui, &t);
             for (page, icon, label) in [(Page::Options, Icon::Gear, "Options"), (Page::About, Icon::Star, "About")] {
                 if rail_item(ui, &t, icon, label, b.page == page).clicked() {
                     b.page = page;
@@ -173,7 +177,11 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                     }
                 }
             }
-            // Close MailCraft (the desktop app; a browser tab is closed by the browser).
+            // Close MailCraft (the desktop app; a browser tab is closed by the browser): apart from
+            // the pages (it sat with Options and About).
+            if st.has_files {
+                rail_divider(ui, &t);
+            }
             if st.has_files && rail_item(ui, &t, Icon::Close, "Exit", false).clicked() {
                 // Exit ends MailCraft, where closing the window only hides it (issue #67).
                 st.quit_wanted = true;
@@ -212,11 +220,15 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
 fn rail_item(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, on: bool) -> egui::Response {
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 38.0), Sense::click());
     crate::widgets::named(ui, &resp, tl!(label), true, Some(on));
+    // Inset and rounded, a short bar at its start for the page open (a square block across the
+    // rail, it was, its bar the block's whole height).
+    let inner = r.shrink2(vec2(8.0, 1.0));
     if on || resp.hovered() {
-        ui.painter().rect_filled(r, 0.0, if on { t.accent_soft } else { t.hover_row });
+        ui.painter().rect_filled(inner, f32::from(crate::sizes::CONTROL_RADIUS), if on { t.accent_soft } else { t.hover_row });
     }
     if on {
-        ui.painter().rect_filled(egui::Rect::from_min_size(r.min, vec2(3.0, r.height())), 0.0, t.accent);
+        let bar = egui::Rect::from_center_size(egui::pos2(inner.left() + 2.0, inner.center().y), vec2(3.0, 16.0));
+        ui.painter().rect_filled(bar, 1.5, t.accent);
     }
     let ir = egui::Rect::from_center_size(r.left_center() + vec2(26.0, 0.0), vec2(18.0, 18.0));
     let enabled = ui.is_enabled();
@@ -240,6 +252,14 @@ fn rail_item(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, on: bool) -> egui
         if enabled { t.text } else { t.faint },
     );
     resp
+}
+
+/// A thin line between the rail's groups, set in from its edges.
+fn rail_divider(ui: &mut Ui, t: &Tokens) {
+    ui.add_space(5.0);
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
+    ui.painter().hline(r.x_range().shrink(16.0), r.center().y, egui::Stroke::new(1.0, t.border));
+    ui.add_space(5.0);
 }
 
 /// One of Options' parts in the rail, under it: indented, a line tall.
@@ -270,14 +290,17 @@ fn card(ui: &mut Ui, t: &Tokens, title: &str, about: Option<&str>, body: impl Fn
     egui::Frame::new()
         .fill(t.surface)
         .stroke(egui::Stroke::new(1.0, t.border))
-        .corner_radius(10)
+        // A surface's corners, as every dialog's and menu's (10, it was); its title the type
+        // ramp's subtitle, which stands over its rows' names (15 points against their 14).
+        .corner_radius(crate::sizes::SURFACE_RADIUS)
         .inner_margin(Margin { left: 20, right: 20, top: 16, bottom: 10 })
         .show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.label(RichText::new(title).font(theme::semibold(15.0)).color(t.text));
+            ui.label(RichText::new(title).font(theme::semibold(crate::sizes::SUBTITLE)).color(t.text));
             if let Some(about) = about {
                 ui.add_space(2.0);
-                ui.label(RichText::new(about).color(t.dim).size(12.5));
+                // As a row's line: one sentence without its stop.
+                ui.label(note(t, about).color(t.dim));
             }
             ui.add_space(6.0);
             body(ui);
@@ -408,9 +431,11 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
             |ui| {
                 let files: Vec<&str> = s.accounts.iter().filter(|a| a.is_data_file()).map(|a| a.config.email.as_str()).collect();
                 let open_now = (!files.is_empty()).then(|| tf!("Open now: {files}", files = files.join(", ")));
-                let label = open_now.as_deref().map_or_else(|| note(t, tl!("No data file is open.")), |s| note(t, s));
-                setting_row(ui, t, true, label, None, |ui| {
-                    if ui.button(tl!("Open…")).clicked() {
+                // A row named for what it opens, what's open now under it (the faint status was its
+                // only label, beside a second "Open…").
+                let now = open_now.as_deref().unwrap_or(tl!("No data file is open."));
+                setting_row(ui, t, true, name(t, tl!("Outlook or MailCraft data file")), Some(note(t, now)), |ui| {
+                    if ui.button(tl!("Open data file…")).clicked() {
                         acts.push(Action::OpenDataFile);
                     }
                 });
@@ -424,8 +449,9 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
                 "See a saved message (.eml or Outlook's .msg) in a window of its own, without adding it to a folder. Its pictures from the web are loaded only if you ask, and nothing in it runs."
             )),
             |ui| {
-                setting_row(ui, t, true, note(t, tl!("Nothing is kept: closing it leaves no trace in your mail.")), None, |ui| {
-                    if ui.button(tl!("Open…")).clicked() {
+                let about = note(t, tl!("Nothing is kept: closing it leaves no trace in your mail."));
+                setting_row(ui, t, true, name(t, tl!("Saved message (.eml or .msg)")), Some(about), |ui| {
+                    if ui.button(tl!("Open message file…")).clicked() {
                         acts.push(Action::OpenMailFile);
                     }
                 });
@@ -487,7 +513,15 @@ fn open(s: &Session, t: &Tokens, ui: &mut Ui, b: &mut Backstage, acts: &mut Vec<
             t,
             true,
             name(t, tl!("Export rules")),
-            Some(note(t, tl!("Save your rules in a file, to keep them or to use them on another computer."))),
+            // Why it's off, when it is (greyed with no reason, it was).
+            Some(note(
+                t,
+                if s.rules.is_empty() {
+                    tl!("No rules yet: make one in Rules, on the Home tab.")
+                } else {
+                    tl!("Save your rules in a file, to keep them or to use them on another computer.")
+                },
+            )),
             |ui| {
                 if ui.add_enabled(!s.rules.is_empty(), egui::Button::new(tl!("Export…"))).clicked() {
                     acts.push(Action::ExportRules);
@@ -576,8 +610,9 @@ fn about(s: &Session, t: &Tokens, (update, logo): (&UpdateState, Option<&egui::T
             });
         });
     }
-    ui.add_space(10.0);
-    updates(s, t, ui, acts);
+    ui.add_space(14.0);
+    // In cards with rows, as the other File pages are (a layout of its own, it had).
+    card(ui, t, tl!("Updates"), None, |ui| updates(s, t, ui, acts));
     // A test build that updates itself: its next version on the way, or downloaded.
     match update {
         UpdateState::Ready { version, .. } => {
@@ -599,18 +634,30 @@ fn about(s: &Session, t: &Tokens, (update, logo): (&UpdateState, Option<&egui::T
         UpdateState::None => {}
     }
     ui.add_space(14.0);
-    for line in [
-        "Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.",
-        "MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.",
-        "Built in the open from the email standards: no code, icons or assets from other mail apps.",
-    ] {
-        ui.label(RichText::new(tl!(line)).color(t.dim));
-        ui.add_space(4.0);
-    }
-    ui.add_space(8.0);
-    if ui.link(tl!("Source code and issues")).clicked() {
-        acts.push(Action::OpenUrl("https://github.com/ZIDAN44/mailcraft".into()));
-    }
+    card(ui, t, tl!("How MailCraft works"), None, |ui| {
+        for (i, line) in [
+            "Local-first: mail is cached on this computer for fast offline search. Passwords stay in the system keychain.",
+            "MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.",
+            "Built in the open from the email standards: no code, icons or assets from other mail apps.",
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            // Whole, wrapped, a line between them as between rows.
+            if i > 0 {
+                let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 1.0), Sense::hover());
+                ui.painter().rect_filled(r, 0.0, t.border.gamma_multiply(0.6));
+            }
+            ui.add_space(ROW_PAD);
+            ui.add(egui::Label::new(RichText::new(tl!(line)).color(t.text)).wrap());
+            ui.add_space(ROW_PAD);
+        }
+        setting_row(ui, t, false, name(t, tl!("Source code and issues")), None, |ui| {
+            if ui.button(tl!("Open on GitHub")).clicked() {
+                acts.push(Action::OpenUrl("https://github.com/ZIDAN44/mailcraft".into()));
+            }
+        });
+    });
     // Fonts built in from craft-fonts travel with their licences.
     if !crate::craft_fonts::CRAFT_FONTS.is_empty() {
         ui.add_space(12.0);

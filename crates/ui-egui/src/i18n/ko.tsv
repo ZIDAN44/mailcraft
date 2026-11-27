@@ -1438,7 +1438,6 @@ month	May	5월
 	Online meetings	온라인 모임
 	Join:	참가:
 	Access code:	액세스 코드:
-	Access code	액세스 코드
 	Remove online meeting	온라인 모임 제거
 	Add online meeting	온라인 모임 추가
 	Adds {room}: its link as the place, and how to join in the notes	{room}을(를) 추가합니다: 링크는 장소로, 참가 방법은 메모로 들어갑니다
@@ -2245,3 +2244,19 @@ count	occurrences	회
 	Keep messages light in the dark theme	어두운 테마에서도 메시지를 밝게 유지
 	Top bar in the panes' colours	위쪽 막대를 창 영역 색으로
 	Use a certificate on this computer	이 컴퓨터의 인증서 사용
+	How MailCraft works	MailCraft의 작동 방식
+	No rules yet: make one in Rules, on the Home tab.	아직 규칙이 없습니다. 홈 탭의 규칙에서 만드세요.
+	Open data file…	데이터 파일 열기…
+	Open message file…	메시지 파일 열기…
+	Open on GitHub	GitHub에서 열기
+	Outlook or MailCraft data file	Outlook 또는 MailCraft 데이터 파일
+	Saved message (.eml or .msg)	저장한 메시지(.eml 또는 .msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	메일 서명 및 암호화: S/MIME 인증서와 OpenPGP 키
+	Updates	업데이트
+	Access code (optional)	액세스 코드(선택 사항)
+	Add a meeting room	회의실 추가
+	Add a room	회의실 추가
+	Add room…	회의실 추가…
+	That isn't a meeting link: paste the room's https:// address.	회의 링크가 아닙니다. 회의실의 https:// 주소를 붙여 넣으세요.
+	That isn't a server's name, such as jitsi.example.org.	jitsi.example.org 같은 서버 이름이 아닙니다.
+	Type an address (name@example.com) or a domain (@example.com).	주소(name@example.com)나 도메인(@example.com)을 입력하세요.

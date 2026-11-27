@@ -1438,7 +1438,6 @@ month	May	5月
 	Online meetings	線上會議
 	Join:	加入：
 	Access code:	存取碼：
-	Access code	存取碼
 	Remove online meeting	移除線上會議
 	Add online meeting	新增線上會議
 	Adds {room}: its link as the place, and how to join in the notes	新增 {room}:連結作為地點，備註中寫明如何加入
@@ -2245,3 +2244,19 @@ count	occurrences	次
 	Keep messages light in the dark theme	在深色主題中保持郵件為淺色
 	Top bar in the panes' colours	頂端列使用窗格的色彩
 	Use a certificate on this computer	使用此電腦上的憑證
+	How MailCraft works	MailCraft 的運作方式
+	No rules yet: make one in Rules, on the Home tab.	還沒有規則：可在「常用」索引標籤的「規則」中建立。
+	Open data file…	開啟資料檔…
+	Open message file…	開啟郵件檔…
+	Open on GitHub	在 GitHub 上開啟
+	Outlook or MailCraft data file	Outlook 或 MailCraft 資料檔
+	Saved message (.eml or .msg)	儲存的郵件 (.eml 或 .msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	簽署及加密郵件：S/MIME 憑證和 OpenPGP 金鑰
+	Updates	更新
+	Access code (optional)	存取碼 (選用)
+	Add a meeting room	新增會議室
+	Add a room	新增會議室
+	Add room…	新增會議室…
+	That isn't a meeting link: paste the room's https:// address.	這不是會議連結：請貼上會議室的 https:// 位址。
+	That isn't a server's name, such as jitsi.example.org.	這不是伺服器名稱，例如 jitsi.example.org。
+	Type an address (name@example.com) or a domain (@example.com).	請輸入位址 (name@example.com) 或網域 (@example.com)。

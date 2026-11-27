@@ -30,6 +30,24 @@ pub(crate) fn password_field(ui: &mut Ui, text: &mut String, hint: &str) -> Resp
     inner.inner
 }
 
+/// A list's last row: a box and Add, Add on while what's typed is `ok`, and `why` it isn't under
+/// the box once something is typed. True when it's to be added (Add, or Enter in the box).
+pub(crate) fn add_row(ui: &mut Ui, text: &mut String, hint: &str, ok: bool, why: &str) -> bool {
+    let t = Tokens::of(ui);
+    ui.add_space(8.0);
+    let mut add = false;
+    ui.horizontal(|ui| {
+        let r = ui.add(egui::TextEdit::singleline(text).hint_text(hint).desired_width((ui.available_width() - 90.0).clamp(160.0, 360.0)));
+        add |= ok && r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+        add |= ui.add_enabled(ok, egui::Button::new(tl!("Add"))).clicked();
+    });
+    if !text.trim().is_empty() && !ok {
+        crate::dialogs::field_error(ui, &t, why);
+    }
+    ui.add_space(4.0);
+    add
+}
+
 /// A text box filling its row but for a button after it (Browse…), the row ending where the
 /// fields above it do (the box was the room less 100 or 112 points, the row ragged): true when
 /// the button is clicked.

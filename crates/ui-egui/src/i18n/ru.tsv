@@ -1452,7 +1452,6 @@ date	December	декабря
 	Online meetings	Онлайн-собрания
 	Join:	Присоединиться:
 	Access code:	Код доступа:
-	Access code	Код доступа
 	Remove online meeting	Убрать онлайн-собрание
 	Add online meeting	Добавить онлайн-собрание
 	Adds {room}: its link as the place, and how to join in the notes	Добавляет {room}: ссылку как место и в заметках — как присоединиться
@@ -2259,3 +2258,19 @@ count	occurrences	повторений
 	Keep messages light in the dark theme	Оставлять сообщения светлыми в тёмной теме
 	Top bar in the panes' colours	Верхняя панель в цветах областей
 	Use a certificate on this computer	Использовать сертификат на этом компьютере
+	How MailCraft works	Как работает MailCraft
+	No rules yet: make one in Rules, on the Home tab.	Правил пока нет: создайте правило в разделе «Правила» на вкладке «Главная».
+	Open data file…	Открыть файл данных…
+	Open message file…	Открыть файл сообщения…
+	Open on GitHub	Открыть на GitHub
+	Outlook or MailCraft data file	Файл данных Outlook или MailCraft
+	Saved message (.eml or .msg)	Сохранённое сообщение (.eml или .msg)
+	Signing and encrypting mail: S/MIME certificates and OpenPGP keys	Подпись и шифрование почты: сертификаты S/MIME и ключи OpenPGP
+	Updates	Обновления
+	Access code (optional)	Код доступа (необязательно)
+	Add a meeting room	Добавить комнату для встреч
+	Add a room	Добавить комнату
+	Add room…	Добавить комнату…
+	That isn't a meeting link: paste the room's https:// address.	Это не ссылка на встречу: вставьте адрес комнаты, начинающийся с https://.
+	That isn't a server's name, such as jitsi.example.org.	Это не имя сервера, например jitsi.example.org.
+	Type an address (name@example.com) or a domain (@example.com).	Введите адрес (name@example.com) или домен (@example.com).
