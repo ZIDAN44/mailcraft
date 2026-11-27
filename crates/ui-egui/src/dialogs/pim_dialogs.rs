@@ -594,7 +594,6 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut
         }
         ui.add_space(8.0);
     }
-    online_meeting::row(ui, f, t, acts);
     ui.add_enabled_ui(!f.read_only, |ui| {
         title_field(ui, &mut f.summary);
         let start_before = typed_moment(&f.date, &f.start, f.all_day);
@@ -646,6 +645,7 @@ pub fn event(ui: &mut Ui, f: &mut EventForm, s: &Session, t: &Tokens, acts: &mut
         form_row(ui, t, true, Some(Icon::Location), "Location", |ui| {
             field(ui, &mut f.location, tl!("Add a place"), f32::INFINITY);
         });
+        online_meeting::row(ui, f, t, acts);
         // Categories colour it in the calendar (Outlook's Categorize on an appointment).
         if !f.all_categories.is_empty() {
             form_row(ui, t, true, Some(Icon::Tag), "Categories", |ui| {

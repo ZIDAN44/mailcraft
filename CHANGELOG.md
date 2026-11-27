@@ -21,6 +21,7 @@ on GitHub.
 - The ribbon's icons are drawn in the text's own colour, not all in the app colour. A button's drop-down arrow sits against it as one split button (it floated as a button of its own), and a button that opens a menu (**Quick steps**, **Rules**, **Categorize**, **Snooze**, **Filter**, **Reading pane**, **To-Do Bar** and the rest) has a small arrow after its label.
 - The status bar along the bottom of the window is gone; its counts were the folder pane's. What it had to say that matters shows as a bar over the panes only while it lasts: an account that needs you or can't connect, working offline, mail waiting in the Outbox, a data file being imported or compacted, an update downloading, or **Send / Receive** running.
 - Links read as links, in the app colour: many were drawn as plain text, such as **Subscribe to a calendar…** and the calendar's **n more**.
+- An event's online meeting is a switch under its place, **Online meeting**, with its link beside it; with no meeting rooms set up there's no row. A greyed **Add online meeting** button over the title read as an empty box.
 - The event, task and contact forms open with their title alone (an icon in a coloured circle took room the form needed), and their drop-downs are as tall as their text boxes.
 
 ### Fixed

@@ -720,3 +720,33 @@ fn deleting_a_meeting_asks_how_its_guests_are_told() {
     assert_eq!(a.session.prefs.categories[0].name, "Wichtig");
     crate::i18n::set_current(crate::i18n::Lang::EN);
 }
+
+/// The new event's form: with no meeting rooms set up, no online meeting row (a greyed button
+/// over the title read as an empty box, the first thing in the form); with rooms, a switch
+/// under the place, which adds the first room.
+#[test]
+fn the_online_meeting_is_a_switch_under_the_place() {
+    let (mut a, _) = app("meeting-switch");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    let size = egui::vec2(1280.0, 900.0);
+    let open = |a: &mut MailApp| {
+        a.ui.dialog = Some(Dialog::new_event(&a.session, None));
+        for _ in 0..3 {
+            let _ = sized_frame(&ctx, a, size, vec![]);
+        }
+    };
+    open(&mut a);
+    let none = named(&ctx, &mut a, size);
+    assert!(!none.iter().any(|n| n.name().is_some_and(|l| l.contains("online meeting") || l == "Online meeting")), "no row without rooms");
+    rooms(&mut a);
+    open(&mut a);
+    let nodes = named(&ctx, &mut a, size);
+    let top = |name: &str| nodes.iter().find(|n| n.name() == Some(name)).and_then(|n| n.rect).map(|r| r.top());
+    let (switch, title) = (top("Online meeting").expect("the switch"), top("Add a title"));
+    assert!(title.is_none_or(|t| switch > t), "under the title: {switch} {title:?}");
+    click_named(&ctx, &mut a, "Online meeting");
+    let Some(Dialog::Event(f)) = &a.ui.dialog else { panic!("the form") };
+    assert!(f.meeting.current.is_some(), "on: the first room added");
+}

@@ -4,7 +4,7 @@
 //! several rooms the button has a menu of them. With "Add an online meeting to all meetings with
 //! guests" on, a new meeting gets the first room's as soon as it has guests.
 
-use egui::{RichText, Ui};
+use egui::Ui;
 use mailcraft_engine::Session;
 use mailcraft_engine::model::ical::{CalEvent, MeetingLabels, MeetingRoom};
 use serde_json::{Value, json};
@@ -105,39 +105,34 @@ pub fn param(form: &EventForm, p: &mut Value) {
     }
 }
 
-/// The button row: Add online meeting (a menu of rooms when there are several), or the meeting's
-/// link and Remove online meeting when it has one.
+/// The form's Online meeting row, under the place: a switch that adds the first room (the arrow
+/// beside it choosing another, when there are several) or takes the meeting out, its link after
+/// it while it has one. With no rooms set up, no row: a greyed button over the title read as an
+/// empty box, the first thing in the form (File › Options › Online meetings sets rooms up).
 pub fn row(ui: &mut Ui, form: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>) {
     if form.read_only || !form.can_invite {
         return;
     }
     add_for_all(form);
-    ui.horizontal(|ui| {
-        if let Some(url) = form.meeting.current.clone() {
-            ui.label(RichText::new(tl!("Online meeting")).color(t.dim));
-            if ui.link(super::link_label(&url, 48)).on_hover_text(&url).clicked() {
-                acts.push(Action::OpenUrl(url.clone()));
-            }
-            if ui.button(tl!("Remove online meeting")).clicked() {
-                remove(form);
-            }
-            return;
-        }
-        let first = form.meeting.rooms.first().cloned();
+    let current = form.meeting.current.clone();
+    let first = form.meeting.rooms.first().cloned();
+    if current.is_none() && first.is_none() {
+        return;
+    }
+    super::form_row(ui, t, true, None, "Online meeting", |ui| {
+        let mut on = current.is_some();
         let hint = match &first {
             Some(r) => tf!("Adds {room}: its link as the place, and how to join in the notes", room = r.name),
             None => tl!("Add your meeting rooms under File › Options › Online meetings").to_string(),
         };
-        if ui
-            .add_enabled(first.is_some(), egui::Button::new(tl!("Add online meeting")))
-            .on_hover_text(hint)
-            .on_disabled_hover_text(tl!("Add your meeting rooms under File › Options › Online meetings"))
-            .clicked()
-            && let Some(r) = &first
-        {
-            add(form, r);
+        if crate::widgets::switch(ui, t, &mut on, "Online meeting").on_hover_text(hint).changed() {
+            match (&first, on) {
+                (Some(r), true) => add(form, r),
+                (_, false) => remove(form),
+                (None, true) => {}
+            }
         }
-        // Several rooms: a split button, the arrow choosing which.
+        // Several rooms: which one, from the arrow.
         if form.meeting.rooms.len() > 1 {
             let rooms = form.meeting.rooms.clone();
             let r = crate::widgets::tiny_icon_button(ui, crate::icons::Icon::ChevronDown, "Choose a room", t);
@@ -150,6 +145,10 @@ pub fn row(ui: &mut Ui, form: &mut EventForm, t: &Tokens, acts: &mut Vec<Action>
                 }
             });
         }
+        if let Some(url) = &current
+            && ui.link(super::link_label(url, 40)).on_hover_text(url).clicked()
+        {
+            acts.push(Action::OpenUrl(url.clone()));
+        }
     });
-    ui.add_space(8.0);
 }
