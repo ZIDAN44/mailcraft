@@ -16,6 +16,7 @@ on GitHub.
 
 - The interface is drawn in the system's own font, with a Semibold for what stands out (an unread message, a heading, a name), as the system's own apps are: Segoe UI Variable on Windows 11 (Segoe UI on Windows 10), the Mac's system font where it was Arial, and Noto Sans with its SemiBold on Linux. Letters are drawn at whole pixels, and a shade fuller in the light theme, so text is crisper. What a message or you make bold stays bold.
 - Dialogs' buttons are one height and width, in your system's order: on Windows the main button comes first and **Cancel** last, as in Windows' own dialogs; on a Mac and Linux **Cancel** comes first. A button that deletes or removes for good (**Delete**, **Empty**, **Remove**, **Restore**) is red, and **Enter** never presses it; in a question, **Enter** presses the main button. Dialogs have a larger title, a little more room, and a soft shadow.
+- Links read as links, in the app colour: many were drawn as plain text, such as **Subscribe to a calendar…** and the calendar's **n more**.
 - The event, task and contact forms open with their title alone (an icon in a coloured circle took room the form needed), and their drop-downs are as tall as their text boxes.
 
 ### Fixed

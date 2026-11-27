@@ -255,7 +255,9 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
     v.selection.bg_fill = t.accent.gamma_multiply(if t.dark { 0.55 } else { 0.35 });
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent;
-    v.override_text_color = Some(t.text);
+    // Text in the theme's colour through each widget state, not forced on all of it: forced, it
+    // took links' colour too, and a link read as plain text ("Subscribe to a calendar…").
+    v.override_text_color = None;
     // Two corners: a control's, and a surface's (a window, a menu).
     let r = CornerRadius::same(crate::sizes::CONTROL_RADIUS);
     v.window_corner_radius = CornerRadius::same(crate::sizes::SURFACE_RADIUS);
