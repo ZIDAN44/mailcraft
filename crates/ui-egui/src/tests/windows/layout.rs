@@ -376,7 +376,16 @@ fn the_ribbon_hides_and_a_tab_shows_it_for_now() {
         frame(&ctx, &mut a, vec![]);
     }
     let ribbon = a.ui.ribbon_rect.expect("the ribbon is drawn");
-    let rows_before = a.ui.list_page;
+    // Where the list's first row is: higher once the ribbon's room is the list's.
+    let first_row = |ctx: &egui::Context, a: &mut MailApp| {
+        named(ctx, a, SIZE.with(Cell::get))
+            .iter()
+            .filter(|n| n.role == egui::accesskit::Role::ListItem)
+            .filter_map(|n| n.rect)
+            .map(|r| r.top())
+            .fold(f32::INFINITY, f32::min)
+    };
+    let row_before = first_row(&ctx, &mut a);
     a.run("view.hideRibbon", json!({}));
     assert!(a.session.prefs.ribbon_hidden);
     for _ in 0..3 {
@@ -384,7 +393,8 @@ fn the_ribbon_hides_and_a_tab_shows_it_for_now() {
     }
     assert!(a.ui.ribbon_rect.is_none(), "the ribbon's buttons are gone");
     assert!(a.ui.top_bar_rect.is_some(), "the top bar, with the tabs, stays");
-    assert!(a.ui.list_page > rows_before, "{} rows, {rows_before} before", a.ui.list_page);
+    let row_after = first_row(&ctx, &mut a);
+    assert!(row_after < row_before - 20.0, "the list's first row at {row_after}, {row_before} before");
     // A tab shows its buttons, over where they were.
     click_named(&ctx, &mut a, "View");
     frame(&ctx, &mut a, vec![]);
@@ -409,12 +419,14 @@ fn the_ribbon_hides_and_a_tab_shows_it_for_now() {
     assert!(a.ui.ribbon_rect.is_none(), "its tab clicked again puts it away");
     // Ctrl+F1 brings it back for good.
     frame(&ctx, &mut a, vec![key(egui::Key::F1, egui::Modifiers::COMMAND)]);
-    for _ in 0..2 {
+    for _ in 0..6 {
         frame(&ctx, &mut a, vec![]);
     }
     assert!(!a.session.prefs.ribbon_hidden);
     assert!(a.ui.ribbon_rect.is_some());
-    assert_eq!(a.ui.list_page, rows_before);
+    // The list under it again (the View tab, picked above, is the one shown: its own height).
+    let back = a.ui.ribbon_rect.map_or(0.0, |r| r.bottom());
+    assert!(first_row(&ctx, &mut a) > back, "the list under the ribbon");
 }
 
 /// The single-line list's head is one line: the folder's name, and on the same line the filter,

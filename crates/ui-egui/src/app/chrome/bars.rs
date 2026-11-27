@@ -157,11 +157,27 @@ impl MailApp {
         .rect
     }
 
-    /// The status bar: what's shown and waiting, the background work, and the accounts.
+    /// Whether the status has something to say: a problem (an account that needs you or can't
+    /// connect, working offline, mail waiting in the Outbox) or work under way to follow (a data
+    /// file's import or compaction, an update downloading, Send / Receive). Not the list's
+    /// counts (the folder pane has them), routine updating, the search index being made (a
+    /// moment's, and the bar came and went, moving the panes), or the sample's mailbox being
+    /// offline: Windows' own apps have no status bar for those.
+    pub(crate) fn status_worth_showing(&self, now: f64) -> bool {
+        let s = &self.session;
+        !s.outbox.is_empty()
+            || s.prefs.work_offline
+            || s.accounts.iter().any(|a| needs_you(a) || matches!(a.status, SyncStatus::Error { .. }))
+            || super::importing::shown(s).is_some()
+            || super::compacting::status(s, &self.ui.compact, now).is_some()
+            || !matches!(self.ui.update, crate::UpdateState::None)
+            || s.send_receive.unseen_error
+            || s.send_receive.open().any(|r| r.transfer.state == mailcraft_engine::model::job::TransferState::Working)
+    }
+
+    /// The status: what waits, the background work, and the accounts.
     pub(crate) fn status_bar(&mut self, ui: &mut Ui) {
         let t = self.ui.tokens;
-        // In People, how many contacts it shows (the list as People keeps it).
-        let people_items = (self.session.module == Module::People).then(|| people::shown(&self.session, &mut self.ui).at.len());
         let s = &self.session;
         let mut again: Option<String> = None;
         let mut restart = false;
@@ -169,7 +185,7 @@ impl MailApp {
         let mut send_receive = std::mem::take(&mut self.ui.send_receive);
         let mut acts = Vec::new();
         ui.with_layout(bidi::row_from_start(Align::Center), |ui| {
-            item_counts(ui, s, people_items, t);
+            waiting(ui, s, t);
             // A test build's next version: how far it's downloaded, then restart into it.
             restart = self.update_status(ui);
             background_segment(ui, s, &self.ui.compact, t, &mut details, &mut acts);
@@ -286,18 +302,8 @@ impl MailApp {
     }
 }
 
-/// The status bar's start: the items of what's shown (the list's mail, or in People the
-/// contacts), what waits in the Outbox, and whether MailCraft works offline.
-fn item_counts(ui: &mut Ui, s: &Session, people: Option<usize>, t: Tokens) {
-    if let Some(n) = people {
-        ui.label(RichText::new(tf!("Items: {n}", n = n)).color(t.dim).small());
-    } else if s.module == Module::Mail {
-        let unread = s.list.iter().filter(|m| !m.flags.seen).count();
-        ui.label(RichText::new(tf!("Items: {n}", n = s.list.len())).color(t.dim).small());
-        if unread > 0 {
-            ui.label(RichText::new(tf!("Unread: {n}", n = unread)).color(t.dim).small());
-        }
-    }
+/// The status's start: what waits in the Outbox, and whether MailCraft works offline.
+fn waiting(ui: &mut Ui, s: &Session, t: Tokens) {
     if !s.outbox.is_empty() {
         ui.label(RichText::new(tf!("Outbox: {n}", n = s.outbox.len())).color(t.warn).small());
     }

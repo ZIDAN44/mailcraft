@@ -330,10 +330,11 @@ fn an_account_is_kept_online_only_from_the_forms() {
     assert!(matches!(&a.ui.dialog, Some(Dialog::AddAccount(f)) if f.online_only == Some(false) && f.params().get("onlineOnly").is_none()));
 }
 
-/// A dozen accounts waiting for their password: the status bar shows as many as fit and "+N"
-/// for the rest, never over "Items" and "Unread" on its left (they ran over them).
+/// A dozen accounts waiting for their password: the status shows as many as fit and "+N" for
+/// the rest, none past the window's edge, nor over what's at its start (they ran over the
+/// counts it had there).
 #[test]
-fn many_accounts_waiting_dont_cover_the_counts() {
+fn many_accounts_waiting_fit_the_status() {
     let (mut a, _) = app("status-many");
     let ctx = egui::Context::default();
     for n in 0..12 {
@@ -348,13 +349,12 @@ fn many_accounts_waiting_dont_cover_the_counts() {
             a.session.apply(MailEvent::Status { account: id.clone(), status: SyncStatus::NeedsPassword { error: String::new() } });
         }
         let drawn = drawn_text(&ctx, &mut a, egui::vec2(1000.0, 700.0));
-        texts = drawn.into_iter().filter(|d| d.rect.min.y > 675.0).map(|d| (d.text, d.rect.min.x, d.rect.max.x)).collect();
+        // Where their letters are (a right-to-left row lays a text out from its end).
+        texts = drawn.into_iter().map(|d| (d.text, d.ink.min.x, d.ink.max.x)).collect();
     }
-    let counts_end = texts.iter().filter(|(s, ..)| s.starts_with("Items") || s.starts_with("Unread")).map(|(_, _, r)| *r).fold(0.0, f32::max);
     let waiting: Vec<_> = texts.iter().filter(|(s, ..)| s.contains("waiting") && s.contains(':') || s.starts_with('+')).collect();
-    assert!(counts_end > 0.0, "{texts:?}");
     assert!(waiting.iter().any(|(s, ..)| s.starts_with('+')), "the rest as +N: {texts:?}");
-    assert!(waiting.iter().all(|(_, l, _)| *l > counts_end), "nothing over the counts: {texts:?}");
+    assert!(waiting.iter().all(|(_, l, r)| *l >= 0.0 && *r <= 1000.0), "inside the window: {waiting:?}");
 }
 
 /// An account's trouble that needs you is told apart from one that only waits to be tried again:
@@ -607,4 +607,31 @@ fn a_server_elsewhere_s_certificate_is_asked_about_and_listed() {
     let texts = settled(&mut a);
     assert!(has(&texts, "Trust a certificate file…"), "{texts:?}");
     assert!(!texts.iter().any(|t| t == "Trusted when asked"), "{texts:?}");
+}
+
+/// The status says something only when there's something to say: with all well, no bar (one
+/// along the bottom said "Items: 7  Unread: 2" and the accounts' state all the time); an account
+/// that needs its password, said over the panes, under the ribbon.
+#[test]
+fn the_status_shows_only_problems_and_work() {
+    let (mut a, _) = app("status-quiet");
+    let ctx = egui::Context::default();
+    let size = egui::vec2(1280.0, 800.0);
+    for _ in 0..3 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    let quiet = drawn_strings(&ctx, &mut a, size);
+    assert!(!quiet.iter().any(|t| t.starts_with("Items: ") || t.starts_with("Unread: ")), "no counts: {quiet:?}");
+    let status = ["All folders are up to date", "Offline", "Sample mailbox (offline)", "Updating…", "Connecting…"];
+    assert!(!quiet.iter().any(|t| status.contains(&t.as_str())), "nothing to say: {quiet:?}");
+    let c = mailcraft_engine::model::AccountConfig::guess("zoe@studio.example");
+    let id = a.session.add_account(c, None).unwrap();
+    a.session.apply(MailEvent::Status { account: id, status: SyncStatus::NeedsPassword { error: String::new() } });
+    let mut said = Vec::new();
+    for _ in 0..3 {
+        said = drawn_text(&ctx, &mut a, size);
+    }
+    let ribbon = a.ui.ribbon_rect.expect("the ribbon").bottom();
+    let password = said.iter().find(|d| d.text.contains("Password needed")).expect("said");
+    assert!(password.rect.top() > ribbon && password.rect.top() < ribbon + 40.0, "under the ribbon: {:?}", password.rect);
 }

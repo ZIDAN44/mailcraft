@@ -490,12 +490,17 @@ impl MailApp {
                     });
             }
         }
-        egui::Panel::bottom("status")
-            .exact_size(26.0)
-            .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(10, 3)).stroke(egui::Stroke::new(1.0, t.border)))
-            .show(ui, |ui| {
-                self.status_bar(ui);
-            });
+        // The status, only while it has something to say (a problem, or work to follow), as a bar
+        // over the panes: a bar along the bottom said the list's counts and "All folders are up
+        // to date" all the time, which Windows' own apps don't.
+        if self.status_worth_showing(ui.input(|i| i.time)) {
+            egui::Panel::top("status")
+                .exact_size(28.0)
+                .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(12, 4)).stroke(egui::Stroke::new(1.0, t.border)))
+                .show(ui, |ui| {
+                    self.status_bar(ui);
+                });
+        }
     }
 
     /// The main window's panes: the File page, the welcome with no account yet, or the module's

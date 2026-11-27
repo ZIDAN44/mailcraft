@@ -120,7 +120,10 @@ fn an_all_day_event_and_one_in_the_month_move_by_days() {
     // A week down in the month: the same weekday a week on.
     let f = at(&drawn, "Festival");
     let rows: Vec<f32> = {
-        let mut ys: Vec<f32> = drawn.iter().filter(|d| d.seen() && d.text.parse::<u32>().is_ok()).map(|d| d.rect.center().y).collect();
+        // The month's own day numbers (not the side pane's small month, left of its headings).
+        let side = at(&drawn, "Mon").min.x - 40.0;
+        let mut ys: Vec<f32> =
+            drawn.iter().filter(|d| d.seen() && d.rect.min.x > side && d.text.parse::<u32>().is_ok()).map(|d| d.rect.center().y).collect();
         ys.sort_by(f32::total_cmp);
         ys.dedup_by(|x, y| (*x - *y).abs() < 4.0);
         ys

@@ -126,8 +126,6 @@ fn long_lists_scroll_in_order_and_follow_changes() {
     let added = format!("{}x", shown[0]);
     a.run("contact.create", json!({ "name": added }));
     let texts = drawn(&ctx, &mut a, vec![]);
-    let items = format!("Items: {}", a.session.people("").len());
-    assert!(texts.iter().any(|(t, _)| *t == items), "{items}: {texts:?}");
     let side: Vec<&String> = texts.iter().filter(|(_, p)| p.x < 300.0).map(|(t, _)| t).collect();
     let at = side.iter().position(|t| **t == shown[0]);
     // Its name, its address, the next one's initials, then the next one's name.

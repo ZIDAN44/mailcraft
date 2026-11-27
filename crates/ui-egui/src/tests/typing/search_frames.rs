@@ -165,12 +165,12 @@ fn the_list_says_how_a_search_is_going() {
     let texts = drawn(&ctx, &mut a);
     assert!(texts.iter().any(|t| t == "Some results may be missing: still indexing"), "{texts:?}");
     assert!(!texts.iter().any(|t| t.starts_with("Indexing")), "no pass under way: {texts:?}");
-    // A pass under way: how far, in the banner and the status bar.
+    // A pass under way: how far, in the banner (the status bar comes up for problems, not for
+    // the index being made).
     let work = mailcraft_engine::model::job::Work { done: 3, total: 10, ..Default::default() };
     a.session.apply(MailEvent::Indexed { account: account.clone(), work, generation: 1, failed: 0, finished: false });
     let texts = drawn(&ctx, &mut a);
     assert!(texts.iter().any(|t| t == "Some results may be missing: still indexing (30%)"), "{texts:?}");
-    assert!(texts.iter().any(|t| t == "Indexing 30%"), "{texts:?}");
     // Still running: "Searching…" over an empty list, not "No results".
     a.run("search.run", json!({"query": "zzzz", "scope": "all"}));
     a.session.start_search("zzzz", mailcraft_engine::SearchScope::All, false);
