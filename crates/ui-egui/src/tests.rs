@@ -313,6 +313,13 @@ pub(crate) fn click_named(ctx: &egui::Context, a: &mut MailApp, label: &str) {
     click(ctx, a, at);
 }
 
+/// File › Options open at `section`.
+pub(crate) fn options_part(a: &mut MailApp, section: crate::backstage::Section) {
+    if let Some(b) = a.ui.backstage.as_mut() {
+        b.section = section;
+    }
+}
+
 /// A message of this source filed first in the sample's Inbox at `uid`, as mail coming in.
 pub(crate) fn arrive(a: &mut MailApp, uid: u32, raw: &[u8]) -> MessageKey {
     let store = a.session.store.clone().unwrap();

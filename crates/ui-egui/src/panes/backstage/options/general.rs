@@ -46,6 +46,14 @@ pub(super) fn general(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Act
             cmd: "view.hideRibbon",
         };
         switch_row(s, ui, &t, false, ribbon, acts);
+        // With Hide the ribbon (it was under Reading).
+        let classic = Switch {
+            label: tl!("Classic ribbon"),
+            about: Some(tl!("Big buttons with their names under them, in named groups")),
+            on: s.prefs.classic_ribbon,
+            cmd: "view.classicRibbon",
+        };
+        switch_row(s, ui, &t, false, classic, acts);
         // Windows, Linux and the BSDs: the top bar is the window's title bar (issue #22), or the
         // system's is kept.
         if cfg!(any(windows, all(unix, not(target_os = "macos")))) {

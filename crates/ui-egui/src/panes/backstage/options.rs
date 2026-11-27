@@ -13,27 +13,117 @@ mod mail;
 mod safety;
 pub(super) use agents::log as agents_log;
 
-pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
+/// The parts of Options, each a page of its own under it in the rail (one page of thirteen cards
+/// ran seven screens or more, with no way to a part but scrolling).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Section {
+    #[default]
+    General,
+    Mail,
+    Calendar,
+    DataFiles,
+    Safety,
+    Agents,
+}
+
+impl Section {
+    pub const ALL: [Section; 6] = [Section::General, Section::Mail, Section::Calendar, Section::DataFiles, Section::Safety, Section::Agents];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Section::General => "General",
+            Section::Mail => "Mail",
+            Section::Calendar => "Calendar",
+            Section::DataFiles => "Data files",
+            Section::Safety => "Privacy and safety",
+            Section::Agents => "AI agents",
+        }
+    }
+}
+
+/// A card of Options.
+type Card = fn(&Session, &UiState, &mut Ui, &mut Vec<Action>);
+
+/// Each section's cards, in order.
+fn cards(section: Section) -> &'static [Card] {
+    match section {
+        Section::General => &[|s, st, ui, acts| general::general(s, st, ui, acts)],
+        Section::Mail => &[
+            |s, st, ui, acts| mail::reading(s, &st.tokens, ui, acts),
+            |s, st, ui, acts| inbox::inbox(s, &st.tokens, ui, acts),
+            |s, st, ui, acts| mail::checking(s, &st.tokens, ui, acts),
+            |s, st, ui, acts| mail::kept(s, &st.tokens, ui, acts),
+        ],
+        Section::Calendar => {
+            &[|s, st, ui, acts| calendar::calendar(s, &st.tokens, ui, acts), |s, st, ui, acts| super::meetings::meetings(s, st, ui, acts)]
+        }
+        Section::DataFiles => &[|s, st, ui, acts| general::data_files(s, st, ui, acts)],
+        Section::Safety => &[
+            |s, st, ui, acts| safety::safety(s, &st.tokens, ui, acts),
+            |s, st, ui, acts| safety::senders(s, &st.tokens, ui, acts),
+            |s, st, ui, acts| safety::privacy(s, &st.tokens, ui, acts),
+        ],
+        Section::Agents => &[|s, st, ui, acts| agents::agents(s, &st.tokens, ui, acts)],
+    }
+}
+
+/// What's being looked for among the settings (lower case), while a search is typed.
+fn finding(ui: &Ui) -> Option<String> {
+    ui.data(|d| d.get_temp::<String>(find_id())).filter(|q| !q.is_empty())
+}
+
+fn find_id() -> egui::Id {
+    egui::Id::unique("options-find")
+}
+
+/// How many settings a search matched, as a card is drawn.
+fn found_id() -> egui::Id {
+    egui::Id::unique("options-found")
+}
+
+pub(super) fn options(s: &Session, st: &UiState, ui: &mut Ui, section: Section, find: &mut String, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    heading(ui, &t, "Options");
+    heading(ui, &t, if find.trim().is_empty() { section.label() } else { "Options" });
     ui.set_max_width(ui.available_width().min(760.0));
-    general::general(s, st, ui, acts);
-    general::data_files(s, st, ui, acts);
-    mail::reading(s, &t, ui, acts);
-    mail::kept(s, &t, ui, acts);
-    mail::checking(s, &t, ui, acts);
-    inbox::inbox(s, &t, ui, acts);
-    calendar::calendar(s, &t, ui, acts);
-    super::meetings::meetings(s, st, ui, acts);
-    safety::senders(s, &t, ui, acts);
-    safety::safety(s, &t, ui, acts);
-    safety::privacy(s, &t, ui, acts);
-    agents::agents(s, &t, ui, acts);
+    // A setting found by its name or what it does, in any section.
+    ui.add(egui::TextEdit::singleline(find).hint_text(tl!("Find a setting")).desired_width(320.0));
+    ui.add_space(12.0);
+    let query = find.trim().to_lowercase();
+    ui.data_mut(|d| d.insert_temp(find_id(), query.clone()));
+    if query.is_empty() {
+        for card in cards(section) {
+            card(s, st, ui, acts);
+        }
+        return;
+    }
+    // Searching: each card that has a setting found, with only those settings (counted in a pass
+    // that draws nothing first).
+    let mut any = false;
+    for card in Section::ALL.iter().flat_map(|s| cards(*s)) {
+        ui.data_mut(|d| d.insert_temp(found_id(), 0usize));
+        ui.scope_builder(egui::UiBuilder::new().invisible().sizing_pass(), |ui| card(s, st, ui, &mut Vec::new()));
+        if ui.data(|d| d.get_temp::<usize>(found_id())).unwrap_or(0) > 0 {
+            any = true;
+            card(s, st, ui, acts);
+        }
+    }
+    if !any {
+        ui.label(RichText::new(tl!("No setting matches that.")).color(t.dim));
+    }
+    ui.data_mut(|d| d.remove::<String>(find_id()));
 }
 
 /// One setting of a card, one per row, by its name and the line about it (in the rows Info and
 /// Open & Export draw too).
 fn setting(ui: &mut Ui, t: &Tokens, first: bool, label: &str, about: Option<&str>, control: impl FnOnce(&mut Ui)) {
+    // While a search is typed: only the settings it finds, by their name or what they do.
+    if let Some(q) = finding(ui) {
+        let found = label.to_lowercase().contains(&q) || about.is_some_and(|a| a.to_lowercase().contains(&q));
+        if !found {
+            return;
+        }
+        ui.data_mut(|d| *d.get_temp_mut_or_default::<usize>(found_id()) += 1);
+    }
     setting_row(ui, t, first, name(t, label), about.map(|a| note(t, a)), control);
 }
 

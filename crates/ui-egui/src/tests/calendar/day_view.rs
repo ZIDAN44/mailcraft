@@ -92,6 +92,7 @@ fn options_sets_the_work_days() {
     let (mut a, _) = app("work-time-options");
     let ctx = egui::Context::default();
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    options_part(&mut a, crate::backstage::Section::Calendar);
     let tall = egui::vec2(1280.0, 3000.0);
     drawn_text(&ctx, &mut a, tall);
     let drawn = drawn_text(&ctx, &mut a, tall);

@@ -2214,3 +2214,7 @@ count	occurrences	előfordulás
 	Turned off for a folder it's in	Kikapcsolva egy mappánál, amelyben benne van
 	Not in {folders}: a folder's right-click menu turns it off and on.	Kivéve: {folders}. Egy mappa helyi menüje ki- és bekapcsolja.
 	“{name}” deleted.	„{name}” törölve.
+	Writing	Írás
+	Privacy and safety	Adatvédelem és biztonság
+	Find a setting	Beállítás keresése
+	No setting matches that.	Nincs ilyen beállítás.

@@ -130,6 +130,7 @@ fn the_font_for_new_messages_is_set_in_options_and_written_in() {
     ctx.enable_accesskit();
     crate::mail_fonts::install(&ctx, Arc::new(OneFont));
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    options_part(&mut a, crate::backstage::Section::Mail);
     let tall = egui::vec2(1280.0, 2400.0);
     for _ in 0..3 {
         sized_frame(&ctx, &mut a, tall, vec![]);
@@ -181,6 +182,7 @@ fn the_size_for_new_messages_is_set_in_options_and_written_in() {
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    options_part(&mut a, crate::backstage::Section::Mail);
     let tall = egui::vec2(1280.0, 2400.0);
     for _ in 0..3 {
         sized_frame(&ctx, &mut a, tall, vec![]);

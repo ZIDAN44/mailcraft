@@ -49,6 +49,7 @@ fn the_notes_above_a_message_can_be_turned_off() {
 
     // File › Options › Safety: the notes' switch, and when web pictures load.
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    options_part(&mut a, crate::backstage::Section::Safety);
     for _ in 0..2 {
         frame(&ctx, &mut a, vec![]);
     }

@@ -370,6 +370,7 @@ fn the_reminders_window_comes_up_over_other_apps() {
     let ctx = egui::Context::default();
     ctx.enable_accesskit();
     a.ui.backstage = Some(crate::backstage::Backstage::new(crate::backstage::Page::Options));
+    options_part(&mut a, crate::backstage::Section::Calendar);
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![]);
     let nodes = named(&ctx, &mut a, tall);

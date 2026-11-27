@@ -45,12 +45,6 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             (tl!("Show a line of each message in the list"), None, s.prefs.show_preview, "view.preview"),
             (tl!("Compact list"), None, s.prefs.compact, "view.compact"),
             (tl!("Single-line list"), Some(tl!("One line a message: the sender, the subject and the time")), s.prefs.single_line, "view.singleLine"),
-            (
-                tl!("Classic ribbon"),
-                Some(tl!("Big buttons with their names under them, in named groups")),
-                s.prefs.classic_ribbon,
-                "view.classicRibbon",
-            ),
         ];
         for (label, about, on, cmd) in switches {
             switch_row(s, ui, t, false, Switch { label, about, on, cmd }, acts);
@@ -105,12 +99,38 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
             });
             ui.add_space(8.0);
         }
+        // Every message as plain text, as Outlook's own setting for all mail: here, out of the
+        // way, and View › Plain text; one message's More actions (⋯) and Show formatted switch
+        // that message alone.
+        setting_by(
+            s,
+            "view.html",
+            ui,
+            t,
+            false,
+            tl!("Read all mail as plain text"),
+            Some(tl!("Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.")),
+            |ui| {
+                let mut v = !s.prefs.show_html;
+                if widgets::switch(ui, t, &mut v, tl!("Read all mail as plain text")).changed() {
+                    acts.push(Action::Run("view.html", json!({"on": !v})));
+                }
+            },
+        );
+    });
+    writing(s, t, ui, acts);
+}
+
+/// How messages are written: in a window or the reading pane, spelling, the font, Ctrl+Enter
+/// and Undo Send (they were in the Reading card).
+fn writing(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
+    card(ui, t, tl!("Writing"), None, |ui| {
         let windows = [
             (tl!("Write new messages in a window of their own"), s.prefs.new_mail_window, "view.newMailWindow"),
             (tl!("Write replies and forwards in a window of their own"), s.prefs.reply_window, "view.replyWindow"),
         ];
-        for (label, on, cmd) in windows {
-            switch_row(s, ui, t, false, Switch { label, about: None, on, cmd }, acts);
+        for (i, (label, on, cmd)) in windows.into_iter().enumerate() {
+            switch_row(s, ui, t, i == 0, Switch { label, about: None, on, cmd }, acts);
         }
         // Issue #174: in the interface's language, which says when it has no dictionary here.
         let lang = crate::rich_edit::spelling::language();
@@ -156,24 +176,6 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
                     && let Some(n) = WAITS.get(i)
                 {
                     acts.push(Action::Run("options.undoSend", json!({"seconds": n})));
-                }
-            },
-        );
-        // Every message as plain text, as Outlook's own setting for all mail: here, out of the
-        // way, and View › Plain text; one message's More actions (⋯) and Show formatted switch
-        // that message alone.
-        setting_by(
-            s,
-            "view.html",
-            ui,
-            t,
-            false,
-            tl!("Read all mail as plain text"),
-            Some(tl!("Formatting, colours and pictures are left out. Show formatted, above a message, shows that one as it was sent.")),
-            |ui| {
-                let mut v = !s.prefs.show_html;
-                if widgets::switch(ui, t, &mut v, tl!("Read all mail as plain text")).changed() {
-                    acts.push(Action::Run("view.html", json!({"on": !v})));
                 }
             },
         );

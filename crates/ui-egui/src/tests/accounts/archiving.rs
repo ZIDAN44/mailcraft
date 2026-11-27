@@ -68,6 +68,7 @@ fn autoarchive_is_set_and_asks() {
     ctx.enable_accesskit();
     a.ui.data_folder = Some((dir.join("MailCraft Files"), true));
     a.ui.backstage = Some(Backstage::new(Page::Options));
+    options_part(&mut a, crate::backstage::Section::DataFiles);
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![]);
     click_named(&ctx, &mut a, "AutoArchive settings…");

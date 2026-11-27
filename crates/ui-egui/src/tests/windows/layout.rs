@@ -666,6 +666,7 @@ fn it_starts_in_the_folder_chosen() {
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    options_part(&mut a, crate::backstage::Section::Mail);
     let tall = egui::vec2(1280.0, 2400.0);
     drawn_text(&ctx, &mut a, tall);
     let shown = drawn_strings(&ctx, &mut a, tall);

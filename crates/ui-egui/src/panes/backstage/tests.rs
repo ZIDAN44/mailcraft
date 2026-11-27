@@ -42,3 +42,35 @@ fn a_setting_rows_controls_never_cover_its_text() {
         assert_eq!(beside, width >= 700.0, "{width}: text {text:?}, controls {controls:?}");
     }
 }
+
+/// Options is in parts, each under it in the rail: one shows its own cards (one page of thirteen
+/// ran seven screens and more); a search finds a setting by its name or what it does, in any.
+#[test]
+fn options_is_in_parts_with_a_search() {
+    use crate::tests::*;
+    let (mut a, _) = app("options-parts");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.act(crate::Action::Backstage(Page::Options));
+    let size = egui::vec2(1280.0, 2400.0);
+    for _ in 0..2 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    let rail: Vec<String> = named(&ctx, &mut a, size).into_iter().filter_map(|n| n.name().map(str::to_string)).collect();
+    for part in ["General", "Mail", "Calendar", "Data files", "Privacy and safety", "AI agents"] {
+        assert!(rail.iter().any(|n| n == part), "{part} in the rail: {rail:?}");
+    }
+    let general = drawn_strings(&ctx, &mut a, size);
+    assert!(has(&general, "Theme") && !has(&general, "Check spelling as you type"), "General alone: {general:?}");
+    click_named(&ctx, &mut a, "Mail");
+    let mail = drawn_strings(&ctx, &mut a, size);
+    assert!(has(&mail, "Writing") && has(&mail, "Check spelling as you type") && !has(&mail, "Theme"), "{mail:?}");
+    if let Some(b) = a.ui.backstage.as_mut() {
+        b.find = "spelling".into();
+    }
+    for _ in 0..2 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    let found = drawn_strings(&ctx, &mut a, size);
+    assert!(has(&found, "Check spelling as you type") && !has(&found, "Reading pane") && !has(&found, "Theme"), "{found:?}");
+}

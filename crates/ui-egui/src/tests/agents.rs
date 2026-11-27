@@ -108,6 +108,7 @@ fn what_agents_did_is_in_file_info_and_the_setting_in_options() {
     let _tall = super::windows::layout::Dressed::new(egui::vec2(1280.0, 8000.0), "");
     a.run("options.agentsAlways", json!({"allow": "view.calendar"}));
     a.ui.backstage = Some(crate::backstage::Backstage::new(crate::backstage::Page::Options));
+    options_part(&mut a, crate::backstage::Section::Agents);
     for _ in 0..2 {
         frame(&ctx, &mut a, vec![]);
     }

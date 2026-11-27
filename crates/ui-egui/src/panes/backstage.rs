@@ -36,6 +36,8 @@ pub enum Page {
     About,
 }
 
+pub use options::Section;
+
 #[derive(Clone, Debug)]
 pub struct Backstage {
     pub page: Page,
@@ -49,11 +51,23 @@ pub struct Backstage {
     measured: HashSet<String>,
     /// The account Export writes (the one being looked at until another is picked).
     export: Option<String>,
+    /// The part of Options shown, and a search over all of it.
+    pub section: options::Section,
+    find: String,
 }
 
 impl Backstage {
     pub fn new(page: Page) -> Backstage {
-        Backstage { page, account: None, asked: HashSet::new(), cached: HashMap::new(), measured: HashSet::new(), export: None }
+        Backstage {
+            page,
+            account: None,
+            asked: HashSet::new(),
+            cached: HashMap::new(),
+            measured: HashSet::new(),
+            export: None,
+            section: options::Section::default(),
+            find: String::new(),
+        }
     }
 }
 
@@ -105,9 +119,14 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     let Some(mut b) = st.backstage.take() else { return };
     let mut close = false;
     // As wide as its longest name in the language shown (bold, as the page open is), within
-    // reason: "Enregistrer les pièces jointes" was cut at the rail's edge.
-    let longest =
-        RAIL_LABELS.iter().map(|l| ui.painter().layout_no_wrap(tl!(*l).to_string(), theme::semibold(14.0), t.text).size().x).fold(0.0, f32::max);
+    // reason: "Enregistrer les pièces jointes" was cut at the rail's edge; Options' parts too
+    // ("Datenschutz und Sicherheit").
+    let longest = RAIL_LABELS
+        .iter()
+        .copied()
+        .chain(options::Section::ALL.iter().map(|s| s.label()))
+        .map(|l| ui.painter().layout_no_wrap(tl!(l).to_string(), theme::semibold(14.0), t.text).size().x)
+        .fold(0.0, f32::max);
     let rail = (longest + 46.0 + 14.0).clamp(200.0, 280.0);
     egui::Panel::left("backstage-rail").exact_size(rail).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(0, 10))).show(
         ui,
@@ -143,6 +162,16 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 if rail_item(ui, &t, icon, label, b.page == page).clicked() {
                     b.page = page;
                 }
+                // Options' parts under it, while it's open.
+                if page == Page::Options && b.page == Page::Options {
+                    for section in options::Section::ALL {
+                        let on = b.section == section && b.find.trim().is_empty();
+                        if rail_sub_item(ui, &t, section.label(), on).clicked() {
+                            b.section = section;
+                            b.find.clear();
+                        }
+                    }
+                }
             }
             // Close MailCraft (the desktop app; a browser tab is closed by the browser).
             if st.has_files && rail_item(ui, &t, Icon::Close, "Exit", false).clicked() {
@@ -161,7 +190,7 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 match b.page {
                     Page::Info => info(s, &t, (st.has_files, &st.agents), ui, &mut b, acts),
                     Page::Open => open(s, &t, ui, &mut b, acts),
-                    Page::Options => options(s, st, ui, acts),
+                    Page::Options => options(s, st, ui, b.section, &mut b.find, acts),
                     Page::About => {
                         // The organisation's logo (issue #245), made a texture once.
                         if st.org_logo_tex.is_none()
@@ -209,6 +238,24 @@ fn rail_item(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, on: bool) -> egui
         tl!(label),
         if on { theme::semibold(14.0) } else { theme::regular(14.0) },
         if enabled { t.text } else { t.faint },
+    );
+    resp
+}
+
+/// One of Options' parts in the rail, under it: indented, a line tall.
+fn rail_sub_item(ui: &mut Ui, t: &Tokens, label: &str, on: bool) -> egui::Response {
+    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::click());
+    crate::widgets::named(ui, &resp, tl!(label), true, Some(on));
+    let inner = r.shrink2(vec2(8.0, 1.0));
+    if on || resp.hovered() {
+        ui.painter().rect_filled(inner, f32::from(crate::sizes::CONTROL_RADIUS), if on { t.accent_soft } else { t.hover_row });
+    }
+    ui.painter().text(
+        r.left_center() + vec2(46.0, 0.0),
+        egui::Align2::LEFT_CENTER,
+        tl!(label),
+        if on { theme::semibold(13.5) } else { theme::regular(13.5) },
+        if on { t.text } else { t.dim },
     );
     resp
 }

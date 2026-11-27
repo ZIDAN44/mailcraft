@@ -452,6 +452,7 @@ fn options_gives_each_account_its_time_to_look_for_mail() {
     a.act(crate::Action::Submit("account.add", json!({"email": "zoe@example.org", "password": "pw", "imapHost": "mail.example.org"})));
     let id = a.session.accounts.iter().find(|x| x.config.email == "zoe@example.org").map(|x| x.config.id.clone()).unwrap();
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    options_part(&mut a, crate::backstage::Section::Mail);
     let tall = egui::vec2(1280.0, 3000.0);
     drawn_text(&ctx, &mut a, tall);
     let texts = drawn_strings(&ctx, &mut a, tall);

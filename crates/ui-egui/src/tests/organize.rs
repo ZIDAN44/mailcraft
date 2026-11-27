@@ -641,6 +641,7 @@ fn options_offer_notifications_for_other_with_the_focused_inbox() {
         drawn_text(ctx, a, egui::vec2(1280.0, 2400.0)).iter().any(|d| d.text == "Notify of mail in Other too")
     };
     a.ui.backstage = Some(crate::backstage::Backstage::new(crate::backstage::Page::Options));
+    options_part(&mut a, crate::backstage::Section::Mail);
     assert!(!shown(&ctx, &mut a), "the Focused Inbox off: nothing to say");
     a.run("view.focused", json!({"on": true}));
     assert!(shown(&ctx, &mut a), "with the Focused Inbox on");

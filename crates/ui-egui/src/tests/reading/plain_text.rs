@@ -62,6 +62,7 @@ fn plain_text_is_in_more_actions_the_view_ribbon_and_options() {
 
     // File › Options: read all mail as plain text.
     a.act(crate::Action::Backstage(crate::backstage::Page::Options));
+    options_part(&mut a, crate::backstage::Section::Mail);
     for _ in 0..2 {
         frame(&ctx, &mut a, vec![]);
     }
