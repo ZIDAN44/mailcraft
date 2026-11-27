@@ -2219,3 +2219,6 @@ count	occurrences	次
 	Saved: type to replace it	已保存：输入以替换
 	Show the password	显示密码
 	Hide the password	隐藏密码
+	Purple	紫色
+	Keyword on the server: {keyword}	服务器上的关键字：{keyword}
+	A rule files, flags or answers mail as it arrives. New rule… makes one.	规则会在邮件到达时将其归档、标记或回复。“新建规则…”可创建规则。

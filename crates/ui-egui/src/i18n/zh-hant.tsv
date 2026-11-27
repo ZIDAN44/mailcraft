@@ -2222,3 +2222,6 @@ count	occurrences	次
 	Saved: type to replace it	已儲存：輸入以取代
 	Show the password	顯示密碼
 	Hide the password	隱藏密碼
+	Purple	紫色
+	Keyword on the server: {keyword}	伺服器上的關鍵字：{keyword}
+	A rule files, flags or answers mail as it arrives. New rule… makes one.	規則會在郵件送達時將其歸檔、標幟或回覆。「新規則…」可建立規則。

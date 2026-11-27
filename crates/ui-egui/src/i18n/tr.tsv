@@ -2223,3 +2223,6 @@ count	occurrences	kez
 	Saved: type to replace it	Kaydedildi: değiştirmek için yazın
 	Show the password	Parolayı göster
 	Hide the password	Parolayı gizle
+	Purple	Mor
+	Keyword on the server: {keyword}	Sunucudaki anahtar sözcük: {keyword}
+	A rule files, flags or answers mail as it arrives. New rule… makes one.	Bir kural postayı geldiğinde dosyalar, bayraklar veya yanıtlar. "Yeni kural…" bir kural oluşturur.

@@ -9,10 +9,12 @@ use crate::{Action, Dialog};
 
 mod dialog_buttons;
 mod form_fields;
+mod row_actions;
 mod welcome;
 
 pub use dialog_buttons::*;
 pub(crate) use form_fields::{field_and_button, password_field};
+pub(crate) use row_actions::row_actions;
 pub use welcome::welcome;
 
 /// The ribbon's buttons as it's drawn: those from `icons_from` on are icons alone, their labels

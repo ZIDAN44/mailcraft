@@ -12,6 +12,31 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
             .small(),
     );
     ui.add_space(6.0);
+    // What the list is worked with, over it; Close alone under it (Close was on a row of its own
+    // under them).
+    ui.horizontal(|ui| {
+        if ui.button(tl!("New rule…")).clicked() {
+            acts.push(Action::Dialog(Dialog::rule_from("", None)));
+        }
+        let any_on = s.rules.iter().any(|r| r.enabled);
+        if ui
+            .add_enabled(any_on, egui::Button::new(tl!("Run all")))
+            .on_hover_text(tl!("Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)"))
+            .clicked()
+        {
+            acts.push(Action::Run("rules.run", json!({"inbox": true})));
+        }
+        // As Outlook's Rules options: the rules to a file, or rules from one.
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui.add_enabled(!s.rules.is_empty(), egui::Button::new(tl!("Export…"))).clicked() {
+                acts.push(Action::ExportRules);
+            }
+            if ui.button(tl!("Import…")).clicked() {
+                acts.push(Action::ImportRules);
+            }
+        });
+    });
+    ui.add_space(4.0);
     // The rule just deleted, with Undo (deleting one asks nothing first).
     if let Some((name, rules)) = deleted::last::<(String, Vec<Rule>)>(ui, "rules")
         && deleted::undo_line(ui, t, &name)
@@ -28,8 +53,16 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
         ui.add_space(4.0);
     }
     let needle = find.trim().to_lowercase();
+    // None yet: what a rule is for, in the list's place (it was "No rules yet." alone, over an
+    // empty line).
     if s.rules.is_empty() {
-        ui.label(RichText::new(tl!("No rules yet.")).color(t.faint));
+        egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).inner_margin(Margin::symmetric(16, 20)).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.vertical_centered(|ui| {
+                ui.label(RichText::new(tl!("No rules yet.")).color(t.text));
+                ui.label(RichText::new(tl!("A rule files, flags or answers mail as it arrives. New rule… makes one.")).color(t.dim).small());
+            });
+        });
     }
     let lines = rule_lines(ui.ctx(), s);
     // The rules the find box keeps, in order.
@@ -42,7 +75,8 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
     let mut moved: Option<(usize, usize)> = None;
     // One line a rule (its switch, name, what it does, and its buttons as icons), in a
     // list that scrolls past a dozen or so; only the lines in view are laid out.
-    egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).show(ui, |ui| {
+    let listed = !s.rules.is_empty();
+    egui::Frame::new().stroke(egui::Stroke::new(if listed { 1.0 } else { 0.0 }, t.border)).corner_radius(6).show(ui, |ui| {
         // With the find box, a steady height, so the dialog doesn't jump while typing.
         let steady = s.rules.len() > 6;
         ui.spacing_mut().item_spacing.y = 0.0;
@@ -68,24 +102,27 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
                     toggled = Some(i);
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    // Apart enough that Delete isn't hit for Edit beside it.
+                    // Apart enough that Delete isn't hit for Edit beside it; seen while the row
+                    // is pointed at.
                     ui.spacing_mut().item_spacing.x = 6.0;
-                    if widgets::tiny_icon_button(ui, Icon::Delete, "Delete", t).clicked() {
-                        remove = Some(i);
-                    }
-                    if widgets::tiny_icon_button(ui, Icon::Drafts, "Edit", t).clicked() {
-                        acts.push(Action::Dialog(Dialog::EditRule(Box::new(RuleForm::from_rule(i, r)))));
-                    }
-                    if widgets::tiny_icon_button(ui, Icon::Sync, "Run now", t).clicked() {
-                        acts.push(Action::Run("rules.run", json!({"index": i, "inbox": true})));
-                    }
-                    let last = i + 1 >= s.rules.len();
-                    if ui.add_enabled_ui(!last, |ui| widgets::tiny_icon_button(ui, Icon::ChevronDown, "Move down", t)).inner.clicked() {
-                        moved = Some((i, i + 1));
-                    }
-                    if ui.add_enabled_ui(i > 0, |ui| widgets::tiny_icon_button(ui, Icon::ChevronUp, "Move up", t)).inner.clicked() {
-                        moved = i.checked_sub(1).map(|to| (i, to));
-                    }
+                    widgets::row_actions(ui, row, |ui| {
+                        if widgets::tiny_icon_button(ui, Icon::Delete, "Delete", t).clicked() {
+                            remove = Some(i);
+                        }
+                        if widgets::tiny_icon_button(ui, Icon::Drafts, "Edit", t).clicked() {
+                            acts.push(Action::Dialog(Dialog::EditRule(Box::new(RuleForm::from_rule(i, r)))));
+                        }
+                        if widgets::tiny_icon_button(ui, Icon::Sync, "Run now", t).clicked() {
+                            acts.push(Action::Run("rules.run", json!({"index": i, "inbox": true})));
+                        }
+                        let last = i + 1 >= s.rules.len();
+                        if ui.add_enabled_ui(!last, |ui| widgets::tiny_icon_button(ui, Icon::ChevronDown, "Move down", t)).inner.clicked() {
+                            moved = Some((i, i + 1));
+                        }
+                        if ui.add_enabled_ui(i > 0, |ui| widgets::tiny_icon_button(ui, Icon::ChevronUp, "Move up", t)).inner.clicked() {
+                            moved = i.checked_sub(1).map(|to| (i, to));
+                        }
+                    });
                     ui.add_space(6.0);
                     ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                         let mut job = egui::text::LayoutJob::default();
@@ -126,29 +163,6 @@ pub(super) fn rules_list(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Ac
         }
         acts.push(Action::Run("rules.set", json!({"rules": rules})));
     }
-    ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        if ui.button(tl!("New rule…")).clicked() {
-            acts.push(Action::Dialog(Dialog::rule_from("", None)));
-        }
-        let any_on = s.rules.iter().any(|r| r.enabled);
-        if ui
-            .add_enabled(any_on, egui::Button::new(tl!("Run all")))
-            .on_hover_text(tl!("Run every rule that's on, on the mail already in the Inbox (and in Sent, for mail you send)"))
-            .clicked()
-        {
-            acts.push(Action::Run("rules.run", json!({"inbox": true})));
-        }
-        // As Outlook's Rules options: the rules to a file, or rules from one.
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.add_enabled(!s.rules.is_empty(), egui::Button::new(tl!("Export…"))).clicked() {
-                acts.push(Action::ExportRules);
-            }
-            if ui.button(tl!("Import…")).clicked() {
-                acts.push(Action::ImportRules);
-            }
-        });
-    });
     if !s.server_rule_accounts().is_empty() {
         egui::ScrollArea::vertical().id_salt("server-rules").max_height(320.0).show(ui, |ui| server_rules::sections(ui, s, t, acts));
     }

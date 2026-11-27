@@ -2222,3 +2222,6 @@ count	occurrences	회
 	Saved: type to replace it	저장됨: 바꾸려면 입력하세요
 	Show the password	암호 표시
 	Hide the password	암호 숨기기
+	Purple	보라
+	Keyword on the server: {keyword}	서버의 키워드: {keyword}
+	A rule files, flags or answers mail as it arrives. New rule… makes one.	규칙은 메일이 도착할 때 정리하거나 플래그를 지정하거나 회신합니다. '새 규칙…'으로 만듭니다.

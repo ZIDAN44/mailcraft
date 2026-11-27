@@ -2236,3 +2236,6 @@ count	occurrences	wystąpieniach
 	Saved: type to replace it	Zapisane: wpisz, aby zastąpić
 	Show the password	Pokaż hasło
 	Hide the password	Ukryj hasło
+	Purple	Fioletowy
+	Keyword on the server: {keyword}	Słowo kluczowe na serwerze: {keyword}
+	A rule files, flags or answers mail as it arrives. New rule… makes one.	Reguła porządkuje, oznacza flagą lub odpowiada na pocztę, gdy przychodzi. „Nowa reguła…” tworzy regułę.

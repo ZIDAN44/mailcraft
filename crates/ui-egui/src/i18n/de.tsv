@@ -2223,3 +2223,6 @@ count	occurrences	Terminen
 	Saved: type to replace it	Gespeichert: zum Ersetzen eingeben
 	Show the password	Kennwort anzeigen
 	Hide the password	Kennwort ausblenden
+	Purple	Lila
+	Keyword on the server: {keyword}	Schlüsselwort auf dem Server: {keyword}
+	A rule files, flags or answers mail as it arrives. New rule… makes one.	Eine Regel legt E-Mails ab, kennzeichnet oder beantwortet sie, wenn sie eintreffen. „Neue Regel…“ erstellt eine.

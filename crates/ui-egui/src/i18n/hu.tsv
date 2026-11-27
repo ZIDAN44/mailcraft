@@ -2223,3 +2223,6 @@ count	occurrences	előfordulás
 	Saved: type to replace it	Mentve: a cseréhez írja be az újat
 	Show the password	Jelszó megjelenítése
 	Hide the password	Jelszó elrejtése
+	Purple	Lila
+	Keyword on the server: {keyword}	Kulcsszó a kiszolgálón: {keyword}
+	A rule files, flags or answers mail as it arrives. New rule… makes one.	A szabály beérkezéskor mappába teszi, megjelöli vagy megválaszolja a leveleket. Az „Új szabály…” létrehoz egyet.

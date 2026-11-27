@@ -6,6 +6,7 @@ mod categories;
 mod deleting;
 mod folder_pane;
 mod row_buttons;
+mod rules_list;
 mod sent_rules;
 mod server_rules;
 

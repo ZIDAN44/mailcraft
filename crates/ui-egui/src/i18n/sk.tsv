@@ -2237,3 +2237,6 @@ count	occurrences	opakovaní
 	Saved: type to replace it	Uložené: zadajte nové na nahradenie
 	Show the password	Zobraziť heslo
 	Hide the password	Skryť heslo
+	Purple	Fialová
+	Keyword on the server: {keyword}	Kľúčové slovo na serveri: {keyword}
+	A rule files, flags or answers mail as it arrives. New rule… makes one.	Pravidlo zakladá, označuje alebo odpovedá na poštu, keď príde. „Nové pravidlo…“ ho vytvorí.

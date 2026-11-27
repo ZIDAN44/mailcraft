@@ -2219,3 +2219,6 @@ count	occurrences	回
 	Saved: type to replace it	保存済み: 置き換えるには入力します
 	Show the password	パスワードを表示
 	Hide the password	パスワードを隠す
+	Purple	紫
+	Keyword on the server: {keyword}	サーバー上のキーワード: {keyword}
+	A rule files, flags or answers mail as it arrives. New rule… makes one.	ルールは届いたメールを整理、フラグ設定、返信します。[新しいルール…] で作成します。

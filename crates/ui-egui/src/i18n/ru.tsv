@@ -2236,3 +2236,6 @@ count	occurrences	повторений
 	Saved: type to replace it	Сохранён: введите новый, чтобы заменить
 	Show the password	Показать пароль
 	Hide the password	Скрыть пароль
+	Purple	Фиолетовый
+	Keyword on the server: {keyword}	Ключевое слово на сервере: {keyword}
+	A rule files, flags or answers mail as it arrives. New rule… makes one.	Правило раскладывает, помечает флажком или отвечает на почту при её получении. «Новое правило…» создаёт его.

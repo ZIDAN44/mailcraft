@@ -32,9 +32,16 @@ impl Dialog {
     }
 }
 
+/// The category colours' names, in their order: said by a screen reader and on hover (the dots
+/// had no name).
+const COLOUR_NAMES: [&str; 8] = ["Red", "Orange", "Green", "Blue", "Purple", "Yellow", "Teal", "Pink"];
+
 /// A colour dot to pick, the one chosen ringed: whether it was clicked.
 fn swatch(ui: &mut Ui, t: &Tokens, c: u8, chosen: bool) -> bool {
     let (rect, resp) = ui.allocate_exact_size(vec2(22.0, 22.0), Sense::click());
+    let name = tl!(COLOUR_NAMES.get(usize::from(c)).copied().unwrap_or("Red"));
+    widgets::named(ui, &resp, name, true, Some(chosen));
+    let resp = resp.on_hover_text(name);
     if resp.hovered() {
         ui.painter().circle_filled(rect.center(), 11.0, t.hover);
     }
@@ -69,8 +76,8 @@ fn unlisted(ctx: &egui::Context, s: &Session) -> std::sync::Arc<Unlisted> {
     made
 }
 
-/// One line of the list: a dot, the name, the keyword dim beside it; the buttons the caller
-/// puts on the right.
+/// One line of the list: a dot and the name (its keyword on hover: a column of "$label1"s read as
+/// code); the buttons the caller puts on the right, seen while the row is pointed at.
 fn row(ui: &mut Ui, t: &Tokens, c: &Category, odd: bool, extra: &str, buttons: impl FnOnce(&mut Ui)) {
     let (rect, hover) = ui.allocate_exact_size(vec2(ui.available_width(), 30.0), Sense::hover());
     if hover.hovered() {
@@ -85,16 +92,16 @@ fn row(ui: &mut Ui, t: &Tokens, c: &Category, odd: bool, extra: &str, buttons: i
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         // Apart enough that Delete isn't hit for Edit beside it.
         ui.spacing_mut().item_spacing.x = 6.0;
-        buttons(ui);
+        widgets::row_actions(ui, rect, buttons);
         ui.add_space(6.0);
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             let mut job = egui::text::LayoutJob::default();
-            job.append(&c.name, 0.0, egui::TextFormat { font_id: theme::semibold(13.0), color: t.text, ..Default::default() });
-            job.append(&c.keyword, 10.0, egui::TextFormat { font_id: egui::FontId::monospace(12.0), color: t.dim, ..Default::default() });
+            job.append(&c.name, 0.0, egui::TextFormat { font_id: theme::semibold(crate::sizes::BODY), color: t.text, ..Default::default() });
             if !extra.is_empty() {
-                job.append(extra, 10.0, egui::TextFormat { font_id: theme::regular(12.0), color: t.faint, ..Default::default() });
+                job.append(extra, 10.0, egui::TextFormat { font_id: theme::regular(crate::sizes::CAPTION), color: t.faint, ..Default::default() });
             }
-            ui.add(egui::Label::new(job).selectable(false).truncate()).on_hover_text(format!("{}\n{}", c.name, c.keyword));
+            let keyword = tf!("Keyword on the server: {keyword}", keyword = c.keyword);
+            ui.add(egui::Label::new(job).selectable(false).truncate()).on_hover_text(format!("{}\n{keyword}", c.name));
         });
     });
 }
@@ -182,6 +189,23 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     .small(),
             );
             ui.add_space(6.0);
+            // What the list is worked with, over it; Close alone under it (Close was on a row of
+            // its own under New, Import and Export).
+            ui.horizontal(|ui| {
+                if ui.button(tl!("New category…")).clicked() {
+                    acts.push(Action::Dialog(Dialog::new_category(s)));
+                }
+                // The list to a file and back, for a team to use the same keywords.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.add_enabled(!s.prefs.categories.is_empty(), egui::Button::new(tl!("Export…"))).clicked() {
+                        acts.push(Action::ExportCategories);
+                    }
+                    if ui.button(tl!("Import…")).clicked() {
+                        acts.push(Action::ImportCategories);
+                    }
+                });
+            });
+            ui.add_space(4.0);
             let unlisted = unlisted(ui.ctx(), s);
             // The category just deleted, with Undo (deleting one asks nothing first), put back
             // where it was in the list.
@@ -231,22 +255,6 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                     }
                 });
             });
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui.button(tl!("New category…")).clicked() {
-                    acts.push(Action::Dialog(Dialog::new_category(s)));
-                }
-                // The list to a file and back, for a team to use the same keywords.
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.add_enabled(!s.prefs.categories.is_empty(), egui::Button::new(tl!("Export…"))).clicked() {
-                        acts.push(Action::ExportCategories);
-                    }
-                    if ui.button(tl!("Import…")).clicked() {
-                        acts.push(Action::ImportCategories);
-                    }
-                });
-            });
-            ui.add_space(6.0);
             close_row(ui)
         }
         _ => true,

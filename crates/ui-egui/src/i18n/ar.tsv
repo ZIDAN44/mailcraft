@@ -2218,3 +2218,6 @@ count	occurrences	مرات
 	Saved: type to replace it	محفوظة: اكتب لاستبدالها
 	Show the password	إظهار كلمة المرور
 	Hide the password	إخفاء كلمة المرور
+	Purple	أرجواني
+	Keyword on the server: {keyword}	الكلمة الأساسية على الخادم: {keyword}
+	A rule files, flags or answers mail as it arrives. New rule… makes one.	تقوم القاعدة بتصنيف البريد أو تمييزه بعلامة أو الرد عليه عند وصوله. "قاعدة جديدة…" تنشئ واحدة.
