@@ -395,3 +395,27 @@ fn a_rows_buttons_leave_the_selection_alone() {
     assert_eq!(a.session.selection, selected, "the selection stays");
     assert_eq!(a.session.reading.as_ref().map(|r| r.key.clone()), open, "so does the message open");
 }
+
+/// Mail by conversation, a conversation's older message open (picked in the reading pane's
+/// conversation, or opened from elsewhere): its conversation's row is the selected one. No row
+/// was, the conversation's row standing for its newest message.
+#[test]
+fn a_conversations_row_is_selected_while_one_of_its_messages_is_open() {
+    let (mut a, _) = app("conversation-row-selected");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.run("view.conversations", json!({}));
+    let thread = a.session.threads.iter().find(|t| t.messages.len() > 1).expect("the sample has a conversation").clone();
+    let mut keys: Vec<_> = thread.messages.iter().filter_map(|&i| a.session.list.get(i)).map(|m| (m.when(), m.key.clone())).collect();
+    keys.sort();
+    let oldest = keys.first().map(|(_, k)| k.clone()).unwrap();
+    a.run("list.open", json!({"key": oldest.to_id()}));
+    for _ in 0..3 {
+        let _ = named(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    }
+    let rows: Vec<Named> =
+        named(&ctx, &mut a, egui::vec2(1280.0, 800.0)).into_iter().filter(|n| n.role == Role::ListItem && n.rect.is_some()).collect();
+    let selected: Vec<_> = rows.iter().filter(|n| n.selected).filter_map(Named::name).collect();
+    let all: Vec<_> = rows.iter().map(|n| (n.name().unwrap_or("").chars().take(30).collect::<String>(), n.selected)).collect();
+    assert_eq!(selected.len(), 1, "one row selected, the conversation's: {selected:?} {all:?}");
+}

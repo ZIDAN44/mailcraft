@@ -65,7 +65,11 @@ pub(super) fn message_row(s: &Session, t: &theme::Tokens, ui: &mut Ui, of: RowOf
     // The pointer anywhere on the row, its own buttons included (egui hovers only the button
     // under the pointer, and the buttons must stay while they're pointed at).
     let hovered = ui.rect_contains_pointer(r) && !ui.ctx().is_being_dragged(id) || resp.hovered();
-    let selected = s.selection.contains(&m.key);
+    // A conversation's row stands for all of it: selected while the one message selected is
+    // any of its own (an older one, picked in the reading pane's conversation, or opened from
+    // elsewhere; no row was selected).
+    let selected = s.selection.contains(&m.key)
+        || count > 1 && s.selection.len() == 1 && s.reading.as_ref().is_some_and(|r| s.selection.contains(&r.key) && r.thread.contains(&m.key));
     let unread = if count > 1 { unread_in_thread > 0 } else { !m.flags.seen };
     // Who the sender is (issue #29): their address beside their name, a warning, External.
     let marks = if sent_view { mailcraft_engine::SenderMarks::default() } else { s.sender_marks(m) };

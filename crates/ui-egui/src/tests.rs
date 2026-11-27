@@ -248,6 +248,8 @@ pub(crate) struct Named {
     /// Where it is, if it's on screen.
     pub(crate) rect: Option<egui::Rect>,
     pub(crate) disabled: bool,
+    /// Said to be selected (a list's row; egui tells it as toggled on).
+    pub(crate) selected: bool,
 }
 
 impl Named {
@@ -273,6 +275,7 @@ pub(crate) fn named_in(out: &egui::FullOutput) -> Vec<Named> {
             value: n.value().map(str::to_string),
             rect: n.bounds().map(|b| egui::Rect::from_min_max(egui::pos2(b.x0 as f32, b.y0 as f32), egui::pos2(b.x1 as f32, b.y1 as f32))),
             disabled: n.is_disabled(),
+            selected: n.toggled() == Some(egui::accesskit::Toggled::True),
         })
         .collect()
 }

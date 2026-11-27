@@ -21,6 +21,7 @@ on GitHub.
 - The reading pane drew two lines, one under the other, between a message's header and its text.
 - The File page's **About** read like **Info** beside it: the same word in Dutch and Polish, "Info" beside "Informationen" in German, "Informazioni" beside "Info" in Italian. It's "Über MailCraft", "Over MailCraft", "O programie" and "Informazioni su MailCraft" now, and Italian's Info is "Account".
 - The calendar's month view cut the bottom off its events' titles ("Storyboard" read "Storvboard"): each event's box is as tall as a line of its text and a little more, the line in its middle.
+- With mail shown by conversation, no row in the list was selected while a conversation's older message was open (picked in the reading pane's conversation): the conversation's row is.
 
 ## 0.42.0 - 2026-11-27
 
