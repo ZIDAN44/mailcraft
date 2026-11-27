@@ -137,7 +137,13 @@ fn the_month_view_shows_every_week_in_a_small_window() {
         let texts = drawn_with(&ctx, &mut a, size, vec![]);
         // The grid's heading (its first weekday) and its days' numbers, in the same room.
         let head = texts.iter().filter(|d| d.text == tl!(dates::WEEKDAYS[0])).max_by(|x, y| x.rect.min.y.total_cmp(&y.rect.min.y)).unwrap();
-        let days: Vec<&Drawn> = texts.iter().filter(|d| d.clip == head.clip && d.text.parse::<u32>().is_ok_and(|n| (1..=31).contains(&n))).collect();
+        // Its number, alone or before its month's name ("1 December" on a month's first; not
+        // "2 more").
+        let number = |d: &Drawn| {
+            let (n, rest) = d.text.split_once(' ').unwrap_or((d.text.as_str(), ""));
+            n.parse::<u32>().is_ok_and(|n| (1..=31).contains(&n)) && rest.chars().next().is_none_or(char::is_uppercase)
+        };
+        let days: Vec<&Drawn> = texts.iter().filter(|d| d.clip == head.clip && number(d)).collect();
         assert_eq!(days.len(), 42, "{size:?}: {:?}", days.iter().map(|d| &d.text).collect::<Vec<_>>());
         let hidden: Vec<String> = days.iter().filter(|d| d.rect.max.y > d.clip.max.y).map(|d| format!("{} at {:?}", d.text, d.rect)).collect();
         assert!(hidden.is_empty(), "{size:?}: below the pane's edge ({:?}): {hidden:?}", head.clip);
@@ -225,4 +231,48 @@ fn the_month_view_shows_whole_lines_in_its_events() {
         assert!(c.clip.height() >= row + 2.0, "{:?}: a box {} tall for a line {row} tall", c.text, c.clip.height());
         assert!(c.rect.top() >= c.clip.top() && c.rect.top() + row <= c.clip.bottom() + 0.01, "{:?} at {:?} in {:?}", c.text, c.rect, c.clip);
     }
+}
+
+/// The month view names the month on its first day ("1 December"): a "1" alone was the first of
+/// both months shown.
+#[test]
+fn the_month_view_names_a_months_first_day() {
+    let (mut a, _) = app("month-first");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.module", json!({"name": "calendar"}));
+    a.run("calendar.view", json!({"mode": "month"}));
+    let size = egui::vec2(1280.0, 800.0);
+    for _ in 0..3 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    let texts = drawn_strings(&ctx, &mut a, size);
+    let firsts: Vec<&String> = texts.iter().filter(|t| t.starts_with("1 ") && t.split(' ').count() == 2).collect();
+    assert!(!firsts.is_empty(), "{texts:?}");
+}
+
+/// The Schedule view's "Only work hours" starts where the header's **Today** does (it was 14
+/// points further out, 2 from the pane's edge), and outside Mail the side pane's contents are 12
+/// points in from the window's edge (6, closer than anything in the panes beside it).
+#[test]
+fn the_calendar_keeps_its_margins() {
+    let (mut a, _) = app("cal-margins");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.module", json!({"name": "calendar"}));
+    a.run("calendar.view", json!({"mode": "schedule"}));
+    let size = egui::vec2(1280.0, 800.0);
+    for _ in 0..3 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    ctx.enable_accesskit();
+    let all = named(&ctx, &mut a, size);
+    let left = |name: &str| {
+        let found = all.iter().find(|n| n.label.as_deref() == Some(tl!(name)) && n.rect.is_some());
+        found.and_then(|n| n.rect).map(|r| r.min.x).unwrap_or_else(|| panic!("{name}"))
+    };
+    let (today, hours) = (left("Today"), left("Only work hours"));
+    assert!((today - hours).abs() <= 1.0, "Today at {today}, Only work hours at {hours}");
+    let link = left("Subscribe to a calendar…");
+    assert!(link >= 12.0, "the side pane's link {link} from the window's edge");
 }

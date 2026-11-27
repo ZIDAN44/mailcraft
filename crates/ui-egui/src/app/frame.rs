@@ -535,7 +535,9 @@ impl MailApp {
                 .resizable(true)
                 .default_size(self.ui.pane_sizes.folders.unwrap_or(if module == Module::Mail { 230.0 } else { 260.0 }))
                 .size_range(170.0..=most_nav)
-                .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(6, 8)));
+                // The folders close to the edge, as their rows are; the other modules' side panes
+                // (a month, the calendars, people) 12 points in (6, against the panes' 14).
+                .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(if module == Module::Mail { 6 } else { 12 }, 8)));
             let nav = egui::Panel::show_switched(ui, &mut expanded, strip, full, |ui, wide| {
                 if !wide {
                     ui.vertical_centered(|ui| {

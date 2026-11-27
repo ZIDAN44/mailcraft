@@ -275,21 +275,31 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
     let start = grid_start(month);
     let (sel0, sel1) = s.cal_days();
     let now = today(s);
+    let (todo_day, mode) = (st.todo_day, s.cal_mode);
+    let picked = move |d: i64| if bar { todo_day == Some(d) } else { d >= sel0 && d < sel1 && mode != CalMode::Month };
     for week in 0..6 {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
+            // The days picked in this week as one band (seven pills with gaps, it was); not today
+            // alone, its circle says it.
+            let row0 = ui.cursor().min;
+            let days: Vec<i64> = (0..7).map(|i| start + week * 7 + i).filter(|d| picked(*d)).collect();
+            if let (Some(first), Some(last)) = (days.first(), days.last())
+                && !(days.len() == 1 && *first == now)
+            {
+                let x0 = row0.x + w * (first - (start + week * 7)) as f32;
+                let x1 = row0.x + w * (last - (start + week * 7) + 1) as f32;
+                let band = Rect::from_min_max(pos2(x0, row0.y + 1.0), pos2(x1, row0.y + MINI_ROW_H - 1.0));
+                ui.painter().rect_filled(band, 6.0, t.accent_soft);
+            }
             for i in 0..7 {
                 let d = start + week * 7 + i;
-                let (r, resp) = ui.allocate_exact_size(vec2(w, 22.0), Sense::click());
+                let (r, resp) = ui.allocate_exact_size(vec2(w, MINI_ROW_H), Sense::click());
                 let (_, dm, dd) = civil_from_days(d);
-                let picked = if bar { st.todo_day == Some(d) } else { d >= sel0 && d < sel1 && s.cal_mode != CalMode::Month };
-                if picked {
-                    ui.painter().rect_filled(r.shrink(1.0), 4.0, t.accent_soft);
-                }
                 if d == now {
-                    ui.painter().circle_filled(r.center(), 10.0, t.accent);
+                    ui.painter().circle_filled(r.center(), 12.0, t.accent);
                 } else if resp.hovered() {
-                    ui.painter().circle_filled(r.center(), 10.0, t.hover);
+                    ui.painter().circle_filled(r.center(), 12.0, t.hover);
                 }
                 let c = if d == now {
                     t.on_accent
@@ -374,7 +384,10 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     match s.cal_mode {
         CalMode::Month => month(s, &t, ui, &items, d0, acts),
         CalMode::Day | CalMode::WorkWeek | CalMode::Week => days(s, st, ui, &items, s.cal_day_list(), acts),
-        CalMode::Schedule => schedule(s, st, ui, &items, d0, acts),
+        // In the header's margins (its "Only work hours" was 2 points from the pane's edge).
+        CalMode::Schedule => {
+            egui::Frame::new().inner_margin(Margin::symmetric(14, 0)).show(ui, |ui| schedule(s, st, ui, &items, d0, acts));
+        }
     }
 }
 
@@ -436,7 +449,7 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str, mova
         icons::paint(ui.painter(), r, Icon::Task, if done { t.faint } else { t.dim });
     }
     let ink = if done { t.faint } else { t.text };
-    let room = (rect.width() - lead - if lock { 22.0 } else { 8.0 }).max(4.0);
+    let room = (rect.width() - lead - if lock { 25.0 } else { 11.0 }).max(4.0);
     // Too narrow for a word of its title (events side by side in a narrow day): the start of
     // the title on one line. Wrapped, it was a letter a line down the box.
     let title = text.lines().next().unwrap_or_default();
@@ -459,10 +472,14 @@ fn chip(ui: &mut Ui, t: &Tokens, rect: Rect, item: &AgendaItem, text: &str, mova
     let galley = ui.fonts_mut(|f| f.layout_job(job));
     // A box with room for one line (the month view's) has it in its middle; a taller one starts
     // its lines at its top.
-    let down = if rect.height() < 2.0 * row { ((rect.height() - galley.size().y) / 2.0).max(1.0) } else { 2.0 };
-    ui.painter().with_clip_rect(rect.shrink(1.0)).galley(rect.min + vec2(6.0 + lead, down), galley, ink);
+    let down = if rect.height() < 2.0 * row { ((rect.height() - galley.size().y) / 2.0).max(1.0) } else { 4.0 };
+    // 6 points after the colour strip and 4 under the top (3 and 2, it was cramped).
+    ui.painter().with_clip_rect(rect.shrink(1.0)).galley(rect.min + vec2(9.0 + lead, down), galley, ink);
     resp
 }
+
+/// The small month's rows: a day a cell, about as tall as wide (they were 34 by 22).
+const MINI_ROW_H: f32 = 28.0;
 
 /// The month view's rows at their shortest: a day's number over its "n more" link.
 const MONTH_ROW_MIN: f32 = 42.0;
@@ -497,25 +514,38 @@ fn month(s: &Session, t: &Tokens, ui: &mut Ui, items: &[AgendaItem], d0: i64, ac
             if ui.rect_contains_pointer(r) {
                 ui.painter().rect_filled(r, 0.0, t.hover_row);
             }
-            ui.painter().rect_stroke(r, 0.0, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+            // Each line once: a cell's right and bottom edges, the grid's top and left once (each
+            // cell's own frame drew the lines between two twice, 2 points against the edges' 1).
+            let line = egui::Stroke::new(1.0, t.border);
+            ui.painter().vline(r.right() - 0.5, r.y_range(), line);
+            ui.painter().hline(r.x_range(), r.bottom() - 0.5, line);
+            if i == 0 {
+                ui.painter().vline(r.left() + 0.5, r.y_range(), line);
+            }
+            if w == 0 {
+                ui.painter().hline(r.x_range(), r.top() + 0.5, line);
+            }
             let (_, m, dd) = civil_from_days(d);
             let num_pos = r.min + vec2(14.0, 12.0);
             if d == now {
                 ui.painter().circle_filled(num_pos, 10.0, t.accent);
             }
-            ui.painter().text(
-                num_pos,
-                Align2::CENTER_CENTER,
-                dd.to_string(),
-                theme::regular(12.0),
-                if d == now {
-                    t.on_accent
-                } else if m == shown_month {
-                    t.text
-                } else {
-                    t.faint
-                },
-            );
+            let ink = if d == now {
+                t.on_accent
+            } else if m == shown_month {
+                t.text
+            } else {
+                t.faint
+            };
+            // The first of a month says which ("1 December"; a "1" alone was both November's and
+            // December's), from where its number starts, when the cell has room.
+            if dd == 1 && d != now && cw > 90.0 {
+                // In the language's order ("1 December", "12月1日").
+                let text = tf!("{day} {month}", day = dd, month = date_month_name(m));
+                ui.painter().text(num_pos - vec2(4.0, 0.0), Align2::LEFT_CENTER, text, theme::semibold(12.0), ink);
+            } else {
+                ui.painter().text(num_pos, Align2::CENTER_CENTER, dd.to_string(), theme::regular(12.0), ink);
+            }
             let bg = ui.interact(r, ui.scope_id().with(("month-day", d)), Sense::click());
             let todays: Vec<&AgendaItem> =
                 items.iter().filter(|it| day_of(it.start, s) <= d && day_of(it.end.max(it.start + 1) - 1, s) >= d).collect();
