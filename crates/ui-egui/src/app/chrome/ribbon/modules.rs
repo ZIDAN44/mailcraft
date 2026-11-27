@@ -85,7 +85,7 @@ impl MailApp {
             acts.push(Action::Run("note.delete", json!({"uid": uid})));
         }
         // The note's colour, as Outlook's Categorize on a note.
-        let r = widgets::tool_button(ui, Icon::Tag, "Color", &t, editing.is_some());
+        let r = widgets::menu_tool_button(ui, Icon::Tag, "Color", &t, editing.is_some());
         egui::Popup::menu(&r).show(|ui| {
             for (i, name) in notes::NAMES.iter().enumerate() {
                 if ui.button(tl!(name)).clicked()
@@ -131,7 +131,7 @@ impl MailApp {
 fn free_time(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
     let label = |m: u16| crate::pim_dialogs::reminder_label(Some(i64::from(m)));
     let length = label(s.prefs.free_time_minutes);
-    let r = widgets::tool_button(ui, Icon::Clock, widgets::Label::shown("Meeting length", &length), &t, true)
+    let r = widgets::menu_tool_button(ui, Icon::Clock, widgets::Label::shown("Meeting length", &length), &t, true)
         .on_hover_text(tl!("How long a time free for everyone is looked for"));
     egui::Popup::menu(&r).show(|ui| {
         for m in mailcraft_engine::FREE_LENGTHS {
@@ -177,7 +177,7 @@ fn calendar_views(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
 
 /// How tasks are listed, and whether the done ones are.
 fn tasks_arrangement(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
-    let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
     egui::Popup::menu(&r).show(|ui| {
         use mailcraft_engine::TasksOrder as O;
         for (order, label) in [(O::Due, "Due date"), (O::Priority, "Priority"), (O::Title, "Title (A to Z)"), (O::Modified, "Last changed")] {
@@ -194,7 +194,7 @@ fn tasks_arrangement(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>
 
 /// How notes are listed: the last changed first, A to Z, or by colour.
 fn notes_arrangement(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Action>) {
-    let r = widgets::tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::ListBullet, "Arrange by", &t, true);
     egui::Popup::menu(&r).show(|ui| {
         use mailcraft_engine::NotesOrder as O;
         for (order, label, code) in [(O::Modified, "Last changed", "modified"), (O::Title, "Title (A to Z)", "title"), (O::Color, "Color", "color")] {
@@ -215,10 +215,10 @@ fn people_views(ui: &mut Ui, st: &mut UiState, t: Tokens) {
         }
     }
     // Outlook's Sort by: first name or last name (issue #244).
-    let r = widgets::tool_button(ui, Icon::ListBullet, "Sort by", &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::ListBullet, "Sort by", &t, true);
     egui::Popup::menu(&r).show(|ui| people::sort_menu(ui, &mut st.people_list));
     if st.people_view == people::PeopleView::Phone {
-        let r = widgets::tool_button(ui, Icon::Layout, "Columns", &t, true);
+        let r = widgets::menu_tool_button(ui, Icon::Layout, "Columns", &t, true);
         egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| people::column_menu(ui, &mut st.people_list));
     }
 }

@@ -14,7 +14,7 @@ pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Ac
         acts.push(Action::Run("mail.new", json!({})));
     }
     // New items of other kinds, as Outlook's New Email drop-down.
-    let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "New items", &t);
+    let r = widgets::split_arrow(ui, "New items", &t);
     egui::Popup::menu(&r).show(|ui| {
         if ui.button(tl!("Email message")).clicked() {
             acts.push(Action::Run("mail.new", json!({})));
@@ -35,7 +35,7 @@ pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Ac
         acts.push(Action::Run("mail.delete", json!({})));
     }
     // Ignore the conversation, as Outlook's Delete drop-down.
-    let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "More delete options", &t);
+    let r = widgets::split_arrow(ui, "More delete options", &t);
     egui::Popup::menu(&r).show(|ui| {
         let ignoring = !s.selection.is_empty() && s.selected_iter().all(|m| s.is_ignored(m));
         let label = if ignoring { "Stop ignoring the conversation" } else { "Ignore the conversation" };
@@ -68,17 +68,17 @@ pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Ac
         acts.push(Action::Run(jid, json!({})));
     }
     // The Junk drop-down: the sender's lists, as Outlook's.
-    let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "Junk options", &t);
+    let r = widgets::split_arrow(ui, "Junk options", &t);
     egui::Popup::menu(&r).show(|ui| junk_menu(ui, s, acts));
     widgets::group(ui, &t, "Delete", false);
     if widgets::tool_button(ui, Icon::Move, "Move to", &t, enabled(s, "mail.move")).on_hover_text(tl!("Move to a folder (Ctrl+Shift+V)")).clicked() {
         acts.push(Action::Dialog(Dialog::move_to()));
     }
     // Quick Steps: each done to the selection in one click (Ctrl+Shift+1…9).
-    let r = widgets::tool_button(ui, Icon::Steps, "Quick steps", &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::Steps, "Quick steps", &t, true);
     egui::Popup::menu(&r).show(|ui| quick_steps_menu(ui, s, acts));
     // Rules (issue #243: Home had no way to them): one made from the message, or all of them.
-    let r = widgets::tool_button(ui, Icon::Rules, "Rules", &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::Rules, "Rules", &t, true);
     egui::Popup::menu(&r).show(|ui| {
         let sender = s.first_selected().map(|m| m.from.email.clone()).filter(|e| !e.is_empty());
         if ui.add_enabled(sender.is_some(), egui::Button::new(tl!("Create rule…"))).clicked() {
@@ -107,7 +107,7 @@ pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Ac
         acts.push(Action::Run("mail.toggleRead", json!({})));
     }
     // Mark All as Read for the folder on view (issue #197), as Outlook's Folder tab has it.
-    let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "More ways to mark mail read", &t);
+    let r = widgets::split_arrow(ui, "More ways to mark mail read", &t);
     egui::Popup::menu(&r).show(|ui| {
         let all = match &s.view {
             mailcraft_engine::View::Folder { account, folder } => {
@@ -125,20 +125,20 @@ pub(super) fn ribbon_home(ui: &mut Ui, s: &Session, t: Tokens, acts: &mut Vec<Ac
         acts.push(Action::Run("mail.flag", json!({})));
     }
     // Follow Up: when it's due, as Outlook's flag drop-down.
-    let r = widgets::tiny_icon_button(ui, Icon::ChevronDown, "Follow up", &t);
+    let r = widgets::split_arrow(ui, "Follow up", &t);
     egui::Popup::menu(&r).show(|ui| organize::follow_up_menu(ui, s, &t, acts));
     let sel = !s.selection.is_empty();
-    let r = widgets::tool_button(ui, Icon::Tag, "Categorize", &t, sel);
+    let r = widgets::menu_tool_button(ui, Icon::Tag, "Categorize", &t, sel);
     egui::Popup::menu(&r).show(|ui| organize::categorize_menu(ui, s, &t, acts));
     let pinned = first.is_some_and(|m| m.flags.pinned());
     if widgets::tool_button(ui, Icon::Pin, if pinned { "Unpin" } else { "Pin" }, &t, sel).clicked() {
         acts.push(Action::Run("mail.pin", json!({"on": !pinned})));
     }
-    let r = widgets::tool_button(ui, Icon::Clock, "Snooze", &t, sel);
+    let r = widgets::menu_tool_button(ui, Icon::Clock, "Snooze", &t, sel);
     egui::Popup::menu(&r).show(|ui| organize::snooze_menu(ui, s, &t, acts));
     widgets::group(ui, &t, "Tags", false);
     // Show only some mail, as Outlook's Filter Email.
-    let r = widgets::tool_button(ui, Icon::Funnel, "Filter", &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::Funnel, "Filter", &t, true);
     egui::Popup::menu(&r).show(|ui| {
         for f in mailcraft_engine::ListFilter::EVERY {
             if ui.selectable_label(s.filter == f, tl!(f.label())).clicked() {
@@ -255,7 +255,7 @@ pub(super) fn ribbon_view(ui: &mut Ui, s: &Session, t: Tokens, dark: Option<bool
     // Buttons as Home's are, so the row folds as Home's does in a narrow
     // window (labels go from the end) instead of scrolling: the reading pane's
     // place and the theme in a menu each, the rest turned on or off.
-    let r = widgets::tool_button(ui, Icon::Layout, "Reading pane", &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::Layout, "Reading pane", &t, true);
     egui::Popup::menu(&r).show(|ui| {
         for (v, label, code) in [(ReadingPane::Right, "Right", "right"), (ReadingPane::Bottom, "Bottom", "bottom"), (ReadingPane::Off, "Off", "off")]
         {
@@ -283,7 +283,7 @@ pub(super) fn ribbon_view(ui: &mut Ui, s: &Session, t: Tokens, dark: Option<bool
     }
     // The To-Do Bar beside the mail: its parts, each on or off, as Outlook's menu.
     let bar = s.prefs.todo_bar;
-    let r = widgets::tool_button(ui, Icon::Task, "To-Do Bar", &t, true)
+    let r = widgets::menu_tool_button(ui, Icon::Task, "To-Do Bar", &t, true)
         .on_hover_text(tl!("Show the calendar, what's coming up and your tasks beside the mail"));
     egui::Popup::menu(&r).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
         for (on, label, part) in
@@ -301,7 +301,7 @@ pub(super) fn ribbon_view(ui: &mut Ui, s: &Session, t: Tokens, dark: Option<bool
         }
     });
     // The folder pane's text size, row height and indent (issue #184).
-    let r = widgets::tool_button(ui, Icon::Compact, "Folder density", &t, true).on_hover_text(tl!("How tightly the folder pane's folders sit"));
+    let r = widgets::menu_tool_button(ui, Icon::Compact, "Folder density", &t, true).on_hover_text(tl!("How tightly the folder pane's folders sit"));
     egui::Popup::menu(&r).show(|ui| {
         for (d, label) in [
             (mailcraft_engine::FolderDensity::Spacious, "Spacious"),
@@ -316,7 +316,7 @@ pub(super) fn ribbon_view(ui: &mut Ui, s: &Session, t: Tokens, dark: Option<bool
     });
     widgets::group(ui, &t, "Layout", false);
     let arrange = tf!("Arrange by: {field}", field = tl!(s.prefs.arrange.label()));
-    let r = widgets::tool_button(ui, Icon::ListBullet, widgets::Label::shown("Arrange by", &arrange), &t, true);
+    let r = widgets::menu_tool_button(ui, Icon::ListBullet, widgets::Label::shown("Arrange by", &arrange), &t, true);
     egui::Popup::menu(&r).show(|ui| list::arrange_menu(ui, s, acts));
     if widgets::tool_toggle(ui, Icon::Sort, "Reverse sort", &t, s.prefs.reverse_sort).clicked() {
         acts.push(Action::Run("view.reverseSort", json!({})));
@@ -337,7 +337,7 @@ pub(super) fn ribbon_view(ui: &mut Ui, s: &Session, t: Tokens, dark: Option<bool
     }
     widgets::group(ui, &t, "Message", false);
     let theme_icon = if dark == Some(true) { Icon::Moon } else { Icon::Sun };
-    let r = widgets::tool_button(ui, theme_icon, "Theme", &t, true);
+    let r = widgets::menu_tool_button(ui, theme_icon, "Theme", &t, true);
     egui::Popup::menu(&r).show(|ui| {
         for (v, label) in [(None, "System"), (Some(false), "Light"), (Some(true), "Dark")] {
             if ui.selectable_label(dark == v, tl!(label)).clicked() {

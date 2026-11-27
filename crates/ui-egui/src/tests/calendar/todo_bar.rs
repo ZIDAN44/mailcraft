@@ -197,13 +197,15 @@ fn the_bar_is_at_the_left_in_hebrew() {
 fn the_view_tab_turns_its_parts_on_and_off() {
     let (mut a, _) = app("todo-bar-menu");
     let ctx = egui::Context::default();
+    ctx.enable_accesskit();
     a.ui.tab = crate::RibbonTab::View;
     settle(&ctx, &mut a);
     let find = |ctx: &egui::Context, a: &mut MailApp, what: &str, under: f32| {
         let all = drawn(ctx, a, SIZE);
         all.iter().find(|(s, r)| s == what && r.top() > under).map(|(_, r)| *r).unwrap_or_else(|| panic!("no {what:?} under {under}"))
     };
-    let button = find(&ctx, &mut a, "To-Do Bar", 0.0);
+    // By its name (in a narrower ribbon its words give way, its icon stays).
+    let button = named(&ctx, &mut a, SIZE).into_iter().find(|n| n.name() == Some("To-Do Bar")).and_then(|n| n.rect).expect("To-Do Bar");
     click(&ctx, &mut a, button.center());
     // The menu, under the ribbon: its three parts and Off.
     let under = button.bottom();

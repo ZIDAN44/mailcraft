@@ -710,3 +710,27 @@ fn a_long_searchs_heading_stays_in_the_list() {
     assert_eq!(a.ui.pane_sizes.list, Some(list), "the list keeps its width");
     assert!(heading.rect.right() <= folders + list, "{:?} runs past the list's edge at {}", heading.rect, folders + list);
 }
+
+/// The ribbon fitted to a window too narrow for all its words keeps its buttons where they are,
+/// frame after frame: a menu button's arrow went with its words, the fit put them back for room
+/// it hadn't, and the ribbon changed every frame (a click went to the wrong button).
+#[test]
+fn a_fitted_ribbon_holds_still() {
+    let (mut a, _) = app("ribbon-still");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let k = first_message(&a);
+    a.run("list.open", json!({"key": k}));
+    // Every width from 900 to 1400: one where the fit is on the edge flips with each frame.
+    for w in (900..=1400).step_by(10).map(|w| w as f32) {
+        let size = egui::vec2(w, 800.0);
+        for _ in 0..4 {
+            sized_frame(&ctx, &mut a, size, vec![]);
+        }
+        let flag = |ctx: &egui::Context, a: &mut MailApp| named(ctx, a, size).into_iter().find(|n| n.name() == Some("Flag")).and_then(|n| n.rect);
+        let first = flag(&ctx, &mut a);
+        for _ in 0..3 {
+            assert_eq!(flag(&ctx, &mut a), first, "{w}: Flag moved");
+        }
+    }
+}

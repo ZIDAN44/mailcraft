@@ -180,8 +180,18 @@ fn icon_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, 
         hover_fill(ui, &resp, rect, t, enabled);
     }
     let ir = egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0));
-    icons::paint(ui.painter(), ir, icon, if enabled { t.accent } else { t.faint });
+    icons::paint(ui.painter(), ir, icon, icon_ink(t, enabled, on || resp.hovered()));
     resp.on_hover_text(label)
+}
+
+/// A command's icon: in the text's own quiet colour, full under the pointer (every icon in the
+/// app colour left nothing for it to set apart), faint when it can't be used.
+fn icon_ink(t: &Tokens, enabled: bool, hovered: bool) -> Color32 {
+    match (enabled, hovered) {
+        (false, _) => t.faint,
+        (true, true) => t.text,
+        (true, false) => t.dim,
+    }
 }
 
 /// A ribbon button's label: its English words, which the button translates and finds its key
@@ -239,8 +249,40 @@ pub fn tool_button<'a>(ui: &mut Ui, icon: Icon, label: impl Into<Label<'a>>, t: 
     resp
 }
 
+/// A ribbon button that opens a menu: [`tool_button`] with a small arrow after its label, so it
+/// reads as one (Quick steps, Rules, Categorize and Snooze looked like commands).
+pub fn menu_tool_button<'a>(ui: &mut Ui, icon: Icon, label: impl Into<Label<'a>>, t: &Tokens, enabled: bool) -> Response {
+    let label = label.into();
+    let mut resp = tool_button_with(ui, icon, label.text(), t, enabled, true);
+    crate::keytips::apply(ui, label.key(), &mut resp, enabled, t);
+    resp
+}
+
+/// A split button's arrow, against the button before it (it was a button of its own 8 points
+/// away): as tall as it, a line between them under the pointer. Its menu is the caller's.
+pub fn split_arrow(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
+    if classic(ui) {
+        return tiny_icon_button(ui, Icon::ChevronDown, tip, t);
+    }
+    ui.add_space(-ui.spacing().item_spacing.x);
+    let (rect, resp) = ui.allocate_exact_size(vec2(16.0, 30.0), Sense::click());
+    named(ui, &resp, tl!(tip), true, None);
+    reached(ui, rect);
+    if resp.hovered() {
+        ui.painter().rect_filled(rect, 4.0, t.hover);
+        ui.painter().vline(rect.left(), rect.shrink2(vec2(0.0, 6.0)).y_range(), Stroke::new(1.0, t.border));
+    }
+    icons::paint(ui.painter(), egui::Rect::from_center_size(rect.center(), vec2(10.0, 10.0)), Icon::ChevronDown, icon_ink(t, true, resp.hovered()));
+    resp.on_hover_text(tl!(tip))
+}
+
 /// A ribbon button labelled `label` (in the language shown).
 fn tool_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
+    tool_button_with(ui, icon, label, t, enabled, false)
+}
+
+/// A ribbon button labelled `label`; `menu`: with an arrow after its label.
+fn tool_button_with(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, menu: bool) -> Response {
     if classic(ui) {
         // Its label's width noted all the same, so the simplified ribbon fits at once when it's back.
         let width = ui.painter().layout_no_wrap(label.to_string(), theme::regular(13.0), t.text).size().x;
@@ -251,12 +293,14 @@ fn tool_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: 
     }
     let font = theme::regular(13.0);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.text);
-    if ribbon_button(ui, galley.size().x) {
+    // Its arrow goes with its words (the fit counts both, or it put them back for room it hadn't).
+    let arrow = if menu { 11.0 } else { 0.0 };
+    if ribbon_button(ui, galley.size().x + arrow) {
         let resp = icon_button(ui, icon, label, t, enabled, false);
         named(ui, &resp, label, enabled, None);
         return resp;
     }
-    let size = vec2(galley.size().x + 36.0, 30.0);
+    let size = vec2(galley.size().x + 36.0 + arrow, 30.0);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     named(ui, &resp, label, enabled, None);
     reached(ui, rect);
@@ -264,9 +308,14 @@ fn tool_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: 
     hover_fill(ui, &resp, rect, t, enabled);
     let m = crate::bidi::Mirror::new(rect);
     let ir = m.rect(egui::Rect::from_min_size(rect.min + vec2(8.0, 7.0), vec2(16.0, 16.0)));
-    icons::paint(ui.painter(), ir, icon, if enabled { t.accent } else { t.faint });
-    let at = egui::pos2(m.start(rect.min.x + 30.0, galley.size().x), rect.min.y + (30.0 - galley.size().y) / 2.0);
+    icons::paint(ui.painter(), ir, icon, icon_ink(t, enabled, resp.hovered()));
+    let text_w = galley.size().x;
+    let at = egui::pos2(m.start(rect.min.x + 30.0, text_w), rect.min.y + (30.0 - galley.size().y) / 2.0);
     ui.painter().galley_with_override_text_color(at, galley, color);
+    if menu {
+        let ar = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 30.0 + text_w + 3.0, rect.center().y - 4.0), vec2(8.0, 8.0)));
+        icons::paint(ui.painter(), ar, Icon::ChevronDown, t.dim);
+    }
     resp
 }
 
