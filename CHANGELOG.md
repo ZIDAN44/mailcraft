@@ -69,6 +69,7 @@ Thanks to kzoli and kovadam69 for the Hungarian translation and dates written ye
 
 ### Fixed
 
+- A message shown in the reading pane is marked read when the wait chosen in **File › Options › Mail** is up (#304): with nothing else going on in the window, it was marked up to 5 seconds later.
 - On Linux and the BSDs, typing in a message written in a window of its own keeps up as it does in the reading pane (#287): while a second window is open, each frame waited for the screen's refresh once for every window, so the window typed in showed half the frames it could. Frames now go to the screen without that wait while two or more windows are open, held to the screen's rate once for all of them.
 - A right-click in a message's text opens a menu (#302): **Copy** what's selected and **Select all**, in the reading pane and a message's own window. It did nothing; only Ctrl+C copied.
 - The Windows installer has a setup window (#301): opened, the `.msi` showed a progress bar for a moment and closed, without a word of MailCraft being installed or where to find it. It now says what it does (installs MailCraft, replaces an older version, or repairs or removes this one) and how it ended, with **Start MailCraft** ticked after an install; a cancelled or failed setup says it changed nothing, and how to see why. MailCraft's updates and `msiexec /qn` install without it, as before.

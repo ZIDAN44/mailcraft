@@ -13,6 +13,7 @@ mod pinned_header;
 mod plain_text;
 mod printing;
 mod reactions;
+mod read_wait;
 mod search_marks;
 
 #[test]

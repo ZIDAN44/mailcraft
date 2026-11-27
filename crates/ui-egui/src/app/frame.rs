@@ -749,5 +749,10 @@ impl MailApp {
         self.tell_before_zooming(&ctx);
         let busy = self.session.accounts.iter().any(|a| matches!(a.status, SyncStatus::Connecting | SyncStatus::Syncing { .. }));
         ctx.request_repaint_after(std::time::Duration::from_secs(if busy || self.ui.toast.is_some() { 1 } else { 20 }));
+        // A message shown waits to be marked read: woken at its time (issue #304), a moment
+        // past it (the clock counts whole seconds).
+        if let Some(secs) = self.session.read_due_in() {
+            ctx.request_repaint_after(std::time::Duration::from_secs(secs).saturating_add(std::time::Duration::from_millis(50)));
+        }
     }
 }

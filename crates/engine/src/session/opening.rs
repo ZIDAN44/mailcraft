@@ -107,6 +107,13 @@ impl Session {
         }
     }
 
+    /// Seconds until the message waiting in the reading pane is marked read, while one is: the
+    /// window wakes then (issue #304), not at its next look.
+    pub fn read_due_in(&self) -> Option<u64> {
+        let (_, at) = self.read_due.as_ref()?;
+        Some(u64::try_from(at.saturating_sub(self.clock.now)).unwrap_or(0))
+    }
+
     /// How many times a message was shown in the reading pane (each one read from the cache and
     /// parsed): a held arrow key is one per frame, whatever the key repeat rate.
     pub fn messages_shown(&self) -> u64 {
