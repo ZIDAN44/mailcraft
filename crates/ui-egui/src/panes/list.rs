@@ -34,6 +34,12 @@ pub struct DragKeys;
 
 const HEADER_H: f32 = 30.0;
 
+/// A date heading's height: a row's in the single-line list (30 against its rows' 28, the list's
+/// lines fell out of step under each heading).
+fn header_height(s: &Session) -> f32 {
+    if s.prefs.single_line { row_height(s) } else { HEADER_H }
+}
+
 fn row_height(s: &Session) -> f32 {
     // One line a message, whatever else is set: no avatar, no second line, no preview.
     if s.prefs.single_line {
@@ -338,7 +344,7 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
     let mh = row_height(s);
     let rows = s.rows();
     // Not shown in groups: the headings take no room and aren't drawn.
-    let header_h = if s.prefs.groups { HEADER_H } else { 0.0 };
+    let header_h = if s.prefs.groups { header_height(s) } else { 0.0 };
     let key = (s.nav_structure(), mh.to_bits(), header_h.to_bits());
     if st.list_rows.as_ref().is_none_or(|c| c.key != key || c.tops.len() != rows.len()) {
         let mut tops = Vec::with_capacity(rows.len());
@@ -442,7 +448,7 @@ fn list_body(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>)
                         Some(Row::Folded { count, unread }) => Some((*count, *unread)),
                         _ => None,
                     };
-                    let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, HEADER_H));
+                    let r = Rect::from_min_size(origin + vec2(0.0, top), vec2(width, header_h));
                     group_heading(&t, ui, r, Heading { shown: &shown, heading: &heading, folded }, acts);
                 }
                 Row::Message { index, count, unread } => {

@@ -55,14 +55,16 @@ fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
     if bar.tasks && s.todo_step() {
         ui.ctx().request_repaint();
     }
+    // Its scroll bars beside what scrolls (floating, they covered the rows' done marks).
+    ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
     egui::Frame::new().inner_margin(Margin::symmetric(8, 6)).show(ui, |ui| {
         if bar.calendar {
-            head(ui, &t, "Calendar", "calendar", acts);
+            head(ui, &t, "Calendar", true, acts);
             super::calendar::bar_month(s, st, ui, acts);
             ui.add_space(6.0);
         }
         if bar.appointments {
-            head(ui, &t, "Appointments", "appointments", acts);
+            head(ui, &t, "Appointments", !bar.calendar, acts);
             if bar.tasks {
                 // Its share of what's left, the tasks under the line having the rest, each with a
                 // scroll bar of its own; the line is dragged to share it otherwise (issue #196: it
@@ -83,7 +85,7 @@ fn show(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
             }
         }
         if bar.tasks {
-            head(ui, &t, "Tasks", "tasks", acts);
+            head(ui, &t, "Tasks", !bar.calendar && !bar.appointments, acts);
             tasks(s, st, ui, acts);
         }
     });
@@ -136,14 +138,18 @@ fn split_line(ui: &mut Ui, t: &Tokens, (top, room): (f32, f32), kept: u8, st: &m
 }
 
 /// A part's name, and the ✕ that closes it.
-fn head(ui: &mut Ui, t: &Tokens, name: &str, part: &str, acts: &mut Vec<Action>) {
+/// A part's heading; the first one's has the bar's Close (each part had one of its own, three
+/// crosses down the bar; a part is turned off in View's To-Do Bar menu).
+fn head(ui: &mut Ui, t: &Tokens, name: &str, close: bool, acts: &mut Vec<Action>) {
     ui.horizontal(|ui| {
-        ui.label(RichText::new(tl!(name)).font(theme::semibold(12.0)).color(t.dim));
-        ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
-            if widgets::tiny_icon_button(ui, Icon::Close, "Close", t).clicked() {
-                acts.push(Action::Run("view.todoBar", json!({"part": part, "on": false})));
-            }
-        });
+        ui.label(RichText::new(tl!(name)).font(theme::semibold(crate::sizes::CAPTION)).color(t.dim));
+        if close {
+            ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
+                if widgets::tiny_icon_button(ui, Icon::Close, "Close the To-Do Bar", t).clicked() {
+                    acts.push(Action::Run("view.todoBar", json!({"off": true})));
+                }
+            });
+        }
     });
 }
 

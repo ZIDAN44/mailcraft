@@ -164,7 +164,6 @@
 	Copy {n} messages	Copia {n} messaggi
 	Move “{folder}” to	Sposta «{folder}» in
 	Name	Nome
-	Names <addresses>, separated by ; or ,	Nomi <indirizzi>, separati da ; o ,
 	New category	Nuova categoria
 	New category…	Nuova categoria…
 	New folder	Nuova cartella
@@ -714,12 +713,6 @@
 	Mark complete	Segna come completato
 	Clear flag	Cancella contrassegno
 	This week	Questa settimana
-	Follow up.	Completamento.
-	Follow up. Due today.	Completamento. Scade oggi.
-	Follow up. Due {date}.	Completamento. Scade il {date}.
-	Follow up. Overdue: it was due {date}.	Completamento. In ritardo: scadeva il {date}.
-	Completed.	Completato.
-	Completed on {date}.	Completato il {date}.
 	This message was sent with high importance.	Questo messaggio è stato inviato con priorità alta.
 	This message was sent with low importance.	Questo messaggio è stato inviato con priorità bassa.
 	Delay delivery	Ritarda recapito
@@ -2238,3 +2231,10 @@ count	occurrences	ripetizioni
 	New messages	Nuovi messaggi
 	Replies and forwards	Risposte e inoltri
 	More formatting	Altra formattazione
+	Follow up · Due today	Completamento · Scade oggi
+	Follow up · Due {date}	Completamento · Scade il {date}
+	Follow up · Overdue: it was due {date}	Completamento · In ritardo: scadeva il {date}
+	Completed on {date}	Completato il {date}
+	Add recipients	Aggiungi destinatari
+	Add guests	Aggiungi invitati
+	Close the To-Do Bar	Chiudi la barra delle attività

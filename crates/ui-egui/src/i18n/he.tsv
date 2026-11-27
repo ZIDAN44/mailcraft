@@ -164,7 +164,6 @@
 	Copy {n} messages	העתק {n} הודעות
 	Move “{folder}” to	העבר את „{folder}” אל
 	Name	שם
-	Names <addresses>, separated by ; or ,	שמות <כתובות>, מופרדים ב-; או ,
 	New category	קטגוריה חדשה
 	New category…	קטגוריה חדשה…
 	New folder	תיקייה חדשה
@@ -716,12 +715,6 @@ month	May	מאי
 	Mark complete	סמן כהושלם
 	Clear flag	נקה דגל
 	This week	השבוע
-	Follow up.	מעקב.
-	Follow up. Due today.	מעקב. היעד היום.
-	Follow up. Due {date}.	מעקב. היעד: {date}.
-	Follow up. Overdue: it was due {date}.	מעקב. באיחור: היעד היה {date}.
-	Completed.	הושלם.
-	Completed on {date}.	הושלם ב-{date}.
 	This message was sent with high importance.	הודעה זו נשלחה בחשיבות גבוהה.
 	This message was sent with low importance.	הודעה זו נשלחה בחשיבות נמוכה.
 	Delay delivery	השהה מסירה
@@ -2234,3 +2227,10 @@ count	occurrences	פעמים
 	New messages	הודעות חדשות
 	Replies and forwards	תשובות והעברות
 	More formatting	עוד עיצוב
+	Follow up · Due today	מעקב · היעד היום
+	Follow up · Due {date}	מעקב · היעד: {date}
+	Follow up · Overdue: it was due {date}	מעקב · באיחור: היעד היה {date}
+	Completed on {date}	הושלם ב-{date}
+	Add recipients	הוספת נמענים
+	Add guests	הוספת אורחים
+	Close the To-Do Bar	סגירת סרגל המטלות

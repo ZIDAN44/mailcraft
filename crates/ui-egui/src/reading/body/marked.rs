@@ -12,6 +12,10 @@ use super::*;
 /// or white, whichever reads, as on any highlight a message sets.
 pub(crate) const MARK: [u8; 3] = [255, 226, 92];
 
+/// The highlight as a tint, for what a search found in a subject or a list's row: the text keeps
+/// its colour, on the pane's background light or dark.
+pub(crate) const MARK_TINT: Color32 = Color32::from_rgba_unmultiplied_const(255, 200, 0, 72);
+
 /// The open message marked, kept while it, the search and how it's shown are the same.
 #[derive(Default)]
 pub struct Marked {
@@ -135,8 +139,9 @@ fn marks_in(s: &Session, text: &str, field: &Field) -> Vec<std::ops::Range<usize
 pub(crate) fn marked_job(text: &str, marks: &[std::ops::Range<usize>], font: egui::FontId, color: Color32) -> egui::text::LayoutJob {
     let mut job = egui::text::LayoutJob::default();
     let plain = egui::TextFormat { font_id: font.clone(), color, ..Default::default() };
-    let [r, g, b] = MARK;
-    let hit = egui::TextFormat { font_id: font, color: Color32::BLACK, background: Color32::from_rgb(r, g, b), ..Default::default() };
+    // A heading's or a row's hit: a tint of the highlight under the text's own colour, light
+    // or dark (a word turned black on solid yellow mid-subject).
+    let hit = egui::TextFormat { font_id: font, color, background: MARK_TINT, ..Default::default() };
     let mut at = 0usize;
     for m in marks {
         if let (Some(before), Some(found)) = (text.get(at..m.start).filter(|_| m.start >= at), text.get(m.clone())) {

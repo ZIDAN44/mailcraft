@@ -164,7 +164,6 @@
 	Copy {n} messages	{n} berichten kopiëren
 	Move “{folder}” to	“{folder}” verplaatsen naar
 	Name	Naam
-	Names <addresses>, separated by ; or ,	Namen <adressen>, gescheiden door ; of ,
 	New category	Nieuwe categorie
 	New category…	Nieuwe categorie…
 	New folder	Nieuwe map
@@ -714,12 +713,6 @@
 	Mark complete	Als voltooid markeren
 	Clear flag	Markering wissen
 	This week	Deze week
-	Follow up.	Opvolgen.
-	Follow up. Due today.	Opvolgen. Vervalt vandaag.
-	Follow up. Due {date}.	Opvolgen. Vervalt {date}.
-	Follow up. Overdue: it was due {date}.	Opvolgen. Te laat: het verviel {date}.
-	Completed.	Voltooid.
-	Completed on {date}.	Voltooid op {date}.
 	This message was sent with high importance.	Dit bericht is verzonden met hoge urgentie.
 	This message was sent with low importance.	Dit bericht is verzonden met lage urgentie.
 	Delay delivery	Bezorging uitstellen
@@ -2234,3 +2227,10 @@ count	occurrences	keer
 	New messages	Nieuwe berichten
 	Replies and forwards	Antwoorden en doorsturen
 	More formatting	Meer opmaak
+	Follow up · Due today	Opvolgen · Vervalt vandaag
+	Follow up · Due {date}	Opvolgen · Vervalt {date}
+	Follow up · Overdue: it was due {date}	Opvolgen · Te laat: het verviel {date}
+	Completed on {date}	Voltooid op {date}
+	Add recipients	Geadresseerden toevoegen
+	Add guests	Gasten toevoegen
+	Close the To-Do Bar	Takenbalk sluiten

@@ -507,6 +507,19 @@ impl Session {
         out
     }
 
+    /// The words of the user's own names and their contacts' (Riley, Moreno, Okafor…): spelled
+    /// right as they're written, not underlined in a signature or a greeting.
+    pub fn name_words(&self) -> std::collections::BTreeSet<String> {
+        let names =
+            self.accounts.iter().map(|a| a.config.name.as_str()).chain(self.pim.values().flat_map(|p| p.cards.iter().map(|c| c.card.name.as_str())));
+        names
+            .flat_map(|n| n.split(|c: char| !c.is_alphabetic() && c != '\'' && c != '-'))
+            .map(|w| w.trim_matches(|c: char| c == '\'' || c == '-'))
+            .filter(|w| w.chars().count() > 1)
+            .map(str::to_string)
+            .collect()
+    }
+
     /// The contact someone is saved as, by their address (of several, the first by name, as
     /// [`Session::people`] lists them). The reading pane asks it of each name above a message
     /// on every frame: searching the address book for each took milliseconds.

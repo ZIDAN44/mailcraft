@@ -25,7 +25,8 @@ pub(super) fn address_rows(ui: &mut Ui, st: &mut UiState, c: &mut mailcraft_engi
             let (mut boxes, mut changed) = (Vec::new(), false);
             // To, Cc and Bcc open the address book, as in Outlook.
             for (field, label, hint) in [
-                (Recipients::To, "To", "Names <addresses>, separated by ; or ,"),
+                // Said plainly (it was "Names <addresses>, separated by ; or ,").
+                (Recipients::To, "To", "Add recipients"),
                 (Recipients::Cc, "Cc", ""),
                 (Recipients::Bcc, "Bcc", "Hidden from the other recipients"),
             ] {

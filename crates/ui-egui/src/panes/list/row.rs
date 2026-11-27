@@ -171,6 +171,16 @@ impl MessageRow<'_> {
         self.mr.start(if rtl && !self.mr.on() { to - w } else { from }, w)
     }
 
+    /// The conversation's count, `badge` laid out, in a small pill from `x` on the sender's line.
+    fn count_badge(&self, p: &egui::Painter, badge: Option<std::sync::Arc<egui::Galley>>, x: f32) {
+        let Some(g) = badge else { return };
+        let w = g.size().x + 10.0;
+        let pill = self.mr.rect(Rect::from_min_size(egui::pos2(x, self.line1 + 1.0), vec2(w, 17.0)));
+        p.rect_filled(pill, 8.0, self.t.chrome);
+        p.rect_stroke(pill, 8.0, egui::Stroke::new(1.0, self.t.border), egui::StrokeKind::Inside);
+        p.galley(pill.center() - g.size() / 2.0, g, self.t.dim);
+    }
+
     /// Where the subject's line is: the second, or the first in the single-line list.
     fn line2(&self) -> f32 {
         if self.single { self.line1 } else { self.line1 + LINE_PITCH }
@@ -191,16 +201,21 @@ impl MessageRow<'_> {
         if !s.prefs.compact && !self.single {
             let nobody = mailcraft_engine::model::EmailAddress::default();
             let who_addr = if self.sent_view { m.to.first().unwrap_or(&nobody) } else { &m.from };
+            // 32 points across, as the reading pane's is 40 (it was 34, off the scale).
             let c = mr.pos(egui::pos2(r.min.x + 14.0 + 17.0, r.min.y + 26.0));
-            crate::photos::avatar(ui, s, c, 17.0, &who_addr.email, &who_addr.initials(), theme::avatar_color(&who_addr.email, t.dark));
+            crate::photos::avatar(ui, s, c, 16.0, &who_addr.email, &who_addr.initials(), theme::avatar_color(&who_addr.email, t.dark));
         }
         // Sender (or recipients in Sent) and time.
         let time = crate::i18n::date(&dates::list_time(m.when(), &s.clock));
         // Quiet, read or not (the bar and the sender say unread; the time in the app colour, and
         // the subject, made it four marks).
         let time_g = p.layout_no_wrap(time, theme::regular(crate::sizes::CAPTION), t.dim);
-        let mut tw = time_g.size().x;
-        p.galley(egui::pos2(mr.start(right - tw, tw), line1 + 1.0), time_g, t.dim);
+        let time_w = time_g.size().x;
+        p.galley(egui::pos2(mr.start(right - time_w, time_w), line1 + 1.0), time_g, t.dim);
+        // On one line, the time a column of its own, as wide as a recent one's ("Wed 22:22"):
+        // what's before it (a file's clip, a flag) lines up down the list (it hung off times of
+        // different widths).
+        let mut tw = if self.single { time_w.max(time_column(p, s, t)) } else { time_w };
         // In a narrow list the sender comes first: where a tag before the time would leave the name
         // (and the address beside it) no room to be read, the tag isn't drawn.
         let who_least = if marks.address { 150.0 } else { 90.0 };
@@ -247,7 +262,10 @@ impl MessageRow<'_> {
             who_x += dw + 6.0;
         }
         let who = if self.sent_view { tf!("To: {names}", names = addr::display_list(&m.to)) } else { m.from.display().to_string() };
-        let who = if count > 1 && !marks.address { format!("{who}  ({count})") } else { who };
+        // How many in the conversation: a small badge after the name ("Sam Okafor  (2)" read as
+        // part of the name).
+        let badge = (count > 1).then(|| p.layout_no_wrap(count.to_string(), theme::regular(crate::sizes::CAPTION), t.dim));
+        let badge_w = badge.as_ref().map_or(0.0, |g| g.size().x + 10.0 + 6.0);
         let who_rtl = crate::bidi::reads_rtl(&who);
         let who_right = if single { subject_x - 12.0 } else { right - tw - 10.0 };
         let who_font = if unread { theme::semibold(14.0) } else { theme::regular(14.0) };
@@ -257,16 +275,15 @@ impl MessageRow<'_> {
             // The name, then the address it really came from, dimmer. The address is what tells, so
             // it's laid out first (cut to its domain if it must be: `<…@example.com>`), but the name
             // keeps up to nine twentieths of the room, so a narrow row still says who.
-            let room = (who_right - who_x).max(1.0);
+            let room = (who_right - who_x - badge_w).max(1.0);
             let email = m.from.email.trim();
-            let more = if count > 1 { format!("  ({count})") } else { String::new() };
             let font = theme::regular(crate::sizes::CAPTION);
             let name_w = p.layout_no_wrap(who.to_string(), who_font.clone(), t.text).size().x;
             let cap = (room - name_w.min(room * 0.45) - 6.0).clamp(1.0, room * 0.7);
-            let full = format!("<{email}>{more}");
+            let full = format!("<{email}>");
             let fits = p.layout_no_wrap(full.clone(), font.clone(), t.dim).size().x <= cap;
             let address = match email.rsplit_once('@') {
-                Some((_, domain)) if !fits => format!("<…@{domain}>{more}"),
+                Some((_, domain)) if !fits => format!("<…@{domain}>"),
                 _ => full,
             };
             let ag = widgets::one_line(ui, &address, font, t.dim, cap);
@@ -275,9 +292,15 @@ impl MessageRow<'_> {
             let nw = who_g.size().x;
             p.galley(egui::pos2(mr.start(who_x, nw), line1), who_g, t.text);
             p.galley(egui::pos2(mr.start(who_x + nw + 6.0, aw), line1 + 1.5), ag, t.dim);
+            self.count_badge(p, badge, who_x + nw + 6.0 + aw + 6.0);
         } else {
-            let who_g = widgets::one_line(ui, &who, who_font, t.text, who_right - who_x);
-            p.galley(egui::pos2(self.place(who_rtl, who_x, who_right, who_g.size().x), line1), who_g, t.text);
+            let who_g = widgets::one_line(ui, &who, who_font, t.text, (who_right - who_x - badge_w).max(1.0));
+            let nw = who_g.size().x;
+            let at = self.place(who_rtl, who_x, who_right - badge_w, nw);
+            p.galley(egui::pos2(at, line1), who_g, t.text);
+            // After the name, the way it reads.
+            let after = if who_rtl && !mr.on() { who_right - badge_w + 6.0 } else { who_x + nw + 6.0 };
+            self.count_badge(p, badge, after);
         }
         if single { right - tw - 10.0 } else { right }
     }
@@ -534,6 +557,14 @@ impl MessageRow<'_> {
             item(ui, acts, tl!("View message source"), Action::Run("message.source", json!({"key": key.to_id()})));
         });
     }
+}
+
+/// The single-line list's time column: as wide as a time of this week shows ("Wed 22:22"), in
+/// the language and format shown.
+fn time_column(p: &egui::Painter, s: &Session, t: &theme::Tokens) -> f32 {
+    let sample = s.clock.now.saturating_sub(3 * 86_400);
+    let shown = crate::i18n::date(&dates::list_time(sample - sample.rem_euclid(86_400) + 22 * 3_600 + 22 * 60, &s.clock));
+    p.layout_no_wrap(shown, theme::regular(crate::sizes::CAPTION), t.dim).size().x
 }
 
 /// A line of a row ([`widgets::one_line`]), what the search on found in it marked (issue #173).

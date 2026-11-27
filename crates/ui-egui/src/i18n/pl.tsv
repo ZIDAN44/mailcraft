@@ -164,7 +164,6 @@
 	Copy {n} messages	Kopiuj wiadomości: {n}
 	Move “{folder}” to	Przenieś „{folder}” do
 	Name	Nazwa
-	Names <addresses>, separated by ; or ,	Nazwy <adresy>, oddzielone ; lub ,
 	New category	Nowa kategoria
 	New category…	Nowa kategoria…
 	New folder	Nowy folder
@@ -714,12 +713,6 @@
 	Mark complete	Oznacz jako ukończone
 	Clear flag	Wyczyść flagę
 	This week	W tym tygodniu
-	Follow up.	Monitoruj.
-	Follow up. Due today.	Monitoruj. Termin: dzisiaj.
-	Follow up. Due {date}.	Monitoruj. Termin: {date}.
-	Follow up. Overdue: it was due {date}.	Monitoruj. Po terminie: termin upłynął {date}.
-	Completed.	Ukończono.
-	Completed on {date}.	Ukończono {date}.
 	This message was sent with high importance.	Ta wiadomość została wysłana z wysoką ważnością.
 	This message was sent with low importance.	Ta wiadomość została wysłana z niską ważnością.
 	Delay delivery	Opóźnij dostarczenie
@@ -2252,3 +2245,10 @@ count	occurrences	wystąpieniach
 	New messages	Nowe wiadomości
 	Replies and forwards	Odpowiedzi i przekazania
 	More formatting	Więcej formatowania
+	Follow up · Due today	Monitoruj · Termin: dzisiaj
+	Follow up · Due {date}	Monitoruj · Termin: {date}
+	Follow up · Overdue: it was due {date}	Monitoruj · Po terminie: termin upłynął {date}
+	Completed on {date}	Ukończono {date}
+	Add recipients	Dodaj adresatów
+	Add guests	Dodaj gości
+	Close the To-Do Bar	Zamknij pasek Do zrobienia

@@ -177,6 +177,9 @@ pub struct UiState {
     /// when there are too many).
     pub(crate) web_pictures: reading::FrameLru<String, Option<egui::TextureHandle>, { reading::WEB_PICTURES }>,
     pub toast: Option<(String, bool, f64)>,
+    /// The words spelling takes as right: the dictionary's and the names', made again when the
+    /// contacts, the accounts' names or the dictionary change (by the key with them).
+    pub(crate) spelling_words: (Option<(u64, usize, usize)>, std::collections::BTreeSet<String>),
     /// The notice said with Undo, and what it undoes: the notices' count once it was given, and
     /// the change it undoes, by how many were remembered then and how many could be undone (its
     /// Undo shows while that's still the last).

@@ -376,8 +376,20 @@ impl MailApp {
         }
         // Snoozed mail that is due comes back.
         self.session.tick();
-        // Spelling as you type, and the words added to the dictionary (issue #174).
-        rich_edit::spelling::follow(self.session.prefs.spelling, &self.session.prefs.dictionary);
+        // Spelling as you type, and the words added to the dictionary (issue #174), with the
+        // user's own names and their contacts' (their name was underlined in their signature):
+        // made again when one of those changes.
+        let key = (
+            self.session.pim_revision,
+            self.session.accounts.iter().map(|a| a.config.name.len() + 1).sum::<usize>(),
+            self.session.prefs.dictionary.len(),
+        );
+        if self.ui.spelling_words.0 != Some(key) {
+            let mut words = self.session.name_words();
+            words.extend(self.session.prefs.dictionary.iter().cloned());
+            self.ui.spelling_words = (Some(key), words);
+        }
+        rich_edit::spelling::follow(self.session.prefs.spelling, &self.ui.spelling_words.1);
     }
 
     pub(super) fn flush_jobs(&mut self) {

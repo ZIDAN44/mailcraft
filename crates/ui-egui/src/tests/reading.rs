@@ -5,6 +5,7 @@ use super::*;
 mod attachments;
 mod conversation_sent;
 mod links;
+mod mail_view;
 mod notes;
 mod notified;
 mod people;

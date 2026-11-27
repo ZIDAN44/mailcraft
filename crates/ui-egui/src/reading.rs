@@ -171,7 +171,8 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
     if let Some(p) = pinned {
         let o = Open { r: &r, p, summary: summary.as_ref(), in_window };
         let top = ui.cursor().top();
-        egui::Frame::new().inner_margin(Margin { left: 24, right: 24, top: 18, bottom: 0 }).show(ui, |ui| {
+        // The subject on the list's title's line (READING_TOP: 18 put it 8 points under it).
+        egui::Frame::new().inner_margin(Margin { left: 24, right: 24, top: READING_TOP, bottom: 0 }).show(ui, |ui| {
             header::header(s, st, ui, &o, header::Part::Pinned, acts);
             attachments_strip(s, st, ui, &o, shown_formatted(s, st, &r.key, p), acts);
         });
@@ -181,7 +182,7 @@ fn message(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action
         ui.painter().line_segment([egui::pos2(line.left() + 24.0, edge), egui::pos2(line.right() - 24.0, edge)], egui::Stroke::new(1.0, t.border));
     }
     egui::ScrollArea::vertical().auto_shrink(false).id_salt(("reading", in_window, r.key.to_id(), viewing)).show(ui, |ui| {
-        let top = if pinned.is_some() { 12 } else { 18 };
+        let top = if pinned.is_some() { 12 } else { READING_TOP };
         egui::Frame::new().inner_margin(Margin { left: 24, right: 24, top, bottom: 24 }).show(ui, |ui| {
             let Some(p) = &r.parsed else {
                 not_ready(ui, &t, &r, summary.as_ref(), getting_ready, acts);
@@ -470,6 +471,10 @@ pub(crate) fn sender_warning(t: &Tokens, ui: &mut Ui, w: &mailcraft_engine::mode
     ui.add_space(8.0);
 }
 
+/// How far down the pane the subject starts: as far as the list's title, beside it, so the two
+/// headings share a line.
+const READING_TOP: i8 = 10;
+
 /// The reading pane with no message in it, saying `msg` (as shown: its callers translate it).
 fn empty(ui: &mut Ui, t: &Tokens, msg: &str) {
     widgets::empty_state(ui, t, Icon::Read, msg);
@@ -491,44 +496,44 @@ fn thread_list(
         if thread.is_empty() { s.summary(open).into_iter().collect() } else { thread.iter().filter_map(|k| s.summary(k)).collect() };
     let mut rows: Vec<(&Summary, bool)> = here.into_iter().map(|m| (m, false)).chain(aside.iter().map(|m| (&**m, true))).collect();
     rows.sort_by_key(|(m, _)| m.when());
-    egui::Frame::new().fill(t.chrome).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(8).inner_margin(Margin::symmetric(10, 8)).show(
-        ui,
-        |ui| {
-            ui.label(RichText::new(tf!("{n} messages in this conversation", n = rows.len())).color(t.dim).small());
-            for (m, sent) in rows {
-                let k = &m.key;
-                let current = k == open;
-                let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click());
-                if current || resp.hovered() {
-                    ui.painter().rect_filled(rect, 4.0, if current { t.accent_soft } else { t.hover_row });
-                }
-                let font = if !m.flags.seen && !sent { theme::semibold(13.0) } else { theme::regular(13.0) };
-                let p = ui.painter_at(rect);
-                // Who, the first words and when, each in its own room: the words ran on under
-                // the time in a narrow pane, and a long name under the words. One from Sent
-                // Items says so before its time.
-                let folder = sent
-                    .then(|| s.account(&k.account).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Sent)).map(crate::i18n::folder))
-                    .flatten();
-                let date = crate::i18n::date(&dates::list_time(m.when(), &s.clock));
-                let when = p.layout_no_wrap(folder.map_or(date.clone(), |f| format!("{f} · {date}")), theme::regular(12.0), t.dim);
-                let who = widgets::one_line(ui, m.from.display(), font, if sent { t.dim } else { t.text }, 154.0);
-                let mid = |g: &egui::Galley| rect.center().y - g.size().y / 2.0;
-                let room = rect.width() - 170.0 - when.size().x - 20.0;
-                p.galley(egui::pos2(rect.left() + 8.0, mid(&who)), who, t.text);
-                if room > 24.0 {
-                    let words = widgets::one_line(ui, &m.preview, theme::regular(12.5), t.dim, room);
-                    p.galley(egui::pos2(rect.left() + 170.0, mid(&words)), words, t.dim);
-                }
-                p.galley(egui::pos2(rect.right() - 8.0 - when.size().x, mid(&when)), when, t.dim);
-                if resp.clicked() && sent {
-                    acts.push(Action::Run("message.popOut", json!({"key": k.to_id()})));
-                } else if resp.clicked() && !current {
-                    acts.push(Action::Open(k.clone()));
-                }
+    // A plain list under its caption, as the message's own parts are (it was a box of its own, a
+    // fourth kind of container in the pane).
+    egui::Frame::new().inner_margin(Margin::symmetric(0, 2)).show(ui, |ui| {
+        ui.label(RichText::new(tf!("{n} messages in this conversation", n = rows.len())).color(t.dim).small());
+        ui.add_space(2.0);
+        for (m, sent) in rows {
+            let k = &m.key;
+            let current = k == open;
+            let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 24.0), Sense::click());
+            if current || resp.hovered() {
+                ui.painter().rect_filled(rect, 4.0, if current { t.accent_soft } else { t.hover_row });
             }
-        },
-    );
+            let font = if !m.flags.seen && !sent { theme::semibold(13.0) } else { theme::regular(13.0) };
+            let p = ui.painter_at(rect);
+            // Who, the first words and when, each in its own room: the words ran on under
+            // the time in a narrow pane, and a long name under the words. One from Sent
+            // Items says so before its time.
+            let folder = sent
+                .then(|| s.account(&k.account).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Sent)).map(crate::i18n::folder))
+                .flatten();
+            let date = crate::i18n::date(&dates::list_time(m.when(), &s.clock));
+            let when = p.layout_no_wrap(folder.map_or(date.clone(), |f| format!("{f} · {date}")), theme::regular(12.0), t.dim);
+            let who = widgets::one_line(ui, m.from.display(), font, if sent { t.dim } else { t.text }, 154.0);
+            let mid = |g: &egui::Galley| rect.center().y - g.size().y / 2.0;
+            let room = rect.width() - 170.0 - when.size().x - 20.0;
+            p.galley(egui::pos2(rect.left() + 8.0, mid(&who)), who, t.text);
+            if room > 24.0 {
+                let words = widgets::one_line(ui, &m.preview, theme::regular(12.5), t.dim, room);
+                p.galley(egui::pos2(rect.left() + 170.0, mid(&words)), words, t.dim);
+            }
+            p.galley(egui::pos2(rect.right() - 8.0 - when.size().x, mid(&when)), when, t.dim);
+            if resp.clicked() && sent {
+                acts.push(Action::Run("message.popOut", json!({"key": k.to_id()})));
+            } else if resp.clicked() && !current {
+                acts.push(Action::Open(k.clone()));
+            }
+        }
+    });
 }
 
 /// Whether `text` has Chinese characters (or kana, hangul) that no font installed now can draw:

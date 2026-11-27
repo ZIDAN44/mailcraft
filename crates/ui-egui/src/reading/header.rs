@@ -122,7 +122,16 @@ fn sender_card(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut 
             f32::INFINITY,
             egui::TextStyle::Small,
         );
-        let end = if actions { date.size().x.max(ACTIONS_W) } else { date.size().x };
+        // The date on the name's line, before the actions, when there's room for both (under
+        // them, it sat on the To and Cc lines, off the name's).
+        let inline = actions && ui.available_width() - ACTIONS_W - date.size().x - 12.0 - 16.0 >= 260.0;
+        let end = if inline {
+            ACTIONS_W + 12.0 + date.size().x
+        } else if actions {
+            date.size().x.max(ACTIONS_W)
+        } else {
+            date.size().x
+        };
         let rest = ui.available_width() - end - 16.0;
         let beside = rest >= 200.0;
         let room = if beside { rest } else { ui.available_width() };
@@ -174,6 +183,17 @@ fn sender_card(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut 
             ui.with_layout(crate::bidi::row_from_end(egui::Align::Min), |ui| {
                 // At the row's end, the date under the actions' end.
                 let end = if crate::i18n::current().rtl() { egui::Align::Min } else { egui::Align::Max };
+                if inline {
+                    ui.allocate_ui_with_layout(vec2(ACTIONS_W, 32.0), crate::bidi::row_from_start(egui::Align::Center), |ui| {
+                        message_actions(s, st, ui, o, acts);
+                    });
+                    drawn = true;
+                    ui.add_space(12.0);
+                    ui.allocate_ui_with_layout(vec2(date.size().x, 32.0), crate::bidi::row_from_end(egui::Align::Center), |ui| {
+                        ui.label(date);
+                    });
+                    return;
+                }
                 ui.with_layout(egui::Layout::top_down(end), |ui| {
                     if actions {
                         ui.allocate_ui_with_layout(vec2(ACTIONS_W, 32.0), crate::bidi::row_from_start(egui::Align::Center), |ui| {
@@ -292,9 +312,10 @@ fn follow_up_line(s: &Session, t: &Tokens, ui: &mut Ui, summary: Option<&Summary
         if complete {
             let (ir, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
             icons::paint(ui.painter(), ir, Icon::Done, t.dim);
+            // A bar's words, not sentences: no full stops, its parts joined by " · ".
             let text = match summary.and_then(|m| s.follow_up_done(m)) {
-                Some(d) => tf!("Completed on {date}.", date = crate::i18n::date(&dates::day_text(d, &s.clock))),
-                None => tl!("Completed.").to_string(),
+                Some(d) => tf!("Completed on {date}", date = crate::i18n::date(&dates::day_text(d, &s.clock))),
+                None => tl!("Completed").to_string(),
             };
             ui.label(RichText::new(text).color(t.dim).small());
             ui.add_space(10.0);
@@ -305,11 +326,11 @@ fn follow_up_line(s: &Session, t: &Tokens, ui: &mut Ui, summary: Option<&Summary
             icons::paint(ui.painter(), ir, Icon::Flag, t.flag);
             let text = match due {
                 Some(d) if d < today => {
-                    tf!("Follow up. Overdue: it was due {date}.", date = crate::i18n::date(&dates::day_text(d, &s.clock)))
+                    tf!("Follow up · Overdue: it was due {date}", date = crate::i18n::date(&dates::day_text(d, &s.clock)))
                 }
-                Some(d) if d == today => tl!("Follow up. Due today.").to_string(),
-                Some(d) => tf!("Follow up. Due {date}.", date = crate::i18n::date(&dates::day_text(d, &s.clock))),
-                None => tl!("Follow up.").to_string(),
+                Some(d) if d == today => tl!("Follow up · Due today").to_string(),
+                Some(d) => tf!("Follow up · Due {date}", date = crate::i18n::date(&dates::day_text(d, &s.clock))),
+                None => tl!("Follow up").to_string(),
             };
             let overdue = due.is_some_and(|d| d < today);
             ui.label(RichText::new(text).color(if overdue { t.danger } else { t.dim }).small());

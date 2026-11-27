@@ -21,7 +21,7 @@ pub(super) fn row(ui: &mut Ui, t: &Tokens, f: &mut EventForm, acts: &mut Vec<Act
             ui.horizontal(|ui| {
                 let book = tl!("Invite…");
                 let w = (ui.available_width() - ui.spacing().item_spacing.x - book_width(ui, book)).max(120.0);
-                let hint = tl!("Names <addresses>, separated by ; or ,");
+                let hint = tl!("Add guests");
                 if people_box::in_dialog(ui, t, "guests", tl!("Invite"), &mut f.guests, hint, w, &mut f.guest_box) {
                     acts.push(Action::CheckGuestNames(false));
                 }

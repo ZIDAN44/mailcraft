@@ -164,7 +164,6 @@
 	Copy {n} messages	Copiar {n} mensagens
 	Move “{folder}” to	Mover “{folder}” para
 	Name	Nome
-	Names <addresses>, separated by ; or ,	Nomes <endereços>, separados por ; ou ,
 	New category	Nova categoria
 	New category…	Nova categoria…
 	New folder	Nova pasta
@@ -715,12 +714,6 @@
 	Mark complete	Marcar como concluído
 	Clear flag	Limpar sinalizador
 	This week	Esta semana
-	Follow up.	Acompanhamento.
-	Follow up. Due today.	Acompanhamento. Vence hoje.
-	Follow up. Due {date}.	Acompanhamento. Vence em {date}.
-	Follow up. Overdue: it was due {date}.	Acompanhamento. Atrasado: vencia em {date}.
-	Completed.	Concluído.
-	Completed on {date}.	Concluído em {date}.
 	This message was sent with high importance.	Esta mensagem foi enviada com alta prioridade.
 	This message was sent with low importance.	Esta mensagem foi enviada com baixa prioridade.
 	Delay delivery	Atrasar entrega
@@ -2239,3 +2232,10 @@ count	occurrences	ocorrências
 	New messages	Novas mensagens
 	Replies and forwards	Respostas e encaminhamentos
 	More formatting	Mais formatação
+	Follow up · Due today	Acompanhamento · Vence hoje
+	Follow up · Due {date}	Acompanhamento · Vence em {date}
+	Follow up · Overdue: it was due {date}	Acompanhamento · Atrasado: vencia em {date}
+	Completed on {date}	Concluído em {date}
+	Add recipients	Adicionar destinatários
+	Add guests	Adicionar convidados
+	Close the To-Do Bar	Fechar a Barra de Tarefas Pendentes

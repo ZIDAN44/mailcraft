@@ -61,7 +61,7 @@ pub fn pass(ui: &mut Ui, f: &mut PassForm, t: &Tokens, acts: &mut Vec<Action>) -
     ui.add_space(6.0);
     let name = tl!(if delegate { "Who goes instead of you" } else { "To" });
     ui.label(name);
-    let hint = if delegate { tl!("Name <address>") } else { tl!("Names <addresses>, separated by ; or ,") };
+    let hint = if delegate { tl!("Name <address>") } else { tl!("Add recipients") };
     people_box::in_dialog(ui, t, "pass", name, &mut f.to, hint, f32::INFINITY, &mut f.people);
     if f.occurrence.is_some() {
         ui.add_space(4.0);

@@ -164,7 +164,6 @@
 	Copy {n} messages	{n} 件のメッセージをコピー
 	Move “{folder}” to	「{folder}」の移動先
 	Name	名前
-	Names <addresses>, separated by ; or ,	名前 <アドレス> を ; または , で区切って入力
 	New category	新しい分類項目
 	New category…	新しい分類項目…
 	New folder	新しいフォルダー
@@ -717,12 +716,6 @@ month	May	5月
 	Mark complete	完了にする
 	Clear flag	フラグをクリア
 	This week	今週
-	Follow up.	フォローアップ。
-	Follow up. Due today.	フォローアップ。期限は今日です。
-	Follow up. Due {date}.	フォローアップ。期限は {date} です。
-	Follow up. Overdue: it was due {date}.	フォローアップ。期限切れ: 期限は {date} でした。
-	Completed.	完了しました。
-	Completed on {date}.	{date} に完了しました。
 	This message was sent with high importance.	このメッセージは重要度 - 高で送信されました。
 	This message was sent with low importance.	このメッセージは重要度 - 低で送信されました。
 	Delay delivery	配信タイミング
@@ -2235,3 +2228,10 @@ count	occurrences	回
 	New messages	新しいメッセージ
 	Replies and forwards	返信と転送
 	More formatting	その他の書式
+	Follow up · Due today	フォローアップ · 期限は今日です
+	Follow up · Due {date}	フォローアップ · 期限は {date} です
+	Follow up · Overdue: it was due {date}	フォローアップ · 期限切れ: 期限は {date} でした
+	Completed on {date}	{date} に完了しました
+	Add recipients	宛先を追加
+	Add guests	出席者を追加
+	Close the To-Do Bar	To Do バーを閉じる

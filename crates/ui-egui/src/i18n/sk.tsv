@@ -164,7 +164,6 @@
 	Copy {n} messages	Kopírovať správy ({n})
 	Move “{folder}” to	Presunúť priečinok „{folder}“ do
 	Name	Meno
-	Names <addresses>, separated by ; or ,	Mená <adresy>, oddelené ; alebo ,
 	New category	Nová kategória
 	New category…	Nová kategória…
 	New folder	Nový priečinok
@@ -715,12 +714,6 @@
 	Mark complete	Označiť ako dokončené
 	Clear flag	Zrušiť príznak
 	This week	Tento týždeň
-	Follow up.	Spracovať neskôr.
-	Follow up. Due today.	Spracovať neskôr. Termín dnes.
-	Follow up. Due {date}.	Spracovať neskôr. Termín {date}.
-	Follow up. Overdue: it was due {date}.	Spracovať neskôr. Po termíne: termín bol {date}.
-	Completed.	Dokončené.
-	Completed on {date}.	Dokončené {date}.
 	This message was sent with high importance.	Táto správa bola odoslaná s vysokou dôležitosťou.
 	This message was sent with low importance.	Táto správa bola odoslaná s nízkou dôležitosťou.
 	Delay delivery	Oneskoriť doručenie
@@ -2253,3 +2246,10 @@ count	occurrences	opakovaní
 	New messages	Nové správy
 	Replies and forwards	Odpovede a preposlania
 	More formatting	Ďalšie formátovanie
+	Follow up · Due today	Spracovať neskôr · Termín dnes
+	Follow up · Due {date}	Spracovať neskôr · Termín {date}
+	Follow up · Overdue: it was due {date}	Spracovať neskôr · Po termíne: termín bol {date}
+	Completed on {date}	Dokončené {date}
+	Add recipients	Pridať príjemcov
+	Add guests	Pridať hostí
+	Close the To-Do Bar	Zavrieť panel úloh

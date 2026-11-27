@@ -482,3 +482,21 @@ fn a_colleagues_calendar_stays_out_of_the_bar() {
     assert!(free && crate::calendar::busy_days(s, day, day + 1).contains(&day), "the Calendar's month");
     assert!(!crate::calendar::bar_busy_days(s, day, day + 1).contains(&day), "the bar's");
 }
+
+/// Audit M24: one Close for the whole bar, on its first part's heading (each of its three parts
+/// had one of its own); it closes the bar.
+#[test]
+fn the_bar_has_one_close() {
+    let (mut a, _) = app("todo-bar-close");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    frame(&ctx, &mut a, vec![]);
+    for part in ["calendar", "appointments", "tasks"] {
+        a.run("view.todoBar", json!({"part": part, "on": true}));
+    }
+    settle(&ctx, &mut a);
+    let closes = named(&ctx, &mut a, SIZE).into_iter().filter(|n| n.label.as_deref() == Some("Close the To-Do Bar")).count();
+    assert_eq!(closes, 1);
+    click_named(&ctx, &mut a, "Close the To-Do Bar");
+    assert!(!a.session.prefs.todo_bar.shown(), "the bar closed");
+}

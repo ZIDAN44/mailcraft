@@ -86,7 +86,7 @@ pub(crate) struct Marks {
 impl Marks {
     /// Work the marks out for `text` when it changed: every misspelled word but the one at
     /// `typing` (a character position, while a word is being typed there), and none in a line
-    /// quoted with `>`.
+    /// quoted with `>` or in a quoted original's header (its From, Sent and To are names).
     pub(super) fn follow(&mut self, text: &str, typing: Option<usize>) {
         let lang = language();
         if !on() || !has_dictionary(lang) {
@@ -105,9 +105,11 @@ impl Marks {
         self.key = Some(key);
         self.marks.clear();
         let mut at = 0usize;
-        for line in text.split('\n') {
+        let header = mailcraft_engine::mime::markup::header_lines(text);
+        for (i, line) in text.split('\n').enumerate() {
             let n = line.chars().count();
-            if !line.trim_start().starts_with('>') && line.len() <= LINE_MAX && self.marks.len() < MARKS_MAX {
+            let quoted = line.trim_start().starts_with('>') || header.get(i).copied().unwrap_or(false);
+            if !quoted && line.len() <= LINE_MAX && self.marks.len() < MARKS_MAX {
                 let found = self.lines.entry(line.to_string()).or_insert_with(|| {
                     craft_proof::check_spelling_in(line, lang).into_iter().filter_map(|i| line.get(i.start..i.end).map(|_| i.start..i.end)).collect()
                 });
@@ -269,6 +271,27 @@ mod tests {
         follow(false, &BTreeSet::new());
         assert!(marks("tomorow", None).is_empty());
         follow(true, &BTreeSet::new());
+    }
+
+    /// Audit M22: the user's own names and their contacts' (given with the dictionary's words)
+    /// aren't marked, nor a quoted original's header, its From and To being names.
+    #[test]
+    fn names_and_a_quoted_header_are_spelled_right() {
+        crate::i18n::set_current(crate::i18n::Lang::EN);
+        let names: BTreeSet<String> = ["Okafor".to_string()].into_iter().collect();
+        follow(true, &names);
+        assert!(marks("Thanks, Sam Okafor", None).is_empty());
+        follow(true, &BTreeSet::new());
+        assert_eq!(marks("Thanks, Sam Okafor", None), ["Okafor"], "a name not known is still marked");
+        let reply = "Sure.
+________________________________
+From: Zoe Prakk <zoe@studio.example>
+Sent: Friday
+To: Rilley Morenno
+Subject: Frames
+
+Can you send the framess?";
+        assert_eq!(marks(reply, None), ["framess"], "the header's names left alone, the text under it checked");
     }
 
     #[test]

@@ -1,5 +1,6 @@
 //! Issue #9: an Exchange account's own User-Agent, and the organisation directory looked up as
-//! names are searched for, what it answers kept only briefly.
+//! names are searched for, what it answers kept only briefly; and the names known here (the
+//! accounts' and contacts'), as spelling takes them.
 
 use super::*;
 
@@ -244,4 +245,15 @@ fn exchange_online_asks_for_permission_to_search_its_directory() {
     // A personal Microsoft account has no organisation directory to search.
     let personal = s.run("account.add", &json!({"email": "zoe@outlook.com", "graph": true})).unwrap()["account"].as_str().unwrap().to_string();
     assert!(!s.directory_accounts().contains(&personal));
+}
+
+/// The words of the user's own names and their contacts', for spelling to take as right (audit
+/// M22: the user's name was underlined in their own signature).
+#[test]
+fn the_names_known_are_words_spelling_takes() {
+    let s = sample_session("name-words");
+    let words = s.name_words();
+    assert!(words.contains("Riley") && words.contains("Moreno"), "the account's own name: {words:?}");
+    assert!(words.contains("Okafor"), "a contact's: {words:?}");
+    assert!(!words.iter().any(|w| w.chars().count() < 2 || w.contains(' ')), "words, not names or initials: {words:?}");
 }

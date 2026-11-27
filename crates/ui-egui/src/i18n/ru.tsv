@@ -164,7 +164,6 @@
 	Copy {n} messages	Копировать письма: {n}
 	Move “{folder}” to	Переместить «{folder}» в
 	Name	Имя
-	Names <addresses>, separated by ; or ,	Имена <адреса> через ; или ,
 	New category	Новая категория
 	New category…	Новая категория…
 	New folder	Новая папка
@@ -714,12 +713,6 @@
 	Mark complete	Отметить как выполненное
 	Clear flag	Снять флажок
 	This week	На этой неделе
-	Follow up.	К исполнению.
-	Follow up. Due today.	К исполнению. Срок — сегодня.
-	Follow up. Due {date}.	К исполнению. Срок — {date}.
-	Follow up. Overdue: it was due {date}.	К исполнению. Просрочено: срок был {date}.
-	Completed.	Выполнено.
-	Completed on {date}.	Выполнено {date}.
 	This message was sent with high importance.	Это сообщение отправлено с высокой важностью.
 	This message was sent with low importance.	Это сообщение отправлено с низкой важностью.
 	Delay delivery	Задержать доставку
@@ -2252,3 +2245,10 @@ count	occurrences	повторений
 	New messages	Новые сообщения
 	Replies and forwards	Ответы и пересылки
 	More formatting	Другое форматирование
+	Follow up · Due today	К исполнению · Срок — сегодня
+	Follow up · Due {date}	К исполнению · Срок — {date}
+	Follow up · Overdue: it was due {date}	К исполнению · Просрочено: срок был {date}
+	Completed on {date}	Выполнено {date}
+	Add recipients	Добавьте получателей
+	Add guests	Добавьте участников
+	Close the To-Do Bar	Закрыть панель дел
