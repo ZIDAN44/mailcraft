@@ -97,16 +97,17 @@ fn kind(a: &AccountState) -> &'static str {
     }
 }
 
+/// What the File page's rail lists, top to bottom.
+pub(crate) const RAIL_LABELS: [&str; 9] = ["Back", "Info", "Open & Export", "Save As", "Save Attachments", "Print", "Options", "About", "Exit"];
+
 pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
     let t = st.tokens;
     let Some(mut b) = st.backstage.take() else { return };
     let mut close = false;
     // As wide as its longest name in the language shown (bold, as the page open is), within
     // reason: "Enregistrer les pièces jointes" was cut at the rail's edge.
-    let longest = ["Back", "Info", "Open & Export", "Save As", "Save Attachments", "Print", "Options", "About", "Exit"]
-        .iter()
-        .map(|l| ui.painter().layout_no_wrap(tl!(*l).to_string(), theme::semibold(14.0), t.text).size().x)
-        .fold(0.0, f32::max);
+    let longest =
+        RAIL_LABELS.iter().map(|l| ui.painter().layout_no_wrap(tl!(*l).to_string(), theme::semibold(14.0), t.text).size().x).fold(0.0, f32::max);
     let rail = (longest + 46.0 + 14.0).clamp(200.0, 280.0);
     egui::Panel::left("backstage-rail").exact_size(rail).frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(0, 10))).show(
         ui,

@@ -764,3 +764,18 @@ fn measure_contexted_lookup() {
     }
     set_current(Lang::EN);
 }
+
+/// The File page's rail reads as different places in every language: About was "Info" in German
+/// beside Info's "Informationen", and the same word as Info in Dutch and Polish.
+#[test]
+fn the_file_rail_names_each_place_apart() {
+    let rail = crate::panes::backstage::RAIL_LABELS;
+    for lang in Lang::all() {
+        let names: Vec<String> = rail.iter().map(|l| tr(lang, l).to_lowercase()).collect();
+        for (i, a) in names.iter().enumerate() {
+            for (j, b) in names.iter().enumerate() {
+                assert!(i == j || !b.starts_with(a.as_str()), "{}: \"{}\" and \"{}\" ({} and {})", lang.code(), a, b, rail[i], rail[j]);
+            }
+        }
+    }
+}

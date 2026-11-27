@@ -393,7 +393,7 @@
 	Server: {url} (JMAP)	Server: {url} (JMAP)
 	Open in new window	Apri in una nuova finestra
 	{subject} – Message	{subject} – Messaggio
-	About	Informazioni
+	About	Informazioni su MailCraft
 	About MailCraft	Informazioni su MailCraft
 	Account information	Informazioni sull'account
 	Account settings	Impostazioni account
@@ -417,7 +417,7 @@
 	Google (IMAP)	Google (IMAP)
 	I'm away until…	Sono fuori fino al…
 	Inbox and notifications	Posta in arrivo e notifiche
-	Info	Info
+	Info	Account
 	Kept on this computer: {size}	Su questo computer: {size}
 	MailCraft talks only to your own mail servers, over encrypted connections. Pictures from the web load only when you ask.	MailCraft comunica solo con i tuoi server di posta, tramite connessioni crittografate. Le immagini dal Web si caricano solo quando lo chiedi.
 	MailCraft {version}	MailCraft {version}
