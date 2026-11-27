@@ -280,7 +280,6 @@
 	Sep	9월
 	Server settings	서버 설정
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	서버: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
-	Settings found: {source}	설정을 찾았습니다: {source}
 	Show a desktop notification when new mail arrives	새 메일이 오면 데스크톱 알림 표시
 	Keep MailCraft running when its window is closed	창을 닫아도 MailCraft 계속 실행
 	Start MailCraft in the notification area	알림 영역에서 MailCraft 시작
@@ -983,9 +982,6 @@ month	May	5월
 	Sign in with	로그인 방법
 	NTLM (Secure Password Authentication)	NTLM(보안 암호 인증)
 	No sign-in	로그인 안 함
-	Its user name	해당 사용자 이름
-	Its password	해당 암호
-	Password (unchanged when empty)	암호(비워 두면 그대로)
 	There's no folder to put the attachment in for another app	다른 앱에 넘길 첨부 파일을 둘 폴더가 없습니다
 	Check for updates	업데이트 확인
 	Checking…	확인하는 중…
@@ -1302,7 +1298,6 @@ month	May	5월
 	Looked for when the account syncs	계정을 동기화할 때 찾습니다
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft는 메일 제공업체의 서버에서 일정과 연락처를 찾습니다. 찾지 못하면 제공업체 도움말에 있는 주소를 입력하세요. 비워 둔 항목은 계속 자동으로 찾습니다.
 	No calendars were found at the address given: check it, and its sign-in	입력한 주소에서 일정을 찾지 못했습니다: 주소와 로그인 정보를 확인하세요
-	Password (kept: type to change it)	암호 (저장됨: 바꾸려면 입력)
 	Some providers want an app password for calendars: make one in your account's settings there.	일부 제공업체는 일정에 앱 암호를 요구합니다: 그곳 계정 설정에서 만드세요.
 	The calendar server has its own user name and password	일정 서버에 별도의 사용자 이름과 암호가 있음
 	Your provider's calendar server wasn't found: give its address	제공업체의 일정 서버를 찾지 못했습니다: 주소를 입력하세요
@@ -2221,3 +2216,9 @@ count	occurrences	회
 	1 message moved to Deleted Items	메시지 1개를 지운 편지함으로 옮겼습니다
 	{n} messages moved to Deleted Items	메시지 {n}개를 지운 편지함으로 옮겼습니다
 	“{folder}” moved to Deleted Items	'{folder}'을(를) 지운 편지함으로 옮겼습니다
+	Found the server settings for {domain}.	{domain}의 서버 설정을 찾았습니다.
+	Outgoing server's user name	보내는 서버의 사용자 이름
+	Outgoing server's password	보내는 서버의 암호
+	Saved: type to replace it	저장됨: 바꾸려면 입력하세요
+	Show the password	암호 표시
+	Hide the password	암호 숨기기

@@ -327,10 +327,15 @@ fn cases() -> Vec<Case> {
             }),
             Some("Save"),
         ),
-        ("edit imap, switched to jmap", plain(), edit(|_| {}), Some("JMAP")),
+        ("edit imap, switched to jmap", plain(), edit(|_| {}), Some("IMAP and SMTP › JMAP")),
         ("edit imap signed in with google", plain(), edit(|c| c.oauth = Some("google".into())), Some("Save")),
         ("edit jmap", plain(), edit(|c| c.jmap = Some("https://api.example.org/jmap/session".into())), Some("Save")),
-        ("edit jmap, switched to imap", plain(), edit(|c| c.jmap = Some("https://api.example.org/jmap/session".into())), Some("IMAP and SMTP")),
+        (
+            "edit jmap, switched to imap",
+            plain(),
+            edit(|c| c.jmap = Some("https://api.example.org/jmap/session".into())),
+            Some("JMAP › IMAP and SMTP"),
+        ),
         (
             "edit pop",
             plain(),
@@ -418,7 +423,7 @@ fn every_kind_of_account_draws_its_rows_and_gives_its_params() {
     rows("jmap, settings closed", &["Server: https://api.fastmail.example/jmap/session (JMAP)"], &[]);
     rows("imap, settings closed", &["Servers: mail.example.org (IMAP 993), mail.example.org (SMTP 465)"], &[]);
     rows("pop, settings closed", &["Servers: mail.example.org (POP 995), mail.example.org (SMTP 465)"], &[]);
-    rows("imap, settings found", &["Settings found: the provider", "imap.provider.example", "out.example.org", "587"], &[]);
+    rows("imap, settings found", &["Found the server settings for example.org.", "imap.provider.example", "out.example.org", "587"], &[]);
     rows("pop, settings found", &["pop3.example.org", "110", "zoe.park"], &[]);
     rows("looking the settings up", &["Looking up the server settings…"], &[]);
     rows(
@@ -665,4 +670,66 @@ fn found_calendar_servers_go_with_the_account_and_show_in_its_dialog() {
     let seen = look(&session(), &mut d, None);
     assert!(seen.texts.iter().any(|(t, _)| t == "Found: https://dav.example.org/calendars/zoe/"), "{}", seen.dump());
     assert_eq!(seen.texts.iter().filter(|(t, _)| t.starts_with("Found:")).count(), 1, "none found for contacts");
+}
+
+/// Audit D13 and D14: adding an account and changing one are laid out alike: each label over its
+/// field (adding put them beside, 300 points wide) and each server's row ending where the fields
+/// above it do (its host box ended 22 to 64 points short); changing one is "Account settings"
+/// (it changes the name and address too), its kind of server a drop-down as when it was added.
+#[test]
+fn adding_and_changing_an_account_are_one_form() {
+    let (mut a, _) = app("account-one-form");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = egui::vec2(1280.0, 1400.0);
+    let config = a.session.accounts[0].config.clone();
+    for (name, d) in [("adding", Dialog::add_account_with("zoe@example.com", true)), ("changing", Dialog::edit_account(&config))] {
+        a.ui.dialog = Some(d);
+        for _ in 0..4 {
+            let _ = drawn_text(&ctx, &mut a, size);
+        }
+        let texts = drawn_text(&ctx, &mut a, size);
+        let all = named(&ctx, &mut a, size);
+        let label = texts.iter().find(|d| d.text == "Email address").map(|d| d.rect).unwrap_or_else(|| panic!("{name}: no Email address"));
+        // The dialog's own (not the window's search box).
+        let fields: Vec<egui::Rect> =
+            all.iter().filter(|n| n.role == egui::accesskit::Role::TextInput).filter_map(|n| n.rect).filter(|r| r.top() >= label.top()).collect();
+        let first = *fields.iter().min_by(|x, y| x.top().total_cmp(&y.top())).unwrap_or_else(|| panic!("{name}: no fields"));
+        assert!(label.bottom() <= first.top() + 1.0 && (label.left() - first.left()).abs() <= 2.0, "{name}: label {label:?} over field {first:?}");
+        let security: Vec<egui::Rect> = all.iter().filter(|n| n.label.as_deref() == Some("Security")).filter_map(|n| n.rect).collect();
+        assert_eq!(security.len(), 2, "{name}: the incoming and outgoing servers' rows");
+        // Where the user name's field ends, over the servers' rows (in Add account's server
+        // settings, set in from the dialog's edge).
+        let user = texts.iter().find(|d| d.text == "User name").map(|d| d.rect).unwrap_or_else(|| panic!("{name}: no User name"));
+        let user = *fields.iter().filter(|r| r.top() >= user.bottom() - 1.0).min_by(|x, y| x.top().total_cmp(&y.top())).unwrap();
+        for s in security {
+            assert!((s.right() - user.right()).abs() <= 1.0, "{name}: a server row ends at {}, the fields at {}", s.right(), user.right());
+        }
+        let kind = all.iter().find(|n| n.label.as_deref() == Some("Mail server"));
+        assert!(kind.is_some_and(|n| n.role == egui::accesskit::Role::ComboBox), "{name}: the kind of server a drop-down: {kind:?}");
+    }
+    assert!(drawn_strings(&ctx, &mut a, size).iter().any(|t| t == "Account settings"));
+}
+
+/// Audit D27: a password's box has a button that shows what's typed, and hides it again (it was
+/// dots alone, a mistyped one found only when the server refused it).
+#[test]
+fn a_password_can_be_shown_and_hidden() {
+    let (mut a, _) = app("password-shown");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let size = egui::vec2(1280.0, 1000.0);
+    let f = AccountForm { email: "zoe@example.com".into(), password: "pw-shown-7".into(), ..Default::default() };
+    a.ui.dialog = Some(Dialog::AddAccount(Box::new(f)));
+    let typed = |ctx: &egui::Context, a: &mut MailApp| {
+        for _ in 0..3 {
+            let _ = drawn_text(ctx, a, size);
+        }
+        drawn_strings(ctx, a, size).iter().any(|t| t == "pw-shown-7")
+    };
+    assert!(!typed(&ctx, &mut a), "dots at first");
+    click_named(&ctx, &mut a, "Show the password");
+    assert!(typed(&ctx, &mut a), "shown");
+    click_named(&ctx, &mut a, "Hide the password");
+    assert!(!typed(&ctx, &mut a), "hidden again");
 }

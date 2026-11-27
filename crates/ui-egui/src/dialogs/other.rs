@@ -91,7 +91,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             };
             ui.add(egui::Label::new(RichText::new(ask).color(t.dim)).wrap());
             ui.add_space(8.0);
-            let r = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
+            let r = widgets::password_field(ui, password, "");
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
@@ -132,7 +132,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             let ask = tf!("The passphrase {file} is locked with (none, if it has none):", file = file);
             ui.add(egui::Label::new(RichText::new(ask).color(t.dim)).wrap());
             ui.add_space(8.0);
-            let r = ui.add(egui::TextEdit::singleline(passphrase).password(true).desired_width(f32::INFINITY));
+            let r = widgets::password_field(ui, passphrase, "");
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
@@ -318,7 +318,7 @@ fn smart_card(
     ui.add(egui::TextEdit::singleline(module).hint_text("opensc-pkcs11").desired_width(f32::INFINITY));
     ui.add_space(8.0);
     ui.label(RichText::new(tl!("The card's PIN")).color(t.dim));
-    let r = ui.add(egui::TextEdit::singleline(pin).password(true).desired_width(f32::INFINITY));
+    let r = widgets::password_field(ui, pin, "");
     let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
     ui.add_space(8.0);
     let search = s.card_search();

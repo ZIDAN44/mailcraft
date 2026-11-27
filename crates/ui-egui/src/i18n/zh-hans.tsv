@@ -280,7 +280,6 @@
 	Sep	9月
 	Server settings	服务器设置
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	服务器: {imap} (IMAP {imap_port})，{smtp} (SMTP {smtp_port})
-	Settings found: {source}	已找到设置: {source}
 	Show a desktop notification when new mail arrives	收到新邮件时显示桌面通知
 	Keep MailCraft running when its window is closed	关闭窗口后让 MailCraft 继续运行
 	Start MailCraft in the notification area	在通知区域启动 MailCraft
@@ -980,9 +979,6 @@ month	May	5月
 	Sign in with	登录方式
 	NTLM (Secure Password Authentication)	NTLM（安全密码身份验证）
 	No sign-in	不登录
-	Its user name	其用户名
-	Its password	其密码
-	Password (unchanged when empty)	密码（留空则不变）
 	There's no folder to put the attachment in for another app	没有文件夹可存放要交给其他应用的附件
 	Check for updates	检查更新
 	Checking…	正在检查…
@@ -1299,7 +1295,6 @@ month	May	5月
 	Looked for when the account syncs	账户同步时查找
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft 会在邮件服务商的服务器上查找你的日历和联系人。如果找不到，请填写服务商帮助页面中的地址；留空的项目会继续自动查找。
 	No calendars were found at the address given: check it, and its sign-in	在填写的地址上没有找到日历：请检查地址和登录信息
-	Password (kept: type to change it)	密码（已保存：输入以更改）
 	Some providers want an app password for calendars: make one in your account's settings there.	部分服务商要求日历使用应用专用密码：请在其账户设置中创建。
 	The calendar server has its own user name and password	日历服务器有自己的用户名和密码
 	Your provider's calendar server wasn't found: give its address	没有找到服务商的日历服务器：请填写其地址
@@ -2218,3 +2213,9 @@ count	occurrences	次
 	1 message moved to Deleted Items	已将 1 封邮件移到已删除邮件
 	{n} messages moved to Deleted Items	已将 {n} 封邮件移到已删除邮件
 	“{folder}” moved to Deleted Items	已将“{folder}”移到已删除邮件
+	Found the server settings for {domain}.	已找到 {domain} 的服务器设置。
+	Outgoing server's user name	发送服务器的用户名
+	Outgoing server's password	发送服务器的密码
+	Saved: type to replace it	已保存：输入以替换
+	Show the password	显示密码
+	Hide the password	隐藏密码

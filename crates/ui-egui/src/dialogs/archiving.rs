@@ -184,11 +184,11 @@ pub(super) fn rule_fields(ui: &mut Ui, r: &mut AgeForm, id: &str, acts: &mut Vec
     ui.add_enabled_ui(!r.delete, |ui| {
         ui.horizontal(|ui| {
             ui.add_space(22.0);
-            let width = (ui.available_width() - 100.0).max(120.0);
-            ui.add_sized([width, 26.0], egui::TextEdit::singleline(&mut r.path).hint_text("archive.pst"));
-            if ui.button(tl!("Browse…")).clicked() {
-                acts.push(Action::PickArchiveFile);
-            }
+            ui.vertical(|ui| {
+                if widgets::field_and_button(ui, &mut r.path, "archive.pst", tl!("Browse…")) {
+                    acts.push(Action::PickArchiveFile);
+                }
+            });
         });
     });
     ui.radio_value(&mut r.delete, true, tl!("Delete old mail for good"));
@@ -289,14 +289,9 @@ fn archive(ui: &mut Ui, f: &mut ArchiveForm, s: &Session, t: &Tokens, acts: &mut
     });
     ui.add_space(6.0);
     ui.label(RichText::new(tl!("Archive file")).color(t.text));
-    ui.horizontal(|ui| {
-        let browse = tl!("Browse…");
-        let width = (ui.available_width() - 100.0).max(120.0);
-        ui.add_sized([width, 26.0], egui::TextEdit::singleline(&mut f.path).hint_text("archive.pst"));
-        if ui.button(browse).clicked() {
-            acts.push(Action::PickArchiveFile);
-        }
-    });
+    if widgets::field_and_button(ui, &mut f.path, "archive.pst", tl!("Browse…")) {
+        acts.push(Action::PickArchiveFile);
+    }
     if let Some(e) = &f.error {
         ui.add_space(4.0);
         field_error(ui, t, e);

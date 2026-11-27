@@ -79,9 +79,10 @@ pub(crate) fn draw(ui: &mut Ui, f: &mut DavForm, t: &Tokens, acts: &mut Vec<Acti
         label_over(ui, &Tokens::of(ui), "User name");
         ui.add(egui::TextEdit::singleline(&mut f.username).desired_width(w));
         let kept = f.kept.as_deref().is_some_and(|k| k == f.username.trim());
-        let hint = if kept { tl!("Password (kept: type to change it)") } else { tl!("Password") };
+        // The hint says one is kept, "Saved", as the other password boxes do.
+        let hint = if kept { tl!("Saved: type to replace it") } else { "" };
         label_over(ui, &Tokens::of(ui), "Password");
-        ui.add(egui::TextEdit::singleline(&mut f.password).password(true).hint_text(hint).desired_width(w));
+        widgets::password_field(ui, &mut f.password, hint);
         ui.label(
             RichText::new(tl!("Some providers want an app password for calendars: make one in your account's settings there."))
                 .color(t.faint)
@@ -122,28 +123,27 @@ pub(crate) fn add_calendar_only(ui: &mut Ui, f: &mut super::AccountForm, t: &Tok
     );
     ui.add_space(10.0);
     // Who you are, as when an email account is added; then the server, and who signs in to it.
-    let size = vec2(300.0, 26.0);
-    egui::Grid::new("calendar-account").num_columns(2).spacing(vec2(12.0, 8.0)).show(ui, |ui| {
-        ui.label(tl!("Email address"));
-        ui.add(egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")).min_size(size).desired_width(size.x));
-        ui.end_row();
-        ui.label(tl!("Your name"));
-        ui.add(egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")).min_size(size).desired_width(size.x));
-        ui.end_row();
-        ui.label(tl!("Password"));
-        ui.add(egui::TextEdit::singleline(&mut f.password).password(true).min_size(size).desired_width(size.x));
-        ui.end_row();
-    });
+    let (w, h) = (ui.available_width(), crate::sizes::CONTROL_H);
+    {
+        super::field_label(ui, "Email address");
+        ui.add_sized([w, h], egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")));
+        ui.add_space(6.0);
+        super::field_label(ui, "Your name");
+        ui.add_sized([w, h], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
+        ui.add_space(6.0);
+        super::field_label(ui, "Password");
+        widgets::password_field(ui, &mut f.password, "");
+    }
     ui.add_space(10.0);
     let w = ui.available_width();
     super::field_label(ui, "Calendar and contacts server");
-    ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.dav_url).hint_text("https://cloud.example.com/remote.php/dav"));
+    ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.dav_url).hint_text("https://cloud.example.com/remote.php/dav"));
     ui.add_space(6.0);
     super::field_label(ui, "User name");
-    ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+    ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
     if let Some(e) = &f.error {
         ui.add_space(6.0);
-        ui.add(egui::Label::new(RichText::new(e.as_str()).color(t.danger)).wrap());
+        crate::dialogs::field_error(ui, t, e);
     }
     ui.add_space(8.0);
     if ui.link(RichText::new(tl!("Add an email account instead")).color(t.accent).small()).clicked() {

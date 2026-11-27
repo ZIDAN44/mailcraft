@@ -280,7 +280,6 @@
 	Sep	sep
 	Server settings	Nastavenia servera
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Servery: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
-	Settings found: {source}	Nájdené nastavenia: {source}
 	Show a desktop notification when new mail arrives	Pri príchode novej pošty zobraziť upozornenie na pracovnej ploche
 	Keep MailCraft running when its window is closed	Nechať MailCraft spustený aj po zatvorení okna
 	Start MailCraft in the notification area	Spúšťať MailCraft v oblasti oznámení
@@ -998,9 +997,6 @@ date	December	decembra
 	Sign in with	Spôsob prihlásenia
 	NTLM (Secure Password Authentication)	NTLM (zabezpečené overenie heslom)
 	No sign-in	Bez prihlásenia
-	Its user name	Jeho používateľské meno
-	Its password	Jeho heslo
-	Password (unchanged when empty)	Heslo (ak je prázdne, nezmení sa)
 	There's no folder to put the attachment in for another app	Nie je k dispozícii priečinok, do ktorého by sa príloha uložila pre inú aplikáciu
 	Check for updates	Vyhľadať aktualizácie
 	Checking…	Overuje sa…
@@ -1317,7 +1313,6 @@ date	December	decembra
 	Looked for when the account syncs	Hľadá sa pri synchronizácii konta
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft hľadá vaše kalendáre a kontakty na serveri vášho poskytovateľa pošty. Ak ich nenájde, zadajte adresy zo stránok pomoci poskytovateľa; ak niektorú necháte prázdnu, bude ju naďalej hľadať.
 	No calendars were found at the address given: check it, and its sign-in	Na zadanej adrese sa nenašli žiadne kalendáre: skontrolujte ju aj prihlasovacie údaje
-	Password (kept: type to change it)	Heslo (uložené: na zmenu ho prepíšte)
 	Some providers want an app password for calendars: make one in your account's settings there.	Niektorí poskytovatelia vyžadujú pre kalendáre heslo aplikácie: vytvorte si ho v nastaveniach svojho konta u nich.
 	The calendar server has its own user name and password	Server kalendára má vlastné používateľské meno a heslo
 	Your provider's calendar server wasn't found: give its address	Server kalendára vášho poskytovateľa sa nenašiel: zadajte jeho adresu
@@ -2236,3 +2231,9 @@ count	occurrences	opakovaní
 	1 message moved to Deleted Items	1 správa presunutá do priečinka Odstránené položky
 	{n} messages moved to Deleted Items	Do priečinka Odstránené položky presunuté správy: {n}
 	“{folder}” moved to Deleted Items	„{folder}“ presunutý do priečinka Odstránené položky
+	Found the server settings for {domain}.	Nastavenia servera pre {domain} sa našli.
+	Outgoing server's user name	Používateľské meno servera odchádzajúcej pošty
+	Outgoing server's password	Heslo servera odchádzajúcej pošty
+	Saved: type to replace it	Uložené: zadajte nové na nahradenie
+	Show the password	Zobraziť heslo
+	Hide the password	Skryť heslo

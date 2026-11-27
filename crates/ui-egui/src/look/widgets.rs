@@ -462,6 +462,71 @@ fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled
     resp
 }
 
+/// A password's box, the row's width, with a button at its end that shows what's typed and hides
+/// it again (they were dots alone, a mistyped one found only when the server refused it).
+pub(crate) fn password_field(ui: &mut Ui, text: &mut String, hint: &str) -> Response {
+    let h = ui.spacing().interact_size.y;
+    let gap = ui.spacing().item_spacing.x;
+    let id = ui.next_auto_id().with("password-shown");
+    let mut shown = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
+    let t = Tokens::of(ui);
+    let inner = ui.horizontal(|ui| {
+        let w = (ui.available_width() - h - gap).max(80.0);
+        let r = ui.add_sized([w, h], egui::TextEdit::singleline(text).password(!shown).hint_text(hint));
+        let (icon, tip) = if shown { (Icon::EyeOff, tl!("Hide the password")) } else { (Icon::Eye, tl!("Show the password")) };
+        let (rect, b) = ui.allocate_exact_size(vec2(h, h), Sense::click());
+        named(ui, &b, tip, true, Some(shown));
+        if b.hovered() {
+            ui.painter().rect_filled(rect, crate::sizes::CONTROL_RADIUS, t.hover);
+        }
+        icons::paint(ui.painter(), egui::Rect::from_center_size(rect.center(), vec2(16.0, 16.0)), icon, t.dim);
+        if b.on_hover_text(tip).clicked() {
+            shown = !shown;
+        }
+        r
+    });
+    ui.data_mut(|d| d.insert_temp(id, shown));
+    inner.inner
+}
+
+/// A text box filling its row but for a button after it (Browse…), the row ending where the
+/// fields above it do (the box was the room less 100 or 112 points, the row ragged): true when
+/// the button is clicked.
+pub(crate) fn field_and_button(ui: &mut Ui, text: &mut String, hint: &str, button: &str) -> bool {
+    let gap = ui.spacing().item_spacing.x;
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let label_w = ui.painter().layout_no_wrap(button.to_string(), font, Color32::PLACEHOLDER).size().x;
+    let button_w = (label_w + 2.0 * ui.spacing().button_padding.x).max(ui.spacing().interact_size.x);
+    let h = ui.spacing().interact_size.y;
+    let mut clicked = false;
+    ui.horizontal(|ui| {
+        let w = (ui.available_width() - button_w - gap).max(80.0);
+        ui.add_sized([w, h], egui::TextEdit::singleline(text).hint_text(hint));
+        clicked = ui.add(egui::Button::new(button).min_size(vec2(button_w, h))).clicked();
+    });
+    clicked
+}
+
+/// An outlined button with an icon before its label: another way to do what a dialog's main
+/// button does (Sign in with Google beside Connect), not filled in the app colour as that one is.
+pub(crate) fn outline_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool) -> Response {
+    let font = theme::regular(crate::sizes::BODY);
+    let ink = if enabled { t.text } else { t.faint };
+    let galley = ui.painter().layout_no_wrap(label.to_string(), font, ink);
+    let h = ui.spacing().interact_size.y;
+    let size = vec2(galley.size().x + 44.0, h);
+    let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
+    named(ui, &resp, label, enabled, None);
+    let fill = if enabled && resp.hovered() { t.hover } else { t.surface };
+    ui.painter().rect(rect, crate::sizes::CONTROL_RADIUS, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    let m = crate::bidi::Mirror::new(rect);
+    let ir = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 12.0, rect.center().y - 8.0), vec2(16.0, 16.0)));
+    icons::paint(ui.painter(), ir, icon, ink);
+    let at = egui::pos2(m.start(rect.min.x + 34.0, galley.size().x), rect.center().y - galley.size().y / 2.0);
+    ui.painter().galley(at, galley, ink);
+    resp
+}
+
 /// What a dialog's button is: its main one, filled in the app colour; one that deletes or
 /// removes for good, filled red; or another (Cancel, Close), outlined.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

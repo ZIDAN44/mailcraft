@@ -280,7 +280,6 @@
 	Sep	9月
 	Server settings	伺服器設定
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	伺服器: {imap} (IMAP {imap_port})，{smtp} (SMTP {smtp_port})
-	Settings found: {source}	已找到設定: {source}
 	Show a desktop notification when new mail arrives	收到新郵件時顯示桌面通知
 	Keep MailCraft running when its window is closed	關閉視窗後讓 MailCraft 繼續執行
 	Start MailCraft in the notification area	在通知區域啟動 MailCraft
@@ -983,9 +982,6 @@ month	May	5月
 	Sign in with	登入方式
 	NTLM (Secure Password Authentication)	NTLM（安全密碼驗證）
 	No sign-in	不登入
-	Its user name	其使用者名稱
-	Its password	其密碼
-	Password (unchanged when empty)	密碼（留空則不變）
 	There's no folder to put the attachment in for another app	沒有資料夾可存放要交給其他應用程式的附件
 	Check for updates	檢查更新
 	Checking…	正在檢查…
@@ -1302,7 +1298,6 @@ month	May	5月
 	Looked for when the account syncs	帳戶同步時尋找
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft 會在郵件服務商的伺服器上尋找你的行事曆與連絡人。如果找不到，請填寫服務商說明頁面中的位址；留白的項目會繼續自動尋找。
 	No calendars were found at the address given: check it, and its sign-in	在填寫的位址上找不到行事曆：請檢查位址與登入資訊
-	Password (kept: type to change it)	密碼（已儲存：輸入以變更）
 	Some providers want an app password for calendars: make one in your account's settings there.	部分服務商要求行事曆使用應用程式密碼：請在其帳戶設定中建立。
 	The calendar server has its own user name and password	行事曆伺服器有自己的使用者名稱與密碼
 	Your provider's calendar server wasn't found: give its address	找不到服務商的行事曆伺服器：請填寫其位址
@@ -2221,3 +2216,9 @@ count	occurrences	次
 	1 message moved to Deleted Items	已將 1 封郵件移到刪除的郵件
 	{n} messages moved to Deleted Items	已將 {n} 封郵件移到刪除的郵件
 	“{folder}” moved to Deleted Items	已將「{folder}」移到刪除的郵件
+	Found the server settings for {domain}.	已找到 {domain} 的伺服器設定。
+	Outgoing server's user name	外寄伺服器的使用者名稱
+	Outgoing server's password	外寄伺服器的密碼
+	Saved: type to replace it	已儲存：輸入以取代
+	Show the password	顯示密碼
+	Hide the password	隱藏密碼

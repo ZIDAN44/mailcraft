@@ -36,7 +36,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             ui.add_space(8.0);
             label_over(ui, t, "Password");
-            let r = ui.add(egui::TextEdit::singleline(password).password(true).desired_width(f32::INFINITY));
+            let r = widgets::password_field(ui, password, "");
             // Before the focus request below, which would hide the Enter that ended input.
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             // The one thing to type: ready for it.
@@ -217,17 +217,25 @@ impl Server {
 #[allow(clippy::too_many_arguments)]
 fn server_row(ui: &mut Ui, w: f32, server: Server, id: &str, host: &mut String, port: &mut String, security: &mut Security, plain: bool) -> bool {
     let (name, host_hint, port_hint, security_id) = server.says();
-    // Fixed sizes: text boxes inside a Grid can't grow past last frame's column width.
-    let host_w = (w - 196.0).max(140.0);
+    // The host takes what the port and the security leave: the row ends where the fields above
+    // it do (it ended 22 to 64 points short).
+    let gap = ui.spacing().item_spacing.x;
+    let host_w = (w - PORT_W - SECURITY_W - 2.0 * gap).max(140.0);
     field_label(ui, name);
     let mut edited = false;
     ui.horizontal(|ui| {
-        edited |= ui.add_sized([host_w, 26.0], egui::TextEdit::singleline(host).hint_text(host_hint)).changed();
-        edited |= ui.add_sized([56.0, 26.0], egui::TextEdit::singleline(port).hint_text(port_hint).align(egui::Align2::CENTER_TOP)).changed();
+        edited |= ui.add_sized([host_w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(host).hint_text(host_hint)).changed();
+        edited |= ui
+            .add_sized([PORT_W, crate::sizes::CONTROL_H], egui::TextEdit::singleline(port).hint_text(port_hint).align(egui::Align2::CENTER_TOP))
+            .changed();
         security_combo(ui, &format!("{id}{security_id}"), security, plain);
     });
     edited
 }
+
+/// A server row's port, and its security's drop-down.
+const PORT_W: f32 = 64.0;
+const SECURITY_W: f32 = 128.0;
 
 /// Said under servers that don't encrypt: the password would cross the network readable.
 fn clear_text_warning(ui: &mut Ui, t: &Tokens, incoming: Security, outgoing: Security) {
@@ -240,8 +248,8 @@ fn clear_text_warning(ui: &mut Ui, t: &Tokens, incoming: Security, outgoing: Sec
 /// the clients it knows. Said in place when it can't be used.
 pub(super) fn user_agent_field(ui: &mut Ui, t: &Tokens, w: f32, agent: &mut String) {
     ui.add_space(4.0);
-    ui.label(RichText::new(tl!("User-Agent (optional)")).strong().small());
-    ui.add_sized([w, 26.0], egui::TextEdit::singleline(agent).hint_text(tl!("Left empty: MailCraft's own")).char_limit(300));
+    field_label(ui, "User-Agent (optional)");
+    ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(agent).hint_text(tl!("Left empty: MailCraft's own")).char_limit(300));
     let note = if !agent.trim().is_empty() && mailcraft_engine::model::user_agent(agent).is_none() {
         RichText::new(tl!("Only letters, digits, spaces and punctuation, up to 256 characters.")).color(t.danger)
     } else {
@@ -267,7 +275,10 @@ pub(crate) fn online_only_about() -> &'static str {
 }
 
 pub(super) fn security_combo(ui: &mut Ui, id: &str, v: &mut Security, plain: bool) {
+    // Its own width (the whole of it, arrow and all): the room it takes in a server's row is
+    // counted (`SECURITY_W`).
     let r = egui::ComboBox::from_id_salt(id)
+        .width(SECURITY_W)
         .selected_text(match v {
             Security::Tls => "SSL/TLS",
             Security::StartTls => "STARTTLS",

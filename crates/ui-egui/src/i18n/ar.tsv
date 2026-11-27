@@ -280,7 +280,6 @@
 	Sep	سبتمبر
 	Server settings	إعدادات الخادم
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	الخوادم: {imap} (IMAP {imap_port})، {smtp} (SMTP {smtp_port})
-	Settings found: {source}	عُثر على الإعدادات: {source}
 	Show a desktop notification when new mail arrives	اعرض إشعارًا على سطح المكتب عند وصول بريد جديد
 	Keep MailCraft running when its window is closed	إبقاء MailCraft قيد التشغيل عند إغلاق نافذته
 	Start MailCraft in the notification area	تشغيل MailCraft في منطقة الإعلامات
@@ -979,9 +978,6 @@ month	May	مايو
 	Sign in with	تسجيل الدخول باستخدام
 	NTLM (Secure Password Authentication)	NTLM (مصادقة كلمة المرور الآمنة)
 	No sign-in	بدون تسجيل دخول
-	Its user name	اسم المستخدم الخاص به
-	Its password	كلمة المرور الخاصة به
-	Password (unchanged when empty)	كلمة المرور (لا تتغير إن تُركت فارغة)
 	There's no folder to put the attachment in for another app	لا يوجد مجلد لوضع المرفق فيه لتطبيق آخر
 	Check for updates	التحقق من وجود تحديثات
 	Checking…	جارٍ التحقق…
@@ -1298,7 +1294,6 @@ month	May	مايو
 	Looked for when the account syncs	يُبحث عنها عند مزامنة الحساب
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	يبحث MailCraft عن تقويماتك وجهات اتصالك على خادم مزوّد بريدك. إن لم يجدها، فأدخل العناوين الواردة في صفحات المساعدة لدى مزوّدك؛ واترك أحدها فارغًا ليواصل البحث عنه.
 	No calendars were found at the address given: check it, and its sign-in	لم يُعثر على تقويمات في العنوان المُدخل: تحقّق منه ومن بيانات تسجيل الدخول
-	Password (kept: type to change it)	كلمة المرور (محفوظة: اكتب لتغييرها)
 	Some providers want an app password for calendars: make one in your account's settings there.	يطلب بعض المزوّدين كلمة مرور للتطبيق من أجل التقويمات: أنشئ واحدة في إعدادات حسابك لديهم.
 	The calendar server has its own user name and password	لخادم التقويم اسم مستخدم وكلمة مرور خاصان به
 	Your provider's calendar server wasn't found: give its address	لم يُعثر على خادم التقويم لدى مزوّدك: أدخل عنوانه
@@ -2217,3 +2212,9 @@ count	occurrences	مرات
 	1 message moved to Deleted Items	تم نقل رسالة واحدة إلى العناصر المحذوفة
 	{n} messages moved to Deleted Items	تم نقل الرسائل ({n}) إلى العناصر المحذوفة
 	“{folder}” moved to Deleted Items	تم نقل "{folder}" إلى العناصر المحذوفة
+	Found the server settings for {domain}.	تم العثور على إعدادات الخادم لـ {domain}.
+	Outgoing server's user name	اسم المستخدم لخادم البريد الصادر
+	Outgoing server's password	كلمة المرور لخادم البريد الصادر
+	Saved: type to replace it	محفوظة: اكتب لاستبدالها
+	Show the password	إظهار كلمة المرور
+	Hide the password	إخفاء كلمة المرور

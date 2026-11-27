@@ -280,7 +280,6 @@
 	Sep	9月
 	Server settings	サーバー設定
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	サーバー: {imap} (IMAP {imap_port})、{smtp} (SMTP {smtp_port})
-	Settings found: {source}	設定が見つかりました: {source}
 	Show a desktop notification when new mail arrives	新しいメールが届いたらデスクトップ通知を表示する
 	Keep MailCraft running when its window is closed	ウィンドウを閉じても MailCraft を実行したままにする
 	Start MailCraft in the notification area	MailCraft を通知領域で起動する
@@ -980,9 +979,6 @@ month	May	5月
 	Sign in with	サインイン方法
 	NTLM (Secure Password Authentication)	NTLM (セキュリティで保護されたパスワード認証)
 	No sign-in	サインインしない
-	Its user name	そのユーザー名
-	Its password	そのパスワード
-	Password (unchanged when empty)	パスワード (空欄なら変更なし)
 	There's no folder to put the attachment in for another app	別のアプリに渡す添付ファイルを置くフォルダーがありません
 	Check for updates	更新プログラムの確認
 	Checking…	確認しています…
@@ -1299,7 +1295,6 @@ month	May	5月
 	Looked for when the account syncs	アカウントの同期時に検索します
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft はメール プロバイダーのサーバーで予定表と連絡先を探します。見つからない場合は、プロバイダーのヘルプに載っているアドレスを入力してください。空欄にした項目は引き続き自動で探します。
 	No calendars were found at the address given: check it, and its sign-in	入力したアドレスに予定表が見つかりません: アドレスとサインイン情報を確認してください
-	Password (kept: type to change it)	パスワード (保存済み: 変更するには入力)
 	Some providers want an app password for calendars: make one in your account's settings there.	予定表にアプリ パスワードが必要なプロバイダーもあります: プロバイダーのアカウント設定で作成してください。
 	The calendar server has its own user name and password	予定表サーバーに専用のユーザー名とパスワードがある
 	Your provider's calendar server wasn't found: give its address	プロバイダーの予定表サーバーが見つかりません: アドレスを入力してください
@@ -2218,3 +2213,9 @@ count	occurrences	回
 	1 message moved to Deleted Items	1 件のメッセージを削除済みアイテムに移動しました
 	{n} messages moved to Deleted Items	{n} 件のメッセージを削除済みアイテムに移動しました
 	“{folder}” moved to Deleted Items	「{folder}」を削除済みアイテムに移動しました
+	Found the server settings for {domain}.	{domain} のサーバー設定が見つかりました。
+	Outgoing server's user name	送信サーバーのユーザー名
+	Outgoing server's password	送信サーバーのパスワード
+	Saved: type to replace it	保存済み: 置き換えるには入力します
+	Show the password	パスワードを表示
+	Hide the password	パスワードを隠す

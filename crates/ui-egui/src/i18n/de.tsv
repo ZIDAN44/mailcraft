@@ -280,7 +280,6 @@
 	Sep	Sep
 	Server settings	Servereinstellungen
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Server: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
-	Settings found: {source}	Einstellungen gefunden: {source}
 	Show a desktop notification when new mail arrives	Bei neuen E-Mails eine Desktopbenachrichtigung anzeigen
 	Keep MailCraft running when its window is closed	MailCraft weiter ausführen, wenn das Fenster geschlossen wird
 	Start MailCraft in the notification area	MailCraft im Infobereich starten
@@ -984,9 +983,6 @@ month	May	Mai
 	Sign in with	Anmelden mit
 	NTLM (Secure Password Authentication)	NTLM (gesicherte Kennwortauthentifizierung)
 	No sign-in	Ohne Anmeldung
-	Its user name	Sein Benutzername
-	Its password	Sein Kennwort
-	Password (unchanged when empty)	Kennwort (bleibt, wenn leer)
 	There's no folder to put the attachment in for another app	Es gibt keinen Ordner, in dem der Anhang für eine andere App abgelegt werden kann
 	Check for updates	Nach Updates suchen
 	Checking…	Wird geprüft…
@@ -1303,7 +1299,6 @@ month	May	Mai
 	Looked for when the account syncs	Wird beim Synchronisieren des Kontos gesucht
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft sucht Ihre Kalender und Kontakte auf dem Server Ihres E-Mail-Anbieters. Werden sie nicht gefunden, geben Sie die Adressen aus den Hilfeseiten Ihres Anbieters an; lassen Sie ein Feld leer, damit weiter danach gesucht wird.
 	No calendars were found at the address given: check it, and its sign-in	Unter der angegebenen Adresse wurden keine Kalender gefunden: Adresse und Anmeldung prüfen
-	Password (kept: type to change it)	Kennwort (gespeichert: zum Ändern eingeben)
 	Some providers want an app password for calendars: make one in your account's settings there.	Manche Anbieter verlangen für Kalender ein App-Kennwort: Erstellen Sie eines in den Kontoeinstellungen dort.
 	The calendar server has its own user name and password	Der Kalenderserver hat einen eigenen Benutzernamen und ein eigenes Kennwort
 	Your provider's calendar server wasn't found: give its address	Der Kalenderserver Ihres Anbieters wurde nicht gefunden: Adresse angeben
@@ -2222,3 +2217,9 @@ count	occurrences	Terminen
 	1 message moved to Deleted Items	1 Nachricht in „Gelöschte Elemente“ verschoben
 	{n} messages moved to Deleted Items	{n} Nachrichten in „Gelöschte Elemente“ verschoben
 	“{folder}” moved to Deleted Items	„{folder}“ in „Gelöschte Elemente“ verschoben
+	Found the server settings for {domain}.	Die Servereinstellungen für {domain} wurden gefunden.
+	Outgoing server's user name	Benutzername des Postausgangsservers
+	Outgoing server's password	Kennwort des Postausgangsservers
+	Saved: type to replace it	Gespeichert: zum Ersetzen eingeben
+	Show the password	Kennwort anzeigen
+	Hide the password	Kennwort ausblenden

@@ -280,7 +280,6 @@
 	Sep	szept.
 	Server settings	Kiszolgálóbeállítások
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Kiszolgálók: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
-	Settings found: {source}	Beállítások forrása: {source}
 	Show a desktop notification when new mail arrives	Asztali értesítés új üzenet érkezésekor
 	Keep MailCraft running when its window is closed	A MailCraft fusson tovább az ablak bezárása után is
 	Start MailCraft in the notification area	A MailCraft indítása az értesítési területen
@@ -985,9 +984,6 @@ month	May	május
 	Sign in with	Bejelentkezési mód
 	NTLM (Secure Password Authentication)	NTLM (biztonságos jelszó-hitelesítés)
 	No sign-in	Nincs bejelentkezés
-	Its user name	A kiszolgálóhoz tartozó felhasználónév
-	Its password	A kiszolgálóhoz tartozó jelszó
-	Password (unchanged when empty)	Jelszó (ha üres, nem változik)
 	There's no folder to put the attachment in for another app	Nincs mappa, ahová a melléklet menthető lenne a másik alkalmazás számára
 	Check for updates	Frissítések keresése
 	Checking…	Ellenőrzés…
@@ -1304,7 +1300,6 @@ month	May	május
 	Looked for when the account syncs	Keresés a fiók szinkronizálásakor
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	A MailCraft a levelezőszolgáltatód kiszolgálóján keresi a naptáraidat és a névjegyeidet. Ha nem találja őket, add meg a szolgáltató súgójában szereplő címeket. Hagyd üresen azt a mezőt, amelyhez továbbra is automatikus keresést szeretnél.
 	No calendars were found at the address given: check it, and its sign-in	A megadott címen nem található naptár. Ellenőrizd a címet és a bejelentkezési adatokat.
-	Password (kept: type to change it)	Jelszó (mentve; a módosításhoz írj be újat)
 	Some providers want an app password for calendars: make one in your account's settings there.	Egyes szolgáltatók alkalmazásjelszót kérnek a naptárakhoz. A szolgáltatónál, a fiókbeállításokban hozhatsz létre ilyet.
 	The calendar server has its own user name and password	A naptárkiszolgáló külön felhasználónevet és jelszót használ
 	Your provider's calendar server wasn't found: give its address	Nem található a szolgáltatód naptárkiszolgálója. Add meg a címét.
@@ -2222,3 +2217,9 @@ count	occurrences	előfordulás
 	1 message moved to Deleted Items	1 üzenet áthelyezve a Törölt elemek mappába
 	{n} messages moved to Deleted Items	{n} üzenet áthelyezve a Törölt elemek mappába
 	“{folder}” moved to Deleted Items	„{folder}” áthelyezve a Törölt elemek mappába
+	Found the server settings for {domain}.	Megvannak a(z) {domain} kiszolgálóbeállításai.
+	Outgoing server's user name	A kimenő kiszolgáló felhasználóneve
+	Outgoing server's password	A kimenő kiszolgáló jelszava
+	Saved: type to replace it	Mentve: a cseréhez írja be az újat
+	Show the password	Jelszó megjelenítése
+	Hide the password	Jelszó elrejtése

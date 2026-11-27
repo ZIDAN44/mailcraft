@@ -280,7 +280,6 @@
 	Sep	сен
 	Server settings	Параметры сервера
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Серверы: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
-	Settings found: {source}	Параметры найдены: {source}
 	Show a desktop notification when new mail arrives	Показывать уведомление на рабочем столе при новой почте
 	Keep MailCraft running when its window is closed	Не завершать MailCraft при закрытии окна
 	Start MailCraft in the notification area	Запускать MailCraft в области уведомлений
@@ -997,9 +996,6 @@ date	December	декабря
 	Sign in with	Способ входа
 	NTLM (Secure Password Authentication)	NTLM (безопасная проверка пароля)
 	No sign-in	Без входа
-	Its user name	Его имя пользователя
-	Its password	Его пароль
-	Password (unchanged when empty)	Пароль (без изменений, если пусто)
 	There's no folder to put the attachment in for another app	Нет папки, куда положить вложение для другого приложения
 	Check for updates	Проверить обновления
 	Checking…	Проверка…
@@ -1316,7 +1312,6 @@ date	December	декабря
 	Looked for when the account syncs	Ищется при синхронизации учётной записи
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft ищет ваши календари и контакты на сервере почтового провайдера. Если их не удаётся найти, укажите адреса из справки провайдера; оставьте поле пустым, чтобы поиск продолжался.
 	No calendars were found at the address given: check it, and its sign-in	По указанному адресу календари не найдены: проверьте адрес и данные для входа
-	Password (kept: type to change it)	Пароль (сохранён: введите, чтобы изменить)
 	Some providers want an app password for calendars: make one in your account's settings there.	Некоторые провайдеры требуют для календарей пароль приложения: создайте его в настройках учётной записи у провайдера.
 	The calendar server has its own user name and password	У сервера календаря свои имя пользователя и пароль
 	Your provider's calendar server wasn't found: give its address	Сервер календаря вашего провайдера не найден: укажите его адрес
@@ -2235,3 +2230,9 @@ count	occurrences	повторений
 	1 message moved to Deleted Items	1 сообщение перемещено в «Удалённые»
 	{n} messages moved to Deleted Items	Перемещено в «Удалённые» сообщений: {n}
 	“{folder}” moved to Deleted Items	«{folder}» перемещена в «Удалённые»
+	Found the server settings for {domain}.	Найдены настройки сервера для {domain}.
+	Outgoing server's user name	Имя пользователя сервера исходящей почты
+	Outgoing server's password	Пароль сервера исходящей почты
+	Saved: type to replace it	Сохранён: введите новый, чтобы заменить
+	Show the password	Показать пароль
+	Hide the password	Скрыть пароль

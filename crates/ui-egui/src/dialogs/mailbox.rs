@@ -153,14 +153,17 @@ fn form(ui: &mut Ui, f: &mut VacationForm) {
         if f.dated {
             ui.horizontal(|ui| {
                 ui.label(tl!("From"));
-                ui.add_sized([110.0, 26.0], egui::TextEdit::singleline(&mut f.from).hint_text("YYYY-MM-DD"));
+                ui.add_sized([110.0, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.from).hint_text("YYYY-MM-DD"));
                 ui.label(tl!("Until"));
-                ui.add_sized([110.0, 26.0], egui::TextEdit::singleline(&mut f.until).hint_text("YYYY-MM-DD"));
+                ui.add_sized([110.0, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.until).hint_text("YYYY-MM-DD"));
             });
         }
         ui.add_space(4.0);
         label_over(ui, &Tokens::of(ui), "Subject");
-        ui.add_sized([ui.available_width(), 26.0], egui::TextEdit::singleline(&mut f.subject).hint_text(tl!("Subject (optional)")));
+        ui.add_sized(
+            [ui.available_width(), crate::sizes::CONTROL_H],
+            egui::TextEdit::singleline(&mut f.subject).hint_text(tl!("Subject (optional)")),
+        );
         ui.add_space(4.0);
         let rows = if f.exchange { 4 } else { 6 };
         if f.exchange {

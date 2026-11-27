@@ -42,10 +42,10 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, t: &Tokens, acts: &mut Vec<Actio
             ui.checkbox(&mut f.mail, tl!("Include the mail downloaded to this browser"));
             ui.add_space(8.0);
             ui.label(RichText::new(tl!("Password for the file (optional)")).color(t.text));
-            ui.add(egui::TextEdit::singleline(&mut f.password).password(true).desired_width(f32::INFINITY));
+            widgets::password_field(ui, &mut f.password, "");
             ui.add_space(4.0);
             ui.label(RichText::new(tl!("The password again")).color(t.text));
-            ui.add(egui::TextEdit::singleline(&mut f.again).password(true).desired_width(f32::INFINITY));
+            widgets::password_field(ui, &mut f.again, "");
             ui.add_space(4.0);
             let about = if f.password.is_empty() {
                 tl!("Without a password, anyone who has the file can read what's in it.")
@@ -86,7 +86,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, t: &Tokens, acts: &mut Vec<Actio
             if locked {
                 ui.add_space(8.0);
                 ui.label(RichText::new(tl!("The backup's password")).color(t.text));
-                let r = ui.add(egui::TextEdit::singleline(&mut f.password).password(true).desired_width(f32::INFINITY));
+                let r = widgets::password_field(ui, &mut f.password, "");
                 enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                 if ui.memory(|m| m.focused().is_none()) {
                     r.request_focus();

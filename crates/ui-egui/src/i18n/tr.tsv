@@ -280,7 +280,6 @@
 	Sep	Eyl
 	Server settings	Sunucu ayarları
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Sunucular: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
-	Settings found: {source}	Ayarlar bulundu: {source}
 	Show a desktop notification when new mail arrives	Yeni posta geldiğinde masaüstü bildirimi göster
 	Keep MailCraft running when its window is closed	Penceresi kapatıldığında MailCraft çalışmaya devam etsin
 	Start MailCraft in the notification area	MailCraft'ı bildirim alanında başlat
@@ -984,9 +983,6 @@ month	May	Mayıs
 	Sign in with	Oturum açma yöntemi
 	NTLM (Secure Password Authentication)	NTLM (Güvenli Parola Kimlik Doğrulaması)
 	No sign-in	Oturum açmadan
-	Its user name	Kullanıcı adı
-	Its password	Parolası
-	Password (unchanged when empty)	Parola (boşsa değişmez)
 	There's no folder to put the attachment in for another app	Eki başka bir uygulama için koyacak klasör yok
 	Check for updates	Güncellemeleri denetle
 	Checking…	Denetleniyor…
@@ -1303,7 +1299,6 @@ month	May	Mayıs
 	Looked for when the account syncs	Hesap eşitlenirken aranır
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft, takvimlerinizi ve kişilerinizi posta sağlayıcınızın sunucusunda arar. Bulamazsa, sağlayıcınızın yardım sayfalarındaki adresleri girin; aramaya devam etmesi için birini boş bırakın.
 	No calendars were found at the address given: check it, and its sign-in	Verilen adreste takvim bulunamadı: adresi ve oturum açma bilgilerini denetleyin
-	Password (kept: type to change it)	Parola (kayıtlı: değiştirmek için yazın)
 	Some providers want an app password for calendars: make one in your account's settings there.	Bazı sağlayıcılar takvimler için bir uygulama parolası ister: oradaki hesap ayarlarınızdan bir tane oluşturun.
 	The calendar server has its own user name and password	Takvim sunucusunun kendi kullanıcı adı ve parolası var
 	Your provider's calendar server wasn't found: give its address	Sağlayıcınızın takvim sunucusu bulunamadı: adresini girin
@@ -2222,3 +2217,9 @@ count	occurrences	kez
 	1 message moved to Deleted Items	1 ileti Silinmiş Öğeler klasörüne taşındı
 	{n} messages moved to Deleted Items	{n} ileti Silinmiş Öğeler klasörüne taşındı
 	“{folder}” moved to Deleted Items	"{folder}" Silinmiş Öğeler klasörüne taşındı
+	Found the server settings for {domain}.	{domain} için sunucu ayarları bulundu.
+	Outgoing server's user name	Giden sunucunun kullanıcı adı
+	Outgoing server's password	Giden sunucunun parolası
+	Saved: type to replace it	Kaydedildi: değiştirmek için yazın
+	Show the password	Parolayı göster
+	Hide the password	Parolayı gizle

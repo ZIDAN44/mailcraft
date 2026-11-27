@@ -280,7 +280,6 @@
 	Sep	sept.
 	Server settings	Paramètres du serveur
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Serveurs : {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
-	Settings found: {source}	Paramètres trouvés : {source}
 	Show a desktop notification when new mail arrives	Afficher une notification de bureau à l’arrivée de nouveau courrier
 	Keep MailCraft running when its window is closed	Garder MailCraft en cours d’exécution quand sa fenêtre est fermée
 	Start MailCraft in the notification area	Démarrer MailCraft dans la zone de notification
@@ -984,9 +983,6 @@ month	May	mai
 	Sign in with	Se connecter avec
 	NTLM (Secure Password Authentication)	NTLM (authentification sécurisée par mot de passe)
 	No sign-in	Sans connexion
-	Its user name	Son nom d'utilisateur
-	Its password	Son mot de passe
-	Password (unchanged when empty)	Mot de passe (inchangé si vide)
 	There's no folder to put the attachment in for another app	Aucun dossier où placer la pièce jointe pour une autre application
 	Check for updates	Rechercher des mises à jour
 	Checking…	Vérification…
@@ -1303,7 +1299,6 @@ month	May	mai
 	Looked for when the account syncs	Recherché lors de la synchronisation du compte
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft cherche vos calendriers et contacts sur le serveur de votre fournisseur de messagerie. S’il ne les trouve pas, indiquez les adresses données dans l’aide de votre fournisseur ; laissez un champ vide pour qu’il continue à les chercher.
 	No calendars were found at the address given: check it, and its sign-in	Aucun calendrier trouvé à l’adresse indiquée : vérifiez-la, ainsi que l’identification
-	Password (kept: type to change it)	Mot de passe (conservé : saisissez-le pour le changer)
 	Some providers want an app password for calendars: make one in your account's settings there.	Certains fournisseurs demandent un mot de passe d’application pour les calendriers : créez-en un dans les paramètres de votre compte chez eux.
 	The calendar server has its own user name and password	Le serveur de calendrier a son propre nom d’utilisateur et mot de passe
 	Your provider's calendar server wasn't found: give its address	Le serveur de calendrier de votre fournisseur est introuvable : indiquez son adresse
@@ -2222,3 +2217,9 @@ count	occurrences	occurrences
 	1 message moved to Deleted Items	1 message déplacé vers Éléments supprimés
 	{n} messages moved to Deleted Items	{n} messages déplacés vers Éléments supprimés
 	“{folder}” moved to Deleted Items	« {folder} » déplacé vers Éléments supprimés
+	Found the server settings for {domain}.	Paramètres du serveur trouvés pour {domain}.
+	Outgoing server's user name	Nom d’utilisateur du serveur sortant
+	Outgoing server's password	Mot de passe du serveur sortant
+	Saved: type to replace it	Enregistré : saisissez-en un autre pour le remplacer
+	Show the password	Afficher le mot de passe
+	Hide the password	Masquer le mot de passe

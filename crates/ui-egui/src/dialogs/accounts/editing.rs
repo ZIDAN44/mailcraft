@@ -5,28 +5,28 @@ use super::*;
 
 pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(crate::sizes::DIALOG_M);
-    title(ui, t, "Server settings");
+    title(ui, t, "Account settings");
     let w = ui.available_width();
     if f.address_editable() {
         // Outlook's Email Address: mistyped, every message was turned away by the server.
         ui.add_space(4.0);
         field_label(ui, "Email address");
-        ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.email).hint_text("you@example.com"));
+        ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.email).hint_text("you@example.com"));
         ui.add_space(6.0);
     } else {
         ui.label(RichText::new(&f.email).color(t.dim));
         ui.add_space(8.0);
     }
     field_label(ui, "Your name");
-    ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
+    ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
     ui.add_space(6.0);
     field_label(ui, "User name");
-    ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+    ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
     ui.add_space(10.0);
     if let Some(url) = f.ews.as_mut() {
         // An Exchange server's address is all EWS needs.
         field_label(ui, "Exchange server");
-        ui.add_sized([w, 26.0], egui::TextEdit::singleline(url).hint_text("mail.example.com"));
+        ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(url).hint_text("mail.example.com"));
         user_agent_field(ui, t, w, &mut f.user_agent);
     } else {
         if let Some((host, port, security)) = f.pop.as_mut() {
@@ -35,15 +35,16 @@ pub(super) fn edit_account(ui: &mut Ui, f: &mut EditForm, s: &Session, t: &Token
                 f.sign_in.incoming_ui(ui);
             }
         } else {
-            ui.horizontal(|ui| {
-                field_label(ui, "Mail server");
-                ui.radio_value(&mut f.jmap, false, tl!("IMAP and SMTP"));
-                ui.radio_value(&mut f.jmap, true, tl!("JMAP"));
-            });
-            ui.add_space(4.0);
+            let mut kind = if f.jmap { AccountKind::Jmap } else { AccountKind::Imap };
+            super::adding::kind_choice(ui, "edit-account-kind", &mut kind, &[AccountKind::Imap, AccountKind::Jmap]);
+            f.jmap = kind == AccountKind::Jmap;
+            ui.add_space(8.0);
             if f.jmap {
                 field_label(ui, "JMAP session address");
-                ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+                ui.add_sized(
+                    [w, crate::sizes::CONTROL_H],
+                    egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"),
+                );
             } else {
                 server_row(ui, w, Server::Imap, "edit-", &mut f.imap_host, &mut f.imap_port, &mut f.imap_security, !s.org.require_encryption);
                 if !f.oauth {

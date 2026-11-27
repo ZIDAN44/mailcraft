@@ -117,12 +117,14 @@ impl SmtpSignIn {
     pub(crate) fn ui(&mut self, ui: &mut Ui, w: f32) {
         ui.checkbox(&mut self.own, tl!("The outgoing server has its own user name and password"));
         if self.own {
-            ui.horizontal(|ui| {
-                let half = ((w - 30.0) / 2.0).max(100.0);
-                ui.add_space(22.0);
-                ui.add_sized([half, 26.0], egui::TextEdit::singleline(&mut self.username).hint_text(tl!("Its user name")));
-                let hint = if self.kept { tl!("Password (unchanged when empty)") } else { tl!("Its password") };
-                ui.add_sized([half, 26.0], egui::TextEdit::singleline(&mut self.password).password(true).hint_text(hint));
+            super::indented(ui, |ui| {
+                let w = (w - 22.0).max(120.0);
+                super::field_label(ui, "Outgoing server's user name");
+                ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut self.username));
+                ui.add_space(6.0);
+                super::field_label(ui, "Outgoing server's password");
+                let hint = if self.kept { tl!("Saved: type to replace it") } else { "" };
+                ui.allocate_ui(vec2(w, crate::sizes::CONTROL_H), |ui| widgets::password_field(ui, &mut self.password, hint));
             });
         }
     }

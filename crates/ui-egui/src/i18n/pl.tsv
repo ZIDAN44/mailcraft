@@ -280,7 +280,6 @@
 	Sep	wrz
 	Server settings	Ustawienia serwera
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Serwery: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
-	Settings found: {source}	Znaleziono ustawienia: {source}
 	Show a desktop notification when new mail arrives	Pokazuj powiadomienie na pulpicie po nadejściu nowej poczty
 	Keep MailCraft running when its window is closed	Pozostaw MailCraft uruchomiony po zamknięciu okna
 	Start MailCraft in the notification area	Uruchamiaj MailCraft w obszarze powiadomień
@@ -997,9 +996,6 @@ date	December	grudnia
 	Sign in with	Logowanie za pomocą
 	NTLM (Secure Password Authentication)	NTLM (bezpieczne uwierzytelnianie hasłem)
 	No sign-in	Bez logowania
-	Its user name	Jego nazwa użytkownika
-	Its password	Jego hasło
-	Password (unchanged when empty)	Hasło (puste = bez zmian)
 	There's no folder to put the attachment in for another app	Brak folderu, w którym można umieścić załącznik dla innej aplikacji
 	Check for updates	Sprawdź aktualizacje
 	Checking…	Sprawdzanie…
@@ -1316,7 +1312,6 @@ date	December	grudnia
 	Looked for when the account syncs	Wyszukiwany podczas synchronizacji konta
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft szuka kalendarzy i kontaktów na serwerze dostawcy poczty. Jeśli ich nie znajdzie, podaj adresy ze stron pomocy dostawcy; pozostaw pole puste, aby nadal go szukać.
 	No calendars were found at the address given: check it, and its sign-in	Pod podanym adresem nie znaleziono kalendarzy: sprawdź adres i dane logowania
-	Password (kept: type to change it)	Hasło (zapisane: wpisz, aby je zmienić)
 	Some providers want an app password for calendars: make one in your account's settings there.	Niektórzy dostawcy wymagają hasła do aplikacji dla kalendarzy: utwórz je w ustawieniach konta u dostawcy.
 	The calendar server has its own user name and password	Serwer kalendarza ma własną nazwę użytkownika i hasło
 	Your provider's calendar server wasn't found: give its address	Nie znaleziono serwera kalendarza dostawcy: podaj jego adres
@@ -2235,3 +2230,9 @@ count	occurrences	wystąpieniach
 	1 message moved to Deleted Items	Przeniesiono 1 wiadomość do Kosza
 	{n} messages moved to Deleted Items	Przeniesiono wiadomości do Kosza: {n}
 	“{folder}” moved to Deleted Items	Przeniesiono „{folder}” do Kosza
+	Found the server settings for {domain}.	Znaleziono ustawienia serwera dla {domain}.
+	Outgoing server's user name	Nazwa użytkownika serwera poczty wychodzącej
+	Outgoing server's password	Hasło serwera poczty wychodzącej
+	Saved: type to replace it	Zapisane: wpisz, aby zastąpić
+	Show the password	Pokaż hasło
+	Hide the password	Ukryj hasło

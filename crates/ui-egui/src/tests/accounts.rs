@@ -554,13 +554,14 @@ fn saved_settings_keep_what_can_be_read() {
 
 /// Issue #105: a mail server elsewhere showing a certificate no authority vouches for is asked
 /// about with what the certificate says of itself; trusting it keeps it with the account, and
-/// Server settings lists it with Stop trusting, next to Trust a certificate file….
+/// Account settings lists it with Stop trusting, next to Trust a certificate file….
 #[test]
 fn a_server_elsewhere_s_certificate_is_asked_about_and_listed() {
     use mailcraft_engine::model::{FailureKind, UntrustedCertificate};
     let (mut a, _) = app("trust-elsewhere");
     let ctx = egui::Context::default();
-    let size = egui::vec2(1280.0, 800.0);
+    // Tall enough for Account settings whole, its certificates at its end.
+    let size = egui::vec2(1280.0, 1000.0);
     a.act(crate::Action::Submit("account.add", json!({"email": "zoe@corp.test", "password": "pw", "imapHost": "mail.corp.test"})));
     let id = a.session.accounts.iter().find(|x| x.config.email == "zoe@corp.test").map(|x| x.config.id.clone()).unwrap();
     let print = "0a1b2c3d".repeat(8);

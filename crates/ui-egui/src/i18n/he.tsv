@@ -280,7 +280,6 @@
 	Sep	ספט׳
 	Server settings	הגדרות שרת
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	שרתים: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
-	Settings found: {source}	נמצאו הגדרות: {source}
 	Show a desktop notification when new mail arrives	הצג התראה בשולחן העבודה כשמגיע דואר חדש
 	Keep MailCraft running when its window is closed	להשאיר את MailCraft פועל כשהחלון שלו נסגר
 	Start MailCraft in the notification area	הפעלת MailCraft באזור ההודעות
@@ -979,9 +978,6 @@ month	May	מאי
 	Sign in with	כניסה באמצעות
 	NTLM (Secure Password Authentication)	NTLM (אימות סיסמה מאובטח)
 	No sign-in	ללא כניסה
-	Its user name	שם המשתמש שלו
-	Its password	הסיסמה שלו
-	Password (unchanged when empty)	סיסמה (ללא שינוי אם ריקה)
 	There's no folder to put the attachment in for another app	אין תיקייה שבה אפשר לשים את הקובץ המצורף עבור יישום אחר
 	Check for updates	חיפוש עדכונים
 	Checking…	בודק…
@@ -1298,7 +1294,6 @@ month	May	מאי
 	Looked for when the account syncs	יחופש כשהחשבון מסתנכרן
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft מחפש את לוחות השנה ואנשי הקשר שלך בשרת של ספק הדואר. אם הם לא נמצאים, יש להזין את הכתובות מדפי העזרה של הספק; שדה שיישאר ריק ימשיך להיות מחופש.
 	No calendars were found at the address given: check it, and its sign-in	לא נמצאו לוחות שנה בכתובת שהוזנה: יש לבדוק אותה ואת פרטי הכניסה
-	Password (kept: type to change it)	סיסמה (שמורה: יש להקליד כדי לשנות)
 	Some providers want an app password for calendars: make one in your account's settings there.	יש ספקים שדורשים סיסמת אפליקציה ללוחות שנה: אפשר ליצור אחת בהגדרות החשבון אצלם.
 	The calendar server has its own user name and password	לשרת לוח השנה יש שם משתמש וסיסמה משלו
 	Your provider's calendar server wasn't found: give its address	שרת לוח השנה של הספק לא נמצא: יש להזין את כתובתו
@@ -2217,3 +2212,9 @@ count	occurrences	פעמים
 	1 message moved to Deleted Items	הודעה אחת הועברה אל פריטים שנמחקו
 	{n} messages moved to Deleted Items	{n} הודעות הועברו אל פריטים שנמחקו
 	“{folder}” moved to Deleted Items	"{folder}" הועבר אל פריטים שנמחקו
+	Found the server settings for {domain}.	נמצאו הגדרות השרת עבור {domain}.
+	Outgoing server's user name	שם המשתמש של השרת היוצא
+	Outgoing server's password	הסיסמה של השרת היוצא
+	Saved: type to replace it	נשמרה: יש להקליד כדי להחליף
+	Show the password	הצגת הסיסמה
+	Hide the password	הסתרת הסיסמה

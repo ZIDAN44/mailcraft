@@ -94,11 +94,15 @@ pub(super) fn add_account(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tok
     !cancel
 }
 
-/// The address (its settings looked up and filled in once it's typed), the name and the password.
+/// The address (its settings looked up and filled in once it's typed), the name and the
+/// password: each label over its field, the fields the dialog's width (as when it's changed;
+/// they were beside their labels, 300 points wide).
 fn basics(ui: &mut Ui, f: &mut AccountForm, s: &Session, acts: &mut Vec<Action>) {
-    egui::Grid::new("acct").num_columns(2).spacing(vec2(12.0, 8.0)).show(ui, |ui| {
-        ui.label(tl!("Email address"));
-        let r = ui.add(egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")).desired_width(ui.available_width()));
+    let w = ui.available_width();
+    let h = crate::sizes::CONTROL_H;
+    {
+        field_label(ui, "Email address");
+        let r = ui.add_sized([w, h], egui::TextEdit::singleline(&mut f.email).hint_text(tl!("you@example.com")));
         if r.changed() && !f.servers_edited {
             f.guess();
             f.found_for = None;
@@ -138,20 +142,19 @@ fn basics(ui: &mut Ui, f: &mut AccountForm, s: &Session, acts: &mut Vec<Action>)
             f.found_for = Some(email.clone());
             f.found_source = Some(source.clone());
         }
-        ui.end_row();
-        ui.label(tl!("Your name"));
-        ui.add(egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")).desired_width(ui.available_width()));
-        ui.end_row();
+        ui.add_space(6.0);
+        field_label(ui, "Your name");
+        ui.add_sized([w, h], egui::TextEdit::singleline(&mut f.name).hint_text(tl!("Shown on mail you send")));
         // Exchange signs in with Microsoft in the browser; so do Outlook.com, Hotmail and
         // Live, which take no passwords from mail apps (when this copy can sign in there).
         let browser_only = f.kind == AccountKind::Graph
             || (f.kind.imap_or_pop() && mailcraft_engine::model::microsoft_consumer(&f.email) && s.oauth_available.iter().any(|p| p == "microsoft"));
         if !browser_only {
-            ui.label(tl!("Password"));
-            ui.add(egui::TextEdit::singleline(&mut f.password).password(true).desired_width(ui.available_width()));
-            ui.end_row();
+            ui.add_space(6.0);
+            field_label(ui, "Password");
+            widgets::password_field(ui, &mut f.password, "");
         }
-    });
+    }
 }
 
 /// The server settings, opened: the kind of server, what it is, then that kind's own rows.
@@ -159,23 +162,9 @@ fn server_settings(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tokens, ac
     let w = ui.available_width();
     if !s.jmap_only {
         let was = f.kind;
-        // Five kinds: a list to pick from, on one row, rather than a block of choices.
-        ui.horizontal(|ui| {
-            field_label(ui, "Mail server");
-            let kinds = [AccountKind::Imap, AccountKind::Pop, AccountKind::Jmap, AccountKind::Graph, AccountKind::Ews];
-            let r = egui::ComboBox::from_id_salt("account-kind")
-                .width(220.0)
-                .selected_text(kind_name(f.kind))
-                .show_ui(ui, |ui| {
-                    for k in kinds {
-                        ui.selectable_value(&mut f.kind, k, kind_name(k));
-                    }
-                })
-                .response
-                // Its name beside it is painted small, not handed on.
-                .accessible_name(tl!("Mail server"));
-            crate::drop_down::keys(ui, &r, &mut f.kind, &kinds);
-        });
+        // Five kinds: a list to pick from rather than a block of choices.
+        let kinds = [AccountKind::Imap, AccountKind::Pop, AccountKind::Jmap, AccountKind::Graph, AccountKind::Ews];
+        kind_choice(ui, "account-kind", &mut f.kind, &kinds);
         // POP just chosen: its server named after the IMAP one, unless one is in.
         if f.kind == AccountKind::Pop && was != AccountKind::Pop && f.pop_host.is_empty() {
             f.guess_pop();
@@ -190,25 +179,32 @@ fn server_settings(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tokens, ac
         AccountKind::Graph => return,
         AccountKind::Ews => {
             field_label(ui, "Exchange server");
-            ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.ews_url).hint_text(tl!("Found automatically when left empty")));
+            ui.add_sized(
+                [w, crate::sizes::CONTROL_H],
+                egui::TextEdit::singleline(&mut f.ews_url).hint_text(tl!("Found automatically when left empty")),
+            );
             ui.add_space(6.0);
             field_label(ui, "User name");
-            ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("DOMAIN\\user, or the email address")));
+            ui.add_sized(
+                [w, crate::sizes::CONTROL_H],
+                egui::TextEdit::singleline(&mut f.username).hint_text(tl!("DOMAIN\\user, or the email address")),
+            );
             user_agent_field(ui, t, w, &mut f.user_agent);
             return;
         }
         AccountKind::Jmap => {
             field_label(ui, "JMAP session address");
-            ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
+            ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.jmap_url).hint_text("https://api.example.com/jmap/session"));
             ui.add_space(6.0);
             field_label(ui, "User name");
-            ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
+            ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address")));
             return;
         }
     };
     // Who signs in, for both servers.
     field_label(ui, "User name");
-    let mut edited = ui.add_sized([w, 26.0], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
+    let mut edited =
+        ui.add_sized([w, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.username).hint_text(tl!("Usually the email address"))).changed();
     ui.add_space(8.0);
     // Each server: where it is, then how it's signed in to.
     edited |= if pop {
@@ -236,15 +232,29 @@ fn server_settings(ui: &mut Ui, f: &mut AccountForm, s: &Session, t: &Tokens, ac
         disclosure(ui, t, &mut f.pst_open, "Existing data file (optional)", Some(note));
         if f.pst_open {
             indented(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.add_sized([w - 112.0, 26.0], egui::TextEdit::singleline(&mut f.pst).hint_text(hint));
-                    if ui.button(tl!("Browse…")).clicked() {
-                        acts.push(Action::PickAccountDataFile);
-                    }
-                });
+                if widgets::field_and_button(ui, &mut f.pst, hint, tl!("Browse…")) {
+                    acts.push(Action::PickAccountDataFile);
+                }
             });
         }
     }
+}
+
+/// "Mail server" over its drop-down of `kinds`: the same in adding an account and changing one.
+pub(super) fn kind_choice(ui: &mut Ui, id: &str, kind: &mut AccountKind, kinds: &[AccountKind]) {
+    field_label(ui, "Mail server");
+    let r = egui::ComboBox::from_id_salt(id)
+        .width(ui.available_width().min(280.0))
+        .selected_text(kind_name(*kind))
+        .show_ui(ui, |ui| {
+            for k in kinds {
+                ui.selectable_value(kind, *k, kind_name(*k));
+            }
+        })
+        .response
+        // Its name over it is painted, not handed on.
+        .accessible_name(tl!("Mail server"));
+    crate::drop_down::keys(ui, &r, kind, kinds);
 }
 
 /// Each kind of mail server's name, as it's chosen.
@@ -303,9 +313,12 @@ fn servers_named(f: &AccountForm) -> Option<String> {
 fn found_note(ui: &mut Ui, f: &AccountForm, s: &Session, t: &Tokens) {
     let email = f.email.trim().to_ascii_lowercase();
     match (&f.found_source, s.discovered.get(&email)) {
-        (Some(src), _) if f.found_for.as_deref() == Some(email.as_str()) => {
+        // Said plainly (it named where they came from: "the ISP database", in English), in grey:
+        // nothing to act on.
+        (Some(_), _) if f.found_for.as_deref() == Some(email.as_str()) => {
             ui.add_space(4.0);
-            ui.label(RichText::new(tf!("Settings found: {source}", source = src)).color(t.ok).small());
+            let domain = email.rsplit_once('@').map_or(email.as_str(), |(_, d)| d);
+            about(ui, t, &tf!("Found the server settings for {domain}.", domain = domain));
         }
         (_, Some(None)) => {
             ui.add_space(4.0);
@@ -355,10 +368,10 @@ fn browser_note(ui: &mut Ui, f: &AccountForm, t: &Tokens, consumer: bool, provid
     ui.add_space(6.0);
     let name = if p == "google" { "Google" } else { "Microsoft" };
     let mut clicked = false;
+    // Outlined: Connect is the dialog's main button (both were filled in the app colour).
     ui.horizontal(|ui| {
-        clicked =
-            widgets::accent_button(ui, crate::icons::Icon::Person, &tf!("Sign in with {provider}", provider = name), t, !f.email.trim().is_empty())
-                .clicked();
+        let label = tf!("Sign in with {provider}", provider = name);
+        clicked = widgets::outline_button(ui, crate::icons::Icon::Person, &label, t, !f.email.trim().is_empty()).clicked();
         ui.label(RichText::new(tl!("in your browser: no password stored")).color(t.faint).small());
     });
     clicked.then_some(p)

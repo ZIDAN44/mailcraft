@@ -38,6 +38,9 @@ pub enum Icon {
     ViewSchedule,
     /// A list (People's list view; it had a phone).
     ViewList,
+    /// A password shown (an eye), and hidden (the eye struck through): its field's toggle.
+    Eye,
+    EyeOff,
     ChevronRight,
     ChevronLeft,
     Star,
@@ -321,6 +324,17 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.line(&[(4.0, 6.0), (10.0, 6.0)]);
             pen.line(&[(6.0, 9.0), (13.0, 9.0)]);
             pen.line(&[(3.5, 12.0), (8.0, 12.0)]);
+        }
+        Icon::Eye | Icon::EyeOff => {
+            // Two lids meeting at the corners (1.5, 8) and (14.5, 8), 4.5 above and below the
+            // middle, round a pupil.
+            let (r, a) = (6.94, 0.359);
+            pen.arc(8.0, 10.44, r, PI + a, 2.0 * PI - a);
+            pen.arc(8.0, 5.56, r, a, PI - a);
+            pen.circle(8.0, 8.0, 2.2);
+            if icon == Icon::EyeOff {
+                pen.line(&[(2.5, 13.5), (13.5, 2.5)]);
+            }
         }
         Icon::ViewList => {
             for y in [4.0, 8.0, 12.0] {

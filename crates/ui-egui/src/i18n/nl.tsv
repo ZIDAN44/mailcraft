@@ -280,7 +280,6 @@
 	Sep	sep
 	Server settings	Serverinstellingen
 	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})	Servers: {imap} (IMAP {imap_port}), {smtp} (SMTP {smtp_port})
-	Settings found: {source}	Instellingen gevonden: {source}
 	Show a desktop notification when new mail arrives	Een bureaubladmelding tonen wanneer er nieuwe mail binnenkomt
 	Keep MailCraft running when its window is closed	MailCraft actief houden wanneer het venster wordt gesloten
 	Start MailCraft in the notification area	MailCraft starten in het systeemvak
@@ -979,9 +978,6 @@ month	May	mei
 	Sign in with	Aanmelden met
 	NTLM (Secure Password Authentication)	NTLM (beveiligde wachtwoordverificatie)
 	No sign-in	Zonder aanmelden
-	Its user name	Gebruikersnaam ervan
-	Its password	Wachtwoord ervan
-	Password (unchanged when empty)	Wachtwoord (ongewijzigd als leeg)
 	There's no folder to put the attachment in for another app	Er is geen map om de bijlage voor een andere app in te zetten
 	Check for updates	Controleren op updates
 	Checking…	Bezig met controleren…
@@ -1298,7 +1294,6 @@ month	May	mei
 	Looked for when the account syncs	Wordt gezocht als het account synchroniseert
 	MailCraft looks for your calendars and contacts on your mail provider's server. If it can't find them, give the addresses from your provider's help pages; leave one empty to keep looking for it.	MailCraft zoekt uw agenda's en contactpersonen op de server van uw e-mailprovider. Als ze niet gevonden worden, geef dan de adressen uit de helppagina's van uw provider op; laat er een leeg om ernaar te blijven zoeken.
 	No calendars were found at the address given: check it, and its sign-in	Op het opgegeven adres zijn geen agenda's gevonden: controleer het, en de aanmelding
-	Password (kept: type to change it)	Wachtwoord (bewaard: typ om te wijzigen)
 	Some providers want an app password for calendars: make one in your account's settings there.	Sommige providers vragen een app-wachtwoord voor agenda's: maak er een aan in uw accountinstellingen daar.
 	The calendar server has its own user name and password	De agendaserver heeft een eigen gebruikersnaam en wachtwoord
 	Your provider's calendar server wasn't found: give its address	De agendaserver van uw provider is niet gevonden: geef het adres op
@@ -2217,3 +2212,9 @@ count	occurrences	keer
 	1 message moved to Deleted Items	1 bericht verplaatst naar Verwijderde items
 	{n} messages moved to Deleted Items	{n} berichten verplaatst naar Verwijderde items
 	“{folder}” moved to Deleted Items	‘{folder}’ verplaatst naar Verwijderde items
+	Found the server settings for {domain}.	De serverinstellingen voor {domain} zijn gevonden.
+	Outgoing server's user name	Gebruikersnaam van de uitgaande server
+	Outgoing server's password	Wachtwoord van de uitgaande server
+	Saved: type to replace it	Opgeslagen: typ om te vervangen
+	Show the password	Wachtwoord tonen
+	Hide the password	Wachtwoord verbergen

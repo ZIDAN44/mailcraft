@@ -188,6 +188,9 @@ pub(crate) fn show(
             // (egui puts its space between two things there before the gap is added).
             let between = ui.spacing().item_spacing.y;
             let room = (max - foot_was.map_or(0.0, |_| ROW_H + FOOTER_GAP)).max(100.0);
+            // Its scroll bar beside what scrolls, not over it (floating, it covered the edge of a
+            // field or a framed part, as Add account's server settings).
+            ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
             let scrolled = egui::ScrollArea::vertical()
                 .id_salt("dialog-body")
                 .max_height(room)
