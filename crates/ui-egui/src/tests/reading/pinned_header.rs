@@ -93,3 +93,31 @@ fn one_line_parts_the_kept_header_from_the_text() {
         .collect();
     assert_eq!(lines.len(), 1, "one line above the text, not {lines:?}");
 }
+
+/// The header is short, the text close under it: Reply and the rest are icons at the end of the
+/// sender's row, over the date (eight bordered buttons with words took a row, or two, of their
+/// own), To and Cc close under the name. It took nearly half the pane.
+#[test]
+fn the_header_is_short_and_its_actions_beside_the_sender() {
+    let size = egui::vec2(1280.0, 800.0);
+    let (mut a, _) = app("header-short");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    long_message(&mut a);
+    for _ in 0..5 {
+        let _ = drawn_with(&ctx, &mut a, size, vec![]);
+    }
+    let texts = drawn_with(&ctx, &mut a, size, vec![]);
+    let subject = seen_at(&texts, "Quarterly plan").expect("the subject");
+    let text = seen_at(&texts, "Line 1 of the plan").expect("the text");
+    let sender = seen_at(&texts, "Sam Okafor").expect("who it's from");
+    assert!(text.top() - subject.top() < 150.0, "the text {} points under the subject", text.top() - subject.top());
+    let reply = named(&ctx, &mut a, size)
+        .into_iter()
+        .filter(|n| n.name() == Some("Reply"))
+        .filter_map(|n| n.rect)
+        .max_by(|x, y| x.left().total_cmp(&y.left()));
+    let reply = reply.expect("Reply over the message");
+    assert!(reply.top() < sender.bottom() && reply.bottom() > sender.top() - 8.0, "on the sender's row: {reply:?} {sender:?}");
+    assert!(reply.left() > sender.right(), "at its end: {reply:?}");
+}

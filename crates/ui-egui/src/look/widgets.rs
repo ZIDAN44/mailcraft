@@ -319,6 +319,31 @@ fn tool_toggle_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, on: bool)
     resp
 }
 
+/// A borderless icon button, its label on hover (a message's actions over it, as Windows' own
+/// apps draw a pane's commands): its fill only under the pointer.
+pub fn icon_action(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(32.0, 32.0), Sense::click());
+    named(ui, &resp, tl!(tip), true, None);
+    if resp.hovered() {
+        ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), t.hover);
+    }
+    icons::paint(ui.painter(), icons::centered(rect, 18.0), icon, if resp.hovered() { t.text } else { t.dim });
+    resp.on_hover_text(tl!(tip))
+}
+
+/// [`icon_action`]'s "⋯", for a menu of the rest.
+pub fn icon_more(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
+    let (rect, resp) = ui.allocate_exact_size(vec2(32.0, 32.0), Sense::click());
+    named(ui, &resp, tl!(tip), true, None);
+    if resp.hovered() {
+        ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), t.hover);
+    }
+    for dx in [-6.0, 0.0, 6.0] {
+        ui.painter().circle_filled(rect.center() + vec2(dx, 0.0), 1.6, if resp.hovered() { t.text } else { t.dim });
+    }
+    resp.on_hover_text(tl!(tip))
+}
+
 /// A "⋯" button in the style of [`pill_button`], for a menu of more actions.
 pub fn more_pill(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(34.0, 28.0), Sense::click());

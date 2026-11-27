@@ -71,8 +71,8 @@ fn a_rows_buttons_are_the_ones_chosen() {
     assert_eq!(a.session.selection, selected, "the selection stays");
 }
 
-/// Snooze is among the message's own buttons; its menu's Choose a date… takes a day and time of
-/// the user's own, and won't take one past.
+/// Snooze is among the message's own actions (in its More actions); its menu's Choose a date…
+/// takes a day and time of the user's own, and won't take one past.
 #[test]
 fn a_message_is_snoozed_from_beside_it_to_a_time_chosen() {
     let (mut a, _) = app("snooze-chosen");
@@ -82,7 +82,9 @@ fn a_message_is_snoozed_from_beside_it_to_a_time_chosen() {
     frame(&ctx, &mut a, vec![]);
     frame(&ctx, &mut a, vec![key(Key::Home, Modifiers::NONE)]);
     let open = a.session.reading.as_ref().map(|r| r.key.clone()).expect("a message open");
-    // The ribbon has a Snooze too: the message's is the lowest.
+    // The ribbon has a Snooze too: the message's is in its More actions, the lowest.
+    click_named(&ctx, &mut a, "More actions");
+    frame(&ctx, &mut a, vec![]);
     let nodes = named(&ctx, &mut a, size);
     let snooze = nodes.iter().filter(|n| n.label.as_deref() == Some("Snooze")).filter_map(Named::centre).max_by(|x, y| x.y.total_cmp(&y.y));
     let snooze = snooze.expect("Snooze beside the message");

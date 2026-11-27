@@ -126,10 +126,11 @@ pub(super) fn contact_card(
 /// the pointer (a subject of two thousand characters filled the pane, the message far below).
 pub(super) fn subject_heading(ui: &mut Ui, subject: &str, t: &Tokens, marks: &[std::ops::Range<usize>]) -> egui::Response {
     const LINES: usize = 4;
-    let mut job = egui::text::LayoutJob::simple(subject.to_string(), theme::semibold(21.0), t.text, ui.available_width());
+    let size = crate::sizes::SUBTITLE;
+    let mut job = egui::text::LayoutJob::simple(subject.to_string(), theme::semibold(size), t.text, ui.available_width());
     // What a search found in it, marked (issue #173).
     if !marks.is_empty() {
-        job = marked_job(subject, marks, theme::semibold(21.0), t.text);
+        job = marked_job(subject, marks, theme::semibold(size), t.text);
         job.wrap.max_width = ui.available_width();
     }
     job.wrap.max_rows = LINES;

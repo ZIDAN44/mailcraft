@@ -35,7 +35,7 @@ pub(super) fn header(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, p
             if part == Part::All {
                 conversation(ui, acts);
             }
-            sender_card(s, &t, ui, o, acts);
+            let beside = sender_card(s, st, ui, o, acts);
             ui.add_space(8.0);
             follow_up_line(s, &t, ui, o.summary);
             if let Some(w) = &r.warning {
@@ -47,8 +47,8 @@ pub(super) fn header(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, p
             if let Some(name) = s.opened_file_name(&r.key) {
                 opened_file_bar(&t, ui, name);
             }
-            action_bar(s, st, ui, o, acts);
-            ui.add_space(12.0);
+            action_bar(s, st, ui, o, beside, acts);
+            ui.add_space(if beside { 4.0 } else { 12.0 });
         }
         if part != Part::Pinned {
             reactions::reactions_row(s, &t, ui, &r.key, acts);
@@ -65,10 +65,6 @@ fn subject_line(s: &Session, t: &Tokens, ui: &mut Ui, o: &Open<'_>, acts: &mut V
     ui.horizontal_wrapped(|ui| {
         let subject = if o.p.subject.is_empty() { tl!("(no subject)") } else { o.p.subject.as_str() };
         subject_heading(ui, subject, t, &subject_marks(s, subject));
-        if o.summary.is_some_and(|m| m.flags.flagged) {
-            let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
-            icons::paint(ui.painter(), ir, Icon::Flag, t.flag);
-        }
     });
     if let Some(m) = o.summary {
         let cats = s.categories_of(m);
@@ -103,13 +99,17 @@ fn subject_line(s: &Session, t: &Tokens, ui: &mut Ui, o: &Open<'_>, acts: &mut V
     }
 }
 
-/// The sender card: the avatar, who it's from (External, Add to contacts), To and Cc, and the
-/// date beside them or under them.
-fn sender_card(s: &Session, t: &Tokens, ui: &mut Ui, o: &Open<'_>, acts: &mut Vec<Action>) {
+/// The sender card: the avatar, who it's from (External, Add to contacts), To and Cc, and at its
+/// end what can be done with the message (Reply, Reply all, Forward, React, More) over the date,
+/// or the date under them when the pane is too narrow. Whether the message's actions are in it.
+fn sender_card(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut Vec<Action>) -> bool {
+    let t = &st.tokens;
     let p = o.p;
+    let actions = has_actions(s, o);
+    let mut drawn = false;
     ui.horizontal_top(|ui| {
-        let (ar, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
-        crate::photos::avatar(ui, s, ar.center(), 21.0, &p.from.email, &p.from.initials(), theme::avatar_color(&p.from.email, t.dark));
+        let (ar, _) = ui.allocate_exact_size(vec2(40.0, 40.0), Sense::hover());
+        crate::photos::avatar(ui, s, ar.center(), 20.0, &p.from.email, &p.from.initials(), theme::avatar_color(&p.from.email, t.dark));
         ui.add_space(4.0);
         // The date to the right, with room kept for it (the address ran under it in a
         // narrow pane); under the sender when the pane is too narrow for both.
@@ -122,11 +122,15 @@ fn sender_card(s: &Session, t: &Tokens, ui: &mut Ui, o: &Open<'_>, acts: &mut Ve
             f32::INFINITY,
             egui::TextStyle::Small,
         );
-        let rest = ui.available_width() - date.size().x - 16.0;
+        let end = if actions { date.size().x.max(ACTIONS_W) } else { date.size().x };
+        let rest = ui.available_width() - end - 16.0;
         let beside = rest >= 200.0;
         let room = if beside { rest } else { ui.available_width() };
         ui.allocate_ui_with_layout(vec2(room, 0.0), crate::bidi::column(), |ui| {
             ui.set_max_width(room);
+            // To and Cc close under the name (each line took a control's height and more).
+            ui.spacing_mut().item_spacing.y = 2.0;
+            ui.spacing_mut().interact_size.y = 16.0;
             ui.horizontal_wrapped(|ui| {
                 let name = person_link(ui, t, RichText::new(p.from.display()).font(theme::semibold(15.0)).color(t.text));
                 person_menus(s, t, &name, &p.from, acts);
@@ -168,8 +172,108 @@ fn sender_card(s: &Session, t: &Tokens, ui: &mut Ui, o: &Open<'_>, acts: &mut Ve
         });
         if beside {
             ui.with_layout(crate::bidi::row_from_end(egui::Align::Min), |ui| {
-                ui.label(date);
+                // At the row's end, the date under the actions' end.
+                let end = if crate::i18n::current().rtl() { egui::Align::Min } else { egui::Align::Max };
+                ui.with_layout(egui::Layout::top_down(end), |ui| {
+                    if actions {
+                        ui.allocate_ui_with_layout(vec2(ACTIONS_W, 32.0), crate::bidi::row_from_start(egui::Align::Center), |ui| {
+                            message_actions(s, st, ui, o, acts);
+                        });
+                        drawn = true;
+                    }
+                    ui.with_layout(crate::bidi::row_from_end(egui::Align::Min), |ui| {
+                        ui.label(date);
+                    });
+                });
             });
+        }
+    });
+    drawn
+}
+
+/// The width of a message's actions: five buttons, two points apart.
+const ACTIONS_W: f32 = 5.0 * 32.0 + 4.0 * 2.0;
+
+/// Whether the message has Reply, Forward and the rest over it (not an Outbox item or a draft,
+/// which have their own; not in a window of its own, whose ribbon has them).
+fn has_actions(s: &Session, o: &Open<'_>) -> bool {
+    !o.in_window
+        && s.outbox_entry(&o.r.key).is_none()
+        && s.view_role() != Some(mailcraft_engine::model::FolderRole::Drafts)
+        && o.summary.is_none_or(|m| !m.flags.draft)
+}
+
+/// Reply, Reply all, Forward, React and More (the rest, in a menu): borderless icons, as
+/// Windows' own apps draw a pane's commands (eight bordered buttons with their words took two
+/// rows of a narrow pane, or of a German one).
+fn message_actions(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut Vec<Action>) {
+    let t = st.tokens;
+    let (r, p) = (o.r, o.p);
+    ui.spacing_mut().item_spacing.x = 2.0;
+    if widgets::icon_action(ui, Icon::Reply, "Reply", &t).clicked() {
+        acts.push(Action::Run("mail.reply", json!({})));
+    }
+    if widgets::icon_action(ui, Icon::ReplyAll, "Reply all", &t).clicked() {
+        acts.push(Action::Run("mail.replyAll", json!({})));
+    }
+    if widgets::icon_action(ui, Icon::Forward, "Forward", &t).clicked() {
+        acts.push(Action::Run("mail.forward", json!({})));
+    }
+    // Not to a reaction itself, a list's mail, or encrypted mail (it would go unencrypted).
+    if o.summary.is_none_or(|m| m.reaction.is_empty() && !m.bulk) && !p.bulk && r.security.as_ref().is_none_or(|sec| sec.lock.is_none()) {
+        reactions::react_button(ui, &t, acts);
+    }
+    // More, as Outlook's ⋯: Snooze, Print, Save and the rest.
+    let more = widgets::icon_more(ui, "More actions", &t);
+    egui::Popup::menu(&more).show(|ui| {
+        // Issue #274: Snooze beside the message, as the ribbon's (what's selected: the message
+        // open).
+        if !s.selection.is_empty() {
+            ui.menu_button(tl!("Snooze"), |ui| crate::organize::snooze_menu(ui, s, &t, acts));
+        }
+        if ui.button(tl!("Print")).on_hover_text(tl!("Open as a PDF to print")).clicked() {
+            acts.push(Action::Print);
+            ui.close();
+        }
+        if ui.button(tl!("Save as PDF…")).clicked() {
+            acts.push(Action::ExportPdf);
+            ui.close();
+        }
+        if ui.button(tl!("Save as email (.eml)…")).clicked() {
+            acts.push(Action::SaveMessage);
+            ui.close();
+        }
+        ui.separator();
+        if ui.button(tl!("Reply with meeting")).clicked() {
+            acts.push(Action::Dialog(crate::Dialog::meeting_from(s, p)));
+            ui.close();
+        }
+        // The message made into an event or a task of the user's own (issue #297).
+        if ui.button(tl!("Create event")).clicked() {
+            acts.push(Action::Dialog(crate::Dialog::event_from(s, p)));
+            ui.close();
+        }
+        if ui.button(tl!("Create task")).clicked() {
+            acts.push(Action::Dialog(crate::Dialog::task_from(s, p, s.summary(&r.key))));
+            ui.close();
+        }
+        if ui.button(tl!("Forward as attachment")).clicked() {
+            acts.push(Action::Run("mail.forwardAsAttachment", json!({})));
+            ui.close();
+        }
+        if ui.button(tl!("View message source")).clicked() {
+            acts.push(Action::Run("message.source", json!({"key": r.key.to_id()})));
+            ui.close();
+        }
+        plain_text_check(s, st, ui, &r.key, p, acts);
+        // In the dark theme: the message on a light page or the dark one (issue #109), here
+        // rather than a row of its own over the text.
+        if t.dark {
+            let mut light = s.prefs.light_messages;
+            if ui.checkbox(&mut light, tl!("Show messages on a light background")).clicked() {
+                acts.push(Action::Run("view.lightMessages", json!({})));
+                ui.close();
+            }
         }
     });
 }
@@ -238,9 +342,9 @@ fn outbox_says(item: &mailcraft_engine::store::OutboxItem, s: &Session) -> Strin
 /// What can be done with the message: one waiting in the Outbox is sent now, edited or deleted;
 /// a draft is carried on with or deleted; other mail is answered, printed, saved and the rest
 /// (not in a window of its own, whose ribbon has them).
-fn action_bar(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut Vec<Action>) {
+fn action_bar(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, beside: bool, acts: &mut Vec<Action>) {
     let t = st.tokens;
-    let (r, p) = (o.r, o.p);
+    let r = o.r;
     if let Some((_, item)) = s.outbox_entry(&r.key) {
         egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
             ui.label(RichText::new(outbox_says(&item, s)).color(t.text));
@@ -274,72 +378,9 @@ fn action_bar(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, acts: &mut V
                 acts.push(Action::Run("mail.delete", json!({})));
             }
         });
-    } else if !o.in_window {
-        // Wrapped: a narrow pane cut off Save and More.
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
-            if widgets::pill_button(ui, Icon::Reply, "Reply", &t).clicked() {
-                acts.push(Action::Run("mail.reply", json!({})));
-            }
-            if widgets::pill_button(ui, Icon::ReplyAll, "Reply all", &t).clicked() {
-                acts.push(Action::Run("mail.replyAll", json!({})));
-            }
-            if widgets::pill_button(ui, Icon::Forward, "Forward", &t).clicked() {
-                acts.push(Action::Run("mail.forward", json!({})));
-            }
-            // Not to a reaction itself, a list's mail, or encrypted mail (it would go
-            // unencrypted).
-            if o.summary.is_none_or(|m| m.reaction.is_empty() && !m.bulk) && !p.bulk && r.security.as_ref().is_none_or(|sec| sec.lock.is_none()) {
-                reactions::react_button(ui, &t, acts);
-            }
-            // Issue #274: Snooze beside the message, as the ribbon's (what's selected: the
-            // message open).
-            if !s.selection.is_empty() {
-                let snooze = widgets::pill_button(ui, Icon::Clock, "Snooze", &t);
-                egui::Popup::menu(&snooze).show(|ui| crate::organize::snooze_menu(ui, s, &t, acts));
-            }
-            ui.add_space(6.0);
-            if widgets::pill_button(ui, Icon::Print, "Print", &t).on_hover_text(tl!("Open as a PDF to print")).clicked() {
-                acts.push(Action::Print);
-            }
-            let more = widgets::pill_button(ui, Icon::File, "Save", &t);
-            egui::Popup::menu(&more).show(|ui| {
-                if ui.button(tl!("Save as PDF…")).clicked() {
-                    acts.push(Action::ExportPdf);
-                    ui.close();
-                }
-                if ui.button(tl!("Save as email (.eml)…")).clicked() {
-                    acts.push(Action::SaveMessage);
-                    ui.close();
-                }
-            });
-            // More, as Outlook's ⋯ beside Forward.
-            let more = widgets::more_pill(ui, "More actions", &t);
-            egui::Popup::menu(&more).show(|ui| {
-                if ui.button(tl!("Reply with meeting")).clicked() {
-                    acts.push(Action::Dialog(crate::Dialog::meeting_from(s, p)));
-                    ui.close();
-                }
-                // The message made into an event or a task of the user's own (issue #297).
-                if ui.button(tl!("Create event")).clicked() {
-                    acts.push(Action::Dialog(crate::Dialog::event_from(s, p)));
-                    ui.close();
-                }
-                if ui.button(tl!("Create task")).clicked() {
-                    acts.push(Action::Dialog(crate::Dialog::task_from(s, p, s.summary(&r.key))));
-                    ui.close();
-                }
-                if ui.button(tl!("Forward as attachment")).clicked() {
-                    acts.push(Action::Run("mail.forwardAsAttachment", json!({})));
-                    ui.close();
-                }
-                if ui.button(tl!("View message source")).clicked() {
-                    acts.push(Action::Run("message.source", json!({"key": r.key.to_id()})));
-                    ui.close();
-                }
-                plain_text_check(s, st, ui, &r.key, p, acts);
-            });
-        });
+    } else if !beside && has_actions(s, o) {
+        // A pane too narrow for them beside who it's from: on a row of their own.
+        ui.horizontal(|ui| message_actions(s, st, ui, o, acts));
     }
 }
 

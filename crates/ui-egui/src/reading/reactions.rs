@@ -14,7 +14,7 @@ use crate::{Action, widgets};
 
 /// The React button, beside Forward: a menu of the six reactions.
 pub(crate) fn react_button(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
-    let b = widgets::pill_button(ui, Icon::Smile, "React", t).on_hover_text(tl!("Send a reaction to everyone it went to"));
+    let b = widgets::icon_action(ui, Icon::Smile, "React", t);
     egui::Popup::menu(&b).show(|ui| {
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 2.0;

@@ -281,20 +281,22 @@ fn attachments_strip(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, f
     if files.is_empty() {
         return;
     }
-    ui.horizontal(|ui| {
-        ui.label(
-            RichText::new(if files.len() == 1 { tl!("1 attachment").to_string() } else { tf!("{n} attachments", n = files.len()) })
-                .color(t.dim)
-                .small(),
-        );
-        // Its text came first (issue #24): the files are on their way.
-        if r.text_first {
-            ui.add(egui::Spinner::new().size(11.0));
-            ui.label(RichText::new(tl!("Downloading the attachments…")).color(t.dim).small());
-        } else if files.len() > 1 && ui.link(RichText::new(tl!("Save all…")).small()).clicked() {
-            acts.push(Action::SaveAll);
-        }
-    });
+    // How many, over two or more (over one, it said what the chip under it shows); nothing over
+    // one but its chip.
+    if files.len() > 1 || r.text_first {
+        ui.horizontal(|ui| {
+            if files.len() > 1 {
+                ui.label(RichText::new(tf!("{n} attachments", n = files.len())).color(t.dim).small());
+            }
+            // Its text came first (issue #24): the files are on their way.
+            if r.text_first {
+                ui.add(egui::Spinner::new().size(11.0));
+                ui.label(RichText::new(tl!("Downloading the attachments…")).color(t.dim).small());
+            } else if files.len() > 1 && ui.link(RichText::new(tl!("Save all…")).small()).clicked() {
+                acts.push(Action::SaveAll);
+            }
+        });
+    }
     // Wrapped into rows, scrolling past three, as Outlook's are.
     widgets::chip_grid(ui, egui::Id::unique(("attachments", r.key.to_id())), files.len(), 240.0, 400.0, CHIP_H, 3, |ui, i, w| {
         if let Some(a) = files.get(i) {
@@ -336,21 +338,6 @@ fn message_text(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, format
             });
         });
         ui.add_space(6.0);
-    }
-    // In the dark theme: the message on a light page or the dark one, switched here too (issue #109).
-    if t.dark {
-        // A row of its own, its height only (a layout of the rest took all the height left, and
-        // the text went below the pane).
-        ui.allocate_ui_with_layout(vec2(ui.available_width(), 22.0), egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let (icon, tip) = if s.prefs.light_messages {
-                (Icon::Moon, "Show messages on the dark background")
-            } else {
-                (Icon::Sun, "Show messages on a light background")
-            };
-            if widgets::tiny_icon_button(ui, icon, tip, &t).clicked() {
-                acts.push(Action::Run("view.lightMessages", json!({})));
-            }
-        });
     }
     // Right under the kept header's line (the space between two parts of a column apart), a
     // second would make two with nothing between.
