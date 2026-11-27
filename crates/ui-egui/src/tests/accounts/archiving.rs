@@ -99,7 +99,8 @@ fn autoarchive_is_set_and_asks() {
     a.session.tick();
     frame(&ctx, &mut a, vec![]);
     assert!(matches!(a.ui.dialog, Some(Dialog::AutoArchiveDue)), "{:?}", a.ui.dialog);
-    click_named(&ctx, &mut a, "Cancel");
+    // Audit D22: Not now, which is what it does (it was Cancel).
+    click_named(&ctx, &mut a, "Not now");
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.dialog.is_none());
     assert_eq!(a.session.prefs.auto_archive.last_run, a.session.clock.now, "put off from now");
@@ -130,4 +131,24 @@ fn every_folder_follows_the_settings_only_once_saved() {
     click_named(&ctx, &mut a, "Save");
     frame(&ctx, &mut a, vec![]);
     assert!(a.session.prefs.auto_archive.folders.is_empty(), "Projects follows the settings now");
+}
+
+/// Audit D28: a folder's own AutoArchive file is filled in when its Properties open (the one
+/// suggested beside the data files), not left empty with Save off and nothing saying why; when
+/// it's emptied, the dialog says what Save waits for.
+#[test]
+fn a_folders_own_archive_file_is_suggested() {
+    let (mut a, dir) = app("folder-archive-path");
+    let ctx = egui::Context::default();
+    a.ui.data_folder = Some((dir.clone(), false));
+    let projects = a.session.folder("sample", "Projects").cloned().unwrap();
+    a.act(Action::Dialog(Dialog::folder_properties(&a.session, &projects)));
+    let Some(Dialog::FolderProperties { archive: Some(form), .. }) = a.ui.dialog.as_mut() else { panic!("no AutoArchive in its Properties") };
+    let dir = a.ui.data_folder.as_ref().map(|(d, _)| d.join("archive.pst").display().to_string());
+    assert_eq!(Some(form.rule.path.clone()), dir, "suggested");
+    form.mode = crate::dialogs::FolderMode::Own;
+    form.rule.path.clear();
+    frame(&ctx, &mut a, vec![]);
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 900.0));
+    assert!(texts.iter().any(|t| t == "Choose the file old mail goes to, or to delete it."), "{texts:?}");
 }

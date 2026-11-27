@@ -198,7 +198,7 @@ fn check_names(ui: &mut Ui, f: &mut CheckNamesForm, t: &Tokens, acts: &mut Vec<A
             });
         });
     });
-    let (ok, cancel) = buttons(ui, t, "OK", f.picked.is_some());
+    let (ok, cancel) = buttons(ui, t, "Use this address", f.picked.is_some());
     if cancel {
         return false;
     }

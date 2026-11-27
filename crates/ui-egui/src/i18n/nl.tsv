@@ -1219,9 +1219,7 @@ month	May	mei
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Importeer het .p12- of .pfx-bestand waarin uw certificaat kwam, of gebruik er een op een smartcard.
 	Look in the Keychain	In de sleutelhanger zoeken
 	Looking…	Zoeken…
-	The card's PIN	De pincode van de kaart
 	The key stays on the card; its PIN is kept in the system's keychain.	De sleutel blijft op de kaart; de pincode wordt in de sleutelhanger van het systeem bewaard.
-	The module your card came with (OpenSC's reads most cards):	De module die bij uw kaart hoort (die van OpenSC leest de meeste kaarten):
 	Use	Gebruiken
 	no certificate with its key was found	er is geen certificaat met zijn sleutel gevonden
 	the PIN is wrong, or the card is locked	de pincode is onjuist, of de kaart is geblokkeerd
@@ -1704,7 +1702,6 @@ month	May	mei
 	They come with their mail, or from a key file they gave you.	Ze komen mee met hun mail, of uit een sleutelbestand dat ze u gaven.
 	Import someone's key…	Sleutel van iemand importeren…
 	Import OpenPGP key	OpenPGP-sleutel importeren
-	The passphrase {file} is locked with (none, if it has none):	De wachtwoordzin waarmee {file} is beveiligd (leeg als er geen is):
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	Het geheime deel wordt in de sleutelhanger van het systeem bewaard, niet in de bestanden van MailCraft; de wachtwoordzin wordt niet bewaard.
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	dit account heeft geen OpenPGP-sleutel om het te ontsleutelen (Bestand › Info › Beveiliging)
 	it can't be decrypted with your OpenPGP key	het kan niet worden ontsleuteld met uw OpenPGP-sleutel
@@ -1891,7 +1888,6 @@ count	occurrences	keer
 	For folders without settings of their own	Voor mappen zonder eigen instellingen
 	Apply these settings to all folders now	Deze instellingen nu op alle mappen toepassen
 	Folders with settings of their own follow these instead	Mappen met eigen instellingen volgen dan deze
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	Er zijn {days} dagen voorbij: oude mail nu archiveren, zoals AutoArchiveren is ingesteld?
 	Archive now	Nu archiveren
 	Off: old mail stays where it is until you clean it up.	Uit: oude mail blijft waar die is tot u opruimt.
 	Every {days} days, old mail is archived by each folder's settings.	Elke {days} dagen wordt oude mail gearchiveerd volgens de instellingen van elke map.
@@ -2221,3 +2217,18 @@ count	occurrences	keer
 	Purple	Paars
 	Keyword on the server: {keyword}	Trefwoord op de server: {keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	Een regel archiveert, markeert of beantwoordt e-mail zodra die binnenkomt. ‘Nieuwe regel…’ maakt er een.
+	Use this address	Dit adres gebruiken
+	Not now	Niet nu
+	AutoArchive is due: archive old mail now, as it's set to?	Automatisch archiveren staat gepland: oude e-mail nu archiveren, zoals ingesteld?
+	Passphrase	Wachtwoordzin
+	Leave it empty if {file} has none.	Laat leeg als {file} er geen heeft.
+	Card module	Kaartmodule
+	Card PIN	Pincode van de kaart
+	The one your card came with. OpenSC's works with most cards.	De module die bij uw kaart hoort. Die van OpenSC werkt met de meeste kaarten.
+	No email certificates were found in Windows' Personal store.	Er zijn geen e-mailcertificaten gevonden in het persoonlijke archief van Windows.
+	No email certificates were found in the Keychain.	Er zijn geen e-mailcertificaten gevonden in de sleutelhanger.
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	Installeer het certificaat van uw organisatie of certificeringsinstantie in Windows, of importeer het bestand onder Beveiliging in Bestand › Opties.
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	Voeg het certificaat van uw organisatie of certificeringsinstantie toe aan de sleutelhanger, of importeer het bestand onder Beveiliging in Bestand › Opties.
+	No certificate with its key was found on the card.	Er is op de kaart geen certificaat met sleutel gevonden.
+	Check the card is in its reader and the module is the one it came with.	Controleer of de kaart in de lezer zit en of de module bij de kaart hoort.
+	Choose the file old mail goes to, or to delete it.	Kies het bestand voor oude e-mail, of kies ervoor die te verwijderen.

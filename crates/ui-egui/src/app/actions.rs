@@ -295,7 +295,17 @@ impl MailApp {
             Action::GuestsFromBook => self.guests_from_book(),
             Action::Submit(id, p) => self.submit(id, p),
             Action::Open(k) => self.run("list.open", json!({"key": k.to_id()})),
-            Action::Dialog(d) => self.ui.dialog = Some(d),
+            Action::Dialog(mut d) => {
+                // A folder's own AutoArchive file, when none is named yet: the one suggested
+                // beside the data files, as AutoArchive's settings suggest it (an empty box kept
+                // Save off, with nothing saying why).
+                if let (Dialog::FolderProperties { archive: Some(a), .. }, Some((dir, _))) = (&mut d, &self.ui.data_folder)
+                    && a.rule.path.trim().is_empty()
+                {
+                    a.rule.path = dir.join("archive.pst").display().to_string();
+                }
+                self.ui.dialog = Some(d);
+            }
             Action::FocusSearch => self.ui.focus_search = true,
             Action::FocusMain => self.ui.focus_main = true,
             Action::Backstage(p) => self.ui.backstage = Some(backstage::Backstage::new(p)),

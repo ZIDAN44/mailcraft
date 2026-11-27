@@ -45,6 +45,10 @@ impl CardSearch {
     }
 }
 
+/// What a look for certificates with their keys that found none says (the window says it in its
+/// own words, as nothing found, not as a failure).
+pub const NO_HELD_KEYS: &str = "no certificate with its key was found";
+
 impl Session {
     /// Look for certificates with their keys: on the cards `module` sees (`pin` logs in), or
     /// with none, in the system's keychain.
@@ -70,7 +74,7 @@ impl Session {
 
     pub(super) fn heard_held_keys(&mut self, keys: Vec<HeldKey>, error: Option<String>) {
         self.cards.searching = false;
-        self.cards.error = error.or_else(|| keys.is_empty().then(|| "no certificate with its key was found".to_string()));
+        self.cards.error = error.or_else(|| keys.is_empty().then(|| NO_HELD_KEYS.to_string()));
         self.cards.infos = keys.iter().map(|k| smime::cert::info(&k.cert).ok()).collect();
         self.cards.keys = keys;
     }

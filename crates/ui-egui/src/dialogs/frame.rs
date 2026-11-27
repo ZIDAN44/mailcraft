@@ -136,13 +136,23 @@ pub(super) fn danger_buttons(ui: &mut Ui, t: &Tokens, ok: &str, ok_enabled: bool
     pair(ui, t, widgets::ButtonKind::Danger, ok, ok_enabled)
 }
 
+/// A dialog's main button `ok` and another that leaves it as it is, called `other` where Cancel
+/// isn't what it does (AutoArchive's question: Not now, which asks again later).
+pub(super) fn buttons_or(ui: &mut Ui, t: &Tokens, ok: &str, other: &str, ok_enabled: bool) -> (bool, bool) {
+    pair_named(ui, t, widgets::ButtonKind::Primary, ok, other, ok_enabled)
+}
+
 fn pair(ui: &mut Ui, t: &Tokens, kind: widgets::ButtonKind, ok: &str, ok_enabled: bool) -> (bool, bool) {
+    pair_named(ui, t, kind, ok, "Cancel", ok_enabled)
+}
+
+fn pair_named(ui: &mut Ui, t: &Tokens, kind: widgets::ButtonKind, ok: &str, other: &str, ok_enabled: bool) -> (bool, bool) {
     let mut res = (false, false);
     if !in_footer(ui) {
         ui.add_space(10.0);
     }
     button_row(ui, |ui| {
-        res.1 = widgets::secondary_button(ui, "Cancel", t, true).clicked();
+        res.1 = widgets::secondary_button(ui, other, t, true).clicked();
         res.0 = widgets::dialog_button(ui, kind, ok, t, ok_enabled).clicked();
     });
     // Enter: the main button of a question (nothing in it has the keys), never one that deletes.

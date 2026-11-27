@@ -1223,9 +1223,7 @@ month	May	5月
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	匯入憑證附帶的 .p12 或 .pfx 檔案，或使用智慧卡上的憑證。
 	Look in the Keychain	在鑰匙圈中尋找
 	Looking…	正在尋找…
-	The card's PIN	卡片的 PIN 碼
 	The key stays on the card; its PIN is kept in the system's keychain.	金鑰留在卡上；PIN 碼保存在系統鑰匙圈中。
-	The module your card came with (OpenSC's reads most cards):	卡片附帶的模組（OpenSC 的模組能讀取大多數卡片）：
 	Use	使用
 	no certificate with its key was found	找不到帶有金鑰的憑證
 	the PIN is wrong, or the card is locked	PIN 碼錯誤，或卡片已被鎖定
@@ -1708,7 +1706,6 @@ month	May	5月
 	They come with their mail, or from a key file they gave you.	它們隨對方的郵件一起送達，或來自對方給你的金鑰檔案。
 	Import someone's key…	匯入別人的金鑰…
 	Import OpenPGP key	匯入 OpenPGP 金鑰
-	The passphrase {file} is locked with (none, if it has none):	保護 {file} 的密碼短語（沒有就留空）：
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	其私密部分保存在系統鑰匙圈中，而不在 MailCraft 的檔案裡；密碼短語不會保存。
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	此帳戶沒有可用於解密的 OpenPGP 金鑰（檔案 › 資訊 › 安全性）
 	it can't be decrypted with your OpenPGP key	無法用你的 OpenPGP 金鑰解密
@@ -1895,7 +1892,6 @@ count	occurrences	次
 	For folders without settings of their own	用於沒有自己設定的資料夾
 	Apply these settings to all folders now	立即將這些設定套用到所有資料夾
 	Folders with settings of their own follow these instead	有自己設定的資料夾也將改用這些設定
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	已經過了 {days} 天：要依自動封存的設定立即封存舊郵件嗎？
 	Archive now	立即封存
 	Off: old mail stays where it is until you clean it up.	關閉：舊郵件會留在原處，直到你自己清理。
 	Every {days} days, old mail is archived by each folder's settings.	每 {days} 天，依各資料夾的設定封存舊郵件。
@@ -2225,3 +2221,18 @@ count	occurrences	次
 	Purple	紫色
 	Keyword on the server: {keyword}	伺服器上的關鍵字：{keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	規則會在郵件送達時將其歸檔、標幟或回覆。「新規則…」可建立規則。
+	Use this address	使用此地址
+	Not now	稍後再說
+	AutoArchive is due: archive old mail now, as it's set to?	已到自動封存的時間：要依設定立即封存舊郵件嗎？
+	Passphrase	複雜密碼
+	Leave it empty if {file} has none.	如果 {file} 沒有，請留空。
+	Card module	卡片模組
+	Card PIN	卡片 PIN
+	The one your card came with. OpenSC's works with most cards.	卡片隨附的模組。OpenSC 的模組適用於大多數卡片。
+	No email certificates were found in Windows' Personal store.	在 Windows 的「個人」存放區中找不到電子郵件憑證。
+	No email certificates were found in the Keychain.	在鑰匙圈中找不到電子郵件憑證。
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	在 Windows 中安裝貴組織或憑證授權單位提供的憑證，或在「檔案 › 選項」的「安全性」中匯入其檔案。
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	將貴組織或憑證授權單位提供的憑證加入鑰匙圈，或在「檔案 › 選項」的「安全性」中匯入其檔案。
+	No certificate with its key was found on the card.	卡片上找不到含金鑰的憑證。
+	Check the card is in its reader and the module is the one it came with.	請檢查卡片是否在讀卡機中，以及模組是否為卡片隨附的模組。
+	Choose the file old mail goes to, or to delete it.	請選擇舊郵件要存入的檔案，或選擇刪除舊郵件。

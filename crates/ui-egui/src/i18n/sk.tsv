@@ -1238,9 +1238,7 @@ date	December	decembra
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Importujte súbor .p12 alebo .pfx, v ktorom ste dostali certifikát, alebo použite certifikát na čipovej karte.
 	Look in the Keychain	Hľadať v Kľúčenke
 	Looking…	Hľadá sa…
-	The card's PIN	PIN karty
 	The key stays on the card; its PIN is kept in the system's keychain.	Kľúč zostáva na karte; jej PIN sa uchováva v systémovej kľúčenke.
-	The module your card came with (OpenSC's reads most cards):	Modul dodaný s vašou kartou (modul OpenSC prečíta väčšinu kariet):
 	Use	Použiť
 	no certificate with its key was found	nenašiel sa žiadny certifikát s kľúčom
 	the PIN is wrong, or the card is locked	PIN je nesprávny alebo je karta zamknutá
@@ -1723,7 +1721,6 @@ date	December	decembra
 	They come with their mail, or from a key file they gave you.	Prichádzajú s ich poštou alebo zo súboru s kľúčom, ktorý vám dali.
 	Import someone's key…	Importovať kľúč inej osoby…
 	Import OpenPGP key	Importovať kľúč OpenPGP
-	The passphrase {file} is locked with (none, if it has none):	Prístupová fráza, ktorou je {file} zamknutý (žiadna, ak ju nemá):
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	Jeho tajná časť sa uchováva v systémovej kľúčenke, nie v súboroch MailCraftu; prístupová fráza sa neuchováva.
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	toto konto nemá kľúč OpenPGP, ktorým by sa dala dešifrovať (Súbor › Informácie › Zabezpečenie)
 	it can't be decrypted with your OpenPGP key	vaším kľúčom OpenPGP sa nedá dešifrovať
@@ -1910,7 +1907,6 @@ count	occurrences	opakovaní
 	For folders without settings of their own	Pre priečinky bez vlastných nastavení
 	Apply these settings to all folders now	Použiť tieto nastavenia na všetky priečinky teraz
 	Folders with settings of their own follow these instead	Priečinky s vlastnými nastaveniami sa namiesto nich budú riadiť týmito
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	Uplynulo {days} dní: archivovať starú poštu teraz, ako je nastavená automatická archivácia?
 	Archive now	Archivovať teraz
 	Off: old mail stays where it is until you clean it up.	Vypnuté: stará pošta zostane, kde je, kým ju neupracete.
 	Every {days} days, old mail is archived by each folder's settings.	Každých {days} dní sa stará pošta archivuje podľa nastavení každého priečinka.
@@ -2240,3 +2236,18 @@ count	occurrences	opakovaní
 	Purple	Fialová
 	Keyword on the server: {keyword}	Kľúčové slovo na serveri: {keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	Pravidlo zakladá, označuje alebo odpovedá na poštu, keď príde. „Nové pravidlo…“ ho vytvorí.
+	Use this address	Použiť túto adresu
+	Not now	Teraz nie
+	AutoArchive is due: archive old mail now, as it's set to?	Je čas na automatickú archiváciu: archivovať starú poštu teraz, ako je nastavené?
+	Passphrase	Prístupová fráza
+	Leave it empty if {file} has none.	Nechajte prázdne, ak ju {file} nemá.
+	Card module	Modul karty
+	Card PIN	PIN karty
+	The one your card came with. OpenSC's works with most cards.	Ten, ktorý patrí ku karte. Modul OpenSC funguje s väčšinou kariet.
+	No email certificates were found in Windows' Personal store.	V osobnom úložisku Windows sa nenašli žiadne e-mailové certifikáty.
+	No email certificates were found in the Keychain.	V kľúčenke sa nenašli žiadne e-mailové certifikáty.
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	Nainštalujte vo Windows certifikát od vašej organizácie alebo certifikačnej autority, alebo importujte jeho súbor v časti Zabezpečenie v Súbor › Možnosti.
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	Pridajte do kľúčenky certifikát od vašej organizácie alebo certifikačnej autority, alebo importujte jeho súbor v časti Zabezpečenie v Súbor › Možnosti.
+	No certificate with its key was found on the card.	Na karte sa nenašiel žiadny certifikát s kľúčom.
+	Check the card is in its reader and the module is the one it came with.	Skontrolujte, či je karta v čítačke a či je modul ten, ktorý k nej patrí.
+	Choose the file old mail goes to, or to delete it.	Vyberte súbor pre starú poštu alebo vyberte jej odstránenie.

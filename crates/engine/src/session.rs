@@ -54,8 +54,8 @@ pub use searching::{
     ServerSearch,
 };
 pub use security::{
-    CardSearch, KeySource, KnownCert, KnownKey, Lock, PGP_DOC, PgpSettings, Reach, RevocationCheck, SMIME_DOC, Scheme, Seal, Security, SignedBy,
-    SmimeSettings,
+    CardSearch, KeySource, KnownCert, KnownKey, Lock, NO_HELD_KEYS, PGP_DOC, PgpSettings, Reach, RevocationCheck, SMIME_DOC, Scheme, Seal, Security,
+    SignedBy, SmimeSettings,
 };
 pub use send_receive::{SendReceive, TransferRow};
 pub use updates::{UpdateCheck, newer_release};

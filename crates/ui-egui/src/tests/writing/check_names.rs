@@ -33,9 +33,10 @@ fn ctrl_k_in_to_puts_in_one_and_asks_about_several() {
     let (name, email) = f.asks[0].people[1].clone();
     // OK is off until someone's picked; then it puts them in, in place of what was typed.
     let names = named(&ctx, &mut a, windows::layout::SIZE.with(std::cell::Cell::get));
-    assert!(names.iter().any(|n| n.label.as_deref() == Some("OK") && n.disabled), "OK off");
+    // Audit D22: a button that says what it does (it was OK).
+    assert!(names.iter().any(|n| n.label.as_deref() == Some("Use this address") && n.disabled), "off until one is picked");
     click_named(&ctx, &mut a, &format!("{name}  <{email}>"));
-    click_named(&ctx, &mut a, "OK");
+    click_named(&ctx, &mut a, "Use this address");
     frame(&ctx, &mut a, vec![]);
     assert!(a.ui.dialog.is_none());
     assert_eq!(to(&a), format!("Zoe Park <zoe@studio.example>; {name} <{email}>; nobody-by-that-name; "));

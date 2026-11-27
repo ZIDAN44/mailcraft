@@ -1220,9 +1220,7 @@ month	May	5月
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	証明書が入っていた .p12 または .pfx ファイルをインポートするか、スマートカード上の証明書を使います。
 	Look in the Keychain	キーチェーンを探す
 	Looking…	探しています…
-	The card's PIN	カードの PIN
 	The key stays on the card; its PIN is kept in the system's keychain.	鍵はカードに残り、PIN はシステムのキーチェーンに保管されます。
-	The module your card came with (OpenSC's reads most cards):	カードに付属のモジュール (OpenSC のものはほとんどのカードを読めます):
 	Use	使う
 	no certificate with its key was found	鍵付きの証明書が見つかりませんでした
 	the PIN is wrong, or the card is locked	PIN が違うか、カードがロックされています
@@ -1705,7 +1703,6 @@ month	May	5月
 	They come with their mail, or from a key file they gave you.	相手のメールと一緒に届くか、受け取った鍵ファイルから取り込みます。
 	Import someone's key…	他の人の鍵を取り込む…
 	Import OpenPGP key	OpenPGP 鍵を取り込む
-	The passphrase {file} is locked with (none, if it has none):	{file} を保護しているパスフレーズ (ない場合は空欄):
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	秘密部分は MailCraft のファイルではなくシステムのキーチェーンに保管され、パスフレーズは保管されません。
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	このアカウントには復号に使う OpenPGP 鍵がありません (ファイル › 情報 › セキュリティ)
 	it can't be decrypted with your OpenPGP key	あなたの OpenPGP 鍵では復号できません
@@ -1892,7 +1889,6 @@ count	occurrences	回
 	For folders without settings of their own	独自の設定がないフォルダー
 	Apply these settings to all folders now	これらの設定を今すぐすべてのフォルダーに適用
 	Folders with settings of their own follow these instead	独自の設定があるフォルダーも、代わりにこれらの設定に従います
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} 日経過しました: 自動アーカイブの設定どおり、古いメールを今すぐアーカイブしますか?
 	Archive now	今すぐアーカイブ
 	Off: old mail stays where it is until you clean it up.	オフ: 古いメールは整理するまでそのままです。
 	Every {days} days, old mail is archived by each folder's settings.	{days} 日ごとに、各フォルダーの設定に従って古いメールをアーカイブします。
@@ -2222,3 +2218,18 @@ count	occurrences	回
 	Purple	紫
 	Keyword on the server: {keyword}	サーバー上のキーワード: {keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	ルールは届いたメールを整理、フラグ設定、返信します。[新しいルール…] で作成します。
+	Use this address	このアドレスを使う
+	Not now	後で
+	AutoArchive is due: archive old mail now, as it's set to?	自動アーカイブの時期です。設定どおり古いメールを今アーカイブしますか?
+	Passphrase	パスフレーズ
+	Leave it empty if {file} has none.	{file} にない場合は空のままにします。
+	Card module	カード モジュール
+	Card PIN	カードの PIN
+	The one your card came with. OpenSC's works with most cards.	カードに付属のものです。OpenSC のものはほとんどのカードで使えます。
+	No email certificates were found in Windows' Personal store.	Windows の個人ストアにメール用の証明書が見つかりませんでした。
+	No email certificates were found in the Keychain.	キーチェーンにメール用の証明書が見つかりませんでした。
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	組織または証明機関から受け取った証明書を Windows にインストールするか、[ファイル] › [オプション] の [セキュリティ] でそのファイルをインポートします。
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	組織または証明機関から受け取った証明書をキーチェーンに追加するか、[ファイル] › [オプション] の [セキュリティ] でそのファイルをインポートします。
+	No certificate with its key was found on the card.	カードにキー付きの証明書が見つかりませんでした。
+	Check the card is in its reader and the module is the one it came with.	カードがリーダーに入っていて、モジュールがカード付属のものか確認してください。
+	Choose the file old mail goes to, or to delete it.	古いメールの保存先ファイルを選ぶか、削除を選んでください。

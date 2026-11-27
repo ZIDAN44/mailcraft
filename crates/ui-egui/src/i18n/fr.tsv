@@ -1224,9 +1224,7 @@ month	May	mai
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Importez le fichier .p12 ou .pfx dans lequel votre certificat est arrivé, ou utilisez-en un sur une carte à puce.
 	Look in the Keychain	Chercher dans le trousseau
 	Looking…	Recherche…
-	The card's PIN	Le code PIN de la carte
 	The key stays on the card; its PIN is kept in the system's keychain.	La clé reste sur la carte ; son code PIN est gardé dans le trousseau du système.
-	The module your card came with (OpenSC's reads most cards):	Le module fourni avec votre carte (celui d'OpenSC lit la plupart des cartes) :
 	Use	Utiliser
 	no certificate with its key was found	aucun certificat avec sa clé n'a été trouvé
 	the PIN is wrong, or the card is locked	le code PIN est faux, ou la carte est bloquée
@@ -1709,7 +1707,6 @@ month	May	mai
 	They come with their mail, or from a key file they gave you.	Elles arrivent avec leur courrier, ou d'un fichier de clé qu'elles vous ont donné.
 	Import someone's key…	Importer la clé de quelqu'un…
 	Import OpenPGP key	Importer une clé OpenPGP
-	The passphrase {file} is locked with (none, if it has none):	La phrase secrète qui protège {file} (vide, s'il n'en a pas) :
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	Sa partie secrète est conservée dans le trousseau du système, pas dans les fichiers de MailCraft ; la phrase secrète n'est pas conservée.
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	ce compte n'a pas de clé OpenPGP pour le déchiffrer (Fichier › Informations › Sécurité)
 	it can't be decrypted with your OpenPGP key	il ne peut pas être déchiffré avec votre clé OpenPGP
@@ -1896,7 +1893,6 @@ count	occurrences	occurrences
 	For folders without settings of their own	Pour les dossiers sans paramètres propres
 	Apply these settings to all folders now	Appliquer ces paramètres à tous les dossiers maintenant
 	Folders with settings of their own follow these instead	Les dossiers qui ont leurs propres paramètres suivent ceux-ci à la place
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} jours ont passé : archiver maintenant les anciens messages, comme l'archivage automatique est réglé ?
 	Archive now	Archiver maintenant
 	Off: old mail stays where it is until you clean it up.	Désactivé : les anciens messages restent où ils sont jusqu'à ce que vous fassiez le ménage.
 	Every {days} days, old mail is archived by each folder's settings.	Tous les {days} jours, les anciens messages sont archivés selon les paramètres de chaque dossier.
@@ -2226,3 +2222,18 @@ count	occurrences	occurrences
 	Purple	Violet
 	Keyword on the server: {keyword}	Mot-clé sur le serveur : {keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	Une règle classe, marque ou répond au courrier à son arrivée. « Nouvelle règle… » en crée une.
+	Use this address	Utiliser cette adresse
+	Not now	Pas maintenant
+	AutoArchive is due: archive old mail now, as it's set to?	L'archivage automatique est prévu : archiver l'ancien courrier maintenant, comme il est réglé ?
+	Passphrase	Phrase secrète
+	Leave it empty if {file} has none.	Laissez vide si {file} n'en a pas.
+	Card module	Module de la carte
+	Card PIN	Code PIN de la carte
+	The one your card came with. OpenSC's works with most cards.	Celui fourni avec votre carte. Celui d'OpenSC fonctionne avec la plupart des cartes.
+	No email certificates were found in Windows' Personal store.	Aucun certificat de messagerie n'a été trouvé dans le magasin Personnel de Windows.
+	No email certificates were found in the Keychain.	Aucun certificat de messagerie n'a été trouvé dans le trousseau.
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	Installez dans Windows celui que vous a remis votre organisation ou autorité de certification, ou importez son fichier dans Sécurité, sous Fichier › Options.
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	Ajoutez au trousseau celui que vous a remis votre organisation ou autorité de certification, ou importez son fichier dans Sécurité, sous Fichier › Options.
+	No certificate with its key was found on the card.	Aucun certificat avec sa clé n'a été trouvé sur la carte.
+	Check the card is in its reader and the module is the one it came with.	Vérifiez que la carte est dans son lecteur et que le module est celui fourni avec elle.
+	Choose the file old mail goes to, or to delete it.	Choisissez le fichier où va l'ancien courrier, ou choisissez de le supprimer.

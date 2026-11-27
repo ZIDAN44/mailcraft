@@ -637,3 +637,25 @@ fn the_status_shows_only_problems_and_work() {
     let password = said.iter().find(|d| d.text.contains("Password needed")).expect("said");
     assert!(password.rect.top() > ribbon && password.rect.top() < ribbon + 40.0, "under the ribbon: {:?}", password.rect);
 }
+
+/// Audit D20: automatic replies' days are picked from a month or typed in the user's own order,
+/// as an event's are (they were typed as YYYY-MM-DD).
+#[test]
+fn automatic_replies_days_are_picked() {
+    let (mut a, _) = app("vacation-days");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let mut d = Dialog::vacation("sample", &Default::default(), false);
+    if let Dialog::Vacation(f) = &mut d {
+        f.enabled = true;
+        f.dated = true;
+        f.from = "2026-12-21".into();
+    }
+    a.ui.dialog = Some(d);
+    let size = egui::vec2(1280.0, 900.0);
+    for _ in 0..3 {
+        let _ = drawn_text(&ctx, &mut a, size);
+    }
+    let picks = named(&ctx, &mut a, size).into_iter().filter(|n| n.label.as_deref() == Some("Pick a date")).count();
+    assert_eq!(picks, 2, "From and Until each picked from a month");
+}

@@ -20,7 +20,7 @@ mod pgp;
 mod reading;
 mod revocation;
 pub(crate) use addresses::OwnCerts;
-pub use cards::CardSearch;
+pub use cards::{CardSearch, NO_HELD_KEYS};
 pub(crate) use opened::Opened;
 pub(crate) use pgp::PgpState;
 pub use pgp::{KeySource, KnownKey, PGP_DOC, PgpSettings, Reach, Scheme};

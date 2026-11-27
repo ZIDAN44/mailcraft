@@ -74,3 +74,27 @@ fn measure_held_keys_dialog() {
         h.finish()
     );
 }
+
+/// Audit D25: a look that found nothing says so, and what to do instead, not as an error in red
+/// under the dialog's description alone; a card's has Find certificates as its main button.
+#[test]
+fn nothing_found_says_what_to_do_instead() {
+    let (mut a, _) = app("held-keys-none");
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    a.session.apply(MailEvent::HeldKeys { keys: vec![], error: None });
+    let texts: Vec<String> = held_drawn(&ctx, &mut a).into_iter().map(|(t, _)| t).collect();
+    let said = if cfg!(windows) {
+        "No email certificates were found in Windows' Personal store."
+    } else {
+        "No email certificates were found in the Keychain."
+    };
+    assert!(texts.iter().any(|t| t == said), "{texts:?}");
+    assert!(!texts.iter().any(|t| t == mailcraft_engine::NO_HELD_KEYS), "not the engine's words: {texts:?}");
+    // A card's: the same, in its words, under its fields, with Find certificates to press.
+    a.ui.dialog = Some(Dialog::SmartCard { account: "sample".into(), module: "opensc-pkcs11".into(), pin: String::new(), system: false });
+    frame(&ctx, &mut a, vec![]);
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    assert!(texts.iter().any(|t| t == "No certificate with its key was found on the card."), "{texts:?}");
+    assert!(texts.iter().any(|t| t == "Find certificates") && texts.iter().any(|t| t == "Card module"), "{texts:?}");
+}

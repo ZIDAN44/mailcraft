@@ -1219,9 +1219,7 @@ month	May	מאי
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	ייבא את קובץ ה־‎.p12 או ה־‎.pfx שבו הגיעה התעודה שלך, או השתמש בתעודה שעל כרטיס חכם.
 	Look in the Keychain	חיפוש במחזיק המפתחות
 	Looking…	מחפשים…
-	The card's PIN	קוד ה־PIN של הכרטיס
 	The key stays on the card; its PIN is kept in the system's keychain.	המפתח נשאר על הכרטיס; קוד ה־PIN נשמר במחזיק המפתחות של המערכת.
-	The module your card came with (OpenSC's reads most cards):	המודול שהגיע עם הכרטיס (המודול של OpenSC קורא את רוב הכרטיסים):
 	Use	שימוש
 	no certificate with its key was found	לא נמצאה תעודה עם המפתח שלה
 	the PIN is wrong, or the card is locked	קוד ה־PIN שגוי, או שהכרטיס נעול
@@ -1704,7 +1702,6 @@ month	May	מאי
 	They come with their mail, or from a key file they gave you.	הם מגיעים עם הדואר שלהם, או מקובץ מפתח שהם נתנו לכם.
 	Import someone's key…	ייבוא מפתח של מישהו…
 	Import OpenPGP key	ייבוא מפתח OpenPGP
-	The passphrase {file} is locked with (none, if it has none):	משפט הסיסמה ש־{file} נעול בו (ריק, אם אין לו):
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	החלק הסודי שלו נשמר במחזיק המפתחות של המערכת, לא בקבצים של MailCraft; משפט הסיסמה לא נשמר.
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	לחשבון הזה אין מפתח OpenPGP לפענוח (קובץ › מידע › אבטחה)
 	it can't be decrypted with your OpenPGP key	אי אפשר לפענח אותה במפתח OpenPGP שלך
@@ -1891,7 +1888,6 @@ count	occurrences	פעמים
 	For folders without settings of their own	לתיקיות בלי הגדרות משלהן
 	Apply these settings to all folders now	החלת ההגדרות האלה על כל התיקיות עכשיו
 	Folders with settings of their own follow these instead	תיקיות עם הגדרות משלהן יפעלו לפי ההגדרות האלה במקומן
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	עברו {days} ימים: להעביר עכשיו לארכיון את הדואר הישן, כפי שהעברה אוטומטית לארכיון מוגדרת?
 	Archive now	העברה לארכיון עכשיו
 	Off: old mail stays where it is until you clean it up.	כבוי: הדואר הישן נשאר במקומו עד שתנקו אותו.
 	Every {days} days, old mail is archived by each folder's settings.	כל {days} ימים, דואר ישן עובר לארכיון לפי ההגדרות של כל תיקייה.
@@ -2221,3 +2217,18 @@ count	occurrences	פעמים
 	Purple	סגול
 	Keyword on the server: {keyword}	מילת מפתח בשרת: {keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	כלל מתייק, מסמן או עונה לדואר כשהוא מגיע. "כלל חדש…" יוצר כלל.
+	Use this address	שימוש בכתובת זו
+	Not now	לא עכשיו
+	AutoArchive is due: archive old mail now, as it's set to?	הגיע זמן הארכוב האוטומטי: להעביר עכשיו דואר ישן לארכיון, כפי שהוגדר?
+	Passphrase	ביטוי סיסמה
+	Leave it empty if {file} has none.	יש להשאיר ריק אם ל-{file} אין.
+	Card module	מודול הכרטיס
+	Card PIN	קוד PIN של הכרטיס
+	The one your card came with. OpenSC's works with most cards.	המודול שהגיע עם הכרטיס. המודול של OpenSC עובד עם רוב הכרטיסים.
+	No email certificates were found in Windows' Personal store.	לא נמצאו אישורי דואר אלקטרוני במאגר האישי של Windows.
+	No email certificates were found in the Keychain.	לא נמצאו אישורי דואר אלקטרוני במחזיק המפתחות.
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	יש להתקין ב-Windows את האישור שקיבלת מהארגון או מרשות האישורים, או לייבא את הקובץ שלו באבטחה בקובץ › אפשרויות.
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	יש להוסיף למחזיק המפתחות את האישור שקיבלת מהארגון או מרשות האישורים, או לייבא את הקובץ שלו באבטחה בקובץ › אפשרויות.
+	No certificate with its key was found on the card.	לא נמצא בכרטיס אישור עם המפתח שלו.
+	Check the card is in its reader and the module is the one it came with.	יש לוודא שהכרטיס נמצא בקורא ושהמודול הוא זה שהגיע איתו.
+	Choose the file old mail goes to, or to delete it.	יש לבחור את הקובץ שאליו יעבור הדואר הישן, או לבחור למחוק אותו.

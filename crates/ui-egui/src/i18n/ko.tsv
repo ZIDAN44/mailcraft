@@ -1223,9 +1223,7 @@ month	May	5월
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	인증서가 들어 있던 .p12 또는 .pfx 파일을 가져오거나, 스마트 카드의 인증서를 사용하세요.
 	Look in the Keychain	키체인에서 찾기
 	Looking…	찾는 중…
-	The card's PIN	카드 PIN
 	The key stays on the card; its PIN is kept in the system's keychain.	키는 카드에 남고, PIN은 시스템 키체인에 보관됩니다.
-	The module your card came with (OpenSC's reads most cards):	카드와 함께 제공된 모듈 (OpenSC 모듈은 대부분의 카드를 읽습니다):
 	Use	사용
 	no certificate with its key was found	키가 있는 인증서를 찾지 못했습니다
 	the PIN is wrong, or the card is locked	PIN이 틀렸거나 카드가 잠겨 있습니다
@@ -1708,7 +1706,6 @@ month	May	5월
 	They come with their mail, or from a key file they gave you.	그 사람들의 메일과 함께 오거나, 받은 키 파일에서 가져옵니다.
 	Import someone's key…	다른 사람의 키 가져오기…
 	Import OpenPGP key	OpenPGP 키 가져오기
-	The passphrase {file} is locked with (none, if it has none):	{file}을(를) 보호하는 암호 문구 (없으면 비워 두기):
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	비밀 부분은 MailCraft의 파일이 아니라 시스템 키체인에 보관되며, 암호 문구는 보관되지 않습니다.
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	이 계정에는 해독할 OpenPGP 키가 없습니다 (파일 › 정보 › 보안)
 	it can't be decrypted with your OpenPGP key	내 OpenPGP 키로 해독할 수 없습니다
@@ -1895,7 +1892,6 @@ count	occurrences	회
 	For folders without settings of their own	자체 설정이 없는 폴더
 	Apply these settings to all folders now	지금 모든 폴더에 이 설정 적용
 	Folders with settings of their own follow these instead	자체 설정이 있는 폴더도 대신 이 설정을 따릅니다
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days}일이 지났습니다. 자동 보관 설정대로 지금 오래된 메일을 보관할까요?
 	Archive now	지금 보관
 	Off: old mail stays where it is until you clean it up.	꺼짐: 정리할 때까지 오래된 메일은 그대로 있습니다.
 	Every {days} days, old mail is archived by each folder's settings.	{days}일마다 각 폴더의 설정에 따라 오래된 메일을 보관합니다.
@@ -2225,3 +2221,18 @@ count	occurrences	회
 	Purple	보라
 	Keyword on the server: {keyword}	서버의 키워드: {keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	규칙은 메일이 도착할 때 정리하거나 플래그를 지정하거나 회신합니다. '새 규칙…'으로 만듭니다.
+	Use this address	이 주소 사용
+	Not now	나중에
+	AutoArchive is due: archive old mail now, as it's set to?	자동 보관할 때가 되었습니다. 설정대로 지금 오래된 메일을 보관할까요?
+	Passphrase	암호 문구
+	Leave it empty if {file} has none.	{file}에 없으면 비워 두세요.
+	Card module	카드 모듈
+	Card PIN	카드 PIN
+	The one your card came with. OpenSC's works with most cards.	카드와 함께 제공된 모듈입니다. OpenSC 모듈은 대부분의 카드에서 작동합니다.
+	No email certificates were found in Windows' Personal store.	Windows 개인 저장소에서 메일 인증서를 찾지 못했습니다.
+	No email certificates were found in the Keychain.	키체인에서 메일 인증서를 찾지 못했습니다.
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	조직이나 인증 기관에서 받은 인증서를 Windows에 설치하거나, 파일 › 옵션의 보안에서 해당 파일을 가져오세요.
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	조직이나 인증 기관에서 받은 인증서를 키체인에 추가하거나, 파일 › 옵션의 보안에서 해당 파일을 가져오세요.
+	No certificate with its key was found on the card.	카드에서 키가 있는 인증서를 찾지 못했습니다.
+	Check the card is in its reader and the module is the one it came with.	카드가 리더기에 있고 모듈이 카드와 함께 제공된 것인지 확인하세요.
+	Choose the file old mail goes to, or to delete it.	오래된 메일을 보낼 파일을 고르거나 삭제를 선택하세요.

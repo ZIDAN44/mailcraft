@@ -31,9 +31,9 @@ pub use session::camel as setting_key;
 pub use session::{
     ACCENTS, ARRANGE_HEADINGS, AccountState, AgeUnit, ArchiveRule, Arrange, AutoArchive, BY_ORGANISATION, BodyWork, CardSearch, Changes, Compacting,
     Compaction, Compose, CtrlEnter, DETAILS, Drafted, Filed, FolderArchive, FolderDensity, FolderRef, IDLE_AFTER_S, ImportState, Imports, IndexPass,
-    KeySource, KnownCert, KnownKey, ListFilter, Lock, MoveTarget, NORMAL_TEXT, NotesOrder, Notice, ORG_SETTINGS, PANICS_CAUGHT, PGP_DOC,
-    PINNED_HEADING, PaneSection, PersonActivity, PersonFile, PersonLink, PersonMeeting, PersonPeer, PersonThread, PgpSettings, Picture, Prefs,
-    PreparedBody, Quote, ROW_ACTIONS_MAX, Reach, Reactions, ReadInPane, Reading, ReadingPane, RevocationCheck, Row, RowAction, SMIME_DOC,
+    KeySource, KnownCert, KnownKey, ListFilter, Lock, MoveTarget, NO_HELD_KEYS, NORMAL_TEXT, NotesOrder, Notice, ORG_SETTINGS, PANICS_CAUGHT,
+    PGP_DOC, PINNED_HEADING, PaneSection, PersonActivity, PersonFile, PersonLink, PersonMeeting, PersonPeer, PersonThread, PgpSettings, Picture,
+    Prefs, PreparedBody, Quote, ROW_ACTIONS_MAX, Reach, Reactions, ReadInPane, Reading, ReadingPane, RevocationCheck, Row, RowAction, SMIME_DOC,
     SOURCE_SHOWN, Scheme, Seal, SearchProgress, SearchScope, SearchStats, SearchWork, Security, SendBlock, SendCheck, SendReceive, SenderAddresses,
     SenderMarks, ServerSearch, Session, SignedBy, SmimeSettings, SourceView, StartIn, TEXT_SIZE_RANGE, TEXT_SIZES, TransferRow, TrustedCertificate,
     UNDO_SEND_MAX, UndoHold, UpdateCheck, VacationState, View, accent_code, accent_rgb,

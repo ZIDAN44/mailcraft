@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     match d {
         Dialog::Signature(f) => super::signatures::draw(ui, f, s, t, acts),
-        Dialog::Vacation(f) => vacation(ui, f, t, acts),
+        Dialog::Vacation(f) => vacation(ui, f, s, t, acts),
         // Every other kind is shown by its own group (`body`).
         _ => true,
     }
@@ -88,7 +88,7 @@ impl VacationForm {
     }
 }
 
-pub(super) fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+pub(super) fn vacation(ui: &mut Ui, f: &mut VacationForm, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(crate::sizes::DIALOG_L);
     title(ui, t, "Automatic replies");
     ui.label(
@@ -130,7 +130,7 @@ pub(super) fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut
         );
     }
     ui.add_space(8.0);
-    ui.add_enabled_ui(theirs.is_none(), |ui| form(ui, f));
+    ui.add_enabled_ui(theirs.is_none(), |ui| form(ui, f, s.clock.style.order, t));
     if let Some(e) = &f.error {
         ui.add_space(6.0);
         field_error(ui, t, e);
@@ -144,18 +144,21 @@ pub(super) fn vacation(ui: &mut Ui, f: &mut VacationForm, t: &Tokens, acts: &mut
 }
 
 /// The replies' fields.
-fn form(ui: &mut Ui, f: &mut VacationForm) {
+fn form(ui: &mut Ui, f: &mut VacationForm, order: mailcraft_engine::model::dates::DateOrder, t: &Tokens) {
     ui.radio_value(&mut f.enabled, false, tl!("Don't send automatic replies"));
     ui.radio_value(&mut f.enabled, true, tl!("Send automatic replies"));
     ui.add_enabled_ui(f.enabled, |ui| {
         ui.add_space(4.0);
         ui.checkbox(&mut f.dated, tl!("Only between these days"));
         if f.dated {
+            // Picked from a month or typed in the user's own order, as an event's days are (they
+            // were typed as YYYY-MM-DD).
             ui.horizontal(|ui| {
                 ui.label(tl!("From"));
-                ui.add_sized([110.0, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.from).hint_text("YYYY-MM-DD"));
+                crate::pim_dialogs::date_field(ui, t, "vacation-from", &mut f.from, order, None);
+                ui.add_space(8.0);
                 ui.label(tl!("Until"));
-                ui.add_sized([110.0, crate::sizes::CONTROL_H], egui::TextEdit::singleline(&mut f.until).hint_text("YYYY-MM-DD"));
+                crate::pim_dialogs::date_field(ui, t, "vacation-until", &mut f.until, order, None);
             });
         }
         ui.add_space(4.0);

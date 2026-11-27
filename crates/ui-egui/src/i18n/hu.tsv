@@ -1225,9 +1225,7 @@ month	May	május
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Importáld a tanúsítványt tartalmazó .p12 vagy .pfx fájlt, vagy használj intelligens kártyán tárolt tanúsítványt.
 	Look in the Keychain	Keresés a Kulcskarikában
 	Looking…	Keresés…
-	The card's PIN	A kártya PIN-kódja
 	The key stays on the card; its PIN is kept in the system's keychain.	A kulcs a kártyán marad, a PIN-kódot pedig a rendszer jelszótárolója őrzi.
-	The module your card came with (OpenSC's reads most cards):	A kártyához tartozó modul (az OpenSC modulja a legtöbb kártyát kezeli):
 	Use	Használat
 	no certificate with its key was found	nem található olyan tanúsítvány, amelyhez a kulcs is elérhető
 	the PIN is wrong, or the card is locked	hibás a PIN-kód, vagy zárolva van a kártya
@@ -1710,7 +1708,6 @@ month	May	május
 	They come with their mail, or from a key file they gave you.	A kulcsok a leveleikkel érkeznek, vagy az általuk átadott kulcsfájlból importálhatók.
 	Import someone's key…	Más személy kulcsának importálása…
 	Import OpenPGP key	OpenPGP-kulcs importálása
-	The passphrase {file} is locked with (none, if it has none):	A(z) {file} jelszava (ha nincs jelszava, hagyd üresen):
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	A titkos részt a rendszer jelszótárolója őrzi, nem a MailCraft saját fájljai. A jelszót a program nem tárolja.
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	ehhez a fiókhoz nincs a visszafejtéshez használható OpenPGP-kulcs (Fájl › Információ › Tanúsítványok és titkosítás)
 	it can't be decrypted with your OpenPGP key	az OpenPGP-kulcsoddal nem fejthető vissza
@@ -1897,7 +1894,6 @@ count	occurrences	előfordulás
 	For folders without settings of their own	Saját beállítások nélküli mappákhoz
 	Apply these settings to all folders now	Beállítások alkalmazása most az összes mappára
 	Folders with settings of their own follow these instead	A saját beállításokkal rendelkező mappák ehelyett az itt megadott beállításokat fogják használni
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	Eltelt {days} nap. Archiválja most a régi e-maileket az automatikus archiválás beállításai szerint?
 	Archive now	Archiválás most
 	Off: old mail stays where it is until you clean it up.	Ki: A régi e-mailek a helyükön maradnak, amíg kézzel nem rendezi őket.
 	Every {days} days, old mail is archived by each folder's settings.	A régi e-mailek archiválása {days} naponta történik, az egyes mappák beállításai szerint.
@@ -2226,3 +2222,18 @@ count	occurrences	előfordulás
 	Purple	Lila
 	Keyword on the server: {keyword}	Kulcsszó a kiszolgálón: {keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	A szabály beérkezéskor mappába teszi, megjelöli vagy megválaszolja a leveleket. Az „Új szabály…” létrehoz egyet.
+	Use this address	Ez a cím legyen
+	Not now	Most nem
+	AutoArchive is due: archive old mail now, as it's set to?	Esedékes az automatikus archiválás: archiválja most a régi leveleket a beállítás szerint?
+	Passphrase	Jelmondat
+	Leave it empty if {file} has none.	Hagyja üresen, ha a(z) {file} fájlnak nincs.
+	Card module	Kártyamodul
+	Card PIN	Kártya PIN-kódja
+	The one your card came with. OpenSC's works with most cards.	Amelyiket a kártyához kapta. Az OpenSC-é a legtöbb kártyával működik.
+	No email certificates were found in Windows' Personal store.	A Windows Személyes tárolójában nincs e-mail-tanúsítvány.
+	No email certificates were found in the Keychain.	A kulcskarikában nincs e-mail-tanúsítvány.
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	Telepítse a Windowsba a szervezetétől vagy hitelesítésszolgáltatótól kapottat, vagy importálja a fájlját a Fájl › Beállítások Tanúsítványok és titkosítás részében.
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	Adja hozzá a kulcskarikához a szervezetétől vagy hitelesítésszolgáltatótól kapottat, vagy importálja a fájlját a Fájl › Beállítások Tanúsítványok és titkosítás részében.
+	No certificate with its key was found on the card.	A kártyán nincs tanúsítvány a kulcsával együtt.
+	Check the card is in its reader and the module is the one it came with.	Ellenőrizze, hogy a kártya az olvasóban van-e, és a modul az, amelyiket hozzá kapta.
+	Choose the file old mail goes to, or to delete it.	Válassza ki a fájlt, ahová a régi levelek kerülnek, vagy válassza a törlésüket.

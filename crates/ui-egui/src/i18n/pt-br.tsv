@@ -1224,9 +1224,7 @@ month	May	maio
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Importe o arquivo .p12 ou .pfx em que seu certificado veio, ou use um em um cartão inteligente.
 	Look in the Keychain	Procurar nas Chaves
 	Looking…	Procurando…
-	The card's PIN	O PIN do cartão
 	The key stays on the card; its PIN is kept in the system's keychain.	A chave fica no cartão; o PIN é guardado no chaveiro do sistema.
-	The module your card came with (OpenSC's reads most cards):	O módulo que veio com o cartão (o do OpenSC lê a maioria):
 	Use	Usar
 	no certificate with its key was found	nenhum certificado com sua chave foi encontrado
 	the PIN is wrong, or the card is locked	o PIN está errado, ou o cartão está bloqueado
@@ -1709,7 +1707,6 @@ month	May	maio
 	They come with their mail, or from a key file they gave you.	Elas vêm com os e-mails delas, ou de um arquivo de chave que elas te deram.
 	Import someone's key…	Importar a chave de alguém…
 	Import OpenPGP key	Importar chave OpenPGP
-	The passphrase {file} is locked with (none, if it has none):	A frase secreta que protege {file} (vazia, se não houver):
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	A parte secreta fica no chaveiro do sistema, não nos arquivos do MailCraft; a frase secreta não é guardada.
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	esta conta não tem chave OpenPGP para descriptografá-la (Arquivo › Informações › Segurança)
 	it can't be decrypted with your OpenPGP key	não é possível descriptografá-la com sua chave OpenPGP
@@ -1896,7 +1893,6 @@ count	occurrences	ocorrências
 	For folders without settings of their own	Para pastas sem configurações próprias
 	Apply these settings to all folders now	Aplicar estas configurações a todas as pastas agora
 	Folders with settings of their own follow these instead	As pastas com configurações próprias passam a seguir estas
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	Já se passaram {days} dias: arquivar agora os e-mails antigos, como o AutoArquivar está configurado?
 	Archive now	Arquivar agora
 	Off: old mail stays where it is until you clean it up.	Desativado: os e-mails antigos ficam onde estão até você limpá-los.
 	Every {days} days, old mail is archived by each folder's settings.	A cada {days} dias, os e-mails antigos são arquivados conforme as configurações de cada pasta.
@@ -2226,3 +2222,18 @@ count	occurrences	ocorrências
 	Purple	Roxo
 	Keyword on the server: {keyword}	Palavra-chave no servidor: {keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	Uma regra arquiva, sinaliza ou responde e-mails assim que chegam. “Nova regra…” cria uma.
+	Use this address	Usar este endereço
+	Not now	Agora não
+	AutoArchive is due: archive old mail now, as it's set to?	É hora do AutoArquivar: arquivar os e-mails antigos agora, como está configurado?
+	Passphrase	Frase secreta
+	Leave it empty if {file} has none.	Deixe em branco se {file} não tiver.
+	Card module	Módulo do cartão
+	Card PIN	PIN do cartão
+	The one your card came with. OpenSC's works with most cards.	O que veio com o cartão. O do OpenSC funciona com a maioria dos cartões.
+	No email certificates were found in Windows' Personal store.	Nenhum certificado de e-mail foi encontrado no repositório Pessoal do Windows.
+	No email certificates were found in the Keychain.	Nenhum certificado de e-mail foi encontrado nas Chaves.
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	Instale no Windows o certificado que sua organização ou autoridade certificadora lhe deu, ou importe o arquivo em Segurança, em Arquivo › Opções.
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	Adicione às Chaves o certificado que sua organização ou autoridade certificadora lhe deu, ou importe o arquivo em Segurança, em Arquivo › Opções.
+	No certificate with its key was found on the card.	Nenhum certificado com chave foi encontrado no cartão.
+	Check the card is in its reader and the module is the one it came with.	Verifique se o cartão está no leitor e se o módulo é o que veio com ele.
+	Choose the file old mail goes to, or to delete it.	Escolha o arquivo para onde vão os e-mails antigos, ou escolha excluí-los.

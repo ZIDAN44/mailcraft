@@ -1237,9 +1237,7 @@ date	December	декабря
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Импортируйте файл .p12 или .pfx, в котором пришёл сертификат, или используйте сертификат со смарт-карты.
 	Look in the Keychain	Искать в связке ключей
 	Looking…	Поиск…
-	The card's PIN	PIN-код карты
 	The key stays on the card; its PIN is kept in the system's keychain.	Ключ остаётся на карте; PIN-код хранится в связке ключей системы.
-	The module your card came with (OpenSC's reads most cards):	Модуль, который прилагается к карте (модуль OpenSC читает большинство карт):
 	Use	Использовать
 	no certificate with its key was found	сертификат с ключом не найден
 	the PIN is wrong, or the card is locked	неверный PIN-код или карта заблокирована
@@ -1722,7 +1720,6 @@ date	December	декабря
 	They come with their mail, or from a key file they gave you.	Они приходят вместе с их письмами или из файла ключа, который вам дали.
 	Import someone's key…	Импортировать чужой ключ…
 	Import OpenPGP key	Импортировать ключ OpenPGP
-	The passphrase {file} is locked with (none, if it has none):	Парольная фраза, которой защищён {file} (пусто, если её нет):
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	Секретная часть хранится в системной связке ключей, а не в файлах MailCraft; парольная фраза не сохраняется.
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	у этой учётной записи нет ключа OpenPGP для расшифровки (Файл › Сведения › Безопасность)
 	it can't be decrypted with your OpenPGP key	его нельзя расшифровать вашим ключом OpenPGP
@@ -1909,7 +1906,6 @@ count	occurrences	повторений
 	For folders without settings of their own	Для папок без собственных параметров
 	Apply these settings to all folders now	Применить эти параметры ко всем папкам сейчас
 	Folders with settings of their own follow these instead	Папки с собственными параметрами будут следовать этим
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	Прошло {days} дн.: заархивировать старую почту сейчас, как настроена автоархивация?
 	Archive now	Архивировать сейчас
 	Off: old mail stays where it is until you clean it up.	Выключено: старая почта остаётся на месте, пока вы её не уберёте.
 	Every {days} days, old mail is archived by each folder's settings.	Каждые {days} дн. старая почта архивируется по параметрам каждой папки.
@@ -2239,3 +2235,18 @@ count	occurrences	повторений
 	Purple	Фиолетовый
 	Keyword on the server: {keyword}	Ключевое слово на сервере: {keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	Правило раскладывает, помечает флажком или отвечает на почту при её получении. «Новое правило…» создаёт его.
+	Use this address	Использовать этот адрес
+	Not now	Не сейчас
+	AutoArchive is due: archive old mail now, as it's set to?	Пора выполнить автоархивацию: архивировать старую почту сейчас, как настроено?
+	Passphrase	Парольная фраза
+	Leave it empty if {file} has none.	Оставьте пустым, если у {file} её нет.
+	Card module	Модуль карты
+	Card PIN	PIN-код карты
+	The one your card came with. OpenSC's works with most cards.	Тот, что поставляется с картой. Модуль OpenSC работает с большинством карт.
+	No email certificates were found in Windows' Personal store.	В личном хранилище Windows нет сертификатов для почты.
+	No email certificates were found in the Keychain.	В связке ключей нет сертификатов для почты.
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	Установите в Windows сертификат от вашей организации или центра сертификации либо импортируйте его файл в разделе «Безопасность» в Файл › Параметры.
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	Добавьте в связку ключей сертификат от вашей организации или центра сертификации либо импортируйте его файл в разделе «Безопасность» в Файл › Параметры.
+	No certificate with its key was found on the card.	На карте нет сертификата с ключом.
+	Check the card is in its reader and the module is the one it came with.	Проверьте, что карта вставлена в считыватель и модуль тот, что шёл с ней.
+	Choose the file old mail goes to, or to delete it.	Выберите файл для старой почты или выберите её удаление.

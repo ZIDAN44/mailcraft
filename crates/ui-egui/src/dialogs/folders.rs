@@ -221,10 +221,15 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             ui.radio_value(&mut a.mode, super::FolderMode::Off, tl!("Don't archive this folder"));
             ui.radio_value(&mut a.mode, super::FolderMode::Default, tl!("Archive it by the default settings"));
             ui.radio_value(&mut a.mode, super::FolderMode::Own, tl!("Archive it by these settings"));
+            // Its settings under the choice, not set in again (they were two levels in).
             if a.mode == super::FolderMode::Own {
-                ui.indent("folder-archive", |ui| super::archiving::rule_fields(ui, &mut a.rule, "folder", acts));
+                ui.add_space(4.0);
+                super::archiving::rule_fields(ui, &mut a.rule, "folder", acts);
             }
             let ready = a.mode != super::FolderMode::Own || a.rule.delete || !a.rule.path.trim().is_empty();
+            if !ready {
+                ui.label(RichText::new(tl!("Choose the file old mail goes to, or to delete it.")).color(t.dim).small());
+            }
             let (ok, cancel) = buttons(ui, t, "Save", ready);
             if ok {
                 acts.push(Action::Submit("autoArchive.folder", a.params()));

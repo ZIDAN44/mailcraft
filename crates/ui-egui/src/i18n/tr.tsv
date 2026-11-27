@@ -1224,9 +1224,7 @@ month	May	Mayıs
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	Sertifikanızın geldiği .p12 veya .pfx dosyasını içe aktarın ya da bir akıllı karttakini kullanın.
 	Look in the Keychain	Anahtar Zinciri'ne bak
 	Looking…	Aranıyor…
-	The card's PIN	Kartın PIN'i
 	The key stays on the card; its PIN is kept in the system's keychain.	Anahtar kartta kalır; PIN'i sistemin anahtarlığında tutulur.
-	The module your card came with (OpenSC's reads most cards):	Kartınızla gelen modül (OpenSC'ninki çoğu kartı okur):
 	Use	Kullan
 	no certificate with its key was found	anahtarıyla birlikte sertifika bulunamadı
 	the PIN is wrong, or the card is locked	PIN yanlış veya kart kilitli
@@ -1709,7 +1707,6 @@ month	May	Mayıs
 	They come with their mail, or from a key file they gave you.	Postalarıyla birlikte gelirler ya da size verdikleri bir anahtar dosyasından alınırlar.
 	Import someone's key…	Birinin anahtarını içe aktar…
 	Import OpenPGP key	OpenPGP anahtarını içe aktar
-	The passphrase {file} is locked with (none, if it has none):	{file} dosyasını koruyan parola (yoksa boş bırakın):
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	Gizli bölümü MailCraft'ın dosyalarında değil, sistemin anahtarlığında tutulur; parola saklanmaz.
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	bu hesabın şifreyi çözecek OpenPGP anahtarı yok (Dosya › Bilgi › Güvenlik)
 	it can't be decrypted with your OpenPGP key	OpenPGP anahtarınızla şifresi çözülemiyor
@@ -1896,7 +1893,6 @@ count	occurrences	kez
 	For folders without settings of their own	Kendi ayarları olmayan klasörler için
 	Apply these settings to all folders now	Bu ayarları şimdi tüm klasörlere uygula
 	Folders with settings of their own follow these instead	Kendi ayarları olan klasörler de bunun yerine bu ayarları izler
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	{days} gün geçti: Otomatik Arşivleme ayarlandığı gibi eski postalar şimdi arşivlensin mi?
 	Archive now	Şimdi arşivle
 	Off: old mail stays where it is until you clean it up.	Kapalı: eski postalar siz temizleyene kadar yerinde kalır.
 	Every {days} days, old mail is archived by each folder's settings.	Her {days} günde bir, eski postalar her klasörün ayarlarına göre arşivlenir.
@@ -2226,3 +2222,18 @@ count	occurrences	kez
 	Purple	Mor
 	Keyword on the server: {keyword}	Sunucudaki anahtar sözcük: {keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	Bir kural postayı geldiğinde dosyalar, bayraklar veya yanıtlar. "Yeni kural…" bir kural oluşturur.
+	Use this address	Bu adresi kullan
+	Not now	Şimdi değil
+	AutoArchive is due: archive old mail now, as it's set to?	Otomatik arşivleme zamanı geldi: eski postalar ayarlandığı gibi şimdi arşivlensin mi?
+	Passphrase	Parola ifadesi
+	Leave it empty if {file} has none.	{file} dosyasında yoksa boş bırakın.
+	Card module	Kart modülü
+	Card PIN	Kart PIN'i
+	The one your card came with. OpenSC's works with most cards.	Kartınızla birlikte gelen modül. OpenSC'ninki çoğu kartla çalışır.
+	No email certificates were found in Windows' Personal store.	Windows'un Kişisel deposunda e-posta sertifikası bulunamadı.
+	No email certificates were found in the Keychain.	Anahtar Zinciri'nde e-posta sertifikası bulunamadı.
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	Kuruluşunuzun veya sertifika yetkilinizin verdiğini Windows'a yükleyin ya da dosyasını Dosya › Seçenekler'deki Güvenlik bölümünden içe aktarın.
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	Kuruluşunuzun veya sertifika yetkilinizin verdiğini Anahtar Zinciri'ne ekleyin ya da dosyasını Dosya › Seçenekler'deki Güvenlik bölümünden içe aktarın.
+	No certificate with its key was found on the card.	Kartta anahtarıyla birlikte bir sertifika bulunamadı.
+	Check the card is in its reader and the module is the one it came with.	Kartın okuyucuda olduğunu ve modülün kartla gelen modül olduğunu denetleyin.
+	Choose the file old mail goes to, or to delete it.	Eski postaların gideceği dosyayı seçin ya da silinmelerini seçin.

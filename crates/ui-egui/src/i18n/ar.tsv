@@ -1219,9 +1219,7 @@ month	May	مايو
 	Import the .p12 or .pfx file your certificate came in, or use one on a smart card.	استورد ملف ‎.p12 أو ‎.pfx الذي جاءت فيه شهادتك، أو استخدم شهادة على بطاقة ذكية.
 	Look in the Keychain	البحث في سلسلة المفاتيح
 	Looking…	جارٍ البحث…
-	The card's PIN	رقم PIN الخاص بالبطاقة
 	The key stays on the card; its PIN is kept in the system's keychain.	يبقى المفتاح على البطاقة، ويُحفظ رقم PIN في سلسلة مفاتيح النظام.
-	The module your card came with (OpenSC's reads most cards):	الوحدة التي جاءت مع بطاقتك (وحدة OpenSC تقرأ معظم البطاقات):
 	Use	استخدام
 	no certificate with its key was found	لم يُعثر على شهادة معها مفتاحها
 	the PIN is wrong, or the card is locked	رقم PIN خاطئ، أو البطاقة مقفلة
@@ -1704,7 +1702,6 @@ month	May	مايو
 	They come with their mail, or from a key file they gave you.	تصل مع بريدهم، أو من ملف مفتاح أعطوك إياه.
 	Import someone's key…	استيراد مفتاح شخص ما…
 	Import OpenPGP key	استيراد مفتاح OpenPGP
-	The passphrase {file} is locked with (none, if it has none):	عبارة المرور التي يحميها بها {file} (اتركها فارغة إن لم تكن له عبارة):
 	Its secret part is kept in the system's keychain, not in MailCraft's files; the passphrase isn't kept.	يُحفظ جزؤه السري في سلسلة مفاتيح النظام، وليس في ملفات MailCraft؛ ولا تُحفظ عبارة المرور.
 	this account has no OpenPGP key to decrypt it with (File › Info › Security)	ليس لهذا الحساب مفتاح OpenPGP لفك تشفيرها (ملف › معلومات › الأمان)
 	it can't be decrypted with your OpenPGP key	لا يمكن فك تشفيرها بمفتاح OpenPGP الخاص بك
@@ -1891,7 +1888,6 @@ count	occurrences	مرات
 	For folders without settings of their own	للمجلدات التي ليست لها إعدادات خاصة
 	Apply these settings to all folders now	تطبيق هذه الإعدادات على كل المجلدات الآن
 	Folders with settings of their own follow these instead	تتبع المجلدات ذات الإعدادات الخاصة هذه الإعدادات بدلًا منها
-	It's been {days} days: archive old mail now, as AutoArchive is set to?	مرّ {days} يومًا: هل تريد أرشفة البريد القديم الآن كما ضُبطت الأرشفة التلقائية؟
 	Archive now	أرشفة الآن
 	Off: old mail stays where it is until you clean it up.	متوقفة: يبقى البريد القديم مكانه حتى تنظفه بنفسك.
 	Every {days} days, old mail is archived by each folder's settings.	كل {days} يومًا، يُؤرشف البريد القديم حسب إعدادات كل مجلد.
@@ -2221,3 +2217,18 @@ count	occurrences	مرات
 	Purple	أرجواني
 	Keyword on the server: {keyword}	الكلمة الأساسية على الخادم: {keyword}
 	A rule files, flags or answers mail as it arrives. New rule… makes one.	تقوم القاعدة بتصنيف البريد أو تمييزه بعلامة أو الرد عليه عند وصوله. "قاعدة جديدة…" تنشئ واحدة.
+	Use this address	استخدام هذا العنوان
+	Not now	ليس الآن
+	AutoArchive is due: archive old mail now, as it's set to?	حان وقت الأرشفة التلقائية: هل تريد أرشفة البريد القديم الآن كما هو معدّ؟
+	Passphrase	عبارة المرور
+	Leave it empty if {file} has none.	اتركها فارغة إذا لم يكن لـ {file} عبارة مرور.
+	Card module	وحدة البطاقة
+	Card PIN	رقم PIN للبطاقة
+	The one your card came with. OpenSC's works with most cards.	الوحدة التي جاءت مع بطاقتك. وحدة OpenSC تعمل مع معظم البطاقات.
+	No email certificates were found in Windows' Personal store.	لم يتم العثور على شهادات بريد إلكتروني في المخزن الشخصي في Windows.
+	No email certificates were found in the Keychain.	لم يتم العثور على شهادات بريد إلكتروني في سلسلة المفاتيح.
+	Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options.	ثبّت الشهادة التي منحتك إياها مؤسستك أو جهة إصدار الشهادات في Windows، أو استورد ملفها من الأمان في ملف › خيارات.
+	Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options.	أضف الشهادة التي منحتك إياها مؤسستك أو جهة إصدار الشهادات إلى سلسلة المفاتيح، أو استورد ملفها من الأمان في ملف › خيارات.
+	No certificate with its key was found on the card.	لم يتم العثور على شهادة مع مفتاحها على البطاقة.
+	Check the card is in its reader and the module is the one it came with.	تأكد من أن البطاقة في القارئ وأن الوحدة هي التي جاءت معها.
+	Choose the file old mail goes to, or to delete it.	اختر الملف الذي يُنقل إليه البريد القديم، أو اختر حذفه.

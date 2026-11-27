@@ -159,7 +159,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
     match d {
         Dialog::Archive(f) => archive(ui, f, s, t, acts),
         Dialog::AutoArchive(f) => auto_archive(ui, f, t, acts),
-        Dialog::AutoArchiveDue => auto_archive_due(ui, s, t, acts),
+        Dialog::AutoArchiveDue => auto_archive_due(ui, t, acts),
         _ => true,
     }
 }
@@ -238,13 +238,14 @@ fn auto_archive(ui: &mut Ui, f: &mut AutoArchiveForm, t: &Tokens, acts: &mut Vec
 }
 
 /// AutoArchive is due, and asks first.
-fn auto_archive_due(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>) -> bool {
+fn auto_archive_due(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) -> bool {
     ui.set_width(crate::sizes::DIALOG_M);
     title(ui, t, "AutoArchive");
-    let days = s.prefs.auto_archive.every_days;
-    let asked = tf!("It's been {days} days: archive old mail now, as AutoArchive is set to?", days = days);
+    // No count of days ("It's been 0 days" when it was set to run at every start).
+    let asked = tl!("AutoArchive is due: archive old mail now, as it's set to?");
     ui.add(egui::Label::new(RichText::new(asked).color(t.dim)).wrap());
-    let (ok, cancel) = buttons(ui, t, "Archive now", true);
+    // Not now: asked again later (it was Cancel).
+    let (ok, cancel) = super::frame::buttons_or(ui, t, "Archive now", "Not now", true);
     if ok {
         acts.push(Action::Run("autoArchive.run", json!({})));
         return false;

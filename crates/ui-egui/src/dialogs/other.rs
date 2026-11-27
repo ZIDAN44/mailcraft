@@ -129,10 +129,10 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::r
             ui.set_width(crate::sizes::DIALOG_M);
             title(ui, t, "Import OpenPGP key");
             let file = mailcraft_engine::model::file_name(path);
-            let ask = tf!("The passphrase {file} is locked with (none, if it has none):", file = file);
-            ui.add(egui::Label::new(RichText::new(ask).color(t.dim)).wrap());
-            ui.add_space(8.0);
+            label_over(ui, t, "Passphrase");
             let r = widgets::password_field(ui, passphrase, "");
+            let help = tf!("Leave it empty if {file} has none.", file = file);
+            ui.add(egui::Label::new(RichText::new(help).color(t.faint).small()).wrap());
             let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
             if ui.memory(|m| m.focused().is_none()) {
                 r.request_focus();
@@ -310,41 +310,75 @@ fn smart_card(
             )
             .wrap(),
         );
-        return held_keys(ui, s, t, acts, account);
+        let chosen = held_keys(ui, s, t, acts, account, true);
+        return !chosen && close_row(ui);
     }
+    // Each label over its box, one style (a sentence ending in a colon, then a grey line), the
+    // help under them; Find certificates the dialog's main button (it had none).
     title(ui, t, "Use a smart card");
-    ui.add(egui::Label::new(RichText::new(tl!("The module your card came with (OpenSC's reads most cards):")).color(t.dim)).wrap());
-    ui.add_space(4.0);
+    label_over(ui, t, "Card module");
     ui.add(egui::TextEdit::singleline(module).hint_text("opensc-pkcs11").desired_width(f32::INFINITY));
+    ui.add(egui::Label::new(RichText::new(tl!("The one your card came with. OpenSC's works with most cards.")).color(t.faint).small()).wrap());
     ui.add_space(8.0);
-    ui.label(RichText::new(tl!("The card's PIN")).color(t.dim));
+    label_over(ui, t, "Card PIN");
     let r = widgets::password_field(ui, pin, "");
     let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-    ui.add_space(8.0);
     let search = s.card_search();
-    ui.horizontal(|ui| {
-        let ready = !module.trim().is_empty() && !search.searching;
-        if ui.add_enabled(ready, egui::Button::new(tl!("Find certificates"))).clicked() || (enter && ready) {
-            acts.push(Action::Run("security.findKeys", json!({"module": module.trim(), "pin": pin})));
-        }
-        if cfg!(target_os = "macos") && ui.add_enabled(!search.searching, egui::Button::new(tl!("Look in the Keychain"))).clicked() {
+    // The system's own store: another place to look.
+    let elsewhere = if cfg!(target_os = "macos") {
+        Some(tl!("Look in the Keychain"))
+    } else if cfg!(windows) {
+        Some(tl!("Look in Windows"))
+    } else {
+        None
+    };
+    if let Some(label) = elsewhere {
+        ui.add_space(6.0);
+        if ui.add_enabled(!search.searching, egui::Button::new(label)).clicked() {
             acts.push(Action::Run("security.findKeys", json!({"keychain": true})));
         }
-        if cfg!(windows) && ui.add_enabled(!search.searching, egui::Button::new(tl!("Look in Windows"))).clicked() {
-            acts.push(Action::Run("security.findKeys", json!({"keychain": true})));
-        }
-    });
-    held_keys(ui, s, t, acts, account)
+    }
+    let chosen = held_keys(ui, s, t, acts, account, false);
+    let ready = !module.trim().is_empty() && !search.searching;
+    let (find, cancel) = buttons(ui, t, "Find certificates", ready);
+    if find || (enter && ready) {
+        acts.push(Action::Run("security.findKeys", json!({"module": module.trim(), "pin": pin})));
+    }
+    !chosen && !cancel
 }
 
-/// What the last look found, each with Use; and where the key stays.
-fn held_keys(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, account: &str) -> bool {
+/// What the last look found, each with Use (whether one was chosen); and where the key stays.
+/// Nothing found is said as such, with what to do instead (the system's store: `system`), not as
+/// an error.
+fn held_keys(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, account: &str, system: bool) -> bool {
     let search = s.card_search();
     if search.searching {
         ui.add_space(6.0);
         ui.label(RichText::new(tl!("Looking…")).color(t.faint).small());
     }
-    if let Some(e) = &search.error {
+    if search.error.as_deref() == Some(mailcraft_engine::NO_HELD_KEYS) {
+        ui.add_space(10.0);
+        let (none, next) = match (system, cfg!(windows)) {
+            (true, true) => (
+                tl!("No email certificates were found in Windows' Personal store."),
+                tl!(
+                    "Install the one your organisation or certificate authority gave you in Windows, or import its file under Security in File › Options."
+                ),
+            ),
+            (true, false) => (
+                tl!("No email certificates were found in the Keychain."),
+                tl!(
+                    "Add the one your organisation or certificate authority gave you to the Keychain, or import its file under Security in File › Options."
+                ),
+            ),
+            (false, _) => (
+                tl!("No certificate with its key was found on the card."),
+                tl!("Check the card is in its reader and the module is the one it came with."),
+            ),
+        };
+        ui.label(RichText::new(none).color(t.text));
+        ui.add(egui::Label::new(RichText::new(next).color(t.dim).small()).wrap());
+    } else if let Some(e) = &search.error {
         ui.add_space(6.0);
         ui.add(egui::Label::new(RichText::new(tl!(e)).color(t.danger).small()).wrap());
     }
@@ -374,5 +408,5 @@ fn held_keys(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Action>, accou
                 .wrap(),
         );
     }
-    !chosen && close_row(ui)
+    chosen
 }
