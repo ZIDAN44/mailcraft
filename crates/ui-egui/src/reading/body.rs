@@ -71,9 +71,12 @@ pub(crate) fn shown_formatted(s: &Session, st: &UiState, key: &MessageKey, p: &m
 pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageKey, p: &mime::Parsed, formatted: bool, acts: &mut Vec<Action>) {
     let web = s.remote_pictures();
     if !web.is_empty() && !s.pictures_allowed() && formatted {
-        egui::Frame::new().fill(t.chrome).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(
-            ui,
-            |ui| {
+        egui::Frame::new()
+            .fill(t.chrome)
+            .stroke(egui::Stroke::new(1.0, t.border))
+            .corner_radius(crate::sizes::SURFACE_RADIUS)
+            .inner_margin(Margin::symmetric(10, 6))
+            .show(ui, |ui| {
                 ui.horizontal_wrapped(|ui| {
                     let (ir, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
                     icons::paint(ui.painter(), ir, Icon::Image, t.dim);
@@ -98,8 +101,7 @@ pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageKey, p
                         acts.push(Action::Run("message.showPictures", json!({"always": true})));
                     }
                 });
-            },
-        );
+            });
         ui.add_space(6.0);
     }
     // What reports back to the sender: never-loaded pictures, links that count clicks (unless
@@ -150,35 +152,41 @@ pub(super) fn html_bar(s: &Session, t: &Tokens, ui: &mut Ui, key: &MessageKey, p
 pub(super) fn hidden_bar(t: &Tokens, ui: &mut Ui, key: &MessageKey, p: &mime::Parsed) {
     let id = egui::Id::unique(("hidden-text", key.to_id()));
     let mut open = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
-    egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        ui.horizontal(|ui| {
-            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
-            icons::paint(ui.painter(), r, Icon::Warning, t.warn);
-            ui.vertical(|ui| {
-                ui.label(RichText::new(tf!("This message hides text from you ({n} words).", n = p.hidden_words)).color(t.text));
-                ui.label(
-                    RichText::new(tl!(
-                        "Hidden text is a way to slip past spam filters, or to give instructions to tools and assistants that read mail for you."
-                    ))
-                    .color(t.dim)
-                    .small(),
-                );
-                if ui.link(RichText::new(if open { tl!("Hide it again") } else { tl!("Show the hidden text") }).small()).clicked() {
-                    open = !open;
-                }
+    egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(crate::sizes::SURFACE_RADIUS).inner_margin(Margin::symmetric(10, 8)).show(
+        ui,
+        |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                icons::paint(ui.painter(), r, Icon::Warning, t.warn);
+                ui.vertical(|ui| {
+                    ui.label(RichText::new(tf!("This message hides text from you ({n} words).", n = p.hidden_words)).color(t.text));
+                    ui.label(
+                        RichText::new(tl!(
+                            "Hidden text is a way to slip past spam filters, or to give instructions to tools and assistants that read mail for you."
+                        ))
+                        .color(t.dim)
+                        .small(),
+                    );
+                    if ui.link(RichText::new(if open { tl!("Hide it again") } else { tl!("Show the hidden text") }).small()).clicked() {
+                        open = !open;
+                    }
+                });
             });
-        });
-        if open {
-            ui.add_space(6.0);
-            egui::ScrollArea::vertical().id_salt(id).max_height(180.0).show(ui, |ui| {
-                let mut text = p.hidden_text.as_str();
-                ui.add(
-                    egui::TextEdit::multiline(&mut text).font(egui::FontId::monospace(12.0)).desired_width(f32::INFINITY).frame(egui::Frame::NONE),
-                );
-            });
-        }
-    });
+            if open {
+                ui.add_space(6.0);
+                egui::ScrollArea::vertical().id_salt(id).max_height(180.0).show(ui, |ui| {
+                    let mut text = p.hidden_text.as_str();
+                    ui.add(
+                        egui::TextEdit::multiline(&mut text)
+                            .font(egui::FontId::monospace(12.0))
+                            .desired_width(f32::INFINITY)
+                            .frame(egui::Frame::NONE),
+                    );
+                });
+            }
+        },
+    );
     ui.data_mut(|d| d.insert_temp(id, open));
     ui.add_space(8.0);
 }

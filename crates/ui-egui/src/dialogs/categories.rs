@@ -219,7 +219,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                 deleted::forget::<(Category, usize)>(ui, "categories");
                 acts.push(Action::Run("category.create", json!({"name": c.name, "color": c.color, "keyword": c.keyword, "at": at})));
             }
-            egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).show(ui, |ui| {
+            egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(crate::sizes::SURFACE_RADIUS).show(ui, |ui| {
                 egui::ScrollArea::vertical().max_height(360.0).auto_shrink([false, true]).show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;
                     if s.prefs.categories.is_empty() {

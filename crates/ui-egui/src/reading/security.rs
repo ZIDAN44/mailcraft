@@ -44,22 +44,25 @@ fn problem(s: &Session, p: &smime::Problem, pgp: bool) -> String {
 }
 
 fn line(ui: &mut Ui, t: &Tokens, icon: Icon, color: Color32, text: String, note: Option<String>, hover: Option<String>) {
-    egui::Frame::new().fill(color.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 7)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        let r = ui.horizontal(|ui| {
-            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
-            icons::paint(ui.painter(), r, icon, color);
-            ui.vertical(|ui| {
-                ui.add(egui::Label::new(RichText::new(text).color(t.text)).wrap());
-                if let Some(n) = note {
-                    ui.add(egui::Label::new(RichText::new(n).color(t.dim).small()).wrap());
-                }
+    egui::Frame::new().fill(color.gamma_multiply(0.12)).corner_radius(crate::sizes::SURFACE_RADIUS).inner_margin(Margin::symmetric(10, 7)).show(
+        ui,
+        |ui| {
+            ui.set_width(ui.available_width());
+            let r = ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                icons::paint(ui.painter(), r, icon, color);
+                ui.vertical(|ui| {
+                    ui.add(egui::Label::new(RichText::new(text).color(t.text)).wrap());
+                    if let Some(n) = note {
+                        ui.add(egui::Label::new(RichText::new(n).color(t.dim).small()).wrap());
+                    }
+                });
             });
-        });
-        if let Some(h) = hover {
-            r.response.on_hover_text(h);
-        }
-    });
+            if let Some(h) = hover {
+                r.response.on_hover_text(h);
+            }
+        },
+    );
     ui.add_space(6.0);
 }
 

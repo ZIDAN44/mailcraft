@@ -413,10 +413,9 @@ impl MailApp {
             if self.ribbon_shown() {
                 egui::Panel::top("ribbon")
                     .frame(
-                        egui::Frame::new()
-                            .fill(t.chrome)
-                            .inner_margin(Margin { left: 8, right: 8, top: 4, bottom: 6 })
-                            .stroke(egui::Stroke::new(1.0, t.border)),
+                        // No frame of its own: the panel's line under it is its one edge (with
+                        // the frame's, it had four within 47 points).
+                        egui::Frame::new().fill(t.chrome).inner_margin(Margin { left: 8, right: 8, top: 4, bottom: 6 }),
                     )
                     .show(ui, |ui| {
                         // Too wide for the window: its last buttons lose their labels, as few as it
@@ -589,7 +588,9 @@ impl MailApp {
                 let least = if pane == ReadingPane::Right { LIST_LEAST + READING_LEAST } else { LIST_LEAST };
                 todo_bar::panel(&mut self.session, &mut self.ui, ui, least, acts);
             }
-            let list_frame = egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border));
+            // No line of its own round it: the panels' lines between the panes are one each (with
+            // it, each was two, 2 points beside 1).
+            let list_frame = egui::Frame::new().fill(t.surface);
             // Calendar, People, Tasks and Notes: their pane fills the rest.
             let other: Option<fn(&Session, &mut UiState, &mut Ui, &mut Vec<Action>)> = match module {
                 Module::Calendar => Some(calendar::show),

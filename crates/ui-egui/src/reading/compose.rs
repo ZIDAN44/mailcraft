@@ -53,17 +53,20 @@ pub(crate) fn send_block_text(b: SendBlock) -> String {
 /// Why the message can't be sent, over the form, with a way to add an account when one would
 /// send it.
 fn send_block_bar(ui: &mut Ui, t: &Tokens, b: SendBlock, acts: &mut Vec<Action>) {
-    egui::Frame::new().fill(t.warn.gamma_multiply(0.14)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        ui.horizontal(|ui| {
-            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
-            icons::paint(ui.painter(), r, Icon::Warning, t.warn);
-            ui.add(egui::Label::new(RichText::new(send_block_text(b)).color(t.text)).wrap());
-            if b != SendBlock::NoOutgoingServer && ui.button(tl!("Add an account")).clicked() {
-                acts.push(Action::Dialog(crate::Dialog::add_account()));
-            }
-        });
-    });
+    egui::Frame::new().fill(t.warn.gamma_multiply(0.14)).corner_radius(crate::sizes::SURFACE_RADIUS).inner_margin(Margin::symmetric(10, 6)).show(
+        ui,
+        |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                icons::paint(ui.painter(), r, Icon::Warning, t.warn);
+                ui.add(egui::Label::new(RichText::new(send_block_text(b)).color(t.text)).wrap());
+                if b != SendBlock::NoOutgoingServer && ui.button(tl!("Add an account")).clicked() {
+                    acts.push(Action::Dialog(crate::Dialog::add_account()));
+                }
+            });
+        },
+    );
 }
 
 /// What the form needs from the session, read before the message is taken out of it.
@@ -162,7 +165,7 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
         // the way it's written).
         ui.with_layout(crate::bidi::column(), |ui| {
             // The Message ribbon.
-            egui::Frame::new().fill(t.chrome).corner_radius(6).inner_margin(Margin::symmetric(8, 4)).show(ui, |ui| {
+            egui::Frame::new().fill(t.chrome).corner_radius(crate::sizes::SURFACE_RADIUS).inner_margin(Margin::symmetric(8, 4)).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 let on_quote = quote_cell.and_then(|n| {
                     super::quote::with_cell(c, &mut quote_eds, n, |c, ed| rich_edit::ribbon(ui, &t, ed, c, &f.signatures, &f.clock, acts))
@@ -179,9 +182,13 @@ pub(super) fn compose(s: &mut Session, st: &mut UiState, ui: &mut Ui, acts: &mut
             }
             if let Some(e) = &c.error {
                 ui.add_space(4.0);
-                egui::Frame::new().fill(t.danger.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
-                    ui.label(RichText::new(tf!("Not sent: {error}", error = crate::i18n::error(e))).color(t.danger));
-                });
+                egui::Frame::new()
+                    .fill(t.danger.gamma_multiply(0.12))
+                    .corner_radius(crate::sizes::SURFACE_RADIUS)
+                    .inner_margin(Margin::symmetric(10, 6))
+                    .show(ui, |ui| {
+                        ui.label(RichText::new(tf!("Not sent: {error}", error = crate::i18n::error(e))).color(t.danger));
+                    });
             }
             ui.add_space(6.0);
             ui.add_enabled_ui(!c.sending, |ui| {
@@ -294,7 +301,12 @@ fn attach_dropped(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
     let held_over = ui.ctx().input(|state| !state.raw.hovered_files.is_empty());
     let dropped = ui.ctx().input(|state| state.raw.dropped_files.clone());
     if held_over {
-        ui.painter().rect_stroke(ui.max_rect().shrink(2.0), 6.0, egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
+        ui.painter().rect_stroke(
+            ui.max_rect().shrink(2.0),
+            f32::from(crate::sizes::CONTROL_RADIUS),
+            egui::Stroke::new(2.0, t.accent),
+            egui::StrokeKind::Inside,
+        );
     }
     for f in dropped.iter().take(100).filter(|f| f.path().is_absolute()) {
         acts.push(Action::Run("compose.attach", json!({"path": f.path().to_string_lossy()})));

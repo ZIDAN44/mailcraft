@@ -68,7 +68,7 @@ fn strip(s: &Session, t: &Tokens, ui: &mut Ui, e: &CalEvent, day: &InviteDay, ac
     let span = (day.to - day.from).max(3600) as f32;
     let x = |at: i64| rect.min.x + ((at.clamp(day.from, day.to) - day.from) as f32 / span) * rect.width();
     let p = ui.painter().with_clip_rect(rect);
-    p.rect(rect, 6.0, t.surface, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    p.rect(rect, f32::from(crate::sizes::CONTROL_RADIUS), t.surface, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     let lane = Rect::from_min_max(pos2(rect.min.x, rect.min.y + HOURS), pos2(rect.max.x, rect.min.y + HOURS + INVITE));
     let band = Rect::from_min_max(pos2(rect.min.x, lane.max.y + 1.0), pos2(rect.max.x, rect.max.y - 3.0));
     // The hours: a line each, named where there's room for it.

@@ -290,7 +290,7 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 let x0 = row0.x + w * (first - (start + week * 7)) as f32;
                 let x1 = row0.x + w * (last - (start + week * 7) + 1) as f32;
                 let band = Rect::from_min_max(pos2(x0, row0.y + 1.0), pos2(x1, row0.y + MINI_ROW_H - 1.0));
-                ui.painter().rect_filled(band, 6.0, t.accent_soft);
+                ui.painter().rect_filled(band, f32::from(crate::sizes::CONTROL_RADIUS), t.accent_soft);
             }
             for i in 0..7 {
                 let d = start + week * 7 + i;

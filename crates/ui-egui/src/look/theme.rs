@@ -305,7 +305,9 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
         // elsewhere too (egui's showed nothing until the pointer came over it, so nothing said there
         // was more); it widens under the pointer, as before. Its line has room of its own beside
         // what scrolls, so it isn't drawn over what's at the edge (a folder's unread count).
-        s.spacing.scroll.dormant_handle_opacity = s.spacing.scroll.active_handle_opacity;
+        // Quieter while the pointer is away (always at full strength, it was the darkest line on
+        // screen), still there to say there's more.
+        s.spacing.scroll.dormant_handle_opacity = s.spacing.scroll.active_handle_opacity * 0.4;
         s.spacing.scroll.floating_allocated_width = BAR_ROOM;
         s.text_styles.insert(egui::TextStyle::Body, egui::FontId::proportional(14.0));
         s.text_styles.insert(egui::TextStyle::Button, egui::FontId::proportional(13.5));
@@ -645,6 +647,16 @@ mod tests {
             shown = handles(&ctx);
         }
         assert!(shown > 0, "no scroll bar drawn");
+    }
+
+    /// Audit S7: at rest the bar is quieter than under the pointer (at full strength always, it
+    /// was the darkest line on screen).
+    #[test]
+    fn a_scroll_bar_at_rest_is_quiet() {
+        let ctx = egui::Context::default();
+        apply(&ctx, &Tokens::light());
+        let scroll = ctx.global_style().spacing.scroll;
+        assert!(scroll.dormant_handle_opacity > 0.0 && scroll.dormant_handle_opacity < scroll.active_handle_opacity * 0.5, "{scroll:?}");
     }
 
     /// Chinese, Japanese and Korean fallbacks sit on the main font's line; the others (Arabic and

@@ -100,7 +100,7 @@ pub(super) fn shared_header(
     section_drag(ui, t, &resp, rect, sections, at, acts);
     let dropping = resp.dnd_hover_payload::<DragKeys>().is_some() || resp.dnd_hover_payload::<DragFolder>().is_some();
     if resp.hovered() || dropping {
-        ui.painter().rect_filled(rect, 6.0, if dropping { t.accent.gamma_multiply(0.3) } else { t.hover_row });
+        ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), if dropping { t.accent.gamma_multiply(0.3) } else { t.hover_row });
     }
     let m = crate::bidi::Mirror::new(rect);
     let chev = m.rect(egui::Rect::from_min_size(egui::pos2(rect.min.x + 6.0, rect.center().y - 6.0), vec2(12.0, 12.0)));

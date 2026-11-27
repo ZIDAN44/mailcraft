@@ -242,27 +242,32 @@ fn found(ui: &mut Ui, f: &PersonForm, s: &Session, t: &Tokens, acts: &mut Vec<Ac
         return;
     }
     ui.add_space(8.0);
-    egui::Frame::new().fill(t.bg).corner_radius(6).inner_margin(Margin::same(8)).stroke(egui::Stroke::new(1.0, t.border)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        ui.label(RichText::new(tl!("In their signature")).color(t.dim).small());
-        ui.horizontal_wrapped(|ui| {
-            for phone in &got.phones {
-                ui.label(RichText::new(phone).color(t.text));
-                ui.add_space(8.0);
-            }
-            for site in &got.websites {
-                let r = ui.add(egui::Label::new(RichText::new(site).color(t.accent).underline()).sense(Sense::click()));
-                if r.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
-                    let url = if site.contains("://") { site.clone() } else { format!("https://{site}") };
-                    acts.push(Action::OpenUrl(url));
+    egui::Frame::new()
+        .fill(t.bg)
+        .corner_radius(crate::sizes::SURFACE_RADIUS)
+        .inner_margin(Margin::same(8))
+        .stroke(egui::Stroke::new(1.0, t.border))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            ui.label(RichText::new(tl!("In their signature")).color(t.dim).small());
+            ui.horizontal_wrapped(|ui| {
+                for phone in &got.phones {
+                    ui.label(RichText::new(phone).color(t.text));
+                    ui.add_space(8.0);
                 }
-                ui.add_space(8.0);
+                for site in &got.websites {
+                    let r = ui.add(egui::Label::new(RichText::new(site).color(t.accent).underline()).sense(Sense::click()));
+                    if r.on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
+                        let url = if site.contains("://") { site.clone() } else { format!("https://{site}") };
+                        acts.push(Action::OpenUrl(url));
+                    }
+                    ui.add_space(8.0);
+                }
+            });
+            if !got.phones.is_empty() && ui.button(tl!("Add to their contact…")).clicked() {
+                acts.push(Action::Dialog(with_phones(s, f)));
             }
         });
-        if !got.phones.is_empty() && ui.button(tl!("Add to their contact…")).clicked() {
-            acts.push(Action::Dialog(with_phones(s, f)));
-        }
-    });
 }
 
 /// Their contact's form (a new one when they have none) with the numbers their signature gives

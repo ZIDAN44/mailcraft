@@ -326,7 +326,7 @@ fn books(s: &Session, st: &mut UiState, ui: &mut Ui) {
         let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::click());
         let mirror = crate::bidi::Mirror::new(r);
         if on || resp.hovered() {
-            ui.painter().rect_filled(r, 5.0, if on { t.accent_soft } else { t.hover_row });
+            ui.painter().rect_filled(r, f32::from(crate::sizes::CONTROL_RADIUS), if on { t.accent_soft } else { t.hover_row });
         }
         let icon = egui::Rect::from_center_size(mirror.pos(r.left_center() + vec2(14.0, 0.0)), vec2(14.0, 14.0));
         icons::paint(ui.painter(), icon, if shared { Icon::People } else { Icon::Person }, if on { t.accent } else { t.dim });
@@ -463,7 +463,7 @@ fn side_row(s: &Session, st: &mut UiState, ui: &mut Ui, p: &mailcraft_engine::Pe
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), PERSON_ROW_H), Sense::click());
     let mirror = crate::bidi::Mirror::new(r);
     if selected || resp.hovered() {
-        ui.painter().rect_filled(r, 6.0, if selected { t.accent_soft } else { t.hover_row });
+        ui.painter().rect_filled(r, f32::from(crate::sizes::CONTROL_RADIUS), if selected { t.accent_soft } else { t.hover_row });
     }
     let email = p.card.emails.first().map(|e| e.value.as_str()).unwrap_or_default();
     crate::photos::avatar(ui, s, mirror.pos(r.left_center() + vec2(24.0, 0.0)), 16.0, email, &initials(&name), theme::avatar_color(&name, t.dark));

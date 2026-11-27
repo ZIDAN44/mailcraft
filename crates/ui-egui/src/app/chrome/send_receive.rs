@@ -183,7 +183,7 @@ impl MailApp {
         let screen = ctx.content_rect();
         let frame = egui::Frame::new()
             .fill(t.surface)
-            .corner_radius(10)
+            .corner_radius(crate::sizes::SURFACE_RADIUS)
             .inner_margin(Margin::symmetric(14, 12))
             .stroke(Stroke::new(1.0, t.border))
             .shadow(egui::epaint::Shadow { offset: [0, 6], blur: 24, spread: 0, color: Color32::from_black_alpha(55) });
@@ -353,7 +353,7 @@ fn problems(ui: &mut Ui, s: &Session, t: &Tokens) {
     for r in s.send_receive.errors() {
         let why = r.transfer.error.as_deref().map(|e| tl!(e).to_string()).unwrap_or_default();
         ui.add_space(4.0);
-        egui::Frame::new().fill(t.bg).corner_radius(6).inner_margin(Margin::symmetric(8, 6)).show(ui, |ui| {
+        egui::Frame::new().fill(t.bg).corner_radius(crate::sizes::SURFACE_RADIUS).inner_margin(Margin::symmetric(8, 6)).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.with_layout(bidi::row_from_start(Align::Min), |ui| {
                 mark_icon(ui, icons::Icon::Warning, t.danger);

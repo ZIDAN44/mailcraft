@@ -129,9 +129,15 @@ fn big_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, o
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     reached(ui, rect);
     if fill {
-        ui.painter().rect_filled(rect, 6.0, accent_fill(t, enabled, resp.hovered()));
+        ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), accent_fill(t, enabled, resp.hovered()));
     } else if on {
-        ui.painter().rect(rect, 6.0, t.accent_soft, Stroke::new(1.0, t.accent.gamma_multiply(0.5)), egui::StrokeKind::Inside);
+        ui.painter().rect(
+            rect,
+            f32::from(crate::sizes::CONTROL_RADIUS),
+            t.accent_soft,
+            Stroke::new(1.0, t.accent.gamma_multiply(0.5)),
+            egui::StrokeKind::Inside,
+        );
     } else {
         hover_fill(ui, &resp, rect, t, enabled);
     }
@@ -165,9 +171,21 @@ fn hover_fill(ui: &Ui, resp: &Response, rect: egui::Rect, t: &Tokens, enabled: b
     let k = crate::motion::toward(ui.ctx(), resp.id.with("hover"), enabled && resp.hovered(), crate::motion::FAST);
     // Filled with an edge, as Outlook's buttons are under the pointer (issue #8).
     if enabled && resp.is_pointer_button_down_on() {
-        ui.painter().rect(rect, 6.0, t.accent_soft, Stroke::new(1.0, t.accent.gamma_multiply(0.6)), egui::StrokeKind::Inside);
+        ui.painter().rect(
+            rect,
+            f32::from(crate::sizes::CONTROL_RADIUS),
+            t.accent_soft,
+            Stroke::new(1.0, t.accent.gamma_multiply(0.6)),
+            egui::StrokeKind::Inside,
+        );
     } else if k > 0.0 {
-        ui.painter().rect(rect, 6.0, t.hover.gamma_multiply(k), Stroke::new(1.0, t.border.gamma_multiply(k)), egui::StrokeKind::Inside);
+        ui.painter().rect(
+            rect,
+            f32::from(crate::sizes::CONTROL_RADIUS),
+            t.hover.gamma_multiply(k),
+            Stroke::new(1.0, t.border.gamma_multiply(k)),
+            egui::StrokeKind::Inside,
+        );
     }
 }
 
@@ -186,7 +204,13 @@ fn icon_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, 
     let (rect, resp) = ui.allocate_exact_size(vec2(32.0, 30.0), if enabled { Sense::click() } else { Sense::hover() });
     reached(ui, rect);
     if on {
-        ui.painter().rect(rect, 6.0, t.accent_soft, Stroke::new(1.0, t.accent.gamma_multiply(0.5)), egui::StrokeKind::Inside);
+        ui.painter().rect(
+            rect,
+            f32::from(crate::sizes::CONTROL_RADIUS),
+            t.accent_soft,
+            Stroke::new(1.0, t.accent.gamma_multiply(0.5)),
+            egui::StrokeKind::Inside,
+        );
     } else {
         hover_fill(ui, &resp, rect, t, enabled);
     }
@@ -436,7 +460,7 @@ pub fn more_pill(ui: &mut Ui, tip: &str, t: &Tokens) -> Response {
     let (rect, resp) = ui.allocate_exact_size(vec2(34.0, 28.0), Sense::click());
     named(ui, &resp, tl!(tip), true, None);
     let fill = if resp.hovered() { t.hover } else { t.surface };
-    ui.painter().rect(rect, 6.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    ui.painter().rect(rect, f32::from(crate::sizes::CONTROL_RADIUS), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     for dx in [-6.0, 0.0, 6.0] {
         ui.painter().circle_filled(rect.center() + vec2(dx, 0.0), 1.6, t.dim);
     }
@@ -464,7 +488,7 @@ fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled
     let size = vec2(galley.size().x + 40.0, 30.0);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     named(ui, &resp, label, enabled, None);
-    ui.painter().rect_filled(rect, 6.0, accent_fill(t, enabled, resp.hovered()));
+    ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), accent_fill(t, enabled, resp.hovered()));
     let m = crate::bidi::Mirror::new(rect);
     let ir = m.rect(egui::Rect::from_min_size(rect.min + vec2(10.0, 7.0), vec2(16.0, 16.0)));
     icons::paint(ui.painter(), ir, icon, t.on_accent);
@@ -483,7 +507,7 @@ pub fn bar_icon_button(ui: &mut Ui, icon: Icon, tip: &str, t: &Tokens) -> Respon
     let (rect, resp) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::click());
     named(ui, &resp, tl!(tip), true, None);
     if resp.hovered() {
-        ui.painter().rect_filled(rect, 6.0, bar_wash(t));
+        ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), bar_wash(t));
     }
     icons::paint(ui.painter(), icons::centered(rect, 17.0), icon, t.on_bar);
     resp.on_hover_text(tl!(tip))
@@ -564,7 +588,7 @@ pub fn pill_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens) -> Response
     let (rect, resp) = ui.allocate_exact_size(size, Sense::click());
     named(ui, &resp, label, true, None);
     let fill = if resp.hovered() { t.hover } else { t.surface };
-    ui.painter().rect(rect, 6.0, fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    ui.painter().rect(rect, f32::from(crate::sizes::CONTROL_RADIUS), fill, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     let m = crate::bidi::Mirror::new(rect);
     icons::paint(ui.painter(), m.rect(egui::Rect::from_min_size(rect.min + vec2(9.0, 6.0), vec2(16.0, 16.0))), icon, t.accent);
     let at = egui::pos2(m.start(rect.min.x + 29.0, galley.size().x), rect.min.y + (28.0 - galley.size().y) / 2.0);
@@ -631,7 +655,7 @@ fn segments(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], is_on: &dyn Fn(
     let widths: Vec<f32> = labels.iter().map(|l| ui.painter().layout_no_wrap(l.clone(), font.clone(), t.text).size().x + 24.0).collect();
     let total: f32 = widths.iter().sum::<f32>() + 4.0;
     let (rect, _) = ui.allocate_exact_size(vec2(total, 28.0), Sense::hover());
-    ui.painter().rect(rect, 6.0, t.bg, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    ui.painter().rect(rect, f32::from(crate::sizes::CONTROL_RADIUS), t.bg, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     let mut x = rect.left() + 2.0;
     let mut clicked = None;
     for (i, (label, w)) in labels.iter().zip(&widths).enumerate() {

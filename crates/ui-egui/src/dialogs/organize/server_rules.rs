@@ -90,7 +90,7 @@ pub(super) fn sections(ui: &mut Ui, s: &Session, t: &Tokens, acts: &mut Vec<Acti
                     ui.label(RichText::new(tl!("No rules yet.")).color(t.faint));
                 }
                 let last = rules.rules.len().saturating_sub(1);
-                egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).show(ui, |ui| {
+                egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(crate::sizes::SURFACE_RADIUS).show(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;
                     for (i, r) in rules.rules.iter().enumerate() {
                         rule_row(ui, s, t, &account, r, (i == 0, i == last), may, drop, acts);

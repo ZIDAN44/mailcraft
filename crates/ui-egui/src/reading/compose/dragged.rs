@@ -43,7 +43,12 @@ pub(super) fn onto_message(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
     let resp = ui.interact(rect, ui.scope_id().with("messages-dropped"), Sense::hover());
     if resp.contains_pointer() {
         note_over(ui.ctx());
-        ui.painter().rect_stroke(rect.shrink(2.0), 6.0, egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
+        ui.painter().rect_stroke(
+            rect.shrink(2.0),
+            f32::from(crate::sizes::CONTROL_RADIUS),
+            egui::Stroke::new(2.0, t.accent),
+            egui::StrokeKind::Inside,
+        );
     }
     if resp.dnd_release_payload::<DragKeys>().is_some() {
         acts.push(Action::Run("compose.attachMessages", json!({})));

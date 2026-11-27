@@ -84,7 +84,7 @@ impl MailApp {
         let frame = egui::Frame::new()
             .fill(if t.dark { t.surface } else { Color32::WHITE })
             .stroke(edge)
-            .corner_radius(6)
+            .corner_radius(crate::sizes::SURFACE_RADIUS)
             .inner_margin(Margin::symmetric(8, 3));
         frame
             .show(ui, |ui| {

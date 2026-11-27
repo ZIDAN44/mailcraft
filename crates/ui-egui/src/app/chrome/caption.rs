@@ -87,7 +87,7 @@ pub(crate) fn mark(ui: &mut Ui, t: &Tokens) {
     let (r, _) = ui.allocate_exact_size(vec2(30.0, 30.0), Sense::hover());
     let tile = egui::Rect::from_center_size(r.center(), vec2(20.0, 20.0));
     let (fill, ink) = if t.on_bar == Color32::WHITE { (Color32::WHITE, t.bar) } else { (t.accent, t.on_accent) };
-    ui.painter().rect_filled(tile, 5.0, fill);
+    ui.painter().rect_filled(tile, f32::from(crate::sizes::CONTROL_RADIUS), fill);
     icons::paint(ui.painter(), icons::centered(tile, 14.0), Icon::Unread, ink);
 }
 

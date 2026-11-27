@@ -131,7 +131,7 @@ pub(super) fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count
     let sel = crate::motion::toward(&ctx, resp.id.with("selected"), selected, crate::motion::NORMAL);
     let hover = crate::motion::toward(&ctx, resp.id.with("hover"), resp.hovered(), crate::motion::FAST);
     let fill = if hovering_drop { t.accent.gamma_multiply(0.3) } else { crate::motion::mix(t.hover_row.gamma_multiply(hover), t.accent_soft, sel) };
-    ui.painter().rect_filled(rect, 6.0, fill);
+    ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), fill);
     // Right to left: the icon on the right, the count on the left.
     let m = crate::bidi::Mirror::new(rect);
     if sel > 0.0 {

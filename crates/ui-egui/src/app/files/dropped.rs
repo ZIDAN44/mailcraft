@@ -136,7 +136,7 @@ impl MailApp {
             let rect = ctx.content_rect();
             let t = self.ui.tokens;
             let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("files-held-over")));
-            p.rect_stroke(rect.shrink(3.0), 6.0, egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
+            p.rect_stroke(rect.shrink(3.0), f32::from(crate::sizes::CONTROL_RADIUS), egui::Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
             let g = p.layout_no_wrap(says, theme::regular(crate::sizes::BODY), t.text);
             let card = egui::Rect::from_center_size(rect.center(), g.size() + vec2(32.0, 20.0));
             p.rect(card, 8.0, t.surface, egui::Stroke::new(1.0, t.accent), egui::StrokeKind::Inside);

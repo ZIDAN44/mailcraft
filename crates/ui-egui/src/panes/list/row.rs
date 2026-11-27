@@ -157,7 +157,7 @@ impl MessageRow<'_> {
         let sel = crate::motion::toward(ui.ctx(), id.with("selected"), self.selected, crate::motion::NORMAL);
         let hover = crate::motion::toward(ui.ctx(), id.with("hover"), self.hovered, crate::motion::FAST);
         let fill = crate::motion::mix(t.hover_row.gamma_multiply(hover), t.accent_soft, sel);
-        p.rect_filled(r.shrink2(vec2(4.0, 1.0)), 6.0, fill);
+        p.rect_filled(r.shrink2(vec2(4.0, 1.0)), f32::from(crate::sizes::CONTROL_RADIUS), fill);
         if self.unread {
             p.rect_filled(mr.rect(Rect::from_min_size(r.min + vec2(4.0, 8.0), vec2(3.0, r.height() - 16.0))), 2.0, t.accent);
         }

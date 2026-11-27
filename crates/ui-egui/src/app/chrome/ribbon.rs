@@ -164,10 +164,15 @@ fn tab_button(ui: &mut Ui, t: &Tokens, label: &str, on: Option<bool>) -> egui::R
     let (rect, resp) = ui.allocate_exact_size(vec2(galley.size().x + 18.0, height), Sense::click());
     widgets::named(ui, &resp, label, true, on);
     if resp.hovered() {
-        ui.painter().rect_filled(rect.shrink2(vec2(1.0, 1.0)), 5.0, widgets::bar_wash(t));
+        ui.painter().rect_filled(rect.shrink2(vec2(1.0, 1.0)), f32::from(crate::sizes::CONTROL_RADIUS), widgets::bar_wash(t));
     }
     if resp.has_focus() {
-        ui.painter().rect_stroke(rect.shrink(1.0), 5.0, egui::Stroke::new(1.5, on_color), egui::StrokeKind::Inside);
+        ui.painter().rect_stroke(
+            rect.shrink(1.0),
+            f32::from(crate::sizes::CONTROL_RADIUS),
+            egui::Stroke::new(1.5, on_color),
+            egui::StrokeKind::Inside,
+        );
     }
     ui.painter().galley(rect.center() - galley.size() / 2.0, galley, color);
     resp
@@ -187,7 +192,10 @@ pub(crate) fn card_under_ribbon(ui: &Ui, t: &Tokens, room: egui::Rect) {
     }
     let rect = egui::Rect::from_min_max(egui::pos2(room.left() - 5.0, top), egui::pos2(room.right() + 5.0, bottom));
     let fill = if t.dark { t.surface } else { egui::Color32::WHITE };
-    ui.painter().set(slot, egui::epaint::RectShape::new(rect, 8.0, fill, egui::Stroke::new(1.0, t.border), egui::StrokeKind::Inside));
+    // Its fill alone, no outline: the line under the ribbon is its one edge (the card's outline
+    // and the panel's made four edges within 47 points).
+    ui.painter()
+        .set(slot, egui::epaint::RectShape::new(rect, f32::from(crate::sizes::SURFACE_RADIUS), fill, egui::Stroke::NONE, egui::StrokeKind::Inside));
 }
 
 /// The ribbon's height (its row of buttons), the same whichever tab is shown.
@@ -231,7 +239,7 @@ fn module_button(ui: &mut Ui, t: &Tokens, module: Module, (m, icon, label, code)
     let on = m == module;
     widgets::named(ui, &resp, tl!(label), true, Some(on));
     if on || resp.hovered() {
-        ui.painter().rect_filled(r, 6.0, if on { t.accent_soft } else { t.hover });
+        ui.painter().rect_filled(r, f32::from(crate::sizes::CONTROL_RADIUS), if on { t.accent_soft } else { t.hover });
     }
     icons::paint(ui.painter(), icons::centered(r, 19.0), icon, if on { t.accent } else { t.dim });
     if resp.on_hover_text(tl!(label)).clicked() {

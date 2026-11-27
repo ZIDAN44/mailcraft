@@ -195,7 +195,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, minimize: bool, acts: &mut Vec
             let (rect, resp) = ui.allocate_exact_size(vec2(ui.available_width(), size.row), Sense::click_and_drag());
             let inset = corner_inset(ui, rect);
             if resp.hovered() || resp.dragged() {
-                ui.painter().rect_filled(rect, 6.0, t.hover_row);
+                ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), t.hover_row);
             }
             section_drag(ui, t, &resp, rect, &sections, at, acts);
             let m = crate::bidi::Mirror::new(rect);

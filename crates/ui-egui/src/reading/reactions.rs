@@ -25,7 +25,7 @@ pub(crate) fn react_button(ui: &mut Ui, t: &Tokens, acts: &mut Vec<Action>) {
             for emoji in mailcraft_engine::mime::REACTIONS {
                 let (rect, resp) = ui.allocate_exact_size(vec2(32.0, 32.0), Sense::click());
                 if resp.hovered() {
-                    ui.painter().rect_filled(rect, 6.0, t.hover);
+                    ui.painter().rect_filled(rect, f32::from(crate::sizes::CONTROL_RADIUS), t.hover);
                 }
                 let r = rect.shrink(5.0);
                 if !crate::faces::paint(ui.painter(), r, emoji) {

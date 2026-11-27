@@ -628,9 +628,12 @@ pub(super) fn office_preview(t: &Tokens, ui: &mut Ui, p: &mime::office::Preview,
             let w = ui.available_width().min(760.0);
             for (k, paras) in slides.iter().enumerate() {
                 ui.label(RichText::new(tf!("Slide {n}", n = k + 1)).color(t.faint).small());
-                egui::Frame::new().fill(t.surface).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).inner_margin(Margin::same(18)).show(
-                    ui,
-                    |ui| {
+                egui::Frame::new()
+                    .fill(t.surface)
+                    .stroke(egui::Stroke::new(1.0, t.border))
+                    .corner_radius(crate::sizes::SURFACE_RADIUS)
+                    .inner_margin(Margin::same(18))
+                    .show(ui, |ui| {
                         ui.set_width(w - 38.0);
                         ui.set_min_height((w - 38.0) * 9.0 / 16.0 * 0.6);
                         for (i, para) in paras.iter().enumerate() {
@@ -638,8 +641,7 @@ pub(super) fn office_preview(t: &Tokens, ui: &mut Ui, p: &mime::office::Preview,
                             ui.label(RichText::new(para).font(font).color(t.text));
                             ui.add_space(if i == 0 { 8.0 } else { 3.0 });
                         }
-                    },
-                );
+                    });
                 ui.add_space(12.0);
             }
         }

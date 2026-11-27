@@ -367,9 +367,12 @@ fn action_bar(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, beside: bool
     let t = st.tokens;
     let r = o.r;
     if let Some((_, item)) = s.outbox_entry(&r.key) {
-        egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
-            ui.label(RichText::new(outbox_says(&item, s)).color(t.text));
-        });
+        egui::Frame::new().fill(t.warn.gamma_multiply(0.12)).corner_radius(crate::sizes::SURFACE_RADIUS).inner_margin(Margin::symmetric(10, 6)).show(
+            ui,
+            |ui| {
+                ui.label(RichText::new(outbox_says(&item, s)).color(t.text));
+            },
+        );
         ui.add_space(6.0);
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 6.0;
@@ -385,7 +388,7 @@ fn action_bar(s: &Session, st: &UiState, ui: &mut Ui, o: &Open<'_>, beside: bool
         });
     } else if s.view_role() == Some(mailcraft_engine::model::FolderRole::Drafts) || o.summary.is_some_and(|m| m.flags.draft) {
         // A draft: carried on with, as it was saved.
-        egui::Frame::new().fill(t.accent_soft).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
+        egui::Frame::new().fill(t.accent_soft).corner_radius(crate::sizes::SURFACE_RADIUS).inner_margin(Margin::symmetric(10, 6)).show(ui, |ui| {
             ui.set_width(ui.available_width());
             ui.label(RichText::new(tl!("Not sent yet: this is a draft.")).color(t.text));
         });

@@ -507,39 +507,43 @@ const NOTES_MAX_H: f32 = 320.0;
 /// under its words and opened from there, long addresses shortened, the whole scrolling when
 /// it's tall.
 fn notes(ui: &mut Ui, t: &Tokens, text: &str, acts: &mut Vec<Action>) {
-    egui::Frame::new().stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6.0).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        egui::ScrollArea::vertical().id_salt("event-notes-read").max_height(NOTES_MAX_H).show(ui, |ui| {
-            ui.spacing_mut().item_spacing = vec2(0.0, 2.0);
-            let mut blank = 0;
-            for line in mailcraft_engine::model::ical::note_lines(text) {
-                // Runs of blank lines as one gap.
-                if line.iter().all(|p| matches!(p, mailcraft_engine::model::ical::NotePart::Text(s) if s.trim().is_empty())) {
-                    blank += 1;
-                    if blank == 1 {
-                        ui.add_space(6.0);
+    egui::Frame::new()
+        .stroke(egui::Stroke::new(1.0, t.border))
+        .corner_radius(crate::sizes::SURFACE_RADIUS)
+        .inner_margin(Margin::symmetric(10, 8))
+        .show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            egui::ScrollArea::vertical().id_salt("event-notes-read").max_height(NOTES_MAX_H).show(ui, |ui| {
+                ui.spacing_mut().item_spacing = vec2(0.0, 2.0);
+                let mut blank = 0;
+                for line in mailcraft_engine::model::ical::note_lines(text) {
+                    // Runs of blank lines as one gap.
+                    if line.iter().all(|p| matches!(p, mailcraft_engine::model::ical::NotePart::Text(s) if s.trim().is_empty())) {
+                        blank += 1;
+                        if blank == 1 {
+                            ui.add_space(6.0);
+                        }
+                        continue;
                     }
-                    continue;
-                }
-                blank = 0;
-                ui.horizontal_wrapped(|ui| {
-                    for part in line {
-                        match part {
-                            mailcraft_engine::model::ical::NotePart::Text(s) => {
-                                ui.label(RichText::new(s).color(t.text));
-                            }
-                            mailcraft_engine::model::ical::NotePart::Link { label, url } => {
-                                let shown = if label == url { link_label(&url, 56) } else { label };
-                                if ui.link(shown).on_hover_text(&url).clicked() {
-                                    acts.push(Action::OpenUrl(url));
+                    blank = 0;
+                    ui.horizontal_wrapped(|ui| {
+                        for part in line {
+                            match part {
+                                mailcraft_engine::model::ical::NotePart::Text(s) => {
+                                    ui.label(RichText::new(s).color(t.text));
+                                }
+                                mailcraft_engine::model::ical::NotePart::Link { label, url } => {
+                                    let shown = if label == url { link_label(&url, 56) } else { label };
+                                    if ui.link(shown).on_hover_text(&url).clicked() {
+                                        acts.push(Action::OpenUrl(url));
+                                    }
                                 }
                             }
                         }
-                    }
-                });
-            }
+                    });
+                }
+            });
         });
-    });
 }
 
 /// A web address as a link shows it: without its scheme (`meet.example.org/abc`), cut to `max`

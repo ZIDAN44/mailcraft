@@ -355,7 +355,7 @@ fn message_text(s: &Session, st: &mut UiState, ui: &mut Ui, o: &Open<'_>, format
         // The light theme's colours for the text, on its page: put back once it's drawn.
         let light = theme::Tokens::light();
         st.tokens = light;
-        egui::Frame::new().fill(light.surface).corner_radius(6).inner_margin(Margin::same(14)).show(ui, |ui| {
+        egui::Frame::new().fill(light.surface).corner_radius(crate::sizes::SURFACE_RADIUS).inner_margin(Margin::same(14)).show(ui, |ui| {
             ui.set_width(ui.available_width());
             // Text drawn in the visuals' colour (plain text, labels) and links too, here only.
             let v = ui.visuals_mut();
@@ -418,7 +418,7 @@ pub(crate) fn external_tag(ui: &mut Ui, t: &Tokens) -> egui::Response {
 
 /// A message file opened to be looked at (issue #56): where it's from, and what it's spared.
 fn opened_file_bar(t: &Tokens, ui: &mut Ui, name: &str) {
-    egui::Frame::new().fill(t.chrome).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(6).inner_margin(Margin::symmetric(10, 6)).show(
+    egui::Frame::new().fill(t.chrome).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(crate::sizes::SURFACE_RADIUS).inner_margin(Margin::symmetric(10, 6)).show(
         ui,
         |ui| {
             ui.set_width(ui.available_width());
@@ -455,19 +455,22 @@ pub(crate) fn sender_warning(t: &Tokens, ui: &mut Ui, w: &mailcraft_engine::mode
             tf!("Careful: you know {name} as {known}, but this comes from {real}.", name = name, known = known, real = real)
         }
     };
-    egui::Frame::new().fill(t.danger.gamma_multiply(0.12)).corner_radius(6).inner_margin(Margin::symmetric(10, 8)).show(ui, |ui| {
-        ui.set_width(ui.available_width());
-        ui.horizontal(|ui| {
-            let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
-            icons::paint(ui.painter(), r, Icon::Warning, t.danger);
-            ui.vertical(|ui| {
-                ui.label(RichText::new(what).color(t.text));
-                ui.label(
-                    RichText::new(tl!("Don't open its links or attachments, or answer it, unless you're sure who sent it.")).color(t.dim).small(),
-                );
+    egui::Frame::new().fill(t.danger.gamma_multiply(0.12)).corner_radius(crate::sizes::SURFACE_RADIUS).inner_margin(Margin::symmetric(10, 8)).show(
+        ui,
+        |ui| {
+            ui.set_width(ui.available_width());
+            ui.horizontal(|ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                icons::paint(ui.painter(), r, Icon::Warning, t.danger);
+                ui.vertical(|ui| {
+                    ui.label(RichText::new(what).color(t.text));
+                    ui.label(
+                        RichText::new(tl!("Don't open its links or attachments, or answer it, unless you're sure who sent it.")).color(t.dim).small(),
+                    );
+                });
             });
-        });
-    });
+        },
+    );
     ui.add_space(8.0);
 }
 
