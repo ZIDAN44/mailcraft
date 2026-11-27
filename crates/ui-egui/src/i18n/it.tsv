@@ -319,7 +319,6 @@
 	Text	Testo
 	Text or address	Testo o indirizzo
 	The PDF couldn't be opened: {error}	Impossibile aprire il PDF: {error}
-	The folder and everything in it will be moved to Deleted Items.	La cartella e tutto il suo contenuto verranno spostati in Posta eliminata.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	La cartella, le sue sottocartelle e tutta la posta che contengono verranno eliminate definitivamente. Non si può annullare.
 	The link couldn't be opened: {error}	Impossibile aprire il collegamento: {error}
 	The sign-in page couldn't be opened: {error}	Impossibile aprire la pagina di accesso: {error}
@@ -696,8 +695,6 @@
 	Account settings…	Impostazioni account…
 	Delete all…	Elimina tutto…
 	Delete all	Elimina tutto
-	Delete everything in “{folder}”?	Eliminare tutto in “{folder}”?
-	Every message in it will be moved to Deleted Items.	Tutti i messaggi verranno spostati in Posta eliminata.
 	Find related	Trova correlati
 	Messages in this conversation	Messaggi di questa conversazione
 	Messages from sender	Messaggi del mittente
@@ -2221,3 +2218,6 @@ count	occurrences	ripetizioni
 	Old mail is being archived already: wait until that's done.	La posta vecchia è già in archiviazione: attendi che finisca.
 	no access	nessun accesso
 	already open	già aperto
+	1 message moved to Deleted Items	1 messaggio spostato in Posta eliminata
+	{n} messages moved to Deleted Items	{n} messaggi spostati in Posta eliminata
+	“{folder}” moved to Deleted Items	«{folder}» spostata in Posta eliminata

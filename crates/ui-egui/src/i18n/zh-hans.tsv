@@ -319,7 +319,6 @@
 	Text	文本
 	Text or address	文本或地址
 	The PDF couldn't be opened: {error}	无法打开 PDF: {error}
-	The folder and everything in it will be moved to Deleted Items.	文件夹及其所有内容将移动到“已删除邮件”。
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	文件夹、其子文件夹及其中的所有邮件将被永久删除。此操作无法撤消。
 	The link couldn't be opened: {error}	无法打开链接: {error}
 	The sign-in page couldn't be opened: {error}	无法打开登录页面: {error}
@@ -699,8 +698,6 @@ month	May	5月
 	Account settings…	帐户设置…
 	Delete all…	全部删除…
 	Delete all	全部删除
-	Delete everything in “{folder}”?	删除“{folder}”中的所有内容?
-	Every message in it will be moved to Deleted Items.	其中的所有邮件都将移到“已删除邮件”。
 	Find related	查找相关
 	Messages in this conversation	此对话中的邮件
 	Messages from sender	来自发件人的邮件
@@ -2218,3 +2215,6 @@ count	occurrences	次
 	Old mail is being archived already: wait until that's done.	已在归档旧邮件：请等待完成。
 	no access	无访问权限
 	already open	已经打开
+	1 message moved to Deleted Items	已将 1 封邮件移到已删除邮件
+	{n} messages moved to Deleted Items	已将 {n} 封邮件移到已删除邮件
+	“{folder}” moved to Deleted Items	已将“{folder}”移到已删除邮件

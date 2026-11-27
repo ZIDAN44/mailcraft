@@ -319,7 +319,6 @@
 	Text	Metin
 	Text or address	Metin veya adres
 	The PDF couldn't be opened: {error}	PDF açılamadı: {error}
-	The folder and everything in it will be moved to Deleted Items.	Klasör ve içindeki her şey Silinmiş Öğeler'e taşınacak.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	Klasör, alt klasörleri ve içlerindeki tüm postalar kalıcı olarak silinecek. Bu işlem geri alınamaz.
 	The link couldn't be opened: {error}	Bağlantı açılamadı: {error}
 	The sign-in page couldn't be opened: {error}	Oturum açma sayfası açılamadı: {error}
@@ -697,8 +696,6 @@
 	Account settings…	Hesap ayarları…
 	Delete all…	Tümünü sil…
 	Delete all	Tümünü sil
-	Delete everything in “{folder}”?	“{folder}” içindeki her şey silinsin mi?
-	Every message in it will be moved to Deleted Items.	İçindeki her ileti Silinmiş Öğeler'e taşınacak.
 	Find related	İlgilileri bul
 	Messages in this conversation	Bu konuşmadaki iletiler
 	Messages from sender	Göndericiden gelen iletiler
@@ -2222,3 +2219,6 @@ count	occurrences	kez
 	Old mail is being archived already: wait until that's done.	Eski postalar zaten arşivleniyor: bitmesini bekleyin.
 	no access	erişim yok
 	already open	zaten açık
+	1 message moved to Deleted Items	1 ileti Silinmiş Öğeler klasörüne taşındı
+	{n} messages moved to Deleted Items	{n} ileti Silinmiş Öğeler klasörüne taşındı
+	“{folder}” moved to Deleted Items	"{folder}" Silinmiş Öğeler klasörüne taşındı

@@ -319,7 +319,6 @@
 	Text	Text
 	Text or address	Text oder Adresse
 	The PDF couldn't be opened: {error}	Das PDF konnte nicht geöffnet werden: {error}
-	The folder and everything in it will be moved to Deleted Items.	Der Ordner und sein gesamter Inhalt werden nach „Gelöschte Elemente“ verschoben.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	Der Ordner, seine Unterordner und alle E-Mails darin werden endgültig gelöscht. Dies kann nicht rückgängig gemacht werden.
 	The link couldn't be opened: {error}	Der Link konnte nicht geöffnet werden: {error}
 	The sign-in page couldn't be opened: {error}	Die Anmeldeseite konnte nicht geöffnet werden: {error}
@@ -697,8 +696,6 @@
 	Account settings…	Kontoeinstellungen…
 	Delete all…	Alle löschen…
 	Delete all	Alle löschen
-	Delete everything in “{folder}”?	Alles in „{folder}“ löschen?
-	Every message in it will be moved to Deleted Items.	Alle Nachrichten darin werden nach „Gelöschte Elemente“ verschoben.
 	Find related	Verwandte suchen
 	Messages in this conversation	Nachrichten in dieser Unterhaltung
 	Messages from sender	Nachrichten vom Absender
@@ -2222,3 +2219,6 @@ count	occurrences	Terminen
 	Old mail is being archived already: wait until that's done.	Alte E-Mails werden bereits archiviert: Warten Sie, bis das fertig ist.
 	no access	kein Zugriff
 	already open	bereits geöffnet
+	1 message moved to Deleted Items	1 Nachricht in „Gelöschte Elemente“ verschoben
+	{n} messages moved to Deleted Items	{n} Nachrichten in „Gelöschte Elemente“ verschoben
+	“{folder}” moved to Deleted Items	„{folder}“ in „Gelöschte Elemente“ verschoben

@@ -452,8 +452,7 @@ pub(crate) fn tour() {
                 },
                 true,
             ),
-            Dialog::ConfirmEmpty { account: "sample".into(), folder: "Trash".into(), name: "Deleted Items".into(), for_good: true },
-            Dialog::ConfirmEmpty { account: "sample".into(), folder: "INBOX".into(), name: "Inbox".into(), for_good: false },
+            Dialog::ConfirmEmpty { account: "sample".into(), folder: "Trash".into(), name: "Deleted Items".into() },
             Dialog::FolderProperties {
                 name: "Inbox".into(),
                 account: "riley@studio.example".into(),
@@ -545,7 +544,7 @@ pub(crate) fn tour() {
             Dialog::new_folder("sample", None),
             Dialog::rename_folder(&projects),
             Dialog::move_folder(&projects),
-            Dialog::delete_folder(&a.session, &projects),
+            Dialog::delete_folder(&projects),
             Dialog::NewCategory { name: "Clients".into(), color: 3, keyword: String::new(), editing: None, error: Some("taken".into()) },
             Dialog::NewCategory { name: "Work".into(), color: 1, keyword: "bad word".into(), editing: Some("Work".into()), error: None },
             Dialog::name_keyword("r=c3=bcckfrage"),

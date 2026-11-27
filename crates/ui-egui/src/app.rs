@@ -198,6 +198,22 @@ impl MailApp {
             // A message opened by a command (a script's, a conversation's row in the reading
             // pane) is brought into view in the list: it could be opened out of sight.
             Ok(_) if id == "list.open" => self.ui.scroll_to_focus = true,
+            // Done at once (Delete All, a folder deleted, into Deleted Items), with Undo where
+            // it's said: nothing asked first, as a message deleted.
+            Ok(v) if id == "folder.empty" && v.get("to").is_some() => {
+                let n = v["moved"].as_u64().unwrap_or(0);
+                if n > 0 {
+                    let text =
+                        if n == 1 { tl!("1 message moved to Deleted Items").to_string() } else { tf!("{n} messages moved to Deleted Items", n = n) };
+                    self.said_with_undo(text);
+                }
+            }
+            Ok(v) if id == "folder.delete" && v.get("moved").is_some() => {
+                let account = params["account"].as_str().unwrap_or_default();
+                let at = v["moved"].as_str().unwrap_or_default();
+                let name = self.session.folder(account, at).map(crate::i18n::folder).unwrap_or_default();
+                self.said_with_undo(tf!("“{folder}” moved to Deleted Items", folder = name));
+            }
             Ok(_) => {}
             // Not from an account that can't send: said over the message, as why it didn't go.
             Err(CmdError::Disabled(_))
@@ -220,6 +236,12 @@ impl MailApp {
             Err(e) => self.session.notice(e.to_string(), true),
         }
         answer
+    }
+
+    /// `text` said in the corner with Undo, which undoes what was just done.
+    fn said_with_undo(&mut self, text: String) {
+        self.session.notice(text, false);
+        self.ui.toast_undo = Some((self.session.notices.len(), self.session.undo_given, self.session.undo.len()));
     }
 
     /// A `mailto:` link or a mail file the system handed MailCraft (as its mail app, or through

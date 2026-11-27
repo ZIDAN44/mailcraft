@@ -180,20 +180,15 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
-        Dialog::DeleteFolder { account, folder, name, permanent, error } => {
+        Dialog::DeleteFolder { account, folder, name, error } => {
             ui.set_width(crate::sizes::DIALOG_S);
             title(ui, t, &tf!("Delete “{folder}”?", folder = name));
-            let text = if *permanent {
-                tl!("The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.")
-            } else {
-                tl!("The folder and everything in it will be moved to Deleted Items.")
-            };
+            let text = tl!("The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.");
             ui.label(RichText::new(text).color(t.dim));
             if let Some(e) = error {
                 field_error(ui, t, e);
             }
-            let pair = if *permanent { danger_buttons } else { buttons };
-            let (ok, cancel) = pair(ui, t, "Delete", true);
+            let (ok, cancel) = danger_buttons(ui, t, "Delete", true);
             if ok {
                 *error = None;
                 acts.push(Action::Submit("folder.delete", json!({"account": account, "folder": folder})));
@@ -236,23 +231,17 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
             }
             !cancel
         }
-        Dialog::ConfirmEmpty { account, folder, name, for_good } => {
+        Dialog::ConfirmEmpty { account, folder, name } => {
             ui.set_width(crate::sizes::DIALOG_S);
-            if *for_good {
-                title(ui, t, &tf!("Empty “{folder}”?", folder = name));
-                ui.label(
-                    RichText::new(tl!(
-                        "Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone."
-                    ))
-                    .color(t.dim),
-                );
-            } else {
-                title(ui, t, &tf!("Delete everything in “{folder}”?", folder = name));
-                ui.label(RichText::new(tl!("Every message in it will be moved to Deleted Items.")).color(t.dim));
-            }
+            title(ui, t, &tf!("Empty “{folder}”?", folder = name));
+            ui.label(
+                RichText::new(tl!(
+                    "Everything in it will be deleted for good, including mail not downloaded to this computer. This can't be undone."
+                ))
+                .color(t.dim),
+            );
             // For good: red, and not Enter's.
-            let pair = if *for_good { danger_buttons } else { buttons };
-            let (ok, cancel) = pair(ui, t, if *for_good { "Empty" } else { "Delete all" }, true);
+            let (ok, cancel) = danger_buttons(ui, t, "Empty", true);
             if ok {
                 acts.push(Action::Run("folder.empty", json!({"account": account, "folder": folder})));
                 return false;

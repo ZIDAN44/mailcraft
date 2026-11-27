@@ -19,10 +19,19 @@ impl Session {
                 .map(|t| t.path.clone())
                 .ok_or_else(|| CmdError::Params("the account has no Deleted Items folder".into()))?;
             self.folders_ready(&[(account.to_string(), folder.to_string())])?;
-            let keys: Vec<MessageKey> = self.folder_state(account, folder).messages.iter().map(|m| m.key.clone()).collect();
+            let state = self.folder_state(account, folder);
+            let keys: Vec<MessageKey> = state.messages.iter().map(|m| m.key.clone()).collect();
+            // Undone as a delete is, found again by Message-ID, so it needn't be asked about
+            // first.
+            let back: Vec<(String, String)> =
+                state.messages.iter().filter(|m| !m.message_id.is_empty()).map(|m| (m.message_id.clone(), folder.to_string())).collect();
             let n = keys.len();
             if n > 0 {
-                self.apply_op(account, Op::Move { keys, to: trash });
+                self.apply_op(account, Op::Move { keys, to: trash.clone() });
+            }
+            if !back.is_empty() {
+                self.moved_at = self.clock.now;
+                self.remember(Undo::Move { moves: vec![(account.to_string(), trash, back)] });
             }
             return Ok(serde_json::json!({ "moved": n, "to": "trash" }));
         }

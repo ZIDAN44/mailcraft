@@ -319,7 +319,6 @@
 	Text	텍스트
 	Text or address	텍스트 또는 주소
 	The PDF couldn't be opened: {error}	PDF를 열 수 없습니다: {error}
-	The folder and everything in it will be moved to Deleted Items.	폴더와 그 안의 모든 항목이 지운 편지함으로 이동합니다.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	폴더, 하위 폴더 및 그 안의 모든 메일이 영구적으로 삭제됩니다. 되돌릴 수 없습니다.
 	The link couldn't be opened: {error}	링크를 열 수 없습니다: {error}
 	The sign-in page couldn't be opened: {error}	로그인 페이지를 열 수 없습니다: {error}
@@ -696,8 +695,6 @@
 	Account settings…	계정 설정…
 	Delete all…	모두 삭제…
 	Delete all	모두 삭제
-	Delete everything in “{folder}”?	“{folder}”의 모든 항목을 삭제할까요?
-	Every message in it will be moved to Deleted Items.	안의 모든 메시지가 지운 편지함으로 이동합니다.
 	Find related	관련 항목 찾기
 	Messages in this conversation	이 대화의 메시지
 	Messages from sender	보낸 사람의 메시지
@@ -2221,3 +2218,6 @@ count	occurrences	회
 	Old mail is being archived already: wait until that's done.	오래된 메일을 이미 보관하는 중입니다. 끝날 때까지 기다리세요.
 	no access	액세스 권한 없음
 	already open	이미 열려 있음
+	1 message moved to Deleted Items	메시지 1개를 지운 편지함으로 옮겼습니다
+	{n} messages moved to Deleted Items	메시지 {n}개를 지운 편지함으로 옮겼습니다
+	“{folder}” moved to Deleted Items	'{folder}'을(를) 지운 편지함으로 옮겼습니다

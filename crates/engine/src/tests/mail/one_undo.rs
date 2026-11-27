@@ -1,4 +1,5 @@
-//! One action over mail of several accounts (All Inboxes) is one Undo.
+//! One action over mail of several accounts (All Inboxes) is one Undo; and Delete All, and a
+//! folder deleted into Deleted Items, are undone as a move is.
 
 use mailcraft_model::{Flags, Folder, MessageKey, Summary};
 
@@ -133,4 +134,36 @@ fn a_change_over_several_accounts_goes_in_their_order() {
     s.run("mail.delete", &json!({"permanent": true})).unwrap();
     let accounts = order(&mut s);
     assert_eq!(accounts, ids, "deleted");
+}
+
+/// Delete All in a folder other than Deleted Items moves its mail there with an Undo that puts it
+/// all back: it can be done without asking first (there was no Undo, so it asked).
+#[test]
+fn delete_all_into_deleted_items_is_undone() {
+    let mut s = sample_session("undo-empty");
+    let inbox = |s: &Session| s.store.as_ref().unwrap().load_folder("sample", "INBOX").unwrap().messages.len();
+    let n = inbox(&s);
+    assert!(n > 0);
+    let out = s.run("folder.empty", &json!({"account": "sample", "folder": "INBOX"})).unwrap();
+    assert_eq!(out["moved"].as_u64(), Some(n as u64));
+    assert_eq!(inbox(&s), 0);
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!(inbox(&s), n, "all of it back");
+}
+
+/// A folder deleted into Deleted Items comes back where it was with Undo; once it has gone from
+/// there (deleted for good), Undo says so.
+#[test]
+fn a_folder_deleted_into_deleted_items_is_undone() {
+    let mut s = sample_session("undo-folder");
+    let out = s.run("folder.delete", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    let there = out["moved"].as_str().unwrap().to_string();
+    assert!(s.folder("sample", "Projects").is_none() && s.folder("sample", &there).is_some());
+    s.run("edit.undo", &json!({})).unwrap();
+    assert!(s.folder("sample", "Projects").is_some() && s.folder("sample", &there).is_none(), "back");
+
+    s.run("folder.delete", &json!({"account": "sample", "folder": "Projects"})).unwrap();
+    s.run("folder.delete", &json!({"account": "sample", "folder": there, "permanent": true})).unwrap();
+    assert!(s.run("edit.undo", &json!({})).is_err(), "gone for good: nothing to put back");
+    assert!(s.folder("sample", "Projects").is_none());
 }

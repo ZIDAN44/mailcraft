@@ -304,3 +304,91 @@ fn a_folder_dropped_at_an_edge_goes_beside_it() {
     a.run("folder.sortAZ", json!({"account": "sample"}));
     assert_eq!(order(&ctx, &mut a), ["Clients", "Projects", "Zeta"]);
 }
+
+/// Audit D12: Delete All in a folder other than Deleted Items, and a folder deleted into Deleted
+/// Items, are done at once, as a message deleted is, and said in the corner with **Undo**, which
+/// puts it back. They asked first, though either could be undone.
+#[test]
+fn deleting_into_deleted_items_asks_nothing_and_offers_undo() {
+    let (mut a, _) = app("folder-menu-undo");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    // The corner's notice at once, not fading in over a clock that doesn't move here.
+    a.session.prefs.animations = false;
+    let at = |texts: &[(String, egui::Pos2)], name: &str| texts.iter().filter(|(t, _)| t == name).map(|(_, p)| *p + egui::vec2(4.0, 6.0)).next_back();
+    let choose = |ctx: &egui::Context, a: &mut MailApp, folder: &str, label: &str| {
+        let texts = pane(ctx, a, 2000.0, vec![]);
+        let Some(p) = at(&texts, folder) else { panic!("{folder} drawn: {texts:?}") };
+        let right = |pressed| Event::PointerButton { pos: p, button: egui::PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+        pane(ctx, a, 2000.0, vec![Event::PointerMoved(p)]);
+        pane(ctx, a, 2000.0, vec![right(true)]);
+        pane(ctx, a, 2000.0, vec![right(false)]);
+        let menu = pane(ctx, a, 2000.0, vec![]);
+        let Some(item) = at(&menu, label) else { panic!("{label} in the menu: {menu:?}") };
+        let click = |pressed| Event::PointerButton { pos: item, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+        pane(ctx, a, 2000.0, vec![Event::PointerMoved(item)]);
+        pane(ctx, a, 2000.0, vec![click(true)]);
+        pane(ctx, a, 2000.0, vec![click(false)]);
+    };
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    let inbox = |a: &MailApp| a.session.store.as_ref().unwrap().load_folder("sample", "INBOX").unwrap().messages.len();
+    let n = inbox(&a);
+    assert!(n > 1);
+
+    choose(&ctx, &mut a, "Inbox", "Delete all");
+    assert!(a.ui.dialog.is_none(), "asked: {:?}", a.ui.dialog);
+    assert_eq!(inbox(&a), 0);
+    for _ in 0..4 {
+        let _ = drawn_strings(&ctx, &mut a, size);
+    }
+    let said = drawn_strings(&ctx, &mut a, size);
+    assert!(has(&said, &format!("{n} messages moved to Deleted Items")), "{said:?}");
+    click_named(&ctx, &mut a, "Undo");
+    assert_eq!(inbox(&a), n, "back");
+
+    choose(&ctx, &mut a, "Projects", "Delete folder");
+    assert!(a.ui.dialog.is_none(), "asked: {:?}", a.ui.dialog);
+    assert!(a.session.folder("sample", "Projects").is_none());
+    for _ in 0..4 {
+        let _ = drawn_strings(&ctx, &mut a, size);
+    }
+    let said = drawn_strings(&ctx, &mut a, size);
+    assert!(has(&said, "“Projects” moved to Deleted Items"), "{said:?}");
+    click_named(&ctx, &mut a, "Undo");
+    assert!(a.session.folder("sample", "Projects").is_some(), "back");
+    // Once undone, the corner offers no Undo.
+    let left = named(&ctx, &mut a, size);
+    assert!(!left.iter().any(|n| n.label.as_deref() == Some("Undo")), "Undo left after undoing");
+}
+
+/// The corner's **Undo** undoes what it says and nothing newer: once another change is made, it
+/// goes, even with the list of changes to undo full (its length the same after).
+#[test]
+fn the_corners_undo_goes_once_something_newer_is_done() {
+    let (mut a, _) = app("folder-undo-newer");
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    a.session.prefs.animations = false;
+    let size = windows::layout::SIZE.with(std::cell::Cell::get);
+    let first = a.session.list[0].key.to_id();
+    a.run("list.select", json!({"key": first}));
+    // Undo's list full.
+    for _ in 0..25 {
+        a.run("mail.toggleRead", json!({}));
+    }
+    let full = a.session.undo.len();
+    a.run("folder.empty", json!({"account": "sample", "folder": "INBOX"}));
+    assert_eq!(a.session.undo.len(), full, "full: the oldest went");
+    let undo_shown = |ctx: &egui::Context, a: &mut MailApp| {
+        for _ in 0..4 {
+            let _ = drawn_strings(ctx, a, size);
+        }
+        named(ctx, a, size).iter().any(|n| n.label.as_deref() == Some("Undo"))
+    };
+    assert!(undo_shown(&ctx, &mut a));
+    a.run("folder.open", json!({"account": "sample", "folder": "Trash"}));
+    let moved = a.session.list[0].key.to_id();
+    a.run("list.select", json!({"key": moved}));
+    a.run("mail.toggleRead", json!({}));
+    assert!(!undo_shown(&ctx, &mut a), "Undo would undo the newer change");
+}

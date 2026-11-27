@@ -319,7 +319,6 @@
 	Text	文字
 	Text or address	文字或地址
 	The PDF couldn't be opened: {error}	無法開啟 PDF: {error}
-	The folder and everything in it will be moved to Deleted Items.	資料夾和其中所有內容將移到「刪除的郵件」。
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	資料夾、其子資料夾和其中所有郵件將永久刪除。此動作無法復原。
 	The link couldn't be opened: {error}	無法開啟連結: {error}
 	The sign-in page couldn't be opened: {error}	無法開啟登入頁面: {error}
@@ -696,8 +695,6 @@
 	Account settings…	帳戶設定…
 	Delete all…	全部刪除…
 	Delete all	全部刪除
-	Delete everything in “{folder}”?	刪除「{folder}」中的所有內容?
-	Every message in it will be moved to Deleted Items.	其中的所有郵件都會移到「刪除的郵件」。
 	Find related	尋找相關項目
 	Messages in this conversation	此交談中的郵件
 	Messages from sender	來自寄件者的郵件
@@ -2221,3 +2218,6 @@ count	occurrences	次
 	Old mail is being archived already: wait until that's done.	已在封存舊郵件：請等候完成。
 	no access	無存取權
 	already open	已經開啟
+	1 message moved to Deleted Items	已將 1 封郵件移到刪除的郵件
+	{n} messages moved to Deleted Items	已將 {n} 封郵件移到刪除的郵件
+	“{folder}” moved to Deleted Items	已將「{folder}」移到刪除的郵件

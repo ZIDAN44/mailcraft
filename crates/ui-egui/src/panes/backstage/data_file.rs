@@ -162,12 +162,7 @@ pub(super) fn mailbox(s: &Session, t: &Tokens, has_files: bool, ui: &mut Ui, a: 
                 if let Some(f) = a.folder(role)
                     && ui.add_enabled(f.total > 0 || a.is_local(), egui::Button::new(tl!(label))).clicked()
                 {
-                    acts.push(Action::Dialog(Dialog::ConfirmEmpty {
-                        account: id.clone(),
-                        folder: f.path.clone(),
-                        name: crate::i18n::folder(f),
-                        for_good: true,
-                    }));
+                    acts.push(Action::Dialog(Dialog::ConfirmEmpty { account: id.clone(), folder: f.path.clone(), name: crate::i18n::folder(f) }));
                 }
             }
         });

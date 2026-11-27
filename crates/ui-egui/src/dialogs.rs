@@ -157,13 +157,12 @@ pub enum Dialog {
     EditAccount(Box<EditForm>),
     /// An account's automatic replies.
     Vacation(Box<VacationForm>),
-    /// Empty Deleted Items or Junk for good (`for_good`), or Delete All in another folder:
-    /// everything to Deleted Items.
+    /// Empty Deleted Items or Junk, for good. (Delete All in another folder moves its mail to
+    /// Deleted Items at once, with Undo: nothing to ask.)
     ConfirmEmpty {
         account: String,
         folder: String,
         name: String,
-        for_good: bool,
     },
     /// Open someone else's calendar by their address (Outlook's Open Calendar).
     OpenSharedCalendar {
@@ -273,11 +272,12 @@ pub enum Dialog {
         chosen: Option<Option<String>>,
         error: Option<String>,
     },
+    /// Delete a folder for good: one in Deleted Items, or in an account without it. (Any other
+    /// goes to Deleted Items at once, with Undo.)
     DeleteFolder {
         account: String,
         folder: String,
         name: String,
-        permanent: bool,
         error: Option<String>,
     },
     /// A task list to make on the calendars' server (issue #294): its name.
@@ -694,12 +694,17 @@ impl Dialog {
         Dialog::MoveFolder { account: f.account.clone(), folder: f.path.clone(), filter: String::new(), chosen: None, error: None }
     }
 
-    /// Delete a folder: into Deleted Items, or for good when it's already there.
-    pub fn delete_folder(s: &Session, f: &Folder) -> Dialog {
-        let trash = s.account(&f.account).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Trash)).map(|t| t.path.clone());
-        let permanent = trash.is_none_or(|t| mailcraft_engine::model::is_within(&f.path, &t, f.delimiter));
-        Dialog::DeleteFolder { account: f.account.clone(), folder: f.path.clone(), name: f.display_name(), permanent, error: None }
+    /// Delete a folder for good, asked first ([`folder_goes_for_good`]).
+    pub fn delete_folder(f: &Folder) -> Dialog {
+        Dialog::DeleteFolder { account: f.account.clone(), folder: f.path.clone(), name: f.display_name(), error: None }
     }
+}
+
+/// Whether deleting `f` deletes it for good (it's in Deleted Items, or its account has none),
+/// which is asked first; else it goes to Deleted Items, with Undo.
+pub(crate) fn folder_goes_for_good(s: &Session, f: &Folder) -> bool {
+    let trash = s.account(&f.account).and_then(|a| a.folder(mailcraft_engine::model::FolderRole::Trash)).map(|t| t.path.clone());
+    trash.is_none_or(|t| mailcraft_engine::model::is_within(&f.path, &t, f.delimiter))
 }
 
 fn body(ui: &mut Ui, d: &mut Dialog, s: &Session, pics: &mut crate::reading::Pictures, t: &Tokens, acts: &mut Vec<Action>) -> bool {

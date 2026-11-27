@@ -121,6 +121,8 @@ impl Session {
                 n += 1;
             }
             self.apply_op(account, Op::RenameFolder { from: path.to_string(), to: to.clone() });
+            // Undone as a message deleted is, so it needn't be asked about first.
+            self.remember(Undo::Folder { account: account.to_string(), from: to.clone(), to: path.to_string() });
             return Ok(serde_json::json!({ "moved": to }));
         }
         // Deepest first: servers refuse to delete a folder that still has children.
@@ -458,6 +460,7 @@ impl Session {
 
     pub(crate) fn remember(&mut self, u: Undo) {
         self.undo.push(u);
+        self.undo_given = self.undo_given.wrapping_add(1);
         if self.undo.len() > UNDO_DEPTH {
             self.undo.remove(0);
         }
@@ -506,7 +509,28 @@ impl Session {
                     _ => Ok(serde_json::json!({ "undone": "move", "count": n })),
                 }
             }
+            Undo::Folder { account, from, to } => self.folder_back(&account, &from, &to),
         }
+    }
+
+    /// A folder deleted into Deleted Items (now at `from`) put back where it was (`to`): not once
+    /// it has gone from there, or something else has its place, or the folder it was in is gone.
+    fn folder_back(&mut self, account: &str, from: &str, to: &str) -> CmdResult {
+        let Some(f) = self.folder(account, from) else {
+            return Err(CmdError::Failed("the folder isn't in Deleted Items any more, so it can't be put back".into()));
+        };
+        let d = f.delimiter.or(self.delimiter(account));
+        if self.folder(account, to).is_some() {
+            return Err(CmdError::Failed("another folder has its place now, so it can't be put back".into()));
+        }
+        if let Some((parent, _)) = d.and_then(|d| to.rsplit_once(d))
+            && self.folder(account, parent).is_none()
+        {
+            return Err(CmdError::Failed("the folder it was in is gone, so it can't be put back".into()));
+        }
+        self.import_holds(account)?;
+        self.apply_op(account, Op::RenameFolder { from: from.to_string(), to: to.to_string() });
+        Ok(serde_json::json!({ "undone": "folder", "folder": to }))
     }
 
     /// The mail moved from `account`'s folders to `to` put back where each came from, found there

@@ -319,7 +319,6 @@
 	Text	Szöveg
 	Text or address	Szöveg vagy cím
 	The PDF couldn't be opened: {error}	Nem sikerült megnyitni a PDF-et: {error}
-	The folder and everything in it will be moved to Deleted Items.	A mappa a teljes tartalmával együtt a Törölt elemek közé kerül.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	A mappa, az almappái és a bennük lévő összes üzenet végleg törlődik. Ez nem vonható vissza.
 	The link couldn't be opened: {error}	Nem sikerült megnyitni a hivatkozást: {error}
 	The sign-in page couldn't be opened: {error}	Nem sikerült megnyitni a bejelentkezési oldalt: {error}
@@ -697,8 +696,6 @@
 	Account settings…	Fiókbeállítások…
 	Delete all…	Összes törlése…
 	Delete all	Összes törlése
-	Delete everything in “{folder}”?	Törlöd a(z) „{folder}” mappa teljes tartalmát?
-	Every message in it will be moved to Deleted Items.	A mappa összes üzenete a Törölt elemek közé kerül.
 	Find related	Kapcsolódó üzenetek keresése
 	Messages in this conversation	A beszélgetés üzenetei
 	Messages from sender	A feladó üzenetei
@@ -2222,3 +2219,6 @@ count	occurrences	előfordulás
 	Old mail is being archived already: wait until that's done.	A régi levelek archiválása már folyamatban van: várjon, amíg befejeződik.
 	no access	nincs hozzáférés
 	already open	már meg van nyitva
+	1 message moved to Deleted Items	1 üzenet áthelyezve a Törölt elemek mappába
+	{n} messages moved to Deleted Items	{n} üzenet áthelyezve a Törölt elemek mappába
+	“{folder}” moved to Deleted Items	„{folder}” áthelyezve a Törölt elemek mappába

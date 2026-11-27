@@ -319,7 +319,6 @@
 	Text	テキスト
 	Text or address	テキストまたはアドレス
 	The PDF couldn't be opened: {error}	PDF を開けませんでした: {error}
-	The folder and everything in it will be moved to Deleted Items.	フォルダーとその中身はすべて削除済みアイテムに移動されます。
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	フォルダー、そのサブフォルダー、その中のすべてのメールが完全に削除されます。元に戻すことはできません。
 	The link couldn't be opened: {error}	リンクを開けませんでした: {error}
 	The sign-in page couldn't be opened: {error}	サインイン ページを開けませんでした: {error}
@@ -699,8 +698,6 @@ month	May	5月
 	Account settings…	アカウント設定…
 	Delete all…	すべて削除…
 	Delete all	すべて削除
-	Delete everything in “{folder}”?	「{folder}」の中身をすべて削除しますか?
-	Every message in it will be moved to Deleted Items.	中のメッセージはすべて [削除済みアイテム] に移動します。
 	Find related	関連アイテムの検索
 	Messages in this conversation	このスレッドのメッセージ
 	Messages from sender	差出人からのメッセージ
@@ -2218,3 +2215,6 @@ count	occurrences	回
 	Old mail is being archived already: wait until that's done.	古いメールはすでにアーカイブ中です。終わるまでお待ちください。
 	no access	アクセス権がありません
 	already open	すでに開いています
+	1 message moved to Deleted Items	1 件のメッセージを削除済みアイテムに移動しました
+	{n} messages moved to Deleted Items	{n} 件のメッセージを削除済みアイテムに移動しました
+	“{folder}” moved to Deleted Items	「{folder}」を削除済みアイテムに移動しました

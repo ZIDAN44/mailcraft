@@ -144,15 +144,15 @@ pub(super) fn folder_row(
             acts.push(Action::Run("folder.markReadWhenShown", json!({"account": account, "folder": path, "on": on})));
             ui.close();
         }
-        // Delete All, as Outlook's: Deleted Items and Junk are emptied for good, any other
-        // folder's mail goes to Deleted Items.
-        if f.selectable && ui.button(tl!("Delete all…")).clicked() {
-            acts.push(Action::Dialog(Dialog::ConfirmEmpty {
-                account: account.clone(),
-                folder: path.clone(),
-                name: crate::i18n::folder(f),
-                for_good: matches!(f.look(), FolderRole::Trash | FolderRole::Junk),
-            }));
+        // Delete All, as Outlook's: Deleted Items and Junk are emptied for good, asked first; any
+        // other folder's mail goes to Deleted Items at once, with Undo.
+        let for_good = matches!(f.look(), FolderRole::Trash | FolderRole::Junk);
+        if f.selectable && ui.button(tl!(if for_good { "Delete all…" } else { "Delete all" })).clicked() {
+            if for_good {
+                acts.push(Action::Dialog(Dialog::ConfirmEmpty { account: account.clone(), folder: path.clone(), name: crate::i18n::folder(f) }));
+            } else {
+                acts.push(Action::Run("folder.empty", json!({"account": account, "folder": path})));
+            }
             ui.close();
         }
         ui.separator();
@@ -178,8 +178,14 @@ pub(super) fn folder_row(
                     }
                 }
             }
-            if ui.button(RichText::new(tl!("Delete folder…")).color(t.danger)).clicked() {
-                acts.push(Action::Dialog(Dialog::delete_folder(s, f)));
+            // For good (in Deleted Items) asked first; else into Deleted Items, with Undo.
+            let for_good = crate::dialogs::folder_goes_for_good(s, f);
+            if ui.button(RichText::new(tl!(if for_good { "Delete folder…" } else { "Delete folder" })).color(t.danger)).clicked() {
+                if for_good {
+                    acts.push(Action::Dialog(Dialog::delete_folder(f)));
+                } else {
+                    acts.push(Action::Run("folder.delete", json!({"account": account, "folder": path})));
+                }
                 ui.close();
             }
         }

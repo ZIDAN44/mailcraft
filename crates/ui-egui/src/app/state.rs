@@ -177,6 +177,10 @@ pub struct UiState {
     /// when there are too many).
     pub(crate) web_pictures: reading::FrameLru<String, Option<egui::TextureHandle>, { reading::WEB_PICTURES }>,
     pub toast: Option<(String, bool, f64)>,
+    /// The notice said with Undo, and what it undoes: the notices' count once it was given, and
+    /// the change it undoes, by how many were remembered then and how many could be undone (its
+    /// Undo shows while that's still the last).
+    pub(crate) toast_undo: Option<(usize, u64, usize)>,
     pub(crate) seen_notices: usize,
     pub(crate) scroll_to_focus: bool,
     /// When the list's focus last moved by the keyboard: the row it's on takes the keyboard once

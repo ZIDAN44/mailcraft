@@ -319,7 +319,6 @@
 	Text	Texto
 	Text or address	Texto ou endereço
 	The PDF couldn't be opened: {error}	Não foi possível abrir o PDF: {error}
-	The folder and everything in it will be moved to Deleted Items.	A pasta e tudo o que ela contém serão movidos para Itens excluídos.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	A pasta, suas subpastas e todos os emails nelas serão excluídos permanentemente. Isso não pode ser desfeito.
 	The link couldn't be opened: {error}	Não foi possível abrir o link: {error}
 	The sign-in page couldn't be opened: {error}	Não foi possível abrir a página de entrada: {error}
@@ -697,8 +696,6 @@
 	Account settings…	Configurações da conta…
 	Delete all…	Excluir tudo…
 	Delete all	Excluir tudo
-	Delete everything in “{folder}”?	Excluir tudo em “{folder}”?
-	Every message in it will be moved to Deleted Items.	Todas as mensagens serão movidas para Itens Excluídos.
 	Find related	Localizar relacionados
 	Messages in this conversation	Mensagens desta conversa
 	Messages from sender	Mensagens do remetente
@@ -2222,3 +2219,6 @@ count	occurrences	ocorrências
 	Old mail is being archived already: wait until that's done.	Os e-mails antigos já estão sendo arquivados: aguarde até terminar.
 	no access	sem acesso
 	already open	já está aberto
+	1 message moved to Deleted Items	1 mensagem movida para Itens excluídos
+	{n} messages moved to Deleted Items	{n} mensagens movidas para Itens excluídos
+	“{folder}” moved to Deleted Items	“{folder}” movida para Itens excluídos

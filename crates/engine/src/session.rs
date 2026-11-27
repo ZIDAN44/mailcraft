@@ -165,6 +165,9 @@ pub enum Undo {
     /// keyword and reminder changes that put them back, by account, and each message's due and
     /// done days and reminder as MailCraft kept them.
     FollowUp { ops: Vec<(String, Vec<Op>)>, days: Vec<FollowUpWas> },
+    /// A folder deleted into Deleted Items: its account, where it went (`from`) and where it was
+    /// (`to`).
+    Folder { account: String, from: String, to: String },
 }
 
 /// A message's follow-up as MailCraft kept it, for Undo: by its follow-up id, its due and done
@@ -322,6 +325,9 @@ pub struct Session {
     pub(crate) opened_files: Vec<opening::OpenedFile>,
     /// What the last changes can be put back to, newest last (Undo, Ctrl+Z).
     pub undo: Vec<Undo>,
+    /// How many changes have been remembered for Undo since MailCraft opened: tells the last
+    /// from a newer one once `undo` is full (its length stays the same then).
+    pub undo_given: u64,
     /// Bumped whenever `list` changes.
     pub revision: u64,
     /// Bumped whenever a calendar, a task list or an address book changes (an account's go with
@@ -545,6 +551,7 @@ impl Session {
             opened_file: None,
             opened_files: Vec::new(),
             undo: Vec::new(),
+            undo_given: 0,
             revision: 0,
             pim_revision: 0,
             outbox: Vec::new(),

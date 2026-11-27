@@ -319,7 +319,6 @@
 	Text	Text
 	Text or address	Text alebo adresa
 	The PDF couldn't be opened: {error}	PDF sa nepodarilo otvoriť: {error}
-	The folder and everything in it will be moved to Deleted Items.	Priečinok a všetko v ňom sa presunie do priečinka Odstránené položky.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	Priečinok, jeho podpriečinky a všetka pošta v nich sa natrvalo odstránia. Túto akciu nemožno vrátiť späť.
 	The link couldn't be opened: {error}	Odkaz sa nepodarilo otvoriť: {error}
 	The sign-in page couldn't be opened: {error}	Prihlasovaciu stránku sa nepodarilo otvoriť: {error}
@@ -697,8 +696,6 @@
 	Account settings…	Nastavenia konta…
 	Delete all…	Odstrániť všetko…
 	Delete all	Odstrániť všetko
-	Delete everything in “{folder}”?	Odstrániť všetko v priečinku „{folder}“?
-	Every message in it will be moved to Deleted Items.	Všetky správy v ňom sa presunú do priečinka Odstránené položky.
 	Find related	Nájsť súvisiace
 	Messages in this conversation	Správy v tejto konverzácii
 	Messages from sender	Správy od odosielateľa
@@ -2236,3 +2233,6 @@ count	occurrences	opakovaní
 	Old mail is being archived already: wait until that's done.	Stará pošta sa už archivuje: počkajte, kým sa to skončí.
 	no access	žiadny prístup
 	already open	už je otvorené
+	1 message moved to Deleted Items	1 správa presunutá do priečinka Odstránené položky
+	{n} messages moved to Deleted Items	Do priečinka Odstránené položky presunuté správy: {n}
+	“{folder}” moved to Deleted Items	„{folder}“ presunutý do priečinka Odstránené položky

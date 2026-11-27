@@ -319,7 +319,6 @@
 	Text	Texte
 	Text or address	Texte ou adresse
 	The PDF couldn't be opened: {error}	Impossible d’ouvrir le PDF : {error}
-	The folder and everything in it will be moved to Deleted Items.	Le dossier et tout son contenu seront déplacés dans Éléments supprimés.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	Le dossier, ses sous-dossiers et tout le courrier qu’ils contiennent seront supprimés définitivement. Cette action est irréversible.
 	The link couldn't be opened: {error}	Impossible d’ouvrir le lien : {error}
 	The sign-in page couldn't be opened: {error}	Impossible d’ouvrir la page de connexion : {error}
@@ -697,8 +696,6 @@
 	Account settings…	Paramètres du compte…
 	Delete all…	Tout supprimer…
 	Delete all	Tout supprimer
-	Delete everything in “{folder}”?	Vider entièrement « {folder} » ?
-	Every message in it will be moved to Deleted Items.	Tous ses messages seront déplacés dans Éléments supprimés.
 	Find related	Rechercher les éléments associés
 	Messages in this conversation	Messages de cette conversation
 	Messages from sender	Messages de l'expéditeur
@@ -2222,3 +2219,6 @@ count	occurrences	occurrences
 	Old mail is being archived already: wait until that's done.	L'ancien courrier est déjà en cours d'archivage : attendez que ce soit terminé.
 	no access	aucun accès
 	already open	déjà ouvert
+	1 message moved to Deleted Items	1 message déplacé vers Éléments supprimés
+	{n} messages moved to Deleted Items	{n} messages déplacés vers Éléments supprimés
+	“{folder}” moved to Deleted Items	« {folder} » déplacé vers Éléments supprimés

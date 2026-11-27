@@ -319,7 +319,6 @@
 	Text	טקסט
 	Text or address	טקסט או כתובת
 	The PDF couldn't be opened: {error}	לא ניתן היה לפתוח את ה-PDF: {error}
-	The folder and everything in it will be moved to Deleted Items.	התיקייה וכל מה שבה יועברו לפריטים שנמחקו.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	התיקייה, תיקיות המשנה שלה וכל הדואר שבהן יימחקו לצמיתות. אי אפשר לבטל את זה.
 	The link couldn't be opened: {error}	לא ניתן היה לפתוח את הקישור: {error}
 	The sign-in page couldn't be opened: {error}	לא ניתן היה לפתוח את דף הכניסה: {error}
@@ -698,8 +697,6 @@ month	May	מאי
 	Account settings…	הגדרות חשבון…
 	Delete all…	מחק הכול…
 	Delete all	מחק הכול
-	Delete everything in “{folder}”?	למחוק את כל מה שב„{folder}”?
-	Every message in it will be moved to Deleted Items.	כל ההודעות שבה יועברו לפריטים שנמחקו.
 	Find related	חפש הודעות קשורות
 	Messages in this conversation	הודעות בשיחה זו
 	Messages from sender	הודעות מהשולח
@@ -2217,3 +2214,6 @@ count	occurrences	פעמים
 	Old mail is being archived already: wait until that's done.	דואר ישן כבר מועבר לארכיון: יש להמתין עד שזה יסתיים.
 	no access	אין גישה
 	already open	כבר פתוח
+	1 message moved to Deleted Items	הודעה אחת הועברה אל פריטים שנמחקו
+	{n} messages moved to Deleted Items	{n} הודעות הועברו אל פריטים שנמחקו
+	“{folder}” moved to Deleted Items	"{folder}" הועבר אל פריטים שנמחקו

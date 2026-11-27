@@ -319,7 +319,6 @@
 	Text	Текст
 	Text or address	Текст или адрес
 	The PDF couldn't be opened: {error}	Не удалось открыть PDF: {error}
-	The folder and everything in it will be moved to Deleted Items.	Папка со всем содержимым будет перемещена в «Удалённые».
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	Папка, её вложенные папки и вся почта в них будут удалены окончательно. Это нельзя отменить.
 	The link couldn't be opened: {error}	Не удалось открыть ссылку: {error}
 	The sign-in page couldn't be opened: {error}	Не удалось открыть страницу входа: {error}
@@ -696,8 +695,6 @@
 	Account settings…	Настройки учетной записи…
 	Delete all…	Удалить все…
 	Delete all	Удалить все
-	Delete everything in “{folder}”?	Удалить все в «{folder}»?
-	Every message in it will be moved to Deleted Items.	Все сообщения из нее будут перемещены в «Удаленные».
 	Find related	Найти связанные
 	Messages in this conversation	Сообщения этой беседы
 	Messages from sender	Сообщения от отправителя
@@ -2235,3 +2232,6 @@ count	occurrences	повторений
 	Old mail is being archived already: wait until that's done.	Старая почта уже архивируется: дождитесь окончания.
 	no access	нет доступа
 	already open	уже открыто
+	1 message moved to Deleted Items	1 сообщение перемещено в «Удалённые»
+	{n} messages moved to Deleted Items	Перемещено в «Удалённые» сообщений: {n}
+	“{folder}” moved to Deleted Items	«{folder}» перемещена в «Удалённые»

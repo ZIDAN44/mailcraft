@@ -319,7 +319,6 @@
 	Text	نص
 	Text or address	نص أو عنوان
 	The PDF couldn't be opened: {error}	تعذّر فتح ملف PDF: {error}
-	The folder and everything in it will be moved to Deleted Items.	سيُنقل المجلد وكل ما فيه إلى العناصر المحذوفة.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	سيُحذف المجلد ومجلداته الفرعية وكل البريد فيها نهائيًا. لا يمكن التراجع عن ذلك.
 	The link couldn't be opened: {error}	تعذّر فتح الرابط: {error}
 	The sign-in page couldn't be opened: {error}	تعذّر فتح صفحة تسجيل الدخول: {error}
@@ -698,8 +697,6 @@ month	May	مايو
 	Account settings…	إعدادات الحساب…
 	Delete all…	حذف الكل…
 	Delete all	حذف الكل
-	Delete everything in “{folder}”?	حذف كل ما في “{folder}”؟
-	Every message in it will be moved to Deleted Items.	سيتم نقل كل الرسائل فيه إلى العناصر المحذوفة.
 	Find related	البحث عن المرتبطة
 	Messages in this conversation	رسائل هذه المحادثة
 	Messages from sender	رسائل من المرسل
@@ -2217,3 +2214,6 @@ count	occurrences	مرات
 	Old mail is being archived already: wait until that's done.	تتم أرشفة البريد القديم بالفعل: انتظر حتى ينتهي ذلك.
 	no access	لا يوجد وصول
 	already open	مفتوح بالفعل
+	1 message moved to Deleted Items	تم نقل رسالة واحدة إلى العناصر المحذوفة
+	{n} messages moved to Deleted Items	تم نقل الرسائل ({n}) إلى العناصر المحذوفة
+	“{folder}” moved to Deleted Items	تم نقل "{folder}" إلى العناصر المحذوفة

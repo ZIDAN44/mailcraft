@@ -251,17 +251,25 @@ impl MailApp {
         }
         if let Some(n) = self.session.notices.get(self.ui.seen_notices..).and_then(|v| v.last()) {
             self.ui.toast = Some((n.text.clone(), n.error, now));
+            // Its Undo, if it's the notice given with one.
+            let count = self.session.notices.len();
+            self.ui.toast_undo = self.ui.toast_undo.filter(|(n, ..)| *n == count);
             // Said to a screen reader too, as it comes (issue #175): the notice is in a corner
             // the keyboard never goes to. A failure is said at once.
             crate::a11y::announce(ctx, i18n::notice(&n.text), n.error);
         }
         self.ui.seen_notices = self.session.notices.len();
         let Some((text, error, at)) = self.ui.toast.clone() else { return };
-        let ttl = if error { 7.0 } else { 3.5 };
+        // Undo while what it undoes is still the last change.
+        let s = &self.session;
+        let undo = self.ui.toast_undo.is_some_and(|(_, given, depth)| given == s.undo_given && depth == s.undo.len());
+        let ttl = if error || undo { 7.0 } else { 3.5 };
         if now - at > ttl {
             self.ui.toast = None;
+            self.ui.toast_undo = None;
             return;
         }
+        let mut undone = false;
         let t = self.ui.tokens;
         // In: up from a little below, settling; out: fading over its last moments.
         let since = (now - at) as f32;
@@ -295,10 +303,26 @@ impl MailApp {
                     .shadow(egui::epaint::Shadow { offset: [0, 2], blur: 10, spread: 0, color: Color32::from_black_alpha(60) })
                     .show(ui, |ui| {
                         ui.set_max_width(420.0);
-                        // Notices from the engine are English; the ones with a fixed text have a translation.
-                        ui.label(RichText::new(i18n::notice(&text)).color(if error { Color32::WHITE } else { t.surface }));
+                        let ink = if error { Color32::WHITE } else { t.surface };
+                        ui.horizontal(|ui| {
+                            // Notices from the engine are English; the ones with a fixed text have a translation.
+                            ui.label(RichText::new(i18n::notice(&text)).color(ink));
+                            if undo {
+                                ui.add_space(8.0);
+                                // A button, told from the words beside it: Semibold, in the accent
+                                // that reads on the notice's dark (light, in dark mode) ground.
+                                let word = RichText::new(tl!("Undo")).font(crate::theme::semibold(crate::sizes::BODY)).color(t.accent_soft);
+                                let b = egui::Button::new(word).frame(false);
+                                undone = ui.add(b).clicked();
+                            }
+                        });
                     });
             });
+        if undone {
+            self.ui.toast = None;
+            self.ui.toast_undo = None;
+            self.act(Action::Run("edit.undo", json!({})));
+        }
     }
 }
 

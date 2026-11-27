@@ -319,7 +319,6 @@
 	Text	Tekst
 	Text or address	Tekst of adres
 	The PDF couldn't be opened: {error}	De pdf kon niet worden geopend: {error}
-	The folder and everything in it will be moved to Deleted Items.	De map en alles erin worden naar Verwijderde items verplaatst.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	De map, de submappen en alle mail erin worden definitief verwijderd. Dit kan niet ongedaan worden gemaakt.
 	The link couldn't be opened: {error}	De koppeling kon niet worden geopend: {error}
 	The sign-in page couldn't be opened: {error}	De aanmeldpagina kon niet worden geopend: {error}
@@ -696,8 +695,6 @@
 	Account settings…	Accountinstellingen…
 	Delete all…	Alles verwijderen…
 	Delete all	Alles verwijderen
-	Delete everything in “{folder}”?	Alles in “{folder}” verwijderen?
-	Every message in it will be moved to Deleted Items.	Elk bericht erin wordt naar Verwijderde items verplaatst.
 	Find related	Verwante zoeken
 	Messages in this conversation	Berichten in dit gesprek
 	Messages from sender	Berichten van afzender
@@ -2217,3 +2214,6 @@ count	occurrences	keer
 	Old mail is being archived already: wait until that's done.	Oude e-mail wordt al gearchiveerd: wacht tot dat klaar is.
 	no access	geen toegang
 	already open	al geopend
+	1 message moved to Deleted Items	1 bericht verplaatst naar Verwijderde items
+	{n} messages moved to Deleted Items	{n} berichten verplaatst naar Verwijderde items
+	“{folder}” moved to Deleted Items	‘{folder}’ verplaatst naar Verwijderde items

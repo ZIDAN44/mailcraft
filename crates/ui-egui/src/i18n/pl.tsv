@@ -319,7 +319,6 @@
 	Text	Tekst
 	Text or address	Tekst lub adres
 	The PDF couldn't be opened: {error}	Nie można otworzyć pliku PDF: {error}
-	The folder and everything in it will be moved to Deleted Items.	Folder wraz z całą zawartością zostanie przeniesiony do Kosza.
 	The folder, its subfolders and all the mail in them will be deleted for good. This can't be undone.	Folder, jego podfoldery i cała poczta w nich zostaną trwale usunięte. Tej operacji nie można cofnąć.
 	The link couldn't be opened: {error}	Nie można otworzyć łącza: {error}
 	The sign-in page couldn't be opened: {error}	Nie można otworzyć strony logowania: {error}
@@ -696,8 +695,6 @@
 	Account settings…	Ustawienia konta…
 	Delete all…	Usuń wszystko…
 	Delete all	Usuń wszystko
-	Delete everything in “{folder}”?	Usunąć całą zawartość folderu „{folder}”?
-	Every message in it will be moved to Deleted Items.	Wszystkie znajdujące się w nim wiadomości zostaną przeniesione do Kosza.
 	Find related	Znajdź powiązane
 	Messages in this conversation	Wiadomości w tej konwersacji
 	Messages from sender	Wiadomości od nadawcy
@@ -2235,3 +2232,6 @@ count	occurrences	wystąpieniach
 	Old mail is being archived already: wait until that's done.	Stara poczta jest już archiwizowana: poczekaj, aż to się skończy.
 	no access	brak dostępu
 	already open	już otwarte
+	1 message moved to Deleted Items	Przeniesiono 1 wiadomość do Kosza
+	{n} messages moved to Deleted Items	Przeniesiono wiadomości do Kosza: {n}
+	“{folder}” moved to Deleted Items	Przeniesiono „{folder}” do Kosza
