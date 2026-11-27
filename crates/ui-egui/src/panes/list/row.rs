@@ -188,7 +188,7 @@ impl MessageRow<'_> {
         }
         // Sender (or recipients in Sent) and time.
         let time = crate::i18n::date(&dates::list_time(m.when(), &s.clock));
-        let time_g = p.layout_no_wrap(time, if unread { theme::bold(12.0) } else { theme::regular(12.0) }, if unread { t.accent } else { t.dim });
+        let time_g = p.layout_no_wrap(time, if unread { theme::semibold(12.0) } else { theme::regular(12.0) }, if unread { t.accent } else { t.dim });
         let mut tw = time_g.size().x;
         p.galley(egui::pos2(mr.start(right - tw, tw), line1 + 1.0), time_g, t.dim);
         // In a narrow list the sender comes first: where a tag before the time would leave the name
@@ -231,7 +231,7 @@ impl MessageRow<'_> {
         }
         // A reply begun and left in Drafts: [Draft] before the name, in red, as Outlook writes it.
         if self.drafting {
-            let dg = p.layout_no_wrap(tl!("[Draft]").to_string(), if unread { theme::bold(14.0) } else { theme::regular(14.0) }, t.danger);
+            let dg = p.layout_no_wrap(tl!("[Draft]").to_string(), if unread { theme::semibold(14.0) } else { theme::regular(14.0) }, t.danger);
             let dw = dg.size().x;
             p.galley(egui::pos2(mr.start(who_x, dw), line1), dg, t.danger);
             who_x += dw + 6.0;
@@ -240,7 +240,7 @@ impl MessageRow<'_> {
         let who = if count > 1 && !marks.address { format!("{who}  ({count})") } else { who };
         let who_rtl = crate::bidi::reads_rtl(&who);
         let who_right = if single { subject_x - 12.0 } else { right - tw - 10.0 };
-        let who_font = if unread { theme::bold(14.0) } else { theme::regular(14.0) };
+        let who_font = if unread { theme::semibold(14.0) } else { theme::regular(14.0) };
         if marks.address {
             // The name, then the address it really came from, dimmer. The address is what tells, so
             // it's laid out first (cut to its domain if it must be: `<…@example.com>`), but the name
@@ -304,7 +304,7 @@ impl MessageRow<'_> {
             if m.importance != 0 {
                 icons_w += 12.0;
                 let (mark, color) = if m.importance > 0 { ("!", t.danger) } else { ("↓", t.accent) };
-                p.text(mr.pos(egui::pos2(right - icons_w + 6.0, line2 + 8.0)), egui::Align2::CENTER_CENTER, mark, theme::bold(13.0), color);
+                p.text(mr.pos(egui::pos2(right - icons_w + 6.0, line2 + 8.0)), egui::Align2::CENTER_CENTER, mark, theme::semibold(13.0), color);
             }
             if m.flags.answered {
                 marker(Icon::Reply, t.faint, &mut icons_w);
@@ -332,7 +332,7 @@ impl MessageRow<'_> {
         let subj_color = if unread { t.accent } else { t.text };
         let subj_rtl = crate::bidi::reads_rtl(&subject);
         let subj_right = end - icons_w.max(if self.hovered { self.buttons_w() } else { 0.0 }) - 4.0;
-        let subj_font = if unread { theme::bold(13.0) } else { theme::regular(13.0) };
+        let subj_font = if unread { theme::semibold(13.0) } else { theme::regular(13.0) };
         let marks = crate::reading::subject_marks(self.s, &subject);
         let subj_g = marked_line(ui, &subject, &marks, subj_font, subj_color, subj_right - subject_x);
         p.galley(egui::pos2(self.place(subj_rtl, subject_x, subj_right, subj_g.size().x), line2), subj_g, subj_color);

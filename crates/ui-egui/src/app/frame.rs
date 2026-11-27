@@ -306,7 +306,7 @@ impl MailApp {
         super::windows::track_place(&mut self.ui.places, "main", ui);
         if !self.ui.fonts_ready {
             // Fonts take effect from the next frame; drawing now would miss the bold family.
-            self.install_fonts(&ctx, None, None);
+            self.install_fonts(&ctx, theme::UiFont::default());
             ctx.request_repaint();
             return None;
         }

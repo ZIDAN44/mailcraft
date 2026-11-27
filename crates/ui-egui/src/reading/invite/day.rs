@@ -120,7 +120,7 @@ fn strip(s: &Session, t: &Tokens, ui: &mut Ui, e: &CalEvent, day: &InviteDay, ac
     let (from, to) = (x(e.start), x(e.end).max(x(e.start) + 4.0));
     let r = Rect::from_min_max(pos2(from, lane.min.y + 1.0), pos2(to, lane.max.y - 1.0));
     p.rect(r, 3.0, t.accent.gamma_multiply(0.35), egui::Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
-    p.with_clip_rect(r.shrink(2.0)).text(r.left_center() + vec2(4.0, 0.0), Align2::LEFT_CENTER, &e.summary, theme::bold(11.0), t.text);
+    p.with_clip_rect(r.shrink(2.0)).text(r.left_center() + vec2(4.0, 0.0), Align2::LEFT_CENTER, &e.summary, theme::semibold(11.0), t.text);
     let under = Rect::from_min_max(pos2(from, band.min.y), pos2(to, band.max.y));
     p.rect(under, 3.0, egui::Color32::TRANSPARENT, egui::Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
 }

@@ -128,7 +128,7 @@ fn sender_card(s: &Session, t: &Tokens, ui: &mut Ui, o: &Open<'_>, acts: &mut Ve
         ui.allocate_ui_with_layout(vec2(room, 0.0), crate::bidi::column(), |ui| {
             ui.set_max_width(room);
             ui.horizontal_wrapped(|ui| {
-                let name = person_link(ui, t, RichText::new(p.from.display()).font(theme::bold(15.0)).color(t.text));
+                let name = person_link(ui, t, RichText::new(p.from.display()).font(theme::semibold(15.0)).color(t.text));
                 person_menus(s, t, &name, &p.from, acts);
                 if !p.from.name.is_empty() {
                     ui.label(RichText::new(format!("<{}>", p.from.email)).color(t.dim));

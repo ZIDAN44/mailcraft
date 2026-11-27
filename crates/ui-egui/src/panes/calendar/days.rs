@@ -125,7 +125,7 @@ fn calendar_headings(s: &Session, t: &Tokens, ui: &mut Ui, cols: &Columns, width
             pos2(r.min.x + 8.0, r.center().y),
             Align2::LEFT_CENTER,
             label.clone(),
-            theme::bold(12.0),
+            theme::semibold(12.0),
             t.text,
         );
         let x = Rect::from_center_size(pos2(r.max.x - 12.0, r.center().y), vec2(18.0, 18.0));
@@ -161,7 +161,7 @@ fn day_headings(t: &Tokens, ui: &mut Ui, cols: &Columns, width: f32, now: i64) {
             if d == now {
                 ui.painter().circle_filled(c, 12.0, t.accent);
             }
-            ui.painter().text(c, Align2::CENTER_CENTER, dd.to_string(), theme::bold(15.0), if d == now { t.on_accent } else { t.text });
+            ui.painter().text(c, Align2::CENTER_CENTER, dd.to_string(), theme::semibold(15.0), if d == now { t.on_accent } else { t.text });
         }
     }
 }

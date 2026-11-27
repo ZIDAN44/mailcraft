@@ -134,7 +134,7 @@ fn row_names(s: &Session, t: &Tokens, ui: &mut Ui, names: Rect, rows: &[Row]) {
         };
         ui.painter().circle_filled(pos2(r.min.x + 10.0, r.center().y), 4.0, c);
         let text = r.with_min_x(r.min.x + 20.0).with_max_x(r.max.x - 6.0);
-        let font = if row.is_none() { theme::bold(12.0) } else { theme::regular(12.0) };
+        let font = if row.is_none() { theme::semibold(12.0) } else { theme::regular(12.0) };
         ui.painter().with_clip_rect(text).text(pos2(text.min.x, text.center().y), Align2::LEFT_CENTER, label, font, t.text);
     }
 }

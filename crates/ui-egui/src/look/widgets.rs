@@ -111,7 +111,7 @@ pub const CLASSIC_CAPTION_H: f32 = 22.0;
 /// A classic ribbon button: a big icon over its label, as wide as the label needs (a short one
 /// still a comfortable target). `fill`: the filled New button.
 fn big_button(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled: bool, on: bool, fill: bool) -> Response {
-    let font = if fill { theme::bold(12.5) } else { theme::regular(12.5) };
+    let font = if fill { theme::semibold(12.5) } else { theme::regular(12.5) };
     let text = if fill { t.on_accent } else { command_label(t, enabled) };
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, text);
     let size = vec2((galley.size().x + 16.0).max(54.0), CLASSIC_BUTTON_H);
@@ -347,7 +347,7 @@ fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled
         named(ui, &resp, label, enabled, None);
         return resp;
     }
-    let font = theme::bold(13.0);
+    let font = theme::semibold(13.0);
     let galley = ui.painter().layout_no_wrap(label.to_string(), font, t.on_accent);
     let size = vec2(galley.size().x + 40.0, 30.0);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
@@ -364,7 +364,7 @@ fn accent_button_drawn(ui: &mut Ui, icon: Icon, label: &str, t: &Tokens, enabled
 /// A dialog's main button (OK, Connect, Remove…): filled in the app colour, words only.
 pub fn primary_button(ui: &mut Ui, label: &str, t: &Tokens, enabled: bool) -> Response {
     let label = tl!(label);
-    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::bold(13.0), t.on_accent);
+    let galley = ui.painter().layout_no_wrap(label.to_string(), theme::semibold(13.0), t.on_accent);
     let size = vec2((galley.size().x + 28.0).max(76.0), 30.0);
     let (rect, resp) = ui.allocate_exact_size(size, if enabled { Sense::click() } else { Sense::hover() });
     named(ui, &resp, label, enabled, None);
@@ -528,7 +528,7 @@ pub fn segmented(ui: &mut Ui, t: &Tokens, id: &str, options: &[&str], selected: 
             ui.painter().rect_filled(r, 4.0, t.surface.gamma_multiply(0.5));
         }
         let color = if on || resp.hovered() { t.text } else { t.dim };
-        ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, label, if on { theme::bold(13.0) } else { font.clone() }, color);
+        ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, label, if on { theme::semibold(13.0) } else { font.clone() }, color);
         if resp.clicked() && !on {
             clicked = Some(i);
         }
@@ -618,7 +618,7 @@ pub fn empty_state(ui: &mut Ui, t: &Tokens, icon: Icon, text: &str) {
 /// A round avatar with initials.
 pub fn avatar(ui: &Ui, center: egui::Pos2, radius: f32, initials: &str, color: Color32) {
     ui.painter().circle_filled(center, radius, color);
-    ui.painter().text(center, egui::Align2::CENTER_CENTER, initials, theme::bold(radius * 0.8), Color32::WHITE);
+    ui.painter().text(center, egui::Align2::CENTER_CENTER, initials, theme::semibold(radius * 0.8), Color32::WHITE);
 }
 
 pub fn human_size(bytes: usize) -> String {
@@ -656,7 +656,7 @@ pub fn welcome(ui: &mut Ui, t: &Tokens, jmap_only: bool, acts: &mut Vec<Action>)
                 ui.painter().rect_filled(r, 14.0, t.accent);
                 icons::paint(ui.painter(), icons::centered(r, 38.0), Icon::Unread, t.on_accent);
                 ui.add_space(12.0);
-                ui.label(RichText::new(tl!("Welcome to MailCraft")).font(theme::bold(22.0)).color(t.text));
+                ui.label(RichText::new(tl!("Welcome to MailCraft")).font(theme::semibold(22.0)).color(t.text));
                 ui.add_space(4.0);
                 let about = if jmap_only {
                     "Your mail in the browser. Add a JMAP account (such as Fastmail): MailCraft talks to your mail server directly, and your password stays in this tab only."

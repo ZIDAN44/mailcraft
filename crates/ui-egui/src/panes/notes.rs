@@ -163,7 +163,7 @@ fn note(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, n: &mailcraft_en
         job.wrap.max_width = text_rect.width();
         let title = n.note.title().to_string();
         let rest: String = n.note.text.trim_start().split_once('\n').map(|(_, r)| r.to_string()).unwrap_or_default();
-        job.append(&title, 0.0, egui::TextFormat { font_id: theme::bold(14.0), color: INK, ..Default::default() });
+        job.append(&title, 0.0, egui::TextFormat { font_id: theme::semibold(14.0), color: INK, ..Default::default() });
         if !rest.trim().is_empty() {
             job.append(
                 &format!("\n{}", rest.trim()),

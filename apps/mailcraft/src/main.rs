@@ -518,8 +518,10 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                 let ctx = cc.egui_ctx.clone();
                 dark.follow(move || ctx.request_repaint());
             }
+            // The window's font (its Semibold too); PDFs embed the static faces they always have.
+            let ui_font = desktop::ui_font::ui_font();
+            mailcraft_ui_egui::theme::install_fonts(&cc.egui_ctx, &ui_font);
             let (regular, bold) = system_fonts();
-            mailcraft_ui_egui::theme::install_fonts(&cc.egui_ctx, regular.clone(), bold.clone());
             // The computer's fonts, to write in (issue #166).
             mailcraft_ui_egui::mail_fonts::install(&cc.egui_ctx, std::sync::Arc::new(desktop::fonts::CatalogFonts::start()));
             let gpu = cc.wgpu_render_state.as_ref().map(|rs| rs.device.clone());
@@ -588,7 +590,7 @@ fn run(options: eframe::NativeOptions, started: Started) -> eframe::Result {
                 if let Some(r) = &regular {
                     app.session.print_fonts = Some((r.clone(), bold.clone()));
                 }
-                app.install_fonts(ctx, regular, bold);
+                app.install_fonts(ctx, ui_font);
                 // The settings the window opened with (nothing writes them until MailCraft runs).
                 if let Some(v) = &saved_ui {
                     app.restore_state(v);

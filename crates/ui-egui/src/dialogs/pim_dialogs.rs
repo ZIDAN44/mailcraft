@@ -432,11 +432,11 @@ fn form_header(ui: &mut Ui, t: &Tokens, badge: Result<Icon, String>, title: &str
         match badge {
             Ok(icon) => icons::paint(ui.painter(), icons::centered(r, 20.0), icon, t.accent),
             Err(initials) => {
-                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, initials, theme::bold(15.0), t.accent);
+                ui.painter().text(r.center(), egui::Align2::CENTER_CENTER, initials, theme::semibold(15.0), t.accent);
             }
         }
         ui.add_space(6.0);
-        ui.label(RichText::new(tl!(title)).font(theme::bold(19.0)).color(t.text));
+        ui.label(RichText::new(tl!(title)).font(theme::semibold(19.0)).color(t.text));
     });
     ui.add_space(12.0);
 }
@@ -479,7 +479,7 @@ fn title_field(ui: &mut Ui, value: &mut String) {
     ui.add(
         egui::TextEdit::singleline(value)
             .hint_text(tl!("Add a title"))
-            .font(theme::bold(16.0))
+            .font(theme::semibold(16.0))
             .desired_width(w)
             .min_size(vec2(w, 36.0))
             .margin(Margin::symmetric(10, 8))

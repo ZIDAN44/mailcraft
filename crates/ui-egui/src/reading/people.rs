@@ -77,7 +77,7 @@ pub(super) fn contact_card(
         ui.add_space(4.0);
         ui.vertical(|ui| {
             let name = known.map(|c| c.display()).filter(|n| !n.is_empty()).unwrap_or_else(|| a.display().to_string());
-            ui.label(RichText::new(&name).font(theme::bold(15.0)).color(t.text));
+            ui.label(RichText::new(&name).font(theme::semibold(15.0)).color(t.text));
             // Their job and company, when saved (not the company again when it's the name).
             if let Some(c) = known {
                 let what = [c.title.as_str(), c.org.as_str()]
@@ -126,10 +126,10 @@ pub(super) fn contact_card(
 /// the pointer (a subject of two thousand characters filled the pane, the message far below).
 pub(super) fn subject_heading(ui: &mut Ui, subject: &str, t: &Tokens, marks: &[std::ops::Range<usize>]) -> egui::Response {
     const LINES: usize = 4;
-    let mut job = egui::text::LayoutJob::simple(subject.to_string(), theme::bold(21.0), t.text, ui.available_width());
+    let mut job = egui::text::LayoutJob::simple(subject.to_string(), theme::semibold(21.0), t.text, ui.available_width());
     // What a search found in it, marked (issue #173).
     if !marks.is_empty() {
-        job = marked_job(subject, marks, theme::bold(21.0), t.text);
+        job = marked_job(subject, marks, theme::semibold(21.0), t.text);
         job.wrap.max_width = ui.available_width();
     }
     job.wrap.max_rows = LINES;

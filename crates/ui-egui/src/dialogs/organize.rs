@@ -81,7 +81,7 @@ pub(super) fn draw(ui: &mut Ui, d: &mut Dialog, s: &Session, t: &Tokens, acts: &
                             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
                                 let mut job = egui::text::LayoutJob::default();
                                 let strong = egui::TextFormat {
-                                    font_id: theme::bold(13.0),
+                                    font_id: theme::semibold(13.0),
                                     color: if r.enabled { t.text } else { t.faint },
                                     ..Default::default()
                                 };

@@ -67,7 +67,7 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
     // Cut short where it's too long, the whole of it on hover (issue #200): a search's heading
     // holds its query, and a long one widened the list as far as it goes, then ran past it.
     ui.horizontal(|ui| {
-        ui.add(egui::Label::new(RichText::new(crate::view_title(s)).font(theme::bold(18.0)).color(t.text)).truncate());
+        ui.add(egui::Label::new(RichText::new(crate::view_title(s)).font(theme::semibold(18.0)).color(t.text)).truncate());
     });
     ui.add_space(4.0);
     if s.focus_split() {
@@ -88,7 +88,7 @@ fn list_head(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Action>
         // stay on one line: those that don't fit go into a "⋯" menu after the rest (the chosen
         // one always shows), so the head keeps its height however narrow the pane.
         let shown: Vec<ListFilter> = ListFilter::ALL.into_iter().chain((!ListFilter::ALL.contains(&s.filter)).then_some(s.filter)).collect();
-        let font = |on: bool| if on { theme::bold(12.5) } else { theme::regular(12.5) };
+        let font = |on: bool| if on { theme::semibold(12.5) } else { theme::regular(12.5) };
         let pad = ui.spacing().button_padding.x * 2.0;
         let gap = ui.spacing().item_spacing.x;
         let width = |f: ListFilter| ui.painter().layout_no_wrap(tl!(f.label()).to_string(), font(s.filter == f), t.dim).size().x + pad;
@@ -163,7 +163,8 @@ fn focus_tabs(s: &Session, t: &theme::Tokens, ui: &mut Ui, size: f32, others: [b
     for other in others {
         let label = if other { "Other" } else { "Focused" };
         let on = s.focus_other == other;
-        let text = RichText::new(tl!(label)).color(if on { t.text } else { t.dim }).font(if on { theme::bold(size) } else { theme::regular(size) });
+        let text =
+            RichText::new(tl!(label)).color(if on { t.text } else { t.dim }).font(if on { theme::semibold(size) } else { theme::regular(size) });
         let r = ui.add(egui::Button::new(text).frame_when_inactive(false));
         if on {
             ui.painter().line_segment(
@@ -225,7 +226,7 @@ fn list_head_line(s: &Session, t: &theme::Tokens, ui: &mut Ui, acts: &mut Vec<Ac
             }
             // The name has what's left, cut short where it's too long.
             ui.with_layout(crate::bidi::row_from_start(egui::Align::Center), |ui| {
-                ui.add(egui::Label::new(RichText::new(crate::view_title(s)).font(theme::bold(13.5)).color(t.text)).truncate());
+                ui.add(egui::Label::new(RichText::new(crate::view_title(s)).font(theme::semibold(13.5)).color(t.text)).truncate());
             });
         });
     });
@@ -333,7 +334,7 @@ fn group_heading(t: &crate::theme::Tokens, ui: &mut Ui, r: Rect, h: Heading<'_>,
     let m = crate::bidi::Mirror::new(r);
     let arrow = Rect::from_center_size(m.pos(r.left_bottom() + vec2(19.0, -14.0)), vec2(10.0, 10.0));
     icons::paint(ui.painter(), arrow, if folded.is_some() { m.closed() } else { Icon::ChevronDown }, t.dim);
-    let text = ui.painter().text(m.pos(r.left_bottom() + vec2(30.0, -8.0)), m.align(egui::Align2::LEFT_BOTTOM), shown, theme::bold(12.5), t.dim);
+    let text = ui.painter().text(m.pos(r.left_bottom() + vec2(30.0, -8.0)), m.align(egui::Align2::LEFT_BOTTOM), shown, theme::semibold(12.5), t.dim);
     let name = match folded {
         Some((count, unread)) => {
             // How much it hides, in the accent when some of it is unread.

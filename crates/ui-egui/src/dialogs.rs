@@ -689,7 +689,7 @@ impl Dialog {
 }
 
 fn title(ui: &mut Ui, t: &Tokens, s: &str) {
-    let r = ui.label(RichText::new(tl!(s)).font(theme::bold(18.0)).color(t.text));
+    let r = ui.label(RichText::new(tl!(s)).font(theme::semibold(18.0)).color(t.text));
     // What the dialog is called, to a screen reader ([`show`] names the dialog after it).
     ui.ctx().data_mut(|d| d.insert_temp(title_id(), Some(r.id)));
     ui.add_space(6.0);

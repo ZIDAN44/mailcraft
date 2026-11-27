@@ -244,7 +244,7 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
     let t = st.tokens;
     let (y, m) = (month.div_euclid(12), u32::try_from(month.rem_euclid(12) + 1).unwrap_or(1));
     ui.horizontal(|ui| {
-        ui.label(RichText::new(tf!("{month} {year}", month = month_name(m), year = y)).font(theme::bold(13.0)).color(t.text));
+        ui.label(RichText::new(tf!("{month} {year}", month = month_name(m), year = y)).font(theme::semibold(13.0)).color(t.text));
         if !arrows {
             return;
         }
@@ -298,7 +298,7 @@ fn mini_month(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>
                 } else {
                     t.text
                 };
-                let font = if busy.contains(&d) { theme::bold(12.0) } else { theme::regular(12.0) };
+                let font = if busy.contains(&d) { theme::semibold(12.0) } else { theme::regular(12.0) };
                 ui.painter().text(r.center(), Align2::CENTER_CENTER, dd.to_string(), font, c);
                 // The To-Do Bar's: a look at the day under it, the mail kept on screen (issue #154:
                 // the calendar opening at every click lost one's place); the calendar on it at a
@@ -352,12 +352,12 @@ pub fn show(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) 
                 .iter()
                 .map(|(_, label, _)| ui.painter().layout_no_wrap(tl!(label).to_string(), theme::regular(13.5), t.text).size().x + pad)
                 .sum();
-            let whole = ui.painter().layout_no_wrap(title(s), theme::bold(18.0), t.text).size().x;
+            let whole = ui.painter().layout_no_wrap(title(s), theme::semibold(18.0), t.text).size().x;
             // The days shown, then the views' buttons against the end. In a window with no room
             // for both, the days alone (they ran on under the buttons): the views are on the
             // ribbon too.
             let both = whole <= ui.available_width() - buttons - 12.0;
-            let shown = widgets::one_line(ui, &title(s), theme::bold(18.0), t.text, ui.available_width());
+            let shown = widgets::one_line(ui, &title(s), theme::semibold(18.0), t.text, ui.available_width());
             ui.label(shown);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 for (mode, label, code) in modes.into_iter().filter(|_| both) {

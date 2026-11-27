@@ -113,14 +113,14 @@ pub(super) fn shared_header(
     let unread: u32 =
         if open { 0 } else { a.folders.iter().filter(|f| f.mailbox == top.mailbox && f.mailbox_role == FolderRole::Inbox).map(|f| f.unread).sum() };
     let right = rect.max.x - inset - if unread > 0 { 40.0 } else { 8.0 };
-    let g = crate::widgets::one_line(ui, &name, theme::bold(size.heading), t.text, right - rect.min.x - 40.0);
+    let g = crate::widgets::one_line(ui, &name, theme::semibold(size.heading), t.text, right - rect.min.x - 40.0);
     ui.painter().galley(egui::pos2(m.start(rect.min.x + 40.0, g.size().x), rect.center().y - g.size().y / 2.0), g, t.text);
     if unread > 0 {
         ui.painter().text(
             m.pos(egui::pos2(rect.max.x - 10.0 - inset, rect.center().y)),
             m.align(egui::Align2::RIGHT_CENTER),
             unread.to_string(),
-            theme::bold(12.5),
+            theme::semibold(12.5),
             t.accent,
         );
     }

@@ -105,13 +105,15 @@ impl MailApp {
     }
 
     /// Register the UI fonts, preferring an installed system font (call before the first frame).
-    pub fn install_fonts(&mut self, ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>) {
-        self.ui.fonts = (regular.clone().map(std::sync::Arc::new), bold.clone().map(std::sync::Arc::new));
-        bidi::set_coverage(regular.as_deref());
+    pub fn install_fonts(&mut self, ctx: &egui::Context, font: theme::UiFont) {
+        let (regular, bold) = font.pair();
+        self.ui.fonts = (regular.map(std::sync::Arc::new), bold.map(std::sync::Arc::new));
+        bidi::set_coverage(font.regular.as_deref());
         if !bidi::covers_rtl() {
             self.ui.rtl_font = self.services.rtl_font();
         }
-        theme::install_fonts_with(ctx, regular, bold, Vec::new(), self.ui.rtl_font.clone());
+        theme::install_fonts_with(ctx, &font, Vec::new(), self.ui.rtl_font.clone());
+        self.ui.ui_font = font;
         self.ui.fonts_ready = true;
         // Every path into the window comes here first, with its context: from now on a screen
         // reader's update always carries its focus (`a11y`; added once, however often called).
@@ -159,8 +161,7 @@ impl MailApp {
                 }
             }
             if !cjk.is_empty() {
-                let (r, b) = (self.ui.fonts.0.as_ref().map(|f| f.to_vec()), self.ui.fonts.1.as_ref().map(|f| f.to_vec()));
-                theme::install_fonts_with(ctx, r, b, cjk, self.ui.rtl_font.clone());
+                theme::install_fonts_with(ctx, &self.ui.ui_font, cjk, self.ui.rtl_font.clone());
                 ctx.request_repaint();
             } else if self.services.font_pending() {
                 // Asked again once it has come.

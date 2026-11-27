@@ -204,7 +204,7 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, minimize: bool, acts: &mut Vec
             ui.painter().circle_filled(m.pos(egui::pos2(rect.min.x + 26.0, rect.center().y)), 4.0, theme::account_color(a.config.color));
             let label = if a.is_local() && !a.is_data_file() { tf!("{email} (sample)", email = a.config.email) } else { a.config.email.clone() };
             crate::widgets::named(ui, &resp, &label, true, Some(open));
-            let g = crate::widgets::one_line(ui, &label, theme::bold(size.heading), t.text, rect.width() - 44.0 - inset);
+            let g = crate::widgets::one_line(ui, &label, theme::semibold(size.heading), t.text, rect.width() - 44.0 - inset);
             let resp = if g.elided { resp.on_hover_text(&label) } else { resp };
             ui.painter().galley(egui::pos2(m.start(rect.min.x + 36.0, g.size().x), rect.center().y - g.size().y / 2.0), g, t.text);
             if resp.clicked() {

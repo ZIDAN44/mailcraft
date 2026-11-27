@@ -14,6 +14,7 @@ pub(crate) mod organisation;
 pub(crate) mod start;
 pub(crate) mod state_writer;
 pub(crate) mod tray;
+pub(crate) mod ui_font;
 pub(super) mod video;
 pub(crate) mod video_frames;
 pub(crate) mod window_frame;

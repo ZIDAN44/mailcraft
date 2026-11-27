@@ -51,7 +51,7 @@ pub(crate) fn date_field(ui: &mut Ui, t: &Tokens, id: &str, text: &mut String, o
             }
             let m = u32::try_from(month.rem_euclid(12) + 1).unwrap_or(1);
             ui.label(
-                RichText::new(tf!("{month} {year}", month = crate::calendar::month_name(m), year = month.div_euclid(12))).font(theme::bold(13.0)),
+                RichText::new(tf!("{month} {year}", month = crate::calendar::month_name(m), year = month.div_euclid(12))).font(theme::semibold(13.0)),
             );
             if widgets::tiny_icon_button(ui, Icon::ChevronRight, "Next month", t).clicked() {
                 month += 1;

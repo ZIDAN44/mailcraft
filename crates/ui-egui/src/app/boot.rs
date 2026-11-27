@@ -140,7 +140,7 @@ impl BootCard {
         ui.horizontal(|ui| {
             ui.add(egui::Spinner::new().size(18.0).color(t.accent));
             let title = if checking { tl!("Checking your data file") } else { tl!("Opening your mail…") };
-            ui.label(RichText::new(title).font(theme::bold(16.0)).color(t.text));
+            ui.label(RichText::new(title).font(theme::semibold(16.0)).color(t.text));
         });
         ui.add_space(8.0);
         if checking {
@@ -170,7 +170,7 @@ impl BootCard {
 
     /// Data files that couldn't be opened, and Continue.
     fn problems(&mut self, ui: &mut Ui, t: &Tokens, problems: &[(String, String)]) {
-        ui.label(RichText::new(tl!("Some of your mail couldn't be opened")).font(theme::bold(16.0)).color(t.text));
+        ui.label(RichText::new(tl!("Some of your mail couldn't be opened")).font(theme::semibold(16.0)).color(t.text));
         ui.add_space(8.0);
         // One with no file name is the whole opening (its words are in the log).
         let whole = problems.iter().any(|(file, _)| file.is_empty());

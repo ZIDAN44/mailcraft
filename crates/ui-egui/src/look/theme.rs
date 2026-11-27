@@ -265,6 +265,15 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
     v.widgets.active.bg_fill = t.accent_soft;
     v.widgets.active.fg_stroke = Stroke::new(1.0, t.text);
     v.widgets.open.weak_bg_fill = t.accent_soft;
+    // Text: each letter drawn at a whole pixel, not at a quarter of one (egui's subpixel binning,
+    // "somewhat blurrier" in its own words): with it, a variable font's Semibold came out as its
+    // Regular, so an unread sender looked like a read one (Segoe UI Variable, compared on screen).
+    // On the light theme the letters a shade fuller (gamma 0.85), as native text is next to
+    // egui's own (Windows' ClearType contrast); the dark theme's own curve already is.
+    v.text_options.subpixel_binning = false;
+    if !t.dark {
+        v.text_options.color_transfer_function = egui::epaint::FontColorTransferFunction::Gamma(TEXT_GAMMA);
+    }
     ctx.set_visuals(v);
     ctx.global_style_mut(|s| {
         s.spacing.item_spacing = egui::vec2(8.0, 6.0);
@@ -287,6 +296,9 @@ pub fn apply(ctx: &egui::Context, t: &Tokens) {
         s.text_styles.insert(egui::TextStyle::Heading, egui::FontId::proportional(20.0));
     });
 }
+
+/// How full the light theme's letters are drawn ([`apply`]): coverage to this power.
+pub(crate) const TEXT_GAMMA: f32 = 0.85;
 
 /// The room a scroll area keeps beside what it scrolls for its bar's thin line, when it has more
 /// to scroll to.
@@ -380,22 +392,53 @@ pub fn mail_colors_on(fg: Option<[u8; 3]>, bg: Option<[u8; 3]>, page: [u8; 3], t
 }
 
 /// Use an installed system UI font when the app found one (never bundled: see AGENTS.md).
-pub fn install_fonts(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>) {
-    install_fonts_with(ctx, regular, bold, Vec::new(), None);
+pub fn install_fonts(ctx: &egui::Context, font: &UiFont) {
+    install_fonts_with(ctx, font, Vec::new(), None);
+}
+
+/// The interface's font, from the computer: its Regular, Semibold and Bold faces, or one variable
+/// font drawn at each of those weights. Semibold is the interface's emphasis (an unread sender, a
+/// heading, a selected tab), as Windows' and Apple's guidelines have it; Bold is for what a message
+/// or its writer makes bold. Without a Semibold face, emphasis is drawn in Bold.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct UiFont {
+    pub regular: Option<Vec<u8>>,
+    pub semibold: Option<Vec<u8>>,
+    pub bold: Option<Vec<u8>>,
+    /// `regular` is a variable font, drawn for each face at these weights (its `wght` axis):
+    /// Regular, Semibold and Bold. `semibold` is then unused, and `bold` is a static Bold face for
+    /// what draws with the font without its weights (pictures of PDF pages).
+    pub weights: Option<[f32; 3]>,
+    /// The optical size its letters are drawn for (`opsz`), where the font has the axis and its
+    /// default is meant for larger text than the interface's.
+    pub opsz: Option<f32>,
+}
+
+impl UiFont {
+    /// A Regular and a Bold face, as files are (a Semibold drawn as Bold).
+    pub fn faces(regular: Option<Vec<u8>>, bold: Option<Vec<u8>>) -> UiFont {
+        UiFont { regular, bold, ..UiFont::default() }
+    }
+
+    /// The Regular and Bold faces' bytes (pictures drawn with text use them; they don't vary a
+    /// font's weight).
+    pub fn pair(&self) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
+        (self.regular.clone(), self.bold.clone())
+    }
 }
 
 /// [`install_fonts`] with fallbacks, used after the others: for Chinese, Japanese and Korean
 /// (font files and their index in a collection, first preferred), and for Arabic and Hebrew
 /// when the main font hasn't them.
-pub fn install_fonts_with(ctx: &egui::Context, regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Vec<(Vec<u8>, u32)>, rtl: Option<Vec<u8>>) {
-    crate::bidi::set_coverage(regular.as_deref());
-    let fonts = font_definitions(regular, bold, cjk, rtl);
+pub fn install_fonts_with(ctx: &egui::Context, font: &UiFont, cjk: Vec<(Vec<u8>, u32)>, rtl: Option<Vec<u8>>) {
+    crate::bidi::set_coverage(font.regular.as_deref());
+    let fonts = font_definitions(font, cjk, rtl);
     crate::mail_fonts::follow(&fonts);
     ctx.set_fonts(fonts);
 }
 
 /// The fonts [`install_fonts_with`] installs.
-fn font_definitions(regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Vec<(Vec<u8>, u32)>, rtl: Option<Vec<u8>>) -> FontDefinitions {
+fn font_definitions(font: &UiFont, cjk: Vec<(Vec<u8>, u32)>, rtl: Option<Vec<u8>>) -> FontDefinitions {
     let mut fonts = FontDefinitions::default();
     if let Some(bytes) = rtl {
         fonts.font_data.insert("rtl".into(), Arc::new(FontData::from_owned(bytes)));
@@ -418,20 +461,40 @@ fn font_definitions(regular: Option<Vec<u8>>, bold: Option<Vec<u8>>, cjk: Vec<(V
         }
     }
     add_craft_fallbacks(&mut fonts);
-    if let Some(bytes) = regular {
-        fonts.font_data.insert("system".into(), Arc::new(FontData::from_owned(bytes)));
+    // A variable font's three faces share its bytes, each at its weight.
+    let regular = font.regular.clone().map(FontData::from_owned);
+    let at = |data: &FontData, weight: f32| {
+        let mut d = data.clone();
+        d.tweak.coords = egui::epaint::text::VariationCoords::new([(b"wght", weight)]);
+        if let Some(size) = font.opsz {
+            d.tweak.coords.push(b"opsz", size);
+        }
+        d
+    };
+    let (regular, semibold, bold) = match (regular, font.weights) {
+        (Some(r), Some([w_regular, w_semibold, w_bold])) => (Some(at(&r, w_regular)), Some(at(&r, w_semibold)), Some(at(&r, w_bold))),
+        (r, _) => (r, font.semibold.clone().map(FontData::from_owned), font.bold.clone().map(FontData::from_owned)),
+    };
+    if let Some(data) = regular {
+        fonts.font_data.insert("system".into(), Arc::new(data));
         if let Some(f) = fonts.families.get_mut(&FontFamily::Proportional) {
             f.insert(0, "system".into());
         }
     }
-    let bold_family = FontFamily::Name("bold".into());
-    let mut bold_list = Vec::new();
-    if let Some(bytes) = bold {
-        fonts.font_data.insert("system-bold".into(), Arc::new(FontData::from_owned(bytes)));
-        bold_list.push("system-bold".to_string());
+    let proportional = fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default();
+    let has_bold = bold.is_some();
+    if let Some(data) = bold {
+        fonts.font_data.insert("system-bold".into(), Arc::new(data));
     }
-    bold_list.extend(fonts.families.get(&FontFamily::Proportional).cloned().unwrap_or_default());
-    fonts.families.insert(bold_family, bold_list);
+    if let Some(data) = semibold {
+        fonts.font_data.insert("system-semibold".into(), Arc::new(data));
+    }
+    let family = |first: &[&str]| first.iter().map(|s| s.to_string()).chain(proportional.iter().cloned()).collect::<Vec<_>>();
+    let bold_first: &[&str] = if has_bold { &["system-bold"] } else { &[] };
+    let semibold_first: &[&str] = if fonts.font_data.contains_key("system-semibold") { &["system-semibold"] } else { bold_first };
+    let (bold_list, semibold_list) = (family(bold_first), family(semibold_first));
+    fonts.families.insert(FontFamily::Name("bold".into()), bold_list);
+    fonts.families.insert(FontFamily::Name("semibold".into()), semibold_list);
     fonts
 }
 
@@ -473,8 +536,14 @@ pub fn print_fallbacks() -> Vec<Arc<dyn AsRef<[u8]> + Send + Sync>> {
     list
 }
 
+/// Bold: what a message or its writer makes bold.
 pub fn bold(size: f32) -> egui::FontId {
     egui::FontId::new(size, FontFamily::Name("bold".into()))
+}
+
+/// The interface's emphasis: an unread message, a heading, a name ([`UiFont`]).
+pub fn semibold(size: f32) -> egui::FontId {
+    egui::FontId::new(size, FontFamily::Name("semibold".into()))
 }
 
 pub fn regular(size: f32) -> egui::FontId {
@@ -484,6 +553,48 @@ pub fn regular(size: f32) -> egui::FontId {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Text is drawn at whole pixels (a variable font's Semibold showed as its Regular when binned),
+    /// a shade fuller on the light theme.
+    #[test]
+    fn text_is_drawn_at_whole_pixels_and_full_on_light() {
+        let ctx = egui::Context::default();
+        apply(&ctx, &Tokens::light());
+        let light = ctx.global_style().visuals.text_options;
+        assert!(!light.subpixel_binning);
+        assert_eq!(light.color_transfer_function, egui::epaint::FontColorTransferFunction::Gamma(TEXT_GAMMA));
+        apply(&ctx, &Tokens::dark());
+        let dark = ctx.global_style().visuals.text_options;
+        assert!(!dark.subpixel_binning);
+        assert_eq!(dark.color_transfer_function, egui::epaint::FontColorTransferFunction::DARK_MODE_DEFAULT);
+    }
+
+    /// A variable UI font's three faces share its file, each at its weight; static faces each have
+    /// their own; with no Semibold face, the interface's emphasis is drawn in Bold.
+    #[test]
+    fn the_interface_has_a_semibold() {
+        let weight = |fonts: &FontDefinitions, name: &str| fonts.font_data.get(name).and_then(|d| d.tweak.coords.as_ref().first().map(|c| c.1));
+        let first = |fonts: &FontDefinitions, family: &str| fonts.families.get(&FontFamily::Name(family.into())).and_then(|f| f.first().cloned());
+        let variable = UiFont { regular: Some(vec![1]), weights: Some([400.0, 600.0, 700.0]), ..UiFont::default() };
+        let fonts = font_definitions(&variable, Vec::new(), None);
+        assert_eq!(
+            (weight(&fonts, "system"), weight(&fonts, "system-semibold"), weight(&fonts, "system-bold")),
+            (Some(400.0), Some(600.0), Some(700.0))
+        );
+        assert_eq!(first(&fonts, "semibold").as_deref(), Some("system-semibold"));
+        assert_eq!(first(&fonts, "bold").as_deref(), Some("system-bold"));
+        let faces = UiFont { regular: Some(vec![1]), semibold: Some(vec![2]), bold: Some(vec![3]), ..UiFont::default() };
+        let fonts = font_definitions(&faces, Vec::new(), None);
+        assert_eq!(weight(&fonts, "system-semibold"), None, "a static face isn't varied");
+        assert_eq!(first(&fonts, "semibold").as_deref(), Some("system-semibold"));
+        let no_semibold = UiFont::faces(Some(vec![1]), Some(vec![3]));
+        let fonts = font_definitions(&no_semibold, Vec::new(), None);
+        assert_eq!(first(&fonts, "semibold").as_deref(), Some("system-bold"), "Bold stands in");
+        assert_eq!(no_semibold.pair(), (Some(vec![1]), Some(vec![3])));
+        let with_static_bold = UiFont { bold: Some(vec![9]), ..variable.clone() };
+        assert_eq!(with_static_bold.pair(), (Some(vec![1]), Some(vec![9])), "pictures get the static Bold");
+        assert_eq!(weight(&font_definitions(&with_static_bold, Vec::new(), None), "system-bold"), Some(700.0), "the window draws the variable one");
+    }
 
     /// A scroll area with more than it shows draws its bar's handle while the pointer is away
     /// from it: something says there's more.
@@ -524,7 +635,7 @@ mod tests {
     #[test]
     fn chinese_japanese_and_korean_sit_on_the_line() {
         use egui::epaint::text::FallbackAlign::{Baseline, Center};
-        let fonts = font_definitions(None, None, vec![(vec![0], 0), (vec![0], 2)], Some(vec![0]));
+        let fonts = font_definitions(&UiFont::default(), vec![(vec![0], 0), (vec![0], 2)], Some(vec![0]));
         let align = |name: &str| fonts.font_data.get(name).map(|d| d.tweak.fallback_align);
         assert_eq!((align("cjk-0"), align("cjk-1")), (Some(Baseline), Some(Baseline)));
         assert_eq!(align("rtl"), Some(Center));

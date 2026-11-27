@@ -80,7 +80,7 @@ pub(super) fn section_header(ui: &mut Ui, t: &Tokens, label: &str, open: bool) -
         m.pos(egui::pos2(rect.min.x + 18.0, rect.center().y)),
         m.align(egui::Align2::LEFT_CENTER),
         tl!(label),
-        theme::bold(12.0),
+        theme::semibold(12.0),
         t.faint,
     );
     resp
@@ -142,7 +142,7 @@ pub(super) fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count
     let x = rect.min.x + 10.0 + depth as f32 * size.indent;
     let ir = m.rect(egui::Rect::from_min_size(egui::pos2(x, rect.center().y - 8.0), vec2(16.0, 16.0)));
     icons::paint(ui.painter(), ir, icon, if selected { t.accent } else { t.dim });
-    let font = if unread > 0 || selected { theme::bold(size.text) } else { theme::regular(size.text) };
+    let font = if unread > 0 || selected { theme::semibold(size.text) } else { theme::regular(size.text) };
     let counted = matches!(count, Count::Unread(n) | Count::Items(n) if n > 0);
     let inset = corner_inset(ui, rect);
     let text_right = rect.max.x - inset - if counted { 40.0 } else { 8.0 };
@@ -153,7 +153,7 @@ pub(super) fn row(ui: &mut Ui, t: &Tokens, icon: Icon, label: &str, count: Count
     let gy = rect.center().y - galley.size().y / 2.0;
     ui.painter().galley(egui::pos2(m.start(x + 24.0, galley.size().x), gy), galley, t.text);
     let shown = match count {
-        Count::Unread(n) if n > 0 => Some((n.to_string(), theme::bold(12.5), t.accent)),
+        Count::Unread(n) if n > 0 => Some((n.to_string(), theme::semibold(12.5), t.accent)),
         Count::Items(n) if n > 0 => Some((format!("[{n}]"), theme::regular(12.5), t.dim)),
         _ => None,
     };

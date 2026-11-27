@@ -507,7 +507,7 @@ fn thread_list(
                 if current || resp.hovered() {
                     ui.painter().rect_filled(rect, 4.0, if current { t.accent_soft } else { t.hover_row });
                 }
-                let font = if !m.flags.seen && !sent { theme::bold(13.0) } else { theme::regular(13.0) };
+                let font = if !m.flags.seen && !sent { theme::semibold(13.0) } else { theme::regular(13.0) };
                 let p = ui.painter_at(rect);
                 // Who, the first words and when, each in its own room: the words ran on under
                 // the time in a narrow pane, and a long name under the words. One from Sent

@@ -244,6 +244,8 @@ pub struct UiState {
     pub language: String,
     /// The fonts installed, kept to add a CJK fallback later (and for PDF thumbnails).
     pub(crate) fonts: thumbs::Fonts,
+    /// The interface's font as installed, its weights too (installed again with a CJK fallback).
+    pub(crate) ui_font: crate::theme::UiFont,
     /// A fallback font for Arabic and Hebrew (when the main font hasn't them).
     pub(crate) rtl_font: Option<Vec<u8>>,
     /// The language whose CJK font is loaded.

@@ -336,7 +336,7 @@ pub(super) fn preview_header(t: &Tokens, ui: &mut Ui, a: &mime::AttachmentInfo, 
         let (r, _) = ui.allocate_exact_size(vec2(28.0, 28.0), Sense::hover());
         icons::paint(ui.painter(), icons::centered(r, 22.0), kind_icon(a.kind()), t.accent);
         ui.vertical(|ui| {
-            ui.add(egui::Label::new(RichText::new(&a.name).font(theme::bold(16.0)).color(t.text)).truncate());
+            ui.add(egui::Label::new(RichText::new(&a.name).font(theme::semibold(16.0)).color(t.text)).truncate());
             ui.label(RichText::new(widgets::human_size(a.size)).color(t.dim).small());
         });
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -582,7 +582,7 @@ pub(super) fn office_preview(t: &Tokens, ui: &mut Ui, p: &mime::office::Preview,
                             job.append("•  ", 0.0, egui::TextFormat { font_id: theme::regular(size), color: t.text, ..Default::default() });
                         }
                         for r in runs {
-                            let font = if r.bold || *heading { theme::bold(size) } else { theme::regular(size) };
+                            let font = if r.bold || *heading { theme::semibold(size) } else { theme::regular(size) };
                             job.append(&r.text, 0.0, egui::TextFormat { font_id: font, color: t.text, italics: r.italic, ..Default::default() });
                         }
                         if runs.is_empty() {
@@ -634,7 +634,7 @@ pub(super) fn office_preview(t: &Tokens, ui: &mut Ui, p: &mime::office::Preview,
                         ui.set_width(w - 38.0);
                         ui.set_min_height((w - 38.0) * 9.0 / 16.0 * 0.6);
                         for (i, para) in paras.iter().enumerate() {
-                            let font = if i == 0 { theme::bold(18.0) } else { theme::regular(14.5) };
+                            let font = if i == 0 { theme::semibold(18.0) } else { theme::regular(14.5) };
                             ui.label(RichText::new(para).font(font).color(t.text));
                             ui.add_space(if i == 0 { 8.0 } else { 3.0 });
                         }

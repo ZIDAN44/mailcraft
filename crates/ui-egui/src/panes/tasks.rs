@@ -172,7 +172,7 @@ fn headings(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
             mr.pos(pos2(rect.min.x + x, r.center().y)),
             mr.align(Align2::LEFT_CENTER),
             text,
-            theme::bold(12.0),
+            theme::semibold(12.0),
             color,
         );
         if let Some(o) = order
@@ -228,7 +228,7 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
     // Cut with "…" where it doesn't fit, as the list's subjects are (it stopped mid-letter at
     // the next column).
     let room = (x_due - x_title - 10.0).max(10.0);
-    let galley = widgets::one_line(ui, &title, theme::bold(13.0), title_color, room);
+    let galley = widgets::one_line(ui, &title, theme::semibold(13.0), title_color, room);
     let title_w = galley.size().x.min(room);
     let title_x = if title_rtl && !mr.on() { rect.min.x + x_title + room - title_w } else { rect.min.x + x_title };
     // Under it: its task list (when there are several), that it repeats, its categories, its
@@ -286,7 +286,7 @@ fn row(s: &Session, t: &Tokens, st: &mut UiState, ui: &mut Ui, r: &ListedTask<'_
         let high = task.priority == TaskPriority::High;
         let text = if high { "!" } else { "↓" };
         let color = if high { t.danger } else { t.dim };
-        p.text(mr.pos(pos2(rect.min.x + x_priority + 6.0, rect.center().y)), start, text, theme::bold(15.0), color);
+        p.text(mr.pos(pos2(rect.min.x + x_priority + 6.0, rect.center().y)), start, text, theme::semibold(15.0), color);
     }
     ui.painter().line_segment([rect.left_bottom(), rect.right_bottom()], egui::Stroke::new(1.0, t.border));
     widgets::named(ui, &resp, &title, true, Some(picked));

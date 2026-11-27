@@ -18,7 +18,7 @@ pub fn nav(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
         ui.add_space(10.0);
         months(s, st, ui, acts);
         ui.add_space(12.0);
-        ui.label(RichText::new(tl!("Calendars")).font(theme::bold(12.0)).color(t.faint));
+        ui.label(RichText::new(tl!("Calendars")).font(theme::semibold(12.0)).color(t.faint));
         let several = s.pim.values().map(|p| p.calendars.len()).sum::<usize>() > 1;
         let groups = groups(s);
         let grouped = groups.len() > 1;
@@ -117,7 +117,7 @@ fn group_heading(ui: &mut Ui, t: &Tokens, a: &mailcraft_engine::AccountState, ma
             ui.painter().circle_filled(r.center(), 4.0, theme::account_color(a.config.color));
         }
         let name = mailbox.map_or_else(|| a.config.email.clone(), str::to_string);
-        ui.add(egui::Label::new(RichText::new(name).font(theme::bold(12.0)).color(t.dim)).truncate());
+        ui.add(egui::Label::new(RichText::new(name).font(theme::semibold(12.0)).color(t.dim)).truncate());
     });
 }
 
@@ -141,7 +141,7 @@ fn calendar_group_heading(t: &Tokens, ui: &mut Ui, account: &str, name: &str, sh
         if resp.on_hover_text(tip).clicked() {
             acts.push(Action::Run("calendar.groupShow", json!({"account": account, "name": name, "shown": !shown})));
         }
-        ui.add(egui::Label::new(RichText::new(name).font(theme::bold(12.0)).color(t.dim)).selectable(false).truncate());
+        ui.add(egui::Label::new(RichText::new(name).font(theme::semibold(12.0)).color(t.dim)).selectable(false).truncate());
     });
     let (account, name) = (account.to_string(), name.to_string());
     row.response.interact(Sense::click()).context_menu(|ui| {

@@ -106,7 +106,7 @@ pub(crate) fn draw(ui: &mut Ui, s: &Session, t: &Tokens, m: &Meeting<'_>) -> Opt
         let y = row_y(k);
         p.line_segment([pos2(rect.min.x, y), pos2(grid.max.x, y)], egui::Stroke::new(1.0, t.border));
         let text = Rect::from_min_max(pos2(rect.min.x + 4.0, y), pos2(rect.min.x + NAMES_W - 6.0, y + ROW_H));
-        let font = if k == 0 { theme::bold(12.0) } else { theme::regular(12.0) };
+        let font = if k == 0 { theme::semibold(12.0) } else { theme::regular(12.0) };
         p.with_clip_rect(text).text(pos2(text.min.x, text.center().y), Align2::LEFT_CENTER, name, font, t.text);
     }
     for (k, row) in all.iter().enumerate() {

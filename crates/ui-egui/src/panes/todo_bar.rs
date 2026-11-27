@@ -138,7 +138,7 @@ fn split_line(ui: &mut Ui, t: &Tokens, (top, room): (f32, f32), kept: u8, st: &m
 /// A part's name, and the ✕ that closes it.
 fn head(ui: &mut Ui, t: &Tokens, name: &str, part: &str, acts: &mut Vec<Action>) {
     ui.horizontal(|ui| {
-        ui.label(RichText::new(tl!(name)).font(theme::bold(12.0)).color(t.dim));
+        ui.label(RichText::new(tl!(name)).font(theme::semibold(12.0)).color(t.dim));
         ui.with_layout(crate::bidi::row_from_end(egui::Align::Center), |ui| {
             if widgets::tiny_icon_button(ui, Icon::Close, "Close", t).clicked() {
                 acts.push(Action::Run("view.todoBar", json!({"part": part, "on": false})));
@@ -160,7 +160,7 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
     if coming.is_empty() {
         let none = if picked.is_some() { tl!("Nothing on this day") } else { tl!("Nothing in the next 7 days") };
         if let Some(day) = picked {
-            ui.label(RichText::new(super::tasks::relative_day(day, s)).font(theme::bold(11.5)).color(t.accent));
+            ui.label(RichText::new(super::tasks::relative_day(day, s)).font(theme::semibold(11.5)).color(t.accent));
         }
         ui.label(RichText::new(none).color(t.faint).small());
         return;
@@ -174,7 +174,7 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
         let day = day_of(it);
         if last != Some(day) {
             last = Some(day);
-            ui.label(RichText::new(super::tasks::relative_day(day, s)).font(theme::bold(11.5)).color(t.accent));
+            ui.label(RichText::new(super::tasks::relative_day(day, s)).font(theme::semibold(11.5)).color(t.accent));
         }
         let when = if it.all_day { tl!("All day").to_string() } else { super::calendar::hm(it.start, s) };
         // How long it is under its time, and how soon it starts when that's within the hour
@@ -210,7 +210,7 @@ fn appointments(s: &Session, t: &Tokens, picked: Option<i64>, ui: &mut Ui, acts:
         }
         let room = (rect.width() - 22.0 - time_w).max(10.0);
         if let Some(soon) = &soon {
-            let badge = widgets::one_line(ui, soon, theme::bold(11.0), t.accent, rect.width() - 16.0);
+            let badge = widgets::one_line(ui, soon, theme::semibold(11.0), t.accent, rect.width() - 16.0);
             p.galley(pos2(mr.start(rect.min.x + 10.0, badge.size().x), rect.min.y + 4.0), badge, t.accent);
         }
         let title = if it.summary.trim().is_empty() { tl!("(no title)").to_string() } else { it.summary.clone() };
@@ -275,7 +275,7 @@ fn tasks(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<Action>) {
                 group = Some(it.group);
                 ui.add_space(4.0);
                 let color = if it.group == TodoGroup::Overdue { t.danger } else { t.accent };
-                ui.label(RichText::new(tl!(it.group.label())).font(theme::bold(11.5)).color(color));
+                ui.label(RichText::new(tl!(it.group.label())).font(theme::semibold(11.5)).color(color));
                 ui.add_space(2.0);
             }
             row(s, &t, ui, it, acts);

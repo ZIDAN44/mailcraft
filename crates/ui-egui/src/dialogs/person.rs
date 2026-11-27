@@ -170,7 +170,7 @@ fn header(ui: &mut Ui, f: &PersonForm, s: &Session, t: &Tokens, acts: &mut Vec<A
         crate::photos::avatar(ui, s, ar.center(), 23.0, &a.email, &who.initials(), theme::avatar_color(&a.email, t.dark));
         ui.add_space(6.0);
         ui.vertical(|ui| {
-            let r = ui.label(RichText::new(&a.name).font(theme::bold(18.0)).color(t.text));
+            let r = ui.label(RichText::new(&a.name).font(theme::semibold(18.0)).color(t.text));
             // What the dialog is called, to a screen reader.
             ui.ctx().data_mut(|d| d.insert_temp(title_id(), Some(r.id)));
             if let Some(c) = known {
@@ -258,7 +258,7 @@ fn row(ui: &mut Ui, t: &Tokens, main: &str, strong: bool, side: &str, hint: &str
     let m = crate::bidi::Mirror::new(rect);
     let side_g = ui.painter().layout_no_wrap(side.to_string(), theme::regular(12.0), t.dim);
     let main_w = (w - side_g.size().x - 24.0).max(40.0);
-    let font = if strong { theme::bold(13.0) } else { theme::regular(13.0) };
+    let font = if strong { theme::semibold(13.0) } else { theme::regular(13.0) };
     let g = widgets::one_line(ui, main, font, t.text, main_w);
     let y = |h: f32| rect.center().y - h / 2.0;
     ui.painter().galley(egui::pos2(m.start(rect.left() + 6.0, g.size().x), y(g.size().y)), g, t.text);
@@ -288,7 +288,7 @@ fn overview(ui: &mut Ui, f: &mut PersonForm, s: &Session, t: &Tokens, acts: &mut
             ui.add_space(8.0);
         }
         empty = false;
-        let heading = ui.add(egui::Label::new(RichText::new(label(tab, a)).font(theme::bold(14.0)).color(t.accent)).sense(Sense::click()));
+        let heading = ui.add(egui::Label::new(RichText::new(label(tab, a)).font(theme::semibold(14.0)).color(t.accent)).sense(Sense::click()));
         if heading.on_hover_text(tl!("Show all")).on_hover_cursor(egui::CursorIcon::PointingHand).clicked() {
             go = Some(tab);
         }

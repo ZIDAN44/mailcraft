@@ -126,7 +126,7 @@ pub(crate) fn found(s: &Session, st: &mut UiState, ui: &mut Ui, acts: &mut Vec<A
                     heading = Some(h.upcoming);
                     ui.add_space(6.0);
                     ui.with_layout(crate::bidi::column(), |ui| {
-                        ui.label(RichText::new(if h.upcoming { tl!("Upcoming") } else { tl!("Past") }).font(theme::bold(13.0)).color(t.dim));
+                        ui.label(RichText::new(if h.upcoming { tl!("Upcoming") } else { tl!("Past") }).font(theme::semibold(13.0)).color(t.dim));
                     });
                     ui.add_space(2.0);
                 }
@@ -190,7 +190,7 @@ fn row(s: &Session, t: &Tokens, ui: &mut Ui, h: &EventHit) -> Option<egui::Respo
         mr.pos(pos2(sx, rect.min.y + 14.0)),
         start,
         title.clone(),
-        theme::bold(13.0),
+        theme::semibold(13.0),
         t.text,
     );
     let calendar = s

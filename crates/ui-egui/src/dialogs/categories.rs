@@ -88,7 +88,7 @@ fn row(ui: &mut Ui, t: &Tokens, c: &Category, odd: bool, extra: &str, buttons: i
         ui.add_space(6.0);
         ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
             let mut job = egui::text::LayoutJob::default();
-            job.append(&c.name, 0.0, egui::TextFormat { font_id: theme::bold(13.0), color: t.text, ..Default::default() });
+            job.append(&c.name, 0.0, egui::TextFormat { font_id: theme::semibold(13.0), color: t.text, ..Default::default() });
             job.append(&c.keyword, 10.0, egui::TextFormat { font_id: egui::FontId::monospace(12.0), color: t.dim, ..Default::default() });
             if !extra.is_empty() {
                 job.append(extra, 10.0, egui::TextFormat { font_id: theme::regular(12.0), color: t.faint, ..Default::default() });
