@@ -2210,3 +2210,6 @@ count	occurrences	kez
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Şüpheli değilse: posta sunucunuz iletiyi kimin gönderdiğini doğruladığında. Her zaman: Gereksiz E-posta'dakiler ve engellenen göndericilerden gelenler dışında her ileti. Her resmin bulunduğu sunucu IP adresinizi ve iletiyi ne zaman açtığınızı görebilir; izleme resimleri engelli kalır
 	For mail to	Şu hesabın postası
 	Every account	Tüm hesaplar
+	Mark as read in the reading pane	Okuma bölmesinde okundu olarak işaretle
+	Turned off for a folder it's in	İçinde bulunduğu bir klasör için kapalı
+	Not in {folders}: a folder's right-click menu turns it off and on.	Şunlarda değil: {folders}. Bir klasörün sağ tık menüsü bunu kapatıp açar.

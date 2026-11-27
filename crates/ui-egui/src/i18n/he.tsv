@@ -2205,3 +2205,6 @@ count	occurrences	פעמים
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	אלא אם היא חשודה: כששרת הדואר שלך אישר מי שלח את ההודעה. תמיד: כל הודעה מלבד אלה שבדואר זבל ואלה משולחים חסומים. השרת שעליו נמצאת כל תמונה יכול לראות את כתובת ה-IP שלך ומתי פתחת את ההודעה; תמונות מעקב נשארות חסומות
 	For mail to	לדואר אל
 	Every account	כל החשבונות
+	Mark as read in the reading pane	סימון כנקרא בחלונית הקריאה
+	Turned off for a folder it's in	כבוי עבור תיקייה שהיא נמצאת בה
+	Not in {folders}: a folder's right-click menu turns it off and on.	לא בתיקיות {folders}: תפריט הלחיצה הימנית של תיקייה מכבה ומפעיל זאת.

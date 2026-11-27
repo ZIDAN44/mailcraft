@@ -2205,3 +2205,6 @@ count	occurrences	مرات
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	ما لم تكن مريبة: عندما يؤكد خادم بريدك مَن أرسل الرسالة. دائمًا: كل رسالة عدا ما في البريد العشوائي وما يأتي من مرسلين محظورين. يمكن للخادم الذي توجد عليه كل صورة أن يرى عنوان IP الخاص بك ووقت فتحك للرسالة؛ وتبقى صور التتبع محظورة
 	For mail to	للبريد الوارد إلى
 	Every account	كل الحسابات
+	Mark as read in the reading pane	تعليم كمقروءة في جزء القراءة
+	Turned off for a folder it's in	مُوقف لمجلد يحتويه
+	Not in {folders}: a folder's right-click menu turns it off and on.	ليس في {folders}: قائمة النقر بزر الماوس الأيمن على المجلد توقفه وتشغّله.

@@ -115,6 +115,19 @@ pub(super) fn folder_row(
             acts.push(Action::Run("mail.markAllRead", json!({"account": account, "folder": path})));
             ui.close();
         }
+        // Its mail, and its subfolders', left unread when shown in the reading pane (issue #203:
+        // a shared mailbox, where unread mail is what nobody has dealt with yet). Off on a folder
+        // above it, it's greyed: that folder's to change. Greyed too while the reading pane marks
+        // nothing read (File › Options › Mail).
+        let own = s.prefs.unread_folders.iter().any(|r| r.account == *account && r.folder == *path);
+        let above = !own && s.unread_folder_of(account, path).is_some();
+        let mut on = !own && !above;
+        let r = ui.add_enabled(s.prefs.mark_read_on_open && !above, egui::Checkbox::new(&mut on, tl!("Mark as read in the reading pane")));
+        let r = if above { r.on_disabled_hover_text(tl!("Turned off for a folder it's in")) } else { r };
+        if r.changed() {
+            acts.push(Action::Run("folder.markReadWhenShown", json!({"account": account, "folder": path, "on": on})));
+            ui.close();
+        }
         // Delete All, as Outlook's: Deleted Items and Junk are emptied for good, any other
         // folder's mail goes to Deleted Items.
         if f.selectable && ui.button(tl!("Delete all…")).clicked() {

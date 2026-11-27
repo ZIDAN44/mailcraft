@@ -2223,3 +2223,6 @@ count	occurrences	повторений
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Если не подозрительное: когда почтовый сервер подтвердил, кто отправил сообщение. Всегда: все сообщения, кроме находящихся в нежелательной почте и от заблокированных отправителей. Сервер, на котором лежит изображение, видит ваш IP-адрес и время открытия сообщения; следящие изображения по-прежнему блокируются
 	For mail to	Для почты на
 	Every account	Все учётные записи
+	Mark as read in the reading pane	Помечать прочитанным в области чтения
+	Turned off for a folder it's in	Отключено для папки, в которую она входит
+	Not in {folders}: a folder's right-click menu turns it off and on.	Кроме: {folders}. Это отключается и включается в контекстном меню папки.

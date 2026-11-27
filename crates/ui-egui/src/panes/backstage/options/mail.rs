@@ -91,6 +91,17 @@ pub(super) fn reading(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Actio
                 if ui.radio(!shown, tl!("When I choose another message")).clicked() {
                     acts.push(Action::Run("view.readingOptions", json!({"when": "left"})));
                 }
+                // The folders whose mail is left unread, from their own menus (issue #203).
+                let left: Vec<String> =
+                    s.prefs.unread_folders.iter().filter_map(|r| s.folder(&r.account, &r.folder)).map(crate::i18n::folder).collect();
+                if !left.is_empty() {
+                    let names = left.join(", ");
+                    ui.label(
+                        egui::RichText::new(tf!("Not in {folders}: a folder's right-click menu turns it off and on.", folders = names))
+                            .color(t.faint)
+                            .small(),
+                    );
+                }
             });
             ui.add_space(8.0);
         }

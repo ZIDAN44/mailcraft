@@ -2209,3 +2209,6 @@ count	occurrences	회
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	의심스럽지 않으면: 메일 서버가 메시지를 보낸 사람을 확인한 경우. 항상: 정크 메일에 있는 메시지와 차단된 보낸 사람의 메시지를 제외한 모든 메시지. 각 그림이 있는 서버는 사용자의 IP 주소와 메시지를 연 시간을 볼 수 있으며, 추적 그림은 계속 차단됩니다
 	For mail to	대상 계정
 	Every account	모든 계정
+	Mark as read in the reading pane	읽기 창에서 읽음으로 표시
+	Turned off for a folder it's in	이 폴더를 포함하는 폴더에서 꺼져 있음
+	Not in {folders}: a folder's right-click menu turns it off and on.	{folders} 제외: 폴더의 오른쪽 클릭 메뉴에서 끄고 켭니다.

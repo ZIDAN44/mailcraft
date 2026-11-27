@@ -2210,3 +2210,6 @@ count	occurrences	occurrences
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Sauf si suspect : quand votre serveur de messagerie a confirmé qui a envoyé un message. Toujours : tous les messages, sauf ceux du Courrier indésirable et des expéditeurs bloqués. Le serveur de chaque image peut voir votre adresse IP et quand vous avez ouvert le message ; les images de suivi restent bloquées
 	For mail to	Pour le courrier de
 	Every account	Tous les comptes
+	Mark as read in the reading pane	Marquer comme lu dans le volet de lecture
+	Turned off for a folder it's in	Désactivé pour un dossier qui le contient
+	Not in {folders}: a folder's right-click menu turns it off and on.	Pas dans {folders} : le menu contextuel d’un dossier le désactive et le réactive.

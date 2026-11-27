@@ -2206,3 +2206,6 @@ count	occurrences	次
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	除非可疑：当你的邮件服务器确认了邮件的发件人时。始终：除垃圾邮件中的邮件和被阻止发件人的邮件外的所有邮件。每张图片所在的服务器可以看到你的 IP 地址以及你打开邮件的时间；跟踪图片仍被阻止
 	For mail to	适用于发送到
 	Every account	所有帐户
+	Mark as read in the reading pane	在阅读窗格中标为已读
+	Turned off for a folder it's in	已在包含它的文件夹上关闭
+	Not in {folders}: a folder's right-click menu turns it off and on.	不包括 {folders}：可在文件夹的右键菜单中关闭和开启。

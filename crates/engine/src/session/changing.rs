@@ -459,8 +459,14 @@ impl Session {
                 // Its place in the user's order too (issue #183).
                 self.order_follows_folder(account, from, Some(to), delimiter);
                 self.folds_follow_folder(account, from, Some(to), delimiter);
-                // A folder's own AutoArchive setting goes with it (issue #180).
+                // A folder's own AutoArchive setting goes with it (issue #180), and its mail kept
+                // unread in the reading pane (issue #203).
                 for f in self.prefs.auto_archive.folders.iter_mut().filter(|f| f.account == account) {
+                    if let Some(new) = mailcraft_model::rebase_path(&f.folder, from, to, delimiter) {
+                        f.folder = new;
+                    }
+                }
+                for f in self.prefs.unread_folders.iter_mut().filter(|f| f.account == account) {
                     if let Some(new) = mailcraft_model::rebase_path(&f.folder, from, to, delimiter) {
                         f.folder = new;
                     }
@@ -472,6 +478,7 @@ impl Session {
                     favs.retain(|f| f.account != account || !mailcraft_model::is_within(&f.folder, path, delimiter));
                 }
                 self.prefs.auto_archive.folders.retain(|f| f.account != account || !mailcraft_model::is_within(&f.folder, path, delimiter));
+                self.prefs.unread_folders.retain(|f| f.account != account || !mailcraft_model::is_within(&f.folder, path, delimiter));
                 self.order_follows_folder(account, path, None, delimiter);
                 self.folds_follow_folder(account, path, None, delimiter);
                 if matches!(&self.view, View::Folder { account: va, folder } if va == account && mailcraft_model::is_within(folder, path, delimiter))

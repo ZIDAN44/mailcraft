@@ -84,6 +84,40 @@ fn the_folder_tree_collapses_and_its_menu_knows_favorites() {
     }
 }
 
+/// Issue #203: a folder's menu turns off marking its mail read in the reading pane, its
+/// subfolders' too; in a subfolder of one that's off it's greyed (the folder above's to change),
+/// and it's turned on again where it was turned off.
+#[test]
+fn a_folders_menu_leaves_its_mail_unread() {
+    let (mut a, _) = app("folder-menu-unread");
+    let ctx = egui::Context::default();
+    let label = "Mark as read in the reading pane";
+    let at = |texts: &[(String, egui::Pos2)], name: &str| texts.iter().filter(|(t, _)| t == name).map(|(_, p)| *p + egui::vec2(4.0, 6.0)).next_back();
+    let choose = |ctx: &egui::Context, a: &mut MailApp, folder: &str| {
+        let texts = pane(ctx, a, 2000.0, vec![]);
+        let Some(p) = at(&texts, folder) else { panic!("{folder} drawn: {texts:?}") };
+        let right = |pressed| Event::PointerButton { pos: p, button: egui::PointerButton::Secondary, pressed, modifiers: Modifiers::NONE };
+        pane(ctx, a, 2000.0, vec![Event::PointerMoved(p)]);
+        pane(ctx, a, 2000.0, vec![right(true)]);
+        pane(ctx, a, 2000.0, vec![right(false)]);
+        let menu = pane(ctx, a, 2000.0, vec![]);
+        let Some(item) = at(&menu, label) else { panic!("{label} in the menu: {menu:?}") };
+        let click = |pressed| Event::PointerButton { pos: item, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE };
+        pane(ctx, a, 2000.0, vec![Event::PointerMoved(item)]);
+        pane(ctx, a, 2000.0, vec![click(true)]);
+        pane(ctx, a, 2000.0, vec![click(false)]);
+        pane(ctx, a, 2000.0, vec![key(Key::Escape, Modifiers::NONE)]);
+    };
+    let off = |a: &MailApp| a.session.prefs.unread_folders.iter().map(|f| f.folder.clone()).collect::<Vec<_>>();
+    choose(&ctx, &mut a, "Projects");
+    assert_eq!(off(&a), ["Projects"]);
+    assert!(a.session.unread_folder_of("sample", "Projects/Short film").is_some(), "its subfolder's too");
+    choose(&ctx, &mut a, "Short film");
+    assert_eq!(off(&a), ["Projects"], "greyed in the subfolder");
+    choose(&ctx, &mut a, "Projects");
+    assert!(off(&a).is_empty(), "on again");
+}
+
 /// What the folder pane costs a frame with 3,300 folders (300 with ten in each) and ten of them
 /// in Favorites: every folder open, every one of the 300 collapsed, and the account collapsed;
 /// and a fingerprint of what it draws (the same before and after a change that only makes it

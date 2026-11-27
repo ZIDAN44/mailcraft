@@ -2224,3 +2224,6 @@ count	occurrences	opakovaní
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Ak nie je podozrivá: keď poštový server potvrdil, kto správu poslal. Vždy: každá správa okrem tých v Nevyžiadanej pošte a od blokovaných odosielateľov. Server, na ktorom je obrázok, vidí vašu IP adresu a kedy ste správu otvorili; sledovacie obrázky zostávajú blokované
 	For mail to	Pre poštu pre
 	Every account	Všetky účty
+	Mark as read in the reading pane	Označovať ako prečítané na table na čítanie
+	Turned off for a folder it's in	Vypnuté pre priečinok, v ktorom je
+	Not in {folders}: a folder's right-click menu turns it off and on.	Okrem: {folders}. Vypína a zapína sa to v kontextovej ponuke priečinka.

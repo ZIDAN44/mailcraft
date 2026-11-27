@@ -2206,3 +2206,6 @@ count	occurrences	回
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	疑わしくない場合: メール サーバーが差出人を確認したとき。常に: 迷惑メールにあるものと受信拒否された差出人からのもの以外のすべてのメッセージ。各画像のあるサーバーには、あなたの IP アドレスとメッセージを開いた日時がわかります。トラッキング画像は引き続きブロックされます
 	For mail to	対象のアカウント
 	Every account	すべてのアカウント
+	Mark as read in the reading pane	閲覧ウィンドウで既読にする
+	Turned off for a folder it's in	このフォルダーを含むフォルダーでオフになっています
+	Not in {folders}: a folder's right-click menu turns it off and on.	{folders} を除く: フォルダーの右クリック メニューでオフとオンを切り替えます。

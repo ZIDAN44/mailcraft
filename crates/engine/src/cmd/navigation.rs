@@ -125,6 +125,14 @@ pub(super) fn commands() -> Vec<CommandSpec> {
         })
         .params(r#"{"folder": string, "on"?: bool, "account"?: string}"#)
         .when(has_account),
+        // A shared mailbox's mail left unread when looked at (issue #203). Not an organisation's
+        // setting: it names the person's own folders, as Favorites do.
+        CommandSpec::new("folder.markReadWhenShown", "Mark as read in the reading pane", "Folder menu", |s, v| {
+            let account = account_param(s, v)?;
+            s.set_marks_read_when_shown(&account, p::req_str(v, "folder")?, p::bool(v, "on"))
+        })
+        .params(r#"{"folder": string, "on"?: bool (none: switch; off: its mail and its subfolders' stays unread when shown in the reading pane), "account"?: string}"#)
+        .when(has_account),
         CommandSpec::new("list.open", "Open message", "Message list", open_message).leaves_body().params(r#"{"key": "account:validity:uid:folder"}"#),
         // A new-mail notification clicked (issue #273): the message where it is.
         CommandSpec::new("message.reveal", "Show the message in its folder", "A notification", |s, v| {

@@ -2205,3 +2205,6 @@ count	occurrences	keer
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Tenzij verdacht: als uw mailserver heeft bevestigd wie een bericht heeft verzonden. Altijd: elk bericht behalve die in Ongewenste e-mail en van geblokkeerde afzenders. De server waarop een afbeelding staat, ziet uw IP-adres en wanneer u het bericht opende; volgafbeeldingen blijven geblokkeerd
 	For mail to	Voor e-mail aan
 	Every account	Alle accounts
+	Mark as read in the reading pane	Als gelezen markeren in het leesvenster
+	Turned off for a folder it's in	Uitgeschakeld voor een map waarin deze staat
+	Not in {folders}: a folder's right-click menu turns it off and on.	Niet in {folders}: het snelmenu van een map zet dit uit en aan.

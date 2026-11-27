@@ -106,6 +106,10 @@ pub struct Prefs {
     /// window does).
     pub mark_read_on_open: bool,
     pub read_in_pane: ReadInPane,
+    /// Folders whose mail the reading pane doesn't mark read, with the folders within them (issue
+    /// #203: a shared mailbox, where unread mail is what nobody has dealt with yet).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub unread_folders: Vec<FolderRef>,
     pub notes_order: NotesOrder,
     /// How tasks are listed, and whether the list leaves out those done.
     pub tasks_order: pim::TasksOrder,
@@ -453,6 +457,7 @@ impl Default for Prefs {
             conversations: false,
             mark_read_on_open: true,
             read_in_pane: ReadInPane::Shown,
+            unread_folders: Vec::new(),
             notes_order: NotesOrder::Modified,
             tasks_order: pim::TasksOrder::Due,
             tasks_hide_done: false,

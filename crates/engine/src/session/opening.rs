@@ -179,7 +179,9 @@ impl Session {
         // With the reading pane off, a chosen message isn't shown at all: only opening it in its
         // own window reads it (#146, mail passed over with the arrow keys was marked read).
         let shown = self.prefs.reading_pane != ReadingPane::Off;
-        if mark && unread && shown && self.prefs.mark_read_on_open {
+        // Nor in a folder chosen to keep its mail unread there (#203).
+        let kept = self.unread_folder_of(&key.account, &key.folder).is_some();
+        if mark && unread && shown && self.prefs.mark_read_on_open && !kept {
             match (self.prefs.read_in_pane, self.prefs.read_after_secs) {
                 (ReadInPane::Shown, 0) => self.mark_seen(key),
                 (ReadInPane::Shown, secs) => self.read_due = Some((key.clone(), self.clock.now.saturating_add(i64::from(secs.min(3600))))),

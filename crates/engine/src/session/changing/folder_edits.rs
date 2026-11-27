@@ -155,6 +155,36 @@ impl Session {
         }
     }
 
+    /// The folder chosen to keep its mail unread in the reading pane that `account`'s `folder` is
+    /// in, or is (issue #203).
+    pub fn unread_folder_of(&self, account: &str, folder: &str) -> Option<&FolderRef> {
+        let delimiter = self.delimiter(account);
+        self.prefs.unread_folders.iter().find(|f| f.account == account && mailcraft_model::is_within(folder, &f.folder, delimiter))
+    }
+
+    /// Whether the reading pane marks a folder's mail read, with the folders within it (`on:
+    /// None` switches it). Off on a folder above it, it can't be on here alone: that folder's is
+    /// changed. Turned off here, the folders within it that were are this one's now.
+    pub fn set_marks_read_when_shown(&mut self, account: &str, folder: &str, on: Option<bool>) -> CmdResult {
+        if self.folder(account, folder).is_none() {
+            return Err(CmdError::Params(format!("no folder `{folder}` in account `{account}`")));
+        }
+        let own = FolderRef { account: account.to_string(), folder: folder.to_string() };
+        let off_here = self.prefs.unread_folders.contains(&own);
+        let on = on.unwrap_or(off_here);
+        if on {
+            if !off_here && let Some(above) = self.unread_folder_of(account, folder) {
+                return Err(CmdError::Params(format!("`{folder}` is within `{}`, whose mail is left unread: turn it on there", above.folder)));
+            }
+            self.prefs.unread_folders.retain(|f| *f != own);
+        } else if !off_here {
+            let delimiter = self.delimiter(account);
+            self.prefs.unread_folders.retain(|f| f.account != account || !mailcraft_model::is_within(&f.folder, folder, delimiter));
+            self.prefs.unread_folders.push(own);
+        }
+        Ok(serde_json::json!({ "on": on }))
+    }
+
     /// Add a folder to Favorites or take it off (`on: None` toggles).
     pub fn set_favorite(&mut self, account: &str, folder: &str, on: Option<bool>) -> CmdResult {
         if self.folder(account, folder).is_none() {

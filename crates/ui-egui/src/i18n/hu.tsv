@@ -2210,3 +2210,6 @@ count	occurrences	előfordulás
 	Unless suspicious: when your mail server confirmed who sent a message. Always: every message but those in Junk and from blocked senders. The server each picture is on can see your IP address and when you opened it; tracking pictures stay blocked	Kivéve, ha gyanús: ha a levelezőkiszolgálója megerősítette, ki küldte az üzenetet. Mindig: minden üzenetnél, kivéve a Levélszemét mappában lévőket és a letiltott feladóktól érkezőket. Az a kiszolgáló, amelyen egy kép van, látja az IP-címét és azt, mikor nyitotta meg az üzenetet; a követőképek továbbra is tiltva maradnak
 	For mail to	Ennek a levelei
 	Every account	Minden fiók
+	Mark as read in the reading pane	Megjelölés olvasottként az olvasópanelen
+	Turned off for a folder it's in	Kikapcsolva egy mappánál, amelyben benne van
+	Not in {folders}: a folder's right-click menu turns it off and on.	Kivéve: {folders}. Egy mappa helyi menüje ki- és bekapcsolja.
