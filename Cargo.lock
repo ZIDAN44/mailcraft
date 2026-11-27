@@ -4056,6 +4056,7 @@ name = "mailcraft"
 version = "0.42.0"
 dependencies = [
  "arboard",
+ "blake2",
  "chrono",
  "clipboard-win",
  "craft-atomic",
@@ -4082,6 +4083,7 @@ dependencies = [
  "open",
  "raw-window-handle",
  "rfd",
+ "ring",
  "serde_json",
  "skrifa 0.44.0",
  "tray-icon",
@@ -4200,6 +4202,7 @@ dependencies = [
 name = "mailcraft-net"
 version = "0.42.0"
 dependencies = [
+ "blake2",
  "cfb",
  "craft-docpath",
  "der 0.8.3",

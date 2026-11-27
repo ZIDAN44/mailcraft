@@ -64,5 +64,8 @@ fuzz_target!(|data: &[u8]| {
         let _ = updates::tag_version(text);
         let _ = updates::rate_limited(Some(text), 1_800_000_000);
         let _ = updates::Feed::local(text);
+        // A release's checksums signature, as a key and as a signature (never one that checks out).
+        let key = "RWQliLDa3ZytQjuBRmVLoTUtf0v4mJRwUxCKRqfeCbYmCCPEOrmGKJ6t";
+        let _ = updates::signed::verify_sums(&[key, text], "v0.43.0", body, text);
     }
 });

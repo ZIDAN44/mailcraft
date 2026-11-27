@@ -303,6 +303,9 @@ pub struct Updater {
     shared: Arc<Shared>,
     /// How the install started as MailCraft last closed ended ([`outcome`]), until the window takes it.
     outcome: Arc<Mutex<Option<UpdateOutcome>>>,
+    /// The public keys a release's checksums must be signed with ([`updates::signed::KEYS`];
+    /// a test's own).
+    keys: &'static [&'static str],
 }
 
 impl Updater {
@@ -333,7 +336,7 @@ impl Updater {
     /// when `stable`), its downloads in `data`, its releases from `feed`; not started.
     fn new(kind: Kind, data: PathBuf, feed: updates::Feed, version: String, stable: bool) -> Updater {
         let shared = Shared { choice: CHOICE_UNKNOWN.into(), ..Shared::default() };
-        Updater { kind, data, feed, version, stable, build_sha: None, shared: Arc::new(shared), outcome: Arc::default() }
+        Updater { kind, data, feed, version, stable, build_sha: None, shared: Arc::new(shared), outcome: Arc::default(), keys: updates::signed::KEYS }
     }
 
     /// Start its thread: the first check after `first` (by default a minute, or ten seconds when
@@ -515,7 +518,7 @@ impl Updater {
     /// earlier try left there.
     fn download(&self, release: &Release) -> Result<(), String> {
         let dir = self.data.join(DOWNLOADS);
-        let expected = updates::expected_sum(release).map_err(|e| e.to_string())?;
+        let expected = updates::expected_sum_with(self.keys, release).map_err(|e| e.to_string())?;
         // An older version ready to install stays so while a newer one downloads.
         let ready = self.status();
         if !matches!(ready, Status::Ready { .. }) {

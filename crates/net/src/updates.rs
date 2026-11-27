@@ -8,7 +8,8 @@
 //! The answer is untrusted: its size is capped, and only addresses on the project's own releases
 //! pages are kept (anything else falls back to the release's page, or nothing). A download is
 //! accepted only if its SHA-256 matches the release's record of it: GitHub's per-file `digest`,
-//! else the release's `SHA256SUMS.txt`.
+//! else the release's `SHA256SUMS.txt`. Once MailCraft is built with the project's public key
+//! ([`signed::KEYS`]), only the release's `SHA256SUMS.txt`, signed with that key, is: [`signed`].
 
 use mailcraft_model::job::Release;
 use serde_json::Value;
@@ -17,6 +18,7 @@ use crate::http::{Request, send};
 use crate::{NetError, Result};
 
 mod download;
+pub mod signed;
 pub use download::{Progress, content_range, download_installer, file_name, part_path, sha256_file};
 
 /// Where MailCraft is published.
@@ -172,21 +174,61 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     crate::hex(ring::digest::digest(&ring::digest::SHA256, bytes).as_ref())
 }
 
-/// The checksum to hold `release`'s installer to: GitHub's own record, else its line in the
-/// release's `SHA256SUMS.txt`. An error when neither says.
+/// The checksum to hold `release`'s installer to: see [`expected_sum_with`], with the public keys
+/// MailCraft is built with.
 pub fn expected_sum(release: &Release) -> Result<String> {
-    if is_sha256(&release.sha256) {
+    expected_sum_with(signed::KEYS, release)
+}
+
+/// The checksum to hold `release`'s installer to. With no `keys` (releases not signed yet):
+/// GitHub's own record, else its line in the release's `SHA256SUMS.txt`. With keys: its line in
+/// the release's `SHA256SUMS.txt` once that file's signature checks out against one of them
+/// ([`signed::verify_sums`]), and GitHub's record, when there is one, must say the same. An error
+/// when it can't be told, so nothing is installed.
+pub fn expected_sum_with(keys: &[&str], release: &Release) -> Result<String> {
+    if keys.is_empty() && is_sha256(&release.sha256) {
         return Ok(release.sha256.to_ascii_lowercase());
     }
-    let file = release.download.rsplit('/').next().unwrap_or_default();
+    // The installer's name as the checksums list it: its address writes a `+` as `%2B`.
+    let file = unescaped(release.download.rsplit('/').next().unwrap_or_default());
     if release.sums.is_empty() || file.is_empty() {
         return Err(NetError::No(format!("{} lists no checksum for its installer", release.tag)));
     }
-    let resp = send(&Request::get(&release.sums, MAX_SUMS).header("User-Agent", USER_AGENT))?;
-    if !resp.ok() {
-        return Err(NetError::Protocol(format!("the checksums file answered HTTP {}", resp.status)));
+    if !keys.is_empty() && release.sums_sig.is_empty() {
+        return Err(NetError::No(format!("{} isn't signed; it isn't installed", release.tag)));
     }
-    sum_for(&String::from_utf8_lossy(&resp.body), file).ok_or_else(|| NetError::No(format!("{}'s checksums don't list {file}", release.tag)))
+    let sums = fetch(&release.sums, MAX_SUMS, "checksums file")?;
+    if !keys.is_empty() {
+        let sig = fetch(&release.sums_sig, signed::MAX_SIG, "checksums signature")?;
+        // The release named whole, from the address the checksums came from (`Release::tag` is
+        // cut short for showing).
+        let tag = unescaped(release.sums.rsplit('/').nth(1).unwrap_or_default());
+        signed::verify_sums(keys, &tag, &sums, &String::from_utf8_lossy(&sig))?;
+    }
+    checked_sum(keys, release, &String::from_utf8_lossy(&sums), &file)
+}
+
+/// A part of a release file's address as it's named: [`Feed::file_address`] writes `+` as `%2B`.
+fn unescaped(part: &str) -> String {
+    part.replace("%2B", "+").replace("%2b", "+")
+}
+
+/// `file`'s line in `sums` (signed, when there are `keys`), held to GitHub's record of it too then.
+fn checked_sum(keys: &[&str], release: &Release, sums: &str, file: &str) -> Result<String> {
+    let sum = sum_for(sums, file).ok_or_else(|| NetError::No(format!("{}'s checksums don't list {file}", release.tag)))?;
+    if !keys.is_empty() && is_sha256(&release.sha256) && !release.sha256.eq_ignore_ascii_case(&sum) {
+        return Err(NetError::Protocol(format!("{}'s installer isn't the one its signed checksums list; it isn't installed", release.tag)));
+    }
+    Ok(sum)
+}
+
+/// The file at `url` (at most `max` bytes); `what` names it in an error.
+fn fetch(url: &str, max: usize, what: &str) -> Result<Vec<u8>> {
+    let resp = send(&Request::get(url, max).header("User-Agent", USER_AGENT))?;
+    if !resp.ok() {
+        return Err(NetError::Protocol(format!("the {what} answered HTTP {}", resp.status)));
+    }
+    Ok(resp.body)
 }
 
 /// What to say when GitHub's quota ran out: `reset` is its `x-ratelimit-reset` header (the Unix
@@ -271,6 +313,7 @@ pub fn parse_from(feed: &Feed, body: &str, suffix: Option<&str>) -> Result<Vec<R
             .unwrap_or_default();
         let size = installer.filter(|_| !download.is_empty()).and_then(|a| a.get("size")?.as_u64()).unwrap_or(0);
         let sums = assets.iter().find(|a| text(a, "name") == "SHA256SUMS.txt").and_then(address).unwrap_or_default();
+        let sums_sig = assets.iter().find(|a| text(a, "name") == "SHA256SUMS.txt.minisig").and_then(address).unwrap_or_default();
         let commit = text(r, "target_commitish");
         out.push(Release {
             tag: tag.chars().take(64).collect(),
@@ -283,6 +326,7 @@ pub fn parse_from(feed: &Feed, body: &str, suffix: Option<&str>) -> Result<Vec<R
             sha256,
             size,
             sums,
+            sums_sig,
         });
     }
     Ok(out)
@@ -409,6 +453,106 @@ mod tests {
         // Nothing to check against: refused before anything is fetched.
         let bare = Release { download: msi.download.clone(), ..Default::default() };
         assert!(expected_sum(&bare).is_err());
+    }
+
+    /// With the project's key built in, an installer is held to its line in the release's signed
+    /// checksums, fetched with their signature; a release without a signature, or one whose
+    /// checksums aren't signed with the key, or whose GitHub record says otherwise, isn't installed.
+    #[test]
+    fn signed_releases_are_held_to_their_signed_checksums() {
+        use signed::tests::{KEY_A, KEY_B, SIG, SUMS};
+        let ok = |body: &str| format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).into_bytes();
+        let release = |base: &str, sha256: &str| Release {
+            tag: "v0.43.0-test.5".into(),
+            download: format!("{base}/download/v0.43.0-test.5/mailcraft-0.43.0-windows-x64.msi"),
+            sha256: sha256.into(),
+            sums: format!("{base}/download/v0.43.0-test.5/SHA256SUMS.txt"),
+            sums_sig: format!("{base}/download/v0.43.0-test.5/SHA256SUMS.txt.minisig"),
+            ..Default::default()
+        };
+        let msi = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        // Signed by the key: the line for the installer, the same as GitHub's record or without one.
+        for digest in [msi, ""] {
+            let (base, seen) = crate::http::tests::serve(vec![ok(SUMS), ok(SIG)]);
+            assert_eq!(expected_sum_with(&[KEY_A], &release(&base, digest)).unwrap(), msi);
+            let seen = seen.join().unwrap();
+            assert!(seen[0].starts_with("GET /download/v0.43.0-test.5/SHA256SUMS.txt ") && seen[1].contains("SHA256SUMS.txt.minisig"), "{seen:?}");
+        }
+        // Signed by another key: refused, as it is when the checksums were changed on the way.
+        let (base, _) = crate::http::tests::serve(vec![ok(SUMS), ok(SIG)]);
+        assert!(expected_sum_with(&[KEY_B], &release(&base, msi)).unwrap_err().to_string().contains("aren't signed"));
+        let (base, _) = crate::http::tests::serve(vec![ok(&SUMS.replacen("9f86", "0f86", 1)), ok(SIG)]);
+        assert!(expected_sum_with(&[KEY_A], &release(&base, "")).unwrap_err().to_string().contains("aren't signed"));
+        // GitHub's record of the file says otherwise than the signed checksums: not installed.
+        let (base, _) = crate::http::tests::serve(vec![ok(SUMS), ok(SIG)]);
+        let other = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        assert!(expected_sum_with(&[KEY_A], &release(&base, other)).unwrap_err().to_string().contains("isn't the one"));
+        // No signature, or no checksums: refused before anything is fetched, GitHub's record or not.
+        let unsigned = Release { sums_sig: String::new(), ..release("http://127.0.0.1:9", msi) };
+        assert!(expected_sum_with(&[KEY_A], &unsigned).unwrap_err().to_string().contains("isn't signed"));
+        let bare = Release { sums: String::new(), ..release("http://127.0.0.1:9", msi) };
+        assert!(expected_sum_with(&[KEY_A], &bare).is_err());
+        // Without a key built in (releases not signed yet), GitHub's record is enough, as before.
+        assert_eq!(expected_sum_with(&[], &unsigned).unwrap(), msi);
+    }
+
+    /// A release whose tag is longer than the 64 characters `Release::tag` keeps, and an installer
+    /// named with a `+` (written `%2B` in its address), are still found in their checksums and
+    /// their signature checked against the whole tag. Signed for these tests with rsign2, as the
+    /// fixtures in `signed`.
+    #[test]
+    fn long_tags_and_plus_signs_are_named_as_the_release_names_them() {
+        use signed::tests::KEY_A;
+        let tag = "v0.43.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa+build.7";
+        let sums = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08  mailcraft-0.43.0+build.7-windows-x64.msi\n\
+                    e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  mailcraft-0.43.0-windows-x64-portable.zip\n";
+        let sig = "untrusted comment: signature from rsign secret key\n\
+                   RUQliLDa3ZytQjPv9pgRJf1oVpualWrfQX67o2mkQOyvyrBVRe0ObFAAaLkSxUyUdL2HU/kk+Dtl0FAontRvPK/VZE9Rqw2zOwE=\n\
+                   trusted comment: MailCraft v0.43.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa+build.7\n\
+                   9Ta/3BAMKpnpueYI6UTmDT1/9gxo75cNahZzxDbWJZCNdJpq5KLfEkf6tONA907Bu8U3AqruubDy0i52QHR1DA==\n";
+        let ok = |body: &str| format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).into_bytes();
+        for (name, sum) in [
+            ("mailcraft-0.43.0+build.7-windows-x64.msi", "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"),
+            ("mailcraft-0.43.0-windows-x64-portable.zip", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+        ] {
+            let (base, _) = crate::http::tests::serve(vec![ok(sums), ok(sig)]);
+            let feed = Feed::local(&format!("{base}/")).unwrap();
+            let release = Release {
+                tag: tag.chars().take(64).collect(),
+                download: feed.file_address(tag, name).unwrap(),
+                sums: feed.file_address(tag, "SHA256SUMS.txt").unwrap(),
+                sums_sig: feed.file_address(tag, "SHA256SUMS.txt.minisig").unwrap(),
+                ..Default::default()
+            };
+            assert!(release.download.contains("%2B") && release.tag.len() < tag.len());
+            assert_eq!(expected_sum_with(&[KEY_A], &release).unwrap(), sum, "{name}");
+        }
+        // Unsigned, with no GitHub record: the `+` name is still found in the checksums.
+        let (base, _) = crate::http::tests::serve(vec![ok(sums)]);
+        let feed = Feed::local(&format!("{base}/")).unwrap();
+        let release = Release {
+            tag: tag.into(),
+            download: feed.file_address(tag, "mailcraft-0.43.0+build.7-windows-x64.msi").unwrap(),
+            sums: feed.file_address(tag, "SHA256SUMS.txt").unwrap(),
+            ..Default::default()
+        };
+        assert_eq!(expected_sum_with(&[], &release).unwrap(), "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08");
+    }
+
+    /// The signature is found beside the checksums, at the address its own release gives it.
+    #[test]
+    fn the_checksums_signature_is_found_beside_them() {
+        let base = "https://github.com/ZIDAN44/mailcraft/releases/download/v0.43.0";
+        let body = format!(
+            r#"[{{"tag_name": "v0.43.0", "draft": false, "html_url": "https://github.com/ZIDAN44/mailcraft/releases/tag/v0.43.0",
+                 "assets": [{{"name": "SHA256SUMS.txt", "browser_download_url": "{base}/SHA256SUMS.txt"}},
+                            {{"name": "SHA256SUMS.txt.minisig", "browser_download_url": "{base}/SHA256SUMS.txt.minisig"}}]}},
+               {{"tag_name": "v0.42.0", "draft": false, "html_url": "https://github.com/ZIDAN44/mailcraft/releases/tag/v0.42.0",
+                 "assets": [{{"name": "SHA256SUMS.txt.minisig", "browser_download_url": "{base}/SHA256SUMS.txt.minisig"}}]}}]"#
+        );
+        let r = parse(&body, None).unwrap();
+        assert_eq!(r[0].sums_sig, format!("{base}/SHA256SUMS.txt.minisig"));
+        assert_eq!(r[1].sums_sig, "", "another release's signature isn't this one's");
     }
 
     /// A release (`v0.33.0`) and a test build (`v0.33.0-test.31`) are told apart; a feed served
