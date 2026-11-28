@@ -194,6 +194,10 @@ pub struct Prefs {
     /// With the Focused Inbox on, new mail in Other is announced too (issue #199): off, only
     /// Focused mail is, as Outlook does.
     pub notify_other: bool,
+    /// A new mail notification plays the system's new mail sound (issue #308), as Outlook's
+    /// "Play a sound" does: on Windows its New Mail Notification sound, which Windows' sound
+    /// settings can change to any file. On unless turned off.
+    pub notify_sound: bool,
     /// Check spelling as you type (issue #174): misspelled words underlined in the message
     /// editor, as Outlook does (on unless turned off).
     pub spelling: bool,
@@ -501,6 +505,7 @@ impl Default for Prefs {
             favorites: None,
             notify: true,
             notify_other: false,
+            notify_sound: true,
             spelling: true,
             dictionary: BTreeSet::new(),
             compose_font: None,

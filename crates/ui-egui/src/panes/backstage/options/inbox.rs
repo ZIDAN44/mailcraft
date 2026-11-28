@@ -26,6 +26,11 @@ pub(super) fn inbox(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>
         ];
         for (i, (label, about, on, cmd)) in switches.into_iter().enumerate() {
             switch_row(s, ui, t, i == 0, Switch { label, about, on, cmd }, acts);
+            // Issue #308: the system's new mail sound with each, as Outlook's Play a sound.
+            if cmd == "view.notifications" && s.prefs.notify {
+                let (label, about) = (tl!("Play a sound"), Some(tl!("The system's new mail sound, which its sound settings can change")));
+                switch_row(s, ui, t, false, Switch { label, about, on: s.prefs.notify_sound, cmd: "view.notifySound" }, acts);
+            }
             // With both on, Other's mail is announced only when asked (issue #199).
             if cmd == "view.focused" && s.prefs.focused_inbox && s.prefs.notify {
                 let (label, about) = (tl!("Notify of mail in Other too"), Some(tl!("Off, only mail that goes to Focused is announced")));

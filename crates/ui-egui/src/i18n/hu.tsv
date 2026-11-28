@@ -2268,3 +2268,5 @@ count	occurrences	előfordulás
 	Nothing's going on in the background	Nincs folyamatban háttérművelet
 	Compose messages in HTML	Üzenetek írása HTML formátumban
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	Az üzenetek formázás nélkül is HTML-ként mennek el, így a levelezőkiszolgáló által hozzáadott aláírás megtartja a formázását.
+	Play a sound	Hang lejátszása
+	The system's new mail sound, which its sound settings can change	A rendszer új levél hangja, amely a hangbeállításokban módosítható

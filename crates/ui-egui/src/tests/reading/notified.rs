@@ -5,17 +5,20 @@ use std::sync::{Arc, Mutex};
 
 use super::*;
 
-/// Services that remember what each notification would open, and report a click when told.
+/// Services that remember what each notification would open and whether it sounds, and report
+/// a click when told.
 #[derive(Default, Clone)]
 struct Clicks {
     opens: Arc<Mutex<Vec<Option<MessageKey>>>>,
+    sounds: Arc<Mutex<Vec<bool>>>,
     clicked: Arc<Mutex<Option<Option<MessageKey>>>>,
 }
 
 impl crate::Services for Clicks {
     stub_services!();
-    fn notify_about(&mut self, _title: &str, _body: &str, opens: Option<MessageKey>) {
+    fn notify_about(&mut self, _title: &str, _body: &str, opens: Option<MessageKey>, sound: bool) {
         self.opens.lock().unwrap().push(opens);
+        self.sounds.lock().unwrap().push(sound);
     }
     fn notification_clicked(&mut self) -> Option<Option<MessageKey>> {
         self.clicked.lock().unwrap().take()
@@ -79,4 +82,34 @@ fn a_notifications_link_shows_its_message() {
         assert!(a.ui.dialog.is_none() && a.session.reading.as_ref().is_some_and(|r| r.key == m), "{not_ours}: nothing opened");
     }
     assert!(a.session.notices.iter().all(|n| !n.text.contains("Couldn't open")), "not taken for a file");
+}
+
+/// New mail's notification sounds the system's new mail sound (issue #308: it came silent,
+/// whatever the system was set to play), unless Play a sound is turned off; the switch is under
+/// the notifications' own, while they're on.
+#[test]
+fn new_mail_sounds_unless_turned_off() {
+    let (mut a, _) = app("notified-sound");
+    let clicks = Clicks::default();
+    a.services = Box::new(clicks.clone());
+    let ctx = egui::Context::default();
+    frame(&ctx, &mut a, vec![]);
+    let m = a.session.list.first().map(|m| (**m).clone()).expect("mail");
+    a.session.new_mail = vec![m.clone()];
+    frame(&ctx, &mut a, vec![]);
+    a.run("view.notifySound", json!({"on": false}));
+    a.session.new_mail = vec![m];
+    frame(&ctx, &mut a, vec![]);
+    assert_eq!(*clicks.sounds.lock().unwrap(), [true, false], "on by default, then off");
+
+    a.ui.backstage = Some(crate::backstage::Backstage::new(crate::backstage::Page::Options));
+    options_part(&mut a, crate::backstage::Section::Mail);
+    let words = |a: &mut MailApp| {
+        drawn_text(&ctx, a, egui::vec2(1280.0, 3000.0));
+        drawn_text(&ctx, a, egui::vec2(1280.0, 3000.0)).into_iter().map(|d| d.text).collect::<Vec<_>>()
+    };
+    a.run("view.notifications", json!({"on": true}));
+    assert!(words(&mut a).iter().any(|t| t == "Play a sound"), "beside the notifications' switch");
+    a.run("view.notifications", json!({"on": false}));
+    assert!(!words(&mut a).iter().any(|t| t == "Play a sound"), "not without notifications");
 }

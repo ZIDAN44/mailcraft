@@ -2268,3 +2268,5 @@ count	occurrences	kez
 	Nothing's going on in the background	Arka planda devam eden bir işlem yok
 	Compose messages in HTML	İletileri HTML olarak oluştur
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	İletiler biçimlendirme olmasa da HTML olarak gönderilir; böylece posta sunucunuzun eklediği imza biçimini korur.
+	Play a sound	Ses çal
+	The system's new mail sound, which its sound settings can change	Sistemin yeni posta sesi; ses ayarlarından değiştirilebilir

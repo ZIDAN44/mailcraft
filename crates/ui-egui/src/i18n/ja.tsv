@@ -2264,3 +2264,5 @@ count	occurrences	回
 	Nothing's going on in the background	バックグラウンドで実行中の処理はありません
 	Compose messages in HTML	メッセージを HTML 形式で作成する
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	書式を設定していないメッセージも HTML で送信されるため、メール サーバーが追加する署名の書式が保たれます。
+	Play a sound	音を鳴らす
+	The system's new mail sound, which its sound settings can change	システムの新着メールの音です。サウンドの設定で変更できます

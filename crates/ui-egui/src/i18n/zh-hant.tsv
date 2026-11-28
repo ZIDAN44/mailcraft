@@ -2267,3 +2267,5 @@ count	occurrences	次
 	Nothing's going on in the background	背景沒有正在進行的工作
 	Compose messages in HTML	以 HTML 格式撰寫郵件
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	即使沒有設定格式，郵件也以 HTML 傳送，讓郵件伺服器加入的簽名保留其格式。
+	Play a sound	播放音效
+	The system's new mail sound, which its sound settings can change	系統的新郵件音效，可在音效設定中變更

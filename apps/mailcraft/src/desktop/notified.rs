@@ -24,11 +24,13 @@ pub(crate) struct Sending {
     pub(crate) root: Option<std::path::PathBuf>,
 }
 
-/// Show the notification for new mail, `opens` the message a click shows, or a reminder
-/// (`reminder`: it sounds, each one, as Outlook's do: issue #239); on the calling thread (the
-/// notification service can be slow), which waits for the click where that's how it comes.
+pub(crate) use crate::platform::Chime;
+
+/// Show the notification for new mail, `opens` the message a click shows, or a reminder, with
+/// `chime`'s sound; on the calling thread (the notification service can be slow), which waits for
+/// the click where that's how it comes.
 #[cfg(windows)]
-pub(crate) fn send(title: &str, body: &str, opens: Option<MessageKey>, clicks: &Clicks, sending: &Sending, reminder: bool) {
+pub(crate) fn send(title: &str, body: &str, opens: Option<MessageKey>, clicks: &Clicks, sending: &Sending, chime: Chime) {
     use crate::platform::toast;
     // Windows names a toast after its app id, and shows one only for an id it knows. A portable
     // copy writes nothing to the registry: it uses an installed MailCraft's, else PowerShell's.
@@ -41,7 +43,7 @@ pub(crate) fn send(title: &str, body: &str, opens: Option<MessageKey>, clicks: &
         if ours { "MailCraft" } else { "PowerShell" },
         if reaches { "a click starting its link" } else { "its click waited for" }
     );
-    match toast::show(app_id, title, body, link.as_deref(), reminder) {
+    match toast::show(app_id, title, body, link.as_deref(), chime) {
         Ok(true) => {
             log::info!("notification clicked");
             clicks.clicked(opens);
@@ -59,7 +61,7 @@ const WAITING_MAX: usize = 32;
 
 /// [`send`] on Linux, the BSDs and macOS: notify-rust's notification, its click waited for.
 #[cfg(not(windows))]
-pub(crate) fn send(title: &str, body: &str, opens: Option<MessageKey>, clicks: &Clicks, _sending: &Sending, reminder: bool) {
+pub(crate) fn send(title: &str, body: &str, opens: Option<MessageKey>, clicks: &Clicks, _sending: &Sending, chime: Chime) {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static WAITING: AtomicUsize = AtomicUsize::new(0);
     let mut n = notify_rust::Notification::new();
@@ -68,9 +70,18 @@ pub(crate) fn send(title: &str, body: &str, opens: Option<MessageKey>, clicks: &
     // reported by itself, and an action would be a button.
     #[cfg(not(target_os = "macos"))]
     n.action("default", mailcraft_ui_egui::i18n::t("Open"));
-    // A reminder sounds: the freedesktop sound theme's alarm, a Mac's own sound.
-    if reminder {
-        n.sound_name(if cfg!(target_os = "macos") { "default" } else { "alarm-clock-elapsed" });
+    // The freedesktop sound theme's new mail sound or its alarm; a Mac's own sound for either.
+    match chime {
+        Chime::Silent => {}
+        _ if cfg!(target_os = "macos") => {
+            n.sound_name("default");
+        }
+        Chime::NewMail => {
+            n.sound_name("message-new-email");
+        }
+        Chime::Reminder => {
+            n.sound_name("alarm-clock-elapsed");
+        }
     }
     match n.show() {
         Ok(shown) => {

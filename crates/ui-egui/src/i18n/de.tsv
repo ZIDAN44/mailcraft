@@ -2268,3 +2268,5 @@ count	occurrences	Terminen
 	Nothing's going on in the background	Im Hintergrund läuft gerade nichts
 	Compose messages in HTML	Nachrichten im HTML-Format verfassen
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	Nachrichten werden auch ohne Formatierung als HTML gesendet, damit eine Signatur, die Ihr Mailserver anfügt, ihre Formatierung behält.
+	Play a sound	Einen Ton abspielen
+	The system's new mail sound, which its sound settings can change	Der Ton des Systems für neue E-Mails, den Sie in den Soundeinstellungen ändern können

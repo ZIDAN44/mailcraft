@@ -181,9 +181,10 @@ pub trait Services {
     /// Show a desktop notification (new mail). The default does nothing.
     fn notify(&mut self, _title: &str, _body: &str) {}
     /// [`Services::notify`] for new mail: clicked, MailCraft comes forward and shows `opens`
-    /// (issue #273), as [`Services::notification_clicked`] says. The default: a notification alone.
-    fn notify_about(&mut self, title: &str, body: &str, opens: Option<mailcraft_engine::model::MessageKey>) {
-        let _ = opens;
+    /// (issue #273), as [`Services::notification_clicked`] says; `sound`: with the system's new
+    /// mail sound (issue #308). The default: a notification alone.
+    fn notify_about(&mut self, title: &str, body: &str, opens: Option<mailcraft_engine::model::MessageKey>, sound: bool) {
+        let _ = (opens, sound);
         self.notify(title, body);
     }
     /// A calendar reminder on the desktop: a notification that sounds each time, as Outlook's

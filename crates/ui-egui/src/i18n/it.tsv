@@ -2267,3 +2267,5 @@ count	occurrences	ripetizioni
 	Nothing's going on in the background	Nessuna attività in background
 	Compose messages in HTML	Componi i messaggi in HTML
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	I messaggi partono in HTML anche senza formattazione, così la firma aggiunta dal server di posta mantiene la sua formattazione.
+	Play a sound	Riproduci un suono
+	The system's new mail sound, which its sound settings can change	Il suono di nuova posta del sistema, modificabile nelle impostazioni audio

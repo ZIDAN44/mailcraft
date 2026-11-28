@@ -428,16 +428,17 @@ impl Services for Desktop {
         shell_open(std::ffi::OsStr::new(url))
     }
     fn notify(&mut self, title: &str, body: &str) {
-        self.notify_about(title, body, None);
+        self.notify_about(title, body, None, false);
     }
-    fn notify_about(&mut self, title: &str, body: &str, opens: Option<mailcraft_engine::model::MessageKey>) {
+    fn notify_about(&mut self, title: &str, body: &str, opens: Option<mailcraft_engine::model::MessageKey>, sound: bool) {
         let (title, body) = (title.to_string(), body.to_string());
         let clicks = self.clicks.clone();
         let sending = notified::Sending { portable: self.portable, root: self.root.clone() };
         // Off the UI thread: the notification service can be slow, or missing. Clicked,
         // MailCraft comes forward at the message (issue #273).
         off_thread(std::thread::Builder::new().name("notify".into()), "notification", move || {
-            notified::send(&title, &body, opens, &clicks, &sending, false);
+            let chime = if sound { notified::Chime::NewMail } else { notified::Chime::Silent };
+            notified::send(&title, &body, opens, &clicks, &sending, chime);
         });
     }
     fn notify_reminder(&mut self, title: &str, body: &str) {
@@ -446,7 +447,7 @@ impl Services for Desktop {
         let sending = notified::Sending { portable: self.portable, root: self.root.clone() };
         // With a sound, each one (issue #239); clicked, MailCraft comes forward.
         off_thread(std::thread::Builder::new().name("notify".into()), "notification", move || {
-            notified::send(&title, &body, None, &clicks, &sending, true);
+            notified::send(&title, &body, None, &clicks, &sending, notified::Chime::Reminder);
         });
     }
     fn notification_clicked(&mut self) -> Option<Option<mailcraft_engine::model::MessageKey>> {

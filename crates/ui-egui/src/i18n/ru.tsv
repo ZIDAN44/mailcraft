@@ -2281,3 +2281,5 @@ count	occurrences	повторений
 	Nothing's going on in the background	В фоне ничего не выполняется
 	Compose messages in HTML	Создавать сообщения в формате HTML
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	Сообщения отправляются в HTML даже без оформления, поэтому подпись, которую добавляет почтовый сервер, сохраняет своё оформление.
+	Play a sound	Воспроизводить звук
+	The system's new mail sound, which its sound settings can change	Системный звук новой почты; его можно изменить в настройках звука

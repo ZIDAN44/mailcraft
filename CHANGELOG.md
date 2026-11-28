@@ -14,6 +14,7 @@ on GitHub.
 
 ### Added
 
+- New mail's notification plays the system's new mail sound, as Outlook's does; it came silent, whatever Windows was set to play. On Windows it's the **New Mail Notification** sound, which Windows' sound settings can change to any sound file; **File › Options › Mail › Play a sound** turns it off (#308).
 - **Compose messages in HTML** (**File › Options › Mail**): new messages, replies and forwards go as HTML even with nothing formatted, so a signature your mail server adds (Exchange's, for one) keeps its formatting. Off unless you turn it on; a message set to **Plain text** still goes as text (#305).
 
 ### Changed
