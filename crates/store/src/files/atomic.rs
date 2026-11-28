@@ -22,7 +22,9 @@ thread_local! {
 /// waits up to ten seconds anyway. An antivirus scanning a list it wrote, on a busy computer,
 /// held it past a rename's own retries (under a second), and the mark failed: the window took
 /// it back, a message marked complete flagged again. The window's thread keeps the short
-/// retries, so a file held for good never stops its frame for long.
+/// retries, so a file held for good never stops its frame for long. Not in the browser, where
+/// the marks have no thread of their own.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn patient() {
     PATIENT.set(true);
 }
