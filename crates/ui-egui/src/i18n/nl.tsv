@@ -2265,3 +2265,5 @@ count	occurrences	keer
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	Berichten gaan ook zonder opmaak als HTML weg, zodat een handtekening die uw mailserver toevoegt zijn opmaak houdt.
 	Play a sound	Een geluid afspelen
 	The system's new mail sound, which its sound settings can change	Het geluid voor nieuwe mail van het systeem, dat u in de geluidsinstellingen kunt wijzigen
+	It says inside that it's from {claimed}, but no signature confirms that.	Binnenin staat dat het van {claimed} komt, maar geen handtekening bevestigt dat.
+	It's shown as from the address its mail server took it from. Be careful with what it asks.	Het wordt getoond als afkomstig van het adres waarvan uw mailserver het heeft aangenomen. Wees voorzichtig met wat het vraagt.

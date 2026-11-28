@@ -2270,3 +2270,5 @@ count	occurrences	Terminen
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	Nachrichten werden auch ohne Formatierung als HTML gesendet, damit eine Signatur, die Ihr Mailserver anfügt, ihre Formatierung behält.
 	Play a sound	Einen Ton abspielen
 	The system's new mail sound, which its sound settings can change	Der Ton des Systems für neue E-Mails, den Sie in den Soundeinstellungen ändern können
+	It says inside that it's from {claimed}, but no signature confirms that.	Innen gibt die Nachricht an, von {claimed} zu sein, aber keine Signatur bestätigt das.
+	It's shown as from the address its mail server took it from. Be careful with what it asks.	Sie wird mit der Adresse angezeigt, von der Ihr Mailserver sie angenommen hat. Seien Sie vorsichtig mit dem, worum sie bittet.

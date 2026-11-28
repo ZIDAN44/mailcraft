@@ -2266,3 +2266,5 @@ count	occurrences	回
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	書式を設定していないメッセージも HTML で送信されるため、メール サーバーが追加する署名の書式が保たれます。
 	Play a sound	音を鳴らす
 	The system's new mail sound, which its sound settings can change	システムの新着メールの音です。サウンドの設定で変更できます
+	It says inside that it's from {claimed}, but no signature confirms that.	内部では {claimed} からのメッセージとされていますが、それを確認する署名はありません。
+	It's shown as from the address its mail server took it from. Be careful with what it asks.	メール サーバーが受け取った送信元のアドレスで表示しています。求められている内容には注意してください。

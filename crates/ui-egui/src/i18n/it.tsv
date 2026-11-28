@@ -2269,3 +2269,5 @@ count	occurrences	ripetizioni
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	I messaggi partono in HTML anche senza formattazione, così la firma aggiunta dal server di posta mantiene la sua formattazione.
 	Play a sound	Riproduci un suono
 	The system's new mail sound, which its sound settings can change	Il suono di nuova posta del sistema, modificabile nelle impostazioni audio
+	It says inside that it's from {claimed}, but no signature confirms that.	All’interno dice di provenire da {claimed}, ma nessuna firma lo conferma.
+	It's shown as from the address its mail server took it from. Be careful with what it asks.	Viene mostrato come proveniente dall’indirizzo da cui il server di posta l’ha ricevuto. Fai attenzione a ciò che chiede.

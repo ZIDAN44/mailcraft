@@ -95,6 +95,10 @@ pub struct Security {
     pub headers: bool,
     /// It was protected with OpenPGP, not S/MIME.
     pub pgp: bool,
+    /// The sender it named inside, where it was protected, when that differs from the sender its
+    /// mail server took it from and no signature that holds is by them: the outer one is shown
+    /// instead, and this is said beside it (RFC 9788 §4.4.2 and §4.4.3).
+    pub claimed_from: Option<String>,
 }
 
 impl Security {

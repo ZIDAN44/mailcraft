@@ -1,4 +1,5 @@
-//! The reading pane's header, kept at the top while the message's text scrolls (issue #151).
+//! The reading pane's header, kept at the top while the message's text scrolls (issue #151), and
+//! what it says of how the message was protected.
 
 use super::*;
 
@@ -120,4 +121,29 @@ fn the_header_is_short_and_its_actions_beside_the_sender() {
     let reply = reply.expect("Reply over the message");
     assert!(reply.top() < sender.bottom() && reply.bottom() > sender.top() - 8.0, "on the sender's row: {reply:?} {sender:?}");
     assert!(reply.left() > sender.right(), "at its end: {reply:?}");
+}
+
+/// A sender named inside a protected message that no signature confirms (GHSA-54mx-6wcm-6mjg):
+/// the header says so as a warning, naming them, under the green Encrypted line.
+#[test]
+fn a_sender_named_inside_that_nothing_confirms_is_warned_of() {
+    let (mut a, _) = app("claimed-from");
+    let ctx = egui::Context::default();
+    let k = a.session.list.first().map(|m| m.key.clone()).unwrap();
+    a.run("list.open", json!({"key": k.to_id()}));
+    let claimed = mailcraft_engine::Security {
+        lock: Some(mailcraft_engine::Lock::Open { authenticated: true }),
+        headers: true,
+        claimed_from: Some("director@studio.example".into()),
+        ..Default::default()
+    };
+    if let Some(r) = a.session.reading.as_mut() {
+        r.security = Some(claimed);
+    }
+    for _ in 0..2 {
+        frame(&ctx, &mut a, vec![]);
+    }
+    let texts = drawn_strings(&ctx, &mut a, egui::vec2(1280.0, 800.0));
+    assert!(texts.iter().any(|t| t == "It says inside that it's from director@studio.example, but no signature confirms that."), "{texts:?}");
+    assert!(texts.iter().any(|t| t.starts_with("It's shown as from the address its mail server took it from.")), "{texts:?}");
 }

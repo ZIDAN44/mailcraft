@@ -2283,3 +2283,5 @@ count	occurrences	повторений
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	Сообщения отправляются в HTML даже без оформления, поэтому подпись, которую добавляет почтовый сервер, сохраняет своё оформление.
 	Play a sound	Воспроизводить звук
 	The system's new mail sound, which its sound settings can change	Системный звук новой почты; его можно изменить в настройках звука
+	It says inside that it's from {claimed}, but no signature confirms that.	Внутри указано, что письмо от {claimed}, но ни одна подпись этого не подтверждает.
+	It's shown as from the address its mail server took it from. Be careful with what it asks.	Письмо показано как отправленное с адреса, с которого его принял почтовый сервер. Будьте осторожны с тем, о чём оно просит.

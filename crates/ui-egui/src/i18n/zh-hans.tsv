@@ -2266,3 +2266,5 @@ count	occurrences	次
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	即使没有设置格式，邮件也以 HTML 发送，这样邮件服务器添加的签名能保留其格式。
 	Play a sound	播放声音
 	The system's new mail sound, which its sound settings can change	系统的新邮件提示音，可在声音设置中更改
+	It says inside that it's from {claimed}, but no signature confirms that.	邮件内部声称来自 {claimed}，但没有签名能证实这一点。
+	It's shown as from the address its mail server took it from. Be careful with what it asks.	显示的是邮件服务器接收它时的发件地址。请谨慎对待其中的要求。

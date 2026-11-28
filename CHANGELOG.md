@@ -87,6 +87,9 @@ on GitHub.
 - A click beside a dialog leaves it open, with what you typed in it: it closed the dialog, a rule or an automatic reply half written lost. **Esc** and the dialog's buttons close it; an attachment's preview and a person's card still close on a click beside them.
 - **Cancel** in **Signatures** leaves the account's signatures as they were when it opened: one deleted there, or saved on switching to another, stayed so after Cancel.
 
+### Security
+- An encrypted or signed message that names a different sender inside than the one its mail server received it from is shown as from the one its server received it from, and says the address it named inside, unless a signature that holds is by them. Anyone with your certificate or OpenPGP key could otherwise send mail from their own domain shown as from anyone, under the green "Encrypted" line; a key that came inside such a message is no longer kept for the address it named (GHSA-54mx-6wcm-6mjg).
+
 ## 0.42.0 - 2026-11-27
 
 *What testers met in their first days with 0.41.*

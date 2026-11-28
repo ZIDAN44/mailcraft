@@ -2284,3 +2284,5 @@ count	occurrences	opakovaní
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	Správy sa odosielajú ako HTML aj bez formátovania, takže podpis, ktorý pridá poštový server, si zachová formátovanie.
 	Play a sound	Prehrať zvuk
 	The system's new mail sound, which its sound settings can change	Zvuk novej pošty zo systému, ktorý sa dá zmeniť v nastaveniach zvuku
+	It says inside that it's from {claimed}, but no signature confirms that.	Vnútri uvádza, že je od {claimed}, ale žiadny podpis to nepotvrdzuje.
+	It's shown as from the address its mail server took it from. Be careful with what it asks.	Zobrazuje sa ako od adresy, z ktorej ju prijal poštový server. Buďte opatrní s tým, o čo žiada.

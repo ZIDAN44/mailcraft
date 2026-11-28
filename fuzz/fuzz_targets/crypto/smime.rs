@@ -1,7 +1,8 @@
 //! S/MIME as it arrives: BER rewritten as DER, a signature checked (detached, and carrying its
 //! content), encrypted mail opened with a test key, a certificate read and checked for a sender
 //! and the server names it's for (a mail server's, issue #105);
-//! a message told signed or encrypted from its header alone, never wrongly told it isn't.
+//! a message told signed or encrypted from its header alone, never wrongly told it isn't; and
+//! protected header fields taken from inside, the outer sender put back.
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
@@ -25,6 +26,11 @@ fuzz_target!(|input: &[u8]| {
         let _ = smime::decrypt(input, id, &mut rand_core::OsRng);
     }
     let _ = smime::read_p12(input, "secret");
+    // Protected header fields taken from an entity inside a message (RFC 9788), and the outer
+    // sender put back (GHSA-54mx-6wcm-6mjg): the input split in two, a message and its entity.
+    let (outer, entity) = input.split_at(input.len() / 2);
+    let (shown, _) = mailcraft_mime::smime::with_entity_protected(outer, entity);
+    let _ = mailcraft_mime::smime::with_outer_sender(&shown, outer);
     // The input as a message: one its header says isn't protected is not, whatever its body.
     if !is_protected(input) {
         assert_eq!(protection(input), Protection::None);

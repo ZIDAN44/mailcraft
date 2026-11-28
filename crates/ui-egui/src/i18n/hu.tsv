@@ -2270,3 +2270,5 @@ count	occurrences	előfordulás
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	Az üzenetek formázás nélkül is HTML-ként mennek el, így a levelezőkiszolgáló által hozzáadott aláírás megtartja a formázását.
 	Play a sound	Hang lejátszása
 	The system's new mail sound, which its sound settings can change	A rendszer új levél hangja, amely a hangbeállításokban módosítható
+	It says inside that it's from {claimed}, but no signature confirms that.	Belül azt állítja, hogy {claimed} küldte, de ezt egy aláírás sem erősíti meg.
+	It's shown as from the address its mail server took it from. Be careful with what it asks.	Azzal a címmel jelenik meg, amelyről a levelezőkiszolgáló átvette. Legyen óvatos azzal, amit kér.

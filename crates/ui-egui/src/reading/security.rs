@@ -139,6 +139,19 @@ pub(super) fn security_bar(s: &Session, t: &Tokens, ui: &mut Ui, sec: &Security)
         ui.label(RichText::new(tl!("Its subject and addresses were protected inside it too.")).color(t.faint).small());
         ui.add_space(4.0);
     }
+    // A sender named inside that no signature confirms (RFC 9788 §4.4.2): said as a warning, with
+    // the address it named; the one shown is the address its mail server took it from.
+    if let Some(claimed) = &sec.claimed_from {
+        line(
+            ui,
+            t,
+            Icon::Warning,
+            t.danger,
+            tf!("It says inside that it's from {claimed}, but no signature confirms that.", claimed = claimed),
+            Some(tl!("It's shown as from the address its mail server took it from. Be careful with what it asks.").to_string()),
+            None,
+        );
+    }
     let Some(signed) = &sec.signed else { return };
     let named = |name: &str, emails: &[String]| match emails.first() {
         Some(e) if !name.eq_ignore_ascii_case(e) && !name.is_empty() => format!("{name} <{e}>"),

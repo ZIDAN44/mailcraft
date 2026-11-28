@@ -2270,3 +2270,5 @@ count	occurrences	kez
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	İletiler biçimlendirme olmasa da HTML olarak gönderilir; böylece posta sunucunuzun eklediği imza biçimini korur.
 	Play a sound	Ses çal
 	The system's new mail sound, which its sound settings can change	Sistemin yeni posta sesi; ses ayarlarından değiştirilebilir
+	It says inside that it's from {claimed}, but no signature confirms that.	İçinde {claimed} tarafından gönderildiği yazıyor, ancak bunu doğrulayan bir imza yok.
+	It's shown as from the address its mail server took it from. Be careful with what it asks.	Posta sunucusunun onu aldığı adresten gelmiş gibi gösterilir. İstediklerine karşı dikkatli olun.

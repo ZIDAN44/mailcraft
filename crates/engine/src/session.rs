@@ -387,6 +387,10 @@ pub struct Session {
     smime_own: HashMap<String, security::OwnCerts>,
     trust_roots: Vec<Vec<u8>>,
     opened: security::Opened,
+    /// Messages whose protected From differs from the outer one and is confirmed by a signature
+    /// that holds for it ([`Session::unwrap`]): shown so when they're read again unchecked
+    /// ([`Session::as_written`]); any other is shown from its outer From.
+    sender_confirmed: HashSet<MessageKey>,
     opening: HashSet<MessageKey>,
     decrypt_errors: HashMap<MessageKey, String>,
     /// Answers still to come for messages asked to be decrypted before their keys came to
@@ -580,6 +584,7 @@ impl Session {
             smime_own: HashMap::new(),
             trust_roots: Vec::new(),
             opened: security::Opened::default(),
+            sender_confirmed: HashSet::new(),
             opening: HashSet::new(),
             decrypt_errors: HashMap::new(),
             stale_decrypts: HashMap::new(),

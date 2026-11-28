@@ -2265,3 +2265,5 @@ count	occurrences	مرات
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	تُرسَل الرسائل بتنسيق HTML حتى دون أي تنسيق فيها، فيحتفظ التوقيع الذي يضيفه خادم البريد بتنسيقه.
 	Play a sound	تشغيل صوت
 	The system's new mail sound, which its sound settings can change	صوت البريد الجديد في النظام، ويمكن تغييره من إعدادات الصوت
+	It says inside that it's from {claimed}, but no signature confirms that.	تقول الرسالة في داخلها إنها من {claimed}، لكن لا يوجد توقيع يؤكد ذلك.
+	It's shown as from the address its mail server took it from. Be careful with what it asks.	تظهر على أنها من العنوان الذي استلمها منه خادم البريد. كن حذرًا مما تطلبه.

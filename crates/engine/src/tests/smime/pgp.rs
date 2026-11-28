@@ -488,3 +488,39 @@ fn big_signed_message_as_written() {
     }
     println!("MEASURE a {} MB PGP/MIME signed message as written: {:.1} ms", raw.len() >> 20, t.elapsed().as_secs_f64() * 1000.0 / f64::from(ROUNDS));
 }
+
+/// GHSA-54mx-6wcm-6mjg with OpenPGP: Mallory encrypts to Riley, unsigned, a message that names
+/// Ana inside, with Ana's key put in it (any key could be put there). Mallory is shown, Ana said
+/// beside it, and no key is learned for Ana from it: a later message signed with a key brought
+/// so would have read as hers.
+#[test]
+fn an_unsigned_pgp_message_cant_name_another_sender_nor_bring_their_key() {
+    let mut s = with_key("pgp-hp-unsigned");
+    let raw = format!(
+        "From: Ana Lima <ana@posteo.example>\r\nTo: riley@studio.example\r\nSubject: Proof\r\nDate: Sat, 24 Oct 2026 09:00:00 +0000\r\n\
+         Message-ID: <named@x.example>\r\nMIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"in\"\r\n\r\n\
+         --in\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nApproved.\r\n\
+         --in\r\nContent-Type: application/pgp-keys; name=\"ana.asc\"\r\n\r\n{}\r\n--in--\r\n",
+        String::from_utf8_lossy(&pgpdata("ana.asc"))
+    );
+    let (head, entity) = mailcraft_mime::smime::entity_of(raw.as_bytes());
+    let (_, protected) = mailcraft_mime::smime::protect_headers(&head, &entity, true, false);
+    let outside = String::from_utf8_lossy(&head).replace("From: Ana Lima <ana@posteo.example>", "From: Mallory <mallory@evil.example>");
+    let riley = riley_key();
+    let armored = pgp::encrypt(&protected, &[riley.public.as_slice()], None, PGP_NOW, &mut rand_core::OsRng).unwrap();
+    let body = format!(
+        "--enc\r\nContent-Type: application/pgp-encrypted\r\n\r\nVersion: 1\r\n\r\n--enc\r\nContent-Type: application/octet-stream; name=\"encrypted.asc\"\r\n\r\n{armored}\r\n--enc--\r\n"
+    );
+    let sent = format!(
+        "{}MIME-Version: 1.0\r\nContent-Type: multipart/encrypted; protocol=\"application/pgp-encrypted\"; boundary=\"enc\"\r\n\r\n{body}",
+        outside.split("MIME-Version").next().unwrap_or_default()
+    );
+    open_raw(&mut s, 9520, sent.as_bytes());
+    answer_decrypt(&mut s);
+    let sec = security(&s);
+    assert!(sec.pgp && sec.signed.is_none() && sec.headers, "{sec:?}");
+    let shown = s.reading.as_ref().and_then(|r| r.parsed.as_ref()).map(|p| p.from.email.clone()).unwrap_or_default();
+    assert_eq!(shown, "mallory@evil.example");
+    assert_eq!(sec.claimed_from.as_deref(), Some("ana@posteo.example"));
+    assert!(!s.pgp_settings("sample").known.contains_key("ana@posteo.example"), "no key kept for the one it named");
+}

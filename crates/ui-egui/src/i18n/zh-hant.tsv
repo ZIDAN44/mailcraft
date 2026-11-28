@@ -2269,3 +2269,5 @@ count	occurrences	次
 	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	即使沒有設定格式，郵件也以 HTML 傳送，讓郵件伺服器加入的簽名保留其格式。
 	Play a sound	播放音效
 	The system's new mail sound, which its sound settings can change	系統的新郵件音效，可在音效設定中變更
+	It says inside that it's from {claimed}, but no signature confirms that.	郵件內部聲稱來自 {claimed}，但沒有簽章能證實這一點。
+	It's shown as from the address its mail server took it from. Be careful with what it asks.	顯示的是郵件伺服器接收它時的寄件地址。請謹慎對待其中的要求。

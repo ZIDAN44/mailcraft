@@ -282,6 +282,34 @@ pub fn with_entity_protected(raw: &[u8], entity: &[u8]) -> (Vec<u8>, bool) {
     (out, protected)
 }
 
+/// `raw` with its `From` and `Sender` taken back from `outer` (the message as its server took
+/// it), in place of the ones [`with_entity_protected`] put there from inside. RFC 9788 §4.4.3: a
+/// protected `From` that differs from the outer one, with no signature that holds for it, is
+/// anyone's to write, while the outer one is what the receiving server checked (SPF, DKIM,
+/// DMARC); shown, it forged the sender of any encrypted message.
+pub fn with_outer_sender(raw: &[u8], outer: &[u8]) -> Vec<u8> {
+    let raw = crlf(raw);
+    let (head, body) = split(&raw);
+    let outer = crlf(outer);
+    let is_sender = |name: &str| name == "from" || name == "sender";
+    let mut out = Vec::with_capacity(raw.len());
+    for (name, f) in fields(head) {
+        if !is_sender(&name) {
+            out.extend_from_slice(&f);
+            out.extend_from_slice(b"\r\n");
+        }
+    }
+    for (name, f) in fields(split(&outer).0) {
+        if is_sender(&name) {
+            out.extend_from_slice(&f);
+            out.extend_from_slice(b"\r\n");
+        }
+    }
+    out.extend_from_slice(b"\r\n");
+    out.extend_from_slice(body);
+    out
+}
+
 /// A multipart body without its Legacy Display part (the first part, marked
 /// `hp-legacy-display="1"`: the protected subject repeated for programs that don't read header
 /// protection, RFC 9788 §4.5.3).

@@ -5,6 +5,10 @@
 
 use super::*;
 
+/// The most messages remembered as having their protected sender confirmed (a reading pane
+/// shows one at a time; past it they're forgotten, and read again unchecked, shown from outside).
+const SENDERS_CONFIRMED_MAX: usize = 1024;
+
 impl Session {
     /// What `raw` shows once its protection is taken off, and what that protection was: a
     /// signature checked, the content inside an encryption (when it's been decrypted; if not, it's
@@ -80,6 +84,27 @@ impl Session {
                 }
             }
         }
+        // A sender named inside that differs from the one its mail server took it from, and no
+        // signature that holds is by them (unsigned, broken, or by someone else): the outer one
+        // is shown, and the one named is said beside it (RFC 9788 §4.4.2 and §4.4.3). Anyone
+        // with the reader's key or certificate could otherwise send mail from their own domain
+        // shown as from anyone (GHSA-54mx-6wcm-6mjg). Before the keys inside are learned: a key
+        // that came with it is the shown sender's, never the one it named.
+        if sec.headers {
+            let (named, outer) = (sender(&cur), sender(raw));
+            if named != outer {
+                if matches!(sec.signed.as_ref().map(|s| &s.seal), Some(Seal::Trusted)) {
+                    if self.sender_confirmed.len() >= SENDERS_CONFIRMED_MAX {
+                        self.sender_confirmed.clear();
+                    }
+                    self.sender_confirmed.insert(key.clone());
+                } else {
+                    self.sender_confirmed.remove(key);
+                    cur = mime::smime::with_outer_sender(&cur, raw);
+                    sec.claimed_from = Some(named);
+                }
+            }
+        }
         // Keys attached inside what was protected.
         if any {
             self.learn_keys(&key.account, &cur);
@@ -95,6 +120,8 @@ impl Session {
     /// `raw` (message `key`) with its protection taken off as far as it can be (an encryption
     /// not decrypted yet stays), and whether a signature and an encryption were.
     pub(crate) fn as_written(&self, key: &MessageKey, raw: Vec<u8>) -> (Vec<u8>, bool, bool) {
+        // The message as its server took it, for its sender (below).
+        let outer = mime::smime::is_protected(&raw).then(|| raw.clone());
         let mut cur = raw;
         let (mut signed, mut encrypted) = (false, false);
         for _ in 0..4 {
@@ -127,6 +154,14 @@ impl Session {
                 },
             };
         }
+        // A sender named inside, unless a signature that holds was by them ([`Session::unwrap`]
+        // found so): the outer one, as it's shown (an answer goes to them, a printout names them).
+        if let Some(outer) = outer
+            && sender(&cur) != sender(&outer)
+            && !self.sender_confirmed.contains(key)
+        {
+            cur = mime::smime::with_outer_sender(&cur, &outer);
+        }
         (cur, signed, encrypted)
     }
 
@@ -154,6 +189,7 @@ impl Session {
             *self.stale_decrypts.entry(k.clone()).or_default() += 1;
         }
         self.opened.retain(|k| k.folder != folder);
+        self.sender_confirmed.retain(|k| k.folder != folder);
         self.opening.retain(|k| k.folder != folder);
         self.decrypt_errors.retain(|k, _| k.folder != folder);
         self.pgp.forget_folder(folder);
