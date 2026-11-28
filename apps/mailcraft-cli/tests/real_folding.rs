@@ -12,11 +12,22 @@
 //! or unread; the older mail stays shown; the arrows step over it; shown again, it's all there.
 //! A folder marked read is read on the server, mail not kept here too. With the Focused Inbox
 //! on, a newsletter arriving isn't announced and a person's message is.
+//!
+//! And mail filed into another folder on a server with IDLE and no NOTIFY (issue #232), through
+//! GreenMail (`servers.md` has its line; a few minutes, the two-minute look waited out):
+//!
+//! ```text
+//! MAILCRAFT_REAL_GREENMAIL="127.0.0.1:3143 127.0.0.1:3025" \
+//!   cargo test -p mailcraft-cli --test real_folding real_mail_filed -- --ignored --nocapture
+//! ```
 
 #[path = "support/servers.rs"]
 mod servers;
 
+use std::time::{Duration, Instant};
+
 use mailcraft_engine::Row;
+use mailcraft_engine::model::{Event, SyncStatus};
 use serde_json::json;
 use servers::{App, Imap};
 
@@ -214,4 +225,37 @@ fn real_only_focused_mail_is_announced() {
     app.s.run("view.notifyOther", &json!({"on": true})).unwrap();
     let said = arrive(&mut app, &mut server, &[("Summer sale", true)]);
     assert_eq!(said, ["Summer sale"], "asked to, Other's too");
+}
+
+/// Issue #232: on a server with IDLE and no NOTIFY (Zimbra; GreenMail here), mail the server's
+/// rules file into a folder other than the Inbox shows at the next look, two minutes at most,
+/// while MailCraft IDLEs on the Inbox; it showed only at the next full sync, twenty minutes or
+/// more apart.
+#[test]
+#[ignore = "needs GreenMail in MAILCRAFT_REAL_GREENMAIL"]
+fn real_mail_filed_elsewhere_shows_within_a_look_without_notify() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_GREENMAIL") else {
+        eprintln!("MAILCRAFT_REAL_GREENMAIL isn't set: skipped");
+        return;
+    };
+    let [imap, smtp, ..] = v.split_whitespace().collect::<Vec<_>>()[..] else { panic!("MAILCRAFT_REAL_GREENMAIL: imap smtp") };
+    let pid = std::process::id();
+    let me = format!("riley.{pid}@studio.example");
+    let mut server = Imap::connect(imap, &me, "pw");
+    server.create("Projects");
+    server.append("INBOX", "", format!("From: a@x.example\r\nTo: {me}\r\nSubject: First\r\n\r\nhi\r\n").as_bytes());
+    let caps = server.cmd("CAPABILITY");
+    assert!(caps.contains("IDLE") && !caps.contains("NOTIFY"), "a server with IDLE and no NOTIFY: {caps}");
+
+    let (mut app, id) = App::at(imap, smtp, &me, &me, "pw", "watching");
+    app.pump(60, "online", |_, e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    assert!(app.s.folder_state(&id, "Projects").messages.is_empty());
+    // As the server's rule would: filed straight into Projects, the Inbox untouched.
+    let subject = format!("Filed by a rule {pid}");
+    let started = Instant::now();
+    server.append("Projects", "", format!("From: b@x.example\r\nTo: {me}\r\nSubject: {subject}\r\n\r\nfiled\r\n").as_bytes());
+    app.pump(170, "the filed mail", |s, _| s.folder_state(&id, "Projects").messages.iter().any(|m| m.subject == subject));
+    let took = started.elapsed();
+    assert!(took < Duration::from_secs(150), "within a look: {took:?}");
+    eprintln!("filed into Projects, shown after {:.0} s with no NOTIFY", took.as_secs_f64());
 }

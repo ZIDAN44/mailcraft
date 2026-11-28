@@ -490,7 +490,8 @@ struct Worker {
     backoff: Duration,
     next_attempt: Instant,
     last_full: Option<Instant>,
-    /// When the Inbox was last looked at, for an account that looks at set times (issue #58).
+    /// When the Inbox was last looked at, for an account that looks at set times (issue #58); or,
+    /// on a server with IDLE and no NOTIFY, when the other folders' STATUS was (issue #232).
     looked: Option<Instant>,
     /// The token for searching the organisation's directory (Exchange Online), while it lasts.
     directory_token: Option<crate::oauth::Tokens>,

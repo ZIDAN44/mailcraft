@@ -73,11 +73,13 @@ impl Worker {
             return;
         }
         let Some(inbox) = inbox else { return };
+        let poll = poll_every(&self.acc.id);
+        let mut notifying = false;
         let result = (|| -> Result<bool> {
             let Some(Conn::Imap(c)) = self.conn.as_mut() else { return Err(NetError::Closed("not connected".into())) };
             // Told of every folder where the server can (NOTIFY, issue #232): mail its own rules
             // filed elsewhere is read as it comes, not at the next look.
-            c.notify()?;
+            notifying = c.notify()?;
             // Mail that came after the Inbox was synced and before IDLE starts is never pushed
             // during IDLE: the server already said it (or will only say it to a command). Look
             // now: the Inbox grew since the sync's SELECT, or a command's answer said it did.
@@ -93,7 +95,7 @@ impl Worker {
             let queue = &mut self.queue;
             let closed = &mut self.closed;
             let (aside, filing) = (&self.kept.aside, &self.filing);
-            c.idle(IDLE_FOR, || {
+            c.idle(if notifying { IDLE_FOR } else { poll.min(IDLE_FOR) }, || {
                 loop {
                     match rx.try_recv() {
                         Ok(j) => push_job(queue, j),
@@ -116,6 +118,18 @@ impl Worker {
                     Some(Conn::Imap(c)) => c.take_notified(),
                     _ => Vec::new(),
                 };
+                // No NOTIFY (Zimbra, issue #232): the other folders looked at with STATUS at each
+                // look's time, as a server's rules file mail there that IDLE on the Inbox never
+                // tells of; they were read only at the next full sync, twenty minutes or more
+                // apart. The account is said to be up to date as of that look.
+                let mut others = others;
+                if !notifying && self.looked.is_none_or(|t| t.elapsed() >= poll) {
+                    others.extend(self.grown_elsewhere(&inbox));
+                    self.looked = Some(Instant::now());
+                    if self.last_full.is_some() {
+                        self.status(SyncStatus::Online { at: now() });
+                    }
+                }
                 let known: Vec<String> =
                     others.into_iter().filter(|f| *f != inbox && self.folders.iter().any(|k| k.path == *f && k.selectable)).collect();
                 for f in known {
@@ -124,6 +138,25 @@ impl Worker {
             }
             Err(e) => self.failed(e),
         }
+    }
+
+    /// The folders but the Inbox whose STATUS differs from what their last SELECT said.
+    fn grown_elsewhere(&mut self, inbox: &str) -> Vec<String> {
+        let paths: Vec<String> = self.folders.iter().filter(|f| f.selectable && f.path != inbox).map(|f| f.path.clone()).collect();
+        let Some(Conn::Imap(c)) = self.conn.as_mut() else { return Vec::new() };
+        let mut grown = Vec::new();
+        for f in paths {
+            match c.status_next(&f) {
+                Ok((v, next, n)) => {
+                    if c.seen(&f).is_none_or(|s| (s.validity, s.uid_next, s.exists) != (v, next, n)) {
+                        grown.push(f);
+                    }
+                }
+                Err(NetError::No(_) | NetError::Bad(_)) => {}
+                Err(_) => break,
+            }
+        }
+        grown
     }
 
     /// How often the account was asked to look for new mail (issue #58); `None`: left to itself.

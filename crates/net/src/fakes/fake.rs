@@ -385,6 +385,18 @@ impl Fake {
                 self.selected = None;
             }
             self.ok(tag, "");
+        } else if upper.starts_with("STATUS ") {
+            let name = quoted_arg(rest);
+            let line = st
+                .mailbox(&name)
+                .map(|b| format!("* STATUS \"{}\" (MESSAGES {} UIDNEXT {} UIDVALIDITY {})", b.name, b.msgs.len(), b.uid_next, b.validity));
+            match line {
+                Some(l) => {
+                    self.say(&l);
+                    self.ok(tag, "");
+                }
+                None => self.say(&format!("{tag} NO no such folder")),
+            }
         } else if upper.starts_with("APPEND ") && st.refuse_appends.is_some_and(|text| rest.contains(text)) {
             self.say(&format!("{tag} NO won't keep it"));
         } else if upper.starts_with("APPEND ") {

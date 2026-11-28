@@ -53,6 +53,7 @@ fuzz_target!(|data: &[u8]| {
     let _ = sync::sync_folder(&mut c, &store, "a", "INBOX", &opts);
     let _ = c.select_qresync("Archive", 7, 9, "1:5");
     let _ = c.status("Sent");
+    let _ = c.status_next("Archive");
     let _ = c.uid_search("ALL");
     let _ = c.uid_fetch("1:*", "(UID FLAGS RFC822.SIZE BODY.PEEK[HEADER])", "");
     let _ = c.quota();

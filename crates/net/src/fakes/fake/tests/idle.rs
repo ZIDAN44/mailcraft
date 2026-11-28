@@ -110,3 +110,29 @@ fn mail_filed_into_another_folder_shows_at_once() {
     events_until(&pool, "the filed mail", |_| filed());
     pool.submit(Job::Remove { account: "a1".into() });
 }
+
+/// Issue #232, a server with IDLE and no NOTIFY (Zimbra): mail its rule files into another folder
+/// while the account IDLEs on the Inbox is read at the next look (two minutes), not the next full
+/// sync's (fifteen minutes, twenty in practice).
+#[test]
+fn mail_filed_elsewhere_without_notify_shows_at_the_next_look() {
+    let st = State::new();
+    {
+        let mut s = st.lock().unwrap();
+        s.caps = "IMAP4rev1 UIDPLUS MOVE CONDSTORE ENABLE QUOTA IDLE";
+        s.add("INBOX", "First", &[]);
+    }
+    let port = serve_tcp(&st);
+    let store = store("no-notify-filed");
+    crate::fakes::fake_dav::looked_for_today(&store, "a1");
+    // Looks for new mail every 300 ms in this test (as two minutes do in the app).
+    crate::worker::POLL_FOR.lock().unwrap().push(("a1".into(), std::time::Duration::from_millis(300)));
+    let mut pool = crate::worker::Pool::new(store.clone(), std::sync::Arc::new(crate::worker::MemoryCredentials::default()));
+    pool.submit(Job::Start { account: imap_account(port, 1), password: Some(Secret("pw".into())) });
+    until(&pool, "online", |e| matches!(e, Event::Status { status: SyncStatus::Online { .. }, .. }));
+    crate::waiting::eventually("IDLE", || st.lock().unwrap().log.last().is_some_and(|l| l == "IDLE"));
+    st.lock().unwrap().add("Archive", "Filed by a rule", &[]);
+    let filed = || store.load_folder("a1", "Archive").unwrap().messages.iter().any(|m| m.subject == "Filed by a rule");
+    crate::waiting::events_until_within(&pool, std::time::Duration::from_secs(15), "the filed mail", |_| filed());
+    pool.submit(Job::Remove { account: "a1".into() });
+}

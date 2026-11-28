@@ -53,8 +53,11 @@ Each account's worker repeats these stages:
   4. syncs calendars and contacts (an account whose calendars were never read has them read
      right after its Inbox, so a big mailbox's first sync doesn't leave the calendar empty).
 - **Wait for new mail.** IDLE (RFC 2177) keeps a connection open so the server can announce new
-  mail at once. The worker IDLEs on the Inbox and renews it every 10 minutes. On servers without
-  IDLE it checks every 2 minutes. Every 15 minutes it runs a full sync.
+  mail at once. The worker IDLEs on the Inbox and renews it every 10 minutes. Mail the server's
+  own rules file into other folders is announced too where the server has NOTIFY (RFC 5465);
+  where it has IDLE without NOTIFY (Zimbra), the worker leaves IDLE every 2 minutes and asks each
+  other folder's `STATUS`, syncing those that changed. On servers without IDLE it checks every
+  2 minutes. Every 15 minutes it runs a full sync.
 - **Handle failures.**
   - A lost connection is retried after a growing pause, from 5 seconds up to 5 minutes.
   - If the server refuses the password, MailCraft asks the user for it (`NeedsPassword`).

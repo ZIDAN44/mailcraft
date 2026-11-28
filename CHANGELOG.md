@@ -69,6 +69,7 @@ on GitHub.
 
 ### Fixed
 
+- On a server with IDLE but no NOTIFY (Zimbra), mail its rules file into folders other than the Inbox shows within two minutes, and the time the account was last updated moves with each check; it showed only at the next full sync, twenty minutes or more apart (#232).
 - Mail goes out through a server that writes its replies in a character set other than UTF-8, as one set up in German may ("Grüß Gott"): every message failed with "invalid utf-8 sequence" and stayed in the Outbox (#309).
 - A file is saved and opened as it was sent when a mail gateway wrote its footer ("Scanned by …") after it in the message: the footer's letters were added to the end of the file, so a document could fail to open, and a file sent without a type was saved as its encoded text.
 - **Check for updates** in a portable copy on Windows offers the portable `.zip` to download; it offered the `.msi`, which installs a second MailCraft in Program Files rather than updating the portable one (#260).

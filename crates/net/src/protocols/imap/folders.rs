@@ -167,6 +167,30 @@ impl<S: Read + Write> Client<S> {
         Ok((total, unseen))
     }
 
+    /// `STATUS` of a folder that isn't selected, as its `SELECT` would say it: (validity, next
+    /// UID, messages).
+    pub fn status_next(&mut self, folder: &str) -> Result<(u32, u32, u32)> {
+        let cmd = format!("STATUS {} (MESSAGES UIDNEXT UIDVALIDITY)", mailbox_arg(folder));
+        let rs = self.cmd(&[Part::Text(&cmd)])?;
+        self.notified.retain(|f| f != folder);
+        let (mut v, mut next, mut n) = (0, 0, 0);
+        for r in rs {
+            if let Response::MailboxData(MailboxDatum::Status { mailbox, status }) = r
+                && mailbox.as_ref() == folder
+            {
+                for s in status {
+                    match s {
+                        StatusAttribute::UidValidity(x) => v = x,
+                        StatusAttribute::UidNext(x) => next = x,
+                        StatusAttribute::Messages(x) => n = x,
+                        _ => {}
+                    }
+                }
+            }
+        }
+        Ok((v, next, n))
+    }
+
     /// Delete every message in a folder for good.
     pub fn empty(&mut self, folder: &str) -> Result<()> {
         let info = self.select(folder, false)?;
