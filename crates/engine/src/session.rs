@@ -411,6 +411,8 @@ pub struct Session {
     pub(crate) transfers: Vec<mailboxes::Transfer>,
     /// Old mail being archived to a data file (issue #179), one at a time.
     pub(crate) archiving: Option<accounts::Archiving>,
+    /// An account's mail being written to an Outlook data file, and how far it has come.
+    pub(crate) exporting: Option<accounts::Exporting>,
     /// AutoArchive's groups still to archive, and its question (issue #180).
     pub(crate) auto_archiving: accounts::AutoArchiving,
     /// Mail that arrived and may hold an invitation, waiting for its body (issue #20).
@@ -591,6 +593,7 @@ impl Session {
             moved_at: 0,
             transfers: Vec::new(),
             archiving: None,
+            exporting: None,
             auto_archiving: Default::default(),
             arrived_invites: Vec::new(),
             tidy_waiting: Vec::new(),

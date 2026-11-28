@@ -162,6 +162,7 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
     s.prefs.follow_up.insert("due@example.com".into(), 20_000);
     s.prefs.follow_up_done.insert("done@example.com".into(), 19_990);
     s.run("account.exportPst", &json!({"path": "C:/out/Archive.pst", "account": id})).unwrap();
+    assert_eq!(s.exporting_now(), Some((id.as_str(), "C:/out/Archive.pst", 0)), "under way, for the Activity panel");
     assert!(matches!(s.take_jobs().as_slice(), [Job::ExportPst { account, path, name, follow_up }]
         if *account == id && path == "C:/out/Archive.pst" && name == "Archive 2024" && follow_up.due.get("due@example.com") == Some(&20_000)
             && follow_up.done.get("done@example.com") == Some(&19_990)));
@@ -176,7 +177,8 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
         done: false,
         error: None,
     });
-    assert!(s.notices.last().is_some_and(|n| n.text.contains("100 messages exported so far")));
+    assert_eq!(s.exporting_now(), Some((id.as_str(), "C:/out/Archive.pst", 100)));
+    assert!(!s.notices.iter().any(|n| n.text.contains("so far")), "no notice every few seconds");
     s.apply(Event::Exported {
         account: id.clone(),
         messages: 120,
@@ -189,6 +191,7 @@ fn outlook_data_files_open_as_accounts_on_this_computer() {
         error: None,
     });
     assert!(s.notices.last().is_some_and(|n| !n.error && n.text.contains("120 messages exported (3 not on this computer")));
+    assert_eq!(s.exporting_now(), None, "done");
     // A series Outlook can't keep the rule of, written one occurrence at a time: the user is told.
     s.apply(Event::Exported {
         account: id.clone(),

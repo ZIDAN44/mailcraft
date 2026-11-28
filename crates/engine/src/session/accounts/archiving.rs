@@ -71,6 +71,8 @@ pub(crate) struct Archiving {
     gone: HashSet<MessageKey>,
     /// Messages written to the file, over every round.
     written: usize,
+    /// Messages in the file so far, this round's too (the Activity panel's).
+    so_far: usize,
     /// When it last moved on (Unix seconds).
     moved: i64,
 }
@@ -102,6 +104,12 @@ impl Session {
     /// The account whose old mail is being archived, and the file it goes to (empty: deleted).
     pub fn archiving_now(&self) -> Option<(&str, &str)> {
         self.archiving.as_ref().map(|a| (a.account.as_str(), a.path.as_str()))
+    }
+
+    /// How many messages the archive being written has so far (the Activity panel's; it was a
+    /// notice every few seconds).
+    pub fn archive_so_far(&self) -> Option<usize> {
+        self.archiving.as_ref().map(|a| a.so_far)
     }
 
     /// Archive `account`'s mail received before `before` (Unix seconds), in `folder` and those
@@ -189,6 +197,7 @@ impl Session {
             search_error: None,
             gone: HashSet::new(),
             written: 0,
+            so_far: 0,
             moved: self.clock.now,
         });
         // All its mail is here: written (or deleted) at once. On a server: looked for first.
@@ -387,8 +396,7 @@ impl Session {
         let on_server = matches!(self.account(account), Some(x) if !x.is_local() && x.config.pop.is_none());
         let Some(a) = self.archiving.as_mut().filter(|a| a.account == account && a.path == path && matches!(a.stage, Stage::Writing)) else { return };
         if !done {
-            let so_far = a.written.saturating_add(messages);
-            self.notice(format!("Archiving: {so_far} messages so far…"), false);
+            a.so_far = a.written.saturating_add(messages);
             return;
         }
         let file = mailcraft_model::file_name(path).to_string();
@@ -412,8 +420,7 @@ impl Session {
         if more {
             if let Some(a) = self.archiving.as_mut() {
                 a.round += 1;
-                let so_far = a.gone.len();
-                self.notice(format!("Archiving: {so_far} messages so far…"), false);
+                a.so_far = a.gone.len();
             }
             return self.archive_search();
         }

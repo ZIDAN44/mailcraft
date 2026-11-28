@@ -50,6 +50,15 @@ pub(super) struct ExportLeft {
     pub(super) folders: usize,
 }
 
+/// An account's mail being written to an Outlook data file ([`Session::exporting_now`]).
+#[derive(Clone, Debug)]
+pub(crate) struct Exporting {
+    account: String,
+    path: String,
+    /// Messages written so far, as the export last said.
+    messages: usize,
+}
+
 impl Session {
     /// The accounts the cache keeps, with their folders. Remote ones get a `Start` job (password
     /// from the keychain); local ones are counted again, unless big; what's already cached isn't new.
@@ -214,6 +223,12 @@ impl Session {
         format!("a{n}")
     }
 
+    /// The account whose mail is being written to a data file, the file, and how many messages
+    /// are in it so far (the Activity panel's; it was a notice every few seconds).
+    pub fn exporting_now(&self) -> Option<(&str, &str, usize)> {
+        self.exporting.as_ref().map(|e| (e.account.as_str(), e.path.as_str(), e.messages))
+    }
+
     /// Write an account's mail to an Outlook data file at `path`.
     pub fn export_pst(&mut self, account: &str, path: &str) -> CmdResult {
         let path = path.trim();
@@ -230,6 +245,7 @@ impl Session {
             reminder: self.prefs.mail_reminders.clone(),
         };
         self.jobs.push(Job::ExportPst { account: account.to_string(), path: path.to_string(), name, follow_up });
+        self.exporting = Some(Exporting { account: account.to_string(), path: path.to_string(), messages: 0 });
         Ok(serde_json::json!({ "account": account, "exporting": true }))
     }
 
@@ -237,8 +253,17 @@ impl Session {
     pub(super) fn exported(&mut self, account: &str, messages: usize, left: ExportLeft, done: bool, error: Option<String>) {
         let ExportLeft { skipped, already, occurrences, replaced, folders } = left;
         let name = self.account(account).map(|a| a.config.email.clone()).unwrap_or_default();
+        if !done {
+            if let Some(e) = self.exporting.as_mut().filter(|e| e.account == account) {
+                e.messages = messages;
+            }
+            return;
+        }
+        if self.exporting.as_ref().is_some_and(|e| e.account == account) {
+            self.exporting = None;
+        }
         match (done, error) {
-            (false, _) => self.notice(format!("{name}: {messages} messages exported so far…"), false),
+            (false, _) => {}
             (true, Some(e)) => self.notice(format!("{name} could not be exported: {e}"), true),
             (true, None) => {
                 let mut more = Vec::new();

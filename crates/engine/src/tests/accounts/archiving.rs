@@ -110,7 +110,7 @@ fn old_mail_leaves_the_mailbox_once_the_archive_has_it() {
     s.apply(Event::Body { key: older.clone(), raw: b"Subject: Older\r\n\r\nText.\r\n".to_vec() });
     assert_eq!(written(&mut s), (id.clone(), "C:/Mail/archive.pst".to_string(), vec!["INBOX".to_string()]));
 
-    // Written so far: said, and nothing leaves yet.
+    // Written so far: kept for the Activity panel (not a notice), and nothing leaves yet.
     s.apply(Event::Archived {
         account: id.clone(),
         path: "C:/Mail/archive.pst".into(),
@@ -121,7 +121,8 @@ fn old_mail_leaves_the_mailbox_once_the_archive_has_it() {
         done: false,
         error: None,
     });
-    assert!(s.notices.last().is_some_and(|n| n.text.contains("2 messages so far")));
+    assert_eq!(s.archive_so_far(), Some(2));
+    assert!(!s.notices.iter().any(|n| n.text.contains("so far")), "no notice every few seconds");
     assert_eq!(s.list.len(), 3);
 
     // Done, the file holding the three: they leave the mailbox, the new one stays, and the file
