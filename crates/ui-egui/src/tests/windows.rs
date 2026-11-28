@@ -323,6 +323,54 @@ fn window_places_open_only_where_they_make_sense() {
     assert!(!v.maximized, "saved before maximized was kept");
 }
 
+/// Issue #310 (KDE Plasma): on Wayland no window knows where it is, and neither its size nor
+/// its being maximized was noted, so every start opened a small window. Its size is noted with no
+/// place, maximized too (the first thing known of it, or after), and opening again uses both. Under
+/// XWayland a window maximized as it opened, which the window manager passed over as it wasn't
+/// shown yet, is asked again on its first frame.
+#[test]
+fn a_window_with_no_known_place_keeps_its_size_and_maximized() {
+    use crate::WindowPlace;
+    let raw = |info: egui::ViewportInfo, size: egui::Vec2| egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+        viewports: std::iter::once((egui::ViewportId::ROOT, info)).collect(),
+        ..Default::default()
+    };
+    let noted = |info: egui::ViewportInfo, size: egui::Vec2, place: &mut Option<WindowPlace>| {
+        let ctx = egui::Context::default();
+        ctx.run_ui(raw(info, size), |ui| WindowPlace::note(place, ui)).textures_delta.clear();
+    };
+    // As Wayland says it: no outer or inner rect, only whether it's maximized and its monitor.
+    let wayland = |maximized: bool| egui::ViewportInfo {
+        maximized: Some(maximized),
+        monitor_size: Some(egui::vec2(2560.0, 1440.0)),
+        native_pixels_per_point: Some(1.0),
+        ..Default::default()
+    };
+    let mut place = None;
+    noted(wayland(false), egui::vec2(1500.0, 900.0), &mut place);
+    let p = place.expect("its size noted, with no place known");
+    assert_eq!((p.w, p.h, p.maximized), (1500.0, 900.0, false));
+    noted(wayland(true), egui::vec2(2560.0, 1400.0), &mut place);
+    let p = place.expect("still noted");
+    assert!(p.maximized && p.w == 1500.0, "maximized, its own size kept: {p:?}");
+    let opened = p.apply(crate::os_window(), 1.0);
+    assert_eq!((opened.inner_size, opened.maximized), (Some(egui::vec2(1500.0, 900.0)), Some(true)));
+    // Maximized from its very first frame: noted so, with a size to come back to.
+    let mut first = None;
+    noted(wayland(true), egui::vec2(2560.0, 1400.0), &mut first);
+    assert!(first.is_some_and(|p| p.maximized && p.usable().is_some()), "{first:?}");
+    // Opened maximized, and not (the window manager passed over it): asked again, once its
+    // monitor is known; already maximized, nothing asked.
+    for (now, asked) in [(false, true), (true, false)] {
+        let ctx = egui::Context::default();
+        let mut out = ctx.run_ui(raw(wayland(now), egui::vec2(1500.0, 900.0)), |ui| crate::after_open(ui, Some(p)));
+        out.textures_delta.clear();
+        let sent = out.viewport_output.values().flat_map(|v| v.commands.clone()).any(|c| matches!(c, egui::ViewportCommand::Maximized(true)));
+        assert_eq!(sent, asked, "maximized now: {now}");
+    }
+}
+
 /// A window restored onto a monitor that went away is brought back, centred on the primary one;
 /// one on the monitor it was saved on stays put; a maximized one fills whichever monitor it gets.
 #[test]

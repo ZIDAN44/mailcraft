@@ -360,23 +360,44 @@ fn title_bar_follows(ctx: &egui::Context) {
 impl WindowPlace {
     /// Note where a window is now (nothing while it's minimized; while maximized, only that).
     /// Every window comes by here each frame: its title bar is kept in MailCraft's light or dark.
+    ///
+    /// On Wayland no window knows where it is (issue #310: KDE Plasma), so its size is noted
+    /// without a place, the last place kept, as the system places it anyway; and maximized, as
+    /// the first thing known of it. Neither was noted, and every start opened a small window.
     pub fn note(place: &mut Option<WindowPlace>, ui: &Ui) {
         title_bar_follows(ui.ctx());
         let v = ui.input(|i| i.viewport().clone());
         if v.minimized == Some(true) {
             return;
         }
+        let zoom = ui.ctx().zoom_factor();
+        let size = ui.input(|i| i.viewport_rect().size());
         let maximized = v.maximized == Some(true);
         if maximized {
-            if let Some(p) = place.as_mut() {
-                p.maximized = true;
+            match place.as_mut() {
+                Some(p) => p.maximized = true,
+                // Never placed: its size as it is, for when it's no longer maximized.
+                None => {
+                    let monitor = monitor_of(&v).map(|m| [m.x, m.y]);
+                    *place = Some(WindowPlace { w: size.x, h: size.y, maximized: true, monitor, ..WindowPlace::default() }.scaled(zoom));
+                }
             }
             return;
         }
-        if let (Some(outer), Some(inner)) = (v.outer_rect, v.inner_rect) {
-            let monitor = monitor_of(&v).map(|m| [m.x, m.y]);
-            let here = WindowPlace { x: outer.min.x, y: outer.min.y, w: inner.width(), h: inner.height(), maximized: false, monitor };
-            *place = Some(here.scaled(ui.ctx().zoom_factor()));
+        let monitor = monitor_of(&v).map(|m| [m.x, m.y]);
+        match (v.outer_rect, v.inner_rect) {
+            (Some(outer), Some(inner)) => {
+                let here = WindowPlace { x: outer.min.x, y: outer.min.y, w: inner.width(), h: inner.height(), maximized: false, monitor };
+                *place = Some(here.scaled(zoom));
+            }
+            _ if size.is_finite() && size.x > 0.0 && size.y > 0.0 => {
+                let mut here = WindowPlace { w: size.x, h: size.y, maximized: false, monitor, ..WindowPlace::default() }.scaled(zoom);
+                if let Some(was) = place.as_ref() {
+                    (here.x, here.y) = (was.x, was.y);
+                }
+                *place = Some(here);
+            }
+            _ => {}
         }
     }
 
@@ -525,6 +546,12 @@ pub fn after_open(ui: &Ui, place: Option<WindowPlace>) {
     let pending = match pending {
         Some(p) if known => {
             let restored = place.is_some();
+            // Maximized as it opened, and not now: an X11 window manager (KWin under XWayland,
+            // issue #310) passes over maximizing a window that isn't shown yet, which is how it
+            // was asked; asked again now it's shown.
+            if p.maximized && info.maximized == Some(false) {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Maximized(true));
+            }
             if let Some(pos) = p.rescue(&info, monitors(ctx).as_deref(), zoom) {
                 ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(pos));
             } else if !p.maximized

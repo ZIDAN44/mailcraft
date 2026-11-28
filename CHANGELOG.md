@@ -69,6 +69,7 @@ on GitHub.
 
 ### Fixed
 
+- On Linux, MailCraft opens at the size it was closed at, and maximized if it was (#310). Drawn with Wayland (the Flatpak on a Wayland desktop), neither was kept; under XWayland (KDE Plasma), a window closed maximized opened small.
 - On a server with IDLE but no NOTIFY (Zimbra), mail its rules file into folders other than the Inbox shows within two minutes, and the time the account was last updated moves with each check; it showed only at the next full sync, twenty minutes or more apart (#232).
 - Mail goes out through a server that writes its replies in a character set other than UTF-8, as one set up in German may ("Grüß Gott"): every message failed with "invalid utf-8 sequence" and stayed in the Outbox (#309).
 - A file is saved and opened as it was sent when a mail gateway wrote its footer ("Scanned by …") after it in the message: the footer's letters were added to the end of the file, so a document could fail to open, and a file sent without a type was saved as its encoded text.
