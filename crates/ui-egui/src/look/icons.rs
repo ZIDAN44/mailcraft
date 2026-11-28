@@ -58,6 +58,8 @@ pub enum Icon {
     Signature,
     PersonAdd,
     Download,
+    /// Work going on in the background (the Activity button): a pulse, as a heart monitor's line.
+    Activity,
     ChevronRight,
     ChevronLeft,
     Star,
@@ -374,6 +376,9 @@ pub fn paint(p: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.arc(6.5, 15.0, 5.5, PI, 2.0 * PI);
             pen.line(&[(12.5, 6.0), (12.5, 11.0)]);
             pen.line(&[(10.0, 8.5), (15.0, 8.5)]);
+        }
+        Icon::Activity => {
+            pen.line(&[(1.5, 8.5), (4.5, 8.5), (6.5, 3.5), (9.5, 13.0), (11.5, 8.5), (14.5, 8.5)]);
         }
         Icon::Download => {
             pen.line(&[(8.0, 1.5), (8.0, 10.5)]);

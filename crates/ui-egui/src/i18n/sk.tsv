@@ -2267,3 +2267,16 @@ count	occurrences	opakovaní
 	That isn't a meeting link: paste the room's https:// address.	To nie je odkaz na schôdzu: prilepte adresu https:// miestnosti.
 	That isn't a server's name, such as jitsi.example.org.	To nie je názov servera, napríklad jitsi.example.org.
 	Type an address (name@example.com) or a domain (@example.com).	Zadajte adresu (meno@example.com) alebo doménu (@example.com).
+	Activity	Aktivita
+	Mail isn't sent or received until you go online	Pošta sa neodosiela ani neprijíma, kým neprejdete do režimu online
+	Go online	Prejsť online
+	Couldn't connect	Nepodarilo sa pripojiť
+	It installs when you close MailCraft, or now as it restarts	Nainštaluje sa pri zatvorení MailCraftu alebo teraz pri reštarte
+	Exporting {account} to {file}	Exportuje sa {account} do {file}
+	Deleting old mail	Odstraňuje sa stará pošta
+	Archiving old mail to {file}	Archivuje sa stará pošta do {file}
+	Making your mail searchable	Pošta sa pripravuje na vyhľadávanie
+	{n} messages so far	Zatiaľ správ: {n}
+	Needs you	Vyžaduje pozornosť
+	Recent	Nedávne
+	Nothing's going on in the background	Na pozadí nič neprebieha

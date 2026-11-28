@@ -18,7 +18,7 @@ mod windows;
 
 use crate::*;
 
-pub(crate) use chrome::caption;
+pub(crate) use chrome::{activity, caption, send_receive};
 use chrome::{bars, ribbon, search_box};
 pub(crate) use data_files::{compacting, importing};
 use files::dropped;

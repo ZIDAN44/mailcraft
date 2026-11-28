@@ -2252,3 +2252,16 @@ count	occurrences	次
 	That isn't a meeting link: paste the room's https:// address.	這不是會議連結：請貼上會議室的 https:// 位址。
 	That isn't a server's name, such as jitsi.example.org.	這不是伺服器名稱，例如 jitsi.example.org。
 	Type an address (name@example.com) or a domain (@example.com).	請輸入位址 (name@example.com) 或網域 (@example.com)。
+	Activity	活動
+	Mail isn't sent or received until you go online	連線之前不會收發郵件
+	Go online	連線
+	Couldn't connect	無法連線
+	It installs when you close MailCraft, or now as it restarts	關閉 MailCraft 時安裝，或立即重新啟動安裝
+	Exporting {account} to {file}	正在將 {account} 匯出到 {file}
+	Deleting old mail	正在刪除舊郵件
+	Archiving old mail to {file}	正在將舊郵件封存到 {file}
+	Making your mail searchable	正在為郵件建立搜尋索引
+	{n} messages so far	目前已處理 {n} 封
+	Needs you	需要處理
+	Recent	最近
+	Nothing's going on in the background	背景沒有正在進行的工作

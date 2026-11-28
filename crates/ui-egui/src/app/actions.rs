@@ -160,8 +160,12 @@ pub enum Action {
         changes: Option<mailcraft_engine::Changes>,
         take_over: bool,
     },
-    /// Show how an account's import is going, beside the status bar.
+    /// Show how an account's import is going, in the Activity panel.
     ImportDetails(String),
+    /// Open Send / Receive's progress window.
+    SendReceiveWindow,
+    /// Open the Activity panel.
+    ActivityPanel,
     /// Choose an existing data file for the account being added (its mail comes in first).
     PickAccountDataFile,
     /// An action from a message's own window, on that message (its attachments, Save As, Print).
@@ -346,7 +350,15 @@ impl MailApp {
             Action::OpenMailFile => self.open_mail_file(),
             Action::OpenDataFile => self.open_data_file(),
             Action::ImportDataFile { path, again, changes, take_over } => self.import_data_file(path, again, changes, take_over),
-            Action::ImportDetails(account) => self.ui.import_details = Some(account),
+            Action::ImportDetails(account) => {
+                self.ui.import_details = Some(account);
+                self.ui.activity.open = true;
+            }
+            Action::SendReceiveWindow => {
+                self.ui.send_receive.open = true;
+                self.ui.send_receive.by_itself = false;
+            }
+            Action::ActivityPanel => self.ui.activity.open = true,
             Action::ExportDataFile(account) => self.export_data_file(&account),
             Action::OpenFolder(path) => self.open_folder(&path),
             Action::MoveDataFolder => self.move_data_folder(),

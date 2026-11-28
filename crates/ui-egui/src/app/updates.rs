@@ -1,5 +1,5 @@
 //! A newer MailCraft on its way, in a build that updates itself (`apps/mailcraft/src/self_update.rs`):
-//! the status bar says how far its download is; once it's downloaded and checked, a bar above the
+//! the Activity panel says how far its download is; once it's downloaded and checked, a bar above the
 //! panes (and the system's notification, if MailCraft isn't in front) offers to restart into it;
 //! and closing asks first, so it never installs an update, or pauses a download, without a word.
 
@@ -131,34 +131,5 @@ impl MailApp {
                 self.ui.old_flatpak = None;
             }
         });
-    }
-
-    /// The status bar's part: how far a download is, or the way to restart into it.
-    pub(crate) fn update_status(&self, ui: &mut Ui) -> bool {
-        let t = self.ui.tokens;
-        match &self.ui.update {
-            UpdateState::Downloading { version, done, total } => {
-                let text = if *total > 0 {
-                    let percent = done.saturating_mul(100) / total;
-                    tf!("Downloading MailCraft {version}… {percent}%", version = version, percent = percent.min(100))
-                } else {
-                    tf!("Downloading MailCraft {version}…", version = version)
-                };
-                let permille = mailcraft_engine::model::job::progress::permille(*done, *total);
-                progress::segment(
-                    ui,
-                    &t,
-                    &text,
-                    permille,
-                    tl!("If you close MailCraft now, the download pauses, and carries on from where it stopped the next time you open MailCraft."),
-                );
-                false
-            }
-            UpdateState::Ready { version, .. } => {
-                let hint = tf!("MailCraft {version} is downloaded. It installs when you close MailCraft.", version = version);
-                ui.link(RichText::new(tl!("Restart to update")).color(t.accent).small()).on_hover_text(hint).clicked()
-            }
-            UpdateState::None => false,
-        }
     }
 }

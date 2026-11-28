@@ -365,14 +365,20 @@ fn putting_the_closing_dialog_away_keeps_mailcraft_open() {
     assert!(!a.ui.closing_anyway && !a.ui.close_now, "done, and MailCraft stays open");
 }
 
+/// A compaction is said in the Activity panel, how far it has come with it.
 #[test]
-fn the_status_bar_shows_a_compaction_before_the_index() {
+fn the_activity_panel_shows_a_compaction() {
     let (mut a, _jobs, id) = with_data_file("status");
     let ctx = egui::Context::default();
     a.session
         .compaction
         .running
         .insert(id.clone(), running(CompactMode::Idle, CompactPhase::Recompress, Work { done: 1, total: 4, ..Work::default() }, None));
+    a.ui.activity.open = true;
+    // Going on by itself, it's listed once it has lasted (two seconds of frames).
+    for _ in 0..130 {
+        drawn(&ctx, &mut a);
+    }
     let texts = drawn(&ctx, &mut a);
     assert!(texts.iter().any(|t| t.starts_with("Compacting ") && t.ends_with("… 25%")), "{texts:?}");
     let (text, _, _) = crate::app::compacting::status(&a.session, &a.ui.compact, 0.0).unwrap();

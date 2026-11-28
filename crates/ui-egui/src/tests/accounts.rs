@@ -332,9 +332,9 @@ fn an_account_is_kept_online_only_from_the_forms() {
     assert!(matches!(&a.ui.dialog, Some(Dialog::AddAccount(f)) if f.online_only == Some(false) && f.params().get("onlineOnly").is_none()));
 }
 
-/// A dozen accounts waiting for their password: the status shows as many as fit and "+N" for
-/// the rest, none past the window's edge, nor over what's at its start (they ran over the
-/// counts it had there).
+/// A dozen accounts waiting for their password: the bar over the panes says the first and how
+/// many more, and the Activity panel lists them all, none past the window's edge (in the status
+/// bar they ran over what was beside them).
 #[test]
 fn many_accounts_waiting_fit_the_status() {
     let (mut a, _) = app("status-many");
@@ -345,18 +345,28 @@ fn many_accounts_waiting_fit_the_status() {
     }
     let ids: Vec<String> = a.session.accounts.iter().filter(|x| x.config.email.starts_with("waiting")).map(|x| x.config.id.clone()).collect();
     assert_eq!(ids.len(), 12);
-    let mut texts = Vec::new();
-    for _ in 0..3 {
-        for id in &ids {
-            a.session.apply(MailEvent::Status { account: id.clone(), status: SyncStatus::NeedsPassword { error: String::new() } });
-        }
-        let drawn = drawn_text(&ctx, &mut a, egui::vec2(1000.0, 700.0));
-        // Where their letters are (a right-to-left row lays a text out from its end).
-        texts = drawn.into_iter().map(|d| (d.text, d.ink.min.x, d.ink.max.x)).collect();
+    for id in &ids {
+        a.session.apply(MailEvent::Status { account: id.clone(), status: SyncStatus::NeedsPassword { error: String::new() } });
     }
-    let waiting: Vec<_> = texts.iter().filter(|(s, ..)| s.contains("waiting") && s.contains(':') || s.starts_with('+')).collect();
-    assert!(waiting.iter().any(|(s, ..)| s.starts_with('+')), "the rest as +N: {texts:?}");
-    assert!(waiting.iter().all(|(_, l, r)| *l >= 0.0 && *r <= 1000.0), "inside the window: {waiting:?}");
+    let size = egui::vec2(1000.0, 1400.0);
+    let texts: Vec<String> = (0..3).map(|_| drawn_strings(&ctx, &mut a, size)).last().unwrap_or_default();
+    // The sample's mailbox counts too: it's offline, and that waits on you as well.
+    let more = texts.iter().find(|t| t.ends_with(" more")).cloned().unwrap_or_default();
+    assert!(more == "12 more" || more == "11 more", "the first, and how many more: {texts:?}");
+    a.ui.activity.open = true;
+    let mut drawn = Vec::new();
+    for _ in 0..4 {
+        drawn = drawn_text(&ctx, &mut a, size);
+    }
+    // Where their letters are (a right-to-left row lays a text out from its end).
+    // The panel's, at the window's end (the folder pane lists the accounts too).
+    let listed: Vec<_> = drawn
+        .iter()
+        .filter(|d| d.text.starts_with("waiting") && d.text.ends_with("@studio.example") && d.rect.left() > 500.0)
+        .map(|d| (d.text.clone(), d.ink.min.x, d.ink.max.x))
+        .collect();
+    assert_eq!(listed.len(), 12, "each in the panel: {listed:?}");
+    assert!(listed.iter().all(|(_, l, r)| *l >= 0.0 && *r <= 1000.0), "inside the window: {listed:?}");
 }
 
 /// An account's trouble that needs you is told apart from one that only waits to be tried again:
@@ -389,12 +399,15 @@ fn an_account_s_trouble_is_said_and_offers_what_helps() {
     for (status, said) in cases {
         a.session.apply(MailEvent::Status { account: id.clone(), status });
         a.ui.dialog = None;
+        // The sample's offline mailbox would come first: it isn't what's tried here.
+        a.session.prefs.work_offline = false;
         drawn_text(&ctx, &mut a, size);
         let texts = drawn_strings(&ctx, &mut a, size);
-        let link = said.map(|w| format!("zoe@example.org: {w}"));
-        // Waiting for you: a link saying what. Otherwise counted among the disconnected.
-        assert_eq!(texts.iter().any(|t| Some(t) == link.as_ref()), said.is_some(), "{said:?}: {texts:?}");
-        assert_eq!(texts.iter().any(|t| t == "1 account disconnected"), said.is_none(), "{said:?}: {texts:?}");
+        // Waiting for you: the bar over the panes says what. Otherwise, why it's disconnected,
+        // and trying again.
+        assert!(texts.iter().any(|t| t == "zoe@example.org"), "{said:?}: {texts:?}");
+        assert_eq!(texts.iter().any(|t| Some(t.as_str()) == said), said.is_some(), "{said:?}: {texts:?}");
+        assert_eq!(texts.iter().any(|t| t == "Try again"), said.is_none(), "{said:?}: {texts:?}");
         assert!(words.iter().filter(|w| Some(**w) != said).all(|w| !texts.iter().any(|t| t.ends_with(w))), "{said:?}: {texts:?}");
         a.act(crate::Action::SignInAgain(id.clone()));
         match (said, &a.ui.dialog) {
@@ -484,15 +497,16 @@ fn a_local_mailbox_isnt_called_the_sample() {
     assert!(!texts.iter().any(|t| t.contains("sample mailbox")), "{texts:?}");
 }
 
-/// What the status bar costs a frame with 100,000 messages in the list, then with a dozen
-/// accounts more; and a fingerprint of what it draws (the same before and after a change that
-/// only makes it faster). Run in release under the machine's lock:
-/// `cargo test --release -p mailcraft-ui-egui --lib measure_status_bar -- --ignored --nocapture`.
+/// What working out the Activity and drawing its bar over the panes cost a frame with 100,000
+/// messages in the list, then with a dozen accounts more waiting for their password; and a
+/// fingerprint of what's drawn (the same before and after a change that only makes it faster).
+/// Run in release under the machine's lock:
+/// `cargo test --release -p mailcraft-ui-egui --lib measure_activity -- --ignored --nocapture`.
 #[test]
 #[ignore = "a measurement: run in release"]
-fn measure_status_bar() {
+fn measure_activity() {
     use std::hash::{Hash, Hasher};
-    let (mut a, _) = app("measure-status-bar");
+    let (mut a, _) = app("measure-activity");
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let first = a.session.list.first().map(|m| (**m).clone()).unwrap();
@@ -506,8 +520,11 @@ fn measure_status_bar() {
         .collect();
     a.session.revision = a.session.revision.wrapping_add(1);
     let bar = |a: &mut MailApp| {
-        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 26.0))), ..Default::default() };
-        let mut out = ctx.run_ui(input, |ui| a.status_bar(ui));
+        let input = RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 40.0))), ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| {
+            a.note_activity(ui.ctx());
+            a.info_bar(ui);
+        });
         out.textures_delta.clear();
         texts_in(&out.shapes)
     };
@@ -516,7 +533,7 @@ fn measure_status_bar() {
             for n in 0..12 {
                 let c = mailcraft_engine::model::AccountConfig::guess(&format!("more{n}@studio.example"));
                 let id = a.session.add_account(c, None).unwrap();
-                a.session.apply(MailEvent::Status { account: id, status: SyncStatus::Online { at: NOW - 600 } });
+                a.session.apply(MailEvent::Status { account: id, status: SyncStatus::NeedsPassword { error: String::new() } });
             }
         }
         let drawn = bar(&mut a);
@@ -529,7 +546,7 @@ fn measure_status_bar() {
             let _ = bar(&mut a);
         }
         let each = t.elapsed().as_secs_f64() * 1000.0 / 200.0;
-        println!("MEASURE status bar, {case}: {each:.3} ms a frame; drawn {} texts, {:016x}", drawn.len(), h.finish());
+        println!("MEASURE activity, {case}: {each:.3} ms a frame; drawn {} texts, {:016x}", drawn.len(), h.finish());
     }
 }
 

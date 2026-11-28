@@ -823,6 +823,7 @@ impl crate::Services for Ticking {
 
 mod access;
 mod accounts;
+mod activity;
 mod agents;
 mod calendar;
 mod organisation;

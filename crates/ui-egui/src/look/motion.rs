@@ -99,6 +99,19 @@ pub const FAST: f32 = 0.10;
 pub const NORMAL: f32 = 0.18;
 pub const GENTLE: f32 = 0.25;
 
+/// How far something that came `since` seconds ago has come in (0 to 1), easing in over
+/// [`GENTLE`]; at once with motion off. While it's still coming, the next frame is asked for.
+pub fn come(ctx: &Context, since: f64) -> f32 {
+    if !enabled(ctx) {
+        return 1.0;
+    }
+    let k = (since as f32 / GENTLE).clamp(0.0, 1.0);
+    if k < 1.0 {
+        ctx.request_repaint();
+    }
+    decelerate(k)
+}
+
 fn off_id() -> Id {
     Id::unique("motion-off")
 }

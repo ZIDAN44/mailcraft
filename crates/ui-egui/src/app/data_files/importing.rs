@@ -1,9 +1,8 @@
-//! A data file's import as the window shows it: a segment of the status bar (how far it is, the
-//! time left) that opens its details, a line under its account in the folder pane, the account's
+//! A data file's import as the window shows it: a line in the Activity panel (how far it is, the
+//! time left) that opens its details there, a line under its account in the folder pane, the account's
 //! status and menu, closing while it runs, and what it came to (the questions and the summary
 //! are drawn in `dialogs/importing.rs`).
 
-use egui::PopupCloseBehavior;
 use mailcraft_engine::ImportState;
 use mailcraft_engine::model::FolderRole;
 use mailcraft_engine::model::job::{Blocked, ImportPhase};
@@ -35,7 +34,7 @@ pub(crate) fn duration(ms: u64) -> String {
     }
 }
 
-/// The import the status bar shows: one being read first, else one waiting on the user.
+/// The import said first: one being read, else one waiting on the user.
 pub(crate) fn shown(s: &Session) -> Option<(&str, &ImportState)> {
     s.imports().filter(|(_, st)| !st.removing).min_by_key(|(_, st)| !st.live)
 }
@@ -47,7 +46,7 @@ pub(crate) fn ask_on_close(s: &Session) -> bool {
 }
 
 /// An import waiting on the user is paused when something stopped it (the file gone, the drive
-/// full), and stopped when the user did, or MailCraft closed: said so in the status bar, the
+/// full), and stopped when the user did, or MailCraft closed: said so in the Activity panel, the
 /// folder pane and the account's status alike.
 fn paused(st: &ImportState) -> bool {
     st.progress.blocked.is_some()
@@ -59,7 +58,7 @@ fn can_go_on(s: &Session, account: &str, st: &ImportState) -> bool {
     !st.path.is_empty() || s.data_source(account).is_some_and(|d| !d.path.is_empty())
 }
 
-/// What the status bar says of an import: its words (with the time left, once known), how far
+/// What the Activity panel says of an import: its words (with the time left, once known), how far
 /// it is in thousandths, and what hovering it says.
 pub(crate) fn status_words(s: &Session, account: &str, st: &ImportState) -> (String, Option<u16>, String) {
     let p = &st.progress;
@@ -86,7 +85,7 @@ pub(crate) fn status_words(s: &Session, account: &str, st: &ImportState) -> (Str
 }
 
 /// Why an import waits on the user, said in full.
-fn blocked_words(b: &Blocked) -> String {
+pub(crate) fn blocked_words(b: &Blocked) -> String {
     match b {
         Blocked::SourceMissing => tl!("The data file isn't where it was.").to_string(),
         Blocked::SourceChanged => tl!("The data file changed after the import began.").to_string(),
@@ -95,42 +94,9 @@ fn blocked_words(b: &Blocked) -> String {
     }
 }
 
-/// The status bar's segment for the import shown, and its details while they're open
-/// (`details`: whose). Whether an import was shown (the search index's build then isn't).
-pub(crate) fn status_segment(ui: &mut Ui, s: &Session, t: &Tokens, details: &mut Option<String>, acts: &mut Vec<Action>) -> bool {
-    let Some((account, st)) = shown(s) else {
-        *details = None;
-        return false;
-    };
-    let (text, permille, hover) = status_words(s, account, st);
-    ui.add_space(6.0);
-    let resp = progress::segment(ui, t, &text, permille, &hover);
-    if resp.clicked() {
-        *details = if details.is_some() { None } else { Some(account.to_string()) };
-    }
-    let Some(whose) = details.clone() else { return true };
-    let Some(st) = s.import_state(&whose).filter(|st| !st.removing) else {
-        *details = None;
-        return true;
-    };
-    let mut open = true;
-    let before = acts.len();
-    egui::Popup::from_response(&resp)
-        .id(egui::Id::unique("import-details"))
-        .open_bool(&mut open)
-        .close_behavior(PopupCloseBehavior::CloseOnClickOutside)
-        .align(egui::RectAlign::TOP_START)
-        .show(|ui| details_ui(ui, s, t, &whose, st, acts));
-    // Closed, or something in it asked for (a question, the account removed): put away.
-    if !open || acts.len() > before {
-        *details = None;
-    }
-    true
-}
-
 /// The details of `account`'s import: how far in messages, data and folders, the time so far
 /// and left, what it couldn't bring in, where its copy is; and what can be done with it.
-fn details_ui(ui: &mut Ui, s: &Session, t: &Tokens, account: &str, st: &ImportState, acts: &mut Vec<Action>) {
+pub(crate) fn details_ui(ui: &mut Ui, s: &Session, t: &Tokens, account: &str, st: &ImportState, acts: &mut Vec<Action>) {
     ui.set_width(340.0);
     let p = &st.progress;
     let (text, permille, _) = status_words(s, account, st);

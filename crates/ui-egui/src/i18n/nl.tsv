@@ -2248,3 +2248,16 @@ count	occurrences	keer
 	That isn't a meeting link: paste the room's https:// address.	Dat is geen vergaderlink: plak het https://-adres van de ruimte.
 	That isn't a server's name, such as jitsi.example.org.	Dat is geen servernaam, zoals jitsi.example.org.
 	Type an address (name@example.com) or a domain (@example.com).	Typ een adres (naam@example.com) of een domein (@example.com).
+	Activity	Activiteit
+	Mail isn't sent or received until you go online	E-mail wordt pas verzonden en ontvangen als je online gaat
+	Go online	Online gaan
+	Couldn't connect	Kan geen verbinding maken
+	It installs when you close MailCraft, or now as it restarts	Het wordt geïnstalleerd als je MailCraft sluit, of nu bij het herstarten
+	Exporting {account} to {file}	{account} wordt geëxporteerd naar {file}
+	Deleting old mail	Oude e-mail wordt verwijderd
+	Archiving old mail to {file}	Oude e-mail wordt gearchiveerd in {file}
+	Making your mail searchable	Je e-mail wordt doorzoekbaar gemaakt
+	{n} messages so far	Tot nu toe {n} berichten
+	Needs you	Vraagt om aandacht
+	Recent	Recent
+	Nothing's going on in the background	Er gebeurt niets op de achtergrond

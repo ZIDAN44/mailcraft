@@ -2266,3 +2266,16 @@ count	occurrences	wystąpieniach
 	That isn't a meeting link: paste the room's https:// address.	To nie jest link do spotkania: wklej adres https:// pokoju.
 	That isn't a server's name, such as jitsi.example.org.	To nie jest nazwa serwera, np. jitsi.example.org.
 	Type an address (name@example.com) or a domain (@example.com).	Wpisz adres (nazwa@example.com) lub domenę (@example.com).
+	Activity	Aktywność
+	Mail isn't sent or received until you go online	Poczta nie jest wysyłana ani odbierana, dopóki nie przejdziesz w tryb online
+	Go online	Przejdź w tryb online
+	Couldn't connect	Nie udało się połączyć
+	It installs when you close MailCraft, or now as it restarts	Zainstaluje się po zamknięciu MailCraft lub teraz, przy ponownym uruchomieniu
+	Exporting {account} to {file}	Eksportowanie {account} do {file}
+	Deleting old mail	Usuwanie starej poczty
+	Archiving old mail to {file}	Archiwizowanie starej poczty w {file}
+	Making your mail searchable	Przygotowywanie poczty do wyszukiwania
+	{n} messages so far	Do tej pory wiadomości: {n}
+	Needs you	Wymaga uwagi
+	Recent	Ostatnie
+	Nothing's going on in the background	W tle nic się nie dzieje

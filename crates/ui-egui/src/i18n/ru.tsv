@@ -2266,3 +2266,16 @@ count	occurrences	повторений
 	That isn't a meeting link: paste the room's https:// address.	Это не ссылка на встречу: вставьте адрес комнаты, начинающийся с https://.
 	That isn't a server's name, such as jitsi.example.org.	Это не имя сервера, например jitsi.example.org.
 	Type an address (name@example.com) or a domain (@example.com).	Введите адрес (name@example.com) или домен (@example.com).
+	Activity	Активность
+	Mail isn't sent or received until you go online	Почта не отправляется и не принимается, пока вы не подключитесь
+	Go online	Подключиться
+	Couldn't connect	Не удалось подключиться
+	It installs when you close MailCraft, or now as it restarts	Оно установится при закрытии MailCraft или сейчас, при перезапуске
+	Exporting {account} to {file}	Экспорт {account} в {file}
+	Deleting old mail	Удаление старой почты
+	Archiving old mail to {file}	Архивация старой почты в {file}
+	Making your mail searchable	Подготовка почты к поиску
+	{n} messages so far	Пока сообщений: {n}
+	Needs you	Требует внимания
+	Recent	Недавнее
+	Nothing's going on in the background	В фоне ничего не выполняется

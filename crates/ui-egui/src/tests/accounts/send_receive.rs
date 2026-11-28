@@ -1,4 +1,4 @@
-//! Window tests: Send / Receive's progress, in the status bar and its window. Opened by Send /
+//! Window tests: Send / Receive's progress, in the Activity panel and its window. Opened by Send /
 //! Receive, the window closes once all is done well; a task that failed keeps it open on why.
 
 use mailcraft_engine::model::job::{Transfer, TransferKind, TransferState};
@@ -13,7 +13,7 @@ fn said(a: &mut MailApp, account: &str, transfer: Transfer) {
 }
 
 #[test]
-fn send_receive_says_how_it_goes_in_the_status_bar_and_its_window() {
+fn send_receive_says_how_it_goes_in_the_activity_panel_and_its_window() {
     let (mut a, _dir) = app("send-receive-window");
     let sent = Jobs::default();
     a.backend = Box::new(sent.clone());
@@ -39,9 +39,14 @@ fn send_receive_says_how_it_goes_in_the_status_bar_and_its_window() {
     assert!(has(&texts, "zoe@pop.example") && has(&texts, "Sending") && has(&texts, "Receiving"));
     assert!(has(&texts, "0 of 2 done") && has(&texts, "Waiting"));
 
-    // A download under way: the status bar says which message of how many, and their size.
+    // A download under way: the Activity panel says which message of how many, and their size.
     let going = Transfer { done: 9, total: 158, bytes_done: 27 << 20, bytes_total: 210 << 20, ..Transfer::working(TransferKind::Receiving) };
     said(&mut a, &id, going);
+    a.ui.activity.open = true;
+    // Listed once it has lasted (two seconds of frames).
+    for _ in 0..130 {
+        frame(&ctx, &mut a, vec![]);
+    }
     let texts = drawn_strings(&ctx, &mut a, SIZE);
     assert!(has(&texts, "Downloading: 10 of 158 (27.0 MB of 210.0 MB)"), "{texts:?}");
     assert!(has(&texts, "9 of 158"), "{texts:?}");
@@ -69,13 +74,23 @@ fn send_receive_says_how_it_goes_in_the_status_bar_and_its_window() {
     assert!(has(&texts, &format!("zoe@pop.example: receiving failed: {why}")), "under the tasks: {texts:?}");
     assert!(!a.session.send_receive.unseen_error, "shown, so no longer news");
 
-    // Closed: the status bar says nothing more of it. One that fails while it's closed: said
-    // there until it's shown.
+    // Closed: nothing more is said of it. One that fails while it's closed: said over the panes
+    // until it's shown, its Details opening the window.
     a.ui.send_receive.open = false;
     said(&mut a, &id, Transfer { state: TransferState::Failed, error: Some(why.into()), ..Transfer::working(TransferKind::Receiving) });
     let texts = drawn_strings(&ctx, &mut a, SIZE);
     assert!(has(&texts, "Send / Receive failed") && !has(&texts, "Send / Receive progress"), "{texts:?}");
-    click_named(&ctx, &mut a, "Send / Receive failed");
+    let failed = drawn_text(&ctx, &mut a, SIZE).into_iter().find(|d| d.text == "Send / Receive failed").map(|d| d.rect).expect("said");
+    let details = named(&ctx, &mut a, SIZE)
+        .into_iter()
+        .filter(|n| n.label.as_deref() == Some("Details"))
+        .filter_map(|n| n.centre())
+        .find(|c| (c.y - failed.center().y).abs() < 20.0)
+        .expect("its Details beside it");
+    // At this window's size (`click` draws at the default one).
+    let press =
+        |pressed| egui::Event::PointerButton { pos: details, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+    sized_frame(&ctx, &mut a, SIZE, vec![egui::Event::PointerMoved(details), press(true), press(false)]);
     frame(&ctx, &mut a, vec![]);
     let texts = drawn_strings(&ctx, &mut a, SIZE);
     assert!(has(&texts, "Send / Receive progress") && has(&texts, "receiving failed"), "opened on why: {texts:?}");

@@ -391,9 +391,10 @@ impl MailApp {
     }
 
     /// The main window's bars: the top bar and the ribbon (and the bars under them), or the File
-    /// page's title bar; the status bar.
+    /// page's title bar; the bar over the panes for what needs you.
     fn chrome(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) {
         let t = self.ui.tokens;
+        self.note_activity(ui.ctx());
         // The File page has the window to itself, under the window's own title bar (as Outlook's).
         if self.ui.backstage.is_none() {
             let height = if self.ui.bar_two_rows { TOP_BAR_H + super::bars::BAR_ROW_H + 6.0 } else { TOP_BAR_H };
@@ -489,17 +490,10 @@ impl MailApp {
                     });
             }
         }
-        // The status, only while it has something to say (a problem, or work to follow), as a bar
-        // over the panes: a bar along the bottom said the list's counts and "All folders are up
-        // to date" all the time, which Windows' own apps don't.
-        if self.status_worth_showing(ui.input(|i| i.time)) {
-            egui::Panel::top("status")
-                .exact_size(28.0)
-                .frame(egui::Frame::new().fill(t.chrome).inner_margin(Margin::symmetric(12, 4)).stroke(egui::Stroke::new(1.0, t.border)))
-                .show(ui, |ui| {
-                    self.status_bar(ui);
-                });
-        }
+        // What needs you now, as a bar over the panes (`activity/info_bar.rs`); work under way
+        // is the Activity button's. A status bar along the bottom said the list's counts and
+        // "All folders are up to date" all the time, which Windows' own apps don't.
+        self.info_bar(ui);
     }
 
     /// The main window's panes: the File page, the welcome with no account yet, or the module's
@@ -725,6 +719,7 @@ impl MailApp {
             super::caption::resize_zones(ui);
         }
         self.toasts(&ctx);
+        self.activity_panel(&ctx);
         // Commands AI agents asked to run, waiting for the user (issue #255).
         self.agents_asking_window(&ctx);
         crate::a11y::said(&ctx);

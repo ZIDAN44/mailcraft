@@ -82,6 +82,8 @@ pub(crate) fn commands(app: &mut MailApp, args: &[String]) {
                 app.ui.dialog = Some(mailcraft_ui_egui::Dialog::person(&mut app.session, email));
             }
             "ui.categories" => app.ui.dialog = Some(mailcraft_ui_egui::Dialog::Categories),
+            // The Activity panel open, as its button opens it.
+            "ui.activity" => app.open_activity(),
             "ui.nameKeyword" => {
                 let k = p.get("keyword").and_then(|v| v.as_str()).unwrap_or_default();
                 app.ui.dialog = Some(mailcraft_ui_egui::Dialog::name_keyword(k));

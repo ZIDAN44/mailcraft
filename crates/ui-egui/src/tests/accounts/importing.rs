@@ -188,7 +188,7 @@ pub(crate) fn tour(a: &mut MailApp, ctx: &egui::Context) {
 }
 
 /// The import from its first progress: a percentage at once (not "Opening…"), the time left once
-/// there's a rate to go by, in the status bar and the account's status; its details on a click;
+/// there's a rate to go by, in the Activity panel and the account's status; its details on a click;
 /// a line under the account in the folder pane instead of "Loading folders…".
 #[test]
 fn an_import_is_shown_from_its_first_second() {
@@ -196,6 +196,10 @@ fn an_import_is_shown_from_its_first_second() {
     let ctx = egui::Context::default();
     frame(&ctx, &mut a, vec![]);
     let id = import(&mut a);
+    a.ui.activity.open = true;
+    for _ in 0..3 {
+        drawn(&ctx, &mut a);
+    }
     let texts = drawn(&ctx, &mut a);
     assert!(has(&texts, "Importing Archive.pst…") && has(&texts, "Counting items…"), "{texts:?}");
     assert!(!has(&texts, "Loading folders") && !has(&texts, "Opening"), "{texts:?}");
@@ -220,8 +224,12 @@ fn an_import_is_shown_from_its_first_second() {
     assert!(!has(&texts, "Importing … 30%"), "{texts:?}");
     going(&mut a, &id, progress(ImportPhase::Importing, 30, 100, 50_000));
 
-    // A click on the line under the account: its details, beside the status bar.
+    // A click on the line under the account: its details, in the Activity panel (laid out as
+    // they come, a frame or two).
     a.act(Action::ImportDetails(id.clone()));
+    for _ in 0..2 {
+        drawn(&ctx, &mut a);
+    }
     let texts = drawn(&ctx, &mut a);
     for line in ["Messages: 30 of 100", "Data: 29 KB of 98 KB", "Folder: INBOX (2 of 4)", "Not brought in so far: 2", "Stop importing…"] {
         assert!(has(&texts, line), "{line}: {texts:?}");

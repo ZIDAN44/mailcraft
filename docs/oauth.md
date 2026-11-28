@@ -132,7 +132,8 @@ A client that is **External** and not verified works too, with Google's warning 
 
 ### "Microsoft doesn't accept passwords from mail apps"
 
-Click **Sign in with Microsoft** in the status bar or the account menu. Your mail stays where it is.
+Click **Sign in** in the bar over your mail (or in the **Activity** panel), or use the account
+menu. Your mail stays where it is.
 
 ### "…won't open this mailbox over IMAP"
 

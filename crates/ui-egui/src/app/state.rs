@@ -344,8 +344,10 @@ pub struct UiState {
     pub(crate) opened_files: HashMap<PathBuf, String>,
     /// The platform can drag files out.
     pub(crate) can_drag_out: bool,
-    /// The account whose import's details are shown, beside the status bar.
+    /// The account whose import's details are shown, in the Activity panel.
     pub(crate) import_details: Option<String>,
+    /// The Activity button and panel, and the bar over the panes.
+    pub(crate) activity: super::chrome::activity::ActivityUi,
     /// Send / Receive's progress window.
     pub(crate) send_receive: super::chrome::send_receive::SendReceiveUi,
 }

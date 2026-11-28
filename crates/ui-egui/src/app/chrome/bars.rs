@@ -1,7 +1,6 @@
-//! The top bar (the ribbon's tabs, search, sync, settings), the status bar, and notices.
+//! The top bar (the ribbon's tabs, search, Activity, Send / Receive, settings), and notices.
 
 use crate::*;
-use mailcraft_engine::model::FailureKind;
 
 /// A row of the top bar: its tabs, its buttons, the search box.
 pub(crate) const BAR_ROW_H: f32 = 30.0;
@@ -51,7 +50,9 @@ impl MailApp {
             ui.spacing_mut().item_spacing.x = 4.0;
             // The room between the tabs and the controls at the end.
             let used = ui.min_rect().width();
-            let free = full.width() - used - BAR_END;
+            // The Activity button's room too, while it shows.
+            let activity = if self.activity_shown_now(ui) { 34.0 } else { 0.0 };
+            let free = full.width() - used - BAR_END - activity;
             let fits = free - 24.0 >= MIN_SEARCH_BOX;
             if self.ui.bar_two_rows == fits {
                 self.ui.bar_two_rows = !fits;
@@ -129,7 +130,7 @@ impl MailApp {
             .rect
     }
 
-    /// The top bar's end: dark mode, settings, Send / Receive all folders, and Undo.
+    /// The top bar's end: settings, Send / Receive all folders, Activity while it shows, and Undo.
     fn bar_end(&mut self, ui: &mut Ui, acts: &mut Vec<Action>) -> egui::Rect {
         let t = self.ui.tokens;
         let can_sync = self.session.registry().get("mail.sync").is_some_and(|c| (c.enabled)(&self.session).is_none());
@@ -143,63 +144,20 @@ impl MailApp {
             if can_sync && widgets::bar_icon_button(ui, Icon::Sync, "Send / Receive all folders (F9)", &t).clicked() {
                 acts.push(Action::Run("mail.sync", json!({})));
             }
+            // What's going on in the background, and what needs you (`activity.rs`).
+            if self.activity_shown_now(ui) {
+                let a = self.ui.activity.current.clone();
+                super::activity::button(ui, &t, &a, &mut self.ui.activity);
+            } else {
+                self.ui.activity.button = None;
+                self.ui.activity.appeared = None;
+            }
             if can_undo && widgets::bar_icon_button(ui, Icon::Back, "Undo (Ctrl+Z)", &t).clicked() {
                 acts.push(Action::Run("edit.undo", json!({})));
             }
         })
         .response
         .rect
-    }
-
-    /// Whether the status has something to say: a problem (an account that needs you or can't
-    /// connect, working offline, mail waiting in the Outbox) or work under way to follow (a data
-    /// file's import or compaction, an update downloading, Send / Receive). Not the list's
-    /// counts (the folder pane has them), routine updating, the search index being made (a
-    /// moment's, and the bar came and went, moving the panes), or the sample's mailbox being
-    /// offline: Windows' own apps have no status bar for those.
-    pub(crate) fn status_worth_showing(&self, now: f64) -> bool {
-        let s = &self.session;
-        !s.outbox.is_empty()
-            || s.prefs.work_offline
-            || s.accounts.iter().any(|a| needs_you(a) || matches!(a.status, SyncStatus::Error { .. }))
-            || super::importing::shown(s).is_some()
-            || super::compacting::status(s, &self.ui.compact, now).is_some()
-            || !matches!(self.ui.update, crate::UpdateState::None)
-            || s.send_receive.unseen_error
-            || s.send_receive.open().any(|r| r.transfer.state == mailcraft_engine::model::job::TransferState::Working)
-    }
-
-    /// The status: what waits, the background work, and the accounts.
-    pub(crate) fn status_bar(&mut self, ui: &mut Ui) {
-        let t = self.ui.tokens;
-        let s = &self.session;
-        let mut again: Option<String> = None;
-        let mut restart = false;
-        let mut details = self.ui.import_details.clone();
-        let mut send_receive = std::mem::take(&mut self.ui.send_receive);
-        let mut acts = Vec::new();
-        ui.with_layout(bidi::row_from_start(Align::Center), |ui| {
-            waiting(ui, s, t);
-            // A test build's next version: how far it's downloaded, then restart into it.
-            restart = self.update_status(ui);
-            background_segment(ui, s, &self.ui.compact, t, &mut details, &mut acts);
-            ui.with_layout(bidi::row_from_end(Align::Center), |ui| {
-                // Send / Receive under way is said where the accounts' status is, in its place.
-                let busy = super::send_receive::status_segment(ui, s, &t, &mut send_receive);
-                accounts_status(ui, s, t, &mut again, busy);
-            });
-        });
-        self.ui.import_details = details;
-        self.ui.send_receive = send_receive;
-        for a in acts {
-            self.act(a);
-        }
-        if let Some(id) = again {
-            self.sign_in_again(&id);
-        }
-        if restart {
-            self.act(Action::RestartToUpdate);
-        }
     }
 
     /// While a message sent waits in the Outbox to be undone (issue #135): how long it has, and
@@ -280,9 +238,7 @@ impl MailApp {
         } else {
             ctx.request_repaint_after(std::time::Duration::from_secs_f64((at + ttl - motion::GENTLE as f64 - now).max(0.0)));
         }
-        // In the corner where the window's lines end: the left one in a right-to-left
-        // interface, where the right one is the status bar's start and what opens from it (the
-        // import's details were under the notice).
+        // In the corner where the window's lines end: the left one in a right-to-left interface.
         let (corner, aside) = if i18n::current().rtl() { (egui::Align2::LEFT_BOTTOM, 16.0) } else { (egui::Align2::RIGHT_BOTTOM, -16.0) };
         egui::Area::new(egui::Id::unique("toast"))
             .anchor(corner, vec2(aside, -36.0 + 14.0 * (1.0 - enter)))
@@ -317,193 +273,5 @@ impl MailApp {
             self.ui.toast_undo = None;
             self.act(Action::Run("edit.undo", json!({})));
         }
-    }
-}
-
-/// The status's start: what waits in the Outbox, and whether MailCraft works offline.
-fn waiting(ui: &mut Ui, s: &Session, t: Tokens) {
-    if !s.outbox.is_empty() {
-        ui.label(RichText::new(tf!("Outbox: {n}", n = s.outbox.len())).color(t.warn).small());
-    }
-    if s.prefs.work_offline {
-        ui.label(RichText::new(tl!("Working offline")).color(t.warn).small());
-    }
-}
-
-/// The most important background work: a data file's import, then its compaction, then the
-/// search index.
-fn background_segment(
-    ui: &mut Ui,
-    s: &Session,
-    compact: &super::compacting::CompactUi,
-    t: Tokens,
-    details: &mut Option<String>,
-    acts: &mut Vec<Action>,
-) {
-    let now = ui.input(|i| i.time);
-    if !super::importing::status_segment(ui, s, &t, details, acts)
-        && let Some((text, permille, hover)) = background_work(s, compact, now)
-    {
-        ui.add_space(6.0);
-        // A compaction's segment opens its dialog again (hidden, it went on).
-        if progress::segment(ui, &t, &text, permille, &hover).clicked()
-            && let Some(account) = super::compacting::shown(s)
-        {
-            acts.push(Action::Dialog(Dialog::Compacting { account: account.to_string(), closing: false, since: None }));
-        }
-    }
-}
-
-/// A dot of an account's colour after its status.
-fn dot(ui: &mut Ui, color: egui::Color32) {
-    let (r, _) = ui.allocate_exact_size(vec2(10.0, 10.0), Sense::hover());
-    ui.painter().circle_filled(r.center(), 4.0, color);
-}
-
-/// The accounts, at the bar's end. One account: its own status. Several: one status for them
-/// all (a line per account didn't fit), with each on hover; only those that need you stand
-/// out. `again`: the account whose link was clicked, to sign in again. `busy`: Send / Receive
-/// is said in their status's place, so only those that need you are.
-fn accounts_status(ui: &mut Ui, s: &Session, t: Tokens, again: &mut Option<String>, busy: bool) {
-    if s.accounts.len() <= 1 {
-        for a in s.accounts.iter().filter(|a| !busy || needs_you(a)) {
-            let (color, text) = account_status(s, &t, a);
-            // "Password needed" is a link: click it to enter the password again.
-            if needs_you(a) {
-                if ui.link(RichText::new(text).color(t.danger).small()).on_hover_text(why(a)).clicked() {
-                    *again = Some(a.config.id.clone());
-                }
-            } else {
-                ui.label(RichText::new(text).color(t.dim).small()).on_hover_text(&a.config.email);
-            }
-            dot(ui, color);
-        }
-        return;
-    }
-    // Each account's line, made once for the hover of them all and for those waiting.
-    let lines: Vec<String> =
-        s.accounts.iter().map(|a| tf!("{account}: {status}", account = a.config.email, status = account_status(s, &t, a).1)).collect();
-    if !busy {
-        all_accounts(ui, s, t, &lines);
-    }
-    waiting_accounts(ui, s, t, &lines, again);
-}
-
-/// Several accounts' one status: updating, connecting, how many are disconnected, else up to
-/// date or offline; each account's line (`lines`) on hover.
-fn all_accounts(ui: &mut Ui, s: &Session, t: Tokens, lines: &[String]) {
-    let each = lines.join("\n");
-    let busy = s.accounts.iter().any(|a| matches!(a.status, SyncStatus::Syncing { .. }));
-    let connecting = s.accounts.iter().any(|a| matches!(a.status, SyncStatus::Connecting));
-    let failed = s.accounts.iter().filter(|a| matches!(a.status, SyncStatus::Error { .. }) && !needs_you(a)).count();
-    let online = s.accounts.iter().any(|a| matches!(a.status, SyncStatus::Online { .. }));
-    let (color, text) = if busy {
-        (t.accent, tl!("Updating…").to_string())
-    } else if connecting {
-        (t.accent, tl!("Connecting…").to_string())
-    } else if failed == 1 {
-        // One is one: it read "1 accounts disconnected".
-        (t.warn, tl!("1 account disconnected").to_string())
-    } else if failed > 0 {
-        (t.warn, tf!("{n} accounts disconnected", n = failed))
-    } else if online {
-        (t.ok, tl!("All folders are up to date").to_string())
-    } else {
-        (t.faint, tl!("Offline").to_string())
-    };
-    ui.label(RichText::new(text).color(t.dim).small()).on_hover_text(&each);
-    dot(ui, color);
-}
-
-/// Accounts waiting for you: a link each (it signs in again), as many as fit beside the counts
-/// on the left; the rest as "+N", each on hover (a dozen of them ran over "Items" and
-/// "Unread"). `lines`: each account's, in the order of the accounts.
-fn waiting_accounts(ui: &mut Ui, s: &Session, t: Tokens, lines: &[String], again: &mut Option<String>) {
-    let waiting: Vec<(&mailcraft_engine::AccountState, &String)> = s.accounts.iter().zip(lines).rev().filter(|(a, _)| needs_you(a)).collect();
-    let mut shown = 0;
-    for (a, text) in &waiting {
-        let width = ui.painter().layout_no_wrap(text.to_string(), egui::TextStyle::Small.resolve(ui.style()), t.danger).size().x;
-        // Room for this one and a "+N" after it.
-        if ui.available_width() < width + 70.0 {
-            break;
-        }
-        ui.add_space(10.0);
-        if ui.link(RichText::new(text.as_str()).color(t.danger).small()).on_hover_text(why(a)).clicked() {
-            *again = Some(a.config.id.clone());
-        }
-        dot(ui, t.danger);
-        shown += 1;
-    }
-    let rest = waiting.get(shown..).unwrap_or_default();
-    if let Some((first, _)) = rest.first() {
-        ui.add_space(10.0);
-        let each: Vec<&str> = rest.iter().map(|(_, line)| line.as_str()).collect();
-        if ui.link(RichText::new(format!("+{}", rest.len())).color(t.danger).small()).on_hover_text(each.join("\n")).clicked() {
-            *again = Some(first.config.id.clone());
-        }
-        dot(ui, t.danger);
-    }
-}
-
-/// An account that waits for you to do something: sign in (again, or with Microsoft rather than
-/// a password), or choose what to do about a mailbox Microsoft won't open over IMAP.
-pub(crate) fn needs_you(a: &mailcraft_engine::AccountState) -> bool {
-    match &a.status {
-        SyncStatus::NeedsPassword { .. } => true,
-        // Every kind but `Other` waits for you.
-        SyncStatus::Error { kind, .. } => !kind.is_other(),
-        _ => false,
-    }
-}
-
-/// The long work going on in the background the status bar shows when no data file is being
-/// imported (that goes first, `app/data_files/importing.rs`): a data file's compaction, else the search
-/// index's build. Its words, how far it has come in thousandths, and what hovering it says
-/// (`now`: the input's time, for the part of a compaction that goes by the time expected).
-pub(crate) fn background_work(s: &Session, compact: &super::compacting::CompactUi, now: f64) -> Option<(String, Option<u16>, String)> {
-    if let Some(words) = super::compacting::status(s, compact, now) {
-        return Some(words);
-    }
-    let work = s.indexing_work()?;
-    let permille = work.permille(mailcraft_engine::model::job::ITEM_WEIGHT);
-    let text = match permille {
-        Some(p) => tf!("Indexing {percent}%", percent = progress::percent(p)),
-        None => tl!("Indexing…").to_string(),
-    };
-    Some((text, permille, tf!("Making your mail searchable: {done} of {total} messages", done = work.done, total = work.total)))
-}
-
-/// An account's address, and what's wrong with it when something is (for hovering its status).
-pub(crate) fn why(a: &mailcraft_engine::AccountState) -> String {
-    match &a.status {
-        SyncStatus::Error { error, .. } | SyncStatus::NeedsPassword { error } if !error.is_empty() => {
-            format!("{}\n{}", a.config.email, i18n::error(error))
-        }
-        _ => a.config.email.clone(),
-    }
-}
-
-/// An account's status for the status bar: its colour and words.
-pub(crate) fn account_status(s: &Session, t: &Tokens, a: &mailcraft_engine::AccountState) -> (egui::Color32, String) {
-    // A data file being imported, or one waiting on the user.
-    if let Some(words) = super::importing::account_status(s, t, &a.config.id) {
-        return words;
-    }
-    match &a.status {
-        SyncStatus::Error { kind: FailureKind::MicrosoftNoPasswords, .. } => (t.danger, tl!("Sign in with Microsoft").to_string()),
-        SyncStatus::Error { kind: FailureKind::MicrosoftImapClosed, .. } => (t.danger, tl!("Mailbox won't open").to_string()),
-        SyncStatus::Error { kind: FailureKind::UntrustedCertificate(..), .. } => (t.danger, tl!("Certificate not trusted yet").to_string()),
-        SyncStatus::Online { at } => (t.ok, tf!("Updated {time}", time = i18n::date(&mailcraft_engine::model::dates::list_time(*at, &s.clock)))),
-        SyncStatus::Syncing { folder } => {
-            (t.accent, tf!("Updating {folder}…", folder = s.folder(&a.config.id, folder).map(i18n::folder).unwrap_or_default()))
-        }
-        SyncStatus::Connecting => (t.accent, tl!("Connecting…").to_string()),
-        SyncStatus::Offline if a.is_data_file() => (t.faint, tl!("Outlook data file").to_string()),
-        SyncStatus::Offline if a.is_local() && !a.config.is_calendar_only() => (t.faint, tl!("Sample mailbox (offline)").to_string()),
-        SyncStatus::Offline => (t.faint, tl!("Offline").to_string()),
-        // An account that signs in in the browser has no password to ask for.
-        SyncStatus::NeedsPassword { .. } if a.config.oauth.is_some() => (t.danger, tl!("Sign in again").to_string()),
-        SyncStatus::NeedsPassword { .. } => (t.danger, tl!("Password needed").to_string()),
-        SyncStatus::Error { error, .. } => (t.warn, tf!("Disconnected: {error}", error = widgets::shorten(error, 60))),
     }
 }

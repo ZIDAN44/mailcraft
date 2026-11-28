@@ -2248,3 +2248,16 @@ count	occurrences	مرات
 	That isn't a meeting link: paste the room's https:// address.	هذا ليس رابط اجتماع: الصق عنوان https:// الخاص بالغرفة.
 	That isn't a server's name, such as jitsi.example.org.	هذا ليس اسم خادم، مثل jitsi.example.org.
 	Type an address (name@example.com) or a domain (@example.com).	اكتب عنوانًا (name@example.com) أو نطاقًا (‎@example.com).
+	Activity	النشاط
+	Mail isn't sent or received until you go online	لا يُرسل البريد ولا يُستقبل حتى تتصل بالإنترنت
+	Go online	الاتصال بالإنترنت
+	Couldn't connect	تعذّر الاتصال
+	It installs when you close MailCraft, or now as it restarts	يُثبَّت عند إغلاق MailCraft، أو الآن عند إعادة تشغيله
+	Exporting {account} to {file}	جارٍ تصدير {account} إلى {file}
+	Deleting old mail	جارٍ حذف البريد القديم
+	Archiving old mail to {file}	جارٍ أرشفة البريد القديم في {file}
+	Making your mail searchable	جارٍ تجهيز بريدك للبحث
+	{n} messages so far	{n} رسالة حتى الآن
+	Needs you	يحتاج إليك
+	Recent	الأحدث
+	Nothing's going on in the background	لا يجري شيء في الخلفية

@@ -2248,3 +2248,16 @@ count	occurrences	פעמים
 	That isn't a meeting link: paste the room's https:// address.	זה לא קישור לישיבה: יש להדביק את כתובת ה-https:// של החדר.
 	That isn't a server's name, such as jitsi.example.org.	זה לא שם של שרת, כמו jitsi.example.org.
 	Type an address (name@example.com) or a domain (@example.com).	יש להקליד כתובת (name@example.com) או דומיין (‎@example.com).
+	Activity	פעילות
+	Mail isn't sent or received until you go online	דואר לא נשלח ולא מתקבל עד שתתחבר
+	Go online	התחבר
+	Couldn't connect	לא ניתן היה להתחבר
+	It installs when you close MailCraft, or now as it restarts	העדכון יותקן כשתסגור את MailCraft, או עכשיו בהפעלה מחדש
+	Exporting {account} to {file}	מייצא את {account} אל {file}
+	Deleting old mail	מוחק דואר ישן
+	Archiving old mail to {file}	מעביר דואר ישן לארכיון ב-{file}
+	Making your mail searchable	מכין את הדואר שלך לחיפוש
+	{n} messages so far	{n} הודעות עד כה
+	Needs you	דורש את תשומת לבך
+	Recent	אחרונים
+	Nothing's going on in the background	לא מתבצע דבר ברקע

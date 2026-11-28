@@ -1,7 +1,7 @@
-//! Send / Receive's progress, as Outlook offers it (in MailCraft's own words): a line at the
-//! status bar's end while it goes, where the accounts' status is ("Downloading: 10 of 158
-//! (27.6 MB of 210 MB)", "Sending: 4 of 6"), and a window of its own opened from there or from
-//! the ribbon (Show progress), and by Send / Receive (F9) itself when asked to: how many tasks
+//! Send / Receive's progress, as Outlook offers it (in MailCraft's own words): a line for each
+//! account in the Activity panel while it goes ("Downloading: 10 of 158 (27.6 MB of 210 MB)",
+//! "Sending: 4 of 6") and a ring beside the account's name, and a window of its own opened from
+//! the panel or the ribbon (Show progress), and by Send / Receive (F9) itself when asked to: how many tasks
 //! are done, a bar for them all, a line for each POP or IMAP account's sending and receiving with
 //! how far it has come (what's left on hover), why any failed, and stopping them all or one. Opened by Send /
 //! Receive, it closes once all is done well; a task that failed keeps it open on its problems.
@@ -22,35 +22,8 @@ pub(crate) struct SendReceiveUi {
     pub(crate) by_itself: bool,
 }
 
-/// The status bar's word on Send / Receive, at its end where the accounts' status is (Outlook
-/// says it there, in place of "Updating"): the first task under way, then its bar, and every
-/// task under way on hover; once a task failed, "Send / Receive failed" until the window has
-/// shown it. Clicked, the window opens or closes. Laid from the bar's end (its bar first).
-/// Whether a task under way was said: the accounts' own status then isn't.
-pub(crate) fn status_segment(ui: &mut Ui, s: &Session, t: &Tokens, st: &mut SendReceiveUi) -> bool {
-    let working: Vec<&TransferRow> = s.send_receive.open().filter(|r| r.transfer.state == TransferState::Working).collect();
-    let clicked = if let Some(first) = working.first() {
-        let each: Vec<String> = working.iter().map(|r| tf!("{account}: {status}", account = email(s, &r.account), status = going(s, r))).collect();
-        let bar = progress::bar(ui, t, first.transfer.permille(), vec2(90.0, 6.0));
-        ui.add_space(6.0);
-        let words = ui.label(RichText::new(going(s, first)).color(t.dim).small());
-        words.union(bar).interact(Sense::click()).on_hover_text(each.join("\n")).clicked()
-    } else if s.send_receive.unseen_error {
-        let r = ui.link(RichText::new(tl!("Send / Receive failed")).color(t.danger).small()).clicked();
-        ui.add_space(10.0);
-        r
-    } else {
-        false
-    };
-    if clicked {
-        st.open = !st.open;
-        st.by_itself = false;
-    }
-    !working.is_empty()
-}
-
-/// A task under way, in the status bar's words.
-fn going(s: &Session, r: &TransferRow) -> String {
+/// A task under way, in the Activity panel's words.
+pub(crate) fn going(s: &Session, r: &TransferRow) -> String {
     let tr = &r.transfer;
     let next = tr.done.saturating_add(1).min(tr.total);
     match tr.kind {
@@ -80,7 +53,7 @@ fn folder_shown(s: &Session, account: &str, path: &str) -> String {
 }
 
 /// The address of an account, to name its tasks by.
-fn email(s: &Session, account: &str) -> String {
+pub(crate) fn email(s: &Session, account: &str) -> String {
     s.account(account).map(|a| a.config.email.clone()).unwrap_or_default()
 }
 
@@ -159,7 +132,7 @@ fn overall(rows: &[TransferRow]) -> u16 {
 }
 
 impl MailApp {
-    /// The window, when it's open: from the status bar or the ribbon, or by Send / Receive itself
+    /// The window, when it's open: from the Activity panel or the ribbon, or by Send / Receive itself
     /// when the user asked for that (it then closes once all is done well).
     pub(crate) fn send_receive_window(&mut self, ctx: &egui::Context) {
         let mut st = std::mem::take(&mut self.ui.send_receive);
@@ -187,8 +160,8 @@ impl MailApp {
             .inner_margin(Margin::symmetric(14, 12))
             .stroke(Stroke::new(1.0, t.border))
             .shadow(egui::epaint::Shadow { offset: [0, 6], blur: 24, spread: 0, color: Color32::from_black_alpha(55) });
-        // Moved where the user likes (by any of it but its controls), first in the corner the
-        // status bar's line is in, above it: its line stays in sight.
+        // Moved where the user likes (by any of it but its controls), first in the corner where
+        // the window's lines end.
         let (corner, pivot) = if i18n::current().rtl() {
             (egui::pos2(screen.left() + 24.0, screen.bottom() - 44.0), egui::Align2::LEFT_BOTTOM)
         } else {

@@ -1,30 +1,20 @@
-//! Long work going on in the background (the search index's build; a data file's import and
-//! its compaction): the status bar gives it one segment, the most important job's, drawn the
-//! same way for each: what it is, and a short bar of how far it has come. The same bar shows a
-//! data file's import in the folder pane and its details, and an update's download.
+//! Long work going on in the background (Send / Receive, the search index's build, a data file's
+//! import and its compaction, an update's download): a bar of how far it has come, in the
+//! Activity panel and where the work is (a data file's import in the folder pane), and a ring
+//! round the Activity button and beside an account updating.
 
 use std::time::Duration;
 
-use egui::{CornerRadius, Rect, Response, RichText, Sense, Ui, Vec2, vec2};
+use egui::{CornerRadius, Rect, Response, Sense, Ui, Vec2, vec2};
 
 use crate::theme::Tokens;
 
-/// The bar's size.
-const BAR: egui::Vec2 = vec2(56.0, 4.0);
 /// An indeterminate bar moves at most this often: a long import doesn't keep the window drawing
 /// at its full rate.
 pub(crate) const STEP: Duration = Duration::from_millis(100);
 /// It slides a segment this share of its length across in this many steps (1.6 s).
 const SLIDE: f32 = 0.3;
 const PERIOD: u64 = 16;
-
-/// A job's segment: its words, and a bar `permille` thousandths full (`None`: how far isn't
-/// known, an indeterminate bar). Hovering it says `hover`; it can be clicked.
-pub(crate) fn segment(ui: &mut Ui, t: &Tokens, text: &str, permille: Option<u16>, hover: &str) -> Response {
-    let words = ui.label(RichText::new(text).color(t.dim).small());
-    let bar = bar(ui, t, permille, BAR);
-    words.union(bar).interact(Sense::click()).on_hover_text(hover)
-}
 
 /// A bar `size` big, `permille` thousandths full, filled from where the interface's text starts.
 /// `None` (how far isn't known): a segment sliding along it, ten steps a second at most and only
@@ -48,6 +38,47 @@ pub(crate) fn bar(ui: &mut Ui, t: &Tokens, permille: Option<u16>, size: Vec2) ->
     };
     ui.painter().rect_filled(crate::bidi::Mirror::new(r).rect(fill), round, t.accent);
     resp
+}
+
+/// How often a turning ring is drawn again: smooth (it stepped ten times a second, as a bar may,
+/// and jerked round), yet not at the screen's full rate for as long as an index takes.
+pub(crate) const TURN_STEP: Duration = Duration::from_millis(33);
+/// How long a turning ring takes to go round once (seconds).
+const TURN: f64 = 1.2;
+
+/// A ring of `radius` round `center`, `share` of it (0 to 1) drawn from the top, clockwise (`None`:
+/// how far isn't known, a quarter of it turning smoothly with the time; with animations off, a
+/// still quarter), over a faint whole one, in `color`.
+pub(crate) fn ring(ui: &Ui, center: egui::Pos2, radius: f32, share: Option<f32>, color: egui::Color32, time: f64) {
+    use std::f32::consts::TAU;
+    let width = (radius / 6.0).clamp(1.25, 2.0);
+    let faint = color.gamma_multiply(0.3);
+    ui.painter().circle_stroke(center, radius, egui::Stroke::new(width, faint));
+    let (from, share) = match share {
+        Some(s) => (0.0, s.clamp(0.0, 1.0)),
+        None if crate::motion::enabled(ui.ctx()) => {
+            ui.ctx().request_repaint_after(TURN_STEP);
+            (turn_at(time), 0.25)
+        }
+        None => (0.0, 0.25),
+    };
+    if share <= 0.0 {
+        return;
+    }
+    // From the top (a quarter turn back from egui's start, the right), clockwise, as a clock's.
+    let start = -TAU / 4.0 + from * TAU;
+    let n = ((share * 48.0).ceil() as usize).max(2);
+    let points: Vec<egui::Pos2> =
+        (0..=n).map(|i| start + share * TAU * i as f32 / n as f32).map(|a| center + radius * vec2(a.cos(), a.sin())).collect();
+    ui.painter().add(egui::Shape::line(points, egui::Stroke::new(width, color)));
+}
+
+/// How far round a turning ring is at `time` (seconds), 0 to 1: with the time itself, not in steps.
+pub(crate) fn turn_at(time: f64) -> f32 {
+    if !time.is_finite() || time <= 0.0 {
+        return 0.0;
+    }
+    (time.rem_euclid(TURN) / TURN) as f32
 }
 
 /// Where the sliding segment starts at `time` (seconds), as a share of the bar: moved in whole

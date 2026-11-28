@@ -100,13 +100,13 @@ pub(crate) fn phase_words(c: &Compacting, since: Option<f64>, now: f64) -> (Stri
     }
 }
 
-/// The account whose compaction the status bar shows: one having its file to itself first.
+/// The account whose compaction the Activity panel shows: one having its file to itself first.
 pub(crate) fn shown(s: &Session) -> Option<&str> {
     s.compaction.running.iter().min_by_key(|(a, r)| (r.phase != CompactPhase::Exclusive, a.as_str())).map(|(a, _)| a.as_str())
 }
 
-/// The compaction the status bar shows ([`shown`]), in its words: what it is, how far, and what
-/// hovering it says.
+/// The compaction the Activity panel shows ([`shown`]), in its words: what it is, how far, and
+/// the detail under it.
 pub(crate) fn status(s: &Session, c: &CompactUi, now: f64) -> Option<(String, Option<u16>, String)> {
     let account = shown(s)?;
     let running = s.compaction.running.get(account)?;

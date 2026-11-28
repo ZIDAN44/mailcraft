@@ -2249,3 +2249,16 @@ count	occurrences	回
 	That isn't a meeting link: paste the room's https:// address.	会議のリンクではありません。会議室の https:// アドレスを貼り付けてください。
 	That isn't a server's name, such as jitsi.example.org.	サーバー名 (jitsi.example.org など) ではありません。
 	Type an address (name@example.com) or a domain (@example.com).	アドレス (name@example.com) またはドメイン (@example.com) を入力してください。
+	Activity	アクティビティ
+	Mail isn't sent or received until you go online	オンラインに戻るまでメールは送受信されません
+	Go online	オンラインにする
+	Couldn't connect	接続できませんでした
+	It installs when you close MailCraft, or now as it restarts	MailCraft を閉じたとき、または今すぐ再起動するとインストールされます
+	Exporting {account} to {file}	{account} を {file} にエクスポート中
+	Deleting old mail	古いメールを削除中
+	Archiving old mail to {file}	古いメールを {file} にアーカイブ中
+	Making your mail searchable	メールを検索できるようにしています
+	{n} messages so far	これまでに {n} 件
+	Needs you	対応が必要
+	Recent	最近
+	Nothing's going on in the background	バックグラウンドで実行中の処理はありません

@@ -40,7 +40,7 @@ to **No**, File › About doesn't check either.
    isn't installed, and a file that doesn't match is deleted. (Versions before 0.42.0 hold the file
    to GitHub's `digest`, or else the release's `SHA256SUMS.txt`, alone.)
 4. **Announce.** A bar offers **Restart now** or **Later**. The system shows one notification per
-   version, and the status bar shows the download's progress.
+   version, and the **Activity** button's ring and panel show the download's progress.
 5. **Close.** Closing MailCraft offers **Update and close** or **Close without updating**. If the
    download isn't finished, it carries on the next time MailCraft runs.
 6. **Install.** A small helper waits for MailCraft to exit and installs the update. After

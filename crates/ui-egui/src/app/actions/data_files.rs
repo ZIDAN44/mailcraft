@@ -32,7 +32,7 @@ impl MailApp {
         }
     }
 
-    /// The status bar and the folder pane show how it goes from here.
+    /// The Activity panel and the folder pane show how it goes from here.
     pub(super) fn import_data_file(&mut self, path: String, again: bool, changes: Option<mailcraft_engine::Changes>, take_over: bool) {
         match self.session.run(
             "account.importPst",

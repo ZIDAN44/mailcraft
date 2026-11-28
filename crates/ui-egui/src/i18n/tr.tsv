@@ -2253,3 +2253,16 @@ count	occurrences	kez
 	That isn't a meeting link: paste the room's https:// address.	Bu bir toplantı bağlantısı değil: odanın https:// adresini yapıştırın.
 	That isn't a server's name, such as jitsi.example.org.	Bu bir sunucu adı değil (ör. jitsi.example.org).
 	Type an address (name@example.com) or a domain (@example.com).	Bir adres (ad@example.com) veya etki alanı (@example.com) yazın.
+	Activity	Etkinlik
+	Mail isn't sent or received until you go online	Çevrimiçi olana kadar posta gönderilmez ve alınmaz
+	Go online	Çevrimiçi ol
+	Couldn't connect	Bağlanılamadı
+	It installs when you close MailCraft, or now as it restarts	MailCraft'ı kapattığınızda ya da şimdi yeniden başlatırken yüklenir
+	Exporting {account} to {file}	{account}, {file} dosyasına dışa aktarılıyor
+	Deleting old mail	Eski postalar siliniyor
+	Archiving old mail to {file}	Eski postalar {file} dosyasına arşivleniyor
+	Making your mail searchable	Postalarınız aranabilir hale getiriliyor
+	{n} messages so far	Şu ana kadar {n} ileti
+	Needs you	İlginiz gerekiyor
+	Recent	Son
+	Nothing's going on in the background	Arka planda devam eden bir işlem yok

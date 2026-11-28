@@ -99,6 +99,17 @@ pub(crate) fn folder_of(file: &std::path::Path) -> std::path::PathBuf {
     if file.is_dir() { file.to_path_buf() } else { file.parent().unwrap_or(file).to_path_buf() }
 }
 
+/// An account updating: what it's doing, in words, and how far in thousandths when Send /
+/// Receive says (a download of so many messages); `None` when it isn't.
+fn updating(s: &Session, a: &mailcraft_engine::AccountState) -> Option<(String, Option<u16>)> {
+    use mailcraft_engine::model::SyncStatus;
+    use mailcraft_engine::model::job::TransferState;
+    if let Some(r) = s.send_receive.open().find(|r| r.account == a.config.id && r.transfer.state == TransferState::Working) {
+        return Some((crate::app::send_receive::going(s, r), r.transfer.permille()));
+    }
+    matches!(a.status, SyncStatus::Syncing { .. } | SyncStatus::Connecting).then(|| (crate::app::activity::account_words(s, a), None))
+}
+
 /// Whether more than one account has mail: one with calendars and contacts only has none to
 /// gather with another's, nor a folder to tell from another's (issue #86).
 fn several_mailboxes(s: &Session) -> bool {
@@ -203,8 +214,42 @@ pub fn show(s: &Session, t: &Tokens, ui: &mut Ui, minimize: bool, acts: &mut Vec
             icons::paint(ui.painter(), chev, if open { Icon::ChevronDown } else { m.closed() }, t.dim);
             ui.painter().circle_filled(m.pos(egui::pos2(rect.min.x + 26.0, rect.center().y)), 4.0, theme::account_color(a.config.color));
             let label = if a.is_local() && !a.is_data_file() { tf!("{email} (sample)", email = a.config.email) } else { a.config.email.clone() };
-            crate::widgets::named(ui, &resp, &label, true, Some(open));
-            let g = crate::widgets::one_line(ui, &label, theme::semibold(size.heading), t.text, rect.width() - 44.0 - inset);
+            // Updating: a ring at the row's end, how far Send / Receive has come when it says (the
+            // Activity panel has the rest), and its words for a screen reader too.
+            // Shown once it has lasted, a moment after it's done, and faded in and out, as the
+            // Activity panel's lines (`activity::Held`): an account checked is over in a moment,
+            // and the ring blinked with each.
+            let now = ui.input(|i| i.time);
+            let held_id = egui::Id::unique(("updating-held", &a.config.id));
+            let updating = updating(s, a);
+            let held = ui.data_mut(|d| {
+                let held = crate::app::activity::Held::note(d.get_temp(held_id), now, updating.is_some(), true);
+                match held {
+                    Some(h) => {
+                        d.insert_temp(held_id, h);
+                    }
+                    None => d.remove::<crate::app::activity::Held>(held_id),
+                }
+                held
+            });
+            if let Some(wake) = held.and_then(|h| h.wake(now)) {
+                ui.ctx().request_repaint_after(std::time::Duration::try_from_secs_f64(wake).unwrap_or_default().max(crate::progress::TURN_STEP));
+            }
+            let lit = held.map_or(0.0, |h| h.opacity(ui.ctx(), now));
+            let spoken = updating.as_ref().filter(|_| lit > 0.0).map_or_else(|| label.clone(), |(words, _)| format!("{label}, {words}"));
+            crate::widgets::named(ui, &resp, &spoken, true, Some(open));
+            let ring = if held.is_some_and(|h| h.shown()) { 18.0 } else { 0.0 };
+            if lit > 0.0 {
+                let at = m.pos(egui::pos2(rect.max.x - inset - 12.0, rect.center().y));
+                // Done and staying a moment: still turning, not stopped part way.
+                let share = updating.as_ref().and_then(|(_, p)| *p).map(|p| f32::from(p) / 1000.0);
+                crate::progress::ring(ui, at, 5.0, share, t.accent.gamma_multiply(lit), now);
+                if let Some((words, _)) = &updating {
+                    ui.interact(egui::Rect::from_center_size(at, vec2(14.0, 14.0)), ui.scope_id().with(("updating", &a.config.id)), Sense::hover())
+                        .on_hover_text(words);
+                }
+            }
+            let g = crate::widgets::one_line(ui, &label, theme::semibold(size.heading), t.text, rect.width() - 44.0 - inset - ring);
             let resp = if g.elided { resp.on_hover_text(&label) } else { resp };
             ui.painter().galley(egui::pos2(m.start(rect.min.x + 36.0, g.size().x), rect.center().y - g.size().y / 2.0), g, t.text);
             if resp.clicked() {

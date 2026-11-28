@@ -94,7 +94,16 @@ The values live in `crates/ui-egui/src/look/sizes.rs`; the helpers named here ar
 - Settings apply at once, with no Save. One kind of control per kind of choice: a switch (saying
   On or Off) for on and off, segments for two to four choices, a drop-down for more. Options is in
   parts in the File rail, with Find a setting over them.
-- There's no status bar: what needs you shows as a bar over the panes while it lasts.
+- There's no status bar. Work in the background is the **Activity** button's, at the top bar's end
+  while there's something: a ring round it for how far it all has come, a dot when something needs
+  you, and a panel listing each piece, how far it has come, what can be done about it, and what
+  MailCraft said lately (`app/chrome/activity.rs`). Work shows where it is too: a ring beside an
+  account updating, a bar under a data file being imported. What needs you now is a bar over the
+  panes with the button that helps, until it's dealt with or put away. A long job's progress is
+  never a notice every few seconds: the panel says it. Work going on by itself shows only once it
+  has lasted (`activity::SHOW_AFTER`), on the button, in the panel and beside an account alike
+  (`activity::Held`); once shown it stays a moment after it's done, and what comes and goes
+  fades: nothing blinks.
 
 ## Checking a change
 

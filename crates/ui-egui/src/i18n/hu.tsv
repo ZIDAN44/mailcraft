@@ -2253,3 +2253,16 @@ count	occurrences	előfordulás
 	That isn't a meeting link: paste the room's https:// address.	Ez nem megbeszélés hivatkozása: illessze be a terem https:// címét.
 	That isn't a server's name, such as jitsi.example.org.	Ez nem kiszolgálónév, például jitsi.example.org.
 	Type an address (name@example.com) or a domain (@example.com).	Írjon be egy címet (nev@example.com) vagy tartományt (@example.com).
+	Activity	Tevékenység
+	Mail isn't sent or received until you go online	A levelek küldése és fogadása csak online módban történik
+	Go online	Online mód
+	Couldn't connect	Nem sikerült csatlakozni
+	It installs when you close MailCraft, or now as it restarts	A MailCraft bezárásakor települ, vagy most, újraindítással
+	Exporting {account} to {file}	{account} exportálása ide: {file}
+	Deleting old mail	Régi levelek törlése
+	Archiving old mail to {file}	Régi levelek archiválása ide: {file}
+	Making your mail searchable	Levelek kereshetővé tétele
+	{n} messages so far	Eddig {n} üzenet
+	Needs you	Teendő
+	Recent	Legutóbbi
+	Nothing's going on in the background	Nincs folyamatban háttérművelet
