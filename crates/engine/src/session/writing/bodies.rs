@@ -31,7 +31,7 @@ impl Compose {
         let cards = self.cards(code);
         let used = mime::rich::pictures(&self.body, &styles);
         let pictures: Vec<mime::InlinePicture> = self.inline.iter().filter(|p| used.contains(&p.cid)).cloned().collect();
-        if self.plain || (cards.is_empty() && styles.is_plain() && pictures.is_empty() && self.font.is_none() && self.size.is_none()) {
+        if self.plain || (!self.html && cards.is_empty() && styles.is_plain() && pictures.is_empty() && self.font.is_none() && self.size.is_none()) {
             return (text, None, Vec::new());
         }
         if cards.is_empty() {

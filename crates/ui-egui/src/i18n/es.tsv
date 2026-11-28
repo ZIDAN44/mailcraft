@@ -2266,3 +2266,5 @@ count	occurrences	repeticiones
 	Needs you	Requiere tu atención
 	Recent	Reciente
 	Nothing's going on in the background	No hay nada en curso en segundo plano
+	Compose messages in HTML	Redactar mensajes en HTML
+	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	Los mensajes se envían en HTML aunque no tengan formato, así la firma que añade su servidor de correo conserva su formato.

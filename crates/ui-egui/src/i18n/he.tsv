@@ -2261,3 +2261,5 @@ count	occurrences	פעמים
 	Needs you	דורש את תשומת לבך
 	Recent	אחרונים
 	Nothing's going on in the background	לא מתבצע דבר ברקע
+	Compose messages in HTML	כתיבת הודעות ב-HTML
+	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	ההודעות נשלחות כ-HTML גם ללא עיצוב, כך שחתימה ששרת הדואר מוסיף שומרת על העיצוב שלה.

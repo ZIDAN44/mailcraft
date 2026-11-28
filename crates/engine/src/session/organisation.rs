@@ -21,7 +21,7 @@ pub const BY_ORGANISATION: &str = "Set by your organisation";
 
 /// The settings an organisation may set: every one MailCraft has but the person's own state
 /// (what's open, folded, ordered or searched lately, and what names their accounts' folders).
-pub const ORG_SETTINGS: [&str; 89] = [
+pub const ORG_SETTINGS: [&str; 90] = [
     "updates",
     "readingPane",
     "conversations",
@@ -59,6 +59,7 @@ pub const ORG_SETTINGS: [&str; 89] = [
     "dictionary",
     "composeFont",
     "composeSize",
+    "composeHtml",
     "textSize",
     "closeToTray",
     "startInTray",

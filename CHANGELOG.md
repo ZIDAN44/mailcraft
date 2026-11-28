@@ -12,6 +12,10 @@ on GitHub.
 
 *A more polished look: the system's own interface font, and what testers met with 0.42.*
 
+### Added
+
+- **Compose messages in HTML** (**File › Options › Mail**): new messages, replies and forwards go as HTML even with nothing formatted, so a signature your mail server adds (Exchange's, for one) keeps its formatting. Off unless you turn it on; a message set to **Plain text** still goes as text (#305).
+
 ### Changed
 
 - The interface is drawn in the system's own font, with a Semibold for what stands out (an unread message, a heading, a name), as the system's own apps are: Segoe UI Variable on Windows 11 (Segoe UI on Windows 10), the Mac's system font where it was Arial, and Noto Sans with its SemiBold on Linux. Letters are drawn at whole pixels, and a shade fuller in the light theme, so text is crisper. What a message or you make bold stays bold.

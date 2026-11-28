@@ -145,6 +145,13 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             Ok(json!({ "size": s.prefs.compose_size }))
         }).setting("compose_size")
         .params(r#"{"size"?: number (points: 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28 or 36; new messages, replies and forwards are written in it) | null (MailCraft's own, 11)}"#),
+        toggle!(
+            "options.composeHtml",
+            "Compose messages in HTML",
+            "File › Options › Mail",
+            compose_html,
+            r#"{"on"?: bool (new messages, replies and forwards go as HTML with nothing formatted too)}"#
+        ),
         CommandSpec::new("spelling.addWord", "Add to dictionary", "Message editor › Spelling", |s, v| {
             let word = p::req_str(v, "word")?;
             let w = crate::session::dictionary_word(word).ok_or_else(|| CmdError::Params(format!("`{word}` isn't a word")))?;

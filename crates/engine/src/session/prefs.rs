@@ -209,6 +209,11 @@ pub struct Prefs {
     /// the font; `None`: MailCraft's own ([`mime::rich::DEFAULT_SIZE`]).
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "checked_size")]
     pub compose_size: Option<u8>,
+    /// Compose messages in HTML (issue #305), as Outlook's "Compose messages in this format": new
+    /// messages, replies and forwards go as HTML with nothing formatted in them too, so what the
+    /// server adds (Exchange's HTML signature) is added as HTML. Off: they go as text alone
+    /// until something is formatted.
+    pub compose_html: bool,
     /// The interface's text size in percent (the comment on issue #267): everything in the
     /// window drawn larger or smaller, as a browser zooms; 100 is MailCraft's own.
     #[serde(default = "normal_text", skip_serializing_if = "is_normal_text", deserialize_with = "checked_text_size")]
@@ -500,6 +505,7 @@ impl Default for Prefs {
             dictionary: BTreeSet::new(),
             compose_font: None,
             compose_size: None,
+            compose_html: false,
             text_size: NORMAL_TEXT,
             close_to_tray: false,
             start_in_tray: false,

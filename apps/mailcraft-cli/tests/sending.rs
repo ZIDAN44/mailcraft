@@ -1,7 +1,8 @@
 //! Sending. `mailcraft-cli send` sends only from an account that can: with none, or with only an
 //! Outlook data file, it fails and says why (it printed `{"sent": …, "local": true}` for a data
-//! file, and nothing had gone). The font and size for new messages (issues #166 and #267), and a
-//! table pasted in (issue #268), are in what a real server receives: sent through GreenMail on
+//! file, and nothing had gone). The font and size for new messages (issues #166 and #267), a
+//! table pasted in (issue #268), and HTML for a message with nothing formatted when that's chosen
+//! (issue #305), are in what a real server receives: sent through GreenMail on
 //! this computer (never a real account), run by hand:
 //!
 //! ```text
@@ -81,6 +82,40 @@ fn real_new_messages_arrive_in_the_size_chosen() {
     assert!(text.contains("font-family: 'Georgia', Aptos") && text.contains("font-size: 14pt"), "{text}");
     assert!(text.contains("<span style=\"font-size:11pt\">Hello</span>"), "{text}");
     eprintln!("arrived in Georgia, 14 points, \"Hello\" in 11");
+}
+
+/// Compose messages in HTML (issue #305): a message with nothing formatted arrives as HTML with
+/// its text version, as Outlook sends it, so a signature the server adds is added as HTML.
+#[test]
+#[ignore = "needs GreenMail in MAILCRAFT_REAL_GREENMAIL"]
+fn real_a_plain_message_arrives_as_html_when_chosen() {
+    let Ok(v) = std::env::var("MAILCRAFT_REAL_GREENMAIL") else {
+        eprintln!("MAILCRAFT_REAL_GREENMAIL isn't set: skipped");
+        return;
+    };
+    let [imap, smtp] = v.split_whitespace().collect::<Vec<_>>()[..] else { panic!("MAILCRAFT_REAL_GREENMAIL: imap smtp") };
+    let pid = std::process::id();
+    let (me, to) = (format!("riley.{pid}@studio.example"), format!("lee.{pid}@studio.example"));
+    let (mut app, id) = App::at(imap, smtp, &me, &me, "pw", "compose-html");
+    app.s.run("options.composeHtml", &json!({"on": true})).unwrap();
+
+    let subject = format!("Plain words {pid}");
+    app.s.run("mail.new", &json!({"account": id})).unwrap();
+    app.s.run("compose.update", &json!({"to": to, "subject": subject, "body": "Hello Lee,\nNothing formatted here."})).unwrap();
+    app.s.run("compose.send", &json!({})).unwrap();
+    app.pump(60, "sent", |_, e| matches!(e, Event::Sent { .. }));
+
+    let mut lee = Imap::connect(imap, &to, "pw");
+    let end = Instant::now() + Duration::from_secs(30);
+    while !lee.subjects("INBOX").contains(&subject) {
+        assert!(Instant::now() < end, "not delivered");
+        std::thread::sleep(Duration::from_millis(500));
+    }
+    let text = lee.newest_text("INBOX").replace("=\r\n", "").replace("=3D", "=");
+    // The body (its header, multipart/alternative, isn't in it): the text, then the HTML.
+    assert!(text.contains("Content-Type: text/plain") && text.contains("Content-Type: text/html"), "{text}");
+    assert!(text.contains("Nothing formatted here."), "{text}");
+    eprintln!("arrived as HTML with its text version");
 }
 
 /// A table pasted into a message (issue #268), cells copied in Excel, arrives as a table: its

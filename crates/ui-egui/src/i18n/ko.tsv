@@ -2265,3 +2265,5 @@ count	occurrences	회
 	Needs you	확인 필요
 	Recent	최근
 	Nothing's going on in the background	백그라운드에서 진행 중인 작업이 없습니다
+	Compose messages in HTML	HTML 형식으로 메시지 작성
+	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	서식이 없는 메시지도 HTML로 보내므로 메일 서버가 추가하는 서명의 서식이 유지됩니다.

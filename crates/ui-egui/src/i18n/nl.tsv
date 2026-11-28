@@ -2261,3 +2261,5 @@ count	occurrences	keer
 	Needs you	Vraagt om aandacht
 	Recent	Recent
 	Nothing's going on in the background	Er gebeurt niets op de achtergrond
+	Compose messages in HTML	Berichten opstellen in HTML
+	Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.	Berichten gaan ook zonder opmaak als HTML weg, zodat een handtekening die uw mailserver toevoegt zijn opmaak houdt.

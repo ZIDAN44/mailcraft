@@ -112,3 +112,44 @@ fn the_size_for_new_messages_is_kept_and_sent() {
         assert_eq!(serde_json::from_value::<crate::Prefs>(p).unwrap().compose_size, read, "{on_disk}");
     }
 }
+
+/// Compose messages in HTML (issue #305), as Outlook's "Compose messages in this format": a
+/// message with nothing formatted goes as HTML too, so what the server adds to it (Exchange's
+/// HTML signature) is added as HTML. It went as text, and the signature as plain text with it.
+/// Off unless chosen; a message set to plain text stays plain text.
+#[test]
+fn new_messages_can_always_go_as_html() {
+    let mut s = sample_session("compose-html");
+    assert!(!s.prefs.compose_html, "off unless chosen");
+    assert_eq!(s.run("options.composeHtml", &json!({"on": true})).unwrap()["on"], true);
+
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@x.example", "subject": "Plan", "body": "Hello"})).unwrap();
+    let c = s.compose.clone().unwrap();
+    let (text, html, _) = c.bodies();
+    assert!(text.contains("Hello"));
+    assert!(html.as_deref().is_some_and(|h| h.contains("Hello")), "{html:?}");
+    let mut plain = c.clone();
+    plain.plain = true;
+    assert_eq!(plain.bodies().1, None, "plain text stays plain text");
+    s.run("compose.discard", &json!({})).unwrap();
+
+    // A reply and a forward are written so too (with what they quote, they go as HTML anyway).
+    let key = s.list.first().map(|m| m.key.clone()).unwrap();
+    s.run("list.open", &json!({"key": key.to_id()})).unwrap();
+    for answer in ["mail.reply", "mail.forward"] {
+        s.run(answer, &json!({})).unwrap();
+        assert!(s.compose.as_ref().is_some_and(|c| c.html), "{answer}");
+        s.run("compose.discard", &json!({})).unwrap();
+    }
+
+    // Off again: as text, as before.
+    s.run("options.composeHtml", &json!({"on": false})).unwrap();
+    s.run("mail.new", &json!({})).unwrap();
+    s.run("compose.update", &json!({"to": "ann@x.example", "subject": "Plan", "body": "Hello"})).unwrap();
+    assert_eq!(s.compose.clone().unwrap().bodies().1, None);
+    // Kept with the preferences.
+    s.run("options.composeHtml", &json!({"on": true})).unwrap();
+    let saved = serde_json::to_value(&s.prefs).unwrap();
+    assert_eq!(saved["composeHtml"], true);
+}

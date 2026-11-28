@@ -156,6 +156,20 @@ fn writing(s: &Session, t: &Tokens, ui: &mut Ui, acts: &mut Vec<Action>) {
         );
         compose_font(s, t, ui, acts);
         compose_size(s, t, ui, acts);
+        // Issue #305: HTML with nothing formatted too, for a signature the server adds as HTML.
+        switch_row(
+            s,
+            ui,
+            t,
+            false,
+            Switch {
+                label: tl!("Compose messages in HTML"),
+                about: Some(tl!("Messages go as HTML even with nothing formatted, so a signature your mail server adds keeps its formatting.")),
+                on: s.prefs.compose_html,
+                cmd: "options.composeHtml",
+            },
+            acts,
+        );
         // Issue #115: Ctrl+Enter sends at once only when that's chosen.
         setting_by(s, "options.ctrlEnter", ui, t, false, tl!("Ctrl+Enter in a message"), None, |ui| {
             use mailcraft_engine::CtrlEnter;
